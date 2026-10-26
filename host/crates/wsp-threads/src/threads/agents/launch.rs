@@ -10,13 +10,15 @@ use indexmap::{IndexMap, IndexSet};
 use serde_json::Value;
 use wsp_adapters::port::{AttachmentRoad, Env, ServerValues, TurnImage};
 use wsp_catalog::catalog::{catalog_agents, default_agent, mcp_agents};
-use wsp_catalog::mcp_launch::{checkout_args, checkout_of, launch_server_road, turn_server_files, LaunchConfigs, LaunchServerRoad, TurnAgent, TurnFile};
+use wsp_catalog::mcp::McpServer;
+use wsp_catalog::mcp_launch::{
+    checkout_args, checkout_of, launch_server_road, turn_server_files, LaunchConfigs, LaunchServerRoad, TurnAgent, TurnFile,
+};
 use wsp_catalog::mcp_login::{addresses_to_ask, needs_own_credential};
 use wsp_catalog::signin_rows::server_values_of;
 use wsp_core::agent_setup::{key_of, real_folder_here, real_folder_script};
 use wsp_core::harness_catalog::harness_catalog;
 use wsp_core::machine_exec::TurnWaiting;
-use wsp_catalog::mcp::McpServer;
 use wsp_core::types::harness::{HarnessAdapter, HarnessAdapterContext};
 use wsp_core::types::internal::{server_values_cut_line, server_values_left_line, server_values_unread_line};
 use wsp_engine::errors::EngineError;
@@ -31,12 +33,15 @@ use wsp_wire::types::env::HOST_TOKEN_ENV;
 use wsp_wire::types::harness_picks::{efforts_for, every_model, marked_default, model_of};
 use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::types::shell_quote::shell_quote;
-use wsp_wire::types::thread_defaults::{AccessChoice, AgentDefaults, DefaultFrom, Fields, ModelPicker, ProjectOverrides, ResolvedAccess, ResolvedFolder, ResolvedPick, ThreadDefaults};
+use wsp_wire::types::thread_defaults::{
+    AccessChoice, AgentDefaults, DefaultFrom, Fields, ModelPicker, ProjectOverrides, ResolvedAccess, ResolvedFolder, ResolvedPick,
+    ThreadDefaults,
+};
 use wsp_wire::views::harness::{HarnessCatalog, HarnessModel, HarnessOption};
 use wsp_wire::views::preferences::Preferences;
 use wsp_wire::views::workspace::{Caller, WorkspacePhase};
 use wsp_words::agents_report::config_unread_line;
-use wsp_words::attachments::{file_path_in, files_not_landed_line, drop_files_line, image_path_in, land_files_line};
+use wsp_words::attachments::{drop_files_line, file_path_in, files_not_landed_line, image_path_in, land_files_line};
 use wsp_words::exit::{HostError, Kind};
 use wsp_words::project_path::under_project;
 use wsp_words::thread_defaults::{access_mode, config_dir_refusal};
@@ -45,7 +50,7 @@ use wsp_words::workspace_state::sign_in_refusal_line;
 use super::super::threads::Entry;
 use super::{fire, AgentsArea, AgentsCtx, SignsIn, TurnLaunch};
 
-pub use wsp_engine::exec_detached::put::{INLINE_EXEC_MS};
+pub use wsp_engine::exec_detached::put::INLINE_EXEC_MS;
 /// `{ images, dir? }` (agents.ts:448).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LandedImages {
@@ -141,7 +146,8 @@ fn config_dir_launch_refusal(agent: &str, agent_id: &str, folder: &str, why: &st
 
 /// `accessRefusal` (thread-defaults.ts:299) as the one sentence a named mode is refused with.
 fn access_refusal_line(label: &str, catalog: Option<&HarnessCatalog>, word: AccessChoice) -> String {
-    const WORDS: [(AccessChoice, &str); 4] = [(AccessChoice::Ask, "ask"), (AccessChoice::AutoEdit, "auto-edit"), (AccessChoice::Full, "full"), (AccessChoice::Plan, "plan")];
+    const WORDS: [(AccessChoice, &str); 4] =
+        [(AccessChoice::Ask, "ask"), (AccessChoice::AutoEdit, "auto-edit"), (AccessChoice::Full, "full"), (AccessChoice::Plan, "plan")];
     let takes: Vec<&str> = match catalog {
         Some(catalog) => WORDS.iter().filter(|(choice, _)| access_mode(catalog, *choice).is_some()).map(|(_, text)| *text).collect(),
         None => Vec::new(),
@@ -191,7 +197,12 @@ fn resolve_thread_defaults(
     let project_effort = project.and_then(|p| p.effort.clone());
     let project_access = project.and_then(|p| p.access);
     let models = every_model(&catalog);
-    let pick_from = |options: Vec<String>, open: bool, fallback_marked: Option<String>, from_project: Option<String>, from_default: Option<String>| -> Option<ResolvedPick> {
+    let pick_from = |options: Vec<String>,
+                     open: bool,
+                     fallback_marked: Option<String>,
+                     from_project: Option<String>,
+                     from_default: Option<String>|
+     -> Option<ResolvedPick> {
         let applies = |value: &str, for_this_agent: bool| if open { for_this_agent } else { options.iter().any(|o| o == value) };
         if let Some(value) = from_project.filter(|value| project_agent && applies(value, names_this_agent)) {
             return Some(ResolvedPick { value, from: DefaultFrom::Project });
@@ -205,7 +216,13 @@ fn resolve_thread_defaults(
     let model = pick_from(model_options, models.is_empty(), marked_default(&models).map(|m| m.value.clone()), project_model, own_model);
     let efforts = efforts_for(&catalog, model_of(&catalog, model.as_ref().map(|m| m.value.as_str())).as_ref());
     let effort_options: Vec<String> = efforts.iter().map(|e| e.value.clone()).collect();
-    let effort = pick_from(effort_options, catalog.efforts.is_empty(), marked_default(&efforts).map(|e| e.value.clone()), project_effort, own_effort);
+    let effort = pick_from(
+        effort_options,
+        catalog.efforts.is_empty(),
+        marked_default(&efforts).map(|e| e.value.clone()),
+        project_effort,
+        own_effort,
+    );
     let word = |from: DefaultFrom, value: Option<AccessChoice>| -> Option<ResolvedAccess> {
         let value = value?;
         let mode = access_mode(&catalog, value)?.to_string();
@@ -219,7 +236,12 @@ fn resolve_thread_defaults(
 }
 
 /// `markedFor` (thread-defaults.ts:215): the catalog's marks moved onto what a new thread here starts on.
-fn marked_for(catalog: &HarnessCatalog, model: Option<&ResolvedPick>, effort: Option<&ResolvedPick>, access: Option<&ResolvedAccess>) -> HarnessCatalog {
+fn marked_for(
+    catalog: &HarnessCatalog,
+    model: Option<&ResolvedPick>,
+    effort: Option<&ResolvedPick>,
+    access: Option<&ResolvedAccess>,
+) -> HarnessCatalog {
     let moved = |from: &DefaultFrom| !matches!(from, DefaultFrom::Catalog | DefaultFrom::Named);
     let remark_option = |options: &[HarnessOption], value: &str| -> Vec<HarnessOption> {
         options.iter().map(|o| HarnessOption { is_default: (o.value == value).then_some(true), ..o.clone() }).collect()
@@ -261,7 +283,11 @@ fn marked_for(catalog: &HarnessCatalog, model: Option<&ResolvedPick>, effort: Op
 }
 
 /// `openDefaults` (thread-defaults.ts:246): the model and effort an open list carries, which no mark can.
-fn open_defaults(catalog: &HarnessCatalog, model: Option<&ResolvedPick>, effort: Option<&ResolvedPick>) -> (Option<String>, Option<String>) {
+fn open_defaults(
+    catalog: &HarnessCatalog,
+    model: Option<&ResolvedPick>,
+    effort: Option<&ResolvedPick>,
+) -> (Option<String>, Option<String>) {
     let set = |pick: Option<&ResolvedPick>, open: bool| {
         pick.filter(|p| open && matches!(p.from, DefaultFrom::Project | DefaultFrom::Default)).map(|p| p.value.clone())
     };
@@ -350,7 +376,8 @@ impl AgentsArea {
                 Ok(ResolvedFolder { folder: posix_normalize(&folder), home, kept: vec![kept] })
             }
             _ => {
-                let why = if read.stderr.trim().is_empty() { format!("exit {}", read.exit_code.get()) } else { read.stderr.trim().to_string() };
+                let why =
+                    if read.stderr.trim().is_empty() { format!("exit {}", read.exit_code.get()) } else { read.stderr.trim().to_string() };
                 Err(HostError::with_kind(format!("{} did not say where {path} is: {why}", self.ctx.place_name(place)), Kind::Invalid))
             }
         }
@@ -398,7 +425,10 @@ impl AgentsArea {
             }
             let home = match kept.or_else(|| self.ctx.local_home(&agent.id)) {
                 Some(home) => home,
-                None => agent_homes(&self.ctx.process_home(), None).get(&agent.id).cloned().ok_or_else(|| HostError::new(format!("no home for {}", agent.id)))?,
+                None => agent_homes(&self.ctx.process_home(), None)
+                    .get(&agent.id)
+                    .cloned()
+                    .ok_or_else(|| HostError::new(format!("no home for {}", agent.id)))?,
             };
             homes.insert(agent.id.clone(), home);
         }
@@ -447,7 +477,9 @@ impl AgentsArea {
             prefs.project_defaults.get(&project).map(|f| (**f).clone())
         });
         let catalog_of = |id: &str| harness_catalog(id);
-        resolve_thread_defaults(&first, &catalog_of, &runs, None, project.as_ref(), prefs.default_agent.as_deref(), &prefs.agent_defaults).agent.value
+        resolve_thread_defaults(&first, &catalog_of, &runs, None, project.as_ref(), prefs.default_agent.as_deref(), &prefs.agent_defaults)
+            .agent
+            .value
     }
     /// One agent's lists with the person's models in and the marks on what a new thread starts on (agents.ts:421-425).
     pub fn defaults_on(catalog: &HarnessCatalog, prefs: &Preferences, project: Option<&ProjectOverrides>) -> DefaultsOn {
@@ -456,7 +488,15 @@ impl AgentsArea {
         let served = lists.clone();
         let catalog_of = move |_: &str| Some(served.clone());
         let always: &dyn Fn(&str) -> bool = &|_: &str| true;
-        let defaults = resolve_thread_defaults(&harness, &catalog_of, always, Some(&harness), project, prefs.default_agent.as_deref(), &prefs.agent_defaults);
+        let defaults = resolve_thread_defaults(
+            &harness,
+            &catalog_of,
+            always,
+            Some(&harness),
+            project,
+            prefs.default_agent.as_deref(),
+            &prefs.agent_defaults,
+        );
         let (open_model, open_effort) = open_defaults(&lists, defaults.model.as_ref(), defaults.effort.as_ref());
         DefaultsOn {
             catalog: marked_for(&lists, defaults.model.as_ref(), defaults.effort.as_ref(), defaults.access.as_ref()),
@@ -473,12 +513,22 @@ impl AgentsArea {
         Err(HostError::with_kind(access_refusal_line(&label, catalog, word), Kind::Usage))
     }
     /// The turn's images on the road its adapter declared (agents.ts:442-456).
-    pub async fn land_images(&self, entry: &Entry, road: Option<AttachmentRoad>, folder: &str, dir: &str, images: &[Attachment]) -> Result<LandedImages, HostError> {
+    pub async fn land_images(
+        &self,
+        entry: &Entry,
+        road: Option<AttachmentRoad>,
+        folder: &str,
+        dir: &str,
+        images: &[Attachment],
+    ) -> Result<LandedImages, HostError> {
         let Some(road) = road.filter(|_| !images.is_empty()) else {
             return Ok(LandedImages::default());
         };
         if matches!(road, AttachmentRoad::Inline) {
-            let images = images.iter().map(|image| TurnImage { media_type: image.media_type.clone(), bytes: image.bytes.clone(), path: None }).collect();
+            let images = images
+                .iter()
+                .map(|image| TurnImage { media_type: image.media_type.clone(), bytes: image.bytes.clone(), path: None })
+                .collect();
             return Ok(LandedImages { images, dir: None });
         }
         let machine = entry.borrow().machine.clone();
@@ -486,14 +536,24 @@ impl AgentsArea {
         let mut landed = Vec::new();
         for (index, image) in images.iter().enumerate() {
             let path = image_path_in(dir, index as f64, &image.media_type)?;
-            land_bytes(machine.as_ref(), &path, &wsp_store::keys::node_base64(&image.bytes), LandBytesOptions { fetch: None, timeout_ms: None }).await.map_err(engine)?;
+            land_bytes(
+                machine.as_ref(),
+                &path,
+                &wsp_store::keys::node_base64(&image.bytes),
+                LandBytesOptions { fetch: None, timeout_ms: None },
+            )
+            .await
+            .map_err(engine)?;
             landed.push(TurnImage { media_type: image.media_type.clone(), bytes: image.bytes.clone(), path: Some(path) });
         }
         Ok(LandedImages { images: landed, dir: Some(dir.to_string()) })
     }
     /// Readies the send's own folder in one command under the inline exec's limit (agents.ts:442, 464).
     async fn land_folder(&self, machine: &Arc<dyn Machine>, folder: &str, dir: &str) -> Result<(), HostError> {
-        let ready = machine.exec(&land_files_line(folder, dir), ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), idempotency_key: None, stdin: None }).await.map_err(engine)?;
+        let ready = machine
+            .exec(&land_files_line(folder, dir), ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), idempotency_key: None, stdin: None })
+            .await
+            .map_err(engine)?;
         if ready.exit_code.get() != 0 {
             return Err(HostError::new(files_not_landed_line(folder)));
         }
@@ -510,7 +570,14 @@ impl AgentsArea {
         let mut paths = Vec::new();
         for file in files {
             let path = file_path_in(dir, file.name.as_deref(), &mut taken);
-            land_bytes(machine.as_ref(), &path, &wsp_store::keys::node_base64(&file.bytes), LandBytesOptions { fetch: None, timeout_ms: None }).await.map_err(engine)?;
+            land_bytes(
+                machine.as_ref(),
+                &path,
+                &wsp_store::keys::node_base64(&file.bytes),
+                LandBytesOptions { fetch: None, timeout_ms: None },
+            )
+            .await
+            .map_err(engine)?;
             paths.push(path);
         }
         Ok(paths)
@@ -531,7 +598,8 @@ impl AgentsArea {
         let machine = entry.borrow().machine.clone();
         for (folder, ids) in by_folder {
             let line = drop_files_line(&folder, &ids);
-            if let Err(e) = machine.exec(&line, ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), idempotency_key: None, stdin: None }).await {
+            if let Err(e) = machine.exec(&line, ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), idempotency_key: None, stdin: None }).await
+            {
                 wsp_core::console::warn(&format!("attached files of {} not removed from {folder}: {}", ids.join(", "), e));
             }
         }
@@ -543,7 +611,9 @@ impl AgentsArea {
         let command = format!("rm -rf {}", shell_quote(dir));
         fire(
             async move {
-                if let Err(e) = machine.exec(&command, ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), idempotency_key: None, stdin: None }).await {
+                if let Err(e) =
+                    machine.exec(&command, ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), idempotency_key: None, stdin: None }).await
+                {
                     wsp_core::console::warn(&format!("images for a finished turn not removed from {id}: {e}"));
                 }
             }
@@ -604,9 +674,16 @@ impl AgentsArea {
         let store = store_variable.and_then(|variable| env.get(&variable).cloned());
         let machine = entry.borrow().machine.clone();
         let quoted: Vec<String> = checkout_args(folder).iter().map(|arg| shell_quote(arg)).collect();
-        let said = machine.exec(&format!("git {} 2>/dev/null", quoted.join(" ")), ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), idempotency_key: None, stdin: None }).await.ok();
+        let said = machine
+            .exec(
+                &format!("git {} 2>/dev/null", quoted.join(" ")),
+                ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), idempotency_key: None, stdin: None },
+            )
+            .await
+            .ok();
         let checkout = checkout_of(said.as_ref().filter(|s| s.exit_code.get() == 0).map(|s| s.stdout.as_str()), folder);
-        let turn = TurnAgent { id: harness.to_string(), format: mcp.format, files: mcp.files.clone(), project_files: mcp.project_files.clone() };
+        let turn =
+            TurnAgent { id: harness.to_string(), format: mcp.format, files: mcp.files.clone(), project_files: mcp.project_files.clone() };
         let files = turn_server_files(&turn, folder, &home, store.as_deref(), checkout.top.as_deref());
         let top = checkout.top.clone();
         let mut scopes = vec![scope(files.user.clone(), files.base.clone())];
@@ -617,7 +694,10 @@ impl AgentsArea {
             };
             scopes.push(scope(vec![project], base));
         }
-        let res = machine.exec(&read_configs_cmd(&scopes), ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), idempotency_key: None, stdin: None }).await.map_err(engine)?;
+        let res = machine
+            .exec(&read_configs_cmd(&scopes), ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), idempotency_key: None, stdin: None })
+            .await
+            .map_err(engine)?;
         let name = catalog_agents().into_iter().find(|a| a.id == harness).map_or_else(|| harness.to_string(), |a| a.name.clone());
         if res.exit_code.get() == 0 && !read_whole(&res.stdout) {
             let files: Vec<String> = scopes.iter().flat_map(|s| s.files.clone()).collect();
@@ -642,7 +722,10 @@ impl AgentsArea {
                 ScopeRead::Unread { .. } => None,
             })
             .collect();
-        Ok(Some(TurnConfigs { road, configs: LaunchConfigs { user, projects: Some(projects), folder: folder.to_string(), key: Some(checkout.key) } }))
+        Ok(Some(TurnConfigs {
+            road,
+            configs: LaunchConfigs { user, projects: Some(projects), folder: folder.to_string(), key: Some(checkout.key) },
+        }))
     }
     /// The vault's values for the agent's own MCP servers, for a launch that hands them on the kind (agents.ts:561-568).
     pub async fn server_values_for(&self, entry: &Entry, harness: &str, folder: &str) -> Result<Option<ServerValues>, HostError> {
@@ -692,7 +775,10 @@ impl AgentsArea {
                         Ok(read) => read.map(|read| read.road.servers(&read.configs)),
                         Err(e) => {
                             let machine = entry_c.borrow().machine.id().to_string();
-                            wsp_core::console::warn(&format!("{harness_c} on {machine}: its servers that need a sign-in were not read ({}); the launch leaves none out", e.message));
+                            wsp_core::console::warn(&format!(
+                                "{harness_c} on {machine}: its servers that need a sign-in were not read ({}); the launch leaves none out",
+                                e.message
+                            ));
                             None
                         }
                     }
@@ -719,7 +805,13 @@ impl AgentsArea {
         Some(off.into_iter().collect())
     }
     /// What a launch hands the adapter of the agent's own servers, as far as the adapter takes either (agents.ts:615-619).
-    pub async fn launch_servers_for(&self, entry: &Entry, harness: &str, adapter: &dyn HarnessAdapter, folder: &str) -> Result<LaunchServers, HostError> {
+    pub async fn launch_servers_for(
+        &self,
+        entry: &Entry,
+        harness: &str,
+        adapter: &dyn HarnessAdapter,
+        folder: &str,
+    ) -> Result<LaunchServers, HostError> {
         let server_values = if adapter.mcp_servers() { self.server_values_for(entry, harness, folder).await? } else { None };
         let off_servers = if adapter.denies_servers() { self.off_servers_for(entry, harness, folder).await } else { None };
         Ok(LaunchServers { server_values, off_servers })
@@ -741,7 +833,11 @@ impl AgentsArea {
         let place = Self::setup_place(entry);
         let setup = place.as_ref().map(|place| self.ctx.setup_launch(place, &harness));
         let server_values = self.ctx.kind_server_values(entry);
-        let mut env: Env = if brokered.is_none() && server_values == Some(wsp_core::types::internal::ServerValuesRoad::Environment) { ask.servers.clone() } else { Env::new() };
+        let mut env: Env = if brokered.is_none() && server_values == Some(wsp_core::types::internal::ServerValuesRoad::Environment) {
+            ask.servers.clone()
+        } else {
+            Env::new()
+        };
         for (name, value) in self.thread_env(entry, Some(&harness)) {
             env.insert(name, value);
         }

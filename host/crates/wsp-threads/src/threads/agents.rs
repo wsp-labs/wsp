@@ -13,13 +13,13 @@ use wsp_core::clock::Clock;
 use wsp_core::context::Joined;
 use wsp_core::machine_exec::TurnWaiting;
 use wsp_core::types::events::{EventBus, EventListener};
-use wsp_wire::types::agents_report::AgentsTarget;
-use wsp_wire::wire::events_union::EventUnion;
 use wsp_core::types::harness::HarnessAdapterFactory;
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_store::store::Store;
+use wsp_wire::types::agents_report::AgentsTarget;
 use wsp_wire::views::harness::HarnessCatalog;
 use wsp_wire::views::workspace::Caller;
+use wsp_wire::wire::events_union::EventUnion;
 use wsp_wire::wire::machine_link::ExecResult;
 use wsp_words::exit::HostError;
 

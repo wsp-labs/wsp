@@ -15,7 +15,7 @@ use wsp_wire::wire::runtime::SessionStartOutcome;
 use wsp_words::exit::HostError;
 use wsp_words::words::computer::thread_word;
 
-use super::{Opening, Open, SnapshotFrom, TurnSnapshot, TurnStart, TurnsArea};
+use super::{Open, Opening, SnapshotFrom, TurnSnapshot, TurnStart, TurnsArea};
 use crate::threads::agents::launch::AdapterAsk;
 use crate::threads::threads::{Entry, Row};
 
@@ -92,7 +92,11 @@ impl TurnsArea {
         let on_waiting = waiting.clone();
         let built = self.ctx.adapter_for(
             &entry,
-            AdapterAsk { named: Some(view.harness.clone()), waiting: Some(Arc::new(move || on_waiting.get()) as TurnWaiting), ..AdapterAsk::default() },
+            AdapterAsk {
+                named: Some(view.harness.clone()),
+                waiting: Some(Arc::new(move || on_waiting.get()) as TurnWaiting),
+                ..AdapterAsk::default()
+            },
         );
         let adapter = match built {
             Ok(built) => built.adapter,

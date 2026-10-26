@@ -6,18 +6,20 @@ use std::rc::Rc;
 
 use futures::channel::oneshot;
 use futures::future::{FutureExt, LocalBoxFuture, Shared};
+use wsp_core::console;
 use wsp_core::context::Joined;
 use wsp_core::types::events::{event_type, EventListener};
 use wsp_core::types::internal::{HeldStartRecord, HELD_STARTS};
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_wire::types::js_number::JsInt;
 use wsp_wire::views::session::{SessionStatus, SessionView, ThreadCapWait, ThreadCapWaitWhy, ThreadView};
-use wsp_wire::views::session_events_more::{SessionCappedEvent, SessionCappedEventWhy, SessionEvent, SessionUncappedEvent, SessionUncappedEventWhy};
+use wsp_wire::views::session_events_more::{
+    SessionCappedEvent, SessionCappedEventWhy, SessionEvent, SessionUncappedEvent, SessionUncappedEventWhy,
+};
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
 use wsp_wire::wire::events_union::EventUnion;
 use wsp_words::exit::HostError;
 use wsp_words::views::session::fold_threads;
-use wsp_core::console;
 
 use super::ThreadsArea;
 
@@ -96,7 +98,10 @@ impl ThreadsArea {
         let place_id = self.ctx.place_id_of(record);
         let order = self.next_cap_order();
         let lenders = lender.map(|lender| vec![lender.to_string()]).unwrap_or_default();
-        self.cap_held.borrow_mut().insert(turn_id.to_string(), CapHeld { place_id, lenders, order, stopped: None, stops: Vec::new(), waiting: None, through: None });
+        self.cap_held.borrow_mut().insert(
+            turn_id.to_string(),
+            CapHeld { place_id, lenders, order, stopped: None, stops: Vec::new(), waiting: None, through: None },
+        );
     }
 
     /// threads.ts:398: C2.
@@ -123,18 +128,26 @@ impl ThreadsArea {
         let at_once = self.ctx.place_threads_at(&place_id)?;
         let mine = self.cap_held.borrow().get(turn_id).cloned()?;
         let live = self.ctx.live_records();
-        let on_place: HashSet<String> = live.iter().filter(|w| self.ctx.place_id_of(w).as_deref() == Some(place_id.as_str())).map(|w| w.id.clone()).collect();
+        let on_place: HashSet<String> =
+            live.iter().filter(|w| self.ctx.place_id_of(w).as_deref() == Some(place_id.as_str())).map(|w| w.id.clone()).collect();
         let held_turns: HashSet<String> = self.cap_held.borrow().keys().cloned().collect();
         let sessions = self.ctx.sessions();
         let rows: Vec<(String, SessionView)> = {
             let sessions = sessions.borrow();
-            sessions.values().map(|row| {
-                let row = row.borrow();
-                (row.turn_id.clone(), row.view.clone())
-            }).collect()
+            sessions
+                .values()
+                .map(|row| {
+                    let row = row.borrow();
+                    (row.turn_id.clone(), row.view.clone())
+                })
+                .collect()
         };
-        let visible: Vec<SessionView> = rows.iter().filter(|(turn, _)| turn != turn_id && !held_turns.contains(turn)).map(|(_, view)| view.clone()).collect();
-        let here: Vec<ThreadView> = fold_threads(&visible).into_iter().filter(|t| t.status == SessionStatus::Running && on_place.contains(&t.workspace_id)).collect();
+        let visible: Vec<SessionView> =
+            rows.iter().filter(|(turn, _)| turn != turn_id && !held_turns.contains(turn)).map(|(_, view)| view.clone()).collect();
+        let here: Vec<ThreadView> = fold_threads(&visible)
+            .into_iter()
+            .filter(|t| t.status == SessionStatus::Running && on_place.contains(&t.workspace_id))
+            .collect();
         let on_here: HashSet<String> = here.iter().map(|t| t.thread_id.clone().unwrap_or_else(|| t.id.clone())).collect();
         let running_here: HashSet<String> = rows
             .iter()
@@ -142,7 +155,8 @@ impl ThreadsArea {
             .map(|(turn, _)| turn.clone())
             .collect();
         let borrowed: Vec<(String, String)> = self.borrowed.borrow().iter().map(|(turn, lender)| (turn.clone(), lender.clone())).collect();
-        let lent: Vec<(String, String)> = borrowed.into_iter().filter(|(turn, lender)| running_here.contains(turn) && running_here.contains(lender)).collect();
+        let lent: Vec<(String, String)> =
+            borrowed.into_iter().filter(|(turn, lender)| running_here.contains(turn) && running_here.contains(lender)).collect();
         let lender = mine.lenders.iter().find(|l| running_here.contains(*l) && !lent.iter().any(|(_, other)| other == *l)).cloned();
         if let Some(lender) = lender {
             self.borrowed.borrow_mut().insert(turn_id.to_string(), lender);
@@ -151,10 +165,21 @@ impl ThreadsArea {
             }
             return None;
         }
-        let ahead = self.cap_held.borrow().iter().filter(|(id, h)| id.as_str() != turn_id && h.place_id.as_deref() == Some(place_id.as_str()) && h.order < mine.order).count() as i64;
+        let ahead = self
+            .cap_held
+            .borrow()
+            .iter()
+            .filter(|(id, h)| id.as_str() != turn_id && h.place_id.as_deref() == Some(place_id.as_str()) && h.order < mine.order)
+            .count() as i64;
         let running = here.len() as i64;
         if running - lent.len() as i64 + ahead >= at_once {
-            return Some(ThreadCapWait { place_id: place_id.clone(), place: self.ctx.place_name(&place_id), running: JsInt::from(running), at_once: JsInt::from(at_once), why: None });
+            return Some(ThreadCapWait {
+                place_id: place_id.clone(),
+                place: self.ctx.place_name(&place_id),
+                running: JsInt::from(running),
+                at_once: JsInt::from(at_once),
+                why: None,
+            });
         }
         if let Some(waiting) = &mine.waiting {
             let why = if at_once > waiting.wait.at_once.get() { SessionUncappedEventWhy::Raised } else { SessionUncappedEventWhy::Freed };

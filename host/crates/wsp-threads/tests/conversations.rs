@@ -8,22 +8,25 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use serde_json::{json, Value};
+use support::conversations_ctx::{
+    earlier, folder_record, lasting_error, line, set_of, store_error, stored, tool_line, ws_entry, wts, FakeConversationStore,
+    FakeConversationsCtx,
+};
 use support::transcripts_ctx::WithState;
-use support::conversations_ctx::{wts, earlier, folder_record, lasting_error, line, set_of, store_error, stored, tool_line, ws_entry, FakeConversationStore, FakeConversationsCtx};
 use support::{err, json_of, local, row, sessions_of, settle, view};
+use wsp_account::projects::folders::place::FolderPlaced;
 use wsp_adapters::port::{ConversationLine, ConversationOrigin, EarlierAsk, EarlierRead};
 use wsp_core::console;
 use wsp_core::types::api::{ConversationAsk, PlacedStart};
 use wsp_threads::threads::conversations::{earlier_rows, ConversationsArea, KEPT_LIST_MS};
-use wsp_account::projects::folders::place::FolderPlaced;
 use wsp_threads::threads::threads::Entry;
 use wsp_wire::types::conversations::{
-    ConversationsAnswer, ConversationsHeld, ResumeAsk, CONVERSATIONS_AGAIN_FIX, CONVERSATION_GONE_FIX, CONVERSATION_OPEN_KIND, NO_CONVERSATIONS_FIX, RESUME_WHERE_FIX,
-    RESUME_WHERE_LINE,
+    ConversationsAnswer, ConversationsHeld, ResumeAsk, CONVERSATIONS_AGAIN_FIX, CONVERSATION_GONE_FIX, CONVERSATION_OPEN_KIND,
+    NO_CONVERSATIONS_FIX, RESUME_WHERE_FIX, RESUME_WHERE_LINE,
 };
 use wsp_words::conversations::{
-    conversation_gone_line, conversation_is_thread_fix, conversation_is_thread_line, conversation_open_fix, conversation_open_line, conversations_failed_line,
-    conversations_unread_line, conversations_update_fix, earlier_line, no_conversations_line,
+    conversation_gone_line, conversation_is_thread_fix, conversation_is_thread_line, conversation_open_fix, conversation_open_line,
+    conversations_failed_line, conversations_unread_line, conversations_update_fix, earlier_line, no_conversations_line,
 };
 use wsp_words::exit::{refusal, HostError, Kind};
 use wsp_words::words::tools::{tool_activity_line, tool_done_line};
@@ -106,7 +109,11 @@ fn codewords() -> wsp_adapters::port::ConversationEarlier {
     earlier(
         Some("/work/acme/lab-wt"),
         Some("lab codewords"),
-        vec![line("person", "Remember the codeword ALPHA."), tool_line("Bash", r#"{"command":"echo hi-from-tool"}"#), line("agent", "ALPHA")],
+        vec![
+            line("person", "Remember the codeword ALPHA."),
+            tool_line("Bash", r#"{"command":"echo hi-from-tool"}"#),
+            line("agent", "ALPHA"),
+        ],
         3,
     )
 }
@@ -243,7 +250,11 @@ fn a_new_stamp_reads_the_store_again() {
 fn a_failed_stamp_reads_as_empty() {
     local(async {
         let h = host();
-        h.claude.rows(vec![stored(ID, "/repo/p1", 100.0)]).stamp_answers(vec![Err(store_error("stat failed")), Err(store_error("stat failed")), Ok("x".into())]);
+        h.claude.rows(vec![stored(ID, "/repo/p1", 100.0)]).stamp_answers(vec![
+            Err(store_error("stat failed")),
+            Err(store_error("stat failed")),
+            Ok("x".into()),
+        ]);
         h.area.list(None, None, None).await.expect("a list");
         h.area.list(None, None, None).await.expect("a list");
         assert_eq!(h.claude.list_calls(), 1, "a stamp that failed twice reads \"\" twice, which is the same");
@@ -278,7 +289,11 @@ fn a_kept_list_reads_live_ids_again_when_one_of_the_persons_rows_was_open() {
         assert_eq!(marks(&h.area.list(None, None, None).await.expect("a list")), vec![false], "closing the other app clears the mark");
         assert_eq!((h.claude.list_calls(), h.claude.live_calls()), (1, 2), "the list is kept, the open ones asked again");
         assert_eq!(marks(&h.area.list(None, None, None).await.expect("a list")), vec![false]);
-        assert_eq!((h.claude.list_calls(), h.claude.live_calls()), (1, 2), "the fresh answer is the kept one: nothing was open, nothing to ask");
+        assert_eq!(
+            (h.claude.list_calls(), h.claude.live_calls()),
+            (1, 2),
+            "the fresh answer is the kept one: nothing was open, nothing to ask"
+        );
     });
 }
 
@@ -363,7 +378,11 @@ fn folders_of_lists_the_project_its_worktrees_and_held_folders_once() {
             ],
         );
         let folders = h.area.folders_of(&h.entry).await.expect("folders");
-        assert_eq!(folders, vec!["/repo/p1", "/wt/a", "/wt/b", "/wt/c"], "the path, then git's worktrees, then held folders whose worktree is not gone, each once");
+        assert_eq!(
+            folders,
+            vec!["/repo/p1", "/wt/a", "/wt/b", "/wt/c"],
+            "the path, then git's worktrees, then held folders whose worktree is not gone, each once"
+        );
         assert_eq!(h.ctx.called().iter().filter(|c| *c == "worktreesOf /repo/p1").count(), 1);
     });
 }
@@ -421,7 +440,13 @@ fn list_marks_wsp_threads_and_leaves_out_scripts() {
         script.origin = ConversationOrigin::Script;
         h.claude.rows(vec![mine, stored(OTHER, "/repo/p1", 40.0), script]).live_answers(vec![Some(set_of(&["mine-session", OTHER]))]);
         codex.rows(vec![stored("cx-1", "/repo/p1", 60.0)]).lets_go_says(LETS_GO);
-        h.ctx.sessions.with(|s| *s = sessions_of(vec![row(view(json!({ "id": "r1", "threadId": "t1", "claudeSessionId": "mine-session", "startedAt": 5 })), "u1")]).take());
+        h.ctx.sessions.with(|s| {
+            *s = sessions_of(vec![row(
+                view(json!({ "id": "r1", "threadId": "t1", "claudeSessionId": "mine-session", "startedAt": 5 })),
+                "u1",
+            )])
+            .take()
+        });
 
         let answer = h.area.list(None, None, None).await.expect("a list");
         assert_eq!(h.claude.list_cwds(), vec![vec!["/repo/p1".to_string()]]);
@@ -480,7 +505,9 @@ fn list_hides_a_thread_the_caller_does_not_reach() {
     local(async {
         let h = host();
         h.claude.rows(vec![stored(ID, "/repo/p1", 100.0)]).live_answers(vec![Some(set_of(&[ID]))]);
-        h.ctx.sessions.with(|s| *s = sessions_of(vec![row(view(json!({ "id": "r1", "threadId": "t1", "claudeSessionId": ID, "startedAt": 5 })), "u1")]).take());
+        h.ctx.sessions.with(|s| {
+            *s = sessions_of(vec![row(view(json!({ "id": "r1", "threadId": "t1", "claudeSessionId": ID, "startedAt": 5 })), "u1")]).take()
+        });
         let seen = h.area.list(None, None, None).await.expect("a list");
         assert_eq!(facts(&seen), vec![("claude".into(), ID.into(), ConversationOrigin::Wsp, false, Some("t1".to_string()), None)]);
         h.ctx.unreached.borrow_mut().insert("r1".into());
@@ -498,7 +525,13 @@ fn list_hides_a_thread_the_caller_does_not_reach() {
 fn list_sorts_newest_first_then_by_id() {
     local(async {
         let h = host();
-        h.claude.rows(vec![stored("b", "/repo/p1", 10.0), stored("old", "/repo/p1", 5.0), stored("a", "/repo/p1", 10.0), stored("C", "/repo/p1", 10.0), stored("new", "/repo/p1", 20.0)]);
+        h.claude.rows(vec![
+            stored("b", "/repo/p1", 10.0),
+            stored("old", "/repo/p1", 5.0),
+            stored("a", "/repo/p1", 10.0),
+            stored("C", "/repo/p1", 10.0),
+            stored("new", "/repo/p1", 20.0),
+        ]);
         let answer = h.area.list(None, None, None).await.expect("a list");
         assert_eq!(ids(&answer), vec!["new", "a", "b", "C", "old"], "lastAt descending, then id by localeCompare: a, b, C");
     });
@@ -552,7 +585,9 @@ fn a_passing_failure_is_said_and_not_kept() {
         let codex = FakeConversationStore::new();
         h.ctx.install("codex", codex.clone());
         h.claude.rows(vec![stored(ID, "/repo/p1", 100.0)]);
-        codex.list_answers(vec![Err(store_error("the daemon connection closed")), Ok(vec![stored("cx-1", "/repo/p1", 50.0)])]).live_answers(vec![None]);
+        codex
+            .list_answers(vec![Err(store_error("the daemon connection closed")), Ok(vec![stored("cx-1", "/repo/p1", 50.0)])])
+            .live_answers(vec![None]);
         let captured = console::capture();
 
         let first = h.area.list(None, None, None).await.expect("a list");
@@ -566,7 +601,10 @@ fn a_passing_failure_is_said_and_not_kept() {
                 why: Some("the daemon connection closed".into()),
             }]
         );
-        assert_eq!(captured.lines(), vec!["the Codex conversations on ws1-computer were not read: the daemon connection closed".to_string()]);
+        assert_eq!(
+            captured.lines(),
+            vec!["the Codex conversations on ws1-computer were not read: the daemon connection closed".to_string()]
+        );
         assert_eq!(codex.live_calls(), 1, "the open ones are asked beside the list, a failed list or not");
         settle().await;
         assert_eq!(kept_keys(&h.area), vec!["p1\0claude".to_string()], "the failed read dropped itself");
@@ -574,7 +612,11 @@ fn a_passing_failure_is_said_and_not_kept() {
         let second = h.area.list(None, None, None).await.expect("a list");
         assert_eq!(ids(&second), vec![ID.to_string(), "cx-1".to_string()]);
         assert_eq!(second.held, Vec::<ConversationsHeld>::new());
-        assert_eq!((codex.list_calls(), h.claude.list_calls()), (2, 1), "the next visit reads the failed store again and keeps the good one");
+        assert_eq!(
+            (codex.list_calls(), h.claude.list_calls()),
+            (2, 1),
+            "the next visit reads the failed store again and keeps the good one"
+        );
     });
 }
 
@@ -592,7 +634,11 @@ fn a_lasting_store_error_lists_nothing_and_says_nothing() {
         }
         settle().await;
         assert_eq!(h.claude.list_calls(), 1, "kept for the minute");
-        assert_eq!(captured.lines(), vec!["the Claude Code conversations on ws1-computer were not read: codex is not installed".to_string()], "warned once");
+        assert_eq!(
+            captured.lines(),
+            vec!["the Claude Code conversations on ws1-computer were not read: codex is not installed".to_string()],
+            "warned once"
+        );
         assert_eq!(kept_keys(&h.area), vec!["p1\0claude".to_string()]);
     });
 }
@@ -633,7 +679,10 @@ fn earlier_rows_put_the_note_first_at_the_first_lines_time_and_keep_each_lines_t
 fn read_answers_the_newest_rows_with_a_note_for_the_rest() {
     local(async {
         let h = host();
-        h.claude.earlier_answers(vec![Ok(EarlierRead::Read(codewords())), Ok(EarlierRead::Read(earlier(None, None, vec![line("agent", "hi")], 0)))]);
+        h.claude.earlier_answers(vec![
+            Ok(EarlierRead::Read(codewords())),
+            Ok(EarlierRead::Read(earlier(None, None, vec![line("agent", "hi")], 0))),
+        ]);
         let got = h.area.read(ask("claude", ID, false), None).await.expect("a read");
         assert_eq!(got.cwd, Some("/work/acme/lab-wt".to_string()));
         assert_eq!(got.title, "lab codewords");
@@ -646,7 +695,11 @@ fn read_answers_the_newest_rows_with_a_note_for_the_rest() {
                 plain("agent", "ALPHA", None),
             ]
         );
-        assert_eq!(h.claude.earlier_asks(), vec![(ID.to_string(), earlier_ask(&["/repo/p1"], 200, false))], "the newest 200, no probe: read only, nothing takes it as a writer");
+        assert_eq!(
+            h.claude.earlier_asks(),
+            vec![(ID.to_string(), earlier_ask(&["/repo/p1"], 200, false))],
+            "the newest 200, no probe: read only, nothing takes it as a writer"
+        );
 
         let bare = h.area.read(ask("claude", OTHER, false), None).await.expect("a read");
         assert_eq!(bare.cwd, None);
@@ -662,7 +715,11 @@ fn read_of_a_preview_asks_the_tail_and_counts_nothing() {
         let h = host();
         h.claude.earlier_answers(vec![Ok(EarlierRead::Read(codewords()))]);
         let got = h.area.read(ask("claude", ID, true), None).await.expect("a read");
-        assert_eq!(shown(&got.rows).iter().map(|r| r.0.clone()).collect::<Vec<_>>(), vec!["person", "tool", "agent"], "no note on a preview, whatever is left out");
+        assert_eq!(
+            shown(&got.rows).iter().map(|r| r.0.clone()).collect::<Vec<_>>(),
+            vec!["person", "tool", "agent"],
+            "no note on a preview, whatever is left out"
+        );
         assert_eq!(
             h.claude.earlier_asks(),
             vec![(ID.to_string(), EarlierAsk { cwds: vec!["/repo/p1".into()], last: 4, probe: false, tail: Some(262_144), count: false })]
@@ -677,10 +734,16 @@ fn read_of_a_conversation_gone_refuses_not_found() {
         let h = host();
         h.claude.earlier_answers(vec![Ok(EarlierRead::Gone)]);
         let got = refused(h.area.read(ask("claude", OTHER, false), None).await);
-        same_refusal(&got, refusal(&conversation_gone_line("Claude Code", OTHER, "ws1-computer"), CONVERSATION_GONE_FIX, Some(Kind::NotFound)));
+        same_refusal(
+            &got,
+            refusal(&conversation_gone_line("Claude Code", OTHER, "ws1-computer"), CONVERSATION_GONE_FIX, Some(Kind::NotFound)),
+        );
         h.claude.earlier_answers(vec![Ok(EarlierRead::Open)]);
         let got = refused(h.area.read(ask("claude", OTHER, false), None).await);
-        same_refusal(&got, refusal(&conversation_gone_line("Claude Code", OTHER, "ws1-computer"), CONVERSATION_GONE_FIX, Some(Kind::NotFound)));
+        same_refusal(
+            &got,
+            refusal(&conversation_gone_line("Claude Code", OTHER, "ws1-computer"), CONVERSATION_GONE_FIX, Some(Kind::NotFound)),
+        );
 
         let got = refused(h.area.read(ask("codex", OTHER, false), None).await);
         same_refusal(&got, refusal(&no_conversations_line("Codex"), NO_CONVERSATIONS_FIX, Some(Kind::Usage)));
@@ -693,7 +756,14 @@ fn read_says_the_update_a_daemon_too_old_needs_and_lets_any_other_failure_throug
         let h = host();
         h.claude.earlier_answers(vec![Err(store_error("unknown op: transcripts.read"))]);
         let got = refused(h.area.read(ask("claude", ID, false), None).await);
-        same_refusal(&got, refusal(&conversations_unread_line("Claude Code", "ws1-computer"), &conversations_update_fix("ws1-computer"), Some(Kind::Usage)));
+        same_refusal(
+            &got,
+            refusal(
+                &conversations_unread_line("Claude Code", "ws1-computer"),
+                &conversations_update_fix("ws1-computer"),
+                Some(Kind::Usage),
+            ),
+        );
         h.claude.earlier_answers(vec![Err(store_error("the daemon connection closed"))]);
         let got = refused(h.area.read(ask("claude", ID, false), None).await);
         assert_eq!((got.message.as_str(), got.fix.clone(), got.kind.clone()), ("the daemon connection closed", None, None));
@@ -719,7 +789,9 @@ fn opening_refuses_a_conversation_a_thread_ran() {
         assert_eq!(h.claude.earlier_asks(), vec![], "refused before the store was asked");
 
         h.ctx.transcript_state.with(|t| t.index.clear());
-        h.ctx.sessions.with(|s| *s = sessions_of(vec![row(view(json!({ "id": "r1", "threadId": THREAD, "claudeSessionId": ID })), "u1")]).take());
+        h.ctx
+            .sessions
+            .with(|s| *s = sessions_of(vec![row(view(json!({ "id": "r1", "threadId": THREAD, "claudeSessionId": ID })), "u1")]).take());
         let got = refused(h.area.opening("ws1", Some("claude".into()), resume(ID, false), None).await);
         same_refusal(&got, refusal(&conversation_is_thread_line(ID, THREAD), &conversation_is_thread_fix(THREAD), Some(Kind::Usage)));
     });
@@ -732,7 +804,14 @@ fn opening_refuses_an_open_conversation_with_its_title() {
         let h = host();
         h.claude.earlier_answers(vec![Ok(EarlierRead::Read(codewords()))]).live_answers(vec![Some(set_of(&[ID]))]);
         let got = refused(h.area.opening("ws1", Some("claude".into()), resume(ID, false), None).await);
-        same_refusal(&got, refusal(&conversation_open_line("lab codewords", "ws1-computer"), &conversation_open_fix(None), Some(Kind::parse(CONVERSATION_OPEN_KIND))));
+        same_refusal(
+            &got,
+            refusal(
+                &conversation_open_line("lab codewords", "ws1-computer"),
+                &conversation_open_fix(None),
+                Some(Kind::parse(CONVERSATION_OPEN_KIND)),
+            ),
+        );
         assert_eq!(h.claude.earlier_asks(), vec![(ID.to_string(), earlier_ask(&["/repo/p1"], 200, true))]);
         assert_eq!(h.claude.live_calls(), 1, "a read that found nothing open asks the open ids");
     });
@@ -747,7 +826,14 @@ fn opening_refuses_where_the_agent_itself_refuses_a_second_writer_and_says_when_
         h.ctx.install("codex", codex.clone());
         codex.earlier_on_probe(Ok(EarlierRead::Open)).earlier_answers(vec![Ok(EarlierRead::Read(codewords()))]).lets_go_says(LETS_GO);
         let got = refused(h.area.opening("ws1", Some("codex".into()), resume(ID, false), None).await);
-        same_refusal(&got, refusal(&conversation_open_line("lab codewords", "ws1-computer"), &conversation_open_fix(Some(LETS_GO)), Some(Kind::parse(CONVERSATION_OPEN_KIND))));
+        same_refusal(
+            &got,
+            refusal(
+                &conversation_open_line("lab codewords", "ws1-computer"),
+                &conversation_open_fix(Some(LETS_GO)),
+                Some(Kind::parse(CONVERSATION_OPEN_KIND)),
+            ),
+        );
         assert_eq!(
             codex.earlier_asks(),
             vec![(ID.to_string(), earlier_ask(&["/repo/p1"], 200, true)), (ID.to_string(), earlier_ask(&["/repo/p1"], 0, false))],
@@ -762,7 +848,10 @@ fn an_open_conversation_whose_title_read_finds_nothing_is_named_by_its_id() {
         let h = host();
         h.claude.earlier_on_probe(Ok(EarlierRead::Open)).earlier_answers(vec![Ok(EarlierRead::Gone)]);
         let got = refused(h.area.opening("ws1", Some("claude".into()), resume(ID, false), None).await);
-        same_refusal(&got, refusal(&conversation_open_line(ID, "ws1-computer"), &conversation_open_fix(None), Some(Kind::parse(CONVERSATION_OPEN_KIND))));
+        same_refusal(
+            &got,
+            refusal(&conversation_open_line(ID, "ws1-computer"), &conversation_open_fix(None), Some(Kind::parse(CONVERSATION_OPEN_KIND))),
+        );
     });
 }
 
@@ -771,7 +860,10 @@ fn an_open_conversation_whose_title_read_finds_nothing_is_named_by_its_id() {
 fn opening_a_copy_reads_without_a_probe_and_is_never_refused_as_open() {
     local(async {
         let h = host();
-        h.claude.earlier_on_probe(Ok(EarlierRead::Open)).earlier_answers(vec![Ok(EarlierRead::Read(codewords()))]).live_answers(vec![Some(set_of(&[ID]))]);
+        h.claude
+            .earlier_on_probe(Ok(EarlierRead::Open))
+            .earlier_answers(vec![Ok(EarlierRead::Read(codewords()))])
+            .live_answers(vec![Some(set_of(&[ID]))]);
         let got = h.area.opening("ws1", Some("claude".into()), resume(ID, true), None).await.expect("an opening");
         assert!(got.copy);
         assert_eq!(h.claude.earlier_asks(), vec![(ID.to_string(), earlier_ask(&["/repo/p1"], 200, false))]);
@@ -786,7 +878,10 @@ fn opening_refuses_a_conversation_gone_and_an_agent_with_no_store() {
         let h = host();
         h.claude.earlier_answers(vec![Ok(EarlierRead::Gone)]);
         let got = refused(h.area.opening("ws1", Some("claude".into()), resume(ID, false), None).await);
-        same_refusal(&got, refusal(&conversation_gone_line("Claude Code", ID, "ws1-computer"), CONVERSATION_GONE_FIX, Some(Kind::NotFound)));
+        same_refusal(
+            &got,
+            refusal(&conversation_gone_line("Claude Code", ID, "ws1-computer"), CONVERSATION_GONE_FIX, Some(Kind::NotFound)),
+        );
         let got = refused(h.area.opening("ws1", Some("codex".into()), resume(ID, false), None).await);
         same_refusal(&got, refusal(&no_conversations_line("Codex"), NO_CONVERSATIONS_FIX, Some(Kind::Usage)));
         h.ctx.install_without_store("codex");
@@ -801,7 +896,14 @@ fn opening_says_the_update_a_daemon_too_old_needs() {
         let h = host();
         h.claude.earlier_answers(vec![Err(store_error("unknown op: transcripts.read"))]);
         let got = refused(h.area.opening("ws1", Some("claude".into()), resume(ID, false), None).await);
-        same_refusal(&got, refusal(&conversations_unread_line("Claude Code", "ws1-computer"), &conversations_update_fix("ws1-computer"), Some(Kind::Usage)));
+        same_refusal(
+            &got,
+            refusal(
+                &conversations_unread_line("Claude Code", "ws1-computer"),
+                &conversations_update_fix("ws1-computer"),
+                Some(Kind::Usage),
+            ),
+        );
     });
 }
 
@@ -814,7 +916,12 @@ fn opening_answers_the_earlier_rows() {
         first.at = Some(1_000.0);
         let mut last = line("agent", "ALPHA");
         last.at = Some(3_000.0);
-        h.claude.earlier_answers(vec![Ok(EarlierRead::Read(earlier(Some("/repo/p1-wt"), Some("lab codewords"), vec![first, last], 3))), Ok(EarlierRead::Read(earlier(Some("/repo/p1-wt"), None, vec![], 0)))]).live_answers(vec![Some(set_of(&[]))]);
+        h.claude
+            .earlier_answers(vec![
+                Ok(EarlierRead::Read(earlier(Some("/repo/p1-wt"), Some("lab codewords"), vec![first, last], 3))),
+                Ok(EarlierRead::Read(earlier(Some("/repo/p1-wt"), None, vec![], 0))),
+            ])
+            .live_answers(vec![Some(set_of(&[]))]);
         let got = h.area.opening("ws1", Some("claude".into()), resume(ID, false), None).await.expect("an opening");
         assert_eq!((got.harness.as_str(), got.id.as_str(), got.copy, got.project.as_str()), ("claude", ID, false, "p1"));
         assert_eq!(got.cwd, Some("/repo/p1-wt".to_string()));
@@ -873,17 +980,40 @@ fn placed_refuses_a_thread_branch_or_cwd_and_places_the_opening() {
         }
         assert_eq!(h.ctx.called(), Vec::<String>::new(), "refused before anything was asked");
 
-        let tree = ws_entry(json!({ "id": "ws2", "project": "p1", "worktree": { "path": "/repo/p1-wt", "branch": "feat/x", "made": true } }));
-        h.ctx.folder_answers.borrow_mut().push((Some("p1".into()), Some("/repo/p1-wt".into()), Ok(FolderPlaced { entry: tree, cwd: Some("/repo/p1-wt".into()), setup: None })));
-        h.claude.earlier_answers(vec![Ok(EarlierRead::Read(earlier(Some("/repo/p1-wt"), Some("lab codewords"), vec![line("agent", "ALPHA")], 0)))]).live_answers(vec![Some(set_of(&[]))]);
-        let at = h.area.placed(PlacedStart { project: Some("p1".into()), harness: Some("claude".into()), ..Default::default() }, resume(ID, false), None).await.expect("placed");
+        let tree =
+            ws_entry(json!({ "id": "ws2", "project": "p1", "worktree": { "path": "/repo/p1-wt", "branch": "feat/x", "made": true } }));
+        h.ctx.folder_answers.borrow_mut().push((
+            Some("p1".into()),
+            Some("/repo/p1-wt".into()),
+            Ok(FolderPlaced { entry: tree, cwd: Some("/repo/p1-wt".into()), setup: None }),
+        ));
+        h.claude
+            .earlier_answers(vec![Ok(EarlierRead::Read(earlier(
+                Some("/repo/p1-wt"),
+                Some("lab codewords"),
+                vec![line("agent", "ALPHA")],
+                0,
+            )))])
+            .live_answers(vec![Some(set_of(&[]))]);
+        let at = h
+            .area
+            .placed(
+                PlacedStart { project: Some("p1".into()), harness: Some("claude".into()), ..Default::default() },
+                resume(ID, false),
+                None,
+            )
+            .await
+            .expect("placed");
         assert_eq!(at.workspace_id, "ws2", "the record of the folder the conversation ran in");
         assert_eq!(at.cwd, Some("/repo/p1-wt".to_string()));
         assert_eq!(at.outside.id, ID);
         assert_eq!(at.outside.harness, "claude");
         assert_eq!(at.outside.cwd, Some("/repo/p1-wt".to_string()));
         assert_eq!(at.outside.project, "p1");
-        assert_eq!(h.ctx.called().iter().filter(|c| c.starts_with("folderFor") || c.starts_with("entryOf")).cloned().collect::<Vec<_>>(), vec!["folderFor p1 ", "entryOf ws1", "folderFor p1 /repo/p1-wt"]);
+        assert_eq!(
+            h.ctx.called().iter().filter(|c| c.starts_with("folderFor") || c.starts_with("entryOf")).cloned().collect::<Vec<_>>(),
+            vec!["folderFor p1 ", "entryOf ws1", "folderFor p1 /repo/p1-wt"]
+        );
     });
 }
 
@@ -893,11 +1023,24 @@ fn placed_takes_the_starts_workspace_as_its_base_and_places_a_conversation_with_
         let h = host();
         let base = ws_entry(json!({ "id": "ws7", "project": "p1" }));
         h.ctx.add_entry(base);
-        h.claude.earlier_answers(vec![Ok(EarlierRead::Read(earlier(None, Some("lab codewords"), vec![], 0)))]).live_answers(vec![Some(set_of(&[]))]);
-        let at = h.area.placed(PlacedStart { workspace_id: Some("ws7".into()), project: Some("p1".into()), ..Default::default() }, resume(ID, false), None).await.expect("placed");
+        h.claude
+            .earlier_answers(vec![Ok(EarlierRead::Read(earlier(None, Some("lab codewords"), vec![], 0)))])
+            .live_answers(vec![Some(set_of(&[]))]);
+        let at = h
+            .area
+            .placed(
+                PlacedStart { workspace_id: Some("ws7".into()), project: Some("p1".into()), ..Default::default() },
+                resume(ID, false),
+                None,
+            )
+            .await
+            .expect("placed");
         assert_eq!(at.workspace_id, "ws1", "folderFor's answer for the opening's project");
         assert_eq!(at.cwd, None);
         assert_eq!(at.outside.cwd, None);
-        assert_eq!(h.ctx.called().iter().filter(|c| c.starts_with("folderFor") || c.starts_with("entryOf")).cloned().collect::<Vec<_>>(), vec!["entryOf ws7", "folderFor p1 "]);
+        assert_eq!(
+            h.ctx.called().iter().filter(|c| c.starts_with("folderFor") || c.starts_with("entryOf")).cloned().collect::<Vec<_>>(),
+            vec!["entryOf ws7", "folderFor p1 "]
+        );
     });
 }

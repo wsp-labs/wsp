@@ -14,16 +14,19 @@ use std::rc::Rc;
 use support::*;
 use wsp_account::account::core_types::AccountError;
 use wsp_core::types::internal::DaemonRefusal;
-use wsp_wire::views::activity::{
-    box_behind_activity_line, box_end_line, end_reused_line, not_joined_activity_fix, not_read_line, not_started_line, not_threads_line, LeftThread,
-    BOX_BEHIND_ACTIVITY_FIX, BOX_END_FIX, CLOUD_ACTIVITY_FIX, END_AGAIN_FIX, END_GRACE_MS, NOT_READ_FIX, NOT_STARTED_FIX, NOT_THREADS_FIX,
-};
 use wsp_wire::views::activity::ActivityScope;
+use wsp_wire::views::activity::{
+    box_behind_activity_line, box_end_line, end_reused_line, not_joined_activity_fix, not_read_line, not_started_line, not_threads_line,
+    LeftThread, BOX_BEHIND_ACTIVITY_FIX, BOX_END_FIX, CLOUD_ACTIVITY_FIX, END_AGAIN_FIX, END_GRACE_MS, NOT_READ_FIX, NOT_STARTED_FIX,
+    NOT_THREADS_FIX,
+};
 use wsp_wire::wire::machine_link::no_such_place_refusal;
 use wsp_words::daemon_contract::unknown_op_line;
 use wsp_words::exit::{not_found_refusal, usage_refusal};
 use wsp_words::thread_cgroup::thread_cgroup;
-use wsp_words::views::activity::{agent_end_fix, agent_end_line, cloud_activity_line, not_joined_activity_line, processes_left_refusal, LeftVerb};
+use wsp_words::views::activity::{
+    agent_end_fix, agent_end_line, cloud_activity_line, not_joined_activity_line, processes_left_refusal, LeftVerb,
+};
 use wsp_words::words::computer::{thread_word, THIS_COMPUTER};
 
 const T1: &str = "3f2a9c10-1111-4111-8111-111111111111";
@@ -136,7 +139,8 @@ impl Daemon {
     }
 
     fn set_ports(&self, ports: &[(u32, u32)]) {
-        *self.ports.borrow_mut() = Value::Array(ports.iter().map(|(port, pid)| json!({ "port": port, "pid": pid, "uid": 0, "loopback": false })).collect());
+        *self.ports.borrow_mut() =
+            Value::Array(ports.iter().map(|(port, pid)| json!({ "port": port, "pid": pid, "uid": 0, "loopback": false })).collect());
     }
 
     fn open(self: &Rc<Self>, sink: DaemonEventListener, guarded: bool) -> Rc<dyn DaemonAsk> {
@@ -181,7 +185,11 @@ impl Daemon {
         self.answer(&frame, None)
     }
 
-    fn answer(self: &Rc<Self>, frame: &Value, sink: Option<&DaemonEventListener>) -> LocalBoxFuture<'static, Result<Map<String, Value>, AccountError>> {
+    fn answer(
+        self: &Rc<Self>,
+        frame: &Value,
+        sink: Option<&DaemonEventListener>,
+    ) -> LocalBoxFuture<'static, Result<Map<String, Value>, AccountError>> {
         let op = frame["op"].as_str().unwrap_or("").to_string();
         let result: Result<Map<String, Value>, AccountError> = match op.as_str() {
             "ports.watch" => match self.ports_error.borrow().clone() {
@@ -276,7 +284,8 @@ impl Daemon {
             self.signals.borrow_mut().push((*t, signal.clone()));
         }
         let stubborn = self.stubborn.borrow().clone();
-        let forced: Vec<u32> = if modes && signal == "TERM" { taken.iter().copied().filter(|t| stubborn.contains(t)).collect() } else { Vec::new() };
+        let forced: Vec<u32> =
+            if modes && signal == "TERM" { taken.iter().copied().filter(|t| stubborn.contains(t)).collect() } else { Vec::new() };
         for t in &forced {
             self.signals.borrow_mut().push((*t, "KILL".into()));
         }
@@ -321,29 +330,61 @@ fn main_table(thread: &str) -> Vec<Value> {
     let owner = owned("fork", thread);
     vec![
         daemon_proc(),
-        proc_row(4100, json!({ "comm": "2.1.296", "cmdline": "claude -p --input-format stream-json", "rss": 300_000_000, "cpu": 3, "kind": "agent", "owner": owner, "startedAt": STARTED })),
-        proc_row(4150, json!({ "ppid": 4100, "cmdline": "node wsp mcp --scoped", "rss": 70_000_000, "owner": owner, "startedAt": STARTED + 500 })),
-        proc_row(4200, json!({ "cmdline": "node /lab/node_modules/.bin/vite", "rss": 80_000_000, "cpu": 10, "kind": "dev", "owner": owner, "startedAt": STARTED + 1_000, "id": VITE_ID })),
-        proc_row(4300, json!({ "ppid": 4200, "comm": "esbuild", "cmdline": "/lab/node_modules/esbuild/bin/esbuild --service", "rss": 20_000_000, "owner": owner, "startedAt": STARTED + 2_000, "id": "88001" })),
+        proc_row(
+            4100,
+            json!({ "comm": "2.1.296", "cmdline": "claude -p --input-format stream-json", "rss": 300_000_000, "cpu": 3, "kind": "agent", "owner": owner, "startedAt": STARTED }),
+        ),
+        proc_row(
+            4150,
+            json!({ "ppid": 4100, "cmdline": "node wsp mcp --scoped", "rss": 70_000_000, "owner": owner, "startedAt": STARTED + 500 }),
+        ),
+        proc_row(
+            4200,
+            json!({ "cmdline": "node /lab/node_modules/.bin/vite", "rss": 80_000_000, "cpu": 10, "kind": "dev", "owner": owner, "startedAt": STARTED + 1_000, "id": VITE_ID }),
+        ),
+        proc_row(
+            4300,
+            json!({ "ppid": 4200, "comm": "esbuild", "cmdline": "/lab/node_modules/esbuild/bin/esbuild --service", "rss": 20_000_000, "owner": owner, "startedAt": STARTED + 2_000, "id": "88001" }),
+        ),
         proc_row(5000, json!({ "ppid": 4999, "comm": "zsh", "cmdline": "-zsh", "rss": 4_000_000 })),
     ]
 }
 
 fn vitest_proc(thread: &str) -> Value {
-    proc_row(4400, json!({ "cmdline": "node /lab/node_modules/.bin/vitest", "kind": "test", "owner": owned("fork", thread), "startedAt": STARTED + 3_000, "id": "88002" }))
+    proc_row(
+        4400,
+        json!({ "cmdline": "node /lab/node_modules/.bin/vitest", "kind": "test", "owner": owned("fork", thread), "startedAt": STARTED + 3_000, "id": "88002" }),
+    )
 }
 
 fn shell_procs(thread: &str) -> Vec<Value> {
     let owner = owned("root", thread);
     vec![
-        proc_row(5100, json!({ "comm": "zsh", "cmdline": "-zsh", "pty": "pty_1", "kind": "terminal", "owner": owner, "startedAt": STARTED + 5_000, "id": "88100" })),
-        proc_row(5110, json!({ "ppid": 5100, "cmdline": "node /lab/node_modules/.bin/vite --port 5199", "kind": "terminal", "owner": owner, "startedAt": STARTED + 5_100, "id": "88110" })),
+        proc_row(
+            5100,
+            json!({ "comm": "zsh", "cmdline": "-zsh", "pty": "pty_1", "kind": "terminal", "owner": owner, "startedAt": STARTED + 5_000, "id": "88100" }),
+        ),
+        proc_row(
+            5110,
+            json!({ "ppid": 5100, "cmdline": "node /lab/node_modules/.bin/vite --port 5199", "kind": "terminal", "owner": owner, "startedAt": STARTED + 5_100, "id": "88110" }),
+        ),
     ]
 }
 
 /// One row of an ActivityView.
 #[allow(clippy::too_many_arguments)]
-fn shown(pid: u32, ppid: u32, depth: u32, started: i64, kind: &str, name: &str, command: &str, memory: u64, cpu: u32, ports: &[u32]) -> Value {
+fn shown(
+    pid: u32,
+    ppid: u32,
+    depth: u32,
+    started: i64,
+    kind: &str,
+    name: &str,
+    command: &str,
+    memory: u64,
+    cpu: u32,
+    ports: &[u32],
+) -> Value {
     json!({ "pid": pid, "ppid": ppid, "depth": depth, "startedAt": started, "kind": kind, "name": name, "command": command, "memory": memory, "cpu": cpu, "ports": ports })
 }
 
@@ -451,7 +492,8 @@ fn scope(doc: Value) -> ProcScope {
 fn scoped_by(thread: &str, workspace: &str) -> Caller {
     Caller::Scoped {
         origin: WorkspaceOrigin::Here,
-        by: serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": workspace, "rootThreadId": thread })).expect("a thread scope"),
+        by: serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": workspace, "rootThreadId": thread }))
+            .expect("a thread scope"),
     }
 }
 
@@ -491,7 +533,8 @@ impl Lab {
         );
         let facts: Rc<RefCell<HashMap<String, ThreadFacts>>> = Rc::new(RefCell::new(HashMap::new()));
         let held = facts.clone();
-        host.hooks.set::<dyn Fn(&str) -> Option<ThreadFacts>>("ActivityCtx::thread_facts", Rc::new(move |t: &str| held.borrow().get(t).cloned()));
+        host.hooks
+            .set::<dyn Fn(&str) -> Option<ThreadFacts>>("ActivityCtx::thread_facts", Rc::new(move |t: &str| held.borrow().get(t).cloned()));
         let door = Activity::new(host.clone());
         Lab { host, here, boxd, facts, door }
     }
@@ -501,7 +544,13 @@ impl Lab {
             self.host.add_entry(entry(workspace, workspace_extra));
         }
         let session = format!("s-{thread}");
-        self.host.add_row(&session, row(view(&session, workspace, json!({ "threadId": thread, "startedAt": started, "status": status })), &format!("turn-{thread}")));
+        self.host.add_row(
+            &session,
+            row(
+                view(&session, workspace, json!({ "threadId": thread, "startedAt": started, "status": status })),
+                &format!("turn-{thread}"),
+            ),
+        );
         self.host.add_record(thread, workspace, thread_record(json!({ "harness": "claude" })));
         self.facts.borrow_mut().insert(thread.to_string(), facts_of(thread, workspace, title));
     }
@@ -551,7 +600,10 @@ impl Lab {
     }
 
     fn drives(&self, f: impl Fn(WorkspaceKind, Option<&Caller>) -> bool + 'static) {
-        self.host.hooks.set::<dyn Fn(WorkspaceKind, Option<&Caller>) -> bool>("ActivityCtx::drives", Rc::new(move |k: WorkspaceKind, c: Option<&Caller>| f(k, c)));
+        self.host.hooks.set::<dyn Fn(WorkspaceKind, Option<&Caller>) -> bool>(
+            "ActivityCtx::drives",
+            Rc::new(move |k: WorkspaceKind, c: Option<&Caller>| f(k, c)),
+        );
     }
 
     fn kept(&self, thread: &'static str, pid: u32) {
@@ -575,7 +627,13 @@ impl Lab {
         self.door.end(end_of(pid, started), caller).await
     }
 
-    async fn meet(&self, threads: &[&str], processes: ProcessesAsk, verb: MeetVerb, caller: Option<Caller>) -> Result<Vec<ActivityEnded>, HostError> {
+    async fn meet(
+        &self,
+        threads: &[&str],
+        processes: ProcessesAsk,
+        verb: MeetVerb,
+        caller: Option<Caller>,
+    ) -> Result<Vec<ActivityEnded>, HostError> {
         self.door.meet(&ids(threads), processes, verb, caller).await
     }
 }
@@ -619,7 +677,11 @@ fn lists_a_threads_tree_then_wsps_own_and_leaves_out_what_nobody_started() {
         assert_eq!(lab.here.chans(), vec![chan(false, watch_frames())]);
         assert_eq!(lab.host.hooks.called("local_channel"), vec!["local_channel(false)"]);
         let one = view_of(lab.read(ask_of(Some(T1), None), None).await);
-        assert_eq!(one, view_json(THIS_COMPUTER, T0, vec![main_thread(T1, "start the dev server")], vec![], vec![]), "a thread asked alone has no wsp or unowned rows");
+        assert_eq!(
+            one,
+            view_json(THIS_COMPUTER, T0, vec![main_thread(T1, "start the dev server")], vec![], vec![]),
+            "a thread asked alone has no wsp or unowned rows"
+        );
     });
 }
 
@@ -642,12 +704,12 @@ fn lists_the_newest_thread_first() {
         let lab = Lab::new();
         lab.local_thread(T1, "w1", "one", STARTED, "completed");
         lab.local_thread(T2, "w2", "two", STARTED + 1_000, "completed");
-        lab.here.set_procs(vec![
-            proc_row(4100, json!({ "owner": owned("fork", T1) })),
-            proc_row(4101, json!({ "owner": owned("fork", T2) })),
-        ]);
+        lab.here
+            .set_procs(vec![proc_row(4100, json!({ "owner": owned("fork", T1) })), proc_row(4101, json!({ "owner": owned("fork", T2) }))]);
         let view = view_of(lab.read(ActivityAsk::default(), None).await);
-        let one = |id: &str, title: &str, ws: &str, pid: u32| thread_json(id, title, ws, 1_000_000, 0, vec![shown(pid, 1, 0, STARTED, "other", "node", "node", 1_000_000, 0, &[])]);
+        let one = |id: &str, title: &str, ws: &str, pid: u32| {
+            thread_json(id, title, ws, 1_000_000, 0, vec![shown(pid, 1, 0, STARTED, "other", "node", "node", 1_000_000, 0, &[])])
+        };
         assert_eq!(view["threads"], json!([one(T2, "two", "w2", 4101), one(T1, "one", "w1", 4100)]));
     });
 }
@@ -675,10 +737,19 @@ fn running_threads_come_first_and_equal_starts_keep_their_order() {
 fn a_scope_names_its_workspace_and_a_warm_one_is_left_out() {
     run_local(async {
         let lab = Lab::main();
-        lab.scopes(vec![json!({ "thread": T1, "workspace": "w-from-scope" }), json!({ "thread": "warm-agent-0000", "warm": true, "agents": [4100] })]);
+        lab.scopes(vec![
+            json!({ "thread": T1, "workspace": "w-from-scope" }),
+            json!({ "thread": "warm-agent-0000", "warm": true, "agents": [4100] }),
+        ]);
         let view = view_of(lab.read(ActivityAsk::default(), None).await);
-        assert_eq!(view["threads"], json!([thread_json(T1, "start the dev server", "w-from-scope", 470_000_000, 13, vec![vite(), esbuild(), agent(), tool()])]));
-        assert!(!lab.host.hooks.called("thread_facts").contains(&"thread_facts(warm-agent-0000)".to_string()), "a warm agent no send claimed has no title read");
+        assert_eq!(
+            view["threads"],
+            json!([thread_json(T1, "start the dev server", "w-from-scope", 470_000_000, 13, vec![vite(), esbuild(), agent(), tool()])])
+        );
+        assert!(
+            !lab.host.hooks.called("thread_facts").contains(&"thread_facts(warm-agent-0000)".to_string()),
+            "a warm agent no send claimed has no title read"
+        );
     });
 }
 
@@ -707,7 +778,17 @@ fn a_running_turns_agent_pid_names_its_agent_to_the_read() {
         lab.host.rows.borrow()[&format!("s-{T1}")].borrow_mut().run = Some(run.display().to_string());
         lab.here.set_procs(vec![proc_row(mine, json!({ "comm": "agent-x", "cmdline": "agent-x" }))]);
         let view = view_of(lab.read(ActivityAsk::default(), None).await);
-        assert_eq!(view["threads"], json!([thread_json(T1, "go", "w1", 1_000_000, 0, vec![shown(mine, 1, 0, STARTED, "agent", "agent-x", "agent-x", 1_000_000, 0, &[])])]));
+        assert_eq!(
+            view["threads"],
+            json!([thread_json(
+                T1,
+                "go",
+                "w1",
+                1_000_000,
+                0,
+                vec![shown(mine, 1, 0, STARTED, "agent", "agent-x", "agent-x", 1_000_000, 0, &[])]
+            )])
+        );
     });
 }
 
@@ -761,7 +842,10 @@ fn a_daemon_with_no_list_is_watched_instead() {
         let refusal = lab.meet(&[T1], ProcessesAsk::Ask, MeetVerb::Settle, None).await.expect_err("the settle is refused");
         let left = left_thread(T1, "start the dev server", "w1", 470_000_000, 13, vec![vite(), esbuild()], None);
         assert_eq!(refusal, processes_left_refusal(LeftVerb::Settle, &[left], Some(&IndexSet::new())));
-        assert_eq!(lab.here.chans(), vec![chan(false, vec![json!({ "op": "ports.watch" }), json!({ "op": "proc.list" }), json!({ "op": "proc.watch" })])]);
+        assert_eq!(
+            lab.here.chans(),
+            vec![chan(false, vec![json!({ "op": "ports.watch" }), json!({ "op": "proc.list" }), json!({ "op": "proc.watch" })])]
+        );
     });
 }
 
@@ -872,7 +956,10 @@ fn a_host_with_no_daemon_here_reads_nothing() {
 fn a_read_and_an_end_wait_for_the_host_before_anything_else() {
     run_local(async {
         let lab = Lab::main();
-        lab.host.hooks.set::<dyn Fn() -> LocalBoxFuture<'static, Result<(), HostError>>>("ActivityCtx::ready", Rc::new(|| async { Err(HostError::new("the host is not ready")) }.boxed_local()));
+        lab.host.hooks.set::<dyn Fn() -> LocalBoxFuture<'static, Result<(), HostError>>>(
+            "ActivityCtx::ready",
+            Rc::new(|| async { Err(HostError::new("the host is not ready")) }.boxed_local()),
+        );
         let not_ready = ("the host is not ready".to_string(), None, None);
         assert_eq!(said_of(lab.read(ActivityAsk::default(), None).await), not_ready);
         assert_eq!(said_of(lab.end(4200, STARTED + 1_000, None).await), not_ready);
@@ -896,7 +983,10 @@ fn this_computers_name_in_any_case_is_here() {
         }
         let named = Lab::main();
         named.host.hooks.set::<dyn Fn() -> bool>("ActivityCtx::has_door", Rc::new(|| true));
-        named.host.hooks.set::<dyn Fn(&str) -> Option<String>>("ActivityCtx::place_name", Rc::new(|p: &str| (p == "here").then(|| "Mac mini".to_string())));
+        named.host.hooks.set::<dyn Fn(&str) -> Option<String>>(
+            "ActivityCtx::place_name",
+            Rc::new(|p: &str| (p == "here").then(|| "Mac mini".to_string())),
+        );
         for computer in [None, Some("here"), Some("MAC MINI"), Some("mac mini"), Some("this computer")] {
             let view = view_of(named.read(ask_of(None, computer), None).await);
             assert_eq!(view["computer"], json!("Mac mini"), "{computer:?}");
@@ -911,7 +1001,11 @@ fn a_computer_this_host_does_not_hold_is_refused() {
     run_local(async {
         let lab = Lab::main();
         let said = said_of(lab.read(ask_of(None, Some("nowhere")), None).await);
-        assert_eq!(said, usage_said(&no_such_place_refusal("nowhere", &[]), "Name one wsp computers lists."), "a host with no door holds no rows");
+        assert_eq!(
+            said,
+            usage_said(&no_such_place_refusal("nowhere", &[]), "Name one wsp computers lists."),
+            "a host with no door holds no rows"
+        );
         lab.join_box();
         let said = said_of(lab.read(ask_of(None, Some("nowhere")), None).await);
         assert_eq!(said, usage_said(&no_such_place_refusal("nowhere", &["hetzner".to_string()]), "Name one wsp computers lists."));
@@ -976,19 +1070,27 @@ fn an_end_on_a_box_signals_nothing() {
 fn a_relayed_caller_reads_nothing_outside_a_thread_and_ends_none() {
     run_local(async {
         let lab = Lab::main();
-        lab.here.procs.borrow_mut().push(proc_row(4700, json!({ "cmdline": "node watch.js", "owner": owned("env", "t-gone"), "startedAt": STARTED + 7_000 })));
+        lab.here
+            .procs
+            .borrow_mut()
+            .push(proc_row(4700, json!({ "cmdline": "node watch.js", "owner": owned("env", "t-gone"), "startedAt": STARTED + 7_000 })));
         let unowned = shown(4700, 1, 0, STARTED + 7_000, "other", "node", "node watch.js", 1_000_000, 0, &[]);
         let person = view_of(lab.read(ActivityAsk::default(), None).await);
         assert_eq!(person["unowned"], json!([unowned]));
         lab.drives(|_k: WorkspaceKind, c: Option<&Caller>| !is_relayed(c));
         lab.host.hooks.set::<dyn Fn(&WorkspaceRecord, Option<&Caller>) -> Option<HostError>>(
             "ActivityCtx::refusal_for",
-            Rc::new(|_r: &WorkspaceRecord, c: Option<&Caller>| is_relayed(c).then(|| HostError::with_kind("a relayed road drives no local workspace", Kind::Usage))),
+            Rc::new(|_r: &WorkspaceRecord, c: Option<&Caller>| {
+                is_relayed(c).then(|| HostError::with_kind("a relayed road drives no local workspace", Kind::Usage))
+            }),
         );
         let seen = view_of(lab.read(ActivityAsk::default(), Some(relayed())).await);
         assert_eq!(seen, view_json(THIS_COMPUTER, T0, vec![], vec![], vec![]));
         let said = said_of(lab.end(4700, STARTED + 7_000, Some(relayed())).await);
-        assert_eq!(said, (joined(&not_threads_line(4700), &NOT_THREADS_FIX.to_string()), Some(NOT_THREADS_FIX.to_string()), Some(Kind::Usage)));
+        assert_eq!(
+            said,
+            (joined(&not_threads_line(4700), &NOT_THREADS_FIX.to_string()), Some(NOT_THREADS_FIX.to_string()), Some(Kind::Usage))
+        );
         assert_eq!(lab.here.signals.borrow().clone(), vec![]);
         assert_eq!(lab.here.chans().len(), 3, "two reads and the end's read; no kill channel");
     });
@@ -1031,7 +1133,9 @@ fn what_runs_outside_a_thread_is_asked_of_what_the_caller_drives_on_that_kind() 
 fn a_thread_asked_that_the_caller_does_not_reach_is_not_found() {
     run_local(async {
         let lab = Lab::main();
-        lab.host.hooks.set::<dyn Fn(&str, Option<&Caller>) -> bool>("ActivityCtx::settles_thread", Rc::new(|_t: &str, _c: Option<&Caller>| false));
+        lab.host
+            .hooks
+            .set::<dyn Fn(&str, Option<&Caller>) -> bool>("ActivityCtx::settles_thread", Rc::new(|_t: &str, _c: Option<&Caller>| false));
         let said = said_of(lab.read(ask_of(Some(T1), None), None).await);
         assert_eq!(said, nf(&format!("no thread {}", thread_word(T1))));
         assert_eq!(lab.here.chans(), vec![], "nothing is read for a thread that is not reached");
@@ -1043,7 +1147,10 @@ fn a_thread_asked_that_the_caller_does_not_reach_is_not_found() {
 fn a_workspace_the_rule_refuses_the_caller_makes_its_thread_not_found() {
     run_local(async {
         let lab = Lab::main();
-        lab.host.hooks.set::<dyn Fn(&WorkspaceRecord, Option<&Caller>) -> Option<HostError>>("ActivityCtx::refusal_for", Rc::new(|_r: &WorkspaceRecord, _c: Option<&Caller>| Some(HostError::new("not yours"))));
+        lab.host.hooks.set::<dyn Fn(&WorkspaceRecord, Option<&Caller>) -> Option<HostError>>(
+            "ActivityCtx::refusal_for",
+            Rc::new(|_r: &WorkspaceRecord, _c: Option<&Caller>| Some(HostError::new("not yours"))),
+        );
         let said = said_of(lab.read(ask_of(Some(T1), None), None).await);
         assert_eq!(said, nf(&format!("no thread {}", thread_word(T1))));
     });
@@ -1103,7 +1210,9 @@ fn threads_the_caller_does_not_reach_are_left_out_of_a_read_of_everything() {
         let mut rows = main_table(T1);
         rows.push(proc_row(4600, json!({ "owner": owned("fork", T2), "startedAt": STARTED + 3_000 })));
         lab.here.set_procs(rows);
-        lab.host.hooks.set::<dyn Fn(&str, Option<&Caller>) -> bool>("ActivityCtx::settles_thread", Rc::new(|t: &str, _c: Option<&Caller>| t == T1));
+        lab.host
+            .hooks
+            .set::<dyn Fn(&str, Option<&Caller>) -> bool>("ActivityCtx::settles_thread", Rc::new(|t: &str, _c: Option<&Caller>| t == T1));
         let view = view_of(lab.read(ActivityAsk::default(), None).await);
         assert_eq!(ids_of(&view), vec![T1]);
         assert_eq!(view["wsp"], json!([daemon_row()]));
@@ -1258,7 +1367,10 @@ fn a_box_with_no_link_or_no_channel_is_away() {
         let away = ("hetzner is away".to_string(), None, None);
         assert_eq!(said_of(lab.read(ask_of(None, Some("hetzner")), None).await), away);
         lab.host.hooks.set::<dyn Fn(&str) -> bool>("ActivityCtx::has_link", Rc::new(|_p: &str| true));
-        lab.host.hooks.set::<dyn Fn(&str, DaemonEventListener) -> Option<LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>>>("ActivityCtx::box_channel", Rc::new(|_p: &str, _s: DaemonEventListener| None));
+        lab.host.hooks.set::<dyn Fn(&str, DaemonEventListener) -> Option<LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>>>(
+            "ActivityCtx::box_channel",
+            Rc::new(|_p: &str, _s: DaemonEventListener| None),
+        );
         assert_eq!(said_of(lab.read(ask_of(None, Some("hetzner")), None).await), away);
         assert_eq!(lab.boxd.chans(), vec![]);
     });
@@ -1276,7 +1388,17 @@ fn a_boxs_threads_unnamed_come_newest_first() {
         lab.boxd.set_procs(rows);
         let view = view_of(lab.read(ask_of(None, Some("hetzner")), None).await);
         assert_eq!(ids_of(&view), vec![T2, T1]);
-        assert_eq!(view["threads"][0], thread_json(T2, "second", "w2", 50_000_000, 1, vec![box_shown(7300, 1, 0, "node", "node /root/two/node_modules/.bin/vite", &[])]));
+        assert_eq!(
+            view["threads"][0],
+            thread_json(
+                T2,
+                "second",
+                "w2",
+                50_000_000,
+                1,
+                vec![box_shown(7300, 1, 0, "node", "node /root/two/node_modules/.bin/vite", &[])]
+            )
+        );
     });
 }
 
@@ -1293,7 +1415,13 @@ fn nf(message: &str) -> (String, Option<String>, Option<Kind>) {
 }
 
 fn agent_scope(thread: &str, title: &str) -> ActivityScope {
-    ActivityScope { thread_id: thread.to_string(), title: title.to_string(), workspace_id: String::new(), roots: vec![], ..Default::default() }
+    ActivityScope {
+        thread_id: thread.to_string(),
+        title: title.to_string(),
+        workspace_id: String::new(),
+        roots: vec![],
+        ..Default::default()
+    }
 }
 
 // AC26
@@ -1346,8 +1474,16 @@ fn end_refuses_a_pid_that_names_another_process_now() {
     run_local(async {
         let lab = Lab::main();
         let said = said_of(lab.end(4200, STARTED - 60_000, None).await);
-        let now: wsp_frames::ProcEntry = serde_json::from_value(proc_row(4200, json!({ "comm": "node", "startedAt": STARTED + 1_000 }))).expect("a process row");
-        assert_eq!(said, (joined(&end_reused_line(4200, &now, STARTED - 60_000), &END_AGAIN_FIX.to_string()), Some(END_AGAIN_FIX.to_string()), Some(Kind::NotFound)));
+        let now: wsp_frames::ProcEntry =
+            serde_json::from_value(proc_row(4200, json!({ "comm": "node", "startedAt": STARTED + 1_000 }))).expect("a process row");
+        assert_eq!(
+            said,
+            (
+                joined(&end_reused_line(4200, &now, STARTED - 60_000), &END_AGAIN_FIX.to_string()),
+                Some(END_AGAIN_FIX.to_string()),
+                Some(Kind::NotFound)
+            )
+        );
         assert_eq!(lab.here.signals.borrow().clone(), vec![]);
         assert_eq!(lab.here.chans(), vec![chan(false, watch_frames())]);
     });
@@ -1360,7 +1496,10 @@ fn end_refuses_a_process_wsp_did_not_start() {
         let lab = Lab::main();
         for started in [STARTED, 1] {
             let said = said_of(lab.end(5000, started, None).await);
-            assert_eq!(said, (joined(&not_started_line(5000), &NOT_STARTED_FIX.to_string()), Some(NOT_STARTED_FIX.to_string()), Some(Kind::Usage)));
+            assert_eq!(
+                said,
+                (joined(&not_started_line(5000), &NOT_STARTED_FIX.to_string()), Some(NOT_STARTED_FIX.to_string()), Some(Kind::Usage))
+            );
         }
         assert_eq!(lab.here.signals.borrow().clone(), vec![]);
         assert_eq!(lab.here.chans(), vec![chan(false, watch_frames()), chan(false, watch_frames())]);
@@ -1376,7 +1515,14 @@ fn end_takes_the_process_and_its_tree_in_one_kill() {
         assert_eq!(answer, ended(4200, vec![vite(), esbuild()], &[], &[]));
         assert_eq!(lab.here.chans(), vec![chan(false, watch_frames()), chan(true, vec![kill_frame(4200, STARTED + 1_000, Some(VITE_ID))])]);
         let frame = lab.here.kills.borrow()[0].to_string();
-        assert_eq!(frame, format!(r#"{{"op":"proc.kill","pid":4200,"signal":"TERM","mode":"tree","startedAt":{},"identity":"{VITE_ID}"}}"#, STARTED + 1_000), "in this key order");
+        assert_eq!(
+            frame,
+            format!(
+                r#"{{"op":"proc.kill","pid":4200,"signal":"TERM","mode":"tree","startedAt":{},"identity":"{VITE_ID}"}}"#,
+                STARTED + 1_000
+            ),
+            "in this key order"
+        );
         assert_eq!(lab.here.signals.borrow().clone(), vec![(4200, "TERM".to_string()), (4300, "TERM".to_string())]);
     });
 }
@@ -1386,9 +1532,15 @@ fn end_takes_the_process_and_its_tree_in_one_kill() {
 fn end_sends_no_identity_for_a_process_the_daemon_gave_none() {
     run_local(async {
         let lab = Lab::main();
-        lab.here.procs.borrow_mut().push(proc_row(4600, json!({ "cmdline": "node serve.js", "kind": "dev", "owner": owned("fork", T1), "startedAt": STARTED + 4_000 })));
+        lab.here.procs.borrow_mut().push(proc_row(
+            4600,
+            json!({ "cmdline": "node serve.js", "kind": "dev", "owner": owned("fork", T1), "startedAt": STARTED + 4_000 }),
+        ));
         let answer = ended_of(lab.end(4600, STARTED + 4_000, None).await);
-        assert_eq!(answer, ended(4600, vec![shown(4600, 1, 0, STARTED + 4_000, "dev", "node", "node serve.js", 1_000_000, 0, &[])], &[], &[]));
+        assert_eq!(
+            answer,
+            ended(4600, vec![shown(4600, 1, 0, STARTED + 4_000, "dev", "node", "node serve.js", 1_000_000, 0, &[])], &[], &[])
+        );
         let frame = lab.here.kills.borrow()[0].to_string();
         assert_eq!(frame, format!(r#"{{"op":"proc.kill","pid":4600,"signal":"TERM","mode":"tree","startedAt":{}}}"#, STARTED + 4_000));
     });
@@ -1400,7 +1552,11 @@ fn end_signals_through_the_guard() {
     run_local(async {
         let lab = Lab::main();
         lab.end(4200, STARTED + 1_000, None).await.expect("the end answers");
-        assert_eq!(lab.host.hooks.called("local_channel"), vec!["local_channel(false)", "local_channel(true)"], "the read is plain, the kill goes through the guard");
+        assert_eq!(
+            lab.host.hooks.called("local_channel"),
+            vec!["local_channel(false)", "local_channel(true)"],
+            "the read is plain, the kill goes through the guard"
+        );
         assert_eq!(lab.here.chans().iter().map(|c| c.guarded).collect::<Vec<_>>(), vec![false, true]);
     });
 }
@@ -1414,7 +1570,10 @@ fn end_names_what_the_daemon_forced() {
         let answer = ended_of(lab.end(4200, STARTED + 1_000, None).await);
         assert_eq!(answer, ended(4200, vec![vite(), esbuild()], &[4300], &[]));
         assert_eq!(lab.here.kills.borrow().len(), 1, "the grace and the KILL after it are the daemon's");
-        assert_eq!(lab.here.signals.borrow().clone(), vec![(4200, "TERM".to_string()), (4300, "TERM".to_string()), (4300, "KILL".to_string())]);
+        assert_eq!(
+            lab.here.signals.borrow().clone(),
+            vec![(4200, "TERM".to_string()), (4300, "TERM".to_string()), (4300, "KILL".to_string())]
+        );
     });
 }
 
@@ -1448,7 +1607,11 @@ fn a_refusal_of_the_kill_other_than_not_found_is_the_ends() {
         *lab.here.kill_reply.borrow_mut() = Some(Err(refused(Some("denied"), "operation not permitted")));
         let said = said_of(lab.end(4200, STARTED + 1_000, None).await);
         assert_eq!(said, ("operation not permitted".to_string(), None, None));
-        assert_eq!(lab.here.chans(), vec![chan(false, watch_frames()), chan(true, vec![kill_frame(4200, STARTED + 1_000, Some(VITE_ID))])], "the kill channel is closed after the failure");
+        assert_eq!(
+            lab.here.chans(),
+            vec![chan(false, watch_frames()), chan(true, vec![kill_frame(4200, STARTED + 1_000, Some(VITE_ID))])],
+            "the kill channel is closed after the failure"
+        );
     });
 }
 
@@ -1457,7 +1620,8 @@ fn a_refusal_of_the_kill_other_than_not_found_is_the_ends() {
 fn forced_and_left_are_named_once_and_ended_is_what_was_signalled() {
     run_local(async {
         let lab = Lab::main();
-        *lab.here.kill_reply.borrow_mut() = Some(Ok(reply(json!({ "signalled": [4300, 4200, 4300], "forced": [4300, 4300], "left": [4300, 4300] }))));
+        *lab.here.kill_reply.borrow_mut() =
+            Some(Ok(reply(json!({ "signalled": [4300, 4200, 4300], "forced": [4300, 4300], "left": [4300, 4300] }))));
         let answer = ended_of(lab.end(4200, STARTED + 1_000, None).await);
         assert_eq!(answer, ended(4200, vec![vite(), esbuild()], &[4300], &[4300]), "ended follows the plan's order, each row once");
     });
@@ -1518,7 +1682,10 @@ fn settle_stop_ends_every_tree_in_one_go() {
         assert_eq!(answer, json!([ended(4200, vec![vite(), esbuild()], &[], &[]), ended(4400, vec![vitest()], &[], &[])]));
         assert_eq!(
             lab.here.chans(),
-            vec![chan(false, list_frames()), chan(true, vec![kill_frame(4200, STARTED + 1_000, Some(VITE_ID)), kill_frame(4400, STARTED + 3_000, Some("88002"))])]
+            vec![
+                chan(false, list_frames()),
+                chan(true, vec![kill_frame(4200, STARTED + 1_000, Some(VITE_ID)), kill_frame(4400, STARTED + 3_000, Some("88002"))])
+            ]
         );
         assert_eq!(lab.here.first_answer_saw.get(), Some(2), "both kills were sent before the first was answered");
         assert_eq!(signalled(&lab), vec![4200, 4300, 4400]);
@@ -1590,7 +1757,10 @@ fn a_shell_the_threads_pane_opened_is_asked_about_and_stopped() {
         let answer = all_ended(lab.meet(&[T1], ProcessesAsk::Stop, MeetVerb::Settle, me).await);
         assert_eq!(answer, json!([ended(4200, vec![vite(), esbuild()], &[], &[]), ended(5100, vec![shell(), shell_child()], &[], &[])]));
         assert_eq!(lab.here.chans().len(), 3);
-        assert_eq!(lab.here.chans()[2].frames, vec![kill_frame(4200, STARTED + 1_000, Some(VITE_ID)), kill_frame(5100, STARTED + 5_000, Some("88100"))]);
+        assert_eq!(
+            lab.here.chans()[2].frames,
+            vec![kill_frame(4200, STARTED + 1_000, Some(VITE_ID)), kill_frame(5100, STARTED + 5_000, Some("88100"))]
+        );
         assert_eq!(table_pids(&lab.here), vec![1, 4100, 4150, 5000]);
         assert_eq!(lab.here.direct.borrow().clone(), Vec::<Value>::new(), "a shell here is ended by its tree, no pty.kill");
     });
@@ -1635,7 +1805,11 @@ fn a_thread_beside_it_keeps_its_own_processes() {
         ]);
         lab.here.set_ports(&[(5173, 4200), (5174, 4600)]);
         let refusal = lab.meet(&[T1], ProcessesAsk::Ask, MeetVerb::Settle, None).await.expect_err("the settle is refused");
-        assert_eq!(refusal, refusal_of(LeftVerb::Settle, &[t1_left(vec![vite(), esbuild()], 470_000_000)], &[]), "the refusal carries this thread's tree alone");
+        assert_eq!(
+            refusal,
+            refusal_of(LeftVerb::Settle, &[t1_left(vec![vite(), esbuild()], 470_000_000)], &[]),
+            "the refusal carries this thread's tree alone"
+        );
         let stopped = all_ended(lab.meet(&[T1], ProcessesAsk::Stop, MeetVerb::Settle, None).await);
         assert_eq!(stopped, json!([ended(4200, vec![vite(), esbuild()], &[], &[])]));
         assert_eq!(signalled(&lab), vec![4200, 4300]);
@@ -1651,12 +1825,18 @@ fn a_thread_beside_it_keeps_its_own_processes() {
 fn a_thread_settling_itself_hears_which_processes_only_the_person_ends() {
     run_local(async {
         let lab = Lab::main();
-        lab.here.procs.borrow_mut().push(proc_row(4800, json!({ "comm": "python3", "cmdline": "python3 -m http.server", "owner": owned("env", T1), "startedAt": STARTED + 8_000 })));
+        lab.here.procs.borrow_mut().push(proc_row(
+            4800,
+            json!({ "comm": "python3", "cmdline": "python3 -m http.server", "owner": owned("env", T1), "startedAt": STARTED + 8_000 }),
+        ));
         let me = || Some(scoped_by(T1, "w1"));
         let refusal = lab.meet(&[T1], ProcessesAsk::Ask, MeetVerb::Settle, me()).await.expect_err("the ask is refused");
         assert_eq!(refusal, refusal_of(LeftVerb::Settle, &[t1_left(vec![vite(), esbuild(), python()], 471_000_000)], &[4800]));
         let said = said_of(lab.meet(&[T1], ProcessesAsk::Stop, MeetVerb::Settle, me()).await);
-        assert_eq!(said, (joined(&not_threads_line(4800), &NOT_THREADS_FIX.to_string()), Some(NOT_THREADS_FIX.to_string()), Some(Kind::Usage)));
+        assert_eq!(
+            said,
+            (joined(&not_threads_line(4800), &NOT_THREADS_FIX.to_string()), Some(NOT_THREADS_FIX.to_string()), Some(Kind::Usage))
+        );
         assert_eq!(lab.here.signals.borrow().clone(), vec![]);
         assert_eq!(lab.here.chans(), vec![chan(false, list_frames()), chan(false, list_frames())], "no kill channel before the refusal");
     });
@@ -1682,7 +1862,9 @@ fn nothing_left_answers_nothing_and_signals_nothing() {
 fn a_box_thread_the_caller_does_not_reach_is_not_found() {
     run_local(async {
         let lab = box_lab();
-        lab.host.hooks.set::<dyn Fn(&str, Option<&Caller>) -> bool>("ActivityCtx::settles_thread", Rc::new(|_t: &str, _c: Option<&Caller>| false));
+        lab.host
+            .hooks
+            .set::<dyn Fn(&str, Option<&Caller>) -> bool>("ActivityCtx::settles_thread", Rc::new(|_t: &str, _c: Option<&Caller>| false));
         let said = said_of(lab.meet(&[T1], ProcessesAsk::Ask, MeetVerb::Settle, None).await);
         assert_eq!(said, nf(&format!("no thread {}", thread_word(T1))));
         assert_eq!(lab.boxd.chans(), vec![]);
@@ -1704,9 +1886,21 @@ fn meet_reads_this_computer_once_and_each_box_once_and_names_the_box() {
         ]);
         let refusal = lab.meet(&[T1, T2, T3], ProcessesAsk::Ask, MeetVerb::Settle, None).await.expect_err("the settle is refused");
         let on_box = |id: &str, title: &str, ws: &str, pid: u32, path: &str| {
-            left_thread(id, title, ws, 50_000_000, 1, vec![box_shown(pid, 1, 0, "node", &format!("node /root/{path}/node_modules/.bin/vite"), &[])], Some("hetzner"))
+            left_thread(
+                id,
+                title,
+                ws,
+                50_000_000,
+                1,
+                vec![box_shown(pid, 1, 0, "node", &format!("node /root/{path}/node_modules/.bin/vite"), &[])],
+                Some("hetzner"),
+            )
         };
-        let left = [t1_left(vec![vite(), esbuild()], 470_000_000), on_box(T2, "second", "w2", 7300, "two"), on_box(T3, "third", "w3", 7400, "three")];
+        let left = [
+            t1_left(vec![vite(), esbuild()], 470_000_000),
+            on_box(T2, "second", "w2", 7300, "two"),
+            on_box(T3, "third", "w3", 7400, "three"),
+        ];
         assert_eq!(refusal, refusal_of(LeftVerb::Settle, &left, &[]));
         assert_eq!(lab.here.chans(), vec![chan(false, list_frames())]);
         assert_eq!(lab.boxd.chans(), vec![chan(false, list_frames())]);
@@ -1759,7 +1953,12 @@ fn arm_end_thread(lab: &Lab, on_end: impl Fn() + 'static) {
 }
 
 fn end_calls(lab: &Lab) -> Vec<String> {
-    lab.host.hooks.calls().into_iter().filter(|c| c.starts_with("end_thread") || c.starts_with("with_daemon") || c.starts_with("close_servers")).collect()
+    lab.host
+        .hooks
+        .calls()
+        .into_iter()
+        .filter(|c| c.starts_with("end_thread") || c.starts_with("with_daemon") || c.starts_with("close_servers"))
+        .collect()
 }
 
 fn pty_frames() -> Vec<Value> {
@@ -1772,7 +1971,8 @@ fn a_box_end_kills_each_listed_shell_and_waits_out_the_grace() {
     run_local(async {
         let lab = box_end_lab();
         arm_end_thread(&lab, || {});
-        *lab.boxd.pty_kill.borrow_mut() = Rc::new(|_d: &Daemon, pty: &str| if pty == "pty_1" { Err(refused(None, "no such shell")) } else { Ok(reply(json!({}))) });
+        *lab.boxd.pty_kill.borrow_mut() =
+            Rc::new(|_d: &Daemon, pty: &str| if pty == "pty_1" { Err(refused(None, "no such shell")) } else { Ok(reply(json!({}))) });
         let warned = wsp_core::console::capture();
         let door = lab.door.clone();
         let task = tokio::task::spawn_local(async move { door.meet(&ids(&[T1]), ProcessesAsk::Stop, MeetVerb::Settle, None).await });
@@ -1787,7 +1987,10 @@ fn a_box_end_kills_each_listed_shell_and_waits_out_the_grace() {
         assert_eq!(answer, json!([ended(7100, box_ended_rows(), &[], &[7100, 7300, 7400])]));
         assert_eq!(lab.boxd.direct.borrow().clone(), pty_frames(), "each listed shell, one at a time, never the other cgroup's");
         assert_eq!(warned.lines(), vec![format!("shell pty_1 of thread {} was not ended: no such shell", thread_word(T1))]);
-        assert_eq!(end_calls(&lab), vec![format!("end_thread({T1})"), "with_daemon".to_string(), "with_daemon".to_string(), format!("close_servers({T1})")]);
+        assert_eq!(
+            end_calls(&lab),
+            vec![format!("end_thread({T1})"), "with_daemon".to_string(), "with_daemon".to_string(), format!("close_servers({T1})")]
+        );
         let chans = lab.boxd.chans();
         assert_eq!(chans.len(), 12, "the meet's read, one look after the end, one after each 200 ms");
         assert!(chans.iter().all(|c| *c == chan(false, list_frames())));

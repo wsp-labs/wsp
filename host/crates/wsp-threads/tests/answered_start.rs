@@ -118,15 +118,21 @@ fn refused(message: &str, fix: &str, kind: Kind) -> HostError {
 #[test]
 fn answers_once_with_the_handle_when_the_turn_starts() {
     run_local(async {
-        for (outcome, word) in [(SessionStartOutcome::Started, "started"), (SessionStartOutcome::Steered, "steered"), (SessionStartOutcome::Queued, "queued")] {
+        for (outcome, word) in
+            [(SessionStartOutcome::Started, "started"), (SessionStartOutcome::Steered, "steered"), (SessionStartOutcome::Queued, "queued")]
+        {
             let (answers, answer) = collector();
             let log: Log = Rc::default();
             let got: Rc<RefCell<Vec<bool>>> = Rc::default();
             let (seen, h) = (got.clone(), handle(&log, outcome, None));
-            let done = answered_start(true, move |on_held: Option<OnHeld>| {
-                seen.borrow_mut().push(on_held.is_some());
-                async move { Ok(h) }.boxed_local() as Started
-            }, answer)
+            let done = answered_start(
+                true,
+                move |on_held: Option<OnHeld>| {
+                    seen.borrow_mut().push(on_held.is_some());
+                    async move { Ok(h) }.boxed_local() as Started
+                },
+                answer,
+            )
             .await;
             assert!(done.is_ok(), "{word}");
             assert_eq!(*got.borrow(), vec![true], "{word}: start is called once, with a way to answer a hold");
@@ -143,10 +149,14 @@ fn hands_no_on_held_when_the_caller_did_not_ask() {
         let log: Log = Rc::default();
         let got: Rc<RefCell<Vec<bool>>> = Rc::default();
         let (seen, h) = (got.clone(), handle(&log, SessionStartOutcome::Started, None));
-        answered_start(false, move |on_held: Option<OnHeld>| {
-            seen.borrow_mut().push(on_held.is_some());
-            async move { Ok(h) }.boxed_local() as Started
-        }, answer)
+        answered_start(
+            false,
+            move |on_held: Option<OnHeld>| {
+                seen.borrow_mut().push(on_held.is_some());
+                async move { Ok(h) }.boxed_local() as Started
+            },
+            answer,
+        )
         .await
         .expect("the start answers");
         assert_eq!(*got.borrow(), vec![false]);
@@ -161,16 +171,31 @@ fn carries_the_handles_notice_only_where_it_has_one() {
         let log: Log = Rc::default();
         let (answers, answer) = collector();
         let h = handle(&log, SessionStartOutcome::Queued, Some("it will start when the first turn ends"));
-        answered_start(false, move |_o: Option<OnHeld>| async move { Ok(h) }.boxed_local() as Started, answer).await.expect("the start answers");
-        assert_eq!(*answers.borrow(), vec![json!({ "session": handle_row(), "outcome": "queued", "turnId": "turn-1", "notice": "it will start when the first turn ends" })]);
+        answered_start(false, move |_o: Option<OnHeld>| async move { Ok(h) }.boxed_local() as Started, answer)
+            .await
+            .expect("the start answers");
+        assert_eq!(
+            *answers.borrow(),
+            vec![
+                json!({ "session": handle_row(), "outcome": "queued", "turnId": "turn-1", "notice": "it will start when the first turn ends" })
+            ]
+        );
         let (answers, answer) = collector();
         let h = handle(&log, SessionStartOutcome::Queued, Some(""));
-        answered_start(false, move |_o: Option<OnHeld>| async move { Ok(h) }.boxed_local() as Started, answer).await.expect("the start answers");
+        answered_start(false, move |_o: Option<OnHeld>| async move { Ok(h) }.boxed_local() as Started, answer)
+            .await
+            .expect("the start answers");
         assert_eq!(answers.borrow()[0]["notice"], "", "an empty notice is still a notice");
         let (answers, answer) = collector();
         let h = handle(&log, SessionStartOutcome::Queued, None);
-        answered_start(false, move |_o: Option<OnHeld>| async move { Ok(h) }.boxed_local() as Started, answer).await.expect("the start answers");
-        assert_eq!(answers.borrow()[0].as_object().expect("an object").keys().collect::<Vec<_>>().len(), 3, "session, outcome and turnId, no notice key");
+        answered_start(false, move |_o: Option<OnHeld>| async move { Ok(h) }.boxed_local() as Started, answer)
+            .await
+            .expect("the start answers");
+        assert_eq!(
+            answers.borrow()[0].as_object().expect("an object").keys().collect::<Vec<_>>().len(),
+            3,
+            "session, outcome and turnId, no notice key"
+        );
         assert_eq!(answers.borrow()[0].get("notice"), None);
     });
 }
@@ -189,14 +214,18 @@ fn reads_the_view_after_the_start_resolved() {
             answer(r)
         });
         let h = handle(&log, SessionStartOutcome::Started, None);
-        answered_start(false, move |_o: Option<OnHeld>| {
-            async move {
-                tokio::task::yield_now().await;
-                into.borrow_mut().push(format!("resolved after {} answers", answers_at.borrow().len()));
-                Ok(h)
-            }
-            .boxed_local() as Started
-        }, answer_logged)
+        answered_start(
+            false,
+            move |_o: Option<OnHeld>| {
+                async move {
+                    tokio::task::yield_now().await;
+                    into.borrow_mut().push(format!("resolved after {} answers", answers_at.borrow().len()));
+                    Ok(h)
+                }
+                .boxed_local() as Started
+            },
+            answer_logged,
+        )
         .await
         .expect("the start answers");
         let log = log.borrow().clone();
@@ -217,17 +246,21 @@ fn answers_held_at_once_and_not_again_when_the_turn_starts() {
         let at_hold: Rc<RefCell<Vec<usize>>> = Rc::default();
         let (probe, seen_answers) = (at_hold.clone(), answers.clone());
         let h = handle(&log, SessionStartOutcome::Started, Some("a notice the held answer does not carry"));
-        answered_start(true, move |on_held: Option<OnHeld>| {
-            let on_held = on_held.expect("a caller that asked to hear of a hold is handed the way to say it");
-            async move {
-                on_held(held_start());
-                probe.borrow_mut().push(seen_answers.borrow().len());
-                tokio::task::yield_now().await;
-                probe.borrow_mut().push(seen_answers.borrow().len());
-                Ok(h)
-            }
-            .boxed_local() as Started
-        }, answer)
+        answered_start(
+            true,
+            move |on_held: Option<OnHeld>| {
+                let on_held = on_held.expect("a caller that asked to hear of a hold is handed the way to say it");
+                async move {
+                    on_held(held_start());
+                    probe.borrow_mut().push(seen_answers.borrow().len());
+                    tokio::task::yield_now().await;
+                    probe.borrow_mut().push(seen_answers.borrow().len());
+                    Ok(h)
+                }
+                .boxed_local() as Started
+            },
+            answer,
+        )
         .await
         .expect("a held start is answered");
         assert_eq!(*at_hold.borrow(), vec![1, 1], "the answer is out before the start goes on");
@@ -243,15 +276,19 @@ fn a_second_held_call_answers_a_second_time() {
         let log: Log = Rc::default();
         let (answers, answer) = collector();
         let h = handle(&log, SessionStartOutcome::Started, None);
-        answered_start(true, move |on_held: Option<OnHeld>| {
-            let on_held = on_held.expect("handed");
-            async move {
-                on_held(held_start());
-                on_held(held_start());
-                Ok(h)
-            }
-            .boxed_local() as Started
-        }, answer)
+        answered_start(
+            true,
+            move |on_held: Option<OnHeld>| {
+                let on_held = on_held.expect("handed");
+                async move {
+                    on_held(held_start());
+                    on_held(held_start());
+                    Ok(h)
+                }
+                .boxed_local() as Started
+            },
+            answer,
+        )
         .await
         .expect("answered");
         assert_eq!(*answers.borrow(), vec![held_answer(), held_answer()]);
@@ -266,7 +303,8 @@ fn a_failure_before_any_answer_is_the_callers() {
             let (answers, answer) = collector();
             let failure = refused("no thread thr_nope in this folder", "name a thread of this folder.", Kind::NotFound);
             let sent = failure.clone();
-            let got = answered_start(answer_held, move |_o: Option<OnHeld>| async move { Err(sent) }.boxed_local() as Started, answer).await;
+            let got =
+                answered_start(answer_held, move |_o: Option<OnHeld>| async move { Err(sent) }.boxed_local() as Started, answer).await;
             assert_eq!(got.map_err(|e| said(&e)), Err(said(&failure)), "answer_held={answer_held}");
             assert_eq!(*answers.borrow(), Vec::<Value>::new(), "answer_held={answer_held}");
         }
@@ -279,14 +317,18 @@ fn a_failure_after_a_held_answer_is_swallowed() {
     run_local(async {
         let (answers, answer) = collector();
         let failure = refused("the launch failed", "start it again.", Kind::Usage);
-        let got = answered_start(true, move |on_held: Option<OnHeld>| {
-            let on_held = on_held.expect("handed");
-            async move {
-                on_held(held_start());
-                Err(failure)
-            }
-            .boxed_local() as Started
-        }, answer)
+        let got = answered_start(
+            true,
+            move |on_held: Option<OnHeld>| {
+                let on_held = on_held.expect("handed");
+                async move {
+                    on_held(held_start());
+                    Err(failure)
+                }
+                .boxed_local() as Started
+            },
+            answer,
+        )
         .await;
         assert!(got.is_ok(), "the failure is the turn's end, not this function's: {:?}", got.err().map(|e| e.message));
         assert_eq!(*answers.borrow(), vec![held_answer()]);
@@ -304,7 +346,12 @@ struct Workspaces {
 impl Workspaces {
     fn new() -> Self {
         let unset = || HostError::new("not set by the test");
-        Workspaces { calls: RefCell::default(), asks: RefCell::default(), folder: RefCell::new(Err(unset())), setup: RefCell::new(Err(unset())) }
+        Workspaces {
+            calls: RefCell::default(),
+            asks: RefCell::default(),
+            folder: RefCell::new(Err(unset())),
+            setup: RefCell::new(Err(unset())),
+        }
     }
     fn calls(&self) -> Vec<String> {
         self.calls.borrow().clone()
@@ -347,11 +394,19 @@ fn a_named_workspace_answers_its_own_cwd_and_reads_no_folder() {
     run_local(async {
         let ws = Workspaces::new();
         *ws.setup.borrow_mut() = Ok(Some("npm install".into()));
-        let msg = StartAtMsg { workspace_id: Some("w1".into()), cwd: Some("/root/app/src".into()), project: Some("ignored".into()), branch: Some("ignored".into()), ..Default::default() };
+        let msg = StartAtMsg {
+            workspace_id: Some("w1".into()),
+            cwd: Some("/root/app/src".into()),
+            project: Some("ignored".into()),
+            branch: Some("ignored".into()),
+            ..Default::default()
+        };
         let at = start_at(&ws, msg, by_the_paired_road(), false).await.expect("a named workspace");
         assert_eq!(at, StartedAt { workspace_id: "w1".into(), cwd: Some("/root/app/src".into()), setup: None });
         assert_eq!(ws.calls(), Vec::<String>::new(), "no setup line is taken and no folder is asked");
-        let at = start_at(&ws, StartAtMsg { workspace_id: Some("w1".into()), ..Default::default() }, None, false).await.expect("a named workspace");
+        let at = start_at(&ws, StartAtMsg { workspace_id: Some("w1".into()), ..Default::default() }, None, false)
+            .await
+            .expect("a named workspace");
         assert_eq!(at, StartedAt { workspace_id: "w1".into(), cwd: None, setup: None });
         assert_eq!(ws.calls(), Vec::<String>::new());
     });
@@ -405,7 +460,9 @@ fn fast_false_alone_names_no_picks() {
         let ws = Workspaces::new();
         *ws.folder.borrow_mut() = Ok(found("w9", None, None));
         start_at(&ws, StartAtMsg { fast: Some(false), ..project_msg() }, None, false).await.expect("a folder");
-        start_at(&ws, StartAtMsg { fast: Some(false), harness: Some("codex".into()), ..project_msg() }, None, false).await.expect("a folder");
+        start_at(&ws, StartAtMsg { fast: Some(false), harness: Some("codex".into()), ..project_msg() }, None, false)
+            .await
+            .expect("a folder");
         start_at(&ws, StartAtMsg { fast: Some(true), ..project_msg() }, None, false).await.expect("a folder");
         let picks = |p: StartPicksAsked| FolderForAsk { project: Some("spoo".into()), picks: Some(p), ..Default::default() };
         assert_eq!(
@@ -446,7 +503,16 @@ fn every_pick_named_rides_the_ask() {
             permission_mode: Some("acceptEdits".into()),
             fast: Some(true),
         };
-        assert_eq!(*ws.asks.borrow(), vec![FolderForAsk { project: Some("spoo".into()), branch: Some("feat/side".into()), cwd: Some("/root/spoo/src".into()), picks: Some(picks), opens: true }]);
+        assert_eq!(
+            *ws.asks.borrow(),
+            vec![FolderForAsk {
+                project: Some("spoo".into()),
+                branch: Some("feat/side".into()),
+                cwd: Some("/root/spoo/src".into()),
+                picks: Some(picks),
+                opens: true
+            }]
+        );
     });
 }
 
@@ -457,7 +523,11 @@ fn answers_the_folder_found_with_its_cwd_and_setup() {
         let ws = Workspaces::new();
         *ws.folder.borrow_mut() = Ok(found("w9", Some("/root/spoo-feat"), Some("pnpm install")));
         let at = start_at(&ws, StartAtMsg { cwd: Some("/the/message/cwd".into()), ..project_msg() }, None, true).await.expect("a folder");
-        assert_eq!(at, StartedAt { workspace_id: "w9".into(), cwd: Some("/root/spoo-feat".into()), setup: Some("pnpm install".into()) }, "the cwd is the folder's, not the message's");
+        assert_eq!(
+            at,
+            StartedAt { workspace_id: "w9".into(), cwd: Some("/root/spoo-feat".into()), setup: Some("pnpm install".into()) },
+            "the cwd is the folder's, not the message's"
+        );
         *ws.folder.borrow_mut() = Ok(found("w9", None, None));
         let at = start_at(&ws, project_msg(), None, false).await.expect("a folder");
         assert_eq!(at, StartedAt { workspace_id: "w9".into(), cwd: None, setup: None });

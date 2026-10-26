@@ -16,21 +16,25 @@ use wsp_core::types::internal::TreeTalk;
 use wsp_core::types::wiring::{SessionHandle, WorkspaceRecord};
 use wsp_machines::machines::boot::entries::RowAt;
 use wsp_wire::types::attachments::AttachmentRecord;
-use wsp_wire::types::env::{THREAD_ENV, TURN_TOKEN_ENV};
 use wsp_wire::types::conversations::{RESUME_A_THREAD_FIX, RESUME_A_THREAD_LINE};
+use wsp_wire::types::env::{THREAD_ENV, TURN_TOKEN_ENV};
 use wsp_wire::types::wsp_tools::MCP_SERVER_NAME;
 use wsp_wire::views::harness::{mcp_servers_blocked, McpServerSpec};
-use wsp_wire::views::session_events::NOTIFY_ME;
 use wsp_wire::views::preferences::Preferences;
+use wsp_wire::views::session_events::NOTIFY_ME;
 use wsp_wire::views::workspace::{road_of, scope_of, Caller, WorkspacePhase};
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
 use wsp_words::attachments::{attachment_record, files_blocked};
 use wsp_words::exit::{refusal, HostError, Kind};
-use wsp_words::projects::runs_in_folder;
 use wsp_words::place_state::deleted_before_start_line;
+use wsp_words::projects::runs_in_folder;
 use wsp_words::sub_thread::{sub_machine_taken_refusal, sub_opening};
-use wsp_words::words::computer::{send_files_across_line, thread_word, wait_across_line, RESTART_OPENS_FIX, RESTART_OPENS_LINE, SEND_FILES_ACROSS_FIX, WAIT_ACROSS_FIX};
-use wsp_words::words::thread::{fork_refused_line, forks_not_line, thread_runs_on_line, ASIDE_NO_SESSION_LINE, EMPTY_TITLE_LINE, FORKS_NOT_FIX, FORK_REFUSED_FIX};
+use wsp_words::words::computer::{
+    send_files_across_line, thread_word, wait_across_line, RESTART_OPENS_FIX, RESTART_OPENS_LINE, SEND_FILES_ACROSS_FIX, WAIT_ACROSS_FIX,
+};
+use wsp_words::words::thread::{
+    fork_refused_line, forks_not_line, thread_runs_on_line, ASIDE_NO_SESSION_LINE, EMPTY_TITLE_LINE, FORKS_NOT_FIX, FORK_REFUSED_FIX,
+};
 use wsp_words::words::turn::title_line;
 use wsp_words::workspace_state::{send_refusal, workspace_state, SendRefusalKind, WorkspaceStateInput};
 
@@ -140,7 +144,12 @@ fn agent_off_line(agent: &str, computer: &str) -> String {
 
 impl SessionsArea {
     /// sessions.ts:1489, the wrapper over the whole start. Rule S26; the rest is `prepare` then `launch_prepared`.
-    pub async fn start_send(&self, workspace_id: &str, opts: StartOptions, origin: Option<Caller>) -> Result<Rc<dyn SessionHandle>, HostError> {
+    pub async fn start_send(
+        &self,
+        workspace_id: &str,
+        opts: StartOptions,
+        origin: Option<Caller>,
+    ) -> Result<Rc<dyn SessionHandle>, HostError> {
         let claimed = std::cell::RefCell::new(None);
         let outcome = match self.prepare(workspace_id, opts, origin, &claimed).await {
             Ok(Checked::Answered(handle)) => Ok(handle),
@@ -160,7 +169,13 @@ impl SessionsArea {
     }
 
     /// sessions.ts:255-475. `claimed` takes the warm agent's thread where the start claimed one. Rules S1-S25.
-    pub async fn prepare(&self, workspace_id: &str, opts: StartOptions, origin: Option<Caller>, claimed: &std::cell::RefCell<Option<String>>) -> Result<Checked, HostError> {
+    pub async fn prepare(
+        &self,
+        workspace_id: &str,
+        opts: StartOptions,
+        origin: Option<Caller>,
+        claimed: &std::cell::RefCell<Option<String>>,
+    ) -> Result<Checked, HostError> {
         let ctx = self.ctx.clone();
         ctx.ready().await?;
         let prefs = match ctx.preferences_held() {
@@ -220,7 +235,8 @@ impl SessionsArea {
         if let Some(warm) = &warmed {
             *claimed.borrow_mut() = Some(warm.clone());
         }
-        let thread_id = match opened.thread.clone().or_else(|| opened.r#as.as_ref().map(|a| a.thread_id.clone())).or_else(|| warmed.clone()) {
+        let thread_id = match opened.thread.clone().or_else(|| opened.r#as.as_ref().map(|a| a.thread_id.clone())).or_else(|| warmed.clone())
+        {
             Some(thread) => thread,
             None => {
                 let opens_thread = ctx.live_entry(workspace_id).and_then(|live| live.borrow().opens_thread.clone());
@@ -260,7 +276,9 @@ impl SessionsArea {
             let at = RowAt { thread_id: Some(thread_id.clone()), workspace_id: workspace_id.to_string() };
             match ctx.entry_of_row(&at, origin.as_ref(), Some(TreeTalk::Send), false).await? {
                 Some(entry) => entry,
-                None => return Err(HostError::new(format!("no thread {} in this folder", opened.thread.as_deref().unwrap_or("undefined")))),
+                None => {
+                    return Err(HostError::new(format!("no thread {} in this folder", opened.thread.as_deref().unwrap_or("undefined"))))
+                }
             }
         };
         let replaces = opened.replaces.clone();
@@ -467,7 +485,8 @@ impl SessionsArea {
             wsp_adapters::port::AttachmentRoad::Inline => wsp_words::attachments::AttachmentRoad::Inline,
             wsp_adapters::port::AttachmentRoad::File => wsp_words::attachments::AttachmentRoad::File,
         });
-        let blocked = files_blocked(&records, road.as_ref(), &harness).or_else(|| mcp_servers_blocked(opened.mcp_servers.as_ref(), adapter.mcp_servers(), &harness));
+        let blocked = files_blocked(&records, road.as_ref(), &harness)
+            .or_else(|| mcp_servers_blocked(opened.mcp_servers.as_ref(), adapter.mcp_servers(), &harness));
         if let Some(blocked) = blocked {
             drop_scope(&ctx, launch.scoped_device_id.as_deref(), &thread_id);
             return Err(HostError::new(blocked));

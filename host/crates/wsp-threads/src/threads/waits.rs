@@ -170,7 +170,11 @@ impl WaitsArea {
         let index = self.state.borrow().unsaid.get(turn_id).and_then(|notes| notes.iter().position(|n| Rc::ptr_eq(n, note)));
         let (running, workspace_id, session_id) = {
             let r = row.borrow();
-            (r.view.status == SessionStatus::Running, r.view.workspace_id.clone(), r.view.claude_session_id.clone().unwrap_or_else(|| turn_id.to_string()))
+            (
+                r.view.status == SessionStatus::Running,
+                r.view.workspace_id.clone(),
+                r.view.claude_session_id.clone().unwrap_or_else(|| turn_id.to_string()),
+            )
         };
         if !self.drop_note(turn_id, index) || !running || self.ctx.closing() {
             return;

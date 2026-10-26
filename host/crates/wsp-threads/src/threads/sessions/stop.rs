@@ -138,7 +138,13 @@ impl SessionsArea {
         self.stops.borrow_mut().ending.insert(thread_id.to_string(), gate.clone());
         if let Some(box_name) = box_name {
             self.stops.borrow_mut().waits_for.insert(thread_id.to_string(), box_name.to_string());
-            let wakes: Vec<Rc<dyn Fn()>> = self.stops.borrow().behind_turn.get(thread_id).map(|sends| sends.iter().map(|(_, wake)| wake.clone()).collect()).unwrap_or_default();
+            let wakes: Vec<Rc<dyn Fn()>> = self
+                .stops
+                .borrow()
+                .behind_turn
+                .get(thread_id)
+                .map(|sends| sends.iter().map(|(_, wake)| wake.clone()).collect())
+                .unwrap_or_default();
             for wake in wakes {
                 wake();
             }
@@ -158,7 +164,8 @@ impl SessionsArea {
             return true;
         }
         let (tx, rx) = oneshot::channel::<bool>();
-        let reach = Rc::new(Reach { done: Cell::new(false), answer: RefCell::new(Some(tx)), quiet: RefCell::new(None), off: RefCell::new(None) });
+        let reach =
+            Rc::new(Reach { done: Cell::new(false), answer: RefCell::new(Some(tx)), quiet: RefCell::new(None), off: RefCell::new(None) });
         let shown = reach.clone();
         let quiet = self.ctx.clock().schedule(Box::new(move || shown.settle(true)), STOP_REACH_MS);
         *reach.quiet.borrow_mut() = Some(quiet);
@@ -197,7 +204,13 @@ impl SessionsArea {
     }
 
     /// sessions.ts:102. `marked` lets a held turn's next look go on. Rules K3-K9.
-    pub async fn stop_turn(&self, marked: Rc<dyn Fn()>, row_id: &str, origin: Option<&Caller>, task: Option<String>) -> Result<SessionInterruptResult, HostError> {
+    pub async fn stop_turn(
+        &self,
+        marked: Rc<dyn Fn()>,
+        row_id: &str,
+        origin: Option<&Caller>,
+        task: Option<String>,
+    ) -> Result<SessionInterruptResult, HostError> {
         self.ctx.ready().await?;
         let sessions = self.ctx.sessions();
         let found = find_row(&sessions, row_id);
@@ -239,8 +252,12 @@ impl SessionsArea {
                 return Ok(reply(SessionInterruptOutcome::Unsupported, Vec::new(), Some(task_stop_unsupported_line(&agent)), None));
             };
             return Ok(match stopped.await? {
-                TaskStop::Refused { error } => reply(SessionInterruptOutcome::Refused, Vec::new(), Some(task_stop_refused_line(&agent, &error)), None),
-                TaskStop::Unsupported => reply(SessionInterruptOutcome::Unsupported, Vec::new(), Some(task_stop_unsupported_line(&agent)), None),
+                TaskStop::Refused { error } => {
+                    reply(SessionInterruptOutcome::Refused, Vec::new(), Some(task_stop_refused_line(&agent, &error)), None)
+                }
+                TaskStop::Unsupported => {
+                    reply(SessionInterruptOutcome::Unsupported, Vec::new(), Some(task_stop_unsupported_line(&agent)), None)
+                }
                 TaskStop::Accepted => reply(SessionInterruptOutcome::Accepted, Vec::new(), None, None),
                 TaskStop::NotRunning => reply(SessionInterruptOutcome::NotRunning, Vec::new(), None, None),
             });
@@ -408,7 +425,12 @@ impl SessionsArea {
     }
 
     /// sessions.ts:977. Rules K17, K18.
-    pub async fn interrupt_row(&self, row_id: &str, origin: Option<Caller>, task: Option<String>) -> Result<SessionInterruptResult, HostError> {
+    pub async fn interrupt_row(
+        &self,
+        row_id: &str,
+        origin: Option<Caller>,
+        task: Option<String>,
+    ) -> Result<SessionInterruptResult, HostError> {
         let asking: Rc<dyn Fn()> = if task.is_none() { self.ctx.cap_stopping(row_id) } else { Rc::new(|| {}) };
         let sessions = self.ctx.sessions();
         let thread = find_row(&sessions, row_id)

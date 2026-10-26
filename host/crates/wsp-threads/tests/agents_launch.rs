@@ -15,10 +15,10 @@ use wsp_adapters::port::{AgentLaunch, AttachmentRoad, Env};
 use wsp_catalog::mcp_launch::LaunchServerRoad;
 use wsp_core::console;
 use wsp_core::types::harness::{Brokered, BrokeredKind};
-use wsp_frames::WorkspaceKind;
-use wsp_threads::threads::agents::launch::{AdapterAsk, INLINE_EXEC_MS};
 use wsp_core::types::internal::ServerValuesRoad;
+use wsp_frames::WorkspaceKind;
 use wsp_machines::machines::kinds::BrokeredLaunch;
+use wsp_threads::threads::agents::launch::{AdapterAsk, INLINE_EXEC_MS};
 use wsp_threads::threads::agents::{AgentsArea, SetupLaunch, TurnLaunch};
 use wsp_threads::threads::threads::Entry;
 use wsp_wire::types::attachments::Attachment;
@@ -318,19 +318,32 @@ fn setup_refusal_remembers_and_says_when_it_moved() {
         ctx.place_answers("srv", "pwd", 0, "/home/maya\n/home/maya\n", "");
         assert_eq!(
             area.setup_refusal(&e, None).await.expect("read"),
-            Some(launch_refusal("Claude Code", "claude", "/home/maya/claude-wsp", "Claude Code's config folder cannot be the home folder itself; name a folder under it"))
+            Some(launch_refusal(
+                "Claude Code",
+                "claude",
+                "/home/maya/claude-wsp",
+                "Claude Code's config folder cannot be the home folder itself; name a folder under it"
+            ))
         );
         ctx.place_rules.borrow_mut().clear();
         ctx.place_answers("srv", "pwd", 0, "/home/maya/.wsp/claude\n/home/maya\n", "");
         assert_eq!(
             area.setup_refusal(&e, None).await.expect("read"),
-            Some(launch_refusal("Claude Code", "claude", "/home/maya/claude-wsp", "/home/maya/claude-wsp is inside wsp's own folder, so it is no agent's config folder"))
+            Some(launch_refusal(
+                "Claude Code",
+                "claude",
+                "/home/maya/claude-wsp",
+                "/home/maya/claude-wsp is inside wsp's own folder, so it is no agent's config folder"
+            ))
         );
 
         // A read that fails is the failure, never a word.
         ctx.place_rules.borrow_mut().clear();
         ctx.place_answers("srv", "pwd", 1, "", "realpath: no such folder");
-        assert_eq!(refused(area.setup_refusal(&e, None).await).message, "spoo did not say where /home/maya/claude-wsp is: realpath: no such folder");
+        assert_eq!(
+            refused(area.setup_refusal(&e, None).await).message,
+            "spoo did not say where /home/maya/claude-wsp is: realpath: no such folder"
+        );
     });
 }
 
@@ -370,7 +383,12 @@ fn homes_here_refuses_a_kept_folder_that_leads_out_and_stores_here_lists_moved_h
         assert_eq!(e.kind, Some(Kind::Usage));
         assert_eq!(
             e.message,
-            launch_refusal("Claude Code", "claude", &leading, &format!("Claude Code's config folder has to be under the home folder {}, and {leading} is not", s.home))
+            launch_refusal(
+                "Claude Code",
+                "claude",
+                &leading,
+                &format!("Claude Code's config folder has to be under the home folder {}, and {leading} is not", s.home)
+            )
         );
         assert_eq!(refused(area.stores_here().await).message, e.message);
     });
@@ -500,14 +518,20 @@ fn defaults_on_marks_the_lists_for_what_a_new_thread_starts_on() {
 
     // The agent's defaults mark what a new thread starts on.
     let mut prefs = default_preferences();
-    prefs.agent_defaults.insert("claude".to_string(), wsp_wire::types::thread_defaults::Fields::new(agent_defaults(json!({ "model": "claude-sonnet-5-5", "effort": "low", "access": "ask" }))));
+    prefs.agent_defaults.insert(
+        "claude".to_string(),
+        wsp_wire::types::thread_defaults::Fields::new(agent_defaults(
+            json!({ "model": "claude-sonnet-5-5", "effort": "low", "access": "ask" }),
+        )),
+    );
     let shaped = json_of(&AgentsArea::defaults_on(&claude_table(), &prefs, None).catalog);
     assert_eq!(marked(&shaped["models"]), Some("claude-sonnet-5-5".to_string()));
     assert_eq!(marked(&shaped["efforts"]), Some("low".to_string()));
     assert_eq!(marked(&shaped["permissionModes"]), Some("default".to_string()));
 
     // The project's model and access over the agent's.
-    let project: ProjectOverrides = serde_json::from_value(json!({ "model": "claude-opus-5-5", "access": "auto-edit" })).expect("overrides");
+    let project: ProjectOverrides =
+        serde_json::from_value(json!({ "model": "claude-opus-5-5", "access": "auto-edit" })).expect("overrides");
     let over = json_of(&AgentsArea::defaults_on(&claude_table(), &prefs, Some(&project)).catalog);
     assert_eq!(marked(&over["models"]), Some("claude-opus-5-5".to_string()));
     assert_eq!(marked(&over["efforts"]), Some("low".to_string()));
@@ -522,9 +546,15 @@ fn marked(list: &Value) -> Option<String> {
 #[test]
 fn defaults_on_hides_and_adds_the_persons_models_and_hands_the_agents_own_lists_beside() {
     let mut prefs = default_preferences();
-    prefs.agent_defaults.insert("claude".to_string(), wsp_wire::types::thread_defaults::Fields::new(agent_defaults(json!({ "models": { "hide": ["claude-opus-5-5"], "custom": ["claude-opus-6-preview"] } }))));
+    prefs.agent_defaults.insert(
+        "claude".to_string(),
+        wsp_wire::types::thread_defaults::Fields::new(agent_defaults(
+            json!({ "models": { "hide": ["claude-opus-5-5"], "custom": ["claude-opus-6-preview"] } }),
+        )),
+    );
     let c = json_of(&AgentsArea::defaults_on(&claude_table(), &prefs, None).catalog);
-    let models: Vec<String> = c["models"].as_array().expect("models").iter().map(|m| m["value"].as_str().expect("a value").to_string()).collect();
+    let models: Vec<String> =
+        c["models"].as_array().expect("models").iter().map(|m| m["value"].as_str().expect("a value").to_string()).collect();
     assert!(models.contains(&"claude-opus-6-preview".to_string()), "a custom id is listed");
     // Hiding and `unshaped` are shapeModels' (runtime.ts:1095), run by the caller on what defaultsOn answers (agents.ts:421-425).
     assert!(models.contains(&"claude-opus-5-5".to_string()), "defaultsOn hides nothing");
@@ -536,7 +566,10 @@ fn defaults_on_hides_and_adds_the_persons_models_and_hands_the_agents_own_lists_
 fn defaults_on_carries_what_an_open_list_cannot_mark() {
     let open = table("opencode", "OpenCode", json!({ "permissionModes": [{ "value": "auto", "label": "Auto" }] }));
     let mut prefs = default_preferences();
-    prefs.agent_defaults.insert("opencode".to_string(), wsp_wire::types::thread_defaults::Fields::new(agent_defaults(json!({ "model": "anthropic/claude-sonnet-5", "effort": "high" }))));
+    prefs.agent_defaults.insert(
+        "opencode".to_string(),
+        wsp_wire::types::thread_defaults::Fields::new(agent_defaults(json!({ "model": "anthropic/claude-sonnet-5", "effort": "high" }))),
+    );
     let got = AgentsArea::defaults_on(&open, &prefs, None);
     assert_eq!(got.open_model.as_deref(), Some("anthropic/claude-sonnet-5"));
     assert_eq!(got.open_effort.as_deref(), Some("high"));
@@ -560,7 +593,10 @@ fn named_mode_refuses_a_word_the_agent_has_no_mode_for() {
     assert_eq!(e.kind, Some(Kind::Usage));
     // A word mapped to a mode the agent does not list is no mode.
     let unlisted = table_without_mode();
-    assert_eq!(refused(AgentsArea::named_mode(Some(&unlisted), "claude", AccessChoice::Full)).message, "Claude Code takes no full access; it takes ask, auto-edit");
+    assert_eq!(
+        refused(AgentsArea::named_mode(Some(&unlisted), "claude", AccessChoice::Full)).message,
+        "Claude Code takes no full access; it takes ask, auto-edit"
+    );
     // An agent that maps none of wsp's words.
     let bare = table("codex", "Codex", json!({ "permissionModes": [{ "value": "read-only", "label": "Read only" }] }));
     assert_eq!(refused(AgentsArea::named_mode(Some(&bare), "codex", AccessChoice::Ask)).message, "Codex takes no access of wsp's words");
@@ -571,7 +607,8 @@ fn named_mode_refuses_a_word_the_agent_has_no_mode_for() {
 
 fn table_without_mode() -> HarnessCatalog {
     let mut v = json_of(&claude_table());
-    let modes = v["permissionModes"].as_array().expect("modes").iter().filter(|m| m["value"] != "bypassPermissions").cloned().collect::<Vec<_>>();
+    let modes =
+        v["permissionModes"].as_array().expect("modes").iter().filter(|m| m["value"] != "bypassPermissions").cloned().collect::<Vec<_>>();
     v["permissionModes"] = json!(modes);
     serde_json::from_value(v).expect("a catalog")
 }
@@ -592,7 +629,10 @@ fn land_images_inline_lands_nothing() {
         // Every image of the message in order, as bytes with its type, and no folder to answer with.
         let landed = area.land_images(&e, Some(AttachmentRoad::Inline), FOLDER, DIR, &images).await.expect("landed");
         assert_eq!(landed.dir, None);
-        assert_eq!(json_of(&landed.images), json!([{ "mediaType": "image/png", "bytes": b64(b"one") }, { "mediaType": "image/webp", "bytes": b64(b"two") }]));
+        assert_eq!(
+            json_of(&landed.images),
+            json!([{ "mediaType": "image/png", "bytes": b64(b"one") }, { "mediaType": "image/webp", "bytes": b64(b"two") }])
+        );
         // No image, or a harness that reads none: nothing is landed and nothing asked.
         let none = area.land_images(&e, Some(AttachmentRoad::File), FOLDER, DIR, &[]).await.expect("landed");
         assert!(none.images.is_empty() && none.dir.is_none());
@@ -617,7 +657,10 @@ fn land_images_on_files_lands_each_in_the_sends_folder() {
         assert_eq!(runs(&machine, ".wsp-files"), [Some(INLINE_EXEC_MS)]);
         // Each image by its place in the message and its own type, one after another.
         let paths: Vec<String> = ["1.png", "2.jpg", "3.webp"].iter().map(|n| format!("{DIR}/{n}")).collect();
-        assert_eq!(machine.put.borrow().clone(), vec![(paths[0].clone(), b"one".to_vec()), (paths[1].clone(), b"two".to_vec()), (paths[2].clone(), b"three".to_vec())]);
+        assert_eq!(
+            machine.put.borrow().clone(),
+            vec![(paths[0].clone(), b"one".to_vec()), (paths[1].clone(), b"two".to_vec()), (paths[2].clone(), b"three".to_vec())]
+        );
         assert_eq!(landed.dir.as_deref(), Some(DIR));
         assert_eq!(
             json_of(&landed.images),
@@ -759,9 +802,16 @@ fn thread_env_puts_the_persons_variables_over_the_kinds() {
     ctx.set_setup(
         "here",
         "claude",
-        FakeSetup { launch: SetupLaunch { env: env(&[("FOO", "bar"), ("CLAUDE_CONFIG_DIR", "/kept")]), launch: None }, ..Default::default() },
+        FakeSetup {
+            launch: SetupLaunch { env: env(&[("FOO", "bar"), ("CLAUDE_CONFIG_DIR", "/kept")]), launch: None },
+            ..Default::default()
+        },
     );
-    ctx.set_setup("here", "codex", FakeSetup { launch: SetupLaunch { env: env(&[("FOO", "codex"), ("CODEX_HOME", "/c")]), launch: None }, ..Default::default() });
+    ctx.set_setup(
+        "here",
+        "codex",
+        FakeSetup { launch: SetupLaunch { env: env(&[("FOO", "codex"), ("CODEX_HOME", "/c")]), launch: None }, ..Default::default() },
+    );
     let (e, _) = entry(json!({}));
     let area = ctx.area();
 
@@ -786,7 +836,10 @@ fn thread_env_puts_the_persons_variables_over_the_kinds() {
 
     // A fork at a provider has no setup of the person's: the kind's environment alone.
     let (cloud, _) = entry(json!({ "id": "ws9", "kind": "cloud" }));
-    assert_eq!(pairs(&area.thread_env(&cloud, Some("claude"))), [pair("HOME", "/root"), pair("CLAUDE_CONFIG_DIR", "/kind/claude"), pair("FOO", "kind"), pair("HOME_OF_CLAUDE", "/kind/ws9/claude")]);
+    assert_eq!(
+        pairs(&area.thread_env(&cloud, Some("claude"))),
+        [pair("HOME", "/root"), pair("CLAUDE_CONFIG_DIR", "/kind/claude"), pair("FOO", "kind"), pair("HOME_OF_CLAUDE", "/kind/ws9/claude")]
+    );
 }
 
 #[test]
@@ -808,7 +861,15 @@ fn place_stores_reads_variable_then_folder_then_default() {
     let ctx = FakeAgentsCtx::new();
     let area = ctx.area();
     // What the person set for the variable wins; then the folder they kept; then the kind's own for that computer.
-    ctx.set_setup("srv", "claude", FakeSetup { launch: SetupLaunch { env: env(&[("CLAUDE_CONFIG_DIR", "/set/by/variable")]), launch: None }, config_dir: Some("/kept/claude".to_string()), ..Default::default() });
+    ctx.set_setup(
+        "srv",
+        "claude",
+        FakeSetup {
+            launch: SetupLaunch { env: env(&[("CLAUDE_CONFIG_DIR", "/set/by/variable")]), launch: None },
+            config_dir: Some("/kept/claude".to_string()),
+            ..Default::default()
+        },
+    );
     ctx.keep_config_dir("srv", "codex", "/kept/codex");
     let stores = area.place_stores("srv", "/home/maya");
     assert_eq!(stores.get("claude").map(String::as_str), Some("/set/by/variable"));
@@ -874,7 +935,10 @@ fn turn_configs_on_refuses_a_cut_read_an_unread_read_and_a_scope_left() {
         let (ctx, e, machine) = serving();
         machine.answer("wsp_mcp_read", 124, &config_read(TRACKER));
         let said = refused(configs(&ctx.area(), &e, "claude").await).message;
-        assert!(said.starts_with("Claude Code's MCP servers on that computer could not be read for the values its launch hands them ("), "{said}");
+        assert!(
+            said.starts_with("Claude Code's MCP servers on that computer could not be read for the values its launch hands them ("),
+            "{said}"
+        );
         assert!(said.ends_with("), so the turn did not start; try again once it answers"), "{said}");
         assert!(!said.contains("PERSONS-OWN") && !said.contains("mcp.linear.app"), "no line of that config: {said}");
 
@@ -882,7 +946,10 @@ fn turn_configs_on_refuses_a_cut_read_an_unread_read_and_a_scope_left() {
         let (ctx, e, machine) = serving();
         machine.answer("wsp_mcp_read", 0, &config_read(TRACKER)[..60]);
         let said = refused(configs(&ctx.area(), &e, "claude").await).message;
-        assert!(said.starts_with("Claude Code's MCP servers on that computer could not be read whole for the values its launch hands them: "), "{said}");
+        assert!(
+            said.starts_with("Claude Code's MCP servers on that computer could not be read whole for the values its launch hands them: "),
+            "{said}"
+        );
         assert!(said.contains(CLAUDE_CONFIG) && said.contains(" together, once encoded, pass the "), "{said}");
         assert!(said.ends_with(", so the turn did not start; make them smaller and send again"), "{said}");
         assert!(!said.contains("PERSONS-OWN"));
@@ -890,17 +957,27 @@ fn turn_configs_on_refuses_a_cut_read_an_unread_read_and_a_scope_left() {
         // Output that does not parse: no scope printed the mark.
         let (ctx, e, machine) = serving();
         machine.answer("wsp_mcp_read", 0, "garbage\nwsp-mcp end\n");
-        assert!(refused(configs(&ctx.area(), &e, "claude").await).message.starts_with("Claude Code's MCP servers on that computer could not be read for the values its launch hands them ("));
+        assert!(refused(configs(&ctx.area(), &e, "claude").await)
+            .message
+            .starts_with("Claude Code's MCP servers on that computer could not be read for the values its launch hands them ("));
 
         // A file left unread, the word in place of its bytes: the file named, and what the person does.
         let (ctx, e, machine) = serving();
         machine.answer("wsp_mcp_read", 0, "wsp-mcp 0 0 -plain\nwsp-mcp end\n");
         let said = refused(configs(&ctx.area(), &e, "claude").await).message;
         assert!(
-            said.contains(&wsp_words::agents_report::config_unread_line(CLAUDE_CONFIG, "it is not a plain file, or it is a link out of the folder it belongs to, and wsp reads neither")),
+            said.contains(&wsp_words::agents_report::config_unread_line(
+                CLAUDE_CONFIG,
+                "it is not a plain file, or it is a link out of the folder it belongs to, and wsp reads neither"
+            )),
             "{said}"
         );
-        assert!(said.ends_with("so the turn did not start; make it a plain file under 32 MB, or a link to one inside its folder, and send again"), "{said}");
+        assert!(
+            said.ends_with(
+                "so the turn did not start; make it a plain file under 32 MB, or a link to one inside its folder, and send again"
+            ),
+            "{said}"
+        );
     });
 }
 
@@ -948,7 +1025,13 @@ fn server_values_for_fills_only_on_a_launch_kind_with_vault_values() {
         *ctx.vault.borrow_mut() = env(&[("NOTION_TOKEN", "ntn_TESTONLY"), ("OPENAI_API_KEY", "sk-openai-fake")]);
         reads(&machine, notion);
         let got = ctx.area().server_values_for(&e, "codex", "/work/app").await.expect("read");
-        assert_eq!(got, Some(wsp_adapters::port::ServerValues { entries: None, config: Some(env(&[("mcp_servers.notion.env.NOTION_TOKEN", "ntn_TESTONLY")])) }));
+        assert_eq!(
+            got,
+            Some(wsp_adapters::port::ServerValues {
+                entries: None,
+                config: Some(env(&[("mcp_servers.notion.env.NOTION_TOKEN", "ntn_TESTONLY")]))
+            })
+        );
 
         // Every value empty reads as none.
         let (ctx, e, machine) = serving();
@@ -1016,14 +1099,21 @@ fn off_servers_for_reads_once_and_drops_on_an_agents_change() {
         let (ctx, e, machine) = provider("boat");
         reads(&machine, CLOUD_CONFIG);
         // The host's probe as it stands: cloudflare answered 401, context7 answered, nothing else has been asked.
-        *ctx.signs.borrow_mut() = Some(IndexMap::from([("https://mcp.cloudflare.com/mcp".to_string(), true), ("https://mcp.context7.com/mcp".to_string(), false)]));
+        *ctx.signs.borrow_mut() = Some(IndexMap::from([
+            ("https://mcp.cloudflare.com/mcp".to_string(), true),
+            ("https://mcp.context7.com/mcp".to_string(), false),
+        ]));
         let area = ctx.area();
         let read = |m: &FakeMachine| runs(m, "wsp_mcp_read").len();
 
         // Each server the config names that needs the person's sign-in; one that sends a fixed header or runs a command stays.
         assert_eq!(area.off_servers_for(&e, "claude", "/work/app").await, Some(vec!["cloudflare".to_string()]));
         let asked = ctx.called_with("signsIn");
-        assert_eq!(asked, ["signsIn https://mcp.cloudflare.com/mcp,https://mcp.context7.com/mcp"], "only the addresses with no header of their own are asked");
+        assert_eq!(
+            asked,
+            ["signsIn https://mcp.cloudflare.com/mcp,https://mcp.context7.com/mcp"],
+            "only the addresses with no header of their own are asked"
+        );
         assert_eq!(read(&machine), 1);
         // Read once per machine, folder and agent.
         assert_eq!(area.off_servers_for(&e, "claude", "/work/app").await, Some(vec!["cloudflare".to_string()]));
@@ -1144,9 +1234,15 @@ fn adapter_for_refuses_an_agent_with_no_adapter() {
     assert_eq!(e1.message, "no adapter registered for harness \"aider\"; agents on this host: codex, cursor");
     assert_eq!(e1.kind, None, "a plain error");
     // Unnamed means the default agent, which has no adapter here either.
-    assert_eq!(refused(area.adapter_for(&e, AdapterAsk::default())).message, "no adapter registered for harness \"claude\"; agents on this host: codex, cursor");
+    assert_eq!(
+        refused(area.adapter_for(&e, AdapterAsk::default())).message,
+        "no adapter registered for harness \"claude\"; agents on this host: codex, cursor"
+    );
     let bare = FakeAgentsCtx::new();
-    assert_eq!(refused(bare.area().adapter_for(&e, AdapterAsk::default())).message, "no adapter registered for harness \"claude\"; agents on this host: none");
+    assert_eq!(
+        refused(bare.area().adapter_for(&e, AdapterAsk::default())).message,
+        "no adapter registered for harness \"claude\"; agents on this host: none"
+    );
 }
 
 // TS: thread-defaults.test.ts:225, cloud-server-off.test.ts:88
@@ -1157,7 +1253,13 @@ fn adapter_for_layers_env_servers_broker_then_turn() {
     ctx.set_setup(
         "here",
         "claude",
-        FakeSetup { launch: SetupLaunch { env: env(&[("A", "person"), ("B", "person")]), launch: Some(AgentLaunch { program: Some("/opt/claude".to_string()), args: Some(vec!["--debug".to_string()]) }) }, ..Default::default() },
+        FakeSetup {
+            launch: SetupLaunch {
+                env: env(&[("A", "person"), ("B", "person")]),
+                launch: Some(AgentLaunch { program: Some("/opt/claude".to_string()), args: Some(vec!["--debug".to_string()]) }),
+            },
+            ..Default::default()
+        },
     );
     ctx.kind_server_values.set(Some(ServerValuesRoad::Environment));
     ctx.kind_memory_keys.borrow_mut().insert("claude".to_string(), "memory-key".to_string());
@@ -1179,7 +1281,16 @@ fn adapter_for_layers_env_servers_broker_then_turn() {
         let c = &seen[0];
         assert_eq!(c.machine.id(), machine.id);
         assert_eq!(c.workspace_id, "ws1");
-        assert_eq!(pairs(&c.env), [pair("S", "server"), pair("HOME", "/root"), pair("A", "person"), pair("HOME_OF_CLAUDE", "/kind/ws1/claude"), pair("B", "turn")]);
+        assert_eq!(
+            pairs(&c.env),
+            [
+                pair("S", "server"),
+                pair("HOME", "/root"),
+                pair("A", "person"),
+                pair("HOME_OF_CLAUDE", "/kind/ws1/claude"),
+                pair("B", "turn")
+            ]
+        );
         assert_eq!(c.vault, env(&[("V", "vault")]));
         assert_eq!(c.launch, Some(AgentLaunch { program: Some("/opt/claude".to_string()), args: Some(vec!["--debug".to_string()]) }));
         assert_eq!(c.project_key.as_deref(), Some("memory-key"));
@@ -1195,7 +1306,10 @@ fn adapter_for_layers_env_servers_broker_then_turn() {
     // A kind that does not hand servers by environment carries none of their values.
     ctx.kind_server_values.set(Some(ServerValuesRoad::Launch));
     area.adapter_for(&e, AdapterAsk { servers: env(&[("S", "server")]), ..Default::default() }).expect("built");
-    assert_eq!(pairs(&seen.borrow()[1].env), [pair("HOME", "/root"), pair("A", "person"), pair("HOME_OF_CLAUDE", "/kind/ws1/claude"), pair("B", "person")]);
+    assert_eq!(
+        pairs(&seen.borrow()[1].env),
+        [pair("HOME", "/root"), pair("A", "person"), pair("HOME_OF_CLAUDE", "/kind/ws1/claude"), pair("B", "person")]
+    );
 
     // A workspace whose credentials the host keeps: the turn token in place of the vault and no server value; the
     // broker's own variables between the person's and the turn's.
@@ -1206,11 +1320,25 @@ fn adapter_for_layers_env_servers_broker_then_turn() {
         claude: Some(Brokered { token: "tok".to_string(), kind: BrokeredKind::Token }),
         codex: None,
     });
-    let ask = AdapterAsk { turn_env: Some(env(&[(HOST_TOKEN_ENV, "host-tok"), ("B", "turn")])), servers: env(&[("S", "server")]), ..Default::default() };
+    let ask = AdapterAsk {
+        turn_env: Some(env(&[(HOST_TOKEN_ENV, "host-tok"), ("B", "turn")])),
+        servers: env(&[("S", "server")]),
+        ..Default::default()
+    };
     area.adapter_for(&e, ask).expect("built");
     let seen = seen.borrow();
     let c = &seen[2];
-    assert_eq!(pairs(&c.env), [pair("HOME", "/root"), pair("A", "broker"), pair("HOME_OF_CLAUDE", "/kind/ws1/claude"), pair("B", "turn"), pair("BR", "broker"), pair(HOST_TOKEN_ENV, "host-tok")]);
+    assert_eq!(
+        pairs(&c.env),
+        [
+            pair("HOME", "/root"),
+            pair("A", "broker"),
+            pair("HOME_OF_CLAUDE", "/kind/ws1/claude"),
+            pair("B", "turn"),
+            pair("BR", "broker"),
+            pair(HOST_TOKEN_ENV, "host-tok")
+        ]
+    );
     assert_eq!(c.vault, env(&[("BV", "brokered-vault")]));
     assert_eq!(c.brokered, Some(Brokered { token: "tok".to_string(), kind: BrokeredKind::Token }));
     assert_eq!(ctx.called_with("brokeredLaunch").last().map(String::as_str), Some("brokeredLaunch ws1 claude host-tok"));
@@ -1251,11 +1379,7 @@ fn project_home_is_none_off_a_folder_kind_or_a_folder_not_held() {
     local(async {
         let ctx = FakeAgentsCtx::new();
         ctx.folder_computers.borrow_mut().insert("mac".to_string());
-        ctx.projects.borrow_mut().extend([
-            project("p1", "mac"),
-            project("p-box", "cloud"),
-            project("p-unheld", "mac"),
-        ]);
+        ctx.projects.borrow_mut().extend([project("p1", "mac"), project("p-box", "cloud"), project("p-unheld", "mac")]);
         let (folder, _) = entry(json!({ "id": "ws-folder" }));
         ctx.folders.borrow_mut().insert("p1".to_string(), folder);
         let (box_folder, _) = entry(json!({ "id": "ws-box" }));
@@ -1263,7 +1387,10 @@ fn project_home_is_none_off_a_folder_kind_or_a_folder_not_held() {
         let area = ctx.area();
 
         // The record a new thread runs on where it runs in the project's folder.
-        assert_eq!(area.project_home("p1", None).await.expect("resolved").map(|e| e.borrow().record.borrow().id.clone()), Some("ws-folder".to_string()));
+        assert_eq!(
+            area.project_home("p1", None).await.expect("resolved").map(|e| e.borrow().record.borrow().id.clone()),
+            Some("ws-folder".to_string())
+        );
         // A project whose threads run on machines of their own has no folder to ask.
         assert!(area.project_home("p-box", None).await.expect("resolved").is_none());
         // A folder that cannot be held now is no folder, and the failure is dropped.
@@ -1279,20 +1406,22 @@ fn computer_home_is_the_folder_of_the_first_project_there_that_runs_in_a_folder(
     local(async {
         let ctx = FakeAgentsCtx::new();
         ctx.folder_computers.borrow_mut().insert("mac".to_string());
-        ctx.projects.borrow_mut().extend([
-            project("p0", "other"),
-            project("p1", "mac"),
-            project("p2", "mac"),
-            project("p3", "cloud"),
-        ]);
+        ctx.projects.borrow_mut().extend([project("p0", "other"), project("p1", "mac"), project("p2", "mac"), project("p3", "cloud")]);
         for (project, workspace) in [("p0", "ws0"), ("p1", "ws1"), ("p2", "ws2"), ("p3", "ws3")] {
             let (e, _) = entry(json!({ "id": workspace }));
             ctx.folders.borrow_mut().insert(project.to_string(), e);
         }
         let area = ctx.area();
-        assert_eq!(area.computer_home("mac", None).await.expect("listed").map(|e| e.borrow().record.borrow().id.clone()), Some("ws1".to_string()), "the first listed on that computer");
+        assert_eq!(
+            area.computer_home("mac", None).await.expect("listed").map(|e| e.borrow().record.borrow().id.clone()),
+            Some("ws1".to_string()),
+            "the first listed on that computer"
+        );
         assert!(area.computer_home("nowhere", None).await.expect("listed").is_none(), "a computer holding no such project");
-        assert!(area.computer_home("cloud", None).await.expect("listed").is_none(), "a computer whose threads run on machines of their own");
+        assert!(
+            area.computer_home("cloud", None).await.expect("listed").is_none(),
+            "a computer whose threads run on machines of their own"
+        );
         assert!(area.computer_home("other", None).await.expect("listed").is_none());
     });
 }

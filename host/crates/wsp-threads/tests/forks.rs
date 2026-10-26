@@ -9,15 +9,15 @@ use std::rc::Rc;
 use futures::FutureExt;
 use serde_json::{json, Value};
 use support::conversations_ctx::{project_view, ws_entry};
-use support::transcripts_ctx::WithState;
 use support::forks_ctx::{handle, FakeForkAdapter, FakeForksCtx, ForkAnswer};
+use support::transcripts_ctx::WithState;
 use support::{err, event, json_of, local, record, records_of, row, sessions_of, settle, view};
 use wsp_adapters::port::{CountedTurn, ForkTurn};
 use wsp_core::console;
 use wsp_core::types::api::{ForkOptions, StartOptions};
 use wsp_threads::threads::forks::{
-    copied_events, copy_images, fork_opened, fork_start, fork_turn_of, move_session, pay_cut_owed, read_fork, ready_fork, ForkPicks, ForkPlan, ForkPlanSource,
-    ForkPlanTurn, ForksCtx,
+    copied_events, copy_images, fork_opened, fork_start, fork_turn_of, move_session, pay_cut_owed, read_fork, ready_fork, ForkPicks,
+    ForkPlan, ForkPlanSource, ForkPlanTurn, ForksCtx,
 };
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::types::sub_thread::SUB_TURN_GONE_LINE;
@@ -26,12 +26,13 @@ use wsp_wire::views::session::{ForkSource, ForkedFrom};
 use wsp_wire::views::session_events::TurnResult;
 use wsp_wire::views::session_events_more::SessionEvent;
 use wsp_wire::views::workspace::Caller;
-use wsp_words::exit::{refusal, usage_refusal, not_found_refusal, HostError, Kind};
+use wsp_words::exit::{not_found_refusal, refusal, usage_refusal, HostError, Kind};
 use wsp_words::projects::{no_branches_line, place_branch_line};
 use wsp_words::words::computer::thread_word;
 use wsp_words::words::thread::{
-    fork_agent_fix, fork_agent_line, fork_no_anchor_line, fork_no_turn_line, fork_turns_fix, fork_turns_line, FORK_BESIDE_FIX, FORK_BESIDE_LINE, FORK_NO_ANCHOR_FIX,
-    FORK_NO_CHECKPOINT_FIX, FORK_NO_CHECKPOINT_LINE, FORK_NO_TURN_FIX, FORK_RESUME_FIX, FORK_RESUME_LINE, FORK_RUNNING_FIX, FORK_RUNNING_LINE,
+    fork_agent_fix, fork_agent_line, fork_no_anchor_line, fork_no_turn_line, fork_turns_fix, fork_turns_line, FORK_BESIDE_FIX,
+    FORK_BESIDE_LINE, FORK_NO_ANCHOR_FIX, FORK_NO_CHECKPOINT_FIX, FORK_NO_CHECKPOINT_LINE, FORK_NO_TURN_FIX, FORK_RESUME_FIX,
+    FORK_RESUME_LINE, FORK_RUNNING_FIX, FORK_RUNNING_LINE,
 };
 
 const THREAD: &str = "th01abcd-1111-4000-8000-000000000001";
@@ -139,7 +140,8 @@ fn result_of(v: Value) -> TurnResult {
 
 fn scoped(thread: &str, root: &str) -> Caller {
     let origin = serde_json::from_value(json!("here")).expect("an origin");
-    let by = serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": "ws1", "rootThreadId": root })).expect("a scope");
+    let by = serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": "ws1", "rootThreadId": root }))
+        .expect("a scope");
     Caller::Scoped { origin, by }
 }
 
@@ -163,7 +165,8 @@ fn fixture() -> F {
             "u3",
         )]).take()
     });
-    ctx.thread_records.with(|r| *r = records_of(vec![(THREAD, record("ws1", json!({ "harness": "claude", "permissionMode": "acceptEdits" })))]).take());
+    ctx.thread_records
+        .with(|r| *r = records_of(vec![(THREAD, record("ws1", json!({ "harness": "claude", "permissionMode": "acceptEdits" })))]).take());
     ctx.events_of("ws1", THREAD, standard_events());
     let dyn_ctx = ctx.ctx();
     F { ctx, dyn_ctx }
@@ -204,7 +207,15 @@ fn fork_opened_refuses_a_fork_beside_a_thread_or_a_conversation() {
         let got = refused(fork_opened(&f.dyn_ctx, "ws1", beside_replaces, None).await);
         same_refusal(&got, usage_refusal(FORK_BESIDE_LINE, FORK_BESIDE_FIX));
 
-        let outside = wsp_core::types::api::OutsideOpening { harness: "claude".into(), id: "0d0d0d0d".into(), copy: true, project: "lab".into(), cwd: None, title: "lab".into(), earlier: vec![] };
+        let outside = wsp_core::types::api::OutsideOpening {
+            harness: "claude".into(),
+            id: "0d0d0d0d".into(),
+            copy: true,
+            project: "lab".into(),
+            cwd: None,
+            title: "lab".into(),
+            earlier: vec![],
+        };
         let mut beside_outside = opened(Some(fork_of(None, None)));
         beside_outside.outside = Some(outside.clone());
         let got = refused(fork_opened(&f.dyn_ctx, "ws1", beside_outside, None).await);
@@ -229,7 +240,10 @@ fn fork_opened_answers_a_start_with_no_fork_itself_and_no_plan() {
         start.thread = Some("t9".into());
         let (out, plan) = ok(fork_opened(&f.dyn_ctx, "ws1", start, None).await);
         assert!(plan.is_none());
-        assert_eq!((out.prompt.as_str(), out.model.as_deref(), out.thread.as_deref(), out.harness.clone()), ("list every code word you remember", Some("m1"), Some("t9"), None));
+        assert_eq!(
+            (out.prompt.as_str(), out.model.as_deref(), out.thread.as_deref(), out.harness.clone()),
+            ("list every code word you remember", Some("m1"), Some("t9"), None)
+        );
         assert_eq!(f.ctx.called(), Vec::<String>::new(), "nothing was read");
     });
 }
@@ -313,8 +327,15 @@ fn read_fork_picks_the_latest_finished_turn_by_default() {
         let plan = ok(read_fork(&f.dyn_ctx, &fork_of(None, None), None).await);
         let turn = plan.turn.clone().expect("a turn");
         assert_eq!(turn.turn_id, "u3");
-        assert_eq!(tags(&plan.events), joined(&[earlier_tags(), turn_tags("u1"), turn_tags("u2"), turn_tags("u3")]), "the earlier rows, then every event through u3; the slate event is left out");
-        assert_eq!((plan.forked_from.thread_id.as_str(), plan.forked_from.turn_id.as_deref(), plan.forked_from.title.as_str()), (THREAD, Some("u3"), "pricing page"));
+        assert_eq!(
+            tags(&plan.events),
+            joined(&[earlier_tags(), turn_tags("u1"), turn_tags("u2"), turn_tags("u3")]),
+            "the earlier rows, then every event through u3; the slate event is left out"
+        );
+        assert_eq!(
+            (plan.forked_from.thread_id.as_str(), plan.forked_from.turn_id.as_deref(), plan.forked_from.title.as_str()),
+            (THREAD, Some("u3"), "pricing page")
+        );
         assert_eq!(f.ctx.called(), vec!["ready".to_string(), format!("entryOfRow {THREAD} ws1"), format!("openThread ws1 {THREAD}")]);
 
         let second = ok(read_fork(&f.dyn_ctx, &fork_of(None, Some(2.0)), None).await);
@@ -446,10 +467,17 @@ fn read_fork_refuses_a_turn_of_a_deleted_sub_machine() {
         let got = refused(read_fork(&f.dyn_ctx, &fork_of(Some("u3"), None), None).await);
         same_refusal(&got, gone);
         let after = ok(read_fork(&f.dyn_ctx, &fork_of(Some("u2"), None), None).await);
-        assert_eq!(after.turn.map(|t| t.turn_id), Some("u2".to_string()), "u2's first event with a time is at 150, after the release at 100");
+        assert_eq!(
+            after.turn.map(|t| t.turn_id),
+            Some("u2".to_string()),
+            "u2's first event with a time is at 150, after the release at 100"
+        );
 
         let plain = fixture();
-        assert!(read_fork(&plain.dyn_ctx, &fork_of(Some("u1"), None), None).await.is_ok(), "a workspace with no sub record refuses nothing");
+        assert!(
+            read_fork(&plain.dyn_ctx, &fork_of(Some("u1"), None), None).await.is_ok(),
+            "a workspace with no sub record refuses nothing"
+        );
     });
 }
 
@@ -475,7 +503,10 @@ fn read_fork_plan_carries_the_turns_events_anchor_ref_and_the_turns_after() {
 
         let plan = ok(read_fork(&f.dyn_ctx, &fork_of(Some("u1"), None), None).await);
         let source = &plan.source;
-        assert_eq!((source.thread_id.as_str(), source.workspace_id.as_str(), source.harness.as_str(), source.title.as_str()), (THREAD, "ws1", "claude", "pricing page"));
+        assert_eq!(
+            (source.thread_id.as_str(), source.workspace_id.as_str(), source.harness.as_str(), source.title.as_str()),
+            (THREAD, "ws1", "claude", "pricing page")
+        );
         assert_eq!((source.session.as_deref(), source.cwd.as_deref()), (Some("cs1"), Some("/work/ws1/sub/dir")));
         assert_eq!(source.entry.borrow().record.borrow().id, "ws1");
         assert_eq!(
@@ -501,7 +532,19 @@ fn read_fork_plan_carries_the_turns_events_anchor_ref_and_the_turns_after() {
                 permission_mode: Some("acceptEdits".into()),
             }
         );
-        assert_eq!(tags(&plan.events), joined(&[vec!["-:session.earlier".to_string()], vec!["u1:session.start".into(), "u1:session.checkpoint".into(), "u1:session.checkpoint".into(), "u1:session.done".into(), "u1:session.end".into()]]));
+        assert_eq!(
+            tags(&plan.events),
+            joined(&[
+                vec!["-:session.earlier".to_string()],
+                vec![
+                    "u1:session.start".into(),
+                    "u1:session.checkpoint".into(),
+                    "u1:session.checkpoint".into(),
+                    "u1:session.done".into(),
+                    "u1:session.end".into()
+                ]
+            ])
+        );
         assert_eq!(json_of(&plan.forked_from), json!({ "threadId": THREAD, "turnId": "u1", "title": "pricing page" }));
     });
 }
@@ -512,14 +555,26 @@ fn read_fork_reads_a_thread_with_no_rows_off_its_record() {
         let f = fixture();
         f.ctx.sessions.with(|s| s.clear());
         f.ctx.thread_records.with(|r| {
-            *r = records_of(vec![(THREAD, record("ws1", json!({ "harness": "codex", "forkedFrom": { "threadId": "t0", "title": "The parent" } })))]).take();
+            *r = records_of(vec![(
+                THREAD,
+                record("ws1", json!({ "harness": "codex", "forkedFrom": { "threadId": "t0", "title": "The parent" } })),
+            )])
+            .take();
         });
         f.ctx.started_as.borrow_mut().insert(("ws1".into(), THREAD.into()), "cs-start".into());
         f.ctx.folders.borrow_mut().insert(("ws1".into(), "cs-start".into()), "/work/ws1".into());
         let plan = ok(read_fork(&f.dyn_ctx, &fork_of(None, None), None).await);
         let s = &plan.source;
-        assert_eq!((s.workspace_id.as_str(), s.harness.as_str(), s.title.as_str()), ("ws1", "codex", "The parent"), "the record's workspace, harness and forkedFrom title");
-        assert_eq!((s.session.as_deref(), s.cwd.as_deref()), (Some("cs-start"), Some("/work/ws1")), "the session the thread started as and the folder it ran in");
+        assert_eq!(
+            (s.workspace_id.as_str(), s.harness.as_str(), s.title.as_str()),
+            ("ws1", "codex", "The parent"),
+            "the record's workspace, harness and forkedFrom title"
+        );
+        assert_eq!(
+            (s.session.as_deref(), s.cwd.as_deref()),
+            (Some("cs-start"), Some("/work/ws1")),
+            "the session the thread started as and the folder it ran in"
+        );
         assert_eq!(plan.picks, ForkPicks::default(), "no latest row, no picks");
 
         f.ctx.thread_records.with(|r| *r = records_of(vec![(THREAD, record("ws1", json!({ "harness": "codex" })))]).take());
@@ -547,7 +602,8 @@ fn read_fork_takes_the_harness_off_the_record_and_the_workspace_off_the_latest_r
 #[test]
 fn fork_turn_of_refuses_a_turn_with_no_anchor_on_a_harness_that_does_not_count() {
     let after = vec![CountedTurn { anchor: Some("a2".into()), result: None }, CountedTurn::default()];
-    let anchored = plan_for("claude", Some(ForkPlanTurn { turn_id: "u1".into(), anchor: Some("a1".into()), at_ref: None, after: after.clone() }));
+    let anchored =
+        plan_for("claude", Some(ForkPlanTurn { turn_id: "u1".into(), anchor: Some("a1".into()), at_ref: None, after: after.clone() }));
     assert_eq!(fork_turn_of(&anchored, false), Ok(Some(ForkTurn::Anchor("a1".into()))));
     assert_eq!(fork_turn_of(&anchored, true), Ok(Some(ForkTurn::Anchor("a1".into()))), "an anchor wins on a harness that counts too");
 
@@ -573,11 +629,8 @@ fn fork_turn_of_refuses_a_turn_with_no_anchor_on_a_harness_that_does_not_count()
 fn copied_events_drop_pos_and_mark_the_source() {
     let mut plan = plan_for("claude", None);
     let already = ev("session.done", Some("u1"), Some(5), json!({ "result": { "status": "completed" }, "pos": 2, "copiedFrom": "t0" }));
-    plan.events = vec![
-        ev("session.start", Some("u1"), Some(4), json!({ "prompt": "p1", "pos": 1 })),
-        already,
-        earlier_event("Remember ALPHA."),
-    ];
+    plan.events =
+        vec![ev("session.start", Some("u1"), Some(4), json!({ "prompt": "p1", "pos": 1 })), already, earlier_event("Remember ALPHA.")];
     let copies = copied_events(&plan, "wsB", "tB");
     let json: Vec<Value> = copies.iter().map(json_of).collect();
     assert_eq!(json.len(), 3);
@@ -588,7 +641,10 @@ fn copied_events_drop_pos_and_mark_the_source() {
         assert_eq!(v["sessionId"], "r1", "event {i} keeps the rest as it was");
     }
     assert_eq!(json[0]["copiedFrom"], THREAD, "an event of the source's own is marked with the source");
-    assert_eq!((json[0]["type"].as_str(), json[0]["prompt"].as_str(), json[0]["turnId"].as_str(), json[0]["at"].as_i64()), (Some("session.start"), Some("p1"), Some("u1"), Some(4)));
+    assert_eq!(
+        (json[0]["type"].as_str(), json[0]["prompt"].as_str(), json[0]["turnId"].as_str(), json[0]["at"].as_i64()),
+        (Some("session.start"), Some("p1"), Some("u1"), Some(4))
+    );
     assert_eq!(json[1]["copiedFrom"], "t0", "an event that was already a copy keeps the thread it came from");
     assert_eq!(json[2]["copiedFrom"], THREAD);
     assert!(json[2].get("turnId").is_none(), "an earlier row stays under no turn");
@@ -614,7 +670,14 @@ fn kept(f: &F) -> Vec<(String, String, Option<String>, Vec<(String, String, Stri
         .kept_images
         .borrow()
         .iter()
-        .map(|(ws, thread, request, images)| (ws.clone(), thread.clone(), request.clone(), images.iter().map(|a| (a.name.clone().unwrap_or_else(|| "<none>".into()), a.media_type.clone(), a.bytes.clone())).collect()))
+        .map(|(ws, thread, request, images)| {
+            (
+                ws.clone(),
+                thread.clone(),
+                request.clone(),
+                images.iter().map(|a| (a.name.clone().unwrap_or_else(|| "<none>".into()), a.media_type.clone(), a.bytes.clone())).collect(),
+            )
+        })
         .collect()
 }
 
@@ -653,7 +716,10 @@ fn copy_images_keeps_each_image_at_its_index_under_the_fork() {
         f.ctx.store.seed_blob("attachments", "t1.req1.0", b"hello");
         f.ctx.store.seed_blob("attachments", "t1.req2.0", b"two");
         let settled = f.ctx.clone();
-        f.ctx.kept_writes.borrow_mut().insert("ws1".into(), async move { settled.call("keptWrites settled".into()) }.boxed_local().shared());
+        f.ctx
+            .kept_writes
+            .borrow_mut()
+            .insert("ws1".into(), async move { settled.call("keptWrites settled".into()) }.boxed_local().shared());
 
         ok(copy_images(&f.dyn_ctx, &plan, "ws2", "t2").await);
         assert_eq!(
@@ -676,9 +742,17 @@ fn copy_images_keeps_each_image_at_its_index_under_the_fork() {
             "an image whose key the source holds and whose blob reads is kept with its bytes; any other entry keeps its place as an empty text/plain; an event with no image is skipped"
         );
         let calls = f.ctx.called();
-        assert_eq!(&calls[..3], &["keptWrites ws1".to_string(), "keptWrites settled".to_string(), "store.get attachment-keys/ws1".to_string()], "the source's pending writes settle first");
+        assert_eq!(
+            &calls[..3],
+            &["keptWrites ws1".to_string(), "keptWrites settled".to_string(), "store.get attachment-keys/ws1".to_string()],
+            "the source's pending writes settle first"
+        );
         let blobs: Vec<&String> = calls.iter().filter(|c| c.starts_with("store.getBlob")).collect();
-        assert_eq!(blobs, vec!["store.getBlob attachments/t1.req1.0", "store.getBlob attachments/t1.req1.3", "store.getBlob attachments/t1.req2.0"], "blobs are read for held keys only, event by event");
+        assert_eq!(
+            blobs,
+            vec!["store.getBlob attachments/t1.req1.0", "store.getBlob attachments/t1.req1.3", "store.getBlob attachments/t1.req2.0"],
+            "blobs are read for held keys only, event by event"
+        );
     });
 }
 
@@ -688,7 +762,8 @@ fn copy_images_copies_nothing_where_the_source_holds_no_images() {
         let f = fixture();
         let mut plan = plan_for("claude", None);
         plan.source.thread_id = "t1".into();
-        plan.events = vec![image_event("session.start", "u1", Some("req1"), json!([{ "mediaType": "image/png", "bytes": 5, "name": "dot.png" }]))];
+        plan.events =
+            vec![image_event("session.start", "u1", Some("req1"), json!([{ "mediaType": "image/png", "bytes": 5, "name": "dot.png" }]))];
         f.ctx.store.seed("attachment-keys", "ws1", json!({ "threads": { "t9": [{ "key": "t9.req1.0", "mediaType": "image/png" }] } }));
         ok(copy_images(&f.dyn_ctx, &plan, "ws2", "t2").await);
         assert_eq!(kept(&f), vec![], "the source thread holds no entry");
@@ -711,13 +786,18 @@ fn ready_fork_says_the_agents_refusal_in_the_callers_words() {
         let said = |why: &str| err(&format!("said: {why}"));
         let got = refused(ready_fork(adapter.clone(), "cs1", ForkTurn::Anchor("a2".into()), &said).await);
         assert_eq!(got.message, "said: the session holds no message a2");
-        match ok(ready_fork(adapter.clone(), "cs1", ForkTurn::After(vec![CountedTurn { anchor: Some("a3".into()), result: None }]), &said).await) {
+        match ok(
+            ready_fork(adapter.clone(), "cs1", ForkTurn::After(vec![CountedTurn { anchor: Some("a3".into()), result: None }]), &said).await
+        ) {
             wsp_adapters::port::ForkedSession::Resume { resume, .. } => assert_eq!(resume, "cs-copy"),
             wsp_adapters::port::ForkedSession::Fork { .. } => panic!("a copy was queued"),
         }
         assert_eq!(
             adapter.asked(),
-            vec![("cs1".to_string(), ForkTurn::Anchor("a2".into())), ("cs1".to_string(), ForkTurn::After(vec![CountedTurn { anchor: Some("a3".into()), result: None }]))]
+            vec![
+                ("cs1".to_string(), ForkTurn::Anchor("a2".into())),
+                ("cs1".to_string(), ForkTurn::After(vec![CountedTurn { anchor: Some("a3".into()), result: None }]))
+            ]
         );
     });
 }
@@ -735,10 +815,12 @@ fn move_session_renames_only_that_threads_rows_on_that_session() {
             row(view(json!({ "id": "r3", "threadId": "t2", "claudeSessionId": "cs1" })), "u3"),
             row(view(json!({ "id": "r4", "threadId": "t1" })), "u4"),
             row(view(json!({ "id": "r5", "threadId": "t1", "claudeSessionId": "cs1" })), "u5"),
-        ]).take()
+        ])
+        .take()
     });
     move_session(&f.dyn_ctx, "t1", "cs1", "cs9");
-    let now: Vec<(String, Option<String>)> = f.ctx.sessions.with(|s| s.values().map(|r| (r.borrow().view.id.clone(), r.borrow().view.claude_session_id.clone())).collect());
+    let now: Vec<(String, Option<String>)> =
+        f.ctx.sessions.with(|s| s.values().map(|r| (r.borrow().view.id.clone(), r.borrow().view.claude_session_id.clone())).collect());
     assert_eq!(
         now,
         vec![
@@ -778,7 +860,11 @@ fn fork_start_without_a_branch_starts_on_the_source() {
         let seen = f.ctx.started.borrow();
         assert_eq!(seen.len(), 1);
         assert_eq!((seen[0].0.as_str(), seen[0].1.prompt.as_str(), seen[0].1.cwd.clone()), ("ws1", "x", None));
-        assert_eq!(f.ctx.called(), vec!["ready".to_string(), format!("entryOfRow {THREAD} ws1"), format!("openThread ws1 {THREAD}"), "start ws1".to_string()], "no git, no worktree");
+        assert_eq!(
+            f.ctx.called(),
+            vec!["ready".to_string(), format!("entryOfRow {THREAD} ws1"), format!("openThread ws1 {THREAD}"), "start ws1".to_string()],
+            "no git, no worktree"
+        );
     });
 }
 
@@ -806,21 +892,27 @@ fn fork_start_refuses_a_branch_with_no_checkpoint() {
 
         let gone = fixture();
         gone.ctx.git_answers("rev-parse", 1);
-        let got = refused(fork_start(&gone.dyn_ctx, gone.ctx.start_fn(), options(Some("main-fork"), fork_of(Some("u1"), None)), None).await);
+        let got =
+            refused(fork_start(&gone.dyn_ctx, gone.ctx.start_fn(), options(Some("main-fork"), fork_of(Some("u1"), None)), None).await);
         same_refusal(&got, refusal(FORK_NO_CHECKPOINT_LINE, FORK_NO_CHECKPOINT_FIX, Some(Kind::Conflict)));
-        assert!(gone.ctx.called().contains(&"git /repo/p1 rev-parse --verify -q refs/c/u1^{commit}".to_string()), "the ref is checked as a commit at the repo's top");
+        assert!(
+            gone.ctx.called().contains(&"git /repo/p1 rev-parse --verify -q refs/c/u1^{commit}".to_string()),
+            "the ref is checked as a commit at the repo's top"
+        );
         assert!(!gone.ctx.called().iter().any(|c| c.starts_with("worktreeFolder")), "no worktree is made");
         assert_eq!(gone.ctx.started.borrow().len(), 0);
 
         let cloud = fixture();
         cloud.ctx.add_entry(ws_entry(json!({ "kind": "cloud" })));
-        let got = refused(fork_start(&cloud.dyn_ctx, cloud.ctx.start_fn(), options(Some("main-fork"), fork_of(Some("u1"), None)), None).await);
+        let got =
+            refused(fork_start(&cloud.dyn_ctx, cloud.ctx.start_fn(), options(Some("main-fork"), fork_of(Some("u1"), None)), None).await);
         same_refusal(&got, usage_refusal(&place_branch_line(&cloud.ctx.place_name("this")), FORK_NO_CHECKPOINT_FIX));
         assert!(!cloud.ctx.called().iter().any(|c| c.starts_with("git")));
 
         let bare = fixture();
         bare.ctx.projects.borrow_mut().insert("p1".into(), project_view("p1", "lab", "/repo/p1", None));
-        let got = refused(fork_start(&bare.dyn_ctx, bare.ctx.start_fn(), options(Some("main-fork"), fork_of(Some("u1"), None)), None).await);
+        let got =
+            refused(fork_start(&bare.dyn_ctx, bare.ctx.start_fn(), options(Some("main-fork"), fork_of(Some("u1"), None)), None).await);
         same_refusal(&got, usage_refusal(&no_branches_line("lab"), FORK_NO_CHECKPOINT_FIX));
     });
 }
@@ -833,7 +925,13 @@ fn fork_start_runs_in_the_matching_subfolder_of_the_worktree() {
         f.ctx.worktrees.borrow_mut().push_back(Ok(made_worktree(true)));
         f.ctx.setup_lines.borrow_mut().insert("ws2".into(), "npm install".into());
         f.ctx.start_answers(Ok(handle("h2", "ws2")));
-        let started = ok(fork_start(&f.dyn_ctx, f.ctx.start_fn(), options(Some("main-fork"), fork_of(Some("u1"), None)), Some(scoped("t9", "root-t"))).await);
+        let started = ok(fork_start(
+            &f.dyn_ctx,
+            f.ctx.start_fn(),
+            options(Some("main-fork"), fork_of(Some("u1"), None)),
+            Some(scoped("t9", "root-t")),
+        )
+        .await);
         assert_eq!(started.workspace_id(), "ws2");
         assert_eq!(
             f.ctx.called().into_iter().skip_while(|c| !c.starts_with("git")).collect::<Vec<_>>(),
@@ -847,7 +945,11 @@ fn fork_start_runs_in_the_matching_subfolder_of_the_worktree() {
         );
         let seen = f.ctx.started.borrow();
         assert_eq!(seen[0].0, "ws2");
-        assert_eq!(seen[0].1.cwd.as_deref(), Some("/wt/feat/sub/dir"), "the source ran in sub/dir of /work/ws1: the fork runs there in its tree");
+        assert_eq!(
+            seen[0].1.cwd.as_deref(),
+            Some("/wt/feat/sub/dir"),
+            "the source ran in sub/dir of /work/ws1: the fork runs there in its tree"
+        );
         assert_eq!(seen[0].1.setup.as_deref(), Some("npm install"));
         assert_eq!(seen[0].1.prompt, "x");
     });
@@ -866,7 +968,10 @@ fn fork_start_runs_at_the_worktrees_top_where_the_source_was_not_under_its_check
             let seen = f.ctx.started.borrow();
             assert_eq!(seen[0].1.cwd.as_deref(), Some("/wt/feat"), "source cwd {source_cwd}");
             assert_eq!(seen[0].1.setup, None);
-            assert!(f.ctx.called().contains(&"worktreeFolder p1 /repo/p1 main-fork ws1 - refs/c/u1".to_string()), "no caller, no root thread");
+            assert!(
+                f.ctx.called().contains(&"worktreeFolder p1 /repo/p1 main-fork ws1 - refs/c/u1".to_string()),
+                "no caller, no root thread"
+            );
         }
     });
 }
@@ -902,7 +1007,11 @@ fn fork_start_leaves_a_worktree_it_did_not_make_when_the_start_refuses() {
         old.ctx.start_answers(Err(err("refused")));
         let got = refused(fork_start(&old.dyn_ctx, old.ctx.start_fn(), options(Some("main-fork"), fork_of(Some("u1"), None)), None).await);
         assert_eq!(got.message, "refused");
-        assert_eq!(after_worktree(&old).last().map(String::as_str), Some("start ws2"), "a record that was live before the call is not this call's to remove");
+        assert_eq!(
+            after_worktree(&old).last().map(String::as_str),
+            Some("start ws2"),
+            "a record that was live before the call is not this call's to remove"
+        );
 
         let kept = fixture();
         kept.ctx.worktrees.borrow_mut().push_back(Ok(made_worktree(false)));
@@ -938,7 +1047,8 @@ fn owing(f: &F) {
             row(view(json!({ "id": "r2", "threadId": THREAD, "claudeSessionId": "cs1" })), "u2"),
             row(view(json!({ "id": "r3", "threadId": THREAD, "claudeSessionId": "cs0" })), "u3"),
             row(view(json!({ "id": "r4", "threadId": "t2", "claudeSessionId": "cs1" })), "u4"),
-        ]).take()
+        ])
+        .take()
     });
 }
 
@@ -965,7 +1075,11 @@ fn pay_cut_owed_moves_the_thread_onto_the_copy_and_clears_the_debt() {
         let resume = pay_cut_owed(&f.dyn_ctx, adapter.clone(), "ws1", THREAD, "cs1").await;
         assert_eq!(resume, "cs-copy", "the copy's session answers");
         assert_eq!(adapter.asked(), vec![("cs1".to_string(), ForkTurn::Anchor("a1".into()))], "a copy through the owed cut");
-        assert_eq!(sessions_now(&f), vec![Some("cs-copy".into()), Some("cs-copy".into()), Some("cs0".into()), Some("cs1".into())], "only the thread's rows on the session move");
+        assert_eq!(
+            sessions_now(&f),
+            vec![Some("cs-copy".into()), Some("cs-copy".into()), Some("cs0".into()), Some("cs1".into())],
+            "only the thread's rows on the session move"
+        );
         assert_eq!(cut_owed(&f), None);
         settle().await;
         assert_eq!(persisted(&f), 1, "the sessions are persisted, off the caller's wait");
@@ -983,7 +1097,10 @@ fn pay_cut_owed_warns_and_resumes_uncut_when_the_copy_fails() {
         let captured = console::capture();
         let resume = pay_cut_owed(&f.dyn_ctx, adapter.clone(), "ws1", THREAD, "cs1").await;
         assert_eq!(resume, "cs1", "the resume runs uncut");
-        assert_eq!(captured.lines(), vec!["thread th01abcd resumes without its owed cut: No conversation found with session ID: gone".to_string()]);
+        assert_eq!(
+            captured.lines(),
+            vec!["thread th01abcd resumes without its owed cut: No conversation found with session ID: gone".to_string()]
+        );
         assert_eq!(sessions_now(&f), vec![Some("cs1".into()), Some("cs1".into()), Some("cs0".into()), Some("cs1".into())], "nothing moves");
         assert_eq!(cut_owed(&f), None, "a copy refused for any reason owes nothing more");
         settle().await;
@@ -1016,7 +1133,11 @@ fn pay_cut_owed_changes_nothing_where_nothing_is_owed_or_the_agent_forks_no_sess
         f.ctx.thread_records.with(|r| r.get_mut(THREAD).expect("a record").cut_owed = None);
         let adapter = FakeForkAdapter::new();
         assert_eq!(pay_cut_owed(&f.dyn_ctx, adapter.clone(), "ws1", THREAD, "cs1").await, "cs1");
-        assert_eq!(pay_cut_owed(&f.dyn_ctx, adapter.clone(), "ws1", "t-no-record", "cs1").await, "cs1", "a thread with no record owes nothing");
+        assert_eq!(
+            pay_cut_owed(&f.dyn_ctx, adapter.clone(), "ws1", "t-no-record", "cs1").await,
+            "cs1",
+            "a thread with no record owes nothing"
+        );
         assert_eq!(adapter.asked(), vec![]);
 
         owing(&f);

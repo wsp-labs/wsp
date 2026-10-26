@@ -153,7 +153,12 @@ impl SessionHandle for TakenHandle {
     fn interrupt(&self) -> LocalBoxFuture<'static, ()> {
         futures::future::ready(()).boxed_local()
     }
-    fn steer(&self, _prompt: String, _id: Option<String>, _images: Vec<wsp_adapters::port::TurnImage>) -> Option<Local<'static, SteerTaken>> {
+    fn steer(
+        &self,
+        _prompt: String,
+        _id: Option<String>,
+        _images: Vec<wsp_adapters::port::TurnImage>,
+    ) -> Option<Local<'static, SteerTaken>> {
         None
     }
     fn tells_unread(&self) -> Option<bool> {
@@ -367,7 +372,15 @@ impl ThreadsArea {
     }
 
     /// threads.ts:1025: E7.
-    pub fn steer_answered(&self, row_id: &str, handle_id: &str, o: &SteerSent, caller: Option<&Caller>, steer_id: &str, landed: bool) -> bool {
+    pub fn steer_answered(
+        &self,
+        row_id: &str,
+        handle_id: &str,
+        o: &SteerSent,
+        caller: Option<&Caller>,
+        steer_id: &str,
+        landed: bool,
+    ) -> bool {
         let ended = self.steers_out.borrow_mut().shift_remove(steer_id).and_then(|out| out.ended);
         match ended {
             None if landed => {
@@ -392,7 +405,8 @@ impl ThreadsArea {
         };
         let (workspace_id, thread_id, turn_id, claude_session_id, asking, kept_here) = {
             let row = row.borrow();
-            let kept_here = row.turn_live.as_ref().and_then(|live| live.steered.as_ref()).is_some_and(|steered| steered.contains_key(steer_id));
+            let kept_here =
+                row.turn_live.as_ref().and_then(|live| live.steered.as_ref()).is_some_and(|steered| steered.contains_key(steer_id));
             (
                 row.view.workspace_id.clone(),
                 row.view.thread_id.clone(),
@@ -489,7 +503,8 @@ impl ThreadsArea {
                     let view = &row.view;
                     let started = view.started_at.map_or(0.0, |at| at.0);
                     let ended = view.ended_at.map_or(to, |at| at.0);
-                    let counts = view.workspace_id == workspace_id && view.thread_id.as_deref() != Some(thread_id) && started <= to && ended >= from;
+                    let counts =
+                        view.workspace_id == workspace_id && view.thread_id.as_deref() != Some(thread_id) && started <= to && ended >= from;
                     counts.then(|| view.cwd.clone()).flatten()
                 })
                 .collect()
@@ -544,7 +559,12 @@ impl ThreadsArea {
         let files: Vec<TurnChangedFile> = read
             .files
             .iter()
-            .map(|file| TurnChangedFile { path: file.path.clone(), kind: file.kind.clone(), additions: file.additions, deletions: file.deletions })
+            .map(|file| TurnChangedFile {
+                path: file.path.clone(),
+                kind: file.kind.clone(),
+                additions: file.additions,
+                deletions: file.deletions,
+            })
             .collect();
         let moved = read.moved.clone();
         if files.is_empty() && moved.is_empty() {

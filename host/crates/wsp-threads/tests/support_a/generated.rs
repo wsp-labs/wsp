@@ -74,7 +74,9 @@ impl LaunchCtx for FakeHost {
     }
     async fn entry_of(&self, workspace_id: &str, origin: Option<Caller>) -> Result<Entry, HostError> {
         self.hooks.log("entry_of", vec![workspace_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, Option<Caller>) -> LocalBoxFuture<'static, Result<Entry, HostError>>>("LaunchCtx::entry_of") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&str, Option<Caller>) -> LocalBoxFuture<'static, Result<Entry, HostError>>>("LaunchCtx::entry_of")
+        {
             return hook(workspace_id, origin).await;
         }
         self.live(workspace_id).ok_or_else(|| HostError::with_kind(format!("no workspace {workspace_id}"), Kind::NotFound))
@@ -108,7 +110,8 @@ impl LaunchCtx for FakeHost {
     }
     async fn preferences(&self) -> Result<Preferences, HostError> {
         self.hooks.log("preferences", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn() -> LocalBoxFuture<'static, Result<Preferences, HostError>>>("LaunchCtx::preferences") {
+        if let Some(hook) = self.hooks.get::<dyn Fn() -> LocalBoxFuture<'static, Result<Preferences, HostError>>>("LaunchCtx::preferences")
+        {
             return hook().await;
         }
         panic!("FakeHost: LaunchCtx::preferences has no answer; set its hook")
@@ -143,14 +146,21 @@ impl LaunchCtx for FakeHost {
     }
     async fn confine_setup(&self, entry: &Entry, harness: &str) -> Result<(), HostError> {
         self.hooks.log("confine_setup", vec![harness.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>("LaunchCtx::confine_setup") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>("LaunchCtx::confine_setup")
+        {
             return hook(entry, harness).await;
         }
         Ok(())
     }
     async fn catalog_on(&self, harness: &str, entry: &Entry, adapter: &dyn HarnessAdapter) -> Result<Option<HarnessCatalog>, HostError> {
         self.hooks.log("catalog_on", vec![harness.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, &Entry, &dyn HarnessAdapter) -> LocalBoxFuture<'static, Result<Option<HarnessCatalog>, HostError>>>("LaunchCtx::catalog_on") {
+        if let Some(hook) =
+            self.hooks
+                .get::<dyn Fn(&str, &Entry, &dyn HarnessAdapter) -> LocalBoxFuture<'static, Result<Option<HarnessCatalog>, HostError>>>(
+                    "LaunchCtx::catalog_on",
+                )
+        {
             return hook(harness, entry, adapter).await;
         }
         Ok(None)
@@ -164,7 +174,9 @@ impl LaunchCtx for FakeHost {
     }
     fn named_mode(&self, catalog: Option<&HarnessCatalog>, harness: &str, access: &AccessChoice) -> Option<String> {
         self.hooks.log("named_mode", vec![harness.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(Option<&HarnessCatalog>, &str, &AccessChoice) -> Option<String>>("LaunchCtx::named_mode") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(Option<&HarnessCatalog>, &str, &AccessChoice) -> Option<String>>("LaunchCtx::named_mode")
+        {
             return hook(catalog, harness, access);
         }
         None
@@ -192,14 +204,18 @@ impl LaunchCtx for FakeHost {
     }
     fn not_run_refused(&self, catalog: Option<&HarnessCatalog>, model: Option<&str>) -> Option<HostError> {
         self.hooks.log("not_run_refused", vec![format!("{:?}", model)]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(Option<&HarnessCatalog>, Option<&str>) -> Option<HostError>>("LaunchCtx::not_run_refused") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(Option<&HarnessCatalog>, Option<&str>) -> Option<HostError>>("LaunchCtx::not_run_refused")
+        {
             return hook(catalog, model);
         }
         None
     }
     async fn thread_folder(&self, entry: &Entry, cwd: Option<&str>) -> Result<String, HostError> {
         self.hooks.log("thread_folder", vec![format!("{:?}", cwd)]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, Option<&str>) -> LocalBoxFuture<'static, Result<String, HostError>>>("LaunchCtx::thread_folder") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Entry, Option<&str>) -> LocalBoxFuture<'static, Result<String, HostError>>>("LaunchCtx::thread_folder")
+        {
             return hook(entry, cwd).await;
         }
         Ok(cwd.map(String::from).unwrap_or_else(|| format!("/work/{}", entry.borrow().record.borrow().id)))
@@ -255,7 +271,10 @@ impl LaunchCtx for FakeHost {
     }
     async fn thread_launch(&self, entry: &Entry, thread_id: &str, root_thread_id: &str, aside: bool) -> Result<ThreadLaunch, HostError> {
         self.hooks.log("thread_launch", vec![thread_id.to_string(), root_thread_id.to_string(), aside.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str, &str, bool) -> LocalBoxFuture<'static, Result<ThreadLaunch, HostError>>>("LaunchCtx::thread_launch") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(&Entry, &str, &str, bool) -> LocalBoxFuture<'static, Result<ThreadLaunch, HostError>>>("LaunchCtx::thread_launch")
+        {
             return hook(entry, thread_id, root_thread_id, aside).await;
         }
         Ok(ThreadLaunch::default())
@@ -267,9 +286,19 @@ impl LaunchCtx for FakeHost {
         }
         Default::default()
     }
-    async fn launch_servers_for(&self, entry: &Entry, harness: &str, adapter: &dyn HarnessAdapter, cwd: &str) -> Result<LaunchServers, HostError> {
+    async fn launch_servers_for(
+        &self,
+        entry: &Entry,
+        harness: &str,
+        adapter: &dyn HarnessAdapter,
+        cwd: &str,
+    ) -> Result<LaunchServers, HostError> {
         self.hooks.log("launch_servers_for", vec![harness.to_string(), cwd.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str, &dyn HarnessAdapter, &str) -> LocalBoxFuture<'static, Result<LaunchServers, HostError>>>("LaunchCtx::launch_servers_for") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Entry, &str, &dyn HarnessAdapter, &str) -> LocalBoxFuture<'static, Result<LaunchServers, HostError>>>(
+                "LaunchCtx::launch_servers_for",
+            )
+        {
             return hook(entry, harness, adapter, cwd).await;
         }
         Ok(LaunchServers::default())
@@ -321,7 +350,9 @@ impl ActivityCtx for FakeHost {
     }
     async fn place_rows(&self) -> Result<Vec<PlaceView>, HostError> {
         self.hooks.log("place_rows", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn() -> LocalBoxFuture<'static, Result<Vec<PlaceView>, HostError>>>("ActivityCtx::place_rows") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn() -> LocalBoxFuture<'static, Result<Vec<PlaceView>, HostError>>>("ActivityCtx::place_rows")
+        {
             return hook().await;
         }
         Ok(Vec::new())
@@ -349,14 +380,28 @@ impl ActivityCtx for FakeHost {
     }
     async fn local_channel(&self, on_event: DaemonEventListener, guarded: bool) -> Result<Rc<dyn DaemonAsk>, HostError> {
         self.hooks.log("local_channel", vec![guarded.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(DaemonEventListener, bool) -> LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>>("ActivityCtx::local_channel") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(DaemonEventListener, bool) -> LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>>(
+                "ActivityCtx::local_channel",
+            )
+        {
             return hook(on_event, guarded).await;
         }
         panic!("FakeHost: ActivityCtx::local_channel has no answer; set its hook")
     }
-    fn box_channel(&self, place: &str, on_event: DaemonEventListener) -> Option<futures::future::LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>> {
+    fn box_channel(
+        &self,
+        place: &str,
+        on_event: DaemonEventListener,
+    ) -> Option<futures::future::LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>> {
         self.hooks.log("box_channel", vec![place.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, DaemonEventListener) -> Option<futures::future::LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>>>("ActivityCtx::box_channel") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(
+            &str,
+            DaemonEventListener,
+        )
+            -> Option<futures::future::LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>>>(
+            "ActivityCtx::box_channel"
+        ) {
             return hook(place, on_event);
         }
         None
@@ -441,16 +486,30 @@ impl ActivityCtx for FakeHost {
         }
         true
     }
-    fn end_thread(&self, entry: &Entry, thread_id: &str, o: EndThread) -> Option<futures::future::LocalBoxFuture<'static, Result<Option<String>, HostError>>> {
+    fn end_thread(
+        &self,
+        entry: &Entry,
+        thread_id: &str,
+        o: EndThread,
+    ) -> Option<futures::future::LocalBoxFuture<'static, Result<Option<String>, HostError>>> {
         self.hooks.log("end_thread", vec![thread_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str, EndThread) -> Option<futures::future::LocalBoxFuture<'static, Result<Option<String>, HostError>>>>("ActivityCtx::end_thread") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(
+            &Entry,
+            &str,
+            EndThread,
+        ) -> Option<futures::future::LocalBoxFuture<'static, Result<Option<String>, HostError>>>>(
+            "ActivityCtx::end_thread"
+        ) {
             return hook(entry, thread_id, o);
         }
         None
     }
     async fn with_daemon(&self, entry: &Entry, frame: Value) -> Result<Map<String, Value>, HostError> {
         self.hooks.log("with_daemon", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, Value) -> LocalBoxFuture<'static, Result<Map<String, Value>, HostError>>>("ActivityCtx::with_daemon") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(&Entry, Value) -> LocalBoxFuture<'static, Result<Map<String, Value>, HostError>>>("ActivityCtx::with_daemon")
+        {
             return hook(entry, frame).await;
         }
         Ok(Map::new())
@@ -535,7 +594,9 @@ impl TurnsCtx for FakeHost {
     }
     async fn persist_record(&self, record: WorkspaceRecord) -> Result<(), HostError> {
         self.hooks.log("persist_record", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(WorkspaceRecord) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::persist_record") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(WorkspaceRecord) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::persist_record")
+        {
             return hook(record).await;
         }
         Ok(())
@@ -548,7 +609,9 @@ impl TurnsCtx for FakeHost {
     }
     async fn slates_turn_ended(&self, thread_id: &str, turn_id: &str) -> Result<(), HostError> {
         self.hooks.log("slates_turn_ended", vec![thread_id.to_string(), turn_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::slates_turn_ended") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::slates_turn_ended")
+        {
             return hook(thread_id, turn_id).await;
         }
         Ok(())
@@ -568,7 +631,10 @@ impl TurnsCtx for FakeHost {
     }
     async fn read_turn_changes(&self, entry: &Entry, ask: TurnChangesAsk) -> Result<bool, HostError> {
         self.hooks.log("read_turn_changes", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, TurnChangesAsk) -> LocalBoxFuture<'static, Result<bool, HostError>>>("TurnsCtx::read_turn_changes") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(&Entry, TurnChangesAsk) -> LocalBoxFuture<'static, Result<bool, HostError>>>("TurnsCtx::read_turn_changes")
+        {
             return hook(entry, ask).await;
         }
         Ok(false)
@@ -609,7 +675,9 @@ impl TurnsCtx for FakeHost {
     }
     async fn name_in_harness(&self, view: SessionView, title: &str) -> Result<(), HostError> {
         self.hooks.log("name_in_harness", vec![title.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(SessionView, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::name_in_harness") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(SessionView, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::name_in_harness")
+        {
             return hook(view, title).await;
         }
         Ok(())
@@ -630,7 +698,9 @@ impl TurnsCtx for FakeHost {
     }
     async fn refresh_title(&self, row: &Row, ended: bool) -> Result<(), HostError> {
         self.hooks.log("refresh_title", vec![ended.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Row, bool) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::refresh_title") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Row, bool) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::refresh_title")
+        {
             return hook(row, ended).await;
         }
         Ok(())
@@ -644,7 +714,9 @@ impl TurnsCtx for FakeHost {
     }
     fn usage_account_of(&self, entry: &Entry, harness: &str, account: Option<(String, Option<String>)>) -> UsageAccount {
         self.hooks.log("usage_account_of", vec![harness.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str, Option<(String, Option<String>)>) -> UsageAccount>("TurnsCtx::usage_account_of") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Entry, &str, Option<(String, Option<String>)>) -> UsageAccount>("TurnsCtx::usage_account_of")
+        {
             return hook(entry, harness, account);
         }
         UsageAccount { key: format!("{harness}:default"), label: None, road: None }
@@ -665,21 +737,30 @@ impl TurnsCtx for FakeHost {
     }
     async fn ledger_limit(&self, ask: LimitAsk) -> Result<(serde_json::Value, serde_json::Value), HostError> {
         self.hooks.log("ledger_limit", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(LimitAsk) -> LocalBoxFuture<'static, Result<(serde_json::Value, serde_json::Value), HostError>>>("TurnsCtx::ledger_limit") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(LimitAsk) -> LocalBoxFuture<'static, Result<(serde_json::Value, serde_json::Value), HostError>>>(
+                "TurnsCtx::ledger_limit",
+            )
+        {
             return hook(ask).await;
         }
         panic!("FakeHost: TurnsCtx::ledger_limit has no answer; set its hook")
     }
     async fn alerts_read(&self, before: serde_json::Value, after: serde_json::Value) -> Result<(), HostError> {
         self.hooks.log("alerts_read", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(serde_json::Value, serde_json::Value) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::alerts_read") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(serde_json::Value, serde_json::Value) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::alerts_read")
+        {
             return hook(before, after).await;
         }
         Ok(())
     }
     async fn usage_accounts(&self) -> Result<AccountsAnswer, HostError> {
         self.hooks.log("usage_accounts", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn() -> LocalBoxFuture<'static, Result<AccountsAnswer, HostError>>>("TurnsCtx::usage_accounts") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn() -> LocalBoxFuture<'static, Result<AccountsAnswer, HostError>>>("TurnsCtx::usage_accounts")
+        {
             return hook().await;
         }
         panic!("FakeHost: TurnsCtx::usage_accounts has no answer; set its hook")
@@ -790,21 +871,27 @@ impl TurnsCtx for FakeHost {
     }
     async fn read_checkout(&self, entry: &Entry, fresh: bool) -> Result<(), HostError> {
         self.hooks.log("read_checkout", vec![fresh.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, bool) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::read_checkout") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Entry, bool) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::read_checkout")
+        {
             return hook(entry, fresh).await;
         }
         Ok(())
     }
     async fn ran_on_branch(&self, entry: &Entry, thread_id: &str) -> Result<(), HostError> {
         self.hooks.log("ran_on_branch", vec![thread_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::ran_on_branch") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::ran_on_branch")
+        {
             return hook(entry, thread_id).await;
         }
         Ok(())
     }
     async fn read_pull_request(&self, entry: &Entry, fresh: bool) -> Result<(), HostError> {
         self.hooks.log("read_pull_request", vec![fresh.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, bool) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::read_pull_request") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Entry, bool) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::read_pull_request")
+        {
             return hook(entry, fresh).await;
         }
         Ok(())
@@ -846,7 +933,9 @@ impl TurnsCtx for FakeHost {
     }
     async fn take_review(&self, entry: &Entry, thread_id: &str, text: &str) -> Result<(), HostError> {
         self.hooks.log("take_review", vec![thread_id.to_string(), text.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::take_review") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Entry, &str, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::take_review")
+        {
             return hook(entry, thread_id, text).await;
         }
         Ok(())
@@ -874,7 +963,9 @@ impl TurnsCtx for FakeHost {
     }
     async fn open_thread(&self, workspace_id: &str, thread_id: &str) -> Result<Vec<SessionEvent>, HostError> {
         self.hooks.log("open_thread", vec![workspace_id.to_string(), thread_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>>("TurnsCtx::open_thread") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>>("TurnsCtx::open_thread")
+        {
             return hook(workspace_id, thread_id).await;
         }
         Ok(self.thread_events(thread_id))
@@ -917,36 +1008,80 @@ impl SessionsCtx for FakeHost {
         if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> Vec<SessionView>>("SessionsCtx::rows_on") {
             return hook(thread_id);
         }
-        self.rows.borrow().values().filter(|r| r.borrow().view.thread_id.as_deref() == Some(thread_id)).map(|r| r.borrow().view.clone()).collect()
+        self.rows
+            .borrow()
+            .values()
+            .filter(|r| r.borrow().view.thread_id.as_deref() == Some(thread_id))
+            .map(|r| r.borrow().view.clone())
+            .collect()
     }
     fn thread_runs(&self, thread_id: &str) -> bool {
         if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> bool>("SessionsCtx::thread_runs") {
             return hook(thread_id);
         }
-        self.rows.borrow().values().any(|r| { let r = r.borrow(); let v = &r.view; v.thread_id.as_deref() == Some(thread_id) && serde_json::to_value(&v.status).ok() == Some(json!("running")) })
+        self.rows.borrow().values().any(|r| {
+            let r = r.borrow();
+            let v = &r.view;
+            v.thread_id.as_deref() == Some(thread_id) && serde_json::to_value(&v.status).ok() == Some(json!("running"))
+        })
     }
     fn running_on(&self, thread_id: &str) -> Option<Row> {
         if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> Option<Row>>("SessionsCtx::running_on") {
             return hook(thread_id);
         }
-        self.rows.borrow().values().find(|row| { let r = row.borrow(); let v = &r.view; v.thread_id.as_deref() == Some(thread_id) && serde_json::to_value(&v.status).ok() == Some(json!("running")) && r.handle.is_some() }).cloned()
+        self.rows
+            .borrow()
+            .values()
+            .find(|row| {
+                let r = row.borrow();
+                let v = &r.view;
+                v.thread_id.as_deref() == Some(thread_id)
+                    && serde_json::to_value(&v.status).ok() == Some(json!("running"))
+                    && r.handle.is_some()
+            })
+            .cloned()
     }
     fn launching_on(&self, thread_id: &str) -> Option<Row> {
         if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> Option<Row>>("SessionsCtx::launching_on") {
             return hook(thread_id);
         }
-        self.rows.borrow().values().find(|row| { let r = row.borrow(); let v = &r.view; v.thread_id.as_deref() == Some(thread_id) && serde_json::to_value(&v.status).ok() == Some(json!("running")) && r.handle.is_none() && r.launch.is_some() }).cloned()
+        self.rows
+            .borrow()
+            .values()
+            .find(|row| {
+                let r = row.borrow();
+                let v = &r.view;
+                v.thread_id.as_deref() == Some(thread_id)
+                    && serde_json::to_value(&v.status).ok() == Some(json!("running"))
+                    && r.handle.is_none()
+                    && r.launch.is_some()
+            })
+            .cloned()
     }
-    async fn entry_of_row(&self, at: &RowAt, origin: Option<&Caller>, talk: Option<TreeTalk>, being_made: bool) -> Result<Option<Entry>, HostError> {
+    async fn entry_of_row(
+        &self,
+        at: &RowAt,
+        origin: Option<&Caller>,
+        talk: Option<TreeTalk>,
+        being_made: bool,
+    ) -> Result<Option<Entry>, HostError> {
         self.hooks.log("entry_of_row", vec![format!("{:?}", at.thread_id.as_deref()), at.workspace_id.to_string(), being_made.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>("SessionsCtx::entry_of_row") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(
+            &RowAt,
+            Option<&Caller>,
+            Option<TreeTalk>,
+            bool,
+        ) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>("SessionsCtx::entry_of_row")
+        {
             return hook(at, origin, talk, being_made).await;
         }
         Ok(self.live(&at.workspace_id))
     }
     async fn entry_of_with(&self, workspace_id: &str, origin: Option<&Caller>, ask: EntryAsk) -> Result<Entry, HostError> {
         self.hooks.log("entry_of_with", vec![workspace_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, Option<&Caller>, EntryAsk) -> LocalBoxFuture<'static, Result<Entry, HostError>>>("SessionsCtx::entry_of_with") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(&str, Option<&Caller>, EntryAsk) -> LocalBoxFuture<'static, Result<Entry, HostError>>>(
+            "SessionsCtx::entry_of_with",
+        ) {
             return hook(workspace_id, origin, ask).await;
         }
         self.live(workspace_id).ok_or_else(|| HostError::with_kind(format!("no workspace {workspace_id}"), Kind::NotFound))
@@ -978,7 +1113,9 @@ impl SessionsCtx for FakeHost {
     }
     async fn persist_sessions(&self, workspace_id: &str) -> Result<(), HostError> {
         self.hooks.log("persist_sessions", vec![workspace_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::persist_sessions") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&str) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::persist_sessions")
+        {
             return hook(workspace_id).await;
         }
         Ok(())
@@ -1083,7 +1220,10 @@ impl SessionsCtx for FakeHost {
     }
     async fn stop_under(&self, thread_id: &str, origin: Option<&Caller>) -> Result<Vec<String>, HostError> {
         self.hooks.log("stop_under", vec![thread_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, Option<&Caller>) -> LocalBoxFuture<'static, Result<Vec<String>, HostError>>>("SessionsCtx::stop_under") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(&str, Option<&Caller>) -> LocalBoxFuture<'static, Result<Vec<String>, HostError>>>("SessionsCtx::stop_under")
+        {
             return hook(thread_id, origin).await;
         }
         Ok(Vec::new())
@@ -1102,16 +1242,28 @@ impl SessionsCtx for FakeHost {
         }
         false
     }
-    fn end_thread(&self, entry: &Entry, thread_id: &str, o: EndThread) -> Option<LocalBoxFuture<'static, Result<Option<String>, HostError>>> {
+    fn end_thread(
+        &self,
+        entry: &Entry,
+        thread_id: &str,
+        o: EndThread,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<String>, HostError>>> {
         self.hooks.log("end_thread", vec![thread_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str, EndThread) -> Option<LocalBoxFuture<'static, Result<Option<String>, HostError>>>>("SessionsCtx::end_thread") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Entry, &str, EndThread) -> Option<LocalBoxFuture<'static, Result<Option<String>, HostError>>>>(
+                "SessionsCtx::end_thread",
+            )
+        {
             return hook(entry, thread_id, o);
         }
         None
     }
     async fn end_owed(&self, entry: &Entry, thread_id: &str) -> Result<Option<Option<Joined>>, HostError> {
         self.hooks.log("end_owed", vec![thread_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<Option<Option<Joined>>, HostError>>>("SessionsCtx::end_owed") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<Option<Option<Joined>>, HostError>>>("SessionsCtx::end_owed")
+        {
             return hook(entry, thread_id).await;
         }
         Ok(None)
@@ -1125,14 +1277,29 @@ impl SessionsCtx for FakeHost {
     }
     async fn taken_turn(&self, workspace_id: &str, taken: Taken) -> Result<Option<Rc<dyn SessionHandle>>, HostError> {
         self.hooks.log("taken_turn", vec![workspace_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, Taken) -> LocalBoxFuture<'static, Result<Option<Rc<dyn SessionHandle>>, HostError>>>("SessionsCtx::taken_turn") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&str, Taken) -> LocalBoxFuture<'static, Result<Option<Rc<dyn SessionHandle>>, HostError>>>(
+                "SessionsCtx::taken_turn",
+            )
+        {
             return hook(workspace_id, taken).await;
         }
         Ok(None)
     }
-    async fn fork_opened(&self, workspace_id: &str, opened: StartOptions, origin: Option<&Caller>) -> Result<(StartOptions, Option<ForkPlan>), HostError> {
+    async fn fork_opened(
+        &self,
+        workspace_id: &str,
+        opened: StartOptions,
+        origin: Option<&Caller>,
+    ) -> Result<(StartOptions, Option<ForkPlan>), HostError> {
         self.hooks.log("fork_opened", vec![workspace_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, StartOptions, Option<&Caller>) -> LocalBoxFuture<'static, Result<(StartOptions, Option<ForkPlan>), HostError>>>("SessionsCtx::fork_opened") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(
+            &str,
+            StartOptions,
+            Option<&Caller>,
+        ) -> LocalBoxFuture<'static, Result<(StartOptions, Option<ForkPlan>), HostError>>>(
+            "SessionsCtx::fork_opened"
+        ) {
             return hook(workspace_id, opened, origin).await;
         }
         panic!("FakeHost: SessionsCtx::fork_opened has no answer; set its hook")
@@ -1167,7 +1334,9 @@ impl SessionsCtx for FakeHost {
     }
     fn away_for(&self, record: &WorkspaceRecord, origin: Option<&Caller>, act: &str, workspace_id: &str) -> Option<HostError> {
         self.hooks.log("away_for", vec![act.to_string(), workspace_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&WorkspaceRecord, Option<&Caller>, &str, &str) -> Option<HostError>>("SessionsCtx::away_for") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&WorkspaceRecord, Option<&Caller>, &str, &str) -> Option<HostError>>("SessionsCtx::away_for")
+        {
             return hook(record, origin, act, workspace_id);
         }
         None
@@ -1188,7 +1357,9 @@ impl SessionsCtx for FakeHost {
     }
     async fn worktree_gone(&self, entry: &Entry, why: &str, starting: bool) -> Result<(), HostError> {
         self.hooks.log("worktree_gone", vec![why.to_string(), starting.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str, bool) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::worktree_gone") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Entry, &str, bool) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::worktree_gone")
+        {
             return hook(entry, why, starting).await;
         }
         Ok(())
@@ -1216,14 +1387,17 @@ impl SessionsCtx for FakeHost {
     }
     async fn copy_blocked(&self, entry: &Entry) -> Result<(), HostError> {
         self.hooks.log("copy_blocked", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::copy_blocked") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::copy_blocked")
+        {
             return hook(entry).await;
         }
         Ok(())
     }
     async fn worktree_mounted(&self, entry: &Entry) -> Result<(), HostError> {
         self.hooks.log("worktree_mounted", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::worktree_mounted") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Entry) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::worktree_mounted")
+        {
             return hook(entry).await;
         }
         Ok(())
@@ -1293,21 +1467,44 @@ impl SessionsCtx for FakeHost {
     }
     async fn resume_sub(&self, entry: &Entry, thread_id: &str, harness: &str, prompt: &str) -> Result<Resumed, HostError> {
         self.hooks.log("resume_sub", vec![thread_id.to_string(), harness.to_string(), prompt.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str, &str, &str) -> LocalBoxFuture<'static, Result<Resumed, HostError>>>("SessionsCtx::resume_sub") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(&Entry, &str, &str, &str) -> LocalBoxFuture<'static, Result<Resumed, HostError>>>("SessionsCtx::resume_sub")
+        {
             return hook(entry, thread_id, harness, prompt).await;
         }
         panic!("FakeHost: SessionsCtx::resume_sub has no answer; set its hook")
     }
     async fn place_rows(&self) -> Option<Vec<wsp_wire::views::place_more::PlaceView>> {
         self.hooks.log("place_rows", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn() -> LocalBoxFuture<'static, Option<Vec<wsp_wire::views::place_more::PlaceView>>>>("SessionsCtx::place_rows") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn() -> LocalBoxFuture<'static, Option<Vec<wsp_wire::views::place_more::PlaceView>>>>("SessionsCtx::place_rows")
+        {
             return hook().await;
         }
         None
     }
-    async fn hold_queued(&self, workspace_id: &str, thread_id: &str, tree: TreeOf, opts: StartOptions, notify: Option<Vec<String>>, origin: Option<&Caller>) -> Result<Rc<dyn SessionHandle>, HostError> {
+    async fn hold_queued(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        tree: TreeOf,
+        opts: StartOptions,
+        notify: Option<Vec<String>>,
+        origin: Option<&Caller>,
+    ) -> Result<Rc<dyn SessionHandle>, HostError> {
         self.hooks.log("hold_queued", vec![workspace_id.to_string(), thread_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, &str, TreeOf, StartOptions, Option<Vec<String>>, Option<&Caller>) -> LocalBoxFuture<'static, Result<Rc<dyn SessionHandle>, HostError>>>("SessionsCtx::hold_queued") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(
+                &str,
+                &str,
+                TreeOf,
+                StartOptions,
+                Option<Vec<String>>,
+                Option<&Caller>,
+            ) -> LocalBoxFuture<'static, Result<Rc<dyn SessionHandle>, HostError>>>("SessionsCtx::hold_queued")
+        {
             return hook(workspace_id, thread_id, tree, opts, notify, origin).await;
         }
         panic!("FakeHost: SessionsCtx::hold_queued has no answer; set its hook")
@@ -1342,14 +1539,21 @@ impl SessionsCtx for FakeHost {
     }
     async fn fork_start(&self, opts: ForkOptions, start: StartFn, origin: Option<&Caller>) -> Result<Rc<dyn SessionHandle>, HostError> {
         self.hooks.log("fork_start", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(ForkOptions, StartFn, Option<&Caller>) -> LocalBoxFuture<'static, Result<Rc<dyn SessionHandle>, HostError>>>("SessionsCtx::fork_start") {
+        if let Some(hook) =
+            self.hooks
+                .get::<dyn Fn(ForkOptions, StartFn, Option<&Caller>) -> LocalBoxFuture<'static, Result<Rc<dyn SessionHandle>, HostError>>>(
+                    "SessionsCtx::fork_start",
+                )
+        {
             return hook(opts, start, origin).await;
         }
         panic!("FakeHost: SessionsCtx::fork_start has no answer; set its hook")
     }
     fn carried_title(&self, thread_id: &str) -> (Option<String>, Option<wsp_wire::views::session::TitleSource>) {
         self.hooks.log("carried_title", vec![thread_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> (Option<String>, Option<wsp_wire::views::session::TitleSource>)>("SessionsCtx::carried_title") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&str) -> (Option<String>, Option<wsp_wire::views::session::TitleSource>)>("SessionsCtx::carried_title")
+        {
             return hook(thread_id);
         }
         (None, None)
@@ -1391,14 +1595,18 @@ impl SessionsCtx for FakeHost {
     }
     async fn first_run_here(&self, entry: &Entry, harness: &str) -> Result<bool, HostError> {
         self.hooks.log("first_run_here", vec![harness.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<bool, HostError>>>("SessionsCtx::first_run_here") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<bool, HostError>>>("SessionsCtx::first_run_here")
+        {
             return hook(entry, harness).await;
         }
         Ok(false)
     }
     async fn limit_details_due(&self, entry: &Entry, harness: &str) -> Result<bool, HostError> {
         self.hooks.log("limit_details_due", vec![harness.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<bool, HostError>>>("SessionsCtx::limit_details_due") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<bool, HostError>>>("SessionsCtx::limit_details_due")
+        {
             return hook(entry, harness).await;
         }
         Ok(false)
@@ -1410,51 +1618,100 @@ impl SessionsCtx for FakeHost {
         }
         None
     }
-    async fn land_images(&self, entry: &Entry, adapter: &dyn HarnessAdapter, landing: &str, dir: &str, attachments: Vec<wsp_wire::types::attachments::Attachment>) -> Result<LandedImages, HostError> {
+    async fn land_images(
+        &self,
+        entry: &Entry,
+        adapter: &dyn HarnessAdapter,
+        landing: &str,
+        dir: &str,
+        attachments: Vec<wsp_wire::types::attachments::Attachment>,
+    ) -> Result<LandedImages, HostError> {
         self.hooks.log("land_images", vec![landing.to_string(), dir.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &dyn HarnessAdapter, &str, &str, Vec<wsp_wire::types::attachments::Attachment>) -> LocalBoxFuture<'static, Result<LandedImages, HostError>>>("SessionsCtx::land_images") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(
+            &Entry,
+            &dyn HarnessAdapter,
+            &str,
+            &str,
+            Vec<wsp_wire::types::attachments::Attachment>,
+        ) -> LocalBoxFuture<'static, Result<LandedImages, HostError>>>("SessionsCtx::land_images")
+        {
             return hook(entry, adapter, landing, dir, attachments).await;
         }
         panic!("FakeHost: SessionsCtx::land_images has no answer; set its hook")
     }
-    async fn land_files(&self, entry: &Entry, landing: &str, dir: &str, attachments: Vec<wsp_wire::types::attachments::Attachment>) -> Result<Vec<String>, HostError> {
+    async fn land_files(
+        &self,
+        entry: &Entry,
+        landing: &str,
+        dir: &str,
+        attachments: Vec<wsp_wire::types::attachments::Attachment>,
+    ) -> Result<Vec<String>, HostError> {
         self.hooks.log("land_files", vec![landing.to_string(), dir.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str, &str, Vec<wsp_wire::types::attachments::Attachment>) -> LocalBoxFuture<'static, Result<Vec<String>, HostError>>>("SessionsCtx::land_files") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(
+            &Entry,
+            &str,
+            &str,
+            Vec<wsp_wire::types::attachments::Attachment>,
+        ) -> LocalBoxFuture<'static, Result<Vec<String>, HostError>>>("SessionsCtx::land_files")
+        {
             return hook(entry, landing, dir, attachments).await;
         }
         Ok(Vec::new())
     }
-    async fn ready_fork(&self, adapter: Arc<dyn HarnessAdapter>, session: &str, turn: ForkTurn, harness: &str) -> Result<ForkedSession, HostError> {
+    async fn ready_fork(
+        &self,
+        adapter: Arc<dyn HarnessAdapter>,
+        session: &str,
+        turn: ForkTurn,
+        harness: &str,
+    ) -> Result<ForkedSession, HostError> {
         self.hooks.log("ready_fork", vec![session.to_string(), harness.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(Arc<dyn HarnessAdapter>, &str, ForkTurn, &str) -> LocalBoxFuture<'static, Result<ForkedSession, HostError>>>("SessionsCtx::ready_fork") {
+        if let Some(hook) =
+            self.hooks
+                .get::<dyn Fn(Arc<dyn HarnessAdapter>, &str, ForkTurn, &str) -> LocalBoxFuture<'static, Result<ForkedSession, HostError>>>(
+                    "SessionsCtx::ready_fork",
+                )
+        {
             return hook(adapter, session, turn, harness).await;
         }
         panic!("FakeHost: SessionsCtx::ready_fork has no answer; set its hook")
     }
     async fn copy_images(&self, plan: &ForkPlan, workspace_id: &str, thread_id: &str) -> Result<(), HostError> {
         self.hooks.log("copy_images", vec![workspace_id.to_string(), thread_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&ForkPlan, &str, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::copy_images") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&ForkPlan, &str, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::copy_images")
+        {
             return hook(plan, workspace_id, thread_id).await;
         }
         Ok(())
     }
     async fn pay_cut_owed(&self, adapter: Arc<dyn HarnessAdapter>, workspace_id: &str, thread_id: &str, resume: &str) -> String {
         self.hooks.log("pay_cut_owed", vec![workspace_id.to_string(), thread_id.to_string(), resume.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(Arc<dyn HarnessAdapter>, &str, &str, &str) -> LocalBoxFuture<'static, String>>("SessionsCtx::pay_cut_owed") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(Arc<dyn HarnessAdapter>, &str, &str, &str) -> LocalBoxFuture<'static, String>>("SessionsCtx::pay_cut_owed")
+        {
             return hook(adapter, workspace_id, thread_id, resume).await;
         }
         String::new()
     }
     fn snapshot_of(&self, entry: &Entry, cwd: &str) -> futures::future::Shared<LocalBoxFuture<'static, Option<String>>> {
         self.hooks.log("snapshot_of", vec![cwd.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str) -> futures::future::Shared<LocalBoxFuture<'static, Option<String>>>>("SessionsCtx::snapshot_of") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(&Entry, &str) -> futures::future::Shared<LocalBoxFuture<'static, Option<String>>>>("SessionsCtx::snapshot_of")
+        {
             return hook(entry, cwd);
         }
         futures::future::ready(None).boxed_local().shared()
     }
     async fn keep_steer(&self, running: &Row, opts: &StartOptions, origin: Option<&Caller>, steer_id: &str) -> Result<(), HostError> {
         self.hooks.log("keep_steer", vec![steer_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Row, &StartOptions, Option<&Caller>, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::keep_steer") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Row, &StartOptions, Option<&Caller>, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>(
+                "SessionsCtx::keep_steer",
+            )
+        {
             return hook(running, opts, origin, steer_id).await;
         }
         Ok(())
@@ -1466,9 +1723,19 @@ impl SessionsCtx for FakeHost {
         }
         ()
     }
-    fn steer_answered(&self, running: &Row, handle_id: &str, opts: &StartOptions, origin: Option<&Caller>, steer_id: &str, accepted: bool) -> bool {
+    fn steer_answered(
+        &self,
+        running: &Row,
+        handle_id: &str,
+        opts: &StartOptions,
+        origin: Option<&Caller>,
+        steer_id: &str,
+        accepted: bool,
+    ) -> bool {
         self.hooks.log("steer_answered", vec![handle_id.to_string(), steer_id.to_string(), accepted.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Row, &str, &StartOptions, Option<&Caller>, &str, bool) -> bool>("SessionsCtx::steer_answered") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Row, &str, &StartOptions, Option<&Caller>, &str, bool) -> bool>("SessionsCtx::steer_answered")
+        {
             return hook(running, handle_id, opts, origin, steer_id, accepted);
         }
         false
@@ -1480,9 +1747,19 @@ impl SessionsCtx for FakeHost {
         }
         false
     }
-    fn take_kept(&self, thread_id: &str, ask: Option<KeptLaunch>, resume: Option<&str>, launch_key: Option<&KeptLaunch>) -> Option<Rc<RefCell<KeptProcess>>> {
+    fn take_kept(
+        &self,
+        thread_id: &str,
+        ask: Option<KeptLaunch>,
+        resume: Option<&str>,
+        launch_key: Option<&KeptLaunch>,
+    ) -> Option<Rc<RefCell<KeptProcess>>> {
         self.hooks.log("take_kept", vec![thread_id.to_string(), format!("{:?}", resume)]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, Option<KeptLaunch>, Option<&str>, Option<&KeptLaunch>) -> Option<Rc<RefCell<KeptProcess>>>>("SessionsCtx::take_kept") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&str, Option<KeptLaunch>, Option<&str>, Option<&KeptLaunch>) -> Option<Rc<RefCell<KeptProcess>>>>(
+                "SessionsCtx::take_kept",
+            )
+        {
             return hook(thread_id, ask, resume, launch_key);
         }
         None
@@ -1501,9 +1778,21 @@ impl SessionsCtx for FakeHost {
         }
         panic!("FakeHost: SessionsCtx::run_turn has no answer; set its hook")
     }
-    async fn keep_sent_images(&self, workspace_id: &str, thread_id: &str, request_id: Option<&str>, attachments: Vec<wsp_wire::types::attachments::Attachment>) -> Result<(), HostError> {
+    async fn keep_sent_images(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        request_id: Option<&str>,
+        attachments: Vec<wsp_wire::types::attachments::Attachment>,
+    ) -> Result<(), HostError> {
         self.hooks.log("keep_sent_images", vec![workspace_id.to_string(), thread_id.to_string(), format!("{:?}", request_id)]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, &str, Option<&str>, Vec<wsp_wire::types::attachments::Attachment>) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::keep_sent_images") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(
+            &str,
+            &str,
+            Option<&str>,
+            Vec<wsp_wire::types::attachments::Attachment>,
+        ) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::keep_sent_images")
+        {
             return hook(workspace_id, thread_id, request_id, attachments).await;
         }
         Ok(())
@@ -1517,14 +1806,30 @@ impl SessionsCtx for FakeHost {
     }
     async fn remember_target(&self, record: &WorkspaceRecord) -> Result<(), HostError> {
         self.hooks.log("remember_target", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&WorkspaceRecord) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::remember_target") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&WorkspaceRecord) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::remember_target")
+        {
             return hook(record).await;
         }
         Ok(())
     }
-    fn notify_end(&self, row: &Row, notify: &[String], by: Option<&ThreadScope>, road: Option<&WorkspaceOrigin>, result: wsp_wire::views::session_events::TurnResult) {
+    fn notify_end(
+        &self,
+        row: &Row,
+        notify: &[String],
+        by: Option<&ThreadScope>,
+        road: Option<&WorkspaceOrigin>,
+        result: wsp_wire::views::session_events::TurnResult,
+    ) {
         self.hooks.log("notify_end", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Row, &[String], Option<&ThreadScope>, Option<&WorkspaceOrigin>, wsp_wire::views::session_events::TurnResult) -> ()>("SessionsCtx::notify_end") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(
+            &Row,
+            &[String],
+            Option<&ThreadScope>,
+            Option<&WorkspaceOrigin>,
+            wsp_wire::views::session_events::TurnResult,
+        ) -> ()>("SessionsCtx::notify_end")
+        {
             return hook(row, notify, by, road, result);
         }
         ()
@@ -1538,7 +1843,9 @@ impl SessionsCtx for FakeHost {
     }
     async fn drop_sent_images(&self, workspace_id: &str, thread_ids: &[String]) -> Result<(), HostError> {
         self.hooks.log("drop_sent_images", vec![workspace_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, &[String]) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::drop_sent_images") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&str, &[String]) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::drop_sent_images")
+        {
             return hook(workspace_id, thread_ids).await;
         }
         Ok(())
@@ -1552,7 +1859,10 @@ impl SessionsCtx for FakeHost {
     }
     async fn open_thread(&self, workspace_id: &str, thread_id: &str) -> Result<Vec<SessionEvent>, HostError> {
         self.hooks.log("open_thread", vec![workspace_id.to_string(), thread_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>>("SessionsCtx::open_thread") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>>("SessionsCtx::open_thread")
+        {
             return hook(workspace_id, thread_id).await;
         }
         Ok(self.thread_events(thread_id))
@@ -1587,14 +1897,18 @@ impl SessionsCtx for FakeHost {
     }
     async fn refresh_title(&self, view: SessionView, ended: bool) -> Result<(), HostError> {
         self.hooks.log("refresh_title", vec![ended.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(SessionView, bool) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::refresh_title") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(SessionView, bool) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::refresh_title")
+        {
             return hook(view, ended).await;
         }
         Ok(())
     }
     fn tree_records(&self, origin: Option<&Caller>, talk: TreeTalk, workspace_id: Option<&str>) -> Vec<(String, ThreadRecord)> {
         self.hooks.log("tree_records", vec![format!("{:?}", workspace_id)]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(Option<&Caller>, TreeTalk, Option<&str>) -> Vec<(String, ThreadRecord)>>("SessionsCtx::tree_records") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(Option<&Caller>, TreeTalk, Option<&str>) -> Vec<(String, ThreadRecord)>>("SessionsCtx::tree_records")
+        {
             return hook(origin, talk, workspace_id);
         }
         Vec::new()
@@ -1622,7 +1936,9 @@ impl SessionsCtx for FakeHost {
     }
     async fn open_transcript(&self, workspace_id: &str) -> Result<Vec<SessionEvent>, HostError> {
         self.hooks.log("open_transcript", vec![workspace_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>>("SessionsCtx::open_transcript") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>>("SessionsCtx::open_transcript")
+        {
             return hook(workspace_id).await;
         }
         Ok(self.recorded.borrow().clone())
@@ -1643,7 +1959,10 @@ impl SessionsCtx for FakeHost {
     }
     async fn read_page(&self, workspace_id: &str, thread_id: &str, window: ThreadRead) -> Result<HistoryPage, HostError> {
         self.hooks.log("read_page", vec![workspace_id.to_string(), thread_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, &str, ThreadRead) -> LocalBoxFuture<'static, Result<HistoryPage, HostError>>>("SessionsCtx::read_page") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(&str, &str, ThreadRead) -> LocalBoxFuture<'static, Result<HistoryPage, HostError>>>("SessionsCtx::read_page")
+        {
             return hook(workspace_id, thread_id, window).await;
         }
         panic!("FakeHost: SessionsCtx::read_page has no answer; set its hook")
@@ -1657,7 +1976,11 @@ impl SessionsCtx for FakeHost {
     }
     async fn facts_after_read(&self, thread_id: &str, origin: Option<&Caller>) -> Result<Option<ThreadFacts>, HostError> {
         self.hooks.log("facts_after_read", vec![thread_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, Option<&Caller>) -> LocalBoxFuture<'static, Result<Option<ThreadFacts>, HostError>>>("SessionsCtx::facts_after_read") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&str, Option<&Caller>) -> LocalBoxFuture<'static, Result<Option<ThreadFacts>, HostError>>>(
+                "SessionsCtx::facts_after_read",
+            )
+        {
             return hook(thread_id, origin).await;
         }
         Ok(None)
@@ -1671,14 +1994,19 @@ impl SessionsCtx for FakeHost {
     }
     async fn store_get(&self, collection: &str, id: &str) -> Result<Option<Value>, HostError> {
         self.hooks.log("store_get", vec![collection.to_string(), id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<Option<Value>, HostError>>>("SessionsCtx::store_get") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<Option<Value>, HostError>>>("SessionsCtx::store_get")
+        {
             return hook(collection, id).await;
         }
         Ok(None)
     }
     async fn store_get_blob(&self, collection: &str, key: &str) -> Result<Option<Vec<u8>>, HostError> {
         self.hooks.log("store_get_blob", vec![collection.to_string(), key.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<Option<Vec<u8>>, HostError>>>("SessionsCtx::store_get_blob") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<Option<Vec<u8>>, HostError>>>("SessionsCtx::store_get_blob")
+        {
             return hook(collection, key).await;
         }
         Ok(None)
@@ -1692,7 +2020,9 @@ impl SessionsCtx for FakeHost {
     }
     fn search_in(&self, workspace_id: &str, words: &str, drives: &dyn Fn(&str) -> bool, found: &mut Vec<SearchedHit>) -> u32 {
         self.hooks.log("search_in", vec![workspace_id.to_string(), words.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, &str, &dyn Fn(&str) -> bool, &mut Vec<SearchedHit>) -> u32>("SessionsCtx::search_in") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&str, &str, &dyn Fn(&str) -> bool, &mut Vec<SearchedHit>) -> u32>("SessionsCtx::search_in")
+        {
             return hook(workspace_id, words, drives, found);
         }
         0 as u32
@@ -1704,9 +2034,20 @@ impl SessionsCtx for FakeHost {
         }
         ()
     }
-    async fn launch_adapter_for(&self, entry: &Entry, harness: &str, server_values: Option<wsp_adapters::port::ServerValues>) -> Result<BuiltAdapter, HostError> {
+    async fn launch_adapter_for(
+        &self,
+        entry: &Entry,
+        harness: &str,
+        server_values: Option<wsp_adapters::port::ServerValues>,
+    ) -> Result<BuiltAdapter, HostError> {
         self.hooks.log("launch_adapter_for", vec![harness.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str, Option<wsp_adapters::port::ServerValues>) -> LocalBoxFuture<'static, Result<BuiltAdapter, HostError>>>("SessionsCtx::launch_adapter_for") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(
+                &Entry,
+                &str,
+                Option<wsp_adapters::port::ServerValues>,
+            ) -> LocalBoxFuture<'static, Result<BuiltAdapter, HostError>>>("SessionsCtx::launch_adapter_for")
+        {
             return hook(entry, harness, server_values).await;
         }
         panic!("FakeHost: SessionsCtx::launch_adapter_for has no answer; set its hook")
@@ -1723,9 +2064,22 @@ impl SessionsCtx for FakeHost {
         }
         false
     }
-    async fn write_session(&self, session: &str, entry: &Entry, adapter: Arc<dyn HarnessAdapter>, title: &str) -> Result<SessionRenameWrite, HostError> {
+    async fn write_session(
+        &self,
+        session: &str,
+        entry: &Entry,
+        adapter: Arc<dyn HarnessAdapter>,
+        title: &str,
+    ) -> Result<SessionRenameWrite, HostError> {
         self.hooks.log("write_session", vec![session.to_string(), title.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, &Entry, Arc<dyn HarnessAdapter>, &str) -> LocalBoxFuture<'static, Result<SessionRenameWrite, HostError>>>("SessionsCtx::write_session") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(
+            &str,
+            &Entry,
+            Arc<dyn HarnessAdapter>,
+            &str,
+        ) -> LocalBoxFuture<'static, Result<SessionRenameWrite, HostError>>>(
+            "SessionsCtx::write_session"
+        ) {
             return hook(session, entry, adapter, title).await;
         }
         panic!("FakeHost: SessionsCtx::write_session has no answer; set its hook")
@@ -1737,30 +2091,49 @@ impl SessionsCtx for FakeHost {
         }
         false
     }
-    async fn server_values_for(&self, entry: &Entry, harness: &str, cwd: &str) -> Result<Option<wsp_adapters::port::ServerValues>, HostError> {
+    async fn server_values_for(
+        &self,
+        entry: &Entry,
+        harness: &str,
+        cwd: &str,
+    ) -> Result<Option<wsp_adapters::port::ServerValues>, HostError> {
         self.hooks.log("server_values_for", vec![harness.to_string(), cwd.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str, &str) -> LocalBoxFuture<'static, Result<Option<wsp_adapters::port::ServerValues>, HostError>>>("SessionsCtx::server_values_for") {
+        if let Some(hook) =
+            self.hooks
+                .get::<dyn Fn(&Entry, &str, &str) -> LocalBoxFuture<'static, Result<Option<wsp_adapters::port::ServerValues>, HostError>>>(
+                    "SessionsCtx::server_values_for",
+                )
+        {
             return hook(entry, harness, cwd).await;
         }
         Ok(None)
     }
     async fn mark(&self, thread_ids: &[String], stamps: StampsOf, origin: Option<&Caller>) -> Result<(), HostError> {
         self.hooks.log("mark", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&[String], StampsOf, Option<&Caller>) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::mark") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(&[String], StampsOf, Option<&Caller>) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::mark")
+        {
             return hook(thread_ids, stamps, origin).await;
         }
         Ok(())
     }
     async fn arm_resume(&self, thread_ids: &[String], on: bool, origin: Option<&Caller>) -> Result<(), HostError> {
         self.hooks.log("arm_resume", vec![on.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&[String], bool, Option<&Caller>) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::arm_resume") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(&[String], bool, Option<&Caller>) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::arm_resume")
+        {
             return hook(thread_ids, on, origin).await;
         }
         Ok(())
     }
     async fn aside(&self, adapter: &dyn HarnessAdapter, ask: AsideQuestion) -> Result<String, HostError> {
         self.hooks.log("aside", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&dyn HarnessAdapter, AsideQuestion) -> LocalBoxFuture<'static, Result<String, HostError>>>("SessionsCtx::aside") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(&dyn HarnessAdapter, AsideQuestion) -> LocalBoxFuture<'static, Result<String, HostError>>>("SessionsCtx::aside")
+        {
             return hook(adapter, ask).await;
         }
         Ok(String::new())
@@ -1816,21 +2189,28 @@ impl SessionsCtx for FakeHost {
     }
     async fn wake(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<(), HostError> {
         self.hooks.log("wake", vec![workspace_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, Option<&Caller>) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::wake") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&str, Option<&Caller>) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::wake")
+        {
             return hook(workspace_id, origin).await;
         }
         Ok(())
     }
     async fn git_restore(&self, entry: &Entry, cwd: &str, checkpoint: &str) -> Result<Map<String, Value>, HostError> {
         self.hooks.log("git_restore", vec![cwd.to_string(), checkpoint.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str, &str) -> LocalBoxFuture<'static, Result<Map<String, Value>, HostError>>>("SessionsCtx::git_restore") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(&Entry, &str, &str) -> LocalBoxFuture<'static, Result<Map<String, Value>, HostError>>>("SessionsCtx::git_restore")
+        {
             return hook(entry, cwd, checkpoint).await;
         }
         Ok(Map::new())
     }
     async fn flush_transcript(&self, workspace_id: &str) -> Result<(), HostError> {
         self.hooks.log("flush_transcript", vec![workspace_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::flush_transcript") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&str) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::flush_transcript")
+        {
             return hook(workspace_id).await;
         }
         Ok(())
@@ -1844,14 +2224,18 @@ impl SessionsCtx for FakeHost {
     }
     async fn drop_from_transcript(&self, workspace_id: &str, thread_id: &str, turns: Option<&[String]>) -> Result<(), HostError> {
         self.hooks.log("drop_from_transcript", vec![workspace_id.to_string(), thread_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, &str, Option<&[String]>) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::drop_from_transcript") {
+        if let Some(hook) = self.hooks.get::<dyn Fn(&str, &str, Option<&[String]>) -> LocalBoxFuture<'static, Result<(), HostError>>>(
+            "SessionsCtx::drop_from_transcript",
+        ) {
             return hook(workspace_id, thread_id, turns).await;
         }
         Ok(())
     }
     async fn slates_rewound(&self, thread_id: &str, turn_id: &str, cut: &[String]) -> Result<(), HostError> {
         self.hooks.log("slates_rewound", vec![thread_id.to_string(), turn_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, &str, &[String]) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::slates_rewound") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&str, &str, &[String]) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::slates_rewound")
+        {
             return hook(thread_id, turn_id, cut).await;
         }
         Ok(())
@@ -1863,9 +2247,20 @@ impl SessionsCtx for FakeHost {
         }
         false
     }
-    async fn sub_delete(&self, entry: &Entry, thread_id: &str, origin: Option<&Caller>, ask: DeleteThreadAsk) -> Result<ThreadDeleted, HostError> {
+    async fn sub_delete(
+        &self,
+        entry: &Entry,
+        thread_id: &str,
+        origin: Option<&Caller>,
+        ask: DeleteThreadAsk,
+    ) -> Result<ThreadDeleted, HostError> {
         self.hooks.log("sub_delete", vec![thread_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str, Option<&Caller>, DeleteThreadAsk) -> LocalBoxFuture<'static, Result<ThreadDeleted, HostError>>>("SessionsCtx::sub_delete") {
+        if let Some(hook) =
+            self.hooks
+                .get::<dyn Fn(&Entry, &str, Option<&Caller>, DeleteThreadAsk) -> LocalBoxFuture<'static, Result<ThreadDeleted, HostError>>>(
+                    "SessionsCtx::sub_delete",
+                )
+        {
             return hook(entry, thread_id, origin, ask).await;
         }
         panic!("FakeHost: SessionsCtx::sub_delete has no answer; set its hook")
@@ -1879,28 +2274,37 @@ impl SessionsCtx for FakeHost {
     }
     async fn end_thread_shells(&self, entry: &Entry, thread_id: &str) -> Result<(), HostError> {
         self.hooks.log("end_thread_shells", vec![thread_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::end_thread_shells") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::end_thread_shells")
+        {
             return hook(entry, thread_id).await;
         }
         Ok(())
     }
     async fn delete_workspace(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<(), HostError> {
         self.hooks.log("delete_workspace", vec![workspace_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, Option<&Caller>) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::delete_workspace") {
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(&str, Option<&Caller>) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::delete_workspace")
+        {
             return hook(workspace_id, origin).await;
         }
         Ok(())
     }
     async fn drop_checkpoints(&self, entry: &Entry, thread_id: &str) -> Result<(), HostError> {
         self.hooks.log("drop_checkpoints", vec![thread_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::drop_checkpoints") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::drop_checkpoints")
+        {
             return hook(entry, thread_id).await;
         }
         Ok(())
     }
     async fn drop_thread_files(&self, entry: &Entry, thread_ids: &[String]) -> Result<(), HostError> {
         self.hooks.log("drop_thread_files", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, &[String]) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::drop_thread_files") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Entry, &[String]) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::drop_thread_files")
+        {
             return hook(entry, thread_ids).await;
         }
         Ok(())
@@ -1914,10 +2318,11 @@ impl SessionsCtx for FakeHost {
     }
     async fn slates_forget(&self, thread_id: &str, keep: bool) -> Result<(), HostError> {
         self.hooks.log("slates_forget", vec![thread_id.to_string(), keep.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str, bool) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::slates_forget") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&str, bool) -> LocalBoxFuture<'static, Result<(), HostError>>>("SessionsCtx::slates_forget")
+        {
             return hook(thread_id, keep).await;
         }
         Ok(())
     }
 }
-

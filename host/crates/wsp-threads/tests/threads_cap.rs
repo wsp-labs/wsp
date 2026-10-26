@@ -8,8 +8,8 @@ use std::rc::Rc;
 
 use futures::FutureExt;
 use serde_json::{json, Value};
-use support::Lend;
 use support::threads_ctx::{entry, FakeThreadsCtx};
+use support::Lend;
 use support::{local, row, rows_of, settle, view};
 use wsp_threads::threads::threads::cap::CapAt;
 use wsp_threads::threads::threads::ThreadsArea;
@@ -26,7 +26,11 @@ fn host(at_once: i64, running: usize) -> (Rc<FakeThreadsCtx>, Rc<ThreadsArea>, w
     ctx.place_ids.borrow_mut().insert("ws1".into(), "here".into());
     ctx.threads_at.borrow_mut().insert("here".into(), at_once);
     ctx.sessions.with(|s| {
-        *s = rows_of((0..running).map(|i| row(view(json!({ "id": format!("u{i}"), "threadId": format!("t{i}"), "status": "running" })), &format!("u{i}"))).collect())
+        *s = rows_of(
+            (0..running)
+                .map(|i| row(view(json!({ "id": format!("u{i}"), "threadId": format!("t{i}"), "status": "running" })), &format!("u{i}")))
+                .collect(),
+        )
     });
     let area = ctx.area();
     (ctx, area, record)
@@ -44,7 +48,14 @@ fn wait(running: i64, at_once: i64) -> ThreadCapWait {
 }
 
 fn at(turn: &str, thread: &str) -> CapAt {
-    CapAt { workspace_id: "ws1".into(), thread_id: thread.into(), turn_id: turn.into(), session_id: format!("s-{turn}"), request_id: Some("req1".into()), prompt: "build the thing\nwhole".into() }
+    CapAt {
+        workspace_id: "ws1".into(),
+        thread_id: thread.into(),
+        turn_id: turn.into(),
+        session_id: format!("s-{turn}"),
+        request_id: Some("req1".into()),
+        prompt: "build the thing\nwhole".into(),
+    }
 }
 
 fn end_of(turn: &str) -> Value {
@@ -58,7 +69,10 @@ fn cap_hold_holds_once_and_keeps_its_first_lenders() {
     area.cap_hold(&record, "n1", Some("u9"));
     area.cap_hold(&record, "n2", None);
     let held = area.cap_held.borrow();
-    assert_eq!(held.get("n1").map(|h| (h.place_id.clone(), h.lenders.clone(), h.order)), Some((Some("here".to_string()), vec!["u0".to_string()], 0)));
+    assert_eq!(
+        held.get("n1").map(|h| (h.place_id.clone(), h.lenders.clone(), h.order)),
+        Some((Some("here".to_string()), vec!["u0".to_string()], 0))
+    );
     assert_eq!(held.get("n2").map(|h| (h.lenders.clone(), h.order)), Some((vec![], 1)));
 }
 
@@ -111,7 +125,11 @@ fn cap_full_counts_running_threads_and_the_turns_ahead() {
     start_row(&ctx2, "n1", "tn");
     area2.cap_hold(&record2, "n0", None);
     area2.cap_hold(&record2, "n1", None);
-    assert_eq!(area2.cap_full(&record2, "n1"), Some(wait(2, 3)), "two running plus one ahead fills three; the held turn is not counted running");
+    assert_eq!(
+        area2.cap_full(&record2, "n1"),
+        Some(wait(2, 3)),
+        "two running plus one ahead fills three; the held turn is not counted running"
+    );
     assert_eq!(area2.cap_full(&record2, "n0"), None, "the first in line has room");
     drop((ctx, area, record));
 }
@@ -174,7 +192,18 @@ fn cap_wait_writes_the_held_start_once_and_says_the_wait() {
         let said = ctx.recorded_json();
         assert_eq!(said.len(), 1);
         assert_eq!(said[0]["type"], "session.capped");
-        for (k, v) in [("workspaceId", json!("ws1")), ("sessionId", json!("s-n1")), ("turnId", json!("n1")), ("threadId", json!("tn")), ("placeId", json!("here")), ("place", json!("here-name")), ("running", json!(1)), ("atOnce", json!(1)), ("requestId", json!("req1")), ("prompt", json!("build the thing\nwhole"))] {
+        for (k, v) in [
+            ("workspaceId", json!("ws1")),
+            ("sessionId", json!("s-n1")),
+            ("turnId", json!("n1")),
+            ("threadId", json!("tn")),
+            ("placeId", json!("here")),
+            ("place", json!("here-name")),
+            ("running", json!(1)),
+            ("atOnce", json!(1)),
+            ("requestId", json!("req1")),
+            ("prompt", json!("build the thing\nwhole")),
+        ] {
             assert_eq!(said[0][k], v, "{k}");
         }
         assert!(ctx.called().contains(&"idle.hold ws1".to_string()));
@@ -224,7 +253,11 @@ fn cap_wait_holds_the_machine_awake_until_it_settles() {
         settle().await;
         ctx.bus.emit_json(end_of("other"));
         settle().await;
-        assert_eq!(ctx.called().iter().filter(|c| c.starts_with("idle.")).cloned().collect::<Vec<_>>(), vec!["idle.hold ws1", "idle.release ws1"], "released once");
+        assert_eq!(
+            ctx.called().iter().filter(|c| c.starts_with("idle.")).cloned().collect::<Vec<_>>(),
+            vec!["idle.hold ws1", "idle.release ws1"],
+            "released once"
+        );
         assert_eq!(ctx.bus.listening("*"), 1, "the wait's listener is gone");
     });
 }
@@ -327,7 +360,14 @@ fn cap_left_deletes_the_held_start_says_why_and_wakes_the_rest() {
         assert!(ctx.store.get_now("held-starts", "n2").is_some());
         let said = ctx.recorded_json();
         let uncapped = said.iter().find(|e| e["type"] == "session.uncapped").expect("why it went through");
-        for (k, v) in [("workspaceId", json!("ws1")), ("threadId", json!("tn")), ("sessionId", json!("s-n1")), ("turnId", json!("n1")), ("why", json!("raised")), ("atOnce", json!(2))] {
+        for (k, v) in [
+            ("workspaceId", json!("ws1")),
+            ("threadId", json!("tn")),
+            ("sessionId", json!("s-n1")),
+            ("turnId", json!("n1")),
+            ("why", json!("raised")),
+            ("atOnce", json!(2)),
+        ] {
             assert_eq!(uncapped[k], v, "{k}");
         }
         assert!(matches!(second.peek(), Some(Ok(()))), "the turn behind it looks again");

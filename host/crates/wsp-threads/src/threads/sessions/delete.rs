@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! sessions.ts:1398-1480: delete and forget a thread. Spec: spec/sessions_delete.md.
+use indexmap::IndexSet;
 use wsp_core::types::api::{DeleteThreadAsk, ThreadDeleted};
 use wsp_core::types::internal::EndThread;
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_machines::machines::boot::entries::RowAt;
+use wsp_wire::types::projects::{THREAD_WORKING_LINE, WORKTREE_BUSY_LINE};
+use wsp_wire::views::activity::ProcessesAsk;
 use wsp_wire::views::session::{thread_ran, SessionStatus, SessionView};
 use wsp_wire::views::workspace::Caller;
-use wsp_wire::views::activity::ProcessesAsk;
 use wsp_words::exit::{not_found_refusal, HostError, Kind};
 use wsp_words::projects::{runs_in_folder, thread_on_machine_line};
 use wsp_words::words::computer::{thread_forget_refusal, thread_word};
-use wsp_wire::types::projects::{THREAD_WORKING_LINE, WORKTREE_BUSY_LINE};
-use indexmap::IndexSet;
 
 use super::{HeldSend, SessionsArea, SessionsCtx};
 use crate::activity::MeetVerb;
@@ -79,7 +79,9 @@ impl SessionsArea {
             .collect();
         let working = ctx.sessions().borrow().iter().any(|(id, row)| {
             let r = row.borrow();
-            r.view.thread_id.as_deref() == Some(thread_id) && r.view.status == SessionStatus::Running && !self.stops.borrow().held_sends.contains_key(id)
+            r.view.thread_id.as_deref() == Some(thread_id)
+                && r.view.status == SessionStatus::Running
+                && !self.stops.borrow().held_sends.contains_key(id)
         });
         if working {
             return Err(conflict(THREAD_WORKING_LINE));
@@ -133,7 +135,13 @@ impl SessionsArea {
         ctx.drop_checkpoints(&entry, thread_id).await?;
         ctx.drop_thread_files(&entry, &[thread_id.to_string()]).await?;
         ctx.drop_sent_images(&workspace_id, &[thread_id.to_string()]).await?;
-        let rows: Vec<String> = ctx.sessions().borrow().iter().filter(|(_, row)| row.borrow().view.thread_id.as_deref() == Some(thread_id)).map(|(id, _)| id.clone()).collect();
+        let rows: Vec<String> = ctx
+            .sessions()
+            .borrow()
+            .iter()
+            .filter(|(_, row)| row.borrow().view.thread_id.as_deref() == Some(thread_id))
+            .map(|(id, _)| id.clone())
+            .collect();
         for id in rows {
             ctx.sessions().borrow_mut().shift_remove(&id);
             ctx.row_gone(&id, &workspace_id, thread_id);
@@ -157,7 +165,9 @@ impl SessionsArea {
             .map(|(id, row)| (id.clone(), row.borrow().view.clone()))
             .collect();
         let record = ctx.records().borrow().get(thread_id).cloned();
-        let Some(workspace_id) = held.first().map(|(_, view)| view.workspace_id.clone()).or_else(|| record.as_ref().map(|r| r.workspace_id.clone())) else {
+        let Some(workspace_id) =
+            held.first().map(|(_, view)| view.workspace_id.clone()).or_else(|| record.as_ref().map(|r| r.workspace_id.clone()))
+        else {
             return Err(not_found_refusal(&format!("no thread {}", thread_word(thread_id))));
         };
         let at = RowAt { thread_id: Some(thread_id.to_string()), workspace_id: workspace_id.clone() };

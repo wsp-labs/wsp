@@ -18,29 +18,29 @@ use wsp_core::local_exec::agent_pid_of;
 use wsp_core::types::api::DaemonEventListener;
 use wsp_core::types::internal::EndThread;
 use wsp_core::types::wiring::WorkspaceRecord;
+use wsp_frames::{ProcEntry, ProcKind};
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::types::place_word::HERE_PLACE_ID;
+use wsp_wire::views::activity::not_joined_activity_fix;
 use wsp_wire::views::activity::{
     activity_of, box_behind_activity_line, box_end_line, end_heads, not_read_line, processes_left, ActivityEnded, ActivityProc,
-    ActivityRead, ActivityScope, ActivityThread, ActivityView, EndPlan, LeftThread, ProcessesAsk, BOX_BEHIND_ACTIVITY_FIX, BOX_END_FIX, CLOUD_ACTIVITY_FIX,
-    END_GRACE_MS, NOT_READ_FIX, SAME_START_MS,
+    ActivityRead, ActivityScope, ActivityThread, ActivityView, EndPlan, LeftThread, ProcessesAsk, BOX_BEHIND_ACTIVITY_FIX, BOX_END_FIX,
+    CLOUD_ACTIVITY_FIX, END_GRACE_MS, NOT_READ_FIX, SAME_START_MS,
 };
 use wsp_wire::views::place_more::PlaceView;
 use wsp_wire::views::preferences::ThreadFacts;
 use wsp_wire::views::session::{SessionStatus, SessionView};
 use wsp_wire::views::workspace::{scope_of, Caller};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
-use wsp_frames::{ProcEntry, ProcKind};
 use wsp_wire::wire::daemon::{ProcKillReply, ProcScope};
 use wsp_wire::wire::daemon_replies::ProcListReply;
-use wsp_wire::wire::machine_link::ProcSnapshot;
 use wsp_wire::wire::machine_link::no_such_place_refusal;
+use wsp_wire::wire::machine_link::ProcSnapshot;
 use wsp_words::daemon_contract::unknown_op_line;
 use wsp_words::exit::{not_found_refusal, usage_refusal, HostError};
 use wsp_words::projects::folder_on_joined;
 use wsp_words::thread_cgroup::thread_cgroup;
 use wsp_words::views::activity::{cloud_activity_line, end_plan, not_joined_activity_line, processes_left_refusal, LeftVerb};
-use wsp_wire::views::activity::not_joined_activity_fix;
 use wsp_words::words::computer::{thread_word, THIS_COMPUTER};
 use wsp_words::workspace_state::is_local_workspace;
 
@@ -81,7 +81,13 @@ pub enum MeetVerb {
 pub trait ActivityDoor {
     async fn read(&self, ask: ActivityAsk, caller: Option<Caller>) -> Result<ActivityView, HostError>;
     async fn end(&self, ask: EndAsk, caller: Option<Caller>) -> Result<ActivityEnded, HostError>;
-    async fn meet(&self, thread_ids: &[String], processes: ProcessesAsk, verb: MeetVerb, caller: Option<Caller>) -> Result<Vec<ActivityEnded>, HostError>;
+    async fn meet(
+        &self,
+        thread_ids: &[String],
+        processes: ProcessesAsk,
+        verb: MeetVerb,
+        caller: Option<Caller>,
+    ) -> Result<Vec<ActivityEnded>, HostError>;
 }
 
 /// One daemon channel with its asks (TS `DaemonChannel` read through `overChannel`'s `ask`, which throws a refusal).
@@ -109,7 +115,11 @@ pub trait ActivityCtx {
     /// `guarded`.
     async fn local_channel(&self, on_event: DaemonEventListener, guarded: bool) -> Result<Rc<dyn DaemonAsk>, HostError>;
     /// `door.channel(place, onEvent)`; None where the door has none for it.
-    fn box_channel(&self, place: &str, on_event: DaemonEventListener) -> Option<futures::future::LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>>;
+    fn box_channel(
+        &self,
+        place: &str,
+        on_event: DaemonEventListener,
+    ) -> Option<futures::future::LocalBoxFuture<'static, Result<Rc<dyn DaemonAsk>, HostError>>>;
     fn sessions(&self) -> Sessions;
     fn records(&self) -> ThreadRecords;
     fn live_entry(&self, workspace_id: &str) -> Option<Entry>;
@@ -127,7 +137,12 @@ pub trait ActivityCtx {
     fn refusal_for(&self, record: &WorkspaceRecord, caller: Option<&Caller>) -> Option<HostError>;
     fn settles_thread(&self, thread_id: &str, caller: Option<&Caller>) -> bool;
     /// `ctx.moduleOf(entry.record.kind).endThread?.(entry, threadId, o)`; None where the kind has none.
-    fn end_thread(&self, entry: &Entry, thread_id: &str, o: EndThread) -> Option<futures::future::LocalBoxFuture<'static, Result<Option<String>, HostError>>>;
+    fn end_thread(
+        &self,
+        entry: &Entry,
+        thread_id: &str,
+        o: EndThread,
+    ) -> Option<futures::future::LocalBoxFuture<'static, Result<Option<String>, HostError>>>;
     /// `ctx.withDaemon(entry, ask => ask(frame))`.
     async fn with_daemon(&self, entry: &Entry, frame: Value) -> Result<Map<String, Value>, HostError>;
     /// `ctx.slates.closeServers(threadId)`.
@@ -165,14 +180,25 @@ fn message_of(e: &AccountError) -> &str {
 
 async fn sleep_for(clock: &Rc<dyn Clock>, ms: i64) {
     let (done, wake) = futures::channel::oneshot::channel::<()>();
-    clock.schedule(Box::new(move || {
-        let _ = done.send(());
-    }), ms);
+    clock.schedule(
+        Box::new(move || {
+            let _ = done.send(());
+        }),
+        ms,
+    );
     let _ = wake.await;
 }
 
 fn to_left(t: ActivityThread) -> LeftThread {
-    LeftThread { thread_id: t.thread_id, title: t.title, workspace_id: t.workspace_id, memory: t.memory, cpu: t.cpu, processes: t.processes, on: None }
+    LeftThread {
+        thread_id: t.thread_id,
+        title: t.title,
+        workspace_id: t.workspace_id,
+        memory: t.memory,
+        cpu: t.cpu,
+        processes: t.processes,
+        on: None,
+    }
 }
 
 fn to_frames<T: serde::Serialize, U: serde::de::DeserializeOwned>(value: &T) -> Result<U, HostError> {
@@ -221,10 +247,15 @@ impl Activity {
     }
 
     fn session_rows(&self) -> Vec<(SessionView, Option<String>)> {
-        self.ctx.sessions().borrow().values().map(|row| {
-            let r = row.borrow();
-            (r.view.clone(), r.run.clone())
-        }).collect()
+        self.ctx
+            .sessions()
+            .borrow()
+            .values()
+            .map(|row| {
+                let r = row.borrow();
+                (r.view.clone(), r.run.clone())
+            })
+            .collect()
     }
 
     fn workspace_of(&self, thread: &str) -> String {
@@ -398,11 +429,19 @@ impl Activity {
         read
     }
 
-    async fn snapshot_over(&self, channel: &dyn DaemonAsk, once: bool, watch: bool, got: futures::channel::oneshot::Receiver<ProcSnapshot>) -> Result<ActivityRead, HostError> {
+    async fn snapshot_over(
+        &self,
+        channel: &dyn DaemonAsk,
+        once: bool,
+        watch: bool,
+        got: futures::channel::oneshot::Receiver<ProcSnapshot>,
+    ) -> Result<ActivityRead, HostError> {
         let listening = channel.ask(json!({ "op": "ports.watch" })).await.map_err(to_host)?;
         let mut ports: HashMap<u32, Vec<JsInt>> = HashMap::new();
         for row in listening.get("ports").and_then(Value::as_array).into_iter().flatten() {
-            let (Some(pid), Some(port)) = (row.get("pid").and_then(Value::as_u64), row.get("port").and_then(Value::as_u64)) else { continue };
+            let (Some(pid), Some(port)) = (row.get("pid").and_then(Value::as_u64), row.get("port").and_then(Value::as_u64)) else {
+                continue;
+            };
             let list = ports.entry(pid as u32).or_default();
             list.push(JsInt::from(port as i64));
             list.sort_by_key(|p| p.get());
@@ -432,9 +471,12 @@ impl Activity {
         }
         channel.ask(json!({ "op": "proc.watch" })).await.map_err(to_host)?;
         let (fire, late) = futures::channel::oneshot::channel::<()>();
-        let cancel = self.ctx.clock().schedule(Box::new(move || {
-            let _ = fire.send(());
-        }), SNAPSHOT_WAIT_MS);
+        let cancel = self.ctx.clock().schedule(
+            Box::new(move || {
+                let _ = fire.send(());
+            }),
+            SNAPSHOT_WAIT_MS,
+        );
         let outcome = futures::future::select(got, late).await;
         cancel();
         match outcome {
@@ -540,7 +582,10 @@ impl Activity {
             .iter()
             .filter(|p| match &after {
                 None => true,
-                Some((read, _)) => read.procs.iter().any(|q| q.pid as i64 == p.pid.get() && (q.started_at as f64 - p.started_at.0).abs() <= SAME_START_MS as f64),
+                Some((read, _)) => read
+                    .procs
+                    .iter()
+                    .any(|q| q.pid as i64 == p.pid.get() && (q.started_at as f64 - p.started_at.0).abs() <= SAME_START_MS as f64),
             })
             .map(|p| p.pid.get())
             .collect()
@@ -551,7 +596,9 @@ impl Activity {
         if let Some(ended) = self.ctx.end_thread(entry, &t.thread_id, EndThread::default()) {
             ended.await?;
         }
-        let listed = |q: &ProcEntry| t.processes.iter().any(|p| p.pid.get() == q.pid as i64 && (q.started_at as f64 - p.started_at.0).abs() <= SAME_START_MS as f64);
+        let listed = |q: &ProcEntry| {
+            t.processes.iter().any(|p| p.pid.get() == q.pid as i64 && (q.started_at as f64 - p.started_at.0).abs() <= SAME_START_MS as f64)
+        };
         let ptys: Vec<String> = read.procs.iter().filter(|q| listed(q)).filter_map(|q| q.pty.clone()).collect();
         for pty in ptys {
             if let Err(e) = self.ctx.with_daemon(entry, json!({ "op": "pty.kill", "ptyId": pty })).await {
@@ -603,7 +650,9 @@ impl Activity {
         }
         let named = self.where_(o.computer.as_deref()).await?;
         let at = match (&o.computer, &box_of) {
-            (None, Some((place, _))) => Where { name: self.ctx.place_name(place).unwrap_or_else(|| place.clone()), place: Some(place.clone()) },
+            (None, Some((place, _))) => {
+                Where { name: self.ctx.place_name(place).unwrap_or_else(|| place.clone()), place: Some(place.clone()) }
+            }
             _ => named,
         };
         let box_place = box_of.as_ref().map(|(place, _)| place.clone());
@@ -699,7 +748,13 @@ impl Activity {
             }
         };
         let ended = plan.iter().filter(|q| done.0.contains(&q.pid)).map(row_of).collect();
-        ActivityEnded { pid: JsInt::from(pid as i64), ended, forced: dedup_ints(done.1.clone()), left: dedup_ints(done.2.clone()), freed: None }
+        ActivityEnded {
+            pid: JsInt::from(pid as i64),
+            ended,
+            forced: dedup_ints(done.1.clone()),
+            left: dedup_ints(done.2.clone()),
+            freed: None,
+        }
     }
 
     /// activity.ts:348-365: an End off a read already taken, its plan made before any signal.
@@ -716,7 +771,13 @@ impl Activity {
                     .find(|t| t.thread_id == kept.thread_id)
                     .map(|t| t.processes.iter().filter(|p| p.kind == ProcKind::Agent).cloned().collect())
                     .unwrap_or_default();
-                Ok(ActivityEnded { pid: JsInt::from(pid as i64), ended: freed, forced: Vec::new(), left: Vec::new(), freed: Some(kept.thread_id) })
+                Ok(ActivityEnded {
+                    pid: JsInt::from(pid as i64),
+                    ended: freed,
+                    forced: Vec::new(),
+                    left: Vec::new(),
+                    freed: Some(kept.thread_id),
+                })
             }
             EndPlan::Targets(targets) => {
                 let done = self.kill_trees(&targets[..targets.len().min(1)]).await?.into_iter().next().unwrap_or_default();
@@ -726,7 +787,13 @@ impl Activity {
     }
 
     /// activity.ts:367-421.
-    async fn meet_impl(&self, thread_ids: &[String], processes: ProcessesAsk, verb: MeetVerb, caller: Option<&Caller>) -> Result<Vec<ActivityEnded>, HostError> {
+    async fn meet_impl(
+        &self,
+        thread_ids: &[String],
+        processes: ProcessesAsk,
+        verb: MeetVerb,
+        caller: Option<&Caller>,
+    ) -> Result<Vec<ActivityEnded>, HostError> {
         if matches!(processes, ProcessesAsk::Keep) {
             return Ok(Vec::new());
         }
@@ -841,7 +908,13 @@ impl ActivityDoor for Activity {
     }
 
     /// activity.ts:367. Rules AC28-AC32, AC21.
-    async fn meet(&self, thread_ids: &[String], processes: ProcessesAsk, verb: MeetVerb, caller: Option<Caller>) -> Result<Vec<ActivityEnded>, HostError> {
+    async fn meet(
+        &self,
+        thread_ids: &[String],
+        processes: ProcessesAsk,
+        verb: MeetVerb,
+        caller: Option<Caller>,
+    ) -> Result<Vec<ActivityEnded>, HostError> {
         self.meet_impl(thread_ids, processes, verb, caller.as_ref()).await
     }
 }

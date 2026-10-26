@@ -12,8 +12,8 @@ use wsp_wire::views::workspace::Caller;
 use wsp_wire::wire::runtime::{SessionRestoreResult, SessionSettleResult, SessionSettleResultLeftItem, SettledThread};
 use wsp_words::exit::{not_found_refusal, refusal, usage_refusal, HostError, Kind};
 use wsp_words::words::computer::{
-    not_under_line, replaced_already_fix, replaced_already_line, replaces_working_fix, replaces_working_line, subagent_settle_line, thread_word,
-    NOT_UNDER_FIX, SETTLE_ALREADY, SETTLE_WORKING, SUBAGENT_SETTLE_FIX,
+    not_under_line, replaced_already_fix, replaced_already_line, replaces_working_fix, replaces_working_line, subagent_settle_line,
+    thread_word, NOT_UNDER_FIX, SETTLE_ALREADY, SETTLE_WORKING, SUBAGENT_SETTLE_FIX,
 };
 
 use super::{SessionsArea, StampsOf};
@@ -95,7 +95,12 @@ impl SessionsArea {
     }
 
     /// sessions.ts:1112. Rules E4-E7.
-    pub async fn settle_threads(&self, thread_ids: Vec<String>, origin: Option<Caller>, ask: SettleAsk) -> Result<SessionSettleResult, HostError> {
+    pub async fn settle_threads(
+        &self,
+        thread_ids: Vec<String>,
+        origin: Option<Caller>,
+        ask: SettleAsk,
+    ) -> Result<SessionSettleResult, HostError> {
         let reads = self.settle_reads(&thread_ids, origin.as_ref()).await?;
         let mut take: Vec<String> = Vec::new();
         let mut left: Vec<SessionSettleResultLeftItem> = Vec::new();
@@ -117,7 +122,12 @@ impl SessionsArea {
             let works = |id: &str| std::iter::once(id.to_string()).chain(self.ctx.tree_under(id)).any(|t| (reads.busy)(&t));
             if ask.finished == Some(true) {
                 let stays: Vec<String> = tree[1..].iter().filter(|id| (reads.finished)(id) && !(reads.settled)(id)).cloned().collect();
-                left.extend(stays.iter().filter(|id| works(id)).map(|id| SessionSettleResultLeftItem { thread_id: id.clone(), why: SETTLE_WORKING.to_string() }));
+                left.extend(
+                    stays
+                        .iter()
+                        .filter(|id| works(id))
+                        .map(|id| SessionSettleResultLeftItem { thread_id: id.clone(), why: SETTLE_WORKING.to_string() }),
+                );
                 add(one, stays.into_iter().filter(|id| !works(id)).collect(), &mut take);
             } else if tree.iter().any(|id| (reads.busy)(id)) {
                 left.push(SessionSettleResultLeftItem { thread_id: one.clone(), why: SETTLE_WORKING.to_string() });

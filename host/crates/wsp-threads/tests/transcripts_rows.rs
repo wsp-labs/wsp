@@ -15,7 +15,10 @@ use wsp_core::types::events::EventBus;
 use wsp_core::types::internal::{index_bytes, index_of, thread_words_of, SessionFacts, ThreadWords, TranscriptIndex};
 use wsp_store::sqlite_transcripts::EventSize;
 use wsp_store::transcript_reader::{event_bytes, ThreadRead, TranscriptReader};
-use wsp_threads::threads::transcripts::rows::{drop_oldest, drop_oldest_of, kept_event, mark_trimmed, Trimmed, PENDING_FLUSH_BYTES as PENDING_FLUSH_USIZE, TOOL_RESULT_KEPT, TRANSCRIPT_BYTES as TRANSCRIPT_USIZE, TRANSCRIPT_CAP, TRANSCRIPT_FLUSH_MS, WORDS_HELD};
+use wsp_threads::threads::transcripts::rows::{
+    drop_oldest, drop_oldest_of, kept_event, mark_trimmed, Trimmed, PENDING_FLUSH_BYTES as PENDING_FLUSH_USIZE, TOOL_RESULT_KEPT,
+    TRANSCRIPT_BYTES as TRANSCRIPT_USIZE, TRANSCRIPT_CAP, TRANSCRIPT_FLUSH_MS, WORDS_HELD,
+};
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::session_events_more::SessionEvent;
 use wsp_wire::wire::events_union::EventUnion;
@@ -97,11 +100,29 @@ fn plain_start(thread: &str) -> Value {
 
 fn words(lines: &[&str], last: i64) -> ThreadWords {
     let size = lines.iter().map(|l| l.chars().count()).sum();
-    ThreadWords { lines: lines.iter().map(|l| l.to_string()).collect(), open: None, last: JsNumber(last as f64), size, first: lines.first().map(|l| l.chars().take(200).collect()), opened: None, cold: None, room: None }
+    ThreadWords {
+        lines: lines.iter().map(|l| l.to_string()).collect(),
+        open: None,
+        last: JsNumber(last as f64),
+        size,
+        first: lines.first().map(|l| l.chars().take(200).collect()),
+        opened: None,
+        cold: None,
+        room: None,
+    }
 }
 
 fn cold(first: &str, size: usize, last: i64) -> ThreadWords {
-    ThreadWords { lines: vec![], open: None, last: JsNumber(last as f64), size, first: Some(first.to_string()), opened: None, cold: Some(true), room: Some(0) }
+    ThreadWords {
+        lines: vec![],
+        open: None,
+        last: JsNumber(last as f64),
+        size,
+        first: Some(first.to_string()),
+        opened: None,
+        cold: Some(true),
+        room: Some(0),
+    }
 }
 
 fn index_of_words(rows: Vec<(&str, ThreadWords)>) -> TranscriptIndex {
@@ -135,7 +156,9 @@ fn record_stamps_at_and_pos_after_the_events_keys_then_emits_and_pushes_the_head
         );
 
         area.record(event(start_v(WS, "t1", "u1", "go")));
-        let first = event(json!({ "type": "session.start", "workspaceId": WS, "sessionId": "s1", "turnId": "u1", "threadId": "t1", "prompt": "go", "at": 1_000_000, "pos": 1 }));
+        let first = event(
+            json!({ "type": "session.start", "workspaceId": WS, "sessionId": "s1", "turnId": "u1", "threadId": "t1", "prompt": "go", "at": 1_000_000, "pos": 1 }),
+        );
         assert_eq!(ctx.pending_of(WS), vec![first.clone()]);
         assert_eq!(ctx.emitted_json(), vec![json_of(&first)], "the bus is handed the stamped event");
         assert!(ctx.pending_json(WS)[0].get("seq").is_none(), "the transcript never carries a sequence");
@@ -165,7 +188,8 @@ fn record_keeps_an_earlier_rows_own_time() {
         let ctx = FakeTranscriptsCtx::new();
         let area = ctx.area();
         let earlier = |who: &str, text: &str, at: Option<i64>| {
-            let mut v = json!({ "type": "session.earlier", "workspaceId": WS, "sessionId": "s1", "threadId": "t1", "who": who, "text": text });
+            let mut v =
+                json!({ "type": "session.earlier", "workspaceId": WS, "sessionId": "s1", "threadId": "t1", "who": who, "text": text });
             if let Some(at) = at {
                 v["at"] = json!(at);
             }
@@ -421,7 +445,9 @@ fn kept_event_clips_a_long_tool_result_with_its_bytes() {
     let clipped = kept_event(&long);
     assert_eq!(
         clipped,
-        delta_with(json!({ "kind": "tool_result", "text": output.chars().take(TOOL_RESULT_KEPT).collect::<String>(), "bytes": output.len(), "toolUseId": "tu_1", "exitCode": 2, "durationMs": 4100 })),
+        delta_with(
+            json!({ "kind": "tool_result", "text": output.chars().take(TOOL_RESULT_KEPT).collect::<String>(), "bytes": output.len(), "toolUseId": "tu_1", "exitCode": 2, "durationMs": 4100 })
+        ),
         "the text cut at the cap, the bytes of the whole, the exit code and the time kept"
     );
     let agents_own = delta_with(json!({ "kind": "tool_result", "text": "r".repeat(20_000), "bytes": 228_894 }));
@@ -477,7 +503,11 @@ fn kept_event_cuts_a_patch_and_marks_it_last() {
     let kept = kept_event(&e);
     let second = json!({ "oldStart": 101, "oldLines": 32, "newStart": 101, "newLines": 31, "lines": lines[..63].to_vec() });
     let want = json!([{ "path": "/root/app/big.ts", "hunks": [hunk(1, lines.clone()), second] }]);
-    assert_eq!(kept, delta_with(json!({ "kind": "tool_result", "text": "updated", "patch": want, "patchCut": true, "toolUseId": "tu_2" })), "the first hunk whole, the second to the lines that fit in 16,384 characters");
+    assert_eq!(
+        kept,
+        delta_with(json!({ "kind": "tool_result", "text": "updated", "patch": want, "patchCut": true, "toolUseId": "tu_2" })),
+        "the first hunk whole, the second to the lines that fit in 16,384 characters"
+    );
     let json = json_of(&kept);
     assert_eq!(json.as_object().expect("an object").keys().last().map(String::as_str), Some("patchCut"), "patchCut goes last");
     assert!(json.get("bytes").is_none(), "a text that was not clipped gains no bytes");
@@ -558,7 +588,10 @@ fn flush_cancels_the_timer_and_writes_what_waits() {
         area.record(event(start_v(WS, "t1", "u1", "go")));
         area.record(event(plan_v(WS, "t1", "step")));
         area.flush_transcript(WS).await;
-        assert_eq!(ctx.rows.kept(WS).iter().map(|e| field(e, "type")).collect::<Vec<_>>(), vec![json!("session.start"), json!("session.plan")]);
+        assert_eq!(
+            ctx.rows.kept(WS).iter().map(|e| field(e, "type")).collect::<Vec<_>>(),
+            vec![json!("session.start"), json!("session.plan")]
+        );
         ctx.clock.advance(0);
         assert_eq!(ctx.clock.pending(), 0, "no timer is left behind");
         ctx.clock.advance(TRANSCRIPT_FLUSH_MS as i64 * 2);
@@ -668,7 +701,16 @@ fn settle_rows_appends_trims_reindexes_and_writes_the_index_in_one_transaction()
         assert_eq!(ctx.rows.transactions.get(), 1, "one transaction");
         assert_eq!(
             ctx.rows_called_of(&["atomically", "append", "total", "sizes", "at", "remove", "thread", "put_index"]),
-            vec!["atomically", "append ws1 4", "total ws1 t1", "sizes ws1 t1", "at ws1 1", "remove ws1 1,2,3", "thread ws1 t1", "put_index ws1"],
+            vec![
+                "atomically",
+                "append ws1 4",
+                "total ws1 t1",
+                "sizes ws1 t1",
+                "at ws1 1",
+                "remove ws1 1,2,3",
+                "thread ws1 t1",
+                "put_index ws1"
+            ],
             "the pending appended, the cap read, the start read back, the rows removed, the thread read again, the index put"
         );
         assert!(ctx.rows_called_of(&["all"]).is_empty(), "the folder is never read whole");
@@ -724,8 +766,15 @@ fn settle_rows_releases_a_dropped_starts_images_after_the_commit() {
         push_past_the_cap(&area);
         settle().await;
         assert_eq!(ctx.rows.positions(WS)[0], 4, "the start that carried the image is gone");
-        assert_eq!(ctx.store.logged(), vec!["deleteBlob attachments/t1.req_a.0", "put attachment-keys/ws1"], "its blob goes and its thread leaves the document");
-        assert_eq!(ctx.store.get_now("attachment-keys", WS), Some(json!({ "threads": { "t2": [{ "key": "t2.req_z.0", "mediaType": "image/png" }] } })));
+        assert_eq!(
+            ctx.store.logged(),
+            vec!["deleteBlob attachments/t1.req_a.0", "put attachment-keys/ws1"],
+            "its blob goes and its thread leaves the document"
+        );
+        assert_eq!(
+            ctx.store.get_now("attachment-keys", WS),
+            Some(json!({ "threads": { "t2": [{ "key": "t2.req_z.0", "mediaType": "image/png" }] } }))
+        );
         assert!(ctx.store.blob_now("attachments", "t1.req_a.0").is_none());
         assert!(ctx.store.blob_now("attachments", "t2.req_z.0").is_some(), "another thread's image stays");
     });
@@ -807,7 +856,11 @@ fn drop_from_transcript_takes_one_threads_events_and_its_sessions_facts() {
 
         let kept = ctx.rows.kept(WS);
         let ids: Vec<(Value, Value)> = kept.iter().map(|e| (field(e, "threadId"), field(e, "text"))).collect();
-        assert_eq!(ids, vec![(json!("t1"), Value::Null), (json!("t1"), json!("alpha reply")), (json!("t1"), json!("t1 pending"))], "the other thread keeps its events and its pending ones are written; the dropped thread's pending are not");
+        assert_eq!(
+            ids,
+            vec![(json!("t1"), Value::Null), (json!("t1"), json!("alpha reply")), (json!("t1"), json!("t1 pending"))],
+            "the other thread keeps its events and its pending ones are written; the dropped thread's pending are not"
+        );
         assert!(ctx.pending_of(WS).is_empty());
         assert!(ctx.rows_called_of(&["all"]).is_empty(), "the folder is never read whole");
         assert_eq!(ctx.rows_called_of(&["remove"]), vec!["remove ws1 3,4,5"]);
@@ -845,7 +898,11 @@ fn drop_from_transcript_with_a_predicate_cuts_only_the_turns_it_names() {
         area.drop_from_transcript(WS, "t1", Some(drops)).await.expect("the cut lands");
 
         let kept: Vec<(Value, Value)> = ctx.rows.kept(WS).iter().map(|e| (field(e, "threadId"), field(e, "turnId"))).collect();
-        assert_eq!(kept, vec![(json!("t1"), json!("u1")), (json!("t3"), json!("u2")), (json!("t1"), json!("u1"))], "turn two of the thread went, with its pending event; the other thread's turn of the same id stays");
+        assert_eq!(
+            kept,
+            vec![(json!("t1"), json!("u1")), (json!("t3"), json!("u2")), (json!("t1"), json!("u1"))],
+            "turn two of the thread went, with its pending event; the other thread's turn of the same id stays"
+        );
         assert_eq!(ctx.rows.positions(WS), vec![1, 4, 5]);
         assert!(ctx.pending_of(WS).is_empty());
         let words = ctx.index_of(WS).expect("an index").words.get("t1").cloned().expect("t1 words");
@@ -910,12 +967,17 @@ fn drop_oldest_keeps_a_transcript_under_both_caps_whole() {
 // TS: sqlite-transcripts.test.ts:254
 #[test]
 fn drop_oldest_drops_outside_the_newest_turn_first() {
-    let mut events = vec![event(start_v(WS, "t1", "a", "start a")), text_delta(Some("t1"), "a1", 2), event(start_v(WS, "t1", "b", "start b"))];
+    let mut events =
+        vec![event(start_v(WS, "t1", "a", "start a")), text_delta(Some("t1"), "a1", 2), event(start_v(WS, "t1", "b", "start b"))];
     events.extend((1..=5001).map(|i| text_delta(Some("t1"), &format!("b{i}"), 3 + i)));
     assert_eq!(events.len(), 5004);
     let before = events.clone();
     let (gone, left) = trim(&mut events);
-    assert_eq!(gone.iter().map(text_of).collect::<Vec<_>>(), vec!["start a", "a1", "start b", "b1"], "the old turn first, then the oldest of the newest turn, in list order");
+    assert_eq!(
+        gone.iter().map(text_of).collect::<Vec<_>>(),
+        vec!["start a", "a1", "start b", "b1"],
+        "the old turn first, then the oldest of the newest turn, in list order"
+    );
     assert_eq!(events.len(), TRANSCRIPT_CAP);
     assert_eq!(text_of(&events[0]), "b2");
     assert_eq!(text_of(&events[events.len() - 1]), "b5001");
@@ -947,7 +1009,8 @@ fn drop_oldest_never_drops_a_threads_newest_event() {
 // TS: runtime-history.test.ts:971
 #[test]
 fn drop_oldest_caps_each_thread_alone() {
-    let mut events: Vec<SessionEvent> = (1..=(TRANSCRIPT_CAP as i64 + 1)).map(|i| text_delta(Some("busy"), &format!("busy {i}"), i)).collect();
+    let mut events: Vec<SessionEvent> =
+        (1..=(TRANSCRIPT_CAP as i64 + 1)).map(|i| text_delta(Some("busy"), &format!("busy {i}"), i)).collect();
     events.extend((1..=100).map(|i| text_delta(Some("quiet"), &format!("quiet {i}"), 6000 + i)));
     let before_quiet: Vec<SessionEvent> = events.iter().filter(|e| field(e, "threadId") == json!("quiet")).cloned().collect();
     let (gone, _) = trim(&mut events);
@@ -1038,7 +1101,12 @@ fn an_event_with_no_thread_is_thread_empty_and_never_marked() {
     assert_eq!(Trimmed::thread(&threaded), Some("t1"));
     assert!(!Trimmed::is_start(&threaded));
     assert!(Trimmed::is_start(&event(start_v(WS, "t1", "a", "go"))));
-    let size = |thread: Option<&str>, kind: &str, pos: i64| EventSize { pos, thread_id: thread.map(String::from), kind: kind.to_string(), size: 10 };
+    let size = |thread: Option<&str>, kind: &str, pos: i64| EventSize {
+        pos,
+        thread_id: thread.map(String::from),
+        kind: kind.to_string(),
+        size: 10,
+    };
     assert_eq!(Trimmed::thread(&size(None, "session.delta", 1)), None);
     assert_eq!(Trimmed::thread(&size(Some("t1"), "session.delta", 1)), Some("t1"));
     assert!(Trimmed::is_start(&size(Some("t1"), "session.start", 1)));
@@ -1097,7 +1165,10 @@ fn open_transcript_trims_in_memory_and_deletes_no_row() {
 fn open_transcript_carries_the_events_written_since_the_last_flush() {
     local(async {
         let ctx = FakeTranscriptsCtx::new();
-        ctx.rows.seed(WS, vec![stamped(start_v(WS, "t1", "u1", "stream something"), 1, 10), stamped(delta_v(WS, "t1", "u1", "written"), 2, 10)]);
+        ctx.rows.seed(
+            WS,
+            vec![stamped(start_v(WS, "t1", "u1", "stream something"), 1, 10), stamped(delta_v(WS, "t1", "u1", "written"), 2, 10)],
+        );
         ctx.hold_index(WS, TranscriptIndex { pos: 2, ..TranscriptIndex::default() });
         let area = ctx.area();
         area.record(event(delta_v(WS, "t1", "u1", "a periwinkle answer")));
@@ -1126,7 +1197,11 @@ fn open_thread_reads_one_threads_rows_and_pending() {
         area.record(event(delta_v(WS, "t2", "u2", "t2 pending")));
         ctx.forget_rows_calls();
         let opened = area.open_thread(WS, "t1").expect("the open reads");
-        assert_eq!(opened.iter().map(text_of).collect::<Vec<_>>(), vec!["one", "one reply", "t1 pending"], "that thread's rows, then that thread's pending");
+        assert_eq!(
+            opened.iter().map(text_of).collect::<Vec<_>>(),
+            vec!["one", "one reply", "t1 pending"],
+            "that thread's rows, then that thread's pending"
+        );
         assert_eq!(ctx.rows_called(), vec!["thread ws1 t1"], "never the folder's rows");
     });
 }
@@ -1164,7 +1239,11 @@ fn read_pages_pending_then_rows_newest_first_with_total_and_pos() {
         area.record(event(delta_v(WS, "other", "u9", "pending of another thread")));
 
         let page = area.read(WS, "t1", &ThreadRead { limit: 3, ..read_all() }).expect("the read");
-        assert_eq!(page.events.iter().map(text_of).collect::<Vec<_>>(), vec!["row 5", "pending 7", "pending 8"], "the pending events newest first, then the rows, answered oldest first");
+        assert_eq!(
+            page.events.iter().map(text_of).collect::<Vec<_>>(),
+            vec!["row 5", "pending 7", "pending 8"],
+            "the pending events newest first, then the rows, answered oldest first"
+        );
         assert_eq!(page.total, 5 + 2, "the thread's rows and its pending");
         assert_eq!(page.pos, 9, "the position the held index has issued");
         assert!(!page.trimmed);
@@ -1297,8 +1376,15 @@ fn invariant_5_an_unread_index_keeps_writing_rows_and_skips_the_index_until_rein
         ctx.watched.fail_all.set(true);
         let area = ctx.area();
         area.load_index(WS);
-        assert_eq!(warned.lines(), vec!["the transcript of ws1 does not read (disk I/O error), so search and a send leave it out until it reads"]);
-        assert_eq!(ctx.index_of(WS), Some(TranscriptIndex { pos: 3, ..TranscriptIndex::default() }), "an empty index that goes on after the newest row");
+        assert_eq!(
+            warned.lines(),
+            vec!["the transcript of ws1 does not read (disk I/O error), so search and a send leave it out until it reads"]
+        );
+        assert_eq!(
+            ctx.index_of(WS),
+            Some(TranscriptIndex { pos: 3, ..TranscriptIndex::default() }),
+            "an empty index that goes on after the newest row"
+        );
         assert_eq!(ctx.unread(), vec![WS]);
         ctx.watched.fail_all.set(false);
 
@@ -1336,7 +1422,8 @@ fn balance_words_holds_the_newest_threads_inside_the_budget() {
         let (c1, c2, c3) = (line_of('1', 50_000), line_of('2', 50_000), line_of('3', 50_000));
         let held_a = words(&[a.as_str()], 300);
         let held_b = words(&[b.as_str()], 200);
-        let mut index_one = index_of_words(vec![("a", held_a.clone()), ("b", held_b.clone()), ("c", words(&[c1.as_str(), c2.as_str(), c3.as_str()], 100))]);
+        let mut index_one =
+            index_of_words(vec![("a", held_a.clone()), ("b", held_b.clone()), ("c", words(&[c1.as_str(), c2.as_str(), c3.as_str()], 100))]);
         index_one.pos = 1;
         ctx.hold_index(WS, index_one);
         ctx.hold_index("ws2", index_of_words(vec![("d", words(&["small text"], 50))]));
@@ -1348,11 +1435,33 @@ fn balance_words_holds_the_newest_threads_inside_the_budget() {
         let share = WORDS_HELD - 2_000_000;
         assert_eq!(
             one.words.get("c"),
-            Some(&ThreadWords { lines: vec![c3.clone()], open: None, last: JsNumber(100.0), size: 150_000, first: Some(line_of('1', 200)), opened: None, cold: Some(true), room: Some(share) }),
+            Some(&ThreadWords {
+                lines: vec![c3.clone()],
+                open: None,
+                last: JsNumber(100.0),
+                size: 150_000,
+                first: Some(line_of('1', 200)),
+                opened: None,
+                cold: Some(true),
+                room: Some(share)
+            }),
             "the thread that passes what is left keeps its newest lines that fit"
         );
         let d = ctx.index_of("ws2").expect("an index").words.get("d").cloned().expect("d");
-        assert_eq!(d, ThreadWords { lines: vec![], open: None, last: JsNumber(50.0), size: 10, first: Some("small text".into()), opened: None, cold: Some(true), room: Some(0) }, "an older thread with nothing left to hold is let go whole, across workspaces");
+        assert_eq!(
+            d,
+            ThreadWords {
+                lines: vec![],
+                open: None,
+                last: JsNumber(50.0),
+                size: 10,
+                first: Some("small text".into()),
+                opened: None,
+                cold: Some(true),
+                room: Some(0)
+            },
+            "an older thread with nothing left to hold is let go whole, across workspaces"
+        );
         assert_eq!(ctx.clock.pending(), 1, "warming is asked for");
         assert!(area.warming.get());
     });
@@ -1368,15 +1477,21 @@ fn a_running_thread_holds_all_its_words() {
         let big = words(&refs, 300);
         let q = line_of('q', 1000);
         ctx.hold_index(WS, index_of_words(vec![("run", big.clone()), ("quiet", words(&[q.as_str()], 200))]));
-        ctx.sessions.with(|s| *s = sessions_of(vec![row(view(json!({ "id": "r1", "threadId": "run", "status": "running" })), "u1")]).take());
+        ctx.sessions
+            .with(|s| *s = sessions_of(vec![row(view(json!({ "id": "r1", "threadId": "run", "status": "running" })), "u1")]).take());
         let area = ctx.area();
         area.balance_words();
         let held = ctx.index_of(WS).expect("an index");
         assert_eq!(held.words.get("run"), Some(&big), "a thread whose turn runs holds all of its own, past the budget");
         let quiet = held.words.get("quiet").expect("quiet");
-        assert_eq!((quiet.cold, quiet.room, quiet.lines.len()), (Some(true), Some(0), 0), "the budget was spent, so the next thread holds none");
+        assert_eq!(
+            (quiet.cold, quiet.room, quiet.lines.len()),
+            (Some(true), Some(0), 0),
+            "the budget was spent, so the next thread holds none"
+        );
 
-        ctx.sessions.with(|s| *s = sessions_of(vec![row(view(json!({ "id": "r1", "threadId": "run", "status": "completed" })), "u1")]).take());
+        ctx.sessions
+            .with(|s| *s = sessions_of(vec![row(view(json!({ "id": "r1", "threadId": "run", "status": "completed" })), "u1")]).take());
         area.balance_words();
         let held = ctx.index_of(WS).expect("an index");
         let run = held.words.get("run").expect("run");
@@ -1421,7 +1536,16 @@ fn warm_ctx() -> (Rc<FakeTranscriptsCtx>, ThreadWords, ThreadWords) {
 }
 
 fn warmed(first: &str, line: &str, last: i64) -> ThreadWords {
-    ThreadWords { lines: vec![line.to_string()], open: None, last: JsNumber(last as f64), size: line.chars().count(), first: Some(first.to_string()), opened: None, cold: None, room: None }
+    ThreadWords {
+        lines: vec![line.to_string()],
+        open: None,
+        last: JsNumber(last as f64),
+        size: line.chars().count(),
+        first: Some(first.to_string()),
+        opened: None,
+        cold: None,
+        room: None,
+    }
 }
 
 // TS: sqlite-transcripts.test.ts:337
@@ -1431,7 +1555,11 @@ fn warming_reads_back_one_thread_a_tick() {
         let (ctx, _, b) = warm_ctx();
         let area = ctx.area();
         assert!(area.warm_one(), "a thread was read back");
-        assert_eq!(ctx.index_of(WS).expect("an index").words.get("a"), Some(&warmed("alpha words", "alpha words", 300)), "its words back, the later of the read time and the time it was last spoken in");
+        assert_eq!(
+            ctx.index_of(WS).expect("an index").words.get("a"),
+            Some(&warmed("alpha words", "alpha words", 300)),
+            "its words back, the later of the read time and the time it was last spoken in"
+        );
         assert_eq!(ctx.index_of(WS).expect("an index").words.get("b"), Some(&b), "the next thread waits for the next tick");
         assert_eq!(ctx.rows_called_of(&["word_events"]), vec!["word_events ws1 a"]);
         assert!(area.warm_one());
@@ -1447,7 +1575,11 @@ fn warming_reads_back_one_thread_a_tick() {
         assert!(area.warming.get());
         assert!(ctx.rows_called_of(&["word_events"]).is_empty(), "nothing is read before the tick");
         ctx.clock.advance(0);
-        assert_eq!(ctx.rows_called_of(&["word_events"]), vec!["word_events ws1 a", "word_events ws1 b"], "each tick reads one and asks again");
+        assert_eq!(
+            ctx.rows_called_of(&["word_events"]),
+            vec!["word_events ws1 a", "word_events ws1 b"],
+            "each tick reads one and asks again"
+        );
         assert_eq!(ctx.clock.pending(), 0);
         assert!(!area.warming.get());
         assert_eq!(ctx.index_of(WS).expect("an index").words.get("a"), Some(&warmed("alpha words", "alpha words", 300)));
@@ -1492,7 +1624,16 @@ fn words_of_reads_rows_then_the_workspaces_pending_and_keeps_what_the_thread_had
         let back = area.words_of(WS, "x", Some(&had)).expect("the read");
         assert_eq!(
             back,
-            ThreadWords { lines: vec!["x first".into(), "fresh-zebra words".into()], open: Some("u1:".into()), last: JsNumber(1_000_000.0), size: 24, first: Some("x first".into()), opened: Some(JsNumber(777.0)), cold: None, room: None },
+            ThreadWords {
+                lines: vec!["x first".into(), "fresh-zebra words".into()],
+                open: Some("u1:".into()),
+                last: JsNumber(1_000_000.0),
+                size: 24,
+                first: Some("x first".into()),
+                opened: Some(JsNumber(777.0)),
+                cold: None,
+                room: None
+            },
             "the rows' words and then the events not yet flushed, the later last, the opened kept"
         );
         let fresh = area.words_of(WS, "x", None).expect("the read");
@@ -1519,7 +1660,10 @@ fn opened_words_ranks_a_thread_as_just_spoken() {
 
         area.opened_words(WS, "nobody");
         area.opened_words("ws9", "cold");
-        assert!(!ctx.index_of(WS).expect("an index").words.contains_key("nobody"), "nothing is made for a thread the index holds no words for");
+        assert!(
+            !ctx.index_of(WS).expect("an index").words.contains_key("nobody"),
+            "nothing is made for a thread the index holds no words for"
+        );
         assert!(ctx.index_of("ws9").is_none(), "nor an index for a workspace that holds none");
     });
 }

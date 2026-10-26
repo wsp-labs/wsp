@@ -108,7 +108,9 @@ fn keep_sent_images_writes_the_entry_before_the_bytes() {
         area.keep_sent_images(WS, "t1", Some("req_a"), &[png("BQU=")]).await;
         assert_eq!(
             ctx.store.get_now("attachment-keys", WS),
-            Some(json!({ "threads": { "t1": [entry_of("t1.req_old.0", "image/png"), entry_of("t1.req_a.0", "image/png")], "t2": [entry_of("t2.req_x.0", "image/png")] } })),
+            Some(
+                json!({ "threads": { "t1": [entry_of("t1.req_old.0", "image/png"), entry_of("t1.req_a.0", "image/png")], "t2": [entry_of("t2.req_x.0", "image/png")] } })
+            ),
             "the same send again replaces its own entries, the thread's others and every other thread stay"
         );
         assert_eq!(ctx.store.logged(), vec!["put attachment-keys/ws1", "putBlob attachments/t1.req_a.0"]);
@@ -223,15 +225,28 @@ fn drop_kept_keys_deletes_blobs_and_empties_the_document() {
         area.drop_kept_keys(WS, &names(&["t2.req_b.0", "t1.req_a.0", "ghost.req.0"])).await;
         assert_eq!(
             ctx.store.logged(),
-            vec!["deleteBlob attachments/t2.req_b.0", "deleteBlob attachments/t1.req_a.0", "deleteBlob attachments/ghost.req.0", "put attachment-keys/ws1"],
+            vec![
+                "deleteBlob attachments/t2.req_b.0",
+                "deleteBlob attachments/t1.req_a.0",
+                "deleteBlob attachments/ghost.req.0",
+                "put attachment-keys/ws1"
+            ],
             "every named key's blob goes, in the order given, then the document"
         );
-        assert_eq!(ctx.store.get_now("attachment-keys", WS), Some(json!({ "threads": { "t1": [entry_of("t1.req_a.1", "image/png")] } })), "a thread left empty leaves the document");
+        assert_eq!(
+            ctx.store.get_now("attachment-keys", WS),
+            Some(json!({ "threads": { "t1": [entry_of("t1.req_a.1", "image/png")] } })),
+            "a thread left empty leaves the document"
+        );
         assert!(ctx.store.blob_now("attachments", "t1.req_a.1").is_some());
 
         ctx.store.log.borrow_mut().clear();
         area.drop_kept_keys(WS, &names(&["t1.req_a.1"])).await;
-        assert_eq!(ctx.store.logged(), vec!["deleteBlob attachments/t1.req_a.1", "delete attachment-keys/ws1"], "a document left with no thread is deleted");
+        assert_eq!(
+            ctx.store.logged(),
+            vec!["deleteBlob attachments/t1.req_a.1", "delete attachment-keys/ws1"],
+            "a document left with no thread is deleted"
+        );
         assert!(ctx.store.get_now("attachment-keys", WS).is_none());
     });
 }
@@ -255,19 +270,36 @@ fn drop_kept_keys_naming_nothing_kept_writes_nothing() {
 #[test]
 fn image_keys_of_reads_starts_and_steers_with_a_thread() {
     let carried = json!([{ "mediaType": "image/png", "bytes": 4 }, { "mediaType": "application/pdf", "bytes": 3 }, { "mediaType": "image/webp", "bytes": 5 }]);
-    let start = event(json!({ "type": "session.start", "workspaceId": WS, "sessionId": "s1", "threadId": "t1", "prompt": "look", "requestId": "req_a", "attachments": carried }));
-    assert_eq!(image_keys_of(&start), names(&["t1.req_a.0", "t1.req_a.2"]), "the keys of the image attachments, by their place in the message");
-    let steer = event(json!({ "type": "session.steer", "workspaceId": WS, "sessionId": "s1", "threadId": "t1", "prompt": "and this", "requestId": "req_s", "attachments": carried }));
+    let start = event(
+        json!({ "type": "session.start", "workspaceId": WS, "sessionId": "s1", "threadId": "t1", "prompt": "look", "requestId": "req_a", "attachments": carried }),
+    );
+    assert_eq!(
+        image_keys_of(&start),
+        names(&["t1.req_a.0", "t1.req_a.2"]),
+        "the keys of the image attachments, by their place in the message"
+    );
+    let steer = event(
+        json!({ "type": "session.steer", "workspaceId": WS, "sessionId": "s1", "threadId": "t1", "prompt": "and this", "requestId": "req_s", "attachments": carried }),
+    );
     assert_eq!(image_keys_of(&steer), names(&["t1.req_s.0", "t1.req_s.2"]));
-    let no_thread = event(json!({ "type": "session.start", "workspaceId": WS, "sessionId": "s1", "prompt": "look", "requestId": "req_a", "attachments": carried }));
+    let no_thread = event(
+        json!({ "type": "session.start", "workspaceId": WS, "sessionId": "s1", "prompt": "look", "requestId": "req_a", "attachments": carried }),
+    );
     assert!(image_keys_of(&no_thread).is_empty());
-    let no_request = event(json!({ "type": "session.start", "workspaceId": WS, "sessionId": "s1", "threadId": "t1", "prompt": "look", "attachments": carried }));
+    let no_request = event(
+        json!({ "type": "session.start", "workspaceId": WS, "sessionId": "s1", "threadId": "t1", "prompt": "look", "attachments": carried }),
+    );
     assert!(image_keys_of(&no_request).is_empty(), "a send with no request id kept none");
-    let none = event(json!({ "type": "session.start", "workspaceId": WS, "sessionId": "s1", "threadId": "t1", "prompt": "look", "requestId": "req_a" }));
+    let none = event(
+        json!({ "type": "session.start", "workspaceId": WS, "sessionId": "s1", "threadId": "t1", "prompt": "look", "requestId": "req_a" }),
+    );
     assert!(image_keys_of(&none).is_empty());
-    let delta = event(json!({ "type": "session.delta", "workspaceId": WS, "sessionId": "s1", "threadId": "t1", "kind": "text", "text": "x", "attachments": carried }));
+    let delta = event(
+        json!({ "type": "session.delta", "workspaceId": WS, "sessionId": "s1", "threadId": "t1", "kind": "text", "text": "x", "attachments": carried }),
+    );
     assert!(image_keys_of(&delta).is_empty(), "any other event names none");
-    let end = event(json!({ "type": "session.end", "workspaceId": WS, "sessionId": "s1", "threadId": "t1", "exitCode": 0, "sawResult": true }));
+    let end =
+        event(json!({ "type": "session.end", "workspaceId": WS, "sessionId": "s1", "threadId": "t1", "exitCode": 0, "sawResult": true }));
     assert!(image_keys_of(&end).is_empty());
 }
 
@@ -291,7 +323,10 @@ fn drop_sent_images_takes_named_threads_or_all() {
         assert!(ctx.store.logged().is_empty(), "a thread that holds no entry writes nothing");
 
         area.drop_sent_images(WS, ThreadsNamed::These(names(&["t1", "zzz"]))).await;
-        assert_eq!(ctx.store.logged(), vec!["deleteBlob attachments/t1.req_a.0", "deleteBlob attachments/t1.req_a.1", "put attachment-keys/ws1"]);
+        assert_eq!(
+            ctx.store.logged(),
+            vec!["deleteBlob attachments/t1.req_a.0", "deleteBlob attachments/t1.req_a.1", "put attachment-keys/ws1"]
+        );
         assert_eq!(
             ctx.store.get_now("attachment-keys", WS),
             Some(json!({ "threads": { "t2": [entry_of("t2.req_b.0", "image/png")], "t3": [entry_of("t3.req_c.0", "image/png")] } })),
@@ -300,7 +335,11 @@ fn drop_sent_images_takes_named_threads_or_all() {
 
         ctx.store.log.borrow_mut().clear();
         area.drop_sent_images(WS, ThreadsNamed::All).await;
-        assert_eq!(ctx.store.logged(), vec!["deleteBlob attachments/t2.req_b.0", "deleteBlob attachments/t3.req_c.0", "delete attachment-keys/ws1"], "every blob of every thread, then the document");
+        assert_eq!(
+            ctx.store.logged(),
+            vec!["deleteBlob attachments/t2.req_b.0", "deleteBlob attachments/t3.req_c.0", "delete attachment-keys/ws1"],
+            "every blob of every thread, then the document"
+        );
     });
 }
 
@@ -329,7 +368,11 @@ fn cap_sessions_drops_the_oldest_finished_rows_past_two_hundred() {
     let mut want = vec!["stuck".to_string()];
     want.extend((3..202).map(|i| format!("r{i}")));
     want.extend((0..30).map(|i| format!("o{i}")));
-    assert_eq!(session_ids(&ctx), want, "the oldest three finished rows went, a running row stayed, the other workspace's rows do not count, and the map keeps its order");
+    assert_eq!(
+        session_ids(&ctx),
+        want,
+        "the oldest three finished rows went, a running row stayed, the other workspace's rows do not count, and the map keeps its order"
+    );
     assert_eq!(session_ids(&ctx).iter().filter(|id| !id.starts_with('o')).count(), SESSION_INDEX_CAP);
     assert_eq!(ended_of(&ctx, "t0"), json!("interrupted"), "the thread's record names how its last dropped row ended");
     ctx.thread_records.with(|t| {
@@ -354,7 +397,8 @@ fn num_of(v: &Value) -> f64 {
 #[test]
 fn cap_sessions_keeps_each_threads_newest_and_running_rows() {
     let ctx = FakeTranscriptsCtx::new();
-    let mut rows: Vec<Row> = (0..200).map(|i| sess(&format!("s{i:03}"), WS, Some(&format!("t{i:03}")), "completed", Some(100 + i))).collect();
+    let mut rows: Vec<Row> =
+        (0..200).map(|i| sess(&format!("s{i:03}"), WS, Some(&format!("t{i:03}")), "completed", Some(100 + i))).collect();
     rows.push(sess("x1", WS, Some("tX"), "completed", Some(5)));
     rows.push(sess("x2", WS, Some("tX"), "completed", Some(5)));
     rows.push(sess("r1", WS, Some("tR"), "running", Some(1)));
@@ -377,14 +421,16 @@ fn cap_sessions_keeps_each_threads_newest_and_running_rows() {
 #[test]
 fn a_capped_row_marks_its_thread_ended() {
     let ctx = FakeTranscriptsCtx::new();
-    let mut rows: Vec<Row> = (0..200).map(|i| sess(&format!("f{i:03}"), WS, Some(&format!("tf{i:03}")), "completed", Some(100 + i))).collect();
+    let mut rows: Vec<Row> =
+        (0..200).map(|i| sess(&format!("f{i:03}"), WS, Some(&format!("tf{i:03}")), "completed", Some(100 + i))).collect();
     rows.push(sess("a1", WS, Some("tA"), "failed", Some(1)));
     rows.push(sess("a2", WS, Some("tA"), "completed", Some(2)));
     rows.push(sess("m1", WS, Some("tM"), "interrupted", Some(1)));
     rows.push(sess("m2", WS, Some("tM"), "completed", Some(2)));
     ctx.sessions.with(|s| *s = sessions_of(rows).take());
     ctx.thread_records.with(|t| {
-        *t = records_of(vec![("tZ", record(WS, json!({}))), ("tA", record(WS, json!({ "readAt": 5 }))), ("tY", record(WS, json!({})))]).take();
+        *t = records_of(vec![("tZ", record(WS, json!({}))), ("tA", record(WS, json!({ "readAt": 5 }))), ("tY", record(WS, json!({})))])
+            .take();
     });
     ctx.area().cap_sessions(WS);
     let ids = session_ids(&ctx);
@@ -412,12 +458,17 @@ fn persist_sessions_writes_the_document_in_the_ts_key_order() {
         r1.borrow_mut().snapshot = Some("snap".into());
         let r2 = sess("r2", "ws2", Some("t9"), "completed", None);
         ctx.sessions.with(|s| *s = sessions_of(vec![r1, r2]).take());
-        ctx.thread_records.with(|t| *t = records_of(vec![("t9", record("ws2", json!({}))), ("t1", record(WS, json!({ "readAt": 5 })))]).take());
+        ctx.thread_records
+            .with(|t| *t = records_of(vec![("t9", record("ws2", json!({}))), ("t1", record(WS, json!({ "readAt": 5 })))]).take());
         let area = ctx.area();
         area.viewed_marks.borrow_mut().insert(WS.into(), IndexMap::from([("a.txt".to_string(), "blob1".to_string())]));
         area.persist_sessions(WS).await;
         let doc = ctx.store.get_now("sessions", WS).expect("the document is put");
-        assert_eq!(keys_of(&doc), vec!["workspaceId", "sessions", "threads", "viewed"], "the TS key order, which the wsp-core type has the other way round");
+        assert_eq!(
+            keys_of(&doc),
+            vec!["workspaceId", "sessions", "threads", "viewed"],
+            "the TS key order, which the wsp-core type has the other way round"
+        );
         assert_eq!(doc["workspaceId"], json!(WS));
         assert_eq!(doc["viewed"], json!({ "a.txt": "blob1" }));
         assert_eq!(keys_of(&doc["threads"]), vec!["t1"], "the records of this workspace only");
@@ -452,12 +503,18 @@ fn live_row(running: bool) -> Row {
     let id = if running { "r1" } else { "r2" };
     let r = sess(id, WS, Some("t1"), status, Some(1));
     r.borrow_mut().notify = Some(names(&["lead"]));
-    r.borrow_mut().notify_by = Some(serde_json::from_value(json!({ "kind": "thread", "threadId": "lead", "workspaceId": WS, "rootThreadId": "lead" })).expect("a scope"));
+    r.borrow_mut().notify_by = Some(
+        serde_json::from_value(json!({ "kind": "thread", "threadId": "lead", "workspaceId": WS, "rootThreadId": "lead" }))
+            .expect("a scope"),
+    );
     r.borrow_mut().notify_road = Some(WorkspaceOrigin::Here);
     r.borrow_mut().turn_live = Some(TurnLive {
         reply: Some(serde_json::from_value(json!("completed")).expect("a status")),
         told: Some(2),
-        steered: Some(serde_json::from_value::<IndexMap<String, Steered>>(json!({ "req_1": { "prompt": "also this", "startedBy": "person" } })).expect("steered")),
+        steered: Some(
+            serde_json::from_value::<IndexMap<String, Steered>>(json!({ "req_1": { "prompt": "also this", "startedBy": "person" } }))
+                .expect("steered"),
+        ),
         waited: Some(JsNumber(5.0)),
         waiting_since: Some(JsNumber(9.0)),
         ..TurnLive::default()
@@ -487,7 +544,22 @@ fn persist_sessions_keeps_live_fields_only_while_running() {
         let rows = doc["sessions"].as_array().expect("an array");
         assert_eq!(
             tail(keys_of(&rows[0])),
-            names(&["notify", "notifyBy", "notifyRoad", "reply", "told", "steered", "waited", "waitingSince", "run", "from", "asked", "turnToken", "scopeDeviceId", "snapshot"]),
+            names(&[
+                "notify",
+                "notifyBy",
+                "notifyRoad",
+                "reply",
+                "told",
+                "steered",
+                "waited",
+                "waitingSince",
+                "run",
+                "from",
+                "asked",
+                "turnToken",
+                "scopeDeviceId",
+                "snapshot"
+            ]),
             "a running row carries its live fields between the notify keys and the snapshot, in this order"
         );
         assert_eq!(rows[0]["reply"], json!("completed"));
@@ -514,13 +586,26 @@ fn persist_sessions_leaves_out_unlaunched_rows_and_other_workspaces() {
         let ctx = live_ctx();
         let launching = sess("r2", WS, Some("t2"), "running", Some(2));
         launching.borrow_mut().launch = Some(async {}.boxed_local().shared());
-        ctx.sessions.with(|s| *s = sessions_of(vec![sess("r1", WS, Some("t1"), "completed", Some(1)), launching, sess("r3", "ws2", Some("t3"), "completed", Some(3))]).take());
-        ctx.thread_records.with(|t| *t = records_of(vec![("t1", record(WS, json!({}))), ("t2", record(WS, json!({}))), ("t3", record("ws2", json!({})))]).take());
+        ctx.sessions.with(|s| {
+            *s = sessions_of(vec![
+                sess("r1", WS, Some("t1"), "completed", Some(1)),
+                launching,
+                sess("r3", "ws2", Some("t3"), "completed", Some(3)),
+            ])
+            .take()
+        });
+        ctx.thread_records.with(|t| {
+            *t = records_of(vec![("t1", record(WS, json!({}))), ("t2", record(WS, json!({}))), ("t3", record("ws2", json!({})))]).take()
+        });
         let area = ctx.area();
         area.persist_sessions(WS).await;
         let doc = ctx.store.get_now("sessions", WS).expect("the document is put");
         let ids: Vec<Value> = doc["sessions"].as_array().expect("an array").iter().map(|r| r["id"].clone()).collect();
-        assert_eq!(ids, vec![json!("r1")], "a row for a turn still reaching the machine never reaches the file, nor does another workspace's");
+        assert_eq!(
+            ids,
+            vec![json!("r1")],
+            "a row for a turn still reaching the machine never reaches the file, nor does another workspace's"
+        );
         assert_eq!(keys_of(&doc["threads"]), vec!["t1", "t2"], "the records of the workspace are all there");
         assert_eq!(session_ids(&ctx), vec!["r1", "r2", "r3"], "the runtime's own rows are untouched");
     });
@@ -533,7 +618,9 @@ fn persist_sessions_of_a_workspace_not_live_writes_nothing() {
         let ctx = FakeTranscriptsCtx::new();
         let mut rows = vec![sess("w1", WS, Some("t1"), "completed", Some(1))];
         rows[0].borrow_mut().view.claude_session_id = Some("c1".into());
-        rows.extend((0..SESSION_INDEX_CAP as i64 + 2).map(|i| sess(&format!("r{i}"), WS, Some(&format!("t{}", i + 10)), "completed", Some(10 + i))));
+        rows.extend(
+            (0..SESSION_INDEX_CAP as i64 + 2).map(|i| sess(&format!("r{i}"), WS, Some(&format!("t{}", i + 10)), "completed", Some(10 + i))),
+        );
         let count = rows.len();
         ctx.sessions.with(|s| *s = sessions_of(rows).take());
         ctx.thread_records.with(|t| *t = records_of(vec![("t1", record(WS, json!({ "worked": false })))]).take());
@@ -571,7 +658,8 @@ fn persist_sessions_marks_a_settled_working_thread_worked() {
                 ("t4", record(WS, json!({ "worked": true }))),
                 ("t5", record(WS, json!({ "worked": false }))),
                 ("t7", record("ws2", json!({ "worked": false }))),
-            ]).take();
+            ])
+            .take();
         });
         let area = ctx.area();
         area.persist_sessions(WS).await;
@@ -625,8 +713,19 @@ fn persist_sessions_lands_snapshots_in_call_order() {
         let second = area.persist_sessions(WS);
         second.await;
         first.await;
-        let puts: Vec<usize> = ctx.flaky.puts.borrow().iter().filter(|(c, _, _)| c == "sessions").map(|(_, _, v)| v["sessions"].as_array().expect("an array").len()).collect();
-        assert_eq!(puts, vec![1, 2], "each snapshot is the rows as they were when it was asked for, and an earlier one never lands after a later one");
+        let puts: Vec<usize> = ctx
+            .flaky
+            .puts
+            .borrow()
+            .iter()
+            .filter(|(c, _, _)| c == "sessions")
+            .map(|(_, _, v)| v["sessions"].as_array().expect("an array").len())
+            .collect();
+        assert_eq!(
+            puts,
+            vec![1, 2],
+            "each snapshot is the rows as they were when it was asked for, and an earlier one never lands after a later one"
+        );
         assert_eq!(ctx.store.get_now("sessions", WS).expect("the document is put")["sessions"].as_array().expect("an array").len(), 2);
         assert_eq!(ctx.store.logged(), vec!["put sessions/ws1", "put sessions/ws1"]);
         assert!(ctx.index_flushes.with(|m| m.contains_key(WS)), "the puts go on the workspace's chain");
@@ -742,9 +841,16 @@ fn daemon_token_of_a_machine_without_a_daemon_is_asked_again_after_a_minute() {
         assert_eq!(area.daemon_token_of(machine.clone(), None).await.expect("answers"), None);
         assert_eq!(ctx.rotations_asked().len(), 1, "a miss under a minute old stands");
         ctx.clock.advance(1);
-        assert_eq!(area.daemon_token_of(machine.clone(), None).await.expect("answers"), Some(M1_FROM_SEED.to_string()), "at a minute it is asked again");
+        assert_eq!(
+            area.daemon_token_of(machine.clone(), None).await.expect("answers"),
+            Some(M1_FROM_SEED.to_string()),
+            "at a minute it is asked again"
+        );
         assert_eq!(ctx.rotations_asked().len(), 2);
-        assert_eq!(area.daemon_tokens.borrow().get("m1").map(|d| (d.has_daemon, d.at)), Some((true, 1_000_000 + DAEMON_TOKEN_MISS_TTL_MS as i64)));
+        assert_eq!(
+            area.daemon_tokens.borrow().get("m1").map(|d| (d.has_daemon, d.at)),
+            Some((true, 1_000_000 + DAEMON_TOKEN_MISS_TTL_MS as i64))
+        );
     });
 }
 
@@ -803,7 +909,12 @@ fn view_in(thread: &str, ws: &str, fields: Value) -> wsp_wire::views::session::S
 }
 
 fn picks(model: Option<&str>, window: Option<&str>, effort: Option<&str>) -> RanPicks {
-    RanPicks { model: model.map(String::from), context_window: window.map(String::from), effort: effort.map(String::from), permission_mode: None }
+    RanPicks {
+        model: model.map(String::from),
+        context_window: window.map(String::from),
+        effort: effort.map(String::from),
+        permission_mode: None,
+    }
 }
 
 // TS: thread-keeps-picks.test.ts:82
@@ -821,21 +932,33 @@ fn ran_on_reads_the_rows_then_the_sessions_facts() {
             view_in("t1", WS, json!({ "startedAt": 10, "model": "claude-opus-5", "contextWindow": "1m" })),
         ],
     );
-    assert_eq!(area.ran_on(WS, "t1", None), picks(Some("claude-opus-5"), Some("1m"), Some("max")), "the thread's rows on this workspace by start, each pick off the newest row that named it");
+    assert_eq!(
+        area.ran_on(WS, "t1", None),
+        picks(Some("claude-opus-5"), Some("1m"), Some("max")),
+        "the thread's rows on this workspace by start, each pick off the newest row that named it"
+    );
     assert_eq!(area.ran_on(WS, "t1", Some("sess-1")), picks(Some("claude-opus-5"), Some("1m"), Some("max")));
     assert!(ctx.fact_asks.borrow().is_empty(), "a pick the rows say is not asked of the session");
 
     ctx.rows_on.borrow_mut().insert("t2".into(), vec![view_in("t2", WS, json!({ "startedAt": 1, "effort": "low" }))]);
     ctx.facts.borrow_mut().insert((WS.into(), "sess-2".into(), "model".into()), "claude-opus-5[1m]".into());
     ctx.facts.borrow_mut().insert((WS.into(), "sess-2".into(), "effort".into()), "high".into());
-    assert_eq!(area.ran_on(WS, "t2", Some("sess-2")), picks(Some("claude-opus-5"), Some("1m"), Some("low")), "a model the rows do not say is read off the session; the rows' effort wins");
+    assert_eq!(
+        area.ran_on(WS, "t2", Some("sess-2")),
+        picks(Some("claude-opus-5"), Some("1m"), Some("low")),
+        "a model the rows do not say is read off the session; the rows' effort wins"
+    );
     assert_eq!(*ctx.fact_asks.borrow(), vec![(WS.to_string(), "sess-2".to_string(), "model".to_string())]);
     assert_eq!(area.ran_on(WS, "t2", None), picks(None, None, Some("low")));
 
     ctx.fact_asks.borrow_mut().clear();
     ctx.facts.borrow_mut().insert((WS.into(), "sess-3".into(), "model".into()), "claude-sonnet-5".into());
     ctx.facts.borrow_mut().insert((WS.into(), "sess-3".into(), "effort".into()), "max".into());
-    assert_eq!(area.ran_on(WS, "t3", Some("sess-3")), picks(Some("claude-sonnet-5"), None, Some("max")), "a thread whose rows fell off the index is read off its session's newest start");
+    assert_eq!(
+        area.ran_on(WS, "t3", Some("sess-3")),
+        picks(Some("claude-sonnet-5"), None, Some("max")),
+        "a thread whose rows fell off the index is read off its session's newest start"
+    );
     assert_eq!(
         *ctx.fact_asks.borrow(),
         vec![(WS.to_string(), "sess-3".to_string(), "model".to_string()), (WS.to_string(), "sess-3".to_string(), "effort".to_string())],
@@ -860,12 +983,24 @@ fn box_of_is_none_for_a_local_workspace() {
     latest("t3", "gone1");
     latest("t5", "place1");
     assert!(area.box_of("t1").is_none(), "this computer is not a box");
-    assert_eq!(area.box_of("t2").map(|e| e.borrow().record.borrow().id.clone()), Some("cloud1".to_string()), "the workspace of the thread's latest row");
+    assert_eq!(
+        area.box_of("t2").map(|e| e.borrow().record.borrow().id.clone()),
+        Some("cloud1".to_string()),
+        "the workspace of the thread's latest row"
+    );
     assert!(area.box_of("t3").is_none(), "a workspace that is not live");
-    assert_eq!(area.box_of("t5").map(|e| e.borrow().record.borrow().id.clone()), Some("place1".to_string()), "only a local workspace is not a box");
+    assert_eq!(
+        area.box_of("t5").map(|e| e.borrow().record.borrow().id.clone()),
+        Some("place1".to_string()),
+        "only a local workspace is not a box"
+    );
 
     ctx.thread_records.with(|t| *t = records_of(vec![("t4", record("cloud1", json!({}))), ("t6", record("local1", json!({})))]).take());
-    assert_eq!(area.box_of("t4").map(|e| e.borrow().record.borrow().id.clone()), Some("cloud1".to_string()), "no row: the workspace of the thread's record");
+    assert_eq!(
+        area.box_of("t4").map(|e| e.borrow().record.borrow().id.clone()),
+        Some("cloud1".to_string()),
+        "no row: the workspace of the thread's record"
+    );
     assert!(area.box_of("t6").is_none());
     assert!(area.box_of("nobody").is_none());
     ctx.latest_on.borrow_mut().insert("t4".into(), view_in("t4", "local1", json!({ "startedAt": 2 })));

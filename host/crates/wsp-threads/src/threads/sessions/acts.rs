@@ -15,6 +15,7 @@ use wsp_machines::machines::boot::entries::RowAt;
 use wsp_wire::types::attachments::AttachmentRecord;
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::types::run_block::RUN_OUTPUT_MAX_CHARS;
+use wsp_wire::types::wsp_tools::MCP_SERVER_NAME;
 use wsp_wire::views::harness::{start_picks, StartPicks};
 use wsp_wire::views::place_more::AsideTextEvent;
 use wsp_wire::views::session::{thread_key_of, SessionStatus, SessionView, TitleSource};
@@ -22,10 +23,9 @@ use wsp_wire::views::session_events::RUN_PERSONS_LINE;
 use wsp_wire::views::session_events_more::{RunState, RunStep, SessionEvent, SessionRunEvent};
 use wsp_wire::views::workspace::{scope_of, Caller};
 use wsp_wire::wire::events_union::{EventUnion, Sequenced};
-use wsp_wire::types::wsp_tools::MCP_SERVER_NAME;
 use wsp_wire::wire::runtime::{
-    SessionAccessOutcome, SessionAccessResult, SessionAnswerOutcome, SessionAnswerResult, SessionAsideResult, SessionRenameOutcome, SessionRenameResult,
-    SessionSteerOutcome, SessionSteerResult,
+    SessionAccessOutcome, SessionAccessResult, SessionAnswerOutcome, SessionAnswerResult, SessionAsideResult, SessionRenameOutcome,
+    SessionRenameResult, SessionSteerOutcome, SessionSteerResult,
 };
 use wsp_words::attachments::{attachment_record, files_refusal, steer_files_blocked};
 use wsp_words::exit::{not_found_refusal, HostError, Kind};
@@ -111,7 +111,17 @@ impl SessionsArea {
             let blocked = match files_refusal(&records) {
                 Some(refusal) => Some(refusal),
                 None => {
-                    let built = self.ctx.adapter_for(&entry, AdapterAsk { named: Some(view.harness.clone()), turn_env: None, waiting: None, servers: Env::new(), thread: None, asks_until_stopped: false })?;
+                    let built = self.ctx.adapter_for(
+                        &entry,
+                        AdapterAsk {
+                            named: Some(view.harness.clone()),
+                            turn_env: None,
+                            waiting: None,
+                            servers: Env::new(),
+                            thread: None,
+                            asks_until_stopped: false,
+                        },
+                    )?;
                     steer_files_blocked(&records, built.adapter.steers_images(), &view.harness)
                 }
             };
@@ -120,7 +130,8 @@ impl SessionsArea {
             }
         }
         let steer_id = self.ctx.ids().uuid();
-        let images: Vec<TurnImage> = attachments.iter().map(|a| TurnImage { media_type: a.media_type.clone(), bytes: a.bytes.clone(), path: None }).collect();
+        let images: Vec<TurnImage> =
+            attachments.iter().map(|a| TurnImage { media_type: a.media_type.clone(), bytes: a.bytes.clone(), path: None }).collect();
         let Some(steer) = handle.steer(ask.prompt.clone(), Some(steer_id.clone()), images) else {
             return Ok(steer_answer(SessionSteerOutcome::Unsupported));
         };
@@ -199,7 +210,9 @@ impl SessionsArea {
                 let view = row.borrow().view.clone();
                 (row_at(&view), view.harness.clone())
             }
-            (None, Some(record)) => (RowAt { thread_id: Some(id.to_string()), workspace_id: record.workspace_id.clone() }, record.harness.clone()),
+            (None, Some(record)) => {
+                (RowAt { thread_id: Some(id.to_string()), workspace_id: record.workspace_id.clone() }, record.harness.clone())
+            }
             (None, None) => return Ok(access_answer(SessionAccessOutcome::NotFound)),
         };
         let Some(entry) = self.ctx.entry_of_row(&at, origin.as_ref(), None, false).await? else {
@@ -269,7 +282,14 @@ impl SessionsArea {
     }
 
     /// The pick lands on the thread's record, and on its latest row where that row is not running (sessions.ts:1049-1066).
-    async fn land_access(&self, view: &SessionView, thread_id: Option<&str>, latest_running: bool, latest_row: Option<&Row>, permission_mode: &str) {
+    async fn land_access(
+        &self,
+        view: &SessionView,
+        thread_id: Option<&str>,
+        latest_running: bool,
+        latest_row: Option<&Row>,
+        permission_mode: &str,
+    ) {
         if let Some(thread) = thread_id {
             let records = self.ctx.records();
             let base = records.borrow().get(thread).cloned().unwrap_or_else(|| ThreadRecord {
@@ -345,7 +365,13 @@ impl SessionsArea {
     }
 
     /// sessions.ts:1189. Rules C14-C17.
-    pub async fn aside_row(&self, row_id: &str, question: &str, origin: Option<Caller>, ask_id: Option<String>) -> Result<SessionAsideResult, HostError> {
+    pub async fn aside_row(
+        &self,
+        row_id: &str,
+        question: &str,
+        origin: Option<Caller>,
+        ask_id: Option<String>,
+    ) -> Result<SessionAsideResult, HostError> {
         self.ctx.ready().await?;
         if question.trim().is_empty() {
             return Err(HostError::new(BLANK_ASIDE_LINE));
@@ -385,7 +411,12 @@ impl SessionsArea {
             let thread = thread_id.clone();
             Arc::new(move |text: String| {
                 ctx.pass(EventUnion::AsideText(Sequenced {
-                    event: AsideTextEvent { workspace_id: workspace_id.clone(), thread_id: Some(thread.clone()), ask_id: ask_id.clone(), text },
+                    event: AsideTextEvent {
+                        workspace_id: workspace_id.clone(),
+                        thread_id: Some(thread.clone()),
+                        ask_id: ask_id.clone(),
+                        text,
+                    },
                     seq: None,
                 }))
             }) as Arc<dyn Fn(String)>
@@ -417,20 +448,31 @@ impl SessionsArea {
         let answer: Result<SessionAsideResult, HostError> = async {
             let built = self.ctx.adapter_for(
                 &entry,
-                AdapterAsk { named: Some(harness.clone()), turn_env: Some(launch.env.clone()), waiting: None, servers: servers.clone(), thread: None, asks_until_stopped: false },
+                AdapterAsk {
+                    named: Some(harness.clone()),
+                    turn_env: Some(launch.env.clone()),
+                    waiting: None,
+                    servers: servers.clone(),
+                    thread: None,
+                    asks_until_stopped: false,
+                },
             )?;
             let adapter = built.adapter.clone();
-            let served = if adapter.aside_servers() && adapter.mcp_servers() { served_to(launch.wsp.as_ref(), &root, &thread_id) } else { None };
+            let served =
+                if adapter.aside_servers() && adapter.mcp_servers() { served_to(launch.wsp.as_ref(), &root, &thread_id) } else { None };
             let aside_in = match &latest.cwd {
                 Some(cwd) => Some(cwd.clone()),
                 None => self.ctx.folder_of(&latest.workspace_id, &session),
             };
             let server_values = match aside_in {
-                Some(folder) if adapter.aside_servers() && !self.ctx.brokered(&record) => self.ctx.server_values_for(&entry, &harness, &folder).await?,
+                Some(folder) if adapter.aside_servers() && !self.ctx.brokered(&record) => {
+                    self.ctx.server_values_for(&entry, &harness, &folder).await?
+                }
                 _ => None,
             };
             ask.mcp_servers = served.map(|spec| {
-                let port = wsp_adapters::port::McpServerSpec { command: spec.command, args: spec.args, no_slate: spec.no_slate.map(|_| true) };
+                let port =
+                    wsp_adapters::port::McpServerSpec { command: spec.command, args: spec.args, no_slate: spec.no_slate.map(|_| true) };
                 IndexMap::from([(MCP_SERVER_NAME.to_string(), port)])
             });
             ask.server_values = server_values;
@@ -439,14 +481,22 @@ impl SessionsArea {
         .await;
         if let Some(device) = launch.scoped_device_id.clone() {
             if let Err(e) = self.ctx.revoke_device(&device).await {
-                console::warn(&format!("the token of a side question on thread {} was not taken away: {}", thread_word(&thread_id), e.message));
+                console::warn(&format!(
+                    "the token of a side question on thread {} was not taken away: {}",
+                    thread_word(&thread_id),
+                    e.message
+                ));
             }
         }
         answer
     }
 
     /// The answer of one aside: the harness's text, which an empty answer refuses (sessions.ts:1199).
-    async fn aside_answer(&self, adapter: &dyn wsp_adapters::port::HarnessAdapter, ask: AsideQuestion) -> Result<SessionAsideResult, HostError> {
+    async fn aside_answer(
+        &self,
+        adapter: &dyn wsp_adapters::port::HarnessAdapter,
+        ask: AsideQuestion,
+    ) -> Result<SessionAsideResult, HostError> {
         let text = self.ctx.aside(adapter, ask).await?;
         if text.trim().is_empty() {
             return Err(HostError::new(ASIDE_EMPTY_LINE));
@@ -463,7 +513,9 @@ impl SessionsArea {
         let sessions = self.ctx.sessions();
         let rowed = {
             let rows: Vec<Row> = sessions.borrow().values().cloned().collect();
-            rows.into_iter().find(|r| r.borrow().view.thread_id.as_deref() == Some(step.thread_id.as_str())).map(|r| r.borrow().view.workspace_id.clone())
+            rows.into_iter()
+                .find(|r| r.borrow().view.thread_id.as_deref() == Some(step.thread_id.as_str()))
+                .map(|r| r.borrow().view.workspace_id.clone())
         };
         let workspace_id = match rowed {
             Some(workspace_id) => workspace_id,
@@ -488,7 +540,10 @@ impl SessionsArea {
             }
         }
         let latest = self.ctx.latest_on(&step.thread_id);
-        let session_id = latest.as_ref().and_then(|l| l.claude_session_id.clone().or_else(|| Some(l.id.clone()))).unwrap_or_else(|| step.turn_id.clone());
+        let session_id = latest
+            .as_ref()
+            .and_then(|l| l.claude_session_id.clone().or_else(|| Some(l.id.clone())))
+            .unwrap_or_else(|| step.turn_id.clone());
         let event = SessionRunEvent {
             workspace_id,
             session_id,

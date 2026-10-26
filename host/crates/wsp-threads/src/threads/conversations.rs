@@ -9,7 +9,8 @@ use futures::future::{join, ready, try_join_all, FutureExt, LocalBoxFuture, Shar
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{Map, Value};
 use wsp_adapters::port::{
-    ConversationLine, ConversationRoad, ConversationStore, EarlierAsk, EarlierRead, ExecFailure, ExecFailureKind, StoreError, StoredConversation,
+    ConversationLine, ConversationRoad, ConversationStore, EarlierAsk, EarlierRead, ExecFailure, ExecFailureKind, StoreError,
+    StoredConversation,
 };
 use wsp_catalog::catalog::catalog_agents;
 use wsp_core::clock::Clock;
@@ -19,8 +20,9 @@ use wsp_core::types::api::{ConversationAsk, OutsideOpening, Placed, PlacedStart}
 use wsp_core::types::events::EventBus;
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_wire::types::conversations::{
-    ConversationOrigin, ConversationRead, ConversationReadRowsItem, ConversationReadRowsItemWho, ConversationsAnswer, ConversationsHeld, OutsideConversation,
-    ResumeAsk, CONVERSATIONS_AGAIN_FIX, CONVERSATION_GONE_FIX, CONVERSATION_OPEN_KIND, NO_CONVERSATIONS_FIX, RESUME_WHERE_FIX, RESUME_WHERE_LINE,
+    ConversationOrigin, ConversationRead, ConversationReadRowsItem, ConversationReadRowsItemWho, ConversationsAnswer, ConversationsHeld,
+    OutsideConversation, ResumeAsk, CONVERSATIONS_AGAIN_FIX, CONVERSATION_GONE_FIX, CONVERSATION_OPEN_KIND, NO_CONVERSATIONS_FIX,
+    RESUME_WHERE_FIX, RESUME_WHERE_LINE,
 };
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::preferences::Preferences;
@@ -29,8 +31,9 @@ use wsp_wire::views::session_events_more::{SessionEarlierEvent, SessionEarlierEv
 use wsp_wire::views::workspace::Caller;
 use wsp_wire::wire::events_union::EventUnion;
 use wsp_words::conversations::{
-    conversation_gone_line, conversation_is_thread_fix, conversation_is_thread_line, conversation_open_fix, conversation_open_line, conversations_failed_line,
-    conversations_unread_line, conversations_update_fix, earlier_line, lasting_store_error, no_conversations_line,
+    conversation_gone_line, conversation_is_thread_fix, conversation_is_thread_line, conversation_open_fix, conversation_open_line,
+    conversations_failed_line, conversations_unread_line, conversations_update_fix, earlier_line, lasting_store_error,
+    no_conversations_line,
 };
 use wsp_words::daemon_contract::unknown_op_line;
 use wsp_words::exit::{refusal, HostError, Kind};
@@ -38,11 +41,11 @@ use wsp_words::js::collate;
 use wsp_words::words::tools::{tool_activity_line, tool_done_line};
 
 use super::threads::{Entry, Sessions};
+use super::transcripts::TranscriptState;
+use wsp_account::account::core_types::AccountError;
 use wsp_account::projects::folders::place::FolderPlaced;
 use wsp_account::projects::folders::tree::ListedWorktree;
 use wsp_wire::views::workspace::ProjectView;
-use wsp_account::account::core_types::AccountError;
-use super::transcripts::TranscriptState;
 
 /// How long one read of an agent's store on the project's computer may take.
 pub const STORE_EXEC_MS: u64 = 30_000;
@@ -91,7 +94,12 @@ pub trait ConversationsCtx {
     fn computer_of(&self, entry: &Entry) -> String;
     fn latest_on(&self, thread_id: &str) -> Option<SessionView>;
     fn reaches_row(&self, row: &SessionView, origin: Option<&Caller>) -> bool;
-    fn folder_for(&self, project: Option<String>, cwd: Option<String>, origin: Option<Caller>) -> LocalBoxFuture<'static, Result<FolderPlaced, HostError>>;
+    fn folder_for(
+        &self,
+        project: Option<String>,
+        cwd: Option<String>,
+        origin: Option<Caller>,
+    ) -> LocalBoxFuture<'static, Result<FolderPlaced, HostError>>;
     fn entry_of(&self, workspace_id: &str, origin: Option<Caller>) -> LocalBoxFuture<'static, Result<Entry, HostError>>;
     /// `ctx.state.preferencesHeld ?? await ctx.preferences.get()`.
     fn preferences(&self) -> LocalBoxFuture<'static, Result<Preferences, HostError>>;
@@ -300,7 +308,9 @@ impl ConversationsArea {
         let project = self.ctx.project_held(&record.project);
         let top = project.git.as_ref().map(|git| git.top.clone());
         let trees = match top {
-            Some(top) if wsp_words::projects::copies_folder(&record.kind) => self.ctx.worktrees_of(&top).await?.into_iter().map(|w| w.path).collect(),
+            Some(top) if wsp_words::projects::copies_folder(&record.kind) => {
+                self.ctx.worktrees_of(&top).await?.into_iter().map(|w| w.path).collect()
+            }
             _ => Vec::new(),
         };
         let held = self.ctx.folders_of(&project.id).into_iter().filter_map(|r| r.worktree.filter(|w| w.gone.is_none()).map(|w| w.path));
@@ -324,7 +334,14 @@ impl ConversationsArea {
         unread_held(self.ctx.as_ref(), said, entry, harness)
     }
     /// conversations.ts:125: V7.
-    pub async fn read_store(&self, entry: &Entry, cwds: &[String], road: ConversationRoad, harness: &str, store: Arc<dyn ConversationStore>) -> Result<StoreRead, HostError> {
+    pub async fn read_store(
+        &self,
+        entry: &Entry,
+        cwds: &[String],
+        road: ConversationRoad,
+        harness: &str,
+        store: Arc<dyn ConversationStore>,
+    ) -> Result<StoreRead, HostError> {
         read_store_of(self.ctx.clone(), entry.clone(), cwds.to_vec(), road, harness.to_string(), store).await
     }
     /// Whether the kept entry under `key` is the one `was` was read as (the same folders, stamp and time).
@@ -353,7 +370,8 @@ impl ConversationsArea {
         let was = self.kept.borrow().get(&key).cloned();
         if let Some(was) = was.filter(|k| k.cwds == folders && k.stamp == stamp) {
             let held = was.read.clone().await?;
-            let shows_open = held.listed.iter().any(|row| !mine.contains_key(&row.id) && held.live.as_ref().is_some_and(|live| live.contains(&row.id)));
+            let shows_open =
+                held.listed.iter().any(|row| !mine.contains_key(&row.id) && held.live.as_ref().is_some_and(|live| live.contains(&row.id)));
             if !shows_open {
                 return Ok(held);
             }
@@ -382,7 +400,12 @@ impl ConversationsArea {
         result
     }
     /// conversations.ts:168: V9.
-    pub async fn list(&self, project: Option<String>, agent: Option<String>, origin: Option<Caller>) -> Result<ConversationsAnswer, HostError> {
+    pub async fn list(
+        &self,
+        project: Option<String>,
+        agent: Option<String>,
+        origin: Option<Caller>,
+    ) -> Result<ConversationsAnswer, HostError> {
         let entry = self.ctx.folder_for(project, None, origin.clone()).await?.entry;
         let stores = self.stores_on(&entry, agent.as_deref());
         if let Some(agent) = &agent {
@@ -463,7 +486,13 @@ impl ConversationsArea {
         })
     }
     /// conversations.ts:228: V12.
-    pub async fn opening(&self, workspace_id: &str, harness: Option<String>, resume: ResumeAsk, origin: Option<Caller>) -> Result<OutsideOpening, HostError> {
+    pub async fn opening(
+        &self,
+        workspace_id: &str,
+        harness: Option<String>,
+        resume: ResumeAsk,
+        origin: Option<Caller>,
+    ) -> Result<OutsideOpening, HostError> {
         let entry = self.ctx.entry_of(workspace_id, origin).await?;
         let prefs = self.ctx.preferences().await?;
         let harness = match harness {
@@ -493,7 +522,10 @@ impl ConversationsArea {
             return Err(gone());
         }
         let named = match &read {
-            EarlierRead::Open => store.earlier(id.clone(), ask(false, 0), road.clone()).await.map_err(|e| store_failure(self.ctx.as_ref(), e, &entry, &harness))?,
+            EarlierRead::Open => store
+                .earlier(id.clone(), ask(false, 0), road.clone())
+                .await
+                .map_err(|e| store_failure(self.ctx.as_ref(), e, &entry, &harness))?,
             _ => read.clone(),
         };
         let title = match &named {
@@ -509,7 +541,11 @@ impl ConversationsArea {
             },
         };
         if open {
-            return Err(refusal(&conversation_open_line(&title, &computer), &conversation_open_fix(store.lets_go().as_deref()), Some(Kind::parse(CONVERSATION_OPEN_KIND))));
+            return Err(refusal(
+                &conversation_open_line(&title, &computer),
+                &conversation_open_fix(store.lets_go().as_deref()),
+                Some(Kind::parse(CONVERSATION_OPEN_KIND)),
+            ));
         }
         let EarlierRead::Read(read) = read else { return Err(gone()) };
         let project = entry.borrow().record.borrow().project.clone();

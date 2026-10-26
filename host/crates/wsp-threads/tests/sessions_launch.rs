@@ -16,14 +16,14 @@ use futures::future::Shared;
 use support::*;
 use wsp_account::account::rules::TreeOf;
 use wsp_core::console;
-use wsp_threads::threads::forks::{ForkPicks, ForkPlanSource, ForkPlanTurn};
 use wsp_core::types::wiring::{AccessMove, SteerTaken};
+use wsp_threads::threads::forks::{ForkPicks, ForkPlanSource, ForkPlanTurn};
 use wsp_threads::threads::sessions::start::Prepared;
 use wsp_wire::types::attachments::{Attachment, AttachmentRecord};
 use wsp_wire::types::js_number::JsNumber;
-use wsp_wire::views::session_events_more::SessionEarlierEvent;
 use wsp_wire::views::session::{thread_ran, ForkedFrom, SessionOrigin, TitleSource};
 use wsp_wire::views::session_events::AGENT_STARTING_MS;
+use wsp_wire::views::session_events_more::SessionEarlierEvent;
 use wsp_wire::wire::runtime::{SessionAnswerResult, SessionInterruptOutcome, SessionInterruptResult, SessionStartOutcome};
 use wsp_words::attachments::{attached_files_prompt, send_files_dir, turn_images_dir};
 use wsp_words::place_state::deleted_before_start_line;
@@ -68,7 +68,10 @@ fn merged(mut base: Value, extra: Value) -> Value {
 
 /// The index of the first call of `name` in the log.
 fn at(calls: &[String], name: &str) -> usize {
-    calls.iter().position(|c| c == name || c.starts_with(&format!("{name}("))).unwrap_or_else(|| panic!("{name} was never called: {calls:?}"))
+    calls
+        .iter()
+        .position(|c| c == name || c.starts_with(&format!("{name}(")))
+        .unwrap_or_else(|| panic!("{name} was never called: {calls:?}"))
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -476,7 +479,12 @@ fn prepared(r: &Rig) -> Prepared {
     Prepared {
         workspace_id: "w1".to_string(),
         origin: None,
-        opts: StartOptions { prompt: "fix it".to_string(), harness: Some("claude".to_string()), request_id: Some("req_1".to_string()), ..Default::default() },
+        opts: StartOptions {
+            prompt: "fix it".to_string(),
+            harness: Some("claude".to_string()),
+            request_id: Some("req_1".to_string()),
+            ..Default::default()
+        },
         prefs: prefs(),
         plan: None,
         thread_id: "t1".to_string(),
@@ -532,7 +540,8 @@ fn end_event(reason: &str) -> Value {
 }
 
 fn scope(thread: &str) -> ThreadScope {
-    serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": "w1", "rootThreadId": thread })).expect("a thread scope")
+    serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": "w1", "rootThreadId": thread }))
+        .expect("a thread scope")
 }
 
 fn caller_in(thread: &str) -> Caller {
@@ -567,7 +576,13 @@ fn open(t: TurnStart) {
 fn stall_landing(r: &Rig) -> oneshot::Sender<()> {
     let (tx, rx) = oneshot::channel::<()>();
     let rx = Rc::new(RefCell::new(Some(rx)));
-    r.host.hooks.set::<dyn Fn(&Entry, &dyn HarnessAdapter, &str, &str, Vec<Attachment>) -> LocalBoxFuture<'static, Result<LandedImages, HostError>>>(
+    r.host.hooks.set::<dyn Fn(
+        &Entry,
+        &dyn HarnessAdapter,
+        &str,
+        &str,
+        Vec<Attachment>,
+    ) -> LocalBoxFuture<'static, Result<LandedImages, HostError>>>(
         "SessionsCtx::land_images",
         Rc::new(move |_e: &Entry, _a: &dyn HarnessAdapter, _landing: &str, _dir: &str, _x: Vec<Attachment>| {
             let rx = rx.borrow_mut().take();
@@ -587,11 +602,21 @@ fn stall_landing(r: &Rig) -> oneshot::Sender<()> {
 fn record_landings(r: &Rig, images: Vec<TurnImage>, files: Vec<&str>) -> (Landings, Landings) {
     let (imgs, fls): (Landings, Landings) = (Rc::new(RefCell::new(Vec::new())), Rc::new(RefCell::new(Vec::new())));
     let i = imgs.clone();
-    r.host.hooks.set::<dyn Fn(&Entry, &dyn HarnessAdapter, &str, &str, Vec<Attachment>) -> LocalBoxFuture<'static, Result<LandedImages, HostError>>>(
+    r.host.hooks.set::<dyn Fn(
+        &Entry,
+        &dyn HarnessAdapter,
+        &str,
+        &str,
+        Vec<Attachment>,
+    ) -> LocalBoxFuture<'static, Result<LandedImages, HostError>>>(
         "SessionsCtx::land_images",
         Rc::new(move |_e: &Entry, _a: &dyn HarnessAdapter, landing: &str, dir: &str, x: Vec<Attachment>| {
             i.borrow_mut().push((landing.to_string(), dir.to_string(), x));
-            let landed = if images.is_empty() { LandedImages::default() } else { LandedImages { images: images.clone(), dir: Some(dir.to_string()) } };
+            let landed = if images.is_empty() {
+                LandedImages::default()
+            } else {
+                LandedImages { images: images.clone(), dir: Some(dir.to_string()) }
+            };
             async move { Ok(landed) }.boxed_local()
         }),
     );
@@ -662,7 +687,10 @@ fn the_held_row_carries_who_it_replaces_and_who_it_tells() {
         p.notify_by = Some(scope("lead"));
         p.notify_road = Some(WorkspaceOrigin::Relayed);
         r.host.add_record("thr_old", "w1", thread_record(json!({ "harness": "claude" })));
-        r.host.hooks.set::<dyn Fn() -> LocalBoxFuture<'static, Result<Preferences, HostError>>>("LaunchCtx::preferences", Rc::new(|| async { Ok(prefs()) }.boxed_local()));
+        r.host.hooks.set::<dyn Fn() -> LocalBoxFuture<'static, Result<Preferences, HostError>>>(
+            "LaunchCtx::preferences",
+            Rc::new(|| async { Ok(prefs()) }.boxed_local()),
+        );
         ok(r.run(p).await);
         let seen = r.seen.borrow();
         let (_, row, _) = &seen[0].rows[0];
@@ -678,7 +706,8 @@ fn the_held_row_carries_who_it_replaces_and_who_it_tells() {
 fn the_row_keeps_the_head_of_a_long_opening_and_the_turn_the_whole() {
     run_local(async {
         let r = rig();
-        let opening = format!("Build the ticket, and say what you find. {}", "Read every comment first, then the code it names. ".repeat(700));
+        let opening =
+            format!("Build the ticket, and say what you find. {}", "Read every comment first, then the code it names. ".repeat(700));
         let mut p = prepared(&r);
         p.opts.prompt = opening.clone();
         ok(r.run(p).await);
@@ -706,7 +735,9 @@ fn the_held_view_carries_what_the_start_knew() {
         p.resume = Some("sess-0".to_string());
         ok(r.run(p).await);
         let held = r.seen.borrow()[0].rows[0].2.clone();
-        let expected = held_view(json!({ "startedBy": "cli", "attempt": "2", "contextWindow": "1m", "parentThreadId": "lead", "rootThreadId": "lead", "claudeSessionId": "sess-0" }));
+        let expected = held_view(
+            json!({ "startedBy": "cli", "attempt": "2", "contextWindow": "1m", "parentThreadId": "lead", "rootThreadId": "lead", "claudeSessionId": "sess-0" }),
+        );
         assert_eq!(held, expected);
     });
 }
@@ -731,11 +762,22 @@ fn an_outside_conversations_name_stands_as_an_auto_title() {
     run_local(async {
         let r = rig();
         let mut p = prepared(&r);
-        p.opts.outside = Some(OutsideOpening { harness: "claude".to_string(), id: "out-1".to_string(), copy: false, project: "p1".to_string(), cwd: None, title: "  An outside talk\n".to_string(), earlier: Vec::new() });
+        p.opts.outside = Some(OutsideOpening {
+            harness: "claude".to_string(),
+            id: "out-1".to_string(),
+            copy: false,
+            project: "p1".to_string(),
+            cwd: None,
+            title: "  An outside talk\n".to_string(),
+            earlier: Vec::new(),
+        });
         p.resume = Some("out-1".to_string());
         ok(r.run(p).await);
         let held = r.seen.borrow()[0].rows[0].2.clone();
-        assert_eq!(held, held_view(json!({ "harnessTitle": title_line("  An outside talk\n"), "titleSource": "auto", "claudeSessionId": "out-1" })));
+        assert_eq!(
+            held,
+            held_view(json!({ "harnessTitle": title_line("  An outside talk\n"), "titleSource": "auto", "claudeSessionId": "out-1" }))
+        );
     });
 }
 
@@ -783,7 +825,11 @@ fn a_send_into_a_running_thread_holds_no_second_row() {
         assert_eq!(handle.outcome(), SessionStartOutcome::Queued);
         let mut held = held_event();
         held["requestId"] = json!("req_2");
-        assert_eq!(r.emitted(), vec![queued_event("two", "req_2"), held], "held after the wait with this send's request id (sessions.ts:521), queued said once");
+        assert_eq!(
+            r.emitted(),
+            vec![queued_event("two", "req_2"), held],
+            "held after the wait with this send's request id (sessions.ts:521), queued said once"
+        );
         assert_eq!(t.row.borrow().view.claude_session_id, Some("sess-old".to_string()));
     });
 }
@@ -813,7 +859,10 @@ fn the_launch_others_wait_on_settles_at_the_handover() {
 fn starting_is_said_once_after_four_seconds_with_what_the_first_run_installs() {
     run_local(async {
         let r = rig();
-        r.host.hooks.set::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<bool, HostError>>>("SessionsCtx::first_run_here", Rc::new(|_e: &Entry, _h: &str| async { Ok(true) }.boxed_local()));
+        r.host.hooks.set::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<bool, HostError>>>(
+            "SessionsCtx::first_run_here",
+            Rc::new(|_e: &Entry, _h: &str| async { Ok(true) }.boxed_local()),
+        );
         let tx = stall_landing(&r);
         let join = r.spawn(prepared(&r));
         settle().await;
@@ -1021,7 +1070,9 @@ fn a_refused_pick_fails_the_start_before_anything_lands() {
         *r.catalog.borrow_mut() = catalog("harness", Some("2.1.300"), json!([{ "value": "haiku", "label": "Haiku" }]));
         r.host.hooks.set::<dyn Fn(Option<&HarnessCatalog>, Option<&str>) -> Option<HostError>>(
             "LaunchCtx::not_run_refused",
-            Rc::new(|_c: Option<&HarnessCatalog>, _m: Option<&str>| Some(HostError::with_kind("no-such has not run on this computer", Kind::Usage))),
+            Rc::new(|_c: Option<&HarnessCatalog>, _m: Option<&str>| {
+                Some(HostError::with_kind("no-such has not run on this computer", Kind::Usage))
+            }),
         );
         let mut p = prepared(&r);
         p.opts.model = Some("no-such".to_string());
@@ -1047,7 +1098,10 @@ fn owed_hooks(r: &Rig) -> oneshot::Sender<()> {
             async move { Ok(Some(Some(paid))) }.boxed_local()
         }),
     );
-    r.host.hooks.set::<dyn Fn(&WorkspaceRecord) -> Option<String>>("SessionsCtx::workspace_place", Rc::new(|_r: &WorkspaceRecord| Some("place-1".to_string())));
+    r.host.hooks.set::<dyn Fn(&WorkspaceRecord) -> Option<String>>(
+        "SessionsCtx::workspace_place",
+        Rc::new(|_r: &WorkspaceRecord| Some("place-1".to_string())),
+    );
     r.host.hooks.set::<dyn Fn(&str) -> String>("SessionsCtx::place_name_of", Rc::new(|_p: &str| "acme's laptop".to_string()));
     tx
 }
@@ -1089,7 +1143,10 @@ fn a_stop_gives_up_a_send_waiting_on_an_owed_end() {
         settle().await;
         let stopped = r.area.interrupt_row("turn-1", None, None).await.expect("the stop answers");
         let line = send_given_up_line("acme's laptop");
-        assert_eq!(stopped, SessionInterruptResult { outcome: SessionInterruptOutcome::Accepted, under: None, error: None, left: Some(line.clone()) });
+        assert_eq!(
+            stopped,
+            SessionInterruptResult { outcome: SessionInterruptOutcome::Accepted, under: None, error: None, left: Some(line.clone()) }
+        );
         settle().await;
         let e = err(join.await.expect("the launch ran"));
         assert_eq!(said(&e), (line.clone(), None, None));
@@ -1207,7 +1264,11 @@ fn the_slot_of_a_thread_waiting_on_this_send_is_lent_to_it() {
             ok(r.run(p).await);
             r.host.hooks.called("cap_hold").remove(0)
         }
-        assert_eq!(lender(Some(caller_in("lead")), false, None).await, "cap_hold(turn-1, Some(\"lead-turn\"))", "a start the caller waits on");
+        assert_eq!(
+            lender(Some(caller_in("lead")), false, None).await,
+            "cap_hold(turn-1, Some(\"lead-turn\"))",
+            "a start the caller waits on"
+        );
         assert_eq!(lender(Some(caller_in("lead")), true, Some(true)).await, "cap_hold(turn-1, Some(\"lead-turn\"))", "a follow");
         assert_eq!(lender(Some(caller_in("lead")), true, None).await, "cap_hold(turn-1, None)", "answered held: nobody waits on it");
         assert_eq!(lender(Some(caller_in("t1")), false, None).await, "cap_hold(turn-1, None)", "a thread never lends itself");
@@ -1299,7 +1360,11 @@ fn a_host_write_in_flight_on_the_resumed_session_is_waited_out() {
             "SessionsCtx::host_writes",
             Rc::new(move |_s: &str| {
                 a.set(a.get() + 1);
-                if a.get() == 1 { Some(writing.clone()) } else { None }
+                if a.get() == 1 {
+                    Some(writing.clone())
+                } else {
+                    None
+                }
             }),
         );
         let mut p = prepared(&r);
@@ -1312,9 +1377,17 @@ fn a_host_write_in_flight_on_the_resumed_session_is_waited_out() {
         done_writing.send(()).unwrap();
         settle().await;
         ok(join.await.expect("the launch ran"));
-        assert_eq!(r.host.hooks.called("host_writes"), vec!["host_writes(sess-1)".to_string(); 3], "the loop reads it on each pass, the one that breaks after landing included (sessions.ts:649)");
+        assert_eq!(
+            r.host.hooks.called("host_writes"),
+            vec!["host_writes(sess-1)".to_string(); 3],
+            "the loop reads it on each pass, the one that breaks after landing included (sessions.ts:649)"
+        );
         assert_eq!(r.take_turn(0).resume, Some("sess-1".to_string()));
-        assert_eq!(r.host.hooks.called("copy_blocked").len(), 0, "a host write wait leaves the checks cleared as they were (sessions.ts:653-656)");
+        assert_eq!(
+            r.host.hooks.called("copy_blocked").len(),
+            0,
+            "a host write wait leaves the checks cleared as they were (sessions.ts:653-656)"
+        );
     });
 }
 
@@ -1356,7 +1429,11 @@ fn a_full_computer_holds_the_turn_and_tells_the_caller_once() {
             "SessionsCtx::cap_full",
             Rc::new(move |_r: &WorkspaceRecord, _t: &str| {
                 l.set(l.get() + 1);
-                if l.get() <= 2 { Some(w.clone()) } else { None }
+                if l.get() <= 2 {
+                    Some(w.clone())
+                } else {
+                    None
+                }
             }),
         );
         let (g, a) = (gates.clone(), asks.clone());
@@ -1374,7 +1451,14 @@ fn a_full_computer_holds_the_turn_and_tells_the_caller_once() {
         let join = r.spawn(p);
         settle().await;
         assert_eq!(*asks.borrow(), vec![(ask_of(None), full_wait())]);
-        assert_eq!(*told.borrow(), vec![HeldStart { view: held_view(json!({ "capped": serde_json::to_value(full_wait()).unwrap() })), turn_id: "turn-1".to_string(), wait: full_wait() }]);
+        assert_eq!(
+            *told.borrow(),
+            vec![HeldStart {
+                view: held_view(json!({ "capped": serde_json::to_value(full_wait()).unwrap() })),
+                turn_id: "turn-1".to_string(),
+                wait: full_wait()
+            }]
+        );
         assert_eq!(r.host.clock.pending(), 0, "a held turn is hushed: no starting line comes out of it");
         assert_eq!(r.host.hooks.called("cap_left"), Vec::<String>::new());
         assert!(r.turns.borrow().is_empty());
@@ -1399,7 +1483,10 @@ fn a_full_computer_holds_the_turn_and_tells_the_caller_once() {
 fn a_send_that_wakes_its_lead_is_never_held_by_a_full_computer() {
     run_local(async {
         let r = rig();
-        r.host.hooks.set::<dyn Fn(&WorkspaceRecord, &str) -> Option<ThreadCapWait>>("SessionsCtx::cap_full", Rc::new(|_r: &WorkspaceRecord, _t: &str| Some(full_wait())));
+        r.host.hooks.set::<dyn Fn(&WorkspaceRecord, &str) -> Option<ThreadCapWait>>(
+            "SessionsCtx::cap_full",
+            Rc::new(|_r: &WorkspaceRecord, _t: &str| Some(full_wait())),
+        );
         let mut p = prepared(&r);
         p.opts.wakes_lead = true;
         ok(r.run(p).await);
@@ -1421,7 +1508,11 @@ fn stops_pending_on_the_turn_are_waited_for_before_anything_else() {
             "SessionsCtx::cap_held",
             Rc::new(move |_t: &str| {
                 l.set(l.get() + 1);
-                if l.get() == 1 { Some(CapHeld { stops: vec![stop.clone()], ..blank_hold() }) } else { None }
+                if l.get() == 1 {
+                    Some(CapHeld { stops: vec![stop.clone()], ..blank_hold() })
+                } else {
+                    None
+                }
             }),
         );
         let join = r.spawn(prepared(&r));
@@ -1448,12 +1539,19 @@ fn a_stop_mark_fails_the_start_with_its_words_and_it_never_launches() {
             "SessionsCtx::cap_held",
             Rc::new(move |_t: &str| {
                 l.set(l.get() + 1);
-                if l.get() >= 2 { Some(CapHeld { stopped: Some(stopped.to_string()), ..blank_hold() }) } else { None }
+                if l.get() >= 2 {
+                    Some(CapHeld { stopped: Some(stopped.to_string()), ..blank_hold() })
+                } else {
+                    None
+                }
             }),
         );
         let mut p = prepared(&r);
         p.opts.on_held = Some(Rc::new(|_h: HeldStart| {}));
-        r.host.hooks.set::<dyn Fn(&WorkspaceRecord, &str) -> Option<ThreadCapWait>>("SessionsCtx::cap_full", Rc::new(|_r: &WorkspaceRecord, _t: &str| Some(full_wait())));
+        r.host.hooks.set::<dyn Fn(&WorkspaceRecord, &str) -> Option<ThreadCapWait>>(
+            "SessionsCtx::cap_full",
+            Rc::new(|_r: &WorkspaceRecord, _t: &str| Some(full_wait())),
+        );
         let e = err(r.run(p).await);
         assert_eq!(said(&e), (stopped.to_string(), None, None));
         assert!(r.turns.borrow().is_empty());
@@ -1483,14 +1581,28 @@ fn images_land_in_a_folder_of_their_own_per_send() {
         p.opts.attachments = Some(vec![png(), pdf()]);
         p.records = vec![record_of("image/png", 5), record_of("application/pdf", 5)];
         ok(r.run(p).await);
-        assert_eq!(*images.borrow(), vec![(folder.to_string(), dir.clone(), vec![png()])], "the images only, in a folder keyed by thread, request and the send's own id");
+        assert_eq!(
+            *images.borrow(),
+            vec![(folder.to_string(), dir.clone(), vec![png()])],
+            "the images only, in a folder keyed by thread, request and the send's own id"
+        );
         assert_eq!(*files.borrow(), vec![(folder.to_string(), files_dir, vec![pdf()])], "the other files only");
         let t = r.take_turn(0);
         assert_eq!(t.images_dir, Some(dir));
         let handed = attached_files_prompt("what is the first heading?", &[file_path.as_str()]);
         assert_ne!(handed, "what is the first heading?");
         let asked = t.row.borrow().asked.clone().unwrap();
-        assert_eq!(asked, TurnAsked { prompt: handed.clone(), effort: None, typed: Some("what is the first heading?".to_string()), request_id: Some("req_1".to_string()), owed: None, awaits_prompt: None });
+        assert_eq!(
+            asked,
+            TurnAsked {
+                prompt: handed.clone(),
+                effort: None,
+                typed: Some("what is the first heading?".to_string()),
+                request_id: Some("req_1".to_string()),
+                owed: None,
+                awaits_prompt: None
+            }
+        );
         assert_eq!(t.opening.prompt, "what is the first heading?", "the transcript keeps the words the person typed");
         assert_eq!(t.opening.attachments, Some(vec![record_of("image/png", 5), record_of("application/pdf", 5)]));
         assert_eq!(r.host.hooks.called("cap_left").len(), 1);
@@ -1517,7 +1629,17 @@ fn a_message_with_no_attachment_lands_nothing_and_hands_the_adapter_no_image() {
         let t = r.take_turn(0);
         assert_eq!(t.images_dir, None);
         let asked = t.row.borrow().asked.clone().unwrap();
-        assert_eq!(asked, TurnAsked { prompt: "fix it".to_string(), effort: None, typed: None, request_id: Some("req_1".to_string()), owed: None, awaits_prompt: None });
+        assert_eq!(
+            asked,
+            TurnAsked {
+                prompt: "fix it".to_string(),
+                effort: None,
+                typed: None,
+                request_id: Some("req_1".to_string()),
+                owed: None,
+                awaits_prompt: None
+            }
+        );
         assert_eq!(t.opening.attachments, None);
         assert_eq!(r.host.records.borrow()["t1"].files_in, None);
         open(t);
@@ -1542,7 +1664,10 @@ fn two_sends_never_share_a_folder_whatever_their_request_id() {
         b.opts.attachments = Some(vec![png()]);
         ok(r.run(b).await);
         let dirs: Vec<String> = images.borrow().iter().map(|i| i.1.clone()).collect();
-        assert_eq!(dirs, vec![turn_images_dir("/work/w1", "t1", None, "minted-1"), turn_images_dir("/work/w1", "t2", Some("../../etc"), "minted-2")]);
+        assert_eq!(
+            dirs,
+            vec![turn_images_dir("/work/w1", "t1", None, "minted-1"), turn_images_dir("/work/w1", "t2", Some("../../etc"), "minted-2")]
+        );
         assert_ne!(dirs[0], dirs[1]);
         assert!(!dirs[1].contains(".."), "a request id shaped like a path is not one");
     });
@@ -1577,10 +1702,14 @@ fn the_snapshot_is_awaited_for_an_agent_that_takes_its_prompt_at_once() {
         let r = rig();
         let (done, taking) = {
             let (tx, rx) = oneshot::channel::<Option<String>>();
-            let taking: Shared<LocalBoxFuture<'static, Option<String>>> = futures::FutureExt::map(rx, |r| r.unwrap_or(None)).boxed_local().shared();
+            let taking: Shared<LocalBoxFuture<'static, Option<String>>> =
+                futures::FutureExt::map(rx, |r| r.unwrap_or(None)).boxed_local().shared();
             (tx, taking)
         };
-        r.host.hooks.set::<dyn Fn(&Entry, &str) -> Shared<LocalBoxFuture<'static, Option<String>>>>("SessionsCtx::snapshot_of", Rc::new(move |_e: &Entry, _cwd: &str| taking.clone()));
+        r.host.hooks.set::<dyn Fn(&Entry, &str) -> Shared<LocalBoxFuture<'static, Option<String>>>>(
+            "SessionsCtx::snapshot_of",
+            Rc::new(move |_e: &Entry, _cwd: &str| taking.clone()),
+        );
         let join = r.spawn(prepared(&r));
         settle().await;
         assert!(r.turns.borrow().is_empty(), "the launch waits for the checkpoint the turn starts from");
@@ -1617,10 +1746,14 @@ fn a_late_prompt_agent_launches_without_the_snapshot_and_is_handed_it_as_the_wai
         let r = rig_with(adapter(|a| a.waits_prompt = true));
         let (done, taking) = {
             let (tx, rx) = oneshot::channel::<Option<String>>();
-            let taking: Shared<LocalBoxFuture<'static, Option<String>>> = futures::FutureExt::map(rx, |r| r.unwrap_or(None)).boxed_local().shared();
+            let taking: Shared<LocalBoxFuture<'static, Option<String>>> =
+                futures::FutureExt::map(rx, |r| r.unwrap_or(None)).boxed_local().shared();
             (tx, taking)
         };
-        r.host.hooks.set::<dyn Fn(&Entry, &str) -> Shared<LocalBoxFuture<'static, Option<String>>>>("SessionsCtx::snapshot_of", Rc::new(move |_e: &Entry, _cwd: &str| taking.clone()));
+        r.host.hooks.set::<dyn Fn(&Entry, &str) -> Shared<LocalBoxFuture<'static, Option<String>>>>(
+            "SessionsCtx::snapshot_of",
+            Rc::new(move |_e: &Entry, _cwd: &str| taking.clone()),
+        );
         ok(r.run(prepared(&r)).await);
         let t = r.take_turn(0);
         let snap = t.snapshot.clone().expect("a snapshot");
@@ -1641,20 +1774,23 @@ fn a_late_prompt_agent_launches_without_the_snapshot_and_is_handed_it_as_the_wai
 fn launch_servers_are_read_for_an_agent_that_takes_or_denies_servers() {
     run_local(async {
         let off = vec!["codex-apps".to_string()];
-        let values = ServerValues { entries: None, config: Some(IndexMap::from([("mcp_servers.x.url".to_string(), "http://x".to_string())])) };
+        let values =
+            ServerValues { entries: None, config: Some(IndexMap::from([("mcp_servers.x.url".to_string(), "http://x".to_string())])) };
         for takes in [(true, false), (false, true)] {
             let r = rig_with(adapter(|a| {
                 a.mcp = takes.0;
                 a.denies = takes.1;
             }));
             let (o, v) = (off.clone(), values.clone());
-            r.host.hooks.set::<dyn Fn(&Entry, &str, &dyn HarnessAdapter, &str) -> LocalBoxFuture<'static, Result<LaunchServers, HostError>>>(
-                "LaunchCtx::launch_servers_for",
-                Rc::new(move |_e: &Entry, _h: &str, _a: &dyn HarnessAdapter, _cwd: &str| {
-                    let ls = LaunchServers { server_values: Some(v.clone()), off_servers: Some(o.clone()) };
-                    async move { Ok(ls) }.boxed_local()
-                }),
-            );
+            r.host
+                .hooks
+                .set::<dyn Fn(&Entry, &str, &dyn HarnessAdapter, &str) -> LocalBoxFuture<'static, Result<LaunchServers, HostError>>>(
+                    "LaunchCtx::launch_servers_for",
+                    Rc::new(move |_e: &Entry, _h: &str, _a: &dyn HarnessAdapter, _cwd: &str| {
+                        let ls = LaunchServers { server_values: Some(v.clone()), off_servers: Some(o.clone()) };
+                        async move { Ok(ls) }.boxed_local()
+                    }),
+                );
             ok(r.run(prepared(&r)).await);
             assert_eq!(r.host.hooks.called("launch_servers_for"), vec!["launch_servers_for(claude, /work/w1)".to_string()]);
             open(r.take_turn(0));
@@ -1701,7 +1837,15 @@ fn an_opening_pays_no_cut_and_a_resume_with_none_owed_says_none() {
     run_local(async {
         let r = rig();
         let mut p = prepared(&r);
-        p.opts.outside = Some(OutsideOpening { harness: "claude".to_string(), id: "out-1".to_string(), copy: true, project: "p1".to_string(), cwd: None, title: "talk".to_string(), earlier: Vec::new() });
+        p.opts.outside = Some(OutsideOpening {
+            harness: "claude".to_string(),
+            id: "out-1".to_string(),
+            copy: true,
+            project: "p1".to_string(),
+            cwd: None,
+            title: "talk".to_string(),
+            earlier: Vec::new(),
+        });
         ok(r.run(p).await);
         assert_eq!(r.host.hooks.called("pay_cut_owed"), Vec::<String>::new());
         assert_eq!(r.host.hooks.called("cut_before"), Vec::<String>::new(), "no session to resume, no cut to read");
@@ -1710,7 +1854,11 @@ fn an_opening_pays_no_cut_and_a_resume_with_none_owed_says_none() {
         assert_eq!(t.resume, None);
         open(t);
         let starts = r.adapter.starts.lock().unwrap();
-        assert_eq!((starts[0].resume.clone(), starts[0].copy), (Some("out-1".to_string()), true), "a copy opens on the outside conversation's own id");
+        assert_eq!(
+            (starts[0].resume.clone(), starts[0].copy),
+            (Some("out-1".to_string()), true),
+            "a copy opens on the outside conversation's own id"
+        );
     });
 }
 
@@ -1744,7 +1892,14 @@ fn readies_a_copy(r: &Rig, dropped: &Rc<Cell<bool>>, drop_fails: bool) {
             async move {
                 let drop: Box<dyn FnOnce() -> LocalBoxFuture<'static, Result<(), String>>> = Box::new(move || {
                     d.set(true);
-                    async move { if drop_fails { Err("the machine would not answer".to_string()) } else { Ok(()) } }.boxed_local()
+                    async move {
+                        if drop_fails {
+                            Err("the machine would not answer".to_string())
+                        } else {
+                            Ok(())
+                        }
+                    }
+                    .boxed_local()
                 });
                 Ok(ForkedSession::Resume { resume: "copy-1".to_string(), drop })
             }
@@ -1762,24 +1917,29 @@ fn a_fork_readies_its_session_on_the_sources_computer_and_records_its_history_fi
         let readied: Rc<RefCell<Vec<(String, ForkTurn, String)>>> = Rc::new(RefCell::new(Vec::new()));
         let rd = readied.clone();
         let d = dropped.clone();
-        r.host.hooks.set::<dyn Fn(Arc<dyn HarnessAdapter>, &str, ForkTurn, &str) -> LocalBoxFuture<'static, Result<ForkedSession, HostError>>>(
-            "SessionsCtx::ready_fork",
-            Rc::new(move |_a: Arc<dyn HarnessAdapter>, s: &str, turn: ForkTurn, h: &str| {
-                rd.borrow_mut().push((s.to_string(), turn, h.to_string()));
-                let d = d.clone();
-                async move {
-                    let drop: Box<dyn FnOnce() -> LocalBoxFuture<'static, Result<(), String>>> = Box::new(move || {
-                        d.set(true);
-                        async { Ok(()) }.boxed_local()
-                    });
-                    Ok(ForkedSession::Resume { resume: "copy-1".to_string(), drop })
-                }
-                .boxed_local()
-            }),
-        );
+        r.host
+            .hooks
+            .set::<dyn Fn(Arc<dyn HarnessAdapter>, &str, ForkTurn, &str) -> LocalBoxFuture<'static, Result<ForkedSession, HostError>>>(
+                "SessionsCtx::ready_fork",
+                Rc::new(move |_a: Arc<dyn HarnessAdapter>, s: &str, turn: ForkTurn, h: &str| {
+                    rd.borrow_mut().push((s.to_string(), turn, h.to_string()));
+                    let d = d.clone();
+                    async move {
+                        let drop: Box<dyn FnOnce() -> LocalBoxFuture<'static, Result<(), String>>> = Box::new(move || {
+                            d.set(true);
+                            async { Ok(()) }.boxed_local()
+                        });
+                        Ok(ForkedSession::Resume { resume: "copy-1".to_string(), drop })
+                    }
+                    .boxed_local()
+                }),
+            );
         let copied = Rc::new(RefCell::new(Vec::<String>::new()));
         let c = copied.clone();
-        r.host.hooks.set::<dyn Fn(&ForkPlan, &str, &str) -> ()>("SessionsCtx::record_copies", Rc::new(move |p: &ForkPlan, w: &str, t: &str| c.borrow_mut().push(format!("{}:{w}:{t}", p.source.thread_id))));
+        r.host.hooks.set::<dyn Fn(&ForkPlan, &str, &str) -> ()>(
+            "SessionsCtx::record_copies",
+            Rc::new(move |p: &ForkPlan, w: &str, t: &str| c.borrow_mut().push(format!("{}:{w}:{t}", p.source.thread_id))),
+        );
         let mut p = prepared(&r);
         p.plan = Some(plan());
         p.fork_turn = Some(ForkTurn::Anchor("a1".to_string()));
@@ -1789,7 +1949,10 @@ fn a_fork_readies_its_session_on_the_sources_computer_and_records_its_history_fi
         assert!(at(&calls, "land_images") < at(&calls, "ready_fork"));
         assert!(at(&calls, "ready_fork") < at(&calls, "copy_images"));
         assert_eq!(r.host.hooks.called("copy_images"), vec!["copy_images(w1, t1)".to_string()]);
-        assert!(at(&calls, "copy_images") < at(&calls, "record_copies") && at(&calls, "record_copies") < at(&calls, "run_turn"), "the copied history opens the transcript");
+        assert!(
+            at(&calls, "copy_images") < at(&calls, "record_copies") && at(&calls, "record_copies") < at(&calls, "run_turn"),
+            "the copied history opens the transcript"
+        );
         assert_eq!(*copied.borrow(), vec!["src:w1:t1".to_string()]);
         let t = r.take_turn(0);
         assert_eq!(t.resume, Some("copy-1".to_string()), "the turn resumes the copy");
@@ -1805,10 +1968,14 @@ fn a_fork_readies_its_session_on_the_sources_computer_and_records_its_history_fi
 fn a_fork_the_start_makes_itself_opens_with_the_fork_and_keeps_no_process() {
     run_local(async {
         let r = rig();
-        r.host.hooks.set::<dyn Fn(Arc<dyn HarnessAdapter>, &str, ForkTurn, &str) -> LocalBoxFuture<'static, Result<ForkedSession, HostError>>>(
-            "SessionsCtx::ready_fork",
-            Rc::new(|_a: Arc<dyn HarnessAdapter>, _s: &str, _t: ForkTurn, _h: &str| async { Ok(ForkedSession::Fork { session: "src-sess".to_string(), turn: "anchor-1".to_string() }) }.boxed_local()),
-        );
+        r.host
+            .hooks
+            .set::<dyn Fn(Arc<dyn HarnessAdapter>, &str, ForkTurn, &str) -> LocalBoxFuture<'static, Result<ForkedSession, HostError>>>(
+                "SessionsCtx::ready_fork",
+                Rc::new(|_a: Arc<dyn HarnessAdapter>, _s: &str, _t: ForkTurn, _h: &str| {
+                    async { Ok(ForkedSession::Fork { session: "src-sess".to_string(), turn: "anchor-1".to_string() }) }.boxed_local()
+                }),
+            );
         let mut p = prepared(&r);
         p.plan = Some(plan());
         p.fork_turn = Some(ForkTurn::Anchor("a1".to_string()));
@@ -1866,7 +2033,10 @@ fn a_copy_that_would_not_be_removed_is_warned() {
         p.fork_turn = Some(ForkTurn::Anchor("a1".to_string()));
         err(r.run(p).await);
         settle().await;
-        assert_eq!(warned.lines(), vec![format!("the copy a fork of thread {} made was not removed: the machine would not answer", thread_word("src"))]);
+        assert_eq!(
+            warned.lines(),
+            vec![format!("the copy a fork of thread {} made was not removed: the machine would not answer", thread_word("src"))]
+        );
     });
 }
 
@@ -1934,7 +2104,11 @@ fn a_turn_that_has_answered_takes_no_steer_and_the_send_queues_for_the_next() {
         steer_answers(&r, true);
         let join = r.spawn(steering_send(&r));
         settle().await;
-        assert_eq!(*h0.steered.borrow(), Vec::<(String, Option<String>)>::new(), "steering it would put the words behind a reply already read");
+        assert_eq!(
+            *h0.steered.borrow(),
+            Vec::<(String, Option<String>)>::new(),
+            "steering it would put the words behind a reply already read"
+        );
         assert_eq!(r.emitted(), vec![queued_event("end with STEERED", "req_2")]);
         end_turn(&r.host, "sess-0", &h0);
         settle().await;
@@ -1974,7 +2148,11 @@ fn a_steer_the_turn_never_took_queues_behind_it() {
         steer_answers(&r, true);
         let join = r.spawn(steering_send(&r));
         settle().await;
-        assert_eq!(r.host.hooks.called("steer_answered"), vec!["steer_answered(sess-0, steer-1, false)".to_string()], "the answer says the line was not taken");
+        assert_eq!(
+            r.host.hooks.called("steer_answered"),
+            vec!["steer_answered(sess-0, steer-1, false)".to_string()],
+            "the answer says the line was not taken"
+        );
         assert_eq!(r.emitted(), vec![queued_event("end with STEERED", "req_2")]);
         end_turn(&r.host, "sess-0", &h0);
         settle().await;
@@ -1991,7 +2169,11 @@ fn a_lost_steer_falls_to_the_person() {
         steering(&r, |h| *h.steer_answer.borrow_mut() = Err("the computer did not answer".to_string()));
         steer_answers(&r, true);
         let e = err(r.run(steering_send(&r)).await);
-        assert_eq!(said(&e), ("the computer did not answer".to_string(), None, None), "no kind: no retry reads it as a computer that did not answer");
+        assert_eq!(
+            said(&e),
+            ("the computer did not answer".to_string(), None, None),
+            "no kind: no retry reads it as a computer that did not answer"
+        );
         assert_eq!(r.host.hooks.called("keep_steer"), vec!["keep_steer(steer-1)".to_string()]);
         assert_eq!(r.host.hooks.called("steer_lost"), vec!["steer_lost(steer-1)".to_string()]);
         assert_eq!(r.host.hooks.called("steer_answered"), Vec::<String>::new());
@@ -2046,7 +2228,10 @@ fn project_folder(r: &Rig) {
 }
 
 fn ran_in_the_worktree(r: &Rig) {
-    r.host.hooks.set::<dyn Fn(&str, &str) -> Option<String>>("TrimmedCtx::folder_of", Rc::new(|_w: &str, _s: &str| Some("/wt/feat-gone".to_string())));
+    r.host.hooks.set::<dyn Fn(&str, &str) -> Option<String>>(
+        "TrimmedCtx::folder_of",
+        Rc::new(|_w: &str, _s: &str| Some("/wt/feat-gone".to_string())),
+    );
 }
 
 // L13: no TS test (behind and setup each record a row)
@@ -2079,7 +2264,9 @@ fn a_gone_worktree_moves_the_turn_and_says_so() {
         ok(r.run(p).await);
         assert_eq!(
             r.host.recorded_of("session.moved"),
-            vec![json!({ "type": "session.moved", "workspaceId": "w3", "sessionId": "sess-claude", "turnId": "turn-1", "threadId": "t1", "from": "/wt/feat-gone", "to": "/proj", "branch": "feat/gone" })],
+            vec![
+                json!({ "type": "session.moved", "workspaceId": "w3", "sessionId": "sess-claude", "turnId": "turn-1", "threadId": "t1", "from": "/wt/feat-gone", "to": "/proj", "branch": "feat/gone" })
+            ],
             "claude keys its sessions to the project: no fresh"
         );
         let t = r.take_turn(0);
@@ -2111,7 +2298,9 @@ fn an_agent_that_keys_sessions_to_the_folder_opens_a_fresh_one_in_the_project() 
         ok(r.run(p).await);
         assert_eq!(
             r.host.recorded_of("session.moved"),
-            vec![json!({ "type": "session.moved", "workspaceId": "w3", "sessionId": "sess-codex", "turnId": "turn-1", "threadId": "t1", "from": "/wt/feat-gone", "to": "/proj", "branch": "feat/gone", "fresh": true })]
+            vec![
+                json!({ "type": "session.moved", "workspaceId": "w3", "sessionId": "sess-codex", "turnId": "turn-1", "threadId": "t1", "from": "/wt/feat-gone", "to": "/proj", "branch": "feat/gone", "fresh": true })
+            ]
         );
         let t = r.take_turn(0);
         assert_eq!(t.resume, None, "the session is dropped");
@@ -2126,7 +2315,9 @@ fn an_agent_that_keys_sessions_to_the_folder_opens_a_fresh_one_in_the_project() 
 fn a_worktree_removed_before_its_first_thread_ran_moves_that_thread_with_no_session() {
     run_local(async {
         let r = rig();
-        let e = r.host.add_entry(entry("w3", json!({ "worktree": { "path": "/wt/feat-bare", "branch": "feat/bare", "made": true, "gone": true } })));
+        let e = r
+            .host
+            .add_entry(entry("w3", json!({ "worktree": { "path": "/wt/feat-bare", "branch": "feat/bare", "made": true, "gone": true } })));
         project_folder(&r);
         let mut p = prepared(&r);
         p.workspace_id = "w3".to_string();
@@ -2135,7 +2326,9 @@ fn a_worktree_removed_before_its_first_thread_ran_moves_that_thread_with_no_sess
         ok(r.run(p).await);
         assert_eq!(
             r.host.recorded_of("session.moved"),
-            vec![json!({ "type": "session.moved", "workspaceId": "w3", "sessionId": "turn-1", "turnId": "turn-1", "threadId": "t1", "from": "/wt/feat-bare", "to": "/proj", "branch": "feat/bare" })]
+            vec![
+                json!({ "type": "session.moved", "workspaceId": "w3", "sessionId": "turn-1", "turnId": "turn-1", "threadId": "t1", "from": "/wt/feat-bare", "to": "/proj", "branch": "feat/bare" })
+            ]
         );
         open(r.take_turn(0));
         assert_eq!(r.adapter.starts.lock().unwrap()[0].cwd, Some("/proj".to_string()));
@@ -2150,7 +2343,10 @@ fn a_folder_that_did_not_change_says_no_move() {
         let mut p = prepared(&r);
         p.opens = false;
         p.resume = Some("sess-1".to_string());
-        r.host.hooks.set::<dyn Fn(&str, &str) -> Option<String>>("TrimmedCtx::folder_of", Rc::new(|_w: &str, _s: &str| Some("/work/w1".to_string())));
+        r.host.hooks.set::<dyn Fn(&str, &str) -> Option<String>>(
+            "TrimmedCtx::folder_of",
+            Rc::new(|_w: &str, _s: &str| Some("/work/w1".to_string())),
+        );
         ok(r.run(p).await);
         assert_eq!(r.host.recorded_of("session.moved"), Vec::<Value>::new());
     });
@@ -2170,7 +2366,12 @@ fn the_picks_the_folder_and_the_session_land_on_the_row() {
         ok(r.run(p).await);
         let t = r.take_turn(0);
         let v = t.row.borrow().view.clone();
-        assert_eq!(v, held_view(json!({ "model": "claude-haiku-5-5", "effort": "low", "permissionMode": "default", "cwd": "/work/w1", "claudeSessionId": "sess-1" })));
+        assert_eq!(
+            v,
+            held_view(
+                json!({ "model": "claude-haiku-5-5", "effort": "low", "permissionMode": "default", "cwd": "/work/w1", "claudeSessionId": "sess-1" })
+            )
+        );
         assert!(Rc::ptr_eq(&t.row, &r.row("turn-1")));
     });
 }
@@ -2255,14 +2456,26 @@ fn a_turn_runs_on_the_threads_kept_process_at_the_same_launch() {
         ok(r.run(p).await);
         let fixed = expected_fixed(&r, Some(Some("2.1.300")), None);
         let picks = json!({ "model": "claude-haiku-5-5" });
-        assert_eq!(*asks.borrow(), vec![("t1".to_string(), Some(kept_launch(&fixed, picks.clone())), Some("sess-1".to_string()), Some(kept_launch(&fixed, picks)))]);
+        assert_eq!(
+            *asks.borrow(),
+            vec![(
+                "t1".to_string(),
+                Some(kept_launch(&fixed, picks.clone())),
+                Some("sess-1".to_string()),
+                Some(kept_launch(&fixed, picks))
+            )]
+        );
         let t = r.take_turn(0);
         assert_eq!(t.turn_token, Some("kept-token".to_string()), "the token its first turn was launched with");
         assert_eq!(t.scope_device_id, Some("kept-dev".to_string()));
         assert_eq!(t.keep, Some(kept_launch_of));
         assert!(Rc::ptr_eq(t.waiting.as_ref().unwrap(), &waiting), "the kept process's own waiting box");
         settle().await;
-        assert_eq!(r.host.hooks.called("revoke_device"), vec!["revoke_device(dev-1)".to_string()], "this send's own device goes unused and is taken away");
+        assert_eq!(
+            r.host.hooks.called("revoke_device"),
+            vec!["revoke_device(dev-1)".to_string()],
+            "this send's own device goes unused and is taken away"
+        );
         assert_eq!(r.emitted(), vec![held_event()], "a kept process says no starting");
         assert_eq!(r.host.hooks.called("end_kept"), Vec::<String>::new());
         open(t);
@@ -2280,20 +2493,31 @@ fn a_cold_turn_carries_its_launch_key_and_asks_for_what_it_named() {
         *r.catalog.borrow_mut() = catalog("harness", Some("2.1.300"), json!([]));
         r.host.hooks.set::<dyn Fn(HarnessCatalog, &Preferences, &str) -> DefaultsOn>(
             "LaunchCtx::defaults_on",
-            Rc::new(|c: HarnessCatalog, _p: &Preferences, _project: &str| DefaultsOn { catalog: c, open_model: None, open_effort: Some("high".to_string()) }),
+            Rc::new(|c: HarnessCatalog, _p: &Preferences, _project: &str| DefaultsOn {
+                catalog: c,
+                open_model: None,
+                open_effort: Some("high".to_string()),
+            }),
         );
         let asks = takes_kept(&r, None);
         let mut p = prepared(&r);
         p.opts.model = Some("claude-haiku-5-5".to_string());
         p.opts.permission_mode = Some("default".to_string());
-        p.opts.mcp_servers = Some(IndexMap::from([("extra".to_string(), McpServerSpec { command: "/bin/x".to_string(), args: Vec::new(), no_slate: None })]));
+        p.opts.mcp_servers = Some(IndexMap::from([(
+            "extra".to_string(),
+            McpServerSpec { command: "/bin/x".to_string(), args: Vec::new(), no_slate: None },
+        )]));
         p.launch.scoped_device_id = Some("dev-1".to_string());
         ok(r.run(p).await);
         let named = json!({ "extra": { "command": "/bin/x", "args": [] } });
         let fixed = expected_fixed(&r, Some(Some("2.1.300")), Some(&named));
         let picks = json!({ "model": "claude-haiku-5-5", "effort": "high", "permissionMode": "default" });
         let asked = json!({ "model": "claude-haiku-5-5", "permissionMode": "default" });
-        assert_eq!(*asks.borrow(), vec![("t1".to_string(), Some(kept_launch(&fixed, asked)), None, Some(kept_launch(&fixed, picks.clone())))], "an effort the send left out is the thread's own");
+        assert_eq!(
+            *asks.borrow(),
+            vec![("t1".to_string(), Some(kept_launch(&fixed, asked)), None, Some(kept_launch(&fixed, picks.clone())))],
+            "an effort the send left out is the thread's own"
+        );
         let t = r.take_turn(0);
         assert_eq!(t.turn_token, Some("tok-1".to_string()));
         assert_eq!(t.scope_device_id, Some("dev-1".to_string()));
@@ -2302,7 +2526,10 @@ fn a_cold_turn_carries_its_launch_key_and_asks_for_what_it_named() {
         let starts = r.adapter.starts.lock().unwrap();
         assert!(starts[0].keep, "the agent is asked to keep its process");
         assert_eq!(starts[0].version, Some("2.1.300".to_string()));
-        assert_eq!((starts[0].model.clone(), starts[0].effort.clone(), starts[0].permission_mode.clone()), (Some("claude-haiku-5-5".to_string()), Some("high".to_string()), Some("default".to_string())));
+        assert_eq!(
+            (starts[0].model.clone(), starts[0].effort.clone(), starts[0].permission_mode.clone()),
+            (Some("claude-haiku-5-5".to_string()), Some("high".to_string()), Some("default".to_string()))
+        );
     });
 }
 
@@ -2345,7 +2572,8 @@ fn an_outside_conversations_earlier_rows_are_recorded_before_the_turn() {
     run_local(async {
         let r = rig();
         let earlier = |who: &str, text: &str, at: i64| -> SessionEarlierEvent {
-            serde_json::from_value(json!({ "workspaceId": "", "sessionId": "", "who": who, "text": text, "at": at })).expect("an earlier row")
+            serde_json::from_value(json!({ "workspaceId": "", "sessionId": "", "who": who, "text": text, "at": at }))
+                .expect("an earlier row")
         };
         let mut p = prepared(&r);
         p.opts.outside = Some(OutsideOpening {
@@ -2371,8 +2599,15 @@ fn the_launch_carries_picks_servers_and_the_rest_of_what_the_start_named() {
     run_local(async {
         let r = rig_with(adapter(|a| a.mcp = true));
         *r.catalog.borrow_mut() = catalog("harness", Some("2.1.300"), json!([]));
-        r.host.hooks.set::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<bool, HostError>>>("SessionsCtx::limit_details_due", Rc::new(|_e: &Entry, _h: &str| async { Ok(true) }.boxed_local()));
-        let wsp = McpServerSpec { command: "/usr/local/bin/node".to_string(), args: vec!["/opt/wsp/bin.js".to_string(), "mcp".to_string()], no_slate: None };
+        r.host.hooks.set::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<bool, HostError>>>(
+            "SessionsCtx::limit_details_due",
+            Rc::new(|_e: &Entry, _h: &str| async { Ok(true) }.boxed_local()),
+        );
+        let wsp = McpServerSpec {
+            command: "/usr/local/bin/node".to_string(),
+            args: vec!["/opt/wsp/bin.js".to_string(), "mcp".to_string()],
+            no_slate: None,
+        };
         let extra = McpServerSpec { command: "/bin/x".to_string(), args: Vec::new(), no_slate: None };
         let mut p = prepared(&r);
         p.title = Some("Landing fix".to_string());
@@ -2388,14 +2623,21 @@ fn the_launch_carries_picks_servers_and_the_rest_of_what_the_start_named() {
         assert_eq!(s.prompt, "fix it");
         assert_eq!((s.resume.clone(), s.copy, s.fork.clone()), (None, false, None));
         assert_eq!(s.cwd, Some("/work/w1".to_string()));
-        assert_eq!((s.model.clone(), s.effort.clone(), s.permission_mode.clone(), s.context_window.clone(), s.fast), (Some("claude-haiku-5-5".to_string()), Some("low".to_string()), Some("default".to_string()), Some("1m".to_string()), None));
+        assert_eq!(
+            (s.model.clone(), s.effort.clone(), s.permission_mode.clone(), s.context_window.clone(), s.fast),
+            (Some("claude-haiku-5-5".to_string()), Some("low".to_string()), Some("default".to_string()), Some("1m".to_string()), None)
+        );
         assert_eq!(s.title, Some("Landing fix".to_string()));
         assert!(s.limit_details);
         assert_eq!(s.version, Some("2.1.300".to_string()));
         assert!(s.keep);
         assert!(s.seed.is_none(), "a new session has nothing to seed");
         let servers = s.mcp_servers.clone().expect("servers");
-        let adapter_spec = |command: &str, args: &[&str]| wsp_adapters::port::McpServerSpec { command: command.to_string(), args: args.iter().map(|a| a.to_string()).collect(), no_slate: None };
+        let adapter_spec = |command: &str, args: &[&str]| wsp_adapters::port::McpServerSpec {
+            command: command.to_string(),
+            args: args.iter().map(|a| a.to_string()).collect(),
+            no_slate: None,
+        };
         assert_eq!(servers.keys().cloned().collect::<Vec<_>>(), vec!["wsp".to_string(), "extra".to_string()]);
         assert_eq!(servers["wsp"], adapter_spec("/usr/local/bin/node", &["/opt/wsp/bin.js", "mcp"]));
         assert_eq!(servers["extra"], adapter_spec("/bin/x", &[]));
@@ -2419,7 +2661,8 @@ fn a_catalog_read_off_the_table_names_no_version() {
 fn the_seed_is_the_threads_earlier_turns_without_this_one() {
     run_local(async {
         let r = rig();
-        let base = |kind: &str, turn: &str| json!({ "type": kind, "workspaceId": "w1", "sessionId": "sess-1", "turnId": turn, "threadId": "t1" });
+        let base =
+            |kind: &str, turn: &str| json!({ "type": kind, "workspaceId": "w1", "sessionId": "sess-1", "turnId": turn, "threadId": "t1" });
         let events = vec![
             event(merged(base("session.start", "turn-0"), json!({ "prompt": "Remember the word lantern.", "agent": "claude" }))),
             event(merged(base("session.start", "turn-1"), json!({ "prompt": "what was the word?", "agent": "claude" }))),
@@ -2439,7 +2682,8 @@ fn the_seed_is_the_threads_earlier_turns_without_this_one() {
         open(r.take_turn(0));
         let seed = r.adapter.starts.lock().unwrap()[0].seed.clone().expect("a resume carries its seed");
         let got = seed().await.expect("the seed reads");
-        let earlier: Vec<SessionEvent> = events.iter().filter(|e| serde_json::to_value(e).unwrap()["turnId"] != "turn-1").cloned().collect();
+        let earlier: Vec<SessionEvent> =
+            events.iter().filter(|e| serde_json::to_value(e).unwrap()["turnId"] != "turn-1").cloned().collect();
         let expected = thread_seed(&thread_messages(&earlier, "t1"));
         assert_eq!(got, expected);
         assert_ne!(got, thread_seed(&thread_messages(&events, "t1")), "this turn's own message follows, so it is left out");
@@ -2469,8 +2713,14 @@ fn run_turn_is_handed_the_whole_turn() {
         ok(r.run(p).await);
         let t = r.take_turn(0);
         assert_eq!((id_of(&t.entry), t.thread_id.as_str(), t.turn_id.as_str()), ("w1".to_string(), "t1", "turn-1"));
-        assert_eq!((t.notify.clone(), t.notify_by.clone(), t.notify_road), (Some(vec!["lead".to_string()]), Some(scope("lead")), Some(WorkspaceOrigin::Relayed)));
-        assert_eq!((t.turn_token.clone(), t.scope_device_id.clone(), t.outcome), (Some("tok-1".to_string()), Some("dev-1".to_string()), SessionStartOutcome::Started));
+        assert_eq!(
+            (t.notify.clone(), t.notify_by.clone(), t.notify_road),
+            (Some(vec!["lead".to_string()]), Some(scope("lead")), Some(WorkspaceOrigin::Relayed))
+        );
+        assert_eq!(
+            (t.turn_token.clone(), t.scope_device_id.clone(), t.outcome),
+            (Some("tok-1".to_string()), Some("dev-1".to_string()), SessionStartOutcome::Started)
+        );
         assert_eq!(
             t.opening,
             Opening {
@@ -2485,8 +2735,21 @@ fn run_turn_is_handed_the_whole_turn() {
             }
         );
         let asked = t.row.borrow().asked.clone().expect("asked");
-        assert_eq!(asked, TurnAsked { prompt: "fix it".to_string(), effort: Some("low".to_string()), typed: None, request_id: Some("req_1".to_string()), owed: Some(true), awaits_prompt: None });
-        assert_eq!((t.resume.clone(), t.images_dir.clone(), t.written.is_none(), t.row.borrow().turn_live.is_none()), (None, None, true, true));
+        assert_eq!(
+            asked,
+            TurnAsked {
+                prompt: "fix it".to_string(),
+                effort: Some("low".to_string()),
+                typed: None,
+                request_id: Some("req_1".to_string()),
+                owed: Some(true),
+                awaits_prompt: None
+            }
+        );
+        assert_eq!(
+            (t.resume.clone(), t.images_dir.clone(), t.written.is_none(), t.row.borrow().turn_live.is_none()),
+            (None, None, true, true)
+        );
         assert!(t.reports_edits, "the adapter says it reports edits");
         assert!(Rc::ptr_eq(t.waiting.as_ref().unwrap(), &waiting));
     });
@@ -2538,7 +2801,9 @@ fn a_thread_that_has_a_record_keeps_it_and_takes_the_clouds_and_drops_a_limit_re
         r.host.add_record(
             "t1",
             "w1",
-            thread_record(json!({ "harness": "claude", "readAt": 5, "pinnedAt": 9, "limitResume": { "at": 99, "turnId": "turn-0" }, "worked": true })),
+            thread_record(
+                json!({ "harness": "claude", "readAt": 5, "pinnedAt": 9, "limitResume": { "at": 99, "turnId": "turn-0" }, "worked": true }),
+            ),
         );
         let mut p = prepared(&r);
         p.opens = false;
@@ -2587,13 +2852,32 @@ fn files_folder_is_kept_once() {
 fn a_thread_from_before_its_record_gets_one_off_its_ended_rows() {
     run_local(async {
         let r = rig();
-        r.host.add_row("sess-0", row(view("sess-0", "w1", json!({ "threadId": "t1", "status": "completed", "startedAt": T0 - 5000, "claudeSessionId": "sess-0" })), "turn-0"));
+        r.host.add_row(
+            "sess-0",
+            row(
+                view(
+                    "sess-0",
+                    "w1",
+                    json!({ "threadId": "t1", "status": "completed", "startedAt": T0 - 5000, "claudeSessionId": "sess-0" }),
+                ),
+                "turn-0",
+            ),
+        );
         let mut p = prepared(&r);
         p.opens = false;
         p.resume = Some("sess-0".to_string());
         ok(r.run(p).await);
-        let ended = [view("sess-0", "w1", json!({ "threadId": "t1", "status": "completed", "startedAt": T0 - 5000, "claudeSessionId": "sess-0" }))];
-        assert_eq!(thread_record_of(&r, "t1"), ThreadRecord { workspace_id: "w1".to_string(), harness: "claude".to_string(), worked: Some(thread_ran(&ended)), ..Default::default() });
+        let ended =
+            [view("sess-0", "w1", json!({ "threadId": "t1", "status": "completed", "startedAt": T0 - 5000, "claudeSessionId": "sess-0" }))];
+        assert_eq!(
+            thread_record_of(&r, "t1"),
+            ThreadRecord {
+                workspace_id: "w1".to_string(),
+                harness: "claude".to_string(),
+                worked: Some(thread_ran(&ended)),
+                ..Default::default()
+            }
+        );
     });
 }
 
@@ -2606,7 +2890,10 @@ fn a_restart_settles_the_thread_it_replaces_and_pushes_its_head() {
     run_local(async {
         let r = rig();
         r.host.add_record("thr_old", "w1", thread_record(json!({ "harness": "claude" })));
-        r.host.hooks.set::<dyn Fn() -> LocalBoxFuture<'static, Result<Preferences, HostError>>>("LaunchCtx::preferences", Rc::new(|| async { Ok(prefs()) }.boxed_local()));
+        r.host.hooks.set::<dyn Fn() -> LocalBoxFuture<'static, Result<Preferences, HostError>>>(
+            "LaunchCtx::preferences",
+            Rc::new(|| async { Ok(prefs()) }.boxed_local()),
+        );
         let marked: Rc<RefCell<Vec<(Vec<String>, ThreadStamps)>>> = Rc::new(RefCell::new(Vec::new()));
         let m = marked.clone();
         r.host.hooks.set::<dyn Fn(&[String], StampsOf, Option<&Caller>) -> LocalBoxFuture<'static, Result<(), HostError>>>(
@@ -2620,7 +2907,11 @@ fn a_restart_settles_the_thread_it_replaces_and_pushes_its_head() {
         p.replaces = Some("thr_old".to_string());
         ok(r.run(p).await);
         let stamps = json!({ "readAt": T0 as f64, "settledAt": T0 as f64, "settleNamedAt": T0 as f64 });
-        assert_eq!(*marked.borrow(), vec![(vec!["thr_old".to_string()], stamps.as_object().unwrap().clone())], "settled as a settle by the person would");
+        assert_eq!(
+            *marked.borrow(),
+            vec![(vec!["thr_old".to_string()], stamps.as_object().unwrap().clone())],
+            "settled as a settle by the person would"
+        );
         assert_eq!(r.host.hooks.called("push_head"), vec!["push_head(thr_old)".to_string()]);
         assert!(at(&r.calls(), "run_turn") < at(&r.calls(), "mark") && at(&r.calls(), "mark") < at(&r.calls(), "push_head"));
         assert_eq!(r.host.records.borrow()["t1"].replaces, Some("thr_old".to_string()));
@@ -2634,16 +2925,24 @@ fn a_restart_whose_settle_fails_is_warned_and_still_answers() {
         let warned = console::capture();
         let r = rig();
         r.host.add_record("thr_old", "w1", thread_record(json!({ "harness": "claude" })));
-        r.host.hooks.set::<dyn Fn() -> LocalBoxFuture<'static, Result<Preferences, HostError>>>("LaunchCtx::preferences", Rc::new(|| async { Ok(prefs()) }.boxed_local()));
+        r.host.hooks.set::<dyn Fn() -> LocalBoxFuture<'static, Result<Preferences, HostError>>>(
+            "LaunchCtx::preferences",
+            Rc::new(|| async { Ok(prefs()) }.boxed_local()),
+        );
         r.host.hooks.set::<dyn Fn(&[String], StampsOf, Option<&Caller>) -> LocalBoxFuture<'static, Result<(), HostError>>>(
             "SessionsCtx::mark",
-            Rc::new(|_ids: &[String], _s: StampsOf, _o: Option<&Caller>| async { Err(HostError::new("the store would not write")) }.boxed_local()),
+            Rc::new(|_ids: &[String], _s: StampsOf, _o: Option<&Caller>| {
+                async { Err(HostError::new("the store would not write")) }.boxed_local()
+            }),
         );
         let mut p = prepared(&r);
         p.replaces = Some("thr_old".to_string());
         let handle = ok(r.run(p).await);
         assert_eq!(handle.turn_id(), "turn-1");
-        assert_eq!(warned.lines(), vec![format!("thread {} was not settled after its restart: the store would not write", thread_word("thr_old"))]);
+        assert_eq!(
+            warned.lines(),
+            vec![format!("thread {} was not settled after its restart: the store would not write", thread_word("thr_old"))]
+        );
         assert_eq!(r.host.hooks.called("push_head"), vec!["push_head(thr_old)".to_string()], "the head is pushed all the same");
     });
 }
@@ -2689,7 +2988,10 @@ fn the_handle_answers_with_the_starts_notice() {
         p.notice = Some("the machine was started again".to_string());
         let handle = ok(r.run(p).await);
         assert_eq!(handle.notice(), Some("the machine was started again".to_string()));
-        assert_eq!((handle.id(), handle.turn_id(), handle.outcome()), ("turn-1".to_string(), "turn-1".to_string(), SessionStartOutcome::Started));
+        assert_eq!(
+            (handle.id(), handle.turn_id(), handle.outcome()),
+            ("turn-1".to_string(), "turn-1".to_string(), SessionStartOutcome::Started)
+        );
         let r = rig();
         assert_eq!(ok(r.run(prepared(&r)).await).notice(), None);
     });
@@ -2755,27 +3057,56 @@ fn a_token_that_would_not_be_taken_away_is_warned() {
     });
 }
 
-fn told_held_rig(owed: bool, on_held: bool) -> (Rig, Rc<RefCell<Vec<(bool, usize, Vec<String>, Option<ThreadScope>, Option<WorkspaceOrigin>, TurnResult, String)>>>, Prepared) {
+fn told_held_rig(
+    owed: bool,
+    on_held: bool,
+) -> (Rig, Rc<RefCell<Vec<(bool, usize, Vec<String>, Option<ThreadScope>, Option<WorkspaceOrigin>, TurnResult, String)>>>, Prepared) {
     let r = rig();
     // A turn the thread ran before: the latest row once this send's own is gone.
-    r.host.add_row("sess-prev", row(view("sess-prev", "w1", json!({ "threadId": "t1", "status": "completed", "startedAt": T0 - 9000, "claudeSessionId": "sess-prev" })), "turn-0"));
+    r.host.add_row(
+        "sess-prev",
+        row(
+            view(
+                "sess-prev",
+                "w1",
+                json!({ "threadId": "t1", "status": "completed", "startedAt": T0 - 9000, "claudeSessionId": "sess-prev" }),
+            ),
+            "turn-0",
+        ),
+    );
     let looks = Rc::new(Cell::new(0u32));
     let l = looks.clone();
-    r.host.hooks.set::<dyn Fn(&WorkspaceRecord, &str) -> Option<ThreadCapWait>>("SessionsCtx::cap_full", Rc::new(|_r: &WorkspaceRecord, _t: &str| Some(full_wait())));
+    r.host.hooks.set::<dyn Fn(&WorkspaceRecord, &str) -> Option<ThreadCapWait>>(
+        "SessionsCtx::cap_full",
+        Rc::new(|_r: &WorkspaceRecord, _t: &str| Some(full_wait())),
+    );
     r.host.hooks.set::<dyn Fn(&str) -> Option<CapHeld>>(
         "SessionsCtx::cap_held",
         Rc::new(move |_t: &str| {
             l.set(l.get() + 1);
-            if l.get() >= 2 { Some(CapHeld { stopped: Some("stopped before it started, while mac was full".to_string()), ..blank_hold() }) } else { None }
+            if l.get() >= 2 {
+                Some(CapHeld { stopped: Some("stopped before it started, while mac was full".to_string()), ..blank_hold() })
+            } else {
+                None
+            }
         }),
     );
-    let ended: Rc<RefCell<Vec<(bool, usize, Vec<String>, Option<ThreadScope>, Option<WorkspaceOrigin>, TurnResult, String)>>> = Rc::new(RefCell::new(Vec::new()));
+    let ended: Rc<RefCell<Vec<(bool, usize, Vec<String>, Option<ThreadScope>, Option<WorkspaceOrigin>, TurnResult, String)>>> =
+        Rc::new(RefCell::new(Vec::new()));
     let (e, h) = (ended.clone(), r.host.clone());
     r.host.hooks.set::<dyn Fn(&Row, &[String], Option<&ThreadScope>, Option<&WorkspaceOrigin>, TurnResult) -> ()>(
         "SessionsCtx::notify_end",
         Rc::new(move |row: &Row, notify: &[String], by: Option<&ThreadScope>, road: Option<&WorkspaceOrigin>, res: TurnResult| {
             let row_there = h.rows.borrow().contains_key("turn-1");
-            e.borrow_mut().push((row_there, h.emitted.borrow().len(), notify.to_vec(), by.cloned(), road.copied(), res, format!("{}:{}", row.borrow().view.id, row.borrow().turn_id)));
+            e.borrow_mut().push((
+                row_there,
+                h.emitted.borrow().len(),
+                notify.to_vec(),
+                by.cloned(),
+                road.copied(),
+                res,
+                format!("{}:{}", row.borrow().view.id, row.borrow().turn_id),
+            ));
         }),
     );
     let mut p = prepared(&r);
@@ -2800,7 +3131,15 @@ fn a_held_start_that_fails_tells_its_targets() {
         err(r.run(p).await);
         assert_eq!(
             *ended.borrow(),
-            vec![(true, 1, vec!["lead-thread".to_string()], Some(scope("lead")), Some(WorkspaceOrigin::Relayed), result(json!({ "status": "failed", "error": stopped })), "turn-1:turn-1".to_string())],
+            vec![(
+                true,
+                1,
+                vec!["lead-thread".to_string()],
+                Some(scope("lead")),
+                Some(WorkspaceOrigin::Relayed),
+                result(json!({ "status": "failed", "error": stopped })),
+                "turn-1:turn-1".to_string()
+            )],
             "told while the row still stands and before the end goes out"
         );
         assert_eq!(r.row_keys(), vec!["sess-prev".to_string()]);
@@ -2829,7 +3168,9 @@ fn a_start_never_told_held_tells_nobody_when_it_fails() {
         let t = told.clone();
         r.host.hooks.set::<dyn Fn(&Row, &[String], Option<&ThreadScope>, Option<&WorkspaceOrigin>, TurnResult) -> ()>(
             "SessionsCtx::notify_end",
-            Rc::new(move |_v: &Row, _n: &[String], _b: Option<&ThreadScope>, _r: Option<&WorkspaceOrigin>, _res: TurnResult| t.set(t.get() + 1)),
+            Rc::new(move |_v: &Row, _n: &[String], _b: Option<&ThreadScope>, _r: Option<&WorkspaceOrigin>, _res: TurnResult| {
+                t.set(t.get() + 1)
+            }),
         );
         let mut p = prepared(&r);
         p.opts.cwd = Some("/gone/dir".to_string());

@@ -68,7 +68,9 @@ fn facts(id: &str, workspace_id: &str, extra: Value) -> ThreadFacts {
 }
 
 fn scoped(thread: &str) -> Caller {
-    let by: ThreadScope = serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": "w1", "rootThreadId": thread })).expect("a thread scope");
+    let by: ThreadScope =
+        serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": "w1", "rootThreadId": thread }))
+            .expect("a thread scope");
     Caller::Scoped { origin: WorkspaceOrigin::Relayed, by }
 }
 
@@ -88,7 +90,13 @@ struct ReadWindow {
 
 impl From<ThreadRead> for ReadWindow {
     fn from(r: ThreadRead) -> ReadWindow {
-        ReadWindow { before: r.before, limit: (r.limit != usize::MAX).then_some(r.limit), bytes: r.bytes, strict: r.strict, head_shape: r.shape.is_some() }
+        ReadWindow {
+            before: r.before,
+            limit: (r.limit != usize::MAX).then_some(r.limit),
+            bytes: r.bytes,
+            strict: r.strict,
+            head_shape: r.shape.is_some(),
+        }
     }
 }
 
@@ -129,7 +137,10 @@ fn a_listing_leaves_out_rows_the_caller_cannot_reach() {
 
         let named = area.list_rows(Some("w1".into()), origin).await.expect("a listing of one workspace");
         assert_eq!(json_of(&named), json!([r1, r2_named_only]));
-        assert_eq!(calls(&host, &["refuse_named", "tree_records"]), vec!["tree_records(None)".to_string(), "tree_records(Some(\"w1\"))".to_string()]);
+        assert_eq!(
+            calls(&host, &["refuse_named", "tree_records"]),
+            vec!["tree_records(None)".to_string(), "tree_records(Some(\"w1\"))".to_string()]
+        );
     });
 }
 
@@ -159,7 +170,11 @@ fn a_named_workspace_no_thread_of_the_tree_stands_on_is_refused() {
 
         let ok = area.list_rows(Some("w1".into()), Some(scoped("t1"))).await.expect("a workspace a thread of the tree stands on");
         assert_eq!(ok.len(), 1);
-        assert_eq!(calls(&host, &["refuse_named"]), vec!["refuse_named(w2)".to_string()], "only the workspace nothing stands on is refused");
+        assert_eq!(
+            calls(&host, &["refuse_named"]),
+            vec!["refuse_named(w2)".to_string()],
+            "only the workspace nothing stands on is refused"
+        );
     });
 }
 
@@ -172,7 +187,12 @@ fn a_thread_whose_rows_fell_off_is_listed_off_its_record() {
         let held = |doc: Value| ThreadRecord { workspace_id: "w1".into(), ..thread_record(doc) };
         let records = vec![
             ("t1".to_string(), held(json!({ "harness": "claude" }))),
-            ("t8".to_string(), held(json!({ "harness": "codex", "permissionMode": "read-only", "parentThreadId": "t1", "rootThreadId": "t1", "ended": "failed" }))),
+            (
+                "t8".to_string(),
+                held(
+                    json!({ "harness": "codex", "permissionMode": "read-only", "parentThreadId": "t1", "rootThreadId": "t1", "ended": "failed" }),
+                ),
+            ),
             ("t9".to_string(), held(json!({ "harness": "claude" }))),
             ("t7".to_string(), held(json!({ "harness": "claude" }))),
         ];
@@ -189,7 +209,11 @@ fn a_thread_whose_rows_fell_off_is_listed_off_its_record() {
         host.hooks.set::<OpenThread>(
             "SessionsCtx::open_thread",
             Rc::new(|_w: &str, t: &str| {
-                let events = if t == "t9" { vec![ev("session.done", Some("t9"), json!({ "result": { "status": "interrupted" } }))] } else { Vec::new() };
+                let events = if t == "t9" {
+                    vec![ev("session.done", Some("t9"), json!({ "result": { "status": "interrupted" } }))]
+                } else {
+                    Vec::new()
+                };
                 async move { Ok(events) }.boxed_local()
             }),
         );
@@ -220,9 +244,17 @@ fn a_thread_whose_rows_fell_off_is_listed_off_its_record() {
         let t7 = json!({ "id": "t7", "threadId": "t7", "workspaceId": "w1", "harness": "claude", "status": "completed" });
         assert_eq!(*talks.borrow(), vec![TreeTalk::List]);
         assert_eq!(*listed_in.borrow(), vec![json!([r1])], "the rows go through listed_rows, the trimmed rows do not");
-        assert_eq!(*placed_in.borrow(), vec![json!([r1, t8, t9, t7])], "rows first, then the trimmed rows in record order, a thread with a row left out");
+        assert_eq!(
+            *placed_in.borrow(),
+            vec![json!([r1, t8, t9, t7])],
+            "rows first, then the trimmed rows in record order, a thread with a row left out"
+        );
         assert_eq!(json_of(&out), json!([t7, t9, t8, r1]), "the whole answer is what placed_rows gave back");
-        assert_eq!(calls(&host, &["open_thread"]), vec!["open_thread(w1, t9)".to_string(), "open_thread(w1, t7)".to_string()], "a record that holds its end reads no transcript");
+        assert_eq!(
+            calls(&host, &["open_thread"]),
+            vec!["open_thread(w1, t9)".to_string(), "open_thread(w1, t7)".to_string()],
+            "a record that holds its end reads no transcript"
+        );
     });
 }
 
@@ -269,7 +301,11 @@ fn a_row_with_no_title_waits_for_its_read_and_a_titled_one_does_not() {
         });
         settle().await;
         assert_eq!(*titled_in.borrow(), vec![vec!["r1".to_string(), "r2".to_string()]], "a row on a workspace still booting is not asked");
-        assert_eq!(*started.borrow(), vec![("r1".to_string(), false), ("r2".to_string(), false)], "both reads went out, the titled one unawaited");
+        assert_eq!(
+            *started.borrow(),
+            vec![("r1".to_string(), false), ("r2".to_string(), false)],
+            "both reads went out, the titled one unawaited"
+        );
         assert!(!listing.is_finished(), "the untitled row blocks the listing on its read");
 
         let _ = open_first.send(());
@@ -293,10 +329,13 @@ fn history_holds_only_threads_the_caller_drives() {
             ev("session.end", Some("t3"), json!({ "exitCode": null, "sawResult": true, "turnId": "d" })),
         ];
         let held = events.clone();
-        host.hooks.set::<OpenTranscript>("SessionsCtx::open_transcript", Rc::new(move |_w: &str| {
-            let held = held.clone();
-            async move { Ok(held) }.boxed_local()
-        }));
+        host.hooks.set::<OpenTranscript>(
+            "SessionsCtx::open_transcript",
+            Rc::new(move |_w: &str| {
+                let held = held.clone();
+                async move { Ok(held) }.boxed_local()
+            }),
+        );
         host.hooks.set::<DrivesThread>("SessionsCtx::drives_thread", drives_only(&["t1", "t3"]));
 
         let got = area.history_of("w1", Some(scoped("t1"))).await.expect("a history");
@@ -361,7 +400,10 @@ fn whole_history_of_a_thread_not_driven_is_empty() {
 
         let got = area.thread_history_of("w1", ask("t1"), Some(scoped("t1"))).await.expect("the thread's events");
         assert_eq!(json_of(&got), json_of(&vec![end_ev("t1")]));
-        assert_eq!(calls(&host, &["ready", "opened_words", "open_thread"]), vec!["ready".to_string(), "ready".to_string(), "opened_words(w1, t1)".to_string(), "open_thread(w1, t1)".to_string()]);
+        assert_eq!(
+            calls(&host, &["ready", "opened_words", "open_thread"]),
+            vec!["ready".to_string(), "ready".to_string(), "opened_words(w1, t1)".to_string(), "open_thread(w1, t1)".to_string()]
+        );
     });
 }
 
@@ -405,14 +447,29 @@ fn a_page_reads_two_hundred_events_and_four_hundred_kib() {
         );
 
         let first = area.page_of("w1", PageWindow { thread_id: "t1".into(), before: None, limit: None }, None).await.expect("a page");
-        let back = area.page_of("w1", PageWindow { thread_id: "t1".into(), before: Some(500), limit: Some(1000) }, None).await.expect("a page");
+        let back =
+            area.page_of("w1", PageWindow { thread_id: "t1".into(), before: Some(500), limit: Some(1000) }, None).await.expect("a page");
         assert_eq!(json_of(&first), json_of(&page));
         assert_eq!(json_of(&back), json_of(&page));
         assert_eq!(
             *windows.borrow(),
             vec![
-                ("w1".to_string(), "t1".to_string(), ReadWindow { before: None, limit: Some(HISTORY_PAGE_EVENTS as usize), bytes: HISTORY_PAGE_BYTES, strict: false, head_shape: false }),
-                ("w1".to_string(), "t1".to_string(), ReadWindow { before: Some(500), limit: Some(1000), bytes: HISTORY_PAGE_BYTES, strict: false, head_shape: false }),
+                (
+                    "w1".to_string(),
+                    "t1".to_string(),
+                    ReadWindow {
+                        before: None,
+                        limit: Some(HISTORY_PAGE_EVENTS as usize),
+                        bytes: HISTORY_PAGE_BYTES,
+                        strict: false,
+                        head_shape: false
+                    }
+                ),
+                (
+                    "w1".to_string(),
+                    "t1".to_string(),
+                    ReadWindow { before: Some(500), limit: Some(1000), bytes: HISTORY_PAGE_BYTES, strict: false, head_shape: false }
+                ),
             ]
         );
         assert_eq!((HISTORY_PAGE_EVENTS, HISTORY_PAGE_BYTES), (200, 409_600), "the default page is 200 events under 400 KiB");
@@ -458,13 +515,20 @@ fn head_leaves_the_events_what_the_facts_leave() {
         let room = HEAD_BYTES - serde_json::to_string(&held).expect("facts serialize").len() as u64 - 100;
         assert_eq!(
             *reads.borrow(),
-            vec![("w1".to_string(), "t1".to_string(), ReadWindow { before: None, limit: None, bytes: room, strict: true, head_shape: true })],
+            vec![(
+                "w1".to_string(),
+                "t1".to_string(),
+                ReadWindow { before: None, limit: None, bytes: room, strict: true, head_shape: true }
+            )],
             "the facts' own thread, the head's bytes less the facts' UTF-8 bytes less 100, no limit"
         );
         assert_eq!(*reached.borrow(), vec![(Some("t1".to_string()), "w1".to_string(), None, true)], "reached as a thread being made");
-        assert_eq!(json_of(&head), json!({
-            "facts": json_of(&held), "events": json_of(&head_page().events), "pos": 12, "total": 4, "trimmed": true,
-        }));
+        assert_eq!(
+            json_of(&head),
+            json!({
+                "facts": json_of(&held), "events": json_of(&head_page().events), "pos": 12, "total": 4, "trimmed": true,
+            })
+        );
         assert_eq!(calls(&host, &["thread_facts", "facts_after_read"]), vec!["thread_facts(row-1)".to_string()]);
     });
 }
@@ -494,7 +558,11 @@ fn head_reads_the_facts_after_the_read_where_asked() {
         );
         let head = area.head_of("t1", None, true).await.expect("a head");
         assert_eq!(head.facts, held, "the facts read after the read");
-        assert_eq!(*reads.borrow(), vec![("w1".to_string(), "t1".to_string())], "a facts record with no threadId reads the thread asked for");
+        assert_eq!(
+            *reads.borrow(),
+            vec![("w1".to_string(), "t1".to_string())],
+            "a facts record with no threadId reads the thread asked for"
+        );
         assert_eq!(calls(&host, &["thread_facts", "facts_after_read"]), vec!["facts_after_read(t1)".to_string()]);
     });
 }
@@ -509,7 +577,8 @@ fn head_of_a_thread_not_reached_is_not_found() {
         let none = area.head_of("no-such-thread-xyz", None, false).await.expect_err("no facts");
         assert_eq!(said(&none), said(&want()));
 
-        host.hooks.set::<dyn Fn(&str) -> Option<ThreadFacts>>("SessionsCtx::thread_facts", Rc::new(|t: &str| Some(facts(t, "w1", json!({})))));
+        host.hooks
+            .set::<dyn Fn(&str) -> Option<ThreadFacts>>("SessionsCtx::thread_facts", Rc::new(|t: &str| Some(facts(t, "w1", json!({})))));
         host.hooks.set::<EntryOfRow>(
             "SessionsCtx::entry_of_row",
             Rc::new(|_at: &RowAt, _o: Option<&Caller>, _talk: Option<TreeTalk>, _b: bool| async move { Ok(None) }.boxed_local()),
@@ -605,9 +674,13 @@ type SearchIn = dyn Fn(&str, &str, &dyn Fn(&str) -> bool, &mut Vec<SearchedHit>)
 fn search_trims_and_lowercases_and_answers_newest_first() {
     run_local(async {
         let (host, area) = host();
-        host.hooks.set::<dyn Fn() -> Vec<String>>("SessionsCtx::index_workspaces", Rc::new(|| vec!["w1".to_string(), "w2".to_string(), "w3".to_string()]));
+        host.hooks.set::<dyn Fn() -> Vec<String>>(
+            "SessionsCtx::index_workspaces",
+            Rc::new(|| vec!["w1".to_string(), "w2".to_string(), "w3".to_string()]),
+        );
         // w2's tree does not stand there and its entry refuses; w3's tree does not stand there but its entry answers.
-        host.hooks.set::<TreeStandsOn>("SessionsCtx::tree_stands_on", Rc::new(|w: &str, _o: Option<&Caller>, _t: Option<TreeTalk>| w == "w1"));
+        host.hooks
+            .set::<TreeStandsOn>("SessionsCtx::tree_stands_on", Rc::new(|w: &str, _o: Option<&Caller>, _t: Option<TreeTalk>| w == "w1"));
         let entries: Rc<RefCell<Vec<(String, bool, bool)>>> = Rc::default();
         let seen = entries.clone();
         host.hooks.set::<EntryOfWith>(
@@ -615,7 +688,14 @@ fn search_trims_and_lowercases_and_answers_newest_first() {
             Rc::new(move |w: &str, _o: Option<&Caller>, ask: EntryAsk| {
                 seen.borrow_mut().push((w.to_string(), ask.being_made, ask.now));
                 let refused = w == "w2";
-                async move { if refused { Err(refusal("no such workspace w2", Some(Kind::NotFound))) } else { Ok(entry("w3", json!({})) as Entry) } }.boxed_local()
+                async move {
+                    if refused {
+                        Err(refusal("no such workspace w2", Some(Kind::NotFound)))
+                    } else {
+                        Ok(entry("w3", json!({})) as Entry)
+                    }
+                }
+                .boxed_local()
             }),
         );
         host.hooks.set::<DrivesThread>("SessionsCtx::drives_thread", drives_only(&["t1"]));
@@ -625,7 +705,9 @@ fn search_trims_and_lowercases_and_answers_newest_first() {
             "SessionsCtx::search_in",
             Rc::new(move |w: &str, words: &str, drives: &dyn Fn(&str) -> bool, found: &mut Vec<SearchedHit>| {
                 seen.borrow_mut().push((w.to_string(), words.to_string(), drives("t1"), drives("t2")));
-                let push = |found: &mut Vec<SearchedHit>, t: &str, snippet: &str, last: f64| found.push(SearchedHit { hit: hit(w, t, snippet), last: last.into() });
+                let push = |found: &mut Vec<SearchedHit>, t: &str, snippet: &str, last: f64| {
+                    found.push(SearchedHit { hit: hit(w, t, snippet), last: last.into() })
+                };
                 if w == "w1" {
                     push(found, "t1", "oldest", 100.0);
                     push(found, "t1", "newest", 300.0);
@@ -648,7 +730,11 @@ fn search_trims_and_lowercases_and_answers_newest_first() {
             vec![("w1".to_string(), "canonical".to_string(), true, false), ("w3".to_string(), "canonical".to_string(), true, false)],
             "the words trimmed and lowercased, the workspace the caller may not read skipped, drives read through drives_thread"
         );
-        assert_eq!(*entries.borrow(), vec![("w2".to_string(), false, true), ("w3".to_string(), false, true)], "read at once, not as a workspace being made");
+        assert_eq!(
+            *entries.borrow(),
+            vec![("w2".to_string(), false, true), ("w3".to_string(), false, true)],
+            "read at once, not as a workspace being made"
+        );
     });
 }
 
@@ -670,7 +756,10 @@ fn unsearched_is_said_only_above_zero() {
     run_local(async {
         let (host, area) = host();
         host.hooks.set::<dyn Fn() -> Vec<String>>("SessionsCtx::index_workspaces", Rc::new(|| vec!["w1".to_string(), "w2".to_string()]));
-        host.hooks.set::<SearchIn>("SessionsCtx::search_in", Rc::new(|_w: &str, _words: &str, _d: &dyn Fn(&str) -> bool, _f: &mut Vec<SearchedHit>| 0));
+        host.hooks.set::<SearchIn>(
+            "SessionsCtx::search_in",
+            Rc::new(|_w: &str, _words: &str, _d: &dyn Fn(&str) -> bool, _f: &mut Vec<SearchedHit>| 0),
+        );
         let none = area.search_for("zebra", None).await.expect("hits");
         assert_eq!(json_of(&none), json!({ "hits": [] }), "no unsearched key at zero");
 

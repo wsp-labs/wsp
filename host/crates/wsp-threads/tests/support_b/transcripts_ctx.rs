@@ -91,7 +91,13 @@ impl TranscriptRows for WatchedRows {
         }
         self.inner.all(ws)
     }
-    fn newest(&self, ws: &str, thread: &str, before: Option<i64>, each: &mut dyn FnMut(SessionEvent) -> ControlFlow<()>) -> Result<(), HostError> {
+    fn newest(
+        &self,
+        ws: &str,
+        thread: &str,
+        before: Option<i64>,
+        each: &mut dyn FnMut(SessionEvent) -> ControlFlow<()>,
+    ) -> Result<(), HostError> {
         self.note(format!("newest {ws} {thread}"));
         self.inner.newest(ws, thread, before, each)
     }
@@ -247,7 +253,12 @@ impl FakeTranscriptsCtx {
             bus: TestBus::new(),
             flaky: Rc::new(FlakyStore { inner: store.clone(), fail_blobs: Cell::new(false), puts: RefCell::default() }),
             store,
-            watched: Rc::new(WatchedRows { inner: rows.clone(), log: Rc::default(), fail_all: Cell::new(false), fail_put_index: Cell::new(false) }),
+            watched: Rc::new(WatchedRows {
+                inner: rows.clone(),
+                log: Rc::default(),
+                fail_all: Cell::new(false),
+                fail_put_index: Cell::new(false),
+            }),
             rows,
             transcript_state: StateCell::new(TranscriptState::default()),
             sessions: Sessions::default(),
@@ -417,7 +428,12 @@ impl TranscriptsCtx for FakeTranscriptsCtx {
     fn daemon_token_seed(&self) -> Option<String> {
         self.seed.borrow().clone()
     }
-    fn rotate_daemon_token(&self, machine: Arc<dyn Machine>, token: String, path: Option<String>) -> LocalBoxFuture<'static, Result<bool, HostError>> {
+    fn rotate_daemon_token(
+        &self,
+        machine: Arc<dyn Machine>,
+        token: String,
+        path: Option<String>,
+    ) -> LocalBoxFuture<'static, Result<bool, HostError>> {
         self.rotations.borrow_mut().push((machine.id().to_string(), token, path));
         let answer = self.rotate_answers.borrow_mut().pop_front().unwrap_or(Ok(true));
         if self.hold_rotations.get() {

@@ -24,7 +24,10 @@ impl HarnessAdapter for Attaching {
     fn steers(&self) -> bool {
         false
     }
-    fn attach(&self, options: AdapterAttachOptions) -> Option<LocalBoxFuture<'static, Result<Option<Arc<dyn HarnessSession>>, ExecFailure>>> {
+    fn attach(
+        &self,
+        options: AdapterAttachOptions,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<Arc<dyn HarnessSession>>, ExecFailure>>> {
         for doc in &self.early {
             (options.on_event)(adapter_event(doc.clone()));
         }
@@ -56,7 +59,9 @@ fn host_with(adapter: Arc<dyn HarnessAdapter>) -> Rc<FakeHost> {
     host.add_entry(entry("w1", json!({})));
     host.hooks.set::<dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>>(
         "TurnsCtx::adapter_for",
-        Rc::new(move |_e: &Entry, a: AdapterAsk| Ok(BuiltAdapter { harness: a.named.clone().unwrap_or_default(), adapter: adapter.clone() })),
+        Rc::new(move |_e: &Entry, a: AdapterAsk| {
+            Ok(BuiltAdapter { harness: a.named.clone().unwrap_or_default(), adapter: adapter.clone() })
+        }),
     );
     host
 }
@@ -159,9 +164,7 @@ fn a_failed_sweep_is_warned_and_ends_nothing() {
         host.hooks.set::<dyn Fn(&Entry) -> Option<Sweep>>(
             "TurnsCtx::exec_sweep",
             Rc::new(|_e: &Entry| {
-                Some(Box::new(|_runs: Vec<String>| {
-                    async { Err(HostError::new("the machine did not answer")) }.boxed_local()
-                }) as Sweep)
+                Some(Box::new(|_runs: Vec<String>| async { Err(HostError::new("the machine did not answer")) }.boxed_local()) as Sweep)
             }),
         );
         let warned = wsp_core::console::capture();
@@ -183,7 +186,11 @@ fn a_row_with_no_run_cannot_be_reopened_silently() {
         let napped = FakeHost::new();
         napped.add_entry(entry("w1", json!({ "phase": "napping" })));
         assert_eq!(TurnsArea::new(napped.clone()).reattach(left_running(json!({})), false).await, Reopened::Cannot);
-        assert_eq!(TurnsArea::new(host.clone()).reattach(left_running(json!({})), false).await, Reopened::Cannot, "an adapter with no attach");
+        assert_eq!(
+            TurnsArea::new(host.clone()).reattach(left_running(json!({})), false).await,
+            Reopened::Cannot,
+            "an adapter with no attach"
+        );
         assert_eq!(warned.lines(), Vec::<String>::new());
         assert_eq!(host.rows.borrow().len(), 0);
     });
@@ -209,7 +216,11 @@ fn an_adapter_that_cannot_be_built_says_why() {
 #[test]
 fn invariant_5_a_transcript_that_does_not_read_leaves_the_turn_running_and_unreached() {
     run_local(async {
-        let adapter = Arc::new(Attaching { answer: Mutex::new(Some(Ok(Some(FakeSession::new("sess-1"))))), asked: Mutex::new(Vec::new()), early: vec![] });
+        let adapter = Arc::new(Attaching {
+            answer: Mutex::new(Some(Ok(Some(FakeSession::new("sess-1"))))),
+            asked: Mutex::new(Vec::new()),
+            early: vec![],
+        });
         let host = host_with(adapter.clone());
         host.hooks.set::<dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>>(
             "TurnsCtx::open_thread",
@@ -230,7 +241,11 @@ fn invariant_5_a_transcript_that_does_not_read_leaves_the_turn_running_and_unrea
 #[test]
 fn again_says_nothing() {
     run_local(async {
-        let adapter = Arc::new(Attaching { answer: Mutex::new(Some(Err("no answer from the machine".into()))), asked: Mutex::new(Vec::new()), early: vec![] });
+        let adapter = Arc::new(Attaching {
+            answer: Mutex::new(Some(Err("no answer from the machine".into()))),
+            asked: Mutex::new(Vec::new()),
+            early: vec![],
+        });
         let host = host_with(adapter);
         let warned = wsp_core::console::capture();
         assert_eq!(TurnsArea::new(host.clone()).reattach(left_running(json!({})), true).await, Reopened::Unreached);
@@ -246,15 +261,40 @@ fn the_attach_carries_what_the_row_kept() {
         let host = host_with(adapter.clone());
         let r = left_running(json!({}));
         r.borrow_mut().from = Some(4096);
-        r.borrow_mut().asked = Some(serde_json::from_value(json!({ "prompt": "fix it\n\nfiles: a.txt", "effort": "high", "typed": "fix it" })).unwrap());
-        let steered = json!({ "st-1": { "prompt": "also this", "startedBy": "person" }, "st-2": { "prompt": "and that", "startedBy": "person" } });
-        r.borrow_mut().turn_live = Some(TurnLive { steered: Some(serde_json::from_value(steered).expect("steered rows the fixture builds")), ..TurnLive::default() });
+        r.borrow_mut().asked =
+            Some(serde_json::from_value(json!({ "prompt": "fix it\n\nfiles: a.txt", "effort": "high", "typed": "fix it" })).unwrap());
+        let steered =
+            json!({ "st-1": { "prompt": "also this", "startedBy": "person" }, "st-2": { "prompt": "and that", "startedBy": "person" } });
+        r.borrow_mut().turn_live = Some(TurnLive {
+            steered: Some(serde_json::from_value(steered).expect("steered rows the fixture builds")),
+            ..TurnLive::default()
+        });
         TurnsArea::new(host.clone()).reattach(r, false).await;
         let asked = adapter.asked.lock().unwrap();
         let a = &asked[0];
         assert_eq!(
-            (a.run.as_str(), a.session_id.as_str(), a.started_at, a.model.as_deref(), a.cwd.as_deref(), a.prompt.as_deref(), a.effort.as_deref(), a.from, a.steered.clone()),
-            ("run-7", "sess-1", (T0 - 60_000) as f64, Some("claude-opus-5-5"), Some("/work/w1"), Some("fix it\n\nfiles: a.txt"), Some("high"), Some(4096), Some(vec!["st-1".to_string(), "st-2".to_string()]))
+            (
+                a.run.as_str(),
+                a.session_id.as_str(),
+                a.started_at,
+                a.model.as_deref(),
+                a.cwd.as_deref(),
+                a.prompt.as_deref(),
+                a.effort.as_deref(),
+                a.from,
+                a.steered.clone()
+            ),
+            (
+                "run-7",
+                "sess-1",
+                (T0 - 60_000) as f64,
+                Some("claude-opus-5-5"),
+                Some("/work/w1"),
+                Some("fix it\n\nfiles: a.txt"),
+                Some("high"),
+                Some(4096),
+                Some(vec!["st-1".to_string(), "st-2".to_string()])
+            )
         );
     });
 }
@@ -277,7 +317,11 @@ fn a_run_the_machine_no_longer_holds_is_gone() {
 #[test]
 fn a_machine_that_answers_nothing_leaves_the_turn_unreached() {
     run_local(async {
-        let adapter = Arc::new(Attaching { answer: Mutex::new(Some(Err("no answer from the machine".into()))), asked: Mutex::new(Vec::new()), early: vec![] });
+        let adapter = Arc::new(Attaching {
+            answer: Mutex::new(Some(Err("no answer from the machine".into()))),
+            asked: Mutex::new(Vec::new()),
+            early: vec![],
+        });
         let host = host_with(adapter);
         let warned = wsp_core::console::capture();
         let r = left_running(json!({}));
@@ -317,7 +361,8 @@ fn events_before_the_row_exists_are_handed_over_in_order() {
 fn invariant_1_reopens_the_run_by_its_handle_from_its_first_line() {
     run_local(async {
         let session = FakeSession::new("sess-1");
-        let adapter = Arc::new(Attaching { answer: Mutex::new(Some(Ok(Some(session.clone())))), asked: Mutex::new(Vec::new()), early: vec![] });
+        let adapter =
+            Arc::new(Attaching { answer: Mutex::new(Some(Ok(Some(session.clone())))), asked: Mutex::new(Vec::new()), early: vec![] });
         let host = host_with(adapter.clone());
         host.live("w1").map(|_| ());
         transcript(
@@ -355,7 +400,8 @@ fn invariant_1_reopens_the_run_by_its_handle_from_its_first_line() {
 fn invariant_1_keeps_a_reply_that_landed_before_the_restart() {
     run_local(async {
         let session = FakeSession::new("sess-1");
-        let adapter = Arc::new(Attaching { answer: Mutex::new(Some(Ok(Some(session.clone())))), asked: Mutex::new(Vec::new()), early: vec![] });
+        let adapter =
+            Arc::new(Attaching { answer: Mutex::new(Some(Ok(Some(session.clone())))), asked: Mutex::new(Vec::new()), early: vec![] });
         let host = host_with(adapter.clone());
         let reply = json!({ "status": "completed", "text": "Fixed." });
         transcript(
@@ -366,10 +412,15 @@ fn invariant_1_keeps_a_reply_that_landed_before_the_restart() {
             ],
         );
         let r = left_running(json!({}));
-        r.borrow_mut().turn_live = Some(TurnLive { reply: Some(serde_json::from_value(json!("completed")).unwrap()), ..TurnLive::default() });
+        r.borrow_mut().turn_live =
+            Some(TurnLive { reply: Some(serde_json::from_value(json!("completed")).unwrap()), ..TurnLive::default() });
         let held = r.clone();
         assert_eq!(TurnsArea::new(host.clone()).reattach(r, false).await, Reopened::Attached);
-        assert_eq!(serde_json::to_value(&held.borrow().view.status).unwrap(), json!("running"), "a reply that landed still reads working until the exit");
+        assert_eq!(
+            serde_json::to_value(&held.borrow().view.status).unwrap(),
+            json!("running"),
+            "a reply that landed still reads working until the exit"
+        );
         emit(&adapter.asked, json!({ "type": "turn.done", "sessionId": "sess-1", "result": reply }));
         emit(&adapter.asked, json!({ "type": "session.end", "sessionId": "sess-1", "exitCode": 0, "sawResult": true }));
         assert_eq!(host.recorded_of("session.done").len(), 1, "the reply is not written again");
@@ -386,7 +437,8 @@ fn the_opening_is_what_was_typed_for_the_turn() {
         let adapter = Arc::new(Attaching { answer: Mutex::new(Some(Ok(Some(session)))), asked: Mutex::new(Vec::new()), early: vec![] });
         let host = host_with(adapter.clone());
         let r = left_running(json!({ "prompt": "the thread's first words" }));
-        r.borrow_mut().asked = Some(serde_json::from_value(json!({ "prompt": "go on\n\nfiles: a.txt", "typed": "go on", "requestId": "req-9" })).unwrap());
+        r.borrow_mut().asked =
+            Some(serde_json::from_value(json!({ "prompt": "go on\n\nfiles: a.txt", "typed": "go on", "requestId": "req-9" })).unwrap());
         assert_eq!(TurnsArea::new(host.clone()).reattach(r, false).await, Reopened::Attached);
         emit(&adapter.asked, json!({ "type": "session.start", "sessionId": "sess-1" }));
         let start = host.recorded_of("session.start");

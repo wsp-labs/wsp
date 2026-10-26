@@ -10,8 +10,8 @@ use std::rc::Rc;
 
 use futures::FutureExt;
 use serde_json::{json, Value};
-use support::Lend;
 use support::threads_ctx::{ask_failure, entry, held_project, FakeThreadsCtx};
+use support::Lend;
 use support::{event, local, row, settle, view};
 use wsp_core::types::internal::{Steered, Taken, TakenOutcome, TurnLive};
 use wsp_threads::threads::threads::turn_end::{CheckpointAsk, SteerSent, TopRead, TurnChangesAsk};
@@ -53,13 +53,23 @@ fn steer(prompt: &str, images: usize) -> SteerSent {
         request_id: Some("req-s".into()),
         via_slate: false,
         started_by: None,
-        attachments: (0..images).map(|i| serde_json::from_value::<Attachment>(json!({ "mediaType": "image/png", "bytes": "AQID", "name": format!("{i}.png") })).expect("an attachment")).collect(),
+        attachments: (0..images)
+            .map(|i| {
+                serde_json::from_value::<Attachment>(json!({ "mediaType": "image/png", "bytes": "AQID", "name": format!("{i}.png") }))
+                    .expect("an attachment")
+            })
+            .collect(),
     }
 }
 
 fn steered_on(ctx: &FakeThreadsCtx) -> Vec<String> {
     ctx.sessions.with(|s| {
-        let steered: Vec<String> = s.get("r1").map(|r| r.borrow().turn_live.as_ref().and_then(|l| l.steered.as_ref()).map(|m| m.keys().cloned().collect()).unwrap_or_default()).unwrap_or_default();
+        let steered: Vec<String> = s
+            .get("r1")
+            .map(|r| {
+                r.borrow().turn_live.as_ref().and_then(|l| l.steered.as_ref()).map(|m| m.keys().cloned().collect()).unwrap_or_default()
+            })
+            .unwrap_or_default();
         steered
     })
 }
@@ -71,13 +81,35 @@ fn keep_checkpoint_records_the_ref_based_and_anchor() {
     local(async {
         let (ctx, area, e) = host();
         ctx.daemon_answers("git.checkpoint", Ok(json!({ "ref": "refs/wsp/ws1/t1/u1", "based": true })));
-        area.keep_checkpoint(&e, CheckpointAsk { session_id: "cs-1".into(), thread_id: "t1".into(), turn_id: "u1".into(), anchor: Some("msg-9".into()), kept: None }).await;
-        assert_eq!(ctx.frames.borrow()[0], json!({ "op": "git.checkpoint", "cwd": "/work/ws1", "thread": "t1", "turn": "u1", "scope": "ws1" }));
+        area.keep_checkpoint(
+            &e,
+            CheckpointAsk {
+                session_id: "cs-1".into(),
+                thread_id: "t1".into(),
+                turn_id: "u1".into(),
+                anchor: Some("msg-9".into()),
+                kept: None,
+            },
+        )
+        .await;
+        assert_eq!(
+            ctx.frames.borrow()[0],
+            json!({ "op": "git.checkpoint", "cwd": "/work/ws1", "thread": "t1", "turn": "u1", "scope": "ws1" })
+        );
         let keys: Vec<String> = ctx.frames.borrow()[0].as_object().expect("a frame").keys().cloned().collect();
         assert_eq!(keys, vec!["op", "cwd", "thread", "turn", "scope"]);
         let said = ctx.recorded_json();
         assert_eq!(said.len(), 1);
-        for (k, v) in [("type", json!("session.checkpoint")), ("workspaceId", json!("ws1")), ("sessionId", json!("cs-1")), ("turnId", json!("u1")), ("threadId", json!("t1")), ("ref", json!("refs/wsp/ws1/t1/u1")), ("based", json!(true)), ("anchor", json!("msg-9"))] {
+        for (k, v) in [
+            ("type", json!("session.checkpoint")),
+            ("workspaceId", json!("ws1")),
+            ("sessionId", json!("cs-1")),
+            ("turnId", json!("u1")),
+            ("threadId", json!("t1")),
+            ("ref", json!("refs/wsp/ws1/t1/u1")),
+            ("based", json!(true)),
+            ("anchor", json!("msg-9")),
+        ] {
             assert_eq!(said[0][k], v, "{k}");
         }
         assert_eq!(said[0].get("kept"), None);
@@ -89,7 +121,17 @@ fn keep_checkpoint_of_a_folder_with_no_repo_asks_nothing() {
     local(async {
         let (ctx, area, e) = host();
         ctx.projects.borrow_mut().insert("p1".into(), held_project("p1", None));
-        area.keep_checkpoint(&e, CheckpointAsk { session_id: "cs-1".into(), thread_id: "t1".into(), turn_id: "u1".into(), anchor: None, kept: Some("k1".into()) }).await;
+        area.keep_checkpoint(
+            &e,
+            CheckpointAsk {
+                session_id: "cs-1".into(),
+                thread_id: "t1".into(),
+                turn_id: "u1".into(),
+                anchor: None,
+                kept: Some("k1".into()),
+            },
+        )
+        .await;
         assert!(ctx.frames.borrow().is_empty(), "a folder git holds no repo in keeps no checkpoint");
         let said = ctx.recorded_json();
         assert_eq!((said[0]["kept"].clone(), said[0].get("ref").cloned(), said[0].get("based").cloned()), (json!("k1"), None, None));
@@ -103,7 +145,17 @@ fn keep_checkpoint_warns_and_records_the_anchor_alone_when_the_daemon_fails() {
         let (ctx, area, e) = host();
         ctx.daemon_answers("git.checkpoint", Err(ask_failure("daemon too old", None)));
         let warned = wsp_core::console::capture();
-        area.keep_checkpoint(&e, CheckpointAsk { session_id: "cs-1".into(), thread_id: "t1".into(), turn_id: "u1".into(), anchor: Some("msg-9".into()), kept: None }).await;
+        area.keep_checkpoint(
+            &e,
+            CheckpointAsk {
+                session_id: "cs-1".into(),
+                thread_id: "t1".into(),
+                turn_id: "u1".into(),
+                anchor: Some("msg-9".into()),
+                kept: None,
+            },
+        )
+        .await;
         assert_eq!(warned.lines(), vec![wsp_core::types::internal::no_checkpoint_log_line("t1", "ws1", "daemon too old")]);
         let said = ctx.recorded_json();
         assert_eq!((said[0]["anchor"].clone(), said[0].get("ref").cloned()), (json!("msg-9"), None));
@@ -115,7 +167,11 @@ fn keep_checkpoint_with_nothing_to_keep_records_nothing() {
     local(async {
         let (ctx, area, e) = host();
         ctx.daemon_answers("git.checkpoint", Ok(json!({ "based": true })));
-        area.keep_checkpoint(&e, CheckpointAsk { session_id: "cs-1".into(), thread_id: "t1".into(), turn_id: "u1".into(), anchor: None, kept: None }).await;
+        area.keep_checkpoint(
+            &e,
+            CheckpointAsk { session_id: "cs-1".into(), thread_id: "t1".into(), turn_id: "u1".into(), anchor: None, kept: None },
+        )
+        .await;
         assert!(ctx.recorded.borrow().is_empty(), "no ref, no anchor, nothing kept");
     });
 }
@@ -147,10 +203,16 @@ fn taken_turn_of_an_ended_turn_reads_its_result_off_the_transcript() {
             vec![event(json!({ "type": "session.end", "workspaceId": "ws1", "sessionId": "cs-1", "turnId": "u1", "threadId": "t1", "exitCode": null, "sawResult": false, "reason": "the end said why" }))],
         );
         let ended = area.taken_turn("ws1", &taken).await.expect("held");
-        assert_eq!(support::json_of(&ended.finished().now_or_never().expect("settled")), json!({ "status": "failed", "error": "the end said why" }));
+        assert_eq!(
+            support::json_of(&ended.finished().now_or_never().expect("settled")),
+            json!({ "status": "failed", "error": "the end said why" })
+        );
         ctx.thread_events.borrow_mut().clear();
         let silent = area.taken_turn("ws1", &taken).await.expect("held");
-        assert_eq!(support::json_of(&silent.finished().now_or_never().expect("settled")), json!({ "status": "failed", "error": "host restarted while the agent was working" }));
+        assert_eq!(
+            support::json_of(&silent.finished().now_or_never().expect("settled")),
+            json!({ "status": "failed", "error": "host restarted while the agent was working" })
+        );
     });
 }
 
@@ -192,7 +254,8 @@ fn taken_turn_of_a_row_gone_is_none() {
 // ---- E4 to E8 -----------------------------------------------------------------------------------------------------
 
 fn caller() -> wsp_wire::views::workspace::Caller {
-    let by = serde_json::from_value(json!({ "kind": "thread", "threadId": "lead", "workspaceId": "ws1", "rootThreadId": "lead" })).expect("a scope");
+    let by = serde_json::from_value(json!({ "kind": "thread", "threadId": "lead", "workspaceId": "ws1", "rootThreadId": "lead" }))
+        .expect("a scope");
     wsp_wire::views::workspace::Caller::Scoped { origin: serde_json::from_value(json!("relayed")).expect("an origin"), by }
 }
 
@@ -203,7 +266,10 @@ fn keep_steer_keeps_the_message_on_the_turn_and_persists() {
         steering_row(&ctx, false);
         area.keep_steer("r1", &steer("also this", 1), Some(&caller()), "st1").await;
         assert!(area.steers_out.borrow().contains_key("st1"), "the start road owns it until the write answers");
-        let kept = ctx.sessions.with(|s| s.get("r1").and_then(|r| r.borrow().turn_live.clone()).and_then(|l| l.steered).and_then(|m| m.get("st1").cloned())).expect("kept on the turn");
+        let kept = ctx
+            .sessions
+            .with(|s| s.get("r1").and_then(|r| r.borrow().turn_live.clone()).and_then(|l| l.steered).and_then(|m| m.get("st1").cloned()))
+            .expect("kept on the turn");
         assert_eq!(
             support::json_of(&kept),
             json!({ "prompt": "also this", "by": { "kind": "thread", "threadId": "lead", "workspaceId": "ws1", "rootThreadId": "lead" }, "road": "relayed", "startedBy": "person", "requestId": "req-s", "attachments": [{ "mediaType": "image/png", "bytes": 3, "name": "0.png" }] })
@@ -247,7 +313,15 @@ fn steer_answered_records_a_landed_steer() {
         assert!(!area.steers_out.borrow().contains_key("st1"));
         let said = ctx.recorded_json();
         assert_eq!(said.len(), 1);
-        for (k, v) in [("type", json!("session.steer")), ("workspaceId", json!("ws1")), ("sessionId", json!("cs-1")), ("turnId", json!("u1")), ("threadId", json!("t1")), ("prompt", json!("also this")), ("requestId", json!("req-s"))] {
+        for (k, v) in [
+            ("type", json!("session.steer")),
+            ("workspaceId", json!("ws1")),
+            ("sessionId", json!("cs-1")),
+            ("turnId", json!("u1")),
+            ("threadId", json!("t1")),
+            ("prompt", json!("also this")),
+            ("requestId", json!("req-s")),
+        ] {
             assert_eq!(said[0][k], v, "{k}");
         }
         assert_eq!(said[0].get("waiting"), None);
@@ -263,15 +337,28 @@ fn steer_answered_tells_the_person_when_a_stop_ended_the_turn() {
         area.keep_steer("r1", &steer("also this", 0), None, "st1").await;
         let ended_row = row(view(json!({ "id": "r1", "threadId": "t1", "claudeSessionId": "cs-1" })), "u1");
         ended_row.borrow_mut().turn_live = Some(TurnLive {
-            steered: Some([("st1".to_string(), serde_json::from_value::<Steered>(json!({ "prompt": "also this", "startedBy": "person" })).expect("a steer"))].into_iter().collect()),
+            steered: Some(
+                [(
+                    "st1".to_string(),
+                    serde_json::from_value::<Steered>(json!({ "prompt": "also this", "startedBy": "person" })).expect("a steer"),
+                )]
+                .into_iter()
+                .collect(),
+            ),
             ..Default::default()
         });
         area.steers_out.borrow_mut().get_mut("st1").expect("out").ended = Some((ended_row, true));
-        assert!(area.steer_answered("r1", "h1", &steer("also this", 0), None, "st1", true), "the person is told, so the caller hears it landed");
+        assert!(
+            area.steer_answered("r1", "h1", &steer("also this", 0), None, "st1", true),
+            "the person is told, so the caller hears it landed"
+        );
         settle().await;
         let said = ctx.recorded_json();
         assert_eq!(said.len(), 1);
-        assert_eq!((said[0]["type"].clone(), said[0]["notify"].clone(), said[0]["text"].clone()), (json!("session.notify"), json!("me"), json!("the agent never read this message: also this")));
+        assert_eq!(
+            (said[0]["type"].clone(), said[0]["notify"].clone(), said[0]["text"].clone()),
+            (json!("session.notify"), json!("me"), json!("the agent never read this message: also this"))
+        );
     });
 }
 
@@ -306,7 +393,10 @@ fn record_steer_keeps_images_before_the_row_and_says_waiting() {
         assert_eq!(calls[1], "keepSentImages ws1 t1 req-s 2", "the images are kept before the row is written");
         let said = ctx.recorded_json();
         assert_eq!(said[0]["waiting"], json!(true), "the turn waits on a person");
-        assert_eq!(said[0]["attachments"], json!([{ "mediaType": "image/png", "bytes": 3, "name": "0.png" }, { "mediaType": "image/png", "bytes": 3, "name": "1.png" }]));
+        assert_eq!(
+            said[0]["attachments"],
+            json!([{ "mediaType": "image/png", "bytes": 3, "name": "0.png" }, { "mediaType": "image/png", "bytes": 3, "name": "1.png" }])
+        );
         assert_eq!(steered_on(&ctx), vec!["st9"]);
     });
 }
@@ -334,7 +424,10 @@ fn snapshot_of_answers_the_commit_or_nothing_inside_its_deadline() {
         settle().await;
         ctx.clock.advance(3_000);
         assert_eq!(late.await.expect("ran"), None);
-        assert_eq!(warned.lines(), vec!["no snapshot of /w on the-folder inside 3000ms; the turn runs without one and its reply lists no changes"]);
+        assert_eq!(
+            warned.lines(),
+            vec!["no snapshot of /w on the-folder inside 3000ms; the turn runs without one and its reply lists no changes"]
+        );
         *ctx.reach.borrow_mut() = "unreachable".into();
         assert_eq!(area.snapshot_of(&e, "/w").await, None, "a daemon not reached is not asked");
     });
@@ -373,7 +466,10 @@ fn shared_folder_compares_checkout_tops_not_cwds() {
         beside(&ctx, vec![json!({ "threadId": "other", "cwd": "/repo/b", "startedAt": 50, "endedAt": 150 })]);
         ctx.daemon_answers("git.worktrees", Ok(json!({ "worktrees": [{ "path": "/repo" }, { "path": "/repo-old", "prunable": true }] })));
         let reads = Rc::new(std::cell::Cell::new(0));
-        assert!(area.shared_folder(&e, "mine", "/repo/a", top(Some("/repo"), reads.clone()), 100, 200).await, "two subfolders of one checkout share it");
+        assert!(
+            area.shared_folder(&e, "mine", "/repo/a", top(Some("/repo"), reads.clone()), 100, 200).await,
+            "two subfolders of one checkout share it"
+        );
         assert_eq!(reads.get(), 1);
         let reads = Rc::new(std::cell::Cell::new(0));
         assert!(!area.shared_folder(&e, "mine", "/elsewhere", top(Some("/other-top"), reads), 100, 200).await);
@@ -384,17 +480,23 @@ fn shared_folder_compares_checkout_tops_not_cwds() {
 fn shared_folder_ignores_rows_outside_the_turns_time() {
     local(async {
         let (ctx, area, e) = host();
-        beside(&ctx, vec![
-            json!({ "threadId": "other", "cwd": "/repo/a", "startedAt": 10, "endedAt": 90 }),
-            json!({ "threadId": "mine", "cwd": "/repo/a", "startedAt": 100 }),
-            json!({ "threadId": "other", "cwd": "/repo/a", "startedAt": 201 }),
-            json!({ "threadId": "other", "cwd": "/repo/a", "workspaceId": "ws2", "startedAt": 150 }),
-        ]);
+        beside(
+            &ctx,
+            vec![
+                json!({ "threadId": "other", "cwd": "/repo/a", "startedAt": 10, "endedAt": 90 }),
+                json!({ "threadId": "mine", "cwd": "/repo/a", "startedAt": 100 }),
+                json!({ "threadId": "other", "cwd": "/repo/a", "startedAt": 201 }),
+                json!({ "threadId": "other", "cwd": "/repo/a", "workspaceId": "ws2", "startedAt": 150 }),
+            ],
+        );
         let reads = Rc::new(std::cell::Cell::new(0));
         assert!(!area.shared_folder(&e, "mine", "/repo/a", top(Some("/repo"), reads.clone()), 100, 200).await);
         assert_eq!(reads.get(), 0, "no row beside it, so the top is never read");
         beside(&ctx, vec![json!({ "cwd": "/repo/a", "startedAt": 150 })]);
-        assert!(area.shared_folder(&e, "mine", "/repo/a", top(None, reads), 100, 200).await, "a row with no thread is another thread's; a still running row's end reads as the turn's end");
+        assert!(
+            area.shared_folder(&e, "mine", "/repo/a", top(None, reads), 100, 200).await,
+            "a row with no thread is another thread's; a still running row's end reads as the turn's end"
+        );
     });
 }
 
@@ -431,7 +533,17 @@ fn read_turn_changes_records_files_moved_and_shared() {
         assert_eq!(frames[1], json!({ "op": "git.turn", "cwd": "/repo/a", "from": "base123", "to": "snap1" }));
         let said = ctx.recorded_json();
         assert_eq!(said.len(), 1);
-        for (k, v) in [("type", json!("session.changes")), ("workspaceId", json!("ws1")), ("sessionId", json!("cs-1")), ("turnId", json!("u1")), ("threadId", json!("mine")), ("from", json!("base123")), ("to", json!("snap1")), ("files", json!([{ "path": "a/x.rs", "kind": "modified", "additions": 1, "deletions": 0 }])), ("moved", json!(["b/y.rs"]))] {
+        for (k, v) in [
+            ("type", json!("session.changes")),
+            ("workspaceId", json!("ws1")),
+            ("sessionId", json!("cs-1")),
+            ("turnId", json!("u1")),
+            ("threadId", json!("mine")),
+            ("from", json!("base123")),
+            ("to", json!("snap1")),
+            ("files", json!([{ "path": "a/x.rs", "kind": "modified", "additions": 1, "deletions": 0 }])),
+            ("moved", json!(["b/y.rs"])),
+        ] {
             assert_eq!(said[0][k], v, "{k}");
         }
         assert_eq!(said[0].get("shared"), None);

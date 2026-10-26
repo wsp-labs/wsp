@@ -10,10 +10,11 @@ use wsp_frames::True;
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::types::usage::{HarnessLimit, UsageAccountEvent, UsageTokens};
 use wsp_wire::views::session_events::{
-    PlanStep, SessionDeltaEvent, SessionDoneEvent, SessionEndEvent, SessionHarness, SessionStartEvent, SlateLit, TurnResult, TurnStatus, TurnTokens,
+    PlanStep, SessionDeltaEvent, SessionDoneEvent, SessionEndEvent, SessionHarness, SessionStartEvent, SlateLit, TurnResult, TurnStatus,
+    TurnTokens,
 };
-use wsp_wire::views::session_events_more::{SessionCompactedEvent, SessionContextEvent, SessionEvent, SessionPlanEvent, SessionRetryEvent};
 use wsp_wire::views::session_events_more::SessionSubagentEvent;
+use wsp_wire::views::session_events_more::{SessionCompactedEvent, SessionContextEvent, SessionEvent, SessionPlanEvent, SessionRetryEvent};
 use wsp_wire::wire::events_union::{EventUnion, Sequenced};
 use wsp_words::exit::HostError;
 use wsp_words::words::thread::still_running_line;
@@ -61,7 +62,9 @@ impl TurnState {
     fn dispatch(self: &Rc<Self>, event: AdapterEvent) {
         let session_id = event.session_id().to_string();
         match event {
-            AdapterEvent::SessionStart { model, cwd, tools, harness, prompted, .. } => self.on_start(&session_id, model, cwd, tools, harness, prompted),
+            AdapterEvent::SessionStart { model, cwd, tools, harness, prompted, .. } => {
+                self.on_start(&session_id, model, cwd, tools, harness, prompted)
+            }
             AdapterEvent::TurnDelta(delta) => self.on_delta(&session_id, delta),
             AdapterEvent::TurnDone { result, held, .. } => self.on_done(&session_id, result, held == Some(true)),
             AdapterEvent::TurnAnchor { anchor, kept, .. } => {
@@ -181,7 +184,15 @@ impl TurnState {
         *n
     }
 
-    fn on_start(self: &Rc<Self>, session_id: &str, model: Option<String>, cwd: Option<String>, tools: Option<Vec<String>>, harness: Option<SessionHarness>, prompted: Option<bool>) {
+    fn on_start(
+        self: &Rc<Self>,
+        session_id: &str,
+        model: Option<String>,
+        cwd: Option<String>,
+        tools: Option<Vec<String>>,
+        harness: Option<SessionHarness>,
+        prompted: Option<bool>,
+    ) {
         let start_recorded = self.counts.borrow().start_recorded;
         {
             let mut row = self.row.borrow_mut();
@@ -207,7 +218,12 @@ impl TurnState {
             record.clone()
         };
         let ctx = self.ctx.clone();
-        detach(async move { let _ = ctx.persist_record(record).await; }.boxed_local());
+        detach(
+            async move {
+                let _ = ctx.persist_record(record).await;
+            }
+            .boxed_local(),
+        );
         self.persist();
         if prompted != Some(false) {
             if let Some(request) = &self.opening.request_id {
@@ -219,7 +235,12 @@ impl TurnState {
                 let view = self.row.borrow().view.clone();
                 let ctx = self.ctx.clone();
                 let title = title.clone();
-                detach(async move { let _ = ctx.name_in_harness(view, &title).await; }.boxed_local());
+                detach(
+                    async move {
+                        let _ = ctx.name_in_harness(view, &title).await;
+                    }
+                    .boxed_local(),
+                );
             }
         }
         if start_recorded {
@@ -274,10 +295,28 @@ impl TurnState {
     }
 
     fn on_delta(&self, session_id: &str, delta: TurnDelta) {
-        let TurnDelta { kind, text, message_id, tool_name, tool_use_id, is_error, parent_tool_use_id, cwd, bytes, exit_code, duration_ms, patch, .. } = delta;
+        let TurnDelta {
+            kind,
+            text,
+            message_id,
+            tool_name,
+            tool_use_id,
+            is_error,
+            parent_tool_use_id,
+            cwd,
+            bytes,
+            exit_code,
+            duration_ms,
+            patch,
+            ..
+        } = delta;
         if kind == DeltaKind::ToolUse {
             if let (Some(id), Some(name)) = (&tool_use_id, &tool_name) {
-                self.row.borrow_mut().calls.get_or_insert_with(IndexMap::new).insert(id.clone(), CallSeen { tool_name: name.clone(), input: text.clone() });
+                self.row
+                    .borrow_mut()
+                    .calls
+                    .get_or_insert_with(IndexMap::new)
+                    .insert(id.clone(), CallSeen { tool_name: name.clone(), input: text.clone() });
                 if let Some(wrote) = &self.wrote {
                     for path in tool_call_facts(name, &text).changed_files.unwrap_or_default() {
                         wrote.borrow_mut().insert(path);
@@ -491,7 +530,11 @@ impl TurnState {
         let said = reply.text.clone().unwrap_or_default();
         let promised = reply.status == TurnStatus::Completed && running > 0;
         let replied = if promised {
-            let text = [said.as_str(), still_running_line(running as f64).as_str()].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join("\n\n");
+            let text = [said.as_str(), still_running_line(running as f64).as_str()]
+                .into_iter()
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n\n");
             TurnResult { text: Some(text), ..reply.clone() }
         } else {
             reply.clone()
@@ -510,7 +553,13 @@ impl TurnState {
     }
 
     /// turns.ts:546-567: the exit closes what is still open, settles the row, then writes the end.
-    fn on_end(self: &Rc<Self>, session_id: &str, exit_code: Option<i32>, saw_result: bool, failure: Option<wsp_adapters::port::ExecFailure>) {
+    fn on_end(
+        self: &Rc<Self>,
+        session_id: &str,
+        exit_code: Option<i32>,
+        saw_result: bool,
+        failure: Option<wsp_adapters::port::ExecFailure>,
+    ) {
         if let Some(failure) = failure {
             self.row.borrow_mut().turn_live.get_or_insert_with(TurnLive::default).failure = Some(HostError::new(failure.message));
         }

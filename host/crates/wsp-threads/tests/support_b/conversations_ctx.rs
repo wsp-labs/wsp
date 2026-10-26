@@ -11,24 +11,24 @@ use std::sync::{Arc, Mutex};
 use futures::future::{FutureExt, LocalBoxFuture};
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Map, Value};
-use wsp_adapters::port::{
-    ConversationEarlier, ConversationLine, ConversationOrigin, ConversationStore, EarlierAsk, EarlierRead, Env, ExecFailure, HarnessExec, StoreError,
-    StoredConversation,
-};
-use wsp_core::clock::Clock;
-use wsp_core::context::StateCell;
 use wsp_account::account::core_types::AccountError;
 use wsp_account::projects::folders::place::FolderPlaced;
 use wsp_account::projects::folders::tree::ListedWorktree;
+use wsp_adapters::port::{
+    ConversationEarlier, ConversationLine, ConversationOrigin, ConversationStore, EarlierAsk, EarlierRead, Env, ExecFailure, HarnessExec,
+    StoreError, StoredConversation,
+};
+use wsp_core::clock::Clock;
+use wsp_core::context::StateCell;
 use wsp_core::types::events::EventBus;
 use wsp_core::types::wiring::WorkspaceRecord;
-use wsp_wire::views::workspace::ProjectView;
 use wsp_threads::threads::conversations::{ConversationsArea, ConversationsCtx};
 use wsp_threads::threads::threads::{Entry, Sessions};
 use wsp_threads::threads::transcripts::TranscriptState;
 use wsp_wire::views::preferences::{default_preferences, Preferences};
 use wsp_wire::views::session::SessionView;
 use wsp_wire::views::workspace::Caller;
+use wsp_wire::views::workspace::ProjectView;
 use wsp_words::exit::HostError;
 
 use super::{err, BusHandle, TestBus, TestClock};
@@ -168,7 +168,11 @@ impl FakeConversationStore {
 }
 
 impl ConversationStore for FakeConversationStore {
-    fn list(&self, cwds: Vec<String>, _road: wsp_adapters::port::ConversationRoad) -> LocalBoxFuture<'static, Result<Vec<StoredConversation>, StoreError>> {
+    fn list(
+        &self,
+        cwds: Vec<String>,
+        _road: wsp_adapters::port::ConversationRoad,
+    ) -> LocalBoxFuture<'static, Result<Vec<StoredConversation>, StoreError>> {
         let answer = self.with(|s| {
             s.log.push("list".into());
             s.list_cwds.push(cwds);
@@ -186,7 +190,11 @@ impl ConversationStore for FakeConversationStore {
         })?;
         Some(async move { answer }.boxed_local())
     }
-    fn stamp(&self, cwds: Vec<String>, _road: wsp_adapters::port::ConversationRoad) -> Option<LocalBoxFuture<'static, Result<String, StoreError>>> {
+    fn stamp(
+        &self,
+        cwds: Vec<String>,
+        _road: wsp_adapters::port::ConversationRoad,
+    ) -> Option<LocalBoxFuture<'static, Result<String, StoreError>>> {
         let answer = self.with(|s| {
             if !s.has_stamp {
                 return None;
@@ -197,7 +205,12 @@ impl ConversationStore for FakeConversationStore {
         })?;
         Some(async move { answer }.boxed_local())
     }
-    fn earlier(&self, id: String, ask: EarlierAsk, _road: wsp_adapters::port::ConversationRoad) -> LocalBoxFuture<'static, Result<EarlierRead, StoreError>> {
+    fn earlier(
+        &self,
+        id: String,
+        ask: EarlierAsk,
+        _road: wsp_adapters::port::ConversationRoad,
+    ) -> LocalBoxFuture<'static, Result<EarlierRead, StoreError>> {
         let answer = self.with(|s| {
             s.log.push(format!("earlier {id}"));
             s.earlier_asks.push((id, ask.clone()));
@@ -358,10 +371,7 @@ impl FakeConversationsCtx {
         *self.default_folder.borrow_mut() = Some(FolderPlaced { entry, cwd: cwd.map(String::from), setup: None });
     }
     pub fn project(&self, id: &str, name: &str, path: &str, top: Option<&str>) {
-        self.projects.borrow_mut().insert(
-            id.to_string(),
-            project_view(id, name, path, top),
-        );
+        self.projects.borrow_mut().insert(id.to_string(), project_view(id, name, path, top));
     }
     pub fn daemon_answers(&self, op: &str, answer: Result<Value, AccountError>) {
         self.daemon.borrow_mut().push((op.to_string(), answer));
@@ -398,7 +408,11 @@ impl ConversationsCtx for FakeConversationsCtx {
     }
     fn project_held(&self, project: &str) -> ProjectView {
         self.call(format!("projectHeld {project}"));
-        self.projects.borrow().get(project).cloned().unwrap_or_else(|| project_view(project, project, &format!("/repo/{project}"), Some(&format!("/repo/{project}"))))
+        self.projects
+            .borrow()
+            .get(project)
+            .cloned()
+            .unwrap_or_else(|| project_view(project, project, &format!("/repo/{project}"), Some(&format!("/repo/{project}"))))
     }
     fn worktrees_of(&self, top: &str) -> LocalBoxFuture<'static, Result<Vec<ListedWorktree>, HostError>> {
         self.call(format!("worktreesOf {top}"));
@@ -442,7 +456,12 @@ impl ConversationsCtx for FakeConversationsCtx {
         self.call(format!("reachesRow {}", row.id));
         !self.unreached.borrow().contains(&row.id)
     }
-    fn folder_for(&self, project: Option<String>, cwd: Option<String>, _origin: Option<Caller>) -> LocalBoxFuture<'static, Result<FolderPlaced, HostError>> {
+    fn folder_for(
+        &self,
+        project: Option<String>,
+        cwd: Option<String>,
+        _origin: Option<Caller>,
+    ) -> LocalBoxFuture<'static, Result<FolderPlaced, HostError>> {
         self.call(format!("folderFor {} {}", project.clone().unwrap_or_default(), cwd.clone().unwrap_or_default()));
         let named = self.folder_answers.borrow().iter().find(|(p, c, _)| *p == project && *c == cwd).map(|(_, _, a)| a.clone());
         let answer = named.unwrap_or_else(|| self.default_folder.borrow().clone().ok_or_else(|| err("no folder answer")));

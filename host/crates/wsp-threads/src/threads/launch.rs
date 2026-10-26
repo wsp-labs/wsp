@@ -10,12 +10,12 @@ use futures::FutureExt;
 use indexmap::IndexMap;
 use serde_json::{json, Value};
 use wsp_adapters::port::{AdapterError, AgentLaunch, Env, HarnessAdapter, HarnessExec, HarnessWarmOptions, KeptAgent};
+use wsp_catalog::signin_rows::server_values_of;
 use wsp_core::console;
 use wsp_core::ids::Ids;
 use wsp_core::machine_exec::TurnWaiting;
 use wsp_core::types::api::WarmAsk;
 use wsp_core::types::internal::{launches_as, lost_session_log_line, KeptLaunch, WarmKeep};
-use wsp_catalog::signin_rows::server_values_of;
 use wsp_wire::types::env::{NO_SLATE_MCP_ARG, SCOPED_MCP_ARG, THREAD_ENV, TURN_TOKEN_ENV};
 use wsp_wire::types::harness_picks::{kept_picks, listed_pick, KeptPicks, RanPicks};
 use wsp_wire::types::thread_defaults::AccessChoice;
@@ -146,7 +146,13 @@ pub trait LaunchCtx {
     async fn thread_launch(&self, entry: &Entry, thread_id: &str, root_thread_id: &str, aside: bool) -> Result<ThreadLaunch, HostError>;
     /// `opts.vault?.() ?? {}`; the area reads `server_values_of` off it.
     fn vault(&self) -> Env;
-    async fn launch_servers_for(&self, entry: &Entry, harness: &str, adapter: &dyn HarnessAdapter, cwd: &str) -> Result<LaunchServers, HostError>;
+    async fn launch_servers_for(
+        &self,
+        entry: &Entry,
+        harness: &str,
+        adapter: &dyn HarnessAdapter,
+        cwd: &str,
+    ) -> Result<LaunchServers, HostError>;
     fn hold_warm(&self, thread_id: &str, hold: KeptHand);
     async fn revoke_device(&self, device_id: &str) -> Result<(), HostError>;
 }
@@ -179,7 +185,15 @@ impl LaunchArea {
     }
 
     /// launch.ts:237. Rules L7-L11.
-    pub async fn launch_picks(&self, entry: &Entry, harness: &str, adapter: &dyn HarnessAdapter, prefs: &Preferences, thread_id: &str, asked: &LaunchAsked) -> Result<PicksRead, HostError> {
+    pub async fn launch_picks(
+        &self,
+        entry: &Entry,
+        harness: &str,
+        adapter: &dyn HarnessAdapter,
+        prefs: &Preferences,
+        thread_id: &str,
+        asked: &LaunchAsked,
+    ) -> Result<PicksRead, HostError> {
         let (workspace_id, project) = {
             let live = entry.borrow();
             let record = live.record.borrow();
@@ -188,13 +202,18 @@ impl LaunchArea {
         let resolved = self.ctx.catalog_on(harness, entry, adapter).await?.map(|catalog| self.ctx.defaults_on(catalog, prefs, &project));
         let catalog = resolved.as_ref().map(|r| r.catalog.clone());
         let (open_model, open_effort) = resolved.map(|r| (r.open_model, r.open_effort)).unwrap_or_default();
-        let named = asked.permission_mode.clone().or_else(|| asked.access.and_then(|access| self.ctx.named_mode(catalog.as_ref(), harness, &access)));
+        let named = asked
+            .permission_mode
+            .clone()
+            .or_else(|| asked.access.and_then(|access| self.ctx.named_mode(catalog.as_ref(), harness, &access)));
         let read_catalog = catalog.clone();
         let ctx = self.ctx.clone();
         let (asked, thread_id) = (asked.clone(), thread_id.to_string());
         let picks_for: Box<dyn Fn(Option<&str>) -> Result<LaunchPicks, HostError>> = Box::new(move |session: Option<&str>| {
             let access = named.clone().or_else(|| {
-                catalog.as_ref().and_then(|catalog| listed_pick(&catalog.permission_modes, ctx.access_of(&workspace_id, &thread_id, session).as_deref()))
+                catalog.as_ref().and_then(|catalog| {
+                    listed_pick(&catalog.permission_modes, ctx.access_of(&workspace_id, &thread_id, session).as_deref())
+                })
             });
             let ran = ctx.ran_on(&workspace_id, &thread_id, session);
             let kept = kept_picks(
@@ -230,7 +249,14 @@ impl LaunchArea {
 
     /// launch.ts:268. `mcp_servers` is the JSON of the servers a caller named; `version` is `None` for undefined and
     /// `Some(None)` for null. Rule L12.
-    pub fn launch_fixed(&self, entry: &Entry, harness: &str, cwd: &str, mcp_servers: Option<&serde_json::Value>, version: Option<Option<&str>>) -> String {
+    pub fn launch_fixed(
+        &self,
+        entry: &Entry,
+        harness: &str,
+        cwd: &str,
+        mcp_servers: Option<&serde_json::Value>,
+        version: Option<Option<&str>>,
+    ) -> String {
         let mut doc = serde_json::Map::new();
         doc.insert("harness".to_string(), json!(harness));
         doc.insert("cwd".to_string(), json!(cwd));
@@ -280,7 +306,8 @@ impl LaunchArea {
             (st.asks, st.warming.get(&key).map(|(_, run)| run.clone()))
         };
         let me = self.clone();
-        let (run_key, run_entry, run_harness, run_prefs, run_asked) = (key.clone(), entry.clone(), harness.clone(), prefs.clone(), asked.clone());
+        let (run_key, run_entry, run_harness, run_prefs, run_asked) =
+            (key.clone(), entry.clone(), harness.clone(), prefs.clone(), asked.clone());
         let run: WarmRun = async move {
             if let Some(prev) = prev {
                 let _ = prev.await;
@@ -313,7 +340,17 @@ impl LaunchArea {
         let never: TurnWaiting = Arc::new(|| false);
         let probe = self
             .ctx
-            .adapter_for(entry, AdapterAsk { named: Some(harness.to_string()), turn_env: Some(Env::new()), waiting: Some(never), servers: Env::new(), thread: Some(thread_id.clone()), asks_until_stopped: false })?
+            .adapter_for(
+                entry,
+                AdapterAsk {
+                    named: Some(harness.to_string()),
+                    turn_env: Some(Env::new()),
+                    waiting: Some(never),
+                    servers: Env::new(),
+                    thread: Some(thread_id.clone()),
+                    asks_until_stopped: false,
+                },
+            )?
             .adapter;
         if !self.ctx.adapter_warms(&*probe) {
             return Ok(warm_result(SessionWarmResultWarm::None));
@@ -465,7 +502,6 @@ fn port_server(spec: McpServerSpec) -> wsp_adapters::port::McpServerSpec {
 fn hex(bytes: Vec<u8>) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
-
 
 /// The adapter's `sessionHeld` road (TS `HarnessAdapter["sessionHeld"]`, not in wsp-adapters' port yet): what the
 /// machine holds for a session, in words.

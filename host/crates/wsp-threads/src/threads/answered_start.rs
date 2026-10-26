@@ -85,7 +85,12 @@ pub struct StartedAt {
 }
 
 /// answered-start.ts:25. `opens` is TS `o.opens === true`. Rules S1-S5.
-pub async fn start_at(workspaces: &dyn StartAtWorkspaces, msg: StartAtMsg, origin: Option<Caller>, opens: bool) -> Result<StartedAt, HostError> {
+pub async fn start_at(
+    workspaces: &dyn StartAtWorkspaces,
+    msg: StartAtMsg,
+    origin: Option<Caller>,
+    opens: bool,
+) -> Result<StartedAt, HostError> {
     if let Some(workspace_id) = msg.workspace_id {
         let setup = if opens { workspaces.take_setup_line(&workspace_id, origin).await? } else { None };
         return Ok(StartedAt { workspace_id, cwd: msg.cwd, setup });
@@ -99,6 +104,7 @@ pub async fn start_at(workspaces: &dyn StartAtWorkspaces, msg: StartAtMsg, origi
         fast: (msg.fast == Some(true)).then_some(true),
     };
     let picks = (picks != StartPicksAsked::default()).then_some(picks);
-    let found = workspaces.folder_for(FolderForAsk { project: msg.project, branch: msg.branch, cwd: msg.cwd, picks, opens }, origin).await?;
+    let found =
+        workspaces.folder_for(FolderForAsk { project: msg.project, branch: msg.branch, cwd: msg.cwd, picks, opens }, origin).await?;
     Ok(StartedAt { workspace_id: found.workspace.id, cwd: found.cwd, setup: found.setup })
 }
