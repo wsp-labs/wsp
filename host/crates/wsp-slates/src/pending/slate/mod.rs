@@ -440,7 +440,7 @@ pub use problems::{
 pub use shape::{
     sketch_slate_result, slate_field_words, slate_result_shape, SlateColumn, SlateFact, SlateNested, SlateResultShape, SLATE_RESULT_ROWS,
 };
-pub use sketch::sketch_slate;
+pub use sketch::{sketch_slate, SlateSketchContext};
 pub use kit::{
     slate_figure, slate_held_text, slate_piece_module, slate_reserved_prop, SlateChildLimit, SlateItemSpec, SlateBinds, SlateMost,
     SlatePieceCheck, SlatePieceModule, SlatePropSpec, SlatePropType, SlateSketchFn, SlateSketchView, SLATE_EVENTS, SLATE_FIGURES,
