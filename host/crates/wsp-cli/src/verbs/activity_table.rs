@@ -4,7 +4,7 @@
 //! into its agent's row, the figures in aligned columns and nothing wider than the terminal. `--wide` adds the pid
 //! and the whole command line and folds nothing. Spec: `spec/activity.md`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use wsp_catalog::catalog::{agent_name, catalog_agents};
 use wsp_frames::{ProcEntry, ProcKind};
@@ -140,34 +140,58 @@ fn is_stretch_agent(p: &ActivityProc, kids: &HashMap<i64, Vec<&ActivityProc>>) -
         && !kids.get(&p.pid.get()).is_some_and(|ks| ks.iter().any(|k| k.kind == ProcKind::Agent))
 }
 
-/// The first agent under `p` on its stretch of the tree, a stretch agent standing as itself. A table has no more
-/// nested steps than it has processes, so one deeper than `limit` is two agents naming each other as parent: node's
-/// recursion overflows there (activity-table.ts:52-57) and the line fails.
+/// What `agent_below` has settled, by pid: the first agent under that process on its stretch, or none.
+type Settled<'a> = HashMap<i64, Option<&'a ActivityProc>>;
+
+/// The first agent under `p` on its stretch of the tree, a stretch agent standing as itself. What is settled for a process is
+/// kept, so a chain of agents is walked once whatever the number of rows that ask. Two agents naming each other as parent
+/// are what node's recursion overflows on (activity-table.ts:52-57), and the line fails.
 fn agent_below<'a>(
     p: &ActivityProc,
     kids: &HashMap<i64, Vec<&'a ActivityProc>>,
-    depth: usize,
-    limit: usize,
+    settled: &mut Settled<'a>,
 ) -> Result<Option<&'a ActivityProc>, HostError> {
-    if depth > limit {
-        return Err(HostError::new("Maximum call stack size exceeded"));
+    if let Some(known) = settled.get(&p.pid.get()) {
+        return Ok(*known);
     }
-    let mut stack = vec![(kids.get(&p.pid.get()).into_iter().flatten(), depth)];
-    while let Some((below, at)) = stack.last_mut() {
-        let Some(k) = below.find(|k| k.kind == ProcKind::Agent) else {
-            stack.pop();
-            continue;
-        };
-        if is_stretch_agent(k, kids) {
-            return Ok(Some(*k));
+    let mut above: HashSet<i64> = HashSet::from([p.pid.get()]);
+    let mut stack = vec![(p.pid.get(), kids.get(&p.pid.get()).into_iter().flatten())];
+    loop {
+        let Some((_, below)) = stack.last_mut() else { return Ok(None) };
+        let mut found = None;
+        let mut descend = None;
+        for k in below.by_ref().filter(|k| k.kind == ProcKind::Agent) {
+            if is_stretch_agent(k, kids) {
+                found = Some(*k);
+            } else {
+                match settled.get(&k.pid.get()) {
+                    Some(Some(known)) => found = Some(*known),
+                    Some(None) => continue,
+                    None if above.contains(&k.pid.get()) => return Err(HostError::new("Maximum call stack size exceeded")),
+                    None => descend = Some(*k),
+                }
+            }
+            break;
         }
-        let next = *at + 1;
-        if next > limit {
-            return Err(HostError::new("Maximum call stack size exceeded"));
+        if let Some(agent) = found {
+            for (at, _) in stack {
+                settled.insert(at, Some(agent));
+            }
+            return Ok(Some(agent));
         }
-        stack.push((kids.get(&k.pid.get()).into_iter().flatten(), next));
+        match descend {
+            Some(k) => {
+                above.insert(k.pid.get());
+                stack.push((k.pid.get(), kids.get(&k.pid.get()).into_iter().flatten()));
+            }
+            None => {
+                if let Some((at, _)) = stack.pop() {
+                    above.remove(&at);
+                    settled.insert(at, None);
+                }
+            }
+        }
     }
-    Ok(None)
 }
 
 fn sorted(mut list: Vec<Node>) -> Vec<Node> {
@@ -224,13 +248,14 @@ fn tree_of(rows: &[ActivityProc], fold: bool) -> Result<Vec<Node>, HostError> {
         }
     }
     let mut into: HashMap<i64, i64> = HashMap::new();
+    let mut settled = Settled::new();
     if fold {
         let first = rows.iter().find(|p| is_stretch_agent(p, &kids)).or_else(|| rows.iter().find(|p| p.kind == ProcKind::Agent));
         for p in rows {
             if p.kind != ProcKind::Agent || is_stretch_agent(p, &kids) || Some(p.pid.get()) == first.map(|f| f.pid.get()) {
                 continue;
             }
-            if let Some(target) = agent_below(p, &kids, 0, rows.len())?.or(first) {
+            if let Some(target) = agent_below(p, &kids, &mut settled)?.or(first) {
                 into.insert(p.pid.get(), target.pid.get());
             }
         }
