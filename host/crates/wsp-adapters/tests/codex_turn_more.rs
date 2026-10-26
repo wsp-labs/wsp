@@ -219,7 +219,7 @@ fn sub(session: &str, task: &str, state: SubagentState, s: Sub) -> AdapterEvent 
         parent_tool_use_id: s.parent.map(String::from),
         title: s.title.map(String::from),
         summary: s.summary.map(String::from),
-        depth: s.depth,
+        depth: s.depth.map(|d| JsNumber(f64::from(d))),
         model: s.model.map(String::from),
         asked: s.asked.map(String::from),
         usage: s.usage,
@@ -628,7 +628,7 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
             subagents_of(&events).into_iter().filter(|e| matches!(e, AdapterEvent::Subagent { usage: None, .. })).collect();
         let last = without_usage.last().expect("a subagent event without usage");
         assert_eq!(sub_task_state(last), (CHILD.to_string(), SubagentState::Running));
-        assert!(matches!(last, AdapterEvent::Subagent { depth: Some(1), .. }), "{last:?}");
+        assert!(matches!(last, AdapterEvent::Subagent { depth: Some(JsNumber(1.0)), .. }), "{last:?}");
         assert_eq!(
             deltas_for(&events, SPAWN),
             vec![

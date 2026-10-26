@@ -17,9 +17,10 @@ use crate::opencode::catalog::{catalog_probe_command, parse_catalog_probe, parse
 use crate::opencode::command::{build_command, build_env, BuildCommandOptions, OpenCodeEnvOptions};
 use crate::pending::{refused_turn, Refusal};
 use crate::port::{
-    end_after_result, end_run, system_now, AdapterAttachOptions, AdapterError, AdapterEvent, AgentLaunch, AttachRunOptions, Attached,
-    AttachmentRoad, DeltaKind, Env, ExecFailure, ExecOptions, ExecStream, ExecStreamFactory, HarnessAdapter, HarnessCatalogAnswer,
-    HarnessExec, HarnessSession, HarnessStartOptions, Now, OnEvent, SharedFuture, TurnDelta, TurnResult, TurnStatus, TurnTokens,
+    end_after_result, end_run, started, system_now, AdapterAttachOptions, AdapterError, AdapterEvent, AgentLaunch, AttachRunOptions,
+    Attached, AttachmentRoad, DeltaKind, Env, ExecFailure, ExecOptions, ExecStream, ExecStreamFactory, HarnessAdapter,
+    HarnessCatalogAnswer, HarnessExec, HarnessSession, HarnessStartOptions, Now, OnEvent, SharedFuture, TurnDelta, TurnResult, TurnStatus,
+    TurnTokens,
 };
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::session::TurnRefusal;
@@ -524,7 +525,7 @@ impl OpenCodeCore for Turn {
         self.st.borrow_mut().interrupt_requested = true;
         let stream = self.stream.clone();
         let grace = self.grace_ms;
-        async move { end_run(&*stream, grace).await }.boxed_local()
+        started(async move { end_run(&*stream, grace).await }.boxed_local())
     }
 }
 

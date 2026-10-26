@@ -8,13 +8,11 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use std::task::Context;
 use std::time::Duration;
 
 use futures::channel::oneshot;
-use futures::future::{FutureExt, LocalBoxFuture};
+use futures::future::FutureExt;
 use futures::stream::StreamExt;
-use futures::task::noop_waker_ref;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::Value;
 use tokio::task::JoinHandle;
@@ -41,6 +39,7 @@ use crate::claude::tokens::{held_tokens, input_tokens, plus_tokens, usage_of, us
 use crate::pending::{
     background_tasks_line, fmt_duration, harness_exit_line, subagent_asked, task_finished_line, HarnessEnded, Refusal, QUESTION_TOOL,
 };
+pub(crate) use crate::port::fire;
 use crate::port::{
     end_after_result, end_run, settles_within, system_now, AccessOutcome, AdapterEvent, AnswerOutcome, DeltaKind, ExecFailure,
     ExecFailureKind, ExecStream, KeptRun, KeptTurn, OnEvent, PermissionAnswer, PermissionAsk, PermissionOutcome, SessionFile, SharedFuture,
@@ -218,16 +217,6 @@ fn grace_ms(core: &AdapterCore) -> u64 {
 
 fn exit_ms(core: &AdapterCore) -> u64 {
     core.deps.result_exit_ms.unwrap_or(RUN_EXIT_MS)
-}
-
-/// Starts a write or a run's end now, as the TS does with `void stream.write(...)`: the line is taken in this call, so
-/// a close that follows it cannot overtake it.
-pub(crate) fn fire<T: 'static>(mut future: LocalBoxFuture<'static, T>) {
-    if future.as_mut().poll(&mut Context::from_waker(noop_waker_ref())).is_pending() {
-        tokio::task::spawn_local(async move {
-            future.await;
-        });
-    }
 }
 
 fn no_parent(event: &Obj) -> bool {
@@ -752,7 +741,7 @@ impl Turn {
                     parent_tool_use_id: started.parent,
                     title: started.title,
                     summary: None,
-                    depth: started.depth.map(|d| d as u32),
+                    depth: started.depth.map(JsNumber),
                     model: None,
                     asked: prompt.map(|p| subagent_asked(&p)),
                     usage: None,
@@ -1084,7 +1073,11 @@ impl Turn {
                         st.held_told = st.background_tasks > 0;
                         if st.held_told {
                             let running = st.background_tasks;
-                            Next::Hold(Some(AdapterEvent::TurnTasks { session_id: session_id.clone(), running, replied: Some(result) }))
+                            Next::Hold(Some(AdapterEvent::TurnTasks {
+                                session_id: st.claude_session_id.clone(),
+                                running,
+                                replied: Some(result),
+                            }))
                         } else {
                             if !st.busy() {
                                 self.arm_settle(st);

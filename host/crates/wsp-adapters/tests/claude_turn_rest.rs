@@ -211,7 +211,7 @@ impl Sub {
             parent_tool_use_id: Some(self.parent),
             title: self.title,
             summary: self.summary,
-            depth: self.depth,
+            depth: self.depth.map(|d| JsNumber(f64::from(d))),
             model: self.model,
             asked: self.asked,
             usage: self.usage,

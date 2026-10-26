@@ -228,7 +228,7 @@ mod a_codex_threads_earlier_messages {
                     line("person", "second turn", 1791673748894.0),
                     line("agent", "stub reply to: second turn", 1791673748904.0),
                 ],
-                earlier: 0,
+                earlier: 0.0,
             })
         );
         assert_eq!(o.methods(), vec!["thread/resume", "thread/turns/list", "thread/items/list"]);
@@ -256,7 +256,7 @@ mod a_codex_threads_earlier_messages {
                 cwd: Some(LAB.into()),
                 title: Some("lab terminal thread".into()),
                 lines: vec![line("agent", "stub reply to: second turn", 1791673748904.0)],
-                earlier: 0
+                earlier: 0.0
             })
         );
         assert_eq!(o.methods(), vec!["thread/read", "thread/turns/list", "thread/items/list"]);
@@ -278,7 +278,7 @@ mod a_codex_threads_earlier_messages {
                 cwd: Some(LAB.into()),
                 title: Some("lab terminal thread".into()),
                 lines: vec![line("agent", "stub reply to: second turn", 1791673748904.0)],
-                earlier: 3
+                earlier: 3.0
             })
         );
         assert_eq!(o.requests()[0]["method"], json!("thread/read"));
@@ -430,11 +430,11 @@ mod rules_added_newest {
             let r = newest_lines(&items, 10, last);
             (r.lines.into_iter().map(|l| l.text).collect::<Vec<_>>(), r.earlier)
         };
-        assert_eq!(kept(0), (vec![], 10));
-        assert_eq!(kept(1), (vec!["a2".to_string(), "t3".into()], 9));
-        assert_eq!(kept(3), (["a1", "t2", "p2", "a2", "t3"].map(String::from).to_vec(), 7));
+        assert_eq!(kept(0), (vec![], 10.0));
+        assert_eq!(kept(1), (vec!["a2".to_string(), "t3".into()], 9.0));
+        assert_eq!(kept(3), (["a1", "t2", "p2", "a2", "t3"].map(String::from).to_vec(), 7.0));
         let all = ["p1", "t1", "a1", "t2", "p2", "a2", "t3"].map(String::from).to_vec();
-        assert_eq!(kept(4), (all.clone(), 6));
-        assert_eq!(kept(9), (all, 6));
+        assert_eq!(kept(4), (all.clone(), 6.0));
+        assert_eq!(kept(9), (all, 6.0));
     }
 }
