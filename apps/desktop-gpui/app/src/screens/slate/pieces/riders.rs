@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The words a number's stat cell carries in its note, after `apps/web/src/slate/pieces/riders.ts`: a status and the
 //! text that follows it, written right after the number, or beside it in the same row or cell (alone, or stacked in a
-//! column of their own). The number draws them; the pieces themselves draw nothing. Two numbers or more alone in a row,
-//! column or grid are a strip of stat cells.
+//! column of their own). The number draws them; the pieces themselves draw nothing. Two figures or more (numbers,
+//! rings, meters) alone in a row, column or grid are a strip of stat tiles.
 
 use super::super::Slate;
 use super::layout::is_note_text;
@@ -42,26 +42,32 @@ fn holds_one_cell(slate: &Slate, id: &str) -> bool {
     }
 }
 
-/// The numbers of a strip: a row, column or grid holding two numbers or more and nothing else, but for a status
-/// written right after a number and a text right after that status.
+/// The pieces a strip of stat tiles holds.
+fn is_figure(kind: Option<&str>) -> bool {
+    matches!(kind, Some("number" | "ring" | "meter"))
+}
+
+/// The figures of a strip: a row, column or grid holding two figures or more (numbers, rings, meters) and nothing
+/// else, but for a status written right after a number and a text right after that status. A ring and a meter beside
+/// numbers draw as the same tile, so one row never mixes a bar line with a stacked figure.
 pub fn strip_cells(slate: &Slate, id: &str) -> Option<Vec<String>> {
     if !matches!(kind(slate, id), Some("row" | "column" | "grid")) {
         return None;
     }
     let all = children(slate, id);
     let kinds: Vec<Option<&str>> = all.iter().map(|c| kind(slate, c)).collect();
-    let numbers: Vec<String> = all.iter().zip(&kinds).filter(|(_, k)| **k == Some("number")).map(|(c, _)| c.clone()).collect();
-    if numbers.len() < 2 {
+    let figures: Vec<String> = all.iter().zip(&kinds).filter(|(_, k)| is_figure(**k)).map(|(c, _)| c.clone()).collect();
+    if figures.len() < 2 {
         return None;
     }
     let before = |at: usize, back: usize| at.checked_sub(back).and_then(|i| kinds[i]);
     let fits = kinds.iter().enumerate().all(|(at, k)| match k {
-        Some("number") => true,
+        Some("number" | "ring" | "meter") => true,
         Some("status") => before(at, 1) == Some("number"),
         Some("text") => before(at, 1) == Some("status") && before(at, 2) == Some("number"),
         _ => false,
     });
-    fits.then_some(numbers)
+    fits.then_some(figures)
 }
 
 pub fn is_strip(slate: &Slate, id: &str) -> bool {
@@ -117,5 +123,6 @@ pub fn ridden_by(slate: &Slate, id: &str) -> Option<String> {
 /// A row or cell holding one number and only the words that ride it: the number's stat cell stands in its place.
 pub fn is_stat_cell(slate: &Slate, id: &str) -> bool {
     let numbers: Vec<&String> = children(slate, id).iter().filter(|c| kind(slate, c) == Some("number")).collect();
-    numbers.len() == 1 && holds_one_cell(slate, id) && !riders_of(slate, numbers[0]).all.is_empty()
+    // A strip pads its own cells, so its one number with a status is a strip cell, not a stat cell padded again.
+    numbers.len() == 1 && holds_one_cell(slate, id) && !is_strip(slate, id) && !riders_of(slate, numbers[0]).all.is_empty()
 }

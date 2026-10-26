@@ -2,7 +2,8 @@
 //! The slate panel in Paper and Graphite drawn by GPUI's real offscreen renderer, against a host started for this run
 //! alone, at the panel body's 539 px and the window's scale of 2. Each state writes one of the
 //! `parity/wave-2/data/*.slate` files onto a fresh thread. `SLATE_PNG=<folder>` writes `<theme>/<state>.png` there;
-//! `SLATE_STATES=a,b` picks states, the press-driven ones in `fixture::PRESSED` among them. Without libtest's harness, as `pixels.rs` explains.
+//! `SLATE_STATES=a,b` picks states, the press-driven ones in `fixture::PRESSED` among them; `SLATE_FILES=<path>,...`
+//! draws more slate files, each named by its file. Without libtest's harness, as `pixels.rs` explains.
 
 #[path = "../../host-client/tests/common/mod.rs"]
 mod common;
@@ -29,6 +30,11 @@ use wsp_host_client::HostClient;
 /// in an 800 px window.
 const W: f32 = 539.;
 const H: f32 = 748.;
+
+/// `SLATE_W=<px>` draws a narrower or wider panel, as the person drags it.
+fn width() -> f32 {
+    std::env::var("SLATE_W").ok().and_then(|w| w.parse().ok()).unwrap_or(W)
+}
 
 /// `SLATE_H=<px>` draws a taller window, to see a whole slate at once.
 fn height() -> f32 {
@@ -60,7 +66,7 @@ fn shoot(theme: &str, host: &Host, thread: &str, acts: &[Act]) -> image::RgbaIma
     let opened = Opened { thread_id: Some(thread.to_owned()), workspace_id: None, tab: Some("slate".into()), arg: None };
     let mut made = None;
     let handle: AnyWindowHandle = cx
-        .open_window(size(px(W), px(height())), |window, cx| {
+        .open_window(size(px(width()), px(height())), |window, cx| {
             let screen = cx.new(|cx| SlateScreen::new(host.clone(), opened.clone(), window, cx));
             made = Some(screen.clone());
             let panel = cx.new(|_| Panel { screen });
@@ -153,7 +159,7 @@ fn run_act(cx: &mut HeadlessAppContext, handle: AnyWindowHandle, screen: &Entity
         Act::Menu => cx
             .update_window(handle, |_, window, cx| {
                 // The trigger's centre: 28 px square at the column's right edge, 16 px in, under the head's 12 px.
-                let position = point(px(W - 16. - 14.), px(12. + 14.));
+                let position = point(px(width() - 16. - 14.), px(12. + 14.));
                 let (modifiers, button) = (Modifiers::default(), MouseButton::Left);
                 window.dispatch_event(MouseMoveEvent { position, pressed_button: None, modifiers }.to_platform_input(), cx);
                 window.dispatch_event(
@@ -194,14 +200,28 @@ fn main() {
     let runtime = Arc::new(tokio::runtime::Builder::new_multi_thread().worker_threads(2).enable_all().build().unwrap());
     let client = Arc::new(runtime.block_on(HostClient::connect(&host.state(), &host.env())).unwrap_or_else(|f| panic!("{}", f.message)));
     let handle = Host::new(client, runtime);
-    for state in fixture::STATES {
-        if only.as_ref().is_some_and(|o| !o.iter().any(|s| s == state.name)) {
-            continue;
-        }
+    // `SLATE_FILES=<path>,...` draws slate files from any folder too, each a state named by its file.
+    let files: Vec<fixture::State> = std::env::var("SLATE_FILES")
+        .ok()
+        .iter()
+        .flat_map(|f| f.split(',').filter(|f| !f.is_empty()).map(str::to_owned).collect::<Vec<_>>())
+        .map(|path| {
+            let path = std::fs::canonicalize(&path).unwrap_or_else(|e| panic!("SLATE_FILES names {path}: {e}"));
+            let name = path.file_stem().unwrap().to_string_lossy().into_owned();
+            fixture::State { name: name.leak(), file: Some(path.to_string_lossy().into_owned().leak()) }
+        })
+        .collect();
+    let picked = fixture::STATES.iter().filter(|s| only.as_ref().is_none_or(|o| o.iter().any(|n| n == s.name)));
+    for state in picked.chain(&files) {
         let thread = fixture::staged(&host, &folder, state);
         for theme in ["paper", "graphite"] {
             let image = shoot(theme, &handle, &thread, &[]);
-            assert_eq!((image.width(), image.height()), (2 * W as u32, 2 * height() as u32), "{} in {theme} is drawn at 2x", state.name);
+            assert_eq!(
+                (image.width(), image.height()),
+                (2 * width() as u32, 2 * height() as u32),
+                "{} in {theme} is drawn at 2x",
+                state.name
+            );
             if let Some(out) = &out {
                 std::fs::create_dir_all(out.join(theme)).unwrap();
                 image.save(out.join(theme).join(format!("{}.png", state.name))).unwrap();

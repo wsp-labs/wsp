@@ -20,6 +20,7 @@ import { mcpServer } from "../src/mcp.js";
 import { CLOUD_ON } from "../src/cloud.js";
 import { instructions, RULES_HEADING, SHELL_HEADING, VERBS_HEADING, wspSkill } from "../src/skill.js";
 import { ALL_VERBS, CLI_VERBS, COMMON, COMMON_FLAG_WORDS, FLAG_WORDS, HELP_WIDTH, VERBS, flagList, flagSays, hasTool, optionalValues, openingOf, ownFlagsOf, toolName, verbPage, type Flags } from "../src/verbs.js";
+import { shellWords, wspCommands } from "./wsp-lines.js";
 
 /** verbs.ts and the files under verbs/ it re-exports, read as one text, for the greps that ask whether a verb sends an op. */
 const verbsSource = (): string =>
@@ -117,85 +118,6 @@ export function flagDrift(skill: string, lines: readonly CommandLine[]): string[
     for (const name of shown) if (!Object.hasOwn(options, name)) drift.push(`the row for wsp ${words} shows --${name}, which it does not read`);
   }
   return drift;
-}
-
-/** The words of a shell line: quotes and `<...>` placeholders group, `[` and `]` are dropped, and a redirect, a
- * pipe, a `&` or a `#` comment ends the line; the comment's text comes back beside the words. */
-export function shellWords(line: string): { words: string[]; comment?: string } {
-  const words: string[] = [];
-  let word = "";
-  let quote: string | undefined;
-  let angle = 0;
-  const flush = (): void => {
-    if (word !== "") words.push(word);
-    word = "";
-  };
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i]!;
-    if (quote !== undefined) {
-      word += c;
-      if (c === quote) quote = undefined;
-      continue;
-    }
-    if (angle > 0) {
-      word += c;
-      if (c === "<") angle++;
-      if (c === ">") angle--;
-      continue;
-    }
-    if (c === "'" || c === '"') {
-      quote = c;
-      word += c;
-      continue;
-    }
-    if (c === "<") {
-      angle = 1;
-      word += c;
-      continue;
-    }
-    if (c === "[" || c === "]") continue;
-    if (c === "#" && word === "") return { words, comment: line.slice(i + 1).trim() };
-    if (/\s/.test(c)) {
-      flush();
-      continue;
-    }
-    if (word === "" && (c === ">" || c === "&" || c === "|" || c === ";" || /^\d>/.test(line.slice(i)))) {
-      return { words };
-    }
-    word += c;
-  }
-  flush();
-  return { words };
-}
-
-export const ILLUSTRATIVE = "illustrative";
-
-/** Every `wsp ...` line a reader would copy from the text: each line of a fenced block and each inline code span
- * that opens with wsp (a leading nohup dropped). An output line (`wsp <version>`), an error line (`wsp new: ...`)
- * and a fenced line whose comment says illustrative are not commands. */
-export function wspCommands(text: string): string[][] {
-  const candidates: string[] = [];
-  const lines = text.split("\n");
-  let fenced = false;
-  for (const line of lines) {
-    if (line.trim().startsWith("```")) {
-      fenced = !fenced;
-      continue;
-    }
-    if (fenced) candidates.push(line);
-    else for (const m of line.matchAll(/`([^`]+)`/g)) candidates.push(m[1]!);
-  }
-  const commands: string[][] = [];
-  for (const candidate of candidates) {
-    const { words, comment } = shellWords(candidate.trim());
-    if (words[0] === "nohup") words.shift();
-    if (words[0] !== "wsp" || words.length < 2) continue;
-    if (comment === ILLUSTRATIVE) continue;
-    const first = words[1]!;
-    if (first.startsWith("<") || first.endsWith(":")) continue;
-    commands.push(words);
-  }
-  return commands;
 }
 
 /** Why the line does not parse against the command it names, or nothing when it does. */
@@ -384,11 +306,12 @@ describe("the command line, the MCP tools and the skill are one contract", () =>
       "slates.unsubscribe": "a window letting go of a hold it took",
       "slates.resolve": "the window's read of a path it cannot resolve itself; an agent names paths in slate read",
       "slates.image": "the window's read of the bytes an image piece draws; an agent reads the image's src and state in the sketch",
+      "slates.page": "the window's read of the HTML a frame piece draws; an agent wrote the file, and sees it drawn with slate look",
     };
     expect(RUNTIME_OPS.filter(op => op.startsWith("slates.") && !verbs.includes(`"${op}"`)).sort()).toEqual(Object.keys(WINDOW_ONLY).sort());
   });
 
-  it("the four slate tools' entries in tools/list total under 4,400 characters, the budget every session pays, and every input says what it takes (10)", async () => {
+  it("the five slate tools' entries in tools/list total under 5,250 characters, the budget every session pays, and every input says what it takes (10)", async () => {
     const server = mcpServer("/nonexistent/state.json", { env: {} });
     const [toClient, toServer] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "parity", version: "0" });
@@ -396,10 +319,12 @@ describe("the command line, the MCP tools and the skill are one contract", () =>
     await client.connect(toClient);
     try {
       const slate = (await client.listTools()).tools.filter(t => t.name.startsWith("slate_"));
-      expect(slate.map(t => t.name).sort()).toEqual(["slate_catalog", "slate_read", "slate_state", "slate_write"]);
+      expect(slate.map(t => t.name).sort()).toEqual(["slate_catalog", "slate_look", "slate_read", "slate_state", "slate_write"]);
       // Every session with a slate pays these schemas each turn; _meta is read by the client and never reaches the model.
-      // 4,300 to 4,400 for where a run's script goes, after a Codex thread wrote one into the project.
-      expect(slate.reduce((n, t) => n + JSON.stringify({ ...t, _meta: undefined }).length, 0)).toBeLessThan(4400);
+      // 4,300 to 4,400 for where a run's script goes, after a Codex thread wrote one into the project; 5,200 for
+      // slate_look, since an agent writing a frame cannot see it otherwise; 5,250 once the slate's purpose line
+      // joined it, the four older tools at 4,394 and slate_look at 820.
+      expect(slate.reduce((n, t) => n + JSON.stringify({ ...t, _meta: undefined }).length, 0)).toBeLessThan(5250);
       for (const t of slate) for (const [name, input] of Object.entries(t.inputSchema.properties ?? {})) expect((input as { description?: string }).description, `${t.name}.${name}`).toBeTruthy();
       // A Claude Code launch loads the server's tools up front, and every tool but the slate's opts back out of that.
       for (const t of slate) expect(t._meta, t.name).toEqual({ "anthropic/alwaysLoad": true });

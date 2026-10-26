@@ -40,6 +40,8 @@ export interface GuestDoorOptions {
   hostUrl(): string | undefined | Promise<string | undefined>;
   /** One module per kind; a kind with no module here is closed with the same refusal an unknown one would be. */
   kinds: Readonly<Record<GuestKind, GuestKindModule>>;
+  /** Whether an app on this computer draws looks, read as each session opens; a turn's tools list slate_look only then. */
+  lookable?(): boolean;
 }
 
 const keyOf = (workspaceId: string, session: string): string => `${workspaceId} ${session}`;
@@ -121,7 +123,7 @@ export function guestDoor(o: GuestDoorOptions): GuestDoor {
       argv: e.argv,
       cwd: e.cwd,
       env,
-      ...(scope.rootThreadId !== scope.threadId ? { noSlate: true as const } : {}),
+      ...(scope.rootThreadId !== scope.threadId ? { noSlate: true as const } : o.lookable?.() === false ? { noLook: true as const } : {}),
       reply: message => down(held.link, "guest.reply", { session: e.session, message }),
       close: error => endHere(held, e.session, error),
     });

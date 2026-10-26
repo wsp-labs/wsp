@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { z } from "zod";
-import { turnTokenOf, usageRefusal, SLATE_SCRIPT_WORDS, SLATE_TOOLS } from "@wsp/protocol";
+import { turnTokenOf, usageRefusal, SLATE_PURPOSE, SLATE_SCRIPT_WORDS, SLATE_TOOLS, THREAD_ENV, type SlatesLookAnswer } from "@wsp/protocol";
 import { type HostClient, type VerbDeps, type VerbContext, usageIs, tool, type Verb, flagList, pick } from "./client.js";
 import { threadOf } from "./workspaces-help.js";
 import { asText } from "./io.js";
@@ -60,6 +61,19 @@ function slateFile(ctx: VerbContext, path: string): { text: string } | { documen
   return { document: parsed as Record<string, unknown> };
 }
 
+/** Said after a look's line where the look cut a slate taller than it takes. */
+export const lookCutLine = (height: number, whole: number): string => `Cut at ${height} of its ${whole} px, as the panel scrolls it.`;
+
+/** What a look drew, said after its file. */
+export const lookLine = (drawn: Omit<SlatesLookAnswer, "png">): string => `The slate as the window draws it: ${drawn.width} by ${drawn.height} px at ${drawn.scale}x, ${drawn.theme}.${drawn.whole !== undefined ? ` ${lookCutLine(drawn.height, drawn.whole)}` : ""}`;
+
+function widthOf(raw: unknown, ctx: VerbContext): number | undefined {
+  if (typeof raw !== "string") return undefined;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 280 || n > 1600) throw usageRefusal(`--width takes the panel's width in px, from 280 to 1600, and ${raw} is not one.`, usageIs(ctx));
+  return n;
+}
+
 const ifVersionOf = (ctx: VerbContext): number | undefined => {
   const raw = ctx.flags["if-version"];
   if (typeof raw !== "string") return undefined;
@@ -95,7 +109,7 @@ export const SLATE_VERBS: readonly Verb[] = [
       return 0;
     },
     tool: tool({
-      description: "What a slate, the live panel beside the chat, can hold: every piece, and the runs that keep it fresh. Call it first whenever the person wants to see, watch, monitor or keep an eye on something, tick things off as they go, or see what's unread, even when another tool fetches the data.",
+      description: `What a slate here can hold: every piece and run. ${SLATE_PURPOSE} Call it first whenever the person wants to see, watch, monitor or keep an eye on something, tick things off as they go, or see what's unread, even when another tool fetches the data.`,
       input: { name: z.string().optional().describe("leave out first: the index of every piece; then an entry, like runs") },
       output: { text: z.string() },
       call: async ({ name }, deps) => {
@@ -135,7 +149,7 @@ export const SLATE_VERBS: readonly Verb[] = [
       return 0;
     },
     tool: tool({
-      description: `Writes this thread's slate, the live panel here beside the chat. Use it to show the person what they want to see, watch, monitor or keep an eye on while you work (live data, traffic, metrics, a price, logs, a PR, progress, status), a dashboard, a form to fill in or a checklist. A run with every= refreshes on a timer with no turns, so nothing polls. ${SLATE_SCRIPT_WORDS}`,
+      description: `Writes this thread's slate. ${SLATE_PURPOSE} Show what they want to see (live data, traffic, metrics, a price, a PR, progress), a dashboard, a form to fill in or a decision. A run with every= refreshes; never poll in chat. ${SLATE_SCRIPT_WORDS}`,
       input: {
         thread: SlateThreadIn,
         text: z.string().optional().describe("JSX-like text: a <slate>, or a patch"),
@@ -180,7 +194,7 @@ export const SLATE_VERBS: readonly Verb[] = [
       return 0;
     },
     tool: tool({
-      description: "Sets the slate's live $values by path, so the person sees progress, status or a checklist tick move as you work; reactions fire. start starts a run the person allowed to run always.",
+      description: "Sets the slate's live $values by path, so the person sees progress, status or a checklist tick move; reactions fire. start starts a run the person allowed always.",
       input: { thread: SlateThreadIn, values: z.record(z.string(), z.unknown()).optional().describe("$path: new value"), start: z.array(z.string()).optional().describe("runs allowed always"), if_version: SlateIfVersionIn },
       output: slateOut("problems", "waiting", "notStarted"),
       stream: ["text"],
@@ -214,6 +228,38 @@ export const SLATE_VERBS: readonly Verb[] = [
         const client = await deps.client();
         const read = await slateAsk<{ text: string }>(client, "slates.read", { ...(await slateTarget(client, thread, deps.env)), ...pick({ values, text, sketch, document }) });
         return asText(read.text, read);
+      },
+    }),
+  },
+  {
+    name: "slate look",
+    usage: "wsp slate look [<thread>] [--width <px>] [--out <file>]",
+    about: "draws the thread's slate as the app's window does, in the person's theme at the panel's width, and saves it as a PNG; the tool answers the picture",
+    page: "agent",
+    options: { width: { type: "string" }, out: { type: "string" } },
+    run: async ctx => {
+      if (ctx.args.length > 1) throw usageRefusal("wsp slate look takes one thread at most.", usageIs(ctx));
+      const width = widthOf(ctx.flags["width"], ctx);
+      const client = await ctx.client();
+      const target = await slateTarget(client, ctx.args[0], ctx.env);
+      const { png, ...drawn } = await slateAsk<SlatesLookAnswer & { text: string }>(client, "slates.look", { ...target, ...pick({ width }) });
+      const named = typeof ctx.flags["out"] === "string";
+      // One file per thread in the temporary folder, each look over the last, so looks leave no folder behind; made
+      // anew and never through a link someone planted at that name.
+      const out = named ? resolve(ctx.cwd ?? process.cwd(), ctx.flags["out"] as string) : join(tmpdir(), `wsp-slate-look-${(target.threadId ?? ctx.env[THREAD_ENV] ?? "here").replace(/[^\w-]/g, "_")}.png`);
+      if (!named) rmSync(out, { force: true });
+      writeFileSync(out, Buffer.from(png, "base64"), named ? {} : { flag: "wx" });
+      ctx.out.emit({ ...drawn, path: out }, `${out}\n${lookLine(drawn)}`);
+      return 0;
+    },
+    tool: tool({
+      description: "A picture of this thread's slate as the person sees it, in their theme and panel width. Look once after a frame or a big change, not each patch.",
+      input: { thread: SlateThreadIn, width: z.number().int().optional().describe("280 to 1600 px, else the panel's") },
+      output: { width: z.number(), height: z.number(), scale: z.number(), theme: z.string(), whole: z.number().optional(), path: z.string().optional() },
+      call: async ({ thread, width }, deps) => {
+        const client = await deps.client();
+        const { png, ...drawn } = await slateAsk<SlatesLookAnswer & { text: string }>(client, "slates.look", { ...(await slateTarget(client, thread, deps.env)), ...pick({ width }) });
+        return { content: [{ type: "image", data: png, mimeType: "image/png" }, { type: "text", text: lookLine(drawn) }], structuredContent: drawn };
       },
     }),
   },

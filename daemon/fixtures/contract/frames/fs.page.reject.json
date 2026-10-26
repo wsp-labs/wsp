@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "op": "fs.page"
+  },
+  {
+    "id": 1,
+    "op": "fs.page",
+    "path": 7
+  },
+  {
+    "id": 1,
+    "op": "fs.page",
+    "path": "/tmp/dial.html",
+    "machineId": 1
+  }
+]

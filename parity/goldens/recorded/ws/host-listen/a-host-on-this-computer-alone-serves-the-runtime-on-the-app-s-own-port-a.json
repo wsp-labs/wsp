@@ -1,0 +1,11 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    }
+  ],
+  "events": []
+}

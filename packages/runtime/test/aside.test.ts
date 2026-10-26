@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { LocalBackend } from "@wsp/engine";
-import { ASIDE_EMPTY_LINE, ASIDE_NO_SESSION_LINE, BLANK_ASIDE_LINE, HERE_PLACE_ID, NO_SLATE_MCP_ARG, type Caller, type ThreadScope, HOST_TOKEN_ENV, HOST_URL_ENV, MCP_SERVER_NAME, SCOPED_MCP_ARG, asideUnsupportedLine, deviceHeldRefusal, threadOpRefusal, type AsideQuestion, type ExecStream, type ExecStreamFactory, type TurnResult } from "@wsp/protocol";
+import { ASIDE_EMPTY_LINE, ASIDE_NO_SESSION_LINE, BLANK_ASIDE_LINE, HERE_PLACE_ID, NO_LOOK_MCP_ARG, NO_SLATE_MCP_ARG, type Caller, type ThreadScope, HOST_TOKEN_ENV, HOST_URL_ENV, MCP_SERVER_NAME, SCOPED_MCP_ARG, asideUnsupportedLine, deviceHeldRefusal, threadOpRefusal, type AsideQuestion, type ExecStream, type ExecStreamFactory, type TurnResult } from "@wsp/protocol";
 import { createRuntime, serveRuntime, type HarnessAdapterFactory, type LocalWiring, type Runtime, type RuntimeServer } from "../src/index.js";
 import { HARNESS_ADAPTERS } from "../src/adapters.js";
 import { localExecStream } from "../src/local-exec.js";
@@ -169,7 +169,7 @@ describe("a side question beside a thread", () => {
     expect(await rt.sessions.aside(first, "what did I last ask?")).toEqual({ text: ANSWER });
     // The copy resumes a session that announced the wsp server's instructions; a fork without that server is told
     // it disconnected, and the answer opens on it.
-    expect(seen[0]!.question.mcpServers).toEqual({ [MCP_SERVER_NAME]: { ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG] } });
+    expect(seen[0]!.question.mcpServers).toEqual({ [MCP_SERVER_NAME]: { ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG, NO_LOOK_MCP_ARG] } });
     // The scoped server refuses to start without the pair, which would read as the same disconnection.
     expect(seen[0]!.env[HOST_URL_ENV]).toBe("http://127.0.0.1:4801");
     expect(seen[0]!.env[HOST_TOKEN_ENV]).toMatch(/\S/);
@@ -306,7 +306,7 @@ describe("a side question beside a thread", () => {
     await child.finished;
     await rt.sessions.aside(lead.id, "how is it going?");
     await rt.sessions.aside(child.id, "how is it going?");
-    expect(asked[0]!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG] });
+    expect(asked[0]!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG, NO_LOOK_MCP_ARG] });
     expect(asked[1]!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG, NO_SLATE_MCP_ARG], noSlate: true });
   });
 

@@ -1,0 +1,82 @@
+<slate title="Dates, bytes and dollars">
+  <value name="ms" start={[
+    {at: 1790294400000, usd: 100},
+    {at: 1790380800000, usd: 137},
+    {at: 1790467200000, usd: 114},
+    {at: 1790553600000, usd: 151},
+    {at: 1790640000000, usd: 128},
+    {at: 1790726400000, usd: 105},
+    {at: 1790812800000, usd: 142},
+    {at: 1790899200000, usd: 119},
+    {at: 1790985600000, usd: 156},
+    {at: 1791072000000, usd: 133},
+    {at: 1791158400000, usd: 110},
+    {at: 1791244800000, usd: 147},
+    {at: 1791331200000, usd: 124},
+    {at: 1791417600000, usd: 101}
+  ]} />
+  <value name="iso" start={[
+    {at: "2026-10-12", n: 3},
+    {at: "2026-10-13", n: 8},
+    {at: "2026-10-14", n: 6},
+    {at: "2026-10-15", n: 4},
+    {at: "2026-10-16", n: 9},
+    {at: "2026-10-17", n: 7},
+    {at: "2026-10-18", n: 5},
+    {at: "2026-10-19", n: 3},
+    {at: "2026-10-20", n: 8},
+    {at: "2026-10-21", n: 6},
+    {at: "2026-10-22", n: 4},
+    {at: "2026-10-23", n: 9},
+    {at: "2026-10-24", n: 7},
+    {at: "2026-10-25", n: 5}
+  ]} />
+  <column>
+    <chart label="Spend a day, ms over 14 days" items={$ms} x={item.at} value={item.usd} format="usd" />
+    <chart label="Deploys a day, ISO dates" items={$iso} x={item.at} value={item.n} format="integer" height="small" />
+    <stats>
+      <stat label="Bundle" value={1268000} format="bytes" window="after the split" />
+      <stat label="Annual plan" value={22900} format="usd" window="list price" />
+      <stat label="Per seat" value={38.4} format="usd" window="a month" />
+    </stats>
+    <row id="one-number">
+      <ring label="Checks" value={14} max={14} format="fraction" tone="good" />
+      <number label="Open threads" value={3} />
+      <status tone="warning">1 blocking</status>
+    </row>
+    <row id="rings">
+      <ring label="Pods up" value={209} max={214} format="fraction" tone="good" />
+      <ring label="Healthy" value={198} max={214} format="fraction" />
+      <ring label="Ready" value={201} max={214} format="fraction" />
+    </row>
+    <table id="tight" items={[
+      { test: "proration across a DST change", build: "v2026.10.25-rc3", region: "ap-south-1", fails: "24/24", change: "−2%" },
+      { test: "refund applies partial tax", build: "v2026.10.25-rc3", region: "eu-west-1", fails: "1/3", change: "+4%" }
+    ]} key={item.test}>
+      <col title="Test" value={item.test} />
+      <col title="Build" value={item.build} mono={true} />
+      <col title="Region" value={item.region} mono={true} />
+      <col title="Failed" value={item.fails} />
+      <col title="Change" value={item.change} />
+    </table>
+    <table id="squeezed" items={[
+      { test: "proration across a DST change", build: "v2026.10.25-rc3", region: "ap-south-1", fails: 24, runs: 240 },
+      { test: "refund applies partial tax", build: "v2026.10.25-rc3", region: "eu-west-1", fails: 1, runs: 240 }
+    ]} key={item.test}>
+      <col title="Test" value={item.test} />
+      <col title="Build" value={item.build} mono={true} />
+      <col title="Region" value={item.region} mono={true} />
+      <col title="Fails" value={item.fails} />
+      <col title="Runs" value={item.runs} />
+    </table>
+    <table id="folded" items={[
+      { name: "Graphile Worker", store: "Postgres", owner: "infra team", note: "already in the stack" },
+      { name: "BullMQ", store: "Redis", owner: "nobody yet", note: "needs a new service" }
+    ]} key={item.name}>
+      <col title="Queue" value={item.name} />
+      <col title="Runs on" value={item.store} />
+      <col title="Owner" value={item.owner} />
+      <col title="Why" value={item.note} />
+    </table>
+  </column>
+</slate>

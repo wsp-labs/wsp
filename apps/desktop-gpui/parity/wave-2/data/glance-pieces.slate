@@ -1,0 +1,17 @@
+<slate title="Port to GPUI">
+  <value name="layer" start={null} />
+  <column>
+    <row>
+      <number label="Screens" value={14} />
+      <ring label="Tests passing" value={209} max={214} format="fraction" />
+      <meter label="Memory" value={62} note="of the 1 GB budget" />
+    </row>
+    <progress label="screens in the app" items={[{ n: "Settings", in: true }, { n: "Usage", in: true }, { n: "Sidebar", in: true }, { n: "Thread view", in: false, why: "the transcript scrolls at 52 fps" }, { n: "Browser pane", in: false, why: "waits on the webview" }]} key={item.n} name={item.n} done={item.in} note={item.why} />
+    <choices label="Which layer routes packets?" value={$layer} options={["Link", "Network", "Transport"]} answer="Network" />
+    <table items={[{ p: "apps/desktop-gpui/app/src/screens/slate/pieces/numbers.rs", a: "ring and meter tiles", n: 96 }, { p: "apps/desktop-gpui/app/src/screens/slate/pieces/lists.rs", a: "progress", n: 120 }]} key={item.p}>
+      <col title="File" value={item.p} mono />
+      <col title="Change" value={item.a} />
+      <col title="Lines" value={item.n} />
+    </table>
+  </column>
+</slate>

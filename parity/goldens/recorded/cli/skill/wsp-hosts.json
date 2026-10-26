@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": "You can reach no host but this computer. Run wsp login to sign in to your account.\n",
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

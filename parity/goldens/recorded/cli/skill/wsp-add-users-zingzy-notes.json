@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": "notes <pr-1>: /Users/zingzy/notes on this computer, at /Users/zingzy/notes\nopen a thread on it with: wsp run 'notes' \"<message>\"\n",
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

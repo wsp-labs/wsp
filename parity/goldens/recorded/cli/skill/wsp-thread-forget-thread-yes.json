@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp thread forget: no thread <thread>\n"
+    }
+  ],
+  "events": []
+}

@@ -523,6 +523,13 @@ mod tests {
         // Copied by a child: a write handle of this process's, inherited by another test's fork, makes the exec ETXTBSY.
         assert!(std::process::Command::new("/bin/cp").arg("/bin/sleep").arg(&copy).env_clear().status().unwrap().success());
         let mut kid = std::process::Command::new(&copy).arg("30").env_clear().spawn().unwrap();
+        // spawn returns once the kernel releases the parent, which is mid-exec: /proc/<pid>/exe still names this test binary.
+        let exe = format!("/proc/{}/exe", kid.id());
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while std::fs::read_link(&exe).ok().as_deref() != Some(copy.as_path()) {
+            assert!(std::time::Instant::now() < deadline, "the copy never became the program of pid {}", kid.id());
+            std::thread::sleep(Duration::from_millis(1));
+        }
         let state = locked(dir.path(), kid.id() as i32);
         let stood = (serving(&state).is_some(), vanished(&state));
         std::fs::remove_file(&copy).unwrap();

@@ -18,6 +18,7 @@ export * from "./tunnel.js";
 export * from "./place-forward.js";
 export * from "./harness-catalog.js";
 export * from "./adapters.js";
+export * from "./tape.js";
 // Re-exported so clients can wire a backend without importing the
 // engine directly; the runtime is the only layer that drives it.
 export {
@@ -65,3 +66,4 @@ export type * from "./slates.js";
 export type * from "./slate-runs.js";
 export * from "./activity.js";
 export type { McpSignIn } from "./slate-mcp.js";
+export { SLATE_LOOK_NO_APP, slateLookHubOf } from "./serve-slate-look.js";
