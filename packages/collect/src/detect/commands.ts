@@ -159,7 +159,7 @@ export function dropPlugins(text: string, drop: (name: string) => boolean): { te
 function notes(missing: readonly string[], dropped: readonly string[]): string[] {
   return [
     ...dropped.map(name => `# plugin ${name} left out: ${name} is not on the image`),
-    ...(missing.length > 0 ? [`# Guarded above: a call to one of these that is not on this machine is silent instead of an error: ${missing.join(", ")}. Tick them in wsp init to install them.`] : []),
+    ...(missing.length > 0 ? [`# Guarded above: a call to one of these that is not on this machine is silent instead of an error: ${missing.join(", ")}.`] : []),
   ];
 }
 

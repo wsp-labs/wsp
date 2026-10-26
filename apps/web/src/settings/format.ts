@@ -738,9 +738,6 @@ export const COMPUTER_PAGE_WORDS = {
   deleteLine: "Its transcript and the agent's session are kept, and a message after the delete starts a new machine.",
   deleteAtOnce: "At once",
   threadsHere: "Threads here",
-  spawnTitle: "Agents may start agents",
-  spawnLine: (depth: number, machines?: number): string =>
-    `A thread here may open threads of its own, up to ${machines === undefined ? "" : `${machines} ${machines === 1 ? "machine" : "machines"} and `}${depth === 1 ? "one level deep" : `${depth} levels deep`}.`,
   levelsTitle: "Levels deep",
   levelsLine: "1 lets the thread you start open threads, 2 lets those open their own.",
   nameTitle: "Name",

@@ -38,7 +38,7 @@ describe("hostsMenuItems", () => {
 });
 
 describe("what the Computers table says about a computer", () => {
-  const view = (over: Partial<PlaceView> = {}): PlaceView => ({ id: "p_1", kind: "computer", name: "old-macbook", default: false, present: true, engine: "none", takesForks: true, ...over });
+  const view = (over: Partial<PlaceView> = {}): PlaceView => ({ id: "p_1", kind: "computer", name: "old-macbook", default: false, present: true, takesForks: true, ...over });
   const now = Date.parse("2026-09-12T12:00:00.000Z");
 
   it("holds one word for the silence in the table's own slot, and dates it only where there is room", () => {

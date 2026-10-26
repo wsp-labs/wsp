@@ -1,6 +1,4 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-use std::time::{Duration, Instant};
-
 use serde_json::json;
 use wsp_host_client::protocol::*;
 
@@ -39,50 +37,12 @@ async fn add_a_computer() {
 }
 
 #[tokio::test]
-async fn image_setup() {
+async fn cloud_setup() {
     let client = shared().host.client().await;
     let setup = answered("init.get", client.call(ask::<InitGetRequest>(json!({}))).await).setup;
     assert!(setup.pricing.is_none());
-    assert!(setup.build_refusal.expect("a refusal with no place to build on").starts_with("no place here runs workspaces"));
 
     let got = client.call(ask::<InitKeysRequest>(json!({ "key": "not-a-key" }))).await;
     refused("init.keys", got, "this host forks machines on a provider that reads no API key, so there is none to save");
     answered("init.keys", client.call(ask::<InitKeysRequest>(json!({}))).await);
-
-    // The manual road reads this computer and waits on its screens; only init.build would boot a builder.
-    let job = answered("init.start", client.call(ask::<InitStartRequest>(json!({ "road": "manual" }))).await).job;
-    assert_eq!(job.road.to_string(), "manual");
-    let until = Instant::now() + Duration::from_secs(30);
-    let job = loop {
-        let setup = client.call(ask::<InitGetRequest>(json!({}))).await.unwrap_or_else(|f| panic!("init.get: {}", f.message)).setup;
-        let job = setup.job.expect("the job init.start began");
-        if job.phase.to_string() != "reading" {
-            break job;
-        }
-        assert!(Instant::now() < until, "the init job is still reading this computer: {job:?}");
-        tokio::time::sleep(Duration::from_millis(200)).await;
-    };
-    assert_eq!(job.phase.to_string(), "answering", "{job:?}");
-    let screen = &job.screens[0];
-    let id = serde_json::to_value(screen.id).unwrap();
-
-    let draft = json!({ "at": id, "ticks": [] });
-    let job = answered("init.draft", client.call(ask::<InitDraftRequest>(draft)).await).job;
-    assert!(job.drafts.iter().any(|d| serde_json::to_value(&d.at).unwrap() == id), "{:?}", job.drafts);
-    let job = answered("init.answer", client.call(ask::<InitAnswerRequest>(json!({ "screen": id, "ticks": screen.ticks }))).await).job;
-    assert_eq!(job.step, 1);
-    let job = answered("init.step", client.call(ask::<InitStepRequest>(json!({ "at": 0 }))).await).job;
-    assert_eq!(job.step, 0);
-
-    refused("init.build", client.call(ask::<InitBuildRequest>(json!({}))).await, "no place here runs workspaces");
-    let code = json!({ "tool": "dialogs-tool", "code": "1234" });
-    refused(
-        "init.signInCode",
-        client.call(ask::<InitSignInCodeRequest>(code)).await,
-        "no sign-in for dialogs-tool is waiting for a code from you",
-    );
-    refused("init.retry", client.call(ask::<InitRetryRequest>(json!({ "tool": "claude" }))).await, "no build is running to sign in on");
-
-    let job = answered("init.cancel", client.call(ask::<InitCancelRequest>(json!({}))).await).job;
-    assert_eq!(job.phase.to_string(), "cancelled");
 }

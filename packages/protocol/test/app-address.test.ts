@@ -4,7 +4,7 @@
 // after its first fork, the app writes the others as the person moves, and the
 // app's store reads all three back.
 import { describe, expect, it } from "vitest";
-import { addressFromHash, addressFromLink, appHash, linkFromHash, linkHash, openingHash, pairingCodeOf, workspaceHash } from "../src/index.js";
+import { addressFromHash, addressFromLink, appHash, linkFromHash, linkHash, pairingCodeOf, workspaceHash } from "../src/index.js";
 
 describe("the workspace a page opens on", () => {
   it("round-trips an id through the hash", () => {
@@ -74,12 +74,6 @@ describe("the screen a workspace's next thread is written on", () => {
 });
 
 describe("the code wsp init puts in the address of the page it opens", () => {
-  it("rides the end of the hash beside the workspace, and alone when there is no workspace", () => {
-    expect(openingHash("7K3MQP2X", "ws_a1b2")).toBe("#w/ws_a1b2/c/7K3MQP2X");
-    expect(openingHash("7K3MQP2X")).toBe("#c/7K3MQP2X");
-    expect(pairingCodeOf("#w/ws_a1b2/c/7K3MQP2X")).toEqual({ code: "7K3MQP2X", rest: "#w/ws_a1b2" });
-    expect(pairingCodeOf("#c/7K3MQP2X")).toEqual({ code: "7K3MQP2X", rest: "" });
-  });
 
   it("is not part of what the address names, so the workspace and the thread read as they would without it", () => {
     expect(addressFromHash("#w/ws_a1b2/c/7K3MQP2X")).toEqual({ workspaceId: "ws_a1b2" });

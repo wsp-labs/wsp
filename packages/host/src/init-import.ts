@@ -95,103 +95,10 @@ function rcIdentities(home: string): Set<string> {
   return out;
 }
 
-export interface SecretReader {
-  /** The secret stored under a Keychain service, filed under the account when one is given; rejects when the item is missing or the person refuses the consent dialog. */
-  read(service: string, account?: string): Promise<string>;
-  /** What a helper command prints on this computer, run under sh as the tool would run it; rejects when it fails. */
-  run(command: string): Promise<string>;
-}
-
-/** go-keyring, the library gh stores through, writes every macOS Keychain value as this prefix plus the base64 of
- * the bytes and undoes it on read; gh on Linux reads hosts.yml as written, so the value is unwrapped before it lands. */
-const GO_KEYRING_PREFIX = "go-keyring-base64:";
-
-/** macOS's own consent dialog stands between this call and the secret; nothing is cached or logged. A helper
- * command that reads the Keychain raises the same dialog, under the same read. */
-export function keychainReader(run: (file: string, args: string[]) => Promise<{ stdout: string }> = execFileAsync): SecretReader & { command(service: string, account?: string): { file: string; args: string[] } } {
-  const command = (service: string, account?: string) => ({ file: "security", args: ["find-generic-password", "-s", service, ...(account === undefined ? [] : ["-a", account]), "-w"] });
-  return {
-    command,
-    async read(service, account) {
-      const { file, args } = command(service, account);
-      const { stdout } = await run(file, args);
-      const value = stdout.replace(/\n$/, "");
-      return value.startsWith(GO_KEYRING_PREFIX) ? Buffer.from(value.slice(GO_KEYRING_PREFIX.length), "base64").toString("utf8") : value;
-    },
-    async run(line) {
-      const { stdout } = await run("/bin/sh", ["-c", line]);
-      return stdout.replace(/\n$/, "");
-    },
-  };
-}
-
-/** The last line `security` printed, since its stderr names the cause and never the secret. A helper's failure is its
- * exit status alone: the command line and whatever it printed may carry the key. */
-function secretFailure(e: unknown, helper: boolean): string {
-  if (helper) {
-    const code = e instanceof Error ? (e as { code?: unknown }).code : undefined;
-    return typeof code === "number" ? `exit status ${code}` : typeof code === "string" ? code : "no exit status";
-  }
-  const lines = (e instanceof Error ? e.message : String(e)).split("\n").map(l => l.trim()).filter(l => l !== "");
-  return lines.at(-1) ?? "unknown error";
-}
-
-export interface ReadSecrets {
-  /** Secret by its key (see secretKey), for the pack. */
-  values: Map<string, string>;
-  /** Logins none of whose items were read, with the reason security gave for each, after the account when the item is per user; `command` names a helper that failed. */
-  refused: { id: string; service: string; command?: string; reason: string }[];
-  /** Items not read on a login another of whose items was read: the login copies without them; `left` is the row detail. */
-  dropped: { id: string; service: string; account?: string; left: string; reason: string }[];
-}
-
 /** The row detail for an item the copy went without: an account's Keychain token, or another of a login's items. */
 export const leftBehind = (what: string, why = "no token in the Keychain"): string => `${what} left behind: ${why}`;
 
 const leftBehindItem = (s: PlannedSecret): string => (s.command === undefined ? leftBehind(s.service) : leftBehind("the helper's key", "the helper did not run here"));
-
-/** The Keychain items the ticked rows would copy, in plan order: one per login, and for a tool that files an item
- * per account, the one account the copy carries. An account the copy leaves behind is never read, so the consent
- * dialog is raised once per item that travels. Runs before anything boots so a refused dialog never costs a machine. */
-export function keychainLogins(picked: readonly ManifestEntry[], platform: "darwin" | "linux", home: string): PlannedSecret[] {
-  return planFiles(picked.map(e => ({ ...e, bring: true })), { home, stat: () => undefined, read: readSmall, platform }).secrets.filter(s => s.left === undefined);
-}
-
-/** Which of a login's accounts a copy would carry and which it would leave, for a tool that keeps one Keychain item
- * per signed-in user; nothing for every other row. Read off this computer as the screens are drawn, so the row says
- * whose login lands on the machine before it is answered. */
-export function copiedLogin(e: ManifestEntry, platform: "darwin" | "linux", home: string): { carries?: string; left: string[] } | undefined {
-  const secrets = planFiles([{ ...e, bring: true, choice: "copy" }], { home, stat: () => undefined, read: readSmall, platform }).secrets.filter(s => s.account !== undefined);
-  if (secrets.length === 0) return undefined;
-  const carries = secrets.find(s => s.left === undefined)?.account;
-  return { ...(carries !== undefined ? { carries } : {}), left: secrets.filter(s => s.left !== undefined).map(s => s.account!) };
-}
-
-export async function readSecrets(wanted: readonly PlannedSecret[], reader: SecretReader): Promise<ReadSecrets> {
-  const out: ReadSecrets = { values: new Map(), refused: [], dropped: [] };
-  const failed: { s: PlannedSecret; reason: string }[] = [];
-  for (const s of wanted) {
-    // One value per key: a helper two guest files render from runs once, so the consent dialog shows once.
-    if (out.values.has(secretKey(s)) || failed.some(f => secretKey(f.s) === secretKey(s))) continue;
-    try {
-      out.values.set(secretKey(s), s.command === undefined ? await reader.read(s.service, s.account) : await reader.run(s.command));
-    } catch (e) {
-      failed.push({ s, reason: secretFailure(e, s.command !== undefined) });
-    }
-  }
-  const read = new Set(wanted.filter(s => out.values.has(secretKey(s))).map(s => s.id));
-  for (const { s, reason } of failed) {
-    if (read.has(s.id)) {
-      out.dropped.push({ id: s.id, service: s.service, ...(s.account !== undefined ? { account: s.account } : {}), left: s.account !== undefined ? leftBehind(s.account) : leftBehindItem(s), reason });
-      continue;
-    }
-    const named = s.account === undefined ? reason : `${s.account}: ${reason}`;
-    const row = out.refused.find(r => r.id === s.id);
-    if (row === undefined) out.refused.push({ id: s.id, service: s.service, ...(s.command !== undefined ? { command: s.command } : {}), reason: named });
-    else row.reason = `${row.reason}; ${named}`;
-  }
-  return out;
-}
 
 /** Every file staged under a tree, by its path relative to that tree, which is where it lands under the home on
  * the far side. */
@@ -584,7 +491,7 @@ function hookDest(abs: string, home: string, row: Pick<RecipeEntry, "id" | "rung
 
 export interface ImportOptions {
   home: string;
-  /** Keychain secrets already read, by key (see readSecrets). */
+  /** Keychain secrets already read, by key. */
   secrets: ReadonlyMap<string, string>;
   platform: "darwin" | "linux";
   /** Every row of the manifest with its tick, so the MCP stage knows which servers stay and which come out; without it no MCP plan is made. */
@@ -843,8 +750,4 @@ export function importFor(picked: readonly ManifestEntry[], opts: ImportOptions)
     ...(opts.onResult !== undefined ? { onResult: opts.onResult } : {}),
     ...(opts.onContext !== undefined ? { onContext: opts.onContext } : {}),
   };
-}
-
-export function importResultPath(statePath: string): string {
-  return join(dirname(statePath), "golden-import.json");
 }

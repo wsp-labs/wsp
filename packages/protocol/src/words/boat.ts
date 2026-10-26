@@ -43,11 +43,5 @@ export function boatAddedLine(limits: BoatLimitsRead | undefined, size: BoatSize
 
 const sizeWords = (size: BoatSizeWords): string => `${size.type} ${fmtCpus(size.cpu)} ${fmtMemGb(size.memMb)} at ${fmtRateDollars(size.rateUsdPerHour)}/h until you pick another size`;
 
-/** What wsp init says of the first machine's flags on a build on Boat, which forks no first machine. */
-export const boatForksNoFirstLine = (flags: readonly string[]): string => `Boat forks no first machine, so ${flags.join(" and ")} ${flags.length === 1 ? "does" : "do"} nothing here.`;
-
-/** What a seal on Boat ends on in place of a first machine: nothing is forked there, a lead's sub-thread is. */
-export const BOAT_READY_LINE = "Boat is ready for sub-threads: a thread starts one with run and on boat.";
-
 /** The GitHub CLI login row's label: the detector writes it and a seal records the login under it. */
 export const GITHUB_LOGIN_NAME = "GitHub CLI login";

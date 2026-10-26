@@ -6,13 +6,11 @@
 use gpui_kit::component::{h_flex, v_flex};
 use gpui_kit::{div, prelude::*, AnyElement, App, MouseDownEvent, SharedString, Window};
 use serde_json::{json, Value};
-use wsp_host_client::protocol::{
-    InitJob, PendingComputer, PlaceView, PlacesUpdateRequest, Preferences, PreferencesComputerLookValueIcon as Icon,
-};
+use wsp_host_client::protocol::{PendingComputer, PlaceView, PlacesUpdateRequest, Preferences, PreferencesComputerLookValueIcon as Icon};
 
 use super::words::{
-    self, add_words, built_when, clouds_offered, fmt_mem_gb, is_provider, names_place, now_ms, pending_word, place_name, setup_words,
-    state_cell, state_words, version_fact, where_words, Absent, Cell,
+    self, add_words, built_when, clouds_offered, fmt_mem_gb, is_provider, names_place, now_ms, pending_word, place_name, state_cell,
+    state_words, version_fact, where_words, Absent, Cell,
 };
 use crate::screens::settings::model::{req, At, Data, Reread};
 use crate::screens::settings::page::{CardData, Ctx, Item};
@@ -170,40 +168,14 @@ fn cloud_row(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App) ->
         .text_color(p.muted_foreground)
         .font_features(text::tabular())
         .child(where_words::running(running(place)));
-    let setup = cloud_setup(super::image::job_of(ctx), &place.id);
-    let state = match setup {
-        None => place_state(ctx, place, &cell, true, window, cx),
-        Some(mark) => {
-            let why = if mark == MarkState::Failed { setup_words::FAILED } else { setup_words::SETTING_UP };
-            let mark_el = StatusMark::state(format!("setup-mark-{}", place.id), mark).tooltip(why);
-            StateCell::act(SharedString::from(format!("state-{}", place.id)), mark_el).why(why).into_any_element()
-        }
-    };
-    let acts = ctx.acts.clone();
+    let state = place_state(ctx, place, &cell, true, window, cx);
     let row = GridRow::new(SharedString::from(format!("place-row-{}", place.id)), LIST_COLUMNS).narrow(LIST_COLUMNS_NARROW);
-    let row = match setup {
-        None => row.on_open(opens(ctx, place)),
-        Some(_) => row.on_open(move |_, _, cx| acts.note(ADD_ELSEWHERE, cx)),
-    };
+    let row = row.on_open(opens(ctx, place));
     let mut row = row.on_menu(row_menu(ctx, place)).cell(name).cell_spans(machines, 3, 1).cell(state).cell(chevron(cx));
     if let Some(why) = cell.why() {
         row = row.hover(why.to_owned());
     }
     row
-}
-
-/// `settingUpCloud`: a setup for this cloud under way, picks being made or an image building, its mark working; one
-/// that failed waits on the person, its mark failed.
-pub fn cloud_setup(job: Option<&InitJob>, provider: &str) -> Option<MarkState> {
-    let job = job.filter(|j| j.place.as_ref().is_some_and(|p| p.id == provider))?;
-    let phase = job.phase.to_string();
-    if phase == "failed" {
-        Some(MarkState::Failed)
-    } else if super::image::job_over(&phase) {
-        None
-    } else {
-        Some(MarkState::Working)
-    }
 }
 
 /// `ComputerIcon`'s options, in its order.
@@ -383,23 +355,6 @@ pub fn cards(ctx: &Ctx, window: &mut Window, cx: &mut App) -> Vec<CardData> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn job(place: &str, phase: &str) -> InitJob {
-        serde_json::from_value(json!({ "id": "j", "road": "manual", "phase": phase, "keys": {}, "step": 0, "stoppable": true,
-            "screens": [], "rows": [], "progress": { "done": 0, "total": 0 }, "log": [], "place": { "id": place, "name": place } }))
-        .unwrap()
-    }
-
-    #[test]
-    fn a_clouds_setup_stands_in_its_state_cell_until_it_ends_well() {
-        assert_eq!(cloud_setup(Some(&job("solari", "answering")), "solari"), Some(MarkState::Working));
-        assert_eq!(cloud_setup(Some(&job("solari", "building")), "solari"), Some(MarkState::Working));
-        assert_eq!(cloud_setup(Some(&job("solari", "failed")), "solari"), Some(MarkState::Failed));
-        assert_eq!(cloud_setup(Some(&job("solari", "done")), "solari"), None);
-        assert_eq!(cloud_setup(Some(&job("solari", "cancelled")), "solari"), None);
-        assert_eq!(cloud_setup(Some(&job("box", "building")), "solari"), None, "another cloud's setup");
-        assert_eq!(cloud_setup(None, "solari"), None);
-    }
 
     #[test]
     fn the_icon_menu_offers_every_icon_but_the_one_worn_and_writes_the_look() {

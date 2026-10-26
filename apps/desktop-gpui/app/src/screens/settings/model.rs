@@ -178,7 +178,7 @@ impl Data {
 
 /// One answer from the host, carried to the screen's thread.
 pub enum Read {
-    Preferences(Result<Preferences, String>),
+    Preferences(Result<Box<Preferences>, String>),
     Places(Result<(Vec<PlaceView>, Vec<PendingComputer>), String>),
     /// The list, or the refusal and what to do about it.
     Projects(Result<Vec<ProjectView>, (String, Option<String>)>),
@@ -208,7 +208,7 @@ impl Data {
     /// Lays one answer onto the records; a refusal of a read a page has no sentence for leaves what was there.
     pub fn take(&mut self, read: Read) {
         match read {
-            Read::Preferences(Ok(p)) => self.preferences = Some(p),
+            Read::Preferences(Ok(p)) => self.preferences = Some(*p),
             Read::Places(Ok((places, pending))) => {
                 self.places_read = true;
                 self.places = places;
@@ -388,18 +388,6 @@ impl Data {
             }
             "recipes.changed" => Push::Reread(Reread::Recipes),
             "agents.changed" => Push::Reread(Reread::Harnesses),
-            "init.job" => {
-                if let (Some(setup), Some(job)) = (self.setup.as_mut(), field("job").and_then(read)) {
-                    setup.job = job;
-                }
-                let done = event.pointer("/job/phase").and_then(Value::as_str) == Some("done");
-                if done {
-                    self.image_reading = true;
-                    Push::Reread(Reread::Image)
-                } else {
-                    Push::Drawn
-                }
-            }
             _ => Push::Nothing,
         }
     }
