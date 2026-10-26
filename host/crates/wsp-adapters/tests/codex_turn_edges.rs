@@ -421,6 +421,10 @@ async fn an_answer_s_close_carries_the_caller_s_outcome_and_option_and_a_deny_s_
 
 #[tokio::test]
 async fn the_reconnect_stall_is_cleared_by_any_notification_but_an_error_and_never_by_a_request_a_response_or_stderr() {
+    tokio::task::LocalSet::new().run_until(the_reconnect_stall_is_cleared_by_any_notification_but_an_error_and_never_by_a_request_a_response_or_stderr_body()).await
+}
+
+async fn the_reconnect_stall_is_cleared_by_any_notification_but_an_error_and_never_by_a_request_a_response_or_stderr_body() {
     // CT14; adapter.ts:612-628, 951. The stall's end is the exit road: no durationMs; a hanging process is torn down, then killed.
     let reconnecting = format!(r#"{{"method":"error","params":{{"error":{{"message":"Reconnecting... 2/5","additionalDetails":"error sending request"}},"willRetry":true,"threadId":"{THREAD}","turnId":"{TURN}"}}}}"#);
     let launch = scripted(vec![], true);
@@ -444,6 +448,10 @@ async fn the_reconnect_stall_is_cleared_by_any_notification_but_an_error_and_nev
 
 #[tokio::test]
 async fn a_kept_turn_writes_its_unsubscribe_and_says_its_compaction_before_turn_done() {
+    tokio::task::LocalSet::new().run_until(a_kept_turn_writes_its_unsubscribe_and_says_its_compaction_before_turn_done_body()).await
+}
+
+async fn a_kept_turn_writes_its_unsubscribe_and_says_its_compaction_before_turn_done_body() {
     // CT15; adapter.ts:749-763, 1055. A compaction with no usage after it is said with `before` alone.
     let compacting = |phase: &str| format!(r#"{{"method":"item/{phase}","params":{{"item":{{"type":"contextCompaction","id":"c1"}},"threadId":"{THREAD}","turnId":"{TURN}"}}}}"#);
     let usage = format!(r#"{{"method":"thread/tokenUsage/updated","params":{{"threadId":"{THREAD}","turnId":"{TURN}","tokenUsage":{{"total":{{"inputTokens":900,"outputTokens":0}},"last":{{"inputTokens":900,"outputTokens":0}}}}}}}}"#);
@@ -473,6 +481,10 @@ async fn a_kept_turn_writes_its_unsubscribe_and_says_its_compaction_before_turn_
 
 #[tokio::test]
 async fn a_stop_before_the_prompt_is_due_sends_no_turn_and_ends_interrupted() {
+    tokio::task::LocalSet::new().run_until(a_stop_before_the_prompt_is_due_sends_no_turn_and_ends_interrupted_body()).await
+}
+
+async fn a_stop_before_the_prompt_is_due_sends_no_turn_and_ends_interrupted_body() {
     // CT16; adapter.ts:884-895, 1193-1199. With no turn id the stop ends the run at once.
     let launch = scripted(vec![], true);
     let events = Events::default();
@@ -491,6 +503,10 @@ async fn a_stop_before_the_prompt_is_due_sends_no_turn_and_ends_interrupted() {
 
 #[tokio::test]
 async fn a_stop_on_a_server_that_never_exits_tears_it_down_once_per_end_wait_then_kills_it_once() {
+    tokio::task::LocalSet::new().run_until(a_stop_on_a_server_that_never_exits_tears_it_down_once_per_end_wait_then_kills_it_once_body()).await
+}
+
+async fn a_stop_on_a_server_that_never_exits_tears_it_down_once_per_end_wait_then_kills_it_once_body() {
     // CT17; adapter.ts:767 and 1206: the finish road and the interrupt each run end_after_result; with equal waits both
     // tear down, the first past the grace kills, the second finds it gone.
     let launch = launcher(scripted_server(WireOpts {
