@@ -13,10 +13,10 @@ use wsp_engine::errors::{EngineError, Result};
 use wsp_engine::golden_seam::{
     AsideRow, DropName, GoldenStage, McpAgentPlan, McpPlan, McpScope, McpToolRow, ProjectMove, StageListener, ToolResult, ToolStage,
 };
-use wsp_wire::views::golden_image::GoldenStep;
 use wsp_engine::machine::{
     BytesLanded, ExecOptions, ExecResult, Machine, MachineKind, MachineLife, MachineOffers, MachineState, RunOptions, SnapshotOptions,
 };
+use wsp_wire::views::golden_image::GoldenStep;
 
 /// tests/fixtures/oracle/golden_<unit>.json.
 pub fn fixture(unit: &str) -> Value {
@@ -189,7 +189,9 @@ pub struct Stages(pub Arc<Mutex<Vec<Value>>>);
 impl Stages {
     pub fn tool_stage(&self) -> ToolStage {
         let lines = self.0.clone();
-        Arc::new(move |stage: GoldenStage, detail: Option<&str>, _step: Option<GoldenStep>| lines.lock().unwrap().push(json!([stage_word(stage), detail])))
+        Arc::new(move |stage: GoldenStage, detail: Option<&str>, _step: Option<GoldenStep>| {
+            lines.lock().unwrap().push(json!([stage_word(stage), detail]))
+        })
     }
     pub fn listener(&self) -> StageListener {
         let lines = self.0.clone();
