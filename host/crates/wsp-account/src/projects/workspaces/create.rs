@@ -4,16 +4,30 @@
 use std::rc::Rc;
 
 use async_trait::async_trait;
+use serde_json::{json, Value};
+use wsp_core::console;
 use wsp_core::types::api::Landing;
+use wsp_core::types::internal::CREATES;
 use wsp_core::types::wiring::{CreateWorkspaceOptions, CreatedWorkspace, StageReport, WorkspaceRecord};
-use wsp_wire::views::workspace::{Caller, ProjectView};
-use wsp_wire::views::workspace_events::WorkspaceCreatingEvent;
+use wsp_engine::errors::is_missing;
+use wsp_wire::types::place_word::HERE_PLACE_ID;
+use wsp_wire::views::workspace::{scope_of, Caller, ProjectView};
+use wsp_wire::views::workspace_events::{WorkspaceCreateStage, WorkspaceCreatingEvent};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
-use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceView};
+use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceTalked, WorkspaceView};
 use wsp_wire::wire::capabilities::Capabilities;
-use wsp_words::exit::HostError;
+use wsp_words::exit::{not_found_refusal, refusal, HostError, Kind};
+use wsp_words::js_date::iso_string;
+use wsp_words::projects::{copies_folder, copy_takes_none, runs_in_folder, workspace_lands, WorkspaceLands};
+use wsp_words::words::computer::{
+    folder_fork_fix, folder_fork_refusal, id_prefix_refusal, no_parent_workspace_line, no_workspace_refusal, parent_project_refusal,
+    spawn_folder_refusal, spawn_golden_refusal, spawn_reach_fix, spawn_reach_refusal, spawn_repository_workspace_refusal,
+    ID_PREFIX_MIN, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_WORKSPACE_FIX,
+};
+use wsp_words::wire::machine_link::{place_not_a_workspace_fix, place_not_a_workspace_line};
+use wsp_words::words::thread::refusal_line;
 
-use super::seam::{Base, Entry, FreeSlot};
+use super::seam::{record_of, Base, Entry, EntryAsk, FreeSlot};
 
 /// What a lead's start tells a child's create. machines' `leadStart`.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -114,7 +128,30 @@ pub trait CreateCtx: Base {
 //|       return { ...(placeId !== undefined ? { place: placeId } : {}), name: ctx.placeName(placeId ?? places.wired), capabilities: at.capabilities, kind };
 //|     },
 pub async fn landing(ctx: &Rc<dyn CreateCtx>, project: &str, sized: bool, origin: Option<Caller>) -> Result<Landing, HostError> {
-    todo!()
+    ctx.ready().await?;
+    let asked = scope_of(origin.as_ref());
+    if let (Some(scope), true) = (&asked, sized) {
+        return Err(ctx.act_refusal(scope, "size"));
+    }
+    let project = ctx.resolve_project(project, origin.clone()).await?;
+    let computer = project.computer.clone();
+    let kind = ctx.kind_of(&computer);
+    if runs_in_folder(&kind) {
+        let place = match workspace_lands(&computer, None) {
+            WorkspaceLands::Place { place } => Some(place),
+            WorkspaceLands::Here | WorkspaceLands::Wired => None,
+        };
+        let name = ctx.place_name(place.as_deref().unwrap_or(HERE_PLACE_ID));
+        let capabilities = ctx.backend_capabilities(kind.clone(), place.as_deref());
+        return Ok(Landing { place, name, capabilities, kind: Some(kind) });
+    }
+    let place_id = ctx.landing_place(&computer).await?;
+    let capabilities = ctx.landing_capabilities(place_id.as_deref()).await?;
+    let name = match &place_id {
+        Some(place) => ctx.place_name(place),
+        None => ctx.place_name(&ctx.places_wired()),
+    };
+    Ok(Landing { place: place_id, name, capabilities, kind: Some(kind) })
 }
 
 // ts: workspaces.ts:84-214
@@ -249,9 +286,249 @@ pub async fn landing(ctx: &Rc<dyn CreateCtx>, project: &str, sized: bool, origin
 //|         freePlace();
 //|       }
 //|     },
+pub(super) fn id_of(entry: &Entry) -> String {
+    entry.borrow().record.borrow().id.clone()
+}
+
+pub(super) fn name_of(entry: &Entry) -> String {
+    entry.borrow().record.borrow().name.clone()
+}
+
+pub(super) fn project_of(entry: &Entry) -> String {
+    entry.borrow().record.borrow().project.clone()
+}
+
+fn to_json<T: serde::Serialize>(v: &T) -> Value {
+    serde_json::to_value(v).unwrap_or(Value::Null)
+}
+
+fn invalid(message: String) -> HostError {
+    HostError::with_kind(message, Kind::Invalid)
+}
+
+fn conflict(message: String) -> HostError {
+    HostError::with_kind(message, Kind::Conflict)
+}
+
+/// The talked fields alone, as `WorkspaceTalked.parse` keeps them (spec rule 7).
+pub(super) fn talked(view: WorkspaceView) -> Result<WorkspaceView, HostError> {
+    let fields: WorkspaceTalked = serde_json::from_value(to_json(&view)).map_err(|e| HostError::new(e.to_string()))?;
+    serde_json::from_value(to_json(&fields)).map_err(|e| HostError::new(e.to_string()))
+}
+
+/// Records a create that failed: the machine goes with it or stays under its record (rule 2.10, 2.11).
+#[allow(clippy::too_many_arguments)]
+async fn fail_create(
+    ctx: &Rc<dyn CreateCtx>,
+    id: &str,
+    name: &str,
+    golden: &str,
+    kind: &WorkspaceKind,
+    began: i64,
+    project: &ProjectView,
+    report: &StageReport,
+    e: &HostError,
+) -> Result<(), HostError> {
+    let live = ctx.live();
+    let entry = live.borrow().get(id).cloned();
+    let mut kept: Option<Entry> = None;
+    if let Some(entry) = entry {
+        let gone = match ctx.unfork(&entry).await {
+            Ok(()) => true,
+            Err(k) => is_missing(&k),
+        };
+        if gone {
+            live.borrow_mut().shift_remove(id);
+        } else {
+            entry.borrow_mut().creating = false;
+            if let Err(p) = ctx.persist(record_of(&entry)).await {
+                console::warn(&format!("workspace {id} not stored: {}", p.message));
+            }
+            let machine = ctx.machine_id(&entry);
+            console::warn(&format!("workspace {id} failed to create and its machine {machine} would not stop; the record stays for wsp delete"));
+            kept = Some(entry);
+        }
+    }
+    let key = format!("workspace/{id}");
+    let pending = ctx.store().get(CREATES, &key).await?;
+    let has_request = pending.as_ref().and_then(|p| p.get("request")).is_some_and(|r| !r.is_null());
+    if !has_request {
+        ctx.store().delete(CREATES, &key).await?;
+    }
+    let said = e.message.clone();
+    let shown_map = ctx.shown_creates();
+    let shown = shown_map.borrow().get(id).cloned();
+    shown_map.borrow_mut().shift_remove(id);
+    if kept.is_none() {
+        let failed = match &shown {
+            None => ctx.failed_view(id, name, kind.clone(), golden, began, project, &said),
+            Some(view) => {
+                let mut view = view.clone();
+                view.phase = wsp_wire::views::workspace::WorkspacePhase::Gone;
+                view.gone = Some(said.clone());
+                view
+            }
+        };
+        ctx.failed_creates().borrow_mut().insert(id.to_owned(), failed.clone());
+        if shown.is_some() {
+            ctx.emit(json!({ "type": "workspace.created", "workspace": to_json(&failed) }))?;
+        }
+    }
+    report(WorkspaceCreateStage::Failed, &said, None);
+    if let Some(entry) = &kept {
+        let view = ctx.view(&record_of(entry));
+        ctx.emit(json!({ "type": "workspace.created", "workspace": to_json(&view) }))?;
+    }
+    Ok(())
+}
+
 /// Makes a workspace (spec rule 2).
 pub async fn create(ctx: &Rc<dyn CreateCtx>, opts: CreateWorkspaceOptions, origin: Option<Caller>) -> Result<CreatedWorkspace, HostError> {
-    todo!()
+    ctx.ready().await?;
+    if opts.sub.is_some() {
+        return ctx.spawn_sub(opts, origin).await;
+    }
+    let asked = scope_of(origin.as_ref());
+    if let Some(scope) = &asked {
+        if opts.golden.is_some() {
+            let on = ctx.place_of_thread(scope);
+            return Err(HostError::with_kind(spawn_golden_refusal(&scope.thread_id, on.as_deref()), Kind::Usage));
+        }
+        if opts.spec.cpu.is_some() || opts.spec.mem_mb.is_some() {
+            return Err(ctx.act_refusal(scope, "size"));
+        }
+    }
+    if let (Some(_), Some(parent)) = (&asked, &opts.parent) {
+        ctx.entry_of(parent, origin.clone(), EntryAsk::default()).await?;
+    }
+    let born_of = match &asked {
+        None => opts.parent.clone(),
+        Some(scope) => Some(opts.parent.clone().unwrap_or_else(|| scope.workspace_id.clone())),
+    };
+    let mut o = opts.clone();
+    o.name = ctx.name_given(&opts.name);
+    o.parent = born_of;
+    let project = ctx.resolve_project(&o.project, origin.clone()).await?;
+    let kind = ctx.kind_of(&project.computer);
+    if opts.parent.is_some() && runs_in_folder(&kind) {
+        return Err(refusal(&folder_fork_refusal(&project.name), &folder_fork_fix(&project.name), Some(Kind::Usage)));
+    }
+    if runs_in_folder(&kind) {
+        ctx.refuse_recording(&o.name, origin.as_ref())?;
+        let mut words: Vec<&str> = Vec::new();
+        if o.golden.is_some() {
+            words.push("--from");
+        }
+        if o.spec.cpu.is_some() || o.spec.mem_mb.is_some() {
+            words.push("--size");
+        }
+        if !words.is_empty() {
+            let computer = if copies_folder(&kind) { None } else { Some(ctx.place_name(&project.computer)) };
+            return Err(invalid(copy_takes_none(&project.name, &words, computer.as_deref())));
+        }
+        if let (Some(scope), Some(_)) = (&asked, &o.agents) {
+            return Err(ctx.act_refusal(scope, "agents"));
+        }
+        let folder = ctx.project_folder(&project).await?;
+        if let Some(agents) = &o.agents {
+            let place = folder.borrow().record.borrow().place.clone().unwrap_or_else(|| HERE_PLACE_ID.to_owned());
+            let written = ctx.agents_from(&place, agents);
+            folder.borrow().record.borrow_mut().agents = Some(written);
+            ctx.persist(record_of(&folder)).await?;
+        }
+        return Ok(CreatedWorkspace { view: ctx.view(&record_of(&folder)), notice: None, sub: None });
+    }
+    ctx.refuse_relayed(kind.clone(), &o.name, &project.id, origin.as_ref())?;
+    let live = ctx.live();
+    let parent: Option<Entry> = match &o.parent {
+        None => None,
+        Some(id) => live.borrow().get(id).cloned(),
+    };
+    if let Some(parent_id) = &o.parent {
+        let missing = match &parent {
+            None => true,
+            Some(p) => p.borrow().creating,
+        };
+        if missing {
+            return Err(invalid(no_parent_workspace_line(parent_id)));
+        }
+    }
+    if let Some(p) = &parent {
+        let parent_project = project_of(p);
+        if parent_project != project.id {
+            let held = ctx.project_held(&parent_project)?;
+            if !ctx.same_repository(&held, &project, origin.as_ref()) {
+                let parent_name = name_of(p);
+                return Err(invalid(parent_project_refusal(&parent_name, &held.name, &project.name)));
+            }
+        }
+    }
+    let place_id = ctx.landing_place(&project.computer).await?.unwrap_or_else(|| ctx.places_wired());
+    ctx.place_guard(&place_id).await?;
+    let free_place = ctx.spawn_guard("fork", origin.as_ref())?;
+    let spawned = scope_of(origin.as_ref());
+    if let (Some(scope), Some(_)) = (&spawned, &o.agents) {
+        free_place();
+        return Err(ctx.act_refusal(scope, "agents"));
+    }
+    if let Some(taken) = ctx.name_refusal(&o.name) {
+        free_place();
+        return Err(conflict(taken));
+    }
+    ctx.forking_add(&o.name);
+    ctx.supersede_failed(&o.name);
+    let id = format!("ws_{}", hex::encode(ctx.ids().bytes(4)));
+    let began = ctx.clock().now();
+    let report = ctx.stage_reporter(&id, &o.name, began, spawned.as_ref());
+    let made: Result<CreatedWorkspace, HostError> = async {
+        let start = match &parent {
+            None => None,
+            Some(p) => Some(ctx.lead_start(p, &o.name, if opts.parent.is_some() { "fork" } else { "run" }).await?),
+        };
+        if let Some(scope) = &spawned {
+            let created = iso_string(began as f64).unwrap_or_default();
+            let view = ctx.shown_view(&id, &o.name, kind.clone(), o.golden.as_deref().unwrap_or(""), &created, &project, scope, o.parent.as_deref());
+            ctx.show_create(view);
+        }
+        let base = start.as_ref().and_then(|s| s.base.clone());
+        let made = ctx.create_staged(o.clone(), &project, &id, report.clone(), spawned.clone(), free_place.clone(), base).await?;
+        let (Some(start), Some(parent)) = (start, parent.clone()) else {
+            return Ok(made);
+        };
+        let Some(child) = live.borrow().get(&id).cloned() else {
+            return Ok(made);
+        };
+        let (child_name, of_record) = {
+            let c = child.borrow();
+            let r = c.record.borrow();
+            (r.name.clone(), r.branch_of_record.clone())
+        };
+        let mut lines = start.lines.clone();
+        if let (true, Some(base)) = (start.on_leads, &start.base) {
+            let line = match of_record {
+                Some(branch) => ctx.child_started_line(&child_name, &branch.branch),
+                None => ctx.start_child_on(&child, base, &name_of(&parent)).await?,
+            };
+            lines.push(line);
+        }
+        if lines.is_empty() {
+            return Ok(made);
+        }
+        let notice: Vec<String> = made.notice.iter().cloned().chain(lines).collect();
+        Ok(CreatedWorkspace { notice: Some(notice.join("\n")), ..made })
+    }
+    .await;
+    let outcome = match made {
+        Ok(made) => Ok(made),
+        Err(e) => match fail_create(ctx, &id, &o.name, o.golden.as_deref().unwrap_or(""), &kind, began, &project, &report, &e).await {
+            Ok(()) => Err(e),
+            Err(unwound) => Err(unwound),
+        },
+    };
+    ctx.shown_creates().borrow_mut().shift_remove(&id);
+    ctx.forking_delete(&o.name);
+    free_place();
+    outcome
 }
 
 // ts: workspaces.ts:216-218
@@ -259,7 +536,9 @@ pub async fn create(ctx: &Rc<dyn CreateCtx>, opts: CreateWorkspaceOptions, origi
 //|       return ctx.view((await ctx.entryOf(id, origin, threadId === undefined ? {} : { thread: threadId })).record);
 //|     },
 pub async fn get(ctx: &Rc<dyn CreateCtx>, id: &str, origin: Option<Caller>, thread_id: Option<&str>) -> Result<WorkspaceView, HostError> {
-    todo!()
+    let ask = EntryAsk { thread: thread_id.map(str::to_owned), ..EntryAsk::default() };
+    let entry = ctx.entry_of(id, origin, ask).await?;
+    Ok(ctx.view(&record_of(&entry)))
 }
 
 // ts: workspaces.ts:220-225
@@ -270,7 +549,11 @@ pub async fn get(ctx: &Rc<dyn CreateCtx>, id: &str, origin: Option<Caller>, thre
 //|       return entry === undefined ? undefined : ctx.view(entry.record);
 //|     },
 pub async fn held_or_creating(ctx: &Rc<dyn CreateCtx>, id: &str) -> Result<Option<WorkspaceView>, HostError> {
-    todo!()
+    ctx.ready().await?;
+    ctx.boot_work(id).await;
+    let live = ctx.live();
+    let entry = live.borrow().get(id).cloned();
+    Ok(entry.map(|e| ctx.view(&record_of(&e))))
 }
 
 // ts: workspaces.ts:229-235
@@ -282,7 +565,20 @@ pub async fn held_or_creating(ctx: &Rc<dyn CreateCtx>, id: &str) -> Result<Optio
 //|       return [...listed, ...forks.filter(v => ctx.drives(v, origin) && !listed.some(l => l.id === v.id))];
 //|     },
 pub async fn list(ctx: &Rc<dyn CreateCtx>, origin: Option<Caller>) -> Result<Vec<WorkspaceView>, HostError> {
-    todo!()
+    ctx.ready().await?;
+    let listed: Vec<WorkspaceView> = ctx.listed_for(origin.as_ref()).iter().map(|e| ctx.view(&record_of(e))).collect();
+    if scope_of(origin.as_ref()).is_some() {
+        return Ok(listed);
+    }
+    let shown: Vec<WorkspaceView> = ctx.shown_creates().borrow().values().cloned().collect();
+    let failed: Vec<WorkspaceView> = ctx.failed_creates().borrow().values().filter(|v| v.parent_thread_id.is_some()).cloned().collect();
+    let mut out = listed.clone();
+    for view in shown.into_iter().chain(failed) {
+        if ctx.drives(&view, origin.as_ref()) && !listed.iter().any(|l| l.id == view.id) {
+            out.push(view);
+        }
+    }
+    Ok(out)
 }
 
 // ts: workspaces.ts:237-287
@@ -339,7 +635,101 @@ pub async fn list(ctx: &Rc<dyn CreateCtx>, origin: Option<Caller>) -> Result<Vec
 //|     },
 /// A word to a workspace with the caller's rules (spec rule 7).
 pub async fn resolve(ctx: &Rc<dyn CreateCtx>, reference: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-    todo!()
+    ctx.ready().await?;
+    let scope = scope_of(origin.as_ref());
+    let rows: Vec<Entry> = if scope.is_none() { ctx.held() } else { ctx.listed_for(origin.as_ref()) };
+    let tree: Option<Entry> = if scope.is_none() {
+        None
+    } else {
+        ctx.held().into_iter().find(|e| id_of(e) == reference && ctx.talks_to_tree_on(reference, origin.as_ref()))
+    };
+    let exact: Option<Entry> = rows
+        .iter()
+        .find(|e| id_of(e) == reference)
+        .cloned()
+        .or_else(|| tree.clone())
+        .or_else(|| rows.iter().find(|e| name_of(e) == reference).cloned());
+    let started: Vec<Entry> = if exact.is_none() && reference.encode_utf16().count() >= ID_PREFIX_MIN {
+        rows.iter().filter(|e| id_of(e).starts_with(reference)).cloned().collect()
+    } else {
+        Vec::new()
+    };
+    if started.len() > 1 {
+        let ids: Vec<String> = started.iter().map(id_of).collect();
+        return Err(HostError::new(id_prefix_refusal(reference, &ids)));
+    }
+    let Some(entry) = exact.or_else(|| started.first().cloned()) else {
+        return resolve_absent(ctx, reference, scope, origin).await;
+    };
+    if tree.as_ref().is_some_and(|t| Rc::ptr_eq(t, &entry)) {
+        return talked(ctx.view(&record_of(&entry)));
+    }
+    let record = record_of(&entry);
+    ctx.refuse_relayed(record.kind.clone(), &record.name, &record.project, origin.as_ref())?;
+    Ok(ctx.view(&record))
+}
+
+/// What a word names when no workspace is held under it (spec rule 7, the two branches of the absent case).
+async fn resolve_absent(
+    ctx: &Rc<dyn CreateCtx>,
+    reference: &str,
+    scope: Option<ThreadScope>,
+    origin: Option<Caller>,
+) -> Result<WorkspaceView, HostError> {
+    if let Some(scope) = scope {
+        let mine = ctx.project_of_scope(origin.as_ref());
+        let by_id = ctx.held().into_iter().find(|e| id_of(e) == reference);
+        let theirs = match by_id {
+            Some(e) => Some(e),
+            None => ctx.held().into_iter().find(|e| name_of(e) == reference),
+        };
+        if let (Some(theirs), Some(mine)) = (&theirs, &mine) {
+            let their_record = record_of(theirs);
+            if ctx.refusal_for(Some(&their_record), origin.as_ref()).is_some() {
+                let project = ctx.project_held(&their_record.project)?;
+                if !ctx.of_threads_repository(origin.as_ref(), &project.id) {
+                    let mine_name = ctx.project_held(mine)?.name;
+                    return Err(refusal(
+                        &spawn_repository_workspace_refusal(&scope.thread_id, &mine_name, reference),
+                        SPAWN_REPOSITORY_WORKSPACE_FIX,
+                        Some(Kind::Usage),
+                    ));
+                }
+                let away = if runs_in_folder(&their_record.kind) {
+                    ctx.elsewhere_refusal(origin.as_ref(), &project, reference)
+                } else {
+                    ctx.away_for(&their_record, origin.as_ref(), "work", reference)
+                };
+                if let Some(away) = away {
+                    return Err(away);
+                }
+                let folder = runs_in_folder(&ctx.kind_of(&project.computer));
+                if !ctx.project_reached(origin.as_ref(), &project.id) && folder {
+                    return Err(refusal(&spawn_folder_refusal(&scope.thread_id, reference), SPAWN_FOLDER_FIX, Some(Kind::Usage)));
+                }
+                return Err(refusal(
+                    &spawn_reach_refusal(&scope.thread_id, reference),
+                    &spawn_reach_fix(&project.name, !folder),
+                    Some(Kind::Usage),
+                ));
+            }
+        }
+        if let Err(e) = ctx.resolve_project(reference, origin).await {
+            if e.kind != Some(Kind::NotFound) {
+                return Err(e);
+            }
+        }
+        return Err(not_found_refusal(&no_workspace_refusal(Some(reference))));
+    }
+    let failed = ctx.failed_creates().borrow().values().find(|v| v.id == reference || v.name == reference).cloned();
+    if let Some(failed) = failed {
+        return Ok(failed);
+    }
+    let places = ctx.find_places(reference).await?;
+    if let Some(first) = places.first() {
+        return Err(not_found_refusal(&refusal_line(&place_not_a_workspace_line(first), &place_not_a_workspace_fix(first))));
+    }
+    Err(not_found_refusal(&no_workspace_refusal(Some(reference))))
 }
 
 // ts: workspaces.ts:1211-1215
@@ -350,5 +740,16 @@ pub async fn resolve(ctx: &Rc<dyn CreateCtx>, reference: &str, origin: Option<Ca
 //|     },
 /// Every create stage of a root create in flight.
 pub fn creating(ctx: &Rc<dyn CreateCtx>) -> Vec<WorkspaceCreatingEvent> {
-    todo!()
+    let live = ctx.live();
+    let shown = ctx.shown_creates();
+    ctx.create_stages()
+        .into_iter()
+        .filter(|stage| {
+            let rooted = match live.borrow().get(&stage.workspace_id) {
+                None => true,
+                Some(entry) => entry.borrow().record.borrow().lead.is_none(),
+            };
+            rooted && !shown.borrow().contains_key(&stage.workspace_id)
+        })
+        .collect()
 }

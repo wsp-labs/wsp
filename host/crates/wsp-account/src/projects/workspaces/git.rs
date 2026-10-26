@@ -5,27 +5,143 @@
 use std::rc::Rc;
 
 use async_trait::async_trait;
+use futures::future::FutureExt;
+use serde_json::{json, Value};
 use wsp_core::types::api::{
     CommitAsk, CommitDraftAsk, DiscardAsk, FixAsk, FolderFor, FolderForAsk, MergeAsk, MergeInAsk, PullRequestReplyAsk, ViewedMark,
     WorktreeRemoveAsk,
 };
+use wsp_core::types::internal::{
+    default_branch_refused, is_no_git_credential, is_no_host_cli, is_on_default_branch, DaemonRefusal,
+};
 use wsp_core::types::wiring::{RunningExec, WorkspaceRecord};
-use wsp_frames::{GitCommitReply, GitDiscardReply};
-use wsp_wire::types::bring_back::BringBackResult;
-use wsp_wire::types::changes::{CheckoutReply, CommitDraft, ViewedMarks};
+use wsp_frames::{GitCommitReply, GitDiffReply, GitDiscardReply, GitPrMergeReply, GitRunLogReply, GitStatusReply, MergeMethod};
+use wsp_wire::types::projects::WORKTREE_FORCE_LINE;
+use wsp_wire::wire::daemon::DETACHED_HEAD;
+use wsp_wire::types::bring_back::{BringBackResult, GitPrReply, GitPushReply};
+use wsp_wire::types::changes::{CheckoutReply, CommitDraft, ViewedMarks, DRAFT_NOTES};
+use wsp_wire::types::daemon_contract::GIT_DIFF_CAP_BYTES;
 use wsp_wire::types::pull_request::{
     FixResult, GitPrReactReply, GitPrReplyReply, GitPrResolveReply, GitUpdateReply, MergeResult, PullRequestItem, PullRequestPage,
-    PullRequestSendResult, ReactionContent,
+    PullRequestSendResult, PullRequestSent, PullRequestSeen, ReactionContent, AUTO_MERGE_OFF_LINE, REPLY_EMPTY_LINE,
 };
-use wsp_wire::types::start::GitPrDiffReply;
-use wsp_wire::types::tree::{MergeInResult, TreeRecord};
-use wsp_wire::views::workspace::{Caller, ProjectView};
+use wsp_wire::types::pull_request::PullRequestFact;
+use wsp_wire::types::start::{GitPrDiffReply, WorkspaceFromKind};
+use wsp_wire::types::tree::{MergeInResult, TreeRecord, FIX_CHECK_OR_CHILD};
+use wsp_wire::types::shell_quote::shell_quote;
+use wsp_wire::views::session::{SessionStatus, SessionView};
+use wsp_wire::views::workspace::{scope_of, Caller, ProjectView};
 use wsp_wire::views::workspace_more::{WorkspaceView, WorktreeMade};
 use wsp_wire::wire::machine_link::ExecResult;
-use wsp_words::exit::HostError;
+use wsp_words::changes::{clean_checkout_line, commit_message, cut_diff, draft_prompt};
+use wsp_words::daemon_contract::no_change_line;
+use wsp_words::exit::{not_found_refusal, HostError, Kind};
+use wsp_words::projects::{
+    copies_folder, no_branches_line, not_made_worktree_line, not_on_this_computer_line, place_branch_line, runs_in_folder,
+};
+use wsp_words::pull_request::{
+    check_failed_prompt, check_not_failed_refusal, child_pushed_line, conflicts_prompt, merge_method_refusal, no_pull_request_refusal,
+    no_such_check_refusal, not_open_refusal, pull_request_send_prompt, CheckLog, CheckedCommit, PageItem,
+};
+use wsp_words::start::with_closes;
+use wsp_words::tree::{child_on_no_branch_refusal, lead_busy_refusal, merge_child_prompt, merge_into_own_refusal, no_remote_for_tree_line, MergeChild};
+use wsp_words::words::computer::{AcrossAct, DefaultBranchRoad};
+use wsp_words::words::thread::thread_elsewhere_line;
+use wsp_words::words::turn::opening_cut;
 
-use super::seam::{Base, Entry, Queued};
+use super::create::id_of;
+use super::seam::{record_of, Base, DaemonAsk, DaemonWork, Entry, EntryAsk, Queued};
 use crate::projects::folders::tree::{ListedWorktree, RemoveAsk};
+
+fn json_of<T: serde::Serialize>(v: &T) -> Value {
+    serde_json::to_value(v).unwrap_or(Value::Null)
+}
+
+fn read_as<T: serde::de::DeserializeOwned>(v: Value) -> Result<T, HostError> {
+    serde_json::from_value(v).map_err(|e| HostError::new(e.to_string()))
+}
+
+fn refusal_of(e: &HostError) -> DaemonRefusal {
+    let code = e.code.clone().or_else(|| match &e.kind {
+        Some(Kind::Other(word)) => Some(word.clone()),
+        _ => None,
+    });
+    DaemonRefusal { code, message: e.message.clone() }
+}
+
+/// A reply built by hand leaves its absent optional keys out, as the TS object literal does.
+fn without_nulls(mut v: Value) -> Value {
+    if let Value::Object(map) = &mut v {
+        map.retain(|_, value| !value.is_null());
+    }
+    v
+}
+
+fn with_base(mut v: Value, base: &Option<String>) -> Value {
+    if let Some(base) = base {
+        v["base"] = json!(base);
+    }
+    v
+}
+
+fn home_cwd(ctx: &Rc<dyn GitCtx>) -> String {
+    ctx.home_dir()
+}
+
+/// One daemon op on an entry's computer (`ctx.withDaemon(entry, ask => ask(op))`).
+async fn ask_daemon(ctx: &Rc<dyn GitCtx>, entry: &Entry, op: Value) -> Result<Value, HostError> {
+    let work: DaemonWork = Box::new(move |ask: DaemonAsk| async move { ask(op).await }.boxed_local());
+    ctx.with_daemon(entry, work).await
+}
+
+fn tree_or_empty(tree: Option<TreeRecord>) -> TreeRecord {
+    tree.unwrap_or(TreeRecord { merged: None, conflicts: None, push_refused: None })
+}
+
+fn draft_note(key: &str) -> String {
+    DRAFT_NOTES.iter().find(|(k, _)| *k == key).map(|(_, v)| (*v).to_owned()).unwrap_or_default()
+}
+
+fn draft_empty(note: &str) -> CommitDraft {
+    CommitDraft { message: None, note: Some(note.to_owned()) }
+}
+
+fn same_item(a: &Value, b: &Value) -> bool {
+    a["kind"] == b["kind"] && a["id"] == b["id"]
+}
+
+/// The sessions of a workspace's thread, as the TS lists them (`sessions.values()` filtered).
+fn thread_has_session(ctx: &Rc<dyn GitCtx>, workspace_id: &str, thread_id: &str) -> bool {
+    ctx.session_views().iter().any(|s| s.workspace_id == workspace_id && s.thread_id.as_deref() == Some(thread_id))
+}
+
+/// The pull request fact the window drew, held on the live entry (`isPullRequestFact(entry.pr)`).
+fn live_pr_fact(entry: &Entry) -> Option<PullRequestFact> {
+    match entry.borrow().pr.clone() {
+        Some(PullRequestSeen::PullRequestFact(fact)) => Some(fact),
+        _ => None,
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct MergeInReply {
+    merged: bool,
+    commits: u64,
+    #[serde(default)]
+    oid: Option<String>,
+    #[serde(default)]
+    head: Option<String>,
+    #[serde(default)]
+    conflicts: Vec<String>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MergeSettings {
+    methods: Vec<MergeMethod>,
+    default_method: MergeMethod,
+    auto_merge: bool,
+}
 
 /// What a send to a thread answered (`toFirstThread`, `sendDetached`).
 #[derive(Clone, Debug, PartialEq)]
@@ -104,7 +220,10 @@ pub trait GitCtx: Base {
 //|       return entry.machine.exec(cmd, o);
 //|     },
 pub async fn exec(ctx: &Rc<dyn GitCtx>, id: &str, cmd: &str, timeout_ms: Option<u64>, origin: Option<Caller>) -> Result<ExecResult, HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, origin, EntryAsk { act: Some(AcrossAct::Exec), ..EntryAsk::default() }).await?;
+    ctx.copy_blocked(&entry).await?;
+    ctx.worktree_mounted(&entry).await?;
+    ctx.machine_exec(&entry, cmd, timeout_ms).await
 }
 
 // ts: workspaces.ts:654-691
@@ -147,7 +266,10 @@ pub async fn exec(ctx: &Rc<dyn GitCtx>, id: &str, cmd: &str, timeout_ms: Option<
 //|       return { ...inner, lines: lines(), exited: Promise.race([inner.exited, ended.then(() => null)]), ...(ranIn !== undefined ? { ranIn } : {}) };
 //|     },
 pub async fn exec_stream(ctx: &Rc<dyn GitCtx>, id: &str, argv: Vec<String>, cwd: Option<String>, origin: Option<Caller>) -> Result<RunningExec, HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, origin, EntryAsk { act: Some(AcrossAct::Exec), ..EntryAsk::default() }).await?;
+    ctx.copy_blocked(&entry).await?;
+    ctx.worktree_mounted(&entry).await?;
+    ctx.exec_stream_of(&entry, argv, cwd).await
 }
 
 // ts: workspaces.ts:693-746
@@ -206,7 +328,98 @@ pub async fn exec_stream(ctx: &Rc<dyn GitCtx>, id: &str, argv: Vec<String>, cwd:
 //|       return brought;
 //|     },
 pub async fn bring_back(ctx: &Rc<dyn GitCtx>, workspace_id: &str, title: Option<String>, body: Option<String>, origin: Option<Caller>) -> Result<BringBackResult, HostError> {
-    todo!()
+    ctx.spawn_guard("bring_back", origin.as_ref())?;
+    let entry = ctx.entry_of(workspace_id, origin, EntryAsk::default()).await?;
+    ctx.copy_blocked(&entry).await?;
+    let record = record_of(&entry);
+    let cwd = ctx.checkout_of(&record);
+    let base = match &record.base {
+        Some(base) => Some(base.clone()),
+        None => ctx.project_held(&record.project)?.base,
+    };
+    let fork = record.from.as_ref().and_then(|f| f.head.as_ref()).and_then(|h| h.fork.clone());
+    if let (Some(from), Some(fork)) = (&record.from, &fork) {
+        if from.kind == WorkspaceFromKind::PullRequest && !fork.pushable {
+            return Err(HostError::new(wsp_words::start::start_words::fork_not_pushable(&fork.owner)));
+        }
+    }
+    let body = match &record.from {
+        Some(from) if from.kind == WorkspaceFromKind::Issue => Some(with_closes(body.as_deref().unwrap_or(""), from.number.0 .0)),
+        _ => body,
+    };
+    let pr_title = title;
+    let name = record.name.clone();
+    let has_parent = record.parent_workspace_id.is_some();
+    let child = record.parent_thread_id.is_some();
+    let c = ctx.clone();
+    let e = entry.clone();
+    let id = record.id.clone();
+    let queued_work: Queued<Value> = Box::pin(async move {
+        let inner = c.clone();
+        let entry_inner = e.clone();
+        let work: DaemonWork = Box::new(move |ask: DaemonAsk| {
+            async move {
+                let push_ask = with_base(json!({ "op": "git.push", "cwd": cwd }), &base);
+                let pushed = match ask(push_ask).await {
+                    Ok(v) => v,
+                    Err(err) => {
+                        let refusal = refusal_of(&err);
+                        if is_on_default_branch(&refusal) {
+                            let status: GitStatusReply = read_as(ask(json!({ "op": "git.status", "cwd": cwd })).await?)?;
+                            return Err(default_branch_refused(DefaultBranchRoad::BringBack, &name, &status.branch.head));
+                        }
+                        if has_parent && is_no_git_credential(&refusal) {
+                            let mut tree = tree_or_empty(record_of(&entry_inner).tree);
+                            tree.push_refused = Some(err.message.clone());
+                            inner.keep_tree(&entry_inner, tree).await?;
+                        }
+                        return Err(err);
+                    }
+                };
+                if let Some(mut tree) = record_of(&entry_inner).tree.filter(|t| t.push_refused.is_some()) {
+                    tree.push_refused = None;
+                    inner.keep_tree(&entry_inner, tree).await?;
+                }
+                let push: GitPushReply = read_as(pushed)?;
+                if child {
+                    let note = Some(child_pushed_line(&push.branch));
+                    return Ok(json_of(&BringBackResult { branch: push.branch, base: push.base, ahead: push.ahead, uncommitted: push.uncommitted, stat: push.stat, pr: None, note, refused: None }));
+                }
+                let mut asked = with_base(json!({ "op": "git.pr", "cwd": cwd }), &base);
+                if let Some(title) = &pr_title {
+                    asked["title"] = json!(title);
+                }
+                if let Some(body) = &body {
+                    asked["body"] = json!(body);
+                }
+                let (pr, note, refused) = match ask(asked).await {
+                    Ok(v) => {
+                        let reply: GitPrReply = read_as(v)?;
+                        (Some(reply.pr), None, None)
+                    }
+                    Err(err) => {
+                        if is_no_host_cli(&refusal_of(&err)) {
+                            (None, Some(err.message), None)
+                        } else {
+                            (None, None, Some(err.message))
+                        }
+                    }
+                };
+                Ok(json_of(&BringBackResult { branch: push.branch, base: push.base, ahead: push.ahead, uncommitted: push.uncommitted, stat: push.stat, pr, note, refused }))
+            }
+            .boxed_local()
+        });
+        c.with_daemon(&e, work).await
+    });
+    let value = ctx.queued(&id, queued_work).await?;
+    let brought: BringBackResult = read_as(value)?;
+    if let Some(pr) = brought.pr.clone() {
+        let mut pr_json = json_of(&pr);
+        pr_json["readAt"] = json!(ctx.clock().now());
+        ctx.take_pull_request(&entry, pr_json).await?;
+    }
+    ctx.read_lead_of(&entry);
+    Ok(brought)
 }
 
 // ts: workspaces.ts:748-752
@@ -216,7 +429,9 @@ pub async fn bring_back(ctx: &Rc<dyn GitCtx>, workspace_id: &str, title: Option<
 //|       return { workspace: ctx.view(at.entry.record), ...(at.cwd !== undefined ? { cwd: at.cwd } : {}), ...(at.setup !== undefined ? { setup: at.setup } : {}) };
 //|     },
 pub async fn folder_for(ctx: &Rc<dyn GitCtx>, ask: FolderForAsk, origin: Option<Caller>) -> Result<FolderFor, HostError> {
-    todo!()
+    ctx.ready().await?;
+    let (entry, cwd, setup) = ctx.folder_for(ask, origin).await?;
+    Ok(FolderFor { workspace: ctx.view(&record_of(&entry)), cwd, setup })
 }
 
 // ts: workspaces.ts:754-757
@@ -225,7 +440,9 @@ pub async fn folder_for(ctx: &Rc<dyn GitCtx>, ask: FolderForAsk, origin: Option<
 //|       return ctx.takeSetupLine((await ctx.entryOf(id, origin)).record.id);
 //|     },
 pub async fn take_setup_line(ctx: &Rc<dyn GitCtx>, id: &str, origin: Option<Caller>) -> Result<Option<String>, HostError> {
-    todo!()
+    ctx.ready().await?;
+    let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    Ok(ctx.take_setup_line(&id_of(&entry)))
 }
 
 // ts: workspaces.ts:759-765
@@ -237,7 +454,14 @@ pub async fn take_setup_line(ctx: &Rc<dyn GitCtx>, id: &str, origin: Option<Call
 //|       return ctx.view((await ctx.projectFolder(project)).record);
 //|     },
 pub async fn folder(ctx: &Rc<dyn GitCtx>, project: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-    todo!()
+    ctx.ready().await?;
+    let project = ctx.resolve_project(project, origin.clone()).await?;
+    if !runs_in_folder(&ctx.kind_of(&project.computer)) {
+        return Err(HostError::with_kind(not_on_this_computer_line(&project.name), Kind::Usage));
+    }
+    ctx.refuse_recording(&project.name, origin.as_ref())?;
+    let entry = ctx.project_folder(&project).await?;
+    Ok(ctx.view(&record_of(&entry)))
 }
 
 // ts: workspaces.ts:767-778
@@ -254,7 +478,27 @@ pub async fn folder(ctx: &Rc<dyn GitCtx>, project: &str, origin: Option<Caller>)
 //|       return { path: tree?.path ?? top, branch, made: tree?.made === true };
 //|     },
 pub async fn worktree(ctx: &Rc<dyn GitCtx>, project: &str, branch: &str, origin: Option<Caller>) -> Result<WorktreeMade, HostError> {
-    todo!()
+    ctx.ready().await?;
+    let project = ctx.resolve_project(project, origin.clone()).await?;
+    let top = project.git.as_ref().map(|g| g.top.clone());
+    let kind = ctx.kind_of(&project.computer);
+    if !runs_in_folder(&kind) {
+        return Err(HostError::with_kind(not_on_this_computer_line(&project.name), Kind::Usage));
+    }
+    if !copies_folder(&kind) {
+        return Err(HostError::with_kind(place_branch_line(&ctx.place_name(&project.computer)), Kind::Usage));
+    }
+    let Some(top) = top else {
+        return Err(HostError::with_kind(no_branches_line(&project.name), Kind::Usage));
+    };
+    let root = scope_of(origin.as_ref()).map(|s| s.root_thread_id);
+    let entry = ctx.worktree_folder(&project, &top, branch, root).await?;
+    let tree = record_of(&entry).worktree;
+    Ok(WorktreeMade {
+        path: tree.as_ref().map(|t| t.path.clone()).unwrap_or(top),
+        branch: branch.to_owned(),
+        made: tree.as_ref().is_some_and(|t| t.made),
+    })
 }
 
 // ts: workspaces.ts:780-794
@@ -274,7 +518,34 @@ pub async fn worktree(ctx: &Rc<dyn GitCtx>, project: &str, branch: &str, origin:
 //|       await ctx.removeWorktree(entry, force === true, check === true ? { check: true } : {});
 //|     },
 pub async fn worktree_remove(ctx: &Rc<dyn GitCtx>, ask: WorktreeRemoveAsk, origin: Option<Caller>) -> Result<(), HostError> {
-    todo!()
+    ctx.ready().await?;
+    let project = ctx.resolve_project(&ask.project, origin.clone()).await?;
+    let Some(top) = project.git.as_ref().map(|g| g.top.clone()) else {
+        return Err(HostError::with_kind(no_branches_line(&project.name), Kind::Usage));
+    };
+    let holding = ctx.worktrees_of(&top).await?.into_iter().find(|t| t.branch.as_deref() == Some(ask.branch.as_str())).map(|t| t.path);
+    let entry = ctx.folders_of(&project.id).into_iter().find(|e| {
+        record_of(e).worktree.is_some_and(|tree| {
+            tree.gone.is_none()
+                && match &holding {
+                    Some(path) => tree.path == *path,
+                    None => tree.branch.as_deref() == Some(ask.branch.as_str()),
+                }
+        })
+    });
+    if let Some(entry) = &entry {
+        ctx.refuse_relayed(&record_of(entry), origin.as_ref())?;
+    }
+    let entry = match entry {
+        Some(entry) if record_of(&entry).worktree.is_some_and(|t| t.made) => entry,
+        _ => return Err(HostError::with_kind(not_made_worktree_line(&ask.branch), Kind::Invalid)),
+    };
+    let force = ask.force == Some(true);
+    if force && scope_of(origin.as_ref()).is_some() {
+        return Err(HostError::with_kind(WORKTREE_FORCE_LINE.to_owned(), Kind::Usage));
+    }
+    let check = ask.check == Some(true);
+    ctx.remove_worktree(&entry, force, RemoveAsk { check, ..RemoveAsk::default() }).await
 }
 
 // ts: workspaces.ts:796-807
@@ -291,7 +562,17 @@ pub async fn worktree_remove(ctx: &Rc<dyn GitCtx>, ask: WorktreeRemoveAsk, origi
 //|       return checkout === undefined ? {} : { checkout };
 //|     },
 pub async fn checkout(ctx: &Rc<dyn GitCtx>, id: &str, origin: Option<Caller>, fresh: bool) -> Result<CheckoutReply, HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    let checkout = ctx.read_checkout(&entry, fresh).await?;
+    if !fresh {
+        let _ = ctx.read_pull_request(&entry, false, false).await;
+        let own = record_of(&entry).id;
+        let has_children = ctx.live().borrow().values().any(|e| record_of(e).parent_workspace_id.as_deref() == Some(own.as_str()));
+        if has_children {
+            let _ = ctx.read_tree(&entry).await;
+        }
+    }
+    Ok(CheckoutReply { checkout })
 }
 
 // ts: workspaces.ts:809-820
@@ -308,7 +589,27 @@ pub async fn checkout(ctx: &Rc<dyn GitCtx>, id: &str, origin: Option<Caller>, fr
 //|       return put;
 //|     },
 pub async fn discard(ctx: &Rc<dyn GitCtx>, ask: DiscardAsk, origin: Option<Caller>) -> Result<GitDiscardReply, HostError> {
-    todo!()
+    let thread = ask.thread_id.clone();
+    let entry = ctx.entry_of(&ask.workspace_id, origin, EntryAsk { thread: thread.clone(), ..EntryAsk::default() }).await?;
+    ctx.copy_blocked(&entry).await?;
+    let cwd = ctx.checkout_of(&record_of(&entry));
+    if ask.check == Some(true) {
+        let status: GitStatusReply = read_as(ask_daemon(ctx, &entry, json!({ "op": "git.status", "cwd": cwd })).await?)?;
+        let unread = status.edits_unread;
+        if !unread && !status.entries.iter().any(|e| e.xy != "!!" && e.path == ask.path) {
+            return Err(HostError::new(no_change_line(&ask.path)));
+        }
+        return read_as(json!({ "path": ask.path }));
+    }
+    let path = ask.path.clone();
+    let work: Queued<Value> = {
+        let c = ctx.clone();
+        let e = entry.clone();
+        Box::pin(async move { ask_daemon(&c, &e, json!({ "op": "git.discard", "cwd": cwd, "path": path })).await })
+    };
+    let put: GitDiscardReply = read_as(ctx.queued(&record_of(&entry).id, work).await?)?;
+    ctx.read_checkout(&entry, true).await?;
+    Ok(put)
 }
 
 // ts: workspaces.ts:822-839
@@ -331,7 +632,38 @@ pub async fn discard(ctx: &Rc<dyn GitCtx>, ask: DiscardAsk, origin: Option<Calle
 //|       return made;
 //|     },
 pub async fn commit(ctx: &Rc<dyn GitCtx>, ask: CommitAsk, origin: Option<Caller>) -> Result<GitCommitReply, HostError> {
-    todo!()
+    ctx.spawn_guard("commit", origin.as_ref())?;
+    let thread = ask.thread_id.clone();
+    let entry = ctx.entry_of(&ask.workspace_id, origin, EntryAsk { act: Some(AcrossAct::Commit), thread: thread.clone(), ..EntryAsk::default() }).await?;
+    ctx.copy_blocked(&entry).await?;
+    let cwd = ctx.checkout_of(&record_of(&entry));
+    let label = ctx.label_of(&entry, thread.as_deref());
+    let paths = ask.paths.clone();
+    let message = ask.message.clone();
+    let c = ctx.clone();
+    let e = entry.clone();
+    let work: Queued<Value> = Box::pin(async move {
+        let work: DaemonWork = Box::new(move |ask: DaemonAsk| {
+            async move {
+                let named = match &paths {
+                    Some(paths) => paths.clone(),
+                    None => {
+                        let diff: GitDiffReply = read_as(ask(json!({ "op": "git.diff", "cwd": cwd, "scope": "head" })).await?)?;
+                        diff.files.iter().map(|f| f.path.clone()).collect()
+                    }
+                };
+                if paths.is_none() && named.is_empty() {
+                    return Err(HostError::new(clean_checkout_line(&label)));
+                }
+                ask(json!({ "op": "git.commit", "cwd": cwd, "message": message, "paths": named })).await
+            }
+            .boxed_local()
+        });
+        c.with_daemon(&e, work).await
+    });
+    let made: GitCommitReply = read_as(ctx.queued(&record_of(&entry).id, work).await?)?;
+    ctx.read_checkout(&entry, true).await?;
+    Ok(made)
 }
 
 // ts: workspaces.ts:841-879
@@ -375,7 +707,73 @@ pub async fn commit(ctx: &Rc<dyn GitCtx>, ask: CommitAsk, origin: Option<Caller>
 //|       }
 //|     },
 pub async fn commit_draft(ctx: &Rc<dyn GitCtx>, ask: CommitDraftAsk, origin: Option<Caller>) -> Result<CommitDraft, HostError> {
-    todo!()
+    ctx.spawn_guard("commit", origin.as_ref())?;
+    if ask.paths.as_ref().is_some_and(|p| p.is_empty()) {
+        return Ok(draft_empty(&draft_note("nothing")));
+    }
+    let entry = ctx.entry_of(&ask.workspace_id, origin, EntryAsk { act: Some(AcrossAct::Commit), ..EntryAsk::default() }).await?;
+    ctx.copy_blocked(&entry).await?;
+    let workspace_id = ask.workspace_id.clone();
+    let thread = ask.thread_id.clone();
+    let mut rows: Vec<SessionView> = match &thread {
+        None => Vec::new(),
+        Some(thread) => ctx.session_views().into_iter().filter(|v| v.workspace_id == workspace_id && v.thread_id.as_deref() == Some(thread.as_str())).collect(),
+    };
+    rows.sort_by(|a, b| {
+        let at = |v: &SessionView| v.started_at.as_ref().map_or(0.0, |n| n.0);
+        at(a).partial_cmp(&at(b)).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    if let (Some(thread), true) = (&thread, rows.is_empty()) {
+        return Err(not_found_refusal(&thread_elsewhere_line(thread)));
+    }
+    let head = rows.first().and_then(|r| r.prompt.clone());
+    let opening = match (&head, &thread) {
+        (Some(head), Some(thread)) if opening_cut(head) => {
+            let events = ctx.open_thread(&workspace_id, thread).await?;
+            events
+                .iter()
+                .find(|e| e["type"] == "session.start" && e["prompt"].as_str().is_some_and(|p| p.starts_with(head.as_str())))
+                .and_then(|e| e["prompt"].as_str().map(str::to_owned))
+                .or_else(|| Some(head.clone()))
+        }
+        _ => head.clone(),
+    };
+    let named = match rows.last().map(|r| r.harness.clone()) {
+        Some(harness) => harness,
+        None => ctx.default_agent_of(&entry),
+    };
+    if !ctx.has_adapter(&named) || ctx.agent_off(&entry, &named) {
+        return Ok(draft_empty(&draft_note("noAgent")));
+    }
+    let model = match ctx.drafter(&entry, &named).await? {
+        Some(model) => model,
+        None => return Ok(draft_empty(&draft_note("noAgent"))),
+    };
+    let cwd = ctx.checkout_of(&record_of(&entry));
+    let paths = ask.paths.clone();
+    let diff: GitDiffReply = {
+        let mut op = json!({ "op": "git.diff", "cwd": cwd, "scope": "head" });
+        if let Some(paths) = &paths {
+            op["paths"] = json!(paths);
+        }
+        read_as(ask_daemon(ctx, &entry, op).await?)?
+    };
+    let patches: Vec<String> = diff.files.iter().map(|f| f.patch.clone()).collect();
+    let question = draft_prompt(&cut_diff(&patches.join("\n"), None), opening.as_deref());
+    let prompt_file = format!("/tmp/wsp-draft-{}.txt", hex::encode(ctx.ids().bytes(6)));
+    let put = ctx.put_files(&entry, &prompt_file, &question).await?;
+    if put.exit_code.0 .0 != 0.0 {
+        return Ok(draft_empty(&draft_note("noAnswer")));
+    }
+    let answer = ctx.draft_for(&entry, &named, &prompt_file, model.as_deref()).await;
+    let removed = ctx.machine_exec(&entry, &format!("rm -f {}", shell_quote(&prompt_file)), None).await;
+    let _ = removed;
+    let answer = answer?;
+    let message = answer.as_deref().and_then(commit_message);
+    match message {
+        None => Ok(draft_empty(&draft_note("noAnswer"))),
+        Some(message) => Ok(CommitDraft { message: Some(message), note: None }),
+    }
 }
 
 // ts: workspaces.ts:881-891
@@ -391,7 +789,24 @@ pub async fn commit_draft(ctx: &Rc<dyn GitCtx>, ask: CommitDraftAsk, origin: Opt
 //|       return { viewed: marks };
 //|     },
 pub async fn viewed(ctx: &Rc<dyn GitCtx>, workspace_id: &str, mark: Option<ViewedMark>, origin: Option<Caller>) -> Result<ViewedMarks, HostError> {
-    todo!()
+    let _entry = ctx.entry_of(workspace_id, origin, EntryAsk::default()).await?;
+    let mut marks: indexmap::IndexMap<String, String> = ctx.viewed_marks().borrow().get(workspace_id).map(|m| m.viewed.clone()).unwrap_or_default();
+    let Some(mark) = mark else {
+        return Ok(ViewedMarks { viewed: marks });
+    };
+    match mark.blob {
+        Some(blob) => {
+            marks.insert(mark.path, blob);
+        }
+        None => {
+            marks.shift_remove(&mark.path);
+        }
+    }
+    let answer = ViewedMarks { viewed: marks };
+    ctx.viewed_marks().borrow_mut().insert(workspace_id.to_owned(), answer.clone());
+    ctx.persist_sessions(workspace_id).await?;
+    ctx.emit(json!({ "type": "workspace.viewed", "workspaceId": workspace_id, "viewed": json_of(&answer.viewed) }))?;
+    Ok(answer)
 }
 
 // ts: workspaces.ts:893-898
@@ -402,7 +817,17 @@ pub async fn viewed(ctx: &Rc<dyn GitCtx>, workspace_id: &str, mark: Option<Viewe
 //|       return { ...page, ...(merge !== undefined ? { merge } : {}), sent: entry.record.prSent ?? [], postsAsYou: here };
 //|     },
 pub async fn pull_request_view(ctx: &Rc<dyn GitCtx>, workspace_id: &str, fresh: bool, origin: Option<Caller>) -> Result<PullRequestPage, HostError> {
-    todo!()
+    let on = ctx.pull_request_on(workspace_id, origin).await?;
+    let (page, here) = ctx.read_page(&on.entry, &on.remote, on.number, fresh).await?;
+    let merge = ctx.merge_settings(&on.remote).await.ok();
+    let sent = record_of(&on.entry).pr_sent.unwrap_or_default();
+    let mut value = json_of(&page);
+    if let Some(merge) = merge {
+        value["merge"] = merge;
+    }
+    value["sent"] = json_of(&sent);
+    value["postsAsYou"] = json!(here);
+    read_as(value)
 }
 
 // ts: workspaces.ts:900-903
@@ -411,7 +836,10 @@ pub async fn pull_request_view(ctx: &Rc<dyn GitCtx>, workspace_id: &str, fresh: 
 //|       return ctx.readHost(entry, cwd => ({ op: "git.prDiff", cwd, remote, number, maxBytes: GIT_DIFF_CAP_BYTES }), r => GitPrDiffReply.parse(r));
 //|     },
 pub async fn pull_request_diff(ctx: &Rc<dyn GitCtx>, workspace_id: &str, origin: Option<Caller>) -> Result<GitPrDiffReply, HostError> {
-    todo!()
+    let on = ctx.pull_request_on(workspace_id, origin).await?;
+    let cwd = ctx.checkout_of(&record_of(&on.entry));
+    let value = ctx.read_host(&on.entry, json!({ "op": "git.prDiff", "cwd": cwd, "remote": on.remote, "number": on.number, "maxBytes": GIT_DIFF_CAP_BYTES })).await?;
+    read_as(value)
 }
 
 // ts: workspaces.ts:905-910
@@ -422,7 +850,19 @@ pub async fn pull_request_diff(ctx: &Rc<dyn GitCtx>, workspace_id: &str, origin:
 //|       return ctx.postAsPerson(remote, number, cwd => ({ op: "git.prReply", cwd, remote, number, ...where, body }), r => GitPrReplyReply.parse(r));
 //|     },
 pub async fn pull_request_reply(ctx: &Rc<dyn GitCtx>, ask: PullRequestReplyAsk, origin: Option<Caller>) -> Result<GitPrReplyReply, HostError> {
-    todo!()
+    if ask.body.trim().is_empty() {
+        return Err(HostError::with_kind(REPLY_EMPTY_LINE.to_owned(), Kind::Invalid));
+    }
+    let on = ctx.pull_request_on(&ask.workspace_id, origin).await?;
+    let mut op = json!({ "op": "git.prReply", "cwd": home_cwd(ctx), "remote": on.remote, "number": on.number, "body": ask.body });
+    if let Some(reply_to) = ask.reply_to {
+        op["replyTo"] = json!(reply_to);
+    }
+    if let Some(thread) = &ask.thread_id {
+        op["threadId"] = json!(thread);
+    }
+    let value = ctx.post_as_person(&on.remote, on.number, op).await?;
+    read_as(value)
 }
 
 // ts: workspaces.ts:912-915
@@ -431,7 +871,10 @@ pub async fn pull_request_reply(ctx: &Rc<dyn GitCtx>, ask: PullRequestReplyAsk, 
 //|       return ctx.postAsPerson(remote, number, cwd => ({ op: "git.prResolve", cwd, remote, number, threadId, resolved }), r => GitPrResolveReply.parse(r));
 //|     },
 pub async fn pull_request_resolve(ctx: &Rc<dyn GitCtx>, workspace_id: &str, thread_id: &str, resolved: bool, origin: Option<Caller>) -> Result<GitPrResolveReply, HostError> {
-    todo!()
+    let on = ctx.pull_request_on(workspace_id, origin).await?;
+    let op = json!({ "op": "git.prResolve", "cwd": home_cwd(ctx), "remote": on.remote, "number": on.number, "threadId": thread_id, "resolved": resolved });
+    let value = ctx.post_as_person(&on.remote, on.number, op).await?;
+    read_as(value)
 }
 
 // ts: workspaces.ts:917-920
@@ -440,7 +883,10 @@ pub async fn pull_request_resolve(ctx: &Rc<dyn GitCtx>, workspace_id: &str, thre
 //|       return ctx.postAsPerson(remote, number, cwd => ({ op: "git.prReact", cwd, remote, number, subject, content, on }), r => GitPrReactReply.parse(r));
 //|     },
 pub async fn pull_request_react(ctx: &Rc<dyn GitCtx>, workspace_id: &str, subject: &str, content: ReactionContent, on: bool, origin: Option<Caller>) -> Result<GitPrReactReply, HostError> {
-    todo!()
+    let target = ctx.pull_request_on(workspace_id, origin).await?;
+    let op = json!({ "op": "git.prReact", "cwd": home_cwd(ctx), "remote": target.remote, "number": target.number, "subject": subject, "content": json_of(&content), "on": on });
+    let value = ctx.post_as_person(&target.remote, target.number, op).await?;
+    read_as(value)
 }
 
 // ts: workspaces.ts:922-935
@@ -459,7 +905,44 @@ pub async fn pull_request_react(ctx: &Rc<dyn GitCtx>, workspace_id: &str, subjec
 //|       return { outcome: said.outcome, threadId: said.threadId, agent: said.harness, ...(said.capped !== undefined ? { capped: said.capped } : {}), sent: entry.record.prSent };
 //|     },
 pub async fn pull_request_send(ctx: &Rc<dyn GitCtx>, workspace_id: &str, items: Vec<PullRequestItem>, thread_id: Option<String>, origin: Option<Caller>) -> Result<PullRequestSendResult, HostError> {
-    todo!()
+    let on = ctx.pull_request_on(workspace_id, origin.clone()).await?;
+    if let Some(thread) = &thread_id {
+        if !thread_has_session(ctx, workspace_id, thread) {
+            return Err(not_found_refusal(&thread_elsewhere_line(thread)));
+        }
+    }
+    ctx.copy_blocked(&on.entry).await?;
+    let (page, _) = ctx.read_page(&on.entry, &on.remote, on.number, false).await?;
+    let values: Vec<Value> = items.iter().map(json_of).collect();
+    let keep: Vec<usize> = (0..values.len()).filter(|n| values.iter().position(|o| same_item(&values[*n], o)) == Some(*n)).collect();
+    let asked_values: Vec<Value> = keep.iter().map(|n| values[*n].clone()).collect();
+    let page_items: Vec<PageItem> = asked_values
+        .iter()
+        .map(|item| {
+            Ok(PageItem { kind: read_as(item["kind"].clone())?, id: item["id"].as_f64().unwrap_or_default() })
+        })
+        .collect::<Result<_, HostError>>()?;
+    let prompt = pull_request_send_prompt(&page.comments, &page.reviews, &page.review_comments, &page_items, on.number as f64)?;
+    let said = match &thread_id {
+        None => ctx.to_first_thread(workspace_id, &prompt, origin).await?,
+        Some(thread) => ctx.send_detached(workspace_id, &prompt, thread, origin).await?,
+    };
+    let at = ctx.clock().now();
+    let old: Vec<Value> = json_of(&record_of(&on.entry).pr_sent.unwrap_or_default()).as_array().cloned().unwrap_or_default();
+    let mut next: Vec<Value> = old.into_iter().filter(|s| !asked_values.iter().any(|i| same_item(i, s))).collect();
+    for item in &asked_values {
+        next.push(json!({ "kind": item["kind"], "id": item["id"], "at": at }));
+    }
+    let sent: Vec<PullRequestSent> = read_as(Value::Array(next))?;
+    on.entry.borrow().record.borrow_mut().pr_sent = Some(sent.clone());
+    ctx.persist(record_of(&on.entry)).await?;
+    read_as(without_nulls(json!({
+        "outcome": said.outcome,
+        "threadId": said.thread_id,
+        "agent": said.harness,
+        "capped": said.capped,
+        "sent": json_of(&sent),
+    })))
 }
 
 // ts: workspaces.ts:937-979
@@ -507,7 +990,91 @@ pub async fn pull_request_send(ctx: &Rc<dyn GitCtx>, workspace_id: &str, items: 
 //|       return { outcome: said.outcome, threadId: said.threadId, ...(check !== undefined ? { check } : {}), ...(child !== undefined ? { child } : {}), base, agent: said.harness, ...(said.capped !== undefined ? { capped: said.capped } : {}) };
 //|     },
 pub async fn fix(ctx: &Rc<dyn GitCtx>, ask: FixAsk, origin: Option<Caller>) -> Result<FixResult, HostError> {
-    todo!()
+    ctx.spawn_guard("fix", origin.as_ref())?;
+    if ask.check.is_some() && ask.child.is_some() {
+        return Err(HostError::with_kind(FIX_CHECK_OR_CHILD.to_owned(), Kind::Invalid));
+    }
+    let thread = ask.thread_id.clone();
+    let entry = ctx.entry_of(&ask.workspace_id, origin.clone(), EntryAsk { act: Some(AcrossAct::Fix), thread: thread.clone(), ..EntryAsk::default() }).await?;
+    if let Some(thread) = &thread {
+        if !thread_has_session(ctx, &ask.workspace_id, thread) {
+            return Err(not_found_refusal(&thread_elsewhere_line(thread)));
+        }
+    }
+    ctx.copy_blocked(&entry).await?;
+    let record = record_of(&entry);
+    let project = ctx.project_held(&record.project)?;
+    let (prompt, base) = if let Some(child) = ask.child.clone() {
+        let kid = ctx.child_of(&entry, &child, origin.clone(), thread.as_deref(), ask.child_thread_id.as_deref()).await?;
+        let lead_branch = match ctx.read_checkout(&entry, false).await?.map(|c| c.branch) {
+            Some(branch) => branch,
+            None => record.base.clone().or(project.base.clone()).unwrap_or(project.default_branch.clone()),
+        };
+        let kid_record = record_of(&kid);
+        let child_branch = match ctx.read_checkout(&kid, false).await?.map(|c| c.branch) {
+            Some(branch) => branch,
+            None => kid_record.worktree.as_ref().and_then(|w| w.branch.clone()).unwrap_or_default(),
+        };
+        let remote = if wsp_catalog::git_hosts::remote_host(&project.remote).is_none() { ctx.checkout_of(&kid_record) } else { "origin".to_owned() };
+        let conflicts = kid_record.tree.as_ref().and_then(|t| t.conflicts.clone()).unwrap_or_default();
+        let prompt = merge_child_prompt(&MergeChild { lead_branch: lead_branch.clone(), child_branch, remote, conflicts });
+        (prompt, lead_branch)
+    } else if ask.check.is_none() {
+        let updated = ctx.update_copy(&entry).await?;
+        if updated.merged {
+            return read_as(json!({ "outcome": "updated", "base": updated.base }));
+        }
+        let branch = match entry.borrow().checkout.as_ref().map(|c| c.branch.clone()) {
+            Some(branch) => branch,
+            None => match live_pr_fact(&entry).map(|f| f.branch) {
+                Some(branch) => branch,
+                None => updated.base.clone(),
+            },
+        };
+        let files: Vec<&str> = updated.conflicts.iter().map(String::as_str).collect();
+        (conflicts_prompt(&updated.base, &branch, &files), updated.base.clone())
+    } else {
+        let check_name = ask.check.clone().unwrap_or_default();
+        let fact = ctx.read_pull_request(&entry, true, true).await?.map(read_as::<PullRequestSeen>).transpose()?;
+        let fact = match fact {
+            Some(PullRequestSeen::PullRequestFact(fact)) => fact,
+            _ => return Err(HostError::new(no_pull_request_refusal(&ctx.label_of(&entry, thread.as_deref())))),
+        };
+        let names: Vec<String> = fact.checks.iter().map(|c| c.name.clone()).collect();
+        let failed = match fact.checks.iter().find(|c| c.name == check_name) {
+            Some(failed) => failed.clone(),
+            None => return Err(HostError::new(no_such_check_refusal(&check_name, &names))),
+        };
+        if json_of(&failed.state) != json!("fail") {
+            return Err(HostError::new(check_not_failed_refusal(&check_name, json_of(&failed.state).as_str().unwrap_or_default())));
+        }
+        let log: Option<CheckLog> = match &failed.run {
+            None => None,
+            Some(run) => {
+                let cwd = ctx.checkout_of(&record);
+                let value = ctx.read_host(&entry, json!({ "op": "git.runLog", "cwd": cwd, "remote": project.remote, "runId": run.run_id, "jobId": run.job_id })).await;
+                match value {
+                    Ok(v) => read_as::<GitRunLogReply>(v).ok().map(|r| CheckLog { lines: r.lines, truncated: r.truncated }),
+                    Err(_) => None,
+                }
+            }
+        };
+        let commit = CheckedCommit { oid: fact.head_oid.clone(), subject: Some(fact.head_subject.clone()) };
+        (check_failed_prompt(&failed, &commit, log.as_ref()), fact.base.clone())
+    };
+    let said = match &thread {
+        None => ctx.to_first_thread(&ask.workspace_id, &prompt, origin).await?,
+        Some(thread) => ctx.send_detached(&ask.workspace_id, &prompt, thread, origin).await?,
+    };
+    read_as(without_nulls(json!({
+        "outcome": said.outcome,
+        "threadId": said.thread_id,
+        "check": ask.check,
+        "child": ask.child,
+        "base": base,
+        "agent": said.harness,
+        "capped": said.capped,
+    })))
 }
 
 // ts: workspaces.ts:981-1006
@@ -538,7 +1105,49 @@ pub async fn fix(ctx: &Rc<dyn GitCtx>, ask: FixAsk, origin: Option<Caller>) -> R
 //|       return { number: fact.number, method: by, merged: done.merged, autoArmed: done.autoArmed };
 //|     },
 pub async fn merge(ctx: &Rc<dyn GitCtx>, ask: MergeAsk, origin: Option<Caller>) -> Result<MergeResult, HostError> {
-    todo!()
+    ctx.spawn_guard("merge", origin.as_ref())?;
+    let entry = ctx.entry_of(&ask.workspace_id, origin.clone(), EntryAsk { thread: ask.thread_id.clone(), ..EntryAsk::default() }).await?;
+    let held = live_pr_fact(&entry);
+    let fact = match held {
+        Some(fact) => fact,
+        None => match ctx.read_pull_request(&entry, false, false).await?.map(read_as::<PullRequestSeen>).transpose()? {
+            Some(PullRequestSeen::PullRequestFact(fact)) => fact,
+            _ => {
+                let kept = record_of(&entry).pr;
+                let label = ctx.label_of(&entry, ask.thread_id.as_deref());
+                return Err(HostError::new(match kept {
+                    Some(kept) if json_of(&kept.state) != json!("open") => not_open_refusal(kept.number.0 .0, &serde_json::from_value(json_of(&kept.state)).map_err(|e| HostError::new(e.to_string()))?),
+                    _ => no_pull_request_refusal(&label),
+                }));
+            }
+        },
+    };
+    if json_of(&fact.state) != json!("open") {
+        return Err(HostError::new(not_open_refusal(fact.number.0 .0, &read_as(json_of(&fact.state))?)));
+    }
+    let remote = ctx.project_held(&record_of(&entry).project)?.remote;
+    let settings: MergeSettings = read_as(ctx.merge_settings(&remote).await?)?;
+    let by = ask.method.clone().unwrap_or(settings.default_method.clone());
+    if !settings.methods.contains(&by) {
+        return Err(HostError::new(merge_method_refusal(&by, &settings.methods)));
+    }
+    let auto = ask.when_checks_pass == Some(true);
+    if auto && !settings.auto_merge {
+        return Err(HostError::new(AUTO_MERGE_OFF_LINE.to_owned()));
+    }
+    let head = ask.head.clone().unwrap_or(fact.head_oid.clone());
+    let number_json = fact.number.0 .0 as i64;
+    let method = by.clone();
+    let host_remote = remote.clone();
+    let done: GitPrMergeReply = read_as(
+        ctx.on_this_computer(Box::new(move |ask: DaemonAsk, home: String| {
+            async move { ask(json!({ "op": "git.prMerge", "cwd": home, "remote": host_remote, "number": number_json, "method": method, "auto": auto, "headOid": head })).await }.boxed_local()
+        }))
+        .await?,
+    )?;
+    ctx.drop_page_cache(&remote, number_json);
+    let _ = ctx.read_pull_request(&entry, true, false).await;
+    read_as(json!({ "number": number_json, "method": by, "merged": done.merged, "autoArmed": done.auto_armed }))
 }
 
 // ts: workspaces.ts:1008-1013
@@ -549,7 +1158,10 @@ pub async fn merge(ctx: &Rc<dyn GitCtx>, ask: MergeAsk, origin: Option<Caller>) 
 //|       return ctx.updateCopy(entry);
 //|     },
 pub async fn update(ctx: &Rc<dyn GitCtx>, workspace_id: &str, thread_id: Option<String>, origin: Option<Caller>) -> Result<GitUpdateReply, HostError> {
-    todo!()
+    ctx.spawn_guard("update", origin.as_ref())?;
+    let entry = ctx.entry_of(workspace_id, origin, EntryAsk { act: Some(AcrossAct::Update), thread: thread_id.clone(), ..EntryAsk::default() }).await?;
+    ctx.copy_blocked(&entry).await?;
+    ctx.update_copy(&entry).await
 }
 
 // ts: workspaces.ts:1015-1053
@@ -593,5 +1205,77 @@ pub async fn update(ctx: &Rc<dyn GitCtx>, workspace_id: &str, thread_id: Option<
 //|       return { lead: lead.record.name, child: kid.record.name, branch, merged: done.merged, commits: done.commits, conflicts: done.conflicts, ...(unpushed > 0 ? { unpushed } : {}) };
 //|     },
 pub async fn merge_in(ctx: &Rc<dyn GitCtx>, ask: MergeInAsk, origin: Option<Caller>) -> Result<MergeInResult, HostError> {
-    todo!()
+    ctx.spawn_guard("merge_in", origin.as_ref())?;
+    let lead = ctx.entry_of(&ask.workspace_id, origin.clone(), EntryAsk { thread: ask.thread_id.clone(), ..EntryAsk::default() }).await?;
+    let lead_record = record_of(&lead);
+    if let Some(scope) = scope_of(origin.as_ref()) {
+        if scope.workspace_id != lead_record.id {
+            return Err(HostError::new(merge_into_own_refusal(&scope.thread_id)));
+        }
+    }
+    let kid = ctx.child_of(&lead, &ask.child, origin.clone(), ask.thread_id.as_deref(), ask.child_thread_id.as_deref()).await?;
+    let busy: Vec<String> = ctx
+        .session_views()
+        .into_iter()
+        .filter(|v| v.workspace_id == lead_record.id && v.status == SessionStatus::Running && v.thread_id.is_some() && v.thread_id != scope_of(origin.as_ref()).map(|s| s.thread_id))
+        .filter_map(|v| v.thread_id)
+        .collect();
+    if !busy.is_empty() {
+        let label = ctx.label_of(&lead, ask.thread_id.as_deref());
+        return Err(HostError::new(lead_busy_refusal(&label, &busy)));
+    }
+    ctx.copy_blocked(&lead).await?;
+    let kid_record = record_of(&kid);
+    let sub_branch = kid_record.sub.as_ref().map(|s| s.branch.clone());
+    let branch = match sub_branch {
+        Some(branch) => branch,
+        None => match ctx.read_checkout(&kid, true).await?.map(|c| c.branch) {
+            Some(branch) => branch,
+            None => kid_record.worktree.as_ref().and_then(|w| w.branch.clone()).unwrap_or_default(),
+        },
+    };
+    if branch.is_empty() || branch == DETACHED_HEAD {
+        let label = ctx.label_of(&kid, ask.child_thread_id.as_deref());
+        return Err(HostError::new(child_on_no_branch_refusal(&label)));
+    }
+    let project = ctx.project_held(&lead_record.project)?;
+    let mut from: Option<String> = None;
+    if wsp_catalog::git_hosts::remote_host(&project.remote).is_none() {
+        if !ctx.is_local_workspace(&lead_record) || !ctx.is_local_workspace(&kid_record) {
+            return Err(HostError::new(no_remote_for_tree_line(&project.name)));
+        }
+        from = Some(ctx.checkout_of(&kid_record));
+    }
+    let mut op = json!({ "op": "git.mergeIn", "cwd": ctx.checkout_of(&lead_record), "branch": branch });
+    if let Some(from) = &from {
+        op["from"] = json!(from);
+    }
+    let lead_id = lead_record.id.clone();
+    let c = ctx.clone();
+    let l = lead.clone();
+    let work: Queued<Value> = Box::pin(async move { ask_daemon(&c, &l, op).await });
+    let done: MergeInReply = read_as(ctx.queued(&lead_id, work).await?)?;
+    let mut kept: TreeRecord = tree_or_empty(kid_record.tree.clone());
+    if done.merged {
+        kept.conflicts = None;
+        if done.commits > 0 {
+            if let Some(oid) = &done.oid {
+                kept.merged = Some(read_as(without_nulls(json!({ "oid": oid, "at": ctx.clock().now(), "head": done.head })))?);
+            }
+        }
+    } else {
+        kept.conflicts = Some(done.conflicts.clone());
+    }
+    ctx.read_checkout(&lead, true).await?;
+    ctx.keep_tree(&kid, kept).await?;
+    let unpushed = kid_record.sub.as_ref().and_then(|s| s.result.as_ref()).map(|r| r.unpushed.0 .0).unwrap_or(0.0);
+    read_as(without_nulls(json!({
+        "lead": lead_record.name,
+        "child": kid_record.name,
+        "branch": branch,
+        "merged": done.merged,
+        "commits": done.commits,
+        "conflicts": done.conflicts,
+        "unpushed": if unpushed > 0.0 { json!(unpushed) } else { Value::Null },
+    })))
 }

@@ -47,7 +47,11 @@ pub struct Workspaces {
 
 // export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
 pub fn workspaces_area<C: WorkspacesCtx + 'static>(ctx: Rc<C>) -> Rc<Workspaces> {
-    todo!()
+    let create: Rc<dyn create::CreateCtx> = ctx.clone();
+    let phases: Rc<dyn phases::PhasesCtx> = ctx.clone();
+    let git: Rc<dyn git::GitCtx> = ctx.clone();
+    let review: Rc<dyn review::ReviewCtx> = ctx;
+    Rc::new(Workspaces { create, phases, git, review })
 }
 
 impl wsp_core::context::WorkspacesArea for Workspaces {}
@@ -55,180 +59,180 @@ impl wsp_core::context::WorkspacesArea for Workspaces {}
 #[async_trait(?Send)]
 impl WorkspacesApi for Workspaces {
     async fn create(&self, opts: CreateWorkspaceOptions, origin: Option<Caller>) -> Result<CreatedWorkspace, HostError> {
-        todo!()
+        create::create(&self.create, opts, origin).await
     }
     async fn landing(&self, project: &str, sized: bool, origin: Option<Caller>) -> Result<Landing, HostError> {
-        todo!()
+        create::landing(&self.create, project, sized, origin).await
     }
     async fn get(&self, id: &str, origin: Option<Caller>, thread_id: Option<&str>) -> Result<WorkspaceView, HostError> {
-        todo!()
+        create::get(&self.create, id, origin, thread_id).await
     }
     async fn held_or_creating(&self, id: &str) -> Result<Option<WorkspaceView>, HostError> {
-        todo!()
+        create::held_or_creating(&self.create, id).await
     }
     fn thread_place(&self, scope: &ThreadScope) -> Option<String> {
-        todo!()
+        self.create.place_of_thread(scope)
     }
     async fn list(&self, origin: Option<Caller>) -> Result<Vec<WorkspaceView>, HostError> {
-        todo!()
+        create::list(&self.create, origin).await
     }
     async fn resolve(&self, reference: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-        todo!()
+        create::resolve(&self.create, reference, origin).await
     }
     async fn nap(&self, id: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-        todo!()
+        phases::nap(&self.phases, id, origin).await
     }
     async fn wake(&self, id: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-        todo!()
+        phases::wake(&self.phases, id, origin).await
     }
     async fn resize(&self, id: &str, size: SizeAsk, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-        todo!()
+        phases::resize(&self.phases, id, size, origin).await
     }
     async fn stop_wake(&self, id: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-        todo!()
+        phases::stop_wake(&self.phases, id, origin).await
     }
     async fn upgrade(&self, id: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-        todo!()
+        phases::upgrade(&self.phases, id, origin).await
     }
     async fn rebuild(&self, id: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-        todo!()
+        phases::rebuild(&self.phases, id, origin).await
     }
     async fn restart_daemon(&self, id: &str, origin: Option<Caller>) -> Result<(), HostError> {
-        todo!()
+        phases::restart_daemon(&self.phases, id, origin).await
     }
     async fn rename(&self, id: &str, name: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-        todo!()
+        phases::rename(&self.phases, id, name, origin).await
     }
     async fn look(&self, id: &str, look: WorkspaceLook, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-        todo!()
+        phases::look(&self.phases, id, look, origin).await
     }
     async fn update_daemon(&self, id: &str, origin: Option<Caller>) -> Result<(), HostError> {
-        todo!()
+        phases::update_daemon(&self.phases, id, origin).await
     }
     async fn delete(&self, id: &str, origin: Option<Caller>) -> Result<(), HostError> {
-        todo!()
+        phases::delete(&self.phases, id, origin).await
     }
     async fn forget(&self, id: &str, origin: Option<Caller>) -> Result<(), HostError> {
-        todo!()
+        phases::forget(&self.phases, id, origin).await
     }
     async fn touch(&self, id: &str, origin: Option<Caller>) -> Result<(), HostError> {
-        todo!()
+        phases::touch(&self.phases, id, origin).await
     }
     async fn exec(&self, id: &str, cmd: &str, timeout_ms: Option<u64>, origin: Option<Caller>) -> Result<ExecResult, HostError> {
-        todo!()
+        git::exec(&self.git, id, cmd, timeout_ms, origin).await
     }
     async fn exec_stream(&self, id: &str, argv: Vec<String>, cwd: Option<String>, origin: Option<Caller>) -> Result<RunningExec, HostError> {
-        todo!()
+        git::exec_stream(&self.git, id, argv, cwd, origin).await
     }
     async fn bring_back(&self, workspace_id: &str, title: Option<String>, body: Option<String>, origin: Option<Caller>) -> Result<BringBackResult, HostError> {
-        todo!()
+        git::bring_back(&self.git, workspace_id, title, body, origin).await
     }
     async fn folder_for(&self, ask: FolderForAsk, origin: Option<Caller>) -> Result<FolderFor, HostError> {
-        todo!()
+        git::folder_for(&self.git, ask, origin).await
     }
     async fn take_setup_line(&self, workspace_id: &str, origin: Option<Caller>) -> Result<Option<String>, HostError> {
-        todo!()
+        git::take_setup_line(&self.git, workspace_id, origin).await
     }
     async fn folder(&self, project: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-        todo!()
+        git::folder(&self.git, project, origin).await
     }
     async fn worktree(&self, project: &str, branch: &str, origin: Option<Caller>) -> Result<WorktreeMade, HostError> {
-        todo!()
+        git::worktree(&self.git, project, branch, origin).await
     }
     async fn worktree_remove(&self, ask: WorktreeRemoveAsk, origin: Option<Caller>) -> Result<(), HostError> {
-        todo!()
+        git::worktree_remove(&self.git, ask, origin).await
     }
     async fn checkout(&self, id: &str, origin: Option<Caller>, fresh: Option<bool>) -> Result<CheckoutReply, HostError> {
-        todo!()
+        git::checkout(&self.git, id, origin, fresh.unwrap_or(false)).await
     }
     async fn discard(&self, ask: DiscardAsk, origin: Option<Caller>) -> Result<GitDiscardReply, HostError> {
-        todo!()
+        git::discard(&self.git, ask, origin).await
     }
     async fn commit(&self, ask: CommitAsk, origin: Option<Caller>) -> Result<GitCommitReply, HostError> {
-        todo!()
+        git::commit(&self.git, ask, origin).await
     }
     async fn commit_draft(&self, ask: CommitDraftAsk, origin: Option<Caller>) -> Result<CommitDraft, HostError> {
-        todo!()
+        git::commit_draft(&self.git, ask, origin).await
     }
     async fn viewed(&self, workspace_id: &str, mark: Option<ViewedMark>, origin: Option<Caller>) -> Result<ViewedMarks, HostError> {
-        todo!()
+        git::viewed(&self.git, workspace_id, mark, origin).await
     }
     async fn pull_request_view(&self, workspace_id: &str, fresh: Option<bool>, origin: Option<Caller>) -> Result<PullRequestPage, HostError> {
-        todo!()
+        git::pull_request_view(&self.git, workspace_id, fresh.unwrap_or(false), origin).await
     }
     async fn pull_request_diff(&self, workspace_id: &str, origin: Option<Caller>) -> Result<GitPrDiffReply, HostError> {
-        todo!()
+        git::pull_request_diff(&self.git, workspace_id, origin).await
     }
     async fn pull_request_send(&self, workspace_id: &str, items: Vec<PullRequestItem>, thread_id: Option<String>, origin: Option<Caller>) -> Result<PullRequestSendResult, HostError> {
-        todo!()
+        git::pull_request_send(&self.git, workspace_id, items, thread_id, origin).await
     }
     async fn pull_request_reply(&self, ask: PullRequestReplyAsk, origin: Option<Caller>) -> Result<GitPrReplyReply, HostError> {
-        todo!()
+        git::pull_request_reply(&self.git, ask, origin).await
     }
     async fn pull_request_resolve(&self, workspace_id: &str, thread_id: &str, resolved: bool, origin: Option<Caller>) -> Result<GitPrResolveReply, HostError> {
-        todo!()
+        git::pull_request_resolve(&self.git, workspace_id, thread_id, resolved, origin).await
     }
     async fn pull_request_react(&self, workspace_id: &str, subject: &str, content: ReactionContent, on: bool, origin: Option<Caller>) -> Result<GitPrReactReply, HostError> {
-        todo!()
+        git::pull_request_react(&self.git, workspace_id, subject, content, on, origin).await
     }
     async fn fix(&self, ask: FixAsk, origin: Option<Caller>) -> Result<FixResult, HostError> {
-        todo!()
+        git::fix(&self.git, ask, origin).await
     }
     async fn merge(&self, ask: MergeAsk, origin: Option<Caller>) -> Result<MergeResult, HostError> {
-        todo!()
+        git::merge(&self.git, ask, origin).await
     }
     async fn update(&self, workspace_id: &str, thread_id: Option<String>, origin: Option<Caller>) -> Result<GitUpdateReply, HostError> {
-        todo!()
+        git::update(&self.git, workspace_id, thread_id, origin).await
     }
     async fn merge_in(&self, ask: MergeInAsk, origin: Option<Caller>) -> Result<MergeInResult, HostError> {
-        todo!()
+        git::merge_in(&self.git, ask, origin).await
     }
     async fn start(&self, ask: StartFromLinkAsk, origin: Option<Caller>) -> Result<StartResult, HostError> {
-        todo!()
+        review::start(&self.review, ask, origin).await
     }
     async fn review(&self, ask: ReviewAsk, origin: Option<Caller>) -> Result<StartResult, HostError> {
-        todo!()
+        review::review(&self.review, ask, origin).await
     }
     async fn review_draft(&self, ask: ReviewDraftAsk, origin: Option<Caller>) -> Result<Option<ReviewDraft>, HostError> {
-        todo!()
+        review::review_draft(&self.review, ask, origin).await
     }
     async fn review_post(&self, workspace_id: &str, thread_id: Option<String>, origin: Option<Caller>) -> Result<ReviewPostResult, HostError> {
-        todo!()
+        review::review_post(&self.review, workspace_id, thread_id, origin).await
     }
     async fn daemon_reach(&self, id: &str, origin: Option<Caller>) -> Result<DaemonReachView, HostError> {
-        todo!()
+        review::daemon_reach(&self.review, id, origin).await
     }
     async fn token_refused(&self, id: &str) -> Result<(), HostError> {
-        todo!()
+        review::token_refused(&self.review, id).await
     }
     async fn daemon_channel(&self, id: &str, on_event: DaemonEventListener, origin: Option<Caller>) -> Result<Rc<dyn DaemonChannel>, HostError> {
-        todo!()
+        review::daemon_channel(&self.review, id, on_event, origin).await
     }
     async fn guest_channel(&self, id: &str, on_event: DaemonEventListener) -> Result<Rc<dyn DaemonChannel>, HostError> {
-        todo!()
+        review::guest_channel(&self.review, id, on_event).await
     }
     async fn served_by_its_computer(&self, id: &str, origin: Option<Caller>) -> Result<bool, HostError> {
-        todo!()
+        review::served_by_its_computer(&self.review, id, origin).await
     }
     async fn watch_sys(&self, id: &str, listener: SysListener, origin: Option<Caller>) -> Result<Detach, HostError> {
-        todo!()
+        review::watch_sys(&self.review, id, listener, origin).await
     }
     async fn port_reach(&self, id: &str, port: u16, origin: Option<Caller>) -> Result<PortReachView, HostError> {
-        todo!()
+        review::port_reach(&self.review, id, port, origin).await
     }
     async fn port_probe(&self, id: &str, port: u16, origin: Option<Caller>) -> Result<PortProbeView, HostError> {
-        todo!()
+        review::port_probe(&self.review, id, port, origin).await
     }
     async fn origin_refusal(&self, id: &str, origin: Option<Caller>) -> Result<Option<String>, HostError> {
-        todo!()
+        review::origin_refusal(&self.review, id, origin).await
     }
     fn seen_by(&self, event: &serde_json::Value, origin: Option<&Caller>) -> bool {
-        todo!()
+        review::seen_by(&self.review, event, origin)
     }
     fn shown_to(&self, event: serde_json::Value, origin: Option<&Caller>) -> serde_json::Value {
-        todo!()
+        review::shown_to(&self.review, event, origin)
     }
     fn creating(&self) -> Vec<WorkspaceCreatingEvent> {
-        todo!()
+        create::creating(&self.create)
     }
 }

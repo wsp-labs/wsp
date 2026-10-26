@@ -6,17 +6,34 @@
 use std::rc::Rc;
 
 use async_trait::async_trait;
-use wsp_core::types::wiring::SizeAsk;
-use wsp_engine::errors::EngineError;
+use futures::future::{select, Either, FutureExt};
+use serde_json::json;
+use wsp_core::console;
+use wsp_core::types::internal::{NamedWorkspace, DELETED_REASON, WORKSPACE_NAMES};
+use wsp_core::types::wiring::{DeleteSaid, SizeAsk, WakeAsk, WorkspaceRecord, VAULTS};
+use wsp_engine::errors::{is_missing, EngineError};
+use wsp_engine::Cancel;
 use wsp_engine::lifecycle::WakeResult;
 use wsp_wire::types::workspace_look::WorkspaceLook;
-use wsp_wire::views::workspace::{Caller, WorkspacePhase};
+use wsp_wire::views::workspace::{scope_of, Caller, WorkspacePhase};
 use wsp_wire::views::workspace_more::WorkspaceView;
-use wsp_wire::wire::capabilities::Capabilities;
-use wsp_wire::wire::machine_link::MachineShape;
-use wsp_words::exit::HostError;
+use wsp_wire::wire::capabilities::{Capabilities, MachineSizeOffer, WorkspaceSize};
+use wsp_wire::wire::machine_link::{place_serves_daemon_line, MachineShape};
+use wsp_words::exit::{HostError, Kind};
+use wsp_words::place_word::provider_key_name;
+use wsp_words::projects::runs_in_folder;
+use wsp_words::workspace_state::{gone_refusal, machine_word};
+use wsp_words::words::computer::{
+    forget_undriven_refusal, no_commands_yet_line, wake_asks_in, wake_gave_up_line, AcrossAct, WAKE_STOPPED,
+};
+use wsp_words::words::thread::{
+    delete_refused_line, refusal_line, resize_busy_line, resize_landed_line, resize_no_move_line,
+    RESIZE_AGAIN_FIX, RESIZE_BUSY_FIX, RESIZE_NO_MOVE_FIX,
+};
+use wsp_words::words::units::{disk_gone_released_line, disk_gone_replaced_line, size_refusal, size_word, SIZE_PICK_FIX};
 
-use super::seam::{Base, Entry};
+use super::create::{name_of, talked};
+use super::seam::{record_of, Base, Entry, EntryAsk};
 
 /// How long the stop before a move to another size waits on the provider. workspaces.ts:24.
 pub const RESIZE_NAP_MS: u64 = 30 * 60_000;
@@ -155,9 +172,269 @@ pub trait PhasesCtx: Base {
 //|     await ctx.emitStatus(entry, ctx.reachOf(entry), line);
 //|     return ctx.view(entry.record);
 //|   };
+fn rec<T>(entry: &Entry, f: impl FnOnce(&mut WorkspaceRecord) -> T) -> T {
+    let live = entry.borrow();
+    let mut record = live.record.borrow_mut();
+    let out = f(&mut record);
+    out
+}
+
+fn read_rec<T>(entry: &Entry, f: impl FnOnce(&WorkspaceRecord) -> T) -> T {
+    let live = entry.borrow();
+    let record = live.record.borrow();
+    let out = f(&record);
+    out
+}
+
+fn phase_of(entry: &Entry) -> WorkspacePhase {
+    read_rec(entry, |r| r.phase.clone())
+}
+
+fn engine(e: EngineError) -> HostError {
+    HostError::new(e.to_string())
+}
+
+fn conflict(message: String) -> HostError {
+    HostError::with_kind(message, Kind::Conflict)
+}
+
+fn invalid(message: String) -> HostError {
+    HostError::with_kind(message, Kind::Invalid)
+}
+
+fn workspace_size(size: SizeAsk) -> WorkspaceSize {
+    WorkspaceSize { cpu: size.cpu, mem_mb: size.mem_mb }
+}
+
+/// The machine and the state a `machineAlive` refusal names. The engine carries it in the message, since it has no
+/// variant for the refusal (golden.ts:45).
+fn machine_alive(e: &EngineError) -> Option<(String, String)> {
+    let EngineError::Other { message, code: Some(code) } = e else {
+        return None;
+    };
+    if code != "machineAlive" {
+        return None;
+    }
+    let machine = message.strip_prefix("machine ")?.split(" is still ").next()?.to_owned();
+    let state = message.split(" is still ").nth(1)?.split(" after ").next()?.to_owned();
+    Some((machine, state))
+}
+
+fn gone_refusal_of(entry: &Entry, action: &str) -> HostError {
+    let (name, gone) = read_rec(entry, |r| (r.name.clone(), r.gone.clone()));
+    HostError::new(gone_refusal(Some(&name), action, gone.as_deref()))
+}
+
+/// One attempt of a wake: the `try` of workspaces.ts:236-257.
+async fn wake_attempt(ctx: &Rc<dyn PhasesCtx>, entry: &Entry, id: &str, landed: bool, stopped: &Cancel) -> Result<WorkspaceView, WakeFail> {
+    let result = match select(Box::pin(ctx.ws_wake(entry, landed)), Box::pin(stopped.cancelled())).await {
+        Either::Left((result, _)) => result.map_err(WakeFail::Engine)?,
+        Either::Right(_) => return Err(WakeFail::Stopped),
+    };
+    if stopped.is_cancelled() {
+        return Err(WakeFail::Stopped);
+    }
+    ctx.follow_machine(entry);
+    rec(entry, |r| r.wake_refused = None);
+    ctx.persist(record_of(entry)).await.map_err(WakeFail::Host)?;
+    let machine_id = read_rec(entry, |r| r.machine_id.clone());
+    ctx.emit(json!({ "type": "workspace.woken", "workspaceId": id, "machineId": machine_id })).map_err(WakeFail::Host)?;
+    if let Some(reason) = &result.reason {
+        console::warn(&format!("wake of {id}: {reason}"));
+    }
+    let reach = ctx.reach_of(entry);
+    ctx.emit_status(entry, &reach, result.reason.as_deref()).await.map_err(WakeFail::Host)?;
+    Ok(ctx.view(&record_of(entry)))
+}
+
+/// How a wake attempt ended short of an answer: the engine's error, a host error, or the stop the person pulled.
+enum WakeFail {
+    Engine(EngineError),
+    Host(HostError),
+    Stopped,
+}
+
+impl WakeFail {
+    fn words(&self) -> String {
+        match self {
+            WakeFail::Engine(e) => e.to_string(),
+            WakeFail::Host(h) => h.message.clone(),
+            WakeFail::Stopped => WAKE_STOPPED.to_owned(),
+        }
+    }
+
+    fn into_host(self) -> HostError {
+        match self {
+            WakeFail::Engine(e) => engine(e),
+            WakeFail::Host(h) => h,
+            WakeFail::Stopped => HostError::new(WAKE_STOPPED),
+        }
+    }
+}
+
+/// The asks of one wake, from the first to the last the backend allows (workspaces.ts:295-412).
+#[allow(clippy::too_many_arguments)]
+async fn wake_loop(
+    ctx: &Rc<dyn PhasesCtx>,
+    entry: &Entry,
+    id: &str,
+    stopped: &Cancel,
+    began: i64,
+    asks: Option<ResumeAsks>,
+    wake_asks: f64,
+) -> Result<WorkspaceView, HostError> {
+    rec(entry, |r| r.phase = WorkspacePhase::Waking);
+    ctx.persist(record_of(entry)).await?;
+    ctx.emit_status(entry, "napping", None).await?;
+    let mut landed = false;
+    let mut ask: u32 = 1;
+    loop {
+        let fail = match wake_attempt(ctx, entry, id, landed, stopped).await {
+            Ok(view) => return Ok(view),
+            Err(fail) => fail,
+        };
+        if !stopped.is_cancelled() {
+            if let WakeFail::Engine(EngineError::ResumeUnanswered { .. }) = &fail {
+                if f64::from(ask) < wake_asks {
+                    entry.borrow_mut().wake_ask = Some(WakeAsk { ask, of: wake_asks as u32 });
+                    entry.borrow_mut().wake_said = None;
+                    ctx.emit_status(entry, "napping", None).await?;
+                    let every = asks.map_or(0, |a| a.every_ms);
+                    let wait = (began + i64::from(ask) * every - ctx.clock().now()).max(0);
+                    let stopped_meanwhile = stopped.is_cancelled() || matches!(select(Box::pin(ctx.sleeps(wait)), Box::pin(stopped.cancelled())).await, Either::Right(_));
+                    if !stopped_meanwhile {
+                        landed = ctx.took_the_resume(entry).await;
+                        ask += 1;
+                        continue;
+                    }
+                }
+            }
+        }
+        let fail = match fail {
+            WakeFail::Engine(e) if !stopped.is_cancelled() && matches!(e, EngineError::DiskGone { .. }) => {
+                return disk_gone(ctx, entry, e).await;
+            }
+            other => other,
+        };
+        let fail = match fail {
+            WakeFail::Engine(e) if !stopped.is_cancelled() && is_missing(&e) => {
+                let answer = ctx.provider_said(&e);
+                let at = ctx.clock().now();
+                if ctx.settle_gone(entry, "wake", at, Some(answer)).await? {
+                    return Err(gone_refusal_of(entry, "wake"));
+                }
+                WakeFail::Engine(e)
+            }
+            other => other,
+        };
+        let gave_up = match &fail {
+            WakeFail::Engine(EngineError::ResumeUnanswered { .. }) if !stopped.is_cancelled() => {
+                Some(wake_gave_up_line(f64::from(ask), (ctx.clock().now() - began) as f64))
+            }
+            _ => None,
+        };
+        if let Some(line) = &gave_up {
+            rec(entry, |r| r.wake_refused = Some(line.clone()));
+        }
+        if stopped.is_cancelled() {
+            ctx.ws_note_paused(entry);
+        }
+        let phase = ctx.ws_current_phase(entry);
+        rec(entry, |r| r.phase = phase);
+        ctx.persist(record_of(entry)).await?;
+        entry.borrow_mut().wake_ask = None;
+        let unfinished = match &fail {
+            WakeFail::Engine(EngineError::RestoreUnfinished { message, .. }) if !stopped.is_cancelled() => {
+                let name = read_rec(entry, |r| r.name.clone());
+                Some(no_commands_yet_line(&name, message))
+            }
+            _ => None,
+        };
+        let words = if stopped.is_cancelled() {
+            WAKE_STOPPED.to_owned()
+        } else {
+            gave_up.clone().or_else(|| unfinished.clone()).unwrap_or_else(|| fail.words())
+        };
+        if !stopped.is_cancelled() {
+            console::warn(&format!("wake of {id} failed: {words}"));
+        }
+        ctx.emit_status(entry, "napping", Some(&words)).await?;
+        ctx.arm_late_read(entry);
+        return Err(if stopped.is_cancelled() {
+            HostError::new(WAKE_STOPPED)
+        } else if let Some(line) = gave_up {
+            HostError::new(line)
+        } else if let Some(line) = unfinished {
+            HostError::new(line)
+        } else {
+            fail.into_host()
+        });
+    }
+}
+
+/// The whole of a wake that is not joined: the stop, the asks, and the joins cleared however it ends.
+async fn wake_run(ctx: Rc<dyn PhasesCtx>, entry: Entry, id: String, stopped: Cancel) -> Result<WorkspaceView, HostError> {
+    let began = ctx.clock().now();
+    let asks = ctx.resume_asks(&entry);
+    let wake_asks = asks.map_or(1.0, |a| wake_asks_in(a.for_ms as f64, a.every_ms as f64));
+    entry.borrow_mut().delete_said = None;
+    let outcome = wake_loop(&ctx, &entry, &id, &stopped, began, asks, wake_asks).await;
+    {
+        let mut live = entry.borrow_mut();
+        live.wake_stop = None;
+        live.wake_said = None;
+        live.wake_ask = None;
+        live.waking = None;
+    }
+    outcome
+}
+
 /// A wake the provider refused because it deleted the paused machine's disk (spec rule 2).
 pub async fn disk_gone(ctx: &Rc<dyn PhasesCtx>, entry: &Entry, e: EngineError) -> Result<WorkspaceView, HostError> {
-    todo!()
+    let id = read_rec(entry, |r| r.id.clone());
+    let machine_id = match &e {
+        EngineError::DiskGone { machine_id, .. } => machine_id.clone(),
+        _ => read_rec(entry, |r| r.machine_id.clone()),
+    };
+    let said = match &e {
+        EngineError::DiskGone { said, .. } => said.clone(),
+        other => other.to_string(),
+    };
+    let message = e.to_string();
+    console::warn(&format!("wake of {id}: {machine_id} cannot resume: {said}"));
+    if read_rec(entry, |r| r.sub.is_some()) {
+        let line = disk_gone_released_line(&message);
+        if let Err(x) = ctx.unfork(entry).await {
+            console::warn(&format!("wake of {id}: {machine_id} was not deleted: {x}"));
+        }
+        rec(entry, |r| r.disk_gone = Some(line.clone()));
+        ctx.sub_lost(entry, &line).await?;
+        ctx.tell_threads(&id, &line);
+        return Err(conflict(line));
+    }
+    let old = read_rec(entry, |r| r.machine_id.clone());
+    if let Err(x) = ctx.ws_rebuild(entry).await {
+        let phase = ctx.ws_current_phase(entry);
+        rec(entry, |r| r.phase = phase);
+        ctx.persist(record_of(entry)).await?;
+        let words = format!("{message}, and no new machine started: {x}");
+        ctx.emit_status(entry, "napping", Some(&words)).await?;
+        return Err(HostError::new(words));
+    }
+    let line = disk_gone_replaced_line(&message);
+    ctx.follow_machine(entry);
+    rec(entry, |r| {
+        r.wake_refused = None;
+        r.disk_gone = Some(line.clone());
+    });
+    ctx.persist(record_of(entry)).await?;
+    let new_machine = read_rec(entry, |r| r.machine_id.clone());
+    ctx.emit(json!({ "type": "workspace.upgraded", "workspaceId": id, "machineId": new_machine }))?;
+    console::warn(&format!("wake of {id}: {old} replaced by {new_machine}"));
+    ctx.tell_threads(&id, &line);
+    let reach = ctx.reach_of(entry);
+    ctx.emit_status(entry, &reach, Some(&line)).await?;
+    Ok(ctx.view(&record_of(entry)))
 }
 
 // ts: workspaces.ts:289-293
@@ -167,7 +444,10 @@ pub async fn disk_gone(ctx: &Rc<dyn PhasesCtx>, entry: &Entry, e: EngineError) -
 //|       return ctx.napWith(id);
 //|     },
 pub async fn nap(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-    todo!()
+    let _ = ctx.spawn_guard("pause", origin.as_ref())?;
+    let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    ctx.refuse_pauseless(&entry, "be paused")?;
+    ctx.nap_with(id).await
 }
 
 // ts: workspaces.ts:295-412
@@ -291,7 +571,68 @@ pub async fn nap(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> R
 //|     },
 /// Wakes a workspace, joining a wake in flight (spec rule 4).
 pub async fn wake(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-    todo!()
+    if ctx.talks_to_tree_on(id, origin.as_ref()) {
+        let view = Box::pin(wake(ctx, id, None)).await?;
+        return talked(view);
+    }
+    let ask = EntryAsk { act: Some(AcrossAct::Wake), ..EntryAsk::default() };
+    let entry = ctx.entry_of(id, origin, ask).await?;
+    ctx.refuse_sub_wake(&entry)?;
+    ctx.copy_blocked(&entry).await?;
+    let waking = entry.borrow().waking.clone();
+    if let Some(waking) = waking {
+        return waking.await;
+    }
+    if phase_of(&entry) == WorkspacePhase::Gone {
+        match ctx.recover_gone(&entry).await? {
+            None => return Err(gone_refusal_of(&entry, "wake")),
+            Some(WorkspacePhase::Running) => return Ok(ctx.view(&record_of(&entry))),
+            Some(_) => {}
+        }
+    }
+    let napping = entry.borrow().napping.clone();
+    if let Some(napping) = napping {
+        let _ = napping.await;
+    }
+    if phase_of(&entry) == WorkspacePhase::Running {
+        let mut answer = None;
+        let read = match ctx.machine_state(&entry).await {
+            Ok(read) => read,
+            Err(e) if is_missing(&e) => {
+                answer = Some(ctx.provider_said(&e));
+                MachineRead::Gone
+            }
+            Err(_) => MachineRead::Running,
+        };
+        if read == MachineRead::Gone {
+            let at = ctx.clock().now();
+            if ctx.settle_gone(&entry, "wake", at, answer).await? {
+                return Err(gone_refusal_of(&entry, "wake"));
+            }
+        }
+        if read == MachineRead::Paused {
+            ctx.adopt_pause(&entry).await?;
+        }
+    } else if ctx.runs_under_napping(&entry).await? {
+        ctx.adopt_running(&entry).await?;
+    }
+    let waking = entry.borrow().waking.clone();
+    if let Some(waking) = waking {
+        return waking.await;
+    }
+    if phase_of(&entry) == WorkspacePhase::Running {
+        if entry.borrow().unchecked {
+            return ctx.proven(&entry).await;
+        }
+        return Ok(ctx.view(&record_of(&entry)));
+    }
+    ctx.refuse_pauseless(&entry, "be woken")?;
+    let stop = Cancel::new();
+    entry.borrow_mut().wake_stop = Some(stop.clone());
+    let run = wake_run(ctx.clone(), entry.clone(), id.to_owned(), stop);
+    let joined = run.boxed_local().shared();
+    entry.borrow_mut().waking = Some(joined.clone());
+    joined.await
 }
 
 // ts: workspaces.ts:414-463
@@ -346,7 +687,90 @@ pub async fn wake(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> 
 //|       return ctx.view(entry.record);
 //|     },
 pub async fn resize(ctx: &Rc<dyn PhasesCtx>, id: &str, size: SizeAsk, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, origin.clone(), EntryAsk { act: Some(AcrossAct::Wake), ..EntryAsk::default() }).await?;
+    ctx.spawn_guard("resize", origin.as_ref())?;
+    ctx.refuse_pauseless(&entry, "be moved to another size")?;
+    ctx.refuse_sub_wake(&entry)?;
+    if !ctx.can_resume_at(&entry) {
+        let provider = ctx.provider_of(&entry).unwrap_or_else(|| "the provider".to_owned());
+        return Err(invalid(refusal_line(&resize_no_move_line(&provider_key_name(&provider)), RESIZE_NO_MOVE_FIX)));
+    }
+    let at: Capabilities = ctx.backend_capabilities(&entry).await;
+    let want = workspace_size(size);
+    let offered = at.sizes.iter().any(|s| s.cpu == size.cpu && s.mem_mb == size.mem_mb);
+    if !offered {
+        return Err(invalid(refusal_line(&size_refusal(&size_word(&want), &at.sizes), SIZE_PICK_FIX)));
+    }
+    let current = read_rec(&entry, |r| (r.size.cpu, r.size.mem_mb));
+    if current == (size.cpu, size.mem_mb) {
+        return Ok(ctx.view(&record_of(&entry)));
+    }
+    let mut threads: Vec<String> = Vec::new();
+    for s in ctx.session_views() {
+        if s.workspace_id == id {
+            if let Some(thread) = s.thread_id {
+                if !threads.contains(&thread) {
+                    threads.push(thread);
+                }
+            }
+        }
+    }
+    for thread in &threads {
+        if ctx.thread_runs(thread) {
+            let name = name_of(&entry);
+            return Err(conflict(refusal_line(&resize_busy_line(&name), RESIZE_BUSY_FIX)));
+        }
+    }
+    let before = read_rec(&entry, |r| SizeAsk { cpu: r.size.cpu, mem_mb: r.size.mem_mb });
+    entry.borrow_mut().nap_wait_ms = Some(RESIZE_NAP_MS);
+    let napped = ctx.nap_with(id).await;
+    entry.borrow_mut().nap_wait_ms = None;
+    napped?;
+    entry.borrow_mut().resize_to = Some(size);
+    rec(&entry, |r| {
+        r.size.cpu = size.cpu;
+        r.size.mem_mb = size.mem_mb;
+        r.shape = None;
+    });
+    let woke = wake(ctx, id, origin.clone()).await;
+    if let Err(e) = woke {
+        let followed = follow_size(ctx, &entry, before, &at.sizes).await;
+        entry.borrow_mut().resize_to = None;
+        followed?;
+        return Err(e);
+    }
+    entry.borrow_mut().resize_to = None;
+    let landed = follow_size(ctx, &entry, size, &at.sizes).await?;
+    let moved = landed.cpu == size.cpu && landed.mem_mb == size.mem_mb;
+    ctx.status_now(&entry).await?;
+    if !moved {
+        let name = name_of(&entry);
+        return Err(conflict(refusal_line(&resize_landed_line(&name, &workspace_size(landed), &want), RESIZE_AGAIN_FIX)));
+    }
+    Ok(ctx.view(&record_of(&entry)))
+}
+
+/// The size the provider reports after a move, kept on the record (workspaces.ts:324-332).
+async fn follow_size(ctx: &Rc<dyn PhasesCtx>, entry: &Entry, asked: SizeAsk, sizes: &[MachineSizeOffer]) -> Result<SizeAsk, HostError> {
+    let shape: Option<MachineShape> = ctx.shape_of(entry).await;
+    if let Some(shape) = &shape {
+        rec(entry, |r| r.shape = Some(shape.clone()));
+    }
+    let landed = ctx.size_built(shape.as_ref(), asked);
+    rec(entry, |r| {
+        r.size.cpu = landed.cpu;
+        r.size.mem_mb = landed.mem_mb;
+    });
+    let rate = sizes.iter().find(|s| s.cpu == landed.cpu && s.mem_mb == landed.mem_mb).map(|s| s.rate_usd_per_hour);
+    if let Some(rate) = rate {
+        rec(entry, |r| {
+            if let Some(sub) = r.sub.as_mut() {
+                sub.rate_usd_per_hour = Some(rate);
+            }
+        });
+    }
+    ctx.persist(record_of(entry)).await?;
+    Ok(landed)
 }
 
 // ts: workspaces.ts:465-471
@@ -358,7 +782,17 @@ pub async fn resize(ctx: &Rc<dyn PhasesCtx>, id: &str, size: SizeAsk, origin: Op
 //|       return ctx.view(entry.record);
 //|     },
 pub async fn stop_wake(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    let waking = entry.borrow().waking.clone();
+    let stop = entry.borrow().wake_stop.clone();
+    if let Some(stop) = stop {
+        stop.cancel(None);
+    }
+    tokio::task::yield_now().await;
+    if let Some(waking) = waking {
+        let _ = waking.await;
+    }
+    Ok(ctx.view(&record_of(&entry)))
 }
 
 // ts: workspaces.ts:473-481
@@ -372,7 +806,14 @@ pub async fn stop_wake(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>
 //|       return ctx.view(entry.record);
 //|     },
 pub async fn upgrade(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    ctx.refuse_cannot(&entry, "replacesMachine", "have its machine replaced")?;
+    ctx.ws_upgrade(&entry).await.map_err(engine)?;
+    ctx.follow_machine(&entry);
+    ctx.persist(record_of(&entry)).await?;
+    let machine_id = read_rec(&entry, |r| r.machine_id.clone());
+    ctx.emit(json!({ "type": "workspace.upgraded", "workspaceId": id, "machineId": machine_id }))?;
+    Ok(ctx.view(&record_of(&entry)))
 }
 
 // ts: workspaces.ts:483-527
@@ -422,7 +863,51 @@ pub async fn upgrade(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) 
 //|       return ctx.view(entry.record);
 //|     },
 pub async fn rebuild(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, origin.clone(), EntryAsk::default()).await?;
+    ctx.refuse_cannot(&entry, "replacesMachine", "be rebuilt")?;
+    let waking = entry.borrow().waking.clone();
+    if let Some(waking) = waking {
+        let _ = waking.await;
+    }
+    if ctx.recover_gone(&entry).await?.is_some() {
+        return Ok(ctx.view(&record_of(&entry)));
+    }
+    if ctx.keeps_images(&entry) && ctx.pause_keeps_disk(&entry) && phase_of(&entry) != WorkspacePhase::Running {
+        let asleep = read_rec(&entry, |r| r.machine_id.clone());
+        if let Err(e) = wake(ctx, id, origin.clone()).await {
+            let name = name_of(&entry);
+            return Err(conflict(format!("{name} could not be woken to back up before the rebuild: {}", e.message)));
+        }
+        if read_rec(&entry, |r| r.machine_id.clone()) != asleep {
+            return Ok(ctx.view(&record_of(&entry)));
+        }
+    }
+    let old = read_rec(&entry, |r| r.machine_id.clone());
+    let from_running = ctx.keeps_images(&entry) && ctx.pause_keeps_disk(&entry) && phase_of(&entry) == WorkspacePhase::Running;
+    let nap_vault = !from_running && ctx.store().get_blob(VAULTS, id).await?.is_some();
+    if from_running {
+        if let Err(e) = ctx.ws_upgrade(&entry).await {
+            console::warn(&format!("rebuild of {id}: the running machine gave no vault ({e}); replacing with none"));
+            ctx.ws_rebuild(&entry).await.map_err(engine)?;
+        }
+    } else {
+        ctx.ws_rebuild(&entry).await.map_err(engine)?;
+    }
+    ctx.follow_machine(&entry);
+    rec(&entry, |r| r.wake_refused = None);
+    ctx.persist(record_of(&entry)).await?;
+    let new = read_rec(&entry, |r| r.machine_id.clone());
+    ctx.emit(json!({ "type": "workspace.upgraded", "workspaceId": id, "machineId": new }))?;
+    let reason = if from_running {
+        format!("rebuilt: {old} replaced by {new}")
+    } else {
+        let vault = if nap_vault { "nap-time vault imported" } else { "no vault to import" };
+        format!("rebuilt: {old} replaced by {new}, {vault}")
+    };
+    console::warn(&format!("rebuild of {id}: {reason}"));
+    let reach = ctx.reach_of(&entry);
+    ctx.emit_status(&entry, &reach, Some(&reason)).await?;
+    Ok(ctx.view(&record_of(&entry)))
 }
 
 // ts: workspaces.ts:529-540
@@ -439,7 +924,22 @@ pub async fn rebuild(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) 
 //|       return ctx.view(entry.record);
 //|     },
 pub async fn rename(ctx: &Rc<dyn PhasesCtx>, id: &str, typed: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    let name = ctx.name_given(typed);
+    if name_of(&entry) == name {
+        return Ok(ctx.view(&record_of(&entry)));
+    }
+    if let Some(refusal) = ctx.name_refusal(&name) {
+        return Err(conflict(refusal));
+    }
+    rec(&entry, |r| r.name = name.clone());
+    ctx.persist(record_of(&entry)).await?;
+    let project = read_rec(&entry, |r| r.project.clone());
+    let named = NamedWorkspace { workspace_id: id.to_owned(), name: name.clone(), project: Some(project) };
+    let value = serde_json::to_value(&named).map_err(|e| HostError::new(e.to_string()))?;
+    ctx.store().put(WORKSPACE_NAMES, id, value).await?;
+    ctx.emit(json!({ "type": "workspace.renamed", "workspaceId": id, "name": name }))?;
+    Ok(ctx.view(&record_of(&entry)))
 }
 
 // ts: workspaces.ts:542-549
@@ -452,7 +952,15 @@ pub async fn rename(ctx: &Rc<dyn PhasesCtx>, id: &str, typed: &str, origin: Opti
 //|       return ctx.view(entry.record);
 //|     },
 pub async fn look(ctx: &Rc<dyn PhasesCtx>, id: &str, look: WorkspaceLook, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    let theme = look.theme.map(|t| t.map_or(serde_json::Value::Null, |t| json!(t)));
+    let glyph = look.glyph.map(|g| g.map_or(serde_json::Value::Null, |g| json!(g)));
+    ctx.put_look(&entry, "theme", theme);
+    ctx.put_look(&entry, "glyph", glyph);
+    ctx.persist(record_of(&entry)).await?;
+    let (theme, glyph) = read_rec(&entry, |r| (r.theme.clone(), r.glyph.clone()));
+    ctx.emit(json!({ "type": "workspace.look", "workspaceId": id, "theme": theme, "glyph": glyph }))?;
+    Ok(ctx.view(&record_of(&entry)))
 }
 
 // ts: workspaces.ts:551-560
@@ -467,7 +975,18 @@ pub async fn look(ctx: &Rc<dyn PhasesCtx>, id: &str, look: WorkspaceLook, origin
 //|       await ctx.deployDaemonOn(entry, deploy);
 //|     },
 pub async fn update_daemon(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> Result<(), HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    if ctx.served_by_its_computer(&entry).is_some() {
+        let (name, computer) = (name_of(&entry), ctx.computer_of(&entry));
+        return Err(HostError::new(place_serves_daemon_line(&name, &computer)));
+    }
+    if !ctx.has_deploy_daemon(&entry) {
+        return Err(HostError::new("this runtime cannot deploy a daemon; the host wires the bundle"));
+    }
+    if phase_of(&entry) != WorkspacePhase::Running {
+        return Err(HostError::new(format!("wake {} before updating its daemon", name_of(&entry))));
+    }
+    ctx.deploy_daemon_on(&entry).await
 }
 
 // ts: workspaces.ts:562-612
@@ -524,7 +1043,90 @@ pub async fn update_daemon(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Cal
 //|     },
 /// Deletes a workspace, joining a delete in flight (spec rule 12).
 pub async fn delete(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> Result<(), HostError> {
-    todo!()
+    ctx.spawn_guard("delete", origin.as_ref())?;
+    let live_has = ctx.live().borrow().contains_key(id);
+    if scope_of(origin.as_ref()).is_none() && !live_has && ctx.forget_failed_create(id) {
+        ctx.emit(json!({ "type": "workspace.deleted", "workspaceId": id }))?;
+        return Ok(());
+    }
+    let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    let deleting = entry.borrow().deleting.clone();
+    if let Some(deleting) = deleting {
+        return deleting.await;
+    }
+    if phase_of(&entry) == WorkspacePhase::Queued {
+        if let Some(held) = ctx.delete_queued(id).await {
+            return held;
+        }
+    }
+    let tree = read_rec(&entry, |r| r.worktree.clone());
+    let takes = tree.as_ref().is_some_and(|t| t.made && t.gone.is_none() && ctx.path_exists(&t.path));
+    if let (true, Some(tree)) = (takes, &tree) {
+        ctx.refuse_changed(&tree.path).await?;
+    }
+    let joined = delete_run(ctx.clone(), entry.clone(), id.to_owned(), takes).boxed_local().shared();
+    entry.borrow_mut().deleting = Some(joined.clone());
+    joined.await
+}
+
+/// The thread ids a workspace's thread records name, then the threads of its sessions (workspaces.ts:495-500).
+fn thread_ids_of(ctx: &Rc<dyn PhasesCtx>, id: &str) -> (Vec<String>, Vec<String>) {
+    let records: Vec<String> = ctx.thread_records().into_iter().filter(|(_, held)| held.workspace_id == id).map(|(thread, _)| thread).collect();
+    let mut threads = records.clone();
+    for session in ctx.session_views() {
+        if session.workspace_id == id {
+            if let Some(thread) = session.thread_id {
+                if !threads.contains(&thread) {
+                    threads.push(thread);
+                }
+            }
+        }
+    }
+    (threads, records)
+}
+
+async fn delete_run(ctx: Rc<dyn PhasesCtx>, entry: Entry, id: String, takes: bool) -> Result<(), HostError> {
+    let outcome = delete_steps(&ctx, &entry, &id, takes).await;
+    entry.borrow_mut().deleting = None;
+    outcome
+}
+
+async fn delete_steps(ctx: &Rc<dyn PhasesCtx>, entry: &Entry, id: &str, takes: bool) -> Result<(), HostError> {
+    entry.borrow_mut().delete_said = None;
+    ctx.cut_off(entry).await?;
+    ctx.end_sessions(id, DELETED_REASON);
+    let (threads, records) = thread_ids_of(ctx, id);
+    let kind = read_rec(entry, |r| r.kind.clone());
+    if runs_in_folder(&kind) {
+        for thread in &threads {
+            ctx.drop_checkpoints(entry, thread).await?;
+        }
+    }
+    if takes {
+        ctx.remove_worktree_ending(entry).await?;
+    }
+    ctx.drop_thread_files(entry, records).await?;
+    let (phase, cloud_gone) = read_rec(entry, |r| (r.phase.clone(), r.sub.as_ref().and_then(|s| s.cloud_gone) == Some(true)));
+    let standing = phase != WorkspacePhase::Released && phase != WorkspacePhase::Queued && !cloud_gone;
+    if standing && !ctx.driven(entry) {
+        match ctx.machine_kill(entry).await {
+            Ok(()) => {}
+            Err(e) if is_missing(&e) => {}
+            Err(e) => return Err(engine(e)),
+        }
+    } else if standing {
+        if let Err(e) = ctx.unfork(entry).await {
+            let Some((machine, state)) = machine_alive(&e) else {
+                return Err(engine(e));
+            };
+            let name = read_rec(entry, |r| r.name.clone());
+            let line = delete_refused_line(&name, &machine, &state);
+            entry.borrow_mut().delete_said = Some(DeleteSaid { phase, line: line.clone() });
+            console::warn(&line);
+            return Err(HostError::with_kind(line, Kind::MachineAlive));
+        }
+    }
+    ctx.drop_workspace(id).await
 }
 
 // ts: workspaces.ts:614-624
@@ -540,7 +1142,18 @@ pub async fn delete(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -
 //|       await ctx.drop(id);
 //|     },
 pub async fn forget(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> Result<(), HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    if !ctx.driven(&entry) {
+        let (name, kind) = read_rec(&entry, |r| (r.name.clone(), r.kind.clone()));
+        return Err(conflict(forget_undriven_refusal(&name, &machine_word(&kind))));
+    }
+    let state = ctx.read_gone(&entry).await?;
+    if state != "gone" {
+        let (name, machine) = read_rec(&entry, |r| (r.name.clone(), r.machine_id.clone()));
+        return Err(conflict(format!("{name}'s machine {machine} is still {state}; pause it or delete it at the provider first")));
+    }
+    ctx.end_sessions(id, DELETED_REASON);
+    ctx.drop_workspace(id).await
 }
 
 // ts: workspaces.ts:626-629
@@ -549,7 +1162,9 @@ pub async fn forget(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -
 //|       ctx.idle.touch(id);
 //|     },
 pub async fn touch(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> Result<(), HostError> {
-    todo!()
+    ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    ctx.idle_touch(id);
+    Ok(())
 }
 
 // ts: workspaces.ts:631-645
@@ -569,5 +1184,16 @@ pub async fn touch(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) ->
 //|       await ctx.pushStatus(entry);
 //|     },
 pub async fn restart_daemon(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> Result<(), HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    if !ctx.has_restart_daemon(&entry) {
+        let (name, kind) = read_rec(&entry, |r| (r.name.clone(), r.kind.clone()));
+        return Err(HostError::new(format!("{name}'s daemon runs on {}, which this host does not hold the process of", machine_word(&kind))));
+    }
+    let started = ctx.restart_daemon_of(&entry).await;
+    if ctx.shared_daemon(&entry) {
+        ctx.shared_daemon_replaced();
+    }
+    started?;
+    ctx.forget_polled_reach(id);
+    ctx.push_status(&entry).await
 }
