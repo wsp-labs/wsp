@@ -57,7 +57,7 @@ fn plain(message: &str) -> HostError {
 
 /// `refusal(happened, fix)`: the message is `happened. fix`, the fix beside it.
 fn refused(said: &str, fix: &str) -> HostError {
-    HostError { message: format!("{said} {fix}"), fix: Some(fix.into()), ..plain("") }
+    wsp_words::exit::refusal(said, fix, None)
 }
 
 fn taken_back(message: &str) -> HostError {
@@ -182,9 +182,15 @@ impl Run {
             for _ in 0..1000 {
                 let woken = entry.borrow().woken.clone();
                 if let Some(woken) = woken {
-                    inside.clock.advance(after_ms);
-                    link_on(&inside.ctx, &id, FakeReach::answering(vec![]));
-                    woken(&id);
+                    let ctx = inside.ctx.clone();
+                    let (id, wake) = (id.clone(), woken);
+                    wsp_core::types::pending::Clock::schedule(&*inside.clock, 
+                        Box::new(move || {
+                            link_on(&ctx, &id, FakeReach::answering(vec![]));
+                            wake(&id);
+                        }),
+                        after_ms as i64,
+                    );
                     return;
                 }
                 tokio::task::yield_now().await;
@@ -954,6 +960,7 @@ fn add_waits_for_the_link_the_agent_dials() {
         settle().await;
         until("the add waits", || stage_words(&r.d).last().map(|w| w == "join running").unwrap_or(false)).await;
         assert!(!h.is_finished());
+        pass(&r.d.clock, 250).await;
         let added = h.await.unwrap().unwrap();
         assert_eq!(js(&added.place)["present"], true);
         // The wait is measured on the clock the door reads: the attach came 250 ms after the wait began.

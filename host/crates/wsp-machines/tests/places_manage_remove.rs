@@ -1899,6 +1899,7 @@ fn update_refused_while_setup_or_sync() {
         d.setup.syncing.borrow_mut().clear();
         d.setup.setting.borrow_mut().insert(PLACE.into());
         *d.setup.busy.borrow_mut() = None;
+        link(&d, PLACE, reach_plain(&order(), vec![]));
         d.manage.update(PLACE, ask()).await.unwrap();
         assert_eq!(upds.borrow().len(), 1);
     });
@@ -1938,6 +1939,7 @@ fn update_follower_syncs_soon() {
                 None => record_json(json!({ "recipe": null })),
             };
             let d = build(&new_key(), Wires { update: Some(updater(&upds, |_| Ok(None))), ..Wires::default() }, |s| s.records = vec![rec]);
+            link(&d, PLACE, reach_plain(&order(), vec![]));
             let answer = d.manage.update(PLACE, ask()).await.unwrap();
             assert_eq!(js(&answer), json!({ "name": NAME }), "{recipe:?}");
             assert_eq!(d.setup.calls(), if syncs { vec![format!("syncSoon {PLACE} 0")] } else { vec![] }, "{recipe:?}");

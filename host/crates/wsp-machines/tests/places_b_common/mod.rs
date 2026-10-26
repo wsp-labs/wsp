@@ -544,6 +544,8 @@ pub struct FakeLinks {
     pub backends: RefCell<IndexMap<String, Arc<dyn MachineBackend>>>,
     pub forking: RefCell<IndexMap<String, Result<Arc<dyn MachineBackend>, String>>>,
     pub asked: RefCell<Vec<String>>,
+    /// A computer slower than one round trip: its read of what it forks with never answers.
+    pub slow: std::cell::Cell<bool>,
 }
 
 #[async_trait(?Send)]
@@ -553,6 +555,9 @@ impl LinkReads for FakeLinks {
     }
     async fn forking_backend(&self, place_id: &str) -> PlaceResult<Arc<dyn MachineBackend>> {
         self.asked.borrow_mut().push(place_id.to_string());
+        if self.slow.get() {
+            futures::future::pending::<()>().await;
+        }
         match self.forking.borrow().get(place_id) {
             Some(Ok(b)) => Ok(b.clone()),
             Some(Err(e)) => Err(HostError::new(e.clone())),
