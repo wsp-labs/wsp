@@ -115,16 +115,14 @@ pub const TOO_OLD: &str = "is older than 0.141 and has no resets";
 pub struct CodexPlanResets;
 
 impl PlanResets for CodexPlanResets {
-    /// The port's method answers no error where the TS throws (a relative home, a key that is no slug): this panics
-    /// with the refusal's words there. Asked of the port's owner to answer `Result`.
-    fn read_command(&self, road: &ResetRoad) -> String {
-        reset_read_command(road).unwrap_or_else(|refusal| panic!("{refusal}"))
+    fn read_command(&self, road: &ResetRoad) -> Result<String, String> {
+        reset_read_command(road)
     }
     fn parse_read(&self, stdout: &str) -> Option<ResetReading> {
         parse_reset_read(stdout)
     }
-    fn spend_command(&self, road: &ResetRoad, idempotency_key: &str, credit_id: Option<&str>) -> String {
-        reset_credit_command(road, idempotency_key, credit_id).unwrap_or_else(|refusal| panic!("{refusal}"))
+    fn spend_command(&self, road: &ResetRoad, idempotency_key: &str, credit_id: Option<&str>) -> Result<String, String> {
+        reset_credit_command(road, idempotency_key, credit_id)
     }
     fn parse_spend(&self, stdout: &str) -> ResetSpend {
         parse_reset_credit(stdout)

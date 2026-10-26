@@ -59,7 +59,7 @@ async fn earlier_of(earlier: Value) -> f64 {
     };
     let ask = EarlierAsk { cwds: vec!["/w".into()], last: 5, probe: false, tail: None, count: true };
     match store.earlier("sid".into(), ask, road).await.unwrap() {
-        EarlierRead::Read(read) => f64::from(read.earlier),
+        EarlierRead::Read(read) => read.earlier,
         other => panic!("expected a read, got {other:?}"),
     }
 }
@@ -117,14 +117,14 @@ async fn the_earlier_count_a_transcripts_read_reports_is_handed_on_whole_body() 
     assert_eq!(earlier_of(json!(1e20)).await, 1e20);
 }
 
-// adapter-claude/src/adapter.ts:565 prints `JSON.stringify(block.input ?? null)`, the 200-deep input back whole (1201
-// chars); wsp-words v8_json.rs:10 KEPT_DEPTH empties every container nested past 128.
+// adapter-claude/src/adapter.ts:565 prints the 200-deep input back whole (node: 1201 chars). The port keeps wsp-words'
+// KEPT_DEPTH cap, which guards the stack (ruled on #2447): every container nested past 128 is emptied, 746 chars.
 #[tokio::test]
-async fn a_tool_call_input_nested_past_128_levels_is_printed_whole() {
-    tokio::task::LocalSet::new().run_until(a_tool_call_input_nested_past_128_levels_is_printed_whole_body()).await
+async fn a_tool_call_input_nested_past_128_levels_is_shown_with_its_inner_containers_emptied() {
+    tokio::task::LocalSet::new().run_until(a_tool_call_input_nested_past_128_levels_is_shown_with_its_inner_containers_emptied_body()).await
 }
 
-async fn a_tool_call_input_nested_past_128_levels_is_printed_whole_body() {
+async fn a_tool_call_input_nested_past_128_levels_is_shown_with_its_inner_containers_emptied_body() {
     let deep = format!("{}1{}", "{\"a\":".repeat(200), "}".repeat(200));
     let call = format!(
         "{{\"type\":\"assistant\",\"session_id\":\"{A}\",\"message\":{{\"id\":\"m2\",\"content\":[{{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Foo\",\"input\":{deep}}}]}}}}"
@@ -137,6 +137,6 @@ async fn a_tool_call_input_nested_past_128_levels_is_printed_whole_body() {
             _ => None,
         })
         .expect("a tool_use delta");
-    assert_eq!(call.text.len(), 1201);
-    assert_eq!(call.text, deep);
+    assert_eq!(call.text.len(), 746);
+    assert_ne!(call.text, deep);
 }

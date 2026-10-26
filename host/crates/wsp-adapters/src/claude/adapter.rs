@@ -32,11 +32,11 @@ use crate::claude::session_title::{
 use crate::claude::turn::{fire, follow, ClaudeKept, ClaudeSession, FollowOptions, Kept, ASIDE_WALL_MS, INTERRUPT_GRACE_MS, RUN_EXIT_MS};
 use crate::pending::{aside_wall_line, claude_memory_dir, harness_exit_line, title_prompt, HarnessEnded};
 use crate::port::{
-    end_after_result, end_run, keep_run, start_after_loss, AccessOutcome, AdapterAttachOptions, AdapterError, AfterLoss, AgentLaunch,
-    AnswerOutcome, AsideAnswer, AsideQuestion, AttachRunOptions, Attached, ConversationStore, DraftAsk, Env, ExecFailure, ExecFailureKind,
-    ExecOptions, ExecStreamFactory, ForkTurn, ForkedSession, HarnessCatalogAnswer, HarnessCatalogProbe, HarnessExec, HarnessStartOptions,
-    HarnessWarmOptions, KeptTurn, LostSessionStart, Now, OnEvent, PermissionAnswer, ScreenCommand, SessionFile, SessionRenameWrite, Settle,
-    SharedFuture, SteerOutcome, TaskStop, TitleTurn, TurnImage, TurnResult,
+    end_after_result, end_run, keep_run, start_after_loss, started, AccessOutcome, AdapterAttachOptions, AdapterError, AfterLoss,
+    AgentLaunch, AnswerOutcome, AsideAnswer, AsideQuestion, AttachRunOptions, Attached, ConversationStore, DraftAsk, Env, ExecFailure,
+    ExecFailureKind, ExecOptions, ExecStreamFactory, ForkTurn, ForkedSession, HarnessCatalogAnswer, HarnessCatalogProbe, HarnessExec,
+    HarnessStartOptions, HarnessWarmOptions, KeptTurn, LostSessionStart, Now, OnEvent, PermissionAnswer, ScreenCommand, SessionFile,
+    SessionRenameWrite, Settle, SharedFuture, SteerOutcome, TaskStop, TitleTurn, TurnImage, TurnResult,
 };
 
 /// adapter.ts:117.
@@ -695,7 +695,7 @@ impl crate::port::HarnessSession for ClaudeSession {
     }
     fn interrupt(&self) -> LocalBoxFuture<'static, ()> {
         let session = self.clone();
-        async move { session.interrupt().await }.boxed_local()
+        started(async move { session.interrupt().await }.boxed_local())
     }
     fn kept(&self) -> Option<Option<Box<dyn crate::port::KeptAgent>>> {
         Some(ClaudeSession::kept(self).map(|kept| Box::new(kept) as Box<dyn crate::port::KeptAgent>))
@@ -732,7 +732,7 @@ impl crate::port::KeptAgent for ClaudeKept {
     }
     fn close(&self, now: bool) -> LocalBoxFuture<'static, ()> {
         let kept = self.clone();
-        async move { kept.close(now).await }.boxed_local()
+        started(async move { kept.close(now).await }.boxed_local())
     }
     fn exited(&self) -> SharedFuture<()> {
         ClaudeKept::exited(self).map(|_| ()).boxed_local().shared()
