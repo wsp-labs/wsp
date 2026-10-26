@@ -12,7 +12,7 @@ use wsp_words::exit::HostError;
 /// `e.code`, the code a slate refusal stamps (`Z803`, `V750`, ...). `HostError` gains `code` in the words fix round
 /// (ruling 6402177374 point 3) and has none in the base; until then the tests read it through this.
 pub fn code_of(e: &HostError) -> Option<String> {
-    todo!()
+    e.code.clone()
 }
 
 /// Serde plumbing for a field the TS writes as absent, a value, or `null`, all three apart: `None` is absent,
