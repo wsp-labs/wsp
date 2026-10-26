@@ -23,9 +23,11 @@ use wsp_words::words::thread::{
     gone_words, idle_reason, GoneSeenBy, GoneSighting, ALREADY_RUNNING, GONE_UNCHECKED, NOT_GONE,
 };
 
-use super::create::{backstop_of, host_of, machine_state_word, read_once, sleep_ms, GONE_READS};
-use super::{Entry, MachinesArea, Refusal};
+use super::create::{backstop_of, host_of, sleep_ms};
+use super::{Entry, MachinesArea};
+use crate::machines::reach::ForMachine;
 use crate::unwound::unwound_or_failed;
+use wsp_engine::gone::{machine_state_word, read_gone};
 
 /// What `goneConfirmed` answers: the provider's state, or the error its reads ended on (machines.ts:691).
 #[derive(Clone, Debug, PartialEq)]
@@ -168,18 +170,18 @@ impl MachinesArea {
                 }
                 self.rt.nap_refusals().borrow_mut().insert(
                     id.to_string(),
-                    Refusal {
+                    ForMachine {
                         machine_id: machine_id.clone(),
-                        said: said.clone(),
+                        value: said.clone(),
                     },
                 );
             }
             if let EngineError::StopRefused { said, .. } = &e {
                 self.rt.stop_refusals().borrow_mut().insert(
                     id.to_string(),
-                    Refusal {
+                    ForMachine {
                         machine_id: machine_id.clone(),
-                        said: said.clone(),
+                        value: said.clone(),
                     },
                 );
             }
@@ -346,14 +348,10 @@ impl MachinesArea {
         if self.config.gone_confirm_ms > 0 {
             sleep_ms(&self.rt.clock(), self.config.gone_confirm_ms as i64).await;
         }
-        for _ in 0..GONE_READS {
-            match read_once(backend, machine_id).await {
-                Ok(MachineState::Gone) => {}
-                Ok(state) => return GoneRead::State(state),
-                Err(e) => return GoneRead::Failed(e.to_string()),
-            }
+        match read_gone(backend.as_ref(), machine_id).await {
+            Ok(state) => GoneRead::State(state),
+            Err(e) => GoneRead::Failed(e.to_string()),
         }
-        GoneRead::State(MachineState::Gone)
     }
 
     /// `settleGone` (machines.ts:700), spec rule 7.

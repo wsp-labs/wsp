@@ -12,7 +12,7 @@ use serde_json::{json, Map, Value};
 
 use wsp_core::types::internal::{
     read_asked, read_road, read_scope, read_steered, restart_cut_line, Reopened, SessionEntry,
-    StoredBuilder, TurnLive, BUILDERS, HELD_STARTS, OWNER, PROJECTS, READS, READS_ID,
+    StoredBuilder, ThreadRecord, TurnLive, BUILDERS, HELD_STARTS, OWNER, PROJECTS, READS, READS_ID,
     RESTARTED_REASON, SESSIONS, TRANSCRIPTS, WORKSPACES,
 };
 use wsp_wire::types::js_number::JsNumber;
@@ -26,7 +26,7 @@ use wsp_words::words::thread::{GoneSeenBy, RUN_GONE_LINE};
 
 use super::load::{id_of, Asked, LoadReads, LOAD_READS_MS};
 use super::{BootArea, CardAsk, HeldEnd, ScopedDevice};
-use crate::machines::machines::{Entry, Row, ThreadOn};
+use crate::machines::machines::{Entry, Row};
 
 /// The one start every caller of `ready()` awaits; its failure is shared as its words.
 pub type Ready =
@@ -519,12 +519,12 @@ impl BootArea {
             );
         }
         let Some(on) =
-            self.row_of::<ThreadOn>(&format!("thread {thread_id}"), Value::Object(record))
+            self.row_of::<ThreadRecord>(&format!("thread {thread_id}"), Value::Object(record))
         else {
             return Ok(());
         };
-        let snoozed = on.record.snoozed_until.as_ref().map(|j| j.0);
-        let armed = on.record.limit_resume.as_ref().map(|l| l.at.0);
+        let snoozed = on.snoozed_until.as_ref().map(|j| j.0);
+        let armed = on.limit_resume.as_ref().map(|l| l.at.0);
         self.rt
             .thread_records()
             .borrow_mut()

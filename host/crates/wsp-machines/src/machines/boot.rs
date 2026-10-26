@@ -15,7 +15,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use indexmap::{IndexMap, IndexSet};
 
-use wsp_core::types::internal::{KindModule, Reopened};
+use wsp_core::types::internal::{KindModule, Reopened, ThreadRecord};
 use wsp_core::types::pending::{Clock, Store};
 use wsp_core::types::wiring::{FoundMachine, GoneOutcome, PlaceBackends, WorkspaceRecord};
 use wsp_engine::machine::{Machine, MachineBackend};
@@ -31,7 +31,7 @@ use wsp_wire::wire::events_union::EventUnion;
 use wsp_wire::wire::machine_link::MachineShape;
 use wsp_words::exit::HostError;
 
-use super::machines::{Entry, Ids, Row, ThreadOn};
+use super::machines::{Entry, Ids, Row};
 
 /// The turn, workspace and thread key of a held row (boot.ts `threadKeyOf`).
 fn row_keys(s: &Row) -> (String, String, String) {
@@ -120,7 +120,7 @@ pub trait BootRuntime {
     // The shared maps.
     fn live(&self) -> Rc<RefCell<IndexMap<String, Entry>>>;
     fn sessions(&self) -> Rc<RefCell<IndexMap<String, Row>>>;
-    fn thread_records(&self) -> Rc<RefCell<IndexMap<String, ThreadOn>>>;
+    fn thread_records(&self) -> Rc<RefCell<IndexMap<String, ThreadRecord>>>;
     fn builders(&self) -> crate::images::Builders;
     fn projects_held(&self) -> Rc<RefCell<IndexMap<String, ProjectView>>>;
     /// `ctx.bootWork`: what a starting host still has out on each machine.

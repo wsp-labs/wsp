@@ -830,7 +830,11 @@ fn build_joins_one_in_flight_and_calls_starting_each_time() {
 
 fn row(stopped: bool) -> Rc<CopyRow> {
     Rc::new(CopyRow {
-        line: if stopped { "stopped".into() } else { "building".into() },
+        line: if stopped {
+            "stopped".into()
+        } else {
+            "building".into()
+        },
         stopped,
     })
 }
