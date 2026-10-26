@@ -450,6 +450,61 @@ fn a_machine_frame_refused_with_a_status_and_no_kind_keeps_its_status_for_the_en
     });
 }
 
+struct KindOnlyReach;
+
+#[async_trait(?Send)]
+impl DaemonReach for KindOnlyReach {
+    async fn ready(&self) -> Result<(), ReachError> {
+        Ok(())
+    }
+    async fn request(&self, _op: &str, _params: Frame) -> Result<Frame, ReachError> {
+        Err(ReachError {
+            message: "no such machine".to_string(),
+            kind: Some(MachineErrorKind::Missing),
+            status: None,
+            code: None,
+        })
+    }
+    fn status(&self) -> Option<DaemonLinkStatus> {
+        None
+    }
+    fn stats(&self) -> ReachStats {
+        ReachStats::default()
+    }
+    fn close(&self) {}
+}
+
+// The reverse: a kind with no status is no status 0, which a keyed create reads as a refused attempt (machines.ts:87).
+#[test]
+fn a_machine_frame_refused_with_a_kind_and_no_status_keeps_its_kind_and_reads_no_status() {
+    block(async {
+        let scene = Scene::new(SceneOpts::default());
+        scene.records.keep(record(
+            "p1",
+            "old-macbook",
+            report("old-macbook", json!({})),
+        ));
+        let socket = FakeSocket::new(answers_ok());
+        scene.ctx.live.borrow_mut().insert(
+            "p1".to_string(),
+            Live {
+                socket: Rc::clone(&socket) as Rc<dyn LinkSocket>,
+                reach: Rc::new(KindOnlyReach),
+                seen: Box::new(|| {}),
+                forward: None,
+            },
+        );
+        let err = scene
+            .setup
+            .link_to("p1")
+            .request("machine.get", Map::new(), LinkAsk::default())
+            .await
+            .expect_err("the daemon refused");
+        assert!(is_missing(&err));
+        assert_eq!(err.status(), None, "no status is no status 0");
+    });
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Finding 6: setup.ts:1079-1080 waits a keyed frame out from the moment its socket failed under it; the Rust waits
 // from the last close this host stamped, which on a socket that is closing is the gap before.

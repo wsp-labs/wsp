@@ -152,10 +152,10 @@ pub enum EngineError {
     /// Any other thrown Error: its message, and its `code` where it had one.
     #[error("{message}")]
     Other { message: String, code: Option<String> },
-    /// An error a far side refused with that carries a `status` and no kind (reach.ts:162-170): the status is kept, which
-    /// only a provider's own error (with a kind) held before.
+    /// An error a far side refused with that lacks a kind or a status (reach.ts:162-170 stamps whichever it had): each is
+    /// kept as it came, where a provider's own error needs both.
     #[error("{message}")]
-    Refused { message: String, status: Option<u16>, code: Option<String> },
+    Refused { message: String, kind: Option<ErrorKind>, status: Option<u16>, code: Option<String> },
 }
 
 pub type Result<T, E = EngineError> = std::result::Result<T, E>;
@@ -236,6 +236,7 @@ impl EngineError {
     pub fn kind(&self) -> Option<ErrorKind> {
         match self {
             EngineError::Provider(w) => Some(w.kind),
+            EngineError::Refused { kind, .. } => *kind,
             EngineError::RestoreUnfinished { carried, .. } | EngineError::MachineStopped { carried, .. } => carried.kind,
             _ => None,
         }

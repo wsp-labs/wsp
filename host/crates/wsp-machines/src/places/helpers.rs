@@ -740,23 +740,24 @@ pub(crate) fn refused_engine(e: ReachError) -> EngineError {
         ))
         .ok()
     });
-    match kind {
-        Some(kind) => EngineError::Provider(wsp_engine::errors::WspError {
+    match (kind, e.status) {
+        (Some(kind), Some(status)) => EngineError::Provider(wsp_engine::errors::WspError {
             kind,
-            status: e.status.map_or(0, |s| s as u16),
+            status: status as u16,
             code: e.code,
             message: e.message,
             request_id: None,
             window: None,
             said: None,
         }),
-        None if e.status.is_some() => EngineError::Refused {
+        (None, None) => EngineError::Other {
             message: e.message,
-            status: e.status.map(|s| s as u16),
             code: e.code,
         },
-        None => EngineError::Other {
+        (kind, status) => EngineError::Refused {
             message: e.message,
+            kind,
+            status: status.map(|s| s as u16),
             code: e.code,
         },
     }

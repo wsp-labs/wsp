@@ -378,8 +378,20 @@ fn an_engine_error_reaches_a_door_with_its_kind_status_and_code() {
 #[test]
 fn a_refusal_with_a_status_and_no_kind_keeps_its_status_and_code() {
     use wsp_words::exit::HostError;
-    let e = EngineError::Refused { message: "cannot be done".into(), status: Some(422), code: Some("EINVAL".into()) };
+    let e = EngineError::Refused { message: "cannot be done".into(), kind: None, status: Some(422), code: Some("EINVAL".into()) };
     assert_eq!((e.status(), e.kind(), e.code()), (Some(422), None, Some("EINVAL")));
     let host = HostError::from(e);
     assert_eq!((host.status, host.kind, host.code.as_deref()), (Some(422.0), None, Some("EINVAL")));
+}
+
+// reach.ts:162-170: a refusal with a kind and no status keeps its kind, and reads no status, not status 0.
+#[test]
+fn a_refusal_with_a_kind_and_no_status_keeps_its_kind_and_reads_no_status() {
+    use wsp_engine::errors::{is_missing, ErrorKind};
+    use wsp_words::exit::{HostError, Kind};
+    let e = EngineError::Refused { message: "no such machine".into(), kind: Some(ErrorKind::Missing), status: None, code: None };
+    assert!(is_missing(&e));
+    assert_eq!(e.status(), None);
+    let host = HostError::from(e);
+    assert_eq!((host.kind, host.status), (Some(Kind::Missing), None));
 }
