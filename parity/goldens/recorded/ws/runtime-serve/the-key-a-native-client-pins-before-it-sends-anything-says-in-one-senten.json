@@ -1,0 +1,13 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "nonce": "<id-1, 44 characters>",
+      "hostPublicKey": "<id-2, 60 characters>",
+      "signature": "<id-3, 88 characters>",
+      "ephemeral": "<id-4, 44 characters>"
+    }
+  ],
+  "events": []
+}

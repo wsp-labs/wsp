@@ -1,0 +1,24 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "account": {
+        "signedIn": false
+      }
+    },
+    {
+      "id": 3,
+      "ok": true,
+      "ticket": "<id-1, 32 characters>",
+      "expiresAt": "<time+5m in ms>"
+    }
+  ],
+  "events": []
+}

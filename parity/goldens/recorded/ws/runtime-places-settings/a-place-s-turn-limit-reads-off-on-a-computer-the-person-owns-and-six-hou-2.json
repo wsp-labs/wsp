@@ -1,0 +1,126 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "place": {
+        "id": "here",
+        "kind": "computer",
+        "name": "<computer>",
+        "default": true,
+        "os": "Linux 7.0.0-1014-aws",
+        "shape": {
+          "cpu": 16,
+          "memMb": 31744
+        },
+        "diskFreeBytes": "<moving>",
+        "engine": "none",
+        "home": "<tmp>/home",
+        "present": true,
+        "takesForks": false,
+        "buildsImages": false,
+        "cap": {
+          "threads": 16
+        },
+        "capDefault": {
+          "threads": 16
+        },
+        "settings": {
+          "turnLimitMs": 7200000
+        },
+        "turnLimitMs": 7200000,
+        "turnLimitDefault": null,
+        "spawn": {
+          "spawn": true,
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "spawn": true,
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 0
+      }
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "no place named solari; you have <computer>",
+      "kind": "usage"
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": {
+        "json": [
+          {
+            "code": "too_small",
+            "minimum": 3600000,
+            "type": "number",
+            "inclusive": true,
+            "exact": false,
+            "message": "Number must be greater than or equal to 3600000",
+            "path": [
+              "turnLimitMs"
+            ]
+          }
+        ],
+        "layout": "indented"
+      }
+    },
+    {
+      "id": 5,
+      "ok": true,
+      "place": {
+        "id": "here",
+        "kind": "computer",
+        "name": "<computer>",
+        "default": true,
+        "os": "Linux 7.0.0-1014-aws",
+        "shape": {
+          "cpu": 16,
+          "memMb": 31744
+        },
+        "diskFreeBytes": "<moving>",
+        "engine": "none",
+        "home": "<tmp>/home",
+        "present": true,
+        "takesForks": false,
+        "buildsImages": false,
+        "cap": {
+          "threads": 16
+        },
+        "capDefault": {
+          "threads": 16
+        },
+        "turnLimitMs": null,
+        "turnLimitDefault": null,
+        "spawn": {
+          "spawn": true,
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "spawnDefault": {
+          "spawn": true,
+          "maxMachines": 3,
+          "maxDepth": 2
+        },
+        "running": 0
+      }
+    },
+    {
+      "id": 6,
+      "ok": false,
+      "error": "no place named solari; you have <computer>",
+      "kind": "usage"
+    }
+  ],
+  "events": []
+}

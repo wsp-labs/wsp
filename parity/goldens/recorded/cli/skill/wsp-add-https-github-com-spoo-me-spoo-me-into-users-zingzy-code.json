@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "fatal: could not create leading directories of '/Users/zingzy/code/spoo.me': Read-only file system\n"
+    }
+  ],
+  "events": []
+}

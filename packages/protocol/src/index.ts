@@ -121,6 +121,7 @@ export { accruedAt, accruedPast, appendCostPoint, COST_HISTORY_CAP, dayStart, mo
 export { leadAsk, openAsk, THREAD_SEED_CHARS, ThreadMessage, threadMarkdown, threadMessages, threadReplyRows, threadResult, threadSeed, ThreadVoice } from "./thread-read.js";
 export { escapeRegExp } from "./regexp.js";
 export { ENV_FROM_INPUT, inFolder, shellLine, shellQuote } from "./shell-quote.js";
+export { KEYLIKE_SEGMENT, blankTokens, holdsPrivateKey, tokenShaped } from "./token-shapes.js";
 export { DOCKER_NOTES_CAP_BYTES, DOCKER_NOTES_FOLDER, DOCKER_THREAD_LABEL, dockerShim } from "./docker-shim.js";
 export { cgroupEndScript, cgroupJoinLine, cgroupMemory, inCgroup, threadCgroup, threadCgroupsEndScript } from "./thread-cgroup.js";
 export { threadShellFiles, threadShellVars } from "./thread-shell.js";

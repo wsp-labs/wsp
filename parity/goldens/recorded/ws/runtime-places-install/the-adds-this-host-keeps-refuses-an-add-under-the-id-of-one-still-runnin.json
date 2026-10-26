@@ -1,0 +1,179 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": "wsp add: this host answers on its own loopback alone, which a computer somewhere else cannot dial. Start it with --listen 0.0.0.0, or link it to your relay, and run this again."
+    },
+    {
+      "id": 3,
+      "ok": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "<computer>",
+          "default": true,
+          "os": "Linux 7.0.0-1014-aws",
+          "shape": {
+            "cpu": 16,
+            "memMb": 31744
+          },
+          "diskFreeBytes": "<moving>",
+          "engine": "none",
+          "home": "<tmp>/home",
+          "present": true,
+          "takesForks": false,
+          "buildsImages": false,
+          "cap": {
+            "threads": 16
+          },
+          "capDefault": {
+            "threads": 16
+          },
+          "turnLimitMs": null,
+          "turnLimitDefault": null,
+          "spawn": {
+            "spawn": true,
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "spawnDefault": {
+            "spawn": true,
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "running": 0
+        }
+      ],
+      "adds": [
+        {
+          "addId": "a_one",
+          "address": "root@10.0.0.9",
+          "startedAt": "<time>",
+          "state": "failed",
+          "steps": [
+            {
+              "step": "connect",
+              "state": "failed",
+              "note": "wsp add: this host answers on its own loopback alone, which a computer somewhere else cannot dial. Start it with --listen 0.0.0.0, or link it to your relay, and run this again."
+            }
+          ],
+          "said": "wsp add: this host answers on its own loopback alone, which a computer somewhere else cannot dial. Start it with --listen 0.0.0.0, or link it to your relay, and run this again."
+        }
+      ],
+      "pending": [
+        {
+          "id": "a_one",
+          "address": "root@10.0.0.9",
+          "step": "connect",
+          "choices": {
+            "name": "root@10.0.0.9",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {},
+            "folders": {},
+            "configs": {}
+          },
+          "startedAt": "<time>",
+          "failed": {
+            "said": "wsp add: this host answers on its own loopback alone, which a computer somewhere else cannot dial. Start it with --listen 0.0.0.0, or link it to your relay, and run this again."
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": "wsp add: this host answers on its own loopback alone, which a computer somewhere else cannot dial. Start it with --listen 0.0.0.0, or link it to your relay, and run this again."
+    },
+    {
+      "id": 5,
+      "ok": true,
+      "places": [
+        {
+          "id": "here",
+          "kind": "computer",
+          "name": "<computer>",
+          "default": true,
+          "os": "Linux 7.0.0-1014-aws",
+          "shape": {
+            "cpu": 16,
+            "memMb": 31744
+          },
+          "diskFreeBytes": "<moving>",
+          "engine": "none",
+          "home": "<tmp>/home",
+          "present": true,
+          "takesForks": false,
+          "buildsImages": false,
+          "cap": {
+            "threads": 16
+          },
+          "capDefault": {
+            "threads": 16
+          },
+          "turnLimitMs": null,
+          "turnLimitDefault": null,
+          "spawn": {
+            "spawn": true,
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "spawnDefault": {
+            "spawn": true,
+            "maxMachines": 3,
+            "maxDepth": 2
+          },
+          "running": 0
+        }
+      ],
+      "adds": [
+        {
+          "addId": "a_one",
+          "address": "maya@elsewhere",
+          "startedAt": "<time>",
+          "state": "failed",
+          "steps": [
+            {
+              "step": "connect",
+              "state": "failed",
+              "note": "wsp add: this host answers on its own loopback alone, which a computer somewhere else cannot dial. Start it with --listen 0.0.0.0, or link it to your relay, and run this again."
+            }
+          ],
+          "said": "wsp add: this host answers on its own loopback alone, which a computer somewhere else cannot dial. Start it with --listen 0.0.0.0, or link it to your relay, and run this again."
+        }
+      ],
+      "pending": [
+        {
+          "id": "a_one",
+          "address": "maya@elsewhere",
+          "step": "connect",
+          "choices": {
+            "name": "maya@elsewhere",
+            "agents": {},
+            "mcp": {},
+            "clis": {},
+            "skills": {},
+            "plugins": {},
+            "folders": {},
+            "configs": {}
+          },
+          "startedAt": "<time>",
+          "failed": {
+            "said": "wsp add: this host answers on its own loopback alone, which a computer somewhere else cannot dial. Start it with --listen 0.0.0.0, or link it to your relay, and run this again."
+          }
+        }
+      ]
+    }
+  ],
+  "events": []
+}
