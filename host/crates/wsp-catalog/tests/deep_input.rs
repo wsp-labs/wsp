@@ -304,6 +304,36 @@ fn formats_at_the_cap_body(depth: usize) {
     .is_empty());
 }
 
+fn codex_at_the_cap_body(depth: usize) {
+    use wsp_catalog::mcp_launch::{codex_launch_config, unset_toml_keys, LaunchConfigs, TurnFile};
+    // `[mcp_servers.x.<parts>]` is `parts + 2` levels down
+    let text = format!(
+        "[mcp_servers.x]\ncommand = \"c\"\nenv_vars = [\"T\"]\n[mcp_servers.x.{}]\nk = \"${{T}}\"\n",
+        vec!["a"; depth - 2].join(".")
+    );
+    let scope = McpEditScope { keep: vec!["x".into()], ..Default::default() };
+    McpFormat::CodexToml.edit(&upper, &scope, &text).expect("edits at the cap");
+    let mscope = McpMergeScope { keep: vec!["x".into()], ..Default::default() };
+    McpFormat::CodexToml.merge(&no_rewrite, &mscope, Some("[mcp_servers.y]\ncommand = \"c\"\n"), &text).expect("merges at the cap");
+    assert!(McpFormat::CodexToml.entry_of(&text, "x", None).is_some());
+    assert!(!codex_trusts(&text, "/work"));
+    assert!(unset_toml_keys(&text, &[]).is_empty());
+    let configs = LaunchConfigs {
+        user: Some(TurnFile { path: "/home/u/.codex/config.toml".into(), text: text.clone() }),
+        projects: None,
+        folder: "/work".into(),
+        key: None,
+    };
+    let values = indexmap::IndexMap::from([("T".to_string(), "secret".to_string())]);
+    let _ = codex_launch_config(&configs, &values);
+}
+
+// Codex's config walks at the cap, on the 1 MiB stack: a table 1,000 levels down is edited, merged, read and launched.
+#[test]
+fn codex_answers_at_1000_levels() {
+    in_child("codex_answers_at_1000_levels", 1000, codex_at_the_cap_body);
+}
+
 // Every walk over a server definition at the cap, on the 1 MiB stack: a file nested 1,000 levels is read and answered, and
 // 1,001 is refused by the parse (ruling 2, ruling 4).
 #[test]
