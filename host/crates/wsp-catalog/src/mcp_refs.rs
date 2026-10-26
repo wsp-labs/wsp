@@ -106,16 +106,34 @@ pub struct Part {
     to: usize,
 }
 
-/// A string and where its line ends stand, which is what tells whether a stretch of it holds one without a scan.
+/// A string and where its line ends and its query marks (`#`, `&`, `=`, `+`, `%`) stand, which is what tells whether a
+/// stretch of it holds one without a scan: a chain of addresses nested by their own queries reads one stretch per level.
 struct Base {
     text: String,
     line_ends: Vec<usize>,
+    marks: [Vec<usize>; MARKS.len()],
 }
+
+const MARKS: [u8; 5] = [b'#', b'&', b'=', b'+', b'%'];
 
 impl Part {
     fn whole(text: &str) -> Part {
         let line_ends = text.char_indices().filter(|(_, c)| is_line_end(*c)).map(|(i, _)| i).collect();
-        Part { base: Rc::new(Base { text: text.to_string(), line_ends }), from: 0, to: text.len() }
+        let mut marks: [Vec<usize>; MARKS.len()] = Default::default();
+        for (i, b) in text.bytes().enumerate() {
+            if let Some(kind) = MARKS.iter().position(|m| *m == b) {
+                marks[kind].push(i);
+            }
+        }
+        Part { base: Rc::new(Base { text: text.to_string(), line_ends, marks }), from: 0, to: text.len() }
+    }
+
+    /// The first `mark` in this part's stretch from `range.start` up to `range.end` (offsets in the part), if one stands there.
+    fn mark_in(&self, mark: u8, range: std::ops::Range<usize>) -> Option<usize> {
+        let kind = MARKS.iter().position(|m| *m == mark).expect("a query mark");
+        let at = &self.base.marks[kind];
+        let first = at.partition_point(|&i| i < self.from + range.start);
+        at.get(first).filter(|&&i| i < self.from + range.end).map(|&i| i - self.from)
     }
 
     pub fn as_str(&self) -> &str {
@@ -196,19 +214,27 @@ pub fn places(s: &str, at: &str, start: Option<usize>) -> Vec<Place> {
             let sub = &s[rest];
             inner.push((part.of(sub), at.clone(), tail(sub)));
         }
-        if let Some((mut offset, query)) = address_query(s) {
-            for pair in query.split('&') {
-                let (key, raw) = match pair.find('=') {
-                    Some(i) => (&pair[..i], &pair[i + 1..]),
-                    None => (pair, ""),
+        if let Some((from, end)) = address_query(&part) {
+            let mut pair_start = from;
+            loop {
+                let pair_end = part.mark_in(b'&', pair_start..end).unwrap_or(end);
+                let (key, raw_from) = match part.mark_in(b'=', pair_start..pair_end) {
+                    Some(i) => (&s[pair_start..i], i + 1),
+                    None => (&s[pair_start..pair_end], pair_end),
                 };
+                let raw = &s[raw_from..pair_end];
                 let whose = format!("the {key} parameter of an address");
-                inner.push((part.of(raw), whose.clone(), start.map(|st| st + offset + key.len() + 1)));
-                let decoded = query_value(raw);
-                if decoded != raw {
-                    inner.push((Part::whole(&decoded), whose, None));
+                inner.push((part.of(raw), whose.clone(), start.map(|st| st + pair_start + key.len() + 1)));
+                if part.mark_in(b'+', raw_from..pair_end).is_some() || part.mark_in(b'%', raw_from..pair_end).is_some() {
+                    let decoded = query_value(raw);
+                    if decoded != raw {
+                        inner.push((Part::whole(&decoded), whose, None));
+                    }
                 }
-                offset += pair.len() + 1;
+                if pair_end >= end {
+                    break;
+                }
+                pair_start = pair_end + 1;
             }
         }
         work.extend(inner.into_iter().rev());
@@ -244,9 +270,11 @@ fn header_line(s: &str) -> Option<(&str, &str)> {
     (spaces > 0).then(|| (&s[..name], &rest[spaces - 1..]))
 }
 
-/// Where the query of an address starts and the query, for `/^[a-z][a-z0-9+.-]*:\/\/[^?#]*\?([^#]*)/i` read without a regex: fancy-regex runs a
-/// pattern with a case-folded class by trying every start, which is a scan of the whole string at each level of a chain.
-fn address_query(s: &str) -> Option<(usize, &str)> {
+/// Where the query of an address starts and ends in the part, for `/^[a-z][a-z0-9+.-]*:\/\/[^?#]*\?([^#]*)/i` read without a
+/// regex: fancy-regex runs a pattern with a case-folded class by trying every start, which is a scan of the whole string
+/// at each level of a chain.
+fn address_query(part: &Part) -> Option<(usize, usize)> {
+    let s = part.as_str();
     let b = s.as_bytes();
     if !b.first()?.is_ascii_alphabetic() {
         return None;
@@ -254,8 +282,7 @@ fn address_query(s: &str) -> Option<(usize, &str)> {
     let scheme = b.iter().take_while(|c| c.is_ascii_alphanumeric() || matches!(c, b'+' | b'.' | b'-')).count();
     let after = s[scheme..].strip_prefix("://")?;
     let from = scheme + 3 + after.find(['?', '#']).filter(|&i| after.as_bytes()[i] == b'?')? + 1;
-    let query = &s[from..];
-    Some((from, &query[..query.find('#').unwrap_or(query.len())]))
+    Some((from, part.mark_in(b'#', from..s.len()).unwrap_or(s.len())))
 }
 
 /// `decodeURIComponent` of a query value with `+` as a space; the raw text where it is not valid percent-encoding
