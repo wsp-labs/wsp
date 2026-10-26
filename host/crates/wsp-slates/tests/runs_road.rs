@@ -10,7 +10,9 @@ use std::rc::Rc;
 use indexmap::IndexMap;
 use serde_json::json;
 use support::{local, own_group, sleep_ms, test_clock, until};
-use wsp_slates::slate_runs::{kill_group, local_road, reshape_answer, reshape_result, ReshapeAnswer, ReshapeStart, RoadEnd, RoadEvents, RoadStart, Stream};
+use wsp_slates::slate_runs::{
+    kill_group, local_road, reshape_answer, reshape_result, ReshapeAnswer, ReshapeStart, RoadEnd, RoadEvents, RoadStart, Stream,
+};
 
 /// What a road told: each line with its stream, and every end.
 #[derive(Default)]
@@ -127,7 +129,15 @@ fn a_stream_run_tells_each_line_as_it_comes_and_the_rest_at_the_end() {
         o.stream = true;
         road.start(o, told.clone());
         let end = ended(&told, 10_000).await;
-        assert_eq!(*told.lines.borrow(), vec![(Stream::Out, "a\r".to_string()), (Stream::Out, "b".to_string()), (Stream::Err, "oops".to_string()), (Stream::Out, "tail".to_string())]);
+        assert_eq!(
+            *told.lines.borrow(),
+            vec![
+                (Stream::Out, "a\r".to_string()),
+                (Stream::Out, "b".to_string()),
+                (Stream::Err, "oops".to_string()),
+                (Stream::Out, "tail".to_string())
+            ]
+        );
         assert_eq!(end.out, "a\r\nb\ntail");
         assert_eq!(end.err, "oops\n");
     });
@@ -305,7 +315,14 @@ fn a_then_reads_the_input_on_stdin_and_answers_its_json() {
     own_group();
     let dir = support::temp_root("road-then-");
     local(async {
-        let o = ReshapeStart { cmd: "cat".into(), input: " {\"a\":[1,\"x\"]}\n".into(), cwd: dir.path().display().to_string(), env: env(), timeout_s: 60.0, scrub: scrub_none() };
+        let o = ReshapeStart {
+            cmd: "cat".into(),
+            input: " {\"a\":[1,\"x\"]}\n".into(),
+            cwd: dir.path().display().to_string(),
+            env: env(),
+            timeout_s: 60.0,
+            scrub: scrub_none(),
+        };
         assert_eq!(reshape_result(o, test_clock()).done.await, ReshapeAnswer::Json(json!({"a": [1, "x"]})));
     });
 }
@@ -316,15 +333,31 @@ fn a_then_that_fails_says_why_with_its_stderr() {
     own_group();
     let dir = support::temp_root("road-then-fail-");
     local(async {
-        let run = |cmd: &str, timeout_s: f64| ReshapeStart { cmd: cmd.into(), input: "raw\n".into(), cwd: dir.path().display().to_string(), env: env(), timeout_s, scrub: scrub_none() };
+        let run = |cmd: &str, timeout_s: f64| ReshapeStart {
+            cmd: cmd.into(),
+            input: "raw\n".into(),
+            cwd: dir.path().display().to_string(),
+            env: env(),
+            timeout_s,
+            scrub: scrub_none(),
+        };
         assert_eq!(
             reshape_result(run("cat >/dev/null; echo cannot read it >&2; exit 4", 60.0), test_clock()).done.await,
             ReshapeAnswer::Failed { why: "then exited with 4".into(), exit: Some(4), err: "cannot read it\n".into() }
         );
-        assert_eq!(reshape_result(run("echo not json", 60.0), test_clock()).done.await, ReshapeAnswer::Failed { why: "then printed no JSON: not json".into(), exit: Some(0), err: "".into() });
-        assert_eq!(reshape_result(run("cat >/dev/null", 60.0), test_clock()).done.await, ReshapeAnswer::Failed { why: "then printed no JSON".into(), exit: Some(0), err: "".into() });
+        assert_eq!(
+            reshape_result(run("echo not json", 60.0), test_clock()).done.await,
+            ReshapeAnswer::Failed { why: "then printed no JSON: not json".into(), exit: Some(0), err: "".into() }
+        );
+        assert_eq!(
+            reshape_result(run("cat >/dev/null", 60.0), test_clock()).done.await,
+            ReshapeAnswer::Failed { why: "then printed no JSON".into(), exit: Some(0), err: "".into() }
+        );
         let at = std::time::Instant::now();
-        assert_eq!(reshape_result(run("sleep 30", 1.0), test_clock()).done.await, ReshapeAnswer::Failed { why: "then timed out after 1 s".into(), exit: Some(124), err: "".into() });
+        assert_eq!(
+            reshape_result(run("sleep 30", 1.0), test_clock()).done.await,
+            ReshapeAnswer::Failed { why: "then timed out after 1 s".into(), exit: Some(124), err: "".into() }
+        );
         assert!(at.elapsed().as_millis() < 5_000);
     });
 }
@@ -336,10 +369,27 @@ fn a_then_parses_its_out_after_the_scrub() {
     let dir = support::temp_root("road-then-scrub-");
     local(async {
         let scrub: Rc<dyn Fn(&str) -> String> = Rc::new(|s: &str| s.replace("tok_9f8e", "[secret:token]"));
-        let o = ReshapeStart { cmd: "echo '{\"got\":\"tok_9f8e\"}'; echo 'err tok_9f8e' >&2".into(), input: "".into(), cwd: dir.path().display().to_string(), env: env(), timeout_s: 60.0, scrub: scrub.clone() };
+        let o = ReshapeStart {
+            cmd: "echo '{\"got\":\"tok_9f8e\"}'; echo 'err tok_9f8e' >&2".into(),
+            input: "".into(),
+            cwd: dir.path().display().to_string(),
+            env: env(),
+            timeout_s: 60.0,
+            scrub: scrub.clone(),
+        };
         assert_eq!(reshape_result(o, test_clock()).done.await, ReshapeAnswer::Json(json!({"got": "[secret:token]"})));
-        let failing = ReshapeStart { cmd: "echo 'err tok_9f8e' >&2; exit 2".into(), input: "".into(), cwd: dir.path().display().to_string(), env: env(), timeout_s: 60.0, scrub };
-        assert_eq!(reshape_result(failing, test_clock()).done.await, ReshapeAnswer::Failed { why: "then exited with 2".into(), exit: Some(2), err: "err [secret:token]\n".into() });
+        let failing = ReshapeStart {
+            cmd: "echo 'err tok_9f8e' >&2; exit 2".into(),
+            input: "".into(),
+            cwd: dir.path().display().to_string(),
+            env: env(),
+            timeout_s: 60.0,
+            scrub,
+        };
+        assert_eq!(
+            reshape_result(failing, test_clock()).done.await,
+            ReshapeAnswer::Failed { why: "then exited with 2".into(), exit: Some(2), err: "err [secret:token]\n".into() }
+        );
     });
 }
 
@@ -350,14 +400,27 @@ fn reshape_answer_says_the_first_reason_in_order() {
     let base = RoadEnd { code: Some(0), out: "{}".into(), err: "e sekrit".into(), ..Default::default() };
     let err = "e [secret:s]".to_string();
     assert_eq!(
-        reshape_answer(&RoadEnd { error: Some("spawn bash EACCES sekrit".into()), timed_out: true, code: None, ..base.clone() }, 60.0, &scrub),
+        reshape_answer(
+            &RoadEnd { error: Some("spawn bash EACCES sekrit".into()), timed_out: true, code: None, ..base.clone() },
+            60.0,
+            &scrub
+        ),
         ReshapeAnswer::Failed { why: "then could not start: spawn bash EACCES [secret:s]".into(), exit: None, err: err.clone() }
     );
-    assert_eq!(reshape_answer(&RoadEnd { timed_out: true, code: Some(3), ..base.clone() }, 2.5, &scrub), ReshapeAnswer::Failed { why: "then timed out after 2.5 s".into(), exit: Some(124), err: err.clone() });
-    assert_eq!(reshape_answer(&RoadEnd { code: None, signal: Some("SIGKILL".into()), ..base.clone() }, 60.0, &scrub), ReshapeAnswer::Failed { why: "then exited with a signal".into(), exit: None, err: err.clone() });
+    assert_eq!(
+        reshape_answer(&RoadEnd { timed_out: true, code: Some(3), ..base.clone() }, 2.5, &scrub),
+        ReshapeAnswer::Failed { why: "then timed out after 2.5 s".into(), exit: Some(124), err: err.clone() }
+    );
+    assert_eq!(
+        reshape_answer(&RoadEnd { code: None, signal: Some("SIGKILL".into()), ..base.clone() }, 60.0, &scrub),
+        ReshapeAnswer::Failed { why: "then exited with a signal".into(), exit: None, err: err.clone() }
+    );
     assert_eq!(reshape_answer(&base, 60.0, &scrub), ReshapeAnswer::Json(json!({})));
     let long = format!("  {}\nsecond line", "x".repeat(130));
-    assert_eq!(reshape_answer(&RoadEnd { out: long, ..base.clone() }, 60.0, &scrub), ReshapeAnswer::Failed { why: format!("then printed no JSON: {}", "x".repeat(120)), exit: Some(0), err });
+    assert_eq!(
+        reshape_answer(&RoadEnd { out: long, ..base.clone() }, 60.0, &scrub),
+        ReshapeAnswer::Failed { why: format!("then printed no JSON: {}", "x".repeat(120)), exit: Some(0), err }
+    );
 }
 
 // runs_road Behaviour 8: err is cut to its 64 KiB tail from a line start (run_output_tail)

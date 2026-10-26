@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The slates area of the runtime: `runtime/src/slates.ts`, `slate-*.ts`, `lazy-slates.ts`,
-//! `slate-sources/` and `account/slates.ts`. `wsp-threads` and `wsp-slate` join the
-//! dependencies when they land; until then `pending` holds what this crate names from `wsp-slate` and the gaps below
-//! it (spec/join.md).
+//! `slate-sources/` and `account/slates.ts`. `pending` holds the slate module and the slate wire records
+//! until their crates land (spec/join.md).
+
+#![allow(clippy::result_large_err)] // The error type is wsp-words', shared by every crate.
 
 pub mod account;
 pub mod lazy_slates;
@@ -20,3 +21,4 @@ pub mod slate_runs;
 pub mod slate_sources;
 pub mod slate_writes;
 pub mod slates;
+pub(crate) mod tls;

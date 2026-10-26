@@ -143,7 +143,15 @@ async fn approve(s: &Rc<dyn Slates>, key: &str, scope: ApprovalScope) -> Result<
 }
 
 fn press_params(version: i64, piece: &str, request_id: &str) -> EventParams {
-    EventParams { thread_id: THREAD.into(), version, piece: piece.into(), event: "press".into(), request_id: request_id.into(), scope: None, row_action: None }
+    EventParams {
+        thread_id: THREAD.into(),
+        version,
+        piece: piece.into(),
+        event: "press".into(),
+        request_id: request_id.into(),
+        scope: None,
+        row_action: None,
+    }
 }
 
 async fn press(s: &Rc<dyn Slates>, piece: &str, request_id: &str) -> Result<SlateEventAnswer, HostError> {
@@ -282,7 +290,15 @@ fn a_check_previews_what_the_panel_shows_for_a_run_s_result_setting_run_json_on(
         let s = &rig.slates;
         let text = r##"<slate><run name="market" cmd="echo '{}'" every={60} /><column><text when={$market.exit == 0}>{$market.json.open ? "Open" : "Closed"}</text></column></slate>"##;
         let preview = s
-            .write(WriteParams { text: Some(text.into()), check: Some(true), values: vals(&[("$market.json", json!({"open": true})), ("$market.exit", json!(0))]), ..Default::default() }, Some(&agent()))
+            .write(
+                WriteParams {
+                    text: Some(text.into()),
+                    check: Some(true),
+                    values: vals(&[("$market.json", json!({"open": true})), ("$market.exit", json!(0))]),
+                    ..Default::default()
+                },
+                Some(&agent()),
+            )
             .await
             .unwrap();
         assert!(preview.text.contains("Open  [text-1 text]"), "{}", preview.text);
@@ -311,7 +327,9 @@ fn a_write_s_warnings_are_in_its_text_with_their_fixes_not_only_in_the_structure
         let wrote = agent_write(&rig.slates, r##"<slate title="Live Gold Prices"><column><text>a · b</text></column></slate>"##).await;
         assert_eq!(wrote.warnings.iter().map(|w| w.code.as_str()).collect::<Vec<_>>(), vec!["W018", "W012"]);
         assert!(wrote.text.starts_with("slate v1 \"Live Gold Prices\", 2 pieces, 0 bound, 0 problems, 2 warnings\n"), "{}", wrote.text);
-        assert!(wrote.text.contains(r#"W018 slate: the slate's title "Live Gold Prices" is in Title Case; heads take sentence case. Fix: title="Live gold prices""#));
+        assert!(wrote.text.contains(
+            r#"W018 slate: the slate's title "Live Gold Prices" is in Title Case; heads take sentence case. Fix: title="Live gold prices""#
+        ));
     });
 }
 
@@ -321,9 +339,16 @@ fn a_refused_write_names_every_error_on_its_one_line_numbered_not_the_first_alon
     support::local(async {
         let rig = rig("wsp-slates-every-error-");
         let s = &rig.slates;
-        let two = refusal(s.write(text_write(r##"<slate><column><text value={$nope} /><meter label="x" value={1} tone="loud" /></column></slate>"##), Some(&agent())).await);
+        let two = refusal(
+            s.write(
+                text_write(r##"<slate><column><text value={$nope} /><meter label="x" value={1} tone="loud" /></column></slate>"##),
+                Some(&agent()),
+            )
+            .await,
+        );
         let m = &two.message;
-        let at = |from: usize, needle: &str| m[from..].find(needle).map(|i| from + i).unwrap_or_else(|| panic!("{needle} missing from {m}"));
+        let at =
+            |from: usize, needle: &str| m[from..].find(needle).map(|i| from + i).unwrap_or_else(|| panic!("{needle} missing from {m}"));
         assert!(m.starts_with("slate refused: 2 errors: 1) "), "{m}");
         let s501 = at(0, "S501 ");
         let second = at(s501, " 2) ");
@@ -388,7 +413,12 @@ fn the_agent_starts_a_run_the_person_said_always_to_and_an_unapproved_or_ask_eve
         agent_write(s, PROBE).await;
 
         let before = s.state(StateParams { start: strs(&["probe"]), ..Default::default() }, Some(&agent())).await.unwrap();
-        assert_eq!(before.not_started, strs(&[r#"$probe: you start only a run the person allowed "Always in this thread"; a press, a <when> or every= starts it and the slate asks them"#]));
+        assert_eq!(
+            before.not_started,
+            strs(&[
+                r#"$probe: you start only a run the person allowed "Always in this thread"; a press, a <when> or every= starts it and the slate asks them"#
+            ])
+        );
         assert!(before.problems.is_empty());
         let untouched = view(s).await;
         assert_has(&val(&untouched, "probe"), json!({"state": "idle"}));
@@ -412,7 +442,10 @@ fn the_agent_starts_a_run_the_person_said_always_to_and_an_unapproved_or_ask_eve
         assert_eq!(rig.host.delivered.borrow().len(), delivered, "no turn starts");
 
         let ask = s.state(StateParams { start: strs(&["ask"]), ..Default::default() }, Some(&agent())).await.unwrap();
-        assert_eq!(ask.not_started, strs(&["$ask: it has confirm, so it asks the person every start and only a press or a <when> starts it"]));
+        assert_eq!(
+            ask.not_started,
+            strs(&["$ask: it has confirm, so it asks the person every start and only a press or a <when> starts it"])
+        );
         assert_has(&val(&view(s).await, "ask"), json!({"state": "idle"}));
         assert!(ask.text.contains("[ More ]  [more button]"), "{}", ask.text);
         assert!(!ask.text.contains("held"), "{}", ask.text);
@@ -436,7 +469,8 @@ fn a_paired_computer_writes_values_and_starts_nothing_no_reaction_fires_off_its(
         let after = view(s).await;
         assert!(num_is(after.values.get("n"), 5.0));
         assert_has(&val(&after, "probe"), json!({"state": "done", "out": "run 1\n", "runs": 1}));
-        let refused = refusal(s.state(StateParams { target: target(), start: strs(&["$probe"]), ..Default::default() }, Some(&paired())).await);
+        let refused =
+            refusal(s.state(StateParams { target: target(), start: strs(&["$probe"]), ..Default::default() }, Some(&paired())).await);
         assert!(refused.message.contains("a paired computer writes a slate's values and starts no run"), "{}", refused.message);
         assert_eq!(refused.kind, Some(Kind::Usage));
         assert_has(&val(&view(s).await, "probe"), json!({"state": "done", "runs": 1}));
@@ -481,7 +515,12 @@ fn a_check_rehearses_values_and_a_press_on_a_copy_a_bare_name_writes_name_and_a_
 
         let tried = s
             .write(
-                WriteParams { check: Some(true), values: vals(&[("i", json!(2))]), press: Some(Press { piece: "pick".into(), index: Some(1), action: Some(0) }), ..Default::default() },
+                WriteParams {
+                    check: Some(true),
+                    values: vals(&[("i", json!(2))]),
+                    press: Some(Press { piece: "pick".into(), index: Some(1), action: Some(0) }),
+                    ..Default::default()
+                },
                 Some(&agent()),
             )
             .await
@@ -496,14 +535,32 @@ fn a_check_rehearses_values_and_a_press_on_a_copy_a_bare_name_writes_name_and_a_
         assert!(after.asks.is_empty());
 
         let next = s
-            .write(WriteParams { text: Some(QUIZ.replace("question {$i}", "Q{$i}")), check: Some(true), values: vals(&[("$i", json!(5))]), ..Default::default() }, Some(&agent()))
+            .write(
+                WriteParams {
+                    text: Some(QUIZ.replace("question {$i}", "Q{$i}")),
+                    check: Some(true),
+                    values: vals(&[("$i", json!(5))]),
+                    ..Default::default()
+                },
+                Some(&agent()),
+            )
             .await
             .unwrap();
         assert!(next.text.contains("Q5"), "{}", next.text);
         assert_eq!(view(s).await.version, live.version);
         let no_check = refusal(s.write(WriteParams { values: vals(&[("i", json!(1))]), ..Default::default() }, Some(&agent())).await);
         assert!(no_check.message.contains("only a check"), "{}", no_check.message);
-        let missing = refusal(s.write(WriteParams { check: Some(true), press: Some(Press { piece: "pik".into(), index: None, action: None }), ..Default::default() }, Some(&agent())).await);
+        let missing = refusal(
+            s.write(
+                WriteParams {
+                    check: Some(true),
+                    press: Some(Press { piece: "pik".into(), index: None, action: None }),
+                    ..Default::default()
+                },
+                Some(&agent()),
+            )
+            .await,
+        );
         assert!(missing.message.contains("D203") && missing.message.contains("Did you mean pick"), "{}", missing.message);
 
         s.state(StateParams { values: vals(&[("i", json!(3))]), ..Default::default() }, Some(&agent())).await.unwrap();
@@ -531,7 +588,11 @@ fn a_check_rehearses_values_and_a_press_on_a_copy_a_bare_name_writes_name_and_a_
 fn values_or_a_press_without_check_refuse_with_the_fix_to_add_it() {
     support::local(async {
         let rig = rig("wsp-slates-nocheck-");
-        let e = refusal(rig.slates.write(WriteParams { text: Some(SMALL.into()), values: vals(&[("n", json!(2))]), ..Default::default() }, Some(&agent())).await);
+        let e = refusal(
+            rig.slates
+                .write(WriteParams { text: Some(SMALL.into()), values: vals(&[("n", json!(2))]), ..Default::default() }, Some(&agent()))
+                .await,
+        );
         assert_eq!(e.kind, Some(Kind::Usage));
         assert!(e.message.contains("values and press rehearse a slate, which only a check does."), "{}", e.message);
         assert_eq!(e.fix.as_deref(), Some("Add check, or set the live values with slate_state."));
@@ -548,9 +609,16 @@ fn a_write_of_neither_text_nor_document_or_of_both_is_refused_a601() {
         let none = refusal(s.write(WriteParams::default(), Some(&agent())).await);
         assert_eq!(none.kind, Some(Kind::Usage));
         assert_eq!(code_of(&none).as_deref(), Some("A601"));
-        assert!(none.message.contains("A601 step-arg: a slate write takes exactly one of text or document, and this one has none."), "{}", none.message);
+        assert!(
+            none.message.contains("A601 step-arg: a slate write takes exactly one of text or document, and this one has none."),
+            "{}",
+            none.message
+        );
         assert_eq!(none.fix.as_deref(), Some("Send text alone."));
-        let both = refusal(s.write(WriteParams { text: Some(SMALL.into()), document: Some(json!({"schema": 2})), ..Default::default() }, Some(&agent())).await);
+        let both = refusal(
+            s.write(WriteParams { text: Some(SMALL.into()), document: Some(json!({"schema": 2})), ..Default::default() }, Some(&agent()))
+                .await,
+        );
         assert_eq!(code_of(&both).as_deref(), Some("A601"));
         assert!(both.message.contains("and this one has both."), "{}", both.message);
     });
@@ -561,7 +629,11 @@ fn a_write_of_neither_text_nor_document_or_of_both_is_refused_a601() {
 fn a_rehearsal_of_the_live_slate_with_no_slate_refuses_z802() {
     support::local(async {
         let rig = rig("wsp-slates-norehearse-");
-        let e = refusal(rig.slates.write(WriteParams { check: Some(true), values: vals(&[("n", json!(1))]), ..Default::default() }, Some(&agent())).await);
+        let e = refusal(
+            rig.slates
+                .write(WriteParams { check: Some(true), values: vals(&[("n", json!(1))]), ..Default::default() }, Some(&agent()))
+                .await,
+        );
         assert_eq!(e.kind, Some(Kind::Usage));
         assert_eq!(code_of(&e).as_deref(), Some("Z802"));
         assert!(e.message.contains("Z802 no-slate: this thread has no slate to rehearse; send the <slate> with check"), "{}", e.message);
@@ -586,7 +658,8 @@ fn a_check_of_a_whole_slate_answers_its_sketch_at_the_version_read_and_stores_no
     support::local(async {
         let rig = rig("wsp-slates-check-whole-");
         let s = &rig.slates;
-        let checked = s.write(WriteParams { text: Some(SMALL.into()), check: Some(true), ..Default::default() }, Some(&agent())).await.unwrap();
+        let checked =
+            s.write(WriteParams { text: Some(SMALL.into()), check: Some(true), ..Default::default() }, Some(&agent())).await.unwrap();
         assert_eq!(checked.version, 0);
         assert!(checked.problems.is_empty());
         assert!(checked.text.contains("Small"), "{}", checked.text);
@@ -594,7 +667,10 @@ fn a_check_of_a_whole_slate_answers_its_sketch_at_the_version_read_and_stores_no
         assert!(rig.host.recorded.borrow().is_empty());
         agent_write(s, SMALL).await;
         let patched = s
-            .write(WriteParams { text: Some(r#"<props id="t" tone="good" />"#.into()), check: Some(true), ..Default::default() }, Some(&agent()))
+            .write(
+                WriteParams { text: Some(r#"<props id="t" tone="good" />"#.into()), check: Some(true), ..Default::default() },
+                Some(&agent()),
+            )
             .await
             .unwrap();
         assert_eq!(patched.version, 1);
@@ -613,7 +689,13 @@ fn a_write_at_a_version_that_is_not_the_slate_s_refuses_v750() {
         assert_eq!(e.kind, Some(Kind::Conflict));
         assert_eq!(code_of(&e).as_deref(), Some("V750"));
         assert!(e.message.contains("V750 version-behind: the slate is at version 1, not 5; read it and write again"), "{}", e.message);
-        let ok = s.write(WriteParams { text: Some(r#"<props id="t" tone="good" />"#.into()), if_version: Some(1), ..Default::default() }, Some(&agent())).await.unwrap();
+        let ok = s
+            .write(
+                WriteParams { text: Some(r#"<props id="t" tone="good" />"#.into()), if_version: Some(1), ..Default::default() },
+                Some(&agent()),
+            )
+            .await
+            .unwrap();
         assert_eq!(ok.version, 2);
     });
 }
@@ -696,12 +778,17 @@ fn a_patch_keeps_the_slate_before_it_and_undo_puts_it_back() {
         let none = refusal(s.write(text_write("<undo />"), Some(&agent())).await);
         assert_eq!(none.kind, Some(Kind::Conflict));
         assert_eq!(code_of(&none).as_deref(), Some("V752"));
-        assert!(none.message.contains("V752 nothing-to-undo: there is no earlier slate to go back to; the undo keeps one step"), "{}", none.message);
+        assert!(
+            none.message.contains("V752 nothing-to-undo: there is no earlier slate to go back to; the undo keeps one step"),
+            "{}",
+            none.message
+        );
         let patched = agent_write(s, r#"<props id="q" tone="good" />"#).await;
         assert_eq!(patched.version, 2);
         let v2 = view(s).await;
         assert!(v2.can_undo);
-        let checked = s.write(WriteParams { text: Some("<undo />".into()), check: Some(true), ..Default::default() }, Some(&agent())).await.unwrap();
+        let checked =
+            s.write(WriteParams { text: Some("<undo />".into()), check: Some(true), ..Default::default() }, Some(&agent())).await.unwrap();
         assert_eq!(checked.version, 2);
         assert_eq!(view(s).await.version, 2);
         let undone = agent_write(s, "<undo />").await;
@@ -710,7 +797,10 @@ fn a_patch_keeps_the_slate_before_it_and_undo_puts_it_back() {
         let v3 = view(s).await;
         assert!(v3.can_undo, "the undo keeps one step: the slate it undid");
         assert_ne!(v3.document, v2.document);
-        assert_has(&serde_json::to_value(rig.host.recorded.borrow().last().unwrap()).unwrap(), json!({"cause": "undo", "by": "agent", "version": 3, "pieces": []}));
+        assert_has(
+            &serde_json::to_value(rig.host.recorded.borrow().last().unwrap()).unwrap(),
+            json!({"cause": "undo", "by": "agent", "version": 3, "pieces": []}),
+        );
     });
 }
 
@@ -745,7 +835,9 @@ fn a_state_with_no_slate_or_at_a_version_behind_is_refused() {
         assert_eq!(none.kind, Some(Kind::Usage));
         assert!(none.message.contains("Z802 no-slate: this thread has no slate yet; write one with slate_write"), "{}", none.message);
         agent_write(s, SMALL).await;
-        let behind = refusal(s.state(StateParams { values: vals(&[("n", json!(2))]), if_version: Some(9), ..Default::default() }, Some(&agent())).await);
+        let behind = refusal(
+            s.state(StateParams { values: vals(&[("n", json!(2))]), if_version: Some(9), ..Default::default() }, Some(&agent())).await,
+        );
         assert_eq!(behind.kind, Some(Kind::Conflict));
         assert!(behind.message.contains("V750 version-behind: the slate is at version 1, not 9"), "{}", behind.message);
         let neither = refusal(s.state(StateParams::default(), Some(&agent())).await);
@@ -769,9 +861,19 @@ fn a_state_names_that_are_not_value_paths_refuse_with_the_nearest_name() {
         let set = |k: &str| StateParams { values: vals(&[(k, json!(2))]), ..Default::default() };
         let bad = refusal(s.state(set("!!"), Some(&agent())).await);
         assert_eq!(bad.kind, Some(Kind::Invalid));
-        assert!(bad.message.contains("S501 name-undeclared !! is not a value path; a value path reads $name, with .field and [index] below it"), "{}", bad.message);
+        assert!(
+            bad.message.contains("S501 name-undeclared !! is not a value path; a value path reads $name, with .field and [index] below it"),
+            "{}",
+            bad.message
+        );
         let derived = refusal(s.state(set("$d"), Some(&agent())).await);
-        assert!(derived.message.contains("A607 set-not-value $d is a derived value and cannot be written. Did you mean write the value it reads?"), "{}", derived.message);
+        assert!(
+            derived
+                .message
+                .contains("A607 set-not-value $d is a derived value and cannot be written. Did you mean write the value it reads?"),
+            "{}",
+            derived.message
+        );
         let run = refusal(s.state(set("r"), Some(&agent())).await);
         assert!(run.message.contains("A607 set-not-value $r is a run and cannot be written"), "{}", run.message);
         let near = refusal(s.state(set("$countr"), Some(&agent())).await);
@@ -786,13 +888,23 @@ fn a_secret_takes_only_the_person_s_typed_string_and_an_empty_one_clears_it() {
     support::local(async {
         let rig = rig("wsp-slates-secret-state-");
         let s = &rig.slates;
-        agent_write(s, r##"<slate><secret name="token" /><column><input id="tok" label="Token" value={$token} kind="password" /></column></slate>"##).await;
-        let by_agent = refusal(s.state(StateParams { values: vals(&[("$token", json!("x"))]), ..Default::default() }, Some(&agent())).await);
-        assert!(by_agent.message.contains("S520 secret-exposed $token is a secret: only the person types it, into its input"), "{}", by_agent.message);
+        agent_write(
+            s,
+            r##"<slate><secret name="token" /><column><input id="tok" label="Token" value={$token} kind="password" /></column></slate>"##,
+        )
+        .await;
+        let by_agent =
+            refusal(s.state(StateParams { values: vals(&[("$token", json!("x"))]), ..Default::default() }, Some(&agent())).await);
+        assert!(
+            by_agent.message.contains("S520 secret-exposed $token is a secret: only the person types it, into its input"),
+            "{}",
+            by_agent.message
+        );
         let window = |v: Value| StateParams { target: target(), values: vals(&[("$token", v)]), ..Default::default() };
         let not_text = refusal(s.state(window(json!(5)), None).await);
         assert!(not_text.message.contains("S520 secret-exposed $token takes the typed text"), "{}", not_text.message);
-        let below = refusal(s.state(StateParams { target: target(), values: vals(&[("$token.x", json!("t"))]), ..Default::default() }, None).await);
+        let below =
+            refusal(s.state(StateParams { target: target(), values: vals(&[("$token.x", json!("t"))]), ..Default::default() }, None).await);
         assert!(below.message.contains("S520"), "{}", below.message);
         s.state(window(json!("hunter2")), None).await.unwrap();
         let typed = val(&view(s).await, "token");
@@ -815,7 +927,10 @@ fn the_agent_s_state_is_announced_as_a_state_and_the_person_s_is_not() {
         assert_eq!(rig.host.recorded.borrow().len(), 1, "a person's state is not a transcript event");
         s.state(StateParams { values: vals(&[("$n", json!(3))]), ..Default::default() }, Some(&agent())).await.unwrap();
         assert_eq!(rig.host.recorded.borrow().len(), 2);
-        assert_has(&serde_json::to_value(rig.host.recorded.borrow().last().unwrap()).unwrap(), json!({"cause": "state", "by": "agent", "pieces": []}));
+        assert_has(
+            &serde_json::to_value(rig.host.recorded.borrow().last().unwrap()).unwrap(),
+            json!({"cause": "state", "by": "agent", "pieces": []}),
+        );
         let v = view(s).await;
         assert!(num_is(v.values.get("n"), 3.0));
         assert_eq!(v.version, 1);

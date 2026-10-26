@@ -10,8 +10,7 @@ use serde_json::{json, Value};
 
 use wsp_slates::slate_sources::context::{json as to_json, AccountRow, Checkout, PullRequestSeen, SessionView, TurnResult};
 use wsp_slates::slate_sources::{
-    host_slate_sources, path_segments, resolve_in, view_sources, walk, Seg, SlateSourceContext, SlateWorkspaceFacts,
-    Views,
+    host_slate_sources, path_segments, resolve_in, view_sources, walk, Seg, SlateSourceContext, SlateWorkspaceFacts, Views,
 };
 
 struct Fake {
@@ -99,15 +98,23 @@ fn facts(v: Value) -> SlateWorkspaceFacts {
 fn probe() -> Fake {
     let mut f = empty("t1", "w1", 1760000000000);
     f.rows = vec![
-        row(json!({ "id": "s1", "threadId": "t1", "status": "completed", "startedAt": 1, "endedAt": 2, "prompt": "first line\nsecond", "harness": "claude", "model": "opus", "effort": "high", "permissionMode": "default", "cwd": "/x", "costUsd": 0.5 })),
-        row(json!({ "id": "s2", "threadId": "t1", "status": "running", "startedAt": 5, "asking": "a question", "harness": "claude", "costUsd": 0.25, "harnessTitle": "Fix it" })),
+        row(
+            json!({ "id": "s1", "threadId": "t1", "status": "completed", "startedAt": 1, "endedAt": 2, "prompt": "first line\nsecond", "harness": "claude", "model": "opus", "effort": "high", "permissionMode": "default", "cwd": "/x", "costUsd": 0.5 }),
+        ),
+        row(
+            json!({ "id": "s2", "threadId": "t1", "status": "running", "startedAt": 5, "asking": "a question", "harness": "claude", "costUsd": 0.25, "harnessTitle": "Fix it" }),
+        ),
     ];
     f.results = vec![
         result(json!({ "status": "completed", "durationMs": 10, "tokens": { "input": 1, "output": 2, "context": 100, "window": 1000 } })),
         result(json!({ "status": "failed", "durationMs": 20, "waitedMs": 3, "tokens": { "input": 4, "output": 0, "cached": 5 } })),
     ];
-    f.account = Some(account(json!({ "key": "k", "label": "Me", "agent": "claude", "computers": ["here"], "windows": [{ "kind": "session", "usedPercent": 12, "resetsAt": 99 }, { "kind": "week", "usedPercent": 40 }], "status": "ok", "burn": { "tokensPerMinute": 5, "threads": 2 }, "readAt": 7 })));
-    f.facts = Some(facts(json!({ "computer": "spoo", "project": "wsp", "folder": "/root/wsp", "checkout": { "branch": "main", "ahead": 1, "behind": 0, "changed": 2, "readAt": 3 }, "pr": { "number": 7, "url": "u", "state": "open", "base": "main", "readAt": 4, "checks": [{ "name": "ci", "state": "pass" }] }, "rateUsdPerHour": 0.1, "accruedUsd": 2 })));
+    f.account = Some(account(
+        json!({ "key": "k", "label": "Me", "agent": "claude", "computers": ["here"], "windows": [{ "kind": "session", "usedPercent": 12, "resetsAt": 99 }, { "kind": "week", "usedPercent": 40 }], "status": "ok", "burn": { "tokensPerMinute": 5, "threads": 2 }, "readAt": 7 }),
+    ));
+    f.facts = Some(facts(
+        json!({ "computer": "spoo", "project": "wsp", "folder": "/root/wsp", "checkout": { "branch": "main", "ahead": 1, "behind": 0, "changed": 2, "readAt": 3 }, "pr": { "number": 7, "url": "u", "state": "open", "base": "main", "readAt": 4, "checks": [{ "name": "ci", "state": "pass" }] }, "rateUsdPerHour": 0.1, "accruedUsd": 2 }),
+    ));
     f
 }
 
@@ -315,7 +322,9 @@ async fn thread_view_matches_the_ts() {
     let mut c = empty("t", "w", 0);
     c.rows = vec![
         row(json!({ "id": "a", "harness": "claude", "model": "m1", "startedAt": 5, "cwd": "/a", "costUsd": 1 })),
-        row(json!({ "id": "b", "harness": "codex", "model": "m2", "startedAt": 5, "endedAt": 9, "permissionMode": "plan", "effort": "low", "costUsd": 2.5 })),
+        row(
+            json!({ "id": "b", "harness": "codex", "model": "m2", "startedAt": 5, "endedAt": 9, "permissionMode": "plan", "effort": "low", "costUsd": 2.5 }),
+        ),
         row(json!({ "id": "c", "harness": "x", "startedAt": 3 })),
     ];
     is(
@@ -337,7 +346,9 @@ async fn thread_view_matches_the_ts() {
     // tokens are summed over the results that have them; the context is the newest result that carries one
     let mut c = empty("t", "w", 0);
     c.results = vec![
-        result(json!({ "status": "completed", "durationMs": 4, "tokens": { "input": 1, "output": 2, "cached": 3, "cacheWrite": 4, "reasoning": 5, "context": 10, "window": 40 } })),
+        result(
+            json!({ "status": "completed", "durationMs": 4, "tokens": { "input": 1, "output": 2, "cached": 3, "cacheWrite": 4, "reasoning": 5, "context": 10, "window": 40 } }),
+        ),
         result(json!({ "status": "interrupted", "tokens": { "input": 10, "output": 20, "context": 30, "window": 40 } })),
         result(json!({ "status": "completed" })),
     ];
@@ -383,9 +394,11 @@ async fn usage_view_matches_the_ts() {
 
     // every field set; session and week come from the first window of their kind
     let mut c = empty("t", "w", 0);
-    c.account = Some(account(json!({ "key": "k2", "label": "Key", "agent": "codex", "computers": [], "plan": "Plus", "address": "me@x.io",
+    c.account = Some(account(
+        json!({ "key": "k2", "label": "Key", "agent": "codex", "computers": [], "plan": "Plus", "address": "me@x.io",
         "windows": [{ "kind": "week_opus", "usedPercent": 3.5 }, { "kind": "week", "usedPercent": 50, "resetsAt": 5 }, { "kind": "week", "usedPercent": 60, "resetsAt": 6 }],
-        "status": "warning", "note": "reports no plan limit", "burn": { "tokensPerMinute": 12.5, "threads": 2 }, "credits": { "count": 3, "nextExpiresAt": 999, "readAt": 1 }, "readAt": 10 })));
+        "status": "warning", "note": "reports no plan limit", "burn": { "tokensPerMinute": 12.5, "threads": 2 }, "credits": { "count": 3, "nextExpiresAt": 999, "readAt": 1 }, "readAt": 10 }),
+    ));
     is(
         &view_of("usage", &c).await,
         r#"{"account":{"key":"k2","label":"Key","agent":"codex","plan":"Plus","address":"me@x.io","computers":[]},"windows":[{"kind":"week_opus","usedPercent":3.5,"resetsAt":null},{"kind":"week","usedPercent":50,"resetsAt":5},{"kind":"week","usedPercent":60,"resetsAt":6}],"session":{"percent":null,"resetsAt":null},"week":{"percent":50,"resetsAt":5},"status":"warning","note":"reports no plan limit","burn":{"tokensPerMinute":12.5,"threads":2},"credits":{"count":3,"nextExpiresAt":999},"readAt":10}"#,
@@ -399,7 +412,9 @@ async fn usage_view_matches_the_ts() {
     );
 
     // zero is a value, not an absence; credits with no expiry
-    c.account = Some(account(json!({ "key": "k3", "label": "L", "agent": "claude", "computers": ["a", "b"], "credits": { "count": 0, "readAt": 2 }, "burn": { "tokensPerMinute": 0, "threads": 0 } })));
+    c.account = Some(account(
+        json!({ "key": "k3", "label": "L", "agent": "claude", "computers": ["a", "b"], "credits": { "count": 0, "readAt": 2 }, "burn": { "tokensPerMinute": 0, "threads": 0 } }),
+    ));
     is(
         &view_of("usage", &c).await,
         r#"{"account":{"key":"k3","label":"L","agent":"claude","plan":null,"address":null,"computers":["a","b"]},"windows":[],"session":{"percent":null,"resetsAt":null},"week":{"percent":null,"resetsAt":null},"status":null,"note":null,"burn":{"tokensPerMinute":0,"threads":0},"credits":{"count":0,"nextExpiresAt":null},"readAt":null}"#,
@@ -435,7 +450,9 @@ async fn cost_and_git_views_match_the_ts() {
     is(&view_of("cost", &c).await, r#"{"rateUsdPerHour":0,"accruedUsd":1.25}"#);
 
     // a checkout that carries head, stashes and the two flags passes them through
-    c.facts = Some(facts(json!({ "checkout": { "branch": "dev", "ahead": 0, "behind": 3, "changed": 0, "editsUnread": true, "countsUnknown": true, "stashes": 4, "head": "deadbeef", "readAt": 5 } })));
+    c.facts = Some(facts(
+        json!({ "checkout": { "branch": "dev", "ahead": 0, "behind": 3, "changed": 0, "editsUnread": true, "countsUnknown": true, "stashes": 4, "head": "deadbeef", "readAt": 5 } }),
+    ));
     is(
         &view_of("git", &c).await,
         r#"{"branch":"dev","head":"deadbeef","ahead":0,"behind":3,"changed":0,"stashes":4,"editsUnread":true,"countsUnknown":true,"readAt":5}"#,
@@ -516,7 +533,9 @@ async fn pr_view_of_a_fact() {
     );
 
     // a settled one the record kept: the fact-only fields are null, and with no checks the list is empty
-    c.facts = Some(facts(json!({ "pr": { "number": 3, "url": "u3", "state": "merged", "base": "dev", "branch": "b", "mergedAt": 5, "readAt": 8 } })));
+    c.facts = Some(facts(
+        json!({ "pr": { "number": 3, "url": "u3", "state": "merged", "base": "dev", "branch": "b", "mergedAt": 5, "readAt": 8 } }),
+    ));
     is(
         &view_of("pr", &c).await,
         r#"{"number":3,"url":"u3","state":"merged","base":"dev","draft":null,"branch":null,"headOid":null,"headSubject":null,"mergeable":null,"review":null,"checks":[],"additions":null,"deletions":null,"changedFiles":null,"commits":null,"behindBase":null,"author":null,"readAt":8,"word":"merged","unread":null}"#,

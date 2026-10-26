@@ -1,54 +1,78 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Unit helpers: slate-read.ts at 65f6b89c7. Spec: spec/helpers.md, Behaviour 1-4.
-use serde_json::Value;
+use std::sync::OnceLock;
 
-use crate::pending::slate::{SlateDoc, SlateProblem};
+use regex::Regex;
+use serde_json::{Map, Value};
+use wsp_words::js::utf16;
 
-// slate-read.ts:6
-// export const isRunRecord = (v: SlateJson | undefined): v is SlateJson & { state: string; runs: number; why?: string } =>
-//   typeof v === "object" && v !== null && !Array.isArray(v) && typeof v["state"] === "string" && typeof v["runs"] === "number";
+use crate::pending::slate::{is_slate_source, slate_problem, SlateDoc, SlateProblem};
+
 pub fn is_run_record(v: Option<&Value>) -> bool {
-    todo!()
+    matches!(v, Some(Value::Object(m)) if m.get("state").is_some_and(Value::is_string) && m.get("runs").is_some_and(Value::is_number))
 }
 
-// slate-read.ts:9
-// /** How much of a run's output a read carries before it says where the rest is. */
-// export const READ_OUTPUT_CHARS = 4_000;
 /// UTF-16 units.
 pub const READ_OUTPUT_CHARS: usize = 4_000;
 
-// slate-read.ts:12
-// /** A run's record as a read answers it: its summary alone when the read named paths, else the record with out left
-//  * out where json was parsed from it and each long output cut, saying how to read it whole. */
-// export function runShown(rec: SlateJson | undefined, name: string, named: boolean): SlateJson {
-//   if (!isRunRecord(rec)) return rec ?? null;
-//   const full = rec as unknown as Record<string, SlateJson>;
-//   if (named) return Object.fromEntries(Object.entries(full).filter(([k]) => ["state", "why", "exit", "ms", "runs", "stale", "refreshing", "endedAt"].includes(k)));
-//   const cut = (field: string, text: string): string => (text.length <= READ_OUTPUT_CHARS ? text : `${text.slice(0, READ_OUTPUT_CHARS)}… (${text.length} characters; values ["$${name}.${field}"] reads it whole)`);
-//   const out: Record<string, SlateJson> = {};
-//   for (const [k, v] of Object.entries(full)) {
-//     if (k === "out" && full["json"] !== undefined) continue;
-//     if ((k === "out" || k === "err") && typeof v === "string") out[k] = cut(k, v);
-//     else if (k === "lines" && Array.isArray(v)) out[k] = v.slice(-50);
-//     else out[k] = v;
-//   }
-//   return out;
-// }
-//
+const SUMMARY_KEYS: [&str; 8] = ["state", "why", "exit", "ms", "runs", "stale", "refreshing", "endedAt"];
+
 /// `rec` none is the TS `undefined`.
 pub fn run_shown(rec: Option<&Value>, name: &str, named: bool) -> Value {
-    todo!()
+    let full = match rec {
+        Some(Value::Object(m)) if is_run_record(rec) => m,
+        _ => return rec.cloned().unwrap_or(Value::Null),
+    };
+    if named {
+        let kept: Map<String, Value> =
+            full.iter().filter(|(k, _)| SUMMARY_KEYS.contains(&k.as_str())).map(|(k, v)| (k.clone(), v.clone())).collect();
+        return Value::Object(kept);
+    }
+    let json_present = full.contains_key("json");
+    let mut out = Map::new();
+    for (k, v) in full {
+        if k == "out" && json_present {
+            continue;
+        }
+        let shown = match (k.as_str(), v) {
+            ("out" | "err", Value::String(text)) => Value::String(cut_read(k, name, text)),
+            ("lines", Value::Array(lines)) => Value::Array(lines[lines.len().saturating_sub(50)..].to_vec()),
+            _ => v.clone(),
+        };
+        out.insert(k.clone(), shown);
+    }
+    Value::Object(out)
 }
 
-// slate-read.ts:30
-// export function misread(doc: SlateDoc | null, path: string): SlateProblem[] {
-//   if (!/^[A-Za-z_]\w*(\.\w+|\[\d+\])*$/.test(path)) return [];
-//   const root = path.split(/[.[]/)[0]!;
-//   if (doc?.runs[root] !== undefined) return [slateProblem("X401", `${path} is not a source: $${root} is a run, read as $${path}; its record is also under runs.$${root}`, { fix: `$${path}` })];
-//   if (doc?.values[root] !== undefined || doc?.derived[root] !== undefined) return [slateProblem("X401", `${path} is not a source: $${root} is a value, read as $${path}`, { fix: `$${path}` })];
-//   if (SLATE_SOURCES[root] === undefined) return [slateProblem("X401", `${root} is not a source and not this slate's; a slate's own names start with $`)];
-//   return [];
-// }
+fn cut_read(field: &str, name: &str, text: &str) -> String {
+    let len = utf16::len(text);
+    if len <= READ_OUTPUT_CHARS {
+        return text.to_string();
+    }
+    format!("{}… ({len} characters; values [\"${name}.{field}\"] reads it whole)", utf16::cut(text, READ_OUTPUT_CHARS))
+}
+
 pub fn misread(doc: Option<&SlateDoc>, path: &str) -> Vec<SlateProblem> {
-    todo!()
+    static SHAPE: OnceLock<Regex> = OnceLock::new();
+    let shape = SHAPE.get_or_init(|| Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z0-9_]+|\[[0-9]+\])*$").expect("a fixed pattern"));
+    if !shape.is_match(path) {
+        return vec![];
+    }
+    let root = path.split(['.', '[']).next().unwrap_or(path);
+    let fix = format!("${path}");
+    if let Some(d) = doc {
+        if d.runs.contains_key(root) {
+            let message = format!("{path} is not a source: ${root} is a run, read as ${path}; its record is also under runs.${root}");
+            return vec![slate_problem("X401", &message, Some(&fix))];
+        }
+        if d.values.contains_key(root) || d.derived.contains_key(root) {
+            let message = format!("{path} is not a source: ${root} is a value, read as ${path}");
+            return vec![slate_problem("X401", &message, Some(&fix))];
+        }
+    }
+    if !is_slate_source(root) {
+        let message = format!("{root} is not a source and not this slate's; a slate's own names start with $");
+        return vec![slate_problem("X401", &message, None)];
+    }
+    vec![]
 }

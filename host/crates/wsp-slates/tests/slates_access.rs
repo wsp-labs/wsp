@@ -10,7 +10,9 @@ use serde_json::{json, Value};
 use support::{as_thread, local, own_group, sleep_ms, FakeHost, MemStore, THREAD, WORKSPACE};
 use wsp_slates::pending::code_of;
 use wsp_slates::pending::wire::{SlateEmpty, SlateView};
-use wsp_slates::slates::{ApprovalScope, ApproveParams, CatalogParams, EventParams, ReadParams, SlateTarget, Slates, StateParams, WriteParams};
+use wsp_slates::slates::{
+    ApprovalScope, ApproveParams, CatalogParams, EventParams, ReadParams, SlateTarget, Slates, StateParams, WriteParams,
+};
 use wsp_wire::types::slate_wire::{SlateBy, SlateCause};
 use wsp_wire::views::workspace::Caller;
 use wsp_words::exit::{refusal_parts, Kind};
@@ -81,7 +83,17 @@ async fn wait_for(s: &Rc<dyn Slates>, ms: u64, check: impl Fn(&SlateView) -> boo
 
 async fn press(s: &Rc<dyn Slates>, piece: &str, request: &str) -> wsp_slates::pending::wire::SlateEventAnswer {
     let version = view(s).await.version;
-    s.event(EventParams { thread_id: THREAD.into(), version, piece: piece.into(), event: "press".into(), request_id: request.into(), scope: None, row_action: None }).await.unwrap()
+    s.event(EventParams {
+        thread_id: THREAD.into(),
+        version,
+        piece: piece.into(),
+        event: "press".into(),
+        request_id: request.into(),
+        scope: None,
+        row_action: None,
+    })
+    .await
+    .unwrap()
 }
 
 async fn approve(s: &Rc<dyn Slates>, key: &str, scope: ApprovalScope) {
@@ -121,7 +133,8 @@ mod targets {
             let host = FakeHost::new(root.path(), MemStore::new());
             host.add_thread(STRANGER, STRANGER, None);
             let s = host.slates();
-            let e = s.write(WriteParams { target: window(STRANGER), ..text("<slate><column /></slate>") }, Some(&agent())).await.unwrap_err();
+            let e =
+                s.write(WriteParams { target: window(STRANGER), ..text("<slate><column /></slate>") }, Some(&agent())).await.unwrap_err();
             assert_eq!(e.message, "Z800 thread-not-yours: a thread writes its own slate, and thread 33333333 is not this one");
             assert_eq!((e.kind.clone(), code_of(&e).as_deref()), (Some(Kind::Usage), Some("Z800")));
             assert!(s.get(STRANGER).await.unwrap().is_none());
@@ -140,7 +153,10 @@ mod targets {
             host.add_thread(STRANGER, STRANGER, None);
             let s = host.slates();
             let e = s.read(ReadParams { target: window(STRANGER), ..Default::default() }, Some(&agent())).await.unwrap_err();
-            assert_eq!((e.message.as_str(), e.kind.clone(), code_of(&e).as_deref()), ("no thread 33333333", Some(Kind::NotFound), Some("Z801")));
+            assert_eq!(
+                (e.message.as_str(), e.kind.clone(), code_of(&e).as_deref()),
+                ("no thread 33333333", Some(Kind::NotFound), Some("Z801"))
+            );
             let under = s.read(ReadParams { target: window(CHILD), ..Default::default() }, Some(&agent())).await.unwrap();
             assert_eq!((under.version, under.text.as_str()), (0, "slate v0, empty: write one with slate_write"));
         });
@@ -160,7 +176,13 @@ mod targets {
             let parts = refusal_parts(&none);
             assert_eq!(parts.said, "a slate belongs to a thread, and this line names none and runs inside no turn.");
             assert_eq!((parts.fix.as_deref(), none.kind), (Some("Name the thread by id, as wsp threads lists it."), Some(Kind::Usage)));
-            let by_token = s.read(ReadParams { target: SlateTarget { thread_id: None, turn_token: Some("turn-token-1".into()) }, ..Default::default() }, None).await.unwrap();
+            let by_token = s
+                .read(
+                    ReadParams { target: SlateTarget { thread_id: None, turn_token: Some("turn-token-1".into()) }, ..Default::default() },
+                    None,
+                )
+                .await
+                .unwrap();
             assert_eq!(by_token.version, 0);
         });
     }
@@ -177,7 +199,17 @@ mod targets {
                 s.revoke(THREAD, "k").await.unwrap_err(),
                 s.cancel(THREAD, "r").await.unwrap_err(),
                 s.approve(ApproveParams { thread_id: THREAD.into(), key: "k".into(), scope: ApprovalScope::Once }).await.unwrap_err(),
-                s.event(EventParams { thread_id: THREAD.into(), version: 0, piece: "p".into(), event: "press".into(), request_id: "r1".into(), scope: None, row_action: None }).await.unwrap_err(),
+                s.event(EventParams {
+                    thread_id: THREAD.into(),
+                    version: 0,
+                    piece: "p".into(),
+                    event: "press".into(),
+                    request_id: "r1".into(),
+                    scope: None,
+                    row_action: None,
+                })
+                .await
+                .unwrap_err(),
                 s.image(THREAD, "a.png", None).await.unwrap_err(),
             ] {
                 assert_eq!((e.message.as_str(), e.kind.clone(), code_of(&e).as_deref()), (said, Some(Kind::Usage), Some("Z802")));
@@ -196,7 +228,10 @@ mod targets {
             let s = host.slates();
             s.write(text(TICKER), Some(&agent())).await.unwrap();
             let e = s.write(WriteParams { if_version: Some(0), ..text(TICKER) }, Some(&agent())).await.unwrap_err();
-            assert_eq!((e.message.as_str(), e.kind.clone(), code_of(&e).as_deref()), ("V750 version-behind: the slate is at version 1, not 0; read it and write again", Some(Kind::Conflict), Some("V750")));
+            assert_eq!(
+                (e.message.as_str(), e.kind.clone(), code_of(&e).as_deref()),
+                ("V750 version-behind: the slate is at version 1, not 0; read it and write again", Some(Kind::Conflict), Some("V750"))
+            );
             assert_eq!(view(&s).await.version, 1);
         });
     }
@@ -215,7 +250,16 @@ mod restart {
             let host = FakeHost::new(root.path(), store.clone());
             let s = host.slates();
             s.write(text(SETUP_SLOW), Some(&agent())).await.unwrap();
-            s.state(StateParams { target: window(THREAD), values: Some(indexmap::IndexMap::from([("$token".to_string(), json!("vcl_tok_9f8e7d6c5b4a3210"))])), ..Default::default() }, None).await.unwrap();
+            s.state(
+                StateParams {
+                    target: window(THREAD),
+                    values: Some(indexmap::IndexMap::from([("$token".to_string(), json!("vcl_tok_9f8e7d6c5b4a3210"))])),
+                    ..Default::default()
+                },
+                None,
+            )
+            .await
+            .unwrap();
             let wait = press(&s, "wait", "r-wait").await;
             approve(&s, &wait.ask.unwrap().key(), ApprovalScope::Thread).await;
             wait_for(&s, 10_000, |v| state_of(v, "slow") == "running").await;
@@ -249,9 +293,7 @@ mod restart {
         let root = support::temp_root("wsp-slates-ready-");
         local(async {
             let store = MemStore::new();
-            let rec = |thread: &str, schema: i64| {
-                json!({"threadId": thread, "workspaceId": WORKSPACE, "rootThreadId": thread, "schema": schema, "version": 3, "document": null, "values": {"n": 1}, "empty": "cleared", "turns": {}, "kept": {}, "comments": [], "approvals": {}, "problems": [], "shownOnce": true, "updatedAt": 5})
-            };
+            let rec = |thread: &str, schema: i64| json!({"threadId": thread, "workspaceId": WORKSPACE, "rootThreadId": thread, "schema": schema, "version": 3, "document": null, "values": {"n": 1}, "empty": "cleared", "turns": {}, "kept": {}, "comments": [], "approvals": {}, "problems": [], "shownOnce": true, "updatedAt": 5});
             store.seed("slates", THREAD, rec(THREAD, 2));
             store.seed("slates", STRANGER, rec(STRANGER, 1));
             let host = FakeHost::new(root.path(), store);
@@ -287,7 +329,12 @@ mod restart {
             let s2 = again.slates();
             s2.ready().await.unwrap();
             let v = wait_for(&s2, 10_000, |v| state_of(v, "where") == "done" && value(v, "where")["runs"] == json!(2)).await;
-            assert!(again.pushes().iter().any(|p| p.values.0.get("$where").map(|k| &k.0).is_some_and(|w| w["state"] == json!("done") && w["runs"] == json!(2))));
+            assert!(again.pushes().iter().any(|p| p
+                .values
+                .0
+                .get("$where")
+                .map(|k| &k.0)
+                .is_some_and(|w| w["state"] == json!("done") && w["runs"] == json!(2))));
             let out = value(&v, "where")["out"].as_str().unwrap().trim().to_string();
             assert_eq!(std::fs::canonicalize(out).unwrap(), std::fs::canonicalize(&inner).unwrap());
         });
@@ -330,7 +377,10 @@ mod restart {
             let host = FakeHost::new(root.path(), store.clone());
             let flag = root.path().join("reachable");
             let s = host.slates();
-            let doc = format!(r#"<slate title="Feed"><run name="feed" cmd='test -f "{}" && echo "{{}}" || {{ echo unreachable >&2; exit 1; }}' every={{30}} timeout={{20}} /><column><text id="t">{{$feed.state}}</text></column></slate>"#, flag.display());
+            let doc = format!(
+                r#"<slate title="Feed"><run name="feed" cmd='test -f "{}" && echo "{{}}" || {{ echo unreachable >&2; exit 1; }}' every={{30}} timeout={{20}} /><column><text id="t">{{$feed.state}}</text></column></slate>"#,
+                flag.display()
+            );
             s.write(text(&doc), Some(&agent())).await.unwrap();
             let release = s.subscribe(THREAD, &[]);
             let asked = wait_for(&s, 2_000, |v| v.asks.len() == 1).await;
@@ -364,12 +414,33 @@ mod turns {
             let host = FakeHost::new(root.path(), MemStore::new());
             let s = host.slates();
             s.turn_ended(THREAD, "turn-1").await.unwrap();
-            s.write(text(SETUP_SLOW.replace(r#"<value name="step" start={2} />"#, r#"<value name="step" start={2} /><value name="project" start="" />"#).as_str()), Some(&agent())).await.unwrap();
+            s.write(
+                text(
+                    SETUP_SLOW
+                        .replace(
+                            r#"<value name="step" start={2} />"#,
+                            r#"<value name="step" start={2} /><value name="project" start="" />"#,
+                        )
+                        .as_str(),
+                ),
+                Some(&agent()),
+            )
+            .await
+            .unwrap();
             let wait = press(&s, "wait", "w1").await;
             approve(&s, &wait.ask.unwrap().key(), ApprovalScope::Thread).await;
             wait_for(&s, 10_000, |v| state_of(v, "slow") == "running").await;
             s.turn_ended(THREAD, "turn-2").await.unwrap();
-            s.state(StateParams { target: window(THREAD), values: Some(indexmap::IndexMap::from([("$project".to_string(), json!("later"))])), ..Default::default() }, None).await.unwrap();
+            s.state(
+                StateParams {
+                    target: window(THREAD),
+                    values: Some(indexmap::IndexMap::from([("$project".to_string(), json!("later"))])),
+                    ..Default::default()
+                },
+                None,
+            )
+            .await
+            .unwrap();
             s.turn_ended(THREAD, "turn-3").await.unwrap();
             s.settled().await;
             let before = view(&s).await;
@@ -406,7 +477,16 @@ mod turns {
             s.write(text(TICKER), Some(&agent())).await.unwrap();
             s.turn_ended(THREAD, "a").await.unwrap();
             s.turn_ended(THREAD, "b").await.unwrap();
-            s.state(StateParams { target: window(THREAD), values: Some(indexmap::IndexMap::from([("$ticks".to_string(), json!(7))])), ..Default::default() }, None).await.unwrap();
+            s.state(
+                StateParams {
+                    target: window(THREAD),
+                    values: Some(indexmap::IndexMap::from([("$ticks".to_string(), json!(7))])),
+                    ..Default::default()
+                },
+                None,
+            )
+            .await
+            .unwrap();
             s.turn_ended(THREAD, "a").await.unwrap();
             let stored = host.store.row("slates", THREAD).unwrap();
             assert_eq!(stored["turns"].as_object().unwrap().keys().cloned().collect::<Vec<_>>(), ["b", "a"]);
@@ -451,7 +531,8 @@ mod windows {
             approve(&s, &asked.asks[0].key(), ApprovalScope::Thread).await;
             let mid = wait_for(&s, 5_000, |v| state_of(v, "tick") == "running").await;
             assert_eq!(mid.version, 1);
-            let patched = s.write(WriteParams { if_version: Some(1), ..text(r#"<props id="since" tone="good" />"#) }, Some(&agent())).await.unwrap();
+            let patched =
+                s.write(WriteParams { if_version: Some(1), ..text(r#"<props id="since" tone="good" />"#) }, Some(&agent())).await.unwrap();
             assert_eq!(patched.version, 2);
             let after = wait_for(&s, 10_000, |v| value(v, "ticks") == json!(1)).await;
             assert_eq!(after.version, 2);
@@ -535,9 +616,21 @@ mod forget {
             let host = FakeHost::new(root.path(), MemStore::new());
             let s = host.slates();
             let marker = root.path().join("finished");
-            let doc = format!(r#"<slate title="Long"><value name="go" start={{0}} /><run name="long" cmd='sleep 2; touch "{}"' timeout={{20}} /><when change={{$go}} do={{start($long)}} /><column><output run={{$long}} /></column><file name="note.txt">{{`kept`}}</file></slate>"#, marker.display());
+            let doc = format!(
+                r#"<slate title="Long"><value name="go" start={{0}} /><run name="long" cmd='sleep 2; touch "{}"' timeout={{20}} /><when change={{$go}} do={{start($long)}} /><column><output run={{$long}} /></column><file name="note.txt">{{`kept`}}</file></slate>"#,
+                marker.display()
+            );
             s.write(text(&doc), Some(&agent())).await.unwrap();
-            s.state(StateParams { target: window(THREAD), values: Some(indexmap::IndexMap::from([("$go".to_string(), json!(1))])), ..Default::default() }, None).await.unwrap();
+            s.state(
+                StateParams {
+                    target: window(THREAD),
+                    values: Some(indexmap::IndexMap::from([("$go".to_string(), json!(1))])),
+                    ..Default::default()
+                },
+                None,
+            )
+            .await
+            .unwrap();
             let asked = view(&s).await;
             approve(&s, &asked.asks[0].key(), ApprovalScope::Thread).await;
             wait_for(&s, 10_000, |v| state_of(v, "long") == "running").await;
@@ -571,8 +664,15 @@ mod forget {
             assert_eq!((ask["kind"].clone(), ask["files"].clone()), (json!("cmd"), json!({"hi.sh": "echo hi one"})));
             approve(&s, &asked.ask.clone().unwrap().key(), ApprovalScope::Thread).await;
             let plain = host.folder().display().to_string();
-            wait_for(&s, 10_000, |v| value(v, "hello")["state"] == json!("done") && value(v, "hello")["out"] == json!(format!("hi one\n{plain}\n"))).await;
-            let names = |d: &std::path::Path| { let mut n: Vec<String> = std::fs::read_dir(d).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect(); n.sort(); n };
+            wait_for(&s, 10_000, |v| {
+                value(v, "hello")["state"] == json!("done") && value(v, "hello")["out"] == json!(format!("hi one\n{plain}\n"))
+            })
+            .await;
+            let names = |d: &std::path::Path| {
+                let mut n: Vec<String> = std::fs::read_dir(d).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
+                n.sort();
+                n
+            };
             assert_eq!(names(&dir), ["hi.sh"]);
             use std::os::unix::fs::PermissionsExt;
             assert_eq!(std::fs::metadata(dir.join("hi.sh")).unwrap().permissions().mode() & 0o777, 0o600);
@@ -587,7 +687,10 @@ mod forget {
             assert_eq!(again.ask.clone().unwrap().to_json()["files"], json!({"hi.sh": "echo hi two"}));
             assert_ne!(again.ask.clone().unwrap().key(), asked.ask.clone().unwrap().key());
             approve(&s, &again.ask.unwrap().key(), ApprovalScope::Once).await;
-            wait_for(&s, 10_000, |v| value(v, "hello")["state"] == json!("done") && value(v, "hello")["out"].as_str().unwrap_or("").starts_with("hi two\n")).await;
+            wait_for(&s, 10_000, |v| {
+                value(v, "hello")["state"] == json!("done") && value(v, "hello")["out"].as_str().unwrap_or("").starts_with("hi two\n")
+            })
+            .await;
             assert_eq!(names(&dir), ["hi.sh"]);
             s.turn_ended(THREAD, "turn-3").await.unwrap();
 
@@ -597,7 +700,10 @@ mod forget {
             assert_eq!(view(&s).await.document.unwrap()["files"], json!({"hi.sh": "echo hi one"}));
             let back = press(&s, "go", "f3").await;
             assert!(back.ask.is_none());
-            wait_for(&s, 10_000, |v| value(v, "hello")["state"] == json!("done") && value(v, "hello")["out"].as_str().unwrap_or("").starts_with("hi one\n")).await;
+            wait_for(&s, 10_000, |v| {
+                value(v, "hello")["state"] == json!("done") && value(v, "hello")["out"].as_str().unwrap_or("").starts_with("hi one\n")
+            })
+            .await;
             assert_eq!(std::fs::read_to_string(dir.join("hi.sh")).unwrap(), "echo hi one");
 
             s.forget(THREAD, false).await.unwrap();
@@ -618,7 +724,10 @@ mod forget {
                 s.write(text(doc), Some(&agent())).await.unwrap();
             }
             let e = s.write(text(doc), Some(&agent())).await.unwrap_err();
-            assert_eq!((e.message.as_str(), e.kind), ("V751 write-rate: wait 1 s; a slate that rewrites itself constantly is a bug", Some(Kind::Conflict)));
+            assert_eq!(
+                (e.message.as_str(), e.kind),
+                ("V751 write-rate: wait 1 s; a slate that rewrites itself constantly is a bug", Some(Kind::Conflict))
+            );
             s.forget(THREAD, false).await.unwrap();
             assert_eq!(s.write(text(doc), Some(&agent())).await.unwrap().version, 1);
         });
