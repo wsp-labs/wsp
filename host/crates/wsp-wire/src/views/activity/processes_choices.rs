@@ -583,11 +583,13 @@ pub fn agent_path(
             let mut path = vec![pid];
             let mut at = via.get(&pid).copied();
             while let Some(a) = at {
-                path.insert(0, a);
+                path.push(a);
                 at = via.get(&a).copied();
             }
+            path.reverse();
+            let mut on_path: HashSet<u32> = path.iter().copied().collect();
             let mut kids = kids_of(pid);
-            while kids.len() == 1 && is_agent(&kids[0]) && !path.contains(&kids[0].pid) {
+            while kids.len() == 1 && is_agent(&kids[0]) && on_path.insert(kids[0].pid) {
                 path.push(kids[0].pid);
                 kids = kids_of(kids[0].pid);
             }
@@ -1066,8 +1068,9 @@ pub fn place_procs<'a>(input: &'a PlaceInput<'a>) -> Placement<'a> {
             let path = match agent_path(root, &kids, &|p: &ProcEntry| recorded.contains(&p.pid), &by_pid) {
                 Some(mut path) => {
                     let Some(&last) = path.last() else { continue };
+                    let mut on_path: HashSet<u32> = path.iter().copied().collect();
                     let mut more = kids(last);
-                    while more.len() == 1 && by_name(&more[0]) && !path.contains(&more[0].pid) {
+                    while more.len() == 1 && by_name(&more[0]) && on_path.insert(more[0].pid) {
                         path.push(more[0].pid);
                         more = kids(more[0].pid);
                     }
