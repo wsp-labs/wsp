@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Unit lazy_slates: lazy-slates.ts at 65f6b89c7. Spec: spec/lazy_slates.md.
 use std::cell::{Cell, RefCell};
+use std::io::Write;
 use std::rc::Rc;
 use std::time::Instant;
 
@@ -67,7 +68,7 @@ fn load(this: &Rc<LazySlates>) -> Shared<LocalBoxFuture<'static, ()>> {
         let create = me.create.borrow_mut().take().expect("the area is made once");
         let area = create(me.deps.clone());
         *me.real.borrow_mut() = Some(area);
-        println!("the slate's code loaded in {} ms", at.elapsed().as_millis());
+        let _ = writeln!(std::io::stdout(), "the slate's code loaded in {} ms", at.elapsed().as_millis());
     }
     .boxed_local();
     let loading = making.shared();
