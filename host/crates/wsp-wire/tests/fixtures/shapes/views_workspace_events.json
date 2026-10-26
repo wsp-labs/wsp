@@ -470,7 +470,8 @@
   "tag": {
    "key": "type",
    "value": "workspace.created"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "WorkspaceCreatedEvent",
@@ -496,7 +497,8 @@
   "tag": {
    "key": "type",
    "value": "workspace.created"
-  }
+  },
+  "anyOrder": true
  },
  {
   "type": "WorkspaceCreatedEvent",
