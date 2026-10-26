@@ -11,10 +11,11 @@ use wsp_words::js::to_number;
 use wsp_words::words::computer::thread_word;
 use wsp_words::words::units::fmt_bytes;
 
-use super::activity_table::{activity_table, cpu_word, kind_word, TableOpts};
+use super::activity_table::{cpu_word, kind_word, try_activity_table, TableOpts};
 use super::client::*;
 use super::io::as_text;
 use super::workspaces_help::thread_of;
+use crate::zod_read::zod_read;
 
 /// `STARTED_WORDS` (activity.ts:25): what each door says the start is.
 pub const STARTED_WORDS: &str = "the start activity listed it with, its startedAt in epoch milliseconds";
@@ -30,21 +31,21 @@ pub async fn read_activity(client: &dyn HostClient, computer: Option<&str>, thre
         params.insert("thread".to_owned(), Value::from(thread));
     }
     let reply = client.request("activity.read", params).await?;
-    let view = reply.get("activity").cloned().and_then(|value| serde_json::from_value(value).ok());
-    view.ok_or_else(|| HostError::new(other_version("activity.read")))
+    let activity = reply.get("activity").cloned().unwrap_or(Value::Null);
+    zod_read::<ActivityView>(&activity)
 }
 
 /// `endProcess` (activity.ts:31-33): `activity.end` with `{pid, startedAt, computer?}` in that key order (the
 /// caller's spread order), the whole reply parsed as `ActivityEnded`.
-pub async fn end_process(client: &dyn HostClient, pid: i64, started_at: f64, computer: Option<&str>) -> Result<ActivityEnded, HostError> {
+pub async fn end_process(client: &dyn HostClient, pid: f64, started_at: f64, computer: Option<&str>) -> Result<ActivityEnded, HostError> {
     let mut params = Frame::new();
-    params.insert("pid".to_owned(), Value::from(pid));
+    params.insert("pid".to_owned(), serde_json::to_value(JsNumber(pid)).expect("a number writes as JSON"));
     params.insert("startedAt".to_owned(), serde_json::to_value(JsNumber(started_at)).expect("a number writes as JSON"));
     if let Some(computer) = computer {
         params.insert("computer".to_owned(), Value::from(computer));
     }
     let reply = client.request("activity.end", params).await?;
-    serde_json::from_value(Value::Object(reply)).map_err(|_| HostError::new(other_version("activity.end")))
+    zod_read::<ActivityEnded>(&Value::Object(reply))
 }
 
 /// `readFor` (activity.ts:35-39): the read, its thread named by a `threadOf` read first.
@@ -72,6 +73,18 @@ fn proc_line(p: &wsp_wire::views::activity::ActivityProc) -> String {
         fmt_bytes(p.memory.0),
         cpu_word(p.cpu.0)
     )
+}
+
+/// The longest string node builds (2^29 - 24 on a 64-bit node): past it `"  ".repeat(depth + 1)` throws RangeError.
+const MAX_STRING_LENGTH: f64 = 536_870_888.0;
+
+/// The tool's line for a process would be past the longest string, so the call fails, as node's `repeat` throws.
+fn lines_fit(view: &ActivityView) -> Result<(), HostError> {
+    let procs = view.threads.iter().flat_map(|t| &t.processes).chain(&view.wsp).chain(&view.unowned);
+    if procs.clone().any(|p| 2.0 * (p.depth.as_f64() + 1.0) > MAX_STRING_LENGTH) {
+        return Err(HostError::new("Invalid string length"));
+    }
+    Ok(())
 }
 
 /// `activityLines` (activity.ts:42-48): the tool's text for a read.
@@ -195,6 +208,7 @@ fn call_activity(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolR
         let computer = args.get("computer").and_then(Value::as_str);
         let thread = args.get("thread").and_then(Value::as_str);
         let view = read_for(&*client, computer, thread).await?;
+        lines_fit(&view)?;
         Ok(as_text(&activity_lines(&view), json_value(&view)))
     })
 }
@@ -208,7 +222,7 @@ fn run_activity(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
         let client = ctx.client(None).await?;
         let view = read_for(&*client, flag(&ctx.flags, "computer"), ctx.args.first().map(String::as_str)).await?;
         let width = ctx.io.redraw().map(|redraw| usize::from(redraw.columns()));
-        let table = activity_table(&view, TableOpts { width, wide: flag_set(&ctx.flags, "wide") });
+        let table = try_activity_table(&view, TableOpts { width, wide: flag_set(&ctx.flags, "wide") })?;
         ctx.out.emit(&json_value(&view), Some(&table));
         Ok(0)
     })
@@ -221,7 +235,7 @@ fn json_value<T: serde::Serialize>(value: &T) -> Value {
 /// The `activity_end` tool's call (`verbs/activity.ts:123-126`).
 fn call_activity_end(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let pid = args.get("pid").and_then(Value::as_f64).unwrap_or_default() as i64;
+        let pid = args.get("pid").and_then(Value::as_f64).unwrap_or_default();
         let started = args.get("started").and_then(Value::as_f64).unwrap_or_default();
         let computer = args.get("computer").and_then(Value::as_str);
         let ended = end_process(&*deps.client(None).await?, pid, started, computer).await?;
@@ -245,7 +259,7 @@ fn run_activity_end(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> 
             return Err(usage_refusal(&format!("wsp activity end takes --started, {STARTED_WORDS}."), &usage_is(ctx)));
         }
         let computer = flag(&ctx.flags, "computer");
-        let ended = end_process(&*ctx.client(None).await?, pid as i64, started_at, computer).await?;
+        let ended = end_process(&*ctx.client(None).await?, pid, started_at, computer).await?;
         ctx.out.emit(&json_value(&ended), Some(&ended_lines(&ended)));
         Ok(0)
     })

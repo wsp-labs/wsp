@@ -18,8 +18,19 @@ async fn started_answer(client: &dyn HostClient, op: &str, asked: Frame) -> Resu
         ("threadId", reply.get("threadId").cloned()),
         ("sessionId", reply.get("sessionId").cloned()),
     ]);
-    let typed = serde_json::from_value(Value::Object(answer.clone())).map_err(|_| HostError::new(other_version(op)))?;
+    let workspace = workspace_typed(answer.get("workspace").cloned().unwrap_or(Value::Null), op)?;
+    let mut typed_source = answer.clone();
+    typed_source.insert("workspace".to_owned(), json_of(&workspace));
+    let typed = serde_json::from_value(Value::Object(typed_source)).map_err(|_| HostError::new(other_version(op)))?;
     Ok((Value::Object(answer), typed))
+}
+
+/// A start's answer with its workspace's name and id as the row holds them, for the lines that print them.
+fn printed_start(started: &StartResult, answer: &Value) -> StartResult {
+    let raw = answer.get("workspace").cloned().unwrap_or(Value::Null);
+    let mut printed = started.clone();
+    printed.workspace = shown_out(started.workspace.clone(), &raw);
+    printed
 }
 
 /// What `startedFrom` asks, the fields given in the order url, project, agent, model, effort, access.
@@ -54,7 +65,7 @@ async fn nap_answer(client: &dyn HostClient, reference: &str) -> Result<(Value, 
     let source = workspace_of(client, reference).await?;
     let reply = client.request("workspaces.nap", pick(vec![("workspaceId", Some(json!(source.id)))])).await?;
     let workspace = reply.get("workspace").cloned().unwrap_or(Value::Null);
-    let typed = serde_json::from_value(workspace.clone()).map_err(|_| HostError::new(other_version("workspaces.nap")))?;
+    let typed = workspace_typed(workspace.clone(), "workspaces.nap")?;
     Ok((workspace, typed))
 }
 
@@ -65,7 +76,7 @@ async fn resize_answer(client: &dyn HostClient, reference: &str, size: &Workspac
         .request("workspaces.resize", pick(vec![("workspaceId", Some(json!(thread.workspace_id))), ("size", Some(json_of(size)))]))
         .await?;
     let workspace = reply.get("workspace").cloned().unwrap_or(Value::Null);
-    let typed = serde_json::from_value(workspace.clone()).map_err(|_| HostError::new(other_version("workspaces.resize")))?;
+    let typed = workspace_typed(workspace.clone(), "workspaces.resize")?;
     Ok((workspace, typed))
 }
 
@@ -83,7 +94,7 @@ pub(super) fn call_start(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<C
         };
         let (answer, started) = started_answer(&*client, "workspaces.start", started_frame(&ask)?).await?;
         let said: &(dyn Fn(&str) -> String + Send + Sync) = &opened_line;
-        Ok(as_text(&started_lines(&started, Some(said)), answer))
+        Ok(as_text(&started_lines(&printed_start(&started, &answer), Some(said)), answer))
     })
 }
 
@@ -104,7 +115,7 @@ pub(super) fn run_start(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErro
             access: flag(&ctx.flags, "access").map(str::to_owned),
         };
         let (answer, started) = started_answer(&*client, "workspaces.start", started_frame(&ask)?).await?;
-        ctx.out.emit(&answer, Some(&started_lines(&started, None)));
+        ctx.out.emit(&answer, Some(&started_lines(&printed_start(&started, &answer), None)));
         Ok(0)
     })
 }
@@ -128,7 +139,7 @@ pub(super) fn call_review(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<
         };
         let (answer, started) = started_answer(&*client, "workspaces.review", review_frame(&ask)).await?;
         let said: &(dyn Fn(&str) -> String + Send + Sync) = &opened_line;
-        Ok(as_text(&review_lines(&started, Some(said)), answer))
+        Ok(as_text(&review_lines(&printed_start(&started, &answer), Some(said)), answer))
     })
 }
 
@@ -153,7 +164,7 @@ pub(super) fn run_review(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErr
             effort: flag(&ctx.flags, "effort").map(str::to_owned),
         };
         let (answer, started) = started_answer(&*client, "workspaces.review", review_frame(&ask)).await?;
-        ctx.out.emit(&answer, Some(&review_lines(&started, None)));
+        ctx.out.emit(&answer, Some(&review_lines(&printed_start(&started, &answer), None)));
         Ok(0)
     })
 }
@@ -219,7 +230,7 @@ pub(super) fn run_pause(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErro
         };
         let client = ctx.client(None).await?;
         let (workspace, typed) = nap_answer(&*client, &reference).await?;
-        ctx.out.emit(&json!({ "workspace": workspace }), Some(&state_line(&view_of(&typed)?)));
+        ctx.out.emit(&json!({ "workspace": workspace }), Some(&state_line(&shown_view(view_of(&typed)?, &workspace))));
         Ok(0)
     })
 }
@@ -244,8 +255,8 @@ pub(super) fn run_resize(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErr
         };
         let size = size_from_word(&word).ok_or_else(|| usage_refusal(&resize_word_line(&word), RESIZE_WORD_FIX))?;
         let client = ctx.client(None).await?;
-        let (workspace, typed) = resize_answer(&*client, &reference, &size).await?;
-        ctx.out.emit(&json!({ "workspace": workspace }), Some(&resized_line(&typed.name, &size)));
+        let (workspace, _) = resize_answer(&*client, &reference, &size).await?;
+        ctx.out.emit(&json!({ "workspace": workspace }), Some(&resized_line(&shown(workspace.get("name")), &size)));
         Ok(0)
     })
 }
@@ -282,7 +293,7 @@ pub(super) fn call_rebuild(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result
     Box::pin(async move {
         let client = deps.client(None).await?;
         let workspace = rebuild(&*client, &frame_str(&args, "workspace").unwrap_or_default()).await?;
-        Ok(as_text(&rebuilt_line(&view_of(&workspace)?), json!({ "workspace": json_of(&workspace) })))
+        Ok(as_text(&rebuilt_line(&shown_view(view_of(&workspace)?, workspace.raw())), json!({ "workspace": json_of(&workspace) })))
     })
 }
 
@@ -295,7 +306,7 @@ pub(super) fn run_rebuild(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostEr
         };
         let client = ctx.client(None).await?;
         let workspace = rebuild(&*client, &reference).await?;
-        ctx.out.emit(&json!({ "workspace": json_of(&workspace) }), Some(&rebuilt_line(&view_of(&workspace)?)));
+        ctx.out.emit(&json!({ "workspace": json_of(&workspace) }), Some(&rebuilt_line(&shown_view(view_of(&workspace)?, workspace.raw()))));
         Ok(0)
     })
 }
@@ -327,7 +338,7 @@ pub(super) fn call_image_build(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Re
     Box::pin(async move {
         let client = deps.client(None).await?;
         let force = args.get("force").and_then(Value::as_bool);
-        let built = build_image_unheard(&*client, &frame_str(&args, "place").unwrap_or_default(), force).await?;
+        let built = build_image_at(&*client, &Out::quiet(), &frame_str(&args, "place").unwrap_or_default(), force).await?;
         Ok(as_text(&sealed_built_line(&built.image, &built.built.copy, built.built.built), json_of(&built.built)))
     })
 }

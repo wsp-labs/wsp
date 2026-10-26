@@ -51,8 +51,8 @@ use super::turns_help::{
 };
 use super::workspaces_help::{
     awake, forget_thread, nap_after_dead_launch, pipe_bytes, rename, rename_line, restore_threads, restored_lines, settle_threads,
-    settled_lines, ssh_workspace_of, stop, stop_line, thread_cwd, thread_forgot_line, thread_of, threads_of, with_line, workspace_of,
-    Woken, SSH_PIPES_HERE_LINE,
+    settled_lines, ssh_workspace_of, stop, stop_line, thread_cwd, thread_forgot_line, thread_of, threads_of, with_line, woken_id,
+    workspace_of, Woken, SSH_PIPES_HERE_LINE,
 };
 
 fn input(name: &'static str, kind: InputKind, optional: bool, describe: Option<&str>) -> ToolInput {
@@ -848,7 +848,9 @@ async fn prepare_run(
     let opening = match &woken {
         Some(woke) => {
             let mut read = read;
-            read.insert("workspaceId".to_owned(), json!(woke.workspace.id));
+            if let Some(id) = woken_id(woke) {
+                read.insert("workspaceId".to_owned(), json!(id));
+            }
             read
         }
         None => read,

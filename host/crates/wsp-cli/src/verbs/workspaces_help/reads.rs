@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tokio::io::AsyncWriteExt;
 use wsp_wire::types::app_ports::LOOPBACK;
+use wsp_wire::types::workspace_look::THEME_MAX_DOTS;
 use wsp_wire::views::golden_image::{GoldenStage, GoldenStageEvent, SealedImage, SealedImageBuilt};
 use wsp_wire::views::place_kind::PlaceKind;
 use wsp_wire::views::place_more::PlaceView;
@@ -31,7 +32,7 @@ use wsp_words::words::thread::{no_project_line, READ_PROJECTS_FIX};
 use wsp_words::workspace_state::{gone_road_refusal, needs_rebuild, workspace_state, workspace_state_line, GoneRoad, WorkspaceStateInput};
 
 use crate::repo_root::git_root_of;
-use crate::verbs::client::{other_version, pick, Frame, HostClient, IoBytes, Out, PushedFrames};
+use crate::verbs::client::{other_version, pick, places_of, Frame, HostClient, IoBytes, Out, PushedFrames};
 use crate::verbs::io::ThreadRowOut;
 
 use super::life::thread_cwd;
@@ -82,6 +83,19 @@ impl<T> HostRow<T> {
     pub fn into_typed(self) -> T {
         self.typed
     }
+
+    pub fn raw(&self) -> &Value {
+        &self.raw
+    }
+}
+
+/// A key of a host's row as a template literal prints it, `undefined` where the row lacks it.
+pub fn shown(value: Option<&Value>) -> String {
+    match value {
+        None => "undefined".to_owned(),
+        Some(Value::String(word)) => word.clone(),
+        Some(other) => other.to_string(),
+    }
 }
 
 impl<T: DeserializeOwned> HostRow<T> {
@@ -117,18 +131,26 @@ impl<'de, T: DeserializeOwned> Deserialize<'de> for HostRow<T> {
 /// A reply's `workspace` as the host wrote it, typed once the keys the record requires are there.
 pub(super) fn workspace_row(reply: &Frame, op: &str) -> Result<HostRow<WorkspaceOut>, HostError> {
     let raw: Value = reply_field(reply, op, "workspace")?;
-    let typed = serde_json::from_value(with_workspace_keys(raw.clone())).map_err(|_| HostError::new(other_version(op)))?;
+    let typed = workspace_typed(raw.clone(), op)?;
     Ok(HostRow { typed, raw })
+}
+
+/// A workspace the host wrote, typed; the keys it lacks are filled for the frames, and lines read the row (`shown`).
+pub fn workspace_typed(raw: Value, op: &str) -> Result<WorkspaceOut, HostError> {
+    serde_json::from_value(with_workspace_keys(raw)).map_err(|_| HostError::new(other_version(op)))
+}
+
+/// `workspaces.list`'s rows, each kept as the host wrote it beside its typed record.
+async fn workspace_rows(client: &dyn HostClient) -> Result<Vec<HostRow<WorkspaceOut>>, HostError> {
+    let reply = client.request("workspaces.list", Frame::new()).await?;
+    let rows: Vec<Value> = reply_field(&reply, "workspaces.list", "workspaces")?;
+    rows.into_iter().map(|row| workspace_typed(row.clone(), "workspaces.list").map(|typed| HostRow { typed, raw: row })).collect()
 }
 
 /// `workspaces(client)` (workspaces-help.ts:111): `workspaces.list`, the `workspaces` array as the host wrote it
 /// (not parsed: the TS hands the reply's objects on as they came).
 pub async fn workspaces(client: &dyn HostClient) -> Result<Vec<WorkspaceOut>, HostError> {
-    let reply = client.request("workspaces.list", Frame::new()).await?;
-    let rows: Vec<Value> = reply_field(&reply, "workspaces.list", "workspaces")?;
-    rows.into_iter()
-        .map(|row| serde_json::from_value(with_workspace_keys(row)).map_err(|_| HostError::new(other_version("workspaces.list"))))
-        .collect()
+    Ok(workspace_rows(client).await?.into_iter().map(HostRow::into_typed).collect())
 }
 
 const WORKSPACE_KEYS: [(&str, &str); 6] =
@@ -194,8 +216,20 @@ async fn status_of(client: &dyn HostClient, id: &str) -> Result<Option<ListedSta
 /// an empty one; no params else), folded by `fold_threads`.
 pub async fn threads(client: &dyn HostClient, workspace_id: Option<&str>) -> Result<Vec<ThreadView>, HostError> {
     let reply = client.request("sessions.list", pick(vec![("workspaceId", workspace_id.map(|id| json!(id)))])).await?;
-    let sessions: Vec<SessionView> = reply_field(&reply, "sessions.list", "sessions")?;
-    Ok(fold_threads(&sessions))
+    Ok(fold_threads(&sessions_of(&reply, "sessions.list")?))
+}
+
+/// A `sessions.list` row without a status reads as `completed`, the one word the typed record can hold for it.
+fn sessions_of(reply: &Frame, op: &str) -> Result<Vec<SessionView>, HostError> {
+    let rows: Vec<Value> = reply_field(reply, op, "sessions")?;
+    rows.into_iter()
+        .map(|mut row| {
+            if let Some(object) = row.as_object_mut() {
+                object.entry("status").or_insert_with(|| Value::from("completed"));
+            }
+            serde_json::from_value(row).map_err(|_| HostError::new(other_version(op)))
+        })
+        .collect()
 }
 
 /// `workspaceOf(client, ref)` (workspaces-help.ts:130): `workspaces.resolve {ref}`; a `workspace` that does not read
@@ -203,7 +237,13 @@ pub async fn threads(client: &dyn HostClient, workspace_id: Option<&str>) -> Res
 /// keys in the schema's order, unknown keys dropped.
 pub async fn workspace_of(client: &dyn HostClient, r#ref: &str) -> Result<WorkspaceOut, HostError> {
     let reply = client.request("workspaces.resolve", params(json!({ "ref": r#ref }))).await?;
-    reply_field(&reply, "workspaces.resolve", "workspace")
+    let workspace: WorkspaceOut = reply_field(&reply, "workspaces.resolve", "workspace")?;
+    // `WorkspaceOut.safeParse` refuses a theme with no dots, or more than THEME_MAX_DOTS.
+    let dots_fit = workspace.theme.as_ref().is_none_or(|theme| (1..=THEME_MAX_DOTS as usize).contains(&theme.dots.len()));
+    if !dots_fit {
+        return Err(HostError::new(other_version("workspaces.resolve")));
+    }
+    Ok(workspace)
 }
 
 /// `pickThread(all, ref)` (workspaces-help.ts:138): the thread whose id is `ref`, else the one whose id starts with
@@ -244,9 +284,9 @@ pub type ThreadRow = crate::verbs::io::ThreadRowOut;
 /// its project's path, else empty) and its branch: `branch_here(folder)` where the workspace is local, else the
 /// workspace's worktree branch unless that worktree is gone, else empty. One branch read per folder.
 pub async fn thread_rows(client: &dyn HostClient, within: Option<&str>) -> Result<Vec<ThreadRow>, HostError> {
-    let all = workspaces(client).await?;
+    let all = workspace_rows(client).await?;
     let reply = client.request("sessions.list", Frame::new()).await?;
-    let sessions: Vec<SessionView> = reply_field(&reply, "sessions.list", "sessions")?;
+    let sessions = sessions_of(&reply, "sessions.list")?;
     let raw_sessions: HashMap<&str, &Value> =
         reply.get("sessions").and_then(Value::as_array).into_iter().flatten().filter_map(|s| Some((s.get("id")?.as_str()?, s))).collect();
     let mut stood: HashMap<&str, &SessionView> = HashMap::new();
@@ -269,10 +309,18 @@ pub async fn thread_rows(client: &dyn HostClient, within: Option<&str>) -> Resul
     let mut out = Vec::new();
     for t in rows {
         let workspace = all.iter().find(|w| w.id == t.workspace_id);
-        let folder = thread_cwd(t.cwd.as_deref(), workspace.and_then(|w| w.worktree.as_ref()))
+        let folder = match thread_cwd(t.cwd.as_deref(), workspace.and_then(|w| w.worktree.as_ref()))
             .or_else(|| workspace.and_then(|w| w.folder.clone()))
-            .or_else(|| workspace.map(|w| w.project.path.clone()))
-            .unwrap_or_default();
+        {
+            Some(folder) => folder,
+            None => match workspace {
+                None => String::new(),
+                Some(w) if w.raw().get("project").is_none() => {
+                    return Err(HostError::new("Cannot read properties of undefined (reading 'path')"))
+                }
+                Some(w) => w.project.path.clone(),
+            },
+        };
         if !branches.contains_key(&folder) {
             let here = if wsp_words::workspace_state::is_local_workspace(workspace.and_then(|w| w.kind.as_ref())) {
                 branch_here(&folder)
@@ -290,6 +338,7 @@ pub async fn thread_rows(client: &dyn HostClient, within: Option<&str>) -> Resul
         out.push(ThreadRowOut {
             raw_waiting_on: raw.and_then(|s| s.get("waitingOn")).cloned(),
             raw_sub: raw.and_then(|s| s.get("sub")).cloned(),
+            raw_subagents: raw.and_then(|s| s.get("subagents")).cloned(),
             project_name: session_project(&t.workspace_id).map(|p| p.name.clone()).unwrap_or_default(),
             folder,
             branch,
@@ -325,6 +374,20 @@ fn branch_here(folder: &str) -> Option<String> {
     };
     let head = String::from_utf8_lossy(&std::fs::read(git_dir.join("HEAD")).ok()?).into_owned();
     REF_LINE.captures(&head).and_then(|c| c.get(1)).map(|m| m.as_str().trim().to_owned())
+}
+
+/// The record for printing: its name and id as the row holds them, `undefined` where it lacks them.
+pub fn shown_out(mut out: WorkspaceOut, raw: &Value) -> WorkspaceOut {
+    out.name = shown(raw.get("name"));
+    out.id = shown(raw.get("id"));
+    out
+}
+
+/// The view for printing: its name and machine as the row holds them.
+pub fn shown_view(mut view: WorkspaceView, raw: &Value) -> WorkspaceView {
+    view.name = shown(raw.get("name"));
+    view.machine_id = shown(raw.get("machineId"));
+    view
 }
 
 /// `stateLine(workspace)` (workspaces-help.ts:189): `workspace_state_line(name, workspace_state({phase}), pauseMode)`:
@@ -395,7 +458,7 @@ pub fn rebuilt_line(workspace: &WorkspaceView) -> String {
 /// the schema's order, unknown keys dropped).
 pub async fn image_view(client: &dyn HostClient) -> Result<SealedImageView, HostError> {
     let reply = client.request("image.get", Frame::new()).await?;
-    reply_field(&reply, "image.get", "view")
+    crate::zod_read::zod_read_field(reply.get("view"))
 }
 
 /// What `buildImageAt` answers: the record the host holds after the build and what the build came to.
@@ -414,7 +477,7 @@ pub struct ImageBuilt {
 pub async fn build_image_at(client: &dyn HostClient, out: &Out, word: &str, force: Option<bool>) -> Result<ImageBuilt, HostError> {
     // The word goes to the host as typed, the one judge of what it names. The build's frames carry the place's id, so
     // the list is read only to follow them and say the place's name.
-    let places: Vec<PlaceView> = reply_field(&client.request("places.list", Frame::new()).await?, "places.list", "places")?;
+    let places = places_of(&client.request("places.list", Frame::new()).await?, "places.list")?;
     let (place_id, place_name) = match places.iter().find(|p| names_place(&place_ref(p), word)) {
         None => (word.to_owned(), word.to_owned()),
         Some(p) => (p.id.clone(), table_name(&place_ref(p))),
@@ -440,28 +503,19 @@ pub async fn build_image_at(client: &dyn HostClient, out: &Out, word: &str, forc
             stage_out.stream(&format!("{line}\n"));
         }),
     );
-    let result = build_and_read(client, word, force, true).await;
+    let result = build_and_read(client, word, force).await;
     pushed.stop();
     result
 }
 
-/// `build_image_at` for a caller that says no stage: `places.list` is still read, but no one listens to the host's
-/// events, so none is subscribed to.
-pub async fn build_image_unheard(client: &dyn HostClient, word: &str, force: Option<bool>) -> Result<ImageBuilt, HostError> {
-    reply_field::<Vec<PlaceView>>(&client.request("places.list", Frame::new()).await?, "places.list", "places")?;
-    build_and_read(client, word, force, false).await
-}
-
-async fn build_and_read(client: &dyn HostClient, word: &str, force: Option<bool>, heard: bool) -> Result<ImageBuilt, HostError> {
-    if heard {
-        client.events().await?;
-    }
+async fn build_and_read(client: &dyn HostClient, word: &str, force: Option<bool>) -> Result<ImageBuilt, HostError> {
+    client.events().await?;
     let params = pick(vec![("place", Some(json!(word))), ("force", (force == Some(true)).then(|| json!(true)))]);
     let reply = client.request("image.build", params).await?;
     let view = image_view(client).await?;
     let image = view.image.ok_or_else(|| HostError::new(NO_SEALED_IMAGE))?;
     let build = reply.get("build").cloned().unwrap_or(Value::Null);
-    let built = serde_json::from_value(build).map_err(|_| HostError::new(other_version("image.build")))?;
+    let built = crate::zod_read::zod_read(&build)?;
     Ok(ImageBuilt { image, built })
 }
 

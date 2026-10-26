@@ -18,6 +18,7 @@ use serde_json::{json, Map, Value};
 
 use wsp_wire::types::pull_request::{GitUpdateReply, MergeMethod};
 use wsp_wire::types::tree::{MergeInResult, FIX_CHECK_OR_CHILD};
+use wsp_wire::types::Check;
 use wsp_wire::views::activity::ProcessesAsk;
 use wsp_wire::views::harness::{ReviewPostResult, StartResult};
 use wsp_wire::views::session::SessionOrigin;
@@ -41,6 +42,7 @@ use wsp_words::workspace_state::{
 
 use super::cloud_of;
 use crate::cloud_text::cloud_text;
+use crate::zod_read::zod_read;
 
 use super::activity::{ended_lines, processes_asked};
 use super::client::*;
@@ -51,11 +53,12 @@ use super::turns_help::{
     ThreadDeleted, ThreadDeletedAsk, ThreadRef, Turn,
 };
 use super::workspaces_help::{
-    agents_asked, asked_to_fix, awake, build_image_at, build_image_unheard, committed, create_for, create_for_unheard, delete_question,
-    delete_workspace, deleted_line, deleting, dropping, fix_line, folder_of, forget, forget_question, forgot_line, image_lines, image_view,
-    made_worktree, merged_in, merged_pr, project_of, rebuild, rebuilt_line, renamed_workspace_line, review_lines, review_posted, shared_of,
-    started_lines, state_line, thread_label, thread_of, update_line, with_shared, woke_line, workspace_of, ChildRef, CreateAsked, Dropping,
-    MergeLead, ProjectPick, RenamedWorkspace, ReviewEdits, ReviewStartedAsk, StartedFromAsk, VERDICTS,
+    agents_asked, asked_to_fix_of, awake, build_image_at, committed_of, create_for, delete_question, delete_workspace, deleted_line,
+    deleting, dropping, fix_line, folder_of, forget, forget_question, forgot_line, image_lines, image_view, made_worktree, merged_in,
+    merged_pr, project_of, rebuild, rebuilt_line, renamed_workspace_line, review_lines, review_posted, shared_of, shown, shown_out,
+    shown_view, started_lines, state_line, thread_label, thread_of, update_line, with_shared, woke_line, woken_id, workspace_of,
+    workspace_typed, ChildRef, CreateAsked, Dropping, MergeLead, ProjectPick, RenamedWorkspace, ReviewEdits, ReviewStartedAsk,
+    StartedFromAsk, VERDICTS,
 };
 
 /// `NO_THREAD_FIX` (workspaces.ts:49): what a delete naming no thread says to do instead.
@@ -580,8 +583,8 @@ fn with_shared_field(mut map: Map<String, Value>, shared: &[String]) -> Value {
     Value::Object(map)
 }
 
-fn parsed<T: DeserializeOwned>(reply: Frame, op: &str) -> Result<T, HostError> {
-    serde_json::from_value(Value::Object(reply)).map_err(|_| HostError::new(other_version(op)))
+fn parsed<T: DeserializeOwned + Check>(reply: Frame, _op: &str) -> Result<T, HostError> {
+    zod_read(&Value::Object(reply))
 }
 
 fn view_of(out: &WorkspaceOut) -> Result<WorkspaceView, HostError> {
@@ -605,7 +608,7 @@ fn redial_of(deps: &VerbDeps) -> impl Fn() -> BoxFuture<'static, Result<Arc<dyn 
 }
 
 fn home() -> Option<String> {
-    std::env::var("HOME").ok().filter(|home| !home.is_empty())
+    crate::hosts::env_var("HOME").filter(|home| !home.is_empty())
 }
 
 fn stderr_of(ctx: &VerbContext) -> impl Fn(&str) + Send + Sync {

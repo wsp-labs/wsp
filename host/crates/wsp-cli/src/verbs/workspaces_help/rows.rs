@@ -12,7 +12,6 @@ use serde_json::{json, Value};
 use wsp_wire::text::json_stringify;
 use wsp_wire::types::workspace_state::UNNAMED_COMPUTER;
 use wsp_wire::views::place_kind::PlaceKind;
-use wsp_wire::views::place_more::PlaceView;
 use wsp_wire::views::session::{SessionStatus, ThreadView};
 use wsp_wire::views::snapshot_lineage::WorkspaceCreateResult;
 use wsp_wire::views::sub_row::SubState;
@@ -33,8 +32,10 @@ use wsp_words::words::image::forget_notice;
 use wsp_words::words::units::{disk_expired, offered_size, size_from_word, size_refusal, DiskKeep, DISK_EXPIRED_WORD};
 use wsp_words::workspace_state::{delete_notice, is_local_workspace, machine_word, on_delete_of, workspace_kind, CopyAt, StandsOn};
 
-use super::reads::{params, place_ref, reply_field, threads, with_workspace_keys, workspace_of, workspaces, ThreadRow};
-use crate::verbs::client::{absolute_path, flag_for, host_platform, other_version, pick, Frame, HostClient, Out, PushedFrames, SshAsked};
+use super::reads::{params, place_ref, reply_field, shown, threads, workspace_of, workspace_typed, workspaces, ThreadRow};
+use crate::verbs::client::{
+    absolute_path, flag_for, host_platform, other_version, pick, places_of, Frame, HostClient, Out, PushedFrames, SshAsked,
+};
 use crate::verbs::io::Created;
 
 fn wire_word<T: Serialize>(value: &T) -> String {
@@ -85,25 +86,22 @@ async fn create_follow(
     asked: &CreateAsked,
     chosen: Option<WorkspaceSize>,
     pushed: &PushedFrames,
-    heard: bool,
 ) -> Result<Created, HostError> {
-    if heard {
-        client.events().await?;
-        let watched = name.to_owned();
-        let emit_out = out.clone();
-        let stream_out = out.clone();
-        pushed.follow(
-            Arc::new(move |f: &Frame| {
-                f.get("type").and_then(Value::as_str) == Some("workspace.creating")
-                    && f.get("name").and_then(Value::as_str) == Some(watched.as_str())
-            }),
-            Arc::new(move |f: &Frame| {
-                emit_out.emit(&Value::Object(f.clone()), None);
-                let message = f.get("message").and_then(Value::as_str).unwrap_or_default();
-                stream_out.stream(&format!("{message}\n"));
-            }),
-        );
-    }
+    client.events().await?;
+    let watched = name.to_owned();
+    let emit_out = out.clone();
+    let stream_out = out.clone();
+    pushed.follow(
+        Arc::new(move |f: &Frame| {
+            f.get("type").and_then(Value::as_str) == Some("workspace.creating")
+                && f.get("name").and_then(Value::as_str) == Some(watched.as_str())
+        }),
+        Arc::new(move |f: &Frame| {
+            emit_out.emit(&Value::Object(f.clone()), None);
+            let message = f.get("message").and_then(Value::as_str).unwrap_or_default();
+            stream_out.stream(&format!("{message}\n"));
+        }),
+    );
     let mut body = pick(vec![("project", Some(json!(project.id))), ("name", Some(json!(name)))]);
     if let Some(size) = &chosen {
         body.insert("cpu".to_owned(), json!(size.cpu));
@@ -116,20 +114,22 @@ async fn create_follow(
         body.insert("parent".to_owned(), json!(parent));
     }
     let reply = client.request("workspaces.create", body).await?;
-    let shown: Value = reply_field(&reply, "workspaces.create", "workspace")?;
-    let workspace: WorkspaceOut =
-        serde_json::from_value(with_workspace_keys(shown.clone())).map_err(|_| HostError::new(other_version("workspaces.create")))?;
+    let shown_row: Value = reply_field(&reply, "workspaces.create", "workspace")?;
+    let workspace = workspace_typed(shown_row.clone(), "workspaces.create")?;
     let notice = reply.get("notice").and_then(Value::as_str).map(str::to_owned);
-    let at = workspace.folder.clone().unwrap_or_else(|| workspace.project.path.clone());
+    let at = match shown_row.get("folder").filter(|folder| !folder.is_null()) {
+        Some(folder) => shown(Some(folder)),
+        None => shown(shown_row.get("project").and_then(|project| project.get("path"))),
+    };
     let line = format!(
         "created {} {}, a copy of {} at {}{}",
-        workspace.name,
-        workspace.id,
-        workspace.project.name,
+        shown(shown_row.get("name")),
+        shown(shown_row.get("id")),
+        shown(shown_row.get("project").and_then(|project| project.get("name"))),
         at,
         notice.as_ref().map(|n| format!("\n{n}")).unwrap_or_default()
     );
-    let created = Created { workspace, shown: Some(shown), notice };
+    let created = Created { workspace, shown: Some(shown_row), notice };
     out.emit(&serde_json::to_value(&created).unwrap_or(Value::Null), Some(&line));
     Ok(created)
 }
@@ -199,7 +199,7 @@ pub async fn deleting(client: &dyn HostClient, r#ref: &str) -> Result<Dropping, 
     let mut d = dropping(client, r#ref).await?;
     let Some(at) = d.workspace.place.clone() else { return Ok(d) };
     let listed = match client.request("places.list", Frame::new()).await {
-        Ok(reply) => Some(reply_field::<Vec<PlaceView>>(&reply, "places.list", "places")?.into_iter().find(|p| p.id == at)),
+        Ok(reply) => Some(places_of(&reply, "places.list")?.into_iter().find(|p| p.id == at)),
         Err(_) => None,
     };
     let computer = match listed {
@@ -402,7 +402,7 @@ pub fn thread_tree(rows: &[ThreadRow]) -> Vec<TreeRow<'_>> {
 /// list's order. A repeated id keeps its first position and its last name (a JS `Map`).
 pub async fn place_names(client: &dyn HostClient) -> Result<IndexMap<String, String>, HostError> {
     let reply = client.request("places.list", Frame::new()).await?;
-    let places: Vec<PlaceView> = reply_field(&reply, "places.list", "places")?;
+    let places = places_of(&reply, "places.list")?;
     Ok(places.iter().map(|p| (p.id.clone(), table_name(&place_ref(p)))).collect())
 }
 
@@ -530,28 +530,6 @@ pub async fn create_for(
     name: &str,
     asked: &CreateAsked,
 ) -> Result<Created, HostError> {
-    create_for_in(client, out, project, name, asked, true).await
-}
-
-/// `create_for` for a caller that prints no stage (the tool door): the stages have no reader, so no events are
-/// subscribed to.
-pub async fn create_for_unheard(
-    client: &dyn HostClient,
-    project: &ProjectPick,
-    name: &str,
-    asked: &CreateAsked,
-) -> Result<Created, HostError> {
-    create_for_in(client, &Out::quiet(), project, name, asked, false).await
-}
-
-async fn create_for_in(
-    client: &dyn HostClient,
-    out: &Out,
-    project: &ProjectPick,
-    name: &str,
-    asked: &CreateAsked,
-    heard: bool,
-) -> Result<Created, HostError> {
     if copies_folder(&kind_for_computer(&project.computer, None)) && asked.size.is_some() {
         return Err(usage_refusal(&copy_takes_none(&project.name, &["--size"], None), "Drop them."));
     }
@@ -565,7 +543,7 @@ async fn create_for_in(
         }
     };
     let pushed = PushedFrames::new(client);
-    let result = create_follow(client, out, project, name, asked, chosen, &pushed, heard).await;
+    let result = create_follow(client, out, project, name, asked, chosen, &pushed).await;
     pushed.stop();
     result
 }

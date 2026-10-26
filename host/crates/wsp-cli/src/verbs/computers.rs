@@ -17,8 +17,9 @@ use wsp_words::words::units::size_from_word;
 
 use super::client::*;
 use super::io::{as_json, confirmed};
-use super::workspaces_help::{agents_asked, count_asked, size_chosen, AgentsAsked};
+use super::workspaces_help::{agents_asked, count_asked, shown, size_chosen, AgentsAsked};
 use crate::setup_follow::{add_computer, AddAsk};
+use crate::zod_read::zod_read;
 
 /// What a `--size` word asks of the host (computers.ts:36-42): the size to set, and the resets with `size` added
 /// where the word names no size and the row takes none.
@@ -335,8 +336,7 @@ async fn computers_read(client: &dyn HostClient) -> Result<(Value, ComputersRead
         None | Some(Value::Null) => Vec::new(),
         Some(value) => serde_json::from_value(value.clone()).map_err(|_| HostError::new(other_version("places.list")))?,
     };
-    let read =
-        ComputersRead { computers: field(&listed, "places.list", "places")?, spend: field(&spent, "cost.spend", "places")?, pending };
+    let read = ComputersRead { computers: places_of(&listed, "places.list")?, spend: field(&spent, "cost.spend", "places")?, pending };
     let raw = json!({
         "computers": listed.get("places").cloned().unwrap_or(Value::Null),
         "spend": spent.get("places").cloned().unwrap_or(Value::Null),
@@ -554,10 +554,16 @@ fn run_recipes_show(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> 
         };
         let reply = ctx.client(None).await?.request("recipes.get", frame_of_name(name)).await?;
         let recipe_raw = reply.get("recipe").cloned().unwrap_or(Value::Null);
+        if recipe_raw.get("file").is_none() {
+            return Err(HostError::new("Cannot read properties of undefined (reading 'agents')"));
+        }
+        if recipe_raw.pointer("/file/agents").is_none_or(Value::is_null) {
+            return Err(HostError::new("Cannot convert undefined or null to object"));
+        }
         let recipe: RecipeView = field(&reply, "recipes.get", "recipe")?;
-        let hash: String = field(&reply, "recipes.get", "hash")?;
-        let lines = recipe_shown_lines(&recipe, &hash).join("\n");
-        ctx.out.emit(&json!({ "recipe": recipe_raw, "hash": hash }), Some(&lines));
+        let hash = reply.get("hash").cloned();
+        let lines = recipe_shown_lines(&recipe, &shown(hash.as_ref())).join("\n");
+        ctx.out.emit(&Value::Object(pick(vec![("recipe", Some(recipe_raw)), ("hash", hash)])), Some(&lines));
         Ok(0)
     })
 }
@@ -642,9 +648,8 @@ fn run_usage(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
         let range_word = one_of("range", USAGE_RANGES, flag(&ctx.flags, "range"), None)?.unwrap_or_else(|| "day".to_owned());
         let by_word = one_of("by", USAGE_SPLITS, flag(&ctx.flags, "by"), None)?.unwrap_or_else(|| "agent".to_owned());
         let read = read_usage(&*ctx.client(None).await?, word_of(&range_word)?, word_of(&by_word)?).await?;
-        let accounts: Vec<AccountRow> =
-            serde_json::from_value(read.accounts.clone()).map_err(|_| HostError::new(other_version("usage.accounts")))?;
-        let used: UsedAnswer = serde_json::from_value(read.used.clone()).map_err(|_| HostError::new(other_version("usage.used")))?;
+        let accounts: Vec<AccountRow> = zod_read(&read.accounts)?;
+        let used: UsedAnswer = zod_read(&read.used)?;
         let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0.0, |d| d.as_millis() as f64);
         let line = usage_table_lines(&accounts, &used, now).join("\n");
         ctx.out.emit(&json!({ "accounts": read.accounts, "used": read.used }), Some(&line));
@@ -677,7 +682,7 @@ fn run_usage_reset(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
             params.insert("on".to_owned(), Value::from(on));
         }
         let reply = client.request("usage.reset", params).await?;
-        let answer: ResetAnswer = serde_json::from_value(Value::Object(reply)).map_err(|_| HostError::new(other_version("usage.reset")))?;
+        let answer: ResetAnswer = zod_read(&Value::Object(reply))?;
         ctx.out.emit(&serde_json::to_value(&answer).expect("an answer writes as JSON"), Some(&answer.said));
         Ok(0)
     })

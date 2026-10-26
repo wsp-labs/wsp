@@ -13,6 +13,7 @@ use wsp_wire::views::activity_fold::{fold_tree, Folded};
 use wsp_wire::views::activity_names::{
     activity_name, agent_by_bin, AgentBin, NameFacts, ACTIVITY_GROUP_WORDS, ACTIVITY_KIND_WORDS, UNTAGGED_KINDS,
 };
+use wsp_words::exit::HostError;
 use wsp_words::js::{collate, js_round, js_trim_end, number_string};
 use wsp_words::words::units::fmt_bytes;
 
@@ -115,18 +116,28 @@ fn is_stretch_agent(p: &ActivityProc, kids: &HashMap<i64, Vec<&ActivityProc>>) -
         && !kids.get(&p.pid.get()).is_some_and(|ks| ks.iter().any(|k| k.kind == ProcKind::Agent))
 }
 
-/// The first agent under `p` on its stretch of the tree, a stretch agent standing as itself.
-fn agent_below<'a>(p: &ActivityProc, kids: &HashMap<i64, Vec<&'a ActivityProc>>) -> Option<&'a ActivityProc> {
+/// The first agent under `p` on its stretch of the tree, a stretch agent standing as itself. A table has no more
+/// nested steps than it has processes, so one deeper than `limit` is two agents naming each other as parent: node's
+/// recursion overflows there (activity-table.ts:52-57) and the line fails.
+fn agent_below<'a>(
+    p: &ActivityProc,
+    kids: &HashMap<i64, Vec<&'a ActivityProc>>,
+    depth: usize,
+    limit: usize,
+) -> Result<Option<&'a ActivityProc>, HostError> {
+    if depth > limit {
+        return Err(HostError::new("Maximum call stack size exceeded"));
+    }
     for k in kids.get(&p.pid.get()).into_iter().flatten() {
         if k.kind != ProcKind::Agent {
             continue;
         }
-        let hit = if is_stretch_agent(k, kids) { Some(*k) } else { agent_below(k, kids) };
+        let hit = if is_stretch_agent(k, kids) { Some(*k) } else { agent_below(k, kids, depth + 1, limit)? };
         if hit.is_some() {
-            return hit;
+            return Ok(hit);
         }
     }
-    None
+    Ok(None)
 }
 
 fn sorted(mut list: Vec<Node>) -> Vec<Node> {
@@ -149,7 +160,7 @@ fn node_of(folded: Folded<ActivityProc>) -> Node {
 
 /// `treeOf` (activity-table.ts:45-71): a group's rows as a tree. Folded, every stretch agent's rows join the agent's
 /// own row and the run's pump and leftover shells join the group's first agent.
-fn tree_of(rows: &[ActivityProc], fold: bool) -> Vec<Node> {
+fn tree_of(rows: &[ActivityProc], fold: bool) -> Result<Vec<Node>, HostError> {
     let mut kids: HashMap<i64, Vec<&ActivityProc>> = HashMap::new();
     for p in rows {
         if p.ppid.get() != p.pid.get() {
@@ -163,13 +174,13 @@ fn tree_of(rows: &[ActivityProc], fold: bool) -> Vec<Node> {
             if p.kind != ProcKind::Agent || is_stretch_agent(p, &kids) || Some(p.pid.get()) == first.map(|f| f.pid.get()) {
                 continue;
             }
-            if let Some(target) = agent_below(p, &kids).or(first) {
+            if let Some(target) = agent_below(p, &kids, 0, rows.len())?.or(first) {
                 into.insert(p.pid.get(), target.pid.get());
             }
         }
     }
     let folded = fold_tree(rows, |pid| into.get(&pid).copied());
-    sorted(folded.into_iter().map(node_of).collect())
+    Ok(sorted(folded.into_iter().map(node_of).collect()))
 }
 
 /// `procRows` (activity-table.ts:72-85): each head's tree as rows, depth one under the head.
@@ -224,8 +235,8 @@ fn widest(list: &[&Row], f: fn(&Row) -> &str) -> usize {
     list.iter().map(|r| cell_width(f(r))).max().unwrap_or(0)
 }
 
-/// `activityTable` (activity-table.ts:91-134).
-pub fn activity_table(view: &ActivityView, o: TableOpts) -> String {
+/// `activityTable` (activity-table.ts:91-134), its failure as the line's error.
+pub fn try_activity_table(view: &ActivityView, o: TableOpts) -> Result<String, HostError> {
     let fold = !o.wide;
     let mut rows: Vec<Row> = Vec::new();
     let (mut mem, mut cpu, mut processes) = (0.0_f64, 0.0_f64, 0usize);
@@ -246,7 +257,7 @@ pub fn activity_table(view: &ActivityView, o: TableOpts) -> String {
         let host = view.wsp.iter().find(|p| p.kind == ProcKind::Wsp && Some(p.pid.get()) != daemon).map(|p| p.pid.get());
         let note = if host.is_none() { group_word("wspNoteBox") } else { group_word("wspNote") };
         let facts = NameFacts { daemon, host, agent: None };
-        group(format!("{}  {note}", group_word("wsp")), sum(&view.wsp), proc_rows(&tree_of(&view.wsp, false), o.wide, &facts));
+        group(format!("{}  {note}", group_word("wsp")), sum(&view.wsp), proc_rows(&tree_of(&view.wsp, false)?, o.wide, &facts));
     }
     let mut threads: Vec<&ActivityThread> = view.threads.iter().collect();
     threads.sort_by(|a, b| {
@@ -258,14 +269,14 @@ pub fn activity_table(view: &ActivityView, o: TableOpts) -> String {
         }
     });
     for t in &threads {
-        group(t.title.clone(), (t.memory.0, t.cpu.0), proc_rows(&tree_of(&t.processes, fold), o.wide, &NameFacts::default()));
+        group(t.title.clone(), (t.memory.0, t.cpu.0), proc_rows(&tree_of(&t.processes, fold)?, o.wide, &NameFacts::default()));
     }
     if !view.unowned.is_empty() {
         let label = format!("{}  {}", group_word("loose"), group_word("looseNote"));
-        group(label, sum(&view.unowned), proc_rows(&tree_of(&view.unowned, false), o.wide, &NameFacts::default()));
+        group(label, sum(&view.unowned), proc_rows(&tree_of(&view.unowned, false)?, o.wide, &NameFacts::default()));
     }
     if rows.is_empty() {
-        return format!("no thread runs a process on {}", view.computer);
+        return Ok(format!("no thread runs a process on {}", view.computer));
     }
 
     let thread_count = threads.len();
@@ -329,5 +340,10 @@ pub fn activity_table(view: &ActivityView, o: TableOpts) -> String {
     };
     let mut out = vec![ellipsize(&totals, room), String::new()];
     out.extend(all.iter().map(|r| line(r)));
-    out.join("\n")
+    Ok(out.join("\n"))
+}
+
+/// `activityTable` (activity-table.ts:91-134) for a view that holds no agent cycle.
+pub fn activity_table(view: &ActivityView, o: TableOpts) -> String {
+    try_activity_table(view, o).unwrap_or_else(|e| e.message)
 }

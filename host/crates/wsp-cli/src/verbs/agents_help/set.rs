@@ -30,7 +30,7 @@ use wsp_words::thread_defaults::config_dir_sign_in_line;
 use super::read::{agents_target, js_object, read_reply, target_frame, ProjectAsked};
 use crate::verbs::client::{absolute_path, access_word_of, cell, printable, table, Frame, HostClient};
 use crate::verbs::turns_help::{preferences_of, project_defaults_of};
-use crate::verbs::workspaces_help::project_of;
+use crate::verbs::workspaces_help::{project_listed, project_typed, shown};
 
 // ---------------------------------------------------------------------------------------------------------------
 // skills.sh and skills (agents-help.ts:300-368)
@@ -45,7 +45,7 @@ pub async fn search_skills_sh(client: &dyn HostClient, q: &str, limit: Option<u6
         params.insert("limit".to_owned(), json!(limit));
     }
     let reply = client.request("skills.search", params).await?;
-    read_reply(&reply, "skills", "skills.search")
+    read_reply(&reply, "skills")
 }
 
 /// `noSkillHitsLine` (agents-help.ts:305).
@@ -100,7 +100,7 @@ pub async fn skill_shown(
         let mut params = Frame::new();
         params.insert("skill".to_owned(), json!(skill));
         let reply = client.request("skills.get", params).await?;
-        return read_reply(&reply, "preview", "skills.get");
+        return read_reply(&reply, "preview");
     }
     let target = agents_target(client, thread, on, usage, line, project.name.as_deref(), cloud_on).await?;
     let mut params = target_frame(&target);
@@ -109,7 +109,7 @@ pub async fn skill_shown(
         params.insert("project".to_owned(), json!(true));
     }
     let reply = client.request("skills.preview", params).await?;
-    read_reply(&reply, "preview", "skills.preview")
+    read_reply(&reply, "preview")
 }
 
 /// `previewCutLine(kb)` (agents-help.ts:327): `(the first 64 KB of <kb> KB)`, the 64 from `SKILL_PREVIEW_BYTES / 1024`.
@@ -154,7 +154,7 @@ pub async fn skill_added(
         params.insert("project".to_owned(), json!(true));
     }
     let reply = client.request("skills.add", params).await?;
-    read_reply(&reply, "added", "skills.add")
+    read_reply(&reply, "added")
 }
 
 /// `isInLine(name, path)` (agents-help.ts:339).
@@ -249,7 +249,7 @@ pub async fn skill_changed(
         SkillChange::Remove => "removed",
         SkillChange::Toggle => "paths",
     };
-    read_reply(&reply, key, op.op())
+    read_reply(&reply, key)
 }
 
 /// `turnedLine(name, on)` (agents-help.ts:360): `<name> is on.` or `is off.`
@@ -364,7 +364,7 @@ pub async fn agent_defaults_set(client: &dyn HostClient, agent: &str, ask: &Agen
     let mut params = Frame::new();
     params.insert("patch".to_owned(), Value::Object(patch_frame));
     let reply = client.request("preferences.set", params).await?;
-    let prefs: Preferences = read_reply(&reply, "preferences", "preferences.set")?;
+    let prefs: Preferences = read_reply(&reply, "preferences")?;
     Ok(prefs.agent_defaults.get(agent).map(|entry| entry.clone().into_inner()).unwrap_or(AgentDefaults {
         model: None,
         effort: None,
@@ -527,7 +527,7 @@ pub async fn agent_setup_set(
         params.extend(fields);
     }
     let reply = client.request("agents.setup", params).await?;
-    read_reply(&reply, "agent", "agents.setup")
+    read_reply(&reply, "agent")
 }
 
 /// `setupOnLine(name, on)` (agents-help.ts:488): `<name> is on there.` or `is off there.`
@@ -616,13 +616,18 @@ pub fn no_defaults_answered_line(project: &str) -> String {
     format!("the host answered no defaults for {project}")
 }
 
-/// The answer of `project_defaults_set`: the project as the host resolved it, what a new thread on it starts on, and
-/// the two overrides the preferences reply echoes beside the picks (each left out when the reply has none, an empty
-/// list kept).
+/// The answer of `project_defaults_set`: the project as the host resolved it (written as the host wrote it, keys in its
+/// order; `project_name` is its name as a line prints it), what a new thread on it starts on, and the two overrides
+/// the preferences reply echoes beside the picks (each left out when the reply has none, an empty list kept).
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectDefaultsSet {
+    #[serde(rename = "project")]
+    pub raw_project: Value,
+    #[serde(skip)]
     pub project: ProjectView,
+    #[serde(skip)]
+    pub project_name: String,
     pub defaults: ThreadDefaults,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub after_worktree: Option<String>,
@@ -672,7 +677,9 @@ pub async fn project_defaults_set(client: &dyn HostClient, r#ref: &str, ask: &Pr
     {
         return Err(usage_refusal(PROJECT_SET_NOTHING_LINE, NOTHING_TO_SET_FIX));
     }
-    let project = project_of(client, r#ref).await?;
+    let raw_project = project_listed(client, r#ref).await?;
+    let project = project_typed(raw_project.clone(), "projects.resolve")?;
+    let project_name = shown(raw_project.get("name"));
     let mut by_id = Frame::new();
     by_id.insert(project.id.clone(), serde_json::to_value(&patch).expect("a patch writes as JSON"));
     let mut patch_frame = Frame::new();
@@ -684,11 +691,13 @@ pub async fn project_defaults_set(client: &dyn HostClient, r#ref: &str, ask: &Pr
         .await?
         .get(&project.id)
         .cloned()
-        .ok_or_else(|| HostError::new(no_defaults_answered_line(&project.name)))?;
-    let prefs: Preferences = read_reply(&reply, "preferences", "preferences.set")?;
+        .ok_or_else(|| HostError::new(no_defaults_answered_line(&project_name)))?;
+    let prefs: Preferences = read_reply(&reply, "preferences")?;
     let entry = prefs.project_defaults.get(&project.id).map(|entry| entry.clone().into_inner());
     Ok(ProjectDefaultsSet {
+        raw_project,
         project,
+        project_name,
         defaults,
         after_worktree: entry.as_ref().and_then(|entry| entry.after_worktree.clone()),
         trackers: entry.and_then(|entry| entry.trackers).map(|trackers| trackers.into_iter().map(|tracker| tracker.0).collect()),

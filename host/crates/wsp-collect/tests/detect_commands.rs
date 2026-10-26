@@ -142,7 +142,8 @@ mod guard_commands {
             guard("starship"),
             guard("eza"),
             guard("diskbloom"),
-            "# Guarded above: a call to one of these that is not on this machine is silent instead of an error: starship, eza, diskbloom.".to_string(),
+            "# Guarded above: a call to one of these that is not on this machine is silent instead of an error: starship, eza, diskbloom."
+                .to_string(),
             GUARD_END.to_string(),
             String::new(),
             "eval \"$(starship init zsh)\"".to_string(),
