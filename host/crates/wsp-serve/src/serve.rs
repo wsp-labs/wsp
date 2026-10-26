@@ -224,6 +224,7 @@ pub trait RuntimeServer {
 pub async fn serve_runtime(rt: Rc<DynRuntime>, opts: ServeOptions) -> Result<Rc<dyn RuntimeServer>, HostError> {
     let bind = opts.port.map(|port| (opts.host.clone().unwrap_or_else(|| LOOPBACK.to_string()), port));
     let served = door::Served::new(rt, opts)?;
+    served.forwards_source();
     let server: Rc<dyn RuntimeServer> = Rc::new(listener::Wire::start(served, bind).await?);
     Ok(server)
 }

@@ -13,7 +13,7 @@ use serde_json::{json, Value};
 use wsp_wire::wire::devices::TicketPurpose;
 use wsp_words::exit::HostError;
 
-use wsp_core::forwards::{ForwardEvent, ForwardsSource};
+use wsp_core::forwards::{forwards_of, ForwardEvent, ForwardsSource};
 use wsp_core::types::wiring::Detach;
 use wsp_machines::places::pane_ports::{ForwardEvent as PaneEvent, PaneForwards, PanePorts};
 use wsp_machines::places::types::{AuthAnswer, Proved, NO_PLACE_DOOR};
@@ -137,6 +137,16 @@ impl Served {
             forwards: std::cell::OnceCell::new(),
             app_procs,
         }))
+    }
+    /// `forwardsOf(opts.forwards, rt.places?.paneForwards)` (serve.ts:377). `serve_runtime` builds it at start; a
+    /// `Served` driven without a listener builds it at the first forwards op.
+    pub fn forwards_source(&self) -> Rc<dyn ForwardsSource> {
+        self.forwards
+            .get_or_init(|| {
+                let panes = self.rt.places().map(|places| Rc::new(PaneSource(places.pane_forwards())) as Rc<dyn ForwardsSource>);
+                forwards_of(vec![self.opts.forwards.clone(), panes])
+            })
+            .clone()
     }
     /// `now()`.
     pub fn now(&self) -> i64 {
