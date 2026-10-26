@@ -192,8 +192,8 @@ impl ChannelsCtx for Lit {
     fn proc_scopes_moved(&self) {
         self.0.proc_scopes_moved()
     }
-    fn roots_recheck(&self) -> Rc<RefCell<Option<Cancel>>> {
-        self.0.roots_recheck()
+    fn state(&self) -> wsp_core::context::StateCell<wsp_core::context::RuntimeState> {
+        self.0.state()
     }
     fn box_panels_ctx(&self) -> Rc<dyn BoxPanelsCtx> {
         self.0.box_panels_ctx()

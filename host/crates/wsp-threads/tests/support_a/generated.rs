@@ -5,6 +5,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use super::fake::*;
+use wsp_account::account::core_types::AccountError;
 
 impl WaitsCtx for FakeHost {
     fn clock(&self) -> Rc<dyn Clock> {
@@ -510,15 +511,16 @@ impl ActivityCtx for FakeHost {
         }
         None
     }
-    async fn with_daemon(&self, entry: &Entry, frame: Value) -> Result<Map<String, Value>, HostError> {
+    fn with_daemon(&self, entry: &Entry, frame: Value) -> futures::future::LocalBoxFuture<'static, Result<Value, AccountError>> {
         self.hooks.log("with_daemon", vec![]);
-        if let Some(hook) = self
-            .hooks
-            .get::<dyn Fn(&Entry, Value) -> LocalBoxFuture<'static, Result<Map<String, Value>, HostError>>>("ActivityCtx::with_daemon")
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&Entry, Value) -> futures::future::LocalBoxFuture<'static, Result<Value, AccountError>>>(
+                "ActivityCtx::with_daemon",
+            )
         {
-            return hook(entry, frame).await;
+            return hook(entry, frame);
         }
-        Ok(Map::new())
+        futures::FutureExt::boxed_local(async { Ok(Value::Object(Map::new())) })
     }
     fn close_servers(&self, thread_id: &str) {
         self.hooks.log("close_servers", vec![thread_id.to_string()]);
@@ -585,12 +587,12 @@ impl TurnsCtx for FakeHost {
         }
         self.passed.borrow_mut().push(serde_json::to_value(&event).expect("an event serializes"))
     }
-    async fn persist_sessions(&self, workspace_id: &str) -> Result<(), HostError> {
+    fn persist_sessions(&self, workspace_id: &str) -> LocalBoxFuture<'static, ()> {
         self.hooks.log("persist_sessions", vec![workspace_id.to_string()]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> LocalBoxFuture<'static, Result<(), HostError>>>("TurnsCtx::persist_sessions") {
-            return hook(workspace_id).await;
+        if let Some(hook) = self.hooks.get::<dyn Fn(&str) -> LocalBoxFuture<'static, ()>>("TurnsCtx::persist_sessions") {
+            return hook(workspace_id);
         }
-        Ok(())
+        futures::FutureExt::boxed_local(async {})
     }
     async fn persist_record(&self, record: WorkspaceRecord) -> Result<(), HostError> {
         self.hooks.log("persist_record", vec![]);
@@ -835,8 +837,8 @@ impl TurnsCtx for FakeHost {
         }
         false
     }
-    fn turn_groups(&self) -> Rc<RefCell<IndexMap<String, IndexMap<u32, String>>>> {
-        if let Some(hook) = self.hooks.get::<dyn Fn() -> Rc<RefCell<IndexMap<String, IndexMap<u32, String>>>>>("TurnsCtx::turn_groups") {
+    fn turn_groups(&self) -> Rc<RefCell<IndexMap<String, IndexMap<i64, String>>>> {
+        if let Some(hook) = self.hooks.get::<dyn Fn() -> Rc<RefCell<IndexMap<String, IndexMap<i64, String>>>>>("TurnsCtx::turn_groups") {
             return hook();
         }
         self.turn_groups.clone()
@@ -961,14 +963,15 @@ impl TurnsCtx for FakeHost {
         }
         panic!("FakeHost: TurnsCtx::adapter_for has no answer; set its hook")
     }
-    async fn open_thread(&self, workspace_id: &str, thread_id: &str) -> Result<Vec<SessionEvent>, HostError> {
+    fn open_thread(&self, workspace_id: &str, thread_id: &str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>> {
         self.hooks.log("open_thread", vec![workspace_id.to_string(), thread_id.to_string()]);
         if let Some(hook) =
             self.hooks.get::<dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>>("TurnsCtx::open_thread")
         {
-            return hook(workspace_id, thread_id).await;
+            return hook(workspace_id, thread_id);
         }
-        Ok(self.thread_events(thread_id))
+        let events = self.thread_events(thread_id);
+        futures::FutureExt::boxed_local(async move { Ok(events) })
     }
     fn spawn(&self, work: LocalBoxFuture<'static, ()>) {
         if let Some(hook) = self.hooks.get::<dyn Fn(LocalBoxFuture<'static, ()>) -> ()>("TurnsCtx::spawn") {

@@ -79,7 +79,7 @@ pub trait ConversationsCtx {
     fn transcript_state(&self) -> StateCell<TranscriptState>;
     /// `ctx.live.get(ws)?.record.project`.
     fn live_project(&self, workspace_id: &str) -> Option<String>;
-    fn with_daemon(&self, entry: &Entry, frame: Map<String, Value>) -> LocalBoxFuture<'static, Result<Value, AccountError>>;
+    fn with_daemon(&self, entry: &Entry, frame: Value) -> LocalBoxFuture<'static, Result<Value, AccountError>>;
     /// `harnessExec(machine, ms)` as a road's exec.
     fn harness_exec(&self, entry: &Entry, timeout_ms: u64) -> Arc<dyn wsp_adapters::port::HarnessExec>;
     fn project_held(&self, project: &str) -> ProjectView;
@@ -292,7 +292,7 @@ impl ConversationsArea {
                 let ctx = ctx.clone();
                 let entry = owned.clone();
                 async move {
-                    match ctx.with_daemon(&entry, frame).await {
+                    match ctx.with_daemon(&entry, Value::Object(frame)).await {
                         Ok(Value::Object(reply)) => Ok(reply),
                         Ok(_) => Ok(Map::new()),
                         Err(e) => Err(ExecFailure { kind: ExecFailureKind::Other, message: e.message() }),

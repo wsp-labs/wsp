@@ -608,12 +608,14 @@ fn y10_recheck_runs_every_5s_and_stops() {
             for (ws, g) in area.turn_groups.borrow().iter() {
                 groups.insert(ws.clone(), json!(g.keys().collect::<Vec<_>>()));
             }
-            json!({ "name": name, "moved": w.moved.get(), "armed": w.recheck.borrow().is_some(), "watches": watches, "groups": groups })
+            json!({ "name": name, "moved": w.moved.get(), "armed": w.state.with(|s| s.roots_recheck.is_some()), "watches": watches, "groups": groups })
         };
         let mut steps = vec![snap("watching")];
         area.arm_roots_recheck();
         area.arm_roots_recheck();
-        steps.push(json!({ "name": "armed twice, one stands", "same": w.clock.pending() == 1 && w.recheck.borrow().is_some() }));
+        steps.push(
+            json!({ "name": "armed twice, one stands", "same": w.clock.pending() == 1 && w.state.with(|s| s.roots_recheck.is_some()) }),
+        );
         w.advance(4_999);
         settle().await;
         steps.push(snap("4999 ms"));
@@ -636,7 +638,7 @@ fn y10_recheck_runs_every_5s_and_stops() {
         set_groups(&area, "ws_z", &[(3100, "th_9")]);
         w.groups.borrow_mut().insert(3100);
         area.arm_roots_recheck();
-        steps.push(json!({ "name": "armed again after it stopped", "armed": w.recheck.borrow().is_some() }));
+        steps.push(json!({ "name": "armed again after it stopped", "armed": w.state.with(|s| s.roots_recheck.is_some()) }));
         same(json!(steps), &f);
     });
 }

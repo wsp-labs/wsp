@@ -62,6 +62,16 @@ impl From<HostError> for AccountError {
     }
 }
 
+/// A host error stays as it is; a daemon's refusal keeps the code it came with, which a caller tells it apart by.
+impl From<AccountError> for HostError {
+    fn from(e: AccountError) -> Self {
+        match e {
+            AccountError::Host(error) => error,
+            AccountError::Refusal(refusal) => HostError { code: refusal.code, ..HostError::new(refusal.message) },
+        }
+    }
+}
+
 impl From<DaemonRefusal> for AccountError {
     fn from(e: DaemonRefusal) -> Self {
         AccountError::Refusal(e)

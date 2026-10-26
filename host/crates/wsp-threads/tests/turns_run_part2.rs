@@ -111,7 +111,7 @@ fn a_shared_daemon_turn_names_its_group() {
             vec!["idle_hold(w1)", "arm_disk_watch", "shared_daemon", "arm_roots_recheck", "port_roots_moved(w1)", "persist_sessions(w1)"]
         );
         let mut group = IndexMap::new();
-        group.insert(4321u32, THREAD.to_string());
+        group.insert(4321i64, THREAD.to_string());
         let mut groups = IndexMap::new();
         groups.insert(W.to_string(), group.clone());
         assert_eq!(*host.turn_groups.borrow(), groups);
@@ -123,7 +123,7 @@ fn a_shared_daemon_turn_names_its_group() {
         t.thread_id = "t2".into();
         t.turn_id = "turn-2".into();
         TurnsArea::new(host.clone()).run_turn(t).expect("a second turn");
-        group.insert(77u32, "t2".to_string());
+        group.insert(77i64, "t2".to_string());
         groups.insert(W.to_string(), group);
         assert_eq!(*host.turn_groups.borrow(), groups, "a second turn joins the workspace's group");
     });

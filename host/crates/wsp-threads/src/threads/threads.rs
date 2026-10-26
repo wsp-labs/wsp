@@ -9,6 +9,7 @@ use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 use serde_json::Value;
 use wsp_account::account::core_types::AccountError;
+use wsp_adapters::port::PermissionAsk;
 use wsp_core::clock::Clock;
 use wsp_core::context::Joined;
 use wsp_core::ids::Ids;
@@ -18,7 +19,7 @@ use wsp_core::types::wiring::{SessionHandle, WorkspaceRecord};
 use wsp_store::store::Store;
 use wsp_wire::types::attachments::Attachment;
 use wsp_wire::types::usage::AccountLimit;
-use wsp_wire::views::session::{SessionView, ThreadPrompt};
+use wsp_wire::views::session::SessionView;
 use wsp_wire::views::session_events_more::SessionEvent;
 use wsp_wire::views::workspace::{Caller, ProjectView, ReachState};
 use wsp_wire::wire::events_union::EventUnion;
@@ -152,7 +153,7 @@ pub struct ThreadsArea {
     /// threads.ts:173
     pub host_writes: RefCell<IndexMap<String, Joined>>,
     /// threads.ts:367
-    pub lead_asks: RefCell<IndexMap<String, ThreadPrompt>>,
+    pub lead_asks: Rc<RefCell<IndexMap<String, PermissionAsk>>>,
     /// threads.ts:374
     pub cap_held: RefCell<IndexMap<String, CapHeld>>,
     /// threads.ts:375
@@ -172,7 +173,7 @@ pub struct ThreadsArea {
     /// threads.ts:864
     pub steers_out: RefCell<IndexMap<String, SteerOut>>,
     /// threads.ts:962
-    pub checkpoints_landing: RefCell<IndexMap<String, Joined>>,
+    pub checkpoints_landing: Rc<RefCell<IndexMap<String, Joined>>>,
 }
 
 impl ThreadsArea {
@@ -186,7 +187,7 @@ impl ThreadsArea {
             me: me.clone(),
             kept_agents: RefCell::default(),
             host_writes: RefCell::default(),
-            lead_asks: RefCell::default(),
+            lead_asks: Rc::default(),
             cap_held: RefCell::default(),
             cap_order: Cell::new(0),
             held_writes: RefCell::default(),
@@ -196,7 +197,7 @@ impl ThreadsArea {
             prompt_waits: RefCell::default(),
             dark_tries: RefCell::default(),
             steers_out: RefCell::default(),
-            checkpoints_landing: RefCell::default(),
+            checkpoints_landing: Rc::default(),
         });
         let weak = Rc::downgrade(&area);
         let borrowed_listener: EventListener = Rc::new(move |e: &EventUnion| {

@@ -308,11 +308,11 @@ impl Rig {
             }),
         );
         let l = log.clone();
-        host.hooks.set::<dyn Fn(&str) -> LocalBoxFuture<'static, Result<(), HostError>>>(
+        host.hooks.set::<dyn Fn(&str) -> LocalBoxFuture<'static, ()>>(
             "SessionsCtx::persist_sessions",
             Rc::new(move |id: &str| {
                 l.lock().unwrap().push(format!("persist_sessions {id}"));
-                async { Ok::<(), HostError>(()) }.boxed_local()
+                async {}.boxed_local()
             }),
         );
         let l = log.clone();
@@ -1175,22 +1175,40 @@ fn a_rewind_writes_the_threads_record_in_the_bytes_node_writes() {
     let rewinds: Vec<Value> = all.into_iter().filter(|c| c["road"] == "rewind").collect();
     assert_eq!(rewinds.len(), 5);
     for case in rewinds {
-        run_local(async move {
-            let mut shape = Shape::new(Cuts::Copy);
-            shape.record = None;
-            let r = Rig::new(shape);
-            if let Some(held) = case["before"].as_object() {
-                let record = wsp_core::types::internal::ThreadRecord::from_map(held.clone()).expect("the record literal");
-                r.host.records.borrow_mut().insert(T.to_string(), record);
-            }
-            r.to(1, true).await.unwrap();
-            let held = r.host.records.borrow()[T].clone();
-            let before = format!("{}-before-1", checkpoint_ref(1));
-            let expected = case["after"]
-                .as_str()
-                .expect("the bytes")
-                .replace("\"before\":\"abc\",\"at\":77", &format!("\"before\":{},\"at\":{}", json!(before), T0));
-            assert_eq!(serde_json::to_string(&held).expect("serializes"), expected, "{}", case["name"]);
-        });
+        let befores: Vec<Option<wsp_core::types::internal::ThreadRecord>> =
+            if case["before"].is_object() { record_variants(&case["before"]).into_iter().map(Some).collect() } else { vec![None] };
+        for before in befores {
+            let case = case.clone();
+            run_local(async move {
+                let mut shape = Shape::new(Cuts::Copy);
+                shape.record = None;
+                let r = Rig::new(shape);
+                if let Some(record) = before {
+                    r.host.records.borrow_mut().insert(T.to_string(), record);
+                }
+                r.to(1, true).await.unwrap();
+                let held = r.host.records.borrow()[T].clone();
+                let before = format!("{}-before-1", checkpoint_ref(1));
+                let expected = case["after"]
+                    .as_str()
+                    .expect("the bytes")
+                    .replace("\"before\":\"abc\",\"at\":77", &format!("\"before\":{},\"at\":{}", json!(before), T0));
+                assert_eq!(serde_json::to_string(&held).expect("serializes"), expected, "{}", case["name"]);
+            });
+        }
+    }
+}
+
+/// The record as a road made it (its keys in the order the TS inserted them), and again as a restart reads it back,
+/// which writes the struct's order, where that is the same record.
+fn record_variants(before: &Value) -> Vec<wsp_core::types::internal::ThreadRecord> {
+    use wsp_core::types::internal::ThreadRecord;
+    let road = ThreadRecord::from_map(before.as_object().expect("a record").clone()).expect("the record literal");
+    let hydrated: ThreadRecord = serde_json::from_value(before.clone()).expect("the record literal");
+    let same = serde_json::to_string(&hydrated).expect("serializes") == serde_json::to_string(&road).expect("serializes");
+    if same {
+        vec![road, hydrated]
+    } else {
+        vec![road]
     }
 }

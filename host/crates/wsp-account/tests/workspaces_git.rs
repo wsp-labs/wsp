@@ -835,7 +835,7 @@ fn viewed_sets_and_clears_a_mark_and_emits() {
         assert_eq!(j(&two), json!({ "viewed": { "a.ts": "b1", "b.ts": "b2" } }));
         let off = area::viewed(&w.ctx, "ws1", mark("b.ts", None), origin()).await.expect("a mark clears");
         assert_eq!(j(&off), json!({ "viewed": { "a.ts": "b1" } }));
-        assert_eq!(j(w.fake.viewed.borrow().get("ws1").unwrap()), json!({ "viewed": { "a.ts": "b1" } }));
+        assert_eq!(j(w.fake.viewed.borrow().get("ws1").unwrap()), json!({ "a.ts": "b1" }));
         assert_eq!(
             w.base.events.borrow().clone(),
             vec![

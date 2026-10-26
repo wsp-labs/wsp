@@ -8,7 +8,7 @@ use wsp_core::console;
 use wsp_core::types::internal::{ThreadRecord, TurnAsked};
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_wire::types::place_word::HERE_PLACE_ID;
-use wsp_wire::views::session::{SessionStatus, SessionView, ThreadWaitingOn};
+use wsp_wire::views::session::{SessionStatus, SessionView, ThreadPrompt, ThreadWaitingOn};
 use wsp_wire::views::session_events::NOTIFY_ME;
 use wsp_wire::views::workspace::{scope_of, Caller};
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
@@ -242,8 +242,17 @@ impl ThreadsArea {
                 }),
             };
             for thread_id in behind {
-                let Some(prompt) = self.lead_asks.borrow().get(&thread_id).cloned() else {
+                let Some(ask) = self.lead_asks.borrow().get(&thread_id).cloned() else {
                     continue;
+                };
+                let prompt = ThreadPrompt {
+                    ask_id: ask.ask_id,
+                    tool_name: ask.tool_name,
+                    tool_use_id: ask.tool_use_id,
+                    parent_tool_use_id: ask.parent_tool_use_id,
+                    input: ask.input,
+                    detail: ask.detail,
+                    options: ask.options,
                 };
                 if thread_id == caller {
                     continue;

@@ -14,6 +14,7 @@ use wsp_account::account::channels::copy::{ChildRoad, ShellToken};
 use wsp_account::account::channels::{ChannelsArea, ChannelsCtx, TerminalSignIn, ThreadLaunch, WORKSPACE_FRAMES};
 use wsp_account::account::core_types::{AccountError, AccountResult, Entry, Frame, Release, Served};
 use wsp_core::clock::Cancel;
+use wsp_core::context::{RuntimeState, StateCell};
 use wsp_core::daemon_channel::{ChannelEnd, ChannelError, DaemonChannel};
 use wsp_core::devices::{DeviceDoor, HeldDevice, IssuedCode, MintMore, PairedDevice, ScopedRoad};
 use wsp_core::types::internal::ThreadRecord;
@@ -566,8 +567,8 @@ impl ChannelsCtx for Sim {
         false
     }
     fn proc_scopes_moved(&self) {}
-    fn roots_recheck(&self) -> Rc<RefCell<Option<Cancel>>> {
-        Rc::new(RefCell::new(None))
+    fn state(&self) -> StateCell<RuntimeState> {
+        StateCell::new(RuntimeState::default())
     }
     fn box_panels_ctx(&self) -> Rc<dyn BoxPanelsCtx> {
         Rc::new(SimPanels { fx: self.fx.clone(), bus: self.bus.clone(), w: self.w.clone() })

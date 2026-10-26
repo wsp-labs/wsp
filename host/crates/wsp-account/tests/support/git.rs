@@ -26,7 +26,7 @@ use wsp_core::types::api::FolderForAsk;
 use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::pending::Store;
 use wsp_core::types::wiring::{RunningExec, WorkspaceRecord};
-use wsp_wire::types::changes::{Checkout, ViewedMarks};
+use wsp_wire::types::changes::Checkout;
 use wsp_wire::types::pull_request::{GitUpdateReply, PullRequestPage};
 use wsp_wire::types::tree::TreeRecord;
 use wsp_wire::views::preferences::Preferences;
@@ -70,7 +70,7 @@ impl ExecStream for FakeStream {
 pub struct FakeGit {
     pub base: Rc<FakeBase>,
     inner: BaseOf,
-    pub viewed: Rc<RefCell<IndexMap<String, ViewedMarks>>>,
+    pub viewed: Rc<RefCell<IndexMap<String, IndexMap<String, String>>>>,
     pub kills: Arc<AtomicUsize>,
     /// The shell lines each `put_files` was told to run before it wrote.
     pub put_before: Rc<RefCell<Vec<Vec<String>>>>,
@@ -363,7 +363,7 @@ impl GitCtx for FakeGit {
         self.base.call("draft_for", json!({ "id": id_of(entry), "agent": agent, "promptFile": prompt_file, "model": model }));
         self.base.answer_as::<Option<String>>("draft_for", || Some("Round the cart total once\n\nThe total rounded per line.".to_owned()))
     }
-    fn viewed_marks(&self) -> Rc<RefCell<IndexMap<String, ViewedMarks>>> {
+    fn viewed_marks(&self) -> Rc<RefCell<IndexMap<String, IndexMap<String, String>>>> {
         self.viewed.clone()
     }
     async fn persist_sessions(&self, workspace_id: &str) -> Result<(), HostError> {

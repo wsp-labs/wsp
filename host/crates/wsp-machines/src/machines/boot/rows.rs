@@ -655,7 +655,7 @@ impl BootArea {
                 )));
             }
             let base = match record {
-                Some(r) => object(serde_json::to_value(&r).unwrap_or(Value::Null)),
+                Some(r) => r.to_map(),
                 None => {
                     let harness = latest
                         .as_ref()
@@ -678,12 +678,13 @@ impl BootArea {
             let mut next = base;
             for (key, value) in &stamps {
                 if value.is_null() {
-                    next.remove(key);
+                    next.shift_remove(key);
                 } else {
                     next.insert(key.clone(), value.clone());
                 }
             }
-            let on: ThreadRecord = parse(Value::Object(next.clone()))?;
+            let on =
+                ThreadRecord::from_map(next.clone()).map_err(|e| HostError::new(e.to_string()))?;
             self.rt
                 .thread_records()
                 .borrow_mut()

@@ -20,12 +20,24 @@ fn cases(road: &str) -> Vec<Value> {
     all.into_iter().filter(|c| c["road"] == road).collect()
 }
 
-fn held(case: &Value) -> ThreadRecord {
-    ThreadRecord::from_map(case["before"].as_object().expect("a record").clone()).expect("the record literal")
+/// The record as a road made it (its keys in the order the TS inserted them), and again as a restart reads it back,
+/// which writes the struct's order, where that is the same record.
+fn variants(before: &Value) -> Vec<ThreadRecord> {
+    let road = ThreadRecord::from_map(before.as_object().expect("a record").clone()).expect("the record literal");
+    let hydrated: ThreadRecord = serde_json::from_value(before.clone()).expect("the record literal");
+    let same = serde_json::to_string(&hydrated).expect("serializes") == serde_json::to_string(&road).expect("serializes");
+    if same {
+        vec![road, hydrated]
+    } else {
+        vec![road]
+    }
 }
 
 fn sess(id: &str, thread: &str, status: &str, started_at: i64) -> Row {
-    row(view(json!({ "id": id, "workspaceId": "w1", "status": status, "threadId": thread, "startedAt": started_at })), &format!("turn-{id}"))
+    row(
+        view(json!({ "id": id, "workspaceId": "w1", "status": status, "threadId": thread, "startedAt": started_at })),
+        &format!("turn-{id}"),
+    )
 }
 
 fn without_workspace(after: &str) -> String {
@@ -52,23 +64,26 @@ fn live() -> std::rc::Rc<FakeTranscriptsCtx> {
 #[test]
 fn a_row_the_cap_drops_ends_its_threads_record_in_the_bytes_node_writes() {
     let all = cases("end");
-    assert_eq!(all.len(), 3);
+    assert_eq!(all.len(), 4);
     for case in all {
-        local(async move {
-            let ctx = live();
-            let mut rows = vec![sess("r1", "t1", "failed", 1), sess("r1b", "t1", "completed", 2)];
-            rows.extend((0..199).map(|i| sess(&format!("f{i:03}"), &format!("tf{i:03}"), "completed", 100 + i)));
-            ctx.sessions.with(|s| *s = sessions_of(rows).take());
-            ctx.thread_records.with(|t| {
-                t.insert("t1".into(), held(&case));
+        for held in variants(&case["before"]) {
+            let case = case.clone();
+            local(async move {
+                let ctx = live();
+                let mut rows = vec![sess("r1", "t1", "failed", 1), sess("r1b", "t1", "completed", 2)];
+                rows.extend((0..199).map(|i| sess(&format!("f{i:03}"), &format!("tf{i:03}"), "completed", 100 + i)));
+                ctx.sessions.with(|s| *s = sessions_of(rows).take());
+                ctx.thread_records.with(|t| {
+                    t.insert("t1".into(), held);
+                });
+                let area = ctx.area();
+                area.persist_sessions("w1").await;
+                assert_eq!(ctx.sessions.with(|s| s.len()), SESSION_INDEX_CAP);
+                let after = case["after"].as_str().expect("the bytes");
+                assert_eq!(wrote(&ctx, "t1"), after, "{}", case["name"]);
+                assert_eq!(stored(&ctx, "t1"), without_workspace(after), "{}: the document", case["name"]);
             });
-            let area = ctx.area();
-            area.persist_sessions("w1").await;
-            assert_eq!(ctx.sessions.with(|s| s.len()), SESSION_INDEX_CAP);
-            let after = case["after"].as_str().expect("the bytes");
-            assert_eq!(wrote(&ctx, "t1"), after, "{}", case["name"]);
-            assert_eq!(stored(&ctx, "t1"), without_workspace(after), "{}: the document", case["name"]);
-        });
+        }
     }
 }
 
@@ -77,19 +92,22 @@ fn a_settled_row_that_did_work_marks_its_thread_worked_in_the_bytes_node_writes(
     let all = cases("worked");
     assert_eq!(all.len(), 2);
     for case in all {
-        local(async move {
-            let ctx = live();
-            let did = sess("r1", "t1", "completed", 1);
-            did.borrow_mut().view.claude_session_id = Some("c1".into());
-            ctx.sessions.with(|s| *s = sessions_of(vec![did]).take());
-            ctx.thread_records.with(|t| {
-                t.insert("t1".into(), held(&case));
+        for held in variants(&case["before"]) {
+            let case = case.clone();
+            local(async move {
+                let ctx = live();
+                let did = sess("r1", "t1", "completed", 1);
+                did.borrow_mut().view.claude_session_id = Some("c1".into());
+                ctx.sessions.with(|s| *s = sessions_of(vec![did]).take());
+                ctx.thread_records.with(|t| {
+                    t.insert("t1".into(), held);
+                });
+                let area = ctx.area();
+                area.persist_sessions("w1").await;
+                let after = case["after"].as_str().expect("the bytes");
+                assert_eq!(wrote(&ctx, "t1"), after, "{}", case["name"]);
+                assert_eq!(stored(&ctx, "t1"), without_workspace(after), "{}: the document", case["name"]);
             });
-            let area = ctx.area();
-            area.persist_sessions("w1").await;
-            let after = case["after"].as_str().expect("the bytes");
-            assert_eq!(wrote(&ctx, "t1"), after, "{}", case["name"]);
-            assert_eq!(stored(&ctx, "t1"), without_workspace(after), "{}: the document", case["name"]);
-        });
+        }
     }
 }

@@ -85,7 +85,7 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     fn pass(&self, event: EventUnion);
     /// `bus.on("*")` for this turn's `session.start` and `session.end`; answers the listener's off.
     fn on_turn_settled(&self, turn_id: &str, f: Rc<dyn Fn()>) -> Rc<dyn Fn()>;
-    async fn persist_sessions(&self, workspace_id: &str) -> Result<(), HostError>;
+    fn persist_sessions(&self, workspace_id: &str) -> LocalBoxFuture<'static, ()>;
     fn push_head(&self, thread_id: &str);
     fn agent_label(&self, harness: &str) -> String;
     fn waits(&self) -> WaitsArea;
@@ -257,7 +257,7 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     async fn drop_sent_images(&self, workspace_id: &str, thread_ids: &[String]) -> Result<(), HostError>;
     fn end_kept(&self, thread_id: &str, kept: &Rc<RefCell<KeptProcess>>);
     /// `ctx.seedFor(...)`: the thread's earlier turns as its seed, this turn left out.
-    async fn open_thread(&self, workspace_id: &str, thread_id: &str) -> Result<Vec<SessionEvent>, HostError>;
+    fn open_thread(&self, workspace_id: &str, thread_id: &str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>;
 
     // sessions_reads
     fn tree_stands_on(&self, workspace_id: &str, origin: Option<&Caller>, talk: Option<TreeTalk>) -> bool;
@@ -275,7 +275,7 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     async fn read_page(&self, workspace_id: &str, thread_id: &str, window: ThreadRead) -> Result<HistoryPage, HostError>;
     fn thread_facts(&self, thread_id: &str) -> Option<ThreadFacts>;
     async fn facts_after_read(&self, thread_id: &str, origin: Option<&Caller>) -> Result<Option<ThreadFacts>, HostError>;
-    async fn kept_writes(&self, workspace_id: &str);
+    fn kept_writes(&self, workspace_id: &str) -> Option<Joined>;
     async fn store_get(&self, collection: &str, id: &str) -> Result<Option<Value>, HostError>;
     async fn store_get_blob(&self, collection: &str, key: &str) -> Result<Option<Vec<u8>>, HostError>;
     fn index_workspaces(&self) -> Vec<String>;

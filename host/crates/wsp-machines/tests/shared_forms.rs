@@ -20,11 +20,15 @@ fn the_failed_creates_an_area_keeps_are_the_map_it_hands_out_and_a_new_create_cl
         let w = World::small();
         let held: Rc<RefCell<IndexMap<String, WorkspaceView>>> = w.area.failed_creates.clone();
         for (key, name) in [("f1", "w1"), ("f2", "w2")] {
-            held.borrow_mut().insert(key.to_string(), view_of(&format!("v-{key}"), name));
+            held.borrow_mut()
+                .insert(key.to_string(), view_of(&format!("v-{key}"), name));
         }
         assert!(Rc::ptr_eq(&held, &w.area.failed_creates));
         w.area.supersede_failed("w1");
-        assert_eq!(held.borrow().keys().cloned().collect::<Vec<_>>(), vec!["f2".to_string()]);
+        assert_eq!(
+            held.borrow().keys().cloned().collect::<Vec<_>>(),
+            vec!["f2".to_string()]
+        );
     })
 }
 
@@ -35,6 +39,9 @@ fn the_shown_creates_an_area_keeps_are_the_map_it_hands_out() {
         let held: Rc<RefCell<IndexMap<String, WorkspaceView>>> = w.area.shown_creates.clone();
         w.area.show_create(view_of("s1", "shown"));
         assert!(Rc::ptr_eq(&held, &w.area.shown_creates));
-        assert_eq!(held.borrow().keys().cloned().collect::<Vec<_>>(), vec!["s1".to_string()]);
+        assert_eq!(
+            held.borrow().keys().cloned().collect::<Vec<_>>(),
+            vec!["s1".to_string()]
+        );
     })
 }

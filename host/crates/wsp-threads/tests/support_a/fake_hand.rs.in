@@ -126,7 +126,8 @@
         Some(hold)
 //@end
 //@ TurnsCtx::open_thread
-        Ok(self.thread_events(thread_id))
+        let events = self.thread_events(thread_id);
+        futures::FutureExt::boxed_local(async move { Ok(events) })
 //@end
 //@ SessionsCtx::clock
         self.clock.clock()
@@ -228,7 +229,8 @@
         true
 //@end
 //@ SessionsCtx::open_thread
-        Ok(self.thread_events(thread_id))
+        let events = self.thread_events(thread_id);
+        futures::FutureExt::boxed_local(async move { Ok(events) })
 //@end
 //@ SessionsCtx::open_transcript
         Ok(self.recorded.borrow().clone())
@@ -271,4 +273,13 @@
 //@end
 //@ TurnsCtx::spawn
         spawn_detached(work);
+//@end
+//@ TurnsCtx::persist_sessions
+        futures::FutureExt::boxed_local(async {})
+//@end
+//@ SessionsCtx::persist_sessions
+        futures::FutureExt::boxed_local(async {})
+//@end
+//@ ActivityCtx::with_daemon
+        futures::FutureExt::boxed_local(async { Ok(Value::Object(Map::new())) })
 //@end

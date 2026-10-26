@@ -605,11 +605,11 @@ impl Lab {
             }),
         );
         let d = self.boxd.clone();
-        h.set::<dyn Fn(&Entry, Value) -> LocalBoxFuture<'static, Result<Map<String, Value>, HostError>>>(
+        h.set::<dyn Fn(&Entry, Value) -> LocalBoxFuture<'static, Result<Value, AccountError>>>(
             "ActivityCtx::with_daemon",
             Rc::new(move |_e: &Entry, frame: Value| {
                 let asked = d.ask_direct(frame);
-                async move { asked.await.map_err(host_err) }.boxed_local()
+                async move { asked.await.map(Value::Object) }.boxed_local()
             }),
         );
     }

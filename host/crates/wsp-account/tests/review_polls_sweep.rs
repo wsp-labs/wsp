@@ -51,7 +51,7 @@ fn review_control_the_same_sweep_awaited_by_hand_marks_the_tree_gone() {
     folders.arm_sweep();
     run(async {
         base.clock.advance(SWEEP_MS);
-        let sweeping = fake.sweep.borrow().sweeping.clone().expect("the sweep is in flight");
+        let sweeping = fake.state.with(|s| s.sweeping.clone()).expect("the sweep is in flight");
         sweeping.await;
     });
     let tree: Value = rec_json(&entry).get("worktree").cloned().unwrap_or(Value::Null);

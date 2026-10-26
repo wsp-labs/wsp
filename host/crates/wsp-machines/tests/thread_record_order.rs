@@ -20,6 +20,22 @@ fn cases(road: &str) -> Vec<Value> {
     all.into_iter().filter(|c| c["road"] == road).collect()
 }
 
+/// The record as a road made it (its keys in the order the TS inserted them), and again as a restart reads it back,
+/// which writes the struct's order, where that is the same record.
+fn variants(before: &Value) -> Vec<ThreadRecord> {
+    let road = ThreadRecord::from_map(before.as_object().expect("a record").clone())
+        .expect("the record literal");
+    let hydrated: ThreadRecord =
+        serde_json::from_value(before.clone()).expect("the record literal");
+    let same = serde_json::to_string(&hydrated).expect("serializes")
+        == serde_json::to_string(&road).expect("serializes");
+    if same {
+        vec![road, hydrated]
+    } else {
+        vec![road]
+    }
+}
+
 fn object(v: &Value) -> Map<String, Value> {
     v.as_object().expect("an object").clone()
 }
@@ -29,19 +45,30 @@ fn every_stamp_the_boot_road_marks_writes_the_bytes_node_writes() {
     let marks = cases("mark");
     assert!(marks.len() >= 20, "the cases were made");
     for case in marks {
-        let name = case["name"].as_str().unwrap_or_default().to_string();
-        common::run_local(async move {
-            let w = BootWorld::rows(BootOpts { live: json!({"w1": {}}), ..BootOpts::default() });
-            w.started().await;
-            w.rt.add_record("t1", ThreadRecord::from_map(object(&case["before"])).expect("the record literal"));
-            w.area
-                .mark(&["t1".into()], Stamped::Same(object(&case["input"])), None)
-                .await
-                .expect("mark");
-            let held = w.rt.thread_records.borrow().get("t1").cloned().expect("the record is held");
-            let wrote = serde_json::to_string(&held).expect("serializes");
-            assert_eq!(wrote, case["after"].as_str().expect("the bytes"), "{name}");
-        });
+        for held in variants(&case["before"]) {
+            let case = case.clone();
+            let name = case["name"].as_str().unwrap_or_default().to_string();
+            common::run_local(async move {
+                let w = BootWorld::rows(BootOpts {
+                    live: json!({"w1": {}}),
+                    ..BootOpts::default()
+                });
+                w.started().await;
+                w.rt.thread_records.borrow_mut().insert("t1".to_string(), held);
+                w.area
+                    .mark(&["t1".into()], Stamped::Same(object(&case["input"])), None)
+                    .await
+                    .expect("mark");
+                let held =
+                    w.rt.thread_records
+                        .borrow()
+                        .get("t1")
+                        .cloned()
+                        .expect("the record is held");
+                let wrote = serde_json::to_string(&held).expect("serializes");
+                assert_eq!(wrote, case["after"].as_str().expect("the bytes"), "{name}");
+            });
+        }
     }
 }
 
@@ -54,10 +81,22 @@ fn a_thread_with_no_record_marked_twice_keeps_the_order_the_stamps_came_in() {
             ..BootOpts::default()
         });
         w.started().await;
-        for stamp in [json!({"settledAt": 4}), json!({"snoozedUntil": 9, "readAt": 5}), json!({"order": 1})] {
-            w.area.mark(&["t1".into()], Stamped::Same(object(&stamp)), None).await.expect("mark");
+        for stamp in [
+            json!({"settledAt": 4}),
+            json!({"snoozedUntil": 9, "readAt": 5}),
+            json!({"order": 1}),
+        ] {
+            w.area
+                .mark(&["t1".into()], Stamped::Same(object(&stamp)), None)
+                .await
+                .expect("mark");
         }
-        let held = w.rt.thread_records.borrow().get("t1").cloned().expect("held");
+        let held =
+            w.rt.thread_records
+                .borrow()
+                .get("t1")
+                .cloned()
+                .expect("held");
         assert_eq!(
             serde_json::to_string(&held).expect("serializes"),
             r#"{"workspaceId":"w1","harness":"claude","settledAt":4,"snoozedUntil":9,"readAt":5,"order":1}"#

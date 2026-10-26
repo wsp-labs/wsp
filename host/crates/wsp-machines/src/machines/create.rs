@@ -173,9 +173,9 @@ pub struct CreateArea {
     /// `forking`: names whose fork is between its check and its first machine.
     pub forking: RefCell<IndexSet<String>>,
     /// `failedCreates`: creates that failed before any machine was recorded.
-    pub failed_creates: RefCell<IndexMap<String, ShownCreate>>,
+    pub failed_creates: Rc<RefCell<IndexMap<String, ShownCreate>>>,
     /// `shownCreates`: forks a thread asked for, shown under it before their record lands.
-    pub shown_creates: RefCell<IndexMap<String, ShownCreate>>,
+    pub shown_creates: Rc<RefCell<IndexMap<String, ShownCreate>>>,
     /// `createStages`: each create in flight's last stage, without its `seq`.
     pub create_stages: RefCell<IndexMap<String, WorkspaceCreatingEvent>>,
     pub(crate) folder_making: RefCell<IndexMap<String, FolderJoin>>,
@@ -229,8 +229,8 @@ impl CreateArea {
             rt,
             me: me.clone(),
             forking: RefCell::default(),
-            failed_creates: RefCell::default(),
-            shown_creates: RefCell::default(),
+            failed_creates: Rc::default(),
+            shown_creates: Rc::default(),
             create_stages: RefCell::default(),
             folder_making: RefCell::default(),
         })

@@ -254,7 +254,7 @@ fn thread_title_folds_the_rows_else_the_thread_word() {
     assert_eq!(area.thread_title("t9zzzzzzzzzz"), "t9zzzzzz");
 }
 
-fn ask(id: &str) -> wsp_wire::views::session::ThreadPrompt {
+fn ask(id: &str) -> wsp_adapters::port::PermissionAsk {
     serde_json::from_value(json!({ "askId": id, "toolName": "Bash", "input": "{}", "options": [] })).expect("a prompt")
 }
 

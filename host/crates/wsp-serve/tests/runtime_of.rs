@@ -93,7 +93,11 @@ impl PublicCtx for Sweep {
         self.script.record("forgetBuilder", json!({ "id": builder_id }));
         Ok(())
     }
-    async fn replay_creates(&self, known: &dyn Fn() -> Vec<String>, _failed: &mut Vec<ReapFailure>) -> Result<Vec<ReapedMachine>, HostError> {
+    async fn replay_creates(
+        &self,
+        known: &dyn Fn() -> Vec<String>,
+        _failed: &mut Vec<ReapFailure>,
+    ) -> Result<Vec<ReapedMachine>, HostError> {
         self.replay_known.borrow_mut().push(known());
         let call = self.script.record("replayCreates", json!({}));
         self.script.answer(&call).unwrap_or(Ok(vec![]))

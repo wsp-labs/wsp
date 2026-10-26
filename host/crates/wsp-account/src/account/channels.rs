@@ -22,6 +22,7 @@ use wsp_wire::wire::place_link::PlaceReport;
 use crate::account::box_panels::{BoxPanelsCtx, BoxPanelsOpener, Watchers};
 use crate::account::core_types::{AccountResult, Entry};
 use wsp_core::clock::Cancel;
+use wsp_core::context::{RuntimeState, StateCell};
 use wsp_core::types::internal::ThreadRecord;
 
 pub mod copy;
@@ -181,8 +182,8 @@ pub trait ChannelsCtx {
     fn group_exists(&self, pgid: i64) -> bool;
     /// `ctx.procScopesMoved()`.
     fn proc_scopes_moved(&self);
-    /// `ctx.state.rootsRecheck`: the one interval that stands.
-    fn roots_recheck(&self) -> Rc<RefCell<Option<Cancel>>>;
+    /// `ctx.state`, whose `rootsRecheck` is the one interval that stands.
+    fn state(&self) -> StateCell<RuntimeState>;
     /// The box panels' context (`boxPanelsOpener(ctx, ...)`).
     fn box_panels_ctx(&self) -> Rc<dyn BoxPanelsCtx>;
 
@@ -223,7 +224,7 @@ pub trait ChannelsCtx {
 pub struct ChannelsArea {
     pub(crate) ctx: Rc<dyn ChannelsCtx>,
     /// channels.ts:67: the line a workspace's row shows while its daemon is updated.
-    pub daemon_notes: RefCell<IndexMap<String, String>>,
+    pub daemon_notes: Rc<RefCell<IndexMap<String, String>>>,
     /// channels.ts:303: each local workspace's pty → leading pid.
     pub port_pids: Rc<RefCell<IndexMap<String, IndexMap<String, i64>>>>,
     /// channels.ts:308: each owner's ptys.
@@ -276,7 +277,7 @@ impl ChannelsArea {
             }));
             ChannelsArea {
                 ctx,
-                daemon_notes: RefCell::default(),
+                daemon_notes: Rc::default(),
                 port_pids: Rc::default(),
                 pty_owners: RefCell::default(),
                 tags_held: RefCell::default(),
