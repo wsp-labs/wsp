@@ -265,7 +265,7 @@ fn order(host: &FakeHost, names: &[&str]) -> Vec<String> {
 }
 
 fn nothing_held(host: &FakeHost) {
-    assert!(host.rows.borrow().is_empty(), "a refusal holds no row");
+    assert!(host.rows.borrow().keys().all(|k| k.starts_with("sess-")), "a refusal holds no row of its own (only the fixtures' threads have rows)");
     assert_eq!(host.hooks.called("cap_hold"), Vec::<String>::new(), "a refusal holds no place under a cap");
 }
 
@@ -1304,7 +1304,7 @@ fn notify_refuses_itself_a_stranger_and_a_cycle() {
         // itself, by id and through me
         let fx = fx_on(Agent::default());
         fx.thread_on("t1", "w1", "claude");
-        hook!(fx.host, "SessionsCtx::thread_of_token", dyn Fn(&str) -> String, |_t: &str| "t1".to_string());
+        hook!(fx.host, "SessionsCtx::thread_of_token", dyn Fn(&str) -> Result<String, HostError>, |_t: &str| Ok("t1".to_string()));
         for opts in [
             StartOptions { thread: Some("t1".into()), notify: Some(strings(&["t1"])), ..go("again") },
             StartOptions { thread: Some("t1".into()), notify: Some(strings(&["me"])), turn_token: Some("tok".into()), ..go("again") },
@@ -1549,7 +1549,7 @@ fn a_plain_opening_prepares_everything_the_launch_needs() {
             ),
             strings(&[
                 "ready", "preferences_held", "preferences", "fork_opened(w1)", "entry_of(w1)", "default_agent_of", "agent_off(claude)", "confine_setup(claude)", "refuse_sub_send", "copy_blocked",
-                "worktree_mounted", "kept_check(thr-new)", "spawn_guard(thread_new)", "tree_of", "notify_on(thr-new)", "place_rows", "thread_launch(thr-new, thr-new, false)", "adapter_for"
+                "worktree_mounted", "kept_check(thr-new)", "spawn_guard(thread_new)", "tree_of", "notify_on(thr-new)", "place_rows", "thread_launch(thr-new, thr-new, false)", "adapter_for(claude)"
             ])
         );
 
