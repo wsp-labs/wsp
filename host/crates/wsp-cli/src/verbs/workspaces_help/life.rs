@@ -15,7 +15,7 @@ use wsp_wire::wire::runtime::{SessionInterruptOutcome, SessionRenameOutcome, Ses
 use wsp_words::exit::HostError;
 use wsp_words::start::ReviewVerdict;
 
-use crate::verbs::client::HostClient;
+use crate::verbs::client::{under, HostClient};
 use crate::verbs::turns_help::Turn;
 
 /// `RenamedWorkspace` (workspaces-help.ts:312): the name the workspace went in under and the record after.
@@ -57,7 +57,12 @@ pub struct Woken {
 /// `paused` or `pausing`, the woken record's `diskGone` is told too (even empty) and kept as `said`, and `woke` is
 /// true only if the record's phase now reads `running`; from any other state `woke` is false and no disk line is told.
 /// The workspace answered is the record the wake returned.
-pub async fn awake(client: &dyn HostClient, workspace: &WorkspaceView, action: &str, tell: &(dyn Fn(&str) + Send + Sync)) -> Result<Woken, HostError> {
+pub async fn awake(
+    client: &dyn HostClient,
+    workspace: &WorkspaceView,
+    action: &str,
+    tell: &(dyn Fn(&str) + Send + Sync),
+) -> Result<Woken, HostError> {
     let _ = (client, workspace, action, tell);
     todo!("workspaces-help.ts:347")
 }
@@ -101,7 +106,13 @@ pub struct ChildRef {
 /// {workspaceId, check?, child?: child.workspaceId, childThreadId?: child.threadId, threadId}`, in that order, an
 /// absent `check` or `child` left out (an empty check is sent). A reply that does not read as a `FixResult` fails a
 /// plain error `other_version("workspaces.fix")`.
-pub async fn asked_to_fix(client: &dyn HostClient, workspace_id: &str, check: Option<&str>, child: Option<&ChildRef>, thread_id: &str) -> Result<FixResult, HostError> {
+pub async fn asked_to_fix(
+    client: &dyn HostClient,
+    workspace_id: &str,
+    check: Option<&str>,
+    child: Option<&ChildRef>,
+    thread_id: &str,
+) -> Result<FixResult, HostError> {
     let _ = (client, workspace_id, check, child, thread_id);
     todo!("workspaces-help.ts:378")
 }
@@ -117,7 +128,12 @@ pub struct MergeLead {
 /// `mergedIn(client, lead, child, said)` (workspaces-help.ts:387-390): `awake(lead.workspace, "merge in", said)`, then
 /// `workspaces.mergeIn {workspaceId: <the woken record's id>, child: child.workspaceId, threadId: lead.threadId,
 /// childThreadId: child.threadId}`; the reply parsed as a `MergeInResult`. A gone lead fails before any frame.
-pub async fn merged_in(client: &dyn HostClient, lead: &MergeLead, child: &ChildRef, said: &(dyn Fn(&str) + Send + Sync)) -> Result<MergeInResult, HostError> {
+pub async fn merged_in(
+    client: &dyn HostClient,
+    lead: &MergeLead,
+    child: &ChildRef,
+    said: &(dyn Fn(&str) + Send + Sync),
+) -> Result<MergeInResult, HostError> {
     let _ = (client, lead, child, said);
     todo!("workspaces-help.ts:387")
 }
@@ -191,7 +207,12 @@ pub struct ReviewEdits {
 /// `reviewPosted(client, workspaceId, edits, threadId)` (workspaces-help.ts:416-419): where a verdict or a summary
 /// is given (an empty summary is one) `workspaces.reviewDraft {workspaceId, verdict?, summary?}` goes first and a
 /// refusal of it ends the call; then `workspaces.reviewPost {workspaceId, threadId}`, parsed as a `ReviewPostResult`.
-pub async fn review_posted(client: &dyn HostClient, workspace_id: &str, edits: &ReviewEdits, thread_id: &str) -> Result<ReviewPostResult, HostError> {
+pub async fn review_posted(
+    client: &dyn HostClient,
+    workspace_id: &str,
+    edits: &ReviewEdits,
+    thread_id: &str,
+) -> Result<ReviewPostResult, HostError> {
     let _ = (client, workspace_id, edits, thread_id);
     todo!("workspaces-help.ts:416")
 }
@@ -220,8 +241,15 @@ pub fn thread_label(thread: &ThreadView) -> String {
 /// worktree is gone and the folder is the worktree's path or inside it (`under`), since the next turn runs where the
 /// record answers now. `worktree` is `workspace?.worktree`.
 pub fn thread_cwd(cwd: Option<&str>, worktree: Option<&WorktreeFolder>) -> Option<String> {
-    let _ = (cwd, worktree);
-    todo!("workspaces-help.ts:437")
+    let moved = match worktree {
+        Some(w) if w.gone.is_some() => cwd.is_some_and(|c| under(c, &w.path)),
+        _ => false,
+    };
+    if moved {
+        None
+    } else {
+        cwd.map(str::to_owned)
+    }
 }
 
 /// `folderOf(workspace)` (workspaces-help.ts:443): `home_shortened(folder ?? project.path, home)`. `home` is what
@@ -256,7 +284,13 @@ pub const VERDICTS: [(&str, ReviewVerdict); 4] = [
 
 /// `mergedPr(client, workspaceId, method, whenChecksPass, threadId)` (workspaces-help.ts:455): `workspaces.merge
 /// {workspaceId, method?, whenChecksPass? (only where true), threadId}`, parsed as a `MergeResult`.
-pub async fn merged_pr(client: &dyn HostClient, workspace_id: &str, method: Option<MergeMethod>, when_checks_pass: bool, thread_id: &str) -> Result<MergeResult, HostError> {
+pub async fn merged_pr(
+    client: &dyn HostClient,
+    workspace_id: &str,
+    method: Option<MergeMethod>,
+    when_checks_pass: bool,
+    thread_id: &str,
+) -> Result<MergeResult, HostError> {
     let _ = (client, workspace_id, method, when_checks_pass, thread_id);
     todo!("workspaces-help.ts:455")
 }
@@ -337,7 +371,12 @@ pub fn thread_forgot_line(thread: &ThreadView) -> String {
 
 /// `settleThreads(client, threads, finished, processes?)` (workspaces-help.ts:549): `sessions.settle {threadIds (each
 /// row's `id`, not its thread id), finished?: true, processes?}`, parsed as a `SessionSettleResult`.
-pub async fn settle_threads(client: &dyn HostClient, threads: &[ThreadView], finished: bool, processes: Option<ProcessesAsk>) -> Result<SessionSettleResult, HostError> {
+pub async fn settle_threads(
+    client: &dyn HostClient,
+    threads: &[ThreadView],
+    finished: bool,
+    processes: Option<ProcessesAsk>,
+) -> Result<SessionSettleResult, HostError> {
     let _ = (client, threads, finished, processes);
     todo!("workspaces-help.ts:549")
 }
