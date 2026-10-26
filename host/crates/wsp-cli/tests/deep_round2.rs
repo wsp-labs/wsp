@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Round 2 of wsp-labs/wsp-map#2448 (wsp-cli): the activity table over a process list that holds a pid twice, a chain of agents
-//! folded in linear time.
+//! folded in linear time, and the trees the readers keep cloned and dropped on a 1 MiB stack.
 use std::time::{Duration, Instant};
 
+use wsp_cli::json_whole::{parse_document, parse_frame, parse_value};
 use wsp_cli::verbs::activity_table::{try_activity_table, TableOpts};
 use wsp_wire::views::activity::ActivityView;
 
@@ -106,4 +107,51 @@ fn agent_chain_body() {
 #[test]
 fn a_table_over_a_chain_of_agents_costs_what_the_chain_costs() {
     in_child("a_table_over_a_chain_of_agents_costs_what_the_chain_costs", agent_chain_body);
+}
+
+// ruling 3 of the round 2 brief: each reader of json_whole reads a tree of 500 levels of objects, and the clones the command line makes
+// of what it reads (a pushed frame is held with `frame.clone()` in client/socket.rs, setup_follow.rs copies a frame as
+// `Value::Object(frame.clone())`) hold on a 1 MiB stack, where a Value of objects dies in clone at 628 levels.
+fn objects(levels: usize) -> String {
+    format!("{}1{}", "{\"a\":".repeat(levels), "}".repeat(levels))
+}
+
+fn frame_clone_body() {
+    let text = format!(r#"{{"id":1,"values":{}}}"#, objects(499));
+    let serde_json::Value::Object(frame) = parse_frame(&text).expect("a frame of 500 levels is read") else { panic!("an object") };
+    let held = frame.clone();
+    assert_eq!(held, frame);
+    drop(held);
+    drop(frame);
+}
+
+#[test]
+fn a_frame_of_500_object_levels_is_cloned_and_dropped() {
+    in_child("a_frame_of_500_object_levels_is_cloned_and_dropped", frame_clone_body);
+}
+
+fn document_clone_body() {
+    let read = parse_document(&objects(500)).expect("a document of 500 levels is read");
+    let held = read.clone();
+    assert_eq!(held, read);
+    drop(held);
+    drop(read);
+}
+
+#[test]
+fn a_document_of_500_object_levels_is_cloned_and_dropped() {
+    in_child("a_document_of_500_object_levels_is_cloned_and_dropped", document_clone_body);
+}
+
+fn word_clone_body() {
+    let read = parse_value(&objects(500)).expect("a word of 500 levels is read");
+    let held = read.clone();
+    assert_eq!(held, read);
+    drop(held);
+    drop(read);
+}
+
+#[test]
+fn a_state_word_of_500_object_levels_is_cloned_and_dropped() {
+    in_child("a_state_word_of_500_object_levels_is_cloned_and_dropped", word_clone_body);
 }
