@@ -1200,7 +1200,9 @@ pub trait KindModule {
         waiting: Option<TurnWaiting>,
     ) -> Arc<dyn ExecStreamFactory>;
     fn admit_folder(&self, record: FolderAdmit) -> Option<Local<'static, ()>>;
-    fn folder(&self, record: &WorkspaceRecord) -> Option<String>;
+    /// `moduleOf(kind).folder(record)`: where the kind keeps the record's thread folder, or none; fails where the TS throws
+    /// (the kind's `ctx.checkoutOf`).
+    fn folder(&self, record: &WorkspaceRecord) -> Result<Option<String>, HostError>;
     fn home(&self, entry: &LiveWorkspace, agent_id: &str) -> String;
     fn home_dir(&self, record: &WorkspaceRecord) -> Option<String>;
     fn env(&self, entry: &LiveWorkspace, agent_id: Option<&str>, home_of: &dyn Fn(&str) -> String) -> IndexMap<String, String>;
@@ -1208,7 +1210,8 @@ pub trait KindModule {
     fn import(&self, entry: &LiveWorkspace, o: ProjectImportOptions, report: ImportReport) -> Local<'static, ImportLanded>;
     fn roots(&self, entry: &LiveWorkspace, dests: &[String]) -> Local<'static, ()>;
     fn land_project(&self, entry: &LiveWorkspace, project: ProjectView, report: StageReport) -> Local<'static, ()>;
-    fn memory_key(&self, entry: &LiveWorkspace, agent_id: &str) -> Option<String>;
+    /// Fails where the TS throws (the kind's `ctx.projectHeld`).
+    fn memory_key(&self, entry: &LiveWorkspace, agent_id: &str) -> Result<Option<String>, HostError>;
     fn end_thread(&self, entry: &LiveWorkspace, thread_id: &str, o: EndThread) -> Option<Local<'static, Option<String>>>;
     /// The end owed, with `paid` settling once it ran; present beside end_thread.
     fn end_owed(&self, entry: &LiveWorkspace, thread_id: &str) -> Option<Local<'static, Option<Local<'static, ()>>>>;
