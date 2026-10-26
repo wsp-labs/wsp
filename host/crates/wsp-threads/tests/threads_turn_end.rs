@@ -133,13 +133,13 @@ fn taken_turn_of_an_ended_turn_reads_its_result_off_the_transcript() {
             ("ws1".into(), "t1".into()),
             vec![
                 event(json!({ "type": "session.end", "workspaceId": "ws1", "sessionId": "cs-1", "turnId": "u1", "threadId": "t1", "exitCode": null, "sawResult": false, "reason": "first reason" })),
-                event(json!({ "type": "session.done", "workspaceId": "ws1", "sessionId": "cs-1", "turnId": "u1", "threadId": "t1", "result": { "status": "completed", "reply": "done" } })),
+                event(json!({ "type": "session.done", "workspaceId": "ws1", "sessionId": "cs-1", "turnId": "u1", "threadId": "t1", "result": { "status": "completed", "text": "done" } })),
             ],
         );
         let taken = Taken { session_id: "cs-1".into(), thread_id: "t1".into(), turn_id: "u1".into(), outcome: TakenOutcome::Started };
         let handle = area.taken_turn("ws1", &taken).await.expect("the row is held");
         assert_eq!((handle.id(), handle.turn_id(), handle.workspace_id()), ("cs-1".to_string(), "u1".to_string(), "ws1".to_string()));
-        assert_eq!(support::json_of(&handle.finished().now_or_never().expect("settled")), json!({ "status": "completed", "reply": "done" }));
+        assert_eq!(support::json_of(&handle.finished().now_or_never().expect("settled")), json!({ "status": "completed", "text": "done" }));
         ctx.sessions.with(|s| s.get("cs-1").expect("row").borrow_mut().view.prompt = Some("read at each call".into()));
         assert_eq!(handle.view().prompt.as_deref(), Some("read at each call"));
         ctx.thread_events.borrow_mut().insert(
@@ -302,8 +302,8 @@ fn record_steer_keeps_images_before_the_row_and_says_waiting() {
         area.record_steer("r1", "h1", &steer("look", 2), None, "st9");
         settle().await;
         let calls = ctx.called();
-        assert_eq!(calls[0], "keepSentImages ws1 t1 req-s 2", "the images are kept before the row is written");
-        assert!(calls.contains(&"persist ws1".to_string()), "kept on the turn too, since it was not");
+        assert_eq!(calls[0], "persist ws1", "kept on the turn first, since it was not (threads.ts:1040 then :1001)");
+        assert_eq!(calls[1], "keepSentImages ws1 t1 req-s 2", "the images are kept before the row is written");
         let said = ctx.recorded_json();
         assert_eq!(said[0]["waiting"], json!(true), "the turn waits on a person");
         assert_eq!(said[0]["attachments"], json!([{ "mediaType": "image/png", "bytes": 3, "name": "0.png" }, { "mediaType": "image/png", "bytes": 3, "name": "1.png" }]));

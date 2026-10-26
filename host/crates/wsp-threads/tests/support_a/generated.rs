@@ -128,7 +128,7 @@ impl LaunchCtx for FakeHost {
         false
     }
     fn adapter_for(&self, entry: &Entry, ask: AdapterAsk) -> Result<BuiltAdapter, HostError> {
-        self.hooks.log("adapter_for", vec![]);
+        self.hooks.log("adapter_for", vec![ask.named.clone().unwrap_or_default()]);
         if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>>("LaunchCtx::adapter_for") {
             return hook(entry, ask);
         }
@@ -860,7 +860,7 @@ impl TurnsCtx for FakeHost {
         None
     }
     fn adapter_for(&self, entry: &Entry, ask: AdapterAsk) -> Result<BuiltAdapter, HostError> {
-        self.hooks.log("adapter_for", vec![]);
+        self.hooks.log("adapter_for", vec![ask.named.clone().unwrap_or_default()]);
         if let Some(hook) = self.hooks.get::<dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>>("TurnsCtx::adapter_for") {
             return hook(entry, ask);
         }
