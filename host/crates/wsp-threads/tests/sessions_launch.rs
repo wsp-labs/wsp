@@ -781,7 +781,9 @@ fn a_send_into_a_running_thread_holds_no_second_row() {
         assert_eq!(t.resume, Some("sess-old".to_string()));
         assert_eq!(t.outcome, SessionStartOutcome::Queued);
         assert_eq!(handle.outcome(), SessionStartOutcome::Queued);
-        assert_eq!(r.emitted(), vec![queued_event("two", "req_2"), held_event()], "held after the wait, queued said once");
+        let mut held = held_event();
+        held["requestId"] = json!("req_2");
+        assert_eq!(r.emitted(), vec![queued_event("two", "req_2"), held], "held after the wait with this send's request id (sessions.ts:521), queued said once");
         assert_eq!(t.row.borrow().view.claude_session_id, Some("sess-old".to_string()));
     });
 }
@@ -930,7 +932,7 @@ fn a_start_that_fails_before_its_launch_leaves_no_row_and_ends_the_wait() {
         p.launch.scoped_device_id = Some("dev-1".to_string());
         let join = r.spawn(p);
         settle().await;
-        assert!(r.seen.borrow().is_empty(), "the agent's lists were never asked: the folder fails first");
+        assert!(!r.seen.borrow().is_empty(), "the agent's lists are read before the folder is (sessions.ts:569, :571)");
         let e = err(join.await.expect("the launch ran"));
         let line = no_cwd_line(&home_shortened("/gone/dir", None));
         assert_eq!(said(&e), (line.clone(), None, Some(Kind::Usage)));
@@ -1310,9 +1312,9 @@ fn a_host_write_in_flight_on_the_resumed_session_is_waited_out() {
         done_writing.send(()).unwrap();
         settle().await;
         ok(join.await.expect("the launch ran"));
-        assert_eq!(r.host.hooks.called("host_writes"), vec!["host_writes(sess-1)".to_string(), "host_writes(sess-1)".to_string()]);
+        assert_eq!(r.host.hooks.called("host_writes"), vec!["host_writes(sess-1)".to_string(); 3], "the loop reads it on each pass, the one that breaks after landing included (sessions.ts:649)");
         assert_eq!(r.take_turn(0).resume, Some("sess-1".to_string()));
-        assert_eq!(r.host.hooks.called("copy_blocked").len(), 1, "the checks run again after a wait");
+        assert_eq!(r.host.hooks.called("copy_blocked").len(), 0, "a host write wait leaves the checks cleared as they were (sessions.ts:653-656)");
     });
 }
 
@@ -2617,7 +2619,7 @@ fn a_restart_settles_the_thread_it_replaces_and_pushes_its_head() {
         let mut p = prepared(&r);
         p.replaces = Some("thr_old".to_string());
         ok(r.run(p).await);
-        let stamps = json!({ "readAt": T0, "settledAt": T0, "settleNamedAt": T0 });
+        let stamps = json!({ "readAt": T0 as f64, "settledAt": T0 as f64, "settleNamedAt": T0 as f64 });
         assert_eq!(*marked.borrow(), vec![(vec!["thr_old".to_string()], stamps.as_object().unwrap().clone())], "settled as a settle by the person would");
         assert_eq!(r.host.hooks.called("push_head"), vec!["push_head(thr_old)".to_string()]);
         assert!(at(&r.calls(), "run_turn") < at(&r.calls(), "mark") && at(&r.calls(), "mark") < at(&r.calls(), "push_head"));
