@@ -67,7 +67,7 @@ fn any_other_message_has_no_words_of_wsps() {
 #[test]
 fn refused_because_takes_the_clause_after_the_status_to_the_url_or_bracket() {
     assert_eq!(refused_because("unexpected status 401 Unauthorized: token expired, url: https://x, cf-ray: y"), "token expired");
-    assert_eq!(refused_because("401 Unauthorized:   bad key (see docs)\nsecond line"), "bad key");
+    assert_eq!(refused_because("401 Unauthorized:   bad key (see docs)\nsecond line"), "bad key (see docs");
     assert_eq!(refused_because("401 Unauthorized"), "");
     assert_eq!(refused_because("no status here"), "");
 }
