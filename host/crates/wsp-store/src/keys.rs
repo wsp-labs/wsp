@@ -88,9 +88,7 @@ pub fn new_place_key_pair() -> PlaceKeyPair {
     let mut pkcs8 = PKCS8_V1_ED25519_PREFIX.to_vec();
     pkcs8.extend_from_slice(&seed);
     PlaceKeyPair {
-        public_key: STANDARD.encode(
-            signing.verifying_key().to_public_key_der().expect("an ed25519 public key encodes as SPKI").as_bytes(),
-        ),
+        public_key: STANDARD.encode(signing.verifying_key().to_public_key_der().expect("an ed25519 public key encodes as SPKI").as_bytes()),
         private_key_pem: format!("-----BEGIN PRIVATE KEY-----\n{}\n-----END PRIVATE KEY-----\n", STANDARD.encode(pkcs8)),
     }
 }
@@ -155,10 +153,7 @@ impl fmt::Debug for SealKeys {
 
 /// HKDF-SHA256 of the agreed secret, the place id's UTF-8 as the salt, one info word per direction (index.ts:85).
 pub fn seal_keys(secret: &[u8], place_id: &str) -> SealKeys {
-    SealKeys {
-        host_to_place: derive(secret, place_id, HOST_TO_PLACE_INFO),
-        place_to_host: derive(secret, place_id, PLACE_TO_HOST_INFO),
-    }
+    SealKeys { host_to_place: derive(secret, place_id, HOST_TO_PLACE_INFO), place_to_host: derive(secret, place_id, PLACE_TO_HOST_INFO) }
 }
 
 struct KeyLen;
