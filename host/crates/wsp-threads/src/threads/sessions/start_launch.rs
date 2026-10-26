@@ -695,6 +695,9 @@ impl SessionsArea {
                             }
                         }
                         waits.await;
+                        if let Some(stopped) = ctx.cap_held(&turn_id).and_then(|c| c.stopped) {
+                            return Err(HostError::new(stopped));
+                        }
                         refuse_now(&ctx, &ws, &entry)?;
                         st.cleared = false;
                         continue;
@@ -768,13 +771,13 @@ impl SessionsArea {
             let steer_road =
                 !reply_seen && adapter.steers() && steer_files_blocked(&st.p.records, adapter.steers_images(), &harness).is_none();
             if let (true, Some(handle)) = (steer_road, handle.clone()) {
-                ctx.keep_steer(&running, &o, origin.as_ref(), &steer_id).await?;
-                let answer = match handle.steer(
-                    o.prompt.clone(),
-                    Some(steer_id.clone()),
-                    inline_images(o.attachments.as_deref().unwrap_or_default()),
-                ) {
-                    Some(steer) => Some(steer.await),
+                // A handle's steer is lazy: asking it learns whether the road exists before the turn keeps the message.
+                let pending = handle.steer(o.prompt.clone(), Some(steer_id.clone()), inline_images(o.attachments.as_deref().unwrap_or_default()));
+                let answer = match pending {
+                    Some(steer) => {
+                        ctx.keep_steer(&running, &o, origin.as_ref(), &steer_id).await?;
+                        Some(steer.await)
+                    }
                     None => None,
                 };
                 if let Some(answer) = answer {
