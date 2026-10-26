@@ -1,16 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Unit slates_batch: slates.ts:405-424, 760-1015 at 65f6b89c7. Spec: spec/slates_batch.md.
+use std::cell::RefCell;
 use std::rc::Rc;
 
-use indexmap::IndexMap;
-use serde_json::Value;
-use wsp_words::exit::HostError;
+use indexmap::{IndexMap, IndexSet};
+use serde_json::{json, Map, Value};
+use wsp_wire::types::slate_wire::{SlateBy, SlateCause};
+use wsp_words::exit::{HostError, Kind};
+use wsp_words::js::{js_trim, utf16};
+use wsp_words::js_date::iso_string;
+use wsp_words::words::computer::thread_word;
 
-use super::model::{BatchBy, SlateRecord};
-use super::{Delivered, RecordRef, SlatesInner, Views};
-use crate::pending::slate::{BatchEvent, BatchSend, SlateRunDecl, SlateWrite};
-use crate::slate_files::Pin;
-use crate::slate_runs::{CmdRunDecl, RunAsk, RunBy, RunInputs, RunRecord};
+use super::model::{problem, refused, BatchBy, SlateRecord, MESSAGE_CHARS, PRESS_SEND_MS, REACTION_SEND_MS};
+use super::{Delivered, Delivery, RecordRef, SlatesInner, Views};
+use crate::pending::slate::{
+    evaluate_slate_expression, is_slate_binding, parse_slate_own_path, resolve_slate_prop, run_slate_batch, slate_equal, slate_text,
+    BatchEvent, BatchSend, SlateBatchContext, SlateEvalContext, SlateRunDecl, SlateStart, SlateWrite, SLATE_LIMITS,
+};
+use crate::slate_files::{keyed, pin_here, with_files, Pin, PinAsk, UnpinnedWhy};
+use crate::slate_mcp::{code_key, slate_secret_mark, McpRunStart};
+use crate::slate_message::{cut_at, defanged, longest};
+use crate::slate_runs::{
+    last_result, map_strings, running_record, CmdRunDecl, Outcome, RunAsk, RunBy, RunInput, RunInputs, RunRecord, RunStart, RunState,
+    NO_FOLDER,
+};
 
 /// What a batch did (slates.ts:888-893).
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -48,276 +61,387 @@ pub struct Started {
     pub ask: Option<RunAsk>,
 }
 
+/// A start the batch's pure core asked for, run after its values are stored.
+struct Deferred {
+    run: String,
+    by: RunBy,
+    record: RunRecord,
+}
+
+fn by_key(thread_id: &str, run: &str) -> String {
+    format!("{thread_id}\u{0}{run}")
+}
+
+pub(crate) fn slate_by(by: RunBy) -> SlateBy {
+    match by {
+        RunBy::Person => SlateBy::Person,
+        RunBy::Agent => SlateBy::Agent,
+        RunBy::Reaction => SlateBy::Reaction,
+        RunBy::Timer => SlateBy::Timer,
+    }
+}
+
+pub(crate) fn batch_by(by: SlateBy) -> BatchBy {
+    match by {
+        SlateBy::Person => BatchBy::Person,
+        SlateBy::Agent => BatchBy::Agent,
+        SlateBy::Reaction => BatchBy::Reaction,
+        SlateBy::Timer => BatchBy::Timer,
+        SlateBy::Host => BatchBy::Host,
+    }
+}
+
+fn failed_record(why: &str, runs: i64) -> RunRecord {
+    let mut m = Map::new();
+    m.insert("state".into(), Value::String("failed".into()));
+    m.insert("why".into(), Value::String(why.into()));
+    m.insert("runs".into(), json!(runs));
+    RunRecord(m)
+}
+
 impl SlatesInner {
-    // slates.ts:405
-    //   /** A declaration as its approval takes it: the files it reads from the slate, and a hash of each file it names in
-    //    * the thread's folder, read again at every start, where the command runs. */
-    //   function approvalDecl(r: SlateRecord, declared: SlateRunDecl): SlateRunDecl & { files?: Record<string, string>; scripts?: Record<string, string> } {
-    //     const decl = withFiles(r.document, declared);
-    //     const scripts = keyed(pinFor(r.threadId, declared));
-    //     return scripts === undefined ? decl : { ...decl, scripts };
-    //   }
     /// The declaration as its approval takes it; for a `cmd` run, the runs table's `CmdRunDecl` (files and scripts in).
     pub(crate) fn approval_decl(&self, r: &SlateRecord, declared: &SlateRunDecl) -> CmdRunDecl {
-        todo!()
+        let SlateRunDecl::Cmd(cmd) = declared else { return CmdRunDecl::default() };
+        CmdRunDecl {
+            cmd: cmd.cmd.clone(),
+            env: cmd.env.clone(),
+            args: cmd.args.clone(),
+            stdin: cmd.stdin.clone(),
+            on: cmd.on.clone(),
+            cwd: cmd.cwd.clone(),
+            timeout: cmd.timeout,
+            stream: cmd.stream,
+            confirm: None,
+            every: cmd.every,
+            always: cmd.always,
+            once: cmd.once,
+            then: cmd.then.clone(),
+            files: with_files(r.document.as_ref(), declared).files,
+            scripts: keyed(&self.pin_for(&r.thread_id, declared)),
+        }
     }
 
-    // slates.ts:413
-    //   /** The run name and command an approval key stands for, so the menu can list it after the document changes, and
-    //    * the named files' hashes it covers, so a changed one can be named when it asks again. */
-    //   function approvalNames(r: SlateRecord, key: string): { run?: string; cmd?: string; scripts?: Record<string, string> } {
-    //     const asked = mcp.named(r.threadId, key);
-    //     if (asked !== undefined) return asked;
-    //     for (const [name, declared] of Object.entries(r.document?.runs ?? {})) {
-    //       const decl = approvalDecl(r, declared);
-    //       if (decl.kind === "cmd" && runs.key(decl as CmdRunDecl) === key) return { run: name, cmd: decl.cmd, ...(decl.scripts !== undefined ? { scripts: decl.scripts } : {}) };
-    //       if (decl.kind !== "cmd" && key === codeKey(decl as McpRunDecl, mcpArgsOf(r, decl as McpRunDecl)())) return { run: name, cmd: `${decl.server}.${decl.kind === "tool" ? decl.tool : decl.uri}` };
-    //     }
-    //     return {};
-    //   }
     /// `(run, cmd, scripts)`, each when known.
     pub(crate) fn approval_names(&self, r: &SlateRecord, key: &str) -> (Option<String>, Option<String>, Option<IndexMap<String, String>>) {
-        todo!()
+        if let Some(asked) = self.mcp().named(&r.thread_id, key) {
+            return (Some(asked.run), Some(asked.cmd), None);
+        }
+        let Some(doc) = r.document.as_ref() else { return (None, None, None) };
+        for (name, declared) in &doc.runs {
+            match declared {
+                SlateRunDecl::Cmd(_) => {
+                    let decl = self.approval_decl(r, declared);
+                    if self.runs().key(&decl) == key {
+                        return (Some(name.clone()), Some(decl.cmd), decl.scripts);
+                    }
+                }
+                other => {
+                    let with = with_files(Some(doc), other);
+                    let args: Map<String, Value> = self.args_now(r, other).into_iter().collect();
+                    if key == code_key(&with, &args) {
+                        let target = match other {
+                            SlateRunDecl::Tool(tool) => tool.tool.clone(),
+                            SlateRunDecl::Resource(resource) => resource.uri.clone(),
+                            SlateRunDecl::Cmd(_) => String::new(),
+                        };
+                        let server = match other {
+                            SlateRunDecl::Tool(tool) => tool.server.clone(),
+                            SlateRunDecl::Resource(resource) => resource.server.clone(),
+                            SlateRunDecl::Cmd(_) => String::new(),
+                        };
+                        return (Some(name.clone()), Some(format!("{server}.{target}")), None);
+                    }
+                }
+            }
+        }
+        (None, None, None)
     }
 
-    // slates.ts:762
-    //   /** A declared run's env, args and stdin, read when the command starts; a secret named by a bare binding goes over
-    //    * by name and becomes plaintext only inside the runs module (07, "Injection"). */
-    //   const inputsOf = (r: SlateRecord, decl: Extract<SlateRunDecl, { kind: "cmd" }>) => () => {
-    //     const ctx = contextOf(r, viewsNow.get(r.threadId) ?? new Map());
-    //     const one = (v: SlatePropValue): RunInput => {
-    //       if (isSlateBinding(v)) {
-    //         const own = parseSlateOwnPath(v.bind.trim());
-    //         if (own !== undefined && own.segs.length === 0 && r.document?.values[own.name]?.secret === true) return { secret: own.name };
-    //       }
-    //       return { value: resolveSlateProp(v, ctx) ?? null };
-    //     };
-    //     return {
-    //       ...(decl.env !== undefined ? { env: Object.fromEntries(Object.entries(decl.env).map(([k, v]) => [k, one(v)])) } : {}),
-    //       ...(decl.args !== undefined ? { args: decl.args.map(one) } : {}),
-    //       ...(decl.stdin !== undefined ? { stdin: one(decl.stdin) } : {}),
-    //     };
-    //   };
-    pub(crate) fn inputs_of(self: &Rc<Self>, r: RecordRef, run: &str) -> Rc<dyn Fn() -> RunInputs> {
-        todo!()
+    fn views_now_of(&self, thread_id: &str) -> Views {
+        self.views_now.borrow().get(thread_id).cloned().unwrap_or_default()
     }
 
-    // slates.ts:779
-    //   /** A tool run's arguments, read when the call goes: a secret stands as its mark wherever an expression reads it, and
-    //    * becomes plaintext only inside slate-mcp at the call. */
-    //   const mcpArgsOf = (r: SlateRecord, decl: McpRunDecl) => (): Record<string, SlateJson> => {
-    //     if (decl.kind !== "tool" || decl.args === undefined) return {};
-    //     const ctx = contextOf(r, viewsNow.get(r.threadId) ?? new Map());
-    //     const plain = ctx.resolve;
-    //     const marked: SlateEvalContext = {
-    //       ...ctx,
-    //       resolve: path => {
-    //         const own = parseSlateOwnPath(path);
-    //         return own !== undefined && own.segs.length === 0 && r.document?.values[own.name]?.secret === true ? slateSecretMark(own.name) : plain(path);
-    //       },
-    //     };
-    //     return Object.fromEntries(Object.entries(decl.args).map(([k, v]) => [k, resolveSlateProp(v, marked) ?? null]));
-    //   };
-    //   /** The sources a run's inputs read, kept from the last batch of its slate. */
-    //   const viewsNow = new Map<string, ReadonlyMap<string, SlateJson | undefined>>();
-    pub(crate) fn mcp_args_of(self: &Rc<Self>, r: RecordRef, run: &str) -> Rc<dyn Fn() -> IndexMap<String, Value>> {
-        todo!()
+    pub(crate) fn inputs_of(self: &Rc<Self>, r: RecordRef, decl: &crate::pending::slate::SlateCmdDecl) -> Rc<dyn Fn() -> RunInputs> {
+        let area = Rc::downgrade(self);
+        let decl = decl.clone();
+        Rc::new(move || match area.upgrade() {
+            Some(area) => area.inputs_resolved(&r.borrow(), &decl),
+            None => RunInputs::default(),
+        })
     }
 
-    // slates.ts:797
-    //   /** Where a command starts: the thread's own folder on its own computer, or this computer's for one `on` the host. */
-    //   /** Whether a run's command runs on the thread's own machine rather than on this computer. */
-    //   const onMachine = (threadId: string, decl: SlateRunDecl): boolean => decl.kind === "cmd" && decl.on !== "host" && deps.machineOf?.(threadId) !== undefined;
-    //   /** What an approval of a run binds where it runs: on the thread's machine as its daemon last read it, else here. */
-    //   const pinFor = (threadId: string, decl: SlateRunDecl): Pin => (onMachine(threadId, decl) ? pins.pin(threadId, folderFor(threadId, decl), decl) : pinHere(folderFor(threadId, decl), decl));
-    //   /** The views a start reads, with the scripts the thread's machine holds hashed again, so a key holds what runs. */
-    //   const startable = (r: SlateRecord): Promise<ReadonlyMap<string, SlateJson | undefined>> => {
-    //     const there = Object.values(r.document?.runs ?? {}).flatMap(decl => (onMachine(r.threadId, decl) ? [{ folder: folderFor(r.threadId, decl), decl }] : []));
-    //     return there.length === 0 ? viewsFor(r) : Promise.all([viewsFor(r), pins.read(r.threadId, there, deps.asleep?.(r.threadId) === true)]).then(([views]) => views);
-    //   };
-    //   /** A press or the agent's start wakes a napping machine anyway: first here, so its pins are read and an Always holds. */
-    //   const wakeFor = async (r: SlateRecord, starts: readonly { run: string; by: RunBy }[]): Promise<void> => {
-    //     if (deps.asleep?.(r.threadId) !== true || !starts.some(s => s.by !== "timer" && r.document?.runs[s.run] !== undefined && pinFor(r.threadId, r.document.runs[s.run]!).unpinned.some(u => u.why === "unread"))) return;
-    //     if (await Promise.resolve(deps.wake?.(r.threadId)).then(() => true, () => false)) await startable(r);
-    //   };
-    //   /** Each start held on the sheet whose key moved (its command was rewritten, its box was read), held again as now. */
-    //   const heldAgain = (r: SlateRecord, views: ReadonlyMap<string, SlateJson | undefined>): string[] =>
-    //     runs.held(r.threadId).flatMap(a => {
-    //       const decl = r.document?.runs[a.run];
-    //       if (decl?.kind !== "cmd" || runs.key(approvalDecl(r, decl) as CmdRunDecl) === a.key) return [];
-    //       r.values[a.run] = asJson(startNow(r, a.run, "person", views).record);
-    //       return [a.run];
-    //     });
-    //
-    //   const folderFor = (threadId: string, decl: SlateRunDecl): string | undefined => {
-    //     const facts = deps.thread(threadId);
-    //     return decl.kind === "cmd" && decl.on === "host" ? (facts?.hostFolder ?? facts?.folder) : facts?.folder;
-    //   };
+    fn inputs_resolved(&self, r: &SlateRecord, decl: &crate::pending::slate::SlateCmdDecl) -> RunInputs {
+        let ctx = self.context_of(r, &self.views_now_of(&r.thread_id), None);
+        let secret = |name: &str| r.document.as_ref().and_then(|doc| doc.values.get(name)).is_some_and(|v| v.secret == Some(true));
+        let one = |v: &Value| -> RunInput {
+            if is_slate_binding(v) {
+                let own = v.get("bind").and_then(Value::as_str).and_then(|bind| parse_slate_own_path(js_trim(bind)));
+                if let Some(own) = own {
+                    if own.segs.is_empty() && secret(&own.name) {
+                        return RunInput::Secret(own.name);
+                    }
+                }
+            }
+            RunInput::Value(resolve_slate_prop(v, &ctx).unwrap_or(Value::Null))
+        };
+        RunInputs {
+            env: decl.env.as_ref().map(|env| env.iter().map(|(name, v)| (name.clone(), one(v))).collect()),
+            args: decl.args.as_ref().map(|args| args.iter().map(&one).collect()),
+            stdin: decl.stdin.as_ref().map(&one),
+        }
+    }
+
+    pub(crate) fn mcp_args_of(self: &Rc<Self>, r: RecordRef, decl: &SlateRunDecl) -> Rc<dyn Fn() -> Map<String, Value>> {
+        let area = Rc::downgrade(self);
+        let decl = decl.clone();
+        Rc::new(move || match area.upgrade() {
+            Some(area) => area.args_now(&r.borrow(), &decl).into_iter().collect(),
+            None => Map::new(),
+        })
+    }
+
+    fn args_now(&self, r: &SlateRecord, decl: &SlateRunDecl) -> IndexMap<String, Value> {
+        let SlateRunDecl::Tool(tool) = decl else { return IndexMap::new() };
+        let Some(args) = tool.args.as_ref() else { return IndexMap::new() };
+        let ctx = self.context_of(r, &self.views_now_of(&r.thread_id), None);
+        let plain = ctx.resolve.clone();
+        let secrets: Vec<String> = r
+            .document
+            .as_ref()
+            .map_or_else(Vec::new, |doc| doc.values.iter().filter(|(_, v)| v.secret == Some(true)).map(|(name, _)| name.clone()).collect());
+        let marked = SlateEvalContext {
+            now: ctx.now,
+            item: ctx.item.clone(),
+            index: ctx.index,
+            resolve: Rc::new(move |path: &str| match parse_slate_own_path(path) {
+                Some(own) if own.segs.is_empty() && secrets.contains(&own.name) => Some(Value::String(slate_secret_mark(&own.name))),
+                _ => plain(path),
+            }),
+        };
+        args.iter().map(|(name, v)| (name.clone(), resolve_slate_prop(v, &marked).unwrap_or(Value::Null))).collect()
+    }
+
     pub(crate) fn on_machine(&self, thread_id: &str, decl: &SlateRunDecl) -> bool {
-        todo!()
-    }
-    pub(crate) fn pin_for(&self, thread_id: &str, decl: &SlateRunDecl) -> Pin {
-        todo!()
-    }
-    pub(crate) async fn startable(self: Rc<Self>, r: &SlateRecord) -> Views {
-        todo!()
-    }
-    pub(crate) async fn wake_for(self: Rc<Self>, r: &SlateRecord, starts: &[(String, RunBy)]) {
-        todo!()
-    }
-    pub(crate) fn held_again(self: &Rc<Self>, r: RecordRef, views: &Views) -> Vec<String> {
-        todo!()
-    }
-    pub(crate) fn folder_for(&self, thread_id: &str, decl: &SlateRunDecl) -> Option<String> {
-        todo!()
+        matches!(decl, SlateRunDecl::Cmd(cmd) if cmd.on.as_deref() != Some("host")) && self.deps.machine_of(thread_id).is_some()
     }
 
-    // slates.ts:826
-    //   /** A declared run started through the runs module; its first record is the caller's to write. `prior` is the record
-    //    * from before the batch, whose own record of the start is not the runs module's to count. */
-    //   const startNow = (r: SlateRecord, run: string, by: RunBy, views: ReadonlyMap<string, SlateJson | undefined>, prior: SlateJson | undefined = r.values[run]): { record: SlateRunRecord; ask?: RunAsk } => {
-    //     const decl = r.document?.runs[run];
-    //     const count = isRunRecord(prior) ? prior.runs : 0;
-    //     if (decl === undefined) return { record: { state: "failed", why: `$${run} is not declared`, runs: count } };
-    //     const folder = folderFor(r.threadId, decl);
-    //     if (decl.kind === "cmd" && folder === undefined) return { record: { state: "failed", why: NO_FOLDER, runs: count } };
-    //     viewsNow.set(r.threadId, views);
-    //     capturing = { threadId: r.threadId, run };
-    //     try {
-    //       const said = decl.kind === "resource" ? undefined : decl.confirm;
-    //       const confirm = said === undefined ? undefined : slateText(resolveSlateProp(said, contextOf(r, views)) ?? null) || `Run $${run}?`;
-    //       const asked = { ...approvalDecl(r, decl), ...(confirm !== undefined ? { confirm } : {}) };
-    //       const answer =
-    //         asked.kind !== "cmd"
-    //           ? mcp.start({ threadId: r.threadId, run, decl: asked as McpRunDecl, by, args: mcpArgsOf(r, asked as McpRunDecl), ...(isRunRecord(prior) ? { last: prior as unknown as RunRecord } : {}) })
-    //           : runs.start({
-    //               threadId: r.threadId,
-    //               run,
-    //               decl: asked as CmdRunDecl,
-    //               by,
-    //               folder: folder!,
-    //               inputs: inputsOf(r, decl as Extract<SlateRunDecl, { kind: "cmd" }>),
-    //               ...(isRunRecord(prior) ? { last: prior as unknown as RunRecord } : {}),
-    //               ...((asked as CmdRunDecl).on !== "host" && deps.asleep?.(r.threadId) === true ? { asleep: true } : {}),
-    //             });
-    //       startedBy.set(byKey(r.threadId, run), by);
-    //       if (answer.record.state === "running") announce(r, "run", by, [], run);
-    //       return { record: answer.record as SlateRunRecord, ...(answer.outcome === "held" && answer.ask !== undefined ? { ask: answer.ask } : {}) };
-    //     } finally {
-    //       capturing = undefined;
-    //     }
-    //   };
+    /// What an approval of a run binds where it runs: on the thread's machine as its daemon last read it, else here.
+    pub(crate) fn pin_for(&self, thread_id: &str, decl: &SlateRunDecl) -> Pin {
+        let folder = self.folder_for(thread_id, decl);
+        if self.on_machine(thread_id, decl) {
+            self.pins().pin(thread_id, folder.as_deref(), decl)
+        } else {
+            pin_here(folder.as_deref(), decl)
+        }
+    }
+
+    /// The views a start reads, with the scripts the thread's machine holds hashed again, so a key holds what runs.
+    pub(crate) async fn startable(self: Rc<Self>, r: &SlateRecord) -> Views {
+        let there: Vec<PinAsk> = r.document.as_ref().map_or_else(Vec::new, |doc| {
+            doc.runs
+                .values()
+                .filter(|decl| self.on_machine(&r.thread_id, decl))
+                .map(|decl| PinAsk { folder: self.folder_for(&r.thread_id, decl), decl: decl.clone() })
+                .collect()
+        });
+        if there.is_empty() {
+            return self.clone().views_for(r, &[]).await;
+        }
+        let asleep = self.deps.asleep(&r.thread_id);
+        let views = self.clone().views_for(r, &[]).await;
+        self.pins().read(&r.thread_id, &there, asleep).await;
+        views
+    }
+
+    /// A press or the agent's start wakes a napping machine anyway: first here, so its pins are read and an Always holds.
+    pub(crate) async fn wake_for(self: Rc<Self>, r: &SlateRecord, starts: &[(String, RunBy)]) {
+        if !self.deps.asleep(&r.thread_id) {
+            return;
+        }
+        let unread = starts.iter().any(|(run, by)| {
+            *by != RunBy::Timer
+                && r.document
+                    .as_ref()
+                    .and_then(|doc| doc.runs.get(run))
+                    .is_some_and(|decl| self.pin_for(&r.thread_id, decl).unpinned.iter().any(|u| u.why == UnpinnedWhy::Unread))
+        });
+        if !unread {
+            return;
+        }
+        if self.deps.wake(&r.thread_id).await.is_ok() {
+            self.startable(r).await;
+        }
+    }
+
+    /// Each start held on the sheet whose key moved (its command was rewritten, its box was read), held again as now.
+    pub(crate) fn held_again(self: &Rc<Self>, r: RecordRef, views: &Views) -> Vec<String> {
+        let thread_id = r.borrow().thread_id.clone();
+        let mut moved = Vec::new();
+        for ask in self.runs().held(&thread_id) {
+            let key = {
+                let rec = r.borrow();
+                match rec.document.as_ref().and_then(|doc| doc.runs.get(&ask.run)) {
+                    Some(declared @ SlateRunDecl::Cmd(_)) => Some(self.runs().key(&self.approval_decl(&rec, declared))),
+                    _ => None,
+                }
+            };
+            let Some(key) = key else { continue };
+            if key == ask.key {
+                continue;
+            }
+            let record = self.start_now(r.clone(), &ask.run, RunBy::Person, views, None).record;
+            r.borrow_mut().values.insert(ask.run.clone(), record.to_json());
+            moved.push(ask.run);
+        }
+        moved
+    }
+
+    pub(crate) fn folder_for(&self, thread_id: &str, decl: &SlateRunDecl) -> Option<String> {
+        let facts = self.deps.thread(thread_id);
+        match decl {
+            SlateRunDecl::Cmd(cmd) if cmd.on.as_deref() == Some("host") => facts.and_then(|f| f.host_folder.or(f.folder)),
+            _ => facts.and_then(|f| f.folder),
+        }
+    }
+
     /// `prior` none is the record's own value; `Some(None)` is no prior at all.
     pub(crate) fn start_now(self: &Rc<Self>, r: RecordRef, run: &str, by: RunBy, views: &Views, prior: Option<Option<Value>>) -> Started {
-        todo!()
+        let (thread_id, declared, prior_value) = {
+            let rec = r.borrow();
+            let prior_value = match prior {
+                None => rec.values.get(run).cloned(),
+                Some(given) => given,
+            };
+            (rec.thread_id.clone(), rec.document.as_ref().and_then(|doc| doc.runs.get(run)).cloned(), prior_value)
+        };
+        let last = prior_value.as_ref().and_then(RunRecord::from_json);
+        let count = last.as_ref().map_or(0, RunRecord::runs);
+        let Some(declared) = declared else {
+            return Started { record: failed_record(&format!("${run} is not declared"), count), ask: None };
+        };
+        let folder = self.folder_for(&thread_id, &declared);
+        let (cmd_decl, folder) = match (&declared, folder) {
+            (SlateRunDecl::Cmd(cmd), Some(folder)) => (Some(cmd.clone()), folder),
+            (SlateRunDecl::Cmd(_), None) => {
+                return Started { record: failed_record(NO_FOLDER, count), ask: None };
+            }
+            _ => (None, String::new()),
+        };
+        self.views_now.borrow_mut().insert(thread_id.clone(), views.clone());
+        *self.capturing.borrow_mut() = Some((thread_id.clone(), run.to_string()));
+        let said = match &declared {
+            SlateRunDecl::Resource(_) => None,
+            SlateRunDecl::Cmd(cmd) => cmd.confirm.clone(),
+            SlateRunDecl::Tool(tool) => tool.confirm.clone(),
+        };
+        let confirm = said.map(|said| {
+            let rec = r.borrow();
+            let ctx = self.context_of(&rec, views, None);
+            let text = slate_text(&resolve_slate_prop(&said, &ctx).unwrap_or(Value::Null));
+            if text.is_empty() {
+                format!("Run ${run}?")
+            } else {
+                text
+            }
+        });
+        let answer = match cmd_decl {
+            Some(cmd) => {
+                let mut asked = self.approval_decl(&r.borrow(), &declared);
+                asked.confirm = confirm;
+                let asleep = asked.on.as_deref() != Some("host") && self.deps.asleep(&thread_id);
+                let inputs = self.inputs_of(r.clone(), &cmd);
+                self.runs().start(RunStart {
+                    thread_id: thread_id.clone(),
+                    run: run.to_string(),
+                    decl: asked,
+                    by,
+                    folder,
+                    inputs,
+                    last: last.clone(),
+                    asleep,
+                })
+            }
+            None => {
+                let mut asked = with_files(r.borrow().document.as_ref(), &declared);
+                if let (SlateRunDecl::Tool(tool), Some(text)) = (&mut asked.decl, confirm) {
+                    tool.confirm = Some(Value::String(text));
+                }
+                let args = self.mcp_args_of(r.clone(), &declared);
+                self.mcp().start(McpRunStart {
+                    thread_id: thread_id.clone(),
+                    run: run.to_string(),
+                    decl: asked,
+                    by,
+                    args,
+                    last: last.clone(),
+                })
+            }
+        };
+        self.started_by.borrow_mut().insert(by_key(&thread_id, run), by);
+        if answer.record.state() == Some(RunState::Running) {
+            self.announce(&r, SlateCause::Run, slate_by(by), &[], Some(run));
+        }
+        *self.capturing.borrow_mut() = None;
+        Started { record: answer.record, ask: if answer.outcome == Outcome::Held { answer.ask } else { None } }
     }
 
-    // slates.ts:861
-    //   /** The record a start inside a batch will give: running where the person said always and nothing asks every
-    //    * time, else held for the sheet. */
-    //   const provisional = (r: SlateRecord, run: string): SlateRunRecord => {
-    //     const decl = r.document?.runs[run];
-    //     const prior = r.values[run];
-    //     const count = isRunRecord(prior) ? prior.runs : 0;
-    //     if (decl !== undefined && decl.kind !== "cmd") return mcp.provisional(r.threadId, withFiles(r.document, decl) as McpRunDecl, isRunRecord(prior) ? (prior as unknown as RunRecord) : undefined, mcpArgsOf(r, decl)()) as SlateRunRecord;
-    //     return approvedAlways(r, run) ? (runningRecord(isRunRecord(prior) ? lastResult(prior as unknown as RunRecord) : undefined, count + 1, deps.now()) as SlateRunRecord) : { state: "held", why: HELD_APPROVAL, runs: count };
-    //   };
-    //
-    //   /** Whether the person said "Always in this thread" to the run as declared now, and it asks nothing every start. */
-    //   const approvedAlways = (r: SlateRecord, run: string): boolean => {
-    //     const decl = r.document?.runs[run];
-    //     return decl?.kind === "cmd" && decl.confirm === undefined && r.approvals[runs.key(approvalDecl(r, decl) as CmdRunDecl)]?.state === "allowed";
-    //   };
     pub(crate) fn provisional(self: &Rc<Self>, r: RecordRef, run: &str) -> RunRecord {
-        todo!()
+        let (thread_id, declared, prior) = {
+            let rec = r.borrow();
+            (
+                rec.thread_id.clone(),
+                rec.document.as_ref().and_then(|doc| doc.runs.get(run)).cloned(),
+                rec.values.get(run).and_then(RunRecord::from_json),
+            )
+        };
+        let count = prior.as_ref().map_or(0, RunRecord::runs);
+        match declared {
+            Some(declared @ (SlateRunDecl::Tool(_) | SlateRunDecl::Resource(_))) => {
+                let with = with_files(r.borrow().document.as_ref(), &declared);
+                let args: Map<String, Value> = self.args_now(&r.borrow(), &declared).into_iter().collect();
+                self.mcp().provisional(&thread_id, &with, prior.as_ref(), &args)
+            }
+            _ => {
+                if self.approved_always(&r.borrow(), run) {
+                    let result = prior.as_ref().and_then(last_result);
+                    running_record(result.as_ref(), count + 1, self.deps.clock().now())
+                } else {
+                    let mut m = Map::new();
+                    m.insert("state".into(), Value::String("held".into()));
+                    m.insert("why".into(), Value::String(crate::pending::wire::SLATE_HELD_APPROVAL.into()));
+                    m.insert("runs".into(), json!(count));
+                    RunRecord(m)
+                }
+            }
+        }
     }
+
     pub(crate) fn approved_always(&self, r: &SlateRecord, run: &str) -> bool {
-        todo!()
+        let Some(declared @ SlateRunDecl::Cmd(cmd)) = r.document.as_ref().and_then(|doc| doc.runs.get(run)) else { return false };
+        if cmd.confirm.is_some() {
+            return false;
+        }
+        let key = self.runs().key(&self.approval_decl(r, declared));
+        r.approvals.get(&key).is_some_and(|approval| approval.state == "allowed")
     }
 
-    // slates.ts:877
-    //   /** A record the runs module wrote outside a batch (an end, a cancel, a queued start, an approval): one batch, so
-    //    * done reactions fire with the window closed (02, "Runs"). */
-    //   async function runMoved(threadId: string, run: string, record: RunRecord): Promise<void> {
-    //     const r = records.get(threadId);
-    //     if (r?.document?.runs[run] === undefined) return;
-    //     if (record.state === "running") announce(r, "run", startedBy.get(byKey(threadId, run)) ?? "person", [], run);
-    //     await batch(r, [{ path: `$${run}`, value: asJson(record) }], "run", {});
-    //   }
     pub(crate) async fn run_moved(self: Rc<Self>, thread_id: String, run: String, record: RunRecord) -> Result<(), HostError> {
-        todo!()
+        let found = self.records.borrow().get(&thread_id).cloned();
+        let Some(r) = found else { return Ok(()) };
+        let declared = r.borrow().document.as_ref().is_some_and(|doc| doc.runs.contains_key(&run));
+        if !declared {
+            return Ok(());
+        }
+        if record.state() == Some(RunState::Running) {
+            let by = self.started_by.borrow().get(&by_key(&thread_id, &run)).copied().unwrap_or(RunBy::Person);
+            self.announce(&r, SlateCause::Run, slate_by(by), &[], Some(&run));
+        }
+        let input = vec![SlateWrite { path: format!("${run}"), value: record.to_json() }];
+        self.batch(r, input, BatchBy::Run, BatchOptions::default()).await?;
+        Ok(())
     }
 
-    // slates.ts:895
-    //   /** One arrival through the batch (02, "The batch"): the module's pure core with a start that runs here, then the
-    //    * cancels, the sends composed, the values saved and pushed. Called inside serial. */
-    //   async function batch(r: SlateRecord, input: { path: string; value: SlateJson }[], by: BatchBy, o: { event?: BatchEvent; starts?: { run: string; by: RunBy }[]; requestId?: string; sendAt?: number; react?: false }): Promise<BatchOut> {
-    //     const doc = r.document;
-    //     if (doc === null) return { asks: [], started: [], sends: [] };
-    //     const views = await startable(r);
-    //     const asks: RunAsk[] = [];
-    //     const before = r.values;
-    //     const deferred: { run: string; by: RunBy; record: SlateRunRecord }[] = [];
-    //     const ctx = {
-    //       ...contextOf(r, views),
-    //       // A start record from outside the document is a run's result, which the host writes on its own road (no A607).
-    //       by: by === "timer" ? "run" : by,
-    //       ...(o.event !== undefined ? { event: o.event } : {}),
-    //       reactionSends: r.sendsAllowed !== undefined,
-    //       ...(o.react === false ? { react: false } : {}),
-    //       // A run's env reads the values as this batch leaves them, so the batch gets the record the start will give and
-    //       // the command is spawned once they are stored.
-    //       start: (run: string, startBy: "person" | "reaction"): SlateRunRecord => {
-    //         const record = provisional(r, run);
-    //         deferred.push({ run, by: by === "timer" ? "timer" : startBy, record });
-    //         return record;
-    //       },
-    //     };
-    //     await wakeFor(r, o.starts ?? []);
-    //     // A timer's or the agent's start is no step of the document: it starts here and its record goes in as a run's write.
-    //     const timed = (o.starts ?? []).map(s => ({ path: `$${s.run}`, value: asJson(startNow(r, s.run, s.by, views).record) }));
-    //     const result = runSlateBatch(doc, r.values, [...input, ...timed], ctx);
-    //     if (sizeOf(result.values) > SLATE_LIMITS.valuesBytes) {
-    //       keepProblems(r, [problem("S500", "values-too-big", `the values would be ${sizeOf(result.values)} bytes; a slate holds at most ${SLATE_LIMITS.valuesBytes}`)]);
-    //       await save(r);
-    //       return { asks, started: [], sends: [] };
-    //     }
-    //     r.values = result.values;
-    //     keepProblems(r, result.problems);
-    //     for (const run of result.cancels) runs.cancel(r.threadId, run);
-    //     await wakeFor(r, deferred);
-    //     for (const d of deferred) {
-    //       const started = startNow(r, d.run, d.by, views, before[d.run]);
-    //       if (started.ask !== undefined) asks.push(started.ask);
-    //       // The runs module held it for a reason the batch could not see (four running, the start budget): that record
-    //       // goes through a batch of its own.
-    //       if (started.record.state === d.record.state) r.values[d.run] = asJson(started.record);
-    //       else void serial(r.threadId, () => runMoved(r.threadId, d.run, started.record as RunRecord));
-    //     }
-    //
-    //     const sends: BatchOut["sends"] = [];
-    //     const now = o.sendAt ?? deps.now();
-    //     for (const send of result.sends as BatchSend[]) {
-    //       const fromPress = send.by === "person";
-    //       const last = (fromPress ? pressSentAt : reactionSentAt).get(r.threadId);
-    //       if (last !== undefined && now - last < (fromPress ? PRESS_SEND_MS : REACTION_SEND_MS)) {
-    //         if (fromPress) throw refused(problem("V753", "send-rate", "too fast; try again in a moment"), "conflict");
-    //         keepProblems(r, [problem("R912", "reaction-failed", `reaction ${send.reaction ?? "?"}: V753 send-rate, one message a minute from reactions`)]);
-    //         continue;
-    //       }
-    //       (fromPress ? pressSentAt : reactionSentAt).set(r.threadId, now);
-    //       sends.push({ prompt: compose(r, send, views, o.event, now), kind: send.do, requestId: o.requestId ?? `${r.threadId}:${r.version}:${send.reaction ?? send.piece ?? "slate"}:${now}` });
-    //     }
-    //
-    //     const changed = new Set<string>();
-    //     for (const name of new Set([...Object.keys(before), ...Object.keys(r.values)])) if (!slateEqual(before[name], r.values[name])) changed.add(name);
-    //     if (changed.size > 0 || result.problems.length > 0) {
-    //       r.revision += 1;
-    //       await save(r);
-    //       push(r, changed);
-    //     }
-    //     return { asks, started: deferred.map(d => d.run), sends };
-    //   }
     /// Called on the thread's chain.
     pub(crate) async fn batch(
         self: Rc<Self>,
@@ -326,65 +450,215 @@ impl SlatesInner {
         by: BatchBy,
         o: BatchOptions,
     ) -> Result<BatchOut, HostError> {
-        todo!()
+        let snap = r.borrow().clone();
+        let Some(doc) = snap.document.clone() else { return Ok(BatchOut::default()) };
+        let thread_id = snap.thread_id.clone();
+        let views = self.clone().startable(&snap).await;
+        let before = snap.values.clone();
+        let deferred: Rc<RefCell<Vec<Deferred>>> = Rc::new(RefCell::new(Vec::new()));
+        let timer = by == BatchBy::Timer;
+        let start: SlateStart = {
+            let area = self.clone();
+            let queue = deferred.clone();
+            let r = r.clone();
+            Rc::new(move |run: &str, start_by: &str| {
+                let record = area.provisional(r.clone(), run);
+                let by = match (timer, start_by) {
+                    (true, _) => RunBy::Timer,
+                    (false, "reaction") => RunBy::Reaction,
+                    (false, _) => RunBy::Person,
+                };
+                let answer = record.to_json();
+                queue.borrow_mut().push(Deferred { run: run.to_string(), by, record });
+                answer
+            })
+        };
+        let by_name = match by {
+            BatchBy::Timer | BatchBy::Run => "run",
+            BatchBy::Person => "person",
+            BatchBy::Agent => "agent",
+            BatchBy::Reaction => "reaction",
+            BatchBy::Host => "host",
+        };
+        let ctx = SlateBatchContext {
+            eval: self.context_of(&snap, &views, None),
+            by: by_name.into(),
+            event: o.event.clone(),
+            reaction_sends: snap.sends_allowed.is_some(),
+            react: o.react,
+            start: Some(start),
+        };
+        self.clone().wake_for(&snap, &o.starts).await;
+        let mut writes = input;
+        for (run, run_by) in &o.starts {
+            let record = self.start_now(r.clone(), run, *run_by, &views, None).record;
+            writes.push(SlateWrite { path: format!("${run}"), value: record.to_json() });
+        }
+        let base = r.borrow().values.clone();
+        let result = run_slate_batch(&doc, &base, writes, ctx);
+        let bytes = serde_json::to_string(&result.values).map_or(0, |text| text.len());
+        if bytes > SLATE_LIMITS.values_bytes {
+            let note = format!("the values would be {bytes} bytes; a slate holds at most {}", SLATE_LIMITS.values_bytes);
+            self.keep_problems(&mut r.borrow_mut(), &[problem("S500", "values-too-big", &note, None)]);
+            self.clone().save(r.clone()).await?;
+            return Ok(BatchOut::default());
+        }
+        {
+            let mut rec = r.borrow_mut();
+            rec.values = result.values.clone();
+            self.keep_problems(&mut rec, &result.problems);
+        }
+        for run in &result.cancels {
+            self.runs().cancel(&thread_id, run);
+        }
+        let deferred_list: Vec<Deferred> = std::mem::take(&mut *deferred.borrow_mut());
+        let starts: Vec<(String, RunBy)> = deferred_list.iter().map(|d| (d.run.clone(), d.by)).collect();
+        let now_snap = r.borrow().clone();
+        self.clone().wake_for(&now_snap, &starts).await;
+        let mut asks = Vec::new();
+        for d in &deferred_list {
+            let started = self.start_now(r.clone(), &d.run, d.by, &views, before.get(&d.run).cloned().map(Some));
+            if let Some(ask) = started.ask.clone() {
+                asks.push(ask);
+            }
+            if started.record.state() == d.record.state() {
+                r.borrow_mut().values.insert(d.run.clone(), started.record.to_json());
+            } else {
+                let area = self.clone();
+                let (t, run, record) = (thread_id.clone(), d.run.clone(), started.record.clone());
+                drop(self.serial(&thread_id, move || async move { area.run_moved(t, run, record).await }));
+            }
+        }
+
+        let sends_snap = r.borrow().clone();
+        let now = o.send_at.unwrap_or_else(|| self.deps.clock().now());
+        let mut sends = Vec::new();
+        for send in &result.sends {
+            let from_press = send.by.as_deref() == Some("person");
+            let (sent_at, limit) =
+                if from_press { (&self.press_sent_at, PRESS_SEND_MS) } else { (&self.reaction_sent_at, REACTION_SEND_MS) };
+            let last = sent_at.borrow().get(&thread_id).copied();
+            if last.is_some_and(|last| now - last < limit) {
+                if from_press {
+                    return Err(refused(&problem("V753", "send-rate", "too fast; try again in a moment", None), Kind::Conflict));
+                }
+                let note =
+                    format!("reaction {}: V753 send-rate, one message a minute from reactions", send.reaction.as_deref().unwrap_or("?"));
+                self.keep_problems(&mut r.borrow_mut(), &[problem("R912", "reaction-failed", &note, None)]);
+                continue;
+            }
+            sent_at.borrow_mut().insert(thread_id.clone(), now);
+            let prompt = self.compose(&sends_snap, send, &views, o.event.as_ref(), now);
+            let version = r.borrow().version;
+            let request_id = o.request_id.clone().unwrap_or_else(|| {
+                let what = send.reaction.as_deref().or(send.piece.as_deref()).unwrap_or("slate");
+                format!("{thread_id}:{version}:{what}:{now}")
+            });
+            sends.push(ComposedSend { prompt, kind: send.kind.clone(), request_id });
+        }
+
+        let changed: Vec<String> = {
+            let rec = r.borrow();
+            let mut names: IndexSet<&String> = before.keys().collect();
+            names.extend(rec.values.keys());
+            names.into_iter().filter(|name| !slate_equal(before.get(*name), rec.values.get(*name))).cloned().collect()
+        };
+        if !changed.is_empty() || !result.problems.is_empty() {
+            {
+                let mut rec = r.borrow_mut();
+                let revision = rec.rev() + 1;
+                rec.revision = Some(revision);
+            }
+            self.clone().save(r.clone()).await?;
+            self.push(&r, &changed);
+        }
+        Ok(BatchOut { asks, started: deferred_list.iter().map(|d| d.run.clone()).collect(), sends })
     }
 
-    // slates.ts:965
-    //   /** The message a send puts into the thread (09, "The message"): the literal text, a blank line, one `slate:` line
-    //    * whose values are the host's, scrubbed and defanged, cut to 20,000 characters longest value first. */
-    //   function compose(r: SlateRecord, send: BatchSend, views: ReadonlyMap<string, SlateJson | undefined>, event: BatchEvent | undefined, now: number): string {
-    //     const ctx = contextOf(r, views, event);
-    //     const named = send.with ?? [];
-    //     let carried: SlateJson = Object.fromEntries(named.map(path => [path, defanged(mapStrings(send.values?.[path] ?? evaluateSlateExpression(path, ctx) ?? null, s => scrub(r, s)))]));
-    //     const fromPress = send.by === "person";
-    //     const pieceId = send.piece ?? (fromPress ? event?.piece : undefined);
-    //     const piece = pieceId !== undefined ? r.document?.pieces[pieceId] : undefined;
-    //     const rowActions = piece?.props?.["rowActions"];
-    //     const owner = event?.rowAction !== undefined && Array.isArray(rowActions) ? (rowActions[event.rowAction] as { label?: unknown } | undefined) : undefined;
-    //     const labelled = owner !== undefined ? owner.label : piece?.props?.["label"];
-    //     const label = typeof labelled === "string" ? labelled.slice(0, 80) : undefined;
-    //     const keyProp = piece?.props?.["key"];
-    //     const key = event?.index === undefined || keyProp === undefined ? undefined : resolveSlateProp(keyProp, ctx);
-    //     const line = (w: SlateJson): string =>
-    //       `slate: ${JSON.stringify({
-    //         v: 2,
-    //         kind: fromPress ? "action" : "reaction",
-    //         thread: threadWord(r.threadId),
-    //         version: r.version,
-    //         ...(pieceId !== undefined ? { piece: pieceId } : {}),
-    //         ...(label !== undefined ? { label } : {}),
-    //         ...(event !== undefined && fromPress ? { event: event.kind } : {}),
-    //         ...(send.reaction !== undefined ? { reaction: send.reaction } : {}),
-    //         ...(event?.index !== undefined && fromPress ? { index: event.index } : {}),
-    //         ...(key !== undefined ? { key } : {}),
-    //         ...(named.length > 0 ? { with: w } : {}),
-    //         by: fromPress ? "person" : "reaction",
-    //         at: new Date(now).toISOString(),
-    //       })}`;
-    //     let prompt = `${send.text}\n\n${line(carried)}`;
-    //     for (let i = 0; prompt.length > MESSAGE_CHARS && i < 50; i++) {
-    //       const long = longest(carried);
-    //       if (long === undefined || long.length < 20) break;
-    //       carried = cutAt(carried, long.at, Math.max(0, long.length - (prompt.length - MESSAGE_CHARS) - 10));
-    //       prompt = `${send.text}\n\n${line(carried)}`;
-    //     }
-    //     return prompt;
-    //   }
     pub(crate) fn compose(&self, r: &SlateRecord, send: &BatchSend, views: &Views, event: Option<&BatchEvent>, now: i64) -> String {
-        todo!()
+        let ctx = self.context_of(r, views, event.map(|e| (e.item.clone(), e.index)));
+        let named: &[String] = send.with.as_deref().unwrap_or(&[]);
+        let mut carried: Value = Value::Object(
+            named
+                .iter()
+                .map(|path| {
+                    let raw = send
+                        .values
+                        .as_ref()
+                        .and_then(|values| values.get(path))
+                        .filter(|v| !v.is_null())
+                        .cloned()
+                        .or_else(|| evaluate_slate_expression(path, &ctx))
+                        .unwrap_or(Value::Null);
+                    let scrubbed = map_strings(&raw, &|text: &str| self.scrub(&r.thread_id, text));
+                    (path.clone(), defanged(&scrubbed))
+                })
+                .collect(),
+        );
+        let from_press = send.by.as_deref() == Some("person");
+        let piece_id: Option<String> = send.piece.clone().or_else(|| if from_press { event.map(|e| e.piece.clone()) } else { None });
+        let piece = piece_id.as_ref().and_then(|id| r.document.as_ref().and_then(|doc| doc.pieces.get(id)));
+        let props = piece.and_then(|p| p.props.as_ref());
+        let row_actions = props.and_then(|p| p.get("rowActions")).and_then(Value::as_array);
+        let owner =
+            event.and_then(|e| e.row_action).and_then(|i| row_actions.and_then(|items| usize::try_from(i).ok().and_then(|i| items.get(i))));
+        let labelled: Option<&Value> = match owner {
+            Some(owner) => owner.get("label"),
+            None => props.and_then(|p| p.get("label")),
+        };
+        let label = labelled.and_then(Value::as_str).map(|text| utf16::cut(text, 80));
+        let key: Option<Value> = match (event.and_then(|e| e.index), props.and_then(|p| p.get("key"))) {
+            (Some(_), Some(key_prop)) => resolve_slate_prop(key_prop, &ctx),
+            _ => None,
+        };
+        let line = |with: &Value| -> String {
+            let mut m = Map::new();
+            m.insert("v".into(), json!(2));
+            m.insert("kind".into(), json!(if from_press { "action" } else { "reaction" }));
+            m.insert("thread".into(), json!(thread_word(&r.thread_id)));
+            m.insert("version".into(), json!(r.version));
+            if let Some(id) = &piece_id {
+                m.insert("piece".into(), json!(id));
+            }
+            if let Some(label) = &label {
+                m.insert("label".into(), json!(label));
+            }
+            if let Some(event) = event.filter(|_| from_press) {
+                m.insert("event".into(), json!(event.kind));
+            }
+            if let Some(reaction) = &send.reaction {
+                m.insert("reaction".into(), json!(reaction));
+            }
+            if let Some(index) = event.filter(|_| from_press).and_then(|e| e.index) {
+                m.insert("index".into(), json!(index));
+            }
+            if let Some(key) = &key {
+                m.insert("key".into(), key.clone());
+            }
+            if !named.is_empty() {
+                m.insert("with".into(), with.clone());
+            }
+            m.insert("by".into(), json!(if from_press { "person" } else { "reaction" }));
+            m.insert("at".into(), json!(iso_string(now as f64).unwrap_or_default()));
+            format!("slate: {}", serde_json::to_string(&Value::Object(m)).unwrap_or_default())
+        };
+        let mut prompt = format!("{}\n\n{}", send.text, line(&carried));
+        for _ in 0..50 {
+            if utf16::len(&prompt) <= MESSAGE_CHARS {
+                break;
+            }
+            let Some(long) = longest(&carried, &[]) else { break };
+            if long.length < 20 {
+                break;
+            }
+            let over = utf16::len(&prompt) as i64 - MESSAGE_CHARS as i64;
+            let keep = (long.length as i64 - over - 10).max(0) as usize;
+            carried = cut_at(&carried, &long.at, keep);
+            prompt = format!("{}\n\n{}", send.text, line(&carried));
+        }
+        prompt
     }
 
-    // slates.ts:1006
-    //   /** The sends a batch composed, delivered outside the record's queue: a start that waits on a running turn must not
-    //    * hold up that turn's own writes to the slate. */
-    //   const deliverAll = async (r: SlateRecord, sends: BatchOut["sends"]): Promise<{ outcome: "started" | "steered" | "queued"; turnId?: string; kind: "send" | "steer" | "queue" } | undefined> => {
-    //     let first: { outcome: "started" | "steered" | "queued"; turnId?: string; kind: "send" | "steer" | "queue" } | undefined;
-    //     for (const s of sends) {
-    //       const landed = await deps.deliver({ threadId: r.threadId, workspaceId: r.workspaceId, prompt: s.prompt, requestId: s.requestId });
-    //       first ??= { ...landed, kind: s.kind };
-    //     }
-    //     return first;
-    //   };
     /// The first outcome, with the send's kind.
     pub(crate) async fn deliver_all(
         self: Rc<Self>,
@@ -392,6 +666,21 @@ impl SlatesInner {
         workspace_id: String,
         sends: Vec<ComposedSend>,
     ) -> Result<Option<(Delivered, String)>, HostError> {
-        todo!()
+        let mut first = None;
+        for send in sends {
+            let landed = self
+                .deps
+                .deliver(Delivery {
+                    thread_id: thread_id.clone(),
+                    workspace_id: workspace_id.clone(),
+                    prompt: send.prompt,
+                    request_id: send.request_id,
+                })
+                .await?;
+            if first.is_none() {
+                first = Some((landed, send.kind));
+            }
+        }
+        Ok(first)
     }
 }

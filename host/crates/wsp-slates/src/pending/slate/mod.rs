@@ -14,6 +14,8 @@ pub type SlateJson = Value;
 pub type SlateValues = IndexMap<String, Value>;
 /// types.ts:31: a literal, `{bind}` or `{format}`, as JSON.
 pub type SlatePropValue = Value;
+pub type SlateResolve = Rc<dyn Fn(&str) -> Option<Value>>;
+pub type SlateStart = Rc<dyn Fn(&str, &str) -> Value>;
 
 /// types.ts:7.
 pub const SLATE_SCHEMA: i64 = 2;
@@ -21,10 +23,21 @@ pub const SLATE_SCHEMA: i64 = 2;
 /// problems.ts:8.
 pub const SLATE_SECRET_IN_ARGS: &str = "a secret reaches a command through env or stdin, never as an argument, which ps can read";
 
-/// limits.ts:3-45, the entries this slice reads, with their values.
+/// Every limit a slate is held to (limits.ts).
 pub struct SlateLimits {
     pub document_bytes: usize,
+    pub pieces: usize,
+    pub depth: usize,
+    pub children: usize,
     pub values_bytes: usize,
+    pub values: usize,
+    pub derived: usize,
+    pub runs: usize,
+    pub reactions: usize,
+    pub files: usize,
+    pub files_bytes: usize,
+    pub steps_per_reaction: usize,
+    pub rounds: usize,
     pub running_at_once: usize,
     pub starts_per_minute: usize,
     pub timer_floor_s: i64,
@@ -32,13 +45,43 @@ pub struct SlateLimits {
     pub timeout_max_s: i64,
     pub stream_lines: usize,
     pub reaction_sends_per_minute: i64,
+    pub expr_chars: usize,
+    pub expr_depth: usize,
+    pub holes: usize,
+    pub pipeline_steps: usize,
+    pub eval_steps: usize,
+    pub list_items: usize,
+    pub images_per_list: usize,
+    pub pipeline_visits: usize,
+    pub columns: usize,
+    pub facts: usize,
+    pub row_actions: usize,
     pub errors_per_pass: usize,
     pub pieces_named: usize,
+    pub sketch_columns: usize,
+    pub sketch_piece_lines: usize,
+    pub sketch_rows: usize,
+    pub sketch_value_chars: usize,
+    pub sketch_tokens: usize,
+    pub print_columns: usize,
+    pub catalog_index_tokens: usize,
+    pub catalog_entry_tokens: usize,
 }
 
 pub const SLATE_LIMITS: SlateLimits = SlateLimits {
     document_bytes: 64 * 1024,
+    pieces: 300,
+    depth: 10,
+    children: 100,
     values_bytes: 256 * 1024,
+    values: 64,
+    derived: 32,
+    runs: 16,
+    reactions: 32,
+    files: 16,
+    files_bytes: 64 * 1024,
+    steps_per_reaction: 6,
+    rounds: 8,
     running_at_once: 4,
     starts_per_minute: 12,
     timer_floor_s: 10,
@@ -46,8 +89,27 @@ pub const SLATE_LIMITS: SlateLimits = SlateLimits {
     timeout_max_s: 600,
     stream_lines: 500,
     reaction_sends_per_minute: 1,
+    expr_chars: 500,
+    expr_depth: 16,
+    holes: 20,
+    pipeline_steps: 12,
+    eval_steps: 20_000,
+    list_items: 5_000,
+    images_per_list: 60,
+    pipeline_visits: 100_000,
+    columns: 8,
+    facts: 12,
+    row_actions: 3,
     errors_per_pass: 20,
     pieces_named: 20,
+    sketch_columns: 100,
+    sketch_piece_lines: 40,
+    sketch_rows: 8,
+    sketch_value_chars: 80,
+    sketch_tokens: 2_000,
+    print_columns: 120,
+    catalog_index_tokens: 1_500,
+    catalog_entry_tokens: 200,
 };
 
 /// types.ts:270-281: the one shape of an error, a warning and a runtime problem, keys in this order.
@@ -202,11 +264,11 @@ pub struct SlateOwnPath {
     pub segs: Vec<PathSeg>,
 }
 
-/// One step of a path: `.field` or `[index]`.
+/// One step of a path: `.field` or `[index]`, where a negative index counts back from the end.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PathSeg {
     Key(String),
-    Index(usize),
+    Index(i64),
 }
 
 /// expr.ts's `SlateEvalContext`: the clock, the row scope and how a path reads.
@@ -215,7 +277,7 @@ pub struct SlateEvalContext {
     pub now: i64,
     pub item: Option<Value>,
     pub index: Option<i64>,
-    pub resolve: Rc<dyn Fn(&str) -> Option<Value>>,
+    pub resolve: SlateResolve,
 }
 
 /// The event a batch runs for (slates.ts:200-206).
@@ -243,7 +305,7 @@ pub struct SlateBatchContext {
     /// `Some(false)` from a paired computer: no reaction fires.
     pub react: Option<bool>,
     /// A start the batch asks for: answers the record it will read until the start runs.
-    pub start: Option<Rc<dyn Fn(&str, &str) -> Value>>,
+    pub start: Option<SlateStart>,
 }
 
 /// One write into a batch: a path and its value.
@@ -257,6 +319,8 @@ pub struct SlateWrite {
 #[derive(Clone, Debug, PartialEq)]
 pub struct BatchStart {
     pub run: String,
+    /// `person` or `reaction`.
+    pub by: String,
     pub why: String,
 }
 
@@ -278,12 +342,16 @@ pub struct BatchSend {
 #[derive(Clone, Debug, PartialEq)]
 pub struct SlateBatchResult {
     pub values: SlateValues,
+    /// The own names whose value moved in this batch, as `$name`.
+    pub changed: Vec<String>,
     pub problems: Vec<SlateProblem>,
     pub starts: Vec<BatchStart>,
     pub cancels: Vec<String>,
     pub sends: Vec<BatchSend>,
     /// Steps the window carries out (`open`, `copy`, `pane`, `fill`): each step's `do`.
     pub other: Vec<String>,
+    /// The same window steps with their data (`other` is their `do` names).
+    pub other_steps: Vec<SlateBatchWindowStep>,
 }
 
 /// What `parseSlate` and `validateSlate` answer.
@@ -323,74 +391,70 @@ pub struct SketchOptions {
 }
 
 pub fn slate_run_idle() -> Value {
-    todo!()
+    serde_json::json!({"state": "idle", "runs": 0})
 }
-pub fn slate_problem(code: &str, message: &str, fix: Option<&str>) -> SlateProblem {
-    todo!()
-}
-pub fn is_slate_source(name: &str) -> bool {
-    todo!()
-}
+
 pub fn slate_bytes(text: &str) -> usize {
-    todo!()
+    text.len()
 }
-pub fn parse_slate(text: &str) -> SlateChecked {
-    todo!()
-}
-pub fn validate_slate(document: &Value) -> SlateChecked {
-    todo!()
-}
-pub fn parse_slate_patch(text: &str, doc: Option<&SlateDoc>) -> SlatePatchParsed {
-    todo!()
-}
-pub fn apply_slate_patch(doc: Option<&SlateDoc>, values: &SlateValues, ops: &[Value], lines: &Value) -> SlateApplied {
-    todo!()
-}
-pub fn print_slate(doc: &SlateDoc) -> String {
-    todo!()
-}
-pub fn sketch_slate(doc: Option<&SlateDoc>, values: &SlateValues, o: SketchOptions) -> String {
-    todo!()
-}
-pub fn run_slate_batch(doc: &SlateDoc, values: &SlateValues, input: Vec<SlateWrite>, ctx: SlateBatchContext) -> SlateBatchResult {
-    todo!()
-}
-pub fn evaluate_slate_expression(expr: &str, ctx: &SlateEvalContext) -> Option<Value> {
-    todo!()
-}
-pub fn resolve_slate_prop(v: &Value, ctx: &SlateEvalContext) -> Option<Value> {
-    todo!()
-}
-pub fn get_slate_value(values: &SlateValues, path: &str) -> Option<Value> {
-    todo!()
-}
-pub fn set_slate_value(values: &SlateValues, path: &str, value: Value) -> Option<SlateValues> {
-    todo!()
-}
-pub fn parse_slate_own_path(path: &str) -> Option<SlateOwnPath> {
-    todo!()
-}
-pub fn slate_step(at: Option<Value>, seg: &PathSeg) -> Option<Value> {
-    todo!()
-}
+
 pub fn is_slate_binding(v: &Value) -> bool {
-    todo!()
+    v.as_object().is_some_and(|m| m.len() == 1 && m.get("bind").is_some_and(Value::is_string))
 }
-pub fn slate_dependencies(expr: &str) -> Vec<String> {
-    todo!()
-}
-pub fn slate_equal(a: Option<&Value>, b: Option<&Value>) -> bool {
-    todo!()
-}
-pub fn slate_nearest(word: &str, options: &[String]) -> Option<String> {
-    todo!()
-}
-pub fn slate_domain_key(domain: &str) -> String {
-    todo!()
-}
-pub fn slate_text(v: &Value) -> String {
-    todo!()
-}
-pub fn slate_catalog(name: Option<&str>) -> String {
-    todo!()
-}
+
+pub mod batch;
+pub mod catalog;
+pub mod chart;
+pub mod examples;
+pub mod expr;
+pub mod image;
+pub mod kit;
+pub mod patch;
+pub mod paths;
+pub mod problems;
+pub mod shape;
+pub mod sketch;
+pub mod sources;
+pub mod steps;
+pub mod syntax;
+pub mod validate;
+pub use batch::{run_slate_batch, SlateBatchSend, SlateBatchWindowStep, SlateWriter};
+pub use catalog::slate_catalog;
+pub use catalog::{slate_takes_figures, slate_tokens, SLATE_CHAPTERS, SLATE_INDEX_EXAMPLE, SLATE_RULES};
+pub use chart::{
+    slate_axis_word, slate_chart_axis, slate_shares, slate_span_state, slate_time, SlateChartAxis, SlateShare, SLATE_DONUT_PARTS,
+    SLATE_SPAN_STATES, SLATE_TIME_FLOOR,
+};
+pub use examples::{SlateExample, SLATE_EXAMPLES};
+pub use expr::{
+    check_slate_expression, closing_brace, evaluate_slate_ast, evaluate_slate_expression, parse_slate_expression, parse_slate_format,
+    resolve_slate_prop, slate_ast_dependencies, slate_dependencies, slate_path_text, slate_prop_dependencies, slate_text, slate_truthy,
+    SlateBinOp, SlateCheckScope, SlateExpr, SlateExprCheck, SlateExprParse, SlateFormatParse, SlateFormatPart, SlateFunction, SlatePipeArg,
+    SlatePipeStep, SlatePipeStepNode, SlateScopeProblem, SlateTemplatePart, SlateType, SlateTypeName, SLATE_FUNCTIONS, SLATE_PIPE_STEPS,
+};
+pub use image::{
+    slate_address_refused, slate_image_missing, slate_image_not_a_file, slate_image_source, slate_image_too_big, slate_list_too_long,
+    slate_looks_svg, slate_not_an_image, SlateImageSource, SLATE_IMAGE_LAYOUTS, SLATE_IMAGE_MAX_BYTES,
+};
+pub use kit::{
+    slate_figure, slate_held_text, slate_piece_module, slate_reserved_prop, SlateBinds, SlateChildLimit, SlateItemSpec, SlateMost,
+    SlatePieceCheck, SlatePieceModule, SlatePropSpec, SlatePropType, SlateSketchFn, SlateSketchView, SLATE_EVENTS, SLATE_FIGURES,
+    SLATE_ITEM_KINDS, SLATE_PIECES, SLATE_RESERVED_PROPS, SLATE_TONES,
+};
+pub use patch::{apply_slate_patch, carry_slate_values, slate_start_values};
+pub use paths::{get_slate_value, parse_slate_own_path, set_slate_value, slate_equal, slate_own_name, slate_segments, slate_step};
+pub use problems::{
+    or_list, slate_description_missing, slate_host_away, slate_nearest, slate_problem, slate_server_not_set_up, slate_unknown_piece,
+    UnknownPiece, SLATE_CODES, SLATE_WARNINGS,
+};
+pub use shape::{
+    sketch_slate_result, slate_field_words, slate_result_shape, SlateColumn, SlateFact, SlateNested, SlateResultShape, SLATE_RESULT_ROWS,
+};
+pub use sketch::{sketch_slate, SlateSketchContext};
+pub use sources::{
+    is_slate_source, slate_is_series, slate_shape_text, slate_shape_type, slate_source_type, SlateShape, SlateSourceModule, SLATE_SOURCES,
+    SLATE_SOURCE_NAMES,
+};
+pub use steps::{slate_domain_key, slate_link_domain, slate_step_module, SlateStepModule, SLATE_STEPS};
+pub use syntax::{compile_slate_text, parse_slate, parse_slate_patch, print_slate, SlateCompiled};
+pub use validate::{validate_document, validate_slate, SlateLines, SlateValidated};

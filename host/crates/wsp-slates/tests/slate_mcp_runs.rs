@@ -22,7 +22,9 @@ use wsp_core::clock::{real_clock, Clock, FakeClock};
 use wsp_slates::pending::slate::{SlateDoc, SlateRunDecl};
 use wsp_slates::slate_files::WithFiles;
 use wsp_slates::slate_mcp::*;
-use wsp_slates::slate_runs::{Outcome, Reshape, ReshapeAnswer, RunApprovals, RunBy, RunRecord, RunStartAnswer, HELD_PRESSED, STARTS_PER_MINUTE};
+use wsp_slates::slate_runs::{
+    Outcome, Reshape, ReshapeAnswer, RunApprovals, RunBy, RunRecord, RunStartAnswer, HELD_PRESSED, STARTS_PER_MINUTE,
+};
 
 // ---- fixtures and fakes ----
 
@@ -43,7 +45,15 @@ fn node_spec(script: &str, starts: Option<&PathBuf>, secrets: Vec<String>) -> Mc
         tenv.insert("STUB_STARTS".to_string(), at.to_string_lossy().to_string());
     }
     let t = McpTransport::Stdio { command: "node".into(), args: vec![fixture(script)], env: tenv, cwd: None, tool_timeout_sec: None };
-    McpServerSpec { transport: t, cwd: std::env::temp_dir().to_string_lossy().to_string(), env: path_env(), secrets, open: None, post: None, sign_in: None }
+    McpServerSpec {
+        transport: t,
+        cwd: std::env::temp_dir().to_string_lossy().to_string(),
+        env: path_env(),
+        secrets,
+        open: None,
+        post: None,
+        sign_in: None,
+    }
 }
 
 fn decl(v: Value) -> WithFiles {
@@ -59,7 +69,10 @@ fn obj(v: Value) -> Map<String, Value> {
 }
 
 fn doc(runs: Value) -> SlateDoc {
-    serde_json::from_value(json!({ "schema": 2, "root": "root", "values": {}, "derived": {}, "reactions": [], "pieces": {}, "runs": runs, "files": {} })).expect("a document")
+    serde_json::from_value(
+        json!({ "schema": 2, "root": "root", "values": {}, "derived": {}, "reactions": [], "pieces": {}, "runs": runs, "files": {} }),
+    )
+    .expect("a document")
 }
 
 fn json_of(r: &RunRecord) -> Value {
@@ -130,6 +143,12 @@ impl Records {
     }
 }
 
+type ServerFn = Rc<dyn Fn(&str, &str) -> Result<McpServerSpec, String>>;
+type OwnFn = Rc<dyn Fn(&str, u32, &str) -> Release>;
+type ReshapeFn = Rc<dyn Fn(&str, &str, &str) -> Reshape>;
+type AnswerFn = Box<dyn FnMut(&str, &Value) -> Option<Value>>;
+type OwnedLog = Vec<(String, u32, String, Rc<Cell<bool>>)>;
+
 struct Made {
     mcp: Rc<SlateMcp>,
     records: Records,
@@ -143,17 +162,24 @@ struct Opts {
     secrets: Secrets,
     clock: Rc<dyn Clock>,
     idle_ms: Option<u64>,
-    own: Option<Rc<dyn Fn(&str, u32, &str) -> Release>>,
-    reshape: Option<Rc<dyn Fn(&str, &str, &str) -> Reshape>>,
+    own: Option<OwnFn>,
+    reshape: Option<ReshapeFn>,
 }
 
 impl Default for Opts {
     fn default() -> Self {
-        Opts { asks: Rc::new(Cell::new(ToolAsks::Never)), secrets: Secrets::default(), clock: real_clock(), idle_ms: None, own: None, reshape: None }
+        Opts {
+            asks: Rc::new(Cell::new(ToolAsks::Never)),
+            secrets: Secrets::default(),
+            clock: real_clock(),
+            idle_ms: None,
+            own: None,
+            reshape: None,
+        }
     }
 }
 
-fn make(server: Rc<dyn Fn(&str, &str) -> Result<McpServerSpec, String>>, o: Opts) -> Made {
+fn make(server: ServerFn, o: Opts) -> Made {
     let records = Records::default();
     let approvals = Rc::new(Approvals::default());
     let asks_called = Rc::new(Cell::new(0));
@@ -210,7 +236,7 @@ fn spawned(at: &PathBuf) -> usize {
 /// `answer` (`None` holds it until `release`). Answers go out on a later turn of the loop, as the TS's setImmediate.
 struct Hand {
     tools: Value,
-    answer: RefCell<Box<dyn FnMut(&str, &Value) -> Option<Value>>>,
+    answer: RefCell<AnswerFn>,
     lines: RefCell<Vec<Value>>,
     held: RefCell<Vec<Value>>,
     events: RefCell<Option<McpPipeEvents>>,
@@ -247,8 +273,16 @@ impl McpPipe for HandPipe {
 }
 
 impl Hand {
-    fn new(tools: Value, answer: Box<dyn FnMut(&str, &Value) -> Option<Value>>) -> Rc<Hand> {
-        Rc::new(Hand { tools, answer: RefCell::new(answer), lines: RefCell::new(vec![]), held: RefCell::new(vec![]), events: RefCell::new(None), kills: Cell::new(0), opens: Cell::new(0) })
+    fn new(tools: Value, answer: AnswerFn) -> Rc<Hand> {
+        Rc::new(Hand {
+            tools,
+            answer: RefCell::new(answer),
+            lines: RefCell::new(vec![]),
+            held: RefCell::new(vec![]),
+            events: RefCell::new(None),
+            kills: Cell::new(0),
+            opens: Cell::new(0),
+        })
     }
     fn send(self: &Rc<Self>, msg: Value) {
         let me = self.clone();
@@ -287,12 +321,12 @@ fn text_result(text: &str) -> Value {
     json!({ "content": [{ "type": "text", "text": text }] })
 }
 
-fn served(hand: &Rc<Hand>, secrets: Vec<String>) -> Rc<dyn Fn(&str, &str) -> Result<McpServerSpec, String>> {
+fn served(hand: &Rc<Hand>, secrets: Vec<String>) -> ServerFn {
     let spec = hand.spec(secrets);
     Rc::new(move |_t: &str, _n: &str| Ok(spec.clone()))
 }
 
-fn stub_server(starts: Option<PathBuf>) -> Rc<dyn Fn(&str, &str) -> Result<McpServerSpec, String>> {
+fn stub_server(starts: Option<PathBuf>) -> ServerFn {
     Rc::new(move |_t: &str, name: &str| match name {
         "stub" => Ok(node_spec("stub-mcp.mjs", starts.as_ref(), vec![])),
         "notes" => Ok(node_spec("stub-text-mcp.mjs", starts.as_ref(), vec![])),
@@ -310,7 +344,10 @@ async fn closes_a_servers_connection_once_hidden_and_idle_unless_an_always_timer
         .run_until(async {
             let dir = tempfile::tempdir().unwrap();
             let starts = dir.path().join("starts");
-            let m = make(stub_server(Some(starts.clone())), Opts { asks: Rc::new(Cell::new(ToolAsks::Every)), idle_ms: Some(300), ..Opts::default() });
+            let m = make(
+                stub_server(Some(starts.clone())),
+                Opts { asks: Rc::new(Cell::new(ToolAsks::Every)), idle_ms: Some(300), ..Opts::default() },
+            );
             m.approvals.allow("t", &code_key(&tool("stub", "list_items"), &obj(json!({ "params": { "account": "a", "limit": 1 } }))));
             let call = |n: u64| {
                 let records = m.records.clone();
@@ -344,7 +381,8 @@ async fn closes_a_server_the_document_no_longer_names() {
     // spec rule 20.
     LocalSet::new()
         .run_until(async {
-            let hand = Hand::new(json!([{ "name": "list", "annotations": { "readOnlyHint": true } }]), Box::new(|_, _| Some(text_result("{}"))));
+            let hand =
+                Hand::new(json!([{ "name": "list", "annotations": { "readOnlyHint": true } }]), Box::new(|_, _| Some(text_result("{}"))));
             let m = make(served(&hand, vec![]), Opts::default());
             m.mcp.servers("t", &["hand".into()], &[]);
             start(&m, "t", "a", tool("hand", "list"), RunBy::Agent, json!({}));
@@ -365,9 +403,9 @@ async fn names_a_stdio_servers_process_as_the_threads_tool_server_until_closed()
     // TS slate-mcp.test.ts:175-204.
     LocalSet::new()
         .run_until(async {
-            let owned: Rc<RefCell<Vec<(String, u32, String, Rc<Cell<bool>>)>>> = Rc::default();
+            let owned: Rc<RefCell<OwnedLog>> = Rc::default();
             let o = owned.clone();
-            let own: Rc<dyn Fn(&str, u32, &str) -> Release> = Rc::new(move |t: &str, pid: u32, kind: &str| {
+            let own: OwnFn = Rc::new(move |t: &str, pid: u32, kind: &str| {
                 let released = Rc::new(Cell::new(false));
                 o.borrow_mut().push((t.to_string(), pid, kind.to_string(), released.clone()));
                 Box::new(move || released.set(true)) as Release
@@ -394,17 +432,26 @@ async fn a_failed_start_says_what_the_server_said_and_connects_again_next_time()
     // does not name fails with its own words.
     LocalSet::new()
         .run_until(async {
-            let server: Rc<dyn Fn(&str, &str) -> Result<McpServerSpec, String>> = Rc::new(|_t: &str, name: &str| {
+            let server: ServerFn = Rc::new(|_t: &str, name: &str| {
                 if name != "broken" {
                     return Err(format!("no MCP server called {name} is in Claude Code's config there"));
                 }
-                let t = McpTransport::Stdio { command: "bash".into(), args: vec!["-c".into(), "echo first >&2; echo 'cannot find module x' >&2; sleep 0.3; exit 1".into()], env: IndexMap::new(), cwd: None, tool_timeout_sec: None };
+                let t = McpTransport::Stdio {
+                    command: "bash".into(),
+                    args: vec!["-c".into(), "echo first >&2; echo 'cannot find module x' >&2; sleep 0.3; exit 1".into()],
+                    env: IndexMap::new(),
+                    cwd: None,
+                    tool_timeout_sec: None,
+                };
                 Ok(McpServerSpec { transport: t, cwd: "/".into(), env: path_env(), secrets: vec![], open: None, post: None, sign_in: None })
             });
             let m = make(server, Opts::default());
             start(&m, "t", "b", tool("broken", "x"), RunBy::Agent, json!({}));
             wait_for("failed", || state_of(&m.records.last("b")).as_deref() == Some("failed")).await;
-            assert_eq!(m.records.last("b").unwrap()["why"], "broken did not start: the server exited with 1; it said: cannot find module x");
+            assert_eq!(
+                m.records.last("b").unwrap()["why"],
+                "broken did not start: the server exited with 1; it said: cannot find module x"
+            );
             start(&m, "t", "b", tool("broken", "x"), RunBy::Agent, json!({}));
             wait_for("failed twice", || m.records.last("b").map(|r| r["runs"] == 2 && r["state"] == "failed").unwrap_or(false)).await;
             assert_eq!(m.servers_asked.get(), 2);
@@ -435,7 +482,8 @@ fn big_http() -> String {
                 buf.push(byte[0]);
             }
             let head = String::from_utf8_lossy(&buf).to_lowercase();
-            let len = head.lines().find_map(|l| l.strip_prefix("content-length:").map(|v| v.trim().parse::<usize>().unwrap_or(0))).unwrap_or(0);
+            let len =
+                head.lines().find_map(|l| l.strip_prefix("content-length:").map(|v| v.trim().parse::<usize>().unwrap_or(0))).unwrap_or(0);
             let mut body = vec![0u8; len];
             let _ = s.read_exact(&mut body);
             let msg: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
@@ -461,10 +509,18 @@ async fn cuts_a_server_off_past_2_mb_and_fails_too_deep_or_too_wide_answers() {
         .run_until(async {
             let url = big_http();
             let flood = stub_server(None);
-            let server: Rc<dyn Fn(&str, &str) -> Result<McpServerSpec, String>> = Rc::new(move |t: &str, name: &str| {
+            let server: ServerFn = Rc::new(move |t: &str, name: &str| {
                 if name == "big" {
                     let tr = McpTransport::Http { url: url.clone(), headers: IndexMap::new() };
-                    return Ok(McpServerSpec { transport: tr, cwd: "/".into(), env: IndexMap::new(), secrets: vec![], open: None, post: None, sign_in: None });
+                    return Ok(McpServerSpec {
+                        transport: tr,
+                        cwd: "/".into(),
+                        env: IndexMap::new(),
+                        secrets: vec![],
+                        open: None,
+                        post: None,
+                        sign_in: None,
+                    });
                 }
                 flood(t, name)
             });
@@ -512,7 +568,14 @@ async fn skips_the_ask_for_a_read_only_tool_and_asks_every_start_of_a_confirm_ru
             start(&m, "t", "list", tool("stub", "list_items"), RunBy::Person, json!({ "params": { "account": "a", "limit": 1 } }));
             wait_for("list done", || state_of(&m.records.last("list")).as_deref() == Some("done")).await;
             // A tool with no hints is one that is not read-only.
-            start(&m, "t", "touch", decl(json!({ "kind": "tool", "server": "stub", "tool": "touch_item", "description": "Marks item 1 as seen" })), RunBy::Person, json!({ "id": 1 }));
+            start(
+                &m,
+                "t",
+                "touch",
+                decl(json!({ "kind": "tool", "server": "stub", "tool": "touch_item", "description": "Marks item 1 as seen" })),
+                RunBy::Person,
+                json!({ "id": 1 }),
+            );
             wait_for("the touch ask", || m.mcp.held("t").len() == 1).await;
             let held = asks_json(&m.mcp.held("t"));
             assert_eq!(held[0]["kind"], "tool");
@@ -544,7 +607,8 @@ async fn asks_once_per_piece_of_code_and_new_arguments_ask_again() {
     LocalSet::new()
         .run_until(async {
             let m = make(stub_server(None), Opts { asks: Rc::new(Cell::new(ToolAsks::Every)), ..Opts::default() });
-            let del = decl(json!({ "kind": "tool", "server": "stub", "tool": "delete_item", "description": "Deletes the item you picked" }));
+            let del =
+                decl(json!({ "kind": "tool", "server": "stub", "tool": "delete_item", "description": "Deletes the item you picked" }));
             let first = start(&m, "t", "remove", del.clone(), RunBy::Person, json!({ "id": 7 }));
             assert_eq!(ans(&first)["outcome"], "held");
             let key7 = code_key(&del, &obj(json!({ "id": 7 })));
@@ -565,7 +629,10 @@ async fn asks_once_per_piece_of_code_and_new_arguments_ask_again() {
             assert_ne!(key8, key7);
             m.mcp.deny("t", &key8);
             let last = m.records.last("remove").unwrap();
-            assert_eq!((last["state"].clone(), last["why"].clone(), last["exit"].clone(), last["runs"].clone()), (json!("cancelled"), json!("you said not to run it"), Value::Null, json!(2)));
+            assert_eq!(
+                (last["state"].clone(), last["why"].clone(), last["exit"].clone(), last["runs"].clone()),
+                (json!("cancelled"), json!("you said not to run it"), Value::Null, json!(2))
+            );
             assert!(m.mcp.held("t").is_empty());
             // Once lets one start go and keeps nothing.
             start(&m, "t", "remove", del.clone(), RunBy::Person, json!({ "id": 9 }));
@@ -756,7 +823,7 @@ async fn a_then_reshapes_a_text_tool_into_json() {
         .run_until(async {
             let fed: Rc<RefCell<Vec<(String, String)>>> = Rc::default();
             let f = fed.clone();
-            let reshape: Rc<dyn Fn(&str, &str, &str) -> Reshape> = Rc::new(move |_t: &str, cmd: &str, input: &str| {
+            let reshape: ReshapeFn = Rc::new(move |_t: &str, cmd: &str, input: &str| {
                 f.borrow_mut().push((cmd.to_string(), input.to_string()));
                 let answer = if cmd == "bad" { ReshapeAnswer::Failed { why: "then exited with 3".into(), exit: Some(3), err: "boom".into() } } else { ReshapeAnswer::Json(json!({ "items": [{ "id": 1 }] })) };
                 Reshape { done: async move { answer }.boxed_local(), kill: Rc::new(|| {}) }
@@ -807,11 +874,13 @@ async fn a_persons_presses_meet_the_start_budget() {
     // starts have a budget of their own and still go.
     LocalSet::new()
         .run_until(async {
-            let hand = Hand::new(json!([{ "name": "count", "annotations": { "readOnlyHint": true } }]), Box::new(|_, _| Some(text_result("{}"))));
+            let hand =
+                Hand::new(json!([{ "name": "count", "annotations": { "readOnlyHint": true } }]), Box::new(|_, _| Some(text_result("{}"))));
             let m = make(served(&hand, vec![]), Opts::default());
             for n in 1..=STARTS_PER_MINUTE as u64 {
                 let r = start(&m, "t", "count", tool("hand", "count"), RunBy::Person, json!({}));
                 assert_eq!(ans(&r)["outcome"], "running", "start {n}");
+                wait_for("the call ends", || m.records.last("count").is_some_and(|r| r["state"] == "done")).await;
             }
             let held = start(&m, "t", "count", tool("hand", "count"), RunBy::Person, json!({}));
             let held = ans(&held);
@@ -927,7 +996,8 @@ async fn deny_cancels_a_held_start_and_leaves_a_running_call() {
         .run_until(async {
             let hand = Hand::new(json!([{ "name": "slow" }]), Box::new(|_, _| None));
             let clock = FakeClock::new(1000);
-            let m = make(served(&hand, vec![]), Opts { asks: Rc::new(Cell::new(ToolAsks::Every)), clock: clock.clock(), ..Opts::default() });
+            let m =
+                make(served(&hand, vec![]), Opts { asks: Rc::new(Cell::new(ToolAsks::Every)), clock: clock.clock(), ..Opts::default() });
             let slow = decl(json!({ "kind": "tool", "server": "hand", "tool": "slow", "description": "Slow" }));
             m.approvals.allow("t", &code_key(&slow, &obj(json!({ "n": 1 }))));
             start(&m, "t", "s", slow.clone(), RunBy::Agent, json!({ "n": 1 }));
@@ -942,7 +1012,10 @@ async fn deny_cancels_a_held_start_and_leaves_a_running_call() {
             // A held start with nothing running is cancelled, its record keeping no result.
             start(&m, "t", "s", slow.clone(), RunBy::Agent, json!({ "n": 3 }));
             m.mcp.deny("t", &code_key(&slow, &obj(json!({ "n": 3 }))));
-            assert_eq!(m.records.last("s").unwrap(), json!({ "state": "cancelled", "why": "you said not to run it", "exit": null, "runs": 1, "endedAt": 1000 }));
+            assert_eq!(
+                m.records.last("s").unwrap(),
+                json!({ "state": "cancelled", "why": "you said not to run it", "exit": null, "runs": 1, "endedAt": 1000 })
+            );
             m.mcp.close();
         })
         .await;
@@ -960,7 +1033,10 @@ async fn cancel_tells_the_server_and_writes_cancelled() {
             wait_for("the call is out", || !hand.held.borrow().is_empty()).await;
             let id = hand.held.borrow()[0].clone();
             m.mcp.cancel("t", "s");
-            assert_eq!(m.records.last("s").unwrap(), json!({ "state": "cancelled", "why": "cancelled", "exit": null, "runs": 1, "endedAt": 1000 }));
+            assert_eq!(
+                m.records.last("s").unwrap(),
+                json!({ "state": "cancelled", "why": "cancelled", "exit": null, "runs": 1, "endedAt": 1000 })
+            );
             assert_eq!(hand.notified("notifications/cancelled"), vec![json!({ "requestId": id, "reason": "cancelled" })]);
             hand.release(text_result("late"));
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -992,7 +1068,11 @@ async fn stop_all_quiet_writes_nothing() {
             wait_for("c out", || hand.held.borrow().len() == 3).await;
             m.mcp.stop_all("t", StopAll { quiet: false, why: Some("the thread was stopped".into()) });
             assert_eq!(m.records.last("c").unwrap()["why"], "the thread was stopped");
-            assert_eq!(m.records.last("a").unwrap()["state"], "running", "a quiet stop left its record as it was");
+            assert_eq!(
+                m.records.last("a").unwrap()["state"],
+                "cancelled",
+                "the quiet stop wrote nothing for a, so the second stop finds it running"
+            );
             m.mcp.close();
         })
         .await;
@@ -1034,7 +1114,7 @@ async fn refused_runs_refuses_a_new_or_changed_tool_run_with_no_description() {
             let del = doc(json!({ "del": { "kind": "tool", "server": "stub", "tool": "delete_item", "args": { "id": 1 } } }));
             assert_eq!(
                 refused(&del, None).await,
-                json!([{ "code": "K713", "name": "description-missing", "message": "$del calls stub.delete_item, which its server does not mark read-only, so it needs description=\"...\": the one line the person reads before allowing it, of what the run does" }])
+                json!([{ "code": "K713", "name": "description-missing", "message": "$del calls stub.delete_item, which its server does not mark read-only, so it needs description=\"...\" saying in one plain line what it does; the person reads it before allowing the run" }])
             );
             let touch = doc(json!({ "touch": { "kind": "tool", "server": "stub", "tool": "touch_item" } }));
             assert_eq!(refused(&touch, None).await[0]["code"], "K713");
@@ -1046,7 +1126,7 @@ async fn refused_runs_refuses_a_new_or_changed_tool_run_with_no_description() {
             assert_eq!(refused(&fine, None).await, json!([]));
             // Taking the description off a run changes it.
             let bare = doc(json!({ "gone": { "kind": "tool", "server": "stub", "tool": "delete_item", "args": { "id": 1 } } }));
-            assert_eq!(refused(&bare, Some(&fine)).await[0]["message"].as_str().unwrap().starts_with("$gone calls stub.delete_item"), true);
+            assert!(refused(&bare, Some(&fine)).await[0]["message"].as_str().unwrap().starts_with("$gone calls stub.delete_item"));
             // A server that does not answer marks nothing read-only.
             let unknown = doc(json!({ "x": { "kind": "tool", "server": "zoho", "tool": "list" } }));
             assert_eq!(refused(&unknown, None).await[0]["code"], "K713");

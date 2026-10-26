@@ -33,7 +33,7 @@ fn pack() -> PackFiles {
 }
 
 fn files_of(lands: Vec<ProvisionLanding>) -> Option<GoldenFiles> {
-    Some(GoldenFiles { lands, pack: pack() })
+    Some(GoldenFiles { count: 0, rungs: IndexMap::new(), bytes: 0, skipped: vec![], lands, pack: pack(), volatile: None })
 }
 
 fn tool(id: &str) -> ToolInstall {

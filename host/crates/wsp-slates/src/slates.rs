@@ -14,32 +14,43 @@ pub mod model;
 pub mod reads;
 pub mod writes;
 
-use std::cell::{OnceCell, RefCell};
+use std::cell::{Cell, OnceCell, RefCell};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::future::{LocalBoxFuture, Shared};
+use futures::FutureExt;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::Value;
+use tokio::task::spawn_local;
 use wsp_core::clock::Clock;
+use wsp_core::harness_catalog::ToolAsks;
+use wsp_core::ids::OsIds;
 use wsp_engine::machine::Machine;
+use wsp_engine::place_machine::PlaceFolderMachine;
 use wsp_store::store::Store;
+use wsp_wire::types::js_number::JsInt;
+use wsp_wire::types::kept::Record;
 use wsp_wire::types::slate_wire::{SessionSlateEvent, SlateRunEvent, SlateValuesEvent};
 use wsp_wire::views::workspace::Caller;
 use wsp_words::exit::HostError;
 
 use crate::pending::wire::{SlateEventAnswer, SlateReadAnswer, SlateStateAnswer, SlateView, SlateWriteAnswer, SlatesImageAnswer};
-use crate::slate_box::BoxLedger;
-use crate::slate_files::{BoxPins, HashOn};
+use crate::slate_box::{box_ledger, box_road, launch_on_for, BoxLedger, Ready, SlateFilesNow};
+use crate::slate_files::{box_pins, write_slate_files, BoxPins, HashOn};
 use crate::slate_images::ImageOn;
-use crate::slate_mcp::{Away, McpServerSpec, MissingOnFn, SlateMcp, ToolAsks};
-use crate::slate_runs::{RunBy, SlateRuns, SlateRunsDeps};
+use crate::slate_mcp::{create_slate_mcp, host_away, Away, McpSecrets, McpServerSpec, MissingOnFn, Release, SlateMcp, SlateMcpDeps};
+use crate::slate_runs::{
+    create_slate_runs, Reshape, ReshapeAnswer, RunApprovals, RunBy, RunRecord, RunRoad, SlateRuns, SlateRunsDeps, SlateSecrets, Stream,
+    NO_FOLDER,
+};
 use crate::slate_sources::SlateSourceContext;
 pub use crate::slate_sources::Views;
-use crate::slate_writes::WriteBudget;
+use crate::slate_writes::{write_budget, WriteBudget};
+use access::RecordApprovals;
 pub use model::{Approval, SlateRecord, SlateSnap, TurnMark};
 
 // slates.ts:124
@@ -173,6 +184,10 @@ pub trait SlatesDeps {
     }
     /// The machine a thread runs on where that is not this computer.
     fn machine_of(&self, _thread_id: &str) -> Option<Arc<dyn Machine>> {
+        None
+    }
+    /// The same machine as the computer's own folder machine, where the thread runs on a joined computer.
+    fn place_of(&self, _thread_id: &str) -> Option<Arc<PlaceFolderMachine>> {
         None
     }
     fn image_on(&self, _thread_id: &str) -> Option<ImageOn> {
@@ -386,12 +401,15 @@ pub type RecordRef = Rc<RefCell<SlateRecord>>;
 /// A chain's tail and a held answer.
 pub type Tail = Shared<LocalBoxFuture<'static, ()>>;
 pub type HeldAnswer = Shared<LocalBoxFuture<'static, Result<SlateEventAnswer, HostError>>>;
+type LoadedFuture = Shared<LocalBoxFuture<'static, Result<(), HostError>>>;
 
 /// `createSlates`' closure state (slates.ts:295-474).
 pub struct SlatesInner {
     pub(crate) deps: Rc<dyn SlatesDeps>,
     pub(crate) records: RefCell<IndexMap<String, RecordRef>>,
-    pub(crate) queues: RefCell<HashMap<String, Tail>>,
+    /// Each thread's chain tail with its sequence number, which `settled` compares to see a chain unchanged.
+    pub(crate) queues: RefCell<IndexMap<String, (u64, Tail)>>,
+    pub(crate) chain_seq: Cell<u64>,
     pub(crate) capturing: RefCell<Option<(String, String)>>,
     pub(crate) started_by: RefCell<IndexMap<String, RunBy>>,
     pub(crate) runs: OnceCell<Rc<dyn SlateRuns>>,
@@ -400,7 +418,7 @@ pub struct SlatesInner {
     pub(crate) pins: OnceCell<BoxPins>,
     pub(crate) skipped: RefCell<HashMap<String, IndexSet<String>>>,
     pub(crate) windows: RefCell<HashMap<String, i64>>,
-    pub(crate) loaded: RefCell<Option<Shared<LocalBoxFuture<'static, Result<(), HostError>>>>>,
+    pub(crate) loaded: RefCell<Option<LoadedFuture>>,
     pub(crate) writes: WriteBudget,
     pub(crate) press_sent_at: RefCell<HashMap<String, i64>>,
     pub(crate) reaction_sent_at: RefCell<HashMap<String, i64>>,
@@ -408,6 +426,8 @@ pub struct SlatesInner {
     pub(crate) event_buckets: RefCell<HashMap<String, (f64, i64)>>,
     pub(crate) holds: RefCell<HashMap<String, IndexMap<String, i64>>>,
     pub(crate) views_now: RefCell<HashMap<String, Views>>,
+    /// The sends a state write handed on, which `settled` waits for.
+    pub(crate) deliveries: RefCell<Vec<Tail>>,
 }
 
 /// The area as the runtime holds it.
@@ -415,189 +435,320 @@ pub struct SlatesArea {
     pub(crate) inner: Rc<SlatesInner>,
 }
 
-// slates.ts:294
-// export function createSlates(deps: SlatesDeps): Slates {
-//   const records = new Map<string, SlateRecord>();
-//   const queues = new Map<string, Promise<unknown>>();
-//   /** One change at a time per thread: a batch, a write and a turn's end never interleave on one record. */
-//   const serial = <T>(threadId: string, run: () => Promise<T>): Promise<T> => {
-//     const next = (queues.get(threadId) ?? Promise.resolve()).then(run, run);
-//     queues.set(threadId, next.catch(() => {}));
-//     return next;
-//   };
-//   const save = (r: SlateRecord): Promise<void> => {
-//     r.updatedAt = deps.now();
-//     return deps.store.put(SLATES, r.threadId, r);
-//   };
-//
-//   /** The run a batch is starting: the runs module's first record of it is the batch's to write, not a batch of its own. */
-//   let capturing: { threadId: string; run: string } | undefined;
-//   /** Who started each run, for the transcript's event when its record goes running. */
-//   const startedBy = new Map<string, RunBy>();
-//   const byKey = (threadId: string, run: string): string => `${threadId}\u0000${run}`;
-//
-//   const approvals: RunApprovals = {
-//       has: (threadId, key) => records.get(threadId)?.approvals[key]?.state === "allowed",
-//       allow: (threadId, key) => {
-//         const r = records.get(threadId);
-//         if (r === undefined) return;
-//         r.approvals[key] = { state: "allowed", at: deps.now(), ...approvalNames(r, key) };
-//         void save(r);
-//       },
-//       revoke: (threadId, key) => {
-//         const r = records.get(threadId);
-//         if (r?.approvals[key] === undefined) return;
-//         delete r.approvals[key];
-//         void save(r);
-//       },
-//       list: threadId => Object.entries(records.get(threadId)?.approvals ?? {}).flatMap(([k, a]) => (a.state === "allowed" ? [k] : [])),
-//   };
-//   const folderOf = (threadId: string): string | undefined => (deps.slatesDir === undefined ? undefined : join(deps.slatesDir, threadId));
-//   const writeFiles = (threadId: string): string => writeSlateFiles(folderOf(threadId)!, records.get(threadId)?.document?.files ?? {});
-//   const moved = (threadId: string, run: string, record: RunRecord): void => {
-//     if (capturing?.threadId === threadId && capturing.run === run) return;
-//     void serial(threadId, () => runMoved(threadId, run, record)).catch((e: unknown) => console.warn(`the slate of thread ${threadWord(threadId)} lost a record of $${run}: ${e instanceof Error ? e.message : String(e)}`));
-//   };
-//   const ledger = boxLedger();
-//   const pins = boxPins(threadId => deps.hashOn?.(threadId));
-//   const runs: SlateRuns = (deps.runs ?? createSlateRuns)({
-//     env: deps.runEnv,
-//     now: deps.now,
-//     ...(deps.secretsFile !== undefined ? { secretsFile: deps.secretsFile } : {}),
-//     ...(deps.slatesDir !== undefined ? { dir: writeFiles } : {}),
-//     hostRefused: (threadId, run) => hostAway(deps.away?.(threadId), run),
-//     road: (threadId, on) => {
-//       if (on === "host") return undefined;
-//       const machine = deps.machineOf?.(threadId);
-//       return machine === undefined
-//         ? undefined
-//         : boxRoad(
-//             machine,
-//             threadId,
-//             () => records.get(threadId)?.document?.files ?? {},
-//             async () => deps.wake?.(threadId),
-//             ledger,
-//           );
-//     },
-//     approvals,
-//     own: deps.ownProcess,
-//     onRecord: moved,
-//     onLine: (threadId, run, line) => {
-//       const r = records.get(threadId);
-//       if (r !== undefined) deps.emit({ type: "slate.run", workspaceId: r.workspaceId, threadId, run, lines: [line] });
-//     },
-//     onTimer: (threadId, run) => timed(threadId, run),
-//   });
-//
-//   /** Runs a settled thread's timer skipped while no window showed the slate, started the moment one does. */
-//   const skipped = new Map<string, Set<string>>();
-//   /** The windows showing each thread's slate, whatever sources they hold. */
-//   const windows = new Map<string, number>();
-//   function timed(threadId: string, run: string): void {
-//     void serial(threadId, async () => {
-//       const r = records.get(threadId);
-//       if (r?.document?.runs[run] === undefined) return;
-//       if ((windows.get(threadId) ?? 0) === 0 && (await deps.settled?.(threadId)) === true) {
-//         skipped.set(threadId, (skipped.get(threadId) ?? new Set()).add(run));
-//         return;
-//       }
-//       await batch(r, [], "timer", { starts: [{ run, by: "timer" }] });
-//     }).catch(() => {});
-//   }
-//
-//   const refusedOn = async (threadId: string, before: SlateDoc | null, doc: SlateDoc | null | undefined): Promise<SlateProblem[]> =>
-//     mcp.refusedRuns(threadId, before, doc, await refusedAway(before, doc, deps.away?.(threadId), deps.missingOn?.bind(deps, threadId)));
-//
-//   const mcp = createSlateMcp({
-//     server: (threadId, name) => (deps.mcpServer === undefined ? Promise.reject(new Error("this host starts no MCP servers for a slate")) : deps.mcpServer(threadId, name)),
-//     onRecord: moved,
-//     onAsks: threadId => {
-//       const r = records.get(threadId);
-//       if (r !== undefined) deps.emit({ type: "slate.values", workspaceId: r.workspaceId, threadId, version: r.version, revision: r.revision, values: {} });
-//     },
-//     approvals,
-//     secrets: runs.secrets,
-//     reshape: (threadId, cmd, input) => {
-//       const folder = deps.thread(threadId)?.folder;
-//       return folder === undefined ? { done: Promise.resolve({ why: NO_FOLDER, exit: null, err: "" }), kill: () => {} } : runs.reshape(threadId, cmd, input, folder);
-//     },
-//     computer: threadId => deps.thread(threadId)?.computer ?? "this computer",
-//     asks: threadId => deps.thread(threadId)?.toolAsks ?? "every",
-//     own: deps.ownProcess,
-//     now: deps.now,
-//   });
-//
+impl SlatesInner {
+    /// The runs table, set by `create_slates` before the area is handed out.
+    pub(crate) fn runs(&self) -> Rc<dyn SlateRuns> {
+        self.runs.get().expect("create_slates sets the runs table").clone()
+    }
+
+    pub(crate) fn mcp(&self) -> Rc<SlateMcp> {
+        self.mcp.get().expect("create_slates sets the MCP table").clone()
+    }
+
+    pub(crate) fn ledger(&self) -> Rc<BoxLedger> {
+        self.ledger.get().expect("create_slates sets the ledger").clone()
+    }
+
+    pub(crate) fn pins(&self) -> &BoxPins {
+        self.pins.get().expect("create_slates sets the pins")
+    }
+
+    /// The files a thread's slate declares, as they are now; none for a thread with no record.
+    pub(crate) fn files_of(&self, thread_id: &str) -> IndexMap<String, String> {
+        let found = self.records.borrow().get(thread_id).cloned();
+        let Some(r) = found else { return IndexMap::new() };
+        let rec = r.borrow();
+        let files = rec.document.as_ref().and_then(|doc| doc.files.clone());
+        files.unwrap_or_default()
+    }
+
+    /// The approval sheet changed for a thread: its slate hears it as a push with no values.
+    pub(crate) fn asks_changed(&self, thread_id: &str) {
+        let found = self.records.borrow().get(thread_id).cloned();
+        let Some(r) = found else { return };
+        let (workspace_id, version, revision) = {
+            let rec = r.borrow();
+            (rec.workspace_id.clone(), rec.version, rec.rev())
+        };
+        self.deps.emit(SlateEmit::Values(SlateValuesEvent {
+            workspace_id,
+            thread_id: thread_id.to_string(),
+            version: JsInt::from(version),
+            revision: JsInt::from(revision),
+            values: Record::default(),
+        }));
+    }
+}
+
+/// The runs table's callbacks into the area: a run's record and line, a timer, the approvals and the boxes.
+struct AreaRunsDeps {
+    area: Weak<SlatesInner>,
+    deps: Rc<dyn SlatesDeps>,
+}
+
+impl SlateRunsDeps for AreaRunsDeps {
+    fn env(&self) -> IndexMap<String, String> {
+        self.deps.run_env()
+    }
+
+    fn on_record(&self, thread_id: &str, run: &str, record: RunRecord) {
+        if let Some(area) = self.area.upgrade() {
+            area.moved(thread_id, run, record);
+        }
+    }
+
+    fn on_line(&self, thread_id: &str, run: &str, line: &str, _stream: Stream) {
+        let Some(area) = self.area.upgrade() else { return };
+        let found = area.records.borrow().get(thread_id).cloned();
+        let Some(r) = found else { return };
+        let workspace_id = r.borrow().workspace_id.clone();
+        self.deps.emit(SlateEmit::Run(SlateRunEvent {
+            workspace_id,
+            thread_id: thread_id.to_string(),
+            run: run.to_string(),
+            lines: vec![line.to_string()],
+        }));
+    }
+
+    fn on_timer(&self, thread_id: &str, run: &str) {
+        if let Some(area) = self.area.upgrade() {
+            area.timed(thread_id, run);
+        }
+    }
+
+    fn approvals(&self) -> Option<Rc<dyn RunApprovals>> {
+        Some(Rc::new(RecordApprovals { area: self.area.clone() }))
+    }
+
+    fn secrets_file(&self) -> Option<PathBuf> {
+        self.deps.secrets_file()
+    }
+
+    fn dir(&self, thread_id: &str) -> Option<Result<String, String>> {
+        let dir = self.deps.slates_dir()?;
+        let files = self.area.upgrade().map(|area| area.files_of(thread_id)).unwrap_or_default();
+        Some(write_slate_files(&dir.join(thread_id), &files).map(|path| path.display().to_string()).map_err(|e| e.to_string()))
+    }
+
+    fn road(&self, thread_id: &str, on: &str) -> Option<Rc<dyn RunRoad>> {
+        if on == "host" {
+            return None;
+        }
+        let machine = self.deps.machine_of(thread_id)?;
+        let area = self.area.clone();
+        let owner = thread_id.to_string();
+        let files: SlateFilesNow = Rc::new(move || area.upgrade().map(|a| a.files_of(&owner)).unwrap_or_default());
+        let deps = self.deps.clone();
+        let awake = thread_id.to_string();
+        let ready: Ready = Rc::new(move || {
+            let deps = deps.clone();
+            let id = awake.clone();
+            async move {
+                let _ = deps.wake(&id).await;
+            }
+            .boxed_local()
+        });
+        let place = self.deps.place_of(thread_id);
+        let launch_on = launch_on_for(&machine, place.as_ref(), thread_id);
+        let ledger = self.area.upgrade()?.ledger();
+        let road: Rc<dyn RunRoad> = box_road(machine, thread_id, files, ready, ledger, launch_on, Rc::new(OsIds));
+        Some(road)
+    }
+
+    fn own(&self, thread_id: &str, pid: u32, kind: &str) -> Option<Rc<dyn Fn()>> {
+        self.deps.own_process(thread_id, pid, kind)
+    }
+
+    fn host_refused(&self, thread_id: &str, run: &str) -> Option<String> {
+        host_away(self.deps.away(thread_id).as_ref(), run)
+    }
+
+    fn clock(&self) -> Rc<dyn Clock> {
+        self.deps.clock()
+    }
+}
+
+/// The MCP table reads its secrets through the same names the runs table keeps them under.
+struct SecretsView(Rc<dyn SlateSecrets>);
+
+impl McpSecrets for SecretsView {
+    fn plaintext(&self, thread_id: &str, name: &str) -> Option<String> {
+        self.0.plaintext(thread_id, name)
+    }
+
+    fn scrub(&self, thread_id: &str, text: &str) -> String {
+        self.0.scrub(thread_id, text)
+    }
+}
+
 /// Builds the area: the runs table (or `deps.runs`'s), the MCP table, the ledger and the pins, wired to it.
 pub fn create_slates(deps: Rc<dyn SlatesDeps>) -> Rc<dyn Slates> {
-    todo!()
+    let clock = deps.clock();
+    let inner = Rc::new(SlatesInner {
+        deps: deps.clone(),
+        records: RefCell::new(IndexMap::new()),
+        queues: RefCell::new(IndexMap::new()),
+        chain_seq: Cell::new(0),
+        capturing: RefCell::new(None),
+        started_by: RefCell::new(IndexMap::new()),
+        runs: OnceCell::new(),
+        mcp: OnceCell::new(),
+        ledger: OnceCell::new(),
+        pins: OnceCell::new(),
+        skipped: RefCell::new(HashMap::new()),
+        windows: RefCell::new(HashMap::new()),
+        loaded: RefCell::new(None),
+        writes: write_budget(clock.clone()),
+        press_sent_at: RefCell::new(HashMap::new()),
+        reaction_sent_at: RefCell::new(HashMap::new()),
+        requests: RefCell::new(IndexMap::new()),
+        event_buckets: RefCell::new(HashMap::new()),
+        holds: RefCell::new(HashMap::new()),
+        views_now: RefCell::new(HashMap::new()),
+        deliveries: RefCell::new(Vec::new()),
+    });
+    let weak = Rc::downgrade(&inner);
+
+    let run_deps: Rc<dyn SlateRunsDeps> = Rc::new(AreaRunsDeps { area: weak.clone(), deps: deps.clone() });
+    let runs: Rc<dyn SlateRuns> = deps.runs(run_deps.clone()).unwrap_or_else(|| create_slate_runs(run_deps));
+
+    let approvals: Rc<dyn RunApprovals> = Rc::new(RecordApprovals { area: weak.clone() });
+    let server_deps = deps.clone();
+    let record_weak = weak.clone();
+    let asks_weak = weak.clone();
+    let asks_deps = deps.clone();
+    let reshape_deps = deps.clone();
+    let reshape_runs = runs.clone();
+    let computer_deps = deps.clone();
+    let own_deps = deps.clone();
+    let mcp = create_slate_mcp(SlateMcpDeps {
+        server: Rc::new(move |thread_id: &str, name: &str| {
+            let d = server_deps.clone();
+            let (t, n) = (thread_id.to_string(), name.to_string());
+            async move {
+                match d.mcp_server(&t, &n).await {
+                    None => Err("this host starts no MCP servers for a slate".to_string()),
+                    Some(Ok(spec)) => Ok(spec),
+                    Some(Err(e)) => Err(e.message),
+                }
+            }
+            .boxed_local()
+        }),
+        on_record: Rc::new(move |thread_id: &str, run: &str, record: &RunRecord| {
+            if let Some(area) = record_weak.upgrade() {
+                area.moved(thread_id, run, record.clone());
+            }
+        }),
+        on_asks: Some(Rc::new(move |thread_id: &str| {
+            let (area, thread) = (asks_weak.clone(), thread_id.to_string());
+            spawn_local(async move {
+                if let Some(area) = area.upgrade() {
+                    area.asks_changed(&thread);
+                }
+            });
+        })),
+        asks: Rc::new(move |thread_id: &str| asks_deps.thread(thread_id).and_then(|facts| facts.tool_asks).unwrap_or(ToolAsks::Every)),
+        approvals,
+        secrets: Rc::new(SecretsView(runs.secrets())),
+        reshape: Rc::new(move |thread_id: &str, cmd: &str, input: &str| {
+            match reshape_deps.thread(thread_id).and_then(|facts| facts.folder) {
+                Some(folder) => reshape_runs.reshape(thread_id, cmd, input, &folder, None),
+                None => Reshape {
+                    done: Box::pin(async { ReshapeAnswer::Failed { why: NO_FOLDER.to_string(), exit: None, err: String::new() } }),
+                    kill: Rc::new(|| {}),
+                },
+            }
+        }),
+        computer: Rc::new(move |thread_id: &str| {
+            computer_deps.thread(thread_id).and_then(|facts| facts.computer).unwrap_or_else(|| "this computer".to_string())
+        }),
+        own: Some(Rc::new(move |thread_id: &str, pid: u32, kind: &str| -> Release {
+            match own_deps.own_process(thread_id, pid, kind) {
+                Some(release) => Box::new(move || release()),
+                None => Box::new(|| {}),
+            }
+        })),
+        clock: clock.clone(),
+        idle_ms: None,
+        call_ms: None,
+    });
+
+    let hash_deps = deps.clone();
+    let pins = box_pins(Box::new(move |thread_id: &str| hash_deps.hash_on(thread_id)), None);
+    let ledger = box_ledger(None, clock);
+    let _ = inner.runs.set(runs);
+    let _ = inner.mcp.set(mcp);
+    let _ = inner.ledger.set(ledger);
+    let _ = inner.pins.set(pins);
+    Rc::new(SlatesArea { inner })
 }
 
 #[async_trait(?Send)]
 impl Slates for SlatesArea {
     async fn get(&self, thread_id: &str) -> Result<Option<SlateView>, HostError> {
-        todo!()
+        self.inner.clone().get(thread_id).await
     }
     async fn write(&self, p: WriteParams, caller: Option<&Caller>) -> Result<SlateWriteAnswer, HostError> {
-        todo!()
+        self.inner.clone().write(p, caller).await
     }
     async fn state(&self, p: StateParams, caller: Option<&Caller>) -> Result<SlateStateAnswer, HostError> {
-        todo!()
+        self.inner.clone().state(p, caller).await
     }
     async fn read(&self, p: ReadParams, caller: Option<&Caller>) -> Result<SlateReadAnswer, HostError> {
-        todo!()
+        self.inner.clone().read(p, caller).await
     }
     async fn catalog(&self, p: CatalogParams, caller: Option<&Caller>) -> Result<String, HostError> {
-        todo!()
+        self.inner.clone().catalog(p, caller).await
     }
     async fn shown(&self, thread_id: &str) -> Result<(), HostError> {
-        todo!()
+        self.inner.clone().shown(thread_id).await
     }
     async fn revoke(&self, thread_id: &str, key: &str) -> Result<(), HostError> {
-        todo!()
+        self.inner.clone().revoke(thread_id, key).await
     }
     async fn event(&self, p: EventParams) -> Result<SlateEventAnswer, HostError> {
-        todo!()
+        self.inner.clone().event(p).await
     }
     async fn approve(&self, p: ApproveParams) -> Result<(), HostError> {
-        todo!()
+        self.inner.clone().approve(p).await
     }
     async fn cancel(&self, thread_id: &str, run: &str) -> Result<(), HostError> {
-        todo!()
+        self.inner.clone().cancel(thread_id, run).await
     }
     fn subscribe(&self, thread_id: &str, sources: &[String]) -> Rc<dyn Fn()> {
-        todo!()
+        self.inner.subscribe(thread_id, sources)
     }
     async fn resolve(&self, thread_id: &str, paths: &[String]) -> Result<IndexMap<String, Value>, HostError> {
-        todo!()
+        self.inner.clone().resolve(thread_id, paths).await
     }
     async fn image(&self, thread_id: &str, src: &str, have: Option<&str>) -> Result<SlatesImageAnswer, HostError> {
-        todo!()
+        self.inner.clone().image(thread_id, src, have).await
     }
     async fn turn_ended(&self, thread_id: &str, turn_id: &str) -> Result<(), HostError> {
-        todo!()
+        self.inner.clone().turn_ended(thread_id, turn_id).await
     }
     async fn rewound(&self, thread_id: &str, turn_id: &str, cut: &[String]) -> Result<(), HostError> {
-        todo!()
+        self.inner.clone().rewound(thread_id, turn_id, cut).await
     }
     async fn forget(&self, thread_id: &str, keep: bool) -> Result<(), HostError> {
-        todo!()
+        self.inner.clone().forget(thread_id, keep).await
     }
     fn close_servers(&self, thread_id: &str) {
-        todo!()
+        self.inner.close_servers(thread_id);
     }
     fn watches_pr(&self, workspace_id: &str) -> bool {
-        todo!()
+        self.inner.watches_pr(workspace_id)
     }
     fn napped(&self, workspace_id: &str) {
-        todo!()
+        self.inner.napped(workspace_id);
     }
     async fn ready(&self) -> Result<(), HostError> {
-        todo!()
+        self.inner.clone().ready().await
     }
     async fn settled(&self) {
-        todo!()
+        self.inner.clone().settled().await;
     }
     fn close(&self) {
-        todo!()
+        self.inner.close();
     }
 }

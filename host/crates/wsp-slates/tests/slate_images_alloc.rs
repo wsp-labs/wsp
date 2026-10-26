@@ -57,14 +57,8 @@ async fn holds_what_the_file_weighs_not_the_cap() {
             let path = dir.path().join("home.png");
             std::fs::write(&path, &png).unwrap();
             let src = path.to_str().unwrap().to_string();
-            let roads = SlateImageRoads {
-                thread: "t-alloc".into(),
-                have: None,
-                folder: None,
-                on: None,
-                allowed: Rc::new(|_| false),
-                fetch: None,
-            };
+            let roads =
+                SlateImageRoads { thread: "t-alloc".into(), have: None, folder: None, on: None, allowed: Rc::new(|_| false), fetch: None };
 
             LARGEST.store(0, Ordering::SeqCst);
             COUNTING.store(true, Ordering::SeqCst);

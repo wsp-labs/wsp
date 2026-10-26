@@ -7,9 +7,10 @@ mod support;
 use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 use wsp_slates::slate_runs::{
-    as_text, ended_record, files_unwritten, is_env_name, last_result, map_strings, restarted_record, rewound_record, run_key, running_record, spent, stable_json, timeout_of, CmdRunDecl, RunBy, RunRecord,
-    RunState, BACKED_OFF, BACKOFF_AFTER, BACKOFF_MS, CLOSE_GRACE_MS, DEFAULT_TIMEOUT_S, HELD_APPROVAL, HELD_ASLEEP, HELD_BUDGET, HELD_BUSY, HELD_PRESSED, LINES_KEPT, NO_FOLDER, RESULT_FIELDS,
-    RUNNING_MAX, SECRET_DOTS, STARTS_PER_MINUTE, TIMER_FLOOR_S,
+    as_text, ended_record, files_unwritten, is_env_name, last_result, map_strings, restarted_record, rewound_record, run_key,
+    running_record, spent, stable_json, timeout_of, CmdRunDecl, RunBy, RunRecord, RunState, BACKED_OFF, BACKOFF_AFTER, BACKOFF_MS,
+    CLOSE_GRACE_MS, DEFAULT_TIMEOUT_S, HELD_APPROVAL, HELD_ASLEEP, HELD_BUDGET, HELD_BUSY, HELD_PRESSED, LINES_KEPT, NO_FOLDER,
+    RESULT_FIELDS, RUNNING_MAX, SECRET_DOTS, STARTS_PER_MINUTE, TIMER_FLOOR_S,
 };
 use wsp_wire::types::js_number::JsNumber;
 
@@ -40,7 +41,10 @@ mod process_lifetime {
     #[test]
     fn stopall_quiet_drops_completions_and_writes_nothing_restart_and_rewind_rewrite_ru() {
         let was = rec(json!({"state": "running", "runs": 2, "startedAt": 1}));
-        assert_eq!(show(&restarted_record(&was, 9)), r#"{"state":"failed","why":"the host restarted while it ran","exit":null,"runs":2,"startedAt":1,"endedAt":9}"#);
+        assert_eq!(
+            show(&restarted_record(&was, 9)),
+            r#"{"state":"failed","why":"the host restarted while it ran","exit":null,"runs":2,"startedAt":1,"endedAt":9}"#
+        );
         let rewound = rewound_record(&was, 9);
         assert_eq!(rewound.0.get("state"), Some(&json!("cancelled")));
         assert_eq!(rewound.0.get("why"), Some(&json!("the thread was rewound")));
@@ -124,7 +128,9 @@ fn a_record_is_read_from_a_stored_object_and_written_back_in_its_order() {
 // runs_parts Behaviour 3: a running record keeps its result only when refreshing is true, in RESULT_FIELDS order
 #[test]
 fn last_result_of_a_refreshing_running_record_is_its_result_fields_in_order() {
-    let r = rec(json!({"state": "running", "ms": 3, "out": "x", "exit": null, "runs": 2, "startedAt": 5, "refreshing": true, "endedAt": 9, "why": "w", "json": null}));
+    let r = rec(
+        json!({"state": "running", "ms": 3, "out": "x", "exit": null, "runs": 2, "startedAt": 5, "refreshing": true, "endedAt": 9, "why": "w", "json": null}),
+    );
     let got = last_result(&r).expect("a result");
     assert_eq!(show_map(&got), r#"{"exit":null,"out":"x","json":null,"endedAt":9,"ms":3}"#);
 }
@@ -140,7 +146,9 @@ fn last_result_of_a_running_record_that_is_not_refreshing_is_none() {
 #[test]
 fn last_result_of_a_finished_record_with_a_start_is_its_result_fields() {
     for state in ["done", "failed", "cancelled"] {
-        let r = rec(json!({"state": state, "why": "w", "exit": 1, "err": "e", "out": "o", "lines": ["a"], "startedAt": 1, "endedAt": 4, "ms": 3, "cut": true, "runs": 2}));
+        let r = rec(
+            json!({"state": state, "why": "w", "exit": 1, "err": "e", "out": "o", "lines": ["a"], "startedAt": 1, "endedAt": 4, "ms": 3, "cut": true, "runs": 2}),
+        );
         let got = last_result(&r).expect(state);
         assert_eq!(show_map(&got), r#"{"exit":1,"out":"o","err":"e","lines":["a"],"endedAt":4,"ms":3,"cut":true}"#, "{state}");
     }
@@ -180,7 +188,9 @@ fn last_result_keeps_a_null_exit_and_a_null_json() {
 #[test]
 fn the_result_fields_are_these_eight_in_this_order() {
     let sentence = ["exit", "out", "err", "json", "lines", "endedAt", "ms", "cut"];
-    let all = rec(json!({"state": "done", "cut": true, "ms": 1, "endedAt": 2, "lines": [], "json": 0, "err": "", "out": "", "exit": 0, "startedAt": 1, "runs": 1}));
+    let all = rec(
+        json!({"state": "done", "cut": true, "ms": 1, "endedAt": 2, "lines": [], "json": 0, "err": "", "out": "", "exit": 0, "startedAt": 1, "runs": 1}),
+    );
     let got = last_result(&all).expect("a result");
     assert_eq!(got.keys().map(|k| k.as_str()).collect::<Vec<_>>(), sentence);
     assert_eq!(RESULT_FIELDS, sentence);
@@ -197,7 +207,10 @@ fn running_record_without_a_result_is_state_runs_started_at() {
 fn running_record_with_a_result_keeps_it_then_state_runs_started_at_refreshing() {
     let done = rec(json!({"state": "done", "exit": 0, "out": "o\n", "json": {"a": 1}, "startedAt": 1, "endedAt": 4, "ms": 3, "runs": 2}));
     let last = last_result(&done).expect("a result");
-    assert_eq!(show(&running_record(Some(&last), 3, 7)), r#"{"exit":0,"out":"o\n","json":{"a":1},"endedAt":4,"ms":3,"state":"running","runs":3,"startedAt":7,"refreshing":true}"#);
+    assert_eq!(
+        show(&running_record(Some(&last), 3, 7)),
+        r#"{"exit":0,"out":"o\n","json":{"a":1},"endedAt":4,"ms":3,"state":"running","runs":3,"startedAt":7,"refreshing":true}"#
+    );
 }
 
 // runs_parts Behaviour 1: an empty kept result still marks the record refreshing
@@ -211,24 +224,39 @@ fn running_record_with_an_empty_result_is_still_refreshing() {
 #[test]
 fn ended_record_drops_the_kept_result_and_keeps_the_start() {
     let was = rec(json!({"exit": 0, "out": "o", "state": "running", "runs": 2, "startedAt": 1, "refreshing": true}));
-    assert_eq!(show(&ended_record(&was, RunState::Failed, "gone", 9)), r#"{"state":"failed","why":"gone","exit":null,"runs":2,"startedAt":1,"endedAt":9}"#);
-    assert_eq!(show(&ended_record(&was, RunState::Cancelled, "stopped", 12)), r#"{"state":"cancelled","why":"stopped","exit":null,"runs":2,"startedAt":1,"endedAt":12}"#);
+    assert_eq!(
+        show(&ended_record(&was, RunState::Failed, "gone", 9)),
+        r#"{"state":"failed","why":"gone","exit":null,"runs":2,"startedAt":1,"endedAt":9}"#
+    );
+    assert_eq!(
+        show(&ended_record(&was, RunState::Cancelled, "stopped", 12)),
+        r#"{"state":"cancelled","why":"stopped","exit":null,"runs":2,"startedAt":1,"endedAt":12}"#
+    );
 }
 
 // runs_parts Behaviour 1: a record with no startedAt ends without one
 #[test]
 fn ended_record_without_a_start_has_no_started_at() {
     let was = rec(json!({"state": "running", "runs": 1}));
-    assert_eq!(show(&ended_record(&was, RunState::Failed, "gone", 9)), r#"{"state":"failed","why":"gone","exit":null,"runs":1,"endedAt":9}"#);
+    assert_eq!(
+        show(&ended_record(&was, RunState::Failed, "gone", 9)),
+        r#"{"state":"failed","why":"gone","exit":null,"runs":1,"endedAt":9}"#
+    );
 }
 
 // runs_parts Behaviour 4: a running record drops its kept result when the host restarted
 #[test]
 fn restarted_record_drops_the_kept_result_of_a_refreshing_record() {
     let was = rec(json!({"exit": 0, "out": "o", "state": "running", "runs": 2, "startedAt": 1, "refreshing": true}));
-    assert_eq!(show(&restarted_record(&was, 9)), r#"{"state":"failed","why":"the host restarted while it ran","exit":null,"runs":2,"startedAt":1,"endedAt":9}"#);
+    assert_eq!(
+        show(&restarted_record(&was, 9)),
+        r#"{"state":"failed","why":"the host restarted while it ran","exit":null,"runs":2,"startedAt":1,"endedAt":9}"#
+    );
     let unstarted = rec(json!({"state": "running", "runs": 1}));
-    assert_eq!(show(&restarted_record(&unstarted, 9)), r#"{"state":"failed","why":"the host restarted while it ran","exit":null,"runs":1,"endedAt":9}"#);
+    assert_eq!(
+        show(&restarted_record(&unstarted, 9)),
+        r#"{"state":"failed","why":"the host restarted while it ran","exit":null,"runs":1,"endedAt":9}"#
+    );
 }
 
 // runs_parts Behaviour 4: any other record comes back unchanged
@@ -250,15 +278,22 @@ fn restarted_record_leaves_every_other_state_as_it_is() {
 #[test]
 fn rewound_record_makes_a_running_record_cancelled() {
     let was = rec(json!({"state": "running", "runs": 2, "startedAt": 1}));
-    assert_eq!(show(&rewound_record(&was, 9)), r#"{"state":"cancelled","why":"the thread was rewound","exit":null,"runs":2,"startedAt":1,"endedAt":9}"#);
+    assert_eq!(
+        show(&rewound_record(&was, 9)),
+        r#"{"state":"cancelled","why":"the thread was rewound","exit":null,"runs":2,"startedAt":1,"endedAt":9}"#
+    );
     let kept = rec(json!({"exit": 0, "state": "running", "runs": 2, "startedAt": 1, "refreshing": true}));
-    assert_eq!(show(&rewound_record(&kept, 4)), r#"{"state":"cancelled","why":"the thread was rewound","exit":null,"runs":2,"startedAt":1,"endedAt":4}"#);
+    assert_eq!(
+        show(&rewound_record(&kept, 4)),
+        r#"{"state":"cancelled","why":"the thread was rewound","exit":null,"runs":2,"startedAt":1,"endedAt":4}"#
+    );
 }
 
 // runs_parts Behaviour 4: a rewind leaves every other record as it is
 #[test]
 fn rewound_record_leaves_every_other_state_as_it_is() {
-    for text in [r#"{"state":"done","runs":1}"#, r#"{"state":"held","why":"needs your approval","runs":1}"#, r#"{"state":"idle","runs":0}"#] {
+    for text in [r#"{"state":"done","runs":1}"#, r#"{"state":"held","why":"needs your approval","runs":1}"#, r#"{"state":"idle","runs":0}"#]
+    {
         let was = rec(serde_json::from_str(text).unwrap());
         assert_eq!(show(&rewound_record(&was, 9)), text);
     }
@@ -423,7 +458,6 @@ fn run_key_moves_with_each_part_it_lists() {
         CmdRunDecl { once: Some(true), ..cmd("x") },
         CmdRunDecl { then: Some("cat".into()), ..cmd("x") },
         CmdRunDecl { files: Some(IndexMap::from([("a.sh".to_string(), "1".to_string())])), ..cmd("x") },
-        CmdRunDecl { scripts: Some(IndexMap::from([("a.sh".to_string(), "1".to_string())])), ..cmd("x") },
         CmdRunDecl { args: Some(vec![json!("$x")]), ..cmd("x") },
     ];
     let keys: Vec<String> = moved.iter().map(run_key).collect();
@@ -434,6 +468,13 @@ fn run_key_moves_with_each_part_it_lists() {
     unique.sort();
     unique.dedup();
     assert_eq!(unique.len(), keys.len());
+}
+
+// slate-runs.ts:662-668: files and scripts each append the same stableJson of their map, so one map under either name is one key
+#[test]
+fn run_key_reads_files_and_scripts_alike() {
+    let map = || Some(IndexMap::from([("a.sh".to_string(), "1".to_string())]));
+    assert_eq!(run_key(&CmdRunDecl { files: map(), ..cmd("x") }), run_key(&CmdRunDecl { scripts: map(), ..cmd("x") }));
 }
 
 // runs_parts Behaviour 7: stream, always and once count only when true
