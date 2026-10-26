@@ -21,7 +21,7 @@ export function slateTokens(text: string): number {
 }
 
 export const SLATE_RULES: readonly string[] = [
-  "One <slate>, one root piece, declarations beside it. Give an id to a piece you will change.",
+  "One <slate>, one root piece, declarations beside it. Give an id to what you will change.",
   "prop=\"text\" is literal; prop={formula} reads live data or $values with operators, a ? b : c, [lists], {records} and functions, never methods or =>. A text child with {holes} fills a sentence.",
   "Props are meaning, never style. held is a sentence that disables: bind it to a condition; \"\" or false enables.",
   "A list binds to items; item and index read the row.",
@@ -35,16 +35,22 @@ export const SLATE_RULES: readonly string[] = [
   "A button asked for where the project has no UI goes here: the slate is its UI, and the reply says so.",
 ];
 
+/** The look step, said last so it reads as the step after a write, and only where an app here draws looks. */
+export const SLATE_LOOK_RULE = "If slate_look is offered, look once after writing a frame or a large change, never after each patch.";
+
+/** What the frame's branch adds to the pick line, said only with the look rule, since both are about the frame. */
+const FRAME_PICK = "; what no piece draws, a frame: an .html file you wrote";
+
 export const SLATE_INDEX_EXAMPLE = `<slate title="Deploy">
-  <run name="ci" cmd="./ci --json" every={30} />
+  <run name="ci" cmd="./ci" every={30} />
   <value name="ship" start="" />
   <column>
     <stats>
       <stat label="Passed" value={$ci.json.passed} max={$ci.json.total} window="this run" />
       <stat label="Spent" value={thread.cost.usd} format="usd" window="this thread" />
     </stats>
-    <chart label="Build time" items={$ci.json.runs} x={item.at} value={item.s} />
-    <decision label="Ship it?" value={$ship} pick="yes" onChange={send("Ship it?", $ship)}>
+    <chart label="Build" items={$ci.json.runs} x={item.at} value={item.s} unit="s" />
+    <decision label="Ship?" value={$ship} onChange={send("Ship?", $ship)}>
       <option value="yes" label="Ship" /><option value="no" label="Wait" />
     </decision>
   </column>
@@ -101,21 +107,21 @@ function narrowTones(core: SlatePieceModule[]): string {
   return [...groups].map(([lacks, names]) => `; ${names.join(" and ")} ${names.length > 1 ? "lack" : "lacks"} ${lacks}`).join("");
 }
 
-function index(): string {
+function index(look: boolean): string {
   const core = Object.values(SLATE_PIECES).filter(p => p.level === "core").sort((a, b) => rank(a) - rank(b));
   return [
     SLATE_PURPOSE,
     "Pieces, visual first (! required, (a|b) only these, <items>):",
     ...core.map(pieceLine),
     `Every piece: id, when={cond}; items take when too. tone: ${SLATE_TONES.join(" ")}${narrowTones(core)}. emphasis: normal strong quiet. gap: tight normal loose. format, where none is listed: ${SLATE_FIGURES.join(" ")}.`,
-    "Pick: figures stats; done of many progress; a question decision; categories bars; time is a chart, x in ms or ISO; shares donut; sizes treemap; spans timeline; a flow is a diagram.",
+    `Pick: figures stats; done of many progress; a question decision; categories bars; time is a chart, x in ms or ISO; shares donut; sizes treemap; spans timeline; a flow is a diagram${look ? FRAME_PICK : ""}.`,
     "Sources, read only:",
     ...Object.values(SLATE_SOURCES).filter(s => s.level === "core").map(s => sourceLine(s.name)),
     "Declarations: <value name start> <secret name> <derived name value> <run name cmd env args stdin on timeout every always once confirm then tool resource description> <file name> <when change={$path} or done={$run} do={steps}>",
     `Steps: ${Object.keys(SLATE_STEPS).join(" ")}. Functions: slate_catalog functions; ago(t) "30s ago", until(t) "in 4m".`,
     `After |: ${Object.keys(SLATE_PIPE_STEPS).filter(n => ["where", "sortBy", "take", "count"].includes(n)).join(" ")} and more. $run reads state exit out err json; a secret only .set .len.`,
     "Rules:",
-    ...SLATE_RULES.map((r, i) => `${i + 1}. ${r}`),
+    ...[...SLATE_RULES, ...(look ? [SLATE_LOOK_RULE] : [])].map((r, i) => `${i + 1}. ${r}`),
     SLATE_INDEX_EXAMPLE,
     "More: slate_catalog <piece, source, runs, patch, functions or examples>.",
   ].join("\n");
@@ -217,9 +223,10 @@ function handlersEntry(): string {
   return [`Handler steps, in onPress, onSubmit, onChange and <when do>; one step or [a, b], at most ${SLATE_LIMITS.stepsPerReaction}:`, ...Object.values(SLATE_STEPS).map(s => `${s.sig}: ${s.purpose}. ${s.runs === "window" ? "Window only, on a press. " : ""}Consent: ${s.consent}. ${s.example}`)].join("\n");
 }
 
-/** The catalog: the index with no name, else the named piece, source or chapter, as text. */
-export function slateCatalog(name?: string): string {
-  if (name === undefined || name === "" || name === "index") return index();
+/** The catalog: the index with no name, else the named piece, source or chapter, as text. `look` says the look rule,
+ * where an app on the host's computer draws looks. */
+export function slateCatalog(name?: string, o: { look?: boolean } = {}): string {
+  if (name === undefined || name === "" || name === "index") return index(o.look === true);
   const text = entry(name);
   // A named entry adds detail only; agents that read one alone guessed pieces like <h1> and <p>.
   return text.startsWith(`${name.trim()} ${NOT_IN}`) ? text : `${text}\n${BACK}`;
@@ -248,7 +255,7 @@ function entry(name: string): string {
       const options = [...Object.keys(SLATE_PIECES), ...Object.keys(SLATE_SOURCES), ...SLATE_CHAPTERS];
       const fix = nearest(n, options);
       // A guessed name answers the index too: small models asked for "dashboards" or "rows" and never saw a piece.
-      return `${n} is not in the catalog${fix !== undefined ? `; did you mean ${fix}?` : "."} Ask for a piece, a source, runs, patch, functions, steps, handlers or examples; a server's tools are the host's to answer. The whole index:\n\n${index()}`;
+      return `${n} is not in the catalog${fix !== undefined ? `; did you mean ${fix}?` : "."} Ask for a piece, a source, runs, patch, functions, steps, handlers or examples; a server's tools are the host's to answer. The whole index:\n\n${index(false)}`;
     }
   }
 }
