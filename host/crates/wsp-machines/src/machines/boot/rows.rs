@@ -449,7 +449,7 @@ impl BootArea {
             return;
         }
         let area = self.clone();
-        tokio::task::spawn_local(async move {
+        crate::local_task::spawn(async move {
             area.push_rows();
         });
     }
@@ -534,7 +534,7 @@ impl BootArea {
         .boxed_local()
         .shared();
         *self.rows_out.borrow_mut() = Some(chain.clone());
-        tokio::task::spawn_local(chain);
+        crate::local_task::spawn(chain);
     }
 
     /// The batch of one push: the gone ids, then the placed rows, then the told bookkeeping (boot.ts:834-844).
@@ -619,7 +619,7 @@ impl BootArea {
         stamped: Stamped<'_>,
         origin: Option<&Caller>,
     ) -> Result<(), HostError> {
-        self.ready().await.map_err(HostError::new)?;
+        self.ready().await.map_err(|e| e.0)?;
         let mut found: Vec<(String, String, Map<String, Value>)> = Vec::new();
         for thread_id in thread_ids {
             let held = self.thread_rows(thread_id);
@@ -735,7 +735,7 @@ impl BootArea {
         let mut stamps = ThreadStamps::new();
         stamps.insert("snoozedUntil".into(), json!(now));
         let area = self.clone();
-        tokio::task::spawn_local(async move {
+        crate::local_task::spawn(async move {
             if let Err(e) = area.mark(&standing, Stamped::Same(stamps), None).await {
                 area.rt.warn(&format!(
                     "snooze not ended for {}: {}",
@@ -758,7 +758,7 @@ impl BootArea {
             stamps.insert("limitResume".into(), Value::Null);
             return self.mark(thread_ids, Stamped::Same(stamps), origin).await;
         }
-        self.ready().await.map_err(HostError::new)?;
+        self.ready().await.map_err(|e| e.0)?;
         tokio::task::yield_now().await;
         let mut arms: Vec<(String, Value)> = Vec::new();
         for thread_id in thread_ids {
@@ -819,7 +819,7 @@ impl BootArea {
 
     /// `resumeAfterLimit` (boot.ts:984), spec rule 12.
     pub async fn resume_after_limit(self: &Rc<Self>, thread_id: &str) -> Result<(), HostError> {
-        self.ready().await.map_err(HostError::new)?;
+        self.ready().await.map_err(|e| e.0)?;
         let record = self.rt.thread_records().borrow().get(thread_id).cloned();
         let Some(record) = record else { return Ok(()) };
         let Some(arm) = record.record.limit_resume.clone() else {

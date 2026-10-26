@@ -15,7 +15,7 @@ use sha2::{Digest, Sha256};
 
 use wsp_core::clock::Timer;
 use wsp_core::host_id::template_host;
-use wsp_core::idle::backstop_ms;
+use wsp_core::idle::IDLE_OFF_BACKSTOP_MS;
 use wsp_core::types::harness::login_env_on;
 use wsp_core::types::internal::{
     fingerprint, pid_alive, DroppedMachine, NamedWorkspace, PendingCreate, CREATES, DROPPED,
@@ -44,7 +44,7 @@ use wsp_words::exit::{HostError, Kind};
 use wsp_words::js_date::iso_string;
 use wsp_words::words::thread::{hostname_set_line, HOSTNAME_KEPT};
 
-use super::super::area_error::AreaError;
+use super::super::area_error::{AreaError, AreaResult};
 use super::{Entry, MachinesArea, MachinesRuntime, Report};
 
 /// What a fork's spec is built from beside the record: the machine kind the image was sealed as, the image's own spec
@@ -86,7 +86,7 @@ impl Claimed {
         &self,
         spec: MachineSpec,
         waiting: Option<Waiting>,
-    ) -> Result<Arc<dyn Machine>, HostError> {
+    ) -> AreaResult<Arc<dyn Machine>> {
         claimed_create(
             &self.area,
             &self.at,
@@ -109,7 +109,7 @@ async fn claimed_create(
     mine: &Rc<RefCell<Vec<String>>>,
     spec: MachineSpec,
     waiting: Option<Waiting>,
-) -> Result<Arc<dyn Machine>, HostError> {
+) -> AreaResult<Arc<dyn Machine>> {
     let release = area.hold(purpose).await;
     let (claimer, claimed) = (area.clone(), mine.clone());
     let claim: Waiting = Arc::new(move |line: &str, box_: Option<&ProviderBoxState>| {
@@ -177,7 +177,7 @@ impl BackendHook for ClaimHook {
             waiting,
         )
         .await
-        .map_err(host_to_engine)
+        .map_err(AreaError::into_engine)
     }
     async fn get(
         &self,
@@ -624,6 +624,15 @@ pub(crate) fn iso(ms: i64) -> String {
     iso_string(ms as f64).unwrap_or_default()
 }
 
+/// `backstopMs` (idle.ts:22) in the TS's floats: the window the person set is any number, so doubling it is not integer
+/// arithmetic.
+pub(crate) fn backstop_of(window_ms: Option<f64>) -> f64 {
+    match window_ms {
+        None => IDLE_OFF_BACKSTOP_MS as f64,
+        Some(window) => window * 2.0,
+    }
+}
+
 /// A provider's answer as a host error, with its kind, status and code kept (`AreaError::into_host`).
 pub(crate) fn host_of(e: EngineError) -> HostError {
     AreaError::from(e).into_host()
@@ -843,9 +852,7 @@ impl MachinesArea {
         spec.labels = Some(labels);
 
         spec.on_idle = Some(MachineSpecOnIdle::Pause);
-        spec.idle_timeout_ms = Some(JsNumber(backstop_ms(
-            self.idle_window_of(record).map(|w| w as i64),
-        ) as f64));
+        spec.idle_timeout_ms = Some(JsNumber(backstop_of(self.idle_window_of(record))));
         spec
     }
 
@@ -890,7 +897,7 @@ impl MachinesArea {
         waiting: Option<Waiting>,
         after_corpse: bool,
         place: Option<&str>,
-    ) -> Result<Arc<dyn Machine>, HostError> {
+    ) -> AreaResult<Arc<dyn Machine>> {
         let store = self.rt.store();
         let body = fingerprint(&spec);
         let self_pid = std::process::id();
@@ -934,7 +941,7 @@ impl MachinesArea {
                 _ => {
                     let key = format!("{name}:{}", hex::encode(self.rt.ids().bytes(8)));
                     let request = if offers {
-                        Some(at.create_request(&stamped).await.map_err(host_of)?)
+                        Some(at.create_request(&stamped).await?)
                     } else {
                         None
                     };
@@ -965,22 +972,22 @@ impl MachinesArea {
             {
                 Ok(machine) => machine,
                 Err(e) => {
-                    let e = host_of(e);
-                    if e.status.is_some() {
+                    if e.status().is_some() {
                         store.delete(CREATES, purpose).await?;
                     }
-                    return Err(e);
+                    return Err(e.into());
                 }
             };
             store.delete(CREATES, purpose).await?;
             if machine.replayed() {
-                if machine.state().await.map_err(host_of)? == MachineState::Gone {
+                if machine.state().await? == MachineState::Gone {
                     if after_corpse {
                         return Err(HostError::new(format!(
                             "create for {purpose}: the provider replayed {}, which is gone, under a key it had never seen ({})",
                             machine.id(),
                             attempt.key
-                        )));
+                        ))
+                        .into());
                     }
                     self.rt.warn(&format!("create for {purpose}: the replay under {} named {}, which is gone; creating anew", attempt.key, machine.id()));
                     after_corpse = true;
@@ -1239,7 +1246,7 @@ impl MachinesArea {
         over: Option<&WorkspaceSpec>,
         report: Option<Report>,
         reads_memory: bool,
-    ) -> Result<Arc<dyn Machine>, HostError> {
+    ) -> AreaResult<Arc<dyn Machine>> {
         let snapshot = record.borrow().clone();
         let at = self.rt.backend_for(&snapshot);
         let claim = self.begin_claim(
@@ -1263,7 +1270,7 @@ impl MachinesArea {
         over: Option<&WorkspaceSpec>,
         report: Option<Report>,
         reads_memory: bool,
-    ) -> Result<Arc<dyn Machine>, HostError> {
+    ) -> AreaResult<Arc<dyn Machine>> {
         let b = claim.backend();
         let snapshot = record.borrow().clone();
         let image = if self.rt.keeps_images(&b) {
@@ -1305,7 +1312,7 @@ impl MachinesArea {
             Ok(machine) => machine,
             Err(e) => {
                 let place = snapshot.place.clone();
-                if image.is_none() || place.is_none() || !is_missing_host(&e) {
+                if image.is_none() || place.is_none() || !e.is_missing() {
                     return Err(e);
                 }
                 let place = place.unwrap_or_default();
@@ -1317,11 +1324,13 @@ impl MachinesArea {
                 return Err(HostError::with_kind(
                     place_holds_no_image_line(&self.rt.place_name_of(&place), &asked),
                     Kind::Invalid,
-                ));
+                )
+                .into());
             }
         };
 
-        bind(&machine, &record.borrow().clone());
+        let bound = record.borrow().clone();
+        bind(&machine, &bound);
 
         if !self.rt.names_workspace(&b) {
             let named = set_hostname(machine.as_ref(), &snapshot.name).await;

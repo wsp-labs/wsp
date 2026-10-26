@@ -24,13 +24,36 @@ use wsp_words::exit::HostError;
 use wsp_words::projects::{copies_folder, kind_for_computer};
 use wsp_words::words::thread::{GoneSeenBy, RUN_GONE_LINE};
 
-use super::load::{Asked, LoadReads, LOAD_READS_MS};
+use super::load::{id_of, Asked, LoadReads, LOAD_READS_MS};
 use super::{BootArea, CardAsk, HeldEnd, ScopedDevice};
 use crate::machines::machines::{Entry, Row, ThreadOn};
 
 /// The one start every caller of `ready()` awaits; its failure is shared as its words.
 pub type Ready =
-    futures::future::Shared<futures::future::LocalBoxFuture<'static, Result<(), String>>>;
+    futures::future::Shared<futures::future::LocalBoxFuture<'static, Result<(), StartError>>>;
+
+/// How the start failed: the error as it was born, which every verb that waits on the start answers with (boot.ts:329,
+/// one promise). It reads as its words where compared with a string.
+#[derive(Clone, Debug, PartialEq)]
+pub struct StartError(pub HostError);
+
+impl PartialEq<&str> for StartError {
+    fn eq(&self, words: &&str) -> bool {
+        self.0.message == *words
+    }
+}
+
+impl PartialEq<String> for StartError {
+    fn eq(&self, words: &String) -> bool {
+        &self.0.message == words
+    }
+}
+
+/// The late loads begun for the records the load held, by record id: each answers the entry it landed, or why it did not.
+type Landing = IndexMap<
+    String,
+    futures::future::Shared<LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>,
+>;
 
 /// A JSON value's string member, or none for a missing or non-string one.
 fn text(v: &Value, key: &str) -> Option<String> {
@@ -47,8 +70,9 @@ fn parse<T: DeserializeOwned>(v: Value) -> Result<T, HostError> {
     serde_json::from_value(v).map_err(|e| HostError::new(e.to_string()))
 }
 
-/// Waits for a future or the clock's deadline, whichever comes first, and cancels the deadline when the future wins.
-async fn settle_by<F: std::future::Future<Output = ()>>(
+/// Waits for a future or the clock's deadline, whichever comes first. A future the deadline beat goes on as a task of
+/// its own, as a promise nobody waits on does, and the deadline is cancelled when the future wins.
+async fn settle_by<F: std::future::Future<Output = ()> + 'static>(
     clock: &Rc<dyn wsp_core::types::pending::Clock>,
     until: i64,
     fut: F,
@@ -60,23 +84,27 @@ async fn settle_by<F: std::future::Future<Output = ()>>(
         }),
         (until - clock.now()).max(0),
     );
-    futures::pin_mut!(fut);
-    futures::future::select(fut, rx).await;
-    cancel();
+    match futures::future::select(Box::pin(fut), rx).await {
+        futures::future::Either::Left(_) => cancel(),
+        futures::future::Either::Right((_, rest)) => {
+            crate::local_task::spawn(rest);
+        }
+    }
 }
 
-/// A call the TS makes runs to its first wait the moment it is made: the context's own turn is taken at the call, and the
-/// caller goes on one turn later, as `await` does.
+/// A call the TS makes runs to its first wait the moment it is made, and the caller goes on one turn later, as `await`
+/// does: polled once in place, so a call whose own steps each yield has taken one before the next call is made.
 async fn at_call<F: std::future::Future>(fut: F) -> F::Output {
     let mut fut = Box::pin(fut);
     let mut cx = std::task::Context::from_waker(futures::task::noop_waker_ref());
-    for _ in 0..2 {
-        if let std::task::Poll::Ready(out) = fut.as_mut().poll(&mut cx) {
-            tokio::task::yield_now().await;
-            return out;
-        }
+    if let std::task::Poll::Ready(out) = fut.as_mut().poll(&mut cx) {
+        tokio::task::yield_now().await;
+        return out;
     }
-    fut.await
+    tokio::task::yield_now().await;
+    let out = fut.await;
+    tokio::task::yield_now().await;
+    out
 }
 
 impl BootArea {
@@ -86,51 +114,34 @@ impl BootArea {
             return ready;
         }
         let area = self.clone();
-        let start: Ready = async move { area.start().await.map_err(|e| e.message) }
+        let start: Ready = async move { area.start().await.map_err(StartError) }
             .boxed_local()
             .shared();
         *self.hydrated.borrow_mut() = Some(start.clone());
-        tokio::task::spawn_local(start.clone());
+        crate::local_task::spawn(start.clone());
         start
     }
 
-    /// Spawns `fut` in the background, warning with `line` and its failure's words when it fails.
-    fn spawn_warned<F>(self: &Rc<Self>, fut: F, line: String)
-    where
-        F: std::future::Future<Output = Result<(), HostError>> + 'static,
-    {
-        let area = self.clone();
-        tokio::task::spawn_local(async move {
-            if let Err(e) = fut.await {
-                area.rt.warn(&format!("{line}: {}", e.message));
-            }
-        });
-    }
-
     /// Starts `fut` in the background, warning with `line` and its failure's words when it fails. The call runs as a
-    /// call the TS makes without awaiting does: polled in place, with a turn given to it, before the start goes on.
-    async fn detach<F>(self: &Rc<Self>, fut: F, line: String)
+    /// call the TS makes without awaiting does: to its first wait in place, and the start goes on at once.
+    fn detach<F>(self: &Rc<Self>, fut: F, line: String)
     where
         F: std::future::Future<Output = Result<(), HostError>> + 'static,
     {
         let mut fut: LocalBoxFuture<'static, Result<(), HostError>> = fut.boxed_local();
+        let mut cx = std::task::Context::from_waker(futures::task::noop_waker_ref());
         for _ in 0..2 {
-            let polled = futures::future::poll_fn(|cx| match fut.as_mut().poll(cx) {
-                std::task::Poll::Ready(out) => std::task::Poll::Ready(Some(out)),
-                std::task::Poll::Pending => std::task::Poll::Ready(None),
-            })
-            .await;
-            match polled {
-                Some(Ok(())) => return,
-                Some(Err(e)) => {
+            match fut.as_mut().poll(&mut cx) {
+                std::task::Poll::Ready(Ok(())) => return,
+                std::task::Poll::Ready(Err(e)) => {
                     self.rt.warn(&format!("{line}: {}", e.message));
                     return;
                 }
-                None => tokio::task::yield_now().await,
+                std::task::Poll::Pending => {}
             }
         }
         let area = self.clone();
-        tokio::task::spawn_local(async move {
+        crate::local_task::spawn(async move {
             if let Err(e) = fut.await {
                 area.rt.warn(&format!("{line}: {}", e.message));
             }
@@ -140,11 +151,13 @@ impl BootArea {
     /// `persistSessions` started and not awaited, its failure swallowed by the chain (boot.ts:529).
     fn persist_later(self: &Rc<Self>, workspace_id: String) {
         let area = self.clone();
-        let mut write = async move { area.rt.persist_sessions(&workspace_id).await }.boxed_local();
-        let mut cx = std::task::Context::from_waker(futures::task::noop_waker_ref());
-        if write.as_mut().poll(&mut cx).is_pending() && write.as_mut().poll(&mut cx).is_pending() {
-            tokio::task::spawn_local(write);
-        }
+        self.detach(
+            async move {
+                area.rt.persist_sessions(&workspace_id).await;
+                Ok(())
+            },
+            String::new(),
+        );
     }
 
     /// `revokeButShells` (boot.ts:36): every device given that no shell holds is revoked.
@@ -195,20 +208,12 @@ impl BootArea {
                     Ok(())
                 },
                 String::new(),
-            )
-            .await;
-        }
-        let landing = self.begin_late_loads(&load);
-        for id in self.rt.live().borrow().keys().cloned().collect::<Vec<_>>() {
-            let area = self.clone();
-            let line = format!("workspace {id} was not read again");
-            self.spawn_warned(
-                async move { area.reread_held(&id, GoneSeenBy::RecordLoad).await },
-                line,
             );
         }
+        let landing = self.begin_late_loads(&load);
         let works = self.start_workspace_work(&mut sessions, &landing, &to_sync);
         let mut started = self.finish_cards(&sessions, &landing);
+        started.extend(self.held_rereads());
         started.extend(works.into_iter().map(|work| work.boxed_local()));
         let area = self.clone();
         let load = load.clone();
@@ -232,20 +237,17 @@ impl BootArea {
             area.detach(
                 area.rt_deliver_owed(),
                 "the lines owed to threads were not sent".to_string(),
-            )
-            .await;
+            );
             area.admit_builders(&load).await?;
             area.detach(
                 area.rt_move_old_copies(),
                 "the move off old copies stopped".to_string(),
-            )
-            .await;
+            );
             area.rt.arm_sweep();
             area.detach(
                 area.rt_slates_ready(),
                 "the slates were not loaded".to_string(),
-            )
-            .await;
+            );
             Ok(())
         }
         .boxed_local();
@@ -314,7 +316,21 @@ impl BootArea {
                         .or_insert_with(|| json!(path));
                 }
             }
-            let project: ProjectView = parse(raw)?;
+            for key in [
+                "remote",
+                "defaultBranch",
+                "memoryKey",
+                "memoryDir",
+                "createdAt",
+            ] {
+                if let Some(row) = raw.as_object_mut() {
+                    row.entry(key.to_string()).or_insert_with(|| json!(""));
+                }
+            }
+            let label = format!("project {}", id_of(&raw));
+            let Some(project) = self.row_of::<ProjectView>(&label, raw) else {
+                continue;
+            };
             self.rt
                 .projects_held()
                 .borrow_mut()
@@ -346,7 +362,10 @@ impl BootArea {
                 rt.remember_project(parse(value)?).await
             }
         });
-        futures::future::try_join_all(jobs).await?;
+        futures::future::join_all(jobs)
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(())
     }
 
@@ -363,9 +382,12 @@ impl BootArea {
                 )),
             }
         }
-        for id in moved {
-            self.rt.store().delete(TRANSCRIPTS, &id).await?;
-        }
+        let store = self.rt.store();
+        let deletes = moved.iter().map(|id| store.delete(TRANSCRIPTS, id));
+        futures::future::join_all(deletes)
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?;
         Ok(())
     }
 
@@ -456,11 +478,11 @@ impl BootArea {
                 serde_json::to_value(section).unwrap_or(Value::Null),
             );
         }
-        if let Some(owed) = held
+        let owed = held
             .get("resumeAt")
-            .and_then(Value::as_str)
-            .or_else(|| held.get("cutOwed").and_then(Value::as_str))
-        {
+            .filter(|v| !v.is_null())
+            .or_else(|| held.get("cutOwed"));
+        if let Some(owed) = owed.and_then(Value::as_str) {
             record.insert("cutOwed".into(), json!(owed));
         }
         if let Some(from) = held
@@ -496,7 +518,11 @@ impl BootArea {
                 serde_json::to_value(ended).unwrap_or(Value::Null),
             );
         }
-        let on: ThreadOn = parse(Value::Object(record))?;
+        let Some(on) =
+            self.row_of::<ThreadOn>(&format!("thread {thread_id}"), Value::Object(record))
+        else {
+            return Ok(());
+        };
         let snoozed = on.record.snoozed_until.as_ref().map(|j| j.0);
         let armed = on.record.limit_resume.as_ref().map(|l| l.at.0);
         self.rt
@@ -553,7 +579,11 @@ impl BootArea {
                 out.recut.insert(ws.to_string());
             }
         }
-        let view: SessionView = parse(Value::Object(view_obj))?;
+        let Some(view) =
+            self.row_of::<SessionView>(&format!("session {turn_id}"), Value::Object(view_obj))
+        else {
+            return Ok(());
+        };
         let notify = match row.get("notify") {
             Some(Value::String(one)) => Some(vec![one.clone()]),
             Some(Value::Array(many)) => Some(
@@ -637,10 +667,7 @@ impl BootArea {
     }
 
     /// The late loads begun for the records the load held (boot.ts:418).
-    fn begin_late_loads(
-        self: &Rc<Self>,
-        load: &Rc<LoadReads>,
-    ) -> IndexMap<String, futures::future::Shared<LocalBoxFuture<'static, Option<Entry>>>> {
+    fn begin_late_loads(self: &Rc<Self>, load: &Rc<LoadReads>) -> Landing {
         let late: Vec<(String, Asked)> = load
             .late
             .borrow()
@@ -659,11 +686,29 @@ impl BootArea {
             .collect()
     }
 
+    /// Every live workspace read again if it is held by a stand-in, begun after the cards and before the re-opens, as
+    /// boot.ts:441 starts them (`void Promise.all(...)`).
+    fn held_rereads(self: &Rc<Self>) -> Vec<LocalBoxFuture<'static, ()>> {
+        let ids: Vec<String> = self.rt.live().borrow().keys().cloned().collect();
+        ids.into_iter()
+            .map(|id| {
+                let area = self.clone();
+                async move {
+                    if let Err(e) = area.reread_held(&id, GoneSeenBy::RecordLoad).await {
+                        area.rt
+                            .warn(&format!("workspace {id} was not read again: {}", e.message));
+                    }
+                }
+                .boxed_local()
+            })
+            .collect()
+    }
+
     /// Each unread card, read once its workspace's late load lands (boot.ts:421-440).
     fn finish_cards(
         self: &Rc<Self>,
         sessions: &SessionDocuments,
-        landing: &IndexMap<String, futures::future::Shared<LocalBoxFuture<'static, Option<Entry>>>>,
+        landing: &Landing,
     ) -> Vec<LocalBoxFuture<'static, ()>> {
         let mut cards = Vec::new();
         for row in &sessions.unread {
@@ -685,25 +730,31 @@ impl BootArea {
             let row = row.clone();
             let line = format!("what {turn} changed was not read");
             let card = async move {
-                if let Some(landed) = landed {
-                    landed.await;
-                }
-                if let Err(e) = read_card(
-                    &area,
-                    &ws,
-                    &row,
-                    CardOf {
-                        thread,
-                        cwd,
-                        claude,
-                        id,
-                        turn,
-                        started,
-                        snapshot,
-                    },
-                )
-                .await
-                {
+                let waited = match landed {
+                    Some(landed) => landed.await.map(|_| ()),
+                    None => Ok(()),
+                };
+                let read = match waited {
+                    Ok(()) => {
+                        read_card(
+                            &area,
+                            &ws,
+                            &row,
+                            CardOf {
+                                thread,
+                                cwd,
+                                claude,
+                                id,
+                                turn,
+                                started,
+                                snapshot,
+                            },
+                        )
+                        .await
+                    }
+                    Err(e) => Err(e),
+                };
+                if let Err(e) = read {
                     area.rt.warn(&format!("{line}: {}", e.message));
                 }
             };
@@ -717,7 +768,7 @@ impl BootArea {
     fn start_workspace_work(
         self: &Rc<Self>,
         sessions: &mut SessionDocuments,
-        landing: &IndexMap<String, futures::future::Shared<LocalBoxFuture<'static, Option<Entry>>>>,
+        landing: &Landing,
         to_sync: &[Entry],
     ) -> Vec<futures::future::Shared<LocalBoxFuture<'static, ()>>> {
         let mut started = Vec::new();
@@ -743,7 +794,7 @@ impl BootArea {
                             (Some(held.clone()), synced)
                         }
                         Some(late) => {
-                            let landed = late.clone().await;
+                            let landed = late.clone().await?;
                             let entry = landed
                                 .clone()
                                 .or_else(|| area.rt.live().borrow().get(&id).cloned());
@@ -815,7 +866,10 @@ impl BootArea {
             if session != turn_id {
                 view["claudeSessionId"] = json!(session);
             }
-            let view: SessionView = parse(view)?;
+            let label = format!("held start {turn_id}");
+            let Some(view) = self.row_of::<SessionView>(&label, view) else {
+                continue;
+            };
             let notify: Option<Vec<String>> = h.get("notify").and_then(Value::as_array).map(|a| {
                 a.iter()
                     .filter_map(Value::as_str)
@@ -858,7 +912,10 @@ impl BootArea {
     async fn admit_builders(self: &Rc<Self>, load: &Rc<LoadReads>) -> Result<(), HostError> {
         let mut admissions = Vec::new();
         for raw in self.rt.store().list(BUILDERS).await? {
-            let stored: StoredBuilder = parse(raw)?;
+            let label = format!("builder {}", id_of(&raw));
+            let Some(stored) = self.row_of::<StoredBuilder>(&label, raw) else {
+                continue;
+            };
             let area = self.clone();
             admissions.push(async move {
                 let id = stored.id.clone();
@@ -872,6 +929,10 @@ impl BootArea {
             admitted.await;
         })
         .await;
+        // `admitted.then(resolve)` and the `await` of the promise it resolves each take a turn.
+        for _ in 0..3 {
+            tokio::task::yield_now().await;
+        }
         Ok(())
     }
 
@@ -1004,7 +1065,7 @@ impl BootArea {
                 }
                 if !ready.is_empty() {
                     let again = area.clone();
-                    tokio::task::spawn_local(async move {
+                    crate::local_task::spawn(async move {
                         if let Err(e) = again.reopen(ready, true).await {
                             again.rt.warn(&format!(
                                 "the turns left running were not asked after again: {}",
@@ -1096,7 +1157,7 @@ async fn start_all(
     })
     .await;
     if live.iter().any(Option::is_some) {
-        tokio::task::spawn_local(futures::future::poll_fn(move |cx| {
+        crate::local_task::spawn(futures::future::poll_fn(move |cx| {
             for slot in live.iter_mut() {
                 if slot
                     .as_mut()

@@ -1049,7 +1049,8 @@ impl CreateRuntime for FakeRuntime {
                     preview_url: m.get("previewUrl").is_some(),
                     daemon_answers: m.get("daemonAnswers").is_some(),
                 });
-                bind(&machine, &record.borrow());
+                let bound = record.borrow().clone();
+                bind(&machine, &bound);
                 let seen = {
                     let live = self.live.borrow();
                     match live.get(&record.borrow().id) {

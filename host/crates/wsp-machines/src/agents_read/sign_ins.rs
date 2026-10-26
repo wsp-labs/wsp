@@ -340,7 +340,7 @@ impl AgentsReads {
             ask.clone(),
             run.clone(),
         );
-        tokio::task::spawn_local(async move {
+        crate::local_task::spawn(async move {
             let gh_step = {
                 let step = step.clone();
                 let gh_name = catalog_entry(GITHUB_CLI)

@@ -56,6 +56,16 @@ impl AreaError {
             AreaError::Host(e) => e.message.clone(),
         }
     }
+    /// Handed back to a backend call, which speaks engine errors: the engine error whole, or a host error's words.
+    pub fn into_engine(self) -> EngineError {
+        match self {
+            AreaError::Engine(e) => e,
+            AreaError::Host(e) => EngineError::Other {
+                message: e.message,
+                code: None,
+            },
+        }
+    }
     /// At the area's edge: the same words and kind as a `HostError`.
     pub fn into_host(self) -> HostError {
         match self {

@@ -284,7 +284,7 @@ impl MachinesArea {
                     .cloned();
                 if let Some(entry) = entry {
                     let area = self.clone();
-                    tokio::task::spawn_local(async move {
+                    crate::local_task::spawn(async move {
                         if let Err(e) = area.adopt_pause(&entry).await {
                             area.rt.warn(&e.message);
                         }
