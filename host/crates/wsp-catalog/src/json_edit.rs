@@ -4,8 +4,8 @@
 //! Port of packages/catalog/src/mcp.ts:458-768 at a3b870a6e; the spec is spec/json_edit.md.
 use serde_json::{Map, Value};
 
-use crate::jsonc::{write_value, is_js_space, js_string, js_stringify, js_stringify_pretty, json_object, read_jsonc};
 use crate::json_parse::TOO_DEEP;
+use crate::jsonc::{is_js_space, js_string, js_stringify, js_stringify_pretty, json_object, read_jsonc, write_value};
 use crate::jsonc_tree::{comments_of, find_member, find_node_at_location, parse_tree, Comment, JsonPath, Node, NodeType, PathSeg};
 use wsp_words::exit::HostError;
 use wsp_words::js::js_trim;

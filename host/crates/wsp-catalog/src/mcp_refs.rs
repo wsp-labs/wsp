@@ -56,7 +56,9 @@ pub fn value_forms(value: &str) -> Vec<String> {
 /// its last character to `.+`, which takes it only if it is not a line end and the run has another.
 fn value_rest(part: &Part) -> Option<std::ops::Range<usize>> {
     let s = part.as_str();
-    let word = ["bearer", "basic", "token"].into_iter().find(|w| s.len() > w.len() && s.as_bytes()[..w.len()].eq_ignore_ascii_case(w.as_bytes()))?;
+    let word = ["bearer", "basic", "token"]
+        .into_iter()
+        .find(|w| s.len() > w.len() && s.as_bytes()[..w.len()].eq_ignore_ascii_case(w.as_bytes()))?;
     let (mut at, mut run, mut last) = (word.len(), 0, word.len());
     for c in s[word.len()..].chars().take_while(|c| is_js_space(*c)) {
         last = at;
@@ -712,9 +714,7 @@ pub fn oauth_secrets_in(v: &Value, reference: &dyn Fn(&str) -> bool) -> Vec<Stri
             }
         }
         match x {
-            Value::Array(items) => {
-                work.extend(items.iter().enumerate().rev().map(|(i, y)| (y, path.len(), Some((i.to_string(), false)))))
-            }
+            Value::Array(items) => work.extend(items.iter().enumerate().rev().map(|(i, y)| (y, path.len(), Some((i.to_string(), false))))),
             Value::Object(map) => work.extend(map.iter().rev().map(|(k, y)| (y, path.len(), Some((k.clone(), squashed(k) == "oauth"))))),
             _ => {}
         }
