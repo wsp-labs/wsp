@@ -147,6 +147,11 @@ pub struct BuildersArea {
 
 impl BuildersArea {
     pub fn new(ctx: Rc<dyn BuildersCtx>) -> Rc<BuildersArea> {
-        todo!()
+        Rc::new(BuildersArea { ctx, grace_timers: Rc::new(RefCell::new(IndexMap::new())), expiring: RefCell::new(None) })
     }
+}
+
+/// `new Date(ms).toISOString()` for a context clock reading.
+pub(crate) fn iso_at(ms: i64) -> String {
+    wsp_words::js_date::iso_string(ms as f64).expect("a clock reading is a valid date")
 }
