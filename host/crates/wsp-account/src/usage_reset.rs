@@ -51,11 +51,13 @@ pub struct ResetPlace {
 /// place (usage-reset.ts:59).
 pub type PlaceOf = Rc<dyn Fn(&str) -> ResetPlace>;
 
-/// The agent's two reset scripts, as `PlanResets` (protocol adapter-port.ts:577) less the `Send` bound, with a
-/// `spend_command` that may refuse: the TS throws on a credit id the agent would not take (usage-reset.ts:147-151),
-/// which `wsp_adapters::port::PlanResets` cannot say. The wiring adapts the adapter's table to this.
+/// The agent's two reset scripts, as `PlanResets` (protocol adapter-port.ts:577). Either command may refuse, as the TS
+/// throws on a relative home or a credit id the agent would not take (usage-reset.ts:146-151).
+/// `wsp_adapters::port::PlanResets` answers the same two `Result`s but is `Send`-free only since the adapters' fix
+/// round; this copy predates it, and the wiring can use the adapter's trait directly once the tests' fake moves to it.
 pub trait Resets {
-    fn read_command(&self, road: &ResetRoad) -> String;
+    /// `readCommand(road)`; `Err` carries the thrown message, which usage-reset.ts:140 lets out as a plain error.
+    fn read_command(&self, road: &ResetRoad) -> Result<String, String>;
     fn parse_read(&self, stdout: &str) -> Option<ResetReading>;
     /// `spendCommand({...road, idempotencyKey, creditId?})`; `Err` carries the thrown message.
     fn spend_command(&self, road: &ResetRoad, idempotency_key: &str, credit_id: Option<&str>) -> Result<String, String>;
@@ -243,7 +245,8 @@ pub async fn spend(deps: Rc<dyn UsageResetDeps>, ask: ResetAsk) -> Result<ResetA
     let who = reset_who(&label, own.is_some(), &place.name);
     let road = deps.road(&agent, &place).await?;
 
-    let stdout = deps.run(&place, &resets.read_command(&road), &agent).await?;
+    let script = resets.read_command(&road).map_err(HostError::new)?;
+    let stdout = deps.run(&place, &script, &agent).await?;
     let read = resets.parse_read(&stdout);
     if read.as_ref().is_some_and(|r| r.keyed) {
         return Err(usage(&reset_keyed_line(&label)));
