@@ -242,7 +242,7 @@ impl ThreadEnds {
     fn paying(self: &Rc<Self>, place_id: &str) {
         let me = Rc::clone(self);
         let place_id = place_id.to_string();
-        tokio::task::spawn_local(async move {
+        crate::local_task::spawn(async move {
             if let Err(err) = me.pay(&place_id).await {
                 let name = me.door.name_of(&place_id);
                 me.rt.warn(&format!(
@@ -260,7 +260,7 @@ impl ThreadEnds {
             PlaceEvent::Removed { place_id } => {
                 let rt = Rc::clone(&self.rt);
                 let row_place = place_id.clone();
-                tokio::task::spawn_local(async move {
+                crate::local_task::spawn(async move {
                     let _ = rt.store_delete(OWED, &row_place).await;
                 });
                 let prefix = format!("{place_id}\n");

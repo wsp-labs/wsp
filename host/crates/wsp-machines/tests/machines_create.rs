@@ -21,10 +21,10 @@ use wsp_core::types::wiring::{GoldenExec, WorkspaceRecord, WorkspaceSpec};
 use wsp_engine::machine::{
     ExecOptions, Machine, MachineBackend, MachineKind, MachineSpec, MachineSpecOnIdle, RunOptions,
 };
+use wsp_machines::machines::area_error::AreaError;
 use wsp_machines::machines::machines::create::ForkSpecIn;
 use wsp_machines::machines::machines::ImageRead;
 use wsp_wire::types::js_number::JsNumber;
-use wsp_words::exit::Kind;
 
 fn pairs(labels: &Option<IndexMap<String, String>>) -> Vec<(String, String)> {
     labels
@@ -264,9 +264,11 @@ fn claiming_holds_every_claimed_id_until_run_settles() {
                             let waiting: wsp_engine::machine::Waiting = Arc::new(move |_line: &str, _box: Option<&wsp_engine::machine::ProviderBoxState>| {
                                 flags.borrow_mut().push(area.hold("workspace/ws_1").now_or_never().is_none());
                             });
-                            h.create(spec.clone(), Some(waiting)).await?;
+                            h.create(spec.clone(), Some(waiting))
+                        .await
+                        .map_err(AreaError::into_host)?;
                             let once = area_in.inflight();
-                            h.create(spec, None).await?;
+                            h.create(spec, None).await.map_err(AreaError::into_host)?;
                             Ok::<_, wsp_words::exit::HostError>((once, area_in.inflight()))
                         }
                         .boxed_local()
@@ -306,7 +308,7 @@ fn claiming_holds_every_claimed_id_until_run_settles() {
                 "workspace/ws_1",
                 move |h| {
                     async move {
-                        h.create(spec, None).await?;
+                        h.create(spec, None).await.map_err(AreaError::into_host)?;
                         assert_eq!(
                             area.inflight(),
                             vec!["box-early".to_string(), "m-made".to_string()]
@@ -616,10 +618,10 @@ fn fork_at_a_place_without_the_image_says_where_it_would_land() {
             .or(made[0].template.clone())
             .unwrap_or_else(|| "snap_g".into());
         assert_eq!(
-            err.message,
+            err.message(),
             wsp_wire::wire::machine_link::place_holds_no_image_line("name-of-pl1", &asked)
         );
-        assert_eq!(err.kind, Some(Kind::Invalid));
+        assert_eq!(err.kind().as_deref(), Some("invalid"));
 
         // A fork on this host's own provider (no place) says what the provider said.
         let own = World::new(Opts {
@@ -638,7 +640,7 @@ fn fork_at_a_place_without_the_image_says_where_it_would_land() {
             .await
             .err()
             .expect("the fork is refused");
-        assert_eq!(err.message, "404 not found");
+        assert_eq!(err.message(), "404 not found");
 
         // A computer that keeps no image has no image to be missing.
         let bare = World::new(Opts {
@@ -653,7 +655,7 @@ fn fork_at_a_place_without_the_image_says_where_it_would_land() {
             .await
             .err()
             .expect("the fork is refused");
-        assert_eq!(err.message, "404 not found");
+        assert_eq!(err.message(), "404 not found");
     })
 }
 

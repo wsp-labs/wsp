@@ -78,30 +78,57 @@ fn state_word(state: Option<MachineState>) -> &'static str {
     }
 }
 
-/// One read of a machine's id as `sightMachine` makes it: the state, with the handle where the provider had one (boot.ts:146).
+/// One read as `readOnce` makes it (golden.ts:130): the handle `get` found and the state it carried, or one state read
+/// on it; a 404 from either is a gone read.
+async fn read_once(
+    at: &Arc<dyn MachineBackend>,
+    id: &str,
+) -> Result<(MachineState, Option<Arc<dyn Machine>>), EngineError> {
+    let found = match at.get(id).await {
+        Ok(machine) => match machine.seen().map(|s| s.state) {
+            Some(state) => Ok((state, Some(machine))),
+            None => machine.state().await.map(|state| (state, Some(machine))),
+        },
+        Err(e) => Err(e),
+    };
+    match found {
+        Err(e) if is_missing(&e) => Ok((MachineState::Gone, None)),
+        other => other,
+    }
+}
+
+/// `sightMachine` (golden.ts:138): gone only when every one of GONE_READS reads in a row said gone, else the first read
+/// that found the machine, with its handle.
 async fn sight(
     at: &Arc<dyn MachineBackend>,
     id: &str,
 ) -> Result<(MachineState, Option<Arc<dyn Machine>>), EngineError> {
     for _ in 0..GONE_READS {
-        match at.get(id).await {
-            Ok(machine) => {
-                let state = match machine.seen().map(|s| s.state) {
-                    Some(state) => state,
-                    None => machine.state().await?,
-                };
-                if state != MachineState::Gone {
-                    return Ok((state, Some(machine)));
-                }
-            }
-            Err(e) if is_missing(&e) => return Ok((MachineState::Gone, None)),
-            Err(e) => return Err(e),
+        let seen = read_once(at, id).await?;
+        if seen.0 != MachineState::Gone {
+            return Ok(seen);
         }
     }
     Ok((MachineState::Gone, None))
 }
 
 impl BootArea {
+    /// A stored row read into the type the Rust host keeps it in. The TS reads every row as it stands, so a row that
+    /// does not read here is warned and left in the store, never a reason to stop the start.
+    pub(crate) fn row_of<T: serde::de::DeserializeOwned>(
+        &self,
+        label: &str,
+        raw: Value,
+    ) -> Option<T> {
+        match serde_json::from_value(raw) {
+            Ok(row) => Some(row),
+            Err(e) => {
+                self.rt.warn(&format!("{label} is left as it was: {e}"));
+                None
+            }
+        }
+    }
+
     /// `sealableAt` (boot.ts:44), spec rule 2.
     pub fn sealable_at(&self, place: Option<&str>, first_life: bool) -> bool {
         if first_life {
@@ -295,9 +322,9 @@ impl BootArea {
             None => {
                 let area = self.clone();
                 let key = id.clone();
-                let read: futures::future::Shared<LocalBoxFuture<'static, Result<(), String>>> =
+                let read: futures::future::Shared<LocalBoxFuture<'static, Result<(), HostError>>> =
                     async move {
-                        let out = area.admit(stored).await.map_err(|e| e.message);
+                        let out = area.admit(stored).await;
                         area.admitting.borrow_mut().shift_remove(&key);
                         out
                     }
@@ -307,7 +334,7 @@ impl BootArea {
                 read
             }
         };
-        read.await.map_err(HostError::new)
+        read.await
     }
 
     /// `refreshBuilders` (boot.ts:126), spec rule 7: every call starts a numbered pass and becomes the latest.
@@ -315,12 +342,12 @@ impl BootArea {
         let pass = self.passes.get() + 1;
         self.passes.set(pass);
         let area = self.clone();
-        let refresh: futures::future::Shared<LocalBoxFuture<'static, Result<(), String>>> =
-            async move { area.refresh_now(pass).await.map_err(|e| e.message) }
+        let refresh: futures::future::Shared<LocalBoxFuture<'static, Result<(), HostError>>> =
+            async move { area.refresh_now(pass).await }
                 .boxed_local()
                 .shared();
         *self.latest.borrow_mut() = Some(refresh.clone());
-        refresh.await.map_err(HostError::new)
+        refresh.await
     }
 
     /// The pass's body; a pass a newer one has overtaken answers that one (boot.ts:130-147).
@@ -331,8 +358,10 @@ impl BootArea {
             if pass != self.passes.get() {
                 return self.await_latest().await;
             }
-            let stored: StoredBuilder =
-                serde_json::from_value(raw).map_err(|e| HostError::new(e.to_string()))?;
+            let label = format!("builder {}", id_of(&raw));
+            let Some(stored) = self.row_of::<StoredBuilder>(&label, raw) else {
+                continue;
+            };
             seen.insert(stored.id.clone());
             let current = self.rt.builders().borrow().get(&stored.id).cloned();
             match current {
@@ -407,7 +436,7 @@ impl BootArea {
     async fn await_latest(&self) -> Result<(), HostError> {
         let latest = self.latest.borrow().clone();
         match latest {
-            Some(latest) => latest.await.map_err(HostError::new),
+            Some(latest) => latest.await,
             None => Ok(()),
         }
     }
@@ -447,7 +476,11 @@ impl BootArea {
     }
 
     /// `loadLate` (boot.ts:170), spec rule 9.
-    pub async fn load_late(self: &Rc<Self>, id: &str, read: Asked) -> Option<Entry> {
+    pub async fn load_late(
+        self: &Rc<Self>,
+        id: &str,
+        read: Asked,
+    ) -> Result<Option<Entry>, HostError> {
         self.rt.rereading().borrow_mut().insert(id.to_string());
         let mut landed = None;
         let _ = read.clone().await;
@@ -470,9 +503,9 @@ impl BootArea {
         }
         self.rt.rereading().borrow_mut().shift_remove(id);
         if !self.rt.closed() && self.is_held_away(id) {
-            let _ = self.reread_held(id, GoneSeenBy::RecordLoad).await;
+            self.reread_held(id, GoneSeenBy::RecordLoad).await?;
         }
-        landed
+        Ok(landed)
     }
 
     /// `isHeldAway` (boot.ts:190), spec rule 10.
@@ -513,7 +546,14 @@ impl BootArea {
         let snapshot = entry.borrow().record.borrow().clone();
         let machine_id = snapshot.machine_id.clone();
         let at = self.rt.backend_for(&snapshot);
+        tokio::task::yield_now().await;
         let seen = sight(&at, &machine_id).await;
+        // `Promise.resolve().then(sight).catch(...)` answers turns after the sighting does: the promise the callback
+        // returns is adopted in two, the catch passes it on in one, the `await` goes on in one, and the stored row is
+        // read in one more.
+        for _ in 0..5 {
+            tokio::task::yield_now().await;
+        }
         let Ok((state, machine)) = seen else {
             return Ok(());
         };
@@ -534,12 +574,13 @@ impl BootArea {
                     sighting: Sighting::default(),
                     machine,
                 };
-                let again = self.hydrate_workspace(raw, Some(found), None, None).await?;
-                if let Some(again) = again {
+                *self.sighted.borrow_mut() = Some(state);
+                let again = self.hydrate_workspace(raw, Some(found), None, None).await;
+                self.sighted.borrow_mut().take();
+                if let Some(again) = again? {
                     self.rt.sync_daemon(&again);
                 }
             }
-            let _ = state;
             return Ok(());
         }
         let answer = self.held_answers.borrow().get(id).cloned();
@@ -564,18 +605,32 @@ impl BootArea {
         load: Option<Rc<LoadReads>>,
         asked: Option<Asked>,
     ) -> Result<Option<Entry>, HostError> {
-        if let Some(word) = raw
+        let found = seen.is_some();
+        let sighted = if found {
+            self.sighted.borrow_mut().take()
+        } else {
+            None
+        };
+        let mut raw = raw;
+        let unwired = raw
             .get("kind")
             .and_then(Value::as_str)
             .filter(|k| !matches!(*k, "cloud" | "local" | "place"))
-        {
-            let id = raw.get("id").and_then(Value::as_str).unwrap_or_default();
-            self.rt.warn(&format!(
-                "workspace {id} is left as it was: no module wired for {word}"
-            ));
-            return Ok(None);
+            .map(str::to_string);
+        if unwired.is_some() {
+            raw["kind"] = json!("cloud");
         }
-        let stored: WorkspaceRecord = record_of(raw)?;
+        let row_id = id_of(&raw);
+        let stored: WorkspaceRecord = match record_of(raw) {
+            Ok(stored) => stored,
+            Err(e) => {
+                self.rt.warn(&format!(
+                    "workspace {row_id} is left as it was: {}",
+                    e.message
+                ));
+                return Ok(None);
+            }
+        };
         let id = stored.id.clone();
         if stored.phase == WorkspacePhase::Queued {
             self.rt.attach_queued(&Rc::new(RefCell::new(stored)));
@@ -591,6 +646,12 @@ impl BootArea {
             self.rt.attach(&copy, dead_machine(&stored.machine_id));
             return Ok(None);
         }
+        if let Some(word) = unwired {
+            self.rt.warn(&format!(
+                "workspace {id} is left as it was: no module wired for {word}"
+            ));
+            return Ok(None);
+        }
         let module = self.rt.module_of(kind_key(stored.kind));
         let at = match module.backend(&stored) {
             Ok(at) => at,
@@ -603,12 +664,10 @@ impl BootArea {
         let golden_kind = if stored.golden.is_empty() {
             MachineKind::Sandbox
         } else {
-            self.rt
-                .image_kind(&stored.golden)
-                .await
-                .ok()
-                .flatten()
-                .unwrap_or(MachineKind::Sandbox)
+            let kind = self.rt.image_kind(&stored.golden).await;
+            // The `.catch(() => undefined)` the TS reads it through passes the answer on one turn later.
+            tokio::task::yield_now().await;
+            kind.ok().flatten().unwrap_or(MachineKind::Sandbox)
         };
         let absent = Rc::new(Cell::new(false));
         let machine_id = stored.machine_id.clone();
@@ -663,6 +722,8 @@ impl BootArea {
             Some(MachineState::Gone)
         } else if absent.get() {
             None
+        } else if found {
+            sighted.or_else(|| machine.seen().map(|s| s.state))
         } else {
             match machine.seen().map(|s| s.state) {
                 Some(state) => Some(state),
@@ -780,6 +841,14 @@ fn record_of(raw: Value) -> Result<WorkspaceRecord, HostError> {
             .or_insert_with(|| json!({"branch": "", "sha": ""}));
     }
     serde_json::from_value(Value::Object(row)).map_err(|e| HostError::new(e.to_string()))
+}
+
+/// A stored row's `id`, for the line a row that does not read is warned with.
+pub(crate) fn id_of(raw: &Value) -> String {
+    raw.get("id")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_string()
 }
 
 /// A provider error as the host error the boot area carries (`AreaError::into_host`).

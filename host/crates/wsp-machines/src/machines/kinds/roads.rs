@@ -91,8 +91,38 @@ fn invalid(message: String) -> AreaError {
     AreaError::Host(HostError::with_kind(message, Kind::Invalid))
 }
 
+/// node's `os.homedir()` (kinds.ts:124): `$HOME` where it is set, empty included, else the effective user's passwd home.
 fn here_home() -> String {
-    std::env::var("HOME").unwrap_or_default()
+    if let Some(home) = std::env::var_os("HOME") {
+        return home.to_string_lossy().into_owned();
+    }
+    let mut entry: libc::passwd = unsafe { std::mem::zeroed() };
+    let mut found: *mut libc::passwd = std::ptr::null_mut();
+    let mut buf = vec![0u8; 4096];
+    loop {
+        // SAFETY: `entry` and `buf` outlive the call, which writes inside `buf` (its length passed) and points `found`
+        // at `entry` or null.
+        let rc = unsafe {
+            libc::getpwuid_r(
+                libc::geteuid(),
+                &mut entry,
+                buf.as_mut_ptr().cast(),
+                buf.len(),
+                &mut found,
+            )
+        };
+        if rc == libc::ERANGE && buf.len() < 1 << 20 {
+            buf.resize(buf.len() * 2, 0);
+            continue;
+        }
+        if rc != 0 || found.is_null() || entry.pw_dir.is_null() {
+            return String::new();
+        }
+        // SAFETY: `pw_dir` points to a NUL-terminated string inside `buf`, which is alive here.
+        return unsafe { std::ffi::CStr::from_ptr(entry.pw_dir) }
+            .to_string_lossy()
+            .into_owned();
+    }
 }
 
 fn here_cwd() -> String {

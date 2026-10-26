@@ -393,7 +393,7 @@ fn a_stop_pulled_during_the_wait_lets_go_at_once() {
         assert_eq!(closed(0), 1);
         nothing_due_before(&w, t0 + 900_000.0);
 
-        // A stop already pulled fails before the first ask.
+        // A stop already pulled still makes the first ask, whose answer is thrown away (reach.ts:240).
         let w = world(answers_road());
         w.machine.daemon_answers.lock().unwrap().push_back(Ok(true));
         let stop = Cancel::new();
@@ -405,7 +405,7 @@ fn a_stop_pulled_during_the_wait_lets_go_at_once() {
                 "the daemon on bx_1 could not be asked ({WAKE_STOPPED})"
             ))
         );
-        assert_eq!(w.machine.daemon_answers.lock().unwrap().len(), 1);
+        assert_eq!(w.machine.daemon_answers.lock().unwrap().len(), 0);
     });
 }
 
