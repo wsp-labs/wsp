@@ -896,7 +896,7 @@ impl MoveRoads for FakeProjects {
         for line in self.base.answer("kind_import_reports").unwrap_or(json!([])).as_array().unwrap() {
             let stage: ProjectImportStage = serde_json::from_value(line[0].clone()).expect("a stage reads");
             let progress = line.get(2).filter(|p| !p.is_null()).map(|p| (p[0].as_u64().unwrap(), p[1].as_u64().unwrap()));
-            report(stage, line[1].as_str().unwrap(), progress);
+            report(stage, line[1].as_str().unwrap(), progress)?;
         }
         match self.base.answer("kind_import") {
             None => Ok(ImportLanded {

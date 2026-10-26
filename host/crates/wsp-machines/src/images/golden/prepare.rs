@@ -639,7 +639,7 @@ async fn fresh(
             cpu: run.recipe.cpu,
             mem_mb: run.recipe.mem_mb,
             envs: run.recipe.envs.clone(),
-            labels: None,
+            labels: Some(ctx.builder_labels(run.recipe.labels.as_ref())),
         },
         setup: run.recipe.setup.clone(),
         base_template: run.recipe.base_template.clone(),

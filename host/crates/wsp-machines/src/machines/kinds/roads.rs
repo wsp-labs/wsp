@@ -510,7 +510,7 @@ impl KindsArea {
         o: &ProjectImportOptions,
         report: &ImportReport,
     ) -> AreaResult<ImportLanded> {
-        report(ProjectImportStage::Landing, REGISTERING_LINE, None);
+        report(ProjectImportStage::Landing, REGISTERING_LINE, None)?;
         let plan = o.bundler.plan().await?;
         let project = self.project_of(&o.dest, plan.bytes.0);
         Ok(ImportLanded {

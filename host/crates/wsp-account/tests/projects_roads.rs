@@ -40,7 +40,7 @@ fn the_import_gives_its_uploads_the_kinds_scratch_folder_and_ten_minutes() {
             agents: Some(vec!["claude".to_owned()]),
             bundler,
         };
-        let report: wsp_core::types::internal::ImportReport = Rc::new(|_stage, _message, _progress| {});
+        let report: wsp_core::types::internal::ImportReport = Rc::new(|_stage, _message, _progress| Ok(()));
         area.copy_import(&entry, opts, report).await.unwrap();
         let roads = fake.roads.borrow().clone();
         assert_eq!(roads[0], json!({ "road": "land_bundle", "tmpDir": "/tmp", "timeoutMs": MOVE_DEADLINE_MS }));
