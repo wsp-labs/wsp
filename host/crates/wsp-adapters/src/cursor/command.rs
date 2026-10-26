@@ -3,7 +3,8 @@
 
 use indexmap::IndexMap;
 
-use crate::port::{AgentLaunch, Env};
+use crate::pending::{in_folder, shell_quote};
+use crate::port::{agent_word, launch_words, AgentLaunch, Env};
 
 /// TS command.ts:3.
 pub const PROMPT_END: &str = "WSP_PROMPT_END";
@@ -22,7 +23,16 @@ pub struct CursorEnvOptions {
 
 /// TS command.ts:19.
 pub fn build_env(options: &CursorEnvOptions) -> Env {
-    todo!()
+    let mut env = Env::new();
+    for (key, value) in options.base.iter().flatten() {
+        if let Some(value) = value {
+            env.insert(key.clone(), value.clone());
+        }
+    }
+    if let (Some(api_key), Some(key_env)) = (&options.api_key, &options.key_env) {
+        env.insert(key_env.clone(), api_key.clone());
+    }
+    env
 }
 
 /// TS command.ts:26.
@@ -36,7 +46,48 @@ pub struct BuildCommandOptions {
     pub launch: Option<AgentLaunch>,
 }
 
+/// `^[A-Za-z0-9][A-Za-z0-9-]*$`.
+fn is_chat_id(value: &str) -> bool {
+    let mut chars = value.chars();
+    matches!(chars.next(), Some(c) if c.is_ascii_alphanumeric()) && chars.all(|c| c.is_ascii_alphanumeric() || c == '-')
+}
+
 /// TS command.ts:37.
 pub fn build_command(options: &BuildCommandOptions) -> Result<String, String> {
-    todo!()
+    let BuildCommandOptions { prompt, resume, cwd, model, permission_mode, launch } = options;
+    if prompt.split('\n').any(|line| line == PROMPT_END) {
+        return Err(format!("the prompt has a line that reads {PROMPT_END}, which ends the prompt"));
+    }
+    if let Some(mode) = permission_mode {
+        if mode != DEFAULT_MODE && mode != FORCE_MODE {
+            return Err(format!("permissionMode must be one of {DEFAULT_MODE}, {FORCE_MODE}, got \"{mode}\""));
+        }
+    }
+    if let Some(model) = model {
+        if model.starts_with('-') || model.contains('\n') {
+            return Err(format!("model must be one model name, got \"{model}\""));
+        }
+    }
+    if let Some(resume) = resume {
+        if !is_chat_id(resume) {
+            return Err(format!("resume must be a chat id, got \"{resume}\""));
+        }
+    }
+    let mut words = vec![format!("{} -p", agent_word("cursor-agent", launch.as_ref()))];
+    words.extend(launch_words(launch.as_ref()));
+    words.push("--output-format stream-json --stream-partial-output --trust".into());
+    if let Some(cwd) = cwd {
+        words.push(format!("--workspace {}", shell_quote(cwd)));
+    }
+    if let Some(model) = model {
+        words.push(format!("--model {}", shell_quote(model)));
+    }
+    if let Some(resume) = resume {
+        words.push(format!("--resume {resume}"));
+    }
+    if permission_mode.as_deref() == Some(FORCE_MODE) {
+        words.push("--force".into());
+    }
+    let line = words.join(" ");
+    Ok(in_folder(cwd.as_deref(), &format!("{line} <<'{PROMPT_END}'\n{prompt}\n{PROMPT_END}")))
 }
