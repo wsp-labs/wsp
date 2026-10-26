@@ -22,7 +22,8 @@ fn review_the_sweep_runs_when_its_timer_fires_with_nothing_awaiting_it() {
     let fake = FakeFolders::new(base.clone());
     let folders: Rc<Folders> = folders_area(fake.clone());
     base.hold_project(base::project("p_web", "web", "here", json!({ "git": { "top": "/home/me/web" } })));
-    let entry = base.hold(record("ws_tree", "local", "p_web", json!({ "worktree": { "path": GONE_PATH, "branch": "feat/x", "made": true } })));
+    let entry =
+        base.hold(record("ws_tree", "local", "p_web", json!({ "worktree": { "path": GONE_PATH, "branch": "feat/x", "made": true } })));
     base.threads.borrow_mut().push(("t_ws_tree".into(), base::thread_on("ws_tree")));
     folders.arm_sweep();
     run(async {
@@ -44,7 +45,8 @@ fn review_control_the_same_sweep_awaited_by_hand_marks_the_tree_gone() {
     let fake = FakeFolders::new(base.clone());
     let folders: Rc<Folders> = folders_area(fake.clone());
     base.hold_project(base::project("p_web", "web", "here", json!({ "git": { "top": "/home/me/web" } })));
-    let entry = base.hold(record("ws_tree", "local", "p_web", json!({ "worktree": { "path": GONE_PATH, "branch": "feat/x", "made": true } })));
+    let entry =
+        base.hold(record("ws_tree", "local", "p_web", json!({ "worktree": { "path": GONE_PATH, "branch": "feat/x", "made": true } })));
     base.threads.borrow_mut().push(("t_ws_tree".into(), base::thread_on("ws_tree")));
     folders.arm_sweep();
     run(async {

@@ -112,7 +112,13 @@ impl UsageCtx for Bare {
     fn local_home(&self, _agent: &str) -> String {
         "/home/u/.codex".to_string()
     }
-    async fn local_exec_lines(&self, _script: &str, _env: IndexMap<String, String>, _idle: i64, _deadline: i64) -> AccountResult<Vec<String>> {
+    async fn local_exec_lines(
+        &self,
+        _script: &str,
+        _env: IndexMap<String, String>,
+        _idle: i64,
+        _deadline: i64,
+    ) -> AccountResult<Vec<String>> {
         Ok(vec!["nothing".to_string()])
     }
     async fn read_logs_on(&self, _place_id: &str, _stores: &[UsageStore]) -> AccountResult<UsageLogsReply> {
@@ -193,7 +199,12 @@ impl UsageCtx for Bare {
     fn plan_parse(&self, _agent: &str, _out: &str) -> Option<HarnessLimit> {
         None
     }
-    async fn account_rows(&self, _limits: Vec<Value>, _places: Vec<(String, String, Option<Value>)>, _name_of: NameOf) -> AccountResult<AccountsAnswer> {
+    async fn account_rows(
+        &self,
+        _limits: Vec<Value>,
+        _places: Vec<(String, String, Option<Value>)>,
+        _name_of: NameOf,
+    ) -> AccountResult<AccountsAnswer> {
         Ok(AccountsAnswer { accounts: vec![] })
     }
     async fn account_names(&self, _limits: Vec<Value>, _name_of: NameOf) -> AccountResult<IndexMap<String, String>> {

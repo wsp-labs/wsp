@@ -205,13 +205,8 @@ fn a_push_is_sent_before_the_roots_the_client_names_next() {
         }
         pane.send(obj(json!({ "op": "ports.watch", "roots": [7, 9] }))).await.unwrap();
         settle().await;
-        let frames: Vec<Value> = w
-            .take()
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|f| json!({ "op": f["op"], "roots": f["roots"], "cgroups": f["cgroups"] }))
-            .collect();
+        let frames: Vec<Value> =
+            w.take().as_array().unwrap().iter().map(|f| json!({ "op": f["op"], "roots": f["roots"], "cgroups": f["cgroups"] })).collect();
         assert_eq!(
             serde_json::to_string(&frames).unwrap(),
             r#"[{"op":"ports.watch","roots":[7],"cgroups":["/wsp-threads/ta","/wsp-threads/tb"]},{"op":"ports.watch","roots":[7,9],"cgroups":["/wsp-threads/ta","/wsp-threads/tb"]}]"#

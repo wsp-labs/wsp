@@ -56,12 +56,8 @@ fn rig(rule: CacheRule) -> (Rc<FakeProjects>, Rc<wsp_account::projects::projects
     let fake = FakeProjects::new();
     let area = fake.area();
     fake.base.hold(record("ws_1", "cloud", "pr_x", json!({ "name": "task-1" })));
-    let lander = Rc::new(Watching {
-        inner: FakeLander::new(&fake.base),
-        rule,
-        temp: fake.tmp.path().to_path_buf(),
-        modes: RefCell::new(vec![]),
-    });
+    let lander =
+        Rc::new(Watching { inner: FakeLander::new(&fake.base), rule, temp: fake.tmp.path().to_path_buf(), modes: RefCell::new(vec![]) });
     (fake, area, lander)
 }
 

@@ -1158,7 +1158,7 @@ pub async fn fix(ctx: &Rc<dyn GitCtx>, ask: FixAsk, origin: Option<Caller>) -> R
         let log: Option<CheckLog> = match &failed.run {
             None => None,
             Some(run) => {
-                let (remote, run_id, job_id) = (project.remote.clone(), run.run_id.clone(), run.job_id.clone());
+                let (remote, run_id, job_id) = (project.remote.clone(), run.run_id, run.job_id);
                 let frame: FrameFor = Rc::new(move |cwd: &str| {
                     frame_of(json!({ "op": "git.runLog", "cwd": cwd, "remote": remote, "runId": run_id, "jobId": job_id }))
                 });

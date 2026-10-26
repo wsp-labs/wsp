@@ -227,7 +227,13 @@ fn review_rules_fuzz_against_the_ts() {
                     Ok(()) => Value::Null,
                     Err(e) => json!({ "thrown": error_json(&e) }),
                 };
-                note("refuseRelayed work", seed, format!("{cn}/{id}"), &unit(rules.refuse_relayed(Some(&like), c, AcrossAct::Work, None)), &a["refuseRelayedWork"][cn][id]);
+                note(
+                    "refuseRelayed work",
+                    seed,
+                    format!("{cn}/{id}"),
+                    &unit(rules.refuse_relayed(Some(&like), c, AcrossAct::Work, None)),
+                    &a["refuseRelayedWork"][cn][id],
+                );
                 note(
                     "refuseRelayed thread",
                     seed,
@@ -266,7 +272,13 @@ fn review_rules_fuzz_against_the_ts() {
             for p in wv["projects"].as_array().unwrap() {
                 let id = p["id"].as_str().unwrap();
                 let word = format!("the {} word", p["name"].as_str().unwrap());
-                note("elsewhereRefusal", seed, format!("{cn}/{id}"), &opt_err(rules.elsewhere_refusal(c, &project(p), &word)), &a["elsewhereRefusal"][cn][id]);
+                note(
+                    "elsewhereRefusal",
+                    seed,
+                    format!("{cn}/{id}"),
+                    &opt_err(rules.elsewhere_refusal(c, &project(p), &word)),
+                    &a["elsewhereRefusal"][cn][id],
+                );
             }
             note("talksToItsTree", seed, cn.clone(), &answer(rules.talks_to_its_tree(c)), &a["talksToItsTree"][cn]);
         }
