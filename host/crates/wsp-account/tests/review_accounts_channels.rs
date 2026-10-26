@@ -59,10 +59,9 @@ struct Lit(Rc<Sim>);
 impl ChannelsCtx for Lit {
     fn terminal_sign_in(&self, harness: &str, entry: &Entry, token: &str) -> Option<TerminalSignIn> {
         match harness {
-            "claude" => Some(TerminalSignIn {
-                program: None,
-                env: [("SIGN_IN".to_string(), format!("claude:{token}"))].into_iter().collect(),
-            }),
+            "claude" => {
+                Some(TerminalSignIn { program: None, env: [("SIGN_IN".to_string(), format!("claude:{token}"))].into_iter().collect() })
+            }
             _ => self.0.terminal_sign_in(harness, entry, token),
         }
     }

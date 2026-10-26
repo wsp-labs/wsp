@@ -32,41 +32,116 @@ struct Stub {
 
 #[async_trait(?Send)]
 impl PreferencesCtx for Stub {
-    fn env(&self) -> IndexMap<String, String> { IndexMap::new() }
-    fn server_icons(&self) -> Option<Rc<dyn ServerIcons>> { self.icons.clone() }
-    fn home_dir(&self) -> String { "/home/me".to_string() }
-    fn adapter_ids(&self) -> Vec<String> { unimplemented!() }
-    fn access_table(&self, _agent: &str) -> AccessTable { unimplemented!() }
-    fn project_held(&self, _id: &str) -> bool { unimplemented!() }
-    fn project_of(&self, _id: &str) -> Result<(String, String), HostError> { unimplemented!() }
-    fn default_agent_of(&self, _prefs: &Preferences) -> String { unimplemented!() }
-    fn session_thread_keys(&self) -> Vec<String> { unimplemented!() }
-    fn thread_record_held(&self, _thread_id: &str) -> bool { unimplemented!() }
-    async fn ready(&self) { unimplemented!() }
-    async fn stored(&self) -> AccountResult<Option<Value>> { unimplemented!() }
-    async fn store(&self, _prefs: &Preferences) -> AccountResult<()> { unimplemented!() }
-    fn held(&self) -> Option<Preferences> { unimplemented!() }
-    fn set_held(&self, _prefs: Preferences) { unimplemented!() }
-    fn emit(&self, _event: Value) { unimplemented!() }
-    fn on_workspace_deleted(&self, f: Rc<dyn Fn(&str)>) { let _ = f; }
-    async fn entry_of(&self, _workspace_id: &str, _origin: Option<&Caller>) -> Result<Entry, HostError> { unimplemented!() }
-    fn catalog_agents(&self) -> Vec<CatalogAgentKeys> { unimplemented!() }
-    fn thread_env(&self, _entry: &Entry, _agent: &str) -> IndexMap<String, String> { unimplemented!() }
-    fn checkout_of(&self, _entry: &Entry) -> Result<String, HostError> { unimplemented!() }
-    fn is_local(&self, _entry: &Entry) -> bool { unimplemented!() }
-    fn at_provider(&self, _entry: &Entry) -> bool { unimplemented!() }
-    fn pause_mode(&self, _entry: &Entry) -> Option<String> { unimplemented!() }
-    fn projects_on(&self, _place_id: &str) -> Vec<(String, String, String)> { unimplemented!() }
-    async fn workspace_channel( &self, _workspace_id: &str, _on_event: Rc<dyn Fn(Value)>, _origin: Option<&Caller>, ) -> AccountResult<Rc<dyn DaemonChannel>> { unimplemented!() }
-    async fn local_channel(&self, _on_event: Rc<dyn Fn(Value)>) -> AccountResult<Rc<dyn DaemonChannel>> { unimplemented!() }
-    fn place_channel(&self, _place_id: &str, _on_event: Rc<dyn Fn(Value)>) -> Option<Rc<dyn DaemonChannel>> { unimplemented!() }
-    fn place_name(&self, _place_id: &str) -> Option<String> { unimplemented!() }
-    async fn setup_write(&self, _place_id: &str, _agent: &str, _change: Value) -> AccountResult<()> { unimplemented!() }
-    fn setup_view(&self, _place_id: &str, _agent: &str) -> Value { unimplemented!() }
-    fn drop_setup_refusal(&self, _place_id: &str, _agent: &str) -> bool { unimplemented!() }
-    fn setup_refusal_moved(&self, _place_id: &str, _agent: &str) { unimplemented!() }
-    fn relayed(&self) -> bool { unimplemented!() }
-    fn forget_read(&self, _workspace_id: &str) { unimplemented!() }
+    fn env(&self) -> IndexMap<String, String> {
+        IndexMap::new()
+    }
+    fn server_icons(&self) -> Option<Rc<dyn ServerIcons>> {
+        self.icons.clone()
+    }
+    fn home_dir(&self) -> String {
+        "/home/me".to_string()
+    }
+    fn adapter_ids(&self) -> Vec<String> {
+        unimplemented!()
+    }
+    fn access_table(&self, _agent: &str) -> AccessTable {
+        unimplemented!()
+    }
+    fn project_held(&self, _id: &str) -> bool {
+        unimplemented!()
+    }
+    fn project_of(&self, _id: &str) -> Result<(String, String), HostError> {
+        unimplemented!()
+    }
+    fn default_agent_of(&self, _prefs: &Preferences) -> String {
+        unimplemented!()
+    }
+    fn session_thread_keys(&self) -> Vec<String> {
+        unimplemented!()
+    }
+    fn thread_record_held(&self, _thread_id: &str) -> bool {
+        unimplemented!()
+    }
+    async fn ready(&self) {
+        unimplemented!()
+    }
+    async fn stored(&self) -> AccountResult<Option<Value>> {
+        unimplemented!()
+    }
+    async fn store(&self, _prefs: &Preferences) -> AccountResult<()> {
+        unimplemented!()
+    }
+    fn held(&self) -> Option<Preferences> {
+        unimplemented!()
+    }
+    fn set_held(&self, _prefs: Preferences) {
+        unimplemented!()
+    }
+    fn emit(&self, _event: Value) {
+        unimplemented!()
+    }
+    fn on_workspace_deleted(&self, f: Rc<dyn Fn(&str)>) {
+        let _ = f;
+    }
+    async fn entry_of(&self, _workspace_id: &str, _origin: Option<&Caller>) -> Result<Entry, HostError> {
+        unimplemented!()
+    }
+    fn catalog_agents(&self) -> Vec<CatalogAgentKeys> {
+        unimplemented!()
+    }
+    fn thread_env(&self, _entry: &Entry, _agent: &str) -> IndexMap<String, String> {
+        unimplemented!()
+    }
+    fn checkout_of(&self, _entry: &Entry) -> Result<String, HostError> {
+        unimplemented!()
+    }
+    fn is_local(&self, _entry: &Entry) -> bool {
+        unimplemented!()
+    }
+    fn at_provider(&self, _entry: &Entry) -> bool {
+        unimplemented!()
+    }
+    fn pause_mode(&self, _entry: &Entry) -> Option<String> {
+        unimplemented!()
+    }
+    fn projects_on(&self, _place_id: &str) -> Vec<(String, String, String)> {
+        unimplemented!()
+    }
+    async fn workspace_channel(
+        &self,
+        _workspace_id: &str,
+        _on_event: Rc<dyn Fn(Value)>,
+        _origin: Option<&Caller>,
+    ) -> AccountResult<Rc<dyn DaemonChannel>> {
+        unimplemented!()
+    }
+    async fn local_channel(&self, _on_event: Rc<dyn Fn(Value)>) -> AccountResult<Rc<dyn DaemonChannel>> {
+        unimplemented!()
+    }
+    fn place_channel(&self, _place_id: &str, _on_event: Rc<dyn Fn(Value)>) -> Option<Rc<dyn DaemonChannel>> {
+        unimplemented!()
+    }
+    fn place_name(&self, _place_id: &str) -> Option<String> {
+        unimplemented!()
+    }
+    async fn setup_write(&self, _place_id: &str, _agent: &str, _change: Value) -> AccountResult<()> {
+        unimplemented!()
+    }
+    fn setup_view(&self, _place_id: &str, _agent: &str) -> Value {
+        unimplemented!()
+    }
+    fn drop_setup_refusal(&self, _place_id: &str, _agent: &str) -> bool {
+        unimplemented!()
+    }
+    fn setup_refusal_moved(&self, _place_id: &str, _agent: &str) {
+        unimplemented!()
+    }
+    fn relayed(&self) -> bool {
+        unimplemented!()
+    }
+    fn forget_read(&self, _workspace_id: &str) {
+        unimplemented!()
+    }
 }
 
 #[test]

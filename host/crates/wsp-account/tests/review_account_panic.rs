@@ -28,8 +28,28 @@ impl Rng {
 }
 
 const KEYS: [&str; 22] = [
-    "id", "ok", "ptyId", "pid", "ptys", "thread", "roots", "cgroups", "env", "cwd", "watch", "port", "ports", "type", "exited", "op", "error",
-    "code", "protect", "apps", "agents", "agentBins",
+    "id",
+    "ok",
+    "ptyId",
+    "pid",
+    "ptys",
+    "thread",
+    "roots",
+    "cgroups",
+    "env",
+    "cwd",
+    "watch",
+    "port",
+    "ports",
+    "type",
+    "exited",
+    "op",
+    "error",
+    "code",
+    "protect",
+    "apps",
+    "agents",
+    "agentBins",
 ];
 
 fn rnd(r: &mut Rng, depth: u8) -> Value {
@@ -88,19 +108,43 @@ fn the_pty_wrappers_and_the_kill_guard_never_panic_on_what_a_page_or_a_daemon_se
                 })
             };
             let ptys = ["pty.create", "pty.list", "pty.kill", "pty.thread", "pty.attach", "ports.watch", "proc.kill", "ping", "pty.write"];
-            let pane = area.rooted_ports("ws", "/work/ws", area.held_to_owner("ws", area.thread_tagged("ws", area.kill_guarded(d.clone(), seed % 2 == 0))));
-            let lock = format!("/state/{}/{}", wsp_wire::types::daemon_contract::APP_DATA_FOLDER, wsp_wire::types::daemon_contract::APP_LOCK_FILE);
+            let pane = area.rooted_ports(
+                "ws",
+                "/work/ws",
+                area.held_to_owner("ws", area.thread_tagged("ws", area.kill_guarded(d.clone(), seed % 2 == 0))),
+            );
+            let lock =
+                format!("/state/{}/{}", wsp_wire::types::daemon_contract::APP_DATA_FOLDER, wsp_wire::types::daemon_contract::APP_LOCK_FILE);
             for step in 0..25 {
                 match r.below(10) {
                     0 => {
-                        let link = r.pick(&["", "-", "a-", "-1", "host-", "host--1", "host-1-2", "host-99999999999999999999", "h\u{e9}-5", "host-0", "host-+5", "host-٣"]).to_string();
+                        let link = r
+                            .pick(&[
+                                "",
+                                "-",
+                                "a-",
+                                "-1",
+                                "host-",
+                                "host--1",
+                                "host-1-2",
+                                "host-99999999999999999999",
+                                "h\u{e9}-5",
+                                "host-0",
+                                "host-+5",
+                                "host-٣",
+                            ])
+                            .to_string();
                         w.fs_links.borrow_mut().insert(lock.clone(), link);
                         w.alive.borrow_mut().insert(5);
                         w.alive.borrow_mut().insert(0);
                     }
                     1 => {
                         w.groups.borrow_mut().insert(*r.pick(&[5000_i64, 5001, -1, 0, i64::MAX]));
-                        area.turn_groups.borrow_mut().entry("ws".into()).or_default().insert(*r.pick(&[5000_i64, 5001, -1, 0, i64::MAX]), "t".into());
+                        area.turn_groups
+                            .borrow_mut()
+                            .entry("ws".into())
+                            .or_default()
+                            .insert(*r.pick(&[5000_i64, 5001, -1, 0, i64::MAX]), "t".into());
                         area.port_roots_moved("ws");
                     }
                     2 => {
@@ -202,13 +246,27 @@ fn the_box_panels_never_panic_on_what_a_page_or_a_computer_sends() {
                 &json!({ "id": "w1", "name": "alpha-studio", "kind": "place", "project": "pA2", "machineId": "", "phase": "running", "place": "box1" }),
             ));
             let panes: Vec<Rc<dyn BoxPanels>> = (0..2).map(|_| opener.open(&entry, "box1", served.clone(), "/srv/alpha")).collect();
-            let ops = ["ports.watch", "sys.watch", "sys.unwatch", "proc.watch", "proc.unwatch", "proc.inspect", "proc.kill", "container.stop", "pty.create", "other"];
+            let ops = [
+                "ports.watch",
+                "sys.watch",
+                "sys.unwatch",
+                "proc.watch",
+                "proc.unwatch",
+                "proc.inspect",
+                "proc.kill",
+                "container.stop",
+                "pty.create",
+                "other",
+            ];
             for _ in 0..25 {
                 let pane = &panes[r.below(2) as usize];
                 match r.below(8) {
                     0 => {
                         let mut e = rnd_object(&mut r);
-                        e.insert("type".into(), json!(*r.pick(&["port.open", "port.close", "sys.sample", "proc.snapshot", "proc.changes", "x"])));
+                        e.insert(
+                            "type".into(),
+                            json!(*r.pick(&["port.open", "port.close", "sys.sample", "proc.snapshot", "proc.changes", "x"])),
+                        );
                         let _ = pane.heard(&Value::Object(e));
                     }
                     1 => pane.close(),

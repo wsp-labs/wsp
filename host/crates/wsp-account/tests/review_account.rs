@@ -7,8 +7,8 @@
 mod common;
 include!("channels_ptys/world.rs");
 
-use wsp_account::account::box_panels::{BoxPanels, BoxPanelsOpener, Placements, Watchers};
 use wsp_account::account::box_panels::proc_watch_scope;
+use wsp_account::account::box_panels::{BoxPanels, BoxPanelsOpener, Placements, Watchers};
 use wsp_account::account::core_types::Served;
 
 /// What a daemon heard as `{ op, roots? }`, the shape the node probes print.
@@ -307,7 +307,8 @@ fn a_ports_watch_names_every_integer_root_the_page_sent() {
         });
         let opener = BoxPanelsOpener::new(Rc::new(Link(Rc::new(()))), Watchers::default(), Placements::default());
         let pane = opener.open(&a_folder_entry(), "box1", sink, "/srv/alpha");
-        let roots: Value = serde_json::from_str(r#"[7, 1e300, 1.8446744073709552e19, 9007199254740992.0, -3, 1.0, "5", true, null, [4]]"#).unwrap();
+        let roots: Value =
+            serde_json::from_str(r#"[7, 1e300, 1.8446744073709552e19, 9007199254740992.0, -3, 1.0, "5", true, null, [4]]"#).unwrap();
         pane.send(frame(json!({ "op": "ports.watch", "roots": roots }))).await.unwrap();
         let sent = served.borrow()[0]["roots"].clone();
         assert_eq!(sent.as_array().unwrap().len(), 6, "node sent 6 roots (7, 1e300, 2^64, 2^53, -3, 1); the Rust sent {sent}");
@@ -341,7 +342,10 @@ fn the_kill_guard_answers_odd_frames_as_the_ts_does() {
     run(async {
         let w = World::new();
         *w.agent_bins.borrow_mut() =
-            ["claude", "codex", "gemini", "opencode", "pi", "hermes", "crush", "qwen", "goose", "amp", "cursor-agent"].iter().map(|b| b.to_string()).collect();
+            ["claude", "codex", "gemini", "opencode", "pi", "hermes", "crush", "qwen", "goose", "amp", "cursor-agent"]
+                .iter()
+                .map(|b| b.to_string())
+                .collect();
         let area = w.area();
         let inner = Daemon::ok();
         let guard = area.kill_guarded(inner.clone(), false);

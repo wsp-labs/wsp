@@ -89,7 +89,6 @@ fn proc_kind(word: &str) -> ProcKind {
     serde_json::from_value(json!(word)).unwrap()
 }
 
-
 /// `WorldJson` of the oracle with every key a scenario leaves out empty.
 fn world(w: &Value) -> Rc<Scopes> {
     let list = |k: &str| w[k].as_array().cloned().unwrap_or_default();
@@ -178,7 +177,6 @@ fn world(w: &Value) -> Rc<Scopes> {
     })
 }
 
-
 #[async_trait(?Send)]
 impl ProcScopesCtx for Scopes {
     fn turn_groups(&self) -> Vec<(String, Vec<(i64, String)>)> {
@@ -251,9 +249,8 @@ fn canon(v: &Value) -> Value {
 fn a_session_with_no_number_for_a_start_time_does_not_stop_the_scopes() {
     run(async {
         let times = [f64::NAN, 1.0, f64::NAN, 5.0, f64::INFINITY, 0.0, f64::NEG_INFINITY, 3.0, f64::NAN, 2.0];
-        let sessions: Vec<Value> = (0..60)
-            .map(|i| json!({ "thread": format!("t{i}"), "workspace": "ws_box", "status": "running" }))
-            .collect();
+        let sessions: Vec<Value> =
+            (0..60).map(|i| json!({ "thread": format!("t{i}"), "workspace": "ws_box", "status": "running" })).collect();
         let w = json!({ "live": [{ "id": "ws_box", "kind": "place", "place": "pl_1", "path": "/box/ws_box" }], "sessions": sessions });
         let ctx = {
             let base = world(&w);

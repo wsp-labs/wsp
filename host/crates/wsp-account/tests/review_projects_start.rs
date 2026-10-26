@@ -40,7 +40,8 @@ fn a_reviewers_reply_with_no_block_is_read_on_any_executor_without_a_panic() {
         "head": { "branch": fact["branch"], "oid": fact["headOid"] },
     }))
     .unwrap();
-    let entry = fake.base.hold(record("ws_rev", "local", "pr_1", json!({ "name": "Review #7", "from": from, "reviewThread": "th_review" })));
+    let entry =
+        fake.base.hold(record("ws_rev", "local", "pr_1", json!({ "name": "Review #7", "from": from, "reviewThread": "th_review" })));
     let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
     let ran = catch_unwind(AssertUnwindSafe(|| runtime.block_on(area.take_review(&entry, "th_review", "Looks good to me."))));
     assert!(ran.is_ok(), "take_review panicked outside a LocalSet");

@@ -38,7 +38,11 @@ fn a_reply_of_only_a_next_line_character_is_not_blank_to_the_ts_and_posts() {
         script(&w, "post_as_person", json!({ "comment": comment(9, "Zingzy", "owner", "\u{85}") }));
         let ask = PullRequestReplyAsk { workspace_id: "ws1".into(), reply_to: None, thread_id: None, body: "\u{85}".into() };
         let got = area::pull_request_reply(&w.ctx, ask, origin()).await;
-        assert!(got.is_ok(), "the TS does not trim U+0085, so the body is not blank and posts; the Rust refused it: {:?}", got.err().map(|e| e.message));
+        assert!(
+            got.is_ok(),
+            "the TS does not trim U+0085, so the body is not blank and posts; the Rust refused it: {:?}",
+            got.err().map(|e| e.message)
+        );
         assert_eq!(w.base.names(), vec!["pull_request_on", "post_as_person"]);
     })
 }
@@ -52,7 +56,12 @@ fn the_reply_frame_keeps_the_ts_key_order() {
     run(async {
         let w = world(json!({}));
         script(&w, "post_as_person", json!({ "comment": comment(9, "Zingzy", "owner", "Fixed.") }));
-        let ask = PullRequestReplyAsk { workspace_id: "ws1".into(), reply_to: Some(7), thread_id: Some("PRRT_kwDOx".into()), body: "Fixed.".into() };
+        let ask = PullRequestReplyAsk {
+            workspace_id: "ws1".into(),
+            reply_to: Some(7),
+            thread_id: Some("PRRT_kwDOx".into()),
+            body: "Fixed.".into(),
+        };
         area::pull_request_reply(&w.ctx, ask, origin()).await.expect("the reply posts");
         let sent = w.base.args_of("post_as_person")[0]["ask"].clone();
         let want = format!(
@@ -120,7 +129,12 @@ fn hostile_values_ride_the_bring_back_and_commit_and_discard_frames_unchanged() 
 
             let w = world(json!({}));
             script(&w, "ask:git.commit", json!({ "oid": "abc", "branch": "main", "subject": "s", "files": 1 }));
-            let ask = CommitAsk { workspace_id: "ws1".into(), message: bad.into(), paths: Some(vec![bad.into(), "-p".into()]), ..Default::default() };
+            let ask = CommitAsk {
+                workspace_id: "ws1".into(),
+                message: bad.into(),
+                paths: Some(vec![bad.into(), "-p".into()]),
+                ..Default::default()
+            };
             let _ = area::commit(&w.ctx, ask, origin()).await;
             let want = vec![json!({ "op": "git.commit", "cwd": CWD, "message": bad, "paths": [bad, "-p"] })];
             assert_eq!(serde_json::to_string(&w.base.asks()).unwrap(), serde_json::to_string(&want).unwrap(), "commit {bad:?}");
@@ -169,7 +183,9 @@ fn a_hostile_head_rides_the_merge_frame_unchanged_and_runs_on_this_computer() {
             script(&w, "ask:git.prMerge", json!({ "merged": true, "autoArmed": false }));
             let ask = MergeAsk { workspace_id: "ws1".into(), head: Some(bad.into()), ..Default::default() };
             area::merge(&w.ctx, ask, origin()).await.expect("the merge runs");
-            let want = vec![json!({ "op": "git.prMerge", "cwd": HOME, "remote": REMOTE, "number": 12, "method": "squash", "auto": false, "headOid": bad })];
+            let want = vec![
+                json!({ "op": "git.prMerge", "cwd": HOME, "remote": REMOTE, "number": 12, "method": "squash", "auto": false, "headOid": bad }),
+            ];
             assert_eq!(serde_json::to_string(&w.base.asks()).unwrap(), serde_json::to_string(&want).unwrap(), "merge {bad:?}");
             assert!(w.base.names().iter().any(|n| n == "on_this_computer"), "the merge ran on this computer");
         }
