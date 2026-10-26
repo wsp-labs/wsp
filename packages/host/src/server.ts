@@ -8,7 +8,7 @@ import { basename, dirname, extname, join, resolve as resolvePath, sep } from "n
 import { CREATED_AT_LABEL, HOST_LABEL, SMOKE_LABEL, WSP_LABEL, type ProvisionPlan } from "@wsp/engine";
 import { BOOT_SCRIPT, DEFAULT_PORT, PAIR_CODE_TTL_MS, PLACES_WORDS, PLACE_PORT_OFFSET, WILDCARD, WS_PATH, authority, doorPortHeldLine, doorPortMovedLine, isLoopback, joinAddressOf, servedHostname, noSuchPlaceRefusal, tableName, recordRestoredLine, peerAddress, relayUrlOf, scopeOf, type BootPayload, type ProductUsageOff, type DoctorLineEvent, type Caller, type PlaceDoorView, type ProjectImportResult, type ProjectPlan, type PlaceView, type ProjectView, type ProviderKeyWorks, type WorkspaceView, kindForComputer, nameTheProjectLine, copiesFolder, runsInFolder } from "@wsp/protocol";
 import { sshHostsIn } from "./ssh-hosts.js";
-import { LOOPBACK, describeAge, goldenHead, serveRuntime, tokenDigest, type AdmittedDevices, type CreatedWorkspace, type GoldenBuilderView, type GoldenVersion, type HostSsh, type InitDoor, type PlaceBackHolder, type PlaceDoctor, type PlaceDoorControl, type ProjectBundler, type ProjectImportOptions, type ProjectLander, type ReapedMachine, type RestartDoor, type Runtime, type RuntimeServer, type SparedMachine } from "@wsp/runtime";
+import { LOOPBACK, describeAge, goldenHead, serveRuntime, slateLookHubOf, tokenDigest, type AdmittedDevices, type CreatedWorkspace, type GoldenBuilderView, type GoldenVersion, type HostSsh, type InitDoor, type PlaceBackHolder, type PlaceDoctor, type PlaceDoorControl, type ProjectBundler, type ProjectImportOptions, type ProjectLander, type ReapedMachine, type RestartDoor, type Runtime, type RuntimeServer, type SparedMachine } from "@wsp/runtime";
 import { computerDoctor } from "./doctor.js";
 import type { HostBroker } from "./server-broker.js";
 import { cloudSignIn } from "./agents-signin.js";
@@ -466,6 +466,7 @@ export async function startHost(opts: HostOptions): Promise<HostHandle> {
           authorize: token => rtServer.authorize(token),
           hostUrl: () => binding.then(() => here.url),
           kinds: guestKinds(statePath, undefined, (threadId, pid, kind) => rt.ownProcess(threadId, pid, kind)),
+          lookable: () => slateLookHubOf(rt.slates).lookable(),
         });
   // Before the runtime socket: the app lists and stops the relay's forwards through it.
   const relay = startCallbackRelay({

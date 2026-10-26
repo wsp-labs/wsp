@@ -20,6 +20,7 @@ import { wireHostLive } from "./machine/hostLive.js";
 import { wireLinks } from "./shell/links.js";
 import { wireTerminals } from "./terminal/wiring.js";
 import { Gallery } from "./gallery/Gallery.js";
+import { SlateLook, slateLookOf, type SlateLookAsk } from "./slate/SlateLook.js";
 import { PROJECT_WORDS } from "./sidebar/words.js";
 import { startFailed } from "@wsp/protocol";
 
@@ -37,13 +38,17 @@ export interface AppProps {
   onUnauthorized?: () => void;
 }
 
-/** #gallery mounts the ui kit proof page with no runtime behind it; every other hash is the app. */
+/** #gallery mounts the ui kit proof page with no runtime behind it; #slate-look= one thread's slate alone, for wsp
+ * slate look; every other hash is the app. */
 export function Root(props: AppProps) {
   const hash = useSyncExternalStore(subscribeHash, readHash);
-  return hash === "#gallery" ? <Gallery /> : <App {...props} />;
+  if (hash === "#gallery") return <Gallery />;
+  const look = slateLookOf(hash);
+  return look !== undefined ? <LookApp {...props} look={look} /> : <App {...props} />;
 }
 
-export function App({ wsUrl, token, onUnauthorized }: AppProps) {
+/** The store bound to a client of the host, for as long as the page is. */
+function useHostClient({ wsUrl, token, onUnauthorized }: AppProps): void {
   const bind = useStore(s => s.bind);
   const setConn = useStore(s => s.setConn);
   const noteGap = useStore(s => s.noteGap);
@@ -58,6 +63,18 @@ export function App({ wsUrl, token, onUnauthorized }: AppProps) {
     );
     return () => { live = false; client.close(); };
   }, [wsUrl, token, bind, setConn, noteGap, onUnauthorized]);
+}
+
+/** The page wsp slate look draws in a window nobody sees: the slate in the person's theme and fonts, and no more. */
+function LookApp({ look, ...props }: AppProps & { look: SlateLookAsk }) {
+  useHostClient(props);
+  useThemeEffect();
+  useFontEffect();
+  return <SlateLook {...look} />;
+}
+
+export function App(props: AppProps) {
+  useHostClient(props);
   useEffect(() => wireTerminals(useStore), []);
   useEffect(() => wireHostLive(useStore), []);
   useEffect(() => wireAppProcs(useStore), []);

@@ -19,13 +19,10 @@ import {
   type SlateCause,
   type SlateEmpty,
   type SlateEventAnswer,
-  type SlateReadAnswer,
   type SlateRunEvent,
-  type SlateStateAnswer,
   type SlateValuesEvent,
   type SlateView,
   type SlateWriteAnswer,
-  type SlatesImageAnswer,
 } from "@wsp/protocol";
 import {
   applySlatePatch,
@@ -71,6 +68,9 @@ import { boxLedger, boxRoad } from "./slate-box.js";
 import { boxSlateDir } from "./slate-mcp-on.js";
 import { alwaysRefused, boxPins, cannotPin, keyed, pinHere, withFiles, writeSlateFiles, type HashOn, type Pin } from "./slate-files.js";
 import { slateImage, type ImageOn } from "./slate-images.js";
+import { slatePage, type PageOn } from "./slate-pages.js";
+import type { SlateTarget, Slates } from "./slates-api.js";
+export type { SlateTarget, Slates } from "./slates-api.js";
 import { isRunRecord, misread, READ_OUTPUT_CHARS, runShown } from "./slate-read.js";
 import { cutAt, defanged, longest } from "./slate-message.js";
 import { invalid } from "./slate-refused.js";
@@ -153,6 +153,8 @@ export interface SlatesDeps {
   machineOf?(threadId: string): Machine | undefined;
   /** Where the thread runs on another computer: reads an image file there through its daemon, by its whole path. */
   imageOn?(threadId: string): ImageOn | undefined;
+  /** The same for a frame's page, through that daemon's fs.page. */
+  pageOn?(threadId: string): PageOn | undefined;
   /** Absent where the thread runs on this computer. */
   hashOn?(threadId: string): HashOn | undefined;
   /** That machine naps: a timer never wakes it, a press does, through wake. */
@@ -191,10 +193,6 @@ export interface SlatesDeps {
 
 /** Where a slate op names its thread: a window always, a thread's token by itself, a person's shell inside a turn by
  * that turn's token. */
-export interface SlateTarget {
-  threadId?: string;
-  turnToken?: string;
-}
 
 type BatchBy = "person" | "agent" | "reaction" | "run" | "timer" | "host";
 interface BatchEvent {
@@ -254,42 +252,6 @@ const SAID: Record<"send" | "steer" | "queue", Record<"started" | "steered" | "q
 const sizeOf = (value: unknown): number => slateBytes(JSON.stringify(value));
 const asJson = (v: unknown): SlateJson => v as SlateJson;
 
-export interface Slates {
-  get(threadId: string): Promise<SlateView | null>;
-  write(p: SlateTarget & { text?: string; document?: Record<string, unknown>; check?: boolean; ifVersion?: number; values?: Record<string, unknown>; press?: { piece: string; index?: number; action?: number } }, caller?: Caller): Promise<SlateWriteAnswer>;
-  state(p: SlateTarget & { values?: Record<string, unknown>; start?: string[]; ifVersion?: number }, caller?: Caller): Promise<SlateStateAnswer>;
-  read(p: SlateTarget & { values?: string[]; text?: boolean; sketch?: boolean; document?: boolean }, caller?: Caller): Promise<SlateReadAnswer>;
-  /** With a thread, a name that is one of its agent's MCP servers answers that server's tools. */
-  catalog(p: SlateTarget & { name?: string }, caller?: Caller): Promise<{ text: string }>;
-  shown(threadId: string): Promise<void>;
-  /** The person withdraws one standing approval: the runs it covered stop, leave the queue and their timers, and the
-   * next start asks again. */
-  revoke(p: { threadId: string; key: string }): Promise<void>;
-  event(p: { threadId: string; version: number; piece: string; event: "press" | "submit" | "change"; requestId: string; scope?: { item?: unknown; index: number }; rowAction?: number }): Promise<SlateEventAnswer>;
-  approve(p: { threadId: string; key: string; scope: "once" | "thread" | "refuse" }): Promise<void>;
-  cancel(p: { threadId: string; run: string }): Promise<void>;
-  /** A window's hold on sources for a thread's slate; the release goes when the window lets go or its socket closes. */
-  subscribe(p: { threadId: string; sources: string[] }): () => void;
-  resolve(p: { threadId: string; paths: string[] }): Promise<{ values: Record<string, SlateJson> }>;
-  image(p: { threadId: string; src: string; have?: string }): Promise<SlatesImageAnswer>;
-  /** A turn ended: its snapshot is written. */
-  turnEnded(o: { threadId: string; turnId: string }): Promise<void>;
-  /** The runtime rewound a thread to the end of turnId, cutting the turns named. */
-  rewound(o: { threadId: string; turnId: string; cut: readonly string[] }): Promise<void>;
-  /** With `keep`, the thread's running runs and kept servers are left running. */
-  forget(threadId: string, o?: { keep?: boolean }): Promise<void>;
-  /** The thread's kept MCP servers closed, as a settle that stops what the thread left running asks. */
-  closeServers(threadId: string): void;
-  /** Whether a slate in the workspace watches the pull request's checks. */
-  watchesPr(workspaceId: string): boolean;
-  /** The workspace's machine napped: its threads' MCP servers there are closed, and the next run starts them again. */
-  napped(workspaceId: string): void;
-  /** The stored slates loaded, runs that were running when the host stopped marked failed and their done fired. */
-  ready(): Promise<void>;
-  /** Every batch queued so far has run. */
-  settled(): Promise<void>;
-  close(): void;
-}
 
 export function createSlates(deps: SlatesDeps): Slates {
   const records = new Map<string, SlateRecord>();
@@ -1262,7 +1224,7 @@ export function createSlates(deps: SlatesDeps): Slates {
 
     async catalog(p, caller) {
       refuseSubThread(caller);
-      const text = slateCatalog(p.name);
+      const text = slateCatalog(p.name, { look: p.look === true });
       const name = p.name?.trim();
       if (name === undefined || name === "" || !text.startsWith(`${name} is not in the catalog`)) return { text };
       let threadId: string;
@@ -1490,6 +1452,17 @@ export function createSlates(deps: SlatesDeps): Slates {
     image: async p => {
       const r = await needRecord(p.threadId);
       return slateImage(p.src, { thread: p.threadId, have: p.have, folder: deps.thread(p.threadId)?.folder, on: deps.imageOn?.(p.threadId), allowed: domain => r.approvals[slateDomainKey(domain)]?.state === "allowed" });
+    },
+
+    lookAt: async (p, caller) => {
+      const threadId = targetOf(p, caller, false);
+      await needRecord(threadId);
+      return threadId;
+    },
+
+    page: async p => {
+      await needRecord(p.threadId);
+      return slatePage(p.src, { thread: p.threadId, have: p.have, folder: deps.thread(p.threadId)?.folder, on: deps.pageOn?.(p.threadId) });
     },
 
     async turnEnded({ threadId, turnId }) {

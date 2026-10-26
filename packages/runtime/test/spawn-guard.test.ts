@@ -17,6 +17,7 @@ import { HERE_PLACE_ID,
   RUNTIME_OPS,
   LAUNCH_ENV,
   SCOPED_MCP_ARG,
+  NO_LOOK_MCP_ARG,
   NO_SLATE_MCP_ARG,
   SCOPED_TOKEN_ROAD_REFUSAL,
   THREAD_OPS,
@@ -635,7 +636,7 @@ describe("agents spawning agents", () => {
     expect(Object.keys(macLaunch!.env).filter(name => name.startsWith("WSP_")).sort()).toEqual([...LAUNCH_ENV].sort());
     // The tools read the launch pair off the environment the agent hands them, so their line names no host; it
     // carries the mark that makes a tool server missing that pair refuse rather than act as the person.
-    expect(macLaunch!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG] });
+    expect(macLaunch!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG, NO_LOOK_MCP_ARG] });
     const macThread = onMac.view().threadId!;
     const devices = await rt.devices.list();
     expect(devices.find(d => d.scope?.threadId === macThread)?.scope).toEqual({ kind: "thread", threadId: macThread, workspaceId: mac.id, rootThreadId: macThread });
@@ -663,7 +664,7 @@ describe("agents spawning agents", () => {
     const child = await rt.sessions.start(mac.id, { prompt: "builder" }, asThread({ kind: "thread", threadId: leadThread, workspaceId: mac.id, rootThreadId: leadThread }));
     expect(child.view().parentThreadId).toBe(leadThread);
     const [leadLaunch, childLaunch] = held.launches;
-    expect(leadLaunch!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG] });
+    expect(leadLaunch!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG, NO_LOOK_MCP_ARG] });
     expect(childLaunch!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG, NO_SLATE_MCP_ARG], noSlate: true });
     held.end(1);
     held.end(0);
@@ -770,7 +771,7 @@ describe("agents spawning agents", () => {
     // outside the thread's tree and the switch is never read.
     expect(macLaunch!.env[HOST_URL_ENV]).toBe("http://127.0.0.1:4801");
     expect(macLaunch!.env[HOST_TOKEN_ENV]).toMatch(/\S/);
-    expect(macLaunch!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG] });
+    expect(macLaunch!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG, NO_LOOK_MCP_ARG] });
     expect(quietLaunch!.env[HOST_TOKEN_ENV]).toMatch(/\S/);
     expect(quietLaunch!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ command: "wsp", args: ["mcp"] });
     const macThread = onMac.view().threadId!;

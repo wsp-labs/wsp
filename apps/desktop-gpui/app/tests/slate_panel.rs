@@ -141,9 +141,13 @@ fn a_held_press_asks_and_run_once_runs_it_live_through_running_to_done(cx: &mut 
     assert!(drawn(cx, "crab"), "a crab walks before Running");
     until(cx, &screen, "the nap done", |s| state(s, "nap").as_deref() == Some("done"));
     assert!(drawn(cx, "slate-run-nap-done"), "Done, drawn from the push");
-    assert!(drawn(cx, "slate-log"), "its lines stand under it");
+    assert!(drawn(cx, "slate-summary"), "what its lines come to stands under it, summary first");
+    assert!(drawn(cx, "slate-matters"), "with no tally, its last line leads");
+    assert!(!drawn(cx, "slate-log"), "its raw lines fold");
     let lines = cx.read(|cx| screen.read(cx).slate().and_then(|s| s.lines.get("nap").cloned()).unwrap_or_default());
     assert_eq!(lines, ["rested"], "the streamed line, once");
+    click(cx, "slate-fold-nap");
+    assert!(drawn(cx, "slate-fold-nap-open") && drawn(cx, "slate-log"), "All 1 line opens them");
 }
 
 #[gpui_kit::test]

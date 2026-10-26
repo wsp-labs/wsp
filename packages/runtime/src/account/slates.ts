@@ -60,6 +60,11 @@ export function slatesArea(ctx: RuntimeContext): SlatesArea {
       if (entry === undefined) return undefined;
       return { name: ctx.computerOf(entry), read: path => ctx.withDaemon(entry, async ask => FsImageReply.parse(await ask({ op: "fs.image", path }))) };
     },
+    pageOn: threadId => {
+      const entry = ctx.boxOf(threadId);
+      if (entry === undefined) return undefined;
+      return { name: ctx.computerOf(entry), read: path => ctx.withDaemon(entry, async ask => FsImageReply.parse(await ask({ op: "fs.page", path }))) };
+    },
     hashOn: threadId => {
       const entry = ctx.boxOf(threadId);
       if (entry === undefined) return undefined;
