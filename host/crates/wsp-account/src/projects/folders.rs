@@ -18,7 +18,7 @@ use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_engine::machine::Machine;
 use wsp_wire::views::workspace::{Caller, ProjectView};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
-use wsp_wire::views::workspace_more::{CarryModule, WorktreeReport};
+use wsp_wire::views::workspace_more::WorktreeReport;
 use wsp_wire::wire::capabilities::WorkspaceSize;
 use wsp_wire::wire::machine_link::ExecResult;
 use wsp_words::exit::HostError;
@@ -100,7 +100,11 @@ pub struct Folders {
 
 // export function foldersArea(ctx: RuntimeContext): FoldersArea {
 pub fn folders_area(ctx: Rc<dyn FoldersCtx>) -> Rc<Folders> {
-    todo!()
+    Rc::new(Folders {
+        ctx,
+        git_writes: Rc::new(RefCell::new(IndexMap::new())),
+        setup_lines: Rc::new(RefCell::new(IndexMap::new())),
+    })
 }
 
 impl wsp_core::context::FoldersArea for Folders {}
