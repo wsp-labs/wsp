@@ -469,65 +469,6 @@ pub(super) fn runtime_op_pass_b(
             crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
             crate::types::keys::opt_key_with::<String>(obj, "provider", &mut out, |x| opt_rule(x, |v| text_at_most(v, 64)));
             crate::types::keys::opt_key::<String>(obj, "key", &mut out);
-            crate::types::keys::opt_key::<IndexMap<String, String>>(obj, "rows", &mut out);
-            Some(out)
-        }
-        Some("init.start") => {
-            let mut out = Vec::new();
-            crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-            crate::types::keys::req_key::<InitRoad>(obj, "road", &mut out);
-            crate::types::keys::opt_key::<String>(obj, "harness", &mut out);
-            crate::types::keys::opt_key::<String>(obj, "on", &mut out);
-            Some(out)
-        }
-        Some("init.answer") => {
-            let mut out = Vec::new();
-            crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-            crate::types::keys::req_key::<InitScreenId>(obj, "screen", &mut out);
-            crate::types::keys::opt_key::<Vec<String>>(obj, "ticks", &mut out);
-            crate::types::keys::opt_key::<IndexMap<String, String>>(obj, "answers", &mut out);
-            Some(out)
-        }
-        Some("init.step") => {
-            let mut out = Vec::new();
-            crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-            crate::types::keys::req_key_with::<JsInt>(obj, "at", &mut out, |x| num_at_least(x.as_f64(), 0.0));
-            Some(out)
-        }
-        Some("init.draft") => {
-            let mut out = Vec::new();
-            crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-            crate::types::keys::req_key_with::<String>(obj, "at", &mut out, |x| text_at_least(x, 1).and_then(|()| text_at_most(x, 64)));
-            crate::types::keys::opt_key::<Vec<String>>(obj, "ticks", &mut out);
-            crate::types::keys::opt_key::<IndexMap<String, String>>(obj, "answers", &mut out);
-            Some(out)
-        }
-        Some("init.retry") => {
-            let mut out = Vec::new();
-            crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-            crate::types::keys::req_key::<String>(obj, "tool", &mut out);
-            Some(out)
-        }
-        Some("init.build") => {
-            let mut out = Vec::new();
-            crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-            crate::types::keys::opt_key::<String>(obj, "firstWorkspace", &mut out);
-            crate::types::keys::opt_key::<String>(obj, "importFolder", &mut out);
-            crate::types::keys::opt_key::<bool>(obj, "yes", &mut out);
-            crate::types::keys::opt_key::<String>(obj, "on", &mut out);
-            crate::types::keys::opt_key::<bool>(obj, "rebuild", &mut out);
-            Some(out)
-        }
-        Some("init.signInCode") => {
-            let mut out = Vec::new();
-            crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-            crate::types::keys::req_key::<String>(obj, "tool", &mut out);
-            crate::types::keys::req_key_with::<String>(obj, "code", &mut out, |x| text_at_least(x, 1).and_then(|()| text_at_most(x, 256)));
-            Some(out)
-        }
-        Some("init.cancel") => {
-            let mut out = Vec::new();
-            crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
             Some(out)
         }
         Some("preferences.get") => {
@@ -688,16 +629,6 @@ pub(super) fn runtime_op_pass_b(
             crate::types::keys::opt_key::<bool>(obj, "force", &mut out);
             Some(out)
         }
-        Some("image.export") => {
-            let mut out = Vec::new();
-            crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
-            crate::types::keys::req_key_with::<String>(obj, "dest", &mut out, |x| text_at_least(x, 1));
-            crate::types::keys::req_key_with::<String>(obj, "passphrase", &mut out, |x| {
-                text_at_least(x, 12).and_then(|()| text_at_most(x, 256))
-            });
-            crate::types::keys::opt_key::<String>(obj, "name", &mut out);
-            Some(out)
-        }
         Some("slates.get") => {
             let mut out = Vec::new();
             crate::types::keys::req_key::<ReqId>(obj, "id", &mut out);
@@ -839,7 +770,6 @@ impl Check for PlacesSetSpawn {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        crate::types::keys::opt_key::<bool>(obj, "spawn", &mut out);
         crate::types::keys::opt_key_with::<JsInt>(obj, "maxMachines", &mut out, Self::rule_max_machines);
         crate::types::keys::opt_key_with::<JsInt>(obj, "maxDepth", &mut out, Self::rule_max_depth);
         Some(out)
@@ -894,7 +824,6 @@ impl Check for WorkspacesCreateAgents {
             return Some(vec![crate::types::check::not_object(value)]);
         };
         let mut out = Vec::new();
-        crate::types::keys::opt_key::<bool>(obj, "spawn", &mut out);
         crate::types::keys::opt_key_with::<JsInt>(obj, "maxMachines", &mut out, Self::rule_max_machines);
         crate::types::keys::opt_key_with::<JsInt>(obj, "maxDepth", &mut out, Self::rule_max_depth);
         Some(out)

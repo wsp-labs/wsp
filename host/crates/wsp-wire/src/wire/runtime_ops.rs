@@ -15,7 +15,6 @@ use crate::types::agents_report::{AgentsTarget, McpScope};
 use crate::types::attachments::Attachment;
 use crate::types::check::Zod;
 use crate::types::conversations::ResumeAsk;
-use crate::types::init_job::{InitRoad, InitScreenId};
 use crate::types::project_look::ProjectIconHash;
 use crate::types::pull_request::{MergeMethod, PullRequestItem, ReactionContent};
 use crate::types::recipe_file::RecipeFile;
@@ -177,7 +176,6 @@ pub enum RuntimeOp {
         #[serde(default, skip_serializing_if = "Option::is_none", with = "crate::types::check::double_option")]
         idle_window_ms: Option<Option<JsNumber>>,
         parent: Option<String>,
-        engine: Option<bool>,
         sub: Option<WorkspacesCreateSub>,
     },
     #[serde(rename = "workspaces.landing", rename_all = "camelCase")]
@@ -302,12 +300,6 @@ pub enum RuntimeOp {
     WorkspacesDelete { id: ReqId, workspace_id: String },
     #[serde(rename = "workspaces.forget", rename_all = "camelCase")]
     WorkspacesForget { id: ReqId, workspace_id: String },
-    #[serde(rename = "workspaces.snapshot", rename_all = "camelCase")]
-    WorkspacesSnapshot { id: ReqId, workspace_id: String },
-    #[serde(rename = "projectGoldens.list", rename_all = "camelCase")]
-    ProjectGoldensList { id: ReqId },
-    #[serde(rename = "projectGoldens.remove", rename_all = "camelCase")]
-    ProjectGoldensRemove { id: ReqId, snapshot_id: String },
     #[serde(rename = "workspaces.touch", rename_all = "camelCase")]
     WorkspacesTouch { id: ReqId, workspace_id: String },
     #[serde(rename = "daemon.open", rename_all = "camelCase")]
@@ -569,44 +561,7 @@ pub enum RuntimeOp {
         id: ReqId,
         provider: Option<String>,
         key: Option<String>,
-        #[serde(default, serialize_with = "crate::types::check::js_record_opt", deserialize_with = "crate::types::kept::record_opt")]
-        rows: Option<IndexMap<String, String>>,
     },
-    #[serde(rename = "init.start", rename_all = "camelCase")]
-    InitStart { id: ReqId, road: InitRoad, harness: Option<String>, on: Option<String> },
-    #[serde(rename = "init.answer", rename_all = "camelCase")]
-    InitAnswer {
-        id: ReqId,
-        screen: InitScreenId,
-        ticks: Option<Vec<String>>,
-        #[serde(default, serialize_with = "crate::types::check::js_record_opt", deserialize_with = "crate::types::kept::record_opt")]
-        answers: Option<IndexMap<String, String>>,
-    },
-    #[serde(rename = "init.step", rename_all = "camelCase")]
-    InitStep { id: ReqId, at: JsInt },
-    #[serde(rename = "init.draft", rename_all = "camelCase")]
-    InitDraft {
-        id: ReqId,
-        at: String,
-        ticks: Option<Vec<String>>,
-        #[serde(default, serialize_with = "crate::types::check::js_record_opt", deserialize_with = "crate::types::kept::record_opt")]
-        answers: Option<IndexMap<String, String>>,
-    },
-    #[serde(rename = "init.retry", rename_all = "camelCase")]
-    InitRetry { id: ReqId, tool: String },
-    #[serde(rename = "init.build", rename_all = "camelCase")]
-    InitBuild {
-        id: ReqId,
-        first_workspace: Option<String>,
-        import_folder: Option<String>,
-        yes: Option<bool>,
-        on: Option<String>,
-        rebuild: Option<bool>,
-    },
-    #[serde(rename = "init.signInCode", rename_all = "camelCase")]
-    InitSignInCode { id: ReqId, tool: String, code: String },
-    #[serde(rename = "init.cancel", rename_all = "camelCase")]
-    InitCancel { id: ReqId },
     #[serde(rename = "preferences.get", rename_all = "camelCase")]
     PreferencesGet { id: ReqId },
     #[serde(rename = "preferences.set", rename_all = "camelCase")]
@@ -673,8 +628,6 @@ pub enum RuntimeOp {
     ImageGet { id: ReqId, name: Option<String> },
     #[serde(rename = "image.build", rename_all = "camelCase")]
     ImageBuild { id: ReqId, place: String, name: Option<String>, force: Option<bool> },
-    #[serde(rename = "image.export", rename_all = "camelCase")]
-    ImageExport { id: ReqId, dest: String, passphrase: String, name: Option<String> },
     #[serde(rename = "slates.get", rename_all = "camelCase")]
     SlatesGet { id: ReqId, thread_id: String },
     #[serde(rename = "slates.write", rename_all = "camelCase")]
@@ -902,9 +855,6 @@ impl RuntimeOp {
             Self::WorkspacesMergeIn { .. } => "workspaces.mergeIn",
             Self::WorkspacesDelete { .. } => "workspaces.delete",
             Self::WorkspacesForget { .. } => "workspaces.forget",
-            Self::WorkspacesSnapshot { .. } => "workspaces.snapshot",
-            Self::ProjectGoldensList { .. } => "projectGoldens.list",
-            Self::ProjectGoldensRemove { .. } => "projectGoldens.remove",
             Self::WorkspacesTouch { .. } => "workspaces.touch",
             Self::DaemonOpen { .. } => "daemon.open",
             Self::SysSubscribe { .. } => "sys.subscribe",
@@ -992,14 +942,6 @@ impl RuntimeOp {
             Self::PluginsToggle { .. } => "plugins.toggle",
             Self::InitGet { .. } => "init.get",
             Self::InitKeys { .. } => "init.keys",
-            Self::InitStart { .. } => "init.start",
-            Self::InitAnswer { .. } => "init.answer",
-            Self::InitStep { .. } => "init.step",
-            Self::InitDraft { .. } => "init.draft",
-            Self::InitRetry { .. } => "init.retry",
-            Self::InitBuild { .. } => "init.build",
-            Self::InitSignInCode { .. } => "init.signInCode",
-            Self::InitCancel { .. } => "init.cancel",
             Self::PreferencesGet { .. } => "preferences.get",
             Self::PreferencesSet { .. } => "preferences.set",
             Self::ReleaseGet { .. } => "release.get",
@@ -1022,7 +964,6 @@ impl RuntimeOp {
             Self::ProjectExport { .. } => "project.export",
             Self::ImageGet { .. } => "image.get",
             Self::ImageBuild { .. } => "image.build",
-            Self::ImageExport { .. } => "image.export",
             Self::SlatesGet { .. } => "slates.get",
             Self::SlatesWrite { .. } => "slates.write",
             Self::SlatesState { .. } => "slates.state",
@@ -1119,9 +1060,6 @@ impl RuntimeOp {
             Self::WorkspacesMergeIn { id, .. } => id,
             Self::WorkspacesDelete { id, .. } => id,
             Self::WorkspacesForget { id, .. } => id,
-            Self::WorkspacesSnapshot { id, .. } => id,
-            Self::ProjectGoldensList { id, .. } => id,
-            Self::ProjectGoldensRemove { id, .. } => id,
             Self::WorkspacesTouch { id, .. } => id,
             Self::DaemonOpen { id, .. } => id,
             Self::SysSubscribe { id, .. } => id,
@@ -1209,14 +1147,6 @@ impl RuntimeOp {
             Self::PluginsToggle { id, .. } => id,
             Self::InitGet { id, .. } => id,
             Self::InitKeys { id, .. } => id,
-            Self::InitStart { id, .. } => id,
-            Self::InitAnswer { id, .. } => id,
-            Self::InitStep { id, .. } => id,
-            Self::InitDraft { id, .. } => id,
-            Self::InitRetry { id, .. } => id,
-            Self::InitBuild { id, .. } => id,
-            Self::InitSignInCode { id, .. } => id,
-            Self::InitCancel { id, .. } => id,
             Self::PreferencesGet { id, .. } => id,
             Self::PreferencesSet { id, .. } => id,
             Self::ReleaseGet { id, .. } => id,
@@ -1239,7 +1169,6 @@ impl RuntimeOp {
             Self::ProjectExport { id, .. } => id,
             Self::ImageGet { id, .. } => id,
             Self::ImageBuild { id, .. } => id,
-            Self::ImageExport { id, .. } => id,
             Self::SlatesGet { id, .. } => id,
             Self::SlatesWrite { id, .. } => id,
             Self::SlatesState { id, .. } => id,
