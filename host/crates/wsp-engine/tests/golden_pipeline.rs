@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! golden.test.ts "golden pipeline" (:187-254): the scripted pipeline, prepare then seal, and the manifest it appends to.
+#![allow(clippy::type_complexity)]
 mod golden_roads_common;
 
 use golden_roads_common::*;
@@ -14,7 +15,7 @@ fn seals_no_version_when_the_smoke_fork_fails_and_leaves_no_machine_or_snapshot_
     exec_results.insert("boom --version".to_string(), exec(127, "", "not found"));
     let rec = recording_backend(Opts { exec_results, ..Opts::default() });
     let clock = Manual::new();
-    let err = run(build_golden(build_opts(&rec, "true", "boom --version"), &*clock)).err().expect("the build fails");
+    let err = run(build_golden(build_opts(&rec, "true", "boom --version"), &*clock)).expect_err("the build fails");
     assert!(err.message().contains("smoke"), "{}", err.message());
     assert_eq!(rec.state.deleted_snapshots(), vec!["snap_wsp-h1-default-v1"], "the image that failed smoke does not survive");
     assert_eq!(rec.state.killed(), vec!["m1", "m2"], "builder and smoke fork both gone");

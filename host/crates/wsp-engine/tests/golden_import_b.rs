@@ -3,9 +3,9 @@
 //! step's floors, the tools' guard and timeouts, the disk floor and its cleanups, the df readings, the upload's size check,
 //! the ledger's missing, silenced and left-behind lists, and the attach that finds a recipe already applied.
 //! A stage frame's `step` is not carried by the engine's tools loop, so no assertion here reads one.
-mod golden_roads_common;
+#![allow(clippy::type_complexity)]
 mod golden_import_support;
-
+mod golden_roads_common;
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -15,13 +15,12 @@ use golden_roads_common::*;
 use sha2::{Digest, Sha256};
 use wsp_catalog::road_modules::{road_step, CURL_NET};
 use wsp_catalog::roads::{node_install_script, node_release, RoadName, CLAUDE_INSTALL, GOLDEN_SETUP, NODE_PATH_LINE};
-use wsp_engine::golden::{
-    AgentResult, ImportStage, AGENT_INSTALLERS,
-};
-use wsp_engine::golden_seam::{
-    tool_installs_for_rows, AgentInstall, BrewTable, GoldenImport, PluginSeedPlan, PluginsPlan, RecipeEntry, SeedPlugin, SkippedRow, ToolInstall, TOOLS_PATH,
-};
 use wsp_engine::fetch::Fetch;
+use wsp_engine::golden::{AgentResult, ImportStage, AGENT_INSTALLERS};
+use wsp_engine::golden_seam::{
+    tool_installs_for_rows, AgentInstall, BrewTable, GoldenImport, PluginSeedPlan, PluginsPlan, RecipeEntry, SeedPlugin, SkippedRow,
+    ToolInstall, TOOLS_PATH,
+};
 use wsp_wire::types::shell_quote::shell_quote;
 
 use golden_import_support::*;
@@ -34,7 +33,9 @@ fn older_image_copied_plugin_list_comes_off_and_a_failed_link_step_is_said_not_f
     let bare = backend_default();
     let plugins = PluginsPlan { dropped: strings(&[KNOWN, INSTALLED]), seed: None };
     build(prep(&bare, GoldenImport { plugins: Some(plugins), ..import_of() }));
-    assert!(bare.cmds().contains(&"rm -f '/root/.claude-cfg/plugins/known_marketplaces.json' '/root/.claude-cfg/plugins/installed_plugins.json'".to_string()));
+    assert!(bare.cmds().contains(
+        &"rm -f '/root/.claude-cfg/plugins/known_marketplaces.json' '/root/.claude-cfg/plugins/installed_plugins.json'".to_string()
+    ));
 
     let b = backend_default();
     let seed = PluginSeedPlan {
@@ -138,7 +139,8 @@ fn the_node_step_runs_once_before_the_agents_kept_installed_or_failing_the_seal(
     assert!(at(&cmds, "node-step") < at(&cmds, "codex-install"));
     assert_eq!(b1.setup_sha, hex::encode(Sha256::digest(b"true\nnode-step\ncodex-install\npi-install")));
 
-    let installed = backend_for(vec![("node-step", Answer::Fixed(exec(0, "NODE_HAVE v18.20.4\nNODE_INSTALLED v22.23.2\n", "")))], Free::Kb(mb(3000)));
+    let installed =
+        backend_for(vec![("node-step", Answer::Fixed(exec(0, "NODE_HAVE v18.20.4\nNODE_INSTALLED v22.23.2\n", "")))], Free::Kb(mb(3000)));
     let i = stage_recorder();
     let mut io = prep(&installed, GoldenImport { node: Some(node_plan()), agents: agents.clone(), ..import_of() });
     io.on_stage = Some(i.on_stage.clone());
@@ -155,7 +157,9 @@ fn the_node_step_runs_once_before_the_agents_kept_installed_or_failing_the_seal(
     fo.on_stage = Some(f.on_stage.clone());
     let err = build_err(fo);
     assert!(err.message().contains("an agent did not install"), "{}", err.message());
-    assert!(f.all().contains(&"installing-harness:Node 22.23.2 did not install: curl: (22) The requested URL returned error: 404".to_string()));
+    assert!(f
+        .all()
+        .contains(&"installing-harness:Node 22.23.2 did not install: curl: (22) The requested URL returned error: 404".to_string()));
     assert_eq!(
         f.all().last().map(String::as_str),
         Some("failed:an agent did not install, so nothing is sealed:\nPi: Node 22.23.2 did not install: curl: (22) The requested URL returned error: 404")
@@ -222,7 +226,10 @@ fn the_setup_line_and_the_agent_installers_run_under_the_guard_with_the_road_lin
     let cmds = b.cmds();
     let runs = all_with(&cmds, "claude-code-releases/");
     assert_eq!(runs.iter().map(|r| r.contains(NODE_PATH_LINE)).collect::<Vec<_>>(), vec![false, true]);
-    let cases = [(runs[0].clone(), Vec::<String>::new(), GOLDEN_SETUP.clone()), (runs[1].clone(), strings(&[NODE_PATH_LINE]), CLAUDE_INSTALL.clone())];
+    let cases = [
+        (runs[0].clone(), Vec::<String>::new(), GOLDEN_SETUP.clone()),
+        (runs[1].clone(), strings(&[NODE_PATH_LINE]), CLAUDE_INSTALL.clone()),
+    ];
     for (run, path, script) in cases {
         let mut parts = road_step(RoadName::Script).env;
         parts.extend(path);
@@ -245,7 +252,10 @@ fn the_setup_line_and_the_agent_installers_run_under_the_guard_with_the_road_lin
     assert!(codex[0].contains(&format!("{}\n", npm_env.join("\n"))));
     assert!(in_text(&codex[0], &npm_env[0]) < in_text(&codex[0], "npm install -g @openai/codex@"));
     let codex_install = AGENT_INSTALLERS.get("codex").expect("codex has an installer").install.clone();
-    assert_eq!(builder.setup_sha, hex::encode(Sha256::digest(format!("{}\n{}\n{}", GOLDEN_SETUP.as_str(), CLAUDE_INSTALL.as_str(), codex_install))));
+    assert_eq!(
+        builder.setup_sha,
+        hex::encode(Sha256::digest(format!("{}\n{}\n{}", GOLDEN_SETUP.as_str(), CLAUDE_INSTALL.as_str(), codex_install)))
+    );
 }
 
 // golden.test.ts:1843
@@ -282,9 +292,17 @@ fn an_agent_set_aside_at_plan_time_lands_in_the_result_as_skipped() {
     let built = build(o);
     assert_eq!(
         res.borrow()[0].agents[0],
-        AgentResult { id: "agents/zed".into(), name: "Zed".into(), outcome: "skipped".into(), note: Some("no installer known".into()), ms: None }
+        AgentResult {
+            id: "agents/zed".into(),
+            name: "Zed".into(),
+            outcome: "skipped".into(),
+            note: Some("no installer known".into()),
+            ms: None
+        }
     );
-    assert!(st.all().contains(&"installing-harness:Claude Code, Codex installed; Zed skipped (no installer known); caches swept; 2.9 GB free".to_string()));
+    assert!(st.all().contains(
+        &"installing-harness:Claude Code, Codex installed; Zed skipped (no installer known); caches swept; 2.9 GB free".to_string()
+    ));
     assert_eq!(built.import.as_ref().map(|l| l.smoke.as_str()), Some("claude --version && codex --version && bun --version"));
 
     let only = backend_default();
@@ -293,7 +311,10 @@ fn an_agent_set_aside_at_plan_time_lands_in_the_result_as_skipped() {
     oo.on_stage = Some(rec.on_stage.clone());
     let err = build_err(oo);
     assert!(err.message().contains("no agent installed"), "{}", err.message());
-    assert_eq!(rec.all().last().map(String::as_str), Some("failed:no agent installed, so there is nothing to seal:\nZed: no installer known"));
+    assert_eq!(
+        rec.all().last().map(String::as_str),
+        Some("failed:no agent installed, so there is nothing to seal:\nZed: no installer known")
+    );
     assert_eq!(only.rec.state.killed(), strings(&["m1"]));
 }
 
@@ -303,10 +324,13 @@ fn an_agent_that_does_not_start_under_the_floor_is_recorded_failed_with_the_read
     let started = Rc::new(Cell::new(false));
     let (s1, s2) = (started.clone(), started.clone());
     let b = backend_for(
-        vec![("claude-install", Answer::Each(Rc::new(move || {
-            s1.set(true);
-            ok()
-        })))],
+        vec![(
+            "claude-install",
+            Answer::Each(Rc::new(move || {
+                s1.set(true);
+                ok()
+            })),
+        )],
         Free::Each(Rc::new(move || mb(if s2.get() { 500 } else { 3000 }))),
     );
     let (res, on_result) = collect_results();
@@ -314,8 +338,13 @@ fn an_agent_that_does_not_start_under_the_floor_is_recorded_failed_with_the_read
     let mut o = prep(&b, GoldenImport { on_result: Some(on_result), ..import_of() });
     o.on_stage = Some(st.on_stage.clone());
     let err = build_err(o);
-    assert!(err.message().contains("an agent did not install, so nothing is sealed:\nCodex: 500 MB free, keeping 800 MB free"), "{}", err.message());
-    let rows: Vec<(String, String, Option<String>)> = res.borrow()[0].agents.iter().map(|a| (a.id.clone(), a.outcome.clone(), a.note.clone())).collect();
+    assert!(
+        err.message().contains("an agent did not install, so nothing is sealed:\nCodex: 500 MB free, keeping 800 MB free"),
+        "{}",
+        err.message()
+    );
+    let rows: Vec<(String, String, Option<String>)> =
+        res.borrow()[0].agents.iter().map(|a| (a.id.clone(), a.outcome.clone(), a.note.clone())).collect();
     assert_eq!(
         rows,
         vec![
@@ -357,7 +386,11 @@ fn a_tool_that_hits_its_timeout_is_failed_and_its_guard_kills_the_tree() {
     build(o);
     assert_eq!(
         tuples(&res.borrow()[0].tools),
-        vec![row("tools/homebrew", "installed", None), row("tools/brew/gh", "failed", Some("timed out after 600s")), row("tools/npm/bun", "installed", None)]
+        vec![
+            row("tools/homebrew", "installed", None),
+            row("tools/brew/gh", "failed", Some("timed out after 600s")),
+            row("tools/npm/bun", "installed", None)
+        ]
     );
     assert!(st.all().contains(&"installing-tools:2 installed, 1 failed: gh (timed out after 600s); caches swept; 2.9 GB free".to_string()));
     let cmds = b.cmds();
@@ -380,14 +413,17 @@ fn a_download_road_that_hits_its_limit_is_tried_once_more_and_the_frames_say_so(
     let tries = Rc::new(Cell::new(0u32));
     let t = tries.clone();
     let b = backend_for(
-        vec![("npm install -g bun@1.4.0", Answer::Each(Rc::new(move || {
-            t.set(t.get() + 1);
-            if t.get() == 1 {
-                exec(124, "", "")
-            } else {
-                ok()
-            }
-        })))],
+        vec![(
+            "npm install -g bun@1.4.0",
+            Answer::Each(Rc::new(move || {
+                t.set(t.get() + 1);
+                if t.get() == 1 {
+                    exec(124, "", "")
+                } else {
+                    ok()
+                }
+            })),
+        )],
         Free::Kb(mb(3000)),
     );
     let (res, on_result) = collect_results();
@@ -426,7 +462,9 @@ fn a_download_road_that_hits_its_limit_twice_is_recorded_failed_with_both_timeou
     let bun = res.borrow()[0].tools.iter().find(|t| t.id == "tools/npm/bun").cloned().expect("the bun row");
     assert_eq!(bun.outcome, "failed");
     assert_eq!(bun.note.as_deref(), Some("timed out after 300s, twice"));
-    assert!(st.all().contains(&"installing-tools:2 installed, 1 failed: bun@1.4.0 (timed out after 300s, twice); caches swept; 2.9 GB free".to_string()));
+    assert!(st.all().contains(
+        &"installing-tools:2 installed, 1 failed: bun@1.4.0 (timed out after 300s, twice); caches swept; 2.9 GB free".to_string()
+    ));
     assert_eq!(all_with(&b.cmds(), "npm install -g bun@1.4.0").len(), 2);
 }
 
@@ -461,7 +499,13 @@ fn every_frame_of_a_step_names_the_step_and_its_line_and_stage_lines_name_none()
             shown: Some("brew install gh".into()),
             ..Default::default()
         },
-        ToolInstall { id: "tools/npm/bun".into(), label: "bun@1.4.0".into(), manager: "npm".into(), cmd: "npm install -g bun@1.4.0".into(), ..Default::default() },
+        ToolInstall {
+            id: "tools/npm/bun".into(),
+            label: "bun@1.4.0".into(),
+            manager: "npm".into(),
+            cmd: "npm install -g bun@1.4.0".into(),
+            ..Default::default()
+        },
     ];
     let mut o = prepare_opts(&rb, "true");
     o.fetch = Some(fetch);
@@ -511,7 +555,7 @@ fn an_image_whose_pnpm_does_not_run_seals_nothing_and_its_check_rides_the_smoke(
     .installs;
 
     let (broken_rec, broken) = pnpm_seal(&bin, plan.clone());
-    let err = broken.err().expect("a seal over a broken pnpm fails");
+    let err = broken.expect_err("a seal over a broken pnpm fails");
     assert!(in_order(&err.message(), &["golden smoke failed ", "\"pnpm --version\"", "ERR_MODULE_NOT_FOUND"]), "{}", err.message());
     assert_eq!(broken_rec.state.deleted_snapshots(), strings(&["snap_wsp-h1-default-v1"]));
 
@@ -561,14 +605,17 @@ fn a_cellar_lock_error_waits_once_for_every_homebrew_lock_then_tries_once_more()
     );
     let l = locked.clone();
     let b = backend_for(
-        vec![("brew install gh", Answer::Each(Rc::new(move || {
-            t.set(t.get() + 1);
-            if t.get() == 1 {
-                l.clone()
-            } else {
-                ok()
-            }
-        })))],
+        vec![(
+            "brew install gh",
+            Answer::Each(Rc::new(move || {
+                t.set(t.get() + 1);
+                if t.get() == 1 {
+                    l.clone()
+                } else {
+                    ok()
+                }
+            })),
+        )],
         Free::Kb(mb(3000)),
     );
     let (res, on_result) = collect_results();
@@ -611,10 +658,13 @@ fn after_the_loop_homebrew_autoremoves_then_cleans_up_both_guarded_and_says_what
     let cleaned = Rc::new(Cell::new(false));
     let (c1, c2) = (cleaned.clone(), cleaned.clone());
     let b = backend_for(
-        vec![("brew cleanup -s --prune=all", Answer::Each(Rc::new(move || {
-            c1.set(true);
-            ok()
-        })))],
+        vec![(
+            "brew cleanup -s --prune=all",
+            Answer::Each(Rc::new(move || {
+                c1.set(true);
+                ok()
+            })),
+        )],
         Free::Each(Rc::new(move || mb(if c2.get() { 4000 } else { 3000 }))),
     );
     let st = stage_recorder();
@@ -643,7 +693,10 @@ fn after_the_loop_homebrew_autoremoves_then_cleans_up_both_guarded_and_says_what
     let mut fo = prep(&failing, import_of());
     fo.on_stage = Some(rec.on_stage.clone());
     build(fo);
-    assert!(rec.all().contains(&"installing-tools:3 installed; Homebrew cleanup failed (Error: Permission denied @ apply2files); caches swept; 2.9 GB free".to_string()));
+    assert!(rec.all().contains(
+        &"installing-tools:3 installed; Homebrew cleanup failed (Error: Permission denied @ apply2files); caches swept; 2.9 GB free"
+            .to_string()
+    ));
 }
 
 // golden.test.ts:2073
@@ -652,10 +705,13 @@ fn after_the_agents_and_after_the_tools_the_caches_are_swept_under_the_guard() {
     let sweeps = Rc::new(Cell::new(0u64));
     let (s1, s2) = (sweeps.clone(), sweeps.clone());
     let b = backend_for(
-        vec![(SWEEP, Answer::Each(Rc::new(move || {
-            s1.set(s1.get() + 1);
-            ok()
-        })))],
+        vec![(
+            SWEEP,
+            Answer::Each(Rc::new(move || {
+                s1.set(s1.get() + 1);
+                ok()
+            })),
+        )],
         Free::Each(Rc::new(move || mb(3000 + s2.get() * 700))),
     );
     let st = stage_recorder();
@@ -695,7 +751,10 @@ fn after_the_agents_and_after_the_tools_the_caches_are_swept_under_the_guard() {
     fo.on_stage = Some(rec.on_stage.clone());
     let builder = build(fo);
     assert!(rec.all().contains(&"installing-harness:Claude Code, Codex installed; cache sweep failed (rm: cannot remove '/root/.npm': Device or resource busy); 2.9 GB free".to_string()));
-    assert!(rec.all().contains(&"installing-tools:3 installed; cache sweep failed (rm: cannot remove '/root/.npm': Device or resource busy); 2.9 GB free".to_string()));
+    assert!(rec.all().contains(
+        &"installing-tools:3 installed; cache sweep failed (rm: cannot remove '/root/.npm': Device or resource busy); 2.9 GB free"
+            .to_string()
+    ));
     assert!(applied_of(&builder).contains(&ImportStage::InstallingTools));
 }
 
@@ -710,18 +769,27 @@ fn stops_installing_tools_when_the_disk_drops_under_the_floor_and_stays_there_af
     // The base floor and the two agents (a sweep each), the upload and Homebrew read a roomy disk; the first formula reads it low, and the cleanup gives little back.
     let b = backend_for(
         vec![
-            ("brew-bootstrap", Answer::Each(Rc::new(move || {
-                b1.set(true);
-                ok()
-            }))),
-            ("brew cleanup -s --prune=all", Answer::Each(Rc::new(move || {
-                c1.set(c1.get() + 1);
-                ok()
-            }))),
-            (SWEEP, Answer::Each(Rc::new(move || {
-                s1.set(s1.get() + 1);
-                ok()
-            }))),
+            (
+                "brew-bootstrap",
+                Answer::Each(Rc::new(move || {
+                    b1.set(true);
+                    ok()
+                })),
+            ),
+            (
+                "brew cleanup -s --prune=all",
+                Answer::Each(Rc::new(move || {
+                    c1.set(c1.get() + 1);
+                    ok()
+                })),
+            ),
+            (
+                SWEEP,
+                Answer::Each(Rc::new(move || {
+                    s1.set(s1.get() + 1);
+                    ok()
+                })),
+            ),
         ],
         Free::Each(Rc::new(move || {
             mb(if !b2.get() {
@@ -745,7 +813,10 @@ fn stops_installing_tools_when_the_disk_drops_under_the_floor_and_stays_there_af
     assert!(!cmds.iter().any(|c| c.contains("brew install gh")));
     assert!(all.contains(&"installing-tools:1.8 GB free, under the 2 GB floor; cleaning up before skipping".to_string()));
     assert!(all.contains(&"installing-tools:Homebrew cleanup freed 100 MB; caches swept, 50 MB back; 1.9 GB free".to_string()));
-    assert!(all.contains(&"installing-tools:1 installed, 2 skipped: gh, bun@1.4.0 (1.9 GB free after cleanup, keeping 2 GB free); caches swept; 1.9 GB free".to_string()));
+    assert!(all.contains(
+        &"installing-tools:1 installed, 2 skipped: gh, bun@1.4.0 (1.9 GB free after cleanup, keeping 2 GB free); caches swept; 1.9 GB free"
+            .to_string()
+    ));
     assert_eq!(
         tuples(&res.borrow()[0].tools),
         vec![
@@ -782,18 +853,27 @@ fn at_the_first_reading_under_the_floor_the_cleanup_runs_and_df_is_read_again() 
     let (b2, c2, g2) = (boot.clone(), cleanups.clone(), gh_done.clone());
     let b = backend_for(
         vec![
-            ("brew-bootstrap", Answer::Each(Rc::new(move || {
-                b1.set(true);
-                ok()
-            }))),
-            ("brew cleanup -s --prune=all", Answer::Each(Rc::new(move || {
-                c1.set(c1.get() + 1);
-                ok()
-            }))),
-            ("brew install gh", Answer::Each(Rc::new(move || {
-                g1.set(true);
-                ok()
-            }))),
+            (
+                "brew-bootstrap",
+                Answer::Each(Rc::new(move || {
+                    b1.set(true);
+                    ok()
+                })),
+            ),
+            (
+                "brew cleanup -s --prune=all",
+                Answer::Each(Rc::new(move || {
+                    c1.set(c1.get() + 1);
+                    ok()
+                })),
+            ),
+            (
+                "brew install gh",
+                Answer::Each(Rc::new(move || {
+                    g1.set(true);
+                    ok()
+                })),
+            ),
         ],
         Free::Each(Rc::new(move || {
             mb(if !b2.get() {
@@ -839,4 +919,3 @@ fn at_the_first_reading_under_the_floor_the_cleanup_runs_and_df_is_read_again() 
     assert_eq!(cleanups.get(), 2);
     assert_eq!(all_with(&cmds, SWEEP).len(), 4);
 }
-

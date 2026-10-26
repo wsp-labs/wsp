@@ -2,9 +2,9 @@
 //! golden.test.ts:2171-2553 (inside "golden import stages"): the tools' floor readings and cleanups, the df failures, the upload's size check,
 //! the tools' dependencies, the ledger's missing, silenced and left-behind lists, and the attach that finds a recipe already applied.
 //! A stage frame's `step` is not carried by the engine's tools loop, so no assertion here reads one.
-mod golden_roads_common;
+#![allow(clippy::type_complexity)]
 mod golden_import_support;
-
+mod golden_roads_common;
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -14,12 +14,10 @@ use golden_roads_common::*;
 use indexmap::IndexMap;
 use sha2::{Digest, Sha256};
 use wsp_catalog::mcp::MCP_SERVERS_JSON;
-use wsp_engine::golden::{
-    ApplyImportOptions, ImportStage, ResultFiles,
-};
+use wsp_engine::golden::{ApplyImportOptions, ImportStage, ResultFiles};
 use wsp_engine::golden_seam::{
-    install_tools, GoldenFiles, GoldenImport, GoldenVolatile, InstallToolsOptions,
-    McpAgentPlan, McpPlan, McpScope, PackFiles, PackedFiles, SkippedPath, SkippedRow, ToolInstall, ToolStage,
+    install_tools, GoldenFiles, GoldenImport, GoldenVolatile, InstallToolsOptions, McpAgentPlan, McpPlan, McpScope, PackFiles, PackedFiles,
+    SkippedPath, SkippedRow, ToolInstall, ToolStage,
 };
 use wsp_wire::views::golden_image::{GoldenLeftBehind, GoldenMissingToolOutcome, GoldenStage};
 
@@ -34,14 +32,20 @@ fn under_the_floor_with_no_homebrew_the_cache_sweep_alone_runs() {
     let (b1, s1, s2) = (boot.clone(), sweeps.clone(), sweeps.clone());
     let b = backend_for(
         vec![
-            ("brew-bootstrap", Answer::Each(Rc::new(move || {
-                b1.set(true);
-                failing.clone()
-            }))),
-            (SWEEP, Answer::Each(Rc::new(move || {
-                s1.set(s1.get() + 1);
-                ok()
-            }))),
+            (
+                "brew-bootstrap",
+                Answer::Each(Rc::new(move || {
+                    b1.set(true);
+                    failing.clone()
+                })),
+            ),
+            (
+                SWEEP,
+                Answer::Each(Rc::new(move || {
+                    s1.set(s1.get() + 1);
+                    ok()
+                })),
+            ),
         ],
         Free::Each(Rc::new(move || {
             mb(if !boot.get() {
@@ -93,21 +97,30 @@ fn when_df_cannot_be_read_after_the_cleanup_the_tools_left_are_skipped() {
     let broken = exec(1, "", "df: /root: Input/output error");
     let b = backend_for(
         vec![
-            ("brew-bootstrap", Answer::Each(Rc::new(move || {
-                b1.set(true);
-                ok()
-            }))),
-            ("brew cleanup -s --prune=all", Answer::Each(Rc::new(move || {
-                c1.set(c1.get() + 1);
-                ok()
-            }))),
-            (FREE_KB_CMD, Answer::Each(Rc::new(move || {
-                if c2.get() == 0 {
-                    exec(0, &format!("{}\n", mb(if b2.get() { 1800 } else { 3000 })), "")
-                } else {
-                    broken.clone()
-                }
-            }))),
+            (
+                "brew-bootstrap",
+                Answer::Each(Rc::new(move || {
+                    b1.set(true);
+                    ok()
+                })),
+            ),
+            (
+                "brew cleanup -s --prune=all",
+                Answer::Each(Rc::new(move || {
+                    c1.set(c1.get() + 1);
+                    ok()
+                })),
+            ),
+            (
+                FREE_KB_CMD,
+                Answer::Each(Rc::new(move || {
+                    if c2.get() == 0 {
+                        exec(0, &format!("{}\n", mb(if b2.get() { 1800 } else { 3000 })), "")
+                    } else {
+                        broken.clone()
+                    }
+                })),
+            ),
         ],
         Free::Kb(mb(3000)),
     );
@@ -129,7 +142,11 @@ fn when_df_cannot_be_read_after_the_cleanup_the_tools_left_are_skipped() {
     let unknown = "1.8 GB free before cleanup and unknown after (df failed: df: /root: Input/output error), keeping 2 GB free";
     assert_eq!(
         tuples(&res.borrow()[0].tools),
-        vec![row("tools/homebrew", "installed", None), row("tools/brew/gh", "skipped", Some(unknown)), row("tools/npm/bun", "skipped", Some(unknown))]
+        vec![
+            row("tools/homebrew", "installed", None),
+            row("tools/brew/gh", "skipped", Some(unknown)),
+            row("tools/npm/bun", "skipped", Some(unknown))
+        ]
     );
 }
 
@@ -139,10 +156,13 @@ fn a_full_disk_is_a_reading_of_zero_not_an_unknown_one() {
     let bootstrapped = Rc::new(Cell::new(false));
     let (b1, b2) = (bootstrapped.clone(), bootstrapped.clone());
     let b = backend_for(
-        vec![("brew-bootstrap", Answer::Each(Rc::new(move || {
-            b1.set(true);
-            ok()
-        })))],
+        vec![(
+            "brew-bootstrap",
+            Answer::Each(Rc::new(move || {
+                b1.set(true);
+                ok()
+            })),
+        )],
         Free::Each(Rc::new(move || mb(if b2.get() { 0 } else { 3000 }))),
     );
     let (res, on_result) = collect_results();
@@ -177,10 +197,13 @@ fn a_homebrew_cleanup_that_fails_at_the_floor_is_named_in_the_rescues_line() {
     let (b1, b2) = (bootstrapped.clone(), bootstrapped.clone());
     let b = backend_for(
         vec![
-            ("brew-bootstrap", Answer::Each(Rc::new(move || {
-                b1.set(true);
-                ok()
-            }))),
+            (
+                "brew-bootstrap",
+                Answer::Each(Rc::new(move || {
+                    b1.set(true);
+                    ok()
+                })),
+            ),
             ("brew cleanup -s --prune=all", Answer::Fixed(exec(1, "", "Error: Permission denied @ apply2files"))),
         ],
         Free::Each(Rc::new(move || mb(if b2.get() { 1800 } else { 3000 }))),
@@ -223,10 +246,9 @@ fn refuses_to_upload_when_the_archive_would_not_fit_kills_the_builder_and_says_w
     assert!(in_order(&msg, &["1 KB packed and 4 KB unpacked", "256 MB", "100 MB free"]), "{msg}");
     assert!(b.fetch.puts().is_empty());
     assert_eq!(b.rec.state.killed(), strings(&["m1"]));
-    assert!(st
-        .all()
-        .last()
-        .is_some_and(|l| l.starts_with("failed:your files need 1 KB packed and 4 KB unpacked, plus 256 MB of headroom, but the machine has 100 MB free")));
+    assert!(st.all().last().is_some_and(
+        |l| l.starts_with("failed:your files need 1 KB packed and 4 KB unpacked, plus 256 MB of headroom, but the machine has 100 MB free")
+    ));
     // The check reads the archive, not the recipe's estimate: a small tar of a large estimate still fits.
     let roomy = backend_default();
     let files = GoldenFiles { bytes: 10 * 1024 * 1024 * 1024, ..import_of().files.expect("the files") };
@@ -241,10 +263,14 @@ fn a_df_that_fails_is_a_warning_that_names_itself_and_the_build_goes_on() {
     let mut o = prep(&b, import_of());
     o.on_stage = Some(st.on_stage.clone());
     let builder = build(o);
-    assert!(st.all().contains(&"uploading-files:free disk unknown (df failed: df: /root: No such file or directory); uploading 1 KB anyway".to_string()));
+    assert!(st.all().contains(
+        &"uploading-files:free disk unknown (df failed: df: /root: No such file or directory); uploading 1 KB anyway".to_string()
+    ));
     assert_eq!(
         starting(&st.all(), "installing-tools:free disk unknown"),
-        strings(&["installing-tools:free disk unknown (df failed: df: /root: No such file or directory); installing without the 2 GB floor"])
+        strings(&[
+            "installing-tools:free disk unknown (df failed: df: /root: No such file or directory); installing without the 2 GB floor"
+        ])
     );
     assert_eq!(b.fetch.puts().len(), 2);
     let cmds = b.cmds();
@@ -294,7 +320,13 @@ fn a_df_that_exits_0_printing_nothing_is_a_failure_since_the_pipe_exits_as_awk_d
 #[test]
 fn an_exec_that_rejects_under_the_free_read_throws_before_anything_installs() {
     let m = FreeReadFails { ran: RefCell::new(Vec::new()) };
-    let tools = vec![ToolInstall { id: "tools/brew/gh".into(), label: "gh".into(), manager: "brew".into(), cmd: "brew install gh".into(), ..Default::default() }];
+    let tools = vec![ToolInstall {
+        id: "tools/brew/gh".into(),
+        label: "gh".into(),
+        manager: "brew".into(),
+        cmd: "brew install gh".into(),
+        ..Default::default()
+    }];
     let stage: ToolStage = Arc::new(|_: GoldenStage, _: Option<&str>| {});
     let err = run(install_tools(&m, &tools, stage, InstallToolsOptions::default())).expect_err("the free read throws");
     assert!(err.to_string().contains("exec lost the machine"), "{err}");
@@ -305,7 +337,13 @@ fn an_exec_that_rejects_under_the_free_read_throws_before_anything_installs() {
 #[test]
 fn a_tool_waits_on_the_install_it_needs_and_a_failed_manager_skips_its_rows() {
     let tools = vec![
-        ToolInstall { id: "tools/homebrew".into(), label: "Homebrew".into(), manager: "brew".into(), cmd: "brew-bootstrap".into(), ..Default::default() },
+        ToolInstall {
+            id: "tools/homebrew".into(),
+            label: "Homebrew".into(),
+            manager: "brew".into(),
+            cmd: "brew-bootstrap".into(),
+            ..Default::default()
+        },
         ToolInstall {
             id: "tools/manager/pipx".into(),
             label: "pipx".into(),
@@ -322,7 +360,13 @@ fn a_tool_waits_on_the_install_it_needs_and_a_failed_manager_skips_its_rows() {
             after: Some("tools/manager/pipx".into()),
             ..Default::default()
         },
-        ToolInstall { id: "tools/npm/bun".into(), label: "bun@1.4.0".into(), manager: "npm".into(), cmd: "npm install -g bun@1.4.0".into(), ..Default::default() },
+        ToolInstall {
+            id: "tools/npm/bun".into(),
+            label: "bun@1.4.0".into(),
+            manager: "npm".into(),
+            cmd: "npm install -g bun@1.4.0".into(),
+            ..Default::default()
+        },
     ];
     let b = backend_for(vec![("brew install pipx", Answer::Fixed(exec(1, "", "Error: pipx: no bottle")))], Free::Kb(mb(3000)));
     let (res, on_result) = collect_results();
@@ -342,7 +386,15 @@ fn a_tool_waits_on_the_install_it_needs_and_a_failed_manager_skips_its_rows() {
 // golden.test.ts:2343
 #[test]
 fn a_failure_packing_or_extracting_the_files_is_fatal_with_its_reason() {
-    let pack_fails = GoldenFiles { count: 1, rungs: rungs_of(&[("shell", 1)]), lands: vec![], bytes: 10, skipped: vec![], pack: pack_failing("Keychain: user cancelled"), volatile: None };
+    let pack_fails = GoldenFiles {
+        count: 1,
+        rungs: rungs_of(&[("shell", 1)]),
+        lands: vec![],
+        bytes: 10,
+        skipped: vec![],
+        pack: pack_failing("Keychain: user cancelled"),
+        volatile: None,
+    };
     let a = backend_default();
     let err = build_err(prep(&a, GoldenImport { files: Some(pack_fails), ..import_of() }));
     assert!(err.message().contains("Keychain: user cancelled"), "{}", err.message());
@@ -448,7 +500,14 @@ fn applying_the_same_recipe_again_skips_every_stage_and_runs_nothing() {
     let st = stage_recorder();
     let again = apply(
         &builder,
-        ApplyImportOptions { import: Some(import_of()), setup: "true".into(), ledger: builder.import.clone(), fetch: Some(b.dyn_fetch()), on_stage: Some(st.on_stage.clone()), ..Default::default() },
+        ApplyImportOptions {
+            import: Some(import_of()),
+            setup: "true".into(),
+            ledger: builder.import.clone(),
+            fetch: Some(b.dyn_fetch()),
+            on_stage: Some(st.on_stage.clone()),
+            ..Default::default()
+        },
     );
     assert_eq!(b.cmds().len(), before);
     assert_eq!(
@@ -466,7 +525,13 @@ fn applying_the_same_recipe_again_skips_every_stage_and_runs_nothing() {
     let (res, on_result) = collect_results();
     apply(
         &builder,
-        ApplyImportOptions { import: Some(GoldenImport { on_result: Some(on_result), ..import_of() }), setup: "true".into(), ledger: builder.import.clone(), fetch: Some(b.dyn_fetch()), ..Default::default() },
+        ApplyImportOptions {
+            import: Some(GoldenImport { on_result: Some(on_result), ..import_of() }),
+            setup: "true".into(),
+            ledger: builder.import.clone(),
+            fetch: Some(b.dyn_fetch()),
+            ..Default::default()
+        },
     );
     assert!(res.borrow().is_empty());
 
@@ -572,7 +637,10 @@ fn applying_the_same_recipe_uploads_its_volatile_files_again_and_nothing_else() 
         },
     );
     let puts = b.fetch.puts();
-    assert_eq!(puts[before_puts..].iter().map(|p| String::from_utf8_lossy(p).to_string()).collect::<Vec<_>>(), vec!["volatile-tgz".to_string()]);
+    assert_eq!(
+        puts[before_puts..].iter().map(|p| String::from_utf8_lossy(p).to_string()).collect::<Vec<_>>(),
+        vec!["volatile-tgz".to_string()]
+    );
     let cmds = b.cmds();
     assert_eq!(cmds[before_cmds..].iter().filter(|c| c.contains("tar xzf")).count(), 1);
     assert_stages(
@@ -581,7 +649,11 @@ fn applying_the_same_recipe_uploads_its_volatile_files_again_and_nothing_else() 
             Want::Is("applying-setup:already applied"),
             Want::Is("uploading-files:2 volatile files, 300 B"),
             Want::Re(|l| {
-                timed_tenth(l, "uploading-files:~/.claude.json, ~/.claude/plugins/installed_plugins.json re-imported, 300 B in ", "; 2.9 GB free")
+                timed_tenth(
+                    l,
+                    "uploading-files:~/.claude.json, ~/.claude/plugins/installed_plugins.json re-imported, 300 B in ",
+                    "; 2.9 GB free",
+                )
             }),
             Want::Is("installing-harness:already applied"),
             Want::Is("installing-tools:already applied"),
@@ -674,7 +746,8 @@ fn without_an_import_the_harness_path_is_unchanged() {
 #[test]
 fn the_ledger_names_every_tool_not_on_the_image_and_the_seal_stamps_them() {
     let b = backend_for(vec![("brew-bootstrap", Answer::Fixed(exec(1, "", "git: not found")))], Free::Kb(mb(3000)));
-    let skipped = vec![SkippedRow { id: "tools/brew-cask/raycast".into(), label: "Raycast".into(), note: "macOS app, no Linux build".into() }];
+    let skipped =
+        vec![SkippedRow { id: "tools/brew-cask/raycast".into(), label: "Raycast".into(), note: "macOS app, no Linux build".into() }];
     let builder = build(prep(&b, GoldenImport { skipped_tools: skipped, ..import_of() }));
     let want = vec![
         missing("tools/brew-cask/raycast", "Raycast", GoldenMissingToolOutcome::Skipped, "macOS app, no Linux build"),
@@ -689,7 +762,10 @@ fn the_ledger_names_every_tool_not_on_the_image_and_the_seal_stamps_them() {
 // golden.test.ts:2503
 #[test]
 fn a_base_floor_row_that_failed_reaches_the_ledger_and_the_sealed_version() {
-    let b = backend_for(vec![("apt-get install -y -qq fd-find", Answer::Fixed(exec(100, "", "E: Unable to locate package fd-find")))], Free::Kb(mb(3000)));
+    let b = backend_for(
+        vec![("apt-get install -y -qq fd-find", Answer::Fixed(exec(100, "", "E: Unable to locate package fd-find")))],
+        Free::Kb(mb(3000)),
+    );
     let builder = build(prep(&b, import_of()));
     let fd = missing("base/fd", "fd", GoldenMissingToolOutcome::Failed, "E: Unable to locate package fd-find");
     assert_eq!(ledger_of(&builder).missing_tools, Some(vec![fd.clone()]));
@@ -708,10 +784,22 @@ fn the_rc_calls_the_pack_silenced_land_on_the_ledger_and_the_seal_stamps_them() 
     o.on_stage = Some(st.on_stage.clone());
     let builder = build(o);
     assert_eq!(ledger_of(&builder).silenced, Some(silenced.clone()));
-    assert!(st.all().contains(&"applying-setup:1 KB packed; skipped ~/.bashrc (no longer on this computer); silenced in the shell: starship, eza, diskbloom".to_string()));
+    assert!(st.all().contains(
+        &"applying-setup:1 KB packed; skipped ~/.bashrc (no longer on this computer); silenced in the shell: starship, eza, diskbloom"
+            .to_string()
+    ));
     let sealed = seal(builder.clone(), seal_opts(&b.rec, "true"));
     assert_eq!(sealed.version.silenced, Some(silenced.clone()));
-    let again = apply(&builder, ApplyImportOptions { import: Some(import_of()), setup: "true".into(), ledger: builder.import.clone(), fetch: Some(b.dyn_fetch()), ..Default::default() });
+    let again = apply(
+        &builder,
+        ApplyImportOptions {
+            import: Some(import_of()),
+            setup: "true".into(),
+            ledger: builder.import.clone(),
+            fetch: Some(b.dyn_fetch()),
+            ..Default::default()
+        },
+    );
     assert_eq!(again.ledger.silenced, Some(silenced));
 
     // A pack that silenced nothing leaves both without.
@@ -727,7 +815,9 @@ fn the_stage_line_names_every_mac_path_the_copied_files_carried() {
     let b = backend_default();
     let macs = strings(&["/opt/homebrew/bin/gh now gh", "/Applications/Docker.app/Contents/Resources/bin out of .zshrc"]);
     let macs2 = macs.clone();
-    let pack = pack_with(move || Ok(PackedFiles { tar: b"tgz-bytes".to_vec(), bytes: 1200, unpacked: 4096, mac_paths: macs2.clone(), ..Default::default() }));
+    let pack = pack_with(move || {
+        Ok(PackedFiles { tar: b"tgz-bytes".to_vec(), bytes: 1200, unpacked: 4096, mac_paths: macs2.clone(), ..Default::default() })
+    });
     let st = stage_recorder();
     let files = GoldenFiles { pack, ..import_of().files.expect("the files") };
     let mut o = prep(&b, GoldenImport { files: Some(files), ..import_of() });
@@ -755,9 +845,19 @@ fn a_builder_whose_tools_all_installed_records_no_missing_list() {
 #[test]
 fn an_attach_whose_tools_stage_is_already_applied_carries_the_earlier_missing_list() {
     let b = backend_default();
-    let skipped = vec![SkippedRow { id: "tools/brew-cask/raycast".into(), label: "Raycast".into(), note: "macOS app, no Linux build".into() }];
+    let skipped =
+        vec![SkippedRow { id: "tools/brew-cask/raycast".into(), label: "Raycast".into(), note: "macOS app, no Linux build".into() }];
     let builder = build(prep(&b, GoldenImport { skipped_tools: skipped, ..import_of() }));
-    let again = apply(&builder, ApplyImportOptions { import: Some(import_of()), setup: "true".into(), ledger: builder.import.clone(), fetch: Some(b.dyn_fetch()), ..Default::default() });
+    let again = apply(
+        &builder,
+        ApplyImportOptions {
+            import: Some(import_of()),
+            setup: "true".into(),
+            ledger: builder.import.clone(),
+            fetch: Some(b.dyn_fetch()),
+            ..Default::default()
+        },
+    );
     assert_eq!(
         again.ledger.missing_tools,
         Some(vec![missing("tools/brew-cask/raycast", "Raycast", GoldenMissingToolOutcome::Skipped, "macOS app, no Linux build")])
@@ -779,7 +879,11 @@ fn the_ledger_carries_what_the_pack_left_off_and_an_attach_keeps_it() {
             tar: b"tgz-bytes".to_vec(),
             bytes: 1200,
             unpacked: 4096,
-            skipped: vec![SkippedPath { id: "agents/claude".into(), path: "~/.claude/settings.json".into(), note: left_pack[0].note.clone() }],
+            skipped: vec![SkippedPath {
+                id: "agents/claude".into(),
+                path: "~/.claude/settings.json".into(),
+                note: left_pack[0].note.clone(),
+            }],
             left_behind: Some(left_pack.clone()),
             ..Default::default()
         })
@@ -789,7 +893,16 @@ fn the_ledger_carries_what_the_pack_left_off_and_an_attach_keeps_it() {
     assert_eq!(ledger_of(&builder).left_behind, Some(left.clone()));
     let sealed = seal(builder.clone(), seal_opts(&b.rec, "true"));
     assert_eq!(sealed.version.left_behind, Some(left.clone()));
-    let again = apply(&builder, ApplyImportOptions { import: Some(import_of()), setup: "true".into(), ledger: builder.import.clone(), fetch: Some(b.dyn_fetch()), ..Default::default() });
+    let again = apply(
+        &builder,
+        ApplyImportOptions {
+            import: Some(import_of()),
+            setup: "true".into(),
+            ledger: builder.import.clone(),
+            fetch: Some(b.dyn_fetch()),
+            ..Default::default()
+        },
+    );
     assert_eq!(again.ledger.left_behind, Some(left));
 
     let clean = build(prep(&b, import_of()));

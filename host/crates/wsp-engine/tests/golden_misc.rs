@@ -2,6 +2,7 @@
 //! What golden.ts hands the join that no TS test reads by name: the recipe an import carries (the engine's
 //! `GoldenImport` gains `recipe_hash` and `recipe`, which `GoldenCtx::import_mark` reads) and the key order of the
 //! result JSON the TS assigns (golden.ts:613, :664, :696, :760, :789, :801-802).
+#![allow(clippy::type_complexity)]
 mod golden_roads_common;
 
 use std::sync::Arc;

@@ -5,26 +5,22 @@ use std::sync::Arc;
 
 use wsp_catalog::signin_rows::NEVER_IN_IMAGE;
 use wsp_wire::types::js_number::{JsInt, JsNumber};
-use wsp_wire::views::golden_image::{
-    on_npm_bin, GoldenManifest, GoldenStage, GoldenVersion, GoldenVersionSmoke, AGENTS_BIN,
-};
+use wsp_wire::views::golden_image::{on_npm_bin, GoldenManifest, GoldenStage, GoldenVersion, GoldenVersionSmoke, AGENTS_BIN};
 use wsp_wire::wire::machine_link::{MachineLife, MachineSpec};
 use wsp_words::js::utf16;
-use wsp_words::words::image::{
-    credential_on_builder_line, snapshot_attempt_line, snapshot_failed_line, BuilderReading, ProviderAnswer,
-};
+use wsp_words::words::image::{credential_on_builder_line, snapshot_attempt_line, snapshot_failed_line, BuilderReading, ProviderAnswer};
 use wsp_words::words::init::{
     disk_unsettled_line, machine_left_line, snapshot_progress_line, snapshot_stage_line, DISK_SYNC_LINE, SAVING_IMAGE_LINE,
 };
 
-use super::prepare::{iso_now, npm_bin_of, claude_link_line, size_asked, spec_of};
+use super::prepare::{claude_link_line, iso_now, npm_bin_of, size_asked, spec_of};
 use super::smoke::smoke_tally;
 use super::templates::{promote_version, templates_of, TemplateWait};
 use super::types::{plain, Builder, GoldenError, SealGoldenOptions, SealResult, Staged};
 use crate::disk_sync::{disk_unsettled, sync_disk, SyncDiskError};
 use crate::errors::{is_missing, EngineError, ErrorKind, RetryClock};
 use crate::exec_detached::INLINE_EXEC_MS;
-use crate::golden_seam::{used_bytes, profile_path_line, PROFILE_PATH_FILE, TOOLS_PATH};
+use crate::golden_seam::{profile_path_line, used_bytes, PROFILE_PATH_FILE, TOOLS_PATH};
 use crate::gone::{kill_until_gone, machine_state_word};
 use crate::image_vault::{export_image_vault, present_paths, ImageVault};
 use crate::machine::{ExecOptions, Machine, RunOptions, SnapshotOptions};
@@ -109,11 +105,9 @@ pub async fn seal_golden(builder: Builder, opts: SealGoldenOptions, clock: &dyn 
             )
             .await?;
         if wrote.exit_code.get() != 0 {
-            return Err(plain(format!(
-                "could not put {AGENTS_BIN} and {bin} on the PATH in {PROFILE_PATH_FILE}: {}",
-                wrote.stderr.trim()
-            ))
-            .into());
+            return Err(
+                plain(format!("could not put {AGENTS_BIN} and {bin} on the PATH in {PROFILE_PATH_FILE}: {}", wrote.stderr.trim())).into()
+            );
         }
     }
     // The person's logins as the sign-in and secrets stages left them, read off the same disk the snapshot takes: a
@@ -361,4 +355,3 @@ pub async fn seal_golden(builder: Builder, opts: SealGoldenOptions, clock: &dyn 
         }
     }
 }
-

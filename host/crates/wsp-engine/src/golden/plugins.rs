@@ -8,9 +8,7 @@ use wsp_wire::wire::machine_link::ExecResult;
 use wsp_catalog::roads::NODE_PATH_LINE;
 
 use crate::exec_detached::INLINE_EXEC_MS;
-use crate::golden_seam::{
-    closing, guard_deadline_ms, guarded, reason_of, PluginSeedPlan, PluginsPlan, SeedRead, StageListener,
-};
+use crate::golden_seam::{closing, guard_deadline_ms, guarded, reason_of, PluginSeedPlan, PluginsPlan, SeedRead, StageListener};
 use crate::machine::{ExecOptions, Machine, RunOptions};
 
 /// A failed call as the TS's `.catch((e): ExecResult => ({ exitCode: -1, stdout: "", stderr: message }))` reads it.
@@ -49,7 +47,13 @@ struct MachineRead<'a>(&'a dyn Machine, &'a str);
 #[async_trait(?Send)]
 impl SeedRead for MachineRead<'_> {
     async fn read(&self, rel: &str) -> Option<String> {
-        let res = self.0.exec(&format!("cat {}", shell_quote(&format!("{}/{rel}", self.1))), ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..ExecOptions::default() }).await;
+        let res = self
+            .0
+            .exec(
+                &format!("cat {}", shell_quote(&format!("{}/{rel}", self.1))),
+                ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..ExecOptions::default() },
+            )
+            .await;
         match res {
             Ok(r) if r.exit_code.get() == 0 => Some(r.stdout),
             _ => None,

@@ -8,17 +8,15 @@ use indexmap::IndexMap;
 use serde::Serialize;
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::golden_image::{
-    GoldenBaseTool, GoldenLeftBehind, GoldenLogin, GoldenManifest, GoldenMissingTool, GoldenRetired, GoldenStage, GoldenStep, GoldenVersion,
-    MachineKind, RecipeDigest,
+    GoldenBaseTool, GoldenLeftBehind, GoldenLogin, GoldenManifest, GoldenMissingTool, GoldenRetired, GoldenStage, GoldenStep,
+    GoldenVersion, MachineKind, RecipeDigest,
 };
 use wsp_wire::wire::capabilities::WorkspaceSize;
 use wsp_words::words::image::{BuilderReading, ProviderAnswer};
 
 use crate::errors::EngineError;
 use crate::fetch::Fetch;
-use crate::golden_seam::{
-    CutNames, GoldenImport, HomebrewCheckout, McpResult, SkippedPath, ToolResult,
-};
+use crate::golden_seam::{CutNames, GoldenImport, HomebrewCheckout, McpResult, SkippedPath, ToolResult};
 use crate::gone::KillConfirm;
 use crate::machine::{Machine, MachineBackend};
 use crate::machine_context::ContextResult;

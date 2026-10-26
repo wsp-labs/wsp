@@ -3,6 +3,7 @@
 //! and the member rule the seal and the copy both read. The last test of the TS file (the guard between the catalog's
 //! login paths and the pack's copy destinations) reads `copiedLoginDests` of golden-import.ts, which the pack owns and
 //! the engine does not port, so it has no test here.
+#![allow(clippy::type_complexity)]
 mod golden_roads_common;
 
 use std::cell::{Cell, RefCell};
@@ -237,7 +238,7 @@ fn an_archive_too_big_for_that_road_is_refused_on_its_size_before_any_of_it_is_r
     let here = format!("{GUEST_HOME}/.aws");
     let (g, _fetch) = guest(&[&here], GuestOpts { size: Some(EXEC_READ_CAP + 1), ..GuestOpts::default() });
     let opts = VaultOptions { read_road: ReadRoad::Exec, ..VaultOptions::default() };
-    let err = run(export_image_vault(&*g, std::slice::from_ref(&here), &opts)).err().expect("a refusal");
+    let err = run(export_image_vault(&*g, std::slice::from_ref(&here), &opts)).expect_err("a refusal");
     assert!(matches!(err, EngineError::VaultTooLarge { .. }), "{err:?}");
     assert!(!g.cmds().iter().any(|c| c.starts_with("base64 < ")));
 }
@@ -245,8 +246,9 @@ fn an_archive_too_big_for_that_road_is_refused_on_its_size_before_any_of_it_is_r
 // image-vault.test.ts:90
 #[test]
 fn a_probe_the_machine_would_not_run_is_a_failure_not_an_empty_answer_nothing_is_archived_and_nothing_is_sealed() {
-    let (g, fetch) = guest(&[], GuestOpts { probe_exit: Some(127), probe_err: Some("bash: for: command not found"), ..GuestOpts::default() });
-    let err = run(export_image_vault(&*g, &[format!("{GUEST_HOME}/.codex/auth.json")], &opts_with(&fetch))).err().expect("a failure");
+    let (g, fetch) =
+        guest(&[], GuestOpts { probe_exit: Some(127), probe_err: Some("bash: for: command not found"), ..GuestOpts::default() });
+    let err = run(export_image_vault(&*g, &[format!("{GUEST_HOME}/.codex/auth.json")], &opts_with(&fetch))).expect_err("a failure");
     assert!(err.to_string().contains("would not say which"), "{err}");
     assert!(!g.cmds().iter().any(|c| c.starts_with("tar czf")));
 }
@@ -357,11 +359,11 @@ fn names_of(members: &[VaultMember]) -> Vec<String> {
 }
 
 fn refusal(road: VaultRoad, tar: &[u8], held: &[String]) -> String {
-    refuse_foreign_members(road, tar, held).err().expect("a refusal").to_string()
+    refuse_foreign_members(road, tar, held).expect_err("a refusal").to_string()
 }
 
 fn members_refusal(tar: &[u8]) -> String {
-    vault_members(VaultRoad::Import, tar).err().expect("a refusal").to_string()
+    vault_members(VaultRoad::Import, tar).expect_err("a refusal").to_string()
 }
 
 fn member(name: &str, kind: MemberKind, target: Option<&str>) -> VaultMember {
@@ -394,7 +396,11 @@ fn a_member_outside_the_asked_paths_a_name_that_walks_out_a_link_out_and_a_devic
     let cases: Vec<(&str, Vec<u8>, &str)> = vec![
         ("etc/cron.d/x", tar_of(&[file("etc/cron.d/x", 0o644, "* * * * * root sh")]).unwrap(), "etc/cron.d/x"),
         ("root/../etc/x", tar_of(&[file("root/../etc/x", 0o644, "x")]).unwrap(), "walks out"),
-        ("a symbolic link out", tar_of(&[TarEntry::Link { path: "root/.config/gh".into(), target: "/etc".into() }]).unwrap(), "points at /etc"),
+        (
+            "a symbolic link out",
+            tar_of(&[TarEntry::Link { path: "root/.config/gh".into(), target: "/etc".into() }]).unwrap(),
+            "points at /etc",
+        ),
         (
             "a hard link out of a held folder",
             archive(&[header(H { name: "root/.config/gh/x", kind: Some("1"), target: Some("etc/shadow"), ..H::default() })]),
@@ -492,10 +498,15 @@ fn a_base_256_numeric_a_global_pax_record_an_unknown_type_flag_and_a_foreign_mag
     let mut base256 = [0u8; 12];
     base256[0] = 0x80;
     base256[11] = 1;
-    assert!(members_refusal(&archive(&[header(H { name: "root/.codex/auth.json", size_field: Some(base256), ..H::default() })])).contains("base-256"));
-    assert!(members_refusal(&archive(&[header(H { name: "PaxHeaders/g", kind: Some("g"), size: Some(10), ..H::default() }), filled("10 x=y\n")]))
-        .contains("type flag is g"));
-    assert!(members_refusal(&archive(&[header(H { name: "root/.codex/auth.json", kind: Some("7"), ..H::default() })])).contains("type flag is 7"));
+    assert!(members_refusal(&archive(&[header(H { name: "root/.codex/auth.json", size_field: Some(base256), ..H::default() })]))
+        .contains("base-256"));
+    assert!(members_refusal(&archive(&[
+        header(H { name: "PaxHeaders/g", kind: Some("g"), size: Some(10), ..H::default() }),
+        filled("10 x=y\n")
+    ]))
+    .contains("type flag is g"));
+    assert!(members_refusal(&archive(&[header(H { name: "root/.codex/auth.json", kind: Some("7"), ..H::default() })]))
+        .contains("type flag is 7"));
     assert!(members_refusal(&archive(&[header(H { name: "root/.codex/auth.json", magic: Some(b"wsp\0\0\0"), ..H::default() })]))
         .contains("neither a ustar nor a GNU header"));
 }
@@ -522,7 +533,12 @@ fn a_pax_key_this_reading_does_not_read_and_a_pax_record_beside_a_long_name_for_
 // image-vault.test.ts:255
 #[test]
 fn two_gzip_members_concatenated_read_as_one_archive_and_bytes_behind_the_last_that_are_no_member_are_a_refusal() {
-    let blocks: Vec<u8> = [header(H { name: "root/.codex/auth.json", ..H::default() }), header(H { name: "etc/cron.d/x", ..H::default() }), vec![0u8; BLOCK * 2]].concat();
+    let blocks: Vec<u8> = [
+        header(H { name: "root/.codex/auth.json", ..H::default() }),
+        header(H { name: "etc/cron.d/x", ..H::default() }),
+        vec![0u8; BLOCK * 2],
+    ]
+    .concat();
     let split: Vec<u8> = [gzip(&blocks[..BLOCK]), gzip(&blocks[BLOCK..])].concat();
     assert_eq!(names_of(&vault_members(VaultRoad::Import, &split).unwrap()), strings(&["root/.codex/auth.json", "etc/cron.d/x"]));
     let trailing: Vec<u8> = [archive(&[header(H { name: "root/.codex/auth.json", ..H::default() })]), b"trailing".to_vec()].concat();
@@ -535,7 +551,8 @@ fn two_gzip_members_concatenated_read_as_one_archive_and_bytes_behind_the_last_t
 // image-vault.test.ts:262
 #[test]
 fn a_member_whose_data_runs_past_the_end_of_the_archive_is_a_refusal_as_is_an_archive_that_never_ends() {
-    assert!(members_refusal(&archive(&[header(H { name: "root/.codex/auth.json", size: Some(4096), ..H::default() })])).contains("runs past the end"));
+    assert!(members_refusal(&archive(&[header(H { name: "root/.codex/auth.json", size: Some(4096), ..H::default() })]))
+        .contains("runs past the end"));
     assert!(members_refusal(&gzip(&header(H { name: "root/.codex/auth.json", ..H::default() }))).contains("without the two zero blocks"));
 }
 
@@ -569,7 +586,7 @@ fn a_builder_that_answers_a_member_outside_the_asked_paths_fails_the_seal_with_t
     let here = format!("{GUEST_HOME}/.codex/auth.json");
     let planted = tar_of(&[file("root/.codex/auth.json", 0o600, "{}"), file("etc/cron.d/x", 0o644, "x")]).unwrap();
     let (g, fetch) = guest(&[&here], GuestOpts { tar: Some(planted), ..GuestOpts::default() });
-    let err = run(export_image_vault(&*g, std::slice::from_ref(&here), &opts_with(&fetch))).err().expect("a refusal");
+    let err = run(export_image_vault(&*g, std::slice::from_ref(&here), &opts_with(&fetch))).expect_err("a refusal");
     assert!(err.to_string().contains("etc/cron.d/x"), "{err}");
 }
 

@@ -2,15 +2,18 @@
 //! golden.test.ts "golden templates", "golden disk" and "golden size" (:874-1059): the template a seal promotes, the
 //! names it carries, the ready wait, the template road's own calls, the disk each create asks for, and the size each
 //! machine is built at.
+#![allow(clippy::type_complexity)]
 mod golden_roads_common;
 mod golden_seal_support;
-
 
 use golden_roads_common::*;
 use golden_seal_support::*;
 use serde_json::json;
 use wsp_engine::errors::EngineError;
-use wsp_engine::golden::{build_golden, prepare_builder, promote_version, seal_golden, templates_of, upgrade_builder, Builder, GoldenDelta, GoldenError, SealResult, TemplateWait};
+use wsp_engine::golden::{
+    build_golden, prepare_builder, promote_version, seal_golden, templates_of, upgrade_builder, Builder, GoldenDelta, GoldenError,
+    SealResult, TemplateWait,
+};
 use wsp_engine::golden_seam::GoldenImport;
 use wsp_engine::machine::MachineSpec;
 use wsp_engine::snapshot_names::golden_name;
@@ -26,7 +29,7 @@ fn seal_ok(builder: Builder, opts: wsp_engine::golden::SealGoldenOptions, clock:
 }
 
 fn seal_err(builder: Builder, opts: wsp_engine::golden::SealGoldenOptions, clock: &Manual) -> GoldenError {
-    run(seal_golden(builder, opts, clock)).err().expect("the seal is refused")
+    run(seal_golden(builder, opts, clock)).expect_err("the seal is refused")
 }
 
 fn promoting(stages: &[String]) -> Vec<String> {
@@ -43,7 +46,11 @@ fn pairs(v: &[(String, String)]) -> Vec<(&str, &str)> {
 
 /// The upgrade delta golden.test.ts:958 and :962 pass: a recipe hash, nothing retired.
 fn delta(hash: &str) -> GoldenDelta {
-    GoldenDelta { import: GoldenImport { recipe_hash: hash.to_string(), ..Default::default() }, retired: Vec::new(), retired_on_image: Vec::new() }
+    GoldenDelta {
+        import: GoldenImport { recipe_hash: hash.to_string(), ..Default::default() },
+        retired: Vec::new(),
+        retired_on_image: Vec::new(),
+    }
 }
 
 /// golden.test.ts:875 `FAST_WAIT`.
@@ -53,7 +60,8 @@ fn wait() -> TemplateWait {
 
 // golden.test.ts:877
 #[test]
-fn on_a_backend_with_templates_the_seal_promotes_the_snapshot_under_wsp_host_golden_v_n_after_the_builder_is_killed_waits_for_ready_records_the_id_and_the_smoke_fork_boots_from_the_template() {
+fn on_a_backend_with_templates_the_seal_promotes_the_snapshot_under_wsp_host_golden_v_n_after_the_builder_is_killed_waits_for_ready_records_the_id_and_the_smoke_fork_boots_from_the_template(
+) {
     let rec = recording_backend(Opts { templates: true, ..Opts::default() });
     let clock = Manual::new();
     let st = stage_recorder();
@@ -66,10 +74,7 @@ fn on_a_backend_with_templates_the_seal_promotes_the_snapshot_under_wsp_host_gol
     so.template_ready_ms = Some(50);
     so.template_poll_ms = Some(1);
     let sealed = seal_ok(builder, so, &clock);
-    assert_eq!(
-        rec.state.timeline(),
-        vec!["create m1", "snapshot m1", "kill m1", "promote snap_wsp-h1-work-v1", "create m2", "kill m2"]
-    );
+    assert_eq!(rec.state.timeline(), vec!["create m1", "snapshot m1", "kill m1", "promote snap_wsp-h1-work-v1", "create m2", "kill m2"]);
     assert_eq!(pairs(&rec.state.promoted.borrow()), vec![("snap_wsp-h1-work-v1", "wsp-h1-work-v1")]);
     let created = rec.state.created();
     match_object(&created[1], json!({"kind": "sandbox", "template": "tpl_snap_wsp-h1-work-v1"}));
@@ -91,7 +96,8 @@ fn on_a_backend_with_templates_the_seal_promotes_the_snapshot_under_wsp_host_gol
 
 // golden.test.ts:892
 #[test]
-fn the_snapshot_and_its_template_carry_the_same_name_the_host_and_the_golden_in_it_the_golden_defaulting_to_the_store_s_default_key_one_rule() {
+fn the_snapshot_and_its_template_carry_the_same_name_the_host_and_the_golden_in_it_the_golden_defaulting_to_the_store_s_default_key_one_rule(
+) {
     let rec = recording_backend(Opts { templates: true, ..Opts::default() });
     let clock = Manual::new();
     run(build_golden(build_opts(&rec, "true", "true"), &*clock)).expect("the golden builds");
@@ -100,7 +106,10 @@ fn the_snapshot_and_its_template_carry_the_same_name_the_host_and_the_golden_in_
     assert_eq!(golden_name("h1", "default", 1).unwrap(), "wsp-h1-default-v1");
     let twelve = golden_name("9f3a1c2b", "default", 12).unwrap();
     assert_eq!(twelve, "wsp-9f3a1c2b-default-v12");
-    assert!(twelve.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-'), "{twelve} is lowercase letters, digits and dashes");
+    assert!(
+        twelve.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-'),
+        "{twelve} is lowercase letters, digits and dashes"
+    );
 }
 
 // golden.test.ts:902
@@ -133,13 +142,17 @@ fn a_template_still_building_is_read_again_until_ready_each_read_a_promoting_lin
 
 // golden.test.ts:913
 #[test]
-fn a_rollback_the_provider_refuses_is_its_own_line_on_the_stage_that_failed_with_the_machine_named_in_left_the_failure_s_line_stays_the_failure_s_own() {
+fn a_rollback_the_provider_refuses_is_its_own_line_on_the_stage_that_failed_with_the_machine_named_in_left_the_failure_s_line_stays_the_failure_s_own(
+) {
     let rec = recording_backend(Opts {
         templates: true,
         exec_results: results(vec![("claude --version", exec(1, "", "the fork did not boot"))]),
         refuse_kill: Some(Box::new(|id: &str, _nth: u32| -> Option<EngineError> {
             if id == "m2" {
-                return Some(EngineError::Other { message: "getaddrinfo ENOTFOUND api.getsolari.com".to_string(), code: Some("ENOTFOUND".to_string()) });
+                return Some(EngineError::Other {
+                    message: "getaddrinfo ENOTFOUND api.getsolari.com".to_string(),
+                    code: Some("ENOTFOUND".to_string()),
+                });
             }
             None
         })),
@@ -173,7 +186,8 @@ fn a_rollback_the_provider_refuses_is_its_own_line_on_the_stage_that_failed_with
 
 // golden.test.ts:927
 #[test]
-fn the_seal_s_lines_say_what_a_person_can_use_the_snapshot_s_size_read_off_the_builder_s_disk_and_that_the_image_is_being_saved_never_the_snapshot_s_or_the_template_s_name() {
+fn the_seal_s_lines_say_what_a_person_can_use_the_snapshot_s_size_read_off_the_builder_s_disk_and_that_the_image_is_being_saved_never_the_snapshot_s_or_the_template_s_name(
+) {
     let used = wsp_engine::golden_seam::used_kb_cmd();
     let rec = recording_backend(Opts {
         templates: true,
@@ -188,7 +202,10 @@ fn the_seal_s_lines_say_what_a_person_can_use_the_snapshot_s_size_read_off_the_b
     so.template_ready_ms = Some(50);
     so.template_poll_ms = Some(1);
     seal_ok(builder, so, &clock);
-    assert_eq!(snapshotting(&st.all()), vec!["snapshotting:syncing the disk", "snapshotting:snapshotting about 13 GB, usually under a minute"]);
+    assert_eq!(
+        snapshotting(&st.all()),
+        vec!["snapshotting:syncing the disk", "snapshotting:snapshotting about 13 GB, usually under a minute"]
+    );
     assert_eq!(promoting(&st.all()), vec!["promoting:saving the image", "promoting:the image is saved"]);
     assert!(!st.all().iter().any(|s| s.contains("wsp-h1") || s.contains("tpl_")));
 }
@@ -196,7 +213,8 @@ fn the_seal_s_lines_say_what_a_person_can_use_the_snapshot_s_size_read_off_the_b
 // golden.test.ts:937
 #[test]
 fn a_template_the_provider_fails_ends_the_seal_with_its_reason_before_any_smoke_fork_and_the_template_goes_before_the_snapshot() {
-    let rec = recording_backend(Opts { templates: true, template_status: Some(Box::new(|_id: &str, _nth: u32| "failed")), ..Opts::default() });
+    let rec =
+        recording_backend(Opts { templates: true, template_status: Some(Box::new(|_id: &str, _nth: u32| "failed")), ..Opts::default() });
     let clock = Manual::new();
     let st = stage_recorder();
     let builder = prep(prepare_opts(&rec, "true"), &clock);
@@ -209,16 +227,14 @@ fn a_template_the_provider_fails_ends_the_seal_with_its_reason_before_any_smoke_
     assert_eq!(rec.state.created().len(), 1);
     assert_eq!(*rec.state.deleted_templates.borrow(), vec!["tpl_snap_wsp-h1-default-v1"]);
     assert_eq!(rec.state.deleted_snapshots(), vec!["snap_wsp-h1-default-v1"]);
-    assert_eq!(
-        st.all().last().unwrap(),
-        "failed:the provider failed the template tpl_snap_wsp-h1-default-v1: restore copy failed"
-    );
+    assert_eq!(st.all().last().unwrap(), "failed:the provider failed the template tpl_snap_wsp-h1-default-v1: restore copy failed");
 }
 
 // golden.test.ts:948
 #[test]
 fn a_template_that_never_reads_ready_inside_the_wait_ends_the_seal_naming_the_last_status_and_the_wait() {
-    let rec = recording_backend(Opts { templates: true, template_status: Some(Box::new(|_id: &str, _nth: u32| "building")), ..Opts::default() });
+    let rec =
+        recording_backend(Opts { templates: true, template_status: Some(Box::new(|_id: &str, _nth: u32| "building")), ..Opts::default() });
     let clock = Manual::new();
     let builder = prep(prepare_opts(&rec, "true"), &clock);
     let mut so = seal_opts(&rec, "true");
@@ -261,7 +277,8 @@ fn a_backend_whose_capabilities_lack_templates_or_that_lacks_one_of_the_calls_ha
 
 // golden.test.ts:974
 #[test]
-fn promote_version_always_mints_a_fresh_template_under_this_host_s_name_never_adopting_one_by_name_and_counts_the_templates_that_already_carry_it() {
+fn promote_version_always_mints_a_fresh_template_under_this_host_s_name_never_adopting_one_by_name_and_counts_the_templates_that_already_carry_it(
+) {
     let rec = recording_backend(Opts { templates: true, ..Opts::default() });
     rec.state.templates.borrow_mut().insert("tpl_his".to_string(), template("tpl_his", "wsp-default-v1", "ready"));
     rec.state.templates.borrow_mut().insert("tpl_other_host".to_string(), template("tpl_other_host", "wsp-h1-default-v1", "ready"));
@@ -279,19 +296,22 @@ fn promote_version_always_mints_a_fresh_template_under_this_host_s_name_never_ad
 
 // golden.test.ts:985
 #[test]
-fn promote_version_deletes_the_template_it_promoted_when_the_ready_wait_fails_or_runs_out_so_nothing_stands_on_the_snapshot_unrecorded_and_the_failure_keeps_the_provider_s_words() {
+fn promote_version_deletes_the_template_it_promoted_when_the_ready_wait_fails_or_runs_out_so_nothing_stands_on_the_snapshot_unrecorded_and_the_failure_keeps_the_provider_s_words(
+) {
     let clock = Manual::new();
-    let failed = recording_backend(Opts { templates: true, template_status: Some(Box::new(|_id: &str, _nth: u32| "failed")), ..Opts::default() });
+    let failed =
+        recording_backend(Opts { templates: true, template_status: Some(Box::new(|_id: &str, _nth: u32| "failed")), ..Opts::default() });
     let road = templates_of(failed.dyn_backend()).expect("the template road");
-    let err = run(promote_version(&*road, "snap_v1", "wsp-h1-default-v1", &wait(), &*clock)).err().expect("the promote fails");
+    let err = run(promote_version(&*road, "snap_v1", "wsp-h1-default-v1", &wait(), &*clock)).expect_err("the promote fails");
     assert_message_has(&err.to_string(), "the provider failed the template tpl_snap_v1: restore copy failed");
     assert_eq!(*failed.state.deleted_templates.borrow(), vec!["tpl_snap_v1"]);
     assert!(failed.state.templates.borrow().is_empty());
 
-    let slow = recording_backend(Opts { templates: true, template_status: Some(Box::new(|_id: &str, _nth: u32| "building")), ..Opts::default() });
+    let slow =
+        recording_backend(Opts { templates: true, template_status: Some(Box::new(|_id: &str, _nth: u32| "building")), ..Opts::default() });
     let road = templates_of(slow.dyn_backend()).expect("the template road");
     let short = TemplateWait { ready_ms: Some(20), poll_ms: Some(1), on_status: None };
-    let err = run(promote_version(&*road, "snap_v1", "wsp-h1-default-v1", &short, &*clock)).err().expect("the promote runs out");
+    let err = run(promote_version(&*road, "snap_v1", "wsp-h1-default-v1", &short, &*clock)).expect_err("the promote runs out");
     assert_message_has(&err.to_string(), "the template tpl_snap_v1 still reads building after 20ms");
     assert_eq!(*slow.state.deleted_templates.borrow(), vec!["tpl_snap_v1"]);
 }
@@ -299,11 +319,7 @@ fn promote_version_deletes_the_template_it_promoted_when_the_ready_wait_fails_or
 // golden.test.ts:995
 #[test]
 fn a_smoke_that_fails_after_the_template_read_ready_still_deletes_the_template_before_the_snapshot() {
-    let rec = recording_backend(Opts {
-        templates: true,
-        exec_results: results(vec![("smoke", exec(2, "", "broken"))]),
-        ..Opts::default()
-    });
+    let rec = recording_backend(Opts { templates: true, exec_results: results(vec![("smoke", exec(2, "", "broken"))]), ..Opts::default() });
     let clock = Manual::new();
     let builder = prep(prepare_opts(&rec, "true"), &clock);
     let mut so = seal_opts(&rec, "smoke");
