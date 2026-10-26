@@ -381,7 +381,7 @@ pub(super) fn call_delete(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<
             if let Some(sub) = thread.as_ref().filter(|t| t.sub.is_some()) {
                 let id = thread_id_of(sub);
                 if !confirm {
-                    let question = sub_deleting(&*client, Some(sub)).await?.map(|s| s.question).unwrap_or_default();
+                    let question = sub_deleting(&*client, Some(sub)).await?.and_then(|s| s.question).unwrap_or_default();
                     let text =
                         format!("thread {id} kept. {} Ask the person, then call delete again with confirm true.", second_line(&question));
                     return Ok(kept_result(text, json!({ "threadId": id, "workspaceId": sub.workspace_id, "threads": 1 })));
@@ -453,7 +453,7 @@ pub(super) fn run_delete(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErr
         let client = ctx.client(None).await?;
         let thread = thread_of(&*client, &reference).await.ok();
         if let Some(subbed) = sub_deleting(&*client, thread.as_ref()).await? {
-            if !confirmed(ctx, &subbed.question, &subbed.id).await? {
+            if !confirmed(ctx, subbed.question.as_deref().unwrap_or_default(), &subbed.id).await? {
                 return Ok(1);
             }
             let gone = thread_deleted(&*client, &subbed.id, &ThreadDeletedAsk::default()).await?;

@@ -391,7 +391,8 @@ pub async fn thread_here(client: &dyn HostClient, r#ref: Option<ThreadRef<'_>>) 
 pub struct SubDeleting {
     pub id: String,
     pub workspace_id: String,
-    pub question: String,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub question: Option<String>,
 }
 
 /// `subDeleting(client, thread)` (turns-help.ts:361-366): nothing for no thread or one with no `sub` (nothing sent); else
@@ -400,7 +401,7 @@ pub async fn sub_deleting(client: &dyn HostClient, thread: Option<&ThreadView>) 
     let Some(thread) = thread.filter(|t| t.sub.is_some()) else { return Ok(None) };
     let id = thread_id_of(thread);
     let frame = client.request("sessions.delete", pick(vec![("threadId", Some(json!(id))), ("check", Some(json!(true)))])).await?;
-    let question = reply_field::<String>(&frame, "sessions.delete", "question")?;
+    let question = frame.get("question").and_then(Value::as_str).map(str::to_owned);
     Ok(Some(SubDeleting { id, workspace_id: thread.workspace_id.clone(), question }))
 }
 
