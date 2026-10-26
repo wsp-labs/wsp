@@ -86,7 +86,12 @@ fn chain(depth: usize, deepest_first: bool, tweak: impl Fn(&mut ProcEntry)) -> V
     rows
 }
 
-fn place_input<'a>(procs: &'a [ProcEntry], threads: &'a [PlaceThread], bins: &'a [String], listens: &'a dyn Fn(u32) -> bool) -> PlaceInput<'a> {
+fn place_input<'a>(
+    procs: &'a [ProcEntry],
+    threads: &'a [PlaceThread],
+    bins: &'a [String],
+    listens: &'a dyn Fn(u32) -> bool,
+) -> PlaceInput<'a> {
     PlaceInput { procs, daemon: 999_999_999, host: None, threads, agent_bins: bins, listens, app: None }
 }
 
@@ -221,4 +226,81 @@ fn json_stringify_alone_body(depth: usize) {
 #[test]
 fn json_stringify_of_a_deep_value() {
     in_child("json_stringify_of_a_deep_value", 100_000, json_stringify_alone_body);
+}
+
+// ---- ruling 5 of the fix round: a process chain has no cap, and each walk over it is linear ----
+
+const CHAIN: usize = 100_000;
+
+fn timed<R>(what: &str, f: impl FnOnce() -> R) -> R {
+    let at = std::time::Instant::now();
+    let out = f();
+    eprintln!("{what} over {CHAIN} processes: {:?}", at.elapsed());
+    out
+}
+
+fn linear_activity_body(depth: usize) {
+    let procs = chain(depth, true, |p| p.pty = Some("pts/0".into()));
+    let view = timed("activity_of, deepest process first", || activity_of(&read_of(procs, vec![])));
+    assert_eq!(view.unowned.len(), depth);
+    assert_eq!(view.unowned[depth - 1].depth.get(), depth as i64 - 1);
+}
+
+#[test]
+fn activity_of_a_100000_process_chain_is_linear() {
+    in_child("activity_of_a_100000_process_chain_is_linear", CHAIN, linear_activity_body);
+}
+
+fn linear_threads_body(depth: usize) {
+    let threads = [PlaceThread { id: "t1".into(), cgroup: Some("/wsp/t1".into()), ..Default::default() }];
+    let procs = chain(depth, true, |p| {
+        if p.pid == 1 {
+            p.cgroup = Some("/wsp/t1".into());
+        }
+    });
+    let bins = vec![];
+    let listens = |_: u32| false;
+    let input = place_input(&procs, &threads, &bins, &listens);
+    let placed = timed("place_procs", || place_procs(&input));
+    assert_eq!(placed.whose.len(), depth);
+    let _ = timed("kind_of the last process", || placed.kind_of(depth as u32));
+}
+
+#[test]
+fn place_procs_of_a_100000_process_chain_is_linear() {
+    in_child("place_procs_of_a_100000_process_chain_is_linear", CHAIN, linear_threads_body);
+}
+
+fn linear_reach_body(depth: usize) {
+    let threads = [PlaceThread { id: "t1".into(), ..Default::default() }];
+    let procs = chain(depth, false, |p| {
+        p.owner = Some(ProcOwner { by: ProcOwnedBy::Env, thread: Some("t1".into()), workspace: None, warm: false });
+    });
+    let bins = vec![];
+    let listens = |_: u32| false;
+    let input = place_input(&procs, &threads, &bins, &listens);
+    let placed = place_procs(&input);
+    assert_eq!(timed("reach_of", || placed.reach_of(depth as u32)), None);
+}
+
+#[test]
+fn reach_of_a_100000_marked_process_chain_is_linear() {
+    in_child("reach_of_a_100000_marked_process_chain_is_linear", CHAIN, linear_reach_body);
+}
+
+fn linear_fold_body(depth: usize) {
+    let rows = chain(depth, false, |_| {});
+    let folded = timed("fold_tree", || fold_tree(&rows, |_| None));
+    assert_eq!(folded.len(), 1);
+    let mut at = &folded[0];
+    for _ in 1..depth {
+        at = &at.kids[0];
+    }
+    assert_eq!(at.p.pid as usize, depth);
+    timed("dropping the folded tree", move || drop(folded));
+}
+
+#[test]
+fn fold_tree_of_a_100000_process_chain_is_linear_and_drops() {
+    in_child("fold_tree_of_a_100000_process_chain_is_linear_and_drops", CHAIN, linear_fold_body);
 }
