@@ -675,7 +675,11 @@ struct Harnesses {
 impl HarnessesCtx for Harnesses {
     async fn preferences(&self) -> Result<wsp_wire::views::preferences::Preferences, HostError> {
         self.script.record("preferences", json!({}));
-        Ok(serde_json::from_value(self.prefs.clone()).expect("preferences parse"))
+        let mut full = serde_json::to_value(wsp_wire::views::preferences::default_preferences()).expect("the defaults write");
+        for (key, value) in self.prefs.as_object().expect("the picks are an object") {
+            full[key] = value.clone();
+        }
+        Ok(serde_json::from_value(full).expect("preferences parse"))
     }
     fn talks_to_tree_on(&self, workspace_id: &str, _origin: Option<&Caller>) -> bool {
         self.script.record("talksToTreeOn", json!({ "id": workspace_id }));
