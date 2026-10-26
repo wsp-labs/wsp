@@ -13,16 +13,16 @@ use futures::future::{LocalBoxFuture, Shared};
 use futures::FutureExt;
 use indexmap::IndexMap;
 use serde_json::{json, Value};
+use wsp_adapters::port::{TaskStop, TurnImage};
 use wsp_core::daemon_channel::{ChannelEnd, ChannelError, DaemonChannel, Frame};
 use wsp_core::devices::{DeviceDoor, HeldDevice};
+use wsp_core::forwards::{ForwardEvent, ForwardsSource};
 use wsp_core::types::api::*;
 use wsp_core::types::harness::StartPicksAsked;
-use wsp_core::forwards::{ForwardEvent, ForwardsSource};
 use wsp_core::types::wiring::{
-    AccessMove, Detach, EditorOpen, EditorRemote, FolderListAsk, HostEditor, HostFolders, HostSsh, HostTerminalConfig, InitDoor, LandRequest, LandedProject,
-    PackedProject, PackedState, ProjectBundler, ProjectLander, SessionHandle, StateRequest, SteerTaken, Local,
+    AccessMove, Detach, EditorOpen, EditorRemote, FolderListAsk, HostEditor, HostFolders, HostSsh, HostTerminalConfig, InitDoor,
+    LandRequest, LandedProject, Local, PackedProject, PackedState, ProjectBundler, ProjectLander, SessionHandle, StateRequest, SteerTaken,
 };
-use wsp_adapters::port::{TaskStop, TurnImage};
 use wsp_engine::vault::CacheRule;
 use wsp_serve::serve::door::Served;
 use wsp_serve::serve::served::Payload;
@@ -35,19 +35,21 @@ use wsp_serve::serve_broker::{BrokerDoor, CloudSignIn};
 use wsp_slates::pending::wire::{SlateEmpty, SlateView, SlateWriteAnswer};
 use wsp_wire::types::agents_report::{AGENTS_KEY_REFUSAL, SIGN_IN_LINE_REFUSAL};
 use wsp_wire::types::init_job::InitKeys;
-use wsp_wire::views::session_events::TurnResult;
 use wsp_wire::types::release::{HOST_NO_RESTART_LINE, HOST_RESTART_TICKET_REFUSAL};
 use wsp_wire::types::thread_defaults::ENV_VALUE_REFUSAL;
 use wsp_wire::views::activity::ActivityEnded;
 use wsp_wire::views::place_more::{PlaceSpend, PlaceView};
-use wsp_wire::views::preferences::{editor_opens_here_line, ssh_copy_here_line, ssh_include_line, EditorChoice, EditorId, EDITOR_TICKET_REFUSAL, SSH_TICKET_REFUSAL};
+use wsp_wire::views::preferences::{
+    editor_opens_here_line, ssh_copy_here_line, ssh_include_line, EditorChoice, EditorId, EDITOR_TICKET_REFUSAL, SSH_TICKET_REFUSAL,
+};
+use wsp_wire::views::session::SessionView;
+use wsp_wire::views::session_events::TurnResult;
 use wsp_wire::views::workspace::ProjectView;
 use wsp_wire::views::workspace_more::{WorkspaceOrigin, WorkspaceView};
 use wsp_wire::wire::daemon_version::{place_behind_line, place_daemon_behind};
 use wsp_wire::wire::limits::PortForward;
 use wsp_wire::wire::machine_link::no_such_place_refusal;
 use wsp_wire::wire::place_link::{PlaceReport, PLACES_TICKET_REFUSAL};
-use wsp_wire::views::session::SessionView;
 use wsp_wire::wire::runtime::{SessionAnswerResult, SessionStartOutcome, SessionStartResult};
 use wsp_words::exit::{refusal, HostError, Kind};
 use wsp_words::place_word::{place_said, PlaceRef};
@@ -273,7 +275,10 @@ struct Terminal {
 
 #[async_trait(?Send)]
 impl HostTerminalConfig for Terminal {
-    async fn read(&self, scheme: Option<wsp_wire::views::project_bundle::TerminalScheme>) -> Result<wsp_wire::views::project_bundle::TerminalConfig, HostError> {
+    async fn read(
+        &self,
+        scheme: Option<wsp_wire::views::project_bundle::TerminalScheme>,
+    ) -> Result<wsp_wire::views::project_bundle::TerminalConfig, HostError> {
         self.schemes.borrow_mut().push(scheme);
         Ok(from(json!({ "files": [], "fontFamily": ["Menlo"], "palette": [] })))
     }
@@ -388,7 +393,9 @@ struct Bundler {
 #[async_trait(?Send)]
 impl ProjectBundler for Bundler {
     async fn plan(&self) -> Result<wsp_wire::views::project_bundle::ProjectPlan, HostError> {
-        Ok(from(json!({ "source": self.source, "repo": true, "files": 3, "bytes": 10, "secrets": [], "excluded": [], "skipped": [], "agents": [] })))
+        Ok(from(
+            json!({ "source": self.source, "repo": true, "files": 3, "bytes": 10, "secrets": [], "excluded": [], "skipped": [], "agents": [] }),
+        ))
     }
     async fn pack(&self, _carry: &[String], _rewrite: &[String], _provider: bool) -> Result<PackedProject, HostError> {
         Err(HostError::new("the test's bundler packs nothing"))
@@ -470,18 +477,27 @@ fn prefix_ops_spread_their_helpers_answer() {
         request(&host, &sink, 1, "slates.get", json!({ "threadId": "t1" })).await;
         assert_eq!(sink.last_text(), shown);
 
-        rt.script.once::<Result<IndexMap<String, wsp_wire::types::thread_defaults::ThreadDefaults>, HostError>>("projects.defaults", Ok(IndexMap::new()));
+        rt.script.once::<Result<IndexMap<String, wsp_wire::types::thread_defaults::ThreadDefaults>, HostError>>(
+            "projects.defaults",
+            Ok(IndexMap::new()),
+        );
         request(&host, &sink, 2, "projects.defaults", json!({})).await;
         assert_eq!(sink.last_text(), r#"{"id":2,"ok":true,"defaults":{}}"#);
 
         request(&host, &sink, 3, "appProcs.watch", json!({})).await;
         assert_eq!(sink.last_text(), r#"{"id":3,"ok":true,"procs":[]}"#, "the hub's answer, from the socket's own road");
 
-        rt.script.once::<Result<ActivityEnded, HostError>>("activity.end", Ok(from(json!({ "pid": 4200, "ended": [], "forced": [], "left": [] }))));
+        rt.script.once::<Result<ActivityEnded, HostError>>(
+            "activity.end",
+            Ok(from(json!({ "pid": 4200, "ended": [], "forced": [], "left": [] }))),
+        );
         request(&host, &sink, 4, "activity.end", json!({ "pid": 4200, "startedAt": 7 })).await;
         assert_eq!(sink.last_text(), r#"{"id":4,"ok":true,"pid":4200,"ended":[],"forced":[],"left":[]}"#);
 
-        rt.script.once::<Result<wsp_wire::types::conversations::ConversationsAnswer, HostError>>("conversations.list", Ok(from(json!({ "rows": [], "held": [] }))));
+        rt.script.once::<Result<wsp_wire::types::conversations::ConversationsAnswer, HostError>>(
+            "conversations.list",
+            Ok(from(json!({ "rows": [], "held": [] }))),
+        );
         request(&host, &sink, 5, "conversations.list", json!({})).await;
         assert_eq!(sink.last_text(), r#"{"id":5,"ok":true,"rows":[],"held":[]}"#);
 
@@ -614,7 +630,8 @@ fn a_refusal_the_switch_sends_is_not_told_to_failed() {
 fn each_unwired_door_refuses_in_its_own_sentence() {
     block(async {
         let r = rig(|_| {});
-        r.rt.script.on::<Result<WorkspaceView, HostError>>("workspaces.get", |_| Ok(workspace("ws_1", "app", "local", "running", json!({}))));
+        r.rt.script
+            .on::<Result<WorkspaceView, HostError>>("workspaces.get", |_| Ok(workspace("ws_1", "app", "local", "running", json!({}))));
         let (host, sink) = r.host().await;
         let cases: Vec<(&str, Value, &str)> = vec![
             ("host.folders", json!({}), NO_FOLDERS),
@@ -638,8 +655,15 @@ fn each_unwired_door_refuses_in_its_own_sentence() {
         }
         let ops: Vec<String> = cases.iter().map(|(op, _, _)| op.to_string()).collect();
         assert_eq!(r.failed_ops(), ops, "each is the catch's, told in turn");
-        assert!(r.rt.script.calls_to("projects.import").is_empty() && r.rt.script.calls_to("projects.export").is_empty(), "the door is read before the area is asked");
-        assert_eq!(r.rt.script.calls_to("workspaces.get").len(), 1, "ssh.port reads its door before the workspace; only editor.open read one");
+        assert!(
+            r.rt.script.calls_to("projects.import").is_empty() && r.rt.script.calls_to("projects.export").is_empty(),
+            "the door is read before the area is asked"
+        );
+        assert_eq!(
+            r.rt.script.calls_to("workspaces.get").len(),
+            1,
+            "ssh.port reads its door before the workspace; only editor.open read one"
+        );
         let (_, again) = r.host().await;
         assert!(again.frames().len() == 1, "the host started and served without any of them");
     })
@@ -711,7 +735,10 @@ fn sessions_start_sends_every_answer_under_one_id() {
         let r = rig(|_| {});
         let rt = &r.rt;
         rt.script.once::<Result<FolderFor, HostError>>("workspaces.folderFor", Ok(folder("ws_1", None)));
-        rt.script.once::<Result<Rc<dyn SessionHandle>, HostError>>("sessions.start", Ok(Rc::new(Handle(started("started"))) as Rc<dyn SessionHandle>));
+        rt.script.once::<Result<Rc<dyn SessionHandle>, HostError>>(
+            "sessions.start",
+            Ok(Rc::new(Handle(started("started"))) as Rc<dyn SessionHandle>),
+        );
         let (host, sink) = r.host().await;
         send(&host, json!({ "id": 7, "op": "sessions.start", "prompt": "go", "project": "app", "answerHeld": true })).await;
         let replies = sink.replies(7);
@@ -735,12 +762,19 @@ fn sessions_warm_strips_the_folder_fields() {
         let r = rig(|_| {});
         let rt = &r.rt;
         rt.script.once::<Result<FolderFor, HostError>>("workspaces.folderFor", Ok(folder("ws_1", Some("/at"))));
-        rt.script.once::<Result<wsp_wire::wire::runtime::SessionWarmResult, HostError>>("sessions.warm", Ok(from(json!({ "warm": "started" }))));
+        rt.script
+            .once::<Result<wsp_wire::wire::runtime::SessionWarmResult, HostError>>("sessions.warm", Ok(from(json!({ "warm": "started" }))));
         let (host, sink) = r.host().await;
         let frame = json!({ "project": "app", "cwd": "/ignored", "harness": "claude", "model": "opus", "fast": true });
         let reply = request(&host, &sink, 1, "sessions.warm", frame.clone()).await;
         assert_eq!(reply.to_string(), r#"{"id":1,"ok":true,"warm":"started"}"#);
-        let ask = WarmAsk { harness: Some("claude".into()), cwd: Some("/at".into()), model: Some("opus".into()), fast: Some(true), ..Default::default() };
+        let ask = WarmAsk {
+            harness: Some("claude".into()),
+            cwd: Some("/at".into()),
+            model: Some("opus".into()),
+            fast: Some(true),
+            ..Default::default()
+        };
         let warm = args_of(rt, "sessions.warm", 0);
         assert_eq!(warm["workspaceId"], json!("ws_1"));
         assert_eq!(warm["ask"], json!(format!("{ask:?}")), "the folder's cwd, not the frame's; no project");
@@ -748,14 +782,20 @@ fn sessions_warm_strips_the_folder_fields() {
         let asked = FolderForAsk {
             project: Some("app".into()),
             cwd: Some("/ignored".into()),
-            picks: Some(StartPicksAsked { harness: Some("claude".into()), model: Some("opus".into()), fast: Some(true), ..Default::default() }),
+            picks: Some(StartPicksAsked {
+                harness: Some("claude".into()),
+                model: Some("opus".into()),
+                fast: Some(true),
+                ..Default::default()
+            }),
             opens: false,
             ..Default::default()
         };
         assert_eq!(at, json!(format!("{asked:?}")), "the folder is found from the frame as sent, and a warm opens no setup");
 
         rt.script.once::<Result<FolderFor, HostError>>("workspaces.folderFor", Ok(folder("ws_2", None)));
-        rt.script.once::<Result<wsp_wire::wire::runtime::SessionWarmResult, HostError>>("sessions.warm", Ok(from(json!({ "warm": "none" }))));
+        rt.script
+            .once::<Result<wsp_wire::wire::runtime::SessionWarmResult, HostError>>("sessions.warm", Ok(from(json!({ "warm": "none" }))));
         request(&host, &sink, 2, "sessions.warm", frame).await;
         let bare = WarmAsk { harness: Some("claude".into()), model: Some("opus".into()), fast: Some(true), ..Default::default() };
         assert_eq!(args_of(rt, "sessions.warm", 1)["ask"], json!(format!("{bare:?}")), "no cwd from the folder, none from the frame");
@@ -791,11 +831,15 @@ fn history_with_a_thread_reads_a_page() {
         let page = json!({ "events": [], "pos": 3, "total": 3 });
         r.rt.script.once::<Result<wsp_wire::views::preferences::HistoryPage, HostError>>("sessions.page", Ok(from(page.clone())));
         r.rt.script.once::<Result<wsp_wire::views::preferences::HistoryPage, HostError>>("sessions.page", Ok(from(page)));
-        let reply = request(&host, &sink, 1, "sessions.history", json!({ "workspaceId": "ws_1", "threadId": "t1", "before": 3, "limit": 2 })).await;
+        let reply =
+            request(&host, &sink, 1, "sessions.history", json!({ "workspaceId": "ws_1", "threadId": "t1", "before": 3, "limit": 2 })).await;
         assert_eq!(reply.to_string(), r#"{"id":1,"ok":true,"events":[],"pos":3,"total":3}"#, "the page is spread beside id and ok");
         request(&host, &sink, 2, "sessions.history", json!({ "workspaceId": "ws_1", "threadId": "t1" })).await;
         let window = |w: PageWindow| json!(format!("{w:?}"));
-        assert_eq!(args_of(&r.rt, "sessions.page", 0)["window"], window(PageWindow { thread_id: "t1".into(), before: Some(3), limit: Some(2) }));
+        assert_eq!(
+            args_of(&r.rt, "sessions.page", 0)["window"],
+            window(PageWindow { thread_id: "t1".into(), before: Some(3), limit: Some(2) })
+        );
         assert_eq!(args_of(&r.rt, "sessions.page", 1)["window"], window(PageWindow { thread_id: "t1".into(), before: None, limit: None }));
         assert!(r.rt.script.calls_to("sessions.history").is_empty() && r.rt.script.calls_to("sessions.threadHistory").is_empty());
     })
@@ -833,7 +877,10 @@ fn history_whole_reads_thread_history() {
         assert_eq!(one.to_string(), r#"{"id":1,"ok":true,"events":[]}"#);
         request(&host, &sink, 2, "sessions.history", json!({ "workspaceId": "ws_1", "whole": true, "before": 4 })).await;
         let asked = |a: HistoryAsk| json!(format!("{a:?}"));
-        assert_eq!(args_of(&r.rt, "sessions.threadHistory", 0)["asked"], asked(HistoryAsk { thread_id: Some("t1".into()), before: None, limit: None }));
+        assert_eq!(
+            args_of(&r.rt, "sessions.threadHistory", 0)["asked"],
+            asked(HistoryAsk { thread_id: Some("t1".into()), before: None, limit: None })
+        );
         assert_eq!(
             args_of(&r.rt, "sessions.threadHistory", 1)["asked"],
             asked(HistoryAsk { thread_id: None, before: Some(4), limit: None }),
@@ -872,13 +919,19 @@ fn session_ops_pass_only_the_fields_sent() {
         assert_eq!(listed.to_string(), r#"{"id":1,"ok":true,"sessions":[]}"#);
         assert_eq!(args_of(rt, "sessions.list", 0)["workspaceId"], Value::Null);
 
-        rt.script.once::<Result<wsp_wire::wire::runtime::SessionInterruptResult, HostError>>("sessions.interrupt", Ok(from(json!({ "outcome": "accepted" }))));
+        rt.script.once::<Result<wsp_wire::wire::runtime::SessionInterruptResult, HostError>>(
+            "sessions.interrupt",
+            Ok(from(json!({ "outcome": "accepted" }))),
+        );
         let interrupted = request(&host, &sink, 2, "sessions.interrupt", json!({ "sessionId": "s1", "task": "build" })).await;
         assert_eq!(interrupted, json!({ "id": 2, "ok": true, "outcome": "accepted" }));
         let a = args_of(rt, "sessions.interrupt", 0);
         assert_eq!((a["sessionId"].clone(), a["task"].clone()), (json!("s1"), json!("build")));
 
-        rt.script.once::<Result<wsp_wire::wire::runtime::SessionAnswerResult, HostError>>("sessions.answer", Ok(from(json!({ "outcome": "answered" }))));
+        rt.script.once::<Result<wsp_wire::wire::runtime::SessionAnswerResult, HostError>>(
+            "sessions.answer",
+            Ok(from(json!({ "outcome": "answered" }))),
+        );
         let answered = request(&host, &sink, 3, "sessions.answer", json!({ "sessionId": "s1", "askId": "a1", "optionId": "o1" })).await;
         assert_eq!(answered, json!({ "id": 3, "ok": true, "outcome": "answered" }));
         let plain = AnswerAsk { ask_id: "a1".into(), option_id: "o1".into(), reason: None };
@@ -924,7 +977,14 @@ fn session_ops_pass_only_the_fields_sent() {
 
         let ran = json!({ "workspaceId": "ws_1", "sessionId": "s1", "runId": "r1", "block": "b1", "command": "ls", "state": "running" });
         rt.script.once::<Result<wsp_wire::views::session_events_more::SessionRunEvent, HostError>>("sessions.run", Ok(from(ran.clone())));
-        let run = request(&host, &sink, 13, "sessions.run", json!({ "runId": "r1", "block": "b1", "command": "ls", "state": "running", "threadId": "t1", "turnId": "tu_1" })).await;
+        let run = request(
+            &host,
+            &sink,
+            13,
+            "sessions.run",
+            json!({ "runId": "r1", "block": "b1", "command": "ls", "state": "running", "threadId": "t1", "turnId": "tu_1" }),
+        )
+        .await;
         assert_eq!(keys(&run), vec!["id", "ok", "run"]);
         assert_eq!(run["run"]["runId"], json!("r1"));
         let step = args_of(rt, "sessions.run", 0)["step"].clone();
@@ -940,7 +1000,10 @@ fn interrupting_twice_reaches_the_runtime_twice() {
         let r = rig(|_| {});
         let (host, sink) = r.host().await;
         for outcome in ["accepted", "not-running"] {
-            r.rt.script.once::<Result<wsp_wire::wire::runtime::SessionInterruptResult, HostError>>("sessions.interrupt", Ok(from(json!({ "outcome": outcome }))));
+            r.rt.script.once::<Result<wsp_wire::wire::runtime::SessionInterruptResult, HostError>>(
+                "sessions.interrupt",
+                Ok(from(json!({ "outcome": outcome }))),
+            );
         }
         let first = request(&host, &sink, 1, "sessions.interrupt", json!({ "sessionId": "s1" })).await;
         let second = request(&host, &sink, 2, "sessions.interrupt", json!({ "sessionId": "s1" })).await;
@@ -964,7 +1027,10 @@ fn capabilities_are_the_backends_flags() {
         let reply = request(&host, &sink, 1, "capabilities.get", json!({})).await;
         assert_eq!(reply["ok"], json!(true));
         let c = &reply["capabilities"];
-        assert_eq!((c["images"].clone(), c["previewUrls"].clone(), c["copies"].clone(), c["liveCloneForks"].clone()), (json!(true), json!(true), json!(true), json!(false)));
+        assert_eq!(
+            (c["images"].clone(), c["previewUrls"].clone(), c["copies"].clone(), c["liveCloneForks"].clone()),
+            (json!(true), json!(true), json!(true), json!(false))
+        );
         assert_eq!(c["sizes"], json!([]));
         assert!(r.failed.borrow().is_empty());
     })
@@ -1072,7 +1138,11 @@ fn golden_and_image_ops_pass_only_the_fields_sent() {
         request(&host, &sink, 6, "image.build", json!({ "place": "pl_1" })).await;
         request(&host, &sink, 7, "image.build", json!({ "place": "pl_1", "name": "mine", "force": false })).await;
         assert_eq!(args_of(rt, "image.build", 0)["ask"], json!({ "place": "pl_1", "name": null, "force": null }));
-        assert_eq!(args_of(rt, "image.build", 1)["ask"], json!({ "place": "pl_1", "name": "mine", "force": false }), "a false force is sent");
+        assert_eq!(
+            args_of(rt, "image.build", 1)["ask"],
+            json!({ "place": "pl_1", "name": "mine", "force": false }),
+            "a false force is sent"
+        );
     })
 }
 
@@ -1087,14 +1157,21 @@ fn cost_spend_for_a_thread_reads_its_places() {
         let rt = FakeRuntime::with_places();
         let r = rig_over(rt.clone(), |o| o.now = Some(Rc::new(|| 4242)));
         rt.script.once::<Result<WorkspaceView, HostError>>("workspaces.get", Ok(workspace("ws_1", "box1", "cloud", "running", json!({}))));
-        rt.script.once::<Result<Vec<PlaceView>, HostError>>("places.list", Ok(vec![place("pl_1", "laptop", "computer"), place("box", "box", "provider")]));
+        rt.script.once::<Result<Vec<PlaceView>, HostError>>(
+            "places.list",
+            Ok(vec![place("pl_1", "laptop", "computer"), place("box", "box", "provider")]),
+        );
         rt.script.once::<Result<Vec<PlaceSpend>, String>>("status.spend", Ok(vec![spend_row()]));
         let (thread, sink) = r.thread("ws_1").await;
         let reply = request(&thread, &sink, 1, "cost.spend", json!({})).await;
         assert_eq!(keys(&reply), vec!["id", "ok", "places"]);
         assert_eq!(reply["places"], json!([serde_json::to_value(spend_row()).unwrap()]));
         let asked = args_of(&rt, "status.spend", 0)["places"].clone();
-        assert_eq!(asked, json!([{ "id": "box", "kind": "provider", "name": "box", "label": said("box", "provider"), "default": false }]), "a machine's thread reads the clouds alone");
+        assert_eq!(
+            asked,
+            json!([{ "id": "box", "kind": "provider", "name": "box", "label": said("box", "provider"), "default": false }]),
+            "a machine's thread reads the clouds alone"
+        );
         assert_eq!(args_of(&rt, "places.list", 0)["now"], json!(4242));
         assert_eq!(args_of(&rt, "workspaces.get", 0)["id"], json!("ws_1"));
         assert!(r.failed.borrow().is_empty());
@@ -1118,7 +1195,11 @@ fn cost_spend_is_the_own_road_and_reads_the_places_it_holds() {
         let (host, sink) = r.host().await;
         let reply = request(&host, &sink, 2, "cost.spend", json!({})).await;
         assert_eq!(reply.to_string(), r#"{"id":2,"ok":true,"places":[]}"#);
-        assert_eq!(args_of(&rt, "status.spend", 0)["places"], json!([serde_json::to_value(&rows[0]).unwrap()]), "the rows as the list holds them, road and all");
+        assert_eq!(
+            args_of(&rt, "status.spend", 0)["places"],
+            json!([serde_json::to_value(&rows[0]).unwrap()]),
+            "the rows as the list holds them, road and all"
+        );
 
         let bare = rig(|_| {});
         bare.rt.script.once::<Result<Vec<PlaceSpend>, String>>("status.spend", Ok(vec![]));
@@ -1164,7 +1245,10 @@ fn usage_ops_are_the_own_road() {
         let (host, sink) = r.host().await;
         let used = json!({ "range": "week", "split": "agent", "rows": [], "series": [], "since": 1, "until": 2 });
         rt.script.once::<Result<wsp_wire::types::usage::UsedAnswer, HostError>>("usage.used", Ok(from(used)));
-        rt.script.once::<Result<wsp_wire::types::usage::UsedAnswer, HostError>>("usage.used", Ok(from(json!({ "range": "day", "split": "model", "rows": [], "series": [], "since": 1, "until": 2 }))));
+        rt.script.once::<Result<wsp_wire::types::usage::UsedAnswer, HostError>>(
+            "usage.used",
+            Ok(from(json!({ "range": "day", "split": "model", "rows": [], "series": [], "since": 1, "until": 2 }))),
+        );
         let reply = request(&host, &sink, 1, "usage.used", json!({ "range": "week", "split": "agent" })).await;
         assert_eq!(keys(&reply), vec!["id", "ok", "used"]);
         assert_eq!(reply["used"]["range"], json!("week"));
@@ -1181,7 +1265,10 @@ fn usage_ops_are_the_own_road() {
         assert_eq!(args_of(rt, "usage.accounts", 0)["fresh"], Value::Null, "fresh rides only when true");
         assert_eq!(args_of(rt, "usage.accounts", 1)["fresh"], json!(true));
 
-        rt.script.once::<Result<wsp_wire::types::usage::ResetAnswer, HostError>>("usage.reset", Ok(from(json!({ "outcome": "reset", "said": "reset it" }))));
+        rt.script.once::<Result<wsp_wire::types::usage::ResetAnswer, HostError>>(
+            "usage.reset",
+            Ok(from(json!({ "outcome": "reset", "said": "reset it" }))),
+        );
         let reset = request(&host, &sink, 5, "usage.reset", json!({ "account": "a1", "creditId": "c1" })).await;
         assert_eq!(reset.to_string(), r#"{"id":5,"ok":true,"outcome":"reset","said":"reset it"}"#);
         let a = args_of(rt, "usage.reset", 0);
@@ -1273,7 +1360,8 @@ fn host_folders_wide_only_for_this_computers_own_window() {
         let (host, sink) = r.host().await;
         let asked = || folders.asked.borrow().clone();
 
-        let reply = request(&host, &sink, 1, "host.folders", json!({ "origin": "here", "dir": "/x", "hidden": false, "repos": true })).await;
+        let reply =
+            request(&host, &sink, 1, "host.folders", json!({ "origin": "here", "dir": "/x", "hidden": false, "repos": true })).await;
         assert_eq!(reply, json!({ "id": 1, "ok": true, "listing": listing() }));
         assert_eq!(asked()[0], json!({ "dir": "/x", "hidden": false, "repos": true, "wide": true }));
 
@@ -1321,13 +1409,19 @@ fn place_folders_refuse_in_order_and_close_the_link() {
         rt.script.once::<Result<Vec<PlaceView>, HostError>>("places.list", Ok(rows()));
         let held = vec![said("laptop", "computer"), said("box", "provider")];
         let nobody = request(&host, &sink, 1, "host.folders", on("pl_9")).await;
-        assert_eq!(nobody.to_string(), json!({ "id": 1, "ok": false, "error": no_such_place_refusal("pl_9", &held), "kind": "usage" }).to_string());
+        assert_eq!(
+            nobody.to_string(),
+            json!({ "id": 1, "ok": false, "error": no_such_place_refusal("pl_9", &held), "kind": "usage" }).to_string()
+        );
         assert_eq!(args_of(&rt, "places.list", 0)["now"], json!(1234));
 
         // 2. A provider keeps no computer to browse; nothing more is asked of it.
         rt.script.once::<Result<Vec<PlaceView>, HostError>>("places.list", Ok(rows()));
         let provider = request(&host, &sink, 2, "host.folders", on("box")).await;
-        assert_eq!(provider.to_string(), json!({ "id": 2, "ok": false, "error": provider_folders_refusal(&said("box", "provider")), "kind": "usage" }).to_string());
+        assert_eq!(
+            provider.to_string(),
+            json!({ "id": 2, "ok": false, "error": provider_folders_refusal(&said("box", "provider")), "kind": "usage" }).to_string()
+        );
         assert!(rt.script.calls_to("places.reportOf").is_empty());
 
         // 3. A daemon older than the folders op.
@@ -1352,7 +1446,10 @@ fn place_folders_refuse_in_order_and_close_the_link() {
         rt.script.once::<Result<Vec<PlaceView>, HostError>>("places.list", Ok(rows()));
         rt.script.once::<Result<Option<PlaceReport>, HostError>>("places.reportOf", Ok(Some(report(80))));
         rt.script.once::<Option<Rc<dyn DaemonChannel>>>("places.channel", Some(l.clone() as Rc<dyn DaemonChannel>));
-        rt.script.once::<Result<Vec<ProjectView>, HostError>>("projects.list", Ok(vec![project("pr_1", "pl_1", Some("/co")), project("pr_2", "pl_1", None), project("pr_3", "pl_2", Some("/else"))]));
+        rt.script.once::<Result<Vec<ProjectView>, HostError>>(
+            "projects.list",
+            Ok(vec![project("pr_1", "pl_1", Some("/co")), project("pr_2", "pl_1", None), project("pr_3", "pl_2", Some("/else"))]),
+        );
         let ok = request(&host, &sink, 5, "host.folders", json!({ "on": "pl_1", "dir": "/d", "repos": true })).await;
         assert_eq!(ok, json!({ "id": 5, "ok": true, "listing": { "dir": "/d", "roots": ["/home/u"], "folders": [], "hidden": 0 } }));
         let sent = l.sent.borrow().clone();
@@ -1402,9 +1499,15 @@ fn agents_ops_gates_and_sentences() {
         let (ticketed, ticket_sink) = r.ticketed().await;
         let t = target();
 
-        for (id, op, fields) in [(1, "agents.read", json!({ "target": t })), (2, "servers.tools", json!({ "target": t, "agent": "claude", "name": "s" }))] {
+        for (id, op, fields) in
+            [(1, "agents.read", json!({ "target": t })), (2, "servers.tools", json!({ "target": t, "agent": "claude", "name": "s" }))]
+        {
             let reply = request(&ticketed, &ticket_sink, id, op, fields).await;
-            assert_eq!(reply.to_string(), json!({ "id": id, "ok": false, "error": PLACES_TICKET_REFUSAL }).to_string(), "{op}: no kind, as the TS sends it");
+            assert_eq!(
+                reply.to_string(),
+                json!({ "id": id, "ok": false, "error": PLACES_TICKET_REFUSAL }).to_string(),
+                "{op}: no kind, as the TS sends it"
+            );
         }
         let gated: Vec<(&str, Value)> = vec![
             ("servers.icon", json!({ "host": "x.com" })),
@@ -1425,7 +1528,11 @@ fn agents_ops_gates_and_sentences() {
             let id = 10 + i as u64;
             assert_eq!(request(&ticketed, &ticket_sink, id, op, fields.clone()).await, ticket_reply(id), "{op}");
         }
-        assert!(rt.script.names().iter().all(|n| !n.starts_with("agents.")), "a socket off the own road reaches no agents area: {:?}", rt.script.names());
+        assert!(
+            rt.script.names().iter().all(|n| !n.starts_with("agents.")),
+            "a socket off the own road reaches no agents area: {:?}",
+            rt.script.names()
+        );
         assert!(r.failed.borrow().is_empty());
 
         // agents.signInLine: host only.
@@ -1437,10 +1544,19 @@ fn agents_ops_gates_and_sentences() {
         assert_eq!(off_road, ticket_reply(40));
         assert!(rt.script.calls_to("agents.signInLine").is_empty());
         let (host, sink) = r.host().await;
-        rt.script.once::<Result<wsp_wire::types::agents_report::SignInLine, HostError>>("agents.signInLine", Ok(from(json!({ "command": "wsp login claude" }))));
+        rt.script.once::<Result<wsp_wire::types::agents_report::SignInLine, HostError>>(
+            "agents.signInLine",
+            Ok(from(json!({ "command": "wsp login claude" }))),
+        );
         let ok = request(&host, &sink, 1, "agents.signInLine", json!({ "target": t, "agent": "claude", "name": "srv" })).await;
         assert_eq!(ok["line"]["command"], json!("wsp login claude"));
-        let ask = wsp_core::types::pending::SignInAsk { agent: "claude".into(), server: Some("srv".into()), terminal: None, scope: None, project: None };
+        let ask = wsp_core::types::pending::SignInAsk {
+            agent: "claude".into(),
+            server: Some("srv".into()),
+            terminal: None,
+            scope: None,
+            project: None,
+        };
         assert_eq!(args_of(rt, "agents.signInLine", 0)["ask"], json!(format!("{ask:?}")), "name rides as server");
 
         // agents.key: host only; the key never comes back.
@@ -1475,7 +1591,14 @@ fn agents_setup_env_values_only_from_the_host() {
         assert!(rt.script.calls_to("agents.setup").is_empty());
 
         rt.script.once::<Result<wsp_wire::types::agents_report::AgentRow, HostError>>("agents.setup", stop());
-        let cleared = request(&paired, &paired_sink, 2, "agents.setup", json!({ "placeId": "pl_1", "agent": "claude", "on": true, "env": { "TOKEN": null } })).await;
+        let cleared = request(
+            &paired,
+            &paired_sink,
+            2,
+            "agents.setup",
+            json!({ "placeId": "pl_1", "agent": "claude", "on": true, "env": { "TOKEN": null } }),
+        )
+        .await;
         assert_eq!(cleared["error"], json!("stop"), "a socket that is no host's may clear a variable");
         let change = args_of(rt, "agents.setup", 0);
         assert_eq!((change["placeId"].clone(), change["agent"].clone()), (json!("pl_1"), json!("claude")));
@@ -1493,7 +1616,9 @@ fn agents_setup_env_values_only_from_the_host() {
         }
 
         let (ticketed, ticket_sink) = r.ticketed().await;
-        let off = request(&ticketed, &ticket_sink, 1, "agents.setup", json!({ "placeId": "pl_1", "agent": "claude", "env": { "TOKEN": "v-1" } })).await;
+        let off =
+            request(&ticketed, &ticket_sink, 1, "agents.setup", json!({ "placeId": "pl_1", "agent": "claude", "env": { "TOKEN": "v-1" } }))
+                .await;
         assert_eq!(off, ticket_reply(1), "the road is refused before the env is read");
     })
 }
@@ -1513,7 +1638,10 @@ fn skills_and_servers_pass_their_fields() {
         let found = request(&host, &sink, 1, "skills.search", json!({ "q": "pdf" })).await;
         assert_eq!(found.to_string(), r#"{"id":1,"ok":true,"skills":[]}"#);
         request(&host, &sink, 2, "skills.search", json!({ "q": "pdf", "limit": 5 })).await;
-        assert_eq!((args_of(rt, "agents.skillsSearch", 0)["q"].clone(), args_of(rt, "agents.skillsSearch", 0)["limit"].clone()), (json!("pdf"), Value::Null));
+        assert_eq!(
+            (args_of(rt, "agents.skillsSearch", 0)["q"].clone(), args_of(rt, "agents.skillsSearch", 0)["limit"].clone()),
+            (json!("pdf"), Value::Null)
+        );
         assert_eq!(args_of(rt, "agents.skillsSearch", 1)["limit"], json!(5));
 
         rt.script.once::<Result<wsp_wire::types::agents_report::SkillPreview, HostError>>("agents.skillsGet", Err(stop()));
@@ -1530,7 +1658,9 @@ fn skills_and_servers_pass_their_fields() {
         rt.script.once::<Result<wsp_wire::types::agents_report::SkillAdded, HostError>>("agents.skillsAdd", Err(stop()));
         request(&host, &sink, 5, "skills.add", json!({ "target": t, "skill": "pdf" })).await;
         request(&host, &sink, 6, "skills.add", json!({ "target": t, "skill": "pdf", "agents": ["claude"], "project": true })).await;
-        let add = |agents: Option<Vec<String>>, project: Option<bool>| json!(format!("{:?}", SkillsAddAsk { skill: "pdf".into(), agents, project }));
+        let add = |agents: Option<Vec<String>>, project: Option<bool>| {
+            json!(format!("{:?}", SkillsAddAsk { skill: "pdf".into(), agents, project }))
+        };
         assert_eq!(args_of(rt, "agents.skillsAdd", 0)["ask"], add(None, None));
         assert_eq!(args_of(rt, "agents.skillsAdd", 1)["ask"], add(Some(vec!["claude".into()]), Some(true)));
 
@@ -1545,7 +1675,14 @@ fn skills_and_servers_pass_their_fields() {
         assert_eq!(args_of(rt, "agents.skillsToggle", 0)["on"], json!(false));
 
         rt.script.once::<Result<String, HostError>>("agents.serversAdd", Err(stop()));
-        request(&host, &sink, 9, "servers.add", json!({ "target": t, "agent": "claude", "name": "s", "command": "npx", "args": ["x"], "env": { "K": "v" } })).await;
+        request(
+            &host,
+            &sink,
+            9,
+            "servers.add",
+            json!({ "target": t, "agent": "claude", "name": "s", "command": "npx", "args": ["x"], "env": { "K": "v" } }),
+        )
+        .await;
         let add = args_of(rt, "agents.serversAdd", 0);
         assert_eq!(add["target"], t);
         let ask = &add["ask"];
@@ -1559,7 +1696,8 @@ fn skills_and_servers_pass_their_fields() {
         rt.script.once::<Result<String, HostError>>("agents.serversRemove", Err(stop()));
         rt.script.once::<Result<String, HostError>>("agents.serversToggle", Err(stop()));
         request(&host, &sink, 10, "servers.remove", json!({ "target": t, "agent": "claude", "name": "s" })).await;
-        request(&host, &sink, 11, "servers.toggle", json!({ "target": t, "agent": "claude", "name": "s", "scope": "user", "on": true })).await;
+        request(&host, &sink, 11, "servers.toggle", json!({ "target": t, "agent": "claude", "name": "s", "scope": "user", "on": true }))
+            .await;
         let remove = &args_of(rt, "agents.serversRemove", 0)["ask"];
         assert_eq!((remove["agent"].clone(), remove["name"].clone()), (json!("claude"), json!("s")));
         assert!(remove.get("scope").map_or(true, Value::is_null));
@@ -1616,11 +1754,18 @@ fn editor_open_here_and_over_ssh() {
             "workspaces.get",
             Ok(workspace("ws_1", "app", "local", "running", json!({ "worktree": { "path": "/wt/app", "made": true } }))),
         );
-        let here = request(&host, &sink, 1, "editor.open", json!({ "workspaceId": "ws_1", "path": "src/a.ts", "line": 7, "editor": "zed" })).await;
+        let here =
+            request(&host, &sink, 1, "editor.open", json!({ "workspaceId": "ws_1", "path": "src/a.ts", "line": 7, "editor": "zed" })).await;
         assert_eq!(here, json!({ "id": 1, "ok": true, "editor": "zed" }));
         assert_eq!(
             editor.opens.borrow()[0],
-            EditorOpen { path: "src/a.ts".into(), line: Some(7), inside: vec!["/wt/app".into(), "/app".into()], editor: Some(EditorId::Zed), remote: None }
+            EditorOpen {
+                path: "src/a.ts".into(),
+                line: Some(7),
+                inside: vec!["/wt/app".into(), "/app".into()],
+                editor: Some(EditorId::Zed),
+                remote: None
+            }
         );
         assert_eq!(args_of(rt, "workspaces.get", 0)["id"], json!("ws_1"));
         assert!(rt.script.calls_to("preferences.get").is_empty(), "a named editor reads no preferences");
@@ -1628,18 +1773,32 @@ fn editor_open_here_and_over_ssh() {
 
         // A napping workspace elsewhere is woken once the editor says it can open a remote.
         log.borrow_mut().clear();
-        rt.script.once::<Result<WorkspaceView, HostError>>("workspaces.get", Ok(workspace("ws_2", "box1", "cloud", "napping", json!({ "folder": "/home/u/app" }))));
-        rt.script.once::<Result<WorkspaceView, HostError>>("workspaces.wake", Ok(workspace("ws_2", "box1-woken", "cloud", "running", json!({}))));
+        rt.script.once::<Result<WorkspaceView, HostError>>(
+            "workspaces.get",
+            Ok(workspace("ws_2", "box1", "cloud", "napping", json!({ "folder": "/home/u/app" }))),
+        );
+        rt.script.once::<Result<WorkspaceView, HostError>>(
+            "workspaces.wake",
+            Ok(workspace("ws_2", "box1-woken", "cloud", "running", json!({}))),
+        );
         let over = request(&host, &sink, 2, "editor.open", json!({ "workspaceId": "ws_2", "path": "a.rs", "editor": "vscode" })).await;
         assert_eq!(over, json!({ "id": 2, "ok": true, "editor": "vscode" }));
         assert_eq!(
             *log.borrow(),
-            vec!["remoteRefusal Some(Vscode) box1".to_string(), "include".to_string(), "port ws_2 box1-woken".to_string(), "open".to_string()],
+            vec![
+                "remoteRefusal Some(Vscode) box1".to_string(),
+                "include".to_string(),
+                "port ws_2 box1-woken".to_string(),
+                "open".to_string()
+            ],
             "the editor is asked first, then the include, then the port on the woken workspace, then the editor opens"
         );
         assert_eq!(args_of(rt, "workspaces.wake", 0)["id"], json!("ws_2"));
         let remote = EditorRemote { alias: ssh_alias("box1"), folder: "/home/u/app".into(), name: "box1".into() };
-        assert_eq!(editor.opens.borrow()[1], EditorOpen { path: "a.rs".into(), line: None, inside: vec![], editor: Some(EditorId::Vscode), remote: Some(remote) });
+        assert_eq!(
+            editor.opens.borrow()[1],
+            EditorOpen { path: "a.rs".into(), line: None, inside: vec![], editor: Some(EditorId::Vscode), remote: Some(remote) }
+        );
 
         // A running one is not woken, and without a folder the project's path is the folder.
         rt.script.once::<Result<WorkspaceView, HostError>>("workspaces.get", Ok(workspace("ws_3", "box2", "cloud", "running", json!({}))));
@@ -1668,7 +1827,9 @@ fn editor_refuses_without_ssh_include() {
 
         // The editor that cannot open a remote costs no wake and no include read.
         let (r2, editor2, _s, log2) = editor_rig(true, Some("zed cannot open a remote folder"));
-        r2.rt.script.once::<Result<WorkspaceView, HostError>>("workspaces.get", Ok(workspace("ws_2", "box1", "cloud", "napping", json!({}))));
+        r2.rt
+            .script
+            .once::<Result<WorkspaceView, HostError>>("workspaces.get", Ok(workspace("ws_2", "box1", "cloud", "napping", json!({}))));
         let (host2, sink2) = r2.host().await;
         let refused = request(&host2, &sink2, 1, "editor.open", json!({ "workspaceId": "ws_2", "path": "a.rs", "editor": "zed" })).await;
         assert_eq!(refused, json!({ "id": 1, "ok": false, "error": "zed cannot open a remote folder" }));
@@ -1680,7 +1841,9 @@ fn editor_refuses_without_ssh_include() {
         let log3 = Rc::new(RefCell::new(Vec::new()));
         let editor3 = Rc::new(Editor { log: log3.clone(), opens: RefCell::new(Vec::new()), remote_refusal: None });
         let r3 = rig(|o| o.editor = Some(editor3 as Rc<dyn HostEditor>));
-        r3.rt.script.once::<Result<WorkspaceView, HostError>>("workspaces.get", Ok(workspace("ws_2", "box1", "cloud", "running", json!({}))));
+        r3.rt
+            .script
+            .once::<Result<WorkspaceView, HostError>>("workspaces.get", Ok(workspace("ws_2", "box1", "cloud", "running", json!({}))));
         let (host3, sink3) = r3.host().await;
         let none = request(&host3, &sink3, 1, "editor.open", json!({ "workspaceId": "ws_2", "path": "a.rs", "editor": "zed" })).await;
         assert_eq!(none, json!({ "id": 1, "ok": false, "error": editor_opens_here_line("box1") }));

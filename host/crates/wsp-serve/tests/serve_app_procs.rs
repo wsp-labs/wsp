@@ -112,7 +112,14 @@ fn app_procs_refuse_a_list_that_is_not_the_apps() {
 
         let agent = request_unchecked(&app, &app_sink, 2, "appProcs.set", json!({ "procs": [{ "pid": 7, "kind": "agent" }] })).await;
         assert_eq!(agent["ok"], json!(false));
-        let long = request_unchecked(&app, &app_sink, 3, "appProcs.set", json!({ "procs": [{ "pid": 7, "kind": "tab", "origins": ["x".repeat(300)] }] })).await;
+        let long = request_unchecked(
+            &app,
+            &app_sink,
+            3,
+            "appProcs.set",
+            json!({ "procs": [{ "pid": 7, "kind": "tab", "origins": ["x".repeat(300)] }] }),
+        )
+        .await;
         assert_eq!(long["ok"], json!(false));
         assert!(lists(&page_sink).is_empty(), "a refused list reaches no page");
         assert_eq!(lines.borrow().len(), 2, "each refusal is logged once");

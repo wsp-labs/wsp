@@ -48,6 +48,7 @@ use wsp_wire::types::pull_request::*;
 use wsp_wire::types::start::{GitPrDiffReply, ReviewDraft};
 use wsp_wire::types::thread_defaults::{AgentSetupSet, ThreadDefaults};
 use wsp_wire::types::tree::MergeInResult;
+use wsp_wire::types::usage::{AccountsAnswer, ResetAnswer, UsedAnswer};
 use wsp_wire::types::workspace_look::WorkspaceLook;
 use wsp_wire::views::activity::{ActivityEnded, ActivityView, ProcessesAsk};
 use wsp_wire::views::golden_image::*;
@@ -62,7 +63,6 @@ use wsp_wire::views::workspace_events::WorkspaceCreatingEvent;
 use wsp_wire::views::workspace_more::{ProjectBranch, ThreadScope, WorkspaceStatus, WorkspaceView, WorktreeMade};
 use wsp_wire::wire::capabilities::Capabilities;
 use wsp_wire::wire::limits::PortForward;
-use wsp_wire::types::usage::{AccountsAnswer, ResetAnswer, UsedAnswer};
 use wsp_wire::wire::machine_link::{ExecResult, ReadingsAnswer};
 use wsp_wire::wire::runtime::*;
 use wsp_wire::wire::runtime_ops::RuntimeRequest;
@@ -225,7 +225,13 @@ impl AgentsApi for FakeRuntime {
     async fn tools(&self, target: AgentsTarget, ask: ToolsAsk, origin: Option<Caller>) -> Result<ServerToolsAnswer, HostError> {
         self.script.call("agents.tools", json!({ "target": sj(&target), "ask": dbg(&ask), "origin": oj(&origin) }))
     }
-    async fn sign_in(&self, target: AgentsTarget, ask: SignInAsk, _emit: Rc<dyn Fn(AgentsSignInEvent)>, origin: Option<Caller>) -> Result<SignInFollowing, HostError> {
+    async fn sign_in(
+        &self,
+        target: AgentsTarget,
+        ask: SignInAsk,
+        _emit: Rc<dyn Fn(AgentsSignInEvent)>,
+        origin: Option<Caller>,
+    ) -> Result<SignInFollowing, HostError> {
         self.script.call("agents.signIn", json!({ "target": sj(&target), "ask": dbg(&ask), "emit": "_", "origin": oj(&origin) }))
     }
     fn sign_ins(&self) -> Vec<AgentsSignInRun> {
@@ -358,11 +364,24 @@ impl WorkspacesApi for FakeRuntime {
     async fn exec(&self, id: &str, cmd: &str, timeout_ms: Option<u64>, origin: Option<Caller>) -> Result<ExecResult, HostError> {
         self.script.call("workspaces.exec", json!({ "id": id, "cmd": cmd, "timeoutMs": timeout_ms, "origin": oj(&origin) }))
     }
-    async fn exec_stream(&self, id: &str, argv: Vec<String>, cwd: Option<String>, origin: Option<Caller>) -> Result<RunningExec, HostError> {
+    async fn exec_stream(
+        &self,
+        id: &str,
+        argv: Vec<String>,
+        cwd: Option<String>,
+        origin: Option<Caller>,
+    ) -> Result<RunningExec, HostError> {
         self.script.call("workspaces.execStream", json!({ "id": id, "argv": argv, "cwd": cwd, "origin": oj(&origin) }))
     }
-    async fn bring_back(&self, workspace_id: &str, title: Option<String>, body: Option<String>, origin: Option<Caller>) -> Result<BringBackResult, HostError> {
-        self.script.call("workspaces.bringBack", json!({ "workspaceId": workspace_id, "title": title, "body": body, "origin": oj(&origin) }))
+    async fn bring_back(
+        &self,
+        workspace_id: &str,
+        title: Option<String>,
+        body: Option<String>,
+        origin: Option<Caller>,
+    ) -> Result<BringBackResult, HostError> {
+        self.script
+            .call("workspaces.bringBack", json!({ "workspaceId": workspace_id, "title": title, "body": body, "origin": oj(&origin) }))
     }
     async fn folder_for(&self, ask: FolderForAsk, origin: Option<Caller>) -> Result<FolderFor, HostError> {
         self.script.call("workspaces.folderFor", json!({ "ask": dbg(&ask), "origin": oj(&origin) }))
@@ -394,23 +413,56 @@ impl WorkspacesApi for FakeRuntime {
     async fn viewed(&self, workspace_id: &str, mark: Option<ViewedMark>, origin: Option<Caller>) -> Result<ViewedMarks, HostError> {
         self.script.call("workspaces.viewed", json!({ "workspaceId": workspace_id, "mark": mark.as_ref().map(dbg), "origin": oj(&origin) }))
     }
-    async fn pull_request_view(&self, workspace_id: &str, fresh: Option<bool>, origin: Option<Caller>) -> Result<PullRequestPage, HostError> {
+    async fn pull_request_view(
+        &self,
+        workspace_id: &str,
+        fresh: Option<bool>,
+        origin: Option<Caller>,
+    ) -> Result<PullRequestPage, HostError> {
         self.script.call("workspaces.pullRequestView", json!({ "workspaceId": workspace_id, "fresh": fresh, "origin": oj(&origin) }))
     }
     async fn pull_request_diff(&self, workspace_id: &str, origin: Option<Caller>) -> Result<GitPrDiffReply, HostError> {
         self.script.call("workspaces.pullRequestDiff", json!({ "workspaceId": workspace_id, "origin": oj(&origin) }))
     }
-    async fn pull_request_send(&self, workspace_id: &str, items: Vec<PullRequestItem>, thread_id: Option<String>, origin: Option<Caller>) -> Result<PullRequestSendResult, HostError> {
-        self.script.call("workspaces.pullRequestSend", json!({ "workspaceId": workspace_id, "items": sj(&items), "threadId": thread_id, "origin": oj(&origin) }))
+    async fn pull_request_send(
+        &self,
+        workspace_id: &str,
+        items: Vec<PullRequestItem>,
+        thread_id: Option<String>,
+        origin: Option<Caller>,
+    ) -> Result<PullRequestSendResult, HostError> {
+        self.script.call(
+            "workspaces.pullRequestSend",
+            json!({ "workspaceId": workspace_id, "items": sj(&items), "threadId": thread_id, "origin": oj(&origin) }),
+        )
     }
     async fn pull_request_reply(&self, ask: PullRequestReplyAsk, origin: Option<Caller>) -> Result<GitPrReplyReply, HostError> {
         self.script.call("workspaces.pullRequestReply", json!({ "ask": dbg(&ask), "origin": oj(&origin) }))
     }
-    async fn pull_request_resolve(&self, workspace_id: &str, thread_id: &str, resolved: bool, origin: Option<Caller>) -> Result<GitPrResolveReply, HostError> {
-        self.script.call("workspaces.pullRequestResolve", json!({ "workspaceId": workspace_id, "threadId": thread_id, "resolved": resolved, "origin": oj(&origin) }))
+    async fn pull_request_resolve(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        resolved: bool,
+        origin: Option<Caller>,
+    ) -> Result<GitPrResolveReply, HostError> {
+        self.script.call(
+            "workspaces.pullRequestResolve",
+            json!({ "workspaceId": workspace_id, "threadId": thread_id, "resolved": resolved, "origin": oj(&origin) }),
+        )
     }
-    async fn pull_request_react(&self, workspace_id: &str, subject: &str, content: ReactionContent, on: bool, origin: Option<Caller>) -> Result<GitPrReactReply, HostError> {
-        self.script.call("workspaces.pullRequestReact", json!({ "workspaceId": workspace_id, "subject": subject, "content": sj(&content), "on": on, "origin": oj(&origin) }))
+    async fn pull_request_react(
+        &self,
+        workspace_id: &str,
+        subject: &str,
+        content: ReactionContent,
+        on: bool,
+        origin: Option<Caller>,
+    ) -> Result<GitPrReactReply, HostError> {
+        self.script.call(
+            "workspaces.pullRequestReact",
+            json!({ "workspaceId": workspace_id, "subject": subject, "content": sj(&content), "on": on, "origin": oj(&origin) }),
+        )
     }
     async fn fix(&self, ask: FixAsk, origin: Option<Caller>) -> Result<FixResult, HostError> {
         self.script.call("workspaces.fix", json!({ "ask": dbg(&ask), "origin": oj(&origin) }))
@@ -433,7 +485,12 @@ impl WorkspacesApi for FakeRuntime {
     async fn review_draft(&self, ask: ReviewDraftAsk, origin: Option<Caller>) -> Result<Option<ReviewDraft>, HostError> {
         self.script.call("workspaces.reviewDraft", json!({ "ask": dbg(&ask), "origin": oj(&origin) }))
     }
-    async fn review_post(&self, workspace_id: &str, thread_id: Option<String>, origin: Option<Caller>) -> Result<ReviewPostResult, HostError> {
+    async fn review_post(
+        &self,
+        workspace_id: &str,
+        thread_id: Option<String>,
+        origin: Option<Caller>,
+    ) -> Result<ReviewPostResult, HostError> {
         self.script.call("workspaces.reviewPost", json!({ "workspaceId": workspace_id, "threadId": thread_id, "origin": oj(&origin) }))
     }
     async fn daemon_reach(&self, id: &str, origin: Option<Caller>) -> Result<DaemonReachView, HostError> {
@@ -442,7 +499,12 @@ impl WorkspacesApi for FakeRuntime {
     async fn token_refused(&self, id: &str) -> Result<(), HostError> {
         self.script.call("workspaces.tokenRefused", json!({ "id": id }))
     }
-    async fn daemon_channel(&self, id: &str, on_event: DaemonEventListener, origin: Option<Caller>) -> Result<Rc<dyn DaemonChannel>, HostError> {
+    async fn daemon_channel(
+        &self,
+        id: &str,
+        on_event: DaemonEventListener,
+        origin: Option<Caller>,
+    ) -> Result<Rc<dyn DaemonChannel>, HostError> {
         self.daemon_listeners.borrow_mut().push(on_event);
         self.script.call("workspaces.daemonChannel", json!({ "id": id, "onEvent": "_", "origin": oj(&origin) }))
     }
@@ -503,7 +565,13 @@ impl ProjectsApi for FakeRuntime {
     async fn branch(&self, reference: &str, origin: Option<Caller>) -> Result<ProjectBranch, HostError> {
         self.script.call("projects.branch", json!({ "reference": reference, "origin": oj(&origin) }))
     }
-    async fn remove(&self, id: &str, origin: Option<Caller>, force: Option<bool>, check: Option<bool>) -> Result<ProjectRemoved, HostError> {
+    async fn remove(
+        &self,
+        id: &str,
+        origin: Option<Caller>,
+        force: Option<bool>,
+        check: Option<bool>,
+    ) -> Result<ProjectRemoved, HostError> {
         self.script.call("projects.remove", json!({ "id": id, "origin": oj(&origin), "force": force, "check": check }))
     }
     async fn icon(&self, project_id: &str, png: Option<String>) -> Result<Option<String>, HostError> {
@@ -512,10 +580,18 @@ impl ProjectsApi for FakeRuntime {
     async fn icons(&self, hashes: Vec<String>) -> Result<IndexMap<String, Option<String>>, HostError> {
         self.script.call("projects.icons", json!({ "hashes": hashes }))
     }
-    async fn import(&self, _opts: ProjectImportOptions, origin: Option<Caller>) -> Result<wsp_wire::views::project_bundle::ProjectImportResult, HostError> {
+    async fn import(
+        &self,
+        _opts: ProjectImportOptions,
+        origin: Option<Caller>,
+    ) -> Result<wsp_wire::views::project_bundle::ProjectImportResult, HostError> {
         self.script.call("projects.import", json!({ "opts": "_", "origin": oj(&origin) }))
     }
-    async fn export(&self, _opts: ProjectExportOptions, origin: Option<Caller>) -> Result<wsp_wire::views::project_bundle::ProjectExportResult, HostError> {
+    async fn export(
+        &self,
+        _opts: ProjectExportOptions,
+        origin: Option<Caller>,
+    ) -> Result<wsp_wire::views::project_bundle::ProjectExportResult, HostError> {
         self.script.call("projects.export", json!({ "opts": "_", "origin": oj(&origin) }))
     }
 }
@@ -547,8 +623,18 @@ impl SessionsApi for FakeRuntime {
     async fn head(&self, thread_id: &str, origin: Option<Caller>, after_read: Option<bool>) -> Result<ThreadHead, HostError> {
         self.script.call("sessions.head", json!({ "threadId": thread_id, "origin": oj(&origin), "afterRead": after_read }))
     }
-    async fn attachment(&self, workspace_id: &str, thread_id: &str, request_id: &str, index: u32, origin: Option<Caller>) -> Result<KeptAttachment, HostError> {
-        self.script.call("sessions.attachment", json!({ "workspaceId": workspace_id, "threadId": thread_id, "requestId": request_id, "index": index, "origin": oj(&origin) }))
+    async fn attachment(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        request_id: &str,
+        index: u32,
+        origin: Option<Caller>,
+    ) -> Result<KeptAttachment, HostError> {
+        self.script.call(
+            "sessions.attachment",
+            json!({ "workspaceId": workspace_id, "threadId": thread_id, "requestId": request_id, "index": index, "origin": oj(&origin) }),
+        )
     }
     async fn interrupt(&self, session_id: &str, origin: Option<Caller>, task: Option<String>) -> Result<SessionInterruptResult, HostError> {
         self.script.call("sessions.interrupt", json!({ "sessionId": session_id, "origin": oj(&origin), "task": task }))
@@ -578,7 +664,8 @@ impl SessionsApi for FakeRuntime {
         self.script.call("sessions.replaceable", json!({ "threadId": thread_id, "origin": oj(&origin) }))
     }
     async fn fork(&self, opts: ForkOptions, origin: Option<Caller>) -> Result<Rc<dyn SessionHandle>, HostError> {
-        let args = json!({ "opts": { "start": start_json(&opts.start), "fork": sj(&opts.fork), "branch": opts.branch }, "origin": oj(&origin) });
+        let args =
+            json!({ "opts": { "start": start_json(&opts.start), "fork": sj(&opts.fork), "branch": opts.branch }, "origin": oj(&origin) });
         self.script.call("sessions.fork", args)
     }
     async fn warm(&self, workspace_id: &str, ask: WarmAsk, origin: Option<Caller>) -> Result<SessionWarmResult, HostError> {
@@ -596,7 +683,13 @@ impl SessionsApi for FakeRuntime {
     async fn search(&self, query: &str, origin: Option<Caller>) -> Result<SessionSearchResult, HostError> {
         self.script.call("sessions.search", json!({ "query": query, "origin": oj(&origin) }))
     }
-    async fn aside(&self, session_id: &str, question: &str, origin: Option<Caller>, ask_id: Option<String>) -> Result<SessionAsideResult, HostError> {
+    async fn aside(
+        &self,
+        session_id: &str,
+        question: &str,
+        origin: Option<Caller>,
+        ask_id: Option<String>,
+    ) -> Result<SessionAsideResult, HostError> {
         self.script.call("sessions.aside", json!({ "sessionId": session_id, "question": question, "origin": oj(&origin), "askId": ask_id }))
     }
     async fn rewind(&self, thread_id: &str, ask: RewindAsk, origin: Option<Caller>) -> Result<SessionRewindResult, HostError> {
@@ -615,7 +708,12 @@ impl SessionsApi for FakeRuntime {
 
 #[async_trait(?Send)]
 impl HarnessesApi for FakeRuntime {
-    async fn list(&self, workspace_id: Option<String>, origin: Option<Caller>, at: Option<CatalogAt>) -> Result<Vec<HarnessCatalog>, HostError> {
+    async fn list(
+        &self,
+        workspace_id: Option<String>,
+        origin: Option<Caller>,
+        at: Option<CatalogAt>,
+    ) -> Result<Vec<HarnessCatalog>, HostError> {
         self.script.call("harnesses.list", json!({ "workspaceId": workspace_id, "origin": oj(&origin), "at": at.as_ref().map(dbg) }))
     }
 }
@@ -707,8 +805,17 @@ impl ConversationsApi for FakeRuntime {
     async fn read(&self, ask: ConversationAsk, origin: Option<Caller>) -> Result<ConversationRead, HostError> {
         self.script.call("conversations.read", json!({ "ask": dbg(&ask), "origin": oj(&origin) }))
     }
-    async fn opening(&self, workspace_id: &str, harness: Option<String>, resume: ResumeAsk, origin: Option<Caller>) -> Result<OutsideOpening, HostError> {
-        self.script.call("conversations.opening", json!({ "workspaceId": workspace_id, "harness": harness, "resume": sj(&resume), "origin": oj(&origin) }))
+    async fn opening(
+        &self,
+        workspace_id: &str,
+        harness: Option<String>,
+        resume: ResumeAsk,
+        origin: Option<Caller>,
+    ) -> Result<OutsideOpening, HostError> {
+        self.script.call(
+            "conversations.opening",
+            json!({ "workspaceId": workspace_id, "harness": harness, "resume": sj(&resume), "origin": oj(&origin) }),
+        )
     }
     async fn placed(&self, start: PlacedStart, resume: ResumeAsk, origin: Option<Caller>) -> Result<Placed, HostError> {
         self.script.call("conversations.placed", json!({ "start": dbg(&start), "resume": sj(&resume), "origin": oj(&origin) }))
@@ -774,20 +881,29 @@ pub struct FakeUsage {
 
 #[async_trait(?Send)]
 impl UsageDoor for FakeUsage {
-    async fn used(&self, range: wsp_wire::types::usage::UsageRange, split: wsp_wire::types::usage::UsageSplit, outside: Option<bool>) -> Result<UsedAnswer, HostError> {
+    async fn used(
+        &self,
+        range: wsp_wire::types::usage::UsageRange,
+        split: wsp_wire::types::usage::UsageSplit,
+        outside: Option<bool>,
+    ) -> Result<UsedAnswer, HostError> {
         self.script.call("usage.used", json!({ "range": sj(&range), "split": sj(&split), "outside": outside }))
     }
     async fn accounts(&self, fresh: Option<bool>) -> Result<AccountsAnswer, HostError> {
         self.script.call("usage.accounts", json!({ "fresh": fresh }))
     }
-    async fn readings(&self, target: ReadingsTarget, range: wsp_wire::types::usage::ReadingsRange, origin: Option<Caller>) -> Result<ReadingsAnswer, HostError> {
+    async fn readings(
+        &self,
+        target: ReadingsTarget,
+        range: wsp_wire::types::usage::ReadingsRange,
+        origin: Option<Caller>,
+    ) -> Result<ReadingsAnswer, HostError> {
         self.script.call("usage.readings", json!({ "target": dbg(&target), "range": sj(&range), "origin": oj(&origin) }))
     }
     async fn reset(&self, account: String, credit_id: Option<String>, on: Option<String>) -> Result<ResetAnswer, HostError> {
         self.script.call("usage.reset", json!({ "account": account, "creditId": credit_id, "on": on }))
     }
 }
-
 
 /// A backend that answers capabilities only.
 pub struct FakeBackend {
@@ -802,7 +918,12 @@ impl MachineBackend for FakeBackend {
     fn pricing(&self) -> Arc<dyn wsp_engine::machine::BackendPricing> {
         panic!("the fake backend answers capabilities only")
     }
-    async fn create(&self, _spec: MachineSpec, _waiting: Option<Waiting>, _sent: Option<String>) -> wsp_engine::errors::Result<Arc<dyn Machine>> {
+    async fn create(
+        &self,
+        _spec: MachineSpec,
+        _waiting: Option<Waiting>,
+        _sent: Option<String>,
+    ) -> wsp_engine::errors::Result<Arc<dyn Machine>> {
         panic!("the fake backend answers capabilities only")
     }
     async fn get(&self, _id: &str) -> wsp_engine::errors::Result<Arc<dyn Machine>> {
@@ -922,7 +1043,8 @@ impl Slates for FakeSlates {
         self.script.call("slates.event", json!({ "params": event_json(&p) }))
     }
     async fn approve(&self, p: ApproveParams) -> Result<(), HostError> {
-        self.script.call("slates.approve", json!({ "threadId": p.thread_id, "key": p.key, "scope": format!("{:?}", p.scope).to_lowercase() }))
+        self.script
+            .call("slates.approve", json!({ "threadId": p.thread_id, "key": p.key, "scope": format!("{:?}", p.scope).to_lowercase() }))
     }
     async fn cancel(&self, thread_id: &str, run: &str) -> Result<(), HostError> {
         self.script.call("slates.cancel", json!({ "threadId": thread_id, "run": run }))
@@ -978,12 +1100,25 @@ pub struct FakeActivity {
 #[async_trait(?Send)]
 impl ActivityDoor for FakeActivity {
     async fn read(&self, ask: ActivityAsk, caller: Option<Caller>) -> Result<ActivityView, HostError> {
-        self.script.call("activity.read", json!({ "computer": ask.computer, "thread": ask.thread, "threadIds": ask.thread_ids, "origin": oj(&caller) }))
+        self.script.call(
+            "activity.read",
+            json!({ "computer": ask.computer, "thread": ask.thread, "threadIds": ask.thread_ids, "origin": oj(&caller) }),
+        )
     }
     async fn end(&self, ask: EndAsk, caller: Option<Caller>) -> Result<ActivityEnded, HostError> {
-        self.script.call("activity.end", json!({ "computer": ask.computer, "pid": ask.pid, "startedAt": ask.started_at, "origin": oj(&caller) }))
+        self.script
+            .call("activity.end", json!({ "computer": ask.computer, "pid": ask.pid, "startedAt": ask.started_at, "origin": oj(&caller) }))
     }
-    async fn meet(&self, thread_ids: &[String], processes: ProcessesAsk, verb: MeetVerb, caller: Option<Caller>) -> Result<Vec<ActivityEnded>, HostError> {
-        self.script.call("activity.meet", json!({ "threadIds": thread_ids, "processes": sj(&processes), "verb": dbg(&verb), "origin": oj(&caller) }))
+    async fn meet(
+        &self,
+        thread_ids: &[String],
+        processes: ProcessesAsk,
+        verb: MeetVerb,
+        caller: Option<Caller>,
+    ) -> Result<Vec<ActivityEnded>, HostError> {
+        self.script.call(
+            "activity.meet",
+            json!({ "threadIds": thread_ids, "processes": sj(&processes), "verb": dbg(&verb), "origin": oj(&caller) }),
+        )
     }
 }

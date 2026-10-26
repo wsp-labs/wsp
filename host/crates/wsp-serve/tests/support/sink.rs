@@ -87,7 +87,11 @@ impl LinkSocket for NoLink {
         0
     }
     fn off_close(&self, _id: u64) {}
-    fn connect(self: Rc<Self>, _seal: Option<wsp_store::keys::Seal>, _on_event: Rc<dyn Fn(&wsp_wire::wire::daemon_events::DaemonEvent)>) -> Rc<dyn wsp_core::reach::DaemonReach> {
+    fn connect(
+        self: Rc<Self>,
+        _seal: Option<wsp_store::keys::Seal>,
+        _on_event: Rc<dyn Fn(&wsp_wire::wire::daemon_events::DaemonEvent)>,
+    ) -> Rc<dyn wsp_core::reach::DaemonReach> {
         panic!("the fake link is never dialled")
     }
 }
