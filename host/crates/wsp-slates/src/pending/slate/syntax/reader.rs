@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The reader: the tokens of the JSX-like form, its elements and attributes.
+use super::expr::closing_brace_bytes;
 use super::*;
 
 fn tag_len(s: &str) -> usize {
@@ -26,17 +27,6 @@ fn closing_tag(s: &str) -> Option<(&str, usize)> {
     }
     let after = body[n..].trim_start_matches(is_js_whitespace).strip_prefix('>')?;
     Some((&body[..n], s.len() - after.len()))
-}
-
-fn byte_at_utf16(src: &str, target: usize) -> usize {
-    let mut units = 0;
-    for (at, c) in src.char_indices() {
-        if units >= target {
-            return at;
-        }
-        units += c.len_utf16();
-    }
-    src.len()
 }
 
 pub(super) struct Reader<'a> {
@@ -291,9 +281,8 @@ impl<'a> Reader<'a> {
     }
 
     fn balanced(&self, i: usize) -> Result<usize, Fatal> {
-        let start = utf16::len(&self.src[..i + 1]);
-        match closing_brace(self.src, start) {
-            Some(end) => Ok(byte_at_utf16(self.src, end)),
+        match closing_brace_bytes(self.src, i + 1) {
+            Some(end) => Ok(end),
             None => Err(fatal("P100", format!("a {{ at line {} never closes", self.line(i)), self.line(i))),
         }
     }

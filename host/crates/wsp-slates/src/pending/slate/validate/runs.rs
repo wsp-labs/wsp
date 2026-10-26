@@ -73,7 +73,10 @@ impl Validator {
                         Some(
                             k.to_uppercase()
                                 .chars()
-                                .map(|c| if c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_' { c } else { '_' })
+                                .flat_map(|c| {
+                                    let keep = c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_';
+                                    std::iter::repeat_n(if keep { c } else { '_' }, if keep { 1 } else { c.len_utf16() })
+                                })
                                 .collect::<String>()
                                 .as_str(),
                         ),

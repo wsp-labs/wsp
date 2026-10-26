@@ -31,7 +31,7 @@ fn one(c: &Value) -> Value {
                 let sources: Value = serde_json::from_str(&std::fs::read_to_string("/root/rv2448/diff/sources.json").unwrap()).unwrap();
                 let resolve: SlateResolve = std::rc::Rc::new(move |path: &str| {
                     let mut cur = &sources;
-                    for k in path.split(|c| c == '.' || c == '[' || c == ']').filter(|k| !k.is_empty()) {
+                    for k in path.split(['.', '[', ']']).filter(|k| !k.is_empty()) {
                         cur = match cur {
                             Value::Object(m) => m.get(k)?,
                             Value::Array(a) => a.get(k.parse::<usize>().ok()?)?,

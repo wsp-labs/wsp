@@ -2,9 +2,13 @@
 //! Attribute literals: the JS-like literal reader and the seconds, numbers, strings and commands an attribute holds.
 use super::*;
 
+/// Lists and records nest this deep at most; node's own stack gives out at a depth that moves with its stack, and answers S503 with this text.
+const MAX_LITERAL_DEPTH: usize = SLATE_NEST_LIMIT;
+
 struct Literal {
     t: Vec<u16>,
     i: usize,
+    depth: usize,
 }
 
 impl Literal {
@@ -31,8 +35,15 @@ impl Literal {
     pub(super) fn value(&mut self) -> Result<Value, String> {
         self.ws();
         match self.at(self.i) {
-            Some('{') => self.object(),
-            Some('[') => self.list(),
+            Some(open @ ('{' | '[')) => {
+                if self.depth >= MAX_LITERAL_DEPTH {
+                    return Err("Maximum call stack size exceeded".into());
+                }
+                self.depth += 1;
+                let v = if open == '{' { self.object() } else { self.list() };
+                self.depth -= 1;
+                v
+            }
             Some(q @ ('"' | '\'')) => self.string(q),
             _ => self.scalar(),
         }
@@ -151,23 +162,51 @@ impl Literal {
     }
 
     fn scalar(&mut self) -> Result<Value, String> {
-        let rest = String::from_utf16_lossy(&self.t[self.i.min(self.t.len())..]);
-        let Some(m) = LITERAL_SCALAR.find(&rest) else {
-            return Err(format!("not a literal: \"{}\"", self.text(self.i, 16)));
-        };
-        let word = m.as_str();
-        self.i += word.len();
-        Ok(match word {
-            "true" => Value::Bool(true),
-            "false" => Value::Bool(false),
-            "null" => Value::Null,
-            number => jnum(number.parse::<f64>().unwrap_or(f64::NAN)),
-        })
+        let digit = |u: Option<&u16>| u.is_some_and(|u| (u16::from(b'0')..=u16::from(b'9')).contains(u));
+        let mut j = self.i;
+        if self.t.get(j) == Some(&u16::from(b'-')) {
+            j += 1;
+        }
+        let first = j;
+        while digit(self.t.get(j)) {
+            j += 1;
+        }
+        if j > first {
+            if self.t.get(j) == Some(&u16::from(b'.')) && digit(self.t.get(j + 1)) {
+                j += 1;
+                while digit(self.t.get(j)) {
+                    j += 1;
+                }
+            }
+            if self.t.get(j).is_some_and(|u| *u == u16::from(b'e') || *u == u16::from(b'E')) {
+                let mut k = j + 1;
+                if self.t.get(k) == Some(&u16::from(b'-')) {
+                    k += 1;
+                }
+                if digit(self.t.get(k)) {
+                    while digit(self.t.get(k)) {
+                        k += 1;
+                    }
+                    j = k;
+                }
+            }
+            let number = String::from_utf16_lossy(&self.t[self.i..j]);
+            self.i = j;
+            return Ok(jnum(number.parse::<f64>().unwrap_or(f64::NAN)));
+        }
+        for (word, value) in [("true", Value::Bool(true)), ("false", Value::Bool(false)), ("null", Value::Null)] {
+            let at = self.t.get(self.i..self.i + word.len());
+            if at.is_some_and(|u| u.iter().zip(word.bytes()).all(|(a, b)| *a == u16::from(b))) {
+                self.i += word.len();
+                return Ok(value);
+            }
+        }
+        Err(format!("not a literal: \"{}\"", self.text(self.i, 16)))
     }
 }
 
 pub(super) fn parse_literal(text: &str) -> Result<Value, String> {
-    let mut p = Literal { t: text.encode_utf16().collect(), i: 0 };
+    let mut p = Literal { t: text.encode_utf16().collect(), i: 0, depth: 0 };
     let v = p.value()?;
     p.ws();
     if p.i < p.t.len() {

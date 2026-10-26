@@ -50,7 +50,6 @@ static STEP_CALL: LazyLock<Regex> = LazyLock::new(|| js_re(r"^[@]*([A-Za-z_][A-Z
 static AGENT_TOOL: LazyLock<Regex> = LazyLock::new(|| js_re(r"^mcp__([^\n\r\x{2028}\x{2029}]+?)__([^\n\r\x{2028}\x{2029}]+)$"));
 static SECONDS_BRACED: LazyLock<Regex> = LazyLock::new(|| js_re(r"^[@]*[0-9]+(\.[0-9]+)?[@]*$"));
 static SECONDS_TEXT: LazyLock<Regex> = LazyLock::new(|| js_re(r"^([0-9]+)[@]*(s|m|h)?$"));
-static LITERAL_SCALAR: LazyLock<Regex> = LazyLock::new(|| js_re(r"^(-?[0-9]+(?:\.[0-9]+)?(?:[eE]-?[0-9]+)?|true|false|null)"));
 static OBJECT_PART: LazyLock<Regex> =
     LazyLock::new(|| js_re(r#"^[@]*(?:([A-Za-z_][A-Za-z0-9_]*)|"([^"]*)"|'([^']*)')[@]*:[@]*([\s\S]+)$"#));
 static RUN_SPACES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[ \t]+").expect("a pattern"));
@@ -80,6 +79,7 @@ fn problem(code: &str, message: &str, line: i64, ext: &Ext) -> SlateProblem {
     p.piece = ext.piece.map(str::to_string);
     p.prop = ext.prop.map(str::to_string);
     p.line = Some(line);
+    p.line_first = order::TextOrder(true);
     p
 }
 
@@ -163,6 +163,8 @@ pub struct SlateCompiled {
     pub document: Option<SlateDoc>,
     pub lines: SlateLines,
     pub errors: Vec<SlateProblem>,
+    /// The values whose start is a number past the double range: a JSON document holds it as null, the validator types it a number.
+    pub infinite_starts: Vec<String>,
 }
 
 struct Compiler {
@@ -173,6 +175,7 @@ struct Compiler {
     taken: HashSet<String>,
     names: IndexMap<String, String>,
     patch: bool,
+    infinite: Vec<String>,
 }
 
 /// Compiles the JSX-like text to a document and its lines, without validating it.
@@ -180,7 +183,7 @@ pub fn compile_slate_text(text: &str) -> SlateCompiled {
     let mut c = Compiler::new(None);
     let tops = match Reader::new(text).elements() {
         Ok(tops) => tops,
-        Err(f) => return SlateCompiled { document: None, lines: c.lines, errors: vec![fatal_problem(&f)] },
+        Err(f) => return SlateCompiled { document: None, lines: c.lines, errors: vec![fatal_problem(&f)], infinite_starts: Vec::new() },
     };
     if tops.len() != 1 || tops[0].tag != "slate" {
         let first = tops.iter().find(|t| t.tag != "slate");
@@ -194,13 +197,13 @@ pub fn compile_slate_text(text: &str) -> SlateCompiled {
         };
         let line = first.map_or(1, |t| t.line);
         let errors = vec![problem("D202", &message, line, &Ext { fix: Some("<slate title=\"...\">...</slate>"), ..Ext::default() })];
-        return SlateCompiled { document: None, lines: c.lines, errors };
+        return SlateCompiled { document: None, lines: c.lines, errors, infinite_starts: Vec::new() };
     }
     if let Some(top) = tops.into_iter().next() {
         c.document(top);
     }
     let document = if c.errors.is_empty() { Some(c.doc) } else { None };
-    SlateCompiled { document, lines: c.lines, errors: c.errors }
+    SlateCompiled { document, lines: c.lines, errors: c.errors, infinite_starts: c.infinite }
 }
 
 /// The JSX-like form compiled and validated: the document when there are no errors.
@@ -209,7 +212,7 @@ pub fn parse_slate(text: &str) -> SlateChecked {
     let Some(doc) = compiled.document else {
         return SlateChecked { document: None, errors: compiled.errors, warnings: Vec::new() };
     };
-    let v = validate_document(&doc, Some(&compiled.lines));
+    let v = validate_document_with(&doc, Some(&compiled.lines), &compiled.infinite_starts);
     let document = if v.errors.is_empty() { Some(doc) } else { None };
     SlateChecked { document, errors: v.errors, warnings: v.warnings }
 }
