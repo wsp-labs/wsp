@@ -142,7 +142,7 @@ fn the_wait_lines_are_held_back_under_json_but_the_join_lines_are_not() {
 #[test]
 fn a_failure_object_stays_the_one_line_on_stderr_under_json() {
     let ran = run(UNIT, "followVerb", "the host stops under the start, no way back (--json)", d::follow_verb);
-    assert!(lines(&ran.sinks.stderr).is_empty(), "{:?}", ran.sinks.stderr.lock().unwrap());
+    assert_eq!(lines(&ran.sinks.stderr), ["the host is restarting; waiting for it to come back"]);
     assert_eq!(err(&ran).message, "the host stopped before it took the message, so it was not delivered; send it again");
 }
 
