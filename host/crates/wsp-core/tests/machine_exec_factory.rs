@@ -556,16 +556,17 @@ mod machine_exec_stream {
         let clock = Arc::new(AtomicI64::new(0));
         let landed = Arc::new(AtomicU32::new(0));
         let cell: Arc<Mutex<Option<Arc<dyn ExecStream>>>> = Arc::new(Mutex::new(None));
+        let stopped = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let (c, la, cl) = (clock.clone(), landed.clone(), cell.clone());
         guest.set_hook(hook(move |cmd, _stdin, inner| {
-            let (c, la, cl) = (c.clone(), la.clone(), cl.clone());
+            let (c, la, cl, stopped) = (c.clone(), la.clone(), cl.clone(), stopped.clone());
             async move {
                 if c.load(SeqCst) >= dark_ms {
                     return inner(&cmd);
                 }
                 let now = c.fetch_add(1_000, SeqCst) + 1_000;
                 if let Some(at) = stop_at {
-                    if now >= at {
+                    if now >= at && !stopped.swap(true, SeqCst) {
                         let stream = cl.lock().unwrap().clone();
                         if let Some(stream) = stream {
                             stream.kill();
