@@ -464,10 +464,12 @@ pub const NO_SAMPLES_HERE: &str = "this host reads nothing of the computer it ru
 
 /// The assembled runtime: the core, every area, and the public members over them. Implements wsp-core's `Runtime`,
 /// the one a socket serves (spec U1).
+#[allow(dead_code)]
 pub struct AssembledRuntime {
     pub(crate) core: Rc<super::core::Core>,
 }
 
+#[allow(unused_variables)]
 #[async_trait(?Send)]
 impl wsp_core::types::api::Runtime for AssembledRuntime {
     type Places = dyn wsp_machines::places::types::PlaceDoor;
