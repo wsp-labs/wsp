@@ -18,7 +18,10 @@ pub(super) fn run_run(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>
         let client = ctx.client(None).await?;
         let (project, message) =
             if ctx.args.len() == 2 { (Some(ctx.args[0].clone()), ctx.args[1].clone()) } else { (None, ctx.args[0].clone()) };
-        let say = |line: &str| ctx.io.error(line);
+        let say: Arc<dyn Fn(&str) + Send + Sync> = {
+            let io = ctx.io.clone();
+            Arc::new(move |line: &str| io.error(line))
+        };
         let flags = &ctx.flags;
         let on = flag(flags, "on").map(str::to_owned);
         if flag(flags, "size").is_some() && on.is_none() {
@@ -62,7 +65,7 @@ pub(super) fn run_run(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>
                         files: files.clone(),
                         elsewhere: ctx.elsewhere,
                     };
-                    sub_start(&*client, &ctx.env, &req, &say).await
+                    sub_start(&*client, &ctx.env, &req, say.clone()).await
                 }),
             )
             .await?;
@@ -106,7 +109,7 @@ pub(super) fn run_run(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>
         run_refusals(&ask, copy, resume_word.as_deref(), replaces.is_some(), &usage_is(ctx))?;
         let resume = resume_asked(resume_word.as_deref(), copy, &ResumeWhere { beside, branch, cwd })?;
         let prepared =
-            before_sending(&*client, Box::pin(prepare_run(&*client, &ctx.env, ctx.cwd.as_deref(), ctx.elsewhere, &ask, resume, &say)))
+            before_sending(&*client, Box::pin(prepare_run(&*client, &ctx.env, ctx.cwd.as_deref(), ctx.elsewhere, &ask, resume, &*say)))
                 .await?;
         let started: Mutex<Option<SharedTurn>> = Mutex::new(None);
         let hook = |turn: &SharedTurn| *started.lock().unwrap() = Some(turn.clone());
@@ -144,7 +147,7 @@ pub(super) fn call_run(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<Cal
         if frame_value(&args, "from").is_some() && on.is_none() {
             return Err(sub_from_no_cloud_refusal());
         }
-        let quiet = |_: &str| {};
+        let quiet: Arc<dyn Fn(&str) + Send + Sync> = Arc::new(|_: &str| {});
         let client = deps.client(None).await?;
         let message = frame_str(&args, "message").unwrap_or_default();
         let project = frame_str(&args, "project");
@@ -187,7 +190,7 @@ pub(super) fn call_run(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<Cal
                         files: files.clone(),
                         elsewhere: deps.elsewhere,
                     };
-                    sub_start(&*client, &deps.env, &req, &quiet).await
+                    sub_start(&*client, &deps.env, &req, quiet.clone()).await
                 }),
             )
             .await?;
@@ -229,9 +232,11 @@ pub(super) fn call_run(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<Cal
         };
         run_refusals(&ask, copy, conversation.as_deref(), replaces.is_some(), BESIDE_ALONE_FIX)?;
         let resume = resume_asked(conversation.as_deref(), copy, &ResumeWhere { beside, branch, cwd })?;
-        let prepared =
-            before_sending(&*client, Box::pin(prepare_run(&*client, &deps.env, deps.cwd.as_deref(), deps.elsewhere, &ask, resume, &quiet)))
-                .await?;
+        let prepared = before_sending(
+            &*client,
+            Box::pin(prepare_run(&*client, &deps.env, deps.cwd.as_deref(), deps.elsewhere, &ask, resume, &*quiet)),
+        )
+        .await?;
         let redial = redial_of(deps);
         let started: Arc<Mutex<Option<SharedTurn>>> = Arc::new(Mutex::new(None));
         let hook_into = started.clone();
