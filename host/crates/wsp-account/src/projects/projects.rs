@@ -103,7 +103,7 @@ pub struct Projects {
 
 // export function projectsArea(ctx: RuntimeContext): ProjectsArea {
 pub fn projects_area(ctx: Rc<dyn ProjectsCtx>) -> Rc<Projects> {
-    todo!()
+    Rc::new(Projects { ctx })
 }
 
 impl wsp_core::context::ProjectsArea for Projects {}
@@ -111,43 +111,72 @@ impl wsp_core::context::ProjectsArea for Projects {}
 /// `rt.projects`: each call forwards to the unit that holds it (add, door, moves).
 #[async_trait(?Send)]
 impl wsp_core::types::api::ProjectsApi for Projects {
-    async fn add(&self, ask: wsp_core::types::api::ProjectAddAsk, origin: Option<Caller>) -> Result<wsp_core::types::api::ProjectAdded, HostError> {
-        todo!()
+    async fn add(
+        &self,
+        ask: wsp_core::types::api::ProjectAddAsk,
+        origin: Option<Caller>,
+    ) -> Result<wsp_core::types::api::ProjectAdded, HostError> {
+        let handle = Rc::new(Projects { ctx: self.ctx.clone() });
+        let added = handle
+            .add(
+                add::AddAsk {
+                    source: ask.source,
+                    on: ask.on,
+                    name: ask.name,
+                    base: ask.base,
+                    into: ask.into,
+                    seed: ask.seed,
+                    ..Default::default()
+                },
+                origin,
+            )
+            .await?;
+        Ok(wsp_core::types::api::ProjectAdded { project: added.project, notice: added.notice })
     }
     async fn seed_plan(&self, source: &str, on: Option<String>) -> Result<SeedPlan, HostError> {
-        todo!()
+        Projects::seed_plan(self, source, on.as_deref()).await
     }
     async fn seed(&self, reference: &str, ask: wsp_core::types::api::SeedAsk, origin: Option<Caller>) -> Result<ProjectSeed, HostError> {
-        todo!()
+        let words = add::SeedWords { keep: ask.keep, cut: ask.cut, none: ask.none == Some(true), save: ask.save == Some(true) };
+        Projects::seed(self, reference, words, origin).await
     }
     async fn list(&self, origin: Option<Caller>) -> Result<Vec<ProjectView>, HostError> {
-        todo!()
+        Projects::list(self, origin).await
     }
     async fn defaults(&self, origin: Option<Caller>) -> Result<IndexMap<String, ThreadDefaults>, HostError> {
-        todo!()
+        Projects::defaults(self, origin).await
     }
     async fn computers(&self) -> Result<Vec<wsp_core::types::api::ComputerName>, HostError> {
-        todo!()
+        let rows = Projects::computers(self).await?;
+        Ok(rows.into_iter().map(|row| wsp_core::types::api::ComputerName { id: row.id, name: row.name }).collect())
     }
     async fn resolve(&self, reference: &str, origin: Option<Caller>) -> Result<ProjectView, HostError> {
-        todo!()
+        Projects::resolve(self, reference, origin).await
     }
     async fn branch(&self, reference: &str, origin: Option<Caller>) -> Result<ProjectBranch, HostError> {
-        todo!()
+        Projects::branch(self, reference, origin).await
     }
-    async fn remove(&self, id: &str, origin: Option<Caller>, force: Option<bool>, check: Option<bool>) -> Result<wsp_core::types::api::ProjectRemoved, HostError> {
-        todo!()
+    async fn remove(
+        &self,
+        id: &str,
+        origin: Option<Caller>,
+        force: Option<bool>,
+        check: Option<bool>,
+    ) -> Result<wsp_core::types::api::ProjectRemoved, HostError> {
+        let words = door::RemoveWords { force: force == Some(true), check: check == Some(true), keep_look: false };
+        let removed = Projects::remove_with(self, id, origin, words).await?;
+        Ok(wsp_core::types::api::ProjectRemoved { said: removed.said, unsaved: removed.unsaved })
     }
     async fn icon(&self, project_id: &str, png: Option<String>) -> Result<Option<String>, HostError> {
-        todo!()
+        self.ctx.set_icon(project_id, png).await
     }
     async fn icons(&self, hashes: Vec<String>) -> Result<IndexMap<String, Option<String>>, HostError> {
-        todo!()
+        self.ctx.read_icons(hashes).await
     }
     async fn import(&self, opts: ProjectImportOptions, origin: Option<Caller>) -> Result<ProjectImportResult, HostError> {
-        todo!()
+        Projects::import(self, opts, origin).await
     }
     async fn export(&self, opts: ProjectExportOptions, origin: Option<Caller>) -> Result<ProjectExportResult, HostError> {
-        todo!()
+        Projects::export(self, opts, origin).await
     }
 }

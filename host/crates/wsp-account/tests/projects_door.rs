@@ -10,14 +10,19 @@ mod projects;
 
 use std::rc::Rc;
 
-use base::{kinded, person, project, record, refused, run, thread};
+use base::{kinded, person, project, record, run, thread};
 use projects::{catalog, fails, pj, FakeProjects};
 use serde_json::{json, Value};
 use wsp_account::projects::projects::door::RemoveWords;
 use wsp_account::projects::projects::Projects;
 use wsp_core::types::api::ProjectsApi;
 use wsp_wire::views::workspace::{Caller, ProjectView};
-use wsp_words::exit::Kind;
+use wsp_words::exit::{HostError, Kind};
+
+/// exit.ts:72 `refusal(happened, fix, kind)`: the message is the two halves joined, the fix rides beside it.
+fn refused(happened: &str, fix: &str, kind: Kind) -> HostError {
+    wsp_words::exit::refusal(happened, fix, Some(kind))
+}
 
 fn rig() -> (Rc<FakeProjects>, Rc<Projects>) {
     let fake = FakeProjects::new();
@@ -226,7 +231,10 @@ fn resolve_for_a_thread_refuses_in_the_ts_order() {
         fake.base.answer_with("project_of_scope", vec![json!("pr_own")]);
         fake.base.answer_with("of_threads_repository", vec![json!(true)]);
         assert_eq!(area.resolve("lab", Some(lead())).await.unwrap_err(), folder);
-        assert_eq!(fake.base.names_of(&["project_reached", "elsewhere_refusal", "of_threads_repository"]), vec!["project_reached", "elsewhere_refusal", "of_threads_repository"]);
+        assert_eq!(
+            fake.base.names_of(&["project_reached", "elsewhere_refusal", "of_threads_repository"]),
+            vec!["project_reached", "elsewhere_refusal", "of_threads_repository"]
+        );
 
         // (f) every other project: the repository rule, naming the thread's own project.
         let (fake, area) = rig();
@@ -256,9 +264,13 @@ fn folder_stands_is_false_on_a_road_with_none() {
         assert_eq!(asked.iter().map(|a| a["kind"].clone()).collect::<Vec<_>>(), vec![json!("mac"), json!("box"), json!("mac")]);
         assert_eq!(asked[1]["project"], "pr_box");
         assert_eq!(asked[1]["deps"]["computerName"], "box");
+        fake.base.script.borrow_mut().shift_remove("road_folder_stands:box");
         fake.base.answer_with("road_folder_stands:box", vec![fails("pl_box said no", Some("unreachable"))]);
         assert_eq!(area.folder_stands("pr_box").await.unwrap_err().message, "pl_box said no");
-        assert_eq!(area.folder_stands("nothing").await.unwrap_err(), kinded("no project \"nothing\"; this host holds lab, web", Kind::NotFound));
+        assert_eq!(
+            area.folder_stands("nothing").await.unwrap_err(),
+            kinded("no project \"nothing\"; this host holds lab, web", Kind::NotFound)
+        );
     });
 }
 
@@ -294,6 +306,7 @@ fn unsaved_asks_the_road() {
         assert_eq!(area.unsaved(&lab).await.unwrap(), None);
         fake.base.answer_with("road_unsaved:mac", vec![json!(unsaved_line())]);
         assert_eq!(area.unsaved(&lab).await.unwrap(), Some(unsaved_line().to_owned()));
+        fake.base.script.borrow_mut().shift_remove("road_unsaved:mac");
         fake.base.answer_with("road_unsaved:mac", vec![fails("git said no", None)]);
         assert_eq!(area.unsaved(&lab).await.unwrap_err().message, "git said no");
         let asked = fake.base.args_of("road_unsaved");
@@ -359,7 +372,7 @@ fn takes_the_records_no_thread_names_with_it_a_worktree_wsp_made_and_the_frozen_
         fake.base.hold(record("ws_tree", "local", "pr_lab", json!({ "name": "feat-w" })));
         *fake.holding.borrow_mut() = vec!["ws_home".to_owned()];
         let refusal = area.remove_with("pr_lab", None, RemoveWords::default()).await.unwrap_err();
-        assert_eq!(refusal, kinded("lab has workspaces standing on it: home; delete their threads first", Kind::Conflict));
+        assert_eq!(refusal, kinded("lab has a workspace standing on it: home; delete its threads first", Kind::Conflict));
         assert_eq!(fake.base.args_of("copier_worktree_forget"), Vec::<Value>::new());
         fake.holding.borrow_mut().clear();
         area.remove_with("pr_lab", None, RemoveWords::default()).await.unwrap();
@@ -367,7 +380,10 @@ fn takes_the_records_no_thread_names_with_it_a_worktree_wsp_made_and_the_frozen_
             fake.base.args_of("copier_worktree_forget"),
             vec![json!({ "from": "/home/me/lab", "home": "/home/me/.wsp", "project": lab.id })]
         );
-        assert_eq!(fake.base.args_of("delete_workspace").iter().map(|a| a["id"].clone()).collect::<Vec<_>>(), vec![json!("ws_home"), json!("ws_tree")]);
+        assert_eq!(
+            fake.base.args_of("delete_workspace").iter().map(|a| a["id"].clone()).collect::<Vec<_>>(),
+            vec![json!("ws_home"), json!("ws_tree")]
+        );
         assert!(fake.base.live.borrow().is_empty());
         assert_eq!(area.list(None).await.unwrap(), vec![]);
     });
@@ -380,7 +396,7 @@ fn a_project_is_dropped_once_no_workspace_stands_on_it_and_the_drop_goes_out_as_
         let (fake, area, _lab) = removable();
         fake.base.hold(record("ws_work", "cloud", "pr_lab", json!({ "name": "work" })));
         let refusal = area.remove_with("pr_lab", None, RemoveWords::default()).await.unwrap_err();
-        assert_eq!(refusal, kinded("lab has workspaces standing on it: work; delete their threads first", Kind::Conflict));
+        assert_eq!(refusal, kinded("lab has a workspace standing on it: work; delete its threads first", Kind::Conflict));
         fake.base.live.borrow_mut().shift_remove("ws_work");
         area.remove_with("pr_lab", None, RemoveWords::default()).await.unwrap();
         assert_eq!(area.list(None).await.unwrap(), vec![]);
@@ -454,6 +470,7 @@ fn remove_with_check_answers_unsaved_and_removes_nothing() {
         nothing_removed(&fake);
         assert_eq!(fake.base.args_of("road_unsaved").len(), 1);
 
+        fake.base.script.borrow_mut().shift_remove("road_unsaved");
         fake.base.answer_with("road_unsaved", vec![Value::Null]);
         let clean = area.remove_with("pr_lab", None, RemoveWords { check: true, ..Default::default() }).await.unwrap();
         assert_eq!((clean.said.as_str(), clean.unsaved), ("", None));
@@ -480,14 +497,20 @@ fn remove_deletes_the_records_then_the_road_then_the_row_and_forgets_the_look() 
             vec!["spawn_guard", "delete_workspace", "delete_workspace", "copier_worktree_forget", "road_remove", "forget_icon"]
         );
         assert_eq!(fake.base.args_of("spawn_guard"), vec![json!({ "act": "delete", "scoped": false })]);
-        assert_eq!(fake.base.args_of("copier_worktree_forget"), vec![json!({ "from": "/home/me/lab", "home": "/home/me/.wsp", "project": "pr_lab" })]);
+        assert_eq!(
+            fake.base.args_of("copier_worktree_forget"),
+            vec![json!({ "from": "/home/me/lab", "home": "/home/me/.wsp", "project": "pr_lab" })]
+        );
         // The road runs while the record is still held and nothing has been written.
         let road = &fake.base.args_of("road_remove")[0];
         assert_eq!((road["held"].clone(), road["writes"].clone()), (json!(true), json!([])));
         // The look goes last: the record, the row and the event are all gone by then.
         let look = &fake.base.args_of("forget_icon")[0];
         assert_eq!(look["project"], lab.id);
-        assert_eq!((look["held"].clone(), look["writes"].clone(), look["events"].clone()), (json!(false), json!(["delete projects/pr_lab"]), json!(1)));
+        assert_eq!(
+            (look["held"].clone(), look["writes"].clone(), look["events"].clone()),
+            (json!(false), json!(["delete projects/pr_lab"]), json!(1))
+        );
         assert_eq!(fake.base.store.row("projects", "pr_lab"), None);
         assert_eq!(fake.base.events.borrow().clone(), vec![json!({ "type": "project.removed", "projectId": "pr_lab" })]);
         assert!(fake.base.live.borrow().is_empty());
@@ -554,7 +577,9 @@ fn remove_keeps_the_record_when_the_road_cannot_reach_its_computer() {
 fn remove_forgets_the_frozen_copies_only_for_a_folder_here_with_a_top_and_a_state_path() {
     // spec rule 7: a project top, a state path, a copier and a copying computer; each missing one skips the call.
     run(async {
-        for (name, computer, top, state_path) in [("no state path", "here", true, false), ("a box", "pl_box", true, true), ("no git top", "here", false, true)] {
+        for (name, computer, top, state_path) in
+            [("no state path", "here", true, false), ("a box", "pl_box", true, true), ("no git top", "here", false, true)]
+        {
             let (fake, area) = rig();
             fake.copier.set(true);
             fake.state_path.set(state_path);
@@ -658,7 +683,10 @@ fn branch_asks_the_landing_road() {
         let based = area.branch("based", None).await.unwrap();
         assert_eq!((based.branch.as_deref(), based.folder), (Some("release"), false));
         let asked = fake.base.args_of("road_branch");
-        assert_eq!(asked.iter().map(|a| (a["kind"].clone(), a["project"].clone())).collect::<Vec<_>>(), vec![(json!("provider"), json!("pr_plain")), (json!("provider"), json!("pr_based"))]);
+        assert_eq!(
+            asked.iter().map(|a| (a["kind"].clone(), a["project"].clone())).collect::<Vec<_>>(),
+            vec![(json!("provider"), json!("pr_plain")), (json!("provider"), json!("pr_based"))]
+        );
         assert_eq!(asked[0]["deps"]["computerName"], "solari");
         // A folder here answers with its own branch and says it is a folder.
         hold(&fake, project("pr_here", "lab", "here", json!({})));

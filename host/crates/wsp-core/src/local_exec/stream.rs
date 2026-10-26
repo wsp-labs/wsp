@@ -27,8 +27,8 @@ use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::wire::limits::{EXEC_CHUNK_BYTES, RUN_STOP_MS, TURN_IDLE_MS};
 
 use super::reap::{
-    alive, append, end_marker, group_rows, leftovers, lock, pump_of, read_file, reap_run, release_held, release_late, signal_group,
-    signal_pid, tree_work, try_release_held, Lines, TreeWorkReader,
+    alive, append, end_marker, group_rows, leftovers, lock, node_error, pid_in, pump_of, read_file, reap_run, signal_group, signal_pid,
+    tree_work, try_release_held, try_release_late, Lines, TreeWorkReader,
 };
 use crate::clock::{Clock, RealClock};
 use crate::ids::{Ids, OsIds};
@@ -125,8 +125,19 @@ fn fail(message: impl Into<String>) -> ExecFailure {
     ExecFailure { kind: ExecFailureKind::Other, message: message.into() }
 }
 
-fn io_fail(e: io::Error) -> ExecFailure {
-    fail(e.to_string())
+fn node_fail(e: io::Error, syscall: &str, path: &str) -> ExecFailure {
+    fail(node_error(&e, syscall, Some(path)))
+}
+
+/// Milliseconds since a reader's start, as `turn_cut` reads them: a NaN start never reaches the wall (JS compares false
+/// on NaN), and an infinite one reaches it or never as the JS difference does.
+fn elapsed_ms(at: i64, started_at: f64) -> i64 {
+    let elapsed = at as f64 - started_at;
+    if elapsed.is_nan() {
+        i64::MIN
+    } else {
+        elapsed as i64
+    }
 }
 
 /// A file the owner alone reads, created exclusively (TS `writeOwned`, flag `wx`).
@@ -137,7 +148,7 @@ fn write_owned(path: &str, text: impl AsRef<[u8]>) -> io::Result<()> {
 /// What one reader of a run needs, read off the factory's options once per stream.
 #[derive(Default)]
 struct Open {
-    started_at: Option<i64>,
+    started_at: Option<f64>,
     from: Option<u64>,
     taken: Option<Vec<String>>,
 }
@@ -226,22 +237,27 @@ impl LocalExecFactory {
         if secret.is_some() {
             return Err(fail("a launch on this computer takes no text holding a value; nothing was started"));
         }
+        if let Some((key, value)) = env.iter().find(|(_, value)| value.contains('\0')) {
+            let received = value.replace('\0', "\\x00");
+            return Err(fail(format!("The property 'options.env['{key}']' must be a string without null bytes. Received '{received}'")));
+        }
         let run_dir = &cfg.opts.run_dir;
         let base = format!("{run_dir}/{}", hex::encode(cfg.ids().bytes(6)));
-        DirBuilder::new().recursive(true).mode(0o700).create(run_dir).map_err(io_fail)?;
-        DirBuilder::new().mode(0o700).create(format!("{base}.d")).map_err(io_fail)?;
-        write_owned(&format!("{base}.sh"), launch_script(&base, command, input.is_some())).map_err(io_fail)?;
+        DirBuilder::new().recursive(true).mode(0o700).create(run_dir).map_err(|e| node_fail(e, "mkdir", run_dir))?;
+        DirBuilder::new().mode(0o700).create(format!("{base}.d")).map_err(|e| node_fail(e, "mkdir", &format!("{base}.d")))?;
+        let file = |suffix: &str| format!("{base}.{suffix}");
+        write_owned(&file("sh"), launch_script(&base, command, input.is_some())).map_err(|e| node_fail(e, "open", &file("sh")))?;
         let seed: Option<String> = input.as_ref().map(|lines| lines.iter().map(|line| format!("{line}\n")).collect());
         if let Some(seed) = &seed {
             let channel = if input_after.is_some() { "" } else { seed.as_str() };
-            write_owned(&format!("{base}.in"), channel).map_err(io_fail)?;
+            write_owned(&file("in"), channel).map_err(|e| node_fail(e, "open", &file("in")))?;
             if input_after.is_some() {
-                write_owned(&format!("{base}.held"), seed).map_err(io_fail)?;
+                write_owned(&file("held"), seed).map_err(|e| node_fail(e, "open", &file("held")))?;
             }
         }
-        write_owned(&format!("{base}.log"), "").map_err(io_fail)?;
-        let log = OpenOptions::new().append(true).open(format!("{base}.log")).map_err(io_fail)?;
-        let log_err = log.try_clone().map_err(io_fail)?;
+        write_owned(&file("log"), "").map_err(|e| node_fail(e, "open", &file("log")))?;
+        let log = OpenOptions::new().append(true).open(file("log")).map_err(|e| node_fail(e, "open", &file("log")))?;
+        let log_err = log.try_clone().map_err(|e| node_fail(e, "open", &file("log")))?;
 
         let mut cmd = tokio::process::Command::new("bash");
         cmd.arg(format!("{base}.sh"))
@@ -252,9 +268,13 @@ impl LocalExecFactory {
             .stdin(Stdio::null())
             .stdout(log)
             .stderr(log_err);
-        // SAFETY: between fork and exec this calls only setsid, as the TS detached spawn does.
+        // SAFETY: between fork and exec this resets every signal to its default, as libuv's child init does, then calls
+        // only setsid, as the TS detached spawn does.
         unsafe {
             cmd.pre_exec(|| {
+                for sig in 1..32 {
+                    libc::signal(sig, libc::SIG_DFL);
+                }
                 if libc::setsid() == -1 {
                     return Err(io::Error::last_os_error());
                 }
@@ -355,15 +375,15 @@ impl ExecStreamFactory for LocalExecFactory {
         Some(Box::pin(async move {
             let run_dir = cfg.opts.run_dir.clone();
             let Ok(entries) = fs::read_dir(&run_dir) else { return Ok(Vec::new()) };
-            let stale: Vec<String> = entries
-                .flatten()
-                .filter_map(|entry| {
-                    let name = entry.file_name().to_string_lossy().into_owned();
-                    name.strip_suffix(".d").map(|id| format!("{run_dir}/{id}"))
-                })
+            let mut names: Vec<String> = entries.flatten().map(|entry| entry.file_name().to_string_lossy().into_owned()).collect();
+            names.sort();
+            let stale: Vec<String> = names
+                .iter()
+                .filter_map(|name| name.strip_suffix(".d").map(|id| format!("{run_dir}/{id}")))
                 .filter(|base| minted(&run_dir, base) && !keep.contains(base))
                 .collect();
-            futures::future::join_all(stale.iter().map(|base| reap_run(base, None, RUN_STOP_MS as u64))).await;
+            let reaped = futures::future::join_all(stale.iter().map(|base| reap_run(base, None, RUN_STOP_MS as u64))).await;
+            reaped.into_iter().try_for_each(|r| r.map_err(fail))?;
             Ok(stale)
         }))
     }
@@ -388,18 +408,18 @@ async fn attach_run(cfg: &Cfg, run: &str, options: AttachRunOptions) -> Result<A
         return Ok(Attached::Gone);
     }
     if input {
-        release_held(run);
+        try_release_held(run).map_err(|e| fail(node_error(&e, "write", None)))?;
     }
     let channel = format!("{run}.in");
     if input && fs::metadata(&channel).is_ok_and(|m| m.len() == 0) {
-        reap_run(run, None, RUN_STOP_MS as u64).await;
+        reap_run(run, None, RUN_STOP_MS as u64).await.map_err(fail)?;
         return Ok(Attached::Gone);
     }
-    let at = Open { started_at: Some(started_at as i64), from, taken: None };
+    let at = Open { started_at: Some(started_at), from, taken: None };
     if !input {
         return Ok(Attached::Stream(open(cfg, run.to_string(), input, false, at)));
     }
-    release_late(run);
+    try_release_late(run).map_err(fail)?;
     let marker = end_marker(run);
     let taken: Vec<String> =
         read_file(&channel).unwrap_or_default().split('\n').filter(|line| !line.is_empty() && *line != marker).map(String::from).collect();
@@ -718,7 +738,7 @@ struct Parked {
 }
 
 struct State {
-    started_at: i64,
+    started_at: f64,
     activity: TurnActivity,
     resting: bool,
     killed: bool,
@@ -744,7 +764,7 @@ impl Inner {
 
     /// The leader's pid as the launch recorded it, while the file reads as a positive number.
     fn leader(&self) -> Option<i32> {
-        read_file(&format!("{}.pid", self.base)).unwrap_or_default().trim().parse::<i32>().ok().filter(|&pid| pid > 0)
+        pid_in(&format!("{}.pid", self.base))
     }
 
     fn signal(&self, sig: i32) {
@@ -880,7 +900,7 @@ async fn poll(inner: Arc<Inner>) {
             let st = lock(&inner.state);
             (st.resting, st.started_at)
         };
-        let cut = if resting { None } else { turn_cut(inner.limits, at - started_at, quiet) };
+        let cut = if resting { None } else { turn_cut(inner.limits, elapsed_ms(at, started_at), quiet) };
         let cut_now = {
             let st = lock(&inner.state);
             cut.is_some() && st.caught_up && !st.exit_seen
@@ -958,7 +978,11 @@ async fn settle(inner: &Arc<Inner>, code: Option<i32>, cut: Option<ExecFailure>)
             }
         })
     });
-    reap_run(&inner.base, Some(last_read), RUN_STOP_MS as u64).await;
+    if let Err(message) = reap_run(&inner.base, Some(last_read), RUN_STOP_MS as u64).await {
+        inner.lines.fail(fail(message));
+        inner.finish(None);
+        return;
+    }
     match cut {
         Some(cut) => inner.lines.fail(cut),
         None => inner.lines.end(),
@@ -985,7 +1009,8 @@ fn parse_int(text: &str) -> Option<i32> {
 async fn park(
     inner: Arc<Inner>,
     line: String,
-    after: Settle,
+    made: Option<bool>,
+    due: oneshot::Receiver<bool>,
     seq: u64,
     done: oneshot::Sender<()>,
     before: Option<Shared<LocalBoxFuture<'static, ()>>>,
@@ -993,13 +1018,13 @@ async fn park(
     if let Some(before) = before {
         before.await;
     }
-    if inner.park_files(&line) {
-        match after.await {
-            Ok(()) => release_late(&inner.base),
-            Err(_) => {
-                let _ = fs::remove_file(format!("{}.late", inner.base));
-                let _ = fs::remove_file(format!("{}.late.key", inner.base));
-            }
+    let made = made.unwrap_or_else(|| inner.park_files(&line));
+    if made {
+        if due.await.unwrap_or(false) {
+            drop(try_release_late(&inner.base));
+        } else {
+            let _ = fs::remove_file(format!("{}.late", inner.base));
+            let _ = fs::remove_file(format!("{}.late.key", inner.base));
         }
     }
     {
@@ -1079,9 +1104,9 @@ impl ExecStream for RefusedStream {
 fn open(cfg: &Cfg, base: String, has_input: bool, launch_failed: bool, o: Open) -> Arc<dyn ExecStream> {
     let now = cfg.now_fn();
     let now_at = now();
-    let started_at = o.started_at.unwrap_or(now_at);
+    let started_at = o.started_at.unwrap_or(now_at as f64);
     let read_work = cfg.opts.read_work.clone().unwrap_or_else(tree_work);
-    let pid = read_file(&format!("{base}.pid")).unwrap_or_default().trim().parse::<u32>().ok().filter(|&pid| pid > 0);
+    let pid = pid_in(&format!("{base}.pid")).map(|pid| pid as u32);
     let (exit_tx, exit_rx) = oneshot::channel::<Option<i32>>();
     let exited: SharedFuture<Option<i32>> = async move { exit_rx.await.ok().flatten() }.boxed_local().shared();
     let inner = Arc::new(Inner {
@@ -1173,6 +1198,11 @@ impl ExecStream for LocalStream {
         if !inner.has_input {
             return None;
         }
+        // Taken at once, so a refusal that comes while an earlier line still holds the queue is handled then.
+        let (due_tx, due) = oneshot::channel::<bool>();
+        spawn_local(async move {
+            let _ = due_tx.send(after.await.is_ok());
+        });
         let (done_tx, done_rx) = oneshot::channel::<()>();
         let done: Shared<LocalBoxFuture<'static, ()>> = async move {
             let _ = done_rx.await;
@@ -1186,7 +1216,9 @@ impl ExecStream for LocalStream {
             let before = st.parked.replace(Parked { seq, done: done.clone() });
             (seq, before.map(|parked| parked.done))
         };
-        spawn_local(park(inner, line, after, seq, done_tx, before));
+        // Without a line parked ahead, the files are written here, so they exist when this returns, as the TS's are.
+        let made = before.is_none().then(|| inner.park_files(&line));
+        spawn_local(park(inner, line, made, due, seq, done_tx, before));
         Some(())
     }
     fn taken(&self) -> Option<Vec<String>> {
@@ -1203,7 +1235,7 @@ impl ExecStream for LocalStream {
         {
             let mut st = lock(&self.inner.state);
             st.resting = false;
-            st.started_at = now;
+            st.started_at = now as f64;
             st.activity = turn_activity(now);
         }
         self.inner.wake();

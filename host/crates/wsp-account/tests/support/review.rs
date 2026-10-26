@@ -3,7 +3,7 @@
 //! `base.call("<method>", args)` and answers from the script under its own name, with the default noted at the
 //! method; a scripted `err_answer(..)` is the method's failure. Channels answer a `send` with `{"channel": <name>}`
 //! so a test reads which road a channel came from, and `heard` keeps the listener the shared channel was given.
-#![allow(dead_code)]
+#![allow(dead_code, unused_imports)]
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -12,16 +12,14 @@ use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 use wsp_account::projects::start_from::{OpenAsk, Placed, StartKind};
 use wsp_account::projects::workspaces::review::ReviewCtx;
-use wsp_account::projects::workspaces::seam::{
-    Base, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, Live, ProjectsHeld,
-};
+use wsp_account::projects::workspaces::seam::{Base, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, Live, ProjectsHeld};
 use wsp_core::clock::Clock;
 use wsp_core::daemon_channel::{ChannelEnd, ChannelError, DaemonChannel, Frame};
 use wsp_core::ids::Ids;
 use wsp_core::types::api::DaemonEventListener;
 use wsp_core::types::harness::StartPicksAsked;
-use wsp_core::types::pending::Store;
 use wsp_core::types::internal::ThreadRecord;
+use wsp_core::types::pending::Store;
 use wsp_core::types::wiring::{Detach, SysListener, WorkspaceRecord};
 use wsp_wire::types::pull_request::PullRequest;
 use wsp_wire::types::start::{IssueRead, WorkspaceFrom, WorkspaceFromKind};
@@ -222,9 +220,7 @@ impl ReviewCtx for FakeReview {
     /// Default: issue `<number>` of the repository, titled `Add a greeting line`.
     async fn issue_of(&self, remote: &str, number: i64) -> Result<IssueRead, HostError> {
         self.base.call("issue_of", json!({ "remote": remote, "number": number }));
-        self.base.answer_as("issue_of", || {
-            serde_json::from_value(issue_json("acme/spoo", number, "Add a greeting line")).unwrap()
-        })
+        self.base.answer_as("issue_of", || serde_json::from_value(issue_json("acme/spoo", number, "Add a greeting line")).unwrap())
     }
 
     /// Default: `pr_json("acme/spoo", number, {})`.
@@ -256,7 +252,14 @@ impl ReviewCtx for FakeReview {
 
     /// Places on the held `ws_placed` (made on the project when none is held); `behind`, `setup` and `as` from a
     /// script `{"behind": .., "setup": .., "as": {"threadId": .., "turnId": ..}}`.
-    async fn workspace_from(&self, project: &ProjectView, from: WorkspaceFrom, fact: Option<PullRequest>, kind: StartKind, origin: Option<Caller>) -> Result<Placed, HostError> {
+    async fn workspace_from(
+        &self,
+        project: &ProjectView,
+        from: WorkspaceFrom,
+        fact: Option<PullRequest>,
+        kind: StartKind,
+        origin: Option<Caller>,
+    ) -> Result<Placed, HostError> {
         self.base.call(
             "workspace_from",
             json!({
@@ -313,7 +316,8 @@ impl ReviewCtx for FakeReview {
         let rec = placed.entry.borrow().record.borrow().clone();
         let view = serde_json::to_value(view_of(&self.base, &rec)).unwrap();
         self.base.answer_as("open_with", || {
-            serde_json::from_value(json!({ "workspace": view, "threadId": "th_open", "sessionId": "se_open" })).expect("a start result reads")
+            serde_json::from_value(json!({ "workspace": view, "threadId": "th_open", "sessionId": "se_open" }))
+                .expect("a start result reads")
         })
     }
 
@@ -352,7 +356,10 @@ impl ReviewCtx for FakeReview {
     async fn daemon_road(&self, entry: &Entry) -> Result<DaemonReachView, HostError> {
         self.base.call("daemon_road", json!({ "id": Self::id_of(entry) }));
         self.base.answer_as("daemon_road", || {
-            serde_json::from_value(json!({ "url": "https://m1-7070.preview.example/?pt_token=edge", "expiresAt": 5000, "daemonToken": "tok" })).unwrap()
+            serde_json::from_value(
+                json!({ "url": "https://m1-7070.preview.example/?pt_token=edge", "expiresAt": 5000, "daemonToken": "tok" }),
+            )
+            .unwrap()
         })
     }
 

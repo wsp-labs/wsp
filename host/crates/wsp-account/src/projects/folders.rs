@@ -18,19 +18,19 @@ use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_engine::machine::Machine;
 use wsp_wire::views::workspace::{Caller, ProjectView};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
-use wsp_wire::views::workspace_more::{CarryModule, WorktreeReport};
+use wsp_wire::views::workspace_more::WorktreeReport;
 use wsp_wire::wire::capabilities::WorkspaceSize;
 use wsp_wire::wire::machine_link::ExecResult;
 use wsp_words::exit::HostError;
 
 use crate::projects::workspaces::seam::{Base, Entry, Queued};
 
-/// `copier.worktree({...})`'s ask. folders.ts:82.
-pub use wsp_wire::views::workspace_more::WorktreeAsk;
-/// `copier.worktreeRemove({from, home, path, force})`'s ask. folders.ts:228.
-pub use wsp_engine::copier::WorktreeRemove;
 /// `local.hereDaemon`: this computer's daemon binary's version and the fix a behind one names. folders.ts:77-81.
 pub use wsp_core::types::wiring::HereDaemon;
+/// `copier.worktreeRemove({from, home, path, force})`'s ask. folders.ts:228.
+pub use wsp_engine::copier::WorktreeRemove;
+/// `copier.worktree({...})`'s ask. folders.ts:82.
+pub use wsp_wire::views::workspace_more::WorktreeAsk;
 
 /// `ctx.state`'s sweep fields: the armed timer, the sweep in flight, and the close's stop. folders.ts:280-296.
 #[derive(Default)]
@@ -100,7 +100,7 @@ pub struct Folders {
 
 // export function foldersArea(ctx: RuntimeContext): FoldersArea {
 pub fn folders_area(ctx: Rc<dyn FoldersCtx>) -> Rc<Folders> {
-    todo!()
+    Rc::new(Folders { ctx, git_writes: Rc::new(RefCell::new(IndexMap::new())), setup_lines: Rc::new(RefCell::new(IndexMap::new())) })
 }
 
 impl wsp_core::context::FoldersArea for Folders {}

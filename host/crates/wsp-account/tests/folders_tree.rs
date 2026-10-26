@@ -21,7 +21,9 @@ use futures::channel::oneshot;
 use futures::future::LocalBoxFuture;
 use futures::FutureExt;
 use serde_json::{json, Value};
-use wsp_account::projects::folders::tree::{git_said, parse_worktrees, ListedWorktree, RemoveAsk, KEPT_FOR_MS, SETTLED_STANDS_MS, SWEEP_MS};
+use wsp_account::projects::folders::tree::{
+    git_said, parse_worktrees, ListedWorktree, RemoveAsk, KEPT_FOR_MS, SETTLED_STANDS_MS, SWEEP_MS,
+};
 use wsp_account::projects::folders::{folders_area, Folders};
 use wsp_account::projects::workspaces::seam::Entry;
 use wsp_wire::views::workspace_more::WorktreeSettledWhy;
@@ -30,7 +32,8 @@ use wsp_words::exit::{HostError, Kind};
 
 const STATE: &str = "/home/me/.wsp";
 const GONE_PATH: &str = "/nonexistent/wsp-worktrees/feat-x";
-const NO_COPIER_HERE: &str = "this host has no daemon binary beside it to make a worktree with; stage this wsp's daemon binary and try again";
+const NO_COPIER_HERE: &str =
+    "this host has no daemon binary beside it to make a worktree with; stage this wsp's daemon binary and try again";
 const BUSY: &str = "a thread is working in that worktree; let its turn end or stop it first";
 const RUNNING: &str = "a thread is running";
 const ABANDONED: &str = "kept 7 days; remove it by hand";
@@ -124,7 +127,12 @@ async fn settle() {
 type Log = Rc<RefCell<Vec<String>>>;
 
 /// Work that logs its start and end around an optional gate, and answers `out`.
-fn work(log: &Log, name: &'static str, gate: Option<oneshot::Receiver<()>>, out: Result<Value, HostError>) -> LocalBoxFuture<'static, Result<Value, HostError>> {
+fn work(
+    log: &Log,
+    name: &'static str,
+    gate: Option<oneshot::Receiver<()>>,
+    out: Result<Value, HostError>,
+) -> LocalBoxFuture<'static, Result<Value, HostError>> {
     let log = log.clone();
     async move {
         log.borrow_mut().push(format!("{name}:start"));
@@ -230,7 +238,8 @@ fn remove_refuses_a_worktree_wsp_did_not_make() {
     let (_dir, path) = on_disk();
     let theirs = rig.tree("ws_theirs", &path, json!({ "branch": "theirs", "made": false }));
     let none = rig.base.hold(record("ws_folder", "local", "p_web", json!({})));
-    let flat = rig.base.hold(record("ws_flat", "local", "p_flat", json!({ "worktree": { "path": path, "branch": "feat/x", "made": true } })));
+    let flat =
+        rig.base.hold(record("ws_flat", "local", "p_flat", json!({ "worktree": { "path": path, "branch": "feat/x", "made": true } })));
     let said = |branch: &str| plain(&format!("wsp made no worktree for {branch}; git worktree remove takes one wsp did not make"));
     assert_eq!(refusal(run(rig.folders.remove_worktree(&theirs, true, RemoveAsk::default()))), said("theirs"));
     assert_eq!(refusal(run(rig.folders.remove_worktree(&none, false, RemoveAsk::default()))), said(""));
@@ -326,6 +335,7 @@ fn remove_takes_the_tree_and_marks_the_record_gone() {
     let (first_id, second_id) = (rec(&first).id, rec(&second).id);
     rig.thread_on(&first_id);
     rig.base.calls.borrow_mut().clear();
+    rig.base.persisted.borrow_mut().clear();
     run(rig.folders.remove_worktree(&first, false, RemoveAsk::default())).unwrap();
     assert_eq!(rig.base.args_of("copier_worktree_remove"), vec![remove_ask(&path, false)]);
     assert_eq!(rig.base.names_of(&["copier_worktree_remove", "persist", "drop"]), vec!["copier_worktree_remove", "persist"]);
@@ -349,7 +359,10 @@ fn remove_of_a_tree_gone_from_disk_skips_the_copier() {
     run(rig.folders.remove_worktree(&free, true, RemoveAsk::default())).unwrap();
     assert_eq!(rig.base.args_of("git"), Vec::<Value>::new());
     assert_eq!(rig.base.args_of("copier_worktree_remove"), Vec::<Value>::new());
-    assert_eq!(worktree_of(&named), json!({ "path": GONE_PATH, "branch": "feat/x", "made": true, "settled": { "at": START, "why": "removed" }, "gone": true }));
+    assert_eq!(
+        worktree_of(&named),
+        json!({ "path": GONE_PATH, "branch": "feat/x", "made": true, "settled": { "at": START, "why": "removed" }, "gone": true })
+    );
     assert_eq!(rig.persisted_ids(), vec!["ws_named"]);
     assert_eq!(rig.base.args_of("drop"), vec![json!({ "id": "ws_free" })]);
 }
@@ -392,7 +405,10 @@ fn drop_checkpoints_waits_on_the_landing_and_warns_a_refusal() {
 fn holds_thread_reads_session_rows_and_thread_records() {
     let rig = Rig::new();
     assert!(!rig.folders.holds_thread("ws_a"));
-    rig.base.sessions.borrow_mut().push(serde_json::from_value(json!({ "id": "s1", "workspaceId": "ws_a", "harness": "claude", "status": "completed" })).unwrap());
+    rig.base
+        .sessions
+        .borrow_mut()
+        .push(serde_json::from_value(json!({ "id": "s1", "workspaceId": "ws_a", "harness": "claude", "status": "completed" })).unwrap());
     assert!(rig.folders.holds_thread("ws_a"));
     assert!(!rig.folders.holds_thread("ws_b"));
     rig.base.threads.borrow_mut().push(("t2".to_owned(), base::thread_on("ws_b")));
@@ -425,7 +441,9 @@ fn worktree_gone_keeps_a_record_a_thread_names_as_gone_with_its_first_settled() 
         json!({ "madeFor": "t_root", "settled": { "at": 5, "why": "merged" }, "kept": "a thread is running", "removeFailed": "locked" }),
     );
     let fresh = rig.tree("ws_fresh", "/nonexistent/other", json!({ "kept": ABANDONED }));
-    rig.base.sessions.borrow_mut().push(serde_json::from_value(json!({ "id": "s1", "workspaceId": "ws_settled", "harness": "claude", "status": "completed" })).unwrap());
+    rig.base.sessions.borrow_mut().push(
+        serde_json::from_value(json!({ "id": "s1", "workspaceId": "ws_settled", "harness": "claude", "status": "completed" })).unwrap(),
+    );
     rig.thread_on("ws_fresh");
     run(rig.folders.worktree_gone(&settled, WorktreeSettledWhy::Removed, false)).unwrap();
     run(rig.folders.worktree_gone(&fresh, WorktreeSettledWhy::Deleted, false)).unwrap();
@@ -446,7 +464,10 @@ fn worktree_gone_while_starting_keeps_the_record() {
     let rig = Rig::new();
     let entry = rig.tree("ws_tree", GONE_PATH, json!({}));
     run(rig.folders.worktree_gone(&entry, WorktreeSettledWhy::Removed, true)).unwrap();
-    assert_eq!(worktree_of(&entry), json!({ "path": GONE_PATH, "branch": "feat/x", "made": true, "settled": { "at": START, "why": "removed" }, "gone": true }));
+    assert_eq!(
+        worktree_of(&entry),
+        json!({ "path": GONE_PATH, "branch": "feat/x", "made": true, "settled": { "at": START, "why": "removed" }, "gone": true })
+    );
     assert_eq!(rig.persisted_ids(), vec!["ws_tree"]);
     assert_eq!(rig.base.args_of("drop"), Vec::<Value>::new());
 }
@@ -582,7 +603,10 @@ fn sweep_one_marks_a_missing_path_removed() {
     let entry = rig.tree("ws_tree", GONE_PATH, json!({}));
     rig.thread_on("ws_tree");
     run(rig.folders.sweep_one(&entry)).unwrap();
-    assert_eq!(worktree_of(&entry), json!({ "path": GONE_PATH, "branch": "feat/x", "made": true, "settled": { "at": START, "why": "removed" }, "gone": true }));
+    assert_eq!(
+        worktree_of(&entry),
+        json!({ "path": GONE_PATH, "branch": "feat/x", "made": true, "settled": { "at": START, "why": "removed" }, "gone": true })
+    );
     assert_eq!(rig.persisted_ids(), vec!["ws_tree"]);
     assert_eq!(rig.effects(), vec!["persist"]);
 }
@@ -622,7 +646,10 @@ fn sweep_one_keeps_a_tree_with_changes() {
     let entry = rig.tree("ws_tree", &path, json!({ "settled": settled }));
     rig.git_says("status --porcelain", "?? a\n M b\n?? c\n");
     run(rig.folders.sweep_one(&entry)).unwrap();
-    assert_eq!(worktree_of(&entry), json!({ "path": path, "branch": "feat/x", "made": true, "settled": settled, "kept": "3 files not committed" }));
+    assert_eq!(
+        worktree_of(&entry),
+        json!({ "path": path, "branch": "feat/x", "made": true, "settled": settled, "kept": "3 files not committed" })
+    );
     assert_eq!(rig.base.args_of("git"), vec![status_ask(&path)]);
     assert_eq!(rig.base.args_of("copier_worktree_remove"), Vec::<Value>::new());
     assert_eq!(rig.effects(), vec!["git", "persist", "status_now"]);
@@ -659,7 +686,10 @@ fn sweep_one_marks_a_failed_removal() {
     run(rig.folders.sweep_one(&entry)).unwrap();
     assert_eq!(worktree_of(&entry), json!({ "path": path, "branch": "feat/x", "made": true, "settled": settled, "removeFailed": locked }));
     assert_eq!(rig.persisted_trees(), vec![worktree_of(&entry)]);
-    assert_eq!(rig.base.names_of(&["copier_worktree_remove", "persist", "status_now", "drop"]), vec!["copier_worktree_remove", "persist", "status_now"]);
+    assert_eq!(
+        rig.base.names_of(&["copier_worktree_remove", "persist", "status_now", "drop"]),
+        vec!["copier_worktree_remove", "persist", "status_now"]
+    );
 }
 
 // Ports worktree-sweep.test.ts:261: a week of failing leaves the tree to the person, and the sweep stops trying.
@@ -736,7 +766,10 @@ fn settled_now_stamps_merged_and_closed_from_the_pr() {
     );
     let got = run(rig.folders.settled_now(&merged)).unwrap();
     assert_eq!(serde_json::to_value(got).unwrap(), json!({ "at": 123456, "why": "merged" }));
-    assert_eq!(worktree_of(&merged), json!({ "path": TREE_AT, "branch": "feat/x", "made": true, "settled": { "at": 123456, "why": "merged" } }));
+    assert_eq!(
+        worktree_of(&merged),
+        json!({ "path": TREE_AT, "branch": "feat/x", "made": true, "settled": { "at": 123456, "why": "merged" } })
+    );
     assert_eq!(rig.persisted_ids(), vec!["ws_merged"]);
     assert_eq!(rig.base.names_of(&["read_pull_request", "persist", "status_now"]), vec!["read_pull_request", "persist", "status_now"]);
     let got = run(rig.folders.settled_now(&closed)).unwrap();
@@ -747,7 +780,11 @@ fn settled_now_stamps_merged_and_closed_from_the_pr() {
     assert_eq!(worktree_of(&open), json!({ "path": TREE_AT, "branch": "feat/x", "made": true }));
     assert_eq!(
         rig.base.args_of("read_pull_request"),
-        vec![json!({ "id": "ws_merged", "force": true }), json!({ "id": "ws_closed", "force": true }), json!({ "id": "ws_open", "force": true })]
+        vec![
+            json!({ "id": "ws_merged", "force": true }),
+            json!({ "id": "ws_closed", "force": true }),
+            json!({ "id": "ws_open", "force": true })
+        ]
     );
     assert_eq!(rig.persisted_ids(), vec!["ws_merged", "ws_closed"]);
     assert_eq!(rig.base.args_of("local_exec"), Vec::<Value>::new());
@@ -763,7 +800,10 @@ fn settled_now_stamps_deleted_when_the_remote_says_no_branch() {
     rig.reply("local_exec", json!({ "exitCode": 2, "stdout": "", "stderr": "" }));
     let got = run(rig.folders.settled_now(&entry)).unwrap();
     assert_eq!(serde_json::to_value(got).unwrap(), json!({ "at": START, "why": "deleted" }));
-    assert_eq!(worktree_of(&entry), json!({ "path": TREE_AT, "branch": "feat/x", "made": true, "settled": { "at": START, "why": "deleted" } }));
+    assert_eq!(
+        worktree_of(&entry),
+        json!({ "path": TREE_AT, "branch": "feat/x", "made": true, "settled": { "at": START, "why": "deleted" } })
+    );
     assert_eq!(rig.base.args_of("git"), vec![config_ask(TREE_AT, "remote"), config_ask(TREE_AT, "merge")]);
     assert_eq!(
         rig.base.args_of("local_exec"),
@@ -817,7 +857,8 @@ fn a_branch_with_no_upstream_is_never_gone() {
 fn settled_now_asks_nothing_with_no_remote() {
     let rig = Rig::new();
     rig.base.hold_project(project("p_local", "local", "here", json!({ "remote": "", "git": { "top": "/home/me/local" } })));
-    let entry = rig.base.hold(record("ws_tree", "local", "p_local", json!({ "worktree": { "path": TREE_AT, "branch": "feat/x", "made": true } })));
+    let entry =
+        rig.base.hold(record("ws_tree", "local", "p_local", json!({ "worktree": { "path": TREE_AT, "branch": "feat/x", "made": true } })));
     assert!(run(rig.folders.settled_now(&entry)).unwrap().is_none());
     assert_eq!(rig.base.names(), Vec::<String>::new());
     assert_eq!(rig.persisted_ids(), Vec::<String>::new());

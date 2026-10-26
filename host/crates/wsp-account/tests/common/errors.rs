@@ -1,13 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The host errors a test builds, and the TS words of a kind, written from the fields so no wsp-words body is needed.
 //! Both test halves (`common` and `support/base.rs`) include this one file.
-#![allow(dead_code)]
+#![allow(dead_code, unused_imports)]
 
 use wsp_words::exit::{HostError, Kind};
 
 /// `new Error(message)`, built from fields so no wsp-words body is needed.
 pub fn plain(message: &str) -> HostError {
-    HostError { message: message.to_owned(), fix: None, kind: None, errors: None, warnings: None, left: None, host_key: None, code: None, status: None, marks: vec![] }
+    HostError {
+        message: message.to_owned(),
+        fix: None,
+        kind: None,
+        errors: None,
+        warnings: None,
+        left: None,
+        host_key: None,
+        code: None,
+        status: None,
+        marks: vec![],
+    }
 }
 
 /// `Object.assign(new Error(message), { kind })`.

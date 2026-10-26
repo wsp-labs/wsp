@@ -21,9 +21,9 @@ backend for exactly the current id and None for any other. `list()` is `[id]`. P
 The TS reads `homedir()` and `process.cwd()`; here they are the `home` and `cwd` arguments.
 
 1. `"~"` or a word starting `"~/"`: `join(home, rest)`, where join is node's `path.join` (normalizes `.` and `..`,
-   collapses slashes, drops a trailing one).
+   collapses slashes, and keeps a trailing one: `~/x/` joins to `<home>/x/`).
 2. Else an absolute word (starts with `/`): **the word as written**, not normalized.
-3. Else node's `path.resolve(cwd, word)`: normalized, absolute; the empty word is `cwd` itself; `"~foo"` is relative.
+3. Else node's `path.resolve(cwd, word)`: normalized, absolute, a trailing slash dropped; the empty word is `cwd` itself; `"~foo"` is relative.
 4. Then `realpath` of that; where realpath fails (missing, unreadable), the step 1 to 3 path itself.
 
 Pinned by `folder_named_reads_home_cwd_and_links` and

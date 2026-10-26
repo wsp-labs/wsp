@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! What every account test shares: the oracle fixtures, records and projects built from the TS's plain objects, a
 //! fake machine, a live entry, and a one-thread runtime that runs spawned work to quiet before a test reads state.
-#![allow(dead_code)]
+#![allow(dead_code, unused_imports)]
 
 mod entry;
 mod errors;
@@ -16,7 +16,7 @@ use wsp_account::account::core_types::Entry;
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_engine::machine::Machine;
 use wsp_wire::views::workspace::ProjectView;
-use wsp_words::exit::{HostError, Kind};
+use wsp_words::exit::HostError;
 
 /// `tests/fixtures/oracle/<name>.json`, the TS's own answers.
 pub fn oracle(name: &str) -> Value {
@@ -34,7 +34,10 @@ fn merged(defaults: Value, given: &Value) -> Value {
 
 /// A record from the TS's plain object, the keys the TS fixtures leave out filled as a fresh record has them.
 pub fn record(given: &Value) -> WorkspaceRecord {
-    let mut full = merged(json!({ "golden": "", "createdAt": "2026-10-25T00:00:00.000Z", "spec": {}, "size": { "cpu": 2, "memMb": 4096 }, "firstLife": false }), given);
+    let mut full = merged(
+        json!({ "golden": "", "createdAt": "2026-10-25T00:00:00.000Z", "spec": {}, "size": { "cpu": 2, "memMb": 4096 }, "firstLife": false }),
+        given,
+    );
     // wsp-wire's WorkspaceAgents still requires `spawn` (written from a3b870a6e); the cut dropped it. Drift.
     if full["agents"].is_object() && full["agents"].get("spawn").is_none() {
         full["agents"]["spawn"] = json!(true);
@@ -50,7 +53,8 @@ pub fn project(given: &Value) -> ProjectView {
     if given["source"]["kind"] == json!("git") && given["source"].get("url").is_none() {
         given["source"]["url"] = given["remote"].clone();
     }
-    let full = merged(json!({ "defaultBranch": "main", "memoryKey": "", "memoryDir": "", "createdAt": "2026-10-25T00:00:00.000Z" }), &given);
+    let full =
+        merged(json!({ "defaultBranch": "main", "memoryKey": "", "memoryDir": "", "createdAt": "2026-10-25T00:00:00.000Z" }), &given);
     serde_json::from_value(full).unwrap_or_else(|e| panic!("project {given}: {e}"))
 }
 
@@ -76,8 +80,6 @@ pub fn error_json(e: &HostError) -> Value {
     }
     out
 }
-
-
 
 /// Runs `f` on one thread with a local set, as the host does (chapter 03).
 pub fn run<F: std::future::Future<Output = ()>>(f: F) {

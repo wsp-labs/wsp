@@ -3,11 +3,11 @@
 //! the context the area reads, the area's state and its constructor; `daemon.rs` the facts of a record and the roads
 //! to a daemon (channels.ts:1-280), `ptys.rs` the pty owners, tags, kill guard and port roots (280-580), `copy.rs` the
 //! served and copy channels, shell tokens and where a child starts (580-934). Specs: spec/channels_*.md.
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::cell::{Cell, RefCell};
+use std::rc::{Rc, Weak};
 
 use async_trait::async_trait;
-use futures::future::LocalBoxFuture;
+use futures::future::{LocalBoxFuture, Shared};
 use indexmap::{IndexMap, IndexSet};
 use serde_json::Value;
 
@@ -20,9 +20,9 @@ use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::wire::place_link::PlaceReport;
 
 use crate::account::box_panels::{BoxPanelsCtx, BoxPanelsOpener, Watchers};
+use crate::account::core_types::{AccountResult, Entry};
 use wsp_core::clock::Cancel;
 use wsp_core::types::internal::ThreadRecord;
-use crate::account::core_types::{AccountResult, Entry};
 
 pub mod copy;
 pub mod daemon;
@@ -44,10 +44,32 @@ pub const COMPUTER_WATCHES: [&str; 2] = ["ports.watch", "sys.watch"];
 pub const COMPUTER_PROCS: [&str; 5] = ["proc.watch", "proc.unwatch", "proc.inspect", "proc.kill", "container.stop"];
 /// channels.ts:295.
 pub const WORKSPACE_FRAMES: [&str; 22] = [
-    "pty.create", "pty.attach", "pty.detach", "pty.write", "pty.resize", "pty.kill", "pty.tab", "pty.list", "fs.list", "fs.files", "fs.read", "fs.write", "fs.search", "git.status", "git.diff", "git.snapshot", "git.range", "git.turn", "git.push", "git.pr", "git.prList", "ping",
+    "pty.create",
+    "pty.attach",
+    "pty.detach",
+    "pty.write",
+    "pty.resize",
+    "pty.kill",
+    "pty.tab",
+    "pty.list",
+    "fs.list",
+    "fs.files",
+    "fs.read",
+    "fs.write",
+    "fs.search",
+    "git.status",
+    "git.diff",
+    "git.snapshot",
+    "git.range",
+    "git.turn",
+    "git.push",
+    "git.pr",
+    "git.prList",
+    "ping",
 ];
 /// channels.ts:299: `WORKSPACE_FRAMES`, then these.
-pub const GUEST_ROAD_EXTRA: [&str; 7] = ["guest.watch", "guest.reply", "guest.close", "ssh.start", "tunnel.open", "tunnel.write", "tunnel.close"];
+pub const GUEST_ROAD_EXTRA: [&str; 7] =
+    ["guest.watch", "guest.reply", "guest.close", "ssh.start", "tunnel.open", "tunnel.write", "tunnel.close"];
 /// channels.ts:378: one document per workspace, pty id → thread.
 pub const PTY_THREADS: &str = "pty-threads";
 /// channels.ts:494.
@@ -207,7 +229,8 @@ pub struct ChannelsArea {
     /// channels.ts:308: each owner's ptys.
     pub(crate) pty_owners: RefCell<IndexMap<String, Rc<RefCell<IndexSet<String>>>>>,
     /// channels.ts:379: each workspace's tag read, joined by a second reader.
-    pub(crate) tags_held: RefCell<IndexMap<String, futures::future::Shared<LocalBoxFuture<'static, Rc<RefCell<IndexMap<String, String>>>>>>>,
+    pub(crate) tags_held:
+        RefCell<IndexMap<String, futures::future::Shared<LocalBoxFuture<'static, Rc<RefCell<IndexMap<String, String>>>>>>>,
     /// channels.ts:381: the tags once read (`tagsRead`).
     pub(crate) tags_read: RefCell<IndexMap<String, Rc<RefCell<IndexMap<String, String>>>>>,
     /// channels.ts:406: each workspace's last queued tag write.
@@ -224,11 +247,58 @@ pub struct ChannelsArea {
     pub(crate) terminals_written: RefCell<IndexMap<String, IndexSet<String>>>,
     /// channels.ts:718: each workspace's pty → device, once read.
     pub(crate) shell_tokens: RefCell<IndexMap<String, Rc<RefCell<IndexMap<String, String>>>>>,
+    /// The token of each `tags_held` read, so a read that was replaced never writes its tags back (identity in TS).
+    tags_held_seq: RefCell<IndexMap<String, u64>>,
+    /// The token of each queued tag write, so only the last one forgets the workspace's tags.
+    tag_writes_seq: RefCell<IndexMap<String, u64>>,
+    /// channels.ts:719: each workspace's last queued shell-token write, with its token.
+    shell_writes: RefCell<IndexMap<String, (u64, Shared<LocalBoxFuture<'static, ()>>)>>,
+    next_seq: Cell<u64>,
 }
 
 impl ChannelsArea {
     /// channels.ts:29. Registers the two `workspace.deleted` listeners in the TS order (429, 778).
     pub fn new(ctx: Rc<dyn ChannelsCtx>) -> Rc<ChannelsArea> {
-        todo!()
+        Rc::new_cyclic(|weak: &Weak<ChannelsArea>| {
+            let ptys_weak = weak.clone();
+            ctx.on_workspace_deleted(Rc::new(move |id: &str| {
+                if let Some(area) = ptys_weak.upgrade() {
+                    area.tags_deleted(id);
+                }
+            }));
+            let port_watchers: Watchers = Rc::default();
+            let box_panels = BoxPanelsOpener::new(ctx.box_panels_ctx(), port_watchers.clone(), Rc::default());
+            let copy_weak = weak.clone();
+            ctx.on_workspace_deleted(Rc::new(move |id: &str| {
+                if let Some(area) = copy_weak.upgrade() {
+                    area.shells_deleted(id);
+                }
+            }));
+            ChannelsArea {
+                ctx,
+                daemon_notes: RefCell::default(),
+                port_pids: Rc::default(),
+                pty_owners: RefCell::default(),
+                tags_held: RefCell::default(),
+                tags_read: RefCell::default(),
+                tag_writes: RefCell::default(),
+                tags_going: RefCell::default(),
+                port_watchers,
+                turn_groups: Rc::default(),
+                box_panels,
+                terminals_written: RefCell::default(),
+                shell_tokens: RefCell::default(),
+                tags_held_seq: RefCell::default(),
+                tag_writes_seq: RefCell::default(),
+                shell_writes: RefCell::default(),
+                next_seq: Cell::new(0),
+            }
+        })
+    }
+
+    fn seq(&self) -> u64 {
+        let n = self.next_seq.get();
+        self.next_seq.set(n + 1);
+        n
     }
 }

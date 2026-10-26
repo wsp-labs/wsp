@@ -6,7 +6,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::console;
+use crate::node_path::join;
 use wsp_store::own_file::write_own;
+use wsp_words::js::js_trim;
 
 static WARNED: AtomicBool = AtomicBool::new(false);
 
@@ -19,13 +21,34 @@ pub fn host_id_not_kept_line(dir: &Path, why: &str) -> String {
 /// Support/wsp` on macOS and `~/.config/wsp` elsewhere. host-id.ts:10.
 pub fn local_config_dir() -> PathBuf {
     if let Some(xdg) = std::env::var_os("XDG_CONFIG_HOME").filter(|v| !v.is_empty()) {
-        return PathBuf::from(xdg).join("wsp");
+        return PathBuf::from(join(&[&xdg.to_string_lossy(), "wsp"]));
     }
-    let home = std::env::var_os("HOME").map(PathBuf::from).unwrap_or_default();
-    if cfg!(target_os = "macos") {
-        home.join("Library").join("Application Support").join("wsp")
-    } else {
-        home.join(".config").join("wsp")
+    let home = home_dir();
+    let kept =
+        if cfg!(target_os = "macos") { join(&[&home, "Library", "Application Support", "wsp"]) } else { join(&[&home, ".config", "wsp"]) };
+    PathBuf::from(kept)
+}
+
+/// node's `os.homedir()`: `$HOME` where it is set (empty included), else the home of the effective user's passwd entry.
+fn home_dir() -> String {
+    if let Some(home) = std::env::var_os("HOME") {
+        return home.to_string_lossy().into_owned();
+    }
+    let mut entry: libc::passwd = unsafe { std::mem::zeroed() };
+    let mut found: *mut libc::passwd = std::ptr::null_mut();
+    let mut buf = vec![0u8; 4096];
+    loop {
+        // SAFETY: `entry` and `buf` outlive the call, which writes inside `buf` (its length passed) and points `found` at `entry` or null.
+        let rc = unsafe { libc::getpwuid_r(libc::geteuid(), &mut entry, buf.as_mut_ptr().cast(), buf.len(), &mut found) };
+        if rc == libc::ERANGE && buf.len() < 1 << 20 {
+            buf.resize(buf.len() * 2, 0);
+            continue;
+        }
+        if rc != 0 || found.is_null() || entry.pw_dir.is_null() {
+            return String::new();
+        }
+        // SAFETY: `pw_dir` points to a NUL-terminated string inside `buf`, which is alive here.
+        return unsafe { std::ffi::CStr::from_ptr(entry.pw_dir) }.to_string_lossy().into_owned();
     }
 }
 
@@ -43,7 +66,7 @@ pub fn hostname() -> String {
 
 fn kept_id(dir: &Path) -> io::Result<String> {
     let path = dir.join("host-id");
-    let mut id = if path.exists() { std::fs::read_to_string(&path)?.trim().to_string() } else { String::new() };
+    let mut id = if path.exists() { js_trim(&String::from_utf8_lossy(&std::fs::read(&path)?)).to_string() } else { String::new() };
     if id.is_empty() {
         id = hex::encode(rand::random::<[u8; 4]>());
         write_own(dir, "host-id", format!("{id}\n"))?;

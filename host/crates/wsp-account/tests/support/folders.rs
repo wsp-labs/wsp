@@ -3,7 +3,7 @@
 //! delegating to it and `FoldersCtx` by logging each call on the base's list and answering from its script. State
 //! a test reads back: the sweep state, the turns that run, the repos that are not repos, the branch each path holds
 //! and the landings a test holds open.
-#![allow(dead_code)]
+#![allow(dead_code, unused_imports)]
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -16,14 +16,12 @@ use futures::FutureExt;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Value};
 use wsp_account::projects::folders::{FoldersCtx, HereDaemon, SweepState, WorktreeAsk, WorktreeRemove};
-use wsp_account::projects::workspaces::seam::{
-    Base, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, Live, ProjectsHeld,
-};
+use wsp_account::projects::workspaces::seam::{Base, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, Live, ProjectsHeld};
 use wsp_core::clock::Clock;
 use wsp_core::ids::Ids;
 use wsp_core::types::harness::StartPicksAsked;
-use wsp_core::types::pending::Store;
 use wsp_core::types::internal::ThreadRecord;
+use wsp_core::types::pending::Store;
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_engine::errors::Result as EngineResult;
 use wsp_engine::machine::{ExecOptions, Machine, MachineKind, MachineLife, MachineState, RunOptions, SnapshotOptions};
@@ -319,7 +317,10 @@ impl FoldersCtx for FakeFolders {
             .ok_or_else(|| plain(&format!("no project {word}")))
     }
     fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &ProjectView, word: &str) -> Option<HostError> {
-        self.base.call("elsewhere_refusal", json!({ "project": project.id, "word": word, "scoped": matches!(origin, Some(Caller::Scoped { .. })) }));
+        self.base.call(
+            "elsewhere_refusal",
+            json!({ "project": project.id, "word": word, "scoped": matches!(origin, Some(Caller::Scoped { .. })) }),
+        );
         self.base.answer_as::<()>("elsewhere_refusal", || ()).err()
     }
     async fn picks_hold(&self, project: &ProjectView, picks: &StartPicksAsked) -> Result<(), HostError> {
