@@ -11,6 +11,7 @@ use serde_json::{Map, Value};
 use crate::port::{PermissionOption, TurnResult};
 use wsp_wire::views::session::TurnRefusal;
 use wsp_wire::views::session_events::PatchHunk;
+use wsp_wire::views::workspace_kind::WorkspaceKind;
 
 /// PENDING(wsp-wire): packages/protocol/src/views/harness.ts:161, a TS interface the zod generator skipped.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -26,12 +27,12 @@ pub struct McpServerSpec {
 /// PENDING(wsp-words): words/turn.ts:172. Why a model call is being made again, in plain words, off the harness's
 /// error category and HTTP status.
 pub fn anthropic_retry_why(error: Option<&str>, status: Option<f64>) -> String {
-    todo!()
+    wsp_words::words::turn::anthropic_retry_why(error, status)
 }
 
 /// PENDING(wsp-words): usage.ts:342. The model less a trailing `[...]` context suffix.
 pub fn base_model(model: &str) -> String {
-    todo!()
+    wsp_words::usage::base_model(model)
 }
 
 /// PENDING(wsp-words): words/tools.ts:123.
@@ -39,42 +40,38 @@ pub const QUESTION_TOOL: &str = "AskUserQuestion";
 
 /// PENDING(wsp-words): words/thread.ts:461.
 pub fn aside_wall_line(ms: u64) -> String {
-    todo!()
+    wsp_words::words::thread::aside_wall_line(ms as f64)
 }
 
 /// PENDING(wsp-words): words/thread.ts:469.
-pub const ASIDE_TOOL_LINE: &str = "the answer reached for a tool, and a side question runs none; ask it again, or send it as a message for the thread to work on";
+pub const ASIDE_TOOL_LINE: &str =
+    "the answer reached for a tool, and a side question runs none; ask it again, or send it as a message for the thread to work on";
 
 /// PENDING(wsp-words): words/thread.ts:256. The last line of a held reply whose process ended with work still running.
 pub fn background_tasks_line(running: u32) -> String {
-    todo!()
+    wsp_words::words::thread::background_tasks_line(f64::from(running))
 }
 
 /// PENDING(wsp-words): words/thread.ts:270. One line per background task that finished after a held reply.
 pub fn task_finished_line(description: &str, status: &str, ms_after_reply: f64) -> String {
-    todo!()
+    wsp_words::words::thread::task_finished_line(description, status, ms_after_reply)
 }
 
 /// PENDING(wsp-words): project-path.ts:65.
 pub fn claude_memory_dir(state_home: &str, key: &str) -> String {
-    todo!()
+    wsp_words::project_path::claude_memory_dir(state_home, key)
 }
 
 /// PENDING(wsp-words): project-path.ts:60. Every byte outside `[A-Za-z0-9]` as `-`, per UTF-16 unit as the TS does.
 pub fn claude_project_key(path: &str) -> String {
-    todo!()
+    wsp_words::project_path::claude_project_key(path)
 }
 
-/// PENDING(wsp-words): words/thread.ts:54.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct HarnessEnded {
-    pub signal: Option<String>,
-    pub reached: Option<bool>,
-}
+pub use wsp_words::words::thread::HarnessEnded;
 
 /// PENDING(wsp-words): words/thread.ts:40. The turn's error when the process ended before any result.
 pub fn harness_exit_line(bin: &str, exit_code: Option<i32>, path: Option<&str>, ended: &HarnessEnded) -> String {
-    todo!()
+    wsp_words::words::thread::harness_exit_line(bin, exit_code, path, Some(ended))
 }
 
 /// wsp's half of a refusal: the road out where the caller knows one, and the cause it is classed by. TS
@@ -87,7 +84,10 @@ pub struct Refusal {
 
 /// PENDING(wsp-words): words/turn.ts:221.
 pub fn refused_turn(result: TurnResult, refusal: Option<&Refusal>) -> TurnResult {
-    todo!()
+    wsp_words::words::turn::refused_turn(
+        &result,
+        refusal.map(|r| wsp_words::words::turn::RefusalRoad { road: r.road.clone(), cause: r.cause }).as_ref(),
+    )
 }
 
 /// PENDING(wsp-words): words/turn.ts:42.
@@ -95,179 +95,165 @@ pub const SUBAGENT_ASKED_CHARS: usize = 280;
 
 /// PENDING(wsp-words): words/turn.ts:65. The start of what a subagent was asked, cut to SUBAGENT_ASKED_CHARS.
 pub fn subagent_asked(prompt: &str) -> String {
-    todo!()
+    wsp_words::words::turn::subagent_asked(prompt)
 }
 
 /// PENDING(wsp-words): words/turn.ts:34.
 pub const NO_REPORT_LINE: &str = "Finished without handing back a report.";
 
 /// PENDING(wsp-words): words/turn.ts:268.
-pub const LOST_SESSION_NOTE: &str = "the agent's session for this thread was gone from the machine, so this turn started a new one and handed it the thread so far";
+pub const LOST_SESSION_NOTE: &str =
+    "the agent's session for this thread was gone from the machine, so this turn started a new one and handed it the thread so far";
 
 /// PENDING(wsp-words): words/turn.ts, `lostSessionPrompt`. The prompt a new session is handed the thread so far with.
 pub fn lost_session_prompt(seed: &str, prompt: &str) -> String {
-    todo!()
+    wsp_words::words::turn::lost_session_prompt(seed, prompt)
 }
 
 /// PENDING(wsp-words): words/turn.ts:353.
 pub fn title_prompt(opening: &str, reply: Option<&str>) -> String {
-    todo!()
+    wsp_words::words::turn::title_prompt(opening, reply)
 }
 
 /// PENDING(wsp-words): words/turn.ts:373. A title out of an answer, or `None` where the answer is not one.
 pub fn generated_title(answer: &str) -> Option<String> {
-    todo!()
+    wsp_words::words::turn::generated_title(answer)
 }
 
 /// PENDING(wsp-words): words/turn.ts:75. Test-only reader in the TS suite.
 pub fn notify_tail(result: &TurnResult) -> Option<String> {
-    todo!()
+    wsp_words::words::turn::notify_tail(result)
 }
 
 /// PENDING(wsp-words): words/tools.ts:379. Test-only reader in the TS suite.
 pub fn internal_tool_result(text: &str) -> bool {
-    todo!()
+    wsp_words::words::tools::internal_tool_result(text)
 }
 
 /// PENDING(wsp-words): words/units.ts:380, the "short" style.
 pub fn fmt_duration(ms: f64) -> String {
-    todo!()
+    wsp_words::words::units::fmt_duration(ms, Some(wsp_words::words::units::DurationStyle::Short))
 }
 
 /// PENDING(wsp-words): shell-quote.ts:10. `cd <cwd quoted> && <command>`, or `cd ~ && ` with no cwd.
 pub fn in_folder(cwd: Option<&str>, command: &str) -> String {
-    todo!()
+    wsp_wire::types::shell_quote::in_folder(cwd, command)
 }
 
 /// PENDING(wsp-words): shell-quote.ts:23. Each word bare where sh reads it as itself, quoted otherwise.
 pub fn shell_line(words: &[String]) -> String {
-    todo!()
+    wsp_wire::types::shell_quote::shell_line(&words.iter().map(String::as_str).collect::<Vec<_>>())
 }
 
 /// PENDING(wsp-words): wsp-tools.ts:30. Whether a launch's servers give its thread a slate.
 pub fn launch_has_slate(servers: Option<&IndexMap<String, McpServerSpec>>) -> bool {
-    todo!()
+    servers.and_then(|servers| servers.get(wsp_wire::types::wsp_tools::MCP_SERVER_NAME)).is_some_and(|wsp| wsp.no_slate != Some(true))
 }
 
 /// PENDING(wsp-words): tool-result.ts:7. Every line of `content` as one hunk of `sign` lines.
 pub fn whole_file_hunk(content: &str, sign: char) -> PatchHunk {
-    todo!()
+    wsp_words::tool_result::whole_file_hunk(content, sign == '+')
 }
 
 /// PENDING(wsp-words): conversations.ts:103.
 pub fn folders_stamp_command(folders: &[String]) -> String {
-    todo!()
+    wsp_words::conversations::folders_stamp_command(folders)
 }
 
-/// PENDING(wsp-words): words/tools.ts:129. One choice of a question.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AskedOption {
-    pub id: String,
-    pub label: String,
-    pub description: String,
-}
-
-/// PENDING(wsp-words): words/tools.ts:135.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct AskedQuestion {
-    pub key: String,
-    pub index: usize,
-    pub header: String,
-    pub question: String,
-    pub options: Vec<AskedOption>,
-    pub multi_select: bool,
-}
+pub use wsp_words::words::tools::{AskedOption, AskedQuestion};
 
 /// PENDING(wsp-words): words/tools.ts:167.
 pub fn asked_questions(tool_name: &str, input: &str) -> Option<Vec<AskedQuestion>> {
-    todo!()
+    wsp_words::words::tools::asked_questions(tool_name, input)
 }
 
 /// PENDING(wsp-words): words/tools.ts:189.
 pub fn question_options(tool_name: &str, input: &str) -> Vec<PermissionOption> {
-    todo!()
+    wsp_words::words::tools::question_options(tool_name, input)
 }
 
 /// PENDING(wsp-words): words/tools.ts:196. `q<question>:other:<encodeURIComponent(words)>`.
 pub fn other_option_id(question: usize, words: &str) -> String {
-    todo!()
+    wsp_words::words::tools::other_option_id(question, words)
 }
 
 /// PENDING(wsp-words): words/tools.ts:222. The ids joined by `|`.
 pub fn picked_option_id(ids: &[String]) -> String {
-    todo!()
+    wsp_words::words::tools::picked_option_id(ids)
 }
 
 /// PENDING(wsp-words): workspace-state.ts:600 (`signInRefusalLine`) for the two kinds this crate's tests name: the
 /// person's own computer (`local`), else a cloud's machine (CLOUD_SIGN_IN_ROAD).
 pub fn sign_in_refusal_line(local: bool) -> String {
-    todo!()
+    let kind = if local { WorkspaceKind::Local } else { WorkspaceKind::Cloud };
+    wsp_words::workspace_state::sign_in_refusal_line(Some(&kind))
 }
 
 /// PENDING(wsp-words): words/tools.ts:212.
 pub fn picked_options(options: &[PermissionOption], picked: &str) -> Option<Vec<PermissionOption>> {
-    todo!()
+    wsp_words::words::tools::picked_options(options, picked)
 }
 
 /// PENDING(wsp-words): words/tools.ts:227. The call's input with the answers written in, keys in the input's order
 /// and `answers` last.
 pub fn question_answer_input(tool_name: &str, input: &str, picked: &[String]) -> Option<Map<String, Value>> {
-    todo!()
+    wsp_words::words::tools::question_answer_input(tool_name, input, picked)
 }
 
 // Codex, OpenCode and Cursor (the others writer, #2447). Same rule as above: each goes once its wave-1 crate has it.
 
 /// PENDING(wsp-words): shell-quote.ts:4. One POSIX sh word: `'...'`, each `'` inside written `'\''`.
 pub fn shell_quote(value: &str) -> String {
-    todo!()
+    wsp_wire::types::shell_quote::shell_quote(value)
 }
 
 /// PENDING(wsp-words): tool-result.ts:20. The hunks of a unified diff: one trailing `\n` dropped, split on `\n`, a
 /// line matching `^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@` opens a hunk (a missing count reads 1), every other
 /// line joins the last hunk, and lines before the first head are dropped.
 pub fn unified_hunks(diff: &str) -> Vec<PatchHunk> {
-    todo!()
+    wsp_words::tool_result::unified_hunks(diff)
 }
 
 /// PENDING(wsp-words): conversations.ts:164, through refusalLine.
 pub fn conversation_written_elsewhere_line(agent: &str, lets_go: Option<&str>) -> String {
-    todo!()
+    wsp_words::conversations::conversation_written_elsewhere_line(agent, lets_go)
 }
 
 /// PENDING(wsp-words): words/thread.ts:622.
 pub fn codex_not_signed_in_line(login: &str) -> String {
-    todo!()
+    wsp_words::words::thread::codex_not_signed_in_line(login)
 }
 
 /// PENDING(wsp-words): words/thread.ts:627.
 pub fn codex_missing_env_line(name: &str) -> String {
-    todo!()
+    wsp_words::words::thread::codex_missing_env_line(name)
 }
 
 /// PENDING(wsp-words): words/thread.ts:651, `fmtDuration(ms, "clock")` inside.
 pub fn codex_reconnect_line(elapsed_ms: f64) -> String {
-    todo!()
+    wsp_words::words::thread::codex_reconnect_line(elapsed_ms)
 }
 
 /// PENDING(wsp-words): words/places.ts:323.
 pub fn codex_key_refused_line(key_env: &str, reason: &str, login: &str) -> String {
-    todo!()
+    wsp_words::words::places::codex_key_refused_line(key_env, reason, login)
 }
 
 /// PENDING(wsp-words): words/thread.ts:504.
-pub const CODEX_LEGACY_HISTORY: &str = "a Codex older than 0.151.0 made this thread and keeps its history in a form thread/revert cannot cut";
+pub const CODEX_LEGACY_HISTORY: &str =
+    "a Codex older than 0.151.0 made this thread and keeps its history in a form thread/revert cannot cut";
 
 /// PENDING(wsp-words): words/thread.ts:508.
 pub const CODEX_FEWER_TURNS: &str = "codex lists fewer turns in this thread than the rewind would cut, so it cut nothing";
 
 /// PENDING(wsp-words): words/thread.ts:511.
 pub fn codex_no_turn_line(turn_id: &str) -> String {
-    todo!()
+    wsp_words::words::thread::codex_no_turn_line(turn_id)
 }
 
 /// PENDING(wsp-words): usage.ts:49. Up to 300 minutes the session, up to 10080 the week, else the month.
 pub fn limit_kind_of_minutes(minutes: f64) -> wsp_wire::types::usage::LimitKind {
-    todo!()
+    wsp_words::usage::limit_kind_of_minutes(minutes)
 }
 
 /// PENDING(wsp-wire): placeholders.ts:18, a TS interface the zod generator skipped.
@@ -284,17 +270,31 @@ pub const LINE_WAIT_S: u64 = 10;
 
 /// PENDING(wsp-catalog): codex-app-server.ts:19. `{"jsonrpc":"2.0","id":..,"method":..,"params":..}`.
 pub fn app_server_request(id: i64, method: &str, params: Map<String, Value>) -> String {
-    todo!()
+    let mut line = Map::new();
+    line.insert("jsonrpc".into(), Value::from("2.0"));
+    line.insert("id".into(), Value::from(id));
+    line.insert("method".into(), Value::from(method));
+    line.insert("params".into(), Value::Object(params));
+    Value::Object(line).to_string()
 }
 
 /// PENDING(wsp-catalog): codex-app-server.ts:21. `{"jsonrpc":"2.0","method":..,"params":{}}`.
 pub fn app_server_notification(method: &str) -> String {
-    todo!()
+    let mut line = Map::new();
+    line.insert("jsonrpc".into(), Value::from("2.0"));
+    line.insert("method".into(), Value::from(method));
+    line.insert("params".into(), Value::Object(Map::new()));
+    Value::Object(line).to_string()
 }
 
 /// PENDING(wsp-catalog): codex-app-server.ts:23. `initialize` with `clientInfo {name: "wsp", version: "0"}`.
 pub fn app_server_initialize(id: i64) -> String {
-    todo!()
+    let mut info = Map::new();
+    info.insert("name".into(), Value::from("wsp"));
+    info.insert("version".into(), Value::from("0"));
+    let mut params = Map::new();
+    params.insert("clientInfo".into(), Value::Object(info));
+    app_server_request(id, "initialize", params)
 }
 
 /// PENDING(wsp-catalog): codex-app-server.ts:26.
@@ -306,7 +306,13 @@ pub struct ServerStage {
 
 /// PENDING(wsp-catalog): codex-app-server.ts:32. The server under `codex` fed stage by stage through two fifos.
 pub fn app_server_script(codex: &str, stages: &[ServerStage]) -> String {
-    todo!()
+    wsp_catalog::plugins_codex::app_server_script(
+        codex,
+        &stages
+            .iter()
+            .map(|s| wsp_catalog::plugins_codex::ServerStage { lines: s.lines.clone(), answers: u64::from(s.answers) })
+            .collect::<Vec<_>>(),
+    )
 }
 
 /// PENDING(wsp-catalog): codex-app-server.ts:62.
@@ -318,12 +324,28 @@ pub enum ServerAnswer {
 
 /// PENDING(wsp-catalog): codex-app-server.ts:69. Each answer by its numeric id; a result is kept only when it is an object.
 pub fn answers_of(text: &str) -> IndexMap<i64, ServerAnswer> {
-    todo!()
+    wsp_catalog::plugins_codex::answers_of(text)
+        .into_iter()
+        .map(|(id, a)| {
+            (
+                id,
+                match a {
+                    wsp_catalog::plugins_codex::ServerAnswer::Result(r) => ServerAnswer::Result(r),
+                    wsp_catalog::plugins_codex::ServerAnswer::Error { code, message, data } => {
+                        ServerAnswer::Error { code: code.map(|c| c as f64), message, data }
+                    }
+                },
+            )
+        })
+        .collect()
 }
 
 /// PENDING(wsp-catalog): codex-app-server.ts:94.
 pub fn result_of(answers: &IndexMap<i64, ServerAnswer>, id: i64) -> Option<&Map<String, Value>> {
-    todo!()
+    match answers.get(&id)? {
+        ServerAnswer::Result(result) => Some(result),
+        ServerAnswer::Error { .. } => None,
+    }
 }
 
 /// PENDING(wsp-catalog): agents/codex.ts:25, the npm pin of codex's install road.

@@ -13,6 +13,7 @@
 //! turn's reader, goes on `tokio::task::spawn_local`, so every test runs inside a `LocalSet`.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures::future::{LocalBoxFuture, Shared};
 use futures::stream::LocalBoxStream;
@@ -21,11 +22,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 pub use crate::pending::McpServerSpec;
-pub use wsp_wire::views::harness::ScreenCommand;
-pub use wsp_wire::wire::helpers::PermissionOption;
+use wsp_wire::types::shell_quote::shell_quote;
 pub use wsp_wire::types::usage::HarnessLimit;
+pub use wsp_wire::views::harness::ScreenCommand;
 pub use wsp_wire::views::session::{PermissionOutcome, SubagentState, SubagentUsage};
 pub use wsp_wire::views::session_events::{DeltaKind, FilePatch, PlanStep, SessionHarness, TurnResult, TurnStatus, TurnTokens};
+pub use wsp_wire::wire::helpers::PermissionOption;
 
 /// A string map whose order is the order the TS object's keys were set in (JSON key order survives).
 pub type Env = IndexMap<String, String>;
@@ -44,7 +46,10 @@ pub struct AgentLaunch {
 
 /// The agent's command word: `bin`, or the person's program quoted as one word. TS adapter-port.ts:29.
 pub fn program_word(bin: &str, launch: Option<&AgentLaunch>) -> String {
-    todo!()
+    match launch.and_then(|l| l.program.as_deref()) {
+        Some(program) => shell_quote(program),
+        None => bin.to_string(),
+    }
 }
 
 /// TS adapter-port.ts:32.
@@ -53,12 +58,15 @@ pub const AGENT_PID_FILE_ENV: &str = "WSP_AGENT_PID_FILE";
 /// The agent's word on a turn's launch: a `sh -c` that writes its pid where the run asks, then execs the agent.
 /// TS adapter-port.ts:37, byte for byte.
 pub fn agent_word(bin: &str, launch: Option<&AgentLaunch>) -> String {
-    todo!()
+    let script = format!(
+        "[ -z \"${{{AGENT_PID_FILE_ENV}:-}}\" ] || echo $$ > \"${AGENT_PID_FILE_ENV}\"; unset {AGENT_PID_FILE_ENV}; exec \"$0\" \"$@\""
+    );
+    format!("sh -c {} {}", shell_quote(&script), program_word(bin, launch))
 }
 
 /// The setup's added words, each shell-quoted. TS adapter-port.ts:41.
 pub fn launch_words(launch: Option<&AgentLaunch>) -> Vec<String> {
-    todo!()
+    launch.and_then(|l| l.args.as_ref()).map(|args| args.iter().map(|a| shell_quote(a)).collect()).unwrap_or_default()
 }
 
 /// TS adapter-port.ts:46-47.
@@ -115,7 +123,21 @@ pub struct TurnDelta {
 impl TurnDelta {
     /// A delta with only the three fields every delta carries.
     pub fn new(session_id: impl Into<String>, kind: DeltaKind, text: impl Into<String>) -> Self {
-        TurnDelta { session_id: session_id.into(), kind, text: text.into(), message_id: None, tool_name: None, tool_use_id: None, is_error: None, parent_tool_use_id: None, cwd: None, bytes: None, exit_code: None, duration_ms: None, patch: None }
+        TurnDelta {
+            session_id: session_id.into(),
+            kind,
+            text: text.into(),
+            message_id: None,
+            tool_name: None,
+            tool_use_id: None,
+            is_error: None,
+            parent_tool_use_id: None,
+            cwd: None,
+            bytes: None,
+            exit_code: None,
+            duration_ms: None,
+            patch: None,
+        }
     }
 }
 
@@ -136,7 +158,7 @@ pub type Now = Arc<dyn Fn() -> i64>;
 
 /// The system clock as a [`Now`].
 pub fn system_now() -> Now {
-    todo!()
+    Arc::new(|| std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0))
 }
 
 /// What failed a run's stream, as its transport threw it. The runtime reads `kind`, never `message` (TS
@@ -170,7 +192,7 @@ pub enum ExecFailureKind {
 impl ExecFailureKind {
     /// The runtime's `computerSilent`: true for every kind but `Other`.
     pub fn silent(self) -> bool {
-        todo!()
+        self != ExecFailureKind::Other
     }
 }
 
@@ -311,7 +333,23 @@ pub enum AdapterEvent {
 impl AdapterEvent {
     /// The `sessionId` every event carries.
     pub fn session_id(&self) -> &str {
-        todo!()
+        match self {
+            AdapterEvent::SessionStart { session_id, .. }
+            | AdapterEvent::TurnDone { session_id, .. }
+            | AdapterEvent::TurnCompacted { session_id, .. }
+            | AdapterEvent::TurnRetry { session_id, .. }
+            | AdapterEvent::TurnPlan { session_id, .. }
+            | AdapterEvent::TurnTasks { session_id, .. }
+            | AdapterEvent::TurnUnread { session_id, .. }
+            | AdapterEvent::TurnAnchor { session_id, .. }
+            | AdapterEvent::Limit { session_id, .. }
+            | AdapterEvent::TurnUsage { session_id, .. }
+            | AdapterEvent::Subagent { session_id, .. }
+            | AdapterEvent::PermissionAsk { session_id, .. }
+            | AdapterEvent::PermissionClose { session_id, .. }
+            | AdapterEvent::SessionEnd { session_id, .. } => session_id,
+            AdapterEvent::TurnDelta(delta) => &delta.session_id,
+        }
     }
 }
 
@@ -473,18 +511,36 @@ pub trait ExecStreamFactory {
 
 /// Whether `turn` settled, either way, inside `ms`. TS adapter-port.ts:349.
 pub async fn settles_within<T>(turn: LocalBoxFuture<'_, T>, ms: u64) -> bool {
-    todo!()
+    tokio::select! {
+        _ = turn => true,
+        _ = tokio::time::sleep(Duration::from_millis(ms)) => false,
+    }
+}
+
+/// True when the process is still running once `ms` passed, false when it exited inside it.
+async fn outlasted(stream: &dyn ExecStream, ms: u64) -> bool {
+    let exited = stream.exited();
+    tokio::select! {
+        _ = exited => false,
+        _ = tokio::time::sleep(Duration::from_millis(ms)) => true,
+    }
 }
 
 /// SIGTERM, then SIGKILL once `grace_ms` passed with the process still there; settles when it is gone. TS
 /// adapter-port.ts:362.
 pub async fn end_run(stream: &dyn ExecStream, grace_ms: u64) {
-    todo!()
+    stream.teardown();
+    if outlasted(stream, grace_ms).await {
+        stream.kill();
+    }
+    stream.exited().await;
 }
 
 /// Waits `wait_ms` for the process to go on its own, then `end_run`. TS adapter-port.ts:374.
 pub async fn end_after_result(stream: &dyn ExecStream, wait_ms: u64, grace_ms: u64) {
-    todo!()
+    if outlasted(stream, wait_ms).await {
+        end_run(stream, grace_ms).await;
+    }
 }
 
 /// One model as an adapter reads it off its binary. TS adapter-port.ts:380.
@@ -772,7 +828,12 @@ pub trait HarnessSession {
     fn kept(&self) -> Option<Option<Box<dyn KeptAgent>>> {
         None
     }
-    fn steer(&self, prompt: String, id: Option<String>, images: Vec<TurnImage>) -> Option<LocalBoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
+    fn steer(
+        &self,
+        prompt: String,
+        id: Option<String>,
+        images: Vec<TurnImage>,
+    ) -> Option<LocalBoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
         let _ = (prompt, id, images);
         None
     }
@@ -825,7 +886,10 @@ pub trait HarnessAdapter {
         let _ = options;
         None
     }
-    fn attach(&self, options: AdapterAttachOptions) -> Option<LocalBoxFuture<'static, Result<Option<Arc<dyn HarnessSession>>, ExecFailure>>> {
+    fn attach(
+        &self,
+        options: AdapterAttachOptions,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<Arc<dyn HarnessSession>>, ExecFailure>>> {
         let _ = options;
         None
     }
@@ -866,7 +930,10 @@ pub trait HarnessAdapter {
         false
     }
     /// `None` at the outer level: no probe. Inner `None`: the binary did not answer.
-    fn probe_catalog(&self, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<HarnessCatalogAnswer>, ExecFailure>>> {
+    fn probe_catalog(
+        &self,
+        exec: Arc<dyn HarnessExec>,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<HarnessCatalogAnswer>, ExecFailure>>> {
         let _ = exec;
         None
     }
@@ -874,7 +941,11 @@ pub trait HarnessAdapter {
         let _ = exec;
         None
     }
-    fn session_title(&self, harness_session_id: String, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+    fn session_title(
+        &self,
+        harness_session_id: String,
+        exec: Arc<dyn HarnessExec>,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         let _ = (harness_session_id, exec);
         None
     }
@@ -882,11 +953,20 @@ pub trait HarnessAdapter {
         let _ = session_id;
         None
     }
-    fn rename_session(&self, harness_session_id: String, title: String, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<SessionRenameWrite, ExecFailure>>> {
+    fn rename_session(
+        &self,
+        harness_session_id: String,
+        title: String,
+        exec: Arc<dyn HarnessExec>,
+    ) -> Option<LocalBoxFuture<'static, Result<SessionRenameWrite, ExecFailure>>> {
         let _ = (harness_session_id, title, exec);
         None
     }
-    fn title_for(&self, turn: TitleTurn, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+    fn title_for(
+        &self,
+        turn: TitleTurn,
+        exec: Arc<dyn HarnessExec>,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         let _ = (turn, exec);
         None
     }
@@ -932,7 +1012,7 @@ pub trait KeptRun {
 /// One reader for a process's whole life, handing each turn a view of it; `between` takes each line printed while no
 /// turn is open. TS kept-run.ts:111 (`keepRun`).
 pub fn keep_run(stream: Arc<dyn ExecStream>, between: Option<Arc<dyn Fn(String)>>) -> Arc<dyn KeptRun> {
-    todo!()
+    crate::kept_run::keep_run(stream, between)
 }
 
 /// A start that may resume a session the agent's store no longer holds. TS lost-session.ts:11.
@@ -964,7 +1044,7 @@ where
     S: Finishes + ?Sized + 'static,
     L: Fn(String, Option<String>, OnEvent) -> Result<Arc<S>, AdapterError> + 'static,
 {
-    todo!()
+    crate::lost_session::start_after_loss(options, lost, launch)
 }
 
 /// Who opened a conversation. TS conversations.ts:7.

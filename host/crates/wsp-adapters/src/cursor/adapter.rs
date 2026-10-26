@@ -7,7 +7,9 @@ use std::sync::{Arc, Mutex};
 use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 
-use crate::port::{AdapterAttachOptions, AdapterError, AgentLaunch, Env, ExecFailure, ExecStreamFactory, HarnessStartOptions, SharedFuture, TurnResult};
+use crate::port::{
+    AdapterAttachOptions, AdapterError, AgentLaunch, Env, ExecFailure, ExecStreamFactory, HarnessStartOptions, SharedFuture, TurnResult,
+};
 
 /// TS adapter.ts:36.
 #[derive(Clone)]
@@ -28,7 +30,16 @@ pub struct CursorAdapterDeps {
 impl CursorAdapterDeps {
     /// Deps with every optional field `None`.
     pub fn new(exec: Arc<dyn ExecStreamFactory>) -> Self {
-        CursorAdapterDeps { exec, base_env: None, sign_in_refusal: None, api_key: None, key_env: None, interrupt_grace_ms: None, result_exit_ms: None, launch: None }
+        CursorAdapterDeps {
+            exec,
+            base_env: None,
+            sign_in_refusal: None,
+            api_key: None,
+            key_env: None,
+            interrupt_grace_ms: None,
+            result_exit_ms: None,
+            launch: None,
+        }
     }
 }
 

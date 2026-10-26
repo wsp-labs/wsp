@@ -10,7 +10,10 @@ use serde_json::{Map, Value};
 
 use super::background::Background;
 use super::rpc::{RequestId, ThreadOptions};
-use crate::port::{AnswerOutcome, ExecFailure, ExecStream, KeptRun, KeptTurn, Now, OnEvent, PermissionAnswer, SessionFile, Settle, SharedFuture, SteerOutcome, TaskStop, TurnResult};
+use crate::port::{
+    AnswerOutcome, ExecFailure, ExecStream, KeptRun, KeptTurn, Now, OnEvent, PermissionAnswer, SessionFile, Settle, SharedFuture,
+    SteerOutcome, TaskStop, TurnResult,
+};
 
 /// What a side run does with each answer: the next line to send, or how the run ends. TS turn-pages.ts:10.
 pub enum SideStep {
@@ -170,6 +173,15 @@ pub struct KeptThread {
 /// The thread's next turn on a server its last turn left up: thread/resume then turn/start, written together, where
 /// the thread was let go. An image with no path, or one not absolute, refuses before anything is written. TS
 /// adapter.ts:1238.
-pub fn next_on(ctx: &TurnContext, sessions: &Sessions, keeper: Arc<dyn KeptRun>, local_id: &str, thread: KeptThread, turn: KeptTurn, thread_options: Option<ThreadOptions>, background: Option<Arc<Mutex<Background>>>) -> Result<CodexSession, String> {
+pub fn next_on(
+    ctx: &TurnContext,
+    sessions: &Sessions,
+    keeper: Arc<dyn KeptRun>,
+    local_id: &str,
+    thread: KeptThread,
+    turn: KeptTurn,
+    thread_options: Option<ThreadOptions>,
+    background: Option<Arc<Mutex<Background>>>,
+) -> Result<CodexSession, String> {
     todo!()
 }

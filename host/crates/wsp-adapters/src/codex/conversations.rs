@@ -8,7 +8,10 @@ use futures::future::LocalBoxFuture;
 use serde_json::{Map, Value};
 
 use super::command::CodexBroker;
-use crate::port::{AgentLaunch, ConversationEarlier, ConversationLine, ConversationRoad, ConversationStore, EarlierAsk, EarlierRead, Env, StoreError, StoredConversation};
+use crate::port::{
+    AgentLaunch, ConversationEarlier, ConversationLine, ConversationRoad, ConversationStore, EarlierAsk, EarlierRead, Env, StoreError,
+    StoredConversation,
+};
 
 /// Codex's words for a thread another process writes. TS conversations.ts:16.
 pub const WRITER_HELD: &str = "already has an active writer";

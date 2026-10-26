@@ -10,7 +10,10 @@ use std::sync::Arc;
 
 use crate::claude::adapter::AdapterCore;
 use crate::claude::normalize::SavedUse;
-use crate::port::{AccessOutcome, AnswerOutcome, ExecFailure, ExecStream, KeptRun, KeptTurn, OnEvent, PermissionAnswer, SessionFile, SharedFuture, SteerOutcome, TaskStop, TurnImage, TurnResult};
+use crate::port::{
+    AccessOutcome, AnswerOutcome, ExecFailure, ExecStream, KeptRun, KeptTurn, OnEvent, PermissionAnswer, SessionFile, SharedFuture,
+    SteerOutcome, TaskStop, TurnImage, TurnResult,
+};
 
 /// adapter.ts:150.
 pub const STOP_TASK_WAIT_MS: u64 = 10_000;
@@ -158,13 +161,22 @@ impl crate::port::HarnessSession for ClaudeSession {
     fn kept(&self) -> Option<Option<Box<dyn crate::port::KeptAgent>>> {
         todo!()
     }
-    fn steer(&self, prompt: String, id: Option<String>, images: Vec<TurnImage>) -> Option<futures::future::LocalBoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
+    fn steer(
+        &self,
+        prompt: String,
+        id: Option<String>,
+        images: Vec<TurnImage>,
+    ) -> Option<futures::future::LocalBoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
         todo!()
     }
     fn tells_unread(&self) -> Option<bool> {
         todo!()
     }
-    fn answer(&self, ask_id: String, answer: PermissionAnswer) -> Option<futures::future::LocalBoxFuture<'static, Result<AnswerOutcome, ExecFailure>>> {
+    fn answer(
+        &self,
+        ask_id: String,
+        answer: PermissionAnswer,
+    ) -> Option<futures::future::LocalBoxFuture<'static, Result<AnswerOutcome, ExecFailure>>> {
         todo!()
     }
     fn set_access(&self, mode: String) -> Option<futures::future::LocalBoxFuture<'static, Result<AccessOutcome, ExecFailure>>> {

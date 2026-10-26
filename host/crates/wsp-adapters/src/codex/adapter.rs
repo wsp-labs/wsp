@@ -11,7 +11,11 @@ use indexmap::IndexMap;
 use super::command::CodexBroker;
 use super::conversations::CodexConversations;
 use super::turn::{CodexSession, Sessions};
-use crate::port::{AdapterAttachOptions, AdapterError, AgentLaunch, AsideAnswer, AsideQuestion, DraftAsk, Env, ExecFailure, ExecStreamFactory, ForkTurn, HarnessCatalogAnswer, HarnessCatalogModelProbe, HarnessExec, HarnessStartOptions, Now, RevertAsk, Reverted, SessionFile, SessionRenameWrite, TitleTurn};
+use crate::port::{
+    AdapterAttachOptions, AdapterError, AgentLaunch, AsideAnswer, AsideQuestion, DraftAsk, Env, ExecFailure, ExecStreamFactory, ForkTurn,
+    HarnessCatalogAnswer, HarnessCatalogModelProbe, HarnessExec, HarnessStartOptions, Now, RevertAsk, Reverted, SessionFile,
+    SessionRenameWrite, TitleTurn,
+};
 
 /// TS adapter.ts:172.
 #[derive(Clone)]
@@ -44,7 +48,22 @@ pub struct CodexAdapterDeps {
 impl CodexAdapterDeps {
     /// Deps with every optional field `None`.
     pub fn new(exec: Arc<dyn ExecStreamFactory>, home: impl Into<String>, login: impl Into<String>) -> Self {
-        CodexAdapterDeps { exec, home: home.into(), login: login.into(), api_key: None, key_env: None, base_env: None, interrupt_grace_ms: None, result_exit_ms: None, steer_join_ms: None, reconnect_stall_ms: None, aside_wall_ms: None, launch: None, broker: None, now: None }
+        CodexAdapterDeps {
+            exec,
+            home: home.into(),
+            login: login.into(),
+            api_key: None,
+            key_env: None,
+            base_env: None,
+            interrupt_grace_ms: None,
+            result_exit_ms: None,
+            steer_join_ms: None,
+            reconnect_stall_ms: None,
+            aside_wall_ms: None,
+            launch: None,
+            broker: None,
+            now: None,
+        }
     }
 }
 
@@ -151,7 +170,12 @@ impl CodexAdapter {
         todo!()
     }
     /// TS adapter.ts:1433.
-    pub async fn rename_session(&self, thread_id: &str, title: &str, exec: Arc<dyn HarnessExec>) -> Result<SessionRenameWrite, ExecFailure> {
+    pub async fn rename_session(
+        &self,
+        thread_id: &str,
+        title: &str,
+        exec: Arc<dyn HarnessExec>,
+    ) -> Result<SessionRenameWrite, ExecFailure> {
         todo!()
     }
     /// TS adapter.ts:1434.
