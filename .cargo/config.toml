@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# cargo xtask from the repository root.
+[alias]
+xtask = "run --quiet --manifest-path xtask/Cargo.toml --"

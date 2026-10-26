@@ -1,0 +1,16 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": "the daemon for this computer did not start, so its terminal, files and processes have nothing to dial: wsp-daemon binary missing: <repo>/packages/wspx/daemon/aarch64-unknown-linux-musl/wsp-daemon"
+    }
+  ],
+  "events": []
+}

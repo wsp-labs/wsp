@@ -1,0 +1,29 @@
+{
+  "replies": [
+    {
+      "exit": 1,
+      "stdout": {
+        "jsonLines": [
+          {
+            "removed": [
+              {
+                "id": "claude",
+                "agent": "Claude Code",
+                "docs": []
+              }
+            ],
+            "failures": [
+              {
+                "id": "emacs",
+                "error": "no agent emacs in the catalog; agents with an MCP config: claude, codex, gemini, opencode"
+              }
+            ]
+          }
+        ],
+        "layout": "<json>\n"
+      },
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

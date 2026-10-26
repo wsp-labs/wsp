@@ -1,0 +1,43 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": {
+        "json": [
+          {
+            "code": "invalid_type",
+            "expected": "string",
+            "received": "undefined",
+            "path": [
+              "project"
+            ],
+            "message": "Required"
+          },
+          {
+            "code": "invalid_type",
+            "expected": "string",
+            "received": "undefined",
+            "path": [
+              "name"
+            ],
+            "message": "Required"
+          }
+        ],
+        "layout": "indented"
+      }
+    },
+    {
+      "id": 3,
+      "ok": true,
+      "workspaces": []
+    }
+  ],
+  "events": []
+}

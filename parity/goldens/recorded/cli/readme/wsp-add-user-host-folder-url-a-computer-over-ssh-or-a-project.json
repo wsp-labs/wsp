@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp add takes one provider or one address, or nothing at all. usage: wsp add\n       wsp add <provider>\n       wsp add <user@host|ssh alias> [--recipe <name>] [--later] [--name <name>] [--ssh-port <port>] [--ssh-key <path>] [--host-key <key>]\n       wsp add <computer> --resume [--recipe <name>] [--later]\n       wsp add <place> --update\n       wsp add <place> --sign-in <agent>\n"
+    }
+  ],
+  "events": []
+}
