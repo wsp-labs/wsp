@@ -204,10 +204,77 @@ pub async fn agents_report(
     usage: &str,
     line: &str,
     cloud_on: bool,
-) -> Result<AgentsReport, HostError> {
+) -> Result<ReadReport, HostError> {
     let target = agents_target(client, thread, on, usage, line, None, cloud_on).await?;
     let reply = client.request("agents.read", target_frame(&target)).await?;
-    read_reply(&reply, "report", "agents.read")
+    Ok(ReadReport(read_reply(&reply, "report", "agents.read")?))
+}
+
+/// The keys of a `PluginRow` in the schema's order (agents-report.ts:249-264), which is the order zod's parse writes.
+const PLUGIN_KEYS: [&str; 14] = [
+    "agent",
+    "id",
+    "name",
+    "marketplace",
+    "version",
+    "scope",
+    "project",
+    "on",
+    "missing",
+    "path",
+    "setIn",
+    "description",
+    "source",
+    "brings",
+];
+
+fn plugin_in_schema_order(row: &Value) -> Value {
+    let Value::Object(fields) = row else { return row.clone() };
+    let ordered = PLUGIN_KEYS.iter().filter_map(|key| fields.get(*key).map(|value| ((*key).to_owned(), value.clone())));
+    Value::Object(ordered.collect())
+}
+
+/// A plugin row as a parse of the host's answer writes it: the keys the schema knows, in the schema's order.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ReadPlugin(pub PluginRow);
+
+impl std::ops::Deref for ReadPlugin {
+    type Target = PluginRow;
+
+    fn deref(&self) -> &PluginRow {
+        &self.0
+    }
+}
+
+impl Serialize for ReadPlugin {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let row = serde_json::to_value(&self.0).map_err(serde::ser::Error::custom)?;
+        plugin_in_schema_order(&row).serialize(serializer)
+    }
+}
+
+/// A report as a parse of the host's answer writes it: its plugin rows in the schema's key order.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ReadReport(pub AgentsReport);
+
+impl std::ops::Deref for ReadReport {
+    type Target = AgentsReport;
+
+    fn deref(&self) -> &AgentsReport {
+        &self.0
+    }
+}
+
+impl Serialize for ReadReport {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut report = serde_json::to_value(&self.0).map_err(serde::ser::Error::custom)?;
+        if let Some(Value::Array(rows)) = report.get_mut("plugins") {
+            for row in rows.iter_mut() {
+                *row = plugin_in_schema_order(row);
+            }
+        }
+        report.serialize(serializer)
+    }
 }
 
 /// The one key of a write or a read frame: `{target}`.
@@ -513,14 +580,14 @@ pub async fn plugin_changed(
     usage: &str,
     line: &str,
     cloud_on: bool,
-) -> Result<PluginRow, HostError> {
+) -> Result<ReadPlugin, HostError> {
     let target = agents_target(client, thread, on, usage, line, None, cloud_on).await?;
     let mut params = target_frame(&target);
     params.insert("agent".to_owned(), json!(ask.agent));
     params.insert("plugin".to_owned(), json!(ask.plugin));
     params.insert("on".to_owned(), json!(ask.on));
     let reply = client.request("plugins.toggle", params).await?;
-    read_reply(&reply, "plugin", "plugins.toggle")
+    Ok(ReadPlugin(read_reply(&reply, "plugin", "plugins.toggle")?))
 }
 
 /// `pluginTurnedWords(id, on, agent)` (agents-help.ts:183): `<id> is on|off for <agent>; its next turn loads|leaves out
