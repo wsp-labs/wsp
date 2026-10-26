@@ -874,6 +874,7 @@ async fn a_persons_presses_meet_the_start_budget() {
             for n in 1..=STARTS_PER_MINUTE as u64 {
                 let r = start(&m, "t", "count", tool("hand", "count"), RunBy::Person, json!({}));
                 assert_eq!(ans(&r)["outcome"], "running", "start {n}");
+                wait_for("the call ends", || m.records.last("count").is_some_and(|r| r["state"] == "done")).await;
             }
             let held = start(&m, "t", "count", tool("hand", "count"), RunBy::Person, json!({}));
             let held = ans(&held);
@@ -1061,7 +1062,7 @@ async fn stop_all_quiet_writes_nothing() {
             wait_for("c out", || hand.held.borrow().len() == 3).await;
             m.mcp.stop_all("t", StopAll { quiet: false, why: Some("the thread was stopped".into()) });
             assert_eq!(m.records.last("c").unwrap()["why"], "the thread was stopped");
-            assert_eq!(m.records.last("a").unwrap()["state"], "running", "a quiet stop left its record as it was");
+            assert_eq!(m.records.last("a").unwrap()["state"], "cancelled", "the quiet stop wrote nothing for a, so the second stop finds it running");
             m.mcp.close();
         })
         .await;
@@ -1103,7 +1104,7 @@ async fn refused_runs_refuses_a_new_or_changed_tool_run_with_no_description() {
             let del = doc(json!({ "del": { "kind": "tool", "server": "stub", "tool": "delete_item", "args": { "id": 1 } } }));
             assert_eq!(
                 refused(&del, None).await,
-                json!([{ "code": "K713", "name": "description-missing", "message": "$del calls stub.delete_item, which its server does not mark read-only, so it needs description=\"...\": the one line the person reads before allowing it, of what the run does" }])
+                json!([{ "code": "K713", "name": "description-missing", "message": "$del calls stub.delete_item, which its server does not mark read-only, so it needs description=\"...\" saying in one plain line what it does; the person reads it before allowing the run" }])
             );
             let touch = doc(json!({ "touch": { "kind": "tool", "server": "stub", "tool": "touch_item" } }));
             assert_eq!(refused(&touch, None).await[0]["code"], "K713");
