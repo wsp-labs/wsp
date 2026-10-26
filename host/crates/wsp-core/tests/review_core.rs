@@ -4,7 +4,6 @@ mod common;
 mod support;
 
 use std::cell::RefCell;
-use std::collections::BTreeSet;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -105,7 +104,7 @@ fn reindex_threads_refolds_in_the_order_the_threads_were_named() {
     let mut index = wsp_core::types::internal::index_of(&common::wires(&serde_json::Value::Array(chat.clone())));
     let of = |t: &str| chat.iter().filter(|e| e["threadId"] == t).map(common::wire).collect::<Vec<_>>();
     let named = ["t3", "t1"];
-    let threads: BTreeSet<String> = named.iter().map(|t| t.to_string()).collect();
+    let threads: indexmap::IndexSet<String> = named.iter().map(|t| t.to_string()).collect();
     wsp_core::types::internal::reindex_threads(&mut index, &threads, &of);
     assert_eq!(index.words.keys().cloned().collect::<Vec<_>>(), vec!["t2", "t3", "t1"]);
 }

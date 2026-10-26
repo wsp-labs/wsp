@@ -6,7 +6,6 @@
 use std::cell::RefCell;
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -19,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use wsp_wire::types::js_number::JsNumber;
 
+use crate::node_path;
 use wsp_adapters::port::{ExecStreamFactory, KeptAgent, SessionFile};
 use wsp_engine::errors::{EngineError, ErrorKind, WspError};
 use wsp_engine::labels::CREATED_AT_LABEL;
@@ -388,15 +388,86 @@ fn push_line(words: &mut ThreadWords, line: &str) {
 
 /// A subagent as the index holds it: what a listing answers, the turn whose end stops it, and its newest start row's
 /// `at`. internal.ts:283.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Child {
-    #[serde(flatten)]
     pub view: SubagentView,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub turn_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub start_row: Option<JsNumber>,
+    /// Whether `usage` was first set by the row that ended the child, which writes it after the end's own keys; it takes
+    /// no part in equality.
+    pub usage_late: LateUsage,
+}
+
+/// Whether a child's `usage` key came after its end's keys.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct LateUsage(pub bool);
+
+impl PartialEq for LateUsage {
+    fn eq(&self, _: &LateUsage) -> bool {
+        true
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ChildWire {
+    #[serde(flatten)]
+    view: SubagentView,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    turn_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    start_row: Option<JsNumber>,
+}
+
+/// The keys of a child as the TS object holds them: the running row's, then the end's, and `usage` after them when the
+/// end was the first to carry it.
+const CHILD_KEYS: [&str; 14] = [
+    "id",
+    "title",
+    "state",
+    "parentToolUseId",
+    "depth",
+    "model",
+    "asked",
+    "usage",
+    "startedAt",
+    "turnId",
+    "startRow",
+    "endedAt",
+    "lastLine",
+    "failure",
+];
+
+impl Serialize for Child {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::Error;
+        let wire = ChildWire { view: self.view.clone(), turn_id: self.turn_id.clone(), start_row: self.start_row };
+        let serde_json::Value::Object(mut held) = serde_json::to_value(&wire).map_err(S::Error::custom)? else {
+            return Err(S::Error::custom("a child is an object"));
+        };
+        let mut out = serde_json::Map::new();
+        for key in CHILD_KEYS.iter().filter(|k| **k != "usage" || !self.usage_late.0) {
+            if let Some(value) = held.remove(*key) {
+                out.insert((*key).to_string(), value);
+            }
+        }
+        if let Some(usage) = held.remove("usage") {
+            out.insert("usage".to_string(), usage);
+        }
+        out.extend(held);
+        serde_json::Value::Object(out).serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Child {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::Error;
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let at = |key: &str| value.as_object().and_then(|o| o.keys().position(|k| k == key));
+        let late = matches!((at("usage"), at("startedAt")), (Some(usage), Some(started)) if usage > started);
+        let wire: ChildWire = serde_json::from_value(value).map_err(D::Error::custom)?;
+        Ok(Child { view: wire.view, turn_id: wire.turn_id, start_row: wire.start_row, usage_late: LateUsage(late) })
+    }
 }
 
 /// `"started" | "steered"`. internal.ts:289.
@@ -425,19 +496,81 @@ pub fn transcript_unread_line(workspace_id: &str, why: &str) -> String {
 /// cwd, permissionMode, model, effort, in that order. internal.ts:296.
 pub const SESSION_FACTS: [&str; 4] = ["cwd", "permissionMode", "model", "effort"];
 
-/// What a resumed session's turns carry, read off its newest start that named each. Serialized in SESSION_FACTS'
-/// order as each was first set. internal.ts:297.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// What a resumed session's turns carry, read off its newest start that named each. Written in the order each key was
+/// first set, as the TS object holds them. internal.ts:297.
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct SessionFacts {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub permission_mode: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effort: Option<String>,
+    /// The keys in the order they were first set; it takes no part in equality.
+    pub order: FactOrder,
+}
+
+/// The order a session's facts were first set in.
+#[derive(Clone, Debug, Default)]
+pub struct FactOrder(pub Vec<&'static str>);
+
+impl PartialEq for FactOrder {
+    fn eq(&self, _: &FactOrder) -> bool {
+        true
+    }
+}
+
+impl SessionFacts {
+    fn set(&mut self, key: &'static str, value: &str) {
+        let slot = match key {
+            "cwd" => &mut self.cwd,
+            "permissionMode" => &mut self.permission_mode,
+            "model" => &mut self.model,
+            _ => &mut self.effort,
+        };
+        *slot = Some(value.to_string());
+        if !self.order.0.contains(&key) {
+            self.order.0.push(key);
+        }
+    }
+
+    fn value(&self, key: &str) -> Option<&String> {
+        match key {
+            "cwd" => self.cwd.as_ref(),
+            "permissionMode" => self.permission_mode.as_ref(),
+            "model" => self.model.as_ref(),
+            _ => self.effort.as_ref(),
+        }
+    }
+}
+
+impl Serialize for SessionFacts {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let keys: Vec<&str> = self.order.0.iter().copied().chain(SESSION_FACTS).filter(|k| self.value(k).is_some()).collect();
+        let mut seen: Vec<&str> = Vec::new();
+        let mut map = serializer.serialize_map(None)?;
+        for key in keys {
+            if seen.contains(&key) {
+                continue;
+            }
+            seen.push(key);
+            map.serialize_entry(key, &self.value(key))?;
+        }
+        map.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for SessionFacts {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::Error;
+        let map = serde_json::Map::<String, serde_json::Value>::deserialize(deserializer)?;
+        let mut facts = SessionFacts::default();
+        for (key, value) in &map {
+            let Some(known) = SESSION_FACTS.into_iter().find(|k| k == key) else { continue };
+            let text = value.as_str().ok_or_else(|| D::Error::custom(format!("{key} is not a string")))?;
+            facts.set(known, text);
+        }
+        Ok(facts)
+    }
 }
 
 /// What the host keeps of a transcript it does not hold. Every map iterates in insertion order (chapter 03, rule
@@ -481,7 +614,7 @@ pub fn fold_child(index: &mut TranscriptIndex, e: &SessionEvent) {
             failure: None,
             usage: e.usage.clone().or_else(|| child.as_ref().and_then(|c| c.view.usage.clone())),
         };
-        let row = Child { view, turn_id: e.turn_id.clone(), start_row: e.at };
+        let row = Child { view, turn_id: e.turn_id.clone(), start_row: e.at, usage_late: LateUsage(false) };
         index.children.entry(thread.to_string()).or_default().insert(e.task.clone(), row);
     } else if let Some(child) = index.children.get_mut(thread).and_then(|held| held.get_mut(&e.task)) {
         child.view.state = e.state;
@@ -495,6 +628,9 @@ pub fn fold_child(index: &mut TranscriptIndex, e: &SessionEvent) {
             child.view.failure = Some(listed_failure(e.summary.as_deref()));
         }
         if e.usage.is_some() {
+            if child.view.usage.is_none() {
+                child.usage_late = LateUsage(true);
+            }
             child.view.usage = e.usage.clone();
         }
     }
@@ -600,16 +736,16 @@ pub fn fold_event(index: &mut TranscriptIndex, e: &SessionEvent) {
             }
             let facts = index.facts.entry(session).or_default();
             if let Some(v) = f.str("cwd") {
-                facts.cwd = Some(v.to_string());
+                facts.set("cwd", v);
             }
             if let Some(v) = f.str("permissionMode") {
-                facts.permission_mode = Some(v.to_string());
+                facts.set("permissionMode", v);
             }
             if let Some(v) = f.str("model") {
-                facts.model = Some(v.to_string());
+                facts.set("model", v);
             }
             if let Some(v) = f.str("effort") {
-                facts.effort = Some(v.to_string());
+                facts.set("effort", v);
             }
         }
         Some("session.end") if thread.is_some() && f.flag("unstarted") != Some(true) => {
@@ -722,15 +858,19 @@ pub fn index_of(events: &[SessionEvent]) -> TranscriptIndex {
     index
 }
 
-/// These threads' entries read again off their own events; a session's facts stay. internal.ts:462-466.
-pub fn reindex_threads(index: &mut TranscriptIndex, threads: &BTreeSet<String>, events_of: &dyn Fn(&str) -> Vec<SessionEvent>) {
+/// These threads' entries read again off their own events, in the order named; a session's facts stay. internal.ts:462-466.
+pub fn reindex_threads<'a>(
+    index: &mut TranscriptIndex,
+    threads: impl IntoIterator<Item = &'a String> + Copy,
+    events_of: &dyn Fn(&str) -> Vec<SessionEvent>,
+) {
     for thread in threads {
         index.words.shift_remove(thread.as_str());
         index.starts.shift_remove(thread.as_str());
         index.cut.shift_remove(thread.as_str());
         index.children.shift_remove(thread.as_str());
     }
-    index.taken.retain(|_, t| !threads.contains(t.thread_id.as_str()));
+    index.taken.retain(|_, t| !threads.into_iter().any(|name| *name == t.thread_id));
     for thread in threads {
         for e in events_of(thread) {
             fold_event(index, &e);
@@ -806,6 +946,38 @@ pub struct IndexRead {
     pub of: Option<BlobMark>,
 }
 
+/// Drops the lone surrogate escapes a TS text holds, as `first_of` drops a split pair's half: a Rust string cannot hold one.
+fn drop_lone_surrogates(b: &[u8]) -> Vec<u8> {
+    let hex_at = |at: usize| b.get(at..at + 4).and_then(|h| u16::from_str_radix(std::str::from_utf8(h).ok()?, 16).ok());
+    let u_at = |at: usize| b.get(at..at + 2) == Some(&b"\\u"[..]);
+    let mut out = Vec::with_capacity(b.len());
+    let mut in_string = false;
+    let mut i = 0;
+    while i < b.len() {
+        let c = b[i];
+        if c == b'"' {
+            in_string = !in_string;
+        }
+        if c != b'\\' || !in_string {
+            out.push(c);
+            i += 1;
+        } else if !u_at(i) {
+            let end = (i + 2).min(b.len());
+            out.extend_from_slice(&b[i..end]);
+            i = end;
+        } else if matches!(hex_at(i + 2), Some(0xD800..=0xDBFF)) && u_at(i + 6) && matches!(hex_at(i + 8), Some(0xDC00..=0xDFFF)) {
+            out.extend_from_slice(&b[i..i + 12]);
+            i += 12;
+        } else {
+            if !matches!(hex_at(i + 2), Some(0xD800..=0xDFFF)) {
+                out.extend_from_slice(&b[i..(i + 6).min(b.len())]);
+            }
+            i += 6;
+        }
+    }
+    out
+}
+
 /// An index read back; None where it does not parse or lacks taken, children or pos. internal.ts:512-526.
 pub fn index_read(bytes: &[u8]) -> Option<IndexRead> {
     #[derive(Deserialize)]
@@ -820,7 +992,7 @@ pub fn index_read(bytes: &[u8]) -> Option<IndexRead> {
         trimmed: Option<Vec<String>>,
         pos: Option<u64>,
     }
-    let held: Held = serde_json::from_slice(bytes).ok()?;
+    let held: Held = serde_json::from_slice(&drop_lone_surrogates(bytes)).ok()?;
     let (taken, children, pos) = (held.taken?, held.children?, held.pos?);
     let words = held
         .words
@@ -1080,16 +1252,17 @@ pub struct SessionFileStamp {
 /// The one file under `folder` whose name ends in `name`, `depth` folders down, folders tried in descending name
 /// order (`localeCompare`), the first found winning; None where a folder does not read. internal.ts:700-716.
 pub fn find_session_file(folder: &str, name: &str, depth: u32) -> Option<String> {
-    let entries: Vec<fs::DirEntry> = fs::read_dir(folder).ok()?.filter_map(Result::ok).collect();
+    let mut entries: Vec<fs::DirEntry> = fs::read_dir(folder).ok()?.filter_map(Result::ok).collect();
+    entries.sort_by_key(|e| e.file_name());
     if depth == 0 {
         let file = entries.iter().find(|e| e.file_type().is_ok_and(|t| t.is_file()) && e.file_name().to_string_lossy().ends_with(name))?;
-        return Some(Path::new(folder).join(file.file_name()).to_string_lossy().into_owned());
+        return Some(node_path::join(&[folder, &file.file_name().to_string_lossy()]));
     }
     let mut dirs: Vec<&fs::DirEntry> = entries.iter().filter(|e| e.file_type().is_ok_and(|t| t.is_dir())).collect();
     dirs.sort_by(|a, b| collate(&b.file_name().to_string_lossy(), &a.file_name().to_string_lossy()));
     for dir in dirs {
-        let child = Path::new(folder).join(dir.file_name());
-        if let Some(found) = find_session_file(&child.to_string_lossy(), name, depth - 1) {
+        let child = node_path::join(&[folder, &dir.file_name().to_string_lossy()]);
+        if let Some(found) = find_session_file(&child, name, depth - 1) {
             return Some(found);
         }
     }
