@@ -425,6 +425,8 @@ pub struct SlatesInner {
     pub(crate) event_buckets: RefCell<HashMap<String, (f64, i64)>>,
     pub(crate) holds: RefCell<HashMap<String, IndexMap<String, i64>>>,
     pub(crate) views_now: RefCell<HashMap<String, Views>>,
+    /// The sends a state write handed on, which `settled` waits for.
+    pub(crate) deliveries: RefCell<Vec<Tail>>,
 }
 
 /// The area as the runtime holds it.
@@ -602,6 +604,7 @@ pub fn create_slates(deps: Rc<dyn SlatesDeps>) -> Rc<dyn Slates> {
         event_buckets: RefCell::new(HashMap::new()),
         holds: RefCell::new(HashMap::new()),
         views_now: RefCell::new(HashMap::new()),
+        deliveries: RefCell::new(Vec::new()),
     });
     let weak = Rc::downgrade(&inner);
 

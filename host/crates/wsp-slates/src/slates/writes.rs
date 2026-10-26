@@ -5,6 +5,7 @@ use std::collections::HashSet;
 use std::rc::Rc;
 use std::sync::OnceLock;
 
+use futures::FutureExt;
 use indexmap::{IndexMap, IndexSet};
 use regex::Regex;
 use serde_json::{json, Map, Value};
@@ -19,7 +20,7 @@ use wsp_words::words::computer::thread_word;
 use super::batch::{batch_by, BatchOptions};
 use super::model::{own_path, problem, refused, snap_of, usage, BatchBy, PreviousSnap, SlateSnap};
 use super::reads::waiting_of;
-use super::{RecordRef, SlatesInner, StateParams, Views, WriteParams};
+use super::{RecordRef, SlatesInner, StateParams, Tail, Views, WriteParams};
 use crate::pending::slate::{
     apply_slate_patch, parse_slate, parse_slate_own_path, parse_slate_patch, run_slate_batch, slate_nearest, validate_slate, BatchEvent,
     SlateBatchContext, SlateDoc, SlateProblem, SlateRunDecl, SlateValues, SlateWrite, SLATE_LIMITS,
@@ -501,11 +502,16 @@ impl SlatesInner {
             let (workspace_id, area) = (r.borrow().workspace_id.clone(), self.clone());
             let word = thread_word(&thread_id);
             let deliver_thread = thread_id.clone();
-            spawn_local(async move {
+            let delivery: Tail = async move {
                 if let Err(e) = area.deliver_all(deliver_thread, workspace_id, sends).await {
                     console::warn(&format!("a slate send in thread {word} was not delivered: {}", e.message));
                 }
-            });
+            }
+            .boxed_local()
+            .shared();
+            self.deliveries.borrow_mut().retain(|pending| pending.peek().is_none());
+            self.deliveries.borrow_mut().push(delivery.clone());
+            spawn_local(delivery);
         }
         let after = r.borrow().clone();
         let views = self.clone().views_for(&after, &[]).await;

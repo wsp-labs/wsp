@@ -447,6 +447,8 @@ impl SlatesInner {
     }
 
     pub(crate) async fn settled(self: Rc<Self>) {
+        let deliveries: Vec<Tail> = std::mem::take(&mut *self.deliveries.borrow_mut());
+        join_all(deliveries).await;
         for _ in 0..50 {
             let pending: Vec<(u64, Tail)> = self.queues.borrow().values().cloned().collect();
             join_all(pending.iter().map(|(_, tail)| tail.clone())).await;

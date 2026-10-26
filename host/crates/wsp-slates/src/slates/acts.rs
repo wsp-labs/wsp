@@ -1,195 +1,425 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Unit slates_acts: slates.ts:470-474, 1290-1448, 1490-1493 at 65f6b89c7. Spec: spec/slates_acts.md.
+use std::collections::HashSet;
 use std::rc::Rc;
 
-use wsp_words::exit::HostError;
+use futures::FutureExt;
+use serde_json::{json, Map, Value};
+use wsp_words::exit::{usage_refusal, HostError, Kind};
 
-use super::{ApproveParams, EventParams, SlatesInner};
-use crate::pending::wire::{SlateEventAnswer, SlatesImageAnswer};
+use super::batch::BatchOptions;
+use super::model::{problem, refused, said, Approval, BatchBy, EVENTS_PER_SECOND, REQUESTS_KEPT, REQUEST_KEPT_MS, SLATE_SEND_KEY};
+use super::{ApprovalScope, ApproveParams, DeliveryOutcome, EventParams, RecordRef, SlatesInner};
+use crate::pending::slate::expr::resolve_slate_prop;
+use crate::pending::slate::steps::slate_domain_key;
+use crate::pending::slate::{BatchEvent, SlateRunDecl};
+use crate::pending::wire::{SlateAsk, SlateEventAnswer, SlateEventOutcome, SlatesImageAnswer};
+use crate::slate_files::{always_refused, with_files};
+use crate::slate_images::{slate_image, SlateImageRoads};
+use crate::slate_mcp::code_key;
+use crate::slate_runs::{ApproveScope, Outcome, RunBy, RunRecord, RunStart, RunState, NO_FOLDER};
 
 impl SlatesInner {
-    // slates.ts:1290
-    //     event(p) {
-    //       const now = deps.now();
-    //       for (const [id, held] of requests) if (now - held.at > REQUEST_KEPT_MS) requests.delete(id);
-    //       // A press sent again after a reconnect is the same press: it answers what the first one came to.
-    //       const seen = requests.get(p.requestId);
-    //       if (seen !== undefined) return seen.answer;
-    //       const bucket = eventBuckets.get(p.threadId) ?? { tokens: EVENTS_PER_SECOND, at: now };
-    //       bucket.tokens = Math.min(EVENTS_PER_SECOND, bucket.tokens + ((now - bucket.at) / 1000) * EVENTS_PER_SECOND);
-    //       bucket.at = now;
-    //       eventBuckets.set(p.threadId, bucket);
-    //       if (bucket.tokens < 1) return Promise.reject(refused(problem("V754", "event-rate", "too many presses; try again in a moment"), "conflict"));
-    //       bucket.tokens -= 1;
-    //       while (requests.size >= REQUESTS_KEPT) requests.delete(requests.keys().next().value!);
-    //       const composed = serial(p.threadId, async () => {
-    //         const r = await needRecord(p.threadId);
-    //         const doc = r.document;
-    //         // The host reads the piece and its steps off its own document, never the window's copy (finding 6j).
-    //         const piece = doc?.pieces[p.piece];
-    //         if (doc === null || piece === undefined) throw usageRefusal(`That part of the slate is gone (piece ${p.piece}, version ${p.version}; the slate is at ${r.version}).`, "Press it again once the slate has redrawn.");
-    //         if (p.rowAction !== undefined) {
-    //           const rowActions = piece.props?.["rowActions"];
-    //           if (!Array.isArray(rowActions) || rowActions[p.rowAction] === undefined) throw usageRefusal(`${p.piece} has no row action ${p.rowAction}.`, "Press it again once the slate has redrawn.");
-    //         }
-    //         // A row's item is the host's own, off the piece's list at delivery (finding 6k).
-    //         let item: SlateJson | undefined;
-    //         if (p.scope !== undefined) {
-    //           const views = await viewsFor(r);
-    //           const list = piece.props?.["items"] !== undefined ? resolveSlateProp(piece.props["items"], contextOf(r, views)) : undefined;
-    //           item = Array.isArray(list) ? list[p.scope.index] : (p.scope.item as SlateJson | undefined);
-    //         }
-    //         runs.release(p.threadId);
-    //         const event: BatchEvent = { piece: p.piece, kind: p.event, ...(item !== undefined ? { item } : {}), ...(p.scope !== undefined ? { index: p.scope.index } : {}), ...(p.rowAction !== undefined ? { rowAction: p.rowAction } : {}) };
-    //         const out = await batch(r, [], "person", { event, requestId: p.requestId, sendAt: now });
-    //         return { r, out, started: new Set(out.started.filter(run => doc.runs[run]?.kind !== "cmd")) };
-    //       });
-    //       const answer = composed.then(async ({ r, out, started }): Promise<SlateEventAnswer> => {
-    //         let landed: Awaited<ReturnType<typeof deliverAll>>;
-    //         try {
-    //           landed = await deliverAll(r, out.sends);
-    //         } catch (e) {
-    //           throw Object.assign(new Error(`This thread cannot take a message now: ${e instanceof Error ? e.message : String(e)}`), { kind: (e as { kind?: unknown }).kind ?? "conflict" });
-    //         }
-    //         const held = out.asks[0];
-    //         // A tool run's sheet may wait on the server's tool list, or on finding the tool destructive.
-    //         if (held === undefined && started.size > 0) await mcp.pending(r.threadId, 5_000);
-    //         const ask = held === undefined ? asksOf(r).find(a => a.kind !== "cmd" && started.has(a.run)) : asksOf(r).find(a => a.run === held.run);
-    //         if (landed !== undefined) return { outcome: landed.outcome, said: SAID[landed.kind][landed.outcome], ...(landed.turnId !== undefined ? { turnId: landed.turnId } : {}), ...(ask !== undefined ? { ask } : {}) };
-    //         if (ask !== undefined) return { outcome: "held", said: "Needs your approval", ask };
-    //         return { outcome: "done", said: "" };
-    //       });
-    //       requests.set(p.requestId, { at: now, answer });
-    //       // A refused press is not remembered, so the person can press again once the reason is gone.
-    //       answer.catch(() => requests.delete(p.requestId));
-    //       return answer;
-    //     },
     pub(crate) async fn event(self: Rc<Self>, p: EventParams) -> Result<SlateEventAnswer, HostError> {
-        todo!()
+        let now = self.deps.clock().now();
+        self.requests.borrow_mut().retain(|_, (at, _)| now - *at <= REQUEST_KEPT_MS);
+        let seen = self.requests.borrow().get(&p.request_id).map(|(_, answer)| answer.clone());
+        if let Some(answer) = seen {
+            return answer.await;
+        }
+        let tokens = {
+            let mut buckets = self.event_buckets.borrow_mut();
+            let (held, at) = buckets.get(&p.thread_id).copied().unwrap_or((EVENTS_PER_SECOND, now));
+            let refilled = (held + ((now - at) as f64 / 1000.0) * EVENTS_PER_SECOND).min(EVENTS_PER_SECOND);
+            buckets.insert(p.thread_id.clone(), (refilled, now));
+            refilled
+        };
+        if tokens < 1.0 {
+            return Err(refused(&problem("V754", "event-rate", "too many presses; try again in a moment", None), Kind::Conflict));
+        }
+        self.event_buckets.borrow_mut().insert(p.thread_id.clone(), (tokens - 1.0, now));
+        {
+            let mut requests = self.requests.borrow_mut();
+            while requests.len() >= REQUESTS_KEPT {
+                let Some(oldest) = requests.keys().next().cloned() else { break };
+                requests.shift_remove(&oldest);
+            }
+        }
+
+        let this = self.clone();
+        let event_params = p.clone();
+        let composed = self.serial(&p.thread_id, move || async move {
+            let r = this.clone().need_record(&event_params.thread_id).await?;
+            let snap = r.borrow().clone();
+            let piece = snap.document.as_ref().and_then(|doc| doc.pieces.get(&event_params.piece));
+            if snap.document.is_none() || piece.is_none() {
+                return Err(usage_refusal(
+                    &format!(
+                        "That part of the slate is gone (piece {}, version {}; the slate is at {}).",
+                        event_params.piece, event_params.version, snap.version
+                    ),
+                    "Press it again once the slate has redrawn.",
+                ));
+            }
+            if let Some(action) = event_params.row_action {
+                let actions = piece.and_then(|piece| piece.props.as_ref()).and_then(|props| props.get("rowActions"));
+                let has_action =
+                    matches!(actions, Some(Value::Array(items)) if usize::try_from(action).ok().and_then(|i| items.get(i)).is_some());
+                if !has_action {
+                    return Err(usage_refusal(
+                        &format!("{} has no row action {action}.", event_params.piece),
+                        "Press it again once the slate has redrawn.",
+                    ));
+                }
+            }
+            let mut item: Option<Value> = None;
+            if let Some(scope) = &event_params.scope {
+                let views = this.clone().views_for(&snap, &[]).await;
+                let ctx = this.context_of(&snap, &views, None);
+                let list = piece
+                    .and_then(|piece| piece.props.as_ref())
+                    .and_then(|props| props.get("items"))
+                    .and_then(|items| resolve_slate_prop(items, &ctx));
+                item = match list {
+                    Some(Value::Array(items)) => usize::try_from(scope.index).ok().and_then(|i| items.get(i)).cloned(),
+                    _ => scope.item.clone(),
+                };
+            }
+            this.runs().release(&event_params.thread_id);
+            let event = BatchEvent {
+                piece: event_params.piece.clone(),
+                kind: event_params.event.clone(),
+                item,
+                index: event_params.scope.as_ref().map(|scope| scope.index),
+                row_action: event_params.row_action,
+            };
+            let options = BatchOptions {
+                event: Some(event),
+                request_id: Some(event_params.request_id.clone()),
+                send_at: Some(now),
+                ..Default::default()
+            };
+            let out = this.clone().batch(r.clone(), Vec::new(), BatchBy::Person, options).await?;
+            let started: Vec<String> = out
+                .started
+                .iter()
+                .filter(|run| !matches!(snap.document.as_ref().and_then(|doc| doc.runs.get(*run)), Some(SlateRunDecl::Cmd(_))))
+                .cloned()
+                .collect();
+            Ok((r, out, started))
+        });
+
+        let this = self.clone();
+        let request_id = p.request_id.clone();
+        let answer = async move {
+            let outcome: Result<SlateEventAnswer, HostError> = async {
+                let (r, out, started) = composed.await?;
+                let (thread_id, workspace_id) = {
+                    let rec = r.borrow();
+                    (rec.thread_id.clone(), rec.workspace_id.clone())
+                };
+                let landed = match this.clone().deliver_all(thread_id.clone(), workspace_id, out.sends.clone()).await {
+                    Ok(landed) => landed,
+                    Err(e) => {
+                        let kind = e.kind.unwrap_or(Kind::Conflict);
+                        return Err(HostError::with_kind(format!("This thread cannot take a message now: {}", e.message), kind));
+                    }
+                };
+                let held = out.asks.first().cloned();
+                if held.is_none() && !started.is_empty() {
+                    this.mcp().pending(&thread_id, Some(5_000)).await;
+                }
+                let snap = r.borrow().clone();
+                let asks = this.asks_of(&snap);
+                let ask = match &held {
+                    None => asks.into_iter().find(|a| !matches!(a, SlateAsk::Cmd(_)) && started.contains(&a.run())),
+                    Some(held) => asks.into_iter().find(|a| a.run() == held.run),
+                };
+                if let Some((delivered, kind)) = landed {
+                    let outcome = match delivered.outcome {
+                        DeliveryOutcome::Started => SlateEventOutcome::Started,
+                        DeliveryOutcome::Steered => SlateEventOutcome::Steered,
+                        DeliveryOutcome::Queued => SlateEventOutcome::Queued,
+                    };
+                    return Ok(SlateEventAnswer {
+                        outcome,
+                        said: said(&kind, delivered.outcome).to_string(),
+                        turn_id: delivered.turn_id,
+                        ask,
+                    });
+                }
+                if let Some(ask) = ask {
+                    return Ok(SlateEventAnswer {
+                        outcome: SlateEventOutcome::Held,
+                        said: "Needs your approval".to_string(),
+                        turn_id: None,
+                        ask: Some(ask),
+                    });
+                }
+                Ok(SlateEventAnswer { outcome: SlateEventOutcome::Done, said: String::new(), turn_id: None, ask: None })
+            }
+            .await;
+            if outcome.is_err() {
+                this.requests.borrow_mut().shift_remove(&request_id);
+            }
+            outcome
+        }
+        .boxed_local()
+        .shared();
+
+        self.requests.borrow_mut().insert(p.request_id.clone(), (now, answer.clone()));
+        answer.await
     }
 
-    // slates.ts:1346
-    //     async approve(p) {
-    //       const r = await needRecord(p.threadId);
-    //       if (p.key === SLATE_SEND_KEY) {
-    //         await serial(p.threadId, async () => {
-    //           if (p.scope === "refuse") delete r.sendsAllowed;
-    //           else r.sendsAllowed = deps.now();
-    //           await save(r);
-    //         });
-    //         return;
-    //       }
-    //       if (p.key.startsWith(slateDomainKey(""))) {
-    //         // A link's domain, allowed for the thread from the window's prompt; nothing runs, so once leaves nothing to keep.
-    //         const domain = p.key.slice(slateDomainKey("").length);
-    //         if (!/^[a-z0-9.-]+$/.test(domain)) throw usageRefusal(`${p.key} names no domain.`, "Approve a link as domain:example.com.");
-    //         await serial(p.threadId, async () => {
-    //           if (p.scope === "thread") r.approvals[p.key] = { state: "allowed", at: deps.now(), cmd: `links to ${domain}` };
-    //           else if (p.scope === "refuse") delete r.approvals[p.key];
-    //           await save(r);
-    //         });
-    //         return;
-    //       }
-    //       if (mcp.owns(p.threadId, p.key)) {
-    //         await serial(p.threadId, async () => {
-    //           if (p.scope === "refuse") {
-    //             r.approvals[p.key] = { state: "refused", at: deps.now(), ...approvalNames(r, p.key) };
-    //             await save(r);
-    //             mcp.deny(p.threadId, p.key);
-    //             return;
-    //           }
-    //           if (p.scope === "thread") r.approvals[p.key] = { state: "allowed", at: deps.now(), ...approvalNames(r, p.key) };
-    //           viewsNow.set(p.threadId, await viewsFor(r));
-    //           await save(r);
-    //           mcp.approve(p.threadId, p.key, p.scope);
-    //         });
-    //         return;
-    //       }
-    //       const named = Object.entries(r.document?.runs ?? {}).filter(([, decl]) => decl.kind === "cmd" && runs.key(approvalDecl(r, decl) as CmdRunDecl) === p.key).map(([name]) => name);
-    //       if (named.length === 0) throw usageRefusal(`this slate declares no command with approval key ${p.key}.`, "Read the slate again and approve what it asks now.");
-    //       // The sheet offers no Always for these; a caller that asks for one anyway is told why.
-    //       const unpinned = p.scope === "thread" ? named.map(run => alwaysRefused(run, pinFor(p.threadId, r.document!.runs[run]!))).find(said => said !== undefined) : undefined;
-    //       if (unpinned !== undefined) throw usageRefusal(unpinned, "Approve it with scope once.");
-    //       await serial(p.threadId, async () => {
-    //         if (p.scope === "refuse") {
-    //           r.approvals[p.key] = { state: "refused", at: deps.now(), ...approvalNames(r, p.key) };
-    //           await save(r);
-    //           for (const run of named) runs.deny(p.threadId, run);
-    //           return;
-    //         }
-    //         if (p.scope === "thread") r.approvals[p.key] = { state: "allowed", at: deps.now(), ...approvalNames(r, p.key) };
-    //         const views = await viewsFor(r);
-    //         viewsNow.set(p.threadId, views);
-    //         for (const run of named) {
-    //           const rec = r.values[run];
-    //           if (!isRunRecord(rec) || (rec.state !== "held" && rec.state !== "running")) continue;
-    //           startedBy.set(byKey(p.threadId, run), "person");
-    //           if (runs.approve(p.threadId, run, p.scope === "thread" ? "always" : "once") !== undefined || rec.state === "running") continue;
-    //           // The hold was a host's before a restart, which this process never saw: hold it again, then answer it.
-    //           const decl = r.document!.runs[run] as Extract<SlateRunDecl, { kind: "cmd" }>;
-    //           const folder = folderFor(p.threadId, decl);
-    //           if (folder === undefined) {
-    //             moved(p.threadId, run, { state: "failed", why: NO_FOLDER, exit: null, runs: rec.runs, endedAt: deps.now() });
-    //             continue;
-    //           }
-    //           const again = runs.start({ threadId: p.threadId, run, decl: approvalDecl(r, decl) as CmdRunDecl, by: "person", folder, inputs: inputsOf(r, decl), last: rec as unknown as RunRecord });
-    //           if (again.outcome === "held") runs.approve(p.threadId, run, p.scope === "thread" ? "always" : "once");
-    //         }
-    //         // A timer a revoke took away comes back with the person's word.
-    //         if (p.scope === "thread") armTimers(r);
-    //         await save(r);
-    //       });
-    //     },
     pub(crate) async fn approve(self: Rc<Self>, p: ApproveParams) -> Result<(), HostError> {
-        todo!()
+        let r = self.clone().need_record(&p.thread_id).await?;
+        if p.key == SLATE_SEND_KEY {
+            let this = self.clone();
+            let scope = p.scope;
+            return self
+                .serial(&p.thread_id, move || async move {
+                    {
+                        let mut rec = r.borrow_mut();
+                        rec.sends_allowed = if scope == ApprovalScope::Refuse { None } else { Some(this.deps.clock().now()) };
+                    }
+                    this.clone().save(r).await
+                })
+                .await;
+        }
+        let domain_prefix = slate_domain_key("");
+        if let Some(domain) = p.key.strip_prefix(domain_prefix.as_str()) {
+            if domain.is_empty() || !domain.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '.' || c == '-') {
+                return Err(usage_refusal(&format!("{} names no domain.", p.key), "Approve a link as domain:example.com."));
+            }
+            let this = self.clone();
+            let (key, domain, scope) = (p.key.clone(), domain.to_string(), p.scope);
+            return self
+                .serial(&p.thread_id, move || async move {
+                    match scope {
+                        ApprovalScope::Thread => {
+                            let at = this.deps.clock().now();
+                            let approval =
+                                Approval { state: "allowed".into(), at, run: None, cmd: Some(format!("links to {domain}")), scripts: None };
+                            r.borrow_mut().approvals.insert(key, approval);
+                        }
+                        ApprovalScope::Refuse => {
+                            r.borrow_mut().approvals.shift_remove(&key);
+                        }
+                        ApprovalScope::Once => {}
+                    }
+                    this.clone().save(r).await
+                })
+                .await;
+        }
+        if self.mcp().owns(&p.thread_id, &p.key) {
+            let this = self.clone();
+            let (key, scope) = (p.key.clone(), p.scope);
+            return self
+                .serial(&p.thread_id, move || async move {
+                    let names = {
+                        let rec = r.borrow();
+                        this.approval_names(&rec, &key)
+                    };
+                    let at = this.deps.clock().now();
+                    let thread = r.borrow().thread_id.clone();
+                    if scope == ApprovalScope::Refuse {
+                        let (run, cmd, scripts) = names;
+                        r.borrow_mut().approvals.insert(key.clone(), Approval { state: "refused".into(), at, run, cmd, scripts });
+                        this.clone().save(r).await?;
+                        this.mcp().deny(&thread, &key);
+                        return Ok(());
+                    }
+                    if scope == ApprovalScope::Thread {
+                        let (run, cmd, scripts) = names;
+                        r.borrow_mut().approvals.insert(key.clone(), Approval { state: "allowed".into(), at, run, cmd, scripts });
+                    }
+                    let snap = r.borrow().clone();
+                    let views = this.clone().views_for(&snap, &[]).await;
+                    this.views_now.borrow_mut().insert(thread.clone(), views);
+                    this.clone().save(r).await?;
+                    let asked = if scope == ApprovalScope::Thread { ApproveScope::Always } else { ApproveScope::Once };
+                    this.mcp().approve(&thread, &key, asked);
+                    Ok(())
+                })
+                .await;
+        }
+        let snap = r.borrow().clone();
+        let named: Vec<String> = match snap.document.as_ref() {
+            Some(doc) => doc
+                .runs
+                .iter()
+                .filter(|(_, declared)| matches!(declared, SlateRunDecl::Cmd(_)))
+                .filter(|(_, declared)| self.runs().key(&self.approval_decl(&snap, declared)) == p.key)
+                .map(|(name, _)| name.clone())
+                .collect(),
+            None => Vec::new(),
+        };
+        if named.is_empty() {
+            return Err(usage_refusal(
+                &format!("this slate declares no command with approval key {}.", p.key),
+                "Read the slate again and approve what it asks now.",
+            ));
+        }
+        if p.scope == ApprovalScope::Thread {
+            if let Some(doc) = snap.document.as_ref() {
+                for run in &named {
+                    let Some(declared) = doc.runs.get(run) else { continue };
+                    let pin = self.pin_for(&p.thread_id, declared);
+                    if let Some(said) = always_refused(run, &pin) {
+                        return Err(usage_refusal(&said, "Approve it with scope once."));
+                    }
+                }
+            }
+        }
+        let this = self.clone();
+        let (key, scope) = (p.key.clone(), p.scope);
+        self.serial(&p.thread_id, move || async move {
+            if scope == ApprovalScope::Refuse {
+                let names = {
+                    let rec = r.borrow();
+                    this.approval_names(&rec, &key)
+                };
+                let (run, cmd, scripts) = names;
+                let at = this.deps.clock().now();
+                r.borrow_mut().approvals.insert(key.clone(), Approval { state: "refused".into(), at, run, cmd, scripts });
+                this.clone().save(r.clone()).await?;
+                let thread = r.borrow().thread_id.clone();
+                for run in &named {
+                    this.runs().deny(&thread, run);
+                }
+                return Ok(());
+            }
+            if scope == ApprovalScope::Thread {
+                let names = {
+                    let rec = r.borrow();
+                    this.approval_names(&rec, &key)
+                };
+                let (run, cmd, scripts) = names;
+                let at = this.deps.clock().now();
+                r.borrow_mut().approvals.insert(key.clone(), Approval { state: "allowed".into(), at, run, cmd, scripts });
+            }
+            let snap = r.borrow().clone();
+            let views = this.clone().views_for(&snap, &[]).await;
+            this.views_now.borrow_mut().insert(snap.thread_id.clone(), views);
+            let thread = snap.thread_id.clone();
+            let always = if scope == ApprovalScope::Thread { ApproveScope::Always } else { ApproveScope::Once };
+            for run in &named {
+                let Some(rec_value) = r.borrow().values.get(run).cloned() else { continue };
+                let Some(last) = RunRecord::from_json(&rec_value) else { continue };
+                let state = last.state();
+                if !matches!(state, Some(RunState::Held) | Some(RunState::Running)) {
+                    continue;
+                }
+                this.started_by.borrow_mut().insert(format!("{thread}\u{0}{run}"), RunBy::Person);
+                if this.runs().approve(&thread, run, always).is_some() || state == Some(RunState::Running) {
+                    continue;
+                }
+                let current = r.borrow().clone();
+                let Some(declared) = current.document.as_ref().and_then(|doc| doc.runs.get(run)).cloned() else { continue };
+                let SlateRunDecl::Cmd(cmd) = &declared else { continue };
+                let Some(folder) = this.folder_for(&thread, &declared) else {
+                    let mut failed = Map::new();
+                    failed.insert("state".into(), json!("failed"));
+                    failed.insert("why".into(), json!(NO_FOLDER));
+                    failed.insert("exit".into(), Value::Null);
+                    failed.insert("runs".into(), json!(last.runs()));
+                    failed.insert("endedAt".into(), json!(this.deps.clock().now()));
+                    this.moved(&thread, run, RunRecord(failed));
+                    continue;
+                };
+                let again = this.runs().start(RunStart {
+                    thread_id: thread.clone(),
+                    run: run.clone(),
+                    decl: this.approval_decl(&current, &declared),
+                    by: RunBy::Person,
+                    folder,
+                    inputs: this.inputs_of(r.clone(), &cmd),
+                    last: Some(last),
+                    asleep: false,
+                });
+                if again.outcome == Outcome::Held {
+                    this.runs().approve(&thread, run, always);
+                }
+            }
+            if scope == ApprovalScope::Thread {
+                let now_snap = r.borrow().clone();
+                this.arm_timers(&now_snap, &HashSet::new());
+            }
+            this.clone().save(r).await
+        })
+        .await
     }
 
-    // slates.ts:1418
-    //     async revoke(p) {
-    //       const r = await needRecord(p.threadId);
-    //       await serial(p.threadId, async () => {
-    //         if (p.key === SLATE_SEND_KEY) {
-    //           if (r.sendsAllowed === undefined) throw usageRefusal("this thread's reactions were not allowed to message the agent.", "Read its approvals again.");
-    //           delete r.sendsAllowed;
-    //           await save(r);
-    //           return;
-    //         }
-    //         if (r.approvals[p.key] === undefined) throw usageRefusal(`this thread holds no approval ${p.key}.`, "Read its approvals again.");
-    //         delete r.approvals[p.key];
-    //         // What it covered stops now: each run started under it is cancelled, out of the queue, and off its timer.
-    //         const covered = Object.entries(r.document?.runs ?? {}).flatMap(([name, declared]) => {
-    //           const decl = approvalDecl(r, declared);
-    //           const covers = decl.kind === "cmd" ? runs.key(decl as CmdRunDecl) === p.key : p.key === codeKey(decl as McpRunDecl, mcpArgsOf(r, decl as McpRunDecl)());
-    //           return covers ? [name] : [];
-    //         });
-    //         for (const run of covered) {
-    //           runs.cancel(p.threadId, run);
-    //           mcp.cancel(p.threadId, run);
-    //         }
-    //         armTimers(r, new Set(covered));
-    //         await save(r);
-    //       });
-    //     },
     pub(crate) async fn revoke(self: Rc<Self>, thread_id: &str, key: &str) -> Result<(), HostError> {
-        todo!()
+        let r = self.clone().need_record(thread_id).await?;
+        let this = self.clone();
+        let key = key.to_string();
+        self.serial(thread_id, move || async move {
+            if key == SLATE_SEND_KEY {
+                if r.borrow().sends_allowed.is_none() {
+                    return Err(usage_refusal(
+                        "this thread's reactions were not allowed to message the agent.",
+                        "Read its approvals again.",
+                    ));
+                }
+                r.borrow_mut().sends_allowed = None;
+                return this.clone().save(r).await;
+            }
+            if !r.borrow().approvals.contains_key(&key) {
+                return Err(usage_refusal(&format!("this thread holds no approval {key}."), "Read its approvals again."));
+            }
+            r.borrow_mut().approvals.shift_remove(&key);
+            let snap = r.borrow().clone();
+            let mut covered: Vec<String> = Vec::new();
+            if let Some(doc) = snap.document.as_ref() {
+                for (name, declared) in &doc.runs {
+                    let covers = match declared {
+                        SlateRunDecl::Cmd(_) => this.runs().key(&this.approval_decl(&snap, declared)) == key,
+                        _ => {
+                            let args = this.mcp_args_of(r.clone(), declared)();
+                            let decl = with_files(Some(doc), declared);
+                            code_key(&decl, &args) == key
+                        }
+                    };
+                    if covers {
+                        covered.push(name.clone());
+                    }
+                }
+            }
+            let thread = snap.thread_id.clone();
+            for run in &covered {
+                this.runs().cancel(&thread, run);
+                this.mcp().cancel(&thread, run);
+            }
+            let after = r.borrow().clone();
+            let stopped: HashSet<String> = covered.into_iter().collect();
+            this.arm_timers(&after, &stopped);
+            this.clone().save(r).await
+        })
+        .await
     }
 
-    // slates.ts:1444
-    //     async cancel(p) {
-    //       await needRecord(p.threadId);
-    //       runs.cancel(p.threadId, p.run);
-    //       mcp.cancel(p.threadId, p.run);
-    //     },
     pub(crate) async fn cancel(self: Rc<Self>, thread_id: &str, run: &str) -> Result<(), HostError> {
-        todo!()
+        self.clone().need_record(thread_id).await?;
+        self.runs().cancel(thread_id, run);
+        self.mcp().cancel(thread_id, run);
+        Ok(())
     }
 
-    // slates.ts:1490
-    //     image: async p => {
-    //       const r = await needRecord(p.threadId);
-    //       return slateImage(p.src, { thread: p.threadId, have: p.have, folder: deps.thread(p.threadId)?.folder, on: deps.imageOn?.(p.threadId), allowed: domain => r.approvals[slateDomainKey(domain)]?.state === "allowed" });
-    //     },
     pub(crate) async fn image(self: Rc<Self>, thread_id: &str, src: &str, have: Option<&str>) -> Result<SlatesImageAnswer, HostError> {
-        todo!()
+        let r: RecordRef = self.clone().need_record(thread_id).await?;
+        let allowed_record = r.clone();
+        let roads = SlateImageRoads {
+            thread: thread_id.to_string(),
+            have: have.map(String::from),
+            folder: self.deps.thread(thread_id).and_then(|facts| facts.folder),
+            on: self.deps.image_on(thread_id),
+            allowed: Rc::new(move |domain: &str| {
+                let key = slate_domain_key(domain);
+                allowed_record.borrow().approvals.get(&key).is_some_and(|approval| approval.state == "allowed")
+            }),
+            fetch: None,
+        };
+        Ok(slate_image(src, roads).await)
     }
 }
