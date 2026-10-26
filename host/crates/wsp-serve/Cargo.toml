@@ -7,6 +7,11 @@ license = "AGPL-3.0-only"
 publish = false
 description = "The runtime's op switch and the assembly of its areas: serve.ts, serve-*.ts, runtime.ts and index.ts"
 
+[lints.clippy]
+result_large_err = "allow"
+type_complexity = "allow"
+large_enum_variant = "allow"
+
 [dependencies]
 async-trait = "0.1"
 futures = "0.3"

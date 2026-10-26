@@ -33,8 +33,8 @@ use wsp_wire::wire::place_link::{
 use wsp_words::exit::HostError;
 use wsp_words::place_word::{place_said, PlaceRef};
 use wsp_words::recipe_file::{no_picks_refusal, recipe_from_here_refusal, recipe_summary};
-use wsp_words::words::computer::{device_held_refusal, RELAY_TICKET_REFUSAL};
 use wsp_words::words::computer::UNAUTHORIZED;
+use wsp_words::words::computer::{device_held_refusal, RELAY_TICKET_REFUSAL};
 use wsp_words::words::places::join_roads;
 use wsp_words::words::units::{doctor_row_refusal, doctor_running_line, DOCTOR_UNSERVED};
 

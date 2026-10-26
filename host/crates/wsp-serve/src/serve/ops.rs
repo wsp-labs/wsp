@@ -8,7 +8,6 @@ use futures::FutureExt;
 use serde::Serialize;
 use serde_json::{json, Map, Value};
 
-use wsp_core::forwards::{forwards_of, ForwardsSource};
 use wsp_core::types::api::{
     AnswerAsk, HistoryAsk, ImageBuildAsk, KeyWay, PageWindow, PrepareAsk, RewindAsk, SkillsAddAsk, SteerAsk, ToolsAsk, WarmAsk,
     WorkspacesApi,
@@ -43,7 +42,7 @@ use wsp_words::words::units::provider_folders_refusal;
 use wsp_words::workspace_state::{absent_computer, is_local_workspace};
 
 use super::answer::{ok_reply, refusal_reply, Handled};
-use super::door::{PaneSource, Served};
+use super::door::Served;
 use super::places::refused_off_own_road;
 use super::served::DynRuntime;
 use super::served::Payload;
