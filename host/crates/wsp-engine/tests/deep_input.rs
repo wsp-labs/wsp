@@ -69,7 +69,9 @@ fn block_on<F: std::future::Future>(f: F) -> F::Output {
 // `ClaudeResolver::move_state` rewrites when the project folder moves) that has a `cwd` the move changes and a deeply
 // nested field beside it. Node: JSON.parse and JSON.stringify both answer at this depth (stringify only throws past about
 // 3,650 levels), so the line is rewritten and the count is 1.
-// Node's answer at 3,400: the line is rewritten with its `cwd` moved, count 1.
+// Node's answer at 3,400: the line is rewritten with its `cwd` moved, count 1. Ruling 2 (wsp-labs/wsp-map#2448): a tree read
+// from outside is kept to 1,000 levels, so past it the rewrite fails with the words the TS's JSON.stringify gives at its own
+// stack limit and the file stays as it was; the line as deep as the cap is rewritten as before (`rewrite_cwd_reads_a_line_nested_to_the_cap`).
 fn rewrite_cwd_body(depth: usize) {
     let dir = tempfile::tempdir().expect("a folder");
     let file = dir.path().join("session.jsonl");
@@ -81,10 +83,32 @@ fn rewrite_cwd_body(depth: usize) {
     assert_eq!(std::fs::read_to_string(&file).unwrap(), format!("{want}\n"));
 }
 
+fn rewrite_cwd_refused_body(depth: usize) {
+    let dir = tempfile::tempdir().expect("a folder");
+    let file = dir.path().join("session.jsonl");
+    let line = format!(r#"{{"cwd":"/work/old/app","deep":{}}}"#, arrays(depth));
+    std::fs::write(&file, format!("{line}\n")).expect("the transcript");
+    let err = block_on(rewrite_cwd(file.to_str().unwrap(), "/work/old", "/work/new", None)).expect_err("past the cap the edit is refused");
+    assert_eq!(err.to_string(), "Maximum call stack size exceeded");
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), format!("{line}\n"));
+}
+
 // Dies at 1,786 on a 1 MiB stack in a debug build.
 #[test]
 fn rewrite_cwd_survives_a_line_nested_3400_deep() {
-    in_child("rewrite_cwd_survives_a_line_nested_3400_deep", 3_400, rewrite_cwd_body);
+    in_child("rewrite_cwd_survives_a_line_nested_3400_deep", 3_400, rewrite_cwd_refused_body);
+}
+
+// The line holds 1,000 levels (the object and 999 arrays): the cap reads, rewrites and keeps every level.
+#[test]
+fn rewrite_cwd_reads_a_line_nested_to_the_cap() {
+    in_child("rewrite_cwd_reads_a_line_nested_to_the_cap", 999, rewrite_cwd_body);
+}
+
+// One level more is refused.
+#[test]
+fn rewrite_cwd_refuses_a_line_nested_past_the_cap() {
+    in_child("rewrite_cwd_refuses_a_line_nested_past_the_cap", 1_000, rewrite_cwd_refused_body);
 }
 
 use wsp_engine::project_state::project_state_resolvers;
@@ -95,7 +119,25 @@ use wsp_engine::project_state::project_state_resolvers;
 // `registry.get("projects").clone()` (gemini.rs:108) and the Drop of the registry. What reaches it: Gemini CLI's own
 // `projects.json` in the person's home (`~/.gemini/projects.json`), which `move_state` reads when a project folder moves;
 // `JsReader` keeps 3,500 levels and no file size cap holds it lower. Node: JSON.parse and JSON.stringify(registry, null, 2)
-// answer at 3,400 levels, so the move is made and the registry is written with `projects` renamed.
+// answer at 3,400 levels, so the move is made and the registry is written with `projects` renamed. Ruling 2 (wsp-labs/wsp-map#2448):
+// past 1,000 levels the registry reads as the text "is not JSON" (the error `move_state` already gives for a file it cannot
+// read) and the file stays as it was; the registry as deep as the cap is moved (`gemini_move_state_to_the_cap`).
+/// `JSON.stringify([[...]], null, 2)` of `depth` arrays inside one another, as the value of a key of the top object.
+fn indented_arrays(depth: usize) -> String {
+    let mut out = String::new();
+    for level in 1..depth {
+        out.push_str("[\n");
+        out.push_str(&"  ".repeat(level + 1));
+    }
+    out.push_str("[]");
+    for level in (1..depth).rev() {
+        out.push('\n');
+        out.push_str(&"  ".repeat(level));
+        out.push(']');
+    }
+    out
+}
+
 fn gemini_move_body(depth: usize) {
     let home = tempfile::tempdir().expect("a home");
     let file = home.path().join("projects.json");
@@ -105,12 +147,35 @@ fn gemini_move_body(depth: usize) {
     assert_eq!(moved.len(), 1);
     assert_eq!(moved[0].changed, 1);
     assert!(std::fs::read_to_string(&file).unwrap().contains("\"/work/new/app\""));
+    let want = format!("{{\n  \"projects\": {{\n    \"/work/new/app\": \"slug\"\n  }},\n  \"deep\": {}\n}}\n", indented_arrays(depth));
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), want);
+}
+
+fn gemini_refused_body(depth: usize) {
+    let home = tempfile::tempdir().expect("a home");
+    let file = home.path().join("projects.json");
+    let text = format!(r#"{{"projects":{{"/work/old/app":"slug"}},"deep":{}}}"#, arrays(depth));
+    std::fs::write(&file, &text).unwrap();
+    let resolver = project_state_resolvers().get("gemini").expect("the gemini resolver").clone();
+    let err = block_on(resolver.move_state(home.path().to_str().unwrap(), "/work/old", "/work/new")).expect_err("refused past the cap");
+    assert_eq!(err.to_string(), format!("{} is not JSON", file.display()));
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), text);
 }
 
 // Dies at 1,781 on a 1 MiB stack in a debug build.
 #[test]
 fn gemini_move_state_survives_a_registry_nested_3400_deep() {
-    in_child("gemini_move_state_survives_a_registry_nested_3400_deep", 3_400, gemini_move_body);
+    in_child("gemini_move_state_survives_a_registry_nested_3400_deep", 3_400, gemini_refused_body);
+}
+
+#[test]
+fn gemini_move_state_to_the_cap() {
+    in_child("gemini_move_state_to_the_cap", 999, gemini_move_body);
+}
+
+#[test]
+fn gemini_move_state_refuses_a_registry_nested_past_the_cap() {
+    in_child("gemini_move_state_refuses_a_registry_nested_past_the_cap", 1_000, gemini_refused_body);
 }
 
 // ---- vault_cipher.rs: read_json with the recursion limit lifted ----
@@ -119,7 +184,8 @@ fn gemini_move_state_survives_a_registry_nested_3400_deep() {
 // that Value; the host's own bound is JSON_DEPTH = 2,000 (vault_cipher.rs:146), so 2,000 is the deepest header line that
 // reaches it. What reaches it: the first line of a sealed image file (`open`, `sealed_image_of`, `header_of`), a file the
 // person imports from another computer or a download. Node: JSON.parse reads the line at any depth, the line is not a
-// header wsp wrote, so the call fails with the words below (one failed call, caught by the caller).
+// header wsp wrote, so the call fails with the words below (one failed call, caught by the caller). The port now reads
+// 1,000 levels and refuses more with the same words (ruling 2).
 fn vault_header_body(depth: usize) {
     let mut sealed = arrays(depth).into_bytes();
     sealed.push(b'\n');
@@ -263,4 +329,38 @@ fn box_view_past_the_cap_body(depth: usize) {
 #[test]
 fn box_view_refuses_an_answer_nested_past_the_parse_cap() {
     in_child("box_view_refuses_an_answer_nested_past_the_parse_cap", 999, box_view_past_the_cap_body);
+}
+
+/// A header wsp wrote, with `extra` (a field the reader ignores) holding `depth` arrays inside one another.
+fn header_with_extra(depth: usize) -> Vec<u8> {
+    let hash = "a".repeat(64);
+    let mut sealed = format!(
+        r#"{{"format":"wsp-vault-1","cipher":"aes-256-gcm","to":"key","salt":"AA==","nonce":"AA==","ephemeral":"AA==","image":{{"name":"n","version":1,"hash":"{hash}","recipeHash":"r","logins":[],"sealedAt":"t","sealedFrom":"f"}},"extra":{}}}"#,
+        arrays(depth)
+    )
+    .into_bytes();
+    sealed.push(b'\n');
+    sealed
+}
+
+// The header is read with the JSON.parse port, so it reads 1,000 levels (the header object and 999 arrays) and refuses 1,001
+// with the words node gives a header it does not know (ruling 2, wsp-labs/wsp-map#2448; node reads deeper).
+fn vault_header_to_the_cap_body(depth: usize) {
+    let image = wsp_engine::vault_cipher::sealed_image_of(&header_with_extra(depth)).expect("the header is read");
+    assert_eq!(image.name, "n");
+}
+
+#[test]
+fn vault_header_nested_to_the_cap_is_read() {
+    in_child("vault_header_nested_to_the_cap_is_read", 999, vault_header_to_the_cap_body);
+}
+
+fn vault_header_past_the_cap_body(depth: usize) {
+    let err = wsp_engine::vault_cipher::sealed_image_of(&header_with_extra(depth)).expect_err("past the cap the header is refused");
+    assert_eq!(err.to_string(), "this file is not a sealed wsp image: its header is not one wsp wrote");
+}
+
+#[test]
+fn vault_header_nested_past_the_cap_is_refused() {
+    in_child("vault_header_nested_past_the_cap_is_refused", 1_000, vault_header_past_the_cap_body);
 }
