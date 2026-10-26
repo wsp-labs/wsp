@@ -18,7 +18,8 @@ use wsp_wire::views::place_kind::PlaceKind;
 use wsp_wire::views::place_more::PlaceView;
 use wsp_wire::views::session::{SessionView, ThreadView};
 use wsp_wire::views::snapshot_lineage::SealedImageView;
-use wsp_wire::views::workspace_more::{WorkspaceListing, WorkspaceOut, WorkspaceView};
+use wsp_wire::views::workspace::{MachineState, ReachState, WorkspacePhase};
+use wsp_wire::views::workspace_more::{WorkspaceOut, WorkspaceView};
 use wsp_wire::wire::capabilities::WorkspaceSize;
 use wsp_words::exit::{not_found_refusal, refusal, usage_refusal, HostError, Kind};
 use wsp_words::place_name::table_name;
@@ -85,7 +86,7 @@ fn with_required_keys(mut row: Value, keys: &[(&str, &str)]) -> Value {
     row
 }
 
-fn with_workspace_keys(mut row: Value) -> Value {
+pub(super) fn with_workspace_keys(mut row: Value) -> Value {
     row = with_required_keys(row, &WORKSPACE_KEYS);
     if let Some(object) = row.as_object_mut() {
         let project = object.remove("project").filter(Value::is_object).unwrap_or_else(|| json!({}));
@@ -95,9 +96,38 @@ fn with_workspace_keys(mut row: Value) -> Value {
 }
 
 /// `workspaceStatuses(client)` (workspaces-help.ts:118): `status.list`, its `statuses` as the host wrote them.
-pub async fn workspace_statuses(client: &dyn HostClient) -> Result<Vec<WorkspaceListing>, HostError> {
+pub async fn workspace_statuses(client: &dyn HostClient) -> Result<Vec<Value>, HostError> {
     let reply = client.request("status.list", Frame::new()).await?;
     reply_field(&reply, "status.list", "statuses")
+}
+
+/// What a listing row says of a workspace's machine: each part None where the row lacks it or words it another way.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ListedStatus {
+    pub id: String,
+    pub phase: Option<WorkspacePhase>,
+    pub machine_state: Option<MachineState>,
+    pub reach: Option<ReachState>,
+    pub idle_at: Option<f64>,
+}
+
+/// The parts of a `status.list` row the verbs read.
+pub fn listed_status(row: &Value) -> ListedStatus {
+    fn part<T: DeserializeOwned>(value: Option<&Value>) -> Option<T> {
+        value.and_then(|v| serde_json::from_value(v.clone()).ok())
+    }
+    ListedStatus {
+        id: row.get("id").and_then(Value::as_str).unwrap_or_default().to_owned(),
+        phase: part(row.get("phase")),
+        machine_state: part(row.get("machineState")),
+        reach: part(row.get("reach").and_then(|r| r.get("state"))),
+        idle_at: row.get("idleAt").and_then(Value::as_f64),
+    }
+}
+
+/// The row of `status.list` that names the workspace, read.
+async fn status_of(client: &dyn HostClient, id: &str) -> Result<Option<ListedStatus>, HostError> {
+    Ok(workspace_statuses(client).await?.iter().map(listed_status).find(|w| w.id == id))
 }
 
 /// `threads(client, workspaceId?)` (workspaces-help.ts:122): `sessions.list` (with `{workspaceId}` where given, even
@@ -243,12 +273,12 @@ pub fn state_line(workspace: &WorkspaceView) -> String {
 /// the state word the next listing prints (`workspace_state_of(listed, listed)`: the listing's own phase, machine
 /// state and reach), else the phase of the workspace given; with its pause mode.
 pub async fn woke_line(client: &dyn HostClient, workspace: &WorkspaceOut) -> Result<String, HostError> {
-    let listed = workspace_statuses(client).await?.into_iter().find(|w| w.id == workspace.id);
+    let listed = status_of(client, &workspace.id).await?;
     let state = match listed {
         Some(listed) => workspace_state(&WorkspaceStateInput {
-            phase: listed.phase,
-            machine_state: Some(listed.machine_state),
-            reach: Some(listed.reach.state),
+            phase: listed.phase.unwrap_or(workspace.phase),
+            machine_state: listed.machine_state,
+            reach: listed.reach,
             wake_refused: None,
         }),
         None => workspace_state(&WorkspaceStateInput { phase: workspace.phase, machine_state: None, reach: None, wake_refused: None }),
@@ -277,11 +307,11 @@ pub async fn resize(client: &dyn HostClient, r#ref: &str, size: &WorkspaceSize) 
 /// `gone_road_refusal(state, Rebuild, pauseMode)` with no frame after; else `workspaces.rebuild {workspaceId}`.
 pub async fn rebuild(client: &dyn HostClient, r#ref: &str) -> Result<WorkspaceOut, HostError> {
     let source = workspace_of(client, r#ref).await?;
-    let listed = workspace_statuses(client).await?.into_iter().find(|w| w.id == source.id);
+    let listed = status_of(client, &source.id).await?;
     let input = WorkspaceStateInput {
         phase: source.phase,
-        machine_state: listed.as_ref().map(|l| l.machine_state),
-        reach: listed.as_ref().map(|l| l.reach.state),
+        machine_state: listed.as_ref().and_then(|l| l.machine_state),
+        reach: listed.as_ref().and_then(|l| l.reach),
         wake_refused: source.wake_refused.clone(),
     };
     if !needs_rebuild(&input) {
@@ -345,13 +375,22 @@ pub async fn build_image_at(client: &dyn HostClient, out: &Out, word: &str, forc
             stage_out.stream(&format!("{line}\n"));
         }),
     );
-    let result = build_and_read(client, word, force).await;
+    let result = build_and_read(client, word, force, true).await;
     pushed.stop();
     result
 }
 
-async fn build_and_read(client: &dyn HostClient, word: &str, force: Option<bool>) -> Result<ImageBuilt, HostError> {
-    client.events().await?;
+/// `build_image_at` for a caller that says no stage: `places.list` is still read, but no one listens to the host's
+/// events, so none is subscribed to.
+pub async fn build_image_unheard(client: &dyn HostClient, word: &str, force: Option<bool>) -> Result<ImageBuilt, HostError> {
+    reply_field::<Vec<PlaceView>>(&client.request("places.list", Frame::new()).await?, "places.list", "places")?;
+    build_and_read(client, word, force, false).await
+}
+
+async fn build_and_read(client: &dyn HostClient, word: &str, force: Option<bool>, heard: bool) -> Result<ImageBuilt, HostError> {
+    if heard {
+        client.events().await?;
+    }
     let params = pick(vec![("place", Some(json!(word))), ("force", (force == Some(true)).then(|| json!(true)))]);
     let reply = client.request("image.build", params).await?;
     let view = image_view(client).await?;

@@ -30,6 +30,8 @@ use wsp_words::words::thread::{
 };
 use wsp_words::workspace_state::turn_spend_word;
 
+use crate::cloud::cloud_on_in;
+
 use super::activity;
 use super::activity::{ended_lines, processes_asked};
 use super::client::{
@@ -44,7 +46,7 @@ use super::io::{
 use super::turns_help::{
     answer_open_ask, answer_roads, before_sending, checked_start, detach_verb, files_from, follow, follow_verb, fork_for, head_line,
     host_restarted_line, message_to, notify_of, opening_of, pick_flags, read_line, read_thread, replaced_of, restart_host, resume_asked,
-    run_target, start_detached, sub_for, thread_at, thread_fork, thread_head, turn_view, worktree_for, AnswerRoad, AtWord, FollowOn,
+    run_target, start_detached, sub_for, thread_at_in, thread_fork, thread_head, turn_view, worktree_for, AnswerRoad, AtWord, FollowOn,
     Opened, OpeningAt, OpeningOpts, Picks, ResumeWhere, RunTarget, RunWhere, SaidAbout, SharedTurn, SubAsk, SubMade, ThreadRead,
 };
 use super::workspaces_help::{
@@ -772,7 +774,7 @@ async fn prepare_run(
             &ask.message,
             ask.harness.as_deref(),
             &ask.picks,
-            crate::cloud::cloud_on(),
+            crate::cloud::cloud_on_in(&*env),
         )
         .await?;
         let notify = notify_of(client, &ask.notify).await?;
@@ -793,10 +795,10 @@ async fn prepare_run(
         return Ok(Prepared { opened: None, woken: None, opening });
     }
     let named = match &ask.beside {
-        Some(beside) => RunTarget::Workspace { workspace: thread_at(client, beside, "wsp run --beside", false).await?.1, opened: None },
+        Some(beside) => RunTarget::Workspace { workspace: thread_at_in(client, beside, "wsp run --beside", false, cloud_on_in(&*env)).await?.1, opened: None },
         None => {
             let wher = RunWhere { branch: ask.branch.clone(), cwd: ask.cwd.clone() };
-            run_target(client, ask.project.as_deref(), caller_cwd, env, Some(elsewhere), &wher, crate::cloud::cloud_on()).await?
+            run_target(client, ask.project.as_deref(), caller_cwd, env, Some(elsewhere), &wher, crate::cloud::cloud_on_in(&*env)).await?
         }
     };
     let (workspace_id, fork_of) = match &named {

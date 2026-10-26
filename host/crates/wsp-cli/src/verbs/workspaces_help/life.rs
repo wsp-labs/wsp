@@ -29,7 +29,7 @@ use wsp_words::words::computer::{thread_without_id_refusal, thread_word};
 use wsp_words::words::thread::{shared_folder_line, workspace_asleep_again_line, workspace_stays_awake_line};
 use wsp_words::workspace_state::{gone_refusal, workspace_state, WorkspaceState, WorkspaceStateInput};
 
-use super::reads::{params, reply_field, thread_of, threads, workspace_of, workspace_statuses};
+use super::reads::{listed_status, params, reply_field, thread_of, threads, workspace_of, workspace_statuses};
 use crate::verbs::client::{access_word_of, opened_thread_said, other_version, pick, thread_id_of, under, Frame, HostClient};
 use crate::verbs::turns_help::Turn;
 
@@ -668,8 +668,8 @@ async fn launch_owed(client: &dyn HostClient, woken: &Woken, turn: Option<&Turn>
         return Ok(None);
     }
     if rows.iter().enumerate().any(|(i, row)| Some(i) != mine && matches!(row.status, SessionStatus::Running)) {
-        let listed = workspace_statuses(client).await?.into_iter().find(|w| w.id == woken.workspace.id);
-        let naps = listed.and_then(|w| w.idle_at).map(|at| (at.0 - now_ms()).max(0.0));
+        let listed = workspace_statuses(client).await?.iter().map(listed_status).find(|w| w.id == woken.workspace.id);
+        let naps = listed.and_then(|w| w.idle_at).map(|at| (at - now_ms()).max(0.0));
         return Ok(Some(workspace_stays_awake_line(name, naps)));
     }
     client.request("workspaces.nap", params(json!({ "workspaceId": woken.workspace.id }))).await?;

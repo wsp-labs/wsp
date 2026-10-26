@@ -392,11 +392,28 @@ pub fn quiet_line(line: &str) {
 // ---------------------------------------------------------------------------------------------------------------
 
 /// `Created` (io.ts:231).
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Created {
     pub workspace: WorkspaceOut,
-    #[serde(skip_serializing_if = "Option::is_none", default)]
+    /// The workspace as the host wrote it: what the answer prints, since the TS passes the host's object on.
+    pub shown: Option<Value>,
     pub notice: Option<String>,
+}
+
+impl Serialize for Created {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::Error;
+        let workspace = match &self.shown {
+            Some(shown) => shown.clone(),
+            None => serde_json::to_value(&self.workspace).map_err(S::Error::custom)?,
+        };
+        let mut written = serde_json::Map::new();
+        written.insert("workspace".to_owned(), workspace);
+        if let Some(notice) = &self.notice {
+            written.insert("notice".to_owned(), Value::from(notice.as_str()));
+        }
+        Value::Object(written).serialize(serializer)
+    }
 }
 
 /// `SEND_MEETS` (io.ts:236), built from `SessionStartOutcome`'s words and `still_working_line()`.

@@ -23,6 +23,7 @@ use async_trait::async_trait;
 use indexmap::IndexMap;
 use regex::Regex;
 use wsp_words::exit::{usage_refusal, HostError};
+use wsp_wire::types::env::CLOUD_ENV;
 use wsp_words::words::thread::foreign_flag_line;
 
 use crate::cloud_text::cloud_text;
@@ -571,11 +572,17 @@ pub async fn run_verb(
         noted: Mutex::new(false),
         client: Mutex::new(None),
     });
+    let mut env = deps.env.clone();
+    if table.iter().any(Verb::is_cloud) {
+        env.insert(CLOUD_ENV.to_owned(), "1".to_owned());
+    } else {
+        env.shift_remove(CLOUD_ENV);
+    }
     let ctx = VerbContext {
         deps: VerbDeps {
             state_path,
             cwd: deps.cwd.clone(),
-            env: deps.env.clone(),
+            env,
             dialer: dialer.clone(),
             host_wait_ms: None,
             start: deps.start.clone(),
