@@ -1,0 +1,5 @@
+{"meta":{"door":"ws","source":"packages/runtime/test/pairing.test.ts > a computer the account admitted > remembers the key of a device it revoked and admits it no more, whatever admission the account still carries","outs":"recorded"}}
+{"in":{"nonce":"soUG/9EzyatJLHz54hoUfKr6ZiPrBej3SN5Q+m/wZuQ=","ephemeral":"6NcUv4lOXj3c2D+VeYd0hhC9SZPQMRnpdabhhQHDnDM=","id":1,"op":"seal.open"}}
+{"out":{"id":1,"ok":true,"nonce":"r89U69z9nVPrJZIJwh/tka9y83Pivs7ZI0Ur9B1URvg=","hostPublicKey":"MCowBQYDK2VwAyEAJ2btoge2f7cYGx0CrDy3UgbOlYtm/StTaNNmAHJk8Uc=","signature":"iGa9VmxwHfkY/MbEI2L8dSVEdE64+oXzZ6j8vnd42yiXgD5sujDT4GAWkZQCyCvkkwOv0kutzu3IfewYtkjyAg==","ephemeral":"7+rBbG4nfk11hCWW1nYGQp9hZ5zqZY4VeJZF1dHEcEA="}}
+{"in":{"publicKey":"MCowBQYDK2VwAyEAxYstHBDTkOvYuR0W0Z1X4aUhbnKrZBJrutR/f4uyf8s=","name":"the laptop","signature":"p8BUIuqZcASZ2XVlEVQ30HUD9TPVJ5RmCaPlIdDDNgd4FL4cC09ngKXxiyphD6TnPdTtZeM803YZnqkqtWDcBw==","id":2,"op":"device.auth"}}
+{"out":{"id":2,"ok":false,"error":"this host took this computer's token away; it is admitted through the account no longer, and wsp host pair on the host is the way back in","kind":"auth"}}

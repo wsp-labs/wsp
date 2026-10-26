@@ -1,0 +1,17 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": {
+        "json": {
+          "error": "--tick takes one of used, installed, default, and got \"used\\\\|installed\\\\|default\". Name one of those.",
+          "class": "usage",
+          "exit": 3
+        },
+        "layout": "compact, a newline after"
+      }
+    }
+  ],
+  "events": []
+}

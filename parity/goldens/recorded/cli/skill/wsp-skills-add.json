@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp skills add takes one skill and one thread at most. usage: wsp skills add <skill> [<thread>] [--on <computer>] [--agent <id>]... [--project [<name>]]\n"
+    }
+  ],
+  "events": []
+}

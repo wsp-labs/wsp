@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp projects remove takes one project. usage: wsp projects remove <project> [--yes] [--force]\n"
+    }
+  ],
+  "events": []
+}

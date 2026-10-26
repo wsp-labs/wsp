@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "wsp init: the wsp host serving <tmp>/state/state.json (pid <pid>) can build no image: no place here runs workspaces, so there is nowhere to build your image; join a computer that runs them with wsp add, or save a provider key. Then run wsp init again.\n"
+    }
+  ],
+  "events": []
+}

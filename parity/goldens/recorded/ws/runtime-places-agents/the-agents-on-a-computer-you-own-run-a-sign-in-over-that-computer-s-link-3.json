@@ -1,0 +1,46 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "seq": 0,
+      "stream": "<uuid-1>"
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "That sign-in is not running any more.",
+      "kind": "usage"
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": "That sign-in is not running any more.",
+      "kind": "usage"
+    },
+    {
+      "id": 5,
+      "ok": false,
+      "error": "no place named p_00000002; you have <computer>",
+      "kind": "usage"
+    },
+    {
+      "id": 6,
+      "ok": false,
+      "error": "That sign-in is not running any more.",
+      "kind": "usage"
+    },
+    {
+      "id": 7,
+      "ok": true,
+      "runs": []
+    }
+  ],
+  "events": []
+}
