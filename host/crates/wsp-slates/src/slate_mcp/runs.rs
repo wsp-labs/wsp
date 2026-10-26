@@ -25,8 +25,9 @@ use wsp_words::js::{js_trim, utf16};
 use wsp_words::run_block::run_output_tail;
 
 use super::client::{
-    asks_line, code_key, fold_schema, hints_of, http_client, parsed_text, sentence, stdio_client, McpClient, McpRunDecl, McpServerSpec,
-    McpToolAnnotations, McpToolInfo, McpTransport, ToolAsks, CALL_MS, CONNECT_MS, DESCRIBE_MS, IDLE_MS, MARKED, PROTOCOL_VERSION, SWEEP_MS,
+    asks_line, code_key, fold_schema_checked, hints_of, http_client, parsed_text, sentence, stdio_client, McpClient, McpRunDecl,
+    McpServerSpec, McpToolAnnotations, McpToolInfo, McpTransport, ToolAsks, CALL_MS, CONNECT_MS, DESCRIBE_MS, IDLE_MS, MARKED,
+    PROTOCOL_VERSION, SWEEP_MS,
 };
 use crate::pending::slate::problems::{slate_description_missing, slate_problem};
 use crate::pending::slate::{SlateDoc, SlateProblem, SlateRunDecl};
@@ -692,7 +693,7 @@ async fn call(this: &Rc<SlateMcp>, req: &McpRunStart, l: &Rc<RefCell<Live>>, att
         SlateRunDecl::Cmd(_) => return Err(format!("{server} is not an MCP server run")),
     };
     let timeout_ms = match &spec.transport {
-        McpTransport::Stdio { tool_timeout_sec, .. } => tool_timeout_sec.map(|s| s * 1000),
+        McpTransport::Stdio { tool_timeout_sec, .. } => tool_timeout_sec.map(|s| s.saturating_mul(1000)),
         McpTransport::Http { .. } => None,
     }
     .unwrap_or_else(|| this.call_ms());
@@ -715,8 +716,8 @@ async fn call(this: &Rc<SlateMcp>, req: &McpRunStart, l: &Rc<RefCell<Live>>, att
             }
             l.borrow_mut().reshaping = None;
             let mut kept = record.clone();
-            kept.remove("json");
-            kept.remove("text");
+            kept.shift_remove("json");
+            kept.shift_remove("text");
             record = match shaped {
                 ReshapeAnswer::Json(value) => {
                     kept.insert("json".into(), value);
@@ -1234,7 +1235,7 @@ impl SlateMcp {
                 first.push_str(&format!(": {about}"));
             }
             lines.push(first);
-            let props = fold_schema(tool.input_schema.as_ref().unwrap_or(&Value::Null));
+            let props = fold_schema_checked(tool.input_schema.as_ref().unwrap_or(&Value::Null))?;
             if props.is_empty() {
                 lines.push("  (no arguments)".to_string());
             } else {

@@ -8,10 +8,12 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::task::{Context, Poll};
 
 use base64::engine::general_purpose::{STANDARD, STANDARD_NO_PAD};
 use base64::Engine;
 use futures::future::{LocalBoxFuture, Shared};
+use futures::task::noop_waker;
 use futures::FutureExt;
 use indexmap::IndexMap;
 use serde_json::{json, Value};
@@ -311,10 +313,19 @@ impl McpPost for RenewOnRefusal {
         let sign_in = self.sign_in.clone();
         let renewals = self.renewals.clone();
         let t = t.clone();
-        let sent_at = renewals.borrow().done;
-        let first_sent = inner.send(&t, req.clone());
+        let mut first_sent = inner.send(&t, req.clone());
+        let eager = match first_sent.as_mut().poll(&mut Context::from_waker(&noop_waker())) {
+            Poll::Ready(answer) => Ok((answer, renewals.borrow().done)),
+            Poll::Pending => Err(first_sent),
+        };
         async move {
-            let first = first_sent.await?;
+            let (first, landed_done) = match eager {
+                Ok((answer, done)) => (answer?, done),
+                Err(sent) => {
+                    let answer = sent.await?;
+                    (answer, renewals.borrow().done)
+                }
+            };
             let Some(sign_in) = sign_in else {
                 return Ok(first);
             };
@@ -329,7 +340,7 @@ impl McpPost for RenewOnRefusal {
                         let st = renewals.borrow();
                         (st.done, st.last)
                     };
-                    if done > sent_at {
+                    if done > landed_done {
                         last
                     } else {
                         let renew = (sign_in.renew)();

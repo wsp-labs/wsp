@@ -291,7 +291,8 @@ const PARSE_DEPTH_MAX: usize = 128;
 const CLOSED: &str = "the server's connection is closed";
 const FETCH_FAILED: &str = "fetch failed";
 const TIMED_OUT: &str = "The operation was aborted due to timeout";
-const HEAD_MAX: usize = 64 * 1024;
+const HEAD_MAX: usize = 16 * 1024;
+const TERMINATED: &str = "terminated";
 
 fn depth_words() -> String {
     format!("the server's answer is nested over {DEPTH_MAX} deep")
@@ -405,7 +406,7 @@ pub fn spawn_here() -> McpPipeOpen {
         let mut child = match cmd.spawn() {
             Ok(child) => child,
             Err(e) => {
-                let why = format!("{command} could not be started: {e}");
+                let why = format!("{command} could not be started: spawn {command} {}", crate::slate_runs::road::errno_word(&e));
                 spawn_local(async move { (on.exit)(&why) });
                 return Rc::new(NoPipe);
             }
@@ -915,33 +916,51 @@ async fn exchange(url: String, req: McpHttpRequest) -> Result<McpHttpAnswer, Str
         }
         head.push_str(&format!("{name}: {value}\r\n"));
     }
+    if !req.headers.keys().any(|k| k.eq_ignore_ascii_case("user-agent")) {
+        head.push_str("User-Agent: node\r\n");
+    }
     head.push_str(&format!("Content-Length: {}\r\nConnection: close\r\n\r\n", req.body.len()));
     write.write_all(head.as_bytes()).await.map_err(|_| FETCH_FAILED.to_string())?;
     write.write_all(req.body.as_bytes()).await.map_err(|_| FETCH_FAILED.to_string())?;
     let mut reader = BufReader::new(read);
-    let (status, headers) = read_head(&mut reader).await?;
+    let (status, headers) = loop {
+        let answer = read_head(&mut reader).await?;
+        if !(100..200).contains(&answer.0) {
+            break answer;
+        }
+    };
     let content_type = header_value(&headers, "content-type");
     let session_id = header_value(&headers, "mcp-session-id");
-    if matches!(status, 301 | 302 | 303 | 307 | 308) && header_value(&headers, "location").is_some() {
+    if matches!(status, 301 | 302 | 303 | 307 | 308) {
         return Err(FETCH_FAILED.to_string());
     }
     let body = if (200..=299).contains(&status) { read_body(&mut reader, &headers).await? } else { Vec::new() };
     Ok(McpHttpAnswer { status, content_type, session_id, body: String::from_utf8_lossy(&body).into_owned() })
 }
 
-async fn read_head(reader: &mut BufReader<ReadHalf<Socket>>) -> Result<(u16, Vec<(String, String)>), String> {
-    let mut line = String::new();
-    let mut total = reader.read_line(&mut line).await.map_err(|_| FETCH_FAILED.to_string())?;
-    if total == 0 {
+/// One line of an answer's head or chunked body, read no further than the cap `used` leaves; "" at the end of the stream.
+async fn head_line(reader: &mut BufReader<ReadHalf<Socket>>, used: &mut usize) -> Result<String, String> {
+    let room = HEAD_MAX.saturating_sub(*used);
+    if room == 0 {
         return Err(FETCH_FAILED.to_string());
     }
-    let status = line.split_whitespace().nth(1).and_then(|s| s.parse::<u16>().ok()).ok_or_else(|| FETCH_FAILED.to_string())?;
+    let mut raw = Vec::new();
+    let n = (&mut *reader).take(room as u64).read_until(b'\n', &mut raw).await.map_err(|_| FETCH_FAILED.to_string())?;
+    if n == room && raw.last() != Some(&b'\n') {
+        return Err(FETCH_FAILED.to_string());
+    }
+    *used += n;
+    Ok(raw.iter().map(|&b| char::from(b)).collect())
+}
+
+async fn read_head(reader: &mut BufReader<ReadHalf<Socket>>) -> Result<(u16, Vec<(String, String)>), String> {
+    let mut used = 0;
+    let first = head_line(reader, &mut used).await?;
+    let status = first.split_whitespace().nth(1).and_then(|s| s.parse::<u16>().ok()).ok_or_else(|| FETCH_FAILED.to_string())?;
     let mut headers = Vec::new();
     loop {
-        line.clear();
-        let n = reader.read_line(&mut line).await.map_err(|_| FETCH_FAILED.to_string())?;
-        total += n;
-        if n == 0 || total > HEAD_MAX {
+        let line = head_line(reader, &mut used).await?;
+        if line.is_empty() {
             return Err(FETCH_FAILED.to_string());
         }
         let text = line.trim_end_matches(['\r', '\n']);
@@ -957,23 +976,21 @@ async fn read_head(reader: &mut BufReader<ReadHalf<Socket>>) -> Result<(u16, Vec
 
 /// A body read no further than one message may be; a declared length over the cap is refused before a byte is read.
 async fn read_body(reader: &mut BufReader<ReadHalf<Socket>>, headers: &[(String, String)]) -> Result<Vec<u8>, String> {
-    let io = |_: std::io::Error| FETCH_FAILED.to_string();
+    let io =
+        |e: std::io::Error| if e.kind() == std::io::ErrorKind::UnexpectedEof { TERMINATED.to_string() } else { FETCH_FAILED.to_string() };
     let mut body = Vec::new();
     let chunked = header_value(headers, "transfer-encoding").is_some_and(|v| v.to_ascii_lowercase().contains("chunked"));
     if chunked {
         loop {
-            let mut line = String::new();
-            if reader.read_line(&mut line).await.map_err(io)? == 0 {
-                return Err(FETCH_FAILED.to_string());
+            let mut used = 0;
+            let line = head_line(reader, &mut used).await?;
+            if line.is_empty() {
+                return Err(TERMINATED.to_string());
             }
             let size = usize::from_str_radix(line.split(';').next().unwrap_or("").trim(), 16).map_err(|_| FETCH_FAILED.to_string())?;
             if size == 0 {
-                loop {
-                    let mut trailer = String::new();
-                    if reader.read_line(&mut trailer).await.map_err(io)? == 0 || trailer.trim_end_matches(['\r', '\n']).is_empty() {
-                        break;
-                    }
-                }
+                let mut used = 0;
+                while !head_line(reader, &mut used).await?.trim_end_matches(['\r', '\n']).is_empty() {}
                 break;
             }
             if body.len().saturating_add(size) > MESSAGE_MAX_BYTES {
@@ -1274,13 +1291,19 @@ fn js_string(v: &Value) -> String {
     }
 }
 
-fn type_of(raw: &Value, root: &Value) -> String {
+/// How deep `type_of` follows items and options; node's stack gives out on a schema that refers to itself, and the call fails with its words.
+const TYPE_DEPTH: u32 = 200;
+
+fn type_of(raw: &Value, root: &Value, depth: u32) -> Result<String, String> {
+    if depth > TYPE_DEPTH {
+        return Err("Maximum call stack size exceeded".to_string());
+    }
     let p = deref(raw, root, 0);
     if let Some(Value::Array(values)) = p.get("enum") {
-        return values.iter().map(js_json).collect::<Vec<_>>().join(" | ");
+        return Ok(values.iter().map(js_json).collect::<Vec<_>>().join(" | "));
     }
     if let Some(c) = p.get("const") {
-        return js_json(c);
+        return Ok(js_json(c));
     }
     let named = match p.get("type") {
         Some(Value::String(t)) => Some(t.clone()),
@@ -1289,34 +1312,40 @@ fn type_of(raw: &Value, root: &Value) -> String {
     };
     if named.as_deref() == Some("array") {
         return match p.get("items") {
-            Some(items) if is_object_like(items) => format!("{}[]", type_of(items, root)),
-            _ => "array".to_string(),
+            Some(items) if is_object_like(items) => Ok(format!("{}[]", type_of(items, root, depth + 1)?)),
+            _ => Ok("array".to_string()),
         };
     }
     if let Some(named) = named {
         if !named.is_empty() {
-            return named;
+            return Ok(named);
         }
     }
     for key in ["oneOf", "anyOf"] {
         if let Some(Value::Array(options)) = p.get(key) {
-            return options.iter().map(|o| type_of(o, root)).collect::<Vec<_>>().join(" | ");
+            let each: Result<Vec<String>, String> = options.iter().map(|o| type_of(o, root, depth + 1)).collect();
+            return Ok(each?.join(" | "));
         }
     }
-    "any".to_string()
+    Ok("any".to_string())
 }
 
-/// One line per property, nested objects (and objects inside arrays) as dotted names, three deep.
+/// One line per property, nested objects (and objects inside arrays) as dotted names, three deep; empty when the schema refers to itself.
 pub fn fold_schema(schema: &Value) -> Vec<String> {
+    fold_schema_checked(schema).unwrap_or_default()
+}
+
+/// `fold_schema`, failing as node does on a schema whose types refer to themselves.
+pub fn fold_schema_checked(schema: &Value) -> Result<Vec<String>, String> {
     fold(schema, "", 0, schema)
 }
 
-fn fold(schema: &Value, prefix: &str, depth: u32, root: &Value) -> Vec<String> {
+fn fold(schema: &Value, prefix: &str, depth: u32, root: &Value) -> Result<Vec<String>, String> {
     if !is_object_like(schema) {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let p = deref(schema, root, 0);
-    let Some(Value::Object(properties)) = p.get("properties") else { return Vec::new() };
+    let Some(Value::Object(properties)) = p.get("properties") else { return Ok(Vec::new()) };
     let needed: Vec<&str> = match p.get("required") {
         Some(Value::Array(r)) => r.iter().filter_map(Value::as_str).collect(),
         _ => Vec::new(),
@@ -1327,7 +1356,7 @@ fn fold(schema: &Value, prefix: &str, depth: u32, root: &Value) -> Vec<String> {
             continue;
         }
         let prop = deref(raw, root, 0);
-        let mut facts = vec![type_of(&prop, root)];
+        let mut facts = vec![type_of(&prop, root, 0)?];
         if needed.contains(&name.as_str()) {
             facts.push("required".to_string());
         }
@@ -1345,15 +1374,15 @@ fn fold(schema: &Value, prefix: &str, depth: u32, root: &Value) -> Vec<String> {
             continue;
         }
         if prop.get("properties").is_some() {
-            lines.extend(fold(&prop, &format!("{prefix}{name}."), depth + 1, root));
+            lines.extend(fold(&prop, &format!("{prefix}{name}."), depth + 1, root)?);
         }
         if let Some(items) = prop.get("items").filter(|i| is_object_like(i)).map(|i| deref(i, root, 0)) {
             if items.get("properties").is_some() {
-                lines.extend(fold(&items, &format!("{prefix}{name}[]."), depth + 1, root));
+                lines.extend(fold(&items, &format!("{prefix}{name}[]."), depth + 1, root)?);
             }
         }
     }
-    lines
+    Ok(lines)
 }
 
 /// What a tool says of itself to the agent: whether it returns data, and each hint that is exactly `true`.
