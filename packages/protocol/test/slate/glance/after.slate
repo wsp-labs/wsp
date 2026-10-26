@@ -1,0 +1,162 @@
+<slate title="Native desktop app">
+  <value name="lookDiagrams" start="" />
+  <value name="lookSwitcher" start="" />
+  <value name="lookActivity" start="" />
+  <value name="pictures" start="" />
+  <value name="runBand" start="" />
+  <value name="wayland" start="" />
+  <value name="shadows" start="" />
+  <run name="progress"
+      cmd="WSP_HOME=/Users/ada/wsp-work/ui-home /Users/ada/wsp-work/ui-home/thread-bin/wsp threads wsp --json 2>/dev/null"
+      every={30} then='python3 "$SLATE_DIR/progress.py"' />
+  <run name="mac" cmd='python3 "$SLATE_DIR/mac-status.py"' every={15} always />
+  <column id="page" gap="loose">
+    <section id="where" title="Where we are" note={concat("Day 6, updated ", ago($progress.endedAt))}>
+      <stats id="where-stats">
+        <stat label="Screens" value={$progress.json.inapp} max={$progress.json.screenTotal} window="in the new app" tone="good" />
+        <stat label="Big steps" value={$progress.json.done} max={$progress.json.total} format="fraction" window="done" />
+        <stat label="Helpers" value={$progress.json.running} format="integer" window="of 10 cloud machines" />
+      </stats>
+    </section>
+    <section id="asks" title="Waiting on you" note="3 here, 4 more below">
+      <decision id="ask-shadows" label="Inset shadows: fix once, in the engine?" value={$shadows} pick="yes"
+          onChange={send("Inset shadows, my answer.", $shadows)}>
+        <option value="yes" label="Yes, fix once" note="Fixes the chips, retires five workarounds" />
+        <option value="no" label="No, keep the workaround" />
+      </decision>
+      <decision id="ask-pictures" label="Where do the 88 MB of pictures live?" value={$pictures} pick="hashes"
+          onChange={send("Where the pictures live, my answer.", $pictures)}>
+        <option value="hashes" label="Fingerprints in git" note="Pictures stay on your Mac" />
+        <option value="lfs" label="Git LFS" />
+        <option value="git" label="All in git" />
+        <option value="release" label="A GitHub release" />
+      </decision>
+      <decision id="ask-wayland" label="Browser pane under Wayland on Linux?" value={$wayland} pick="system"
+          onChange={send("The browser pane under Wayland, my answer.", $wayland)}>
+        <option value="system" label="System browser" note="The app stays native Wayland" />
+        <option value="xwayland" label="Whole app on XWayland" note="Loses sharper text and smooth resizes" />
+      </decision>
+      <checklist id="tasks" items={$progress.json.asks | where(item.done != true && !startsWith(item.title, "Inset") && !contains(item.title, "choice") && !startsWith(item.title, "Where the pictures"))}
+          key={item.title} title={item.title} done={item.done} />
+    </section>
+    <section id="build" title="The new app">
+      <progress id="screens" label="screens in the app" items={$progress.json.screens} key={item.name}
+          name={first(split(item.name, ":"))} done={item.state == "In the app"}
+          note={replace(replace(replace(replace(replace(item.state, "In the app: ", ""), "In the app (", ""), "In the app ", ""), "(", ""), ")", "")} />
+      <progress id="steps" label="big steps done" items={$progress.json.steps} key={item.title} name={item.title}
+          done={item.state == "done"} note={item.state == "working" ? "Working now" : "Not started"} />
+      <progress id="helpers" label="helpers finished" items={$progress.json.helpers} key={item.name}
+          name={first(split(item.name, ":"))} done={item.state == "Finished"} note={item.state} />
+    </section>
+    <section id="gate" title="The big test on your Mac">
+      <status id="mac-now" tone={contains($mac.json.last, "exited with code 0") ? "good" : "info"}>{contains($mac.json.last, "exited with code 0") ? "The install checks passed" : "The install checks are running"}</status>
+      <stats id="gate-stats">
+        <stat label="At rest" value="90" unit="MB" window="new app, last run" tone="good" />
+        <stat label="Scrolling" value="120" unit="fps" window="typical" tone="good" />
+        <stat label="Switching" value="20" unit="ms" window="between threads" tone="good" />
+      </stats>
+      <bars id="gate-memory" label="Memory at rest, MB" items={[{ n: "Today's app", v: 331 }, { n: "New app", v: 90 }]} name={item.n} value={item.v} />
+    </section>
+    <section id="look-more" title="Four more look choices" collapsible open={false}>
+      <decision id="ask-diagrams" label="Slate diagrams: source text first?" value={$lookDiagrams} pick="yes"
+          onChange={send("Slate diagrams, my answer.", $lookDiagrams)}>
+        <option value="yes" label="Yes, diagrams later" />
+        <option value="no" label="No, draw them first" />
+      </decision>
+      <decision id="ask-switcher" label="Thread switcher cards without pictures for now?" value={$lookSwitcher}
+          onChange={send("Thread switcher, my answer.", $lookSwitcher)}>
+        <option value="yes" label="Yes, for now" />
+        <option value="no" label="No, capture first" />
+      </decision>
+      <decision id="ask-activity" label="Activity page: hold the placeholder still?" value={$lookActivity}
+          onChange={send("Activity page, my answer.", $lookActivity)}>
+        <option value="yes" label="Yes, save CPU" />
+        <option value="no" label="No, shimmer" />
+      </decision>
+      <decision id="ask-runband" label="Dark theme run band under a code block?" value={$runBand}
+          onChange={send("The run band, my answer.", $runBand)}>
+        <option value="fixed" label="Terminal background" />
+        <option value="copy" label="Copy the see-through band" />
+      </decision>
+    </section>
+    <section id="asks-full" title="Every ask, with its notes" collapsible open={false}>
+      <checklist id="asks-list" items={$progress.json.asks} key={item.title} title={item.title} done={item.done} note={item.note} />
+    </section>
+    <section id="leak" title="About the leaked tokens" collapsible open={false}>
+      <text id="leak-text" value={$progress.json.leak} />
+    </section>
+    <section id="settings-shots" title="Settings, beside today's" collapsible open={false}>
+      <text id="settings-note"
+          tone="muted"
+          size="small">Each picture shows today's app and the new app side by side, with the same data, drawn on a cloud machine with Linux fonts, before the review's fixes.</text>
+      <images id="settings-images"
+          items={[{ src: "/Users/ada/wsp-work/gpui-shots/2391-review/general-graphite-pair.png", caption: "General, dark" }, { src: "/Users/ada/wsp-work/gpui-shots/2391-review/appearance-paper-pair.png", caption: "Appearance, light" }, { src: "/Users/ada/wsp-work/gpui-shots/2391-review/computers-graphite-pair.png", caption: "Computers, dark" }, { src: "/Users/ada/wsp-work/gpui-shots/2391-review/remove-project-dialog-paper-pair.png", caption: "Remove a project, light" }, { src: "/Users/ada/wsp-work/gpui-shots/2391-review/search-theme-graphite-pair.png", caption: "Searching Settings, dark" }]}
+          src={item.src} caption={item.caption} layout="gallery" />
+    </section>
+    <section id="composer-shots" title="The composer, beside today's" collapsible open={false}>
+      <text id="composer-note"
+          tone="muted"
+          size="small">Each pair: today's app, then the new app, same state and data, drawn on a cloud machine with Linux fonts.</text>
+      <images id="composer-images"
+          items={[{ src: "/Users/ada/wsp-work/gpui-shots/2395/model-picker-open-graphite-web.png", caption: "Today's app: the model picker" }, { src: "/Users/ada/wsp-work/gpui-shots/2395/model-picker-open-graphite-gpui.png", caption: "New app: the model picker" }]}
+          src={item.src} caption={item.caption} layout="compare" />
+    </section>
+    <section id="glass" title="Frosted glass, drawn by your Mac" collapsible open={false}>
+      <text id="glass-note"
+          tone="muted"
+          size="small">The new app's frosted glass and rounded corners on your Mac's graphics chip. Every pixel is within 3 color levels of what today's app draws for the same scene.</text>
+      <images id="glass-images"
+          items={[{ src: "/Users/ada/wsp-work/gpui-shots/2373-metal/gpui-blur-light-50.png", caption: "The composer's glass, light theme" }, { src: "/Users/ada/wsp-work/gpui-shots/2373-metal/gpui-blur-dark-50.png", caption: "Dark theme" }, { src: "/Users/ada/wsp-work/gpui-shots/2373-metal/gpui-clip-kinds.png", caption: "Rounded corners cutting every kind of content" }]}
+          src={item.src} caption={item.caption} layout="gallery" />
+    </section>
+    <section id="pieces" title="wsp's look, side by side" collapsible open={false}>
+      <text id="pieces-note"
+          tone="muted"
+          size="small">Today's app on the left, the new app in the middle, and every differing pixel in red on the right.</text>
+      <images id="pieces-images"
+          items={[{ src: "/Users/ada/wsp-work/gpui-shots/2371/card-graphite.png", caption: "Settings rows and cards, Graphite" }, { src: "/Users/ada/wsp-work/gpui-shots/2371/controls-graphite.png", caption: "Buttons, pickers and fields, Graphite" }, { src: "/Users/ada/wsp-work/gpui-shots/2371/dialog-paper.png", caption: "A dialog, Paper" }]}
+          src={item.src} caption={item.caption} layout="gallery" />
+    </section>
+  </column>
+  <file name="progress.py">{`
+    import json, sys
+
+    STATES = {"running": ("Working", "info"), "completed": ("Finished", "good"), "failed": ("Stopped", "bad")}
+    p = json.load(open("/Users/ada/wsp-work/coord/briefs/gpui/progress.json"))
+    try:
+        threads = {t["id"][:8]: t.get("status", "") for t in json.load(sys.stdin).get("threads", [])}
+    except Exception:
+        threads = {}
+    helpers = []
+    for h in p.get("helpers", []):
+        state, tone = STATES.get(threads.get(h["id"], ""), ("Starting", "muted"))
+        helpers.append({"name": h["name"], "state": state, "tone": tone})
+    steps = p.get("steps", [])
+    screens = p.get("screens", [])
+    print(json.dumps({
+        "goal": p.get("goal", ""),
+        "timeline": p.get("timeline", ""),
+        "leak": p.get("leak", ""),
+        "asks": p.get("asks", []),
+        "steps": steps,
+        "done": sum(1 for s in steps if s.get("state") == "done"),
+        "total": len(steps),
+        "screens": screens,
+        "inapp": sum(1 for s in screens if s.get("state") == "In the app"),
+        "screenTotal": len(screens),
+        "helpers": helpers,
+        "running": sum(1 for h in helpers if h["state"] == "Working"),
+    }))
+  `}</file>
+  <file name="mac-status.py">{`
+    import json, os
+
+    pointer = os.path.expanduser("~/wsp-work/gpui-2366-mac-logs/current-mac-job")
+    lines = []
+    if os.path.exists(pointer):
+        log = open(pointer).read().strip()
+        if os.path.exists(log):
+            lines = [l.rstrip() for l in open(log, errors="replace") if l.strip()][-12:]
+    print(json.dumps({"last": lines[-1] if lines else "Nothing running on your Mac", "lines": lines}))
+  `}</file>
+</slate>

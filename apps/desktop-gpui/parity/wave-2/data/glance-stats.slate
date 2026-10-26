@@ -1,0 +1,17 @@
+<slate title="Native desktop app">
+  <column>
+    <section title="Where we are" note="Day 6">
+      <stats id="where-stats">
+        <stat label="Screens" value={9} max={14} window="in the new app" tone="good" />
+        <stat label="Big steps" value={8} max={10} window="done" />
+        <stat label="Helpers" value={2} format="integer" window="of 10 cloud machines" />
+      </stats>
+    </section>
+    <section title="The big test on your Mac">
+      <stats id="gate-stats">
+        <stat label="At rest" value="90" unit="MB" window="new app, last run" tone="good" />
+        <stat label="Scrolling" value="120" unit="fps" window="typical" tone="good" />
+      </stats>
+    </section>
+  </column>
+</slate>

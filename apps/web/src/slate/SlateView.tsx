@@ -4,7 +4,7 @@
 // in its place; a type this build does not know draws its fallback.
 import { KeycapFilter } from "./pieces/keycap.js";
 import { createContext, memo, useContext, useMemo, useSyncExternalStore, type ComponentType, type ReactNode } from "react";
-import type { SlatesImageAnswer } from "@wsp/protocol";
+import type { SlatesImageAnswer, SlatesPageAnswer } from "@wsp/protocol";
 import type { SlateJson } from "@wsp/protocol/slate";
 import { RenderErrorBoundary } from "../components/RenderErrorBoundary.js";
 import { DOC, type SlateEngine } from "./engine.js";
@@ -25,6 +25,8 @@ export interface PieceViewProps {
   cancel(run: string): Promise<unknown>;
   /** An image piece's src, through the host, which alone reads files and fetches addresses. */
   image?(src: string, have?: string): Promise<SlatesImageAnswer>;
+  /** A frame piece's src, through the host, which alone reads files. */
+  page?(src: string, have?: string): Promise<SlatesPageAnswer>;
   /** Allows a domain's images for the thread. */
   allow?(domain: string): Promise<unknown>;
   sender: StateSender;
@@ -145,7 +147,7 @@ function PieceBody({ id }: { id: string }) {
   const fills = typeof view.fills === "function" ? view.fills(engine, id) : view.fills === true;
   return (
     <div data-slate-piece={id} data-slate-type={piece.type} {...(fills ? { "data-slate-rows": "" } : {})} className="slate-piece min-w-0">
-      <Component id={id} piece={piece} props={props} slate={engine} sender={sender} raise={(event, options) => runner.raise(id, event, options)} cancel={run => runner.cancel(run)} image={(src, have) => runner.image(src, have)} allow={domain => runner.allowDomain(domain)}>
+      <Component id={id} piece={piece} props={props} slate={engine} sender={sender} raise={(event, options) => runner.raise(id, event, options)} cancel={run => runner.cancel(run)} image={(src, have) => runner.image(src, have)} page={(src, have) => runner.page(src, have)} allow={domain => runner.allowDomain(domain)}>
         {(piece.children ?? []).map(child => (
           <PieceHost key={child} id={child} />
         ))}

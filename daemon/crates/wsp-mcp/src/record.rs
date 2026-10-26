@@ -103,6 +103,10 @@ pub struct Words {
     pub unclosed_quote: String,
     pub project_scope: String,
     pub no_skill_hits: String,
+    /// What slate_look says under its picture: {width}, {height}, {scale} and {theme} filled.
+    pub slate_look: String,
+    /// Said after it where the look cut a slate taller than it takes: {height} and {whole} filled.
+    pub slate_look_cut: String,
     pub skill_hit_columns: Vec<String>,
     pub preview_bytes: u64,
     pub preview_cut: String,

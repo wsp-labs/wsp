@@ -148,7 +148,7 @@ describe("the validator", () => {
       `<text>\u2022 first</text>`,
     ];
     for (const piece of clean) expect(all(wrap(piece, decls)), piece).not.toContain("W012");
-    expect(slateCatalog()).toContain("Separate things by layout, never by ·, • or |.");
+    expect(slateCatalog()).toContain("never ·, • or | between things");
   });
 
   it("warns W013 on a chart whose x is the row's index, and names a time in its fix", () => {
@@ -354,5 +354,13 @@ describe("a reaction cycle", () => {
     expect(decl(`<when change={$x.a} do={set($x.a, 1)} />`)).toEqual(["A610"]);
     expect(decl(`<when change={$x} do={set($x.b, 1)} />`)).toEqual(["A610"]);
     expect(decl(`<when change={$x.b} do={set($x, { a: 1, b: 2 })} />`)).toEqual(["A610"]);
+  });
+});
+
+describe("a list's rows", () => {
+  const jobs = (field: string) =>
+    wrap(`<progress label="jobs" items={$jobs} name={item.name} done={item.done} note={item.${field}} />`, `<value name="jobs" start={[{ name: "Lint", done: true }, { name: "Unit", done: false, note: "Running" }]} />`);
+  it("still refuse a field no row carries", () => {
+    expect(all(jobs("nite"))).toContain("X401");
   });
 });

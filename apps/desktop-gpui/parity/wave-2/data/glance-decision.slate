@@ -1,0 +1,23 @@
+<slate title="Native desktop app">
+  <value name="shadows" start="" />
+  <value name="wayland" start="" />
+  <value name="pictures" start="hashes" />
+  <column>
+    <section title="Waiting on you" note="3 decisions">
+      <decision id="ask-shadows" label="Inset shadows: fix once, in the engine?" value={$shadows} pick="yes" onChange={send("Inset shadows, my answer.", $shadows)}>
+        <option value="yes" label="Yes, fix once" note="Fixes the chips, retires five workarounds" />
+        <option value="no" label="No, keep the workaround" />
+      </decision>
+      <decision id="ask-wayland" label="Browser pane under Wayland on Linux?" value={$wayland} pick="system" onChange={send("The browser pane under Wayland, my answer.", $wayland)}>
+        <option value="system" label="System browser" note="The app stays native Wayland" />
+        <option value="xwayland" label="Whole app on XWayland" />
+      </decision>
+      <decision id="ask-pictures" label="Where do the 88 MB of pictures live?" value={$pictures} pick="hashes" onChange={send("Where the pictures live, my answer.", $pictures)}>
+        <option value="hashes" label="Fingerprints in git" />
+        <option value="lfs" label="Git LFS" />
+        <option value="git" label="All in git" />
+        <option value="release" label="A GitHub release" />
+      </decision>
+    </section>
+  </column>
+</slate>

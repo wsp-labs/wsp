@@ -306,11 +306,12 @@ describe("the command line, the MCP tools and the skill are one contract", () =>
       "slates.unsubscribe": "a window letting go of a hold it took",
       "slates.resolve": "the window's read of a path it cannot resolve itself; an agent names paths in slate read",
       "slates.image": "the window's read of the bytes an image piece draws; an agent reads the image's src and state in the sketch",
+      "slates.page": "the window's read of the HTML a frame piece draws; an agent wrote the file, and sees it drawn with slate look",
     };
     expect(RUNTIME_OPS.filter(op => op.startsWith("slates.") && !verbs.includes(`"${op}"`)).sort()).toEqual(Object.keys(WINDOW_ONLY).sort());
   });
 
-  it("the four slate tools' entries in tools/list total under 4,400 characters, the budget every session pays, and every input says what it takes (10)", async () => {
+  it("the five slate tools' entries in tools/list total under 5,250 characters, the budget every session pays, and every input says what it takes (10)", async () => {
     const server = mcpServer("/nonexistent/state.json", { env: {} });
     const [toClient, toServer] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "parity", version: "0" });
@@ -318,10 +319,12 @@ describe("the command line, the MCP tools and the skill are one contract", () =>
     await client.connect(toClient);
     try {
       const slate = (await client.listTools()).tools.filter(t => t.name.startsWith("slate_"));
-      expect(slate.map(t => t.name).sort()).toEqual(["slate_catalog", "slate_read", "slate_state", "slate_write"]);
+      expect(slate.map(t => t.name).sort()).toEqual(["slate_catalog", "slate_look", "slate_read", "slate_state", "slate_write"]);
       // Every session with a slate pays these schemas each turn; _meta is read by the client and never reaches the model.
-      // 4,300 to 4,400 for where a run's script goes, after a Codex thread wrote one into the project.
-      expect(slate.reduce((n, t) => n + JSON.stringify({ ...t, _meta: undefined }).length, 0)).toBeLessThan(4400);
+      // 4,300 to 4,400 for where a run's script goes, after a Codex thread wrote one into the project; 5,200 for
+      // slate_look, since an agent writing a frame cannot see it otherwise; 5,250 once the slate's purpose line
+      // joined it, the four older tools at 4,394 and slate_look at 820.
+      expect(slate.reduce((n, t) => n + JSON.stringify({ ...t, _meta: undefined }).length, 0)).toBeLessThan(5250);
       for (const t of slate) for (const [name, input] of Object.entries(t.inputSchema.properties ?? {})) expect((input as { description?: string }).description, `${t.name}.${name}`).toBeTruthy();
       // A Claude Code launch loads the server's tools up front, and every tool but the slate's opts back out of that.
       for (const t of slate) expect(t._meta, t.name).toEqual({ "anthropic/alwaysLoad": true });

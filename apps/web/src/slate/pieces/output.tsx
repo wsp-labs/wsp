@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// A run's output as it streams: a row of the card with its label and its state as one word,
-// a quiet Cancel in the slot while it runs, then the tail of its lines as the next row in 12 px mono, `lines` rows
-// tall, following the end while it runs, no box of its own; why under them when held or failed.
+// A run's output summary first: a row of the card with its label and its state as one word, a quiet Cancel in
+// the slot while it runs, then what passed and failed as the runner tallied it and the lines that name a failure, or
+// the last line where no tally reads; the raw lines fold under "All N lines", `lines` rows tall once open, following
+// the end while it runs. Why under them when held or failed.
 // A finished run keeps its last lines until it next starts; after the agent changed its command they read as stale.
-import { useEffect, useRef } from "react";
-import type { SlateJson } from "@wsp/protocol/slate";
+import { ChevronRight } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { slateRunSummary, slateSummaryCounts, type SlateJson } from "@wsp/protocol/slate";
 import { Crab } from "../../components/status/Crab.js";
 import { Button } from "../../components/ui/button.js";
 import { cn } from "../../lib/utils.js";
@@ -48,6 +50,8 @@ function recordLines(record: { lines?: string[]; out?: SlateJson; err?: string }
 
 const runName = (value: unknown): string | undefined => (isOwnName(value) ? value.slice(1) : undefined);
 
+const COUNT_INK = { failed: "text-error-foreground font-medium", passed: "text-foreground", skipped: "text-muted-foreground" } as const;
+
 export const output: PieceView = {
   type: "output",
   saysRefreshing: true,
@@ -57,6 +61,7 @@ export const output: PieceView = {
     const run = runName(piece.props?.["run"]);
     const record = run === undefined ? undefined : slate.values[run];
     const box = useRef<HTMLDivElement>(null);
+    const [unfolded, setUnfolded] = useState(false);
     const rows = typeof props["lines"] === "number" ? Math.max(3, Math.min(40, Math.floor(props["lines"]))) : 8;
     const state: SlateRunState = isRunRecord(record) && record.state in RUN_WORDS ? record.state : "idle";
     const lines = run === undefined ? [] : (slate.lines(run) ?? (isRunRecord(record) ? recordLines(record) : []));
@@ -66,7 +71,7 @@ export const output: PieceView = {
     const stale = isRunRecord(record) && record.stale === true && !running;
     useEffect(() => {
       if (state === "running" && box.current !== null) box.current.scrollTop = box.current.scrollHeight;
-    }, [state, lines.length]);
+    }, [state, lines.length, unfolded]);
     if (run === undefined) return <Quiet>{RUN_WORDS.idle}</Quiet>;
     const why = isRunRecord(record) && (state === "held" || state === "failed") ? record.why : undefined;
     // A tool or resource run's result draws by its shape; its failure and a command's output stay lines.
@@ -99,17 +104,28 @@ export const output: PieceView = {
           <div data-slate-result={run} className={cn("min-w-0 py-3", inset)}>
             <ResultByShape value={result} shared={{ id, slate, raise, cancel, sender }} />
           </div>
-        ) : lines.length === 0 && state === "idle" ? null : (
-          <div
-            ref={box}
-            role="log"
-            aria-live={running ? "polite" : "off"}
-            className={cn("overflow-y-auto py-2.5 font-mono text-xs leading-4 tabular-nums", inset, stale ? "text-muted-foreground" : "text-foreground", props["wrap"] === true ? "whitespace-pre-wrap break-words" : "whitespace-pre")}
-            style={{ maxHeight: `calc(${rows} * 1rem + 1.25rem)` }}
-          >
-            {lines.map((line, at) => (
-              <div key={at}>{line === "" ? " " : line}</div>
-            ))}
+        ) : lines.length === 0 ? null : (
+          <Summary lines={lines} stale={stale} inset={inset} />
+        )}
+        {result !== undefined || lines.length === 0 ? null : (
+          <div className={cn("flex min-w-0 flex-col py-1.5", inset)}>
+            <button type="button" data-slate-fold={run} aria-expanded={unfolded} onClick={() => setUnfolded(open => !open)} className="-mx-1 inline-flex h-7 items-center gap-1 self-start rounded-md px-1 text-xs leading-4 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+              <ChevronRight aria-hidden className={cn("size-3.5 shrink-0 transition-transform duration-150 motion-reduce:transition-none", unfolded && "rotate-90")} />
+              {`All ${lines.length.toLocaleString("en-US")} line${lines.length === 1 ? "" : "s"}`}
+            </button>
+            {unfolded ? (
+              <div
+                ref={box}
+                role="log"
+                aria-live={running ? "polite" : "off"}
+                className={cn("overflow-y-auto pt-1 pb-1.5 font-mono text-xs leading-4 tabular-nums", stale ? "text-muted-foreground" : "text-foreground", props["wrap"] === true ? "whitespace-pre-wrap break-words" : "whitespace-pre")}
+                style={{ maxHeight: `calc(${rows} * 1rem + 0.625rem)` }}
+              >
+                {lines.map((line, at) => (
+                  <div key={at}>{line === "" ? " " : line}</div>
+                ))}
+              </div>
+            ) : null}
           </div>
         )}
         {why === undefined ? null : <Quiet data-slate-why className={cn("py-2.5", inset)}>{why}</Quiet>}
@@ -117,3 +133,31 @@ export const output: PieceView = {
     );
   },
 };
+
+/** What the lines come to, ahead of them: the runner's counts, failed first, then the lines that name a failure; the
+ * last line alone where neither reads. */
+function Summary({ lines, stale, inset }: { lines: readonly string[]; stale: boolean; inset: string }) {
+  const summary = slateRunSummary(lines);
+  const counts = slateSummaryCounts(summary);
+  const lead = counts.length > 0 || summary.matters.length > 0 ? summary.matters : summary.last !== undefined ? [summary.last] : [];
+  return (
+    <div data-slate-summary className={cn("flex min-w-0 flex-col gap-1.5 py-3", inset, stale && "text-muted-foreground")}>
+      {counts.length === 0 ? null : (
+        <div className="flex min-w-0 flex-wrap gap-x-4 gap-y-1 text-sm leading-5 tabular-nums">
+          {counts.map(c => (
+            <span key={c.count} data-slate-count={c.count} className={stale ? undefined : COUNT_INK[c.count]}>
+              {c.words}
+            </span>
+          ))}
+        </div>
+      )}
+      {lead.length === 0 ? null : (
+        <div data-slate-matters className={cn("flex min-w-0 flex-col gap-0.5 font-mono text-xs leading-4 break-words whitespace-pre-wrap", counts.length > 0 || summary.matters.length > 0 || stale ? "text-muted-foreground" : "text-foreground")}>
+          {lead.map((line, at) => (
+            <div key={at}>{line}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

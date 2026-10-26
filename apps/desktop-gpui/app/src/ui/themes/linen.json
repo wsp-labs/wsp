@@ -71,6 +71,7 @@
         "success": "#009966ff",
         "warning": "#e17100ff",
         "warning-foreground": "#96580fff",
+        "success-foreground": "#3d7a3aff",
         "yellow-foreground": "#906d0dff",
         "error": "#fb2c36ff",
         "error-foreground": "#b3261eff",
