@@ -130,7 +130,15 @@ fn placeholders_of_matches_the_ts_for_every_status() {
 #[test]
 fn codex_broker_of_matches_the_ts() {
     for row in rows("codexBrokerOf") {
-        let status = if row["status"].is_null() { None } else { Some(serde_json::from_value::<BrokerStatus>(row["status"].clone()).expect("a status the wire carries")) };
+        // A status the wire's enum cannot hold (a claude kind of "nonsense") never reaches the port; the TS answers none for it.
+        let status = if row["status"].is_null() {
+            None
+        } else {
+            match serde_json::from_value::<BrokerStatus>(row["status"].clone()) {
+                Ok(status) => Some(status),
+                Err(_) => continue,
+            }
+        };
         let claims = row["claims"].as_object().map(|c| CodexClaims { account_id: c["accountId"].as_str().unwrap().to_string(), ..Default::default() });
         let models_value = row["models"].clone();
         let models: Option<AccountModels> = if models_value.is_null() {
@@ -367,9 +375,11 @@ fn the_profile_puts_codex_first_only_in_a_shell_marked_codex() {
     let dir = tempfile::TempDir::new().unwrap();
     run_line(dir.path(), &terminal_line("codex", Some(CODEX_PROGRAM)));
     let found = |own: Option<&str>| typed(dir.path(), "command -v codex || true", own).0.trim().to_string();
-    assert_eq!(found(Some("codex")), dir.path().join("bin/codex/codex").to_str().unwrap());
-    assert_eq!(found(Some("claude")), "");
-    assert_eq!(found(None), "");
+    assert_eq!(found(Some("codex")), "<dir>/bin/codex/codex", "typed() writes the folder as <dir>");
+    // The profile adds nothing for any other shell: they find what the box itself holds (a codex in /usr/bin where one is installed).
+    let boxs = typed(dir.path(), "PATH=/usr/bin:/bin command -v codex || true", None).0.trim().to_string();
+    assert_eq!(found(Some("claude")), boxs);
+    assert_eq!(found(None), boxs);
 }
 
 #[test]

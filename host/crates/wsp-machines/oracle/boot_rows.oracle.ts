@@ -78,6 +78,7 @@ function world(o: { live?: Record<string, Record<string, unknown>>; rows?: { vie
 }
 
 async function scene(name: string, w: Parameters<typeof world>[0], act: (x: ReturnType<typeof world>) => Promise<unknown>) {
+  const given = JSON.parse(JSON.stringify(w ?? {})) as typeof w;
   const x = world(w);
   // The scenes run on a host already started: ready() runs once on an empty store and its log is dropped.
   await x.area.ready();
@@ -92,7 +93,7 @@ async function scene(name: string, w: Parameters<typeof world>[0], act: (x: Retu
   } finally {
     x.done();
   }
-  return { name, given: w ?? {}, log: x.log, answer: answer === undefined ? null : JSON.parse(JSON.stringify(answer, (_k, v) => (v instanceof Map ? [...v] : v instanceof Set ? [...v] : typeof v === "object" && v !== null && "record" in v ? `entry:${(v as { record: { id: string } }).record.id}` : v))), records: [...x.threadRecords] };
+  return { name, given, log: x.log, answer: answer === undefined ? null : JSON.parse(JSON.stringify(answer, (_k, v) => (v instanceof Map ? [...v] : v instanceof Set ? [...v] : typeof v === "object" && v !== null && "record" in v ? `entry:${(v as { record: { id: string } }).record.id}` : v))), records: [...x.threadRecords] };
 }
 
 const thread = { origin: "here", by: { kind: "thread", threadId: "t-a", workspaceId: "a", rootThreadId: "t-a" } };

@@ -77,11 +77,12 @@ fn an_older_pass_neither_drops_nor_admits_after_a_newer_one_listed() {
 #[test]
 fn an_admit_of_an_id_that_settled_reads_the_provider_again() {
     common::run_local(async {
-        let w = World::load(Opts { store: json!({"builders": {"slow": builder("slow")}}), ..Opts::default() });
+        let w = World::load(Opts { store: json!({"builders": {"slow": builder("slow")}}), sights: vec![Sight::Running], ..Opts::default() });
         w.area.refresh_builders().await.expect("first pass");
         w.rt.builders.borrow_mut().shift_remove("slow");
         w.area.refresh_builders().await.expect("second pass");
-        let gets = w.log.take().into_iter().filter(|e| e[0] == "backend.get").count();
+        // admit reads `at.get` on every pass (boot.ts:88); the fake logs a record's first get as backend.get and its later ones as the sighting they stand for.
+        let gets = w.log.take().into_iter().filter(|e| e[0] == "backend.get" || e[0] == "readGone").count();
         assert_eq!(gets, 2, "each pass that finds no entry reads the provider once");
         assert!(w.rt.builders.borrow().contains_key("slow"));
     });
