@@ -10,6 +10,7 @@ use super::fields::{count, rec, str};
 use super::items::{child_end, child_usage_of, depth_of, item_of, ChildTokens, BREAKDOWN};
 use crate::pending::subagent_asked;
 use crate::port::{AdapterEvent, SubagentState, SubagentUsage};
+use wsp_wire::types::js_number::JsNumber;
 use wsp_words::js::js_trim;
 
 /// TS adapter.ts:446.
@@ -82,7 +83,7 @@ impl Children {
             parent_tool_use_id: Some(c.parent.clone()),
             title: if running { c.title.clone() } else { None },
             summary: if running { None } else { c.summary.clone() },
-            depth: if running { c.depth } else { None },
+            depth: if running { c.depth.map(|d| JsNumber(f64::from(d))) } else { None },
             model: if running { c.model.clone() } else { None },
             asked: if running { c.prompt.as_deref().map(subagent_asked) } else { None },
             usage: if running { None } else { c.usage.clone() },
