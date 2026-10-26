@@ -219,7 +219,7 @@ fn sub(session: &str, task: &str, state: SubagentState, s: Sub) -> AdapterEvent 
         parent_tool_use_id: s.parent.map(String::from),
         title: s.title.map(String::from),
         summary: s.summary.map(String::from),
-        depth: s.depth,
+        depth: s.depth.map(|d| JsNumber(f64::from(d))),
         model: s.model.map(String::from),
         asked: s.asked.map(String::from),
         usage: s.usage,

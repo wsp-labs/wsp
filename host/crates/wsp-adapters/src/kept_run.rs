@@ -12,7 +12,7 @@ use futures::future::{FutureExt, LocalBoxFuture};
 use futures::stream::{LocalBoxStream, StreamExt};
 use std::sync::Arc;
 
-use crate::port::{end_after_result, ExecFailure, ExecStream, KeptRun, SharedFuture, WriteOutcome};
+use crate::port::{end_after_result, started, ExecFailure, ExecStream, KeptRun, SharedFuture, WriteOutcome};
 
 type Between = Option<Arc<dyn Fn(String)>>;
 
@@ -257,7 +257,7 @@ impl KeptRun for Kept {
         self.state.borrow_mut().released = true;
         self.stream.close_input();
         let stream = self.stream.clone();
-        async move { end_after_result(stream.as_ref(), wait_ms, grace_ms).await }.boxed_local()
+        started(async move { end_after_result(stream.as_ref(), wait_ms, grace_ms).await }.boxed_local())
     }
 }
 

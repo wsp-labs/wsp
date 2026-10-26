@@ -223,6 +223,6 @@ async fn earlier_read(
                 at: message.at.map(|at| at.0),
             })
             .collect(),
-        earlier: reply.earlier.0 as u32,
+        earlier: reply.earlier.0,
     }))
 }
