@@ -29,9 +29,10 @@
 // it signals is read before it signals it: a pid this computer handed out again
 // leads a group of its own, so the reap asks whether the group is still there
 // and how old its leader is against the claim, and leaves anything else alone.
-// The stream's own teardown and kill read it the same way, since the agent can
-// write the pid file and a pid of 1 or less reaches every process this host may
-// signal.
+// The agent can write the pid file, and a pid of 1 or less reaches every
+// process this host may signal, so a launch's own stream signals the pid it was
+// handed at the spawn and the file is read only by an attach after a restart,
+// under that same check.
 // The turn runs under the same two limits a cloud turn does, idle and
 // wall, read from the one rule machine-exec reads, so a hung agent ends with
 // the same line on either kind, and the idle limit reads the same activity on
@@ -64,15 +65,7 @@ export interface LocalExecOptions extends Pick<MachineExecOptions, "idleMs" | "d
    * turns themselves lead their own process groups and go on, and whatever opens them next reads their logs from
    * the first byte. The wiring that made this factory owns the set and empties it when it closes. */
   reading?: Set<() => void>;
-  /** What sends a signal to a process or a group: process.kill unless a test hands in a recorder, so a test of the
-   * pid a run names never signals a process it did not start. Existence probes (signal 0) never go through it. */
-  send?: (pid: number, sig: NodeJS.Signals) => void;
-  /** Where a refusal to signal is said, one line each: the host's log unless a test reads it. */
-  log?: (line: string) => void;
 }
-
-type Send = NonNullable<LocalExecOptions["send"]>;
-type Log = NonNullable<LocalExecOptions["log"]>;
 
 /** How often the log is read and the limits are read against the clock; the cloud road polls its guest the same way,
  * slower because every poll there is a round trip. */
@@ -96,9 +89,9 @@ const endMarker = (base: string): string => `__WSP_EOF_${base.slice(-12)}__`;
 /** One turn's whole group, by the pid its launch recorded: the child leads the group, so a negative pid is every
  * process the turn started. A group whose last member is already gone answers ESRCH, which is the same nothing to
  * do as no group at all. */
-function signalGroup(send: Send, pid: number, sig: NodeJS.Signals): void {
+function signalGroup(pid: number, sig: NodeJS.Signals): void {
   try {
-    send(-pid, sig);
+    process.kill(-pid, sig);
   } catch {
     return;
   }
@@ -236,9 +229,9 @@ function leftovers(rows: readonly GroupRow[], leader: number, pump: ReadonlySet<
   return [...left];
 }
 
-function signalPid(send: Send, pid: number, sig: NodeJS.Signals): void {
+function signalPid(pid: number, sig: NodeJS.Signals): void {
   try {
-    send(pid, sig);
+    process.kill(pid, sig);
   } catch {
     return;
   }
@@ -327,13 +320,13 @@ async function groupOfRun(base: string, pid: number): Promise<"own" | "gone" | "
 /** The pid of the group this run started, read off its pid file, or none. The agent can write that file, and a
  * number that is not a whole one above 1, or that leads some other group, is refused with one line in the log: a 1
  * reaches every process this host may signal. A run with no pid file yet, or whose group is gone, is no refusal. */
-async function ownLeader(base: string, log: Log): Promise<number | undefined> {
+async function ownLeader(base: string): Promise<number | undefined> {
   const text = readFile(`${base}.pid`);
   if (text === undefined) return undefined;
   const word = text.trim();
   const pid = Number(word);
   const group = Number.isSafeInteger(pid) && pid > 1 ? await groupOfRun(base, pid) : "other";
-  if (group === "other") log(`${base}.pid names ${JSON.stringify(word.slice(0, 40))}, which is not the leader of the group this run started: nothing was signalled`);
+  if (group === "other") console.warn(`${base}.pid names ${JSON.stringify(word.slice(0, 40))}, which is not the leader of the group this run started: nothing was signalled`);
   return group === "own" ? pid : undefined;
 }
 
@@ -343,14 +336,14 @@ async function ownLeader(base: string, log: Log): Promise<number | undefined> {
  * its life. A group that is not this run's is left alone and only its files go. `lastRead` runs once the group is
  * gone and before the log goes, so a reader takes what was printed after its last poll, up to the size the log had at
  * the KILL: a process that left the group and still holds the log would otherwise keep the read, and the stop, going. */
-async function reapRun(base: string, send: Send, log: Log, lastRead: (end: number) => Promise<void> = async () => {}, graceMs = RUN_STOP_MS): Promise<void> {
-  const pid = await ownLeader(base, log);
+async function reapRun(base: string, known: number | undefined, lastRead: (end: number) => Promise<void> = async () => {}, graceMs = RUN_STOP_MS): Promise<void> {
+  const pid = known ?? (await ownLeader(base));
   if (pid !== undefined) {
-    signalGroup(send, pid, "SIGTERM");
+    signalGroup(pid, "SIGTERM");
     // The grace is the group's, not the leader's: a leader that goes at once on the TERM leaves the children it
     // started to take the whole of it, which is the stop every road here promises them.
     for (let waited = 0; waited < graceMs && groupExists(pid); waited += GRACE_POLL_MS) await sleep(Math.min(GRACE_POLL_MS, graceMs - waited));
-    signalGroup(send, pid, "SIGKILL");
+    signalGroup(pid, "SIGKILL");
   }
   await lastRead(logSize(base));
   for (const suffix of ["sh", "log", "pid", "agent", "exit", "in", "held", "late", "fifo", "tail", "pump"]) rmSync(`${base}.${suffix}`, { force: true });
@@ -465,8 +458,6 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
   const now = opts.now ?? Date.now;
   const pollMs = opts.pollMs ?? POLL_MS;
   const runDir = opts.runDir;
-  const send: Send = opts.send ?? ((pid, sig) => process.kill(pid, sig));
-  const log: Log = opts.log ?? (line => console.warn(line));
   /** A handle this factory could have minted, and nothing else: the shape is read here, by the one predicate both
    * the attach road and the sweep read, so nothing that turned up in the run folder reaches a signal on the
    * strength of being there. */
@@ -475,7 +466,7 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
   /** The one reader both roads share: a launch that has just started its child, and an attach to a run an earlier
    * host process left behind. The log is read from its first byte either way, so a run that printed while no host
    * was listening is replayed to whoever attaches. */
-  const open = (base: string, hasInput: boolean, o: { launch?: { failed?: Error }; startedAt?: number; from?: number; taken?: readonly string[] } = {}): ExecStream => {
+  const open = (base: string, hasInput: boolean, o: { launch?: { failed?: Error }; leader?: number; startedAt?: number; from?: number; taken?: readonly string[] } = {}): ExecStream => {
     const { launch } = o;
     // The idle clock runs from this reader's first second, since nothing on disk records when the run's last byte
     // landed; the wall runs from the turn's own start, which an attach is handed.
@@ -488,11 +479,11 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
      * did: a command the agent left going holds the turn's token, which otherwise would outlive the turn by the keep.
      * The agent, the servers it started and its input stay. */
     const endLeftovers = async (): Promise<void> => {
-      const pid = leader();
+      const pid = o.leader ?? (await ownLeader(base));
       if (pid === undefined) return;
       const left = leftovers(await groupRows(pid), pid, pumpOf(base));
-      for (const stray of left) signalPid(send, stray, "SIGTERM");
-      if (left.length > 0) setTimeout(() => left.filter(alive).forEach(stray => signalPid(send, stray, "SIGKILL")), RUN_STOP_MS).unref();
+      for (const stray of left) signalPid(stray, "SIGTERM");
+      if (left.length > 0) setTimeout(() => left.filter(alive).forEach(stray => signalPid(stray, "SIGKILL")), RUN_STOP_MS).unref();
     };
     let killed = false;
     let inputClosed = false;
@@ -512,14 +503,18 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
       finishCode = code;
       resolveExit(code);
     };
+    /** What names the run's group when this launch started it: the pid it was handed, which the agent cannot write. An
+     * attach after a host restart has only the pid file, which the agent can, so it is read under ownLeader()'s guard. */
     const leader = (): number | undefined => {
+      if (o.leader !== undefined) return o.leader;
       const pid = Number(readFile(`${base}.pid`)?.trim() ?? "");
       return Number.isSafeInteger(pid) && pid > 0 ? pid : undefined;
     };
     const signal = (sig: NodeJS.Signals): void => {
       if (finishCode !== undefined) return;
-      void ownLeader(base, log).then(pid => {
-        if (pid !== undefined && finishCode === undefined) signalGroup(send, pid, sig);
+      if (o.leader !== undefined) return signalGroup(o.leader, sig);
+      void ownLeader(base).then(pid => {
+        if (pid !== undefined && finishCode === undefined) signalGroup(pid, sig);
       });
     };
 
@@ -577,7 +572,7 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
     const settle = async (code: number | null, cut?: Error): Promise<void> => {
       if (finishCode !== undefined) return;
       opts.reading?.delete(drop);
-      await reapRun(base, send, log, async end => {
+      await reapRun(base, o.leader, async end => {
         for (let chunk = readLog(end); chunk.length > 0; chunk = readLog(end)) {
           lines.feed(chunk);
           await new Promise(resolve => setImmediate(resolve));
@@ -761,6 +756,7 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
     /** A launch node itself could not make: no bash on the PATH the turn runs under. Nothing wrote a log or an exit
      * code, so the reader has to be told rather than left polling for one. */
     const launch: { failed?: Error } = {};
+    let leaderPid: number | undefined;
     try {
       const child = spawn("bash", [`${base}.sh`], {
         cwd: opts.root,
@@ -776,11 +772,12 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
         launch.failed = e;
       });
       child.unref();
+      leaderPid = child.pid;
       if (child.pid !== undefined) writeFileSync(`${base}.pid`, `${child.pid}\n`);
     } finally {
       closeSync(log);
     }
-    const stream = open(base, input !== undefined, { launch });
+    const stream = open(base, input !== undefined, { launch, ...(leaderPid !== undefined ? { leader: leaderPid } : {}) });
     if (seed !== undefined && inputAfter !== undefined) void inputAfter.then(() => releaseHeld(base)).catch(() => stream.kill());
     return stream;
   };
@@ -793,7 +790,7 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
     if (input) releaseHeld(run);
     // An empty channel is a launch whose host went before its prompt was written, and nothing will write it now.
     if (input && existsSync(`${run}.in`) && statSync(`${run}.in`).size === 0) {
-      await reapRun(run, send, log);
+      await reapRun(run, undefined);
       return "gone";
     }
     const at = { startedAt, ...(from !== undefined ? { from } : {}) };
@@ -817,7 +814,7 @@ export function localExecStream(opts: LocalExecOptions, isWaiting?: TurnWaiting)
       .filter(base => minted(base) && !kept.has(base));
     // Each run's group is ended beside the others, not after them: every reap waits out its own stop grace, and a
     // computer holding a day of them would spend that grace once per run in a connect that has to end.
-    await Promise.all(stale.map(base => reapRun(base, send, log)));
+    await Promise.all(stale.map(base => reapRun(base, undefined)));
     return stale;
   };
 
