@@ -147,6 +147,9 @@ pub fn case(unit: &str, func: &str, name: &str, cwd: &str) -> Case {
     if let Some(v) = hit.get("value") {
         c.value = Some(v.clone());
     }
+    if let Some(e) = hit.get("error") {
+        c.error = Some(serde_json::from_value(e.clone()).expect("error reads"));
+    }
     c
 }
 
