@@ -164,7 +164,11 @@ fn every_list_a_tool_takes_is_a_flag_the_line_reads_again_or_a_line_that_reads_i
         let mut carried = BTreeSet::new();
         for v in &table {
             let (Some(tool), Some(line)) = (has_tool(v), v.line()) else { continue };
-            for input in tool.input.iter().filter(|i| matches!(i.kind, InputKind::StringList { .. })) {
+            let array_of_words = |i: &&wsp_cli::verbs::client::ToolInput, key: &str| {
+                matches!(i.kind, InputKind::StringList { .. })
+                    || (matches!(i.kind, InputKind::Json) && LISTS_ON_THE_COMMAND_LINE.iter().any(|(k, _)| *k == key))
+            };
+            for input in tool.input.iter().filter(|i| array_of_words(i, &format!("{} {}", v.name(), i.name))) {
                 let key = format!("{} {}", v.name(), input.name);
                 let how = LISTS_ON_THE_COMMAND_LINE.iter().find(|(k, _)| *k == key).map(|(_, h)| *h);
                 let how = how.unwrap_or_else(|| {
