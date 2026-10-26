@@ -153,9 +153,9 @@ fn an_upgrade_the_hosts_reading_refuses_is_closed_on_its_own_port_and_an_attache
         let reading = allowed.clone();
         let server = serve(&rt, ServeOptions { port: Some(0), origin_allowed: Some(Rc::new(move |_| reading.get())), ..opts() }).await;
         let app = attached(server.clone()).await;
-        let own = dial(server.port(), "/").await.err().expect("refused on the own port");
+        let own = dial(server.port(), "/").await.expect_err("refused on the own port");
         assert!(own.contains("401"), "the ws library's own refusal: {own}");
-        let at_app = dial(app, "/ws").await.err().expect("refused on the attached server");
+        let at_app = dial(app, "/ws").await.expect_err("refused on the attached server");
         assert!(at_app.contains("403"), "{at_app}");
 
         allowed.set(true);
@@ -174,7 +174,7 @@ fn an_attached_upgrade_on_another_path_is_answered_400() {
         let rt = FakeRuntime::new();
         let server = serve(&rt, opts()).await;
         let app = attached(server.clone()).await;
-        let refused = dial(app, "/not-ws").await.err().expect("another path is refused");
+        let refused = dial(app, "/not-ws").await.expect_err("another path is refused");
         assert!(refused.contains("400"), "{refused}");
         let mut ok = dial(app, "/ws?ticket=nothing").await;
         // The query is ignored by the path rule; the unknown ticket then closes the socket 4401.

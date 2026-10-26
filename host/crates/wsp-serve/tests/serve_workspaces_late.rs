@@ -510,7 +510,7 @@ fn run_of(exec: &Arc<FakeExec>, ran_in: Option<&str>) -> RunningExec {
 }
 
 fn exec_frames(sink: &RecordingSink) -> Vec<Value> {
-    sink.pushes().into_iter().filter(|f| f["type"].as_str().map_or(false, |t| t.starts_with("exec."))).collect()
+    sink.pushes().into_iter().filter(|f| f["type"].as_str().is_some_and(|t| t.starts_with("exec."))).collect()
 }
 
 // S18. serve.test.ts:992
