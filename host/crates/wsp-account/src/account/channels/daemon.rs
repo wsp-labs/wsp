@@ -274,8 +274,8 @@ impl ChannelsArea {
     /// D6, channels.ts:97.
     pub fn spawn_at(&self, place_id: Option<&str>) -> WorkspaceAgents {
         let patch = match self.settings_at(place_id).and_then(|settings| settings.spawn) {
-            Some(spawn) => WorkspaceAgentsPatch { spawn: spawn.spawn, max_machines: spawn.max_machines, max_depth: spawn.max_depth },
-            None => WorkspaceAgentsPatch { spawn: None, max_machines: None, max_depth: None },
+            Some(spawn) => WorkspaceAgentsPatch { max_machines: spawn.max_machines, max_depth: spawn.max_depth },
+            None => WorkspaceAgentsPatch { max_machines: None, max_depth: None },
         };
         agents_from(None, &patch)
     }
