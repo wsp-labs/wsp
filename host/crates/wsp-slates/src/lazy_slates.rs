@@ -21,13 +21,17 @@ pub const SLATES: &str = "slates";
 /// What builds the real area: `create_slates` in the host, a fake in tests.
 pub type SlatesFactory = Box<dyn FnOnce(Rc<dyn SlatesDeps>) -> Rc<dyn Slates>>;
 
+type LoadingFuture = Shared<LocalBoxFuture<'static, ()>>;
+type StoredFuture = Shared<LocalBoxFuture<'static, Result<bool, HostError>>>;
+type ReleaseSlot = Rc<RefCell<Option<Rc<dyn Fn()>>>>;
+
 /// The wrapper's state (lazy-slates.ts:10-12, 24).
 pub struct LazySlates {
     pub(crate) deps: Rc<dyn SlatesDeps>,
     pub(crate) create: RefCell<Option<SlatesFactory>>,
     pub(crate) real: RefCell<Option<Rc<dyn Slates>>>,
-    pub(crate) loading: RefCell<Option<Shared<LocalBoxFuture<'static, ()>>>>,
-    pub(crate) stored: RefCell<Option<Shared<LocalBoxFuture<'static, Result<bool, HostError>>>>>,
+    pub(crate) loading: RefCell<Option<LoadingFuture>>,
+    pub(crate) stored: RefCell<Option<StoredFuture>>,
 }
 
 pub fn lazy_slates(deps: Rc<dyn SlatesDeps>, create: SlatesFactory) -> Rc<dyn Slates> {
@@ -148,7 +152,7 @@ impl Slates for LazyArea {
             return s.subscribe(thread_id, sources);
         }
         let released = Rc::new(Cell::new(false));
-        let release: Rc<RefCell<Option<Rc<dyn Fn()>>>> = Rc::new(RefCell::new(None));
+        let release: ReleaseSlot = Rc::new(RefCell::new(None));
         let (inner, thread, sources) = (self.inner.clone(), thread_id.to_string(), sources.to_vec());
         let loading = load(&self.inner);
         {

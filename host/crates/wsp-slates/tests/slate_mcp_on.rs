@@ -93,18 +93,21 @@ fn env_pairs_ends_with_an_empty_name() {
 
 // ---- a daemon road in the test's hands ----
 
+type Listener = Rc<dyn Fn(&Value)>;
+type Answer = Box<dyn FnMut(&Value) -> LocalBoxFuture<'static, Result<Value, String>>>;
+
 struct FakeRoad {
     frames: RefCell<Vec<Value>>,
-    listeners: Rc<RefCell<Vec<Option<Rc<dyn Fn(&Value)>>>>>,
+    listeners: Rc<RefCell<Vec<Option<Listener>>>>,
     closes: Cell<u32>,
     closed_tx: RefCell<Option<tokio::sync::oneshot::Sender<()>>>,
     closed: Shared<LocalBoxFuture<'static, ()>>,
     /// The answer to each op: none answers `{}` at once.
-    answer: RefCell<Box<dyn FnMut(&Value) -> LocalBoxFuture<'static, Result<Value, String>>>>,
+    answer: RefCell<Answer>,
 }
 
 impl FakeRoad {
-    fn new(answer: Box<dyn FnMut(&Value) -> LocalBoxFuture<'static, Result<Value, String>>>) -> Rc<FakeRoad> {
+    fn new(answer: Answer) -> Rc<FakeRoad> {
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
         Rc::new(FakeRoad {
             frames: RefCell::new(vec![]),
@@ -119,7 +122,7 @@ impl FakeRoad {
         FakeRoad::new(Box::new(|_| async { Ok(json!({})) }.boxed_local()))
     }
     fn emit(&self, event: Value) {
-        let listeners: Vec<Rc<dyn Fn(&Value)>> = self.listeners.borrow().iter().flatten().cloned().collect();
+        let listeners: Vec<Listener> = self.listeners.borrow().iter().flatten().cloned().collect();
         for l in listeners {
             l(&event);
         }

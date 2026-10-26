@@ -141,7 +141,7 @@ fn source_line(s: &SlateSourceModule) -> String {
         SlateShape::Keyed(_) => format!("{}.<server>: state tools[] resources[]", s.name),
         SlateShape::Fields(fields) => {
             let shown: Vec<(&str, &SlateShape)> =
-                fields.iter().filter(|(k, _)| s.indexed.as_ref().map_or(true, |ix| ix.contains(*k))).map(|(k, v)| (*k, v)).collect();
+                fields.iter().filter(|(k, _)| s.indexed.as_ref().is_none_or(|ix| ix.contains(*k))).map(|(k, v)| (*k, v)).collect();
             let more = if shown.len() < fields.len() { " ..." } else { "" };
             let names: Vec<String> =
                 shown.iter().map(|(k, v)| if matches!(v, SlateShape::List(_)) { format!("{k}[]") } else { k.to_string() }).collect();
@@ -191,7 +191,7 @@ fn spec_text(spec: &SlatePropSpec) -> String {
 }
 
 fn sketch_options() -> SketchOptions {
-    let resolve: Rc<dyn Fn(&str) -> Option<Value>> = Rc::new(|_: &str| -> Option<Value> { None });
+    let resolve: SlateResolve = Rc::new(|_: &str| -> Option<Value> { None });
     SketchOptions {
         eval: SlateEvalContext { now: 0, item: None, index: None, resolve },
         version: 0,

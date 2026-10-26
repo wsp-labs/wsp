@@ -14,6 +14,8 @@ pub type SlateJson = Value;
 pub type SlateValues = IndexMap<String, Value>;
 /// types.ts:31: a literal, `{bind}` or `{format}`, as JSON.
 pub type SlatePropValue = Value;
+pub type SlateResolve = Rc<dyn Fn(&str) -> Option<Value>>;
+pub type SlateStart = Rc<dyn Fn(&str, &str) -> Value>;
 
 /// types.ts:7.
 pub const SLATE_SCHEMA: i64 = 2;
@@ -275,7 +277,7 @@ pub struct SlateEvalContext {
     pub now: i64,
     pub item: Option<Value>,
     pub index: Option<i64>,
-    pub resolve: Rc<dyn Fn(&str) -> Option<Value>>,
+    pub resolve: SlateResolve,
 }
 
 /// The event a batch runs for (slates.ts:200-206).
@@ -303,7 +305,7 @@ pub struct SlateBatchContext {
     /// `Some(false)` from a paired computer: no reaction fires.
     pub react: Option<bool>,
     /// A start the batch asks for: answers the record it will read until the start runs.
-    pub start: Option<Rc<dyn Fn(&str, &str) -> Value>>,
+    pub start: Option<SlateStart>,
 }
 
 /// One write into a batch: a path and its value.

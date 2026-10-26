@@ -60,16 +60,9 @@ fn points() -> SlateShape {
     list(rec([("x", SlateShape::Number), ("y", SlateShape::Number)]))
 }
 
-fn module(
-    name: &'static str,
-    level: &'static str,
-    purpose: &'static str,
-    update: &'static str,
-    cost: &'static str,
-    scope: &'static str,
-    shape: SlateShape,
-    example: &'static str,
-) -> SlateSourceModule {
+/// The head is name, level, purpose, update, cost and scope, in that order.
+fn module(head: [&'static str; 6], shape: SlateShape, example: &'static str) -> SlateSourceModule {
+    let [name, level, purpose, update, cost, scope] = head;
     SlateSourceModule { name, level, purpose, update, cost, scope, shape, series: Vec::new(), indexed: None, notes: Vec::new(), example }
 }
 
@@ -79,12 +72,14 @@ pub static SLATE_SOURCES: LazyLock<IndexMap<&'static str, SlateSourceModule>> = 
     let mut sources = IndexMap::new();
 
     let mut thread = module(
-        "thread",
-        "core",
-        "This thread: status, last turn, context, cost, tokens, changes, plan.",
-        "push",
-        "none beyond today",
-        "the slate's own thread",
+        [
+            "thread",
+            "core",
+            "This thread: status, last turn, context, cost, tokens, changes, plan.",
+            "push",
+            "none beyond today",
+            "the slate's own thread",
+        ],
         rec([
             ("id", SlateShape::String),
             ("title", SlateShape::String),
@@ -200,12 +195,7 @@ pub static SLATE_SOURCES: LazyLock<IndexMap<&'static str, SlateSourceModule>> = 
     sources.insert("thread", thread);
 
     let tree = module(
-        "tree",
-        "working",
-        "The thread's root and every thread under it.",
-        "push",
-        "none beyond today",
-        "the thread's tree",
+        ["tree", "working", "The thread's root and every thread under it.", "push", "none beyond today", "the thread's tree"],
         rec([
             (
                 "root",
@@ -267,12 +257,14 @@ pub static SLATE_SOURCES: LazyLock<IndexMap<&'static str, SlateSourceModule>> = 
     sources.insert("tree", tree);
 
     let mut usage = module(
-        "usage",
-        "core",
-        "The plan windows of the account the thread runs on.",
-        "push",
-        "one event per turn end",
-        "the account the thread runs on",
+        [
+            "usage",
+            "core",
+            "The plan windows of the account the thread runs on.",
+            "push",
+            "one event per turn end",
+            "the account the thread runs on",
+        ],
         rec([
             (
                 "account",
@@ -301,12 +293,14 @@ pub static SLATE_SOURCES: LazyLock<IndexMap<&'static str, SlateSourceModule>> = 
     sources.insert("usage", usage);
 
     let mut cost = module(
-        "cost",
-        "core",
-        "What the thread's computer costs: the rate now and what it has run up.",
-        "push",
-        "none beyond today",
-        "the computer the thread runs on",
+        [
+            "cost",
+            "core",
+            "What the thread's computer costs: the rate now and what it has run up.",
+            "push",
+            "none beyond today",
+            "the computer the thread runs on",
+        ],
         rec([("rateUsdPerHour", SlateShape::Number), ("accruedUsd", SlateShape::Number)]),
         "usd(cost.accruedUsd)",
     );
@@ -315,12 +309,7 @@ pub static SLATE_SOURCES: LazyLock<IndexMap<&'static str, SlateSourceModule>> = 
     sources.insert("cost", cost);
 
     let mut time = module(
-        "time",
-        "core",
-        "The clock, so a countdown or an age moves on its own.",
-        "tick",
-        "one re-evaluation a tick",
-        "none",
+        ["time", "core", "The clock, so a countdown or an age moves on its own.", "tick", "one re-evaluation a tick", "none"],
         rec([("now", SlateShape::Number), ("today", SlateShape::String), ("zone", SlateShape::String)]),
         "until(usage.week.resetsAt)",
     );
@@ -329,12 +318,14 @@ pub static SLATE_SOURCES: LazyLock<IndexMap<&'static str, SlateSourceModule>> = 
     sources.insert("time", time);
 
     let mut git = module(
-        "git",
-        "core",
-        "The thread's checkout: branch, head, counts against upstream.",
-        "push",
-        "none for the checkout; status entries poll 15 s while bound",
-        "the thread's folder",
+        [
+            "git",
+            "core",
+            "The thread's checkout: branch, head, counts against upstream.",
+            "push",
+            "none for the checkout; status entries poll 15 s while bound",
+            "the thread's folder",
+        ],
         rec([
             ("branch", SlateShape::String),
             ("head", SlateShape::String),
@@ -357,12 +348,14 @@ pub static SLATE_SOURCES: LazyLock<IndexMap<&'static str, SlateSourceModule>> = 
     sources.insert("git", git);
 
     let mut pr = module(
-        "pr",
-        "core",
-        "The pull request of the thread's branch and its checks.",
-        "push",
-        "one gh read every 3 min; every 30 s while a bound check is pending",
-        "the thread's folder",
+        [
+            "pr",
+            "core",
+            "The pull request of the thread's branch and its checks.",
+            "push",
+            "one gh read every 3 min; every 30 s while a bound check is pending",
+            "the thread's folder",
+        ],
         rec([
             ("number", SlateShape::Number),
             ("url", SlateShape::String),
@@ -406,12 +399,14 @@ pub static SLATE_SOURCES: LazyLock<IndexMap<&'static str, SlateSourceModule>> = 
     sources.insert("pr", pr);
 
     let mut machine = module(
-        "machine",
-        "working",
-        "The thread's computer: load, memory, disk and their last minute.",
-        "subscription",
-        "one sample a second while bound",
-        "the thread's computer",
+        [
+            "machine",
+            "working",
+            "The thread's computer: load, memory, disk and their last minute.",
+            "subscription",
+            "one sample a second while bound",
+            "the thread's computer",
+        ],
         rec([
             ("name", SlateShape::String),
             ("cpu", SlateShape::Number),
@@ -429,12 +424,14 @@ pub static SLATE_SOURCES: LazyLock<IndexMap<&'static str, SlateSourceModule>> = 
     sources.insert(
         "processes",
         module(
-            "processes",
-            "working",
-            "The thread's computer's processes.",
-            "subscription",
-            "one snapshot every 2 s while bound",
-            "the thread's computer",
+            [
+                "processes",
+                "working",
+                "The thread's computer's processes.",
+                "subscription",
+                "one snapshot every 2 s while bound",
+                "the thread's computer",
+            ],
             rec([
                 (
                     "list",
@@ -456,12 +453,7 @@ pub static SLATE_SOURCES: LazyLock<IndexMap<&'static str, SlateSourceModule>> = 
     sources.insert(
         "ports",
         module(
-            "ports",
-            "working",
-            "Ports open on the thread's computer.",
-            "push",
-            "none beyond today",
-            "the thread's computer",
+            ["ports", "working", "Ports open on the thread's computer.", "push", "none beyond today", "the thread's computer"],
             rec([("list", list(rec([("port", SlateShape::Number), ("process", SlateShape::String), ("url", SlateShape::String)])))]),
             "ports.list",
         ),
@@ -470,12 +462,14 @@ pub static SLATE_SOURCES: LazyLock<IndexMap<&'static str, SlateSourceModule>> = 
     sources.insert(
         "notifications",
         module(
-            "notifications",
-            "working",
-            "The last 20 notices for this thread and its account.",
-            "push",
-            "none beyond today",
-            "this thread and its account",
+            [
+                "notifications",
+                "working",
+                "The last 20 notices for this thread and its account.",
+                "push",
+                "none beyond today",
+                "this thread and its account",
+            ],
             rec([("recent", list(rec([("kind", SlateShape::String), ("text", SlateShape::String), ("at", SlateShape::Time)])))]),
             "notifications.recent | first",
         ),
@@ -484,12 +478,14 @@ pub static SLATE_SOURCES: LazyLock<IndexMap<&'static str, SlateSourceModule>> = 
     sources.insert(
         "mcp",
         module(
-            "mcp",
-            "working",
-            "The thread's agent's MCP servers: consent state, tools, resources.",
-            "push",
-            "a listing on connect",
-            "servers configured for the thread's agent",
+            [
+                "mcp",
+                "working",
+                "The thread's agent's MCP servers: consent state, tools, resources.",
+                "push",
+                "a listing on connect",
+                "servers configured for the thread's agent",
+            ],
             SlateShape::Keyed(Box::new(rec([
                 ("state", one_of(&["unasked", "asked", "allowed", "refused", "down"])),
                 (

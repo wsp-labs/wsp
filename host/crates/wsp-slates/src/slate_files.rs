@@ -30,6 +30,7 @@ pub type HashRead = FsHashReply;
 /// The thread's own computer as its daemon reads the files a run names there, under `root`; fails where that daemon
 /// cannot say (slate-files.ts:55).
 pub type HashOn = std::rc::Rc<dyn Fn(String, Vec<String>) -> LocalBoxFuture<'static, Result<HashRead, String>>>;
+pub type PinHashOn = Box<dyn Fn(&str) -> Option<HashOn>>;
 
 /// Why an Always cannot hold to a file a run names (slate-files.ts:61).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -185,9 +186,7 @@ pub fn paths_named(decl: &SlateRunDecl) -> Vec<String> {
     };
     joined_cmd(cmd)
         .split(is_word_split)
-        .filter(|w| {
-            !w.is_empty() && !w.starts_with('-') && !w.contains('$') && !w.contains("://") && w.contains(|c: char| c == '.' || c == '/')
-        })
+        .filter(|w| !w.is_empty() && !w.starts_with('-') && !w.contains('$') && !w.contains("://") && w.contains(['.', '/']))
         .map(String::from)
         .collect()
 }
@@ -505,13 +504,13 @@ struct Reading {
 /// slate-files.ts:231 boxPins(hashOn, waitMs): the last reading per thread of what each command on a thread's own
 /// computer names there (spec rule 15). State is borrowed only between awaits (rule 3.3).
 pub struct BoxPins {
-    hash_on: Box<dyn Fn(&str) -> Option<HashOn>>,
+    hash_on: PinHashOn,
     wait_ms: u64,
     read: RefCell<HashMap<String, Reading>>,
     reads: Cell<u64>,
 }
 
-pub fn box_pins(hash_on: Box<dyn Fn(&str) -> Option<HashOn>>, wait_ms: Option<u64>) -> BoxPins {
+pub fn box_pins(hash_on: PinHashOn, wait_ms: Option<u64>) -> BoxPins {
     BoxPins { hash_on, wait_ms: wait_ms.unwrap_or(HASH_WAIT_MS), read: RefCell::new(HashMap::new()), reads: Cell::new(0) }
 }
 
@@ -552,9 +551,7 @@ impl BoxPins {
         let answers = asks.into_iter().map(|(key, (folder, paths))| {
             let on = on.clone();
             async move {
-                let Some(on) = on else {
-                    return None;
-                };
+                let on = on?;
                 match tokio::time::timeout(wait, on(folder, paths)).await {
                     Ok(Ok(reply)) => Some((key, cut_hashes(reply))),
                     _ => None,

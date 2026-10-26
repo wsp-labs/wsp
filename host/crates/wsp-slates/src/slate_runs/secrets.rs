@@ -137,21 +137,19 @@ pub struct Secrets {
 pub fn create_secrets(file: Option<PathBuf>, clock: Rc<dyn Clock>) -> Rc<Secrets> {
     let mut held: IndexMap<String, IndexMap<String, Kept>> = IndexMap::new();
     if let Some(path) = file.as_ref().filter(|p| p.exists()) {
-        if let Some(read) = std::fs::read_to_string(path).ok().and_then(|text| serde_json::from_str::<Value>(&text).ok()) {
-            if let Value::Object(threads) = read {
-                for (thread_id, names) in threads {
-                    let mut kept = IndexMap::new();
-                    if let Value::Object(names) = names {
-                        for (name, k) in names {
-                            let (Some(text), Some(at)) = (k.get("text").and_then(Value::as_str), k.get("at").and_then(Value::as_i64))
-                            else {
-                                break;
-                            };
-                            kept.insert(name, Kept { text: text.to_string(), at, keep: true });
-                        }
+        if let Some(Value::Object(threads)) = std::fs::read_to_string(path).ok().and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        {
+            for (thread_id, names) in threads {
+                let mut kept = IndexMap::new();
+                if let Value::Object(names) = names {
+                    for (name, k) in names {
+                        let (Some(text), Some(at)) = (k.get("text").and_then(Value::as_str), k.get("at").and_then(Value::as_i64)) else {
+                            break;
+                        };
+                        kept.insert(name, Kept { text: text.to_string(), at, keep: true });
                     }
-                    held.insert(thread_id, kept);
                 }
+                held.insert(thread_id, kept);
             }
         }
     }
@@ -250,7 +248,7 @@ impl SlateSecrets for Secrets {
                 forms.push((f, format!("[secret:{name}]")));
             }
         }
-        forms.sort_by(|a, b| utf16::len(&b.0).cmp(&utf16::len(&a.0)));
+        forms.sort_by_key(|f| std::cmp::Reverse(utf16::len(&f.0)));
         let mut out = text.to_string();
         for (form, mark) in &forms {
             if out.contains(form.as_str()) {

@@ -130,7 +130,7 @@ fn resolve_path(scope: &Rc<Scope>, path: &str) -> Option<Value> {
         scope.cache.borrow_mut().insert(own.name.clone(), value);
     }
     let base = scope.cache.borrow().get(&own.name).cloned().flatten();
-    own.segs.iter().fold(base, |at, seg| slate_step(at, seg))
+    own.segs.iter().fold(base, slate_step)
 }
 
 fn starts_with_version(text: &str) -> bool {
@@ -251,7 +251,7 @@ impl SlatesInner {
                 let why = by_pin
                     .or_else(|| r.values.get(&a.run).and_then(RunRecord::from_json).and_then(|rec| rec.why().map(String::from)))
                     .unwrap_or_else(|| HELD_APPROVAL.to_string());
-                SlateAsk::Cmd(SlateCmdAsk {
+                SlateAsk::Cmd(Box::new(SlateCmdAsk {
                     key: a.key,
                     run: a.run,
                     cmd: a.cmd,
@@ -266,7 +266,7 @@ impl SlatesInner {
                     files: a.files,
                     no_always: pin.filter(|pin| !pin.unpinned.is_empty()).map(|_| true),
                     why,
-                })
+                }))
             })
             .collect();
         asks.extend(self.mcp().held(&r.thread_id));
@@ -363,7 +363,7 @@ impl SlatesInner {
         let state: IndexMap<String, Value> = r
             .values
             .iter()
-            .filter(|(name, _)| doc.map_or(true, |d| !d.runs.contains_key(name.as_str())))
+            .filter(|(name, _)| doc.is_none_or(|d| !d.runs.contains_key(name.as_str())))
             .map(|(name, v)| (format!("${name}"), clean(v)))
             .collect();
 

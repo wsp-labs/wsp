@@ -77,13 +77,13 @@ struct Refusal {
 pub(crate) struct OwnReader {
     doc: Rc<SlateDoc>,
     values: Rc<SlateValues>,
-    source: Rc<dyn Fn(&str) -> Option<Value>>,
+    source: SlateResolve,
     now: i64,
     derived: Rc<std::cell::RefCell<IndexMap<String, Value>>>,
 }
 
 impl OwnReader {
-    pub(crate) fn new(doc: Rc<SlateDoc>, values: Rc<SlateValues>, source: Rc<dyn Fn(&str) -> Option<Value>>, now: i64) -> Self {
+    pub(crate) fn new(doc: Rc<SlateDoc>, values: Rc<SlateValues>, source: SlateResolve, now: i64) -> Self {
         Self { doc, values, source, now, derived: Rc::default() }
     }
 
@@ -427,7 +427,10 @@ pub fn run_slate_batch(doc: &SlateDoc, values: &SlateValues, input: Vec<SlateWri
     b.event();
     let mut before = Rc::clone(&start);
     let mut round = 1;
-    while react {
+    loop {
+        if !react {
+            break;
+        }
         let fired = b.fired(&before, &b.values);
         if fired.is_empty() {
             break;

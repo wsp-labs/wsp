@@ -4,6 +4,8 @@
 //! dependencies when they land; until then `pending` holds what this crate names from `wsp-slate` and the gaps below
 //! it (spec/join.md).
 
+#![allow(clippy::result_large_err)] // The error type is wsp-words', shared by every crate.
+
 pub mod account;
 pub mod lazy_slates;
 pub mod pending;

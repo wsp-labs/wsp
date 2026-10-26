@@ -143,6 +143,12 @@ impl Records {
     }
 }
 
+type ServerFn = Rc<dyn Fn(&str, &str) -> Result<McpServerSpec, String>>;
+type OwnFn = Rc<dyn Fn(&str, u32, &str) -> Release>;
+type ReshapeFn = Rc<dyn Fn(&str, &str, &str) -> Reshape>;
+type AnswerFn = Box<dyn FnMut(&str, &Value) -> Option<Value>>;
+type OwnedLog = Vec<(String, u32, String, Rc<Cell<bool>>)>;
+
 struct Made {
     mcp: Rc<SlateMcp>,
     records: Records,
@@ -156,8 +162,8 @@ struct Opts {
     secrets: Secrets,
     clock: Rc<dyn Clock>,
     idle_ms: Option<u64>,
-    own: Option<Rc<dyn Fn(&str, u32, &str) -> Release>>,
-    reshape: Option<Rc<dyn Fn(&str, &str, &str) -> Reshape>>,
+    own: Option<OwnFn>,
+    reshape: Option<ReshapeFn>,
 }
 
 impl Default for Opts {
@@ -173,7 +179,7 @@ impl Default for Opts {
     }
 }
 
-fn make(server: Rc<dyn Fn(&str, &str) -> Result<McpServerSpec, String>>, o: Opts) -> Made {
+fn make(server: ServerFn, o: Opts) -> Made {
     let records = Records::default();
     let approvals = Rc::new(Approvals::default());
     let asks_called = Rc::new(Cell::new(0));
@@ -230,7 +236,7 @@ fn spawned(at: &PathBuf) -> usize {
 /// `answer` (`None` holds it until `release`). Answers go out on a later turn of the loop, as the TS's setImmediate.
 struct Hand {
     tools: Value,
-    answer: RefCell<Box<dyn FnMut(&str, &Value) -> Option<Value>>>,
+    answer: RefCell<AnswerFn>,
     lines: RefCell<Vec<Value>>,
     held: RefCell<Vec<Value>>,
     events: RefCell<Option<McpPipeEvents>>,
@@ -267,7 +273,7 @@ impl McpPipe for HandPipe {
 }
 
 impl Hand {
-    fn new(tools: Value, answer: Box<dyn FnMut(&str, &Value) -> Option<Value>>) -> Rc<Hand> {
+    fn new(tools: Value, answer: AnswerFn) -> Rc<Hand> {
         Rc::new(Hand {
             tools,
             answer: RefCell::new(answer),
@@ -315,12 +321,12 @@ fn text_result(text: &str) -> Value {
     json!({ "content": [{ "type": "text", "text": text }] })
 }
 
-fn served(hand: &Rc<Hand>, secrets: Vec<String>) -> Rc<dyn Fn(&str, &str) -> Result<McpServerSpec, String>> {
+fn served(hand: &Rc<Hand>, secrets: Vec<String>) -> ServerFn {
     let spec = hand.spec(secrets);
     Rc::new(move |_t: &str, _n: &str| Ok(spec.clone()))
 }
 
-fn stub_server(starts: Option<PathBuf>) -> Rc<dyn Fn(&str, &str) -> Result<McpServerSpec, String>> {
+fn stub_server(starts: Option<PathBuf>) -> ServerFn {
     Rc::new(move |_t: &str, name: &str| match name {
         "stub" => Ok(node_spec("stub-mcp.mjs", starts.as_ref(), vec![])),
         "notes" => Ok(node_spec("stub-text-mcp.mjs", starts.as_ref(), vec![])),
@@ -397,9 +403,9 @@ async fn names_a_stdio_servers_process_as_the_threads_tool_server_until_closed()
     // TS slate-mcp.test.ts:175-204.
     LocalSet::new()
         .run_until(async {
-            let owned: Rc<RefCell<Vec<(String, u32, String, Rc<Cell<bool>>)>>> = Rc::default();
+            let owned: Rc<RefCell<OwnedLog>> = Rc::default();
             let o = owned.clone();
-            let own: Rc<dyn Fn(&str, u32, &str) -> Release> = Rc::new(move |t: &str, pid: u32, kind: &str| {
+            let own: OwnFn = Rc::new(move |t: &str, pid: u32, kind: &str| {
                 let released = Rc::new(Cell::new(false));
                 o.borrow_mut().push((t.to_string(), pid, kind.to_string(), released.clone()));
                 Box::new(move || released.set(true)) as Release
@@ -426,7 +432,7 @@ async fn a_failed_start_says_what_the_server_said_and_connects_again_next_time()
     // does not name fails with its own words.
     LocalSet::new()
         .run_until(async {
-            let server: Rc<dyn Fn(&str, &str) -> Result<McpServerSpec, String>> = Rc::new(|_t: &str, name: &str| {
+            let server: ServerFn = Rc::new(|_t: &str, name: &str| {
                 if name != "broken" {
                     return Err(format!("no MCP server called {name} is in Claude Code's config there"));
                 }
@@ -503,7 +509,7 @@ async fn cuts_a_server_off_past_2_mb_and_fails_too_deep_or_too_wide_answers() {
         .run_until(async {
             let url = big_http();
             let flood = stub_server(None);
-            let server: Rc<dyn Fn(&str, &str) -> Result<McpServerSpec, String>> = Rc::new(move |t: &str, name: &str| {
+            let server: ServerFn = Rc::new(move |t: &str, name: &str| {
                 if name == "big" {
                     let tr = McpTransport::Http { url: url.clone(), headers: IndexMap::new() };
                     return Ok(McpServerSpec {
@@ -817,7 +823,7 @@ async fn a_then_reshapes_a_text_tool_into_json() {
         .run_until(async {
             let fed: Rc<RefCell<Vec<(String, String)>>> = Rc::default();
             let f = fed.clone();
-            let reshape: Rc<dyn Fn(&str, &str, &str) -> Reshape> = Rc::new(move |_t: &str, cmd: &str, input: &str| {
+            let reshape: ReshapeFn = Rc::new(move |_t: &str, cmd: &str, input: &str| {
                 f.borrow_mut().push((cmd.to_string(), input.to_string()));
                 let answer = if cmd == "bad" { ReshapeAnswer::Failed { why: "then exited with 3".into(), exit: Some(3), err: "boom".into() } } else { ReshapeAnswer::Json(json!({ "items": [{ "id": 1 }] })) };
                 Reshape { done: async move { answer }.boxed_local(), kill: Rc::new(|| {}) }
@@ -1120,7 +1126,7 @@ async fn refused_runs_refuses_a_new_or_changed_tool_run_with_no_description() {
             assert_eq!(refused(&fine, None).await, json!([]));
             // Taking the description off a run changes it.
             let bare = doc(json!({ "gone": { "kind": "tool", "server": "stub", "tool": "delete_item", "args": { "id": 1 } } }));
-            assert_eq!(refused(&bare, Some(&fine)).await[0]["message"].as_str().unwrap().starts_with("$gone calls stub.delete_item"), true);
+            assert!(refused(&bare, Some(&fine)).await[0]["message"].as_str().unwrap().starts_with("$gone calls stub.delete_item"));
             // A server that does not answer marks nothing read-only.
             let unknown = doc(json!({ "x": { "kind": "tool", "server": "zoho", "tool": "list" } }));
             assert_eq!(refused(&unknown, None).await[0]["code"], "K713");

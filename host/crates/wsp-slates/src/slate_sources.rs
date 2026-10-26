@@ -49,7 +49,7 @@ pub fn path_segments(path: &str) -> Vec<Seg> {
             rest = &rest[1..];
             continue;
         }
-        let end = rest.find(|ch: char| matches!(ch, '.' | '[' | ']')).unwrap_or(rest.len());
+        let end = rest.find(['.', '[', ']']).unwrap_or(rest.len());
         segs.push(Seg::Name(rest[..end].to_string()));
         rest = &rest[end..];
     }

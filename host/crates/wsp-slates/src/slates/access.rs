@@ -158,7 +158,7 @@ impl SlatesInner {
     pub(crate) fn timed(self: &Rc<Self>, thread_id: &str, run: &str) {
         let area = self.clone();
         let (t, name) = (thread_id.to_string(), run.to_string());
-        let _ = self.serial(thread_id, move || async move {
+        drop(self.serial(thread_id, move || async move {
             let found = record_of_thread(&area, &t);
             let Some(r) = found else { return Ok(()) };
             let declared = r.borrow().document.as_ref().is_some_and(|doc| doc.runs.contains_key(&name));
@@ -174,7 +174,7 @@ impl SlatesInner {
                 .batch(r, Vec::new(), BatchBy::Timer, BatchOptions { starts: vec![(name, RunBy::Timer)], ..Default::default() })
                 .await?;
             Ok(())
-        });
+        }));
     }
 
     pub(crate) async fn ready(self: Rc<Self>) -> Result<(), HostError> {
@@ -259,7 +259,7 @@ impl SlatesInner {
         if !self.runs().held(&thread_id).is_empty() {
             let area = self.clone();
             let again = r.clone();
-            let _ = self.serial(&thread_id, move || async move {
+            drop(self.serial(&thread_id, move || async move {
                 let snap = again.borrow().clone();
                 let views = area.clone().startable(&snap).await;
                 let moved = area.held_again(again.clone(), &views);
@@ -268,7 +268,7 @@ impl SlatesInner {
                     area.push(&again, &moved);
                 }
                 Ok::<(), HostError>(())
-            });
+            }));
         }
         Ok(())
     }

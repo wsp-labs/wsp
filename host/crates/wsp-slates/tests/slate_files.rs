@@ -194,7 +194,7 @@ fn all4() -> Vec<(&'static str, &'static str)> {
 }
 
 fn last_key(v: &Value) -> String {
-    v.as_object().unwrap().keys().last().unwrap().clone()
+    v.as_object().unwrap().keys().next_back().unwrap().clone()
 }
 
 /// What `with_files` answers for a declaration: the files read (in order) and the JSON the key and sheet take, which is

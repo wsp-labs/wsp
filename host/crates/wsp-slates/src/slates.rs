@@ -401,6 +401,7 @@ pub type RecordRef = Rc<RefCell<SlateRecord>>;
 /// A chain's tail and a held answer.
 pub type Tail = Shared<LocalBoxFuture<'static, ()>>;
 pub type HeldAnswer = Shared<LocalBoxFuture<'static, Result<SlateEventAnswer, HostError>>>;
+type LoadedFuture = Shared<LocalBoxFuture<'static, Result<(), HostError>>>;
 
 /// `createSlates`' closure state (slates.ts:295-474).
 pub struct SlatesInner {
@@ -417,7 +418,7 @@ pub struct SlatesInner {
     pub(crate) pins: OnceCell<BoxPins>,
     pub(crate) skipped: RefCell<HashMap<String, IndexSet<String>>>,
     pub(crate) windows: RefCell<HashMap<String, i64>>,
-    pub(crate) loaded: RefCell<Option<Shared<LocalBoxFuture<'static, Result<(), HostError>>>>>,
+    pub(crate) loaded: RefCell<Option<LoadedFuture>>,
     pub(crate) writes: WriteBudget,
     pub(crate) press_sent_at: RefCell<HashMap<String, i64>>,
     pub(crate) reaction_sent_at: RefCell<HashMap<String, i64>>,

@@ -39,7 +39,7 @@ fn golden(name: &str) -> Value {
     all.into_iter().find(|g| g["name"] == name).unwrap_or_else(|| panic!("no golden {name}"))
 }
 
-fn no_source() -> Rc<dyn Fn(&str) -> Option<Value>> {
+fn no_source() -> SlateResolve {
     Rc::new(|_: &str| None)
 }
 
@@ -187,7 +187,7 @@ fn fires_done_once_a_run_ends_whatever_the_outcome() {
 fn runs_a_press_as_round_0_with_the_row_in_scope_and_hands_window_steps_back() {
     let d = doc("b_press");
     let mut c = ctx("person", NOW);
-    let resolve: Rc<dyn Fn(&str) -> Option<Value>> = Rc::new(|path: &str| {
+    let resolve: SlateResolve = Rc::new(|path: &str| {
         (path == "pr.checks")
             .then(|| json!([{"name": "lint", "link": "https://x.example/1"}, {"name": "build", "link": "https://x.example/2"}]))
     });

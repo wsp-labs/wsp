@@ -52,7 +52,7 @@ pub struct SlateCmdAsk {
 /// JSON (wire.ts:69-88), kept as it comes.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SlateAsk {
-    Cmd(SlateCmdAsk),
+    Cmd(Box<SlateCmdAsk>),
     Tool(Value),
 }
 

@@ -2,6 +2,9 @@
 //! Tests of spec/account_slates.md: account/slates.ts at 65f6b89c7, driven through a fake `SlatesAreaCtx`. The TS
 //! has no test of its own for this file; these pin what the runtime-wide slate tests rely on it for.
 
+// The error type is wsp-words', shared by every crate.
+#![allow(clippy::result_large_err)]
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -41,6 +44,10 @@ fn row(mut v: Value) -> SessionView {
 
 /// What the context answers for one live entry beyond its record: where it checks out, which computer it is, the
 /// kind's folder, the backend's rate.
+type ServerReader = Rc<dyn Fn(&str) -> Result<McpServerSpec, HostError>>;
+type StartAnswer = LocalBoxFuture<'static, Result<Delivered, HostError>>;
+type Napped = Box<dyn Fn(&str)>;
+
 #[derive(Clone)]
 struct Facts {
     checkout: String,
@@ -99,7 +106,7 @@ struct Fake {
     asks_seen: RefCell<Vec<(Option<String>, Option<String>)>>,
     server: Option<ServerAnswer>,
     servers_asked: RefCell<Vec<(AgentsTarget, String, String)>>,
-    reader: Option<Rc<dyn Fn(&str) -> Result<McpServerSpec, HostError>>>,
+    reader: Option<ServerReader>,
     reader_asked: RefCell<Vec<Vec<AgentsProject>>>,
     roads: RefCell<Vec<(String, Option<i64>)>>,
     frames: Rc<RefCell<Vec<Value>>>,
@@ -112,13 +119,13 @@ struct Fake {
     accounts: Vec<Value>,
     accrued: HashMap<String, f64>,
     starts: RefCell<Vec<Delivery>>,
-    start_answer: RefCell<Option<LocalBoxFuture<'static, Result<Delivered, HostError>>>>,
+    start_answer: RefCell<Option<StartAnswer>>,
     queued: RefCell<HashMap<String, Box<dyn Fn()>>>,
     warned: RefCell<Vec<String>>,
     polled: RefCell<Vec<String>>,
     local_env: Option<IndexMap<String, String>>,
     state_folder: Option<String>,
-    napped: RefCell<Option<Box<dyn Fn(&str)>>>,
+    napped: RefCell<Option<Napped>>,
 }
 
 impl Fake {
@@ -679,8 +686,7 @@ async fn settled_reads_the_settle_preference() {
                 ("1d", Some(86_400_000.0)),
                 ("never", None),
             ] {
-                let mut f = Fake::default();
-                f.settle = key.into();
+                let f = Fake { settle: key.into(), ..Fake::default() };
                 let (fake, w, _) = wire(f);
                 w.settled("t1").await;
                 assert_eq!(*fake.settled.borrow(), vec![("t1".to_string(), ms)], "{key}");
@@ -879,11 +885,9 @@ async fn deliver_answers_the_started_turn() {
 #[test]
 fn secrets_and_slates_dir_sit_in_the_state_folder() {
     // spec rules 12, 13.
-    let mut f = Fake::default();
-    f.state_folder = Some("/state".into());
     let mut env = IndexMap::new();
     env.insert("FROM".to_string(), "wiring".to_string());
-    f.local_env = Some(env);
+    let f = Fake { state_folder: Some("/state".into()), local_env: Some(env), ..Fake::default() };
     let (_f, w, _) = wire(f);
     assert_eq!(
         (w.secrets_file().as_deref(), w.slates_dir().as_deref()),
