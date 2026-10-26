@@ -4,5 +4,6 @@ pub mod api;
 pub mod events;
 pub mod harness;
 pub mod internal;
+pub mod internal_index;
 pub mod pending;
 pub mod wiring;

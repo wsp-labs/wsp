@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! `console.warn`, which every runtime file calls: one line to stderr. Tests capture the lines on their own thread.
 use std::cell::RefCell;
+use std::io::Write;
 use std::rc::Rc;
 
-/// Writes `line` to stderr, and to every capture open on this thread.
+/// Writes `line` to stderr, a closed one dropped as node does, and to every capture open on this thread.
 pub fn warn(line: &str) {
-    eprintln!("{line}");
+    let _ = writeln!(std::io::stderr(), "{line}");
     CAPTURES.with(|c| {
         for open in c.borrow().iter() {
             open.borrow_mut().push(line.to_string());

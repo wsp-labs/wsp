@@ -10,8 +10,10 @@ use async_trait::async_trait;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sha2::{Digest, Sha256};
 use wsp_frames::True;
+use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
 use wsp_wire::wire::devices::{DeviceVia, DeviceView, PAIR_CODE_ALPHABET, PAIR_CODE_LENGTH};
 
@@ -131,7 +133,7 @@ pub struct DeviceRecord {
 #[serde(rename_all = "camelCase")]
 pub struct PairingRecord {
     pub code: String,
-    pub expires_at: i64,
+    pub expires_at: JsNumber,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub here: Option<bool>,
 }
@@ -387,7 +389,7 @@ impl Doors {
     async fn spend_code(&self, code: &str, now: i64) -> Result<Option<PairingRecord>, HostError> {
         let Some(held) = self.pairing(code).await? else { return Ok(None) };
         self.store.delete(PAIRINGS, code).await?;
-        Ok((now <= held.expires_at).then_some(held))
+        Ok((now as f64 <= held.expires_at.0).then_some(held))
     }
 
     /// One device record and the one token it will ever hand over (TS `admit`). Token first, then the id.
@@ -448,14 +450,14 @@ impl DeviceDoor for Doors {
         let _turn = self.writes.lock().await;
         for value in self.store.list(PAIRINGS).await? {
             if let Ok(held) = serde_json::from_value::<PairingRecord>(value) {
-                if now > held.expires_at {
+                if now as f64 > held.expires_at.0 {
                     self.store.delete(PAIRINGS, &held.code).await?;
                 }
             }
         }
         let code = self.mint_code();
         let expires_at = now + ttl_ms as i64;
-        let record = PairingRecord { code: code.clone(), expires_at, here: here.then_some(true) };
+        let record = PairingRecord { code: code.clone(), expires_at: JsNumber::from(expires_at), here: here.then_some(true) };
         self.store.put(PAIRINGS, &code, record_value(&record)?).await?;
         Ok(IssuedCode { code, expires_at })
     }
@@ -513,9 +515,11 @@ impl DeviceDoor for Doors {
 
     async fn seen(&self, id: &str, now: i64) -> Result<Option<HeldDevice>, HostError> {
         let _turn = self.writes.lock().await;
-        let Some(mut held) = self.device(id).await? else { return Ok(None) };
+        let Some(mut raw) = self.store.get(DEVICES, id).await? else { return Ok(None) };
+        let Some(mut held) = serde_json::from_value::<DeviceRecord>(raw.clone()).ok() else { return Ok(None) };
         held.last_seen_at = iso(now)?;
-        self.put_device(id, &held).await?;
+        raw["lastSeenAt"] = json!(held.last_seen_at);
+        self.store.put(DEVICES, id, raw).await?;
         Ok(Some(held_of(&held)))
     }
 

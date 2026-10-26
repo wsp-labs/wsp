@@ -437,8 +437,45 @@ pub fn leftovers(rows: &[GroupRow], leader: i64, pump: &IndexSet<i64>) -> Vec<i6
 //   return Number.isSafeInteger(pid) && pid > 0 && alive(pid) ? pid : undefined;
 // }
 pub fn agent_pid_of(run: &str) -> Option<i32> {
-    let pid: i32 = read_file(&format!("{run}.agent")).unwrap_or_default().trim().parse().ok()?;
-    (pid > 0 && alive(pid)).then_some(pid)
+    pid_in(&format!("{run}.agent")).filter(|&pid| alive(pid))
+}
+
+/// A pid a run's file names, read as node reads it (`Number(text.trim())`): a positive safe integer, else none.
+pub(super) fn pid_in(path: &str) -> Option<i32> {
+    let text = read_file(path)?;
+    let pid = to_number(text.trim());
+    if pid.fract() != 0.0 || pid <= 0.0 || pid > MAX_SAFE_INTEGER as f64 {
+        return None;
+    }
+    i32::try_from(pid as i64).ok()
+}
+
+/// node's words for a failed call: `<CODE>: <what>, <syscall> '<path>'`, or with no path for a write, as node words it.
+pub(super) fn node_error(e: &io::Error, syscall: &str, path: Option<&str>) -> String {
+    let (code, what) = match e.raw_os_error() {
+        Some(libc::EEXIST) => ("EEXIST", "file already exists"),
+        Some(libc::ENOENT) => ("ENOENT", "no such file or directory"),
+        Some(libc::EACCES) => ("EACCES", "permission denied"),
+        Some(libc::EPERM) => ("EPERM", "operation not permitted"),
+        Some(libc::ENOTDIR) => ("ENOTDIR", "not a directory"),
+        Some(libc::EISDIR) => ("EISDIR", "illegal operation on a directory"),
+        Some(libc::ENOTEMPTY) => ("ENOTEMPTY", "directory not empty"),
+        Some(libc::ENOSPC) => ("ENOSPC", "no space left on device"),
+        Some(libc::EROFS) => ("EROFS", "read-only file system"),
+        Some(libc::EXDEV) => ("EXDEV", "cross-device link not permitted"),
+        Some(libc::ELOOP) => ("ELOOP", "too many symbolic links encountered"),
+        Some(libc::EIO) => ("EIO", "i/o error"),
+        _ => {
+            let text = e.to_string();
+            let text = text.split(" (os error").next().unwrap_or_default();
+            return match path {
+                Some(path) => format!("{text}, {syscall} '{path}'"),
+                None => format!("{text}, {syscall}"),
+            };
+        }
+    };
+    let at = path.map_or(String::new(), |path| format!(" '{path}'"));
+    format!("{code}: {what}, {syscall}{at}")
 }
 
 /// ps's elapsed time `[[dd-]hh:]mm:ss` as the start it implies, `now_ms` less the span; `None` for anything else.
@@ -534,7 +571,7 @@ pub async fn leads_this_run(base: &str, pid: i32) -> bool {
     let Some(started) = started_at(pid).await else { return true };
     match claimed_at(base) {
         None => true,
-        Some(claimed) => (started - claimed).abs() <= LEADER_WINDOW_MS,
+        Some(claimed) => (started as f64 - claimed as f64).abs() <= LEADER_WINDOW_MS as f64,
     }
 }
 
@@ -548,7 +585,8 @@ fn claimed_at(base: &str) -> Option<i64> {
 pub type LastRead = Box<dyn FnOnce(u64) -> LocalBoxFuture<'static, ()>>;
 
 /// Ends a run's group (TERM, the grace in 200 ms steps while the group exists, KILL) when its recorded pid leads it,
-/// runs `last_read`, then deletes its files and its claim. `grace_ms` is `RUN_STOP_MS` at every TS call site.
+/// runs `last_read`, then deletes its files and its claim. `grace_ms` is `RUN_STOP_MS` at every TS call site. A removal
+/// node's `rmSync` would throw comes back as node's words, and the files after it are left as they are.
 // TS local-exec.ts:315-333
 // /** Everything one run left on this computer, ended and taken away: the run's own process group gets TERM, then
 //  * KILL once the stop grace passes, and the run's files go. The group and never the leader alone, at every ending
@@ -569,9 +607,8 @@ pub type LastRead = Box<dyn FnOnce(u64) -> LocalBoxFuture<'static, ()>>;
 //   for (const suffix of ["sh", "log", "pid", "agent", "exit", "in", "held", "late", "fifo", "tail", "pump"]) rmSync(`${base}.${suffix}`, { force: true });
 //   rmSync(`${base}.d`, { recursive: true, force: true });
 // }
-pub async fn reap_run(base: &str, last_read: Option<LastRead>, grace_ms: u64) {
-    let pid = read_file(&format!("{base}.pid")).unwrap_or_default().trim().parse::<i32>().ok().filter(|&p| p > 0);
-    if let Some(pid) = pid {
+pub async fn reap_run(base: &str, last_read: Option<LastRead>, grace_ms: u64) -> Result<(), String> {
+    if let Some(pid) = pid_in(&format!("{base}.pid")) {
         if leads_this_run(base, pid).await {
             signal_group(pid, libc::SIGTERM);
             let mut waited = 0;
@@ -586,13 +623,41 @@ pub async fn reap_run(base: &str, last_read: Option<LastRead>, grace_ms: u64) {
         last_read(log_size(base)).await;
     }
     for suffix in REAPED_SUFFIXES {
-        let _ = fs::remove_file(format!("{base}.{suffix}"));
+        remove_forced(&format!("{base}.{suffix}"))?;
     }
-    let claim = format!("{base}.d");
-    let _ = match fs::symlink_metadata(&claim) {
-        Ok(meta) if meta.is_dir() => fs::remove_dir_all(&claim),
-        _ => fs::remove_file(&claim),
+    remove_tree(&format!("{base}.d"))
+}
+
+/// `rmSync(path, { force: true })`: an absent file is no error, any other failure is node's words.
+fn remove_forced(path: &str) -> Result<(), String> {
+    match fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(node_error(&e, "unlink", Some(path))),
+    }
+}
+
+/// `rmSync(path, { recursive: true, force: true })`: a folder is removed as node does, empty first and then its children.
+fn remove_tree(path: &str) -> Result<(), String> {
+    let meta = match fs::symlink_metadata(path) {
+        Ok(meta) => meta,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => return Err(node_error(&e, "lstat", Some(path))),
     };
+    if !meta.is_dir() {
+        return remove_forced(path);
+    }
+    match fs::remove_dir(path) {
+        Ok(()) => return Ok(()),
+        Err(e) if matches!(e.raw_os_error(), Some(libc::ENOTEMPTY | libc::EEXIST)) => {}
+        Err(e) => return Err(node_error(&e, "rmdir", Some(path))),
+    }
+    let entries = fs::read_dir(path).map_err(|e| node_error(&e, "scandir", Some(path)))?;
+    for entry in entries {
+        let entry = entry.map_err(|e| node_error(&e, "scandir", Some(path)))?;
+        remove_tree(&entry.path().to_string_lossy())?;
+    }
+    fs::remove_dir(path).map_err(|e| node_error(&e, "rmdir", Some(path)))
 }
 
 /// The log's size, 0 when it cannot be read.
@@ -622,14 +687,17 @@ pub fn release_held(base: &str) {
     let _ = try_release_held(base);
 }
 
-/// `release_held` where a failed append is the caller's to read: the write road answers `Gone` on it, as the TS does.
+/// `release_held` where a failed append is the caller's to read, with the seed left held: the write road answers `Gone`
+/// on it, and an attach fails, as the TS does.
 pub(super) fn try_release_held(base: &str) -> io::Result<()> {
     let Some(held) = read_file(&format!("{base}.held")) else { return Ok(()) };
     let input = format!("{base}.in");
     let empty = fs::metadata(&input).is_ok_and(|m| m.len() == 0);
-    let result = if Path::new(&format!("{base}.d")).exists() && empty { append(&input, held.as_bytes()) } else { Ok(()) };
+    if Path::new(&format!("{base}.d")).exists() && empty {
+        append(&input, held.as_bytes())?;
+    }
     let _ = fs::remove_file(format!("{base}.held"));
-    result
+    Ok(())
 }
 
 /// A late line goes in once, by its key, after the seed, onto a run that has not ended.
@@ -650,22 +718,29 @@ pub(super) fn try_release_held(base: &str) -> io::Result<()> {
 //   rmSync(`${base}.late.key`, { force: true });
 // }
 pub fn release_late(base: &str) {
-    release_held(base);
-    let Some(late) = read_file(&format!("{base}.late")) else { return };
+    let _ = try_release_late(base);
+}
+
+/// `release_late` where a failed append is the caller's to read: the line stays parked and is not marked as gone.
+pub(super) fn try_release_late(base: &str) -> Result<(), String> {
+    try_release_held(base).map_err(|e| node_error(&e, "write", None))?;
+    let Some(late) = read_file(&format!("{base}.late")) else { return Ok(()) };
     let key = read_file(&format!("{base}.late.key"));
     let went = format!("{base}.late.went");
     if Path::new(&format!("{base}.d")).exists() && !Path::new(&format!("{base}.exit")).exists() && key != read_file(&went) {
-        let _ = append(&format!("{base}.in"), late.as_bytes());
-        let _ = OpenOptions::new()
+        append(&format!("{base}.in"), late.as_bytes()).map_err(|e| node_error(&e, "write", None))?;
+        let mut file = OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
             .mode(0o600)
             .open(&went)
-            .and_then(|mut file| file.write_all(key.unwrap_or_default().as_bytes()));
+            .map_err(|e| node_error(&e, "open", Some(&went)))?;
+        file.write_all(key.unwrap_or_default().as_bytes()).map_err(|e| node_error(&e, "write", None))?;
     }
     let _ = fs::remove_file(format!("{base}.late"));
     let _ = fs::remove_file(format!("{base}.late.key"));
+    Ok(())
 }
 
 /// The line that ends one run's input channel, from the run's own name: `__WSP_EOF_<last 12 of base>__`.
@@ -764,6 +839,7 @@ struct LinesState {
     wake: Option<Waker>,
     done: bool,
     let_go: bool,
+    taken: bool,
     error: Option<ExecFailure>,
 }
 
@@ -802,8 +878,14 @@ impl Lines {
             wake.wake();
         }
     }
-    /// The stream's one reader; dropping it lets go (the queue empties and later feeds are dropped).
+    /// The stream's one reader; dropping it lets go (the queue empties and later feeds are dropped). A second call
+    /// answers an empty stream at once.
     pub fn iterate(&self) -> LocalBoxStream<'static, Result<String, ExecFailure>> {
+        let mut st = lock(&self.inner);
+        if std::mem::replace(&mut st.taken, true) {
+            return Box::pin(futures::stream::empty::<Result<String, ExecFailure>>());
+        }
+        drop(st);
         Box::pin(LinesReader { inner: self.inner.clone(), finished: false })
     }
 }
