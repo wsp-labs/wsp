@@ -14,7 +14,7 @@ use support::{from, BackendOpts, EntryOpts, Opts, World};
 use wsp_engine::errors::EngineError;
 use wsp_engine::machine::{MachineBackend, MachineState};
 use wsp_machines::machines::machines::phases::GoneRead;
-use wsp_machines::machines::machines::Refusal;
+use wsp_machines::machines::reach::ForMachine;
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::session::SessionStatus;
 use wsp_wire::wire::events_union::EventUnion;
@@ -305,9 +305,9 @@ fn idle_a_standing_refusal_raises_the_window_to_the_backstop() {
 
         w.rt.nap_refusals.borrow_mut().insert(
             "ws_1".into(),
-            Refusal {
+            ForMachine {
                 machine_id: "m-1".into(),
-                said: "no pause".into(),
+                value: "no pause".into(),
             },
         );
         assert_eq!(

@@ -3,20 +3,26 @@
 //! this host made there read gone before the key is forgotten. Spec: `spec/places_provider_remove.md`.
 
 use std::cell::{Cell, RefCell};
-use std::future::Future;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Duration;
 
+use async_trait::async_trait;
 use futures::future::LocalBoxFuture;
 use futures::StreamExt;
 use indexmap::{IndexMap, IndexSet};
-use tokio::time::{sleep, Instant};
+use wsp_engine::cancel::Cancel;
 use wsp_engine::drop_template::drop_template;
-use wsp_engine::errors::{is_missing, EngineError, ErrorKind, Result as EResult};
+use wsp_engine::errors::{is_missing, EngineError, ErrorKind, RealRetryClock, Result as EResult};
+use wsp_engine::gone::{
+    kill_until_gone, machine_state_word, sight_machine, snapshot_until_gone, SnapshotDeleted,
+};
 use wsp_engine::labels::OWNER_LABEL;
-use wsp_engine::machine::{Machine, MachineBackend, MachineState};
+use wsp_engine::machine::{
+    ExecOptions, ExecResult, Machine, MachineBackend, MachineLife, MachineState, RunOptions,
+    SnapshotOptions,
+};
 use wsp_wire::types::js_number::JsInt;
+use wsp_wire::views::golden_image::MachineKind;
 use wsp_wire::views::place_more::PlaceRemoved;
 use wsp_words::exit::{refusal, Kind};
 use wsp_words::place_word::provider_key_name;
@@ -202,29 +208,74 @@ async fn delete_one(
         }
     };
     let Some(machine) = seen.machine else { return };
-    let delete_failed = Cell::new(false);
-    let ask = || {
-        let machine = Arc::clone(&machine);
-        let failed = &delete_failed;
-        async move {
-            machine
-                .kill()
-                .await
-                .inspect_err(|e| failed.set(!is_missing(e)))
-        }
+    let asked = Asked {
+        inner: machine,
+        failed: Cell::new(false),
     };
-    match kill_until_gone(backend, &id, ask, confirm).await {
+    match kill_until_gone(backend, &asked, confirm, &RealRetryClock).await {
         Ok(()) => deleted.set(deleted.get() + 1),
-        Err(failure) => {
-            let said = match failure {
-                KillFailure::Alive(state) => provider_left_words::running(state_word(state)),
-                KillFailure::Engine(e) if delete_failed.get() => {
-                    provider_left_words::undeleted(&message_of(&e))
+        Err(e) => {
+            let said = match &e {
+                EngineError::MachineAlive { state, .. } => {
+                    provider_left_words::running(machine_state_word(*state))
                 }
-                KillFailure::Engine(e) => provider_left_words::unread(&message_of(&e)),
+                e if asked.failed.get() => provider_left_words::undeleted(&message_of(e)),
+                e => provider_left_words::unread(&message_of(e)),
             };
             left.borrow_mut().push(LeftThere { id, said });
         }
+    }
+}
+
+/// The machine `kill_until_gone` is handed, which notes whether its kill was the call that failed: the kill both
+/// deletes and reads back, so a failure is told apart by which of the two raised it (provider-remove.ts:54).
+struct Asked {
+    inner: Arc<dyn Machine>,
+    failed: Cell<bool>,
+}
+
+#[async_trait(?Send)]
+impl Machine for Asked {
+    fn id(&self) -> &str {
+        self.inner.id()
+    }
+    fn kind(&self) -> MachineKind {
+        self.inner.kind()
+    }
+    async fn exec(&self, cmd: &str, opts: ExecOptions) -> EResult<ExecResult> {
+        self.inner.exec(cmd, opts).await
+    }
+    async fn run(&self, script: &str, opts: RunOptions) -> EResult<ExecResult> {
+        self.inner.run(script, opts).await
+    }
+    async fn snapshot(
+        &self,
+        name: &str,
+        life: MachineLife,
+        opts: SnapshotOptions,
+    ) -> EResult<String> {
+        self.inner.snapshot(name, life, opts).await
+    }
+    async fn pause(&self, wait_ms: Option<u64>) -> EResult<()> {
+        self.inner.pause(wait_ms).await
+    }
+    async fn resume(&self, signal: Option<&Cancel>) -> EResult<()> {
+        self.inner.resume(signal).await
+    }
+    async fn kill(&self) -> EResult<()> {
+        self.inner
+            .kill()
+            .await
+            .inspect_err(|e| self.failed.set(!is_missing(e)))
+    }
+    async fn state(&self) -> EResult<MachineState> {
+        self.inner.state().await
+    }
+    async fn download_url(&self, path: &str) -> EResult<String> {
+        self.inner.download_url(path).await
+    }
+    async fn upload_url(&self, path: &str) -> EResult<String> {
+        self.inner.upload_url(path).await
     }
 }
 
@@ -241,14 +292,14 @@ async fn delete_images(
             drop_template(backend, image.template_id.as_deref())
                 .await
                 .map_err(|e| message_of(&e))?;
-            match snapshot_until_gone(backend, &image.id, confirm)
+            match snapshot_until_gone(backend, &image.id, confirm, &RealRetryClock)
                 .await
                 .map_err(|e| message_of(&e))?
             {
-                SnapshotGone::Listed { grace_ms } => {
+                SnapshotDeleted::Listed { grace_ms } => {
                     Ok(ImageEnd::Left(provider_left_words::listed(grace_ms as f64)))
                 }
-                SnapshotGone::Deleted | SnapshotGone::Missing => {
+                SnapshotDeleted::Deleted | SnapshotDeleted::Missing => {
                     (images.drop)(image.id.clone())
                         .await
                         .map_err(|e| e.message)?;
@@ -279,151 +330,4 @@ enum ImageEnd {
 
 fn message_of(e: &EngineError) -> String {
     e.to_string()
-}
-
-fn state_word(state: MachineState) -> &'static str {
-    match state {
-        MachineState::Starting => "starting",
-        MachineState::Running => "running",
-        MachineState::Paused => "paused",
-        MachineState::Gone => "gone",
-    }
-}
-
-// golden.ts reads, held here until golden.ts has a home in wsp-engine.
-
-const GONE_READS: u32 = 12;
-const KILL_ASKS: u32 = 3;
-const KILL_GRACE_MS: u64 = 30_000;
-const POLL_MS: u64 = 1_000;
-
-/// One read of a machine: the state it answered, and the handle it came on when the provider found it.
-struct Sighting {
-    state: MachineState,
-    machine: Option<Arc<dyn Machine>>,
-}
-
-/// One call per read; a machine the provider no longer has reads gone (golden.ts readOnce).
-async fn read_once(backend: &dyn MachineBackend, id: &str) -> EResult<Sighting> {
-    let found: EResult<(MachineState, Arc<dyn Machine>)> = async {
-        let machine = backend.get(id).await?;
-        let state = match machine.seen() {
-            Some(seen) => seen.state,
-            None => machine.state().await?,
-        };
-        Ok((state, machine))
-    }
-    .await;
-    match found {
-        Ok((state, machine)) => Ok(Sighting {
-            state,
-            machine: Some(machine),
-        }),
-        Err(e) if is_missing(&e) => Ok(Sighting {
-            state: MachineState::Gone,
-            machine: None,
-        }),
-        Err(e) => Err(e),
-    }
-}
-
-/// Whether the provider still has a machine: gone once GONE_READS reads in a row answer gone (golden.ts sightMachine).
-async fn sight_machine(backend: &dyn MachineBackend, id: &str) -> EResult<Sighting> {
-    for _ in 0..GONE_READS {
-        let seen = read_once(backend, id).await?;
-        if seen.state != MachineState::Gone {
-            return Ok(seen);
-        }
-    }
-    Ok(Sighting {
-        state: MachineState::Gone,
-        machine: None,
-    })
-}
-
-enum KillFailure {
-    /// A machine that answered KILL_ASKS kills and is still there, in the state it last read.
-    Alive(MachineState),
-    Engine(EngineError),
-}
-
-/// Done once the machine reads gone GONE_READS times in a row (golden.ts killUntilGone).
-async fn kill_until_gone<Ask, Fut>(
-    backend: &dyn MachineBackend,
-    id: &str,
-    mut ask: Ask,
-    confirm: KillConfirm,
-) -> Result<(), KillFailure>
-where
-    Ask: FnMut() -> Fut,
-    Fut: Future<Output = EResult<()>>,
-{
-    let grace = Duration::from_millis(confirm.grace_ms.unwrap_or(KILL_GRACE_MS));
-    let poll = Duration::from_millis(confirm.poll_ms.unwrap_or(POLL_MS));
-    let mut alive = MachineState::Running;
-    for _ in 0..KILL_ASKS {
-        if let Err(e) = ask().await {
-            if !is_missing(&e) {
-                return Err(KillFailure::Engine(e));
-            }
-        }
-        let deadline = Instant::now() + grace;
-        let mut gone = 0;
-        loop {
-            let read = read_once(backend, id).await.map_err(KillFailure::Engine)?;
-            if read.state == MachineState::Gone {
-                gone += 1;
-                if gone >= GONE_READS {
-                    return Ok(());
-                }
-            } else {
-                alive = read.state;
-                if gone > 0 {
-                    break;
-                }
-                sleep(poll).await;
-            }
-            if gone == 0 && Instant::now() >= deadline {
-                break;
-            }
-        }
-    }
-    Err(KillFailure::Alive(alive))
-}
-
-enum SnapshotGone {
-    Deleted,
-    Missing,
-    Listed { grace_ms: u64 },
-}
-
-/// A snapshot's delete, read back off the listing under the window (golden.ts snapshotUntilGone).
-async fn snapshot_until_gone(
-    backend: &dyn MachineBackend,
-    id: &str,
-    confirm: KillConfirm,
-) -> EResult<SnapshotGone> {
-    match backend.delete_snapshot(id).await {
-        Ok(()) => {}
-        Err(e) if is_missing(&e) => return Ok(SnapshotGone::Missing),
-        Err(e) => return Err(e),
-    }
-    if !backend.capabilities().snapshot_listing {
-        return Ok(SnapshotGone::Deleted);
-    }
-    let grace_ms = confirm.grace_ms.unwrap_or(KILL_GRACE_MS);
-    let deadline = Instant::now() + Duration::from_millis(grace_ms);
-    let ids = [id.to_string()];
-    loop {
-        if let Ok(rows) = backend.list_snapshots(Some(&ids[..])).await {
-            if !rows.iter().any(|r| r.id == id) {
-                return Ok(SnapshotGone::Deleted);
-            }
-        }
-        sleep(Duration::from_millis(confirm.poll_ms.unwrap_or(POLL_MS))).await;
-        if Instant::now() >= deadline {
-            break;
-        }
-    }
-    Ok(SnapshotGone::Listed { grace_ms })
 }

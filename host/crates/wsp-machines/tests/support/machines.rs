@@ -37,9 +37,9 @@ use wsp_engine::machine::{
 };
 use wsp_engine::Cancel;
 use wsp_machines::machines::machines::{
-    Entry, IdleDoor, ImageRead, MachinesArea, MachinesConfig, MachinesRuntime, Refusal, Row,
-    ThreadOn, Unreached,
+    Entry, IdleDoor, ImageRead, MachinesArea, MachinesConfig, MachinesRuntime, Row, Unreached,
 };
+use wsp_machines::machines::reach::ForMachine;
 use wsp_wire::views::golden_image::MachineKind as _WireMachineKind;
 use wsp_wire::views::workspace::{MachineFacts, ReachState, WorkspacePhase};
 use wsp_wire::views::workspace_more::WorkspaceView;
@@ -1128,10 +1128,10 @@ pub struct Rt {
     pub idle: Rc<FakeIdle>,
     pub live: Rc<RefCell<IndexMap<String, Entry>>>,
     pub sessions: Rc<RefCell<IndexMap<String, Row>>>,
-    pub thread_records: Rc<RefCell<IndexMap<String, ThreadOn>>>,
+    pub thread_records: Rc<RefCell<IndexMap<String, ThreadRecord>>>,
     pub unreached: Rc<RefCell<IndexMap<String, Unreached>>>,
-    pub nap_refusals: Rc<RefCell<IndexMap<String, Refusal>>>,
-    pub stop_refusals: Rc<RefCell<IndexMap<String, Refusal>>>,
+    pub nap_refusals: Rc<RefCell<IndexMap<String, ForMachine<String>>>>,
+    pub stop_refusals: Rc<RefCell<IndexMap<String, ForMachine<String>>>>,
     pub projects_held: RefCell<Vec<String>>,
     pub kept: RefCell<Vec<(String, String)>>,
     pub execs: RefCell<Vec<String>>,
@@ -1203,16 +1203,16 @@ impl MachinesRuntime for Rt {
     fn sessions(&self) -> Rc<RefCell<IndexMap<String, Row>>> {
         self.sessions.clone()
     }
-    fn thread_records(&self) -> Rc<RefCell<IndexMap<String, ThreadOn>>> {
+    fn thread_records(&self) -> Rc<RefCell<IndexMap<String, ThreadRecord>>> {
         self.thread_records.clone()
     }
     fn unreached(&self) -> Rc<RefCell<IndexMap<String, Unreached>>> {
         self.unreached.clone()
     }
-    fn nap_refusals(&self) -> Rc<RefCell<IndexMap<String, Refusal>>> {
+    fn nap_refusals(&self) -> Rc<RefCell<IndexMap<String, ForMachine<String>>>> {
         self.nap_refusals.clone()
     }
-    fn stop_refusals(&self) -> Rc<RefCell<IndexMap<String, Refusal>>> {
+    fn stop_refusals(&self) -> Rc<RefCell<IndexMap<String, ForMachine<String>>>> {
         self.stop_refusals.clone()
     }
     fn project_held(&self, project_id: &str) -> bool {
@@ -1272,7 +1272,7 @@ impl MachinesRuntime for Rt {
     }
     fn nap_refused_of(&self, entry: &Entry) -> Option<String> {
         let id = Rt::id_of(entry);
-        self.nap_refusals.borrow().get(&id).map(|r| r.said.clone())
+        self.nap_refusals.borrow().get(&id).map(|r| r.value.clone())
     }
     fn nap_refused_reason(&self, _entry: &Entry) -> Option<String> {
         self.cfg.borrow().nap_reason.clone()
@@ -1838,14 +1838,14 @@ impl World {
             .nap_refusals
             .borrow()
             .iter()
-            .map(|(k, r)| json!([k, { "machineId": r.machine_id, "said": r.said }]))
+            .map(|(k, r)| json!([k, { "machineId": r.machine_id, "said": r.value }]))
             .collect();
         let stop: Vec<Value> = self
             .rt
             .stop_refusals
             .borrow()
             .iter()
-            .map(|(k, r)| json!([k, { "machineId": r.machine_id, "said": r.said }]))
+            .map(|(k, r)| json!([k, { "machineId": r.machine_id, "said": r.value }]))
             .collect();
         json!({
             "record": serde_json::to_value(&*e.borrow().record.borrow()).unwrap(),

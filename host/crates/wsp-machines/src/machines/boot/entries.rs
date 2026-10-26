@@ -207,7 +207,7 @@ impl BootArea {
         workspace_id: Option<&str>,
     ) -> Vec<(String, String, ThreadRecord)> {
         let root = wsp_wire::views::workspace::scope_of(caller).map(|s| s.root_thread_id);
-        let records: Vec<(String, ThreadOn)> = self
+        let records: Vec<(String, ThreadRecord)> = self
             .rt
             .thread_records()
             .borrow()
@@ -216,25 +216,26 @@ impl BootArea {
             .collect();
         records
             .into_iter()
-            .filter(|(thread, r)| {
+            .filter(|(thread, record)| {
+                let r = ThreadOn::of(record);
                 let root_ok = root.as_ref().is_none_or(|root| {
                     r.record.root_thread_id.as_deref().unwrap_or(thread) == root.as_str()
                 });
                 let ws_ok = workspace_id.is_none_or(|ws| ws == r.workspace_id);
-                let live = self.rt.live().borrow().contains_key(&r.workspace_id);
+                let live = self.rt.live().borrow().contains_key(r.workspace_id);
                 root_ok
                     && ws_ok
                     && live
                     && self.reaches_row(
                         &RowAt {
                             thread_id: Some(thread.clone()),
-                            workspace_id: r.workspace_id.clone(),
+                            workspace_id: r.workspace_id.to_string(),
                         },
                         caller,
                         talk,
                     )
             })
-            .map(|(thread, r)| (thread, r.workspace_id.clone(), r.record))
+            .map(|(thread, record)| (thread, record.workspace_id.clone(), record))
             .collect()
     }
 

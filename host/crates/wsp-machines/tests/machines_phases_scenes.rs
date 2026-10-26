@@ -19,7 +19,7 @@ use support::{EntryOpts, Opts, Prove, World};
 use tokio::sync::Notify;
 use wsp_engine::errors::EngineError;
 use wsp_engine::machine::MachineState;
-use wsp_machines::machines::machines::Refusal;
+use wsp_machines::machines::reach::ForMachine;
 use wsp_wire::views::workspace::WorkspacePhase;
 
 #[test]
@@ -39,9 +39,9 @@ fn nap_pausing_is_written_and_pushed_before_the_provider_is_asked_then_napping()
         w.sessions_of();
         w.rt.nap_refusals.borrow_mut().insert(
             "ws_1".into(),
-            Refusal {
+            ForMachine {
                 machine_id: "m-1".into(),
-                said: "old".into(),
+                value: "old".into(),
             },
         );
         e.entry.borrow_mut().unchecked = true;

@@ -41,7 +41,7 @@ use wsp_machines::machines::boot::rows::Stamped;
 use wsp_machines::machines::boot::{
     BootArea, BootConfig, BootRuntime, CardAsk, ComputerRow, HeldEnd, LimitRow, ScopedDevice,
 };
-use wsp_machines::machines::machines::{Entry, Row, ThreadOn};
+use wsp_machines::machines::machines::{Entry, Row};
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::harness::McpServerSpec;
 use wsp_wire::views::place_kind::PlaceKind;
@@ -1069,7 +1069,7 @@ pub struct Fake {
     pub local: bool,
     pub live: Rc<RefCell<IndexMap<String, Entry>>>,
     pub sessions: Rc<RefCell<IndexMap<String, Row>>>,
-    pub thread_records: Rc<RefCell<IndexMap<String, ThreadOn>>>,
+    pub thread_records: Rc<RefCell<IndexMap<String, ThreadRecord>>>,
     pub builders: wsp_machines::images::Builders,
     pub projects_held: Rc<RefCell<IndexMap<String, ProjectView>>>,
     pub boot_work: Rc<RefCell<IndexMap<String, Shared<LocalBoxFuture<'static, ()>>>>>,
@@ -1511,7 +1511,7 @@ impl BootRuntime for Fake {
     fn sessions(&self) -> Rc<RefCell<IndexMap<String, Row>>> {
         self.sessions.clone()
     }
-    fn thread_records(&self) -> Rc<RefCell<IndexMap<String, ThreadOn>>> {
+    fn thread_records(&self) -> Rc<RefCell<IndexMap<String, ThreadRecord>>> {
         self.thread_records.clone()
     }
     fn builders(&self) -> wsp_machines::images::Builders {
