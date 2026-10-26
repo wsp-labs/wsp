@@ -41,7 +41,6 @@ A box's agent is root there and can go around anything its daemon enforces, so a
 | Rule | File | Function |
 |---|---|---|
 | files under a folder a recipe ships, links followed only to files | `src/folder-files.ts` | `folderFiles()` |
-| a value shaped like a token | `src/token-shapes.ts` | `tokenShaped()` |
 | a name shaped like a secret | `packages/collect/src/detect/shell-rc.ts` | `isSecretName()` |
 | the program a process runs is gone | `src/host-lock.ts` | `programGone()` |
 | df on an owned computer: the install folder's volume, never the home or /root | `packages/engine/src/golden-tools.ts` | `prefixVolume()` |

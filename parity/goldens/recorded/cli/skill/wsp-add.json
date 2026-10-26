@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": "wsp add: a computer you own joins by dialing this host. On that computer, with wsp installed:\n  wsp join http://127.0.0.1:<door-port> --code <id-1>.<id-2>\nThe code is spent by the first join and stops working in 10m. The computer shows in wsp computers within a minute of joining.\nOver ssh instead: wsp add user@host --name <name> installs the daemon there and joins it for you, and an alias from your ssh config works in place of user@host.\nA provider instead: wsp add boat.\n",
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

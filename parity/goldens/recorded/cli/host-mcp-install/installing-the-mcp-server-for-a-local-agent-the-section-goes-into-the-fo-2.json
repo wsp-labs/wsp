@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": "Claude Code: no wsp section in this folder; nothing was changed.\n",
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

@@ -1,0 +1,17 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": {
+        "json": {
+          "error": "wsp projects takes no positional arguments. usage: wsp projects",
+          "class": "usage",
+          "exit": 3
+        },
+        "layout": "compact, a newline after"
+      }
+    }
+  ],
+  "events": []
+}
