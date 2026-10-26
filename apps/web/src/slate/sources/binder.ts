@@ -19,6 +19,8 @@ export interface BinderDeps {
   subscribeSlates(listener: () => void): () => void;
   api(): SlateApi | null;
   now?(): number;
+  /** false for a look: its sources are read as they stand and hold nothing on the host, which would count as shown. */
+  hold?: boolean;
 }
 
 
@@ -157,7 +159,7 @@ export function bindSources(engine: SlateEngine, threadId: string, deps: BinderD
     }
     bound = heads;
     const nextHeld = new Set([...heads].filter(name => SLATE_SOURCE_VIEWS[name]?.held === true));
-    const api = deps.api();
+    const api = deps.hold === false ? null : deps.api();
     const add = [...nextHeld].filter(name => !held.has(name));
     const drop = [...held].filter(name => !nextHeld.has(name));
     if (api !== null) {
@@ -179,7 +181,7 @@ export function bindSources(engine: SlateEngine, threadId: string, deps: BinderD
   let live = deps.app().conn === "live";
   const offConn = deps.subscribeApp(() => {
     const now = deps.app().conn === "live";
-    if (now && !live && held.size > 0) void deps.api()?.subscribe(threadId, [...held]).catch(() => {});
+    if (now && !live && held.size > 0 && deps.hold !== false) void deps.api()?.subscribe(threadId, [...held]).catch(() => {});
     live = now;
   });
   const offReads = engine.onReadsChanged(rebind);
@@ -194,7 +196,7 @@ export function bindSources(engine: SlateEngine, threadId: string, deps: BinderD
     offApp();
     offSlates();
     setTick(0);
-    const api = deps.api();
+    const api = deps.hold === false ? null : deps.api();
     if (api !== null && held.size > 0) void api.unsubscribe(threadId, [...held]).catch(() => {});
     held = new Set();
     engine.setReader(() => undefined);

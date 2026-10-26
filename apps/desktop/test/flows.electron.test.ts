@@ -10,6 +10,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cli } from "@wsp/host";
 import { LAUNCH_ENV, WEB_DIR_ENV, type ThreadView } from "@wsp/protocol";
+import { SLATE_LOOK_NO_APP } from "@wsp/runtime";
 import { _electron as electron, type ElectronApplication, type Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { COMPOSER_STATE_WORDS } from "../../web/src/composer-state-words.js";
@@ -26,7 +27,13 @@ for (const name of [...LAUNCH_ENV, "ELECTRON_RUN_AS_NODE"]) delete process.env[n
 const WSP_BIN = fileURLToPath(new URL("../../../packages/host/dist/bin.js", import.meta.url));
 const WEB_ROOT = fileURLToPath(new URL("../../web/", import.meta.url));
 const PROJECT = "flows";
+const EXPLAINER = fileURLToPath(new URL("../../web/test/slate-render/pages/explainer.html", import.meta.url));
+/** A slate holding a frame and two pieces, as an agent writes it beside a page it wrote. */
+const LOOK_SLATE = `<slate title="Redirects"><column><section title="What happens on a click"><frame id="explain" src="pages/explainer.html" /></section><row><number label="Redirects" value={18240} format="integer" note="per hour" /><number label="p95" value={22} unit="ms" note="last hour" /></row></column></slate>`;
 const UP = ["up", "--port", "0", "--no-relay"];
+/** A Linux computer with no display draws the app on Chromium's headless platform, on a screen of this size. */
+const HEADLESS = process.platform === "linux" && process.env["DISPLAY"] === undefined && process.env["WAYLAND_DISPLAY"] === undefined;
+const HEADLESS_ARGS = ["--ozone-platform=headless", "--ozone-override-screen-size=1600,1200"];
 /** The system folders a stand-in's PATH keeps after its own bin, for git, sh and node's neighbours. */
 const SYSTEM_PATH = ["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"].join(":");
 
@@ -48,6 +55,15 @@ function wsp(flow: Pick<Flow, "env" | "dir">, ...args: string[]): string {
   const ran = spawnSync(process.execPath, [WSP_BIN, ...args], { encoding: "utf8", env: flow.env, cwd: flow.dir, timeout: 60_000 });
   expect(ran.status, `wsp ${args.join(" ")}\n${ran.stdout}${ran.stderr}`).toBe(0);
   return ran.stdout;
+}
+
+/** One wsp line run beside this process rather than in front of it, with what it printed and its exit code. */
+function wspAsync(flow: Pick<Flow, "env" | "dir">, ...args: string[]): Promise<{ code: number | null; out: string; err: string }> {
+  const child = spawn(process.execPath, [WSP_BIN, ...args], { env: flow.env, cwd: flow.dir, stdio: ["ignore", "pipe", "pipe"] });
+  const [out, err] = [[] as string[], [] as string[]];
+  child.stdout.on("data", (d: Buffer) => out.push(d.toString()));
+  child.stderr.on("data", (d: Buffer) => err.push(d.toString()));
+  return new Promise(done => child.on("close", code => done({ code, out: out.join(""), err: err.join("") })));
 }
 
 /** One wsp line against the flow's host that refuses where no host serves the flow's state, where a line typed in a
@@ -100,7 +116,7 @@ async function openFlow(webDir: string | undefined, up: readonly string[] = UP):
 
     const launchEnv: Record<string, string> = { ...env, WSP_DESKTOP_SMOKE: "1", SHELL: loginShell(join(dir, "login-shell"), path) };
     for (const name of ["DISPLAY", "XAUTHORITY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR"]) if (process.env[name] !== undefined) launchEnv[name] = process.env[name]!;
-    app = await electron.launch({ executablePath: builtApp(), cwd: dir, env: launchEnv, colorScheme: null });
+    app = await electron.launch({ executablePath: builtApp(), cwd: dir, env: launchEnv, colorScheme: null, ...(HEADLESS ? { args: HEADLESS_ARGS } : {}) });
     const said: string[] = [];
     const keep = (chunk: Buffer): void => void said.push(...chunk.toString().split("\n").filter(line => line.trim() !== ""));
     app.process().stdout?.on("data", keep);
@@ -412,6 +428,83 @@ suite("the everyday flows in the packaged app, on $page", { timeout: 90_000 }, (
     const log = readFileSync(join(home, "logs", "app.log"), "utf8");
     expect(log).toMatch(new RegExp(`renderer gone: \\S+ \\(exit -?\\d+\\) at ${at.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")}`));
     expect(log).toContain(`reloading ${at}`);
+  });
+});
+
+(FLOWS ? describe : describe.skip)("wsp slate look", { timeout: 120_000 }, () => {
+  let flow: Flow;
+  /** The case closes the app itself, which the teardown then leaves alone. */
+  let appClosed = false;
+  beforeAll(async () => {
+    flow = await openFlow(undefined);
+  }, 300_000);
+  afterAll(async () => {
+    if (flow === undefined) return;
+    const { app, ...rest } = flow;
+    await closeFlow(appClosed ? rest : { ...rest, app });
+  }, 60_000);
+
+  it("draws a thread's slate, a frame and two pieces, as the window draws it, and says in one sentence that no app is open once it is gone", async () => {
+    const { win, app, folder, dir } = flow;
+    const thread = threadIdOf(wsp(flow, "run", PROJECT, "--agent", "claude", "draw the click"));
+    mkdirSync(join(folder, "pages"));
+    writeFileSync(join(folder, "pages", "explainer.html"), readFileSync(EXPLAINER, "utf8"));
+    writeFileSync(join(dir, "look.slate"), LOOK_SLATE);
+    wsp(flow, "slate", "write", thread, join(dir, "look.slate"));
+    await openFromSidebar(win, thread);
+    const surface = win.locator(`[data-slate-surface='${thread}']`);
+    await surface.locator("[data-slate-frame-heard]").waitFor({ timeout: 20_000 });
+    await win.waitForTimeout(800);
+    const window = await surface.screenshot({ animations: "disabled" });
+    const width = Math.round((await surface.boundingBox())!.width);
+    const out = join(dir, "look.png");
+    // The look's window is a renderer of its own for as long as the look takes, and gone after it.
+    const metrics = () => app.evaluate(({ app: a }) => a.getAppMetrics().map(m => ({ type: m.type, kb: m.memory.workingSetSize })));
+    const before = await metrics();
+    let peak = before;
+    const sampling = setInterval(() => void metrics().then(m => void (m.reduce((n, p) => n + p.kb, 0) > peak.reduce((n, p) => n + p.kb, 0) && (peak = m))), 100);
+    // Run without blocking this process: Playwright holds each window the app opens until it attaches, and a
+    // synchronous child here would hold the look window, and so the look, for ever.
+    const looked = await wspAsync(flow, "slate", "look", thread, "--out", out, "--json");
+    expect(looked.code, looked.err).toBe(0);
+    clearInterval(sampling);
+    await expect.poll(async () => (await metrics()).filter(m => m.type === "Tab").length, { timeout: 10_000 }).toBe(before.filter(m => m.type === "Tab").length);
+    const after = await metrics();
+    const total = (m: { kb: number }[]) => Math.round(m.reduce((n, p) => n + p.kb, 0) / 1024);
+    console.info(`app memory around a look: ${total(before)} MB in ${before.length} processes before, ${total(peak)} MB in ${peak.length} at the peak, ${total(after)} MB in ${after.length} after`);
+    const said = JSON.parse(looked.out.trim().split("\n").at(-1)!) as { width: number; height: number; scale: number; path: string };
+    expect(said).toMatchObject({ width, path: out });
+    const look = readFileSync(out);
+    if (process.env["SLATE_LOOK_OUT"] !== undefined) {
+      writeFileSync(join(process.env["SLATE_LOOK_OUT"], "look.png"), look);
+      writeFileSync(join(process.env["SLATE_LOOK_OUT"], "window.png"), window);
+    }
+    // Both pictures read by the app's own decoder: the same width, and the rows both hold alike to within a colour step.
+    // What differs is the antialiasing of the app's own text: a window on screen draws it subpixel on its opaque
+    // ground and an offscreen one in grey (measured 1.1% of pixels, all on text edges; the frame's page alike).
+    const compared = await app.evaluate(({ nativeImage }, [a, b]) => {
+      const one = nativeImage.createFromBuffer(Buffer.from(a!, "base64"));
+      const two = nativeImage.createFromBuffer(Buffer.from(b!, "base64"));
+      const [sa, sb] = [one.getSize(), two.getSize()];
+      const [pa, pb] = [one.toBitmap(), two.toBitmap()];
+      const rows = Math.min(sa.height, sb.height);
+      let differ = 0;
+      for (let y = 0; y < rows; y++)
+        for (let x = 0; x < Math.min(sa.width, sb.width); x++) {
+          const [i, j] = [(y * sa.width + x) * 4, (y * sb.width + x) * 4];
+          if (Math.max(Math.abs(pa[i]! - pb[j]!), Math.abs(pa[i + 1]! - pb[j + 1]!), Math.abs(pa[i + 2]! - pb[j + 2]!)) > 8) differ++;
+        }
+      return { look: sa, window: sb, rows, differ: differ / (rows * Math.min(sa.width, sb.width)) };
+    }, [look.toString("base64"), window.toString("base64")]);
+    expect(compared.look.width).toBe(compared.window.width);
+    expect(compared.rows).toBeGreaterThan(400);
+    expect(compared.differ).toBeLessThan(0.02);
+
+    await app.close();
+    appClosed = true;
+    const refused = await wspAsync(flow, "slate", "look", thread);
+    expect(refused.code).toBe(1);
+    expect(refused.err.trim()).toBe(`wsp slate look: ${SLATE_LOOK_NO_APP}`);
   });
 });
 

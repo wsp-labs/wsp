@@ -35,6 +35,7 @@
   check -->|no| fix[Fix]</diagram>
     <image src="shots/plot.png" caption="A saved plot" />
     <images items={[{ p: "shots/before.png", c: "Before" }, { p: "shots/after.png", c: "After" }, { p: "shots/plot.png", c: "Plot" }]} src={item.p} caption={item.c} />
+    <frame src="shots/dial.html" caption="How the dial reads" />
     <section title="Lists" collapsible>
       <table items={[{ name: "lint", state: "pass", took: "12s" }, { name: "unit", state: "fail", took: "1m 4s" }, { name: "e2e", state: "pass", took: "3m 10s" }]} key={item.name}>
         <col title="Check" value={item.name} />

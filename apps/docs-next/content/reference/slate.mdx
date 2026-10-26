@@ -40,7 +40,7 @@ status: value! tone
 output: run! label lines wrap
 empty: title! body
 Every piece: id, when={cond}; items take when too. tone: default muted good warning bad info accent; stat and ring lack muted info accent; status lacks accent. emphasis: normal strong quiet. gap: tight normal loose. format, where none is listed: plain tokens bytes percent usd inr duration integer fraction.
-Pick: figures stats; done of many progress; a question decision; categories bars; time is a chart, x in ms or ISO; shares donut; sizes treemap; spans timeline; a flow is a diagram.
+Pick: figures stats; done of many progress; a question decision; categories bars; time is a chart, x in ms or ISO; shares donut; sizes treemap; spans timeline; a flow is a diagram; what no piece draws, a frame: an .html file you wrote.
 Sources, read only:
 thread: id title agent model status turns lastTurn cost tokens context changes plan waitingOn subagents[] ...
 usage: account windows[] session week status note ...
@@ -326,6 +326,17 @@ images (core): Several pictures, as image takes them: a row that scrolls, a grid
 events: none
 sketch: compare of images  [images-1 images]
 example: <images layout="compare" items={[{ p: "shots/before.png", c: "Before" }, { p: "shots/after.png", c: "After" }]} src={item.p} caption={item.c} />
+```
+
+### frame
+
+```text
+frame (extended): An HTML page you wrote, from a file on the thread's computer, for what no piece draws: a figure, an explainer, a small simulation. Sealed: it loads nothing and reaches nothing; look only, so actions stay in pieces.
+  src: string, required, formula; an .html file on the thread's computer, relative to its folder or whole, up to 1 MB; inline script, style and data: images run, nothing loads from outside; the theme's colours are var(--background), var(--foreground) and the rest
+  caption: string, formula
+events: none
+sketch: [frame figures/dial.html]  How the dial reads  [frame-1 frame]
+example: <frame src="figures/dial.html" caption="How the dial reads" />
 ```
 
 ### sparkline

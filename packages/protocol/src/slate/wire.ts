@@ -180,6 +180,11 @@ export const SlatesResolveParams = z.object({ threadId: z.string(), paths: z.arr
 /** An image piece's src: a path on the thread's computer or an http(s) address; have is the version the window
  * holds, which the host answers unchanged when the file is still that one. */
 export const SlatesImageParams = z.object({ threadId: z.string(), src: z.string().max(4096), have: z.string().max(200).optional() });
+/** A frame piece's src, an .html file on the thread's computer; have as an image's. */
+export const SlatesPageParams = SlatesImageParams;
+/** The thread's slate drawn by the app on the host's computer as its window draws it; width in CSS pixels, else the
+ * panel's own. */
+export const SlatesLookParams = z.object({ ...threadParams, width: z.number().int().min(280).max(1600).optional() });
 
 /** Every slate op by name with its params, which the protocol's op union takes in whole. */
 export const SLATE_OPS = {
@@ -197,6 +202,8 @@ export const SLATE_OPS = {
   "slates.unsubscribe": SlatesSubscribeParams,
   "slates.resolve": SlatesResolveParams,
   "slates.image": SlatesImageParams,
+  "slates.page": SlatesPageParams,
+  "slates.look": SlatesLookParams,
 } as const;
 export type SlateOpName = keyof typeof SLATE_OPS;
 /** Each slate op's params as a client sends them. */
@@ -267,6 +274,20 @@ export const SlatesImageAnswer = z.union([
   z.object({ problem: SlateWireProblem }),
 ]);
 export type SlatesImageAnswer = z.infer<typeof SlatesImageAnswer>;
+
+/** The page's text and the version it is, unchanged where the window holds that version, or the problem. */
+export const SlatesPageAnswer = z.union([z.object({ html: z.string(), version: z.string().optional() }), z.object({ unchanged: z.literal(true), version: z.string() }), z.object({ problem: SlateWireProblem })]);
+export type SlatesPageAnswer = z.infer<typeof SlatesPageAnswer>;
+
+/** The slate as the app drew it: a PNG, base64, its size in CSS pixels, the scale it was drawn at and the theme. */
+/** A look's picture: the slate's width and height in CSS px, the picture's pixels per CSS px, and the slate's whole
+ * height where the look cut it. */
+export const SlatesLookAnswer = z.object({ png: z.string(), width: z.number(), height: z.number(), scale: z.number(), theme: z.string(), whole: z.number().optional() });
+export type SlatesLookAnswer = z.infer<typeof SlatesLookAnswer>;
+
+/** Pushed to the app that offered to draw slates: one look to draw and answer by its id with slateLook.answer. */
+export const SlateLookWantedEvent = z.object({ type: z.literal("slate.look.wanted"), lookId: z.string(), threadId: z.string(), width: z.number().int().optional() });
+export type SlateLookWantedEvent = z.infer<typeof SlateLookWantedEvent>;
 
 // --- events ---
 

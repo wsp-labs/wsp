@@ -166,6 +166,8 @@ class Validator {
     this.loud();
     // A run starts by a step or a timer and nothing else, so one with neither never runs and never asks the person.
     for (const [name, r] of Object.entries(d.runs)) if (r.every === undefined && !this.started.has(name)) this.add("W019", `nothing starts $${name}: give it a button, a when, or every`, {}, `<button label="..." onPress={start($${name})} />`);
+    const leaves = Object.values(d.pieces).filter(p => SLATE_PIECES[p.type]?.holdsChildren !== true);
+    if (leaves.length > 0 && leaves.every(p => SLATE_PIECES[p.type]?.page === true)) this.add("W022", "this slate is only frames; a frame is for what no piece draws, so say figures, lists and actions with pieces beside it");
   }
 
   private names(): void {

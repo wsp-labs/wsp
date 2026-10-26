@@ -66,3 +66,4 @@ export type * from "./slates.js";
 export type * from "./slate-runs.js";
 export * from "./activity.js";
 export type { McpSignIn } from "./slate-mcp.js";
+export { SLATE_LOOK_NO_APP, slateLookHubOf } from "./serve-slate-look.js";

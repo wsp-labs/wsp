@@ -55,6 +55,8 @@ pub struct Args {
     pub scoped: bool,
     /// A thread another thread started, which has no slate: its greeting says nothing of one.
     pub no_slate: bool,
+    /// A turn launched while no app on the host's computer drew looks: slate_look is not listed.
+    pub no_look: bool,
     /// A refusal before the server runs is the failure object rather than its sentence.
     pub json: bool,
     /// A session from inside a machine, served on this computer: a path or a folder it names is on its machine, so

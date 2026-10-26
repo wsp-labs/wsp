@@ -81,7 +81,7 @@ pub fn png(width: u32, height: u32, from: [u8; 3], to: [u8; 3]) -> image::RgbIma
     })
 }
 
-/// A project `bench` whose folder holds the pictures every.slate and failed.slate name.
+/// A project `bench` whose folder holds the pictures every.slate and failed.slate name, and the page every.slate names.
 pub fn project(host: &Throwaway) -> PathBuf {
     let folder = host.repo_with("bench", &[(".gitignore", "shots/\n")]);
     let shots = folder.join("shots");
@@ -90,6 +90,7 @@ pub fn project(host: &Throwaway) -> PathBuf {
     png(480, 300, [200, 60, 60], [60, 60, 200]).save(shots.join("before.png")).unwrap();
     png(480, 300, [60, 160, 90], [240, 230, 120]).save(shots.join("after.png")).unwrap();
     std::fs::write(shots.join("notes.png"), "not a picture\n").unwrap();
+    std::fs::write(shots.join("dial.html"), "<!doctype html><html><body><svg viewBox=\"0 0 100 60\"><circle cx=\"50\" cy=\"30\" r=\"24\" fill=\"none\" stroke=\"currentColor\"/></svg></body></html>\n").unwrap();
     host.wsp(&["add", &folder.to_string_lossy(), "--name", "bench"]);
     folder
 }
