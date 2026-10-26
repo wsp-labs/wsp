@@ -409,10 +409,14 @@ impl Dialer for Held {
 
 /// The deps a tool call runs with: the case's environment and the scripted host behind `deps.client()`.
 pub fn tool_deps(c: &Case, host: Arc<ScriptedHost>) -> VerbDeps {
+    let mut env = c.env.clone();
+    if c.cloud {
+        env.insert(wsp_wire::types::env::CLOUD_ENV.to_owned(), "1".to_owned());
+    }
     VerbDeps {
         state_path: "/state/state.json".into(),
         cwd: None,
-        env: c.env.clone(),
+        env,
         dialer: Arc::new(Held(host)),
         host_wait_ms: None,
         start: None,
