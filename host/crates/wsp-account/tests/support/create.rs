@@ -106,9 +106,15 @@ pub struct FakeCreate {
     /// A held entry's record keys the staged entry takes (a branch of record, for one).
     pub staged_over: RefCell<Value>,
     pub yield_in_guard: Cell<bool>,
+    /// The failure each method answers in place of its value, by the method's name (each throws where the TS does).
+    pub throws: RefCell<IndexMap<String, HostError>>,
 }
 
 impl FakeCreate {
+    fn thrown(&self, name: &str) -> Option<HostError> {
+        self.throws.borrow().get(name).cloned()
+    }
+
     pub fn new() -> Rc<FakeCreate> {
         Rc::new(FakeCreate {
             base: FakeBase::new(),
@@ -128,6 +134,7 @@ impl FakeCreate {
             stage_holds: Cell::new(false),
             staged_over: RefCell::new(json!({})),
             yield_in_guard: Cell::new(false),
+            throws: RefCell::new(IndexMap::new()),
         })
     }
 
@@ -222,7 +229,7 @@ impl Base for FakeCreate {
     async fn git_here(&self, ask: GitAsk) -> Result<ExecResult, HostError> {
         BaseOf(self.base.clone()).git_here(ask).await
     }
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String {
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError> {
         BaseOf(self.base.clone()).checkout_of(record)
     }
     async fn preferences(&self) -> Result<Preferences, HostError> {
@@ -262,19 +269,25 @@ impl CreateCtx for FakeCreate {
         self.base.answer_as::<Capabilities>("landing_capabilities", || caps(100))
     }
 
-    fn backend_capabilities(&self, kind: WorkspaceKind, place: Option<&str>) -> Capabilities {
+    fn backend_capabilities(&self, kind: WorkspaceKind, place: Option<&str>) -> Result<Capabilities, HostError> {
         self.base.call("backend_capabilities", json!({ "kind": serde_json::to_value(kind).unwrap(), "place": place }));
+        if let Some(e) = self.thrown("backend_capabilities") {
+            return Err(e);
+        }
         let tag = match kind {
             WorkspaceKind::Local => 1,
             WorkspaceKind::Place => 2,
             _ => 3,
         };
-        self.base.answer_as::<Capabilities>("backend_capabilities", || caps(tag)).expect("capabilities answer")
+        Ok(self.base.answer_as::<Capabilities>("backend_capabilities", || caps(tag)).expect("capabilities answer"))
     }
 
-    fn act_refusal(&self, scope: &ThreadScope, act: &str) -> HostError {
+    fn act_refusal(&self, scope: &ThreadScope, act: &str) -> Result<HostError, HostError> {
         self.base.call("act_refusal", json!({ "threadId": scope.thread_id, "act": act }));
-        refused(&format!("act refusal: {act} for {}", scope.thread_id), "ask the person", Kind::Usage)
+        if let Some(e) = self.thrown("act_refusal") {
+            return Err(e);
+        }
+        Ok(refused(&format!("act refusal: {act} for {}", scope.thread_id), "ask the person", Kind::Usage))
     }
 
     async fn spawn_sub(&self, opts: CreateWorkspaceOptions, origin: Option<Caller>) -> Result<CreatedWorkspace, HostError> {
@@ -284,9 +297,12 @@ impl CreateCtx for FakeCreate {
         Ok(CreatedWorkspace { view: view_of(&self.base, &rec), notice: Some("sub started".to_owned()), sub: None })
     }
 
-    fn place_of_thread(&self, scope: &ThreadScope) -> Option<String> {
+    fn place_of_thread(&self, scope: &ThreadScope) -> Result<Option<String>, HostError> {
         self.base.call("place_of_thread", json!({ "threadId": scope.thread_id }));
-        text(self.base.answer("place_of_thread"))
+        if let Some(e) = self.thrown("place_of_thread") {
+            return Err(e);
+        }
+        Ok(text(self.base.answer("place_of_thread")))
     }
 
     fn name_given(&self, name: &str) -> String {
@@ -521,13 +537,16 @@ impl CreateCtx for FakeCreate {
         }
     }
 
-    fn listed_for(&self, origin: Option<&Caller>) -> Vec<Entry> {
+    fn listed_for(&self, origin: Option<&Caller>) -> Result<Vec<Entry>, HostError> {
         self.base.call("listed_for", json!({ "scoped": origin.is_some_and(|c| matches!(c, Caller::Scoped { .. })) }));
+        if let Some(e) = self.thrown("listed_for") {
+            return Err(e);
+        }
         let all: Vec<Entry> = self.base.live.borrow().values().cloned().collect();
-        match &*self.listed.borrow() {
+        Ok(match &*self.listed.borrow() {
             None => all,
             Some(ids) => all.into_iter().filter(|e| ids.contains(&e.borrow().record.borrow().id)).collect(),
-        }
+        })
     }
 
     fn held(&self) -> Vec<Entry> {
@@ -549,30 +568,47 @@ impl CreateCtx for FakeCreate {
         self.scope_project.borrow().clone()
     }
 
-    fn refusal_for(&self, record: Option<&WorkspaceRecord>, _origin: Option<&Caller>) -> Option<String> {
-        let record = record?;
+    fn refusal_for(&self, record: Option<&WorkspaceRecord>, _origin: Option<&Caller>) -> Result<Option<String>, HostError> {
+        let Some(record) = record else {
+            return Ok(None);
+        };
         self.base.call("refusal_for", json!({ "id": record.id }));
-        self.hidden.borrow().contains(&record.id).then(|| "outside the tree".to_owned())
+        if let Some(e) = self.thrown("refusal_for") {
+            return Err(e);
+        }
+        Ok(self.hidden.borrow().contains(&record.id).then(|| "outside the tree".to_owned()))
     }
 
-    fn of_threads_repository(&self, _origin: Option<&Caller>, project_id: &str) -> bool {
+    fn of_threads_repository(&self, _origin: Option<&Caller>, project_id: &str) -> Result<bool, HostError> {
         self.base.call("of_threads_repository", json!({ "project": project_id }));
-        !self.other_repo.borrow().iter().any(|p| p == project_id)
+        if let Some(e) = self.thrown("of_threads_repository") {
+            return Err(e);
+        }
+        Ok(!self.other_repo.borrow().iter().any(|p| p == project_id))
     }
 
-    fn elsewhere_refusal(&self, _origin: Option<&Caller>, project: &ProjectView, word: &str) -> Option<HostError> {
+    fn elsewhere_refusal(&self, _origin: Option<&Caller>, project: &ProjectView, word: &str) -> Result<Option<HostError>, HostError> {
         self.base.call("elsewhere_refusal", json!({ "project": project.id, "word": word }));
-        self.base.answer_as::<Value>("elsewhere_refusal", || Value::Null).err()
+        if let Some(e) = self.thrown("elsewhere_refusal") {
+            return Err(e);
+        }
+        Ok(self.base.answer_as::<Value>("elsewhere_refusal", || Value::Null).err())
     }
 
-    fn away_for(&self, record: &WorkspaceRecord, _origin: Option<&Caller>, act: &str, word: &str) -> Option<HostError> {
+    fn away_for(&self, record: &WorkspaceRecord, _origin: Option<&Caller>, act: &str, word: &str) -> Result<Option<HostError>, HostError> {
         self.base.call("away_for", json!({ "id": record.id, "act": act, "word": word }));
-        self.base.answer_as::<Value>("away_for", || Value::Null).err()
+        if let Some(e) = self.thrown("away_for") {
+            return Err(e);
+        }
+        Ok(self.base.answer_as::<Value>("away_for", || Value::Null).err())
     }
 
-    fn project_reached(&self, _origin: Option<&Caller>, project_id: &str) -> bool {
+    fn project_reached(&self, _origin: Option<&Caller>, project_id: &str) -> Result<bool, HostError> {
         self.base.call("project_reached", json!({ "project": project_id }));
-        self.reached.borrow().iter().any(|p| p == project_id)
+        if let Some(e) = self.thrown("project_reached") {
+            return Err(e);
+        }
+        Ok(self.reached.borrow().iter().any(|p| p == project_id))
     }
 
     async fn find_places(&self, word: &str) -> Result<Vec<String>, HostError> {

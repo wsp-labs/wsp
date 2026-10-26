@@ -111,7 +111,7 @@ impl Base for Lossy {
     async fn git_here(&self, ask: GitAsk) -> Result<ExecResult, HostError> {
         self.0.git_here(ask).await
     }
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String {
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError> {
         self.0.checkout_of(record)
     }
     async fn preferences(&self) -> Result<Preferences, HostError> {
@@ -135,7 +135,7 @@ impl MoveRoads for Lossy {
     fn guest_agent_homes(&self) -> indexmap::IndexMap<String, String> {
         self.0.guest_agent_homes()
     }
-    fn scratch(&self, entry: &Entry) -> String {
+    fn scratch(&self, entry: &Entry) -> Result<String, HostError> {
         self.0.scratch(entry)
     }
     async fn land_bundle(
@@ -196,7 +196,7 @@ impl MoveRoads for Lossy {
 }
 #[async_trait(?Send)]
 impl ProjectsCtx for Lossy {
-    fn state_folder(&self) -> String {
+    fn state_folder(&self) -> Result<String, HostError> {
         self.0.state_folder()
     }
     fn has_state_path(&self) -> bool {
@@ -259,16 +259,16 @@ impl ProjectsCtx for Lossy {
     async fn remember_project(&self, project: ProjectView) -> Result<(), HostError> {
         self.0.remember_project(project).await
     }
-    fn project_reached(&self, origin: Option<&Caller>, project_id: &str) -> bool {
+    fn project_reached(&self, origin: Option<&Caller>, project_id: &str) -> Result<bool, HostError> {
         self.0.project_reached(origin, project_id)
     }
     fn project_of_scope(&self, origin: Option<&Caller>) -> Option<String> {
         self.0.project_of_scope(origin)
     }
-    fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &ProjectView, word: &str) -> Option<HostError> {
+    fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &ProjectView, word: &str) -> Result<Option<HostError>, HostError> {
         self.0.elsewhere_refusal(origin, project, word)
     }
-    fn of_threads_repository(&self, origin: Option<&Caller>, project_id: &str) -> bool {
+    fn of_threads_repository(&self, origin: Option<&Caller>, project_id: &str) -> Result<bool, HostError> {
         self.0.of_threads_repository(origin, project_id)
     }
     fn holds_thread(&self, workspace_id: &str) -> bool {

@@ -591,8 +591,9 @@ impl ChannelsCtx for World {
         self.local_roads_asked.set(self.local_roads_asked.get() + 1);
         self.local_road.borrow().clone()
     }
-    async fn adopt_pause(&self, entry: &Entry) {
+    async fn adopt_pause(&self, entry: &Entry) -> AccountResult<()> {
         self.adopted.borrow_mut().push(entry.borrow().record.borrow().id.clone());
+        Ok(())
     }
     fn broker_ready(&self) -> bool {
         self.broker.get()
@@ -691,7 +692,7 @@ impl ChannelsCtx for World {
     fn terminal_line(&self, _harness: &str, _program: Option<&str>) -> String {
         unreachable!()
     }
-    async fn thread_folder(&self, _entry: &Entry) -> String {
+    async fn thread_folder(&self, _entry: &Entry) -> AccountResult<String> {
         unreachable!()
     }
     fn thread_env(&self, _entry: &Entry) -> IndexMap<String, String> {

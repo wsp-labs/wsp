@@ -262,6 +262,8 @@ pub struct FakeBase {
     pub kinds: RefCell<IndexMap<String, WorkspaceKind>>,
     pub home: String,
     pub prefs: RefCell<Option<Preferences>>,
+    /// The failure `checkout_of` answers in place of a checkout (`ctx.checkoutOf` throws where the project is unknown).
+    pub checkout_fail: RefCell<Option<HostError>>,
 }
 
 impl FakeBase {
@@ -281,6 +283,7 @@ impl FakeBase {
             kinds: RefCell::new(IndexMap::new()),
             home: "/home/me".to_owned(),
             prefs: RefCell::new(None),
+            checkout_fail: RefCell::new(None),
         })
     }
 
@@ -480,8 +483,11 @@ impl Base for BaseOf {
             },
         }
     }
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String {
-        record.worktree.as_ref().map(|w| w.path.clone()).unwrap_or_else(|| format!("/checkouts/{}", record.id))
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError> {
+        if let Some(e) = self.0.checkout_fail.borrow().clone() {
+            return Err(e);
+        }
+        Ok(record.worktree.as_ref().map(|w| w.path.clone()).unwrap_or_else(|| format!("/checkouts/{}", record.id)))
     }
     async fn preferences(&self) -> Result<Preferences, HostError> {
         self.0.call("preferences", json!(null));

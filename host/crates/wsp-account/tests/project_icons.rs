@@ -300,8 +300,8 @@ struct FakeIcons {
 
 #[async_trait(?Send)]
 impl ProjectIconsCtx for FakeIcons {
-    fn state_folder(&self) -> PathBuf {
-        self.state.clone()
+    fn state_folder(&self) -> Result<PathBuf, HostError> {
+        Ok(self.state.clone())
     }
     fn has_state_path(&self) -> bool {
         self.state_path

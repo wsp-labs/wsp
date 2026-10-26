@@ -113,11 +113,18 @@ pub struct FakeReview {
     pub pids: RefCell<IndexMap<String, Rc<RefCell<IndexMap<String, i64>>>>>,
     /// The listener the shared channel was handed (`heard`).
     pub heard: RefCell<Option<DaemonEventListener>>,
+    /// The failure `refusal_for` answers in place of its refusal (`ctx.refusalFor` throws where a record's project is unknown).
+    pub refusal_fail: RefCell<Option<HostError>>,
 }
 
 impl FakeReview {
     pub fn new() -> Rc<FakeReview> {
-        Rc::new(FakeReview { base: FakeBase::new(), pids: RefCell::new(IndexMap::new()), heard: RefCell::new(None) })
+        Rc::new(FakeReview {
+            base: FakeBase::new(),
+            pids: RefCell::new(IndexMap::new()),
+            heard: RefCell::new(None),
+            refusal_fail: RefCell::new(None),
+        })
     }
 
     fn b(&self) -> BaseOf {
@@ -191,7 +198,7 @@ impl Base for FakeReview {
     async fn git_here(&self, ask: GitAsk) -> Result<ExecResult, HostError> {
         self.b().git_here(ask).await
     }
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String {
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError> {
         self.b().checkout_of(record)
     }
     async fn preferences(&self) -> Result<Preferences, HostError> {
@@ -465,12 +472,15 @@ impl ReviewCtx for FakeReview {
 
     /// Default none. A script under `refusal_for:<workspace id>` answers for that record alone; a record of none
     /// logs a null id.
-    fn refusal_for(&self, record: Option<&WorkspaceRecord>, origin: Option<&Caller>) -> Option<String> {
+    fn refusal_for(&self, record: Option<&WorkspaceRecord>, origin: Option<&Caller>) -> Result<Option<String>, HostError> {
         let id = record.map(|r| r.id.clone());
         self.base.call("refusal_for", json!({ "id": id, "origin": format!("{origin:?}") }));
+        if let Some(e) = self.refusal_fail.borrow().clone() {
+            return Err(e);
+        }
         let key = format!("refusal_for:{}", id.clone().unwrap_or_default());
         let said = self.base.answer(&key).or_else(|| self.base.answer("refusal_for"));
-        said.and_then(|v| v.as_str().map(str::to_owned))
+        Ok(said.and_then(|v| v.as_str().map(str::to_owned)))
     }
 
     /// Default true. A script under `reaches_row:<thread id>` answers for that thread alone.
