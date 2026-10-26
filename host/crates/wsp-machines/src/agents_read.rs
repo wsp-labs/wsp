@@ -20,9 +20,10 @@ use wsp_core::types::pending::Clock;
 use wsp_engine::machine::Machine;
 use wsp_engine::target_line::TargetLogin;
 use wsp_wire::types::agents_report::{
-    AgentRow, AgentSignInState, AgentsProject, AgentsReport, AgentsSignInEvent, AgentsSignInEventState, AgentsSignInRun,
-    AgentsTarget, McpRow, McpScope, PageReach, PluginAsk, PluginRow, ServerAdd, ServerAsk, ServerToolsAnswer, SignInLine,
-    SkillAdded, SkillHit, SkillPreview, SkillRow,
+    AgentRow, AgentSignInState, AgentsProject, AgentsReport, AgentsSignInEvent,
+    AgentsSignInEventState, AgentsSignInRun, AgentsTarget, McpRow, McpScope, PageReach, PluginAsk,
+    PluginRow, ServerAdd, ServerAsk, ServerToolsAnswer, SignInLine, SkillAdded, SkillHit,
+    SkillPreview, SkillRow,
 };
 use wsp_wire::types::thread_defaults::{AgentSetupSet, AgentSetupView};
 use wsp_wire::views::harness::McpServerSpec;
@@ -50,11 +51,21 @@ pub struct AgentsRead {
 
 /// agents-read.ts:19.
 pub fn guest_wsp_mcp() -> McpServerSpec {
-    McpServerSpec { command: "wsp".to_string(), args: vec!["mcp".to_string()], no_slate: None }
+    McpServerSpec {
+        command: "wsp".to_string(),
+        args: vec!["mcp".to_string()],
+        no_slate: None,
+    }
 }
 
 /// A machine's `exec` as a box target hands it: through the place door.
-pub type BoxExec = Rc<dyn Fn(String, Option<u64>, Option<Vec<u8>>) -> LocalBoxFuture<'static, Result<ExecResult, HostError>>>;
+pub type BoxExec = Rc<
+    dyn Fn(
+        String,
+        Option<u64>,
+        Option<Vec<u8>>,
+    ) -> LocalBoxFuture<'static, Result<ExecResult, HostError>>,
+>;
 
 /// agents-read.ts:27-36 `AgentsOn`: where a read runs.
 #[derive(Clone)]
@@ -103,7 +114,9 @@ pub fn project_of(on: &AgentsOn) -> Option<String> {
 /// The projects an `AgentsOn` covers, where it names any.
 fn projects_of(on: &AgentsOn) -> Option<&Vec<AgentsProject>> {
     match on {
-        AgentsOn::Here { projects, .. } | AgentsOn::Box { projects, .. } | AgentsOn::Machine { projects, .. } => projects.as_ref(),
+        AgentsOn::Here { projects, .. }
+        | AgentsOn::Box { projects, .. }
+        | AgentsOn::Machine { projects, .. } => projects.as_ref(),
     }
 }
 
@@ -111,7 +124,11 @@ fn projects_of(on: &AgentsOn) -> Option<&Vec<AgentsProject>> {
 pub fn page_reach_of(on: &AgentsOn, run_as: Option<&str>) -> PageReach {
     match on {
         AgentsOn::Here { .. } => PageReach::Here,
-        AgentsOn::Box { relayed, .. } | AgentsOn::Machine { relayed, .. } if *relayed == Some(true) && run_as.is_none() => PageReach::Relay,
+        AgentsOn::Box { relayed, .. } | AgentsOn::Machine { relayed, .. }
+            if *relayed == Some(true) && run_as.is_none() =>
+        {
+            PageReach::Relay
+        }
         _ => PageReach::None,
     }
 }
@@ -130,7 +147,8 @@ pub const SERVER_NOT_SET_UP: &str = "server-not-set-up";
 /// agents-read.ts:59.
 pub const SERVER_OFF: &str = "server-off";
 /// agents-read.ts:190.
-pub const NO_AGENTS_READER: &str = "this runtime carries no agents reader; the host that serves the app wires one";
+pub const NO_AGENTS_READER: &str =
+    "this runtime carries no agents reader; the host that serves the app wires one";
 /// agents-read.ts:248.
 pub const SKILLS_SEARCH_LIMIT: u32 = 20;
 
@@ -157,18 +175,36 @@ pub trait AgentsReader {
     async fn read(&self, on: &AgentsOn, latest: bool) -> Result<AgentsRead, HostError>;
     /// Optional in the TS; a reader with nothing kept does nothing.
     fn forget(&self, key: &str);
-    async fn tools(&self, on: &AgentsOn, ask: ServerToolsAsk) -> Result<ServerToolsAnswer, HostError>;
+    async fn tools(
+        &self,
+        on: &AgentsOn,
+        ask: ServerToolsAsk,
+    ) -> Result<ServerToolsAnswer, HostError>;
     /// Optional in the TS: false where the reader has no `server` road.
     fn has_server(&self) -> bool;
-    async fn server(&self, on: &AgentsOn, agent: &str, name: &str) -> Result<ResolvedServer, HostError>;
+    async fn server(
+        &self,
+        on: &AgentsOn,
+        agent: &str,
+        name: &str,
+    ) -> Result<ResolvedServer, HostError>;
 }
 
 /// agents-read.ts:82-90 `PtyLink`.
 #[derive(Clone)]
 pub struct PtyLink {
-    pub op: Rc<dyn Fn(String, serde_json::Map<String, serde_json::Value>) -> LocalBoxFuture<'static, Result<serde_json::Map<String, serde_json::Value>, HostError>>>,
+    pub op: Rc<
+        dyn Fn(
+            String,
+            serde_json::Map<String, serde_json::Value>,
+        ) -> LocalBoxFuture<
+            'static,
+            Result<serde_json::Map<String, serde_json::Value>, HostError>,
+        >,
+    >,
     /// Answers the reader's removal.
-    pub on_event: Rc<dyn Fn(Rc<dyn Fn(&serde_json::Map<String, serde_json::Value>)>) -> Box<dyn FnOnce()>>,
+    pub on_event:
+        Rc<dyn Fn(Rc<dyn Fn(&serde_json::Map<String, serde_json::Value>)>) -> Box<dyn FnOnce()>>,
     pub closed: Option<Shared<LocalBoxFuture<'static, ()>>>,
     pub bare: Option<bool>,
 }
@@ -263,7 +299,12 @@ pub trait SkillsActs {
     /// Answers the removed paths.
     async fn remove(&self, on: &AgentsOn, ask: &SkillAsk) -> Result<Vec<String>, HostError>;
     /// Answers the paths switched.
-    async fn toggle(&self, on: &AgentsOn, ask: &SkillAsk, to: bool) -> Result<Vec<String>, HostError>;
+    async fn toggle(
+        &self,
+        on: &AgentsOn,
+        ask: &SkillAsk,
+        to: bool,
+    ) -> Result<Vec<String>, HostError>;
 }
 
 /// agents-read.ts:166-170 `ServersActs`: each answers the config file written.
@@ -277,7 +318,12 @@ pub trait ServersActs {
 /// agents-read.ts:174-176 `PluginsActs`.
 #[async_trait(?Send)]
 pub trait PluginsActs {
-    async fn toggle(&self, on: &AgentsOn, ask: &PluginAsk, to: bool) -> Result<PluginRow, HostError>;
+    async fn toggle(
+        &self,
+        on: &AgentsOn,
+        ask: &PluginAsk,
+        to: bool,
+    ) -> Result<PluginRow, HostError>;
 }
 
 /// agents-read.ts:180-187 `ServerIcons`.
@@ -311,9 +357,23 @@ pub trait AgentsPlaces {
     async fn list(&self, now: i64) -> Result<Vec<PlaceView>, HostError>;
     async fn report_of(&self, place_id: &str) -> Result<Option<PlaceReport>, HostError>;
     async fn logins_again(&self, place_id: &str) -> Result<(), HostError>;
-    fn sign_ins_at(&self, place_id: &str, agents: &[String]) -> Option<IndexMap<String, AgentSignInState>>;
-    async fn exec(&self, place_id: &str, cmd: &str, timeout_ms: Option<u64>, stdin: Option<Vec<u8>>) -> Result<ExecResult, HostError>;
-    async fn gh_there(&self, place_id: &str, on_step: GhStep) -> Result<Vec<PlaceProvisionRow>, HostError>;
+    fn sign_ins_at(
+        &self,
+        place_id: &str,
+        agents: &[String],
+    ) -> Option<IndexMap<String, AgentSignInState>>;
+    async fn exec(
+        &self,
+        place_id: &str,
+        cmd: &str,
+        timeout_ms: Option<u64>,
+        stdin: Option<Vec<u8>>,
+    ) -> Result<ExecResult, HostError>;
+    async fn gh_there(
+        &self,
+        place_id: &str,
+        on_step: GhStep,
+    ) -> Result<Vec<PlaceProvisionRow>, HostError>;
     async fn key_landed(&self, agent: &str) -> Result<(), HostError>;
     async fn login_landed(&self, place_id: &str, agent: &str) -> Result<(), HostError>;
 }
@@ -326,24 +386,41 @@ pub type DaemonEvent = serde_json::Map<String, serde_json::Value>;
 pub struct AgentsReadOptions {
     pub reader: Option<Rc<dyn AgentsReader>>,
     pub places: Rc<dyn Fn() -> Option<Rc<dyn AgentsPlaces>>>,
-    pub workspace: Rc<dyn Fn(String, Option<Caller>) -> LocalBoxFuture<'static, Result<AgentsWorkspace, HostError>>>,
+    pub workspace: Rc<
+        dyn Fn(
+            String,
+            Option<Caller>,
+        ) -> LocalBoxFuture<'static, Result<AgentsWorkspace, HostError>>,
+    >,
     pub place_stores: Option<Rc<dyn Fn(&str, &str) -> IndexMap<String, String>>>,
-    pub stores_here: Option<Rc<dyn Fn() -> LocalBoxFuture<'static, Result<IndexMap<String, String>, HostError>>>>,
-    pub projects: Option<Rc<dyn Fn(String) -> LocalBoxFuture<'static, Result<Vec<AgentsProject>, HostError>>>>,
+    pub stores_here: Option<
+        Rc<dyn Fn() -> LocalBoxFuture<'static, Result<IndexMap<String, String>, HostError>>>,
+    >,
+    pub projects: Option<
+        Rc<dyn Fn(String) -> LocalBoxFuture<'static, Result<Vec<AgentsProject>, HostError>>>,
+    >,
     pub acts: Option<Rc<dyn AgentsActs>>,
     pub skills: Option<Rc<dyn SkillsActs>>,
     pub servers: Option<Rc<dyn ServersActs>>,
     pub plugins: Option<Rc<dyn PluginsActs>>,
     pub icons: Option<Rc<dyn ServerIcons>>,
     pub latest_on: Option<Rc<dyn Fn() -> LocalBoxFuture<'static, bool>>>,
-    pub channel: Rc<dyn Fn(AgentsTarget, Rc<dyn Fn(DaemonEvent)>, Option<Caller>) -> LocalBoxFuture<'static, Result<Rc<dyn DaemonChannel>, HostError>>>,
+    pub channel: Rc<
+        dyn Fn(
+            AgentsTarget,
+            Rc<dyn Fn(DaemonEvent)>,
+            Option<Caller>,
+        ) -> LocalBoxFuture<'static, Result<Rc<dyn DaemonChannel>, HostError>>,
+    >,
     pub changed: Rc<dyn Fn(Option<AgentsTarget>)>,
     pub clock: Rc<dyn Clock>,
     pub relayed: Option<Rc<dyn Fn() -> bool>>,
     /// The host's log; none warns.
     pub log: Option<Rc<dyn Fn(&str)>>,
     pub setup_of: Option<Rc<dyn Fn(&str, &str) -> Option<AgentSetupView>>>,
-    pub setup_write: Option<Rc<dyn Fn(String, String, AgentSetupSet) -> LocalBoxFuture<'static, Result<(), HostError>>>>,
+    pub setup_write: Option<
+        Rc<dyn Fn(String, String, AgentSetupSet) -> LocalBoxFuture<'static, Result<(), HostError>>>,
+    >,
     /// Random bytes for a sign-in's id (rule 3.16).
     pub random_bytes: Rc<dyn Fn(usize) -> Vec<u8>>,
     /// `console.warn`, where `log` is none.
@@ -396,7 +473,9 @@ pub struct AgentsReads {
     /// `ended`: each ended sign-in as listed, and when it ended.
     pub ended: RefCell<IndexMap<String, (AgentsSignInRun, i64)>>,
     /// `starting`, by join key.
-    pub starting: RefCell<IndexMap<String, Shared<LocalBoxFuture<'static, Result<(String, Rc<Running>), HostError>>>>>,
+    pub starting: RefCell<
+        IndexMap<String, Shared<LocalBoxFuture<'static, Result<(String, Rc<Running>), HostError>>>>,
+    >,
 }
 
 impl AgentsReads {

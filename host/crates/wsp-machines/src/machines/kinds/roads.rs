@@ -19,7 +19,10 @@ use wsp_core::project_sources::{project_remote, project_source, ProjectSourceMod
 use wsp_core::types::harness::{login_env_on, place_login_env, Brokered, BrokeredKind};
 use wsp_core::types::internal::{ImportLanded, ImportReport};
 use wsp_core::types::pending::{MachineExecOptions, TurnWaiting};
-use wsp_core::types::wiring::{folder_named, last_line_of, LiveWorkspace, ProjectImportOptions, StageReport, WorkspaceRecord, CLONE_MS};
+use wsp_core::types::wiring::{
+    folder_named, last_line_of, LiveWorkspace, ProjectImportOptions, StageReport, WorkspaceRecord,
+    CLONE_MS,
+};
 use wsp_engine::exec_detached::put::INLINE_EXEC_MS;
 use wsp_engine::machine::{ExecOptions, ExecResult, Lifecycle, MachineBackend};
 use wsp_engine::project_install::{install_script, project_installs, INSTALL_MS};
@@ -30,7 +33,9 @@ use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::types::projects::REGISTERING_LINE;
 use wsp_wire::types::shell_quote::{shell_line, shell_quote};
 use wsp_wire::views::project_bundle::{ProjectImportResult, ProjectImportStage};
-use wsp_wire::views::workspace::{DaemonReachView, ProjectSource, ProjectView, WorkspacePhase, WorkspaceProject};
+use wsp_wire::views::workspace::{
+    DaemonReachView, ProjectSource, ProjectView, WorkspacePhase, WorkspaceProject,
+};
 use wsp_wire::views::workspace_events::WorkspaceCreateStage;
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::wire::capabilities::PauseMode;
@@ -41,8 +46,9 @@ use wsp_words::js::utf16::tail;
 use wsp_words::js_date::iso_string;
 use wsp_words::project_path::folder_name;
 use wsp_words::projects::{
-    clone_failed_line, clone_into_file_line, clone_into_taken_line, clone_on_machine_failed_line, clone_url_refusal, home_shortened,
-    kind_for_computer, project_name_of, registered_line, CloneFailed,
+    clone_failed_line, clone_into_file_line, clone_into_taken_line, clone_on_machine_failed_line,
+    clone_url_refusal, home_shortened, kind_for_computer, project_name_of, registered_line,
+    CloneFailed,
 };
 use wsp_words::start::owner_repo_of;
 use wsp_words::words::computer::no_kind_line;
@@ -70,7 +76,11 @@ enum Standing {
 
 fn standing(path: &str) -> Result<Standing, HostError> {
     match std::fs::read_dir(path) {
-        Ok(mut entries) => Ok(if entries.next().is_none() { Standing::Empty } else { Standing::Full }),
+        Ok(mut entries) => Ok(if entries.next().is_none() {
+            Standing::Empty
+        } else {
+            Standing::Full
+        }),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Standing::Missing),
         Err(e) if e.raw_os_error() == Some(ENOTDIR) => Ok(Standing::File),
         Err(e) => Err(HostError::new(e.to_string())),
@@ -86,7 +96,9 @@ fn here_home() -> String {
 }
 
 fn here_cwd() -> String {
-    std::env::current_dir().map(|path| path.to_string_lossy().into_owned()).unwrap_or_default()
+    std::env::current_dir()
+        .map(|path| path.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 fn join(parent: &str, name: &str) -> String {
@@ -94,16 +106,26 @@ fn join(parent: &str, name: &str) -> String {
 }
 
 fn parent_of(path: &str) -> String {
-    Path::new(path).parent().map_or_else(|| path.to_string(), |parent| parent.to_string_lossy().into_owned())
+    Path::new(path).parent().map_or_else(
+        || path.to_string(),
+        |parent| parent.to_string_lossy().into_owned(),
+    )
 }
 
 fn base_of(path: &str) -> String {
-    Path::new(path).file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default()
+    Path::new(path)
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 /// A path as node's `path.resolve` answers it, against this process's folder.
 fn resolved_path(path: &str) -> PathBuf {
-    let joined = if path.starts_with('/') { PathBuf::from(path) } else { Path::new(&here_cwd()).join(path) };
+    let joined = if path.starts_with('/') {
+        PathBuf::from(path)
+    } else {
+        Path::new(&here_cwd()).join(path)
+    };
     joined.components().fold(PathBuf::new(), |mut out, part| {
         match part {
             Component::ParentDir => {
@@ -171,14 +193,26 @@ impl KindsArea {
 
     /// kinds.ts:32 (rule 1).
     pub fn project_of(&self, dest: &str, size: f64) -> WorkspaceProject {
-        WorkspaceProject { name: folder_name(dest), dest: dest.to_string(), imported_at: iso_string(self.ctx.now()).unwrap_or_default(), size: Some(JsInt(JsNumber(size))) }
+        WorkspaceProject {
+            name: folder_name(dest),
+            dest: dest.to_string(),
+            imported_at: iso_string(self.ctx.now()).unwrap_or_default(),
+            size: Some(JsInt(JsNumber(size))),
+        }
     }
     /// kinds.ts:36 (rule 2).
     pub(crate) fn clone_on_machine(&self, project: &ProjectView, computer: &str) -> String {
-        self.ctx.clone_lines(clone_object(project, computer, project.base.as_deref())).join("\n")
+        self.ctx
+            .clone_lines(clone_object(project, computer, project.base.as_deref()))
+            .join("\n")
     }
     /// kinds.ts:46 (rule 3). The answer owns what it read of the entry, so a kind module can hand it back as `'static`.
-    pub(crate) fn clone_project(&self, entry: &LiveWorkspace, project: ProjectView, report: StageReport) -> LocalBoxFuture<'static, AreaResult<()>> {
+    pub(crate) fn clone_project(
+        &self,
+        entry: &LiveWorkspace,
+        project: ProjectView,
+        report: StageReport,
+    ) -> LocalBoxFuture<'static, AreaResult<()>> {
         let ctx = Rc::clone(&self.ctx);
         let record = entry.record.borrow().clone();
         if project.checkout.is_some() {
@@ -187,7 +221,11 @@ impl KindsArea {
                 None => Box::pin(async { Ok(()) }),
             };
         }
-        report(WorkspaceCreateStage::ProjectCloned, &format!("Cloning {} into {}.", project.remote, project.path), None);
+        report(
+            WorkspaceCreateStage::ProjectCloned,
+            &format!("Cloning {} into {}.", project.remote, project.path),
+            None,
+        );
         let computer = ctx.place_name(&record.place.clone().unwrap_or_else(|| ctx.wired_place()));
         let (landing, clone_cmd) = match record.branch_of_record.as_ref() {
             Some(of_record) => {
@@ -198,7 +236,10 @@ impl KindsArea {
                     "origin": owner_repo_of(&project.remote).unwrap_or_default(),
                     "held": entry.of_record_held,
                 });
-                (Some(ctx.land_on_record(entry, project.clone(), Some(ctx.clone_lines(o)))), None)
+                (
+                    Some(ctx.land_on_record(entry, project.clone(), Some(ctx.clone_lines(o)))),
+                    None,
+                )
             }
             None => (None, Some(self.clone_on_machine(&project, &computer))),
         };
@@ -212,9 +253,21 @@ impl KindsArea {
                 landed.await?;
             }
             if let Some(command) = clone_cmd {
-                let cloned = machine.exec(&command, ExecOptions { timeout_ms: Some(CLONE_MS), ..ExecOptions::default() }).await?;
+                let cloned = machine
+                    .exec(
+                        &command,
+                        ExecOptions {
+                            timeout_ms: Some(CLONE_MS),
+                            ..ExecOptions::default()
+                        },
+                    )
+                    .await?;
                 if cloned.exit_code != JsInt::from(0) {
-                    let said = if cloned.stderr.is_empty() { cloned.stdout.clone() } else { cloned.stderr.clone() };
+                    let said = if cloned.stderr.is_empty() {
+                        cloned.stdout.clone()
+                    } else {
+                        cloned.stderr.clone()
+                    };
                     let failed = CloneFailed {
                         repo: owner_repo_of(&remote).unwrap_or_else(|| remote.clone()),
                         on: computer.clone(),
@@ -225,20 +278,48 @@ impl KindsArea {
                     return Err(HostError::new(clone_on_machine_failed_line(&failed)).into());
                 }
             }
-            let root = machine.exec(&format!("ls -A {}", shell_quote(&path)), ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..ExecOptions::default() }).await?;
-            let names: Vec<String> = root.stdout.split('\n').map(|name| js_trim(name).to_string()).collect();
+            let root = machine
+                .exec(
+                    &format!("ls -A {}", shell_quote(&path)),
+                    ExecOptions {
+                        timeout_ms: Some(INLINE_EXEC_MS),
+                        ..ExecOptions::default()
+                    },
+                )
+                .await?;
+            let names: Vec<String> = root
+                .stdout
+                .split('\n')
+                .map(|name| js_trim(name).to_string())
+                .collect();
             let Some(install) = project_installs(&names, &path).into_iter().next() else {
                 return Ok(());
             };
-            report(WorkspaceCreateStage::ProjectCloned, &format!("{} in {}.", install.command, path), None);
+            report(
+                WorkspaceCreateStage::ProjectCloned,
+                &format!("{} in {}.", install.command, path),
+                None,
+            );
             let log = format!("{}/install-{}.log", scratch?, project_id);
-            let ran = machine.exec(&install_script(&install, &path, &log), ExecOptions { timeout_ms: Some(INSTALL_MS), ..ExecOptions::default() }).await?;
+            let ran = machine
+                .exec(
+                    &install_script(&install, &path, &log),
+                    ExecOptions {
+                        timeout_ms: Some(INSTALL_MS),
+                        ..ExecOptions::default()
+                    },
+                )
+                .await?;
             if ran.exit_code != JsInt::from(0) {
                 let said = [last_line_of(&ran.stderr), last_line_of(&ran.stdout)]
                     .into_iter()
                     .find(|line| !line.is_empty())
                     .unwrap_or_else(|| format!("exit {}", ran.exit_code));
-                return Err(HostError::new(format!("{} in {}: {}; its whole output is {} on the machine", install.command, path, said, log)).into());
+                return Err(HostError::new(format!(
+                    "{} in {}: {}; its whole output is {} on the machine",
+                    install.command, path, said, log
+                ))
+                .into());
             }
             Ok(())
         })
@@ -249,47 +330,103 @@ impl KindsArea {
         let command = format!(
             "{} || echo; {} || echo",
             shell_line(&["git", "-C", path, "remote", "get-url", "origin"]),
-            shell_line(&["git", "-C", path, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
+            shell_line(&[
+                "git",
+                "-C",
+                path,
+                "symbolic-ref",
+                "--short",
+                "refs/remotes/origin/HEAD"
+            ])
         );
-        let read = machine.exec(&command, ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..ExecOptions::default() }).await?;
+        let read = machine
+            .exec(
+                &command,
+                ExecOptions {
+                    timeout_ms: Some(INLINE_EXEC_MS),
+                    ..ExecOptions::default()
+                },
+            )
+            .await?;
         let mut lines = read.stdout.split('\n').map(js_trim);
         let remote = lines.next().unwrap_or_default().to_string();
         let head = lines.next().unwrap_or_default();
-        Ok((remote, head.strip_prefix("origin/").unwrap_or(head).to_string()))
+        Ok((
+            remote,
+            head.strip_prefix("origin/").unwrap_or(head).to_string(),
+        ))
     }
     /// kinds.ts:93 (rule 5).
-    pub async fn git_here(&self, cwd: &str, args: &[&str], timeout_ms: Option<u64>, stdin: Option<&str>) -> AreaResult<ExecResult> {
+    pub async fn git_here(
+        &self,
+        cwd: &str,
+        args: &[&str],
+        timeout_ms: Option<u64>,
+        stdin: Option<&str>,
+    ) -> AreaResult<ExecResult> {
         let machine = self.ctx.local_machine().await?;
         let mut words = vec!["git", "-C", cwd];
         words.extend_from_slice(args);
-        let options = ExecOptions { timeout_ms: Some(timeout_ms.unwrap_or(INLINE_EXEC_MS)), stdin: stdin.map(|text| text.as_bytes().to_vec()), ..ExecOptions::default() };
+        let options = ExecOptions {
+            timeout_ms: Some(timeout_ms.unwrap_or(INLINE_EXEC_MS)),
+            stdin: stdin.map(|text| text.as_bytes().to_vec()),
+            ..ExecOptions::default()
+        };
         Ok(machine.exec(&shell_line(&words), options).await?)
     }
     /// kinds.ts:99 (rule 5).
     pub async fn git_top_of(&self, path: &str) -> AreaResult<Option<String>> {
-        let read = self.git_here(path, &["rev-parse", "--show-toplevel"], None, None).await?;
+        let read = self
+            .git_here(path, &["rev-parse", "--show-toplevel"], None, None)
+            .await?;
         let top = js_trim(&read.stdout);
         Ok((read.exit_code == JsInt::from(0) && !top.is_empty()).then(|| top.to_string()))
     }
     /// kinds.ts:105 (rule 5).
     pub async fn branch_at(&self, path: &str) -> AreaResult<Option<String>> {
-        let read = self.git_here(path, &["symbolic-ref", "--quiet", "--short", "HEAD"], None, None).await?;
+        let read = self
+            .git_here(
+                path,
+                &["symbolic-ref", "--quiet", "--short", "HEAD"],
+                None,
+                None,
+            )
+            .await?;
         let branch = js_trim(&read.stdout);
         Ok((read.exit_code == JsInt::from(0) && !branch.is_empty()).then(|| branch.to_string()))
     }
     /// kinds.ts:112 (rule 6).
     pub fn state_folder(&self) -> Result<String, HostError> {
         let Some(state) = self.ctx.state_path() else {
-            return Err(HostError::with_kind("this runtime was given no state file, so it keeps no worktrees or copies", Kind::Invalid));
+            return Err(HostError::with_kind(
+                "this runtime was given no state file, so it keeps no worktrees or copies",
+                Kind::Invalid,
+            ));
         };
         let resolved = resolved_path(&state);
-        Ok(resolved.parent().unwrap_or(resolved.as_path()).to_string_lossy().into_owned())
+        Ok(resolved
+            .parent()
+            .unwrap_or(resolved.as_path())
+            .to_string_lossy()
+            .into_owned())
     }
     /// kinds.ts:124 (rule 7). Answers the folder as it resolved.
-    pub async fn clone_here(&self, word: &str, source: &ProjectSource, into: &str) -> Result<String, HostError> {
-        self.clone_here_on(word, source, into).await.map_err(AreaError::into_host)
+    pub async fn clone_here(
+        &self,
+        word: &str,
+        source: &ProjectSource,
+        into: &str,
+    ) -> Result<String, HostError> {
+        self.clone_here_on(word, source, into)
+            .await
+            .map_err(AreaError::into_host)
     }
-    async fn clone_here_on(&self, word: &str, source: &ProjectSource, into: &str) -> AreaResult<String> {
+    async fn clone_here_on(
+        &self,
+        word: &str,
+        source: &ProjectSource,
+        into: &str,
+    ) -> AreaResult<String> {
         if let Some(refused) = clone_url_refusal(word) {
             return Err(invalid(refused));
         }
@@ -297,11 +434,20 @@ impl KindsArea {
         let picked = folder_named(into, &home, &here_cwd());
         let name = project_name_of(source);
         let picked_base = base_of(&picked);
-        let numbered = picked_base.strip_prefix(&format!("{name}-")).is_some_and(|rest| !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()));
+        let numbered = picked_base
+            .strip_prefix(&format!("{name}-"))
+            .is_some_and(|rest| !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()));
         let own = picked_base == name || numbered;
-        let dest = if own { picked.clone() } else { join(&picked, &name) };
+        let dest = if own {
+            picked.clone()
+        } else {
+            join(&picked, &name)
+        };
         if !own && standing(&picked)? == Standing::File {
-            return Err(invalid(clone_into_file_line(&home_shortened(&picked, Some(&home)), None)));
+            return Err(invalid(clone_into_file_line(
+                &home_shortened(&picked, Some(&home)),
+                None,
+            )));
         }
         let at_dest = standing(&dest)?;
         if matches!(at_dest, Standing::Full | Standing::File) {
@@ -312,7 +458,11 @@ impl KindsArea {
             }
             let shown = home_shortened(&dest, Some(&home));
             let free = home_shortened(&join(&beside, &format!("{name}-{n}")), Some(&home));
-            let line = if at_dest == Standing::File { clone_into_file_line(&shown, Some(&free)) } else { clone_into_taken_line(&shown, &free) };
+            let line = if at_dest == Standing::File {
+                clone_into_file_line(&shown, Some(&free))
+            } else {
+                clone_into_taken_line(&shown, &free)
+            };
             return Err(invalid(line));
         }
         let mut made: Vec<PathBuf> = Vec::new();
@@ -325,21 +475,41 @@ impl KindsArea {
             up = folder.parent();
         }
         let machine = self.ctx.local_machine().await?;
-        let line = format!("{} {}", shell_line(&["env", "GIT_TERMINAL_PROMPT=0"]), source_module(source)?.clone_command(&project_remote(source), &dest, None));
-        let cloned = machine.exec(&line, ExecOptions { timeout_ms: Some(CLONE_MS), ..ExecOptions::default() }).await?;
+        let line = format!(
+            "{} {}",
+            shell_line(&["env", "GIT_TERMINAL_PROMPT=0"]),
+            source_module(source)?.clone_command(&project_remote(source), &dest, None)
+        );
+        let cloned = machine
+            .exec(
+                &line,
+                ExecOptions {
+                    timeout_ms: Some(CLONE_MS),
+                    ..ExecOptions::default()
+                },
+            )
+            .await?;
         if cloned.exit_code != JsInt::from(0) {
             for folder in &made {
                 if std::fs::remove_dir(folder).is_err() {
                     break;
                 }
             }
-            let said = if cloned.stderr.is_empty() { cloned.stdout } else { cloned.stderr };
+            let said = if cloned.stderr.is_empty() {
+                cloned.stdout
+            } else {
+                cloned.stderr
+            };
             return Err(invalid(clone_failed_line(&said)));
         }
         Ok(folder_named(&dest, &home, &here_cwd()))
     }
     /// kinds.ts:171 (rule 8).
-    pub(crate) async fn register_import(&self, o: &ProjectImportOptions, report: &ImportReport) -> AreaResult<ImportLanded> {
+    pub(crate) async fn register_import(
+        &self,
+        o: &ProjectImportOptions,
+        report: &ImportReport,
+    ) -> AreaResult<ImportLanded> {
         report(ProjectImportStage::Landing, REGISTERING_LINE, None);
         let plan = o.bundler.plan().await?;
         let project = self.project_of(&o.dest, plan.bytes.0);
@@ -358,44 +528,84 @@ impl KindsArea {
         })
     }
     /// kinds.ts:181 (rule 9).
-    pub(crate) fn write_roots(&self, entry: &LiveWorkspace, dests: &[String], roots_path: Option<&str>) -> LocalBoxFuture<'static, AreaResult<()>> {
+    pub(crate) fn write_roots(
+        &self,
+        entry: &LiveWorkspace,
+        dests: &[String],
+        roots_path: Option<&str>,
+    ) -> LocalBoxFuture<'static, AreaResult<()>> {
         let script = write_daemon_roots_script(dests, roots_path);
         let machine = entry.machine.clone();
-        let last = dests.last().cloned().unwrap_or_else(|| "undefined".to_string());
+        let last = dests
+            .last()
+            .cloned()
+            .unwrap_or_else(|| "undefined".to_string());
         Box::pin(async move {
-            let browsable = machine.exec(&script, ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..ExecOptions::default() }).await?;
+            let browsable = machine
+                .exec(
+                    &script,
+                    ExecOptions {
+                        timeout_ms: Some(INLINE_EXEC_MS),
+                        ..ExecOptions::default()
+                    },
+                )
+                .await?;
             if browsable.exit_code != JsInt::from(0) {
-                return Err(HostError::new(format!("could not make {last} browsable on the machine: {}", tail(&browsable.stderr, 200))).into());
+                return Err(HostError::new(format!(
+                    "could not make {last} browsable on the machine: {}",
+                    tail(&browsable.stderr, 200)
+                ))
+                .into());
             }
             Ok(())
         })
     }
     /// kinds.ts:185 (rule 10).
     pub fn cloud_home(&self, id: &str) -> Result<String, HostError> {
-        guest_agent_homes().get(id).cloned().ok_or_else(|| HostError::new(format!("the catalog has no home for {id}")))
+        guest_agent_homes()
+            .get(id)
+            .cloned()
+            .ok_or_else(|| HostError::new(format!("the catalog has no home for {id}")))
     }
     /// kinds.ts:192 (rule 10).
-    pub fn cloud_env(&self, record: &WorkspaceRecord, id: Option<&str>) -> IndexMap<String, String> {
+    pub fn cloud_env(
+        &self,
+        record: &WorkspaceRecord,
+        id: Option<&str>,
+    ) -> IndexMap<String, String> {
         let mut env = login_env_on(record.place.as_deref(), record.npm_bin.as_deref());
-        if let Some(agent) = id.and_then(|id| catalog_agents().into_iter().find(|agent| agent.id == id)) {
+        if let Some(agent) =
+            id.and_then(|id| catalog_agents().into_iter().find(|agent| agent.id == id))
+        {
             env.extend(guest_env(agent));
         }
         env
     }
     /// kinds.ts:197 (rule 11).
-    pub(crate) fn cloud_road(&self, entry: &LiveWorkspace) -> LocalBoxFuture<'static, AreaResult<DaemonReachView>> {
+    pub(crate) fn cloud_road(
+        &self,
+        entry: &LiveWorkspace,
+    ) -> LocalBoxFuture<'static, AreaResult<DaemonReachView>> {
         let ctx = Rc::clone(&self.ctx);
         let ws = entry.ws.clone();
         let machine = entry.machine.clone();
         Box::pin(async move {
             let reach = ws.daemon_reach().await?;
             let daemon_token = ctx.daemon_token_of(&machine).await?;
-            Ok(DaemonReachView { url: reach.url, expires_at: reach.expires_at, daemon_token })
+            Ok(DaemonReachView {
+                url: reach.url,
+                expires_at: reach.expires_at,
+                daemon_token,
+            })
         })
     }
     /// kinds.ts:202 (rule 11).
     pub async fn local_road(&self) -> AreaResult<DaemonReachView> {
-        let wired = || AreaError::Host(HostError::new("this host wired no daemon for this computer, so nothing on it can be dialled"));
+        let wired = || {
+            AreaError::Host(HostError::new(
+                "this host wired no daemon for this computer, so nothing on it can be dialled",
+            ))
+        };
         if !self.ctx.has_local_daemon_road() {
             return Err(wired());
         }
@@ -405,7 +615,10 @@ impl KindsArea {
         }
     }
     /// kinds.ts:209 (rule 12).
-    pub(crate) fn cloud_deploy(&self, entry: &LiveWorkspace) -> LocalBoxFuture<'static, AreaResult<()>> {
+    pub(crate) fn cloud_deploy(
+        &self,
+        entry: &LiveWorkspace,
+    ) -> LocalBoxFuture<'static, AreaResult<()>> {
         let ctx = Rc::clone(&self.ctx);
         let machine = entry.machine.clone();
         Box::pin(async move {
@@ -425,16 +638,33 @@ impl KindsArea {
         if !self.ctx.has_place_door() {
             return Err(HostError::new(no_kind_line("place")));
         }
-        let at = record.place.as_deref().and_then(|place| self.ctx.door_folder_computer(place));
+        let at = record
+            .place
+            .as_deref()
+            .and_then(|place| self.ctx.door_folder_computer(place));
         match (at, record.place.as_deref()) {
             (Some(at), _) => Ok(at),
-            (None, Some(place)) if self.ctx.door_joined(place) => Err(HostError::new(place_home_refusal(None))),
-            (None, _) => Err(HostError::new(format!("{} stands on {}, which this host no longer holds", record.name, record.place.as_deref().unwrap_or("no computer")))),
+            (None, Some(place)) if self.ctx.door_joined(place) => {
+                Err(HostError::new(place_home_refusal(None)))
+            }
+            (None, _) => Err(HostError::new(format!(
+                "{} stands on {}, which this host no longer holds",
+                record.name,
+                record.place.as_deref().unwrap_or("no computer")
+            ))),
         }
     }
     /// kinds.ts:235 (rule 14).
-    pub fn place_agent_home(&self, place: Option<&str>, home: &str, id: &str) -> Result<String, HostError> {
-        let shared = catalog_agents().into_iter().find(|agent| agent.id == id).and_then(|agent| shared_login_of(&agent.sign_in));
+    pub fn place_agent_home(
+        &self,
+        place: Option<&str>,
+        home: &str,
+        id: &str,
+    ) -> Result<String, HostError> {
+        let shared = catalog_agents()
+            .into_iter()
+            .find(|agent| agent.id == id)
+            .and_then(|agent| shared_login_of(&agent.sign_in));
         let logins = place.and_then(|place| self.ctx.door_logins_of(place));
         match (shared, logins) {
             (Some(shared), Some(logins)) => Ok(login_home_in(&logins, shared)),
@@ -468,28 +698,63 @@ impl KindsArea {
     }
     async fn read_said(&self) -> BrokerSaid {
         let status = self.ctx.broker_status().await.ok();
-        let chatgpt = matches!(status.as_ref().and_then(|s| s.codex.as_ref()), Some(BrokerStatusCodex::Chatgpt | BrokerStatusCodex::AccessToken));
-        let claims = if chatgpt { self.ctx.broker_codex_claims().await.ok().flatten() } else { None };
+        let chatgpt = matches!(
+            status.as_ref().and_then(|s| s.codex.as_ref()),
+            Some(BrokerStatusCodex::Chatgpt | BrokerStatusCodex::AccessToken)
+        );
+        let claims = if chatgpt {
+            self.ctx.broker_codex_claims().await.ok().flatten()
+        } else {
+            None
+        };
         BrokerSaid { status, claims }
     }
     /// kinds.ts:278 (rule 18).
-    pub fn brokered_launch(&self, entry: &LiveWorkspace, harness: &str, token: Option<&str>) -> Result<Option<BrokeredLaunch>, HostError> {
+    pub fn brokered_launch(
+        &self,
+        entry: &LiveWorkspace,
+        harness: &str,
+        token: Option<&str>,
+    ) -> Result<Option<BrokeredLaunch>, HostError> {
         let record = entry.record.borrow().clone();
         if !self.brokered(&record) {
             return Ok(None);
         }
         let said = self.said();
-        let codex = if harness == "codex" { self.ctx.codex_broker_of(&said) } else { None };
-        let Some(token) = token else {
-            return Ok(Some(BrokeredLaunch { env: IndexMap::new(), vault: IndexMap::new(), claude: None, codex }));
+        let codex = if harness == "codex" {
+            self.ctx.codex_broker_of(&said)
+        } else {
+            None
         };
-        let refused = self.ctx.unbrokered_refusal(harness).or_else(|| (harness == "codex" && codex.is_none()).then(|| self.ctx.codex_login_unread_refusal()));
+        let Some(token) = token else {
+            return Ok(Some(BrokeredLaunch {
+                env: IndexMap::new(),
+                vault: IndexMap::new(),
+                claude: None,
+                codex,
+            }));
+        };
+        let refused = self.ctx.unbrokered_refusal(harness).or_else(|| {
+            (harness == "codex" && codex.is_none()).then(|| self.ctx.codex_login_unread_refusal())
+        });
         if let Some(refused) = refused {
             return Err(refused);
         }
-        let Placeholders { claude_token, claude_kind, vault } = self.ctx.placeholders_of(&said, token);
-        let claude = Brokered { token: claude_token, kind: brokered_kind(claude_kind) };
-        Ok(Some(BrokeredLaunch { env: self.ctx.brokered_env(token, &record), vault, claude: Some(claude), codex }))
+        let Placeholders {
+            claude_token,
+            claude_kind,
+            vault,
+        } = self.ctx.placeholders_of(&said, token);
+        let claude = Brokered {
+            token: claude_token,
+            kind: brokered_kind(claude_kind),
+        };
+        Ok(Some(BrokeredLaunch {
+            env: self.ctx.brokered_env(token, &record),
+            vault,
+            claude: Some(claude),
+            codex,
+        }))
     }
     /// kinds.ts:291 (rule 19).
     pub async fn know_broker(&self, entry: &LiveWorkspace, harness: &str) -> Result<(), HostError> {
@@ -508,10 +773,19 @@ impl KindsArea {
     /// kinds.ts:297.
     pub(crate) fn place_login_stands(&self, entry: &LiveWorkspace, id: &str) -> bool {
         let place = entry.record.borrow().place.clone();
-        place.is_some_and(|place| self.ctx.door_sign_ins_at(&place).and_then(|signs| signs.get(id).copied()) == Some(AgentSignInState::SignedIn))
+        place.is_some_and(|place| {
+            self.ctx
+                .door_sign_ins_at(&place)
+                .and_then(|signs| signs.get(id).copied())
+                == Some(AgentSignInState::SignedIn)
+        })
     }
     /// kinds.ts:304 (rule 20).
-    pub fn place_env(&self, entry: &LiveWorkspace, home_of: &dyn Fn(&str) -> String) -> Result<IndexMap<String, String>, HostError> {
+    pub fn place_env(
+        &self,
+        entry: &LiveWorkspace,
+        home_of: &dyn Fn(&str) -> String,
+    ) -> Result<IndexMap<String, String>, HostError> {
         let record = entry.record.borrow().clone();
         let at = self.place_of(&record)?;
         let mut env = place_login_env();
@@ -520,14 +794,25 @@ impl KindsArea {
         env.insert("HOME".to_string(), at.home);
         let vault = self.vault_on(entry);
         for agent in catalog_agents() {
-            let variable = agent.state_home_env.clone().or_else(|| shared_login_of(&agent.sign_in).map(|shared| shared.home_env.clone()));
+            let variable = agent
+                .state_home_env
+                .clone()
+                .or_else(|| shared_login_of(&agent.sign_in).map(|shared| shared.home_env.clone()));
             if let Some(variable) = variable {
                 env.insert(variable, home_of(&agent.id));
             }
-            env.extend(secret_env_of(&vault, &agent.id, self.place_login_stands(entry, &agent.id)));
+            env.extend(secret_env_of(
+                &vault,
+                &agent.id,
+                self.place_login_stands(entry, &agent.id),
+            ));
         }
         if let Some(token) = vault.get(GITHUB_TOKEN_ENV) {
-            if record.place.as_deref().is_some_and(|place| self.ctx.door_github_from_vault(place)) {
+            if record
+                .place
+                .as_deref()
+                .is_some_and(|place| self.ctx.door_github_from_vault(place))
+            {
                 env.insert(GITHUB_TOKEN_ENV.to_string(), token.clone());
             }
         }
@@ -538,15 +823,23 @@ impl KindsArea {
         kind_for_computer(computer, Some(self.ctx.door_joined(computer)))
     }
     /// kinds.ts:514 (rule 22).
-    pub fn backend_for(&self, record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError> {
-        let released = record.phase == WorkspacePhase::Released || record.sub.as_ref().and_then(|sub| sub.cloud_gone) == Some(true);
+    pub fn backend_for(
+        &self,
+        record: &WorkspaceRecord,
+    ) -> Result<Arc<dyn MachineBackend>, HostError> {
+        let released = record.phase == WorkspacePhase::Released
+            || record.sub.as_ref().and_then(|sub| sub.cloud_gone) == Some(true);
         if released {
             return Ok(self.ctx.released_backend());
         }
         self.module_of(record.kind)?.backend(record)
     }
     /// kinds.ts:519 (rule 22).
-    pub fn backend_of_kind(&self, kind: WorkspaceKind, place: Option<&str>) -> Result<Arc<dyn MachineBackend>, HostError> {
+    pub fn backend_of_kind(
+        &self,
+        kind: WorkspaceKind,
+        place: Option<&str>,
+    ) -> Result<Arc<dyn MachineBackend>, HostError> {
         let record: WorkspaceRecord = serde_json::from_value(json!({
             "id": "",
             "name": "",
@@ -578,7 +871,12 @@ impl KindsArea {
     pub fn lifecycle_of(&self, entry: &LiveWorkspace) -> Result<Arc<dyn Lifecycle>, HostError> {
         let record = entry.record.borrow().clone();
         let backend = self.backend_for(&record)?;
-        backend.lifecycle().ok_or_else(|| HostError::new(format!("{} machines declare no lifecycle", kind_word(record.kind))))
+        backend.lifecycle().ok_or_else(|| {
+            HostError::new(format!(
+                "{} machines declare no lifecycle",
+                kind_word(record.kind)
+            ))
+        })
     }
     /// kinds.ts:539 (rule 23): the options the kind's exec stream is made with.
     pub fn exec_options_for(&self, o: Option<MachineExecOptions>) -> Option<MachineExecOptions> {
@@ -589,13 +887,22 @@ impl KindsArea {
         }
     }
     /// kinds.ts:539 (rule 23): the module's exec stream for the entry's kind, with `exec_options_for`'s options.
-    pub fn exec_factory_for(&self, entry: &LiveWorkspace, o: Option<MachineExecOptions>, waiting: Option<TurnWaiting>) -> Result<Arc<dyn ExecStreamFactory>, HostError> {
+    pub fn exec_factory_for(
+        &self,
+        entry: &LiveWorkspace,
+        o: Option<MachineExecOptions>,
+        waiting: Option<TurnWaiting>,
+    ) -> Result<Arc<dyn ExecStreamFactory>, HostError> {
         let kind = entry.record.borrow().kind;
-        Ok(self.module_of(kind)?.exec_stream(entry, self.exec_options_for(o), waiting))
+        Ok(self
+            .module_of(kind)?
+            .exec_stream(entry, self.exec_options_for(o), waiting))
     }
     /// kinds.ts:546 (rule 24).
     pub fn project_memory_key(&self, agent: &str, project: &ProjectView) -> Option<String> {
-        let keyed = catalog_agents().into_iter().any(|row| row.id == agent && row.project_key_env.is_some());
+        let keyed = catalog_agents()
+            .into_iter()
+            .any(|row| row.id == agent && row.project_key_env.is_some());
         if keyed {
             Some(project.memory_key.clone())
         } else {
@@ -603,7 +910,11 @@ impl KindsArea {
         }
     }
     /// kinds.ts:556 (rule 25).
-    pub async fn thread_folder(&self, entry: &LiveWorkspace, cwd: Option<&str>) -> Result<String, HostError> {
+    pub async fn thread_folder(
+        &self,
+        entry: &LiveWorkspace,
+        cwd: Option<&str>,
+    ) -> Result<String, HostError> {
         if let Some(cwd) = cwd {
             return Ok(cwd.to_string());
         }

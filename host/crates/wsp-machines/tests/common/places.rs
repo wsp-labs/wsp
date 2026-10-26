@@ -31,20 +31,21 @@ use wsp_wire::views::place::{PlaceProvisionRow, PlaceSetupStep};
 use wsp_wire::views::place_more::{PlaceHolds, PlaceRemovedTook, PlaceSettings, PlaceView};
 use wsp_wire::views::workspace_more::ThreadScope;
 use wsp_wire::wire::daemon::DaemonLinkStatus;
-use wsp_wire::wire::devices::{DeviceVia, DeviceView};
 use wsp_wire::wire::daemon_events::DaemonEvent;
+use wsp_wire::wire::devices::{DeviceVia, DeviceView};
 use wsp_wire::wire::machine_link::BackendFacts;
 use wsp_wire::wire::place_link::{PlaceAuthRefusal, PlaceProveRequest, PlaceReport};
 use wsp_words::exit::HostError;
 
 use wsp_machines::places::context::{place_door_context, PlaceDoorContext};
-use wsp_machines::places::helpers::{Live, LinkSocket, PendingRecord};
+use wsp_machines::places::helpers::{LinkSocket, Live, PendingRecord};
 use wsp_machines::places::link::{Joining, LinkDoor, LinkRecords, LinkViews};
 use wsp_machines::places::setup::{PlaceSetupArea, RecordMove, SetupRecords};
 use wsp_machines::places::types::{
-    FolderMove, HeldImage, HeldRow, HerePlace, PicksWeight, PlaceChallenge, PlaceDoorOptions, PlaceEvent, PlaceProvisioner, PlaceRecord,
-    PlaceRecording, PlaceResult, PlaceUndo, PlaceWiring, ProjectOn, RecipeResolver, RemovedRow, Resolved, RowId, SetupEvent, SetupOn,
-    SignInEmit, SignInHandle, SpentToday,
+    FolderMove, HeldImage, HeldRow, HerePlace, PicksWeight, PlaceChallenge, PlaceDoorOptions,
+    PlaceEvent, PlaceProvisioner, PlaceRecord, PlaceRecording, PlaceResult, PlaceUndo, PlaceWiring,
+    ProjectOn, RecipeResolver, RemovedRow, Resolved, RowId, SetupEvent, SetupOn, SignInEmit,
+    SignInHandle, SpentToday,
 };
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -52,7 +53,10 @@ use wsp_machines::places::types::{
 
 /// Runs `f` on a current-thread runtime inside a `LocalSet`, as the host does.
 pub fn block<F: Future>(f: F) -> F::Output {
-    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime");
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a runtime");
     let local = tokio::task::LocalSet::new();
     local.block_on(&rt, f)
 }
@@ -95,9 +99,19 @@ fn base64_of_bytes(bytes: &[u8]) -> String {
 /// The text a `putFiles` command writes: the base64 inside its `printf %s '...'` (places-setup.test.ts:1156 `written`).
 pub fn written(cmd: &str) -> String {
     use base64::Engine;
-    let from = cmd.find("printf %s '").map_or(0, |at| at + "printf %s '".len());
-    let b64: String = cmd[from..].chars().take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '=')).collect();
-    String::from_utf8(base64::engine::general_purpose::STANDARD.decode(b64).unwrap_or_default()).unwrap_or_default()
+    let from = cmd
+        .find("printf %s '")
+        .map_or(0, |at| at + "printf %s '".len());
+    let b64: String = cmd[from..]
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '='))
+        .collect();
+    String::from_utf8(
+        base64::engine::general_purpose::STANDARD
+            .decode(b64)
+            .unwrap_or_default(),
+    )
+    .unwrap_or_default()
 }
 
 /// A plain error with that message.
@@ -107,7 +121,12 @@ pub fn err(message: impl Into<String>) -> HostError {
 
 /// What a lost link answers a frame with.
 pub fn reach_err(message: impl Into<String>) -> ReachError {
-    ReachError { message: message.into(), kind: None, status: None, code: None }
+    ReachError {
+        message: message.into(),
+        kind: None,
+        status: None,
+        code: None,
+    }
 }
 
 /// The engine's `PlaceAbsent` as the areas read it once it is a `HostError`: kind `absent`.
@@ -136,12 +155,20 @@ pub const T0: i64 = 1_793_404_800_000;
 
 impl TestClock {
     pub fn new() -> Rc<TestClock> {
-        Rc::new(TestClock { now: Cell::new(T0), timers: Rc::new(RefCell::new(Vec::new())), seq: Cell::new(0) })
+        Rc::new(TestClock {
+            now: Cell::new(T0),
+            timers: Rc::new(RefCell::new(Vec::new())),
+            seq: Cell::new(0),
+        })
     }
 
     /// Timers not yet fired or cancelled.
     pub fn pending(&self) -> usize {
-        self.timers.borrow().iter().filter(|t| t.run.is_some()).count()
+        self.timers
+            .borrow()
+            .iter()
+            .filter(|t| t.run.is_some())
+            .count()
     }
 
     /// Moves the clock `ms` on, firing each timer due on the way at its own time and settling after each.
@@ -150,7 +177,11 @@ impl TestClock {
         loop {
             let next = {
                 let timers = self.timers.borrow();
-                timers.iter().filter(|t| t.run.is_some() && t.at <= end).min_by_key(|t| (t.at, t.id)).map(|t| t.id)
+                timers
+                    .iter()
+                    .filter(|t| t.run.is_some() && t.at <= end)
+                    .min_by_key(|t| (t.at, t.id))
+                    .map(|t| t.id)
             };
             let Some(id) = next else { break };
             let run = {
@@ -177,7 +208,11 @@ impl Clock for TestClock {
     fn schedule(&self, run: ClockTimer, ms: i64) -> Cancel {
         let id = self.seq.get() + 1;
         self.seq.set(id);
-        self.timers.borrow_mut().push(Timer { id, at: self.now.get() + ms, run: Some(run) });
+        self.timers.borrow_mut().push(Timer {
+            id,
+            at: self.now.get() + ms,
+            run: Some(run),
+        });
         let timers = Rc::clone(&self.timers);
         Rc::new(move || {
             if let Some(t) = timers.borrow_mut().iter_mut().find(|t| t.id == id) {
@@ -194,7 +229,12 @@ pub fn iso(ms: i64) -> String {
     let days = secs.div_euclid(86_400);
     let rem = secs.rem_euclid(86_400);
     let (y, m, d) = civil(days);
-    format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}.{milli:03}Z", rem / 3600, rem % 3600 / 60, rem % 60)
+    format!(
+        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}.{milli:03}Z",
+        rem / 3600,
+        rem % 3600 / 60,
+        rem % 60
+    )
 }
 
 fn civil(z: i64) -> (i64, i64, i64) {
@@ -226,7 +266,15 @@ pub type Script = Rc<dyn Fn(&str, &Map<String, Value>) -> Reply>;
 
 /// A script answering every frame `{ ok: true }`, an `exec` with exit 0 and nothing printed.
 pub fn answers_ok() -> Script {
-    Rc::new(|op, _| if op == "exec" { Reply::Ok(obj(json!({ "ok": true, "exitCode": 0, "stdout": "", "stderr": "", "truncated": false }))) } else { Reply::Ok(obj(json!({ "ok": true }))) })
+    Rc::new(|op, _| {
+        if op == "exec" {
+            Reply::Ok(obj(
+                json!({ "ok": true, "exitCode": 0, "stdout": "", "stderr": "", "truncated": false }),
+            ))
+        } else {
+            Reply::Ok(obj(json!({ "ok": true })))
+        }
+    })
 }
 
 pub fn obj(v: Value) -> Map<String, Value> {
@@ -246,7 +294,12 @@ pub struct FakeReach {
 
 impl FakeReach {
     pub fn new(script: Script) -> Rc<FakeReach> {
-        Rc::new(FakeReach { frames: RefCell::new(Vec::new()), script: RefCell::new(script), closed: Cell::new(false), lost: RefCell::new(Vec::new()) })
+        Rc::new(FakeReach {
+            frames: RefCell::new(Vec::new()),
+            script: RefCell::new(script),
+            closed: Cell::new(false),
+            lost: RefCell::new(Vec::new()),
+        })
     }
 
     /// How many frames of this op went up.
@@ -256,7 +309,12 @@ impl FakeReach {
 
     /// Every command an `exec` frame carried, in order.
     pub fn cmds(&self) -> Vec<String> {
-        self.frames.borrow().iter().filter(|(o, _)| o == "exec").filter_map(|(_, p)| p.get("cmd").and_then(Value::as_str).map(str::to_string)).collect()
+        self.frames
+            .borrow()
+            .iter()
+            .filter(|(o, _)| o == "exec")
+            .filter_map(|(_, p)| p.get("cmd").and_then(Value::as_str).map(str::to_string))
+            .collect()
     }
 
     /// Fails every frame still waiting, as a link that went does.
@@ -273,8 +331,14 @@ impl DaemonReach for FakeReach {
         Ok(())
     }
 
-    async fn request(&self, op: &str, params: Map<String, Value>) -> Result<Map<String, Value>, ReachError> {
-        self.frames.borrow_mut().push((op.to_string(), params.clone()));
+    async fn request(
+        &self,
+        op: &str,
+        params: Map<String, Value>,
+    ) -> Result<Map<String, Value>, ReachError> {
+        self.frames
+            .borrow_mut()
+            .push((op.to_string(), params.clone()));
         if self.closed.get() {
             return Err(reach_err("connection lost"));
         }
@@ -323,7 +387,14 @@ pub struct FakeSocket {
 
 impl FakeSocket {
     pub fn new(script: Script) -> Rc<FakeSocket> {
-        Rc::new(FakeSocket { open: Cell::new(true), closed_with: RefCell::new(None), listeners: RefCell::new(IndexMap::new()), seq: Cell::new(0), reach: FakeReach::new(script), on_event: RefCell::new(None) })
+        Rc::new(FakeSocket {
+            open: Cell::new(true),
+            closed_with: RefCell::new(None),
+            listeners: RefCell::new(IndexMap::new()),
+            seq: Cell::new(0),
+            reach: FakeReach::new(script),
+            on_event: RefCell::new(None),
+        })
     }
 
     /// The far side closing the socket: the reach fails what waits, every close listener hears it once.
@@ -333,7 +404,12 @@ impl FakeSocket {
         }
         self.reach.closed.set(true);
         self.reach.lose();
-        let listeners: Vec<_> = self.listeners.borrow_mut().drain(..).map(|(_, f)| f).collect();
+        let listeners: Vec<_> = self
+            .listeners
+            .borrow_mut()
+            .drain(..)
+            .map(|(_, f)| f)
+            .collect();
         for f in listeners {
             f(code, reason.to_string());
         }
@@ -341,7 +417,11 @@ impl FakeSocket {
 
     /// The daemon pushing one event up the link.
     pub fn push(&self, e: &DaemonEvent) {
-        let f = self.on_event.borrow().clone().expect("the link was attached");
+        let f = self
+            .on_event
+            .borrow()
+            .clone()
+            .expect("the link was attached");
         f(e);
     }
 
@@ -371,7 +451,11 @@ impl LinkSocket for FakeSocket {
         self.listeners.borrow_mut().shift_remove(&id);
     }
 
-    fn connect(self: Rc<Self>, _seal: Option<Seal>, on_event: Rc<dyn Fn(&DaemonEvent)>) -> Rc<dyn DaemonReach> {
+    fn connect(
+        self: Rc<Self>,
+        _seal: Option<Seal>,
+        on_event: Rc<dyn Fn(&DaemonEvent)>,
+    ) -> Rc<dyn DaemonReach> {
         *self.on_event.borrow_mut() = Some(on_event);
         Rc::clone(&self.reach) as Rc<dyn DaemonReach>
     }
@@ -433,17 +517,36 @@ pub struct FakeStore {
 #[async_trait(?Send)]
 impl Store for FakeStore {
     async fn get(&self, collection: &str, id: &str) -> Result<Option<Value>, HostError> {
-        Ok(self.docs.borrow().get(collection).and_then(|c| c.get(id)).cloned())
+        Ok(self
+            .docs
+            .borrow()
+            .get(collection)
+            .and_then(|c| c.get(id))
+            .cloned())
     }
     async fn put(&self, collection: &str, id: &str, value: Value) -> Result<(), HostError> {
-        self.docs.borrow_mut().entry(collection.to_string()).or_default().insert(id.to_string(), value);
+        self.docs
+            .borrow_mut()
+            .entry(collection.to_string())
+            .or_default()
+            .insert(id.to_string(), value);
         Ok(())
     }
     async fn list(&self, collection: &str) -> Result<Vec<Value>, HostError> {
-        Ok(self.docs.borrow().get(collection).map(|c| c.values().cloned().collect()).unwrap_or_default())
+        Ok(self
+            .docs
+            .borrow()
+            .get(collection)
+            .map(|c| c.values().cloned().collect())
+            .unwrap_or_default())
     }
     async fn keys(&self, collection: &str) -> Result<Vec<String>, HostError> {
-        Ok(self.docs.borrow().get(collection).map(|c| c.keys().cloned().collect()).unwrap_or_default())
+        Ok(self
+            .docs
+            .borrow()
+            .get(collection)
+            .map(|c| c.keys().cloned().collect())
+            .unwrap_or_default())
     }
     async fn delete(&self, collection: &str, id: &str) -> Result<(), HostError> {
         if let Some(c) = self.docs.borrow_mut().get_mut(collection) {
@@ -454,13 +557,22 @@ impl Store for FakeStore {
     async fn get_blob(&self, _collection: &str, _id: &str) -> Result<Option<Vec<u8>>, HostError> {
         Ok(None)
     }
-    async fn put_blob(&self, _collection: &str, _id: &str, _bytes: Vec<u8>) -> Result<(), HostError> {
+    async fn put_blob(
+        &self,
+        _collection: &str,
+        _id: &str,
+        _bytes: Vec<u8>,
+    ) -> Result<(), HostError> {
         Ok(())
     }
     async fn delete_blob(&self, _collection: &str, _id: &str) -> Result<(), HostError> {
         Ok(())
     }
-    async fn stat_blob(&self, _collection: &str, _id: &str) -> Result<Option<wsp_core::types::pending::BlobMark>, HostError> {
+    async fn stat_blob(
+        &self,
+        _collection: &str,
+        _id: &str,
+    ) -> Result<Option<wsp_core::types::pending::BlobMark>, HostError> {
         Ok(None)
     }
 }
@@ -470,25 +582,50 @@ pub struct FakeDevices;
 
 #[async_trait(?Send)]
 impl DeviceDoor for FakeDevices {
-    async fn issue(&self, _now: i64, _ttl_ms: u64, _here: bool) -> Result<wsp_core::types::pending::IssuedCode, HostError> {
+    async fn issue(
+        &self,
+        _now: i64,
+        _ttl_ms: u64,
+        _here: bool,
+    ) -> Result<wsp_core::types::pending::IssuedCode, HostError> {
         unreachable!("not read by places-a")
     }
-    async fn redeem(&self, _code: &str, _name: &str, _now: i64) -> Result<Option<wsp_core::types::pending::PairedDevice>, HostError> {
+    async fn redeem(
+        &self,
+        _code: &str,
+        _name: &str,
+        _now: i64,
+    ) -> Result<Option<wsp_core::types::pending::PairedDevice>, HostError> {
         unreachable!("not read by places-a")
     }
     async fn spend(&self, _code: &str, _now: i64) -> Result<bool, HostError> {
         unreachable!("not read by places-a")
     }
-    async fn admit(&self, _name: &str, _now: i64) -> Result<wsp_core::types::pending::PairedDevice, HostError> {
+    async fn admit(
+        &self,
+        _name: &str,
+        _now: i64,
+    ) -> Result<wsp_core::types::pending::PairedDevice, HostError> {
         unreachable!("not read by places-a")
     }
-    async fn admit_account(&self, _name: &str, _via: DeviceVia, _now: i64) -> Result<wsp_core::types::pending::PairedDevice, HostError> {
+    async fn admit_account(
+        &self,
+        _name: &str,
+        _via: DeviceVia,
+        _now: i64,
+    ) -> Result<wsp_core::types::pending::PairedDevice, HostError> {
         unreachable!("not read by places-a")
     }
     async fn refuses(&self, _fingerprint: &str) -> Result<bool, HostError> {
         Ok(false)
     }
-    async fn mint(&self, _name: &str, _scope: ThreadScope, _now: i64, _more: MintMore) -> Result<wsp_core::types::pending::PairedDevice, HostError> {
+    async fn mint(
+        &self,
+        _name: &str,
+        _scope: ThreadScope,
+        _now: i64,
+        _more: MintMore,
+    ) -> Result<wsp_core::types::pending::PairedDevice, HostError> {
         unreachable!("not read by places-a")
     }
     async fn revoke_asides(&self) -> Result<(), HostError> {
@@ -561,7 +698,11 @@ impl FakeRecords {
     }
 
     pub fn get(&self, id: &str) -> PlaceRecord {
-        self.map.borrow().get(id).cloned().unwrap_or_else(|| panic!("no record {id}"))
+        self.map
+            .borrow()
+            .get(id)
+            .cloned()
+            .unwrap_or_else(|| panic!("no record {id}"))
     }
 
     pub fn remove(&self, id: &str) {
@@ -586,7 +727,9 @@ impl SetupRecords for FakeRecords {
         }
         let now = self.map.borrow().get(place_id).cloned();
         let Some(now) = now else { return Ok(None) };
-        let Some(next) = mv(&now) else { return Ok(None) };
+        let Some(next) = mv(&now) else {
+            return Ok(None);
+        };
         self.writes.borrow_mut().push(place_id.to_string());
         self.keep(next.clone());
         Ok(Some(next))
@@ -631,13 +774,23 @@ impl LinkRecords for FakeRecords {
         self.provider_backends.borrow().get(place_id).cloned()
     }
     async fn settings_of(&self, place_id: &str) -> PlaceResult<PlaceSettings> {
-        Ok(self.stored_settings.borrow().get(place_id).cloned().unwrap_or_else(|| serde_json::from_value(json!({})).expect("no settings")))
+        Ok(self
+            .stored_settings
+            .borrow()
+            .get(place_id)
+            .cloned()
+            .unwrap_or_else(|| serde_json::from_value(json!({})).expect("no settings")))
     }
     fn settings_held(&self) -> Rc<RefCell<IndexMap<String, PlaceSettings>>> {
         Rc::clone(&self.settings)
     }
     fn awaiting_for(&self, place_id: &str) -> Vec<Rc<dyn Fn(&str)>> {
-        self.awaiting.borrow().iter().filter(|(p, _)| p == place_id).map(|(_, f)| Rc::clone(f)).collect()
+        self.awaiting
+            .borrow()
+            .iter()
+            .filter(|(p, _)| p == place_id)
+            .map(|(_, f)| Rc::clone(f))
+            .collect()
     }
     fn hold_back(&self, record: &PlaceRecord) {
         self.held_back.borrow_mut().push(record.id.clone());
@@ -645,7 +798,10 @@ impl LinkRecords for FakeRecords {
     async fn default_id(&self) -> PlaceResult<Option<String>> {
         Ok(self.mark.borrow().clone())
     }
-    async fn in_turn(&self, write: Box<dyn FnOnce() -> LocalBoxFuture<'static, PlaceResult<()>>>) -> PlaceResult<()> {
+    async fn in_turn(
+        &self,
+        write: Box<dyn FnOnce() -> LocalBoxFuture<'static, PlaceResult<()>>>,
+    ) -> PlaceResult<()> {
         write().await
     }
     async fn mark_default(&self, place_id: &str) -> PlaceResult<()> {
@@ -656,10 +812,20 @@ impl LinkRecords for FakeRecords {
     async fn mark_held(&self) -> PlaceResult<Option<String>> {
         Ok(self.mark.borrow().clone())
     }
-    fn challenge(&self, subject: &str, _their_nonce: &str, _their_ephemeral: Option<&str>) -> Option<PlaceChallenge> {
+    fn challenge(
+        &self,
+        subject: &str,
+        _their_nonce: &str,
+        _their_ephemeral: Option<&str>,
+    ) -> Option<PlaceChallenge> {
         self.challenge.borrow().as_ref().map(|f| f(subject))
     }
-    fn signed_refusal(&self, place_id: &str, place_nonce: &str, sentence: &str) -> PlaceAuthRefusal {
+    fn signed_refusal(
+        &self,
+        place_id: &str,
+        place_nonce: &str,
+        sentence: &str,
+    ) -> PlaceAuthRefusal {
         serde_json::from_value(json!({ "hostPublicKey": "MCowBQYDK2VwAyEAGb9ECWmEzf6FQbrBZ9w7lshQhqowtrbLDFw4rXAxZuE=", "signature": signature_of(&format!("signed:{place_id}:{place_nonce}:{sentence}")) })).expect("a signed refusal")
     }
     async fn write_seen(&self, place_id: &str, at: u64) -> PlaceResult<()> {
@@ -729,22 +895,33 @@ impl LinkViews for FakeViews {
         Rc::clone(&self.flooring)
     }
     async fn floor_once(&self, pending: PendingRecord, place_id: &str) {
-        self.floored.borrow_mut().push((pending.view.id.clone(), place_id.to_string()));
+        self.floored
+            .borrow_mut()
+            .push((pending.view.id.clone(), place_id.to_string()));
     }
     async fn taken_back(&self, pending: PendingRecord) {
         self.taken_back.borrow_mut().push(pending.view.id.clone());
     }
     fn backend_from(&self, place_id: &str, facts: BackendFacts) -> Arc<dyn MachineBackend> {
-        self.built.borrow_mut().push((place_id.to_string(), facts.clone()));
-        let made = (self.backend.borrow().clone().expect("a backend road for the test"))(place_id, &facts);
+        self.built
+            .borrow_mut()
+            .push((place_id.to_string(), facts.clone()));
+        let made = (self
+            .backend
+            .borrow()
+            .clone()
+            .expect("a backend road for the test"))(place_id, &facts);
         if let Some(ctx) = self.ctx.borrow().as_ref() {
-            ctx.backends.borrow_mut().insert(place_id.to_string(), Arc::clone(&made));
+            ctx.backends
+                .borrow_mut()
+                .insert(place_id.to_string(), Arc::clone(&made));
         }
         made
     }
     fn tunnelled(&self, _place_id: &str, e: &DaemonEvent) -> bool {
         let id = match e {
-            DaemonEvent::TunnelData { tunnel_id, .. } | DaemonEvent::TunnelEnd { tunnel_id, .. } => tunnel_id.clone(),
+            DaemonEvent::TunnelData { tunnel_id, .. }
+            | DaemonEvent::TunnelEnd { tunnel_id, .. } => tunnel_id.clone(),
             _ => return false,
         };
         if !self.tunnels.borrow().contains(&id) {
@@ -754,7 +931,9 @@ impl LinkViews for FakeViews {
         true
     }
     fn cut(&self, place_id: &str, reason: &str) {
-        self.cuts.borrow_mut().push((place_id.to_string(), reason.to_string()));
+        self.cuts
+            .borrow_mut()
+            .push((place_id.to_string(), reason.to_string()));
         let ctx = self.ctx.borrow().clone();
         if let Some(ctx) = ctx {
             let held = ctx.live.borrow_mut().shift_remove(place_id);
@@ -768,12 +947,26 @@ impl LinkViews for FakeViews {
     fn joining(&self) -> Rc<RefCell<IndexMap<String, Joining>>> {
         Rc::clone(&self.joining)
     }
-    async fn joined(&self, place_id: &str, _pending: Joining, req: PlaceProveRequest, _expect: &[u8], _from: &str, _at: u64) -> PlaceResult<wsp_machines::places::types::Proved> {
+    async fn joined(
+        &self,
+        place_id: &str,
+        _pending: Joining,
+        req: PlaceProveRequest,
+        _expect: &[u8],
+        _from: &str,
+        _at: u64,
+    ) -> PlaceResult<wsp_machines::places::types::Proved> {
         self.joined_calls.borrow_mut().push(place_id.to_string());
-        Ok(wsp_machines::places::types::Proved::Report { report: req.report, device: None })
+        Ok(wsp_machines::places::types::Proved::Report {
+            report: req.report,
+            device: None,
+        })
     }
     async fn joined_row(&self, record: &PlaceRecord, _marked: &str) -> PlaceResult<PlaceView> {
-        Ok(serde_json::from_value(json!({ "id": record.id, "kind": "computer", "name": record.name, "default": false })).unwrap_or_else(|_| panic!("a row for {}", record.id)))
+        Ok(serde_json::from_value(
+            json!({ "id": record.id, "kind": "computer", "name": record.name, "default": false }),
+        )
+        .unwrap_or_else(|_| panic!("a row for {}", record.id)))
     }
 }
 
@@ -801,13 +994,22 @@ impl SignIns {
 
     /// The person finishing (or failing) the sign-in of `agent`.
     pub fn end(&self, agent: &str, e: AgentsSignInEvent) {
-        let f = self.ends.borrow().get(agent).cloned().unwrap_or_else(|| panic!("no sign-in of {agent} started"));
+        let f = self
+            .ends
+            .borrow()
+            .get(agent)
+            .cloned()
+            .unwrap_or_else(|| panic!("no sign-in of {agent} started"));
         f(e);
     }
 }
 
 pub fn sign_in_event(mut v: Value) -> AgentsSignInEvent {
-    let agent = v.get("agent").and_then(Value::as_str).unwrap_or("").to_string();
+    let agent = v
+        .get("agent")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
     let object = v.as_object_mut().expect("a sign-in event is an object");
     object.entry("type").or_insert(json!("agents.signIn"));
     object.entry("signInId").or_insert(json!(agent));
@@ -822,7 +1024,11 @@ pub struct FakeRecording {
     pub login: RefCell<Option<Option<Vec<u8>>>>,
     pub stores: RefCell<Option<IndexMap<String, String>>>,
     pub projects: RefCell<Vec<ProjectOn>>,
-    pub add_folder: RefCell<Option<Rc<dyn Fn(&str, &RecipeFileFoldersValue, Option<&FolderMove>) -> PlaceResult<HeldRow>>>>,
+    pub add_folder: RefCell<
+        Option<
+            Rc<dyn Fn(&str, &RecipeFileFoldersValue, Option<&FolderMove>) -> PlaceResult<HeldRow>>,
+        >,
+    >,
     pub added: RefCell<Vec<(String, Option<String>)>>,
     pub remotes: RefCell<IndexMap<String, String>>,
     pub removed_folders: RefCell<Vec<String>>,
@@ -872,7 +1078,12 @@ impl PlaceRecording for FakeRecording {
     async fn spent_today(&self, _places: &[PlaceView]) -> Option<PlaceResult<Vec<SpentToday>>> {
         None
     }
-    async fn sign_in(&self, _place_id: &str, agent: &str, emit: SignInEmit) -> Option<PlaceResult<SignInHandle>> {
+    async fn sign_in(
+        &self,
+        _place_id: &str,
+        agent: &str,
+        emit: SignInEmit,
+    ) -> Option<PlaceResult<SignInHandle>> {
         let s = self.sign_ins.borrow().clone()?;
         Some(Ok(start_sign_in(&s, agent, emit)))
     }
@@ -882,7 +1093,12 @@ impl PlaceRecording for FakeRecording {
     }
     async fn sign_in_line(&self, _place_id: &str, agent: &str) -> Option<PlaceResult<SignInLine>> {
         let s = self.sign_ins.borrow().clone()?;
-        let status = if s.status.get() { wsp_catalog::catalog::login_sign_in(agent).and_then(|l| l.status().map(|st| st.command.to_string())) } else { None };
+        let status = if s.status.get() {
+            wsp_catalog::catalog::login_sign_in(agent)
+                .and_then(|l| l.status().map(|st| st.command.to_string()))
+        } else {
+            None
+        };
         let mut line = json!({ "command": format!("{agent} login") });
         if let Some(status) = status {
             line["status"] = json!(status);
@@ -895,20 +1111,43 @@ impl PlaceRecording for FakeRecording {
     async fn login_here(&self, _agent: &str) -> Option<PlaceResult<Option<Vec<u8>>>> {
         self.login.borrow().clone().map(Ok)
     }
-    async fn add_folder(&self, _place_id: &str, key: &str, folder: &RecipeFileFoldersValue, mv: Option<&FolderMove>, _stage: Option<Rc<dyn Fn(&str)>>) -> Option<PlaceResult<HeldRow>> {
+    async fn add_folder(
+        &self,
+        _place_id: &str,
+        key: &str,
+        folder: &RecipeFileFoldersValue,
+        mv: Option<&FolderMove>,
+        _stage: Option<Rc<dyn Fn(&str)>>,
+    ) -> Option<PlaceResult<HeldRow>> {
         let f = self.add_folder.borrow().clone()?;
-        self.added.borrow_mut().push((key.to_string(), mv.map(|m| m.id.clone())));
+        self.added
+            .borrow_mut()
+            .push((key.to_string(), mv.map(|m| m.id.clone())));
         Some(f(key, folder, mv))
     }
-    async fn folder_remote(&self, folder: &RecipeFileFoldersValue) -> Option<PlaceResult<Option<String>>> {
-        let from = serde_json::to_value(folder).ok()?.get("from")?.as_str()?.to_string();
+    async fn folder_remote(
+        &self,
+        folder: &RecipeFileFoldersValue,
+    ) -> Option<PlaceResult<Option<String>>> {
+        let from = serde_json::to_value(folder)
+            .ok()?
+            .get("from")?
+            .as_str()?
+            .to_string();
         Some(Ok(self.remotes.borrow().get(&from).cloned()))
     }
     async fn remove_folder(&self, _place_id: &str, project_id: &str) -> PlaceResult<()> {
-        self.removed_folders.borrow_mut().push(project_id.to_string());
+        self.removed_folders
+            .borrow_mut()
+            .push(project_id.to_string());
         Ok(())
     }
-    async fn folder_look(&self, project_id: &str, _was: &RecipeFileFoldersValue, _now: &RecipeFileFoldersValue) -> PlaceResult<()> {
+    async fn folder_look(
+        &self,
+        project_id: &str,
+        _was: &RecipeFileFoldersValue,
+        _now: &RecipeFileFoldersValue,
+    ) -> PlaceResult<()> {
         self.looks.borrow_mut().push(project_id.to_string());
         Ok(())
     }
@@ -917,11 +1156,23 @@ impl PlaceRecording for FakeRecording {
 fn start_sign_in(s: &Rc<SignIns>, agent: &str, emit: SignInEmit) -> SignInHandle {
     s.started.borrow_mut().push(agent.to_string());
     let n = s.started.borrow().len();
-    s.ends.borrow_mut().insert(agent.to_string(), Rc::clone(&emit));
+    s.ends
+        .borrow_mut()
+        .insert(agent.to_string(), Rc::clone(&emit));
     emit(sign_in_event(json!({ "agent": agent, "state": "running" })));
-    emit(sign_in_event(json!({ "agent": agent, "state": "waiting", "url": format!("https://auth.example/{agent}/{n}"), "code": format!("CODE-{n}") })));
-    let (stopped, left, a1, a2) = (Rc::clone(&s.stopped), Rc::clone(&s.left), agent.to_string(), agent.to_string());
-    SignInHandle { leave: Box::new(move || left.borrow_mut().push(a1.clone())), stop: Some(Box::new(move || stopped.borrow_mut().push(a2.clone()))) }
+    emit(sign_in_event(
+        json!({ "agent": agent, "state": "waiting", "url": format!("https://auth.example/{agent}/{n}"), "code": format!("CODE-{n}") }),
+    ));
+    let (stopped, left, a1, a2) = (
+        Rc::clone(&s.stopped),
+        Rc::clone(&s.left),
+        agent.to_string(),
+        agent.to_string(),
+    );
+    SignInHandle {
+        leave: Box::new(move || left.borrow_mut().push(a1.clone())),
+        stop: Some(Box::new(move || stopped.borrow_mut().push(a2.clone()))),
+    }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -958,23 +1209,49 @@ pub struct FakeProvisioner {
 
 /// The plan the fake planner answers: one agent install, then a CLI (`test/places-setup.test.ts:186`).
 pub fn plan() -> ProvisionPlan {
-    let mut p = ProvisionPlan::default();
-    p.recipe_at = "laptop".into();
-    p.path = "/root/.local/bin:/usr/local/bin:/usr/bin:/bin".into();
-    p.steps = vec![tool("agents/claude", "Claude Code", "script", None), tool("tools/brew/gh", "GitHub CLI", "brew", None)];
-    p.agents = 1;
-    p
+    ProvisionPlan {
+        recipe_at: "laptop".into(),
+        path: "/root/.local/bin:/usr/local/bin:/usr/bin:/bin".into(),
+        steps: vec![
+            tool("agents/claude", "Claude Code", "script", None),
+            tool("tools/brew/gh", "GitHub CLI", "brew", None),
+        ],
+        agents: 1,
+        ..ProvisionPlan::default()
+    }
 }
 
-pub fn tool(id: &str, label: &str, manager: &str, after: Option<&str>) -> wsp_engine::golden_seam::ToolInstall {
-    wsp_engine::golden_seam::ToolInstall { id: id.into(), label: label.into(), manager: manager.into(), cmd: format!("{id}-step"), after: after.map(Into::into), ..Default::default() }
+pub fn tool(
+    id: &str,
+    label: &str,
+    manager: &str,
+    after: Option<&str>,
+) -> wsp_engine::golden_seam::ToolInstall {
+    wsp_engine::golden_seam::ToolInstall {
+        id: id.into(),
+        label: label.into(),
+        manager: manager.into(),
+        cmd: format!("{id}-step"),
+        after: after.map(Into::into),
+        ..Default::default()
+    }
 }
 
 impl FakeProvisioner {
     pub fn new() -> Rc<FakeProvisioner> {
         let mut rows = IndexMap::new();
-        rows.insert(EngineStep::Agents, vec![row(json!({ "id": "agents/claude", "label": "Claude Code", "outcome": "installed" }))]);
-        rows.insert(EngineStep::Clis, vec![row(json!({ "id": "tools/brew/gh", "label": "GitHub CLI", "outcome": "installed" }))]);
+        rows.insert(
+            EngineStep::Agents,
+            vec![row(
+                json!({ "id": "agents/claude", "label": "Claude Code", "outcome": "installed" }),
+            )],
+        );
+        rows.insert(
+            EngineStep::Clis,
+            vec![row(
+                json!({ "id": "tools/brew/gh", "label": "GitHub CLI", "outcome": "installed" }),
+            )],
+        );
         Rc::new(FakeProvisioner {
             plan: RefCell::new(plan()),
             rows: RefCell::new(rows),
@@ -999,7 +1276,13 @@ impl FakeProvisioner {
     /// Holds `step` at its rows until [`FakeProvisioner::let_go`].
     pub fn hold(&self, step: EngineStep) {
         let (tx, rx) = oneshot::channel();
-        self.holds.borrow_mut().insert(step, Rc::new(Hold { tx: RefCell::new(Some(tx)), rx: RefCell::new(Some(rx)) }));
+        self.holds.borrow_mut().insert(
+            step,
+            Rc::new(Hold {
+                tx: RefCell::new(Some(tx)),
+                rx: RefCell::new(Some(rx)),
+            }),
+        );
     }
 
     pub fn let_go(&self, step: EngineStep) {
@@ -1012,7 +1295,12 @@ impl FakeProvisioner {
 
     /// A running step saying a row has landed, as the tools loop does while the rest install.
     pub fn say(&self, step: EngineStep, r: &PlaceProvisionRow) {
-        let stage = self.stages.borrow().get(&step).cloned().expect("the step is running");
+        let stage = self
+            .stages
+            .borrow()
+            .get(&step)
+            .cloned()
+            .expect("the step is running");
         stage(&format!("{}: {:?}", r.label, r.outcome), None, Some(r));
     }
 
@@ -1023,15 +1311,33 @@ impl FakeProvisioner {
 
 #[async_trait(?Send)]
 impl PlaceProvisioner for FakeProvisioner {
-    async fn setup(&self, picks: &RecipeFile, _on: SetupOn, only: Option<&IndexSet<PlaceSetupStep>>) -> PlaceResult<ProvisionPlan> {
+    async fn setup(
+        &self,
+        picks: &RecipeFile,
+        _on: SetupOn,
+        only: Option<&IndexSet<PlaceSetupStep>>,
+    ) -> PlaceResult<ProvisionPlan> {
         self.picked.borrow_mut().push(picks.clone());
         self.planned_only.borrow_mut().push(only.cloned());
         Ok(self.plan.borrow().clone())
     }
-    async fn floor(&self, _machine: Rc<dyn Machine>, _home: &str, _stage: ProvisionStage) -> PlaceResult<Vec<PlaceProvisionRow>> {
+    async fn floor(
+        &self,
+        _machine: Rc<dyn Machine>,
+        _home: &str,
+        _stage: ProvisionStage,
+    ) -> PlaceResult<Vec<PlaceProvisionRow>> {
         Ok(Vec::new())
     }
-    async fn step(&self, _machine: Rc<dyn Machine>, plan: &ProvisionPlan, step: &EngineStep, _run: &SetupRun, stage: ProvisionStage, on: &ProvisionOn) -> PlaceResult<Vec<PlaceProvisionRow>> {
+    async fn step(
+        &self,
+        _machine: Rc<dyn Machine>,
+        plan: &ProvisionPlan,
+        step: &EngineStep,
+        _run: &SetupRun,
+        stage: ProvisionStage,
+        on: &ProvisionOn,
+    ) -> PlaceResult<Vec<PlaceProvisionRow>> {
         let step = *step;
         self.ran.borrow_mut().push(step);
         self.plans.borrow_mut().insert(step, plan.clone());
@@ -1059,25 +1365,59 @@ impl PlaceProvisioner for FakeProvisioner {
     fn has_undo(&self) -> bool {
         true
     }
-    async fn undo(&self, _before: &RecipeFile, removed: &[RemovedRow], _home: &str, _stores: Option<&IndexMap<String, String>>) -> PlaceResult<Vec<PlaceUndo>> {
-        self.undone.borrow_mut().push(removed.iter().map(|r| format!("{}/{}", r.kind, r.name)).collect());
+    async fn undo(
+        &self,
+        _before: &RecipeFile,
+        removed: &[RemovedRow],
+        _home: &str,
+        _stores: Option<&IndexMap<String, String>>,
+    ) -> PlaceResult<Vec<PlaceUndo>> {
+        self.undone.borrow_mut().push(
+            removed
+                .iter()
+                .map(|r| format!("{}/{}", r.kind, r.name))
+                .collect(),
+        );
         if let Some(e) = self.undo_fails.borrow().clone() {
             return Err(e);
         }
-        Ok(self.undo_plan.borrow().clone().map(|f| f(removed)).unwrap_or_default())
+        Ok(self
+            .undo_plan
+            .borrow()
+            .clone()
+            .map(|f| f(removed))
+            .unwrap_or_default())
     }
     fn has_project_servers(&self) -> bool {
         self.project_servers.get()
     }
-    async fn project_servers(&self, _machine: Rc<dyn Machine>, _picks: &RecipeFile, key: &str, path: &str, _stage: ProvisionStage, _on: &ProvisionOn, _recipe: Option<&str>) -> PlaceResult<Vec<PlaceProvisionRow>> {
-        self.carried.borrow_mut().push((key.to_string(), path.to_string(), self.ended.borrow().clone()));
-        Ok(vec![row(json!({ "id": format!("agents/mcp/claude/@{path}/kept"), "label": "Claude Code kept", "outcome": "installed" }))])
+    async fn project_servers(
+        &self,
+        _machine: Rc<dyn Machine>,
+        _picks: &RecipeFile,
+        key: &str,
+        path: &str,
+        _stage: ProvisionStage,
+        _on: &ProvisionOn,
+        _recipe: Option<&str>,
+    ) -> PlaceResult<Vec<PlaceProvisionRow>> {
+        self.carried.borrow_mut().push((
+            key.to_string(),
+            path.to_string(),
+            self.ended.borrow().clone(),
+        ));
+        Ok(vec![row(
+            json!({ "id": format!("agents/mcp/claude/@{path}/kept"), "label": "Claude Code kept", "outcome": "installed" }),
+        )])
     }
     fn has_estimate(&self) -> bool {
         true
     }
     async fn estimate(&self, picks: &RecipeFile) -> PlaceResult<PicksWeight> {
-        Ok(PicksWeight { bytes: picks.agents.len() as u64 * 1024 * 1024 * 1024, unmeasured: picks.plugins.len() as u64 })
+        Ok(PicksWeight {
+            bytes: picks.agents.len() as u64 * 1024 * 1024 * 1024,
+            unmeasured: picks.plugins.len() as u64,
+        })
     }
 }
 
@@ -1094,7 +1434,11 @@ impl RecipeResolver for Shelf {
         Ok(self.now.borrow().clone())
     }
     async fn resolve_file(&self, file: &RecipeFile) -> PlaceResult<Resolved> {
-        Ok(Resolved { file: file.clone(), items: self.now.borrow().items.clone(), hash: "picks".into() })
+        Ok(Resolved {
+            file: file.clone(),
+            items: self.now.borrow().items.clone(),
+            hash: "picks".into(),
+        })
     }
 }
 
@@ -1114,8 +1458,21 @@ pub struct SceneOpts {
 impl Default for SceneOpts {
     fn default() -> Self {
         let mut vault = IndexMap::new();
-        vault.insert("CLAUDE_CODE_OAUTH_TOKEN".to_string(), "sk-ant-oat01-x".to_string());
-        SceneOpts { vault, provision: true, relink_wait_ms: None, frame_wait_ms: None, shelf: None, here: HerePlace { name: "zingzys-mac".into(), ..Default::default() } }
+        vault.insert(
+            "CLAUDE_CODE_OAUTH_TOKEN".to_string(),
+            "sk-ant-oat01-x".to_string(),
+        );
+        SceneOpts {
+            vault,
+            provision: true,
+            relink_wait_ms: None,
+            frame_wait_ms: None,
+            shelf: None,
+            here: HerePlace {
+                name: "zingzys-mac".into(),
+                ..Default::default()
+            },
+        }
     }
 }
 
@@ -1157,7 +1514,11 @@ impl Scene {
             leave: None,
             forget_key: None,
             sudo_over: None,
-            provision: if o.provision { Some(Rc::clone(&provisioner) as Rc<dyn PlaceProvisioner>) } else { None },
+            provision: if o.provision {
+                Some(Rc::clone(&provisioner) as Rc<dyn PlaceProvisioner>)
+            } else {
+                None
+            },
             github_token: None,
             undo: None,
             run_over: None,
@@ -1173,7 +1534,9 @@ impl Scene {
             providers: None,
             on_daemon_event: None,
             on_stage: None,
-            on_setup: Some(Rc::new(move |e: &SetupEvent| f2.borrow_mut().push(e.clone()))),
+            on_setup: Some(Rc::new(move |e: &SetupEvent| {
+                f2.borrow_mut().push(e.clone())
+            })),
             copy_build: None,
             nap_ms: None,
             here_daemon: None,
@@ -1185,7 +1548,9 @@ impl Scene {
             relink_wait_ms: o.relink_wait_ms,
             seen_every_ms: None,
             vault: Some(Rc::new(move || v2.borrow().clone())),
-            recipes: Some(Rc::new(move || shelf.clone().map(|s| s as Rc<dyn RecipeResolver>))),
+            recipes: Some(Rc::new(move || {
+                shelf.clone().map(|s| s as Rc<dyn RecipeResolver>)
+            })),
             owner: None,
             kill_confirm: None,
             clock: Some(Rc::clone(&clock) as Rc<dyn Clock>),
@@ -1195,19 +1560,45 @@ impl Scene {
         *views.ctx.borrow_mut() = Some(Rc::clone(&ctx));
         let events: Rc<RefCell<Vec<PlaceEvent>>> = Rc::new(RefCell::new(Vec::new()));
         let e2 = Rc::clone(&events);
-        let _ = ctx.watch(Rc::new(move |e: &PlaceEvent| e2.borrow_mut().push(e.clone())));
-        let setup = PlaceSetupArea::new(Rc::clone(&ctx), Rc::clone(&records) as Rc<dyn SetupRecords>);
-        Scene { clock, store, ctx, records, views, recording, provisioner, setup, frames, events, vault }
+        let _ = ctx.watch(Rc::new(move |e: &PlaceEvent| {
+            e2.borrow_mut().push(e.clone())
+        }));
+        let setup =
+            PlaceSetupArea::new(Rc::clone(&ctx), Rc::clone(&records) as Rc<dyn SetupRecords>);
+        Scene {
+            clock,
+            store,
+            ctx,
+            records,
+            views,
+            recording,
+            provisioner,
+            setup,
+            frames,
+            events,
+            vault,
+        }
     }
 
     /// The link door over this scene's areas, set on the context as the door (its `forking_backend`, `exec` and
     /// `forward` are what the setup area reads off `ctx.door()`).
     pub fn link(&self) -> Rc<LinkDoor> {
-        LinkDoor::new(Rc::clone(&self.ctx), Rc::clone(&self.records) as Rc<dyn LinkRecords>, Rc::clone(&self.setup), Rc::clone(&self.views) as Rc<dyn LinkViews>)
+        LinkDoor::new(
+            Rc::clone(&self.ctx),
+            Rc::clone(&self.records) as Rc<dyn LinkRecords>,
+            Rc::clone(&self.setup),
+            Rc::clone(&self.views) as Rc<dyn LinkViews>,
+        )
     }
 
     /// A computer joined and linked: its record kept, a live link on a fresh socket answering by `script`.
-    pub fn linked(&self, id: &str, name: &str, report: PlaceReport, script: Script) -> Rc<FakeSocket> {
+    pub fn linked(
+        &self,
+        id: &str,
+        name: &str,
+        report: PlaceReport,
+        script: Script,
+    ) -> Rc<FakeSocket> {
         self.records.keep(record(id, name, report));
         self.live(id, script)
     }
@@ -1216,7 +1607,15 @@ impl Scene {
     pub fn live(&self, id: &str, script: Script) -> Rc<FakeSocket> {
         let socket = FakeSocket::new(script);
         let reach = Rc::clone(&socket.reach) as Rc<dyn DaemonReach>;
-        self.ctx.live.borrow_mut().insert(id.to_string(), Live { socket: Rc::clone(&socket) as Rc<dyn LinkSocket>, reach, seen: Box::new(|| {}), forward: None });
+        self.ctx.live.borrow_mut().insert(
+            id.to_string(),
+            Live {
+                socket: Rc::clone(&socket) as Rc<dyn LinkSocket>,
+                reach,
+                seen: Box::new(|| {}),
+                forward: None,
+            },
+        );
         socket
     }
 
@@ -1224,21 +1623,55 @@ impl Scene {
     pub fn away(&self, id: &str, socket: &FakeSocket) {
         socket.drop_link(1006, "gone");
         self.ctx.live.borrow_mut().shift_remove(id);
-        self.setup.closed_at.borrow_mut().insert(id.to_string(), self.clock.now() as u64);
+        self.setup
+            .closed_at
+            .borrow_mut()
+            .insert(id.to_string(), self.clock.now() as u64);
     }
 
     /// Every `place.setup` frame said so far.
     pub fn setup_frames(&self) -> Vec<wsp_wire::views::place::PlaceSetupEvent> {
-        self.frames.borrow().iter().filter_map(|f| if let SetupEvent::Setup(e) = f { Some(e.clone()) } else { None }).collect()
+        self.frames
+            .borrow()
+            .iter()
+            .filter_map(|f| {
+                if let SetupEvent::Setup(e) = f {
+                    Some(e.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     pub fn sync_frames(&self) -> Vec<wsp_wire::views::place::PlaceSyncEvent> {
-        self.frames.borrow().iter().filter_map(|f| if let SetupEvent::Sync(e) = f { Some(e.clone()) } else { None }).collect()
+        self.frames
+            .borrow()
+            .iter()
+            .filter_map(|f| {
+                if let SetupEvent::Sync(e) = f {
+                    Some(e.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     /// The ends said on the setup stream, in order.
     pub fn ends(&self) -> Vec<String> {
-        self.setup_frames().iter().filter_map(|f| f.end.as_ref().map(|e| serde_json::to_value(e).unwrap().as_str().unwrap().to_string())).collect()
+        self.setup_frames()
+            .iter()
+            .filter_map(|f| {
+                f.end.as_ref().map(|e| {
+                    serde_json::to_value(e)
+                        .unwrap()
+                        .as_str()
+                        .unwrap()
+                        .to_string()
+                })
+            })
+            .collect()
     }
 }
 

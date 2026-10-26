@@ -12,17 +12,20 @@ use futures::FutureExt;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Value};
 
+use crate::places::types::PlaceDoor;
 use wsp_core::types::internal::{BuilderLife, KindModule};
 use wsp_core::types::pending::Clock;
-use crate::places::types::PlaceDoor;
-use wsp_core::types::wiring::{until, CreateWorkspaceOptions, CreatedWorkspace, IdleWindow, RecordSpec, StageReport, StageSaid, WorkspaceRecord};
+use wsp_core::types::wiring::{
+    until, CreateWorkspaceOptions, CreatedWorkspace, IdleWindow, RecordSpec, StageReport,
+    StageSaid, WorkspaceRecord,
+};
 use wsp_engine::machine::{Machine, MachineBackend};
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::views::place::{MachineBind, WorkspaceCopy};
+use wsp_wire::views::workspace::WorkspaceAgentsPatch;
 use wsp_wire::views::workspace::{agents_from, BranchOfRecord, ProjectView};
 use wsp_wire::views::workspace_events::{WorkspaceCreateStage, WorkspaceCreatingEvent};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
-use wsp_wire::views::workspace::WorkspaceAgentsPatch;
 use wsp_wire::views::workspace_more::{ProjectRef, ThreadScope, WorkspaceAgents, WorkspaceView};
 use wsp_wire::wire::capabilities::{names_size, WorkspaceSize};
 use wsp_wire::wire::events_union::EventUnion;
@@ -30,8 +33,13 @@ use wsp_words::exit::{HostError, Kind};
 use wsp_words::js::js_trim;
 use wsp_words::js_date::iso_string;
 use wsp_words::projects::runs_in_folder;
-use wsp_words::words::thread::{copy_first_line, name_deleting_refusal, name_taken_refusal, starting_line, BLANK_NAME_REFUSAL, CREATE_READY};
-use wsp_words::words::units::{machine_cap_refusal, offered_size, size_got_line, size_refusal, size_word, SIZE_PICK_FIX};
+use wsp_words::words::thread::{
+    copy_first_line, name_deleting_refusal, name_taken_refusal, starting_line, BLANK_NAME_REFUSAL,
+    CREATE_READY,
+};
+use wsp_words::words::units::{
+    machine_cap_refusal, offered_size, size_got_line, size_refusal, size_word, SIZE_PICK_FIX,
+};
 
 use super::machines::{Entry, Ids};
 
@@ -45,7 +53,12 @@ pub trait LandingRoad {
     fn kind(&self) -> String;
     fn refusal(&self, project: &ProjectView, deps: &serde_json::Value) -> Option<String>;
     /// `places({project, memoryKey, deps}).memoryDir`.
-    fn memory_dir(&self, project: &ProjectView, memory_key: &str, deps: &serde_json::Value) -> String;
+    fn memory_dir(
+        &self,
+        project: &ProjectView,
+        memory_key: &str,
+        deps: &serde_json::Value,
+    ) -> String;
     fn workspace_binds(&self, project: &ProjectView) -> Vec<MachineBind>;
 }
 
@@ -83,17 +96,28 @@ pub trait CreateRuntime {
     fn place_door(&self) -> Option<Rc<dyn PlaceDoor>>;
     async fn landing_place(&self, computer: &str) -> Result<Option<String>, HostError>;
     async fn place_refuses(&self, place_id: Option<&str>) -> Result<(), HostError>;
-    async fn landing_backend(&self, place_id: Option<&str>) -> Result<Arc<dyn MachineBackend>, HostError>;
+    async fn landing_backend(
+        &self,
+        place_id: Option<&str>,
+    ) -> Result<Arc<dyn MachineBackend>, HostError>;
     fn landing_kind(&self, computer: &str, at: &Arc<dyn MachineBackend>) -> String;
     async fn landing_deps(&self, computer: &str) -> Result<serde_json::Value, HostError>;
     fn project_landing(&self, kind: &str) -> Result<Rc<dyn LandingRoad>, HostError>;
     async fn remember_project(&self, project: ProjectView) -> Result<(), HostError>;
     fn project_held(&self, project_id: &str) -> ProjectView;
     fn keeps_images(&self, at: &Arc<dyn MachineBackend>) -> bool;
-    async fn copy_for_fork(&self, golden: &str, place_id: Option<&str>, building: &dyn Fn(&str, f64)) -> Result<String, HostError>;
+    async fn copy_for_fork(
+        &self,
+        golden: &str,
+        place_id: Option<&str>,
+        building: &dyn Fn(&str, f64),
+    ) -> Result<String, HostError>;
     async fn image_head(&self) -> Result<String, HostError>;
     /// `imageOf(golden).version?.size`.
-    async fn image_size(&self, golden: &str) -> Result<Option<wsp_wire::wire::capabilities::WorkspaceSize>, HostError>;
+    async fn image_size(
+        &self,
+        golden: &str,
+    ) -> Result<Option<wsp_wire::wire::capabilities::WorkspaceSize>, HostError>;
     fn brokered_start(&self, provider: bool) -> bool;
     async fn named_of_record(&self, ask: RecordBranchAsk) -> Result<BranchOfRecord, HostError>;
     fn place_name(&self, place: &str) -> String;
@@ -105,7 +129,12 @@ pub trait CreateRuntime {
     /// The machines area's `attach`.
     fn attach(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry;
     /// The machines area's `fork` with no override and `readsMemory` false; `bind` runs before the claim is let go.
-    async fn fork(&self, record: &Rc<RefCell<WorkspaceRecord>>, bind: &dyn for<'m, 'r> Fn(&'m Arc<dyn Machine>, &'r WorkspaceRecord), report: StageReport) -> Result<Arc<dyn Machine>, HostError>;
+    async fn fork(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        bind: &dyn for<'m, 'r> Fn(&'m Arc<dyn Machine>, &'r WorkspaceRecord),
+        report: StageReport,
+    ) -> Result<Arc<dyn Machine>, HostError>;
     async fn refresh_builders(&self) -> Result<(), HostError>;
     /// The builders in map order, as the cap road reads them.
     fn builders(&self) -> Vec<KeptBuilder>;
@@ -122,7 +151,12 @@ pub trait CreateRuntime {
     async fn daemon_reach(&self, entry: &Entry) -> Result<(), HostError>;
     async fn ping_daemon(&self, entry: &Entry) -> Option<String>;
     fn sync_daemon(&self, entry: &Entry);
-    async fn read_memory(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: &Arc<dyn Machine>, sizes: &[wsp_wire::wire::capabilities::WorkspaceSize]) -> bool;
+    async fn read_memory(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        machine: &Arc<dyn Machine>,
+        sizes: &[wsp_wire::wire::capabilities::WorkspaceSize],
+    ) -> bool;
     fn module_of(&self, kind: &str) -> Rc<dyn KindModule>;
     async fn write_daemon_roots(&self, entry: &Entry) -> Result<(), HostError>;
     async fn persist(&self, record: &WorkspaceRecord) -> Result<(), HostError>;
@@ -151,7 +185,13 @@ pub(crate) type FolderJoin = Shared<LocalBoxFuture<'static, Result<Entry, HostEr
 
 /// `size`'s cpu and memory as the offers name them, for the read of the machine's memory.
 fn sizes_of(offers: &[wsp_wire::wire::capabilities::MachineSizeOffer]) -> Vec<WorkspaceSize> {
-    offers.iter().map(|o| WorkspaceSize { cpu: o.cpu, mem_mb: o.mem_mb }).collect()
+    offers
+        .iter()
+        .map(|o| WorkspaceSize {
+            cpu: o.cpu,
+            mem_mb: o.mem_mb,
+        })
+        .collect()
 }
 
 /// `s.charAt(0).toLowerCase() + s.slice(1, -1)`: the first letter lowered and the last character dropped.
@@ -169,7 +209,9 @@ fn entry_name(entry: &Entry) -> String {
 }
 
 /// The first item of `start`'s run and its join: runs the synchronous part now, then keeps the rest on the local tasks.
-fn start_join<T: Clone + 'static>(join: Shared<LocalBoxFuture<'static, T>>) -> Shared<LocalBoxFuture<'static, T>> {
+fn start_join<T: Clone + 'static>(
+    join: Shared<LocalBoxFuture<'static, T>>,
+) -> Shared<LocalBoxFuture<'static, T>> {
     let mut first = join.clone();
     let _ = (&mut first).now_or_never();
     let keep = join.clone();
@@ -216,22 +258,40 @@ impl CreateArea {
         }
         let memory_dir = road.memory_dir(project, &project.memory_key, &landing_on);
         if memory_dir != project.memory_dir {
-            rt.remember_project(ProjectView { memory_dir, ..project.clone() }).await?;
+            rt.remember_project(ProjectView {
+                memory_dir,
+                ..project.clone()
+            })
+            .await?;
         }
         let binds = road.workspace_binds(&rt.project_held(&project.id));
-        let copy = project.checkout.as_ref().map(|from| WorkspaceCopy { from: from.clone(), at: project.path.clone() });
+        let copy = project.checkout.as_ref().map(|from| WorkspaceCopy {
+            from: from.clone(),
+            at: project.path.clone(),
+        });
         let from_image = rt.keeps_images(&at);
         let golden = if from_image {
             let head = match &o.golden {
                 Some(golden) => golden.clone(),
                 None => rt.image_head().await?,
             };
-            let building = |where_: &str, rate: f64| report(WorkspaceCreateStage::ForkRequested, &copy_first_line(where_, &o.name, rate), None);
-            rt.copy_for_fork(&head, place_id.as_deref(), &building).await?
+            let building = |where_: &str, rate: f64| {
+                report(
+                    WorkspaceCreateStage::ForkRequested,
+                    &copy_first_line(where_, &o.name, rate),
+                    None,
+                )
+            };
+            rt.copy_for_fork(&head, place_id.as_deref(), &building)
+                .await?
         } else {
             String::new()
         };
-        let inherited = if from_image { rt.image_size(&golden).await? } else { None };
+        let inherited = if from_image {
+            rt.image_size(&golden).await?
+        } else {
+            None
+        };
         let brokered = rt.brokered_start(road.kind() == "provider");
         let carried = child_base.is_none() && project.checkout.is_some();
         let on_place = place_id.clone().unwrap_or_else(|| rt.wired());
@@ -244,7 +304,9 @@ impl CreateArea {
                         name: o.name.clone(),
                         project: project.name.clone(),
                         on: rt.place_name(&on_place),
-                        base: child_base.map(str::to_string).or_else(|| project.base.clone()),
+                        base: child_base
+                            .map(str::to_string)
+                            .or_else(|| project.base.clone()),
                         carried,
                     })
                     .await?,
@@ -253,11 +315,25 @@ impl CreateArea {
         } else {
             None
         };
-        let opens_thread = o.opens_thread.clone().or_else(|| if brokered && spawned.is_none() { Some(rt.ids().uuid()) } else { None });
+        let opens_thread = o.opens_thread.clone().or_else(|| {
+            if brokered && spawned.is_none() {
+                Some(rt.ids().uuid())
+            } else {
+                None
+            }
+        });
         let default = at.pricing().default_size();
         let size = WorkspaceSize {
-            cpu: o.spec.cpu.or_else(|| inherited.as_ref().map(|s| s.cpu)).unwrap_or(JsNumber(default.cpu)),
-            mem_mb: o.spec.mem_mb.or_else(|| inherited.as_ref().map(|s| s.mem_mb)).unwrap_or(JsNumber(default.mem_mb)),
+            cpu: o
+                .spec
+                .cpu
+                .or_else(|| inherited.as_ref().map(|s| s.cpu))
+                .unwrap_or(JsNumber(default.cpu)),
+            mem_mb: o
+                .spec
+                .mem_mb
+                .or_else(|| inherited.as_ref().map(|s| s.mem_mb))
+                .unwrap_or(JsNumber(default.mem_mb)),
         };
         let mut record: WorkspaceRecord = serde_json::from_value(json!({
             "id": id,
@@ -293,18 +369,33 @@ impl CreateArea {
             }
         }
         record.parent_workspace_id = o.parent.clone();
-        record.base = child_base.map(str::to_string).or_else(|| project.base.clone());
+        record.base = child_base
+            .map(str::to_string)
+            .or_else(|| project.base.clone());
         record.branch_of_record = branch_of_record;
         if spawned.is_none() {
             if let Some(patch) = &o.agents {
-                let count = |key: &str| patch.get(key).and_then(Value::as_f64).map(|n| JsInt(JsNumber(n)));
-                let patch = WorkspaceAgentsPatch { max_machines: count("maxMachines"), max_depth: count("maxDepth") };
+                let count = |key: &str| {
+                    patch
+                        .get(key)
+                        .and_then(Value::as_f64)
+                        .map(|n| JsInt(JsNumber(n)))
+                };
+                let patch = WorkspaceAgentsPatch {
+                    max_machines: count("maxMachines"),
+                    max_depth: count("maxDepth"),
+                };
                 record.agents = Some(agents_from(Some(&rt.spawn_at(&on_place)), &patch));
             }
         }
         let offers = at.capabilities().sizes;
-        if names_size(o.spec.cpu.map(|c| c.0), o.spec.mem_mb.map(|m| m.0)) && !offered_size(&offers, &record.size) {
-            let line = wsp_words::words::thread::refusal_line(&size_refusal(&size_word(&record.size), &offers), SIZE_PICK_FIX);
+        if names_size(o.spec.cpu.map(|c| c.0), o.spec.mem_mb.map(|m| m.0))
+            && !offered_size(&offers, &record.size)
+        {
+            let line = wsp_words::words::thread::refusal_line(
+                &size_refusal(&size_word(&record.size), &offers),
+                SIZE_PICK_FIX,
+            );
             return Err(HostError::with_kind(line, Kind::Invalid));
         }
         let asked = record.size.clone();
@@ -312,7 +403,11 @@ impl CreateArea {
             None => rt.wired(),
             Some(place) => rt.place_door_name(place),
         };
-        report(WorkspaceCreateStage::ForkRequested, &starting_line(&record.name, &where_), None);
+        report(
+            WorkspaceCreateStage::ForkRequested,
+            &starting_line(&record.name, &where_),
+            None,
+        );
         let cell = Rc::new(RefCell::new(record));
         let opens = opens_thread.clone();
         let of_record = o.branch_of_record.is_some();
@@ -348,7 +443,10 @@ impl CreateArea {
                 let candidates: Vec<KeptBuilder> = rt
                     .builders()
                     .into_iter()
-                    .filter(|x| matches!(x.life, BuilderLife::Own | BuilderLife::Reusable) && x.sealed_version.is_some())
+                    .filter(|x| {
+                        matches!(x.life, BuilderLife::Own | BuilderLife::Reusable)
+                            && x.sealed_version.is_some()
+                    })
                     .collect();
                 for x in candidates {
                     let version = x.sealed_version.unwrap_or_default();
@@ -357,9 +455,20 @@ impl CreateArea {
                     rt.kill_builder(&x.id).await?;
                     rt.forget_builder(&x.id).await?;
                     notices.push(stopped.clone());
-                    rt.warn(&format!("workspace {id}: {} ({})", lowered_without_last(&stopped), x.id));
+                    rt.warn(&format!(
+                        "workspace {id}: {} ({})",
+                        lowered_without_last(&stopped),
+                        x.id
+                    ));
                     let again = format!("{} again", starting_line(&o.name, &where_));
-                    report(WorkspaceCreateStage::ForkRequested, &again, Some(StageSaid { notice: Some(stopped), ..StageSaid::default() }));
+                    report(
+                        WorkspaceCreateStage::ForkRequested,
+                        &again,
+                        Some(StageSaid {
+                            notice: Some(stopped),
+                            ..StageSaid::default()
+                        }),
+                    );
                     match rt.fork(&cell, &bind, report.clone()).await {
                         Ok(machine) => {
                             made = Some(machine);
@@ -376,15 +485,30 @@ impl CreateArea {
                 match made {
                     Some(machine) => machine,
                     None => {
-                        let holding: Vec<String> = rt.live().borrow().values().filter(|w| rt.holds_slot(&w.borrow().record.borrow())).map(entry_name).collect();
-                        let names: Vec<String> = rt.builders().into_iter().map(|x| x.name).collect();
+                        let holding: Vec<String> = rt
+                            .live()
+                            .borrow()
+                            .values()
+                            .filter(|w| rt.holds_slot(&w.borrow().record.borrow()))
+                            .map(entry_name)
+                            .collect();
+                        let names: Vec<String> =
+                            rt.builders().into_iter().map(|x| x.name).collect();
                         let line = machine_cap_refusal(&holding, &names, Some(&refusal.message));
-                        return Err(HostError { status: refusal.status, ..HostError::with_kind(line, Kind::Concurrency) });
+                        return Err(HostError {
+                            status: refusal.status,
+                            ..HostError::with_kind(line, Kind::Concurrency)
+                        });
                     }
                 }
             }
         };
-        let entry = rt.live().borrow().get(id).cloned().ok_or_else(|| HostError::new(format!("{id} is not live")))?;
+        let entry = rt
+            .live()
+            .borrow()
+            .get(id)
+            .cloned()
+            .ok_or_else(|| HostError::new(format!("{id} is not live")))?;
         let record_cell = entry.borrow().record.clone();
         record_cell.borrow_mut().machine_id = machine.id().to_string();
         if let Some(notice) = entry.borrow().machine.notice() {
@@ -393,41 +517,87 @@ impl CreateArea {
         let machine_obj = entry.borrow().machine.clone();
         let mut fault: Option<String> = None;
         let offers_now = machine_obj.offers();
-        if rt.served_by_its_computer(&entry).is_none() && (offers_now.preview_url || offers_now.daemon_answers) {
+        if rt.served_by_its_computer(&entry).is_none()
+            && (offers_now.preview_url || offers_now.daemon_answers)
+        {
             if offers_now.preview_url {
                 let deadline = rt.clock().now() + rt.daemon_answers_ms(&entry) as i64;
-                match until(rt.daemon_reach(&entry), deadline, "preview route", rt.clock()).await {
-                    Ok(()) => report(WorkspaceCreateStage::PreviewRoute, "Preview route to the daemon minted.", None),
+                match until(
+                    rt.daemon_reach(&entry),
+                    deadline,
+                    "preview route",
+                    rt.clock(),
+                )
+                .await
+                {
+                    Ok(()) => report(
+                        WorkspaceCreateStage::PreviewRoute,
+                        "Preview route to the daemon minted.",
+                        None,
+                    ),
                     Err(e) => {
                         let why = match e {
                             wsp_core::types::wiring::UntilError::Deadline(d) => d.0,
                             wsp_core::types::wiring::UntilError::Failed(f) => f.message,
                         };
-                        let notice = format!("preview route for {} not minted ({why})", machine_obj.id());
-                        report(WorkspaceCreateStage::PreviewRoute, "No preview route to the daemon.", Some(StageSaid { notice: Some(notice), ..StageSaid::default() }));
+                        let notice =
+                            format!("preview route for {} not minted ({why})", machine_obj.id());
+                        report(
+                            WorkspaceCreateStage::PreviewRoute,
+                            "No preview route to the daemon.",
+                            Some(StageSaid {
+                                notice: Some(notice),
+                                ..StageSaid::default()
+                            }),
+                        );
                     }
                 }
             }
             fault = rt.ping_daemon(&entry).await;
-            let message = if fault.is_none() { "Daemon answered." } else { "Daemon did not answer." };
-            report(WorkspaceCreateStage::DaemonAnswering, message, Some(StageSaid { notice: fault.clone(), ..StageSaid::default() }));
+            let message = if fault.is_none() {
+                "Daemon answered."
+            } else {
+                "Daemon did not answer."
+            };
+            report(
+                WorkspaceCreateStage::DaemonAnswering,
+                message,
+                Some(StageSaid {
+                    notice: fault.clone(),
+                    ..StageSaid::default()
+                }),
+            );
             rt.sync_daemon(&entry);
         }
         if place_id.is_none() {
             if fault.is_some() {
-                rt.warn(&format!("workspace {id}: memory not read: the daemon did not answer"));
-            } else if rt.read_memory(&record_cell, &machine_obj, &sizes_of(&offers)).await {
+                rt.warn(&format!(
+                    "workspace {id}: memory not read: the daemon did not answer"
+                ));
+            } else if rt
+                .read_memory(&record_cell, &machine_obj, &sizes_of(&offers))
+                .await
+            {
                 let got = record_cell.borrow().size.clone();
                 if got.cpu.0 != asked.cpu.0 || got.mem_mb.0 != asked.mem_mb.0 {
-                    let line = size_got_line(&asked, &got, names_size(o.spec.cpu.map(|c| c.0), o.spec.mem_mb.map(|m| m.0)));
+                    let line = size_got_line(
+                        &asked,
+                        &got,
+                        names_size(o.spec.cpu.map(|c| c.0), o.spec.mem_mb.map(|m| m.0)),
+                    );
                     rt.warn(&format!("workspace {id}: {line}"));
                     notices.push(line);
                 }
             }
         }
         let kind = record_cell.borrow().kind;
-        let kind_name = serde_json::to_value(kind).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
-        let landing = rt.module_of(&kind_name).land_project(&entry.borrow(), project.clone(), report.clone());
+        let kind_name = serde_json::to_value(kind)
+            .ok()
+            .and_then(|v| v.as_str().map(str::to_string))
+            .unwrap_or_default();
+        let landing =
+            rt.module_of(&kind_name)
+                .land_project(&entry.borrow(), project.clone(), report.clone());
         landing.await?;
         rt.write_daemon_roots(&entry).await?;
         let snapshot = record_cell.borrow().clone();
@@ -437,9 +607,19 @@ impl CreateArea {
         report(WorkspaceCreateStage::Ready, CREATE_READY, None);
         let view = rt.view(&snapshot);
         let created = serde_json::to_value(&view).map_err(|e| HostError::new(e.to_string()))?;
-        let event: EventUnion = serde_json::from_value(json!({"type": "workspace.created", "workspace": created})).map_err(|e| HostError::new(e.to_string()))?;
+        let event: EventUnion =
+            serde_json::from_value(json!({"type": "workspace.created", "workspace": created}))
+                .map_err(|e| HostError::new(e.to_string()))?;
         rt.emit(event)?;
-        Ok(CreatedWorkspace { view, notice: if notices.is_empty() { None } else { Some(notices.join(" ")) }, sub: None })
+        Ok(CreatedWorkspace {
+            view,
+            notice: if notices.is_empty() {
+                None
+            } else {
+                Some(notices.join(" "))
+            },
+            sub: None,
+        })
     }
 
     /// `nameGiven` (create.ts:207): JavaScript's `trim()`.
@@ -452,10 +632,20 @@ impl CreateArea {
         if Self::name_given(name).is_empty() {
             return Some(BLANK_NAME_REFUSAL.to_string());
         }
-        let held = self.rt.live().borrow().values().find(|entry| entry_name(entry) == name).cloned();
+        let held = self
+            .rt
+            .live()
+            .borrow()
+            .values()
+            .find(|entry| entry_name(entry) == name)
+            .cloned();
         if let Some(entry) = held {
             let deleting = entry.borrow().deleting.is_some();
-            return Some(if deleting { name_deleting_refusal(name) } else { name_taken_refusal(name) });
+            return Some(if deleting {
+                name_deleting_refusal(name)
+            } else {
+                name_taken_refusal(name)
+            });
         }
         if self.forking.borrow().contains(name) {
             return Some(name_taken_refusal(name));
@@ -465,7 +655,16 @@ impl CreateArea {
 
     /// `failedView` (create.ts:229), spec rule 4. `began` is epoch ms.
     #[allow(clippy::too_many_arguments)]
-    pub fn failed_view(&self, id: &str, name: &str, kind: WorkspaceKind, golden: &str, began: i64, project: &ProjectView, said: &str) -> ShownCreate {
+    pub fn failed_view(
+        &self,
+        id: &str,
+        name: &str,
+        kind: WorkspaceKind,
+        golden: &str,
+        began: i64,
+        project: &ProjectView,
+        said: &str,
+    ) -> ShownCreate {
         let view = json!({
             "id": id,
             "name": name,
@@ -482,60 +681,85 @@ impl CreateArea {
 
     /// `supersedeFailed` (create.ts:241), spec rule 5.
     pub fn supersede_failed(&self, name: &str) {
-        let superseded: Vec<String> = self.failed_creates.borrow().iter().filter(|(_, failed)| failed.name == name).map(|(id, _)| id.clone()).collect();
+        let superseded: Vec<String> = self
+            .failed_creates
+            .borrow()
+            .iter()
+            .filter(|(_, failed)| failed.name == name)
+            .map(|(id, _)| id.clone())
+            .collect();
         for failed_id in superseded {
             self.failed_creates.borrow_mut().shift_remove(&failed_id);
             let _ = self.rt.emit(EventUnion::WorkspaceDeleted(
-                serde_json::from_value(json!({"type": "workspace.deleted", "workspaceId": failed_id})).expect("a deleted event reads"),
+                serde_json::from_value(
+                    json!({"type": "workspace.deleted", "workspaceId": failed_id}),
+                )
+                .expect("a deleted event reads"),
             ));
         }
     }
 
     /// `stageReporter` (create.ts:251), spec rule 6.
-    pub fn stage_reporter(self: &Rc<Self>, id: &str, name: &str, began: i64, spawned: Option<&ThreadScope>) -> StageReport {
-        let asked_by = spawned.map(|scope| json!({"threadId": scope.thread_id, "rootThreadId": scope.root_thread_id}));
+    pub fn stage_reporter(
+        self: &Rc<Self>,
+        id: &str,
+        name: &str,
+        began: i64,
+        spawned: Option<&ThreadScope>,
+    ) -> StageReport {
+        let asked_by = spawned.map(
+            |scope| json!({"threadId": scope.thread_id, "rootThreadId": scope.root_thread_id}),
+        );
         let rt = self.rt.clone();
         let (id, name) = (id.to_string(), name.to_string());
-        Rc::new(move |stage: WorkspaceCreateStage, message: &str, said: Option<StageSaid>| {
-            let mut event = json!({
-                "type": "workspace.creating",
-                "workspaceId": id,
-                "name": name,
-                "stage": stage,
-                "message": message,
-                "elapsedMs": rt.clock().now() - began,
-            });
-            if let Some(said) = said {
-                if let Some(notice) = said.notice {
-                    event["notice"] = json!(notice);
+        Rc::new(
+            move |stage: WorkspaceCreateStage, message: &str, said: Option<StageSaid>| {
+                let mut event = json!({
+                    "type": "workspace.creating",
+                    "workspaceId": id,
+                    "name": name,
+                    "stage": stage,
+                    "message": message,
+                    "elapsedMs": rt.clock().now() - began,
+                });
+                if let Some(said) = said {
+                    if let Some(notice) = said.notice {
+                        event["notice"] = json!(notice);
+                    }
+                    if let Some(detail) = said.detail {
+                        event["detail"] = json!(detail);
+                    }
+                    if said.waiting {
+                        event["waiting"] = json!(true);
+                    }
                 }
-                if let Some(detail) = said.detail {
-                    event["detail"] = json!(detail);
+                if let Some(asked_by) = &asked_by {
+                    event["askedBy"] = asked_by.clone();
                 }
-                if said.waiting {
-                    event["waiting"] = json!(true);
+                if let Ok(event) = serde_json::from_value::<EventUnion>(event) {
+                    let _ = rt.emit(event);
                 }
-            }
-            if let Some(asked_by) = &asked_by {
-                event["askedBy"] = asked_by.clone();
-            }
-            if let Ok(event) = serde_json::from_value::<EventUnion>(event) {
-                let _ = rt.emit(event);
-            }
-        })
+            },
+        )
     }
 
     /// The `*` listener (create.ts:221), spec rule 7: the wiring calls it for every event in emit order.
     pub fn on_event(&self, event: &EventUnion) {
         match event {
             EventUnion::WorkspaceCreating(stage) => {
-                self.create_stages.borrow_mut().insert(stage.event.workspace_id.clone(), stage.event.clone());
+                self.create_stages
+                    .borrow_mut()
+                    .insert(stage.event.workspace_id.clone(), stage.event.clone());
             }
             EventUnion::WorkspaceCreated(created) => {
-                self.create_stages.borrow_mut().shift_remove(&created.event.workspace.id);
+                self.create_stages
+                    .borrow_mut()
+                    .shift_remove(&created.event.workspace.id);
             }
             EventUnion::WorkspaceDeleted(deleted) => {
-                self.create_stages.borrow_mut().shift_remove(&deleted.event.workspace_id);
+                self.create_stages
+                    .borrow_mut()
+                    .shift_remove(&deleted.event.workspace_id);
             }
             _ => {}
         }
@@ -543,9 +767,13 @@ impl CreateArea {
 
     /// `showCreate` (create.ts:216), spec rule 8.
     pub fn show_create(&self, view: ShownCreate) {
-        self.shown_creates.borrow_mut().insert(view.id.clone(), view.clone());
+        self.shown_creates
+            .borrow_mut()
+            .insert(view.id.clone(), view.clone());
         if let Ok(view_json) = serde_json::to_value(&view) {
-            if let Ok(event) = serde_json::from_value::<EventUnion>(json!({"type": "workspace.created", "workspace": view_json})) {
+            if let Ok(event) = serde_json::from_value::<EventUnion>(
+                json!({"type": "workspace.created", "workspace": view_json}),
+            ) {
                 let _ = self.rt.emit(event);
             }
         }
@@ -567,7 +795,13 @@ impl CreateArea {
     }
 
     /// `oneFolder` (create.ts:283), spec rule 10: a join per key.
-    pub fn one_folder(&self, key: &str, make: Box<dyn FnOnce() -> futures::future::LocalBoxFuture<'static, Result<Entry, HostError>>>) -> futures::future::LocalBoxFuture<'static, Result<Entry, HostError>> {
+    pub fn one_folder(
+        &self,
+        key: &str,
+        make: Box<
+            dyn FnOnce() -> futures::future::LocalBoxFuture<'static, Result<Entry, HostError>>,
+        >,
+    ) -> futures::future::LocalBoxFuture<'static, Result<Entry, HostError>> {
         if let Some(held) = self.folder_making.borrow().get(key).cloned() {
             return held.boxed_local();
         }
@@ -582,7 +816,9 @@ impl CreateArea {
         }
         .boxed_local();
         let join = making.shared();
-        self.folder_making.borrow_mut().insert(key.to_string(), join.clone());
+        self.folder_making
+            .borrow_mut()
+            .insert(key.to_string(), join.clone());
         start_join(join).boxed_local()
     }
 }

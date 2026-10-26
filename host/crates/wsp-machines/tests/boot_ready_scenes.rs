@@ -7,48 +7,114 @@ mod support;
 
 use serde_json::{json, Value};
 
-use common::T0;
-use support::{norm, row_json, strip_project, strip_workspace, to_json, Opts, World};
+use support::{norm, row_json, strip_project, strip_workspace, Opts, World};
 
 fn leak(s: &str) -> &'static str {
     Box::leak(s.to_string().into_boxed_str())
 }
 
 fn strings(v: &Value) -> Vec<&'static str> {
-    v.as_array().into_iter().flatten().map(|s| leak(s.as_str().unwrap())).collect()
+    v.as_array()
+        .into_iter()
+        .flatten()
+        .map(|s| leak(s.as_str().unwrap()))
+        .collect()
 }
 
 fn pairs(v: &Value) -> Vec<(&'static str, &'static str)> {
-    v.as_object().into_iter().flatten().map(|(k, x)| (leak(k), leak(x.as_str().unwrap()))).collect()
+    v.as_object()
+        .into_iter()
+        .flatten()
+        .map(|(k, x)| (leak(k), leak(x.as_str().unwrap())))
+        .collect()
 }
 
 /// What the oracle's `after()` read off the world once the scene ended.
 fn assert_after(scene: &Value, w: &World) {
     let after = &scene["after"];
     let name = &scene["name"];
-    assert_eq!(json!(w.rt.owner.borrow().clone()), after["owner"], "scene {name}: the owner");
-    assert_eq!(json!(w.rt.reads_since.get() as i64), after["readsSince"], "scene {name}: the reads stamp");
+    assert_eq!(
+        json!(w.rt.owner.borrow().clone()),
+        after["owner"],
+        "scene {name}: the owner"
+    );
+    assert_eq!(
+        json!(w.rt.reads_since.get() as i64),
+        after["readsSince"],
+        "scene {name}: the reads stamp"
+    );
     let projects: Vec<String> = w.rt.projects_held.borrow().keys().cloned().collect();
-    assert_eq!(json!(projects), after["projects"], "scene {name}: the projects held");
-    assert_eq!(norm(w.rt.thread_records_json()), after["threadRecords"], "scene {name}: the thread records");
-    let marks: Vec<Value> = w.rt.viewed_marks.borrow().iter().map(|(k, v)| json!([k, v])).collect();
-    assert_eq!(json!(marks), after["viewedMarks"], "scene {name}: the viewed marks");
-    let rows: Vec<Value> = w.rt.sessions.borrow().iter().map(|(k, r)| json!([k, row_json(r)])).collect();
-    assert_eq!(rows.len(), after["sessions"].as_array().unwrap().len(), "scene {name}: the rows held");
+    assert_eq!(
+        json!(projects),
+        after["projects"],
+        "scene {name}: the projects held"
+    );
+    assert_eq!(
+        norm(w.rt.thread_records_json()),
+        after["threadRecords"],
+        "scene {name}: the thread records"
+    );
+    let marks: Vec<Value> =
+        w.rt.viewed_marks
+            .borrow()
+            .iter()
+            .map(|(k, v)| json!([k, v]))
+            .collect();
+    assert_eq!(
+        json!(marks),
+        after["viewedMarks"],
+        "scene {name}: the viewed marks"
+    );
+    let rows: Vec<Value> =
+        w.rt.sessions
+            .borrow()
+            .iter()
+            .map(|(k, r)| json!([k, row_json(r)]))
+            .collect();
+    assert_eq!(
+        rows.len(),
+        after["sessions"].as_array().unwrap().len(),
+        "scene {name}: the rows held"
+    );
     for (got, want) in rows.iter().zip(after["sessions"].as_array().unwrap()) {
         assert_eq!(got, want, "scene {name}: row {}", want[0]);
     }
     let live: Vec<String> = w.rt.live.borrow().keys().cloned().collect();
-    assert_eq!(json!(live), after["live"], "scene {name}: the live workspaces");
+    assert_eq!(
+        json!(live),
+        after["live"],
+        "scene {name}: the live workspaces"
+    );
     let work: Vec<String> = w.rt.boot_work.borrow().keys().cloned().collect();
-    assert_eq!(json!(work), after["bootWork"], "scene {name}: the boot work left");
+    assert_eq!(
+        json!(work),
+        after["bootWork"],
+        "scene {name}: the boot work left"
+    );
     let stores = after["stores"].as_object().unwrap();
     for (t, want) in stores {
-        let got: Vec<Value> = w.rt.mem.table(t).as_array().unwrap().iter().map(|p| json!([p[0], store_row(t, p[1].clone())])).collect();
+        let got: Vec<Value> =
+            w.rt.mem
+                .table(t)
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|p| json!([p[0], store_row(t, p[1].clone())]))
+                .collect();
         assert_eq!(json!(got), *want, "scene {name}: the {t} rows");
     }
-    let held: Vec<String> = w.rt.mem.rows.borrow().iter().filter(|(t, rows)| !stores.contains_key(*t) && !rows.is_empty()).map(|(t, _)| t.clone()).collect();
-    assert!(held.is_empty(), "scene {name}: rows the oracle's store never held: {held:?}");
+    let held: Vec<String> =
+        w.rt.mem
+            .rows
+            .borrow()
+            .iter()
+            .filter(|(t, rows)| !stores.contains_key(*t) && !rows.is_empty())
+            .map(|(t, _)| t.clone())
+            .collect();
+    assert!(
+        held.is_empty(),
+        "scene {name}: rows the oracle's store never held: {held:?}"
+    );
 }
 
 fn store_row(table: &str, row: Value) -> Value {

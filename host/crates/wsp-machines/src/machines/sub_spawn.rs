@@ -21,9 +21,9 @@ use wsp_words::exit::HostError;
 
 use crate::machines::area_error::AreaResult;
 use crate::machines::machines::Entry;
+use crate::machines::sub_life::SessionFile;
 use wsp_core::types::wiring::StageReport;
 use wsp_core::types::wiring::WorkspaceRecord;
-use crate::machines::sub_life::SessionFile;
 
 pub mod checks;
 pub mod machine;
@@ -103,7 +103,12 @@ pub trait SubSpawnCtx {
     /// branch-of-record.ts `brokeredStart(ctx, true)`.
     fn brokered_start(&self) -> bool;
     /// branch-of-record.ts `repoOfRecord(ctx, remote, name, on)` as the TS object.
-    async fn repo_of_record(&self, remote: &str, project: &str, on: &str) -> AreaResult<serde_json::Map<String, Value>>;
+    async fn repo_of_record(
+        &self,
+        remote: &str,
+        project: &str,
+        on: &str,
+    ) -> AreaResult<serde_json::Map<String, Value>>;
     /// branch-of-record.ts `freeBranchName(ctx, wanted, heads)`.
     fn free_branch_name(&self, wanted: &str, heads: Option<&str>) -> String;
     async fn copy_of(&self, place: &str, image: &str) -> AreaResult<Option<GoldenManifest>>;
@@ -118,13 +123,28 @@ pub trait SubSpawnCtx {
     fn forking_remove(&self, name: &str);
     fn supersede_failed(&self, name: &str);
     /// The queue's `enqueue` and `queueWait`.
-    async fn enqueue(&self, record: &Rc<RefCell<WorkspaceRecord>>, wait: Option<ThreadCapWait>) -> AreaResult<()>;
+    async fn enqueue(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        wait: Option<ThreadCapWait>,
+    ) -> AreaResult<()>;
     fn queue_wait(&self, place: &str, limits: Option<&BoxLimits>) -> Option<ThreadCapWait>;
     fn view(&self, record: &WorkspaceRecord) -> Value;
     /// `stageReporter(id, name, startedAt, askedBy)`, `askedBy` as the TS object.
-    fn stage_reporter(&self, id: &str, name: &str, started_at: f64, asked_by: Option<Value>) -> StageReport;
+    fn stage_reporter(
+        &self,
+        id: &str,
+        name: &str,
+        started_at: f64,
+        asked_by: Option<Value>,
+    ) -> StageReport;
     /// `ctx.fork(record, onMachine, undefined, report, false)`.
-    async fn fork(&self, record: &Rc<RefCell<WorkspaceRecord>>, on_machine: Box<dyn Fn(Arc<dyn Machine>)>, report: StageReport) -> AreaResult<()>;
+    async fn fork(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        on_machine: Box<dyn Fn(Arc<dyn Machine>)>,
+        report: StageReport,
+    ) -> AreaResult<()>;
     /// `attach(record, machine)`.
     fn attach(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry;
     /// `attach(record, deadMachine(""))`.
@@ -144,7 +164,12 @@ pub trait SubSpawnCtx {
     fn seeds(&self) -> bool;
     async fn homes_here(&self) -> AreaResult<Value>;
     async fn seed_plan(&self, folder: &str, homes: &Value) -> AreaResult<SeedPlan>;
-    async fn seed_pack(&self, plan: &SeedPlan, files: &[String], homes: &Value) -> AreaResult<Packed>;
+    async fn seed_pack(
+        &self,
+        plan: &SeedPlan,
+        files: &[String],
+        homes: &Value,
+    ) -> AreaResult<Packed>;
     /// `folderNamed(path)`.
     fn folder_named(&self, path: &str) -> String;
     fn emit(&self, event: Value);
@@ -165,6 +190,10 @@ pub struct SubSpawnArea {
 
 impl SubSpawnArea {
     pub fn new(ctx: Rc<dyn SubSpawnCtx>) -> Rc<SubSpawnArea> {
-        Rc::new_cyclic(|me| SubSpawnArea { ctx, me: me.clone(), resuming: RefCell::default() })
+        Rc::new_cyclic(|me| SubSpawnArea {
+            ctx,
+            me: me.clone(),
+            resuming: RefCell::default(),
+        })
     }
 }

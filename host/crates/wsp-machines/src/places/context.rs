@@ -17,11 +17,16 @@ use wsp_wire::types::agents_report::AgentSignInState;
 use wsp_wire::views::place::PlaceProvisionRow;
 use wsp_words::exit::HostError;
 
-use super::helpers::{sign_ins_of, Forward, Live, DIAL_MS, LINK_FRAME_MS, RELINK_WAIT_MS, SEEN_EVERY_MS};
-use super::types::{PlaceDoor, PlaceDoorOptions, PlaceEvent, PlaceRecord, PlaceRecording, PlaceWiring};
+use super::helpers::{
+    sign_ins_of, Forward, Live, DIAL_MS, LINK_FRAME_MS, RELINK_WAIT_MS, SEEN_EVERY_MS,
+};
+use super::types::{
+    PlaceDoor, PlaceDoorOptions, PlaceEvent, PlaceRecord, PlaceRecording, PlaceWiring,
+};
 
 /// One read of a place's backend facts in flight, shared by every road asking at once.
-pub type AskingBackend = Shared<LocalBoxFuture<'static, Result<Arc<dyn MachineBackend>, HostError>>>;
+pub type AskingBackend =
+    Shared<LocalBoxFuture<'static, Result<Arc<dyn MachineBackend>, HostError>>>;
 
 /// A watcher of the door's events.
 pub type PlaceWatcher = Rc<dyn Fn(&PlaceEvent)>;
@@ -79,11 +84,30 @@ pub fn place_door_context(opts: PlaceDoorOptions) -> Rc<PlaceDoorContext> {
 impl PlaceDoorContext {
     /// What stands for each agent on that computer as its last report and this host's vault say, read at the call;
     /// `None` for a place not kept (context.ts:57).
-    pub fn sign_ins_here(&self, place_id: &str, agents: Option<&[String]>) -> Option<IndexMap<String, AgentSignInState>> {
+    pub fn sign_ins_here(
+        &self,
+        place_id: &str,
+        agents: Option<&[String]>,
+    ) -> Option<IndexMap<String, AgentSignInState>> {
         let record = self.kept.borrow().get(place_id).cloned()?;
-        let vault = self.opts.vault.as_ref().map(|vault| vault()).unwrap_or_default();
-        let rows: Vec<PlaceProvisionRow> = record.applied.iter().flat_map(|applied| applied.rows.iter().map(|r| r.row.clone())).collect();
-        sign_ins_of(&record.report.agents, record.report.logins.as_deref(), &vault, &rows, agents)
+        let vault = self
+            .opts
+            .vault
+            .as_ref()
+            .map(|vault| vault())
+            .unwrap_or_default();
+        let rows: Vec<PlaceProvisionRow> = record
+            .applied
+            .iter()
+            .flat_map(|applied| applied.rows.iter().map(|r| r.row.clone()))
+            .collect();
+        sign_ins_of(
+            &record.report.agents,
+            record.report.logins.as_deref(),
+            &vault,
+            &rows,
+            agents,
+        )
     }
 
     /// Every watcher, in registration order, iterated live (context.ts:68, spec 03 rule 3.7).
@@ -120,8 +144,12 @@ impl PlaceDoorContext {
     /// The door, once every area is built. Before [`PlaceDoorContext::set_door`] it panics with "the place door is read
     /// before it is built".
     pub fn door(&self) -> Rc<dyn PlaceDoor> {
-        let door = self.door.get().expect("the place door is read before it is built");
-        door.upgrade().expect("the place door is dropped while its areas are still read")
+        let door = self
+            .door
+            .get()
+            .expect("the place door is read before it is built");
+        door.upgrade()
+            .expect("the place door is dropped while its areas are still read")
     }
 
     /// Set once, by the door's assembly; a second call panics.

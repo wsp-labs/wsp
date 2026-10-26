@@ -14,9 +14,6 @@ use wsp_engine::Cancel;
 use machines_b_support::reach_ctx::*;
 use machines_b_support::*;
 use wsp_engine::machine::MachineOffers;
-use wsp_core::types::internal::{KindModule, SessionEntry, SubStartRecord, GONE_REASON, SUB_STARTS};
-use wsp_core::types::wiring::{LiveWorkspace, StageReport, SubRecord, WorkspaceRecord};
-use wsp_machines::machines::area_error::{AreaError, AreaResult};
 use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::reach::daemon::{LOOK_EXITS_EVERY_MS, START_DAEMON_AFTER_MS};
 use wsp_machines::machines::reach::ReachArea;
@@ -41,7 +38,12 @@ fn world_in(phase: &str, offers: MachineOffers) -> W {
     *machine.offers.lock().unwrap() = offers;
     let entry = host.put_live(plain_record(WS, "web", phase, "bx_1"), machine.clone());
     let area = reach(&host);
-    W { host, area, entry, machine }
+    W {
+        host,
+        area,
+        entry,
+        machine,
+    }
 }
 
 /// A napped workspace whose wake is waiting on its machine.
@@ -50,11 +52,21 @@ fn world(offers: MachineOffers) -> W {
 }
 
 fn edge() -> MachineOffers {
-    MachineOffers { preview_url: true, put_bytes: true, read_bytes: true, ..MachineOffers::default() }
+    MachineOffers {
+        preview_url: true,
+        put_bytes: true,
+        read_bytes: true,
+        ..MachineOffers::default()
+    }
 }
 
 fn answers_road() -> MachineOffers {
-    MachineOffers { daemon_answers: true, put_bytes: true, read_bytes: true, ..MachineOffers::default() }
+    MachineOffers {
+        daemon_answers: true,
+        put_bytes: true,
+        read_bytes: true,
+        ..MachineOffers::default()
+    }
 }
 
 fn ping(w: &W) -> tokio::task::JoinHandle<Option<String>> {
@@ -81,7 +93,10 @@ fn closed(i: usize) -> u32 {
 /// No timer of the wait's own (a start, a look) stands before `at`; the wait's cut may.
 fn nothing_due_before(w: &W, at: f64) {
     let due = w.host.clock.due();
-    assert!(due.iter().all(|d| *d >= at), "a timer stands before {at}: {due:?}");
+    assert!(
+        due.iter().all(|d| *d >= at),
+        "a timer stands before {at}: {due:?}"
+    );
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -104,7 +119,10 @@ fn a_daemon_answering_late_within_the_budget_passes() {
         nothing_due_before(&w, t0 + 900_000.0);
         let p = plan();
         assert_eq!(p.dials.borrow().len(), 1);
-        assert_eq!(p.links.borrow()[0].requests.borrow().clone(), vec!["ping".to_string()]);
+        assert_eq!(
+            p.links.borrow()[0].requests.borrow().clone(),
+            vec!["ping".to_string()]
+        );
         assert_eq!(closed(0), 1);
 
         // The machine's own road is asked every half second until the budget is out, and the answer lands.
@@ -138,7 +156,10 @@ fn a_daemon_answering_late_within_the_budget_passes() {
 #[test]
 fn a_daemon_never_started_is_started_a_minute_in() {
     run(async {
-        let w = world(MachineOffers { start_daemon: true, ..edge() });
+        let w = world(MachineOffers {
+            start_daemon: true,
+            ..edge()
+        });
         let t0 = w.host.clock.now();
         let task = ping(&w);
         w.host.clock.advance(START_DAEMON_AFTER_MS - 1.0).await;
@@ -159,18 +180,40 @@ fn a_daemon_never_started_is_started_a_minute_in() {
 #[test]
 fn asks_for_the_start_again_a_minute_after_one_that_throws() {
     run(async {
-        let w = world(MachineOffers { start_daemon: true, ..edge() });
+        let w = world(MachineOffers {
+            start_daemon: true,
+            ..edge()
+        });
         let t0 = w.host.clock.now();
-        w.machine.start_daemon.lock().unwrap().push_back(Reply::Fail("Request timeout after 69998ms".to_string()));
+        w.machine
+            .start_daemon
+            .lock()
+            .unwrap()
+            .push_back(Reply::Fail("Request timeout after 69998ms".to_string()));
         let task = ping(&w);
         w.host.clock.advance(START_DAEMON_AFTER_MS).await;
         assert_eq!(starts(&w), 1);
-        assert_eq!(warns(&w), vec![format!("{}, and the start failed (Request timeout after 69998ms)", late(60))]);
+        assert_eq!(
+            warns(&w),
+            vec![format!(
+                "{}, and the start failed (Request timeout after 69998ms)",
+                late(60)
+            )]
+        );
         w.host.clock.advance(START_DAEMON_AFTER_MS - 1.0).await;
         assert_eq!(starts(&w), 1);
         w.host.clock.advance(1.0).await;
         assert_eq!(starts(&w), 2);
-        assert_eq!(warns(&w), vec![format!("{}, and the start failed (Request timeout after 69998ms)", late(60)), format!("{} (exit 0)", late(120))]);
+        assert_eq!(
+            warns(&w),
+            vec![
+                format!(
+                    "{}, and the start failed (Request timeout after 69998ms)",
+                    late(60)
+                ),
+                format!("{} (exit 0)", late(120))
+            ]
+        );
         // A start that ran is not asked again; only the wait's own cut stands.
         nothing_due_before(&w, t0 + 900_000.0);
         w.host.clock.advance(3.0 * START_DAEMON_AFTER_MS).await;
@@ -184,7 +227,10 @@ fn asks_for_the_start_again_a_minute_after_one_that_throws() {
 #[test]
 fn asks_for_the_start_again_a_minute_after_one_that_runs_out_its_timeout() {
     run(async {
-        let w = world(MachineOffers { start_daemon: true, ..edge() });
+        let w = world(MachineOffers {
+            start_daemon: true,
+            ..edge()
+        });
         // Exit 124 is the exec deadline's own; the second answer is a failure with a long stderr, whose last 200
         // characters after a trim are what the line says.
         let stderr = format!("  {}END  \n", "a".repeat(300));
@@ -200,7 +246,14 @@ fn asks_for_the_start_again_a_minute_after_one_that_runs_out_its_timeout() {
         w.host.clock.advance(START_DAEMON_AFTER_MS).await;
         w.host.clock.advance(START_DAEMON_AFTER_MS).await;
         assert_eq!(starts(&w), 3);
-        assert_eq!(warns(&w), vec![format!("{} (exit 124)", late(60)), format!("{} (exit 1: {tail})", late(120)), format!("{} (exit 0)", late(180))]);
+        assert_eq!(
+            warns(&w),
+            vec![
+                format!("{} (exit 124)", late(60)),
+                format!("{} (exit 1: {tail})", late(120)),
+                format!("{} (exit 0)", late(180))
+            ]
+        );
         w.host.clock.advance(2.0 * START_DAEMON_AFTER_MS).await;
         assert_eq!(starts(&w), 3);
         plan().set_up();
@@ -212,7 +265,10 @@ fn asks_for_the_start_again_a_minute_after_one_that_runs_out_its_timeout() {
 #[test]
 fn starts_nothing_on_a_machine_whose_daemon_answered() {
     run(async {
-        let w = world(MachineOffers { start_daemon: true, ..edge() });
+        let w = world(MachineOffers {
+            start_daemon: true,
+            ..edge()
+        });
         let t0 = w.host.clock.now();
         plan().set_up();
         assert_eq!(ping(&w).await.unwrap(), None);
@@ -235,7 +291,12 @@ fn a_daemon_that_never_answers_fails_when_the_budget_is_out() {
         assert!(!task.is_finished());
         w.host.clock.advance(1.0).await;
         let fault = task.await.unwrap().expect("the wait failed");
-        assert!(fault.starts_with("daemon on bx_1 did not answer within 900000 ms (daemon link timed out after "), "{fault}");
+        assert!(
+            fault.starts_with(
+                "daemon on bx_1 did not answer within 900000 ms (daemon link timed out after "
+            ),
+            "{fault}"
+        );
         assert!(fault.ends_with(" ms)"), "{fault}");
         assert_eq!(w.host.clock.now() - t0, 900_000.0);
         assert_eq!(closed(0), 1);
@@ -248,12 +309,22 @@ fn a_daemon_that_never_answers_fails_when_the_budget_is_out() {
         w.host.clock.advance(1_499.0).await;
         assert!(!task.is_finished());
         w.host.clock.advance(1.0).await;
-        assert_eq!(task.await.unwrap(), Some("nothing listens on the daemon's port inside bx_1".to_string()));
+        assert_eq!(
+            task.await.unwrap(),
+            Some("nothing listens on the daemon's port inside bx_1".to_string())
+        );
 
         // An error from the road itself is what the row says.
         let w = world(answers_road());
-        w.machine.daemon_answers.lock().unwrap().push_back(Err("boom".to_string()));
-        assert_eq!(ping(&w).await.unwrap(), Some("the daemon on bx_1 could not be asked (boom)".to_string()));
+        w.machine
+            .daemon_answers
+            .lock()
+            .unwrap()
+            .push_back(Err("boom".to_string()));
+        assert_eq!(
+            ping(&w).await.unwrap(),
+            Some("the daemon on bx_1 could not be asked (boom)".to_string())
+        );
 
         // A machine with neither road has nothing to ask.
         let w = world(MachineOffers::default());
@@ -267,7 +338,10 @@ fn a_daemon_that_never_answers_fails_when_the_budget_is_out() {
 fn a_daemon_that_exits_as_it_starts_fails_with_its_own_words() {
     run(async {
         // A box whose binary predates --doors, under today's unit, which Restart=always starts again every second.
-        let w = world(MachineOffers { daemon_exits: true, ..edge() });
+        let w = world(MachineOffers {
+            daemon_exits: true,
+            ..edge()
+        });
         let words = "error: unexpected argument '--doors' found; Usage: wsp-daemon [OPTIONS]";
         {
             let mut q = w.machine.daemon_exits.lock().unwrap();
@@ -281,7 +355,10 @@ fn a_daemon_that_exits_as_it_starts_fails_with_its_own_words() {
         w.host.clock.advance(3.0 * LOOK_EXITS_EVERY_MS - 1.0).await;
         assert!(!task.is_finished());
         w.host.clock.advance(1.0).await;
-        assert_eq!(task.await.unwrap(), Some(format!("the daemon on bx_1 exits as it starts ({words})")));
+        assert_eq!(
+            task.await.unwrap(),
+            Some(format!("the daemon on bx_1 exits as it starts ({words})"))
+        );
         assert_eq!(w.host.clock.now() - t0, 3.0 * LOOK_EXITS_EVERY_MS);
         assert_eq!(w.machine.daemon_exits.lock().unwrap().len(), 0);
         assert_eq!(closed(0), 1);
@@ -306,7 +383,12 @@ fn a_stop_pulled_during_the_wait_lets_go_at_once() {
         stop.cancel(None);
         settle().await;
         assert!(task.is_finished());
-        assert_eq!(task.await.unwrap(), Some(format!("daemon on bx_1 did not answer within 900000 ms ({WAKE_STOPPED})")));
+        assert_eq!(
+            task.await.unwrap(),
+            Some(format!(
+                "daemon on bx_1 did not answer within 900000 ms ({WAKE_STOPPED})"
+            ))
+        );
         assert_eq!(w.host.clock.now() - t0, 10_000.0);
         assert_eq!(closed(0), 1);
         nothing_due_before(&w, t0 + 900_000.0);
@@ -317,7 +399,12 @@ fn a_stop_pulled_during_the_wait_lets_go_at_once() {
         let stop = Cancel::new();
         stop.cancel(None);
         w.entry.borrow_mut().wake_stop = Some(stop.clone());
-        assert_eq!(ping(&w).await.unwrap(), Some(format!("the daemon on bx_1 could not be asked ({WAKE_STOPPED})")));
+        assert_eq!(
+            ping(&w).await.unwrap(),
+            Some(format!(
+                "the daemon on bx_1 could not be asked ({WAKE_STOPPED})"
+            ))
+        );
         assert_eq!(w.machine.daemon_answers.lock().unwrap().len(), 1);
     });
 }
@@ -331,17 +418,33 @@ fn the_edge_road_pings_through_the_link_and_closes_it() {
         plan().set_up();
         assert_eq!(ping(&w).await.unwrap(), None);
         let p = plan();
-        assert_eq!(p.dials.borrow().clone(), vec![Dial { preview_url: "http://127.0.0.1:1/".to_string(), token: "tok-1".to_string(), heartbeat_ms: Some(300.0) }]);
-        assert_eq!(p.links.borrow()[0].requests.borrow().clone(), vec!["ping".to_string()]);
+        assert_eq!(
+            p.dials.borrow().clone(),
+            vec![Dial {
+                preview_url: "http://127.0.0.1:1/".to_string(),
+                token: "tok-1".to_string(),
+                heartbeat_ms: Some(300.0)
+            }]
+        );
+        assert_eq!(
+            p.links.borrow()[0].requests.borrow().clone(),
+            vec!["ping".to_string()]
+        );
         assert_eq!(closed(0), 1);
-        assert_eq!(w.host.calls_of("daemon_token_of"), vec![vec!["bx_1".to_string()]]);
+        assert_eq!(
+            w.host.calls_of("daemon_token_of"),
+            vec![vec!["bx_1".to_string()]]
+        );
 
         // A ping the daemon refuses is the fault, and the link is still let go.
         let w = world(edge());
         knobs().daemon_answers_ms.set(Some(300.0));
         plan().set_up();
         *plan().ping_error.borrow_mut() = Some("edge 502".to_string());
-        assert_eq!(ping(&w).await.unwrap(), Some("daemon on bx_1 did not answer within 300 ms (edge 502)".to_string()));
+        assert_eq!(
+            ping(&w).await.unwrap(),
+            Some("daemon on bx_1 did not answer within 300 ms (edge 502)".to_string())
+        );
         assert_eq!(closed(0), 1);
 
         // A guest with no daemon token is asked a command instead: an exec that returns is its own answer.
@@ -355,8 +458,12 @@ fn the_edge_road_pings_through_the_link_and_closes_it() {
         let w = world(edge());
         *knobs().token.borrow_mut() = None;
         knobs().daemon_answers_ms.set(Some(300.0));
-        w.machine.answer("true", Reply::Fail("guest down".to_string()));
-        assert_eq!(ping(&w).await.unwrap(), Some("daemon on bx_1 did not answer within 300 ms (guest down)".to_string()));
+        w.machine
+            .answer("true", Reply::Fail("guest down".to_string()));
+        assert_eq!(
+            ping(&w).await.unwrap(),
+            Some("daemon on bx_1 did not answer within 300 ms (guest down)".to_string())
+        );
     });
 }
 
@@ -372,7 +479,14 @@ fn hello_version_reads_the_hello_and_closes_the_link() {
         plan().hellos.borrow_mut().extend([7.0, 9.0]);
         assert_eq!(w.area.hello_version(&w.entry).await, Some(7.0));
         let p = plan();
-        assert_eq!(p.dials.borrow().clone(), vec![Dial { preview_url: "http://127.0.0.1:1/".to_string(), token: "tok-1".to_string(), heartbeat_ms: None }]);
+        assert_eq!(
+            p.dials.borrow().clone(),
+            vec![Dial {
+                preview_url: "http://127.0.0.1:1/".to_string(),
+                token: "tok-1".to_string(),
+                heartbeat_ms: None
+            }]
+        );
         assert_eq!(closed(0), 1);
         nothing_due_before(&w, t0 + 2_000.0);
     });
@@ -393,7 +507,10 @@ fn hello_version_is_none_without_a_route_or_a_token() {
         *knobs().token.borrow_mut() = None;
         plan().hellos.borrow_mut().push(7.0);
         assert_eq!(w.area.hello_version(&w.entry).await, None);
-        assert_eq!(w.host.calls_of("daemon_token_of"), vec![vec!["bx_1".to_string()]]);
+        assert_eq!(
+            w.host.calls_of("daemon_token_of"),
+            vec![vec!["bx_1".to_string()]]
+        );
         assert!(plan().dials.borrow().is_empty());
 
         // A daemon that says nothing inside the bound has none either, and its link is let go.
@@ -437,27 +554,50 @@ fn read_checkout_answers_the_held_fact_within_the_ttl_and_reads_when_forced() {
         let t0 = w.host.clock.now();
 
         // The first read: the daemon's reply as the fact, ignored files not counted, the frame as the TS sends it.
-        let got = w.area.read_checkout(&w.entry, false).await.expect("a fact was read");
-        let want = json!({ "branch": "fix/cart", "ahead": 1, "behind": 0, "changed": 2, "readAt": t0 });
-        assert_eq!(js_text(&serde_json::to_value(&got).unwrap()), js_text(&want));
+        let got = w
+            .area
+            .read_checkout(&w.entry, false)
+            .await
+            .expect("a fact was read");
+        let want =
+            json!({ "branch": "fix/cart", "ahead": 1, "behind": 0, "changed": 2, "readAt": t0 });
+        assert_eq!(
+            js_text(&serde_json::to_value(&got).unwrap()),
+            js_text(&want)
+        );
         assert_eq!(js_text(&fact(&w.entry)), js_text(&want));
-        assert_eq!(w.host.calls_of("with_daemon"), vec![vec![WS.to_string(), js_text(&json!({ "op": "git.status", "cwd": CWD }))]]);
+        assert_eq!(
+            w.host.calls_of("with_daemon"),
+            vec![vec![
+                WS.to_string(),
+                js_text(&json!({ "op": "git.status", "cwd": CWD }))
+            ]]
+        );
         // It rode the workspace's status, and was written on the record.
         let seen = w.host.events_of("workspace.status");
         assert_eq!(seen.len(), 1);
         assert_eq!(seen[0]["status"]["checkout"]["branch"], json!("fix/cart"));
         assert_eq!(seen[0]["status"]["reach"]["state"], json!("reachable"));
-        assert_eq!(js_text(&w.host.stored(WS).unwrap()["checkout"]), js_text(&want));
+        assert_eq!(
+            js_text(&w.host.stored(WS).unwrap()["checkout"]),
+            js_text(&want)
+        );
 
         // Younger than the window: the fact held answers. At exactly the window it is read again.
         w.host.clock.advance(CHECKOUT_TTL_MS - 1.0).await;
         let held = w.area.read_checkout(&w.entry, false).await.unwrap();
-        assert_eq!(canon(&serde_json::to_value(&held).unwrap()["readAt"]), canon(&json!(t0)));
+        assert_eq!(
+            canon(&serde_json::to_value(&held).unwrap()["readAt"]),
+            canon(&json!(t0))
+        );
         assert_eq!(asked(&w), 1);
         w.host.clock.advance(1.0).await;
         w.area.read_checkout(&w.entry, false).await.unwrap();
         assert_eq!(asked(&w), 2);
-        assert_eq!(canon(&fact(&w.entry)["readAt"]), canon(&json!(t0 + CHECKOUT_TTL_MS)));
+        assert_eq!(
+            canon(&fact(&w.entry)["readAt"]),
+            canon(&json!(t0 + CHECKOUT_TTL_MS))
+        );
         // Forced: read again inside the window.
         w.area.read_checkout(&w.entry, true).await.unwrap();
         assert_eq!(asked(&w), 3);
@@ -466,22 +606,38 @@ fn read_checkout_answers_the_held_fact_within_the_ttl_and_reads_when_forced() {
         set_phase(&w.entry, "napping");
         w.host.clock.advance(2.0 * CHECKOUT_TTL_MS).await;
         let kept = fact(&w.entry);
-        assert_eq!(js_text(&serde_json::to_value(w.area.read_checkout(&w.entry, false).await).unwrap()), js_text(&kept));
-        assert_eq!(js_text(&serde_json::to_value(w.area.read_checkout(&w.entry, true).await).unwrap()), js_text(&kept));
+        assert_eq!(
+            js_text(&serde_json::to_value(w.area.read_checkout(&w.entry, false).await).unwrap()),
+            js_text(&kept)
+        );
+        assert_eq!(
+            js_text(&serde_json::to_value(w.area.read_checkout(&w.entry, true).await).unwrap()),
+            js_text(&kept)
+        );
         assert_eq!(asked(&w), 3);
         knobs().served.set(true);
         w.area.read_checkout(&w.entry, false).await.unwrap();
         assert_eq!(asked(&w), 4);
         // Its status goes out with the reach the phase implies.
-        assert_eq!(w.host.events_of("workspace.status").last().unwrap()["status"]["reach"]["state"], json!("napping"));
+        assert_eq!(
+            w.host.events_of("workspace.status").last().unwrap()["status"]["reach"]["state"],
+            json!("napping")
+        );
 
         // A copy git could not read keeps the last fact, the time on it saying how old it is.
         let events = w.host.events_of("workspace.status").len();
         let kept = fact(&w.entry);
         fail_status(WS, "git gone");
         w.host.clock.advance(2.0 * CHECKOUT_TTL_MS).await;
-        let after = w.area.read_checkout(&w.entry, false).await.expect("the last fact stands");
-        assert_eq!(js_text(&serde_json::to_value(&after).unwrap()), js_text(&kept));
+        let after = w
+            .area
+            .read_checkout(&w.entry, false)
+            .await
+            .expect("the last fact stands");
+        assert_eq!(
+            js_text(&serde_json::to_value(&after).unwrap()),
+            js_text(&kept)
+        );
         assert_eq!(js_text(&fact(&w.entry)), js_text(&kept));
         assert_eq!(asked(&w), 5);
         assert_eq!(w.host.events_of("workspace.status").len(), events);
@@ -497,18 +653,32 @@ fn read_checkout_answers_the_held_fact_within_the_ttl_and_reads_when_forced() {
         let t1 = w.host.clock.now();
         let got = w.area.read_checkout(&w.entry, true).await.unwrap();
         let want = json!({ "branch": "main", "ahead": 1, "behind": 0, "changed": 2, "editsUnread": true, "countsUnknown": true, "stashes": 2, "head": oid, "readAt": t1 });
-        assert_eq!(js_text(&serde_json::to_value(&got).unwrap()), js_text(&want));
+        assert_eq!(
+            js_text(&serde_json::to_value(&got).unwrap()),
+            js_text(&want)
+        );
         // Only a lower case hash of 7 to 40 characters is a head: git has no commit yet, or the shape is another's.
         let forty = "a".repeat(40);
         let long = "a".repeat(41);
-        for (oid, has_head) in [("abcdef1", true), (forty.as_str(), true), ("abcdef", false), (long.as_str(), false), ("ABCDEF1", false), ("(initial)", false)] {
+        for (oid, has_head) in [
+            ("abcdef1", true),
+            (forty.as_str(), true),
+            ("abcdef", false),
+            (long.as_str(), false),
+            ("ABCDEF1", false),
+            ("(initial)", false),
+        ] {
             answer_status(WS, status_reply("main", oid, &[]));
             w.area.read_checkout(&w.entry, true).await.unwrap();
             assert_eq!(fact(&w.entry).get("head").is_some(), has_head, "oid {oid}");
             if has_head {
                 assert_eq!(fact(&w.entry)["head"], json!(oid));
             }
-            assert!(fact(&w.entry).get("stashes").is_none() && fact(&w.entry).get("editsUnread").is_none(), "oid {oid}");
+            assert!(
+                fact(&w.entry).get("stashes").is_none()
+                    && fact(&w.entry).get("editsUnread").is_none(),
+                "oid {oid}"
+            );
         }
     });
 }
@@ -519,30 +689,52 @@ fn read_checkout_writes_the_record_only_when_the_fact_moved() {
         let w = running(MachineOffers::default());
         answer_status(WS, status_reply("fix/cart", "abc", &[".M"]));
         let t0 = w.host.clock.now();
-        let record_fact = |w: &W| serde_json::to_value(w.entry.borrow().record.borrow().checkout.clone()).unwrap();
+        let record_fact = |w: &W| {
+            serde_json::to_value(w.entry.borrow().record.borrow().checkout.clone()).unwrap()
+        };
 
         // The first fact differs from the record's none: written and persisted.
         w.area.read_checkout(&w.entry, true).await.unwrap();
         assert_eq!(w.host.calls_of("persist"), vec![vec![WS.to_string()]]);
-        assert_eq!(js_text(&record_fact(&w)), js_text(&json!({ "branch": "fix/cart", "ahead": 1, "behind": 0, "changed": 1, "readAt": t0 })));
-        assert_eq!(js_text(&w.host.stored(WS).unwrap()["checkout"]), js_text(&record_fact(&w)));
+        assert_eq!(
+            js_text(&record_fact(&w)),
+            js_text(
+                &json!({ "branch": "fix/cart", "ahead": 1, "behind": 0, "changed": 1, "readAt": t0 })
+            )
+        );
+        assert_eq!(
+            js_text(&w.host.stored(WS).unwrap()["checkout"]),
+            js_text(&record_fact(&w))
+        );
 
         // The same facts a half minute later: the entry's fact is newer, the record is not written again, the status still goes.
         w.host.clock.advance(30_000.0).await;
         w.area.read_checkout(&w.entry, false).await.unwrap();
-        assert_eq!(canon(&fact(&w.entry)["readAt"]), canon(&json!(t0 + 30_000.0)));
+        assert_eq!(
+            canon(&fact(&w.entry)["readAt"]),
+            canon(&json!(t0 + 30_000.0))
+        );
         assert_eq!(canon(&record_fact(&w)["readAt"]), canon(&json!(t0)));
         assert_eq!(w.host.calls_of("persist").len(), 1);
         assert_eq!(w.host.events_of("workspace.status").len(), 2);
-        assert_eq!(canon(&w.host.events_of("workspace.status")[1]["status"]["checkout"]["readAt"]), canon(&json!(t0 + 30_000.0)));
+        assert_eq!(
+            canon(&w.host.events_of("workspace.status")[1]["status"]["checkout"]["readAt"]),
+            canon(&json!(t0 + 30_000.0))
+        );
 
         // One more changed file: the record takes the fact, time and all, and is persisted.
         answer_status(WS, status_reply("fix/cart", "abc", &[".M", ".M"]));
         w.area.read_checkout(&w.entry, true).await.unwrap();
         assert_eq!(w.host.calls_of("persist").len(), 2);
         assert_eq!(canon(&record_fact(&w)["changed"]), canon(&json!(2)));
-        assert_eq!(canon(&record_fact(&w)["readAt"]), canon(&json!(t0 + 30_000.0)));
-        assert_eq!(canon(&w.host.stored(WS).unwrap()["checkout"]["changed"]), canon(&json!(2)));
+        assert_eq!(
+            canon(&record_fact(&w)["readAt"]),
+            canon(&json!(t0 + 30_000.0))
+        );
+        assert_eq!(
+            canon(&w.host.stored(WS).unwrap()["checkout"]["changed"]),
+            canon(&json!(2))
+        );
         assert_eq!(w.host.events_of("workspace.status").len(), 3);
     });
 }
@@ -568,9 +760,18 @@ fn read_checkout_joins_a_read_in_flight() {
 
         open(&held);
         settle().await;
-        let (one, two) = (first.await.unwrap().expect("a fact"), second.await.unwrap().expect("a fact"));
-        assert_eq!(js_text(&serde_json::to_value(&one).unwrap()), js_text(&serde_json::to_value(&two).unwrap()));
-        assert_eq!(js_text(&serde_json::to_value(&one).unwrap()), js_text(&fact(&w.entry)));
+        let (one, two) = (
+            first.await.unwrap().expect("a fact"),
+            second.await.unwrap().expect("a fact"),
+        );
+        assert_eq!(
+            js_text(&serde_json::to_value(&one).unwrap()),
+            js_text(&serde_json::to_value(&two).unwrap())
+        );
+        assert_eq!(
+            js_text(&serde_json::to_value(&one).unwrap()),
+            js_text(&fact(&w.entry))
+        );
         assert_eq!(asked(&w), 1);
         assert_eq!(w.host.calls_of("persist").len(), 1);
         assert_eq!(w.host.events_of("workspace.status").len(), 1);
@@ -626,11 +827,18 @@ fn on_branch(id: &str, head: &str) {
 }
 
 fn compare_frame(base: &str, head: &str) -> String {
-    js_text(&json!({ "op": "git.branchCompare", "cwd": HOME, "remote": REMOTE, "base": base, "head": head }))
+    js_text(
+        &json!({ "op": "git.branchCompare", "cwd": HOME, "remote": REMOTE, "base": base, "head": head }),
+    )
 }
 
 fn compared(t: &T) -> Vec<String> {
-    let mut got: Vec<String> = t.host.calls_of("on_this_computer").into_iter().map(|a| a[0].clone()).collect();
+    let mut got: Vec<String> = t
+        .host
+        .calls_of("on_this_computer")
+        .into_iter()
+        .map(|a| a[0].clone())
+        .collect();
     got.sort();
     got
 }
@@ -653,7 +861,12 @@ fn reads_each_childs_branch_against_the_leads() {
         // A child still being made, and one that belongs to another lead, are not this lead's children.
         let making = put_kid(host, "ws_new", "pr_kid", json!({}));
         making.borrow_mut().creating = true;
-        put_kid(host, "ws_other", "pr_kid", json!({ "parentWorkspaceId": "ws_elsewhere" }));
+        put_kid(
+            host,
+            "ws_other",
+            "pr_kid",
+            json!({ "parentWorkspaceId": "ws_elsewhere" }),
+        );
         // On no branch, on a project whose remote names no host, and a compare nothing could answer: no counts.
         put_kid(host, "ws_c3", "pr_kid", json!({}));
         on_branch("ws_c3", DETACHED_HEAD);
@@ -666,12 +879,18 @@ fn reads_each_childs_branch_against_the_leads() {
         put_session(host, "s_b", "ws_c1", Some("t_c1"), None, None);
         put_session(host, "s_c", "ws_c1", Some("t_c1b"), None, None);
         on_compare(|f| match f["head"].as_str() {
-            Some("child/one") => Ok(json!({ "pushed": true, "aheadBy": 2, "behindBy": 0, "status": "ahead" })),
+            Some("child/one") => {
+                Ok(json!({ "pushed": true, "aheadBy": 2, "behindBy": 0, "status": "ahead" }))
+            }
             Some("child/five") => Err("compare failed".to_string()),
             _ => Ok(json!({ "pushed": false })),
         });
 
-        let tree = t.area.read_tree(&t.lead).await.expect("the lead has children");
+        let tree = t
+            .area
+            .read_tree(&t.lead)
+            .await
+            .expect("the lead has children");
         let want = json!({
             "leadBranch": "tree/lead",
             "children": [
@@ -683,44 +902,91 @@ fn reads_each_childs_branch_against_the_leads() {
             ],
             "readAt": t0
         });
-        assert_eq!(js_text(&serde_json::to_value(&tree).unwrap()), js_text(&want));
+        assert_eq!(
+            js_text(&serde_json::to_value(&tree).unwrap()),
+            js_text(&want)
+        );
         assert_eq!(js_text(&tree_of(&t.lead)), js_text(&want));
         assert!(t.lead.borrow().tree_reading.is_none());
         // Only the lead's own children were read, once each; the compare ran for the three branches with a host.
-        let mut read: Vec<String> = host.calls_of("with_daemon").into_iter().map(|a| a[0].clone()).collect();
+        let mut read: Vec<String> = host
+            .calls_of("with_daemon")
+            .into_iter()
+            .map(|a| a[0].clone())
+            .collect();
         read.sort();
-        assert_eq!(read, ["ws_c1", "ws_c2", "ws_c3", "ws_c4", "ws_c5", "ws_lead"].map(String::from).to_vec());
-        let mut frames: Vec<String> = ["child/one", "child/two", "child/five"].iter().map(|h| compare_frame("tree/lead", h)).collect();
+        assert_eq!(
+            read,
+            ["ws_c1", "ws_c2", "ws_c3", "ws_c4", "ws_c5", "ws_lead"]
+                .map(String::from)
+                .to_vec()
+        );
+        let mut frames: Vec<String> = ["child/one", "child/two", "child/five"]
+            .iter()
+            .map(|h| compare_frame("tree/lead", h))
+            .collect();
         frames.sort();
         assert_eq!(compared(&t), frames);
         // The tree rode the lead's status.
-        let on_lead: Vec<Value> = host.events_of("workspace.status").into_iter().filter(|e| e["status"]["id"] == json!("ws_lead")).collect();
-        assert_eq!(js_text(&on_lead.last().unwrap()["status"]["tree"]), js_text(&want));
+        let on_lead: Vec<Value> = host
+            .events_of("workspace.status")
+            .into_iter()
+            .filter(|e| e["status"]["id"] == json!("ws_lead"))
+            .collect();
+        assert_eq!(
+            js_text(&on_lead.last().unwrap()["status"]["tree"]),
+            js_text(&want)
+        );
 
         // A child's own read of its lead, never on a timer: it reads the tree again where the lead is live.
         host.clock.advance(1_000.0).await;
-        let c1 = host.live.borrow().get("ws_c1").cloned().expect("a live child");
+        let c1 = host
+            .live
+            .borrow()
+            .get("ws_c1")
+            .cloned()
+            .expect("a live child");
         t.area.read_lead_of(&c1);
         settle().await;
-        assert_eq!(canon(&tree_of(&t.lead)["readAt"]), canon(&json!(t0 + 1_000.0)));
+        assert_eq!(
+            canon(&tree_of(&t.lead)["readAt"]),
+            canon(&json!(t0 + 1_000.0))
+        );
         assert_eq!(compared(&t).len(), 6);
         // A child whose lead is not live reads nothing.
-        let orphan = put_kid(host, "ws_orphan", "pr_kid", json!({ "parentWorkspaceId": "ws_gone" }));
+        let orphan = put_kid(
+            host,
+            "ws_orphan",
+            "pr_kid",
+            json!({ "parentWorkspaceId": "ws_gone" }),
+        );
         t.area.read_lead_of(&orphan);
         settle().await;
         assert_eq!(compared(&t).len(), 6);
-        assert_eq!(canon(&tree_of(&t.lead)["readAt"]), canon(&json!(t0 + 1_000.0)));
+        assert_eq!(
+            canon(&tree_of(&t.lead)["readAt"]),
+            canon(&json!(t0 + 1_000.0))
+        );
 
         // A lead whose own branch could not be read falls back to its record's base, then its project's base, then the
         // project's default branch. A child whose branch could not be read falls back to its worktree's, then its base.
-        let cases = [(Some("release"), None, "release"), (None, Some("dev"), "dev"), (None, None, "main")];
+        let cases = [
+            (Some("release"), None, "release"),
+            (None, Some("dev"), "dev"),
+            (None, None, "main"),
+        ];
         for (lead_base, project_base, leads) in cases {
             let t = tree_world(lead_base);
             set_project("pr_lead", "", "main", project_base);
             fail_status("ws_lead", "no daemon");
             put_kid(&t.host, "ws_c1", "pr_kid", json!({}));
             on_branch("ws_c1", "child/one");
-            put_kid(&t.host, "ws_c2", "pr_kid", json!({ "worktree": { "path": "/wt/x", "made": true, "branch": "wt/x" } }));
+            put_kid(
+                &t.host,
+                "ws_c2",
+                "pr_kid",
+                json!({ "worktree": { "path": "/wt/x", "made": true, "branch": "wt/x" } }),
+            );
             fail_status("ws_c2", "no daemon");
             put_kid(&t.host, "ws_c3", "pr_kid", json!({ "base": "feat" }));
             fail_status("ws_c3", "no daemon");
@@ -735,8 +1001,15 @@ fn reads_each_childs_branch_against_the_leads() {
                 ],
                 "readAt": t.host.clock.now()
             });
-            assert_eq!(js_text(&serde_json::to_value(&tree).unwrap()), js_text(&want), "lead base {lead_base:?}, project base {project_base:?}");
-            let mut frames: Vec<String> = ["child/one", "wt/x", "feat"].iter().map(|h| compare_frame(leads, h)).collect();
+            assert_eq!(
+                js_text(&serde_json::to_value(&tree).unwrap()),
+                js_text(&want),
+                "lead base {lead_base:?}, project base {project_base:?}"
+            );
+            let mut frames: Vec<String> = ["child/one", "wt/x", "feat"]
+                .iter()
+                .map(|h| compare_frame(leads, h))
+                .collect();
             frames.sort();
             assert_eq!(compared(&t), frames);
         }
@@ -796,9 +1069,20 @@ fn a_child_merged_counts_against_the_commit_the_merge_took() {
         assert!(t.lead.borrow().tree_reading.is_some());
         open(&held);
         settle().await;
-        let (one, two) = (first.await.unwrap().expect("a tree"), second.await.unwrap().expect("a tree"));
-        assert_eq!(js_text(&serde_json::to_value(&one).unwrap()), js_text(&serde_json::to_value(&two).unwrap()));
-        let mut read: Vec<String> = t.host.calls_of("with_daemon").into_iter().map(|a| a[0].clone()).collect();
+        let (one, two) = (
+            first.await.unwrap().expect("a tree"),
+            second.await.unwrap().expect("a tree"),
+        );
+        assert_eq!(
+            js_text(&serde_json::to_value(&one).unwrap()),
+            js_text(&serde_json::to_value(&two).unwrap())
+        );
+        let mut read: Vec<String> = t
+            .host
+            .calls_of("with_daemon")
+            .into_iter()
+            .map(|a| a[0].clone())
+            .collect();
         read.sort();
         assert_eq!(read, vec!["ws_c1".to_string(), "ws_lead".to_string()]);
         assert!(t.lead.borrow().tree_reading.is_none());
@@ -809,7 +1093,12 @@ fn a_child_merged_counts_against_the_commit_the_merge_took() {
 fn a_lead_whose_children_are_gone_loses_its_tree() {
     run(async {
         let t = tree_world(None);
-        t.lead.borrow_mut().tree = Some(serde_json::from_value(json!({ "leadBranch": "tree/lead", "children": [], "readAt": 1 })).unwrap());
+        t.lead.borrow_mut().tree = Some(
+            serde_json::from_value(
+                json!({ "leadBranch": "tree/lead", "children": [], "readAt": 1 }),
+            )
+            .unwrap(),
+        );
         // The only child is still being made, which is no child yet.
         let making = put_kid(&t.host, "ws_c1", "pr_kid", json!({}));
         making.borrow_mut().creating = true;
@@ -832,7 +1121,10 @@ fn a_lead_whose_children_are_gone_loses_its_tree() {
         on_branch("ws_c1", "child/one");
         on_compare(|_| Ok(json!({ "pushed": false })));
         let tree = t.area.read_tree(&t.lead).await.expect("a tree");
-        assert_eq!(serde_json::to_value(&tree).unwrap()["children"][0]["workspaceId"], json!("ws_c1"));
+        assert_eq!(
+            serde_json::to_value(&tree).unwrap()["children"][0]["workspaceId"],
+            json!("ws_c1")
+        );
         assert!(t.lead.borrow().tree.is_some());
         let pushed = t.host.events_of("workspace.status").len();
         t.host.live.borrow_mut().shift_remove("ws_c1");

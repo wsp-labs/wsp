@@ -19,10 +19,10 @@ use wsp_core::types::wiring::GoldenRecipe;
 use wsp_engine::machine::MachineBackend;
 use wsp_machines::images::builders::BuildersArea;
 use wsp_machines::images::BuilderRef;
-use wsp_words::exit::{HostError, Kind};
-use wsp_words::words::thread::{place_forks_nothing_pick_line, NO_PROVIDER_LINE};
 use wsp_wire::views::place_kind::PlaceKind;
 use wsp_wire::wire::machine_link::{no_such_place_refusal, place_builds_no_image_line};
+use wsp_words::exit::{HostError, Kind};
+use wsp_words::words::thread::{place_forks_nothing_pick_line, NO_PROVIDER_LINE};
 
 fn area(w: &Rc<World>) -> Rc<BuildersArea> {
     BuildersArea::new(w.clone())
@@ -96,7 +96,22 @@ fn builder_view_carries_every_fact_in_the_ts_key_order() {
     let view = view_json(&a, &b);
     assert_eq!(
         keys(&view),
-        ["id", "name", "kind", "createdAt", "placeId", "placeName", "size", "rateUsdPerHour", "screen", "sealable", "recipeHash", "recipe", "building", "sealed"]
+        [
+            "id",
+            "name",
+            "kind",
+            "createdAt",
+            "placeId",
+            "placeName",
+            "size",
+            "rateUsdPerHour",
+            "screen",
+            "sealable",
+            "recipeHash",
+            "recipe",
+            "building",
+            "sealed"
+        ]
     );
     assert_eq!(
         view,
@@ -111,7 +126,20 @@ fn builder_view_carries_every_fact_in_the_ts_key_order() {
     let bare = entry_of(record(json!({})), BuilderLife::Own);
     bare.borrow_mut().sealable = false;
     let view = view_json(&a, &bare);
-    assert_eq!(keys(&view), ["id", "name", "kind", "createdAt", "placeId", "placeName", "size", "rateUsdPerHour", "sealable"]);
+    assert_eq!(
+        keys(&view),
+        [
+            "id",
+            "name",
+            "kind",
+            "createdAt",
+            "placeId",
+            "placeName",
+            "size",
+            "rateUsdPerHour",
+            "sealable"
+        ]
+    );
     assert_eq!(view["placeId"], json!("boat"));
     assert_eq!(view["sealable"], json!(false));
 }
@@ -132,17 +160,38 @@ fn builder_view_names_a_foreign_owner_and_a_holder_only_by_life() {
         view_json(&a, &b)
     };
 
-    let foreign = labelled(BuilderLife::Foreign, Some("host-2"), json!({"heldBy": held_by}));
+    let foreign = labelled(
+        BuilderLife::Foreign,
+        Some("host-2"),
+        json!({"heldBy": held_by}),
+    );
     assert_eq!(foreign["foreignOwner"], json!("host-2"));
-    assert!(foreign.get("heldBy").is_none(), "heldBy is for the held life alone");
-    assert_eq!(labelled(BuilderLife::Foreign, None, json!({}))["foreignOwner"], json!(""));
-    assert!(labelled(BuilderLife::Own, Some("host-2"), json!({})).get("foreignOwner").is_none());
+    assert!(
+        foreign.get("heldBy").is_none(),
+        "heldBy is for the held life alone"
+    );
+    assert_eq!(
+        labelled(BuilderLife::Foreign, None, json!({}))["foreignOwner"],
+        json!("")
+    );
+    assert!(labelled(BuilderLife::Own, Some("host-2"), json!({}))
+        .get("foreignOwner")
+        .is_none());
 
     let held = labelled(BuilderLife::Held, None, json!({"heldBy": held_by}));
     assert_eq!(held["heldBy"], held_by);
     assert!(held.get("foreignOwner").is_none());
-    assert!(labelled(BuilderLife::Held, None, json!({})).get("heldBy").is_none(), "a held builder whose record names no holder shows none");
-    assert!(labelled(BuilderLife::Reusable, None, json!({"heldBy": held_by})).get("heldBy").is_none());
+    assert!(
+        labelled(BuilderLife::Held, None, json!({}))
+            .get("heldBy")
+            .is_none(),
+        "a held builder whose record names no holder shows none"
+    );
+    assert!(
+        labelled(BuilderLife::Reusable, None, json!({"heldBy": held_by}))
+            .get("heldBy")
+            .is_none()
+    );
 }
 
 // P1: builders.ts:59-60. The rate is the place's backend's, the row first and the door's after; absent with neither.
@@ -155,15 +204,24 @@ fn builder_view_has_no_rate_without_a_backend() {
     let view = view_json(&a, &at_lab());
     assert!(view.get("rateUsdPerHour").is_none());
     assert_eq!(view["placeId"], json!("p_lab"));
-    assert_eq!(view["placeName"], json!("p_lab"), "no door names it, so the id");
+    assert_eq!(
+        view["placeName"],
+        json!("p_lab"),
+        "no door names it, so the id"
+    );
 
     let door = w.with_door();
     door.computer("p_lab", "lab", None);
     let view = view_json(&a, &at_lab());
-    assert!(view.get("rateUsdPerHour").is_none(), "a computer the door names but has no backend for");
+    assert!(
+        view.get("rateUsdPerHour").is_none(),
+        "a computer the door names but has no backend for"
+    );
     assert_eq!(view["placeName"], json!("lab"));
 
-    door.backends.borrow_mut().insert("p_lab".into(), FakeBackend::new("lab"));
+    door.backends
+        .borrow_mut()
+        .insert("p_lab".into(), FakeBackend::new("lab"));
     let view = view_json(&a, &at_lab());
     assert_eq!(view["rateUsdPerHour"], json!(0.1));
 }
@@ -180,15 +238,21 @@ fn backend_at_reads_the_row_then_the_door_else_refuses_missing() {
     let boat = w.runtime_backend.clone();
     set_rows(&w, "boat", &[("boat", &boat), ("box", &box_)]);
     let a = area(&w);
-    assert!(same(&a.backend_at("box").ok().expect("the row"), &box_));
+    assert!(same(&a.backend_at("box").expect("the row"), &box_));
     let door = w.with_door();
     door.computer("p_lab", "lab", Some(lab.clone()));
-    assert!(same(&a.backend_at("p_lab").ok().expect("the door's"), &lab));
-    assert!(same(&a.backend_at("boat").ok().expect("the row before the door"), &boat));
+    assert!(same(&a.backend_at("p_lab").expect("the door's"), &lab));
+    assert!(same(
+        &a.backend_at("boat").expect("the row before the door"),
+        &boat
+    ));
 
     let e = err(a.backend_at("nowhere"));
     assert_eq!(e.kind, Some(Kind::Missing));
-    assert_eq!(e.message, no_such_place_refusal("nowhere", &["boat".to_string(), "Boat".to_string()]));
+    assert_eq!(
+        e.message,
+        no_such_place_refusal("nowhere", &["boat".to_string(), "Boat".to_string()])
+    );
     assert_eq!(e.message, "no place named nowhere; you have boat, Boat");
 }
 
@@ -197,7 +261,10 @@ fn backend_at_reads_the_row_then_the_door_else_refuses_missing() {
 fn place_at_takes_a_provider_row_as_it_is() {
     let w = World::new();
     let solari = FakeBackend::new("solari");
-    w.places.rows.borrow_mut().insert("solari".into(), solari.clone());
+    w.places
+        .rows
+        .borrow_mut()
+        .insert("solari".into(), solari.clone());
     let a = area(&w);
     run(async {
         let at = a.place_at("solari").await.unwrap();
@@ -206,7 +273,10 @@ fn place_at_takes_a_provider_row_as_it_is() {
         w.with_door();
         let at = a.place_at("solari").await.unwrap();
         assert_eq!(at.place, "solari");
-        assert!(w.lines("door").is_empty(), "the door is not asked for a word a provider row answers to");
+        assert!(
+            w.lines("door").is_empty(),
+            "the door is not asked for a word a provider row answers to"
+        );
     });
 }
 
@@ -229,7 +299,10 @@ fn place_at_without_a_door_reads_the_cloud_word() {
         assert!(same(&at.at, &solari));
         let e = err(a.place_at("nowhere").await.map(|_| ()));
         assert_eq!(e.kind, Some(Kind::Missing));
-        assert_eq!(e.message, no_such_place_refusal("nowhere", &["Solari".to_string(), "Boat".to_string()]));
+        assert_eq!(
+            e.message,
+            no_such_place_refusal("nowhere", &["Solari".to_string(), "Boat".to_string()])
+        );
         assert!(e.message.ends_with("; you have Solari, Boat"));
     });
 }
@@ -241,8 +314,12 @@ fn place_at_asks_the_door_and_its_forking_backend() {
     let lab = FakeBackend::new("lab");
     let door = w.with_door();
     door.computer("p_srv", "srv", Some(lab.clone()));
-    door.words.borrow_mut().insert("srv".into(), Ok(Some("p_srv".into())));
-    door.words.borrow_mut().insert("p_srv".into(), Ok(Some("p_srv".into())));
+    door.words
+        .borrow_mut()
+        .insert("srv".into(), Ok(Some("p_srv".into())));
+    door.words
+        .borrow_mut()
+        .insert("p_srv".into(), Ok(Some("p_srv".into())));
     let a = area(&w);
     run(async {
         for word in ["srv", "p_srv"] {
@@ -250,7 +327,15 @@ fn place_at_asks_the_door_and_its_forking_backend() {
             assert_eq!(at.place, "p_srv", "{word}");
             assert!(same(&at.at, &lab), "{word}");
         }
-        assert_eq!(w.log(), ["door place_for srv", "door forking_backend p_srv", "door place_for p_srv", "door forking_backend p_srv"]);
+        assert_eq!(
+            w.log(),
+            [
+                "door place_for srv",
+                "door forking_backend p_srv",
+                "door place_for p_srv",
+                "door forking_backend p_srv"
+            ]
+        );
     });
 }
 
@@ -259,15 +344,28 @@ fn place_at_asks_the_door_and_its_forking_backend() {
 fn place_at_marks_a_door_refusal_missing() {
     let w = World::new();
     let door = w.with_door();
-    door.words.borrow_mut().insert("srv".into(), Err(HostError::new("no place named srv; you have boat")));
-    door.words.borrow_mut().insert("busy".into(), Err(HostError { kind: Some(Kind::Conflict), ..HostError::new("busy cannot run wsp workspaces") }));
+    door.words.borrow_mut().insert(
+        "srv".into(),
+        Err(HostError::new("no place named srv; you have boat")),
+    );
+    door.words.borrow_mut().insert(
+        "busy".into(),
+        Err(HostError {
+            kind: Some(Kind::Conflict),
+            ..HostError::new("busy cannot run wsp workspaces")
+        }),
+    );
     let a = area(&w);
     run(async {
         let e = err(a.place_at("srv").await.map(|_| ()));
         assert_eq!(e.kind, Some(Kind::Missing));
         assert_eq!(e.message, "no place named srv; you have boat");
         let e = err(a.place_at("busy").await.map(|_| ()));
-        assert_eq!(e.kind, Some(Kind::Missing), "the kind is stamped over whatever the error carried");
+        assert_eq!(
+            e.kind,
+            Some(Kind::Missing),
+            "the kind is stamped over whatever the error carried"
+        );
         assert_eq!(e.message, "busy cannot run wsp workspaces");
         assert!(w.lines("door forking_backend").is_empty());
     });
@@ -287,7 +385,11 @@ fn place_at_reads_the_wired_providers_name_when_the_door_names_no_place() {
             assert_eq!(at.place, "solari", "{word}");
             assert!(same(&at.at, &solari), "{word}");
         }
-        assert_eq!(w.lines("door place_for"), ["door place_for SOLARI"], "the row answers the exact id before the door is asked");
+        assert_eq!(
+            w.lines("door place_for"),
+            ["door place_for SOLARI"],
+            "the row answers the exact id before the door is asked"
+        );
     });
 }
 
@@ -302,7 +404,9 @@ fn place_at_refuses_a_word_naming_nothing_that_builds() {
         let e = err(a.place_at("this-mac").await.map(|_| ()));
         assert_eq!(e.kind, Some(Kind::Conflict));
         assert_eq!(e.message, place_builds_no_image_line("this-mac"));
-        assert!(e.message.starts_with("this-mac takes no copy of your image"));
+        assert!(e
+            .message
+            .starts_with("this-mac takes no copy of your image"));
 
         // The wired provider named, with no backend in the table, builds nothing either.
         set_rows(&w, "ghost", &[]);
@@ -315,24 +419,41 @@ fn place_at_refuses_a_word_naming_nothing_that_builds() {
 // P3: no TS line beyond places-image.test.ts:17. A computer by its name or its id, its backend learned from the computer
 // itself, a word the door has no place for refused in the door's words.
 #[test]
-fn a_copy_build_names_the_computer_by_its_name_or_id_learns_its_backend_from_the_computer_itself_and_is_refused_at_the_record_rather_than_at_the_name() {
+fn a_copy_build_names_the_computer_by_its_name_or_id_learns_its_backend_from_the_computer_itself_and_is_refused_at_the_record_rather_than_at_the_name(
+) {
     let w = World::new();
     let lab = FakeBackend::new("srv");
     let door = w.with_door();
     door.computer("p_0a1b", "srv", Some(lab.clone()));
-    door.words.borrow_mut().insert("srv".into(), Ok(Some("p_0a1b".into())));
-    door.words.borrow_mut().insert("p_0a1b".into(), Ok(Some("p_0a1b".into())));
-    door.words.borrow_mut().insert("nowhere".into(), Err(HostError::new("no place named nowhere; you have srv, Boat")));
+    door.words
+        .borrow_mut()
+        .insert("srv".into(), Ok(Some("p_0a1b".into())));
+    door.words
+        .borrow_mut()
+        .insert("p_0a1b".into(), Ok(Some("p_0a1b".into())));
+    door.words.borrow_mut().insert(
+        "nowhere".into(),
+        Err(HostError::new("no place named nowhere; you have srv, Boat")),
+    );
     let a = area(&w);
     run(async {
         for word in ["srv", "p_0a1b"] {
             let at = a.place_at(word).await.unwrap();
-            assert_eq!((at.place.as_str(), same(&at.at, &lab)), ("p_0a1b", true), "{word}");
+            assert_eq!(
+                (at.place.as_str(), same(&at.at, &lab)),
+                ("p_0a1b", true),
+                "{word}"
+            );
         }
-        assert_eq!(w.lines("door forking_backend"), ["door forking_backend p_0a1b", "door forking_backend p_0a1b"]);
+        assert_eq!(
+            w.lines("door forking_backend"),
+            ["door forking_backend p_0a1b", "door forking_backend p_0a1b"]
+        );
         let e = err(a.place_at("nowhere").await.map(|_| ()));
         assert_eq!(e.kind, Some(Kind::Missing));
-        assert!(e.message.contains("no place named nowhere; you have") && e.message.contains("srv"));
+        assert!(
+            e.message.contains("no place named nowhere; you have") && e.message.contains("srv")
+        );
         assert!(lab.created.borrow().is_empty(), "nothing was made there");
     });
 }
@@ -340,25 +461,43 @@ fn a_copy_build_names_the_computer_by_its_name_or_id_learns_its_backend_from_the
 // P3: no TS line beyond places-fork.test.ts:124. A cloud by the name a person types for it, in any case, on the image
 // road: Boat is the provider row `box`, and the provider this host forks on stays itself by either word.
 #[test]
-fn reads_a_cloud_by_the_name_a_person_types_for_it_in_any_case_on_the_fork_road_and_the_image_road_alike() {
+fn reads_a_cloud_by_the_name_a_person_types_for_it_in_any_case_on_the_fork_road_and_the_image_road_alike(
+) {
     let w = World::new();
     let (solari, box_) = (FakeBackend::new("solari"), FakeBackend::new("box"));
     set_rows(&w, "solari", &[("solari", &solari), ("box", &box_)]);
     let door = w.with_door();
-    door.backends.borrow_mut().insert("box".into(), box_.clone());
+    door.backends
+        .borrow_mut()
+        .insert("box".into(), box_.clone());
     for word in ["boat", "Boat", "BOAT"] {
-        door.words.borrow_mut().insert(word.into(), Ok(Some("box".into())));
+        door.words
+            .borrow_mut()
+            .insert(word.into(), Ok(Some("box".into())));
     }
-    door.words.borrow_mut().insert("nowhere".into(), Err(HostError::new("no place named nowhere; you have Solari, Boat")));
+    door.words.borrow_mut().insert(
+        "nowhere".into(),
+        Err(HostError::new(
+            "no place named nowhere; you have Solari, Boat",
+        )),
+    );
     let a = area(&w);
     run(async {
         for word in ["boat", "Boat", "BOAT", "box"] {
             let at = a.place_at(word).await.unwrap();
-            assert_eq!((at.place.as_str(), same(&at.at, &box_)), ("box", true), "{word}");
+            assert_eq!(
+                (at.place.as_str(), same(&at.at, &box_)),
+                ("box", true),
+                "{word}"
+            );
         }
         for word in ["solari", "Solari", "SOLARI"] {
             let at = a.place_at(word).await.unwrap();
-            assert_eq!((at.place.as_str(), same(&at.at, &solari)), ("solari", true), "{word}");
+            assert_eq!(
+                (at.place.as_str(), same(&at.at, &solari)),
+                ("solari", true),
+                "{word}"
+            );
         }
         let e = err(a.place_at("nowhere").await.map(|_| ()));
         assert!(e.message.ends_with("; you have Solari, Boat"));
@@ -376,15 +515,30 @@ fn forking_at_asks_the_computer_first_and_drops_a_backend_that_forks_nothing() {
     door.computer("p_idle", "idle", Some(idle));
     let a = area(&w);
     run(async {
-        let at = a.forking_at(Some("p_lab")).await.unwrap().expect("a backend that forks");
+        let at = a
+            .forking_at(Some("p_lab"))
+            .await
+            .unwrap()
+            .expect("a backend that forks");
         assert!(same(&at, &lab));
-        assert_eq!(w.log(), ["door forking_backend p_lab", "backend_of_kind cloud p_lab"]);
+        assert_eq!(
+            w.log(),
+            ["door forking_backend p_lab", "backend_of_kind cloud p_lab"]
+        );
         assert!(a.forking_at(Some("p_idle")).await.unwrap().is_none());
 
         w.log.borrow_mut().clear();
-        let own = a.forking_at(None).await.unwrap().expect("the runtime's own backend forks");
+        let own = a
+            .forking_at(None)
+            .await
+            .unwrap()
+            .expect("the runtime's own backend forks");
         assert!(same(&own, &w.runtime_backend));
-        assert_eq!(w.log(), ["backend_of_kind cloud -"], "no place named, no computer asked");
+        assert_eq!(
+            w.log(),
+            ["backend_of_kind cloud -"],
+            "no place named, no computer asked"
+        );
     });
 }
 
@@ -395,13 +549,19 @@ fn forking_at_fails_with_the_computers_refusal() {
     let door = w.with_door();
     door.forking_fails.borrow_mut().insert(
         "p_lab".into(),
-        HostError { kind: Some(Kind::Conflict), ..HostError::new("lab cannot run wsp workspaces: it mounts cgroup v1 at /sys/fs/cgroup") },
+        HostError {
+            kind: Some(Kind::Conflict),
+            ..HostError::new("lab cannot run wsp workspaces: it mounts cgroup v1 at /sys/fs/cgroup")
+        },
     );
     let a = area(&w);
     run(async {
         let e = err(a.forking_at(Some("p_lab")).await.map(|_| ()));
         assert_eq!(e.kind, Some(Kind::Conflict));
-        assert_eq!(e.message, "lab cannot run wsp workspaces: it mounts cgroup v1 at /sys/fs/cgroup");
+        assert_eq!(
+            e.message,
+            "lab cannot run wsp workspaces: it mounts cgroup v1 at /sys/fs/cgroup"
+        );
         assert_eq!(w.log(), ["door forking_backend p_lab"]);
     });
 }
@@ -429,7 +589,9 @@ fn landing_backend_names_the_places_that_run() {
     set_rows(&w, "none", &[("none", &none), ("solari", &solari)]);
     w.runtime_backend.caps.borrow_mut().sizes.clear();
     let door = w.with_door();
-    door.backends.borrow_mut().insert("none".into(), none.clone());
+    door.backends
+        .borrow_mut()
+        .insert("none".into(), none.clone());
     let a = area(&w);
     run(async {
         let want = place_forks_nothing_pick_line("none", &["Solari".to_string()]);
@@ -438,19 +600,28 @@ fn landing_backend_names_the_places_that_run() {
             assert_eq!(e.kind, Some(Kind::Conflict), "{place:?}");
             assert_eq!(e.message, want, "{place:?}");
         }
-        assert_eq!(want, "none forks no machines; name a place that runs workspaces with --on: Solari");
+        assert_eq!(
+            want,
+            "none forks no machines; name a place that runs workspaces with --on: Solari"
+        );
 
         // A joined computer that forks is named by its own name, after the providers.
         door.computer("p_lab", "lab", Some(FakeBackend::new("lab")));
         let e = err(a.landing_backend(Some("none")).await.map(|_| ()));
-        assert_eq!(e.message, place_forks_nothing_pick_line("none", &["Solari".to_string(), "lab".to_string()]));
+        assert_eq!(
+            e.message,
+            place_forks_nothing_pick_line("none", &["Solari".to_string(), "lab".to_string()])
+        );
 
         // And alone, with no place that runs workspaces, the no-provider sentence.
         set_rows(&w, "none", &[("none", &none)]);
         door.rows.borrow_mut().clear();
         let e = err(a.landing_backend(Some("none")).await.map(|_| ()));
         assert_eq!(e.message, NO_PROVIDER_LINE);
-        let landed = a.landing_backend(Some("p_lab")).await.ok().expect("a place that forks");
+        let landed = a
+            .landing_backend(Some("p_lab"))
+            .await
+            .expect("a place that forks");
         assert!(landed.capabilities().sizes.len() == 2);
     });
 }
@@ -484,9 +655,19 @@ fn place_name_reads_the_door_then_hostname_then_provider_word() {
     let door = w.with_door();
     door.computer("p_lab", "lab", None);
     assert_eq!(a.place_name("p_lab"), "lab");
-    assert_eq!(a.place_name("here"), "laptop", "a door that names no such place leaves the hostname");
-    door.names.borrow_mut().insert("here".into(), "zingzy's MacBook Pro".into());
-    assert_eq!(a.place_name("here"), "zingzy's MacBook Pro", "the door's name before the hostname");
+    assert_eq!(
+        a.place_name("here"),
+        "laptop",
+        "a door that names no such place leaves the hostname"
+    );
+    door.names
+        .borrow_mut()
+        .insert("here".into(), "zingzy's MacBook Pro".into());
+    assert_eq!(
+        a.place_name("here"),
+        "zingzy's MacBook Pro",
+        "the door's name before the hostname"
+    );
 }
 
 // P7: builders.ts:245. The record's place, else the provider this host forks on.
@@ -499,7 +680,11 @@ fn image_place_reads_the_record_else_wired() {
         w.put_image_now(&sealed_image("default", 1, "h1", Some("solari")));
         assert_eq!(a.image_place("default").await.unwrap(), "solari");
         w.put_image_now(&sealed_image("older", 1, "h0", None));
-        assert_eq!(a.image_place("older").await.unwrap(), "boat", "a record sealed before places");
+        assert_eq!(
+            a.image_place("older").await.unwrap(),
+            "boat",
+            "a record sealed before places"
+        );
         assert_eq!(a.image_place("other").await.unwrap(), "boat");
     });
 }
@@ -515,7 +700,15 @@ fn place_kind_of_tells_provider_from_computer() {
 }
 
 fn tuples(rows: &[wsp_machines::images::builders::BuildPlace]) -> Vec<(String, String, bool)> {
-    rows.iter().map(|r| (r.place.clone(), r.name.clone(), r.kind == PlaceKind::Provider)).collect()
+    rows.iter()
+        .map(|r| {
+            (
+                r.place.clone(),
+                r.name.clone(),
+                r.kind == PlaceKind::Provider,
+            )
+        })
+        .collect()
 }
 
 // P9: builders.ts:250-263. The provider rows that fork, in table order, then the door's joined computers that fork.
@@ -524,12 +717,21 @@ fn build_places_lists_forking_providers_then_joined_computers() {
     let w = World::new();
     let (idle, solari) = (FakeBackend::forkless("idle"), FakeBackend::new("solari"));
     let boat = w.runtime_backend.clone();
-    set_rows(&w, "boat", &[("boat", &boat), ("idle", &idle), ("solari", &solari)]);
+    set_rows(
+        &w,
+        "boat",
+        &[("boat", &boat), ("idle", &idle), ("solari", &solari)],
+    );
     let (a_lab, b_lab) = (FakeBackend::new("a"), FakeBackend::new("b"));
     let door = w.with_door();
     door.computer("here", "this-mac", Some(FakeBackend::new("here")));
     door.computer("p_a", "lab-a", Some(a_lab.clone()));
-    door.rows.borrow_mut().push(serde_json::from_value(json!({"id": "box", "kind": "provider", "name": "box", "default": false})).unwrap());
+    door.rows.borrow_mut().push(
+        serde_json::from_value(
+            json!({"id": "box", "kind": "provider", "name": "box", "default": false}),
+        )
+        .unwrap(),
+    );
     door.computer("p_b", "lab-b", Some(b_lab.clone()));
     let area = area(&w);
     run(async {
@@ -543,9 +745,17 @@ fn build_places_lists_forking_providers_then_joined_computers() {
                 ("p_b".into(), "lab-b".into(), false)
             ]
         );
-        assert!(same(&rows[1].backend, &solari) && same(&rows[2].backend, &a_lab) && same(&rows[3].backend, &b_lab));
+        assert!(
+            same(&rows[1].backend, &solari)
+                && same(&rows[2].backend, &a_lab)
+                && same(&rows[3].backend, &b_lab)
+        );
         assert_eq!(w.lines("door list"), [format!("door list {NOW}")]);
-        assert_eq!(w.lines("door forking_backend"), ["door forking_backend p_a", "door forking_backend p_b"], "this computer and a provider row are never asked");
+        assert_eq!(
+            w.lines("door forking_backend"),
+            ["door forking_backend p_a", "door forking_backend p_b"],
+            "this computer and a provider row are never asked"
+        );
     });
 }
 
@@ -557,12 +767,27 @@ fn build_places_skips_a_computer_whose_backend_fails() {
     door.computer("p_a", "lab-a", Some(FakeBackend::new("a")));
     door.computer("p_b", "lab-b", Some(FakeBackend::new("b")));
     door.computer("p_c", "lab-c", None);
-    door.forking_fails.borrow_mut().insert("p_b".into(), HostError::new("lab-b is not answering"));
+    door.forking_fails
+        .borrow_mut()
+        .insert("p_b".into(), HostError::new("lab-b is not answering"));
     let area = area(&w);
     run(async {
         let rows = area.build_places().await.unwrap();
-        assert_eq!(tuples(&rows), vec![("boat".into(), "boat".into(), true), ("p_a".into(), "lab-a".into(), false)]);
-        assert_eq!(w.lines("door forking_backend"), ["door forking_backend p_a", "door forking_backend p_b", "door forking_backend p_c"]);
+        assert_eq!(
+            tuples(&rows),
+            vec![
+                ("boat".into(), "boat".into(), true),
+                ("p_a".into(), "lab-a".into(), false)
+            ]
+        );
+        assert_eq!(
+            w.lines("door forking_backend"),
+            [
+                "door forking_backend p_a",
+                "door forking_backend p_b",
+                "door forking_backend p_c"
+            ]
+        );
         assert!(w.warned.lines().is_empty());
     });
 }
@@ -583,19 +808,22 @@ fn copy_recipe_or_throw_refuses_without_one() {
 
     let log = w.log.clone();
     w.opts.borrow_mut().copy_recipe = Some(Rc::new(move |image, cloud| {
-        log.borrow_mut().push(format!("copy_recipe {} cloud={cloud}", image.hash));
+        log.borrow_mut()
+            .push(format!("copy_recipe {} cloud={cloud}", image.hash));
         async { Ok(recipe("echo copy")) }.boxed_local()
     }));
-    let compose = a.copy_recipe_or_throw().ok().expect("the wired one");
+    let compose = a.copy_recipe_or_throw().expect("the wired one");
     run(async {
-        let made = compose(sealed_image("default", 1, "h1", None), true).await.unwrap();
+        let made = compose(sealed_image("default", 1, "h1", None), true)
+            .await
+            .unwrap();
         assert_eq!(made.setup, "echo copy");
     });
     assert_eq!(w.log(), ["copy_recipe h1 cloud=true"]);
 }
 
 fn setup_of(r: Result<GoldenRecipe, HostError>) -> String {
-    r.ok().expect("a recipe").setup
+    r.expect("a recipe").setup
 }
 
 // P10: builders.ts:275-279. The recipe the call names, else the one the runtime was wired with.
@@ -633,13 +861,27 @@ fn kv(k: &str, v: &str) -> (String, String) {
 fn builder_labels_put_the_four_marks_after_the_extra_ones() {
     let w = World::new();
     let a = area(&w);
-    let extra: indexmap::IndexMap<String, String> = [kv("team", "infra"), kv("batch", "7")].into_iter().collect();
-    let marks = [kv("wsp", "1"), kv("wsp-builder", "1"), kv("wsp-owner", "owner-1"), kv("createdAt", "2026-10-25T09:00:00.000Z")];
+    let extra: indexmap::IndexMap<String, String> = [kv("team", "infra"), kv("batch", "7")]
+        .into_iter()
+        .collect();
+    let marks = [
+        kv("wsp", "1"),
+        kv("wsp-builder", "1"),
+        kv("wsp-owner", "owner-1"),
+        kv("createdAt", "2026-10-25T09:00:00.000Z"),
+    ];
     let got = pairs(&a.builder_labels(Some(&extra)));
-    assert_eq!(got, [vec![kv("team", "infra"), kv("batch", "7")], marks.to_vec()].concat());
+    assert_eq!(
+        got,
+        [vec![kv("team", "infra"), kv("batch", "7")], marks.to_vec()].concat()
+    );
     assert_eq!(pairs(&a.builder_labels(None)), marks.to_vec());
     w.clock.advance(61_000);
-    assert_eq!(a.builder_labels(None).get("createdAt").map(String::as_str), Some("2026-10-25T09:01:01.000Z"), "the context clock, not the wall's");
+    assert_eq!(
+        a.builder_labels(None).get("createdAt").map(String::as_str),
+        Some("2026-10-25T09:01:01.000Z"),
+        "the context clock, not the wall's"
+    );
 }
 
 // P11: builders.ts:281 (the JS spread). An extra label of a mark's name keeps its place and takes the new value.
@@ -647,9 +889,21 @@ fn builder_labels_put_the_four_marks_after_the_extra_ones() {
 fn builder_labels_keep_an_overridden_keys_place() {
     let w = World::new();
     let a = area(&w);
-    let extra: indexmap::IndexMap<String, String> = [kv("wsp-owner", "someone-else"), kv("wsp", "0"), kv("x", "y")].into_iter().collect();
+    let extra: indexmap::IndexMap<String, String> = [
+        kv("wsp-owner", "someone-else"),
+        kv("wsp", "0"),
+        kv("x", "y"),
+    ]
+    .into_iter()
+    .collect();
     assert_eq!(
         pairs(&a.builder_labels(Some(&extra))),
-        vec![kv("wsp-owner", "owner-1"), kv("wsp", "1"), kv("x", "y"), kv("wsp-builder", "1"), kv("createdAt", "2026-10-25T09:00:00.000Z")]
+        vec![
+            kv("wsp-owner", "owner-1"),
+            kv("wsp", "1"),
+            kv("x", "y"),
+            kv("wsp-builder", "1"),
+            kv("createdAt", "2026-10-25T09:00:00.000Z")
+        ]
     );
 }

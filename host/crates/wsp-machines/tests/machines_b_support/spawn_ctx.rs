@@ -13,15 +13,17 @@ use futures::future::LocalBoxFuture;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Map, Value};
 
+use wsp_core::types::internal::{absent_machine, dead_machine, is_absent_machine};
+use wsp_core::types::wiring::{StageReport, StageSaid, WorkspaceRecord};
 use wsp_engine::box_backend::BoxLimits;
 use wsp_engine::errors::EngineError;
 use wsp_engine::machine::{Machine, MachineBackend, MachineKind, MachineSpec, ProviderBoxState};
-use wsp_core::types::internal::{absent_machine, dead_machine, is_absent_machine};
-use wsp_core::types::wiring::{StageReport, StageSaid, WorkspaceRecord};
 use wsp_machines::machines::area_error::{AreaError, AreaResult};
 use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::sub_life::SessionFile;
-use wsp_machines::machines::sub_spawn::{ImageRecord, Packed, ProviderRow, SubSpawnArea, SubSpawnCtx};
+use wsp_machines::machines::sub_spawn::{
+    ImageRecord, Packed, ProviderRow, SubSpawnArea, SubSpawnCtx,
+};
 use wsp_wire::views::golden_image::GoldenManifest;
 use wsp_wire::views::session::ThreadCapWait;
 use wsp_wire::views::workspace::{Caller, ProjectView, SeedChoice, SeedPlan};
@@ -53,11 +55,17 @@ pub struct Fault {
 }
 
 pub fn fault(kind: &'static str) -> Fault {
-    Fault { kind, replayed: false }
+    Fault {
+        kind,
+        replayed: false,
+    }
 }
 
 pub fn replayed(kind: &'static str) -> Fault {
-    Fault { kind, replayed: true }
+    Fault {
+        kind,
+        replayed: true,
+    }
 }
 
 /// What the lead's folder reads as through its daemon (sub-fixture.ts `LeadGit`).
@@ -124,16 +132,30 @@ pub struct World {
     pub machine_answers: Vec<(String, Reply)>,
 }
 
-fn local_rules(m: &FakeMachine, gh: Arc<AtomicBool>, heads: Arc<Mutex<Vec<String>>>, real: Arc<AtomicBool>) {
+fn local_rules(
+    m: &FakeMachine,
+    gh: Arc<AtomicBool>,
+    heads: Arc<Mutex<Vec<String>>>,
+    real: Arc<AtomicBool>,
+) {
     m.on(move |cmd| {
         if cmd.starts_with("gh auth token") {
-            return Some(if gh.load(Ordering::SeqCst) { ok("") } else { exit(1, "no oauth token found for github.com") });
+            return Some(if gh.load(Ordering::SeqCst) {
+                ok("")
+            } else {
+                exit(1, "no oauth token found for github.com")
+            });
         }
         if cmd.contains("git -C") && real.load(Ordering::SeqCst) {
             return Some(sh(cmd));
         }
         if cmd.contains(" ls-remote --heads origin") {
-            let lines: String = heads.lock().unwrap().iter().map(|h| format!("c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00\trefs/heads/{h}\n")).collect();
+            let lines: String = heads
+                .lock()
+                .unwrap()
+                .iter()
+                .map(|h| format!("c0ffee00c0ffee00c0ffee00c0ffee00c0ffee00\trefs/heads/{h}\n"))
+                .collect();
             return Some(ok(&lines));
         }
         None
@@ -142,8 +164,16 @@ fn local_rules(m: &FakeMachine, gh: Arc<AtomicBool>, heads: Arc<Mutex<Vec<String
 
 /// A command run by the real shell, as the lead's computer runs git.
 fn sh(cmd: &str) -> Reply {
-    let o = std::process::Command::new("sh").arg("-c").arg(cmd).output().expect("sh runs");
-    Reply::Out { code: o.status.code().unwrap_or(-1) as i64, stdout: String::from_utf8_lossy(&o.stdout).into_owned(), stderr: String::from_utf8_lossy(&o.stderr).into_owned() }
+    let o = std::process::Command::new("sh")
+        .arg("-c")
+        .arg(cmd)
+        .output()
+        .expect("sh runs");
+    Reply::Out {
+        code: o.status.code().unwrap_or(-1) as i64,
+        stdout: String::from_utf8_lossy(&o.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&o.stderr).into_owned(),
+    }
 }
 
 impl World {
@@ -157,22 +187,45 @@ impl World {
         let lead_machine = FakeMachine::new("bx_lead");
         local_rules(&lead_machine, gh.clone(), lead_heads.clone(), real.clone());
         World {
-            git: LeadGit { head: "feat/upload".into(), upstream: Some("origin/feat/upload".into()), ahead: 0, uncommitted: 0, ignored: 0, counts_unknown: false, default_branch: None },
+            git: LeadGit {
+                head: "feat/upload".into(),
+                upstream: Some("origin/feat/upload".into()),
+                ahead: 0,
+                uncommitted: 0,
+                ignored: 0,
+                counts_unknown: false,
+                default_branch: None,
+            },
             status_error: None,
             read_ms: 0.0,
             project: project_json("web", "here", LEAD_FOLDER, "git@github.com:acme/web.git"),
             lead_folder: LEAD_FOLDER.into(),
             rows: vec![
-                ProviderRow { id: "box".into(), name: "Boat".into(), kind: "provider".into() },
-                ProviderRow { id: "solari".into(), name: "Solari".into(), kind: "provider".into() },
+                ProviderRow {
+                    id: "box".into(),
+                    name: "Boat".into(),
+                    kind: "provider".into(),
+                },
+                ProviderRow {
+                    id: "solari".into(),
+                    name: "Solari".into(),
+                    kind: "provider".into(),
+                },
             ],
-            image: Some(ImageWorld { head: 1, logins: vec![("GitHub CLI login".into(), "copied".into())], agents: vec!["claude".into(), "codex".into()] }),
+            image: Some(ImageWorld {
+                head: 1,
+                logins: vec![("GitHub CLI login".into(), "copied".into())],
+                agents: vec!["claude".into(), "codex".into()],
+            }),
             broker_ready: false,
             gh_signed_in: gh,
             real_git: real,
             remote_heads: heads,
             lead_remote_heads: lead_heads,
-            menu: vec![("CLAUDE.local.md".into(), 1100, "config".into()), ("local.properties".into(), 143, "config".into())],
+            menu: vec![
+                ("CLAUDE.local.md".into(), 1100, "config".into()),
+                ("local.properties".into(), 143, "config".into()),
+            ],
             left: Vec::new(),
             packs: Vec::new(),
             spend_capped: false,
@@ -247,7 +300,12 @@ pub fn lead_on_a_box() -> Fixture {
     {
         let world = w();
         let mut world = world.borrow_mut();
-        world.project = project_json("lab-box", "hetzner", "/root/lab-box", "git@github.com:acme/lab.git");
+        world.project = project_json(
+            "lab-box",
+            "hetzner",
+            "/root/lab-box",
+            "git@github.com:acme/lab.git",
+        );
         world.lead_folder = "/root/lab-box".into();
     }
     let machine = w().borrow().lead_machine.clone();
@@ -270,7 +328,8 @@ pub fn lead_caller() -> Caller {
 impl FakeHost {
     /// An entry for a lead, on a machine of its own that the cloud's backend knows nothing of.
     pub fn put_lead(&self, record: Value, machine: Arc<FakeMachine>) -> Entry {
-        let record: WorkspaceRecord = serde_json::from_value(record).expect("the record reads as the TS writes it");
+        let record: WorkspaceRecord =
+            serde_json::from_value(record).expect("the record reads as the TS writes it");
         let id = record.id.clone();
         let entry = live_entry(Rc::new(RefCell::new(record)), machine);
         self.live.borrow_mut().insert(id, entry.clone());
@@ -278,7 +337,8 @@ impl FakeHost {
     }
     /// A queued record and the stand-in the queue holds it by: no machine, an empty id.
     pub fn put_absent(&self, record: Value) -> Rc<RefCell<WorkspaceRecord>> {
-        let record: WorkspaceRecord = serde_json::from_value(record).expect("the record reads as the TS writes it");
+        let record: WorkspaceRecord =
+            serde_json::from_value(record).expect("the record reads as the TS writes it");
         let id = record.id.clone();
         let cell = Rc::new(RefCell::new(record));
         let entry = live_entry(cell.clone(), absent());
@@ -287,7 +347,8 @@ impl FakeHost {
     }
     /// A released record and the dead stand-in its entry is.
     pub fn put_dead(&self, record: Value) -> Entry {
-        let record: WorkspaceRecord = serde_json::from_value(record).expect("the record reads as the TS writes it");
+        let record: WorkspaceRecord =
+            serde_json::from_value(record).expect("the record reads as the TS writes it");
         let id = record.id.clone();
         let entry = live_entry(Rc::new(RefCell::new(record)), dead_machine(""));
         self.live.borrow_mut().insert(id, entry.clone());
@@ -299,12 +360,22 @@ impl FakeHost {
     }
     /// The first position of a call by name.
     pub fn at(&self, name: &str) -> usize {
-        self.names().iter().position(|n| n == name).unwrap_or_else(|| panic!("{name} was never called"))
+        self.names()
+            .iter()
+            .position(|n| n == name)
+            .unwrap_or_else(|| panic!("{name} was never called"))
     }
     /// Stores the picks the person made for the lead's folder, as the seed verb writes them.
     pub fn pick(&self, files: &[&str]) {
         let key = w().borrow().project["path"].as_str().unwrap().to_string();
-        self.store.borrow_mut().entry(SEED_CHOICES_KEY.to_string()).or_default().insert(key, json!({ "files": files, "memory": false, "commits": false, "remember": true }));
+        self.store
+            .borrow_mut()
+            .entry(SEED_CHOICES_KEY.to_string())
+            .or_default()
+            .insert(
+                key,
+                json!({ "files": files, "memory": false, "commits": false, "remember": true }),
+            );
     }
     /// The stages every start reported so far.
     pub fn reported(&self) -> Vec<Report> {
@@ -337,7 +408,12 @@ pub fn sizes_sold(names: &[&str]) -> Vec<wsp_words::sub_thread::SubSize> {
                 "large" => (8.0, 16384.0, 0.072),
                 other => panic!("{other} is no class"),
             };
-            wsp_words::sub_thread::SubSize { name: n.to_string(), cpu, mem_mb: mem, rate_usd_per_hour: rate }
+            wsp_words::sub_thread::SubSize {
+                name: n.to_string(),
+                cpu,
+                mem_mb: mem,
+                rate_usd_per_hour: rate,
+            }
         })
         .collect()
 }
@@ -351,7 +427,20 @@ pub fn trial() -> BoxLimits {
         plan_usd: None,
         machines_at_once: Some(2.0),
         active_boxes: None,
-        starts: Some(StartWindows { minute: StartCount { used: 0.0, limit: 5.0 }, hour: StartCount { used: 0.0, limit: 25.0 }, day: StartCount { used: 0.0, limit: 75.0 } }),
+        starts: Some(StartWindows {
+            minute: StartCount {
+                used: 0.0,
+                limit: 5.0,
+            },
+            hour: StartCount {
+                used: 0.0,
+                limit: 25.0,
+            },
+            day: StartCount {
+                used: 0.0,
+                limit: 75.0,
+            },
+        }),
         sizes: vec![BoxClassType::Small, BoxClassType::Default],
         can_start: true,
         start_blocked_reason: None,
@@ -366,7 +455,7 @@ pub fn tar_of(picks: &[(&str, u64)]) -> Vec<u8> {
     for (path, bytes) in picks {
         tar.extend_from_slice(path.as_bytes());
         tar.push(b'\n');
-        tar.extend(std::iter::repeat(b'x').take(*bytes as usize));
+        tar.extend(std::iter::repeat_n(b'x', *bytes as usize));
     }
     tar
 }
@@ -384,7 +473,13 @@ pub fn js_text(v: &Value) -> String {
             _ => n.to_string(),
         },
         Value::Array(a) => format!("[{}]", a.iter().map(js_text).collect::<Vec<_>>().join(",")),
-        Value::Object(o) => format!("{{{}}}", o.iter().map(|(k, v)| format!("{}:{}", serde_json::to_string(k).unwrap(), js_text(v))).collect::<Vec<_>>().join(",")),
+        Value::Object(o) => format!(
+            "{{{}}}",
+            o.iter()
+                .map(|(k, v)| format!("{}:{}", serde_json::to_string(k).unwrap(), js_text(v)))
+                .collect::<Vec<_>>()
+                .join(",")
+        ),
         other => serde_json::to_string(other).unwrap(),
     }
 }
@@ -414,11 +509,18 @@ pub fn class_of(h: &HostError) -> &'static str {
 
 /// The session file of Codex on a machine (sub-fixture.ts `CODEX_SESSION_FILE`).
 pub fn codex_session_file(id: &str) -> SessionFile {
-    SessionFile { folder: "/root/.codex/sessions".to_string(), name: format!("-{id}.jsonl"), depth: 3 }
+    SessionFile {
+        folder: "/root/.codex/sessions".to_string(),
+        name: format!("-{id}.jsonl"),
+        depth: 3,
+    }
 }
 
 fn seal(head: u32, logins: &[(String, String)]) -> Value {
-    let logins: Vec<Value> = logins.iter().map(|(name, state)| json!({ "name": name, "state": state })).collect();
+    let logins: Vec<Value> = logins
+        .iter()
+        .map(|(name, state)| json!({ "name": name, "state": state }))
+        .collect();
     let version = |n: u32| {
         json!({
             "version": n, "snapshotId": format!("wsp-host-default-v{n}"), "baseTemplate": "base", "setupSha": "abc", "createdAt": "2026-10-07T00:00:00.000Z",
@@ -430,12 +532,20 @@ fn seal(head: u32, logins: &[(String, String)]) -> Value {
 
 /// The stand-in a queued record is held by: no machine yet, an empty id.
 fn absent() -> Arc<dyn Machine> {
-    absent_machine("", MachineKind::Sandbox, Arc::new(|| engine_error("this record's machine is not known yet")))
+    absent_machine(
+        "",
+        MachineKind::Sandbox,
+        Arc::new(|| engine_error("this record's machine is not known yet")),
+    )
 }
 
 /// The word the TS puts on the wire for a stage.
 fn stage_word(stage: WorkspaceCreateStage) -> String {
-    serde_json::to_value(stage).unwrap().as_str().unwrap().to_string()
+    serde_json::to_value(stage)
+        .unwrap()
+        .as_str()
+        .unwrap()
+        .to_string()
 }
 
 /// What a stage said beside its line, as the TS object: only the keys it set.
@@ -525,7 +635,8 @@ impl SubSpawnCtx for FakeHost {
     }
     fn project_held(&self, id: &str) -> ProjectView {
         self.call("project_held", &[id]);
-        serde_json::from_value(w().borrow().project.clone()).expect("the project reads as the TS writes it")
+        serde_json::from_value(w().borrow().project.clone())
+            .expect("the project reads as the TS writes it")
     }
     async fn copy_blocked(&self, lead: &Entry) -> AreaResult<()> {
         self.call("copy_blocked", &[&entry_id(lead)]);
@@ -545,11 +656,17 @@ impl SubSpawnCtx for FakeHost {
             return Err(AreaError::Engine(engine_error(&said)));
         }
         if frame["op"] != "git.status" {
-            return Ok(json!({ "id": 1, "ok": false, "error": format!("{} was not answered", frame["op"].as_str().unwrap_or("")) }));
+            return Ok(
+                json!({ "id": 1, "ok": false, "error": format!("{} was not answered", frame["op"].as_str().unwrap_or("")) }),
+            );
         }
-        let mut entries: Vec<Value> = (0..git.uncommitted).map(|i| json!({ "path": format!("f{i}"), "xy": " M" })).collect();
-        entries.extend((0..git.ignored).map(|i| json!({ "path": format!("ignored{i}"), "xy": "!!" })));
-        let mut branch = json!({ "oid": BASE_SHA, "head": git.head, "ahead": git.ahead, "behind": 0 });
+        let mut entries: Vec<Value> = (0..git.uncommitted)
+            .map(|i| json!({ "path": format!("f{i}"), "xy": " M" }))
+            .collect();
+        entries
+            .extend((0..git.ignored).map(|i| json!({ "path": format!("ignored{i}"), "xy": "!!" })));
+        let mut branch =
+            json!({ "oid": BASE_SHA, "head": git.head, "ahead": git.ahead, "behind": 0 });
         if let Some(up) = git.upstream {
             branch["upstream"] = json!(up);
         }
@@ -575,7 +692,12 @@ impl SubSpawnCtx for FakeHost {
     fn brokered_start(&self) -> bool {
         w().borrow().broker_ready
     }
-    async fn repo_of_record(&self, remote: &str, project: &str, on: &str) -> AreaResult<Map<String, Value>> {
+    async fn repo_of_record(
+        &self,
+        remote: &str,
+        project: &str,
+        on: &str,
+    ) -> AreaResult<Map<String, Value>> {
         self.call("repo_of_record", &[remote, project, on]);
         let mut m = Map::new();
         m.insert("repoId".to_string(), json!(4242));
@@ -613,12 +735,18 @@ impl SubSpawnCtx for FakeHost {
     async fn copy_of(&self, place: &str, image: &str) -> AreaResult<Option<GoldenManifest>> {
         self.call("copy_of", &[place, image]);
         let image = w().borrow().image.clone();
-        Ok(image.map(|i| serde_json::from_value(seal(i.head, &i.logins)).expect("the seal reads as the TS writes it")))
+        Ok(image.map(|i| {
+            serde_json::from_value(seal(i.head, &i.logins))
+                .expect("the seal reads as the TS writes it")
+        }))
     }
     async fn record_of(&self, image: &str) -> AreaResult<Option<ImageRecord>> {
         self.call("record_of", &[image]);
         let image = w().borrow().image.clone();
-        Ok(image.map(|i| ImageRecord { logins: Some(i.logins.clone()), agents: i.agents.iter().map(|a| (a.clone(), true)).collect() }))
+        Ok(image.map(|i| ImageRecord {
+            logins: Some(i.logins.clone()),
+            agents: i.agents.iter().map(|a| (a.clone(), true)).collect(),
+        }))
     }
     async fn place_guard(&self, place: &str) -> AreaResult<()> {
         self.call("place_guard", &[place]);
@@ -626,7 +754,9 @@ impl SubSpawnCtx for FakeHost {
             return Err(e);
         }
         if w().borrow().spend_capped {
-            return Err(AreaError::Host(HostError::new(wsp_words::words::computer::spend_cap_refusal(place, 0.0, 0.0))));
+            return Err(AreaError::Host(HostError::new(
+                wsp_words::words::computer::spend_cap_refusal(place, 0.0, 0.0),
+            )));
         }
         Ok(())
     }
@@ -636,10 +766,16 @@ impl SubSpawnCtx for FakeHost {
     }
     fn unbrokered_refusal(&self, harness: &str) -> Option<HostError> {
         self.call("unbrokered_refusal", &[harness]);
-        (harness == "opencode").then(|| wsp_words::place_name::brokered_agent_refusal("OpenCode", &["Claude Code", "Codex"]))
+        (harness == "opencode").then(|| {
+            wsp_words::place_name::brokered_agent_refusal("OpenCode", &["Claude Code", "Codex"])
+        })
     }
     fn name_refusal(&self, name: &str) -> Option<String> {
-        w().borrow().taken_names.iter().any(|n| n == name).then(|| format!("a thread named {name} already exists"))
+        w().borrow()
+            .taken_names
+            .iter()
+            .any(|n| n == name)
+            .then(|| format!("a thread named {name} already exists"))
     }
     fn tree_of(&self, scope: &ThreadScope) -> IndexMap<String, Value> {
         let mut m = IndexMap::new();
@@ -656,9 +792,16 @@ impl SubSpawnCtx for FakeHost {
     fn supersede_failed(&self, name: &str) {
         self.call("supersede_failed", &[name]);
     }
-    async fn enqueue(&self, record: &Rc<RefCell<WorkspaceRecord>>, wait: Option<ThreadCapWait>) -> AreaResult<()> {
+    async fn enqueue(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        wait: Option<ThreadCapWait>,
+    ) -> AreaResult<()> {
         let id = record.borrow().id.clone();
-        self.call("enqueue", &[&id, if wait.is_some() { "wait" } else { "none" }]);
+        self.call(
+            "enqueue",
+            &[&id, if wait.is_some() { "wait" } else { "none" }],
+        );
         w().borrow_mut().enqueued.push(js_of(&*record.borrow()));
         self.persist_now(&record.borrow());
         let entry = live_entry(record.clone(), absent());
@@ -666,25 +809,65 @@ impl SubSpawnCtx for FakeHost {
         Ok(())
     }
     fn queue_wait(&self, place: &str, limits: Option<&BoxLimits>) -> Option<ThreadCapWait> {
-        self.call("queue_wait", &[place, if limits.is_some() { "limits" } else { "no limits" }]);
+        self.call(
+            "queue_wait",
+            &[
+                place,
+                if limits.is_some() {
+                    "limits"
+                } else {
+                    "no limits"
+                },
+            ],
+        );
         None
     }
     fn view(&self, record: &WorkspaceRecord) -> Value {
         json!({ "id": record.id, "name": record.name, "phase": record.phase, "machineId": record.machine_id })
     }
-    fn stage_reporter(&self, id: &str, name: &str, started_at: f64, asked_by: Option<Value>) -> StageReport {
-        self.call("stage_reporter", &[id, name, &started_at.to_string(), &asked_by.map(|v| v.to_string()).unwrap_or_default()]);
+    fn stage_reporter(
+        &self,
+        id: &str,
+        name: &str,
+        started_at: f64,
+        asked_by: Option<Value>,
+    ) -> StageReport {
+        self.call(
+            "stage_reporter",
+            &[
+                id,
+                name,
+                &started_at.to_string(),
+                &asked_by.map(|v| v.to_string()).unwrap_or_default(),
+            ],
+        );
         let reports = w().borrow().reports.clone();
-        Rc::new(move |stage: WorkspaceCreateStage, message: &str, said: Option<StageSaid>| {
-            reports.borrow_mut().push((stage_word(stage), message.to_string(), said.map(|s| said_json(&s))))
-        })
+        Rc::new(
+            move |stage: WorkspaceCreateStage, message: &str, said: Option<StageSaid>| {
+                reports.borrow_mut().push((
+                    stage_word(stage),
+                    message.to_string(),
+                    said.map(|s| said_json(&s)),
+                ))
+            },
+        )
     }
     /// The create road's own part: the cloud is asked for a box from the record's image at its size, the box reports
     /// the states it moves through, and a fault still leaves the box it made.
-    async fn fork(&self, record: &Rc<RefCell<WorkspaceRecord>>, on_machine: Box<dyn Fn(Arc<dyn Machine>)>, report: StageReport) -> AreaResult<()> {
+    async fn fork(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        on_machine: Box<dyn Fn(Arc<dyn Machine>)>,
+        report: StageReport,
+    ) -> AreaResult<()> {
         let (id, name, golden, size) = {
             let r = record.borrow();
-            (r.id.clone(), r.name.clone(), r.golden.clone(), r.size.clone())
+            (
+                r.id.clone(),
+                r.name.clone(),
+                r.golden.clone(),
+                r.size.clone(),
+            )
         };
         self.call("fork", &[&id, &name]);
         let off = w().borrow().broker_off.contains(&id);
@@ -700,12 +883,28 @@ impl SubSpawnCtx for FakeHost {
         labels.insert(wsp_engine::labels::NAME_LABEL.to_string(), json!(name));
         let spec: MachineSpec = serde_json::from_value(json!({ "kind": "sandbox", "fromSnapshot": golden, "cpu": size.cpu, "memMb": size.mem_mb, "labels": labels }))
             .expect("the spec reads as the TS writes it");
-        self.backend.create(spec, None, None).await.map_err(AreaError::Engine)?;
-        let m = self.backend.machines.lock().unwrap().last().cloned().expect("the backend kept the box it made");
+        self.backend
+            .create(spec, None, None)
+            .await
+            .map_err(AreaError::Engine)?;
+        let m = self
+            .backend
+            .machines
+            .lock()
+            .unwrap()
+            .last()
+            .cloned()
+            .expect("the backend kept the box it made");
         let (states, daemon_road, fork_ms, fault, answers) = {
             let world = w();
             let mut world = world.borrow_mut();
-            (world.states.clone(), world.daemon_road, world.fork_ms, world.faults.pop_front(), world.machine_answers.clone())
+            (
+                world.states.clone(),
+                world.daemon_road,
+                world.fork_ms,
+                world.faults.pop_front(),
+                world.machine_answers.clone(),
+            )
         };
         for (needle, reply) in answers {
             m.answer(&needle, reply);
@@ -714,8 +913,18 @@ impl SubSpawnCtx for FakeHost {
             m.offers.lock().unwrap().daemon_answers = true;
         }
         for state in &states {
-            let said = StageSaid { r#box: Some(ProviderBoxState { id: m.id.clone(), state: state.clone() }), ..StageSaid::default() };
-            report(WorkspaceCreateStage::ForkRequested, &wsp_words::words::units::boat_box_state_line(&m.id, state), Some(said));
+            let said = StageSaid {
+                r#box: Some(ProviderBoxState {
+                    id: m.id.clone(),
+                    state: state.clone(),
+                }),
+                ..StageSaid::default()
+            };
+            report(
+                WorkspaceCreateStage::ForkRequested,
+                &wsp_words::words::units::boat_box_state_line(&m.id, state),
+                Some(said),
+            );
         }
         if fork_ms > 0.0 {
             self.clock.advance(fork_ms).await;
@@ -725,9 +934,25 @@ impl SubSpawnCtx for FakeHost {
                 *m.killed.lock().unwrap() = true;
             }
             return Err(AreaError::Engine(match f.kind {
-                "unusable" => EngineError::guest_unusable(&m.id, "Boat", &format!("{} is missing", wsp_engine::box_backend::BOX_WORK_DIR), 200),
-                "env" => EngineError::EnvNotLanded { machine_id: m.id.clone(), exit_code: 124, detail: String::new() },
-                _ => EngineError::CreateCancelled { machine_id: m.id.clone(), why: "no capacity".to_string(), line: wsp_words::words::units::boat_cancelled_line(Some(&name), Some("no capacity")) },
+                "unusable" => EngineError::guest_unusable(
+                    &m.id,
+                    "Boat",
+                    &format!("{} is missing", wsp_engine::box_backend::BOX_WORK_DIR),
+                    200,
+                ),
+                "env" => EngineError::EnvNotLanded {
+                    machine_id: m.id.clone(),
+                    exit_code: 124,
+                    detail: String::new(),
+                },
+                _ => EngineError::CreateCancelled {
+                    machine_id: m.id.clone(),
+                    why: "no capacity".to_string(),
+                    line: wsp_words::words::units::boat_cancelled_line(
+                        Some(&name),
+                        Some("no capacity"),
+                    ),
+                },
             }));
         }
         on_machine(m as Arc<dyn Machine>);
@@ -781,7 +1006,12 @@ impl SubSpawnCtx for FakeHost {
     /// A slow place for the row: it reads the computers before it goes out, and the refusal must wait for it.
     async fn rows_sent(&self) {
         self.call("rows_sent", &[]);
-        let at = self.store.borrow().get("workspaces").and_then(|c| c.get(SUB_WS)).cloned();
+        let at = self
+            .store
+            .borrow()
+            .get("workspaces")
+            .and_then(|c| c.get(SUB_WS))
+            .cloned();
         w().borrow_mut().at_rows_sent.push(at);
         for _ in 0..30 {
             tokio::task::yield_now().await;
@@ -797,8 +1027,15 @@ impl SubSpawnCtx for FakeHost {
     }
     async fn get_seed_choice(&self, folder: &str) -> AreaResult<Option<SeedChoice>> {
         self.call("get_seed_choice", &[folder]);
-        let held = self.store.borrow().get(SEED_CHOICES_KEY).and_then(|c| c.get(folder)).cloned();
-        Ok(held.map(|v| serde_json::from_value(v).expect("the picks read as the seed verb writes them")))
+        let held = self
+            .store
+            .borrow()
+            .get(SEED_CHOICES_KEY)
+            .and_then(|c| c.get(folder))
+            .cloned();
+        Ok(held.map(|v| {
+            serde_json::from_value(v).expect("the picks read as the seed verb writes them")
+        }))
     }
     async fn get_blob(&self, collection: &str, key: &str) -> AreaResult<Option<Vec<u8>>> {
         self.call("get_blob", &[collection, key]);
@@ -825,15 +1062,42 @@ impl SubSpawnCtx for FakeHost {
         .expect("the plan reads as the TS writes it"))
     }
     /// The archive of the files asked, as many bytes as they hold; a plan not marked for a provider is a failure.
-    async fn seed_pack(&self, plan: &SeedPlan, files: &[String], _homes: &Value) -> AreaResult<Packed> {
+    async fn seed_pack(
+        &self,
+        plan: &SeedPlan,
+        files: &[String],
+        _homes: &Value,
+    ) -> AreaResult<Packed> {
         self.call("seed_pack", &[&files.join(",")]);
-        assert_eq!(plan.provider, Some(true), "a sub-thread's plan is marked for a provider before it is packed");
+        assert_eq!(
+            plan.provider,
+            Some(true),
+            "a sub-thread's plan is marked for a provider before it is packed"
+        );
         let world = w();
         let mut world = world.borrow_mut();
         world.packs.push(files.to_vec());
-        let sized: Vec<(String, u64)> = files.iter().map(|f| (f.clone(), world.menu.iter().find(|(p, _, _)| p == f).map(|(_, b, _)| *b).expect("a pick the menu lists"))).collect();
+        let sized: Vec<(String, u64)> = files
+            .iter()
+            .map(|f| {
+                (
+                    f.clone(),
+                    world
+                        .menu
+                        .iter()
+                        .find(|(p, _, _)| p == f)
+                        .map(|(_, b, _)| *b)
+                        .expect("a pick the menu lists"),
+                )
+            })
+            .collect();
         let picks: Vec<(&str, u64)> = sized.iter().map(|(p, b)| (p.as_str(), *b)).collect();
-        Ok(Packed { tar: tar_of(&picks), files: files.len() as u64, bytes: sized.iter().map(|(_, b)| *b).sum(), left: world.left.clone() })
+        Ok(Packed {
+            tar: tar_of(&picks),
+            files: files.len() as u64,
+            bytes: sized.iter().map(|(_, b)| *b).sum(),
+            left: world.left.clone(),
+        })
     }
     fn folder_named(&self, path: &str) -> String {
         path.to_string()
@@ -898,15 +1162,24 @@ pub const SESSION_BYTES: &[u8] = b"gzipped claude session";
 pub fn released_sub() -> (Fixture, Entry) {
     let f = lead_on_this_computer();
     f.host.pick(&["CLAUDE.local.md"]);
-    f.host.thread_records.borrow_mut().push((SUB_THREAD.to_string(), SUB_WS.to_string()));
-    f.host.blobs.borrow_mut().insert(("sub-sessions".to_string(), SUB_THREAD.to_string()), SESSION_BYTES.to_vec());
+    f.host
+        .thread_records
+        .borrow_mut()
+        .push((SUB_THREAD.to_string(), SUB_WS.to_string()));
+    f.host.blobs.borrow_mut().insert(
+        ("sub-sessions".to_string(), SUB_THREAD.to_string()),
+        SESSION_BYTES.to_vec(),
+    );
     let entry = f.host.put_dead(released_record(SUB_WS));
     (f, entry)
 }
 
 /// A queued spawn of the first start, the stand-in held by the queue: the record cell and its thread.
 pub fn queued_sub(f: &Fixture, spawn: Value) -> Rc<RefCell<WorkspaceRecord>> {
-    f.host.thread_records.borrow_mut().push((SUB_THREAD.to_string(), SUB_WS.to_string()));
+    f.host
+        .thread_records
+        .borrow_mut()
+        .push((SUB_THREAD.to_string(), SUB_WS.to_string()));
     f.host.put_absent(spawned_record(SUB_WS, spawn))
 }
 

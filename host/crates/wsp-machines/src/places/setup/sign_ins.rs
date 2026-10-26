@@ -22,25 +22,33 @@ use wsp_wire::types::recipe_file::{GitHubSignIn, RecipeFileAgentsValue, RecipeNa
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::views::golden_image::agent_of_row;
 use wsp_wire::views::place::{
-    sign_in_row_id, PlaceProvisionRow, PlaceProvisionRowOutcome, PlaceSetupEvent, PlaceSetupStep, PlaceWait, PlaceWaitState, GITHUB_CLI, GITHUB_ROW,
+    sign_in_row_id, PlaceProvisionRow, PlaceProvisionRowOutcome, PlaceSetupEvent, PlaceSetupStep,
+    PlaceWait, PlaceWaitState, GITHUB_CLI, GITHUB_ROW,
 };
 use wsp_wire::wire::daemon::EXEC_DEADLINE_EXIT;
 use wsp_words::exit::HostError;
 use wsp_words::recipe_file::gh_status_of;
 use wsp_words::views::place_setup_words::{
-    copied_from_line, copied_not_signed_in_line, key_held_line, no_copy_line, no_key_line, sign_in_there_fix, sign_in_ways_fix, token_held_line,
-    waits_for_install_line, SignInWay, SignInWayFacts, AT_ITS_TERMINAL, CODE_FROM_ROW, GITHUB_SKIPPED_LINE, NO_SIGN_IN_ROAD, SIGNED_IN_THERE,
-    SIGN_IN_WAIT_MS, SKIPPED_FOR_NOW,
+    copied_from_line, copied_not_signed_in_line, key_held_line, no_copy_line, no_key_line,
+    sign_in_there_fix, sign_in_ways_fix, token_held_line, waits_for_install_line, SignInWay,
+    SignInWayFacts, AT_ITS_TERMINAL, CODE_FROM_ROW, GITHUB_SKIPPED_LINE, NO_SIGN_IN_ROAD,
+    SIGNED_IN_THERE, SIGN_IN_WAIT_MS, SKIPPED_FOR_NOW,
 };
 use wsp_words::words::base::last_line;
 
-use super::super::helpers::{first_line_of, vault_held_line, vault_sign_in, GITHUB_MS, SIGNIN_STATUS_MS, SIGN_IN_SLACK_MS};
+use super::super::helpers::{
+    first_line_of, vault_held_line, vault_sign_in, GITHUB_MS, SIGNIN_STATUS_MS, SIGN_IN_SLACK_MS,
+};
 use super::super::types::{PlaceResult, SignInEmit, SignInHandle};
 use super::run::{github_word_of, plain_row, SetupRun};
-use super::{held_of, host_of, iso_at, signs_in_again, Skipper, SigningIn};
+use super::{held_of, host_of, iso_at, signs_in_again, SigningIn, Skipper};
 
 /// How a wait starts the sign-in it follows, every step it reaches going to the emit (setup.ts:80).
-pub type SignInStart = Rc<dyn Fn(Rc<dyn Fn(AgentsSignInEvent)>) -> LocalBoxFuture<'static, Result<SignInHandle, HostError>>>;
+pub type SignInStart = Rc<
+    dyn Fn(
+        Rc<dyn Fn(AgentsSignInEvent)>,
+    ) -> LocalBoxFuture<'static, Result<SignInHandle, HostError>>,
+>;
 
 /// How a wait lands: the road, the note a signed-in row carries, the fix a failed one carries (setup.ts:377).
 #[derive(Clone, Default)]
@@ -119,7 +127,10 @@ impl SignInWait {
         let token = self.signing.borrow().clone();
         let Some(token) = token else { return };
         let mut signing = self.run.area.signing_in.borrow_mut();
-        if signing.get(&self.key).is_some_and(|entry| Rc::ptr_eq(&entry.leave, &token)) {
+        if signing
+            .get(&self.key)
+            .is_some_and(|entry| Rc::ptr_eq(&entry.leave, &token))
+        {
             signing.shift_remove(&self.key);
         }
     }
@@ -127,8 +138,16 @@ impl SignInWait {
     /// What lands the row: the wait goes off the record, the settled hears it, and the row is said (setup.ts:384).
     fn landed(self: &Rc<Self>, mut row: PlaceProvisionRow) {
         self.finished.set(true);
-        self.run.area.skippers.borrow_mut().shift_remove(&self.skipper_key());
-        self.run.held.borrow_mut().waiting.retain(|x| x.row != self.row);
+        self.run
+            .area
+            .skippers
+            .borrow_mut()
+            .shift_remove(&self.skipper_key());
+        self.run
+            .held
+            .borrow_mut()
+            .waiting
+            .retain(|x| x.row != self.row);
         if let Some(settled) = &self.settled {
             settled(row.outcome == PlaceProvisionRowOutcome::Installed);
         }
@@ -145,7 +164,10 @@ impl SignInWait {
         if self.gone.get() {
             return;
         }
-        let pending = matches!(e.state, AgentsSignInEventState::Waiting | AgentsSignInEventState::Running);
+        let pending = matches!(
+            e.state,
+            AgentsSignInEventState::Waiting | AgentsSignInEventState::Running
+        );
         if !pending {
             self.terminal.set(true);
             self.forget_signing();
@@ -173,7 +195,11 @@ impl SignInWait {
                 self.ensure_shown();
                 let ms = (now as f64 - self.begun as f64).round();
                 let row = PlaceProvisionRow {
-                    note: Some(self.note.clone().unwrap_or_else(|| SIGNED_IN_THERE.to_string())),
+                    note: Some(
+                        self.note
+                            .clone()
+                            .unwrap_or_else(|| SIGNED_IN_THERE.to_string()),
+                    ),
                     ms: Some(JsInt(JsNumber(ms))),
                     ..plain_row(&self.row, &self.label, PlaceProvisionRowOutcome::Installed)
                 };
@@ -189,8 +215,14 @@ impl SignInWait {
                         settled(false);
                     }
                 } else {
-                    let said = e.said.clone().unwrap_or_else(|| "the sign-in did not finish".to_string());
-                    let row = PlaceProvisionRow { note: Some(said), ..plain_row(&self.row, &self.label, PlaceProvisionRowOutcome::Failed) };
+                    let said = e
+                        .said
+                        .clone()
+                        .unwrap_or_else(|| "the sign-in did not finish".to_string());
+                    let row = PlaceProvisionRow {
+                        note: Some(said),
+                        ..plain_row(&self.row, &self.label, PlaceProvisionRowOutcome::Failed)
+                    };
                     self.landed(row);
                 }
             }
@@ -211,7 +243,10 @@ impl SignInWait {
             (handle.leave)();
         }
         self.forget_signing();
-        let row = PlaceProvisionRow { note: Some(SKIPPED_FOR_NOW.to_string()), ..plain_row(&self.row, &self.label, PlaceProvisionRowOutcome::Skipped) };
+        let row = PlaceProvisionRow {
+            note: Some(SKIPPED_FOR_NOW.to_string()),
+            ..plain_row(&self.row, &self.label, PlaceProvisionRowOutcome::Skipped)
+        };
         self.landed(row);
         self.run.writing.settled().await;
     }
@@ -222,22 +257,42 @@ fn catalog_agent(agent: &str) -> Option<&'static AgentEntry> {
 }
 
 fn agent_label(agent: &str) -> String {
-    catalog_agent(agent).map(|entry| entry.name.clone()).unwrap_or_else(|| agent.to_string())
+    catalog_agent(agent)
+        .map(|entry| entry.name.clone())
+        .unwrap_or_else(|| agent.to_string())
 }
 
-fn agent_pick<'a>(agents: &'a IndexMap<RecipeName, RecipeFileAgentsValue>, agent: &str) -> Option<&'a RecipeFileAgentsValue> {
-    agents.iter().find(|(name, _)| name.0 == agent).map(|(_, value)| value)
+fn agent_pick<'a>(
+    agents: &'a IndexMap<RecipeName, RecipeFileAgentsValue>,
+    agent: &str,
+) -> Option<&'a RecipeFileAgentsValue> {
+    agents
+        .iter()
+        .find(|(name, _)| name.0 == agent)
+        .map(|(_, value)| value)
 }
 
 impl SetupRun {
     fn before_rows(&self) -> Vec<PlaceProvisionRow> {
-        self.record.applied.as_ref().map(|a| a.rows.iter().map(|r| r.row.clone()).collect()).unwrap_or_default()
+        self.record
+            .applied
+            .as_ref()
+            .map(|a| a.rows.iter().map(|r| r.row.clone()).collect())
+            .unwrap_or_default()
     }
 
     /// A sign-in on that computer that waits on the person: its row waits with the page and the code as the relay
     /// reads them, and when the wait runs out it reads expired and a retry asks for a fresh one. It never holds the
     /// job; its row lands whenever the person is through, and `settled` hears whether it signed in (setup.ts:377).
-    pub async fn sign_in_there(self: &Rc<Self>, ask: &str, row: &str, label: &str, row_step: PlaceSetupStep, settled: Option<Rc<dyn Fn(bool)>>, how: SignInHow) {
+    pub async fn sign_in_there(
+        self: &Rc<Self>,
+        ask: &str,
+        row: &str,
+        label: &str,
+        row_step: PlaceSetupStep,
+        settled: Option<Rc<dyn Fn(bool)>>,
+        how: SignInHow,
+    ) {
         let SignInHow { start, note, fix } = how;
         let place = self.ask.place_id.clone();
         let begun = self.area.ctx.clock.now() as u64;
@@ -288,16 +343,27 @@ impl SetupRun {
                 .boxed_local()
             }
         };
-        let before = self.area.signing_in.borrow().get(&key).map(|entry| (Rc::clone(&entry.mute), Rc::clone(&entry.leave)));
+        let before = self
+            .area
+            .signing_in
+            .borrow()
+            .get(&key)
+            .map(|entry| (Rc::clone(&entry.mute), Rc::clone(&entry.leave)));
         let handle = match road.await {
             Ok(Some(handle)) => handle,
             Ok(None) => {
-                wait.landed(PlaceProvisionRow { note: Some(NO_SIGN_IN_ROAD.to_string()), ..plain_row(row, label, PlaceProvisionRowOutcome::Failed) });
+                wait.landed(PlaceProvisionRow {
+                    note: Some(NO_SIGN_IN_ROAD.to_string()),
+                    ..plain_row(row, label, PlaceProvisionRowOutcome::Failed)
+                });
                 return;
             }
             Err(e) => {
                 if !wait.gone.get() {
-                    wait.landed(PlaceProvisionRow { note: Some(first_line_of(&e)), ..plain_row(row, label, PlaceProvisionRowOutcome::Failed) });
+                    wait.landed(PlaceProvisionRow {
+                        note: Some(first_line_of(&e)),
+                        ..plain_row(row, label, PlaceProvisionRowOutcome::Failed)
+                    });
                 }
                 return;
             }
@@ -318,7 +384,10 @@ impl SetupRun {
                 Rc::new(move || wait.mute())
             };
             *wait.signing.borrow_mut() = Some(Rc::clone(&leave));
-            self.area.signing_in.borrow_mut().insert(key, SigningIn { mute, leave });
+            self.area
+                .signing_in
+                .borrow_mut()
+                .insert(key, SigningIn { mute, leave });
         }
         if !wait.finished.get() {
             let skip: Skipper = {
@@ -328,7 +397,10 @@ impl SetupRun {
                     async move { wait.skip().await }.boxed_local()
                 })
             };
-            self.area.skippers.borrow_mut().insert(format!("{place}/{row}"), skip);
+            self.area
+                .skippers
+                .borrow_mut()
+                .insert(format!("{place}/{row}"), skip);
         }
         if let Some((_, leave)) = &before {
             leave();
@@ -348,10 +420,25 @@ impl SetupRun {
                 _ => None,
             };
             if let Some(status) = line.as_ref().and_then(|line| line.status.clone()) {
-                let cmd = format!("{}\n{status} 2>&1", path_line(&plan.path, plan.prefix.as_deref()));
-                let vars = line.as_ref().and_then(|line| line.env.clone()).unwrap_or_default();
-                let options = ExecOptions { timeout_ms: Some(SIGNIN_STATUS_MS), stdin: Some(env_input(&vars)), ..Default::default() };
-                let res = self.machine.exec(&with_env_from_input(&cmd), options).await.ok().filter(|res| res.exit_code.get() != EXEC_DEADLINE_EXIT);
+                let cmd = format!(
+                    "{}\n{status} 2>&1",
+                    path_line(&plan.path, plan.prefix.as_deref())
+                );
+                let vars = line
+                    .as_ref()
+                    .and_then(|line| line.env.clone())
+                    .unwrap_or_default();
+                let options = ExecOptions {
+                    timeout_ms: Some(SIGNIN_STATUS_MS),
+                    stdin: Some(env_input(&vars)),
+                    ..Default::default()
+                };
+                let res = self
+                    .machine
+                    .exec(&with_env_from_input(&cmd), options)
+                    .await
+                    .ok()
+                    .filter(|res| res.exit_code.get() != EXEC_DEADLINE_EXIT);
                 if let Some(res) = res {
                     let signed_in = check.signed_in(&res.stdout, res.exit_code.get() as i32);
                     if signed_in {
@@ -361,7 +448,11 @@ impl SetupRun {
                 }
             }
         }
-        self.area.ctx.sign_ins_here(&place, None).and_then(|states| states.get(agent).copied()) == Some(AgentSignInState::SignedIn)
+        self.area
+            .ctx
+            .sign_ins_here(&place, None)
+            .and_then(|states| states.get(agent).copied())
+            == Some(AgentSignInState::SignedIn)
     }
 
     /// An agent's sign-in on that computer, started only where it is not signed in there already (setup.ts:469).
@@ -369,20 +460,46 @@ impl SetupRun {
         let label = agent_label(agent);
         let id = sign_in_row_id(agent);
         if self.agent_signed_in(agent, plan).await {
-            let row = PlaceProvisionRow { note: Some(SIGNED_IN_THERE.to_string()), step: Some(PlaceSetupStep::Signins), ..plain_row(&id, &label, PlaceProvisionRowOutcome::Present) };
+            let row = PlaceProvisionRow {
+                note: Some(SIGNED_IN_THERE.to_string()),
+                step: Some(PlaceSetupStep::Signins),
+                ..plain_row(&id, &label, PlaceProvisionRowOutcome::Present)
+            };
             return self.land_row(held_of(row));
         }
         let sign_in = catalog_agent(agent).map(|entry| &entry.sign_in);
-        if sign_in.is_some_and(|s| asks_the_person(s)) {
-            let row = PlaceProvisionRow { note: Some(AT_ITS_TERMINAL.to_string()), step: Some(PlaceSetupStep::Signins), ..plain_row(&id, &label, PlaceProvisionRowOutcome::Skipped) };
+        if sign_in.is_some_and(asks_the_person) {
+            let row = PlaceProvisionRow {
+                note: Some(AT_ITS_TERMINAL.to_string()),
+                step: Some(PlaceSetupStep::Signins),
+                ..plain_row(&id, &label, PlaceProvisionRowOutcome::Skipped)
+            };
             return self.land_row(held_of(row));
         }
-        if sign_in.and_then(|s| login_there(s)).is_some_and(|login| matches!(login.finish, SignInFinish::Code)) {
-            let fix = self.ways_fix(agent, &label, Some(SignInWay::Machine)).unwrap_or_else(|| sign_in_there_fix(&self.record.name));
-            let row = PlaceProvisionRow { note: Some(CODE_FROM_ROW.to_string()), fix: Some(fix), step: Some(PlaceSetupStep::Signins), ..plain_row(&id, &label, PlaceProvisionRowOutcome::Skipped) };
+        if sign_in
+            .and_then(login_there)
+            .is_some_and(|login| matches!(login.finish, SignInFinish::Code))
+        {
+            let fix = self
+                .ways_fix(agent, &label, Some(SignInWay::Machine))
+                .unwrap_or_else(|| sign_in_there_fix(&self.record.name));
+            let row = PlaceProvisionRow {
+                note: Some(CODE_FROM_ROW.to_string()),
+                fix: Some(fix),
+                step: Some(PlaceSetupStep::Signins),
+                ..plain_row(&id, &label, PlaceProvisionRowOutcome::Skipped)
+            };
             return self.land_row(held_of(row));
         }
-        self.sign_in_there(agent, &id, &label, PlaceSetupStep::Signins, None, SignInHow::default()).await;
+        self.sign_in_there(
+            agent,
+            &id,
+            &label,
+            PlaceSetupStep::Signins,
+            None,
+            SignInHow::default(),
+        )
+        .await;
     }
 
     /// What a row of an agent with several ways says to do, the way picked first; nothing for an agent with one (setup.ts:483).
@@ -393,7 +510,9 @@ impl SetupRun {
             _ => return None,
         };
         let ordered: Vec<SignInWay> = match first {
-            Some(first) if ways.contains(&first) => std::iter::once(first).chain(ways.iter().copied().filter(|w| *w != first)).collect(),
+            Some(first) if ways.contains(&first) => std::iter::once(first)
+                .chain(ways.iter().copied().filter(|w| *w != first))
+                .collect(),
             _ => ways.clone(),
         };
         let facts = SignInWayFacts {
@@ -410,7 +529,12 @@ impl SetupRun {
     /// A sign-in picked to take a token or a key from this host's vault: present where the vault holds it; a token it
     /// lacks is made on this computer, waiting on the person's browser, and lands in the vault for every turn there
     /// (setup.ts:494). `None` where a wait started or the row landed through it.
-    pub async fn vault_way(self: &Rc<Self>, agent: &str, label: &str, way: SignInWay) -> Option<PlaceProvisionRow> {
+    pub async fn vault_way(
+        self: &Rc<Self>,
+        agent: &str,
+        label: &str,
+        way: SignInWay,
+    ) -> Option<PlaceProvisionRow> {
         let id = sign_in_row_id(agent);
         let sign_in = catalog_agent(agent).map(|entry| &entry.sign_in);
         let name: Option<String> = sign_in.and_then(|s| match way {
@@ -420,16 +544,33 @@ impl SetupRun {
         let here = self.area.here();
         if let Some(name) = &name {
             if self.vault().contains_key(name) {
-                let note = if way == SignInWay::Token { token_held_line(&here) } else { key_held_line(&here) };
-                return Some(PlaceProvisionRow { note: Some(note), step: Some(PlaceSetupStep::Signins), ..plain_row(&id, label, PlaceProvisionRowOutcome::Present) });
+                let note = if way == SignInWay::Token {
+                    token_held_line(&here)
+                } else {
+                    key_held_line(&here)
+                };
+                return Some(PlaceProvisionRow {
+                    note: Some(note),
+                    step: Some(PlaceSetupStep::Signins),
+                    ..plain_row(&id, label, PlaceProvisionRowOutcome::Present)
+                });
             }
         }
         if way == SignInWay::Key {
-            let fix = self.ways_fix(agent, label, Some(SignInWay::Key)).unwrap_or_else(|| sign_in_there_fix(&self.record.name));
+            let fix = self
+                .ways_fix(agent, label, Some(SignInWay::Key))
+                .unwrap_or_else(|| sign_in_there_fix(&self.record.name));
             let note = no_key_line(name.as_deref().unwrap_or("its key"), &here);
-            return Some(PlaceProvisionRow { note: Some(note), fix: Some(fix), step: Some(PlaceSetupStep::Signins), ..plain_row(&id, label, PlaceProvisionRowOutcome::Failed) });
+            return Some(PlaceProvisionRow {
+                note: Some(note),
+                fix: Some(fix),
+                step: Some(PlaceSetupStep::Signins),
+                ..plain_row(&id, label, PlaceProvisionRowOutcome::Failed)
+            });
         }
-        let fix = self.ways_fix(agent, label, Some(SignInWay::Token)).unwrap_or_else(|| sign_in_there_fix(&self.record.name));
+        let fix = self
+            .ways_fix(agent, label, Some(SignInWay::Token))
+            .unwrap_or_else(|| sign_in_there_fix(&self.record.name));
         let recording = Rc::clone(&self.area.ctx.recording);
         let mint_agent = agent.to_string();
         let start: SignInStart = Rc::new(move |emit: SignInEmit| {
@@ -442,27 +583,39 @@ impl SetupRun {
             }
             .boxed_local()
         });
-        let how = SignInHow { start: Some(start), note: Some(token_held_line(&here)), fix: Some(fix) };
-        self.sign_in_there(agent, &id, label, PlaceSetupStep::Signins, None, how).await;
+        let how = SignInHow {
+            start: Some(start),
+            note: Some(token_held_line(&here)),
+            fix: Some(fix),
+        };
+        self.sign_in_there(agent, &id, label, PlaceSetupStep::Signins, None, how)
+            .await;
         None
     }
 
     /// A sign-in a retry runs again for a fresh page: the token made here where the row was picked to take one, else
     /// the agent's own sign-in on that computer (setup.ts:508).
     pub async fn again_sign_in(self: &Rc<Self>, agent: &str, plan: &ProvisionPlan) {
-        let token = agent_pick(&self.ask.picks.agents, agent).and_then(|pick| pick.signin.as_ref()) == Some(&RecipeSignIn::Token);
+        let token = agent_pick(&self.ask.picks.agents, agent).and_then(|pick| pick.signin.as_ref())
+            == Some(&RecipeSignIn::Token);
         if !token {
             return self.agent_sign_in(agent, plan).await;
         }
         let label = agent_label(agent);
         if let Some(row) = self.vault_way(agent, &label, SignInWay::Token).await {
-            self.land_row(held_of(PlaceProvisionRow { step: Some(PlaceSetupStep::Signins), ..row }));
+            self.land_row(held_of(PlaceProvisionRow {
+                step: Some(PlaceSetupStep::Signins),
+                ..row
+            }));
         }
     }
 
     /// Whether an agent did not install (setup.ts:517).
     pub fn not_installed(&self, agent: &str) -> bool {
-        self.rows.borrow().iter().any(|r| agent_of_row(&r.row.id).as_deref() == Some(agent) && r.row.outcome == PlaceProvisionRowOutcome::Failed)
+        self.rows.borrow().iter().any(|r| {
+            agent_of_row(&r.row.id).as_deref() == Some(agent)
+                && r.row.outcome == PlaceProvisionRowOutcome::Failed
+        })
     }
 
     /// The sign-ins step (setup.ts:522).
@@ -474,7 +627,10 @@ impl SetupRun {
             let agent = name.0.clone();
             if let Some(sync) = &self.ask.sync {
                 let key = format!("agents/{agent}");
-                if !sync.changes.iter().any(|c| c.key == key && matches!(c.how, RecipeChangeHow::Added | RecipeChangeHow::Changed)) {
+                if !sync.changes.iter().any(|c| {
+                    c.key == key
+                        && matches!(c.how, RecipeChangeHow::Added | RecipeChangeHow::Changed)
+                }) {
                     continue;
                 }
             }
@@ -483,7 +639,7 @@ impl SetupRun {
             }
             let label = agent_label(&agent);
             let id = sign_in_row_id(&agent);
-            match pick.signin.clone().unwrap_or(RecipeSignIn::Vault) {
+            match pick.signin.unwrap_or(RecipeSignIn::Vault) {
                 RecipeSignIn::Token => {
                     if let Some(row) = self.vault_way(&agent, &label, SignInWay::Token).await {
                         out.push(row);
@@ -497,7 +653,10 @@ impl SetupRun {
                 RecipeSignIn::Machine => {
                     if self.not_installed(&agent) {
                         let note = waits_for_install_line(&label);
-                        out.push(PlaceProvisionRow { note: Some(note), ..plain_row(&id, &label, PlaceProvisionRowOutcome::Skipped) });
+                        out.push(PlaceProvisionRow {
+                            note: Some(note),
+                            ..plain_row(&id, &label, PlaceProvisionRowOutcome::Skipped)
+                        });
                     } else {
                         self.agent_sign_in(&agent, plan).await;
                     }
@@ -505,17 +664,27 @@ impl SetupRun {
                 RecipeSignIn::Vault => {
                     let vault = self.vault();
                     if vault_sign_in(&agent, &vault) == AgentSignInState::VaultKey {
-                        let note = vault_held_line(&agent, &vault, Some(RecipeSignIn::Vault), &here);
-                        out.push(PlaceProvisionRow { note: Some(note), ..plain_row(&id, &label, PlaceProvisionRowOutcome::Present) });
+                        let note =
+                            vault_held_line(&agent, &vault, Some(RecipeSignIn::Vault), &here);
+                        out.push(PlaceProvisionRow {
+                            note: Some(note),
+                            ..plain_row(&id, &label, PlaceProvisionRowOutcome::Present)
+                        });
                         continue;
                     }
                     if let Some(copied) = self.login_copied(&agent, &label, plan).await {
                         out.push(copied);
                         continue;
                     }
-                    let fix = self.ways_fix(&agent, &label, None).unwrap_or_else(|| sign_in_there_fix(&self.record.name));
+                    let fix = self
+                        .ways_fix(&agent, &label, None)
+                        .unwrap_or_else(|| sign_in_there_fix(&self.record.name));
                     let note = no_copy_line(&label, &here);
-                    out.push(PlaceProvisionRow { note: Some(note), fix: Some(fix), ..plain_row(&id, &label, PlaceProvisionRowOutcome::Failed) });
+                    out.push(PlaceProvisionRow {
+                        note: Some(note),
+                        fix: Some(fix),
+                        ..plain_row(&id, &label, PlaceProvisionRowOutcome::Failed)
+                    });
                 }
             }
         }
@@ -524,25 +693,46 @@ impl SetupRun {
 
     /// An agent's login as this computer holds it, put where every thread there reads it, on the run's input alone
     /// (setup.ts:559).
-    pub async fn login_copied(self: &Rc<Self>, agent: &str, label: &str, plan: &ProvisionPlan) -> Option<PlaceProvisionRow> {
+    pub async fn login_copied(
+        self: &Rc<Self>,
+        agent: &str,
+        label: &str,
+        plan: &ProvisionPlan,
+    ) -> Option<PlaceProvisionRow> {
         let shared = shared_on(agent)?;
         let place = self.ask.place_id.clone();
         let held: Vec<u8> = match self.area.ctx.recording.login_here(agent).await {
             Some(Ok(Some(bytes))) => bytes,
             _ => return None,
         };
-        let store = self.stores_here().await.and_then(|stores| stores.get(agent).cloned())?;
+        let store = self
+            .stores_here()
+            .await
+            .and_then(|stores| stores.get(agent).cloned())?;
         let id = sign_in_row_id(agent);
         if self.not_installed(agent) {
             let note = waits_for_install_line(label);
-            return Some(PlaceProvisionRow { note: Some(note), ..plain_row(&id, label, PlaceProvisionRowOutcome::Skipped) });
+            return Some(PlaceProvisionRow {
+                note: Some(note),
+                ..plain_row(&id, label, PlaceProvisionRowOutcome::Skipped)
+            });
         }
         if self.agent_signed_in(agent, plan).await {
-            return Some(PlaceProvisionRow { note: Some(SIGNED_IN_THERE.to_string()), ..plain_row(&id, label, PlaceProvisionRowOutcome::Present) });
+            return Some(PlaceProvisionRow {
+                note: Some(SIGNED_IN_THERE.to_string()),
+                ..plain_row(&id, label, PlaceProvisionRowOutcome::Present)
+            });
         }
         let at = shell_quote(&format!("{store}/{}", shared.file));
-        let cmd = format!("umask 077 && mkdir -p {} && cat > {at}.wsp && mv -f {at}.wsp {at}", shell_quote(&store));
-        let options = ExecOptions { timeout_ms: Some(SIGNIN_STATUS_MS), stdin: Some(held), ..Default::default() };
+        let cmd = format!(
+            "umask 077 && mkdir -p {} && cat > {at}.wsp && mv -f {at}.wsp {at}",
+            shell_quote(&store)
+        );
+        let options = ExecOptions {
+            timeout_ms: Some(SIGNIN_STATUS_MS),
+            stdin: Some(held),
+            ..Default::default()
+        };
         let (exit, stderr) = match self.machine.exec(&cmd, options).await {
             Ok(res) => (res.exit_code.get(), res.stderr),
             Err(e) => (-1, first_line_of(&host_of(&e))),
@@ -552,25 +742,57 @@ impl SetupRun {
         if exit != 0 {
             let note = last_line(&stderr).unwrap_or_else(|| format!("the copy exited {exit}"));
             let fix = sign_in_there_fix(&self.record.name);
-            return Some(PlaceProvisionRow { note: Some(note), fix: Some(fix), ..plain_row(&id, label, PlaceProvisionRowOutcome::Failed) });
+            return Some(PlaceProvisionRow {
+                note: Some(note),
+                fix: Some(fix),
+                ..plain_row(&id, label, PlaceProvisionRowOutcome::Failed)
+            });
         }
         if self.agent_signed_in(agent, plan).await {
-            Some(PlaceProvisionRow { note: Some(copied_from_line(&here)), ..plain_row(&id, label, PlaceProvisionRowOutcome::Installed) })
+            Some(PlaceProvisionRow {
+                note: Some(copied_from_line(&here)),
+                ..plain_row(&id, label, PlaceProvisionRowOutcome::Installed)
+            })
         } else {
             let note = copied_not_signed_in_line(label, &here);
             let fix = sign_in_there_fix(&self.record.name);
-            Some(PlaceProvisionRow { note: Some(note), fix: Some(fix), ..plain_row(&id, label, PlaceProvisionRowOutcome::Failed) })
+            Some(PlaceProvisionRow {
+                note: Some(note),
+                fix: Some(fix),
+                ..plain_row(&id, label, PlaceProvisionRowOutcome::Failed)
+            })
         }
     }
 
     /// gh's own status there, over the vault's token on the run's input where one is given (setup.ts:588).
-    pub async fn gh_status(self: &Rc<Self>, plan: &ProvisionPlan, token: Option<&str>) -> Result<ExecResult, HostError> {
-        let cmd = format!("{}\ngh auth status --hostname github.com 2>&1", path_line(&plan.path, plan.prefix.as_deref()));
+    pub async fn gh_status(
+        self: &Rc<Self>,
+        plan: &ProvisionPlan,
+        token: Option<&str>,
+    ) -> Result<ExecResult, HostError> {
+        let cmd = format!(
+            "{}\ngh auth status --hostname github.com 2>&1",
+            path_line(&plan.path, plan.prefix.as_deref())
+        );
         let answer = match token {
-            None => self.machine.exec(&cmd, ExecOptions { timeout_ms: Some(GITHUB_MS), ..Default::default() }).await,
+            None => {
+                self.machine
+                    .exec(
+                        &cmd,
+                        ExecOptions {
+                            timeout_ms: Some(GITHUB_MS),
+                            ..Default::default()
+                        },
+                    )
+                    .await
+            }
             Some(token) => {
                 let vars = IndexMap::from([(GITHUB_TOKEN_ENV.to_string(), token.to_string())]);
-                let options = ExecOptions { timeout_ms: Some(GITHUB_MS), stdin: Some(env_input(&vars)), ..Default::default() };
+                let options = ExecOptions {
+                    timeout_ms: Some(GITHUB_MS),
+                    stdin: Some(env_input(&vars)),
+                    ..Default::default()
+                };
                 self.machine.exec(&with_env_from_input(&cmd), options).await
             }
         };
@@ -582,17 +804,32 @@ impl SetupRun {
         if let Ok(res) = self.gh_status(plan, None).await {
             if res.exit_code.get() == 0 {
                 self.settle_github(true);
-                let row = PlaceProvisionRow { note: Some(SIGNED_IN_THERE.to_string()), step: Some(PlaceSetupStep::Github), ..plain_row(GITHUB_ROW, "GitHub", PlaceProvisionRowOutcome::Present) };
+                let row = PlaceProvisionRow {
+                    note: Some(SIGNED_IN_THERE.to_string()),
+                    step: Some(PlaceSetupStep::Github),
+                    ..plain_row(GITHUB_ROW, "GitHub", PlaceProvisionRowOutcome::Present)
+                };
                 return self.land_row(held_of(row));
             }
         }
         let run = Rc::clone(self);
         let settled: Rc<dyn Fn(bool)> = Rc::new(move |ok: bool| run.settle_github(ok));
-        self.sign_in_there(GITHUB_CLI, GITHUB_ROW, "GitHub", PlaceSetupStep::Github, Some(settled), SignInHow::default()).await;
+        self.sign_in_there(
+            GITHUB_CLI,
+            GITHUB_ROW,
+            "GitHub",
+            PlaceSetupStep::Github,
+            Some(settled),
+            SignInHow::default(),
+        )
+        .await;
     }
 
     /// The GitHub step: gh put on where nothing else puts it, then signed in by the row's word (setup.ts:603).
-    pub async fn github(self: &Rc<Self>, plan: &ProvisionPlan) -> Result<Vec<PlaceProvisionRow>, HostError> {
+    pub async fn github(
+        self: &Rc<Self>,
+        plan: &ProvisionPlan,
+    ) -> Result<Vec<PlaceProvisionRow>, HostError> {
         if self.ask.picks.configs.github.is_none() {
             return Ok(Vec::new());
         }
@@ -605,7 +842,12 @@ impl SetupRun {
                 .map(|a| {
                     a.rows
                         .iter()
-                        .filter(|r| r.row.step == Some(PlaceSetupStep::Github) && (r.row.outcome == PlaceProvisionRowOutcome::Installed || (r.row.id == GITHUB_ROW && r.row.outcome == PlaceProvisionRowOutcome::Present)))
+                        .filter(|r| {
+                            r.row.step == Some(PlaceSetupStep::Github)
+                                && (r.row.outcome == PlaceProvisionRowOutcome::Installed
+                                    || (r.row.id == GITHUB_ROW
+                                        && r.row.outcome == PlaceProvisionRowOutcome::Present))
+                        })
                         .map(|r| r.row.clone())
                         .collect()
                 })
@@ -616,14 +858,35 @@ impl SetupRun {
                 return Ok(kept);
             }
             let mut out = kept;
-            out.push(PlaceProvisionRow { note: Some(GITHUB_SKIPPED_LINE.to_string()), ..plain_row(GITHUB_ROW, "GitHub", PlaceProvisionRowOutcome::Skipped) });
+            out.push(PlaceProvisionRow {
+                note: Some(GITHUB_SKIPPED_LINE.to_string()),
+                ..plain_row(GITHUB_ROW, "GitHub", PlaceProvisionRowOutcome::Skipped)
+            });
             return Ok(out);
         }
-        let Some(provisioner) = self.area.ctx.wiring.provision.clone() else { return Ok(Vec::new()) };
-        let on = ProvisionOn { home: self.home.clone(), held: None, stores: None };
-        let got = provisioner.step(Rc::clone(&self.machine), plan, &EngineStep::Github, &self.engine_run, self.stage_of("github"), &on).await?;
+        let Some(provisioner) = self.area.ctx.wiring.provision.clone() else {
+            return Ok(Vec::new());
+        };
+        let on = ProvisionOn {
+            home: self.home.clone(),
+            held: None,
+            stores: None,
+        };
+        let got = provisioner
+            .step(
+                Rc::clone(&self.machine),
+                plan,
+                &EngineStep::Github,
+                &self.engine_run,
+                self.stage_of("github"),
+                &on,
+            )
+            .await?;
         let gh = self.ours(got);
-        if gh.iter().any(|r| r.outcome == PlaceProvisionRowOutcome::Failed) {
+        if gh
+            .iter()
+            .any(|r| r.outcome == PlaceProvisionRowOutcome::Failed)
+        {
             self.settle_github(false);
             return Ok(gh);
         }
@@ -636,20 +899,36 @@ impl SetupRun {
             self.settle_github(false);
             let fix = sign_in_there_fix(&self.record.name);
             let mut out = gh;
-            out.push(PlaceProvisionRow { note: Some(no_copy_line("GitHub", &here)), fix: Some(fix), ..plain_row(GITHUB_ROW, "GitHub", PlaceProvisionRowOutcome::Failed) });
+            out.push(PlaceProvisionRow {
+                note: Some(no_copy_line("GitHub", &here)),
+                fix: Some(fix),
+                ..plain_row(GITHUB_ROW, "GitHub", PlaceProvisionRowOutcome::Failed)
+            });
             return Ok(out);
         };
         let res = self.gh_status(plan, Some(&token)).await?;
-        let scopes = gh_status_of(&res.stdout).scopes.map(|scopes| scopes.join(", ")).filter(|scopes| !scopes.is_empty());
+        let scopes = gh_status_of(&res.stdout)
+            .scopes
+            .map(|scopes| scopes.join(", "))
+            .filter(|scopes| !scopes.is_empty());
         let ok = res.exit_code.get() == 0;
         self.settle_github(ok);
         let mut out = gh;
         let row = if ok {
-            let suffix = scopes.map(|scopes| format!("; token scopes: {scopes}")).unwrap_or_default();
-            PlaceProvisionRow { note: Some(format!("{}{suffix}", copied_from_line(&here))), ..plain_row(GITHUB_ROW, "GitHub", PlaceProvisionRowOutcome::Present) }
+            let suffix = scopes
+                .map(|scopes| format!("; token scopes: {scopes}"))
+                .unwrap_or_default();
+            PlaceProvisionRow {
+                note: Some(format!("{}{suffix}", copied_from_line(&here))),
+                ..plain_row(GITHUB_ROW, "GitHub", PlaceProvisionRowOutcome::Present)
+            }
         } else {
-            let note = last_line(&res.stdout).unwrap_or_else(|| format!("gh auth status exited {}", res.exit_code.get()));
-            PlaceProvisionRow { note: Some(note), ..plain_row(GITHUB_ROW, "GitHub", PlaceProvisionRowOutcome::Failed) }
+            let note = last_line(&res.stdout)
+                .unwrap_or_else(|| format!("gh auth status exited {}", res.exit_code.get()));
+            PlaceProvisionRow {
+                note: Some(note),
+                ..plain_row(GITHUB_ROW, "GitHub", PlaceProvisionRowOutcome::Failed)
+            }
         };
         out.push(row);
         Ok(out)

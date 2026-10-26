@@ -16,18 +16,25 @@ use indexmap::IndexMap;
 use serde_json::{json, Value};
 
 use wsp_core::ids::Ids;
-use wsp_core::types::internal::{EndThread, FolderAdmit, ImportLanded, ImportReport, KindModule, PortRoute, ServerValuesRoad};
-use wsp_core::types::pending::{Clock, MachineExecOptions, ScopedRoad, TurnWaiting};
-use wsp_core::types::wiring::{LiveWorkspace, Local, ProjectImportOptions, StageReport, WorkspaceRecord};
 use wsp_core::types::internal::SessionEntry;
+use wsp_core::types::internal::{
+    EndThread, FolderAdmit, ImportLanded, ImportReport, KindModule, PortRoute, ServerValuesRoad,
+};
+use wsp_core::types::pending::{Clock, MachineExecOptions, ScopedRoad, TurnWaiting};
+use wsp_core::types::wiring::{
+    LiveWorkspace, Local, ProjectImportOptions, StageReport, WorkspaceRecord,
+};
 use wsp_engine::errors::Result as EngineResult;
-use wsp_engine::Cancel;
 use wsp_engine::lifecycle::{Workspace, WorkspaceHooks, WorkspaceInitial};
 use wsp_engine::machine::{
-    BackendPricing, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineKind, MachineLife, MachineListRow, MachineOffers,
-    MachineSpec, MachineState, RunOptions, Size, SnapshotOptions, SnapshotStoragePricing, Waiting,
+    BackendPricing, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineKind,
+    MachineLife, MachineListRow, MachineOffers, MachineSpec, MachineState, RunOptions, Size,
+    SnapshotOptions, SnapshotStoragePricing, Waiting,
 };
-use wsp_machines::machines::daemon::{DaemonArea, DaemonRuntime, DetachedSend, DetachedOutcome, DetachedStart, Started};
+use wsp_engine::Cancel;
+use wsp_machines::machines::daemon::{
+    DaemonArea, DaemonRuntime, DetachedOutcome, DetachedSend, DetachedStart, Started,
+};
 use wsp_machines::machines::machines::{Entry, Row};
 use wsp_wire::views::harness::McpServerSpec;
 use wsp_wire::views::session::{SessionView, ThreadCapWait};
@@ -52,7 +59,10 @@ pub fn err_kind(message: &str, kind: Kind) -> HostError {
 }
 
 pub fn marked(message: &str, mark: &str) -> HostError {
-    HostError { marks: vec![mark.to_string()], ..err(message) }
+    HostError {
+        marks: vec![mark.to_string()],
+        ..err(message)
+    }
 }
 
 /// Floats that are whole numbers become integers, so `2.0` and `2` compare equal as JavaScript's numbers do.
@@ -79,8 +89,10 @@ pub fn record_of(v: &Value) -> WorkspaceRecord {
         m.entry(key.to_string()).or_insert_with(|| json!(FILL));
     }
     m.entry("spec".to_string()).or_insert_with(|| json!({}));
-    m.entry("size".to_string()).or_insert_with(|| json!({"cpu": -1, "memMb": -1}));
-    m.entry("firstLife".to_string()).or_insert_with(|| json!(false));
+    m.entry("size".to_string())
+        .or_insert_with(|| json!({"cpu": -1, "memMb": -1}));
+    m.entry("firstLife".to_string())
+        .or_insert_with(|| json!(false));
     serde_json::from_value(Value::Object(m)).expect("the record parses")
 }
 
@@ -96,7 +108,10 @@ pub fn record_json(r: &WorkspaceRecord) -> Value {
     if m.get("spec").map(|s| s == &json!({})).unwrap_or(false) {
         m.remove("spec");
     }
-    if m.get("size").map(|s| same(s, &json!({"cpu": -1, "memMb": -1}))).unwrap_or(false) {
+    if m.get("size")
+        .map(|s| same(s, &json!({"cpu": -1, "memMb": -1})))
+        .unwrap_or(false)
+    {
         m.remove("size");
     }
     if m.get("firstLife") == Some(&json!(false)) {
@@ -120,7 +135,10 @@ impl Machine for FakeMachine {
         unimplemented!()
     }
     fn offers(&self) -> MachineOffers {
-        MachineOffers { put_bytes: self.put_bytes, ..MachineOffers::default() }
+        MachineOffers {
+            put_bytes: self.put_bytes,
+            ..MachineOffers::default()
+        }
     }
     async fn exec(&self, _cmd: &str, _opts: ExecOptions) -> EngineResult<ExecResult> {
         unimplemented!()
@@ -128,7 +146,12 @@ impl Machine for FakeMachine {
     async fn run(&self, _script: &str, _opts: RunOptions) -> EngineResult<ExecResult> {
         unimplemented!()
     }
-    async fn snapshot(&self, _name: &str, _life: MachineLife, _opts: SnapshotOptions) -> EngineResult<String> {
+    async fn snapshot(
+        &self,
+        _name: &str,
+        _life: MachineLife,
+        _opts: SnapshotOptions,
+    ) -> EngineResult<String> {
         unimplemented!()
     }
     async fn pause(&self, _wait_ms: Option<u64>) -> EngineResult<()> {
@@ -195,13 +218,21 @@ impl MachineBackend for FakeBackend {
     fn pricing(&self) -> Arc<dyn BackendPricing> {
         Arc::new(FakePricing)
     }
-    async fn create(&self, _spec: MachineSpec, _waiting: Option<Waiting>, _sent: Option<String>) -> EngineResult<Arc<dyn Machine>> {
+    async fn create(
+        &self,
+        _spec: MachineSpec,
+        _waiting: Option<Waiting>,
+        _sent: Option<String>,
+    ) -> EngineResult<Arc<dyn Machine>> {
         unimplemented!()
     }
     async fn get(&self, _id: &str) -> EngineResult<Arc<dyn Machine>> {
         unimplemented!()
     }
-    async fn list(&self, _labels: Option<&IndexMap<String, String>>) -> EngineResult<Vec<MachineListRow>> {
+    async fn list(
+        &self,
+        _labels: Option<&IndexMap<String, String>>,
+    ) -> EngineResult<Vec<MachineListRow>> {
         unimplemented!()
     }
     async fn delete_snapshot(&self, _id: &str) -> EngineResult<()> {
@@ -224,7 +255,11 @@ pub fn live_of(record: WorkspaceRecord, machine: Arc<dyn Machine>) -> LiveWorksp
         move_hook: None,
         retire: None,
     };
-    let ws = Rc::new(Workspace::new(machine.clone(), hooks, WorkspaceInitial::default()));
+    let ws = Rc::new(Workspace::new(
+        machine.clone(),
+        hooks,
+        WorkspaceInitial::default(),
+    ));
     LiveWorkspace {
         record: Rc::new(RefCell::new(record)),
         opens_thread: None,
@@ -274,8 +309,14 @@ impl ModCfg {
         let get = |k: &str| m.and_then(|m| m.get(k));
         ModCfg {
             version: get("version").cloned().unwrap_or_else(|| json!("current")),
-            deploy: get("deploy").and_then(Value::as_str).unwrap_or("ok").to_string(),
-            roots: get("roots").and_then(Value::as_str).unwrap_or("ok").to_string(),
+            deploy: get("deploy")
+                .and_then(Value::as_str)
+                .unwrap_or("ok")
+                .to_string(),
+            roots: get("roots")
+                .and_then(Value::as_str)
+                .unwrap_or("ok")
+                .to_string(),
             has_daemon: get("hasDaemon").and_then(Value::as_bool).unwrap_or(true),
             roots_hold: get("rootsHold").and_then(Value::as_str).map(str::to_string),
         }
@@ -305,7 +346,12 @@ impl KindModule for FakeModule {
     fn backend(&self, _record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError> {
         unimplemented!()
     }
-    fn exec_stream(&self, _entry: &LiveWorkspace, _opts: Option<MachineExecOptions>, _waiting: Option<TurnWaiting>) -> Arc<dyn wsp_adapters::port::ExecStreamFactory> {
+    fn exec_stream(
+        &self,
+        _entry: &LiveWorkspace,
+        _opts: Option<MachineExecOptions>,
+        _waiting: Option<TurnWaiting>,
+    ) -> Arc<dyn wsp_adapters::port::ExecStreamFactory> {
         unimplemented!()
     }
     fn admit_folder(&self, _record: FolderAdmit) -> Option<Local<'static, ()>> {
@@ -320,13 +366,23 @@ impl KindModule for FakeModule {
     fn home_dir(&self, _record: &WorkspaceRecord) -> Option<String> {
         unimplemented!()
     }
-    fn env(&self, _entry: &LiveWorkspace, _agent_id: Option<&str>, _home_of: &dyn Fn(&str) -> String) -> IndexMap<String, String> {
+    fn env(
+        &self,
+        _entry: &LiveWorkspace,
+        _agent_id: Option<&str>,
+        _home_of: &dyn Fn(&str) -> String,
+    ) -> IndexMap<String, String> {
         unimplemented!()
     }
     fn login_stands(&self, _entry: &LiveWorkspace, _agent_id: &str) -> bool {
         unimplemented!()
     }
-    fn import(&self, _entry: &LiveWorkspace, _o: ProjectImportOptions, _report: ImportReport) -> Local<'static, ImportLanded> {
+    fn import(
+        &self,
+        _entry: &LiveWorkspace,
+        _o: ProjectImportOptions,
+        _report: ImportReport,
+    ) -> Local<'static, ImportLanded> {
         unimplemented!()
     }
     fn roots(&self, entry: &LiveWorkspace, dests: &[String]) -> Local<'static, ()> {
@@ -355,19 +411,38 @@ impl KindModule for FakeModule {
         }
         .boxed_local()
     }
-    fn land_project(&self, _entry: &LiveWorkspace, _project: ProjectView, _report: StageReport) -> Local<'static, ()> {
+    fn land_project(
+        &self,
+        _entry: &LiveWorkspace,
+        _project: ProjectView,
+        _report: StageReport,
+    ) -> Local<'static, ()> {
         unimplemented!()
     }
     fn memory_key(&self, _entry: &LiveWorkspace, _agent_id: &str) -> Option<String> {
         unimplemented!()
     }
-    fn end_thread(&self, _entry: &LiveWorkspace, _thread_id: &str, _o: EndThread) -> Option<Local<'static, Option<String>>> {
+    fn end_thread(
+        &self,
+        _entry: &LiveWorkspace,
+        _thread_id: &str,
+        _o: EndThread,
+    ) -> Option<Local<'static, Option<String>>> {
         unimplemented!()
     }
-    fn end_owed(&self, _entry: &LiveWorkspace, _thread_id: &str) -> Option<Local<'static, Option<Local<'static, ()>>>> {
+    fn end_owed(
+        &self,
+        _entry: &LiveWorkspace,
+        _thread_id: &str,
+    ) -> Option<Local<'static, Option<Local<'static, ()>>>> {
         unimplemented!()
     }
-    fn port_reach(&self, _entry: &LiveWorkspace, _port: u16, _standing: bool) -> Option<Local<'static, PortRoute>> {
+    fn port_reach(
+        &self,
+        _entry: &LiveWorkspace,
+        _port: u16,
+        _standing: bool,
+    ) -> Option<Local<'static, PortRoute>> {
         unimplemented!()
     }
     fn relayed(&self, _machine_id: Option<&str>) -> bool {
@@ -389,13 +464,17 @@ impl KindModule for FakeModule {
         unimplemented!()
     }
     fn has_daemon(&self, entry: &LiveWorkspace) -> bool {
-        self.log.push(json!(["hasDaemon", entry.record.borrow().id.clone()]));
+        self.log
+            .push(json!(["hasDaemon", entry.record.borrow().id.clone()]));
         self.cfg.has_daemon
     }
     fn shared_daemon(&self) -> bool {
         unimplemented!()
     }
-    fn daemon_road(&self, _entry: &LiveWorkspace) -> Local<'static, wsp_wire::views::workspace::DaemonReachView> {
+    fn daemon_road(
+        &self,
+        _entry: &LiveWorkspace,
+    ) -> Local<'static, wsp_wire::views::workspace::DaemonReachView> {
         unimplemented!()
     }
     fn scratch(&self, _entry: &LiveWorkspace) -> String {
@@ -440,7 +519,10 @@ impl KindModule for FakeModule {
                     let _ = rx.await;
                 }
                 match how.as_str() {
-                    "lacks" => Err(marked("gcc is missing on this machine, so the daemon cannot build", "wspMachineLacks")),
+                    "lacks" => Err(marked(
+                        "gcc is missing on this machine, so the daemon cannot build",
+                        "wspMachineLacks",
+                    )),
                     "unanswered" => Err(marked("no answer", "wspMachineUnanswered")),
                     "fails" => Err(err("npm ERR! long log")),
                     _ => Ok(None),
@@ -489,8 +571,12 @@ impl FakeRuntime {
 fn caller_json(origin: Option<&Caller>) -> Value {
     match origin {
         None => Value::Null,
-        Some(Caller::Road(o)) => json!({"kind": serde_json::to_value(o).expect("a road serializes")}),
-        Some(Caller::Scoped { origin, .. }) => json!({"kind": serde_json::to_value(origin).expect("a road serializes")}),
+        Some(Caller::Road(o)) => {
+            json!({"kind": serde_json::to_value(o).expect("a road serializes")})
+        }
+        Some(Caller::Scoped { origin, .. }) => {
+            json!({"kind": serde_json::to_value(origin).expect("a road serializes")})
+        }
     }
 }
 
@@ -520,10 +606,19 @@ impl DaemonRuntime for FakeRuntime {
     fn closed(&self) -> bool {
         self.closed
     }
-    async fn sessions_start(&self, workspace_id: &str, ask: DetachedStart, origin: Option<&Caller>) -> Result<Started, HostError> {
+    async fn sessions_start(
+        &self,
+        workspace_id: &str,
+        ask: DetachedStart,
+        origin: Option<&Caller>,
+    ) -> Result<Started, HostError> {
         self.request_ids.borrow_mut().push(ask.request_id.clone());
         self.log.push(json!(["start", workspace_id, {"prompt": ask.prompt, "thread": ask.thread, "requestId": "string"}, caller_json(origin)]));
-        let how = self.starts.borrow_mut().pop_front().unwrap_or_else(|| "started".to_string());
+        let how = self
+            .starts
+            .borrow_mut()
+            .pop_front()
+            .unwrap_or_else(|| "started".to_string());
         match how.as_str() {
             "fails" => Err(err("refused")),
             "queued" => {
@@ -543,19 +638,31 @@ impl DaemonRuntime for FakeRuntime {
                 Err(err("later failure"))
             }
             "held" => {
-                let view = session_view(json!({"id": "row-1", "workspaceId": workspace_id, "harness": "claude", "status": "running"}));
+                let view = session_view(
+                    json!({"id": "row-1", "workspaceId": workspace_id, "harness": "claude", "status": "running"}),
+                );
                 // The oracle's wait is `{place, running, limit}`; the Rust wait names its place and says `atOnce`.
-                let wait: ThreadCapWait = serde_json::from_value(json!({"placeId": "box", "place": "box", "running": 2, "atOnce": 2})).expect("a cap wait parses");
+                let wait: ThreadCapWait = serde_json::from_value(
+                    json!({"placeId": "box", "place": "box", "running": 2, "atOnce": 2}),
+                )
+                .expect("a cap wait parses");
                 (ask.on_held)(view, wait);
                 std::future::pending::<Result<Started, HostError>>().await
             }
             other => {
-                let outcome = if other == "steered" { SessionStartOutcome::Steered } else { SessionStartOutcome::Started };
+                let outcome = if other == "steered" {
+                    SessionStartOutcome::Steered
+                } else {
+                    SessionStartOutcome::Started
+                };
                 let mut view = json!({"id": "s-9", "workspaceId": workspace_id, "harness": "claude", "status": "running"});
                 if other == "steered" {
                     view["threadId"] = json!("t-steer");
                 }
-                Ok(Started { outcome, view: session_view(view) })
+                Ok(Started {
+                    outcome,
+                    view: session_view(view),
+                })
             }
         }
     }
@@ -566,16 +673,31 @@ impl DaemonRuntime for FakeRuntime {
         Ok(())
     }
     async fn persist(&self, record: &WorkspaceRecord) -> Result<(), HostError> {
-        self.log.push(json!(["persist", record.id, record_json(record)]));
+        self.log
+            .push(json!(["persist", record.id, record_json(record)]));
         Ok(())
     }
     fn served_by_its_computer(&self, entry: &Entry) -> Option<String> {
         let id = entry.borrow().record.borrow().id.clone();
-        self.cfg_of(&id).filter(|c| c.served).map(|_| "computer".to_string())
+        self.cfg_of(&id)
+            .filter(|c| c.served)
+            .map(|_| "computer".to_string())
     }
     fn module_of(&self, kind: &str) -> Rc<dyn KindModule> {
-        let cfg = self.cfgs.iter().find(|c| c.kind == kind).expect("an entry of that kind").md.clone();
-        Rc::new(FakeModule { log: self.log.clone(), cfg, daemon_version: self.daemon_version, gates: self.gates.clone(), roots_hold: self.roots_hold.clone() })
+        let cfg = self
+            .cfgs
+            .iter()
+            .find(|c| c.kind == kind)
+            .expect("an entry of that kind")
+            .md
+            .clone();
+        Rc::new(FakeModule {
+            log: self.log.clone(),
+            cfg,
+            daemon_version: self.daemon_version,
+            gates: self.gates.clone(),
+            roots_hold: self.roots_hold.clone(),
+        })
     }
     fn project_path(&self, project_id: &str) -> String {
         format!("/work/{project_id}")
@@ -584,7 +706,10 @@ impl DaemonRuntime for FakeRuntime {
         format!("/work/{}/{}", record.project, record.id)
     }
     fn backend_for(&self, record: &WorkspaceRecord) -> Arc<dyn MachineBackend> {
-        let signed_urls = self.cfg_of(&record.id).map(|c| c.signed_urls).unwrap_or(true);
+        let signed_urls = self
+            .cfg_of(&record.id)
+            .map(|c| c.signed_urls)
+            .unwrap_or(true);
         Arc::new(FakeBackend { signed_urls })
     }
 }
@@ -632,7 +757,11 @@ pub fn session_event(kind: &str, workspace_id: &str) -> (Value, Value) {
 }
 
 pub fn moments_json(map: &IndexMap<String, wsp_core::types::internal::MachineMoment>) -> Value {
-    Value::Array(map.iter().map(|(k, m)| json!([k, {"machineId": m.machine_id, "at": m.at.0 as i64}])).collect())
+    Value::Array(
+        map.iter()
+            .map(|(k, m)| json!([k, {"machineId": m.machine_id, "at": m.at.0 as i64}]))
+            .collect(),
+    )
 }
 
 /// The oracle's `world(w)`: the runtime and the area over it.
@@ -654,7 +783,10 @@ impl World {
         for e in w["entries"].as_array().expect("entries") {
             let record = record_of(&e["record"]);
             let md = ModCfg::of(e.get("mod"));
-            let machine_id = e["machine"]["id"].as_str().map(str::to_string).unwrap_or_else(|| record.machine_id.clone());
+            let machine_id = e["machine"]["id"]
+                .as_str()
+                .map(str::to_string)
+                .unwrap_or_else(|| record.machine_id.clone());
             let put_bytes = e["machine"].get("putBytes").is_some();
             cfgs.push(EntryCfg {
                 id: record.id.clone(),
@@ -663,11 +795,20 @@ impl World {
                 signed_urls: e.get("signedUrls").and_then(Value::as_bool).unwrap_or(true),
                 md,
             });
-            let machine: Arc<dyn Machine> = Arc::new(FakeMachine { id: machine_id, put_bytes });
+            let machine: Arc<dyn Machine> = Arc::new(FakeMachine {
+                id: machine_id,
+                put_bytes,
+            });
             let id = record.id.clone();
-            live.borrow_mut().insert(id, Rc::new(RefCell::new(live_of(record, machine))));
+            live.borrow_mut()
+                .insert(id, Rc::new(RefCell::new(live_of(record, machine))));
         }
-        for s in w.get("sessions").and_then(Value::as_array).into_iter().flatten() {
+        for s in w
+            .get("sessions")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+        {
             let mut view = json!({"id": s["id"], "workspaceId": s["workspaceId"], "harness": "claude",
                 // The oracle's `done` is the Rust `completed`.
                 "status": if s["status"] == "done" { json!("completed") } else { s["status"].clone() }});
@@ -698,9 +839,15 @@ impl World {
                 unanswered: false,
                 queued: s.get("queued").is_some(),
             };
-            sessions.borrow_mut().insert(s["id"].as_str().expect("a session id").to_string(), Rc::new(RefCell::new(row)));
+            sessions.borrow_mut().insert(
+                s["id"].as_str().expect("a session id").to_string(),
+                Rc::new(RefCell::new(row)),
+            );
         }
-        let hold = cfgs.iter().find(|c| c.md.roots_hold.is_some()).map(|_| oneshot::channel::<()>());
+        let hold = cfgs
+            .iter()
+            .find(|c| c.md.roots_hold.is_some())
+            .map(|_| oneshot::channel::<()>());
         let (roots_release, roots_hold) = match hold {
             Some((tx, rx)) => (Some(tx), Some(rx)),
             None => (None, None),
@@ -713,9 +860,18 @@ impl World {
             sessions,
             notes: Rc::default(),
             closed: w.get("closed").and_then(Value::as_bool).unwrap_or(false),
-            starts: RefCell::new(w.get("starts").and_then(Value::as_array).into_iter().flatten().map(|s| s.as_str().expect("a start").to_string()).collect()),
+            starts: RefCell::new(
+                w.get("starts")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .map(|s| s.as_str().expect("a start").to_string())
+                    .collect(),
+            ),
             cfgs,
-            daemon_version: common::fixture("daemon")["DAEMON_VERSION"].as_u64().expect("DAEMON_VERSION") as u32,
+            daemon_version: common::fixture("daemon")["DAEMON_VERSION"]
+                .as_u64()
+                .expect("DAEMON_VERSION") as u32,
             gates: Rc::default(),
             roots_hold: Rc::new(RefCell::new(roots_hold)),
             area: RefCell::new(Weak::new()),
@@ -723,7 +879,13 @@ impl World {
         });
         let area = DaemonArea::new(rt.clone());
         *rt.area.borrow_mut() = Rc::downgrade(&area);
-        World { log, rt, area, clock, roots_release: RefCell::new(roots_release) }
+        World {
+            log,
+            rt,
+            area,
+            clock,
+            roots_release: RefCell::new(roots_release),
+        }
     }
 
     /// A second area over the same runtime and records: the host after a restart.
@@ -734,7 +896,12 @@ impl World {
     }
 
     pub fn entry(&self, id: &str) -> Entry {
-        self.rt.live.borrow().get(id).unwrap_or_else(|| panic!("no entry {id}")).clone()
+        self.rt
+            .live
+            .borrow()
+            .get(id)
+            .unwrap_or_else(|| panic!("no entry {id}"))
+            .clone()
     }
 
     /// The oracle's `x.bus.emit` with an event the scene wrote.
@@ -749,7 +916,11 @@ impl World {
     }
 
     pub fn open_roots(&self) {
-        let tx = self.roots_release.borrow_mut().take().expect("a held roots call");
+        let tx = self
+            .roots_release
+            .borrow_mut()
+            .take()
+            .expect("a held roots call");
         let _ = tx.send(());
     }
 
@@ -759,11 +930,17 @@ impl World {
 
     /// The records in `live` order, as the fixture writes them.
     pub fn records(&self) -> Vec<Value> {
-        self.rt.live.borrow().values().map(|e| record_json(&e.borrow().record.borrow())).collect()
+        self.rt
+            .live
+            .borrow()
+            .values()
+            .map(|e| record_json(&e.borrow().record.borrow()))
+            .collect()
     }
 
     pub fn set_phase(&self, id: &str, phase: &str) {
-        self.entry(id).borrow().record.borrow_mut().phase = serde_json::from_value(json!(phase)).expect("a phase");
+        self.entry(id).borrow().record.borrow_mut().phase =
+            serde_json::from_value(json!(phase)).expect("a phase");
     }
 
     pub fn set_session_status(&self, id: &str, status: &str) {
@@ -772,7 +949,12 @@ impl World {
     }
 
     pub fn last_request_id(&self) -> String {
-        self.rt.request_ids.borrow().last().cloned().expect("a start was asked")
+        self.rt
+            .request_ids
+            .borrow()
+            .last()
+            .cloned()
+            .expect("a start was asked")
     }
 
     /// The scene's log in order and its records after, as the fixture wrote them.
@@ -783,18 +965,43 @@ impl World {
     /// `check`, with `fix` rewriting the expected log where a Rust wire type is shaped differently from the oracle's
     /// loose object (each such rewrite is named at its call).
     pub fn check_with(&self, scene: &Value, skip: &[&str], fix: &dyn Fn(&mut Vec<Value>)) {
-        let mut want: Vec<Value> = scene["log"].as_array().expect("a log").iter().filter(|e| !skip.contains(&e[0].as_str().unwrap_or(""))).cloned().collect();
+        let mut want: Vec<Value> = scene["log"]
+            .as_array()
+            .expect("a log")
+            .iter()
+            .filter(|e| !skip.contains(&e[0].as_str().unwrap_or("")))
+            .cloned()
+            .collect();
         fix(&mut want);
         let got = self.log.take();
         for (i, (w, g)) in want.iter().zip(got.iter()).enumerate() {
-            assert!(same(g, w), "scene {:?}: log entry {i} differs\n got {g}\nwant {w}", scene["name"]);
+            assert!(
+                same(g, w),
+                "scene {:?}: log entry {i} differs\n got {g}\nwant {w}",
+                scene["name"]
+            );
         }
-        assert_eq!(got.len(), want.len(), "scene {:?}: log length differs; got {:#?}", scene["name"], got);
+        assert_eq!(
+            got.len(),
+            want.len(),
+            "scene {:?}: log length differs; got {:#?}",
+            scene["name"],
+            got
+        );
         let records = self.records();
         let want_records = scene["records"].as_array().expect("records");
-        assert_eq!(records.len(), want_records.len(), "scene {:?}: record count", scene["name"]);
+        assert_eq!(
+            records.len(),
+            want_records.len(),
+            "scene {:?}: record count",
+            scene["name"]
+        );
         for (g, w) in records.iter().zip(want_records) {
-            assert!(same(g, w), "scene {:?}: record differs\n got {g}\nwant {w}", scene["name"]);
+            assert!(
+                same(g, w),
+                "scene {:?}: record differs\n got {g}\nwant {w}",
+                scene["name"]
+            );
         }
     }
 }
@@ -814,7 +1021,9 @@ pub fn answer_json(a: &DetachedSend) -> Value {
     v
 }
 
-pub fn spawn<F: std::future::Future<Output = T> + 'static, T: 'static>(f: F) -> tokio::task::JoinHandle<T> {
+pub fn spawn<F: std::future::Future<Output = T> + 'static, T: 'static>(
+    f: F,
+) -> tokio::task::JoinHandle<T> {
     tokio::task::spawn_local(f)
 }
 

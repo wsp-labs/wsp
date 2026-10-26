@@ -25,7 +25,11 @@ fn facts() -> Value {
 }
 
 fn pairs(v: &Value) -> Vec<(String, Value)> {
-    v.as_array().expect("pairs").iter().map(|p| (p[0].as_str().expect("a string").to_string(), p[1].clone())).collect()
+    v.as_array()
+        .expect("pairs")
+        .iter()
+        .map(|p| (p[0].as_str().expect("a string").to_string(), p[1].clone()))
+        .collect()
 }
 
 /// The oracle's held stage `{type: "workspace.creating", ...}` as the Rust area holds it: the event without its tag.
@@ -36,7 +40,14 @@ fn held(stage: &Value) -> Value {
 }
 
 fn stages_of(w: &World) -> Value {
-    Value::Array(w.area.create_stages.borrow().iter().map(|(id, e)| json!([id, serde_json::to_value(e).expect("a stage serializes")])).collect())
+    Value::Array(
+        w.area
+            .create_stages
+            .borrow()
+            .iter()
+            .map(|(id, e)| json!([id, serde_json::to_value(e).expect("a stage serializes")]))
+            .collect(),
+    )
 }
 
 fn assert_same(got: &Value, want: &Value, what: &str) {
@@ -55,7 +66,11 @@ fn cloud() -> WorkspaceKind {
 fn name_given_trims_as_javascript_does() {
     common::run_local(async {
         for (given, want) in pairs(&facts()["nameGiven"]) {
-            assert_eq!(CreateArea::name_given(&given), want.as_str().expect("a name"), "name_given({given:?})");
+            assert_eq!(
+                CreateArea::name_given(&given),
+                want.as_str().expect("a name"),
+                "name_given({given:?})"
+            );
         }
     })
 }
@@ -66,7 +81,11 @@ fn name_refusal_names_blank_taken_deleting_and_forking_and_compares_exactly() {
         let w = World::small();
         w.area.forking.borrow_mut().insert("forking".to_string());
         for (name, want) in pairs(&facts()["nameRefusal"]) {
-            assert_eq!(w.area.name_refusal(&name).as_deref(), want.as_str(), "name_refusal({name:?})");
+            assert_eq!(
+                w.area.name_refusal(&name).as_deref(),
+                want.as_str(),
+                "name_refusal({name:?})"
+            );
         }
     })
 }
@@ -76,14 +95,35 @@ fn failed_view_has_the_failed_creates_keys_in_order() {
     common::run_local(async {
         let w = World::small();
         let project = project_of(&json!({"id": "p1", "name": "site", "path": "", "computer": ""}));
-        let view = w.area.failed_view("ws_f", "w1", cloud(), "", T0, &project, "it failed");
+        let view = w
+            .area
+            .failed_view("ws_f", "w1", cloud(), "", T0, &project, "it failed");
         let got = serde_json::to_value(&view).expect("a view serializes");
         // The oracle's `refOf` answers `{id, name}`; the Rust ref also holds a path and a computer, empty here.
         let mut want = facts()["failedView"].clone();
         want["project"] = json!({"id": "p1", "name": "site", "path": "", "computer": ""});
         assert_same(&got, &want, "the failed view");
-        let keys: Vec<&str> = got.as_object().expect("an object").keys().map(String::as_str).collect();
-        assert_eq!(keys, ["id", "name", "machineId", "phase", "kind", "golden", "createdAt", "project", "gone"], "the keys are in the order failed_view writes them");
+        let keys: Vec<&str> = got
+            .as_object()
+            .expect("an object")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            keys,
+            [
+                "id",
+                "name",
+                "machineId",
+                "phase",
+                "kind",
+                "golden",
+                "createdAt",
+                "project",
+                "gone"
+            ],
+            "the keys are in the order failed_view writes them"
+        );
     })
 }
 
@@ -93,15 +133,30 @@ fn supersede_failed_removes_every_failed_create_of_the_name_and_emits_each_in_ma
         let w = World::small();
         // The views' own ids differ from their keys: the event names the create by the key it was held under.
         for (key, name) in [("f1", "w1"), ("f2", "w2"), ("f3", "w1")] {
-            w.area.failed_creates.borrow_mut().insert(key.to_string(), view_of(&format!("v-{key}"), name));
+            w.area
+                .failed_creates
+                .borrow_mut()
+                .insert(key.to_string(), view_of(&format!("v-{key}"), name));
         }
         w.area.supersede_failed("w1");
         let left: Vec<String> = w.area.failed_creates.borrow().keys().cloned().collect();
-        assert_eq!(left, facts()["afterSupersede"].as_array().expect("keys").iter().map(|k| k.as_str().expect("a key").to_string()).collect::<Vec<_>>());
+        assert_eq!(
+            left,
+            facts()["afterSupersede"]
+                .as_array()
+                .expect("keys")
+                .iter()
+                .map(|k| k.as_str().expect("a key").to_string())
+                .collect::<Vec<_>>()
+        );
         let fixture = common::fixture("create");
         let emitted: Vec<Value> = fixture["log"].as_array().expect("the facts log")[..2].to_vec();
         let got = w.log.take();
-        assert_eq!(got.len(), emitted.len(), "one deleted event per superseded create: {got:#?}");
+        assert_eq!(
+            got.len(),
+            emitted.len(),
+            "one deleted event per superseded create: {got:#?}"
+        );
         for (g, e) in got.iter().zip(&emitted) {
             assert_same(g, e, "a workspace.deleted event, in map order");
         }
@@ -115,29 +170,79 @@ fn stage_reporter_emits_each_stage_and_holds_the_last_of_each_create_without_a_s
         let fixture = common::fixture("create");
         let scope = scope_of(&json!({"threadId": "t1", "rootThreadId": "r1"}));
         let reporter = w.area.stage_reporter("ws_9", "w9", T0 - 1500, Some(&scope));
-        reporter(WorkspaceCreateStage::ForkRequested, "starting", Some(StageSaid { notice: Some("n".into()), detail: Some("d".into()), waiting: true, r#box: None }));
-        w.area.stage_reporter("ws_8", "w8", T0, None)(WorkspaceCreateStage::Ready, "ready", Some(StageSaid { waiting: false, ..StageSaid::default() }));
+        reporter(
+            WorkspaceCreateStage::ForkRequested,
+            "starting",
+            Some(StageSaid {
+                notice: Some("n".into()),
+                detail: Some("d".into()),
+                waiting: true,
+                r#box: None,
+            }),
+        );
+        w.area.stage_reporter("ws_8", "w8", T0, None)(
+            WorkspaceCreateStage::Ready,
+            "ready",
+            Some(StageSaid {
+                waiting: false,
+                ..StageSaid::default()
+            }),
+        );
 
         // The events are compared as written, key order included.
         let got = w.log.take();
         let want = &fixture["log"].as_array().expect("the facts log")[2..4];
-        assert_eq!(got.len(), want.len(), "one workspace.creating per report: {got:#?}");
+        assert_eq!(
+            got.len(),
+            want.len(),
+            "one workspace.creating per report: {got:#?}"
+        );
         for (g, e) in got.iter().zip(want) {
-            assert_eq!(g.to_string(), e.to_string(), "an emitted stage, keys in order");
+            assert_eq!(
+                g.to_string(),
+                e.to_string(),
+                "an emitted stage, keys in order"
+            );
         }
         let held_now = stages_of(&w);
-        let want_held: Vec<Value> = facts()["stagesHeld"].as_array().expect("stages").iter().map(|p| json!([p[0], held(&p[1])])).collect();
-        assert_same(&held_now, &Value::Array(want_held), "the stages held after two creates reported");
+        let want_held: Vec<Value> = facts()["stagesHeld"]
+            .as_array()
+            .expect("stages")
+            .iter()
+            .map(|p| json!([p[0], held(&p[1])]))
+            .collect();
+        assert_same(
+            &held_now,
+            &Value::Array(want_held),
+            "the stages held after two creates reported",
+        );
     })
 }
 
 #[test]
-fn the_stage_listener_holds_a_stage_without_its_seq_and_drops_it_when_the_create_lands_or_is_deleted() {
+fn the_stage_listener_holds_a_stage_without_its_seq_and_drops_it_when_the_create_lands_or_is_deleted(
+) {
     common::run_local(async {
         let w = World::small();
         let scope = scope_of(&json!({"threadId": "t1", "rootThreadId": "r1"}));
-        w.area.stage_reporter("ws_9", "w9", T0 - 1500, Some(&scope))(WorkspaceCreateStage::ForkRequested, "starting", Some(StageSaid { notice: Some("n".into()), detail: Some("d".into()), waiting: true, r#box: None }));
-        w.area.stage_reporter("ws_8", "w8", T0, None)(WorkspaceCreateStage::Ready, "ready", Some(StageSaid { waiting: false, ..StageSaid::default() }));
+        w.area.stage_reporter("ws_9", "w9", T0 - 1500, Some(&scope))(
+            WorkspaceCreateStage::ForkRequested,
+            "starting",
+            Some(StageSaid {
+                notice: Some("n".into()),
+                detail: Some("d".into()),
+                waiting: true,
+                r#box: None,
+            }),
+        );
+        w.area.stage_reporter("ws_8", "w8", T0, None)(
+            WorkspaceCreateStage::Ready,
+            "ready",
+            Some(StageSaid {
+                waiting: false,
+                ..StageSaid::default()
+            }),
+        );
 
         // The oracle's stage `x` is no stage the Rust wire reads; its `fork-requested` stands in, and the held stage is
         // expected as the oracle's with that one word changed.
@@ -154,10 +259,18 @@ fn the_stage_listener_holds_a_stage_without_its_seq_and_drops_it_when_the_create
                 json!([p[0], s])
             })
             .collect();
-        assert_same(&stages_of(&w), &Value::Array(with_seq_stripped), "a stage the bus stamped with a seq is held without it");
+        assert_same(
+            &stages_of(&w),
+            &Value::Array(with_seq_stripped),
+            "a stage the bus stamped with a seq is held without it",
+        );
 
         CreateRuntime::emit(&*w.rt, event(json!({"type": "workspace.created", "workspace": serde_json::to_value(view_of("ws_9", "w9")).expect("a view")}))).expect("emit");
-        CreateRuntime::emit(&*w.rt, event(json!({"type": "workspace.deleted", "workspaceId": "ws_8"}))).expect("emit");
+        CreateRuntime::emit(
+            &*w.rt,
+            event(json!({"type": "workspace.deleted", "workspaceId": "ws_8"})),
+        )
+        .expect("emit");
         let after: Vec<Value> = facts()["stagesAfter"]
             .as_array()
             .expect("stages")
@@ -168,7 +281,11 @@ fn the_stage_listener_holds_a_stage_without_its_seq_and_drops_it_when_the_create
                 json!([p[0], s])
             })
             .collect();
-        assert_same(&stages_of(&w), &Value::Array(after), "workspace.created drops its workspace's stage and workspace.deleted its own");
+        assert_same(
+            &stages_of(&w),
+            &Value::Array(after),
+            "workspace.created drops its workspace's stage and workspace.deleted its own",
+        );
     })
 }
 
@@ -177,10 +294,21 @@ fn show_create_holds_the_view_by_its_id_and_emits_workspace_created_with_it() {
     common::run_local(async {
         let w = World::small();
         w.area.show_create(view_of("s1", "shown"));
-        let shown: Vec<Value> = w.area.shown_creates.borrow().iter().map(|(k, v)| json!([k, {"id": v.id, "name": v.name}])).collect();
+        let shown: Vec<Value> = w
+            .area
+            .shown_creates
+            .borrow()
+            .iter()
+            .map(|(k, v)| json!([k, {"id": v.id, "name": v.name}]))
+            .collect();
         assert_same(&Value::Array(shown), &facts()["shown"], "the shown creates");
         let fixture = common::fixture("create");
-        let want = fixture["log"].as_array().expect("the facts log").last().expect("an entry").clone();
+        let want = fixture["log"]
+            .as_array()
+            .expect("the facts log")
+            .last()
+            .expect("an entry")
+            .clone();
         assert_eq!(w.log.take(), vec![want], "the one event a show emits");
     })
 }
@@ -189,8 +317,18 @@ fn show_create_holds_the_view_by_its_id_and_emits_workspace_created_with_it() {
 fn folders_of_lists_the_live_folder_entries_of_the_project_in_live_order() {
     common::run_local(async {
         let w = World::small();
-        let got: Vec<String> = w.area.folders_of("p1").iter().map(|e| e.borrow().record.borrow().id.clone()).collect();
-        let want: Vec<String> = facts()["foldersOf"].as_array().expect("ids").iter().map(|i| i.as_str().expect("an id").to_string()).collect();
+        let got: Vec<String> = w
+            .area
+            .folders_of("p1")
+            .iter()
+            .map(|e| e.borrow().record.borrow().id.clone())
+            .collect();
+        let want: Vec<String> = facts()["foldersOf"]
+            .as_array()
+            .expect("ids")
+            .iter()
+            .map(|i| i.as_str().expect("an id").to_string())
+            .collect();
         assert_eq!(got, want);
     })
 }
@@ -210,37 +348,64 @@ fn one_folder_joins_per_key_and_frees_the_key_when_the_make_settles_either_way()
             }),
         );
         let m = made.clone();
-        let two = w.area.one_folder("k", Box::new(move || {
-            m.set(m.get() + 1);
-            async { unreachable!("a second ask for the key joins the first") }.boxed_local()
-        }));
+        let two = w.area.one_folder(
+            "k",
+            Box::new(move || {
+                m.set(m.get() + 1);
+                async { unreachable!("a second ask for the key joins the first") }.boxed_local()
+            }),
+        );
         let (h1, h2) = (support_spawn(one), support_spawn(two));
         common::flush().await;
-        let made_entry = w.entry("c").expect("a live folder entry to stand for the made one");
+        let made_entry = w
+            .entry("c")
+            .expect("a live folder entry to stand for the made one");
         release.send(made_entry).ok();
-        let (first, second) = (h1.await.expect("task").expect("made"), h2.await.expect("task").expect("made"));
-        assert!(std::rc::Rc::ptr_eq(&first, &second), "both callers get the one entry the one make made");
+        let (first, second) = (
+            h1.await.expect("task").expect("made"),
+            h2.await.expect("task").expect("made"),
+        );
+        assert!(
+            std::rc::Rc::ptr_eq(&first, &second),
+            "both callers get the one entry the one make made"
+        );
         assert_eq!(made.get(), 1, "the joined ask did not make");
 
         let m = made.clone();
-        let failing = w.area.one_folder("k", Box::new(move || {
-            m.set(m.get() + 1);
-            async { Err(HostError::new("no")) }.boxed_local()
-        }));
-        assert_eq!(failing.await.err().map(|e| e.message), Some("no".to_string()), "a failed make rejects its callers");
+        let failing = w.area.one_folder(
+            "k",
+            Box::new(move || {
+                m.set(m.get() + 1);
+                async { Err(HostError::new("no")) }.boxed_local()
+            }),
+        );
+        assert_eq!(
+            failing.await.err().map(|e| e.message),
+            Some("no".to_string()),
+            "a failed make rejects its callers"
+        );
         let m = made.clone();
         let again_entry = w.entry("d").expect("a second entry");
-        let again = w.area.one_folder("k", Box::new(move || {
-            m.set(m.get() + 1);
-            async move { Ok(again_entry) }.boxed_local()
-        }));
+        let again = w.area.one_folder(
+            "k",
+            Box::new(move || {
+                m.set(m.get() + 1);
+                async move { Ok(again_entry) }.boxed_local()
+            }),
+        );
         let got = again.await.expect("made again");
         assert_eq!(got.borrow().record.borrow().id, "d");
-        assert_eq!(made.get() as i64, facts()["oneFolderMade"].as_i64().expect("a count"), "a settled make, success or failure, frees the key");
+        assert_eq!(
+            made.get() as i64,
+            facts()["oneFolderMade"].as_i64().expect("a count"),
+            "a settled make, success or failure, frees the key"
+        );
     })
 }
 
-fn support_spawn<T: 'static>(f: futures::future::LocalBoxFuture<'static, T>) -> tokio::task::JoinHandle<T> {
+fn support_spawn<T: 'static>(
+    f: futures::future::LocalBoxFuture<'static, T>,
+) -> tokio::task::JoinHandle<T> {
     tokio::task::spawn_local(f)
 }
 
@@ -248,27 +413,68 @@ fn support_spawn<T: 'static>(f: futures::future::LocalBoxFuture<'static, T>) -> 
 fn bind_attaches_marks_and_hands_the_slot_back_in_one_step() {
     common::run_local(async {
         let fixture = common::fixture("create");
-        let sc = common::scene(&fixture, "a brokered fork with the branch named keeps it held and opens the named thread");
+        let sc = common::scene(
+            &fixture,
+            "a brokered fork with the branch named keeps it held and opens the named thread",
+        );
         let w = World::new(&sc["scene"]);
         let created = w.create().await.expect("the create");
 
         let bound = w.rt.bound.borrow().clone();
         assert_eq!(bound.len(), 1, "one fork, one bind");
         let seen = &bound[0];
-        assert_eq!(seen["attached"], json!(true), "the live entry exists the moment bind returns: {seen}");
-        assert_eq!(seen["machineId"], json!("m-new"), "bind put the machine on the record");
-        assert_eq!(seen["creating"], json!(true), "the entry is marked creating in that step: {seen}");
-        assert_eq!(seen["opensThread"], json!("t-open"), "the named thread is set in that step: {seen}");
-        assert_eq!(seen["ofRecordHeld"], json!(true), "a branch the caller named is held in that step: {seen}");
-        assert_eq!(seen["landed"], json!(true), "`landed` has run by the time bind returns, with no await between: {seen}");
+        assert_eq!(
+            seen["attached"],
+            json!(true),
+            "the live entry exists the moment bind returns: {seen}"
+        );
+        assert_eq!(
+            seen["machineId"],
+            json!("m-new"),
+            "bind put the machine on the record"
+        );
+        assert_eq!(
+            seen["creating"],
+            json!(true),
+            "the entry is marked creating in that step: {seen}"
+        );
+        assert_eq!(
+            seen["opensThread"],
+            json!("t-open"),
+            "the named thread is set in that step: {seen}"
+        );
+        assert_eq!(
+            seen["ofRecordHeld"],
+            json!(true),
+            "a branch the caller named is held in that step: {seen}"
+        );
+        assert_eq!(
+            seen["landed"],
+            json!(true),
+            "`landed` has run by the time bind returns, with no await between: {seen}"
+        );
 
         // Attach and landed are adjacent in the log: nothing was called between them.
         let log = w.log.take();
-        let at = log.iter().position(|e| e[0] == "attach").expect("attach was called");
-        assert_eq!(log[at + 1], json!(["landed"]), "landed follows attach with no call between: {log:#?}");
-        assert_eq!(log.iter().filter(|e| e[0] == "landed").count(), 1, "the slot is handed back once");
+        let at = log
+            .iter()
+            .position(|e| e[0] == "attach")
+            .expect("attach was called");
+        assert_eq!(
+            log[at + 1],
+            json!(["landed"]),
+            "landed follows attach with no call between: {log:#?}"
+        );
+        assert_eq!(
+            log.iter().filter(|e| e[0] == "landed").count(),
+            1,
+            "the slot is handed back once"
+        );
         assert_eq!(created.view.created_at, VIEW_MARK);
         let entry = w.entry("ws_1").expect("the entry stays live");
-        assert!(!entry.borrow().creating, "creating is cleared when the create is ready");
+        assert!(
+            !entry.borrow().creating,
+            "creating is cleared when the create is ready"
+        );
     })
 }

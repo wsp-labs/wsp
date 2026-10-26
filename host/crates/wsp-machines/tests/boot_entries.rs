@@ -14,18 +14,27 @@ use wsp_machines::machines::boot::ComputerRow;
 use wsp_wire::views::place_kind::PlaceKind;
 
 async fn world(live: Value, records: Value) -> World {
-    let w = World::rows(Opts { live, records, ..Opts::default() });
+    let w = World::rows(Opts {
+        live,
+        records,
+        ..Opts::default()
+    });
     w.started().await;
     w
 }
 
 fn row(thread: &str, ws: &str) -> RowAt {
-    RowAt { thread_id: Some(thread.to_string()), workspace_id: ws.to_string() }
+    RowAt {
+        thread_id: Some(thread.to_string()),
+        workspace_id: ws.to_string(),
+    }
 }
 
 #[test]
 fn entry_of_refusals_by_caller_a_create_still_landing_and_the_boot_work_waited() {
-    check_rows_scene("entry of: refusals by caller, a create still landing, and the boot work waited");
+    check_rows_scene(
+        "entry of: refusals by caller, a create still landing, and the boot work waited",
+    );
 }
 
 #[test]
@@ -35,7 +44,9 @@ fn child_of_a_lead_s_own_child_by_lead_or_by_parent_else_refused_naming_both() {
 
 #[test]
 fn entry_of_row_a_thread_caller_reaches_only_its_tree_and_answers_nothing_otherwise() {
-    check_rows_scene("entry of row: a thread caller reaches only its tree, and answers nothing otherwise");
+    check_rows_scene(
+        "entry of row: a thread caller reaches only its tree, and answers nothing otherwise",
+    );
 }
 
 #[test]
@@ -66,13 +77,33 @@ fn until_ready_a_creating_workspace_is_neither_listed_nor_reachable() {
         let w = world(json!({"c": {}}), json!({})).await;
         let entry = w.rt.live.borrow().get("c").cloned().unwrap();
         entry.borrow_mut().creating = true;
-        let refused = w.area.entry_of("c", None, EntryAsk::default()).await.err().expect("a creating workspace is refused");
+        let refused = w
+            .area
+            .entry_of("c", None, EntryAsk::default())
+            .await
+            .err()
+            .expect("a creating workspace is refused");
         assert_eq!(refused.message, "no such workspace: c");
         assert_eq!(kind_word(&refused), json!("not-found"));
-        let early = w.area.entry_of("c", None, EntryAsk { being_made: true, ..EntryAsk::default() }).await.expect("being made opens early");
+        let early = w
+            .area
+            .entry_of(
+                "c",
+                None,
+                EntryAsk {
+                    being_made: true,
+                    ..EntryAsk::default()
+                },
+            )
+            .await
+            .expect("being made opens early");
         assert!(std::rc::Rc::ptr_eq(&early, &entry));
         entry.borrow_mut().creating = false;
-        let ready = w.area.entry_of("c", None, EntryAsk::default()).await.expect("reachable once ready");
+        let ready = w
+            .area
+            .entry_of("c", None, EntryAsk::default())
+            .await
+            .expect("reachable once ready");
         assert!(std::rc::Rc::ptr_eq(&ready, &entry));
     });
 }
@@ -84,16 +115,41 @@ fn an_id_this_host_does_not_hold_reads_as_one_outside_the_callers_tree() {
     common::run_local(async {
         let w = world(json!({"a": {}, "theirs": {}}), json!({})).await;
         let thread = thread_caller();
-        let nobody = w.area.entry_of("ws_00000000", Some(&thread), EntryAsk::default()).await.err().expect("an id nobody holds");
+        let nobody = w
+            .area
+            .entry_of("ws_00000000", Some(&thread), EntryAsk::default())
+            .await
+            .err()
+            .expect("an id nobody holds");
         assert_eq!(nobody.message, "no such workspace");
         assert!(!nobody.message.contains("ws_00000000"));
         assert_eq!(kind_word(&nobody), json!("not-found"));
-        let person = w.area.entry_of("ws_00000000", None, EntryAsk::default()).await.err().expect("the person reads the id");
+        let person = w
+            .area
+            .entry_of("ws_00000000", None, EntryAsk::default())
+            .await
+            .err()
+            .expect("the person reads the id");
         assert_eq!(person.message, "no such workspace: ws_00000000");
-        let outside = w.area.entry_of_row(&row("t-b", "theirs"), Some(&thread), None, false).await.expect("a door answer");
-        let unheld = w.area.entry_of_row(&row("t-b", "ws_00000000"), Some(&thread), None, false).await.expect("a door answer");
-        assert!(outside.is_none() && unheld.is_none(), "a row outside the tree and a row nobody holds read alike");
-        let own = w.area.entry_of_row(&row("t-a-own", "a"), Some(&thread), None, false).await.expect("a door answer");
+        let outside = w
+            .area
+            .entry_of_row(&row("t-b", "theirs"), Some(&thread), None, false)
+            .await
+            .expect("a door answer");
+        let unheld = w
+            .area
+            .entry_of_row(&row("t-b", "ws_00000000"), Some(&thread), None, false)
+            .await
+            .expect("a door answer");
+        assert!(
+            outside.is_none() && unheld.is_none(),
+            "a row outside the tree and a row nobody holds read alike"
+        );
+        let own = w
+            .area
+            .entry_of_row(&row("t-a-own", "a"), Some(&thread), None, false)
+            .await
+            .expect("a door answer");
         assert_eq!(own.as_ref().map(short), Some(json!("entry:a")));
     });
 }
@@ -106,11 +162,48 @@ fn a_row_reaches_by_its_thread_then_by_the_rule_of_its_workspace() {
         let w = world(json!({"a": {}}), json!({})).await;
         let thread = thread_caller();
         let caller = support::caller_json(Some(&thread));
-        assert!(w.area.reaches_row(&RowAt { thread_id: Some("t-a-own".into()), workspace_id: "none".into() }, Some(&thread), None), "no live record reaches");
-        assert!(!w.area.reaches_row(&RowAt { thread_id: Some("t-b".into()), workspace_id: "none".into() }, Some(&thread), None), "a thread outside the tree is not driven");
-        assert!(w.area.reaches_row(&RowAt { thread_id: Some("t-a-own".into()), workspace_id: "a".into() }, Some(&thread), Some(TreeTalk::Send)), "by the workspace's act rule, talk or not, while the tree is not talked to");
+        assert!(
+            w.area.reaches_row(
+                &RowAt {
+                    thread_id: Some("t-a-own".into()),
+                    workspace_id: "none".into()
+                },
+                Some(&thread),
+                None
+            ),
+            "no live record reaches"
+        );
+        assert!(
+            !w.area.reaches_row(
+                &RowAt {
+                    thread_id: Some("t-b".into()),
+                    workspace_id: "none".into()
+                },
+                Some(&thread),
+                None
+            ),
+            "a thread outside the tree is not driven"
+        );
+        assert!(
+            w.area.reaches_row(
+                &RowAt {
+                    thread_id: Some("t-a-own".into()),
+                    workspace_id: "a".into()
+                },
+                Some(&thread),
+                Some(TreeTalk::Send)
+            ),
+            "by the workspace's act rule, talk or not, while the tree is not talked to"
+        );
         w.rt.talks_to_tree.set(true);
-        assert!(w.area.reaches_row(&RowAt { thread_id: Some("t-a-own".into()), workspace_id: "a".into() }, Some(&thread), Some(TreeTalk::List)));
+        assert!(w.area.reaches_row(
+            &RowAt {
+                thread_id: Some("t-a-own".into()),
+                workspace_id: "a".into()
+            },
+            Some(&thread),
+            Some(TreeTalk::List)
+        ));
         w.rt.talks_to_tree.set(false);
         assert_eq!(
             w.log.take(),
@@ -134,8 +227,16 @@ fn tree_records_name_only_the_workspace_asked() {
             json!({"t-1": {"workspaceId": "a", "harness": "claude"}, "t-2": {"workspaceId": "b", "harness": "claude"}, "t-3": {"workspaceId": "b", "harness": "codex"}}),
         )
         .await;
-        let ids = |v: Vec<(String, String, wsp_core::types::internal::ThreadRecord)>| v.into_iter().map(|(t, ws, _)| (t, ws)).collect::<Vec<_>>();
-        assert_eq!(ids(w.area.tree_records(None, None, Some("b"))), vec![("t-2".to_string(), "b".to_string()), ("t-3".to_string(), "b".to_string())]);
+        let ids = |v: Vec<(String, String, wsp_core::types::internal::ThreadRecord)>| {
+            v.into_iter().map(|(t, ws, _)| (t, ws)).collect::<Vec<_>>()
+        };
+        assert_eq!(
+            ids(w.area.tree_records(None, None, Some("b"))),
+            vec![
+                ("t-2".to_string(), "b".to_string()),
+                ("t-3".to_string(), "b".to_string())
+            ]
+        );
         assert_eq!(ids(w.area.tree_records(None, None, None)).len(), 3);
     });
 }
@@ -145,10 +246,20 @@ fn tree_records_name_only_the_workspace_asked() {
 fn computer_rows_append_the_wired_provider_a_door_does_not_list() {
     common::run_local(async {
         let w = world(json!({}), json!({})).await;
-        *w.rt.door_rows.borrow_mut() = Some(vec![ComputerRow { id: "here".into(), name: "Mac".into(), kind: PlaceKind::Computer }]);
+        *w.rt.door_rows.borrow_mut() = Some(vec![ComputerRow {
+            id: "here".into(),
+            name: "Mac".into(),
+            kind: PlaceKind::Computer,
+        }]);
         let rows = w.area.computer_rows().await;
         let got: Vec<Value> = rows.iter().map(support::computer_json).collect();
-        assert_eq!(got, vec![json!({"id": "here", "name": "Mac", "kind": "computer"}), json!({"id": "solari", "name": "solari", "kind": "provider"})]);
+        assert_eq!(
+            got,
+            vec![
+                json!({"id": "here", "name": "Mac", "kind": "computer"}),
+                json!({"id": "solari", "name": "solari", "kind": "provider"})
+            ]
+        );
     });
 }
 
@@ -158,7 +269,10 @@ fn image_head_is_the_default_images_snapshot() {
     common::run_local(async {
         let w = world(json!({}), json!({})).await;
         *w.rt.default_head.borrow_mut() = Some("snap_head".into());
-        assert_eq!(w.area.image_head_or_none().await.expect("head"), Some("snap_head".to_string()));
+        assert_eq!(
+            w.area.image_head_or_none().await.expect("head"),
+            Some("snap_head".to_string())
+        );
         assert_eq!(w.area.image_head().await.expect("head"), "snap_head");
     });
 }
@@ -169,11 +283,22 @@ fn image_head_is_the_default_images_snapshot() {
 fn landing_place_names_a_place_only_for_a_joined_computer() {
     common::run_local(async {
         let w = world(json!({}), json!({})).await;
-        w.rt.places_for.borrow_mut().insert("box-1".into(), Some("place-box-1".into()));
+        w.rt.places_for
+            .borrow_mut()
+            .insert("box-1".into(), Some("place-box-1".into()));
         assert_eq!(w.area.landing_place("here").await.expect("here"), None);
         assert_eq!(w.area.landing_place("solari").await.expect("wired"), None);
-        assert!(w.rt.extras.take().is_empty(), "the door is not asked for either");
-        assert_eq!(w.area.landing_place("box-1").await.expect("a joined computer"), Some("place-box-1".to_string()));
+        assert!(
+            w.rt.extras.take().is_empty(),
+            "the door is not asked for either"
+        );
+        assert_eq!(
+            w.area
+                .landing_place("box-1")
+                .await
+                .expect("a joined computer"),
+            Some("place-box-1".to_string())
+        );
         assert_eq!(w.rt.extras.take(), vec![json!(["placeFor", "box-1"])]);
     });
 }

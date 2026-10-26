@@ -12,16 +12,16 @@ use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 use serde_json::Value;
 
+use wsp_core::reach::DaemonReach;
 use wsp_engine::machine::{Machine, MachineBackend};
 use wsp_wire::views::session::SessionView;
 use wsp_wire::views::workspace::{DaemonReachView, ProjectView, ReachState, WorkspacePhase};
-use wsp_core::reach::DaemonReach;
 use wsp_wire::wire::daemon_events::DaemonEvent;
 use wsp_words::exit::HostError;
 
 use crate::machines::area_error::AreaResult;
-use wsp_core::clock::Cancel;
 use crate::machines::machines::Entry;
+use wsp_core::clock::Cancel;
 use wsp_core::types::internal::SessionEntry;
 use wsp_core::types::wiring::WorkspaceRecord;
 
@@ -60,7 +60,13 @@ pub trait ReachCtx {
     fn daemon_hello_timeout_ms(&self) -> f64;
     async fn daemon_token_of(&self, machine: &Arc<dyn Machine>) -> AreaResult<Option<String>>;
     /// RT/reach.ts `connectDaemon({previewUrl, token, onEvent, heartbeatMs})`.
-    fn connect_daemon(&self, preview_url: &str, token: &str, on_event: Rc<dyn Fn(DaemonEvent)>, heartbeat_ms: Option<i64>) -> Rc<dyn DaemonReach>;
+    fn connect_daemon(
+        &self,
+        preview_url: &str,
+        token: &str,
+        on_event: Rc<dyn Fn(DaemonEvent)>,
+        heartbeat_ms: Option<i64>,
+    ) -> Rc<dyn DaemonReach>;
     fn project_held(&self, id: &str) -> ProjectView;
     /// `withDaemon(entry, ask => ask(frame))`.
     async fn with_daemon(&self, entry: &Entry, frame: Value) -> AreaResult<Value>;

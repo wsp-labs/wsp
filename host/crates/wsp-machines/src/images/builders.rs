@@ -75,7 +75,8 @@ pub struct BuildersOpts {
 }
 
 /// `opts.copyRecipe`: how a copy is planned off the record.
-pub type CopyRecipe = Rc<dyn Fn(SealedImage, bool) -> LocalBoxFuture<'static, Result<GoldenRecipe, HostError>>>;
+pub type CopyRecipe =
+    Rc<dyn Fn(SealedImage, bool) -> LocalBoxFuture<'static, Result<GoldenRecipe, HostError>>>;
 
 /// Every call the builders area makes on the rest of the runtime.
 #[async_trait(?Send)]
@@ -122,9 +123,18 @@ pub trait BuildersCtx {
     /// `ctx.refreshBuilders()` (the boot area).
     async fn refresh_builders(&self) -> Result<(), HostError>;
     /// `gone.stop(at, machine)` (the machines area's gone confirmation).
-    async fn gone_stop(&self, at: Arc<dyn MachineBackend>, machine: Arc<dyn Machine>) -> Result<(), HostError>;
+    async fn gone_stop(
+        &self,
+        at: Arc<dyn MachineBackend>,
+        machine: Arc<dyn Machine>,
+    ) -> Result<(), HostError>;
     /// `ctx.claiming(purpose, .., at, place)`.
-    fn claiming(&self, purpose: &str, at: Option<Arc<dyn MachineBackend>>, place: Option<&str>) -> Rc<dyn Claim>;
+    fn claiming(
+        &self,
+        purpose: &str,
+        at: Option<Arc<dyn MachineBackend>>,
+        place: Option<&str>,
+    ) -> Rc<dyn Claim>;
     /// `ctx.observed(machine)`.
     fn observed(&self, machine: Arc<dyn Machine>) -> Arc<dyn Machine>;
     /// `ctx.observing(backend)`.
@@ -132,8 +142,19 @@ pub trait BuildersCtx {
     /// The records area.
     async fn record_of(&self, name: &str) -> Result<Option<SealedImage>, HostError>;
     async fn copy_of(&self, place: &str, name: &str) -> Result<Option<GoldenManifest>, HostError>;
-    async fn put_copy(&self, place: &str, name: &str, manifest: &GoldenManifest) -> Result<(), HostError>;
-    async fn put_copy_recipe(&self, place: &str, name: &str, version: u32, digest: &RecipeDigest) -> Result<(), HostError>;
+    async fn put_copy(
+        &self,
+        place: &str,
+        name: &str,
+        manifest: &GoldenManifest,
+    ) -> Result<(), HostError>;
+    async fn put_copy_recipe(
+        &self,
+        place: &str,
+        name: &str,
+        version: u32,
+        digest: &RecipeDigest,
+    ) -> Result<(), HostError>;
 }
 
 /// `buildersArea(ctx)` (builders.ts:55). Memory only: the grace timers and the one pass of `expire_grace`.
@@ -147,7 +168,11 @@ pub struct BuildersArea {
 
 impl BuildersArea {
     pub fn new(ctx: Rc<dyn BuildersCtx>) -> Rc<BuildersArea> {
-        Rc::new(BuildersArea { ctx, grace_timers: Rc::new(RefCell::new(IndexMap::new())), expiring: RefCell::new(None) })
+        Rc::new(BuildersArea {
+            ctx,
+            grace_timers: Rc::new(RefCell::new(IndexMap::new())),
+            expiring: RefCell::new(None),
+        })
     }
 }
 

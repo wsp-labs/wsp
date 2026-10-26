@@ -10,8 +10,8 @@ mod support;
 use serde_json::{json, Value};
 use support::{answer_json, flag, moments_json, reach, session_event, spawn, status, World};
 use wsp_core::types::internal::MachineMoment;
-use wsp_wire::types::js_number::JsNumber;
 use wsp_machines::machines::machines::Unreached;
+use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::workspace::Caller;
 use wsp_wire::views::workspace_more::WorkspaceOrigin;
 
@@ -24,7 +24,9 @@ fn start(name: &str) -> (Value, World) {
 }
 
 fn revive_again_ms() -> i64 {
-    common::fixture("daemon")["DAEMON_REVIVE_AGAIN_MS"].as_i64().expect("DAEMON_REVIVE_AGAIN_MS")
+    common::fixture("daemon")["DAEMON_REVIVE_AGAIN_MS"]
+        .as_i64()
+        .expect("DAEMON_REVIVE_AGAIN_MS")
 }
 
 async fn finish(sc: &Value, w: &World, skip: &[&str]) {
@@ -69,7 +71,10 @@ fn sync_a_version_not_read_is_marked_for_the_next_probe() {
     common::run_local(async {
         let (sc, w) = start("sync: a version not read is marked for the next probe");
         let _ = w.area.sync_daemon(&w.entry("a")).await;
-        w.push(json!(["unreadAt", moments_json(&w.area.unread_at().borrow())]));
+        w.push(json!([
+            "unreadAt",
+            moments_json(&w.area.unread_at().borrow())
+        ]));
         finish(&sc, &w, &[]).await;
     })
 }
@@ -106,7 +111,8 @@ fn sync_served_by_its_computer_not_a_folder_does_nothing() {
 #[test]
 fn sync_a_machine_that_said_it_lacks_something_inside_the_hour_is_left_alone() {
     common::run_local(async {
-        let (sc, w) = start("sync: a machine that said it lacks something inside the hour is left alone");
+        let (sc, w) =
+            start("sync: a machine that said it lacks something inside the hour is left alone");
         let _ = w.area.sync_daemon(&w.entry("a")).await;
         finish(&sc, &w, &[]).await;
     })
@@ -115,7 +121,9 @@ fn sync_a_machine_that_said_it_lacks_something_inside_the_hour_is_left_alone() {
 #[test]
 fn sync_the_hour_out_it_is_offered_again_and_a_deploy_that_lands_clears_the_mark() {
     common::run_local(async {
-        let (sc, w) = start("sync: the hour out, it is offered again and a deploy that lands clears the mark");
+        let (sc, w) = start(
+            "sync: the hour out, it is offered again and a deploy that lands clears the mark",
+        );
         let _ = w.area.sync_daemon(&w.entry("a")).await;
         finish(&sc, &w, &[]).await;
     })
@@ -133,7 +141,9 @@ fn sync_another_machine_s_refusal_is_taken_off_and_the_sync_goes_on() {
 #[test]
 fn sync_a_deploy_refused_for_what_the_machine_lacks_keeps_its_sentence_and_flashes_() {
     common::run_local(async {
-        let (sc, w) = start("sync: a deploy refused for what the machine lacks keeps its sentence and flashes it");
+        let (sc, w) = start(
+            "sync: a deploy refused for what the machine lacks keeps its sentence and flashes it",
+        );
         let _ = w.area.sync_daemon(&w.entry("a")).await;
         finish(&sc, &w, &[]).await;
     })
@@ -151,7 +161,8 @@ fn sync_a_deploy_the_machine_never_answered_keeps_an_old_refusal() {
 #[test]
 fn sync_any_other_deploy_failure_drops_the_refusal_and_flashes_update_failed() {
     common::run_local(async {
-        let (sc, w) = start("sync: any other deploy failure drops the refusal and flashes update failed");
+        let (sc, w) =
+            start("sync: any other deploy failure drops the refusal and flashes update failed");
         let _ = w.area.sync_daemon(&w.entry("a")).await;
         finish(&sc, &w, &[]).await;
     })
@@ -241,12 +252,20 @@ fn sync_two_at_once_on_one_machine_share_the_work() {
         // The oracle's ["same", true, 1] is logged the moment the second call returns; whether the first call's own
         // lines come before it is the call's start, not its contract, so it is asserted here and not in the log.
         let held = w.area.daemon_syncs();
-        assert_eq!(held, vec!["m-a".to_string()], "two syncs on one machine hold one key");
+        assert_eq!(
+            held,
+            vec!["m-a".to_string()],
+            "two syncs on one machine hold one key"
+        );
         common::flush().await;
         let settled = w.area.daemon_settled(&entry);
         w.open_deploy();
-        p1.await.expect("the first sync task").expect("the first sync");
-        p2.await.expect("the second sync task").expect("the second sync");
+        p1.await
+            .expect("the first sync task")
+            .expect("the first sync");
+        p2.await
+            .expect("the second sync task")
+            .expect("the second sync");
         settled.await;
         common::flush().await;
         w.push(json!(["after", w.area.daemon_syncs().len()]));
@@ -295,7 +314,8 @@ fn roots_strict_hands_the_failure_back() {
 #[test]
 fn revive_no_daemon_on_a_running_machine_deploys_notes_restarting_clears() {
     common::run_local(async {
-        let (sc, w) = start("revive: no-daemon on a running machine deploys, notes restarting, clears");
+        let (sc, w) =
+            start("revive: no-daemon on a running machine deploys, notes restarting, clears");
         let entry = w.entry("a");
         w.area.revive_daemon(&entry, reach("no-daemon"));
         common::flush().await;
@@ -312,11 +332,19 @@ fn revive_no_daemon_on_a_running_machine_deploys_notes_restarting_clears() {
 #[test]
 fn revive_only_for_no_daemon_on_a_running_machine_with_a_road_and_no_unreached_mark() {
     common::run_local(async {
-        let (sc, w) = start("revive: only for no-daemon on a running machine with a road and no unreached mark");
+        let (sc, w) = start(
+            "revive: only for no-daemon on a running machine with a road and no unreached mark",
+        );
         w.area.revive_daemon(&w.entry("a"), reach("reachable"));
         w.area.revive_daemon(&w.entry("b"), reach("no-daemon"));
         w.area.revive_daemon(&w.entry("c"), reach("no-daemon"));
-        w.area.unreached().borrow_mut().insert("d".to_string(), Unreached { machine_id: "m-d".to_string(), line: "cannot reach".to_string() });
+        w.area.unreached().borrow_mut().insert(
+            "d".to_string(),
+            Unreached {
+                machine_id: "m-d".to_string(),
+                line: "cannot reach".to_string(),
+            },
+        );
         w.area.revive_daemon(&w.entry("d"), reach("no-daemon"));
         finish(&sc, &w, &[]).await;
     })
@@ -353,12 +381,28 @@ fn unreachedof_a_replaced_machine_s_mark_is_dropped() {
         let unreached = w.area.unreached();
         let read = |w: &World| {
             let of = w.area.unreached_of(&entry);
-            let held: Vec<Value> = unreached.borrow().iter().map(|(k, u)| json!([k, {"machineId": u.machine_id, "line": u.line}])).collect();
+            let held: Vec<Value> = unreached
+                .borrow()
+                .iter()
+                .map(|(k, u)| json!([k, {"machineId": u.machine_id, "line": u.line}]))
+                .collect();
             w.push(json!(["of", of, held]));
         };
-        unreached.borrow_mut().insert("a".to_string(), Unreached { machine_id: "m-old".to_string(), line: "cannot reach".to_string() });
+        unreached.borrow_mut().insert(
+            "a".to_string(),
+            Unreached {
+                machine_id: "m-old".to_string(),
+                line: "cannot reach".to_string(),
+            },
+        );
         read(&w);
-        unreached.borrow_mut().insert("a".to_string(), Unreached { machine_id: "m-a".to_string(), line: "cannot reach".to_string() });
+        unreached.borrow_mut().insert(
+            "a".to_string(),
+            Unreached {
+                machine_id: "m-a".to_string(),
+                line: "cannot reach".to_string(),
+            },
+        );
         read(&w);
         finish(&sc, &w, &[]).await;
     })
@@ -368,10 +412,13 @@ fn unreachedof_a_replaced_machine_s_mark_is_dropped() {
 fn offer_again_only_with_a_refusal_and_facts() {
     common::run_local(async {
         let (sc, w) = start("offer again: only with a refusal and facts");
-        w.area.offer_daemon_again(&w.entry("a"), &status("running", "reachable", false));
-        w.area.offer_daemon_again(&w.entry("b"), &status("running", "reachable", true));
+        w.area
+            .offer_daemon_again(&w.entry("a"), &status("running", "reachable", false));
+        w.area
+            .offer_daemon_again(&w.entry("b"), &status("running", "reachable", true));
         w.push(json!(["mark", "with facts"]));
-        w.area.offer_daemon_again(&w.entry("a"), &status("running", "reachable", true));
+        w.area
+            .offer_daemon_again(&w.entry("a"), &status("running", "reachable", true));
         finish(&sc, &w, &[]).await;
     })
 }
@@ -382,19 +429,28 @@ fn read_again_after_the_window_reachable_and_running_same_machine() {
         let (sc, w) = start("read again: after the window, reachable and running, same machine");
         let entry = w.entry("a");
         let unread = w.area.unread_at();
-        let moment = |machine: &str| MachineMoment { machine_id: machine.to_string(), at: JsNumber(T0 as f64) };
-        w.area.read_version_again(&entry, &status("running", "reachable", false));
+        let moment = |machine: &str| MachineMoment {
+            machine_id: machine.to_string(),
+            at: JsNumber(T0 as f64),
+        };
+        w.area
+            .read_version_again(&entry, &status("running", "reachable", false));
         unread.borrow_mut().insert("a".to_string(), moment("m-old"));
-        w.area.read_version_again(&entry, &status("running", "reachable", false));
+        w.area
+            .read_version_again(&entry, &status("running", "reachable", false));
         w.push(json!(["unread", moments_json(&unread.borrow())]));
         unread.borrow_mut().insert("a".to_string(), moment("m-a"));
         w.clock.advance(revive_again_ms() - 1);
-        w.area.read_version_again(&entry, &status("running", "reachable", false));
+        w.area
+            .read_version_again(&entry, &status("running", "reachable", false));
         w.clock.advance(1);
-        w.area.read_version_again(&entry, &status("napping", "reachable", false));
-        w.area.read_version_again(&entry, &status("running", "no-daemon", false));
+        w.area
+            .read_version_again(&entry, &status("napping", "reachable", false));
+        w.area
+            .read_version_again(&entry, &status("running", "no-daemon", false));
         w.push(json!(["mark", "now"]));
-        w.area.read_version_again(&entry, &status("running", "reachable", false));
+        w.area
+            .read_version_again(&entry, &status("running", "reachable", false));
         common::flush().await;
         w.push(json!(["unread", moments_json(&unread.borrow())]));
         finish(&sc, &w, &[]).await;
@@ -404,8 +460,13 @@ fn read_again_after_the_window_reachable_and_running_same_machine() {
 #[test]
 fn turnruns_counts_a_queued_row_daemonsettled_does_not_wait_beside_a_turn() {
     common::run_local(async {
-        let (sc, w) = start("turnRuns counts a queued row, daemonSettled does not wait beside a turn");
-        w.push(json!(["turnRuns", w.area.turn_runs("a"), w.area.turn_runs("b")]));
+        let (sc, w) =
+            start("turnRuns counts a queued row, daemonSettled does not wait beside a turn");
+        w.push(json!([
+            "turnRuns",
+            w.area.turn_runs("a"),
+            w.area.turn_runs("b")
+        ]));
         let p = spawn(w.area.sync_daemon(&w.entry("a")));
         common::flush().await;
         let settled = flag();
@@ -428,7 +489,11 @@ fn turnruns_counts_a_queued_row_daemonsettled_does_not_wait_beside_a_turn() {
 fn send_detached_started() {
     common::run_local(async {
         let (sc, w) = start("send detached: started");
-        let answer = w.area.send_detached("a", "hi", None, None).await.expect("the send");
+        let answer = w
+            .area
+            .send_detached("a", "hi", None, None)
+            .await
+            .expect("the send");
         w.push(json!(["answer", answer_json(&answer)]));
         finish(&sc, &w, &[]).await;
     })
@@ -438,7 +503,16 @@ fn send_detached_started() {
 fn send_detached_steered() {
     common::run_local(async {
         let (sc, w) = start("send detached: steered");
-        let answer = w.area.send_detached("a", "hi", Some("t1"), Some(&Caller::Road(WorkspaceOrigin::Here))).await.expect("the send");
+        let answer = w
+            .area
+            .send_detached(
+                "a",
+                "hi",
+                Some("t1"),
+                Some(&Caller::Road(WorkspaceOrigin::Here)),
+            )
+            .await
+            .expect("the send");
         w.push(json!(["answer", answer_json(&answer)]));
         // The oracle's origin is the loose object {kind: "person"}; the Rust origin is a road, and the fake writes its word.
         finish_with(&sc, &w, &[], &|log| log[0][3] = json!({"kind": "here"})).await;
@@ -449,7 +523,11 @@ fn send_detached_steered() {
 fn send_detached_queued_answers_at_the_event_with_this_request_s_id() {
     common::run_local(async {
         let (sc, w) = start("send detached: queued answers at the event with this request's id");
-        let answer = w.area.send_detached("a", "hi", Some("t1"), None).await.expect("the send");
+        let answer = w
+            .area
+            .send_detached("a", "hi", Some("t1"), None)
+            .await
+            .expect("the send");
         w.push(json!(["answer", answer_json(&answer)]));
         tokio::time::sleep(std::time::Duration::from_millis(20)).await;
         // The oracle did not pin randomUUID, so the fixture holds one run's id; the expected id is this run's own.
@@ -462,10 +540,18 @@ fn send_detached_queued_answers_at_the_event_with_this_request_s_id() {
 fn send_detached_held_answers_the_wait() {
     common::run_local(async {
         let (sc, w) = start("send detached: held answers the wait");
-        let answer = w.area.send_detached("a", "hi", None, None).await.expect("the send");
+        let answer = w
+            .area
+            .send_detached("a", "hi", None, None)
+            .await
+            .expect("the send");
         w.push(json!(["answer", answer_json(&answer)]));
         // The oracle's wait is {place, running, limit}; the Rust wait is {placeId, place, running, atOnce}.
-        finish_with(&sc, &w, &[], &|log| log[1][1]["capped"] = json!({"placeId": "box", "place": "box", "running": 2, "atOnce": 2})).await;
+        finish_with(&sc, &w, &[], &|log| {
+            log[1][1]["capped"] =
+                json!({"placeId": "box", "place": "box", "running": 2, "atOnce": 2})
+        })
+        .await;
     })
 }
 
@@ -483,8 +569,13 @@ fn send_detached_a_refused_start_rejects() {
 #[test]
 fn to_first_thread_the_earliest_row_with_a_thread_ties_to_the_first_listed() {
     common::run_local(async {
-        let (sc, w) = start("to first thread: the earliest row with a thread, ties to the first listed");
-        let answer = w.area.to_first_thread("a", "go", None).await.expect("the send");
+        let (sc, w) =
+            start("to first thread: the earliest row with a thread, ties to the first listed");
+        let answer = w
+            .area
+            .to_first_thread("a", "go", None)
+            .await
+            .expect("the send");
         w.push(json!(["answer", answer_json(&answer)]));
         finish(&sc, &w, &[]).await;
     })
@@ -494,7 +585,11 @@ fn to_first_thread_the_earliest_row_with_a_thread_ties_to_the_first_listed() {
 fn to_first_thread_none_opens_one() {
     common::run_local(async {
         let (sc, w) = start("to first thread: none opens one");
-        let answer = w.area.to_first_thread("a", "go", None).await.expect("the send");
+        let answer = w
+            .area
+            .to_first_thread("a", "go", None)
+            .await
+            .expect("the send");
         w.push(json!(["answer", answer_json(&answer)]));
         finish(&sc, &w, &[]).await;
     })
@@ -504,7 +599,11 @@ fn to_first_thread_none_opens_one() {
 fn to_first_thread_a_row_with_no_startedat_counts_as_0() {
     common::run_local(async {
         let (sc, w) = start("to first thread: a row with no startedAt counts as 0");
-        let answer = w.area.to_first_thread("a", "go", None).await.expect("the send");
+        let answer = w
+            .area
+            .to_first_thread("a", "go", None)
+            .await
+            .expect("the send");
         w.push(json!(["answer", answer_json(&answer)]));
         finish(&sc, &w, &[]).await;
     })

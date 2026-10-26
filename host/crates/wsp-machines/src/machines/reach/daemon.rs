@@ -11,6 +11,7 @@ use futures::FutureExt;
 use serde_json::{json, Map, Value};
 use tokio_util::sync::CancellationToken;
 
+use wsp_catalog::git_hosts::remote_host;
 use wsp_core::clock::Cancel as Timer;
 use wsp_core::reach::DaemonReach;
 use wsp_core::types::events::CHECKOUT_TTL_MS;
@@ -23,10 +24,9 @@ use wsp_wire::views::workspace::WorkspacePhase;
 use wsp_wire::wire::daemon::{GitStatusReply, DETACHED_HEAD};
 use wsp_wire::wire::daemon_events::DaemonEvent;
 use wsp_words::exit::HostError;
-use wsp_words::js::utf16::tail;
 use wsp_words::js::js_trim;
+use wsp_words::js::utf16::tail;
 use wsp_words::words::computer::WAKE_STOPPED;
-use wsp_catalog::git_hosts::remote_host;
 
 use super::ReachArea;
 use crate::machines::area_error::{AreaError, AreaResult};
@@ -69,7 +69,12 @@ struct ExitWatch {
 
 impl ReachArea {
     /// A future that fails once `deadline` passes on the context's clock (wiring.ts `until`, rule 2).
-    async fn until<T>(&self, work: impl Future<Output = AreaResult<T>>, deadline: f64, what: &str) -> AreaResult<T> {
+    async fn until<T>(
+        &self,
+        work: impl Future<Output = AreaResult<T>>,
+        deadline: f64,
+        what: &str,
+    ) -> AreaResult<T> {
         let ms = (deadline - self.ctx.now()).max(0.0);
         let (fire, timer) = futures::channel::oneshot::channel::<()>();
         let cancel = self.ctx.schedule(
@@ -85,12 +90,19 @@ impl ReachArea {
                 cancel();
                 done
             }
-            futures::future::Either::Right(_) => Err(AreaError::Host(HostError::new(format!("{what} timed out after {ms} ms")))),
+            futures::future::Either::Right(_) => Err(AreaError::Host(HostError::new(format!(
+                "{what} timed out after {ms} ms"
+            )))),
         }
     }
 
     /// Fails with WAKE_STOPPED where either stop is pulled before the work settles.
-    async fn or_stopped<T>(&self, work: impl Future<Output = AreaResult<T>>, quit: Option<&CancellationToken>, wake: Option<&CancellationToken>) -> AreaResult<T> {
+    async fn or_stopped<T>(
+        &self,
+        work: impl Future<Output = AreaResult<T>>,
+        quit: Option<&CancellationToken>,
+        wake: Option<&CancellationToken>,
+    ) -> AreaResult<T> {
         tokio::select! {
             biased;
             _ = stopped(quit, wake) => Err(stopped_error()),
@@ -99,30 +111,62 @@ impl ReachArea {
     }
 
     /// reach.ts:203 (rule 2). `None` where the guest holds no daemon token.
-    pub(crate) async fn dial_daemon(&self, entry: &Entry, deadline: f64, on_event: Option<Rc<dyn Fn(DaemonEvent)>>, heartbeat_ms: Option<i64>) -> AreaResult<Option<Rc<dyn DaemonReach>>> {
+    pub(crate) async fn dial_daemon(
+        &self,
+        entry: &Entry,
+        deadline: f64,
+        on_event: Option<Rc<dyn Fn(DaemonEvent)>>,
+        heartbeat_ms: Option<i64>,
+    ) -> AreaResult<Option<Rc<dyn DaemonReach>>> {
         let (ws, machine) = {
             let held = entry.borrow();
             (Rc::clone(&held.ws), Arc::clone(&held.machine))
         };
-        let reach = self.until(async { ws.daemon_reach().await.map_err(AreaError::from) }, deadline, "preview route").await?;
-        let token = self.until(self.ctx.daemon_token_of(&machine), deadline, "daemon token").await?;
+        let reach = self
+            .until(
+                async { ws.daemon_reach().await.map_err(AreaError::from) },
+                deadline,
+                "preview route",
+            )
+            .await?;
+        let token = self
+            .until(self.ctx.daemon_token_of(&machine), deadline, "daemon token")
+            .await?;
         let Some(token) = token else {
             return Ok(None);
         };
-        let on_event: Rc<dyn Fn(DaemonEvent)> = on_event.unwrap_or_else(|| Rc::new(|_: DaemonEvent| {}));
-        Ok(Some(self.ctx.connect_daemon(&reach.url, &token, on_event, heartbeat_ms)))
+        let on_event: Rc<dyn Fn(DaemonEvent)> =
+            on_event.unwrap_or_else(|| Rc::new(|_: DaemonEvent| {}));
+        Ok(Some(self.ctx.connect_daemon(
+            &reach.url,
+            &token,
+            on_event,
+            heartbeat_ms,
+        )))
     }
 
     /// reach.ts:222 (rule 3). `None` is the daemon answering; `Some` the row's words for why not.
-    pub(crate) async fn daemon_answer(&self, entry: &Entry, quit: Option<CancellationToken>) -> Option<String> {
+    pub(crate) async fn daemon_answer(
+        &self,
+        entry: &Entry,
+        quit: Option<CancellationToken>,
+    ) -> Option<String> {
         let (machine, wake) = {
             let held = entry.borrow();
-            (Arc::clone(&held.machine), held.wake_stop.as_ref().map(|stop| stop.token().clone()))
+            (
+                Arc::clone(&held.machine),
+                held.wake_stop.as_ref().map(|stop| stop.token().clone()),
+            )
         };
         let machine_id = machine.id().to_string();
         let answers_ms = match self.ctx.daemon_answers_ms(entry) {
             Ok(ms) => ms,
-            Err(error) => return Some(format!("the daemon on {machine_id} could not be asked ({})", error.message())),
+            Err(error) => {
+                return Some(format!(
+                    "the daemon on {machine_id} could not be asked ({})",
+                    error.message()
+                ))
+            }
         };
         let quit = quit.as_ref();
         let wake = wake.as_ref();
@@ -132,7 +176,16 @@ impl ReachArea {
                 let ask_ms = answers_ms.min(ASK_DAEMON_MS) as u64;
                 let asked = self
                     .until(
-                        self.or_stopped(async { machine.daemon_answers(Some(ask_ms)).await.map_err(AreaError::from) }, quit, wake),
+                        self.or_stopped(
+                            async {
+                                machine
+                                    .daemon_answers(Some(ask_ms))
+                                    .await
+                                    .map_err(AreaError::from)
+                            },
+                            quit,
+                            wake,
+                        ),
                         deadline,
                         "daemon answer",
                     )
@@ -140,14 +193,34 @@ impl ReachArea {
                 match asked {
                     Ok(true) => return None,
                     Ok(false) => {}
-                    Err(error) => return Some(format!("the daemon on {machine_id} could not be asked ({})", error.message())),
+                    Err(error) => {
+                        return Some(format!(
+                            "the daemon on {machine_id} could not be asked ({})",
+                            error.message()
+                        ))
+                    }
                 }
                 if self.ctx.now() >= deadline {
-                    return Some(format!("nothing listens on the daemon's port inside {machine_id}"));
+                    return Some(format!(
+                        "nothing listens on the daemon's port inside {machine_id}"
+                    ));
                 }
                 let pause = self.ctx.sleep(ASK_AGAIN_MS);
-                if let Err(error) = self.or_stopped(async { pause.await; Ok(()) }, quit, wake).await {
-                    return Some(format!("the daemon on {machine_id} could not be asked ({})", error.message()));
+                if let Err(error) = self
+                    .or_stopped(
+                        async {
+                            pause.await;
+                            Ok(())
+                        },
+                        quit,
+                        wake,
+                    )
+                    .await
+                {
+                    return Some(format!(
+                        "the daemon on {machine_id} could not be asked ({})",
+                        error.message()
+                    ));
                 }
             }
         }
@@ -155,39 +228,87 @@ impl ReachArea {
             return None;
         }
         let deadline = self.ctx.now() + answers_ms;
-        let dialled = self.or_stopped(self.dial_daemon(entry, deadline, None, Some(answers_ms as i64)), quit, wake).await;
+        let dialled = self
+            .or_stopped(
+                self.dial_daemon(entry, deadline, None, Some(answers_ms as i64)),
+                quit,
+                wake,
+            )
+            .await;
         let link = match dialled {
             Ok(link) => link,
-            Err(error) => return Some(format!("daemon on {machine_id} did not answer within {answers_ms} ms ({})", error.message())),
+            Err(error) => {
+                return Some(format!(
+                    "daemon on {machine_id} did not answer within {answers_ms} ms ({})",
+                    error.message()
+                ))
+            }
         };
         let Some(link) = link else {
-            let exec = self.until(async { machine.exec("true", ExecOptions::default()).await.map_err(AreaError::from) }, deadline, "guest exec");
+            let exec = self.until(
+                async {
+                    machine
+                        .exec("true", ExecOptions::default())
+                        .await
+                        .map_err(AreaError::from)
+                },
+                deadline,
+                "guest exec",
+            );
             return match self.or_stopped(exec, quit, wake).await {
                 Ok(_) => None,
-                Err(error) => Some(format!("daemon on {machine_id} did not answer within {answers_ms} ms ({})", error.message())),
+                Err(error) => Some(format!(
+                    "daemon on {machine_id} did not answer within {answers_ms} ms ({})",
+                    error.message()
+                )),
             };
         };
         let probed = async {
-            self.until(async { link.ready().await.map_err(host_error) }, deadline, "daemon link").await?;
-            self.until(async { link.request("ping", Map::new()).await.map(|_| ()).map_err(host_error) }, deadline, "daemon ping").await?;
+            self.until(
+                async { link.ready().await.map_err(host_error) },
+                deadline,
+                "daemon link",
+            )
+            .await?;
+            self.until(
+                async {
+                    link.request("ping", Map::new())
+                        .await
+                        .map(|_| ())
+                        .map_err(host_error)
+                },
+                deadline,
+                "daemon ping",
+            )
+            .await?;
             Ok::<(), AreaError>(())
         };
         let outcome = self.or_stopped(probed, quit, wake).await;
         link.close();
         match outcome {
             Ok(()) => None,
-            Err(error) => Some(format!("daemon on {machine_id} did not answer within {answers_ms} ms ({})", error.message())),
+            Err(error) => Some(format!(
+                "daemon on {machine_id} did not answer within {answers_ms} ms ({})",
+                error.message()
+            )),
         }
     }
 
     /// reach.ts:280 (rule 4).
-    pub(crate) async fn starting_daemon(&self, entry: &Entry, quit: CancellationToken) -> Option<String> {
+    pub(crate) async fn starting_daemon(
+        &self,
+        entry: &Entry,
+        quit: CancellationToken,
+    ) -> Option<String> {
         let machine = Arc::clone(&entry.borrow().machine);
         if !machine.offers().start_daemon {
             return self.daemon_answer(entry, Some(quit)).await;
         }
         let began = self.ctx.now();
-        let watch = Rc::new(StartWatch { over: Cell::new(false), timer: RefCell::new(None) });
+        let watch = Rc::new(StartWatch {
+            over: Cell::new(false),
+            timer: RefCell::new(None),
+        });
         self.arm_start(entry, &watch, began);
         let answer = self.daemon_answer(entry, Some(quit)).await;
         watch.over.set(true);
@@ -245,7 +366,11 @@ impl ReachArea {
     pub async fn ping_daemon(&self, entry: &Entry) -> Option<String> {
         let machine = Arc::clone(&entry.borrow().machine);
         let quit = CancellationToken::new();
-        let watch = Rc::new(ExitWatch { over: Cell::new(false), timer: RefCell::new(None), exited: RefCell::new(None) });
+        let watch = Rc::new(ExitWatch {
+            over: Cell::new(false),
+            timer: RefCell::new(None),
+            exited: RefCell::new(None),
+        });
         if machine.offers().daemon_exits {
             self.look_exits(entry, &watch, &quit);
         }
@@ -283,7 +408,10 @@ impl ReachArea {
                     match said {
                         Ok(None) | Err(_) => area.look_exits(&entry, &look, &quit),
                         Ok(Some(said)) => {
-                            *look.exited.borrow_mut() = Some(format!("the daemon on {} exits as it starts ({said})", machine.id()));
+                            *look.exited.borrow_mut() = Some(format!(
+                                "the daemon on {} exits as it starts ({said})",
+                                machine.id()
+                            ));
                             quit.cancel();
                         }
                     }
@@ -309,11 +437,20 @@ impl ReachArea {
                 }
             }
         });
-        let link = match self.dial_daemon(entry, deadline, Some(on_event), None).await {
+        let link = match self
+            .dial_daemon(entry, deadline, Some(on_event), None)
+            .await
+        {
             Ok(Some(link)) => link,
             _ => return None,
         };
-        let answered = self.until(async { hello.await.map_err(host_error) }, deadline, "daemon hello").await;
+        let answered = self
+            .until(
+                async { hello.await.map_err(host_error) },
+                deadline,
+                "daemon hello",
+            )
+            .await;
         link.close();
         answered.ok()
     }
@@ -344,11 +481,12 @@ impl ReachArea {
             return held;
         };
         let owned = Rc::clone(entry);
-        let future: LocalBoxFuture<'static, Result<Option<Checkout>, HostError>> = Box::pin(async move {
-            area.read_checkout_now(&owned).await;
-            owned.borrow_mut().checkout_reading = None;
-            Ok(owned.borrow().checkout.clone())
-        });
+        let future: LocalBoxFuture<'static, Result<Option<Checkout>, HostError>> =
+            Box::pin(async move {
+                area.read_checkout_now(&owned).await;
+                owned.borrow_mut().checkout_reading = None;
+                Ok(owned.borrow().checkout.clone())
+            });
         let shared: Joined<Option<Checkout>> = future.shared();
         entry.borrow_mut().checkout_reading = Some(shared.clone());
         shared.await.ok().flatten()
@@ -368,12 +506,20 @@ impl ReachArea {
             return;
         };
         let now = self.ctx.now();
-        let head_is_oid = said.branch.oid.len() >= 7 && said.branch.oid.len() <= 40 && said.branch.oid.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase());
+        let head_is_oid = said.branch.oid.len() >= 7
+            && said.branch.oid.len() <= 40
+            && said
+                .branch
+                .oid
+                .bytes()
+                .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase());
         let fact = Checkout {
             branch: said.branch.head.clone(),
             ahead: JsInt(said.branch.ahead),
             behind: JsInt(said.branch.behind),
-            changed: JsInt(JsNumber(said.entries.iter().filter(|e| e.xy != "!!").count() as f64)),
+            changed: JsInt(JsNumber(
+                said.entries.iter().filter(|e| e.xy != "!!").count() as f64,
+            )),
             edits_unread: (said.edits_unread == Some(true)).then_some(true),
             counts_unknown: (said.counts_unknown == Some(true)).then_some(true),
             stashes: said.stashes,
@@ -407,11 +553,12 @@ impl ReachArea {
         }
         let area = self.me.upgrade()?;
         let owned = Rc::clone(lead);
-        let future: LocalBoxFuture<'static, Result<Option<TreeFact>, HostError>> = Box::pin(async move {
-            let outcome = area.read_tree_now(&owned).await;
-            owned.borrow_mut().tree_reading = None;
-            Ok(outcome)
-        });
+        let future: LocalBoxFuture<'static, Result<Option<TreeFact>, HostError>> =
+            Box::pin(async move {
+                let outcome = area.read_tree_now(&owned).await;
+                owned.borrow_mut().tree_reading = None;
+                Ok(outcome)
+            });
         let shared: Joined<Option<TreeFact>> = future.shared();
         lead.borrow_mut().tree_reading = Some(shared.clone());
         shared.await.ok().flatten()
@@ -421,7 +568,11 @@ impl ReachArea {
         let (lead_id, lead_project, lead_base) = {
             let held = lead.borrow();
             let record = held.record.borrow();
-            (record.id.clone(), record.project.clone(), record.base.clone())
+            (
+                record.id.clone(),
+                record.project.clone(),
+                record.base.clone(),
+            )
         };
         let children: Vec<Entry> = self
             .ctx
@@ -441,13 +592,23 @@ impl ReachArea {
             return None;
         }
         let project = self.ctx.project_held(&lead_project);
-        let read = self.read_checkout(lead, false).await.map(|fact| fact.branch);
-        let lead_branch = read.or(lead_base).or(project.base.clone()).unwrap_or(project.default_branch.clone());
+        let read = self
+            .read_checkout(lead, false)
+            .await
+            .map(|fact| fact.branch);
+        let lead_branch = read
+            .or(lead_base)
+            .or(project.base.clone())
+            .unwrap_or(project.default_branch.clone());
         let mut rows: Vec<TreeChild> = Vec::new();
         for child in &children {
             rows.push(self.tree_child_of(child, &lead_branch).await);
         }
-        let fact = TreeFact { lead_branch, children: rows, read_at: JsNumber(self.ctx.now()) };
+        let fact = TreeFact {
+            lead_branch,
+            children: rows,
+            read_at: JsNumber(self.ctx.now()),
+        };
         lead.borrow_mut().tree = Some(fact.clone());
         let _ = self.status_now(lead).await;
         Some(fact)
@@ -459,11 +620,20 @@ impl ReachArea {
             let held = child.borrow();
             let record = held.record.borrow().clone();
             let tree = record.tree.clone();
-            let base = record.worktree.as_ref().and_then(|tree| tree.branch.clone());
+            let base = record
+                .worktree
+                .as_ref()
+                .and_then(|tree| tree.branch.clone());
             (record, tree, base)
         };
-        let checkout_branch = self.read_checkout(child, false).await.map(|fact| fact.branch);
-        let branch = checkout_branch.or(branch_held).or(record.base.clone()).unwrap_or_default();
+        let checkout_branch = self
+            .read_checkout(child, false)
+            .await
+            .map(|fact| fact.branch);
+        let branch = checkout_branch
+            .or(branch_held)
+            .or(record.base.clone())
+            .unwrap_or_default();
         let thread = self
             .ctx
             .session_entries()
@@ -471,7 +641,10 @@ impl ReachArea {
             .find(|entry| entry.view.workspace_id == record.id && entry.view.thread_id.is_some())
             .and_then(|entry| entry.view.thread_id.clone());
         let remote = self.ctx.project_held(&record.project).remote;
-        let asked: Option<GitBranchCompareReply> = if branch.is_empty() || branch == DETACHED_HEAD || remote_host(&remote).is_none() {
+        let asked: Option<GitBranchCompareReply> = if branch.is_empty()
+            || branch == DETACHED_HEAD
+            || remote_host(&remote).is_none()
+        {
             None
         } else {
             let base = machine_tree_base(&record).unwrap_or_else(|| lead_branch.to_string());
@@ -499,7 +672,9 @@ impl ReachArea {
                 }
             }
         }
-        if let Some(Value::Object(kept)) = machine_tree.and_then(|tree| serde_json::to_value(tree).ok()) {
+        if let Some(Value::Object(kept)) =
+            machine_tree.and_then(|tree| serde_json::to_value(tree).ok())
+        {
             for (key, value) in kept {
                 row.insert(key, value);
             }
@@ -536,5 +711,14 @@ impl ReachArea {
 }
 
 fn machine_tree_base(record: &wsp_core::types::wiring::WorkspaceRecord) -> Option<String> {
-    record.tree.as_ref().and_then(|tree| serde_json::to_value(tree).ok()).and_then(|tree| tree.get("merged").and_then(|merged| merged.get("head")).and_then(Value::as_str).map(str::to_string))
+    record
+        .tree
+        .as_ref()
+        .and_then(|tree| serde_json::to_value(tree).ok())
+        .and_then(|tree| {
+            tree.get("merged")
+                .and_then(|merged| merged.get("head"))
+                .and_then(Value::as_str)
+                .map(str::to_string)
+        })
 }

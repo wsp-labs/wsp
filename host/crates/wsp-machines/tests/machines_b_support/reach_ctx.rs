@@ -12,21 +12,21 @@ use indexmap::IndexMap;
 use serde_json::{json, Value};
 use tokio::sync::{oneshot, watch, Semaphore};
 
-use wsp_engine::machine::{ExecOptions, Machine, MachineBackend};
+use super::engine_error;
 use wsp_core::clock::Cancel;
 use wsp_core::reach::{DaemonReach, Frame, ReachError, ReachStats};
-use wsp_wire::types::js_number::JsInt;
-use wsp_wire::wire::daemon::DaemonLinkStatus;
-use wsp_wire::wire::daemon_events::DaemonEvent;
 use wsp_core::types::internal::SessionEntry;
 use wsp_core::types::wiring::WorkspaceRecord;
+use wsp_engine::machine::{ExecOptions, Machine, MachineBackend};
 use wsp_machines::machines::area_error::{AreaError, AreaResult};
-use super::engine_error;
 use wsp_machines::machines::machines::Entry;
 use wsp_machines::machines::reach::{ReachArea, ReachCtx};
+use wsp_wire::types::js_number::JsInt;
 use wsp_wire::views::session::SessionView;
 use wsp_wire::views::workspace::{ProjectView, WorkspacePhase};
 use wsp_wire::wire::capabilities::PauseMode;
+use wsp_wire::wire::daemon::DaemonLinkStatus;
+use wsp_wire::wire::daemon_events::DaemonEvent;
 use wsp_words::exit::HostError;
 
 use super::queue_ctx::{session_entry, snapshot_of};
@@ -153,12 +153,20 @@ impl FakeLink {
 
 /// A `daemon.hello` frame of a version.
 fn hello_event(version: f64) -> DaemonEvent {
-    DaemonEvent::DaemonHello { root: "/root".to_string(), version: JsInt::from(version as i64) }
+    DaemonEvent::DaemonHello {
+        root: "/root".to_string(),
+        version: JsInt::from(version as i64),
+    }
 }
 
 /// The link's own failure: words only, as the real link's readiness and ping failures carry.
 fn link_error(message: &str) -> ReachError {
-    ReachError { message: message.to_string(), kind: None, status: None, code: None }
+    ReachError {
+        message: message.to_string(),
+        kind: None,
+        status: None,
+        code: None,
+    }
 }
 
 #[async_trait(?Send)]
@@ -232,7 +240,14 @@ pub fn plain_record(id: &str, name: &str, phase: &str, machine_id: &str) -> Valu
 }
 
 /// A session row with only the keys given, as a turn leaves one.
-pub fn put_session(host: &FakeHost, turn_id: &str, workspace_id: &str, thread_id: Option<&str>, started_at: Option<f64>, claude_session_id: Option<&str>) {
+pub fn put_session(
+    host: &FakeHost,
+    turn_id: &str,
+    workspace_id: &str,
+    thread_id: Option<&str>,
+    started_at: Option<f64>,
+    claude_session_id: Option<&str>,
+) {
     let mut v = json!({ "id": turn_id, "workspaceId": workspace_id, "harness": "claude", "status": "completed" });
     let o = v.as_object_mut().unwrap();
     if let Some(t) = thread_id {
@@ -245,7 +260,10 @@ pub fn put_session(host: &FakeHost, turn_id: &str, workspace_id: &str, thread_id
         o.insert("claudeSessionId".to_string(), json!(c));
     }
     let view: SessionView = serde_json::from_value(v).unwrap();
-    host.sessions.borrow_mut().insert(turn_id.to_string(), session_entry(view, turn_id.to_string()));
+    host.sessions.borrow_mut().insert(
+        turn_id.to_string(),
+        session_entry(view, turn_id.to_string()),
+    );
 }
 
 /// A project view as JSON.
@@ -262,21 +280,34 @@ pub fn project_json(id: &str, remote: &str, default_branch: &str, base: Option<&
 }
 
 pub fn set_project(id: &str, remote: &str, default_branch: &str, base: Option<&str>) {
-    knobs().projects.borrow_mut().insert(id.to_string(), project_json(id, remote, default_branch, base));
+    knobs().projects.borrow_mut().insert(
+        id.to_string(),
+        project_json(id, remote, default_branch, base),
+    );
 }
 
 /// A `git.status` reply: one entry per xy code given, the branch one commit ahead.
 pub fn status_reply(head: &str, oid: &str, entries: &[&str]) -> Value {
-    let rows: Vec<Value> = entries.iter().enumerate().map(|(i, xy)| json!({ "xy": xy, "path": format!("f{i}.txt") })).collect();
+    let rows: Vec<Value> = entries
+        .iter()
+        .enumerate()
+        .map(|(i, xy)| json!({ "xy": xy, "path": format!("f{i}.txt") }))
+        .collect();
     json!({ "branch": { "oid": oid, "head": head, "ahead": 1, "behind": 0 }, "entries": rows, "root": "/root/stub" })
 }
 
 pub fn answer_status(workspace_id: &str, reply: Value) {
-    knobs().status.borrow_mut().insert(workspace_id.to_string(), Ok(reply));
+    knobs()
+        .status
+        .borrow_mut()
+        .insert(workspace_id.to_string(), Ok(reply));
 }
 
 pub fn fail_status(workspace_id: &str, said: &str) {
-    knobs().status.borrow_mut().insert(workspace_id.to_string(), Err(said.to_string()));
+    knobs()
+        .status
+        .borrow_mut()
+        .insert(workspace_id.to_string(), Err(said.to_string()));
 }
 
 /// What this computer's daemon answers a frame with.
@@ -328,8 +359,14 @@ impl ReachCtx for FakeHost {
         if let Some(Err(e)) = self.next("sweep_leftovers") {
             return Err(e);
         }
-        machine.exec(SWEEP_STAGED, ExecOptions::default()).await.map_err(AreaError::Engine)?;
-        machine.exec(SWEEP_CACHES, ExecOptions::default()).await.map_err(AreaError::Engine)?;
+        machine
+            .exec(SWEEP_STAGED, ExecOptions::default())
+            .await
+            .map_err(AreaError::Engine)?;
+        machine
+            .exec(SWEEP_CACHES, ExecOptions::default())
+            .await
+            .map_err(AreaError::Engine)?;
         Ok(())
     }
     fn closing(&self) -> bool {
@@ -341,7 +378,9 @@ impl ReachCtx for FakeHost {
     fn row_reason(&self, entry: &Entry) -> Option<String> {
         let area = knobs().area.borrow().upgrade()?;
         let said = entry.borrow().wake_said.clone();
-        said.or_else(|| area.nap_refused_reason(entry)).or_else(|| area.stop_refused_reason(entry)).or_else(|| area.disk_reason(entry))
+        said.or_else(|| area.nap_refused_reason(entry))
+            .or_else(|| area.stop_refused_reason(entry))
+            .or_else(|| area.disk_reason(entry))
     }
     fn unreached_of(&self, entry: &Entry) -> Option<String> {
         knobs().unreached.borrow().get(&entry_id(entry)).cloned()
@@ -366,7 +405,10 @@ impl ReachCtx for FakeHost {
         knobs().idle_at.borrow().get(workspace_id).copied()
     }
     fn daemon_answers_ms(&self, _entry: &Entry) -> AreaResult<f64> {
-        Ok(knobs().daemon_answers_ms.get().unwrap_or(self.backend.lifecycle.daemon_answers_ms))
+        Ok(knobs()
+            .daemon_answers_ms
+            .get()
+            .unwrap_or(self.backend.lifecycle.daemon_answers_ms))
     }
     fn daemon_hello_timeout_ms(&self) -> f64 {
         knobs().hello_timeout_ms.get()
@@ -378,11 +420,26 @@ impl ReachCtx for FakeHost {
         }
         Ok(knobs().token.borrow().clone())
     }
-    fn connect_daemon(&self, preview_url: &str, token: &str, on_event: Rc<dyn Fn(DaemonEvent)>, heartbeat_ms: Option<i64>) -> Rc<dyn DaemonReach> {
+    fn connect_daemon(
+        &self,
+        preview_url: &str,
+        token: &str,
+        on_event: Rc<dyn Fn(DaemonEvent)>,
+        heartbeat_ms: Option<i64>,
+    ) -> Rc<dyn DaemonReach> {
         self.call("connect_daemon", &[preview_url, token]);
         let plan = plan();
-        plan.dials.borrow_mut().push(Dial { preview_url: preview_url.to_string(), token: token.to_string(), heartbeat_ms: heartbeat_ms.map(|h| h as f64) });
-        let link = Rc::new(FakeLink { plan: plan.clone(), on_event: on_event.clone(), closed: Cell::new(0), requests: RefCell::new(Vec::new()) });
+        plan.dials.borrow_mut().push(Dial {
+            preview_url: preview_url.to_string(),
+            token: token.to_string(),
+            heartbeat_ms: heartbeat_ms.map(|h| h as f64),
+        });
+        let link = Rc::new(FakeLink {
+            plan: plan.clone(),
+            on_event: on_event.clone(),
+            closed: Cell::new(0),
+            requests: RefCell::new(Vec::new()),
+        });
         plan.links.borrow_mut().push(link.clone());
         let hellos = plan.hellos.borrow().clone();
         if !hellos.is_empty() {
@@ -400,7 +457,12 @@ impl ReachCtx for FakeHost {
         link
     }
     fn project_held(&self, id: &str) -> ProjectView {
-        let v = knobs().projects.borrow().get(id).cloned().unwrap_or_else(|| panic!("the test set no project {id}"));
+        let v = knobs()
+            .projects
+            .borrow()
+            .get(id)
+            .cloned()
+            .unwrap_or_else(|| panic!("the test set no project {id}"));
         serde_json::from_value(v).expect("a project view")
     }
     async fn with_daemon(&self, entry: &Entry, frame: Value) -> AreaResult<Value> {
@@ -414,7 +476,9 @@ impl ReachCtx for FakeHost {
         match answer {
             Some(Ok(v)) => Ok(v),
             Some(Err(m)) => Err(AreaError::Engine(engine_error(&m))),
-            None => Err(AreaError::Engine(engine_error("no daemon answer was set for this workspace"))),
+            None => Err(AreaError::Engine(engine_error(
+                "no daemon answer was set for this workspace",
+            ))),
         }
     }
     async fn on_this_computer(&self, frame: Box<dyn Fn(&str) -> Value>) -> AreaResult<Value> {
@@ -423,7 +487,9 @@ impl ReachCtx for FakeHost {
         let answer = knobs().compare.borrow().clone();
         match answer {
             Some(c) => c(&f).map_err(|m| AreaError::Engine(engine_error(&m))),
-            None => Err(AreaError::Engine(engine_error("this computer's daemon answers nothing"))),
+            None => Err(AreaError::Engine(engine_error(
+                "this computer's daemon answers nothing",
+            ))),
         }
     }
     fn checkout_of(&self, _record: &WorkspaceRecord) -> String {

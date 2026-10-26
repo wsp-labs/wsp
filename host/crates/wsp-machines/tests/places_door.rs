@@ -7,9 +7,13 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use wsp_core::types::pending::{Clock, Store};
-use wsp_machines::places::types::{HerePlace, PlaceDoor, PlaceDoorOptions, PlaceEvent, PlaceRecording, PlaceWiring};
+use wsp_machines::places::types::{
+    HerePlace, PlaceDoor, PlaceDoorOptions, PlaceEvent, PlaceRecording, PlaceWiring,
+};
 use wsp_machines::places::views::LinkReads;
-use wsp_machines::places::{assemble_place_door, make_place_door, AssembledDoor, DoorLinkReads, LINK_HALF, MANAGE_HALF};
+use wsp_machines::places::{
+    assemble_place_door, make_place_door, AssembledDoor, DoorLinkReads, LINK_HALF, MANAGE_HALF,
+};
 use wsp_store::keys::{key_fingerprint, new_place_key_pair, PlaceKeyPair};
 use wsp_wire::views::place_more::PlaceRemovedEvent;
 
@@ -21,7 +25,10 @@ fn options() -> (PlaceDoorOptions, PlaceKeyPair) {
     let wiring = PlaceWiring {
         host_key: host_key.clone(),
         provider: None,
-        here: Rc::new(|| HerePlace { name: "zingzys-mac".into(), ..Default::default() }),
+        here: Rc::new(|| HerePlace {
+            name: "zingzys-mac".into(),
+            ..Default::default()
+        }),
         host_name: Rc::new(|| "zingzys-mac".to_string()),
         install: None,
         dial: None,
@@ -93,7 +100,11 @@ fn the_two_halves_name_every_door_method_once() {
     for name in LINK_HALF {
         assert!(!MANAGE_HALF.contains(&name), "{name} is on both halves");
     }
-    let mut all: Vec<&str> = LINK_HALF.iter().chain(MANAGE_HALF.iter()).copied().collect();
+    let mut all: Vec<&str> = LINK_HALF
+        .iter()
+        .chain(MANAGE_HALF.iter())
+        .copied()
+        .collect();
     all.sort_unstable();
     all.dedup();
     assert_eq!(all.len(), 61, "a name appears twice or a method is missing");
@@ -118,8 +129,12 @@ fn a_watcher_the_door_holds_hears_what_the_context_emits_until_it_is_taken_off()
     let (door, _) = assembled();
     let heard: Rc<RefCell<Vec<PlaceEvent>>> = Rc::new(RefCell::new(Vec::new()));
     let sink = Rc::clone(&heard);
-    let id = door.on(Rc::new(move |e: &PlaceEvent| sink.borrow_mut().push(e.clone())));
-    let event = PlaceEvent::Removed(PlaceRemovedEvent { place_id: "p_spoo".to_string() });
+    let id = door.on(Rc::new(move |e: &PlaceEvent| {
+        sink.borrow_mut().push(e.clone())
+    }));
+    let event = PlaceEvent::Removed(PlaceRemovedEvent {
+        place_id: "p_spoo".to_string(),
+    });
     door.ctx.emit(&event);
     assert_eq!(heard.borrow().len(), 1);
     door.off(id);
@@ -130,9 +145,14 @@ fn a_watcher_the_door_holds_hears_what_the_context_emits_until_it_is_taken_off()
 #[test]
 fn views_read_the_link_half_through_the_door_at_the_call() {
     let (door, _) = assembled();
-    let reads = DoorLinkReads { ctx: Rc::clone(&door.ctx) };
+    let reads = DoorLinkReads {
+        ctx: Rc::clone(&door.ctx),
+    };
     assert!(reads.backend_of("p_none").is_none());
-    assert_eq!(reads.backend_of("p_none").is_none(), door.backend_of("p_none").is_none());
+    assert_eq!(
+        reads.backend_of("p_none").is_none(),
+        door.backend_of("p_none").is_none()
+    );
     assert!(reads.folder_computer("p_none").is_none());
 }
 

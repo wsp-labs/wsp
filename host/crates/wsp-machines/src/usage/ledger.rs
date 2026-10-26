@@ -6,7 +6,7 @@ use std::future::Future;
 use std::rc::Rc;
 
 use futures::future::{LocalBoxFuture, Shared};
-use futures::{FutureExt, channel::oneshot};
+use futures::{channel::oneshot, FutureExt};
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Map, Value};
 
@@ -14,15 +14,21 @@ use wsp_core::types::pending::{Clock, Store};
 use wsp_wire::types::check;
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::types::usage::{
-    AccountLimit, AccountLimitCredits, BankedResets, UsageDay, UsageRange, UsageRow, UsageRowSource, UsageSplit, UsageTokens, UsedAnswer,
-    UsedAnswerLinesItem, UsedAnswerLogs, UsedAnswerSeriesItem, UsedRow, UsedRowTokens,
+    AccountLimit, AccountLimitCredits, BankedResets, UsageDay, UsageRange, UsageRow,
+    UsageRowSource, UsageSplit, UsageTokens, UsedAnswer, UsedAnswerLinesItem, UsedAnswerLogs,
+    UsedAnswerSeriesItem, UsedRow, UsedRowTokens,
 };
 use wsp_words::exit::HostError;
 use wsp_words::js::{collate, utf16};
 use wsp_words::js_date::{fields, DateZone};
-use wsp_words::usage::{base_model, day_key_of, hour_of, price_of, rate_of, PricedTokens, RateTable};
+use wsp_words::usage::{
+    base_model, day_key_of, hour_of, price_of, rate_of, PricedTokens, RateTable,
+};
 
-use super::{LimitReading, UsageEntry, UsageSource, UsedQuery, ACCOUNT_LABELS, LIMITS, USAGE_DAYS, USAGE_INDEX, USAGE_RETENTION_DAYS};
+use super::{
+    LimitReading, UsageEntry, UsageSource, UsedQuery, ACCOUNT_LABELS, LIMITS, USAGE_DAYS,
+    USAGE_INDEX, USAGE_RETENTION_DAYS,
+};
 
 const HOUR: i64 = 3_600_000;
 const DAY: i64 = 24 * HOUR;
@@ -97,7 +103,10 @@ fn split_value(row: &UsageRow, split: UsageSplit) -> String {
 
 /// The splits whose every value is one agent's: an account signs in to one agent, and a model is filed per agent.
 fn one_agent(split: UsageSplit) -> bool {
-    matches!(split, UsageSplit::Agent | UsageSplit::Account | UsageSplit::Model)
+    matches!(
+        split,
+        UsageSplit::Agent | UsageSplit::Account | UsageSplit::Model
+    )
 }
 
 fn days_of(range: UsageRange) -> i64 {
@@ -122,7 +131,8 @@ fn same_key(row: &UsageRow, hour: f64, entry: &UsageEntry, source: UsageRowSourc
 /// usage.ts:163-173: the instant the zone's day holding `at` began.
 pub fn day_start_of(at: i64, time_zone: Option<&str>) -> i64 {
     let f = fields(at, zone_of(time_zone).offset_seconds(at));
-    let into_day = (i64::from(f.hour) * 60 + i64::from(f.minute)) * 60 * 1000 + i64::from(f.second) * 1000;
+    let into_day =
+        (i64::from(f.hour) * 60 + i64::from(f.minute)) * 60 * 1000 + i64::from(f.second) * 1000;
     at - into_day - at % 1000
 }
 
@@ -130,20 +140,38 @@ pub fn day_start_of(at: i64, time_zone: Option<&str>) -> i64 {
 fn row_json(row: &UsageRow) -> Value {
     let mut m = Map::new();
     m.insert("day".to_string(), json!(row.day));
-    m.insert("hour".to_string(), serde_json::to_value(row.hour).unwrap_or(Value::Null));
+    m.insert(
+        "hour".to_string(),
+        serde_json::to_value(row.hour).unwrap_or(Value::Null),
+    );
     m.insert("agent".to_string(), json!(row.agent));
     m.insert("account".to_string(), json!(row.account));
     m.insert("computer".to_string(), json!(row.computer));
     m.insert("project".to_string(), json!(row.project));
     m.insert("model".to_string(), json!(row.model));
-    m.insert("source".to_string(), serde_json::to_value(row.source).unwrap_or(Value::Null));
-    m.insert("turns".to_string(), serde_json::to_value(row.turns).unwrap_or(Value::Null));
-    m.insert("tokens".to_string(), serde_json::to_value(&row.tokens).unwrap_or(Value::Null));
+    m.insert(
+        "source".to_string(),
+        serde_json::to_value(row.source).unwrap_or(Value::Null),
+    );
+    m.insert(
+        "turns".to_string(),
+        serde_json::to_value(row.turns).unwrap_or(Value::Null),
+    );
+    m.insert(
+        "tokens".to_string(),
+        serde_json::to_value(&row.tokens).unwrap_or(Value::Null),
+    );
     if let Some(cost) = row.cost_reported {
-        m.insert("costReported".to_string(), serde_json::to_value(cost).unwrap_or(Value::Null));
+        m.insert(
+            "costReported".to_string(),
+            serde_json::to_value(cost).unwrap_or(Value::Null),
+        );
     }
     if let Some(unreported) = &row.unreported {
-        m.insert("unreported".to_string(), serde_json::to_value(unreported).unwrap_or(Value::Null));
+        m.insert(
+            "unreported".to_string(),
+            serde_json::to_value(unreported).unwrap_or(Value::Null),
+        );
     }
     Value::Object(m)
 }
@@ -152,7 +180,10 @@ fn row_json(row: &UsageRow) -> Value {
 fn day_json(held: &UsageDay) -> Value {
     let mut m = Map::new();
     m.insert("day".to_string(), json!(held.day));
-    m.insert("rows".to_string(), Value::Array(held.rows.iter().map(row_json).collect()));
+    m.insert(
+        "rows".to_string(),
+        Value::Array(held.rows.iter().map(row_json).collect()),
+    );
     if let Some(sessions) = &held.sessions {
         m.insert("sessions".to_string(), json!(sessions));
     }
@@ -160,21 +191,43 @@ fn day_json(held: &UsageDay) -> Value {
 }
 
 /// usage.ts:184-188 (U13).
-pub fn credits_held(held: Option<&AccountLimitCredits>, read: Option<&BankedResets>, now: i64) -> Option<AccountLimitCredits> {
-    let Some(read) = read else { return held.cloned() };
+pub fn credits_held(
+    held: Option<&AccountLimitCredits>,
+    read: Option<&BankedResets>,
+    now: i64,
+) -> Option<AccountLimitCredits> {
+    let Some(read) = read else {
+        return held.cloned();
+    };
     let now = JsNumber(now as f64);
     if read.credits.is_some() {
-        return Some(AccountLimitCredits { count: read.count, credits: read.credits.clone(), read_at: now, detail_at: Some(now) });
+        return Some(AccountLimitCredits {
+            count: read.count,
+            credits: read.credits.clone(),
+            read_at: now,
+            detail_at: Some(now),
+        });
     }
     match held {
-        Some(held) if held.count == read.count => Some(AccountLimitCredits { read_at: now, ..held.clone() }),
-        _ => Some(AccountLimitCredits { count: read.count, credits: None, read_at: now, detail_at: None }),
+        Some(held) if held.count == read.count => Some(AccountLimitCredits {
+            read_at: now,
+            ..held.clone()
+        }),
+        _ => Some(AccountLimitCredits {
+            count: read.count,
+            credits: None,
+            read_at: now,
+            detail_at: None,
+        }),
     }
 }
 
 impl UsageLedger {
     pub fn new(o: UsageLedgerOptions) -> Rc<UsageLedger> {
-        Rc::new(UsageLedger { o, writes: RefCell::new(futures::future::ready(()).boxed_local().shared()) })
+        Rc::new(UsageLedger {
+            o,
+            writes: RefCell::new(futures::future::ready(()).boxed_local().shared()),
+        })
     }
 
     fn zone(&self) -> Option<&str> {
@@ -186,7 +239,10 @@ impl UsageLedger {
     }
 
     /// Takes this write's turn after every write asked before it; a failure stays with its own caller.
-    async fn in_turn<T>(&self, work: impl Future<Output = Result<T, HostError>>) -> Result<T, HostError> {
+    async fn in_turn<T>(
+        &self,
+        work: impl Future<Output = Result<T, HostError>>,
+    ) -> Result<T, HostError> {
         let (done, released) = oneshot::channel::<()>();
         let next = async move {
             let _ = released.await;
@@ -214,7 +270,11 @@ impl UsageLedger {
             .as_ref()
             .and_then(|v| v.get("days"))
             .and_then(Value::as_array)
-            .map(|days| days.iter().filter_map(|d| d.as_str().map(str::to_string)).collect())
+            .map(|days| {
+                days.iter()
+                    .filter_map(|d| d.as_str().map(str::to_string))
+                    .collect()
+            })
             .unwrap_or_default())
     }
 
@@ -222,7 +282,10 @@ impl UsageLedger {
     async fn write(&self, held: &UsageDay) -> Result<(), HostError> {
         let bytes = serde_json::to_vec(&day_json(held)).map_err(plain)?;
         self.o.store.put_blob(USAGE_DAYS, &held.day, bytes).await?;
-        let oldest = day_key_of((self.o.clock.now() - (i64::from(self.keep_days()) - 1) * DAY) as f64, self.zone());
+        let oldest = day_key_of(
+            (self.o.clock.now() - (i64::from(self.keep_days()) - 1) * DAY) as f64,
+            self.zone(),
+        );
         let mut days = self.index().await?;
         if !days.contains(&held.day) {
             days.push(held.day.clone());
@@ -232,8 +295,14 @@ impl UsageLedger {
         for gone in days.iter().filter(|d| d.as_str() < oldest.as_str()) {
             self.o.store.delete_blob(USAGE_DAYS, gone).await?;
         }
-        let kept: Vec<String> = days.into_iter().filter(|d| d.as_str() >= oldest.as_str()).collect();
-        self.o.store.put(USAGE_INDEX, "days", json!({ "days": kept })).await
+        let kept: Vec<String> = days
+            .into_iter()
+            .filter(|d| d.as_str() >= oldest.as_str())
+            .collect();
+        self.o
+            .store
+            .put(USAGE_INDEX, "days", json!({ "days": kept }))
+            .await
     }
 
     /// usage.ts:284-289 (U6).
@@ -244,8 +313,16 @@ impl UsageLedger {
         }
         for (key, label) in latest {
             let held = self.o.store.get(ACCOUNT_LABELS, &key).await?;
-            if held.as_ref().and_then(|v| v.get("label")).and_then(Value::as_str) != Some(label.as_str()) {
-                self.o.store.put(ACCOUNT_LABELS, &key, json!({ "key": key, "label": label })).await?;
+            if held
+                .as_ref()
+                .and_then(|v| v.get("label"))
+                .and_then(Value::as_str)
+                != Some(label.as_str())
+            {
+                self.o
+                    .store
+                    .put(ACCOUNT_LABELS, &key, json!({ "key": key, "label": label }))
+                    .await?;
             }
         }
         Ok(())
@@ -267,7 +344,11 @@ impl UsageLedger {
             reasoning: JsNumber(t.reasoning.unwrap_or(0.0)),
         };
         let turns = entry.turns.unwrap_or(1.0);
-        match held.rows.iter().position(|r| same_key(r, hour, entry, row_source)) {
+        match held
+            .rows
+            .iter()
+            .position(|r| same_key(r, hour, entry, row_source))
+        {
             None => held.rows.push(UsageRow {
                 day: held.day.clone(),
                 hour: JsInt(JsNumber(hour)),
@@ -292,14 +373,17 @@ impl UsageLedger {
                 found.turns = JsInt(JsNumber(found.turns.0 .0 + turns));
                 add_tokens(&mut found.tokens, &tokens);
                 if let Some(cost) = entry.cost_usd {
-                    found.cost_reported = Some(JsNumber(found.cost_reported.map_or(0.0, |c| c.0) + cost));
+                    found.cost_reported =
+                        Some(JsNumber(found.cost_reported.map_or(0.0, |c| c.0) + cost));
                 }
             }
         }
         if source == UsageSource::Wsp {
             if let Some(session) = &entry.session {
                 if !held.sessions.as_deref().unwrap_or(&[]).contains(session) {
-                    held.sessions.get_or_insert_with(Vec::new).push(session.clone());
+                    held.sessions
+                        .get_or_insert_with(Vec::new)
+                        .push(session.clone());
                 }
             }
         }
@@ -308,9 +392,14 @@ impl UsageLedger {
     /// usage.ts:291-298 (U7).
     pub async fn add(self: &Rc<Self>, entry: UsageEntry) -> Result<(), HostError> {
         self.in_turn(async {
-            self.name_accounts(&[(entry.account.clone(), entry.account_label.clone())]).await?;
+            self.name_accounts(&[(entry.account.clone(), entry.account_label.clone())])
+                .await?;
             let day = day_key_of(entry.at as f64, self.zone());
-            let mut held = self.read_day(&day).await?.unwrap_or_else(|| UsageDay { day: day.clone(), rows: Vec::new(), sessions: None });
+            let mut held = self.read_day(&day).await?.unwrap_or_else(|| UsageDay {
+                day: day.clone(),
+                rows: Vec::new(),
+                sessions: None,
+            });
             self.fold(&mut held, &entry, entry.source);
             self.write(&held).await
         })
@@ -318,20 +407,34 @@ impl UsageLedger {
     }
 
     /// usage.ts:300-329 (U8).
-    pub async fn file_logs(self: &Rc<Self>, entries: Vec<UsageEntry>, computers: Vec<String>) -> Result<(), HostError> {
+    pub async fn file_logs(
+        self: &Rc<Self>,
+        entries: Vec<UsageEntry>,
+        computers: Vec<String>,
+    ) -> Result<(), HostError> {
         self.in_turn(async {
-            let named: Vec<(String, String)> = entries.iter().map(|e| (e.account.clone(), e.account_label.clone())).collect();
+            let named: Vec<(String, String)> = entries
+                .iter()
+                .map(|e| (e.account.clone(), e.account_label.clone()))
+                .collect();
             self.name_accounts(&named).await?;
-            let oldest = day_key_of((self.o.clock.now() - (i64::from(self.keep_days()) - 1) * DAY) as f64, self.zone());
+            let oldest = day_key_of(
+                (self.o.clock.now() - (i64::from(self.keep_days()) - 1) * DAY) as f64,
+                self.zone(),
+            );
             let mut days: IndexMap<String, UsageDay> = IndexMap::new();
             for day in self.index().await? {
                 if let Some(held) = self.read_day(&day).await? {
                     days.insert(day, held);
                 }
             }
-            let ran: IndexSet<String> = days.values().flat_map(|d| d.sessions.clone().unwrap_or_default()).collect();
+            let ran: IndexSet<String> = days
+                .values()
+                .flat_map(|d| d.sessions.clone().unwrap_or_default())
+                .collect();
             let read: IndexSet<String> = computers.into_iter().collect();
-            let from_read = |r: &UsageRow| r.source == UsageRowSource::Log && read.contains(&r.computer);
+            let from_read =
+                |r: &UsageRow| r.source == UsageRowSource::Log && read.contains(&r.computer);
             let mut touched: IndexSet<String> = IndexSet::new();
             for held in days.values_mut() {
                 if !held.rows.iter().any(from_read) {
@@ -348,7 +451,11 @@ impl UsageLedger {
                 if day.as_str() < oldest.as_str() {
                     continue;
                 }
-                let held = days.entry(day.clone()).or_insert_with(|| UsageDay { day: day.clone(), rows: Vec::new(), sessions: None });
+                let held = days.entry(day.clone()).or_insert_with(|| UsageDay {
+                    day: day.clone(),
+                    rows: Vec::new(),
+                    sessions: None,
+                });
                 self.fold(held, entry, UsageSource::Log);
                 touched.insert(day);
             }
@@ -370,21 +477,41 @@ impl UsageLedger {
         let now = self.o.clock.now();
         let today = day_start_of(now, zone);
         let count = days_of(q.range);
-        let since = if count == 1 { today } else { day_start_of(today - (count - 1) * DAY + HOUR * 12, zone) };
-        let starts: Vec<i64> = (0..count).map(|i| day_start_of(today - (count - 1 - i) * DAY + HOUR * 12, zone)).collect();
+        let since = if count == 1 {
+            today
+        } else {
+            day_start_of(today - (count - 1) * DAY + HOUR * 12, zone)
+        };
+        let starts: Vec<i64> = (0..count)
+            .map(|i| day_start_of(today - (count - 1 - i) * DAY + HOUR * 12, zone))
+            .collect();
         let mut table: Option<RateTable> = None;
         let outside = q.outside.unwrap_or(true);
         let mut rows: IndexMap<String, UsedRow> = IndexMap::new();
         let mut logged: IndexSet<String> = IndexSet::new();
         let mut logged_on: IndexSet<String> = IndexSet::new();
         let mut series: Vec<UsedAnswerSeriesItem> = if count == 1 {
-            (0..24).map(|h| UsedAnswerSeriesItem { t: JsNumber((today + h * HOUR) as f64), tokens: JsNumber(0.0) }).collect()
+            (0..24)
+                .map(|h| UsedAnswerSeriesItem {
+                    t: JsNumber((today + h * HOUR) as f64),
+                    tokens: JsNumber(0.0),
+                })
+                .collect()
         } else {
-            starts.iter().map(|t| UsedAnswerSeriesItem { t: JsNumber(*t as f64), tokens: JsNumber(0.0) }).collect()
+            starts
+                .iter()
+                .map(|t| UsedAnswerSeriesItem {
+                    t: JsNumber(*t as f64),
+                    tokens: JsNumber(0.0),
+                })
+                .collect()
         };
         let mut points: IndexMap<String, Vec<f64>> = IndexMap::new();
         for (at, start) in starts.iter().enumerate() {
-            let Some(held) = self.read_day(&day_key_of((start + HOUR * 12) as f64, zone)).await? else {
+            let Some(held) = self
+                .read_day(&day_key_of((start + HOUR * 12) as f64, zone))
+                .await?
+            else {
                 continue;
             };
             for row in &held.rows {
@@ -396,12 +523,22 @@ impl UsageLedger {
                     logged_on.insert(row.computer.clone());
                 }
                 let value = split_value(row, q.split);
-                let key = if q.split == UsageSplit::Model { format!("{}:{value}", row.agent) } else { value.clone() };
+                let key = if q.split == UsageSplit::Model {
+                    format!("{}:{value}", row.agent)
+                } else {
+                    value.clone()
+                };
                 let line = rows.entry(key.clone()).or_insert_with(|| UsedRow {
                     key: key.clone(),
                     label: (q.label)(q.split, &value),
                     agent: one_agent(q.split).then(|| row.agent.clone()),
-                    tokens: UsedRowTokens { input: JsNumber(0.0), output: JsNumber(0.0), cached: JsNumber(0.0), cache_write: Some(JsNumber(0.0)), reasoning: Some(JsNumber(0.0)) },
+                    tokens: UsedRowTokens {
+                        input: JsNumber(0.0),
+                        output: JsNumber(0.0),
+                        cached: JsNumber(0.0),
+                        cache_write: Some(JsNumber(0.0)),
+                        reasoning: Some(JsNumber(0.0)),
+                    },
                     cost_reported: None,
                     cost_list: None,
                     priced: true,
@@ -412,10 +549,16 @@ impl UsageLedger {
                 line.tokens.input = JsNumber(line.tokens.input.0 + row.tokens.input.0);
                 line.tokens.output = JsNumber(line.tokens.output.0 + row.tokens.output.0);
                 line.tokens.cached = JsNumber(line.tokens.cached.0 + row.tokens.cached.0);
-                line.tokens.cache_write = Some(JsNumber(line.tokens.cache_write.map_or(0.0, |v| v.0) + row.tokens.cache_write.0));
-                line.tokens.reasoning = Some(JsNumber(line.tokens.reasoning.map_or(0.0, |v| v.0) + row.tokens.reasoning.0));
+                line.tokens.cache_write = Some(JsNumber(
+                    line.tokens.cache_write.map_or(0.0, |v| v.0) + row.tokens.cache_write.0,
+                ));
+                line.tokens.reasoning = Some(JsNumber(
+                    line.tokens.reasoning.map_or(0.0, |v| v.0) + row.tokens.reasoning.0,
+                ));
                 if row.source == UsageRowSource::Wsp {
-                    line.turns = Some(JsInt(JsNumber(line.turns.map_or(0.0, |t| t.0 .0) + row.turns.0 .0)));
+                    line.turns = Some(JsInt(JsNumber(
+                        line.turns.map_or(0.0, |t| t.0 .0) + row.turns.0 .0,
+                    )));
                 }
                 if table.is_none() {
                     table = Some((self.o.prices)().await);
@@ -425,23 +568,43 @@ impl UsageLedger {
                 let rate = rate_of(&row.model, rates);
                 if let (Some(listed), Some(rate)) = (listed, rate.as_ref()) {
                     line.estimate = Some(JsNumber(line.estimate.map_or(0.0, |e| e.0) + listed));
-                    line.saved = Some(JsNumber(line.saved.map_or(0.0, |s| s.0) + row.tokens.cached.0 * (rate.input - rate.cache_read.unwrap_or(rate.input))));
+                    line.saved = Some(JsNumber(
+                        line.saved.map_or(0.0, |s| s.0)
+                            + row.tokens.cached.0
+                                * (rate.input - rate.cache_read.unwrap_or(rate.input)),
+                    ));
                 }
                 if let Some(cost) = row.cost_reported {
-                    line.cost_reported = Some(JsNumber(line.cost_reported.map_or(0.0, |c| c.0) + cost.0));
+                    line.cost_reported =
+                        Some(JsNumber(line.cost_reported.map_or(0.0, |c| c.0) + cost.0));
                 }
-                let bare = if row.cost_reported.is_none() { Some(row.tokens.clone()) } else { row.unreported.clone() };
-                let bare_listed = bare.as_ref().and_then(|b| price_of(&row.model, &tokens_priced(b), rates));
+                let bare = if row.cost_reported.is_none() {
+                    Some(row.tokens.clone())
+                } else {
+                    row.unreported.clone()
+                };
+                let bare_listed = bare
+                    .as_ref()
+                    .and_then(|b| price_of(&row.model, &tokens_priced(b), rates));
                 match (bare_listed, bare.as_ref()) {
-                    (Some(listed), _) => line.cost_list = Some(JsNumber(line.cost_list.map_or(0.0, |c| c.0) + listed)),
+                    (Some(listed), _) => {
+                        line.cost_list =
+                            Some(JsNumber(line.cost_list.map_or(0.0, |c| c.0) + listed))
+                    }
                     (None, Some(b)) if b.input.0 + b.output.0 > 0.0 => line.priced = false,
                     _ => {}
                 }
                 let total = row.tokens.input.0 + row.tokens.output.0;
-                let step = if count == 1 { row.hour.0 .0 as usize } else { at };
+                let step = if count == 1 {
+                    row.hour.0 .0 as usize
+                } else {
+                    at
+                };
                 if let Some(item) = series.get_mut(step) {
                     item.tokens = JsNumber(item.tokens.0 + total);
-                    let line_points = points.entry(key).or_insert_with(|| vec![0.0; series_len(count)]);
+                    let line_points = points
+                        .entry(key)
+                        .or_insert_with(|| vec![0.0; series_len(count)]);
                     if let Some(p) = line_points.get_mut(step) {
                         *p += total;
                     }
@@ -450,13 +613,24 @@ impl UsageLedger {
         }
         let mut ordered: Vec<UsedRow> = rows.into_values().collect();
         let total_of = |r: &UsedRow| r.tokens.input.0 + r.tokens.output.0;
-        ordered.sort_by(|a, b| total_of(b).partial_cmp(&total_of(a)).unwrap_or(std::cmp::Ordering::Equal).then_with(|| collate(&a.key, &b.key)));
+        ordered.sort_by(|a, b| {
+            total_of(b)
+                .partial_cmp(&total_of(a))
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| collate(&a.key, &b.key))
+        });
         let logs = if logged.is_empty() {
             None
         } else {
-            let mut agents: Vec<String> = logged.iter().map(|a| (q.label)(UsageSplit::Agent, a)).collect();
+            let mut agents: Vec<String> = logged
+                .iter()
+                .map(|a| (q.label)(UsageSplit::Agent, a))
+                .collect();
             agents.sort_by(|a, b| utf16::cmp(a, b));
-            let mut computers: Vec<String> = logged_on.iter().map(|c| (q.label)(UsageSplit::Computer, c)).collect();
+            let mut computers: Vec<String> = logged_on
+                .iter()
+                .map(|c| (q.label)(UsageSplit::Computer, c))
+                .collect();
             computers.sort_by(|a, b| utf16::cmp(a, b));
             Some(UsedAnswerLogs { agents, computers })
         };
@@ -466,7 +640,13 @@ impl UsageLedger {
             .map(|r| UsedAnswerLinesItem {
                 key: r.key.clone(),
                 label: r.label.clone(),
-                points: points.get(&r.key).cloned().unwrap_or_else(|| vec![0.0; series_len(count)]).into_iter().map(JsNumber).collect(),
+                points: points
+                    .get(&r.key)
+                    .cloned()
+                    .unwrap_or_else(|| vec![0.0; series_len(count)])
+                    .into_iter()
+                    .map(JsNumber)
+                    .collect(),
             })
             .collect();
         Ok(UsedAnswer {
@@ -494,19 +674,49 @@ impl UsageLedger {
     /// usage.ts:412-437 (U12).
     pub async fn limit(self: &Rc<Self>, r: LimitReading) -> Result<LimitKept, HostError> {
         self.in_turn(async {
-            let held = self.o.store.get(LIMITS, &r.key).await?.and_then(|raw| check::parse::<AccountLimit>(&raw).ok());
+            let held = self
+                .o
+                .store
+                .get(LIMITS, &r.key)
+                .await?
+                .and_then(|raw| check::parse::<AccountLimit>(&raw).ok());
             if let (Some(held_now), Some(at)) = (held.as_ref(), r.at) {
                 if held_now.read_at.0 >= at as f64 {
-                    return Ok(LimitKept { before: Some(held_now.clone()), after: held_now.clone() });
+                    return Ok(LimitKept {
+                        before: Some(held_now.clone()),
+                        after: held_now.clone(),
+                    });
                 }
             }
             let now = self.o.clock.now();
-            let plan = r.limit.plan.clone().or_else(|| held.as_ref().and_then(|h| h.plan.clone()));
-            let status = r.limit.status.or_else(|| held.as_ref().and_then(|h| h.status));
-            let keyed = r.limit.keyed.or_else(|| held.as_ref().and_then(|h| h.keyed));
-            let credits = if keyed == Some(true) { None } else { credits_held(held.as_ref().and_then(|h| h.credits.as_ref()), r.limit.credits.as_ref(), now) };
-            self.name_accounts(&[(r.key.clone(), r.label.clone())]).await?;
-            let mut computers: Vec<String> = held.as_ref().map(|h| h.computers.clone()).unwrap_or_default();
+            let plan = r
+                .limit
+                .plan
+                .clone()
+                .or_else(|| held.as_ref().and_then(|h| h.plan.clone()));
+            let status = r
+                .limit
+                .status
+                .or_else(|| held.as_ref().and_then(|h| h.status));
+            let keyed = r
+                .limit
+                .keyed
+                .or_else(|| held.as_ref().and_then(|h| h.keyed));
+            let credits = if keyed == Some(true) {
+                None
+            } else {
+                credits_held(
+                    held.as_ref().and_then(|h| h.credits.as_ref()),
+                    r.limit.credits.as_ref(),
+                    now,
+                )
+            };
+            self.name_accounts(&[(r.key.clone(), r.label.clone())])
+                .await?;
+            let mut computers: Vec<String> = held
+                .as_ref()
+                .map(|h| h.computers.clone())
+                .unwrap_or_default();
             if !computers.contains(&r.computer) {
                 computers.push(r.computer.clone());
             }
@@ -528,15 +738,28 @@ impl UsageLedger {
                 computers,
                 credits,
             };
-            self.o.store.put(LIMITS, &r.key, serde_json::to_value(&next).map_err(plain)?).await?;
-            Ok(LimitKept { before: held, after: next })
+            self.o
+                .store
+                .put(LIMITS, &r.key, serde_json::to_value(&next).map_err(plain)?)
+                .await?;
+            Ok(LimitKept {
+                before: held,
+                after: next,
+            })
         })
         .await
     }
 
     /// usage.ts:439-443 (U14).
     pub async fn limits(&self) -> Result<Vec<AccountLimit>, HostError> {
-        Ok(self.o.store.list(LIMITS).await?.iter().filter_map(|raw| check::parse::<AccountLimit>(raw).ok()).collect())
+        Ok(self
+            .o
+            .store
+            .list(LIMITS)
+            .await?
+            .iter()
+            .filter_map(|raw| check::parse::<AccountLimit>(raw).ok())
+            .collect())
     }
 
     /// usage.ts:445-452 (U14).
@@ -554,9 +777,18 @@ impl UsageLedger {
 }
 
 fn series_len(count: i64) -> usize {
-    if count == 1 { 24 } else { count as usize }
+    if count == 1 {
+        24
+    } else {
+        count as usize
+    }
 }
 
 fn tokens_priced(t: &UsageTokens) -> PricedTokens {
-    PricedTokens { input: t.input.0, output: t.output.0, cached: Some(t.cached.0), cache_write: Some(t.cache_write.0) }
+    PricedTokens {
+        input: t.input.0,
+        output: t.output.0,
+        cached: Some(t.cached.0),
+        cache_write: Some(t.cache_write.0),
+    }
 }

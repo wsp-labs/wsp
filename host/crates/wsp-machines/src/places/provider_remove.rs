@@ -20,7 +20,10 @@ use wsp_wire::types::js_number::JsInt;
 use wsp_wire::views::place_more::PlaceRemoved;
 use wsp_words::exit::{refusal, Kind};
 use wsp_words::place_word::provider_key_name;
-use wsp_words::words::places::{provider_images_kept_line, provider_kept_line, provider_key_refused, provider_left_words, provider_unlisted_line, LeftThere};
+use wsp_words::words::places::{
+    provider_images_kept_line, provider_kept_line, provider_key_refused, provider_left_words,
+    provider_unlisted_line, LeftThere,
+};
 
 use super::types::{HeldImage, KillConfirm, PlaceKeyForgetter, PlaceResult};
 use crate::machines::area_error::AreaError;
@@ -65,18 +68,35 @@ pub async fn remove_provider(o: ProviderRemove) -> PlaceResult<PlaceRemoved> {
     let mut pass = 0;
     while !ids.is_empty() {
         if pass > RELISTS {
-            left.borrow_mut().extend(ids.iter().map(|id| LeftThere { id: id.clone(), said: provider_left_words::LATE.to_string() }));
+            left.borrow_mut().extend(ids.iter().map(|id| LeftThere {
+                id: id.clone(),
+                said: provider_left_words::LATE.to_string(),
+            }));
             break;
         }
         handled.extend(ids.iter().cloned());
         delete_each(backend, &ids, confirm, &left, &deleted).await;
         match listed_marked(backend, &o.owner, &name).await {
-            Ok(listed) => ids = listed.into_iter().filter(|id| !handled.contains(id)).collect(),
+            Ok(listed) => {
+                ids = listed
+                    .into_iter()
+                    .filter(|id| !handled.contains(id))
+                    .collect()
+            }
             Err(e) => {
                 if !left.borrow().is_empty() {
                     break;
                 }
-                return Ok(answer(false, deleted.get(), Some(provider_unlisted_line(&name, deleted.get() as f64, &e.message)), None));
+                return Ok(answer(
+                    false,
+                    deleted.get(),
+                    Some(provider_unlisted_line(
+                        &name,
+                        deleted.get() as f64,
+                        &e.message,
+                    )),
+                    None,
+                ));
             }
         }
         pass += 1;
@@ -84,7 +104,12 @@ pub async fn remove_provider(o: ProviderRemove) -> PlaceResult<PlaceRemoved> {
     let deleted_now = deleted.get();
     let left = left.into_inner();
     if !left.is_empty() {
-        return Ok(answer(false, deleted_now, Some(provider_kept_line(&name, deleted_now as f64, &left)), None));
+        return Ok(answer(
+            false,
+            deleted_now,
+            Some(provider_kept_line(&name, deleted_now as f64, &left)),
+            None,
+        ));
     }
 
     let (images_left, images_deleted) = match &o.images {
@@ -100,10 +125,18 @@ pub async fn remove_provider(o: ProviderRemove) -> PlaceResult<PlaceRemoved> {
         Some(forget) => forget.forget_key(&o.place_id).await?,
         None => None,
     };
-    Ok(PlaceRemoved { note: still, ..answer(true, deleted_now, None, snapshots) })
+    Ok(PlaceRemoved {
+        note: still,
+        ..answer(true, deleted_now, None, snapshots)
+    })
 }
 
-fn answer(removed: bool, deleted: usize, note: Option<String>, snapshots: Option<usize>) -> PlaceRemoved {
+fn answer(
+    removed: bool,
+    deleted: usize,
+    note: Option<String>,
+    snapshots: Option<usize>,
+) -> PlaceRemoved {
     PlaceRemoved {
         removed,
         took: None,
@@ -115,7 +148,11 @@ fn answer(removed: bool, deleted: usize, note: Option<String>, snapshots: Option
 }
 
 /// The marked ids the provider lists, read again on every row (provider-remove.ts:163).
-async fn listed_marked(backend: &dyn MachineBackend, owner: &str, name: &str) -> PlaceResult<IndexSet<String>> {
+async fn listed_marked(
+    backend: &dyn MachineBackend,
+    owner: &str,
+    name: &str,
+) -> PlaceResult<IndexSet<String>> {
     let labels = IndexMap::from([(OWNER_LABEL.to_string(), owner.to_string())]);
     let rows = backend.list(Some(&labels)).await.map_err(|e| {
         if e.kind() == Some(ErrorKind::Auth) {
@@ -125,21 +162,42 @@ async fn listed_marked(backend: &dyn MachineBackend, owner: &str, name: &str) ->
             AreaError::Engine(e).into_host()
         }
     })?;
-    Ok(rows.into_iter().filter(|m| m.labels.get(OWNER_LABEL).map(String::as_str) == Some(owner)).map(|m| m.id).collect())
+    Ok(rows
+        .into_iter()
+        .filter(|m| m.labels.get(OWNER_LABEL).map(String::as_str) == Some(owner))
+        .map(|m| m.id)
+        .collect())
 }
 
 /// Deletes each id, at most `KILLS_AT_ONCE` at a time, and records what did not go (provider-remove.ts:174).
-async fn delete_each(backend: &dyn MachineBackend, ids: &IndexSet<String>, confirm: KillConfirm, left: &RefCell<Vec<LeftThere>>, deleted: &Cell<usize>) {
+async fn delete_each(
+    backend: &dyn MachineBackend,
+    ids: &IndexSet<String>,
+    confirm: KillConfirm,
+    left: &RefCell<Vec<LeftThere>>,
+    deleted: &Cell<usize>,
+) {
     futures::stream::iter(ids.iter().cloned())
-        .for_each_concurrent(KILLS_AT_ONCE, |id| async move { delete_one(backend, id, confirm, left, deleted).await })
+        .for_each_concurrent(KILLS_AT_ONCE, |id| async move {
+            delete_one(backend, id, confirm, left, deleted).await
+        })
         .await;
 }
 
-async fn delete_one(backend: &dyn MachineBackend, id: String, confirm: KillConfirm, left: &RefCell<Vec<LeftThere>>, deleted: &Cell<usize>) {
+async fn delete_one(
+    backend: &dyn MachineBackend,
+    id: String,
+    confirm: KillConfirm,
+    left: &RefCell<Vec<LeftThere>>,
+    deleted: &Cell<usize>,
+) {
     let seen = match sight_machine(backend, &id).await {
         Ok(seen) => seen,
         Err(e) => {
-            left.borrow_mut().push(LeftThere { id, said: provider_left_words::unread(&message_of(&e)) });
+            left.borrow_mut().push(LeftThere {
+                id,
+                said: provider_left_words::unread(&message_of(&e)),
+            });
             return;
         }
     };
@@ -149,7 +207,10 @@ async fn delete_one(backend: &dyn MachineBackend, id: String, confirm: KillConfi
         let machine = Arc::clone(&machine);
         let failed = &delete_failed;
         async move {
-            machine.kill().await.inspect_err(|e| failed.set(!is_missing(e)))
+            machine
+                .kill()
+                .await
+                .inspect_err(|e| failed.set(!is_missing(e)))
         }
     };
     match kill_until_gone(backend, &id, ask, confirm).await {
@@ -157,7 +218,9 @@ async fn delete_one(backend: &dyn MachineBackend, id: String, confirm: KillConfi
         Err(failure) => {
             let said = match failure {
                 KillFailure::Alive(state) => provider_left_words::running(state_word(state)),
-                KillFailure::Engine(e) if delete_failed.get() => provider_left_words::undeleted(&message_of(&e)),
+                KillFailure::Engine(e) if delete_failed.get() => {
+                    provider_left_words::undeleted(&message_of(&e))
+                }
                 KillFailure::Engine(e) => provider_left_words::unread(&message_of(&e)),
             };
             left.borrow_mut().push(LeftThere { id, said });
@@ -166,16 +229,29 @@ async fn delete_one(backend: &dyn MachineBackend, id: String, confirm: KillConfi
 }
 
 /// Deletes each image snapshot and reads it gone (provider-remove.ts:233).
-async fn delete_images(backend: &dyn MachineBackend, images: &ProviderImages, confirm: KillConfirm) -> PlaceResult<(Vec<LeftThere>, usize)> {
+async fn delete_images(
+    backend: &dyn MachineBackend,
+    images: &ProviderImages,
+    confirm: KillConfirm,
+) -> PlaceResult<(Vec<LeftThere>, usize)> {
     let mut left = Vec::new();
     let mut deleted = 0;
     for image in (images.held)().await? {
         let end: Result<ImageEnd, String> = async {
-            drop_template(backend, image.template_id.as_deref()).await.map_err(|e| message_of(&e))?;
-            match snapshot_until_gone(backend, &image.id, confirm).await.map_err(|e| message_of(&e))? {
-                SnapshotGone::Listed { grace_ms } => Ok(ImageEnd::Left(provider_left_words::listed(grace_ms as f64))),
+            drop_template(backend, image.template_id.as_deref())
+                .await
+                .map_err(|e| message_of(&e))?;
+            match snapshot_until_gone(backend, &image.id, confirm)
+                .await
+                .map_err(|e| message_of(&e))?
+            {
+                SnapshotGone::Listed { grace_ms } => {
+                    Ok(ImageEnd::Left(provider_left_words::listed(grace_ms as f64)))
+                }
                 SnapshotGone::Deleted | SnapshotGone::Missing => {
-                    (images.drop)(image.id.clone()).await.map_err(|e| e.message)?;
+                    (images.drop)(image.id.clone())
+                        .await
+                        .map_err(|e| e.message)?;
                     Ok(ImageEnd::Deleted)
                 }
             }
@@ -183,8 +259,14 @@ async fn delete_images(backend: &dyn MachineBackend, images: &ProviderImages, co
         .await;
         match end {
             Ok(ImageEnd::Deleted) => deleted += 1,
-            Ok(ImageEnd::Left(said)) => left.push(LeftThere { id: image.id.clone(), said }),
-            Err(message) => left.push(LeftThere { id: image.id.clone(), said: provider_left_words::undeleted(&message) }),
+            Ok(ImageEnd::Left(said)) => left.push(LeftThere {
+                id: image.id.clone(),
+                said,
+            }),
+            Err(message) => left.push(LeftThere {
+                id: image.id.clone(),
+                said: provider_left_words::undeleted(&message),
+            }),
         }
     }
     Ok((left, deleted))
@@ -233,8 +315,14 @@ async fn read_once(backend: &dyn MachineBackend, id: &str) -> EResult<Sighting> 
     }
     .await;
     match found {
-        Ok((state, machine)) => Ok(Sighting { state, machine: Some(machine) }),
-        Err(e) if is_missing(&e) => Ok(Sighting { state: MachineState::Gone, machine: None }),
+        Ok((state, machine)) => Ok(Sighting {
+            state,
+            machine: Some(machine),
+        }),
+        Err(e) if is_missing(&e) => Ok(Sighting {
+            state: MachineState::Gone,
+            machine: None,
+        }),
         Err(e) => Err(e),
     }
 }
@@ -247,7 +335,10 @@ async fn sight_machine(backend: &dyn MachineBackend, id: &str) -> EResult<Sighti
             return Ok(seen);
         }
     }
-    Ok(Sighting { state: MachineState::Gone, machine: None })
+    Ok(Sighting {
+        state: MachineState::Gone,
+        machine: None,
+    })
 }
 
 enum KillFailure {
@@ -257,7 +348,12 @@ enum KillFailure {
 }
 
 /// Done once the machine reads gone GONE_READS times in a row (golden.ts killUntilGone).
-async fn kill_until_gone<Ask, Fut>(backend: &dyn MachineBackend, id: &str, mut ask: Ask, confirm: KillConfirm) -> Result<(), KillFailure>
+async fn kill_until_gone<Ask, Fut>(
+    backend: &dyn MachineBackend,
+    id: &str,
+    mut ask: Ask,
+    confirm: KillConfirm,
+) -> Result<(), KillFailure>
 where
     Ask: FnMut() -> Fut,
     Fut: Future<Output = EResult<()>>,
@@ -302,7 +398,11 @@ enum SnapshotGone {
 }
 
 /// A snapshot's delete, read back off the listing under the window (golden.ts snapshotUntilGone).
-async fn snapshot_until_gone(backend: &dyn MachineBackend, id: &str, confirm: KillConfirm) -> EResult<SnapshotGone> {
+async fn snapshot_until_gone(
+    backend: &dyn MachineBackend,
+    id: &str,
+    confirm: KillConfirm,
+) -> EResult<SnapshotGone> {
     match backend.delete_snapshot(id).await {
         Ok(()) => {}
         Err(e) if is_missing(&e) => return Ok(SnapshotGone::Missing),

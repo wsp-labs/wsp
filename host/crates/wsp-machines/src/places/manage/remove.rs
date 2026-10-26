@@ -10,24 +10,30 @@ use indexmap::IndexSet;
 use serde_json::{json, Map, Value};
 use wsp_core::project_landing::{read_unsaved, RunHere};
 use wsp_wire::types::daemon_contract::{RUNTIME_PROJECTS, RUNTIME_ROOT};
+use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::types::recipe_file::NO_RECIPE;
 use wsp_wire::types::shell_quote::shell_quote;
-use wsp_wire::types::js_number::{JsInt, JsNumber};
+use wsp_wire::views::place::place_forgets_only;
 use wsp_wire::views::place_more::{
-    PlaceHolds, PlaceHoldsImagesItem, PlaceRemoved, PlaceRemovedEvent, PlaceUpdateReply, PlaceUpdateReplyDaemon, PlaceUpdateReplyDaemonRoad,
+    PlaceHolds, PlaceHoldsImagesItem, PlaceRemoved, PlaceRemovedEvent, PlaceUpdateReply,
+    PlaceUpdateReplyDaemon, PlaceUpdateReplyDaemonRoad,
 };
 use wsp_wire::wire::daemon_version::DAEMON_VERSION;
-use wsp_wire::wire::machine_link::{no_such_place_refusal, place_forget_answers_refusal, place_away_refusal, place_unsaved_refusal};
+use wsp_wire::wire::machine_link::{
+    no_such_place_refusal, place_away_refusal, place_forget_answers_refusal, place_unsaved_refusal,
+};
 use wsp_wire::wire::place_link::plugins_kept_line;
 use wsp_words::exit::{refusal_said, usage_refusal, HostError, Kind};
-use wsp_words::place_word::{place_login_elsewhere, place_login_elsewhere_removed_line, place_login_other_refusal, place_login_unchecked_refusal, PlaceRef};
+use wsp_words::place_word::{
+    place_login_elsewhere, place_login_elsewhere_removed_line, place_login_other_refusal,
+    place_login_unchecked_refusal, PlaceRef,
+};
 use wsp_words::thread_cgroup::thread_cgroups_end_script;
 use wsp_words::views::place_setup_words::place_syncing_line;
+use wsp_words::wire::place_link::{place_forgotten_line, place_still_installed_line};
 use wsp_words::words::base::last_line;
 use wsp_words::words::places::PLACE_LEAVE_LINE;
-use wsp_words::wire::place_link::{place_forgotten_line, place_still_installed_line};
 use wsp_words::workspace_state::{absent_computer, unpushed_unread_line};
-use wsp_wire::views::place::place_forgets_only;
 
 use super::add::exec_over;
 use super::ManageDoor;
@@ -35,9 +41,11 @@ use crate::places::helpers::{PendingRecord, UPDATE_WAIT_MS};
 use crate::places::provider_remove::{remove_provider, ProviderImages, ProviderRemove};
 use crate::places::records::{PlaceRecordsArea, Reached};
 use crate::places::types::{
-    is_place_host_key_changed, is_place_login_refused, place_elsewhere_swept_over_link_line, place_login_refused, place_login_road_line,
-    place_swept_over_link_line, place_swept_over_ssh_line, place_update_slow_line, PlaceEvent, PlaceExecOpts, PlaceLeaveRequest, PlaceLogin, PlaceRecord,
-    PlaceResult, PlaceUpdateRequest, RemoveAsk, SudoVerb, UpdateRoad, NO_PLACE_UPDATER,
+    is_place_host_key_changed, is_place_login_refused, place_elsewhere_swept_over_link_line,
+    place_login_refused, place_login_road_line, place_swept_over_link_line,
+    place_swept_over_ssh_line, place_update_slow_line, PlaceEvent, PlaceExecOpts,
+    PlaceLeaveRequest, PlaceLogin, PlaceRecord, PlaceResult, PlaceUpdateRequest, RemoveAsk,
+    SudoVerb, UpdateRoad, NO_PLACE_UPDATER,
 };
 
 /// How long a leave over the link gives the threads' cgroups there to end (manage.ts:91).
@@ -72,12 +80,27 @@ pub enum ReachesItself {
 
 impl ManageDoor {
     /// H3 (:151-157).
-    pub async fn reaches_itself(&self, record: &PlaceRecord, login: &PlaceLogin, sudo_password: Option<&str>) -> PlaceResult<ReachesItself> {
-        match self.records.reached_over(record, login, sudo_password).await? {
+    pub async fn reaches_itself(
+        &self,
+        record: &PlaceRecord,
+        login: &PlaceLogin,
+        sudo_password: Option<&str>,
+    ) -> PlaceResult<ReachesItself> {
+        match self
+            .records
+            .reached_over(record, login, sudo_password)
+            .await?
+        {
             Reached::Same => Ok(ReachesItself::Stands),
             Reached::Other { other } => Ok(ReachesItself::Elsewhere { other }),
-            Reached::Unread { unread, refused: true } => Ok(ReachesItself::Refused { refused: unread }),
-            Reached::Unread { unread, refused: false } => {
+            Reached::Unread {
+                unread,
+                refused: true,
+            } => Ok(ReachesItself::Refused { refused: unread }),
+            Reached::Unread {
+                unread,
+                refused: false,
+            } => {
                 let said = place_login_unchecked_refusal(&login.ssh, &record.name, &unread);
                 Err(usage_refusal(&said.happened, &said.fix))
             }
@@ -101,46 +124,98 @@ impl ManageDoor {
 
     /// H6 (:172-182).
     pub async fn images_sized(&self, place_id: &str) -> PlaceResult<Vec<PlaceHoldsImagesItem>> {
-        let images = if self.ctx.recording.has_images() { self.ctx.recording.images_on(place_id).await? } else { Vec::new() };
+        let images = if self.ctx.recording.has_images() {
+            self.ctx.recording.images_on(place_id).await?
+        } else {
+            Vec::new()
+        };
         let at = self.records.provider_backend(place_id);
-        let listable = at.as_ref().is_some_and(|at| at.capabilities().snapshot_listing && at.offers().list_snapshots);
+        let listable = at
+            .as_ref()
+            .is_some_and(|at| at.capabilities().snapshot_listing && at.offers().list_snapshots);
         let rows: Vec<(String, Option<f64>)> = match (&at, listable, images.is_empty()) {
             (Some(at), true, false) => {
                 let ids: Vec<String> = images.iter().map(|i| i.id.clone()).collect();
-                at.list_snapshots(Some(&ids)).await.map(|rows| rows.into_iter().map(|r| (r.id, Some(r.size_bytes.0))).collect()).unwrap_or_default()
+                at.list_snapshots(Some(&ids))
+                    .await
+                    .map(|rows| {
+                        rows.into_iter()
+                            .map(|r| (r.id, Some(r.size_bytes.0)))
+                            .collect()
+                    })
+                    .unwrap_or_default()
             }
             _ => Vec::new(),
         };
         Ok(images
             .into_iter()
             .map(|image| {
-                let size = rows.iter().find(|(id, _)| *id == image.id).and_then(|(_, size)| *size).filter(|size| *size != 0.0);
-                PlaceHoldsImagesItem { id: image.id, size_bytes: size.map(JsNumber) }
+                let size = rows
+                    .iter()
+                    .find(|(id, _)| *id == image.id)
+                    .and_then(|(_, size)| *size)
+                    .filter(|size| *size != 0.0);
+                PlaceHoldsImagesItem {
+                    id: image.id,
+                    size_bytes: size.map(JsNumber),
+                }
             })
             .collect())
     }
 
     /// H5 (:184-195).
     pub async fn unrecorded_unsaved(&self, place_id: &str) -> PlaceResult<Vec<String>> {
-        let recorded: IndexSet<String> = self.ctx.recording.projects_on(place_id).await?.into_iter().filter_map(|p| p.checkout).collect();
+        let recorded: IndexSet<String> = self
+            .ctx
+            .recording
+            .projects_on(place_id)
+            .await?
+            .into_iter()
+            .filter_map(|p| p.checkout)
+            .collect();
         let run: RunHere = {
-            let (ctx, records, place) = (Rc::clone(&self.ctx), Rc::clone(&self.records), place_id.to_string());
+            let (ctx, records, place) = (
+                Rc::clone(&self.ctx),
+                Rc::clone(&self.records),
+                place_id.to_string(),
+            );
             Rc::new(move |cmd: String, timeout: u64| {
                 let (ctx, records, place) = (Rc::clone(&ctx), Rc::clone(&records), place.clone());
-                async move { exec_over(&ctx, &records, &place, &cmd, PlaceExecOpts { timeout_ms: Some(timeout), stdin: None }).await }.boxed_local()
+                async move {
+                    exec_over(
+                        &ctx,
+                        &records,
+                        &place,
+                        &cmd,
+                        PlaceExecOpts {
+                            timeout_ms: Some(timeout),
+                            stdin: None,
+                        },
+                    )
+                    .await
+                }
+                .boxed_local()
             })
         };
         let listed = match run(runtime_checkouts_script(), THREADS_END_MS).await {
             Ok(listed) => listed,
-            Err(e) => serde_json::from_value(json!({ "exitCode": -1, "stdout": "", "stderr": e.message })).map_err(|e| HostError::new(e.to_string()))?,
+            Err(e) => {
+                serde_json::from_value(json!({ "exitCode": -1, "stdout": "", "stderr": e.message }))
+                    .map_err(|e| HostError::new(e.to_string()))?
+            }
         };
         let code = listed.exit_code.as_f64() as i64;
         if code != 0 {
-            let why = last_line(&listed.stderr).unwrap_or_else(|| format!("the listing exited {code}"));
+            let why =
+                last_line(&listed.stderr).unwrap_or_else(|| format!("the listing exited {code}"));
             return Ok(vec![unpushed_unread_line(&runtime_checkouts(), &why)]);
         }
         let mut unsaved = Vec::new();
-        for checkout in listed.stdout.split('\n').filter(|line| !line.is_empty() && !recorded.contains(*line)) {
+        for checkout in listed
+            .stdout
+            .split('\n')
+            .filter(|line| !line.is_empty() && !recorded.contains(*line))
+        {
             if let Some(line) = read_unsaved(checkout, checkout, Rc::clone(&run)).await {
                 unsaved.push(line);
             }
@@ -154,20 +229,35 @@ impl ManageDoor {
             return self.holds_of(place_id, &held).await;
         }
         if !self.records.provider_ids().iter().any(|id| id == place_id) {
-            return Ok(PlaceHolds { forks: Vec::new(), projects: Vec::new(), unsaved: Vec::new(), away: None, images: None });
+            return Ok(PlaceHolds {
+                forks: Vec::new(),
+                projects: Vec::new(),
+                unsaved: Vec::new(),
+                away: None,
+                images: None,
+            });
         }
         let images = self.images_sized(place_id).await?;
         let unsaved = match self.ctx.recording.sub_holds_on(place_id).await {
             Some(read) => read?,
             None => Vec::new(),
         };
-        Ok(PlaceHolds { forks: Vec::new(), projects: Vec::new(), unsaved, away: None, images: (!images.is_empty()).then_some(images) })
+        Ok(PlaceHolds {
+            forks: Vec::new(),
+            projects: Vec::new(),
+            unsaved,
+            away: None,
+            images: (!images.is_empty()).then_some(images),
+        })
     }
 
     /// RM1-RM15 (:570-720).
     pub async fn remove(&self, place_id: &str, ask: RemoveAsk) -> PlaceResult<PlaceRemoved> {
         let held = self.records.record_of(place_id).await?;
-        let provider = match (&held, self.records.provider_ids().iter().any(|id| id == place_id)) {
+        let provider = match (
+            &held,
+            self.records.provider_ids().iter().any(|id| id == place_id),
+        ) {
             (None, true) => self.records.provider_backend(place_id),
             _ => None,
         };
@@ -179,23 +269,47 @@ impl ManageDoor {
                 Some(forgetter) => forgetter.forget_key(place_id).await?,
                 None => None,
             };
-            self.ctx.emit(&PlaceEvent::Removed(PlaceRemovedEvent { place_id: place_id.to_string() }));
-            return Ok(PlaceRemoved { removed: true, took: None, swept: Vec::new(), note: still, deleted: None, snapshots: None });
+            self.ctx.emit(&PlaceEvent::Removed(PlaceRemovedEvent {
+                place_id: place_id.to_string(),
+            }));
+            return Ok(PlaceRemoved {
+                removed: true,
+                took: None,
+                swept: Vec::new(),
+                note: still,
+                deleted: None,
+                snapshots: None,
+            });
         }
         if let Some(backend) = provider {
             return self.remove_cloud(place_id, backend).await;
         }
         let Some(held) = held else {
-            return Ok(PlaceRemoved { removed: false, took: None, swept: Vec::new(), note: None, deleted: None, snapshots: None });
+            return Ok(PlaceRemoved {
+                removed: false,
+                took: None,
+                swept: Vec::new(),
+                note: None,
+                deleted: None,
+                snapshots: None,
+            });
         };
         self.remove_computer(place_id, held, ask).await
     }
 
     /// RM3 (:582-595): a provider's remove, as places-a's provider remove answers it.
-    async fn remove_cloud(&self, place_id: &str, backend: Arc<dyn wsp_engine::machine::MachineBackend>) -> PlaceResult<PlaceRemoved> {
+    async fn remove_cloud(
+        &self,
+        place_id: &str,
+        backend: Arc<dyn wsp_engine::machine::MachineBackend>,
+    ) -> PlaceResult<PlaceRemoved> {
         let recording = Rc::clone(&self.ctx.recording);
         let images = if recording.has_images() {
-            let (held_rec, drop_rec, place) = (Rc::clone(&recording), Rc::clone(&recording), place_id.to_string());
+            let (held_rec, drop_rec, place) = (
+                Rc::clone(&recording),
+                Rc::clone(&recording),
+                place_id.to_string(),
+            );
             let drop_place = place.clone();
             Some(ProviderImages {
                 held: Rc::new(move || {
@@ -232,13 +346,20 @@ impl ManageDoor {
             if let Some(release) = self.ctx.recording.release_records_on(place_id).await {
                 release?;
             }
-            self.ctx.emit(&PlaceEvent::Removed(PlaceRemovedEvent { place_id: place_id.to_string() }));
+            self.ctx.emit(&PlaceEvent::Removed(PlaceRemovedEvent {
+                place_id: place_id.to_string(),
+            }));
         }
         Ok(answer)
     }
 
     /// RM5-RM15 (:600-720): a computer's remove, read first and then taken.
-    async fn remove_computer(&self, place_id: &str, held: PlaceRecord, ask: RemoveAsk) -> PlaceResult<PlaceRemoved> {
+    async fn remove_computer(
+        &self,
+        place_id: &str,
+        held: PlaceRecord,
+        ask: RemoveAsk,
+    ) -> PlaceResult<PlaceRemoved> {
         let read = self.ctx.live.borrow().get(place_id).is_some();
         let holds = self.holds_of(place_id, &held).await?;
         let forget = ask.forget == Some(true);
@@ -254,7 +375,12 @@ impl ManageDoor {
             let refused = place_unsaved_refusal(&held.name, &holds.unsaved);
             return Err(usage_refusal(&refused.said, &refused.fix));
         }
-        let reach = self.ctx.live.borrow().get(place_id).map(|live| Rc::clone(&live.reach));
+        let reach = self
+            .ctx
+            .live
+            .borrow()
+            .get(place_id)
+            .map(|live| Rc::clone(&live.reach));
         let leaver = self.ctx.wiring.leave.clone();
         let login = PlaceRecordsArea::login_of(&held);
         let answers = match (&leaver, &login) {
@@ -263,7 +389,16 @@ impl ManageDoor {
         };
         let mut key_changed = false;
         let sudo_password = match (answers, &login) {
-            (true, Some(login)) => match self.records.root_over(login, ask.sudo_password.as_deref(), SudoVerb::Remove, &held.name).await {
+            (true, Some(login)) => match self
+                .records
+                .root_over(
+                    login,
+                    ask.sudo_password.as_deref(),
+                    SudoVerb::Remove,
+                    &held.name,
+                )
+                .await
+            {
                 Ok(password) => password,
                 Err(e) if is_place_host_key_changed(&e) => {
                     key_changed = true;
@@ -277,10 +412,15 @@ impl ManageDoor {
             Some(ReachesItself::Elsewhere { other: None })
         } else {
             match (answers, &login) {
-                (true, Some(login)) => match self.reaches_itself(&held, login, sudo_password.as_deref()).await {
+                (true, Some(login)) => match self
+                    .reaches_itself(&held, login, sudo_password.as_deref())
+                    .await
+                {
                     Ok(reached) => Some(reached),
                     Err(e) if !forget => return Err(e),
-                    Err(e) => Some(ReachesItself::Refused { refused: refusal_said(&e.message, e.fix.as_deref()) }),
+                    Err(e) => Some(ReachesItself::Refused {
+                        refused: refusal_said(&e.message, e.fix.as_deref()),
+                    }),
                 },
                 _ => None,
             }
@@ -291,7 +431,11 @@ impl ManageDoor {
             _ => None,
         };
         let away = match (&elsewhere, &login) {
-            (Some(other), Some(login)) => Some(place_login_elsewhere(&login.ssh, &held.name, other.as_deref())),
+            (Some(other), Some(login)) => Some(place_login_elsewhere(
+                &login.ssh,
+                &held.name,
+                other.as_deref(),
+            )),
             _ => None,
         };
         let mut projects: Vec<String> = Vec::new();
@@ -308,9 +452,19 @@ impl ManageDoor {
         };
         let plugins = self
             .views
-            .plugins_off(place_id, &held, reach.is_some(), if stands { login.as_ref() } else { None }, sudo_password.as_deref())
+            .plugins_off(
+                place_id,
+                &held,
+                reach.is_some(),
+                if stands { login.as_ref() } else { None },
+                sudo_password.as_deref(),
+            )
             .await;
-        let stored = if reach.is_some() { self.views.store_files_off(place_id, &held).await } else { Vec::new() };
+        let stored = if reach.is_some() {
+            self.views.store_files_off(place_id, &held).await
+        } else {
+            Vec::new()
+        };
         let mut swept: Vec<String> = Vec::new();
         let mut note: Option<String> = None;
         let mut login_road: Option<(String, Option<String>)> = None;
@@ -333,7 +487,11 @@ impl ManageDoor {
                         note = Some(place_swept_over_ssh_line(&held.name));
                     }
                     Err(e) => {
-                        let said = if is_place_login_refused(&e) { None } else { Some(e.message.clone()) };
+                        let said = if is_place_login_refused(&e) {
+                            None
+                        } else {
+                            Some(e.message.clone())
+                        };
                         login_road = Some((login.ssh.clone(), said));
                     }
                 }
@@ -342,27 +500,44 @@ impl ManageDoor {
         if note.is_none() {
             if let (Some(away), Some(login)) = (&away, &login) {
                 note = Some(match reach {
-                    None => place_login_elsewhere_removed_line(&login.ssh, &held.name, elsewhere.clone().flatten().as_deref()),
+                    None => place_login_elsewhere_removed_line(
+                        &login.ssh,
+                        &held.name,
+                        elsewhere.clone().flatten().as_deref(),
+                    ),
                     Some(_) => place_elsewhere_swept_over_link_line(&held.name, away),
                 });
             }
             match reach {
                 None => {
-                    let left = if forget { place_forgotten_line(&held.name, !went.forks.is_empty()) } else { place_still_installed_line(&held.name) };
+                    let left = if forget {
+                        place_forgotten_line(&held.name, !went.forks.is_empty())
+                    } else {
+                        place_still_installed_line(&held.name)
+                    };
                     if note.is_none() {
                         note = Some(match &login_road {
-                            Some((at, Some(said))) => format!("{}; {left}", place_login_road_line(&held.name, at, Some(said))),
+                            Some((at, Some(said))) => format!(
+                                "{}; {left}",
+                                place_login_road_line(&held.name, at, Some(said))
+                            ),
                             _ => left,
                         });
                     }
                 }
                 Some(ref link) => {
-                    let sweep = self.link_sweep(place_id, &held, link, force, &projects).await;
+                    let sweep = self
+                        .link_sweep(place_id, &held, link, force, &projects)
+                        .await;
                     match sweep {
                         Ok((lines, servers_kept)) => {
                             swept.extend(lines);
                             if let (Some((at, said)), None) = (&login_road, &away) {
-                                note = Some(place_swept_over_link_line(&held.name, at, said.as_deref()));
+                                note = Some(place_swept_over_link_line(
+                                    &held.name,
+                                    at,
+                                    said.as_deref(),
+                                ));
                             }
                             if !servers_kept.is_empty() {
                                 let mut parts: Vec<String> = note.take().into_iter().collect();
@@ -373,8 +548,12 @@ impl ManageDoor {
                         Err(e) => {
                             let failed = format!("{} was connected but did not finish the sweep: {}; run {PLACE_LEAVE_LINE} on that computer", held.name, e.message);
                             let before = match (&away, &login_road) {
-                                (Some(away), _) => Some(format!("{away}, so nothing was changed on the machine it reaches")),
-                                (None, Some((at, said))) => Some(place_login_road_line(&held.name, at, said.as_deref())),
+                                (Some(away), _) => Some(format!(
+                                    "{away}, so nothing was changed on the machine it reaches"
+                                )),
+                                (None, Some((at, said))) => {
+                                    Some(place_login_road_line(&held.name, at, said.as_deref()))
+                                }
                                 (None, None) => None,
                             };
                             note = Some(match before {
@@ -401,7 +580,10 @@ impl ManageDoor {
         }
         if let (Some(login), Some(_)) = (&login, &held.road.as_ref().and_then(|r| r.back.clone())) {
             let all_records = self.records.records().await?;
-            let shared = all_records.iter().any(|r| r.id != place_id && PlaceRecordsArea::login_of(r).is_some_and(|other| other.ssh == login.ssh));
+            let shared = all_records.iter().any(|r| {
+                r.id != place_id
+                    && PlaceRecordsArea::login_of(r).is_some_and(|other| other.ssh == login.ssh)
+            });
             if !shared {
                 if let Some(holder) = self.ctx.wiring.back.clone() {
                     holder.release(login);
@@ -409,27 +591,64 @@ impl ManageDoor {
             }
         }
         let pending: Vec<PendingRecord> = self.views.pending_records().await?;
-        for p in pending.iter().filter(|p| p.view.place_id.as_deref() == Some(place_id)) {
+        for p in pending
+            .iter()
+            .filter(|p| p.view.place_id.as_deref() == Some(place_id))
+        {
             self.views.drop_pending(&p.view.id).await?;
         }
         self.views.forget(place_id).await?;
-        Ok(PlaceRemoved { removed: true, took: Some(went), swept: all, note, deleted: None, snapshots: None })
+        Ok(PlaceRemoved {
+            removed: true,
+            took: Some(went),
+            swept: all,
+            note,
+            deleted: None,
+            snapshots: None,
+        })
     }
 
     /// The leave the computer's own sweep over its link runs (RM13 :617-639): the servers wsp merged, the threads'
     /// cgroups and the daemon's `place.leave`. Answers the lines it took and the servers' unread lines.
-    async fn link_sweep(&self, place_id: &str, held: &PlaceRecord, reach: &Rc<dyn wsp_core::types::pending::DaemonReach>, force: bool, projects: &[String]) -> PlaceResult<(Vec<String>, Vec<String>)> {
+    async fn link_sweep(
+        &self,
+        place_id: &str,
+        held: &PlaceRecord,
+        reach: &Rc<dyn wsp_core::types::pending::DaemonReach>,
+        force: bool,
+        projects: &[String],
+    ) -> PlaceResult<(Vec<String>, Vec<String>)> {
         let servers = self.views.unmerged_over(place_id, held).await;
-        let ended = exec_over(&self.ctx, &self.records, place_id, &thread_cgroups_end_script(None), PlaceExecOpts { timeout_ms: Some(THREADS_END_MS), stdin: None }).await.ok();
+        let ended = exec_over(
+            &self.ctx,
+            &self.records,
+            place_id,
+            &thread_cgroups_end_script(None),
+            PlaceExecOpts {
+                timeout_ms: Some(THREADS_END_MS),
+                stdin: None,
+            },
+        )
+        .await
+        .ok();
         let mut frame = Map::new();
         if force {
             frame.insert("force".to_string(), Value::Bool(true));
         }
         frame.insert("projects".to_string(), json!(projects));
-        let answer = reach.request("place.leave", frame).await.map_err(|e| HostError::new(e.message))?;
+        let answer = reach
+            .request("place.leave", frame)
+            .await
+            .map_err(|e| HostError::new(e.message))?;
         let mut lines = servers.took.clone();
         if let Some(ended) = ended {
-            lines.extend(ended.stdout.split('\n').filter(|line| !line.is_empty()).map(str::to_string));
+            lines.extend(
+                ended
+                    .stdout
+                    .split('\n')
+                    .filter(|line| !line.is_empty())
+                    .map(str::to_string),
+            );
         }
         if let Some(Value::Array(swept)) = answer.get("swept") {
             lines.extend(swept.iter().map(|v| match v {
@@ -443,15 +662,28 @@ impl ManageDoor {
     /// U1-U6 (:494-558).
     pub async fn update(&self, place_id: &str, ask: RemoveAsk) -> PlaceResult<PlaceUpdateReply> {
         let Some(held) = self.records.record_of(place_id).await? else {
-            let names: Vec<String> = self.records.records().await?.into_iter().map(|r| r.name).collect();
+            let names: Vec<String> = self
+                .records
+                .records()
+                .await?
+                .into_iter()
+                .map(|r| r.name)
+                .collect();
             return Err(HostError::new(no_such_place_refusal(place_id, &names)));
         };
-        let busy = if self.setup.is_setting(&held.id) { self.setup.setting_now(&held) } else { None };
+        let busy = if self.setup.is_setting(&held.id) {
+            self.setup.setting_now(&held)
+        } else {
+            None
+        };
         if let Some(busy) = busy {
             return Err(HostError::with_kind(busy, Kind::Conflict));
         }
         if self.setup.is_syncing(&held.id) {
-            return Err(HostError::with_kind(place_syncing_line(&held.name), Kind::Conflict));
+            return Err(HostError::with_kind(
+                place_syncing_line(&held.name),
+                Kind::Conflict,
+            ));
         }
         let from = held.report.daemon_version.as_f64() as u32;
         let moving = i64::from(from) < DAEMON_VERSION;
@@ -463,19 +695,43 @@ impl ManageDoor {
                 }
             }
             Some(updater) => {
-                let link = self.ctx.live.borrow().get(place_id).map(|live| Rc::clone(&live.reach));
+                let link = self
+                    .ctx
+                    .live
+                    .borrow()
+                    .get(place_id)
+                    .map(|live| Rc::clone(&live.reach));
                 let ssh = PlaceRecordsArea::login_of(&held);
                 let sudo_password = match (&link, &ssh) {
-                    (None, Some(login)) => self.records.root_over(login, ask.sudo_password.as_deref(), SudoVerb::Update, &held.name).await?,
+                    (None, Some(login)) => {
+                        self.records
+                            .root_over(
+                                login,
+                                ask.sudo_password.as_deref(),
+                                SudoVerb::Update,
+                                &held.name,
+                            )
+                            .await?
+                    }
                     _ => None,
                 };
                 if let (None, Some(login)) = (&link, &ssh) {
-                    match self.reaches_itself(&held, login, sudo_password.as_deref()).await? {
+                    match self
+                        .reaches_itself(&held, login, sudo_password.as_deref())
+                        .await?
+                    {
                         ReachesItself::Stands => {}
-                        ReachesItself::Refused { refused } => return Err(place_login_refused(&refused)),
+                        ReachesItself::Refused { refused } => {
+                            return Err(place_login_refused(&refused))
+                        }
                         ReachesItself::Elsewhere { other } => {
-                            let place = PlaceRef { id: held.id.clone(), name: held.name.clone(), kind: None };
-                            let said = place_login_other_refusal(&login.ssh, &place, other.as_deref());
+                            let place = PlaceRef {
+                                id: held.id.clone(),
+                                name: held.name.clone(),
+                                kind: None,
+                            };
+                            let said =
+                                place_login_other_refusal(&login.ssh, &place, other.as_deref());
                             return Err(usage_refusal(&said.happened, &said.fix));
                         }
                     }
@@ -493,11 +749,15 @@ impl ManageDoor {
                     .await?;
                 if let Some(landed) = landed {
                     let wait = self.ctx.opts.update_wait_ms.unwrap_or(UPDATE_WAIT_MS);
-                    let to = self.records.until_daemon_version(place_id, from, wait).await?;
+                    let to = self
+                        .records
+                        .until_daemon_version(place_id, from, wait)
+                        .await?;
                     if to != from {
                         self.views.facts_on(place_id, &held).await;
                     }
-                    let note = (i64::from(to) < DAEMON_VERSION).then(|| place_update_slow_line(&held.name, (wait + 500) / 1000));
+                    let note = (i64::from(to) < DAEMON_VERSION)
+                        .then(|| place_update_slow_line(&held.name, (wait + 500) / 1000));
                     daemon = Some(PlaceUpdateReplyDaemon {
                         from: JsInt(JsNumber(f64::from(from))),
                         to: JsInt(JsNumber(f64::from(to))),
@@ -516,6 +776,9 @@ impl ManageDoor {
             let _ = recipe;
             self.setup.sync_soon(place_id, 0);
         }
-        Ok(PlaceUpdateReply { name: held.name.clone(), daemon })
+        Ok(PlaceUpdateReply {
+            name: held.name.clone(),
+            daemon,
+        })
     }
 }

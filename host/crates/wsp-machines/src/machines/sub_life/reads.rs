@@ -80,7 +80,11 @@ pub fn sub_result_command(folder: &str, branch: &str, base_sha: &str) -> String 
 /// sub-life.ts:49. The result command's answer read into a result; `None` where it carries no counts (rules 3-7).
 pub fn sub_result_of(stdout: &str, branch: &str, read_at: &str) -> Option<SubResult> {
     let mut said: IndexMap<String, String> = IndexMap::new();
-    for line in stdout.split('\n').map(js_trim).filter(|line| !line.is_empty()) {
+    for line in stdout
+        .split('\n')
+        .map(js_trim)
+        .filter(|line| !line.is_empty())
+    {
         match line.find(' ') {
             None => said.insert(line.to_string(), String::new()),
             Some(at) => said.insert(line[..at].to_string(), js_trim(&line[at + 1..]).to_string()),
@@ -108,8 +112,14 @@ pub fn sub_result_of(stdout: &str, branch: &str, read_at: &str) -> Option<SubRes
     };
     let unpushed = count("unpushed")?;
     let changed = count("changed")?;
-    let pushed_sha = said.get("pushed").filter(|sha| !sha.is_empty() && sha.as_str() != "none").cloned();
-    let on_branch = said.get("branch").filter(|value| !value.is_empty()).cloned();
+    let pushed_sha = said
+        .get("pushed")
+        .filter(|sha| !sha.is_empty() && sha.as_str() != "none")
+        .cloned();
+    let on_branch = said
+        .get("branch")
+        .filter(|value| !value.is_empty())
+        .cloned();
     Some(SubResult {
         branch: branch.to_string(),
         pushed_sha,
@@ -132,7 +142,9 @@ fn is_decimal_literal(text: &str) -> bool {
         None => (body, None),
     };
     let mantissa_ok = match mantissa.split_once('.') {
-        Some((int, frac)) => (int.is_empty() && digits(frac)) || (digits(int) && (frac.is_empty() || digits(frac))),
+        Some((int, frac)) => {
+            (int.is_empty() && digits(frac)) || (digits(int) && (frac.is_empty() || digits(frac)))
+        }
         None => digits(mantissa),
     };
     let exponent_ok = exponent.is_none_or(|e| digits(e.strip_prefix(['+', '-']).unwrap_or(e)));
@@ -146,10 +158,23 @@ pub(crate) fn js_number(s: &str) -> f64 {
     if text.is_empty() {
         return 0.0;
     }
-    for (prefix, radix) in [("0x", 16_u32), ("0X", 16), ("0o", 8), ("0O", 8), ("0b", 2), ("0B", 2)] {
+    for (prefix, radix) in [
+        ("0x", 16_u32),
+        ("0X", 16),
+        ("0o", 8),
+        ("0O", 8),
+        ("0b", 2),
+        ("0B", 2),
+    ] {
         if let Some(digits) = text.strip_prefix(prefix) {
             let valid = !digits.is_empty() && digits.chars().all(|c| c.is_digit(radix));
-            return if valid { digits.chars().fold(0.0, |acc, c| acc * f64::from(radix) + f64::from(c.to_digit(radix).unwrap_or(0))) } else { f64::NAN };
+            return if valid {
+                digits.chars().fold(0.0, |acc, c| {
+                    acc * f64::from(radix) + f64::from(c.to_digit(radix).unwrap_or(0))
+                })
+            } else {
+                f64::NAN
+            };
         }
     }
     match text {
@@ -171,10 +196,20 @@ pub(crate) fn js_number(s: &str) -> f64 {
 /// sub-life.ts:79. Finds a session's file under its folder and packs it where the cloud's file read reaches.
 pub fn sub_session_pack_command(file: &SessionFile, to: &str) -> String {
     [
-        format!("f=$(find {} -maxdepth {} -type f -name {} 2>/dev/null | head -n 1)", shell_quote(&file.folder), file.depth + 1, shell_quote(&format!("*{}", file.name))),
+        format!(
+            "f=$(find {} -maxdepth {} -type f -name {} 2>/dev/null | head -n 1)",
+            shell_quote(&file.folder),
+            file.depth + 1,
+            shell_quote(&format!("*{}", file.name))
+        ),
         "[ -n \"$f\" ] || { echo nofile; exit 0; }".to_string(),
         "echo \"path $f\"".to_string(),
-        format!("gzip -c \"$f\" > {} && chmod 0644 {} && echo \"size $(stat -c %s {})\"", shell_quote(to), shell_quote(to), shell_quote(to)),
+        format!(
+            "gzip -c \"$f\" > {} && chmod 0644 {} && echo \"size $(stat -c %s {})\"",
+            shell_quote(to),
+            shell_quote(to),
+            shell_quote(to)
+        ),
     ]
     .join("\n")
 }
@@ -203,7 +238,12 @@ pub fn sub_session_land_command(file: &SessionFile, path: &str, from: &str) -> S
             shell_quote(&format!("*{}", file.name)),
             shell_quote(path)
         ),
-        format!("gunzip -c {} > {}; s=$?; rm -f {}; exit $s", shell_quote(from), shell_quote(path), shell_quote(from)),
+        format!(
+            "gunzip -c {} > {}; s=$?; rm -f {}; exit $s",
+            shell_quote(from),
+            shell_quote(path),
+            shell_quote(from)
+        ),
     ]
     .join("\n")
 }
@@ -224,11 +264,18 @@ pub fn sub_row_of(record: &WorkspaceRecord) -> Option<SubRow> {
         state,
         on: sub.on.clone(),
         machine: record.name.clone(),
-        size: SubRowSize { cpu: JsInt(record.size.cpu), mem_mb: JsInt(record.size.mem_mb), name: sub.size_name.clone() },
+        size: SubRowSize {
+            cpu: JsInt(record.size.cpu),
+            mem_mb: JsInt(record.size.mem_mb),
+            name: sub.size_name.clone(),
+        },
         rate_usd_per_hour: sub.rate_usd_per_hour,
         branch: sub.branch.clone(),
         result: sub.result.clone(),
-        held: sub.held.as_ref().map(|held| SubHeld { files: held.held.files, commits: held.held.commits }),
+        held: sub.held.as_ref().map(|held| SubHeld {
+            files: held.held.files,
+            commits: held.held.commits,
+        }),
         delete_at: sub.delete_at,
         released_at: sub.released_at,
         cloud_gone: (sub.cloud_gone == Some(true)).then_some(True),
@@ -248,7 +295,9 @@ fn session_not_kept(session: Option<&SubSession>) -> Option<String> {
             return Some(sub_session_too_large_line(&fmt_bytes(bytes)));
         }
     }
-    Some(sub_session_not_kept_line(session.why.as_deref().unwrap_or("no reason was given")))
+    Some(sub_session_not_kept_line(
+        session.why.as_deref().unwrap_or("no reason was given"),
+    ))
 }
 
 // export function diskKeptMs(ctx: Pick<RuntimeContext, "backendFor">, record: WorkspaceRecord): number | undefined {
@@ -270,9 +319,17 @@ pub fn disk_kept_ms(ctx: &dyn BackendFor, record: &WorkspaceRecord) -> Option<f6
 //   return ms === undefined ? undefined : from! + ms;
 // }
 /// sub-life.ts:150. The day from which a record's cloud may delete its machine's disk (rule 12).
-pub fn disk_kept_until(ctx: &dyn BackendFor, record: &WorkspaceRecord, stopped_at: Option<f64>) -> Option<f64> {
+pub fn disk_kept_until(
+    ctx: &dyn BackendFor,
+    record: &WorkspaceRecord,
+    stopped_at: Option<f64>,
+) -> Option<f64> {
     let napped = record.napped_at.as_ref().map(|at| at.0);
-    let from = if record.phase == WorkspacePhase::Napping && napped.is_some() { napped } else { stopped_at };
+    let from = if record.phase == WorkspacePhase::Napping && napped.is_some() {
+        napped
+    } else {
+        stopped_at
+    };
     let from = from?;
     Some(from + disk_kept_ms(ctx, record)?)
 }

@@ -4,69 +4,72 @@
 //! and `spec/places_link_reads.md` (`name_of` to the end, and `land_sign_in`).
 
 use std::cell::{Cell, RefCell};
-use std::future::poll_fn;
-use std::net::SocketAddr;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 use std::sync::Arc;
-use std::task::Poll;
 
 use async_trait::async_trait;
-use base64::Engine as _;
-use futures::channel::{mpsc, oneshot};
-use futures::future::{LocalBoxFuture, Shared};
-use futures::{FutureExt, StreamExt};
+use futures::channel::mpsc;
+use futures::FutureExt;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Map, Value};
-use tokio::io::AsyncReadExt;
-use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpStream;
 use tokio::task::spawn_local;
-use wsp_core::clock::Cancel as ClockCancel;
 use wsp_core::console::warn;
 use wsp_core::ids::{Ids, OsIds};
-use wsp_core::types::pending::{Clock, DaemonReach};
+use wsp_core::types::pending::DaemonReach;
 use wsp_engine::link_backend::{LinkAsk, LinkBackend};
 use wsp_engine::machine::{Machine, MachineBackend};
 use wsp_engine::place_machine::{PlaceFolderMachine, PlaceMachine};
 use wsp_engine::provision::{EngineStep, ProvisionOn, ProvisionStage, SetupRun};
 use wsp_store::keys::{key_fingerprint, verify_place_bytes, Seal};
 use wsp_wire::types::agents_report::AgentSignInState;
-use wsp_wire::types::recipe_file::{GitHubSignIn, RecipeFile, RecipeFileConfigs, RecipeFileConfigsGithub, NO_RECIPE};
 use wsp_wire::types::place_word::HERE_PLACE_ID;
+use wsp_wire::types::recipe_file::{
+    GitHubSignIn, RecipeFile, RecipeFileConfigs, RecipeFileConfigsGithub, NO_RECIPE,
+};
 use wsp_wire::views::place::{
-    sign_in_row_id, PendingStep, PlaceProvisionRow, PlaceProvisionRowOutcome, PlaceSetupState, PlaceSetupStep, PlaceSyncState, PlaceWaitState,
-    GITHUB_CLI, GITHUB_ROW,
+    sign_in_row_id, PendingStep, PlaceProvisionRow, PlaceProvisionRowOutcome, PlaceSetupState,
+    PlaceSetupStep, PlaceSyncState, PlaceWaitState, GITHUB_CLI, GITHUB_ROW,
 };
 use wsp_wire::views::place_kind::PlaceKind;
-use wsp_wire::views::place_more::{PlaceAbsentEvent, PlaceCap, PlaceCapSet, PlaceChangedEvent, PlaceSettings, PlaceView};
+use wsp_wire::views::place_more::{
+    PlaceAbsentEvent, PlaceCap, PlaceCapSet, PlaceChangedEvent, PlaceSettings, PlaceView,
+};
 use wsp_wire::wire::capabilities::WorkspaceSize;
 use wsp_wire::wire::daemon_events::DaemonEvent;
 use wsp_wire::wire::daemon_version::place_daemon_behind;
-use wsp_wire::wire::machine_link::{no_such_place_refusal, place_forks_nowhere_line, BackendFacts, DaemonResponse, SysSample};
+use wsp_wire::wire::machine_link::{no_such_place_refusal, place_forks_nowhere_line, BackendFacts};
 use wsp_wire::wire::place_link::{
-    PlaceAuthReply, PlaceAuthRefusal, PlaceAuthRequest, PlaceJoinReply, PlaceJoinRequest, PlaceProveRequest, PlaceReport, PLACE_KEY_REFUSAL,
-    PLACE_UNKNOWN_REFUSAL, PLACE_UNSEALED_JOIN_REFUSAL,
+    PlaceAuthRefusal, PlaceAuthReply, PlaceAuthRequest, PlaceJoinReply, PlaceJoinRequest,
+    PlaceProveRequest, PlaceReport, PLACE_KEY_REFUSAL, PLACE_UNKNOWN_REFUSAL,
+    PLACE_UNSEALED_JOIN_REFUSAL,
 };
-use wsp_words::exit::{HostError, Kind};
-use wsp_words::place_word::{cloud_named, names_place, provider_key_name, PlaceRef};
+use wsp_words::exit::HostError;
 use wsp_words::place_state::{place_cap_of, place_turn_limit};
-use wsp_words::workspace_state::absent_computer;
+use wsp_words::place_word::{cloud_named, names_place, provider_key_name, PlaceRef};
 
 use super::context::PlaceDoorContext;
 use super::helpers::{
-    bounded, landed_on, reads_as_ed25519, relisted_logins, shared_logins_script, taken_report, vault_held_line, vault_sign_in,
-    picked_vault, PendingRecord, BACKEND_FACTS_MS, Cancel, Forward, ForwardConn, HeldForward, LandedRow, LinkSocket, Live, LoopbackListener, JOIN_PROVE_MS,
-    LOGINS_READ_MS, PLACE_BAD_KEY_REFUSAL, REPLACED,
+    bounded, landed_on, picked_vault, reads_as_ed25519, relisted_logins, shared_logins_script,
+    taken_report, vault_held_line, vault_sign_in, Forward, HeldForward, LandedRow, LinkSocket,
+    Live, PendingRecord, BACKEND_FACTS_MS, JOIN_PROVE_MS, LOGINS_READ_MS, PLACE_BAD_KEY_REFUSAL,
+    REPLACED,
 };
 use super::pane_ports::{PaneAsker, PaneOnConn, PanePorts, PanePortsDeps};
 use super::readings::{PlaceReadings, Reader, Release};
 use super::setup::{current_folders_of, host_of, iso_at, PlaceSetupArea, SetupRecords};
 use super::types::{
-    is_place_provisioning, place_forks_nowhere, place_provisioning, AuthAnswer, FolderComputer, ForwardAsk, HeldRow, JoinAnswer, PlaceChallenge, PlaceEvent,
-    PlaceExecOpts, PlaceFor, PlaceRecord, PlaceRecordRoad, PlaceResult, Proved, RowId, SetupOn, CAPS, DEFAULT_COLLECTION, DEFAULT_ID,
+    is_place_provisioning, place_forks_nowhere, place_provisioning, AuthAnswer, FolderComputer,
+    ForwardAsk, HeldRow, JoinAnswer, PlaceChallenge, PlaceEvent, PlaceExecOpts, PlaceFor,
+    PlaceRecord, PlaceRecordRoad, PlaceResult, Proved, RowId, SetupOn, CAPS, DEFAULT_COLLECTION,
+    DEFAULT_ID,
 };
 
 /// A join answered and waiting for its prove (views.ts:319).
+mod channel;
+use channel::{every, listen_loopback, run_tunnel, Conns, TunnelConn};
+pub use channel::{ChannelGone, PlaceChannel};
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Joining {
     pub public_key: String,
@@ -89,11 +92,20 @@ pub trait LinkRecords: SetupRecords {
     fn hold_back(&self, record: &PlaceRecord);
     async fn default_id(&self) -> PlaceResult<Option<String>>;
     /// Runs `write` in the records' one turn for the default mark (records.ts:283).
-    async fn in_turn(&self, write: Box<dyn FnOnce() -> futures::future::LocalBoxFuture<'static, PlaceResult<()>>>) -> PlaceResult<()>;
+    async fn in_turn(
+        &self,
+        write: Box<dyn FnOnce() -> futures::future::LocalBoxFuture<'static, PlaceResult<()>>>,
+    ) -> PlaceResult<()>;
     async fn mark_default(&self, place_id: &str) -> PlaceResult<()>;
     async fn mark_held(&self) -> PlaceResult<Option<String>>;
-    fn challenge(&self, subject: &str, their_nonce: &str, their_ephemeral: Option<&str>) -> Option<PlaceChallenge>;
-    fn signed_refusal(&self, place_id: &str, place_nonce: &str, sentence: &str) -> PlaceAuthRefusal;
+    fn challenge(
+        &self,
+        subject: &str,
+        their_nonce: &str,
+        their_ephemeral: Option<&str>,
+    ) -> Option<PlaceChallenge>;
+    fn signed_refusal(&self, place_id: &str, place_nonce: &str, sentence: &str)
+        -> PlaceAuthRefusal;
     async fn write_seen(&self, place_id: &str, at: u64) -> PlaceResult<()>;
     async fn with_cap(&self, row: PlaceView, ids: &[RowId]) -> PlaceResult<PlaceView>;
     async fn row_ids(&self) -> PlaceResult<Vec<RowId>>;
@@ -113,345 +125,29 @@ pub trait LinkViews {
     fn tunnelled(&self, place_id: &str, e: &DaemonEvent) -> bool;
     fn cut(&self, place_id: &str, reason: &str);
     fn joining(&self) -> Rc<RefCell<IndexMap<String, Joining>>>;
-    async fn joined(&self, place_id: &str, pending: Joining, req: PlaceProveRequest, expect: &[u8], from: &str, at: u64) -> PlaceResult<Proved>;
+    async fn joined(
+        &self,
+        place_id: &str,
+        pending: Joining,
+        req: PlaceProveRequest,
+        expect: &[u8],
+        from: &str,
+        at: u64,
+    ) -> PlaceResult<Proved>;
     async fn joined_row(&self, record: &PlaceRecord, marked: &str) -> PlaceResult<PlaceView>;
-}
-
-/// A channel to one computer's daemon over the link it holds (link.ts:232).
-pub struct PlaceChannel {
-    ctx: Rc<PlaceDoorContext>,
-    readings: Rc<PlaceReadings>,
-    setup: Rc<PlaceSetupArea>,
-    place_id: String,
-    link: Rc<dyn DaemonReach>,
-    socket: Rc<dyn LinkSocket>,
-    reader: u64,
-    state: RefCell<ChannelState>,
-}
-
-type HeldWatch = Shared<LocalBoxFuture<'static, Result<Release, HostError>>>;
-
-#[derive(Default)]
-struct ChannelState {
-    close_listener: Option<u64>,
-    readings: Option<HeldWatch>,
-    ended: Option<ChannelGone>,
-    waiting: Vec<oneshot::Sender<ChannelGone>>,
-}
-
-/// How a channel ended: the socket's code and reason, or `1000, "closed here"`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ChannelGone {
-    pub code: u16,
-    pub reason: String,
-}
-
-fn daemon_answer(v: Value) -> PlaceResult<DaemonResponse> {
-    serde_json::from_value(v).map_err(|e| HostError::new(e.to_string()))
-}
-
-fn frame(v: Value) -> Map<String, Value> {
-    match v {
-        Value::Object(map) => map,
-        _ => Map::new(),
-    }
-}
-
-impl PlaceChannel {
-    fn open(door: &LinkDoor, place_id: &str, link: Rc<dyn DaemonReach>, socket: Rc<dyn LinkSocket>, reader: u64) -> Rc<PlaceChannel> {
-        let (ctx, readings, setup) = (Rc::clone(&door.ctx), Rc::clone(&door.readings), Rc::clone(&door.setup));
-        let socket_for_listener = Rc::clone(&socket);
-        Rc::new_cyclic(|me: &Weak<PlaceChannel>| {
-            let on_close = me.clone();
-            let close_listener = socket_for_listener.on_close(Box::new(move |code, reason| {
-                if let Some(channel) = on_close.upgrade() {
-                    channel.gone(code, reason);
-                }
-            }));
-            PlaceChannel {
-                ctx,
-                readings,
-                setup,
-                place_id: place_id.to_string(),
-                link,
-                socket,
-                reader,
-                state: RefCell::new(ChannelState { close_listener: Some(close_listener), ..ChannelState::default() }),
-            }
-        })
-    }
-
-    /// One frame up the link (`op` and the rest its params), `sys.watch` and `sys.unwatch` held here.
-    pub async fn send(self: &Rc<Self>, frame: Map<String, Value>) -> PlaceResult<DaemonResponse> {
-        let mut params = frame;
-        let op = params.shift_remove("op").and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
-        let live = self.ctx.live.borrow().get(&self.place_id).map(|held| Rc::clone(&held.reach));
-        let Some(on) = live.filter(|on| Rc::ptr_eq(on, &self.link)) else {
-            let name = self.ctx.kept.borrow().get(&self.place_id).map(|r| r.name.clone()).unwrap_or_else(|| self.place_id.clone());
-            return Err(HostError::with_kind(absent_computer(&name, None).sentence, Kind::parse("absent")));
-        };
-        if op == "sys.watch" {
-            let answer = self.watch_hold().await;
-            return match answer {
-                Ok(()) => daemon_answer(json!({ "id": null, "ok": true })),
-                Err(e) => daemon_answer(json!({ "id": null, "ok": false, "error": e.message })),
-            };
-        }
-        if op == "sys.unwatch" {
-            self.unhold();
-            return daemon_answer(json!({ "id": null, "ok": true }));
-        }
-        let mut said = on.request(&op, params).await.map_err(|e| HostError::new(e.message))?;
-        said.entry("id").or_insert(Value::Null);
-        daemon_answer(Value::Object(said))
-    }
-
-    /// Settles once with how the channel ended.
-    pub async fn closed(&self) -> ChannelGone {
-        let waiting = {
-            let mut state = self.state.borrow_mut();
-            if let Some(gone) = &state.ended {
-                return gone.clone();
-            }
-            let (tx, rx) = oneshot::channel();
-            state.waiting.push(tx);
-            rx
-        };
-        waiting.await.unwrap_or_else(|_| ChannelGone { code: 1000, reason: "closed here".to_string() })
-    }
-
-    pub fn close(self: &Rc<Self>) {
-        self.forget();
-        self.end(ChannelGone { code: 1000, reason: "closed here".to_string() });
-    }
-
-    /// This channel's hold on the computer's one readings watch, taken once for every `sys.watch` that asks.
-    async fn watch_hold(&self) -> Result<(), HostError> {
-        let standing = self.state.borrow().readings.clone();
-        let held = match standing {
-            Some(held) => held,
-            None => {
-                let held = self.watch_future();
-                self.state.borrow_mut().readings = Some(held.clone());
-                held
-            }
-        };
-        match held.await {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                self.state.borrow_mut().readings = None;
-                Err(e)
-            }
-        }
-    }
-
-    fn watch_future(&self) -> HeldWatch {
-        let readings = Rc::clone(&self.readings);
-        let place = self.place_id.clone();
-        async move { readings.watch(&place, Rc::new(|_: &SysSample| {})).await }.boxed_local().shared()
-    }
-
-    /// The channel's hold let go: the shared watch stops once its last reader has let go too.
-    fn unhold(&self) {
-        let held = self.state.borrow_mut().readings.take();
-        if let Some(held) = held {
-            spawn_local(async move {
-                if let Ok(release) = held.await {
-                    release();
-                }
-            });
-        }
-    }
-
-    /// The channel's reader, its close listener and its hold come off with the channel.
-    fn forget(&self) {
-        let listener = self.state.borrow_mut().close_listener.take();
-        {
-            let mut channels = self.setup.channels.borrow_mut();
-            let emptied = match channels.get_mut(&self.place_id) {
-                Some(readers) => {
-                    readers.shift_remove(&self.reader);
-                    readers.is_empty()
-                }
-                None => false,
-            };
-            if emptied {
-                channels.shift_remove(&self.place_id);
-            }
-        }
-        if let Some(id) = listener {
-            self.socket.off_close(id);
-        }
-        self.unhold();
-    }
-
-    fn gone(&self, code: u16, reason: String) {
-        self.forget();
-        self.end(ChannelGone { code, reason });
-    }
-
-    fn end(&self, gone: ChannelGone) {
-        let waiting = {
-            let mut state = self.state.borrow_mut();
-            if state.ended.is_some() {
-                return;
-            }
-            state.ended = Some(gone.clone());
-            std::mem::take(&mut state.waiting)
-        };
-        for tx in waiting {
-            let _ = tx.send(gone.clone());
-        }
-    }
-}
-
-/// One connection riding a forward: the bytes the far side sends it, and what ends it.
-enum Inbound {
-    Bytes(Vec<u8>),
-    End,
-    Destroy,
-}
-
-struct TunnelConn {
-    inbound: mpsc::UnboundedSender<Inbound>,
-}
-
-impl ForwardConn for TunnelConn {
-    fn write(&self, bytes: &[u8]) {
-        let _ = self.inbound.unbounded_send(Inbound::Bytes(bytes.to_vec()));
-    }
-    fn end(&self) {
-        let _ = self.inbound.unbounded_send(Inbound::End);
-    }
-    fn destroy(&self) {
-        let _ = self.inbound.unbounded_send(Inbound::Destroy);
-    }
-}
-
-type Conns = Rc<RefCell<IndexMap<String, Rc<dyn ForwardConn>>>>;
-
-/// Runs one tunnel's connection: the open, the bytes each way, then the close the far side is told of.
-async fn run_tunnel(conn: TcpStream, mut inbound: mpsc::UnboundedReceiver<Inbound>, reach: Rc<dyn DaemonReach>, into: Conns, id: String, port: u16, used: Option<Rc<dyn Fn()>>) {
-    let opened = reach.request("tunnel.open", frame(json!({ "tunnelId": id, "port": port }))).await;
-    if opened.is_ok() {
-        let (mut rd, mut wr) = conn.into_split();
-        pump(&mut rd, &mut wr, &mut inbound, &reach, &id).await;
-    }
-    into.borrow_mut().shift_remove(&id);
-    if let Some(used) = &used {
-        used();
-    }
-    let _ = reach.request("tunnel.close", frame(json!({ "tunnelId": id }))).await;
-}
-
-async fn read_chunk(rd: &mut OwnedReadHalf) -> std::io::Result<Vec<u8>> {
-    let mut buf = vec![0u8; 16 * 1024];
-    let n = rd.read(&mut buf).await?;
-    buf.truncate(n);
-    Ok(buf)
-}
-
-/// Carries bytes both ways until either end of the connection ends or fails.
-async fn pump(rd: &mut OwnedReadHalf, wr: &mut OwnedWriteHalf, inbound: &mut mpsc::UnboundedReceiver<Inbound>, reach: &Rc<dyn DaemonReach>, id: &str) {
-    use tokio::io::AsyncWriteExt;
-    loop {
-        tokio::select! {
-            chunk = read_chunk(rd) => match chunk {
-                Ok(bytes) if !bytes.is_empty() => {
-                    let data = base64::engine::general_purpose::STANDARD.encode(&bytes);
-                    if reach.request("tunnel.write", frame(json!({ "tunnelId": id, "data": data }))).await.is_err() {
-                        return;
-                    }
-                }
-                _ => return,
-            },
-            msg = inbound.next() => match msg {
-                Some(Inbound::Bytes(bytes)) => {
-                    if wr.write_all(&bytes).await.is_err() {
-                        return;
-                    }
-                }
-                Some(Inbound::End) => {
-                    let _ = wr.shutdown().await;
-                }
-                Some(Inbound::Destroy) | None => return,
-            },
-        }
-    }
-}
-
-/// Listens on loopback on a port the system picks, handing each connection to `on_conn` (link.ts:489).
-async fn listen_loopback(on_conn: Rc<dyn Fn(TcpStream)>) -> Result<(Rc<LoopbackListener>, u16), HostError> {
-    let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).await.map_err(|e| HostError::new(e.to_string()))?;
-    let addr = listener.local_addr().map_err(|e| HostError::new(e.to_string()))?;
-    let slot = Rc::new(RefCell::new(Some(listener)));
-    let task = spawn_local({
-        let slot = Rc::clone(&slot);
-        async move {
-            while let Some(stream) = accept_next(&slot).await {
-                on_conn(stream);
-            }
-        }
-    });
-    let stop = task.abort_handle();
-    let close: Box<dyn FnOnce()> = Box::new(move || {
-        let listener = slot.borrow_mut().take();
-        drop(listener);
-        stop.abort();
-    });
-    Ok((Rc::new(LoopbackListener { addr, close: RefCell::new(Some(close)) }), addr.port()))
-}
-
-async fn accept_next(slot: &RefCell<Option<TcpListener>>) -> Option<TcpStream> {
-    poll_fn(|cx| {
-        let held = slot.borrow();
-        let Some(listener) = held.as_ref() else {
-            return Poll::Ready(None);
-        };
-        match listener.poll_accept(cx) {
-            Poll::Ready(Ok((stream, _))) => Poll::Ready(Some(stream)),
-            Poll::Ready(Err(_)) => Poll::Ready(None),
-            Poll::Pending => Poll::Pending,
-        }
-    })
-    .await
-}
-
-/// Runs `tick` every `ms` on `clock` until the answer runs (the TS interval and its `clearInterval`).
-fn every(clock: Rc<dyn Clock>, ms: u64, tick: Rc<dyn Fn()>) -> Cancel {
-    let stopped = Rc::new(Cell::new(false));
-    let armed: Rc<RefCell<Option<ClockCancel>>> = Rc::new(RefCell::new(None));
-    arm(clock, ms, tick, Rc::clone(&stopped), Rc::clone(&armed));
-    Box::new(move || {
-        stopped.set(true);
-        let cancel = armed.borrow_mut().take();
-        if let Some(cancel) = cancel {
-            cancel();
-        }
-    })
-}
-
-fn arm(clock: Rc<dyn Clock>, ms: u64, tick: Rc<dyn Fn()>, stopped: Rc<Cell<bool>>, armed: Rc<RefCell<Option<ClockCancel>>>) {
-    let next = (Rc::clone(&clock), Rc::clone(&tick), Rc::clone(&stopped), Rc::clone(&armed));
-    let cancel = clock.schedule(
-        Box::new(move || {
-            let (clock, tick, stopped, armed) = next;
-            if stopped.get() {
-                return;
-            }
-            tick();
-            arm(clock, ms, tick, stopped, armed);
-        }),
-        ms as i64,
-    );
-    *armed.borrow_mut() = Some(cancel);
 }
 
 /// The one picked-up cap of a row of `kind` on `shape`, read as `placeCapOf` reads it (place-state.ts:241).
 fn cap_of(kind: &str, shape: Option<WorkspaceSize>, settings: &PlaceSettings) -> Option<PlaceCap> {
-    let mut view: PlaceView = serde_json::from_value(json!({ "id": "", "kind": kind, "name": "", "default": false })).ok()?;
+    let mut view: PlaceView =
+        serde_json::from_value(json!({ "id": "", "kind": kind, "name": "", "default": false }))
+            .ok()?;
     view.shape = shape;
-    let set = PlaceCapSet { threads: settings.threads, machines: settings.machines, spend_per_day_usd: settings.spend_per_day_usd };
+    let set = PlaceCapSet {
+        threads: settings.threads,
+        machines: settings.machines,
+        spend_per_day_usd: settings.spend_per_day_usd,
+    };
     place_cap_of(&view, Some(&set))
 }
 
@@ -475,21 +171,41 @@ fn picks_named(name: &str) -> Option<RecipeFile> {
 
 /// One read of a place's backend facts, kept on its record if the daemon that answered is still the one there
 /// (link.ts:439-447).
-async fn read_facts(door: &Rc<LinkDoor>, place_id: &str, record: &PlaceRecord) -> PlaceResult<Arc<dyn MachineBackend>> {
+async fn read_facts(
+    door: &Rc<LinkDoor>,
+    place_id: &str,
+    record: &PlaceRecord,
+) -> PlaceResult<Arc<dyn MachineBackend>> {
     let link = door.setup.link_to(place_id);
     let asked = {
         let link = Arc::clone(&link);
-        async move { link.request("machine.backend", Map::new(), LinkAsk::default()).await.map_err(|e| host_of(&e)) }
+        async move {
+            link.request("machine.backend", Map::new(), LinkAsk::default())
+                .await
+                .map_err(|e| host_of(&e))
+        }
     };
-    let answer = bounded(&*door.ctx.clock, asked, BACKEND_FACTS_MS, &format!("machine.backend on {}", record.name)).await?;
-    let facts: BackendFacts = serde_json::from_value(Value::Object(answer)).map_err(|e| HostError::new(e.to_string()))?;
+    let answer = bounded(
+        &*door.ctx.clock,
+        asked,
+        BACKEND_FACTS_MS,
+        &format!("machine.backend on {}", record.name),
+    )
+    .await?;
+    let facts: BackendFacts =
+        serde_json::from_value(Value::Object(answer)).map_err(|e| HostError::new(e.to_string()))?;
     let stamp = facts.clone();
     let daemon = record.report.daemon_version;
     let wrote = door
         .records
         .change(
             place_id,
-            Box::new(move |now: &PlaceRecord| (now.report.daemon_version == daemon).then(|| PlaceRecord { backend_facts: Some(stamp), ..now.clone() })),
+            Box::new(move |now: &PlaceRecord| {
+                (now.report.daemon_version == daemon).then(|| PlaceRecord {
+                    backend_facts: Some(stamp),
+                    ..now.clone()
+                })
+            }),
         )
         .await?;
     Ok(match wrote {
@@ -507,7 +223,8 @@ pub struct LinkDoor {
     pub panes: Rc<PanePorts>,
     pub readings: Rc<PlaceReadings>,
     /// One folder machine per place while its home and PATH stand, keyed `"{home}\0{path}"`.
-    folder_machines: RefCell<IndexMap<String, (String, Arc<wsp_engine::place_machine::PlaceFolderMachine>)>>,
+    folder_machines:
+        RefCell<IndexMap<String, (String, Arc<wsp_engine::place_machine::PlaceFolderMachine>)>>,
     /// The tunnel counter, one per door, from 1.
     tunnel_seq: Cell<u64>,
     /// The channel reader counter, one per door, from 1.
@@ -515,8 +232,16 @@ pub struct LinkDoor {
 }
 
 impl LinkDoor {
-    pub fn new(ctx: Rc<PlaceDoorContext>, records: Rc<dyn LinkRecords>, setup: Rc<PlaceSetupArea>, views: Rc<dyn LinkViews>) -> Rc<LinkDoor> {
-        let panes = PanePorts::new(PanePortsDeps { forwards: Rc::clone(&ctx.forwards), clock: Rc::clone(&ctx.clock) });
+    pub fn new(
+        ctx: Rc<PlaceDoorContext>,
+        records: Rc<dyn LinkRecords>,
+        setup: Rc<PlaceSetupArea>,
+        views: Rc<dyn LinkViews>,
+    ) -> Rc<LinkDoor> {
+        let panes = PanePorts::new(PanePortsDeps {
+            forwards: Rc::clone(&ctx.forwards),
+            clock: Rc::clone(&ctx.clock),
+        });
         let readings = PlaceReadings::new(Rc::clone(&ctx));
         Rc::new(LinkDoor {
             ctx,
@@ -552,7 +277,8 @@ impl LinkDoor {
                         place_id,
                         Box::new(move |now: &PlaceRecord| {
                             let applied = now.applied.as_ref()?;
-                            let plain: Vec<PlaceProvisionRow> = applied.rows.iter().map(|r| r.row.clone()).collect();
+                            let plain: Vec<PlaceProvisionRow> =
+                                applied.rows.iter().map(|r| r.row.clone()).collect();
                             let rows = landed_on(&plain, &row)?;
                             flag.set(true);
                             let held = rows
@@ -560,7 +286,11 @@ impl LinkDoor {
                                 .enumerate()
                                 .map(|(at, landed_row)| match applied.rows.get(at) {
                                     Some(stood) if stood.row == landed_row => stood.clone(),
-                                    _ => HeldRow { row: landed_row, pick: None, created_at: None },
+                                    _ => HeldRow {
+                                        row: landed_row,
+                                        pick: None,
+                                        created_at: None,
+                                    },
                                 })
                                 .collect();
                             let mut next = now.clone();
@@ -574,21 +304,36 @@ impl LinkDoor {
             }
         };
         if let (Some(moved), true) = (moved, landed.get()) {
-            let marked = self.records.mark_held().await?.unwrap_or_else(|| HERE_PLACE_ID.to_string());
+            let marked = self
+                .records
+                .mark_held()
+                .await?
+                .unwrap_or_else(|| HERE_PLACE_ID.to_string());
             let view = self.views.joined_row(&moved, &marked).await?;
             let ids = self.records.row_ids().await?;
             let place = self.records.with_cap(view, &ids).await?;
-            self.ctx.emit(&PlaceEvent::Changed(PlaceChangedEvent { place }));
+            self.ctx
+                .emit(&PlaceEvent::Changed(PlaceChangedEvent { place }));
         }
         Ok(())
     }
 
-    pub fn answer_challenge(&self, subject: &str, nonce: &str, ephemeral: Option<&str>) -> Option<PlaceChallenge> {
+    pub fn answer_challenge(
+        &self,
+        subject: &str,
+        nonce: &str,
+        ephemeral: Option<&str>,
+    ) -> Option<PlaceChallenge> {
         self.records.challenge(subject, nonce, ephemeral)
     }
 
     /// link.ts:82. `id` draws 8 random bytes through the clock's ids seam.
-    pub async fn join(self: &Rc<Self>, req: PlaceJoinRequest, from: &str, at: u64) -> PlaceResult<JoinAnswer> {
+    pub async fn join(
+        self: &Rc<Self>,
+        req: PlaceJoinRequest,
+        from: &str,
+        at: u64,
+    ) -> PlaceResult<JoinAnswer> {
         let _ = from;
         let public_key = req.public_key.as_str().to_string();
         if !reads_as_ed25519(&public_key) {
@@ -597,7 +342,10 @@ impl LinkDoor {
         let id = format!("p_{}", hex::encode(OsIds.bytes(8)));
         let nonce = req.nonce.as_str().to_string();
         let ephemeral = req.ephemeral.as_ref().map(|e| e.as_str().to_string());
-        let opened = self.records.challenge(&id, &nonce, ephemeral.as_deref()).ok_or_else(|| HostError::new(PLACE_UNSEALED_JOIN_REFUSAL))?;
+        let opened = self
+            .records
+            .challenge(&id, &nonce, ephemeral.as_deref())
+            .ok_or_else(|| HostError::new(PLACE_UNSEALED_JOIN_REFUSAL))?;
         let joining = self.views.joining();
         {
             let mut held = joining.borrow_mut();
@@ -613,7 +361,12 @@ impl LinkDoor {
             "hostName": (self.ctx.wiring.host_name)(),
         }))
         .map_err(|e| HostError::new(e.to_string()))?;
-        Ok(JoinAnswer { reply, expect: opened.expect, seal: opened.seal, notice: None })
+        Ok(JoinAnswer {
+            reply,
+            expect: opened.expect,
+            seal: opened.seal,
+            notice: None,
+        })
     }
 
     /// link.ts:102.
@@ -622,12 +375,20 @@ impl LinkDoor {
         let nonce = req.nonce.as_str().to_string();
         let ephemeral = req.ephemeral.as_ref().map(|e| e.as_str().to_string());
         let Some(held) = self.records.record_of(&place).await? else {
-            let signed = self.records.signed_refusal(&place, &nonce, PLACE_UNKNOWN_REFUSAL);
-            return Ok(AuthAnswer::Refusal { refusal: PLACE_UNKNOWN_REFUSAL.to_string(), signed });
+            let signed = self
+                .records
+                .signed_refusal(&place, &nonce, PLACE_UNKNOWN_REFUSAL);
+            return Ok(AuthAnswer::Refusal {
+                refusal: PLACE_UNKNOWN_REFUSAL.to_string(),
+                signed,
+            });
         };
         let Some(opened) = self.records.challenge(&place, &nonce, ephemeral.as_deref()) else {
-            let behind = place_daemon_behind(Some(held.report.daemon_version.as_f64() as i64)).unwrap_or_default();
-            return Err(HostError::new(wsp_wire::wire::daemon_version::place_behind_line(&held.name, &behind)));
+            let behind = place_daemon_behind(Some(held.report.daemon_version.as_f64() as i64))
+                .unwrap_or_default();
+            return Err(HostError::new(
+                wsp_wire::wire::daemon_version::place_behind_line(&held.name, &behind),
+            ));
         };
         let reply = serde_json::from_value::<PlaceAuthReply>(json!({
             "nonce": opened.nonce,
@@ -636,7 +397,11 @@ impl LinkDoor {
             "ephemeral": opened.ephemeral,
         }))
         .map_err(|e| HostError::new(e.to_string()))?;
-        Ok(AuthAnswer::Reply { reply, expect: opened.expect, seal: opened.seal })
+        Ok(AuthAnswer::Reply {
+            reply,
+            expect: opened.expect,
+            seal: opened.seal,
+        })
     }
 
     /// link.ts:116.
@@ -645,12 +410,24 @@ impl LinkDoor {
     }
 
     /// link.ts:120.
-    pub async fn prove(self: &Rc<Self>, place_id: &str, req: PlaceProveRequest, expect: &[u8], from: &str, at: u64) -> PlaceResult<Proved> {
+    pub async fn prove(
+        self: &Rc<Self>,
+        place_id: &str,
+        req: PlaceProveRequest,
+        expect: &[u8],
+        from: &str,
+        at: u64,
+    ) -> PlaceResult<Proved> {
         let pending = self.views.joining().borrow().get(place_id).cloned();
         if let Some(pending) = pending {
-            return self.views.joined(place_id, pending, req, expect, from, at).await;
+            return self
+                .views
+                .joined(place_id, pending, req, expect, from, at)
+                .await;
         }
-        let refused = Proved::Refusal { refusal: PLACE_KEY_REFUSAL.to_string() };
+        let refused = Proved::Refusal {
+            refusal: PLACE_KEY_REFUSAL.to_string(),
+        };
         let Some(held) = self.records.record_of(place_id).await? else {
             return Ok(refused);
         };
@@ -658,13 +435,24 @@ impl LinkDoor {
             return Ok(refused);
         }
         match taken_report(&req.report) {
-            Ok(report) => Ok(Proved::Report { report, device: None }),
+            Ok(report) => Ok(Proved::Report {
+                report,
+                device: None,
+            }),
             Err(e) => Ok(Proved::Refusal { refusal: e.message }),
         }
     }
 
     /// link.ts:137.
-    pub async fn attach(self: &Rc<Self>, place_id: &str, socket: Rc<dyn LinkSocket>, report: PlaceReport, from: &str, at: u64, seal: Option<Seal>) -> PlaceResult<()> {
+    pub async fn attach(
+        self: &Rc<Self>,
+        place_id: &str,
+        socket: Rc<dyn LinkSocket>,
+        report: PlaceReport,
+        from: &str,
+        at: u64,
+        seal: Option<Seal>,
+    ) -> PlaceResult<()> {
         self.views.cut(place_id, REPLACED);
         if self.records.record_of(place_id).await?.is_none() {
             socket.close(1000, "this host no longer holds that place");
@@ -680,7 +468,10 @@ impl LinkDoor {
                     place_id,
                     Box::new(move |now: &PlaceRecord| {
                         newer.set(now.report.daemon_version != report.daemon_version);
-                        let road = PlaceRecordRoad { from: Some(from), ..now.road.clone().unwrap_or_default() };
+                        let road = PlaceRecordRoad {
+                            from: Some(from),
+                            ..now.road.clone().unwrap_or_default()
+                        };
                         let mut next = PlaceRecord {
                             report,
                             last_seen_at: stamp_seen,
@@ -706,8 +497,20 @@ impl LinkDoor {
             self.ctx.asking.borrow_mut().shift_remove(place_id);
         }
         let reach = Rc::clone(&socket).connect(seal, self.route_into(place_id));
-        let seen = every(Rc::clone(&self.ctx.clock), self.ctx.seen_every_ms, self.seen_tick(place_id));
-        self.ctx.live.borrow_mut().insert(place_id.to_string(), Live { socket: Rc::clone(&socket), reach: Rc::clone(&reach), seen, forward: None });
+        let seen = every(
+            Rc::clone(&self.ctx.clock),
+            self.ctx.seen_every_ms,
+            self.seen_tick(place_id),
+        );
+        self.ctx.live.borrow_mut().insert(
+            place_id.to_string(),
+            Live {
+                socket: Rc::clone(&socket),
+                reach: Rc::clone(&reach),
+                seen,
+                forward: None,
+            },
+        );
         self.readings.linked(place_id);
         self.setup.woken(place_id, true);
         {
@@ -716,7 +519,10 @@ impl LinkDoor {
             spawn_local(async move {
                 if let Err(e) = door.forking_backend(&place).await {
                     if !is_place_provisioning(&e) {
-                        warn(&format!("{name} did not say what it forks with: {}", e.message));
+                        warn(&format!(
+                            "{name} did not say what it forks with: {}",
+                            e.message
+                        ));
                     }
                 }
             });
@@ -733,20 +539,38 @@ impl LinkDoor {
         }
         let current = self.records.record_of(place_id).await?;
         match current {
-            Some(current) if current.setup.as_ref().is_some_and(|s| s.state == PlaceSetupState::Running) && !self.setup.setting.borrow().contains(place_id) => {
-                let add_id = current.setup.as_ref().map(|s| s.add_id.clone()).unwrap_or_default();
+            Some(current)
+                if current
+                    .setup
+                    .as_ref()
+                    .is_some_and(|s| s.state == PlaceSetupState::Running)
+                    && !self.setup.setting.borrow().contains(place_id) =>
+            {
+                let add_id = current
+                    .setup
+                    .as_ref()
+                    .map(|s| s.add_id.clone())
+                    .unwrap_or_default();
                 let (setup, place) = (Rc::clone(&self.setup), place_id.to_string());
                 spawn_local(async move {
                     setup.started_or_said(&place, &add_id, None).await;
                 });
             }
-            Some(current) if current.recipe.as_deref().is_some_and(|r| r != NO_RECIPE) && current.setup.as_ref().is_some_and(|s| s.state == PlaceSetupState::Done) => {
+            Some(current)
+                if current.recipe.as_deref().is_some_and(|r| r != NO_RECIPE)
+                    && current
+                        .setup
+                        .as_ref()
+                        .is_some_and(|s| s.state == PlaceSetupState::Done) =>
+            {
                 self.setup.sync_soon(place_id, 0);
             }
             _ => {}
         }
         for pending in self.views.pending_records().await? {
-            if pending.view.place_id.as_deref() != Some(place_id) || pending.view.step != PendingStep::Floor {
+            if pending.view.place_id.as_deref() != Some(place_id)
+                || pending.view.step != PendingStep::Floor
+            {
                 continue;
             }
             if self.views.flooring().borrow().contains(&pending.view.id) {
@@ -775,7 +599,12 @@ impl LinkDoor {
         if self.views.tunnelled(place_id, e) {
             return;
         }
-        let forward: Option<HeldForward> = self.ctx.live.borrow().get(place_id).and_then(|held| held.forward.clone());
+        let forward: Option<HeldForward> = self
+            .ctx
+            .live
+            .borrow()
+            .get(place_id)
+            .and_then(|held| held.forward.clone());
         if let Some(forward) = forward {
             let e = e.clone();
             spawn_local(async move {
@@ -785,7 +614,13 @@ impl LinkDoor {
             });
         }
         self.readings.heard(place_id, e);
-        let readers: Vec<Rc<dyn Fn(&Map<String, Value>)>> = self.setup.channels.borrow().get(place_id).map(|m| m.values().cloned().collect()).unwrap_or_default();
+        let readers: Vec<Rc<dyn Fn(&Map<String, Value>)>> = self
+            .setup
+            .channels
+            .borrow()
+            .get(place_id)
+            .map(|m| m.values().cloned().collect())
+            .unwrap_or_default();
         if !readers.is_empty() {
             if let Ok(Value::Object(as_map)) = serde_json::to_value(e) {
                 for read in readers {
@@ -816,7 +651,9 @@ impl LinkDoor {
     fn attach_closed(&self, place_id: &str, socket: &Rc<dyn LinkSocket>) {
         let mine = {
             let mut live = self.ctx.live.borrow_mut();
-            let current = live.get(place_id).is_some_and(|held| Rc::ptr_eq(&held.socket, socket));
+            let current = live
+                .get(place_id)
+                .is_some_and(|held| Rc::ptr_eq(&held.socket, socket));
             if current {
                 live.shift_remove(place_id)
             } else {
@@ -826,7 +663,10 @@ impl LinkDoor {
         let Some(mine) = mine else {
             return;
         };
-        self.setup.closed_at.borrow_mut().insert(place_id.to_string(), self.ctx.clock.now() as u64);
+        self.setup
+            .closed_at
+            .borrow_mut()
+            .insert(place_id.to_string(), self.ctx.clock.now() as u64);
         (mine.seen)();
         if let Some(forward) = mine.forward {
             spawn_local(async move {
@@ -837,7 +677,10 @@ impl LinkDoor {
         }
         mine.reach.close();
         self.write_seen_later(place_id);
-        self.ctx.emit(&PlaceEvent::Absent(PlaceAbsentEvent { place_id: place_id.to_string(), said: None }));
+        self.ctx.emit(&PlaceEvent::Absent(PlaceAbsentEvent {
+            place_id: place_id.to_string(),
+            said: None,
+        }));
     }
 
     fn write_seen_later(&self, place_id: &str) {
@@ -851,7 +694,11 @@ impl LinkDoor {
 
     /// link.ts:228.
     pub fn link(&self, place_id: &str) -> Option<Rc<dyn DaemonReach>> {
-        self.ctx.live.borrow().get(place_id).map(|held| Rc::clone(&held.reach))
+        self.ctx
+            .live
+            .borrow()
+            .get(place_id)
+            .map(|held| Rc::clone(&held.reach))
     }
 
     /// link.ts:230.
@@ -860,11 +707,25 @@ impl LinkDoor {
     }
 
     /// link.ts:232.
-    pub fn channel(self: &Rc<Self>, place_id: &str, on_event: Rc<dyn Fn(&Map<String, Value>)>) -> Option<Rc<PlaceChannel>> {
-        let (link, socket) = self.ctx.live.borrow().get(place_id).map(|held| (Rc::clone(&held.reach), Rc::clone(&held.socket)))?;
+    pub fn channel(
+        self: &Rc<Self>,
+        place_id: &str,
+        on_event: Rc<dyn Fn(&Map<String, Value>)>,
+    ) -> Option<Rc<PlaceChannel>> {
+        let (link, socket) = self
+            .ctx
+            .live
+            .borrow()
+            .get(place_id)
+            .map(|held| (Rc::clone(&held.reach), Rc::clone(&held.socket)))?;
         let reader = self.reader_seq.get() + 1;
         self.reader_seq.set(reader);
-        self.setup.channels.borrow_mut().entry(place_id.to_string()).or_default().insert(reader, on_event);
+        self.setup
+            .channels
+            .borrow_mut()
+            .entry(place_id.to_string())
+            .or_default()
+            .insert(reader, on_event);
         Some(PlaceChannel::open(self, place_id, link, socket, reader))
     }
 
@@ -872,46 +733,92 @@ impl LinkDoor {
     pub async fn load(self: &Rc<Self>) -> PlaceResult<()> {
         for place_id in self.ctx.store.keys(CAPS).await? {
             let settings = self.records.settings_of(&place_id).await?;
-            self.records.settings_held().borrow_mut().insert(place_id, settings);
+            self.records
+                .settings_held()
+                .borrow_mut()
+                .insert(place_id, settings);
         }
         for record in self.records.records().await? {
-            self.ctx.kept.borrow_mut().insert(record.id.clone(), record.clone());
+            self.ctx
+                .kept
+                .borrow_mut()
+                .insert(record.id.clone(), record.clone());
             if let Some(facts) = record.backend_facts.clone() {
                 if !self.ctx.backends.borrow().contains_key(&record.id) {
                     self.views.backend_from(&record.id, facts);
                 }
             }
             self.records.hold_back(&record);
-            if record.setup.as_ref().is_some_and(|s| s.state != PlaceSetupState::Running && s.waiting.iter().any(|w| w.state == PlaceWaitState::Waiting)) {
+            if record.setup.as_ref().is_some_and(|s| {
+                s.state != PlaceSetupState::Running
+                    && s.waiting.iter().any(|w| w.state == PlaceWaitState::Waiting)
+            }) {
                 self.records
                     .change(
                         &record.id,
                         Box::new(|now: &PlaceRecord| {
                             let setup = now.setup.clone()?;
-                            let waiting = setup.waiting.iter().cloned().map(|w| wsp_wire::views::place::PlaceWait { state: PlaceWaitState::Expired, ..w }).collect();
-                            Some(PlaceRecord { setup: Some(wsp_wire::views::place::PlaceSetup { waiting, ..setup }), ..now.clone() })
+                            let waiting = setup
+                                .waiting
+                                .iter()
+                                .cloned()
+                                .map(|w| wsp_wire::views::place::PlaceWait {
+                                    state: PlaceWaitState::Expired,
+                                    ..w
+                                })
+                                .collect();
+                            Some(PlaceRecord {
+                                setup: Some(wsp_wire::views::place::PlaceSetup {
+                                    waiting,
+                                    ..setup
+                                }),
+                                ..now.clone()
+                            })
                         }),
                     )
                     .await?;
             }
-            if record.sync.as_ref().is_some_and(|s| s.state == PlaceSyncState::Running) {
+            if record
+                .sync
+                .as_ref()
+                .is_some_and(|s| s.state == PlaceSyncState::Running)
+            {
                 self.records
                     .change(
                         &record.id,
                         Box::new(|now: &PlaceRecord| {
-                            let sync = now.sync.clone().filter(|s| s.state == PlaceSyncState::Running)?;
-                            Some(PlaceRecord { sync: Some(wsp_wire::views::place::PlaceSync { state: PlaceSyncState::Behind, ..sync }), ..now.clone() })
+                            let sync = now
+                                .sync
+                                .clone()
+                                .filter(|s| s.state == PlaceSyncState::Running)?;
+                            Some(PlaceRecord {
+                                sync: Some(wsp_wire::views::place::PlaceSync {
+                                    state: PlaceSyncState::Behind,
+                                    ..sync
+                                }),
+                                ..now.clone()
+                            })
                         }),
                     )
                     .await?;
             }
         }
         for pending in self.views.pending_records().await? {
-            if pending.view.step != PendingStep::Wsp || pending.view.place_id.is_some() || pending.view.failed.is_some() {
+            if pending.view.step != PendingStep::Wsp
+                || pending.view.place_id.is_some()
+                || pending.view.failed.is_some()
+            {
                 continue;
             }
             let joined = pending.login.as_ref().and_then(|login| {
-                self.ctx.kept.borrow().values().find(|r| r.road.as_ref().and_then(|road| road.ssh.as_deref()) == Some(login.as_str())).map(|r| r.id.clone())
+                self.ctx
+                    .kept
+                    .borrow()
+                    .values()
+                    .find(|r| {
+                        r.road.as_ref().and_then(|road| road.ssh.as_deref()) == Some(login.as_str())
+                    })
+                    .map(|r| r.id.clone())
             });
             if let Some(joined) = joined {
                 let mut next = pending;
@@ -941,7 +848,12 @@ impl LinkDoor {
 
     /// link.ts:319.
     pub fn settings_at(&self, place_id: &str) -> PlaceSettings {
-        self.records.settings_held().borrow().get(place_id).cloned().unwrap_or_else(empty_settings)
+        self.records
+            .settings_held()
+            .borrow()
+            .get(place_id)
+            .cloned()
+            .unwrap_or_else(empty_settings)
     }
 
     /// link.ts:321. `None` no row; `Some(None)` no limit.
@@ -964,7 +876,11 @@ impl LinkDoor {
         let shape = if place_id == HERE_PLACE_ID {
             (self.ctx.wiring.here)().shape
         } else {
-            self.ctx.kept.borrow().get(place_id).map(|r| r.report.shape.clone())
+            self.ctx
+                .kept
+                .borrow()
+                .get(place_id)
+                .map(|r| r.report.shape.clone())
         };
         match cap_of("computer", shape, &self.settings_at(place_id))? {
             PlaceCap::ComputerCap(cap) => Some(cap.threads.as_f64() as u64),
@@ -984,13 +900,26 @@ impl LinkDoor {
     }
 
     /// link.ts:339.
-    pub fn sign_ins_at(&self, place_id: &str, agents: Option<&[String]>) -> Option<IndexMap<String, AgentSignInState>> {
+    pub fn sign_ins_at(
+        &self,
+        place_id: &str,
+        agents: Option<&[String]>,
+    ) -> Option<IndexMap<String, AgentSignInState>> {
         self.ctx.sign_ins_here(place_id, agents)
     }
 
     /// link.ts:341.
-    pub fn vault_at(&self, place_id: &str, vault: &IndexMap<String, String>) -> IndexMap<String, String> {
-        let picks = self.ctx.kept.borrow().get(place_id).and_then(|r| r.picks.clone());
+    pub fn vault_at(
+        &self,
+        place_id: &str,
+        vault: &IndexMap<String, String>,
+    ) -> IndexMap<String, String> {
+        let picks = self
+            .ctx
+            .kept
+            .borrow()
+            .get(place_id)
+            .and_then(|r| r.picks.clone());
         picked_vault(vault, picks.as_ref())
     }
 
@@ -1004,13 +933,22 @@ impl LinkDoor {
             return false;
         };
         let vault_signed = github.signin.unwrap_or(GitHubSignIn::Vault) == GitHubSignIn::Vault;
-        vault_signed && held.applied.as_ref().is_some_and(|a| a.rows.iter().any(|r| r.row.id == GITHUB_ROW && r.row.outcome == PlaceProvisionRowOutcome::Present))
+        vault_signed
+            && held.applied.as_ref().is_some_and(|a| {
+                a.rows.iter().any(|r| {
+                    r.row.id == GITHUB_ROW && r.row.outcome == PlaceProvisionRowOutcome::Present
+                })
+            })
     }
 
     /// link.ts:351.
     pub async fn login_landed(self: &Rc<Self>, place_id: &str, agent: &str) -> PlaceResult<()> {
         self.records.login_listed(place_id, agent).await?;
-        let id = if agent == GITHUB_CLI { GITHUB_ROW.to_string() } else { sign_in_row_id(agent) };
+        let id = if agent == GITHUB_CLI {
+            GITHUB_ROW.to_string()
+        } else {
+            sign_in_row_id(agent)
+        };
         let row = PlaceProvisionRow {
             id,
             label: String::new(),
@@ -1024,12 +962,19 @@ impl LinkDoor {
             earlier: None,
             project: None,
         };
-        self.land_sign_in(place_id, LandedRow { row, label: None }).await
+        self.land_sign_in(place_id, LandedRow { row, label: None })
+            .await
     }
 
     /// link.ts:356.
     pub async fn logins_again(self: &Rc<Self>, place_id: &str) -> PlaceResult<()> {
-        let logins = self.ctx.kept.borrow().get(place_id).and_then(|r| r.backend_facts.as_ref()).and_then(|f| f.logins.clone());
+        let logins = self
+            .ctx
+            .kept
+            .borrow()
+            .get(place_id)
+            .and_then(|r| r.backend_facts.as_ref())
+            .and_then(|f| f.logins.clone());
         let Some(logins) = logins else {
             return Ok(());
         };
@@ -1037,21 +982,38 @@ impl LinkDoor {
             return Ok(());
         }
         let door = self.ctx.door();
-        let exec = PlaceExecOpts { timeout_ms: Some(LOGINS_READ_MS), stdin: None };
-        let Ok(res) = door.exec(place_id, &shared_logins_script(&logins), exec).await else {
+        let exec = PlaceExecOpts {
+            timeout_ms: Some(LOGINS_READ_MS),
+            stdin: None,
+        };
+        let Ok(res) = door
+            .exec(place_id, &shared_logins_script(&logins), exec)
+            .await
+        else {
             return Ok(());
         };
         if res.exit_code.as_f64() != 0.0 {
             return Ok(());
         }
-        let found: Vec<String> = res.stdout.split('\n').filter(|line| !line.is_empty()).map(str::to_string).collect();
+        let found: Vec<String> = res
+            .stdout
+            .split('\n')
+            .filter(|line| !line.is_empty())
+            .map(str::to_string)
+            .collect();
         self.records
             .change(
                 place_id,
                 Box::new(move |now: &PlaceRecord| {
                     let listed = now.report.logins.as_ref()?;
                     let next = relisted_logins(listed, &found)?;
-                    Some(PlaceRecord { report: PlaceReport { logins: Some(next), ..now.report.clone() }, ..now.clone() })
+                    Some(PlaceRecord {
+                        report: PlaceReport {
+                            logins: Some(next),
+                            ..now.report.clone()
+                        },
+                        ..now.clone()
+                    })
                 }),
             )
             .await?;
@@ -1060,13 +1022,24 @@ impl LinkDoor {
 
     /// link.ts:368.
     pub async fn key_landed(self: &Rc<Self>, agent: &str) -> PlaceResult<()> {
-        let vault = self.ctx.opts.vault.as_ref().map(|vault| vault()).unwrap_or_default();
+        let vault = self
+            .ctx
+            .opts
+            .vault
+            .as_ref()
+            .map(|vault| vault())
+            .unwrap_or_default();
         if vault_sign_in(agent, &vault) != AgentSignInState::VaultKey {
             return Ok(());
         }
         let here = self.setup.here();
         for record in self.records.records().await? {
-            let way = record.picks.as_ref().and_then(|p| p.agents.iter().find(|(name, _)| name.0 == agent).and_then(|(_, row)| row.signin));
+            let way = record.picks.as_ref().and_then(|p| {
+                p.agents
+                    .iter()
+                    .find(|(name, _)| name.0 == agent)
+                    .and_then(|(_, row)| row.signin)
+            });
             let row = PlaceProvisionRow {
                 id: sign_in_row_id(agent),
                 label: String::new(),
@@ -1080,13 +1053,18 @@ impl LinkDoor {
                 earlier: None,
                 project: None,
             };
-            self.land_sign_in(&record.id, LandedRow { row, label: None }).await?;
+            self.land_sign_in(&record.id, LandedRow { row, label: None })
+                .await?;
         }
         Ok(())
     }
 
     /// link.ts:373.
-    pub async fn gh_there(self: &Rc<Self>, place_id: &str, stage: ProvisionStage) -> PlaceResult<Vec<PlaceProvisionRow>> {
+    pub async fn gh_there(
+        self: &Rc<Self>,
+        place_id: &str,
+        stage: ProvisionStage,
+    ) -> PlaceResult<Vec<PlaceProvisionRow>> {
         let Some(provisioner) = self.ctx.wiring.provision.clone() else {
             return Ok(Vec::new());
         };
@@ -1100,25 +1078,76 @@ impl LinkDoor {
             return Ok(Vec::new());
         };
         picks.clis = IndexMap::new();
-        picks.configs = RecipeFileConfigs { git: None, shell: None, github: Some(RecipeFileConfigsGithub { signin: Some(GitHubSignIn::Machine) }) };
+        picks.configs = RecipeFileConfigs {
+            git: None,
+            shell: None,
+            github: Some(RecipeFileConfigsGithub {
+                signin: Some(GitHubSignIn::Machine),
+            }),
+        };
         let only: IndexSet<PlaceSetupStep> = IndexSet::from([PlaceSetupStep::Github]);
-        let plan = provisioner.setup(&picks, SetupOn { home: home.clone(), stores: None, recipe: None }, Some(&only)).await?;
-        let machine: Rc<dyn Machine> = Rc::new(PlaceMachine::new(self.setup.link_to(place_id), &record.name, &home));
-        let on = ProvisionOn { home: home.clone(), held: None, stores: None };
+        let plan = provisioner
+            .setup(
+                &picks,
+                SetupOn {
+                    home: home.clone(),
+                    stores: None,
+                    recipe: None,
+                },
+                Some(&only),
+            )
+            .await?;
+        let machine: Rc<dyn Machine> = Rc::new(PlaceMachine::new(
+            self.setup.link_to(place_id),
+            &record.name,
+            &home,
+        ));
+        let on = ProvisionOn {
+            home: home.clone(),
+            held: None,
+            stores: None,
+        };
         let run = SetupRun::default();
-        let rows = provisioner.step(machine, &plan, &EngineStep::Github, &run, stage, &on).await?;
-        for row in rows.iter().filter(|r| r.outcome == PlaceProvisionRowOutcome::Installed) {
+        let rows = provisioner
+            .step(machine, &plan, &EngineStep::Github, &run, stage, &on)
+            .await?;
+        for row in rows
+            .iter()
+            .filter(|r| r.outcome == PlaceProvisionRowOutcome::Installed)
+        {
             let label = row.label.clone();
-            let landed = PlaceProvisionRow { step: Some(PlaceSetupStep::Github), ..row.clone() };
-            self.land_sign_in(place_id, LandedRow { row: landed, label: Some(label) }).await?;
+            let landed = PlaceProvisionRow {
+                step: Some(PlaceSetupStep::Github),
+                ..row.clone()
+            };
+            self.land_sign_in(
+                place_id,
+                LandedRow {
+                    row: landed,
+                    label: Some(label),
+                },
+            )
+            .await?;
         }
         Ok(rows)
     }
 
     /// link.ts:388.
     pub fn offer_of(&self, place_id: &str) -> Option<String> {
-        let offer = self.ctx.kept.borrow().get(place_id).and_then(|r| r.backend_facts.as_ref()).map(|f| f.offer.clone());
-        offer.or_else(|| self.records.provider_ids().iter().any(|id| id == place_id).then(|| place_id.to_string()))
+        let offer = self
+            .ctx
+            .kept
+            .borrow()
+            .get(place_id)
+            .and_then(|r| r.backend_facts.as_ref())
+            .map(|f| f.offer.clone());
+        offer.or_else(|| {
+            self.records
+                .provider_ids()
+                .iter()
+                .any(|id| id == place_id)
+                .then(|| place_id.to_string())
+        })
     }
 
     /// link.ts:390.
@@ -1127,7 +1156,12 @@ impl LinkDoor {
         if made.is_some() {
             return made;
         }
-        let facts = self.ctx.kept.borrow().get(place_id).and_then(|r| r.backend_facts.clone());
+        let facts = self
+            .ctx
+            .kept
+            .borrow()
+            .get(place_id)
+            .and_then(|r| r.backend_facts.clone());
         if let Some(facts) = facts {
             return Some(self.views.backend_from(place_id, facts));
         }
@@ -1151,9 +1185,16 @@ impl LinkDoor {
         let held = self.folder_machines.borrow().get(place_id).cloned();
         let machine = match held {
             Some((held_key, machine)) if held_key == key => machine,
-            _ => PlaceFolderMachine::new(self.setup.link_to(place_id), place_id, &home, path.as_deref().filter(|p| !p.is_empty())),
+            _ => PlaceFolderMachine::new(
+                self.setup.link_to(place_id),
+                place_id,
+                &home,
+                path.as_deref().filter(|p| !p.is_empty()),
+            ),
         };
-        self.folder_machines.borrow_mut().insert(place_id.to_string(), (key, Arc::clone(&machine)));
+        self.folder_machines
+            .borrow_mut()
+            .insert(place_id.to_string(), (key, Arc::clone(&machine)));
         Some(FolderComputer {
             machine,
             home,
@@ -1164,7 +1205,10 @@ impl LinkDoor {
     }
 
     /// link.ts:415.
-    pub async fn forking_backend(self: &Rc<Self>, place_id: &str) -> PlaceResult<Arc<dyn MachineBackend>> {
+    pub async fn forking_backend(
+        self: &Rc<Self>,
+        place_id: &str,
+    ) -> PlaceResult<Arc<dyn MachineBackend>> {
         let record = match self.records.record_of(place_id).await? {
             Some(record) => Some(record),
             None => self.ctx.kept.borrow().get(place_id).cloned(),
@@ -1176,7 +1220,11 @@ impl LinkDoor {
             self.ctx.backends.borrow_mut().shift_remove(place_id);
             return Err(place_forks_nowhere(&place_forks_nowhere_line(place_id)));
         };
-        let busy = if current_folders_of().as_deref() == Some(place_id) { None } else { self.setup.setting_now(&record) };
+        let busy = if current_folders_of().as_deref() == Some(place_id) {
+            None
+        } else {
+            self.setup.setting_now(&record)
+        };
         if let Some(busy) = busy {
             return Err(place_provisioning(&busy));
         }
@@ -1198,12 +1246,20 @@ impl LinkDoor {
             .boxed_local()
             .shared()
         };
-        self.ctx.asking.borrow_mut().insert(place_id.to_string(), read.clone());
+        self.ctx
+            .asking
+            .borrow_mut()
+            .insert(place_id.to_string(), read.clone());
         read.await
     }
 
     /// link.ts:452.
-    pub async fn forward(self: &Rc<Self>, place_id: &str, place_port: u16, o: ForwardAsk) -> PlaceResult<u16> {
+    pub async fn forward(
+        self: &Rc<Self>,
+        place_id: &str,
+        place_port: u16,
+        o: ForwardAsk,
+    ) -> PlaceResult<u16> {
         let key = match o.pane {
             Some(_) => format!("{place_id}:open:{place_port}"),
             None => format!("{place_id}:{place_port}"),
@@ -1212,37 +1268,86 @@ impl LinkDoor {
             if o.standing {
                 return self.panes.standing(&key, u32::from(place_port));
             }
-            let (door, place, key_for_conn) = (Rc::downgrade(self), place_id.to_string(), key.clone());
+            let (door, place, key_for_conn) =
+                (Rc::downgrade(self), place_id.to_string(), key.clone());
             let on_conn: PaneOnConn = Rc::new(move |conn, used| {
                 if let Some(door) = door.upgrade() {
-                    door.tunnel(&key_for_conn, &place, place_port, conn, Some(used), Rc::new(RefCell::new(IndexMap::new())));
+                    door.tunnel(
+                        &key_for_conn,
+                        &place,
+                        place_port,
+                        conn,
+                        Some(used),
+                        Rc::new(RefCell::new(IndexMap::new())),
+                    );
                 }
             });
-            return self.panes.reach(&key, u32::from(place_port), PaneAsker { workspace_id, name }, on_conn).await;
+            return self
+                .panes
+                .reach(
+                    &key,
+                    u32::from(place_port),
+                    PaneAsker { workspace_id, name },
+                    on_conn,
+                )
+                .await;
         }
         if let Some(already) = self.ctx.forwards.borrow().get(&key).map(|f| f.local_port) {
             return Ok(already);
         }
         let conns: Conns = Rc::new(RefCell::new(IndexMap::new()));
         let on_conn: Rc<dyn Fn(TcpStream)> = {
-            let (door, place, key_for_conn, fallback) = (Rc::downgrade(self), place_id.to_string(), key.clone(), Rc::clone(&conns));
+            let (door, place, key_for_conn, fallback) = (
+                Rc::downgrade(self),
+                place_id.to_string(),
+                key.clone(),
+                Rc::clone(&conns),
+            );
             Rc::new(move |conn| {
                 if let Some(door) = door.upgrade() {
-                    door.tunnel(&key_for_conn, &place, place_port, conn, None, Rc::clone(&fallback));
+                    door.tunnel(
+                        &key_for_conn,
+                        &place,
+                        place_port,
+                        conn,
+                        None,
+                        Rc::clone(&fallback),
+                    );
                 }
             })
         };
         let (server, local_port) = listen_loopback(on_conn).await?;
-        self.ctx.forwards.borrow_mut().insert(key, Forward { server, local_port, conns, stop: None });
+        self.ctx.forwards.borrow_mut().insert(
+            key,
+            Forward {
+                server,
+                local_port,
+                conns,
+                stop: None,
+            },
+        );
         Ok(local_port)
     }
 
     /// One connection to a forward's port, carried as a tunnel to that computer's port (link.ts:456).
-    fn tunnel(&self, key: &str, place_id: &str, place_port: u16, conn: TcpStream, used: Option<Rc<dyn Fn()>>, fallback: Conns) {
+    fn tunnel(
+        &self,
+        key: &str,
+        place_id: &str,
+        place_port: u16,
+        conn: TcpStream,
+        used: Option<Rc<dyn Fn()>>,
+        fallback: Conns,
+    ) {
         let seq = self.tunnel_seq.get() + 1;
         self.tunnel_seq.set(seq);
         let id = format!("p{seq}");
-        let reach = self.ctx.live.borrow().get(place_id).map(|held| Rc::clone(&held.reach));
+        let reach = self
+            .ctx
+            .live
+            .borrow()
+            .get(place_id)
+            .map(|held| Rc::clone(&held.reach));
         let Some(reach) = reach else {
             drop(conn);
             return;
@@ -1250,9 +1355,16 @@ impl LinkDoor {
         if let Some(used) = &used {
             used();
         }
-        let into = self.ctx.forwards.borrow().get(key).map(|f| Rc::clone(&f.conns)).unwrap_or(fallback);
+        let into = self
+            .ctx
+            .forwards
+            .borrow()
+            .get(key)
+            .map(|f| Rc::clone(&f.conns))
+            .unwrap_or(fallback);
         let (inbound, rx) = mpsc::unbounded();
-        into.borrow_mut().insert(id.clone(), Rc::new(TunnelConn { inbound }));
+        into.borrow_mut()
+            .insert(id.clone(), Rc::new(TunnelConn { inbound }));
         spawn_local(run_tunnel(conn, rx, reach, into, id, place_port, used));
     }
 
@@ -1264,22 +1376,43 @@ impl LinkDoor {
     /// link.ts:504.
     pub async fn place_for(self: &Rc<Self>, word: &str) -> PlaceResult<PlaceFor> {
         let all = self.records.records().await?;
-        let found: Vec<&PlaceRecord> = all.iter().filter(|r| names_place(&PlaceRef { id: r.id.clone(), name: r.name.clone(), kind: None }, word)).collect();
+        let found: Vec<&PlaceRecord> = all
+            .iter()
+            .filter(|r| {
+                names_place(
+                    &PlaceRef {
+                        id: r.id.clone(),
+                        name: r.name.clone(),
+                        kind: None,
+                    },
+                    word,
+                )
+            })
+            .collect();
         if found.len() > 1 {
             let ids: Vec<String> = found.iter().map(|r| r.id.clone()).collect();
-            return Err(HostError::new(wsp_wire::wire::place_link::two_places_refusal(word, &ids)));
+            return Err(HostError::new(
+                wsp_wire::wire::place_link::two_places_refusal(word, &ids),
+            ));
         }
         if let Some(record) = found.first() {
-            return Ok(PlaceFor { place_id: Some(record.id.clone()) });
+            return Ok(PlaceFor {
+                place_id: Some(record.id.clone()),
+            });
         }
         let here = (self.ctx.wiring.here)().name;
         let providers = self.records.provider_ids();
         let cloud = cloud_named(providers.as_slice(), word);
-        if word == HERE_PLACE_ID || word == here || (cloud.is_some() && cloud == self.records.wired_provider()) {
+        if word == HERE_PLACE_ID
+            || word == here
+            || (cloud.is_some() && cloud == self.records.wired_provider())
+        {
             return Ok(PlaceFor { place_id: None });
         }
         if let Some(cloud) = cloud {
-            return Ok(PlaceFor { place_id: Some(cloud) });
+            return Ok(PlaceFor {
+                place_id: Some(cloud),
+            });
         }
         let mut held = vec![here];
         held.extend(all.iter().map(|r| r.name.clone()));
@@ -1293,11 +1426,15 @@ impl LinkDoor {
             return Ok(PlaceFor { place_id: None });
         };
         if self.records.records().await?.iter().any(|r| r.id == marked) {
-            return Ok(PlaceFor { place_id: Some(marked) });
+            return Ok(PlaceFor {
+                place_id: Some(marked),
+            });
         }
         let is_wired = self.records.wired_provider().as_deref() == Some(marked.as_str());
         if !is_wired && self.records.provider_ids().contains(&marked) {
-            return Ok(PlaceFor { place_id: Some(marked) });
+            return Ok(PlaceFor {
+                place_id: Some(marked),
+            });
         }
         Ok(PlaceFor { place_id: None })
     }
@@ -1306,7 +1443,10 @@ impl LinkDoor {
     pub async fn mark_used(self: &Rc<Self>, place_id: Option<&str>) -> PlaceResult<()> {
         let place = match place_id {
             Some(place) => place.to_string(),
-            None => self.records.wired_provider().unwrap_or_else(|| HERE_PLACE_ID.to_string()),
+            None => self
+                .records
+                .wired_provider()
+                .unwrap_or_else(|| HERE_PLACE_ID.to_string()),
         };
         self.records.mark_default(&place).await
     }
@@ -1320,7 +1460,9 @@ impl LinkDoor {
             .in_turn(Box::new(move || {
                 async move {
                     if records.mark_held().await?.is_none() {
-                        store.put(DEFAULT_COLLECTION, DEFAULT_ID, json!({ "placeId": place })).await?;
+                        store
+                            .put(DEFAULT_COLLECTION, DEFAULT_ID, json!({ "placeId": place }))
+                            .await?;
                     }
                     Ok::<(), HostError>(())
                 }

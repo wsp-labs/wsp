@@ -23,13 +23,16 @@ use wsp_core::types::wiring::{GoldenRecipe, PlaceBackends, WorkspaceRecord};
 use wsp_engine::errors::{EngineError, ErrorKind, WspError};
 use wsp_engine::golden_seam::GoldenImport;
 use wsp_engine::machine::{
-    BackendPricing, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineKind, MachineLife, MachineListRow,
-    MachineShape, MachineSpec, MachineState, RunOptions, Size, SnapshotOptions, SnapshotStoragePricing, Waiting,
+    BackendPricing, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineKind,
+    MachineLife, MachineListRow, MachineShape, MachineSpec, MachineState, RunOptions, Size,
+    SnapshotOptions, SnapshotStoragePricing, Waiting,
 };
 use wsp_engine::Cancel as EngineCancel;
 use wsp_machines::images::builders::life::{CreateStop, Expired, ImportMark};
 use wsp_machines::images::builders::places::PlaceAt;
-use wsp_machines::images::builders::{BuildPlace, BuildersCtx, BuildersOpts, Claim, CopyRecipe, ImageDoor, StageAt};
+use wsp_machines::images::builders::{
+    BuildPlace, BuildersCtx, BuildersOpts, Claim, CopyRecipe, ImageDoor, StageAt,
+};
 use wsp_machines::images::engine::*;
 use wsp_machines::images::golden::{GoldenCtx, Preparing};
 use wsp_machines::images::held::HeldCtx;
@@ -38,8 +41,8 @@ use wsp_machines::images::records::{ImageOf, RecordsCtx};
 use wsp_machines::images::{BuilderRef, Builders, ImageError, ImageResult, Joined, LiveBuilder};
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::golden_image::{
-    GoldenBuilderView, GoldenLogin, GoldenManifest, GoldenStage, GoldenStageEvent, GoldenStep, GoldenVersion, RecipeDigest, SealedImage,
-    SealedImageBuilt,
+    GoldenBuilderView, GoldenLogin, GoldenManifest, GoldenStage, GoldenStageEvent, GoldenStep,
+    GoldenVersion, RecipeDigest, SealedImage, SealedImageBuilt,
 };
 use wsp_wire::views::place_kind::PlaceKind;
 use wsp_wire::views::place_more::PlaceView;
@@ -55,16 +58,32 @@ pub use rest::{plain_error, run, MemStore, TestClock, Warned};
 // --- machines and backends ------------------------------------------------------------------------------------------
 
 pub fn exec_ok(stdout: &str) -> ExecResult {
-    ExecResult { exit_code: 0.into(), stdout: stdout.to_string(), stderr: String::new() }
+    ExecResult {
+        exit_code: 0.into(),
+        stdout: stdout.to_string(),
+        stderr: String::new(),
+    }
 }
 
 pub fn exec_exit(code: i64, stdout: &str, stderr: &str) -> ExecResult {
-    ExecResult { exit_code: code.into(), stdout: stdout.to_string(), stderr: stderr.to_string() }
+    ExecResult {
+        exit_code: code.into(),
+        stdout: stdout.to_string(),
+        stderr: stderr.to_string(),
+    }
 }
 
 /// An engine error the provider answered: `kind` missing reads as a machine that is gone.
 pub fn provider_error(kind: ErrorKind, status: u16, message: &str) -> EngineError {
-    EngineError::Provider(WspError { kind, status, code: None, message: message.to_string(), request_id: None, window: None, said: None })
+    EngineError::Provider(WspError {
+        kind,
+        status,
+        code: None,
+        message: message.to_string(),
+        request_id: None,
+        window: None,
+        said: None,
+    })
 }
 
 pub fn missing(message: &str) -> EngineError {
@@ -100,7 +119,12 @@ impl FakeMachine {
     }
     pub fn labelled(id: &str, labels: &[(&str, &str)]) -> Arc<FakeMachine> {
         let mut m = FakeMachine::bare(id);
-        m.labels = Some(labels.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect());
+        m.labels = Some(
+            labels
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+        );
         Arc::new(m)
     }
     pub fn answer(&self, a: Result<ExecResult, EngineError>) {
@@ -141,7 +165,12 @@ impl Machine for FakeMachine {
         self.execs.borrow_mut().push(script.to_string());
         Ok(exec_ok(""))
     }
-    async fn snapshot(&self, _name: &str, _life: MachineLife, _opts: SnapshotOptions) -> Result<String, EngineError> {
+    async fn snapshot(
+        &self,
+        _name: &str,
+        _life: MachineLife,
+        _opts: SnapshotOptions,
+    ) -> Result<String, EngineError> {
         Err(missing("snapshot is not faked"))
     }
     async fn pause(&self, _wait_ms: Option<u64>) -> Result<(), EngineError> {
@@ -163,7 +192,10 @@ impl Machine for FakeMachine {
         Err(missing("upload_url is not faked"))
     }
     async fn describe(&self) -> Result<MachineShape, EngineError> {
-        self.describe.borrow().clone().unwrap_or_else(|| Err(missing("describe is not offered")))
+        self.describe
+            .borrow()
+            .clone()
+            .unwrap_or_else(|| Err(missing("describe is not offered")))
     }
 }
 
@@ -178,7 +210,7 @@ impl BackendPricing for FakePricing {
         self.rate * size.cpu
     }
     fn default_size(&self) -> Size {
-        self.default.clone()
+        self.default
     }
     fn snapshot_storage(&self) -> SnapshotStoragePricing {
         self.storage.clone()
@@ -228,7 +260,10 @@ pub fn forkless_caps() -> Capabilities {
 
 pub fn storage_pricing(billed_from: &str) -> SnapshotStoragePricing {
     SnapshotStoragePricing {
-        wire: serde_json::from_value(json!({"freeGb": 0, "usdPerGbMonth": 0.05, "billedFrom": billed_from})).expect("pricing"),
+        wire: serde_json::from_value(
+            json!({"freeGb": 0, "usdPerGbMonth": 0.05, "billedFrom": billed_from}),
+        )
+        .expect("pricing"),
         free_named: None,
         usd_per_named_month: None,
     }
@@ -236,7 +271,11 @@ pub fn storage_pricing(billed_from: &str) -> SnapshotStoragePricing {
 
 /// Storage priced per named snapshot, as Boat bills it.
 pub fn storage_by_count() -> SnapshotStoragePricing {
-    SnapshotStoragePricing { free_named: Some(5), usd_per_named_month: Some(0.5), ..storage_pricing("restored") }
+    SnapshotStoragePricing {
+        free_named: Some(5),
+        usd_per_named_month: Some(0.5),
+        ..storage_pricing("restored")
+    }
 }
 
 impl FakeBackend {
@@ -250,7 +289,14 @@ impl FakeBackend {
         FakeBackend {
             name: name.to_string(),
             caps: RefCell::new(caps),
-            pricing: Arc::new(FakePricing { default: Size { cpu: 2.0, mem_mb: 4096.0 }, rate: 0.05, storage: storage_pricing("restored") }),
+            pricing: Arc::new(FakePricing {
+                default: Size {
+                    cpu: 2.0,
+                    mem_mb: 4096.0,
+                },
+                rate: 0.05,
+                storage: storage_pricing("restored"),
+            }),
             snapshots: RefCell::new(Ok(vec![])),
             listed: RefCell::new(vec![]),
             deleted: RefCell::new(vec![]),
@@ -266,7 +312,14 @@ impl FakeBackend {
     /// A backend that forks and lists, whose snapshot storage is billed as `storage` says.
     pub fn priced(name: &str, storage: SnapshotStoragePricing) -> Arc<FakeBackend> {
         let mut b = FakeBackend::with(name, building_caps());
-        b.pricing = Arc::new(FakePricing { default: Size { cpu: 2.0, mem_mb: 4096.0 }, rate: 0.05, storage });
+        b.pricing = Arc::new(FakePricing {
+            default: Size {
+                cpu: 2.0,
+                mem_mb: 4096.0,
+            },
+            rate: 0.05,
+            storage,
+        });
         Arc::new(b)
     }
     fn traced(&self, line: String) {
@@ -285,9 +338,18 @@ impl MachineBackend for FakeBackend {
     fn pricing(&self) -> Arc<dyn BackendPricing> {
         self.pricing.clone()
     }
-    async fn create(&self, spec: MachineSpec, _waiting: Option<Waiting>, _sent: Option<String>) -> Result<Arc<dyn Machine>, EngineError> {
+    async fn create(
+        &self,
+        spec: MachineSpec,
+        _waiting: Option<Waiting>,
+        _sent: Option<String>,
+    ) -> Result<Arc<dyn Machine>, EngineError> {
         self.created.borrow_mut().push(spec);
-        let m = self.next_machine.borrow_mut().pop_front().unwrap_or_else(|| FakeMachine::new("m-created"));
+        let m = self
+            .next_machine
+            .borrow_mut()
+            .pop_front()
+            .unwrap_or_else(|| FakeMachine::new("m-created"));
         Ok(m)
     }
     async fn get(&self, id: &str) -> Result<Arc<dyn Machine>, EngineError> {
@@ -297,7 +359,10 @@ impl MachineBackend for FakeBackend {
             None => Err(missing(&format!("machine {id} is gone"))),
         }
     }
-    async fn list(&self, _labels: Option<&IndexMap<String, String>>) -> Result<Vec<MachineListRow>, EngineError> {
+    async fn list(
+        &self,
+        _labels: Option<&IndexMap<String, String>>,
+    ) -> Result<Vec<MachineListRow>, EngineError> {
         Ok(vec![])
     }
     async fn delete_snapshot(&self, id: &str) -> Result<(), EngineError> {
@@ -308,9 +373,15 @@ impl MachineBackend for FakeBackend {
             None => Ok(()),
         }
     }
-    async fn list_snapshots(&self, ids: Option<&[String]>) -> Result<Vec<SnapshotRow>, EngineError> {
+    async fn list_snapshots(
+        &self,
+        ids: Option<&[String]>,
+    ) -> Result<Vec<SnapshotRow>, EngineError> {
         self.listed.borrow_mut().push(ids.map(|i| i.to_vec()));
-        self.traced(format!("backend list_snapshots {}", ids.map(|i| i.join(",")).unwrap_or_else(|| "*".into())));
+        self.traced(format!(
+            "backend list_snapshots {}",
+            ids.map(|i| i.join(",")).unwrap_or_else(|| "*".into())
+        ));
         let queued = self.list_queue.borrow_mut().pop_front();
         if let Some(q) = queued {
             return q;
@@ -328,7 +399,14 @@ impl MachineBackend for FakeBackend {
 }
 
 pub fn snapshot_row(id: &str, name: Option<&str>, size: f64, restored: Option<f64>) -> SnapshotRow {
-    SnapshotRow { id: id.into(), name: name.map(String::from), size_bytes: size.into(), restored_bytes: restored.map(JsNumber::from), created_at: None, parent: None }
+    SnapshotRow {
+        id: id.into(),
+        name: name.map(String::from),
+        size_bytes: size.into(),
+        restored_bytes: restored.map(JsNumber::from),
+        created_at: None,
+        parent: None,
+    }
 }
 
 // --- the engine's image roads -----------------------------------------------------------------------------------
@@ -401,7 +479,11 @@ impl FakeRoads {
 }
 
 pub fn ledger(hash: &str) -> ImportLedger {
-    ImportLedger { recipe_hash: hash.into(), smoke: "true".into(), ..Default::default() }
+    ImportLedger {
+        recipe_hash: hash.into(),
+        smoke: "true".into(),
+        ..Default::default()
+    }
 }
 
 pub fn engine_builder(machine: Arc<FakeMachine>) -> EngineBuilder {
@@ -425,7 +507,10 @@ impl GoldenRoads for FakeRoads {
     async fn build_golden(&self, ask: BuildGoldenAsk) -> Result<BuiltGolden, EngineError> {
         self.note(format!("road build_golden {}", ask.name));
         self.build_asks.borrow_mut().push(ask);
-        self.built.borrow().clone().unwrap_or_else(|| Err(missing("build_golden is not scripted")))
+        self.built
+            .borrow()
+            .clone()
+            .unwrap_or_else(|| Err(missing("build_golden is not scripted")))
     }
     async fn prepare_builder(&self, ask: PrepareBuilderAsk) -> Result<EngineBuilder, ImageError> {
         self.note("road prepare_builder".into());
@@ -434,36 +519,78 @@ impl GoldenRoads for FakeRoads {
         if let Some(g) = gate {
             g.await;
         }
-        self.prepared.borrow_mut().pop_front().unwrap_or_else(|| Err(ImageError::Host(HostError::new("prepare_builder is not scripted"))))
+        self.prepared.borrow_mut().pop_front().unwrap_or_else(|| {
+            Err(ImageError::Host(HostError::new(
+                "prepare_builder is not scripted",
+            )))
+        })
     }
-    async fn seal_golden(&self, builder: EngineBuilder, ask: SealGoldenAsk) -> Result<SealResult, ImageError> {
-        self.note(format!("road seal_golden {} keep={}", builder.machine.id(), ask.keep_builder));
+    async fn seal_golden(
+        &self,
+        builder: EngineBuilder,
+        ask: SealGoldenAsk,
+    ) -> Result<SealResult, ImageError> {
+        self.note(format!(
+            "road seal_golden {} keep={}",
+            builder.machine.id(),
+            ask.keep_builder
+        ));
         self.seal_asks.borrow_mut().push(ask);
         let gate = self.seal_gate.borrow().clone();
         if let Some(g) = gate {
             g.await;
         }
-        self.sealed.borrow_mut().pop_front().unwrap_or_else(|| Err(ImageError::Host(HostError::new("seal_golden is not scripted"))))
+        self.sealed.borrow_mut().pop_front().unwrap_or_else(|| {
+            Err(ImageError::Host(HostError::new(
+                "seal_golden is not scripted",
+            )))
+        })
     }
     async fn upgrade_builder(&self, ask: UpgradeBuilderAsk) -> Result<EngineBuilder, ImageError> {
         self.note("road upgrade_builder".into());
         self.upgrade_asks.borrow_mut().push(ask);
-        self.upgraded.borrow_mut().pop_front().unwrap_or_else(|| Err(ImageError::Host(HostError::new("upgrade_builder is not scripted"))))
+        self.upgraded.borrow_mut().pop_front().unwrap_or_else(|| {
+            Err(ImageError::Host(HostError::new(
+                "upgrade_builder is not scripted",
+            )))
+        })
     }
-    async fn apply_golden_import(&self, machine: Arc<dyn Machine>, ask: ApplyImportAsk) -> Result<Applied, EngineError> {
+    async fn apply_golden_import(
+        &self,
+        machine: Arc<dyn Machine>,
+        ask: ApplyImportAsk,
+    ) -> Result<Applied, EngineError> {
         self.note(format!("road apply_golden_import {}", machine.id()));
         self.import_asks.borrow_mut().push(ask);
-        self.import_applied.borrow().clone().unwrap_or_else(|| Ok(Applied { ledger: ledger("h-applied") }))
+        self.import_applied.borrow().clone().unwrap_or_else(|| {
+            Ok(Applied {
+                ledger: ledger("h-applied"),
+            })
+        })
     }
-    async fn apply_delta(&self, machine: Arc<dyn Machine>, _delta: GoldenDelta, ask: ApplyDeltaAsk) -> Result<Applied, EngineError> {
+    async fn apply_delta(
+        &self,
+        machine: Arc<dyn Machine>,
+        _delta: GoldenDelta,
+        ask: ApplyDeltaAsk,
+    ) -> Result<Applied, EngineError> {
         self.note(format!("road apply_delta {}", machine.id()));
         self.delta_asks.borrow_mut().push(ask);
-        self.delta_applied.borrow().clone().unwrap_or_else(|| Ok(Applied { ledger: ledger("h-delta") }))
+        self.delta_applied.borrow().clone().unwrap_or_else(|| {
+            Ok(Applied {
+                ledger: ledger("h-delta"),
+            })
+        })
     }
     fn next_setup_sha(&self, previous: &str, setup: &str, _import: &GoldenImport) -> String {
         format!("{previous}+{}", setup.len())
     }
-    async fn kill_until_gone(&self, at: Arc<dyn MachineBackend>, machine: Arc<dyn Machine>, _confirm: Option<KillConfirm>) -> Result<(), EngineError> {
+    async fn kill_until_gone(
+        &self,
+        at: Arc<dyn MachineBackend>,
+        machine: Arc<dyn Machine>,
+        _confirm: Option<KillConfirm>,
+    ) -> Result<(), EngineError> {
         let _ = at;
         self.note(format!("road kill_until_gone {}", machine.id()));
         match self.kill_fails.borrow().clone() {
@@ -471,11 +598,19 @@ impl GoldenRoads for FakeRoads {
             None => Ok(()),
         }
     }
-    async fn read_gone(&self, _at: Arc<dyn MachineBackend>, id: &str) -> Result<GoneReading, EngineError> {
+    async fn read_gone(
+        &self,
+        _at: Arc<dyn MachineBackend>,
+        id: &str,
+    ) -> Result<GoneReading, EngineError> {
         self.note(format!("road read_gone {id}"));
         self.gone.borrow().clone()
     }
-    async fn drop_template(&self, _at: Arc<dyn MachineBackend>, template_id: Option<&str>) -> Result<(), EngineError> {
+    async fn drop_template(
+        &self,
+        _at: Arc<dyn MachineBackend>,
+        template_id: Option<&str>,
+    ) -> Result<(), EngineError> {
         self.note(format!("road drop_template {}", template_id.unwrap_or("-")));
         match self.drop_template_fails.borrow().clone() {
             Some(e) => Err(e),
@@ -483,33 +618,78 @@ impl GoldenRoads for FakeRoads {
         }
     }
     fn templates_of(&self, _at: Arc<dyn MachineBackend>) -> Option<Rc<dyn Templates>> {
-        self.templates.borrow().clone().map(|t| t as Rc<dyn Templates>)
+        self.templates
+            .borrow()
+            .clone()
+            .map(|t| t as Rc<dyn Templates>)
     }
-    async fn promote_version(&self, _templates: Rc<dyn Templates>, snapshot_id: &str, name: &str) -> Result<Promoted, EngineError> {
+    async fn promote_version(
+        &self,
+        _templates: Rc<dyn Templates>,
+        snapshot_id: &str,
+        name: &str,
+    ) -> Result<Promoted, EngineError> {
         self.note(format!("road promote_version {snapshot_id} {name}"));
         let hook = self.on_promote.borrow().clone();
         if let Some(h) = hook {
             h();
         }
-        self.promoted.borrow_mut().pop_front().unwrap_or_else(|| Err(missing("promote is not scripted")))
+        self.promoted
+            .borrow_mut()
+            .pop_front()
+            .unwrap_or_else(|| Err(missing("promote is not scripted")))
     }
-    fn rollback(&self, manifest: &GoldenManifest, version: u32) -> Result<GoldenManifest, EngineError> {
+    fn rollback(
+        &self,
+        manifest: &GoldenManifest,
+        version: u32,
+    ) -> Result<GoldenManifest, EngineError> {
         self.note(format!("road rollback {version}"));
-        self.rolled_back.borrow().clone().unwrap_or_else(|| Ok(manifest.clone()))
+        self.rolled_back
+            .borrow()
+            .clone()
+            .unwrap_or_else(|| Ok(manifest.clone()))
     }
-    async fn refresh_preview_token(&self, machine: Arc<dyn Machine>, port: u16, _held: Option<PreviewReach>) -> Result<PreviewReach, EngineError> {
-        self.note(format!("road refresh_preview_token {} {port}", machine.id()));
-        self.reach.borrow().clone().unwrap_or_else(|| Err(missing("reach is not scripted")))
+    async fn refresh_preview_token(
+        &self,
+        machine: Arc<dyn Machine>,
+        port: u16,
+        _held: Option<PreviewReach>,
+    ) -> Result<PreviewReach, EngineError> {
+        self.note(format!(
+            "road refresh_preview_token {} {port}",
+            machine.id()
+        ));
+        self.reach
+            .borrow()
+            .clone()
+            .unwrap_or_else(|| Err(missing("reach is not scripted")))
     }
-    async fn import_image_vault(&self, machine: Arc<dyn Machine>, tar: Vec<u8>) -> Result<(), EngineError> {
-        self.note(format!("road import_image_vault {} {}", machine.id(), tar.len()));
+    async fn import_image_vault(
+        &self,
+        machine: Arc<dyn Machine>,
+        tar: Vec<u8>,
+    ) -> Result<(), EngineError> {
+        self.note(format!(
+            "road import_image_vault {} {}",
+            machine.id(),
+            tar.len()
+        ));
         match self.vault_import_fails.borrow().clone() {
             Some(e) => Err(e),
             None => Ok(()),
         }
     }
-    fn refuse_foreign_members(&self, road: &str, _tar: &[u8], held: &[String]) -> Result<(), String> {
-        self.note(format!("road refuse_foreign_members {road} {}", held.join(",")));
+    fn refuse_foreign_members(
+        &self,
+        road: &str,
+        _tar: &[u8],
+        held: &[String],
+    ) -> Result<(), String> {
+        self.note(format!(
+            "road refuse_foreign_members {road} {}",
+            held.join(",")
+        ));
         match self.foreign.borrow().clone() {
             Some(m) => Err(m),
             None => Ok(()),
@@ -530,7 +710,9 @@ pub struct FakeTemplates {
 #[async_trait(?Send)]
 impl Templates for FakeTemplates {
     async fn promote(&self, snapshot_id: &str, name: &str) -> Result<String, EngineError> {
-        self.log.borrow_mut().push(format!("templates promote {snapshot_id} {name}"));
+        self.log
+            .borrow_mut()
+            .push(format!("templates promote {snapshot_id} {name}"));
         Ok(format!("t-{snapshot_id}"))
     }
     async fn get(&self, id: &str) -> Result<TemplateRow, EngineError> {
@@ -588,20 +770,30 @@ impl FakeDoor {
 
 /// A joined computer's row as the door lists it.
 pub fn computer_row(id: &str, name: &str) -> PlaceView {
-    serde_json::from_value(json!({"id": id, "name": name, "kind": "computer", "default": false})).unwrap_or_else(|e| panic!("a computer row: {e}"))
+    serde_json::from_value(json!({"id": id, "name": name, "kind": "computer", "default": false}))
+        .unwrap_or_else(|e| panic!("a computer row: {e}"))
 }
 
 #[async_trait(?Send)]
 impl ImageDoor for FakeDoor {
     fn backend_of(&self, place_id: &str) -> Option<Arc<dyn MachineBackend>> {
-        self.backends.borrow().get(place_id).map(|b| b.clone() as Arc<dyn MachineBackend>)
+        self.backends
+            .borrow()
+            .get(place_id)
+            .map(|b| b.clone() as Arc<dyn MachineBackend>)
     }
     async fn forking_backend(&self, place_id: &str) -> Result<Arc<dyn MachineBackend>, HostError> {
-        self.log.borrow_mut().push(format!("door forking_backend {place_id}"));
+        self.log
+            .borrow_mut()
+            .push(format!("door forking_backend {place_id}"));
         if let Some(e) = self.forking_fails.borrow().get(place_id) {
             return Err(e.clone());
         }
-        self.backends.borrow().get(place_id).map(|b| b.clone() as Arc<dyn MachineBackend>).ok_or_else(|| HostError::new(format!("{place_id} forks nothing here")))
+        self.backends
+            .borrow()
+            .get(place_id)
+            .map(|b| b.clone() as Arc<dyn MachineBackend>)
+            .ok_or_else(|| HostError::new(format!("{place_id} forks nothing here")))
     }
     fn name_of(&self, place_id: &str) -> Option<String> {
         self.names.borrow().get(place_id).cloned()
@@ -615,7 +807,9 @@ impl ImageDoor for FakeDoor {
         self.marked.borrow().clone()
     }
     async fn mark_default_if_none(&self, place_id: &str) -> Result<(), HostError> {
-        self.log.borrow_mut().push(format!("door mark_default_if_none {place_id}"));
+        self.log
+            .borrow_mut()
+            .push(format!("door mark_default_if_none {place_id}"));
         match self.mark_fails.borrow().clone() {
             Some(e) => Err(e),
             None => Ok(()),
@@ -638,7 +832,10 @@ impl PlaceBackends for FakePlaces {
         self.wired.borrow().clone()
     }
     fn backend(&self, place: &str) -> Option<Arc<dyn MachineBackend>> {
-        self.rows.borrow().get(place).map(|b| b.clone() as Arc<dyn MachineBackend>)
+        self.rows
+            .borrow()
+            .get(place)
+            .map(|b| b.clone() as Arc<dyn MachineBackend>)
     }
     fn list(&self) -> Vec<String> {
         self.rows.borrow().keys().cloned().collect()
@@ -660,7 +857,10 @@ impl Claim for FakeClaim {
 
 /// A manifest of versions `(version, snapshot, template)`, head the last.
 pub fn manifest(versions: &[(u32, &str, Option<&str>)]) -> GoldenManifest {
-    let vs: Vec<Value> = versions.iter().map(|(v, s, t)| version_json(*v, s, *t)).collect();
+    let vs: Vec<Value> = versions
+        .iter()
+        .map(|(v, s, t)| version_json(*v, s, *t))
+        .collect();
     let head = versions.last().map(|v| v.0).unwrap_or(0);
     serde_json::from_value(json!({"head": head, "versions": vs})).expect("a manifest")
 }
@@ -711,7 +911,11 @@ pub fn live_builder(id: &str, name: &str, place: &str, life: BuilderLife) -> Bui
 }
 
 pub fn recipe(setup: &str) -> GoldenRecipe {
-    GoldenRecipe { setup: setup.into(), smoke: "true".into(), ..Default::default() }
+    GoldenRecipe {
+        setup: setup.into(),
+        smoke: "true".into(),
+        ..Default::default()
+    }
 }
 
 pub fn workspace_record(id: &str, name: &str, golden: &str) -> WorkspaceRecord {
@@ -789,7 +993,10 @@ impl World {
     /// A world whose wired provider `boat` is this backend.
     pub fn on(boat: Arc<FakeBackend>) -> Rc<World> {
         let log = Rc::new(RefCell::new(vec![]));
-        let places = Rc::new(FakePlaces { wired: RefCell::new("boat".into()), rows: RefCell::new(IndexMap::new()) });
+        let places = Rc::new(FakePlaces {
+            wired: RefCell::new("boat".into()),
+            rows: RefCell::new(IndexMap::new()),
+        });
         places.rows.borrow_mut().insert("boat".into(), boat.clone());
         Rc::new(World {
             store: MemStore::new(),
@@ -852,19 +1059,39 @@ impl World {
     }
     /// The log lines that start with `prefix`.
     pub fn lines(&self, prefix: &str) -> Vec<String> {
-        self.log.borrow().iter().filter(|l| l.starts_with(prefix)).cloned().collect()
+        self.log
+            .borrow()
+            .iter()
+            .filter(|l| l.starts_with(prefix))
+            .cloned()
+            .collect()
     }
     pub fn put_copy_now(&self, place: &str, name: &str, m: &GoldenManifest) {
-        self.store.seed("goldens", &format!("{place}/{name}"), serde_json::to_value(m).expect("manifest json"));
+        self.store.seed(
+            "goldens",
+            &format!("{place}/{name}"),
+            serde_json::to_value(m).expect("manifest json"),
+        );
     }
     pub fn put_image_now(&self, image: &SealedImage) {
-        self.store.seed("images", &image.name, serde_json::to_value(image).expect("image json"));
+        self.store.seed(
+            "images",
+            &image.name,
+            serde_json::to_value(image).expect("image json"),
+        );
     }
     pub fn copy_now(&self, place: &str, name: &str) -> Option<GoldenManifest> {
-        self.store.doc("goldens", &format!("{place}/{name}")).map(|v| serde_json::from_value(v).expect("manifest"))
+        self.store
+            .doc("goldens", &format!("{place}/{name}"))
+            .map(|v| serde_json::from_value(v).expect("manifest"))
     }
     fn backend_by_place(&self, place: &str) -> Option<Arc<dyn MachineBackend>> {
-        self.places.backend(place).or_else(|| self.door.borrow().as_ref().and_then(|d| d.backend_of(place)))
+        self.places.backend(place).or_else(|| {
+            self.door
+                .borrow()
+                .as_ref()
+                .and_then(|d| d.backend_of(place))
+        })
     }
 }
 
@@ -920,9 +1147,17 @@ impl RecordsCtx for World {
     }
     fn bump_generation(&self, workspace_id: &str) -> bool {
         self.note(format!("bump_generation {workspace_id}"));
-        let live = self.live.borrow().iter().any(|r| r.borrow().id == workspace_id);
+        let live = self
+            .live
+            .borrow()
+            .iter()
+            .any(|r| r.borrow().id == workspace_id);
         if live {
-            *self.generations.borrow_mut().entry(workspace_id.into()).or_default() += 1;
+            *self
+                .generations
+                .borrow_mut()
+                .entry(workspace_id.into())
+                .or_default() += 1;
         }
         live
     }
@@ -940,9 +1175,16 @@ impl HeldCtx for World {
         self.note("ready");
         Ok(())
     }
-    async fn drop_copy_recipe(&self, place: &str, name: &str, version: u32) -> Result<(), HostError> {
+    async fn drop_copy_recipe(
+        &self,
+        place: &str,
+        name: &str,
+        version: u32,
+    ) -> Result<(), HostError> {
         self.note(format!("drop_copy_recipe {place} {name} {version}"));
-        self.store.delete("golden-recipes", &format!("{place}/{name}@v{version}")).await
+        self.store
+            .delete("golden-recipes", &format!("{place}/{name}@v{version}"))
+            .await
     }
 }
 
@@ -967,14 +1209,20 @@ impl BuildersCtx for World {
         self.door.borrow().clone().map(|d| d as Rc<dyn ImageDoor>)
     }
     fn place_door_of(&self) -> Result<Rc<dyn ImageDoor>, HostError> {
-        self.door.borrow().clone().map(|d| d as Rc<dyn ImageDoor>).ok_or_else(|| HostError::new("this runtime has no place door"))
+        self.door
+            .borrow()
+            .clone()
+            .map(|d| d as Rc<dyn ImageDoor>)
+            .ok_or_else(|| HostError::new("this runtime has no place door"))
     }
     fn backend(&self) -> Arc<dyn MachineBackend> {
         self.runtime_backend.clone()
     }
     fn backend_of_kind_cloud(&self, place_id: Option<&str>) -> Arc<dyn MachineBackend> {
         self.note(format!("backend_of_kind cloud {}", place_id.unwrap_or("-")));
-        place_id.and_then(|p| self.backend_by_place(p)).unwrap_or_else(|| self.runtime_backend.clone())
+        place_id
+            .and_then(|p| self.backend_by_place(p))
+            .unwrap_or_else(|| self.runtime_backend.clone())
     }
     fn broker_ready(&self) -> bool {
         self.broker.get()
@@ -1032,16 +1280,27 @@ impl BuildersCtx for World {
             None => Ok(()),
         }
     }
-    async fn gone_stop(&self, _at: Arc<dyn MachineBackend>, machine: Arc<dyn Machine>) -> Result<(), HostError> {
+    async fn gone_stop(
+        &self,
+        _at: Arc<dyn MachineBackend>,
+        machine: Arc<dyn Machine>,
+    ) -> Result<(), HostError> {
         self.note(format!("gone_stop {}", machine.id()));
         match self.gone_stop_fails.borrow().get(machine.id()) {
             Some(e) => Err(e.clone()),
             None => Ok(()),
         }
     }
-    fn claiming(&self, purpose: &str, at: Option<Arc<dyn MachineBackend>>, place: Option<&str>) -> Rc<dyn Claim> {
+    fn claiming(
+        &self,
+        purpose: &str,
+        at: Option<Arc<dyn MachineBackend>>,
+        place: Option<&str>,
+    ) -> Rc<dyn Claim> {
         self.note(format!("claim {purpose} @{}", place.unwrap_or("-")));
-        Rc::new(FakeClaim { at: at.unwrap_or_else(|| self.runtime_backend.clone()) })
+        Rc::new(FakeClaim {
+            at: at.unwrap_or_else(|| self.runtime_backend.clone()),
+        })
     }
     fn observed(&self, machine: Arc<dyn Machine>) -> Arc<dyn Machine> {
         self.note(format!("observed {}", machine.id()));
@@ -1057,13 +1316,36 @@ impl BuildersCtx for World {
     async fn copy_of(&self, place: &str, name: &str) -> Result<Option<GoldenManifest>, HostError> {
         Ok(self.copy_now(place, name))
     }
-    async fn put_copy(&self, place: &str, name: &str, manifest: &GoldenManifest) -> Result<(), HostError> {
+    async fn put_copy(
+        &self,
+        place: &str,
+        name: &str,
+        manifest: &GoldenManifest,
+    ) -> Result<(), HostError> {
         self.note(format!("put_copy {place} {name}"));
-        self.store.put("goldens", &format!("{place}/{name}"), serde_json::to_value(manifest).expect("json")).await
+        self.store
+            .put(
+                "goldens",
+                &format!("{place}/{name}"),
+                serde_json::to_value(manifest).expect("json"),
+            )
+            .await
     }
-    async fn put_copy_recipe(&self, place: &str, name: &str, version: u32, digest: &RecipeDigest) -> Result<(), HostError> {
+    async fn put_copy_recipe(
+        &self,
+        place: &str,
+        name: &str,
+        version: u32,
+        digest: &RecipeDigest,
+    ) -> Result<(), HostError> {
         self.note(format!("put_copy_recipe {place} {name} {version}"));
-        self.store.put("golden-recipes", &format!("{place}/{name}@v{version}"), serde_json::to_value(digest).expect("json")).await
+        self.store
+            .put(
+                "golden-recipes",
+                &format!("{place}/{name}@v{version}"),
+                serde_json::to_value(digest).expect("json"),
+            )
+            .await
     }
 }
 
@@ -1108,7 +1390,10 @@ impl GoldenCtx for World {
         self.mark.borrow().clone()
     }
     fn import_mark(&self, _imp: &GoldenImport) -> ImportMark {
-        ImportMark { recipe_hash: self.import_hash.borrow().clone(), recipe: None }
+        ImportMark {
+            recipe_hash: self.import_hash.borrow().clone(),
+            recipe: None,
+        }
     }
     fn warn(&self, line: &str) {
         self.warned.push(line);
@@ -1130,15 +1415,28 @@ impl GoldenCtx for World {
         self.note("refresh_builders");
         Ok(())
     }
-    fn claiming(&self, purpose: &str, at: Option<Arc<dyn MachineBackend>>, place: Option<&str>) -> Rc<dyn Claim> {
+    fn claiming(
+        &self,
+        purpose: &str,
+        at: Option<Arc<dyn MachineBackend>>,
+        place: Option<&str>,
+    ) -> Rc<dyn Claim> {
         self.note(format!("claim {purpose} @{}", place.unwrap_or("-")));
-        Rc::new(FakeClaim { at: at.unwrap_or_else(|| self.runtime_backend.clone()) })
+        Rc::new(FakeClaim {
+            at: at.unwrap_or_else(|| self.runtime_backend.clone()),
+        })
     }
-    async fn daemon_token_of(&self, machine: Arc<dyn Machine>) -> Result<Option<String>, HostError> {
+    async fn daemon_token_of(
+        &self,
+        machine: Arc<dyn Machine>,
+    ) -> Result<Option<String>, HostError> {
         Ok(Some(format!("token-{}", machine.id())))
     }
     fn conflict(&self, message: &str) -> HostError {
-        HostError { kind: Some(Kind::Conflict), ..HostError::new(message) }
+        HostError {
+            kind: Some(Kind::Conflict),
+            ..HostError::new(message)
+        }
     }
     async fn record_of(&self, name: &str) -> Result<Option<SealedImage>, HostError> {
         Ok(read(self.store.doc("images", name)))
@@ -1146,53 +1444,115 @@ impl GoldenCtx for World {
     async fn copy_of(&self, place: &str, name: &str) -> Result<Option<GoldenManifest>, HostError> {
         Ok(self.copy_now(place, name))
     }
-    async fn put_copy(&self, place: &str, name: &str, manifest: &GoldenManifest) -> Result<(), HostError> {
+    async fn put_copy(
+        &self,
+        place: &str,
+        name: &str,
+        manifest: &GoldenManifest,
+    ) -> Result<(), HostError> {
         self.note(format!("put_copy {place} {name}"));
-        self.store.put("goldens", &format!("{place}/{name}"), serde_json::to_value(manifest).expect("json")).await
+        self.store
+            .put(
+                "goldens",
+                &format!("{place}/{name}"),
+                serde_json::to_value(manifest).expect("json"),
+            )
+            .await
     }
-    async fn copy_recipe_of(&self, place: &str, name: &str, version: u32) -> Result<Option<RecipeDigest>, HostError> {
-        Ok(read(self.store.doc("golden-recipes", &format!("{place}/{name}@v{version}"))))
+    async fn copy_recipe_of(
+        &self,
+        place: &str,
+        name: &str,
+        version: u32,
+    ) -> Result<Option<RecipeDigest>, HostError> {
+        Ok(read(self.store.doc(
+            "golden-recipes",
+            &format!("{place}/{name}@v{version}"),
+        )))
     }
-    async fn drop_copy_recipe(&self, place: &str, name: &str, version: u32) -> Result<(), HostError> {
+    async fn drop_copy_recipe(
+        &self,
+        place: &str,
+        name: &str,
+        version: u32,
+    ) -> Result<(), HostError> {
         self.note(format!("drop_copy_recipe {place} {name} {version}"));
-        self.store.delete("golden-recipes", &format!("{place}/{name}@v{version}")).await
+        self.store
+            .delete("golden-recipes", &format!("{place}/{name}@v{version}"))
+            .await
     }
     async fn recorded_images(&self) -> Result<IndexSet<String>, HostError> {
         self.note("recorded_images");
         Ok(self.recorded.borrow().clone())
     }
     fn forked_from(&self, snapshot_id: &str) -> Vec<String> {
-        self.live.borrow().iter().filter(|r| r.borrow().golden == snapshot_id).map(|r| r.borrow().name.clone()).collect()
+        self.live
+            .borrow()
+            .iter()
+            .filter(|r| r.borrow().golden == snapshot_id)
+            .map(|r| r.borrow().name.clone())
+            .collect()
     }
     async fn image_place(&self, name: &str) -> Result<String, HostError> {
         let image: Option<SealedImage> = read(self.store.doc("images", name));
-        Ok(image.and_then(|i| i.place).unwrap_or_else(|| self.places.wired()))
+        Ok(image
+            .and_then(|i| i.place)
+            .unwrap_or_else(|| self.places.wired()))
     }
     async fn place_at(&self, word: &str) -> Result<PlaceAt, HostError> {
         self.note(format!("place_at {word}"));
-        self.backend_by_place(word).map(|at| PlaceAt { place: word.into(), at }).ok_or_else(|| HostError { kind: Some(Kind::Missing), ..HostError::new(format!("no place {word}")) })
+        self.backend_by_place(word)
+            .map(|at| PlaceAt {
+                place: word.into(),
+                at,
+            })
+            .ok_or_else(|| HostError {
+                kind: Some(Kind::Missing),
+                ..HostError::new(format!("no place {word}"))
+            })
     }
     fn backend_at(&self, place: &str) -> Result<Arc<dyn MachineBackend>, HostError> {
-        self.backend_by_place(place).ok_or_else(|| HostError { kind: Some(Kind::Missing), ..HostError::new(format!("no place {place}")) })
+        self.backend_by_place(place).ok_or_else(|| HostError {
+            kind: Some(Kind::Missing),
+            ..HostError::new(format!("no place {place}"))
+        })
     }
     fn place_name(&self, place: &str) -> String {
-        self.door.borrow().as_ref().and_then(|d| d.name_of(place)).unwrap_or_else(|| place.to_string())
+        self.door
+            .borrow()
+            .as_ref()
+            .and_then(|d| d.name_of(place))
+            .unwrap_or_else(|| place.to_string())
     }
     fn place_kind_of(&self, place: &str) -> PlaceKind {
-        if self.places.rows.borrow().contains_key(place) { PlaceKind::Provider } else { PlaceKind::Computer }
+        if self.places.rows.borrow().contains_key(place) {
+            PlaceKind::Provider
+        } else {
+            PlaceKind::Computer
+        }
     }
     async fn build_places(&self) -> Result<Vec<BuildPlace>, HostError> {
         self.note("build_places");
         let mut rows = vec![];
         for (id, b) in self.places.rows.borrow().iter() {
             if !b.caps.borrow().sizes.is_empty() {
-                rows.push(BuildPlace { place: id.clone(), name: id.clone(), kind: PlaceKind::Provider, backend: b.clone() });
+                rows.push(BuildPlace {
+                    place: id.clone(),
+                    name: id.clone(),
+                    kind: PlaceKind::Provider,
+                    backend: b.clone(),
+                });
             }
         }
         if let Some(d) = self.door.borrow().as_ref() {
             for (id, b) in d.backends.borrow().iter() {
                 let name = d.names.borrow().get(id).cloned().unwrap_or_default();
-                rows.push(BuildPlace { place: id.clone(), name, kind: PlaceKind::Computer, backend: b.clone() });
+                rows.push(BuildPlace {
+                    place: id.clone(),
+                    name,
+                    kind: PlaceKind::Computer,
+                    backend: b.clone(),
+                });
             }
         }
         Ok(rows)
@@ -1209,33 +1569,77 @@ impl GoldenCtx for World {
         self.note(format!("stage_of {name} {} {named}", on.unwrap_or("-")));
         let log = self.log.clone();
         Rc::new(move |stage, detail, _step, _left| {
-            log.borrow_mut().push(format!("stage {} {}", serde_json::to_value(stage).unwrap_or_default().as_str().unwrap_or("?"), detail.unwrap_or_default()));
+            log.borrow_mut().push(format!(
+                "stage {} {}",
+                serde_json::to_value(stage)
+                    .unwrap_or_default()
+                    .as_str()
+                    .unwrap_or("?"),
+                detail.unwrap_or_default()
+            ));
         })
     }
-    fn recording_creates(&self, b: Arc<dyn MachineBackend>, name: &str, imp: Option<ImportMark>, made: Rc<dyn Fn(BuilderRef)>, stop: Option<CreateStop>, place: &str) -> Arc<dyn MachineBackend> {
+    fn recording_creates(
+        &self,
+        b: Arc<dyn MachineBackend>,
+        name: &str,
+        imp: Option<ImportMark>,
+        made: Rc<dyn Fn(BuilderRef)>,
+        stop: Option<CreateStop>,
+        place: &str,
+    ) -> Arc<dyn MachineBackend> {
         *self.made.borrow_mut() = Some(made.clone());
         let placeholder = self.placeholder_made.borrow().clone();
         if let Some(p) = placeholder {
             made(p);
         }
-        self.note(format!("recording_creates {name} {place} import={} stop={}", imp.map(|i| i.recipe_hash).unwrap_or_default(), stop.is_some()));
+        self.note(format!(
+            "recording_creates {name} {place} import={} stop={}",
+            imp.map(|i| i.recipe_hash).unwrap_or_default(),
+            stop.is_some()
+        ));
         b
     }
-    async fn settle_builder(&self, name: &str, builder: EngineBuilder, placeholder: Option<BuilderRef>, place: &str) -> Result<BuilderRef, HostError> {
-        self.note(format!("settle_builder {name} {} {place}", builder.machine.id()));
-        let entry = placeholder.unwrap_or_else(|| live_builder(builder.machine.id(), name, place, BuilderLife::Own));
+    async fn settle_builder(
+        &self,
+        name: &str,
+        builder: EngineBuilder,
+        placeholder: Option<BuilderRef>,
+        place: &str,
+    ) -> Result<BuilderRef, HostError> {
+        self.note(format!(
+            "settle_builder {name} {} {place}",
+            builder.machine.id()
+        ));
+        let entry = placeholder
+            .unwrap_or_else(|| live_builder(builder.machine.id(), name, place, BuilderLife::Own));
         entry.borrow_mut().builder = builder;
         let id = entry.borrow().record.id.clone();
         self.builders.borrow_mut().insert(id, entry.clone());
         Ok(entry)
     }
-    async fn seal_entry(&self, entry: &BuilderRef, keep: bool, logins: Option<Vec<GoldenLogin>>, copy: Option<SealedImage>) -> ImageResult<SealResult> {
-        self.note(format!("seal_entry {} keep={keep} logins={} copy={}", entry.borrow().record.id, logins.map(|l| l.len()).unwrap_or(0), copy.map(|c| c.hash).unwrap_or_default()));
+    async fn seal_entry(
+        &self,
+        entry: &BuilderRef,
+        keep: bool,
+        logins: Option<Vec<GoldenLogin>>,
+        copy: Option<SealedImage>,
+    ) -> ImageResult<SealResult> {
+        self.note(format!(
+            "seal_entry {} keep={keep} logins={} copy={}",
+            entry.borrow().record.id,
+            logins.map(|l| l.len()).unwrap_or(0),
+            copy.map(|c| c.hash).unwrap_or_default()
+        ));
         let hook = self.seal_hook.borrow().clone();
         if let Some(h) = hook {
             h();
         }
-        self.seals.borrow_mut().pop_front().unwrap_or_else(|| Err(ImageError::Host(HostError::new("seal_entry is not scripted"))))
+        self.seals.borrow_mut().pop_front().unwrap_or_else(|| {
+            Err(ImageError::Host(HostError::new(
+                "seal_entry is not scripted",
+            )))
+        })
     }
     async fn hold(&self, b: &BuilderRef) -> Result<(), HostError> {
         self.note(format!("hold {}", b.borrow().record.id));
@@ -1246,7 +1650,11 @@ impl GoldenCtx for World {
         self.builders.borrow_mut().shift_remove(id);
         Ok(())
     }
-    async fn forget_if_gone(&self, entry: &BuilderRef, _at: Arc<dyn MachineBackend>) -> Result<(), HostError> {
+    async fn forget_if_gone(
+        &self,
+        entry: &BuilderRef,
+        _at: Arc<dyn MachineBackend>,
+    ) -> Result<(), HostError> {
         self.note(format!("forget_if_gone {}", entry.borrow().record.id));
         Ok(())
     }
@@ -1256,18 +1664,28 @@ impl GoldenCtx for World {
     fn refuse_untouchable(&self, entry: &BuilderRef) -> Result<(), HostError> {
         self.note(format!("refuse_untouchable {}", entry.borrow().record.id));
         match entry.borrow().life {
-            BuilderLife::Foreign | BuilderLife::Held => Err(HostError::new(format!("{} is untouchable", entry.borrow().record.id))),
+            BuilderLife::Foreign | BuilderLife::Held => Err(HostError::new(format!(
+                "{} is untouchable",
+                entry.borrow().record.id
+            ))),
             _ => Ok(()),
         }
     }
     async fn expire_grace(&self) -> ImageResult<Expired> {
         self.note("expire_grace");
-        self.expired.borrow_mut().take().unwrap_or_else(|| Ok(Expired::default()))
+        self.expired
+            .borrow_mut()
+            .take()
+            .unwrap_or_else(|| Ok(Expired::default()))
     }
     fn in_window(&self, sealed_at: &str) -> bool {
         sealed_at >= "2026-10-25T08:51:00.000Z"
     }
-    async fn drop_image(&self, v: &GoldenVersion, _at: Option<Arc<dyn MachineBackend>>) -> ImageResult<()> {
+    async fn drop_image(
+        &self,
+        v: &GoldenVersion,
+        _at: Option<Arc<dyn MachineBackend>>,
+    ) -> ImageResult<()> {
         self.note(format!("drop_image {}", v.snapshot_id));
         if let Some(e) = self.drop_image_fails.borrow().get(&v.snapshot_id) {
             return Err(e.clone());
@@ -1317,7 +1735,9 @@ impl ImageCtx for World {
             Stopped::Line(l) => l,
             Stopped::Error(e) => format!("error: {e:?}"),
         };
-        self.framed.borrow_mut().push((place.into(), name.into(), why));
+        self.framed
+            .borrow_mut()
+            .push((place.into(), name.into(), why));
     }
     async fn ready(&self) -> Result<(), HostError> {
         self.note("ready");
@@ -1329,21 +1749,47 @@ impl ImageCtx for World {
     async fn copy_of(&self, place: &str, name: &str) -> Result<Option<GoldenManifest>, HostError> {
         Ok(self.copy_now(place, name))
     }
-    async fn copy_recipe_of(&self, place: &str, name: &str, version: u32) -> Result<Option<RecipeDigest>, HostError> {
-        Ok(read(self.store.doc("golden-recipes", &format!("{place}/{name}@v{version}"))))
+    async fn copy_recipe_of(
+        &self,
+        place: &str,
+        name: &str,
+        version: u32,
+    ) -> Result<Option<RecipeDigest>, HostError> {
+        Ok(read(self.store.doc(
+            "golden-recipes",
+            &format!("{place}/{name}@v{version}"),
+        )))
     }
-    async fn put_copy_recipe(&self, place: &str, name: &str, version: u32, digest: &RecipeDigest) -> Result<(), HostError> {
+    async fn put_copy_recipe(
+        &self,
+        place: &str,
+        name: &str,
+        version: u32,
+        digest: &RecipeDigest,
+    ) -> Result<(), HostError> {
         self.note(format!("put_copy_recipe {place} {name} {version}"));
-        self.store.put("golden-recipes", &format!("{place}/{name}@v{version}"), serde_json::to_value(digest).expect("json")).await
+        self.store
+            .put(
+                "golden-recipes",
+                &format!("{place}/{name}@v{version}"),
+                serde_json::to_value(digest).expect("json"),
+            )
+            .await
     }
     async fn image_of(&self, snapshot_id: &str) -> Result<ImageOf, HostError> {
         for raw in self.store.list("goldens").await? {
             let m: GoldenManifest = serde_json::from_value(raw).expect("manifest");
             if let Some(v) = m.versions.iter().find(|v| v.snapshot_id == snapshot_id) {
-                return Ok(ImageOf { golden: snapshot_id.into(), version: Some(v.clone()) });
+                return Ok(ImageOf {
+                    golden: snapshot_id.into(),
+                    version: Some(v.clone()),
+                });
             }
         }
-        Ok(ImageOf { golden: snapshot_id.into(), version: None })
+        Ok(ImageOf {
+            golden: snapshot_id.into(),
+            version: None,
+        })
     }
     async fn place_at(&self, word: &str) -> Result<PlaceAt, HostError> {
         GoldenCtx::place_at(self, word).await
@@ -1363,25 +1809,52 @@ impl ImageCtx for World {
     fn stage_of(&self, name: &str, on: Option<&str>, named: bool) -> StageFn {
         GoldenCtx::stage_of(self, name, on, named)
     }
-    async fn forget_if_gone(&self, entry: &BuilderRef, at: Arc<dyn MachineBackend>) -> Result<(), HostError> {
+    async fn forget_if_gone(
+        &self,
+        entry: &BuilderRef,
+        at: Arc<dyn MachineBackend>,
+    ) -> Result<(), HostError> {
         GoldenCtx::forget_if_gone(self, entry, at).await
     }
-    async fn seal_entry(&self, entry: &BuilderRef, keep: bool, logins: Option<Vec<GoldenLogin>>, copy: Option<SealedImage>) -> ImageResult<SealResult> {
+    async fn seal_entry(
+        &self,
+        entry: &BuilderRef,
+        keep: bool,
+        logins: Option<Vec<GoldenLogin>>,
+        copy: Option<SealedImage>,
+    ) -> ImageResult<SealResult> {
         GoldenCtx::seal_entry(self, entry, keep, logins, copy).await
     }
     async fn golden_prepare(&self, ask: PrepareAsk) -> ImageResult<GoldenBuilderView> {
-        self.note(format!("golden_prepare {} {} copy={}", ask.name.unwrap_or_default(), ask.place.unwrap_or_default(), ask.copy == Some(true)));
+        self.note(format!(
+            "golden_prepare {} {} copy={}",
+            ask.name.unwrap_or_default(),
+            ask.place.unwrap_or_default(),
+            ask.copy == Some(true)
+        ));
         let gate = self.copy_gate.borrow().clone();
         if let Some(g) = gate {
             g.await;
         }
-        self.prepared_views.borrow_mut().pop_front().unwrap_or_else(|| Err(ImageError::Host(HostError::new("golden_prepare is not scripted"))))
+        self.prepared_views
+            .borrow_mut()
+            .pop_front()
+            .unwrap_or_else(|| {
+                Err(ImageError::Host(HostError::new(
+                    "golden_prepare is not scripted",
+                )))
+            })
     }
 }
 
 /// A seal's result for version `v` of snapshot `snap`, its manifest holding `versions` and it.
 pub fn seal_result(v: u32, snap: &str, kept: bool) -> SealResult {
-    SealResult { manifest: manifest(&[(v, snap, None)]), version: version(v, snap, None), builder_kept: kept, vault: None }
+    SealResult {
+        manifest: manifest(&[(v, snap, None)]),
+        version: version(v, snap, None),
+        builder_kept: kept,
+        vault: None,
+    }
 }
 
 // --- appended for the golden storage and upgrade tests ------------------------------------------------------------------
@@ -1389,7 +1862,8 @@ pub fn seal_result(v: u32, snap: &str, kept: bool) -> SealResult {
 /// Boat's storage pricing: no GB price, ten named snapshots free, then $1.70 a month each (box-backend.ts:62).
 pub fn boat_pricing() -> SnapshotStoragePricing {
     SnapshotStoragePricing {
-        wire: serde_json::from_value(json!({"freeGb": 0, "usdPerGbMonth": 0, "billedFrom": ""})).expect("pricing"),
+        wire: serde_json::from_value(json!({"freeGb": 0, "usdPerGbMonth": 0, "billedFrom": ""}))
+            .expect("pricing"),
         free_named: Some(10),
         usd_per_named_month: Some(1.7),
     }
@@ -1398,7 +1872,10 @@ pub fn boat_pricing() -> SnapshotStoragePricing {
 /// Storage priced by the GB past ten free, as the TS stub backend bills it.
 pub fn gb_pricing() -> SnapshotStoragePricing {
     SnapshotStoragePricing {
-        wire: serde_json::from_value(json!({"freeGb": 10, "usdPerGbMonth": 0.05, "billedFrom": "2026-10-01"})).expect("pricing"),
+        wire: serde_json::from_value(
+            json!({"freeGb": 10, "usdPerGbMonth": 0.05, "billedFrom": "2026-10-01"}),
+        )
+        .expect("pricing"),
         free_named: None,
         usd_per_named_month: None,
     }
@@ -1406,7 +1883,10 @@ pub fn gb_pricing() -> SnapshotStoragePricing {
 
 /// A snapshot row stamped with the time it was taken.
 pub fn snapshot_at(id: &str, name: Option<&str>, size: f64, created_at: &str) -> SnapshotRow {
-    SnapshotRow { created_at: Some(created_at.into()), ..snapshot_row(id, name, size, None) }
+    SnapshotRow {
+        created_at: Some(created_at.into()),
+        ..snapshot_row(id, name, size, None)
+    }
 }
 
 /// A ready template row.
@@ -1420,7 +1900,11 @@ pub fn template_row(id: &str, name: &str, created_at: Option<&str>) -> TemplateR
 
 impl FakeTemplates {
     pub fn new(log: Rc<RefCell<Vec<String>>>, rows: Vec<TemplateRow>) -> Rc<FakeTemplates> {
-        Rc::new(FakeTemplates { log, rows: RefCell::new(rows), delete_fails: RefCell::new(IndexMap::new()) })
+        Rc::new(FakeTemplates {
+            log,
+            rows: RefCell::new(rows),
+            delete_fails: RefCell::new(IndexMap::new()),
+        })
     }
 }
 
@@ -1437,13 +1921,20 @@ impl World {
     }
     /// A live workspace forked from `golden`, named `name`.
     pub fn add_workspace(&self, id: &str, name: &str, golden: &str) {
-        self.live.borrow_mut().push(Rc::new(RefCell::new(workspace_record(id, name, golden))));
+        self.live
+            .borrow_mut()
+            .push(Rc::new(RefCell::new(workspace_record(id, name, golden))));
     }
     /// Files a copy of a manifest at a place with a recipe digest per version.
     pub fn put_recipe_now(&self, place: &str, name: &str, version: u32) {
-        self.store.seed("golden-recipes", &format!("{place}/{name}@v{version}"), json!({"ticks": [], "files": []}));
+        self.store.seed(
+            "golden-recipes",
+            &format!("{place}/{name}@v{version}"),
+            json!({"ticks": [], "files": []}),
+        );
     }
     pub fn recipe_now(&self, place: &str, name: &str, version: u32) -> Option<Value> {
-        self.store.doc("golden-recipes", &format!("{place}/{name}@v{version}"))
+        self.store
+            .doc("golden-recipes", &format!("{place}/{name}@v{version}"))
     }
 }

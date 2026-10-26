@@ -13,8 +13,8 @@ use wsp_wire::types::agents_report::AgentSignInState;
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::types::usage::{
-    AccountLimit, AccountLimitCredits, AccountNote, AccountRoad, AccountRow, AccountRowBurn, AccountRowCredits, ResetCreditStatus, PRICES_TTL_MS,
-    USAGE_WORDS,
+    AccountLimit, AccountLimitCredits, AccountNote, AccountRoad, AccountRow, AccountRowBurn,
+    AccountRowCredits, ResetCreditStatus, PRICES_TTL_MS, USAGE_WORDS,
 };
 use wsp_wire::views::place_more::PlaceView;
 use wsp_words::exit::HostError;
@@ -48,44 +48,89 @@ pub struct ComputerName {
 }
 
 fn word(key: &str) -> String {
-    USAGE_WORDS.iter().find(|(k, _)| *k == key).map(|(_, v)| (*v).to_string()).expect("a word the usage table holds")
+    USAGE_WORDS
+        .iter()
+        .find(|(k, _)| *k == key)
+        .map(|(_, v)| (*v).to_string())
+        .expect("a word the usage table holds")
 }
 
 fn who(agent_name: &str) -> AccountWho {
-    AccountWho { agent_name: agent_name.to_string(), ..AccountWho::default() }
+    AccountWho {
+        agent_name: agent_name.to_string(),
+        ..AccountWho::default()
+    }
 }
 
 /// usage.ts:117-122 (C1).
-pub fn account_of(agent: &str, agent_name: &str, named: Option<&NamedAccount>, vaulted: Option<Vaulted>, computer: &ComputerName) -> Account {
+pub fn account_of(
+    agent: &str,
+    agent_name: &str,
+    named: Option<&NamedAccount>,
+    vaulted: Option<Vaulted>,
+    computer: &ComputerName,
+) -> Account {
     if let Some(named) = named {
-        return Account { key: format!("{agent}:{}", named.id), label: named.label.clone().unwrap_or_else(|| named.id.clone()), road: AccountRoad::Named };
+        return Account {
+            key: format!("{agent}:{}", named.id),
+            label: named.label.clone().unwrap_or_else(|| named.id.clone()),
+            road: AccountRoad::Named,
+        };
     }
     match vaulted {
         Some(Vaulted::Token) => Account {
             key: format!("{agent}:vault-token"),
-            label: account_words(&AccountWho { vaulted: Some(true), ..who(agent_name) }),
+            label: account_words(&AccountWho {
+                vaulted: Some(true),
+                ..who(agent_name)
+            }),
             road: AccountRoad::Vault,
         },
         Some(Vaulted::Key) => Account {
             key: format!("{agent}:vault-key"),
-            label: account_words(&AccountWho { keyed: Some(true), ..who(agent_name) }),
+            label: account_words(&AccountWho {
+                keyed: Some(true),
+                ..who(agent_name)
+            }),
             road: AccountRoad::Vault,
         },
         None => Account {
             key: format!("{agent}@{}", computer.id),
-            label: account_words(&AccountWho { own_on: Some(computer.name.clone()), ..who(agent_name) }),
+            label: account_words(&AccountWho {
+                own_on: Some(computer.name.clone()),
+                ..who(agent_name)
+            }),
             road: AccountRoad::Own,
         },
     }
 }
 
 /// usage.ts:127-130 (C2): the key and label.
-pub fn account_on_computer(agent: &str, agent_name: &str, computer: &ComputerName, limits: &[AccountLimit], vaulted: Option<Vaulted>) -> (String, String) {
+pub fn account_on_computer(
+    agent: &str,
+    agent_name: &str,
+    computer: &ComputerName,
+    limits: &[AccountLimit],
+    vaulted: Option<Vaulted>,
+) -> (String, String) {
     let ran = |vault: bool| {
-        limits.iter().find(|l| l.agent == agent && (l.road == Some(AccountRoad::Vault)) == vault && l.computers.contains(&computer.id)).map(|l| (l.key.clone(), l.label.clone()))
+        limits
+            .iter()
+            .find(|l| {
+                l.agent == agent
+                    && (l.road == Some(AccountRoad::Vault)) == vault
+                    && l.computers.contains(&computer.id)
+            })
+            .map(|l| (l.key.clone(), l.label.clone()))
     };
     ran(false)
-        .or_else(|| if vaulted == Some(Vaulted::Key) { ran(true) } else { None })
+        .or_else(|| {
+            if vaulted == Some(Vaulted::Key) {
+                ran(true)
+            } else {
+                None
+            }
+        })
         .unwrap_or_else(|| {
             let account = account_of(agent, agent_name, None, None, computer);
             (account.key, account.label)
@@ -93,25 +138,41 @@ pub fn account_on_computer(agent: &str, agent_name: &str, computer: &ComputerNam
 }
 
 /// usage.ts:135-140 (C3).
-pub fn usage_computer_name(places: &[PlaceView], id: &str, kept: &IndexMap<String, String>) -> String {
+pub fn usage_computer_name(
+    places: &[PlaceView],
+    id: &str,
+    kept: &IndexMap<String, String>,
+) -> String {
     if let Some(place) = places.iter().find(|p| p.id == id) {
         return place_name(place);
     }
     if id == HERE_PLACE_ID {
         let here = here_name(places);
-        return if here.is_empty() { wsp_words::words::computer::THIS_COMPUTER.to_string() } else { here };
+        return if here.is_empty() {
+            wsp_words::words::computer::THIS_COMPUTER.to_string()
+        } else {
+            here
+        };
     }
     if provider_key_words(id).is_some() {
         return provider_key_name(id);
     }
-    kept.get(id).cloned().unwrap_or_else(|| word("removedComputer"))
+    kept.get(id)
+        .cloned()
+        .unwrap_or_else(|| word("removedComputer"))
 }
 
 /// usage.ts:146-160 (C4).
-pub async fn kept_computer_names(store: &dyn Store, places: &[PlaceView]) -> Result<IndexMap<String, String>, HostError> {
+pub async fn kept_computer_names(
+    store: &dyn Store,
+    places: &[PlaceView],
+) -> Result<IndexMap<String, String>, HostError> {
     let mut kept: IndexMap<String, String> = IndexMap::new();
     for raw in store.list(COMPUTER_NAMES).await? {
-        if let (Some(id), Some(name)) = (raw.get("id").and_then(Value::as_str), raw.get("name").and_then(Value::as_str)) {
+        if let (Some(id), Some(name)) = (
+            raw.get("id").and_then(Value::as_str),
+            raw.get("name").and_then(Value::as_str),
+        ) {
             kept.insert(id.to_string(), name.to_string());
         }
     }
@@ -124,7 +185,13 @@ pub async fn kept_computer_names(store: &dyn Store, places: &[PlaceView]) -> Res
             continue;
         }
         kept.insert(place.id.clone(), name.clone());
-        store.put(COMPUTER_NAMES, &place.id, json!({ "id": place.id, "name": name })).await?;
+        store
+            .put(
+                COMPUTER_NAMES,
+                &place.id,
+                json!({ "id": place.id, "name": name }),
+            )
+            .await?;
     }
     Ok(kept)
 }
@@ -132,7 +199,9 @@ pub async fn kept_computer_names(store: &dyn Store, places: &[PlaceView]) -> Res
 /// usage.ts:194-195 (C5).
 pub fn reset_details_due(held: Option<&AccountLimit>, now: i64) -> bool {
     let keyed = held.and_then(|h| h.keyed) == Some(true);
-    let detail_at = held.and_then(|h| h.credits.as_ref()).and_then(|c| c.detail_at);
+    let detail_at = held
+        .and_then(|h| h.credits.as_ref())
+        .and_then(|c| c.detail_at);
     !keyed && detail_at.is_none_or(|at| now as f64 - at.0 >= RESET_DETAILS_MS as f64)
 }
 
@@ -144,7 +213,9 @@ pub fn row_credits(held: &AccountLimitCredits) -> AccountRowCredits {
         .flatten()
         .filter(|c| c.status == ResetCreditStatus::Available)
         .filter_map(|c| c.expires_at.map(|e| e.0));
-    let next = lapses.fold(None, |least: Option<f64>, at| Some(least.map_or(at, |l| l.min(at))));
+    let next = lapses.fold(None, |least: Option<f64>, at| {
+        Some(least.map_or(at, |l| l.min(at)))
+    });
     AccountRowCredits {
         count: held.count,
         credits: held.credits.clone(),
@@ -180,15 +251,25 @@ pub struct Burn {
 
 /// usage.ts:476-479: when a call is filed, by its age against its run's newest stamp where it was replayed.
 fn filed_at(received: i64, call: &BurnCall, newest: &IndexMap<String, (i64, i64)>) -> i64 {
-    match call.replayed.as_ref().and_then(|r| newest.get(&r.run).map(|top| (r, top))) {
-        Some((replayed, &(top_at, top_received))) => received.min(top_received - (top_at - replayed.at)),
+    match call
+        .replayed
+        .as_ref()
+        .and_then(|r| newest.get(&r.run).map(|top| (r, top)))
+    {
+        Some((replayed, &(top_at, top_received))) => {
+            received.min(top_received - (top_at - replayed.at))
+        }
         None => received,
     }
 }
 
 impl Burn {
     pub fn new(clock: Rc<dyn Clock>) -> Burn {
-        Burn { clock, calls: RefCell::default(), newest: RefCell::default() }
+        Burn {
+            clock,
+            calls: RefCell::default(),
+            newest: RefCell::default(),
+        }
     }
 
     /// usage.ts:480-486: drops the calls filed at or before the window's start, and the newest stamps of runs with none left.
@@ -196,9 +277,16 @@ impl Burn {
         let since = self.clock.now() - BURN_WINDOW_MS;
         {
             let newest = self.newest.borrow();
-            self.calls.borrow_mut().retain(|(received, call)| filed_at(*received, call, &newest) > since);
+            self.calls
+                .borrow_mut()
+                .retain(|(received, call)| filed_at(*received, call, &newest) > since);
         }
-        let runs: IndexSet<String> = self.calls.borrow().iter().filter_map(|(_, c)| c.replayed.as_ref().map(|r| r.run.clone())).collect();
+        let runs: IndexSet<String> = self
+            .calls
+            .borrow()
+            .iter()
+            .filter_map(|(_, c)| c.replayed.as_ref().map(|r| r.run.clone()))
+            .collect();
         self.newest.borrow_mut().retain(|run, _| runs.contains(run));
     }
 
@@ -207,7 +295,9 @@ impl Burn {
         if let Some(replayed) = &call.replayed {
             let held_at = self.newest.borrow().get(&replayed.run).map(|top| top.0);
             if held_at.is_none_or(|at| replayed.at >= at) {
-                self.newest.borrow_mut().insert(replayed.run.clone(), (replayed.at, received));
+                self.newest
+                    .borrow_mut()
+                    .insert(replayed.run.clone(), (replayed.at, received));
             }
         }
         self.recent();
@@ -217,7 +307,11 @@ impl Burn {
     pub fn of(&self, account: &str) -> Option<AccountRowBurn> {
         self.recent();
         let calls = self.calls.borrow();
-        let on: Vec<&BurnCall> = calls.iter().filter(|(_, c)| c.account == account).map(|(_, c)| c).collect();
+        let on: Vec<&BurnCall> = calls
+            .iter()
+            .filter(|(_, c)| c.account == account)
+            .map(|(_, c)| c)
+            .collect();
         if on.is_empty() {
             return None;
         }
@@ -249,22 +343,32 @@ impl PriceTable {
         fetch: Rc<dyn Fn() -> LocalBoxFuture<'static, Result<serde_json::Value, HostError>>>,
         warn: Rc<dyn Fn(&str)>,
     ) -> Rc<PriceTable> {
-        Rc::new(PriceTable { store, clock, fetch, warn, held: RefCell::default(), reading: RefCell::default() })
+        Rc::new(PriceTable {
+            store,
+            clock,
+            fetch,
+            warn,
+            held: RefCell::default(),
+            reading: RefCell::default(),
+        })
     }
 
     fn fresh(&self) -> Option<RateTable> {
         let held = self.held.borrow();
-        held.as_ref().filter(|(at, _)| self.clock.now() - at < PRICES_TTL_MS as i64).map(|(_, table)| table.clone())
+        held.as_ref()
+            .filter(|(at, _)| self.clock.now() - at < PRICES_TTL_MS as i64)
+            .map(|(_, table)| table.clone())
     }
 
     /// usage.ts:507-529.
     async fn refresh(&self) -> RateTable {
         if self.held.borrow().is_none() {
             if let Ok(Some(bytes)) = self.store.get_blob(PRICES, "litellm").await {
-                let kept: Option<(i64, RateTable)> = serde_json::from_slice::<Value>(&bytes).ok().and_then(|v| {
-                    let at = v.get("fetchedAt")?.as_f64()?;
-                    Some((at as i64, stored_table(v.get("table")?)?))
-                });
+                let kept: Option<(i64, RateTable)> =
+                    serde_json::from_slice::<Value>(&bytes).ok().and_then(|v| {
+                        let at = v.get("fetchedAt")?.as_f64()?;
+                        Some((at as i64, stored_table(v.get("table")?)?))
+                    });
                 if let Some(kept) = kept {
                     *self.held.borrow_mut() = Some(kept);
                 }
@@ -280,19 +384,33 @@ impl PriceTable {
                     let at = self.clock.now();
                     *self.held.borrow_mut() = Some((at, table.clone()));
                     let kept = json!({ "fetchedAt": at, "table": table });
-                    if let Err(e) = self.store.put_blob(PRICES, "litellm", kept.to_string().into_bytes()).await {
+                    if let Err(e) = self
+                        .store
+                        .put_blob(PRICES, "litellm", kept.to_string().into_bytes())
+                        .await
+                    {
                         self.warn_unread(&e.message);
                     }
                 }
             }
             Err(e) => self.warn_unread(&e.message),
         }
-        self.held.borrow().as_ref().map(|(_, table)| table.clone()).unwrap_or_default()
+        self.held
+            .borrow()
+            .as_ref()
+            .map(|(_, table)| table.clone())
+            .unwrap_or_default()
     }
 
     fn warn_unread(&self, message: &str) {
-        let fallback = if self.held.borrow().is_none() { "no row is priced" } else { "the last one read is used" };
-        (self.warn)(&format!("the price table was not read ({message}); {fallback}"));
+        let fallback = if self.held.borrow().is_none() {
+            "no row is priced"
+        } else {
+            "the last one read is used"
+        };
+        (self.warn)(&format!(
+            "the price table was not read ({message}); {fallback}"
+        ));
     }
 
     pub async fn get(self: &Rc<Self>) -> RateTable {
@@ -334,7 +452,10 @@ fn stored_table(value: &Value) -> Option<RateTable> {
                     output: raw.get("output")?.as_f64()?,
                     cache_read: raw.get("cacheRead").and_then(Value::as_f64),
                     cache_write: raw.get("cacheWrite").and_then(Value::as_f64),
-                    provider: raw.get("provider").and_then(Value::as_str).map(str::to_string),
+                    provider: raw
+                        .get("provider")
+                        .and_then(Value::as_str)
+                        .map(str::to_string),
                 };
                 Some((model.clone(), rate))
             })
@@ -382,9 +503,16 @@ pub fn account_names(o: &AccountRowsAsk) -> IndexMap<String, String> {
         names.insert(l.key.clone(), label);
     }
     let labels: Vec<String> = names.values().cloned().collect();
-    let shared: IndexSet<String> = labels.iter().enumerate().filter(|(at, label)| labels.iter().position(|x| x == *label) != Some(*at)).map(|(_, l)| l.clone()).collect();
+    let shared: IndexSet<String> = labels
+        .iter()
+        .enumerate()
+        .filter(|(at, label)| labels.iter().position(|x| x == *label) != Some(*at))
+        .map(|(_, l)| l.clone())
+        .collect();
     for l in &o.limits {
-        let Some(label) = names.get(&l.key).cloned() else { continue };
+        let Some(label) = names.get(&l.key).cloned() else {
+            continue;
+        };
         if !shared.contains(&label) {
             continue;
         }
@@ -447,8 +575,15 @@ pub fn account_rows(o: &AccountRowsAsk) -> Vec<AccountRow> {
             }
             let agent_name = (o.agent_name)(agent);
             let vaulted_now = (o.vaulted)(agent);
-            let held = if *state == AgentSignInState::VaultKey { vaulted_now } else { None };
-            let computer = ComputerName { id: place.id.clone(), name: (o.name_of)(&place.id) };
+            let held = if *state == AgentSignInState::VaultKey {
+                vaulted_now
+            } else {
+                None
+            };
+            let computer = ComputerName {
+                id: place.id.clone(),
+                name: (o.name_of)(&place.id),
+            };
             let (key, label) = match held {
                 Some(_) => {
                     let account = account_of(agent, &agent_name, None, held, &computer);

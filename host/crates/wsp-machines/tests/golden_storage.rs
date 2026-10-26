@@ -25,15 +25,6 @@ use wsp_words::exit::{HostError, Kind};
 const OLD: &str = "2026-10-25T08:00:00.000Z";
 const GB: f64 = 1e9;
 
-fn said(e: &ImageError) -> String {
-    match e {
-        ImageError::Host(h) => h.message.clone(),
-        ImageError::Engine(e) => e.to_string(),
-        ImageError::SnapshotFailed { message, .. } => message.clone(),
-        ImageError::Stopped(_) => "stopped".into(),
-    }
-}
-
 fn storage_of(v: Value) -> SnapshotStorage {
     serde_json::from_value(v).expect("a storage line")
 }
@@ -55,7 +46,10 @@ fn conflict(message: &str) -> EngineError {
 }
 
 fn other(message: &str) -> EngineError {
-    EngineError::Other { message: message.into(), code: None }
+    EngineError::Other {
+        message: message.into(),
+        code: None,
+    }
 }
 
 /// Version `n` as the TS storage tests write it: parent recorded, base recorded, snapshot `snap_<tag>-v<n>`.
@@ -72,11 +66,23 @@ fn gv(tag: &str, n: u32) -> Value {
 }
 
 fn chain(tag: &str, versions: &[u32], head: u32) -> GoldenManifest {
-    serde_json::from_value(json!({"head": head, "versions": versions.iter().map(|n| gv(tag, *n)).collect::<Vec<_>>()})).expect("a manifest")
+    serde_json::from_value(
+        json!({"head": head, "versions": versions.iter().map(|n| gv(tag, *n)).collect::<Vec<_>>()}),
+    )
+    .expect("a manifest")
 }
 
 fn golden_rows(tag: &str, n: u32) -> Vec<SnapshotRow> {
-    (1..=n).map(|i| snapshot_row(&format!("snap_{tag}-v{i}"), None, f64::from(7 + i) * GB, None)).collect()
+    (1..=n)
+        .map(|i| {
+            snapshot_row(
+                &format!("snap_{tag}-v{i}"),
+                None,
+                f64::from(7 + i) * GB,
+                None,
+            )
+        })
+        .collect()
 }
 
 /// Four sealed versions of `default` on the wired place, a snapshot and a recipe for each, the listing answering by ids.
@@ -95,7 +101,12 @@ fn four_versions() -> Rc<World> {
 
 fn account_rows() -> Vec<SnapshotRow> {
     vec![
-        snapshot_at("snap_wsp-h1s1-default-v1", Some("wsp-h1s1-default-v1"), 12.0 * GB, OLD),
+        snapshot_at(
+            "snap_wsp-h1s1-default-v1",
+            Some("wsp-h1s1-default-v1"),
+            12.0 * GB,
+            OLD,
+        ),
         snapshot_at("snap_orphan", Some("wsp-h1s1-default-v9"), 20.0 * GB, OLD),
         snapshot_at("snap_before", Some("golden-v1"), 21.0 * GB, OLD),
         snapshot_at("snap_other", Some("wsp-zz9-default-v1"), 7.0 * GB, OLD),
@@ -115,7 +126,10 @@ fn account_templates() -> Vec<TemplateRow> {
 fn account(pricing: wsp_engine::machine::SnapshotStoragePricing) -> Rc<World> {
     let w = World::on(FakeBackend::priced("boat", pricing));
     *w.mark.borrow_mut() = "h1s1".into();
-    *w.recorded.borrow_mut() = ["snap_wsp-h1s1-default-v1", "tpl_wsp-h1s1-default-v1"].map(String::from).into_iter().collect();
+    *w.recorded.borrow_mut() = ["snap_wsp-h1s1-default-v1", "tpl_wsp-h1s1-default-v1"]
+        .map(String::from)
+        .into_iter()
+        .collect();
     *w.runtime_backend.snapshots.borrow_mut() = Ok(account_rows());
     w.with_templates(account_templates());
     w.trace_backend();
@@ -146,7 +160,10 @@ fn storage_reads_named_rows_alone_where_snapshots_bill_by_count() {
         }));
         assert_eq!(got, Some(want));
         let _ = area(&w).orphans().await.unwrap();
-        assert_eq!(*w.runtime_backend.listed.borrow(), vec![Some(vec![]), Some(vec![])]);
+        assert_eq!(
+            *w.runtime_backend.listed.borrow(),
+            vec![Some(vec![]), Some(vec![])]
+        );
 
         // Billed by the GB, the whole account is read.
         let w = account(gb_pricing());
@@ -177,8 +194,18 @@ fn storage_reads_the_owner_mark_recorded_images_and_the_clock() {
         *w.mark.borrow_mut() = "h1s1".into();
         w.recorded.borrow_mut().clear();
         *w.runtime_backend.snapshots.borrow_mut() = Ok(vec![
-            snapshot_at("snap_young", Some("wsp-h1s1-default-v2"), 9.0 * GB, "2026-10-25T08:59:55.000Z"),
-            snapshot_at("snap_edge", Some("wsp-h1s1-default-v3"), 1.0 * GB, "2026-10-25T08:59:00.001Z"),
+            snapshot_at(
+                "snap_young",
+                Some("wsp-h1s1-default-v2"),
+                9.0 * GB,
+                "2026-10-25T08:59:55.000Z",
+            ),
+            snapshot_at(
+                "snap_edge",
+                Some("wsp-h1s1-default-v3"),
+                1.0 * GB,
+                "2026-10-25T08:59:00.001Z",
+            ),
             snapshot_at("snap_orphan", Some("wsp-h1s1-default-v9"), 20.0 * GB, OLD),
             snapshot_at("snap_before", Some("golden-v1"), 21.0 * GB, OLD),
         ]);
@@ -200,12 +227,18 @@ fn storage_reads_the_owner_mark_recorded_images_and_the_clock() {
         // The mark is the context's: a host of another mark owns none of them.
         *w.mark.borrow_mut() = "zz9".into();
         let got = a.storage().await.unwrap().unwrap();
-        assert_eq!((got.kept.count.0, got.orphans.count.0, got.others.count.0), (0.0, 0.0, 4.0));
+        assert_eq!(
+            (got.kept.count.0, got.orphans.count.0, got.others.count.0),
+            (0.0, 0.0, 4.0)
+        );
         // Recorded ids are kept whoever made them.
         *w.mark.borrow_mut() = "h1s1".into();
         *w.recorded.borrow_mut() = ["snap_orphan"].map(String::from).into_iter().collect();
         let got = a.storage().await.unwrap().unwrap();
-        assert_eq!((got.kept.count.0, got.orphans.count.0, got.others.count.0), (1.0, 2.0, 1.0));
+        assert_eq!(
+            (got.kept.count.0, got.orphans.count.0, got.others.count.0),
+            (1.0, 2.0, 1.0)
+        );
     });
 }
 
@@ -218,20 +251,42 @@ fn orphans_split_snapshots_and_templates_and_price_what_deleting_saves() {
         let rows = account_rows();
         assert_eq!(plan.snapshots, vec![rows[1].clone()]);
         assert_eq!(plan.templates, vec![account_templates()[1].clone()]);
-        assert_eq!(plan.others.snapshots, vec![rows[2].clone(), rows[3].clone()]);
+        assert_eq!(
+            plan.others.snapshots,
+            vec![rows[2].clone(), rows[3].clone()]
+        );
         assert_eq!(plan.others.templates, vec![account_templates()[2].clone()]);
         assert_eq!(plan.freed_bytes, 20e9);
         // 60 GB on the account, 40 GB once the orphan goes, both past the free 10 GB.
         near(plan.saves_usd_per_month, 1.0);
         // The owner read comes before the listing, the templates after it.
-        assert_eq!(w.log(), ["ready", "recorded_images", "backend list_snapshots *", "templates list"]);
+        assert_eq!(
+            w.log(),
+            [
+                "ready",
+                "recorded_images",
+                "backend list_snapshots *",
+                "templates list"
+            ]
+        );
 
         // Boat bills named snapshots by count: 14 named, 1 once the 13 orphans go, so the 4 past the free 10 stop costing.
         let w = World::on(FakeBackend::priced("boat", boat_pricing()));
         *w.mark.borrow_mut() = "h1s1".into();
-        *w.recorded.borrow_mut() = ["wsp-h1s1-default-v1"].map(String::from).into_iter().collect();
-        *w.runtime_backend.snapshots.borrow_mut() =
-            Ok((1..=14).map(|n| snapshot_at(&format!("wsp-h1s1-default-v{n}"), Some(&format!("wsp-h1s1-default-v{n}")), 0.0, OLD)).collect());
+        *w.recorded.borrow_mut() = ["wsp-h1s1-default-v1"]
+            .map(String::from)
+            .into_iter()
+            .collect();
+        *w.runtime_backend.snapshots.borrow_mut() = Ok((1..=14)
+            .map(|n| {
+                snapshot_at(
+                    &format!("wsp-h1s1-default-v{n}"),
+                    Some(&format!("wsp-h1s1-default-v{n}")),
+                    0.0,
+                    OLD,
+                )
+            })
+            .collect());
         let plan = area(&w).orphans().await.unwrap().unwrap();
         assert_eq!(plan.snapshots.len(), 13);
         assert_eq!(plan.templates, vec![]);
@@ -258,7 +313,12 @@ fn a_snapshot_a_live_workspace_forks_from_is_recorded_so_never_an_orphan() {
     run(async {
         let w = account(gb_pricing());
         let mut rows = account_rows();
-        rows.push(snapshot_at("snap_forked", Some("wsp-h1s1-default-v8"), 5.0 * GB, OLD));
+        rows.push(snapshot_at(
+            "snap_forked",
+            Some("wsp-h1s1-default-v8"),
+            5.0 * GB,
+            OLD,
+        ));
         *w.runtime_backend.snapshots.borrow_mut() = Ok(rows.clone());
         w.recorded.borrow_mut().insert("snap_forked".into());
         let plan = area(&w).orphans().await.unwrap().unwrap();
@@ -274,14 +334,32 @@ fn a_name_marked_by_the_host_alone_is_foreign_unless_recorded() {
     run(async {
         let w = account(gb_pricing());
         let mut rows = account_rows();
-        rows.push(snapshot_at("wsp-h1-default-v7", Some("wsp-h1-default-v7"), 3.0 * GB, OLD));
-        rows.push(snapshot_at("wsp-h1-default-v2", Some("wsp-h1-default-v2"), 3.0 * GB, OLD));
+        rows.push(snapshot_at(
+            "wsp-h1-default-v7",
+            Some("wsp-h1-default-v7"),
+            3.0 * GB,
+            OLD,
+        ));
+        rows.push(snapshot_at(
+            "wsp-h1-default-v2",
+            Some("wsp-h1-default-v2"),
+            3.0 * GB,
+            OLD,
+        ));
         *w.runtime_backend.snapshots.borrow_mut() = Ok(rows);
         w.recorded.borrow_mut().insert("wsp-h1-default-v2".into());
         let plan = area(&w).orphans().await.unwrap().unwrap();
         assert_eq!(ids(&plan.snapshots), ["snap_orphan"]);
-        let names: Vec<_> = plan.others.snapshots.iter().filter_map(|r| r.name.clone()).collect();
-        assert_eq!(names, ["golden-v1", "wsp-zz9-default-v1", "wsp-h1-default-v7"]);
+        let names: Vec<_> = plan
+            .others
+            .snapshots
+            .iter()
+            .filter_map(|r| r.name.clone())
+            .collect();
+        assert_eq!(
+            names,
+            ["golden-v1", "wsp-zz9-default-v1", "wsp-h1-default-v7"]
+        );
         area(&w).delete_orphans().await.unwrap();
         assert_eq!(*w.runtime_backend.deleted.borrow(), ["snap_orphan"]);
     });
@@ -293,16 +371,36 @@ fn a_snapshot_marked_inside_the_grace_is_kept_and_counted_as_this_hosts() {
     run(async {
         let w = account(gb_pricing());
         let mut rows = account_rows();
-        rows.push(snapshot_at("snap_sealing", Some("wsp-h1s1-default-v2"), 9.0 * GB, "2026-10-25T08:59:55.000Z"));
-        rows.push(snapshot_at("snap_sealing_edge", Some("wsp-h1s1-default-v3"), 1.0 * GB, "2026-10-25T08:59:00.001Z"));
+        rows.push(snapshot_at(
+            "snap_sealing",
+            Some("wsp-h1s1-default-v2"),
+            9.0 * GB,
+            "2026-10-25T08:59:55.000Z",
+        ));
+        rows.push(snapshot_at(
+            "snap_sealing_edge",
+            Some("wsp-h1s1-default-v3"),
+            1.0 * GB,
+            "2026-10-25T08:59:00.001Z",
+        ));
         *w.runtime_backend.snapshots.borrow_mut() = Ok(rows);
         let mut templates = account_templates();
-        templates.push(template_row("tpl_promoting", "wsp-h1s1-default-v2", Some("2026-10-25T08:59:55.000Z")));
+        templates.push(template_row(
+            "tpl_promoting",
+            "wsp-h1s1-default-v2",
+            Some("2026-10-25T08:59:55.000Z"),
+        ));
         w.with_templates(templates);
         let a = area(&w);
         let plan = a.orphans().await.unwrap().unwrap();
         assert_eq!(ids(&plan.snapshots), ["snap_orphan"]);
-        assert_eq!(plan.templates.iter().map(|t| t.id.clone()).collect::<Vec<_>>(), ["tpl_wsp-h1s1-old-v1"]);
+        assert_eq!(
+            plan.templates
+                .iter()
+                .map(|t| t.id.clone())
+                .collect::<Vec<_>>(),
+            ["tpl_wsp-h1s1-old-v1"]
+        );
         // Counted as this host's and kept, not as another host's.
         let want = storage_of(json!({
             "count": 6, "totalBytes": 70e9, "freeGb": 10, "usdPerGbMonth": 0.05, "billedFrom": "2026-10-01", "monthlyUsd": 3,
@@ -311,7 +409,10 @@ fn a_snapshot_marked_inside_the_grace_is_kept_and_counted_as_this_hosts() {
         assert_eq!(a.storage().await.unwrap(), Some(want));
         a.delete_orphans().await.unwrap();
         assert_eq!(*w.runtime_backend.deleted.borrow(), ["snap_orphan"]);
-        assert_eq!(w.lines("templates delete"), ["templates delete tpl_wsp-h1s1-old-v1"]);
+        assert_eq!(
+            w.lines("templates delete"),
+            ["templates delete tpl_wsp-h1s1-old-v1"]
+        );
     });
 }
 
@@ -321,19 +422,36 @@ fn delete_orphans_deletes_templates_then_snapshots_and_counts_a_missing_one_dele
     run(async {
         let w = account(gb_pricing());
         let mut rows = account_rows();
-        rows.push(snapshot_at("snap_gone", Some("wsp-h1s1-default-v8"), 1.0 * GB, OLD));
+        rows.push(snapshot_at(
+            "snap_gone",
+            Some("wsp-h1s1-default-v8"),
+            1.0 * GB,
+            OLD,
+        ));
         *w.runtime_backend.snapshots.borrow_mut() = Ok(rows.clone());
         // The provider already lost this one: gone is what was asked for.
-        w.runtime_backend.delete_fails.borrow_mut().insert("snap_gone".into(), missing("Not found"));
+        w.runtime_backend
+            .delete_fails
+            .borrow_mut()
+            .insert("snap_gone".into(), missing("Not found"));
         let done = area(&w).delete_orphans().await.unwrap().unwrap();
-        let want = OrphansDeleted { snapshots: vec![rows[1].clone(), rows[4].clone()], templates: vec![account_templates()[1].clone()], failed: vec![] };
+        let want = OrphansDeleted {
+            snapshots: vec![rows[1].clone(), rows[4].clone()],
+            templates: vec![account_templates()[1].clone()],
+            failed: vec![],
+        };
         assert_eq!(done, want);
         // The template first, which the provider will not let the snapshot under it go before; one account listing.
         assert_eq!(
             w.log(),
             [
-                "ready", "recorded_images", "backend list_snapshots *", "templates list", "templates delete tpl_wsp-h1s1-old-v1",
-                "backend delete_snapshot snap_orphan", "backend delete_snapshot snap_gone"
+                "ready",
+                "recorded_images",
+                "backend list_snapshots *",
+                "templates list",
+                "templates delete tpl_wsp-h1s1-old-v1",
+                "backend delete_snapshot snap_orphan",
+                "backend delete_snapshot snap_gone"
             ]
         );
     });
@@ -345,22 +463,43 @@ fn delete_orphans_reports_each_failure_and_goes_on() {
     run(async {
         let w = account(gb_pricing());
         let mut rows = account_rows();
-        rows.push(snapshot_at("snap_second", Some("wsp-h1s1-default-v8"), 1.0 * GB, OLD));
+        rows.push(snapshot_at(
+            "snap_second",
+            Some("wsp-h1s1-default-v8"),
+            1.0 * GB,
+            OLD,
+        ));
         *w.runtime_backend.snapshots.borrow_mut() = Ok(rows.clone());
         let t = w.with_templates(account_templates());
-        t.delete_fails.borrow_mut().insert("tpl_wsp-h1s1-old-v1".into(), conflict("template in use"));
-        w.runtime_backend.delete_fails.borrow_mut().insert("snap_orphan".into(), conflict("SnapshotHasChildren"));
+        t.delete_fails
+            .borrow_mut()
+            .insert("tpl_wsp-h1s1-old-v1".into(), conflict("template in use"));
+        w.runtime_backend
+            .delete_fails
+            .borrow_mut()
+            .insert("snap_orphan".into(), conflict("SnapshotHasChildren"));
         let done = area(&w).delete_orphans().await.unwrap().unwrap();
         let want = OrphansDeleted {
             snapshots: vec![rows[4].clone()],
             templates: vec![],
             failed: vec![
-                OrphanFailed { id: "tpl_wsp-h1s1-old-v1".into(), name: Some("wsp-h1s1-old-v1".into()), message: "template in use".into() },
-                OrphanFailed { id: "snap_orphan".into(), name: Some("wsp-h1s1-default-v9".into()), message: "SnapshotHasChildren".into() },
+                OrphanFailed {
+                    id: "tpl_wsp-h1s1-old-v1".into(),
+                    name: Some("wsp-h1s1-old-v1".into()),
+                    message: "template in use".into(),
+                },
+                OrphanFailed {
+                    id: "snap_orphan".into(),
+                    name: Some("wsp-h1s1-default-v9".into()),
+                    message: "SnapshotHasChildren".into(),
+                },
             ],
         };
         assert_eq!(done, want);
-        assert_eq!(*w.runtime_backend.deleted.borrow(), ["snap_orphan", "snap_second"]);
+        assert_eq!(
+            *w.runtime_backend.deleted.borrow(),
+            ["snap_orphan", "snap_second"]
+        );
     });
 }
 
@@ -375,7 +514,10 @@ fn retention_places_lists_own_then_wired_then_sorted_others_with_a_backend() {
             for p in ["Zed", "alpha", "zeta", "zzz"] {
                 door.computer(p, p, Some(FakeBackend::new(p)));
             }
-            w.places.rows.borrow_mut().insert("spoo".into(), FakeBackend::new("spoo"));
+            w.places
+                .rows
+                .borrow_mut()
+                .insert("spoo".into(), FakeBackend::new("spoo"));
             if let Some(p) = image_at {
                 w.put_image_now(&sealed_image("default", 1, "h", Some(p)));
             }
@@ -388,20 +530,32 @@ fn retention_places_lists_own_then_wired_then_sorted_others_with_a_backend() {
         };
         // The image's own place first, the wired provider next, then the rest by plain code-unit order: a capital sorts
         // before every lower case letter, and a place this host no longer has is left out.
-        let w = world(Some("spoo"), &["boat", "spoo", "zeta", "Zed", "alpha", "gone"]);
+        let w = world(
+            Some("spoo"),
+            &["boat", "spoo", "zeta", "Zed", "alpha", "gone"],
+        );
         let got = area(&w).retention_places(None).await.unwrap();
         assert_eq!(got, ["spoo", "boat", "Zed", "alpha", "zeta"]);
         assert_eq!(w.log(), ["ready"]);
         // The image at the wired provider is listed once.
         let w = world(None, &["boat", "alpha"]);
-        assert_eq!(area(&w).retention_places(None).await.unwrap(), ["boat", "alpha"]);
+        assert_eq!(
+            area(&w).retention_places(None).await.unwrap(),
+            ["boat", "alpha"]
+        );
         // No copy at the wired provider: it is not offered.
         let w = world(Some("spoo"), &["spoo", "alpha"]);
-        assert_eq!(area(&w).retention_places(None).await.unwrap(), ["spoo", "alpha"]);
+        assert_eq!(
+            area(&w).retention_places(None).await.unwrap(),
+            ["spoo", "alpha"]
+        );
         // A name asked for is the name read.
         let w = world(None, &["boat"]);
         w.put_copy_now("alpha", "other", &held());
-        assert_eq!(area(&w).retention_places(Some("other")).await.unwrap(), ["boat", "alpha", "zzz"]);
+        assert_eq!(
+            area(&w).retention_places(Some("other")).await.unwrap(),
+            ["boat", "alpha", "zzz"]
+        );
     });
 }
 
@@ -418,7 +572,10 @@ fn retention_plans_the_asked_place_and_says_whether_it_is_a_copy() {
         assert_eq!(got.plan.freed_bytes, 17e9);
         near(got.plan.saves_usd_per_month, 0.85);
         assert_eq!(got.plan.pricing, gb_pricing());
-        assert_eq!((got.place.as_str(), got.place_name.as_str(), got.copy), ("boat", "boat", false));
+        assert_eq!(
+            (got.place.as_str(), got.place_name.as_str(), got.copy),
+            ("boat", "boat", false)
+        );
         // The listing is asked for the versions' own ids, not the account's history.
         let ids_asked: Vec<String> = (1..=4).map(|n| format!("snap_golden-v{n}")).collect();
         assert_eq!(*w.runtime_backend.listed.borrow(), vec![Some(ids_asked)]);
@@ -428,8 +585,15 @@ fn retention_plans_the_asked_place_and_says_whether_it_is_a_copy() {
         *spoo.snapshots.borrow_mut() = Ok(golden_rows("golden", 4));
         w.with_door().computer("spoo", "Spoo", Some(spoo.clone()));
         w.put_copy_now("spoo", "default", &chain("golden", &[1, 2, 3, 4], 4));
-        let got = area(&w).retention(None, Some("spoo")).await.unwrap().unwrap();
-        assert_eq!((got.place.as_str(), got.place_name.as_str(), got.copy), ("spoo", "Spoo", true));
+        let got = area(&w)
+            .retention(None, Some("spoo"))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            (got.place.as_str(), got.place_name.as_str(), got.copy),
+            ("spoo", "Spoo", true)
+        );
         assert_eq!(nums(&got.plan.drop), [1, 2]);
         assert_eq!(spoo.listed.borrow().len(), 1);
         assert_eq!(w.runtime_backend.listed.borrow().len(), 1);
@@ -476,7 +640,8 @@ fn retention_is_none_without_a_listing_or_a_copy() {
 
         // A listing but no golden of that name, and no copy at the place asked: nothing to plan, nothing listed.
         let w = four_versions();
-        w.with_door().computer("spoo", "Spoo", Some(FakeBackend::new("spoo")));
+        w.with_door()
+            .computer("spoo", "Spoo", Some(FakeBackend::new("spoo")));
         assert_eq!(area(&w).retention(Some("nope"), None).await.unwrap(), None);
         assert_eq!(area(&w).retention(None, Some("spoo")).await.unwrap(), None);
         assert!(w.runtime_backend.listed.borrow().is_empty());
@@ -489,7 +654,10 @@ fn prune_drops_each_planned_version_and_its_recipe() {
     run(async {
         let w = four_versions();
         // What the provider lists once the drops landed: the kept versions, which this host records.
-        *w.recorded.borrow_mut() = ["snap_golden-v3", "snap_golden-v4"].map(String::from).into_iter().collect();
+        *w.recorded.borrow_mut() = ["snap_golden-v3", "snap_golden-v4"]
+            .map(String::from)
+            .into_iter()
+            .collect();
         let got = area(&w).prune(None, None).await.unwrap();
         assert_eq!(nums(&got.dropped), [1, 2]);
         assert!(got.failed.is_empty());
@@ -502,9 +670,21 @@ fn prune_drops_each_planned_version_and_its_recipe() {
                 "backend list_snapshots snap_golden-v4,snap_golden-v3", "recorded_images"
             ]
         );
-        assert_eq!(w.copy_now("boat", "default"), Some(chain("golden", &[3, 4], 4)));
-        assert_eq!((w.recipe_now("boat", "default", 1), w.recipe_now("boat", "default", 2)), (None, None));
-        assert!(w.recipe_now("boat", "default", 3).is_some() && w.recipe_now("boat", "default", 4).is_some());
+        assert_eq!(
+            w.copy_now("boat", "default"),
+            Some(chain("golden", &[3, 4], 4))
+        );
+        assert_eq!(
+            (
+                w.recipe_now("boat", "default", 1),
+                w.recipe_now("boat", "default", 2)
+            ),
+            (None, None)
+        );
+        assert!(
+            w.recipe_now("boat", "default", 3).is_some()
+                && w.recipe_now("boat", "default", 4).is_some()
+        );
         // The storage line is read over the kept versions alone.
         let want = storage_of(json!({
             "count": 2, "totalBytes": 21e9, "freeGb": 10, "usdPerGbMonth": 0.05, "billedFrom": "2026-10-01", "monthlyUsd": 0.55,
@@ -526,8 +706,14 @@ fn prune_leaves_a_version_a_workspace_stands_on() {
         let got = area(&w).prune(None, None).await.unwrap();
         assert_eq!(nums(&got.dropped), [2]);
         assert_eq!(w.lines("drop_image"), ["drop_image snap_golden-v2"]);
-        assert_eq!(w.copy_now("boat", "default"), Some(chain("golden", &[1, 3, 4], 4)));
-        assert!(w.recipe_now("boat", "default", 1).is_some() && w.recipe_now("boat", "default", 2).is_none());
+        assert_eq!(
+            w.copy_now("boat", "default"),
+            Some(chain("golden", &[1, 3, 4], 4))
+        );
+        assert!(
+            w.recipe_now("boat", "default", 1).is_some()
+                && w.recipe_now("boat", "default", 2).is_none()
+        );
     });
 }
 
@@ -537,11 +723,17 @@ fn prune_counts_a_missing_snapshot_as_dropped() {
     run(async {
         let w = four_versions();
         // The provider no longer has v1's snapshot: gone is what a drop asks, so its version goes with it.
-        w.drop_image_fails.borrow_mut().insert("snap_golden-v1".into(), ImageError::Engine(missing("Not found")));
+        w.drop_image_fails.borrow_mut().insert(
+            "snap_golden-v1".into(),
+            ImageError::Engine(missing("Not found")),
+        );
         let got = area(&w).prune(None, None).await.unwrap();
         assert_eq!(nums(&got.dropped), [1, 2]);
         assert!(got.failed.is_empty());
-        assert_eq!(w.copy_now("boat", "default"), Some(chain("golden", &[3, 4], 4)));
+        assert_eq!(
+            w.copy_now("boat", "default"),
+            Some(chain("golden", &[3, 4], 4))
+        );
         assert!(w.recipe_now("boat", "default", 1).is_none());
     });
 }
@@ -551,14 +743,26 @@ fn prune_counts_a_missing_snapshot_as_dropped() {
 fn prune_keeps_a_version_whose_delete_failed() {
     run(async {
         let w = four_versions();
-        w.drop_image_fails.borrow_mut().insert("snap_golden-v1".into(), ImageError::Engine(conflict("SnapshotHasChildren")));
+        w.drop_image_fails.borrow_mut().insert(
+            "snap_golden-v1".into(),
+            ImageError::Engine(conflict("SnapshotHasChildren")),
+        );
         let got = area(&w).prune(None, None).await.unwrap();
         assert_eq!(nums(&got.dropped), [2]);
         assert_eq!(got.failed, vec![(1, "SnapshotHasChildren".to_string())]);
-        assert_eq!(w.copy_now("boat", "default"), Some(chain("golden", &[1, 3, 4], 4)));
+        assert_eq!(
+            w.copy_now("boat", "default"),
+            Some(chain("golden", &[1, 3, 4], 4))
+        );
         // The refused version keeps its recipe; the one dropped after it loses its own.
-        assert!(w.recipe_now("boat", "default", 1).is_some() && w.recipe_now("boat", "default", 2).is_none());
-        assert_eq!(w.lines("drop_copy_recipe"), ["drop_copy_recipe boat default 2"]);
+        assert!(
+            w.recipe_now("boat", "default", 1).is_some()
+                && w.recipe_now("boat", "default", 2).is_none()
+        );
+        assert_eq!(
+            w.lines("drop_copy_recipe"),
+            ["drop_copy_recipe boat default 2"]
+        );
     });
 }
 
@@ -586,13 +790,23 @@ fn prune_leaves_out_storage_a_failed_listing_did_not_read() {
     run(async {
         let w = four_versions();
         // The plan's listing answers; the storage line's, after the deletes, is refused.
-        w.runtime_backend.list_queue.borrow_mut().push_back(Ok(golden_rows("golden", 4)));
-        *w.runtime_backend.snapshots.borrow_mut() = Err(provider_error(wsp_engine::errors::ErrorKind::Transient, 502, "upstream unavailable"));
+        w.runtime_backend
+            .list_queue
+            .borrow_mut()
+            .push_back(Ok(golden_rows("golden", 4)));
+        *w.runtime_backend.snapshots.borrow_mut() = Err(provider_error(
+            wsp_engine::errors::ErrorKind::Transient,
+            502,
+            "upstream unavailable",
+        ));
         let got = area(&w).prune(None, None).await.unwrap();
         assert_eq!(nums(&got.dropped), [1, 2]);
         assert!(got.failed.is_empty());
         assert_eq!(got.storage, None);
-        assert_eq!(w.copy_now("boat", "default"), Some(chain("golden", &[3, 4], 4)));
+        assert_eq!(
+            w.copy_now("boat", "default"),
+            Some(chain("golden", &[3, 4], 4))
+        );
     });
 }
 
@@ -625,12 +839,33 @@ fn prune_reaches_the_copy_at_the_place_asked_by_that_places_own_version_numbers(
         assert!(w.lines("drop_image").is_empty());
         let got = a.prune(None, Some("boat")).await.unwrap();
         assert_eq!(nums(&got.dropped), [1, 2]);
-        assert_eq!(w.lines("drop_image"), ["drop_image snap_copy-v1", "drop_image snap_copy-v2"]);
-        assert_eq!(w.copy_now("boat", "default"), Some(chain("copy", &[3, 4], 4)));
-        assert_eq!(w.copy_now("spoo", "default"), Some(chain("golden", &[1, 2], 2)));
-        assert!(w.recipe_now("boat", "default", 1).is_none() && w.recipe_now("boat", "default", 3).is_some());
-        assert!(w.recipe_now("spoo", "default", 1).is_some() && w.recipe_now("spoo", "default", 2).is_some());
-        assert_eq!(w.lines("drop_copy_recipe"), ["drop_copy_recipe boat default 1", "drop_copy_recipe boat default 2"]);
+        assert_eq!(
+            w.lines("drop_image"),
+            ["drop_image snap_copy-v1", "drop_image snap_copy-v2"]
+        );
+        assert_eq!(
+            w.copy_now("boat", "default"),
+            Some(chain("copy", &[3, 4], 4))
+        );
+        assert_eq!(
+            w.copy_now("spoo", "default"),
+            Some(chain("golden", &[1, 2], 2))
+        );
+        assert!(
+            w.recipe_now("boat", "default", 1).is_none()
+                && w.recipe_now("boat", "default", 3).is_some()
+        );
+        assert!(
+            w.recipe_now("spoo", "default", 1).is_some()
+                && w.recipe_now("spoo", "default", 2).is_some()
+        );
+        assert_eq!(
+            w.lines("drop_copy_recipe"),
+            [
+                "drop_copy_recipe boat default 1",
+                "drop_copy_recipe boat default 2"
+            ]
+        );
     });
 }
 
@@ -655,7 +890,13 @@ fn rollback_refuses_missing_and_writes_the_rolled_back_wired_copy() {
         // No wired copy of that name.
         let before = w.log().len();
         let err = area(&w).rollback(1, Some("nope")).await.unwrap_err();
-        assert_eq!(err, HostError { kind: Some(Kind::Missing), ..HostError::new("no golden named \"nope\"") });
+        assert_eq!(
+            err,
+            HostError {
+                kind: Some(Kind::Missing),
+                ..HostError::new("no golden named \"nope\"")
+            }
+        );
         assert_eq!(w.log().len(), before);
     });
 }
@@ -669,7 +910,13 @@ fn rollback_marks_the_engines_refusal_missing() {
         w.put_copy_now("boat", "default", &held);
         *w.roads.rolled_back.borrow_mut() = Some(Err(other("rollback target v7 not in manifest")));
         let err = area(&w).rollback(7, None).await.unwrap_err();
-        assert_eq!(err, HostError { kind: Some(Kind::Missing), ..HostError::new("rollback target v7 not in manifest") });
+        assert_eq!(
+            err,
+            HostError {
+                kind: Some(Kind::Missing),
+                ..HostError::new("rollback target v7 not in manifest")
+            }
+        );
         // Untouched.
         assert_eq!(w.copy_now("boat", "default"), Some(held));
         assert!(w.lines("put_copy").is_empty());
@@ -677,15 +924,25 @@ fn rollback_marks_the_engines_refusal_missing() {
 }
 
 fn promoted(id: &str, sharing: Option<u32>) -> Result<Promoted, EngineError> {
-    Ok(Promoted { template_id: id.into(), sharing })
+    Ok(Promoted {
+        template_id: id.into(),
+        sharing,
+    })
 }
 
 fn row(version: u32, done: PromotionDone) -> GoldenPromotion {
-    GoldenPromotion { golden: "default".into(), version, done }
+    GoldenPromotion {
+        golden: "default".into(),
+        version,
+        done,
+    }
 }
 
 fn done(id: &str, sharing: Option<u32>) -> PromotionDone {
-    PromotionDone::Promoted { template_id: id.into(), sharing }
+    PromotionDone::Promoted {
+        template_id: id.into(),
+        sharing,
+    }
 }
 
 fn templates_of(m: &GoldenManifest) -> Vec<Option<String>> {
@@ -696,8 +953,12 @@ fn promote_world(versions: &[(u32, Option<&str>)]) -> Rc<World> {
     let w = World::new();
     *w.mark.borrow_mut() = "h1s1".into();
     w.with_templates(vec![]);
-    let vs: Vec<_> = versions.iter().map(|(n, t)| (*n, format!("snap_golden-v{n}"), *t)).collect();
-    let refs: Vec<(u32, &str, Option<&str>)> = vs.iter().map(|(n, s, t)| (*n, s.as_str(), *t)).collect();
+    let vs: Vec<_> = versions
+        .iter()
+        .map(|(n, t)| (*n, format!("snap_golden-v{n}"), *t))
+        .collect();
+    let refs: Vec<(u32, &str, Option<&str>)> =
+        vs.iter().map(|(n, s, t)| (*n, s.as_str(), *t)).collect();
     w.put_copy_now("boat", "default", &manifest(&refs));
     w
 }
@@ -707,20 +968,42 @@ fn promote_world(versions: &[(u32, Option<&str>)]) -> Rc<World> {
 fn promote_templates_each_version_without_one() {
     run(async {
         let w = promote_world(&[(1, None), (2, None), (3, Some("tpl_three"))]);
-        w.roads.promoted.borrow_mut().push_back(promoted("tpl_wsp-h1s1-default-v1", Some(1)));
-        w.roads.promoted.borrow_mut().push_back(promoted("tpl_wsp-h1s1-default-v2", Some(0)));
+        w.roads
+            .promoted
+            .borrow_mut()
+            .push_back(promoted("tpl_wsp-h1s1-default-v1", Some(1)));
+        w.roads
+            .promoted
+            .borrow_mut()
+            .push_back(promoted("tpl_wsp-h1s1-default-v2", Some(0)));
         let got = area(&w).promote(None).await.unwrap();
-        assert_eq!(got, Some(vec![row(1, done("tpl_wsp-h1s1-default-v1", Some(1))), row(2, done("tpl_wsp-h1s1-default-v2", Some(0)))]));
+        assert_eq!(
+            got,
+            Some(vec![
+                row(1, done("tpl_wsp-h1s1-default-v1", Some(1))),
+                row(2, done("tpl_wsp-h1s1-default-v2", Some(0)))
+            ])
+        );
         // Named wsp-<host mark>-<golden>-v<n>, one write per version.
         assert_eq!(
             w.log(),
             [
-                "ready", "road promote_version snap_golden-v1 wsp-h1s1-default-v1", "put_copy boat default",
-                "road promote_version snap_golden-v2 wsp-h1s1-default-v2", "put_copy boat default"
+                "ready",
+                "road promote_version snap_golden-v1 wsp-h1s1-default-v1",
+                "put_copy boat default",
+                "road promote_version snap_golden-v2 wsp-h1s1-default-v2",
+                "put_copy boat default"
             ]
         );
         let stored = w.copy_now("boat", "default").unwrap();
-        assert_eq!(templates_of(&stored), [Some("tpl_wsp-h1s1-default-v1".into()), Some("tpl_wsp-h1s1-default-v2".into()), Some("tpl_three".into())]);
+        assert_eq!(
+            templates_of(&stored),
+            [
+                Some("tpl_wsp-h1s1-default-v1".into()),
+                Some("tpl_wsp-h1s1-default-v2".into()),
+                Some("tpl_three".into())
+            ]
+        );
         // A second run finds nothing to do.
         assert_eq!(area(&w).promote(None).await.unwrap(), Some(vec![]));
         assert_eq!(w.lines("road promote_version").len(), 2);
@@ -734,11 +1017,24 @@ fn promote_names_the_template_after_the_hosts_mark_and_owner() {
         let w = World::new();
         *w.mark.borrow_mut() = "9f3a1c2bs1".into();
         w.with_templates(vec![]);
-        w.put_copy_now("boat", "default", &manifest(&[(1, "snap_wsp-9f3a1c2bs1-default-v1", None)]));
-        w.roads.promoted.borrow_mut().push_back(promoted("tpl_wsp-9f3a1c2bs1-default-v1", Some(1)));
+        w.put_copy_now(
+            "boat",
+            "default",
+            &manifest(&[(1, "snap_wsp-9f3a1c2bs1-default-v1", None)]),
+        );
+        w.roads
+            .promoted
+            .borrow_mut()
+            .push_back(promoted("tpl_wsp-9f3a1c2bs1-default-v1", Some(1)));
         let got = area(&w).promote(None).await.unwrap();
-        assert_eq!(got, Some(vec![row(1, done("tpl_wsp-9f3a1c2bs1-default-v1", Some(1)))]));
-        assert_eq!(w.lines("road promote_version"), ["road promote_version snap_wsp-9f3a1c2bs1-default-v1 wsp-9f3a1c2bs1-default-v1"]);
+        assert_eq!(
+            got,
+            Some(vec![row(1, done("tpl_wsp-9f3a1c2bs1-default-v1", Some(1)))])
+        );
+        assert_eq!(
+            w.lines("road promote_version"),
+            ["road promote_version snap_wsp-9f3a1c2bs1-default-v1 wsp-9f3a1c2bs1-default-v1"]
+        );
     });
 }
 
@@ -747,13 +1043,30 @@ fn promote_names_the_template_after_the_hosts_mark_and_owner() {
 fn promote_writes_a_failed_row_and_goes_on() {
     run(async {
         let w = promote_world(&[(1, None), (2, None)]);
-        w.roads.promoted.borrow_mut().push_back(Err(other("its snapshot is gone at the provider")));
-        w.roads.promoted.borrow_mut().push_back(promoted("tpl_wsp-h1s1-default-v2", Some(0)));
+        w.roads
+            .promoted
+            .borrow_mut()
+            .push_back(Err(other("its snapshot is gone at the provider")));
+        w.roads
+            .promoted
+            .borrow_mut()
+            .push_back(promoted("tpl_wsp-h1s1-default-v2", Some(0)));
         let got = area(&w).promote(None).await.unwrap();
-        let failed = PromotionDone::Failed { error: "its snapshot is gone at the provider".into() };
-        assert_eq!(got, Some(vec![row(1, failed), row(2, done("tpl_wsp-h1s1-default-v2", Some(0)))]));
+        let failed = PromotionDone::Failed {
+            error: "its snapshot is gone at the provider".into(),
+        };
+        assert_eq!(
+            got,
+            Some(vec![
+                row(1, failed),
+                row(2, done("tpl_wsp-h1s1-default-v2", Some(0)))
+            ])
+        );
         let stored = w.copy_now("boat", "default").unwrap();
-        assert_eq!(templates_of(&stored), [None, Some("tpl_wsp-h1s1-default-v2".into())]);
+        assert_eq!(
+            templates_of(&stored),
+            [None, Some("tpl_wsp-h1s1-default-v2".into())]
+        );
         assert_eq!(w.lines("put_copy").len(), 1);
     });
 }
@@ -763,10 +1076,16 @@ fn promote_writes_a_failed_row_and_goes_on() {
 fn promote_leaves_sharing_out_where_the_count_was_unread() {
     run(async {
         let w = promote_world(&[(1, None)]);
-        w.roads.promoted.borrow_mut().push_back(promoted("tpl_wsp-h1s1-default-v1", None));
+        w.roads
+            .promoted
+            .borrow_mut()
+            .push_back(promoted("tpl_wsp-h1s1-default-v1", None));
         let got = area(&w).promote(None).await.unwrap().unwrap();
         assert_eq!(got, vec![row(1, done("tpl_wsp-h1s1-default-v1", None))]);
-        assert!(serde_json::to_value(&got[0]).unwrap().get("sharing").is_none());
+        assert!(serde_json::to_value(&got[0])
+            .unwrap()
+            .get("sharing")
+            .is_none());
     });
 }
 
@@ -778,7 +1097,15 @@ fn promote_writes_a_failed_row_where_the_name_cannot_be_made() {
         *w.mark.borrow_mut() = String::new();
         let got = area(&w).promote(None).await.unwrap().unwrap();
         let error = "a snapshot name needs a host of lowercase letters and digits, got \"\"";
-        assert_eq!(got, vec![row(1, PromotionDone::Failed { error: error.into() })]);
+        assert_eq!(
+            got,
+            vec![row(
+                1,
+                PromotionDone::Failed {
+                    error: error.into()
+                }
+            )]
+        );
         assert!(w.lines("road promote_version").is_empty());
     });
 }
@@ -803,8 +1130,14 @@ fn promote_is_none_without_templates() {
 fn promote_fails_a_version_whose_golden_was_dropped_meanwhile() {
     run(async {
         let w = promote_world(&[(1, None), (2, None)]);
-        w.roads.promoted.borrow_mut().push_back(promoted("tpl_wsp-h1s1-default-v1", Some(1)));
-        w.roads.promoted.borrow_mut().push_back(promoted("tpl_wsp-h1s1-default-v2", Some(0)));
+        w.roads
+            .promoted
+            .borrow_mut()
+            .push_back(promoted("tpl_wsp-h1s1-default-v1", Some(1)));
+        w.roads
+            .promoted
+            .borrow_mut()
+            .push_back(promoted("tpl_wsp-h1s1-default-v2", Some(0)));
         // The golden is deleted while the template is being made.
         let store = w.store.clone();
         *w.roads.on_promote.borrow_mut() = Some(Rc::new(move || {
@@ -813,7 +1146,9 @@ fn promote_fails_a_version_whose_golden_was_dropped_meanwhile() {
             }
         }));
         let got = area(&w).promote(None).await.unwrap().unwrap();
-        let gone = || PromotionDone::Failed { error: "golden default was dropped while its versions were being promoted".into() };
+        let gone = || PromotionDone::Failed {
+            error: "golden default was dropped while its versions were being promoted".into(),
+        };
         assert_eq!(got, vec![row(1, gone()), row(2, gone())]);
         assert!(w.lines("put_copy").is_empty());
         assert!(w.copy_now("boat", "default").is_none());

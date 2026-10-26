@@ -14,26 +14,35 @@ use serde_json::Value;
 
 use wsp_catalog::signin_rows::{GH_LOGIN_PATHS, NEVER_ON_BROKERED};
 use wsp_core::clock::Timer;
-use wsp_core::types::internal::{copy_key, vault_key, BuilderLife, BuilderRecord, HeldBy, PrepareStoppedError, Sealed, StageFrame, BUILDERS, HEARTBEAT_MS, IMAGES, IMAGE_VAULTS};
+use wsp_core::types::internal::{
+    copy_key, vault_key, BuilderLife, BuilderRecord, HeldBy, PrepareStoppedError, Sealed,
+    StageFrame, BUILDERS, HEARTBEAT_MS, IMAGES, IMAGE_VAULTS,
+};
 use wsp_core::types::pending::ImportLedger;
 use wsp_core::types::wiring::{GoldenRecipe, GRACE_MS};
 use wsp_engine::box_backend::BoxLimits;
 use wsp_engine::errors::{EngineError, Result as EngineResult};
 use wsp_engine::labels::{CREATED_AT_LABEL, OWNER_LABEL, SMOKE_LABEL, WSP_LABEL};
 use wsp_engine::machine::{
-    BackendOffers, BackendPricing, BaseTemplates, Capabilities, CloudLimits, ExecResult, Lifecycle, Machine, MachineBackend, MachineListRow,
-    MachineSpec, NamedMachine, PlaceCapacity, RootDisk, Size, SnapshotRow, TemplateRow, Waiting,
+    BackendOffers, BackendPricing, BaseTemplates, Capabilities, CloudLimits, ExecResult, Lifecycle,
+    Machine, MachineBackend, MachineListRow, MachineSpec, NamedMachine, PlaceCapacity, RootDisk,
+    Size, SnapshotRow, TemplateRow, Waiting,
 };
 use wsp_engine::orphans::{ReapFailure, ReapReason, ReapedMachine};
 use wsp_wire::types::js_number::{JsInt, JsNumber};
-use wsp_wire::views::golden_image::{GoldenLogin, GoldenStage, GoldenStageEvent, GoldenStep, GoldenVersion, SealedImage, SealedVault};
+use wsp_wire::views::golden_image::{
+    GoldenLogin, GoldenStage, GoldenStageEvent, GoldenStep, GoldenVersion, SealedImage, SealedVault,
+};
 use wsp_wire::views::place_kind::PlaceKind;
 use wsp_wire::wire::capabilities::WorkspaceSize;
 use wsp_words::date_parse::date_parse;
 use wsp_words::exit::HostError;
 
 use super::{iso_at, BuildersArea, StageAt};
-use crate::images::engine::{EngineBuilder, GoneReading, KillConfirm, MachineSize, SealGoldenAsk, SealResult, Signal, StageFn};
+use crate::images::engine::{
+    EngineBuilder, GoneReading, KillConfirm, MachineSize, SealGoldenAsk, SealResult, Signal,
+    StageFn,
+};
 use crate::images::{BuilderRef, ImageError, ImageResult, LiveBuilder};
 
 /// `expireGrace`'s answer (builders.ts:95).
@@ -75,9 +84,19 @@ fn json_of<T: Serialize>(value: &T) -> Value {
 fn engine_of(e: ImageError) -> EngineError {
     match e {
         ImageError::Engine(e) => e,
-        ImageError::Host(h) => EngineError::Other { message: h.message, code: h.code },
-        ImageError::Stopped(s) => EngineError::CreateCancelled { machine_id: s.builder_id.clone().unwrap_or_default(), why: "stopped".into(), line: s.message() },
-        ImageError::SnapshotFailed { message, .. } => EngineError::Other { message, code: None },
+        ImageError::Host(h) => EngineError::Other {
+            message: h.message,
+            code: h.code,
+        },
+        ImageError::Stopped(s) => EngineError::CreateCancelled {
+            machine_id: s.builder_id.clone().unwrap_or_default(),
+            why: "stopped".into(),
+            line: s.message(),
+        },
+        ImageError::SnapshotFailed { message, .. } => EngineError::Other {
+            message,
+            code: None,
+        },
     }
 }
 
@@ -105,9 +124,16 @@ struct RecordingBackend {
 }
 
 /// The create itself, held as a shared future so a stop can wait on it; the machine it made lands in `slot`.
-async fn make_placeholder(area: Rc<BuildersArea>, inner: Arc<dyn MachineBackend>, ask: PlaceholderAsk, slot: Rc<RefCell<Option<Arc<dyn Machine>>>>) -> ImageResult<()> {
+async fn make_placeholder(
+    area: Rc<BuildersArea>,
+    inner: Arc<dyn MachineBackend>,
+    ask: PlaceholderAsk,
+    slot: Rc<RefCell<Option<Arc<dyn Machine>>>>,
+) -> ImageResult<()> {
     let spec = ask.spec;
-    let machine = area.ctx.observed(inner.create(spec.clone(), ask.waiting, ask.sent).await?);
+    let machine = area
+        .ctx
+        .observed(inner.create(spec.clone(), ask.waiting, ask.sent).await?);
     let created_at = machine
         .labels()
         .and_then(|l| l.get(CREATED_AT_LABEL))
@@ -115,7 +141,10 @@ async fn make_placeholder(area: Rc<BuildersArea>, inner: Arc<dyn MachineBackend>
         .cloned()
         .unwrap_or_else(|| iso_at(area.ctx.clock().now()));
     let defaults = area.ctx.backend().pricing().default_size();
-    let size = WorkspaceSize { cpu: spec.cpu.unwrap_or(JsNumber(defaults.cpu)), mem_mb: spec.mem_mb.unwrap_or(JsNumber(defaults.mem_mb)) };
+    let size = WorkspaceSize {
+        cpu: spec.cpu.unwrap_or(JsNumber(defaults.cpu)),
+        mem_mb: spec.mem_mb.unwrap_or(JsNumber(defaults.mem_mb)),
+    };
     let id = machine.id().to_string();
     let record = BuilderRecord {
         id: id.clone(),
@@ -149,7 +178,14 @@ async fn make_placeholder(area: Rc<BuildersArea>, inner: Arc<dyn MachineBackend>
         base: None,
         retired: None,
     };
-    let entry: BuilderRef = Rc::new(RefCell::new(LiveBuilder { record, builder, sealable: true, life: BuilderLife::Own, reach: None, recipe: None }));
+    let entry: BuilderRef = Rc::new(RefCell::new(LiveBuilder {
+        record,
+        builder,
+        sealable: true,
+        life: BuilderLife::Own,
+        reach: None,
+        recipe: None,
+    }));
     area.ctx.builders().borrow_mut().insert(id, entry.clone());
     (ask.made)(entry.clone());
     area.hold(&entry).await?;
@@ -186,9 +222,23 @@ impl MachineBackend for RecordingBackend {
     fn root_disk_of(&self, size: Size) -> Option<RootDisk> {
         self.inner.root_disk_of(size)
     }
-    async fn create(&self, spec: MachineSpec, waiting: Option<Waiting>, sent: Option<String>) -> EngineResult<Arc<dyn Machine>> {
-        if self.stop.as_ref().and_then(|s| s.signal.as_ref()).is_some_and(|s| s.is_cancelled()) {
-            return Err(EngineError::CreateCancelled { machine_id: String::new(), why: "stopped".into(), line: PrepareStoppedError::new(None, None).message() });
+    async fn create(
+        &self,
+        spec: MachineSpec,
+        waiting: Option<Waiting>,
+        sent: Option<String>,
+    ) -> EngineResult<Arc<dyn Machine>> {
+        if self
+            .stop
+            .as_ref()
+            .and_then(|s| s.signal.as_ref())
+            .is_some_and(|s| s.is_cancelled())
+        {
+            return Err(EngineError::CreateCancelled {
+                machine_id: String::new(),
+                why: "stopped".into(),
+                line: PrepareStoppedError::new(None, None).message(),
+            });
         }
         let slot = Rc::new(RefCell::new(None));
         let ask = PlaceholderAsk {
@@ -200,18 +250,27 @@ impl MachineBackend for RecordingBackend {
             made: self.made.clone(),
             place: self.place.clone(),
         };
-        let creating: CreatingFuture = make_placeholder(self.area.clone(), self.inner.clone(), ask, slot.clone()).boxed_local().shared();
+        let creating: CreatingFuture =
+            make_placeholder(self.area.clone(), self.inner.clone(), ask, slot.clone())
+                .boxed_local()
+                .shared();
         if let Some(stop) = &self.stop {
             (stop.began)(creating.clone());
         }
         creating.await.map_err(engine_of)?;
-        let machine = slot.borrow_mut().take().expect("a placeholder's machine is set before its create answers");
+        let machine = slot
+            .borrow_mut()
+            .take()
+            .expect("a placeholder's machine is set before its create answers");
         Ok(machine)
     }
     async fn get(&self, id: &str) -> EngineResult<Arc<dyn Machine>> {
         self.inner.get(id).await
     }
-    async fn list(&self, labels: Option<&IndexMap<String, String>>) -> EngineResult<Vec<MachineListRow>> {
+    async fn list(
+        &self,
+        labels: Option<&IndexMap<String, String>>,
+    ) -> EngineResult<Vec<MachineListRow>> {
         self.inner.list(labels).await
     }
     async fn delete_snapshot(&self, id: &str) -> EngineResult<()> {
@@ -223,7 +282,12 @@ impl MachineBackend for RecordingBackend {
     async fn create_request(&self, spec: &MachineSpec) -> EngineResult<String> {
         self.inner.create_request(spec).await
     }
-    async fn replay_create(&self, key: &str, bytes: &str, made_at: &str) -> EngineResult<Option<Arc<dyn Machine>>> {
+    async fn replay_create(
+        &self,
+        key: &str,
+        bytes: &str,
+        made_at: &str,
+    ) -> EngineResult<Option<Arc<dyn Machine>>> {
         self.inner.replay_create(key, bytes, made_at).await
     }
     async fn named_after(&self, names: &BTreeSet<String>) -> EngineResult<Vec<NamedMachine>> {
@@ -265,7 +329,8 @@ impl BuildersArea {
         if let Some(cancel) = previous {
             cancel();
         }
-        let left = age_ms(self.ctx.clock().now(), sealed_at).map_or(0, |age| (GRACE_MS as i64 - age).max(0));
+        let left = age_ms(self.ctx.clock().now(), sealed_at)
+            .map_or(0, |age| (GRACE_MS as i64 - age).max(0));
         let weak: Weak<BuildersArea> = Rc::downgrade(self);
         let id_owned = id.to_string();
         let timer: Timer = Box::new(move || {
@@ -275,14 +340,18 @@ impl BuildersArea {
             area.ctx.spawn(
                 async move {
                     if let Err(e) = sweep.expire_grace().await {
-                        sweep.ctx.warn(&format!("grace sweep failed: {}", e.message()));
+                        sweep
+                            .ctx
+                            .warn(&format!("grace sweep failed: {}", e.message()));
                     }
                 }
                 .boxed_local(),
             );
         });
         let cancel = self.ctx.clock().schedule(timer, left);
-        self.grace_timers.borrow_mut().insert(id.to_string(), cancel);
+        self.grace_timers
+            .borrow_mut()
+            .insert(id.to_string(), cancel);
     }
 
     /// builders.ts:91-94 (L2).
@@ -315,7 +384,16 @@ impl BuildersArea {
         for entry in snapshot {
             let (id, place, machine, life, sealed) = {
                 let b = entry.borrow();
-                (b.record.id.clone(), b.record.place.clone().unwrap_or_else(|| self.ctx.places().wired()), b.builder.machine.clone(), b.life, b.record.sealed.clone())
+                (
+                    b.record.id.clone(),
+                    b.record
+                        .place
+                        .clone()
+                        .unwrap_or_else(|| self.ctx.places().wired()),
+                    b.builder.machine.clone(),
+                    b.life,
+                    b.record.sealed.clone(),
+                )
             };
             let sealed = match (sealed, life) {
                 (Some(s), BuilderLife::Own | BuilderLife::Reusable) => s,
@@ -329,7 +407,13 @@ impl BuildersArea {
                 Err(e) => Err(e),
             };
             if let Err(e) = stop {
-                out.failed.push(ReapFailure { id: Some(id), message: format!("could not stop: {}; stays recorded, retried next sweep", e.message) });
+                out.failed.push(ReapFailure {
+                    id: Some(id),
+                    message: format!(
+                        "could not stop: {}; stays recorded, retried next sweep",
+                        e.message
+                    ),
+                });
                 continue;
             }
             let cancel = self.grace_timers.borrow_mut().shift_remove(&id);
@@ -353,7 +437,10 @@ impl BuildersArea {
     pub async fn hold(self: &Rc<Self>, b: &BuilderRef) -> Result<(), HostError> {
         let id = b.borrow().record.id.clone();
         let builders = self.ctx.builders();
-        let live = builders.borrow().get(&id).is_some_and(|held| Rc::ptr_eq(held, b));
+        let live = builders
+            .borrow()
+            .get(&id)
+            .is_some_and(|held| Rc::ptr_eq(held, b));
         if !live {
             return Ok(());
         }
@@ -361,7 +448,11 @@ impl BuildersArea {
         let record = {
             let mut entry = b.borrow_mut();
             if !closed {
-                entry.record.held_by = Some(HeldBy { host: self.ctx.host_id(), pid: self.ctx.pid(), heartbeat: iso_at(self.ctx.clock().now()) });
+                entry.record.held_by = Some(HeldBy {
+                    host: self.ctx.host_id(),
+                    pid: self.ctx.pid(),
+                    heartbeat: iso_at(self.ctx.clock().now()),
+                });
             }
             json_of(&entry.record)
         };
@@ -382,7 +473,8 @@ impl BuildersArea {
             let Some(area) = weak.upgrade() else { return };
             area.ctx.set_beat(None);
             let beat = area.clone();
-            area.ctx.set_ticking(async move { beat.tick().await }.boxed_local());
+            area.ctx
+                .set_ticking(async move { beat.tick().await }.boxed_local());
         });
         let cancel = self.ctx.clock().schedule(timer, HEARTBEAT_MS as i64);
         self.ctx.set_beat(Some(cancel));
@@ -391,11 +483,19 @@ impl BuildersArea {
     /// builders.ts:131-137 (L6): one beat.
     pub async fn tick(self: &Rc<Self>) {
         let builders = self.ctx.builders();
-        let own: Vec<BuilderRef> = builders.borrow().values().filter(|b| b.borrow().life == BuilderLife::Own).cloned().collect();
+        let own: Vec<BuilderRef> = builders
+            .borrow()
+            .values()
+            .filter(|b| b.borrow().life == BuilderLife::Own)
+            .cloned()
+            .collect();
         for entry in &own {
             let id = entry.borrow().record.id.clone();
             if let Err(e) = self.hold(entry).await {
-                self.ctx.warn(&format!("heartbeat for builder {id} not written: {}", e.message));
+                self.ctx.warn(&format!(
+                    "heartbeat for builder {id} not written: {}",
+                    e.message
+                ));
             }
         }
         if !own.is_empty() {
@@ -429,9 +529,16 @@ impl BuildersArea {
     }
 
     /// builders.ts:166-172 (L9).
-    pub async fn forget_if_gone(&self, entry: &BuilderRef, at: Arc<dyn MachineBackend>) -> Result<(), HostError> {
+    pub async fn forget_if_gone(
+        &self,
+        entry: &BuilderRef,
+        at: Arc<dyn MachineBackend>,
+    ) -> Result<(), HostError> {
         let id = entry.borrow().record.id.clone();
-        let gone = matches!(self.ctx.roads().read_gone(at, &id).await, Ok(GoneReading::Gone));
+        let gone = matches!(
+            self.ctx.roads().read_gone(at, &id).await,
+            Ok(GoneReading::Gone)
+        );
         if gone {
             self.forget_builder(&id).await?;
         }
@@ -444,29 +551,45 @@ impl BuildersArea {
         let stage_at = self.ctx.stage_at();
         let name = name.to_string();
         let on = on.map(str::to_string);
-        Rc::new(move |stage: GoldenStage, detail: Option<String>, step: Option<GoldenStep>, left: Option<Vec<String>>| {
-            let frame = StageFrame { name: name.clone(), stage, detail, step, left: left.filter(|l| !l.is_empty()) };
-            if let Some(on) = &on {
-                let key = copy_key(on, &name);
-                match stage {
-                    GoldenStage::Ready | GoldenStage::Sealed | GoldenStage::Failed => {
-                        stage_at.borrow_mut().shift_remove(&key);
-                    }
-                    _ => {
-                        let held = StageAt { place: on.clone(), name: name.clone(), named, frame: frame.clone() };
-                        stage_at.borrow_mut().insert(key, held);
+        Rc::new(
+            move |stage: GoldenStage,
+                  detail: Option<String>,
+                  step: Option<GoldenStep>,
+                  left: Option<Vec<String>>| {
+                let frame = StageFrame {
+                    name: name.clone(),
+                    stage,
+                    detail,
+                    step,
+                    left: left.filter(|l| !l.is_empty()),
+                };
+                if let Some(on) = &on {
+                    let key = copy_key(on, &name);
+                    match stage {
+                        GoldenStage::Ready | GoldenStage::Sealed | GoldenStage::Failed => {
+                            stage_at.borrow_mut().shift_remove(&key);
+                        }
+                        _ => {
+                            let held = StageAt {
+                                place: on.clone(),
+                                name: name.clone(),
+                                named,
+                                frame: frame.clone(),
+                            };
+                            stage_at.borrow_mut().insert(key, held);
+                        }
                     }
                 }
-            }
-            ctx.emit_stage(GoldenStageEvent {
-                name: frame.name,
-                stage: frame.stage,
-                detail: frame.detail,
-                step: frame.step,
-                left: frame.left,
-                place: if named { on.clone() } else { None },
-            });
-        })
+                ctx.emit_stage(GoldenStageEvent {
+                    name: frame.name,
+                    stage: frame.stage,
+                    detail: frame.detail,
+                    step: frame.step,
+                    left: frame.left,
+                    place: if named { on.clone() } else { None },
+                });
+            },
+        )
     }
 
     /// builders.ts:285-324 (L11): a backend that is `b` but for `create`.
@@ -480,11 +603,25 @@ impl BuildersArea {
         stop: Option<CreateStop>,
         place: &str,
     ) -> Arc<dyn MachineBackend> {
-        Arc::new(RecordingBackend { area: self.clone(), inner: b, name: name.to_string(), imp, made, stop, place: place.to_string() })
+        Arc::new(RecordingBackend {
+            area: self.clone(),
+            inner: b,
+            name: name.to_string(),
+            imp,
+            made,
+            stop,
+            place: place.to_string(),
+        })
     }
 
     /// builders.ts:327-350 (L12).
-    pub async fn settle_builder(self: &Rc<Self>, name: &str, builder: EngineBuilder, placeholder: Option<BuilderRef>, place: &str) -> Result<BuilderRef, HostError> {
+    pub async fn settle_builder(
+        self: &Rc<Self>,
+        name: &str,
+        builder: EngineBuilder,
+        placeholder: Option<BuilderRef>,
+        place: &str,
+    ) -> Result<BuilderRef, HostError> {
         let created_at = match &placeholder {
             Some(p) => p.borrow().record.created_at.clone(),
             None => builder.created_at.clone(),
@@ -518,7 +655,14 @@ impl BuildersArea {
                 }
                 p
             }
-            None => Rc::new(RefCell::new(LiveBuilder { record, builder, sealable: true, life: BuilderLife::Own, reach: None, recipe: None })),
+            None => Rc::new(RefCell::new(LiveBuilder {
+                record,
+                builder,
+                sealable: true,
+                life: BuilderLife::Own,
+                reach: None,
+                recipe: None,
+            })),
         };
         self.ctx.builders().borrow_mut().insert(id, entry.clone());
         self.hold(&entry).await?;
@@ -526,11 +670,25 @@ impl BuildersArea {
     }
 
     /// builders.ts:357-395 (L13).
-    pub async fn record_seal(&self, place: &str, name: &str, entry: &BuilderRef, recipe: &GoldenRecipe, result: SealResult, copy: Option<&SealedImage>) -> Result<SealResult, HostError> {
+    pub async fn record_seal(
+        &self,
+        place: &str,
+        name: &str,
+        entry: &BuilderRef,
+        recipe: &GoldenRecipe,
+        result: SealResult,
+        copy: Option<&SealedImage>,
+    ) -> Result<SealResult, HostError> {
         let mut hash = copy.map(|c| c.hash.clone());
         let no_secrets = self.place_kind_of(place) == PlaceKind::Provider;
         if copy.is_none() {
-            let digest = entry.borrow().builder.import.as_ref().map(|i| i.recipe_hash.clone()).unwrap_or_default();
+            let digest = entry
+                .borrow()
+                .builder
+                .import
+                .as_ref()
+                .map(|i| i.recipe_hash.clone())
+                .unwrap_or_default();
             let vault = result.vault.as_ref().map(|v| SealedVault {
                 sha256: v.sha256.clone(),
                 bytes: JsInt::from(v.tar.len() as i64),
@@ -538,7 +696,10 @@ impl BuildersArea {
                 held: Some(v.held.clone()),
                 taken_at: result.version.created_at.clone(),
             });
-            let image_hash = self.ctx.roads().image_hash(&digest, vault.as_ref().map(|v| v.sha256.as_str()));
+            let image_hash = self
+                .ctx
+                .roads()
+                .image_hash(&digest, vault.as_ref().map(|v| v.sha256.as_str()));
             let image = SealedImage {
                 name: name.to_string(),
                 version: JsInt(result.version.version),
@@ -554,14 +715,25 @@ impl BuildersArea {
                 no_secrets: no_secrets.then_some(true),
             };
             let store = self.ctx.store();
-            let replaced: Option<SealedImage> = store.get(IMAGES, name).await?.and_then(|v| serde_json::from_value(v).ok());
+            let replaced: Option<SealedImage> = store
+                .get(IMAGES, name)
+                .await?
+                .and_then(|v| serde_json::from_value(v).ok());
             if let Some(vault) = &result.vault {
-                store.put_blob(IMAGE_VAULTS, &vault_key(name, result.version.version.0 as u32), vault.tar.clone()).await?;
+                store
+                    .put_blob(
+                        IMAGE_VAULTS,
+                        &vault_key(name, result.version.version.0 as u32),
+                        vault.tar.clone(),
+                    )
+                    .await?;
             }
             store.put(IMAGES, name, json_of(&image)).await?;
             if let Some(old) = replaced {
                 if old.version.0 .0 != result.version.version.0 {
-                    store.delete_blob(IMAGE_VAULTS, &vault_key(name, old.version.0 .0 as u32)).await?;
+                    store
+                        .delete_blob(IMAGE_VAULTS, &vault_key(name, old.version.0 .0 as u32))
+                        .await?;
                 }
             }
             hash = Some(image_hash);
@@ -578,14 +750,33 @@ impl BuildersArea {
                 *v = version.clone();
             }
         }
-        Ok(SealResult { manifest, version, builder_kept: result.builder_kept, vault: result.vault })
+        Ok(SealResult {
+            manifest,
+            version,
+            builder_kept: result.builder_kept,
+            vault: result.vault,
+        })
     }
 
     /// builders.ts:401-464 (L14 to L16).
-    pub async fn seal_entry(self: &Rc<Self>, entry: &BuilderRef, keep: bool, logins: Option<Vec<GoldenLogin>>, copy: Option<SealedImage>) -> ImageResult<SealResult> {
+    pub async fn seal_entry(
+        self: &Rc<Self>,
+        entry: &BuilderRef,
+        keep: bool,
+        logins: Option<Vec<GoldenLogin>>,
+        copy: Option<SealedImage>,
+    ) -> ImageResult<SealResult> {
         let (id, name, place, named_recipe) = {
             let b = entry.borrow();
-            (b.record.id.clone(), b.record.name.clone(), b.record.place.clone().unwrap_or_else(|| self.ctx.places().wired()), b.recipe.clone())
+            (
+                b.record.id.clone(),
+                b.record.name.clone(),
+                b.record
+                    .place
+                    .clone()
+                    .unwrap_or_else(|| self.ctx.places().wired()),
+                b.recipe.clone(),
+            )
         };
         let recipe = self.recipe_or_throw(named_recipe)?;
         let prior = self.ctx.copy_of(&place, &name).await?;
@@ -594,7 +785,11 @@ impl BuildersArea {
         let refuse: Vec<String> = if self.ctx.broker_ready() {
             NEVER_ON_BROKERED.clone()
         } else {
-            NEVER_ON_BROKERED.iter().filter(|p| !GH_LOGIN_PATHS.contains(*p)).cloned().collect()
+            NEVER_ON_BROKERED
+                .iter()
+                .filter(|p| !GH_LOGIN_PATHS.contains(*p))
+                .cloned()
+                .collect()
         };
         let mut labels = recipe.labels.clone().unwrap_or_default();
         labels.insert(WSP_LABEL.to_string(), "1".to_string());
@@ -606,17 +801,28 @@ impl BuildersArea {
         let outcome: ImageResult<SealResult> = async {
             let builder = entry.borrow().builder.clone();
             let result = {
-                let claim = self.ctx.claiming(&format!("smoke/{id}"), Some(at.clone()), Some(&place));
+                let claim =
+                    self.ctx
+                        .claiming(&format!("smoke/{id}"), Some(at.clone()), Some(&place));
                 let ask = SealGoldenAsk {
                     backend: self.ctx.observing(claim.backend()),
                     smoke: recipe.smoke.clone(),
-                    size: MachineSize { cpu: recipe.cpu, mem_mb: recipe.mem_mb, envs: recipe.envs.clone(), labels: Some(labels) },
+                    size: MachineSize {
+                        cpu: recipe.cpu,
+                        mem_mb: recipe.mem_mb,
+                        envs: recipe.envs.clone(),
+                        labels: Some(labels),
+                    },
                     manifest: prior.clone(),
                     on_stage: self.stage_of(&name, Some(&place), copy.is_some()),
                     kill_confirm,
                     snapshot_retry_ms: self.ctx.opts().snapshot_retry_ms,
                     logins: logins.clone(),
-                    vault_paths: if copy.is_none() && !brokered { recipe.vault_paths.clone() } else { None },
+                    vault_paths: if copy.is_none() && !brokered {
+                        recipe.vault_paths.clone()
+                    } else {
+                        None
+                    },
                     refuse: brokered.then(|| refuse.clone()),
                     keep_builder: keep,
                     name: name.clone(),
@@ -624,16 +830,28 @@ impl BuildersArea {
                 };
                 self.ctx.roads().seal_golden(builder, ask).await?
             };
-            let stamped = self.record_seal(&place, &name, entry, &recipe, result, copy.as_ref()).await?;
+            let stamped = self
+                .record_seal(&place, &name, entry, &recipe, result, copy.as_ref())
+                .await?;
             self.ctx.put_copy(&place, &name, &stamped.manifest).await?;
-            let digest = entry.borrow().builder.import.as_ref().and_then(|i| i.recipe.clone());
+            let digest = entry
+                .borrow()
+                .builder
+                .import
+                .as_ref()
+                .and_then(|i| i.recipe.clone());
             if let Some(digest) = digest {
-                self.ctx.put_copy_recipe(&place, &name, stamped.version.version.0 as u32, &digest).await?;
+                self.ctx
+                    .put_copy_recipe(&place, &name, stamped.version.version.0 as u32, &digest)
+                    .await?;
             }
             if copy.is_none() && name == "default" {
                 if let Some(door) = self.ctx.door() {
                     if let Err(e) = door.mark_default_if_none(&place).await {
-                        self.ctx.warn(&format!("the default place was not marked at the seal: {}", e.message));
+                        self.ctx.warn(&format!(
+                            "the default place was not marked at the seal: {}",
+                            e.message
+                        ));
                     }
                 }
             }
@@ -641,7 +859,10 @@ impl BuildersArea {
                 let sealed_at = iso_at(self.ctx.clock().now());
                 {
                     let mut e = entry.borrow_mut();
-                    e.record.sealed = Some(Sealed { at: sealed_at.clone(), version: stamped.version.version.0 as u32 });
+                    e.record.sealed = Some(Sealed {
+                        at: sealed_at.clone(),
+                        version: stamped.version.version.0 as u32,
+                    });
                     e.record.parent_snapshot_id = Some(stamped.version.snapshot_id.clone());
                     e.builder.parent_snapshot_id = Some(stamped.version.snapshot_id.clone());
                     e.life = BuilderLife::Own;
@@ -665,7 +886,11 @@ impl BuildersArea {
                 }
                 if let ImageError::Engine(EngineError::NotFirstLife { .. }) = &e {
                     let machine = entry.borrow().builder.machine.clone();
-                    self.ctx.roads().kill_until_gone(at.clone(), machine, kill_confirm).await.map_err(ImageError::Engine)?;
+                    self.ctx
+                        .roads()
+                        .kill_until_gone(at.clone(), machine, kill_confirm)
+                        .await
+                        .map_err(ImageError::Engine)?;
                 }
                 self.forget_if_gone(entry, at).await?;
                 Err(e)
@@ -674,9 +899,16 @@ impl BuildersArea {
     }
 
     /// builders.ts:469-472 (L17): `at` none is the runtime backend.
-    pub async fn drop_image(&self, v: &GoldenVersion, at: Option<Arc<dyn MachineBackend>>) -> ImageResult<()> {
+    pub async fn drop_image(
+        &self,
+        v: &GoldenVersion,
+        at: Option<Arc<dyn MachineBackend>>,
+    ) -> ImageResult<()> {
         let at = at.unwrap_or_else(|| self.ctx.backend());
-        self.ctx.roads().drop_template(at.clone(), v.template_id.as_deref()).await?;
+        self.ctx
+            .roads()
+            .drop_template(at.clone(), v.template_id.as_deref())
+            .await?;
         at.delete_snapshot(&v.snapshot_id).await?;
         Ok(())
     }

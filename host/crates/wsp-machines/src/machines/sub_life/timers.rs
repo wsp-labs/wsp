@@ -25,13 +25,18 @@ use wsp_words::js::js_trim;
 use wsp_words::js::utf16::tail;
 use wsp_words::js_date::iso_string;
 use wsp_words::sub_thread::{
-    cloud_said, is_git_push, push_refused_of, sub_cloud_gone_refusal, sub_delete_question, sub_delete_refused_line, sub_held_delete_refusal,
-    sub_released_refusal, sub_result_line, KeptUntil, SubDeleteQuestion, SubResultFacts, SubUnpushed,
+    cloud_said, is_git_push, push_refused_of, sub_cloud_gone_refusal, sub_delete_question,
+    sub_delete_refused_line, sub_held_delete_refusal, sub_released_refusal, sub_result_line,
+    KeptUntil, SubDeleteQuestion, SubResultFacts, SubUnpushed,
 };
 use wsp_words::views::session::fold_threads;
 use wsp_words::words::units::fmt_bytes;
 
-use super::{disk_kept_until, sub_result_command, sub_result_of, sub_session_pack_command, SessionFile, SubLifeCtx, DONE_NAP, PUSH_READ_BYTES, PUSH_READ_EVENTS, SUB_DELETE_RETRY_MS, SUB_LINE_WAIT_MS, SUB_SESSIONS, SUB_SESSION_MAX_BYTES, SUB_STOP_AFTER_DELETE_MS};
+use super::{
+    disk_kept_until, sub_result_command, sub_result_of, sub_session_pack_command, SessionFile,
+    SubLifeCtx, DONE_NAP, PUSH_READ_BYTES, PUSH_READ_EVENTS, SUB_DELETE_RETRY_MS, SUB_LINE_WAIT_MS,
+    SUB_SESSIONS, SUB_SESSION_MAX_BYTES, SUB_STOP_AFTER_DELETE_MS,
+};
 use crate::machines::area_error::{AreaError, AreaResult};
 use crate::machines::machines::Entry;
 use wsp_core::clock::Cancel;
@@ -84,10 +89,16 @@ enum Step {
     Expire,
 }
 
-fn step_work(me: Weak<SubLifeArea>, id: String, step: Step) -> Box<dyn FnOnce() -> LocalBoxFuture<'static, AreaResult<()>>> {
+fn step_work(
+    me: Weak<SubLifeArea>,
+    id: String,
+    step: Step,
+) -> Box<dyn FnOnce() -> LocalBoxFuture<'static, AreaResult<()>>> {
     Box::new(move || {
         async move {
-            let Some(area) = me.upgrade() else { return Ok(()) };
+            let Some(area) = me.upgrade() else {
+                return Ok(());
+            };
             match step {
                 Step::Done => area.done(&id).await,
                 Step::Expire => area.expire(&id).await,
@@ -114,19 +125,31 @@ fn phase_of(record: &RefCell<WorkspaceRecord>) -> WorkspacePhase {
 }
 
 fn phase_word(phase: WorkspacePhase) -> String {
-    serde_json::to_value(phase).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default()
+    serde_json::to_value(phase)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_string))
+        .unwrap_or_default()
 }
 
 fn has_sub_record(record: &RefCell<WorkspaceRecord>) -> bool {
     record.borrow().sub.is_some()
 }
 
-fn with_sub<R>(record: &RefCell<WorkspaceRecord>, f: impl FnOnce(&mut SubRecord) -> R) -> Option<R> {
+fn with_sub<R>(
+    record: &RefCell<WorkspaceRecord>,
+    f: impl FnOnce(&mut SubRecord) -> R,
+) -> Option<R> {
     record.borrow_mut().sub.as_mut().map(f)
 }
 
 fn held_of(result: &SubResult, at: f64) -> SubHeldAt {
-    SubHeldAt { held: SubHeld { files: result.changed, commits: result.unpushed }, at: JsNumber(at) }
+    SubHeldAt {
+        held: SubHeld {
+            files: result.changed,
+            commits: result.unpushed,
+        },
+        at: JsNumber(at),
+    }
 }
 
 fn set_session(record: &RefCell<WorkspaceRecord>, session: SubSession) {
@@ -140,17 +163,26 @@ fn lead_thread_of(record: &WorkspaceRecord) -> Option<String> {
 /// The first `size <n>` line of a pack's output, where `n` is all digits.
 fn size_line(out: &str) -> Option<f64> {
     out.lines().find_map(|line| {
-        line.strip_prefix("size ").filter(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit())).and_then(|d| d.parse::<f64>().ok())
+        line.strip_prefix("size ")
+            .filter(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))
+            .and_then(|d| d.parse::<f64>().ok())
     })
 }
 
 /// The first `path <p>` line of a pack's output.
 fn path_line(out: &str) -> Option<String> {
-    out.lines().find_map(|line| line.strip_prefix("path ").filter(|p| !p.is_empty()).map(str::to_string))
+    out.lines().find_map(|line| {
+        line.strip_prefix("path ")
+            .filter(|p| !p.is_empty())
+            .map(str::to_string)
+    })
 }
 
 fn exec_options() -> ExecOptions {
-    ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() }
+    ExecOptions {
+        timeout_ms: Some(INLINE_EXEC_MS),
+        ..Default::default()
+    }
 }
 
 impl SubLifeArea {
@@ -172,7 +204,9 @@ impl SubLifeArea {
                 ctx.on_event(
                     kind,
                     Rc::new(move |event: &Value| {
-                        if let (Some(area), Some(id)) = (me.upgrade(), event["workspaceId"].as_str()) {
+                        if let (Some(area), Some(id)) =
+                            (me.upgrade(), event["workspaceId"].as_str())
+                        {
                             area.reclaim(id);
                         }
                     }),
@@ -182,7 +216,9 @@ impl SubLifeArea {
             ctx.on_event(
                 "workspace.deleted",
                 Rc::new(move |event: &Value| {
-                    if let (Some(area), Some(id)) = (deleted.upgrade(), event["workspaceId"].as_str()) {
+                    if let (Some(area), Some(id)) =
+                        (deleted.upgrade(), event["workspaceId"].as_str())
+                    {
                         area.cancel_timer(id);
                         area.done_started.borrow_mut().shift_remove(id);
                     }
@@ -200,7 +236,11 @@ impl SubLifeArea {
     }
 
     /// sub-life.ts:170 `serial`: the record's chain, second form (rule 1).
-    pub(crate) fn serial(&self, id: &str, work: Box<dyn FnOnce() -> LocalBoxFuture<'static, AreaResult<()>>>) -> Shared<LocalBoxFuture<'static, ()>> {
+    pub(crate) fn serial(
+        &self,
+        id: &str,
+        work: Box<dyn FnOnce() -> LocalBoxFuture<'static, AreaResult<()>>>,
+    ) -> Shared<LocalBoxFuture<'static, ()>> {
         let prev = self.working.borrow().get(id).cloned();
         let ctx = self.ctx.clone();
         let owner = id.to_string();
@@ -214,17 +254,28 @@ impl SubLifeArea {
         }
         .boxed_local();
         let shared = chain.shared();
-        self.working.borrow_mut().insert(id.to_string(), shared.clone());
+        self.working
+            .borrow_mut()
+            .insert(id.to_string(), shared.clone());
         self.ctx.spawn(shared.clone().boxed_local());
         shared
     }
 
     /// sub-life.ts:181 (rule 2).
     pub(crate) fn thread_of(&self, workspace_id: &str) -> Option<String> {
-        if let Some((thread_id, _)) = self.ctx.thread_records().into_iter().find(|(_, ws)| ws == workspace_id) {
+        if let Some((thread_id, _)) = self
+            .ctx
+            .thread_records()
+            .into_iter()
+            .find(|(_, ws)| ws == workspace_id)
+        {
             return Some(thread_id);
         }
-        self.ctx.session_views().into_iter().find_map(|view| (view.workspace_id == workspace_id).then_some(view.thread_id).flatten())
+        self.ctx.session_views().into_iter().find_map(|view| {
+            (view.workspace_id == workspace_id)
+                .then_some(view.thread_id)
+                .flatten()
+        })
     }
 
     /// sub-life.ts:194 (rule 3).
@@ -238,7 +289,9 @@ impl SubLifeArea {
         let read_at = iso_string(self.ctx.now()).unwrap_or_default();
         let sub = with_sub(&record, |sub| sub.clone());
         let prior = sub.as_ref().and_then(|sub| sub.result.clone());
-        let branch = sub.as_ref().map_or_else(String::new, |sub| sub.branch.clone());
+        let branch = sub
+            .as_ref()
+            .map_or_else(String::new, |sub| sub.branch.clone());
         let failed = |why: String| SubResult {
             branch: branch.clone(),
             pushed_sha: prior.as_ref().and_then(|p| p.pushed_sha.clone()),
@@ -252,34 +305,61 @@ impl SubLifeArea {
             push_refused: None,
         };
         let phase = phase_of(&record);
-        let Some(sub) = sub else { return failed(format!("its machine was {}", phase_word(phase))) };
+        let Some(sub) = sub else {
+            return failed(format!("its machine was {}", phase_word(phase)));
+        };
         if phase != WorkspacePhase::Running {
             return failed(format!("its machine was {}", phase_word(phase)));
         }
         let machine = machine_of(entry);
-        let said = match machine.exec(&sub_result_command(&sub.folder, &sub.branch, &sub.base.sha), exec_options()).await {
+        let said = match machine
+            .exec(
+                &sub_result_command(&sub.folder, &sub.branch, &sub.base.sha),
+                exec_options(),
+            )
+            .await
+        {
             Ok(said) => said,
             Err(e) => return failed(AreaError::Engine(e).message()),
         };
         let code = said.exit_code.get();
         if code != 0 {
             let err = js_trim(&said.stderr);
-            let src = if err.is_empty() { js_trim(&said.stdout) } else { err };
+            let src = if err.is_empty() {
+                js_trim(&said.stdout)
+            } else {
+                err
+            };
             return failed(format!("exit {code}: {}", tail(src, 200)));
         }
         let Some(read) = sub_result_of(&said.stdout, &sub.branch, &read_at) else {
-            return failed(format!("it answered no counts: {}", tail(js_trim(&said.stdout), 200)));
+            return failed(format!(
+                "it answered no counts: {}",
+                tail(js_trim(&said.stdout), 200)
+            ));
         };
         // A machine made after the delete holds no repository until its agent fetches one; the branch pushed before stands.
         match prior.filter(|p| read.norepo.is_some() && p.pushed_sha.is_some()) {
-            Some(prior) => SubResult { norepo: None, pushed_sha: prior.pushed_sha.clone(), commits: prior.commits, ..read },
+            Some(prior) => SubResult {
+                norepo: None,
+                pushed_sha: prior.pushed_sha.clone(),
+                commits: prior.commits,
+                ..read
+            },
             None => read,
         }
     }
 
     /// sub-life.ts:222 (rule 6).
-    pub(crate) async fn push_refused_in(&self, workspace_id: &str, thread_id: &str) -> AreaResult<Option<String>> {
-        let events = self.ctx.read_transcript(workspace_id, thread_id, PUSH_READ_EVENTS, PUSH_READ_BYTES).await?;
+    pub(crate) async fn push_refused_in(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+    ) -> AreaResult<Option<String>> {
+        let events = self
+            .ctx
+            .read_transcript(workspace_id, thread_id, PUSH_READ_EVENTS, PUSH_READ_BYTES)
+            .await?;
         let mut results: IndexMap<String, &Value> = IndexMap::new();
         for event in &events {
             if event["type"] == "session.delta" && event["kind"] == "tool_result" {
@@ -292,14 +372,23 @@ impl SubLifeArea {
             if event["type"] != "session.delta" || event["kind"] != "tool_use" {
                 continue;
             }
-            let Some(id) = event["toolUseId"].as_str() else { continue };
+            let Some(id) = event["toolUseId"].as_str() else {
+                continue;
+            };
             let text = event["text"].as_str().unwrap_or("");
             if !is_git_push(text) {
                 continue;
             }
-            let Some(out) = results.get(id) else { return Ok(None) };
-            let failed = out["isError"].as_bool() == Some(true) || out["exitCode"].as_f64().unwrap_or(0.0) != 0.0;
-            return Ok(if failed { push_refused_of(out["text"].as_str().unwrap_or("")) } else { None });
+            let Some(out) = results.get(id) else {
+                return Ok(None);
+            };
+            let failed = out["isError"].as_bool() == Some(true)
+                || out["exitCode"].as_f64().unwrap_or(0.0) != 0.0;
+            return Ok(if failed {
+                push_refused_of(out["text"].as_str().unwrap_or(""))
+            } else {
+                None
+            });
         }
         Ok(None)
     }
@@ -307,24 +396,50 @@ impl SubLifeArea {
     /// sub-life.ts:238 (rule 7).
     pub(crate) async fn keep_session(&self, entry: &Entry, thread_id: &str) {
         let record = record_of(entry);
-        let Some(row) = self.ctx.latest_on(thread_id) else { return };
-        let Some(id) = row.claude_session_id.clone() else { return };
+        let Some(row) = self.ctx.latest_on(thread_id) else {
+            return;
+        };
+        let Some(id) = row.claude_session_id.clone() else {
+            return;
+        };
         if phase_of(&record) != WorkspacePhase::Running {
             return;
         }
-        let Some(file) = self.ctx.session_file(entry, &row.harness, &id) else { return };
+        let Some(file) = self.ctx.session_file(entry, &row.harness, &id) else {
+            return;
+        };
         let machine = machine_of(entry);
         if !machine.offers().read_bytes {
             return;
         }
         let at = format!("/tmp/wsp-session-{thread_id}.gz");
-        if let Err(e) = self.pack_and_keep(entry, &row, &id, &file, thread_id, &at).await {
+        if let Err(e) = self
+            .pack_and_keep(entry, &row, &id, &file, thread_id, &at)
+            .await
+        {
             let why = e.message();
-            self.ctx.warn(&format!("the session of sub-thread {thread_id} was not kept: {why}"));
+            self.ctx.warn(&format!(
+                "the session of sub-thread {thread_id} was not kept: {why}"
+            ));
             let _ = self.ctx.delete_blob(SUB_SESSIONS, thread_id).await;
-            set_session(&record, SubSession { agent: row.harness.clone(), id: id.clone(), kept: None, bytes: None, path: None, why: Some(why) });
+            set_session(
+                &record,
+                SubSession {
+                    agent: row.harness.clone(),
+                    id: id.clone(),
+                    kept: None,
+                    bytes: None,
+                    path: None,
+                    why: Some(why),
+                },
+            );
         }
-        let _ = machine.exec(&format!("rm -f {}", shell_quote(&at)), ExecOptions::default()).await;
+        let _ = machine
+            .exec(
+                &format!("rm -f {}", shell_quote(&at)),
+                ExecOptions::default(),
+            )
+            .await;
     }
 
     /// sub-life.ts:275 (rule 8).
@@ -348,14 +463,22 @@ impl SubLifeArea {
             Box::new(move || {
                 let Some(area) = me.upgrade() else { return };
                 area.timers.borrow_mut().shift_remove(&timer_id);
-                drop(area.serial(&timer_id, step_work(area.me.clone(), timer_id.clone(), Step::Expire)));
+                drop(area.serial(
+                    &timer_id,
+                    step_work(area.me.clone(), timer_id.clone(), Step::Expire),
+                ));
             }),
         );
         self.timers.borrow_mut().insert(id, cancel);
     }
 
     /// sub-life.ts:295 (rule 9). `lost` and `cloud_gone` as the TS options.
-    pub(crate) async fn release(&self, entry: &Entry, lost: Option<String>, cloud_gone: bool) -> AreaResult<()> {
+    pub(crate) async fn release(
+        &self,
+        entry: &Entry,
+        lost: Option<String>,
+        cloud_gone: bool,
+    ) -> AreaResult<()> {
         let record = record_of(entry);
         let id = record.borrow().id.clone();
         self.cancel_timer(&id);
@@ -399,7 +522,8 @@ impl SubLifeArea {
         self.persist_record(&record).await?;
         self.ctx.idle_forget(&id);
         self.told(&id);
-        self.ctx.emit(json!({ "type": "workspace.released", "workspaceId": id }));
+        self.ctx
+            .emit(json!({ "type": "workspace.released", "workspaceId": id }));
         self.ctx.emit_status(&released, ReachState::Gone).await
     }
 
@@ -407,14 +531,18 @@ impl SubLifeArea {
     pub(crate) async fn done(&self, id: &str) -> AreaResult<()> {
         let started = self.ctx.now();
         let result = self.done_steps(id).await;
-        self.done_started.borrow_mut().insert(id.to_string(), started);
+        self.done_started
+            .borrow_mut()
+            .insert(id.to_string(), started);
         self.read_done(id, started);
         result
     }
 
     /// sub-life.ts:385 (rule 12).
     pub(crate) async fn expire(&self, id: &str) -> AreaResult<()> {
-        let Some(entry) = self.ctx.live(id) else { return Ok(()) };
+        let Some(entry) = self.ctx.live(id) else {
+            return Ok(());
+        };
         let record = record_of(&entry);
         let has_delete = with_sub(&record, |sub| sub.delete_at.is_some()).unwrap_or(false);
         if !has_delete || phase_of(&record) == WorkspacePhase::Released {
@@ -463,12 +591,19 @@ impl SubLifeArea {
             if !e.is_missing() {
                 let on = with_sub(&record, |sub| cloud_said(&sub.on)).unwrap_or_default();
                 let name = record.borrow().name.clone();
-                let line = sub_delete_refused_line(&on, &name, &e.failure_words(), SUB_DELETE_RETRY_MS / 60_000.0);
+                let line = sub_delete_refused_line(
+                    &on,
+                    &name,
+                    &e.failure_words(),
+                    SUB_DELETE_RETRY_MS / 60_000.0,
+                );
                 self.ctx.warn(&line);
                 let phase = phase_of(&record);
                 entry.borrow_mut().delete_said = Some(DeleteSaid { phase, line });
                 let now = self.ctx.now();
-                with_sub(&record, |sub| sub.delete_at = Some(JsNumber(now + SUB_DELETE_RETRY_MS)));
+                with_sub(&record, |sub| {
+                    sub.delete_at = Some(JsNumber(now + SUB_DELETE_RETRY_MS))
+                });
                 self.persist_record(&record).await?;
                 self.told(id);
                 self.arm(&entry);
@@ -481,9 +616,12 @@ impl SubLifeArea {
 
     /// sub-life.ts:432 (rule 13).
     pub(crate) fn reclaim(&self, workspace_id: &str) {
-        let Some(entry) = self.ctx.live(workspace_id) else { return };
+        let Some(entry) = self.ctx.live(workspace_id) else {
+            return;
+        };
         let record = record_of(&entry);
-        let armed = with_sub(&record, |sub| sub.delete_at.is_some() || sub.held.is_some()).unwrap_or(false);
+        let armed =
+            with_sub(&record, |sub| sub.delete_at.is_some() || sub.held.is_some()).unwrap_or(false);
         if !armed {
             return;
         }
@@ -525,7 +663,11 @@ impl SubLifeArea {
 
     /// sub-life.ts:540 `subDone`: a done on the record's chain.
     pub async fn sub_done(&self, workspace_id: &str) {
-        self.serial(workspace_id, step_work(self.me.clone(), workspace_id.to_string(), Step::Done)).await;
+        self.serial(
+            workspace_id,
+            step_work(self.me.clone(), workspace_id.to_string(), Step::Done),
+        )
+        .await;
     }
 
     /// sub-life.ts:491 (rule 18).
@@ -535,8 +677,16 @@ impl SubLifeArea {
         if !has_sub_record(&record) {
             return None;
         }
-        let started = self.done_started.borrow().get(workspace_id).copied().unwrap_or(f64::NEG_INFINITY);
-        if self.read_since(workspace_id, since).is_none() && phase_of(&record) != WorkspacePhase::Released && started < since {
+        let started = self
+            .done_started
+            .borrow()
+            .get(workspace_id)
+            .copied()
+            .unwrap_or(f64::NEG_INFINITY);
+        if self.read_since(workspace_id, since).is_none()
+            && phase_of(&record) != WorkspacePhase::Released
+            && started < since
+        {
             self.wait_for_read(workspace_id, since).await;
         }
         self.read_since(workspace_id, since)
@@ -555,7 +705,9 @@ impl SubLifeArea {
         let phase = phase_of(&record);
         let snap = snapshot(&record);
         let kept_until = match &sub.held {
-            Some(held) if phase != WorkspacePhase::Released => disk_kept_until(self.ctx.as_ref(), &snap, Some(held.at.0)),
+            Some(held) if phase != WorkspacePhase::Released => {
+                disk_kept_until(self.ctx.as_ref(), &snap, Some(held.at.0))
+            }
             _ => None,
         };
         let delete_in_ms = match sub.delete_at {
@@ -568,20 +720,33 @@ impl SubLifeArea {
             result,
             base: sub.base.branch.clone(),
             delete_in_ms,
-            kept: kept_until.map(|until| KeptUntil { on: cloud_said(&sub.on), until }),
+            kept: kept_until.map(|until| KeptUntil {
+                on: cloud_said(&sub.on),
+                until,
+            }),
         }))
     }
 
     /// sub-life.ts:543 `subExpire`: the delete on the record's chain.
     pub async fn sub_expire(&self, workspace_id: &str) {
-        self.serial(workspace_id, step_work(self.me.clone(), workspace_id.to_string(), Step::Expire)).await;
+        self.serial(
+            workspace_id,
+            step_work(self.me.clone(), workspace_id.to_string(), Step::Expire),
+        )
+        .await;
     }
 
     /// sub-life.ts:544 (rule 20).
     pub fn arm_subs(&self) {
         for entry in self.ctx.live_all() {
             let record = record_of(&entry);
-            let Some((delete_at, held, cloud_gone)) = with_sub(&record, |sub| (sub.delete_at.is_some(), sub.held.is_some(), sub.cloud_gone == Some(true))) else {
+            let Some((delete_at, held, cloud_gone)) = with_sub(&record, |sub| {
+                (
+                    sub.delete_at.is_some(),
+                    sub.held.is_some(),
+                    sub.cloud_gone == Some(true),
+                )
+            }) else {
                 continue;
             };
             let (phase, id) = {
@@ -610,7 +775,8 @@ impl SubLifeArea {
         for entry in self.ctx.live_all() {
             let record = record_of(&entry);
             let snap = snapshot(&record);
-            if !has_sub_record(&record) || self.ctx.place_id_of(&snap).as_deref() != Some(place_id) {
+            if !has_sub_record(&record) || self.ctx.place_id_of(&snap).as_deref() != Some(place_id)
+            {
                 continue;
             }
             if forgot && phase_of(&record) != WorkspacePhase::Released {
@@ -634,25 +800,43 @@ impl SubLifeArea {
             return None;
         }
         let thread_id = self.thread_of(&id)?;
-        let ran = self.ctx.latest_on(&thread_id).and_then(|view| view.started_at).map(|at| at.0);
+        let ran = self
+            .ctx
+            .latest_on(&thread_id)
+            .and_then(|view| view.started_at)
+            .map(|at| at.0);
         let unread = match &sub.result {
             None => ran.is_some(),
             Some(result) => ran.is_some_and(|ran| ran > date_parse(&result.read_at)),
         };
         if unread {
-            return Some(SubUnpushed { files: 0.0, commits: 0.0, read_failed: None, unread: Some(true) });
+            return Some(SubUnpushed {
+                files: 0.0,
+                commits: 0.0,
+                read_failed: None,
+                unread: Some(true),
+            });
         }
         let held = sub.held.as_ref()?;
         Some(SubUnpushed {
             files: held.held.files.get() as f64,
             commits: held.held.commits.get() as f64,
-            read_failed: sub.result.as_ref().and_then(|result| result.read_failed.clone()),
+            read_failed: sub
+                .result
+                .as_ref()
+                .and_then(|result| result.read_failed.clone()),
             unread: None,
         })
     }
 
     /// sub-life.ts:566 (rule 22).
-    pub async fn sub_delete(&self, asked: &Entry, thread_id: &str, origin: Option<&Caller>, check: bool) -> Result<SubDeleted, HostError> {
+    pub async fn sub_delete(
+        &self,
+        asked: &Entry,
+        thread_id: &str,
+        origin: Option<&Caller>,
+        check: bool,
+    ) -> Result<SubDeleted, HostError> {
         let asked_id = record_of(asked).borrow().id.clone();
         let tail_done = self.working.borrow().get(&asked_id).cloned();
         if let Some(tail_done) = tail_done {
@@ -660,7 +844,8 @@ impl SubLifeArea {
         }
         let entry = self.ctx.live(&asked_id).unwrap_or_else(|| asked.clone());
         let record = record_of(&entry);
-        let sub = with_sub(&record, |sub| sub.clone()).ok_or_else(|| HostError::new(format!("{asked_id} is not a sub-thread")))?;
+        let sub = with_sub(&record, |sub| sub.clone())
+            .ok_or_else(|| HostError::new(format!("{asked_id} is not a sub-thread")))?;
         let phase = phase_of(&record);
         if phase != WorkspacePhase::Queued && self.busy(thread_id) {
             return Err(HostError::with_kind(THREAD_WORKING_LINE, Kind::Conflict));
@@ -677,19 +862,50 @@ impl SubLifeArea {
         };
         let on = cloud_said(&sub.on);
         if check {
-            let rows: Vec<SessionView> = self.ctx.session_views().into_iter().filter(|view| view.thread_id.as_deref() == Some(thread_id)).collect();
-            let title = fold_threads(&rows).into_iter().next().map_or(name, |t| t.title);
-            let question = sub_delete_question(&SubDeleteQuestion { thread_id: thread_id.to_string(), title, on: on.clone(), branch: sub.branch.clone(), held });
-            return Ok(SubDeleted { workspace_id, threads: 1, machine: None, on, question: Some(question) });
+            let rows: Vec<SessionView> = self
+                .ctx
+                .session_views()
+                .into_iter()
+                .filter(|view| view.thread_id.as_deref() == Some(thread_id))
+                .collect();
+            let title = fold_threads(&rows)
+                .into_iter()
+                .next()
+                .map_or(name, |t| t.title);
+            let question = sub_delete_question(&SubDeleteQuestion {
+                thread_id: thread_id.to_string(),
+                title,
+                on: on.clone(),
+                branch: sub.branch.clone(),
+                held,
+            });
+            return Ok(SubDeleted {
+                workspace_id,
+                threads: 1,
+                machine: None,
+                on,
+                question: Some(question),
+            });
         }
-        self.ctx.delete_workspace(&workspace_id).await.map_err(AreaError::into_host)?;
-        Ok(SubDeleted { workspace_id, threads: 1, machine: Some("deleted".to_string()), on, question: None })
+        self.ctx
+            .delete_workspace(&workspace_id)
+            .await
+            .map_err(AreaError::into_host)?;
+        Ok(SubDeleted {
+            workspace_id,
+            threads: 1,
+            machine: Some("deleted".to_string()),
+            on,
+            question: None,
+        })
     }
 
     /// sub-life.ts:584 (rule 23).
     pub fn refuse_sub_send(&self, entry: &Entry) -> Result<(), HostError> {
         let record = record_of(entry);
-        match with_sub(&record, |sub| (sub.cloud_gone == Some(true), cloud_said(&sub.on))) {
+        match with_sub(&record, |sub| {
+            (sub.cloud_gone == Some(true), cloud_said(&sub.on))
+        }) {
             Some((true, on)) => Err(sub_cloud_gone_refusal(&on)),
             _ => Ok(()),
         }
@@ -698,7 +914,11 @@ impl SubLifeArea {
     /// sub-life.ts:587 (rule 23).
     pub fn refuse_sub_wake(&self, entry: &Entry) -> Result<(), HostError> {
         let record = record_of(entry);
-        let Some((cloud_gone, on)) = with_sub(&record, |sub| (sub.cloud_gone == Some(true), cloud_said(&sub.on))) else { return Ok(()) };
+        let Some((cloud_gone, on)) = with_sub(&record, |sub| {
+            (sub.cloud_gone == Some(true), cloud_said(&sub.on))
+        }) else {
+            return Ok(());
+        };
         if cloud_gone {
             return Err(sub_cloud_gone_refusal(&on));
         }
@@ -715,7 +935,9 @@ impl SubLifeArea {
 
     /// sub-life.ts:592 (rule 23).
     pub fn lead_of_sub(&self, workspace_id: Option<&str>, origin: Option<&Caller>) -> bool {
-        let Some(entry) = workspace_id.and_then(|id| self.ctx.live(id)) else { return false };
+        let Some(entry) = workspace_id.and_then(|id| self.ctx.live(id)) else {
+            return false;
+        };
         let lead = lead_thread_of(&snapshot(&record_of(&entry)));
         match (lead, scope_of(origin)) {
             (Some(lead), Some(scope)) => scope.thread_id == lead,
@@ -728,8 +950,13 @@ impl SubLifeArea {
         if event["type"] != "session.end" {
             return;
         }
-        let Some(id) = event["workspaceId"].as_str() else { return };
-        let armed = self.ctx.live(id).is_some_and(|entry| has_sub_record(&record_of(&entry)));
+        let Some(id) = event["workspaceId"].as_str() else {
+            return;
+        };
+        let armed = self
+            .ctx
+            .live(id)
+            .is_some_and(|entry| has_sub_record(&record_of(&entry)));
         if !armed {
             return;
         }
@@ -774,7 +1001,9 @@ impl SubLifeArea {
     /// `delayMs(entry)` (sub-life.ts:199): the place's delete delay, read at each done.
     fn delay_ms(&self, record: &WorkspaceRecord) -> f64 {
         let place = self.ctx.place_id_of(record);
-        self.ctx.delete_after_ms(place.as_deref()).unwrap_or(DELETE_AFTER_MS as f64)
+        self.ctx
+            .delete_after_ms(place.as_deref())
+            .unwrap_or(DELETE_AFTER_MS as f64)
     }
 
     fn is_live(&self, id: &str, entry: &Entry) -> bool {
@@ -783,28 +1012,46 @@ impl SubLifeArea {
 
     /// The steps of a done (sub-life.ts:340-381), each a return point.
     async fn done_steps(&self, id: &str) -> AreaResult<()> {
-        let Some(entry) = self.ctx.live(id) else { return Ok(()) };
+        let Some(entry) = self.ctx.live(id) else {
+            return Ok(());
+        };
         let record = record_of(&entry);
         if !has_sub_record(&record) || phase_of(&record) == WorkspacePhase::Released {
             return Ok(());
         }
-        let Some(thread_id) = self.thread_of(id) else { return Ok(()) };
+        let Some(thread_id) = self.thread_of(id) else {
+            return Ok(());
+        };
         if self.busy(&thread_id) {
             return Ok(());
         }
         if phase_of(&record) != WorkspacePhase::Running {
-            let prior_read = with_sub(&record, |sub| sub.result.as_ref().map(|r| r.read_at.clone())).flatten();
+            let prior_read = with_sub(&record, |sub| {
+                sub.result.as_ref().map(|r| r.read_at.clone())
+            })
+            .flatten();
             if let Some(read_at) = prior_read {
-                let started = self.ctx.latest_on(&thread_id).and_then(|view| view.started_at).map_or(0.0, |at| at.0);
+                let started = self
+                    .ctx
+                    .latest_on(&thread_id)
+                    .and_then(|view| view.started_at)
+                    .map_or(0.0, |at| at.0);
                 if started <= date_parse(&read_at) {
                     return Ok(());
                 }
             }
         }
         let read = self.read_result(&entry).await;
-        let refused = if sub_all_pushed(&read) { None } else { self.push_refused_in(id, &thread_id).await.ok().flatten() };
+        let refused = if sub_all_pushed(&read) {
+            None
+        } else {
+            self.push_refused_in(id, &thread_id).await.ok().flatten()
+        };
         let result = match refused {
-            Some(refused) => SubResult { push_refused: Some(refused), ..read },
+            Some(refused) => SubResult {
+                push_refused: Some(refused),
+                ..read
+            },
             None => read,
         };
         self.keep_session(&entry, &thread_id).await;
@@ -847,7 +1094,11 @@ impl SubLifeArea {
             if let Some(lifecycle) = backend.lifecycle().filter(|lc| lc.has_backstop()) {
                 let until_ms = (until.0 + SUB_STOP_AFTER_DELETE_MS) as i64;
                 if let Err(x) = lifecycle.backstop(machine.as_ref(), until_ms, true).await {
-                    self.ctx.warn(&format!("the stop timer of {} was not moved: {}", machine.id(), AreaError::Engine(x).message()));
+                    self.ctx.warn(&format!(
+                        "the stop timer of {} was not moved: {}",
+                        machine.id(),
+                        AreaError::Engine(x).message()
+                    ));
                 }
             }
         }
@@ -855,14 +1106,35 @@ impl SubLifeArea {
     }
 
     /// sub-life.ts:238 (rule 7): the pack and its keep; a failure reaches the caller, which drops the copy it held.
-    async fn pack_and_keep(&self, entry: &Entry, row: &SessionView, id: &str, file: &SessionFile, thread_id: &str, at: &str) -> AreaResult<()> {
+    async fn pack_and_keep(
+        &self,
+        entry: &Entry,
+        row: &SessionView,
+        id: &str,
+        file: &SessionFile,
+        thread_id: &str,
+        at: &str,
+    ) -> AreaResult<()> {
         let record = record_of(entry);
         let machine = machine_of(entry);
-        let packed = machine.exec(&sub_session_pack_command(file, at), exec_options()).await.map_err(AreaError::Engine)?;
+        let packed = machine
+            .exec(&sub_session_pack_command(file, at), exec_options())
+            .await
+            .map_err(AreaError::Engine)?;
         if packed.exit_code.get() == 0 && packed.stdout.contains("nofile") {
             self.ctx.delete_blob(SUB_SESSIONS, thread_id).await?;
             let why = format!("no session file for {id} under {}", file.folder);
-            set_session(&record, SubSession { agent: row.harness.clone(), id: id.to_string(), kept: None, bytes: None, path: None, why: Some(why) });
+            set_session(
+                &record,
+                SubSession {
+                    agent: row.harness.clone(),
+                    id: id.to_string(),
+                    kept: None,
+                    bytes: None,
+                    path: None,
+                    why: Some(why),
+                },
+            );
             return Ok(());
         }
         let code = packed.exit_code.get();
@@ -870,20 +1142,40 @@ impl SubLifeArea {
             (0, Some(size), Some(path)) => (size, path),
             _ => {
                 let err = js_trim(&packed.stderr);
-                let src = if err.is_empty() { js_trim(&packed.stdout) } else { err };
-                return Err(AreaError::Host(HostError::new(format!("the pack exited {code}: {}", tail(src, 200)))));
+                let src = if err.is_empty() {
+                    js_trim(&packed.stdout)
+                } else {
+                    err
+                };
+                return Err(AreaError::Host(HostError::new(format!(
+                    "the pack exited {code}: {}",
+                    tail(src, 200)
+                ))));
             }
         };
         if size > SUB_SESSION_MAX_BYTES as f64 {
             self.ctx.delete_blob(SUB_SESSIONS, thread_id).await?;
-            let why = format!("the agent's session was too large to keep ({})", fmt_bytes(size));
+            let why = format!(
+                "the agent's session was too large to keep ({})",
+                fmt_bytes(size)
+            );
             set_session(
                 &record,
-                SubSession { agent: row.harness.clone(), id: id.to_string(), kept: None, bytes: Some(JsNumber(size)), path: None, why: Some(why) },
+                SubSession {
+                    agent: row.harness.clone(),
+                    id: id.to_string(),
+                    kept: None,
+                    bytes: Some(JsNumber(size)),
+                    path: None,
+                    why: Some(why),
+                },
             );
             return Ok(());
         }
-        let bytes = machine.read_bytes(at, Some(size as u64), None).await.map_err(AreaError::Engine)?;
+        let bytes = machine
+            .read_bytes(at, Some(size as u64), None)
+            .await
+            .map_err(AreaError::Engine)?;
         self.ctx.put_blob(SUB_SESSIONS, thread_id, bytes).await?;
         let now = self.ctx.now();
         set_session(
@@ -934,7 +1226,11 @@ impl SubLifeArea {
                 }),
             }
         });
-        self.read_waits.borrow_mut().entry(key.clone()).or_default().push(wait.clone());
+        self.read_waits
+            .borrow_mut()
+            .entry(key.clone())
+            .or_default()
+            .push(wait.clone());
         let go = wait.go.clone();
         let cancel = self.ctx.schedule(SUB_LINE_WAIT_MS, Box::new(move || go()));
         *timer.borrow_mut() = Some(cancel);
@@ -953,7 +1249,12 @@ impl SubLifeArea {
 
     /// `readDone` (sub-life.ts:335): wakes every wait the done started at `started` answers.
     fn read_done(&self, id: &str, started: f64) {
-        let waits: Vec<Rc<ReadWait>> = self.read_waits.borrow().get(id).cloned().unwrap_or_default();
+        let waits: Vec<Rc<ReadWait>> = self
+            .read_waits
+            .borrow()
+            .get(id)
+            .cloned()
+            .unwrap_or_default();
         for wait in waits {
             if wait.since <= started {
                 (wait.go)();

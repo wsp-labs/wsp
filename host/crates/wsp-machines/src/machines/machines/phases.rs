@@ -7,19 +7,21 @@ use std::sync::Arc;
 
 use futures::future::{Either, FutureExt};
 use wsp_core::status::{phase_leaving_gone, provider_said};
-use wsp_wire::wire::events_union::EventUnion;
 use wsp_core::types::internal::{gone_log_line, GONE_REASON, PAUSED_REASON};
 use wsp_core::types::wiring::{settled, GoneOutcome, Joined};
 use wsp_engine::errors::{is_missing, EngineError};
 use wsp_engine::machine::{MachineBackend, MachineState};
 use wsp_engine::Cancel;
-use wsp_wire::views::workspace::{ReachState, WorkspacePhase};
 use wsp_wire::types::js_number::JsNumber;
+use wsp_wire::views::workspace::{ReachState, WorkspacePhase};
 use wsp_wire::views::workspace_more::WorkspaceView;
-use wsp_words::exit::HostError;
+use wsp_wire::wire::events_union::EventUnion;
 use wsp_words::exit::not_found_refusal;
+use wsp_words::exit::HostError;
 use wsp_words::words::computer::{no_commands_yet_line, no_workspace_refusal, WAKE_STOPPED_UP};
-use wsp_words::words::thread::{gone_words, idle_reason, GoneSeenBy, GoneSighting, ALREADY_RUNNING, GONE_UNCHECKED, NOT_GONE};
+use wsp_words::words::thread::{
+    gone_words, idle_reason, GoneSeenBy, GoneSighting, ALREADY_RUNNING, GONE_UNCHECKED, NOT_GONE,
+};
 
 use super::create::{host_of, machine_state_word, read_once, sleep_ms, GONE_READS};
 use super::{Entry, MachinesArea, Refusal};
@@ -93,7 +95,11 @@ impl MachinesArea {
     }
 
     /// `napWith` (machines.ts:592), spec rule 1; joined on the entry's `napping`.
-    pub async fn nap_with(self: &Rc<Self>, id: &str, reason: Option<&str>) -> Result<WorkspaceView, HostError> {
+    pub async fn nap_with(
+        self: &Rc<Self>,
+        id: &str,
+        reason: Option<&str>,
+    ) -> Result<WorkspaceView, HostError> {
         let entry = self.rt.entry_of(id).await?;
         if self.runs_under_napping(&entry).await {
             self.adopt_running(&entry).await?;
@@ -106,9 +112,16 @@ impl MachinesArea {
         if snapshot.phase != WorkspacePhase::Running {
             return Ok(self.rt.view(&snapshot));
         }
-        let (area, held, id_owned, reason_owned) = (self.clone(), entry.clone(), id.to_string(), reason.map(str::to_string));
+        let (area, held, id_owned, reason_owned) = (
+            self.clone(),
+            entry.clone(),
+            id.to_string(),
+            reason.map(str::to_string),
+        );
         let nap: Joined<WorkspaceView> = async move {
-            let out = area.nap_run(&held, &id_owned, reason_owned.as_deref()).await;
+            let out = area
+                .nap_run(&held, &id_owned, reason_owned.as_deref())
+                .await;
             held.borrow_mut().napping = None;
             out
         }
@@ -119,15 +132,26 @@ impl MachinesArea {
     }
 
     /// The body of a nap: the pause, its refusals, and the record after it (machines.ts:594-636).
-    async fn nap_run(self: &Rc<Self>, entry: &Entry, id: &str, reason: Option<&str>) -> Result<WorkspaceView, HostError> {
+    async fn nap_run(
+        self: &Rc<Self>,
+        entry: &Entry,
+        id: &str,
+        reason: Option<&str>,
+    ) -> Result<WorkspaceView, HostError> {
         Self::set_phase(entry, WorkspacePhase::Pausing);
         self.rt.persist(&Self::record_snapshot(entry)).await?;
-        self.rt.emit_status(entry, ReachState::Napping, None).await?;
+        self.rt
+            .emit_status(entry, ReachState::Napping, None)
+            .await?;
         let ws = entry.borrow().ws.clone();
         if let Err(e) = ws.nap().await {
             if is_missing(&e) {
                 let snapshot = Self::record_snapshot(entry);
-                let sighting = GoneSighting { by: GoneSeenBy::Pause, at: self.rt.clock().now() as f64, answer: Some(provider_said(&e)) };
+                let sighting = GoneSighting {
+                    by: GoneSeenBy::Pause,
+                    at: self.rt.clock().now() as f64,
+                    answer: Some(provider_said(&e)),
+                };
                 let words = gone_words(&snapshot.machine_id, Some(&sighting));
                 if settled(self.settle_gone(entry, &words).await?) {
                     return Err(nap_error(e));
@@ -142,13 +166,27 @@ impl MachinesArea {
                         "the provider does not pause {machine_id} of {id} ({said}); an idle nap waits for the backstop and exports no vault until a pause lands"
                     ));
                 }
-                self.rt.nap_refusals().borrow_mut().insert(id.to_string(), Refusal { machine_id: machine_id.clone(), said: said.clone() });
+                self.rt.nap_refusals().borrow_mut().insert(
+                    id.to_string(),
+                    Refusal {
+                        machine_id: machine_id.clone(),
+                        said: said.clone(),
+                    },
+                );
             }
             if let EngineError::StopRefused { said, .. } = &e {
-                self.rt.stop_refusals().borrow_mut().insert(id.to_string(), Refusal { machine_id: machine_id.clone(), said: said.clone() });
+                self.rt.stop_refusals().borrow_mut().insert(
+                    id.to_string(),
+                    Refusal {
+                        machine_id: machine_id.clone(),
+                        said: said.clone(),
+                    },
+                );
             }
             let reach = self.rt.reach_of(entry);
-            self.rt.emit_status(entry, reach, Some(&e.to_string())).await?;
+            self.rt
+                .emit_status(entry, reach, Some(&e.to_string()))
+                .await?;
             return Err(nap_error(e));
         }
         self.end_sessions(id, PAUSED_REASON);
@@ -163,11 +201,18 @@ impl MachinesArea {
         }
         entry.borrow_mut().unchecked = false;
         self.rt.persist(&Self::record_snapshot(entry)).await?;
-        self.rt.emit(EventUnion::WorkspaceNapped(wsp_wire::wire::events_union::Sequenced {
-            event: wsp_wire::views::workspace_events::WorkspaceNappedEvent { workspace_id: id.to_string(), found: None },
-            seq: None,
-        }))?;
-        self.rt.emit_status(entry, ReachState::Napping, reason).await?;
+        self.rt.emit(EventUnion::WorkspaceNapped(
+            wsp_wire::wire::events_union::Sequenced {
+                event: wsp_wire::views::workspace_events::WorkspaceNappedEvent {
+                    workspace_id: id.to_string(),
+                    found: None,
+                },
+                seq: None,
+            },
+        ))?;
+        self.rt
+            .emit_status(entry, ReachState::Napping, reason)
+            .await?;
         Ok(self.rt.view(&Self::record_snapshot(entry)))
     }
 
@@ -185,7 +230,11 @@ impl MachinesArea {
                 tokio::task::spawn_local(async move {
                     let id = entry.borrow().record.borrow().id.clone();
                     let runs = area.runs_under_napping(&entry).await;
-                    let out = if runs { area.adopt_running(&entry).await } else { Ok(()) };
+                    let out = if runs {
+                        area.adopt_running(&entry).await
+                    } else {
+                        Ok(())
+                    };
                     if let Err(e) = out {
                         area.rt.warn(&format!("late read of {id}: {}", e.message));
                     }
@@ -216,11 +265,18 @@ impl MachinesArea {
         entry.borrow_mut().unchecked = false;
         self.rt.persist(&Self::record_snapshot(entry)).await?;
         self.end_sessions(&id, PAUSED_REASON);
-        self.rt.emit(EventUnion::WorkspaceNapped(wsp_wire::wire::events_union::Sequenced {
-            event: wsp_wire::views::workspace_events::WorkspaceNappedEvent { workspace_id: id.clone(), found: Some(true) },
-            seq: None,
-        }))?;
-        self.rt.emit_status(entry, ReachState::Napping, Some("paused outside wsp")).await
+        self.rt.emit(EventUnion::WorkspaceNapped(
+            wsp_wire::wire::events_union::Sequenced {
+                event: wsp_wire::views::workspace_events::WorkspaceNappedEvent {
+                    workspace_id: id.clone(),
+                    found: Some(true),
+                },
+                seq: None,
+            },
+        ))?;
+        self.rt
+            .emit_status(entry, ReachState::Napping, Some("paused outside wsp"))
+            .await
     }
 
     /// `runsUnderNapping` (machines.ts:667).
@@ -266,16 +322,27 @@ impl MachinesArea {
             let r = e.record.borrow();
             (r.id.clone(), r.machine_id.clone())
         };
-        self.rt.emit(EventUnion::WorkspaceWoken(wsp_wire::wire::events_union::Sequenced {
-            event: wsp_wire::views::workspace_events::WorkspaceWokenEvent { workspace_id: id, machine_id },
-            seq: None,
-        }))?;
+        self.rt.emit(EventUnion::WorkspaceWoken(
+            wsp_wire::wire::events_union::Sequenced {
+                event: wsp_wire::views::workspace_events::WorkspaceWokenEvent {
+                    workspace_id: id,
+                    machine_id,
+                },
+                seq: None,
+            },
+        ))?;
         let reach = self.rt.reach_of(entry);
-        self.rt.emit_status(entry, reach, Some(ALREADY_RUNNING)).await
+        self.rt
+            .emit_status(entry, reach, Some(ALREADY_RUNNING))
+            .await
     }
 
     /// `goneConfirmed` (machines.ts:691).
-    pub async fn gone_confirmed(&self, backend: &Arc<dyn MachineBackend>, machine_id: &str) -> GoneRead {
+    pub async fn gone_confirmed(
+        &self,
+        backend: &Arc<dyn MachineBackend>,
+        machine_id: &str,
+    ) -> GoneRead {
         if self.config.gone_confirm_ms > 0 {
             sleep_ms(&self.rt.clock(), self.config.gone_confirm_ms as i64).await;
         }
@@ -290,14 +357,24 @@ impl MachinesArea {
     }
 
     /// `settleGone` (machines.ts:700), spec rule 7.
-    pub async fn settle_gone(self: &Rc<Self>, entry: &Entry, reason: &str) -> Result<GoneOutcome, HostError> {
+    pub async fn settle_gone(
+        self: &Rc<Self>,
+        entry: &Entry,
+        reason: &str,
+    ) -> Result<GoneOutcome, HostError> {
         let snapshot = Self::record_snapshot(entry);
         let backend = self.rt.backend_for(&snapshot);
         let read = self.gone_confirmed(&backend, &snapshot.machine_id).await;
         match read {
-            GoneRead::State(MachineState::Gone) => self.mark_gone(entry, &snapshot.machine_id, reason).await,
+            GoneRead::State(MachineState::Gone) => {
+                self.mark_gone(entry, &snapshot.machine_id, reason).await
+            }
             GoneRead::State(state) => {
-                self.rt.warn(&format!("workspace {} is not gone: {reason}, and the state read that followed said {}", snapshot.id, machine_state_word(state)));
+                self.rt.warn(&format!(
+                    "workspace {} is not gone: {reason}, and the state read that followed said {}",
+                    snapshot.id,
+                    machine_state_word(state)
+                ));
                 Ok(GoneOutcome::NotGone)
             }
             GoneRead::Failed(message) => {
@@ -308,7 +385,12 @@ impl MachinesArea {
     }
 
     /// `markGone` (machines.ts:712), spec rule 8.
-    pub async fn mark_gone(self: &Rc<Self>, entry: &Entry, machine_id: &str, reason: &str) -> Result<GoneOutcome, HostError> {
+    pub async fn mark_gone(
+        self: &Rc<Self>,
+        entry: &Entry,
+        machine_id: &str,
+        reason: &str,
+    ) -> Result<GoneOutcome, HostError> {
         let snapshot = Self::record_snapshot(entry);
         if snapshot.phase == WorkspacePhase::Gone || snapshot.machine_id != machine_id {
             return Ok(GoneOutcome::Moot);
@@ -326,15 +408,19 @@ impl MachinesArea {
         self.rt.persist(&Self::record_snapshot(entry)).await?;
         self.end_sessions(&snapshot.id, GONE_REASON);
         self.rt.warn(&gone_log_line(&snapshot.id, reason));
-        self.rt.emit(EventUnion::WorkspaceGone(wsp_wire::wire::events_union::Sequenced {
-            event: wsp_wire::views::workspace_events::WorkspaceGoneEvent {
-                workspace_id: snapshot.id.clone(),
-                machine_id: snapshot.machine_id.clone(),
-                reason: reason.to_string(),
+        self.rt.emit(EventUnion::WorkspaceGone(
+            wsp_wire::wire::events_union::Sequenced {
+                event: wsp_wire::views::workspace_events::WorkspaceGoneEvent {
+                    workspace_id: snapshot.id.clone(),
+                    machine_id: snapshot.machine_id.clone(),
+                    reason: reason.to_string(),
+                },
+                seq: None,
             },
-            seq: None,
-        }))?;
-        self.rt.emit_status(entry, ReachState::Gone, Some(reason)).await?;
+        ))?;
+        self.rt
+            .emit_status(entry, ReachState::Gone, Some(reason))
+            .await?;
         Ok(GoneOutcome::Settled)
     }
 
@@ -343,16 +429,27 @@ impl MachinesArea {
         let (id, phase, napping, waking) = {
             let e = entry.borrow();
             let r = e.record.borrow();
-            (r.id.clone(), r.phase, e.napping.is_some(), e.waking.is_some())
+            (
+                r.id.clone(),
+                r.phase,
+                e.napping.is_some(),
+                e.waking.is_some(),
+            )
         };
-        if phase == WorkspacePhase::Gone || napping || waking || self.rereading.borrow().contains(&id) {
+        if phase == WorkspacePhase::Gone
+            || napping
+            || waking
+            || self.rereading.borrow().contains(&id)
+        {
             return Ok(());
         }
         self.rereading.borrow_mut().insert(id.clone());
         let out = match self.settle_gone(entry, reason).await {
             Ok(GoneOutcome::Unchecked) => {
                 let reach = self.rt.reach_of(entry);
-                self.rt.emit_status(entry, reach, Some(GONE_UNCHECKED)).await
+                self.rt
+                    .emit_status(entry, reach, Some(GONE_UNCHECKED))
+                    .await
             }
             Ok(_) => Ok(()),
             Err(e) => Err(e),
@@ -362,7 +459,10 @@ impl MachinesArea {
     }
 
     /// `recoverGone` (machines.ts:745): the phase the record left gone for, or `None`.
-    pub async fn recover_gone(self: &Rc<Self>, entry: &Entry) -> Result<Option<WorkspacePhase>, HostError> {
+    pub async fn recover_gone(
+        self: &Rc<Self>,
+        entry: &Entry,
+    ) -> Result<Option<WorkspacePhase>, HostError> {
         let (phase, napping, waking) = gate_of(entry);
         if phase != WorkspacePhase::Gone || napping || waking {
             return Ok(None);
@@ -392,17 +492,31 @@ impl MachinesArea {
             (r.id.clone(), r.machine_id.clone())
         };
         if next == WorkspacePhase::Running {
-            self.rt.emit(EventUnion::WorkspaceWoken(wsp_wire::wire::events_union::Sequenced {
-                event: wsp_wire::views::workspace_events::WorkspaceWokenEvent { workspace_id: id, machine_id },
-                seq: None,
-            }))?;
+            self.rt.emit(EventUnion::WorkspaceWoken(
+                wsp_wire::wire::events_union::Sequenced {
+                    event: wsp_wire::views::workspace_events::WorkspaceWokenEvent {
+                        workspace_id: id,
+                        machine_id,
+                    },
+                    seq: None,
+                },
+            ))?;
         } else {
-            self.rt.emit(EventUnion::WorkspaceNapped(wsp_wire::wire::events_union::Sequenced {
-                event: wsp_wire::views::workspace_events::WorkspaceNappedEvent { workspace_id: id, found: Some(true) },
-                seq: None,
-            }))?;
+            self.rt.emit(EventUnion::WorkspaceNapped(
+                wsp_wire::wire::events_union::Sequenced {
+                    event: wsp_wire::views::workspace_events::WorkspaceNappedEvent {
+                        workspace_id: id,
+                        found: Some(true),
+                    },
+                    seq: None,
+                },
+            ))?;
         }
-        let reach = if next == WorkspacePhase::Running { self.rt.reach_of(entry) } else { ReachState::Napping };
+        let reach = if next == WorkspacePhase::Running {
+            self.rt.reach_of(entry)
+        } else {
+            ReachState::Napping
+        };
         self.rt.emit_status(entry, reach, Some(NOT_GONE)).await?;
         Ok(Some(next))
     }
@@ -433,7 +547,9 @@ impl MachinesArea {
         let entry = self.rt.live().borrow().get(id).cloned()?;
         let window = self.idle_window_of(&Self::record_snapshot(&entry));
         match window {
-            Some(ms) if self.rt.nap_refused_of(&entry).is_some() => Some(Some(wsp_core::idle::backstop_ms(Some(ms as i64)) as f64)),
+            Some(ms) if self.rt.nap_refused_of(&entry).is_some() => {
+                Some(Some(wsp_core::idle::backstop_ms(Some(ms as i64)) as f64))
+            }
             other => Some(other),
         }
     }
@@ -447,7 +563,9 @@ impl MachinesArea {
             }
         }
         let reason = idle_reason::of(window_ms);
-        let Err(e) = self.nap_with(id, Some(&reason)).await else { return Ok(()) };
+        let Err(e) = self.nap_with(id, Some(&reason)).await else {
+            return Ok(());
+        };
         if e.marks.iter().any(|m| m == MARK_MOVE_UNANSWERED) {
             return Err(e);
         }
@@ -457,13 +575,20 @@ impl MachinesArea {
         self.rt.idle().touch(id);
         let entry = self.rt.live().borrow().get(id).cloned();
         if let Some(entry) = entry {
-            let line = self.rt.nap_refused_reason(&entry).or_else(|| self.rt.stop_refused_reason(&entry)).unwrap_or_else(|| e.message.clone());
+            let line = self
+                .rt
+                .nap_refused_reason(&entry)
+                .or_else(|| self.rt.stop_refused_reason(&entry))
+                .unwrap_or_else(|| e.message.clone());
             let reach = self.rt.reach_of(&entry);
             self.rt.emit_status(&entry, reach, Some(&line)).await?;
         }
         if !e.marks.iter().any(|m| m == MARK_NAP_REFUSED) {
             let minutes = (window_ms / 60_000.0).round() as i64;
-            self.rt.warn(&format!("idle nap of {id} was answered with {}; a full {minutes} min window starts over", said_of(&e)));
+            self.rt.warn(&format!(
+                "idle nap of {id} was answered with {}; a full {minutes} min window starts over",
+                said_of(&e)
+            ));
         }
         Ok(())
     }
@@ -472,7 +597,8 @@ impl MachinesArea {
     pub fn idle_busy(&self, id: &str) -> bool {
         self.rt.sessions().borrow().values().any(|s| {
             let s = s.borrow();
-            s.view.workspace_id == id && s.view.status == wsp_wire::views::session::SessionStatus::Running
+            s.view.workspace_id == id
+                && s.view.status == wsp_wire::views::session::SessionStatus::Running
         })
     }
 
@@ -483,14 +609,16 @@ impl MachinesArea {
         let (phase, sub_delete) = {
             let e = entry.borrow();
             let r = e.record.borrow();
-            (r.phase, r.sub.as_ref().and_then(|s| s.delete_at.clone()))
+            (r.phase, r.sub.as_ref().and_then(|s| s.delete_at))
         };
         if phase != WorkspacePhase::Running || sub_delete.is_some() {
             return;
         }
         let backend = self.rt.backend_for(&Self::record_snapshot(&entry));
         let machine = entry.borrow().machine.clone();
-        let Some(lifecycle) = backend.lifecycle() else { return };
+        let Some(lifecycle) = backend.lifecycle() else {
+            return;
+        };
         if !lifecycle.has_backstop() {
             return;
         }
@@ -498,7 +626,10 @@ impl MachinesArea {
         let id = id.to_string();
         tokio::task::spawn_local(async move {
             if let Err(e) = lifecycle.backstop(machine.as_ref(), until_ms, false).await {
-                area.rt.warn(&format!("backstop of {id} on {} not set: {e}", machine.id()));
+                area.rt.warn(&format!(
+                    "backstop of {id} on {} not set: {e}",
+                    machine.id()
+                ));
             }
         });
     }
@@ -530,11 +661,18 @@ impl MachinesArea {
     }
 
     /// The body of a wake's proof (machines.ts:862-889).
-    async fn proven_run(self: &Rc<Self>, entry: &Entry, machine: &dyn wsp_engine::machine::Machine, stop: &Cancel) -> Result<WorkspaceView, HostError> {
+    async fn proven_run(
+        self: &Rc<Self>,
+        entry: &Entry,
+        machine: &dyn wsp_engine::machine::Machine,
+        stop: &Cancel,
+    ) -> Result<WorkspaceView, HostError> {
         self.still_live(entry).await?;
         Self::set_phase(entry, WorkspacePhase::Waking);
         self.rt.persist(&Self::record_snapshot(entry)).await?;
-        self.rt.emit_status(entry, ReachState::Napping, None).await?;
+        self.rt
+            .emit_status(entry, ReachState::Napping, None)
+            .await?;
         let outcome = if stop.is_cancelled() {
             Wake::Stopped
         } else {
@@ -553,13 +691,21 @@ impl MachinesArea {
             if is_missing(e) {
                 Self::set_phase(entry, WorkspacePhase::Running);
                 let snapshot = Self::record_snapshot(entry);
-                let sighting = GoneSighting { by: GoneSeenBy::Wake, at: self.rt.clock().now() as f64, answer: Some(provider_said(e)) };
+                let sighting = GoneSighting {
+                    by: GoneSeenBy::Wake,
+                    at: self.rt.clock().now() as f64,
+                    answer: Some(provider_said(e)),
+                };
                 let words = gone_words(&snapshot.machine_id, Some(&sighting));
                 let gone = self.settle_gone(entry, &words).await?;
                 self.still_live(entry).await?;
                 if settled(gone) {
                     let after = Self::record_snapshot(entry);
-                    return Err(HostError::new(wsp_words::workspace_state::gone_refusal(Some(&after.name), "wake", after.gone.as_deref())));
+                    return Err(HostError::new(wsp_words::workspace_state::gone_refusal(
+                        Some(&after.name),
+                        "wake",
+                        after.gone.as_deref(),
+                    )));
                 }
             }
         }
@@ -570,7 +716,9 @@ impl MachinesArea {
         let said = match &outcome {
             Wake::Proven => None,
             Wake::Stopped => Some(WAKE_STOPPED_UP.to_string()),
-            Wake::Failed(EngineError::RestoreUnfinished { message, .. }) => Some(no_commands_yet_line(&name, message)),
+            Wake::Failed(EngineError::RestoreUnfinished { message, .. }) => {
+                Some(no_commands_yet_line(&name, message))
+            }
             Wake::Failed(e) => Some(e.to_string()),
         };
         Self::set_phase(entry, WorkspacePhase::Running);
@@ -580,7 +728,9 @@ impl MachinesArea {
         match outcome {
             Wake::Proven => Ok(self.rt.view(&Self::record_snapshot(entry))),
             Wake::Stopped => Err(HostError::new(said.unwrap_or_default())),
-            Wake::Failed(EngineError::RestoreUnfinished { .. }) => Err(HostError::new(said.unwrap_or_default())),
+            Wake::Failed(EngineError::RestoreUnfinished { .. }) => {
+                Err(HostError::new(said.unwrap_or_default()))
+            }
             Wake::Failed(e) => Err(host_of(e)),
         }
     }

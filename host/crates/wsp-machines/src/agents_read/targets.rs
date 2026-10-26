@@ -10,8 +10,9 @@ use serde_json::Value;
 
 use wsp_catalog::catalog::catalog_agents;
 use wsp_wire::types::agents_report::{
-    AgentRow, AgentsProject, AgentsReport, AgentsTarget, AgentsTargetV0, NappingLit, PageReach, PluginAsk, PluginRow, ServerAdd,
-    ServerAsk, ServerToolsAnswer, SkillAdded, SkillHit, SkillPreview,
+    AgentRow, AgentsProject, AgentsReport, AgentsTarget, AgentsTargetV0, NappingLit, PageReach,
+    PluginAsk, PluginRow, ServerAdd, ServerAsk, ServerToolsAnswer, SkillAdded, SkillHit,
+    SkillPreview,
 };
 use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::types::thread_defaults::AgentSetupSet;
@@ -21,8 +22,10 @@ use wsp_wire::views::workspace::{Caller, WorkspacePhase};
 use wsp_wire::wire::capabilities::PauseMode;
 use wsp_wire::wire::machine_link::{is_joined_computer, no_such_place_refusal};
 use wsp_words::agents_report::{
-    napping_agents_refusal, napping_plugins_refusal, napping_servers_refusal, napping_sign_in_refusal, napping_skills_refusal, napping_tools_refusal,
-    no_such_agents_project_refusal, provider_agents_refusal, shared_agents_project_refusal, without_control_chars,
+    napping_agents_refusal, napping_plugins_refusal, napping_servers_refusal,
+    napping_sign_in_refusal, napping_skills_refusal, napping_tools_refusal,
+    no_such_agents_project_refusal, provider_agents_refusal, shared_agents_project_refusal,
+    without_control_chars,
 };
 use wsp_words::exit::{HostError, Kind};
 use wsp_words::js_date::iso_string;
@@ -31,8 +34,8 @@ use wsp_words::place_word::PlaceRef;
 use wsp_words::words::computer::THIS_COMPUTER;
 
 use super::{
-    AgentsOn, AgentsPlaces, AgentsReads, BoxExec, BoxLogin, CallbackForwards, Napping, OnOrNapping, ResolvedServer, ServerToolsAsk, SkillAddAsk, SkillAsk,
-    SKILLS_SEARCH_LIMIT,
+    AgentsOn, AgentsPlaces, AgentsReads, BoxExec, BoxLogin, CallbackForwards, Napping, OnOrNapping,
+    ResolvedServer, ServerToolsAsk, SkillAddAsk, SkillAsk, SKILLS_SEARCH_LIMIT,
 };
 use crate::places::types::NO_PLACE_DOOR;
 
@@ -47,7 +50,10 @@ fn key_of(target: &AgentsTarget) -> String {
 }
 
 fn computer(place_id: &str) -> AgentsTarget {
-    AgentsTarget::V0(AgentsTargetV0 { place_id: place_id.to_string(), project: None })
+    AgentsTarget::V0(AgentsTargetV0 {
+        place_id: place_id.to_string(),
+        project: None,
+    })
 }
 
 /// `storesOn`: a store map left off where it is absent or empty.
@@ -63,35 +69,60 @@ fn kind_word(kind: PlaceKind) -> &'static str {
 }
 
 fn table_name_of(place: &PlaceView) -> String {
-    table_name(&PlaceRef { id: place.id.clone(), name: place.name.clone(), kind: Some(kind_word(place.kind).to_string()) })
+    table_name(&PlaceRef {
+        id: place.id.clone(),
+        name: place.name.clone(),
+        kind: Some(kind_word(place.kind).to_string()),
+    })
 }
 
 impl AgentsReads {
     pub(crate) fn reader(&self) -> Result<Rc<dyn super::AgentsReader>, HostError> {
-        self.o.reader.clone().ok_or_else(|| HostError::new(super::NO_AGENTS_READER))
+        self.o
+            .reader
+            .clone()
+            .ok_or_else(|| HostError::new(super::NO_AGENTS_READER))
     }
 
     pub(crate) fn acts(&self) -> Result<Rc<dyn super::AgentsActs>, HostError> {
-        self.o.acts.clone().ok_or_else(|| HostError::new(super::NO_AGENTS_READER))
+        self.o
+            .acts
+            .clone()
+            .ok_or_else(|| HostError::new(super::NO_AGENTS_READER))
     }
 
     pub(crate) fn skills(&self) -> Result<Rc<dyn super::SkillsActs>, HostError> {
-        self.o.skills.clone().ok_or_else(|| HostError::new(super::NO_AGENTS_READER))
+        self.o
+            .skills
+            .clone()
+            .ok_or_else(|| HostError::new(super::NO_AGENTS_READER))
     }
 
     pub(crate) fn servers(&self) -> Result<Rc<dyn super::ServersActs>, HostError> {
-        self.o.servers.clone().ok_or_else(|| HostError::new(super::NO_AGENTS_READER))
+        self.o
+            .servers
+            .clone()
+            .ok_or_else(|| HostError::new(super::NO_AGENTS_READER))
     }
 
     /// A write there, after which the report there reads again, whether the write held or stopped halfway.
-    pub(crate) async fn written<T>(&self, target: &AgentsTarget, run: impl Future<Output = Result<T, HostError>>) -> Result<T, HostError> {
+    pub(crate) async fn written<T>(
+        &self,
+        target: &AgentsTarget,
+        run: impl Future<Output = Result<T, HostError>>,
+    ) -> Result<T, HostError> {
         let out = run.await;
         self.changed(Some(target));
         out
     }
 
     /// Where a skill or a server there is read or written; a napping workspace is never woken for one.
-    pub(crate) async fn awake_on(&self, target: &AgentsTarget, napping: fn(&str, Option<&PauseMode>) -> String, origin: Option<&Caller>) -> Result<AgentsOn, HostError> {
+    pub(crate) async fn awake_on(
+        &self,
+        target: &AgentsTarget,
+        napping: fn(&str, Option<&PauseMode>) -> String,
+        origin: Option<&Caller>,
+    ) -> Result<AgentsOn, HostError> {
         match self.on_of(target, origin, false).await? {
             OnOrNapping::On(on) => Ok(on),
             OnOrNapping::Napping(n) => Err(usage(napping(&n.napping, n.pause_mode.as_ref()))),
@@ -114,7 +145,13 @@ impl AgentsReads {
     }
 
     /// agents-read.ts:377-386 (A4): `None` is the TS `{}` (no projects key).
-    pub async fn projects_at(&self, place_id: &str, project: Option<&str>, computer: &str, read: bool) -> Result<Option<Vec<AgentsProject>>, HostError> {
+    pub async fn projects_at(
+        &self,
+        place_id: &str,
+        project: Option<&str>,
+        computer: &str,
+        read: bool,
+    ) -> Result<Option<Vec<AgentsProject>>, HostError> {
         if project.is_none() && !read {
             return Ok(None);
         }
@@ -122,9 +159,18 @@ impl AgentsReads {
             Some(projects) => projects(place_id.to_string()).await?,
             None => Vec::new(),
         };
-        let Some(wanted) = project else { return Ok(Some(held)) };
+        let Some(wanted) = project else {
+            return Ok(Some(held));
+        };
         let by_name: Vec<&AgentsProject> = held.iter().filter(|p| p.name == wanted).collect();
-        let named = held.iter().find(|p| p.id == wanted).or(if by_name.len() == 1 { Some(by_name[0]) } else { None });
+        let named = held
+            .iter()
+            .find(|p| p.id == wanted)
+            .or(if by_name.len() == 1 {
+                Some(by_name[0])
+            } else {
+                None
+            });
         let said = without_control_chars(wanted);
         match named {
             Some(named) => Ok(Some(vec![named.clone()])),
@@ -134,21 +180,41 @@ impl AgentsReads {
     }
 
     /// agents-read.ts:388-425 (A3).
-    pub async fn on_of(&self, target: &AgentsTarget, origin: Option<&Caller>, read: bool) -> Result<OnOrNapping, HostError> {
+    pub async fn on_of(
+        &self,
+        target: &AgentsTarget,
+        origin: Option<&Caller>,
+        read: bool,
+    ) -> Result<OnOrNapping, HostError> {
         match target {
             AgentsTarget::V0(place) => self.on_of_place(target, place, read).await,
             AgentsTarget::V1(ws) => self.on_of_workspace(&ws.workspace_id, origin).await,
         }
     }
 
-    async fn on_of_place(&self, target: &AgentsTarget, place: &AgentsTargetV0, read: bool) -> Result<OnOrNapping, HostError> {
+    async fn on_of_place(
+        &self,
+        target: &AgentsTarget,
+        place: &AgentsTargetV0,
+        read: bool,
+    ) -> Result<OnOrNapping, HostError> {
         if place.place_id == HERE_PLACE_ID {
             let stores = match &self.o.stores_here {
                 Some(stores_here) => stores_here().await.ok(),
                 None => None,
             };
-            let projects = self.projects_at(&place.place_id, place.project.as_deref(), THIS_COMPUTER, read).await?;
-            return Ok(OnOrNapping::On(AgentsOn::Here { projects, stores: stores_on(stores) }));
+            let projects = self
+                .projects_at(
+                    &place.place_id,
+                    place.project.as_deref(),
+                    THIS_COMPUTER,
+                    read,
+                )
+                .await?;
+            return Ok(OnOrNapping::On(AgentsOn::Here {
+                projects,
+                stores: stores_on(stores),
+            }));
         }
         let door = (self.o.places)().ok_or_else(|| HostError::new(NO_PLACE_DOOR))?;
         let rows = door.list(self.o.clock.now()).await?;
@@ -171,10 +237,12 @@ impl AgentsReads {
         let exec: BoxExec = {
             let door: Rc<dyn AgentsPlaces> = door.clone();
             let id = row.id.clone();
-            Rc::new(move |cmd: String, timeout: Option<u64>, stdin: Option<Vec<u8>>| {
-                let (door, id) = (door.clone(), id.clone());
-                async move { door.exec(&id, &cmd, timeout, stdin).await }.boxed_local()
-            })
+            Rc::new(
+                move |cmd: String, timeout: Option<u64>, stdin: Option<Vec<u8>>| {
+                    let (door, id) = (door.clone(), id.clone());
+                    async move { door.exec(&id, &cmd, timeout, stdin).await }.boxed_local()
+                },
+            )
         };
         let login = BoxLogin {
             home: report.as_ref().and_then(|r| r.login.get("HOME").cloned()),
@@ -185,7 +253,9 @@ impl AgentsReads {
             _ => None,
         };
         let relayed = self.reached(target).then_some(true);
-        let projects = self.projects_at(&place.place_id, place.project.as_deref(), &row.name, read).await?;
+        let projects = self
+            .projects_at(&place.place_id, place.project.as_deref(), &row.name, read)
+            .await?;
         Ok(OnOrNapping::On(AgentsOn::Box {
             name: Some(row.name.clone()),
             exec,
@@ -200,17 +270,27 @@ impl AgentsReads {
         }))
     }
 
-    async fn on_of_workspace(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<OnOrNapping, HostError> {
+    async fn on_of_workspace(
+        &self,
+        workspace_id: &str,
+        origin: Option<&Caller>,
+    ) -> Result<OnOrNapping, HostError> {
         let ws = (self.o.workspace)(workspace_id.to_string(), origin.cloned()).await?;
         if ws.phase == WorkspacePhase::Napping {
-            return Ok(OnOrNapping::Napping(Napping { napping: ws.name, pause_mode: ws.pause_mode }));
+            return Ok(OnOrNapping::Napping(Napping {
+                napping: ws.name,
+                pause_mode: ws.pause_mode,
+            }));
         }
         if ws.local {
             let here = match &self.o.stores_here {
                 Some(stores_here) => stores_here().await.ok(),
                 None => None,
             };
-            return Ok(OnOrNapping::On(AgentsOn::Here { projects: Some(vec![ws.project]), stores: stores_on(here) }));
+            return Ok(OnOrNapping::On(AgentsOn::Here {
+                projects: Some(vec![ws.project]),
+                stores: stores_on(here),
+            }));
         }
         let relayed = (self.o.relayed.as_ref().map(|f| f()) == Some(true)).then_some(true);
         Ok(OnOrNapping::On(AgentsOn::Machine {
@@ -224,7 +304,11 @@ impl AgentsReads {
     }
 
     /// agents-read.ts:441-457 (A5).
-    pub async fn read(&self, target: &AgentsTarget, origin: Option<&Caller>) -> Result<AgentsReport, HostError> {
+    pub async fn read(
+        &self,
+        target: &AgentsTarget,
+        origin: Option<&Caller>,
+    ) -> Result<AgentsReport, HostError> {
         let reader = self.reader()?;
         let on = self.on_of(target, origin, true).await?;
         let on = match on {
@@ -234,9 +318,16 @@ impl AgentsReads {
                     AgentsTarget::V0(_) => None,
                 };
                 let Some(held) = held else {
-                    return Err(usage(napping_agents_refusal(&n.napping, n.pause_mode.as_ref())));
+                    return Err(usage(napping_agents_refusal(
+                        &n.napping,
+                        n.pause_mode.as_ref(),
+                    )));
                 };
-                return Ok(AgentsReport { stale: Some(NappingLit), pause_mode: n.pause_mode, ..held });
+                return Ok(AgentsReport {
+                    stale: Some(NappingLit),
+                    pause_mode: n.pause_mode,
+                    ..held
+                });
             }
             OnOrNapping::On(on) => on,
         };
@@ -246,7 +337,11 @@ impl AgentsReads {
         };
         let read = reader.read(&on, latest).await?;
         let reach: PageReach = super::page_reach_of(&on, read.run_as.as_deref());
-        let agents: Vec<AgentRow> = read.agents.into_iter().map(|row| self.with_setup(target, row)).collect();
+        let agents: Vec<AgentRow> = read
+            .agents
+            .into_iter()
+            .map(|row| self.with_setup(target, row))
+            .collect();
         let report = AgentsReport {
             target: target.clone(),
             home: read.home,
@@ -263,7 +358,9 @@ impl AgentsReads {
             reach: Some(reach),
         };
         if let AgentsTarget::V1(ws) = target {
-            self.last.borrow_mut().insert(ws.workspace_id.clone(), report.clone());
+            self.last
+                .borrow_mut()
+                .insert(ws.workspace_id.clone(), report.clone());
         }
         Ok(report)
     }
@@ -271,7 +368,12 @@ impl AgentsReads {
     /// agents-read.ts:449-455: a computer's agent row carries the setup the person set there.
     fn with_setup(&self, target: &AgentsTarget, mut row: AgentRow) -> AgentRow {
         if let AgentsTarget::V0(place) = target {
-            if let Some(setup) = self.o.setup_of.as_ref().and_then(|f| f(&place.place_id, &row.id)) {
+            if let Some(setup) = self
+                .o
+                .setup_of
+                .as_ref()
+                .and_then(|f| f(&place.place_id, &row.id))
+            {
                 row.setup = Some(setup);
             }
         }
@@ -279,36 +381,90 @@ impl AgentsReads {
     }
 
     /// agents-read.ts:461-470 (A7).
-    pub async fn setup(&self, place_id: &str, agent: &str, change: AgentSetupSet, origin: Option<&Caller>) -> Result<AgentRow, HostError> {
-        let write = self.o.setup_write.clone().ok_or_else(|| HostError::new(super::NO_AGENTS_READER))?;
+    pub async fn setup(
+        &self,
+        place_id: &str,
+        agent: &str,
+        change: AgentSetupSet,
+        origin: Option<&Caller>,
+    ) -> Result<AgentRow, HostError> {
+        let write = self
+            .o
+            .setup_write
+            .clone()
+            .ok_or_else(|| HostError::new(super::NO_AGENTS_READER))?;
         let target = computer(place_id);
         if let OnOrNapping::Napping(n) = self.on_of(&target, origin, false).await? {
-            return Err(usage(napping_agents_refusal(&n.napping, n.pause_mode.as_ref())));
+            return Err(usage(napping_agents_refusal(
+                &n.napping,
+                n.pause_mode.as_ref(),
+            )));
         }
-        self.written(&target, write(place_id.to_string(), agent.to_string(), change)).await?;
+        self.written(
+            &target,
+            write(place_id.to_string(), agent.to_string(), change),
+        )
+        .await?;
         let report = self.read(&target, origin).await?;
-        report.agents.into_iter().find(|a| a.id == agent).ok_or_else(|| usage(format!("there is no agent {agent} in the catalog")))
+        report
+            .agents
+            .into_iter()
+            .find(|a| a.id == agent)
+            .ok_or_else(|| usage(format!("there is no agent {agent} in the catalog")))
     }
 
     /// agents-read.ts:471-476 (A8).
-    pub async fn tools(&self, target: &AgentsTarget, agent: &str, name: &str, refresh: Option<bool>, origin: Option<&Caller>) -> Result<ServerToolsAnswer, HostError> {
+    pub async fn tools(
+        &self,
+        target: &AgentsTarget,
+        agent: &str,
+        name: &str,
+        refresh: Option<bool>,
+        origin: Option<&Caller>,
+    ) -> Result<ServerToolsAnswer, HostError> {
         let reader = self.reader()?;
         let on = match self.on_of(target, origin, false).await? {
             OnOrNapping::On(on) => on,
-            OnOrNapping::Napping(n) => return Err(usage(napping_tools_refusal(&n.napping, n.pause_mode.as_ref()))),
+            OnOrNapping::Napping(n) => {
+                return Err(usage(napping_tools_refusal(
+                    &n.napping,
+                    n.pause_mode.as_ref(),
+                )))
+            }
         };
-        reader.tools(&on, ServerToolsAsk { key: key_of(target), agent: agent.to_string(), name: name.to_string(), refresh }).await
+        reader
+            .tools(
+                &on,
+                ServerToolsAsk {
+                    key: key_of(target),
+                    agent: agent.to_string(),
+                    name: name.to_string(),
+                    refresh,
+                },
+            )
+            .await
     }
 
     /// agents-read.ts:477-483 (A8).
-    pub async fn server(&self, target: &AgentsTarget, agent: &str, name: &str, origin: Option<&Caller>) -> Result<ResolvedServer, HostError> {
+    pub async fn server(
+        &self,
+        target: &AgentsTarget,
+        agent: &str,
+        name: &str,
+        origin: Option<&Caller>,
+    ) -> Result<ResolvedServer, HostError> {
         let reader = self.reader()?;
         if !reader.has_server() {
             return Err(HostError::new(super::NO_AGENTS_READER));
         }
         let on = match self.on_of(target, origin, false).await? {
             OnOrNapping::On(on) => on,
-            OnOrNapping::Napping(n) => return Err(usage(napping_tools_refusal(&n.napping, n.pause_mode.as_ref()))),
+            OnOrNapping::Napping(n) => {
+                return Err(usage(napping_tools_refusal(
+                    &n.napping,
+                    n.pause_mode.as_ref(),
+                )))
+            }
         };
         reader.server(&on, agent, name).await
     }
@@ -329,9 +485,16 @@ impl AgentsReads {
     }
 
     /// agents-read.ts:635-642 (A13): answers the config file written.
-    pub async fn add_tools(&self, target: &AgentsTarget, agent: &str, origin: Option<&Caller>) -> Result<String, HostError> {
+    pub async fn add_tools(
+        &self,
+        target: &AgentsTarget,
+        agent: &str,
+        origin: Option<&Caller>,
+    ) -> Result<String, HostError> {
         let acts = self.acts()?;
-        let on = self.awake_on(target, napping_sign_in_refusal, origin).await?;
+        let on = self
+            .awake_on(target, napping_sign_in_refusal, origin)
+            .await?;
         let added = acts.add_tools(&on, agent).await?;
         self.changed(Some(target));
         Ok(added)
@@ -346,12 +509,22 @@ impl AgentsReads {
             }
         }
         let me = self.clone();
-        Box::new(move || me.relays.borrow_mut().retain(|held| !Rc::ptr_eq(held, &relay)))
+        Box::new(move || {
+            me.relays
+                .borrow_mut()
+                .retain(|held| !Rc::ptr_eq(held, &relay))
+        })
     }
 
     /// agents-read.ts:611 (A10): `limit` none is `SKILLS_SEARCH_LIMIT`.
-    pub async fn skills_search(&self, q: &str, limit: Option<u32>) -> Result<Vec<SkillHit>, HostError> {
-        self.skills()?.search(q, limit.unwrap_or(SKILLS_SEARCH_LIMIT)).await
+    pub async fn skills_search(
+        &self,
+        q: &str,
+        limit: Option<u32>,
+    ) -> Result<Vec<SkillHit>, HostError> {
+        self.skills()?
+            .search(q, limit.unwrap_or(SKILLS_SEARCH_LIMIT))
+            .await
     }
 
     /// agents-read.ts:612 (A10).
@@ -360,56 +533,111 @@ impl AgentsReads {
     }
 
     /// agents-read.ts:613 (A10).
-    pub async fn skills_preview(&self, target: &AgentsTarget, ask: &SkillAsk, origin: Option<&Caller>) -> Result<SkillPreview, HostError> {
+    pub async fn skills_preview(
+        &self,
+        target: &AgentsTarget,
+        ask: &SkillAsk,
+        origin: Option<&Caller>,
+    ) -> Result<SkillPreview, HostError> {
         let skills = self.skills()?;
-        let on = self.awake_on(target, napping_skills_refusal, origin).await?;
+        let on = self
+            .awake_on(target, napping_skills_refusal, origin)
+            .await?;
         skills.preview(&on, ask).await
     }
 
     /// agents-read.ts:614-617 (A10).
-    pub async fn skills_add(&self, target: &AgentsTarget, ask: &SkillAddAsk, origin: Option<&Caller>) -> Result<SkillAdded, HostError> {
+    pub async fn skills_add(
+        &self,
+        target: &AgentsTarget,
+        ask: &SkillAddAsk,
+        origin: Option<&Caller>,
+    ) -> Result<SkillAdded, HostError> {
         let skills = self.skills()?;
-        let on = self.awake_on(target, napping_skills_refusal, origin).await?;
+        let on = self
+            .awake_on(target, napping_skills_refusal, origin)
+            .await?;
         self.written(target, skills.add(&on, ask)).await
     }
 
     /// agents-read.ts:618-621 (A10): answers the removed paths.
-    pub async fn skills_remove(&self, target: &AgentsTarget, ask: &SkillAsk, origin: Option<&Caller>) -> Result<Vec<String>, HostError> {
+    pub async fn skills_remove(
+        &self,
+        target: &AgentsTarget,
+        ask: &SkillAsk,
+        origin: Option<&Caller>,
+    ) -> Result<Vec<String>, HostError> {
         let skills = self.skills()?;
-        let on = self.awake_on(target, napping_skills_refusal, origin).await?;
+        let on = self
+            .awake_on(target, napping_skills_refusal, origin)
+            .await?;
         self.written(target, skills.remove(&on, ask)).await
     }
 
     /// agents-read.ts:622-625 (A10): answers the switched paths.
-    pub async fn skills_toggle(&self, target: &AgentsTarget, ask: &SkillAsk, to: bool, origin: Option<&Caller>) -> Result<Vec<String>, HostError> {
+    pub async fn skills_toggle(
+        &self,
+        target: &AgentsTarget,
+        ask: &SkillAsk,
+        to: bool,
+        origin: Option<&Caller>,
+    ) -> Result<Vec<String>, HostError> {
         let skills = self.skills()?;
-        let on = self.awake_on(target, napping_skills_refusal, origin).await?;
+        let on = self
+            .awake_on(target, napping_skills_refusal, origin)
+            .await?;
         self.written(target, skills.toggle(&on, ask, to)).await
     }
 
     /// agents-read.ts:626 (A11): answers the config file written.
-    pub async fn servers_add(&self, target: &AgentsTarget, ask: &ServerAdd, origin: Option<&Caller>) -> Result<String, HostError> {
+    pub async fn servers_add(
+        &self,
+        target: &AgentsTarget,
+        ask: &ServerAdd,
+        origin: Option<&Caller>,
+    ) -> Result<String, HostError> {
         let servers = self.servers()?;
-        let on = self.awake_on(target, napping_servers_refusal, origin).await?;
+        let on = self
+            .awake_on(target, napping_servers_refusal, origin)
+            .await?;
         self.written(target, servers.add(&on, ask)).await
     }
 
     /// agents-read.ts:627 (A11).
-    pub async fn servers_remove(&self, target: &AgentsTarget, ask: &ServerAsk, origin: Option<&Caller>) -> Result<String, HostError> {
+    pub async fn servers_remove(
+        &self,
+        target: &AgentsTarget,
+        ask: &ServerAsk,
+        origin: Option<&Caller>,
+    ) -> Result<String, HostError> {
         let servers = self.servers()?;
-        let on = self.awake_on(target, napping_servers_refusal, origin).await?;
+        let on = self
+            .awake_on(target, napping_servers_refusal, origin)
+            .await?;
         self.written(target, servers.remove(&on, ask)).await
     }
 
     /// agents-read.ts:629 (A11).
-    pub async fn servers_toggle(&self, target: &AgentsTarget, ask: &ServerAsk, to: bool, origin: Option<&Caller>) -> Result<String, HostError> {
+    pub async fn servers_toggle(
+        &self,
+        target: &AgentsTarget,
+        ask: &ServerAsk,
+        to: bool,
+        origin: Option<&Caller>,
+    ) -> Result<String, HostError> {
         let servers = self.servers()?;
-        let on = self.awake_on(target, napping_servers_refusal, origin).await?;
+        let on = self
+            .awake_on(target, napping_servers_refusal, origin)
+            .await?;
         self.written(target, servers.toggle(&on, ask, to)).await
     }
 
     /// agents-read.ts:628 (A11).
-    pub async fn servers_icon(&self, host: &str, refresh: Option<bool>) -> Result<Option<String>, HostError> {
+    pub async fn servers_icon(
+        &self,
+        host: &str,
+        refresh: Option<bool>,
+    ) -> Result<Option<String>, HostError> {
         match &self.o.icons {
             Some(icons) => icons.icon(host, refresh).await,
             None => Ok(None),
@@ -417,9 +645,21 @@ impl AgentsReads {
     }
 
     /// agents-read.ts:630-634 (A12).
-    pub async fn plugins_toggle(&self, target: &AgentsTarget, ask: &PluginAsk, to: bool, origin: Option<&Caller>) -> Result<PluginRow, HostError> {
-        let plugins = self.o.plugins.clone().ok_or_else(|| HostError::new(super::NO_AGENTS_READER))?;
-        let on = self.awake_on(target, napping_plugins_refusal, origin).await?;
+    pub async fn plugins_toggle(
+        &self,
+        target: &AgentsTarget,
+        ask: &PluginAsk,
+        to: bool,
+        origin: Option<&Caller>,
+    ) -> Result<PluginRow, HostError> {
+        let plugins = self
+            .o
+            .plugins
+            .clone()
+            .ok_or_else(|| HostError::new(super::NO_AGENTS_READER))?;
+        let on = self
+            .awake_on(target, napping_plugins_refusal, origin)
+            .await?;
         self.written(target, plugins.toggle(&on, ask, to)).await
     }
 }
