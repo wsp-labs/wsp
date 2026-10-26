@@ -185,9 +185,14 @@ pub fn folder_export_script(dir: &str, rule: &CacheRule, out: &str) -> String {
 /// vault.ts:177 `guestTmpPath(what, dir = GUEST_TMP)`: `<dir with trailing slashes cut>/<what>-<ms since epoch>-<six
 /// base-36 chars>`.
 pub fn guest_tmp_path(what: &str, dir: Option<&str>) -> String {
-    let dir = dir.unwrap_or(GUEST_TMP).trim_end_matches('/');
     let ms = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
-    format!("{dir}/{what}-{ms}-{}", base36_fraction(rand::random::<f64>(), 6))
+    guest_tmp_path_at(what, dir, ms as i64, rand::random::<f64>())
+}
+
+/// `guest_tmp_path` for a caller that holds its own clock and its own draw of `Math.random()` in [0, 1).
+pub fn guest_tmp_path_at(what: &str, dir: Option<&str>, now_ms: i64, random: f64) -> String {
+    let dir = dir.unwrap_or(GUEST_TMP).trim_end_matches('/');
+    format!("{dir}/{what}-{now_ms}-{}", base36_fraction(random, 6))
 }
 
 /// The first `digits` base-36 digits of a fraction in [0, 1).
