@@ -2,7 +2,7 @@
 //! transcripts_rows: record, flush, caps, reads and held words. transcripts.ts:94-160, 257-282, 292-360, 382-506,
 //! 546-588, 659-714, the rows road. Spec: spec/transcripts_rows.md.
 use std::cmp::Ordering;
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::ops::ControlFlow;
 use std::rc::Rc;
 
@@ -487,11 +487,11 @@ impl TranscriptsArea {
             }
             let unread = self.ctx.transcript_state().with(|s| s.unread.contains(ws));
             if !reindex.is_empty() && !unread {
+                let mut read: HashMap<String, Vec<SessionEvent>> = HashMap::new();
                 for thread in &reindex {
-                    let events = rows.thread(ws, thread)?.events;
-                    let only: BTreeSet<String> = BTreeSet::from([thread.clone()]);
-                    reindex_threads(&mut index, &only, &|_| events.clone());
+                    read.insert(thread.clone(), rows.thread(ws, thread)?.events);
                 }
+                reindex_threads(&mut index, &reindex, &|thread| read.get(thread).cloned().unwrap_or_default());
             } else if !reindex.is_empty() {
                 let issued = index.pos;
                 let trimmed = index.trimmed.clone();

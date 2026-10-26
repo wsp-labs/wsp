@@ -31,7 +31,7 @@ use wsp_words::attachments::{attachment_record, files_refusal, steer_files_block
 use wsp_words::exit::{not_found_refusal, HostError, Kind};
 use wsp_words::run_block::run_output_tail;
 use wsp_words::words::computer::thread_word;
-use wsp_words::words::thread::{ASIDE_EMPTY_LINE, ASIDE_NO_SESSION_LINE, BLANK_ASIDE_LINE, EMPTY_TITLE_LINE};
+use wsp_words::words::thread::{aside_unsupported_line, ASIDE_EMPTY_LINE, ASIDE_NO_SESSION_LINE, BLANK_ASIDE_LINE, EMPTY_TITLE_LINE};
 use wsp_words::workspace_state::{action_refusal, send_refusal, workspace_state, SendRefusalKind, WorkspaceStateInput};
 
 use super::{SessionsArea, StampsOf};
@@ -308,6 +308,9 @@ impl SessionsArea {
         }
         self.ctx.copy_blocked(&entry).await?;
         let built = self.ctx.launch_adapter_for(&entry, &view.harness, None).await?;
+        if !built.adapter.renames() {
+            return Ok(rename_answer(SessionRenameOutcome::Unsupported, None));
+        }
         let Some(session) = view.claude_session_id.clone() else {
             return Ok(rename_answer(SessionRenameOutcome::NoSession, None));
         };
@@ -369,6 +372,9 @@ impl SessionsArea {
             .await?;
         let harness = launched.harness.clone();
         let bare = launched.adapter.clone();
+        if !bare.asides() {
+            return Err(HostError::new(aside_unsupported_line(&harness)));
+        }
         let Some(session) = latest.claude_session_id.clone() else {
             return Err(HostError::new(ASIDE_NO_SESSION_LINE));
         };
