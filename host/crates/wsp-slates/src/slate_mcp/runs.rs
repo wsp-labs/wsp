@@ -215,7 +215,13 @@ impl SlateMcp {
     }
 
     /// What a write is refused for its runs (spec rule 23).
-    pub async fn refused_runs(self: &Rc<Self>, thread_id: &str, before: Option<&SlateDoc>, doc: Option<&SlateDoc>, away: Vec<SlateProblem>) -> Vec<SlateProblem> {
+    pub async fn refused_runs(
+        self: &Rc<Self>,
+        thread_id: &str,
+        before: Option<&SlateDoc>,
+        doc: Option<&SlateDoc>,
+        away: Vec<SlateProblem>,
+    ) -> Vec<SlateProblem> {
         todo!()
     }
 

@@ -397,10 +397,7 @@ async fn answers_unchanged_for_a_daemon_version() {
         let version = "1760000000000:70";
         let first = json_of(&there("/tmp/home.png", box_.clone(), None).await);
         assert_eq!(first["version"], version);
-        assert_eq!(
-            json_of(&there("/tmp/home.png", box_, Some(version)).await),
-            json!({"unchanged": true, "version": version})
-        );
+        assert_eq!(json_of(&there("/tmp/home.png", box_, Some(version)).await), json!({"unchanged": true, "version": version}));
     })
     .await
 }
@@ -1061,10 +1058,7 @@ async fn gives_up_on_a_silent_server() {
 async fn refuses_what_is_not_an_image_an_svg_and_a_failed_status() {
     local(async {
         let web = serve().await;
-        assert_eq!(
-            fetched_at(&web, "/notes.png", road()).await,
-            format!("R916 {} {NOT_AN_IMAGE_TAIL}", web.at("/notes.png"))
-        );
+        assert_eq!(fetched_at(&web, "/notes.png", road()).await, format!("R916 {} {NOT_AN_IMAGE_TAIL}", web.at("/notes.png")));
         let svg = fetched_at(&web, "/logo.svg", road()).await;
         assert!(svg.starts_with("R916 ") && svg.contains(" is an SVG, which a slate does not show"), "{svg}");
         assert_eq!(

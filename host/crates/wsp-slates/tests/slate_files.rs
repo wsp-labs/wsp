@@ -17,8 +17,8 @@ use serde_json::{json, Value};
 
 use wsp_slates::pending::slate::{SlateDoc, SlateRunDecl};
 use wsp_slates::slate_files::{
-    always_refused, box_pins, cannot_pin, files_read, keyed, paths_named, pin_here, with_files, words_at, BoxPins,
-    FsHashReply, HashOn, HashRead, Pin, PinAsk, write_slate_files,
+    always_refused, box_pins, cannot_pin, files_read, keyed, paths_named, pin_here, with_files, words_at, write_slate_files, BoxPins,
+    FsHashReply, HashOn, HashRead, Pin, PinAsk,
 };
 
 /// The first 16 hex of the sha256 of "echo one".
@@ -50,7 +50,15 @@ fn cx(cmd: &str, extra: Value) -> Value {
 /// A stored document holding these runs and files, the rest of the document's required keys empty.
 fn doc(mut v: Value) -> SlateDoc {
     let o = v.as_object_mut().unwrap();
-    for (k, empty) in [("schema", json!(2)), ("root", json!("root")), ("values", json!({})), ("derived", json!({})), ("runs", json!({})), ("reactions", json!([])), ("pieces", json!({}))] {
+    for (k, empty) in [
+        ("schema", json!(2)),
+        ("root", json!("root")),
+        ("values", json!({})),
+        ("derived", json!({})),
+        ("runs", json!({})),
+        ("reactions", json!([])),
+        ("pieces", json!({})),
+    ] {
         o.entry(k).or_insert(empty);
     }
     serde_json::from_value(v).unwrap()
@@ -158,11 +166,7 @@ impl Fx {
         let said = items.iter().map(|(p, _, ph)| format!("{p} {ph}")).collect::<Vec<_>>().join(" and ");
         let it = if items.len() == 1 { "it" } else { "them" };
         assert_eq!(cannot_pin(&pin), Some(format!("{said}, so wsp cannot pin {it} and it asks every time")), "{d}");
-        assert_eq!(
-            always_refused("run", &pin),
-            Some(format!("$run names a script wsp cannot pin to hold an Always to: {said}.")),
-            "{d}"
-        );
+        assert_eq!(always_refused("run", &pin), Some(format!("$run names a script wsp cannot pin to hold an Always to: {said}.")), "{d}");
     }
 
     /// The unpinned (path, why) pairs a command leaves.
@@ -202,8 +206,7 @@ fn expect_read(doc: Option<&SlateDoc>, d: Value, expected: Option<&[(&str, &str)
     let direct = files_read(doc, &decl);
     assert_eq!(direct, w.files, "{d}");
     let got: Option<Vec<(String, String)>> = w.files.as_ref().map(|f| f.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
-    let want: Option<Vec<(String, String)>> =
-        expected.map(|e| e.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect());
+    let want: Option<Vec<(String, String)>> = expected.map(|e| e.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect());
     assert_eq!(got, want, "{d}");
     let mut want_json = serde_json::to_value(&decl).unwrap();
     if let Some(e) = expected {
@@ -292,20 +295,13 @@ fn with_files_reads_a_tool_runs_then() {
     let tool = json!({"kind": "tool", "server": "s", "tool": "t", "then": "sh lib.sh"});
     expect_read(Some(&d), tool, Some(&[("lib.sh", "L")]));
     let w = with_files(Some(&d), &decl(json!({"kind": "tool", "server": "s", "tool": "t", "then": "sh lib.sh"})));
-    assert_eq!(
-        w.to_json(),
-        json!({"kind": "tool", "server": "s", "tool": "t", "then": "sh lib.sh", "files": {"lib.sh": "L"}})
-    );
+    assert_eq!(w.to_json(), json!({"kind": "tool", "server": "s", "tool": "t", "then": "sh lib.sh", "files": {"lib.sh": "L"}}));
     assert_eq!(last_key(&w.to_json()), "files");
     expect_read(Some(&d), json!({"kind": "resource", "server": "s", "uri": "u", "then": "sh lib.sh"}), Some(&[("lib.sh", "L")]));
     expect_read(Some(&d), json!({"kind": "tool", "server": "s", "tool": "t", "then": "sh \"${SLATE_DIR}/q\""}), Some(&all4()));
     expect_read(Some(&d), json!({"kind": "tool", "server": "s", "tool": "lib.sh"}), None);
     expect_read(Some(&d), cx("echo hi", json!({"then": "sh lib.sh"})), Some(&[("lib.sh", "L")]));
-    expect_read(
-        Some(&d),
-        cx("echo hi", json!({"cwd": "x", "on": "m", "then": "sh b.py"})),
-        Some(&[("b.py", "B")]),
-    );
+    expect_read(Some(&d), cx("echo hi", json!({"cwd": "x", "on": "m", "then": "sh b.py"})), Some(&[("b.py", "B")]));
 }
 
 // TS withFiles-null-doc: no document reads nothing, even where $SLATE_DIR is named.
@@ -328,9 +324,8 @@ fn write_slate_files_keeps_only_the_documents_files_mode_0600_and_never_follows_
     unsafe { libc::umask(0o022) };
     let tmp = tempfile::tempdir().unwrap();
     let root = fs::canonicalize(tmp.path()).unwrap();
-    let files = |pairs: &[(&str, &str)]| -> IndexMap<String, String> {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
-    };
+    let files =
+        |pairs: &[(&str, &str)]| -> IndexMap<String, String> { pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect() };
 
     let dir = root.join("slate");
     assert_eq!(write_slate_files(&dir, &files(&[("a.sh", "A")])).unwrap(), dir);
@@ -397,7 +392,18 @@ fn paths_named_splits_and_filters_as_the_ts() {
     let d = decl(cx(said, json!({"then": "jq . a.json"})));
     assert_eq!(
         paths_named(&d),
-        strs(&["/proc/loadavg", "/usr/bin/env", "../notes.txt", "big.log", "lib/../ok.sh", ".venv/bin/python3.12", "stats.py", "~/.profile", ".", "a.json"])
+        strs(&[
+            "/proc/loadavg",
+            "/usr/bin/env",
+            "../notes.txt",
+            "big.log",
+            "lib/../ok.sh",
+            ".venv/bin/python3.12",
+            "stats.py",
+            "~/.profile",
+            ".",
+            "a.json"
+        ])
     );
     assert_eq!(paths_named(&decl(cx("echo hi", json!({"then": "jq . a.json"})))), strs(&[".", "a.json"]));
     assert_eq!(paths_named(&decl(c("cat a.txt a.txt"))), strs(&["a.txt", "a.txt"]));
@@ -411,14 +417,8 @@ fn paths_named_splits_and_filters_as_the_ts() {
 fn paths_named_drops_flags_urls_and_dollar_words() {
     assert_eq!(paths_named(&decl(c("curl https://a.b/c.json -o out.json --flag=x.y"))), strs(&["out.json", "x.y"]));
     assert_eq!(paths_named(&decl(c("curl http://a.b/c ftp://x.y/z file.txt"))), strs(&["file.txt"]));
-    assert_eq!(
-        paths_named(&decl(c("echo -a.b $HOME/x a=b/c\td.e\nf.g 'h i.j' \"k/l\""))),
-        strs(&["b/c", "d.e", "f.g", "i.j", "k/l"])
-    );
-    assert_eq!(
-        paths_named(&decl(c("x --y=z.w -p/q a$b.c ~/r ./ ../ . .. /"))),
-        strs(&["z.w", "~/r", "./", "../", ".", "..", "/"])
-    );
+    assert_eq!(paths_named(&decl(c("echo -a.b $HOME/x a=b/c\td.e\nf.g 'h i.j' \"k/l\""))), strs(&["b/c", "d.e", "f.g", "i.j", "k/l"]));
+    assert_eq!(paths_named(&decl(c("x --y=z.w -p/q a$b.c ~/r ./ ../ . .. /"))), strs(&["z.w", "~/r", "./", "../", ".", "..", "/"]));
     assert_eq!(paths_named(&decl(c("df -h; sleep 0.5; echo plain words"))), strs(&["0.5"]));
 }
 
@@ -561,23 +561,11 @@ fn pin_here_marks_each_unpinnable_script_with_its_why() {
     case(&|_| {}, c("python3 /opt/acme/stats.py"), &[("/opt/acme/stats.py", "outside", P_OUTSIDE)]);
     case(&|_| {}, c("bash ~/away.sh"), &[("~/away.sh", "outside", P_OUTSIDE)]);
     case(&|fx| fx.fifo("evil.sh"), c("bash ./evil.sh"), &[("./evil.sh", "special", P_SPECIAL)]);
-    case(
-        &|fx| fx.fifo("evil.sh"),
-        c("bash './my evil.sh'"),
-        &[("'./my evil.sh'", "built", P_BUILT), ("evil.sh", "special", P_SPECIAL)],
-    );
-    case(
-        &|fx| fx.fifo("evil.sh"),
-        c("bash my\\ evil.sh"),
-        &[("my\\ evil.sh", "built", P_BUILT), ("evil.sh", "special", P_SPECIAL)],
-    );
+    case(&|fx| fx.fifo("evil.sh"), c("bash './my evil.sh'"), &[("'./my evil.sh'", "built", P_BUILT), ("evil.sh", "special", P_SPECIAL)]);
+    case(&|fx| fx.fifo("evil.sh"), c("bash my\\ evil.sh"), &[("my\\ evil.sh", "built", P_BUILT), ("evil.sh", "special", P_SPECIAL)]);
     case(&|_| {}, c("bash \"$PWD/../away.sh\""), &[("\"$PWD/../away.sh\"", "built", P_BUILT)]);
     case(&|fx| fx.sparse("big.sh", 4 * 1024 * 1024 + 1), c("bash ./big.sh"), &[("./big.sh", "past", P_PAST)]);
-    case(
-        &|fx| fx.sparse("big.sh", 4 * 1024 * 1024 + 1),
-        c("cat /proc/loadavg; tail -c 3 big.sh"),
-        &[("big.sh", "past", P_PAST)],
-    );
+    case(&|fx| fx.sparse("big.sh", 4 * 1024 * 1024 + 1), c("cat /proc/loadavg; tail -c 3 big.sh"), &[("big.sh", "past", P_PAST)]);
     case(&|fx| fx.away(), cx("echo hi", json!({"then": "bash ../a.sh"})), &[("../a.sh", "outside", P_OUTSIDE)]);
 
     // exactly 4 MiB is not past the cap
@@ -682,8 +670,8 @@ fn pin_here_with_no_folder_or_a_missing_folder_pins_nothing() {
 fn script_suffixes_are_case_insensitive() {
     let fx = Fx::new();
     for s in [
-        "sh", "bash", "zsh", "fish", "ksh", "py", "js", "mjs", "cjs", "ts", "mts", "cts", "jsx", "tsx", "rb", "pl", "pm", "php",
-        "lua", "r", "jl", "ps1", "awk", "tcl", "SH", "Py", "PS1", "R", "Tcl", "tSx",
+        "sh", "bash", "zsh", "fish", "ksh", "py", "js", "mjs", "cjs", "ts", "mts", "cts", "jsx", "tsx", "rb", "pl", "pm", "php", "lua",
+        "r", "jl", "ps1", "awk", "tcl", "SH", "Py", "PS1", "R", "Tcl", "tSx",
     ] {
         let path = format!("../x.{s}");
         fx.expect_unpinned(c(&format!("cat {path}")), &[(path.as_str(), "outside", P_OUTSIDE)]);
@@ -698,7 +686,9 @@ fn script_suffixes_are_case_insensitive() {
 // TS pfiles.ts "two", "none", "phrase", "mix", "three": the words a sheet and a refused Always say.
 #[test]
 fn keyed_cannot_pin_and_always_refused_say_the_ts_words() {
-    let two = pin_from(json!({"scripts": {"a.sh": "1"}, "unpinned": [{"path": "../a.sh", "why": "outside"}, {"path": "b.sh", "why": "special"}]}));
+    let two = pin_from(
+        json!({"scripts": {"a.sh": "1"}, "unpinned": [{"path": "../a.sh", "why": "outside"}, {"path": "b.sh", "why": "special"}]}),
+    );
     assert_eq!(keyed_v(&two), json!({"a.sh": "1", "../a.sh": "outside", "b.sh": "special"}));
     let order: Vec<String> = keyed(&two).unwrap().keys().cloned().collect();
     assert_eq!(order, strs(&["a.sh", "../a.sh", "b.sh"]));
@@ -708,7 +698,10 @@ fn keyed_cannot_pin_and_always_refused_say_the_ts_words() {
     );
     assert_eq!(
         always_refused("r", &two),
-        Some("$r names a script wsp cannot pin to hold an Always to: ../a.sh is outside the thread's folder and b.sh is not a regular file.".into())
+        Some(
+            "$r names a script wsp cannot pin to hold an Always to: ../a.sh is outside the thread's folder and b.sh is not a regular file."
+                .into()
+        )
     );
 
     let none = pin_from(json!({"unpinned": []}));
@@ -737,10 +730,7 @@ fn keyed_cannot_pin_and_always_refused_say_the_ts_words() {
 
     let mix = pin_from(json!({"unpinned": [{"path": "u.sh", "why": "unread"}, {"path": "o.sh", "why": "outside"}]}));
     assert_eq!(keyed_v(&mix), json!({"u.sh": "unread", "o.sh": "outside"}));
-    assert_eq!(
-        cannot_pin(&mix),
-        Some("o.sh is outside the thread's folder, so wsp cannot pin them and it asks every time".into())
-    );
+    assert_eq!(cannot_pin(&mix), Some("o.sh is outside the thread's folder, so wsp cannot pin them and it asks every time".into()));
     assert_eq!(
         always_refused("r", &mix),
         Some("$r names a script wsp cannot pin to hold an Always to: o.sh is outside the thread's folder.".into())
@@ -766,7 +756,9 @@ fn always_refused_for_an_unread_pin_names_the_computer_could_not_hash() {
     assert_eq!(cannot_pin(&one), None);
     assert_eq!(
         always_refused("stats", &one),
-        Some("$stats runs on the thread's machine and names stats.sh there, which its computer could not hash to hold an Always to.".into())
+        Some(
+            "$stats runs on the thread's machine and names stats.sh there, which its computer could not hash to hold an Always to.".into()
+        )
     );
 
     let two = pin_from(json!({"unpinned": [{"path": "u.sh", "why": "unread"}, {"path": "v.sh", "why": "unread"}]}));
@@ -801,16 +793,10 @@ fn pin_here_past_32_files_marks_the_rest_past() {
     let said = format!("bash {} data.txt", names.join(" "));
     let pin = fx.pin_cmd(&said);
     let scripts: serde_json::Map<String, Value> = names[..32].iter().map(|n| (n.clone(), json!(H))).collect();
-    assert_eq!(
-        pv(&pin),
-        json!({"scripts": scripts, "unpinned": [{"path": "f32.sh", "why": "past"}, {"path": "f33.sh", "why": "past"}]})
-    );
+    assert_eq!(pv(&pin), json!({"scripts": scripts, "unpinned": [{"path": "f32.sh", "why": "past"}, {"path": "f33.sh", "why": "past"}]}));
     let key_order: Vec<String> = keyed(&pin).unwrap().keys().cloned().collect();
     assert_eq!(key_order, names);
-    assert_eq!(
-        cannot_pin(&pin),
-        Some(format!("f32.sh {P_PAST} and f33.sh {P_PAST}, so wsp cannot pin them and it asks every time"))
-    );
+    assert_eq!(cannot_pin(&pin), Some(format!("f32.sh {P_PAST} and f33.sh {P_PAST}, so wsp cannot pin them and it asks every time")));
     assert_eq!(
         always_refused("run", &pin),
         Some(format!("$run names a script wsp cannot pin to hold an Always to: f32.sh {P_PAST} and f33.sh {P_PAST}."))
@@ -828,10 +814,7 @@ fn pin_here_past_32_files_marks_the_rest_past() {
     for n in &names[..31] {
         scripts.insert(n.clone(), json!(H));
     }
-    assert_eq!(
-        pv(&pin),
-        json!({"scripts": scripts, "unpinned": [{"path": "f31.sh", "why": "past"}, {"path": "f32.sh", "why": "past"}]})
-    );
+    assert_eq!(pv(&pin), json!({"scripts": scripts, "unpinned": [{"path": "f31.sh", "why": "past"}, {"path": "f32.sh", "why": "past"}]}));
 }
 
 // box_pins, rule 15
@@ -879,14 +862,15 @@ async fn box_pins_reads_once_per_key_and_cuts_hashes_to_16() {
     assert_eq!(cannot_pin(&pin), None);
 
     // a reply's lists become the whys of the scripts they name, in the order the command names them
-    let lists = reply_lists(
-        json!({"a.sh": H32}),
-        &["/root/acme/../x.sh"],
-        &["/root/acme/big.sh"],
-        &["/root/acme/fifo.sh"],
-    );
+    let lists = reply_lists(json!({"a.sh": H32}), &["/root/acme/../x.sh"], &["/root/acme/big.sh"], &["/root/acme/fifo.sh"]);
     let said = "bash a.sh /root/acme/../x.sh big.sh fifo.sh link.sh data.txt";
-    let on_lists = box_pins(daemon(move |_, _| { let r = lists.clone(); async move { Ok(r) }.boxed_local() }), None);
+    let on_lists = box_pins(
+        daemon(move |_, _| {
+            let r = lists.clone();
+            async move { Ok(r) }.boxed_local()
+        }),
+        None,
+    );
     on_lists.read("t", &[acme(said)], false).await;
     assert_eq!(
         pin_at(&on_lists, "t", Some("/root/acme"), c(said)),
@@ -900,7 +884,13 @@ async fn box_pins_reads_once_per_key_and_cuts_hashes_to_16() {
         })
     );
     let link = reply_lists(json!({}), &["/root/acme/link.sh", "/root/acme/data.txt"], &[], &[]);
-    let on_link = box_pins(daemon(move |_, _| { let r = link.clone(); async move { Ok(r) }.boxed_local() }), None);
+    let on_link = box_pins(
+        daemon(move |_, _| {
+            let r = link.clone();
+            async move { Ok(r) }.boxed_local()
+        }),
+        None,
+    );
     on_link.read("t", &[acme("bash link.sh data.txt")], false).await;
     assert_eq!(
         pin_at(&on_link, "t", Some("/root/acme"), c("bash link.sh data.txt")),

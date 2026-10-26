@@ -20,9 +20,9 @@ use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::wiring::Detach;
 use wsp_engine::machine::Machine;
 use wsp_engine::target_line::TargetLogin;
+use wsp_frames::ProcKind;
 use wsp_store::store::Store;
 use wsp_wire::types::agents_report::{AgentsProject, AgentsTarget};
-use wsp_frames::ProcKind;
 use wsp_wire::types::slate_wire::SessionSlateEvent;
 use wsp_words::exit::HostError;
 

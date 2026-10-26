@@ -112,7 +112,15 @@ pub struct BoxRoad {
 }
 
 // slate-box.ts:98 boxRoad(machine, threadId, files, ready, ledger, launchOn)
-pub fn box_road(machine: Arc<dyn Machine>, thread_id: &str, files: SlateFilesNow, ready: Ready, ledger: Rc<BoxLedger>, launch_on: Arc<dyn Machine>, ids: Rc<dyn Ids>) -> Rc<BoxRoad> {
+pub fn box_road(
+    machine: Arc<dyn Machine>,
+    thread_id: &str,
+    files: SlateFilesNow,
+    ready: Ready,
+    ledger: Rc<BoxLedger>,
+    launch_on: Arc<dyn Machine>,
+    ids: Rc<dyn Ids>,
+) -> Rc<BoxRoad> {
     todo!()
 }
 

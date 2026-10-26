@@ -93,7 +93,16 @@ async fn wait_for(s: &Rc<dyn Slates>, ms: u64, check: impl Fn(&SlateView) -> boo
 
 async fn press(s: &Rc<dyn Slates>, piece: &str, request: &str) -> Result<SlateEventAnswer, wsp_words::exit::HostError> {
     let version = view(s).await.version;
-    s.event(EventParams { thread_id: THREAD.into(), version, piece: piece.into(), event: "press".into(), request_id: request.into(), scope: None, row_action: None }).await
+    s.event(EventParams {
+        thread_id: THREAD.into(),
+        version,
+        piece: piece.into(),
+        event: "press".into(),
+        request_id: request.into(),
+        scope: None,
+        row_action: None,
+    })
+    .await
 }
 
 async fn approve(s: &Rc<dyn Slates>, key: &str, scope: ApprovalScope) {
@@ -140,7 +149,10 @@ fn runs_the_setup_chain_without_the_agent_and_keeps_the_secret_from_it() {
         assert_eq!((value(&v, "check")["state"].clone(), value(&v, "check")["why"].clone()), (json!("held"), json!("needs your approval")));
         assert_eq!(v.asks.len(), 1);
         let ask = v.asks[0].to_json();
-        assert_eq!((ask["run"].clone(), ask["env"].clone(), ask["folder"].clone()), (json!("check"), json!({"PROJECT": "wsp-landing"}), json!(folder.display().to_string())));
+        assert_eq!(
+            (ask["run"].clone(), ask["env"].clone(), ask["folder"].clone()),
+            (json!("check"), json!({"PROJECT": "wsp-landing"}), json!(folder.display().to_string()))
+        );
 
         // "Always in this thread": it runs with the name in its environment, and its done moves the step.
         approve(&s, &v.asks[0].key(), ApprovalScope::Thread).await;
@@ -152,7 +164,8 @@ fn runs_the_setup_chain_without_the_agent_and_keeps_the_secret_from_it() {
 
         // Approved for the thread: a new name runs at once.
         set(&s, &[("$project", json!("wsp-docs"))], None).await;
-        wait_for(&s, 10_000, |v| value(v, "check")["state"] == json!("done") && value(v, "check")["json"] == json!({"name": "wsp-docs"})).await;
+        wait_for(&s, 10_000, |v| value(v, "check")["state"] == json!("done") && value(v, "check")["json"] == json!({"name": "wsp-docs"}))
+            .await;
 
         // The secret: an agent cannot write it; the person types it and the record holds a handle.
         let e = s.state(StateParams { values: values(&[("$token", json!("x"))]), ..Default::default() }, Some(&agent())).await.unwrap_err();
@@ -161,7 +174,10 @@ fn runs_the_setup_chain_without_the_agent_and_keeps_the_secret_from_it() {
         s.settled().await;
         let v = view(&s).await;
         let handle = value(&v, "token");
-        assert_eq!((handle["secret"].clone(), handle["set"].clone(), handle["len"].clone()), (json!(true), json!(true), json!(TOKEN.len())));
+        assert_eq!(
+            (handle["secret"].clone(), handle["set"].clone(), handle["len"].clone()),
+            (json!(true), json!(true), json!(TOKEN.len()))
+        );
         assert!(handle["at"].is_number());
         assert_eq!(handle.as_object().unwrap().keys().cloned().collect::<Vec<_>>(), ["secret", "set", "len", "at"]);
 
@@ -174,7 +190,10 @@ fn runs_the_setup_chain_without_the_agent_and_keeps_the_secret_from_it() {
         approve(&s, &pressed.ask.unwrap().key(), ApprovalScope::Once).await;
         wait_for(&s, 10_000, |v| value(v, "env")["state"] == json!("done") && value(v, "env")["exit"] == json!(0)).await;
         assert_eq!(std::fs::read_to_string(folder.join(".env")).unwrap(), format!("VERCEL_TOKEN={TOKEN}\n"));
-        let read = s.read(ReadParams { values: Some(vec!["$env.out".into(), "$token".into()]), ..Default::default() }, Some(&agent())).await.unwrap();
+        let read = s
+            .read(ReadParams { values: Some(vec!["$env.out".into(), "$token".into()]), ..Default::default() }, Some(&agent()))
+            .await
+            .unwrap();
         assert_eq!(read.values["$env.out"], json!("wrote [secret:token]\n"));
         assert_eq!((read.values["$token"]["secret"].clone(), read.values["$token"]["set"].clone()), (json!(true), json!(true)));
         assert!(!format!("{read:?}").contains(TOKEN));
@@ -191,9 +210,23 @@ fn runs_the_setup_chain_without_the_agent_and_keeps_the_secret_from_it() {
             sent.as_object().unwrap().keys().cloned().collect::<Vec<_>>(),
             ["v", "kind", "thread", "version", "piece", "label", "event", "with", "by", "at"]
         );
-        assert_eq!((sent["v"].clone(), sent["kind"].clone(), sent["thread"].clone(), sent["piece"].clone(), sent["label"].clone(), sent["event"].clone(), sent["by"].clone()), (json!(2), json!("action"), json!("11111111"), json!("tell"), json!("Tell the agent"), json!("press"), json!("person")));
+        assert_eq!(
+            (
+                sent["v"].clone(),
+                sent["kind"].clone(),
+                sent["thread"].clone(),
+                sent["piece"].clone(),
+                sent["label"].clone(),
+                sent["event"].clone(),
+                sent["by"].clone()
+            ),
+            (json!(2), json!("action"), json!("11111111"), json!("tell"), json!("Tell the agent"), json!("press"), json!("person"))
+        );
         assert_eq!(sent["with"]["$project"], json!("wsp-docs"));
-        assert_eq!((sent["with"]["$token"]["secret"].clone(), sent["with"]["$token"]["set"].clone(), sent["with"]["$token"]["len"].clone()), (json!(true), json!(true), json!(TOKEN.len())));
+        assert_eq!(
+            (sent["with"]["$token"]["secret"].clone(), sent["with"]["$token"]["set"].clone(), sent["with"]["$token"]["len"].clone()),
+            (json!(true), json!(true), json!(TOKEN.len()))
+        );
         assert_eq!(sent["with"]["$env.out"], json!("wrote [secret:token]\n"));
         assert!(sent["at"].as_str().unwrap().ends_with('Z') && sent["at"].as_str().unwrap().len() == 24);
         assert!(!delivered.prompt.contains(TOKEN));
@@ -218,14 +251,27 @@ fn a_run_that_starts_again_keeps_its_last_result_marked_refreshing_across_a_rest
 
         set(&s, &[("$n", json!(2))], None).await;
         let running = value(&view(&s).await, "probe");
-        assert_eq!((running["state"].clone(), running["refreshing"].clone(), running["out"].clone(), running["exit"].clone(), running["runs"].clone()), (json!("running"), json!(true), json!("run 1\n"), json!(0), json!(2)));
+        assert_eq!(
+            (
+                running["state"].clone(),
+                running["refreshing"].clone(),
+                running["out"].clone(),
+                running["exit"].clone(),
+                running["runs"].clone()
+            ),
+            (json!("running"), json!(true), json!("run 1\n"), json!(0), json!(2))
+        );
         assert!(running["startedAt"].as_i64().unwrap() >= running["endedAt"].as_i64().unwrap());
         let read = s.read(ReadParams::default(), Some(&agent())).await.unwrap();
         assert!(read.text.contains("$probe: running again; the last run succeeded (exit 0, "), "{}", read.text);
         let done = wait_for(&s, 10_000, |v| value(v, "probe")["out"] == json!("run 2\n")).await;
         assert!(value(&done, "probe").get("refreshing").is_none());
 
-        let pushed: Vec<Value> = host.pushes().iter().filter_map(|p| p.values.0.get("$probe").map(|k| &k.0).filter(|r| r["state"] == json!("running")).cloned()).collect();
+        let pushed: Vec<Value> = host
+            .pushes()
+            .iter()
+            .filter_map(|p| p.values.0.get("$probe").map(|k| &k.0).filter(|r| r["state"] == json!("running")).cloned())
+            .collect();
         assert!(pushed[0].get("out").is_none() && pushed[0].get("refreshing").is_none());
         assert!(pushed.len() > 1);
         for r in &pushed[1..] {
@@ -240,7 +286,10 @@ fn a_run_that_starts_again_keeps_its_last_result_marked_refreshing_across_a_rest
         s2.ready().await.unwrap();
         set(&s2, &[("$n", json!(3))], None).await;
         let kept = value(&view(&s2).await, "probe");
-        assert_eq!((kept["state"].clone(), kept["refreshing"].clone(), kept["out"].clone(), kept["runs"].clone()), (json!("running"), json!(true), json!("run 2\n"), json!(3)));
+        assert_eq!(
+            (kept["state"].clone(), kept["refreshing"].clone(), kept["out"].clone(), kept["runs"].clone()),
+            (json!("running"), json!(true), json!("run 2\n"), json!(3))
+        );
         wait_for(&s2, 10_000, |v| value(v, "probe")["out"] == json!("run 3\n")).await;
     });
 }
@@ -307,12 +356,20 @@ fn a_command_of_a_thread_with_no_folder_fails_without_starting() {
         let host = FakeHost::new(root.path(), MemStore::new());
         host.threads.borrow_mut().get_mut(THREAD).unwrap().folder = None;
         let s = host.slates();
-        s.write(text(r#"<slate><run name="r" cmd="echo hi" /><column><button id="go" label="Go" onPress={start($r)} /></column></slate>"#), Some(&agent())).await.unwrap();
+        s.write(
+            text(r#"<slate><run name="r" cmd="echo hi" /><column><button id="go" label="Go" onPress={start($r)} /></column></slate>"#),
+            Some(&agent()),
+        )
+        .await
+        .unwrap();
         let answer = press(&s, "go", "p1").await.unwrap();
         assert_eq!((answer.outcome, answer.ask.is_none()), (SlateEventOutcome::Done, true));
         s.settled().await;
         let rec = value(&view(&s).await, "r");
-        assert_eq!(rec, json!({"state": "failed", "why": "this host knows no folder for the thread, so the command did not start", "runs": 0}));
+        assert_eq!(
+            rec,
+            json!({"state": "failed", "why": "this host knows no folder for the thread, so the command did not start", "runs": 0})
+        );
     });
 }
 
@@ -340,7 +397,10 @@ fn an_always_covers_the_scripts_a_command_names_an_edit_asks_again_and_names_it(
         assert_eq!(value(&v, "deploy")["state"], json!("held"));
         let asks: Vec<Value> = v.asks.iter().map(|a| a.to_json()).collect();
         assert_eq!(asks.len(), 1);
-        assert_eq!((asks[0]["run"].clone(), asks[0]["why"].clone()), (json!("deploy"), json!("deploy.sh changed since you allowed it, so it asks again")));
+        assert_eq!(
+            (asks[0]["run"].clone(), asks[0]["why"].clone()),
+            (json!("deploy"), json!("deploy.sh changed since you allowed it, so it asks again"))
+        );
     });
 }
 
@@ -363,7 +423,8 @@ fn a_confirm_formula_reaches_the_sheet_as_its_text_read_when_the_run_is_held() {
 mod the_message {
     use super::*;
 
-    const SAY: &str = r#"<slate><value name="big" start="" /><column><button id="go" label="Go on" onPress={send("Go on.", $big)} /></column></slate>"#;
+    const SAY: &str =
+        r#"<slate><value name="big" start="" /><column><button id="go" label="Go on" onPress={send("Go on.", $big)} /></column></slate>"#;
 
     // slates_batch Behaviour 9: a message past 20,000 units cuts its longest value to fit, marked (slates.ts:997-1002)
     #[test]
@@ -411,7 +472,10 @@ mod the_message {
             s.write(text(SAY), Some(&agent())).await.unwrap();
             assert_eq!(press(&s, "go", "g1").await.unwrap().outcome, SlateEventOutcome::Started);
             let e = press(&s, "go", "g2").await.unwrap_err();
-            assert_eq!((e.message.as_str(), e.kind.clone(), code_of(&e).as_deref()), ("V753 send-rate: too fast; try again in a moment", Some(Kind::Conflict), Some("V753")));
+            assert_eq!(
+                (e.message.as_str(), e.kind.clone(), code_of(&e).as_deref()),
+                ("V753 send-rate: too fast; try again in a moment", Some(Kind::Conflict), Some("V753"))
+            );
             assert_eq!(host.delivered.borrow().len(), 1);
             sleep_ms(2_100).await;
             assert_eq!(press(&s, "go", "g2").await.unwrap().outcome, SlateEventOutcome::Started);
@@ -432,14 +496,24 @@ mod the_message {
             set(&s, &[("$n", json!(1))], None).await;
             s.settled().await;
             assert_eq!(host.delivered.borrow().len(), 1);
-            let sent: Value = serde_json::from_str(host.delivered.borrow()[0].prompt.split_once("\n\n").unwrap().1.strip_prefix("slate: ").unwrap()).unwrap();
-            assert_eq!((sent["kind"].clone(), sent["by"].clone(), sent.get("event").is_none()), (json!("reaction"), json!("reaction"), true));
+            let sent: Value =
+                serde_json::from_str(host.delivered.borrow()[0].prompt.split_once("\n\n").unwrap().1.strip_prefix("slate: ").unwrap())
+                    .unwrap();
+            assert_eq!(
+                (sent["kind"].clone(), sent["by"].clone(), sent.get("event").is_none()),
+                (json!("reaction"), json!("reaction"), true)
+            );
             set(&s, &[("$n", json!(2))], None).await;
             s.settled().await;
             assert_eq!(host.delivered.borrow().len(), 1);
             let problem = view(&s).await.problems.last().cloned().unwrap();
             assert_eq!((problem.code.as_str(), problem.name.as_str()), ("R912", "reaction-failed"));
-            assert!(problem.message.starts_with("reaction ") && problem.message.ends_with(": V753 send-rate, one message a minute from reactions"), "{}", problem.message);
+            assert!(
+                problem.message.starts_with("reaction ")
+                    && problem.message.ends_with(": V753 send-rate, one message a minute from reactions"),
+                "{}",
+                problem.message
+            );
         });
     }
 
@@ -451,13 +525,21 @@ mod the_message {
             let host = FakeHost::new(root.path(), MemStore::new());
             let s = host.slates();
             let label = "L".repeat(100);
-            s.write(text(&format!(r#"<slate><column><button id="go" label="{label}" onPress={{send("Go on.")}} /></column></slate>"#)), Some(&agent())).await.unwrap();
+            s.write(
+                text(&format!(r#"<slate><column><button id="go" label="{label}" onPress={{send("Go on.")}} /></column></slate>"#)),
+                Some(&agent()),
+            )
+            .await
+            .unwrap();
             press(&s, "go", "g1").await.unwrap();
             let prompt = host.delivered.borrow().last().unwrap().prompt.clone();
             let sent: Value = serde_json::from_str(prompt.split_once("\n\n").unwrap().1.strip_prefix("slate: ").unwrap()).unwrap();
             assert_eq!(sent["label"], json!("L".repeat(80)));
             assert!(sent.get("with").is_none());
-            assert_eq!(sent.as_object().unwrap().keys().cloned().collect::<Vec<_>>(), ["v", "kind", "thread", "version", "piece", "label", "event", "by", "at"]);
+            assert_eq!(
+                sent.as_object().unwrap().keys().cloned().collect::<Vec<_>>(),
+                ["v", "kind", "thread", "version", "piece", "label", "event", "by", "at"]
+            );
         });
     }
 }
@@ -469,7 +551,9 @@ fn values_past_the_cap_keep_a_problem_and_change_nothing() {
     local(async {
         let host = FakeHost::new(root.path(), MemStore::new());
         let s = host.slates();
-        s.write(text(r#"<slate><value name="a" start="" /><column><text id="t">{$a}</text></column></slate>"#), Some(&agent())).await.unwrap();
+        s.write(text(r#"<slate><value name="a" start="" /><column><text id="t">{$a}</text></column></slate>"#), Some(&agent()))
+            .await
+            .unwrap();
         let before = view(&s).await;
         set(&s, &[("$a", json!("y".repeat(270_000)))], None).await;
         let after = view(&s).await;
@@ -477,6 +561,10 @@ fn values_past_the_cap_keep_a_problem_and_change_nothing() {
         assert_eq!(after.revision, before.revision);
         let p = after.problems.last().cloned().unwrap();
         assert_eq!((p.code.as_str(), p.name.as_str()), ("S500", "values-too-big"));
-        assert!(p.message.starts_with("the values would be 2700") && p.message.ends_with(" bytes; a slate holds at most 262144"), "{}", p.message);
+        assert!(
+            p.message.starts_with("the values would be 2700") && p.message.ends_with(" bytes; a slate holds at most 262144"),
+            "{}",
+            p.message
+        );
     });
 }

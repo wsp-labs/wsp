@@ -55,7 +55,14 @@ impl SlatesInner {
     //     ];
     //     return { version: r.version, text: would.length > 0 ? `${after}\n${would.join("\n")}` : after, warnings, problems: result.problems };
     //   };
-    pub(crate) async fn rehearse(self: Rc<Self>, r: RecordRef, doc: SlateDoc, values: SlateValues, p: &WriteParams, warnings: Vec<SlateProblem>) -> Result<SlateWriteAnswer, HostError> {
+    pub(crate) async fn rehearse(
+        self: Rc<Self>,
+        r: RecordRef,
+        doc: SlateDoc,
+        values: SlateValues,
+        p: &WriteParams,
+        warnings: Vec<SlateProblem>,
+    ) -> Result<SlateWriteAnswer, HostError> {
         todo!()
     }
 
