@@ -26,7 +26,7 @@ export const SLATE_RULES: readonly string[] = [
   "Props are meaning, never style. held is a sentence that disables: bind it to a condition; \"\" or false enables.",
   "A list binds to items; item and index read the row.",
   "A press reaches you only through send(\"literal text\", $path); <when> chains run without you.",
-  "Small edit: patch by id, <props id=\"price\" value={$spot.json.v} />; bigger: resend the whole slate with if_version.",
+  "Small edit: patch by id, <props id=\"price\" value={$spot.json.v} />; bigger: resend the slate with if_version.",
   `At a glance: at most ${SLATE_GLANCE.sectionsOpen} sections open, the rest collapsible open={false}; ${SLATE_GLANCE.tablesOpen} table of ${SLATE_GLANCE.columns} columns; notes, cells to ${SLATE_GLANCE.cellWords} words, texts to ${SLATE_GLANCE.textWords}; no logs, drawn tables. Replace a section, never add one beside it.`,
   "Fill pieces, not layout: no card in a card, never ·, • or | between things, short labels, no emoji. Heads in sentence case, never bold text.",
   "A live number shows once, with its window and unit: never a progress count as a stat too. Show a run's json fields, never its raw out or error lines, which its <output> leads with; times through date(), time() or ago(). A run's every= keeps it fresh: never poll in chat.",
@@ -36,16 +36,16 @@ export const SLATE_RULES: readonly string[] = [
 ];
 
 export const SLATE_INDEX_EXAMPLE = `<slate title="Deploy">
-  <run name="ci" cmd="./ci-status --json" every={30} />
+  <run name="ci" cmd="./ci --json" every={30} />
   <value name="ship" start="" />
   <column>
     <stats>
       <stat label="Passed" value={$ci.json.passed} max={$ci.json.total} window="this run" />
       <stat label="Spent" value={thread.cost.usd} format="usd" window="this thread" />
     </stats>
-    <chart label="Build, s" items={$ci.json.runs} x={item.at} value={item.s} />
+    <chart label="Build time" items={$ci.json.runs} x={item.at} value={item.s} />
     <decision label="Ship it?" value={$ship} pick="yes" onChange={send("Ship it?", $ship)}>
-      <option value="yes" label="Ship now" /><option value="no" label="Wait" />
+      <option value="yes" label="Ship" /><option value="no" label="Wait" />
     </decision>
   </column>
 </slate>`;
@@ -86,14 +86,29 @@ function sourceLine(name: string): string {
 const FIRST = ["stats", "progress", "decision"];
 const rank = (p: SlatePieceModule): number => (FIRST.includes(p.type) ? 0 : p.reads === "eye" ? 1 : p.interactive === true ? 2 : p.reads === "words" ? 3 : 4);
 
+/** The pieces and items whose tone lacks some of the shared line's words, grouped by the words they lack. */
+function narrowTones(core: SlatePieceModule[]): string {
+  const groups = new Map<string, string[]>();
+  const add = (name: string, spec: SlatePropSpec | undefined): void => {
+    if (!Array.isArray(spec?.type) || (spec.type as readonly string[]).join() === SLATE_TONES.join()) return;
+    const lacks = SLATE_TONES.filter(t => !(spec.type as readonly string[]).includes(t)).join(" ");
+    groups.set(lacks, [...(groups.get(lacks) ?? []), name]);
+  };
+  for (const p of core) {
+    add(p.type, p.props.tone);
+    for (const [tag, item] of Object.entries(p.items)) add(tag, item.fields.tone);
+  }
+  return [...groups].map(([lacks, names]) => `; ${names.join(" and ")} ${names.length > 1 ? "lack" : "lacks"} ${lacks}`).join("");
+}
+
 function index(): string {
   const core = Object.values(SLATE_PIECES).filter(p => p.level === "core").sort((a, b) => rank(a) - rank(b));
   return [
     SLATE_PURPOSE,
-    "Pieces, visual first (! required, (a|b) the only values, <items>):",
+    "Pieces, visual first (! required, (a|b) only these, <items>):",
     ...core.map(pieceLine),
-    `Every piece: id, when={cond}; items take when too. tone: default muted good warning bad info accent. emphasis: normal strong quiet. gap: tight normal loose. format, where a line lists none: ${SLATE_FIGURES.join(" ")}.`,
-    "Pick by question: figures stats; done of many progress; a question decision; categories bars; time is a chart, x in ms or ISO; shares donut; sizes treemap; spans timeline; a flow is a diagram.",
+    `Every piece: id, when={cond}; items take when too. tone: ${SLATE_TONES.join(" ")}${narrowTones(core)}. emphasis: normal strong quiet. gap: tight normal loose. format, where none is listed: ${SLATE_FIGURES.join(" ")}.`,
+    "Pick: figures stats; done of many progress; a question decision; categories bars; time is a chart, x in ms or ISO; shares donut; sizes treemap; spans timeline; a flow is a diagram.",
     "Sources, read only:",
     ...Object.values(SLATE_SOURCES).filter(s => s.level === "core").map(s => sourceLine(s.name)),
     "Declarations: <value name start> <secret name> <derived name value> <run name cmd env args stdin on timeout every always once confirm then tool resource description> <file name> <when change={$path} or done={$run} do={steps}>",

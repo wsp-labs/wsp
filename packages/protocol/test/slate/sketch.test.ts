@@ -152,7 +152,7 @@ describe("the catalog", () => {
     expect(slateCatalog("dashboards")).toContain(slateCatalog());
     expect(slateCatalog("runs")).toContain("once: a start while it still runs is skipped; without once it stops and starts again.");
     expect(slateCatalog("runs")).toContain("at the write for an every= run, at the first press or <when> for the rest. Until then it reads held; allowing it starts it at once.");
-    expect(slateCatalog()).toContain("bigger: resend the whole slate with if_version.");
+    expect(slateCatalog()).toContain("bigger: resend the slate with if_version.");
     expect(slateCatalog("diagram")).toContain("Under about 15 nodes");
     for (const n of ["functions", "steps", "handlers"]) expect(slateTokens(slateCatalog(n)), n).toBeLessThan(600);
     expect(slateTokens(slateCatalog("examples"))).toBeLessThan(3500);
@@ -179,6 +179,15 @@ describe("the catalog", () => {
         expect(line, `${p.type}.${k}`).toMatch(new RegExp(`(^|[ ;])${k}${spec.required === true ? "!" : ""}${values.replace(/[()|]/g, c => `\\${c}`)}( |;|$)`));
       }
     }
+  });
+
+  it("the index names the pieces whose tone lacks words of the shared line, as the checker refuses them", () => {
+    expect(slateCatalog()).toContain("tone: default muted good warning bad info accent; stat and ring lack muted info accent; status lacks accent.");
+    const refused = (piece: string): string[] => parseSlate(`<slate><column>${piece}</column></slate>`).errors.map(e => e.code);
+    expect(refused(`<stats><stat label="A" value={1} tone="muted" /><stat label="B" value={2} /></stats>`)).toEqual(["T306"]);
+    expect(refused(`<ring label="A" value={1} max={2} tone="info" />`)).toEqual(["T306"]);
+    expect(refused(`<status tone="accent">Live</status>`)).toEqual(["T306"]);
+    expect(refused(`<status tone="muted">Live</status>`)).toEqual([]);
   });
 
   it("names the nearest entry for a wrong name", () => {
