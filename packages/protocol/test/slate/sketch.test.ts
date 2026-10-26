@@ -99,9 +99,9 @@ describe("the sketch", () => {
 
 describe("the catalog", () => {
   it("keeps the index under its budget and its example valid", () => {
-    // With the frame's look step as rule 13 and its clause on the pick line, worded as the frame's branch has them, the
-    // index still fits.
-    const look = "Look once with slate_look after writing a frame or a large change, never after each patch.";
+    // With the frame's look step as rule 13 and its clause on the pick line, worded as feat/2065-slate-frame has them
+    // at 696b2d003 (SLATE_LOOK_RULE), the index still fits.
+    const look = "If slate_look is offered, look once after writing a frame or a large change, never after each patch.";
     const tokens = slateTokens(slateCatalog());
     const withFrame = tokens + slateTokens(`\n13. ${look}`) + slateTokens("; what no piece draws, a frame: an .html file you wrote");
     console.log(`catalog index: ${tokens} tokens; with the frame's look rule and clause: ${withFrame}; budget ${SLATE_LIMITS.catalogIndexTokens}`);
@@ -179,6 +179,10 @@ describe("the catalog", () => {
         expect(line, `${p.type}.${k}`).toMatch(new RegExp(`(^|[ ;])${k}${spec.required === true ? "!" : ""}${values.replace(/[()|]/g, c => `\\${c}`)}( |;|$)`));
       }
     }
+  });
+
+  it("the index example's chart names its unit, as rule 9 asks of a live number", () => {
+    expect(SLATE_INDEX_EXAMPLE).toMatch(/<chart [^>]*\b(unit|format)=/);
   });
 
   it("the index names the pieces whose tone lacks words of the shared line, as the checker refuses them", () => {
