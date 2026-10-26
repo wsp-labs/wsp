@@ -31,11 +31,11 @@ use super::turn_pages::{fork_session_on, revert_on, SideRunner};
 use crate::claude::turn::{ASIDE_WALL_MS, INTERRUPT_GRACE_MS, RUN_EXIT_MS, STEER_JOIN_MS};
 use crate::pending::title_prompt;
 use crate::port::{
-    keep_run, system_now, AdapterAttachOptions, AdapterError, AgentLaunch, AnswerOutcome, AsideAnswer, AsideQuestion, AttachRunOptions,
-    Attached, AttachmentRoad, ConversationStore, DraftAsk, Env, ExecFailure, ExecFailureKind, ExecOptions, ExecSecret, ExecStreamFactory,
-    ForkTurn, ForkedSession, HarnessAdapter, HarnessCatalogAnswer, HarnessCatalogModelProbe, HarnessExec, HarnessSession,
-    HarnessStartOptions, KeptAgent, KeptTurn, Now, PermissionAnswer, RevertAsk, Reverted, SessionFile, SessionRenameWrite, SharedFuture,
-    SteerOutcome, TaskStop, TitleTurn, TurnImage, TurnResult, TurnStatus,
+    keep_run, started, system_now, AdapterAttachOptions, AdapterError, AgentLaunch, AnswerOutcome, AsideAnswer, AsideQuestion,
+    AttachRunOptions, Attached, AttachmentRoad, ConversationStore, DraftAsk, Env, ExecFailure, ExecFailureKind, ExecOptions, ExecSecret,
+    ExecStreamFactory, ForkTurn, ForkedSession, HarnessAdapter, HarnessCatalogAnswer, HarnessCatalogModelProbe, HarnessExec,
+    HarnessSession, HarnessStartOptions, KeptAgent, KeptTurn, Now, PermissionAnswer, RevertAsk, Reverted, SessionFile, SessionRenameWrite,
+    SharedFuture, SteerOutcome, TaskStop, TitleTurn, TurnImage, TurnResult, TurnStatus,
 };
 use wsp_wire::views::session_events::TurnTokens;
 
@@ -573,7 +573,7 @@ impl HarnessAdapter for CodexAdapter {
     }
     fn session_held(&self, session_id: String, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<String, String>>> {
         let me = self.clone();
-        Some(async move { me.session_held(&session_id, exec).await.map_err(|e| e.to_string()) }.boxed_local())
+        Some(started(async move { me.session_held(&session_id, exec).await.map_err(|e| e.to_string()) }.boxed_local()))
     }
     fn account_models(
         &self,
@@ -603,13 +603,13 @@ impl HarnessAdapter for CodexAdapter {
     }
     fn revert(&self, ask: RevertAsk) -> Option<LocalBoxFuture<'static, Result<Reverted, String>>> {
         let me = self.clone();
-        Some(async move { me.revert(ask).await }.boxed_local())
+        Some(started(async move { me.revert(ask).await }.boxed_local()))
     }
     fn fork_session(&self, session: String, turn: ForkTurn) -> Option<LocalBoxFuture<'static, Result<ForkedSession, String>>> {
         let me = self.clone();
-        Some(
+        Some(started(
             async move { me.fork_session(&session, turn).await.map(|(session, turn)| ForkedSession::Fork { session, turn }) }.boxed_local(),
-        )
+        ))
     }
     fn forks_by_count(&self) -> bool {
         true
@@ -631,11 +631,11 @@ impl HarnessAdapter for CodexAdapter {
         exec: Arc<dyn HarnessExec>,
     ) -> Option<LocalBoxFuture<'static, Result<Option<HarnessCatalogAnswer>, ExecFailure>>> {
         let me = self.clone();
-        Some(async move { me.probe_catalog(exec).await }.boxed_local())
+        Some(started(async move { me.probe_catalog(exec).await }.boxed_local()))
     }
     fn probe_version(&self, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         let me = self.clone();
-        Some(async move { me.probe_version(exec).await }.boxed_local())
+        Some(started(async move { me.probe_version(exec).await }.boxed_local()))
     }
     fn session_title(
         &self,
@@ -643,7 +643,7 @@ impl HarnessAdapter for CodexAdapter {
         exec: Arc<dyn HarnessExec>,
     ) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         let me = self.clone();
-        Some(async move { me.session_title(&harness_session_id, exec).await }.boxed_local())
+        Some(started(async move { me.session_title(&harness_session_id, exec).await }.boxed_local()))
     }
     fn session_file(&self, session_id: &str) -> Option<SessionFile> {
         Some(CodexAdapter::session_file(self, session_id))
@@ -655,7 +655,7 @@ impl HarnessAdapter for CodexAdapter {
         exec: Arc<dyn HarnessExec>,
     ) -> Option<LocalBoxFuture<'static, Result<SessionRenameWrite, ExecFailure>>> {
         let me = self.clone();
-        Some(async move { me.rename_session(&harness_session_id, &title, exec).await }.boxed_local())
+        Some(started(async move { me.rename_session(&harness_session_id, &title, exec).await }.boxed_local()))
     }
     fn title_for(
         &self,
@@ -663,15 +663,15 @@ impl HarnessAdapter for CodexAdapter {
         exec: Arc<dyn HarnessExec>,
     ) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         let me = self.clone();
-        Some(async move { me.title_for(turn, exec).await }.boxed_local())
+        Some(started(async move { me.title_for(turn, exec).await }.boxed_local()))
     }
     fn draft_for(&self, ask: DraftAsk, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         let me = self.clone();
-        Some(async move { me.draft_for(ask, exec).await }.boxed_local())
+        Some(started(async move { me.draft_for(ask, exec).await }.boxed_local()))
     }
     fn aside(&self, question: AsideQuestion) -> Option<LocalBoxFuture<'static, Result<AsideAnswer, String>>> {
         let me = self.clone();
-        Some(async move { me.aside(question).await }.boxed_local())
+        Some(started(async move { me.aside(question).await }.boxed_local()))
     }
     fn compacts(&self) -> Option<String> {
         Some(CodexAdapter::compacts(self).to_string())

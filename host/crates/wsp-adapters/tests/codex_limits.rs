@@ -237,8 +237,8 @@ mod spending_one {
     #[test]
     fn is_the_agent_s_one_registered_set_of_reset_roads() {
         let road = bare_road("/root/.codex");
-        assert_eq!(CodexPlanResets.read_command(&road), reset_read_command(&road).unwrap());
-        assert_eq!(CodexPlanResets.spend_command(&road, "k-1", Some("rc_1")), reset_credit_command(&road, "k-1", Some("rc_1")).unwrap());
+        assert_eq!(CodexPlanResets.read_command(&road), reset_read_command(&road));
+        assert_eq!(CodexPlanResets.spend_command(&road, "k-1", Some("rc_1")), reset_credit_command(&road, "k-1", Some("rc_1")));
         assert_eq!(CodexPlanResets.too_old(), TOO_OLD);
         assert!(CodexPlanResets.too_old().contains("older than 0.141"));
     }

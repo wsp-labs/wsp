@@ -85,10 +85,10 @@ fn question_line(model: Option<&str>, launch: Option<&AgentLaunch>, broker: Opti
         None => String::new(),
         Some(model) => format!(" -m {}", slug("model", model)?),
     };
+    let words: Vec<&str> = [codex.word.as_str(), "exec"].into_iter().chain(codex.flags.iter().map(String::as_str)).collect();
     Ok(format!(
-        "{} exec {} --json --skip-git-repo-check -c sandbox_mode='\"read-only\"' -c approval_policy='\"never\"'{model_flag} -",
-        codex.word,
-        codex.flags.join(" ")
+        "{} --json --skip-git-repo-check -c sandbox_mode='\"read-only\"' -c approval_policy='\"never\"'{model_flag} -",
+        words.join(" ")
     ))
 }
 
