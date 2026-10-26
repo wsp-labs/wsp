@@ -315,7 +315,7 @@ pub fn refer_codex(text: &str, only: Option<&str>, known: &[KnownValue], outside
     want.insert("mcp_servers".to_string(), toml::Value::Table(next));
     let out = match refer_lines(text, only) {
         Ok(lined) if same_tree(&lined, &want) => lined,
-        _ => toml::to_string(&want).map_err(|e| HostError::new(e.to_string()))?,
+        _ => crate::toml_write::stringify(&want),
     };
     let written = parse_toml(&out).map_err(HostError::new)?;
     let entries = match written.get("mcp_servers").and_then(|v| v.as_table()) {
