@@ -294,10 +294,6 @@ fn agent_defaults_set_sends_nothing_before_the_patch_is_whole() {
         agent_ask(|a| a.reset = Some(strs(&["model", "after-worktree"]))),
         agent_ask(|a| a.access = Some("bypassPermissions".into())),
         agent_ask(|a| a.access = Some("".into())),
-        agent_ask(|a| {
-            a.hide = Some(strs(&["h"]));
-            a.access = Some("Full".into());
-        }),
     ];
     for ask in asks {
         let (c, log) = client(replies("agentDefaultsSet", "the picker's lists merged over what stands"));
@@ -305,6 +301,14 @@ fn agent_defaults_set_sends_nothing_before_the_patch_is_whole() {
         usage_refusal(&e);
         assert!(sent(&log).is_empty(), "frames sent for {ask:?}");
     }
+    let ask = agent_ask(|a| {
+        a.hide = Some(strs(&["h"]));
+        a.access = Some("Full".into());
+    });
+    let (c, log) = client(replies("agentDefaultsSet", "the picker's lists merged over what stands"));
+    let e = block(s::agent_defaults_set(&c, "claude", &ask)).unwrap_err();
+    usage_refusal(&e);
+    assert_eq!(sent(&log).len(), 1, "a list to merge reads the preferences before the access word is checked (agents-help.ts:410-419)");
     let (c, _) = client(IndexMap::new());
     let e = block(s::agent_defaults_set(&c, "claude", &agent_ask(|_| {}))).unwrap_err();
     assert_eq!(e.message, format!("{} {}", s::AGENT_SET_NOTHING_LINE, s::NOTHING_TO_SET_FIX));
