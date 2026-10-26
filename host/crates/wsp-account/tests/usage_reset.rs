@@ -6,7 +6,7 @@
 #[path = "support/base.rs"]
 mod base;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
@@ -83,8 +83,11 @@ struct Scripts {
 }
 
 impl Resets for Scripts {
-    fn read_command(&self, road: &ResetRoad) -> String {
-        format!("READ {}", road.home)
+    fn read_command(&self, road: &ResetRoad) -> Result<String, String> {
+        if !road.home.starts_with('/') {
+            return Err(format!("home must be an absolute path, got \"{}\"", road.home));
+        }
+        Ok(format!("READ {}", road.home))
     }
     fn parse_read(&self, _stdout: &str) -> Option<ResetReading> {
         self.reads.borrow_mut().pop_front().flatten()
@@ -129,6 +132,7 @@ struct Deps {
     runs: RefCell<Vec<(String, String)>>,
     filed: RefCell<Vec<Option<u64>>>,
     minted: RefCell<u32>,
+    relative_home: Cell<bool>,
 }
 
 #[async_trait(?Send)]
@@ -149,7 +153,8 @@ impl UsageResetDeps for Deps {
         Ok(places())
     }
     async fn road(&self, _agent: &str, place: &ResetPlace) -> Result<ResetRoad, HostError> {
-        Ok(ResetRoad { home: format!("/logins/{}/codex", place.id), env: None, launch: None })
+        let root = if self.relative_home.get() { "" } else { "/" };
+        Ok(ResetRoad { home: format!("{root}logins/{}/codex", place.id), env: None, launch: None })
     }
     async fn run(&self, place: &ResetPlace, script: &str, _agent: &str) -> Result<String, HostError> {
         self.runs.borrow_mut().push((place.id.clone(), script.to_owned()));
@@ -199,6 +204,7 @@ impl Harness {
             runs: RefCell::new(vec![]),
             filed: RefCell::new(vec![]),
             minted: RefCell::new(0),
+            relative_home: Cell::new(false),
         });
         let reset = usage_resets(deps.clone());
         Harness { deps, reset }
@@ -378,6 +384,19 @@ mod what_is_refused_before_anything_is_spent {
             assert_eq!(e.kind, Some(Kind::Usage));
             assert_eq!(e.message, "creditId must be a plain slug, got \"rc'1\"");
             assert!(h.spend_runs().is_empty());
+            assert!(h.pending_ids().is_empty());
+        });
+    }
+
+    #[test]
+    fn a_home_the_agent_would_not_read_is_a_plain_refusal_with_nothing_run() {
+        run(async {
+            let h = Harness::new(None, vec![], vec![Some(reading(Some(2)))], vec![]);
+            h.deps.relative_home.set(true);
+            let e = h.ask(KEY).await.unwrap_err();
+            assert_eq!(e.kind, None);
+            assert_eq!(e.message, "home must be an absolute path, got \"logins/pl_spoo/codex\"");
+            assert!(h.scripts_run().is_empty());
             assert!(h.pending_ids().is_empty());
         });
     }
