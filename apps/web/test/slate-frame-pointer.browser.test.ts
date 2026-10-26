@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// A page sealed where its own realm has no Trusted Types. The guard's first line stops the parser, but
-// the page's <html> start tag is parsed before the guard runs, so an event handler on it is in the document. A pointer
-// over the frame then runs the page's script, in a realm whose WebRTC the guard never deleted. Runs with WSP_RENDER=1.
+// A page sealed where its own realm has no Trusted Types. A handler on the page's <html> start tag is dropped by the
+// seal, so a pointer over the frame runs nothing and nothing reaches a listener, with Trusted Types and without. Runs with WSP_RENDER=1.
 import { createSocket, type Socket } from "node:dgram";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
