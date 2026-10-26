@@ -7,11 +7,11 @@ use std::future::Future;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use crate::local_task::spawn as spawn_local;
 use futures::channel::oneshot;
 use futures::future::{LocalBoxFuture, Shared};
 use futures::FutureExt;
 use indexmap::{IndexMap, IndexSet};
-use tokio::task::spawn_local;
 use wsp_core::clock::Cancel;
 use wsp_core::setup_graph::{run_graph, GraphStep, Release, StepNext};
 use wsp_core::types::pending::Clock;
@@ -557,7 +557,7 @@ async fn engine_rows(
     step: EngineStep,
 ) -> PlaceResult<Vec<PlaceProvisionRow>> {
     let stores = if step == EngineStep::Mcp {
-        run.stores_here().await
+        run.stores_checked().await?
     } else {
         None
     };
@@ -1352,7 +1352,7 @@ impl SetupRun {
                 move |_release| {
                     async move {
                         run.step(PlaceSetupStep::FolderServers, async {
-                            Ok(run.folder_servers().await)
+                            run.folder_servers().await
                         })
                         .await
                         .map(|_| StepNext::Go)

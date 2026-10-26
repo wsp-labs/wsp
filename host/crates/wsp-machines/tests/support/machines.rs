@@ -2141,7 +2141,10 @@ pub async fn create(
                         Arc::new(move |line: &str, bx: Option<&ProviderBoxState>| {
                             waiting_log.push(json!(["waiting", line, bx.map(|b| b.id.clone())]));
                         });
-                    let m = h.create(spec, Some(waiting)).await?;
+                    let m = h
+                        .create(spec, Some(waiting))
+                        .await
+                        .map_err(wsp_machines::machines::area_error::AreaError::into_host)?;
                     log.push(json!(["inflight inside", area.inflight()]));
                     Ok::<String, HostError>(m.id().to_string())
                 }

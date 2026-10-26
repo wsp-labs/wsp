@@ -24,6 +24,7 @@ use wsp_words::place_word::{provider_key_name, provider_key_words};
 use wsp_words::usage::{account_words, parse_rate_table, AccountWho, Rate, RateTable};
 
 use super::{Vaulted, BURN_WINDOW_MS, COMPUTER_NAMES, PRICES, RESET_DETAILS_MS};
+use crate::unwound::unwound;
 
 /// An agent's account as the usage records key and name it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -257,7 +258,7 @@ fn filed_at(received: i64, call: &BurnCall, newest: &IndexMap<String, (i64, i64)
         .and_then(|r| newest.get(&r.run).map(|top| (r, top)))
     {
         Some((replayed, &(top_at, top_received))) => {
-            received.min(top_received - (top_at - replayed.at))
+            received.min(top_received.saturating_sub(top_at.saturating_sub(replayed.at)))
         }
         None => received,
     }
@@ -356,7 +357,7 @@ impl PriceTable {
     fn fresh(&self) -> Option<RateTable> {
         let held = self.held.borrow();
         held.as_ref()
-            .filter(|(at, _)| self.clock.now() - at < PRICES_TTL_MS as i64)
+            .filter(|(at, _)| self.clock.now().saturating_sub(*at) < PRICES_TTL_MS as i64)
             .map(|(_, table)| table.clone())
     }
 
@@ -424,9 +425,9 @@ impl PriceTable {
                 None => {
                     let me = self.clone();
                     let read = async move {
-                        let table = me.refresh().await;
+                        let table = unwound(me.refresh()).await;
                         *me.reading.borrow_mut() = None;
-                        table
+                        table.unwrap_or_default()
                     }
                     .boxed_local()
                     .shared();

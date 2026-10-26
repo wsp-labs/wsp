@@ -22,8 +22,10 @@ use wsp_catalog::catalog::shared_on;
 use wsp_catalog::signin::{key_env_of, mints_token, SignIn};
 use wsp_catalog::signin_rows::{shared_file_in, SHARED_LOGINS};
 use wsp_core::place_forward::PlaceForward;
+use wsp_core::reach::ReachError;
 use wsp_core::recipe_sync::RecipeChange;
 use wsp_core::types::pending::{Clock, DaemonReach};
+use wsp_engine::errors::EngineError;
 use wsp_engine::provision::ProvisionPlan;
 use wsp_engine::ssh_backend::{plain_path, ssh_store_vars};
 use wsp_store::keys::node_base64;
@@ -36,8 +38,9 @@ use wsp_wire::views::place::{
     PlaceSetup, PlaceSetupStep, PlaceSync, SetupEnd, GITHUB_ROW,
 };
 use wsp_wire::wire::limits::is_plain_path;
+use wsp_wire::wire::machine_link::MachineErrorKind;
 use wsp_wire::wire::place_link::PlaceReport;
-use wsp_words::exit::HostError;
+use wsp_words::exit::{HostError, Kind};
 use wsp_words::recipe_file::{recipe_canon, AgentOption, RecipeOptions, ResolvedRecipe};
 use wsp_words::views::place_setup_words::{
     copied_from_line, important_failures, key_held_line, token_held_line, wait_line,
@@ -496,7 +499,7 @@ pub async fn listen_near(
 /// Accepts until closed; closing drops the listener at once, so the port is free when close returns.
 fn serve(listener: TcpListener, addr: SocketAddr, on_conn: OnConn) -> Rc<LoopbackListener> {
     let slot = Rc::new(RefCell::new(Some(listener)));
-    let task = tokio::task::spawn_local({
+    let task = crate::local_task::spawn({
         let slot = Rc::clone(&slot);
         async move {
             while let Some(stream) = accept_one(&slot).await {
@@ -504,11 +507,13 @@ fn serve(listener: TcpListener, addr: SocketAddr, on_conn: OnConn) -> Rc<Loopbac
             }
         }
     });
-    let stop = task.abort_handle();
+    let stop = task.map(|task| task.abort_handle());
     let close = Box::new(move || {
         let listener = slot.borrow_mut().take();
         drop(listener);
-        stop.abort();
+        if let Some(stop) = &stop {
+            stop.abort();
+        }
     });
     Rc::new(LoopbackListener {
         addr,
@@ -707,3 +712,47 @@ pub const UNMERGE_MS: u64 = 60_000;
 
 /// The outcome words a row is read by (`installed`, `present`, `skipped`, `failed`), re-exported for the areas.
 pub type Outcome = PlaceProvisionRowOutcome;
+
+/// The word a refusal's kind is written with.
+fn kind_word(kind: MachineErrorKind) -> String {
+    serde_json::to_value(kind)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_string))
+        .unwrap_or_default()
+}
+
+/// A daemon's refusal as the host error its caller gets, with the kind, status and code it was refused with
+/// (reach.ts:162 `refused`).
+pub(crate) fn refused_host(e: ReachError) -> HostError {
+    let mut host = HostError::new(e.message);
+    host.kind = e.kind.map(|k| Kind::parse(&kind_word(k)));
+    host.status = e.status;
+    host.code = e.code;
+    host
+}
+
+/// A daemon's refusal as the engine error a machine road gets: a refusal that carries a kind is the provider's own
+/// kind of error, so a machine the far side lost reads `missing` (reach.ts:162, link-backend.ts:62).
+pub(crate) fn refused_engine(e: ReachError) -> EngineError {
+    let kind = e.kind.and_then(|k| {
+        serde_json::from_value::<wsp_engine::errors::ErrorKind>(serde_json::Value::String(
+            kind_word(k),
+        ))
+        .ok()
+    });
+    match kind {
+        Some(kind) => EngineError::Provider(wsp_engine::errors::WspError {
+            kind,
+            status: e.status.map_or(0, |s| s as u16),
+            code: e.code,
+            message: e.message,
+            request_id: None,
+            window: None,
+            said: None,
+        }),
+        None => EngineError::Other {
+            message: e.message,
+            code: e.code,
+        },
+    }
+}

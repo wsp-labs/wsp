@@ -39,6 +39,7 @@ use wsp_words::words::thread::{
 };
 
 use super::machines::{Entry, Ids, Row, Unreached};
+use crate::unwound::unwound_or_failed;
 
 pub use wsp_core::context::{DetachedOutcome, DetachedSend};
 
@@ -133,7 +134,7 @@ fn start<T: Clone + 'static>(
     let mut first = join.clone();
     let _ = (&mut first).now_or_never();
     let keep = join.clone();
-    tokio::task::spawn_local(async move {
+    crate::local_task::spawn(async move {
         let _ = keep.await;
         forget();
     });
@@ -265,7 +266,7 @@ impl DaemonArea {
         let caller = origin.cloned();
         let ws = workspace_id.to_string();
         let thread_said = thread_word(thread.unwrap_or(""));
-        tokio::task::spawn_local(async move {
+        crate::local_task::spawn(async move {
             let answer = rt.sessions_start(&ws, ask, caller.as_ref()).await;
             if started_tx.is_canceled() {
                 if let Err(e) = &answer {
@@ -278,6 +279,7 @@ impl DaemonArea {
             let _ = started_tx.send(answer);
         });
         let first = tokio::select! {
+            biased;
             answer = answered(started_rx) => First::Started(answer),
             harness = answered(queued_rx) => First::Queued(harness),
             (view, wait) = answered(held_rx) => First::Held(view, wait),
@@ -388,7 +390,7 @@ impl DaemonArea {
             if let Some(prev) = prev {
                 prev.await;
             }
-            let _ = tx.send(work.await);
+            let _ = tx.send(unwound_or_failed(work).await);
         }
         .boxed_local();
         let seq = self.next_seq();
@@ -600,7 +602,7 @@ impl DaemonArea {
         let work_entry = entry.clone();
         let body: LocalBoxFuture<'static, Result<(), HostError>> = async move {
             match me.upgrade() {
-                Some(area) => area.run_sync(&work_entry).await,
+                Some(area) => unwound_or_failed(area.run_sync(&work_entry)).await,
                 None => Ok(()),
             }
         }
@@ -799,7 +801,7 @@ impl DaemonArea {
         let work_entry = entry.clone();
         let body: LocalBoxFuture<'static, ()> = async move {
             if let Some(area) = me.upgrade() {
-                let _ = area.run_revive(&work_entry).await;
+                let _ = unwound_or_failed(area.run_revive(&work_entry)).await;
             }
         }
         .boxed_local();

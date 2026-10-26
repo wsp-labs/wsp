@@ -699,6 +699,7 @@ pub enum PlaceEvent {
     Joined(wsp_wire::views::place_more::PlaceJoinedEvent),
     Changed(wsp_wire::views::place_more::PlaceChangedEvent),
     Removed(wsp_wire::views::place_more::PlaceRemovedEvent),
+    Present(wsp_wire::views::place_more::PlacePresentEvent),
     Absent(wsp_wire::views::place_more::PlaceAbsentEvent),
 }
 

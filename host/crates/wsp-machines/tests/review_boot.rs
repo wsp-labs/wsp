@@ -2,7 +2,12 @@
 //! Review of wsp-machines at 2c4f6cb46: the boot's call order against boot.ts, and the place setup's folders step.
 //! Every expected log below is what `packages/runtime/src/machines/boot.ts` wrote under node for the same world (the
 //! scene is named in each test; the scratch oracle is the committed boot_ready oracle's world with the same fakes).
-#![allow(clippy::await_holding_refcell_ref, dead_code, unused_imports, clippy::type_complexity)]
+#![allow(
+    clippy::await_holding_refcell_ref,
+    dead_code,
+    unused_imports,
+    clippy::type_complexity
+)]
 mod common;
 #[path = "support/boot.rs"]
 mod support;
@@ -40,7 +45,9 @@ use wsp_words::exit::{HostError, Kind};
 /// A test on one thread with a `LocalSet`, as the host runs, and a bound so a hang is a failure.
 fn run<F: std::future::Future<Output = ()> + 'static>(f: F) {
     run_local(async move {
-        tokio::time::timeout(std::time::Duration::from_secs(20), f).await.expect("the test hung");
+        tokio::time::timeout(std::time::Duration::from_secs(20), f)
+            .await
+            .expect("the test hung");
     });
 }
 
@@ -62,13 +69,22 @@ fn same(name: &str, got: &[Value], want: &Value) {
         for i in 0..got.len().max(want.len()) {
             let g = got.get(i).map(|v| v.to_string()).unwrap_or_default();
             let w = want.get(i).map(|v| v.to_string()).unwrap_or_default();
-            eprintln!("{} {:<62} | {}", if g == w { " " } else { "!" }, g.chars().take(60).collect::<String>(), w.chars().take(60).collect::<String>());
+            eprintln!(
+                "{} {:<62} | {}",
+                if g == w { " " } else { "!" },
+                g.chars().take(60).collect::<String>(),
+                w.chars().take(60).collect::<String>()
+            );
         }
     }
     for (i, (g, w)) in got.iter().zip(want.iter()).enumerate() {
         assert_eq!(g, w, "{name}: call {i} differs from boot.ts");
     }
-    assert_eq!(got.len(), want.len(), "{name}: the log's length differs from boot.ts; got {got:#?}");
+    assert_eq!(
+        got.len(),
+        want.len(),
+        "{name}: the log's length differs from boot.ts; got {got:#?}"
+    );
 }
 
 fn ws(id: &str) -> Value {
@@ -110,6 +126,7 @@ struct Wrap {
 }
 
 impl Wrap {
+    #[allow(clippy::manual_contains)]
     fn fails(&self, name: &str) -> bool {
         self.failing.borrow().iter().any(|n| *n == name)
     }
@@ -131,7 +148,12 @@ fn rig(o: Opts) -> Rig {
         backend: RefCell::default(),
         places: RefCell::default(),
     });
-    let area = BootArea::new(wrap.clone() as Rc<dyn BootRuntime>, BootConfig { host_id: "host:A".into() });
+    let area = BootArea::new(
+        wrap.clone() as Rc<dyn BootRuntime>,
+        BootConfig {
+            host_id: "host:A".into(),
+        },
+    );
     *w.rt.area.borrow_mut() = Rc::downgrade(&area);
     Rig { w, area, wrap }
 }
@@ -145,7 +167,11 @@ struct FailStore {
 }
 
 impl FailStore {
-    fn new(delete: Vec<(&'static str, &'static str)>, list: Vec<&'static str>, kind: Option<Kind>) -> Rc<Self> {
+    fn new(
+        delete: Vec<(&'static str, &'static str)>,
+        list: Vec<&'static str>,
+        kind: Option<Kind>,
+    ) -> Rc<Self> {
         Rc::new(FailStore {
             inner: RefCell::default(),
             delete,
@@ -166,8 +192,12 @@ impl FailStore {
 
 #[async_trait(?Send)]
 impl Store for FailStore {
-    async fn get(&self, c: &str, id: &str) -> Result<Option<Value>, HostError> { self.to().get(c, id).await }
-    async fn put(&self, c: &str, id: &str, v: Value) -> Result<(), HostError> { self.to().put(c, id, v).await }
+    async fn get(&self, c: &str, id: &str) -> Result<Option<Value>, HostError> {
+        self.to().get(c, id).await
+    }
+    async fn put(&self, c: &str, id: &str, v: Value) -> Result<(), HostError> {
+        self.to().put(c, id, v).await
+    }
     async fn list(&self, c: &str) -> Result<Vec<Value>, HostError> {
         let rows = self.to().list(c).await?;
         if self.list.contains(&c) {
@@ -175,7 +205,9 @@ impl Store for FailStore {
         }
         Ok(rows)
     }
-    async fn keys(&self, c: &str) -> Result<Vec<String>, HostError> { self.to().keys(c).await }
+    async fn keys(&self, c: &str) -> Result<Vec<String>, HostError> {
+        self.to().keys(c).await
+    }
     async fn delete(&self, c: &str, id: &str) -> Result<(), HostError> {
         self.to().delete(c, id).await?;
         if self.delete.contains(&(c, id)) {
@@ -183,10 +215,22 @@ impl Store for FailStore {
         }
         Ok(())
     }
-    async fn get_blob(&self, c: &str, id: &str) -> Result<Option<Vec<u8>>, HostError> { self.to().get_blob(c, id).await }
-    async fn put_blob(&self, c: &str, id: &str, b: Vec<u8>) -> Result<(), HostError> { self.to().put_blob(c, id, b).await }
-    async fn delete_blob(&self, c: &str, id: &str) -> Result<(), HostError> { self.to().delete_blob(c, id).await }
-    async fn stat_blob(&self, c: &str, id: &str) -> Result<Option<wsp_core::types::pending::BlobMark>, HostError> { self.to().stat_blob(c, id).await }
+    async fn get_blob(&self, c: &str, id: &str) -> Result<Option<Vec<u8>>, HostError> {
+        self.to().get_blob(c, id).await
+    }
+    async fn put_blob(&self, c: &str, id: &str, b: Vec<u8>) -> Result<(), HostError> {
+        self.to().put_blob(c, id, b).await
+    }
+    async fn delete_blob(&self, c: &str, id: &str) -> Result<(), HostError> {
+        self.to().delete_blob(c, id).await
+    }
+    async fn stat_blob(
+        &self,
+        c: &str,
+        id: &str,
+    ) -> Result<Option<wsp_core::types::pending::BlobMark>, HostError> {
+        self.to().stat_blob(c, id).await
+    }
 }
 
 #[async_trait(?Send)]
@@ -308,7 +352,10 @@ fn a_held_record_is_read_again_where_boot_ts_reads_it() {
                 "sessions": {"b": running_rows("b", &["r-b1"])},
             })),
             answers: json!({"m-b": {"throws": {"message": "503 busy"}}}),
-            sights: vec![Sight::Found { machine: "m-b".into(), state: "running".into() }],
+            sights: vec![Sight::Found {
+                machine: "m-b".into(),
+                state: "running".into(),
+            }],
             sight_word: Some("sightMachine"),
             ..Opts::default()
         });
@@ -326,13 +373,19 @@ fn every_reattach_is_begun_before_any_has_taken_its_second_step() {
     let want = scene("two rows whose re-open takes two steps");
     run(async move {
         let r = rig(Opts {
-            store: store_of(json!({"workspaces": {"a": ws("a")}, "sessions": {"a": running_rows("a", &["r1", "r2"])}})),
+            store: store_of(
+                json!({"workspaces": {"a": ws("a")}, "sessions": {"a": running_rows("a", &["r1", "r2"])}}),
+            ),
             ..Opts::default()
         });
         r.wrap.two_step.set(true);
         r.area.ready().await.expect("the start");
         flush().await;
-        same("two rows whose re-open takes two steps", &r.w.log.take(), &want["log"]);
+        same(
+            "two rows whose re-open takes two steps",
+            &r.w.log.take(),
+            &want["log"],
+        );
     });
 }
 
@@ -344,7 +397,9 @@ fn every_moved_transcript_is_deleted_though_one_delete_fails() {
     run(async move {
         let fail = FailStore::new(vec![("transcripts", "w1")], vec![], None);
         let w = World::ready(Opts {
-            store: store_of(json!({"transcripts": {"w1": {"workspaceId": "w1"}, "w2": {"workspaceId": "w2"}}})),
+            store: store_of(
+                json!({"transcripts": {"w1": {"workspaceId": "w1"}, "w2": {"workspaceId": "w2"}}}),
+            ),
             store_override: Some(fail.clone()),
             ..Opts::default()
         });
@@ -353,8 +408,18 @@ fn every_moved_transcript_is_deleted_though_one_delete_fails() {
         flush().await;
         assert_eq!(said, want["answer"]["threw"].as_str().unwrap());
         let got = w.log.take();
-        let deletes = |log: &[Value]| log.iter().filter(|e| e[0] == "store.delete").cloned().collect::<Vec<_>>();
-        assert_eq!(deletes(&got), deletes(want["log"].as_array().unwrap()), "the deletes boot.ts made: {}", want["log"]);
+        let deletes = |log: &[Value]| {
+            log.iter()
+                .filter(|e| e[0] == "store.delete")
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            deletes(&got),
+            deletes(want["log"].as_array().unwrap()),
+            "the deletes boot.ts made: {}",
+            want["log"]
+        );
     });
 }
 
@@ -375,8 +440,21 @@ fn a_project_whose_remember_fails_does_not_stop_the_next_from_being_remembered()
         let said = r.area.ready().await.expect_err("the start fails");
         flush().await;
         assert_eq!(said, want["answer"]["threw"].as_str().unwrap());
-        let remembered = |log: &[Value]| log.iter().filter(|e| e[0].as_str().is_some_and(|n| n.starts_with("rememberProject"))).cloned().collect::<Vec<_>>();
-        assert_eq!(remembered(&r.w.log.take()), remembered(want["log"].as_array().unwrap()), "the remembers boot.ts made: {}", want["log"]);
+        let remembered = |log: &[Value]| {
+            log.iter()
+                .filter(|e| {
+                    e[0].as_str()
+                        .is_some_and(|n| n.starts_with("rememberProject"))
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            remembered(&r.w.log.take()),
+            remembered(want["log"].as_array().unwrap()),
+            "the remembers boot.ts made: {}",
+            want["log"]
+        );
     });
 }
 
@@ -389,7 +467,9 @@ fn a_late_record_whose_reread_fails_ends_its_boot_work_with_the_line() {
     let want = scene("a late record whose re-read fails to settle");
     run(async move {
         let r = rig(Opts {
-            store: store_of(json!({"workspaces": {"a": ws("a")}, "sessions": {"a": running_rows("a", &["r-a1"])}})),
+            store: store_of(
+                json!({"workspaces": {"a": ws("a")}, "sessions": {"a": running_rows("a", &["r-a1"])}}),
+            ),
             answers: json!({"m-a": {"hang": true, "throws": {"message": "503 busy"}}}),
             sights: vec![Sight::Gone],
             sight_word: Some("sightMachine"),
@@ -416,7 +496,12 @@ fn a_late_record_whose_reread_fails_ends_its_boot_work_with_the_line() {
                 .collect::<Vec<_>>()
         };
         let want_log = want["log"].as_array().unwrap();
-        assert_eq!(steps(&got), steps(want_log), "what the late record's boot work did: boot.ts logged {}", json!(steps(want_log)));
+        assert_eq!(
+            steps(&got),
+            steps(want_log),
+            "what the late record's boot work did: boot.ts logged {}",
+            json!(steps(want_log))
+        );
     });
 }
 
@@ -437,12 +522,33 @@ fn a_sighted_machine_is_not_asked_its_state_a_second_time() {
             state: Ok(wsp_engine::machine::MachineState::Running),
             log_state: true,
         });
-        let found = FoundMachine { sighting: wsp_core::types::pending::Sighting::default(), machine };
+        let found = FoundMachine {
+            sighting: wsp_core::types::pending::Sighting::default(),
+            machine,
+        };
         let raw = support::fill_workspace(&ws("a"));
-        w.area.hydrate_workspace(raw, Some(found), None, None).await.expect("hydrate");
+        w.area
+            .hydrate_workspace(raw, Some(found), None, None)
+            .await
+            .expect("hydrate");
         flush().await;
-        let got: Vec<Value> = w.log.take().into_iter().map(|e| if e[0] == "machine.state" { json!(["machine.state", "m-a"]) } else { e }).collect();
-        same("a found machine with no seen state is read from the sighting", &got, &want["log"]);
+        let got: Vec<Value> = w
+            .log
+            .take()
+            .into_iter()
+            .map(|e| {
+                if e[0] == "machine.state" {
+                    json!(["machine.state", "m-a"])
+                } else {
+                    e
+                }
+            })
+            .collect();
+        same(
+            "a found machine with no seen state is read from the sighting",
+            &got,
+            &want["log"],
+        );
     });
 }
 
@@ -461,7 +567,10 @@ fn a_resume_at_that_is_no_string_hides_the_cut_owed_as_it_does_in_boot_ts() {
         });
         w.area.ready().await.expect("the start");
         flush().await;
-        assert_eq!(support::norm(w.rt.thread_records_json()), want["threadRecords"]);
+        assert_eq!(
+            support::norm(w.rt.thread_records_json()),
+            want["threadRecords"]
+        );
     });
 }
 
@@ -475,9 +584,16 @@ fn a_queued_record_of_an_unwired_kind_is_attached_queued() {
         let mut raw = ws("a");
         raw["kind"] = json!("unwired");
         raw["phase"] = json!("queued");
-        w.area.hydrate_workspace(raw, None, None, None).await.expect("hydrate");
+        w.area
+            .hydrate_workspace(raw, None, None, None)
+            .await
+            .expect("hydrate");
         flush().await;
-        same("an unknown kind that is queued", &w.log.take(), &want["log"]);
+        same(
+            "an unknown kind that is queued",
+            &w.log.take(),
+            &want["log"],
+        );
     });
 }
 
@@ -489,11 +605,25 @@ fn a_failed_start_keeps_the_kind_of_its_error_for_every_verb() {
     let want = scene("a start that fails with a stamped error");
     run(async move {
         let fail = FailStore::new(vec![], vec!["workspaces"], Some(Kind::Auth));
-        let w = World::ready(Opts { store: owner(), store_override: Some(fail.clone()), ..Opts::default() });
+        let w = World::ready(Opts {
+            store: owner(),
+            store_override: Some(fail.clone()),
+            ..Opts::default()
+        });
         fail.over(&w);
-        let said = w.area.entry_of("a", None, EntryAsk::default()).await.err().expect("the start failed");
+        let said = w
+            .area
+            .entry_of("a", None, EntryAsk::default())
+            .await
+            .err()
+            .expect("the start failed");
         assert_eq!(said.message, want["answer"]["threw"].as_str().unwrap());
-        assert_eq!(said.kind, Some(Kind::Auth), "boot.ts throws the error it was born with: kind {}", want["answer"]["kind"]);
+        assert_eq!(
+            said.kind,
+            Some(Kind::Auth),
+            "boot.ts throws the error it was born with: kind {}",
+            want["answer"]["kind"]
+        );
     });
 }
 
@@ -502,7 +632,10 @@ fn a_failed_start_keeps_the_kind_of_its_error_for_every_verb() {
 #[test]
 fn the_start_runs_on_a_plain_runtime_without_a_local_set() {
     let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
         rt.block_on(async {
             let w = World::ready(Opts::default());
             w.area.ready().await
@@ -518,13 +651,20 @@ fn the_start_runs_on_a_plain_runtime_without_a_local_set() {
 #[test]
 fn a_project_row_missing_a_key_the_type_requires_is_held_as_it_stands() {
     run(async {
-        let w = World::ready(Opts { store: owner(), ..Opts::default() });
+        let w = World::ready(Opts {
+            store: owner(),
+            ..Opts::default()
+        });
         w.rt.mem.rows.borrow_mut().entry("projects".to_string()).or_default().insert(
             "p1".to_string(),
             json!({"id": "p1", "name": "site", "computer": "here", "path": "/src/site", "source": {"kind": "folder"}}),
         );
         let started = w.area.ready().await;
-        assert_eq!(started, Ok(()), "the start refused a stored project row boot.ts holds");
+        assert_eq!(
+            started,
+            Ok(()),
+            "the start refused a stored project row boot.ts holds"
+        );
     });
 }
 
@@ -555,7 +695,11 @@ fn a_builder_whose_read_lands_after_the_deadline_is_admitted_when_it_lands() {
         flush().await;
         let held: Vec<String> = w.rt.builders.borrow().keys().cloned().collect();
         w.log.push(json!(["mark", "builders held", held]));
-        same("a builder whose read is still out at the deadline", &w.log.take(), &want["log"]);
+        same(
+            "a builder whose read is still out at the deadline",
+            &w.log.take(),
+            &want["log"],
+        );
     });
 }
 
@@ -570,14 +714,25 @@ struct MissingState {
 struct OnePlace(Arc<dyn MachineBackend>);
 
 impl PlaceBackends for OnePlace {
-    fn wired(&self) -> String { "solari".into() }
-    fn backend(&self, _place: &str) -> Option<Arc<dyn MachineBackend>> { Some(self.0.clone()) }
-    fn list(&self) -> Vec<String> { vec!["solari".into()] }
+    fn wired(&self) -> String {
+        "solari".into()
+    }
+    fn backend(&self, _place: &str) -> Option<Arc<dyn MachineBackend>> {
+        Some(self.0.clone())
+    }
+    fn list(&self) -> Vec<String> {
+        vec!["solari".into()]
+    }
 }
 
 fn sight_scene(name: &str) -> Value {
     let all: Value = serde_json::from_str(SIGHT).expect("the node output");
-    all.as_array().unwrap().iter().find(|s| s["name"] == name).unwrap_or_else(|| panic!("no scene {name}")).clone()
+    all.as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["name"] == name)
+        .unwrap_or_else(|| panic!("no scene {name}"))
+        .clone()
 }
 
 struct MissingStateMachine {
@@ -587,39 +742,89 @@ struct MissingStateMachine {
 
 #[async_trait(?Send)]
 impl Machine for MissingStateMachine {
-    fn id(&self) -> &str { &self.id }
-    fn kind(&self) -> wsp_wire::views::golden_image::MachineKind { wsp_wire::views::golden_image::MachineKind::Sandbox }
-    fn stream_url(&self) -> Option<&str> { None }
-    fn labels(&self) -> Option<&IndexMap<String, String>> { None }
-    fn seen(&self) -> Option<&wsp_engine::machine::Seen> { None }
-    async fn exec(&self, _cmd: &str, _opts: wsp_engine::machine::ExecOptions) -> wsp_engine::errors::Result<wsp_engine::machine::ExecResult> { unimplemented!() }
-    async fn run(&self, _script: &str, _opts: wsp_engine::machine::RunOptions) -> wsp_engine::errors::Result<wsp_engine::machine::ExecResult> { unimplemented!() }
-    async fn snapshot(&self, _name: &str, _life: wsp_engine::machine::MachineLife, _opts: wsp_engine::machine::SnapshotOptions) -> wsp_engine::errors::Result<String> { unimplemented!() }
-    async fn pause(&self, _wait_ms: Option<u64>) -> wsp_engine::errors::Result<()> { unimplemented!() }
-    async fn resume(&self, _signal: Option<&wsp_engine::Cancel>) -> wsp_engine::errors::Result<()> { unimplemented!() }
-    async fn kill(&self) -> wsp_engine::errors::Result<()> { unimplemented!() }
+    fn id(&self) -> &str {
+        &self.id
+    }
+    fn kind(&self) -> wsp_wire::views::golden_image::MachineKind {
+        wsp_wire::views::golden_image::MachineKind::Sandbox
+    }
+    fn stream_url(&self) -> Option<&str> {
+        None
+    }
+    fn labels(&self) -> Option<&IndexMap<String, String>> {
+        None
+    }
+    fn seen(&self) -> Option<&wsp_engine::machine::Seen> {
+        None
+    }
+    async fn exec(
+        &self,
+        _cmd: &str,
+        _opts: wsp_engine::machine::ExecOptions,
+    ) -> wsp_engine::errors::Result<wsp_engine::machine::ExecResult> {
+        unimplemented!()
+    }
+    async fn run(
+        &self,
+        _script: &str,
+        _opts: wsp_engine::machine::RunOptions,
+    ) -> wsp_engine::errors::Result<wsp_engine::machine::ExecResult> {
+        unimplemented!()
+    }
+    async fn snapshot(
+        &self,
+        _name: &str,
+        _life: wsp_engine::machine::MachineLife,
+        _opts: wsp_engine::machine::SnapshotOptions,
+    ) -> wsp_engine::errors::Result<String> {
+        unimplemented!()
+    }
+    async fn pause(&self, _wait_ms: Option<u64>) -> wsp_engine::errors::Result<()> {
+        unimplemented!()
+    }
+    async fn resume(&self, _signal: Option<&wsp_engine::Cancel>) -> wsp_engine::errors::Result<()> {
+        unimplemented!()
+    }
+    async fn kill(&self) -> wsp_engine::errors::Result<()> {
+        unimplemented!()
+    }
     async fn state(&self) -> wsp_engine::errors::Result<wsp_engine::machine::MachineState> {
         self.log.push(json!(["machine.state", self.id]));
-        Err(wsp_engine::errors::EngineError::Provider(wsp_engine::errors::WspError {
-            kind: wsp_engine::errors::ErrorKind::Missing,
-            status: 404,
-            code: None,
-            message: "no such machine".into(),
-            request_id: None,
-            window: None,
-            said: None,
-        }))
+        Err(wsp_engine::errors::EngineError::Provider(
+            wsp_engine::errors::WspError {
+                kind: wsp_engine::errors::ErrorKind::Missing,
+                status: 404,
+                code: None,
+                message: "no such machine".into(),
+                request_id: None,
+                window: None,
+                said: None,
+            },
+        ))
     }
-    async fn download_url(&self, _path: &str) -> wsp_engine::errors::Result<String> { unimplemented!() }
-    async fn upload_url(&self, _path: &str) -> wsp_engine::errors::Result<String> { unimplemented!() }
+    async fn download_url(&self, _path: &str) -> wsp_engine::errors::Result<String> {
+        unimplemented!()
+    }
+    async fn upload_url(&self, _path: &str) -> wsp_engine::errors::Result<String> {
+        unimplemented!()
+    }
 }
 
 struct NoPricing;
 
 impl wsp_engine::machine::BackendPricing for NoPricing {
-    fn rate_usd_per_hour(&self, _size: wsp_engine::machine::Size) -> f64 { 0.0 }
-    fn default_size(&self) -> wsp_engine::machine::Size { wsp_engine::machine::Size { cpu: 1.0, mem_mb: 2048.0 } }
-    fn snapshot_storage(&self) -> wsp_engine::machine::SnapshotStoragePricing { unimplemented!() }
+    fn rate_usd_per_hour(&self, _size: wsp_engine::machine::Size) -> f64 {
+        0.0
+    }
+    fn default_size(&self) -> wsp_engine::machine::Size {
+        wsp_engine::machine::Size {
+            cpu: 1.0,
+            mem_mb: 2048.0,
+        }
+    }
+    fn snapshot_storage(&self) -> wsp_engine::machine::SnapshotStoragePricing {
+        unimplemented!()
+    }
 }
 
 #[async_trait(?Send)]
@@ -632,25 +837,46 @@ impl MachineBackend for MissingState {
         }))
         .expect("capabilities")
     }
-    fn pricing(&self) -> Arc<dyn wsp_engine::machine::BackendPricing> { Arc::new(NoPricing) }
-    async fn create(&self, _spec: wsp_engine::machine::MachineSpec, _waiting: Option<wsp_engine::machine::Waiting>, _sent: Option<String>) -> wsp_engine::errors::Result<Arc<dyn Machine>> { unimplemented!() }
+    fn pricing(&self) -> Arc<dyn wsp_engine::machine::BackendPricing> {
+        Arc::new(NoPricing)
+    }
+    async fn create(
+        &self,
+        _spec: wsp_engine::machine::MachineSpec,
+        _waiting: Option<wsp_engine::machine::Waiting>,
+        _sent: Option<String>,
+    ) -> wsp_engine::errors::Result<Arc<dyn Machine>> {
+        unimplemented!()
+    }
     async fn get(&self, id: &str) -> wsp_engine::errors::Result<Arc<dyn Machine>> {
         self.log.push(json!(["backend.get", id]));
         if self.get_fails {
-            return Err(wsp_engine::errors::EngineError::Provider(wsp_engine::errors::WspError {
-                kind: wsp_engine::errors::ErrorKind::Missing,
-                status: 404,
-                code: None,
-                message: "no such machine".into(),
-                request_id: None,
-                window: None,
-                said: None,
-            }));
+            return Err(wsp_engine::errors::EngineError::Provider(
+                wsp_engine::errors::WspError {
+                    kind: wsp_engine::errors::ErrorKind::Missing,
+                    status: 404,
+                    code: None,
+                    message: "no such machine".into(),
+                    request_id: None,
+                    window: None,
+                    said: None,
+                },
+            ));
         }
-        Ok(Arc::new(MissingStateMachine { id: id.to_string(), log: self.log.clone() }))
+        Ok(Arc::new(MissingStateMachine {
+            id: id.to_string(),
+            log: self.log.clone(),
+        }))
     }
-    async fn list(&self, _labels: Option<&IndexMap<String, String>>) -> wsp_engine::errors::Result<Vec<wsp_engine::machine::MachineListRow>> { unimplemented!() }
-    async fn delete_snapshot(&self, _id: &str) -> wsp_engine::errors::Result<()> { unimplemented!() }
+    async fn list(
+        &self,
+        _labels: Option<&IndexMap<String, String>>,
+    ) -> wsp_engine::errors::Result<Vec<wsp_engine::machine::MachineListRow>> {
+        unimplemented!()
+    }
+    async fn delete_snapshot(&self, _id: &str) -> wsp_engine::errors::Result<()> {
+        unimplemented!()
+    }
 }
 
 /// golden.ts:130-134. `readOnce` reads a 404 from the machine's `state()` as the machine gone, so twelve such reads in a
@@ -660,16 +886,34 @@ impl MachineBackend for MissingState {
 fn a_machine_whose_state_answers_404_is_read_gone_twelve_times_then_settled() {
     let want = sight_scene("a held record whose provider answers 404 to state");
     run(async move {
-        let r = rig(Opts { store: store_of(json!({"workspaces": {"a": ws("a")}})), ..Opts::default() });
-        *r.wrap.backend.borrow_mut() = Some(Arc::new(MissingState { log: r.w.log.clone(), get_fails: false }));
+        let r = rig(Opts {
+            store: store_of(json!({"workspaces": {"a": ws("a")}})),
+            ..Opts::default()
+        });
+        *r.wrap.backend.borrow_mut() = Some(Arc::new(MissingState {
+            log: r.w.log.clone(),
+            get_fails: false,
+        }));
         r.area
-            .hydrate_workspace(support::fill_workspace(&ws("a")), None, None, Some(support::asked_err("503 busy")))
+            .hydrate_workspace(
+                support::fill_workspace(&ws("a")),
+                None,
+                None,
+                Some(support::asked_err("503 busy")),
+            )
             .await
             .expect("hydrate");
         r.w.log.clear();
-        r.area.reread_held("a", wsp_words::words::thread::GoneSeenBy::Sweep).await.expect("reread");
+        r.area
+            .reread_held("a", wsp_words::words::thread::GoneSeenBy::Sweep)
+            .await
+            .expect("reread");
         flush().await;
-        same("a machine whose state answers 404", &r.w.log.take(), &want["log"]);
+        same(
+            "a machine whose state answers 404",
+            &r.w.log.take(),
+            &want["log"],
+        );
     });
 }
 
@@ -681,19 +925,41 @@ fn a_machine_whose_state_answers_404_is_read_gone_twelve_times_then_settled() {
 fn a_held_record_is_settled_gone_only_after_twelve_404s_in_a_row() {
     let want = sight_scene("a held record whose provider answers 404 to get");
     run(async move {
-        let r = rig(Opts { store: store_of(json!({"workspaces": {"a": ws("a")}})), ..Opts::default() });
-        *r.wrap.backend.borrow_mut() = Some(Arc::new(MissingState { log: r.w.log.clone(), get_fails: true }));
+        let r = rig(Opts {
+            store: store_of(json!({"workspaces": {"a": ws("a")}})),
+            ..Opts::default()
+        });
+        *r.wrap.backend.borrow_mut() = Some(Arc::new(MissingState {
+            log: r.w.log.clone(),
+            get_fails: true,
+        }));
         r.area
-            .hydrate_workspace(support::fill_workspace(&ws("a")), None, None, Some(support::asked_err("503 busy")))
+            .hydrate_workspace(
+                support::fill_workspace(&ws("a")),
+                None,
+                None,
+                Some(support::asked_err("503 busy")),
+            )
             .await
             .expect("hydrate");
         r.w.log.clear();
-        r.area.reread_held("a", wsp_words::words::thread::GoneSeenBy::Sweep).await.expect("reread");
+        r.area
+            .reread_held("a", wsp_words::words::thread::GoneSeenBy::Sweep)
+            .await
+            .expect("reread");
         flush().await;
         let got = r.w.log.take();
         let gets = |log: &[Value]| log.iter().filter(|e| e[0] == "backend.get").count();
-        assert_eq!(gets(&got), gets(want["log"].as_array().unwrap()), "provider reads before the record was settled gone (boot.ts: twelve); Rust log {got:?}");
-        same("a held record whose provider answers 404 to get", &got, &want["log"]);
+        assert_eq!(
+            gets(&got),
+            gets(want["log"].as_array().unwrap()),
+            "provider reads before the record was settled gone (boot.ts: twelve); Rust log {got:?}"
+        );
+        same(
+            "a held record whose provider answers 404 to get",
+            &got,
+            &want["log"],
+        );
     });
 }
 
@@ -705,16 +971,30 @@ fn a_builder_record_is_deleted_only_after_twelve_more_404s() {
     let want = sight_scene("a builder whose provider answers 404 to get");
     run(async move {
         let r = rig(Opts {
-            store: store_of(json!({"builders": {"b1": {"id": "b1", "name": "b-b1", "kind": "sandbox", "baseTemplate": "base", "setupSha": "sha", "createdAt": "2026-09-01T00:00:00.000Z", "firstLife": true, "size": {"cpu": 1, "memMb": 1}}}})),
+            store: store_of(
+                json!({"builders": {"b1": {"id": "b1", "name": "b-b1", "kind": "sandbox", "baseTemplate": "base", "setupSha": "sha", "createdAt": "2026-09-01T00:00:00.000Z", "firstLife": true, "size": {"cpu": 1, "memMb": 1}}}}),
+            ),
             ..Opts::default()
         });
-        let backend: Arc<dyn MachineBackend> = Arc::new(MissingState { log: r.w.log.clone(), get_fails: true });
+        let backend: Arc<dyn MachineBackend> = Arc::new(MissingState {
+            log: r.w.log.clone(),
+            get_fails: true,
+        });
         *r.wrap.places.borrow_mut() = Some(Rc::new(OnePlace(backend)));
         r.w.log.clear();
         r.area.refresh_builders().await.expect("refresh");
         flush().await;
-        let reads = |log: &[Value]| log.iter().filter(|e| e[0] == "backend.get" || e[0] == "store.delete").cloned().collect::<Vec<_>>();
-        assert_eq!(reads(&r.w.log.take()), reads(want["log"].as_array().unwrap()), "the reads boot.ts made before it deleted the record");
+        let reads = |log: &[Value]| {
+            log.iter()
+                .filter(|e| e[0] == "backend.get" || e[0] == "store.delete")
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            reads(&r.w.log.take()),
+            reads(want["log"].as_array().unwrap()),
+            "the reads boot.ts made before it deleted the record"
+        );
     });
 }
 
@@ -722,7 +1002,10 @@ fn a_builder_record_is_deleted_only_after_twelve_more_404s() {
 
 mod folders {
     use super::*;
-    use common::places::{block, held, obj, recipe, report, settle, until, FakeSocket, Reply, Scene, SceneOpts, Script};
+    use common::places::{
+        block, held, obj, recipe, report, settle, until, FakeSocket, Reply, Scene, SceneOpts,
+        Script,
+    };
     use futures::FutureExt;
     use wsp_machines::places::setup::GivenPicks;
     use wsp_machines::places::types::{is_place_provisioning, FolderMove};
@@ -735,18 +1018,33 @@ mod folders {
             if op != "exec" {
                 return Reply::Ok(obj(json!({ "ok": true })));
             }
-            Reply::Ok(obj(json!({ "ok": true, "exitCode": 0, "stdout": "", "stderr": "", "truncated": false })))
+            Reply::Ok(obj(
+                json!({ "ok": true, "exitCode": 0, "stdout": "", "stderr": "", "truncated": false }),
+            ))
         })
     }
 
     fn spoo_report() -> wsp_wire::wire::place_link::PlaceReport {
-        report("spoo", json!({ "daemonVersion": 200, "login": { "HOME": "/root", "PATH": "/usr/bin" } }))
+        report(
+            "spoo",
+            json!({ "daemonVersion": 200, "login": { "HOME": "/root", "PATH": "/usr/bin" } }),
+        )
     }
 
     fn picks_of(keys: &[&str]) -> Option<GivenPicks> {
-        let folders: serde_json::Map<String, Value> = keys.iter().map(|k| (k.to_string(), json!({ "from": format!("/repos/{k}"), "keep": [] }))).collect();
+        let folders: serde_json::Map<String, Value> = keys
+            .iter()
+            .map(|k| {
+                (
+                    k.to_string(),
+                    json!({ "from": format!("/repos/{k}"), "keep": [] }),
+                )
+            })
+            .collect();
         Some(GivenPicks {
-            picks: recipe(json!({ "name": "laptop", "agents": { "claude": { "signin": "vault" } }, "folders": folders })),
+            picks: recipe(
+                json!({ "name": "laptop", "agents": { "claude": { "signin": "vault" } }, "folders": folders }),
+            ),
             recipe: None,
         })
     }
@@ -761,7 +1059,7 @@ mod folders {
     #[test]
     fn the_setups_own_folder_add_is_let_through_the_gate_in_every_task_it_starts() {
         block(async {
-          tokio::time::timeout(std::time::Duration::from_secs(20), async {
+            tokio::time::timeout(std::time::Duration::from_secs(20), async {
             let scene = Scene::new(SceneOpts::default());
             let door = scene.link();
             let _socket: Rc<FakeSocket> = scene.linked(P, "spoo", spoo_report(), script());
@@ -799,15 +1097,16 @@ mod folders {
 mod folder_servers {
     use super::*;
     use common::places::{
-        block, held, iso, obj, recipe, report, settle, until, FakeDevices, FakeProvisioner, FakeRecording, FakeRecords, FakeStore,
-        FakeViews, Reply, Scene, Script, TestClock,
-    };
-    use wsp_machines::places::setup::{GivenPicks, PlaceSetupArea, SetupRecords};
-    use wsp_machines::places::types::{
-        FolderMove, HeldImage, HeldRow, HerePlace, PlaceDoorOptions, PlaceEvent, PlaceProvisioner, PlaceRecording, PlaceResult, PlaceWiring, ProjectOn, RowId,
-        SetupEvent, SignInEmit, SignInHandle, SpentToday,
+        block, held, iso, obj, recipe, report, settle, until, FakeDevices, FakeProvisioner,
+        FakeRecording, FakeRecords, FakeStore, FakeViews, Reply, Scene, Script, TestClock,
     };
     use wsp_machines::places::context::place_door_context;
+    use wsp_machines::places::setup::{GivenPicks, PlaceSetupArea, SetupRecords};
+    use wsp_machines::places::types::{
+        FolderMove, HeldImage, HeldRow, HerePlace, PlaceDoorOptions, PlaceEvent, PlaceProvisioner,
+        PlaceRecording, PlaceResult, PlaceWiring, ProjectOn, RowId, SetupEvent, SignInEmit,
+        SignInHandle, SpentToday,
+    };
     use wsp_wire::types::agents_report::SignInLine;
     use wsp_wire::types::recipe_file::RecipeFileFoldersValue;
     use wsp_wire::views::place_more::{PlaceHolds, PlaceRemovedTook, PlaceView};
@@ -856,15 +1155,30 @@ mod folder_servers {
         let views = FakeViews::new();
         let provisioner = FakeProvisioner::new();
         let frames: Rc<RefCell<Vec<SetupEvent>>> = Rc::new(RefCell::new(Vec::new()));
-        let vault = Rc::new(RefCell::new(IndexMap::from([("CLAUDE_CODE_OAUTH_TOKEN".to_string(), "sk-ant-oat01-x".to_string())])));
+        let vault = Rc::new(RefCell::new(IndexMap::from([(
+            "CLAUDE_CODE_OAUTH_TOKEN".to_string(),
+            "sk-ant-oat01-x".to_string(),
+        )])));
         let wiring = PlaceWiring {
             host_key: wsp_store::keys::new_place_key_pair(),
             provider: None,
-            here: Rc::new(|| HerePlace { name: "zingzys-mac".into(), ..Default::default() }),
+            here: Rc::new(|| HerePlace {
+                name: "zingzys-mac".into(),
+                ..Default::default()
+            }),
             host_name: Rc::new(|| "zingzys-mac".to_string()),
-            install: None, dial: None, log: None, update: None, leave: None, forget_key: None, sudo_over: None,
+            install: None,
+            dial: None,
+            log: None,
+            update: None,
+            leave: None,
+            forget_key: None,
+            sudo_over: None,
             provision: Some(Rc::clone(&provisioner) as Rc<dyn PlaceProvisioner>),
-            github_token: None, undo: None, run_over: None, back: None,
+            github_token: None,
+            undo: None,
+            run_over: None,
+            back: None,
         };
         let (f2, v2) = (Rc::clone(&frames), Rc::clone(&vault));
         let opts = PlaceDoorOptions {
@@ -872,21 +1186,47 @@ mod folder_servers {
             devices: Rc::new(FakeDevices),
             wiring,
             recording: Rc::clone(&recording) as Rc<dyn PlaceRecording>,
-            providers: None, on_daemon_event: None, on_stage: None,
-            on_setup: Some(Rc::new(move |e: &SetupEvent| f2.borrow_mut().push(e.clone()))),
-            copy_build: None, nap_ms: None, here_daemon: None, nap_changed: None, join_wait_ms: None, update_wait_ms: None, dial_wait_ms: None,
-            frame_wait_ms: None, relink_wait_ms: None, seen_every_ms: None,
+            providers: None,
+            on_daemon_event: None,
+            on_stage: None,
+            on_setup: Some(Rc::new(move |e: &SetupEvent| {
+                f2.borrow_mut().push(e.clone())
+            })),
+            copy_build: None,
+            nap_ms: None,
+            here_daemon: None,
+            nap_changed: None,
+            join_wait_ms: None,
+            update_wait_ms: None,
+            dial_wait_ms: None,
+            frame_wait_ms: None,
+            relink_wait_ms: None,
+            seen_every_ms: None,
             vault: Some(Rc::new(move || v2.borrow().clone())),
             recipes: Some(Rc::new(|| None)),
-            owner: None, kill_confirm: None,
+            owner: None,
+            kill_confirm: None,
             clock: Some(Rc::clone(&clock) as Rc<dyn wsp_core::types::pending::Clock>),
         };
         let ctx = place_door_context(opts);
         *records.ctx.borrow_mut() = Some(Rc::clone(&ctx));
         *views.ctx.borrow_mut() = Some(Rc::clone(&ctx));
         let events: Rc<RefCell<Vec<PlaceEvent>>> = Rc::new(RefCell::new(Vec::new()));
-        let setup = PlaceSetupArea::new(Rc::clone(&ctx), Rc::clone(&records) as Rc<dyn SetupRecords>);
-        Scene { clock, store, ctx, records, views, recording: Rc::clone(&recording.inner), provisioner, setup, frames, events, vault }
+        let setup =
+            PlaceSetupArea::new(Rc::clone(&ctx), Rc::clone(&records) as Rc<dyn SetupRecords>);
+        Scene {
+            clock,
+            store,
+            ctx,
+            records,
+            views,
+            recording: Rc::clone(&recording.inner),
+            provisioner,
+            setup,
+            frames,
+            events,
+            vault,
+        }
     }
 
     /// setup.ts:679-681. A project's servers are carried only after `recording.projectsOn` has said where the project

@@ -8,7 +8,6 @@ mod support;
 use serde_json::json;
 use support::{BackendOpts, Made, Opts, World};
 use wsp_engine::errors::EngineError;
-use wsp_machines::machines::area_error::AreaError;
 use wsp_machines::machines::sub_spawn::machine::fault_of;
 use wsp_words::sub_thread::SubFault;
 
@@ -37,7 +36,7 @@ fn a_fork_the_cloud_cancelled_still_names_its_box_to_the_sub_thread_start() {
             .await
             .err()
             .expect("the cloud cancelled the create");
-        let fault = fault_of(&AreaError::from(err));
+        let fault = fault_of(&err);
         assert!(
             matches!(&fault, Some(SubFault::Cancelled { r#box, .. }) if r#box == "box-9"),
             "the fork's failure must still be the cancelled fault naming box-9, so the start kills it and tries once \

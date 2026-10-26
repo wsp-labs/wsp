@@ -30,6 +30,7 @@ use wsp_words::words::turn::{kept_opening, listed_failure};
 
 use crate::machines::area_error::{AreaError, AreaResult};
 use crate::machines::machines::Entry;
+use crate::unwound::unwound;
 use wsp_core::clock::Cancel;
 use wsp_core::context::Joined;
 use wsp_core::types::internal::{SessionEntry, SubStartOpts, SubStartRecord, SubTree};
@@ -916,13 +917,16 @@ impl SubQueueArea {
         let me = self.me.clone();
         let pumping: LocalBoxFuture<'static, ()> = async move {
             let Some(area) = me.upgrade() else { return };
-            let outcome = area.pump_loop().await;
+            let outcome = unwound(area.pump_loop()).await;
             *area.pumping.borrow_mut() = None;
-            if let Err(e) = outcome {
-                area.ctx.warn(&format!(
-                    "the queue of held spawns did not move: {}",
-                    e.failure_words()
-                ));
+            let failed = match outcome {
+                Ok(Ok(())) => None,
+                Ok(Err(e)) => Some(e.failure_words()),
+                Err(panic) => Some(panic),
+            };
+            if let Some(why) = failed {
+                area.ctx
+                    .warn(&format!("the queue of held spawns did not move: {why}"));
             }
         }
         .boxed_local();
