@@ -197,9 +197,9 @@ There is no cap on sockets, on subscriptions per socket (rule 4.22), on daemon c
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
 {"in":{"id":2,"op":"ticket.issue","purpose":"connect"}}
-{"out":{"id":2,"ok":true,"ticket":"G58npC6ooGXI81UhRIcUnHNv3CMNdK1w","expiresAt":1792924879776}}
+{"out":{"id":2,"ok":true,"ticket":"G58npC6ooGXI81UhRIcUnHNv3CMNdK1w","expiresAt":"<time+5m in ms>"}}
 {"in":{"id":3,"op":"ticket.issue","purpose":"relay"}}
-{"out":{"id":3,"ok":true,"ticket":"GzIxfkwl8RKUK1ZSXqmEoiQ7epWdQTZk","expiresAt":1792924880028}}
+{"out":{"id":3,"ok":true,"ticket":"GzIxfkwl8RKUK1ZSXqmEoiQ7epWdQTZk","expiresAt":"<time+5m in ms>"}}
 {"in":{"id":4,"op":"ticket.issue","purpose":"later"}}
 {"out":{"id":4,"ok":false,"error":"[\n  {\n    \"received\": \"later\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"connect\",\n      \"relay\"\n    ],\n    \"path\": [\n      \"purpose\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'connect' | 'relay', received 'later'\"\n  }\n]"}}
 ```
@@ -223,9 +223,9 @@ ws /ws?ticket=nope                     ->  101, then close 4401 "unauthorized"
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
 {"in":{"id":2,"op":"pair.issue"}}
-{"out":{"id":2,"ok":true,"code":"YET5PRMX","expiresAt":1792925183400,"hostKey":"SHA256:mgKBXF4tRWCOXuA/0HY5d7EkuCeGMi314RT+dyN8Umk"}}
+{"out":{"id":2,"ok":true,"code":"YET5PRMX","expiresAt":"<time+10m in ms>","hostKey":"SHA256:mgKBXF4tRWCOXuA/0HY5d7EkuCeGMi314RT+dyN8Umk"}}
 {"in":{"id":3,"op":"pair.issue","here":true}}
-{"out":{"id":3,"ok":true,"code":"GQSCFPG7","expiresAt":1792925183652,"hostKey":"SHA256:mgKBXF4tRWCOXuA/0HY5d7EkuCeGMi314RT+dyN8Umk"}}
+{"out":{"id":3,"ok":true,"code":"GQSCFPG7","expiresAt":"<time+10m in ms>","hostKey":"SHA256:mgKBXF4tRWCOXuA/0HY5d7EkuCeGMi314RT+dyN8Umk"}}
 ```
 
 ## Envelopes

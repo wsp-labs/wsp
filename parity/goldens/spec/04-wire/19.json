@@ -1,0 +1,38 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "projects": []
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": {
+        "json": [
+          {
+            "received": "elsewhere",
+            "code": "invalid_enum_value",
+            "options": [
+              "here",
+              "relayed",
+              "paired"
+            ],
+            "path": [
+              "origin"
+            ],
+            "message": "Invalid enum value. Expected 'here' | 'relayed' | 'paired', received 'elsewhere'"
+          }
+        ],
+        "layout": "indented"
+      }
+    }
+  ],
+  "events": []
+}

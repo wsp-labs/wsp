@@ -1,0 +1,70 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": {
+        "json": [
+          {
+            "code": "invalid_type",
+            "expected": "string",
+            "received": "undefined",
+            "path": [
+              "sessionId"
+            ],
+            "message": "Required"
+          }
+        ],
+        "layout": "indented"
+      }
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": {
+        "json": [
+          {
+            "received": "purple",
+            "code": "invalid_enum_value",
+            "options": [
+              "system",
+              "light",
+              "dark"
+            ],
+            "path": [
+              "patch",
+              "theme"
+            ],
+            "message": "Invalid enum value. Expected 'system' | 'light' | 'dark', received 'purple'"
+          }
+        ],
+        "layout": "indented"
+      }
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": {
+        "json": [
+          {
+            "code": "invalid_type",
+            "expected": "string",
+            "received": "number",
+            "path": [
+              "token"
+            ],
+            "message": "Expected string, received number"
+          }
+        ],
+        "layout": "indented"
+      }
+    }
+  ],
+  "events": []
+}
