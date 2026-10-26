@@ -384,6 +384,7 @@ impl RenderOnce for Button {
         let side = self.side.unwrap_or(side);
         let height = self.height.unwrap_or(side);
         let hovered = motion::hovered(self.id.clone(), window, cx);
+        let clicked = window.use_keyed_state(ElementId::from((ElementId::from(self.id.clone()), "clicked")), cx, |_, _| false);
         let (fill, edge, ink) = if *hovered.read(cx) && !held { over } else { rest };
         let edge = self.edge.unwrap_or(edge);
         let mut keycap = bevel(&p);
@@ -467,9 +468,31 @@ impl RenderOnce for Button {
                     .when_some(self.focus, |el, focus| el.track_focus(&focus))
                     .tab_index(0)
                     .focus_visible(|s| s.shadow(vec![ring(ring_ink)]))
-                    .on_hover(motion::track_hover(hovered))
-                    .when_some(self.tooltip, |el, t| el.tooltip(tip(t)).tooltip_side(self.tooltip_side))
-                    .when_some(self.on_click, |el, f| el.on_click(move |e, window, cx| f(e, window, cx)))
+                    .on_hover({
+                        let clicked = clicked.clone();
+                        let track = motion::track_hover(hovered);
+                        move |over, window, cx| {
+                            track(over, window, cx);
+                            if !*over {
+                                clicked.update(cx, |c, cx| {
+                                    *c = false;
+                                    cx.notify();
+                                });
+                            }
+                        }
+                    })
+                    // A click ends its tooltip until the pointer leaves, so a click quicker than the show delay
+                    // does not draw it over what the click opened.
+                    .when_some(self.tooltip.filter(|_| !*clicked.read(cx)), |el, t| el.tooltip(tip(t)).tooltip_side(self.tooltip_side))
+                    .when_some(self.on_click, |el, f| {
+                        el.on_click(move |e, window, cx| {
+                            clicked.update(cx, |c, cx| {
+                                *c = true;
+                                cx.notify();
+                            });
+                            f(e, window, cx)
+                        })
+                    })
             })
     }
 }
