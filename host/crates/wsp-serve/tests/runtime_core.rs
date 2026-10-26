@@ -146,6 +146,10 @@ impl CoreCtx for Ctx {
     fn bus(&self) -> Rc<dyn EventBus> {
         self.bus.clone()
     }
+    fn emit(&self, event: wsp_wire::wire::events_union::EventUnion) -> Result<(), HostError> {
+        self.bus.emit(&event);
+        Ok(())
+    }
     fn clock(&self) -> Rc<dyn Clock> {
         self.clock.clone()
     }
@@ -327,7 +331,7 @@ fn standing(id: &str, kind: WorkspaceKind, place: &str, project: &str) -> Standi
 }
 
 fn session(workspace: &str, thread: &str, title: &str) -> SessionView {
-    serde_json::from_value(json!({ "id": format!("s-{thread}"), "workspaceId": workspace, "harness": "claude", "status": "completed", "threadId": thread, "title": title }))
+    serde_json::from_value(json!({ "id": format!("s-{thread}"), "workspaceId": workspace, "harness": "claude", "status": "completed", "threadId": thread, "harnessTitle": title }))
         .unwrap_or_else(|e| panic!("build a SessionView: {e}"))
 }
 
@@ -1076,7 +1080,7 @@ fn place_absent_and_present_re_emit_the_stage() {
         let seen = emitted(&ctx);
         let core = Core::new(ctx.clone());
         let frame: StageFrame =
-            serde_json::from_value(json!({ "name": "default", "stage": "installing-tools", "detail": "apt-get install", "step": 3 }))
+            serde_json::from_value(json!({ "name": "default", "stage": "installing-tools", "detail": "apt-get install", "step": { "label": "tools", "command": "apt-get install" } }))
                 .expect("a stage frame");
         core.note_stage(StageAt { place: "box-1".into(), name: "default".into(), named: true, frame: frame.clone() });
         core.note_stage(StageAt { place: "box-2".into(), name: "default".into(), named: false, frame: frame.clone() });
@@ -1085,14 +1089,14 @@ fn place_absent_and_present_re_emit_the_stage() {
         assert_eq!(
             seen.borrow().clone(),
             vec![
-                json!({ "type": "golden.stage", "name": "default", "stage": "installing-tools", "detail": dial_back, "step": 3, "place": "box-1" })
+                json!({ "type": "golden.stage", "name": "default", "stage": "installing-tools", "detail": dial_back, "step": { "label": "tools", "command": "apt-get install" }, "place": "box-1" })
             ]
         );
         core.on_place_event(&json!({ "type": "place.present", "placeId": "box-1" }));
         tokio::task::yield_now().await;
         assert_eq!(
             seen.borrow()[1],
-            json!({ "type": "golden.stage", "name": "default", "stage": "installing-tools", "detail": "apt-get install", "step": 3, "place": "box-1" })
+            json!({ "type": "golden.stage", "name": "default", "stage": "installing-tools", "detail": "apt-get install", "step": { "label": "tools", "command": "apt-get install" }, "place": "box-1" })
         );
         // A stage that did not name its place is re-said without one.
         core.on_place_event(&json!({ "type": "place.absent", "placeId": "box-2" }));
