@@ -144,7 +144,7 @@ fn fails_naming_itself(_ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErro
 }
 
 fn host_validator_refused(_ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move { Err(HostError::new(r#"the request did not match: [{"path":["thread"],"message":"Required"}]"#)) })
+    Box::pin(async move { Err(HostError::new(r#"[{"code":"invalid_type","path":["thread"],"message":"Required"}]"#)) })
 }
 
 fn argv(words: &[&str]) -> Vec<String> {
@@ -228,10 +228,13 @@ async fn the_socket_is_closed_once_the_run_returns_whether_it_answered_or_failed
 async fn a_failure_is_one_stderr_line_behind_the_verb_s_name_or_its_failure_object_under_json() {
     let v = verb("mine", fails_after_dialling);
     let r = run(LineVerb::Cli(&v), &["mine"], Recording::new(), &[], false).await;
-    assert_eq!(r.io.errors(), vec!["wsp mine: no thread nope".to_owned()]);
+    assert_eq!(r.io.errors(), vec!["starting the host".to_owned(), "wsp mine: no thread nope".to_owned()]);
     assert!(r.io.lines().is_empty());
     let r = run(LineVerb::Cli(&v), &["mine", "--json"], Recording::new(), &[], false).await;
-    assert_eq!(r.io.errors(), vec![r#"{"error":"no thread nope","class":"usage","exit":3}"#.to_owned()]);
+    assert_eq!(
+        r.io.errors(),
+        vec!["starting the host".to_owned(), r#"{"error":"no thread nope","class":"usage","exit":3}"#.to_owned()]
+    );
     assert!(r.io.lines().is_empty(), "stdout carries nothing on a failure");
 }
 
@@ -288,7 +291,7 @@ async fn help_on_a_line_that_runs_at_its_own_host_says_what_host_means_there() {
     };
     let r = run(LineVerb::CliOnly(&v), &["mine", "-h"], Recording::new(), &[], true).await;
     assert!(
-        r.io.lines().join("\n").contains("--host     read to say this line runs at its own host's terminal; it dials no other"),
+        r.io.lines().join("\n").contains("--host     read to say this line runs at its own host's terminal; it dials no\n             other"),
         "{:?}",
         r.io.lines()
     );

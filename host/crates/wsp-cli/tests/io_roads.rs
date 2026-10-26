@@ -45,7 +45,7 @@ mod exec {
             Arc::new(move |e: &ExecEvent| {
                 noted.lock().unwrap().push(match e {
                     ExecEvent::ExecOutput { text, .. } => format!("out {text}"),
-                    ExecEvent::ExecExit { exit_code, .. } => format!("exit {exit_code:?}"),
+                    ExecEvent::ExecExit { exit_code, .. } => format!("exit {:?}", exit_code.map(|c| c.0 .0 as i64)),
                 })
             }),
         )
