@@ -202,7 +202,13 @@ pub fn drained_notice(event: &Obj) -> bool {
 }
 
 /// adapter.ts:502. Mutates `plans` and `book` as the TS does.
-pub fn normalize_event(event: &Obj, fallback_session_id: &str, refusal: Option<&Refusal>, plans: &mut PlanBook, book: &mut HandbackBook) -> Vec<AdapterEvent> {
+pub fn normalize_event(
+    event: &Obj,
+    fallback_session_id: &str,
+    refusal: Option<&Refusal>,
+    plans: &mut PlanBook,
+    book: &mut HandbackBook,
+) -> Vec<AdapterEvent> {
     todo!()
 }
 

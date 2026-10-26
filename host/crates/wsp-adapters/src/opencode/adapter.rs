@@ -7,7 +7,10 @@ use std::sync::{Arc, Mutex};
 use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 
-use crate::port::{AdapterAttachOptions, AdapterError, AgentLaunch, Env, ExecFailure, ExecStreamFactory, HarnessCatalogAnswer, HarnessExec, HarnessStartOptions, Now, SharedFuture, TurnResult};
+use crate::port::{
+    AdapterAttachOptions, AdapterError, AgentLaunch, Env, ExecFailure, ExecStreamFactory, HarnessCatalogAnswer, HarnessExec,
+    HarnessStartOptions, Now, SharedFuture, TurnResult,
+};
 
 /// TS adapter.ts:41.
 #[derive(Clone)]
@@ -30,7 +33,17 @@ pub struct OpenCodeAdapterDeps {
 impl OpenCodeAdapterDeps {
     /// Deps with every optional field `None`.
     pub fn new(exec: Arc<dyn ExecStreamFactory>) -> Self {
-        OpenCodeAdapterDeps { exec, base_env: None, sign_in_refusal: None, api_key: None, key_env: None, interrupt_grace_ms: None, result_exit_ms: None, launch: None, now: None }
+        OpenCodeAdapterDeps {
+            exec,
+            base_env: None,
+            sign_in_refusal: None,
+            api_key: None,
+            key_env: None,
+            interrupt_grace_ms: None,
+            result_exit_ms: None,
+            launch: None,
+            now: None,
+        }
     }
 }
 
