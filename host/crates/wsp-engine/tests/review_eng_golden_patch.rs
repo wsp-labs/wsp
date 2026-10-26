@@ -184,7 +184,7 @@ async fn an_install_that_moved_half_a_byte_by_df_says_so_in_its_bytes() {
     )]);
     let step =
         ToolInstall { id: "tools/x".into(), label: "x".into(), manager: "script".into(), cmd: "echo x".into(), ..Default::default() };
-    let stage = Arc::new(|_: GoldenStage, _: Option<&str>| {});
+    let stage = Arc::new(|_: GoldenStage, _: Option<&str>, _: Option<wsp_wire::views::golden_image::GoldenStep>| {});
     let opts = InstallToolsOptions { keep_caches: true, ..Default::default() };
     let out = install_tools_at(&m, &[step], stage, GoldenStage::InstallingTools, opts).await.unwrap();
     assert_eq!(serde_json::to_value(&out.tools[0]).unwrap()["bytes"], json!(0.5120000839233398));

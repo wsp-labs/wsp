@@ -438,7 +438,8 @@ async fn every_frame_of_a_step_names_the_step_and_the_stage_s_own_lines_name_non
         Box::pin(async { Ok(ok()) })
     });
     let machine = FakeMachine { id: "m1".to_string(), exec, run: Some(run), download_url: None, upload_url: None, put_bytes: None };
-    let frames: Arc<Mutex<Vec<(String, Option<(String, String)>)>>> = Arc::new(Mutex::new(Vec::new()));
+    type Frames = Arc<Mutex<Vec<(String, Option<(String, String)>)>>>;
+    let frames: Frames = Arc::new(Mutex::new(Vec::new()));
     let seen = frames.clone();
     let stage: ToolStage = Arc::new(move |_, detail, step| {
         let step = step.map(|s| (s.label, s.command));
@@ -453,18 +454,20 @@ async fn every_frame_of_a_step_names_the_step_and_the_stage_s_own_lines_name_non
             shown: Some("brew install gh".into()),
             ..Default::default()
         },
-        ToolInstall { id: "tools/npm/bun".into(), label: "bun@1.4.0".into(), manager: "npm".into(), cmd: "npm install -g bun@1.4.0".into(), ..Default::default() },
+        ToolInstall {
+            id: "tools/npm/bun".into(),
+            label: "bun@1.4.0".into(),
+            manager: "npm".into(),
+            cmd: "npm install -g bun@1.4.0".into(),
+            ..Default::default()
+        },
     ];
     install_tools(&machine, &tools, stage, InstallToolsOptions::default()).await.unwrap();
     let frames = frames.lock().unwrap().clone();
     let gh = Some(("gh".to_string(), "brew install gh".to_string()));
     assert_eq!(
         frames[..3],
-        [
-            ("gh (1/2)".to_string(), gh.clone()),
-            ("gh: ==> Downloading gh".to_string(), gh.clone()),
-            ("gh: ==> Pouring gh".to_string(), gh),
-        ]
+        [("gh (1/2)".to_string(), gh.clone()), ("gh: ==> Downloading gh".to_string(), gh.clone()), ("gh: ==> Pouring gh".to_string(), gh),]
     );
     let bun = Some(("bun@1.4.0".to_string(), "npm install -g bun@1.4.0".to_string()));
     assert!(frames.contains(&("bun@1.4.0 (2/2)".to_string(), bun)));

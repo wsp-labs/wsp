@@ -517,18 +517,17 @@ pub fn stage_recorder() -> Stages {
     let left: Rc<RefCell<Vec<(String, Vec<String>)>>> = Rc::new(RefCell::new(Vec::new()));
     let steps: Rc<RefCell<Vec<Option<GoldenStep>>>> = Rc::new(RefCell::new(Vec::new()));
     let (l, k, t) = (lines.clone(), left.clone(), steps.clone());
-    let on_stage: StageFn =
-        Arc::new(move |stage: GoldenStage, detail: Option<&str>, step: Option<GoldenStep>, left: Option<&[String]>| {
-            t.borrow_mut().push(step);
-            let word = stage_word(stage);
-            l.borrow_mut().push(match detail {
-                None => word.to_string(),
-                Some(d) => format!("{word}:{d}"),
-            });
-            if let Some(left) = left {
-                k.borrow_mut().push((word.to_string(), left.to_vec()));
-            }
+    let on_stage: StageFn = Arc::new(move |stage: GoldenStage, detail: Option<&str>, step: Option<GoldenStep>, left: Option<&[String]>| {
+        t.borrow_mut().push(step);
+        let word = stage_word(stage);
+        l.borrow_mut().push(match detail {
+            None => word.to_string(),
+            Some(d) => format!("{word}:{d}"),
         });
+        if let Some(left) = left {
+            k.borrow_mut().push((word.to_string(), left.to_vec()));
+        }
+    });
     Stages { lines, on_stage, left, steps }
 }
 
