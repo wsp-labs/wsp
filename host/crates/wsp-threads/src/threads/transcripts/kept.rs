@@ -27,7 +27,7 @@ use wsp_words::exit::HostError;
 use super::super::threads::{Entry, Row};
 use super::TranscriptsArea;
 
-pub use wsp_core::types::internal::{ATTACHMENT_KEYS, ATTACHMENTS, SESSIONS, SESSION_INDEX_CAP, DAEMON_TOKEN_MISS_TTL_MS};
+pub use wsp_core::types::internal::{ATTACHMENTS, ATTACHMENT_KEYS, DAEMON_TOKEN_MISS_TTL_MS, SESSIONS, SESSION_INDEX_CAP};
 /// One step of the kept-images chain: the document as read, answering the document to write, or `None` where the
 /// step wrote its own (transcripts.ts:24).
 pub type KeptStep = Box<dyn FnOnce(KeptImages) -> LocalBoxFuture<'static, Result<Option<KeptImages>, HostError>>>;
@@ -203,12 +203,20 @@ impl TranscriptsArea {
     }
 
     /// transcripts.ts:39: K2.
-    pub fn keep_sent_images(&self, workspace_id: &str, thread_id: &str, request_id: Option<&str>, attachments: &[Attachment]) -> LocalBoxFuture<'static, ()> {
+    pub fn keep_sent_images(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        request_id: Option<&str>,
+        attachments: &[Attachment],
+    ) -> LocalBoxFuture<'static, ()> {
         let kept: Vec<(String, String, Vec<u8>)> = attachments
             .iter()
             .enumerate()
             .filter(|(_, a)| is_image(&a.media_type))
-            .filter_map(|(index, a)| attachment_key(thread_id, request_id, index as f64).map(|key| (key, a.media_type.clone(), base64_decode(&a.bytes))))
+            .filter_map(|(index, a)| {
+                attachment_key(thread_id, request_id, index as f64).map(|key| (key, a.media_type.clone(), base64_decode(&a.bytes)))
+            })
             .collect();
         if kept.is_empty() {
             return futures::future::ready(()).boxed_local();
@@ -221,13 +229,8 @@ impl TranscriptsArea {
                 let mut threads = held.threads;
                 // The entry before the bytes: a crash between the two leaves an entry whose blob is missing, which reads
                 // as not found and goes with its thread, never a blob no document names and nothing can sweep.
-                let mut list: Vec<_> = threads
-                    .get(&thread)
-                    .into_iter()
-                    .flatten()
-                    .filter(|h| !kept.iter().any(|k| k.0 == h.key))
-                    .cloned()
-                    .collect();
+                let mut list: Vec<_> =
+                    threads.get(&thread).into_iter().flatten().filter(|h| !kept.iter().any(|k| k.0 == h.key)).cloned().collect();
                 list.extend(kept.iter().map(|(key, media, _)| KeptImage { key: key.clone(), media_type: media.clone() }));
                 threads.insert(thread, list);
                 store.put(ATTACHMENT_KEYS, &ws, to_json(&KeptImages { threads })).await?;
@@ -439,7 +442,11 @@ impl TranscriptsArea {
     }
 
     /// transcripts.ts:532: K9.
-    pub fn daemon_token_of(&self, machine: Arc<dyn Machine>, path: Option<String>) -> LocalBoxFuture<'static, Result<Option<String>, HostError>> {
+    pub fn daemon_token_of(
+        &self,
+        machine: Arc<dyn Machine>,
+        path: Option<String>,
+    ) -> LocalBoxFuture<'static, Result<Option<String>, HostError>> {
         let id = machine.id().to_string();
         let token = self.token_for_machine(&id);
         let clock: Rc<dyn Clock> = self.ctx.clock();

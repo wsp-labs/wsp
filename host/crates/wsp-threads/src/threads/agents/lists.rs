@@ -7,7 +7,10 @@ use std::sync::Arc;
 
 use futures::future::{join_all, FutureExt, LocalBoxFuture, Shared};
 use indexmap::{IndexMap, IndexSet};
-use wsp_adapters::port::{Env, ExecFailure, ExecFailureKind, HarnessCatalogAnswer, HarnessCatalogModelProbe, HarnessCatalogProbe, HarnessExec, SessionRenameWrite, TitleTurn};
+use wsp_adapters::port::{
+    Env, ExecFailure, ExecFailureKind, HarnessCatalogAnswer, HarnessCatalogModelProbe, HarnessCatalogProbe, HarnessExec,
+    SessionRenameWrite, TitleTurn,
+};
 use wsp_catalog::catalog::catalog_agents;
 use wsp_catalog::first_run::{installs_on_first_run, RunScript};
 use wsp_core::console::warn;
@@ -31,8 +34,11 @@ use super::super::threads::{Entry, Row};
 use super::launch::AdapterAsk;
 use super::{fire, ready, AccountRead, AgentsArea, CatalogHeld, TitleRead};
 
-pub use wsp_core::types::events::{CATALOG_TTL_MS, CATALOG_PROBE_TIMEOUT_MS, FIRST_RUN_READ_MS, AGENT_VERSION_READ_MS, SESSION_TITLE_TTL_MS, SESSION_TITLE_TIMEOUT_MS, SESSION_TITLE_REFRESH_MAX, TITLE_MAKE_TIMEOUT_MS};
-pub use wsp_core::types::internal::{AGENT_LISTS};
+pub use wsp_core::types::events::{
+    AGENT_VERSION_READ_MS, CATALOG_PROBE_TIMEOUT_MS, CATALOG_TTL_MS, FIRST_RUN_READ_MS, SESSION_TITLE_REFRESH_MAX,
+    SESSION_TITLE_TIMEOUT_MS, SESSION_TITLE_TTL_MS, TITLE_MAKE_TIMEOUT_MS,
+};
+pub use wsp_core::types::internal::AGENT_LISTS;
 /// `{ harnessTitle, titleSource }` (agents.ts:246).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct CarriedTitle {
@@ -106,7 +112,8 @@ struct MachineScript(Arc<dyn Machine>);
 
 impl RunScript for MachineScript {
     async fn run(&self, script: &str) -> Option<String> {
-        let res = self.0.exec(script, ExecOptions { timeout_ms: Some(FIRST_RUN_READ_MS), idempotency_key: None, stdin: None }).await.ok()?;
+        let res =
+            self.0.exec(script, ExecOptions { timeout_ms: Some(FIRST_RUN_READ_MS), idempotency_key: None, stdin: None }).await.ok()?;
         (res.exit_code.get() == 0).then_some(res.stdout)
     }
 }
@@ -134,9 +141,7 @@ async fn run_exec(machine: Arc<dyn Machine>, command: String, env: Option<Env>, 
 
 /// `harnessExec(machine, timeoutMs)` (engine run-env.ts:36) as an adapter takes it.
 pub(super) fn harness_exec_on(machine: Arc<dyn Machine>, timeout_ms: u64) -> Arc<dyn HarnessExec> {
-    Arc::new(move |command: &str, env: Option<&Env>| {
-        run_exec(machine.clone(), command.to_string(), env.cloned(), timeout_ms).boxed_local()
-    })
+    Arc::new(move |command: &str, env: Option<&Env>| run_exec(machine.clone(), command.to_string(), env.cloned(), timeout_ms).boxed_local())
 }
 
 /// `harnessExec` held behind the first run: a command whose first run installs its agent is not run at all, and the
@@ -158,7 +163,12 @@ fn gated_exec(machine: Arc<dyn Machine>, timeout_ms: u64, installing: Shared<Loc
 }
 
 /// `fromAccount` (agents.ts:80-93): the models the account lists under the table's other lists, else the table.
-fn account_answer(area: Rc<AgentsArea>, table: HarnessCatalog, known: HarnessCatalog, adapter: Arc<dyn HarnessAdapter>) -> LocalBoxFuture<'static, HarnessCatalog> {
+fn account_answer(
+    area: Rc<AgentsArea>,
+    table: HarnessCatalog,
+    known: HarnessCatalog,
+    adapter: Arc<dyn HarnessAdapter>,
+) -> LocalBoxFuture<'static, HarnessCatalog> {
     async move {
         let version = area.heard_versions.borrow().get(&table.harness).cloned();
         let read_key = format!("{}:{}", table.harness, version.clone().unwrap_or_default());
@@ -196,7 +206,14 @@ fn account_answer(area: Rc<AgentsArea>, table: HarnessCatalog, known: HarnessCat
 }
 
 /// `sameBinary` (agents.ts:118-130): kept lists stand while the binary answers the version they were read off.
-async fn same_binary(area: Rc<AgentsArea>, adapter: Arc<dyn HarnessAdapter>, machine: Arc<dyn Machine>, installing: Shared<LocalBoxFuture<'static, bool>>, lists: HarnessCatalog, catalog: Shared<LocalBoxFuture<'static, HarnessCatalog>>) -> HarnessCatalog {
+async fn same_binary(
+    area: Rc<AgentsArea>,
+    adapter: Arc<dyn HarnessAdapter>,
+    machine: Arc<dyn Machine>,
+    installing: Shared<LocalBoxFuture<'static, bool>>,
+    lists: HarnessCatalog,
+    catalog: Shared<LocalBoxFuture<'static, HarnessCatalog>>,
+) -> HarnessCatalog {
     if lists.source != HarnessCatalogSource::Harness {
         return lists;
     }
@@ -226,7 +243,10 @@ fn keep_lists(area: &AgentsArea, key: String, machine_id: String, harness: Strin
     fire(
         async move {
             if let Err(e) = store.put(AGENT_LISTS, &key, value).await {
-                warn(&format!("{harness} on {machine_id}: its lists were not kept for the next host ({}); its first send there waits on the probe", e.message));
+                warn(&format!(
+                    "{harness} on {machine_id}: its lists were not kept for the next host ({}); its first send there waits on the probe",
+                    e.message
+                ));
             }
         }
         .boxed_local(),
@@ -235,7 +255,12 @@ fn keep_lists(area: &AgentsArea, key: String, machine_id: String, harness: Strin
 
 impl AgentsArea {
     /// agents.ts:58: L2, L3.
-    pub fn catalog_on(&self, table: &HarnessCatalog, entry: &Entry, adapter: Arc<dyn HarnessAdapter>) -> LocalBoxFuture<'static, HarnessCatalog> {
+    pub fn catalog_on(
+        &self,
+        table: &HarnessCatalog,
+        entry: &Entry,
+        adapter: Arc<dyn HarnessAdapter>,
+    ) -> LocalBoxFuture<'static, HarnessCatalog> {
         let known = known_catalog(table, adapter.as_ref());
         let Some(area) = self.me.upgrade() else {
             return ready(known);
@@ -286,7 +311,9 @@ impl AgentsArea {
                     Some(Ok(Some(HarnessCatalogAnswer::Probe(lists)))) => {
                         if let Some(version) = lists.version.clone() {
                             let mut heard = area.heard_versions.borrow_mut();
-                            let newer = heard.get(&table.harness).map_or(true, |was| compare_versions(&version, was) == std::cmp::Ordering::Greater);
+                            let newer = heard
+                                .get(&table.harness)
+                                .map_or(true, |was| compare_versions(&version, was) == std::cmp::Ordering::Greater);
                             if newer {
                                 heard.insert(table.harness.clone(), version);
                             }
@@ -295,7 +322,10 @@ impl AgentsArea {
                         catalog_from_probe(&known, &lists)
                     }
                     Some(Err(e)) => {
-                        warn(&format!("{} on {machine_id}: the probe of the agent failed ({}); wsp's built-in list answers until the next probe", table.harness, e.message));
+                        warn(&format!(
+                            "{} on {machine_id}: the probe of the agent failed ({}); wsp's built-in list answers until the next probe",
+                            table.harness, e.message
+                        ));
                         account_answer(area, table, known, adapter).await
                     }
                 }
@@ -313,7 +343,9 @@ impl AgentsArea {
                 let key = key.clone();
                 async move {
                     match store.get(AGENT_LISTS, &key).await {
-                        Ok(Some(value)) => serde_json::from_value::<HarnessCatalogProbe>(value).ok().map(|kept| catalog_from_probe(&known, &kept)),
+                        Ok(Some(value)) => {
+                            serde_json::from_value::<HarnessCatalogProbe>(value).ok().map(|kept| catalog_from_probe(&known, &kept))
+                        }
                         _ => None,
                     }
                 }
@@ -424,10 +456,18 @@ impl AgentsArea {
 
     /// The harness's own name for a session, read under the setup check (agents.ts:177-184). `Ok(None)` where the
     /// adapter reads no title, `Ok(Some(None))` where the store had none.
-    async fn read_title(&self, entry: &Entry, harness: &str, machine: &Arc<dyn Machine>, session: &str) -> Result<Option<Option<String>>, String> {
+    async fn read_title(
+        &self,
+        entry: &Entry,
+        harness: &str,
+        machine: &Arc<dyn Machine>,
+        session: &str,
+    ) -> Result<Option<Option<String>>, String> {
         self.confine_setup(entry, Some(harness)).await.map_err(|e| e.message)?;
-        let built = self.adapter_for(entry, AdapterAsk { named: Some(harness.to_string()), ..Default::default() }).map_err(|e| e.message)?;
-        let Some(read) = built.adapter.session_title(session.to_string(), harness_exec_on(machine.clone(), SESSION_TITLE_TIMEOUT_MS)) else {
+        let built =
+            self.adapter_for(entry, AdapterAsk { named: Some(harness.to_string()), ..Default::default() }).map_err(|e| e.message)?;
+        let Some(read) = built.adapter.session_title(session.to_string(), harness_exec_on(machine.clone(), SESSION_TITLE_TIMEOUT_MS))
+        else {
             return Ok(None);
         };
         read.await.map(Some).map_err(|e| e.message)
@@ -483,16 +523,24 @@ impl AgentsArea {
 
     /// agents.ts:230: L6.
     pub fn rows_on(&self, thread_id: &str) -> Vec<SessionView> {
-        self.ctx.sessions().borrow().values().map(|row| row.borrow().view.clone()).filter(|view| view.thread_id.as_deref() == Some(thread_id)).collect()
+        self.ctx
+            .sessions()
+            .borrow()
+            .values()
+            .map(|row| row.borrow().view.clone())
+            .filter(|view| view.thread_id.as_deref() == Some(thread_id))
+            .collect()
     }
 
     /// agents.ts:233: L6.
     pub fn opening_of(&self, thread_id: &str) -> Option<String> {
-        self.rows_on(thread_id).into_iter().fold(None::<SessionView>, |first, view| match first {
-            Some(first) if started_of(&view) >= started_of(&first) => Some(first),
-            _ => Some(view),
-        })?
-        .prompt
+        self.rows_on(thread_id)
+            .into_iter()
+            .fold(None::<SessionView>, |first, view| match first {
+                Some(first) if started_of(&view) >= started_of(&first) => Some(first),
+                _ => Some(view),
+            })?
+            .prompt
     }
 
     /// agents.ts:236: L6.
@@ -548,7 +596,8 @@ impl AgentsArea {
                 }
             };
             let machine = entry.borrow().machine.clone();
-            let Some(write) = built.adapter.rename_session(session.clone(), title, harness_exec_on(machine, SESSION_TITLE_TIMEOUT_MS)) else {
+            let Some(write) = built.adapter.rename_session(session.clone(), title, harness_exec_on(machine, SESSION_TITLE_TIMEOUT_MS))
+            else {
                 return;
             };
             let write = async move { write.await.map_err(|e| HostError::new(e.message)) }.boxed_local();
@@ -601,7 +650,14 @@ impl AgentsArea {
         if self.thread_source(&thread) == TitleSource::Person {
             return Ok(());
         }
-        let rows: Vec<Row> = self.ctx.sessions().borrow().values().filter(|row| row.borrow().view.thread_id.as_deref() == Some(thread.as_str())).cloned().collect();
+        let rows: Vec<Row> = self
+            .ctx
+            .sessions()
+            .borrow()
+            .values()
+            .filter(|row| row.borrow().view.thread_id.as_deref() == Some(thread.as_str()))
+            .cloned()
+            .collect();
         for row in rows {
             let mut live = row.borrow_mut();
             live.view.harness_title = Some(title.clone());

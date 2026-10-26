@@ -8,8 +8,8 @@ use std::sync::Arc;
 use futures::future::{LocalBoxFuture, Shared};
 use indexmap::{IndexMap, IndexSet};
 use wsp_core::clock::{Cancel, Clock};
-use wsp_core::daemon_token::assert_token_shape;
 use wsp_core::context::{Joined, StateCell};
+use wsp_core::daemon_token::assert_token_shape;
 use wsp_core::ids::Ids;
 use wsp_core::types::events::EventBus;
 use wsp_core::types::internal::TranscriptIndex;
@@ -17,8 +17,8 @@ use wsp_engine::machine::Machine;
 use wsp_store::sqlite_transcripts::TranscriptRows;
 use wsp_store::store::Store;
 use wsp_wire::views::session::SessionView;
-use wsp_wire::wire::events_union::EventUnion;
 use wsp_wire::views::session_events_more::SessionEvent;
+use wsp_wire::wire::events_union::EventUnion;
 use wsp_words::exit::HostError;
 
 use super::threads::{Entry, Sessions, ThreadRecords};
@@ -65,7 +65,12 @@ pub trait TranscriptsCtx {
     /// `opts.daemonToken`.
     fn daemon_token_seed(&self) -> Option<String>;
     /// `rotateDaemonToken(machine, token, daemonTokenPathOf(machine, path))`: whether the machine has a daemon.
-    fn rotate_daemon_token(&self, machine: Arc<dyn Machine>, token: String, path: Option<String>) -> LocalBoxFuture<'static, Result<bool, HostError>>;
+    fn rotate_daemon_token(
+        &self,
+        machine: Arc<dyn Machine>,
+        token: String,
+        path: Option<String>,
+    ) -> LocalBoxFuture<'static, Result<bool, HostError>>;
 }
 
 /// `{ hasDaemon, at }` (transcripts.ts:529).

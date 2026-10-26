@@ -14,6 +14,7 @@ use wsp_core::types::api::{ForkOptions, StartOptions};
 use wsp_core::types::harness::HarnessAdapter;
 use wsp_core::types::internal::{KeptImage, KeptImages, ATTACHMENTS, ATTACHMENT_KEYS};
 use wsp_core::types::wiring::{SessionHandle, WorkspaceRecord};
+use wsp_machines::machines::boot::entries::RowAt;
 use wsp_store::store::Store;
 use wsp_wire::types::attachments::Attachment;
 use wsp_wire::types::js_number::JsInt;
@@ -30,10 +31,10 @@ use wsp_words::projects::{copies_folder, no_branches_line, place_branch_line};
 use wsp_words::views::session::fold_threads;
 use wsp_words::words::computer::thread_word;
 use wsp_words::words::thread::{
-    fork_agent_fix, fork_agent_line, fork_no_anchor_line, fork_no_turn_line, fork_turns_fix, fork_turns_line, FORK_BESIDE_FIX, FORK_BESIDE_LINE, FORK_NO_ANCHOR_FIX,
-    FORK_NO_CHECKPOINT_FIX, FORK_NO_CHECKPOINT_LINE, FORK_NO_TURN_FIX, FORK_RESUME_FIX, FORK_RESUME_LINE, FORK_RUNNING_FIX, FORK_RUNNING_LINE,
+    fork_agent_fix, fork_agent_line, fork_no_anchor_line, fork_no_turn_line, fork_turns_fix, fork_turns_line, FORK_BESIDE_FIX,
+    FORK_BESIDE_LINE, FORK_NO_ANCHOR_FIX, FORK_NO_CHECKPOINT_FIX, FORK_NO_CHECKPOINT_LINE, FORK_NO_TURN_FIX, FORK_RESUME_FIX,
+    FORK_RESUME_LINE, FORK_RUNNING_FIX, FORK_RUNNING_LINE,
 };
-use wsp_machines::machines::boot::entries::RowAt;
 
 use super::threads::{Entry, Sessions, ThreadRecords};
 
@@ -55,7 +56,13 @@ pub trait ForksCtx {
     fn folder_of(&self, workspace_id: &str, session: &str) -> Option<String>;
     fn agent_label(&self, agent: &str) -> String;
     fn kept_writes(&self, workspace_id: &str) -> Option<Joined>;
-    fn keep_sent_images(&self, workspace_id: &str, thread_id: &str, request_id: Option<String>, attachments: Vec<Attachment>) -> LocalBoxFuture<'static, ()>;
+    fn keep_sent_images(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        request_id: Option<String>,
+        attachments: Vec<Attachment>,
+    ) -> LocalBoxFuture<'static, ()>;
     fn persist_sessions(&self, workspace_id: &str) -> LocalBoxFuture<'static, ()>;
     fn project_held(&self, project: &str) -> ProjectView;
     fn place_name(&self, computer: &str) -> String;
@@ -63,7 +70,15 @@ pub trait ForksCtx {
     /// `new Set(ctx.live.keys())`.
     fn live_ids(&self) -> Vec<String>;
     /// `ctx.worktreeFolder(project, top, branch, from, root, ref)`.
-    fn worktree_folder(&self, project: &ProjectView, top: &str, branch: &str, from: &str, root: Option<String>, at_ref: &str) -> LocalBoxFuture<'static, Result<Entry, HostError>>;
+    fn worktree_folder(
+        &self,
+        project: &ProjectView,
+        top: &str,
+        branch: &str,
+        from: &str,
+        root: Option<String>,
+        at_ref: &str,
+    ) -> LocalBoxFuture<'static, Result<Entry, HostError>>;
     fn checkout_of(&self, record: &WorkspaceRecord) -> String;
     fn take_setup_line(&self, workspace_id: &str) -> Option<String>;
     fn remove_worktree(&self, entry: &Entry, force: bool) -> LocalBoxFuture<'static, Result<(), HostError>>;
@@ -143,7 +158,12 @@ fn released_at(entry: &Entry) -> Option<f64> {
 }
 
 /// forks.ts:42: F1.
-pub async fn fork_opened(ctx: &Rc<dyn ForksCtx>, workspace_id: &str, opened: StartOptions, origin: Option<Caller>) -> Result<(StartOptions, Option<ForkPlan>), HostError> {
+pub async fn fork_opened(
+    ctx: &Rc<dyn ForksCtx>,
+    workspace_id: &str,
+    opened: StartOptions,
+    origin: Option<Caller>,
+) -> Result<(StartOptions, Option<ForkPlan>), HostError> {
     let Some(fork) = opened.fork.clone() else { return Ok((opened, None)) };
     if opened.thread.is_some() || opened.replaces.is_some() {
         return Err(usage_refusal(FORK_BESIDE_LINE, FORK_BESIDE_FIX));
@@ -155,7 +175,11 @@ pub async fn fork_opened(ctx: &Rc<dyn ForksCtx>, workspace_id: &str, opened: Sta
     let source = plan.source.harness.clone();
     if let Some(asked) = &opened.harness {
         if asked != &source {
-            return Err(refusal(&fork_agent_line(&ctx.agent_label(&source), &ctx.agent_label(asked)), &fork_agent_fix(&ctx.agent_label(asked)), Some(Kind::Usage)));
+            return Err(refusal(
+                &fork_agent_line(&ctx.agent_label(&source), &ctx.agent_label(asked)),
+                &fork_agent_fix(&ctx.agent_label(asked)),
+                Some(Kind::Usage),
+            ));
         }
     }
     let picks = plan.picks.clone();
@@ -189,7 +213,10 @@ pub async fn read_fork(ctx: &Rc<dyn ForksCtx>, fork: &ForkSource, origin: Option
     let latest = ctx.latest_on(&thread_id);
     let record = ctx.thread_records().borrow().get(&thread_id).cloned();
     let not_found = || not_found_refusal(&format!("no thread {}", thread_word(&thread_id)));
-    let workspace_id = latest.as_ref().map(|l| l.workspace_id.clone()).or_else(|| record.as_ref().map(|r| r.workspace_id.clone()).filter(|w| !w.is_empty()));
+    let workspace_id = latest
+        .as_ref()
+        .map(|l| l.workspace_id.clone())
+        .or_else(|| record.as_ref().map(|r| r.workspace_id.clone()).filter(|w| !w.is_empty()));
     let Some(workspace_id) = workspace_id else { return Err(not_found()) };
     let at = RowAt { thread_id: Some(thread_id.clone()), workspace_id: workspace_id.clone() };
     let entry = ctx.entry_of_row(&at, origin).await.map_err(|_| not_found())?;
@@ -220,7 +247,8 @@ pub async fn read_fork(ctx: &Rc<dyn ForksCtx>, fork: &ForkSource, origin: Option
         }
     }
     let running: Vec<String> = [ctx.running_turn(&thread_id), ctx.launching_turn(&thread_id)].into_iter().flatten().collect();
-    let ended: Vec<&str> = events.iter().filter(|r| r.kind() == "session.end" || r.kind() == "session.done").filter_map(|r| r.turn()).collect();
+    let ended: Vec<&str> =
+        events.iter().filter(|r| r.kind() == "session.end" || r.kind() == "session.done").filter_map(|r| r.turn()).collect();
     let finished: Vec<String> = order.iter().filter(|t| ended.contains(&t.as_str()) && !running.contains(t)).cloned().collect();
     let turn_id: Option<String> = match &fork.turn_id {
         Some(turn) => {
@@ -254,7 +282,8 @@ pub async fn read_fork(ctx: &Rc<dyn ForksCtx>, fork: &ForkSource, origin: Option
             return Err(HostError::with_kind(SUB_TURN_GONE_LINE, Kind::Conflict));
         }
     }
-    let last_of = |kind: &str, turn: &str| -> Option<&Read> { events.iter().rev().find(|r| r.kind() == kind && r.turn() == Some(turn)).copied() };
+    let last_of =
+        |kind: &str, turn: &str| -> Option<&Read> { events.iter().rev().find(|r| r.kind() == kind && r.turn() == Some(turn)).copied() };
     let counted = |turn: &str| CountedTurn {
         anchor: last_of("session.checkpoint", turn).and_then(|r| r.value["anchor"].as_str().map(String::from)),
         result: last_of("session.done", turn).and_then(|r| serde_json::from_value::<TurnResult>(r.value["result"].clone()).ok()),
@@ -272,7 +301,8 @@ pub async fn read_fork(ctx: &Rc<dyn ForksCtx>, fork: &ForkSource, origin: Option
         .unwrap_or_else(|| thread_word(&thread_id));
     let session = latest.as_ref().and_then(|l| l.claude_session_id.clone()).or_else(|| ctx.started_as(&workspace_id, &thread_id));
     let cwd = latest.as_ref().and_then(|l| l.cwd.clone()).or_else(|| session.as_deref().and_then(|s| ctx.folder_of(&workspace_id, s)));
-    let permission_mode = record.as_ref().and_then(|r| r.permission_mode.clone()).or_else(|| latest.as_ref().and_then(|l| l.permission_mode.clone()));
+    let permission_mode =
+        record.as_ref().and_then(|r| r.permission_mode.clone()).or_else(|| latest.as_ref().and_then(|l| l.permission_mode.clone()));
     let turn = match (&turn_id, picked_index) {
         (Some(turn), Some(i)) => Some(ForkPlanTurn {
             turn_id: turn.clone(),
@@ -292,15 +322,7 @@ pub async fn read_fork(ctx: &Rc<dyn ForksCtx>, fork: &ForkSource, origin: Option
         permission_mode,
     };
     Ok(ForkPlan {
-        source: ForkPlanSource {
-            thread_id: thread_id.clone(),
-            workspace_id,
-            entry,
-            harness,
-            title: title.clone(),
-            session,
-            cwd,
-        },
+        source: ForkPlanSource { thread_id: thread_id.clone(), workspace_id, entry, harness, title: title.clone(), session, cwd },
         turn,
         events: carried,
         picks,
@@ -316,7 +338,9 @@ pub fn fork_turn_of(plan: &ForkPlan, by_count: bool) -> Result<Option<ForkTurn>,
         return Ok(Some(ForkTurn::Anchor(anchor.clone())));
     }
     if !by_count {
-        let label = wsp_core::harness_catalog::harness_catalog(&plan.source.harness).map(|c| c.label).unwrap_or_else(|| plan.source.harness.clone());
+        let label = wsp_core::harness_catalog::harness_catalog(&plan.source.harness)
+            .map(|c| c.label)
+            .unwrap_or_else(|| plan.source.harness.clone());
         return Err(refusal(&fork_no_anchor_line(&label), FORK_NO_ANCHOR_FIX, Some(Kind::Conflict)));
     }
     Ok(Some(ForkTurn::After(turn.after.clone())))
@@ -406,7 +430,12 @@ fn base64_of(bytes: &[u8]) -> String {
 
 /// Readies a fork of one of a harness's sessions through a turn, the agent's refusal said in the caller's words.
 /// forks.ts:181: F9.
-pub async fn ready_fork(adapter: Arc<dyn HarnessAdapter>, session: &str, turn: ForkTurn, said: &dyn Fn(&str) -> HostError) -> Result<ForkedSession, HostError> {
+pub async fn ready_fork(
+    adapter: Arc<dyn HarnessAdapter>,
+    session: &str,
+    turn: ForkTurn,
+    said: &dyn Fn(&str) -> HostError,
+) -> Result<ForkedSession, HostError> {
     let Some(ready) = adapter.fork_session(session.to_string(), turn) else {
         return Err(said("adapter.forkSession is not a function"));
     };
@@ -428,13 +457,22 @@ pub fn move_session(ctx: &Rc<dyn ForksCtx>, thread_id: &str, from: &str, to: &st
 /// A fork's start: in its source's folder, or with a branch in a new worktree of the source's repo at the turn's
 /// checkpoint, made where this computer makes them and taken away again, branch and all, where the start refuses.
 /// forks.ts:199: F11.
-pub async fn fork_start(ctx: &Rc<dyn ForksCtx>, start: StartFn, o: ForkOptions, origin: Option<Caller>) -> Result<Rc<dyn SessionHandle>, HostError> {
+pub async fn fork_start(
+    ctx: &Rc<dyn ForksCtx>,
+    start: StartFn,
+    o: ForkOptions,
+    origin: Option<Caller>,
+) -> Result<Rc<dyn SessionHandle>, HostError> {
     let plan = read_fork(ctx, &o.fork, origin.clone()).await?;
     let entry = plan.source.entry.clone();
     let harness = plan.source.harness.clone();
     if let Some(asked) = &o.start.harness {
         if asked != &harness {
-            return Err(refusal(&fork_agent_line(&ctx.agent_label(&harness), &ctx.agent_label(asked)), &fork_agent_fix(&ctx.agent_label(asked)), Some(Kind::Usage)));
+            return Err(refusal(
+                &fork_agent_line(&ctx.agent_label(&harness), &ctx.agent_label(asked)),
+                &fork_agent_fix(&ctx.agent_label(asked)),
+                Some(Kind::Usage),
+            ));
         }
     }
     let ForkOptions { start: options, fork, branch } = o;
@@ -462,7 +500,9 @@ pub async fn fork_start(ctx: &Rc<dyn ForksCtx>, start: StartFn, o: ForkOptions, 
     // The fork runs where in its tree its source ran in the source's checkout.
     let from = ctx.checkout_of(&record);
     let cwd = tree.as_ref().map(|tree| match plan.source.cwd.as_deref() {
-        Some(source) if source.starts_with(&format!("{from}/")) => Path::new(&tree.path).join(&source[from.len() + 1..]).to_string_lossy().into_owned(),
+        Some(source) if source.starts_with(&format!("{from}/")) => {
+            Path::new(&tree.path).join(&source[from.len() + 1..]).to_string_lossy().into_owned()
+        }
         _ => tree.path.clone(),
     });
     let setup = ctx.take_setup_line(&made_record.id);
@@ -491,7 +531,13 @@ pub async fn fork_start(ctx: &Rc<dyn ForksCtx>, start: StartFn, o: ForkOptions, 
 /// The session a thread resumes whose record still owes a rewind's cut, which a host before copied rewinds wrote: a
 /// copy through that cut. A copy refused for any reason, a session file Claude Code cleaned away or a read that ran
 /// out of time alike, owes nothing more, and the resume runs uncut. forks.ts:231: F12.
-pub async fn pay_cut_owed(ctx: &Rc<dyn ForksCtx>, adapter: Arc<dyn HarnessAdapter>, workspace_id: &str, thread_id: &str, resume: &str) -> String {
+pub async fn pay_cut_owed(
+    ctx: &Rc<dyn ForksCtx>,
+    adapter: Arc<dyn HarnessAdapter>,
+    workspace_id: &str,
+    thread_id: &str,
+    resume: &str,
+) -> String {
     let owed = ctx.thread_records().borrow().get(thread_id).and_then(|r| r.cut_owed.clone());
     let Some(owed) = owed else { return resume.to_string() };
     let Some(ready) = adapter.fork_session(resume.to_string(), ForkTurn::Anchor(owed)) else {

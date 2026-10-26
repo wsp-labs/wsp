@@ -10,8 +10,8 @@ use std::sync::atomic::Ordering;
 
 use futures::FutureExt;
 use serde_json::json;
-use support::Lend;
 use support::threads_ctx::{entry, FakeThreadsCtx};
+use support::Lend;
 use support::{local, record, settle, FakeKeptAgent};
 use wsp_adapters::port::{SessionFile, SessionRenameWrite};
 use wsp_core::types::internal::{KeptLaunch, WarmKeep};
@@ -271,16 +271,22 @@ fn host_writes_holds_until_every_write_settled() {
         let (_ctx, area, _) = host(&[]);
         let (tx1, rx1) = futures::channel::oneshot::channel::<()>();
         let (tx2, rx2) = futures::channel::oneshot::channel::<()>();
-        let first = area.write_session("s9", async move {
-            let _ = rx1.await;
-            Ok(SessionRenameWrite::NoSession)
-        }
-        .boxed_local());
-        let second = area.write_session("s9", async move {
-            let _ = rx2.await;
-            Ok(SessionRenameWrite::NoSession)
-        }
-        .boxed_local());
+        let first = area.write_session(
+            "s9",
+            async move {
+                let _ = rx1.await;
+                Ok(SessionRenameWrite::NoSession)
+            }
+            .boxed_local(),
+        );
+        let second = area.write_session(
+            "s9",
+            async move {
+                let _ = rx2.await;
+                Ok(SessionRenameWrite::NoSession)
+            }
+            .boxed_local(),
+        );
         let (a, b) = (tokio::task::spawn_local(first), tokio::task::spawn_local(second));
         settle().await;
         assert!(area.host_writes.borrow().contains_key("s9"));
@@ -365,11 +371,19 @@ fn take_kept_answers_a_matching_process_untouched() {
 #[test]
 fn take_kept_reaps_on_another_launch_session_or_file() {
     local(async {
-        for (fixed, session, model) in [("other|/work|v1", Some("s1"), "opus"), ("claude|/work|v1", Some("s2"), "opus"), ("claude|/work|v1", None, "opus"), ("claude|/work|v1", Some("s1"), "sonnet")] {
+        for (fixed, session, model) in [
+            ("other|/work|v1", Some("s1"), "opus"),
+            ("claude|/work|v1", Some("s2"), "opus"),
+            ("claude|/work|v1", None, "opus"),
+            ("claude|/work|v1", Some("s1"), "sonnet"),
+        ] {
             let (_ctx, area, _) = host(&["t1"]);
             let (h, agent) = hand("ws1", None, None);
             assert!(area.hold_kept("t1", h).is_none());
-            assert!(area.take_kept("t1", Some(&launch(fixed, json!({ "model": model }))), session, None).is_none(), "{fixed} {session:?} {model}");
+            assert!(
+                area.take_kept("t1", Some(&launch(fixed, json!({ "model": model }))), session, None).is_none(),
+                "{fixed} {session:?} {model}"
+            );
             settle().await;
             assert!(kept_ids(&area).is_empty());
             assert_eq!(agent.closes(), vec![false]);
@@ -381,7 +395,10 @@ fn take_kept_reaps_on_another_launch_session_or_file() {
         let (h, agent) = hand("ws1", Some(on_disk), None);
         assert!(area.hold_kept("t1", h).is_none());
         std::fs::write(dir.path().join("s1.jsonl"), b"{}\n{}\n").expect("the person resumed it");
-        assert!(area.take_kept("t1", Some(&launch("claude|/work|v1", json!({}))), Some("s1"), None).is_none(), "the file grew since the turn");
+        assert!(
+            area.take_kept("t1", Some(&launch("claude|/work|v1", json!({}))), Some("s1"), None).is_none(),
+            "the file grew since the turn"
+        );
         settle().await;
         assert_eq!(agent.closes(), vec![false]);
         assert!(area.take_kept("t1", None, Some("s1"), None).is_none(), "nothing kept");
@@ -395,14 +412,23 @@ fn take_kept_matches_a_warm_process_both_ways() {
         let (h, _a) = warm_hand("ws1");
         area.hold_warm("t-w", h);
         let whole_more = launch("claude|/work|v1", json!({ "model": "opus", "effort": "high" }));
-        assert!(area.take_kept("t-w", Some(&launch("claude|/work|v1", json!({}))), None, Some(&whole_more)).is_none(), "the send's whole launch names an effort the warm process was not launched at");
+        assert!(
+            area.take_kept("t-w", Some(&launch("claude|/work|v1", json!({}))), None, Some(&whole_more)).is_none(),
+            "the send's whole launch names an effort the warm process was not launched at"
+        );
         let (h, _a) = warm_hand("ws1");
         area.hold_warm("t-w", h);
-        assert!(area.take_kept("t-w", Some(&launch("claude|/work|v1", json!({}))), None, None).is_none(), "a warm process needs the whole launch");
+        assert!(
+            area.take_kept("t-w", Some(&launch("claude|/work|v1", json!({}))), None, None).is_none(),
+            "a warm process needs the whole launch"
+        );
         let (h, _a) = warm_hand("ws1");
         area.hold_warm("t-w", h);
         let whole = launch("claude|/work|v1", json!({ "model": "opus" }));
-        assert!(area.take_kept("t-w", Some(&launch("other", json!({}))), None, Some(&whole)).is_some(), "matched on the whole launch both ways, the partial one unread");
+        assert!(
+            area.take_kept("t-w", Some(&launch("other", json!({}))), None, Some(&whole)).is_some(),
+            "matched on the whole launch both ways, the partial one unread"
+        );
     });
 }
 
@@ -589,15 +615,20 @@ fn the_cap_counts_this_computer_and_providers_together() {
             assert!(area.hold_kept(t, h).is_none());
             ctx.clock.advance(1);
         }
-        assert_eq!(kept_ids(&area), vec!["t1", "t2", "t3", "t4", "t5", "t6"], "a provider workspace stands on no joined computer, so it shares this one's count");
+        assert_eq!(
+            kept_ids(&area),
+            vec!["t1", "t2", "t3", "t4", "t5", "t6"],
+            "a provider workspace stands on no joined computer, so it shares this one's count"
+        );
         let (h, _a) = hand("wsb", None, None);
-        assert!(area.hold_kept("t-box", {
-            ctx.thread_records.with(|r| {
-                r.insert("t-box".into(), record("wsb", json!({})));
-            });
-            h
-        })
-        .is_none());
+        assert!(area
+            .hold_kept("t-box", {
+                ctx.thread_records.with(|r| {
+                    r.insert("t-box".into(), record("wsb", json!({})));
+                });
+                h
+            })
+            .is_none());
         assert_eq!(kept_ids(&area).len(), 7, "the joined computer counts alone");
     });
 }

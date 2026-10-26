@@ -3,10 +3,10 @@
 //! builders for rows and records. Each area's fake context is in its own file beside this one.
 #![allow(dead_code)]
 
-#[path = "../common/entry.rs"]
-pub mod entry;
 pub mod agents_ctx;
 pub mod conversations_ctx;
+#[path = "../common/entry.rs"]
+pub mod entry;
 pub mod forks_ctx;
 pub mod threads_ctx;
 pub mod transcripts_ctx;
@@ -101,7 +101,12 @@ pub fn json_of<T: serde::Serialize>(x: &T) -> Value {
 
 /// Rows keyed by their view's id, in the order given.
 pub fn rows_of(rows: Vec<Row>) -> IndexMap<String, Row> {
-    rows.into_iter().map(|r| { let id = r.borrow().view.id.clone(); (id, r) }).collect()
+    rows.into_iter()
+        .map(|r| {
+            let id = r.borrow().view.id.clone();
+            (id, r)
+        })
+        .collect()
 }
 
 /// Records keyed by thread id, in the order given.
@@ -326,7 +331,10 @@ impl Store for FakeStore {
         Ok(())
     }
     async fn stat_blob(&self, collection: &str, id: &str) -> Result<Option<BlobMark>, HostError> {
-        Ok(self.blob_now(collection, id).map(|b| BlobMark { bytes: wsp_wire::types::js_number::JsNumber(b.len() as f64), at: wsp_wire::types::js_number::JsNumber(self.writes.get()) }))
+        Ok(self.blob_now(collection, id).map(|b| BlobMark {
+            bytes: wsp_wire::types::js_number::JsNumber(b.len() as f64),
+            at: wsp_wire::types::js_number::JsNumber(self.writes.get()),
+        }))
     }
 }
 
@@ -409,7 +417,12 @@ impl Machine for FakeMachine {
     async fn upload_url(&self, _path: &str) -> wsp_engine::errors::Result<String> {
         Err(engine_err("no url here"))
     }
-    async fn put_bytes(&self, path: &str, bytes: &[u8], _timeout_ms: Option<u64>) -> wsp_engine::errors::Result<Option<wsp_engine::machine::BytesLanded>> {
+    async fn put_bytes(
+        &self,
+        path: &str,
+        bytes: &[u8],
+        _timeout_ms: Option<u64>,
+    ) -> wsp_engine::errors::Result<Option<wsp_engine::machine::BytesLanded>> {
         self.put.borrow_mut().push((path.to_string(), bytes.to_vec()));
         Ok(None)
     }
@@ -486,7 +499,13 @@ impl TranscriptRows for FakeRows {
         let rows = self.of(ws, None);
         Ok(Summed { size: rows.iter().map(|k| k.size).sum(), events: rows.into_iter().map(|k| k.event).collect() })
     }
-    fn newest(&self, ws: &str, thread: &str, before: Option<i64>, each: &mut dyn FnMut(SessionEvent) -> ControlFlow<()>) -> Result<(), HostError> {
+    fn newest(
+        &self,
+        ws: &str,
+        thread: &str,
+        before: Option<i64>,
+        each: &mut dyn FnMut(SessionEvent) -> ControlFlow<()>,
+    ) -> Result<(), HostError> {
         self.check()?;
         for k in self.of(ws, Some(thread)).into_iter().rev() {
             if before.is_some_and(|b| k.pos >= b) {
@@ -513,14 +532,21 @@ impl TranscriptRows for FakeRows {
     }
     fn sizes(&self, ws: &str, thread: Option<&str>) -> Result<Vec<EventSize>, HostError> {
         self.check()?;
-        Ok(self.of(ws, thread).into_iter().map(|k| EventSize { pos: k.pos, thread_id: (!k.thread.is_empty()).then_some(k.thread), kind: k.kind, size: k.size }).collect())
+        Ok(self
+            .of(ws, thread)
+            .into_iter()
+            .map(|k| EventSize { pos: k.pos, thread_id: (!k.thread.is_empty()).then_some(k.thread), kind: k.kind, size: k.size })
+            .collect())
     }
     fn word_events(&self, ws: &str, thread: &str) -> Result<Vec<SessionEvent>, HostError> {
         self.check()?;
         Ok(self
             .of(ws, Some(thread))
             .into_iter()
-            .filter(|k| matches!(k.kind.as_str(), "session.start" | "session.steer" | "session.earlier") || (k.kind == "session.delta" && json_of(&k.event)["kind"] == "text"))
+            .filter(|k| {
+                matches!(k.kind.as_str(), "session.start" | "session.steer" | "session.earlier")
+                    || (k.kind == "session.delta" && json_of(&k.event)["kind"] == "text")
+            })
             .map(|k| k.event)
             .collect())
     }
@@ -613,7 +639,10 @@ impl FakeKeptAgent {
 }
 
 impl wsp_adapters::port::KeptAgent for FakeKeptAgent {
-    fn next(&self, _turn: wsp_adapters::port::KeptTurn) -> Result<std::sync::Arc<dyn wsp_adapters::port::HarnessSession>, wsp_adapters::port::AdapterError> {
+    fn next(
+        &self,
+        _turn: wsp_adapters::port::KeptTurn,
+    ) -> Result<std::sync::Arc<dyn wsp_adapters::port::HarnessSession>, wsp_adapters::port::AdapterError> {
         panic!("a kept agent's next turn is not these tests'")
     }
     fn close(&self, now: bool) -> LocalBoxFuture<'static, ()> {

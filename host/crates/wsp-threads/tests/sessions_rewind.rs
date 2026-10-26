@@ -18,8 +18,8 @@ use wsp_wire::types::sub_thread::SUB_TURN_GONE_LINE;
 use wsp_words::exit::{not_found_refusal, HostError};
 use wsp_words::words::computer::thread_word;
 use wsp_words::words::thread::{
-    rewind_beside_line, rewind_children_line, rewind_kept_line, rewind_no_anchor_line, CODEX_LEGACY_HISTORY, REWIND_COPIED_LINE, REWIND_LATEST_LINE,
-    REWIND_NO_CHECKPOINT_LINE, REWIND_NO_UNDO_LINE, REWIND_SHARED_LINE, REWIND_WORKING_LINE,
+    rewind_beside_line, rewind_children_line, rewind_kept_line, rewind_no_anchor_line, CODEX_LEGACY_HISTORY, REWIND_COPIED_LINE,
+    REWIND_LATEST_LINE, REWIND_NO_CHECKPOINT_LINE, REWIND_NO_UNDO_LINE, REWIND_SHARED_LINE, REWIND_WORKING_LINE,
 };
 
 const W: &str = "w1";
@@ -151,7 +151,12 @@ fn turn_events(n: u32, shape: &Shape) -> Vec<SessionEvent> {
         }
         event(doc)
     };
-    let ended = shape.ends.iter().find(|(m, _)| *m == n).map(|(_, r)| r.clone()).unwrap_or_else(|| json!({ "status": "completed", "text": format!("reply {n}") }));
+    let ended = shape
+        .ends
+        .iter()
+        .find(|(m, _)| *m == n)
+        .map(|(_, r)| r.clone())
+        .unwrap_or_else(|| json!({ "status": "completed", "text": format!("reply {n}") }));
     let mut checkpoint = json!({});
     if shape.refs {
         checkpoint["ref"] = json!(checkpoint_ref(n));
@@ -175,7 +180,11 @@ impl Rig {
     /// A thread of three finished turns, `turn-1` to `turn-3`, on one workspace.
     fn new(shape: Shape) -> Rig {
         let host = FakeHost::new();
-        host.add_entry(entry(W, { let mut e = shape.entry.clone(); e["phase"] = json!(shape.phase); e }));
+        host.add_entry(entry(W, {
+            let mut e = shape.entry.clone();
+            e["phase"] = json!(shape.phase);
+            e
+        }));
         if shape.rows {
             for n in 1..=3u32 {
                 let at = T0 + i64::from(n) * 1000;
@@ -207,7 +216,8 @@ impl Rig {
             forked: Mutex::new(Vec::new()),
         });
         let (reverts, forks) = (adapter.revert.is_some(), adapter.fork.is_some());
-        host.hooks.set::<dyn Fn(&dyn HarnessAdapter) -> bool>("SessionsCtx::adapter_reverts", Rc::new(move |_a: &dyn HarnessAdapter| reverts));
+        host.hooks
+            .set::<dyn Fn(&dyn HarnessAdapter) -> bool>("SessionsCtx::adapter_reverts", Rc::new(move |_a: &dyn HarnessAdapter| reverts));
         host.hooks.set::<dyn Fn(&dyn HarnessAdapter) -> bool>("SessionsCtx::adapter_forks", Rc::new(move |_a: &dyn HarnessAdapter| forks));
         let cut: Rc<RefCell<Vec<Option<Vec<String>>>>> = Rc::new(RefCell::new(Vec::new()));
         let slates: Rc<RefCell<Vec<(String, String, Vec<String>)>>> = Rc::new(RefCell::new(Vec::new()));
@@ -240,14 +250,21 @@ impl Rig {
             }),
         );
         let a = adapter.clone();
-        host.hooks.set::<dyn Fn(&Entry, &str, Option<wsp_adapters::port::ServerValues>) -> LocalBoxFuture<'static, Result<BuiltAdapter, HostError>>>(
+        host.hooks.set::<dyn Fn(
+            &Entry,
+            &str,
+            Option<wsp_adapters::port::ServerValues>,
+        ) -> LocalBoxFuture<'static, Result<BuiltAdapter, HostError>>>(
             "SessionsCtx::launch_adapter_for",
             Rc::new(move |_e: &Entry, harness: &str, _v: Option<wsp_adapters::port::ServerValues>| {
                 let built = BuiltAdapter { harness: harness.to_string(), adapter: a.clone() };
                 async move { Ok::<BuiltAdapter, HostError>(built) }.boxed_local()
             }),
         );
-        host.hooks.set::<dyn Fn(&str) -> String>("SessionsCtx::agent_label", Rc::new(|h: &str| if h == "claude" { AGENT.to_string() } else { h.to_string() }));
+        host.hooks.set::<dyn Fn(&str) -> String>(
+            "SessionsCtx::agent_label",
+            Rc::new(|h: &str| if h == "claude" { AGENT.to_string() } else { h.to_string() }),
+        );
         let h = host.clone();
         let l = log.clone();
         let c = cut.clone();
@@ -406,13 +423,21 @@ fn undoable() -> Shape {
 fn a_thread_nobody_holds_is_not_found() {
     run_local(async {
         let r = Rig::new(Shape::new(Cuts::Copy));
-        let e = r.area.rewind_thread("thr_nobody", RewindAsk { turn_id: Some(turn(1)), files: Some(true), undo: None }, None).await.unwrap_err();
+        let e = r
+            .area
+            .rewind_thread("thr_nobody", RewindAsk { turn_id: Some(turn(1)), files: Some(true), undo: None }, None)
+            .await
+            .unwrap_err();
         assert_eq!(said(&e), said(&not_found_refusal(&format!("no thread {}", thread_word("thr_nobody")))));
         // A caller that does not reach the thread's workspace reads the same absence.
-        r.host.hooks.set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
-            "SessionsCtx::entry_of_row",
-            Rc::new(|_at: &RowAt, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| async { Ok::<Option<Entry>, HostError>(None) }.boxed_local()),
-        );
+        r.host
+            .hooks
+            .set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
+                "SessionsCtx::entry_of_row",
+                Rc::new(|_at: &RowAt, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| {
+                    async { Ok::<Option<Entry>, HostError>(None) }.boxed_local()
+                }),
+            );
         let e = r.to(1, true).await.unwrap_err();
         assert_eq!(said(&e), said(&not_found_refusal(&format!("no thread {}", thread_word(T)))));
         assert_eq!(r.log(), Vec::<String>::new());
@@ -457,11 +482,18 @@ fn a_running_thread_is_not_rewound() {
 fn a_running_child_is_named() {
     run_local(async {
         let r = Rig::new(Shape::new(Cuts::Copy));
-        r.host.hooks.set::<dyn Fn(&str) -> Vec<String>>("SessionsCtx::tree_under", Rc::new(|id: &str| if id == T { vec!["thread-cc".to_string()] } else { Vec::new() }));
+        r.host.hooks.set::<dyn Fn(&str) -> Vec<String>>(
+            "SessionsCtx::tree_under",
+            Rc::new(|id: &str| if id == T { vec!["thread-cc".to_string()] } else { Vec::new() }),
+        );
         r.host.add_row("child-1", row(view("child-1", W, json!({ "threadId": "thread-cc", "status": "running", "startedAt": T0 + 5000, "prompt": "fix the port list", "startedBy": "agent" })), "child-turn"));
         let e = r.to(1, false).await.unwrap_err();
         assert_eq!(said(&e), conflict(&rewind_children_line(&["fix the port list"])));
-        assert_eq!(r.host.hooks.called("reap_kept"), vec![format!("reap_kept({T})")], "the thread's own kept agent is reaped before the children are read");
+        assert_eq!(
+            r.host.hooks.called("reap_kept"),
+            vec![format!("reap_kept({T})")],
+            "the thread's own kept agent is reaped before the children are read"
+        );
         assert_eq!(r.log(), Vec::<String>::new());
         // Stopped, it stands in the way of nothing.
         r.host.rows.borrow()["child-1"].borrow_mut().view.status = serde_json::from_value(json!("interrupted")).unwrap();
@@ -666,7 +698,9 @@ fn files_with_no_checkpoint_are_refused() {
 fn the_newest_checkpoint_of_the_turn_is_kept() {
     run_local(async {
         let r = Rig::new(Shape::new(Cuts::Copy));
-        let older = event(json!({ "type": "session.checkpoint", "workspaceId": W, "sessionId": SESSION, "turnId": turn(1), "threadId": T, "at": T0, "ref": "refs/old", "anchor": "old" }));
+        let older = event(
+            json!({ "type": "session.checkpoint", "workspaceId": W, "sessionId": SESSION, "turnId": turn(1), "threadId": T, "at": T0, "ref": "refs/old", "anchor": "old" }),
+        );
         r.host.recorded.borrow_mut().insert(0, older);
         r.to(1, true).await.unwrap();
         assert_eq!(r.restores(), vec![checkpoint_ref(1)]);
@@ -710,7 +744,13 @@ fn files_go_where_the_other_thread_ended_before_the_checkpoint() {
 fn a_thread_of_another_folder_does_not_share_the_files() {
     run_local(async {
         let r = Rig::new(Shape::new(Cuts::Copy));
-        r.host.add_row("elsewhere-1", row(view("elsewhere-1", "w9", json!({ "threadId": "thread-dd", "status": "running", "startedAt": T0 + 4000 })), "elsewhere-turn"));
+        r.host.add_row(
+            "elsewhere-1",
+            row(
+                view("elsewhere-1", "w9", json!({ "threadId": "thread-dd", "status": "running", "startedAt": T0 + 4000 })),
+                "elsewhere-turn",
+            ),
+        );
         assert_eq!(r.to(1, true).await.unwrap(), answer(json!({ "turns": 2, "files": 2 })));
     });
 }
@@ -794,12 +834,15 @@ fn a_refused_revert_puts_the_files_back() {
         let r = Rig::new(shape);
         let e = r.to(1, true).await.unwrap_err();
         assert_eq!((e.message.clone(), e.kind.clone()), (why, None));
-        assert_eq!(r.restores(), vec![checkpoint_ref(1), format!("{}-before-1", checkpoint_ref(1))], "to the checkpoint, then back to how they stood");
-        assert_eq!(r.writes(), vec![
-            format!("restore {}", checkpoint_ref(1)),
-            "revert".to_string(),
-            format!("restore {}-before-1", checkpoint_ref(1)),
-        ]);
+        assert_eq!(
+            r.restores(),
+            vec![checkpoint_ref(1), format!("{}-before-1", checkpoint_ref(1))],
+            "to the checkpoint, then back to how they stood"
+        );
+        assert_eq!(
+            r.writes(),
+            vec![format!("restore {}", checkpoint_ref(1)), "revert".to_string(), format!("restore {}-before-1", checkpoint_ref(1)),]
+        );
         assert_eq!(r.texts(), vec!["reply 1", "reply 2", "reply 3"]);
         assert_eq!(r.rewound(), None);
         assert_eq!(r.emitted(), Vec::<Value>::new());
@@ -815,11 +858,10 @@ fn a_refused_copy_puts_the_files_back() {
         let r = Rig::new(shape);
         let e = r.to(1, true).await.unwrap_err();
         assert_eq!((e.message.clone(), e.kind.clone()), ("claude would not copy the session".to_string(), None));
-        assert_eq!(r.writes(), vec![
-            format!("restore {}", checkpoint_ref(1)),
-            "fork_session".to_string(),
-            format!("restore {}-before-1", checkpoint_ref(1)),
-        ]);
+        assert_eq!(
+            r.writes(),
+            vec![format!("restore {}", checkpoint_ref(1)), "fork_session".to_string(), format!("restore {}-before-1", checkpoint_ref(1)),]
+        );
         assert_eq!(r.texts(), vec!["reply 1", "reply 2", "reply 3"]);
         assert_eq!(r.rewound(), None);
         // A refusal with no files moved has nothing to put back.
@@ -869,7 +911,10 @@ fn a_reverting_harness_is_asked_to_cut_before_the_first_cut_turn() {
     run_local(async {
         let r = Rig::new(Shape::new(Cuts::Revert));
         assert_eq!(r.to(1, true).await.unwrap(), answer(json!({ "turns": 2, "files": 2 })));
-        assert_eq!(r.reverted(), vec![RevertAsk { session: SESSION.to_string(), cwd: Some(format!("/work/{W}")), at: RevertAt::BeforeTurn("a2".to_string()) }]);
+        assert_eq!(
+            r.reverted(),
+            vec![RevertAsk { session: SESSION.to_string(), cwd: Some(format!("/work/{W}")), at: RevertAt::BeforeTurn("a2".to_string()) }]
+        );
         assert_eq!(r.writes()[..2].to_vec(), vec![format!("restore {}", checkpoint_ref(1)), "revert".to_string()], "the files go first");
         assert!(!r.log().iter().any(|l| l.starts_with("move_session")), "a revert moves no session");
         assert_eq!(r.texts(), vec!["reply 1"]);
@@ -916,7 +961,10 @@ fn each_cut_turn_is_handed_its_anchor_beside_its_end_where_it_kept_one() {
                 cwd: Some(format!("/work/{W}")),
                 at: RevertAt::Turns(vec![
                     CountedTurn { anchor: None, result: Some(result(json!({ "status": "completed", "text": "reply 2" }))) },
-                    CountedTurn { anchor: Some("a3".to_string()), result: Some(result(json!({ "status": "completed", "text": "reply 3" }))) },
+                    CountedTurn {
+                        anchor: Some("a3".to_string()),
+                        result: Some(result(json!({ "status": "completed", "text": "reply 3" })))
+                    },
                 ]),
             }],
         );
@@ -947,7 +995,10 @@ fn a_copying_harness_moves_the_session() {
         // The copy ends at the kept turn's own end.
         assert_eq!(r.forked(), vec![(SESSION.to_string(), ForkTurn::Anchor("a1".to_string()))]);
         assert!(r.log().contains(&format!("move_session {T} {SESSION} {COPY}")));
-        assert_eq!(r.writes()[..3].to_vec(), vec![format!("restore {}", checkpoint_ref(1)), "fork_session".to_string(), format!("move_session {T} {SESSION} {COPY}")]);
+        assert_eq!(
+            r.writes()[..3].to_vec(),
+            vec![format!("restore {}", checkpoint_ref(1)), "fork_session".to_string(), format!("move_session {T} {SESSION} {COPY}")]
+        );
     });
 }
 
@@ -975,7 +1026,10 @@ fn a_copy_pays_off_the_cut_owed_and_the_rewind_is_recorded() {
         let held = r.host.records.borrow()[T].clone();
         assert_eq!(held.cut_owed, None);
         assert_eq!(held.workspace_id, W);
-        assert_eq!(norm(&serde_json::to_value(&held.rewound).unwrap()), norm(&json!({ "before": format!("{}-before-1", checkpoint_ref(1)), "at": T0 })));
+        assert_eq!(
+            norm(&serde_json::to_value(&held.rewound).unwrap()),
+            norm(&json!({ "before": format!("{}-before-1", checkpoint_ref(1)), "at": T0 }))
+        );
         // A harness that cuts by itself leaves the owed cut where it was; no files moved, no rewound mark.
         let mut shape = Shape::new(Cuts::Revert);
         shape.record = Some(json!({ "harness": "claude", "cutOwed": "owed-turn" }));
@@ -1042,7 +1096,9 @@ fn a_rewind_cuts_the_later_turns_and_their_rows() {
     run_local(async {
         let r = Rig::new(Shape::new(Cuts::Copy));
         // Another thread in the folder keeps its events.
-        let other = event(json!({ "type": "session.delta", "workspaceId": W, "sessionId": "S9", "turnId": "other-1", "threadId": "thread-bb", "kind": "text", "text": "other reply" }));
+        let other = event(
+            json!({ "type": "session.delta", "workspaceId": W, "sessionId": "S9", "turnId": "other-1", "threadId": "thread-bb", "kind": "text", "text": "other reply" }),
+        );
         r.host.recorded.borrow_mut().push(other.clone());
         assert_eq!(r.to(1, true).await.unwrap(), answer(json!({ "turns": 2, "files": 2 })));
         assert_eq!(r.cut.borrow().clone(), vec![Some(vec![turn(2), turn(3)])], "this thread's cut turns, in transcript order");

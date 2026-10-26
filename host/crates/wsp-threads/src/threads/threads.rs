@@ -17,11 +17,11 @@ use wsp_core::types::internal::{KeptProcess, Taken, ThreadRecord, ThreadStamps};
 use wsp_core::types::wiring::{SessionHandle, WorkspaceRecord};
 use wsp_store::store::Store;
 use wsp_wire::types::attachments::Attachment;
-use wsp_wire::wire::events_union::EventUnion;
 use wsp_wire::types::usage::AccountLimit;
 use wsp_wire::views::session::{SessionView, ThreadPrompt};
 use wsp_wire::views::session_events_more::SessionEvent;
 use wsp_wire::views::workspace::{Caller, ProjectView, ReachState};
+use wsp_wire::wire::events_union::EventUnion;
 use wsp_wire::wire::runtime::SessionInterruptResult;
 use wsp_words::exit::HostError;
 
@@ -107,7 +107,13 @@ pub trait ThreadsCtx {
     fn sub_line(&self, workspace_id: &str, since: i64) -> LocalBoxFuture<'static, Option<String>>;
     fn boot_work(&self, workspace_id: &str) -> Option<Joined>;
     fn kept_writes(&self, workspace_id: &str) -> Option<Joined>;
-    fn keep_sent_images(&self, workspace_id: &str, thread_id: &str, request_id: Option<String>, attachments: Vec<Attachment>) -> LocalBoxFuture<'static, ()>;
+    fn keep_sent_images(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        request_id: Option<String>,
+        attachments: Vec<Attachment>,
+    ) -> LocalBoxFuture<'static, ()>;
     /// `ctx.record(event)`: the transcripts area stamps, appends and emits it.
     fn record(&self, event: SessionEvent);
     fn persist_sessions(&self, workspace_id: &str) -> LocalBoxFuture<'static, ()>;

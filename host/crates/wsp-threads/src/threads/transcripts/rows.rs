@@ -27,7 +27,9 @@ use wsp_words::tool_result::kept_patch;
 use super::kept::image_keys_of;
 use super::TranscriptsArea;
 
-pub use wsp_core::types::internal::{TRANSCRIPT_CAP, TRANSCRIPT_BYTES, TOOL_RESULT_KEPT, PENDING_FLUSH_BYTES, TRANSCRIPT_FLUSH_MS, WORDS_HELD};
+pub use wsp_core::types::internal::{
+    PENDING_FLUSH_BYTES, TOOL_RESULT_KEPT, TRANSCRIPT_BYTES, TRANSCRIPT_CAP, TRANSCRIPT_FLUSH_MS, WORDS_HELD,
+};
 /// What a trim weighs: an event's thread (`None` for `''`) and type. Both `SessionEvent` and wsp-store's
 /// `EventSize` are trimmed (`dropOldestOf<E>`, transcripts.ts:102).
 pub trait Trimmed {
@@ -333,7 +335,10 @@ impl TranscriptsArea {
     pub fn append(&self, event: SessionEvent) {
         let ws = ws_of(&event).to_string();
         if let Some(thread) = thread_of(&event).map(str::to_string) {
-            let cold = self.ctx.transcript_state().with(|s| s.index.get(&ws).and_then(|i| i.words.get(&thread)).is_some_and(|w| w.cold == Some(true)));
+            let cold = self
+                .ctx
+                .transcript_state()
+                .with(|s| s.index.get(&ws).and_then(|i| i.words.get(&thread)).is_some_and(|w| w.cold == Some(true)));
             if cold {
                 let had = self.ctx.transcript_state().with(|s| s.index.get(&ws).and_then(|i| i.words.get(&thread)).cloned());
                 if let Ok(words) = self.words_of(&ws, &thread, had.as_ref()) {
@@ -406,7 +411,11 @@ impl TranscriptsArea {
     }
 
     /// transcripts.ts:293: one turn of the workspace's queue; the caller gets its own result.
-    pub fn on_transcript_queue<T: 'static>(&self, workspace_id: &str, step: LocalBoxFuture<'static, Result<T, HostError>>) -> LocalBoxFuture<'static, Result<T, HostError>> {
+    pub fn on_transcript_queue<T: 'static>(
+        &self,
+        workspace_id: &str,
+        step: LocalBoxFuture<'static, Result<T, HostError>>,
+    ) -> LocalBoxFuture<'static, Result<T, HostError>> {
         let previous = self.transcript_queue.borrow().get(workspace_id).cloned();
         let (done, answer) = futures::channel::oneshot::channel::<Result<T, HostError>>();
         let link = async move {
@@ -524,7 +533,12 @@ impl TranscriptsArea {
     }
 
     /// transcripts.ts:385: T7. `drops` `None` takes every event of the thread.
-    pub fn drop_from_transcript(&self, workspace_id: &str, thread_id: &str, drops: Option<Rc<dyn Fn(&SessionEvent) -> bool>>) -> LocalBoxFuture<'static, Result<(), HostError>> {
+    pub fn drop_from_transcript(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        drops: Option<Rc<dyn Fn(&SessionEvent) -> bool>>,
+    ) -> LocalBoxFuture<'static, Result<(), HostError>> {
         let Some(area) = self.me.upgrade() else {
             return futures::future::ready(Ok(())).boxed_local();
         };
@@ -541,9 +555,10 @@ impl TranscriptsArea {
     /// transcripts.ts:301: T10.
     pub fn open_transcript(&self, workspace_id: &str) -> Result<Vec<SessionEvent>, HostError> {
         let kept = self.ctx.rows().all(workspace_id)?;
-        let (pending, pending_bytes) = self.ctx.transcript_state().with(|s| {
-            (s.pending.get(workspace_id).cloned().unwrap_or_default(), s.pending_bytes.get(workspace_id).copied().unwrap_or(0))
-        });
+        let (pending, pending_bytes) = self
+            .ctx
+            .transcript_state()
+            .with(|s| (s.pending.get(workspace_id).cloned().unwrap_or_default(), s.pending_bytes.get(workspace_id).copied().unwrap_or(0)));
         let mut events = kept.events;
         events.extend(pending);
         drop_oldest(&mut events, Some(kept.size + pending_bytes), &mut |_| {});
@@ -597,7 +612,10 @@ impl TranscriptsArea {
         let rows = self.ctx.rows();
         let mut newest: Option<i64> = None;
         if let Err(e) = self.load_rows_index(rows.as_ref(), workspace_id, &mut newest) {
-            console::warn(&format!("{}, so search and a send leave it out until it reads", transcript_unread_line(workspace_id, &e.message)));
+            console::warn(&format!(
+                "{}, so search and a send leave it out until it reads",
+                transcript_unread_line(workspace_id, &e.message)
+            ));
             self.ctx.transcript_state().with(|s| {
                 if let Some(newest) = newest {
                     s.index.insert(workspace_id.to_string(), TranscriptIndex { pos: newest as u64, ..empty_index() });
@@ -709,10 +727,9 @@ impl TranscriptsArea {
     /// transcripts.ts:495: T15. Whether a thread was read back.
     pub fn warm_one(&self) -> bool {
         for (ws, thread, share) in self.ranked_shares() {
-            let cold = self
-                .ctx
-                .transcript_state()
-                .with(|s| s.index.get(&ws).and_then(|i| i.words.get(&thread)).filter(|w| w.cold == Some(true) && w.room.unwrap_or(0) < share).cloned());
+            let cold = self.ctx.transcript_state().with(|s| {
+                s.index.get(&ws).and_then(|i| i.words.get(&thread)).filter(|w| w.cold == Some(true) && w.room.unwrap_or(0) < share).cloned()
+            });
             let Some(had) = cold else {
                 continue;
             };

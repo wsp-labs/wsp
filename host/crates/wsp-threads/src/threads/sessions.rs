@@ -12,24 +12,24 @@ use indexmap::{IndexMap, IndexSet};
 use serde_json::{Map, Value};
 use wsp_account::account::rules::TreeOf;
 use wsp_adapters::port::{AsideQuestion, ForkTurn, ForkedSession, HarnessAdapter, SessionRenameWrite};
-use wsp_machines::machines::boot::entries::{EntryAsk, RowAt};
-use wsp_machines::machines::sub_spawn::machine::Resumed;
-use wsp_store::transcript_reader::ThreadRead;
-use wsp_wire::wire::events_union::EventUnion;
 use wsp_core::clock::Clock;
+use wsp_core::context::Joined;
 use wsp_core::types::api::{
     AnswerAsk, DeleteThreadAsk, ForkOptions, HistoryAsk, PageWindow, RewindAsk, SessionsApi, SettleAsk, StartOptions, SteerAsk,
     ThreadDeleted, WarmAsk,
 };
-use wsp_core::context::Joined;
 use wsp_core::types::internal::{EndThread, KeptLaunch, KeptProcess, SearchedHit, Taken, ThreadRecord, ThreadStamps, TreeTalk};
 use wsp_core::types::wiring::{SessionHandle, WorkspaceRecord};
+use wsp_machines::machines::boot::entries::{EntryAsk, RowAt};
+use wsp_machines::machines::sub_spawn::machine::Resumed;
+use wsp_store::transcript_reader::ThreadRead;
 use wsp_wire::types::attachments::KeptAttachment;
 use wsp_wire::views::preferences::{HistoryPage, ThreadFacts, ThreadHead};
 use wsp_wire::views::session::{SessionView, ThreadCapWait, ThreadMarks};
 use wsp_wire::views::session_events_more::{RunStep, SessionEvent, SessionRunEvent};
 use wsp_wire::views::workspace::Caller;
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
+use wsp_wire::wire::events_union::EventUnion;
 use wsp_wire::wire::runtime::{
     SessionAccessResult, SessionAnswerResult, SessionAsideResult, SessionInterruptResult, SessionRenameResult, SessionRestoreResult,
     SessionRewindResult, SessionSearchResult, SessionSettleResult, SessionSteerResult, SessionWarmResult,
@@ -71,7 +71,13 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     fn running_on(&self, thread_id: &str) -> Option<Row>;
     fn launching_on(&self, thread_id: &str) -> Option<Row>;
     /// `ctx.entryOfRow({ threadId, workspaceId }, origin, talk, { beingMade })`; None where the caller does not reach.
-    async fn entry_of_row(&self, at: &RowAt, origin: Option<&Caller>, talk: Option<TreeTalk>, being_made: bool) -> Result<Option<Entry>, HostError>;
+    async fn entry_of_row(
+        &self,
+        at: &RowAt,
+        origin: Option<&Caller>,
+        talk: Option<TreeTalk>,
+        being_made: bool,
+    ) -> Result<Option<Entry>, HostError>;
     /// `ctx.entryOf(id, origin, { beingMade, now })`.
     async fn entry_of_with(&self, workspace_id: &str, origin: Option<&Caller>, ask: EntryAsk) -> Result<Entry, HostError>;
     fn record(&self, event: SessionEvent);
@@ -104,7 +110,12 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     /// `ctx.lineTry(row)`.
     fn line_try(&self, row: &Row) -> bool;
     /// The kind's `endThread`, None where the kind ends no group.
-    fn end_thread(&self, entry: &Entry, thread_id: &str, o: EndThread) -> Option<LocalBoxFuture<'static, Result<Option<String>, HostError>>>;
+    fn end_thread(
+        &self,
+        entry: &Entry,
+        thread_id: &str,
+        o: EndThread,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<String>, HostError>>>;
     /// The kind's `endOwed`: None where the kind has none; `Some(None)` where nothing is owed; else the end's `paid`.
     async fn end_owed(&self, entry: &Entry, thread_id: &str) -> Result<Option<Option<Joined>>, HostError>;
 
@@ -112,7 +123,12 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     fn taken(&self, workspace_id: &str, request_id: &str) -> Option<Taken>;
     async fn taken_turn(&self, workspace_id: &str, taken: Taken) -> Result<Option<Rc<dyn SessionHandle>>, HostError>;
     /// forks.ts `forkOpened(ctx, workspaceId, opened, origin)`.
-    async fn fork_opened(&self, workspace_id: &str, opened: StartOptions, origin: Option<&Caller>) -> Result<(StartOptions, Option<ForkPlan>), HostError>;
+    async fn fork_opened(
+        &self,
+        workspace_id: &str,
+        opened: StartOptions,
+        origin: Option<&Caller>,
+    ) -> Result<(StartOptions, Option<ForkPlan>), HostError>;
     fn claim_warm(&self, workspace_id: &str, harness: &str) -> Option<String>;
     fn opens_in(&self, record: &WorkspaceRecord, origin: Option<&Caller>) -> bool;
     fn of_threads_repository(&self, origin: Option<&Caller>, project: &str) -> bool;
@@ -139,7 +155,15 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     fn notify_on(&self, thread_id: &str) -> Option<NotifyOn>;
     async fn resume_sub(&self, entry: &Entry, thread_id: &str, harness: &str, prompt: &str) -> Result<Resumed, HostError>;
     async fn place_rows(&self) -> Option<Vec<wsp_wire::views::place_more::PlaceView>>;
-    async fn hold_queued(&self, workspace_id: &str, thread_id: &str, tree: TreeOf, opts: StartOptions, notify: Option<Vec<String>>, origin: Option<&Caller>) -> Result<Rc<dyn SessionHandle>, HostError>;
+    async fn hold_queued(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        tree: TreeOf,
+        opts: StartOptions,
+        notify: Option<Vec<String>>,
+        origin: Option<&Caller>,
+    ) -> Result<Rc<dyn SessionHandle>, HostError>;
     fn launch_area(&self) -> LaunchArea;
     /// forks.ts `forkTurnOf(plan, byCount)`.
     fn fork_turn_of(&self, plan: &ForkPlan, by_count: bool) -> Result<Option<ForkTurn>, HostError>;
@@ -159,10 +183,29 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     async fn first_run_here(&self, entry: &Entry, harness: &str) -> Result<bool, HostError>;
     async fn limit_details_due(&self, entry: &Entry, harness: &str) -> Result<bool, HostError>;
     fn host_writes(&self, session: &str) -> Option<Joined>;
-    async fn land_images(&self, entry: &Entry, adapter: &dyn HarnessAdapter, landing: &str, dir: &str, attachments: Vec<wsp_wire::types::attachments::Attachment>) -> Result<LandedImages, HostError>;
-    async fn land_files(&self, entry: &Entry, landing: &str, dir: &str, attachments: Vec<wsp_wire::types::attachments::Attachment>) -> Result<Vec<String>, HostError>;
+    async fn land_images(
+        &self,
+        entry: &Entry,
+        adapter: &dyn HarnessAdapter,
+        landing: &str,
+        dir: &str,
+        attachments: Vec<wsp_wire::types::attachments::Attachment>,
+    ) -> Result<LandedImages, HostError>;
+    async fn land_files(
+        &self,
+        entry: &Entry,
+        landing: &str,
+        dir: &str,
+        attachments: Vec<wsp_wire::types::attachments::Attachment>,
+    ) -> Result<Vec<String>, HostError>;
     /// forks.ts `readyFork(adapter, session, turn, refused)`.
-    async fn ready_fork(&self, adapter: Arc<dyn HarnessAdapter>, session: &str, turn: ForkTurn, harness: &str) -> Result<ForkedSession, HostError>;
+    async fn ready_fork(
+        &self,
+        adapter: Arc<dyn HarnessAdapter>,
+        session: &str,
+        turn: ForkTurn,
+        harness: &str,
+    ) -> Result<ForkedSession, HostError>;
     /// forks.ts `copyImages(ctx, plan, at)`.
     async fn copy_images(&self, plan: &ForkPlan, workspace_id: &str, thread_id: &str) -> Result<(), HostError>;
     /// forks.ts `payCutOwed(ctx, adapter, at, resume)`.
@@ -171,18 +214,45 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     fn snapshot_of(&self, entry: &Entry, cwd: &str) -> futures::future::Shared<LocalBoxFuture<'static, Option<String>>>;
     async fn keep_steer(&self, running: &Row, opts: &StartOptions, origin: Option<&Caller>, steer_id: &str) -> Result<(), HostError>;
     fn steer_lost(&self, running: &Row, steer_id: &str);
-    fn steer_answered(&self, running: &Row, handle_id: &str, opts: &StartOptions, origin: Option<&Caller>, steer_id: &str, accepted: bool) -> bool;
+    fn steer_answered(
+        &self,
+        running: &Row,
+        handle_id: &str,
+        opts: &StartOptions,
+        origin: Option<&Caller>,
+        steer_id: &str,
+        accepted: bool,
+    ) -> bool;
     fn cut_before(&self, workspace_id: &str, thread_id: &str) -> bool;
     /// `ctx.takeKept(threadId, ask, resume, launchKey)`.
-    fn take_kept(&self, thread_id: &str, ask: Option<KeptLaunch>, resume: Option<&str>, launch_key: Option<&KeptLaunch>) -> Option<Rc<RefCell<KeptProcess>>>;
+    fn take_kept(
+        &self,
+        thread_id: &str,
+        ask: Option<KeptLaunch>,
+        resume: Option<&str>,
+        launch_key: Option<&KeptLaunch>,
+    ) -> Option<Rc<RefCell<KeptProcess>>>;
     /// forks.ts `copiedEvents(plan, at)`, recorded through `ctx.recordCopies`.
     fn record_copies(&self, plan: &ForkPlan, workspace_id: &str, thread_id: &str);
     fn run_turn(&self, t: TurnStart) -> Result<Rc<dyn SessionHandle>, HostError>;
-    async fn keep_sent_images(&self, workspace_id: &str, thread_id: &str, request_id: Option<&str>, attachments: Vec<wsp_wire::types::attachments::Attachment>) -> Result<(), HostError>;
+    async fn keep_sent_images(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        request_id: Option<&str>,
+        attachments: Vec<wsp_wire::types::attachments::Attachment>,
+    ) -> Result<(), HostError>;
     fn cancel_resume_timer(&self, thread_id: &str);
     async fn remember_target(&self, record: &WorkspaceRecord) -> Result<(), HostError>;
     /// `ctx.notifyEnd({ view, turnId }, notify, ctx.tellAs({ notifyBy?, notifyRoad? }), result)`.
-    fn notify_end(&self, row: &Row, notify: &[String], by: Option<&ThreadScope>, road: Option<&WorkspaceOrigin>, result: wsp_wire::views::session_events::TurnResult);
+    fn notify_end(
+        &self,
+        row: &Row,
+        notify: &[String],
+        by: Option<&ThreadScope>,
+        road: Option<&WorkspaceOrigin>,
+        result: wsp_wire::views::session_events::TurnResult,
+    );
     fn drop_images(&self, entry: &Entry, dir: &str);
     async fn drop_sent_images(&self, workspace_id: &str, thread_ids: &[String]) -> Result<(), HostError>;
     fn end_kept(&self, thread_id: &str, kept: &Rc<RefCell<KeptProcess>>);
@@ -214,15 +284,31 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
 
     // sessions_acts
     fn record_steer(&self, row: &Row, row_id: &str, ask: &SteerAsk, origin: Option<&Caller>, steer_id: &str);
-    async fn launch_adapter_for(&self, entry: &Entry, harness: &str, server_values: Option<wsp_adapters::port::ServerValues>) -> Result<BuiltAdapter, HostError>;
+    async fn launch_adapter_for(
+        &self,
+        entry: &Entry,
+        harness: &str,
+        server_values: Option<wsp_adapters::port::ServerValues>,
+    ) -> Result<BuiltAdapter, HostError>;
     /// Whether the adapter has a revert road (TS `adapter.revert !== undefined`): the port answers only by a call, which
     /// starts work on some adapters, so the wiring reads it.
     fn adapter_reverts(&self, adapter: &dyn HarnessAdapter) -> bool;
     /// Whether the adapter has a fork road (TS `adapter.forkSession !== undefined`).
     fn adapter_forks(&self, adapter: &dyn HarnessAdapter) -> bool;
-    async fn write_session(&self, session: &str, entry: &Entry, adapter: Arc<dyn HarnessAdapter>, title: &str) -> Result<SessionRenameWrite, HostError>;
+    async fn write_session(
+        &self,
+        session: &str,
+        entry: &Entry,
+        adapter: Arc<dyn HarnessAdapter>,
+        title: &str,
+    ) -> Result<SessionRenameWrite, HostError>;
     fn brokered(&self, record: &WorkspaceRecord) -> bool;
-    async fn server_values_for(&self, entry: &Entry, harness: &str, cwd: &str) -> Result<Option<wsp_adapters::port::ServerValues>, HostError>;
+    async fn server_values_for(
+        &self,
+        entry: &Entry,
+        harness: &str,
+        cwd: &str,
+    ) -> Result<Option<wsp_adapters::port::ServerValues>, HostError>;
     async fn mark(&self, thread_ids: &[String], stamps: StampsOf, origin: Option<&Caller>) -> Result<(), HostError>;
     async fn arm_resume(&self, thread_ids: &[String], on: bool, origin: Option<&Caller>) -> Result<(), HostError>;
     async fn aside(&self, adapter: &dyn HarnessAdapter, ask: AsideQuestion) -> Result<String, HostError>;
@@ -248,7 +334,13 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
 
     // sessions_delete
     fn lead_of_sub(&self, workspace_id: Option<&str>, origin: Option<&Caller>) -> bool;
-    async fn sub_delete(&self, entry: &Entry, thread_id: &str, origin: Option<&Caller>, ask: DeleteThreadAsk) -> Result<ThreadDeleted, HostError>;
+    async fn sub_delete(
+        &self,
+        entry: &Entry,
+        thread_id: &str,
+        origin: Option<&Caller>,
+        ask: DeleteThreadAsk,
+    ) -> Result<ThreadDeleted, HostError>;
     fn turn_runs(&self, workspace_id: &str) -> bool;
     async fn end_thread_shells(&self, entry: &Entry, thread_id: &str) -> Result<(), HostError>;
     async fn delete_workspace(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<(), HostError>;
@@ -315,7 +407,14 @@ impl SessionsApi for SessionsArea {
     async fn head(&self, thread_id: &str, origin: Option<Caller>, after_read: Option<bool>) -> Result<ThreadHead, HostError> {
         self.head_of(thread_id, origin, after_read == Some(true)).await
     }
-    async fn attachment(&self, workspace_id: &str, thread_id: &str, request_id: &str, index: u32, origin: Option<Caller>) -> Result<KeptAttachment, HostError> {
+    async fn attachment(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        request_id: &str,
+        index: u32,
+        origin: Option<Caller>,
+    ) -> Result<KeptAttachment, HostError> {
         self.attachment_of(workspace_id, thread_id, request_id, index, origin).await
     }
     async fn interrupt(&self, session_id: &str, origin: Option<Caller>, task: Option<String>) -> Result<SessionInterruptResult, HostError> {
@@ -364,7 +463,13 @@ impl SessionsApi for SessionsArea {
     async fn search(&self, query: &str, origin: Option<Caller>) -> Result<SessionSearchResult, HostError> {
         self.search_for(query, origin).await
     }
-    async fn aside(&self, session_id: &str, question: &str, origin: Option<Caller>, ask_id: Option<String>) -> Result<SessionAsideResult, HostError> {
+    async fn aside(
+        &self,
+        session_id: &str,
+        question: &str,
+        origin: Option<Caller>,
+        ask_id: Option<String>,
+    ) -> Result<SessionAsideResult, HostError> {
         self.aside_row(session_id, question, origin, ask_id).await
     }
     async fn rewind(&self, thread_id: &str, ask: RewindAsk, origin: Option<Caller>) -> Result<SessionRewindResult, HostError> {

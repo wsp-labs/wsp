@@ -12,8 +12,8 @@ use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::session::{ThreadMarks, ThreadMarksPinned};
 use wsp_words::exit::{not_found_refusal, refusal, usage_refusal};
 use wsp_words::words::computer::{
-    not_under_line, replaced_already_fix, replaced_already_line, replaces_working_fix, replaces_working_line, subagent_settle_line, thread_word, NOT_UNDER_FIX,
-    SETTLE_ALREADY, SETTLE_WORKING, SUBAGENT_SETTLE_FIX,
+    not_under_line, replaced_already_fix, replaced_already_line, replaces_working_fix, replaces_working_line, subagent_settle_line,
+    thread_word, NOT_UNDER_FIX, SETTLE_ALREADY, SETTLE_WORKING, SUBAGENT_SETTLE_FIX,
 };
 
 const HOUR: f64 = 3_600_000.0;
@@ -62,7 +62,13 @@ impl ActivityDoor for Meets {
     async fn end(&self, _ask: EndAsk, _caller: Option<Caller>) -> Result<ActivityEnded, HostError> {
         panic!("a settle never ends a process by pid")
     }
-    async fn meet(&self, thread_ids: &[String], processes: ProcessesAsk, verb: MeetVerb, caller: Option<Caller>) -> Result<Vec<ActivityEnded>, HostError> {
+    async fn meet(
+        &self,
+        thread_ids: &[String],
+        processes: ProcessesAsk,
+        verb: MeetVerb,
+        caller: Option<Caller>,
+    ) -> Result<Vec<ActivityEnded>, HostError> {
         self.host.hooks.log("meet", vec![thread_ids.join(",")]);
         self.seen.borrow_mut().push((thread_ids.to_vec(), processes, verb, caller));
         if let Some(e) = self.refuse.borrow().clone() {
@@ -93,7 +99,8 @@ fn facts_doc(id: &str, status: &str, title: &str) -> Value {
 fn scoped(thread: &str, root: &str) -> Caller {
     Caller::Scoped {
         origin: WorkspaceOrigin::Relayed,
-        by: serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": "w1", "rootThreadId": root })).expect("a thread scope"),
+        by: serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": "w1", "rootThreadId": root }))
+            .expect("a thread scope"),
     }
 }
 
@@ -109,15 +116,25 @@ impl World {
         let marks: Rc<RefCell<Vec<MarkCall>>> = Rc::new(RefCell::new(Vec::new()));
         let settled_asked: Rc<RefCell<Vec<Option<f64>>>> = Rc::new(RefCell::new(Vec::new()));
         let prefs = Rc::new(RefCell::new(prefs_doc("1h")));
-        let meets = Rc::new(Meets { host: host.clone(), ended: RefCell::new(Vec::new()), refuse: RefCell::new(None), seen: RefCell::new(Vec::new()) });
+        let meets = Rc::new(Meets {
+            host: host.clone(),
+            ended: RefCell::new(Vec::new()),
+            refuse: RefCell::new(None),
+            seen: RefCell::new(Vec::new()),
+        });
 
         let f = facts.clone();
         host.hooks.set::<dyn Fn(&str) -> Option<ThreadFacts>>(
             "SessionsCtx::thread_facts",
-            Rc::new(move |id: &str| f.borrow().get(id).map(|d| serde_json::from_value(d.clone()).expect("thread facts the fixture builds"))),
+            Rc::new(move |id: &str| {
+                f.borrow().get(id).map(|d| serde_json::from_value(d.clone()).expect("thread facts the fixture builds"))
+            }),
         );
         let u = under.clone();
-        host.hooks.set::<dyn Fn(&str) -> Vec<String>>("SessionsCtx::tree_under", Rc::new(move |id: &str| u.borrow().get(id).cloned().unwrap_or_default()));
+        host.hooks.set::<dyn Fn(&str) -> Vec<String>>(
+            "SessionsCtx::tree_under",
+            Rc::new(move |id: &str| u.borrow().get(id).cloned().unwrap_or_default()),
+        );
         let recs = host.records.clone();
         let asked = settled_asked.clone();
         host.hooks.set::<dyn Fn(&str, Option<f64>) -> bool>(
@@ -298,7 +315,10 @@ fn a_thread_not_under_the_caller_refuses_and_a_stranger_is_not_found() {
         assert_eq!(w.marks(), Vec::<MarkCall>::new());
         assert!(!w.is_settled(PARSER));
         assert!(asked.borrow().iter().all(|(_, o)| o.as_ref() == Some(&as_parser)), "the caller reaches the check");
-        assert_eq!(drives.borrow().clone(), vec![LEAD.to_string(), PRINTER.to_string(), LEAD.to_string(), "thr_elsewhere".to_string(), PRINTER.to_string()]);
+        assert_eq!(
+            drives.borrow().clone(),
+            vec![LEAD.to_string(), PRINTER.to_string(), LEAD.to_string(), "thr_elsewhere".to_string(), PRINTER.to_string()]
+        );
 
         // Its own tree settles and restores.
         let done = w.area.settle_threads(ids(&[TESTS]), Some(as_parser.clone()), SettleAsk::default()).await;
@@ -337,7 +357,10 @@ fn settle_reads_answers_busy_settled_finished_and_titled() {
         );
         assert_eq!([PARSER, LEAD].map(|id| (reads.settled)(id)), [true, false]);
         assert_eq!(w.settled_asked.borrow().clone(), vec![Some(HOUR), Some(HOUR)], "the quiet time of the settleAfter preference");
-        assert_eq!((reads.titled)(&ids(&[PARSER, LEAD])), vec![(PARSER.to_string(), "build the parser".to_string()), (LEAD.to_string(), "lead the work".to_string())]);
+        assert_eq!(
+            (reads.titled)(&ids(&[PARSER, LEAD])),
+            vec![(PARSER.to_string(), "build the parser".to_string()), (LEAD.to_string(), "lead the work".to_string())]
+        );
 
         *w.prefs.borrow_mut() = prefs_doc("never");
         let reads = w.area.settle_reads(&ids(&[LEAD]), None).await.unwrap();
@@ -353,7 +376,10 @@ fn a_thread_with_a_record_and_no_facts_is_titled_by_its_short_id() {
         let w = World::new();
         w.host.add_record("thr_recordonly", "w1", thread_record(json!({ "harness": "claude" })));
         let done = w.area.settle_threads(ids(&["thr_recordonly"]), None, SettleAsk::default()).await;
-        assert_eq!(answer(&done), json!({ "settled": [{ "threadId": "thr_recordonly", "title": thread_word("thr_recordonly") }], "left": [] }));
+        assert_eq!(
+            answer(&done),
+            json!({ "settled": [{ "threadId": "thr_recordonly", "title": thread_word("thr_recordonly") }], "left": [] })
+        );
     });
 }
 
@@ -379,7 +405,10 @@ fn a_restart_of_a_working_tree_is_refused() {
         let e = w.area.replaceable_check(PARSER, None).await.unwrap_err();
         assert_eq!(e.kind, Some(Kind::Usage));
         // Working comes before a restart already standing.
-        w.host.hooks.set::<dyn Fn() -> IndexMap<String, String>>("SessionsCtx::restarts", Rc::new(|| IndexMap::from([(PARSER.to_string(), "again-001".to_string())])));
+        w.host.hooks.set::<dyn Fn() -> IndexMap<String, String>>(
+            "SessionsCtx::restarts",
+            Rc::new(|| IndexMap::from([(PARSER.to_string(), "again-001".to_string())])),
+        );
         let e = w.area.replaceable_check(PARSER, None).await.unwrap_err();
         assert_eq!(said(&e), said(&refusal(&replaces_working_line(PARSER), &replaces_working_fix(PARSER), Some(Kind::Usage))));
     });
@@ -391,9 +420,15 @@ fn a_thread_restarted_once_is_refused() {
     run_local(async {
         let w = World::new();
         w.tree();
-        w.host.hooks.set::<dyn Fn() -> IndexMap<String, String>>("SessionsCtx::restarts", Rc::new(|| IndexMap::from([(PARSER.to_string(), "again-001".to_string())])));
+        w.host.hooks.set::<dyn Fn() -> IndexMap<String, String>>(
+            "SessionsCtx::restarts",
+            Rc::new(|| IndexMap::from([(PARSER.to_string(), "again-001".to_string())])),
+        );
         let e = w.area.replaceable_check(PARSER, Some(&scoped(LEAD, LEAD))).await.unwrap_err();
-        assert_eq!(said(&e), said(&refusal(&replaced_already_line(PARSER, "again-001"), &replaced_already_fix("again-001"), Some(Kind::Usage))));
+        assert_eq!(
+            said(&e),
+            said(&refusal(&replaced_already_line(PARSER, "again-001"), &replaced_already_fix("again-001"), Some(Kind::Usage)))
+        );
         assert!(e.message.contains(&format!("thread {} was restarted as {}", &PARSER[..8], "again-00")));
         // A thread nobody restarted passes.
         assert!(w.area.replaceable_check(TESTS, None).await.is_ok());
@@ -406,7 +441,10 @@ fn a_restart_meets_the_same_refusals_as_a_settle_and_passes_a_stopped_thread() {
     run_local(async {
         let w = World::new();
         w.tree();
-        w.host.hooks.set::<dyn Fn(&str, Option<&Caller>) -> bool>("SessionsCtx::settles_thread", Rc::new(|id: &str, _o: Option<&Caller>| id != "thr_beside"));
+        w.host.hooks.set::<dyn Fn(&str, Option<&Caller>) -> bool>(
+            "SessionsCtx::settles_thread",
+            Rc::new(|id: &str, _o: Option<&Caller>| id != "thr_beside"),
+        );
         w.thread("thr_beside", "completed", "beside");
         let e = w.area.replaceable_check("thr_beside", Some(&scoped(PRINTER, LEAD))).await.unwrap_err();
         assert_eq!(said(&e), said(&refusal(&not_under_line("thr_beside"), NOT_UNDER_FIX, Some(Kind::Usage))));
@@ -535,7 +573,10 @@ fn settle_finished_leaves_a_finished_thread_with_work_under_it() {
             answer(&done),
             json!({ "settled": [{ "threadId": TESTS, "title": "write its tests" }], "left": [{ "threadId": PARSER, "why": SETTLE_WORKING }] }),
         );
-        assert_eq!([LEAD, PARSER, TESTS, PRINTER, LINKER, "probe-001"].map(|id| w.is_settled(id)), [false, false, true, false, false, false]);
+        assert_eq!(
+            [LEAD, PARSER, TESTS, PRINTER, LINKER, "probe-001"].map(|id| w.is_settled(id)),
+            [false, false, true, false, false, false]
+        );
     });
 }
 
@@ -549,7 +590,10 @@ fn settle_with_processes_meets_them_first() {
         let ended: ActivityEnded = serde_json::from_value(json!({ "pid": 4200, "ended": [], "forced": [], "left": [] })).unwrap();
         *w.meets.ended.borrow_mut() = vec![ended];
         let origin = scoped(LEAD, LEAD);
-        let done = w.area.settle_threads(ids(&[PARSER]), Some(origin.clone()), SettleAsk { finished: None, processes: Some(ProcessesAsk::Stop) }).await;
+        let done = w
+            .area
+            .settle_threads(ids(&[PARSER]), Some(origin.clone()), SettleAsk { finished: None, processes: Some(ProcessesAsk::Stop) })
+            .await;
         assert_eq!(
             answer(&done),
             norm(&json!({
@@ -586,9 +630,16 @@ fn a_refusal_from_meet_settles_nothing() {
     run_local(async {
         let w = World::new();
         w.tree();
-        let refused = usage_refusal("the thread to settle still runs 2 processes: 4200 node (dev, :5173) of parser-0:", "settle it again with processes stop.");
+        let refused = usage_refusal(
+            "the thread to settle still runs 2 processes: 4200 node (dev, :5173) of parser-0:",
+            "settle it again with processes stop.",
+        );
         *w.meets.refuse.borrow_mut() = Some(refused.clone());
-        let e = w.area.settle_threads(ids(&[PARSER]), None, SettleAsk { finished: None, processes: Some(ProcessesAsk::Ask) }).await.unwrap_err();
+        let e = w
+            .area
+            .settle_threads(ids(&[PARSER]), None, SettleAsk { finished: None, processes: Some(ProcessesAsk::Ask) })
+            .await
+            .unwrap_err();
         assert_eq!(said(&e), said(&refused));
         assert_eq!(w.marks(), Vec::<MarkCall>::new());
         assert!(!w.is_settled(PARSER));
@@ -630,7 +681,10 @@ fn a_sidebar_place_that_is_no_number_is_refused() {
             let mut order = marks_of(json!({}));
             order.order = Some(Some(JsNumber(bad)));
             let e = w.area.mark_threads(ids(&[PARSER]), order, None).await.unwrap_err();
-            let expected = usage_refusal(&format!("a thread's place in the sidebar is a number, and {word} is not one."), "Send a finite number, or leave the key out.");
+            let expected = usage_refusal(
+                &format!("a thread's place in the sidebar is a number, and {word} is not one."),
+                "Send a finite number, or leave the key out.",
+            );
             assert_eq!(said(&e), said(&expected));
             assert_eq!(e.kind, Some(Kind::Usage));
             let mut pinned = marks_of(json!({}));
@@ -692,9 +746,15 @@ fn a_snooze_reads_the_time_off_the_clock_at_the_mark() {
         let w = World::new();
         w.tree();
         w.host.clock.advance(5_000);
-        w.area.mark_threads(ids(&[PARSER]), marks_of(json!({ "pinned": true, "folded": true, "snoozedUntil": 9_000_000_000_000.0 })), None).await.unwrap();
+        w.area
+            .mark_threads(ids(&[PARSER]), marks_of(json!({ "pinned": true, "folded": true, "snoozedUntil": 9_000_000_000_000.0 })), None)
+            .await
+            .unwrap();
         let at = now() + 5_000.0;
-        assert_eq!(w.stamp_of(0, PARSER), norm(&json!({ "pinnedAt": at, "foldedAt": at, "snoozedUntil": 9_000_000_000_000.0, "readAt": at })));
+        assert_eq!(
+            w.stamp_of(0, PARSER),
+            norm(&json!({ "pinnedAt": at, "foldedAt": at, "snoozedUntil": 9_000_000_000_000.0, "readAt": at }))
+        );
     });
 }
 
@@ -712,7 +772,11 @@ fn resume_at_reset_arms_first_and_a_mark_of_only_that_writes_no_stamps() {
         assert_eq!(w.host.hooks.called("arm_resume"), vec!["arm_resume(true)".to_string(), "arm_resume(false)".to_string()]);
         w.area.mark_threads(ids(&[PARSER]), marks_of(json!({ "resumeAtReset": true, "pinned": true })), None).await.unwrap();
         let order: Vec<String> = w.host.hooks.calls().into_iter().filter(|c| c.starts_with("arm_resume") || c == "mark").collect();
-        assert_eq!(order, vec!["arm_resume(true)", "arm_resume(false)", "arm_resume(true)", "mark"], "the resume is armed before the stamps are written");
+        assert_eq!(
+            order,
+            vec!["arm_resume(true)", "arm_resume(false)", "arm_resume(true)", "mark"],
+            "the resume is armed before the stamps are written"
+        );
         assert_eq!(w.stamp_of(0, PARSER), norm(&json!({ "pinnedAt": now() })));
     });
 }

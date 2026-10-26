@@ -7,7 +7,9 @@ use std::sync::Arc;
 
 use futures::future::{FutureExt, LocalBoxFuture, Shared};
 use indexmap::{IndexMap, IndexSet};
-use wsp_adapters::port::{AccessOutcome, AnswerOutcome, ExecFailure, HarnessSession, OnEvent, PermissionAnswer, PermissionAsk, SteerOutcome, TaskStop, TurnImage};
+use wsp_adapters::port::{
+    AccessOutcome, AnswerOutcome, ExecFailure, HarnessSession, OnEvent, PermissionAnswer, PermissionAsk, SteerOutcome, TaskStop, TurnImage,
+};
 use wsp_core::console;
 use wsp_core::types::internal::{write_lines, CallSeen, EndRow, KeptLaunch, TurnLive};
 use wsp_core::types::wiring::{AccessMove, Local, SessionHandle, SteerTaken};
@@ -227,7 +229,12 @@ impl TurnState {
     pub(crate) fn persist(&self) {
         let ctx = self.ctx.clone();
         let workspace_id = self.workspace_id.clone();
-        detach(async move { let _ = ctx.persist_sessions(&workspace_id).await; }.boxed_local());
+        detach(
+            async move {
+                let _ = ctx.persist_sessions(&workspace_id).await;
+            }
+            .boxed_local(),
+        );
     }
 
     /// turns.ts:118. Rule N3.
@@ -282,12 +289,18 @@ impl TurnState {
         }
         let slates = self.ctx.clone();
         let (thread, turn) = (self.thread_id.clone(), self.turn_id.clone());
-        detach(async move {
-            if let Err(e) = slates.slates_turn_ended(&thread, &turn).await {
-                console::warn(&format!("the slate of thread {} was not kept at the end of turn {turn}: {}", thread_word(&thread), e.message));
+        detach(
+            async move {
+                if let Err(e) = slates.slates_turn_ended(&thread, &turn).await {
+                    console::warn(&format!(
+                        "the slate of thread {} was not kept at the end of turn {turn}: {}",
+                        thread_word(&thread),
+                        e.message
+                    ));
+                }
             }
-        }
-        .boxed_local());
+            .boxed_local(),
+        );
         let kept = self.ctx.keep_checkpoint(
             &self.entry,
             crate::threads::threads::CheckpointAsk {
@@ -301,14 +314,16 @@ impl TurnState {
         let landing = self.ctx.checkpoints_landing();
         landing.borrow_mut().insert(self.thread_id.clone(), kept.clone());
         let thread = self.thread_id.clone();
-        detach(async move {
-            kept.clone().await;
-            let mut map = landing.borrow_mut();
-            if map.get(&thread).is_some_and(|k| k.ptr_eq(&kept)) {
-                map.shift_remove(&thread);
+        detach(
+            async move {
+                kept.clone().await;
+                let mut map = landing.borrow_mut();
+                if map.get(&thread).is_some_and(|k| k.ptr_eq(&kept)) {
+                    map.shift_remove(&thread);
+                }
             }
-        }
-        .boxed_local());
+            .boxed_local(),
+        );
     }
 
     /// turns.ts:80. Rule N19.
@@ -528,12 +543,7 @@ impl TurnState {
         let deny = option.effect == PermissionEffect::Deny;
         let outcome = if deny { PermissionOutcome::Denied } else { PermissionOutcome::Allowed };
         let reason = reason.map(str::trim).filter(|r| !r.is_empty()).filter(|_| deny).map(String::from);
-        let answer = PermissionAnswer {
-            option_id: option_id.to_string(),
-            outcome,
-            deny_message: denied_line(reason.as_deref()),
-            reason,
-        };
+        let answer = PermissionAnswer { option_id: option_id.to_string(), outcome, deny_message: denied_line(reason.as_deref()), reason };
         let Some(pending) = session.answer(ask_id.to_string(), answer) else {
             return gone;
         };
@@ -660,7 +670,12 @@ impl TurnState {
         if !self.ended.get() {
             let ctx = self.ctx.clone();
             let row = self.row.clone();
-            detach(async move { let _ = ctx.refresh_title(&row, true).await; }.boxed_local());
+            detach(
+                async move {
+                    let _ = ctx.refresh_title(&row, true).await;
+                }
+                .boxed_local(),
+            );
             self.read_ends();
         }
         if let Some(dir) = &self.images_dir {
@@ -706,7 +721,12 @@ impl TurnState {
         };
         if self.ctx.pull_request_state(&root).is_some_and(|state| state != "open") {
             let ctx = self.ctx.clone();
-            detach(async move { let _ = ctx.settle_tree(&root).await; }.boxed_local());
+            detach(
+                async move {
+                    let _ = ctx.settle_tree(&root).await;
+                }
+                .boxed_local(),
+            );
         }
     }
 }

@@ -24,7 +24,10 @@ fn row_of(host: &FakeHost, record: Value, ended: Option<TurnStatus>) -> Value {
 }
 
 fn say_session(host: &FakeHost, session: &'static str, folder: Option<&'static str>) {
-    host.hooks.set::<dyn Fn(&str, &str) -> Option<String>>("TrimmedCtx::started_as", Rc::new(|w: &str, t: &str| (w == "w1" && t == THREAD).then(|| session.to_string())));
+    host.hooks.set::<dyn Fn(&str, &str) -> Option<String>>(
+        "TrimmedCtx::started_as",
+        Rc::new(|w: &str, t: &str| (w == "w1" && t == THREAD).then(|| session.to_string())),
+    );
     host.hooks.set::<dyn Fn(&str, &str) -> Option<String>>(
         "TrimmedCtx::folder_of",
         Rc::new(move |w: &str, s: &str| if w == "w1" && s == session { folder.map(str::to_string) } else { None }),
@@ -32,7 +35,10 @@ fn say_session(host: &FakeHost, session: &'static str, folder: Option<&'static s
 }
 
 fn say_words(host: &FakeHost, w: ThreadWords) {
-    host.hooks.set::<dyn Fn(&str, &str) -> Option<ThreadWords>>("TrimmedCtx::thread_words", Rc::new(move |ws: &str, t: &str| (ws == "w1" && t == THREAD).then(|| w.clone())));
+    host.hooks.set::<dyn Fn(&str, &str) -> Option<ThreadWords>>(
+        "TrimmedCtx::thread_words",
+        Rc::new(move |ws: &str, t: &str| (ws == "w1" && t == THREAD).then(|| w.clone())),
+    );
 }
 
 // T1, T2: thread-lines.test.ts:183
@@ -70,7 +76,10 @@ fn a_thread_with_a_session_names_it_and_its_folder() {
     let host = FakeHost::new();
     say_session(&host, "sess-9", Some("/root/app"));
     let row = row_of(&host, json!({ "harness": "claude" }), None);
-    assert_eq!(row, json!({ "id": THREAD, "threadId": THREAD, "workspaceId": "w1", "harness": "claude", "status": "completed", "claudeSessionId": "sess-9", "cwd": "/root/app" }));
+    assert_eq!(
+        row,
+        json!({ "id": THREAD, "threadId": THREAD, "workspaceId": "w1", "harness": "claude", "status": "completed", "claudeSessionId": "sess-9", "cwd": "/root/app" })
+    );
     assert_eq!(host.hooks.calls(), vec!["started_as(w1, thr_1)", "folder_of(w1, sess-9)", "thread_words(w1, thr_1)"]);
 }
 
@@ -78,7 +87,10 @@ fn a_thread_with_a_session_names_it_and_its_folder() {
 #[test]
 fn no_session_asks_no_folder() {
     let host = FakeHost::new();
-    host.hooks.set::<dyn Fn(&str, &str) -> Option<String>>("TrimmedCtx::folder_of", Rc::new(|_w: &str, _s: &str| Some("/root/never".to_string())));
+    host.hooks.set::<dyn Fn(&str, &str) -> Option<String>>(
+        "TrimmedCtx::folder_of",
+        Rc::new(|_w: &str, _s: &str| Some("/root/never".to_string())),
+    );
     let row = row_of(&host, json!({ "harness": "claude" }), None);
     assert_eq!(row, json!({ "id": THREAD, "threadId": THREAD, "workspaceId": "w1", "harness": "claude", "status": "completed" }));
     assert_eq!(host.hooks.called("folder_of"), Vec::<String>::new());
@@ -90,7 +102,10 @@ fn a_session_with_no_folder_has_no_cwd() {
     let host = FakeHost::new();
     say_session(&host, "sess-9", None);
     let row = row_of(&host, json!({ "harness": "claude" }), None);
-    assert_eq!(row, json!({ "id": THREAD, "threadId": THREAD, "workspaceId": "w1", "harness": "claude", "status": "completed", "claudeSessionId": "sess-9" }));
+    assert_eq!(
+        row,
+        json!({ "id": THREAD, "threadId": THREAD, "workspaceId": "w1", "harness": "claude", "status": "completed", "claudeSessionId": "sess-9" })
+    );
     assert_eq!(host.hooks.called("folder_of"), vec!["folder_of(w1, sess-9)"]);
 }
 
@@ -107,7 +122,10 @@ fn the_first_words_title_it_and_the_last_place_it_in_time() {
     // A thread whose first line was never kept still has its place in time, and no prompt.
     say_words(&host, words(None, 42.0));
     let row = row_of(&host, json!({ "harness": "claude" }), None);
-    assert_eq!(row, json!({ "id": THREAD, "threadId": THREAD, "workspaceId": "w1", "harness": "claude", "status": "completed", "startedAt": 42, "endedAt": 42 }));
+    assert_eq!(
+        row,
+        json!({ "id": THREAD, "threadId": THREAD, "workspaceId": "w1", "harness": "claude", "status": "completed", "startedAt": 42, "endedAt": 42 })
+    );
 }
 
 // T4: trimmed-row.ts:15 (`words.last > 0`)
@@ -116,7 +134,10 @@ fn last_zero_places_nothing() {
     let host = FakeHost::new();
     say_words(&host, words(Some("fix the build"), 0.0));
     let row = row_of(&host, json!({ "harness": "claude" }), None);
-    assert_eq!(row, json!({ "id": THREAD, "threadId": THREAD, "workspaceId": "w1", "harness": "claude", "status": "completed", "prompt": "fix the build" }));
+    assert_eq!(
+        row,
+        json!({ "id": THREAD, "threadId": THREAD, "workspaceId": "w1", "harness": "claude", "status": "completed", "prompt": "fix the build" })
+    );
 }
 
 // T4: trimmed-row.ts:14 (`?.words.get(threadId)` answers nothing)
@@ -139,7 +160,10 @@ fn a_child_reads_started_by_its_agent_under_its_parent() {
     );
     // A root alone says nothing of who started the thread.
     let row = row_of(&host, json!({ "harness": "claude", "rootThreadId": "thr_root" }), None);
-    assert_eq!(row, json!({ "id": THREAD, "threadId": THREAD, "workspaceId": "w1", "harness": "claude", "status": "completed", "rootThreadId": "thr_root" }));
+    assert_eq!(
+        row,
+        json!({ "id": THREAD, "threadId": THREAD, "workspaceId": "w1", "harness": "claude", "status": "completed", "rootThreadId": "thr_root" })
+    );
 }
 
 // T6: thread-keeps-agent.test.ts:108 (the agent and the access of a thread read off its record)

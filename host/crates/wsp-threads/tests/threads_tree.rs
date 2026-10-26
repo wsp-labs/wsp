@@ -7,8 +7,8 @@ mod support;
 use std::rc::Rc;
 
 use serde_json::json;
-use support::Lend;
 use support::threads_ctx::{entry, FakeThreadsCtx};
+use support::Lend;
 use support::{err, local, record, record_map, row, rows_of, silent, view};
 use wsp_threads::threads::threads::tree::{CallsOf, Registered};
 use wsp_threads::threads::threads::{computer_silent, ThreadsArea, SILENT_MARKS};
@@ -19,7 +19,8 @@ fn here() -> wsp_wire::views::workspace_more::WorkspaceOrigin {
 }
 
 fn scoped(thread: &str, root: &str) -> Caller {
-    let by = serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": "ws1", "rootThreadId": root })).expect("a scope");
+    let by = serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": "ws1", "rootThreadId": root }))
+        .expect("a scope");
     Caller::Scoped { origin: here(), by }
 }
 
@@ -180,7 +181,10 @@ fn tree_under_ends_on_a_loop_and_never_holds_itself() {
 fn tree_under_reads_a_record_past_a_row_that_fell_off() {
     let ctx = FakeThreadsCtx::new();
     ctx.sessions.with(|s| *s = rows_of(vec![row(view(json!({ "id": "r-b", "threadId": "b", "parentThreadId": "x" })), "u1")]));
-    ctx.thread_records.with(|r| *r = record_map(vec![("b", record("ws1", json!({ "parentThreadId": "a" }))), ("c", record("ws1", json!({ "parentThreadId": "b" })))]));
+    ctx.thread_records.with(|r| {
+        *r =
+            record_map(vec![("b", record("ws1", json!({ "parentThreadId": "a" }))), ("c", record("ws1", json!({ "parentThreadId": "b" })))])
+    });
     let area = ctx.area();
     assert_eq!(area.tree_under("a"), vec!["b", "c"], "the record's parent overwrites the row's");
     assert_eq!(area.tree_under("x"), Vec::<String>::new());
@@ -260,13 +264,22 @@ fn stopped_behind_names_the_question_at_the_bottom_of_the_tree() {
     ctx.sessions.with(|s| {
         *s = rows_of(vec![
             row(view(json!({ "id": "r-lead", "threadId": "lead", "status": "running" })), "u1"),
-            row(view(json!({ "id": "r-kid", "threadId": "kid0001", "parentThreadId": "lead", "status": "running", "workspaceId": "ws2" })), "u2"),
+            row(
+                view(json!({ "id": "r-kid", "threadId": "kid0001", "parentThreadId": "lead", "status": "running", "workspaceId": "ws2" })),
+                "u2",
+            ),
         ])
     });
     let area = ctx.area();
     area.lead_asks.borrow_mut().insert("kid0001".into(), ask("ask-1"));
     let mut calls = indexmap::IndexMap::new();
-    calls.insert("c1".to_string(), wsp_core::types::internal::CallSeen { tool_name: "mcp__wsp__threads_wait".into(), input: json!({ "threads": ["kid0"] }).to_string() });
+    calls.insert(
+        "c1".to_string(),
+        wsp_core::types::internal::CallSeen {
+            tool_name: "mcp__wsp__threads_wait".into(),
+            input: json!({ "threads": ["kid0"] }).to_string(),
+        },
+    );
     let caller = CallsOf { view: view(json!({ "id": "r-lead", "threadId": "lead" })), calls: Some(calls) };
     let behind = area.stopped_behind(&caller).expect("waiting behind the kid's question");
     assert_eq!(behind.thread_id, "kid0001");
@@ -282,7 +295,13 @@ fn stopped_behind_skips_the_caller_and_a_thread_with_no_running_row() {
     let area = ctx.area();
     area.lead_asks.borrow_mut().insert("kid0001".into(), ask("ask-1"));
     let mut calls = indexmap::IndexMap::new();
-    calls.insert("c1".to_string(), wsp_core::types::internal::CallSeen { tool_name: "mcp__wsp__threads_wait".into(), input: json!({ "threads": ["kid0"] }).to_string() });
+    calls.insert(
+        "c1".to_string(),
+        wsp_core::types::internal::CallSeen {
+            tool_name: "mcp__wsp__threads_wait".into(),
+            input: json!({ "threads": ["kid0"] }).to_string(),
+        },
+    );
     assert!(area.stopped_behind(&CallsOf { view: view(json!({ "threadId": "lead" })), calls: Some(calls.clone()) }).is_none());
     assert!(area.stopped_behind(&CallsOf { view: view(json!({})), calls: Some(calls) }).is_none(), "a row with no thread");
     assert!(area.stopped_behind(&CallsOf { view: view(json!({ "threadId": "lead" })), calls: None }).is_none());
@@ -329,7 +348,8 @@ fn stop_under_warns_and_goes_on_past_a_failed_stop() {
 fn notify_on_answers_the_first_registering_row_with_its_scope_and_road() {
     let ctx = FakeThreadsCtx::new();
     let by: wsp_wire::views::workspace_more::ThreadScope =
-        serde_json::from_value(json!({ "kind": "thread", "threadId": "lead", "workspaceId": "ws1", "rootThreadId": "lead" })).expect("a scope");
+        serde_json::from_value(json!({ "kind": "thread", "threadId": "lead", "workspaceId": "ws1", "rootThreadId": "lead" }))
+            .expect("a scope");
     ctx.sessions.with(|s| {
         let silent = row(view(json!({ "id": "a", "threadId": "t1" })), "u1");
         let first = row(view(json!({ "id": "b", "threadId": "t1" })), "u2");
@@ -368,7 +388,11 @@ fn notify_reach_walks_targets_once_and_leaves_me_out() {
         *s = rows_of(vec![a, b]);
     });
     let reach = ctx.area().notify_reach(&["me".to_string(), "a".to_string(), "c".to_string()]);
-    assert_eq!(reach.into_iter().collect::<Vec<_>>(), vec!["a", "c", "b"], "a then c from the start, then b off a; the loop back to a ends");
+    assert_eq!(
+        reach.into_iter().collect::<Vec<_>>(),
+        vec!["a", "c", "b"],
+        "a then c from the start, then b off a; the loop back to a ends"
+    );
 }
 
 #[test]
@@ -376,7 +400,8 @@ fn failure_of_reads_only_the_turn_still_on_the_row() {
     let ctx = FakeThreadsCtx::new();
     ctx.sessions.with(|s| {
         let r = row(view(json!({ "id": "r1", "threadId": "t1" })), "u2");
-        r.borrow_mut().turn_live = Some(wsp_core::types::internal::TurnLive { failure: Some(err("the link dropped")), ..Default::default() });
+        r.borrow_mut().turn_live =
+            Some(wsp_core::types::internal::TurnLive { failure: Some(err("the link dropped")), ..Default::default() });
         *s = rows_of(vec![r]);
     });
     let area = ctx.area();
@@ -401,7 +426,10 @@ fn usage_computer_of_is_place_then_here_then_provider_then_kind() {
 fn vaulted_for_is_token_before_key_and_nothing_for_an_unknown_agent() {
     let ctx = FakeThreadsCtx::new();
     let area: Rc<ThreadsArea> = ctx.area();
-    let both: indexmap::IndexMap<String, String> = [("CLAUDE_CODE_OAUTH_TOKEN".to_string(), "t".to_string()), ("ANTHROPIC_API_KEY".to_string(), "k".to_string())].into_iter().collect();
+    let both: indexmap::IndexMap<String, String> =
+        [("CLAUDE_CODE_OAUTH_TOKEN".to_string(), "t".to_string()), ("ANTHROPIC_API_KEY".to_string(), "k".to_string())]
+            .into_iter()
+            .collect();
     let key: indexmap::IndexMap<String, String> = [("ANTHROPIC_API_KEY".to_string(), "k".to_string())].into_iter().collect();
     assert_eq!(area.vaulted_for("claude", None, Some(&both)), Some("token"));
     assert_eq!(area.vaulted_for("claude", None, Some(&key)), Some("key"));

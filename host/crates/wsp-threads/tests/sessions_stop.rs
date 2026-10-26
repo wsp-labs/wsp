@@ -23,7 +23,8 @@ use wsp_threads::threads::threads::cap::CapWaiting;
 use wsp_wire::views::session::SessionStatus;
 use wsp_wire::wire::limits::STOP_REACH_MS;
 use wsp_wire::wire::runtime::{
-    task_stop_refused_line, task_stop_unsupported_line, SessionAnswerResult, SessionInterruptOutcome, SessionInterruptResult, SessionStartOutcome,
+    task_stop_refused_line, task_stop_unsupported_line, SessionAnswerResult, SessionInterruptOutcome, SessionInterruptResult,
+    SessionStartOutcome,
 };
 use wsp_words::place_state::cap_stopped_line;
 use wsp_words::words::thread::TURN_STOPPED_LINE;
@@ -47,9 +48,12 @@ fn fail(message: &str) -> HostError {
 fn gate() -> (Joined, Box<dyn FnOnce()>) {
     let (tx, rx) = oneshot::channel::<()>();
     let joined: Joined = rx.map(|_| ()).boxed_local().shared();
-    (joined, Box::new(move || {
-        let _ = tx.send(());
-    }))
+    (
+        joined,
+        Box::new(move || {
+            let _ = tx.send(());
+        }),
+    )
 }
 
 /// Runs `f` detached; the cell holds its answer once it has one.
@@ -173,7 +177,10 @@ fn scene() -> Scene {
     let l = s.log.clone();
     s.host.hooks.set::<dyn Fn(&str) -> ()>("SessionsCtx::try_stopped", Rc::new(move |turn: &str| say(&l, format!("try_stopped({turn})"))));
     let l = s.log.clone();
-    s.host.hooks.set::<dyn Fn(&str, &str) -> ()>("SessionsCtx::cap_stop", Rc::new(move |turn: &str, line: &str| say(&l, format!("cap_stop({turn}, {line})"))));
+    s.host.hooks.set::<dyn Fn(&str, &str) -> ()>(
+        "SessionsCtx::cap_stop",
+        Rc::new(move |turn: &str, line: &str| say(&l, format!("cap_stop({turn}, {line})"))),
+    );
     s
 }
 
@@ -201,7 +208,10 @@ fn set_queued(s: &Scene, queued: bool) {
 }
 
 fn set_held(s: &Scene, turn: &'static str, held: CapHeld) {
-    s.host.hooks.set::<dyn Fn(&str) -> Option<CapHeld>>("SessionsCtx::cap_held", Rc::new(move |id: &str| if id == turn { Some(held.clone()) } else { None }));
+    s.host.hooks.set::<dyn Fn(&str) -> Option<CapHeld>>(
+        "SessionsCtx::cap_held",
+        Rc::new(move |id: &str| if id == turn { Some(held.clone()) } else { None }),
+    );
 }
 
 /// The kind ends a thread's group; `words` answers what each end says, by the ask it was made with. Logged when the
@@ -226,7 +236,10 @@ fn group_end(s: &Scene, words: impl Fn(EndThread) -> Result<Option<String>, Host
 
 /// The workspace runs at a computer the person joined, named `hetzner`.
 fn on_box(s: &Scene) {
-    s.host.hooks.set::<dyn Fn(&WorkspaceRecord) -> Option<String>>("SessionsCtx::workspace_place", Rc::new(|_r: &WorkspaceRecord| Some("place-1".to_string())));
+    s.host.hooks.set::<dyn Fn(&WorkspaceRecord) -> Option<String>>(
+        "SessionsCtx::workspace_place",
+        Rc::new(|_r: &WorkspaceRecord| Some("place-1".to_string())),
+    );
     s.host.hooks.set::<dyn Fn(&str) -> String>("SessionsCtx::place_name_of", Rc::new(|_p: &str| "hetzner".to_string()));
 }
 
@@ -659,20 +672,23 @@ fn a_row_the_caller_cannot_reach_reads_not_found() {
         put(&s, Spec { handle: Some(h.clone()), ..spec() });
         let outside = Caller::Scoped {
             origin: WorkspaceOrigin::Here,
-            by: serde_json::from_value(json!({ "kind": "thread", "threadId": "beside", "workspaceId": "w1", "rootThreadId": "beside" })).expect("a scope"),
+            by: serde_json::from_value(json!({ "kind": "thread", "threadId": "beside", "workspaceId": "w1", "rootThreadId": "beside" }))
+                .expect("a scope"),
         };
         let seen: Rc<RefCell<Vec<Option<Caller>>>> = Rc::new(RefCell::new(Vec::new()));
         let sink = seen.clone();
         let ats: Rc<RefCell<Vec<RowAt>>> = Rc::new(RefCell::new(Vec::new()));
         let at_sink = ats.clone();
-        s.host.hooks.set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
-            "SessionsCtx::entry_of_row",
-            Rc::new(move |at: &RowAt, o: Option<&Caller>, _talk: Option<TreeTalk>, _b: bool| {
-                at_sink.borrow_mut().push(at.clone());
-                sink.borrow_mut().push(o.cloned());
-                async move { Ok(None) }.boxed_local()
-            }),
-        );
+        s.host
+            .hooks
+            .set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
+                "SessionsCtx::entry_of_row",
+                Rc::new(move |at: &RowAt, o: Option<&Caller>, _talk: Option<TreeTalk>, _b: bool| {
+                    at_sink.borrow_mut().push(at.clone());
+                    sink.borrow_mut().push(o.cloned());
+                    async move { Ok(None) }.boxed_local()
+                }),
+            );
         let r = s.area.interrupt_row(KEY, Some(outside.clone()), None).await;
         assert_eq!(answered(r), json!({ "outcome": "not-found" }), "the same answer as a row nobody holds");
         assert_eq!(*seen.borrow(), vec![Some(outside)]);
@@ -693,16 +709,22 @@ fn a_trimmed_thread_is_stopped_by_its_record() {
         let ats: Rc<RefCell<Vec<RowAt>>> = Rc::new(RefCell::new(Vec::new()));
         let at_sink = ats.clone();
         let host = s.host.clone();
-        s.host.hooks.set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
-            "SessionsCtx::entry_of_row",
-            Rc::new(move |at: &RowAt, _o: Option<&Caller>, _talk: Option<TreeTalk>, _b: bool| {
-                at_sink.borrow_mut().push(at.clone());
-                let live = host.live(&at.workspace_id);
-                async move { Ok(live) }.boxed_local()
-            }),
-        );
+        s.host
+            .hooks
+            .set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
+                "SessionsCtx::entry_of_row",
+                Rc::new(move |at: &RowAt, _o: Option<&Caller>, _talk: Option<TreeTalk>, _b: bool| {
+                    at_sink.borrow_mut().push(at.clone());
+                    let live = host.live(&at.workspace_id);
+                    async move { Ok(live) }.boxed_local()
+                }),
+            );
         let r = s.area.interrupt_row(THREAD, None, None).await;
-        assert_eq!(answered(r), json!({ "outcome": "not-running", "under": ["child-thr"] }), "a thread nothing runs, its tree stopped under it");
+        assert_eq!(
+            answered(r),
+            json!({ "outcome": "not-running", "under": ["child-thr"] }),
+            "a thread nothing runs, its tree stopped under it"
+        );
         let asked = RowAt { thread_id: Some(THREAD.to_string()), workspace_id: "w1".to_string() };
         let calls = ats.borrow();
         assert!(!calls.is_empty() && calls.iter().all(|c| *c == asked), "the trimmed row names the thread and its workspace: {calls:?}");
@@ -727,10 +749,12 @@ fn a_trimmed_thread_the_caller_cannot_reach_reads_not_found() {
     run_local(async {
         let s = scene();
         s.host.add_record(THREAD, "w1", thread_record(json!({ "harness": "claude" })));
-        s.host.hooks.set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
-            "SessionsCtx::entry_of_row",
-            Rc::new(|_a: &RowAt, _o: Option<&Caller>, _talk: Option<TreeTalk>, _b: bool| async move { Ok(None) }.boxed_local()),
-        );
+        s.host
+            .hooks
+            .set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
+                "SessionsCtx::entry_of_row",
+                Rc::new(|_a: &RowAt, _o: Option<&Caller>, _talk: Option<TreeTalk>, _b: bool| async move { Ok(None) }.boxed_local()),
+            );
         let r = s.area.interrupt_row(THREAD, None, None).await;
         assert_eq!(answered(r), json!({ "outcome": "not-found" }));
         assert_eq!(*s.log.borrow(), strs(&["cap_stopping(thr-ab12cd34)", "release"]));
@@ -776,7 +800,10 @@ fn a_refused_task_stop_comes_back_in_the_agents_words() {
         let h = handle_with_tasks(&s, Ok(TaskStop::Refused { error: "No task found with ID: zz9".to_string() }));
         put(&s, Spec { handle: Some(h.clone()), ..spec() });
         let r = s.area.interrupt_row(KEY, None, Some("zz9".to_string())).await;
-        assert_eq!(answered(r), json!({ "outcome": "refused", "error": task_stop_refused_line("Claude Code", "No task found with ID: zz9") }));
+        assert_eq!(
+            answered(r),
+            json!({ "outcome": "refused", "error": task_stop_refused_line("Claude Code", "No task found with ID: zz9") })
+        );
         assert_eq!(h.calls(), strs(&["stop_task(zz9)"]));
         assert_eq!(s.host.hooks.called("agent_label"), vec!["agent_label(claude)".to_string()]);
     });
@@ -856,7 +883,12 @@ fn a_held_turn_is_marked_and_never_launches() {
         let line = cap_stopped_line(Some(&wait));
         assert_eq!(
             *s.log.borrow(),
-            vec![format!("cap_stop(turn-held, {line})"), "marked".to_string(), "drop_queued(turn-held)".to_string(), format!("stop_under({THREAD})")],
+            vec![
+                format!("cap_stop(turn-held, {line})"),
+                "marked".to_string(),
+                "drop_queued(turn-held)".to_string(),
+                format!("stop_under({THREAD})")
+            ],
             "marked before anything waits"
         );
         assert!(said.borrow().is_none(), "the stop waits for the held turn's launch to settle");
@@ -1004,10 +1036,7 @@ fn a_stop_ends_the_turn_then_its_group() {
         settle().await;
         let r = said.borrow_mut().take().expect("the stop answers once the turn finished");
         assert_eq!(answered(r), json!({ "outcome": "accepted", "left": "a process this thread started still runs" }));
-        assert_eq!(
-            s.log.borrow()[6..].to_vec(),
-            strs(&["end_thread(thr-ab12cd34, remove=false, away=false)", "release"]),
-        );
+        assert_eq!(s.log.borrow()[6..].to_vec(), strs(&["end_thread(thr-ab12cd34, remove=false, away=false)", "release"]),);
         assert!(!s.area.stop_holds(THREAD), "the hold is released once the end is over");
     });
 }
@@ -1175,7 +1204,10 @@ fn no_agent_stop_with_a_group_ends_the_row_stopped_and_answers_the_groups_words(
         let r = s.area.interrupt_row(KEY, None, None).await;
         assert_eq!(answered(r), json!({ "outcome": "accepted", "left": "left words" }));
         let log = s.log.borrow().clone();
-        let end = log.iter().position(|l| *l == format!("end({TURN_STOPPED_LINE}, Some(true), None)")).unwrap_or_else(|| panic!("the row ends stopped, not unreached: {log:?}"));
+        let end = log
+            .iter()
+            .position(|l| *l == format!("end({TURN_STOPPED_LINE}, Some(true), None)"))
+            .unwrap_or_else(|| panic!("the row ends stopped, not unreached: {log:?}"));
         let group = log.iter().position(|l| l.starts_with("end_thread")).expect("the group is ended");
         assert!(end < group, "the row first, then the group");
         assert!(!s.area.stop_holds(THREAD));
@@ -1338,8 +1370,15 @@ fn a_computer_that_answers_hears_the_stop() {
         assert_eq!(answered(r), json!({ "outcome": "accepted", "left": "a process still runs" }));
         let log = s.log.borrow().clone();
         assert!(log.contains(&"end_thread(thr-ab12cd34, remove=false, away=false)".to_string()), "{log:?}");
-        assert!(!log.iter().any(|l| l.starts_with("end(") || l.starts_with("end_owed")), "the turn ends itself and nothing is owed: {log:?}");
-        assert_eq!(s.host.rows.borrow()[KEY].borrow().view.status, SessionStatus::Running, "the row is settled by the turn, not by the stop");
+        assert!(
+            !log.iter().any(|l| l.starts_with("end(") || l.starts_with("end_owed")),
+            "the turn ends itself and nothing is owed: {log:?}"
+        );
+        assert_eq!(
+            s.host.rows.borrow()[KEY].borrow().view.status,
+            SessionStatus::Running,
+            "the row is settled by the turn, not by the stop"
+        );
         assert!(!s.area.stop_holds(THREAD));
     });
 }
@@ -1510,12 +1549,22 @@ fn a_send_waiting_on_an_owed_end_is_given_up() {
         let said = line.clone();
         s.area.stops.borrow_mut().held_sends.insert(
             "held-turn".to_string(),
-            HeldSend { thread_id: THREAD.to_string(), give_up: Rc::new(move || { g.set(g.get() + 1); said.clone() }) },
+            HeldSend {
+                thread_id: THREAD.to_string(),
+                give_up: Rc::new(move || {
+                    g.set(g.get() + 1);
+                    said.clone()
+                }),
+            },
         );
         let answer = answered(s.area.interrupt_row("held-turn", None, None).await);
         assert_eq!(answer, json!({ "outcome": "accepted", "left": line }));
         assert_eq!(given_up.get(), 1, "the send is given up once");
-        assert!(!s.log.borrow().iter().any(|c| c.starts_with("end(") || c.starts_with("try_stopped")), "nothing running is stopped: {:?}", s.log.borrow());
+        assert!(
+            !s.log.borrow().iter().any(|c| c.starts_with("end(") || c.starts_with("try_stopped")),
+            "nothing running is stopped: {:?}",
+            s.log.borrow()
+        );
         assert_eq!(s.host.hooks.called("stop_under"), Vec::<String>::new(), "the tree is not walked for a send that ran nothing");
 
         // With a task named, the held send is not what is asked about.

@@ -19,8 +19,9 @@ use wsp_words::words::computer::thread_word;
 
 use super::{KeptHand, PlaceMove, ThreadsArea};
 
-
-pub use wsp_wire::wire::limits::{AGENT_KEEP_MS, AGENTS_KEPT, KEPT_AGENT_MB, KEPT_MEMORY_SHARE, AGENT_WARM_MS, AGENTS_WARM, agents_kept_on};
+pub use wsp_wire::wire::limits::{
+    agents_kept_on, AGENTS_KEPT, AGENTS_WARM, AGENT_KEEP_MS, AGENT_WARM_MS, KEPT_AGENT_MB, KEPT_MEMORY_SHARE,
+};
 /// `{ place, cap }` (threads.ts:132).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct KeptBox {
@@ -291,7 +292,13 @@ impl ThreadsArea {
         join_all(reads).await;
     }
     /// threads.ts:206: K7.
-    pub fn take_kept(&self, thread_id: &str, launch: Option<&KeptLaunch>, session: Option<&str>, whole: Option<&KeptLaunch>) -> Option<Rc<RefCell<KeptProcess>>> {
+    pub fn take_kept(
+        &self,
+        thread_id: &str,
+        launch: Option<&KeptLaunch>,
+        session: Option<&str>,
+        whole: Option<&KeptLaunch>,
+    ) -> Option<Rc<RefCell<KeptProcess>>> {
         let kept = self.kept_agents.borrow().get(thread_id).cloned()?;
         let (matches, session_ok, same_file) = {
             let k = kept.borrow();
@@ -419,7 +426,8 @@ impl ThreadsArea {
             None => (None, AGENTS_KEPT as usize),
         };
         loop {
-            let held: Vec<(String, Rc<RefCell<KeptProcess>>)> = self.kept_agents.borrow().iter().map(|(t, k)| (t.clone(), k.clone())).collect();
+            let held: Vec<(String, Rc<RefCell<KeptProcess>>)> =
+                self.kept_agents.borrow().iter().map(|(t, k)| (t.clone(), k.clone())).collect();
             let mut there = Vec::new();
             for (thread, other) in held {
                 let ws = other.borrow().workspace_id.clone();

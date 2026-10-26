@@ -18,10 +18,10 @@ use wsp_wire::types::attachments::Attachment;
 use wsp_wire::views::harness::HarnessCatalogSource;
 use wsp_wire::views::session::{thread_ran, SessionOrigin, SessionStatus, SessionView, TitleSource};
 use wsp_wire::views::session_events::{TurnResult, AGENT_STARTING_MS};
-use wsp_wire::wire::runtime::SessionStartOutcome;
 use wsp_wire::views::session_events_more::SessionEvent;
 use wsp_wire::views::workspace::scope_of;
 use wsp_wire::wire::events_union::EventUnion;
+use wsp_wire::wire::runtime::SessionStartOutcome;
 use wsp_words::attachments::{attached_files_prompt, is_image, send_files_dir, steer_files_blocked, turn_images_dir};
 use wsp_words::exit::{HostError, Kind};
 use wsp_words::projects::{home_shortened, no_cwd_line};
@@ -100,13 +100,23 @@ impl SessionHandle for Decorated {
     fn interrupt(&self) -> LocalBoxFuture<'static, ()> {
         self.inner.interrupt()
     }
-    fn steer(&self, prompt: String, id: Option<String>, images: Vec<TurnImage>) -> Option<wsp_core::types::wiring::Local<'static, SteerTaken>> {
+    fn steer(
+        &self,
+        prompt: String,
+        id: Option<String>,
+        images: Vec<TurnImage>,
+    ) -> Option<wsp_core::types::wiring::Local<'static, SteerTaken>> {
         self.inner.steer(prompt, id, images)
     }
     fn tells_unread(&self) -> Option<bool> {
         self.inner.tells_unread()
     }
-    fn answer(&self, ask_id: String, option_id: String, reason: Option<String>) -> Option<wsp_core::types::wiring::Local<'static, wsp_wire::wire::runtime::SessionAnswerResult>> {
+    fn answer(
+        &self,
+        ask_id: String,
+        option_id: String,
+        reason: Option<String>,
+    ) -> Option<wsp_core::types::wiring::Local<'static, wsp_wire::wire::runtime::SessionAnswerResult>> {
         self.inner.answer(ask_id, option_id, reason)
     }
     fn set_access(&self, mode: String) -> Option<wsp_core::types::wiring::Local<'static, wsp_core::types::wiring::AccessMove>> {
@@ -176,11 +186,22 @@ fn set_opt(doc: &mut Map<String, Value>, key: &str, value: Option<Value>) {
     }
 }
 
-fn port_servers(servers: Option<&IndexMap<String, wsp_wire::views::harness::McpServerSpec>>) -> Option<IndexMap<String, wsp_adapters::port::McpServerSpec>> {
+fn port_servers(
+    servers: Option<&IndexMap<String, wsp_wire::views::harness::McpServerSpec>>,
+) -> Option<IndexMap<String, wsp_adapters::port::McpServerSpec>> {
     servers.map(|servers| {
         servers
             .iter()
-            .map(|(name, spec)| (name.clone(), wsp_adapters::port::McpServerSpec { command: spec.command.clone(), args: spec.args.clone(), no_slate: spec.no_slate.map(|_| true) }))
+            .map(|(name, spec)| {
+                (
+                    name.clone(),
+                    wsp_adapters::port::McpServerSpec {
+                        command: spec.command.clone(),
+                        args: spec.args.clone(),
+                        no_slate: spec.no_slate.map(|_| true),
+                    },
+                )
+            })
             .collect()
     })
 }
@@ -267,7 +288,8 @@ async fn say_starting(ctx: Rc<dyn SessionsCtx>, saying: Rc<Saying>, entry: Entry
         return;
     }
     saying.hush();
-    let mut doc = json!({ "type": "session.starting", "workspaceId": said.workspace_id, "threadId": said.thread_id, "harness": said.harness });
+    let mut doc =
+        json!({ "type": "session.starting", "workspaceId": said.workspace_id, "threadId": said.thread_id, "harness": said.harness });
     if installs {
         doc["installs"] = json!(true);
     }
@@ -302,7 +324,12 @@ fn start_saying(ctx: &Rc<dyn SessionsCtx>, saying: &Rc<Saying>, entry: &Entry, s
 }
 
 /// The seed a resuming turn hands its agent: the thread's earlier turns, this one left out (TS `seedAfterLoss` seed).
-fn seed_for(ctx: &Rc<dyn SessionsCtx>, ws: &str, thread: &str, turn: &str) -> Arc<dyn Fn() -> LocalBoxFuture<'static, Result<String, String>>> {
+fn seed_for(
+    ctx: &Rc<dyn SessionsCtx>,
+    ws: &str,
+    thread: &str,
+    turn: &str,
+) -> Arc<dyn Fn() -> LocalBoxFuture<'static, Result<String, String>>> {
     let (ctx, ws, thread, turn) = (ctx.clone(), ws.to_string(), thread.to_string(), turn.to_string());
     Arc::new(move || {
         let (ctx, ws, thread, turn) = (ctx.clone(), ws.clone(), thread.clone(), turn.clone());
@@ -483,7 +510,12 @@ impl SessionsArea {
         let outside = o.outside.clone();
 
         self.hold(st);
-        let said = SayingCall { workspace_id: ws.clone(), thread_id: thread_id.clone(), harness: harness.clone(), request_id: o.request_id.clone() };
+        let said = SayingCall {
+            workspace_id: ws.clone(),
+            thread_id: thread_id.clone(),
+            harness: harness.clone(),
+            request_id: o.request_id.clone(),
+        };
         start_saying(&ctx, &st.saying, &entry, said, &turn_id);
 
         let read = ctx
@@ -539,7 +571,11 @@ impl SessionsArea {
                     if let Some(row) = &waiting_row {
                         row.borrow_mut().view.waits_for = box_name.clone();
                     }
-                    let holder = if box_name.is_none() || waiting_row.is_some() { None } else { ctx.launching_on(&thread_id).and_then(|r| r.borrow().launch.clone()) };
+                    let holder = if box_name.is_none() || waiting_row.is_some() {
+                        None
+                    } else {
+                        ctx.launching_on(&thread_id).and_then(|r| r.borrow().launch.clone())
+                    };
                     match box_name {
                         None => {
                             stopping.await;
@@ -634,7 +670,8 @@ impl SessionsArea {
                     if let Some(full) = full {
                         st.saying.hush();
                         let session = st.resume.clone().unwrap_or_else(|| turn_id.clone());
-                        let waits = ctx.cap_wait(cap_at(&ws, &thread_id, &turn_id, &session, &o.prompt, o.request_id.clone()), full.clone());
+                        let waits =
+                            ctx.cap_wait(cap_at(&ws, &thread_id, &turn_id, &session, &o.prompt, o.request_id.clone()), full.clone());
                         if !st.to_held {
                             st.to_held = true;
                             if let Some(on_held) = o.on_held.clone() {
@@ -662,11 +699,21 @@ impl SessionsArea {
                 let landing = ctx.runs_in(&entry, ran_in.as_deref(), &st.folder);
                 let attachments = o.attachments.clone().unwrap_or_default();
                 let images_in: Vec<Attachment> = attachments.iter().filter(|a| is_image(&a.media_type)).cloned().collect();
-                let landed = ctx.land_images(&entry, adapter.as_ref(), &landing, &turn_images_dir(&landing, &thread_id, o.request_id.as_deref(), &st.minted), images_in).await?;
+                let landed = ctx
+                    .land_images(
+                        &entry,
+                        adapter.as_ref(),
+                        &landing,
+                        &turn_images_dir(&landing, &thread_id, o.request_id.as_deref(), &st.minted),
+                        images_in,
+                    )
+                    .await?;
                 st.images = landed.images;
                 st.images_dir = landed.dir;
                 let files: Vec<Attachment> = attachments.iter().filter(|a| !is_image(&a.media_type)).cloned().collect();
-                st.file_paths = ctx.land_files(&entry, &landing, &send_files_dir(&landing, &thread_id, o.request_id.as_deref(), &st.minted), files).await?;
+                st.file_paths = ctx
+                    .land_files(&entry, &landing, &send_files_dir(&landing, &thread_id, o.request_id.as_deref(), &st.minted), files)
+                    .await?;
                 if !st.file_paths.is_empty() {
                     st.files_folder = Some(landing.clone());
                 }
@@ -704,10 +751,15 @@ impl SessionsArea {
                 let r = running.borrow();
                 (r.turn_live.as_ref().is_some_and(|t| t.reply.is_some()), r.handle.clone())
             };
-            let steer_road = !reply_seen && adapter.steers() && steer_files_blocked(&st.p.records, adapter.steers_images(), &harness).is_none();
+            let steer_road =
+                !reply_seen && adapter.steers() && steer_files_blocked(&st.p.records, adapter.steers_images(), &harness).is_none();
             if let (true, Some(handle)) = (steer_road, handle.clone()) {
                 ctx.keep_steer(&running, &o, origin.as_ref(), &steer_id).await?;
-                let answer = match handle.steer(o.prompt.clone(), Some(steer_id.clone()), inline_images(o.attachments.as_deref().unwrap_or_default())) {
+                let answer = match handle.steer(
+                    o.prompt.clone(),
+                    Some(steer_id.clone()),
+                    inline_images(o.attachments.as_deref().unwrap_or_default()),
+                ) {
                     Some(steer) => Some(steer.await),
                     None => None,
                 };
@@ -789,7 +841,10 @@ impl SessionsArea {
             let gone = record.worktree.as_ref().is_some_and(|w| w.gone.is_some());
             if cwd != from && gone {
                 let fresh = ran_in.is_some()
-                    && wsp_catalog::catalog::catalog_agents().iter().find(|a| a.id == harness).map_or(true, |a| a.project_key_env.is_none());
+                    && wsp_catalog::catalog::catalog_agents()
+                        .iter()
+                        .find(|a| a.id == harness)
+                        .map_or(true, |a| a.project_key_env.is_none());
                 let mut doc = json!({ "type": "session.moved", "workspaceId": ws, "sessionId": session_id, "turnId": turn_id, "threadId": thread_id, "from": from, "to": cwd });
                 if let Some(branch) = record.worktree.as_ref().and_then(|w| w.branch.clone()) {
                     doc["branch"] = json!(branch);
@@ -841,7 +896,9 @@ impl SessionsArea {
             drop_scope(&ctx, st.p.launch.scoped_device_id.as_deref(), &thread_id);
         }
         let prompt_after: Option<Settle> = match &st.snapshot {
-            Some(TurnSnapshot { from: SnapshotFrom::Taking(taking), .. }) => Some(taking.clone().map(|_| Ok::<(), String>(())).boxed_local()),
+            Some(TurnSnapshot { from: SnapshotFrom::Taking(taking), .. }) => {
+                Some(taking.clone().map(|_| Ok::<(), String>(())).boxed_local())
+            }
             _ => None,
         };
         st.kept_taken = kept.clone();
@@ -959,11 +1016,17 @@ impl SessionsArea {
         })?;
         st.handed_over = true;
         if kept.is_none() {
-            let said = SayingCall { workspace_id: ws.clone(), thread_id: thread_id.clone(), harness: harness.clone(), request_id: o.request_id.clone() };
+            let said = SayingCall {
+                workspace_id: ws.clone(),
+                thread_id: thread_id.clone(),
+                harness: harness.clone(),
+                request_id: o.request_id.clone(),
+            };
             tokio::task::spawn_local(say_starting(ctx.clone(), st.saying.clone(), entry.clone(), said));
         }
         {
-            let (ctx2, ws2, thread2, request_id, attachments) = (ctx.clone(), ws.clone(), thread_id.clone(), o.request_id.clone(), o.attachments.clone().unwrap_or_default());
+            let (ctx2, ws2, thread2, request_id, attachments) =
+                (ctx.clone(), ws.clone(), thread_id.clone(), o.request_id.clone(), o.attachments.clone().unwrap_or_default());
             tokio::task::spawn_local(async move {
                 let _ = ctx2.keep_sent_images(&ws2, &thread2, request_id.as_deref(), attachments).await;
             });

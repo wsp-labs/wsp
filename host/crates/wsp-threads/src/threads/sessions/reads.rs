@@ -6,24 +6,24 @@ use std::collections::HashSet;
 use futures::future::{join_all, try_join_all};
 use tokio::task::spawn_local;
 use wsp_core::types::api::{HistoryAsk, PageWindow};
-use wsp_core::types::internal::{named_only, KeptImage, KeptImages, SearchedHit, TreeTalk, ATTACHMENTS, ATTACHMENT_KEYS};
 use wsp_core::types::internal::ThreadRecord;
+use wsp_core::types::internal::{named_only, KeptImage, KeptImages, SearchedHit, TreeTalk, ATTACHMENTS, ATTACHMENT_KEYS};
 use wsp_machines::machines::boot::entries::{EntryAsk, RowAt};
 use wsp_store::transcript_reader::{head_shape, ThreadRead};
 use wsp_wire::types::attachments::KeptAttachment;
+use wsp_wire::types::js_number::JsInt;
+use wsp_wire::views::preferences::HEAD_BYTES;
 use wsp_wire::views::preferences::{HistoryPage, ThreadHead};
+use wsp_wire::views::preferences::{HISTORY_PAGE_BYTES, HISTORY_PAGE_EVENTS};
 use wsp_wire::views::session::{thread_key_of, SessionView};
 use wsp_wire::views::session_events::TurnStatus;
 use wsp_wire::views::session_events_more::{HeadEvents, SessionEvent};
 use wsp_wire::views::workspace::Caller;
 use wsp_wire::wire::runtime::{SessionSearchHit, SessionSearchResult};
-use wsp_words::exit::{not_found_refusal, usage_refusal, HostError};
 use wsp_words::attachments::attachment_key;
+use wsp_words::exit::{not_found_refusal, usage_refusal, HostError};
 use wsp_words::thread_read::thread_result;
 use wsp_words::words::computer::thread_word;
-use wsp_wire::types::js_number::JsInt;
-use wsp_wire::views::preferences::HEAD_BYTES;
-use wsp_wire::views::preferences::{HISTORY_PAGE_BYTES, HISTORY_PAGE_EVENTS};
 
 use super::SessionsArea;
 use crate::threads::trimmed_row::trimmed_row;
@@ -68,7 +68,8 @@ impl SessionsArea {
             let views: Vec<SessionView> = sessions.borrow().values().map(|r| r.borrow().view.clone()).collect();
             views
         };
-        let reached: Vec<SessionView> = every.iter().filter(|v| self.ctx.reaches_row(v, origin.as_ref(), Some(TreeTalk::List))).cloned().collect();
+        let reached: Vec<SessionView> =
+            every.iter().filter(|v| self.ctx.reaches_row(v, origin.as_ref(), Some(TreeTalk::List))).cloned().collect();
         let rows: Vec<SessionView> = match &workspace_id {
             None => reached,
             Some(workspace_id) => reached.into_iter().filter(|v| &v.workspace_id == workspace_id).collect(),
@@ -127,7 +128,12 @@ impl SessionsArea {
     }
 
     /// sessions.ts:936. Rule Q5.
-    pub async fn thread_history_of(&self, workspace_id: &str, asked: HistoryAsk, origin: Option<Caller>) -> Result<Vec<SessionEvent>, HostError> {
+    pub async fn thread_history_of(
+        &self,
+        workspace_id: &str,
+        asked: HistoryAsk,
+        origin: Option<Caller>,
+    ) -> Result<Vec<SessionEvent>, HostError> {
         let HistoryAsk { thread_id, before, limit } = asked;
         let Some(thread_id) = thread_id.filter(|_| before.is_none() && limit.is_none()) else {
             return Err(usage_refusal("whole reads one thread's every event.", "Name the thread with threadId, and no before or limit."));
@@ -172,7 +178,8 @@ impl SessionsArea {
     /// sessions.ts:957. Rule Q7.
     pub async fn head_of(&self, thread_id: &str, origin: Option<Caller>, after_read: bool) -> Result<ThreadHead, HostError> {
         self.ctx.ready().await?;
-        let facts = if after_read { self.ctx.facts_after_read(thread_id, origin.as_ref()).await? } else { self.ctx.thread_facts(thread_id) };
+        let facts =
+            if after_read { self.ctx.facts_after_read(thread_id, origin.as_ref()).await? } else { self.ctx.thread_facts(thread_id) };
         let not_reached = || not_found_refusal(&format!("no thread {}", thread_word(thread_id)));
         let Some(facts) = facts else {
             return Err(not_reached());
@@ -196,7 +203,14 @@ impl SessionsArea {
     }
 
     /// sessions.ts:966. Rule Q8.
-    pub async fn attachment_of(&self, workspace_id: &str, thread_id: &str, request_id: &str, index: u32, origin: Option<Caller>) -> Result<KeptAttachment, HostError> {
+    pub async fn attachment_of(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        request_id: &str,
+        index: u32,
+        origin: Option<Caller>,
+    ) -> Result<KeptAttachment, HostError> {
         self.ctx.ready().await?;
         if !self.ctx.tree_stands_on(workspace_id, origin.as_ref(), None) {
             self.ctx.entry_of_with(workspace_id, origin.as_ref(), entry_asks(false, false)).await?;
@@ -205,7 +219,8 @@ impl SessionsArea {
         let key = attachment_key(thread_id, Some(request_id), index as f64);
         let held: Option<KeptImage> = match key {
             Some(key) if self.ctx.drives_thread(Some(thread_id), origin.as_ref()) => {
-                let kept = self.ctx.store_get(ATTACHMENT_KEYS, workspace_id).await?.and_then(|doc| serde_json::from_value::<KeptImages>(doc).ok());
+                let kept =
+                    self.ctx.store_get(ATTACHMENT_KEYS, workspace_id).await?.and_then(|doc| serde_json::from_value::<KeptImages>(doc).ok());
                 kept.and_then(|kept| kept.threads.get(thread_id).and_then(|images| images.iter().find(|image| image.key == key).cloned()))
             }
             _ => None,

@@ -9,16 +9,16 @@ use std::sync::Arc;
 use futures::future::{FutureExt, LocalBoxFuture};
 use indexmap::IndexMap;
 use serde_json::{json, Value};
+use wsp_account::account::core_types::AccountError;
 use wsp_core::clock::Clock;
 use wsp_core::context::Joined;
 use wsp_core::ids::Ids;
 use wsp_core::types::api::StartOptions;
 use wsp_core::types::events::EventBus;
+use wsp_core::types::internal::DaemonRefusal;
 use wsp_core::types::internal::{Taken, ThreadStamps};
 use wsp_core::types::wiring::{SessionHandle, WorkspaceRecord};
 use wsp_store::store::Store;
-use wsp_account::account::core_types::AccountError;
-use wsp_core::types::internal::DaemonRefusal;
 use wsp_threads::threads::threads::{Entry, PlaceMove, Sessions, ThreadRecords, ThreadsArea, ThreadsCtx};
 use wsp_wire::types::attachments::Attachment;
 use wsp_wire::types::usage::AccountLimit;
@@ -208,7 +208,14 @@ impl ThreadsCtx for FakeThreadsCtx {
     fn revoke_device(&self, device_id: &str) -> LocalBoxFuture<'static, Result<(), HostError>> {
         self.call(format!("revoke {device_id}"));
         let fails = self.revoke_fails.get();
-        async move { if fails { Err(err("the device door is shut")) } else { Ok(()) } }.boxed_local()
+        async move {
+            if fails {
+                Err(err("the device door is shut"))
+            } else {
+                Ok(())
+            }
+        }
+        .boxed_local()
     }
     fn proc_scopes_moved(&self) {
         self.call("procScopesMoved".into());
@@ -222,7 +229,12 @@ impl ThreadsCtx for FakeThreadsCtx {
         let answer = answer.map(|outcome| serde_json::from_value(json!({ "outcome": outcome })).expect("a SessionInterruptResult"));
         async move { answer }.boxed_local()
     }
-    fn start(&self, workspace_id: &str, options: StartOptions, caller: Option<Caller>) -> LocalBoxFuture<'static, Result<Rc<dyn SessionHandle>, HostError>> {
+    fn start(
+        &self,
+        workspace_id: &str,
+        options: StartOptions,
+        caller: Option<Caller>,
+    ) -> LocalBoxFuture<'static, Result<Rc<dyn SessionHandle>, HostError>> {
         self.call(format!("start {workspace_id}"));
         self.started.borrow_mut().push((workspace_id.to_string(), options, caller));
         let answer = self.starts.borrow_mut().pop_front().unwrap_or_else(|| Err(err("no start answer queued")));
@@ -248,7 +260,13 @@ impl ThreadsCtx for FakeThreadsCtx {
     fn kept_writes(&self, workspace_id: &str) -> Option<Joined> {
         self.kept_writes.borrow().get(workspace_id).cloned()
     }
-    fn keep_sent_images(&self, workspace_id: &str, thread_id: &str, request_id: Option<String>, attachments: Vec<Attachment>) -> LocalBoxFuture<'static, ()> {
+    fn keep_sent_images(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        request_id: Option<String>,
+        attachments: Vec<Attachment>,
+    ) -> LocalBoxFuture<'static, ()> {
         self.call(format!("keepSentImages {workspace_id} {thread_id} {} {}", request_id.unwrap_or_default(), attachments.len()));
         async {}.boxed_local()
     }

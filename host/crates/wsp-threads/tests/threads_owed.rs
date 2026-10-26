@@ -10,8 +10,8 @@ use std::rc::Rc;
 
 use futures::future::{FutureExt, LocalBoxFuture, Shared};
 use serde_json::{json, Value};
-use support::Lend;
 use support::threads_ctx::{entry, FakeThreadsCtx};
+use support::Lend;
 use support::{err, local, row, settle, silent, view};
 use wsp_core::types::internal::{Steered, Taken, TakenOutcome, TurnAsked, TurnLive};
 use wsp_core::types::wiring::{SessionHandle, SteerTaken};
@@ -39,7 +39,12 @@ struct FakeHandle {
 }
 
 /// A handle whose finish the test settles through the answered sender.
-fn handle(id: &str, turn: &str, outcome: SessionStartOutcome, tells_unread: Option<bool>) -> (Rc<dyn SessionHandle>, Rc<RefCell<Option<futures::channel::oneshot::Sender<TurnResult>>>>) {
+fn handle(
+    id: &str,
+    turn: &str,
+    outcome: SessionStartOutcome,
+    tells_unread: Option<bool>,
+) -> (Rc<dyn SessionHandle>, Rc<RefCell<Option<futures::channel::oneshot::Sender<TurnResult>>>>) {
     let (tx, rx) = futures::channel::oneshot::channel::<TurnResult>();
     let finished = rx.map(|r| r.unwrap_or_else(|_| result("failed", None))).boxed_local().shared();
     (Rc::new(FakeHandle { id: id.into(), turn: turn.into(), outcome, finished, tells_unread }), Rc::new(RefCell::new(Some(tx))))
@@ -70,13 +75,23 @@ impl SessionHandle for FakeHandle {
     fn interrupt(&self) -> LocalBoxFuture<'static, ()> {
         async {}.boxed_local()
     }
-    fn steer(&self, _prompt: String, _id: Option<String>, _images: Vec<wsp_adapters::port::TurnImage>) -> Option<wsp_core::types::wiring::Local<'static, SteerTaken>> {
+    fn steer(
+        &self,
+        _prompt: String,
+        _id: Option<String>,
+        _images: Vec<wsp_adapters::port::TurnImage>,
+    ) -> Option<wsp_core::types::wiring::Local<'static, SteerTaken>> {
         None
     }
     fn tells_unread(&self) -> Option<bool> {
         self.tells_unread
     }
-    fn answer(&self, _ask: String, _option: String, _reason: Option<String>) -> Option<wsp_core::types::wiring::Local<'static, wsp_wire::wire::runtime::SessionAnswerResult>> {
+    fn answer(
+        &self,
+        _ask: String,
+        _option: String,
+        _reason: Option<String>,
+    ) -> Option<wsp_core::types::wiring::Local<'static, wsp_wire::wire::runtime::SessionAnswerResult>> {
         None
     }
     fn set_access(&self, _mode: String) -> Option<wsp_core::types::wiring::Local<'static, wsp_core::types::wiring::AccessMove>> {
@@ -107,14 +122,22 @@ fn host() -> (Rc<FakeThreadsCtx>, Rc<ThreadsArea>) {
     let (e, _) = entry(json!({ "id": "ws1", "phase": "running" }));
     ctx.add_entry(e);
     ctx.sessions.with(|s| {
-        s.insert("r-p".into(), row(view(json!({ "id": "r-p", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "completed", "startedAt": 1 })), "u-p"));
+        s.insert(
+            "r-p".into(),
+            row(view(json!({ "id": "r-p", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "completed", "startedAt": 1 })), "u-p"),
+        );
     });
     let area = ctx.area();
     (ctx, area)
 }
 
 fn person_row() -> PersonRow {
-    PersonRow { workspace_id: "ws-c".into(), session_id: "cs-c".into(), turn_id: "u-c".into(), text: "thread child000 finished (completed)".into() }
+    PersonRow {
+        workspace_id: "ws-c".into(),
+        session_id: "cs-c".into(),
+        turn_id: "u-c".into(),
+        text: "thread child000 finished (completed)".into(),
+    }
 }
 
 fn line(id: &str) -> Owed {
@@ -215,7 +238,10 @@ fn deliver_writes_since_and_request_before_the_first_try_and_takes_the_line_once
         assert!(o.attachments.is_none());
         assert!(caller.is_none(), "a line nobody but the person registered goes as theirs");
         drop(started);
-        ctx.taken.borrow_mut().insert(("ws1".into(), "uuid-1".into()), Taken { session_id: "r-try".into(), thread_id: PARENT.into(), turn_id: "u-try".into(), outcome: TakenOutcome::Started });
+        ctx.taken.borrow_mut().insert(
+            ("ws1".into(), "uuid-1".into()),
+            Taken { session_id: "r-try".into(), thread_id: PARENT.into(), turn_id: "u-try".into(), outcome: TakenOutcome::Started },
+        );
         area.prompt_held("uuid-1");
         settle().await;
         assert!(ctx.store.get_now("notify-owed", "L1").is_none(), "taken: the line leaves the store");
@@ -238,7 +264,13 @@ fn deliver_to_a_thread_with_no_session_falls_to_the_person() {
         assert!(ctx.store.get_now("notify-owed", "L1").is_none(), "the line fell and left the store");
         let told = told_person(&ctx.recorded_json());
         assert_eq!(told.len(), 1);
-        for (k, v) in [("workspaceId", "ws-c"), ("sessionId", "cs-c"), ("turnId", "u-c"), ("threadId", FROM), ("text", "thread child000 finished (completed)")] {
+        for (k, v) in [
+            ("workspaceId", "ws-c"),
+            ("sessionId", "cs-c"),
+            ("turnId", "u-c"),
+            ("threadId", FROM),
+            ("text", "thread child000 finished (completed)"),
+        ] {
             assert_eq!(told[0][k], json!(v), "{k}");
         }
     });
@@ -297,7 +329,10 @@ fn a_line_registered_from_a_paired_device_falls() {
         l.road = Some(serde_json::from_value(json!("paired")).expect("an origin"));
         area.deliver(l, false);
         settle().await;
-        assert_eq!(warned.lines(), vec!["thread child000 ended, but its line was registered from a paired computer, which starts no turn on thread parent00"]);
+        assert_eq!(
+            warned.lines(),
+            vec!["thread child000 ended, but its line was registered from a paired computer, which starts no turn on thread parent00"]
+        );
         assert!(ctx.started.borrow().is_empty());
         assert_eq!(told_person(&ctx.recorded_json()).len(), 1);
     });
@@ -353,8 +388,18 @@ fn a_line_with_a_request_asks_the_turn_already_carrying_it() {
         let (ctx, area) = host();
         let (h, _tx) = handle("r-run", "u-run", SessionStartOutcome::Started, None);
         ctx.sessions.with(|s| {
-            let r = row(view(json!({ "id": "r-run", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "running", "startedAt": 5 })), "u-run");
-            r.borrow_mut().asked = Some(TurnAsked { prompt: "x".into(), effort: None, typed: None, request_id: Some("req-c".into()), owed: Some(true), awaits_prompt: None });
+            let r = row(
+                view(json!({ "id": "r-run", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "running", "startedAt": 5 })),
+                "u-run",
+            );
+            r.borrow_mut().asked = Some(TurnAsked {
+                prompt: "x".into(),
+                effort: None,
+                typed: None,
+                request_id: Some("req-c".into()),
+                owed: Some(true),
+                awaits_prompt: None,
+            });
             r.borrow_mut().handle = Some(h);
             s.insert("r-run".into(), r);
         });
@@ -365,7 +410,10 @@ fn a_line_with_a_request_asks_the_turn_already_carrying_it() {
         settle().await;
         assert!(ctx.started.borrow().is_empty(), "the try out is settled, not sent again");
         assert!(ctx.store.logged().is_empty(), "a line that had its request and since is not written again");
-        ctx.taken.borrow_mut().insert(("ws1".into(), "req-c".into()), Taken { session_id: "r-run".into(), thread_id: PARENT.into(), turn_id: "u-run".into(), outcome: TakenOutcome::Started });
+        ctx.taken.borrow_mut().insert(
+            ("ws1".into(), "req-c".into()),
+            Taken { session_id: "r-run".into(), thread_id: PARENT.into(), turn_id: "u-run".into(), outcome: TakenOutcome::Started },
+        );
         area.prompt_held("req-c");
         settle().await;
         assert_eq!(ctx.store.logged(), vec!["delete notify-owed/L1"]);
@@ -379,9 +427,14 @@ fn a_steered_line_whose_turn_ended_unread_and_cannot_say_falls() {
             let (ctx, area) = host();
             let (h, tx) = handle("r-run", "u-run", SessionStartOutcome::Started, tells);
             ctx.sessions.with(|s| {
-                let r = row(view(json!({ "id": "r-run", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "running", "startedAt": 5 })), "u-run");
-                let steered: Steered = serde_json::from_value(json!({ "prompt": "x", "startedBy": "agent", "requestId": "req-s" })).expect("a steer");
-                r.borrow_mut().turn_live = Some(TurnLive { steered: Some([("st1".to_string(), steered)].into_iter().collect()), ..Default::default() });
+                let r = row(
+                    view(json!({ "id": "r-run", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "running", "startedAt": 5 })),
+                    "u-run",
+                );
+                let steered: Steered =
+                    serde_json::from_value(json!({ "prompt": "x", "startedBy": "agent", "requestId": "req-s" })).expect("a steer");
+                r.borrow_mut().turn_live =
+                    Some(TurnLive { steered: Some([("st1".to_string(), steered)].into_iter().collect()), ..Default::default() });
                 r.borrow_mut().handle = Some(h);
                 s.insert("r-run".into(), r);
             });
@@ -436,7 +489,10 @@ fn a_restarted_line_keeps_its_spacing_and_its_hour() {
         late.tries = Some(1);
         area.deliver(late, false);
         settle().await;
-        assert_eq!(warned.lines(), vec!["thread child000 ended, but its line did not reach thread parent00 within 60 minutes: its last try failed"]);
+        assert_eq!(
+            warned.lines(),
+            vec!["thread child000 ended, but its line did not reach thread parent00 within 60 minutes: its last try failed"]
+        );
         assert!(ctx.store.logged().contains(&"delete notify-owed/L2".to_string()));
     });
 }
@@ -464,7 +520,10 @@ fn a_refused_start_falls_with_its_words() {
         let warned = wsp_core::console::capture();
         area.deliver(line("L1"), false);
         settle().await;
-        assert_eq!(warned.lines(), vec!["thread child000 ended, but its line did not reach thread parent00: thread parent00's workspace takes no turn now"]);
+        assert_eq!(
+            warned.lines(),
+            vec!["thread child000 ended, but its line did not reach thread parent00: thread parent00's workspace takes no turn now"]
+        );
         assert!(ctx.store.get_now("notify-owed", "L1").is_none());
         assert_eq!(told_person(&ctx.recorded_json()).len(), 1);
     });
@@ -499,8 +558,18 @@ fn a_dark_try_is_settled_at_the_hour_without_its_turn() {
     local(async {
         let (ctx, area) = host();
         ctx.sessions.with(|s| {
-            let r = row(view(json!({ "id": "r-dark", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "running", "startedAt": 5 })), "u-dark");
-            r.borrow_mut().asked = Some(TurnAsked { prompt: "x".into(), effort: None, typed: None, request_id: Some("req-d".into()), owed: Some(true), awaits_prompt: None });
+            let r = row(
+                view(json!({ "id": "r-dark", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "running", "startedAt": 5 })),
+                "u-dark",
+            );
+            r.borrow_mut().asked = Some(TurnAsked {
+                prompt: "x".into(),
+                effort: None,
+                typed: None,
+                request_id: Some("req-d".into()),
+                owed: Some(true),
+                awaits_prompt: None,
+            });
             s.insert("r-dark".into(), r);
         });
         let mut l = line("L1");
@@ -542,8 +611,12 @@ fn a_try_that_failed_silent_goes_again() {
         let (h, tx) = handle("r-try", "u-try", SessionStartOutcome::Started, None);
         ctx.starts.borrow_mut().push_back(Ok(h));
         ctx.sessions.with(|s| {
-            let r = row(view(json!({ "id": "r-try", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "failed", "startedAt": 9 })), "u-try");
-            r.borrow_mut().turn_live = Some(TurnLive { failure: Some(silent("the machine did not answer", "LaunchUnanswered")), ..Default::default() });
+            let r = row(
+                view(json!({ "id": "r-try", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "failed", "startedAt": 9 })),
+                "u-try",
+            );
+            r.borrow_mut().turn_live =
+                Some(TurnLive { failure: Some(silent("the machine did not answer", "LaunchUnanswered")), ..Default::default() });
             s.insert("r-try".into(), r);
         });
         area.deliver(line("L1"), false);
@@ -551,7 +624,12 @@ fn a_try_that_failed_silent_goes_again() {
         let warned = wsp_core::console::capture();
         finish(&tx, result("failed", Some("the launch went unanswered")));
         settle().await;
-        assert_eq!(warned.lines(), vec!["thread child000 ended, but its line did not reach thread parent00 yet, and goes again in 30 s: the launch went unanswered"]);
+        assert_eq!(
+            warned.lines(),
+            vec![
+                "thread child000 ended, but its line did not reach thread parent00 yet, and goes again in 30 s: the launch went unanswered"
+            ]
+        );
         let kept = ctx.store.get_now("notify-owed", "L1").expect("still owed");
         assert_eq!((kept["tries"].clone(), kept["next"].clone()), (json!(1), json!(1_030_000)));
         assert!(told_person(&ctx.recorded_json()).is_empty());
@@ -576,10 +654,21 @@ fn retries_double_from_thirty_seconds_to_ten_minutes_within_the_hour() {
             settle().await;
         }
         let lines = warned.lines();
-        let said: Vec<String> = lines.iter().filter(|l| l.contains("goes again in")).map(|l| l.split("goes again in ").nth(1).and_then(|r| r.split(' ').next()).unwrap_or("").to_string()).collect();
+        let said: Vec<String> = lines
+            .iter()
+            .filter(|l| l.contains("goes again in"))
+            .map(|l| l.split("goes again in ").nth(1).and_then(|r| r.split(' ').next()).unwrap_or("").to_string())
+            .collect();
         assert_eq!(said, waits.iter().map(|w| w.to_string()).collect::<Vec<_>>());
-        assert_eq!(ctx.started.borrow().len(), 10, "a try at 0, 30, 90, 210, 450, 930, 1530, 2130, 2730 and 3330 s; at 3600 s the hour is up");
-        assert_eq!(lines.last().map(String::as_str), Some("thread child000 ended, but its line did not reach thread parent00 within 60 minutes: its last try failed"));
+        assert_eq!(
+            ctx.started.borrow().len(),
+            10,
+            "a try at 0, 30, 90, 210, 450, 930, 1530, 2130, 2730 and 3330 s; at 3600 s the hour is up"
+        );
+        assert_eq!(
+            lines.last().map(String::as_str),
+            Some("thread child000 ended, but its line did not reach thread parent00 within 60 minutes: its last try failed")
+        );
         assert!(ctx.store.get_now("notify-owed", "L1").is_none());
     });
 }
@@ -594,7 +683,10 @@ fn the_retry_wait_prints_seconds_as_javascript_does() {
         l.since = Some(1_000_000 - HOUR + 12_345);
         area.deliver(l, false);
         settle().await;
-        assert_eq!(warned.lines(), vec!["thread child000 ended, but its line did not reach thread parent00 yet, and goes again in 12.345 s: no answer"]);
+        assert_eq!(
+            warned.lines(),
+            vec!["thread child000 ended, but its line did not reach thread parent00 yet, and goes again in 12.345 s: no answer"]
+        );
     });
 }
 
@@ -624,13 +716,26 @@ fn a_fallen_line_tells_the_person_once_per_end() {
 fn took_request_reads_the_index_and_a_prompt_not_yet_held() {
     let (ctx, area) = host();
     assert!(!area.took_request("ws1", "req-x"));
-    ctx.taken.borrow_mut().insert(("ws1".into(), "req-s".into()), Taken { session_id: "r".into(), thread_id: PARENT.into(), turn_id: "u-s".into(), outcome: TakenOutcome::Steered });
+    ctx.taken.borrow_mut().insert(
+        ("ws1".into(), "req-s".into()),
+        Taken { session_id: "r".into(), thread_id: PARENT.into(), turn_id: "u-s".into(), outcome: TakenOutcome::Steered },
+    );
     assert!(area.took_request("ws1", "req-s"));
-    ctx.taken.borrow_mut().insert(("ws1".into(), "req-t".into()), Taken { session_id: "r".into(), thread_id: PARENT.into(), turn_id: "u-t".into(), outcome: TakenOutcome::Started });
+    ctx.taken.borrow_mut().insert(
+        ("ws1".into(), "req-t".into()),
+        Taken { session_id: "r".into(), thread_id: PARENT.into(), turn_id: "u-t".into(), outcome: TakenOutcome::Started },
+    );
     assert!(area.took_request("ws1", "req-t"));
     ctx.sessions.with(|s| {
         let r = row(view(json!({ "id": "r-t", "threadId": PARENT })), "u-t");
-        r.borrow_mut().asked = Some(TurnAsked { prompt: "x".into(), effort: None, typed: None, request_id: Some("req-t".into()), owed: None, awaits_prompt: Some(true) });
+        r.borrow_mut().asked = Some(TurnAsked {
+            prompt: "x".into(),
+            effort: None,
+            typed: None,
+            request_id: Some("req-t".into()),
+            owed: None,
+            awaits_prompt: Some(true),
+        });
         s.insert("r-t".into(), r);
     });
     assert!(!area.took_request("ws1", "req-t"), "an agent that announced itself before it holds the prompt has not taken it");
@@ -639,7 +744,14 @@ fn took_request_reads_the_index_and_a_prompt_not_yet_held() {
 #[test]
 fn line_try_is_the_lines_own_turn_until_its_agent_holds_it() {
     let (ctx, area) = host();
-    let asked = |owed: Option<bool>, awaits: Option<bool>| TurnAsked { prompt: "x".into(), effort: None, typed: None, request_id: Some("req-l".into()), owed, awaits_prompt: awaits };
+    let asked = |owed: Option<bool>, awaits: Option<bool>| TurnAsked {
+        prompt: "x".into(),
+        effort: None,
+        typed: None,
+        request_id: Some("req-l".into()),
+        owed,
+        awaits_prompt: awaits,
+    };
     ctx.sessions.with(|s| {
         let r = row(view(json!({ "id": "r-l", "threadId": PARENT, "workspaceId": "ws1" })), "u-l");
         r.borrow_mut().asked = Some(asked(Some(true), None));
@@ -650,7 +762,10 @@ fn line_try_is_the_lines_own_turn_until_its_agent_holds_it() {
     });
     assert!(area.line_try("r-l"), "no turn took the request yet");
     assert!(!area.line_try("r-plain"), "a turn carrying no line");
-    ctx.taken.borrow_mut().insert(("ws1".into(), "req-l".into()), Taken { session_id: "r-l".into(), thread_id: PARENT.into(), turn_id: "u-l".into(), outcome: TakenOutcome::Started });
+    ctx.taken.borrow_mut().insert(
+        ("ws1".into(), "req-l".into()),
+        Taken { session_id: "r-l".into(), thread_id: PARENT.into(), turn_id: "u-l".into(), outcome: TakenOutcome::Started },
+    );
     assert!(!area.line_try("r-l"), "its own turn took it");
     ctx.sessions.with(|s| s.get("r-l").expect("row").borrow_mut().asked = Some(asked(Some(true), Some(true))));
     assert!(area.line_try("r-l"), "until its agent holds the prompt");
@@ -663,7 +778,10 @@ fn images_go_back_with_the_line_and_a_missing_one_is_left_out() {
     local(async {
         let (ctx, area) = host();
         ctx.store.seed_blob("attachments", &format!("{PARENT}.req-s.0"), &[1, 2, 3]);
-        let records = serde_json::from_value(json!([{ "mediaType": "image/png", "bytes": 3, "name": "a.png" }, { "mediaType": "image/png", "bytes": 9 }])).expect("records");
+        let records = serde_json::from_value(
+            json!([{ "mediaType": "image/png", "bytes": 3, "name": "a.png" }, { "mediaType": "image/png", "bytes": 9 }]),
+        )
+        .expect("records");
         let images = area.kept_images("ws1", PARENT, &OwedImages { under: "req-s".into(), records }).await;
         assert_eq!(support::json_of(&images), json!([{ "mediaType": "image/png", "bytes": "AQID", "name": "a.png" }]));
     });
@@ -691,7 +809,10 @@ fn send_back_redelivers_an_unread_steer_as_its_starter() {
         assert_eq!(kept["notify"], json!(PARENT));
         assert_eq!(kept["text"], json!("\n  look at this  \nmore"));
         assert_eq!(kept["startedBy"], json!("person"));
-        assert_eq!(kept["toPerson"], json!({ "workspaceId": "ws1", "sessionId": "cs-p", "turnId": "u-t", "text": "the agent never read this message: look at this" }));
+        assert_eq!(
+            kept["toPerson"],
+            json!({ "workspaceId": "ws1", "sessionId": "cs-p", "turnId": "u-t", "text": "the agent never read this message: look at this" })
+        );
         assert_eq!(kept["images"], json!({ "under": "req-s", "records": [{ "mediaType": "image/png", "bytes": 3 }] }));
         let started = ctx.started.borrow();
         assert_eq!(started.len(), 1, "an id the row never kept goes nowhere");
@@ -710,7 +831,15 @@ fn send_back_of_a_stopped_turn_tells_the_person() {
         assert!(ctx.store.logged().is_empty());
         let told = ctx.recorded_json();
         assert_eq!(told.len(), 1);
-        for (k, v) in [("type", "session.notify"), ("workspaceId", "ws1"), ("sessionId", "cs-p"), ("turnId", "u-t"), ("threadId", PARENT), ("notify", "me"), ("text", "the agent never read this message: look at this")] {
+        for (k, v) in [
+            ("type", "session.notify"),
+            ("workspaceId", "ws1"),
+            ("sessionId", "cs-p"),
+            ("turnId", "u-t"),
+            ("threadId", PARENT),
+            ("notify", "me"),
+            ("text", "the agent never read this message: look at this"),
+        ] {
             assert_eq!(told[0][k], json!(v), "{k}");
         }
     });
@@ -747,7 +876,13 @@ fn notify_end_records_a_line_per_target_and_delivers_the_whole_report() {
         let (h, _tx) = handle("r-n", "u-n", SessionStartOutcome::Started, None);
         ctx.starts.borrow_mut().push_back(Ok(h));
         let done = result("completed", None);
-        area.notify_end(&child_row(Some("cs-c")), &["me".to_string(), PARENT.to_string()], &TellAs { by: Some(scope("lead")), road: None }, &done, false);
+        area.notify_end(
+            &child_row(Some("cs-c")),
+            &["me".to_string(), PARENT.to_string()],
+            &TellAs { by: Some(scope("lead")), road: None },
+            &done,
+            false,
+        );
         settle().await;
         let tail = notify_line(FROM, &done, Some(NotifyLength::Tail));
         let whole = notify_line(FROM, &done, Some(NotifyLength::Whole));
@@ -756,7 +891,10 @@ fn notify_end_records_a_line_per_target_and_delivers_the_whole_report() {
         assert_eq!((said[0]["notify"].clone(), said[0]["text"].clone()), (json!("me"), json!(tail)));
         assert_eq!((said[1]["notify"].clone(), said[1]["text"].clone()), (json!(PARENT), json!(whole)));
         for e in &said {
-            assert_eq!((e["workspaceId"].clone(), e["sessionId"].clone(), e["turnId"].clone(), e["threadId"].clone()), (json!("ws-c"), json!("cs-c"), json!("u-c"), json!(FROM)));
+            assert_eq!(
+                (e["workspaceId"].clone(), e["sessionId"].clone(), e["turnId"].clone(), e["threadId"].clone()),
+                (json!("ws-c"), json!("cs-c"), json!("u-c"), json!(FROM))
+            );
         }
         let kept = ctx.store.get_now("notify-owed", &format!("u-c:0:{PARENT}")).expect("the line is owed");
         assert_eq!(kept["text"], json!(whole));
@@ -776,7 +914,11 @@ fn notify_end_adds_me_when_a_target_has_gone() {
         area.notify_end(&child_row(Some("cs-c")), &[PARENT.to_string(), "gone0001".to_string()], &TellAs::default(), &done, false);
         settle().await;
         let said = ctx.recorded_json();
-        assert_eq!(said.iter().map(|e| e["notify"].clone()).collect::<Vec<_>>(), vec![json!(PARENT), json!("me")], "the reachable target, then the person once");
+        assert_eq!(
+            said.iter().map(|e| e["notify"].clone()).collect::<Vec<_>>(),
+            vec![json!(PARENT), json!("me")],
+            "the reachable target, then the person once"
+        );
         assert!(ctx.store.get_now("notify-owed", "u-c:0:gone0001").is_none(), "nothing goes to a thread that has gone");
         assert!(ctx.store.get_now("notify-owed", &format!("u-c:0:{PARENT}")).is_some());
     });
@@ -819,7 +961,8 @@ fn running_row(ctx: &FakeThreadsCtx, reply: Option<&str>, notify: Option<Vec<&st
         let r = row(view(json!({ "id": "r1", "workspaceId": "ws1", "threadId": "t1", "status": "running", "asking": "may I?" })), "u1");
         r.borrow_mut().snapshot = Some("snap".into());
         r.borrow_mut().notify = notify.map(|n| n.into_iter().map(String::from).collect());
-        r.borrow_mut().turn_live = reply.map(|st| TurnLive { reply: Some(serde_json::from_value(json!(st)).expect("a status")), ..Default::default() });
+        r.borrow_mut().turn_live =
+            reply.map(|st| TurnLive { reply: Some(serde_json::from_value(json!(st)).expect("a status")), ..Default::default() });
         s.insert("r1".into(), r);
     });
 }
@@ -828,11 +971,21 @@ fn running_row(ctx: &FakeThreadsCtx, reply: Option<&str>, notify: Option<Vec<&st
 fn settle_cut_changes_the_row_it_is_handed() {
     let (ctx, area) = host();
     running_row(&ctx, None, None);
-    area.lead_asks.borrow_mut().insert("t1".into(), serde_json::from_value(json!({ "askId": "a", "toolName": "Bash", "input": "{}", "options": [] })).expect("a prompt"));
+    area.lead_asks.borrow_mut().insert(
+        "t1".into(),
+        serde_json::from_value(json!({ "askId": "a", "toolName": "Bash", "input": "{}", "options": [] })).expect("a prompt"),
+    );
     area.settle_cut("r1", "machine paused while the agent was working", &|at| format!("cut at {at}"), false, false);
     let (status, ended, asking, snapshot, last_line, failure) = ctx.sessions.with(|s| {
         let r = s.get("r1").expect("row").borrow();
-        (support::json_of(&r.view.status), support::json_of(&r.view.ended_at), r.view.asking.clone(), r.snapshot.clone(), r.view.last_line.clone(), r.view.failure.clone())
+        (
+            support::json_of(&r.view.status),
+            support::json_of(&r.view.ended_at),
+            r.view.asking.clone(),
+            r.snapshot.clone(),
+            r.view.last_line.clone(),
+            r.view.failure.clone(),
+        )
     });
     assert_eq!(status, json!("failed"));
     assert_eq!(ended, json!(1_000_000));
@@ -843,7 +996,16 @@ fn settle_cut_changes_the_row_it_is_handed() {
     assert_eq!(ctx.called(), vec!["portRootsMoved ws1", "endSnoozeFor r1"]);
     let said = ctx.recorded_json();
     assert_eq!(said.len(), 1);
-    for (k, v) in [("type", json!("session.end")), ("workspaceId", json!("ws1")), ("sessionId", json!("r1")), ("turnId", json!("u1")), ("threadId", json!("t1")), ("exitCode", Value::Null), ("sawResult", json!(false)), ("reason", json!("machine paused while the agent was working"))] {
+    for (k, v) in [
+        ("type", json!("session.end")),
+        ("workspaceId", json!("ws1")),
+        ("sessionId", json!("r1")),
+        ("turnId", json!("u1")),
+        ("threadId", json!("t1")),
+        ("exitCode", Value::Null),
+        ("sawResult", json!(false)),
+        ("reason", json!("machine paused while the agent was working")),
+    ] {
         assert_eq!(said[0][k], v, "{k}");
     }
     assert_eq!(said[0].get("promptless"), None);
@@ -868,13 +1030,22 @@ fn settle_cut_of_a_stopped_turn_records_its_done_before_its_end() {
     running_row(&ctx, None, Some(vec!["me"]));
     let at = Rc::new(Cell::new(0));
     let seen = at.clone();
-    area.settle_cut("r1", "stopped", &move |when| {
-        seen.set(when);
-        format!("stopped at {when}")
-    }, true, true);
+    area.settle_cut(
+        "r1",
+        "stopped",
+        &move |when| {
+            seen.set(when);
+            format!("stopped at {when}")
+        },
+        true,
+        true,
+    );
     assert_eq!(at.get(), 1_000_000, "the cut line gets the end's time");
     let said = ctx.recorded_json();
-    assert_eq!(said.iter().map(|e| e["type"].clone()).collect::<Vec<_>>(), vec![json!("session.notify"), json!("session.done"), json!("session.end")]);
+    assert_eq!(
+        said.iter().map(|e| e["type"].clone()).collect::<Vec<_>>(),
+        vec![json!("session.notify"), json!("session.done"), json!("session.end")]
+    );
     assert_eq!(said[1]["result"], json!({ "status": "interrupted", "error": "stopped at 1000000", "unreached": true }));
     assert_eq!(said[2]["sawResult"], json!(true), "a stop the process never heard is still the turn's reply");
     assert_eq!(ctx.sessions.with(|s| support::json_of(&s.get("r1").expect("row").borrow().view.status)), json!("interrupted"));

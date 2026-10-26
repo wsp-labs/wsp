@@ -7,39 +7,41 @@ use std::collections::HashMap;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;
 
+pub use super::entry::entry_over;
 pub use async_trait::async_trait;
 pub use futures::future::{BoxFuture, FutureExt, LocalBoxFuture};
 pub use indexmap::{IndexMap, IndexSet};
 pub use serde_json::{json, Map, Value};
+pub use wsp_account::account::rules::TreeOf;
 pub use wsp_adapters::port::*;
 pub use wsp_core::clock::{Clock, FakeClock};
+pub use wsp_core::context::Joined;
 pub use wsp_core::ids::Ids;
 pub use wsp_core::types::api::*;
-pub use wsp_core::types::internal::{EndThread, KeptLaunch, Reopened, SearchedHit, Taken, ThreadRecord, ThreadStamps, ThreadWords, TreeTalk, TurnAsked, TurnLive, TurnWritten};
-pub use wsp_core::types::wiring::{SessionHandle, WorkspaceRecord};
-pub use wsp_threads::activity::*;
-pub use wsp_threads::threads::threads::{Entry, Row, Sessions, ThreadRecords, Waiting};
-pub use wsp_threads::threads::agents::launch::{AdapterAsk, BuiltAdapter, DefaultsOn, LaunchServers};
-pub use wsp_threads::threads::forks::{ForkPlan, StartFn};
-pub use wsp_threads::threads::threads::{CapAt, CapHeld, CheckpointAsk, KeptHand, NotifyOn, TurnChangesAsk};
-pub use wsp_threads::threads::agents::launch::LandedImages;
-pub use wsp_core::context::Joined;
+pub use wsp_core::types::internal::{
+    EndThread, KeptLaunch, Reopened, SearchedHit, Taken, ThreadRecord, ThreadStamps, ThreadWords, TreeTalk, TurnAsked, TurnLive,
+    TurnWritten,
+};
 pub use wsp_core::types::internal::{KeptProcess, SessionEntry};
 pub use wsp_core::types::wiring::Local;
-pub use super::entry::entry_over;
-pub use wsp_account::account::rules::TreeOf;
+pub use wsp_core::types::wiring::{SessionHandle, WorkspaceRecord};
 pub use wsp_machines::machines::boot::entries::{EntryAsk, RowAt};
 pub use wsp_machines::machines::sub_spawn::machine::Resumed;
 pub use wsp_store::transcript_reader::ThreadRead;
-pub use wsp_wire::types::usage::AccountsAnswer;
-pub use wsp_wire::wire::events_union::EventUnion;
+pub use wsp_threads::activity::*;
+pub use wsp_threads::threads::agents::launch::LandedImages;
+pub use wsp_threads::threads::agents::launch::{AdapterAsk, BuiltAdapter, DefaultsOn, LaunchServers};
+pub use wsp_threads::threads::forks::{ForkPlan, StartFn};
 pub use wsp_threads::threads::launch::*;
 pub use wsp_threads::threads::sessions::*;
+pub use wsp_threads::threads::threads::{CapAt, CapHeld, CheckpointAsk, KeptHand, NotifyOn, TurnChangesAsk};
+pub use wsp_threads::threads::threads::{Entry, Row, Sessions, ThreadRecords, Waiting};
 pub use wsp_threads::threads::trimmed_row::*;
 pub use wsp_threads::threads::turns::*;
 pub use wsp_threads::threads::waits::*;
 pub use wsp_wire::types::harness_picks::RanPicks;
 pub use wsp_wire::types::thread_defaults::AccessChoice;
+pub use wsp_wire::types::usage::AccountsAnswer;
 pub use wsp_wire::views::activity::{ActivityEnded, ActivityView, ProcessesAsk};
 pub use wsp_wire::views::harness::{HarnessCatalog, McpServerSpec, StartPicks};
 pub use wsp_wire::views::place_more::PlaceView;
@@ -51,6 +53,7 @@ pub use wsp_wire::views::workspace::Caller;
 pub use wsp_wire::views::workspace_kind::WorkspaceKind;
 pub use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
 pub use wsp_wire::wire::daemon::ProcScope;
+pub use wsp_wire::wire::events_union::EventUnion;
 pub use wsp_words::exit::{HostError, Kind};
 
 /// The fake clock's start, ms epoch.
@@ -166,13 +169,26 @@ impl wsp_engine::machine::Machine for NoMachine {
     fn offers(&self) -> wsp_engine::machine::MachineOffers {
         wsp_engine::machine::MachineOffers::default()
     }
-    async fn exec(&self, _cmd: &str, _opts: wsp_engine::machine::ExecOptions) -> wsp_engine::errors::Result<wsp_engine::machine::ExecResult> {
+    async fn exec(
+        &self,
+        _cmd: &str,
+        _opts: wsp_engine::machine::ExecOptions,
+    ) -> wsp_engine::errors::Result<wsp_engine::machine::ExecResult> {
         Ok(wsp_engine::machine::ExecResult { exit_code: 0.into(), stdout: String::new(), stderr: String::new() })
     }
-    async fn run(&self, _script: &str, _opts: wsp_engine::machine::RunOptions) -> wsp_engine::errors::Result<wsp_engine::machine::ExecResult> {
+    async fn run(
+        &self,
+        _script: &str,
+        _opts: wsp_engine::machine::RunOptions,
+    ) -> wsp_engine::errors::Result<wsp_engine::machine::ExecResult> {
         unimplemented!()
     }
-    async fn snapshot(&self, _name: &str, _life: wsp_engine::machine::MachineLife, _opts: wsp_engine::machine::SnapshotOptions) -> wsp_engine::errors::Result<String> {
+    async fn snapshot(
+        &self,
+        _name: &str,
+        _life: wsp_engine::machine::MachineLife,
+        _opts: wsp_engine::machine::SnapshotOptions,
+    ) -> wsp_engine::errors::Result<String> {
         unimplemented!()
     }
     async fn pause(&self, _wait_ms: Option<u64>) -> wsp_engine::errors::Result<()> {
@@ -340,7 +356,12 @@ impl FakeHost {
 
     /// The transcript events of one thread recorded so far.
     pub fn thread_events(&self, thread_id: &str) -> Vec<SessionEvent> {
-        self.recorded.borrow().iter().filter(|e| serde_json::to_value(e).map(|v| v["threadId"] == thread_id).unwrap_or(false)).cloned().collect()
+        self.recorded
+            .borrow()
+            .iter()
+            .filter(|e| serde_json::to_value(e).map(|v| v["threadId"] == thread_id).unwrap_or(false))
+            .cloned()
+            .collect()
     }
 }
 

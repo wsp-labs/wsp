@@ -15,6 +15,7 @@ use wsp_core::context::Joined;
 use wsp_core::types::api::StartOptions;
 use wsp_core::types::harness::HarnessAdapter;
 use wsp_core::types::wiring::{AccessMove, Local, SessionHandle, SteerTaken, WorkspaceRecord};
+use wsp_machines::machines::boot::entries::RowAt;
 use wsp_store::store::{BlobMark, Store};
 use wsp_threads::threads::forks::{ForksCtx, StartFn};
 use wsp_threads::threads::threads::{Entry, Sessions, ThreadRecords};
@@ -22,7 +23,6 @@ use wsp_wire::types::attachments::Attachment;
 use wsp_wire::views::session::SessionView;
 use wsp_wire::views::session_events::TurnResult;
 use wsp_wire::views::session_events_more::SessionEvent;
-use wsp_machines::machines::boot::entries::RowAt;
 use wsp_wire::views::workspace::{Caller, ProjectView};
 use wsp_wire::wire::machine_link::ExecResult;
 use wsp_wire::wire::runtime::SessionStartOutcome;
@@ -105,13 +105,23 @@ impl SessionHandle for FakeHandle {
     fn interrupt(&self) -> LocalBoxFuture<'static, ()> {
         async {}.boxed_local()
     }
-    fn steer(&self, _prompt: String, _id: Option<String>, _images: Vec<wsp_adapters::port::TurnImage>) -> Option<Local<'static, SteerTaken>> {
+    fn steer(
+        &self,
+        _prompt: String,
+        _id: Option<String>,
+        _images: Vec<wsp_adapters::port::TurnImage>,
+    ) -> Option<Local<'static, SteerTaken>> {
         None
     }
     fn tells_unread(&self) -> Option<bool> {
         None
     }
-    fn answer(&self, _ask: String, _option: String, _reason: Option<String>) -> Option<Local<'static, wsp_wire::wire::runtime::SessionAnswerResult>> {
+    fn answer(
+        &self,
+        _ask: String,
+        _option: String,
+        _reason: Option<String>,
+    ) -> Option<Local<'static, wsp_wire::wire::runtime::SessionAnswerResult>> {
         None
     }
     fn set_access(&self, _mode: String) -> Option<Local<'static, AccessMove>> {
@@ -154,11 +164,23 @@ pub struct FakeForkAdapter {
 impl FakeForkAdapter {
     /// An adapter that forks sessions.
     pub fn new() -> Arc<FakeForkAdapter> {
-        Arc::new(FakeForkAdapter { forks: true, by_count: false, answers: Mutex::default(), asked: Mutex::default(), dropped: Arc::default() })
+        Arc::new(FakeForkAdapter {
+            forks: true,
+            by_count: false,
+            answers: Mutex::default(),
+            asked: Mutex::default(),
+            dropped: Arc::default(),
+        })
     }
     /// An adapter with no `forkSession`.
     pub fn without_forks() -> Arc<FakeForkAdapter> {
-        Arc::new(FakeForkAdapter { forks: false, by_count: false, answers: Mutex::default(), asked: Mutex::default(), dropped: Arc::default() })
+        Arc::new(FakeForkAdapter {
+            forks: false,
+            by_count: false,
+            answers: Mutex::default(),
+            asked: Mutex::default(),
+            dropped: Arc::default(),
+        })
     }
     pub fn answers(&self, answers: Vec<ForkAnswer>) {
         *self.answers.lock().expect("answers") = answers.into();
@@ -185,7 +207,8 @@ impl HarnessAdapter for FakeForkAdapter {
             return None;
         }
         self.asked.lock().expect("asked").push((session, turn));
-        let answer = self.answers.lock().expect("answers").pop_front().unwrap_or_else(|| ForkAnswer::Refuse("no fork answer queued".to_string()));
+        let answer =
+            self.answers.lock().expect("answers").pop_front().unwrap_or_else(|| ForkAnswer::Refuse("no fork answer queued".to_string()));
         let dropped = self.dropped.clone();
         Some(
             async move {
@@ -341,7 +364,12 @@ impl ForksCtx for FakeForksCtx {
         best
     }
     fn rows_on(&self, thread_id: &str) -> Vec<SessionView> {
-        self.sessions.borrow().values().filter(|r| r.borrow().view.thread_id.as_deref() == Some(thread_id)).map(|r| r.borrow().view.clone()).collect()
+        self.sessions
+            .borrow()
+            .values()
+            .filter(|r| r.borrow().view.thread_id.as_deref() == Some(thread_id))
+            .map(|r| r.borrow().view.clone())
+            .collect()
     }
     fn running_turn(&self, thread_id: &str) -> Option<String> {
         self.running.borrow().get(thread_id).cloned()
@@ -382,7 +410,13 @@ impl ForksCtx for FakeForksCtx {
         self.call(format!("keptWrites {workspace_id}"));
         self.kept_writes.borrow().get(workspace_id).cloned()
     }
-    fn keep_sent_images(&self, workspace_id: &str, thread_id: &str, request_id: Option<String>, attachments: Vec<Attachment>) -> LocalBoxFuture<'static, ()> {
+    fn keep_sent_images(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        request_id: Option<String>,
+        attachments: Vec<Attachment>,
+    ) -> LocalBoxFuture<'static, ()> {
         self.call(format!("keepSentImages {workspace_id} {thread_id} {} {}", request_id.clone().unwrap_or_default(), attachments.len()));
         self.kept_images.borrow_mut().push((workspace_id.to_string(), thread_id.to_string(), request_id, attachments));
         async {}.boxed_local()
@@ -392,7 +426,11 @@ impl ForksCtx for FakeForksCtx {
         async {}.boxed_local()
     }
     fn project_held(&self, project: &str) -> ProjectView {
-        self.projects.borrow().get(project).cloned().unwrap_or_else(|| project_view(project, project, &format!("/repo/{project}"), Some(&format!("/repo/{project}"))))
+        self.projects
+            .borrow()
+            .get(project)
+            .cloned()
+            .unwrap_or_else(|| project_view(project, project, &format!("/repo/{project}"), Some(&format!("/repo/{project}"))))
     }
     fn place_name(&self, computer: &str) -> String {
         format!("{computer}-name")
@@ -400,13 +438,27 @@ impl ForksCtx for FakeForksCtx {
     fn git_here(&self, top: &str, args: Vec<String>) -> LocalBoxFuture<'static, Result<ExecResult, HostError>> {
         let joined = args.join(" ");
         self.call(format!("git {top} {joined}"));
-        let answer = self.git.borrow().iter().find(|(needle, _)| joined.contains(needle.as_str())).map(|(_, a)| a.clone()).unwrap_or_else(|| Ok(exec_result(0, "", "")));
+        let answer = self
+            .git
+            .borrow()
+            .iter()
+            .find(|(needle, _)| joined.contains(needle.as_str()))
+            .map(|(_, a)| a.clone())
+            .unwrap_or_else(|| Ok(exec_result(0, "", "")));
         async move { answer }.boxed_local()
     }
     fn live_ids(&self) -> Vec<String> {
         self.live.borrow().clone()
     }
-    fn worktree_folder(&self, project: &ProjectView, top: &str, branch: &str, from: &str, root: Option<String>, at_ref: &str) -> LocalBoxFuture<'static, Result<Entry, HostError>> {
+    fn worktree_folder(
+        &self,
+        project: &ProjectView,
+        top: &str,
+        branch: &str,
+        from: &str,
+        root: Option<String>,
+        at_ref: &str,
+    ) -> LocalBoxFuture<'static, Result<Entry, HostError>> {
         self.call(format!("worktreeFolder {} {top} {branch} {from} {} {at_ref}", project.id, root.unwrap_or_else(|| "-".into())));
         let answer = self.worktrees.borrow_mut().pop_front().unwrap_or_else(|| Err(err("no worktree answer queued")));
         async move { answer }.boxed_local()

@@ -41,7 +41,13 @@ impl ActivityDoor for Meets {
     async fn end(&self, _ask: EndAsk, _caller: Option<Caller>) -> Result<ActivityEnded, HostError> {
         panic!("a delete never ends a process by pid")
     }
-    async fn meet(&self, thread_ids: &[String], processes: ProcessesAsk, verb: MeetVerb, caller: Option<Caller>) -> Result<Vec<ActivityEnded>, HostError> {
+    async fn meet(
+        &self,
+        thread_ids: &[String],
+        processes: ProcessesAsk,
+        verb: MeetVerb,
+        caller: Option<Caller>,
+    ) -> Result<Vec<ActivityEnded>, HostError> {
         self.log.borrow_mut().push(format!("meet {} {processes:?} {verb:?}", thread_ids.join(",")));
         self.seen.borrow_mut().push((thread_ids.to_vec(), processes, verb, caller));
         if let Some(e) = self.refuse.borrow().clone() {
@@ -69,7 +75,15 @@ fn ended_one() -> ActivityEnded {
 }
 
 fn deleted(worktree: Option<&str>, ended: Option<Vec<ActivityEnded>>) -> ThreadDeleted {
-    ThreadDeleted { workspace_id: W.to_string(), worktree: worktree.map(String::from), threads: 1, ended, machine_deleted: false, on: None, question: None }
+    ThreadDeleted {
+        workspace_id: W.to_string(),
+        worktree: worktree.map(String::from),
+        threads: 1,
+        ended,
+        machine_deleted: false,
+        on: None,
+        question: None,
+    }
 }
 
 impl Rig {
@@ -78,7 +92,11 @@ impl Rig {
         let host = FakeHost::new();
         host.add_entry(entry(W, entry_extra));
         for (key, thread, at) in [("a-1", T, 1000), ("a-2", T, 2000), ("b-1", B, 3000)] {
-            let v = view(key, W, json!({ "threadId": thread, "claudeSessionId": format!("S-{thread}"), "status": "completed", "startedAt": T0 + at, "endedAt": T0 + at + 500 }));
+            let v = view(
+                key,
+                W,
+                json!({ "threadId": thread, "claudeSessionId": format!("S-{thread}"), "status": "completed", "startedAt": T0 + at, "endedAt": T0 + at + 500 }),
+            );
             host.add_row(key, row(v, &format!("turn-{key}")));
         }
         host.add_record(T, W, thread_record(json!({ "harness": "claude" })));
@@ -87,7 +105,12 @@ impl Rig {
             host.recorded.borrow_mut().push(event(json!({ "type": "session.start", "workspaceId": W, "sessionId": format!("S-{thread}"), "turnId": turn, "threadId": thread })));
         }
         let log: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
-        let meets = Rc::new(Meets { log: log.clone(), ended: RefCell::new(Vec::new()), refuse: RefCell::new(None), seen: RefCell::new(Vec::new()) });
+        let meets = Rc::new(Meets {
+            log: log.clone(),
+            ended: RefCell::new(Vec::new()),
+            refuse: RefCell::new(None),
+            seen: RefCell::new(Vec::new()),
+        });
         let group = Rc::new(Cell::new(true));
         let guard: Rc<RefCell<Option<HostError>>> = Rc::new(RefCell::new(None));
         let leads_sub = Rc::new(Cell::new(false));
@@ -135,7 +158,8 @@ impl Rig {
             }),
         );
         let l = log.clone();
-        host.hooks.set::<dyn Fn(&str) -> ()>("SessionsCtx::reap_kept", Rc::new(move |t: &str| l.borrow_mut().push(format!("reap_kept {t}"))));
+        host.hooks
+            .set::<dyn Fn(&str) -> ()>("SessionsCtx::reap_kept", Rc::new(move |t: &str| l.borrow_mut().push(format!("reap_kept {t}"))));
         let l = log.clone();
         host.hooks.set::<dyn Fn(&Entry, &str) -> LocalBoxFuture<'static, Result<(), HostError>>>(
             "SessionsCtx::end_thread_shells",
@@ -227,7 +251,13 @@ impl Rig {
     }
 
     fn rows_of(&self, thread: &str) -> Vec<String> {
-        self.host.rows.borrow().iter().filter(|(_, r)| r.borrow().view.thread_id.as_deref() == Some(thread)).map(|(k, _)| k.clone()).collect()
+        self.host
+            .rows
+            .borrow()
+            .iter()
+            .filter(|(_, r)| r.borrow().view.thread_id.as_deref() == Some(thread))
+            .map(|(k, _)| k.clone())
+            .collect()
     }
 
     fn has_record(&self, thread: &str) -> bool {
@@ -289,7 +319,11 @@ fn a_thread_nobody_holds_is_not_found_after_the_guard_ran() {
         let r = Rig::new(json!({}));
         let e = r.delete("thr_nobody", DeleteThreadAsk::default()).await.unwrap_err();
         assert_eq!(said(&e), said(&not_found_refusal(&format!("no thread {}", thread_word("thr_nobody")))));
-        assert_eq!(r.log(), vec!["lead_of_sub None".to_string(), "spawn_guard delete".to_string()], "the guard runs before the absence is read");
+        assert_eq!(
+            r.log(),
+            vec!["lead_of_sub None".to_string(), "spawn_guard delete".to_string()],
+            "the guard runs before the absence is read"
+        );
         assert_eq!(r.host.hooks.called("ready").len(), 1);
         // A guard that refuses is the refusal, whatever the thread is.
         let refused = HostError::with_kind("a thread may not delete", Kind::Usage);
@@ -301,10 +335,14 @@ fn a_thread_nobody_holds_is_not_found_after_the_guard_ran() {
         r.untouched();
         // A caller the workspace does not reach reads as absent too.
         *r.guard.borrow_mut() = None;
-        r.host.hooks.set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
-            "SessionsCtx::entry_of_row",
-            Rc::new(|_at: &RowAt, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| async { Ok::<Option<Entry>, HostError>(None) }.boxed_local()),
-        );
+        r.host
+            .hooks
+            .set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
+                "SessionsCtx::entry_of_row",
+                Rc::new(|_at: &RowAt, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| {
+                    async { Ok::<Option<Entry>, HostError>(None) }.boxed_local()
+                }),
+            );
         let e = r.delete(T, DeleteThreadAsk::default()).await.unwrap_err();
         assert_eq!(said(&e), said(&not_found_refusal(&format!("no thread {}", thread_word(T)))));
         r.untouched();
@@ -333,30 +371,50 @@ fn the_guard_names_the_act_by_who_leads_the_sub() {
 #[test]
 fn a_sub_threads_delete_is_the_subs() {
     run_local(async {
-        let r = Rig::new(json!({ "sub": { "on": "boat", "repo": "r", "base": { "branch": "main", "sha": "abc" }, "branch": "b", "folder": "/f" } }));
+        let r = Rig::new(
+            json!({ "sub": { "on": "boat", "repo": "r", "base": { "branch": "main", "sha": "abc" }, "branch": "b", "folder": "/f" } }),
+        );
         let asked: Rc<RefCell<Vec<(String, Option<Caller>, DeleteThreadAsk)>>> = Rc::new(RefCell::new(Vec::new()));
         let seen = asked.clone();
-        let answer = ThreadDeleted { workspace_id: W.to_string(), worktree: None, threads: 1, ended: None, machine_deleted: true, on: Some("Boat".to_string()), question: None };
+        let answer = ThreadDeleted {
+            workspace_id: W.to_string(),
+            worktree: None,
+            threads: 1,
+            ended: None,
+            machine_deleted: true,
+            on: Some("Boat".to_string()),
+            question: None,
+        };
         let given = answer.clone();
-        r.host.hooks.set::<dyn Fn(&Entry, &str, Option<&Caller>, DeleteThreadAsk) -> LocalBoxFuture<'static, Result<ThreadDeleted, HostError>>>(
-            "SessionsCtx::sub_delete",
-            Rc::new(move |_e: &Entry, t: &str, o: Option<&Caller>, ask: DeleteThreadAsk| {
-                seen.borrow_mut().push((t.to_string(), o.cloned(), ask));
-                let a = given.clone();
-                async move { Ok::<ThreadDeleted, HostError>(a) }.boxed_local()
-            }),
-        );
+        r.host
+            .hooks
+            .set::<dyn Fn(&Entry, &str, Option<&Caller>, DeleteThreadAsk) -> LocalBoxFuture<'static, Result<ThreadDeleted, HostError>>>(
+                "SessionsCtx::sub_delete",
+                Rc::new(move |_e: &Entry, t: &str, o: Option<&Caller>, ask: DeleteThreadAsk| {
+                    seen.borrow_mut().push((t.to_string(), o.cloned(), ask));
+                    let a = given.clone();
+                    async move { Ok::<ThreadDeleted, HostError>(a) }.boxed_local()
+                }),
+            );
         let ask = DeleteThreadAsk { processes: Some(ProcessesAsk::Keep), check: Some(true) };
         let got = r.area.delete_thread(T, Some(Caller::Road(WorkspaceOrigin::Here)), ask.clone()).await.unwrap();
         assert_eq!(got, answer);
         assert_eq!(asked.borrow().clone(), vec![(T.to_string(), Some(Caller::Road(WorkspaceOrigin::Here)), ask)]);
-        assert_eq!(r.log(), vec![format!("lead_of_sub Some(\"{W}\")"), "spawn_guard delete".to_string()], "the sub's own road does the rest");
+        assert_eq!(
+            r.log(),
+            vec![format!("lead_of_sub Some(\"{W}\")"), "spawn_guard delete".to_string()],
+            "the sub's own road does the rest"
+        );
         r.untouched();
         // The sub's refusal is the delete's.
-        r.host.hooks.set::<dyn Fn(&Entry, &str, Option<&Caller>, DeleteThreadAsk) -> LocalBoxFuture<'static, Result<ThreadDeleted, HostError>>>(
-            "SessionsCtx::sub_delete",
-            Rc::new(|_e: &Entry, _t: &str, _o: Option<&Caller>, _a: DeleteThreadAsk| async { Err::<ThreadDeleted, HostError>(HostError::with_kind("work is not pushed", Kind::Conflict)) }.boxed_local()),
-        );
+        r.host
+            .hooks
+            .set::<dyn Fn(&Entry, &str, Option<&Caller>, DeleteThreadAsk) -> LocalBoxFuture<'static, Result<ThreadDeleted, HostError>>>(
+                "SessionsCtx::sub_delete",
+                Rc::new(|_e: &Entry, _t: &str, _o: Option<&Caller>, _a: DeleteThreadAsk| {
+                    async { Err::<ThreadDeleted, HostError>(HostError::with_kind("work is not pushed", Kind::Conflict)) }.boxed_local()
+                }),
+            );
         let e = r.delete(T, DeleteThreadAsk::default()).await.unwrap_err();
         assert_eq!(said(&e), conflict("work is not pushed"));
     });
@@ -480,7 +538,15 @@ fn a_working_thread_is_refused() {
         // A check is refused the same way, and processes are never asked about first.
         let e = r.delete(T, DeleteThreadAsk { processes: Some(ProcessesAsk::Ask), check: Some(true) }).await.unwrap_err();
         assert_eq!(said(&e), conflict(THREAD_WORKING_LINE));
-        assert_eq!(r.log(), vec![format!("lead_of_sub Some(\"{W}\")"), "spawn_guard delete".to_string(), format!("lead_of_sub Some(\"{W}\")"), "spawn_guard delete".to_string()]);
+        assert_eq!(
+            r.log(),
+            vec![
+                format!("lead_of_sub Some(\"{W}\")"),
+                "spawn_guard delete".to_string(),
+                format!("lead_of_sub Some(\"{W}\")"),
+                "spawn_guard delete".to_string()
+            ]
+        );
         assert_eq!(r.meets.seen.borrow().len(), 0);
         // A thread beside it that works is none of this delete's business.
         r.host.rows.borrow()["a-2"].borrow_mut().view.status = SessionStatus::Completed;
@@ -513,11 +579,17 @@ fn check_reads_and_changes_nothing() {
 fn a_check_with_processes_meets_them_as_keep_and_a_refusal_changes_nothing() {
     run_local(async {
         let r = Rig::new(json!({}));
-        for (asked, met) in [(ProcessesAsk::Stop, ProcessesAsk::Keep), (ProcessesAsk::Ask, ProcessesAsk::Ask), (ProcessesAsk::Keep, ProcessesAsk::Keep)] {
+        for (asked, met) in
+            [(ProcessesAsk::Stop, ProcessesAsk::Keep), (ProcessesAsk::Ask, ProcessesAsk::Ask), (ProcessesAsk::Keep, ProcessesAsk::Keep)]
+        {
             r.log.borrow_mut().clear();
             let got = r.delete(T, DeleteThreadAsk { processes: Some(asked), check: Some(true) }).await.unwrap();
             assert_eq!(got, deleted(None, None), "a check answers with no ended, whatever the table held");
-            assert_eq!(r.log(), vec![format!("lead_of_sub Some(\"{W}\")"), "spawn_guard delete".to_string(), format!("meet {T} {met:?} Delete")], "stop is met as keep: refusals only");
+            assert_eq!(
+                r.log(),
+                vec![format!("lead_of_sub Some(\"{W}\")"), "spawn_guard delete".to_string(), format!("meet {T} {met:?} Delete")],
+                "stop is met as keep: refusals only"
+            );
         }
         // A refusal from the table is the delete's, and nothing moved.
         let refused = HostError::with_kind("the thread to delete still runs 2 processes: 4200 node (dev, :5173) of thread-a", Kind::Usage);
@@ -557,12 +629,19 @@ fn delete_meets_processes_unless_none_asked_and_names_what_ended() {
         let r = Rig::new(json!({}));
         *r.meets.ended.borrow_mut() = vec![ended_one()];
         let origin = Caller::Road(WorkspaceOrigin::Here);
-        let got = r.area.delete_thread(T, Some(origin.clone()), DeleteThreadAsk { processes: Some(ProcessesAsk::Stop), check: None }).await.unwrap();
+        let got = r
+            .area
+            .delete_thread(T, Some(origin.clone()), DeleteThreadAsk { processes: Some(ProcessesAsk::Stop), check: None })
+            .await
+            .unwrap();
         assert_eq!(got, deleted(None, Some(vec![ended_one()])));
         assert_eq!(r.meets.seen.borrow().clone(), vec![(vec![T.to_string()], ProcessesAsk::Stop, MeetVerb::Delete, Some(origin))]);
         let log = r.log();
         let at = |prefix: &str| log.iter().position(|l| l.starts_with(prefix)).unwrap_or_else(|| panic!("{prefix} in {log:?}"));
-        assert!(at("meet") < at("reap_kept") && at("reap_kept") < at("end_thread "), "the processes are met before anything is ended: {log:?}");
+        assert!(
+            at("meet") < at("reap_kept") && at("reap_kept") < at("end_thread "),
+            "the processes are met before anything is ended: {log:?}"
+        );
         assert_eq!(log.last().unwrap(), &format!("slates_forget {T} keep=false"));
         // A table with nothing ended leaves `ended` off the answer.
         let r = Rig::new(json!({}));
@@ -748,7 +827,8 @@ fn never_ran(r: &Rig) {
 }
 
 fn forgotten(thread: &str, rows: &[&str]) -> Vec<String> {
-    let mut log = vec![format!("open_thread {W} {thread}"), format!("drop_thread_files {thread}"), format!("drop_sent_images {W} {thread}")];
+    let mut log =
+        vec![format!("open_thread {W} {thread}"), format!("drop_thread_files {thread}"), format!("drop_sent_images {W} {thread}")];
     for r in rows {
         log.push(format!("row_gone {r} {W} {thread}"));
     }
@@ -780,7 +860,10 @@ fn forget_takes_a_record_alone_that_says_it_never_worked() {
     run_local(async {
         let r = Rig::new(json!({}));
         r.host.rows.borrow_mut().retain(|_, row| row.borrow().view.thread_id.as_deref() != Some(T));
-        r.host.records.borrow_mut().insert(T.to_string(), ThreadRecord { workspace_id: W.to_string(), ..thread_record(json!({ "harness": "claude", "worked": false })) });
+        r.host.records.borrow_mut().insert(
+            T.to_string(),
+            ThreadRecord { workspace_id: W.to_string(), ..thread_record(json!({ "harness": "claude", "worked": false })) },
+        );
         r.forget(T, false).await.unwrap();
         assert_eq!(r.log(), forgotten(T, &[]));
         assert!(!r.has_record(T));
@@ -805,7 +888,10 @@ fn forget_refuses_a_thread_that_worked() {
         // One worked row among rows that did not is enough, and the record's word does not reverse it.
         let r = Rig::new(json!({}));
         never_ran(&r);
-        r.host.add_row("worked-1", row(view("worked-1", W, json!({ "threadId": T, "claudeSessionId": "S-w", "status": "completed" })), "turn-worked"));
+        r.host.add_row(
+            "worked-1",
+            row(view("worked-1", W, json!({ "threadId": T, "claudeSessionId": "S-w", "status": "completed" })), "turn-worked"),
+        );
         r.host.records.borrow_mut().get_mut(T).unwrap().worked = Some(false);
         let e = r.forget(T, false).await.unwrap_err();
         assert_eq!(said(&e), (thread_forget_refusal(T), None, Some(Kind::Conflict)));
@@ -862,7 +948,13 @@ fn a_turn_refused_for_want_of_a_sign_in_ran_nothing() {
             v.view.claude_session_id = Some("S-refused".to_string());
             v.view.refusal = Some(serde_json::from_value(json!("sign-in")).expect("a refusal"));
         }
-        r.host.add_row("later-1", row(view("later-1", W, json!({ "threadId": T, "claudeSessionId": "S-refused", "status": "completed", "startedAt": T0 + 900 })), "turn-later"));
+        r.host.add_row(
+            "later-1",
+            row(
+                view("later-1", W, json!({ "threadId": T, "claudeSessionId": "S-refused", "status": "completed", "startedAt": T0 + 900 })),
+                "turn-later",
+            ),
+        );
         r.host.records.borrow_mut().get_mut(T).unwrap().worked = Some(false);
         let e = r.forget(T, false).await.unwrap_err();
         assert_eq!(said(&e), (thread_forget_refusal(T), None, Some(Kind::Conflict)));
@@ -878,10 +970,14 @@ fn forget_of_a_thread_nobody_holds_is_not_found() {
         assert_eq!(e.message, "no thread thr_nobo");
         assert_eq!(said(&e), said(&not_found_refusal(&format!("no thread {}", thread_word("thr_nobody")))));
         // A caller the workspace does not reach reads the same absence, not the refusal past this gate.
-        r.host.hooks.set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
-            "SessionsCtx::entry_of_row",
-            Rc::new(|_at: &RowAt, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| async { Ok::<Option<Entry>, HostError>(None) }.boxed_local()),
-        );
+        r.host
+            .hooks
+            .set::<dyn Fn(&RowAt, Option<&Caller>, Option<TreeTalk>, bool) -> LocalBoxFuture<'static, Result<Option<Entry>, HostError>>>(
+                "SessionsCtx::entry_of_row",
+                Rc::new(|_at: &RowAt, _o: Option<&Caller>, _k: Option<TreeTalk>, _b: bool| {
+                    async { Ok::<Option<Entry>, HostError>(None) }.boxed_local()
+                }),
+            );
         let e = r.forget(T, false).await.unwrap_err();
         assert_eq!(said(&e), said(&not_found_refusal(&format!("no thread {}", thread_word(T)))));
         assert_eq!(r.log(), Vec::<String>::new());

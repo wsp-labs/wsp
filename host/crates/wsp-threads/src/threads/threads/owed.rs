@@ -18,8 +18,8 @@ use wsp_frames::True;
 use wsp_wire::types::attachments::{Attachment, AttachmentRecord};
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::session::{SessionOrigin, SessionStatus, SessionView};
-use wsp_wire::views::session_events::{TurnResult, TurnStatus};
 use wsp_wire::views::session_events::{SessionDoneEvent, SessionEndEvent, SessionNotifyEvent};
+use wsp_wire::views::session_events::{TurnResult, TurnStatus};
 use wsp_wire::views::session_events_more::SessionEvent;
 use wsp_wire::views::workspace::Caller;
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
@@ -27,15 +27,14 @@ use wsp_wire::wire::events_union::EventUnion;
 use wsp_wire::wire::runtime::{SessionStartOutcome, DEVICE_OPS};
 use wsp_words::attachments::attachment_key;
 use wsp_words::exit::HostError;
-use wsp_words::workspace_state::{send_refusal, workspace_state, SendRefusalKind, WorkspaceStateInput};
 use wsp_words::words::turn::{notify_line, turn_lines, unread_line, NotifyLength};
+use wsp_words::workspace_state::{send_refusal, workspace_state, SendRefusalKind, WorkspaceStateInput};
 
 use super::tree::{computer_silent, TellAs};
 use super::{Row, ThreadsArea};
 
-
-pub use wsp_core::types::internal::{NOTIFY_OWED, OWED_RETRY_MS, OWED_RETRY_MAX_MS, OWED_FOR_MS};
-pub use wsp_wire::views::session_events::{NOTIFY_ME};
+pub use wsp_core::types::internal::{NOTIFY_OWED, OWED_FOR_MS, OWED_RETRY_MAX_MS, OWED_RETRY_MS};
+pub use wsp_wire::views::session_events::NOTIFY_ME;
 /// threads.ts:25 `PersonRow`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -107,7 +106,12 @@ pub fn read_owed(raw: &Value) -> Option<Owed> {
 /// threads.ts:31 `toPerson`: all four strings, else dropped.
 fn read_person_row(raw: &Value) -> Option<PersonRow> {
     let text_of = |key: &str| raw.get(key).and_then(Value::as_str).map(str::to_string);
-    Some(PersonRow { workspace_id: text_of("workspaceId")?, session_id: text_of("sessionId")?, turn_id: text_of("turnId")?, text: text_of("text")? })
+    Some(PersonRow {
+        workspace_id: text_of("workspaceId")?,
+        session_id: text_of("sessionId")?,
+        turn_id: text_of("turnId")?,
+        text: text_of("text")?,
+    })
 }
 
 /// threads.ts:24 `readOwedImages`: a string `under` and a non-empty list of records.
@@ -472,7 +476,13 @@ impl Delivery {
             if let Some(row_id) = self.area.carrying(&self.line.notify, &self.request_id) {
                 let out = self.area.session_row(&row_id).map(|row| {
                     let r = row.borrow();
-                    (r.view.id.clone(), r.turn_id.clone(), r.asked.as_ref().and_then(|a| a.request_id.clone()), r.handle.clone(), r.launch.clone())
+                    (
+                        r.view.id.clone(),
+                        r.turn_id.clone(),
+                        r.asked.as_ref().and_then(|a| a.request_id.clone()),
+                        r.handle.clone(),
+                        r.launch.clone(),
+                    )
                 });
                 if let Some((view_id, turn_id, asked_request, handle, launch)) = out {
                     let steered = asked_request.as_deref() != Some(self.request_id.as_str());
@@ -568,7 +578,12 @@ impl Delivery {
                 if computer_silent(Some(&e)) {
                     return self.try_again(&e.message);
                 }
-                warn(&format!("thread {} ended, but its line did not reach thread {}: {}", cut8(&self.line.from), cut8(&self.line.notify), e.message));
+                warn(&format!(
+                    "thread {} ended, but its line did not reach thread {}: {}",
+                    cut8(&self.line.from),
+                    cut8(&self.line.notify),
+                    e.message
+                ));
                 self.fell();
             }
         }
@@ -806,7 +821,11 @@ impl ThreadsArea {
         sessions.iter().find_map(|(id, row)| {
             let s = row.borrow();
             let asked = s.asked.as_ref().and_then(|a| a.request_id.as_deref()) == Some(request_id);
-            let steered = s.turn_live.as_ref().and_then(|l| l.steered.as_ref()).is_some_and(|m| m.values().any(|st| st.request_id.as_deref() == Some(request_id)));
+            let steered = s
+                .turn_live
+                .as_ref()
+                .and_then(|l| l.steered.as_ref())
+                .is_some_and(|m| m.values().any(|st| st.request_id.as_deref() == Some(request_id)));
             let hit = s.view.thread_id.as_deref() == Some(thread_id) && s.view.status == SessionStatus::Running && (asked || steered);
             hit.then(|| id.clone())
         })
@@ -852,7 +871,12 @@ impl ThreadsArea {
             let Some(steered) = steered else {
                 continue;
             };
-            let to_person = PersonRow { workspace_id: workspace_id.clone(), session_id: session_id.clone(), turn_id: turn_id.clone(), text: unread_line(&steered.prompt) };
+            let to_person = PersonRow {
+                workspace_id: workspace_id.clone(),
+                session_id: session_id.clone(),
+                turn_id: turn_id.clone(),
+                text: unread_line(&steered.prompt),
+            };
             if stopped {
                 self.ctx.record(notify_event(&workspace_id, &session_id, &turn_id, &thread_id, NOTIFY_ME, &to_person.text));
                 continue;
@@ -895,7 +919,12 @@ impl ThreadsArea {
             set.insert(NOTIFY_ME.to_string());
             set.into_iter().collect()
         };
-        let to_person = PersonRow { workspace_id: workspace_id.clone(), session_id: session_id.clone(), turn_id: turn_id.clone(), text: notify_line(&thread_id, result, Some(NotifyLength::Tail)) };
+        let to_person = PersonRow {
+            workspace_id: workspace_id.clone(),
+            session_id: session_id.clone(),
+            turn_id: turn_id.clone(),
+            text: notify_line(&thread_id, result, Some(NotifyLength::Tail)),
+        };
         let sub = if !open && self.ctx.entry(&workspace_id).is_some_and(|e| e.borrow().record.borrow().sub.is_some()) {
             Some(workspace_id.clone())
         } else {
@@ -957,7 +986,14 @@ impl ThreadsArea {
                 write_lines(&mut s.view, lines.last_line, lines.failure);
             }
             let session_id = s.view.claude_session_id.clone().unwrap_or_else(|| s.view.id.clone());
-            (s.view.workspace_id.clone(), s.view.thread_id.clone(), session_id, s.turn_id.clone(), s.notify.clone(), s.asked.as_ref().and_then(|a| a.awaits_prompt) == Some(true))
+            (
+                s.view.workspace_id.clone(),
+                s.view.thread_id.clone(),
+                session_id,
+                s.turn_id.clone(),
+                s.notify.clone(),
+                s.asked.as_ref().and_then(|a| a.awaits_prompt) == Some(true),
+            )
         };
         self.ctx.port_roots_moved(&workspace_id);
         let view: SessionView = {
@@ -972,7 +1008,8 @@ impl ThreadsArea {
         if let Some(thread) = &thread_id {
             self.lead_asks.borrow_mut().shift_remove(thread);
         }
-        let cut = turn_result(if stopped { TurnStatus::Interrupted } else { TurnStatus::Failed }, Some(cut_line(ended_at)), stopped && unreached);
+        let cut =
+            turn_result(if stopped { TurnStatus::Interrupted } else { TurnStatus::Failed }, Some(cut_line(ended_at)), stopped && unreached);
         if reply.is_none() {
             if let Some(notify) = notify {
                 if !self.line_try(row_id) {

@@ -11,11 +11,13 @@ use futures::future::LocalBoxFuture;
 use serde_json::{json, Value};
 use support::agents_ctx::{entry, plain_factory, table, Ability, FakeAdapter, FakeAgentsCtx, Gate};
 use support::{json_of, local, row, sessions_of, settle, silent, view, FakeMachine};
-use wsp_adapters::port::{AttachmentRoad, ExecFailure, ExecFailureKind, HarnessCatalogAnswer, HarnessCatalogModelProbe, HarnessCatalogProbe, SessionRenameWrite};
+use wsp_adapters::port::{
+    AttachmentRoad, ExecFailure, ExecFailureKind, HarnessCatalogAnswer, HarnessCatalogModelProbe, HarnessCatalogProbe, SessionRenameWrite,
+};
 use wsp_core::console;
 use wsp_threads::threads::agents::lists::{
-    known_catalog, source_of, title_rows, CarriedTitle, AGENT_LISTS, AGENT_VERSION_READ_MS, CATALOG_PROBE_TIMEOUT_MS, CATALOG_TTL_MS, FIRST_RUN_READ_MS,
-    SESSION_TITLE_REFRESH_MAX, SESSION_TITLE_TIMEOUT_MS, SESSION_TITLE_TTL_MS, TITLE_MAKE_TIMEOUT_MS,
+    known_catalog, source_of, title_rows, CarriedTitle, AGENT_LISTS, AGENT_VERSION_READ_MS, CATALOG_PROBE_TIMEOUT_MS, CATALOG_TTL_MS,
+    FIRST_RUN_READ_MS, SESSION_TITLE_REFRESH_MAX, SESSION_TITLE_TIMEOUT_MS, SESSION_TITLE_TTL_MS, TITLE_MAKE_TIMEOUT_MS,
 };
 use wsp_wire::views::harness::{HarnessCatalog, ScreenCommand, ScreenControl};
 use wsp_wire::views::session::TitleSource;
@@ -116,7 +118,8 @@ fn running(ctx: &Rc<FakeAgentsCtx>, harness: &str, adapter: &Arc<FakeAdapter>) -
 }
 
 fn seed(ctx: &Rc<FakeAgentsCtx>, rows: Vec<Value>) {
-    *ctx.sessions.borrow_mut() = sessions_of(rows.into_iter().enumerate().map(|(i, v)| row(view(v), &format!("u{i}"))).collect()).borrow().clone();
+    *ctx.sessions.borrow_mut() =
+        sessions_of(rows.into_iter().enumerate().map(|(i, v)| row(view(v), &format!("u{i}"))).collect()).borrow().clone();
 }
 
 fn row_json(ctx: &Rc<FakeAgentsCtx>, id: &str) -> Value {
@@ -194,7 +197,18 @@ fn known_carries_the_adapters_abilities_in_order() {
     assert_eq!(bare["renames"], false);
     assert_eq!(bare["images"], false);
     assert_eq!(bare["asides"], false);
-    for key in ["mcpServers", "movesAccess", "steersImages", "compacts", "terminalResume", "rewindsConversation", "rewindsByCount", "forks", "forksByCount", "screenCommands"] {
+    for key in [
+        "mcpServers",
+        "movesAccess",
+        "steersImages",
+        "compacts",
+        "terminalResume",
+        "rewindsConversation",
+        "rewindsByCount",
+        "forks",
+        "forksByCount",
+        "screenCommands",
+    ] {
         assert!(bare.get(key).is_none(), "{key} is absent");
     }
 }
@@ -295,7 +309,10 @@ fn catalog_on_probes_once_per_machine_and_ttl() {
         assert_eq!(first["source"], "harness");
         assert_eq!(first["version"], "2.1.257");
         assert_eq!(values(&first, "models"), ["claude-opus-5-5", "claude-haiku-4-5"]);
-        assert_eq!(first["models"][0], json!({ "value": "claude-opus-5-5", "label": "Opus 5.5", "isDefault": true, "efforts": ["low", "high"], "contextWindows": [] }));
+        assert_eq!(
+            first["models"][0],
+            json!({ "value": "claude-opus-5-5", "label": "Opus 5.5", "isDefault": true, "efforts": ["low", "high"], "contextWindows": [] })
+        );
         assert_eq!(first["models"][1], json!({ "value": "claude-haiku-4-5", "label": "Haiku 4.5", "efforts": [], "contextWindows": [] }));
         assert_eq!(values(&first, "efforts"), ["low", "high"]);
         assert_eq!(values(&first, "permissionModes"), ["default", "bypassPermissions"]);
@@ -423,7 +440,10 @@ fn catalog_on_skips_the_probe_when_the_first_run_installs() {
         let ctx = FakeAgentsCtx::new();
         let (a, machine) = entry(json!({ "id": "ws1" }));
         installing(&machine);
-        let adapter = FakeAdapter::new().probing(answered("2.1.257").execing("claude --help")).versioned(Ability::answering(Some("2.1.257".to_string())).execing("claude --version")).arc();
+        let adapter = FakeAdapter::new()
+            .probing(answered("2.1.257").execing("claude --help"))
+            .versioned(Ability::answering(Some("2.1.257".to_string())).execing("claude --version"))
+            .arc();
         let area = ctx.area();
         let table = claude_table();
 
@@ -449,7 +469,10 @@ fn catalog_on_reads_no_version_once_the_command_reads_as_installing_again() {
     local(async {
         let ctx = FakeAgentsCtx::new();
         let (a, machine) = entry(json!({ "id": "ws1" }));
-        let adapter = FakeAdapter::new().probing(answered("2.1.257").execing("claude --help")).versioned(Ability::answering(Some("2.1.257".to_string())).execing("claude --version")).arc();
+        let adapter = FakeAdapter::new()
+            .probing(answered("2.1.257").execing("claude --help"))
+            .versioned(Ability::answering(Some("2.1.257".to_string())).execing("claude --version"))
+            .arc();
         let area = ctx.area();
         let first = json_of(&area.catalog_on(&claude_table(), &a, adapter.clone()).await);
         assert_eq!(first["source"], "harness");
@@ -547,16 +570,24 @@ fn each_adapter_decides_whether_its_binary_is_asked_and_each_harness_keeps_its_a
             efforts: vec!["low".into(), "high".into()],
             permission_modes: vec!["read-only".into()],
         };
-        let codex = FakeAdapter::new().probing(Ability::answering(Some(HarnessCatalogAnswer::Probe(codex_probe))).execing("codex --describe")).arc();
+        let codex = FakeAdapter::new()
+            .probing(Ability::answering(Some(HarnessCatalogAnswer::Probe(codex_probe))).execing("codex --describe"))
+            .arc();
         let area = ctx.area();
         let c = json_of(&area.catalog_on(&claude_table(), &a, claude.clone()).await);
         let x = json_of(&area.catalog_on(&codex_table(), &a, codex.clone()).await);
         assert_eq!((c["source"].clone(), c["version"].clone()), (json!("harness"), json!("2.1.257")));
         assert_eq!((x["source"].clone(), x["version"].clone(), x["label"].clone()), (json!("harness"), json!("0.9.0"), json!("Codex")));
         assert!(x.get("isDefault").is_none());
-        assert_eq!(x["models"], json!([{ "value": "gpt-5-codex", "label": "Codex", "isDefault": true, "efforts": ["high"], "contextWindows": [] }]));
+        assert_eq!(
+            x["models"],
+            json!([{ "value": "gpt-5-codex", "label": "Codex", "isDefault": true, "efforts": ["high"], "contextWindows": [] }])
+        );
         // The table lends the words for values the binary only names.
-        assert_eq!(x["permissionModes"], json!([{ "value": "read-only", "label": "Read only", "description": "Reads only; edits no files and runs no command that writes" }]));
+        assert_eq!(
+            x["permissionModes"],
+            json!([{ "value": "read-only", "label": "Read only", "description": "Reads only; edits no files and runs no command that writes" }])
+        );
         assert_eq!(runs(&machine, "claude --help").len(), 1);
         assert_eq!(runs(&machine, "codex --describe").len(), 1);
 
@@ -941,7 +972,9 @@ fn refresh_title_keeps_a_persons_name_over_the_seed() {
         let (_, machine) = running(&ctx, "claude", &adapter);
         seed(
             &ctx,
-            vec![json!({ "id": "r1", "threadId": "t1", "claudeSessionId": "S1", "prompt": OPENING, "startedAt": 10, "harnessTitle": "Ticket 411 review", "titleSource": "person" })],
+            vec![
+                json!({ "id": "r1", "threadId": "t1", "claudeSessionId": "S1", "prompt": OPENING, "startedAt": 10, "harnessTitle": "Ticket 411 review", "titleSource": "person" }),
+            ],
         );
         let area = ctx.area();
         let v = ctx.sessions.borrow().get("r1").expect("a row").borrow().view.clone();
@@ -957,7 +990,10 @@ fn refresh_title_keeps_a_persons_name_over_the_seed() {
         ctx.clock.advance(SESSION_TITLE_TTL_MS as i64 + 1);
         area.refresh_title(&v, true).await;
         settle().await;
-        assert_eq!(adapter.called().iter().filter(|c| c.starts_with("renameSession")).cloned().collect::<Vec<_>>(), ["renameSession S1 Ticket 411 review"]);
+        assert_eq!(
+            adapter.called().iter().filter(|c| c.starts_with("renameSession")).cloned().collect::<Vec<_>>(),
+            ["renameSession S1 Ticket 411 review"]
+        );
         assert_eq!(runs(&machine, "wsp-title-write S1"), [Some(15_000)]);
         assert!(ctx.called().contains(&"writeSession S1".to_string()));
         assert_eq!(row_json(&ctx, "r1")["harnessTitle"], "Ticket 411 review");
@@ -1009,7 +1045,9 @@ fn refresh_title_keeps_the_name_it_made_when_the_store_still_answers_the_opening
         running(&ctx, "claude", &adapter);
         seed(
             &ctx,
-            vec![json!({ "id": "r1", "threadId": "t1", "claudeSessionId": "S1", "prompt": OPENING, "startedAt": 10, "harnessTitle": "Seed thread titles here", "titleSource": "auto" })],
+            vec![
+                json!({ "id": "r1", "threadId": "t1", "claudeSessionId": "S1", "prompt": OPENING, "startedAt": 10, "harnessTitle": "Seed thread titles here", "titleSource": "auto" }),
+            ],
         );
         let area = ctx.area();
         let v = ctx.sessions.borrow().get("r1").expect("a row").borrow().view.clone();
@@ -1034,12 +1072,18 @@ fn refresh_title_keeps_a_start_named_thread_whose_store_titles_it_with_the_whole
             running(&ctx, "claude", &adapter);
             seed(
                 &ctx,
-                vec![json!({ "id": "r1", "threadId": "t1", "claudeSessionId": "S1", "prompt": brief, "startedAt": 10, "harnessTitle": "Review 1671 self update", "titleSource": "person" })],
+                vec![
+                    json!({ "id": "r1", "threadId": "t1", "claudeSessionId": "S1", "prompt": brief, "startedAt": 10, "harnessTitle": "Review 1671 self update", "titleSource": "person" }),
+                ],
             );
             let v = ctx.sessions.borrow().get("r1").expect("a row").borrow().view.clone();
             ctx.area().refresh_title(&v, false).await;
             let r = row_json(&ctx, "r1");
-            assert_eq!((r["harnessTitle"].clone(), r["titleSource"].clone()), (json!("Review 1671 self update"), json!("person")), "{stored}");
+            assert_eq!(
+                (r["harnessTitle"].clone(), r["titleSource"].clone()),
+                (json!("Review 1671 self update"), json!("person")),
+                "{stored}"
+            );
         }
     });
 }
@@ -1083,7 +1127,11 @@ fn thread_source_is_person_over_auto_over_seed() {
         assert_eq!(area.thread_source("t1"), TitleSource::Auto);
         seed(
             &ctx,
-            vec![json!({ "id": "r1", "threadId": "t1", "titleSource": "auto" }), json!({ "id": "r2", "threadId": "t1", "titleSource": "person" }), json!({ "id": "r3", "threadId": "t1" })],
+            vec![
+                json!({ "id": "r1", "threadId": "t1", "titleSource": "auto" }),
+                json!({ "id": "r2", "threadId": "t1", "titleSource": "person" }),
+                json!({ "id": "r3", "threadId": "t1" }),
+            ],
         );
         assert_eq!(area.thread_source("t1"), TitleSource::Person, "a person's name on any turn is the thread's");
         let bare = view(json!({ "id": "x" }));
@@ -1110,7 +1158,13 @@ fn rows_on_lists_the_threads_rows_in_map_order_and_the_opening_is_the_oldest_row
         assert_eq!(area.opening_of("t1"), Some("first".to_string()), "the first on a tie");
         assert_eq!(area.opening_of("t9"), None);
         // An absent start reads as zero.
-        seed(&ctx, vec![json!({ "id": "r1", "threadId": "t1", "prompt": "later", "startedAt": 5 }), json!({ "id": "r2", "threadId": "t1", "prompt": "no start" })]);
+        seed(
+            &ctx,
+            vec![
+                json!({ "id": "r1", "threadId": "t1", "prompt": "later", "startedAt": 5 }),
+                json!({ "id": "r2", "threadId": "t1", "prompt": "no start" }),
+            ],
+        );
         assert_eq!(area.opening_of("t1"), Some("no start".to_string()));
     });
 }
@@ -1129,10 +1183,16 @@ fn carried_title_is_the_newest_titled_row() {
                 json!({ "id": "r4", "threadId": "t2", "startedAt": 90, "harnessTitle": "Other thread" }),
             ],
         );
-        assert_eq!(area.carried_title("t1"), CarriedTitle { harness_title: Some("New".to_string()), title_source: Some(TitleSource::Auto) });
+        assert_eq!(
+            area.carried_title("t1"),
+            CarriedTitle { harness_title: Some("New".to_string()), title_source: Some(TitleSource::Auto) }
+        );
         // A row with a title and no provenance carries seed.
         seed(&ctx, vec![json!({ "id": "r1", "threadId": "t1", "startedAt": 10, "harnessTitle": "Written before provenance" })]);
-        assert_eq!(area.carried_title("t1"), CarriedTitle { harness_title: Some("Written before provenance".to_string()), title_source: Some(TitleSource::Seed) });
+        assert_eq!(
+            area.carried_title("t1"),
+            CarriedTitle { harness_title: Some("Written before provenance".to_string()), title_source: Some(TitleSource::Seed) }
+        );
         seed(&ctx, vec![json!({ "id": "r1", "threadId": "t1", "startedAt": 10 })]);
         assert_eq!(area.carried_title("t1"), CarriedTitle::default(), "no titled row is empty");
     });
@@ -1146,12 +1206,15 @@ fn name_in_harness_writes_through_write_session_and_warns_on_refusal() {
     local(async {
         let ctx = FakeAgentsCtx::new();
         let adapter = FakeAdapter::new()
-            .renaming(Ability::sequence(vec![
-                Ok(SessionRenameWrite::Written),
-                Ok(SessionRenameWrite::NoSession),
-                Ok(SessionRenameWrite::Failed { error: "database is locked".to_string() }),
-                Err(other("the machine hung up")),
-            ]).execing("wsp-title-write S1"))
+            .renaming(
+                Ability::sequence(vec![
+                    Ok(SessionRenameWrite::Written),
+                    Ok(SessionRenameWrite::NoSession),
+                    Ok(SessionRenameWrite::Failed { error: "database is locked".to_string() }),
+                    Err(other("the machine hung up")),
+                ])
+                .execing("wsp-title-write S1"),
+            )
             .arc();
         let (_, machine) = running(&ctx, "claude", &adapter);
         let area = ctx.area();
@@ -1242,7 +1305,10 @@ fn make_title_asks_once_per_thread_and_names_every_row() {
         // From the opening turn alone and on the cheapest model its catalog lists.
         let turns = adapter.title_turns.lock().expect("turns").clone();
         assert_eq!(turns.len(), 1);
-        assert_eq!((turns[0].opening.as_str(), turns[0].reply.as_deref(), turns[0].model.as_deref()), (OPENING, None, Some("claude-haiku-5-5")));
+        assert_eq!(
+            (turns[0].opening.as_str(), turns[0].reply.as_deref(), turns[0].model.as_deref()),
+            (OPENING, None, Some("claude-haiku-5-5"))
+        );
         assert_eq!(runs(&machine, "wsp-title-make"), [Some(25_000)]);
         for id in ["r1", "r2"] {
             let r = row_json(&ctx, id);
@@ -1251,7 +1317,10 @@ fn make_title_asks_once_per_thread_and_names_every_row() {
         assert!(row_json(&ctx, "r3").get("harnessTitle").is_none());
         // Kept, pushed, then written into the harness's own store.
         assert_eq!(effects(&ctx), ["persist ws1", "pushHead t1", "writeSession S1"]);
-        assert_eq!(adapter.called().iter().filter(|c| c.starts_with("renameSession")).cloned().collect::<Vec<_>>(), ["renameSession S1 Seed thread titles here"]);
+        assert_eq!(
+            adapter.called().iter().filter(|c| c.starts_with("renameSession")).cloned().collect::<Vec<_>>(),
+            ["renameSession S1 Seed thread titles here"]
+        );
 
         // Once per thread: the second turn of it asks nothing.
         let second = ctx.sessions.borrow().get("r2").expect("a row").borrow().view.clone();
@@ -1300,7 +1369,10 @@ fn make_title_keeps_the_opening_words_when_the_harness_names_nothing_and_asks_no
         let ctx = FakeAgentsCtx::new();
         let adapter = FakeAdapter::new().titling(Ability::answering(None)).arc();
         running(&ctx, "claude", &adapter);
-        seed(&ctx, vec![json!({ "id": "r1", "threadId": "thread-0001-abcdef", "claudeSessionId": "S1", "prompt": OPENING, "startedAt": 10 })]);
+        seed(
+            &ctx,
+            vec![json!({ "id": "r1", "threadId": "thread-0001-abcdef", "claudeSessionId": "S1", "prompt": OPENING, "startedAt": 10 })],
+        );
         let area = ctx.area();
         let v = ctx.sessions.borrow().get("r1").expect("a row").borrow().view.clone();
         let warned = console::capture();
@@ -1388,10 +1460,16 @@ fn title_rows_asks_the_newest_row_of_each_session_up_to_twenty() {
     assert_eq!(picked.len(), SESSION_TITLE_REFRESH_MAX);
 
     // Two rows of one session at one start: the first in the list stands.
-    let tied = vec![view(json!({ "id": "first", "claudeSessionId": "s", "startedAt": 7 })), view(json!({ "id": "second", "claudeSessionId": "s", "startedAt": 7 }))];
+    let tied = vec![
+        view(json!({ "id": "first", "claudeSessionId": "s", "startedAt": 7 })),
+        view(json!({ "id": "second", "claudeSessionId": "s", "startedAt": 7 })),
+    ];
     assert_eq!(title_rows(&tied).iter().map(|v| v.id.clone()).collect::<Vec<_>>(), ["first"]);
     // An absent start reads as zero.
-    let zero = vec![view(json!({ "id": "unstamped", "claudeSessionId": "a" })), view(json!({ "id": "stamped", "claudeSessionId": "b", "startedAt": 3 }))];
+    let zero = vec![
+        view(json!({ "id": "unstamped", "claudeSessionId": "a" })),
+        view(json!({ "id": "stamped", "claudeSessionId": "b", "startedAt": 3 })),
+    ];
     assert_eq!(title_rows(&zero).iter().map(|v| v.id.clone()).collect::<Vec<_>>(), ["stamped", "unstamped"]);
 }
 
@@ -1506,7 +1584,11 @@ fn agent_lists_answers_a_failed_broker_read_as_a_refusal_and_a_dropped_link_as_t
         let ctx = FakeAgentsCtx::new();
         ctx.add_adapter("claude", plain_factory(FakeAdapter::new().arc()));
         ctx.keep_config_dir("srv", "claude", "/root/claude-wsp");
-        ctx.place_rules.borrow_mut().push(("srv".to_string(), "pwd".to_string(), Err(silent("the computer is not connected", "PlaceAbsent"))));
+        ctx.place_rules.borrow_mut().push((
+            "srv".to_string(),
+            "pwd".to_string(),
+            Err(silent("the computer is not connected", "PlaceAbsent")),
+        ));
         let (placed, _) = entry(json!({ "kind": "place", "place": "srv" }));
         let listed: Vec<Value> = ctx.area().agent_lists(Some(&placed)).await.iter().map(json_of).collect();
         assert_eq!(listed.len(), 1);

@@ -14,21 +14,21 @@ use std::sync::atomic::Ordering;
 use futures::future::{FutureExt, LocalBoxFuture, Shared};
 use indexmap::IndexMap;
 use serde_json::{json, Value};
-use support::Lend;
 use support::threads_ctx::{entry, held_project, FakeThreadsCtx};
+use support::Lend;
 use support::{local, record, row, rows_of, settle, silent, view, FakeKeptAgent};
 use wsp_adapters::port::{SessionFile, SessionRenameWrite};
 use wsp_core::context::Joined;
 use wsp_core::types::internal::{CallSeen, KeptLaunch, Steered, Taken, TakenOutcome, TurnAsked, TurnLive, WarmKeep};
 use wsp_core::types::wiring::{SessionHandle, SteerTaken};
 use wsp_threads::threads::threads::cap::CapAt;
-use wsp_threads::threads::threads::kept::{AGENT_KEEP_MS, AGENT_WARM_MS, AGENTS_KEPT};
+use wsp_threads::threads::threads::kept::{AGENTS_KEPT, AGENT_KEEP_MS, AGENT_WARM_MS};
 use wsp_threads::threads::threads::tree::{CallsOf, TellAs};
 use wsp_threads::threads::threads::turn_end::{SteerSent, TopRead, TurnChangesAsk};
 use wsp_threads::threads::threads::{Entry, KeptHand, Owed, PersonRow, Row, ThreadsArea};
 use wsp_wire::views::session::{SessionView, ThreadCapWait, ThreadPrompt};
-use wsp_wire::views::session_events_more::SessionUncappedEventWhy;
 use wsp_wire::views::session_events::TurnResult;
+use wsp_wire::views::session_events_more::SessionUncappedEventWhy;
 use wsp_wire::views::workspace::Caller;
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
 use wsp_wire::wire::runtime::SessionStartOutcome;
@@ -37,7 +37,8 @@ use wsp_words::words::turn::{notify_line, unread_line, NotifyLength};
 const FROM: &str = "child0001";
 const PARENT: &str = "parent0001";
 const HOUR: i64 = 3_600_000;
-const NO_SUCH_TURN: &str = "no turn on this host carries that token; only wsp running inside a turn has one, and a turn that ended has none";
+const NO_SUCH_TURN: &str =
+    "no turn on this host carries that token; only wsp running inside a turn has one, and a turn that ended has none";
 
 // ---- shared builders ------------------------------------------------------------------------------------------------
 
@@ -83,13 +84,23 @@ impl SessionHandle for FakeHandle {
     fn interrupt(&self) -> LocalBoxFuture<'static, ()> {
         async {}.boxed_local()
     }
-    fn steer(&self, _prompt: String, _id: Option<String>, _images: Vec<wsp_adapters::port::TurnImage>) -> Option<wsp_core::types::wiring::Local<'static, SteerTaken>> {
+    fn steer(
+        &self,
+        _prompt: String,
+        _id: Option<String>,
+        _images: Vec<wsp_adapters::port::TurnImage>,
+    ) -> Option<wsp_core::types::wiring::Local<'static, SteerTaken>> {
         None
     }
     fn tells_unread(&self) -> Option<bool> {
         self.tells_unread
     }
-    fn answer(&self, _ask: String, _option: String, _reason: Option<String>) -> Option<wsp_core::types::wiring::Local<'static, wsp_wire::wire::runtime::SessionAnswerResult>> {
+    fn answer(
+        &self,
+        _ask: String,
+        _option: String,
+        _reason: Option<String>,
+    ) -> Option<wsp_core::types::wiring::Local<'static, wsp_wire::wire::runtime::SessionAnswerResult>> {
         None
     }
     fn set_access(&self, _mode: String) -> Option<wsp_core::types::wiring::Local<'static, wsp_core::types::wiring::AccessMove>> {
@@ -117,7 +128,8 @@ fn finish(tx: &Finish, r: TurnResult) {
 }
 
 fn scope_of(thread: &str, workspace: &str, root: &str) -> ThreadScope {
-    serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": workspace, "rootThreadId": root })).expect("a scope")
+    serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": workspace, "rootThreadId": root }))
+        .expect("a scope")
 }
 
 fn origin(word: &str) -> WorkspaceOrigin {
@@ -134,14 +146,22 @@ fn owed_host() -> (Rc<FakeThreadsCtx>, Rc<ThreadsArea>) {
     let (e, _) = entry(json!({ "id": "ws1", "phase": "running" }));
     ctx.add_entry(e);
     ctx.sessions.with(|s| {
-        s.insert("r-p".into(), row(view(json!({ "id": "r-p", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "completed", "startedAt": 1 })), "u-p"));
+        s.insert(
+            "r-p".into(),
+            row(view(json!({ "id": "r-p", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "completed", "startedAt": 1 })), "u-p"),
+        );
     });
     let area = ctx.area();
     (ctx, area)
 }
 
 fn person_row() -> PersonRow {
-    PersonRow { workspace_id: "ws-c".into(), session_id: "cs-c".into(), turn_id: "u-c".into(), text: "thread child000 finished (completed)".into() }
+    PersonRow {
+        workspace_id: "ws-c".into(),
+        session_id: "cs-c".into(),
+        turn_id: "u-c".into(),
+        text: "thread child000 finished (completed)".into(),
+    }
 }
 
 fn line(id: &str) -> Owed {
@@ -190,7 +210,10 @@ fn child_row(claude: Option<&str>, told: Option<u64>) -> Row {
 }
 
 fn taken_by(ctx: &FakeThreadsCtx, request: &str, row: &str, turn: &str) {
-    ctx.taken.borrow_mut().insert(("ws1".into(), request.into()), Taken { session_id: row.into(), thread_id: PARENT.into(), turn_id: turn.into(), outcome: TakenOutcome::Started });
+    ctx.taken.borrow_mut().insert(
+        ("ws1".into(), request.into()),
+        Taken { session_id: row.into(), thread_id: PARENT.into(), turn_id: turn.into(), outcome: TakenOutcome::Started },
+    );
 }
 
 fn woken(ws: &str) -> Value {
@@ -212,7 +235,12 @@ fn steer_sent(prompt: &str) -> SteerSent {
 
 fn steered_on(ctx: &FakeThreadsCtx) -> Vec<String> {
     ctx.sessions.with(|s| {
-        let steered: Vec<String> = s.get("r1").map(|r| r.borrow().turn_live.as_ref().and_then(|l| l.steered.as_ref()).map(|m| m.keys().cloned().collect()).unwrap_or_default()).unwrap_or_default();
+        let steered: Vec<String> = s
+            .get("r1")
+            .map(|r| {
+                r.borrow().turn_live.as_ref().and_then(|l| l.steered.as_ref()).map(|m| m.keys().cloned().collect()).unwrap_or_default()
+            })
+            .unwrap_or_default();
         steered
     })
 }
@@ -238,8 +266,12 @@ fn a_try_whose_launch_failed_silent_goes_again_under_the_same_request_and_the_ne
         ctx.starts.borrow_mut().push_back(Ok(h1));
         ctx.starts.borrow_mut().push_back(Ok(h2));
         ctx.sessions.with(|s| {
-            let r = row(view(json!({ "id": "r-try", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "failed", "startedAt": 9 })), "u-try");
-            r.borrow_mut().turn_live = Some(TurnLive { failure: Some(silent("the machine did not answer", "LaunchUnanswered")), ..Default::default() });
+            let r = row(
+                view(json!({ "id": "r-try", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "failed", "startedAt": 9 })),
+                "u-try",
+            );
+            r.borrow_mut().turn_live =
+                Some(TurnLive { failure: Some(silent("the machine did not answer", "LaunchUnanswered")), ..Default::default() });
             s.insert("r-try".into(), r);
         });
         area.deliver(line("L1"), false);
@@ -247,7 +279,12 @@ fn a_try_whose_launch_failed_silent_goes_again_under_the_same_request_and_the_ne
         let warned = wsp_core::console::capture();
         finish(&tx1, result("failed", Some("the launch went unanswered")));
         settle().await;
-        assert_eq!(warned.lines(), vec!["thread child000 ended, but its line did not reach thread parent00 yet, and goes again in 30 s: the launch went unanswered"]);
+        assert_eq!(
+            warned.lines(),
+            vec![
+                "thread child000 ended, but its line did not reach thread parent00 yet, and goes again in 30 s: the launch went unanswered"
+            ]
+        );
         assert_eq!(ctx.started.borrow().len(), 1, "the next try waits its thirty seconds");
         ctx.clock.advance(30_000);
         settle().await;
@@ -260,7 +297,11 @@ fn a_try_whose_launch_failed_silent_goes_again_under_the_same_request_and_the_ne
         taken_by(&ctx, "uuid-1", "r-try2", "u-try2");
         area.prompt_held("uuid-1");
         settle().await;
-        assert_eq!(ctx.store.logged(), vec!["put notify-owed/L1", "put notify-owed/L1", "delete notify-owed/L1"], "kept before the first try, again with its spacing, and gone once taken");
+        assert_eq!(
+            ctx.store.logged(),
+            vec!["put notify-owed/L1", "put notify-owed/L1", "delete notify-owed/L1"],
+            "kept before the first try, again with its spacing, and gone once taken"
+        );
         assert!(ctx.called().contains(&format!("mark {FROM} 1030000")));
         assert!(told_person(&ctx.recorded_json()).is_empty());
         assert!(area.sending.borrow().is_empty());
@@ -296,8 +337,18 @@ fn a_try_whose_agent_had_not_announced_itself_at_the_restart_is_taken_when_it_do
     local(async {
         let (ctx, area) = owed_host();
         ctx.sessions.with(|s| {
-            let r = row(view(json!({ "id": "r-dark", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "running", "startedAt": 5 })), "u-dark");
-            r.borrow_mut().asked = Some(TurnAsked { prompt: "x".into(), effort: None, typed: None, request_id: Some("req-d".into()), owed: Some(true), awaits_prompt: None });
+            let r = row(
+                view(json!({ "id": "r-dark", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "running", "startedAt": 5 })),
+                "u-dark",
+            );
+            r.borrow_mut().asked = Some(TurnAsked {
+                prompt: "x".into(),
+                effort: None,
+                typed: None,
+                request_id: Some("req-d".into()),
+                owed: Some(true),
+                awaits_prompt: None,
+            });
             s.insert("r-dark".into(), r);
         });
         let mut l = line("L1");
@@ -327,7 +378,13 @@ fn a_try_whose_agent_had_not_announced_itself_at_the_restart_is_taken_when_it_do
 fn a_line_still_owed_at_the_restart_is_sent_again_under_its_request_by_the_next_host() {
     local(async {
         let (ctx, area) = owed_host();
-        let owed = Owed { since: Some(1_000_000 - 300_000), request_id: Some("req-k".into()), tries: Some(1), next: Some(1_000_000 - 1_000), ..line("L1") };
+        let owed = Owed {
+            since: Some(1_000_000 - 300_000),
+            request_id: Some("req-k".into()),
+            tries: Some(1),
+            next: Some(1_000_000 - 1_000),
+            ..line("L1")
+        };
         ctx.store.seed("notify-owed", "L1", serde_json::to_value(&owed).expect("a line"));
         let (h, _tx) = handle("r-try", "u-try", SessionStartOutcome::Started, None);
         ctx.starts.borrow_mut().push_back(Ok(h));
@@ -375,7 +432,10 @@ fn a_steer_whose_write_outlasts_the_leads_turn_goes_as_its_next_turn_or_tells_th
                 assert!(landed, "the person is told, so the caller hears it landed");
                 let told = ctx.recorded_json();
                 assert_eq!(told.len(), 1);
-                assert_eq!((told[0]["type"].clone(), told[0]["notify"].clone(), told[0]["text"].clone()), (json!("session.notify"), json!("me"), json!("the agent never read this message: also this")));
+                assert_eq!(
+                    (told[0]["type"].clone(), told[0]["notify"].clone(), told[0]["text"].clone()),
+                    (json!("session.notify"), json!("me"), json!("the agent never read this message: also this"))
+                );
             } else {
                 assert!(!landed, "the start road sends it as the thread's next turn");
                 assert!(steered_on(&ctx).is_empty(), "the turn keeps no message it will not read");
@@ -432,7 +492,10 @@ fn a_line_the_leads_computer_keeps_failing_tells_the_person_once_and_the_lead_no
         assert_eq!(said.len(), 1, "no try tells the lead anything: the person gets the one row, at the hour");
         assert_eq!(said[0]["type"], "session.notify");
         assert_eq!(said[0]["notify"], "me");
-        assert_eq!((said[0]["workspaceId"].clone(), said[0]["sessionId"].clone(), said[0]["turnId"].clone(), said[0]["threadId"].clone()), (json!("ws-c"), json!("cs-c"), json!("u-c"), json!(FROM)));
+        assert_eq!(
+            (said[0]["workspaceId"].clone(), said[0]["sessionId"].clone(), said[0]["turnId"].clone(), said[0]["threadId"].clone()),
+            (json!("ws-c"), json!("cs-c"), json!("u-c"), json!(FROM))
+        );
         assert_eq!(said[0]["text"], "thread child000 finished (completed)");
         assert!(ctx.store.get_now("notify-owed", "L1").is_none());
     });
@@ -444,8 +507,18 @@ fn the_persons_stop_of_a_turn_nothing_reaches_settles_its_line_without_stopping_
     local(async {
         let (ctx, area) = owed_host();
         ctx.sessions.with(|s| {
-            let r = row(view(json!({ "id": "r-dark", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "running", "startedAt": 5 })), "u-dark");
-            r.borrow_mut().asked = Some(TurnAsked { prompt: "x".into(), effort: None, typed: None, request_id: Some("req-d".into()), owed: Some(true), awaits_prompt: None });
+            let r = row(
+                view(json!({ "id": "r-dark", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "running", "startedAt": 5 })),
+                "u-dark",
+            );
+            r.borrow_mut().asked = Some(TurnAsked {
+                prompt: "x".into(),
+                effort: None,
+                typed: None,
+                request_id: Some("req-d".into()),
+                owed: Some(true),
+                awaits_prompt: None,
+            });
             s.insert("r-dark".into(), r);
         });
         let mut l = line("L1");
@@ -474,9 +547,14 @@ fn a_steered_line_whose_turn_ended_with_no_word_on_unread_messages_falls_to_the_
         let (ctx, area) = owed_host();
         let (h, tx) = handle("r-run", "u-run", SessionStartOutcome::Started, None);
         ctx.sessions.with(|s| {
-            let r = row(view(json!({ "id": "r-run", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "running", "startedAt": 5 })), "u-run");
-            let steered: Steered = serde_json::from_value(json!({ "prompt": "x", "startedBy": "agent", "requestId": "req-s" })).expect("a steer");
-            r.borrow_mut().turn_live = Some(TurnLive { steered: Some([("st1".to_string(), steered)].into_iter().collect()), ..Default::default() });
+            let r = row(
+                view(json!({ "id": "r-run", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "running", "startedAt": 5 })),
+                "u-run",
+            );
+            let steered: Steered =
+                serde_json::from_value(json!({ "prompt": "x", "startedBy": "agent", "requestId": "req-s" })).expect("a steer");
+            r.borrow_mut().turn_live =
+                Some(TurnLive { steered: Some([("st1".to_string(), steered)].into_iter().collect()), ..Default::default() });
             r.borrow_mut().handle = Some(h);
             s.insert("r-run".into(), r);
         });
@@ -500,9 +578,14 @@ fn a_steered_line_on_a_turn_no_handle_reaches_is_asked_again_every_thirty_second
     local(async {
         let (ctx, area) = owed_host();
         ctx.sessions.with(|s| {
-            let r = row(view(json!({ "id": "r-run", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "running", "startedAt": 5 })), "u-run");
-            let steered: Steered = serde_json::from_value(json!({ "prompt": "x", "startedBy": "agent", "requestId": "req-s" })).expect("a steer");
-            r.borrow_mut().turn_live = Some(TurnLive { steered: Some([("st1".to_string(), steered)].into_iter().collect()), ..Default::default() });
+            let r = row(
+                view(json!({ "id": "r-run", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "running", "startedAt": 5 })),
+                "u-run",
+            );
+            let steered: Steered =
+                serde_json::from_value(json!({ "prompt": "x", "startedBy": "agent", "requestId": "req-s" })).expect("a steer");
+            r.borrow_mut().turn_live =
+                Some(TurnLive { steered: Some([("st1".to_string(), steered)].into_iter().collect()), ..Default::default() });
             s.insert("r-run".into(), r);
         });
         let (h, _tx) = handle("r-try", "u-try", SessionStartOutcome::Started, None);
@@ -573,7 +656,10 @@ fn a_line_whose_try_failed_and_whose_lead_napped_past_its_hour_is_tried_at_the_w
 // TS: owed-lines.test.ts:817, 830
 #[test]
 fn a_try_that_ends_before_its_agent_started_leaves_the_line_to_the_person_with_the_turns_words() {
-    for (error, said) in [(None, "the turn ended failed before its agent started"), (Some("the model is not available on this plan"), "the model is not available on this plan")] {
+    for (error, said) in [
+        (None, "the turn ended failed before its agent started"),
+        (Some("the model is not available on this plan"), "the model is not available on this plan"),
+    ] {
         local(async move {
             let (ctx, area) = owed_host();
             let (h, tx) = handle("r-try", "u-try", SessionStartOutcome::Started, None);
@@ -604,8 +690,18 @@ fn a_next_host_reads_the_try_only_once_its_reopen_answered_whether_it_comes_up_w
             ctx.boot_work.borrow_mut().insert("ws1".into(), gate);
             let (h, _htx) = handle("r-run", "u-run", SessionStartOutcome::Started, None);
             ctx.sessions.with(|s| {
-                let r = row(view(json!({ "id": "r-run", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "running", "startedAt": 5 })), "u-run");
-                r.borrow_mut().asked = Some(TurnAsked { prompt: "x".into(), effort: None, typed: None, request_id: Some("req-w".into()), owed: Some(true), awaits_prompt: None });
+                let r = row(
+                    view(json!({ "id": "r-run", "threadId": PARENT, "claudeSessionId": "cs-p", "status": "running", "startedAt": 5 })),
+                    "u-run",
+                );
+                r.borrow_mut().asked = Some(TurnAsked {
+                    prompt: "x".into(),
+                    effort: None,
+                    typed: None,
+                    request_id: Some("req-w".into()),
+                    owed: Some(true),
+                    awaits_prompt: None,
+                });
                 r.borrow_mut().handle = Some(h);
                 s.insert("r-run".into(), r);
             });
@@ -642,13 +738,23 @@ fn a_running_parent_is_told_by_one_steer_the_line_with_outcome_duration_cost_and
         let (ctx, area) = owed_host();
         let (h, _tx) = handle("r-p", "u-p2", SessionStartOutcome::Steered, None);
         ctx.starts.borrow_mut().push_back(Ok(h));
-        let done = result_of(json!({ "status": "completed", "text": "Ran the gate.\n\nAll 12 tests green.\n", "durationMs": 492_000, "costUsd": 1.94 }));
+        let done = result_of(
+            json!({ "status": "completed", "text": "Ran the gate.\n\nAll 12 tests green.\n", "durationMs": 492_000, "costUsd": 1.94 }),
+        );
         area.notify_end(&child_row(Some("cs-c"), None), &[PARENT.to_string()], &TellAs::default(), &done, false);
         settle().await;
         let line = "thread child000 finished (completed, 8m 12s, $1.94): Ran the gate.\n\nAll 12 tests green.";
         let said = ctx.recorded_json();
         assert_eq!(said.len(), 1);
-        for (k, v) in [("type", json!("session.notify")), ("workspaceId", json!("ws-c")), ("sessionId", json!("cs-c")), ("turnId", json!("u-c")), ("threadId", json!(FROM)), ("notify", json!(PARENT)), ("text", json!(line))] {
+        for (k, v) in [
+            ("type", json!("session.notify")),
+            ("workspaceId", json!("ws-c")),
+            ("sessionId", json!("cs-c")),
+            ("turnId", json!("u-c")),
+            ("threadId", json!(FROM)),
+            ("notify", json!(PARENT)),
+            ("text", json!(line)),
+        ] {
             assert_eq!(said[0][k], v, "{k}");
         }
         {
@@ -705,7 +811,11 @@ fn a_childs_line_taken_by_its_lead_marks_the_child_read_by_steer_or_by_a_turn_of
                 settle().await;
             }
             let marks: Vec<String> = ctx.called().into_iter().filter(|c| c.starts_with("mark")).collect();
-            assert_eq!(marks, vec![format!("mark {FROM} 1005000")], "the child is read as of the moment its line was taken (steers: {steers})");
+            assert_eq!(
+                marks,
+                vec![format!("mark {FROM} 1005000")],
+                "the child is read as of the moment its line was taken (steers: {steers})"
+            );
         });
     }
 }
@@ -717,11 +827,20 @@ fn a_line_queued_behind_the_parents_running_process_stays_owed_and_goes_once_as_
         let (ctx, area) = owed_host();
         let (h, _tx) = handle("r-q", "u-q", SessionStartOutcome::Queued, None);
         ctx.starts.borrow_mut().push_back(Ok(h));
-        area.notify_end(&child_row(Some("cs-c"), None), &[PARENT.to_string()], &TellAs::default(), &result_of(json!({ "status": "completed", "text": "done" })), false);
+        area.notify_end(
+            &child_row(Some("cs-c"), None),
+            &[PARENT.to_string()],
+            &TellAs::default(),
+            &result_of(json!({ "status": "completed", "text": "done" })),
+            false,
+        );
         settle().await;
         let said = ctx.recorded_json();
         assert_eq!(said.len(), 1);
-        assert_eq!((said[0]["notify"].clone(), said[0]["text"].clone()), (json!(PARENT), json!("thread child000 finished (completed): done")));
+        assert_eq!(
+            (said[0]["notify"].clone(), said[0]["text"].clone()),
+            (json!(PARENT), json!("thread child000 finished (completed): done"))
+        );
         assert_eq!(ctx.started.borrow().len(), 1, "queued behind its process, as any send is, and never steered");
         let key = format!("u-c:0:{PARENT}");
         assert!(ctx.store.get_now("notify-owed", &key).is_some(), "owed until the queued turn takes it");
@@ -740,12 +859,30 @@ fn failed_and_interrupted_ends_carry_their_words_and_me_starts_nothing() {
     let (ctx, area) = owed_host();
     let failing = row(view(json!({ "id": "r-1", "workspaceId": "ws-c", "threadId": "failing01", "claudeSessionId": "cs-1" })), "u1");
     let stopped = row(view(json!({ "id": "r-2", "workspaceId": "ws-c", "threadId": "stopped01", "claudeSessionId": "cs-2" })), "u2");
-    area.notify_end(&failing, &["me".to_string()], &TellAs::default(), &result_of(json!({ "status": "failed", "error": "the harness died", "durationMs": 3_000 })), false);
-    area.notify_end(&stopped, &["me".to_string()], &TellAs::default(), &result_of(json!({ "status": "interrupted", "text": "Stopped mid-way.", "durationMs": 12_000, "costUsd": 0.03 })), false);
+    area.notify_end(
+        &failing,
+        &["me".to_string()],
+        &TellAs::default(),
+        &result_of(json!({ "status": "failed", "error": "the harness died", "durationMs": 3_000 })),
+        false,
+    );
+    area.notify_end(
+        &stopped,
+        &["me".to_string()],
+        &TellAs::default(),
+        &result_of(json!({ "status": "interrupted", "text": "Stopped mid-way.", "durationMs": 12_000, "costUsd": 0.03 })),
+        false,
+    );
     let said = ctx.recorded_json();
     assert_eq!(said.len(), 2);
-    assert_eq!((said[0]["threadId"].clone(), said[0]["notify"].clone(), said[0]["text"].clone()), (json!("failing01"), json!("me"), json!("thread failing0 finished (failed, 3.0s): the harness died")));
-    assert_eq!((said[1]["threadId"].clone(), said[1]["notify"].clone(), said[1]["text"].clone()), (json!("stopped01"), json!("me"), json!("thread stopped0 finished (interrupted, 12s, $0.03): Stopped mid-way.")));
+    assert_eq!(
+        (said[0]["threadId"].clone(), said[0]["notify"].clone(), said[0]["text"].clone()),
+        (json!("failing01"), json!("me"), json!("thread failing0 finished (failed, 3.0s): the harness died"))
+    );
+    assert_eq!(
+        (said[1]["threadId"].clone(), said[1]["notify"].clone(), said[1]["text"].clone()),
+        (json!("stopped01"), json!("me"), json!("thread stopped0 finished (interrupted, 12s, $0.03): Stopped mid-way."))
+    );
     assert!(ctx.started.borrow().is_empty());
     assert!(ctx.store.logged().is_empty(), "me is the person's row alone: nothing is kept owed");
 }
@@ -802,7 +939,15 @@ fn a_line_held_for_a_napping_parent_outlives_a_host_restart_and_goes_when_the_wo
 #[test]
 fn a_line_is_held_for_every_phase_that_cannot_take_a_start_and_sent_at_once_for_the_rest() {
     local(async {
-        for (phase, held) in [("pausing", true), ("napping", true), ("waking", true), ("gone", true), ("released", true), ("queued", false), ("running", false)] {
+        for (phase, held) in [
+            ("pausing", true),
+            ("napping", true),
+            ("waking", true),
+            ("gone", true),
+            ("released", true),
+            ("queued", false),
+            ("running", false),
+        ] {
             let (ctx, area) = owed_host();
             set_phase(&ctx, "ws1", phase);
             let (h, _tx) = handle("r-n", "u-n", SessionStartOutcome::Started, None);
@@ -838,10 +983,23 @@ fn running_row(ctx: &FakeThreadsCtx, thread: &str, notify: Option<Vec<&str>>) {
 fn a_turn_the_runtime_ends_is_told_to_its_target_as_failed_with_the_reason() {
     let (ctx, area) = owed_host();
     running_row(&ctx, "t1", Some(vec!["me"]));
-    area.settle_cut("r1", "machine paused while the agent was working", &|_| "machine paused while the agent was working".into(), false, false);
+    area.settle_cut(
+        "r1",
+        "machine paused while the agent was working",
+        &|_| "machine paused while the agent was working".into(),
+        false,
+        false,
+    );
     let said = ctx.recorded_json();
-    assert_eq!(said.iter().map(|e| e["type"].clone()).collect::<Vec<_>>(), vec![json!("session.notify"), json!("session.end")], "the line goes before the end, where a follower stops reading");
-    assert_eq!((said[0]["notify"].clone(), said[0]["text"].clone()), (json!("me"), json!("thread t1 finished (failed): machine paused while the agent was working")));
+    assert_eq!(
+        said.iter().map(|e| e["type"].clone()).collect::<Vec<_>>(),
+        vec![json!("session.notify"), json!("session.end")],
+        "the line goes before the end, where a follower stops reading"
+    );
+    assert_eq!(
+        (said[0]["notify"].clone(), said[0]["text"].clone()),
+        (json!("me"), json!("thread t1 finished (failed): machine paused while the agent was working"))
+    );
     assert_eq!(said[1]["reason"], json!("machine paused while the agent was working"));
     assert_eq!(said[1]["sawResult"], json!(false));
     assert_eq!(ctx.sessions.with(|s| support::json_of(&s.get("r1").expect("row").borrow().view.status)), json!("failed"));
@@ -859,12 +1017,25 @@ fn a_turn_a_host_restart_cut_tells_its_parent_in_another_workspace_the_same_way(
             r.borrow_mut().notify = Some(vec![PARENT.into()]);
             s.insert("r-kid".into(), r);
         });
-        area.settle_cut("r-kid", "host restarted while the agent was working", &|_| "cut by a host restart after 12m 03s".into(), false, false);
+        area.settle_cut(
+            "r-kid",
+            "host restarted while the agent was working",
+            &|_| "cut by a host restart after 12m 03s".into(),
+            false,
+            false,
+        );
         settle().await;
         let line = "thread kid00001 finished (failed): cut by a host restart after 12m 03s";
         let said = ctx.recorded_json();
         assert_eq!(said.iter().map(|e| e["type"].clone()).collect::<Vec<_>>(), vec![json!("session.notify"), json!("session.end")]);
-        for (k, v) in [("workspaceId", json!("ws-kid")), ("sessionId", json!("cs-kid")), ("turnId", json!("u-kid")), ("threadId", json!("kid00001")), ("notify", json!(PARENT)), ("text", json!(line))] {
+        for (k, v) in [
+            ("workspaceId", json!("ws-kid")),
+            ("sessionId", json!("cs-kid")),
+            ("turnId", json!("u-kid")),
+            ("threadId", json!("kid00001")),
+            ("notify", json!(PARENT)),
+            ("text", json!(line)),
+        ] {
             assert_eq!(said[0][k], v, "{k}");
         }
         assert_eq!(said[1]["reason"], json!("host restarted while the agent was working"));
@@ -882,7 +1053,10 @@ fn a_turn_a_host_restart_cut_that_was_to_tell_me_records_the_line_in_its_thread(
     area.settle_cut("r1", "host restarted while the agent was working", &|_| "cut by a host restart after 0m 45s".into(), false, false);
     let said = ctx.recorded_json();
     assert_eq!(said.iter().map(|e| e["type"].clone()).collect::<Vec<_>>(), vec![json!("session.notify"), json!("session.end")]);
-    assert_eq!((said[0]["turnId"].clone(), said[0]["notify"].clone(), said[0]["text"].clone()), (json!("u1"), json!("me"), json!("thread t1 finished (failed): cut by a host restart after 0m 45s")));
+    assert_eq!(
+        (said[0]["turnId"].clone(), said[0]["notify"].clone(), said[0]["text"].clone()),
+        (json!("u1"), json!("me"), json!("thread t1 finished (failed): cut by a host restart after 0m 45s"))
+    );
     assert_eq!(said[1]["reason"], json!("host restarted while the agent was working"));
     assert!(ctx.started.borrow().is_empty());
     assert!(ctx.store.logged().is_empty());
@@ -937,7 +1111,10 @@ fn several_targets_are_each_told_once_with_the_same_whole_line() {
         assert_eq!(said.iter().map(|e| e["notify"].clone()).collect::<Vec<_>>(), vec![json!(PARENT), json!("parent0002")]);
         assert_eq!(said.iter().map(|e| e["text"].clone()).collect::<Vec<_>>(), vec![json!(line), json!(line)]);
         let started = ctx.started.borrow();
-        assert_eq!(started.iter().map(|s| s.1.thread.clone().unwrap_or_default()).collect::<Vec<_>>(), vec![PARENT.to_string(), "parent0002".to_string()]);
+        assert_eq!(
+            started.iter().map(|s| s.1.thread.clone().unwrap_or_default()).collect::<Vec<_>>(),
+            vec![PARENT.to_string(), "parent0002".to_string()]
+        );
         assert_eq!(started.iter().map(|s| s.1.prompt.clone()).collect::<Vec<_>>(), vec![line.clone(), line.clone()]);
         let log = ctx.store.logged();
         assert_eq!(log.len(), 4, "one line per target, each its own row, each written and then taken");
@@ -972,7 +1149,9 @@ fn the_line_into_a_thread_carries_the_final_message_whole_and_the_persons_stays_
         let (ctx, area) = owed_host();
         let (h, _tx) = handle("r-n", "u-n", SessionStartOutcome::Steered, None);
         ctx.starts.borrow_mut().push_back(Ok(h));
-        let report = result_of(json!({ "status": "completed", "text": "Ran the gate.\n\nAll 12 tests green.\n", "durationMs": 492_000, "costUsd": 1.94 }));
+        let report = result_of(
+            json!({ "status": "completed", "text": "Ran the gate.\n\nAll 12 tests green.\n", "durationMs": 492_000, "costUsd": 1.94 }),
+        );
         area.notify_end(&child_row(Some("cs-c"), None), &[PARENT.to_string()], &TellAs::default(), &report, false);
         let mine = row(view(json!({ "id": "r-m", "workspaceId": "ws-c", "threadId": "mine0001", "claudeSessionId": "cs-m" })), "u-m");
         area.notify_end(&mine, &["me".to_string()], &TellAs::default(), &report, false);
@@ -980,7 +1159,10 @@ fn the_line_into_a_thread_carries_the_final_message_whole_and_the_persons_stays_
         let said = ctx.recorded_json();
         let whole = "thread child000 finished (completed, 8m 12s, $1.94): Ran the gate.\n\nAll 12 tests green.";
         assert_eq!((said[0]["notify"].clone(), said[0]["text"].clone()), (json!(PARENT), json!(whole)));
-        assert_eq!((said[1]["notify"].clone(), said[1]["text"].clone()), (json!("me"), json!(notify_line("mine0001", &report, Some(NotifyLength::Tail)))));
+        assert_eq!(
+            (said[1]["notify"].clone(), said[1]["text"].clone()),
+            (json!("me"), json!(notify_line("mine0001", &report, Some(NotifyLength::Tail))))
+        );
         assert_ne!(said[1]["text"].as_str().map(|t| t.contains("Ran the gate.")), Some(true), "the person's row is one line, the last");
         assert_eq!(ctx.started.borrow()[0].1.prompt, whole);
     });
@@ -996,7 +1178,11 @@ fn an_unread_message_goes_back_opened_by_whoever_opened_it_and_as_whoever_steere
     let lead = json!({ "kind": "thread", "threadId": "lead", "workspaceId": "ws1", "rootThreadId": "lead" });
     for (steered, started_by, caller) in [
         (json!({ "prompt": "also add a test", "startedBy": "person" }), "person", None),
-        (json!({ "prompt": "thread 1234abcd finished (completed): reply with the single word BANANA", "startedBy": "agent", "by": lead, "road": "relayed" }), "agent", Some(Caller::Scoped { origin: origin("relayed"), by: scope_of("lead", "ws1", "lead") })),
+        (
+            json!({ "prompt": "thread 1234abcd finished (completed): reply with the single word BANANA", "startedBy": "agent", "by": lead, "road": "relayed" }),
+            "agent",
+            Some(Caller::Scoped { origin: origin("relayed"), by: scope_of("lead", "ws1", "lead") }),
+        ),
     ] {
         local(async move {
             let (ctx, area) = owed_host();
@@ -1008,7 +1194,11 @@ fn an_unread_message_goes_back_opened_by_whoever_opened_it_and_as_whoever_steere
             let started = ctx.started.borrow();
             assert_eq!(started.len(), 1);
             assert_eq!(started[0].1.prompt, prompt);
-            assert_eq!(started[0].1.started_by, Some(serde_json::from_value(json!(started_by)).expect("an origin")), "opened by whoever opened it");
+            assert_eq!(
+                started[0].1.started_by,
+                Some(serde_json::from_value(json!(started_by)).expect("an origin")),
+                "opened by whoever opened it"
+            );
             assert_eq!(started[0].2, caller, "under the caller that steered it");
             assert!(!started[0].1.wakes_lead, "a steered message is no child's report");
             assert_eq!(started[0].1.thread.as_deref(), Some(PARENT));
@@ -1022,9 +1212,16 @@ fn an_unread_message_steered_from_a_paired_computer_is_told_to_the_person_and_st
     local(async {
         let (ctx, area) = owed_host();
         let warned = wsp_core::console::capture();
-        area.send_back(&unread_row(json!({ "prompt": "also add a test", "startedBy": "person", "road": "paired" })), &["st1".to_string()], false);
+        area.send_back(
+            &unread_row(json!({ "prompt": "also add a test", "startedBy": "person", "road": "paired" })),
+            &["st1".to_string()],
+            false,
+        );
         settle().await;
-        assert_eq!(warned.lines(), vec!["thread parent00 ended, but its line was registered from a paired computer, which starts no turn on thread parent00"]);
+        assert_eq!(
+            warned.lines(),
+            vec!["thread parent00 ended, but its line was registered from a paired computer, which starts no turn on thread parent00"]
+        );
         assert!(ctx.started.borrow().is_empty());
         let told = told_person(&ctx.recorded_json());
         assert_eq!(told.len(), 1);
@@ -1063,7 +1260,11 @@ fn an_unread_message_held_for_a_napping_workspace_goes_at_the_wake_with_its_imag
         assert_eq!(started.len(), 1);
         assert_eq!(started[0].1.prompt, "\n  look at this  \nmore");
         assert_eq!(started[0].1.request_id.as_deref(), kept["requestId"].as_str());
-        assert_eq!(support::json_of(started[0].1.attachments.as_ref().expect("its images")), json!([{ "mediaType": "image/png", "bytes": "AQID" }]), "read back from what the host kept of the steer");
+        assert_eq!(
+            support::json_of(started[0].1.attachments.as_ref().expect("its images")),
+            json!([{ "mediaType": "image/png", "bytes": "AQID" }]),
+            "read back from what the host kept of the steer"
+        );
     });
 }
 
@@ -1076,10 +1277,13 @@ fn an_unread_message_held_for_a_napping_workspace_goes_at_the_wake_with_its_imag
 fn a_reply_over_background_work_and_the_answer_after_it_are_two_lines_and_only_the_open_one_skips_the_done_read() {
     local(async {
         let (ctx, area) = owed_host();
-        let (sub, _) = entry(json!({ "id": "ws-c", "phase": "running", "sub": { "on": "hetzner", "repo": "r", "base": { "branch": "main", "sha": "abc" }, "branch": "b", "folder": "/f" } }));
+        let (sub, _) = entry(
+            json!({ "id": "ws-c", "phase": "running", "sub": { "on": "hetzner", "repo": "r", "base": { "branch": "main", "sha": "abc" }, "branch": "b", "folder": "/f" } }),
+        );
         ctx.add_entry(sub);
         set_phase(&ctx, "ws1", "napping");
-        let reply = result_of(json!({ "status": "completed", "text": "Built the parser; 40 tests pass.\n\n1 background task is still running" }));
+        let reply =
+            result_of(json!({ "status": "completed", "text": "Built the parser; 40 tests pass.\n\n1 background task is still running" }));
         let answer = result_of(json!({ "status": "completed", "text": "BANANA" }));
         area.notify_end(&child_row(Some("cs-c"), Some(0)), &[PARENT.to_string()], &TellAs::default(), &reply, true);
         area.notify_end(&child_row(Some("cs-c"), Some(1)), &[PARENT.to_string()], &TellAs::default(), &answer, false);
@@ -1091,7 +1295,8 @@ fn a_reply_over_background_work_and_the_answer_after_it_are_two_lines_and_only_t
         assert_eq!(first.get("awaitsResult"), None, "a reply given over work still running has no done behind it yet");
         assert_eq!(second["awaitsResult"], json!("ws-c"), "a sub-thread's own end reads its done off the machine");
         assert!(!ctx.called().iter().any(|c| c.starts_with("subLine")), "held for the wake, so nothing is read yet");
-        let held: Vec<String> = area.held_lines.borrow().get("ws1").map(|l| l.iter().map(|x| x.borrow().id.clone()).collect()).unwrap_or_default();
+        let held: Vec<String> =
+            area.held_lines.borrow().get("ws1").map(|l| l.iter().map(|x| x.borrow().id.clone()).collect()).unwrap_or_default();
         assert_eq!(held, vec![format!("u-c:0:{PARENT}"), format!("u-c:1:{PARENT}")], "held in the order told");
     });
 }
@@ -1108,7 +1313,11 @@ fn cap_host(at_once: i64, running: usize) -> (Rc<FakeThreadsCtx>, Rc<ThreadsArea
     ctx.place_ids.borrow_mut().insert("ws1".into(), "here".into());
     ctx.threads_at.borrow_mut().insert("here".into(), at_once);
     ctx.sessions.with(|s| {
-        *s = rows_of((0..running).map(|i| row(view(json!({ "id": format!("u{i}"), "threadId": format!("t{i}"), "status": "running" })), &format!("u{i}"))).collect())
+        *s = rows_of(
+            (0..running)
+                .map(|i| row(view(json!({ "id": format!("u{i}"), "threadId": format!("t{i}"), "status": "running" })), &format!("u{i}")))
+                .collect(),
+        )
     });
     let area = ctx.area();
     (ctx, area, record)
@@ -1125,7 +1334,14 @@ fn cap_wait_of(running: i64, at_once: i64) -> ThreadCapWait {
 }
 
 fn at(turn: &str, thread: &str) -> CapAt {
-    CapAt { workspace_id: "ws1".into(), thread_id: thread.into(), turn_id: turn.into(), session_id: format!("s-{turn}"), request_id: Some("req1".into()), prompt: "build the thing\nwhole".into() }
+    CapAt {
+        workspace_id: "ws1".into(),
+        thread_id: thread.into(),
+        turn_id: turn.into(),
+        session_id: format!("s-{turn}"),
+        request_id: Some("req1".into()),
+        prompt: "build the thing\nwhole".into(),
+    }
 }
 
 fn end_of(turn: &str) -> Value {
@@ -1148,7 +1364,11 @@ fn a_leads_child_runs_in_the_leads_slot_and_a_thread_of_another_tree_waits_for_b
     let (ctx, area, record) = cap_host(1, 1);
     start_row(&ctx, "n1", "tn");
     area.cap_hold(&record, "n1", Some("u0"));
-    assert_eq!(area.cap_full(&record, "n1"), None, "the child runs in the lead's slot, so the lead waiting on it is never stuck behind itself");
+    assert_eq!(
+        area.cap_full(&record, "n1"),
+        None,
+        "the child runs in the lead's slot, so the lead waiting on it is never stuck behind itself"
+    );
     area.cap_left("n1");
     assert_eq!(borrowed_of(&area, "n1").as_deref(), Some("u0"));
     start_row(&ctx, "n2", "to");
@@ -1183,7 +1403,11 @@ fn children_started_detached_run_one_at_a_time_in_order_and_a_followed_grandchil
     // One it started detached takes a slot of its own, behind the turns already in line.
     start_row(&ctx, "g2", "g2t");
     area.cap_hold(&record, "g2", None);
-    assert_eq!(area.cap_full(&record, "g2"), Some(cap_wait_of(2, 1)), "two agents run here, one of them in the other's slot, and two turns stand ahead");
+    assert_eq!(
+        area.cap_full(&record, "g2"),
+        Some(cap_wait_of(2, 1)),
+        "two agents run here, one of them in the other's slot, and two turns stand ahead"
+    );
     turn_ends(&ctx, "g1");
     turn_ends(&ctx, "n1");
     assert_eq!(area.cap_full(&record, "n2"), None, "the line moves in the order it came");
@@ -1259,7 +1483,14 @@ fn a_follow_up_sent_into_a_held_thread_lends_it_the_senders_slot_and_the_transcr
         settle().await;
         let said = ctx.recorded_json();
         assert_eq!(said.iter().map(|e| e["type"].clone()).collect::<Vec<_>>(), vec![json!("session.capped"), json!("session.uncapped")]);
-        for (k, v) in [("workspaceId", json!("ws1")), ("threadId", json!("tb")), ("sessionId", json!("s-n1")), ("turnId", json!("n1")), ("why", json!("lent")), ("atOnce", json!(1))] {
+        for (k, v) in [
+            ("workspaceId", json!("ws1")),
+            ("threadId", json!("tb")),
+            ("sessionId", json!("s-n1")),
+            ("turnId", json!("n1")),
+            ("why", json!("lent")),
+            ("atOnce", json!(1)),
+        ] {
             assert_eq!(said[1][k], v, "{k}");
         }
         assert_eq!(ctx.store.logged(), vec!["put held-starts/n1", "delete held-starts/n1"]);
@@ -1312,7 +1543,10 @@ fn a_held_send_of_three_thousand_characters_keeps_them_all_in_its_record_and_its
         assert_eq!(held["prompt"], json!(long), "the record is the only copy of a message the agent never got");
         assert_eq!(held["turnId"], json!("n1"));
         let said = ctx.recorded_json();
-        assert_eq!((said[0]["type"].clone(), said[0]["turnId"].clone(), said[0]["prompt"].clone()), (json!("session.capped"), json!("n1"), json!(long)));
+        assert_eq!(
+            (said[0]["type"].clone(), said[0]["turnId"].clone(), said[0]["prompt"].clone()),
+            (json!("session.capped"), json!("n1"), json!(long))
+        );
     });
 }
 
@@ -1363,7 +1597,10 @@ fn raising_the_threads_at_once_lets_the_waiting_turns_through_oldest_first_each_
         }
         settle().await;
         let said = ctx.recorded_json();
-        assert_eq!(said.iter().map(|e| (e["turnId"].clone(), e["prompt"].clone())).collect::<Vec<_>>(), vec![(json!("n7"), json!("seventh")), (json!("n8"), json!("eighth"))]);
+        assert_eq!(
+            said.iter().map(|e| (e["turnId"].clone(), e["prompt"].clone())).collect::<Vec<_>>(),
+            vec![(json!("n7"), json!("seventh")), (json!("n8"), json!("eighth"))]
+        );
         // The person raises the count: every held turn looks again.
         ctx.threads_at.borrow_mut().insert("here".into(), 8);
         ctx.bus.emit_json(end_of("other"));
@@ -1375,9 +1612,15 @@ fn raising_the_threads_at_once_lets_the_waiting_turns_through_oldest_first_each_
         area.cap_left("n8");
         settle().await;
         let said = ctx.recorded_json();
-        assert_eq!(said.iter().map(|e| e["type"].clone()).collect::<Vec<_>>(), vec![json!("session.capped"), json!("session.capped"), json!("session.uncapped"), json!("session.uncapped")]);
+        assert_eq!(
+            said.iter().map(|e| e["type"].clone()).collect::<Vec<_>>(),
+            vec![json!("session.capped"), json!("session.capped"), json!("session.uncapped"), json!("session.uncapped")]
+        );
         for (i, turn) in [(2, "n7"), (3, "n8")] {
-            assert_eq!((said[i]["turnId"].clone(), said[i]["why"].clone(), said[i]["atOnce"].clone()), (json!(turn), json!("raised"), json!(8)));
+            assert_eq!(
+                (said[i]["turnId"].clone(), said[i]["why"].clone(), said[i]["atOnce"].clone()),
+                (json!(turn), json!("raised"), json!(8))
+            );
         }
         assert_eq!(ctx.store.logged(), vec!["put held-starts/n7", "put held-starts/n8", "delete held-starts/n7", "delete held-starts/n8"]);
     });
@@ -1491,14 +1734,20 @@ fn the_hosts_own_title_write_into_the_session_file_does_not_end_the_kept_process
         let (_ctx, area, _) = kept_host(&["t1"]);
         let (h, agent) = kept_hand("ws1", Some(on_disk), "tok");
         assert!(area.hold_kept("t1", h).is_none());
-        for (what, text) in [("the title", "{}\n{\"type\":\"custom-title\"}\n"), ("a rename the person makes", "{}\n{\"type\":\"custom-title\"}\n{\"type\":\"custom-title\"}\n")] {
+        for (what, text) in [
+            ("the title", "{}\n{\"type\":\"custom-title\"}\n"),
+            ("a rename the person makes", "{}\n{\"type\":\"custom-title\"}\n{\"type\":\"custom-title\"}\n"),
+        ] {
             let at = path.clone();
             let wrote = area
-                .write_session("s1", async move {
-                    std::fs::write(&at, text.as_bytes()).expect("the host wrote the file");
-                    Ok(SessionRenameWrite::Written)
-                }
-                .boxed_local())
+                .write_session(
+                    "s1",
+                    async move {
+                        std::fs::write(&at, text.as_bytes()).expect("the host wrote the file");
+                        Ok(SessionRenameWrite::Written)
+                    }
+                    .boxed_local(),
+                )
                 .await;
             assert_eq!(wrote.expect("written"), SessionRenameWrite::Written, "{what}");
             settle().await;
@@ -1547,7 +1796,11 @@ fn at_the_cap_the_idle_one_kept_longest_ends_and_never_a_process_still_working()
         }
         settle().await;
         assert_eq!(AGENTS_KEPT, 6);
-        assert_eq!(kept_ids(&area), vec!["t0", "t2", "t3", "t4", "t5", "t6"], "the oldest is working, so the idle one kept longest after it goes");
+        assert_eq!(
+            kept_ids(&area),
+            vec!["t0", "t2", "t3", "t4", "t5", "t6"],
+            "the oldest is working, so the idle one kept longest after it goes"
+        );
         assert_eq!(agents[1].closes(), vec![false]);
         assert!(agents[0].closes().is_empty());
     });
@@ -1561,7 +1814,9 @@ fn a_claimed_warm_process_runs_the_send_that_opens_its_thread_and_is_kept_for_th
         let (h, agent) = warm_kept_hand("ws1");
         area.hold_warm("w1", h);
         assert_eq!(area.claim_warm("ws1", "claude"), Some("w1".to_string()), "the send that opens a thread takes its thread id");
-        let process = area.take_kept("w1", None, None, Some(&launch("claude|/work|v1", json!({ "model": "opus" })))).expect("launched exactly as the send would launch");
+        let process = area
+            .take_kept("w1", None, None, Some(&launch("claude|/work|v1", json!({ "model": "opus" }))))
+            .expect("launched exactly as the send would launch");
         assert_eq!(process.borrow().warm.as_ref().map(|w| w.claimed), Some(true));
         assert!(kept_ids(&area).is_empty(), "taken out of the keep for its turn");
         assert_eq!(ctx.clock.pending(), 0, "its idle window is cancelled");
@@ -1625,12 +1880,18 @@ fn asked_for_a_minute_apart_for_five_minutes_the_send_runs_on_the_process_starte
 #[test]
 fn a_send_at_other_picks_than_the_warm_process_was_launched_with_ends_it_either_way_round() {
     local(async {
-        for (kept_picks, sent_picks) in [(json!({ "model": "opus" }), json!({ "model": "sonnet" })), (json!({ "model": "opus", "fast": true }), json!({ "model": "opus" }))] {
+        for (kept_picks, sent_picks) in [
+            (json!({ "model": "opus" }), json!({ "model": "sonnet" })),
+            (json!({ "model": "opus", "fast": true }), json!({ "model": "opus" })),
+        ] {
             let (_ctx, area, _) = kept_host(&[]);
             let (mut h, agent) = warm_kept_hand("ws1");
             h.launch = launch("claude|/work|v1", kept_picks.clone());
             area.hold_warm("w1", h);
-            assert!(area.take_kept("w1", None, None, Some(&launch("claude|/work|v1", sent_picks.clone()))).is_none(), "{kept_picks} against {sent_picks}");
+            assert!(
+                area.take_kept("w1", None, None, Some(&launch("claude|/work|v1", sent_picks.clone()))).is_none(),
+                "{kept_picks} against {sent_picks}"
+            );
             settle().await;
             assert!(kept_ids(&area).is_empty());
             assert_eq!(agent.closes(), vec![false], "it ends rather than run on the wrong model, or with a pick nobody asked for");
@@ -1810,11 +2071,14 @@ fn a_send_waits_out_the_hosts_own_write_into_the_session_file_before_reading_it(
         settle().await;
         assert_eq!(wc_reads(&machine), 1);
         let (tx, rx) = futures::channel::oneshot::channel::<()>();
-        let write = area.write_session("s1", async move {
-            let _ = rx.await;
-            Ok(SessionRenameWrite::Written)
-        }
-        .boxed_local());
+        let write = area.write_session(
+            "s1",
+            async move {
+                let _ = rx.await;
+                Ok(SessionRenameWrite::Written)
+            }
+            .boxed_local(),
+        );
         tokio::task::spawn_local(write);
         settle().await;
         // The title is in the file at once and its answer comes later, so a send meanwhile would read a grown file.
@@ -1830,7 +2094,11 @@ fn a_send_waits_out_the_hosts_own_write_into_the_session_file_before_reading_it(
         let _ = tx.send(());
         settle().await;
         assert!(check.is_finished());
-        assert_eq!(kept_ids(&area), vec!["t1"], "the send runs on the kept agent: the host's own write is not the person resuming the session");
+        assert_eq!(
+            kept_ids(&area),
+            vec!["t1"],
+            "the send runs on the kept agent: the host's own write is not the person resuming the session"
+        );
         assert_eq!(wc_reads(&machine), 3, "one at the keep, one restamping after the write, one at the check");
         assert!(agent.closes().is_empty());
     });
@@ -1911,7 +2179,10 @@ fn a_snapshot_the_daemon_never_answers_ends_at_the_options_cap_and_the_turn_reco
         ctx.clock.advance(1);
         settle().await;
         assert_eq!(snapshot.await.expect("ran"), None);
-        assert_eq!(warned.lines(), vec!["no snapshot of /w on the-folder inside 30ms; the turn runs without one and its reply lists no changes"]);
+        assert_eq!(
+            warned.lines(),
+            vec!["no snapshot of /w on the-folder inside 30ms; the turn runs without one and its reply lists no changes"]
+        );
         let read = tokio::task::spawn_local({
             let (area, e) = (area.clone(), e.clone());
             async move { area.read_turn_changes(&e, turn_ask("mine", "/w", None)).await }
@@ -1935,7 +2206,10 @@ fn a_turn_that_only_moved_head_records_no_files_of_its_own_and_the_move_named_on
         assert!(area.read_turn_changes(&e, turn_ask("mine", "/repo/a", None)).await);
         let said = ctx.recorded_json();
         assert_eq!(said.len(), 1);
-        assert_eq!((said[0]["type"].clone(), said[0]["files"].clone(), said[0]["moved"].clone()), (json!("session.changes"), json!([]), json!(["Pulled"])));
+        assert_eq!(
+            (said[0]["type"].clone(), said[0]["files"].clone(), said[0]["moved"].clone()),
+            (json!("session.changes"), json!([]), json!(["Pulled"]))
+        );
         assert_eq!(said[0].get("shared"), None);
         assert_eq!(said[0].get("others"), None);
     });
@@ -1963,7 +2237,13 @@ fn a_turn_shares_its_folder_with_another_threads_turn_and_keeps_the_whole_list_w
 fn a_turn_that_wrote_nothing_shows_none_of_its_own_while_the_thread_that_changed_the_folder_keeps_its_own() {
     local(async {
         let (ctx, area, e) = te_host();
-        beside(&ctx, vec![json!({ "threadId": "quiet", "cwd": "/repo/a", "startedAt": 999_100 }), json!({ "threadId": "busy", "cwd": "/repo/a", "startedAt": 999_200 })]);
+        beside(
+            &ctx,
+            vec![
+                json!({ "threadId": "quiet", "cwd": "/repo/a", "startedAt": 999_100 }),
+                json!({ "threadId": "busy", "cwd": "/repo/a", "startedAt": 999_200 }),
+            ],
+        );
         let (worktrees, _) = top_of_repo();
         ctx.daemon_answers("git.snapshot", Ok(json!({ "commit": "snap1" })));
         ctx.daemon_answers("git.turn", Ok(diff(json!([changed("a/b.ts")]), json!([]))));
@@ -1972,8 +2252,15 @@ fn a_turn_that_wrote_nothing_shows_none_of_its_own_while_the_thread_that_changed
         assert!(area.read_turn_changes(&e, turn_ask("busy", "/repo/a", Some(&["/repo/a/b.ts"]))).await);
         let said = ctx.recorded_json();
         assert_eq!(said.len(), 2);
-        assert_eq!((said[0]["files"].clone(), said[0]["others"].clone(), said[0]["shared"].clone()), (json!([]), json!([bare("a/b.ts")]), json!(true)));
-        assert_eq!((said[1]["files"].clone(), said[1]["others"].clone(), said[1]["shared"].clone()), (json!([bare("a/b.ts")]), json!([]), json!(true)), "an empty others is still said where the list was split");
+        assert_eq!(
+            (said[0]["files"].clone(), said[0]["others"].clone(), said[0]["shared"].clone()),
+            (json!([]), json!([bare("a/b.ts")]), json!(true))
+        );
+        assert_eq!(
+            (said[1]["files"].clone(), said[1]["others"].clone(), said[1]["shared"].clone()),
+            (json!([bare("a/b.ts")]), json!([]), json!(true)),
+            "an empty others is still said where the list was split"
+        );
     });
 }
 
@@ -1982,7 +2269,13 @@ fn a_turn_that_wrote_nothing_shows_none_of_its_own_while_the_thread_that_changed
 fn two_threads_in_one_repo_at_different_subfolders_split_the_whole_checkouts_range_by_what_each_wrote() {
     local(async {
         let (ctx, area, e) = te_host();
-        beside(&ctx, vec![json!({ "threadId": "ina", "cwd": "/repo/a", "startedAt": 999_100 }), json!({ "threadId": "inb", "cwd": "/repo/b", "startedAt": 999_200 })]);
+        beside(
+            &ctx,
+            vec![
+                json!({ "threadId": "ina", "cwd": "/repo/a", "startedAt": 999_100 }),
+                json!({ "threadId": "inb", "cwd": "/repo/b", "startedAt": 999_200 }),
+            ],
+        );
         let (worktrees, _) = top_of_repo();
         ctx.daemon_answers("git.snapshot", Ok(json!({ "commit": "snap1" })));
         ctx.daemon_answers("git.turn", Ok(diff(json!([changed("a/x.ts"), changed("b/y.ts")]), json!([]))));
@@ -1990,8 +2283,14 @@ fn two_threads_in_one_repo_at_different_subfolders_split_the_whole_checkouts_ran
         assert!(area.read_turn_changes(&e, turn_ask("ina", "/repo/a", Some(&["/repo/a/x.ts"]))).await);
         assert!(area.read_turn_changes(&e, turn_ask("inb", "/repo/b", Some(&["/repo/b/y.ts"]))).await);
         let said = ctx.recorded_json();
-        assert_eq!((said[0]["files"].clone(), said[0]["others"].clone(), said[0]["shared"].clone()), (json!([bare("a/x.ts")]), json!([bare("b/y.ts")]), json!(true)));
-        assert_eq!((said[1]["files"].clone(), said[1]["others"].clone(), said[1]["shared"].clone()), (json!([bare("b/y.ts")]), json!([bare("a/x.ts")]), json!(true)));
+        assert_eq!(
+            (said[0]["files"].clone(), said[0]["others"].clone(), said[0]["shared"].clone()),
+            (json!([bare("a/x.ts")]), json!([bare("b/y.ts")]), json!(true))
+        );
+        assert_eq!(
+            (said[1]["files"].clone(), said[1]["others"].clone(), said[1]["shared"].clone()),
+            (json!([bare("b/y.ts")]), json!([bare("a/x.ts")]), json!(true))
+        );
     });
 }
 
@@ -2005,7 +2304,11 @@ fn every_change_is_the_turns_own_where_no_other_thread_ran_in_its_folder_edits_i
         assert!(area.read_turn_changes(&e, turn_ask("mine", "/repo/a", Some(&["/repo/a/a.ts"]))).await);
         let said = ctx.recorded_json();
         assert_eq!(said.len(), 1);
-        assert_eq!(said[0]["files"], json!([bare("a.ts"), bare("dist/out.js")]), "the build output the agent never reported stays the turn's own");
+        assert_eq!(
+            said[0]["files"],
+            json!([bare("a.ts"), bare("dist/out.js")]),
+            "the build output the agent never reported stays the turn's own"
+        );
         assert_eq!(said[0].get("others"), None);
         assert_eq!(said[0].get("shared"), None);
     });
@@ -2085,7 +2388,10 @@ fn a_notify_target_outside_the_callers_tree_reads_as_no_thread_even_when_the_cal
     roots(&ctx, &[("root", "root"), ("mine", "mine"), ("builder", "root")]);
     let area = ctx.area();
     let ghost = scoped("t_gone", "ws1", "root");
-    assert!(!area.drives_thread(Some("mine"), Some(&ghost)), "a caller whose rows this host no longer holds still reads its root off the scope");
+    assert!(
+        !area.drives_thread(Some("mine"), Some(&ghost)),
+        "a caller whose rows this host no longer holds still reads its root off the scope"
+    );
     assert!(area.drives_thread(Some("root"), Some(&ghost)));
     assert!(area.drives_thread(Some("builder"), Some(&ghost)));
     assert!(area.drives_thread(Some("mine"), None), "a person names any thread, as today");
@@ -2109,11 +2415,17 @@ fn a_notify_target_may_be_the_parent_a_sibling_or_a_child_but_not_the_persons_ow
 fn a_child_on_the_copy_its_lead_forked_reaches_the_lead_on_another_workspace_and_the_lead_reaches_it_back() {
     let ctx = FakeThreadsCtx::new();
     roots(&ctx, &[("lead", "lead"), ("child", "lead")]);
-    ctx.sessions.with(|s| *s = rows_of(vec![row(view(json!({ "id": "r-child", "threadId": "child", "parentThreadId": "lead", "workspaceId": "copy" })), "u1")]));
+    ctx.sessions.with(|s| {
+        *s =
+            rows_of(vec![row(view(json!({ "id": "r-child", "threadId": "child", "parentThreadId": "lead", "workspaceId": "copy" })), "u1")])
+    });
     let area = ctx.area();
     let as_child = scoped("child", "copy", "lead");
     let as_lead = scoped("lead", "ws1", "lead");
-    assert!(area.drives_thread(Some("lead"), Some(&as_child)), "the scope's workspace is the copy, and the lead's thread is reached all the same");
+    assert!(
+        area.drives_thread(Some("lead"), Some(&as_child)),
+        "the scope's workspace is the copy, and the lead's thread is reached all the same"
+    );
     assert!(area.drives_thread(Some("child"), Some(&as_lead)));
     assert!(area.settles_thread("child", Some(&as_lead)));
     assert!(!area.settles_thread("lead", Some(&as_child)), "settling is never the lead's");
@@ -2167,7 +2479,11 @@ fn stopping_a_root_ends_every_thread_its_agents_spawned_under_it_deepest_first()
         let area = ctx.area();
         let stopped = area.stop_under("root", None).await;
         assert_eq!(stopped, vec!["grand", "child"]);
-        assert_eq!(ctx.called(), vec!["interrupt r-grand", "interrupt r-child"], "the root is the caller's own to stop, so only what spawned under it is asked here");
+        assert_eq!(
+            ctx.called(),
+            vec!["interrupt r-grand", "interrupt r-child"],
+            "the root is the caller's own to stop, so only what spawned under it is asked here"
+        );
     });
 }
 
@@ -2231,9 +2547,15 @@ fn a_thread_inside_a_send_that_waits_for_another_thread_carries_that_threads_que
     let (_ctx, area) = waiting_pair();
     area.lead_asks.borrow_mut().insert("target01".into(), prompt_of("ask_1"));
     let caller_view = view(json!({ "id": "r-caller", "threadId": "caller01" }));
-    let open = CallsOf { view: caller_view.clone(), calls: Some(calls_of(&[("toolu_send", "mcp__wsp__send", json!({ "thread": "target01", "message": "read hello.txt" }))])) };
+    let open = CallsOf {
+        view: caller_view.clone(),
+        calls: Some(calls_of(&[("toolu_send", "mcp__wsp__send", json!({ "thread": "target01", "message": "read hello.txt" }))])),
+    };
     let behind = area.stopped_behind(&open).expect("the caller is stopped behind the question");
-    assert_eq!((behind.thread_id.as_str(), behind.workspace_id.as_str(), behind.session_id.as_str(), behind.title.as_str()), ("target01", "ws1", "r-target", "read the file"));
+    assert_eq!(
+        (behind.thread_id.as_str(), behind.workspace_id.as_str(), behind.session_id.as_str(), behind.title.as_str()),
+        ("target01", "ws1", "r-target", "read the file")
+    );
     assert_eq!((behind.prompt.ask_id.as_str(), behind.prompt.tool_name.as_str()), ("ask_1", "Read"));
     assert_eq!(behind.prompt.options.iter().map(|o| o.id.clone()).collect::<Vec<_>>(), vec!["allow", "deny"]);
     // The question is answered off the other thread: once it is, nothing is open and the caller works again.
@@ -2247,9 +2569,13 @@ fn a_thread_is_behind_another_only_through_a_call_that_waits_for_it_and_never_a_
     let (_ctx, area) = waiting_pair();
     area.lead_asks.borrow_mut().insert("target01".into(), prompt_of("ask_1"));
     let caller_view = view(json!({ "id": "r-caller", "threadId": "caller01" }));
-    let detached = CallsOf { view: caller_view.clone(), calls: Some(calls_of(&[("toolu_send", "mcp__wsp__send", json!({ "thread": "target01", "message": "go", "detach": true }))])) };
+    let detached = CallsOf {
+        view: caller_view.clone(),
+        calls: Some(calls_of(&[("toolu_send", "mcp__wsp__send", json!({ "thread": "target01", "message": "go", "detach": true }))])),
+    };
     assert!(area.stopped_behind(&detached).is_none(), "a detached send answers at once");
-    let own = CallsOf { view: caller_view.clone(), calls: Some(calls_of(&[("toolu_read", "Read", json!({ "file_path": "/root/notes.md" }))])) };
+    let own =
+        CallsOf { view: caller_view.clone(), calls: Some(calls_of(&[("toolu_read", "Read", json!({ "file_path": "/root/notes.md" }))])) };
     assert!(area.stopped_behind(&own).is_none(), "a call of the agent's own, into no thread at all, is no wait");
 }
 
@@ -2259,7 +2585,10 @@ fn the_wait_is_dropped_when_the_call_the_thread_was_inside_answers_whatever_the_
     let (_ctx, area) = waiting_pair();
     area.lead_asks.borrow_mut().insert("target01".into(), prompt_of("ask_1"));
     let caller_view = view(json!({ "id": "r-caller", "threadId": "caller01" }));
-    let waiting = CallsOf { view: caller_view.clone(), calls: Some(calls_of(&[("toolu_wait", "mcp__wsp__threads_wait", json!({ "threads": ["target01"], "timeout": 60 }))])) };
+    let waiting = CallsOf {
+        view: caller_view.clone(),
+        calls: Some(calls_of(&[("toolu_wait", "mcp__wsp__threads_wait", json!({ "threads": ["target01"], "timeout": 60 }))])),
+    };
     assert_eq!(area.stopped_behind(&waiting).map(|b| b.thread_id), Some("target01".to_string()));
     // The wait gave up on its deadline: the call answered, so it is off the row while the question still stands.
     let answered = CallsOf { view: caller_view, calls: Some(IndexMap::new()) };

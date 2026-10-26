@@ -15,11 +15,11 @@ use std::sync::Arc;
 use support::*;
 use wsp_account::account::rules::TreeOf;
 use wsp_core::console;
+use wsp_core::types::wiring::{AccessMove, SteerTaken};
 use wsp_machines::machines::boot::entries::RowAt;
 use wsp_machines::machines::sub_spawn::machine::Resumed;
 use wsp_threads::threads::forks::{ForkPicks, ForkPlanSource, ForkPlanTurn};
 use wsp_threads::threads::sessions::start::{Checked, Prepared};
-use wsp_core::types::wiring::{AccessMove, SteerTaken};
 use wsp_wire::types::attachments::Attachment;
 use wsp_wire::types::conversations::{RESUME_A_THREAD_FIX, RESUME_A_THREAD_LINE};
 use wsp_wire::types::env::{THREAD_ENV, TURN_TOKEN_ENV};
@@ -32,8 +32,8 @@ use wsp_words::attachments::{attachment_record, files_blocked};
 use wsp_words::exit::refusal;
 use wsp_words::sub_thread::{sub_machine_taken_refusal, sub_opening};
 use wsp_words::words::computer::{
-    replaces_working_fix, replaces_working_line, send_files_across_line, thread_word, wait_across_line, RESTART_OPENS_FIX, RESTART_OPENS_LINE,
-    SEND_FILES_ACROSS_FIX, WAIT_ACROSS_FIX,
+    replaces_working_fix, replaces_working_line, send_files_across_line, thread_word, wait_across_line, RESTART_OPENS_FIX,
+    RESTART_OPENS_LINE, SEND_FILES_ACROSS_FIX, WAIT_ACROSS_FIX,
 };
 use wsp_words::words::thread::{
     fork_refused_line, forks_not_line, thread_runs_on_line, ASIDE_NO_SESSION_LINE, EMPTY_TITLE_LINE, FORKS_NOT_FIX, FORK_REFUSED_FIX,
@@ -55,7 +55,8 @@ fn err(message: &str) -> HostError {
 }
 
 fn scope(thread: &str, workspace: &str, root: &str) -> ThreadScope {
-    serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": workspace, "rootThreadId": root })).expect("a thread scope")
+    serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": workspace, "rootThreadId": root }))
+        .expect("a thread scope")
 }
 
 fn by(origin: WorkspaceOrigin, s: ThreadScope) -> Caller {
@@ -71,11 +72,20 @@ fn strings(v: &[&str]) -> Vec<String> {
 }
 
 fn outside(harness: &str, id: &str, copy: bool) -> OutsideOpening {
-    OutsideOpening { harness: harness.into(), id: id.into(), copy, project: "p1".into(), cwd: None, title: "lab codewords".into(), earlier: Vec::new() }
+    OutsideOpening {
+        harness: harness.into(),
+        id: id.into(),
+        copy,
+        project: "p1".into(),
+        cwd: None,
+        title: "lab codewords".into(),
+        earlier: Vec::new(),
+    }
 }
 
 fn taken(thread: &str) -> Taken {
-    serde_json::from_value(json!({ "sessionId": "sess-1", "threadId": thread, "turnId": "turn-1", "outcome": "started" })).expect("a taken start")
+    serde_json::from_value(json!({ "sessionId": "sess-1", "threadId": thread, "turnId": "turn-1", "outcome": "started" }))
+        .expect("a taken start")
 }
 
 fn facts(thread: &str, status: &str) -> ThreadFacts {
@@ -199,7 +209,10 @@ fn fx_on(agent: Agent) -> Fx {
     let host = FakeHost::new();
     host.add_entry(entry("w1", json!({ "name": "lab" })));
     host.ids.uuids.borrow_mut().push("thr-new".to_string());
-    hook!(host, "LaunchCtx::preferences", dyn Fn() -> LocalBoxFuture<'static, Result<Preferences, HostError>>, || async { Ok(default_preferences()) }.boxed_local());
+    hook!(host, "LaunchCtx::preferences", dyn Fn() -> LocalBoxFuture<'static, Result<Preferences, HostError>>, || async {
+        Ok(default_preferences())
+    }
+    .boxed_local());
     hook!(
         host,
         "SessionsCtx::fork_opened",
@@ -211,17 +224,27 @@ fn fx_on(agent: Agent) -> Fx {
     let forks = agent.forks;
     hook!(host, "SessionsCtx::adapter_forks", dyn Fn(&dyn HarnessAdapter) -> bool, move |_a: &dyn HarnessAdapter| forks);
     let agent: Arc<dyn HarnessAdapter> = Arc::new(agent);
-    hook!(host, "LaunchCtx::adapter_for", dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>, move |_e: &Entry, ask: AdapterAsk| {
-        let h = ask.named.clone().expect("the harness is named");
-        seen.borrow_mut().push((h.clone(), ask));
-        Ok(BuiltAdapter { harness: h, adapter: agent.clone() })
-    });
+    hook!(
+        host,
+        "LaunchCtx::adapter_for",
+        dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>,
+        move |_e: &Entry, ask: AdapterAsk| {
+            let h = ask.named.clone().expect("the harness is named");
+            seen.borrow_mut().push((h.clone(), ask));
+            Ok(BuiltAdapter { harness: h, adapter: agent.clone() })
+        }
+    );
     let area = SessionsArea::new(host.clone());
     Fx { host, area, asked }
 }
 
 impl Fx {
-    async fn prepare_with(&self, claimed: &RefCell<Option<String>>, opts: StartOptions, origin: Option<Caller>) -> Result<Checked, HostError> {
+    async fn prepare_with(
+        &self,
+        claimed: &RefCell<Option<String>>,
+        opts: StartOptions,
+        origin: Option<Caller>,
+    ) -> Result<Checked, HostError> {
         self.area.prepare("w1", opts, origin, claimed).await
     }
 
@@ -255,7 +278,11 @@ fn thread_in(host: &FakeHost, thread: &str, workspace: &str, harness: &str, stat
     host.add_record(thread, workspace, thread_record(json!({ "harness": harness })));
     let id = format!("sess-{thread}");
     let r = row(
-        view(&id, workspace, json!({ "threadId": thread, "harness": harness, "status": status, "startedAt": T0, "claudeSessionId": format!("cs-{thread}") })),
+        view(
+            &id,
+            workspace,
+            json!({ "threadId": thread, "harness": harness, "status": status, "startedAt": T0, "claudeSessionId": format!("cs-{thread}") }),
+        ),
         &format!("turn-{thread}"),
     );
     host.add_row(&id, r);
@@ -267,7 +294,10 @@ fn order(host: &FakeHost, names: &[&str]) -> Vec<String> {
 }
 
 fn nothing_held(host: &FakeHost) {
-    assert!(host.rows.borrow().keys().all(|k| k.starts_with("sess-")), "a refusal holds no row of its own (only the fixtures' threads have rows)");
+    assert!(
+        host.rows.borrow().keys().all(|k| k.starts_with("sess-")),
+        "a refusal holds no row of its own (only the fixtures' threads have rows)"
+    );
     assert_eq!(host.hooks.called("cap_hold"), Vec::<String>::new(), "a refusal holds no place under a cap");
 }
 
@@ -310,7 +340,11 @@ fn a_start_sent_again_answers_the_turn_it_opened_and_starts_nothing() {
         let fx = fx();
         fx.thread_on("t1", "w1", "claude");
         let held = taken("t1");
-        hook!(fx.host, "SessionsCtx::taken", dyn Fn(&str, &str) -> Option<Taken>, move |_w: &str, r: &str| if r == "req-1" { Some(held.clone()) } else { None });
+        hook!(fx.host, "SessionsCtx::taken", dyn Fn(&str, &str) -> Option<Taken>, move |_w: &str, r: &str| if r == "req-1" {
+            Some(held.clone())
+        } else {
+            None
+        });
         let opened = Handle::new("sess-1", "turn-1");
         hook!(
             fx.host,
@@ -323,13 +357,22 @@ fn a_start_sent_again_answers_the_turn_it_opened_and_starts_nothing() {
         );
         let opts = StartOptions { thread: Some("t1".into()), request_id: Some("req-1".into()), ..go("second") };
         match fx.prepare(opts, None).await {
-            Ok(Checked::Answered(h)) => assert_eq!((h.id(), h.turn_id(), h.outcome()), ("sess-1".to_string(), "turn-1".to_string(), SessionStartOutcome::Started)),
+            Ok(Checked::Answered(h)) => {
+                assert_eq!((h.id(), h.turn_id(), h.outcome()), ("sess-1".to_string(), "turn-1".to_string(), SessionStartOutcome::Started))
+            }
             Ok(Checked::Launch(_)) => panic!("a start already taken is not launched again"),
             Err(e) => panic!("refused: {}", e.message),
         }
         assert_eq!(
             fx.host.hooks.calls(),
-            strings(&["ready", "preferences_held", "preferences", "taken(w1, req-1)", "entry_of_row(Some(\"t1\"), w1, false)", "taken_turn(w1)"])
+            strings(&[
+                "ready",
+                "preferences_held",
+                "preferences",
+                "taken(w1, req-1)",
+                "entry_of_row(Some(\"t1\"), w1, false)",
+                "taken_turn(w1)"
+            ])
         );
         before_the_mint(&fx.host);
     })
@@ -451,17 +494,29 @@ fn a_thread_of_another_workspace_is_no_thread_in_this_folder() {
 fn an_opening_reads_its_entry_with_the_callers_origin_unless_it_may_open_there() {
     run_local(async {
         let child = by(WorkspaceOrigin::Relayed, scope("kid", "w1", "lead-t"));
-        for (opens_there, origin, read_with) in [(true, Some(child.clone()), None), (false, Some(child.clone()), Some(child.clone())), (true, None, None)] {
+        for (opens_there, origin, read_with) in
+            [(true, Some(child.clone()), None), (false, Some(child.clone()), Some(child.clone())), (true, None, None)]
+        {
             let fx = fx();
             let live = fx.host.live("w1").expect("the workspace");
             let seen: Rc<RefCell<Vec<(String, Option<Caller>)>>> = Rc::new(RefCell::new(Vec::new()));
             let log = seen.clone();
-            hook!(fx.host, "LaunchCtx::entry_of", dyn Fn(&str, Option<Caller>) -> LocalBoxFuture<'static, Result<Entry, HostError>>, move |w: &str, o: Option<Caller>| {
-                log.borrow_mut().push((w.to_string(), o));
-                let e = live.clone();
-                async move { Ok(e) }.boxed_local()
-            });
-            hook!(fx.host, "SessionsCtx::opens_in", dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool, move |_r: &WorkspaceRecord, _o: Option<&Caller>| opens_there);
+            hook!(
+                fx.host,
+                "LaunchCtx::entry_of",
+                dyn Fn(&str, Option<Caller>) -> LocalBoxFuture<'static, Result<Entry, HostError>>,
+                move |w: &str, o: Option<Caller>| {
+                    log.borrow_mut().push((w.to_string(), o));
+                    let e = live.clone();
+                    async move { Ok(e) }.boxed_local()
+                }
+            );
+            hook!(
+                fx.host,
+                "SessionsCtx::opens_in",
+                dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool,
+                move |_r: &WorkspaceRecord, _o: Option<&Caller>| opens_there
+            );
             fx.launches(go("hi"), origin).await;
             assert_eq!(*seen.borrow(), vec![("w1".to_string(), read_with)]);
         }
@@ -502,14 +557,19 @@ fn an_outside_conversation_opens_a_thread_only() {
 
         let fx = fx();
         fx.thread_on("t1", "w1", "claude");
-        let e = fx.refused(StartOptions { thread: Some("t1".into()), outside: Some(outside("claude", "other", false)), ..go("x") }, None).await;
+        let e =
+            fx.refused(StartOptions { thread: Some("t1".into()), outside: Some(outside("claude", "other", false)), ..go("x") }, None).await;
         assert_eq!(said(&e), want, "named beside a thread");
         before_the_mint(&fx.host);
         assert_eq!(fx.host.hooks.called("agent_off"), Vec::<String>::new());
 
         let fx = fx_on(Agent::default());
         fx.thread_on("t1", "w1", "claude");
-        let sent_into = StartOptions { r#as: Some(StartAs { thread_id: "t1".into(), turn_id: "turn-x".into() }), outside: Some(outside("claude", "other", false)), ..go("x") };
+        let sent_into = StartOptions {
+            r#as: Some(StartAs { thread_id: "t1".into(), turn_id: "turn-x".into() }),
+            outside: Some(outside("claude", "other", false)),
+            ..go("x")
+        };
         let e = fx.refused(sent_into, None).await;
         assert_eq!(said(&e), want, "sent into a thread that has run");
         before_the_mint(&fx.host);
@@ -529,7 +589,11 @@ fn resume_is_the_latest_rows_session_else_the_transcripts_else_an_uncopied_outsi
 
         let fx = fx_on(Agent::default());
         fx.host.add_record("t1", "w1", thread_record(json!({ "harness": "claude" })));
-        hook!(fx.host, "TrimmedCtx::started_as", dyn Fn(&str, &str) -> Option<String>, |_w: &str, t: &str| if t == "t1" { Some("sess-from-transcript".to_string()) } else { None });
+        hook!(fx.host, "TrimmedCtx::started_as", dyn Fn(&str, &str) -> Option<String>, |_w: &str, t: &str| if t == "t1" {
+            Some("sess-from-transcript".to_string())
+        } else {
+            None
+        });
         assert_eq!(fx.launches(named, None).await.resume, Some("sess-from-transcript".to_string()), "the transcript's session");
 
         let fx = fx_on(Agent::default());
@@ -586,7 +650,9 @@ fn a_start_that_changes_the_launch_takes_no_warm_agent() {
         ];
         for (why, opts, origin, plan) in variants {
             let fx = fx_on(Agent { takes_servers: true, ..Default::default() });
-            hook!(fx.host, "SessionsCtx::claim_warm", dyn Fn(&str, &str) -> Option<String>, |_w: &str, _h: &str| Some("thr-warm".to_string()));
+            hook!(fx.host, "SessionsCtx::claim_warm", dyn Fn(&str, &str) -> Option<String>, |_w: &str, _h: &str| Some(
+                "thr-warm".to_string()
+            ));
             hook!(
                 fx.host,
                 "SessionsCtx::fork_opened",
@@ -646,7 +712,8 @@ fn a_refused_start_on_a_sub_machine_arms_its_done() {
         assert_eq!(order(&fx.host, &["sub_done"]), strings(&["sub_done(w1)"]));
 
         let fx = fx_on(Agent::default());
-        let e = fx.area.start_send("w1", StartOptions { notify: Some(strings(&["nobody"])), ..go("x") }, None).await.err().expect("refused");
+        let e =
+            fx.area.start_send("w1", StartOptions { notify: Some(strings(&["nobody"])), ..go("x") }, None).await.err().expect("refused");
         assert_eq!(said(&e), said(&err("no thread nobody to notify")));
         assert_eq!(order(&fx.host, &["sub_done"]), Vec::<String>::new(), "a workspace that is no sub-machine arms nothing");
     })
@@ -657,7 +724,9 @@ fn a_refused_start_on_a_sub_machine_arms_its_done() {
 fn the_thread_id_is_the_named_one_else_as_else_a_fresh_uuid() {
     run_local(async {
         let fx = fx();
-        let p = fx.launches(StartOptions { r#as: Some(StartAs { thread_id: "as-t".into(), turn_id: "as-turn".into() }), ..go("hi") }, None).await;
+        let p = fx
+            .launches(StartOptions { r#as: Some(StartAs { thread_id: "as-t".into(), turn_id: "as-turn".into() }), ..go("hi") }, None)
+            .await;
         assert_eq!((p.thread_id.as_str(), p.opens), ("as-t", true));
         assert_eq!(fx.host.ids.uuids.borrow().clone(), strings(&["thr-new"]));
 
@@ -686,7 +755,8 @@ fn a_thread_a_record_or_a_row_names_is_a_send_not_an_opening() {
         assert_eq!(fx.host.hooks.called("spawn_guard"), strings(&["spawn_guard(send)"]));
 
         let fx = fx_on(Agent::default());
-        fx.host.add_row("sess-t1", row(view("sess-t1", "w1", json!({ "threadId": "t1", "status": "completed", "startedAt": T0 })), "turn-t1"));
+        fx.host
+            .add_row("sess-t1", row(view("sess-t1", "w1", json!({ "threadId": "t1", "status": "completed", "startedAt": T0 })), "turn-t1"));
         let p = fx.launches(as_t1(), None).await;
         assert_eq!(p.opens, false, "a row and no record");
         assert_eq!(fx.host.hooks.called("spawn_guard"), strings(&["spawn_guard(send)"]));
@@ -717,7 +787,10 @@ fn a_sub_machine_runs_one_thread() {
         let fx = fx_on(Agent::default());
         fx.host.add_entry(entry("w1", sub_json(true)));
         fx.host.add_record("sub-t", "w1", thread_record(json!({ "harness": "claude" })));
-        fx.host.add_row("sess-sub", row(view("sess-sub", "w1", json!({ "threadId": "sub-t", "status": "completed", "startedAt": T0 })), "turn-sub"));
+        fx.host.add_row(
+            "sess-sub",
+            row(view("sess-sub", "w1", json!({ "threadId": "sub-t", "status": "completed", "startedAt": T0 })), "turn-sub"),
+        );
         let live = fx.host.live("w1").expect("the sub-machine");
         hook!(
             fx.host,
@@ -743,9 +816,19 @@ fn an_opening_the_computer_rule_keeps_out_is_refused_in_its_own_words() {
 
         let fx = fx();
         let w = want.clone();
-        hook!(fx.host, "SessionsCtx::opens_in", dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool, |_r: &WorkspaceRecord, _o: Option<&Caller>| false);
+        hook!(
+            fx.host,
+            "SessionsCtx::opens_in",
+            dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool,
+            |_r: &WorkspaceRecord, _o: Option<&Caller>| false
+        );
         hook!(fx.host, "SessionsCtx::of_threads_repository", dyn Fn(Option<&Caller>, &str) -> bool, |_o: Option<&Caller>, _p: &str| true);
-        hook!(fx.host, "SessionsCtx::elsewhere_refusal", dyn Fn(Option<&Caller>, &str, &str) -> Option<HostError>, move |_o: Option<&Caller>, _p: &str, _n: &str| Some(w.clone()));
+        hook!(
+            fx.host,
+            "SessionsCtx::elsewhere_refusal",
+            dyn Fn(Option<&Caller>, &str, &str) -> Option<HostError>,
+            move |_o: Option<&Caller>, _p: &str, _n: &str| Some(w.clone())
+        );
         let e = fx.refused(go("hi"), Some(child.clone())).await;
         assert_eq!(said(&e), said(&want), "a folder");
         assert_eq!(fx.host.hooks.called("elsewhere_refusal"), strings(&["elsewhere_refusal(p1, lab)"]));
@@ -755,9 +838,19 @@ fn an_opening_the_computer_rule_keeps_out_is_refused_in_its_own_words() {
         let fx = fx_on(Agent::default());
         fx.host.add_entry(entry("w1", json!({ "name": "lab", "kind": "cloud" })));
         let m = machine.clone();
-        hook!(fx.host, "SessionsCtx::opens_in", dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool, |_r: &WorkspaceRecord, _o: Option<&Caller>| false);
+        hook!(
+            fx.host,
+            "SessionsCtx::opens_in",
+            dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool,
+            |_r: &WorkspaceRecord, _o: Option<&Caller>| false
+        );
         hook!(fx.host, "SessionsCtx::of_threads_repository", dyn Fn(Option<&Caller>, &str) -> bool, |_o: Option<&Caller>, _p: &str| true);
-        hook!(fx.host, "SessionsCtx::away_for", dyn Fn(&WorkspaceRecord, Option<&Caller>, &str, &str) -> Option<HostError>, move |_r: &WorkspaceRecord, _o: Option<&Caller>, _a: &str, _w: &str| Some(m.clone()));
+        hook!(
+            fx.host,
+            "SessionsCtx::away_for",
+            dyn Fn(&WorkspaceRecord, Option<&Caller>, &str, &str) -> Option<HostError>,
+            move |_r: &WorkspaceRecord, _o: Option<&Caller>, _a: &str, _w: &str| Some(m.clone())
+        );
         let e = fx.refused(go("hi"), Some(child.clone())).await;
         assert_eq!(said(&e), said(&machine), "a machine");
         assert_eq!(fx.host.hooks.called("away_for"), strings(&["away_for(start, w1)"]));
@@ -765,16 +858,31 @@ fn an_opening_the_computer_rule_keeps_out_is_refused_in_its_own_words() {
         before_the_mint(&fx.host);
 
         let fx = fx_on(Agent::default());
-        hook!(fx.host, "SessionsCtx::opens_in", dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool, |_r: &WorkspaceRecord, _o: Option<&Caller>| false);
+        hook!(
+            fx.host,
+            "SessionsCtx::opens_in",
+            dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool,
+            |_r: &WorkspaceRecord, _o: Option<&Caller>| false
+        );
         let w = want.clone();
-        hook!(fx.host, "SessionsCtx::elsewhere_refusal", dyn Fn(Option<&Caller>, &str, &str) -> Option<HostError>, move |_o: Option<&Caller>, _p: &str, _n: &str| Some(w.clone()));
+        hook!(
+            fx.host,
+            "SessionsCtx::elsewhere_refusal",
+            dyn Fn(Option<&Caller>, &str, &str) -> Option<HostError>,
+            move |_o: Option<&Caller>, _p: &str, _n: &str| Some(w.clone())
+        );
         fx.launches(go("hi"), Some(child.clone())).await;
         assert_eq!(fx.host.hooks.called("elsewhere_refusal"), Vec::<String>::new(), "a project of another repository reads as absent here");
 
         let fx = fx_on(Agent::default());
         hook!(fx.host, "SessionsCtx::of_threads_repository", dyn Fn(Option<&Caller>, &str) -> bool, |_o: Option<&Caller>, _p: &str| true);
         let w = want;
-        hook!(fx.host, "SessionsCtx::elsewhere_refusal", dyn Fn(Option<&Caller>, &str, &str) -> Option<HostError>, move |_o: Option<&Caller>, _p: &str, _n: &str| Some(w.clone()));
+        hook!(
+            fx.host,
+            "SessionsCtx::elsewhere_refusal",
+            dyn Fn(Option<&Caller>, &str, &str) -> Option<HostError>,
+            move |_o: Option<&Caller>, _p: &str, _n: &str| Some(w.clone())
+        );
         fx.launches(go("hi"), Some(child)).await;
         assert_eq!(fx.host.hooks.called("elsewhere_refusal"), Vec::<String>::new(), "a workspace the caller may open in is not asked");
     })
@@ -801,7 +909,11 @@ fn a_restart_only_opens() {
 fn a_restart_of_a_busy_thread_is_refused() {
     run_local(async {
         let fx = fx();
-        hook!(fx.host, "SessionsCtx::thread_facts", dyn Fn(&str) -> Option<ThreadFacts>, |t: &str| if t == "a1" { Some(facts("a1", "running")) } else { None });
+        hook!(fx.host, "SessionsCtx::thread_facts", dyn Fn(&str) -> Option<ThreadFacts>, |t: &str| if t == "a1" {
+            Some(facts("a1", "running"))
+        } else {
+            None
+        });
         let e = fx.refused(StartOptions { replaces: Some("a1".into()), ..go("build the parser") }, None).await;
         assert_eq!(said(&e), said(&usage(&replaces_working_line("a1"), &replaces_working_fix("a1"))));
         assert_eq!(order(&fx.host, &["entry_of", "thread_facts", "agent_off"]).first().map(String::as_str), Some("entry_of(w1)"));
@@ -822,8 +934,17 @@ fn a_send_across_computers_carries_no_files_and_no_follow() {
         let across = |fx: &Fx| {
             fx.host.add_entry(entry("wbox", json!({ "name": "box", "kind": "place", "project": "pbox" })));
             fx.thread_on("t1", "w1", "claude");
-            hook!(fx.host, "SessionsCtx::acts_on", dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool, |r: &WorkspaceRecord, _o: Option<&Caller>| r.id != "w1");
-            hook!(fx.host, "SessionsCtx::project_computer_name", dyn Fn(&str) -> String, |p: &str| if p == "pbox" { "hetzner".to_string() } else { "default".to_string() });
+            hook!(
+                fx.host,
+                "SessionsCtx::acts_on",
+                dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool,
+                |r: &WorkspaceRecord, _o: Option<&Caller>| r.id != "w1"
+            );
+            hook!(fx.host, "SessionsCtx::project_computer_name", dyn Fn(&str) -> String, |p: &str| if p == "pbox" {
+                "hetzner".to_string()
+            } else {
+                "default".to_string()
+            });
         };
         let file = Attachment { media_type: "text/plain".into(), bytes: "aGk=".into(), name: Some("notes.sh".into()) };
         let sent = |o: StartOptions| StartOptions { thread: Some("t1".into()), ..o };
@@ -849,7 +970,8 @@ fn a_send_across_computers_carries_no_files_and_no_follow() {
         let fx = fx_on(Agent { road, ..Default::default() });
         fx.host.add_entry(entry("wbox", json!({ "name": "box", "kind": "place", "project": "pbox" })));
         fx.thread_on("t1", "w1", "claude");
-        let p = fx.launches(sent(StartOptions { attachments: Some(vec![file]), followed: Some(true), ..go("full reach") }), Some(child)).await;
+        let p =
+            fx.launches(sent(StartOptions { attachments: Some(vec![file]), followed: Some(true), ..go("full reach") }), Some(child)).await;
         assert_eq!(p.thread_id, "t1", "a caller that acts on the workspace carries both");
     })
 }
@@ -905,7 +1027,8 @@ fn a_thread_keeps_its_agent() {
 
         let fx = fx_on(Agent::default());
         fx.thread_on("t1", "w1", "codex");
-        hook!(fx.host, "LaunchCtx::default_agent_of", dyn Fn(&Preferences, &Entry) -> String, |_p: &Preferences, _e: &Entry| "claude".to_string());
+        hook!(fx.host, "LaunchCtx::default_agent_of", dyn Fn(&Preferences, &Entry) -> String, |_p: &Preferences, _e: &Entry| "claude"
+            .to_string());
         let p = fx.launches(StartOptions { thread: Some("t1".into()), ..go("two") }, None).await;
         assert_eq!(p.opts.harness, Some("codex".to_string()), "a send naming none runs on the thread's agent");
         assert_eq!(fx.host.hooks.called("default_agent_of"), Vec::<String>::new());
@@ -954,13 +1077,19 @@ fn an_agent_turned_off_is_refused() {
 #[test]
 fn the_agent_is_the_threads_else_the_outsides_else_the_asked_else_the_default() {
     run_local(async {
-        let codex_default = |fx: &Fx| hook!(fx.host, "LaunchCtx::default_agent_of", dyn Fn(&Preferences, &Entry) -> String, |_p: &Preferences, _e: &Entry| "codex".to_string());
+        let codex_default = |fx: &Fx| {
+            hook!(fx.host, "LaunchCtx::default_agent_of", dyn Fn(&Preferences, &Entry) -> String, |_p: &Preferences, _e: &Entry| "codex"
+                .to_string())
+        };
 
         let fx = fx();
         codex_default(&fx);
         let p = fx.launches(go("one"), None).await;
         assert_eq!(p.opts.harness, Some("codex".to_string()), "none named: the default");
-        assert_eq!(order(&fx.host, &["default_agent_of", "agent_off", "confine_setup"]), strings(&["default_agent_of", "agent_off(codex)", "confine_setup(codex)"]));
+        assert_eq!(
+            order(&fx.host, &["default_agent_of", "agent_off", "confine_setup"]),
+            strings(&["default_agent_of", "agent_off(codex)", "confine_setup(codex)"])
+        );
         assert_eq!(fx.asked.borrow()[0].0, "codex");
 
         let fx = fx_on(Agent::default());
@@ -970,7 +1099,9 @@ fn the_agent_is_the_threads_else_the_outsides_else_the_asked_else_the_default() 
         assert_eq!(fx.host.hooks.called("default_agent_of"), Vec::<String>::new());
 
         let fx = fx_on(Agent::default());
-        let p = fx.launches(StartOptions { harness: Some("claude".into()), outside: Some(outside("codex", "o-1", false)), ..go("one") }, None).await;
+        let p = fx
+            .launches(StartOptions { harness: Some("claude".into()), outside: Some(outside("codex", "o-1", false)), ..go("one") }, None)
+            .await;
         assert_eq!(p.opts.harness, Some("codex".to_string()), "the outside conversation's agent beats the asked one");
     })
 }
@@ -984,10 +1115,15 @@ fn a_deleted_workspace_refuses_the_start() {
     run_local(async {
         let fx = fx();
         let ghost: Entry = entry("w1", json!({ "name": "Second" }));
-        hook!(fx.host, "LaunchCtx::entry_of", dyn Fn(&str, Option<Caller>) -> LocalBoxFuture<'static, Result<Entry, HostError>>, move |_w: &str, _o: Option<Caller>| {
-            let e = ghost.clone();
-            async move { Ok(e) }.boxed_local()
-        });
+        hook!(
+            fx.host,
+            "LaunchCtx::entry_of",
+            dyn Fn(&str, Option<Caller>) -> LocalBoxFuture<'static, Result<Entry, HostError>>,
+            move |_w: &str, _o: Option<Caller>| {
+                let e = ghost.clone();
+                async move { Ok(e) }.boxed_local()
+            }
+        );
         // The workspace is gone from `live` by the time the check runs (sessions.ts:351), though its entry was read.
         hook!(fx.host, "SessionsCtx::live_entry", dyn Fn(&str) -> Option<Entry>, |_w: &str| None);
         let e = fx.refused(go("hi"), None).await;
@@ -1004,7 +1140,8 @@ fn a_napped_workspace_refuses_in_its_words() {
         let fx = fx();
         fx.host.add_entry(entry("w1", json!({ "name": "x", "phase": "napping" })));
         let e = fx.refused(go("go"), None).await;
-        let state = workspace_state(&WorkspaceStateInput { phase: WorkspacePhase::Napping, machine_state: None, reach: None, wake_refused: None });
+        let state =
+            workspace_state(&WorkspaceStateInput { phase: WorkspacePhase::Napping, machine_state: None, reach: None, wake_refused: None });
         let want = send_refusal(&SendRefusalKind::State(state), None, Some("x")).expect("a napping workspace refuses a send");
         assert_eq!(said(&e), said(&err(&want)));
         assert_eq!(fx.host.hooks.called("refuse_sub_send"), strings(&["refuse_sub_send"]));
@@ -1013,8 +1150,10 @@ fn a_napped_workspace_refuses_in_its_words() {
         let fx = fx_on(Agent::default());
         fx.host.add_entry(entry("w1", json!({ "name": "x", "phase": "gone", "gone": "the provider lost it" })));
         let e = fx.refused(go("go"), None).await;
-        let state = workspace_state(&WorkspaceStateInput { phase: WorkspacePhase::Gone, machine_state: None, reach: None, wake_refused: None });
-        let want = send_refusal(&SendRefusalKind::State(state), Some("the provider lost it"), Some("x")).expect("a gone workspace refuses a send");
+        let state =
+            workspace_state(&WorkspaceStateInput { phase: WorkspacePhase::Gone, machine_state: None, reach: None, wake_refused: None });
+        let want =
+            send_refusal(&SendRefusalKind::State(state), Some("the provider lost it"), Some("x")).expect("a gone workspace refuses a send");
         assert_eq!(said(&e), said(&err(&want)));
         before_the_mint(&fx.host);
     })
@@ -1029,7 +1168,10 @@ fn an_unchecked_running_machine_is_proven_before_its_state_is_read() {
         unchecked.borrow_mut().unchecked = true;
         fx.host.add_entry(unchecked);
         fx.launches(go("hi"), None).await;
-        assert_eq!(order(&fx.host, &["confine_setup", "proven", "refuse_sub_send", "copy_blocked"]), strings(&["confine_setup(claude)", "proven", "refuse_sub_send", "copy_blocked"]));
+        assert_eq!(
+            order(&fx.host, &["confine_setup", "proven", "refuse_sub_send", "copy_blocked"]),
+            strings(&["confine_setup(claude)", "proven", "refuse_sub_send", "copy_blocked"])
+        );
 
         let fx = fx_on(Agent::default());
         let napping = entry("w1", json!({ "name": "lab", "phase": "napping" }));
@@ -1072,7 +1214,10 @@ fn a_thread_not_running_is_checked_for_a_blocked_copy_its_mounts_and_a_kept_agen
         );
 
         let fx = fx_on(Agent::default());
-        hook!(fx.host, "SessionsCtx::copy_blocked", dyn Fn(&Entry) -> LocalBoxFuture<'static, Result<(), HostError>>, |_e: &Entry| async { Err(HostError::new("this computer is blocked")) }.boxed_local());
+        hook!(fx.host, "SessionsCtx::copy_blocked", dyn Fn(&Entry) -> LocalBoxFuture<'static, Result<(), HostError>>, |_e: &Entry| async {
+            Err(HostError::new("this computer is blocked"))
+        }
+        .boxed_local());
         let e = fx.refused(go("hi"), None).await;
         assert_eq!(said(&e), said(&err("this computer is blocked")));
         assert_eq!(order(&fx.host, &["worktree_mounted", "kept_check", "spawn_guard"]), Vec::<String>::new());
@@ -1118,7 +1263,12 @@ fn a_title_is_the_first_line_trimmed_and_the_guard_names_the_act() {
         let child = by(WorkspaceOrigin::Relayed, scope("kid", "w1", "lead-t"));
         let denial = usage("a thread may not start here", "ask the lead");
         let d = denial.clone();
-        hook!(fx.host, "SessionsCtx::spawn_guard", dyn Fn(&str, Option<&Caller>) -> Result<(), HostError>, move |_a: &str, _o: Option<&Caller>| Err(d.clone()));
+        hook!(
+            fx.host,
+            "SessionsCtx::spawn_guard",
+            dyn Fn(&str, Option<&Caller>) -> Result<(), HostError>,
+            move |_a: &str, _o: Option<&Caller>| Err(d.clone())
+        );
         let e = fx.refused(go("hi"), Some(child)).await;
         assert_eq!(said(&e), said(&denial));
         assert_eq!(fx.host.hooks.called("spawn_guard"), strings(&["spawn_guard(thread_new)"]));
@@ -1134,12 +1284,26 @@ fn a_title_is_the_first_line_trimmed_and_the_guard_names_the_act() {
 fn a_persons_restart_of_a_child_stands_where_the_replaced_thread_stood() {
     run_local(async {
         let restart = || StartOptions { replaces: Some("a1".into()), ..go("build the parser") };
-        let finished = |fx: &Fx| hook!(fx.host, "SessionsCtx::thread_facts", dyn Fn(&str) -> Option<ThreadFacts>, |t: &str| if t == "a1" { Some(facts("a1", "completed")) } else { None });
+        let finished = |fx: &Fx| {
+            hook!(fx.host, "SessionsCtx::thread_facts", dyn Fn(&str) -> Option<ThreadFacts>, |t: &str| if t == "a1" {
+                Some(facts("a1", "completed"))
+            } else {
+                None
+            })
+        };
 
         let fx = fx();
         finished(&fx);
-        hook!(fx.host, "SessionsCtx::parent_of", dyn Fn(&str) -> Option<String>, |t: &str| if t == "a1" { Some("lead-t".to_string()) } else { None });
-        hook!(fx.host, "SessionsCtx::root_of", dyn Fn(&str) -> String, |t: &str| if t == "a1" { "lead-t".to_string() } else { t.to_string() });
+        hook!(fx.host, "SessionsCtx::parent_of", dyn Fn(&str) -> Option<String>, |t: &str| if t == "a1" {
+            Some("lead-t".to_string())
+        } else {
+            None
+        });
+        hook!(fx.host, "SessionsCtx::root_of", dyn Fn(&str) -> String, |t: &str| if t == "a1" {
+            "lead-t".to_string()
+        } else {
+            t.to_string()
+        });
         let p = fx.launches(restart(), None).await;
         assert_eq!(p.tree, TreeOf { parent_thread_id: Some("lead-t".into()), root_thread_id: Some("lead-t".into()) });
         assert_eq!(p.replaces, Some("a1".to_string()));
@@ -1174,8 +1338,16 @@ fn an_opening_hangs_under_its_callers_root_and_a_send_reads_its_threads_own_tree
 
         let fx = fx_on(Agent::default());
         fx.thread_on("t1", "w1", "claude");
-        hook!(fx.host, "SessionsCtx::parent_of", dyn Fn(&str) -> Option<String>, |t: &str| if t == "t1" { Some("kid".to_string()) } else { None });
-        hook!(fx.host, "SessionsCtx::root_of", dyn Fn(&str) -> String, |t: &str| if t == "t1" { "lead-t".to_string() } else { t.to_string() });
+        hook!(fx.host, "SessionsCtx::parent_of", dyn Fn(&str) -> Option<String>, |t: &str| if t == "t1" {
+            Some("kid".to_string())
+        } else {
+            None
+        });
+        hook!(fx.host, "SessionsCtx::root_of", dyn Fn(&str) -> String, |t: &str| if t == "t1" {
+            "lead-t".to_string()
+        } else {
+            t.to_string()
+        });
         let p = fx.launches(StartOptions { thread: Some("t1".into()), ..go("more") }, None).await;
         assert_eq!(p.tree, TreeOf { parent_thread_id: Some("kid".into()), root_thread_id: Some("lead-t".into()) });
         assert_eq!(fx.host.hooks.called("tree_of"), Vec::<String>::new());
@@ -1193,10 +1365,19 @@ fn invariant_3_the_tree_and_notify_by_come_from_the_callers_token() {
     run_local(async {
         let lead = scope("T", "w1", "R");
         let caller = by(WorkspaceOrigin::Relayed, lead.clone());
-        let tokened = || StartOptions { notify: Some(strings(&["me"])), turn_token: Some("tok-T".into()), started_by: Some(SessionOrigin::Agent), ..go("build it") };
+        let tokened = || StartOptions {
+            notify: Some(strings(&["me"])),
+            turn_token: Some("tok-T".into()),
+            started_by: Some(SessionOrigin::Agent),
+            ..go("build it")
+        };
         let wire = |fx: &Fx, seen: &Rc<RefCell<Vec<Option<ThreadScope>>>>| {
             fx.thread_on("T", "w1", "claude");
-            hook!(fx.host, "SessionsCtx::thread_of_token", dyn Fn(&str) -> Result<String, HostError>, |t: &str| Ok(if t == "tok-T" { "T".to_string() } else { "someone-else".to_string() }));
+            hook!(fx.host, "SessionsCtx::thread_of_token", dyn Fn(&str) -> Result<String, HostError>, |t: &str| Ok(if t == "tok-T" {
+                "T".to_string()
+            } else {
+                "someone-else".to_string()
+            }));
             let log = seen.clone();
             hook!(fx.host, "SessionsCtx::tree_of", dyn Fn(Option<&ThreadScope>) -> TreeOf, move |s: Option<&ThreadScope>| {
                 log.borrow_mut().push(s.cloned());
@@ -1244,16 +1425,27 @@ fn invariant_3_the_tree_and_notify_by_come_from_the_callers_token() {
         fx.thread_on("t1", "w1", "claude");
         let registered = NotifyOn { notify: strings(&["boss"]), by: Some(scope("boss", "w1", "boss")), road: Some(WorkspaceOrigin::Here) };
         let r = registered.clone();
-        hook!(fx.host, "SessionsCtx::notify_on", dyn Fn(&str) -> Option<NotifyOn>, move |t: &str| if t == "t1" { Some(r.clone()) } else { None });
+        hook!(fx.host, "SessionsCtx::notify_on", dyn Fn(&str) -> Option<NotifyOn>, move |t: &str| if t == "t1" {
+            Some(r.clone())
+        } else {
+            None
+        });
         let p = fx.launches(StartOptions { thread: Some("t1".into()), ..go("more") }, Some(caller.clone())).await;
-        assert_eq!((p.asked, p.notify, p.notify_by, p.notify_road), (None, Some(strings(&["boss"])), registered.by.clone(), Some(WorkspaceOrigin::Here)));
+        assert_eq!(
+            (p.asked, p.notify, p.notify_by, p.notify_road),
+            (None, Some(strings(&["boss"])), registered.by.clone(), Some(WorkspaceOrigin::Here))
+        );
 
         // A send that names targets stamps the caller's scope and road over the registered ones.
         let fx = fx_on(Agent::default());
         fx.thread_on("t1", "w1", "claude");
         fx.thread_on("T", "w1", "claude");
         let r = registered.clone();
-        hook!(fx.host, "SessionsCtx::notify_on", dyn Fn(&str) -> Option<NotifyOn>, move |t: &str| if t == "t1" { Some(r.clone()) } else { None });
+        hook!(fx.host, "SessionsCtx::notify_on", dyn Fn(&str) -> Option<NotifyOn>, move |t: &str| if t == "t1" {
+            Some(r.clone())
+        } else {
+            None
+        });
         let p = fx.launches(StartOptions { thread: Some("t1".into()), notify: Some(strings(&["T"])), ..go("more") }, Some(caller)).await;
         assert_eq!((p.notify, p.notify_by, p.notify_road), (Some(strings(&["T"])), Some(lead), Some(WorkspaceOrigin::Relayed)));
     })
@@ -1272,13 +1464,29 @@ fn notify_me_is_the_callers_thread() {
             "tok-2" => Ok("T2".to_string()),
             other => Ok(other.to_string()),
         });
-        let run = |notify: &[&str], token: Option<&str>| StartOptions { notify: Some(strings(notify)), turn_token: token.map(String::from), ..go("build") };
+        let run = |notify: &[&str], token: Option<&str>| StartOptions {
+            notify: Some(strings(notify)),
+            turn_token: token.map(String::from),
+            ..go("build")
+        };
 
         assert_eq!(fx.launches(run(&["me"], Some("tok-1")), None).await.notify, Some(strings(&["T1"])));
-        assert_eq!(fx.launches(run(&["me"], Some("tok-2")), None).await.notify, Some(strings(&["T2"])), "each token resolves to its own thread");
+        assert_eq!(
+            fx.launches(run(&["me"], Some("tok-2")), None).await.notify,
+            Some(strings(&["T2"])),
+            "each token resolves to its own thread"
+        );
         assert_eq!(fx.launches(run(&["T1", "T1"], None), None).await.notify, Some(strings(&["T1"])), "named twice is one target");
-        assert_eq!(fx.launches(run(&["me", "T1"], Some("tok-1")), None).await.notify, Some(strings(&["T1"])), "me and its own thread are one target");
-        assert_eq!(fx.launches(run(&["T2", "me", "T2"], Some("tok-1")), None).await.notify, Some(strings(&["T2", "T1"])), "the first of a target is kept, in order");
+        assert_eq!(
+            fx.launches(run(&["me", "T1"], Some("tok-1")), None).await.notify,
+            Some(strings(&["T1"])),
+            "me and its own thread are one target"
+        );
+        assert_eq!(
+            fx.launches(run(&["T2", "me", "T2"], Some("tok-1")), None).await.notify,
+            Some(strings(&["T2", "T1"])),
+            "the first of a target is kept, in order"
+        );
         let before = fx.host.hooks.called("thread_of_token").len();
         assert_eq!(fx.launches(run(&["me"], None), None).await.notify, Some(strings(&["me"])), "no token: me is the person");
         assert_eq!(fx.host.hooks.called("thread_of_token").len(), before);
@@ -1297,7 +1505,13 @@ fn notify_refuses_itself_a_stranger_and_a_cycle() {
 
         let fx = fx_on(Agent::default());
         fx.thread_on("mine", "w1", "claude");
-        hook!(fx.host, "SessionsCtx::reaches_row", dyn Fn(&SessionView, Option<&Caller>, Option<TreeTalk>) -> bool, |_v: &SessionView, _o: Option<&Caller>, _k: Option<TreeTalk>| false);
+        hook!(fx.host, "SessionsCtx::reaches_row", dyn Fn(&SessionView, Option<&Caller>, Option<TreeTalk>) -> bool, |_v: &SessionView,
+                                                                                                                     _o: Option<
+            &Caller,
+        >,
+                                                                                                                     _k: Option<
+            TreeTalk,
+        >| false);
         let child = by(WorkspaceOrigin::Relayed, scope("kid", "w1", "lead-t"));
         let e = fx.refused(StartOptions { notify: Some(strings(&["mine"])), ..go("out") }, Some(child)).await;
         assert_eq!(said(&e), said(&err("no thread mine to notify")));
@@ -1320,7 +1534,11 @@ fn notify_refuses_itself_a_stranger_and_a_cycle() {
         let target = "bbbbbbbb-1234-5678";
         let fx = fx_on(Agent::default());
         fx.thread_on(target, "w1", "claude");
-        hook!(fx.host, "SessionsCtx::notify_on", dyn Fn(&str) -> Option<NotifyOn>, move |t: &str| if t == target { Some(NotifyOn { notify: strings(&["c-thread"]), by: None, road: None }) } else { None });
+        hook!(fx.host, "SessionsCtx::notify_on", dyn Fn(&str) -> Option<NotifyOn>, move |t: &str| if t == target {
+            Some(NotifyOn { notify: strings(&["c-thread"]), by: None, road: None })
+        } else {
+            None
+        });
         let reached: Rc<RefCell<Vec<Vec<String>>>> = Rc::new(RefCell::new(Vec::new()));
         let log = reached.clone();
         hook!(fx.host, "SessionsCtx::notify_reach", dyn Fn(&[String]) -> IndexSet<String>, move |n: &[String]| {
@@ -1333,7 +1551,10 @@ fn notify_refuses_itself_a_stranger_and_a_cycle() {
         before_the_mint(&fx.host);
 
         // a chain that does not come back passes
-        hook!(fx.host, "SessionsCtx::notify_reach", dyn Fn(&[String]) -> IndexSet<String>, |_n: &[String]| ["c-thread"].iter().map(|s| s.to_string()).collect());
+        hook!(fx.host, "SessionsCtx::notify_reach", dyn Fn(&[String]) -> IndexSet<String>, |_n: &[String]| ["c-thread"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect());
         fx.host.ids.uuids.borrow_mut().push("thr-new".into());
         let p = fx.launches(StartOptions { notify: Some(strings(&[target])), ..go("no loop") }, None).await;
         assert_eq!(p.notify, Some(strings(&[target])));
@@ -1359,7 +1580,8 @@ fn a_released_sub_thread_is_resumed_on_its_new_machine() {
             dyn Fn(&Entry, &str, &str, &str) -> LocalBoxFuture<'static, Result<Resumed, HostError>>,
             move |_e: &Entry, _t: &str, _h: &str, _p: &str| {
                 let entry = to.clone();
-                async move { Ok(Resumed { entry, preamble: Some("You run on a machine.".into()), notices: strings(&["moved", "again"]) }) }.boxed_local()
+                async move { Ok(Resumed { entry, preamble: Some("You run on a machine.".into()), notices: strings(&["moved", "again"]) }) }
+                    .boxed_local()
             }
         );
         let minted_for: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
@@ -1379,7 +1601,10 @@ fn a_released_sub_thread_is_resumed_on_its_new_machine() {
         assert_eq!(p.notice, Some("moved\nagain".to_string()));
         assert_eq!(p.clouds, None, "a sub-machine is told no clouds");
         assert_eq!(*minted_for.borrow(), strings(&["w2"]), "the launch is minted for the machine the turn runs on");
-        assert_eq!(order(&fx.host, &["refuse_sub_send", "resume_sub", "thread_launch"]), strings(&["refuse_sub_send", "resume_sub(thr-new, claude, pushed it)", "thread_launch(thr-new, thr-new, false)"]));
+        assert_eq!(
+            order(&fx.host, &["refuse_sub_send", "resume_sub", "thread_launch"]),
+            strings(&["refuse_sub_send", "resume_sub(thr-new, claude, pushed it)", "thread_launch(thr-new, thr-new, false)"])
+        );
     })
 }
 
@@ -1403,21 +1628,45 @@ fn clouds_are_told_for_a_folder_workspace_that_is_no_sub_machine() {
 fn a_queued_workspace_holds_the_start() {
     run_local(async {
         let fx = fx();
-        fx.host.add_entry(entry("w1", json!({ "name": "Second", "phase": "queued", "queue": { "since": "2026-10-01T00:00:00.000Z", "why": "slot" } })));
+        fx.host.add_entry(entry(
+            "w1",
+            json!({ "name": "Second", "phase": "queued", "queue": { "since": "2026-10-01T00:00:00.000Z", "why": "slot" } }),
+        ));
         let kid = scope("kid", "w1", "lead-t");
         let caller = by(WorkspaceOrigin::Relayed, kid);
         let tree = TreeOf { parent_thread_id: Some("lead-t".into()), root_thread_id: Some("lead-t".into()) };
         let t = tree.clone();
         hook!(fx.host, "SessionsCtx::tree_of", dyn Fn(Option<&ThreadScope>) -> TreeOf, move |_s: Option<&ThreadScope>| t.clone());
-        hook!(fx.host, "SessionsCtx::notify_on", dyn Fn(&str) -> Option<NotifyOn>, |_t: &str| Some(NotifyOn { notify: strings(&["boss"]), by: None, road: None }));
-        let held: Rc<RefCell<Vec<(String, String, TreeOf, String, Option<String>, Option<String>, Option<Vec<String>>, Option<Caller>)>>> = Rc::new(RefCell::new(Vec::new()));
+        hook!(fx.host, "SessionsCtx::notify_on", dyn Fn(&str) -> Option<NotifyOn>, |_t: &str| Some(NotifyOn {
+            notify: strings(&["boss"]),
+            by: None,
+            road: None
+        }));
+        let held: Rc<RefCell<Vec<(String, String, TreeOf, String, Option<String>, Option<String>, Option<Vec<String>>, Option<Caller>)>>> =
+            Rc::new(RefCell::new(Vec::new()));
         let log = held.clone();
         hook!(
             fx.host,
             "SessionsCtx::hold_queued",
-            dyn Fn(&str, &str, TreeOf, StartOptions, Option<Vec<String>>, Option<&Caller>) -> LocalBoxFuture<'static, Result<Rc<dyn SessionHandle>, HostError>>,
+            dyn Fn(
+                &str,
+                &str,
+                TreeOf,
+                StartOptions,
+                Option<Vec<String>>,
+                Option<&Caller>,
+            ) -> LocalBoxFuture<'static, Result<Rc<dyn SessionHandle>, HostError>>,
             move |w: &str, t: &str, tree: TreeOf, o: StartOptions, n: Option<Vec<String>>, c: Option<&Caller>| {
-                log.borrow_mut().push((w.to_string(), t.to_string(), tree, o.prompt.clone(), o.title.clone(), o.harness.clone(), n, c.cloned()));
+                log.borrow_mut().push((
+                    w.to_string(),
+                    t.to_string(),
+                    tree,
+                    o.prompt.clone(),
+                    o.title.clone(),
+                    o.harness.clone(),
+                    n,
+                    c.cloned(),
+                ));
                 async { Ok(Handle::new("held-row", "held-turn")) }.boxed_local()
             }
         );
@@ -1430,7 +1679,16 @@ fn a_queued_workspace_holds_the_start() {
         let want_title = title_line("  Second  \nmore");
         assert_eq!(
             *held.borrow(),
-            vec![("w1".to_string(), "thr-new".to_string(), tree, "build it".to_string(), Some(want_title), Some("claude".to_string()), None, Some(caller))],
+            vec![(
+                "w1".to_string(),
+                "thr-new".to_string(),
+                tree,
+                "build it".to_string(),
+                Some(want_title),
+                Some("claude".to_string()),
+                None,
+                Some(caller)
+            )],
             "the targets passed are the ones the start named, none here, never the registered ones"
         );
         assert_eq!(fx.host.hooks.called("adapter_for"), Vec::<String>::new());
@@ -1449,7 +1707,14 @@ fn minted(fx: &Fx) {
         |_e: &Entry, _t: &str, _r: &str, _a: bool| {
             let mut env = IndexMap::new();
             env.insert("WSP_HOST".to_string(), "h-tok".to_string());
-            async move { Ok(ThreadLaunch { scoped_device_id: Some("dev-1".into()), env, wsp: Some(McpServerSpec { command: "wsp".into(), args: strings(&["mcp"]), no_slate: None }) }) }.boxed_local()
+            async move {
+                Ok(ThreadLaunch {
+                    scoped_device_id: Some("dev-1".into()),
+                    env,
+                    wsp: Some(McpServerSpec { command: "wsp".into(), args: strings(&["mcp"]), no_slate: None }),
+                })
+            }
+            .boxed_local()
         }
     );
 }
@@ -1465,7 +1730,11 @@ fn plan_with(has_turn: bool, session: Option<&str>) -> ForkPlan {
             session: session.map(String::from),
             cwd: None,
         },
-        turn: if has_turn { Some(ForkPlanTurn { turn_id: "turn-src".into(), anchor: None, at_ref: None, after: Vec::new() }) } else { None },
+        turn: if has_turn {
+            Some(ForkPlanTurn { turn_id: "turn-src".into(), anchor: None, at_ref: None, after: Vec::new() })
+        } else {
+            None
+        },
         events: Vec::new(),
         picks: ForkPicks::default(),
         forked_from: ForkedFrom { thread_id: "src-t".into(), turn_id: None, title: "Source".into() },
@@ -1484,7 +1753,11 @@ fn same_plan(got: &Option<ForkPlan>, want: &Option<ForkPlan>) {
             assert_eq!(g.picks, w.picks);
             assert_eq!(g.forked_from, w.forked_from);
         }
-        _ => panic!("the plan was {}, and was to be {}", if got.is_some() { "held" } else { "none" }, if want.is_some() { "held" } else { "none" }),
+        _ => panic!(
+            "the plan was {}, and was to be {}",
+            if got.is_some() { "held" } else { "none" },
+            if want.is_some() { "held" } else { "none" }
+        ),
     }
 }
 
@@ -1521,7 +1794,10 @@ fn a_plain_opening_prepares_everything_the_launch_needs() {
         assert_eq!(id_of(&p.entry), "w1");
         assert_eq!((p.replaces.clone(), p.resume.clone(), p.gone_now.clone(), p.title.clone()), (None, None, None, None));
         assert_eq!(p.tree, TreeOf::default());
-        assert_eq!((p.asked.clone(), p.notify.clone(), p.notify_by.clone(), p.notify_road, p.notice.clone()), (None, None, None, None, None));
+        assert_eq!(
+            (p.asked.clone(), p.notify.clone(), p.notify_by.clone(), p.notify_road, p.notice.clone()),
+            (None, None, None, None, None)
+        );
         assert_eq!(p.clouds, Some(Vec::new()));
         assert_eq!(p.turn_token, "01".repeat(16), "randomBytes(16) as hex, drawn after the thread id");
         assert_eq!(p.launch.scoped_device_id, Some("dev-1".to_string()));
@@ -1547,11 +1823,46 @@ fn a_plain_opening_prepares_everything_the_launch_needs() {
         assert_eq!(
             order(
                 &fx.host,
-                &["ready", "preferences_held", "preferences", "fork_opened", "entry_of", "default_agent_of", "agent_off", "confine_setup", "refuse_sub_send", "copy_blocked", "worktree_mounted", "kept_check", "spawn_guard", "tree_of", "notify_on", "place_rows", "thread_launch", "adapter_for"]
+                &[
+                    "ready",
+                    "preferences_held",
+                    "preferences",
+                    "fork_opened",
+                    "entry_of",
+                    "default_agent_of",
+                    "agent_off",
+                    "confine_setup",
+                    "refuse_sub_send",
+                    "copy_blocked",
+                    "worktree_mounted",
+                    "kept_check",
+                    "spawn_guard",
+                    "tree_of",
+                    "notify_on",
+                    "place_rows",
+                    "thread_launch",
+                    "adapter_for"
+                ]
             ),
             strings(&[
-                "ready", "preferences_held", "preferences", "fork_opened(w1)", "entry_of(w1)", "default_agent_of", "agent_off(claude)", "confine_setup(claude)", "refuse_sub_send", "copy_blocked",
-                "worktree_mounted", "kept_check(thr-new)", "spawn_guard(thread_new)", "tree_of", "notify_on(thr-new)", "place_rows", "thread_launch(thr-new, thr-new, false)", "adapter_for(claude)"
+                "ready",
+                "preferences_held",
+                "preferences",
+                "fork_opened(w1)",
+                "entry_of(w1)",
+                "default_agent_of",
+                "agent_off(claude)",
+                "confine_setup(claude)",
+                "refuse_sub_send",
+                "copy_blocked",
+                "worktree_mounted",
+                "kept_check(thr-new)",
+                "spawn_guard(thread_new)",
+                "tree_of",
+                "notify_on(thr-new)",
+                "place_rows",
+                "thread_launch(thr-new, thr-new, false)",
+                "adapter_for(claude)"
             ])
         );
 
@@ -1570,7 +1881,12 @@ fn a_refusal_after_the_mint_revokes_the_device() {
         // a harness no adapter is built for
         let fx = fx();
         minted(&fx);
-        hook!(fx.host, "LaunchCtx::adapter_for", dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>, |_e: &Entry, a: AdapterAsk| Err(HostError::new(format!("no adapter for {}", a.named.unwrap_or_default()))));
+        hook!(
+            fx.host,
+            "LaunchCtx::adapter_for",
+            dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>,
+            |_e: &Entry, a: AdapterAsk| Err(HostError::new(format!("no adapter for {}", a.named.unwrap_or_default())))
+        );
         let e = fx.refused(StartOptions { harness: Some("nope".into()), ..go("hi") }, None).await;
         settle().await;
         assert_eq!(said(&e), said(&err("no adapter for nope")));
@@ -1628,7 +1944,12 @@ fn a_refusal_after_the_mint_revokes_the_device() {
 fn a_launch_with_no_scoped_device_revokes_nothing_and_a_failed_revoke_is_only_warned() {
     run_local(async {
         let fx = fx();
-        hook!(fx.host, "LaunchCtx::adapter_for", dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>, |_e: &Entry, _a: AdapterAsk| Err(HostError::new("no adapter")));
+        hook!(
+            fx.host,
+            "LaunchCtx::adapter_for",
+            dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>,
+            |_e: &Entry, _a: AdapterAsk| Err(HostError::new("no adapter"))
+        );
         let e = fx.refused(go("hi"), None).await;
         settle().await;
         assert_eq!(said(&e), said(&err("no adapter")));
@@ -1636,8 +1957,16 @@ fn a_launch_with_no_scoped_device_revokes_nothing_and_a_failed_revoke_is_only_wa
 
         let fx = fx_on(Agent::default());
         minted(&fx);
-        hook!(fx.host, "LaunchCtx::adapter_for", dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>, |_e: &Entry, _a: AdapterAsk| Err(HostError::new("no adapter")));
-        hook!(fx.host, "LaunchCtx::revoke_device", dyn Fn(&str) -> LocalBoxFuture<'static, Result<(), HostError>>, |_d: &str| async { Err(HostError::new("the door is down")) }.boxed_local());
+        hook!(
+            fx.host,
+            "LaunchCtx::adapter_for",
+            dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>,
+            |_e: &Entry, _a: AdapterAsk| Err(HostError::new("no adapter"))
+        );
+        hook!(fx.host, "LaunchCtx::revoke_device", dyn Fn(&str) -> LocalBoxFuture<'static, Result<(), HostError>>, |_d: &str| async {
+            Err(HostError::new("the door is down"))
+        }
+        .boxed_local());
         let lines = console::capture();
         let e = fx.refused(go("hi"), None).await;
         settle().await;
@@ -1652,7 +1981,16 @@ fn a_fork_the_agent_can_make_carries_its_turn() {
     run_local(async {
         let fx = fx_on(Agent { forks: true, by_count: true, ..Default::default() });
         forking(&fx, plan_with(true, Some("src-sess")));
-        hook!(fx.host, "SessionsCtx::fork_turn_of", dyn Fn(&ForkPlan, bool) -> Result<Option<ForkTurn>, HostError>, |_p: &ForkPlan, by_count: bool| Ok(Some(if by_count { ForkTurn::After(Vec::new()) } else { ForkTurn::Anchor("turn-src".into()) })));
+        hook!(
+            fx.host,
+            "SessionsCtx::fork_turn_of",
+            dyn Fn(&ForkPlan, bool) -> Result<Option<ForkTurn>, HostError>,
+            |_p: &ForkPlan, by_count: bool| Ok(Some(if by_count {
+                ForkTurn::After(Vec::new())
+            } else {
+                ForkTurn::Anchor("turn-src".into())
+            }))
+        );
         let p = fx.launches(go("hi"), None).await;
         assert_eq!(p.fork_turn, Some(ForkTurn::After(Vec::new())));
         same_plan(&p.plan, &Some(plan_with(true, Some("src-sess"))));
@@ -1676,7 +2014,11 @@ fn the_wsp_tools_ride_the_launch_for_a_harness_that_takes_servers() {
         let mut named = IndexMap::new();
         named.insert("mine".to_string(), mine.clone());
         let p = fx.launches(StartOptions { mcp_servers: Some(named), ..go("hi") }, None).await;
-        assert_eq!(p.mcp_servers.map(|m| m.into_iter().collect::<Vec<_>>()), Some(vec![("wsp".to_string(), wsp.clone()), ("mine".to_string(), mine.clone())]), "the wsp server first, the caller's after");
+        assert_eq!(
+            p.mcp_servers.map(|m| m.into_iter().collect::<Vec<_>>()),
+            Some(vec![("wsp".to_string(), wsp.clone()), ("mine".to_string(), mine.clone())]),
+            "the wsp server first, the caller's after"
+        );
 
         let fx = fx_on(Agent::default());
         minted(&fx);
@@ -1685,11 +2027,22 @@ fn the_wsp_tools_ride_the_launch_for_a_harness_that_takes_servers() {
 
         let fx = fx_on(Agent { takes_servers: true, ..Default::default() });
         minted(&fx);
-        hook!(fx.host, "SessionsCtx::tree_of", dyn Fn(Option<&ThreadScope>) -> TreeOf, |_s: Option<&ThreadScope>| TreeOf { parent_thread_id: Some("lead-t".into()), root_thread_id: Some("lead-t".into()) });
+        hook!(fx.host, "SessionsCtx::tree_of", dyn Fn(Option<&ThreadScope>) -> TreeOf, |_s: Option<&ThreadScope>| TreeOf {
+            parent_thread_id: Some("lead-t".into()),
+            root_thread_id: Some("lead-t".into())
+        });
         let child = by(WorkspaceOrigin::Relayed, scope("kid", "w1", "lead-t"));
         let p = fx.launches(go("hi"), Some(child)).await;
         let served = wsp_threads::threads::launch::served_to(Some(&wsp), "lead-t", "thr-new").expect("a server");
-        assert_eq!(p.mcp_servers.map(|m| m.into_iter().collect::<Vec<_>>()), Some(vec![("wsp".to_string(), served)]), "a thread under another serves its tools with no slate");
-        assert_eq!(fx.host.hooks.called("thread_launch"), strings(&["thread_launch(thr-new, lead-t, false)"]), "the launch is minted for the tree's root");
+        assert_eq!(
+            p.mcp_servers.map(|m| m.into_iter().collect::<Vec<_>>()),
+            Some(vec![("wsp".to_string(), served)]),
+            "a thread under another serves its tools with no slate"
+        );
+        assert_eq!(
+            fx.host.hooks.called("thread_launch"),
+            strings(&["thread_launch(thr-new, lead-t, false)"]),
+            "the launch is minted for the tree's root"
+        );
     })
 }

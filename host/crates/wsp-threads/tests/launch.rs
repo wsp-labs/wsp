@@ -91,7 +91,10 @@ fn a_child_gets_no_slate_and_the_scoped_arg_list_gains_the_flag() {
 fn a_child_server_without_the_scoped_arg_keeps_its_args() {
     let wsp = wsp_server(&["/opt/wsp/bin.js", "mcp"]);
     let got = served_to(Some(&wsp), "root", "child").expect("a server for the child");
-    assert_eq!(serde_json::to_string(&got).unwrap(), r#"{"command":"/usr/local/bin/node","args":["/opt/wsp/bin.js","mcp"],"noSlate":true}"#);
+    assert_eq!(
+        serde_json::to_string(&got).unwrap(),
+        r#"{"command":"/usr/local/bin/node","args":["/opt/wsp/bin.js","mcp"],"noSlate":true}"#
+    );
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -191,7 +194,11 @@ fn held_clouds_are_sorted() {
     let mut prompt = String::new();
     let rows = vec![provider("solari"), computer("mac"), provider("alpha"), provider("box")];
     let held = clouds_told(Some(rows), &host.records, "t1", &mut prompt);
-    assert_eq!(held, vec![said_of("box"), said_of("solari"), said_of("alpha")], "by code unit, so an upper case name leads a lower case one, and a computer is no cloud");
+    assert_eq!(
+        held,
+        vec![said_of("box"), said_of("solari"), said_of("alpha")],
+        "by code unit, so an upper case name leads a lower case one, and a computer is no cloud"
+    );
 }
 
 // L3: launch.ts:221
@@ -249,11 +256,19 @@ fn set_catalog(host: &FakeHost, c: Option<HarnessCatalog>) {
 }
 
 fn set_ran(host: &FakeHost, ran: Rc<RefCell<RanPicks>>) {
-    host.hooks.set::<dyn Fn(&str, &str, Option<&str>) -> RanPicks>("LaunchCtx::ran_on", Rc::new(move |_w: &str, _t: &str, _s: Option<&str>| ran.borrow().clone()));
+    host.hooks.set::<dyn Fn(&str, &str, Option<&str>) -> RanPicks>(
+        "LaunchCtx::ran_on",
+        Rc::new(move |_w: &str, _t: &str, _s: Option<&str>| ran.borrow().clone()),
+    );
 }
 
 fn ran(model: Option<&str>, effort: Option<&str>, window: Option<&str>) -> RanPicks {
-    RanPicks { model: model.map(String::from), effort: effort.map(String::from), context_window: window.map(String::from), permission_mode: None }
+    RanPicks {
+        model: model.map(String::from),
+        effort: effort.map(String::from),
+        context_window: window.map(String::from),
+        permission_mode: None,
+    }
 }
 
 fn picks(model: Option<&str>, effort: Option<&str>, mode: Option<&str>) -> StartPicks {
@@ -284,24 +299,44 @@ fn picks_named_win_over_the_threads_own() {
     run_local(async {
         let (host, area, e) = picks_rig();
         set_ran(&host, Rc::new(RefCell::new(ran(Some("claude-opus-5"), Some("low"), None))));
-        host.hooks.set::<dyn Fn(&str, &str, Option<&str>) -> Option<String>>("LaunchCtx::access_of", Rc::new(|_w: &str, _t: &str, _s: Option<&str>| Some("default".to_string())));
+        host.hooks.set::<dyn Fn(&str, &str, Option<&str>) -> Option<String>>(
+            "LaunchCtx::access_of",
+            Rc::new(|_w: &str, _t: &str, _s: Option<&str>| Some("default".to_string())),
+        );
         host.hooks.set::<dyn Fn(Option<&HarnessCatalog>, &str, &AccessChoice) -> Option<String>>(
             "LaunchCtx::named_mode",
-            Rc::new(|_c: Option<&HarnessCatalog>, _h: &str, a: &AccessChoice| (*a == AccessChoice::Full).then(|| "bypassPermissions".to_string())),
+            Rc::new(|_c: Option<&HarnessCatalog>, _h: &str, a: &AccessChoice| {
+                (*a == AccessChoice::Full).then(|| "bypassPermissions".to_string())
+            }),
         );
         // A permission mode named is the access, and the access word is never read.
-        let read = read_picks(&area, &e, &LaunchAsked { permission_mode: Some("acceptEdits".into()), access: Some(AccessChoice::Full), ..Default::default() }).await.unwrap();
+        let read = read_picks(
+            &area,
+            &e,
+            &LaunchAsked { permission_mode: Some("acceptEdits".into()), access: Some(AccessChoice::Full), ..Default::default() },
+        )
+        .await
+        .unwrap();
         assert_eq!(read.catalog, Some(catalog()));
-        assert_eq!((read.picks_for)(Some("sess-1")).unwrap(), launch_picks_of(picks(Some("claude-opus-5"), Some("low"), Some("acceptEdits")), None));
+        assert_eq!(
+            (read.picks_for)(Some("sess-1")).unwrap(),
+            launch_picks_of(picks(Some("claude-opus-5"), Some("low"), Some("acceptEdits")), None)
+        );
         assert_eq!(host.hooks.called("named_mode"), Vec::<String>::new());
         assert_eq!(host.hooks.called("access_of"), Vec::<String>::new(), "a named access leaves the thread's own unread");
         // An access word is named through the catalog.
         let read = read_picks(&area, &e, &LaunchAsked { access: Some(AccessChoice::Full), ..Default::default() }).await.unwrap();
-        assert_eq!((read.picks_for)(Some("sess-1")).unwrap(), launch_picks_of(picks(Some("claude-opus-5"), Some("low"), Some("bypassPermissions")), None));
+        assert_eq!(
+            (read.picks_for)(Some("sess-1")).unwrap(),
+            launch_picks_of(picks(Some("claude-opus-5"), Some("low"), Some("bypassPermissions")), None)
+        );
         assert_eq!(host.hooks.called("named_mode"), vec!["named_mode(claude)".to_string()]);
         // A model named wins over the thread's, and the thread's effort rides where the new model takes it.
         let read = read_picks(&area, &e, &LaunchAsked { model: Some("claude-sonnet-5".into()), ..Default::default() }).await.unwrap();
-        assert_eq!((read.picks_for)(Some("sess-1")).unwrap(), launch_picks_of(picks(Some("claude-sonnet-5"), Some("low"), Some("default")), None));
+        assert_eq!(
+            (read.picks_for)(Some("sess-1")).unwrap(),
+            launch_picks_of(picks(Some("claude-sonnet-5"), Some("low"), Some("default")), None)
+        );
     });
 }
 
@@ -312,7 +347,10 @@ fn a_threads_own_access_applies_only_where_the_harness_lists_it() {
         let (host, area, e) = picks_rig();
         let own = Rc::new(RefCell::new(Some("acceptEdits".to_string())));
         let o = own.clone();
-        host.hooks.set::<dyn Fn(&str, &str, Option<&str>) -> Option<String>>("LaunchCtx::access_of", Rc::new(move |_w: &str, _t: &str, _s: Option<&str>| o.borrow().clone()));
+        host.hooks.set::<dyn Fn(&str, &str, Option<&str>) -> Option<String>>(
+            "LaunchCtx::access_of",
+            Rc::new(move |_w: &str, _t: &str, _s: Option<&str>| o.borrow().clone()),
+        );
         let read = read_picks(&area, &e, &LaunchAsked::default()).await.unwrap();
         assert_eq!((read.picks_for)(Some("sess-1")).unwrap(), launch_picks_of(picks(None, None, Some("acceptEdits")), None));
         assert_eq!(host.hooks.called("access_of"), vec![r#"access_of(w1, t1, Some("sess-1"))"#.to_string()]);
@@ -336,14 +374,26 @@ fn a_thread_with_none_opens_on_the_defaults() {
             ],
         }));
         let resolved = DefaultsOn { catalog: marked.clone(), open_model: Some("claude-sonnet-5".into()), open_effort: Some("low".into()) };
-        host.hooks.set::<dyn Fn(HarnessCatalog, &Preferences, &str) -> DefaultsOn>("LaunchCtx::defaults_on", Rc::new(move |_c: HarnessCatalog, _p: &Preferences, _project: &str| resolved.clone()));
+        host.hooks.set::<dyn Fn(HarnessCatalog, &Preferences, &str) -> DefaultsOn>(
+            "LaunchCtx::defaults_on",
+            Rc::new(move |_c: HarnessCatalog, _p: &Preferences, _project: &str| resolved.clone()),
+        );
         let read = read_picks(&area, &e, &LaunchAsked::default()).await.unwrap();
         assert_eq!(read.catalog, Some(marked), "the catalog the defaults marked, not the one the harness answered");
         assert_eq!((read.picks_for)(None).unwrap(), launch_picks_of(picks(Some("claude-sonnet-5"), Some("low"), Some("default")), None));
         assert_eq!(host.hooks.called("defaults_on"), vec!["defaults_on(p1)".to_string()], "read against the workspace's project");
         // A pick the start names is over all of them.
-        let read = read_picks(&area, &e, &LaunchAsked { model: Some("claude-opus-5".into()), permission_mode: Some("bypassPermissions".into()), ..Default::default() }).await.unwrap();
-        assert_eq!((read.picks_for)(None).unwrap(), launch_picks_of(picks(Some("claude-opus-5"), Some("low"), Some("bypassPermissions")), None));
+        let read = read_picks(
+            &area,
+            &e,
+            &LaunchAsked { model: Some("claude-opus-5".into()), permission_mode: Some("bypassPermissions".into()), ..Default::default() },
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            (read.picks_for)(None).unwrap(),
+            launch_picks_of(picks(Some("claude-opus-5"), Some("low"), Some("bypassPermissions")), None)
+        );
     });
 }
 
@@ -353,7 +403,10 @@ fn a_new_thread_with_no_defaults_opens_on_the_catalogs_marks() {
     run_local(async {
         let (host, area, e) = picks_rig();
         let read = read_picks(&area, &e, &LaunchAsked::default()).await.unwrap();
-        assert_eq!((read.picks_for)(None).unwrap(), launch_picks_of(picks(Some("claude-opus-5"), Some("high"), Some("bypassPermissions")), None));
+        assert_eq!(
+            (read.picks_for)(None).unwrap(),
+            launch_picks_of(picks(Some("claude-opus-5"), Some("high"), Some("bypassPermissions")), None)
+        );
         assert_eq!(host.hooks.called("resumed_fact"), Vec::<String>::new(), "a new session resumes nothing");
     });
 }
@@ -406,17 +459,26 @@ fn a_resume_never_takes_the_defaults_open_picks() {
     run_local(async {
         let (host, area, e) = picks_rig();
         let resolved = DefaultsOn { catalog: catalog(), open_model: Some("claude-sonnet-5".into()), open_effort: Some("low".into()) };
-        host.hooks.set::<dyn Fn(HarnessCatalog, &Preferences, &str) -> DefaultsOn>("LaunchCtx::defaults_on", Rc::new(move |_c: HarnessCatalog, _p: &Preferences, _project: &str| resolved.clone()));
+        host.hooks.set::<dyn Fn(HarnessCatalog, &Preferences, &str) -> DefaultsOn>(
+            "LaunchCtx::defaults_on",
+            Rc::new(move |_c: HarnessCatalog, _p: &Preferences, _project: &str| resolved.clone()),
+        );
         let on = Rc::new(RefCell::new(RanPicks::default()));
         set_ran(&host, on.clone());
         let read = read_picks(&area, &e, &LaunchAsked::default()).await.unwrap();
         assert_eq!((read.picks_for)(Some("sess-1")).unwrap(), launch_picks_of(StartPicks::default(), None), "a resume opens on nothing");
         // A new session on a thread that already ran a model opens on that model, and the catalog's mark for the effort.
         *on.borrow_mut() = ran(Some("claude-opus-5"), None, None);
-        assert_eq!((read.picks_for)(None).unwrap(), launch_picks_of(picks(Some("claude-opus-5"), Some("high"), Some("bypassPermissions")), None));
+        assert_eq!(
+            (read.picks_for)(None).unwrap(),
+            launch_picks_of(picks(Some("claude-opus-5"), Some("high"), Some("bypassPermissions")), None)
+        );
         // One that ran only an effort keeps it, and the model is the catalog's mark, not the defaults' open one.
         *on.borrow_mut() = ran(None, Some("max"), None);
-        assert_eq!((read.picks_for)(None).unwrap(), launch_picks_of(picks(Some("claude-opus-5"), Some("max"), Some("bypassPermissions")), None));
+        assert_eq!(
+            (read.picks_for)(None).unwrap(),
+            launch_picks_of(picks(Some("claude-opus-5"), Some("max"), Some("bypassPermissions")), None)
+        );
     });
 }
 
@@ -431,7 +493,10 @@ fn an_open_catalog_takes_any_model_named_and_starts_on_the_one_set_for_it() {
         }));
         set_catalog(&host, Some(open.clone()));
         let resolved = DefaultsOn { catalog: open, open_model: Some("anthropic/claude-sonnet-5".into()), open_effort: None };
-        host.hooks.set::<dyn Fn(HarnessCatalog, &Preferences, &str) -> DefaultsOn>("LaunchCtx::defaults_on", Rc::new(move |_c: HarnessCatalog, _p: &Preferences, _project: &str| resolved.clone()));
+        host.hooks.set::<dyn Fn(HarnessCatalog, &Preferences, &str) -> DefaultsOn>(
+            "LaunchCtx::defaults_on",
+            Rc::new(move |_c: HarnessCatalog, _p: &Preferences, _project: &str| resolved.clone()),
+        );
         let read = read_picks(&area, &e, &LaunchAsked::default()).await.unwrap();
         assert_eq!((read.picks_for)(None).unwrap(), launch_picks_of(picks(Some("anthropic/claude-sonnet-5"), None, Some("auto")), None));
         let read = read_picks(&area, &e, &LaunchAsked { model: Some("openai/gpt-x".into()), ..Default::default() }).await.unwrap();
@@ -455,7 +520,10 @@ fn a_refused_model_reads_the_not_run_words() {
         // Where the runtime has words for a model that is not run, they replace it.
         let words = err("claude-nope is not run on this computer", Some(Kind::Usage));
         let w = words.clone();
-        host.hooks.set::<dyn Fn(Option<&HarnessCatalog>, Option<&str>) -> Option<HostError>>("LaunchCtx::not_run_refused", Rc::new(move |_c: Option<&HarnessCatalog>, _m: Option<&str>| Some(w.clone())));
+        host.hooks.set::<dyn Fn(Option<&HarnessCatalog>, Option<&str>) -> Option<HostError>>(
+            "LaunchCtx::not_run_refused",
+            Rc::new(move |_c: Option<&HarnessCatalog>, _m: Option<&str>| Some(w.clone())),
+        );
         let got = (read.picks_for)(None).unwrap_err();
         assert_eq!(said(&got), said(&words));
     });
@@ -473,10 +541,28 @@ fn no_table_no_catalog() {
         assert_eq!(read.catalog, None);
         // The thread's own latest picks stand for whatever the send leaves out, with nothing to check them against.
         assert_eq!((read.picks_for)(Some("sess-1")).unwrap(), launch_picks_of(picks(Some("ran-model"), Some("ran-effort"), None), None));
-        let asked = LaunchAsked { model: Some("m1".into()), effort: Some("e1".into()), permission_mode: Some("p1".into()), context_window: Some("cw".into()), fast: Some(true), ..Default::default() };
+        let asked = LaunchAsked {
+            model: Some("m1".into()),
+            effort: Some("e1".into()),
+            permission_mode: Some("p1".into()),
+            context_window: Some("cw".into()),
+            fast: Some(true),
+            ..Default::default()
+        };
         let read = read_picks(&area, &e, &asked).await.unwrap();
         let got = (read.picks_for)(None).unwrap();
-        assert_eq!(got, LaunchPicks { picks: StartPicks { model: Some("m1".into()), effort: Some("e1".into()), permission_mode: Some("p1".into()), fast: Some(true) }, context_window: Some("cw".into()) });
+        assert_eq!(
+            got,
+            LaunchPicks {
+                picks: StartPicks {
+                    model: Some("m1".into()),
+                    effort: Some("e1".into()),
+                    permission_mode: Some("p1".into()),
+                    fast: Some(true)
+                },
+                context_window: Some("cw".into())
+            }
+        );
         assert_eq!(host.hooks.called("defaults_on"), Vec::<String>::new());
         assert_eq!(host.hooks.called("access_of"), Vec::<String>::new());
     });
@@ -498,7 +584,10 @@ fn the_fixed_key_writes_only_present_keys_in_order() {
     let (host, area, e) = fixed_rig();
     assert_eq!(area.launch_fixed(&e, "claude", "/work/w1", None, None), r#"{"harness":"claude","cwd":"/work/w1"}"#);
     assert_eq!(area.launch_fixed(&e, "claude", "/work/w1", None, Some(None)), r#"{"harness":"claude","cwd":"/work/w1","version":null}"#);
-    assert_eq!(area.launch_fixed(&e, "claude", "/work/w1", None, Some(Some("2.1.0"))), r#"{"harness":"claude","cwd":"/work/w1","version":"2.1.0"}"#);
+    assert_eq!(
+        area.launch_fixed(&e, "claude", "/work/w1", None, Some(Some("2.1.0"))),
+        r#"{"harness":"claude","cwd":"/work/w1","version":"2.1.0"}"#
+    );
     // A place whose setup says nothing for the agent writes no setup key.
     host.hooks.set::<dyn Fn(&Entry) -> Option<String>>("LaunchCtx::setup_place", Rc::new(|_e: &Entry| Some("here".to_string())));
     assert_eq!(area.launch_fixed(&e, "claude", "/work/w1", None, None), r#"{"harness":"claude","cwd":"/work/w1"}"#);
@@ -519,8 +608,14 @@ fn the_fixed_key_carries_the_servers_the_version_and_the_setup_whole() {
         area.launch_fixed(&e, "claude", "/work/w1", Some(&servers), Some(Some("2.1.0"))),
         r#"{"harness":"claude","cwd":"/work/w1","mcpServers":{"wsp":{"command":"/bin/wsp","args":["mcp"]}},"version":"2.1.0","setup":{"program":"/opt/claude","args":["--debug"]}}"#
     );
-    host.hooks.set::<dyn Fn(&str, &str) -> Option<AgentLaunch>>("LaunchCtx::launch_of", Rc::new(|_p: &str, _h: &str| Some(AgentLaunch { program: None, args: Some(vec!["--debug".into()]) })));
-    assert_eq!(area.launch_fixed(&e, "codex", "/c", None, Some(None)), r#"{"harness":"codex","cwd":"/c","version":null,"setup":{"args":["--debug"]}}"#);
+    host.hooks.set::<dyn Fn(&str, &str) -> Option<AgentLaunch>>(
+        "LaunchCtx::launch_of",
+        Rc::new(|_p: &str, _h: &str| Some(AgentLaunch { program: None, args: Some(vec!["--debug".into()]) })),
+    );
+    assert_eq!(
+        area.launch_fixed(&e, "codex", "/c", None, Some(None)),
+        r#"{"harness":"codex","cwd":"/c","version":null,"setup":{"args":["--debug"]}}"#
+    );
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -690,7 +785,9 @@ async fn warm(r: &Rig, a: WarmAsk) -> Result<SessionWarmResult, HostError> {
 }
 
 fn thread_scope() -> Caller {
-    let by: ThreadScope = serde_json::from_value(json!({ "kind": "thread", "threadId": "t-lead", "workspaceId": "w1", "rootThreadId": "t-lead" })).expect("a scope");
+    let by: ThreadScope =
+        serde_json::from_value(json!({ "kind": "thread", "threadId": "t-lead", "workspaceId": "w1", "rootThreadId": "t-lead" }))
+            .expect("a scope");
     Caller::Scoped { origin: WorkspaceOrigin::Here, by }
 }
 
@@ -785,9 +882,15 @@ fn the_default_agent_is_warmed_where_none_is_named_and_held_preferences_are_read
         let mut held = default_preferences();
         held.default_agent = Some("held-agent".into());
         r.host.hooks.set::<dyn Fn() -> Option<Preferences>>("LaunchCtx::preferences_held", Rc::new(move || Some(held.clone())));
-        r.host.hooks.set::<dyn Fn(&Preferences, &Entry) -> String>("LaunchCtx::default_agent_of", Rc::new(|p: &Preferences, _e: &Entry| p.default_agent.clone().expect("a default agent")));
+        r.host.hooks.set::<dyn Fn(&Preferences, &Entry) -> String>(
+            "LaunchCtx::default_agent_of",
+            Rc::new(|p: &Preferences, _e: &Entry| p.default_agent.clone().expect("a default agent")),
+        );
         assert_eq!(warm(&r, WarmAsk::default()).await.unwrap(), started());
-        assert_eq!(r.asks.borrow().iter().map(|a| a.0.clone()).collect::<Vec<_>>(), vec!["held-agent".to_string(), "held-agent".to_string()]);
+        assert_eq!(
+            r.asks.borrow().iter().map(|a| a.0.clone()).collect::<Vec<_>>(),
+            vec!["held-agent".to_string(), "held-agent".to_string()]
+        );
         assert_eq!(r.held.borrow()[0].1.warm.as_ref().expect("a warm hold").harness, "held-agent");
         assert_eq!(r.host.hooks.called("preferences"), Vec::<String>::new(), "the store is not read where the host holds them");
         // Where it holds none, the stored ones are read.
@@ -801,7 +904,10 @@ fn the_default_agent_is_warmed_where_none_is_named_and_held_preferences_are_read
                 async move { Ok(p) }.boxed_local()
             }),
         );
-        r.host.hooks.set::<dyn Fn(&Preferences, &Entry) -> String>("LaunchCtx::default_agent_of", Rc::new(|p: &Preferences, _e: &Entry| p.default_agent.clone().expect("a default agent")));
+        r.host.hooks.set::<dyn Fn(&Preferences, &Entry) -> String>(
+            "LaunchCtx::default_agent_of",
+            Rc::new(|p: &Preferences, _e: &Entry| p.default_agent.clone().expect("a default agent")),
+        );
         assert_eq!(warm(&r, WarmAsk::default()).await.unwrap(), started());
         assert_eq!(r.host.hooks.called("preferences"), vec!["preferences".to_string()]);
         assert_eq!(r.held.borrow()[0].1.warm.as_ref().expect("a warm hold").harness, "stored-agent");
@@ -838,7 +944,10 @@ fn a_missing_local_folder_answers_none() {
         // The folder the start names is the one looked for.
         let asked = WarmAsk { cwd: Some("/proj/sub".into()), ..ask() };
         assert_eq!(warm(&r, asked).await.unwrap(), started());
-        assert_eq!(r.host.hooks.called("thread_folder"), vec!["thread_folder(None)".to_string(), r#"thread_folder(Some("/proj/sub"))"#.to_string()]);
+        assert_eq!(
+            r.host.hooks.called("thread_folder"),
+            vec!["thread_folder(None)".to_string(), r#"thread_folder(Some("/proj/sub"))"#.to_string()]
+        );
         assert_eq!(r.adapter.warmed()[0].cwd.as_deref(), Some("/proj/sub"));
     });
 }
@@ -866,14 +975,20 @@ fn the_warm_launch_runs_on_the_catalogs_marks_and_is_held_for_the_threads_first_
         // The process comes up on the model the catalog marks, as the composer's first send would run on.
         let w = r.adapter.warmed();
         assert_eq!(w.len(), 1);
-        assert_eq!((w[0].model.as_deref(), w[0].effort.as_deref(), w[0].permission_mode.as_deref()), (Some("claude-opus-5"), Some("high"), Some("bypassPermissions")));
+        assert_eq!(
+            (w[0].model.as_deref(), w[0].effort.as_deref(), w[0].permission_mode.as_deref()),
+            (Some("claude-opus-5"), Some("high"), Some("bypassPermissions"))
+        );
         let held = r.held.borrow();
         assert_eq!(held.len(), 1);
         assert_eq!(held[0].0, "thr-1");
         assert_eq!(held[0].1.workspace_id, "w1");
         assert_eq!(held[0].1.warm.as_ref().expect("a warm hold").harness, "claude");
         assert_eq!(kept_tag(&held[0].1), "kept-1");
-        assert_eq!(serde_json::to_value(&held[0].1.launch.picks).unwrap(), json!({ "model": "claude-opus-5", "effort": "high", "permissionMode": "bypassPermissions" }));
+        assert_eq!(
+            serde_json::to_value(&held[0].1.launch.picks).unwrap(),
+            json!({ "model": "claude-opus-5", "effort": "high", "permissionMode": "bypassPermissions" })
+        );
         assert_eq!(held[0].1.launch.fixed, r#"{"harness":"claude","cwd":"/work/w1","version":"2.1.0"}"#);
     });
 }
@@ -900,7 +1015,10 @@ fn the_warm_launch_carries_the_token_thread_and_servers_in_order() {
         let vault: Env = IndexMap::from([("VAULT_URL".to_string(), "http://v".to_string())]);
         let v = vault.clone();
         r.host.hooks.set::<dyn Fn() -> Env>("LaunchCtx::vault", Rc::new(move || v.clone()));
-        let launch = ServerValues { entries: Some(IndexMap::from([("launch".to_string(), IndexMap::from([("url".to_string(), json!("http://l"))]))])), config: Some(IndexMap::from([("K".to_string(), "v".to_string())])) };
+        let launch = ServerValues {
+            entries: Some(IndexMap::from([("launch".to_string(), IndexMap::from([("url".to_string(), json!("http://l"))]))])),
+            config: Some(IndexMap::from([("K".to_string(), "v".to_string())])),
+        };
         let l = LaunchServers { server_values: Some(launch.clone()), off_servers: Some(vec!["gone".into()]) };
         r.host.hooks.set::<dyn Fn(&Entry, &str, &dyn HarnessAdapter, &str) -> LocalBoxFuture<'static, Result<LaunchServers, HostError>>>(
             "LaunchCtx::launch_servers_for",
@@ -916,7 +1034,8 @@ fn the_warm_launch_carries_the_token_thread_and_servers_in_order() {
         assert_eq!(asks.len(), 2);
         assert_eq!(asks[0].1.turn_env.as_ref().map_or(0, |e| e.len()), 0, "the probe has no env");
         assert_eq!(asks[0].1.thread.as_deref(), Some("thr-1"));
-        let env: Vec<(String, String)> = asks[1].1.turn_env.as_ref().expect("the warm ask carries the launch env").iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+        let env: Vec<(String, String)> =
+            asks[1].1.turn_env.as_ref().expect("the warm ask carries the launch env").iter().map(|(k, v)| (k.clone(), v.clone())).collect();
         assert_eq!(
             env,
             vec![
@@ -948,7 +1067,10 @@ fn the_warm_launch_carries_the_token_thread_and_servers_in_order() {
         let held = r.held.borrow();
         assert_eq!(held[0].0, "thr-1");
         let h = &held[0].1;
-        assert_eq!((h.workspace_id.as_str(), harness_of(h).as_str(), h.turn_token.as_str(), h.scope_device_id.as_deref()), ("w1", "claude", token.as_str(), Some("dev-1")));
+        assert_eq!(
+            (h.workspace_id.as_str(), harness_of(h).as_str(), h.turn_token.as_str(), h.scope_device_id.as_deref()),
+            ("w1", "claude", token.as_str(), Some("dev-1"))
+        );
         assert!(!waiting(), "the box is off");
         h.waiting.set(true);
         assert!(waiting(), "the held agent shares the box the adapter reads");
@@ -958,7 +1080,17 @@ fn the_warm_launch_carries_the_token_thread_and_servers_in_order() {
         assert_eq!(r.host.hooks.called("launch_servers_for"), vec!["launch_servers_for(claude, /work/w1)".to_string()]);
         in_order(
             &r.host.hooks.calls(),
-            &["ready", "entry_of(w1)", "adapter_for(claude)", "confine_setup(claude)", "catalog_on(claude)", "thread_launch(thr-1, thr-1, false)", "adapter_for(claude)", "launch_servers_for(claude, /work/w1)", "hold_warm(thr-1)"],
+            &[
+                "ready",
+                "entry_of(w1)",
+                "adapter_for(claude)",
+                "confine_setup(claude)",
+                "catalog_on(claude)",
+                "thread_launch(thr-1, thr-1, false)",
+                "adapter_for(claude)",
+                "launch_servers_for(claude, /work/w1)",
+                "hold_warm(thr-1)",
+            ],
         );
     });
 }
@@ -1019,8 +1151,16 @@ fn the_version_rides_only_from_a_harness_catalog_that_has_one_and_always_marks_t
         let cases: [(Option<HarnessCatalog>, Option<&str>, &str); 4] = [
             (None, None, r#"{"harness":"claude","cwd":"/work/w1"}"#),
             (Some(catalog_over(json!({ "version": null }))), None, r#"{"harness":"claude","cwd":"/work/w1","version":null}"#),
-            (Some(catalog_over(json!({ "source": "table", "version": "9.9.9" }))), None, r#"{"harness":"claude","cwd":"/work/w1","version":"9.9.9"}"#),
-            (Some(catalog_over(json!({ "version": "2.1.0" }))), Some("2.1.0"), r#"{"harness":"claude","cwd":"/work/w1","version":"2.1.0"}"#),
+            (
+                Some(catalog_over(json!({ "source": "table", "version": "9.9.9" }))),
+                None,
+                r#"{"harness":"claude","cwd":"/work/w1","version":"9.9.9"}"#,
+            ),
+            (
+                Some(catalog_over(json!({ "version": "2.1.0" }))),
+                Some("2.1.0"),
+                r#"{"harness":"claude","cwd":"/work/w1","version":"2.1.0"}"#,
+            ),
         ];
         for (cat, rides, fixed) in cases {
             let r = rig();
@@ -1052,7 +1192,9 @@ fn a_failed_warm_revokes_its_device() {
         let r = rig_with(FakeAdapter { fail: Some("the agent would not start".into()), ..FakeAdapter::warming() });
         r.host.hooks.set::<dyn Fn(&Entry, &str, &str, bool) -> LocalBoxFuture<'static, Result<ThreadLaunch, HostError>>>(
             "LaunchCtx::thread_launch",
-            Rc::new(|_e: &Entry, _t: &str, _r: &str, _a: bool| async move { Ok(ThreadLaunch { scoped_device_id: Some("dev-1".into()), ..Default::default() }) }.boxed_local()),
+            Rc::new(|_e: &Entry, _t: &str, _r: &str, _a: bool| {
+                async move { Ok(ThreadLaunch { scoped_device_id: Some("dev-1".into()), ..Default::default() }) }.boxed_local()
+            }),
         );
         let got = warm(&r, ask()).await.unwrap_err();
         assert_eq!(got.message, "the agent would not start", "the failure is the caller's");
@@ -1069,7 +1211,9 @@ fn a_failure_building_the_launch_adapter_revokes_too_and_the_revokes_own_failure
         let r = rig();
         r.host.hooks.set::<dyn Fn(&Entry, &str, &str, bool) -> LocalBoxFuture<'static, Result<ThreadLaunch, HostError>>>(
             "LaunchCtx::thread_launch",
-            Rc::new(|_e: &Entry, _t: &str, _r: &str, _a: bool| async move { Ok(ThreadLaunch { scoped_device_id: Some("dev-1".into()), ..Default::default() }) }.boxed_local()),
+            Rc::new(|_e: &Entry, _t: &str, _r: &str, _a: bool| {
+                async move { Ok(ThreadLaunch { scoped_device_id: Some("dev-1".into()), ..Default::default() }) }.boxed_local()
+            }),
         );
         let calls = Rc::new(Cell::new(0));
         let (c, a) = (calls.clone(), r.adapter.clone());
@@ -1086,7 +1230,10 @@ fn a_failure_building_the_launch_adapter_revokes_too_and_the_revokes_own_failure
                 Ok(BuiltAdapter { harness: h, adapter: a.clone() })
             }),
         );
-        r.host.hooks.set::<dyn Fn(&str) -> LocalBoxFuture<'static, Result<(), HostError>>>("LaunchCtx::revoke_device", Rc::new(|_d: &str| async move { Err(err("the device is gone already", None)) }.boxed_local()));
+        r.host.hooks.set::<dyn Fn(&str) -> LocalBoxFuture<'static, Result<(), HostError>>>(
+            "LaunchCtx::revoke_device",
+            Rc::new(|_d: &str| async move { Err(err("the device is gone already", None)) }.boxed_local()),
+        );
         let got = warm(&r, ask()).await.unwrap_err();
         assert_eq!(said(&got), said(&refused));
         assert_eq!(r.host.hooks.called("revoke_device"), vec!["revoke_device(dev-1)".to_string()]);
@@ -1159,16 +1306,31 @@ fn a_changed_pick_reaps_the_standing_one_and_starts_another() {
         assert_eq!(warm(&r, ask_with(Some("claude-sonnet-5"), None, None)).await.unwrap(), started());
         assert_eq!(warm(&r, ask_with(Some("claude-sonnet-5"), Some("low"), None)).await.unwrap(), started());
         assert_eq!(warm(&r, ask_with(Some("claude-sonnet-5"), Some("low"), Some("acceptEdits"))).await.unwrap(), started());
-        assert_eq!(r.host.hooks.called("reap_kept"), vec!["reap_kept(thr-1)".to_string(), "reap_kept(thr-2)".to_string(), "reap_kept(thr-3)".to_string()]);
+        assert_eq!(
+            r.host.hooks.called("reap_kept"),
+            vec!["reap_kept(thr-1)".to_string(), "reap_kept(thr-2)".to_string(), "reap_kept(thr-3)".to_string()]
+        );
         assert_eq!(held_picks(&r, 0), json!({}));
         assert_eq!(held_picks(&r, 1), json!({ "model": "claude-sonnet-5" }));
         assert_eq!(held_picks(&r, 2), json!({ "model": "claude-sonnet-5", "effort": "low" }));
         assert_eq!(held_picks(&r, 3), json!({ "model": "claude-sonnet-5", "effort": "low", "permissionMode": "acceptEdits" }));
         let w = r.adapter.warmed();
-        assert_eq!((w[1].model.as_deref(), w[2].effort.as_deref(), w[3].permission_mode.as_deref()), (Some("claude-sonnet-5"), Some("low"), Some("acceptEdits")));
+        assert_eq!(
+            (w[1].model.as_deref(), w[2].effort.as_deref(), w[3].permission_mode.as_deref()),
+            (Some("claude-sonnet-5"), Some("low"), Some("acceptEdits"))
+        );
         assert_eq!(r.host.hooks.called("rewarm"), Vec::<String>::new());
         // The one standing is the last, and each ask reaped the one before it before it started its own.
-        in_order(&r.host.hooks.calls(), &["reap_kept(thr-1)", "thread_launch(thr-2, thr-2, false)", "hold_warm(thr-2)", "reap_kept(thr-2)", "thread_launch(thr-3, thr-3, false)"]);
+        in_order(
+            &r.host.hooks.calls(),
+            &[
+                "reap_kept(thr-1)",
+                "thread_launch(thr-2, thr-2, false)",
+                "hold_warm(thr-2)",
+                "reap_kept(thr-2)",
+                "thread_launch(thr-3, thr-3, false)",
+            ],
+        );
         assert_eq!(r.standing.borrow().values().map(|v| v.0.clone()).collect::<Vec<_>>(), vec!["thr-4".to_string()]);
     });
 }
@@ -1201,7 +1363,10 @@ fn a_different_folder_is_a_different_launch_and_reaps_the_standing_one() {
         assert_eq!(warm(&r, WarmAsk { cwd: Some("/a".into()), ..ask() }).await.unwrap(), standing());
         assert_eq!(warm(&r, WarmAsk { cwd: Some("/b".into()), ..ask() }).await.unwrap(), started());
         assert_eq!(r.host.hooks.called("reap_kept"), vec!["reap_kept(thr-1)".to_string()]);
-        assert_eq!(r.held.borrow().iter().map(|h| h.1.launch.fixed.clone()).collect::<Vec<_>>(), vec![r#"{"harness":"claude","cwd":"/a"}"#.to_string(), r#"{"harness":"claude","cwd":"/b"}"#.to_string()]);
+        assert_eq!(
+            r.held.borrow().iter().map(|h| h.1.launch.fixed.clone()).collect::<Vec<_>>(),
+            vec![r#"{"harness":"claude","cwd":"/a"}"#.to_string(), r#"{"harness":"claude","cwd":"/b"}"#.to_string()]
+        );
     });
 }
 
@@ -1216,14 +1381,20 @@ fn each_workspace_and_agent_keeps_its_own_standing_one() {
         for id in ["w1", "w2", "w3"] {
             assert_eq!(r.area.warm(id, ask(), None).await.unwrap(), started());
         }
-        assert_eq!(r.host.hooks.called("warm_on"), vec!["warm_on(w1, claude)".to_string(), "warm_on(w2, claude)".to_string(), "warm_on(w3, claude)".to_string()]);
+        assert_eq!(
+            r.host.hooks.called("warm_on"),
+            vec!["warm_on(w1, claude)".to_string(), "warm_on(w2, claude)".to_string(), "warm_on(w3, claude)".to_string()]
+        );
         // Asked for again, the second is standing; asking in a fourth folder reaps none of the three: how many stand is
         // the keeper's to hold.
         assert_eq!(r.area.warm("w2", ask(), None).await.unwrap(), standing());
         assert_eq!(r.area.warm("w4", ask(), None).await.unwrap(), started());
         assert_eq!(r.host.hooks.called("rewarm"), vec!["rewarm(thr-2)".to_string()]);
         assert_eq!(r.host.hooks.called("reap_kept"), Vec::<String>::new());
-        assert_eq!(r.held.borrow().iter().map(|h| h.1.workspace_id.clone()).collect::<Vec<_>>(), vec!["w1".to_string(), "w2".to_string(), "w3".to_string(), "w4".to_string()]);
+        assert_eq!(
+            r.held.borrow().iter().map(|h| h.1.workspace_id.clone()).collect::<Vec<_>>(),
+            vec!["w1".to_string(), "w2".to_string(), "w3".to_string(), "w4".to_string()]
+        );
         // Another agent in a folder with one standing is no standing one for it.
         assert_eq!(r.area.warm("w1", WarmAsk { harness: Some("codex".into()), ..Default::default() }, None).await.unwrap(), started());
         assert_eq!(r.host.hooks.called("reap_kept"), Vec::<String>::new());
@@ -1338,7 +1509,10 @@ fn an_ask_for_another_agent_or_workspace_does_not_wait() {
         let other_workspace = ask_in_flight(&r, "w2", ask());
         assert_eq!(other_agent.await.unwrap().unwrap(), started());
         assert_eq!(other_workspace.await.unwrap().unwrap(), started());
-        assert_eq!(r.held.borrow().iter().map(|h| (h.1.workspace_id.clone(), harness_of(&h.1))).collect::<Vec<_>>(), vec![("w1".to_string(), "codex".to_string()), ("w2".to_string(), "claude".to_string())]);
+        assert_eq!(
+            r.held.borrow().iter().map(|h| (h.1.workspace_id.clone(), harness_of(&h.1))).collect::<Vec<_>>(),
+            vec![("w1".to_string(), "codex".to_string()), ("w2".to_string(), "claude".to_string())]
+        );
         open.send(Ok(())).unwrap();
         assert_eq!(first.await.unwrap().unwrap(), started());
     });
@@ -1405,7 +1579,8 @@ fn logs_one_line_naming_what_the_machine_holds() {
 fn hands_the_seed_over_and_logs_why_when_the_reading_throws() {
     run_local(async {
         let lines = console::capture();
-        let held: SessionHeld = Rc::new(|_s: String, _e: Arc<dyn HarnessExec>| async { Err("threadId must be a plain slug".to_string()) }.boxed_local());
+        let held: SessionHeld =
+            Rc::new(|_s: String, _e: Arc<dyn HarnessExec>| async { Err("threadId must be a plain slug".to_string()) }.boxed_local());
         let seeds = Rc::new(Cell::new(0));
         let seed = seed_after_loss(Some(held), Arc::new(NoExec), lost_at(), counting_seed(seeds.clone()));
         assert_eq!(seed().await.unwrap(), "the thread so far");
@@ -1443,7 +1618,8 @@ fn the_seed_is_handed_over_while_the_read_is_still_pending_and_its_own_failure_i
         let lines = console::capture();
         let failing: Seed = Rc::new(|| async { Err(err("the thread could not be read", None)) }.boxed_local());
         let sessions = Rc::new(RefCell::new(Vec::new()));
-        let seed = seed_after_loss(Some(reading(sessions.clone())), Arc::new(HeldExec { commands: Mutex::new(Vec::new()) }), lost_at(), failing);
+        let seed =
+            seed_after_loss(Some(reading(sessions.clone())), Arc::new(HeldExec { commands: Mutex::new(Vec::new()) }), lost_at(), failing);
         assert_eq!(seed().await.unwrap_err().message, "the thread could not be read");
         settle().await;
         assert_eq!(lines.lines().len(), 1);

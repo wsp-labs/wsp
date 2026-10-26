@@ -121,7 +121,12 @@ impl HarnessSession for FakeSession {
     fn kept(&self) -> Option<Option<Box<dyn KeptAgent>>> {
         Some(self.kept.lock().unwrap().take())
     }
-    fn steer(&self, prompt: String, id: Option<String>, _images: Vec<TurnImage>) -> Option<LocalBoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
+    fn steer(
+        &self,
+        prompt: String,
+        id: Option<String>,
+        _images: Vec<TurnImage>,
+    ) -> Option<LocalBoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
         if !self.steers {
             return None;
         }
@@ -136,7 +141,13 @@ impl HarnessSession for FakeSession {
         if !self.answers {
             return None;
         }
-        self.note(format!("answer({ask_id}, {}, {:?}, {}, {:?})", answer.option_id, answer.outcome, answer.deny_message, answer.reason.unwrap_or_default()));
+        self.note(format!(
+            "answer({ask_id}, {}, {:?}, {}, {:?})",
+            answer.option_id,
+            answer.outcome,
+            answer.deny_message,
+            answer.reason.unwrap_or_default()
+        ));
         Some(futures::future::ready(Ok(*self.answer_answer.lock().unwrap())).boxed_local())
     }
     fn set_access(&self, mode: String) -> Option<LocalBoxFuture<'static, Result<AccessOutcome, ExecFailure>>> {

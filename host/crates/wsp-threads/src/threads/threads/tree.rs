@@ -23,7 +23,8 @@ use wsp_words::wsp_tools::{threads_followed, Followed};
 use super::{Entry, Row, ThreadRecords, ThreadsArea};
 
 /// The marks an error born of a computer that did not answer carries (TR1), named after the TS classes.
-pub const SILENT_MARKS: [&str; 6] = ["MachineUnreached", "MachineUnreachableError", "DeadlineError", "LaunchUnanswered", "PlaceAbsent", "DaemonUnanswered"];
+pub const SILENT_MARKS: [&str; 6] =
+    ["MachineUnreached", "MachineUnreachableError", "DeadlineError", "LaunchUnanswered", "PlaceAbsent", "DaemonUnanswered"];
 
 /// threads.ts:67 `computerSilent`: TR1.
 pub fn computer_silent(e: Option<&HostError>) -> bool {
@@ -145,7 +146,8 @@ impl ThreadsArea {
         if let Some(thread_id) = running {
             return Ok(thread_id);
         }
-        let kept = self.kept_agents.borrow().iter().find(|(_, kept)| kept.borrow().turn_token == token).map(|(thread_id, _)| thread_id.clone());
+        let kept =
+            self.kept_agents.borrow().iter().find(|(_, kept)| kept.borrow().turn_token == token).map(|(thread_id, _)| thread_id.clone());
         kept.ok_or_else(|| HostError::new(NO_SUCH_TURN))
     }
     /// threads.ts:318: TR6.
@@ -217,7 +219,8 @@ impl ThreadsArea {
     }
     /// threads.ts:359: TR10.
     pub fn thread_title(&self, thread_id: &str) -> String {
-        let mut rows: Vec<SessionView> = self.rows(|rows| rows.values().map(|row| row.borrow().view.clone()).filter(|view| row_turns_thread(view, thread_id)).collect());
+        let mut rows: Vec<SessionView> =
+            self.rows(|rows| rows.values().map(|row| row.borrow().view.clone()).filter(|view| row_turns_thread(view, thread_id)).collect());
         rows.sort_by(|a, b| started_of(a).total_cmp(&started_of(b)));
         fold_threads(&rows).first().map(|thread| thread.title.clone()).unwrap_or_else(|| thread_word(thread_id))
     }
@@ -349,7 +352,11 @@ impl ThreadsArea {
         }
     }
     /// The computer a usage record of this workspace keys on, and the vaulted sign-in its harness reads.
-    fn usage_context(&self, entry: &Entry, harness: &str) -> (wsp_machines::usage::accounts::ComputerName, Option<wsp_machines::usage::Vaulted>) {
+    fn usage_context(
+        &self,
+        entry: &Entry,
+        harness: &str,
+    ) -> (wsp_machines::usage::accounts::ComputerName, Option<wsp_machines::usage::Vaulted>) {
         let record = entry.borrow().record.borrow().clone();
         let login_stands = self.ctx.login_stands(entry, harness);
         let vault = self.ctx.vault_on(entry);
@@ -358,12 +365,14 @@ impl ThreadsArea {
             Some(_) => Some(wsp_machines::usage::Vaulted::Key),
             None => None,
         };
-        let computer = wsp_machines::usage::accounts::ComputerName { id: Self::usage_computer_of(&record), name: self.ctx.computer_of(entry) };
+        let computer =
+            wsp_machines::usage::accounts::ComputerName { id: Self::usage_computer_of(&record), name: self.ctx.computer_of(entry) };
         (computer, vaulted)
     }
     /// threads.ts:1158: TR20. usage.ts's `accountOf` over this workspace's computer: `(key, label)`.
     pub fn usage_account_of(&self, entry: &Entry, harness: &str, named: Option<(String, Option<String>)>) -> (String, String) {
-        let agent_name = wsp_core::harness_catalog::harness_catalog(harness).map(|catalog| catalog.label).unwrap_or_else(|| harness.to_string());
+        let agent_name =
+            wsp_core::harness_catalog::harness_catalog(harness).map(|catalog| catalog.label).unwrap_or_else(|| harness.to_string());
         let (computer, vaulted) = self.usage_context(entry, harness);
         let named = named.map(|(id, label)| wsp_machines::usage::accounts::NamedAccount { id, label });
         let account = wsp_machines::usage::accounts::account_of(harness, &agent_name, named.as_ref(), vaulted, &computer);
@@ -377,7 +386,8 @@ impl ThreadsArea {
         let Ok(limits) = self.ctx.ledger_limits().await else {
             return false;
         };
-        let agent_name = wsp_core::harness_catalog::harness_catalog(harness).map(|catalog| catalog.label).unwrap_or_else(|| harness.to_string());
+        let agent_name =
+            wsp_core::harness_catalog::harness_catalog(harness).map(|catalog| catalog.label).unwrap_or_else(|| harness.to_string());
         let (computer, vaulted) = self.usage_context(entry, harness);
         let (key, _) = wsp_machines::usage::accounts::account_on_computer(harness, &agent_name, &computer, &limits, vaulted);
         wsp_machines::usage::accounts::reset_details_due(limits.iter().find(|limit| limit.key == key), self.ctx.clock().now())

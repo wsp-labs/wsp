@@ -11,19 +11,22 @@ use futures::future::{FutureExt, LocalBoxFuture};
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Value};
 use wsp_adapters::port::{
-    AdapterError, AttachmentRoad, AsideAnswer, AsideQuestion, Env, ExecFailure, ExecFailureKind, ExecOptions, ExecStream, ExecStreamFactory,
-    ForkTurn, ForkedSession, HarnessCatalogAnswer, HarnessCatalogModelProbe, HarnessExec, HarnessSession, HarnessStartOptions, RevertAsk, Reverted,
-    ScreenCommand, SessionRenameWrite, TitleTurn,
+    AdapterError, AsideAnswer, AsideQuestion, AttachmentRoad, Env, ExecFailure, ExecFailureKind, ExecOptions, ExecStream,
+    ExecStreamFactory, ForkTurn, ForkedSession, HarnessCatalogAnswer, HarnessCatalogModelProbe, HarnessExec, HarnessSession,
+    HarnessStartOptions, RevertAsk, Reverted, ScreenCommand, SessionRenameWrite, TitleTurn,
 };
 use wsp_core::clock::Clock;
-use wsp_engine::machine::{BytesLanded, ExecOptions as MachineExecOptions, Machine, MachineKind, MachineLife, MachineOffers, MachineState, RunOptions, SnapshotOptions};
 use wsp_core::machine_exec::TurnWaiting;
 use wsp_core::types::events::EventBus;
 use wsp_core::types::harness::{HarnessAdapter, HarnessAdapterContext, HarnessAdapterFactory};
 use wsp_core::types::internal::ServerValuesRoad;
 use wsp_core::types::wiring::WorkspaceRecord;
-use wsp_store::store::Store;
+use wsp_engine::machine::{
+    BytesLanded, ExecOptions as MachineExecOptions, Machine, MachineKind, MachineLife, MachineOffers, MachineState, RunOptions,
+    SnapshotOptions,
+};
 use wsp_machines::machines::kinds::BrokeredLaunch;
+use wsp_store::store::Store;
 use wsp_threads::threads::agents::{AgentsArea, AgentsCtx, SetupLaunch, SignsIn, TurnLaunch};
 use wsp_threads::threads::threads::{Entry, Sessions, ThreadRecords};
 use wsp_wire::views::workspace::{Caller, ProjectView};
@@ -247,7 +250,10 @@ impl HarnessAdapter for FakeAdapter {
     fn asides(&self) -> bool {
         self.aside
     }
-    fn account_models(&self, version: Option<String>) -> Option<LocalBoxFuture<'static, Result<Option<Vec<HarnessCatalogModelProbe>>, String>>> {
+    fn account_models(
+        &self,
+        version: Option<String>,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<Vec<HarnessCatalogModelProbe>>, String>>> {
         let ability = self.account_models.as_ref()?;
         self.log(format!("accountModels {}", version.unwrap_or_default()));
         let step = ability.next();
@@ -288,7 +294,10 @@ impl HarnessAdapter for FakeAdapter {
     fn steers_images(&self) -> bool {
         self.steers_images
     }
-    fn probe_catalog(&self, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<HarnessCatalogAnswer>, ExecFailure>>> {
+    fn probe_catalog(
+        &self,
+        exec: Arc<dyn HarnessExec>,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<HarnessCatalogAnswer>, ExecFailure>>> {
         let ability = self.probe_catalog.as_ref()?;
         self.log("probeCatalog".to_string());
         Some(ability.run(exec))
@@ -298,17 +307,30 @@ impl HarnessAdapter for FakeAdapter {
         self.log("probeVersion".to_string());
         Some(ability.run(exec))
     }
-    fn session_title(&self, harness_session_id: String, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+    fn session_title(
+        &self,
+        harness_session_id: String,
+        exec: Arc<dyn HarnessExec>,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         let ability = self.session_title.as_ref()?;
         self.log(format!("sessionTitle {harness_session_id}"));
         Some(ability.run(exec))
     }
-    fn rename_session(&self, harness_session_id: String, title: String, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<SessionRenameWrite, ExecFailure>>> {
+    fn rename_session(
+        &self,
+        harness_session_id: String,
+        title: String,
+        exec: Arc<dyn HarnessExec>,
+    ) -> Option<LocalBoxFuture<'static, Result<SessionRenameWrite, ExecFailure>>> {
         let ability = self.rename_session.as_ref()?;
         self.log(format!("renameSession {harness_session_id} {title}"));
         Some(ability.run(exec))
     }
-    fn title_for(&self, turn: TitleTurn, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+    fn title_for(
+        &self,
+        turn: TitleTurn,
+        exec: Arc<dyn HarnessExec>,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         let ability = self.title_for.as_ref()?;
         self.log("titleFor".to_string());
         self.title_turns.lock().expect("turns").push(turn);
@@ -563,7 +585,12 @@ impl AgentsCtx for FakeAgentsCtx {
     }
     fn place_exec(&self, place: &str, script: &str, timeout_ms: u64) -> LocalBoxFuture<'static, Result<ExecResult, HostError>> {
         self.call(format!("placeExec {place} {timeout_ms} {script}"));
-        let rule = self.place_rules.borrow().iter().find(|(p, needle, _)| p == place && script.contains(needle.as_str())).map(|(_, _, r)| r.clone());
+        let rule = self
+            .place_rules
+            .borrow()
+            .iter()
+            .find(|(p, needle, _)| p == place && script.contains(needle.as_str()))
+            .map(|(_, _, r)| r.clone());
         let answer = rule.unwrap_or_else(|| Ok(exec_result(0, "", "")));
         async move { answer }.boxed_local()
     }
@@ -580,7 +607,11 @@ impl AgentsCtx for FakeAgentsCtx {
         }
     }
     fn place_agent_home(&self, place: &str, home: &str, agent: &str) -> String {
-        self.place_agent_homes.borrow().get(&(place.to_string(), agent.to_string())).cloned().unwrap_or_else(|| format!("{home}/.{agent}-of-{place}"))
+        self.place_agent_homes
+            .borrow()
+            .get(&(place.to_string(), agent.to_string()))
+            .cloned()
+            .unwrap_or_else(|| format!("{home}/.{agent}-of-{place}"))
     }
     fn ready(&self) -> LocalBoxFuture<'static, Result<(), HostError>> {
         self.call("ready".to_string());
