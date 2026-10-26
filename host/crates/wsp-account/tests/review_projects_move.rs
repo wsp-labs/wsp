@@ -153,7 +153,7 @@ fn the_import_asks_the_machines_kind_where_its_parts_are_written() {
             agents: None,
             bundler,
         };
-        let report: wsp_core::types::internal::ImportReport = Rc::new(|_stage, _message, _progress| {});
+        let report: wsp_core::types::internal::ImportReport = Rc::new(|_stage, _message, _progress| Ok(()));
         area.copy_import(&entry, opts, report).await.unwrap();
         assert_eq!(fake.base.names_of(&["scratch", "land_bundle"]), ["scratch", "land_bundle"]);
     });

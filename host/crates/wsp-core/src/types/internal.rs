@@ -1124,7 +1124,8 @@ pub trait KindModule {
 }
 
 /// internal.ts:1215.
-pub type ImportReport = Rc<dyn Fn(ProjectImportStage, &str, Option<(u64, u64)>)>;
+/// A report that fails (a bus listener that throws) stops the import at that stage, as the TS's throws.
+pub type ImportReport = Rc<dyn Fn(ProjectImportStage, &str, Option<(u64, u64)>) -> Result<(), HostError>>;
 
 /// internal.ts:1216-1219.
 #[derive(Clone, Debug, PartialEq)]
