@@ -4,9 +4,9 @@
 
 use std::rc::Rc;
 
-use crate::local_task::spawn as spawn_local;
 use indexmap::{IndexMap, IndexSet};
 use wsp_core::recipe_sync::{RecipeChange, RecipeChangeHow};
+use wsp_engine::local_task::try_spawn_local as spawn_local;
 use wsp_engine::machine::ExecOptions;
 use wsp_engine::provision::ProvisionOn;
 use wsp_engine::provision_files::unland_files;

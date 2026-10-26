@@ -7,7 +7,6 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::local_task::spawn as spawn_local;
 use async_trait::async_trait;
 use futures::channel::mpsc;
 use futures::FutureExt;
@@ -18,6 +17,7 @@ use wsp_core::console::warn;
 use wsp_core::ids::{Ids, OsIds};
 use wsp_core::types::pending::DaemonReach;
 use wsp_engine::link_backend::{LinkAsk, LinkBackend};
+use wsp_engine::local_task::try_spawn_local as spawn_local;
 use wsp_engine::machine::{Machine, MachineBackend};
 use wsp_engine::place_machine::{PlaceFolderMachine, PlaceMachine};
 use wsp_engine::provision::{EngineStep, ProvisionOn, ProvisionStage, SetupRun};

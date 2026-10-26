@@ -227,7 +227,7 @@ impl MachinesArea {
             Box::new(move || {
                 let Some(entry) = weak.upgrade() else { return };
                 entry.borrow_mut().late_read = None;
-                crate::local_task::spawn(async move {
+                wsp_engine::local_task::try_spawn_local(async move {
                     let id = entry.borrow().record.borrow().id.clone();
                     let runs = area.runs_under_napping(&entry).await;
                     let out = if runs {
@@ -624,7 +624,7 @@ impl MachinesArea {
         }
         let area = self.clone();
         let id = id.to_string();
-        crate::local_task::spawn(async move {
+        wsp_engine::local_task::try_spawn_local(async move {
             if let Err(e) = lifecycle.backstop(machine.as_ref(), until_ms, false).await {
                 area.rt.warn(&format!(
                     "backstop of {id} on {} not set: {e}",

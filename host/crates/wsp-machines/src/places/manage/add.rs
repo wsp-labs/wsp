@@ -136,7 +136,7 @@ impl AddState {
 }
 
 fn spawn_local_write(write: PendingWrite) {
-    crate::local_task::spawn(write);
+    wsp_engine::local_task::try_spawn_local(write);
 }
 
 /// The road back the install hands the add before any byte of wsp's is sent (manage.ts:255).
@@ -374,7 +374,7 @@ impl ManageDoor {
             state.move_to(joined.clone()).await;
             let views = Rc::clone(&self.views);
             let (place, floor) = (place_id.clone(), joined.clone());
-            crate::local_task::spawn(async move {
+            wsp_engine::local_task::try_spawn_local(async move {
                 let _ = views.floor_once(&floor, &place).await;
             });
             return Ok(PlaceAdded {
