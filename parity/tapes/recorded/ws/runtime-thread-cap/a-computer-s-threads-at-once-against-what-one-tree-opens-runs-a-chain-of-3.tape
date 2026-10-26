@@ -1,5 +1,0 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/thread-cap.test.ts > a computer's threads at once against what one tree opens > runs a chain of blocking starts four deep on a computer set to 1, each in the slot of the thread waiting on it","outs":"recorded"}}
-{"in":{"token":"<redacted-1>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true}}
-{"in":{"prompt":"l3","id":2,"op":"sessions.start"}}
-{"out":{"id":2,"ok":true,"session":{"id":"00000000-0000-4000-8000-000000000001","workspaceId":"ws_00000001","harness":"claude","status":"running","startedBy":"person","threadId":"00000000-0000-4000-8000-000000000002","parentThreadId":"00000000-0000-4000-8000-000000000003","rootThreadId":"00000000-0000-4000-8000-000000000004","prompt":"l3","startedAt":1792950397625,"model":"claude-opus-5-5","effort":"high","permissionMode":"bypassPermissions","cwd":"<run>/wsp-project-000001","claudeSessionId":"00000000-0000-4000-8000-000000000001"},"outcome":"started","turnId":"00000000-0000-4000-8000-000000000005"}}

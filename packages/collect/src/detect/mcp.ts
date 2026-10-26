@@ -7,7 +7,7 @@
 // never read.
 import { createHash } from "node:crypto";
 import { MAC_BIN_DIRS, MAC_ONLY, MCP_AGENTS, type McpAgent, type McpServer, type McpTransport } from "@wsp/catalog";
-import { KEYLIKE_SEGMENT, MCP_ID_PREFIX, fmtBytes, type ServerSignIn } from "@wsp/protocol";
+import { MCP_ID_PREFIX, fmtBytes, type ServerSignIn } from "@wsp/protocol";
 import { type Host, expand, tilde } from "../host.js";
 import type { ManifestEntry } from "../manifest.js";
 import { isSecretName } from "./shell-rc.js";
@@ -164,7 +164,9 @@ const size = (v: string): string => `(${Buffer.byteLength(v)} B)`;
 
 /** An address under any scheme: `https://`, `postgres://`. */
 const ADDRESS = /^[A-Za-z][A-Za-z0-9+.-]*:\/\//;
-export { KEYLIKE_SEGMENT };
+/** A path segment long and token-like enough to be a key the address carries, as Zapier's per-person path is; a key
+ * carries a digit, where a long slug such as a repository's name does not. */
+export const KEYLIKE_SEGMENT = /^(?=.*\d)[A-Za-z0-9_=-]{24,}$/;
 
 /** An address that carries nothing of the person's: no login, no query and no path segment shaped like a key. One that
  * carries any of them is a value, since asking costs a question and not asking can carry a key. */

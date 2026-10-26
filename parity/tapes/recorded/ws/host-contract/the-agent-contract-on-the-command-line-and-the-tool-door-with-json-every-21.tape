@@ -1,5 +1,0 @@
-{"meta":{"door":"ws","source":"packages/host/test/contract.test.ts > the agent contract on the command line and the tool door > with --json every command-line verb prints JSON alone on stdout and its last object is the one its MCP tool answers with","outs":"recorded"}}
-{"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"init"}}
-{"in":{"url":"https://github.com/dev/alpha/issues/3","agent":"claude","id":2,"op":"workspaces.start"}}
-{"out":{"id":2,"ok":true,"workspace":{"id":"ws_00000001","name":"#3 Do the work","machineId":"m3","phase":"running","kind":"cloud","golden":"snap_gold","createdAt":"2026-10-25T17:45:48.331Z","project":{"id":"pr_00000002","name":"alpha","path":"/root/alpha","computer":"default"},"home":"/root","claudeSessionId":"00000000-0000-4000-8000-000000000001","agents":{"spawn":true,"maxMachines":3,"maxDepth":2},"provider":"default","pauseMode":"memory","from":{"kind":"issue","repo":"dev/alpha","number":3,"url":"https://github.com/dev/alpha/pull/3","title":"Do the work"}},"threadId":"00000000-0000-4000-8000-000000000002","sessionId":"00000000-0000-4000-8000-000000000001"}}
