@@ -70,7 +70,7 @@ fn block_on<F: std::future::Future>(f: F) -> F::Output {
 // nested field beside it. Node: JSON.parse and JSON.stringify both answer at this depth (stringify only throws past about
 // 3,650 levels), so the line is rewritten and the count is 1.
 // Node's answer at 3,400: the line is rewritten with its `cwd` moved, count 1. Ruling 2 (wsp-labs/wsp-map#2448): a tree read
-// from outside is kept to 1,000 levels, so past it the rewrite fails with the words the TS's JSON.stringify gives at its own
+// from outside is kept to 500 levels, so past it the rewrite fails with the words the TS's JSON.stringify gives at its own
 // stack limit and the file stays as it was; the line as deep as the cap is rewritten as before (`rewrite_cwd_reads_a_line_nested_to_the_cap`).
 fn rewrite_cwd_body(depth: usize) {
     let dir = tempfile::tempdir().expect("a folder");
@@ -99,16 +99,16 @@ fn rewrite_cwd_survives_a_line_nested_3400_deep() {
     in_child("rewrite_cwd_survives_a_line_nested_3400_deep", 3_400, rewrite_cwd_refused_body);
 }
 
-// The line holds 1,000 levels (the object and 999 arrays): the cap reads, rewrites and keeps every level.
+// The line holds 500 levels (the object and 499 arrays): the cap reads, rewrites and keeps every level.
 #[test]
 fn rewrite_cwd_reads_a_line_nested_to_the_cap() {
-    in_child("rewrite_cwd_reads_a_line_nested_to_the_cap", 999, rewrite_cwd_body);
+    in_child("rewrite_cwd_reads_a_line_nested_to_the_cap", 499, rewrite_cwd_body);
 }
 
 // One level more is refused.
 #[test]
 fn rewrite_cwd_refuses_a_line_nested_past_the_cap() {
-    in_child("rewrite_cwd_refuses_a_line_nested_past_the_cap", 1_000, rewrite_cwd_refused_body);
+    in_child("rewrite_cwd_refuses_a_line_nested_past_the_cap", 500, rewrite_cwd_refused_body);
 }
 
 use wsp_engine::project_state::project_state_resolvers;
@@ -120,7 +120,7 @@ use wsp_engine::project_state::project_state_resolvers;
 // `projects.json` in the person's home (`~/.gemini/projects.json`), which `move_state` reads when a project folder moves;
 // `JsReader` keeps 3,500 levels and no file size cap holds it lower. Node: JSON.parse and JSON.stringify(registry, null, 2)
 // answer at 3,400 levels, so the move is made and the registry is written with `projects` renamed. Ruling 2 (wsp-labs/wsp-map#2448):
-// past 1,000 levels the registry reads as the text "is not JSON" (the error `move_state` already gives for a file it cannot
+// past 500 levels the registry reads as the text "is not JSON" (the error `move_state` already gives for a file it cannot
 // read) and the file stays as it was; the registry as deep as the cap is moved (`gemini_move_state_to_the_cap`).
 /// `JSON.stringify([[...]], null, 2)` of `depth` arrays inside one another, as the value of a key of the top object.
 fn indented_arrays(depth: usize) -> String {
@@ -170,12 +170,12 @@ fn gemini_move_state_survives_a_registry_nested_3400_deep() {
 
 #[test]
 fn gemini_move_state_to_the_cap() {
-    in_child("gemini_move_state_to_the_cap", 999, gemini_move_body);
+    in_child("gemini_move_state_to_the_cap", 499, gemini_move_body);
 }
 
 #[test]
 fn gemini_move_state_refuses_a_registry_nested_past_the_cap() {
-    in_child("gemini_move_state_refuses_a_registry_nested_past_the_cap", 1_000, gemini_refused_body);
+    in_child("gemini_move_state_refuses_a_registry_nested_past_the_cap", 500, gemini_refused_body);
 }
 
 // ---- vault_cipher.rs: read_json with the recursion limit lifted ----
@@ -185,7 +185,7 @@ fn gemini_move_state_refuses_a_registry_nested_past_the_cap() {
 // reaches it. What reaches it: the first line of a sealed image file (`open`, `sealed_image_of`, `header_of`), a file the
 // person imports from another computer or a download. Node: JSON.parse reads the line at any depth, the line is not a
 // header wsp wrote, so the call fails with the words below (one failed call, caught by the caller). The port now reads
-// 1,000 levels and refuses more with the same words (ruling 2).
+// 500 levels and refuses more with the same words (ruling 1 of round 2).
 fn vault_header_body(depth: usize) {
     let mut sealed = arrays(depth).into_bytes();
     sealed.push(b'\n');
@@ -228,10 +228,10 @@ fn files_under_walks_a_tree_1900_folders_deep() {
 // ---- box_backend/request.rs: BoxView read from the provider's answer ----
 //
 // Recursion: three, one after the other on one answer. wsp-catalog's `parse_json` (json_parse.rs:138-197, refuses past
-// 1,000 levels), `raw.get("sandbox").cloned()` (request.rs:721, `Value::clone`), and `serde_json::from_value` into
+// 500 levels), `raw.get("sandbox").cloned()` (request.rs:721, `Value::clone`), and `serde_json::from_value` into
 // `BoxView` (request.rs:35), whose `id` and `state` are read by `js_text` (request.rs:127), which deserializes the field
 // as a `Value` and walks it with `js_string` (js_value.rs:12). What reaches it: the body of the box provider's HTTP answer
-// to `GET /sandboxes/<id>`, a field that is an array nested 870 deep (the parser's own limit is 1,000). Node: `view`
+// to `GET /sandboxes/<id>`, a field that is an array nested 498 deep (the parser's own limit is 500). Node: `view`
 // returns the parsed object as it is (JSON.parse reads any depth; nothing walks the field), so the call answers.
 fn box_view_body(depth: usize) {
     use common::{reply_text, FakeFetch};
@@ -250,8 +250,8 @@ fn box_view_body(depth: usize) {
 
 // Dies at 495 on a 1 MiB stack in a debug build.
 #[test]
-fn box_view_reads_an_answer_whose_id_is_nested_870_deep() {
-    in_child("box_view_reads_an_answer_whose_id_is_nested_870_deep", 870, box_view_body);
+fn box_view_reads_an_answer_whose_id_is_nested_498_deep() {
+    in_child("box_view_reads_an_answer_whose_id_is_nested_498_deep", 498, box_view_body);
 }
 
 /// `depth` arrays inside one another around a 7: `[[[7]]]`.
@@ -261,7 +261,7 @@ fn arrays_around_seven(depth: usize) -> String {
 
 // ---- box_backend: the views a provider's answer fills, at the deepest answer the JSON.parse port reads ----
 //
-// The port reads 1,000 levels. The answer `{"sandbox":{"id":<tree>}}` holds the tree at depth 2, so a tree of 998 levels
+// The port reads 500 levels. The answer `{"sandbox":{"id":<tree>}}` holds the tree at depth 2, so a tree of 498 levels
 // is the deepest read (`name` is read as absent: it is not a string). Node: `String(id)` joins the nested arrays, so the id reads "7".
 fn box_view_cap_body(depth: usize) {
     use common::{reply_text, FakeFetch};
@@ -288,7 +288,7 @@ fn box_view_cap_body(depth: usize) {
 
 #[test]
 fn box_view_reads_fields_nested_to_the_parse_cap() {
-    in_child("box_view_reads_fields_nested_to_the_parse_cap", 998, box_view_cap_body);
+    in_child("box_view_reads_fields_nested_to_the_parse_cap", 498, box_view_cap_body);
 }
 
 // The listing of named snapshots reads each row through the same views: `name` and `status` are text, `error` and
@@ -309,7 +309,7 @@ fn named_snapshots_body(depth: usize) {
 
 #[test]
 fn named_snapshots_read_fields_nested_to_the_parse_cap() {
-    in_child("named_snapshots_read_fields_nested_to_the_parse_cap", 997, named_snapshots_body);
+    in_child("named_snapshots_read_fields_nested_to_the_parse_cap", 497, named_snapshots_body);
 }
 
 // One level past the port's cap, the answer is refused whole: that one call fails with the words the port gives for text
@@ -328,7 +328,7 @@ fn box_view_past_the_cap_body(depth: usize) {
 
 #[test]
 fn box_view_refuses_an_answer_nested_past_the_parse_cap() {
-    in_child("box_view_refuses_an_answer_nested_past_the_parse_cap", 999, box_view_past_the_cap_body);
+    in_child("box_view_refuses_an_answer_nested_past_the_parse_cap", 499, box_view_past_the_cap_body);
 }
 
 /// A header wsp wrote, with `extra` (a field the reader ignores) holding `depth` arrays inside one another.
@@ -343,8 +343,8 @@ fn header_with_extra(depth: usize) -> Vec<u8> {
     sealed
 }
 
-// The header is read with the JSON.parse port, so it reads 1,000 levels (the header object and 999 arrays) and refuses 1,001
-// with the words node gives a header it does not know (ruling 2, wsp-labs/wsp-map#2448; node reads deeper).
+// The header is read with the JSON.parse port, so it reads 500 levels (the header object and 499 arrays) and refuses 501
+// with the words node gives a header it does not know (ruling 1 of round 2 of wsp-labs/wsp-map#2448; node reads deeper).
 fn vault_header_to_the_cap_body(depth: usize) {
     let image = wsp_engine::vault_cipher::sealed_image_of(&header_with_extra(depth)).expect("the header is read");
     assert_eq!(image.name, "n");
@@ -352,7 +352,7 @@ fn vault_header_to_the_cap_body(depth: usize) {
 
 #[test]
 fn vault_header_nested_to_the_cap_is_read() {
-    in_child("vault_header_nested_to_the_cap_is_read", 999, vault_header_to_the_cap_body);
+    in_child("vault_header_nested_to_the_cap_is_read", 499, vault_header_to_the_cap_body);
 }
 
 fn vault_header_past_the_cap_body(depth: usize) {
@@ -362,14 +362,14 @@ fn vault_header_past_the_cap_body(depth: usize) {
 
 #[test]
 fn vault_header_nested_past_the_cap_is_refused() {
-    in_child("vault_header_nested_past_the_cap_is_refused", 1_000, vault_header_past_the_cap_body);
+    in_child("vault_header_nested_past_the_cap_is_refused", 500, vault_header_past_the_cap_body);
 }
 
 // ---- solari_backend.rs: the template listing, whose `status` is read as a word where the TS never checks its type ----
 //
 // Recursion: `known_status` read the field as a serde `Value`, one stack level per level of the tree the provider's answer
 // holds there (it died near 500 in a debug build on 1 MiB). Node: the status is not a known word, so the row is `building`.
-// The deepest answer the port reads is the page, the array and the row (3 levels) and a tree of 997.
+// The deepest answer the port reads is the page, the array and the row (3 levels) and a tree of 497.
 fn solari_templates_body(depth: usize) {
     use common::{reply_text, FakeFetch};
     use std::sync::Arc;
@@ -387,5 +387,5 @@ fn solari_templates_body(depth: usize) {
 
 #[test]
 fn solari_templates_read_a_status_nested_to_the_parse_cap() {
-    in_child("solari_templates_read_a_status_nested_to_the_parse_cap", 997, solari_templates_body);
+    in_child("solari_templates_read_a_status_nested_to_the_parse_cap", 497, solari_templates_body);
 }

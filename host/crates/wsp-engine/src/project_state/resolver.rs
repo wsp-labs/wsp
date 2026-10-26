@@ -295,8 +295,8 @@ pub(crate) fn join_posix(parts: &[&str]) -> String {
     }
 }
 
-/// How deep a value is kept: the JSON.parse port's cap, since serde_json clones past 1,180 levels and drops past 6,500; node reads deeper.
-const KEPT_DEPTH: usize = 1_000;
+/// How deep a value is kept: the JSON.parse port's cap, since a `Value` of objects clones past 628 levels on a 1 MiB debug stack; node reads deeper.
+const KEPT_DEPTH: usize = 500;
 
 /// `JSON.parse`: None where JS would throw, or where the value is nested past `KEPT_DEPTH`. A number overflow reads as
 /// null, as JSON.stringify writes Infinity.

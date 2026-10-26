@@ -33,7 +33,7 @@ pub fn parse_toml(text: &str) -> Result<toml::Table, String> {
 /// smol-toml's own cap on nested arrays and inline tables, and the one this reader keeps on every level of a tree: the
 /// tables a header or a dotted key nests count too (smol-toml has no cap on them), so a tree it reads is never deeper
 /// than a `serde_json::Value` or a `toml::Table` clones and drops. The words past it are smol-toml's own.
-const MAX_DEPTH: i32 = 1000;
+const MAX_DEPTH: i32 = 500;
 const TOO_DEEP: &str = "document contains excessively nested structures. aborting.";
 
 const BASIC: u16 = 0x22;

@@ -135,7 +135,7 @@ pub fn seal(plain: &[u8], image: &SealedImage, to: &VaultKey) -> Result<Vec<u8>>
     Ok([line, body].concat())
 }
 
-/// `JSON.parse` of the header's text, `None` where it is not JSON or nests past the port's 1,000 levels (node reads deeper).
+/// `JSON.parse` of the header's text, `None` where it is not JSON or nests past the port's 500 levels (node reads deeper).
 fn read_json(text: &str) -> Option<serde_json::Value> {
     wsp_catalog::json_parse::parse_json(text).ok()
 }
