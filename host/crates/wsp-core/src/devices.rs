@@ -7,11 +7,17 @@
 use std::rc::Rc;
 
 use async_trait::async_trait;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::Engine;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use wsp_frames::True;
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceOrigin};
-use wsp_wire::wire::devices::{DeviceVia, DeviceView};
+use wsp_wire::wire::devices::{DeviceVia, DeviceView, PAIR_CODE_ALPHABET, PAIR_CODE_LENGTH};
 
 use wsp_words::exit::HostError;
+use wsp_words::js::{collate, js_trim};
+use wsp_words::js_date::iso_string;
 
 use crate::ids::Ids;
 use crate::types::pending::Store;
@@ -37,7 +43,7 @@ pub const REVOKED: &str = "revoked-keys";
 //   return ab.length === bb.length && timingSafeEqual(ab, bb);
 // }
 pub fn safe_equal(a: &str, b: &str) -> bool {
-    todo!()
+    a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 
 // /** The road a thread's token reaches this host by: this computer's own loopback for a turn beside the host, a
@@ -69,7 +75,7 @@ pub struct ThreadOfDevice {
 //   return device.scope === undefined ? undefined : { by: device.scope, road: device.road ?? "relayed" };
 // }
 pub fn thread_of(device: &HeldDevice) -> Option<ThreadOfDevice> {
-    todo!()
+    device.view.scope.clone().map(|by| ThreadOfDevice { by, road: device.road.unwrap_or(WorkspaceOrigin::Relayed) })
 }
 
 // /** What the store keeps for a device: never the token, only the digest a presented one is compared against. */
@@ -144,7 +150,7 @@ pub struct RevokedRecord {
 //  * page carries of the host's own token for the desktop shell to compare against the token file. */
 // export const tokenDigest = (token: string): string => createHash("sha256").update(token).digest("hex");
 pub fn token_digest(token: &str) -> String {
-    todo!()
+    hex::encode(Sha256::digest(token.as_bytes()))
 }
 
 // /** What a redeem hands back: the token, once, and the record every later listing shows. */
@@ -340,5 +346,193 @@ pub const NO_DEVICE_DOOR: &str = "this runtime keeps no devices; the host that s
 // }
 /// The one door, over `store`, drawing every random byte from `ids` (rule 3.16).
 pub fn make_devices(store: Rc<dyn Store>, ids: Rc<dyn Ids>) -> Rc<dyn DeviceDoor> {
-    todo!()
+    Rc::new(Doors { store, ids, writes: tokio::sync::Mutex::new(()) })
+}
+
+/// What `admit` adds to a name and a clock: the flags and road a kind of device carries.
+#[derive(Default)]
+struct Admit {
+    here: bool,
+    via: Option<DeviceVia>,
+    road: Option<ScopedRoad>,
+    aside: bool,
+}
+
+struct Doors {
+    store: Rc<dyn Store>,
+    ids: Rc<dyn Ids>,
+    /// The one write chain (TS `oneAtATime`): tokio's mutex is first in, first out, so writes run in call order.
+    writes: tokio::sync::Mutex<()>,
+}
+
+impl Doors {
+    /// Every device record that passes the guard, in the store's order.
+    async fn devices(&self) -> Result<Vec<DeviceRecord>, HostError> {
+        Ok(self.store.list(DEVICES).await?.into_iter().filter_map(|v| serde_json::from_value(v).ok()).collect())
+    }
+
+    async fn device(&self, id: &str) -> Result<Option<DeviceRecord>, HostError> {
+        Ok(self.store.get(DEVICES, id).await?.and_then(|v| serde_json::from_value(v).ok()))
+    }
+
+    async fn pairing(&self, code: &str) -> Result<Option<PairingRecord>, HostError> {
+        Ok(self.store.get(PAIRINGS, code).await?.and_then(|v| serde_json::from_value(v).ok()))
+    }
+
+    async fn put_device(&self, id: &str, record: &DeviceRecord) -> Result<(), HostError> {
+        self.store.put(DEVICES, id, record_value(record)?).await
+    }
+
+    /// The code half of a redeem: the pairing is deleted either way, and answered only while it has not run out.
+    async fn spend_code(&self, code: &str, now: i64) -> Result<Option<PairingRecord>, HostError> {
+        let Some(held) = self.pairing(code).await? else { return Ok(None) };
+        self.store.delete(PAIRINGS, code).await?;
+        Ok((now <= held.expires_at).then_some(held))
+    }
+
+    /// One device record and the one token it will ever hand over (TS `admit`). Token first, then the id.
+    async fn admit(&self, name: &str, scope: Option<ThreadScope>, now: i64, more: Admit) -> Result<PairedDevice, HostError> {
+        let token = URL_SAFE_NO_PAD.encode(self.ids.bytes(24));
+        let at = iso(now)?;
+        let id = format!("d_{}", hex::encode(self.ids.bytes(8)));
+        let trimmed = js_trim(name);
+        let record = DeviceRecord {
+            id: id.clone(),
+            name: if trimmed.is_empty() { "a paired computer".into() } else { trimmed.into() },
+            token_hash: token_digest(&token),
+            created_at: at.clone(),
+            last_seen_at: at,
+            road: if scope.is_some() { more.road } else { None },
+            aside: if scope.is_some() && more.aside { Some(true) } else { None },
+            scope,
+            here: more.here.then_some(true),
+            via: more.via,
+        };
+        let device = view_of(&record);
+        self.put_device(&id, &record).await?;
+        Ok(PairedDevice { device_id: id, device_token: token, device })
+    }
+
+    fn mint_code(&self) -> String {
+        self.ids.bytes(PAIR_CODE_LENGTH as usize).iter().map(|b| PAIR_CODE_ALPHABET.as_bytes()[(b & 31) as usize] as char).collect()
+    }
+}
+
+fn iso(now: i64) -> Result<String, HostError> {
+    iso_string(now as f64).ok_or_else(|| HostError::new("Invalid time value"))
+}
+
+fn record_value<T: Serialize>(value: &T) -> Result<serde_json::Value, HostError> {
+    serde_json::to_value(value).map_err(|e| HostError::new(e.to_string()))
+}
+
+fn view_of(r: &DeviceRecord) -> DeviceView {
+    DeviceView {
+        id: r.id.clone(),
+        name: r.name.clone(),
+        created_at: r.created_at.clone(),
+        last_seen_at: r.last_seen_at.clone(),
+        scope: r.scope.clone(),
+        here: (r.here == Some(true)).then_some(True),
+        via: r.via.clone(),
+    }
+}
+
+fn held_of(r: &DeviceRecord) -> HeldDevice {
+    HeldDevice { view: view_of(r), road: r.road }
+}
+
+#[async_trait(?Send)]
+impl DeviceDoor for Doors {
+    async fn issue(&self, now: i64, ttl_ms: u64, here: bool) -> Result<IssuedCode, HostError> {
+        let _turn = self.writes.lock().await;
+        for value in self.store.list(PAIRINGS).await? {
+            if let Ok(held) = serde_json::from_value::<PairingRecord>(value) {
+                if now > held.expires_at {
+                    self.store.delete(PAIRINGS, &held.code).await?;
+                }
+            }
+        }
+        let code = self.mint_code();
+        let expires_at = now + ttl_ms as i64;
+        let record = PairingRecord { code: code.clone(), expires_at, here: here.then_some(true) };
+        self.store.put(PAIRINGS, &code, record_value(&record)?).await?;
+        Ok(IssuedCode { code, expires_at })
+    }
+
+    async fn redeem(&self, code: &str, name: &str, now: i64) -> Result<Option<PairedDevice>, HostError> {
+        let _turn = self.writes.lock().await;
+        let Some(spent) = self.spend_code(code, now).await? else { return Ok(None) };
+        let more = Admit { here: spent.here == Some(true), ..Admit::default() };
+        Ok(Some(self.admit(name, None, now, more).await?))
+    }
+
+    async fn spend(&self, code: &str, now: i64) -> Result<bool, HostError> {
+        let _turn = self.writes.lock().await;
+        Ok(self.spend_code(code, now).await?.is_some())
+    }
+
+    async fn admit(&self, name: &str, now: i64) -> Result<PairedDevice, HostError> {
+        let _turn = self.writes.lock().await;
+        self.admit(name, None, now, Admit::default()).await
+    }
+
+    async fn admit_account(&self, name: &str, via: DeviceVia, now: i64) -> Result<PairedDevice, HostError> {
+        let _turn = self.writes.lock().await;
+        self.admit(name, None, now, Admit { via: Some(via), ..Admit::default() }).await
+    }
+
+    async fn refuses(&self, fingerprint: &str) -> Result<bool, HostError> {
+        Ok(self.store.get(REVOKED, fingerprint).await?.and_then(|v| serde_json::from_value::<RevokedRecord>(v).ok()).is_some())
+    }
+
+    async fn mint(&self, name: &str, scope: ThreadScope, now: i64, more: MintMore) -> Result<PairedDevice, HostError> {
+        let _turn = self.writes.lock().await;
+        self.admit(name, Some(scope), now, Admit { road: more.road, aside: more.aside, ..Admit::default() }).await
+    }
+
+    async fn revoke_asides(&self) -> Result<(), HostError> {
+        for record in self.devices().await? {
+            if record.aside == Some(true) {
+                self.revoke(&record.id).await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn r#match(&self, token: &str) -> Result<Option<HeldDevice>, HostError> {
+        let digest = token_digest(token);
+        let mut found: Option<DeviceRecord> = None;
+        for record in self.devices().await? {
+            if safe_equal(&digest, &record.token_hash) && found.is_none() {
+                found = Some(record);
+            }
+        }
+        Ok(found.as_ref().map(held_of))
+    }
+
+    async fn seen(&self, id: &str, now: i64) -> Result<Option<HeldDevice>, HostError> {
+        let _turn = self.writes.lock().await;
+        let Some(mut held) = self.device(id).await? else { return Ok(None) };
+        held.last_seen_at = iso(now)?;
+        self.put_device(id, &held).await?;
+        Ok(Some(held_of(&held)))
+    }
+
+    async fn list(&self) -> Result<Vec<DeviceView>, HostError> {
+        let mut records = self.devices().await?;
+        records.sort_by(|a, b| collate(&a.created_at, &b.created_at));
+        Ok(records.iter().map(view_of).collect())
+    }
+
+    async fn revoke(&self, id: &str) -> Result<bool, HostError> {
+        let _turn = self.writes.lock().await;
+        let Some(held) = self.device(id).await? else { return Ok(false) };
+        if let Some(via) = &held.via {
+            let key = RevokedRecord { fingerprint: via.fingerprint.clone() };
+            self.store.put(REVOKED, &via.fingerprint, record_value(&key)?).await?;
+        }
+        self.store.delete(DEVICES, id).await?;
+        Ok(true)
+    }
 }

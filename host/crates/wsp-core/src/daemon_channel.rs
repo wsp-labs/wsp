@@ -4,12 +4,29 @@
 //! One dial of one daemon for one client of this host, with no redial and no subscribe ritual: the page that opened
 //! the channel owns the retry and asks for ports.watch and the rest itself. The host's own held links (reach.rs) keep
 //! a machine warm and re-dial it, which is a different concern.
+use std::cell::{Cell, RefCell};
+use std::io;
+use std::pin::Pin;
 use std::rc::Rc;
+use std::task::{Context, Poll};
 
 use async_trait::async_trait;
-use serde_json::{Map, Value};
+use futures::{SinkExt, StreamExt};
+use indexmap::IndexMap;
+use serde_json::{json, Map, Value};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, ReadBuf};
+use tokio::net::TcpStream;
+use tokio::sync::{mpsc, oneshot, watch};
+use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
+use tokio_tungstenite::tungstenite::protocol::CloseFrame;
+use tokio_tungstenite::tungstenite::{Error as WsError, Message};
+use tokio_tungstenite::{client_async, WebSocketStream};
+use wsp_words::daemon_contract::daemon_refused_token;
+use wsp_words::js::js_trim;
 
-use crate::clock::Clock;
+use crate::clock::{real_clock, Clock};
+use crate::reach::daemon_ws_url;
 
 /// A daemon frame or reply: a JSON object, keys in the order written.
 pub type Frame = Map<String, Value>;
@@ -64,7 +81,13 @@ pub struct DaemonDoorError {
 impl DaemonDoorError {
     /// One line of the body: `the connection was refused with <status>[: <first line>]`.
     pub fn new(status: u16, body: &str) -> Self {
-        todo!()
+        let line = js_trim(body.split('\n').next().unwrap_or_default());
+        let message = if line.is_empty() {
+            format!("the connection was refused with {status}")
+        } else {
+            format!("the connection was refused with {status}: {line}")
+        };
+        DaemonDoorError { status, message }
     }
 }
 
@@ -85,7 +108,7 @@ pub struct DaemonTokenError {
 impl DaemonTokenError {
     /// `the machine refused this host's daemon token (4401 <reason>)`.
     pub fn new(reason: &str) -> Self {
-        todo!()
+        DaemonTokenError { message: format!("the machine refused this host's daemon token (4401 {reason})") }
     }
 }
 
@@ -112,14 +135,18 @@ pub enum ChannelError {
 impl ChannelError {
     /// The kind the wire carries: "refused" for a door, "reauth" for a token, none for the rest.
     pub fn kind(&self) -> Option<&'static str> {
-        todo!()
+        match self {
+            ChannelError::Door(_) => Some("refused"),
+            ChannelError::Token(_) => Some("reauth"),
+            ChannelError::Unanswered { .. } | ChannelError::Refused { .. } => None,
+        }
     }
 }
 
 // daemon-channel.ts:33
 // export const isDaemonUnanswered = (e: unknown): boolean => e instanceof DaemonUnanswered;
 pub fn is_daemon_unanswered(e: &ChannelError) -> bool {
-    todo!()
+    matches!(e, ChannelError::Unanswered { .. })
 }
 
 // /** The dial, the auth frame and the reply that proves it, before a connect is given up. Named here rather than
@@ -251,5 +278,316 @@ pub trait DaemonChannel {
 // }
 /// Dials once, sends the auth frame first, resolves on its reply. Runs on the owner thread's `LocalSet`.
 pub async fn open_daemon_channel(o: DaemonChannelOptions) -> Result<Rc<dyn DaemonChannel>, ChannelError> {
-    todo!()
+    let clock = o.clock.clone().unwrap_or_else(real_clock);
+    let timeout_ms = o.connect_timeout_ms.unwrap_or(CONNECT_TIMEOUT_MS);
+    let (expired_tx, expired) = oneshot::channel::<()>();
+    let cancel_deadline = clock.schedule(
+        Box::new(move || {
+            let _ = expired_tx.send(());
+        }),
+        timeout_ms,
+    );
+    let (outbound, outbound_rx) = mpsc::unbounded_channel();
+    let link = Rc::new(Link {
+        outbound,
+        pending: RefCell::default(),
+        next_id: Cell::new(1),
+        closing: Cell::new(false),
+        end: watch::channel(None).0,
+        on_event: o.on_event.clone(),
+    });
+    let opened = tokio::select! {
+        biased;
+        r = connect(&o.url, &o.token, link.clone(), outbound_rx) => r,
+        _ = expired => Err(unanswered(&format!("daemon connect timed out after {timeout_ms}ms"))),
+    };
+    cancel_deadline();
+    opened?;
+    let channel: Rc<dyn DaemonChannel> = Rc::new(Channel { link });
+    Ok(channel)
+}
+
+/// The socket's outbound queue, the sends waiting on a reply, and how the socket ended.
+struct Link {
+    outbound: mpsc::UnboundedSender<Outbound>,
+    pending: RefCell<IndexMap<u64, oneshot::Sender<Result<Frame, ChannelError>>>>,
+    next_id: Cell<u64>,
+    closing: Cell<bool>,
+    end: watch::Sender<Option<ChannelEnd>>,
+    on_event: Rc<dyn Fn(Value)>,
+}
+
+enum Outbound {
+    Text(String),
+    Close,
+}
+
+impl Link {
+    fn take_id(&self) -> u64 {
+        let id = self.next_id.get();
+        self.next_id.set(id + 1);
+        id
+    }
+
+    /// A reply to a pending send settles it; every other frame goes to `on_event`, in arrival order.
+    fn deliver(&self, value: Value) {
+        if let Some(id) = reply_id(&value) {
+            let waiter = self.pending.borrow_mut().shift_remove(&id);
+            if let Some(waiter) = waiter {
+                if let Value::Object(reply) = value {
+                    let _ = waiter.send(Ok(reply));
+                }
+                return;
+            }
+        }
+        (self.on_event)(value);
+    }
+
+    async fn request(&self, frame: Frame) -> Result<Frame, ChannelError> {
+        if self.closing.get() || self.end.borrow().is_some() {
+            return Err(unanswered("daemon unreachable"));
+        }
+        let id = self.take_id();
+        let (tx, rx) = oneshot::channel();
+        self.pending.borrow_mut().insert(id, tx);
+        if self.outbound.send(Outbound::Text(with_id(frame, id))).is_err() {
+            self.pending.borrow_mut().shift_remove(&id);
+            return Err(unanswered("daemon unreachable"));
+        }
+        match rx.await {
+            Ok(reply) => reply,
+            Err(_) => Err(unanswered("connection lost")),
+        }
+    }
+
+    /// Records how the socket ended before it opened and gives the error a dial reports for it.
+    fn ended(&self, end: ChannelEnd) -> ChannelError {
+        self.end.send_replace(Some(end.clone()));
+        ended_before_open(end)
+    }
+}
+
+struct Channel {
+    link: Rc<Link>,
+}
+
+#[async_trait(?Send)]
+impl DaemonChannel for Channel {
+    async fn send(&self, frame: Frame) -> Result<Frame, ChannelError> {
+        self.link.request(frame).await
+    }
+
+    fn close(&self) {
+        self.link.closing.set(true);
+        let _ = self.link.outbound.send(Outbound::Close);
+    }
+
+    async fn closed(&self) -> ChannelEnd {
+        let mut rx = self.link.end.subscribe();
+        let ended = rx.wait_for(Option::is_some).await.expect("the channel holds the end's sender").clone();
+        ended.expect("wait_for returned a settled end")
+    }
+}
+
+/// The socket is dialled, the auth frame goes out first, and its reply is read before anything else. The socket is
+/// handed to `run` even when the reply refuses the link, as the TS leaves it open.
+async fn connect(url: &str, token: &str, link: Rc<Link>, outbound: mpsc::UnboundedReceiver<Outbound>) -> Result<(), ChannelError> {
+    let ws_url = daemon_ws_url(url).map_err(|e| ChannelError::Refused { message: e.message })?;
+    let mut ws = dial(&ws_url).await?;
+    let mut auth = Frame::new();
+    auth.insert("op".into(), json!("auth"));
+    auth.insert("token".into(), json!(token));
+    if ws.send(Message::text(with_id(auth, link.take_id()))).await.is_err() {
+        return Err(link.ended(end_1006()));
+    }
+    let reply = loop {
+        let text = match ws.next().await {
+            Some(Ok(Message::Text(t))) => t.to_string(),
+            Some(Ok(Message::Binary(b))) => String::from_utf8_lossy(&b).into_owned(),
+            Some(Ok(Message::Close(frame))) => return Err(link.ended(close_end(frame))),
+            Some(Ok(_)) => continue,
+            Some(Err(_)) | None => return Err(link.ended(end_1006())),
+        };
+        let Ok(value) = serde_json::from_str::<Value>(&text) else { continue };
+        if reply_id(&value) == Some(1) {
+            if let Value::Object(reply) = value {
+                break reply;
+            }
+        }
+        link.deliver(value);
+    };
+    let accepted = reply.get("ok") == Some(&Value::Bool(true));
+    tokio::task::spawn_local(run(ws, outbound, link));
+    if accepted {
+        Ok(())
+    } else {
+        Err(ChannelError::Refused { message: refusal_words(reply.get("error")) })
+    }
+}
+
+/// Reads the socket until it ends, routing each frame, then settles the end and fails every send still waiting.
+async fn run(mut ws: WebSocketStream<Shared>, mut outbound: mpsc::UnboundedReceiver<Outbound>, link: Rc<Link>) {
+    let mut outbound_open = true;
+    let end = loop {
+        tokio::select! {
+            msg = ws.next() => match msg {
+                Some(Ok(Message::Text(t))) => route(&link, &t),
+                Some(Ok(Message::Binary(b))) => route(&link, &String::from_utf8_lossy(&b)),
+                Some(Ok(Message::Close(frame))) => break close_end(frame),
+                Some(Ok(_)) => {}
+                Some(Err(_)) | None => break end_1006(),
+            },
+            out = outbound.recv(), if outbound_open => match out {
+                Some(Outbound::Text(text)) => {
+                    if ws.send(Message::text(text)).await.is_err() {
+                        break end_1006();
+                    }
+                }
+                Some(Outbound::Close) => {
+                    let _ = ws.send(Message::Close(Some(CloseFrame { code: CloseCode::Normal, reason: "".into() }))).await;
+                }
+                None => outbound_open = false,
+            },
+        }
+    };
+    link.end.send_replace(Some(end));
+    let waiters = std::mem::take(&mut *link.pending.borrow_mut());
+    for (_, waiter) in waiters {
+        let _ = waiter.send(Err(unanswered("connection lost")));
+    }
+}
+
+fn route(link: &Link, text: &str) {
+    if let Ok(value) = serde_json::from_str::<Value>(text) {
+        link.deliver(value);
+    }
+}
+
+/// Dials the door and returns the open socket, or the refusal the door answered with.
+async fn dial(ws_url: &str) -> Result<WebSocketStream<Shared>, ChannelError> {
+    let parsed = url::Url::parse(ws_url).map_err(|e| ChannelError::Refused { message: e.to_string() })?;
+    let addrs = parsed.socket_addrs(|| parsed.port_or_known_default()).map_err(|_| ended_before_open(end_1006()))?;
+    let tcp = TcpStream::connect(&addrs[..]).await.map_err(|_| ended_before_open(end_1006()))?;
+    let sock = Shared(Rc::new(RefCell::new(tcp)));
+    let request = ws_url.into_client_request().map_err(|e| ChannelError::Refused { message: e.to_string() })?;
+    match client_async(request, sock.clone()).await {
+        Ok((ws, _)) => Ok(ws),
+        Err(WsError::Http(response)) => {
+            let response = *response;
+            let (parts, tail) = response.into_parts();
+            let want = parts
+                .headers
+                .get("content-length")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|v| v.parse::<usize>().ok())
+                .unwrap_or(usize::MAX);
+            let body = door_body(tail.unwrap_or_default(), want, sock).await;
+            Err(ChannelError::Door(DaemonDoorError::new(parts.status.as_u16(), &body)))
+        }
+        Err(_) => Err(ended_before_open(end_1006())),
+    }
+}
+
+/// The door's body up to the cap: what the handshake buffered, then reads until the body ends or the cap is full.
+async fn door_body(tail: Vec<u8>, want: usize, mut sock: Shared) -> String {
+    let mut body = tail;
+    while body.len() < want && utf16_len(&body) < DOOR_BODY_CAP {
+        let mut chunk = [0u8; 512];
+        match sock.read(&mut chunk).await {
+            Ok(n) if n > 0 => body.extend_from_slice(&chunk[..n]),
+            _ => break,
+        }
+    }
+    first_units(&String::from_utf8_lossy(&body), DOOR_BODY_CAP).to_string()
+}
+
+/// The TCP stream kept on this side too, so a refusing door's body can be read after the handshake gave it up.
+#[derive(Clone)]
+struct Shared(Rc<RefCell<TcpStream>>);
+
+impl AsyncRead for Shared {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut *self.0.borrow_mut()).poll_read(cx, buf)
+    }
+}
+
+impl AsyncWrite for Shared {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+        Pin::new(&mut *self.0.borrow_mut()).poll_write(cx, buf)
+    }
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut *self.0.borrow_mut()).poll_flush(cx)
+    }
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Pin::new(&mut *self.0.borrow_mut()).poll_shutdown(cx)
+    }
+}
+
+fn unanswered(message: &str) -> ChannelError {
+    ChannelError::Unanswered { message: message.into(), cause: None }
+}
+
+fn end_1006() -> ChannelEnd {
+    ChannelEnd { code: 1006, reason: String::new() }
+}
+
+fn close_end(frame: Option<CloseFrame>) -> ChannelEnd {
+    match frame {
+        Some(f) => ChannelEnd { code: u16::from(f.code), reason: f.reason.to_string() },
+        None => ChannelEnd { code: 1005, reason: String::new() },
+    }
+}
+
+/// A socket that ended before it opened: a refused token reads as the token's error, anything else as the link's.
+fn ended_before_open(end: ChannelEnd) -> ChannelError {
+    if daemon_refused_token(f64::from(end.code), &end.reason) {
+        ChannelError::Token(DaemonTokenError::new(&end.reason))
+    } else {
+        ChannelError::Unanswered { message: "the link to the computer ended before it opened".into(), cause: Some(end) }
+    }
+}
+
+fn refusal_words(error: Option<&Value>) -> String {
+    match error {
+        None | Some(Value::Null) => "the machine refused the daemon link".into(),
+        Some(v) => js_string(v),
+    }
+}
+
+/// JavaScript's `String(value)` for what a daemon sends as its `error`.
+pub(crate) fn js_string(v: &Value) -> String {
+    match v {
+        Value::String(s) => s.clone(),
+        Value::Null => "null".into(),
+        Value::Array(items) => items.iter().map(|i| if i.is_null() { String::new() } else { js_string(i) }).collect::<Vec<_>>().join(","),
+        Value::Object(_) => "[object Object]".into(),
+        other => other.to_string(),
+    }
+}
+
+/// The id of a reply: a JSON number equal to a whole number from 0 up (`2.0` is 2, `"2"` is no id).
+pub(crate) fn reply_id(v: &Value) -> Option<u64> {
+    let n = v.get("id")?.as_f64()?;
+    (n >= 0.0 && n.fract() == 0.0 && n <= u64::MAX as f64).then_some(n as u64)
+}
+
+fn with_id(mut frame: Frame, id: u64) -> String {
+    frame.insert("id".to_string(), json!(id));
+    Value::Object(frame).to_string()
+}
+
+fn utf16_len(bytes: &[u8]) -> usize {
+    String::from_utf8_lossy(bytes).encode_utf16().count()
+}
+
+/// The first `cap` UTF-16 units of `text`, cut on a character.
+fn first_units(text: &str, cap: usize) -> &str {
+    let mut units = 0;
+    for (at, c) in text.char_indices() {
+        units += c.len_utf16();
+        if units > cap {
+            return &text[..at];
+        }
+    }
+    text
 }
