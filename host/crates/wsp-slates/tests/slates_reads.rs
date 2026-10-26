@@ -742,3 +742,30 @@ fn an_edited_script_names_itself_in_the_ask_that_asks_again() {
         assert_has(&v.asks[0].to_json(), json!({"run": "deploy", "why": "deploy.sh changed since you allowed it, so it asks again"}));
     });
 }
+
+// wire.ts:220-236 and 246-253: the answers' JSON, keys in the order slates.ts writes them
+#[test]
+fn the_read_and_event_answers_write_their_keys_in_the_tses_order() {
+    use wsp_slates::pending::wire::{SlateEventAnswer, SlateEventOutcome};
+    let read = wsp_slates::pending::wire::SlateReadAnswer {
+        version: 3,
+        text: "slate v3".into(),
+        document: Some(None),
+        values: Default::default(),
+        state: Default::default(),
+        derived: Default::default(),
+        runs: Default::default(),
+        problems: vec![],
+        waiting: vec![],
+        comments: vec![],
+        approvals: Default::default(),
+    };
+    let keys = |v: &Value| v.as_object().unwrap().keys().cloned().collect::<Vec<_>>();
+    assert_eq!(
+        keys(&read.to_json()),
+        ["version", "text", "document", "values", "state", "derived", "runs", "problems", "waiting", "comments", "approvals"]
+    );
+    assert_eq!(read.to_json()["document"], Value::Null);
+    let event = SlateEventAnswer { outcome: SlateEventOutcome::Started, said: "Sent".into(), turn_id: Some("t1".into()), ask: None };
+    assert_eq!(event.to_json().to_string(), r#"{"outcome":"started","said":"Sent","turnId":"t1"}"#);
+}
