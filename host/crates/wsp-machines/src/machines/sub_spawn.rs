@@ -164,6 +164,6 @@ pub struct SubSpawnArea {
 
 impl SubSpawnArea {
     pub fn new(ctx: Rc<dyn SubSpawnCtx>) -> Rc<SubSpawnArea> {
-        todo!()
+        Rc::new_cyclic(|me| SubSpawnArea { ctx, me: me.clone(), resuming: RefCell::default() })
     }
 }

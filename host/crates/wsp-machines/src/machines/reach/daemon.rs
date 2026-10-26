@@ -388,12 +388,14 @@ impl ReachArea {
         };
         entry.borrow_mut().checkout = Some(fact.clone());
         let recorded = entry.borrow().record.borrow().checkout.clone();
-        let moved = {
-            let mut kept = recorded.unwrap_or(Checkout { read_at: JsNumber(0.0), ..fact.clone() });
-            kept.read_at = JsNumber(0.0);
-            let mut read = fact.clone();
-            read.read_at = JsNumber(0.0);
-            kept != read
+        let moved = match recorded {
+            None => true,
+            Some(mut kept) => {
+                kept.read_at = JsNumber(0.0);
+                let mut read = fact.clone();
+                read.read_at = JsNumber(0.0);
+                kept != read
+            }
         };
         if moved {
             entry.borrow().record.borrow_mut().checkout = Some(fact.clone());

@@ -607,6 +607,9 @@ fn a_failed_note_is_logged() {
         assert_eq!(
             rig.lines_of(&["log: sign-in", "door.", "reader.forget", "changed"]),
             vec![
+                "door.list now=1790251200000".to_string(),
+                "door.report_of pl_1".to_string(),
+                "door.sign_ins_at pl_1 claude,codex,gemini,opencode,pi,hermes,crush,qwen,goose,amp,cursor".to_string(),
                 format!("log: sign-in {id} started: codex, on computer pl_1"),
                 format!("log: sign-in {id} ended: codex, on computer pl_1: signed-in"),
                 "door.login_landed pl_1 codex".to_string(),

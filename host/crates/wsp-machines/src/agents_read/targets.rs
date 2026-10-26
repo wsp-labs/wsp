@@ -10,7 +10,7 @@ use serde_json::Value;
 
 use wsp_catalog::catalog::catalog_agents;
 use wsp_wire::types::agents_report::{
-    AgentRow, AgentsProject, AgentsReport, AgentsTarget, AgentsTargetV0, AgentsTargetV1, NappingLit, PageReach, PluginAsk, PluginRow, ServerAdd,
+    AgentRow, AgentsProject, AgentsReport, AgentsTarget, AgentsTargetV0, NappingLit, PageReach, PluginAsk, PluginRow, ServerAdd,
     ServerAsk, ServerToolsAnswer, SkillAdded, SkillHit, SkillPreview,
 };
 use wsp_wire::types::place_word::HERE_PLACE_ID;

@@ -18,7 +18,7 @@ use wsp_wire::types::usage::{
     UsedAnswerLinesItem, UsedAnswerLogs, UsedAnswerSeriesItem, UsedRow, UsedRowTokens,
 };
 use wsp_words::exit::HostError;
-use wsp_words::js::utf16;
+use wsp_words::js::{collate, utf16};
 use wsp_words::js_date::{fields, DateZone};
 use wsp_words::usage::{base_model, day_key_of, hour_of, price_of, rate_of, PricedTokens, RateTable};
 
@@ -161,7 +161,7 @@ fn day_json(held: &UsageDay) -> Value {
 
 /// usage.ts:184-188 (U13).
 pub fn credits_held(held: Option<&AccountLimitCredits>, read: Option<&BankedResets>, now: i64) -> Option<AccountLimitCredits> {
-    let read = read?;
+    let Some(read) = read else { return held.cloned() };
     let now = JsNumber(now as f64);
     if read.credits.is_some() {
         return Some(AccountLimitCredits { count: read.count, credits: read.credits.clone(), read_at: now, detail_at: Some(now) });
@@ -450,7 +450,7 @@ impl UsageLedger {
         }
         let mut ordered: Vec<UsedRow> = rows.into_values().collect();
         let total_of = |r: &UsedRow| r.tokens.input.0 + r.tokens.output.0;
-        ordered.sort_by(|a, b| total_of(b).partial_cmp(&total_of(a)).unwrap_or(std::cmp::Ordering::Equal).then_with(|| utf16::cmp(&a.key, &b.key)));
+        ordered.sort_by(|a, b| total_of(b).partial_cmp(&total_of(a)).unwrap_or(std::cmp::Ordering::Equal).then_with(|| collate(&a.key, &b.key)));
         let logs = if logged.is_empty() {
             None
         } else {
