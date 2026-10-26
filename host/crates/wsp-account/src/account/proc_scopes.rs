@@ -137,6 +137,18 @@ fn scopes_frame(scopes: &[ProcScope]) -> Frame {
     frame
 }
 
+/// Polls a future once, now, so the frames it sends before its first wait leave in this call; the rest is for the caller to spawn.
+pub(crate) fn poll_now(mut run: LocalBoxFuture<'static, ()>) -> Option<LocalBoxFuture<'static, ()>> {
+    let waker = futures::task::noop_waker();
+    let mut cx = std::task::Context::from_waker(&waker);
+    run.as_mut().poll(&mut cx).is_pending().then_some(run)
+}
+
+/// Newest first; a start time that is no number sorts last, since sort panics on an order that is not total.
+pub(crate) fn newest_first(a: f64, b: f64) -> Ordering {
+    b.partial_cmp(&a).unwrap_or_else(|| a.is_nan().cmp(&b.is_nan()))
+}
+
 /// A scope list cut to the daemon's cap, the first ones kept (`cap`, proc-scopes.ts:134).
 fn cap<T: Clone>(list: impl Iterator<Item = T>, max: i64) -> Vec<T> {
     list.take(max as usize).collect()
@@ -355,7 +367,7 @@ impl ProcScopesArea {
             terminals.entry(terminal.thread).or_default().push(ProcScopePid { pid: JsInt::from(terminal.pid), kind: ProcKind::Terminal });
         }
         let mut ordered: Vec<(String, Placed)> = at.into_iter().collect();
-        ordered.sort_by(|a, b| b.1.started_at.partial_cmp(&a.1.started_at).unwrap_or(Ordering::Equal));
+        ordered.sort_by(|a, b| newest_first(a.1.started_at, b.1.started_at));
         ordered.truncate(PROC_SCOPES_MAX as usize);
         ordered
             .into_iter()
@@ -383,7 +395,9 @@ impl ProcScopesArea {
             Rc::new(move || {
                 if state.told.borrow().is_some() {
                     let me = state.clone();
-                    state.ctx.spawn(async move { me.tell().await }.boxed_local());
+                    if let Some(rest) = poll_now(async move { me.tell().await }.boxed_local()) {
+                        state.ctx.spawn(rest);
+                    }
                 }
             })
         };

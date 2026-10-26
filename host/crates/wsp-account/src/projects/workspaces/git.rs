@@ -5,7 +5,7 @@
 use std::rc::Rc;
 
 use async_trait::async_trait;
-use futures::future::FutureExt;
+use futures::future::{FutureExt, LocalBoxFuture};
 use serde_json::{json, Value};
 use wsp_core::types::api::{
     CommitAsk, CommitDraftAsk, DiscardAsk, FixAsk, FolderFor, FolderForAsk, MergeAsk, MergeInAsk, PullRequestReplyAsk, ViewedMark,
@@ -51,6 +51,8 @@ use wsp_words::words::turn::opening_cut;
 
 use super::create::id_of;
 use super::seam::{record_of, Base, DaemonAsk, DaemonWork, Entry, EntryAsk, Queued};
+use crate::account::core_types::Frame;
+use crate::account::pull_requests::FrameFor;
 use crate::projects::folders::tree::{ListedWorktree, RemoveAsk};
 
 fn json_of<T: serde::Serialize>(v: &T) -> Value {
@@ -75,6 +77,13 @@ fn without_nulls(mut v: Value) -> Value {
         map.retain(|_, value| !value.is_null());
     }
     v
+}
+
+fn frame_of(v: Value) -> Frame {
+    match v {
+        Value::Object(map) => map,
+        _ => Frame::new(),
+    }
 }
 
 fn with_base(mut v: Value, base: &Option<String>) -> Value {
@@ -125,13 +134,14 @@ fn live_pr_fact(entry: &Entry) -> Option<PullRequestFact> {
 
 #[derive(serde::Deserialize)]
 struct MergeInReply {
+    #[serde(rename = "branch")]
+    _branch: String,
     merged: bool,
     commits: u64,
     #[serde(default)]
     oid: Option<String>,
     #[serde(default)]
     head: Option<String>,
-    #[serde(default)]
     conflicts: Vec<String>,
 }
 
@@ -195,14 +205,17 @@ pub trait GitCtx: Base {
     fn has_adapter(&self, agent: &str) -> bool;
     /// `launchAdapterFor`, `catalogOn` and `smallestModel`: whether the adapter drafts, and the model.
     async fn drafter(&self, entry: &Entry, agent: &str) -> Result<Option<Option<String>>, HostError>;
-    async fn put_files(&self, entry: &Entry, path: &str, text: &str) -> Result<ExecResult, HostError>;
+    /// `putFiles(machine, [{path, text}], { before })`: the shell lines run before the file is written.
+    async fn put_files(&self, entry: &Entry, path: &str, text: &str, before: &[&str]) -> Result<ExecResult, HostError>;
     async fn draft_for(&self, entry: &Entry, agent: &str, prompt_file: &str, model: Option<&str>) -> Result<Option<String>, HostError>;
     fn viewed_marks(&self) -> Rc<std::cell::RefCell<indexmap::IndexMap<String, ViewedMarks>>>;
     async fn persist_sessions(&self, workspace_id: &str) -> Result<(), HostError>;
     async fn pull_request_on(&self, workspace_id: &str, origin: Option<Caller>) -> Result<PullRequestOn, HostError>;
     async fn read_page(&self, entry: &Entry, remote: &str, number: i64, fresh: bool) -> Result<(PullRequestPage, bool), HostError>;
     async fn merge_settings(&self, remote: &str) -> Result<serde_json::Value, HostError>;
-    async fn read_host(&self, entry: &Entry, ask: serde_json::Value) -> Result<serde_json::Value, HostError>;
+    /// `readHost(entry, cwd => frame, parse)`: the frame is built for the folder each road runs in, this computer's home
+    /// first and the copy's checkout second.
+    async fn read_host(&self, entry: &Entry, frame: FrameFor) -> Result<serde_json::Value, HostError>;
     async fn post_as_person(&self, remote: &str, number: i64, ask: serde_json::Value) -> Result<serde_json::Value, HostError>;
     async fn to_first_thread(&self, workspace_id: &str, prompt: &str, origin: Option<Caller>) -> Result<SentTo, HostError>;
     async fn send_detached(&self, workspace_id: &str, prompt: &str, thread: &str, origin: Option<Caller>) -> Result<SentTo, HostError>;
@@ -217,6 +230,8 @@ pub trait GitCtx: Base {
     async fn update_copy(&self, entry: &Entry) -> Result<GitUpdateReply, HostError>;
     fn drop_page_cache(&self, remote: &str, number: i64);
     fn is_local_workspace(&self, record: &WorkspaceRecord) -> bool;
+    /// A TS `void f()`: `f` runs now, nothing awaits it.
+    fn spawn(&self, f: LocalBoxFuture<'static, ()>);
 }
 
 // ts: workspaces.ts:647-652
@@ -608,11 +623,13 @@ pub async fn checkout(ctx: &Rc<dyn GitCtx>, id: &str, origin: Option<Caller>, fr
     let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
     let checkout = ctx.read_checkout(&entry, fresh).await?;
     if !fresh {
-        let _ = ctx.read_pull_request(&entry, false, false).await;
+        let (reading, read_entry) = (ctx.clone(), entry.clone());
+        ctx.spawn(async move { drop(reading.read_pull_request(&read_entry, false, false).await) }.boxed_local());
         let own = record_of(&entry).id;
         let has_children = ctx.live().borrow().values().any(|e| record_of(e).parent_workspace_id.as_deref() == Some(own.as_str()));
         if has_children {
-            let _ = ctx.read_tree(&entry).await;
+            let (reading, read_entry) = (ctx.clone(), entry.clone());
+            ctx.spawn(async move { drop(reading.read_tree(&read_entry).await) }.boxed_local());
         }
     }
     Ok(CheckoutReply { checkout })
@@ -635,8 +652,8 @@ pub async fn discard(ctx: &Rc<dyn GitCtx>, ask: DiscardAsk, origin: Option<Calle
     let thread = ask.thread_id.clone();
     let entry = ctx.entry_of(&ask.workspace_id, origin, EntryAsk { thread: thread.clone(), ..EntryAsk::default() }).await?;
     ctx.copy_blocked(&entry).await?;
-    let cwd = ctx.checkout_of(&record_of(&entry));
     if ask.check == Some(true) {
+        let cwd = ctx.checkout_of(&record_of(&entry));
         let status: GitStatusReply = read_as(ask_daemon(ctx, &entry, json!({ "op": "git.status", "cwd": cwd })).await?)?;
         let unread = status.edits_unread;
         if !unread && !status.entries.iter().any(|e| e.xy != "!!" && e.path == ask.path) {
@@ -648,7 +665,10 @@ pub async fn discard(ctx: &Rc<dyn GitCtx>, ask: DiscardAsk, origin: Option<Calle
     let work: Queued<Value> = {
         let c = ctx.clone();
         let e = entry.clone();
-        Box::pin(async move { ask_daemon(&c, &e, json!({ "op": "git.discard", "cwd": cwd, "path": path })).await })
+        Box::pin(async move {
+            let cwd = c.checkout_of(&record_of(&e));
+            ask_daemon(&c, &e, json!({ "op": "git.discard", "cwd": cwd, "path": path })).await
+        })
     };
     let put: GitDiscardReply = read_as(ctx.queued(&record_of(&entry).id, work).await?)?;
     ctx.read_checkout(&entry, true).await?;
@@ -810,7 +830,7 @@ pub async fn commit_draft(ctx: &Rc<dyn GitCtx>, ask: CommitDraftAsk, origin: Opt
     let patches: Vec<String> = diff.files.iter().map(|f| f.patch.clone()).collect();
     let question = draft_prompt(&cut_diff(&patches.join("\n"), None), opening.as_deref());
     let prompt_file = format!("/tmp/wsp-draft-{}.txt", hex::encode(ctx.ids().bytes(6)));
-    let put = ctx.put_files(&entry, &prompt_file, &question).await?;
+    let put = ctx.put_files(&entry, &prompt_file, &question, &["umask 077"]).await?;
     if put.exit_code.0 .0 != 0.0 {
         return Ok(draft_empty(&draft_note("noAnswer")));
     }
@@ -897,14 +917,11 @@ pub async fn pull_request_view(
 //|     },
 pub async fn pull_request_diff(ctx: &Rc<dyn GitCtx>, workspace_id: &str, origin: Option<Caller>) -> Result<GitPrDiffReply, HostError> {
     let on = ctx.pull_request_on(workspace_id, origin).await?;
-    let cwd = ctx.checkout_of(&record_of(&on.entry));
-    let value = ctx
-        .read_host(
-            &on.entry,
-            json!({ "op": "git.prDiff", "cwd": cwd, "remote": on.remote, "number": on.number, "maxBytes": GIT_DIFF_CAP_BYTES }),
-        )
-        .await?;
-    read_as(value)
+    let (remote, number) = (on.remote.clone(), on.number);
+    let frame: FrameFor = Rc::new(move |cwd: &str| {
+        frame_of(json!({ "op": "git.prDiff", "cwd": cwd, "remote": remote, "number": number, "maxBytes": GIT_DIFF_CAP_BYTES }))
+    });
+    read_as(ctx.read_host(&on.entry, frame).await?)
 }
 
 // ts: workspaces.ts:905-910
@@ -919,17 +936,18 @@ pub async fn pull_request_reply(
     ask: PullRequestReplyAsk,
     origin: Option<Caller>,
 ) -> Result<GitPrReplyReply, HostError> {
-    if ask.body.trim().is_empty() {
+    if wsp_words::js::js_trim(&ask.body).is_empty() {
         return Err(HostError::with_kind(REPLY_EMPTY_LINE.to_owned(), Kind::Invalid));
     }
     let on = ctx.pull_request_on(&ask.workspace_id, origin).await?;
-    let mut op = json!({ "op": "git.prReply", "cwd": home_cwd(ctx), "remote": on.remote, "number": on.number, "body": ask.body });
+    let mut op = json!({ "op": "git.prReply", "cwd": home_cwd(ctx), "remote": on.remote, "number": on.number });
     if let Some(reply_to) = ask.reply_to {
         op["replyTo"] = json!(reply_to);
     }
     if let Some(thread) = &ask.thread_id {
         op["threadId"] = json!(thread);
     }
+    op["body"] = json!(ask.body);
     let value = ctx.post_as_person(&on.remote, on.number, op).await?;
     read_as(value)
 }
@@ -1140,13 +1158,11 @@ pub async fn fix(ctx: &Rc<dyn GitCtx>, ask: FixAsk, origin: Option<Caller>) -> R
         let log: Option<CheckLog> = match &failed.run {
             None => None,
             Some(run) => {
-                let cwd = ctx.checkout_of(&record);
-                let value = ctx
-                    .read_host(
-                        &entry,
-                        json!({ "op": "git.runLog", "cwd": cwd, "remote": project.remote, "runId": run.run_id, "jobId": run.job_id }),
-                    )
-                    .await;
+                let (remote, run_id, job_id) = (project.remote.clone(), run.run_id, run.job_id);
+                let frame: FrameFor = Rc::new(move |cwd: &str| {
+                    frame_of(json!({ "op": "git.runLog", "cwd": cwd, "remote": remote, "runId": run_id, "jobId": job_id }))
+                });
+                let value = ctx.read_host(&entry, frame).await;
                 match value {
                     Ok(v) => read_as::<GitRunLogReply>(v).ok().map(|r| CheckLog { lines: r.lines, truncated: r.truncated }),
                     Err(_) => None,
@@ -1355,14 +1371,17 @@ pub async fn merge_in(ctx: &Rc<dyn GitCtx>, ask: MergeInAsk, origin: Option<Call
         }
         from = Some(ctx.checkout_of(&kid_record));
     }
-    let mut op = json!({ "op": "git.mergeIn", "cwd": ctx.checkout_of(&lead_record), "branch": branch });
-    if let Some(from) = &from {
-        op["from"] = json!(from);
-    }
     let lead_id = lead_record.id.clone();
     let c = ctx.clone();
     let l = lead.clone();
-    let work: Queued<Value> = Box::pin(async move { ask_daemon(&c, &l, op).await });
+    let asked_branch = branch.clone();
+    let work: Queued<Value> = Box::pin(async move {
+        let mut op = json!({ "op": "git.mergeIn", "cwd": c.checkout_of(&record_of(&l)), "branch": asked_branch });
+        if let Some(from) = &from {
+            op["from"] = json!(from);
+        }
+        ask_daemon(&c, &l, op).await
+    });
     let done: MergeInReply = read_as(ctx.queued(&lead_id, work).await?)?;
     let mut kept: TreeRecord = tree_or_empty(kid_record.tree.clone());
     if done.merged {

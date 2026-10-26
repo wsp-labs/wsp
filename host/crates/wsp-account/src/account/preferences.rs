@@ -196,10 +196,11 @@ fn without_node_words(message: &str) -> String {
         Some(at) if at > 0 && message[..at].bytes().all(|b| b.is_ascii_uppercase()) => &message[at + 2..],
         _ => message,
     };
-    if let Some(at) = message.rfind(", ") {
+    for (at, _) in message.match_indices(", ") {
         if let Some((word, quoted)) = message[at + 2..].split_once(' ') {
             let inner = quoted.strip_prefix('\'').and_then(|q| q.strip_suffix('\''));
-            if !word.is_empty() && word.chars().all(|c| c.is_alphanumeric() || c == '_') && inner.is_some_and(|q| !q.contains('\'')) {
+            if !word.is_empty() && word.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') && inner.is_some_and(|q| !q.contains('\''))
+            {
                 return message[..at].to_string();
             }
         }
