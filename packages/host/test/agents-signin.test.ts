@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Machine } from "@wsp/engine";
-import { HERE_PLACE_ID, THIS_COMPUTER, refusalLine, addToolsHereRefusal, closedBeforeSignInLine, controlSignInRefusal, mintFailedLine, signInUncheckedLine, noVaultKeyRefusal, notTokenRefusal, serverNotSetUpLine, serverSignInCopyRefusal, shellQuote, signInTerminalRefusal, signInVaultRefusal, type AgentsSignInEvent } from "@wsp/protocol";
+import { HERE_PLACE_ID, THIS_COMPUTER, refusalLine, addToolsHereRefusal, exitClassOf, closedBeforeSignInLine, controlSignInRefusal, mintFailedLine, signInUncheckedLine, noVaultKeyRefusal, notTokenRefusal, serverNotSetUpLine, serverSignInCopyRefusal, shellQuote, signInTerminalRefusal, signInVaultRefusal, type AgentsSignInEvent } from "@wsp/protocol";
 import type { AgentsOn, SignInForward } from "@wsp/runtime";
 import { brokeredSignInFix, brokeredSignInRefusal, cloudSignIn, hostActs, pagesOnPty, planSignIn, terminalSignIn, watchSignIn } from "../src/agents-signin.js";
 import { signInPrepareLine } from "../src/place-signin.js";
@@ -565,11 +565,13 @@ describe("the host's acts that write", () => {
     expect(config).toContain("[mcp_servers.wsp]");
     expect(config).toContain('"/usr/local/bin/wsp"');
     await expect(a.addTools(rootBox(), "codex")).rejects.toThrow(addToolsHereRefusal);
+    expect(exitClassOf(await a.addTools(rootBox(), "codex").catch((e: unknown) => e))).toBe("usage");
   });
 
   it("refuses the wsp tools for an agent with no MCP config before writing anything", async () => {
     const { home, acts: a } = acts();
     await expect(a.addTools({ kind: "here" }, "pi")).rejects.toThrow("Pi has no MCP config wsp knows, so the wsp tools were not written");
+    expect(exitClassOf(await a.addTools({ kind: "here" }, "cursor").catch((e: unknown) => e))).toBe("usage");
     expect(readdirSync(home)).toEqual([]);
   });
 });
