@@ -33,11 +33,25 @@ fn root_login() -> TargetLogin {
 }
 
 fn stdio(command: &str, args: &[&str], env: &[(&str, &str)], cwd: Option<&str>) -> McpTransport {
-    McpTransport::Stdio { command: command.into(), args: args.iter().map(|s| s.to_string()).collect(), env: env.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(), cwd: cwd.map(String::from), tool_timeout_sec: None }
+    McpTransport::Stdio {
+        command: command.into(),
+        args: args.iter().map(|s| s.to_string()).collect(),
+        env: env.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+        cwd: cwd.map(String::from),
+        tool_timeout_sec: None,
+    }
 }
 
 fn spec(t: &McpTransport, env: &[(&str, &str)]) -> McpServerSpec {
-    McpServerSpec { transport: t.clone(), cwd: "/srv/app".into(), env: env.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(), secrets: vec![], open: None, post: None, sign_in: None }
+    McpServerSpec {
+        transport: t.clone(),
+        cwd: "/srv/app".into(),
+        env: env.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+        secrets: vec![],
+        open: None,
+        post: None,
+        sign_in: None,
+    }
 }
 
 fn map(pairs: &[(&str, &str)]) -> IndexMap<String, String> {
@@ -51,7 +65,13 @@ fn server_line_quotes_as_the_ts() {
         server_line(&root_login(), &stdio("npx", &["-y", "it's"], &[], None), "/root/my proj"),
         "export HOME='/root'; cd \"$HOME\" 2>/dev/null; while IFS= read -r -d '' k && [ -n \"$k\" ] && IFS= read -r -d '' v; do export \"$k=$v\"; done; cd -- '/root/my proj' 2>/dev/null; exec 'npx' '-y' 'it'\\''s'"
     );
-    let ubuntu = TargetLogin { platform: Platform::Linux, home: "/home/ubuntu".into(), path: Some("/usr/bin:/bin".into()), user: "ubuntu".into(), run_as: Some("ubuntu".into()) };
+    let ubuntu = TargetLogin {
+        platform: Platform::Linux,
+        home: "/home/ubuntu".into(),
+        path: Some("/usr/bin:/bin".into()),
+        user: "ubuntu".into(),
+        run_as: Some("ubuntu".into()),
+    };
     assert_eq!(
         server_line(&ubuntu, &stdio("node", &[], &[], Some("/srv")), "/x"),
         "runuser -u 'ubuntu' -- bash -c 'export HOME='\\''/home/ubuntu'\\'' PATH='\\''/usr/bin:/bin'\\''; cd \"$HOME\" 2>/dev/null; while IFS= read -r -d '\\'''\\'' k && [ -n \"$k\" ] && IFS= read -r -d '\\'''\\'' v; do export \"$k=$v\"; done; cd -- '\\''/srv'\\'' 2>/dev/null; exec '\\''node'\\'''"
@@ -65,7 +85,10 @@ fn env_pairs_ends_with_an_empty_name() {
     assert_eq!(env_pairs(&IndexMap::new()), "\u{0}");
     assert_eq!(BOX_SLATES, "/tmp/wsp-slates");
     assert_eq!(box_slate_dir("t1"), "/tmp/wsp-slates/t1");
-    assert_eq!(sign_in_gone_line("spoo", "claude mcp login x"), "its address wants a sign-in that spoo does not hold now; run claude mcp login x there, then start the run again");
+    assert_eq!(
+        sign_in_gone_line("spoo", "claude mcp login x"),
+        "its address wants a sign-in that spoo does not hold now; run claude mcp login x there, then start the run again"
+    );
 }
 
 // ---- a daemon road in the test's hands ----
@@ -83,7 +106,14 @@ struct FakeRoad {
 impl FakeRoad {
     fn new(answer: Box<dyn FnMut(&Value) -> LocalBoxFuture<'static, Result<Value, String>>>) -> Rc<FakeRoad> {
         let (tx, rx) = tokio::sync::oneshot::channel::<()>();
-        Rc::new(FakeRoad { frames: RefCell::new(vec![]), listeners: Rc::new(RefCell::new(vec![])), closes: Cell::new(0), closed_tx: RefCell::new(Some(tx)), closed: rx.map(|_| ()).boxed_local().shared(), answer: RefCell::new(answer) })
+        Rc::new(FakeRoad {
+            frames: RefCell::new(vec![]),
+            listeners: Rc::new(RefCell::new(vec![])),
+            closes: Cell::new(0),
+            closed_tx: RefCell::new(Some(tx)),
+            closed: rx.map(|_| ()).boxed_local().shared(),
+            answer: RefCell::new(answer),
+        })
     }
     fn plain() -> Rc<FakeRoad> {
         FakeRoad::new(Box::new(|_| async { Ok(json!({})) }.boxed_local()))
@@ -142,7 +172,11 @@ struct Heard {
 impl Heard {
     fn events(&self) -> McpPipeEvents {
         let (o, e, x) = (self.out.clone(), self.err.clone(), self.exits.clone());
-        McpPipeEvents { out: Rc::new(move |b: &[u8]| o.borrow_mut().extend_from_slice(b)), err: Rc::new(move |t: &str| e.borrow_mut().push_str(t)), exit: Rc::new(move |w: &str| x.borrow_mut().push(w.to_string())) }
+        McpPipeEvents {
+            out: Rc::new(move |b: &[u8]| o.borrow_mut().extend_from_slice(b)),
+            err: Rc::new(move |t: &str| e.borrow_mut().push_str(t)),
+            exit: Rc::new(move |w: &str| x.borrow_mut().push(w.to_string())),
+        }
     }
 }
 
@@ -231,7 +265,8 @@ async fn pipe_on_routes_only_its_own_stdio_events() {
             let road = FakeRoad::plain();
             let t = stdio("server", &[], &[], None);
             let heard = Heard::default();
-            let _pipe = (pipe_on("hetzner", root_login(), dial(&road), IndexMap::new(), Rc::new(OsIds)))(&t, &spec(&t, &[]), heard.events());
+            let _pipe =
+                (pipe_on("hetzner", root_login(), dial(&road), IndexMap::new(), Rc::new(OsIds)))(&t, &spec(&t, &[]), heard.events());
             settle().await;
             let id = road.frames.borrow()[0]["stdioId"].clone();
             road.emit(json!({ "type": "stdio.out", "stdioId": "someone-else", "data": b64("not ours") }));
@@ -243,7 +278,10 @@ async fn pipe_on_routes_only_its_own_stdio_events() {
             assert_eq!(*heard.err.borrow(), "warn: x");
             road.close();
             settle().await;
-            assert_eq!(*heard.exits.borrow(), vec!["the server exited with 3".to_string(), "the server was stopped".into(), "the link to hetzner closed".into()]);
+            assert_eq!(
+                *heard.exits.borrow(),
+                vec!["the server exited with 3".to_string(), "the server was stopped".into(), "the link to hetzner closed".into()]
+            );
         })
         .await;
 }
@@ -255,7 +293,14 @@ async fn pipe_on_closes_the_road_when_the_daemon_refuses_and_says_the_refusal_fi
         .run_until(async {
             let road = FakeRoad::new(Box::new(|f: &Value| {
                 let refused = f["op"] == "stdio.open";
-                async move { if refused { Err("unknown op: stdio.open".to_string()) } else { Ok(json!({})) } }.boxed_local()
+                async move {
+                    if refused {
+                        Err("unknown op: stdio.open".to_string())
+                    } else {
+                        Ok(json!({}))
+                    }
+                }
+                .boxed_local()
             }));
             let t = stdio("stub", &[], &[], None);
             let s = spec(&t, &[]);
@@ -283,7 +328,10 @@ async fn pipe_on_closes_the_road_when_the_daemon_refuses_and_says_the_refusal_fi
             }
             settle().await;
             assert_eq!(road.closes.get(), 1);
-            assert_eq!((heard.exits.borrow()[0].clone(), road.listening()), ("it could not be started on hetzner: unknown op: stdio.open".to_string(), 0));
+            assert_eq!(
+                (heard.exits.borrow()[0].clone(), road.listening()),
+                ("it could not be started on hetzner: unknown op: stdio.open".to_string(), 0)
+            );
             assert!(!road.ops().contains(&"stdio.write".to_string()));
         })
         .await;
@@ -359,7 +407,14 @@ impl ScriptedPost {
 impl McpPost for ScriptedPost {
     fn send(&self, _t: &McpTransport, req: McpHttpRequest) -> LocalBoxFuture<'static, Result<McpHttpAnswer, String>> {
         self.sent.borrow_mut().push(req);
-        let status = { let mut s = self.statuses.borrow_mut(); if s.len() > 1 { s.remove(0) } else { s[0] } };
+        let status = {
+            let mut s = self.statuses.borrow_mut();
+            if s.len() > 1 {
+                s.remove(0)
+            } else {
+                s[0]
+            }
+        };
         async move { Ok(McpHttpAnswer { status, content_type: None, session_id: None, body: String::new() }) }.boxed_local()
     }
     fn close(&self) {
@@ -368,15 +423,29 @@ impl McpPost for ScriptedPost {
 }
 
 fn bearer() -> HttpBearer {
-    serde_json::from_value(json!({ "file": "~/.claude/.credentials.json", "at": ["mcpOAuth", "cloudflare|2e40c71145c8b601"], "field": "accessToken" })).unwrap()
+    serde_json::from_value(
+        json!({ "file": "~/.claude/.credentials.json", "at": ["mcpOAuth", "cloudflare|2e40c71145c8b601"], "field": "accessToken" }),
+    )
+    .unwrap()
 }
 
-fn sign_in(renews: Rc<RefCell<Vec<bool>>>, count: Rc<Cell<u32>>, read: Option<Rc<dyn Fn() -> LocalBoxFuture<'static, Option<String>>>>) -> McpSignIn {
+fn sign_in(
+    renews: Rc<RefCell<Vec<bool>>>,
+    count: Rc<Cell<u32>>,
+    read: Option<Rc<dyn Fn() -> LocalBoxFuture<'static, Option<String>>>>,
+) -> McpSignIn {
     McpSignIn {
         bearer: bearer(),
         renew: Rc::new(move || {
             count.set(count.get() + 1);
-            let answer = { let mut r = renews.borrow_mut(); if r.len() > 1 { r.remove(0) } else { r[0] } };
+            let answer = {
+                let mut r = renews.borrow_mut();
+                if r.len() > 1 {
+                    r.remove(0)
+                } else {
+                    r[0]
+                }
+            };
             async move { answer }.boxed_local()
         }),
         line: "claude mcp login cloudflare".into(),
@@ -422,9 +491,17 @@ async fn renew_on_refusal_says_sign_in_gone_where_it_cannot_renew() {
         .run_until(async {
             let gone = sign_in_gone_line("hetzner", "claude mcp login cloudflare");
             let count = Rc::new(Cell::new(0));
-            let post = renew_on_refusal("hetzner", Some(sign_in(Rc::new(RefCell::new(vec![false])), count.clone(), None)), ScriptedPost::new(&[403]));
+            let post = renew_on_refusal(
+                "hetzner",
+                Some(sign_in(Rc::new(RefCell::new(vec![false])), count.clone(), None)),
+                ScriptedPost::new(&[403]),
+            );
             assert_eq!(post.send(&http("http://x"), req(1000)).await, Err(gone.clone()));
-            let again = renew_on_refusal("hetzner", Some(sign_in(Rc::new(RefCell::new(vec![true])), Rc::new(Cell::new(0)), None)), ScriptedPost::new(&[401, 401]));
+            let again = renew_on_refusal(
+                "hetzner",
+                Some(sign_in(Rc::new(RefCell::new(vec![true])), Rc::new(Cell::new(0)), None)),
+                ScriptedPost::new(&[401, 401]),
+            );
             assert_eq!(again.send(&http("http://x"), req(1000)).await, Err(gone));
         })
         .await;
@@ -581,7 +658,9 @@ async fn post_here_sends_no_bearer_that_would_break_the_request_line() {
                     let t = t.clone();
                     async move { t }.boxed_local()
                 });
-                let post = post_here("this computer", sign_in(Rc::new(RefCell::new(vec![false])), Rc::new(Cell::new(0)), Some(read)))(inner.clone());
+                let post = post_here("this computer", sign_in(Rc::new(RefCell::new(vec![false])), Rc::new(Cell::new(0)), Some(read)))(
+                    inner.clone(),
+                );
                 post.send(&http("http://x"), req(1_000)).await.unwrap();
                 assert_eq!(inner.sent.borrow()[0].headers.get("Authorization"), None, "{token:?}");
             }

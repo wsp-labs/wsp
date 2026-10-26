@@ -13,8 +13,12 @@ use indexmap::IndexMap;
 use serde_json::{json, Value};
 use support::{local, temp_root, until, FakeHost, MemStore};
 use wsp_slates::lazy_slates::{lazy_slates, SlatesFactory, SLATES};
-use wsp_slates::pending::wire::{SlateEventAnswer, SlateEventOutcome, SlateReadAnswer, SlateStateAnswer, SlateView, SlateWriteAnswer, SlatesImageAnswer};
-use wsp_slates::slates::{ApprovalScope, ApproveParams, CatalogParams, EventParams, ReadParams, SlateTarget, Slates, SlatesDeps, StateParams, WriteParams};
+use wsp_slates::pending::wire::{
+    SlateEventAnswer, SlateEventOutcome, SlateReadAnswer, SlateStateAnswer, SlateView, SlateWriteAnswer, SlatesImageAnswer,
+};
+use wsp_slates::slates::{
+    ApprovalScope, ApproveParams, CatalogParams, EventParams, ReadParams, SlateTarget, Slates, SlatesDeps, StateParams, WriteParams,
+};
 use wsp_store::store::Store;
 use wsp_wire::views::workspace::Caller;
 use wsp_words::exit::HostError;
@@ -211,7 +215,15 @@ fn write_of(text: &str) -> WriteParams {
 }
 
 fn event_of() -> EventParams {
-    EventParams { thread_id: "t1".into(), version: 1, piece: "button-1".into(), event: "press".into(), request_id: "r1".into(), scope: None, row_action: None }
+    EventParams {
+        thread_id: "t1".into(),
+        version: 1,
+        piece: "button-1".into(),
+        event: "press".into(),
+        request_id: "r1".into(),
+        scope: None,
+        row_action: None,
+    }
 }
 
 // lazy_slates Edge case: lazy-slates.test.ts:30 (is not loaded by a host with no slate, whatever its threads do)
@@ -250,7 +262,8 @@ fn loads_on_a_threads_first_write_once_and_then_follows_the_threads_turns() {
     local(async {
         let rig = Rig::new();
         rig.slates.ready().await.unwrap();
-        let (a, b) = futures::future::join(rig.slates.write(write_of("<slate/>"), None), rig.slates.write(write_of("<slate/>"), None)).await;
+        let (a, b) =
+            futures::future::join(rig.slates.write(write_of("<slate/>"), None), rig.slates.write(write_of("<slate/>"), None)).await;
         a.unwrap();
         b.unwrap();
         rig.slates.turn_ended("t1", "u1").await.unwrap();
@@ -303,10 +316,22 @@ fn every_used_call_makes_the_area_and_passes_through_its_answer() {
         s.cancel("t1", "build").await.unwrap();
         assert_eq!(s.resolve("t1", &names(&["a", "b"])).await.unwrap(), IndexMap::from([("a".to_string(), json!(1))]));
         assert_eq!(s.image("t1", "pic.png", None).await.unwrap(), json!({"kind": "image"}));
-        assert_eq!(rig.calls(), vec![names(&["write", "state", "read", "catalog", "shown", "revoke", "event", "approve", "cancel", "resolve", "image"])]);
+        assert_eq!(
+            rig.calls(),
+            vec![names(&["write", "state", "read", "catalog", "shown", "revoke", "event", "approve", "cancel", "resolve", "image"])]
+        );
         assert_eq!(
             rig.made.borrow()[0].args(),
-            names(&["write:<slate/>", "shown:t1", "revoke:t1,k1", "event:button-1", "approve:k2", "cancel:t1,build", "resolve:t1,a,b", "image:t1,pic.png"])
+            names(&[
+                "write:<slate/>",
+                "shown:t1",
+                "revoke:t1,k1",
+                "event:button-1",
+                "approve:k2",
+                "cancel:t1,build",
+                "resolve:t1,a,b",
+                "image:t1,pic.png"
+            ])
         );
     });
 }
@@ -317,7 +342,12 @@ fn calls_made_before_the_area_exists_reach_it_in_call_order() {
     local(async {
         let rig = Rig::new();
         let s = &rig.slates;
-        let (w, st, r, c) = futures::join!(s.write(write_of("x"), None), s.state(StateParams::default(), None), s.read(ReadParams::default(), None), s.shown("t1"));
+        let (w, st, r, c) = futures::join!(
+            s.write(write_of("x"), None),
+            s.state(StateParams::default(), None),
+            s.read(ReadParams::default(), None),
+            s.shown("t1")
+        );
         w.unwrap();
         st.unwrap();
         r.unwrap();

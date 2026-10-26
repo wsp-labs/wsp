@@ -143,7 +143,15 @@ async fn approve(s: &Rc<dyn Slates>, key: &str, scope: ApprovalScope) -> Result<
 }
 
 fn press_params(version: i64, piece: &str, request_id: &str) -> EventParams {
-    EventParams { thread_id: THREAD.into(), version, piece: piece.into(), event: "press".into(), request_id: request_id.into(), scope: None, row_action: None }
+    EventParams {
+        thread_id: THREAD.into(),
+        version,
+        piece: piece.into(),
+        event: "press".into(),
+        request_id: request_id.into(),
+        scope: None,
+        row_action: None,
+    }
 }
 
 async fn press(s: &Rc<dyn Slates>, piece: &str, request_id: &str) -> Result<SlateEventAnswer, HostError> {
@@ -195,7 +203,8 @@ use wsp_slates::slates::{Delivered, DeliveryOutcome};
 
 const PRESS: &str = r##"<slate><column><button id="go" label="Go on" onPress={send("Go on.")} /></column></slate>"##;
 
-const COUNTER: &str = r##"<slate><value name="n" start={0} /><column><button id="up" label="Up" onPress={set($n, $n + 1)} /></column></slate>"##;
+const COUNTER: &str =
+    r##"<slate><value name="n" start={0} /><column><button id="up" label="Up" onPress={set($n, $n + 1)} /></column></slate>"##;
 
 const DEPLOY: &str = r##"<slate title="Deploy">
   <run name="deploy" cmd='sleep 2; echo deployed' confirm="Deploy now?" timeout={20} />
@@ -314,7 +323,11 @@ fn a_press_on_a_piece_the_host_s_document_lacks_refuses_and_a_press_again_is_new
         assert_eq!(gone.kind, Some(Kind::Usage));
         assert!(gone.message.contains("That part of the slate is gone (piece nope, version 1; the slate is at 1)."), "{}", gone.message);
         assert_eq!(gone.fix.as_deref(), Some("Press it again once the slate has redrawn."));
-        agent_write(s, r##"<slate><value name="n" start={0} /><column><button id="nope" label="Now" onPress={set($n, 9)} /></column></slate>"##).await;
+        agent_write(
+            s,
+            r##"<slate><value name="n" start={0} /><column><button id="nope" label="Now" onPress={set($n, 9)} /></column></slate>"##,
+        )
+        .await;
         clock.advance(250);
         s.event(press_params(2, "nope", "same")).await.expect("the refusal was not remembered");
         assert_eq!(n_of(s).await, 9.0);
@@ -371,9 +384,15 @@ fn a_press_that_sends_starts_the_agent_s_turn_with_the_text_and_the_slate_line()
         assert!(told.ask.is_none());
         let delivered = rig.host.delivered.borrow().clone();
         assert_eq!(delivered.len(), 1);
-        assert_eq!((delivered[0].thread_id.as_str(), delivered[0].workspace_id.as_str(), delivered[0].request_id.as_str()), (THREAD, WORKSPACE, "go-1"));
+        assert_eq!(
+            (delivered[0].thread_id.as_str(), delivered[0].workspace_id.as_str(), delivered[0].request_id.as_str()),
+            (THREAD, WORKSPACE, "go-1")
+        );
         assert!(delivered[0].prompt.starts_with("Go on.\n\nslate: "), "{}", delivered[0].prompt);
-        assert_has(&slate_line(&delivered[0].prompt), json!({"v": 2, "kind": "action", "piece": "go", "label": "Go on", "event": "press", "by": "person"}));
+        assert_has(
+            &slate_line(&delivered[0].prompt),
+            json!({"v": 2, "kind": "action", "piece": "go", "label": "Go on", "event": "press", "by": "person"}),
+        );
     });
 }
 
@@ -387,11 +406,17 @@ fn a_press_answers_steered_and_queued_with_what_each_reads_as() {
         agent_write(s, PRESS).await;
         *rig.host.deliver_answer.borrow_mut() = Ok(Delivered { outcome: DeliveryOutcome::Steered, turn_id: None });
         let steered = s.event(press_params(1, "go", "g-steer")).await.unwrap();
-        assert_eq!((steered.outcome, steered.said.as_str(), steered.turn_id.clone()), (SlateEventOutcome::Steered, "Sent into the running turn", None));
+        assert_eq!(
+            (steered.outcome, steered.said.as_str(), steered.turn_id.clone()),
+            (SlateEventOutcome::Steered, "Sent into the running turn", None)
+        );
         clock.advance(2_001);
         *rig.host.deliver_answer.borrow_mut() = Ok(Delivered { outcome: DeliveryOutcome::Queued, turn_id: None });
         let queued = s.event(press_params(1, "go", "g-queue")).await.unwrap();
-        assert_eq!((queued.outcome, queued.said.as_str(), queued.turn_id.clone()), (SlateEventOutcome::Queued, "Waiting for the turn to end", None));
+        assert_eq!(
+            (queued.outcome, queued.said.as_str(), queued.turn_id.clone()),
+            (SlateEventOutcome::Queued, "Waiting for the turn to end", None)
+        );
     });
 }
 
@@ -594,7 +619,8 @@ fn the_person_revokes_an_approval_its_run_stops_and_leaves_its_timer_and_the_nex
         let v = wait_view(s, 5_000, |v| state_is(v, "tick", "cancelled")).await;
         assert!(!v.approvals.contains_key(&key));
         agent_write(s, &slow).await;
-        wait_view(s, 5_000, |v| state_is(v, "tick", "held") && v.asks.iter().map(|a| a.key()).collect::<Vec<_>>() == vec![key.clone()]).await;
+        wait_view(s, 5_000, |v| state_is(v, "tick", "held") && v.asks.iter().map(|a| a.key()).collect::<Vec<_>>() == vec![key.clone()])
+            .await;
         approve(s, "domain:example.com", ApprovalScope::Thread).await.unwrap();
         s.revoke(THREAD, "domain:example.com").await.unwrap();
         assert!(!view(s).await.approvals.contains_key("domain:example.com"));
@@ -627,7 +653,11 @@ fn a_held_run_whose_command_the_agent_rewrote_asks_again_for_the_new_one_and_run
     support::local(async {
         let rig = rig("wsp-slates-held-rewrite-");
         let s = &rig.slates;
-        let slate = |cmd: &str| format!(r##"<slate title="Say"><run name="say" cmd="{cmd}" /><column><button id="go" label="Say" onPress={{start($say)}} /></column></slate>"##);
+        let slate = |cmd: &str| {
+            format!(
+                r##"<slate title="Say"><run name="say" cmd="{cmd}" /><column><button id="go" label="Say" onPress={{start($say)}} /></column></slate>"##
+            )
+        };
         agent_write(s, &slate("echo old")).await;
         let pressed = press(s, "go", "go").await.unwrap();
         let first = pressed.ask.expect("the sheet");

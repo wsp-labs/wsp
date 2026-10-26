@@ -39,7 +39,14 @@ fn nul(items: &[&str]) -> String {
 }
 
 fn sh(cmd: &str, stdin: Option<&[u8]>) -> std::process::Output {
-    let mut child = std::process::Command::new("bash").arg("-c").arg(cmd).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+    let mut child = std::process::Command::new("bash")
+        .arg("-c")
+        .arg(cmd)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
     {
         use std::io::Write;
         let mut input = child.stdin.take().unwrap();
@@ -62,10 +69,13 @@ fn thread_name() -> String {
 
 fn rand_hex() -> String {
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().subsec_nanos();
-    format!("{nanos:08x}{:04x}", COUNTER.with(|c| {
-        c.set(c.get() + 1);
-        c.get()
-    }))
+    format!(
+        "{nanos:08x}{:04x}",
+        COUNTER.with(|c| {
+            c.set(c.get() + 1);
+            c.get()
+        })
+    )
 }
 
 thread_local!(static COUNTER: Cell<u32> = const { Cell::new(0) });
@@ -96,7 +106,15 @@ struct BashMachine {
 
 impl BashMachine {
     fn new() -> Arc<BashMachine> {
-        Arc::new(BashMachine { killed: Cell::new(false), down: Rc::new(Cell::new(false)), before_run: RefCell::new(None), gate: RefCell::new(None), launches: RefCell::new(vec![]), scripts: RefCell::new(vec![]), exec_answer: RefCell::new(None) })
+        Arc::new(BashMachine {
+            killed: Cell::new(false),
+            down: Rc::new(Cell::new(false)),
+            before_run: RefCell::new(None),
+            gate: RefCell::new(None),
+            launches: RefCell::new(vec![]),
+            scripts: RefCell::new(vec![]),
+            exec_answer: RefCell::new(None),
+        })
     }
 }
 
@@ -171,7 +189,11 @@ impl Machine for BashMachine {
             }
         }
         let o = sh(cmd, opts.stdin.as_deref());
-        Ok(ExecResult { exit_code: i64::from(o.status.code().unwrap_or(1)).into(), stdout: String::from_utf8_lossy(&o.stdout).to_string(), stderr: String::from_utf8_lossy(&o.stderr).to_string() })
+        Ok(ExecResult {
+            exit_code: i64::from(o.status.code().unwrap_or(1)).into(),
+            stdout: String::from_utf8_lossy(&o.stdout).to_string(),
+            stderr: String::from_utf8_lossy(&o.stderr).to_string(),
+        })
     }
     async fn run(&self, script: &str, opts: RunOptions) -> Result<ExecResult> {
         self.scripts.borrow_mut().push(script.to_string());
@@ -246,7 +268,15 @@ fn heard() -> (Rc<Heard>, tokio::sync::oneshot::Receiver<RoadEnd>) {
 }
 
 fn road_start(cmd: &str, cwd: &str, env: &[(&str, &str)], args: &[&str], stdin: Option<&str>, timeout_s: f64, stream: bool) -> RoadStart {
-    RoadStart { cmd: cmd.into(), args: args.iter().map(|s| s.to_string()).collect(), cwd: cwd.into(), env: env.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(), stdin: stdin.map(String::from), timeout_s, stream }
+    RoadStart {
+        cmd: cmd.into(),
+        args: args.iter().map(|s| s.to_string()).collect(),
+        cwd: cwd.into(),
+        env: env.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+        stdin: stdin.map(String::from),
+        timeout_s,
+        stream,
+    }
 }
 
 /// Starts a command on the road, answering its end and the lines it streamed.
@@ -259,7 +289,9 @@ async fn ended(road: &Rc<BoxRoad>, o: RoadStart) -> (RoadEnd, Vec<String>) {
 }
 
 fn runs_in(thread: &str) -> Vec<String> {
-    std::fs::read_dir(box_slate_dir(thread)).map(|d| d.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().to_string()).filter(|n| n.starts_with(".run-")).collect()).unwrap_or_default()
+    std::fs::read_dir(box_slate_dir(thread))
+        .map(|d| d.filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().to_string()).filter(|n| n.starts_with(".run-")).collect())
+        .unwrap_or_default()
 }
 
 // ---- the launcher ----
@@ -274,7 +306,10 @@ fn the_launcher_hands_values_whole_runs_none_and_leaves_none_on_disk() {
     std::fs::write(format!("{p}/env"), nul(&["NAME", value, "SLATE_DIR", "/tmp/s"])).unwrap();
     std::fs::write(format!("{p}/args"), nul(&["a b", "$(touch pwned-arg)", ""])).unwrap();
     std::fs::write(format!("{p}/in"), b64(b"in put\nsecond")).unwrap();
-    let cmd = format!("printf '%s|' \"$NAME\" \"$1\" \"$2\" \"$3\" \"$#\" \"$SLATE_DIR\"; echo; cat; echo; pwd; ls -a {} | grep -c run || true", serde_json::to_string(&dir).unwrap());
+    let cmd = format!(
+        "printf '%s|' \"$NAME\" \"$1\" \"$2\" \"$3\" \"$#\" \"$SLATE_DIR\"; echo; cat; echo; pwd; ls -a {} | grep -c run || true",
+        serde_json::to_string(&dir).unwrap()
+    );
     let script = box_launcher(&Launch { payload: p.clone(), cwd: dir.clone(), cmd });
     let o = std::process::Command::new("bash").arg("-c").arg(&script).current_dir(std::env::temp_dir()).output().unwrap();
     assert_eq!(String::from_utf8_lossy(&o.stdout), format!("{value}|a b|$(touch pwned-arg)||3|/tmp/s|\nin put\nsecond\n{dir}\n0\n"));
@@ -324,9 +359,29 @@ async fn writes_the_slates_files_sweeps_and_runs_with_values_folder_and_lines() 
             std::fs::write(format!("{dir}/stale.py"), "old").unwrap();
             let (_keep, cwd) = temp();
             let m: Arc<dyn Machine> = machine.clone();
-            let road = box_road(m.clone(), &thread, files(&[("hi.sh", "echo from the file")]), no_wake(), box_ledger(None, real_clock()), m, Rc::new(OsIds));
+            let road = box_road(
+                m.clone(),
+                &thread,
+                files(&[("hi.sh", "echo from the file")]),
+                no_wake(),
+                box_ledger(None, real_clock()),
+                m,
+                Rc::new(OsIds),
+            );
             assert_eq!(road.slate_dir(), dir);
-            let (end, lines) = ended(&road, road_start("sh \"$SLATE_DIR/hi.sh\"; printf '%s|%s\\n' \"$X\" \"$1\"; pwd; cat", &cwd, &[("SLATE_DIR", &dir), ("X", "x y")], &["$(touch nope)"], Some("IN"), 20.0, true)).await;
+            let (end, lines) = ended(
+                &road,
+                road_start(
+                    "sh \"$SLATE_DIR/hi.sh\"; printf '%s|%s\\n' \"$X\" \"$1\"; pwd; cat",
+                    &cwd,
+                    &[("SLATE_DIR", &dir), ("X", "x y")],
+                    &["$(touch nope)"],
+                    Some("IN"),
+                    20.0,
+                    true,
+                ),
+            )
+            .await;
             assert_eq!((end.code, end.timed_out, end.cut), (Some(0), false, false));
             assert_eq!(end.out, format!("from the file\nx y|$(touch nope)\n{cwd}\nIN"));
             assert_eq!(lines, vec!["from the file".to_string(), "x y|$(touch nope)".into(), cwd.clone(), "IN".into()]);
@@ -376,7 +431,15 @@ async fn hands_the_launch_alone_to_the_cgroup_machine() {
             let (_keep, cwd) = temp();
             let m: Arc<dyn Machine> = machine.clone();
             let l: Arc<dyn Machine> = launch_on.clone();
-            let road = box_road(m.clone(), &thread, files(&[("a.sh", "echo a")]), no_wake(), box_ledger(None, real_clock()), l.clone(), Rc::new(OsIds));
+            let road = box_road(
+                m.clone(),
+                &thread,
+                files(&[("a.sh", "echo a")]),
+                no_wake(),
+                box_ledger(None, real_clock()),
+                l.clone(),
+                Rc::new(OsIds),
+            );
             let (end, _) = ended(&road, road_start("true", &cwd, &[], &[], Some(""), 20.0, false)).await;
             assert_eq!(end.code, Some(0));
             let handed = machine.launches.borrow().clone();
@@ -490,15 +553,24 @@ async fn a_failed_upload_ends_with_the_machines_words() {
             let thread = thread_name();
             let _guard = SlateDirGuard(box_slate_dir(&thread));
             for (answer, words) in [
-                (ExecResult { exit_code: 3.into(), stdout: String::new(), stderr: "  disk full\n".into() }, "the slate's files did not reach the thread's machine: disk full"),
-                (ExecResult { exit_code: 3.into(), stdout: String::new(), stderr: "   ".into() }, "the slate's files did not reach the thread's machine: exit 3"),
+                (
+                    ExecResult { exit_code: 3.into(), stdout: String::new(), stderr: "  disk full\n".into() },
+                    "the slate's files did not reach the thread's machine: disk full",
+                ),
+                (
+                    ExecResult { exit_code: 3.into(), stdout: String::new(), stderr: "   ".into() },
+                    "the slate's files did not reach the thread's machine: exit 3",
+                ),
             ] {
                 let machine = BashMachine::new();
                 *machine.exec_answer.borrow_mut() = Some(answer);
                 let m: Arc<dyn Machine> = machine.clone();
                 let road = box_road(m.clone(), &thread, files(&[]), no_wake(), box_ledger(None, real_clock()), m, Rc::new(OsIds));
                 let (end, _) = ended(&road, road_start("true", "/tmp", &[], &[], None, 20.0, false)).await;
-                assert_eq!((end.code, end.error.as_deref(), end.out.as_str(), end.err.as_str(), end.cut, end.timed_out), (None, Some(words), "", "", false, false));
+                assert_eq!(
+                    (end.code, end.error.as_deref(), end.out.as_str(), end.err.as_str(), end.cut, end.timed_out),
+                    (None, Some(words), "", "", false, false)
+                );
                 assert!(machine.scripts.borrow().is_empty(), "nothing launched");
             }
         })
@@ -515,7 +587,11 @@ async fn caps_output_at_2_mb_and_marks_it_cut() {
             let _guard = SlateDirGuard(box_slate_dir(&thread));
             let m: Arc<dyn Machine> = machine.clone();
             let road = box_road(m.clone(), &thread, files(&[]), no_wake(), box_ledger(None, real_clock()), m, Rc::new(OsIds));
-            let (end, _) = ended(&road, road_start("head -c 3145728 /dev/zero | tr '\\0' x; echo; echo oops >&2", "/tmp", &[], &[], None, 20.0, false)).await;
+            let (end, _) = ended(
+                &road,
+                road_start("head -c 3145728 /dev/zero | tr '\\0' x; echo; echo oops >&2", "/tmp", &[], &[], None, 20.0, false),
+            )
+            .await;
             assert_eq!(end.out.len(), 2_097_152);
             assert!(end.out.bytes().all(|b| b == b'x'));
             assert_eq!(end.err, "");
@@ -550,7 +626,14 @@ async fn a_kill_cancels_the_command_and_a_then_reshapes_there() {
             assert!(started.elapsed() < Duration::from_secs(10));
             assert!(machine.killed.get());
             assert_eq!(end.code, Some(130));
-            let shaped = road.reshape(ReshapeStart { cmd: "printf '{\"got\":\"%s\"}' \"$(cat)\"".into(), input: "a b".into(), cwd: "/tmp".into(), env: IndexMap::new(), timeout_s: 20.0, scrub: Rc::new(|t: &str| t.to_string()) });
+            let shaped = road.reshape(ReshapeStart {
+                cmd: "printf '{\"got\":\"%s\"}' \"$(cat)\"".into(),
+                input: "a b".into(),
+                cwd: "/tmp".into(),
+                env: IndexMap::new(),
+                timeout_s: 20.0,
+                scrub: Rc::new(|t: &str| t.to_string()),
+            });
             assert_eq!(shaped.done.await, ReshapeAnswer::Json(serde_json::json!({ "got": "a b" })));
         })
         .await;

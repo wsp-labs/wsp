@@ -14,8 +14,9 @@ use serde_json::{json, Value};
 use support::{local, own_group, sleep_ms, test_clock, until, ManualClock, THREAD};
 use wsp_core::clock::Clock;
 use wsp_slates::slate_runs::{
-    create_slate_runs, run_key, ApproveScope, CmdRunDecl, Outcome, Reshape, ReshapeAnswer, ReshapeStart, RoadEnd, RoadEvents, RoadStart, RoadStarted, RunApprovals, RunBy, RunInput, RunInputs, RunRecord, RunRoad,
-    RunStart, RunStartAnswer, RunState, SlateRuns, SlateRunsDeps, Stream, TimerDecl, BACKED_OFF,
+    create_slate_runs, run_key, ApproveScope, CmdRunDecl, Outcome, Reshape, ReshapeAnswer, ReshapeStart, RoadEnd, RoadEvents, RoadStart,
+    RoadStarted, RunApprovals, RunBy, RunInput, RunInputs, RunRecord, RunRoad, RunStart, RunStartAnswer, RunState, SlateRuns,
+    SlateRunsDeps, Stream, TimerDecl, BACKED_OFF,
 };
 use wsp_wire::types::js_number::JsNumber;
 
@@ -96,7 +97,10 @@ struct H {
 
 fn deps(dir: &Path, clock: Rc<dyn Clock>) -> Deps {
     Deps {
-        env: RefCell::new(IndexMap::from([("PATH".to_string(), std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".into())), ("HOME".to_string(), dir.display().to_string())])),
+        env: RefCell::new(IndexMap::from([
+            ("PATH".to_string(), std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".into())),
+            ("HOME".to_string(), dir.display().to_string()),
+        ])),
         records: RefCell::new(vec![]),
         lines: RefCell::new(vec![]),
         timers: RefCell::new(vec![]),
@@ -137,7 +141,16 @@ fn inputs(i: RunInputs) -> Rc<dyn Fn() -> RunInputs> {
 
 impl H {
     fn req(&self, run: &str, decl: CmdRunDecl, i: RunInputs, by: RunBy) -> RunStart {
-        RunStart { thread_id: THREAD.into(), run: run.into(), decl, by, folder: self.dir.display().to_string(), inputs: inputs(i), last: None, asleep: false }
+        RunStart {
+            thread_id: THREAD.into(),
+            run: run.into(),
+            decl,
+            by,
+            folder: self.dir.display().to_string(),
+            inputs: inputs(i),
+            last: None,
+            asleep: false,
+        }
     }
     fn start(&self, run: &str, decl: CmdRunDecl, i: RunInputs, by: RunBy) -> RunStartAnswer {
         self.runs.start(self.req(run, decl, i, by))
@@ -150,7 +163,12 @@ impl H {
     }
     /// The first record of `run` in one of `states` written from index `from` on.
     async fn until_from(&self, from: usize, run: &str, states: &[RunState], ms: u64) -> RunRecord {
-        let found = || self.deps.records.borrow()[from..].iter().find(|(r, rec)| r == run && rec.state().is_some_and(|s| states.contains(&s))).map(|(_, rec)| rec.clone());
+        let found = || {
+            self.deps.records.borrow()[from..]
+                .iter()
+                .find(|(r, rec)| r == run && rec.state().is_some_and(|s| states.contains(&s)))
+                .map(|(_, rec)| rec.clone())
+        };
         assert!(until(ms, || found().is_some()).await, "{run} reached none of {states:?}; records {:?}", self.deps.records.borrow());
         found().unwrap()
     }
@@ -205,7 +223,13 @@ mod values_reach_a_command_as_data {
             let h = harness(dir.path());
             let value = hostile(dir.path());
             let decl = CmdRunDecl { env: Some(env_of(&[("ID", "$id")])), ..cmd("printf '%s' \"$ID\"; echo; echo $ID") };
-            let r = h.run_allowed("check", decl, RunInputs { env: Some(IndexMap::from([("ID".into(), RunInput::Value(json!(value)))])), ..Default::default() }).await;
+            let r = h
+                .run_allowed(
+                    "check",
+                    decl,
+                    RunInputs { env: Some(IndexMap::from([("ID".into(), RunInput::Value(json!(value)))])), ..Default::default() },
+                )
+                .await;
             assert_eq!(r.state(), Some(RunState::Done));
             assert_eq!(s(&r, "out").unwrap(), format!("{value}\n{value}\n"));
             for p in ["p1", "p2", "p3", "p4"] {
@@ -222,8 +246,16 @@ mod values_reach_a_command_as_data {
         local(async {
             let h = harness(dir.path());
             let value = hostile(dir.path());
-            let decl = CmdRunDecl { args: Some(vec![json!("$a"), json!("'x'")]), stdin: Some(json!("$body")), ..cmd("printf '%s|' \"$1\" \"$2\"; cat") };
-            let i = RunInputs { args: Some(vec![RunInput::Value(json!(value)), RunInput::Value(json!("two words"))]), stdin: Some(RunInput::Value(json!(value))), ..Default::default() };
+            let decl = CmdRunDecl {
+                args: Some(vec![json!("$a"), json!("'x'")]),
+                stdin: Some(json!("$body")),
+                ..cmd("printf '%s|' \"$1\" \"$2\"; cat")
+            };
+            let i = RunInputs {
+                args: Some(vec![RunInput::Value(json!(value)), RunInput::Value(json!("two words"))]),
+                stdin: Some(RunInput::Value(json!(value))),
+                ..Default::default()
+            };
             let r = h.run_allowed("args", decl, i).await;
             assert_eq!(s(&r, "out").unwrap(), format!("{value}|two words|{value}"));
             for p in ["p1", "p2", "p3", "p4"] {
@@ -239,12 +271,25 @@ mod values_reach_a_command_as_data {
         let dir = support::temp_root("slate-runs-");
         local(async {
             let d = deps(dir.path(), test_clock());
-            for (k, v) in [("WSP_HOST_TOKEN", "host-token"), ("WSP_TURN", "turn"), ("WSP_HOST_URL", "http://x"), ("WSP_HOST_KEY", "k"), ("KEPT", "yes")] {
+            for (k, v) in [
+                ("WSP_HOST_TOKEN", "host-token"),
+                ("WSP_TURN", "turn"),
+                ("WSP_HOST_URL", "http://x"),
+                ("WSP_HOST_KEY", "k"),
+                ("KEPT", "yes"),
+            ] {
                 d.env.borrow_mut().insert(k.into(), v.into());
             }
             let h = harness_with(dir.path(), d);
-            let decl = CmdRunDecl { env: Some(env_of(&[("GONE", "$g"), ("LIST", "$l")])), ..cmd("echo \"${GONE-unset} $LIST $KEPT\"; pwd; env") };
-            let i = RunInputs { env: Some(IndexMap::from([("GONE".into(), RunInput::Value(Value::Null)), ("LIST".into(), RunInput::Value(json!([1, "a"])))])), ..Default::default() };
+            let decl =
+                CmdRunDecl { env: Some(env_of(&[("GONE", "$g"), ("LIST", "$l")])), ..cmd("echo \"${GONE-unset} $LIST $KEPT\"; pwd; env") };
+            let i = RunInputs {
+                env: Some(IndexMap::from([
+                    ("GONE".into(), RunInput::Value(Value::Null)),
+                    ("LIST".into(), RunInput::Value(json!([1, "a"]))),
+                ])),
+                ..Default::default()
+            };
             let r = h.run_allowed("env", decl, i).await;
             let out = s(&r, "out").unwrap();
             let mut lines = out.split('\n');
@@ -281,7 +326,13 @@ mod values_reach_a_command_as_data {
         local(async {
             let h = harness(dir.path());
             std::fs::create_dir(dir.path().join("a")).unwrap();
-            let abs = h.run_allowed("abs", CmdRunDecl { cwd: Some(dir.path().join("a").display().to_string()), ..cmd("pwd") }, RunInputs::default()).await;
+            let abs = h
+                .run_allowed(
+                    "abs",
+                    CmdRunDecl { cwd: Some(dir.path().join("a").display().to_string()), ..cmd("pwd") },
+                    RunInputs::default(),
+                )
+                .await;
             assert_eq!(s(&abs, "out").unwrap(), format!("{}\n", dir.path().join("a").display()));
             let up = h.run_allowed("up", CmdRunDecl { cwd: Some("a/../a/.".into()), ..cmd("pwd") }, RunInputs::default()).await;
             assert_eq!(s(&up, "out").unwrap(), format!("{}\n", dir.path().join("a").display()));
@@ -296,7 +347,13 @@ mod values_reach_a_command_as_data {
         local(async {
             let h = harness(dir.path());
             let decl = CmdRunDecl { env: Some(env_of(&[("1X", "$x")])), ..cmd("true") };
-            let r = h.run_allowed("bad", decl, RunInputs { env: Some(IndexMap::from([("1X".into(), RunInput::Value(json!("v")))])), ..Default::default() }).await;
+            let r = h
+                .run_allowed(
+                    "bad",
+                    decl,
+                    RunInputs { env: Some(IndexMap::from([("1X".into(), RunInput::Value(json!("v")))])), ..Default::default() },
+                )
+                .await;
             assert_eq!(s(&r, "why").unwrap(), "1X is not a name an environment variable can have");
             assert_eq!(r.runs(), 0);
         });
@@ -326,13 +383,27 @@ mod secrets {
                 "printf 'stdin '; cat; echo",
             ]
             .join("; ");
-            let decl = CmdRunDecl { env: Some(env_of(&[("TOKEN", "$token")])), stdin: Some(json!("$token")), stream: Some(true), ..cmd(&script) };
-            let i = RunInputs { env: Some(IndexMap::from([("TOKEN".into(), RunInput::Secret("token".into()))])), stdin: Some(RunInput::Secret("token".into())), ..Default::default() };
+            let decl =
+                CmdRunDecl { env: Some(env_of(&[("TOKEN", "$token")])), stdin: Some(json!("$token")), stream: Some(true), ..cmd(&script) };
+            let i = RunInputs {
+                env: Some(IndexMap::from([("TOKEN".into(), RunInput::Secret("token".into()))])),
+                stdin: Some(RunInput::Secret("token".into())),
+                ..Default::default()
+            };
             let r = h.run_allowed("leak", decl, i).await;
             assert_eq!(r.state(), Some(RunState::Done));
             let b64 = "dnJjbF9BYis5L3p6JnE9MSDDvG7Dr18wMTIzNDU2Nzg5";
-            let forms = [TOKEN.to_string(), b64.to_string(), b64.replace('+', "-").replace('/', "_"), "vrcl_Ab%2B9%2Fzz%26q%3D1%20%C3%BCn%C3%AF_0123456789".to_string()];
-            let everything = serde_json::to_string(&(h.deps.records.borrow().iter().map(|(_, r)| r.clone()).collect::<Vec<_>>(), h.deps.lines.borrow().clone())).unwrap();
+            let forms = [
+                TOKEN.to_string(),
+                b64.to_string(),
+                b64.replace('+', "-").replace('/', "_"),
+                "vrcl_Ab%2B9%2Fzz%26q%3D1%20%C3%BCn%C3%AF_0123456789".to_string(),
+            ];
+            let everything = serde_json::to_string(&(
+                h.deps.records.borrow().iter().map(|(_, r)| r.clone()).collect::<Vec<_>>(),
+                h.deps.lines.borrow().clone(),
+            ))
+            .unwrap();
             for f in &forms {
                 assert!(!everything.contains(f.as_str()), "{f} leaked");
                 assert!(!everything.contains(&f[4..16]), "{} leaked", &f[4..16]);
@@ -356,7 +427,8 @@ mod secrets {
             let h = harness(dir.path());
             h.runs.secrets().set(THREAD, "token", TOKEN, false);
             let decl = CmdRunDecl { args: Some(vec![json!("$token")]), ..cmd("echo \"$1\"") };
-            let r = h.run_allowed("argv", decl, RunInputs { args: Some(vec![RunInput::Secret("token".into())]), ..Default::default() }).await;
+            let r =
+                h.run_allowed("argv", decl, RunInputs { args: Some(vec![RunInput::Secret("token".into())]), ..Default::default() }).await;
             assert_eq!(r.state(), Some(RunState::Failed));
             assert_eq!(s(&r, "why").unwrap(), "a secret reaches a command through env or stdin, never as an argument, which ps can read");
             assert!(r.0.get("out").is_none());
@@ -370,7 +442,11 @@ mod secrets {
         local(async {
             let h = harness(dir.path());
             h.runs.secrets().set(THREAD, "token", TOKEN, false);
-            let decl = CmdRunDecl { env: Some(env_of(&[("TOKEN", "$token"), ("OTHER", "$other"), ("NIL", "$nil"), ("N", "$n")])), stdin: Some(json!("$s")), ..cmd("printf 'T=%s' \"$TOKEN\" > .env") };
+            let decl = CmdRunDecl {
+                env: Some(env_of(&[("TOKEN", "$token"), ("OTHER", "$other"), ("NIL", "$nil"), ("N", "$n")])),
+                stdin: Some(json!("$s")),
+                ..cmd("printf 'T=%s' \"$TOKEN\" > .env")
+            };
             let i = RunInputs {
                 env: Some(IndexMap::from([
                     ("TOKEN".into(), RunInput::Secret("token".into())),
@@ -385,7 +461,15 @@ mod secrets {
             assert_eq!(a.outcome, Outcome::Held);
             assert!(!format!("{a:?}").contains(TOKEN));
             let ask = a.ask.unwrap();
-            assert_eq!(ask.env, IndexMap::from([("TOKEN".to_string(), "••••".to_string()), ("OTHER".into(), "•••• (not filled)".into()), ("NIL".into(), "(unset)".into()), ("N".into(), "1.5".into())]));
+            assert_eq!(
+                ask.env,
+                IndexMap::from([
+                    ("TOKEN".to_string(), "••••".to_string()),
+                    ("OTHER".into(), "•••• (not filled)".into()),
+                    ("NIL".into(), "(unset)".into()),
+                    ("N".into(), "1.5".into())
+                ])
+            );
             assert_eq!(ask.stdin.as_deref(), Some("first"));
             assert_eq!(
                 serde_json::to_value(&ask).unwrap().as_object().unwrap().keys().cloned().collect::<Vec<_>>(),
@@ -411,7 +495,10 @@ mod consent {
             assert_eq!(held.outcome, Outcome::Held);
             assert_eq!(serde_json::to_string(&held.record).unwrap(), r#"{"state":"held","why":"needs your approval","runs":0}"#);
             let ask = held.ask.unwrap();
-            assert_eq!((ask.cmd.as_str(), ask.env["ID"].as_str(), ask.folder.as_str(), ask.timeout.clone()), ("echo \"$ID\"", "1", dir.path().to_str().unwrap(), JsNumber::from(60i64)));
+            assert_eq!(
+                (ask.cmd.as_str(), ask.env["ID"].as_str(), ask.folder.as_str(), ask.timeout.clone()),
+                ("echo \"$ID\"", "1", dir.path().to_str().unwrap(), JsNumber::from(60i64))
+            );
             assert_eq!(h.runs.held(THREAD).iter().map(|a| a.run.clone()).collect::<Vec<_>>(), ["check"]);
 
             let from = h.deps.records.borrow().len();
@@ -459,7 +546,10 @@ mod consent {
             h.runs.deny(THREAD, "sure");
             let last = h.last();
             assert_eq!(keys(&last), ["state", "why", "exit", "runs", "endedAt"]);
-            assert_eq!((last.state(), s(&last, "why").unwrap().as_str(), last.runs()), (Some(RunState::Cancelled), "you said not to run it", 1));
+            assert_eq!(
+                (last.state(), s(&last, "why").unwrap().as_str(), last.runs()),
+                (Some(RunState::Cancelled), "you said not to run it", 1)
+            );
 
             let plain = cmd("true");
             h.start("plain", plain.clone(), RunInputs::default(), RunBy::Person);
@@ -485,11 +575,17 @@ mod consent {
             h.until_from(from, "r", &[RunState::Done], 10_000).await;
             for i in 0..12 {
                 let from = h.deps.records.borrow().len();
-                assert_eq!(h.start("r", decl.clone(), RunInputs::default(), if i % 2 == 0 { RunBy::Reaction } else { RunBy::Timer }).outcome, Outcome::Running);
+                assert_eq!(
+                    h.start("r", decl.clone(), RunInputs::default(), if i % 2 == 0 { RunBy::Reaction } else { RunBy::Timer }).outcome,
+                    Outcome::Running
+                );
                 h.until_from(from, "r", &[RunState::Done], 10_000).await;
             }
             let over = h.start("r", decl.clone(), RunInputs::default(), RunBy::Reaction);
-            assert_eq!((over.outcome, s(&over.record, "why").unwrap().as_str()), (Outcome::Held, "started 12 times in a minute; press to run it again"));
+            assert_eq!(
+                (over.outcome, s(&over.record, "why").unwrap().as_str()),
+                (Outcome::Held, "started 12 times in a minute; press to run it again")
+            );
             assert!(over.ask.is_none());
             let from = h.deps.records.borrow().len();
             assert_eq!(h.start("r", decl.clone(), RunInputs::default(), RunBy::Person).outcome, Outcome::Running);
@@ -518,7 +614,10 @@ mod consent {
             }
             h.runs.release(THREAD);
             let over = h.start("r", decl, RunInputs::default(), RunBy::Person);
-            assert_eq!(serde_json::to_string(&over.record).unwrap(), r#"{"state":"held","why":"pressed 12 times in a minute; it can start again in a minute","runs":12}"#);
+            assert_eq!(
+                serde_json::to_string(&over.record).unwrap(),
+                r#"{"state":"held","why":"pressed 12 times in a minute; it can start again in a minute","runs":12}"#
+            );
         });
     }
 
@@ -564,7 +663,12 @@ mod process_lifetime {
         let dir = support::temp_root("slate-runs-");
         local(async {
             let h = harness(dir.path());
-            h.start("long", CmdRunDecl { stream: Some(true), ..cmd("echo $$; sleep 300 & sleep 301 & bash -c 'sleep 302' & wait") }, RunInputs::default(), RunBy::Person);
+            h.start(
+                "long",
+                CmdRunDecl { stream: Some(true), ..cmd("echo $$; sleep 300 & sleep 301 & bash -c 'sleep 302' & wait") },
+                RunInputs::default(),
+                RunBy::Person,
+            );
             h.runs.approve(THREAD, "long", ApproveScope::Always);
             assert!(until(5_000, || !h.deps.lines.borrow().is_empty()).await);
             let pgid: u32 = h.deps.lines.borrow()[0].parse().unwrap();
@@ -609,8 +713,13 @@ mod process_lifetime {
         local(async {
             let h = harness(dir.path());
             let at = std::time::Instant::now();
-            let r = h.run_allowed("slow", CmdRunDecl { timeout: Some(JsNumber::from(1i64)), ..cmd("echo $$; sleep 30") }, RunInputs::default()).await;
-            assert_eq!((r.state(), r.0["exit"].clone(), s(&r, "why").unwrap().as_str()), (Some(RunState::Failed), json!(124), "timed out after 1 s"));
+            let r = h
+                .run_allowed("slow", CmdRunDecl { timeout: Some(JsNumber::from(1i64)), ..cmd("echo $$; sleep 30") }, RunInputs::default())
+                .await;
+            assert_eq!(
+                (r.state(), r.0["exit"].clone(), s(&r, "why").unwrap().as_str()),
+                (Some(RunState::Failed), json!(124), "timed out after 1 s")
+            );
             assert!(at.elapsed().as_millis() < 5_000);
             let pgid: u32 = s(&r, "out").unwrap().trim().parse().unwrap();
             assert!(until(3_000, || in_group(pgid).is_empty()).await);
@@ -626,7 +735,10 @@ mod process_lifetime {
             let h = harness(dir.path());
             let bad = h.run_allowed("bad", cmd("echo nope >&2; exit 3"), RunInputs::default()).await;
             assert_eq!(keys(&bad), ["state", "why", "exit", "err", "out", "startedAt", "endedAt", "ms", "runs"]);
-            assert_eq!((bad.state(), bad.0["exit"].clone(), s(&bad, "why").unwrap().as_str(), s(&bad, "err").unwrap().as_str()), (Some(RunState::Failed), json!(3), "exited with 3", "nope\n"));
+            assert_eq!(
+                (bad.state(), bad.0["exit"].clone(), s(&bad, "why").unwrap().as_str(), s(&bad, "err").unwrap().as_str()),
+                (Some(RunState::Failed), json!(3), "exited with 3", "nope\n")
+            );
             let ok = h.run_allowed("json", cmd("echo '{\"id\": 7}'"), RunInputs::default()).await;
             assert_eq!(keys(&ok), ["state", "exit", "err", "json", "out", "startedAt", "endedAt", "ms", "runs"]);
             assert_eq!(ok.0["json"], json!({"id": 7}));
@@ -645,7 +757,13 @@ mod process_lifetime {
         local(async {
             let h = harness(dir.path());
             let a40 = "a".repeat(40);
-            let r = h.run_allowed("big", cmd(&format!("awk 'BEGIN {{ for (i = 1; i <= 4000; i++) printf \"line %05d {a40}\\n\", i }}'")), RunInputs::default()).await;
+            let r = h
+                .run_allowed(
+                    "big",
+                    cmd(&format!("awk 'BEGIN {{ for (i = 1; i <= 4000; i++) printf \"line %05d {a40}\\n\", i }}'")),
+                    RunInputs::default(),
+                )
+                .await;
             let out = s(&r, "out").unwrap();
             assert!(out.len() <= 64 * 1024);
             assert!(out.starts_with("line "));
@@ -708,8 +826,12 @@ mod process_lifetime {
             h.runs.approve(THREAD, "long", ApproveScope::Always);
             let from = h.deps.records.borrow().len();
             h.runs.stop_all(THREAD, false, Some("the slate was cleared"));
-            let after: Vec<(String, String)> = h.deps.records.borrow()[from..].iter().map(|(r, rec)| (r.clone(), s(rec, "why").unwrap())).collect();
-            assert_eq!(after, [("held".to_string(), "the slate was cleared".to_string()), ("long".to_string(), "the slate was cleared".to_string())]);
+            let after: Vec<(String, String)> =
+                h.deps.records.borrow()[from..].iter().map(|(r, rec)| (r.clone(), s(rec, "why").unwrap())).collect();
+            assert_eq!(
+                after,
+                [("held".to_string(), "the slate was cleared".to_string()), ("long".to_string(), "the slate was cleared".to_string())]
+            );
             assert!(h.runs.held(THREAD).is_empty());
         });
     }
@@ -736,7 +858,10 @@ mod then {
             let r = h.until_from(from, "inbox", &[RunState::Done, RunState::Failed], 20_000).await;
             assert_eq!((r.state(), r.0["exit"].clone()), (Some(RunState::Done), json!(0)));
             assert_eq!(s(&r, "out").unwrap(), "# Inbox\n- 1 | ann | Hello\n- 2 | bo | Invoice\n");
-            assert_eq!(r.0["json"], json!({"items": [{"id": 1, "from": "ann", "subject": "Hello"}, {"id": 2, "from": "bo", "subject": "Invoice"}]}));
+            assert_eq!(
+                r.0["json"],
+                json!({"items": [{"id": 1, "from": "ann", "subject": "Hello"}, {"id": 2, "from": "bo", "subject": "Invoice"}]})
+            );
         });
     }
 
@@ -747,12 +872,31 @@ mod then {
         let dir = support::temp_root("slate-runs-");
         local(async {
             let h = harness(dir.path());
-            let bad = h.run_allowed("bad", CmdRunDecl { then: Some("cat >/dev/null; echo cannot read it >&2; exit 4".into()), ..cmd("echo raw") }, RunInputs::default()).await;
+            let bad = h
+                .run_allowed(
+                    "bad",
+                    CmdRunDecl { then: Some("cat >/dev/null; echo cannot read it >&2; exit 4".into()), ..cmd("echo raw") },
+                    RunInputs::default(),
+                )
+                .await;
             assert_eq!(keys(&bad), ["state", "why", "exit", "err", "out", "startedAt", "endedAt", "ms", "runs"]);
-            assert_eq!((s(&bad, "why").unwrap().as_str(), bad.0["exit"].clone(), s(&bad, "out").unwrap().as_str(), s(&bad, "err").unwrap().as_str()), ("then exited with 4", json!(4), "raw\n", "cannot read it\n"));
-            let prose = h.run_allowed("prose", CmdRunDecl { then: Some("echo not json".into()), ..cmd("echo raw") }, RunInputs::default()).await;
-            assert_eq!((s(&prose, "why").unwrap().as_str(), s(&prose, "out").unwrap().as_str()), ("then printed no JSON: not json", "raw\n"));
-            let failed = h.run_allowed("failed", CmdRunDecl { then: Some("echo '{}'".into()), ..cmd("exit 2") }, RunInputs::default()).await;
+            assert_eq!(
+                (
+                    s(&bad, "why").unwrap().as_str(),
+                    bad.0["exit"].clone(),
+                    s(&bad, "out").unwrap().as_str(),
+                    s(&bad, "err").unwrap().as_str()
+                ),
+                ("then exited with 4", json!(4), "raw\n", "cannot read it\n")
+            );
+            let prose =
+                h.run_allowed("prose", CmdRunDecl { then: Some("echo not json".into()), ..cmd("echo raw") }, RunInputs::default()).await;
+            assert_eq!(
+                (s(&prose, "why").unwrap().as_str(), s(&prose, "out").unwrap().as_str()),
+                ("then printed no JSON: not json", "raw\n")
+            );
+            let failed =
+                h.run_allowed("failed", CmdRunDecl { then: Some("echo '{}'".into()), ..cmd("exit 2") }, RunInputs::default()).await;
             assert_eq!((failed.state(), s(&failed, "why").unwrap().as_str()), (Some(RunState::Failed), "exited with 2"));
         });
     }
@@ -765,8 +909,18 @@ mod then {
         local(async {
             let h = harness(dir.path());
             h.runs.secrets().set(THREAD, "token", "tok_9f8e7d6c5b4a", false);
-            let decl = CmdRunDecl { env: Some(env_of(&[("T", "$token")])), then: Some("python3 -c 'import json,sys; print(json.dumps({\"got\": sys.stdin.read().strip()}))'".into()), ..cmd("echo \"$T\"") };
-            let r = h.run_allowed("leak", decl, RunInputs { env: Some(IndexMap::from([("T".into(), RunInput::Secret("token".into()))])), ..Default::default() }).await;
+            let decl = CmdRunDecl {
+                env: Some(env_of(&[("T", "$token")])),
+                then: Some("python3 -c 'import json,sys; print(json.dumps({\"got\": sys.stdin.read().strip()}))'".into()),
+                ..cmd("echo \"$T\"")
+            };
+            let r = h
+                .run_allowed(
+                    "leak",
+                    decl,
+                    RunInputs { env: Some(IndexMap::from([("T".into(), RunInput::Secret("token".into()))])), ..Default::default() },
+                )
+                .await;
             assert_eq!(r.0["json"], json!({"got": "[secret:token]"}));
         });
     }
@@ -784,13 +938,23 @@ mod a_box_that_naps {
             let h = harness(dir.path());
             let first = h.run_allowed("feed", cmd("echo one"), RunInputs::default()).await;
             assert_eq!((first.state(), s(&first, "out").unwrap().as_str()), (Some(RunState::Done), "one\n"));
-            let held = h.runs.start(RunStart { by: RunBy::Timer, asleep: true, ..h.req("feed", cmd("echo one"), RunInputs::default(), RunBy::Timer) });
+            let held = h.runs.start(RunStart {
+                by: RunBy::Timer,
+                asleep: true,
+                ..h.req("feed", cmd("echo one"), RunInputs::default(), RunBy::Timer)
+            });
             assert_eq!(held.outcome, Outcome::Held);
             assert_eq!(keys(&held.record), ["exit", "out", "err", "endedAt", "ms", "state", "why", "runs"]);
-            assert_eq!((s(&held.record, "why").unwrap().as_str(), s(&held.record, "out").unwrap().as_str(), held.record.0["exit"].clone()), ("the box was asleep, so this tick did not wake it; press to run it now", "one\n", json!(0)));
+            assert_eq!(
+                (s(&held.record, "why").unwrap().as_str(), s(&held.record, "out").unwrap().as_str(), held.record.0["exit"].clone()),
+                ("the box was asleep, so this tick did not wake it; press to run it now", "one\n", json!(0))
+            );
             assert!(h.runs.held(THREAD).is_empty());
             let from = h.deps.records.borrow().len();
-            assert_eq!(h.runs.start(RunStart { asleep: true, ..h.req("feed", cmd("echo one"), RunInputs::default(), RunBy::Person) }).outcome, Outcome::Running);
+            assert_eq!(
+                h.runs.start(RunStart { asleep: true, ..h.req("feed", cmd("echo one"), RunInputs::default(), RunBy::Person) }).outcome,
+                Outcome::Running
+            );
             let again = h.until_from(from, "feed", &[RunState::Done], 10_000).await;
             assert_eq!(again.runs(), 2);
         });
@@ -897,7 +1061,13 @@ mod timers {
             let clock = ManualClock::new(1_000_000);
             let h = harness_with(dir.path(), deps(dir.path(), clock.clock()));
             let count = |name: &str| h.deps.timers.borrow().iter().filter(|t| *t == name).count();
-            h.runs.timers(THREAD, vec![TimerDecl { run: "shown".into(), every: 1.0, key: "k-shown".into(), always: false }, TimerDecl { run: "always".into(), every: 60.0, key: "k-always".into(), always: true }]);
+            h.runs.timers(
+                THREAD,
+                vec![
+                    TimerDecl { run: "shown".into(), every: 1.0, key: "k-shown".into(), always: false },
+                    TimerDecl { run: "always".into(), every: 60.0, key: "k-always".into(), always: true },
+                ],
+            );
             assert_eq!(*h.deps.timers.borrow(), ["always"]);
             clock.advance(30_000);
             assert_eq!(*h.deps.timers.borrow(), ["always"]);
@@ -984,7 +1154,10 @@ mod a_command_s_process {
             let done = h.run_allowed("pid", cmd("echo $$"), RunInputs::default()).await;
             assert!(until(2_000, || h.deps.owned.borrow().first().is_some_and(|o| *o.3.borrow())).await);
             let owned = h.deps.owned.borrow();
-            assert_eq!(owned.iter().map(|o| (o.0.clone(), o.2.clone(), *o.3.borrow())).collect::<Vec<_>>(), [(THREAD.to_string(), "slate".to_string(), true)]);
+            assert_eq!(
+                owned.iter().map(|o| (o.0.clone(), o.2.clone(), *o.3.borrow())).collect::<Vec<_>>(),
+                [(THREAD.to_string(), "slate".to_string(), true)]
+            );
             assert_eq!(s(&done, "out").unwrap().trim(), owned[0].1.to_string());
         });
     }
@@ -999,7 +1172,10 @@ mod a_command_s_process {
             *d.road.borrow_mut() = Some(road.clone());
             let h = harness_with(dir.path(), d);
             h.run_allowed("there", CmdRunDecl { then: Some("cat".into()), ..cmd("true") }, RunInputs::default()).await;
-            let mark = IndexMap::from([("SLATE_DIR".to_string(), "/tmp/wsp-slates/t1".to_string()), ("WSP_THREAD".to_string(), THREAD.to_string())]);
+            let mark = IndexMap::from([
+                ("SLATE_DIR".to_string(), "/tmp/wsp-slates/t1".to_string()),
+                ("WSP_THREAD".to_string(), THREAD.to_string()),
+            ]);
             assert_eq!(*road.envs.borrow(), [mark.clone(), mark]);
         });
     }
@@ -1038,7 +1214,10 @@ mod pilot_review {
             assert_eq!(serde_json::to_string(&held.record).unwrap(), r#"{"state":"held","why":"needs your approval","runs":1}"#);
             let running = h.runs.approve(THREAD, "r", ApproveScope::Once).unwrap();
             assert_eq!(keys(&running.record), ["exit", "out", "err", "endedAt", "ms", "state", "runs", "startedAt", "refreshing"]);
-            assert_eq!((s(&running.record, "out").unwrap().as_str(), running.record.0["refreshing"].clone(), running.record.runs()), ("one\n", json!(true), 2));
+            assert_eq!(
+                (s(&running.record, "out").unwrap().as_str(), running.record.0["refreshing"].clone(), running.record.runs()),
+                ("one\n", json!(true), 2)
+            );
         });
     }
 
@@ -1049,13 +1228,23 @@ mod pilot_review {
         let dir = support::temp_root("slate-runs-");
         local(async {
             let h = harness(dir.path());
-            let stored = RunRecord(serde_json::from_str(r#"{"state":"done","exit":0,"out":"old\n","err":"","startedAt":1,"endedAt":2,"ms":1,"runs":4}"#).unwrap());
+            let stored = RunRecord(
+                serde_json::from_str(r#"{"state":"done","exit":0,"out":"old\n","err":"","startedAt":1,"endedAt":2,"ms":1,"runs":4}"#)
+                    .unwrap(),
+            );
             h.start("r", cmd("sleep 300"), RunInputs::default(), RunBy::Person);
-            let other = h.runs.start(RunStart { last: Some(stored.clone()), ..h.req("s", cmd("sleep 300"), RunInputs::default(), RunBy::Person) });
+            let other =
+                h.runs.start(RunStart { last: Some(stored.clone()), ..h.req("s", cmd("sleep 300"), RunInputs::default(), RunBy::Person) });
             assert_eq!(other.record.runs(), 4);
             let running = h.runs.approve(THREAD, "s", ApproveScope::Always).unwrap();
-            assert_eq!(serde_json::to_string(&running.record).unwrap().split("\"startedAt\"").next().unwrap(), r#"{"exit":0,"out":"old\n","err":"","endedAt":2,"ms":1,"state":"running","runs":5,"#);
-            let ignored = h.runs.start(RunStart { last: Some(RunRecord(serde_json::from_str(r#"{"state":"done","runs":40}"#).unwrap())), ..h.req("s", cmd("sleep 300"), RunInputs::default(), RunBy::Person) });
+            assert_eq!(
+                serde_json::to_string(&running.record).unwrap().split("\"startedAt\"").next().unwrap(),
+                r#"{"exit":0,"out":"old\n","err":"","endedAt":2,"ms":1,"state":"running","runs":5,"#
+            );
+            let ignored = h.runs.start(RunStart {
+                last: Some(RunRecord(serde_json::from_str(r#"{"state":"done","runs":40}"#).unwrap())),
+                ..h.req("s", cmd("sleep 300"), RunInputs::default(), RunBy::Person)
+            });
             assert_eq!(ignored.record.runs(), 6);
             h.runs.stop_all(THREAD, true, None);
         });

@@ -186,7 +186,13 @@ impl SlatesInner {
     //   };
     //
     //   const byOf = (caller: Caller | undefined): "agent" | "person" => (scopeOf(caller) !== undefined ? "agent" : "person");
-    pub(crate) fn target_of(&self, thread_id: Option<&str>, turn_token: Option<&str>, caller: Option<&Caller>, write: bool) -> Result<String, HostError> {
+    pub(crate) fn target_of(
+        &self,
+        thread_id: Option<&str>,
+        turn_token: Option<&str>,
+        caller: Option<&Caller>,
+        write: bool,
+    ) -> Result<String, HostError> {
         todo!()
     }
     /// `agent` with a token, else `person`.

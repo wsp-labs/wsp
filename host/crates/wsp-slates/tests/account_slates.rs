@@ -16,12 +16,12 @@ use wsp_core::clock::FakeClock;
 use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::wiring::Detach;
 use wsp_engine::target_line::{Platform, TargetLogin};
+use wsp_frames::ProcKind;
 use wsp_slates::account::slates::*;
 use wsp_slates::slate_mcp::{McpHttpAnswer, McpHttpRequest, McpPipeEvents, McpPost, McpServerSpec, McpSignIn, McpTransport, ToolAsks};
 use wsp_slates::slate_mcp_on::StdioRoad;
 use wsp_slates::slate_sources::context::{AccountRow, SessionView};
 use wsp_slates::slates::{Delivered, Delivery, DeliveryOutcome, SlateEmit, SlateThreadFacts, SlatesDeps};
-use wsp_frames::ProcKind;
 use wsp_store::store::{memory_store, Store};
 use wsp_wire::types::agents_report::{AgentsProject, AgentsTarget, AgentsTargetV0, AgentsTargetV1};
 use wsp_wire::types::slate_wire::SessionSlateEvent;
@@ -672,9 +672,13 @@ async fn settled_reads_the_settle_preference() {
     // spec rule 6.
     LocalSet::new()
         .run_until(async {
-            for (key, ms) in
-                [("15m", Some(900_000.0)), ("1h", Some(3_600_000.0)), ("2h", Some(7_200_000.0)), ("1d", Some(86_400_000.0)), ("never", None)]
-            {
+            for (key, ms) in [
+                ("15m", Some(900_000.0)),
+                ("1h", Some(3_600_000.0)),
+                ("2h", Some(7_200_000.0)),
+                ("1d", Some(86_400_000.0)),
+                ("never", None),
+            ] {
                 let mut f = Fake::default();
                 f.settle = key.into();
                 let (fake, w, _) = wire(f);
