@@ -374,4 +374,7 @@ impl FoldersCtx for FakeFolders {
     fn sweep_state(&self) -> Rc<RefCell<SweepState>> {
         self.sweep.clone()
     }
+    fn spawn(&self, f: LocalBoxFuture<'static, ()>) {
+        tokio::task::spawn_local(f);
+    }
 }
