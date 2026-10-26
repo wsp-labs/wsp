@@ -38,7 +38,7 @@ fn probe_of(v: &Value) -> ContextProbe {
             _ => None,
         },
         conflicts: strings(&v["conflicts"]).into_iter().collect::<IndexSet<_>>(),
-        facts: v.get("facts").filter(|f| !f.is_null()).map(|f| serde_json::from_value(f.clone()).unwrap()),
+        facts: v.get("facts").filter(|f| !f.is_null()).and_then(|f| serde_json::from_value(f.clone()).ok()),
     }
 }
 

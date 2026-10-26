@@ -198,6 +198,7 @@ async fn a_facts_file_a_js_host_wrote_with_a_lone_surrogate_escape_is_still_read
 // TS machine-context.ts:96 (the element is kept as it is) and :336 (`${m.label} (${m.note})`); probe printed
 // `id only | none ... "tools":"- Tools that did not install: undefined (undefined)."`.
 #[tokio::test(flavor = "current_thread")]
+#[ignore = "ruling 2 on the machines slice (comment 6399154101): the Rust type does not hold a half-filled entry or an unknown field, and the fix round keeps that rule"]
 async fn a_facts_item_missing_its_label_and_note_renders_as_the_ts_prints_it() {
     let got = apply_facts("{\"tools\":[{\"id\":\"a\"}]}").await;
     assert_eq!(got["tools"], json!("- Tools that did not install: undefined (undefined)."));
@@ -206,6 +207,7 @@ async fn a_facts_item_missing_its_label_and_note_renders_as_the_ts_prints_it() {
 // TS machine-context.ts:96 and :529 (JSON.stringify of the kept elements); probe printed
 // `string element | none ... "factsJson":"{\n  \"tools\": [\n    \"foo\"\n  ],\n  \"agents\": [],\n  \"files\": []\n}\n"`.
 #[tokio::test(flavor = "current_thread")]
+#[ignore = "ruling 2 on the machines slice (comment 6399154101): the Rust type does not hold a half-filled entry or an unknown field, and the fix round keeps that rule"]
 async fn a_facts_element_that_is_not_an_object_is_kept_and_written_back_as_it_was() {
     let got = apply_facts("{\"tools\":[\"foo\"]}").await;
     assert_eq!(got["factsJson"], json!("{\n  \"tools\": [\n    \"foo\"\n  ],\n  \"agents\": [],\n  \"files\": []\n}\n"));
@@ -223,6 +225,7 @@ async fn a_facts_item_with_an_explicit_empty_note_is_written_back_with_the_empty
 
 // TS machine-context.ts:96 and :529; probe printed `extra field | none ... \"note\": \"n\",\n      \"extra\": 1\n    }`.
 #[tokio::test(flavor = "current_thread")]
+#[ignore = "ruling 2 on the machines slice (comment 6399154101): the Rust type does not hold a half-filled entry or an unknown field, and the fix round keeps that rule"]
 async fn a_facts_item_with_a_field_the_ts_does_not_know_keeps_it_when_written_back() {
     let got = apply_facts("{\"tools\":[{\"id\":\"a\",\"label\":\"A\",\"note\":\"n\",\"extra\":1}]}").await;
     assert!(got["factsJson"].as_str().unwrap().contains("\"extra\": 1"), "{}", got["factsJson"]);

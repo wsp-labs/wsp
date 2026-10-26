@@ -51,20 +51,16 @@ pub fn facts_path(roots: &GuestRoots) -> String {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MissingItem {
     pub id: String,
-    /// The TS holds whatever object the guest's file carried, so an item can lack a label or a note: absent reads as
-    /// empty, and an empty one is left out when written (a recorded item never has an empty one).
-    #[serde(default, skip_serializing_if = "String::is_empty")]
+    /// An item of the guest's saved file that lacks a label or a note is dropped: the TS holds it as it came, which this
+    /// type cannot (the coordinator's ruling 2 on the machines slice).
     pub label: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub note: String,
 }
 
 /// A file left on the person's computer; serialized `path`, `note`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileNote {
-    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub path: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub note: String,
 }
 
@@ -135,8 +131,7 @@ pub fn merge_facts(prior: Option<&BuildFacts>, result: Option<&ImportResult>) ->
     facts
 }
 
-/// The items a facts list holds as the TS holds them: an element that is an object is kept with the fields it has, as
-/// `machine-context.ts:93` does not check its elements (spec/context_probe.md, open point 1).
+/// The items a facts list holds: an element that lacks a field is dropped (spec/context_probe.md, open point 1, ruled).
 fn items<T: serde::de::DeserializeOwned>(v: &Value, key: &str) -> Vec<T> {
     v.get(key)
         .and_then(Value::as_array)
@@ -144,10 +139,16 @@ fn items<T: serde::de::DeserializeOwned>(v: &Value, key: &str) -> Vec<T> {
         .unwrap_or_default()
 }
 
+/// A text as a file of this machine's writes it: a lone surrogate, which JSON read from a JavaScript host's file can hold,
+/// is U+FFFD in UTF-8.
+pub(crate) fn utf8_text(s: &str) -> String {
+    s.chars().map(|c| if (0x10F800..=0x10FFFF).contains(&(c as u32)) { char::REPLACEMENT_CHARACTER } else { c }).collect()
+}
+
 /// machine-context.ts:93. Base64 of UTF-8 JSON; `None` where it does not decode or parse.
 pub fn parse_facts(b64: &str) -> Option<BuildFacts> {
     let text = String::from_utf8_lossy(&crate::node_base64::node_base64_decode(b64)).into_owned();
-    let v: Value = serde_json::from_str(&text).ok()?;
+    let v = wsp_catalog::json_parse::parse_json(&text).ok()?;
     if v.is_null() {
         return None;
     }
