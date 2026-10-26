@@ -1,0 +1,1697 @@
+{
+ "source": "TS command line at 65f6b89c7 against daemon/crates/wsp-mcp/tests/answers; recorded by the cli-b recorder",
+ "cases": [
+  {
+   "tool": "activity",
+   "case": "a thread's tree, wsp's own and what has no thread",
+   "argv": [
+    "activity"
+   ],
+   "replies": {
+    "activity.read": "{\"id\":1,\"ok\":true,\"activity\":{\"computer\":\"lab-mac\",\"at\":1760000010000,\"threads\":[{\"threadId\":\"thread-7f3a9c21e4b5\",\"title\":\"fix the  build\",\"workspaceId\":\"ws-1\",\"memory\":400000000,\"cpu\":13.05,\"processes\":[{\"ports\":[],\"cpu\":3,\"memory\":300000000,\"command\":\"claude -p --input-format stream-json\",\"name\":\"2.1.296\",\"kind\":\"agent\",\"startedAt\":1760000000000,\"depth\":0,\"ppid\":1,\"pid\":4100},{\"ports\":[5173,24678],\"cpu\":10.05,\"memory\":80000000,\"command\":\"node /lab/node_modules/.bin/vite\",\"name\":\"node\",\"kind\":\"dev\",\"startedAt\":1760000001000,\"depth\":1,\"ppid\":4100,\"pid\":4200},{\"ports\":[],\"cpu\":0,\"memory\":20000000,\"command\":\"esbuild --service=0.25.0 --ping\",\"name\":\"esbuild\",\"kind\":\"other\",\"startedAt\":1760000002000,\"depth\":2,\"ppid\":4200,\"pid\":4300}]}],\"wsp\":[{\"ports\":[],\"cpu\":0.5,\"memory\":9000000,\"command\":\"wsp-daemon serve\",\"name\":\"wsp-daemon\",\"kind\":\"wsp\",\"startedAt\":1759000000000,\"depth\":0,\"ppid\":0,\"pid\":1}],\"unowned\":[{\"ports\":[],\"cpu\":0,\"memory\":512,\"command\":\"naïve \\\"résumé\\\"\",\"name\":\"naïve\",\"kind\":\"other\",\"startedAt\":1760000001000,\"depth\":0,\"ppid\":1,\"pid\":5000}]}}"
+   },
+   "tool_arguments": {},
+   "tool_asked": [
+    {
+     "op": "activity.read"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "thread thread-7 fix the  build  381 MB  13.1%\n  4100  agent  claude -p --input-format stream-json  286 MB  3.0%\n    4200  dev  node /lab/node_modules/.bin/vite  :5173 :24678  76 MB  10.1%\n      4300  other  esbuild --service=0.25.0 --ping  19 MB  0.0%\nwsp\n  1  wsp  wsp-daemon serve  9 MB  0.5%\nno thread\n  5000  other  naïve \"résumé\"  512 B  0.0%"
+     }
+    ],
+    "structuredContent": {
+     "computer": "lab-mac",
+     "at": 1760000010000,
+     "threads": [
+      {
+       "threadId": "thread-7f3a9c21e4b5",
+       "title": "fix the  build",
+       "workspaceId": "ws-1",
+       "memory": 400000000,
+       "cpu": 13.05,
+       "processes": [
+        {
+         "pid": 4100,
+         "ppid": 1,
+         "depth": 0,
+         "startedAt": 1760000000000,
+         "kind": "agent",
+         "name": "2.1.296",
+         "command": "claude -p --input-format stream-json",
+         "memory": 300000000,
+         "cpu": 3,
+         "ports": []
+        },
+        {
+         "pid": 4200,
+         "ppid": 4100,
+         "depth": 1,
+         "startedAt": 1760000001000,
+         "kind": "dev",
+         "name": "node",
+         "command": "node /lab/node_modules/.bin/vite",
+         "memory": 80000000,
+         "cpu": 10.05,
+         "ports": [
+          5173,
+          24678
+         ]
+        },
+        {
+         "pid": 4300,
+         "ppid": 4200,
+         "depth": 2,
+         "startedAt": 1760000002000,
+         "kind": "other",
+         "name": "esbuild",
+         "command": "esbuild --service=0.25.0 --ping",
+         "memory": 20000000,
+         "cpu": 0,
+         "ports": []
+        }
+       ]
+      }
+     ],
+     "wsp": [
+      {
+       "pid": 1,
+       "ppid": 0,
+       "depth": 0,
+       "startedAt": 1759000000000,
+       "kind": "wsp",
+       "name": "wsp-daemon",
+       "command": "wsp-daemon serve",
+       "memory": 9000000,
+       "cpu": 0.5,
+       "ports": []
+      }
+     ],
+     "unowned": [
+      {
+       "pid": 5000,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000001000,
+       "kind": "other",
+       "name": "naïve",
+       "command": "naïve \"résumé\"",
+       "memory": 512,
+       "cpu": 0,
+       "ports": []
+      }
+     ]
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"activity.read\"}"
+    ],
+    "stdout": [
+     "lab-mac   wsp 390 MB   CPU 14%   5 processes   1 thread\n\n                                                MEMORY    CPU\nwsp  What runs wsp here                           9 MB   0.5%\n  Daemon                                          9 MB   0.5%\nfix the  build                                 381 MB  13.1%\n  Claude Code                                   286 MB   3.0%\n    vite :5173 :24678  Dev server                76 MB  10.1%\n      esbuild                                    19 MB   0.0%\nNo thread  Started with no thread wsp knows of   512 B   0.0%\n  naïve                                          512 B   0.0%"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"activity.read\"}"
+    ],
+    "stdout": [
+     "{\"computer\":\"lab-mac\",\"at\":1760000010000,\"threads\":[{\"threadId\":\"thread-7f3a9c21e4b5\",\"title\":\"fix the \\u0085 build\",\"workspaceId\":\"ws-1\",\"memory\":400000000,\"cpu\":13.05,\"processes\":[{\"pid\":4100,\"ppid\":1,\"depth\":0,\"startedAt\":1760000000000,\"kind\":\"agent\",\"name\":\"2.1.296\",\"command\":\"claude -p --input-format stream-json\",\"memory\":300000000,\"cpu\":3,\"ports\":[]},{\"pid\":4200,\"ppid\":4100,\"depth\":1,\"startedAt\":1760000001000,\"kind\":\"dev\",\"name\":\"node\",\"command\":\"node /lab/node_modules/.bin/vite\",\"memory\":80000000,\"cpu\":10.05,\"ports\":[5173,24678]},{\"pid\":4300,\"ppid\":4200,\"depth\":2,\"startedAt\":1760000002000,\"kind\":\"other\",\"name\":\"esbuild\",\"command\":\"esbuild --service=0.25.0 --ping\",\"memory\":20000000,\"cpu\":0,\"ports\":[]}]}],\"wsp\":[{\"pid\":1,\"ppid\":0,\"depth\":0,\"startedAt\":1759000000000,\"kind\":\"wsp\",\"name\":\"wsp-daemon\",\"command\":\"wsp-daemon serve\",\"memory\":9000000,\"cpu\":0.5,\"ports\":[]}],\"unowned\":[{\"pid\":5000,\"ppid\":1,\"depth\":0,\"startedAt\":1760000001000,\"kind\":\"other\",\"name\":\"naïve\",\"command\":\"naïve \\\"résumé\\\"\",\"memory\":512,\"cpu\":0,\"ports\":[]}]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "activity",
+   "case": "one thread",
+   "argv": [
+    "activity",
+    "thread-7f"
+   ],
+   "replies": {
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"id\":\"sess-1\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"prompt\":\"fix the  build\",\"costUsd\":0.1},{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"costUsd\":0.2},{\"workspaceId\":\"ws-1\",\"harness\":\"codex\",\"status\":\"completed\",\"id\":\"sess-3\",\"threadId\":\"thread-b0b0b0b0c1c1\"}]}",
+    "activity.read": "{\"id\":1,\"ok\":true,\"activity\":{\"computer\":\"lab-mac\",\"at\":1760000010000,\"threads\":[{\"threadId\":\"thread-7f3a9c21e4b5\",\"title\":\"fix the  build\",\"workspaceId\":\"ws-1\",\"memory\":400000000,\"cpu\":13.05,\"processes\":[{\"ports\":[],\"cpu\":3,\"memory\":300000000,\"command\":\"claude -p --input-format stream-json\",\"name\":\"2.1.296\",\"kind\":\"agent\",\"startedAt\":1760000000000,\"depth\":0,\"ppid\":1,\"pid\":4100},{\"ports\":[5173,24678],\"cpu\":10.05,\"memory\":80000000,\"command\":\"node /lab/node_modules/.bin/vite\",\"name\":\"node\",\"kind\":\"dev\",\"startedAt\":1760000001000,\"depth\":1,\"ppid\":4100,\"pid\":4200},{\"ports\":[],\"cpu\":0,\"memory\":20000000,\"command\":\"esbuild --service=0.25.0 --ping\",\"name\":\"esbuild\",\"kind\":\"other\",\"startedAt\":1760000002000,\"depth\":2,\"ppid\":4200,\"pid\":4300}]}],\"wsp\":[],\"unowned\":[]}}"
+   },
+   "tool_arguments": {
+    "thread": "thread-7f"
+   },
+   "tool_asked": [
+    {
+     "op": "sessions.list"
+    },
+    {
+     "op": "activity.read",
+     "thread": "thread-7f3a9c21e4b5"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "thread thread-7 fix the  build  381 MB  13.1%\n  4100  agent  claude -p --input-format stream-json  286 MB  3.0%\n    4200  dev  node /lab/node_modules/.bin/vite  :5173 :24678  76 MB  10.1%\n      4300  other  esbuild --service=0.25.0 --ping  19 MB  0.0%"
+     }
+    ],
+    "structuredContent": {
+     "computer": "lab-mac",
+     "at": 1760000010000,
+     "threads": [
+      {
+       "threadId": "thread-7f3a9c21e4b5",
+       "title": "fix the  build",
+       "workspaceId": "ws-1",
+       "memory": 400000000,
+       "cpu": 13.05,
+       "processes": [
+        {
+         "pid": 4100,
+         "ppid": 1,
+         "depth": 0,
+         "startedAt": 1760000000000,
+         "kind": "agent",
+         "name": "2.1.296",
+         "command": "claude -p --input-format stream-json",
+         "memory": 300000000,
+         "cpu": 3,
+         "ports": []
+        },
+        {
+         "pid": 4200,
+         "ppid": 4100,
+         "depth": 1,
+         "startedAt": 1760000001000,
+         "kind": "dev",
+         "name": "node",
+         "command": "node /lab/node_modules/.bin/vite",
+         "memory": 80000000,
+         "cpu": 10.05,
+         "ports": [
+          5173,
+          24678
+         ]
+        },
+        {
+         "pid": 4300,
+         "ppid": 4200,
+         "depth": 2,
+         "startedAt": 1760000002000,
+         "kind": "other",
+         "name": "esbuild",
+         "command": "esbuild --service=0.25.0 --ping",
+         "memory": 20000000,
+         "cpu": 0,
+         "ports": []
+        }
+       ]
+      }
+     ],
+     "wsp": [],
+     "unowned": []
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"thread\":\"thread-7f3a9c21e4b5\",\"id\":3,\"op\":\"activity.read\"}"
+    ],
+    "stdout": [
+     "lab-mac   wsp 381 MB   CPU 13%   3 processes   1 thread\n\n                                   MEMORY    CPU\nfix the  build                    381 MB  13.1%\n  Claude Code                      286 MB   3.0%\n    vite :5173 :24678  Dev server   76 MB  10.1%\n      esbuild                       19 MB   0.0%"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}",
+     "{\"thread\":\"thread-7f3a9c21e4b5\",\"id\":3,\"op\":\"activity.read\"}"
+    ],
+    "stdout": [
+     "{\"computer\":\"lab-mac\",\"at\":1760000010000,\"threads\":[{\"threadId\":\"thread-7f3a9c21e4b5\",\"title\":\"fix the \\u0085 build\",\"workspaceId\":\"ws-1\",\"memory\":400000000,\"cpu\":13.05,\"processes\":[{\"pid\":4100,\"ppid\":1,\"depth\":0,\"startedAt\":1760000000000,\"kind\":\"agent\",\"name\":\"2.1.296\",\"command\":\"claude -p --input-format stream-json\",\"memory\":300000000,\"cpu\":3,\"ports\":[]},{\"pid\":4200,\"ppid\":4100,\"depth\":1,\"startedAt\":1760000001000,\"kind\":\"dev\",\"name\":\"node\",\"command\":\"node /lab/node_modules/.bin/vite\",\"memory\":80000000,\"cpu\":10.05,\"ports\":[5173,24678]},{\"pid\":4300,\"ppid\":4200,\"depth\":2,\"startedAt\":1760000002000,\"kind\":\"other\",\"name\":\"esbuild\",\"command\":\"esbuild --service=0.25.0 --ping\",\"memory\":20000000,\"cpu\":0,\"ports\":[]}]}],\"wsp\":[],\"unowned\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "activity",
+   "case": "nothing runs",
+   "argv": [
+    "activity",
+    "--computer=lab-mac"
+   ],
+   "replies": {
+    "activity.read": "{\"id\":1,\"ok\":true,\"activity\":{\"computer\":\"lab-mac\",\"at\":1,\"threads\":[],\"wsp\":[],\"unowned\":[]}}"
+   },
+   "tool_arguments": {
+    "computer": "lab-mac"
+   },
+   "tool_asked": [
+    {
+     "op": "activity.read",
+     "computer": "lab-mac"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "no thread runs a process on lab-mac"
+     }
+    ],
+    "structuredContent": {
+     "computer": "lab-mac",
+     "at": 1,
+     "threads": [],
+     "wsp": [],
+     "unowned": []
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"computer\":\"lab-mac\",\"id\":2,\"op\":\"activity.read\"}"
+    ],
+    "stdout": [
+     "no thread runs a process on lab-mac"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"computer\":\"lab-mac\",\"id\":2,\"op\":\"activity.read\"}"
+    ],
+    "stdout": [
+     "{\"computer\":\"lab-mac\",\"at\":1,\"threads\":[],\"wsp\":[],\"unowned\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "activity",
+   "case": "a thread nobody holds",
+   "argv": [
+    "activity",
+    "nobody"
+   ],
+   "replies": {
+    "sessions.list": "{\"id\":1,\"ok\":true,\"sessions\":[{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"completed\",\"id\":\"sess-1\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"prompt\":\"fix the  build\",\"costUsd\":0.1},{\"workspaceId\":\"ws-1\",\"harness\":\"claude\",\"status\":\"running\",\"id\":\"sess-2\",\"threadId\":\"thread-7f3a9c21e4b5\",\"claudeSessionId\":\"cs-1\",\"costUsd\":0.2},{\"workspaceId\":\"ws-1\",\"harness\":\"codex\",\"status\":\"completed\",\"id\":\"sess-3\",\"threadId\":\"thread-b0b0b0b0c1c1\"}]}"
+   },
+   "tool_arguments": {
+    "thread": "nobody"
+   },
+   "tool_asked": [
+    {
+     "op": "sessions.list"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "no thread nobody"
+     }
+    ],
+    "structuredContent": {
+     "error": "no thread nobody",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp activity: no thread nobody"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"sessions.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"no thread nobody\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "activity",
+   "case": "a box",
+   "argv": [
+    "activity",
+    "--computer=hetzner"
+   ],
+   "replies": {
+    "activity.read": "{\"id\":1,\"ok\":true,\"activity\":{\"computer\":\"hetzner\",\"at\":1760000010000,\"threads\":[{\"threadId\":\"thread-7f3a9c21e4b5\",\"title\":\"fix the  build\",\"workspaceId\":\"ws-1\",\"memory\":400000000,\"cpu\":13.05,\"processes\":[{\"ports\":[],\"cpu\":3,\"memory\":300000000,\"command\":\"claude -p --input-format stream-json\",\"name\":\"2.1.296\",\"kind\":\"agent\",\"startedAt\":1760000000000,\"depth\":0,\"ppid\":1,\"pid\":4100},{\"ports\":[5173,24678],\"cpu\":10.05,\"memory\":80000000,\"command\":\"node /lab/node_modules/.bin/vite\",\"name\":\"node\",\"kind\":\"dev\",\"startedAt\":1760000001000,\"depth\":1,\"ppid\":4100,\"pid\":4200},{\"ports\":[],\"cpu\":0,\"memory\":20000000,\"command\":\"esbuild --service=0.25.0 --ping\",\"name\":\"esbuild\",\"kind\":\"other\",\"startedAt\":1760000002000,\"depth\":2,\"ppid\":4200,\"pid\":4300}]}],\"wsp\":[],\"unowned\":[{\"ports\":[],\"cpu\":0,\"memory\":512,\"command\":\"naïve \\\"résumé\\\"\",\"name\":\"naïve\",\"kind\":\"other\",\"startedAt\":1760000001000,\"depth\":0,\"ppid\":1,\"pid\":5000}]}}"
+   },
+   "tool_arguments": {
+    "computer": "hetzner"
+   },
+   "tool_asked": [
+    {
+     "op": "activity.read",
+     "computer": "hetzner"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "thread thread-7 fix the  build  381 MB  13.1%\n  4100  agent  claude -p --input-format stream-json  286 MB  3.0%\n    4200  dev  node /lab/node_modules/.bin/vite  :5173 :24678  76 MB  10.1%\n      4300  other  esbuild --service=0.25.0 --ping  19 MB  0.0%\nno thread\n  5000  other  naïve \"résumé\"  512 B  0.0%"
+     }
+    ],
+    "structuredContent": {
+     "computer": "hetzner",
+     "at": 1760000010000,
+     "threads": [
+      {
+       "threadId": "thread-7f3a9c21e4b5",
+       "title": "fix the  build",
+       "workspaceId": "ws-1",
+       "memory": 400000000,
+       "cpu": 13.05,
+       "processes": [
+        {
+         "pid": 4100,
+         "ppid": 1,
+         "depth": 0,
+         "startedAt": 1760000000000,
+         "kind": "agent",
+         "name": "2.1.296",
+         "command": "claude -p --input-format stream-json",
+         "memory": 300000000,
+         "cpu": 3,
+         "ports": []
+        },
+        {
+         "pid": 4200,
+         "ppid": 4100,
+         "depth": 1,
+         "startedAt": 1760000001000,
+         "kind": "dev",
+         "name": "node",
+         "command": "node /lab/node_modules/.bin/vite",
+         "memory": 80000000,
+         "cpu": 10.05,
+         "ports": [
+          5173,
+          24678
+         ]
+        },
+        {
+         "pid": 4300,
+         "ppid": 4200,
+         "depth": 2,
+         "startedAt": 1760000002000,
+         "kind": "other",
+         "name": "esbuild",
+         "command": "esbuild --service=0.25.0 --ping",
+         "memory": 20000000,
+         "cpu": 0,
+         "ports": []
+        }
+       ]
+      }
+     ],
+     "wsp": [],
+     "unowned": [
+      {
+       "pid": 5000,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000001000,
+       "kind": "other",
+       "name": "naïve",
+       "command": "naïve \"résumé\"",
+       "memory": 512,
+       "cpu": 0,
+       "ports": []
+      }
+     ]
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"computer\":\"hetzner\",\"id\":2,\"op\":\"activity.read\"}"
+    ],
+    "stdout": [
+     "hetzner   wsp 381 MB   CPU 13%   4 processes   1 thread\n\n                                                MEMORY    CPU\nfix the  build                                 381 MB  13.1%\n  Claude Code                                   286 MB   3.0%\n    vite :5173 :24678  Dev server                76 MB  10.1%\n      esbuild                                    19 MB   0.0%\nNo thread  Started with no thread wsp knows of   512 B   0.0%\n  naïve                                          512 B   0.0%"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"computer\":\"hetzner\",\"id\":2,\"op\":\"activity.read\"}"
+    ],
+    "stdout": [
+     "{\"computer\":\"hetzner\",\"at\":1760000010000,\"threads\":[{\"threadId\":\"thread-7f3a9c21e4b5\",\"title\":\"fix the \\u0085 build\",\"workspaceId\":\"ws-1\",\"memory\":400000000,\"cpu\":13.05,\"processes\":[{\"pid\":4100,\"ppid\":1,\"depth\":0,\"startedAt\":1760000000000,\"kind\":\"agent\",\"name\":\"2.1.296\",\"command\":\"claude -p --input-format stream-json\",\"memory\":300000000,\"cpu\":3,\"ports\":[]},{\"pid\":4200,\"ppid\":4100,\"depth\":1,\"startedAt\":1760000001000,\"kind\":\"dev\",\"name\":\"node\",\"command\":\"node /lab/node_modules/.bin/vite\",\"memory\":80000000,\"cpu\":10.05,\"ports\":[5173,24678]},{\"pid\":4300,\"ppid\":4200,\"depth\":2,\"startedAt\":1760000002000,\"kind\":\"other\",\"name\":\"esbuild\",\"command\":\"esbuild --service=0.25.0 --ping\",\"memory\":20000000,\"cpu\":0,\"ports\":[]}]}],\"wsp\":[],\"unowned\":[{\"pid\":5000,\"ppid\":1,\"depth\":0,\"startedAt\":1760000001000,\"kind\":\"other\",\"name\":\"naïve\",\"command\":\"naïve \\\"résumé\\\"\",\"memory\":512,\"cpu\":0,\"ports\":[]}]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "activity_end",
+   "case": "ended with what was under it",
+   "argv": [
+    "activity",
+    "end",
+    "4200",
+    "--started=1760000001000"
+   ],
+   "replies": {
+    "activity.end": "{\"id\":1,\"ok\":true,\"left\":[],\"forced\":[],\"ended\":[{\"ports\":[],\"cpu\":0.25,\"memory\":80000000,\"command\":\"node /lab/node_modules/.bin/vite\",\"name\":\"node\",\"kind\":\"dev\",\"startedAt\":1760000001000,\"depth\":1,\"ppid\":4100,\"pid\":4200},{\"ports\":[],\"cpu\":0.25,\"memory\":20000000,\"command\":\"esbuild --service\",\"name\":\"esbuild\",\"kind\":\"other\",\"startedAt\":1760000001000,\"depth\":2,\"ppid\":4200,\"pid\":4300}],\"pid\":4200}"
+   },
+   "tool_arguments": {
+    "pid": 4200,
+    "started": 1760000001000
+   },
+   "tool_asked": [
+    {
+     "op": "activity.end",
+     "pid": 4200,
+     "startedAt": 1760000001000
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "ended 4200 node and 1 under it"
+     }
+    ],
+    "structuredContent": {
+     "pid": 4200,
+     "ended": [
+      {
+       "pid": 4200,
+       "ppid": 4100,
+       "depth": 1,
+       "startedAt": 1760000001000,
+       "kind": "dev",
+       "name": "node",
+       "command": "node /lab/node_modules/.bin/vite",
+       "memory": 80000000,
+       "cpu": 0.25,
+       "ports": []
+      },
+      {
+       "pid": 4300,
+       "ppid": 4200,
+       "depth": 2,
+       "startedAt": 1760000001000,
+       "kind": "other",
+       "name": "esbuild",
+       "command": "esbuild --service",
+       "memory": 20000000,
+       "cpu": 0.25,
+       "ports": []
+      }
+     ],
+     "forced": [],
+     "left": []
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"pid\":4200,\"startedAt\":1760000001000,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "ended 4200 node and 1 under it"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"pid\":4200,\"startedAt\":1760000001000,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "{\"pid\":4200,\"ended\":[{\"pid\":4200,\"ppid\":4100,\"depth\":1,\"startedAt\":1760000001000,\"kind\":\"dev\",\"name\":\"node\",\"command\":\"node /lab/node_modules/.bin/vite\",\"memory\":80000000,\"cpu\":0.25,\"ports\":[]},{\"pid\":4300,\"ppid\":4200,\"depth\":2,\"startedAt\":1760000001000,\"kind\":\"other\",\"name\":\"esbuild\",\"command\":\"esbuild --service\",\"memory\":20000000,\"cpu\":0.25,\"ports\":[]}],\"forced\":[],\"left\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "activity_end",
+   "case": "forced, one left",
+   "argv": [
+    "activity",
+    "end",
+    "4200",
+    "--started=1760000001000",
+    "--computer=lab-mac"
+   ],
+   "replies": {
+    "activity.end": "{\"id\":1,\"ok\":true,\"left\":[4200],\"forced\":[4200],\"ended\":[{\"ports\":[],\"cpu\":0.25,\"memory\":80000000,\"command\":\"node /lab/node_modules/.bin/vite\",\"name\":\"node\",\"kind\":\"dev\",\"startedAt\":1760000001000,\"depth\":1,\"ppid\":4100,\"pid\":4200}],\"pid\":4200}"
+   },
+   "tool_arguments": {
+    "pid": 4200,
+    "started": 1760000001000,
+    "computer": "lab-mac"
+   },
+   "tool_asked": [
+    {
+     "op": "activity.end",
+     "pid": 4200,
+     "startedAt": 1760000001000,
+     "computer": "lab-mac"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "ended 4200 node\nKILL after TERM's 2 s: 4200\nstill running after KILL: 4200"
+     }
+    ],
+    "structuredContent": {
+     "pid": 4200,
+     "ended": [
+      {
+       "pid": 4200,
+       "ppid": 4100,
+       "depth": 1,
+       "startedAt": 1760000001000,
+       "kind": "dev",
+       "name": "node",
+       "command": "node /lab/node_modules/.bin/vite",
+       "memory": 80000000,
+       "cpu": 0.25,
+       "ports": []
+      }
+     ],
+     "forced": [
+      4200
+     ],
+     "left": [
+      4200
+     ]
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"pid\":4200,\"startedAt\":1760000001000,\"computer\":\"lab-mac\",\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "ended 4200 node\nKILL after TERM's 2 s: 4200\nstill running after KILL: 4200"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"pid\":4200,\"startedAt\":1760000001000,\"computer\":\"lab-mac\",\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "{\"pid\":4200,\"ended\":[{\"pid\":4200,\"ppid\":4100,\"depth\":1,\"startedAt\":1760000001000,\"kind\":\"dev\",\"name\":\"node\",\"command\":\"node /lab/node_modules/.bin/vite\",\"memory\":80000000,\"cpu\":0.25,\"ports\":[]}],\"forced\":[4200],\"left\":[4200]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "activity_end",
+   "case": "a kept agent freed",
+   "argv": [
+    "activity",
+    "end",
+    "4100",
+    "--started=1760000000000"
+   ],
+   "replies": {
+    "activity.end": "{\"id\":1,\"ok\":true,\"pid\":4100,\"ended\":[{\"ports\":[],\"cpu\":0.25,\"memory\":80000000,\"command\":\"node /lab/node_modules/.bin/vite\",\"name\":\"node\",\"kind\":\"agent\",\"startedAt\":1760000001000,\"depth\":1,\"ppid\":4100,\"pid\":4100}],\"forced\":[],\"left\":[],\"freed\":\"thread-7f3a9c21e4b5\"}"
+   },
+   "tool_arguments": {
+    "pid": 4100,
+    "started": 1760000000000
+   },
+   "tool_asked": [
+    {
+     "op": "activity.end",
+     "pid": 4100,
+     "startedAt": 1760000000000
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "freed the agent thread thread-7 kept"
+     }
+    ],
+    "structuredContent": {
+     "pid": 4100,
+     "ended": [
+      {
+       "pid": 4100,
+       "ppid": 4100,
+       "depth": 1,
+       "startedAt": 1760000001000,
+       "kind": "agent",
+       "name": "node",
+       "command": "node /lab/node_modules/.bin/vite",
+       "memory": 80000000,
+       "cpu": 0.25,
+       "ports": []
+      }
+     ],
+     "forced": [],
+     "left": [],
+     "freed": "thread-7f3a9c21e4b5"
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"pid\":4100,\"startedAt\":1760000000000,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "freed the agent thread thread-7 kept"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"pid\":4100,\"startedAt\":1760000000000,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "{\"pid\":4100,\"ended\":[{\"pid\":4100,\"ppid\":4100,\"depth\":1,\"startedAt\":1760000001000,\"kind\":\"agent\",\"name\":\"node\",\"command\":\"node /lab/node_modules/.bin/vite\",\"memory\":80000000,\"cpu\":0.25,\"ports\":[]}],\"forced\":[],\"left\":[],\"freed\":\"thread-7f3a9c21e4b5\"}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "activity_end",
+   "case": "the agent refused",
+   "argv": [
+    "activity",
+    "end",
+    "4100",
+    "--started=1760000000000"
+   ],
+   "replies": {
+    "activity.end": "{\"id\":1,\"ok\":false,\"error\":\"4100 is the agent of thread thread-7 \\\"fix\\\", which only its thread's stop ends: stop its turn with wsp stop thread-7, or end a process under the agent.\",\"kind\":\"usage\"}"
+   },
+   "tool_arguments": {
+    "pid": 4100,
+    "started": 1760000000000
+   },
+   "tool_asked": [
+    {
+     "op": "activity.end",
+     "pid": 4100,
+     "startedAt": 1760000000000
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "4100 is the agent of thread thread-7 \"fix\", which only its thread's stop ends: stop its turn with wsp stop thread-7, or end a process under the agent."
+     }
+    ],
+    "structuredContent": {
+     "error": "4100 is the agent of thread thread-7 \"fix\", which only its thread's stop ends: stop its turn with wsp stop thread-7, or end a process under the agent.",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"pid\":4100,\"startedAt\":1760000000000,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp activity end: 4100 is the agent of thread thread-7 \"fix\", which only its thread's stop ends: stop its turn with wsp stop thread-7, or end a process under the agent."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"pid\":4100,\"startedAt\":1760000000000,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"4100 is the agent of thread thread-7 \\\"fix\\\", which only its thread's stop ends: stop its turn with wsp stop thread-7, or end a process under the agent.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "activity_end",
+   "case": "a pid that is another process now",
+   "argv": [
+    "activity",
+    "end",
+    "4200",
+    "--started=5"
+   ],
+   "replies": {
+    "activity.end": "{\"id\":1,\"ok\":false,\"error\":\"pid 4200 names another process now, sleep started 2025-10-09T08:53:21.000Z, not the one started 1970-01-01T00:00:00.005Z: read wsp activity again and end it by the pid and start it lists now.\",\"kind\":\"not-found\"}"
+   },
+   "tool_arguments": {
+    "pid": 4200,
+    "started": 5
+   },
+   "tool_asked": [
+    {
+     "op": "activity.end",
+     "pid": 4200,
+     "startedAt": 5
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "pid 4200 names another process now, sleep started 2025-10-09T08:53:21.000Z, not the one started 1970-01-01T00:00:00.005Z: read wsp activity again and end it by the pid and start it lists now."
+     }
+    ],
+    "structuredContent": {
+     "error": "pid 4200 names another process now, sleep started 2025-10-09T08:53:21.000Z, not the one started 1970-01-01T00:00:00.005Z: read wsp activity again and end it by the pid and start it lists now.",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"pid\":4200,\"startedAt\":5,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp activity end: pid 4200 names another process now, sleep started 2025-10-09T08:53:21.000Z, not the one started 1970-01-01T00:00:00.005Z: read wsp activity again and end it by the pid and start it lists now."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"pid\":4200,\"startedAt\":5,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"pid 4200 names another process now, sleep started 2025-10-09T08:53:21.000Z, not the one started 1970-01-01T00:00:00.005Z: read wsp activity again and end it by the pid and start it lists now.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "activity_end",
+   "case": "the process listed is gone by the signal",
+   "argv": [
+    "activity",
+    "end",
+    "4200",
+    "--started=1760000001000"
+   ],
+   "replies": {
+    "activity.end": "{\"id\":1,\"ok\":true,\"pid\":4200,\"ended\":[],\"forced\":[],\"left\":[]}"
+   },
+   "tool_arguments": {
+    "pid": 4200,
+    "started": 1760000001000
+   },
+   "tool_asked": [
+    {
+     "op": "activity.end",
+     "pid": 4200,
+     "startedAt": 1760000001000
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "nothing was signalled: the process listed as 4200 is gone"
+     }
+    ],
+    "structuredContent": {
+     "pid": 4200,
+     "ended": [],
+     "forced": [],
+     "left": []
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"pid\":4200,\"startedAt\":1760000001000,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "nothing was signalled: the process listed as 4200 is gone"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"pid\":4200,\"startedAt\":1760000001000,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "{\"pid\":4200,\"ended\":[],\"forced\":[],\"left\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "activity_end",
+   "case": "a box refused",
+   "argv": [
+    "activity",
+    "end",
+    "4200",
+    "--started=1760000001000",
+    "--computer=hetzner"
+   ],
+   "replies": {
+    "activity.end": "{\"id\":1,\"ok\":false,\"error\":\"hetzner is a box, and wsp activity end ends processes on this computer: end it from that computer's Processes pane in the app, or settle its thread with --processes stop.\",\"kind\":\"usage\"}"
+   },
+   "tool_arguments": {
+    "pid": 4200,
+    "started": 1760000001000,
+    "computer": "hetzner"
+   },
+   "tool_asked": [
+    {
+     "op": "activity.end",
+     "pid": 4200,
+     "startedAt": 1760000001000,
+     "computer": "hetzner"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "hetzner is a box, and wsp activity end ends processes on this computer: end it from that computer's Processes pane in the app, or settle its thread with --processes stop."
+     }
+    ],
+    "structuredContent": {
+     "error": "hetzner is a box, and wsp activity end ends processes on this computer: end it from that computer's Processes pane in the app, or settle its thread with --processes stop.",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"pid\":4200,\"startedAt\":1760000001000,\"computer\":\"hetzner\",\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp activity end: hetzner is a box, and wsp activity end ends processes on this computer: end it from that computer's Processes pane in the app, or settle its thread with --processes stop."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"pid\":4200,\"startedAt\":1760000001000,\"computer\":\"hetzner\",\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"hetzner is a box, and wsp activity end ends processes on this computer: end it from that computer's Processes pane in the app, or settle its thread with --processes stop.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "tool": "conversations",
+   "case": "two agents' rows, an open one, a thread's, and a held line",
+   "argv": [
+    "conversations",
+    "lab"
+   ],
+   "replies": {
+    "conversations.list": "{\"id\":1,\"ok\":true,\"rows\":[{\"agent\":\"codex\",\"id\":\"01a12813-cd12-7a12-9b13-e76892906ff0\",\"title\":\"lab terminal thread  \\\"tui\\\"\",\"firstPrompt\":\"first prompt from codex-tui\",\"branch\":\"feat/x\",\"cwd\":\"/work/acme/lab\",\"lastAt\":1791673748000,\"bytes\":2048.5,\"origin\":\"terminal\",\"live\":false,\"letsGo\":\"Codex lets go about a minute after its window closes.\",\"extra\":\"dropped\"},{\"agent\":\"claude\",\"id\":\"7414323d-e71b-4957-8b56-eefdf6bfa350\",\"title\":\"lab codewords\",\"cwd\":\"/work/acme/lab-wt\",\"lastAt\":1791673566000,\"origin\":\"terminal\",\"live\":true},{\"agent\":\"claude\",\"id\":\"e615a6ab-a2f2-4b10-8fd6-0dc38bf99c28\",\"title\":\"café\",\"cwd\":\"/work/acme/lab\",\"lastAt\":5,\"bytes\":10,\"origin\":\"wsp\",\"live\":false,\"thread\":\"thread-4b1c2a7e\"}],\"held\":[{\"agent\":\"claude\",\"said\":\"Claude Code conversations on attic were not read\",\"fix\":\"Update attic with wsp add attic --update to list them.\"}]}"
+   },
+   "tool_arguments": {
+    "project": "lab"
+   },
+   "tool_asked": [
+    {
+     "op": "conversations.list",
+     "project": "lab"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"rows\": [\n    {\n      \"agent\": \"codex\",\n      \"id\": \"01a12813-cd12-7a12-9b13-e76892906ff0\",\n      \"title\": \"lab terminal thread \\u0085 \\\"tui\\\"\",\n      \"firstPrompt\": \"first prompt from codex-tui\",\n      \"branch\": \"feat/x\",\n      \"cwd\": \"/work/acme/lab\",\n      \"lastAt\": 1791673748000,\n      \"bytes\": 2048.5,\n      \"origin\": \"terminal\",\n      \"live\": false,\n      \"letsGo\": \"Codex lets go about a minute after its window closes.\"\n    },\n    {\n      \"agent\": \"claude\",\n      \"id\": \"7414323d-e71b-4957-8b56-eefdf6bfa350\",\n      \"title\": \"lab codewords\",\n      \"cwd\": \"/work/acme/lab-wt\",\n      \"lastAt\": 1791673566000,\n      \"origin\": \"terminal\",\n      \"live\": true\n    },\n    {\n      \"agent\": \"claude\",\n      \"id\": \"e615a6ab-a2f2-4b10-8fd6-0dc38bf99c28\",\n      \"title\": \"café\",\n      \"cwd\": \"/work/acme/lab\",\n      \"lastAt\": 5,\n      \"bytes\": 10,\n      \"origin\": \"wsp\",\n      \"live\": false,\n      \"thread\": \"thread-4b1c2a7e\"\n    }\n  ],\n  \"held\": [\n    {\n      \"agent\": \"claude\",\n      \"said\": \"Claude Code conversations on attic were not read\",\n      \"fix\": \"Update attic with wsp add attic --update to list them.\"\n    }\n  ]\n}"
+     }
+    ],
+    "structuredContent": {
+     "rows": [
+      {
+       "agent": "codex",
+       "id": "01a12813-cd12-7a12-9b13-e76892906ff0",
+       "title": "lab terminal thread  \"tui\"",
+       "firstPrompt": "first prompt from codex-tui",
+       "branch": "feat/x",
+       "cwd": "/work/acme/lab",
+       "lastAt": 1791673748000,
+       "bytes": 2048.5,
+       "origin": "terminal",
+       "live": false,
+       "letsGo": "Codex lets go about a minute after its window closes."
+      },
+      {
+       "agent": "claude",
+       "id": "7414323d-e71b-4957-8b56-eefdf6bfa350",
+       "title": "lab codewords",
+       "cwd": "/work/acme/lab-wt",
+       "lastAt": 1791673566000,
+       "origin": "terminal",
+       "live": true
+      },
+      {
+       "agent": "claude",
+       "id": "e615a6ab-a2f2-4b10-8fd6-0dc38bf99c28",
+       "title": "café",
+       "cwd": "/work/acme/lab",
+       "lastAt": 5,
+       "bytes": 10,
+       "origin": "wsp",
+       "live": false,
+       "thread": "thread-4b1c2a7e"
+      }
+     ],
+     "held": [
+      {
+       "agent": "claude",
+       "said": "Claude Code conversations on attic were not read",
+       "fix": "Update attic with wsp add attic --update to list them."
+      }
+     ]
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"project\":\"lab\",\"id\":2,\"op\":\"conversations.list\"}"
+    ],
+    "stdout": [
+     "AGENT   ID                                    CHANGED           SIZE  BRANCH                   TITLE\ncodex   01a12813-cd12-7a12-9b13-e76892906ff0  2026-10-10 23:09  2 KB  feat/x                   lab terminal thread  \"tui\"\nclaude  7414323d-e71b-4957-8b56-eefdf6bfa350  2026-10-10 23:06  -     -       open elsewhere   lab codewords\nclaude  e615a6ab-a2f2-4b10-8fd6-0dc38bf99c28  1970-01-01 00:00  10 B  -       thread thread-4  café\nClaude Code conversations on attic were not read. Update attic with wsp add attic --update to list them."
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"project\":\"lab\",\"id\":2,\"op\":\"conversations.list\"}"
+    ],
+    "stdout": [
+     "{\"rows\":[{\"agent\":\"codex\",\"id\":\"01a12813-cd12-7a12-9b13-e76892906ff0\",\"title\":\"lab terminal thread \\u0085 \\\"tui\\\"\",\"firstPrompt\":\"first prompt from codex-tui\",\"branch\":\"feat/x\",\"cwd\":\"/work/acme/lab\",\"lastAt\":1791673748000,\"bytes\":2048.5,\"origin\":\"terminal\",\"live\":false,\"letsGo\":\"Codex lets go about a minute after its window closes.\"},{\"agent\":\"claude\",\"id\":\"7414323d-e71b-4957-8b56-eefdf6bfa350\",\"title\":\"lab codewords\",\"cwd\":\"/work/acme/lab-wt\",\"lastAt\":1791673566000,\"origin\":\"terminal\",\"live\":true},{\"agent\":\"claude\",\"id\":\"e615a6ab-a2f2-4b10-8fd6-0dc38bf99c28\",\"title\":\"café\",\"cwd\":\"/work/acme/lab\",\"lastAt\":5,\"bytes\":10,\"origin\":\"wsp\",\"live\":false,\"thread\":\"thread-4b1c2a7e\"}],\"held\":[{\"agent\":\"claude\",\"said\":\"Claude Code conversations on attic were not read\",\"fix\":\"Update attic with wsp add attic --update to list them.\"}]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "conversations",
+   "case": "one agent's, none kept",
+   "argv": [
+    "conversations",
+    "--agent=codex"
+   ],
+   "replies": {
+    "conversations.list": "{\"id\":1,\"ok\":true,\"rows\":[],\"held\":[]}"
+   },
+   "tool_arguments": {
+    "agent": "codex"
+   },
+   "tool_asked": [
+    {
+     "op": "conversations.list",
+     "agent": "codex"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "{\n  \"rows\": [],\n  \"held\": []\n}"
+     }
+    ],
+    "structuredContent": {
+     "rows": [],
+     "held": []
+    }
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"projects.list\"}",
+     "{\"agent\":\"codex\",\"id\":3,\"op\":\"conversations.list\"}"
+    ],
+    "stdout": [
+     "no Claude Code or Codex conversations in this folder"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"projects.list\"}",
+     "{\"agent\":\"codex\",\"id\":3,\"op\":\"conversations.list\"}"
+    ],
+    "stdout": [
+     "{\"rows\":[],\"held\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "tool": "conversations",
+   "case": "refused",
+   "argv": [
+    "conversations",
+    "nowhere"
+   ],
+   "replies": {
+    "conversations.list": "{\"id\":1,\"ok\":false,\"error\":\"no project nowhere. Read the projects with wsp projects.\",\"kind\":\"not-found\"}"
+   },
+   "tool_arguments": {
+    "project": "nowhere"
+   },
+   "tool_asked": [
+    {
+     "op": "conversations.list",
+     "project": "nowhere"
+    }
+   ],
+   "tool_result": {
+    "content": [
+     {
+      "type": "text",
+      "text": "no project nowhere. Read the projects with wsp projects."
+     }
+    ],
+    "structuredContent": {
+     "error": "no project nowhere. Read the projects with wsp projects.",
+     "class": "usage",
+     "exit": 3
+    },
+    "isError": true
+   },
+   "text": {
+    "frames": [
+     "{\"project\":\"nowhere\",\"id\":2,\"op\":\"conversations.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "wsp conversations: no project nowhere. Read the projects with wsp projects."
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [
+     "{\"project\":\"nowhere\",\"id\":2,\"op\":\"conversations.list\"}"
+    ],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"no project nowhere. Read the projects with wsp projects.\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "end a hex pid and a hex start",
+   "argv": [
+    "activity",
+    "end",
+    "0x10",
+    "--started",
+    "0x1F"
+   ],
+   "replies": {
+    "activity.end": "{\"id\":1,\"ok\":true,\"pid\":16,\"ended\":[],\"forced\":[],\"left\":[]}"
+   },
+   "text": {
+    "frames": [
+     "{\"pid\":16,\"startedAt\":31,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "nothing was signalled: the process listed as 16 is gone"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"pid\":16,\"startedAt\":31,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "{\"pid\":16,\"ended\":[],\"forced\":[],\"left\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "end an exponent pid",
+   "argv": [
+    "activity",
+    "end",
+    "1e3",
+    "--started",
+    "1760000000000"
+   ],
+   "replies": {
+    "activity.end": "{\"id\":1,\"ok\":true,\"pid\":16,\"ended\":[],\"forced\":[],\"left\":[]}"
+   },
+   "text": {
+    "frames": [
+     "{\"pid\":1000,\"startedAt\":1760000000000,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "nothing was signalled: the process listed as 16 is gone"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"pid\":1000,\"startedAt\":1760000000000,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "{\"pid\":16,\"ended\":[],\"forced\":[],\"left\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "end a padded pid",
+   "argv": [
+    "activity",
+    "end",
+    " 7 ",
+    "--started",
+    "5"
+   ],
+   "replies": {
+    "activity.end": "{\"id\":1,\"ok\":true,\"pid\":16,\"ended\":[],\"forced\":[],\"left\":[]}"
+   },
+   "text": {
+    "frames": [
+     "{\"pid\":7,\"startedAt\":5,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "nothing was signalled: the process listed as 16 is gone"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"pid\":7,\"startedAt\":5,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "{\"pid\":16,\"ended\":[],\"forced\":[],\"left\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "end a blank start reads as 0",
+   "argv": [
+    "activity",
+    "end",
+    "7",
+    "--started",
+    " "
+   ],
+   "replies": {
+    "activity.end": "{\"id\":1,\"ok\":true,\"pid\":16,\"ended\":[],\"forced\":[],\"left\":[]}"
+   },
+   "text": {
+    "frames": [
+     "{\"pid\":7,\"startedAt\":0,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "nothing was signalled: the process listed as 16 is gone"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"pid\":7,\"startedAt\":0,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "{\"pid\":16,\"ended\":[],\"forced\":[],\"left\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "end an infinite start",
+   "argv": [
+    "activity",
+    "end",
+    "7",
+    "--started",
+    "Infinity"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp activity end takes --started, the start activity listed it with, its startedAt in epoch milliseconds. usage: wsp activity end <pid> --started <ms> [--computer <computer>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp activity end takes --started, the start activity listed it with, its startedAt in epoch milliseconds. usage: wsp activity end <pid> --started <ms> [--computer <computer>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "end a negative pid",
+   "argv": [
+    "activity",
+    "end",
+    "--started",
+    "1",
+    "--",
+    "-4"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp activity end takes one pid. usage: wsp activity end <pid> --started <ms> [--computer <computer>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp activity end takes one pid. usage: wsp activity end <pid> --started <ms> [--computer <computer>]"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "two threads",
+   "argv": [
+    "activity",
+    "a",
+    "b"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp activity takes one thread at most. usage: wsp activity [<thread>] [--computer <computer>] [--wide]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp activity takes one thread at most. usage: wsp activity [<thread>] [--computer <computer>] [--wide]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "end with no pid",
+   "argv": [
+    "activity",
+    "end",
+    "--started",
+    "1"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp activity end takes one pid. usage: wsp activity end <pid> --started <ms> [--computer <computer>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp activity end takes one pid. usage: wsp activity end <pid> --started <ms> [--computer <computer>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "end with a word for a pid",
+   "argv": [
+    "activity",
+    "end",
+    "x",
+    "--started",
+    "1"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp activity end takes one pid. usage: wsp activity end <pid> --started <ms> [--computer <computer>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp activity end takes one pid. usage: wsp activity end <pid> --started <ms> [--computer <computer>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "end with pid 0",
+   "argv": [
+    "activity",
+    "end",
+    "0",
+    "--started",
+    "1"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp activity end takes one pid. usage: wsp activity end <pid> --started <ms> [--computer <computer>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp activity end takes one pid. usage: wsp activity end <pid> --started <ms> [--computer <computer>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "end with a fraction for a pid",
+   "argv": [
+    "activity",
+    "end",
+    "1.5",
+    "--started",
+    "1"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp activity end takes one pid. usage: wsp activity end <pid> --started <ms> [--computer <computer>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp activity end takes one pid. usage: wsp activity end <pid> --started <ms> [--computer <computer>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "end with two pids",
+   "argv": [
+    "activity",
+    "end",
+    "5",
+    "6",
+    "--started",
+    "1"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp activity end takes one pid. usage: wsp activity end <pid> --started <ms> [--computer <computer>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp activity end takes one pid. usage: wsp activity end <pid> --started <ms> [--computer <computer>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "end without --started",
+   "argv": [
+    "activity",
+    "end",
+    "5"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp activity end takes --started, the start activity listed it with, its startedAt in epoch milliseconds. usage: wsp activity end <pid> --started <ms> [--computer <computer>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp activity end takes --started, the start activity listed it with, its startedAt in epoch milliseconds. usage: wsp activity end <pid> --started <ms> [--computer <computer>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "end with an empty --started",
+   "argv": [
+    "activity",
+    "end",
+    "5",
+    "--started="
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp activity end takes --started, the start activity listed it with, its startedAt in epoch milliseconds. usage: wsp activity end <pid> --started <ms> [--computer <computer>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp activity end takes --started, the start activity listed it with, its startedAt in epoch milliseconds. usage: wsp activity end <pid> --started <ms> [--computer <computer>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "end with a word for --started",
+   "argv": [
+    "activity",
+    "end",
+    "5",
+    "--started",
+    "abc"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp activity end takes --started, the start activity listed it with, its startedAt in epoch milliseconds. usage: wsp activity end <pid> --started <ms> [--computer <computer>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp activity end takes --started, the start activity listed it with, its startedAt in epoch milliseconds. usage: wsp activity end <pid> --started <ms> [--computer <computer>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "end with a fractional --started",
+   "argv": [
+    "activity",
+    "end",
+    "5",
+    "--started",
+    "1.5"
+   ],
+   "replies": {
+    "activity.end": "{\"id\":1,\"ok\":true,\"pid\":5,\"ended\":[],\"forced\":[],\"left\":[]}"
+   },
+   "text": {
+    "frames": [
+     "{\"pid\":5,\"startedAt\":1.5,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "nothing was signalled: the process listed as 5 is gone"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"pid\":5,\"startedAt\":1.5,\"id\":2,\"op\":\"activity.end\"}"
+    ],
+    "stdout": [
+     "{\"pid\":5,\"ended\":[],\"forced\":[],\"left\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "wide over nothing",
+   "argv": [
+    "activity",
+    "--wide"
+   ],
+   "replies": {
+    "activity.read": "{\"id\":1,\"ok\":true,\"activity\":{\"computer\":\"lab\",\"at\":1,\"threads\":[],\"wsp\":[],\"unowned\":[]}}"
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"activity.read\"}"
+    ],
+    "stdout": [
+     "no thread runs a process on lab"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"activity.read\"}"
+    ],
+    "stdout": [
+     "{\"computer\":\"lab\",\"at\":1,\"threads\":[],\"wsp\":[],\"unowned\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  },
+  {
+   "hand": true,
+   "case": "conversations of two projects",
+   "argv": [
+    "conversations",
+    "a",
+    "b"
+   ],
+   "replies": {},
+   "text": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "wsp conversations takes one project; b reads as a second. usage: wsp conversations [<project>] [--agent <id>]"
+    ],
+    "exit": 3
+   },
+   "json": {
+    "frames": [],
+    "stdout": [],
+    "stderr": [
+     "{\"error\":\"wsp conversations takes one project; b reads as a second. usage: wsp conversations [<project>] [--agent <id>]\",\"class\":\"usage\",\"exit\":3}"
+    ],
+    "exit": 3
+   }
+  },
+  {
+   "hand": true,
+   "case": "conversations with none",
+   "argv": [
+    "conversations"
+   ],
+   "replies": {
+    "conversations.list": "{\"id\":1,\"ok\":true,\"rows\":[],\"held\":[]}"
+   },
+   "text": {
+    "frames": [
+     "{\"id\":2,\"op\":\"projects.list\"}",
+     "{\"id\":3,\"op\":\"conversations.list\"}"
+    ],
+    "stdout": [
+     "no Claude Code or Codex conversations in this folder"
+    ],
+    "stderr": [],
+    "exit": 0
+   },
+   "json": {
+    "frames": [
+     "{\"id\":2,\"op\":\"projects.list\"}",
+     "{\"id\":3,\"op\":\"conversations.list\"}"
+    ],
+    "stdout": [
+     "{\"rows\":[],\"held\":[]}"
+    ],
+    "stderr": [],
+    "exit": 0
+   }
+  }
+ ]
+}

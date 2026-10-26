@@ -1,0 +1,80 @@
+{
+ "local rename": {
+  "error": "Error: no verb for rename --help"
+ },
+ "local fork": {
+  "error": "Error: no verb for fork --help"
+ },
+ "local commit": {
+  "stdout": [
+   "usage: wsp commit <thread> [--message \"<message>\"] [--file <path>]...\n  commits every changed file in the folder the thread works in, other threads'\n  changes there included, or the files named; without a message the thread's\n  agent drafts one\n\n  --message    the commit message, a subject line, a blank line, then the body,\n               -m for short; the thread's agent drafts it without one\n  --file       a file to commit, by path from the checkout's top, once per file;\n               every changed file without one\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local discard": {
+  "stdout": [
+   "usage: wsp discard <thread> <path> [--yes]\n  puts one changed file in the folder the thread works in back as its last\n  commit has it, or removes it where that has none\n\n  --yes      go ahead without being asked\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local fix": {
+  "stdout": [
+   "usage: wsp fix <thread> [--check \"<name>\" | --child <thread>]\n  asks the thread's agent to fix a failed check or merge a child, or updates its\n  folder from its base and asks it to fix what conflicts\n\n  --check    the failed check to send, by its name on the pull request; without\n             it the folder is updated from its base and a conflict is sent\n  --child    a child thread whose merge into this thread's folder stopped on\n             conflicts, by its id or a prefix; this thread's agent is asked to\n             merge it and resolve them, and nothing is updated\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local merge in": {
+  "stdout": [
+   "usage: wsp merge in <lead> <child>\n  merges a child thread's branch into its lead's folder with a merge commit, or\n  names the files that conflict\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local merge": {
+  "stdout": [
+   "usage: wsp merge <thread> [--method merge|squash|rebase] [--when-checks-pass]\n  merges the pull request of the thread's branch, or merges it once its checks\n  pass\n\n  --method              merge, squash or rebase; the repository's own default\n                        without one\n  --when-checks-pass    merge once the checks pass rather than now, where the\n                        repository allows it\n  --json                print the raw protocol values, one JSON object per line,\n                        with everything else on stderr\n  --state               the state file the host serves\n  --host                run the line against a host on your account, by the name\n                        wsp hosts lists it under; WSP_HOST names one for a whole\n                        shell"
+  ],
+  "exit": 0
+ },
+ "cloud rename": {
+  "stdout": [
+   "usage: wsp rename <workspace> \"<name>\"\n  names the workspace on this computer; the name is unique here, so one another\n  workspace holds is refused\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud fork": {
+  "stdout": [
+   "usage: wsp fork <workspace> [--name <n>] [--size <cpu>x<memGb>]\n       [--send \"<task>\" [run's flags]]\n  a new machine from the source's image version, on the source's branch with its\n  commits pushed first, not a copy of its live disk; --size as new's, the\n  person's alone\n\n  --name            what to call the new machine; <source>-fork without it\n  --size            the machine size as <cpu>x<memGb>, like 2x4; a size the\n                    provider does not offer is refused naming the ones it does\n  --send            a message for the new machine's first thread, with run's own\n                    flags after it\n  --agent           which agent runs the thread, by its catalog id (claude,\n                    codex, opencode, cursor); the project's own default without\n                    it\n  --model           the model the turn runs on, by the agent's own slug\n                    (claude-sonnet-5); the thread's own without it\n  --effort          how hard the agent thinks, by its own word (low, medium,\n                    high, xhigh, max); absent on a new thread means the agent's\n                    default; on send, the thread's own\n  --access          how far the agent may go without asking: ask, auto-edit,\n                    full or plan, refused where the agent has no such mode;\n                    without it, the project's, else the agent's default, else\n                    full\n  --cwd             the folder on the machine to work in; the project's folder\n                    without it\n  --notify          where each turn's end is sent, a thread's id or me; repeats\n  --max-machines    how many machines may stand at once under one root thread;\n                    defaults to 3\n  --max-depth       how many levels of threads may stand under the root thread;\n                    defaults to 2\n  --json            print the raw protocol values, one JSON object per line,\n                    with everything else on stderr\n  --state           the state file the host serves\n  --host            run the line against a host on your account, by the name wsp\n                    hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud commit": {
+  "stdout": [
+   "usage: wsp commit <thread> [--message \"<message>\"] [--file <path>]...\n  commits every changed file in the folder the thread works in, other threads'\n  changes there included, or the files named; without a message the thread's\n  agent drafts one\n\n  --message    the commit message, a subject line, a blank line, then the body,\n               -m for short; the thread's agent drafts it without one\n  --file       a file to commit, by path from the checkout's top, once per file;\n               every changed file without one\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud discard": {
+  "stdout": [
+   "usage: wsp discard <thread> <path> [--yes]\n  puts one changed file in the folder the thread works in back as its last\n  commit has it, or removes it where that has none\n\n  --yes      go ahead without being asked\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud fix": {
+  "stdout": [
+   "usage: wsp fix <thread> [--check \"<name>\" | --child <thread>]\n  asks the thread's agent to fix a failed check or merge a child, or updates its\n  folder from its base and asks it to fix what conflicts\n\n  --check    the failed check to send, by its name on the pull request; without\n             it the folder is updated from its base and a conflict is sent\n  --child    a child thread whose merge into this thread's folder stopped on\n             conflicts, by its id or a prefix; this thread's agent is asked to\n             merge it and resolve them, and nothing is updated\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud merge in": {
+  "stdout": [
+   "usage: wsp merge in <lead> <child>\n  merges a child thread's branch into its lead's folder with a merge commit, or\n  names the files that conflict\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud merge": {
+  "stdout": [
+   "usage: wsp merge <thread> [--method merge|squash|rebase] [--when-checks-pass]\n  merges the pull request of the thread's branch, or merges it once its checks\n  pass\n\n  --method              merge, squash or rebase; the repository's own default\n                        without one\n  --when-checks-pass    merge once the checks pass rather than now, where the\n                        repository allows it\n  --json                print the raw protocol values, one JSON object per line,\n                        with everything else on stderr\n  --state               the state file the host serves\n  --host                run the line against a host on your account, by the name\n                        wsp hosts lists it under; WSP_HOST names one for a whole\n                        shell"
+  ],
+  "exit": 0
+ }
+}

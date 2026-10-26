@@ -1,0 +1,194 @@
+{
+ "local servers": {
+  "stdout": [
+   "usage: wsp servers [<thread>] [--on <computer>]\n  the MCP servers the agents on this computer, a box you added or where a thread\n  runs are set up with: how each is reached, the file it is defined in and its\n  sign-in as its config says it\n\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local servers tools": {
+  "stdout": [
+   "usage: wsp servers tools <name> --agent <id> [<thread>] [--on <computer>]\n       [--project <name>] [--refresh]\n  starts one MCP server once where it is set up and lists its tools with their\n  descriptions, and says whether it needs a sign-in\n\n  --agent      the agent whose config names the server, by its catalog id as wsp\n               servers shows it\n  --on         the computer to read, by the name wsp computers shows; this\n               computer without it, and a thread names its own\n  --project    the project on the computer --on names whose server it is, by\n               name; a thread finds its own project's servers\n  --refresh    start the server again even where an answer from the last three\n               minutes stands\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local servers add": {
+  "stdout": [
+   "usage: wsp servers add <name> [<thread>] [--on <computer>] --agent <id>\n       (--command \"<line>\" | --url <address> [--header <name>=<VARIABLE>]...)\n       [--env <NAME>]... [--project [<name>]]\n  writes one MCP server into an agent's own config: a command with its arguments\n  and variables, or an address with its headers, each value read off this\n  terminal's environment: the file names a variable and the value goes to the\n  vault, an argument or the address naming a variable as ${NAME} keeps that name\n  there, and an agent that reads no variable there refuses it\n\n  --agent      the agent whose config takes the server, by its catalog id\n  --on         the computer to read, by the name wsp computers shows; this\n               computer without it, and a thread names its own\n  --command    the line the server runs, its program and arguments in one quoted\n               value, split as a shell splits it and nothing expanded; or --url\n  --env        a variable the server is given, or one the address names as\n               ${NAME}, by its name, its value read off the same name in this\n               terminal's environment; an argument or the address may name it as\n               ${NAME}; repeats\n  --url        the server's https address; or --command\n  --header     <name>=<VARIABLE>, a header sent to the address with its value\n               read off that variable in this terminal's environment; repeats\n  --project    put it in a project's file rather than the agent's own: alone\n               with a thread, the thread's own project, or the project's name\n               with --on\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local servers remove": {
+  "stdout": [
+   "usage: wsp servers remove <name> [<thread>] [--on <computer>] --agent <id>\n       [--scope <user|home|local|project>] [--project [<name>]] [--yes]\n  takes one MCP server's entry out of an agent's own config, every other line of\n  the file as it was, and, once no agent's config on this computer lists that\n  server, frees the vault's values kept for it that no other server holds\n\n  --agent      the agent whose config names the server, by its catalog id as wsp\n               servers shows it\n  --on         the computer to read, by the name wsp computers shows; this\n               computer without it, and a thread names its own\n  --scope      user, home, local or project, as wsp servers shows it; user\n               without it\n  --project    the project scope: alone with a thread, the thread's own project,\n               or the project's name with --on\n  --yes        go ahead without being asked\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local servers disable": {
+  "stdout": [
+   "usage: wsp servers disable <name> [<thread>] [--on <computer>] --agent <id>\n       [--scope <user|home|local|project>] [--project [<name>]]\n  turns one MCP server off by the switch its agent reads, so the agent leaves it\n  out until it is turned on\n\n  --agent      the agent whose config names the server, by its catalog id as wsp\n               servers shows it\n  --on         the computer to read, by the name wsp computers shows; this\n               computer without it, and a thread names its own\n  --scope      user, home, local or project, as wsp servers shows it; user\n               without it\n  --project    the project scope: alone with a thread, the thread's own project,\n               or the project's name with --on\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local servers enable": {
+  "stdout": [
+   "usage: wsp servers enable <name> [<thread>] [--on <computer>] --agent <id>\n       [--scope <user|home|local|project>] [--project [<name>]]\n  turns an MCP server that was turned off on again\n\n  --agent      the agent whose config names the server, by its catalog id as wsp\n               servers shows it\n  --on         the computer to read, by the name wsp computers shows; this\n               computer without it, and a thread names its own\n  --scope      user, home, local or project, as wsp servers shows it; user\n               without it\n  --project    the project scope: alone with a thread, the thread's own project,\n               or the project's name with --on\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local plugins": {
+  "stdout": [
+   "usage: wsp plugins [<thread>] [--on <computer>]\n  each agent's plugins on this computer, a box you added or where a thread runs:\n  on or off, missing where the agent names one it cannot load, its marketplace\n  and version, and what it brings\n\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local plugins disable": {
+  "stdout": [
+   "usage: wsp plugins disable <id> --agent <id> [<thread>] [--on <computer>]\n  turns one agent's plugin off for the login, by the agent's own road, so its\n  next turn loads nothing of it\n\n  --agent    the agent whose plugin it is, by its catalog id as wsp plugins\n             shows it\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local plugins enable": {
+  "stdout": [
+   "usage: wsp plugins enable <id> --agent <id> [<thread>] [--on <computer>]\n  turns one agent's plugin that was turned off on again\n\n  --agent    the agent whose plugin it is, by its catalog id as wsp plugins\n             shows it\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local agents addtools": {
+  "stdout": [
+   "usage: wsp agents addtools <agent>\n  writes the wsp server into an agent's own config on this computer, the entry\n  wsp mcp install writes, with the wsp skill beside it\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local agents default": {
+  "stdout": [
+   "usage: wsp agents default <agent>\n  the agent a new thread runs when neither the line nor its project names one;\n  the catalog's first without it\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local agents set": {
+  "stdout": [
+   "usage: wsp agents set <agent> [--model <slug>] [--effort <word>]\n       [--access <word>] [--hide <model>]... [--show <model>]...\n       [--order <model,model>] [--add-model <id>]... [--drop-model <id>]...\n       [--reset <field>]...\n  an agent's defaults on every computer: the model, effort and access a new\n  thread on it starts on, and which models its picker lists\n\n  --model         the model a new thread on it starts on, by the agent's own\n                  slug\n  --effort        the effort a new thread on it starts at, by the agent's own\n                  word\n  --access        how far a new thread on it may go without asking: ask,\n                  auto-edit, full or plan, refused where the agent has no such\n                  mode\n  --hide          a model to take off its picker; a start still takes it by\n                  name; repeats\n  --show          a hidden model to put back on its picker; repeats\n  --order         the models its picker lists first, comma separated; the rest\n                  follow in the agent's own order\n  --add-model     a model id the binary does not list, which a start may then\n                  name; repeats\n  --drop-model    a model id added before, taken back off; repeats\n  --reset         put a field back on the agent's own: model, effort, access or\n                  models; repeats\n  --json          print the raw protocol values, one JSON object per line, with\n                  everything else on stderr\n  --state         the state file the host serves\n  --host          run the line against a host on your account, by the name wsp\n                  hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local agents setup": {
+  "stdout": [
+   "usage: wsp agents setup <agent> [--on <computer>] [--enable | --disable]\n       [--program <path>] [--config <folder>] [--arg <word>]...\n       [--env <NAME>]... [--unset-env <NAME>]... [--reset <field>]...\n  how an agent runs on one computer: on or off there, the program run in its\n  place, its config folder, words added to every launch and variables every\n  launch carries, each value typed where nothing echoes it\n\n  --on           the computer, by the name wsp computers shows; this computer\n                 without it\n  --enable       offer the agent there again\n  --disable      take the agent off that computer: the app's lists drop it there\n                 and a start naming it is refused\n  --program      the program run in the agent's place there, a path or a word on\n                 its PATH\n  --config       the folder there the agent keeps its config, sessions and\n                 sign-in in, absolute and under that computer's home; sign it in\n                 again there\n  --arg          a word added to every turn's launch there; repeats, and\n                 replaces any set before\n  --env          a variable every launch there carries, by name, never one that\n                 decides how the process starts (PATH, LD_*, NODE_OPTIONS and\n                 the like); its value is asked for where nothing echoes it;\n                 repeats\n  --unset-env    a variable to take off its launch there, by name; repeats\n  --reset        put a field back on the agent's own: program, config or args;\n                 repeats\n  --json         print the raw protocol values, one JSON object per line, with\n                 everything else on stderr\n  --state        the state file the host serves\n  --host         run the line against a host on your account, by the name wsp\n                 hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local servers signin": {
+  "stdout": [
+   "usage: wsp servers signin <name> --agent <id> [<thread>] [--on <computer>]\n  signs one MCP server in by its agent's own command for it, run where the\n  server is set up and shown in this terminal\n\n  --agent    the agent whose config names the server, by its catalog id as wsp\n             servers shows it\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local agents signin": {
+  "stdout": [
+   "usage: wsp agents signin <agent> [<thread>]\n  signs an agent in on this computer or where a thread runs, its own sign-in run\n  there and shown in this terminal; a box you added takes wsp add <computer>\n  --sign-in <agent>\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local agents key": {
+  "stdout": [
+   "usage: wsp agents key <agent> [--api-key]\n  puts an agent's token or API key into this host's vault, typed where nothing\n  echoes it; Claude Code's token is the one claude setup-token prints, Codex\n  signs in on this computer with its own login, which machines at a provider use\n  through wsp, and --api-key takes the agent's API key instead\n\n  --api-key    the value typed is the agent's API key, not the token its own\n               command mints; for a computer picked to use the key\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       read to say this line runs at its own host's terminal; it dials\n               no other"
+  ],
+  "exit": 0
+ },
+ "cloud servers": {
+  "stdout": [
+   "usage: wsp servers [<thread>] [--on <computer>]\n  the MCP servers the agents on this computer, a box you added or where a thread\n  runs are set up with: how each is reached, the file it is defined in and its\n  sign-in as its config says it\n\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud servers tools": {
+  "stdout": [
+   "usage: wsp servers tools <name> --agent <id> [<thread>] [--on <computer>]\n       [--project <name>] [--refresh]\n  starts one MCP server once where it is set up and lists its tools with their\n  descriptions, and says whether it needs a sign-in\n\n  --agent      the agent whose config names the server, by its catalog id as wsp\n               servers shows it\n  --on         the computer to read, by the name wsp computers shows; this\n               computer without it, and a thread names its own\n  --project    the project on the computer --on names whose server it is, by\n               name; a thread finds its own project's servers\n  --refresh    start the server again even where an answer from the last three\n               minutes stands\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud servers add": {
+  "stdout": [
+   "usage: wsp servers add <name> [<thread>] [--on <computer>] --agent <id>\n       (--command \"<line>\" | --url <address> [--header <name>=<VARIABLE>]...)\n       [--env <NAME>]... [--project [<name>]]\n  writes one MCP server into an agent's own config: a command with its arguments\n  and variables, or an address with its headers, each value read off this\n  terminal's environment: the file names a variable and the value goes to the\n  vault, an argument or the address naming a variable as ${NAME} keeps that name\n  there, and an agent that reads no variable there refuses it\n\n  --agent      the agent whose config takes the server, by its catalog id\n  --on         the computer to read, by the name wsp computers shows; this\n               computer without it, and a thread names its own\n  --command    the line the server runs, its program and arguments in one quoted\n               value, split as a shell splits it and nothing expanded; or --url\n  --env        a variable the server is given, or one the address names as\n               ${NAME}, by its name, its value read off the same name in this\n               terminal's environment; an argument or the address may name it as\n               ${NAME}; repeats\n  --url        the server's https address; or --command\n  --header     <name>=<VARIABLE>, a header sent to the address with its value\n               read off that variable in this terminal's environment; repeats\n  --project    put it in a project's file rather than the agent's own: alone\n               with a thread, the thread's own project, or the project's name\n               with --on\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud servers remove": {
+  "stdout": [
+   "usage: wsp servers remove <name> [<thread>] [--on <computer>] --agent <id>\n       [--scope <user|home|local|project>] [--project [<name>]] [--yes]\n  takes one MCP server's entry out of an agent's own config, every other line of\n  the file as it was, and, once no agent's config on this computer lists that\n  server, frees the vault's values kept for it that no other server holds\n\n  --agent      the agent whose config names the server, by its catalog id as wsp\n               servers shows it\n  --on         the computer to read, by the name wsp computers shows; this\n               computer without it, and a thread names its own\n  --scope      user, home, local or project, as wsp servers shows it; user\n               without it\n  --project    the project scope: alone with a thread, the thread's own project,\n               or the project's name with --on\n  --yes        go ahead without being asked\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud servers disable": {
+  "stdout": [
+   "usage: wsp servers disable <name> [<thread>] [--on <computer>] --agent <id>\n       [--scope <user|home|local|project>] [--project [<name>]]\n  turns one MCP server off by the switch its agent reads, so the agent leaves it\n  out until it is turned on\n\n  --agent      the agent whose config names the server, by its catalog id as wsp\n               servers shows it\n  --on         the computer to read, by the name wsp computers shows; this\n               computer without it, and a thread names its own\n  --scope      user, home, local or project, as wsp servers shows it; user\n               without it\n  --project    the project scope: alone with a thread, the thread's own project,\n               or the project's name with --on\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud servers enable": {
+  "stdout": [
+   "usage: wsp servers enable <name> [<thread>] [--on <computer>] --agent <id>\n       [--scope <user|home|local|project>] [--project [<name>]]\n  turns an MCP server that was turned off on again\n\n  --agent      the agent whose config names the server, by its catalog id as wsp\n               servers shows it\n  --on         the computer to read, by the name wsp computers shows; this\n               computer without it, and a thread names its own\n  --scope      user, home, local or project, as wsp servers shows it; user\n               without it\n  --project    the project scope: alone with a thread, the thread's own project,\n               or the project's name with --on\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud plugins": {
+  "stdout": [
+   "usage: wsp plugins [<thread>] [--on <computer>]\n  each agent's plugins on this computer, a box you added or where a thread runs:\n  on or off, missing where the agent names one it cannot load, its marketplace\n  and version, and what it brings\n\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud plugins disable": {
+  "stdout": [
+   "usage: wsp plugins disable <id> --agent <id> [<thread>] [--on <computer>]\n  turns one agent's plugin off for the login, by the agent's own road, so its\n  next turn loads nothing of it\n\n  --agent    the agent whose plugin it is, by its catalog id as wsp plugins\n             shows it\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud plugins enable": {
+  "stdout": [
+   "usage: wsp plugins enable <id> --agent <id> [<thread>] [--on <computer>]\n  turns one agent's plugin that was turned off on again\n\n  --agent    the agent whose plugin it is, by its catalog id as wsp plugins\n             shows it\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud agents addtools": {
+  "stdout": [
+   "usage: wsp agents addtools <agent>\n  writes the wsp server into an agent's own config on this computer, the entry\n  wsp mcp install writes, with the wsp skill beside it\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud agents default": {
+  "stdout": [
+   "usage: wsp agents default <agent>\n  the agent a new thread runs when neither the line nor its project names one;\n  the catalog's first without it\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud agents set": {
+  "stdout": [
+   "usage: wsp agents set <agent> [--model <slug>] [--effort <word>]\n       [--access <word>] [--hide <model>]... [--show <model>]...\n       [--order <model,model>] [--add-model <id>]... [--drop-model <id>]...\n       [--reset <field>]...\n  an agent's defaults on every computer: the model, effort and access a new\n  thread on it starts on, and which models its picker lists\n\n  --model         the model a new thread on it starts on, by the agent's own\n                  slug\n  --effort        the effort a new thread on it starts at, by the agent's own\n                  word\n  --access        how far a new thread on it may go without asking: ask,\n                  auto-edit, full or plan, refused where the agent has no such\n                  mode\n  --hide          a model to take off its picker; a start still takes it by\n                  name; repeats\n  --show          a hidden model to put back on its picker; repeats\n  --order         the models its picker lists first, comma separated; the rest\n                  follow in the agent's own order\n  --add-model     a model id the binary does not list, which a start may then\n                  name; repeats\n  --drop-model    a model id added before, taken back off; repeats\n  --reset         put a field back on the agent's own: model, effort, access or\n                  models; repeats\n  --json          print the raw protocol values, one JSON object per line, with\n                  everything else on stderr\n  --state         the state file the host serves\n  --host          run the line against a host on your account, by the name wsp\n                  hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud agents setup": {
+  "stdout": [
+   "usage: wsp agents setup <agent> [--on <computer>] [--enable | --disable]\n       [--program <path>] [--config <folder>] [--arg <word>]...\n       [--env <NAME>]... [--unset-env <NAME>]... [--reset <field>]...\n  how an agent runs on one computer: on or off there, the program run in its\n  place, its config folder, words added to every launch and variables every\n  launch carries, each value typed where nothing echoes it\n\n  --on           the computer, by the name wsp computers shows; this computer\n                 without it\n  --enable       offer the agent there again\n  --disable      take the agent off that computer: the app's lists drop it there\n                 and a start naming it is refused\n  --program      the program run in the agent's place there, a path or a word on\n                 its PATH\n  --config       the folder there the agent keeps its config, sessions and\n                 sign-in in, absolute and under that computer's home; sign it in\n                 again there\n  --arg          a word added to every turn's launch there; repeats, and\n                 replaces any set before\n  --env          a variable every launch there carries, by name, never one that\n                 decides how the process starts (PATH, LD_*, NODE_OPTIONS and\n                 the like); its value is asked for where nothing echoes it;\n                 repeats\n  --unset-env    a variable to take off its launch there, by name; repeats\n  --reset        put a field back on the agent's own: program, config or args;\n                 repeats\n  --json         print the raw protocol values, one JSON object per line, with\n                 everything else on stderr\n  --state        the state file the host serves\n  --host         run the line against a host on your account, by the name wsp\n                 hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud servers signin": {
+  "stdout": [
+   "usage: wsp servers signin <name> --agent <id> [<thread>] [--on <computer>]\n  signs one MCP server in by its agent's own command for it, run where the\n  server is set up and shown in this terminal\n\n  --agent    the agent whose config names the server, by its catalog id as wsp\n             servers shows it\n  --on       the computer to read, by the name wsp computers shows; this\n             computer without it, and a thread names its own\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud agents signin": {
+  "stdout": [
+   "usage: wsp agents signin <agent> [<thread>]\n  signs an agent in on this computer or where a thread runs, its own sign-in run\n  there and shown in this terminal; a box you added takes wsp add <computer>\n  --sign-in <agent>\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud agents key": {
+  "stdout": [
+   "usage: wsp agents key <agent> [--api-key]\n  puts an agent's token or API key into this host's vault, typed where nothing\n  echoes it; Claude Code's token is the one claude setup-token prints, Codex\n  signs in on this computer with its own login, which machines at a provider use\n  through wsp, and --api-key takes the agent's API key instead\n\n  --api-key    the value typed is the agent's API key, not the token its own\n               command mints; for a computer picked to use the key\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       read to say this line runs at its own host's terminal; it dials\n               no other"
+  ],
+  "exit": 0
+ }
+}
