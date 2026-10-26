@@ -9,8 +9,7 @@ use std::rc::Rc;
 
 use serde_json::json;
 use support::threads_ctx::{entry, FakeThreadsCtx};
-use support::Lend;
-use support::{local, row, settle, view};
+use support::{local, settle};
 use wsp_threads::threads::threads::{read_owed, ThreadsArea};
 
 fn host() -> (Rc<FakeThreadsCtx>, Rc<ThreadsArea>) {

@@ -20,7 +20,8 @@ mod seen {
             std::panic::set_hook(Box::new(move |info| {
                 let at = info.location().map(|l| format!("{}:{}", l.file(), l.line())).unwrap_or_default();
                 let p = info.payload();
-                let msg = p.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| p.downcast_ref::<String>().cloned()).unwrap_or_default();
+                let msg =
+                    p.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| p.downcast_ref::<String>().cloned()).unwrap_or_default();
                 LOG.lock().unwrap().push((std::thread::current().id(), format!("{msg} at {at}")));
                 prior(info);
             }));
@@ -40,7 +41,10 @@ fn host() -> (std::rc::Rc<FakeThreadsCtx>, std::rc::Rc<wsp_threads::threads::thr
     ctx.sessions.with(|s| {
         s.insert(
             "r-p".into(),
-            row(view(json!({ "id": "r-p", "threadId": "parent0001", "claudeSessionId": "cs-p", "status": "completed", "startedAt": 1 })), "u-p"),
+            row(
+                view(json!({ "id": "r-p", "threadId": "parent0001", "claudeSessionId": "cs-p", "status": "completed", "startedAt": 1 })),
+                "u-p",
+            ),
         );
     });
     let area = ctx.area();
@@ -110,8 +114,9 @@ fn deliver_runs_on_a_runtime_with_no_local_set() {
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime");
     rt.block_on(async {
         let (_ctx, area) = host();
-        let line = wsp_threads::threads::threads::read_owed(&json!({ "id": "L1", "from": "child0001", "notify": "parent0001", "text": "t" }))
-            .expect("a line");
+        let line =
+            wsp_threads::threads::threads::read_owed(&json!({ "id": "L1", "from": "child0001", "notify": "parent0001", "text": "t" }))
+                .expect("a line");
         area.deliver(line, false);
     });
 }

@@ -42,7 +42,12 @@ impl HarnessSession for KeepsForward {
     fn kept(&self) -> Option<Option<Box<dyn KeptAgent>>> {
         None
     }
-    fn steer(&self, _p: String, _id: Option<String>, _i: Vec<TurnImage>) -> Option<LocalBoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
+    fn steer(
+        &self,
+        _p: String,
+        _id: Option<String>,
+        _i: Vec<TurnImage>,
+    ) -> Option<LocalBoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
         None
     }
     fn tells_unread(&self) -> Option<bool> {

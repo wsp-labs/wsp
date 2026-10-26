@@ -27,8 +27,26 @@ fn a_delta_row_keys_go_in_the_order_turns_ts_writes_them() {
             "patch": [] }));
         assert_eq!(
             keys_of(&r.host, "session.delta"),
-            words(&["type", "workspaceId", "sessionId", "turnId", "threadId", "line", "kind", "text", "messageId", "toolName", "toolUseId",
-                "isError", "parentToolUseId", "cwd", "exitCode", "durationMs", "bytes", "patch"])
+            words(&[
+                "type",
+                "workspaceId",
+                "sessionId",
+                "turnId",
+                "threadId",
+                "line",
+                "kind",
+                "text",
+                "messageId",
+                "toolName",
+                "toolUseId",
+                "isError",
+                "parentToolUseId",
+                "cwd",
+                "exitCode",
+                "durationMs",
+                "bytes",
+                "patch"
+            ])
         );
     });
 }
@@ -45,8 +63,25 @@ fn a_start_row_keys_go_in_the_order_turns_ts_writes_them() {
         });
         r.send(json!({ "type": "session.start", "sessionId": SESS, "model": "opus", "cwd": "/w", "tools": ["Bash"], "harness": { "name": "claude" } }));
         let keys = keys_of(&r.host, "session.start");
-        let expected = words(&["type", "workspaceId", "sessionId", "turnId", "threadId", "prompt", "requestId", "afterCut", "afterLimit",
-            "opensThread", "startedBy", "attachments", "model", "cwd", "agent", "tools", "harness"]);
+        let expected = words(&[
+            "type",
+            "workspaceId",
+            "sessionId",
+            "turnId",
+            "threadId",
+            "prompt",
+            "requestId",
+            "afterCut",
+            "afterLimit",
+            "opensThread",
+            "startedBy",
+            "attachments",
+            "model",
+            "cwd",
+            "agent",
+            "tools",
+            "harness",
+        ]);
         let present: Vec<String> = expected.iter().filter(|k| keys.contains(k)).cloned().collect();
         assert_eq!(keys.iter().filter(|k| present.contains(k)).cloned().collect::<Vec<_>>(), present);
     });
@@ -56,14 +91,30 @@ fn a_start_row_keys_go_in_the_order_turns_ts_writes_them() {
 fn the_counted_rows_put_their_line_first() {
     run_local(async {
         let r = rig();
-        r.send(json!({ "type": "subagent", "sessionId": SESS, "task": "a1", "state": "running", "parentToolUseId": "toolu_a1", "title": "T",
-            "summary": "S", "depth": 1, "model": "haiku", "asked": "do it" }));
+        r.send(
+            json!({ "type": "subagent", "sessionId": SESS, "task": "a1", "state": "running", "parentToolUseId": "toolu_a1", "title": "T",
+            "summary": "S", "depth": 1, "model": "haiku", "asked": "do it" }),
+        );
         r.send(json!({ "type": "turn.compacted", "sessionId": SESS, "before": 10, "after": 5 }));
         r.send(json!({ "type": "turn.retry", "sessionId": SESS, "attempt": 1, "of": 3, "why": "overloaded" }));
         assert_eq!(
             keys_of(&r.host, "session.subagent"),
-            words(&["type", "workspaceId", "sessionId", "turnId", "threadId", "line", "task", "state", "parentToolUseId", "title", "summary",
-                "depth", "model", "asked"])
+            words(&[
+                "type",
+                "workspaceId",
+                "sessionId",
+                "turnId",
+                "threadId",
+                "line",
+                "task",
+                "state",
+                "parentToolUseId",
+                "title",
+                "summary",
+                "depth",
+                "model",
+                "asked"
+            ])
         );
         assert_eq!(
             keys_of(&r.host, "session.compacted"),

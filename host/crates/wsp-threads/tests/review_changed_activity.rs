@@ -41,5 +41,9 @@ fn the_pid_a_run_file_names_is_the_agent_under_a_root_that_is_not_it() {
     let with = agent_under_a_shell(true);
     assert_eq!(with["threads"], json!([thread_json(T1, "go", "w1", 2_000_000, 0, vec![shell, agent])]));
     let without = agent_under_a_shell(false);
-    assert_eq!(without["threads"][0]["processes"][1]["kind"], json!("tool"), "with no run file, agent-x is no agent: the fixture tells the two reads apart");
+    assert_eq!(
+        without["threads"][0]["processes"][1]["kind"],
+        json!("tool"),
+        "with no run file, agent-x is no agent: the fixture tells the two reads apart"
+    );
 }

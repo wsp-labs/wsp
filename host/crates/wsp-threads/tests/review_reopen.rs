@@ -37,7 +37,9 @@ fn an_adapter_with_no_attach_cannot_reopen_even_when_the_transcript_does_not_rea
         let adapter: Arc<dyn HarnessAdapter> = Arc::new(NoAttach);
         host.hooks.set::<dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>>(
             "TurnsCtx::adapter_for",
-            Rc::new(move |_e: &Entry, a: AdapterAsk| Ok(BuiltAdapter { harness: a.named.clone().unwrap_or_default(), adapter: adapter.clone() })),
+            Rc::new(move |_e: &Entry, a: AdapterAsk| {
+                Ok(BuiltAdapter { harness: a.named.clone().unwrap_or_default(), adapter: adapter.clone() })
+            }),
         );
         host.hooks.set::<dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>>(
             "TurnsCtx::open_thread",

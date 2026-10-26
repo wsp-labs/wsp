@@ -28,6 +28,10 @@ fn the_agents_lists_are_asked_once_and_before_the_folder_is_read() {
         }
         let e = err(join.await.expect("the launch ran"));
         assert_eq!(said(&e).0, no_cwd_line(&home_shortened("/gone/dir", None)));
-        assert_eq!(r.host.hooks.called("thread_folder"), vec!["thread_folder(Some(\"/gone/dir\"))".to_string()], "the folder is read after the lists");
+        assert_eq!(
+            r.host.hooks.called("thread_folder"),
+            vec!["thread_folder(Some(\"/gone/dir\"))".to_string()],
+            "the folder is read after the lists"
+        );
     });
 }

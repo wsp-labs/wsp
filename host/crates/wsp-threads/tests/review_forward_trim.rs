@@ -17,7 +17,9 @@ fn a_held_end_that_adds_only_a_byte_order_mark_tells_the_lead_nothing() {
         let rig = rig_with(FakeSession::new(SESS), |t| t.notify = Some(vec!["lead".into()]));
         rig.send(json!({ "type": "turn.tasks", "sessionId": SESS, "running": 0, "replied": { "status": "completed", "text": "Done." } }));
         assert_eq!(rig.host.hooks.called("notify_end").len(), 1, "the reply itself is told once");
-        rig.send(json!({ "type": "turn.done", "sessionId": SESS, "held": true, "result": { "status": "completed", "text": "Done.\u{feff}" } }));
+        rig.send(
+            json!({ "type": "turn.done", "sessionId": SESS, "held": true, "result": { "status": "completed", "text": "Done.\u{feff}" } }),
+        );
         assert_eq!(rig.host.hooks.called("notify_end").len(), 1, "a line already told, plus a BOM, adds no second line");
     });
 }
@@ -28,7 +30,9 @@ fn a_held_end_that_adds_a_next_line_character_is_told_as_words() {
     run_local(async {
         let rig = rig_with(FakeSession::new(SESS), |t| t.notify = Some(vec!["lead".into()]));
         rig.send(json!({ "type": "turn.tasks", "sessionId": SESS, "running": 0, "replied": { "status": "completed", "text": "Done." } }));
-        rig.send(json!({ "type": "turn.done", "sessionId": SESS, "held": true, "result": { "status": "completed", "text": "Done.\u{85}" } }));
+        rig.send(
+            json!({ "type": "turn.done", "sessionId": SESS, "held": true, "result": { "status": "completed", "text": "Done.\u{85}" } }),
+        );
         assert_eq!(rig.host.hooks.called("notify_end").len(), 2, "U+0085 is a word to JavaScript's trim");
     });
 }
