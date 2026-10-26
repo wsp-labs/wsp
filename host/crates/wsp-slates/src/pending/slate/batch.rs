@@ -203,6 +203,9 @@ impl Batch {
     }
 
     fn set(&mut self, path: &str, value: Value) -> Option<Refusal> {
+        if parse_slate_own_path(path).is_some_and(|p| p.segs.len() + slate_depth(&value) > SLATE_NEST_LIMIT) {
+            return Some(Refusal { code: "S500", why: format!("the values would nest deeper than {SLATE_NEST_LIMIT} levels") });
+        }
         let Some(next) = set_slate_value(&self.values, path, value.clone()) else {
             return Some(Refusal {
                 code: "A607",

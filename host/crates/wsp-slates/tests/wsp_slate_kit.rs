@@ -541,3 +541,23 @@ fn no_other_file_of_the_slate_module_switches_on_a_piece_name() {
         }
     }
 }
+
+// extension.test.ts:13-17 flags a compare of a type to a piece's name; a Rust switch is a match arm, which this scan keeps
+// watching for (the step called toggle shares a name with a piece, and its arm in batch.rs is a step, so it is left out).
+#[test]
+fn no_other_file_of_the_slate_module_matches_on_a_piece_name() {
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/src/pending/slate");
+    for entry in std::fs::read_dir(dir).expect("the slate module") {
+        let path = entry.expect("a directory entry").path();
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or_default().to_string();
+        if path.extension().and_then(|e| e.to_str()) != Some("rs") || name == "kit.rs" {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path).expect("a source file");
+        for piece in SLATE_PIECES.keys().filter(|p| **p != "toggle") {
+            for needle in [format!("\"{piece}\" =>"), format!("\"{piece}\" |")] {
+                assert!(!text.contains(&needle), "{name} matches on a piece: {needle}");
+            }
+        }
+    }
+}

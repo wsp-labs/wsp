@@ -199,7 +199,8 @@ fn a_start_list_of_63000_numbers_parses_in_linear_time() {
     let text = format!(r#"<slate><value name="x" start={{[{body}]}} /><column><text>{{len($x)}}</text></column></slate>"#);
     let done = finishes_within(2, move || {
         let r = parse_slate(&text);
-        assert!(r.document.is_some(), "{:?}", r.errors);
+        let said: Vec<(&str, &str)> = r.errors.iter().map(|e| (e.code.as_str(), e.message.as_str())).collect();
+        assert_eq!(said, [("D208", "the document is over 64 KB")], "node's answer for this text");
     });
     assert!(done, "a list of 63,000 numbers was still being read after 2 s (node: 22 ms)");
 }
