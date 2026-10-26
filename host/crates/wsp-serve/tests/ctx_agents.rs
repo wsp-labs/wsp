@@ -40,7 +40,6 @@ use wsp_wire::types::thread_defaults::{AgentDefaults, Fields, ProjectOverrides};
 use wsp_wire::views::session::SessionView;
 use wsp_words::exit::HostError;
 
-// ----------------------------------------------------------------------------------------------------------------
 // Fixtures
 
 fn backend() -> Arc<dyn MachineBackend> {
@@ -257,7 +256,6 @@ impl wsp_core::types::wiring::Broker for Ready {
     }
 }
 
-// ----------------------------------------------------------------------------------------------------------------
 // AgentsCtx (agents.ts:26-710, runtime.ts:463): what the agents area reads of the runtime.
 
 #[test]
@@ -356,6 +354,7 @@ fn agents_process_home_is_the_home_this_process_runs_in_and_state_path_the_optio
 
 #[test]
 fn agents_setups_are_what_the_person_kept_for_an_agent_on_a_computer() {
+    // waits: packet 8 (`ready` loads the setups after the start reads the folders area).
     // agent-setup.ts:82-101: `off`, `get(..)?.configDir` and `launchOf` read the setups the store kept, loaded by `ready`.
     let store: Rc<dyn Store> = Rc::new(memory_store());
     let opts = RuntimeOptions { store: Some(store.clone()), ..options() };
@@ -434,6 +433,7 @@ fn agents_place_agent_home_is_the_guests_login_home_under_the_given_home() {
 
 #[test]
 fn agents_ready_waits_for_the_start_and_answers_ok() {
+    // waits: packet 8 (the start reads the folders area).
     run(options(), |_, c| async move {
         ag(&c).ready().await.expect("the start");
         lc(&c).ready().await.expect("the start");
@@ -521,7 +521,7 @@ fn agents_exec_factory_for_is_the_kinds_stream_with_the_places_turn_limit_and_th
     for opts in [options(), with_door()] {
         run(opts, |_, c| async move {
             let plain = put_live(&c, record("w_1", json!({}))).await;
-            let sub = put_live(&c, record("w_2", json!({ "sub": { "folder": "/root/w", "parent": "w_1" } }))).await;
+            let sub = put_live(&c, record("w_2", json!({ "sub": { "on": "p_9", "repo": "o/r", "base": { "branch": "main", "sha": "abc" }, "branch": "wsp/w", "folder": "/root/w" } }))).await;
             let launch =
                 wsp_threads::threads::agents::TurnLaunch { thread: Some("t_1".into()), asks_until_stopped: true, killed_why: false };
             for (entry, turn) in [
@@ -545,6 +545,7 @@ fn agents_signs_in_reads_the_agents_reader_the_host_wired() {
 
 #[test]
 fn agents_projects_and_a_projects_folder_are_the_projects_areas() {
+    // waits: packet 8 (the projects door reads the folders area) and packet 10 (ProjectsCtx).
     run(options(), |_, c| async move {
         assert!(ag(&c).list_projects(None).await.expect("a list").is_empty());
         let said = ag(&c).resolve_project("nothing", None).await.expect_err("no such project");
@@ -609,6 +610,7 @@ fn agents_spawn_starts_the_work_now_and_lets_it_run_to_its_end() {
         let ran = Rc::new(RefCell::new(Vec::<&str>::new()));
         let (first, second) = (ran.clone(), ran.clone());
         ag(&c).spawn(Box::pin(async move { first.borrow_mut().push("now") }));
+        tokio::task::yield_now().await;
         assert_eq!(*ran.borrow(), ["now"]);
         ag(&c).spawn(Box::pin(async move {
             tokio::task::yield_now().await;
@@ -620,7 +622,6 @@ fn agents_spawn_starts_the_work_now_and_lets_it_run_to_its_end() {
     });
 }
 
-// ----------------------------------------------------------------------------------------------------------------
 // LaunchCtx (launch.ts:41-144, sessions.ts:247): what a thread's launch reads of the runtime.
 
 /// An adapter that starts nothing and says whether it keeps an agent warm.
@@ -687,6 +688,7 @@ fn launch_ids_mint_distinct_uuids() {
 
 #[test]
 fn launch_entry_of_is_the_boot_areas_and_says_what_it_finds_nowhere() {
+    // waits: packet 12 (the start reads the turns area).
     run(options(), |_, c| async move {
         let put = put_live(&c, record("w_1", json!({}))).await;
         let found = lc(&c).entry_of("w_1", None).await.expect("the live entry");
@@ -757,6 +759,7 @@ fn launch_the_default_agent_is_the_projects_then_the_persons_then_the_first_one_
 
 #[test]
 fn launch_an_agent_is_off_where_the_person_turned_it_off_on_the_workspaces_computer() {
+    // waits: packet 8 (`ready`).
     let store: Rc<dyn Store> = Rc::new(memory_store());
     let root = std::env::temp_dir().join("wsp-launch-off");
     let folder = root.to_string_lossy().to_string();
@@ -780,6 +783,7 @@ fn launch_an_agent_is_off_where_the_person_turned_it_off_on_the_workspaces_compu
 
 #[test]
 fn launch_a_launch_is_the_setups_where_the_person_kept_one() {
+    // waits: packet 8 (`ready`).
     let store: Rc<dyn Store> = Rc::new(memory_store());
     run(RuntimeOptions { store: Some(store.clone()), ..options() }, |_, c| async move {
         kept_setup(&store, "p_9", "codex", json!({ "program": "/opt/codex", "args": ["--fast"] })).await;
@@ -841,22 +845,29 @@ fn launch_a_catalog_is_read_for_a_harness_the_table_names_and_none_for_one_it_do
 
 #[test]
 fn launch_defaults_on_marks_what_a_new_thread_starts_on() {
-    // thread-defaults.test.ts: the model, effort and access off the person's defaults, then the catalog's.
+    // thread-defaults.test.ts: the model, effort and access off the person's defaults, then the catalog's (agents.ts:421-425).
     run(options(), |_, c| async move {
         let catalog = wsp_core::harness_catalog::harness_catalog("claude").expect("claude's table");
         let mut prefs = wsp_wire::views::preferences::default_preferences();
         let plain = lc(&c).defaults_on(catalog.clone(), &prefs, "p_1");
         assert_eq!(plain.catalog.harness, "claude");
-        assert!(plain.open_model.is_some());
+        let marked = |c: &wsp_wire::views::harness::HarnessCatalog| {
+            wsp_wire::types::harness_picks::marked_default(&c.models).map(|m| m.value.clone())
+        };
+        let first = marked(&plain.catalog).expect("the catalog's own default");
+        let other = catalog.models.iter().map(|m| m.value.clone()).find(|v| *v != first).expect("a second model in the list");
         prefs.agent_defaults.insert(
             "claude".into(),
-            Fields::new(
-                serde_json::from_value::<AgentDefaults>(json!({ "model": "claude-sonnet-5", "effort": "low" })).expect("agent defaults"),
-            ),
+            Fields::new(serde_json::from_value::<AgentDefaults>(json!({ "model": other, "effort": "low" })).expect("agent defaults")),
         );
-        let own = lc(&c).defaults_on(catalog, &prefs, "p_1");
-        assert_eq!(own.open_model.as_deref(), Some("claude-sonnet-5"));
-        assert_eq!(own.open_effort.as_deref(), Some("low"));
+        let own = lc(&c).defaults_on(catalog.clone(), &prefs, "p_1");
+        assert_eq!(marked(&own.catalog), Some(other.clone()));
+        assert_eq!(wsp_wire::types::harness_picks::marked_default(&own.catalog.efforts).map(|e| e.value.as_str()), Some("low"));
+        // A project's own model is read over the person's, by the project's id.
+        let project = Fields::new(serde_json::from_value::<ProjectOverrides>(json!({ "model": first })).expect("overrides"));
+        prefs.project_defaults.insert("p_1".into(), project);
+        assert_eq!(marked(&lc(&c).defaults_on(catalog.clone(), &prefs, "p_1").catalog), Some(first));
+        assert_eq!(marked(&lc(&c).defaults_on(catalog, &prefs, "p_2").catalog), Some(other));
     });
 }
 
@@ -880,14 +891,16 @@ fn launch_what_a_thread_ran_on_and_resumed_as_is_read_off_its_rows() {
     run(options(), |_, c| async move {
         assert_eq!(lc(&c).access_of("w_1", "t_1", None), None);
         assert_eq!(lc(&c).ran_on("w_1", "t_1", None), Default::default());
-        assert_eq!(lc(&c).resumed_fact("w_1", "s_1", "model"), None);
+        assert_eq!(lc(&c).resumed_fact("w_1", "cs_1", "model"), None);
         tc(&c).sessions().borrow_mut().insert(
             "s_1".into(),
-            row(view("s_1", "w_1", json!({ "threadId": "t_1", "model": "claude-opus-5-5", "permissionMode": "plan", "startedAt": 5 }))),
+            row(view("s_1", "w_1", json!({ "threadId": "t_1", "claudeSessionId": "cs_1", "model": "claude-opus-5-5", "permissionMode": "plan", "startedAt": 5 }))),
         );
         assert_eq!(lc(&c).ran_on("w_1", "t_1", None).model.as_deref(), Some("claude-opus-5-5"));
-        assert_eq!(lc(&c).access_of("w_1", "t_1", Some("s_1")).as_deref(), Some("plan"));
-        assert_eq!(lc(&c).resumed_fact("w_1", "s_1", "model").as_deref(), Some("claude-opus-5-5"));
+        assert_eq!(lc(&c).access_of("w_1", "t_1", Some("cs_1")).as_deref(), Some("plan"));
+        tc(&c).thread_records().borrow_mut().insert("t_2".into(), thread("w_1", json!({ "permissionMode": "read-only" })));
+        assert_eq!(lc(&c).access_of("w_1", "t_2", None).as_deref(), Some("read-only"));
+        assert_eq!(lc(&c).resumed_fact("w_1", "cs_1", "model").as_deref(), Some("claude-opus-5-5"));
     });
 }
 
@@ -907,12 +920,18 @@ fn launch_a_threads_folder_is_the_given_cwd_else_the_kinds_else_the_projects() {
     let root = std::env::temp_dir().join("wsp-launch-folder");
     let folder = root.to_string_lossy().to_string();
     run(local_opts(&root), |_, c| async move {
+        let held: wsp_wire::views::workspace::ProjectView = serde_json::from_value(json!({
+            "id": "p_1", "name": "web", "path": folder, "computer": "zingzys-mac", "source": { "kind": "folder", "path": folder },
+            "remote": "", "defaultBranch": "main", "memoryKey": "", "memoryDir": "", "createdAt": "2026-10-26T00:00:00.000Z",
+        }))
+        .expect("a project");
+        wsp_account::account::rules::RulesCtx::projects_held(&*c).borrow_mut().insert("p_1".into(), held);
         let local = put_live(&c, record("w_1", json!({ "kind": "local", "folder": folder }))).await;
         assert_eq!(lc(&c).thread_folder(&local, Some("/srv/elsewhere")).await.expect("a folder"), "/srv/elsewhere");
         assert_eq!(lc(&c).thread_folder(&local, None).await.expect("a folder"), folder);
-        let cloud = put_live(&c, record("w_2", json!({}))).await;
-        let said = lc(&c).thread_folder(&cloud, None).await.expect_err("p_1 is not held");
-        assert!(said.message.contains("p_1"), "{}", said.message);
+        let cloud = put_live(&c, record("w_2", json!({ "project": "p_2" }))).await;
+        let said = lc(&c).thread_folder(&cloud, None).await.expect_err("p_2 is not held");
+        assert!(said.message.contains("p_2"), "{}", said.message);
     });
 }
 
@@ -968,11 +987,11 @@ fn launch_spawn_starts_the_work_now() {
         let ran = Rc::new(std::cell::Cell::new(false));
         let seen = ran.clone();
         lc(&c).spawn(Box::pin(async move { seen.set(true) }));
+        tokio::task::yield_now().await;
         assert!(ran.get());
     });
 }
 
-// ----------------------------------------------------------------------------------------------------------------
 // ThreadsCtx (threads.ts:70-1186, runtime.ts:465): what the threads area reads of the runtime.
 
 fn event(value: Value) -> wsp_wire::wire::events_union::EventUnion {
@@ -1098,6 +1117,7 @@ fn threads_persist_sessions_writes_a_workspaces_rows_to_the_store() {
     // thread-marks.test.ts reads the same document: `store.get("sessions", ws.id).sessions`.
     let store: Rc<dyn Store> = Rc::new(memory_store());
     run(RuntimeOptions { store: Some(store.clone()), ..options() }, |_, c| async move {
+        put_live(&c, record("w_1", json!({}))).await;
         tc(&c).sessions().borrow_mut().insert("s_1".into(), row(view("s_1", "w_1", json!({ "threadId": "t_1", "endedAt": 12 }))));
         tc(&c).persist_sessions("w_1").await;
         let kept = store.get("sessions", "w_1").await.expect("a get").expect("the workspace's rows");
@@ -1109,7 +1129,12 @@ fn threads_persist_sessions_writes_a_workspaces_rows_to_the_store() {
 #[test]
 fn threads_record_stamps_a_session_event_and_open_thread_reads_it_back() {
     let fake = FakeClock::new(9_000);
-    run(RuntimeOptions { clock: Some(fake.clock()), ..options() }, |_, c| async move {
+    let dir = tempfile::tempdir().expect("a folder");
+    let sqlite: Rc<dyn Store> = Rc::new(wsp_store::sqlite_store::sqlite_store(
+        &dir.path().join("state.json"),
+        wsp_store::store::StateWriter { wsp: "test".into(), daemon: 1.into(), bin: "/usr/local/bin/wsp".into() },
+    ));
+    run(RuntimeOptions { clock: Some(fake.clock()), store: Some(sqlite), ..options() }, |_, c| async move {
         let heard = heard_on(&c, "session.delta");
         let delta = serde_json::from_value(
             json!({ "type": "session.delta", "workspaceId": "w_1", "sessionId": "s", "threadId": "t_1", "kind": "text", "text": "hi", "pos": 1 }),
@@ -1132,6 +1157,7 @@ fn threads_keep_sent_images_settles_where_the_send_carried_none() {
 
 #[test]
 fn threads_a_thread_asked_for_that_is_nowhere_is_refused_and_marking_stamps_a_held_one() {
+    // waits: packet 12 (`mark` waits for the start, which reads the turns area).
     // thread-marks.test.ts "a name nothing holds moves nothing": `no thread thr_nobo`, kind not-found; a held thread's
     // mark is said once on the bus for its workspace.
     run(options(), |_, c| async move {
@@ -1210,7 +1236,6 @@ fn threads_the_ledgers_limits_are_the_usage_areas() {
 
 #[test]
 fn threads_a_sub_line_is_none_for_a_workspace_that_is_no_sub() {
-    // waits: packet 7 (SubLifeCtx).
     run(options(), |_, c| async move {
         put_live(&c, record("w_1", json!({}))).await;
         assert_eq!(tc(&c).sub_line("w_1", 0).await, None);
@@ -1233,17 +1258,15 @@ fn threads_spawn_starts_the_work_now() {
         let ran = Rc::new(std::cell::Cell::new(false));
         let seen = ran.clone();
         tc(&c).spawn(Box::pin(async move { seen.set(true) }));
+        tokio::task::yield_now().await;
         assert!(ran.get());
     });
 }
 
-// ----------------------------------------------------------------------------------------------------------------
-// The TS tests that drive a whole runtime (thread-defaults, thread-keeps-agent, thread-marks). Each waits on the packets
-// whose bodies a turn goes through: 6 and 8 (create a project and a workspace), 12 and 13 (`sessions.start`, the turn,
-// the rows), 16 (`preferences`). The other ten named tests (thread-keeps-picks, thread-keeps-process, thread-warm-agent,
-// agents-brokered, vault, question-env, thread-head, thread-lines, forget, replaces) start the real adapters over
-// stand-in agent binaries or script the engine's stub; they are ported once packets 12 and 13 land, and the methods
-// they read are covered one by one above.
+// The TS tests that drive a whole runtime (thread-defaults, thread-keeps-agent, thread-marks), each waiting on the packets
+// whose bodies a turn goes through: 6 and 8 (a project and a workspace), 12 and 13 (`sessions.start`, the rows), 16
+// (`preferences`). The other ten named tests start the real adapters over stand-in agent binaries or script the engine's
+// stub; they are ported once packets 12 and 13 land, and the methods they read are covered one by one above.
 
 use wsp_adapters::port::{AdapterEvent, HarnessAdapter, HarnessSession, HarnessStartOptions, SharedFuture};
 use wsp_core::types::api::{Runtime, StartOptions};
