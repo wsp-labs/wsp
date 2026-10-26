@@ -3,7 +3,7 @@
 //! Activity page and `wsp activity` both draw. See spec/activity.md.
 
 use crate::views::activity::ActivityProc;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use wsp_frames::ProcEntry;
 
 /// A row with a pid and a parent pid, which is all the walk reads.
@@ -140,23 +140,45 @@ pub fn fold_tree<P: PidRow + Clone>(list: &[P], folds_into: impl Fn(i64) -> Opti
             },
         }
     }
-    let heads_len = heads.len();
-    let mut rows = heads;
-    let mut ends: Vec<(usize, usize)> = Vec::new();
-    while ends.len() < rows.len() {
-        let start = rows.len();
-        if let Some(under) = kids.get(&rows[ends.len()].pid()) {
-            rows.extend(under.iter().copied());
+    let mut rows: Vec<(&P, usize)> = Vec::new();
+    let mut above: HashSet<i64> = HashSet::new();
+    let mut stack = vec![(heads.iter(), NO_ROW)];
+    while let Some((level, owner)) = stack.last_mut() {
+        let owner = *owner;
+        let Some(&p) = level.next() else {
+            if owner != NO_ROW {
+                above.remove(&rows[owner].0.pid());
+            }
+            stack.pop();
+            continue;
+        };
+        if above.contains(&p.pid()) {
+            continue;
         }
-        ends.push((start, rows.len()));
+        let at = rows.len();
+        rows.push((p, owner));
+        if let Some(under) = kids.get(&p.pid()) {
+            above.insert(p.pid());
+            stack.push((under.iter(), at));
+        }
     }
-    let mut built: Vec<Option<Folded<P>>> = (0..rows.len()).map(|_| None).collect();
+    let mut under: Vec<Vec<Folded<P>>> = (0..rows.len()).map(|_| Vec::new()).collect();
+    let mut top: Vec<Folded<P>> = Vec::new();
     for at in (0..rows.len()).rev() {
-        let (start, end) = ends[at];
-        let under: Vec<Folded<P>> = (start..end).filter_map(|i| built[i].take()).collect();
-        let p = rows[at];
+        let (p, owner) = rows[at];
+        let mut mine = std::mem::take(&mut under[at]);
+        mine.reverse();
         let held = held.get(&p.pid()).map(|held| held.iter().map(|r| (*r).clone()).collect()).unwrap_or_default();
-        built[at] = Some(Folded { p: p.clone(), held, kids: Kids(under) });
+        let folded = Folded { p: p.clone(), held, kids: Kids(mine) };
+        if owner == NO_ROW {
+            top.push(folded);
+        } else {
+            under[owner].push(folded);
+        }
     }
-    built.into_iter().take(heads_len).flatten().collect()
+    top.reverse();
+    top
 }
+
+/// The owner of a head: no row.
+const NO_ROW: usize = usize::MAX;
