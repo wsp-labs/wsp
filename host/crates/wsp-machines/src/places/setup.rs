@@ -231,12 +231,19 @@ pub fn current_folders_of() -> Option<String> {
     FOLDERS_OF.with(|place| place.borrow().clone())
 }
 
+/// Puts the mark it found back when it drops, whether the poll returned or unwound.
+struct Restore(Option<String>);
+
+impl Drop for Restore {
+    fn drop(&mut self) {
+        FOLDERS_OF.with(|held| *held.borrow_mut() = self.0.take());
+    }
+}
+
 /// Polls `work` with `place` marked as the setup whose folder add it belongs to.
 fn polled_under<R>(place: &str, work: impl FnOnce() -> R) -> R {
-    let before = FOLDERS_OF.with(|held| held.replace(Some(place.to_string())));
-    let out = work();
-    FOLDERS_OF.with(|held| *held.borrow_mut() = before);
-    out
+    let _restore = Restore(FOLDERS_OF.with(|held| held.replace(Some(place.to_string()))));
+    work()
 }
 
 /// Runs `work` as the folder add of `place_id`'s own setup. The TS's `AsyncLocalStorage` follows every continuation of
