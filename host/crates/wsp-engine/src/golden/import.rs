@@ -5,24 +5,20 @@ use std::sync::Arc;
 
 use wsp_catalog::road_modules::road_step;
 use wsp_catalog::roads::{RoadName, NODE_PATH_LINE};
-use wsp_wire::views::golden_image::{
-    GoldenMissingTool, GoldenMissingToolOutcome, GoldenStage, ALREADY_APPLIED,
-};
+use wsp_wire::views::golden_image::{GoldenMissingTool, GoldenMissingToolOutcome, GoldenStage, ALREADY_APPLIED};
 use wsp_words::js::{js_trim, to_fixed, to_number};
 use wsp_words::words::base::plural;
 use wsp_words::words::units::fmt_bytes;
 
 use super::smoke::{join_smoke, manager_check_of, next_smoke};
-use super::types::{
-    plain, AgentResult, Applied, ApplyImportOptions, ImportLedger, ImportResult, ImportStage, ResultFiles, Stage,
-};
+use super::types::{plain, AgentResult, Applied, ApplyImportOptions, ImportLedger, ImportResult, ImportStage, ResultFiles, Stage};
 use crate::dotfiles_presets::PRELUDE;
 use crate::errors::{EngineError, RetryClock};
 use crate::exec_detached::INLINE_EXEC_MS;
 use crate::fetch::Fetch;
 use crate::golden_seam::{
-    apply_mcp, closing, free_bytes, free_note, guard_deadline_ms, guarded, install_tools_at, mcp_tally, reason_of, sweep_caches,
-    FreeDisk, GoldenImport, InstallToolsOptions, LoginShell, NodeInstall, PackedFiles, ToolResult, TOOLS_PATH,
+    apply_mcp, closing, free_bytes, free_note, guard_deadline_ms, guarded, install_tools_at, mcp_tally, reason_of, sweep_caches, FreeDisk,
+    GoldenImport, InstallToolsOptions, LoginShell, NodeInstall, PackedFiles, ToolResult, TOOLS_PATH,
 };
 use crate::machine::{ExecOptions, Machine, OnLine, RunOptions};
 use crate::machine_context::{apply_machine_context, bounded_command, ApplyContextOptions};
@@ -46,7 +42,10 @@ fn guarded_harness(script: &str) -> String {
 
 /// golden.ts:593 `shellCheck`: one start of the login shell the way the app's pty runs it, bounded as its own group.
 fn shell_check(shell: LoginShell) -> String {
-    format!("{PRELUDE}\n{} || exit 124", bounded_command(SHELL_CHECK_S as u32, &format!("TERM=xterm-256color {} -lic true </dev/null", shell.as_str())))
+    format!(
+        "{PRELUDE}\n{} || exit 124",
+        bounded_command(SHELL_CHECK_S as u32, &format!("TERM=xterm-256color {} -lic true </dev/null", shell.as_str()))
+    )
 }
 
 fn on_line(f: impl Fn(&str) + 'static) -> Option<OnLine> {
@@ -74,7 +73,10 @@ async fn upload(
     let need = packed.bytes + packed.unpacked + UPLOAD_HEADROOM;
     match free {
         FreeDisk::Unknown { reason } => {
-            stage.say(GoldenStage::UploadingFiles, &format!("free disk unknown ({reason}); uploading {} anyway", fmt_bytes(packed.bytes as f64)));
+            stage.say(
+                GoldenStage::UploadingFiles,
+                &format!("free disk unknown ({reason}); uploading {} anyway", fmt_bytes(packed.bytes as f64)),
+            );
         }
         FreeDisk::Free { bytes } if need as f64 > bytes => {
             return Err(plain(format!(
@@ -183,7 +185,8 @@ pub async fn apply_golden_import(
         } else if imp.files.as_ref().is_none_or(|f| f.count == 0) {
             let skipped = imp.files.as_ref().map(|f| f.skipped.clone()).unwrap_or_default();
             let notes = notes_of(&skipped);
-            let said = if notes.is_empty() { "nothing ticked".to_string() } else { format!("nothing left to pack; skipped {}", notes.join(", ")) };
+            let said =
+                if notes.is_empty() { "nothing ticked".to_string() } else { format!("nothing left to pack; skipped {}", notes.join(", ")) };
             stage.say(GoldenStage::ApplyingSetup, &said);
             stage.say(GoldenStage::UploadingFiles, "nothing to upload");
             // No pack ran, so nothing is known about cuts; a reader falls back to the recipe's own names.
@@ -202,10 +205,16 @@ pub async fn apply_golden_import(
             packed.skipped = files.skipped.iter().cloned().chain(packed.skipped.drain(..)).collect();
             ledger.left_behind = packed.left_behind.clone().filter(|l| !l.is_empty());
             let notes = notes_of(&packed.skipped);
-            let silenced = if packed.silenced.is_empty() { String::new() } else { format!("; silenced in the shell: {}", packed.silenced.join(", ")) };
-            let mac_paths = if packed.mac_paths.is_empty() { String::new() } else { format!("; Mac paths: {}", packed.mac_paths.join(", ")) };
+            let silenced =
+                if packed.silenced.is_empty() { String::new() } else { format!("; silenced in the shell: {}", packed.silenced.join(", ")) };
+            let mac_paths =
+                if packed.mac_paths.is_empty() { String::new() } else { format!("; Mac paths: {}", packed.mac_paths.join(", ")) };
             let blanked_rows = packed.blanked.clone().unwrap_or_default();
-            let blanked = if blanked_rows.is_empty() { String::new() } else { format!("; copied with values cut: {}", notes_of(&blanked_rows).join(", ")) };
+            let blanked = if blanked_rows.is_empty() {
+                String::new()
+            } else {
+                format!("; copied with values cut: {}", notes_of(&blanked_rows).join(", "))
+            };
             stage.say(
                 GoldenStage::ApplyingSetup,
                 &format!(
@@ -227,7 +236,10 @@ pub async fn apply_golden_import(
                 let res = machine
                     .run(
                         &guarded(&shell.cmd, SHELL_TIMEOUT_S),
-                        run_options(SHELL_TIMEOUT_S, on_line(move |line| lines.say(GoldenStage::ApplyingSetup, &format!("{prefix}: {line}")))),
+                        run_options(
+                            SHELL_TIMEOUT_S,
+                            on_line(move |line| lines.say(GoldenStage::ApplyingSetup, &format!("{prefix}: {line}"))),
+                        ),
                     )
                     .await?;
                 if res.exit_code.get() == 0 {
@@ -238,7 +250,10 @@ pub async fn apply_golden_import(
                     let note = free_note(&**machine, None).await?;
                     stage.say(GoldenStage::ApplyingSetup, &closing(&[Some(installed.as_str()), note.as_deref()]));
                 } else {
-                    stage.say(GoldenStage::ApplyingSetup, &format!("{name} step failed, chsh skipped: {}", reason_of(&res, SHELL_TIMEOUT_S as f64)));
+                    stage.say(
+                        GoldenStage::ApplyingSetup,
+                        &format!("{name} step failed, chsh skipped: {}", reason_of(&res, SHELL_TIMEOUT_S as f64)),
+                    );
                 }
             }
             stage.say(GoldenStage::UploadingFiles, &fmt_bytes(packed.bytes as f64));
@@ -276,14 +291,26 @@ pub async fn apply_golden_import(
                 None => None,
             };
             for a in &imp.skipped_agents {
-                result.agents.push(AgentResult { id: a.id.clone(), name: a.label.clone(), outcome: "skipped".into(), note: Some(a.note.clone()), ms: None });
+                result.agents.push(AgentResult {
+                    id: a.id.clone(),
+                    name: a.label.clone(),
+                    outcome: "skipped".into(),
+                    note: Some(a.note.clone()),
+                    ms: None,
+                });
             }
             for (i, agent) in imp.agents.iter().enumerate() {
                 let t0 = clock.now();
                 if let Some(node) = &node {
                     if let (Some(failed), Some(floor)) = (&node.failed, agent.node) {
                         if floor > node.have_major {
-                            result.agents.push(AgentResult { id: agent.id.clone(), name: agent.name.clone(), outcome: "failed".into(), note: Some(failed.clone()), ms: Some(0) });
+                            result.agents.push(AgentResult {
+                                id: agent.id.clone(),
+                                name: agent.name.clone(),
+                                outcome: "failed".into(),
+                                note: Some(failed.clone()),
+                                ms: Some(0),
+                            });
                             continue;
                         }
                     }
@@ -291,7 +318,13 @@ pub async fn apply_golden_import(
                 if let FreeDisk::Free { bytes } = free_bytes(&**machine, None).await? {
                     if bytes < AGENTS_DISK_FLOOR as f64 {
                         let note = format!("{} free, keeping {} free", fmt_bytes(bytes), fmt_bytes(AGENTS_DISK_FLOOR as f64));
-                        result.agents.push(AgentResult { id: agent.id.clone(), name: agent.name.clone(), outcome: "failed".into(), note: Some(note), ms: Some(0) });
+                        result.agents.push(AgentResult {
+                            id: agent.id.clone(),
+                            name: agent.name.clone(),
+                            outcome: "failed".into(),
+                            note: Some(note),
+                            ms: Some(0),
+                        });
                         continue;
                     }
                 }
@@ -301,17 +334,28 @@ pub async fn apply_golden_import(
                 let install = machine
                     .run(
                         &guarded_harness(&format!("{NODE_PATH_LINE}\n{}", agent.install)),
-                        run_options(AGENT_TIMEOUT_S, on_line(move |line| lines.say(GoldenStage::InstallingHarness, &format!("{name}: {line}")))),
+                        run_options(
+                            AGENT_TIMEOUT_S,
+                            on_line(move |line| lines.say(GoldenStage::InstallingHarness, &format!("{name}: {line}"))),
+                        ),
                     )
                     .await?;
                 let check = if install.exit_code.get() == 0 {
-                    machine.run(&format!("{NODE_PATH_LINE}\n{}", agent.smoke), RunOptions { deadline_ms: 60_000, ..RunOptions::default() }).await?
+                    machine
+                        .run(&format!("{NODE_PATH_LINE}\n{}", agent.smoke), RunOptions { deadline_ms: 60_000, ..RunOptions::default() })
+                        .await?
                 } else {
                     install
                 };
                 let ms = clock.now() - t0;
                 if check.exit_code.get() == 0 {
-                    result.agents.push(AgentResult { id: agent.id.clone(), name: agent.name.clone(), outcome: "installed".into(), note: None, ms: Some(ms) });
+                    result.agents.push(AgentResult {
+                        id: agent.id.clone(),
+                        name: agent.name.clone(),
+                        outcome: "installed".into(),
+                        note: None,
+                        ms: Some(ms),
+                    });
                 } else {
                     result.agents.push(AgentResult {
                         id: agent.id.clone(),
@@ -341,7 +385,11 @@ pub async fn apply_golden_import(
                 };
                 let mut lines = vec![header];
                 lines.extend(
-                    result.agents.iter().filter(|r| r.outcome != "installed").map(|a| format!("{}: {}", a.name, a.note.as_deref().unwrap_or("unknown reason"))),
+                    result
+                        .agents
+                        .iter()
+                        .filter(|r| r.outcome != "installed")
+                        .map(|a| format!("{}: {}", a.name, a.note.as_deref().unwrap_or("unknown reason"))),
                 );
                 return Err(plain(lines.join("\n")));
             }
@@ -368,21 +416,41 @@ pub async fn apply_golden_import(
             stage.say(GoldenStage::InstallingTools, ALREADY_APPLIED);
         } else {
             for t in &imp.skipped_tools {
-                result.tools.push(ToolResult { id: t.id.clone(), label: t.label.clone(), outcome: "skipped".into(), note: Some(t.note.clone()), ..ToolResult::default() });
+                result.tools.push(ToolResult {
+                    id: t.id.clone(),
+                    label: t.label.clone(),
+                    outcome: "skipped".into(),
+                    note: Some(t.note.clone()),
+                    ..ToolResult::default()
+                });
             }
             for t in &imp.base_tools {
-                result.tools.push(ToolResult { id: t.id.clone(), label: t.label.clone(), outcome: "installed".into(), note: Some(t.note.clone()), ..ToolResult::default() });
+                result.tools.push(ToolResult {
+                    id: t.id.clone(),
+                    label: t.label.clone(),
+                    outcome: "installed".into(),
+                    note: Some(t.note.clone()),
+                    ..ToolResult::default()
+                });
             }
             if imp.tools.is_empty() {
                 stage.say(GoldenStage::InstallingTools, "nothing ticked");
             } else {
                 ran = true;
-                let tools = install_tools_at(&**machine, &imp.tools, stage.listener(), GoldenStage::InstallingTools, InstallToolsOptions::default()).await?;
+                let tools = install_tools_at(
+                    &**machine,
+                    &imp.tools,
+                    stage.listener(),
+                    GoldenStage::InstallingTools,
+                    InstallToolsOptions::default(),
+                )
+                .await?;
                 result.tools.extend(tools.tools.iter().cloned());
                 if let Some(h) = tools.homebrew {
                     result.homebrew = Some(h);
                 }
-                let checks: Vec<String> = tools.tools.iter().filter(|t| t.outcome == "installed").filter_map(|t| manager_check_of(&t.id)).collect();
+                let checks: Vec<String> =
+                    tools.tools.iter().filter(|t| t.outcome == "installed").filter_map(|t| manager_check_of(&t.id)).collect();
                 ledger.smoke = next_smoke(&ledger.smoke, &[], &join_smoke(&checks));
             }
             let all: Vec<ToolResult> = result.base.iter().flatten().chain(result.tools.iter()).cloned().collect();
@@ -552,8 +620,18 @@ pub(crate) fn summarize_agents(agents: &[AgentResult]) -> String {
     if !ok.is_empty() {
         parts.push(format!("{} installed", ok.join(", ")));
     }
-    parts.extend(agents.iter().filter(|a| a.outcome == "failed").map(|a| format!("{} failed ({})", a.name, a.note.as_deref().unwrap_or("undefined"))));
-    parts.extend(agents.iter().filter(|a| a.outcome == "skipped").map(|a| format!("{} skipped ({})", a.name, a.note.as_deref().unwrap_or("undefined"))));
+    parts.extend(
+        agents
+            .iter()
+            .filter(|a| a.outcome == "failed")
+            .map(|a| format!("{} failed ({})", a.name, a.note.as_deref().unwrap_or("undefined"))),
+    );
+    parts.extend(
+        agents
+            .iter()
+            .filter(|a| a.outcome == "skipped")
+            .map(|a| format!("{} skipped ({})", a.name, a.note.as_deref().unwrap_or("undefined"))),
+    );
     parts.join("; ")
 }
 
@@ -573,7 +651,13 @@ pub(crate) fn missing_tools_of(tools: &[ToolResult]) -> Vec<GoldenMissingTool> {
 
 /// golden.ts:851 `withSkippedStages`: a stage this pass skipped has no outcomes in the result, but what it left off
 /// the machine is known: the ledger keeps the tools, the plan the agents and files it set aside.
-fn with_skipped_stages(result: &ImportResult, ledger: &ImportLedger, imp: &GoldenImport, tools_ran: bool, harness_ran: bool) -> ImportResult {
+fn with_skipped_stages(
+    result: &ImportResult,
+    ledger: &ImportLedger,
+    imp: &GoldenImport,
+    tools_ran: bool,
+    harness_ran: bool,
+) -> ImportResult {
     ImportResult {
         tools: if tools_ran {
             result.tools.clone()
@@ -600,7 +684,13 @@ fn with_skipped_stages(result: &ImportResult, ledger: &ImportLedger, imp: &Golde
         } else {
             imp.skipped_agents
                 .iter()
-                .map(|a| AgentResult { id: a.id.clone(), name: a.label.clone(), outcome: "skipped".into(), note: Some(a.note.clone()), ms: None })
+                .map(|a| AgentResult {
+                    id: a.id.clone(),
+                    name: a.label.clone(),
+                    outcome: "skipped".into(),
+                    note: Some(a.note.clone()),
+                    ms: None,
+                })
                 .collect()
         },
         files: match (&result.files, &imp.files) {
@@ -615,7 +705,8 @@ impl ImportResult {
     /// The part of the result machine context reads (`golden_seam::ImportResult`).
     pub fn to_context(&self) -> crate::golden_seam::ImportResult {
         use crate::golden_seam as seam;
-        let row = |t: &ToolResult| seam::ImportRow { id: t.id.clone(), label: t.label.clone(), outcome: t.outcome.clone(), note: t.note.clone() };
+        let row =
+            |t: &ToolResult| seam::ImportRow { id: t.id.clone(), label: t.label.clone(), outcome: t.outcome.clone(), note: t.note.clone() };
         seam::ImportResult {
             recipe_hash: self.recipe_hash.clone(),
             files: self.files.as_ref().map(|f| seam::ImportFiles { bytes: f.bytes, skipped: f.skipped.clone() }),

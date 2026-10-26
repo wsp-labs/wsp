@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! golden.test.ts "interactive golden: prepare then seal" (:256-554): the prepare half, the sudo and profile files it
 //! writes, the seal's snapshot, the npm folder and the PATH a fork of the image gets.
+#![allow(clippy::type_complexity)]
 mod golden_roads_common;
 mod golden_seal_support;
 
@@ -17,7 +18,6 @@ use wsp_engine::golden_seam::{profile_path_line, GoldenImport, BUILDER_IDLE_MS, 
 use wsp_engine::machine::{Machine, MachineKind};
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::views::golden_image::{RecipeDigest, AGENTS_BIN};
-
 
 /// Prepare a builder on the clock the test holds.
 fn prep(opts: wsp_engine::golden::PrepareBuilderOptions, clock: &Manual) -> Builder {
@@ -87,13 +87,15 @@ fn a_builder_keeps_every_command_line_out_of_sudos_and_systemds_logs_before_anyt
     let rec = recording();
     let clock = Manual::new();
     prep(prepare_opts(&rec, "true"), &clock);
-    let first = rec.state.inline.borrow().iter().find(|(id, _, _)| id == "m1").map(|(_, cmd, _)| cmd.clone()).expect("an inline exec on m1");
+    let first =
+        rec.state.inline.borrow().iter().find(|(id, _, _)| id == "m1").map(|(_, cmd, _)| cmd.clone()).expect("an inline exec on m1");
     assert_eq!(first, QUIET_LOGS);
 }
 
 // golden.test.ts:293
 #[test]
-fn the_step_writes_sudos_two_lines_once_visudo_passed_them_a_manager_file_the_box_login_can_read_under_any_mask_and_re_executes_each_running_manager() {
+fn the_step_writes_sudos_two_lines_once_visudo_passed_them_a_manager_file_the_box_login_can_read_under_any_mask_and_re_executes_each_running_manager(
+) {
     let dir = tempfile::tempdir().unwrap();
     let etc = dir.path().join("etc");
     let bin = dir.path().join("bin");
@@ -134,11 +136,7 @@ fn the_builders_created_at_is_taken_before_the_create_so_the_age_a_person_reads_
     let hook_clock = clock.clone();
     let hook_called = called_at.clone();
     let mut opts = prepare_opts(&rec, "true");
-    opts.backend = Wrap {
-        on_create: Some(Rc::new(move || hook_called.set(hook_clock.now()))),
-        ..Wrap::over(&rec)
-    }
-    .arc();
+    opts.backend = Wrap { on_create: Some(Rc::new(move || hook_called.set(hook_clock.now()))), ..Wrap::over(&rec) }.arc();
     opts.deploy_daemon = Some(sleeping_deploy(clock.clone()));
     let builder = prep(opts, &clock);
     let created_at = parse_ms(&builder.created_at).expect("createdAt is an ISO time");
@@ -152,9 +150,8 @@ fn a_daemon_hook_that_reports_a_detail_gets_it_on_a_second_deploying_daemon_fram
     let clock = Manual::new();
     let st = stage_recorder();
     let mut opts = prepare_opts(&rec, "true");
-    opts.deploy_daemon = Some(deploy_with(|_m: Arc<dyn Machine>| {
-        Box::pin(async { Ok::<Option<String>, EngineError>(Some("node v22.23.2".to_string())) })
-    }));
+    opts.deploy_daemon =
+        Some(deploy_with(|_m: Arc<dyn Machine>| Box::pin(async { Ok::<Option<String>, EngineError>(Some("node v22.23.2".to_string())) })));
     opts.on_stage = Some(st.on_stage.clone());
     prep(opts, &clock);
     assert_eq!(
@@ -186,7 +183,7 @@ fn only_the_builder_idles_to_kill_after_a_window_long_enough_for_a_person_the_sm
     seal_ok(builder, seal_opts(&rec, "true"), &clock);
     let created = rec.state.created();
     match_object(&created[0], json!({"onIdle": "kill", "idleTimeoutMs": BUILDER_IDLE_MS}));
-    assert!(BUILDER_IDLE_MS >= 4 * 60 * 60_000);
+    const _: () = assert!(BUILDER_IDLE_MS >= 4 * 60 * 60_000);
     match_object(&created[1], json!({"fromSnapshot": "snap_wsp-h1-default-v1"}));
     assert!(created[1].on_idle.is_none());
     assert!(created[1].idle_timeout_ms.is_none());
@@ -239,7 +236,10 @@ fn seal_snapshots_kills_the_builder_before_the_smoke_fork_boots_and_records_the_
     let created = rec.state.created();
     match_object(&created[1], json!({"kind": "desktop", "fromSnapshot": "snap_wsp-h1-default-v1"}));
     assert!(created[1].template.is_none());
-    match_object(&sealed.version, json!({"version": 1, "kind": "desktop", "baseTemplate": "default", "snapshotId": "snap_wsp-h1-default-v1"}));
+    match_object(
+        &sealed.version,
+        json!({"version": 1, "kind": "desktop", "baseTemplate": "default", "snapshotId": "snap_wsp-h1-default-v1"}),
+    );
     assert!(sealed.version.template_id.is_none());
     assert_eq!(sealed.version.setup_sha, setup_sha);
     assert_eq!(sealed.manifest.head.0, 1.0);
@@ -329,7 +329,8 @@ fn sealed_npm(bin: &str) -> (SealResult, Rec, String) {
 
 // golden.test.ts:431
 #[test]
-fn seal_reads_npms_own_folder_once_on_the_builder_and_puts_it_first_on_the_image_s_profile_and_its_forks_path_where_the_tools_path_names_no_such_folder() {
+fn seal_reads_npms_own_folder_once_on_the_builder_and_puts_it_first_on_the_image_s_profile_and_its_forks_path_where_the_tools_path_names_no_such_folder(
+) {
     let nvm = "/opt/nvm/versions/node/v24.18.1/bin";
     let (off, rb, builder) = sealed_npm(nvm);
     assert_eq!(off.version.npm_bin.as_deref(), Some(nvm));
@@ -344,7 +345,8 @@ fn seal_reads_npms_own_folder_once_on_the_builder_and_puts_it_first_on_the_image
     assert_eq!(reads.len(), 1, "the npm folder is read once");
     assert_eq!(reads[0].0, builder);
     assert!(reads[0].1.contains(r#"cd / && b="$(npm_config_userconfig=/dev/null npm prefix -g 2>/dev/null)/bin""#), "{}", reads[0].1);
-    let on_builder: Vec<String> = rb.state.inline.borrow().iter().filter(|(id, _, _)| *id == builder).map(|(_, cmd, _)| cmd.clone()).collect();
+    let on_builder: Vec<String> =
+        rb.state.inline.borrow().iter().filter(|(id, _, _)| *id == builder).map(|(_, cmd, _)| cmd.clone()).collect();
     let want_profile = format!("{} && {}", claude_link_line(), profile_path_line(&format!("{AGENTS_BIN}:{nvm}:{TOOLS_PATH}")));
     assert!(on_builder.contains(&want_profile), "{on_builder:?}");
     let fork_path = |rb: &Rec| rb.state.created().last().unwrap().envs.as_ref().and_then(|e| e.get("PATH").cloned());
@@ -390,7 +392,8 @@ fn the_image_s_path_answers_the_pinned_claude_ahead_of_npm_s_and_npm_s_pnpm_ahea
     let b = prep(prepare_opts(&rb, "true"), &clock);
     seal_ok(b, seal_opts(&rb, "claude --version"), &clock);
 
-    let outside = |pre: &str, env: &[(&str, &str)]| stdout_text(&bash_env(&format!("{pre}cd / && claude --version && pnpm --version"), env));
+    let outside =
+        |pre: &str, env: &[(&str, &str)]| stdout_text(&bash_env(&format!("{pre}cd / && claude --version && pnpm --version"), env));
     // A login shell reads the profile the seal wrote; a thread gets the PATH its fork was created with.
     assert_eq!(outside(&format!(". {r}{PROFILE_PATH_FILE} && "), &[]), "2.1.280 (Claude Code)\n11.9.0\n");
     let fork_path = relocate(&r, &rb.state.created().last().unwrap().envs.as_ref().unwrap()["PATH"]);
@@ -401,7 +404,8 @@ fn the_image_s_path_answers_the_pinned_claude_ahead_of_npm_s_and_npm_s_pnpm_ahea
 
 // golden.test.ts:496
 #[test]
-fn a_ticked_cursor_or_hermes_gets_no_link_in_the_pinned_agents_folder_so_the_provider_s_shim_at_its_name_never_finds_itself_first_on_a_fork_s_path() {
+fn a_ticked_cursor_or_hermes_gets_no_link_in_the_pinned_agents_folder_so_the_provider_s_shim_at_its_name_never_finds_itself_first_on_a_fork_s_path(
+) {
     let root = tempfile::tempdir().unwrap();
     let r = root.path().display().to_string();
     let usr = format!("{r}/usr/local/bin");
@@ -451,7 +455,8 @@ fn a_ticked_cursor_or_hermes_gets_no_link_in_the_pinned_agents_folder_so_the_pro
         assert_eq!(out.status.code(), Some(0), "{name}");
         assert_eq!(stdout_text(&out), format!("wsp install of {name}\n"), "{name}");
     }
-    let mut listed: Vec<String> = std::fs::read_dir(format!("{r}{AGENTS_BIN}")).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    let mut listed: Vec<String> =
+        std::fs::read_dir(format!("{r}{AGENTS_BIN}")).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
     listed.sort();
     assert_eq!(listed, vec!["claude"]);
 }

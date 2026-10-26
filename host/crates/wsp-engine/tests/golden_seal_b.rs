@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! golden.test.ts "interactive golden: prepare then seal" (:575-872): the seal's vault, its sign-in refusals, the disk
 //! sync before the snapshot, the kills, the snapshot retries and the size the seal records.
+#![allow(clippy::type_complexity)]
 mod golden_roads_common;
 mod golden_seal_support;
 
@@ -10,15 +11,15 @@ use std::rc::Rc;
 use golden_roads_common::*;
 use golden_seal_support::*;
 use serde_json::json;
-use wsp_engine::errors::{classify, EngineError};
 use wsp_engine::disk_sync::DISK_SYNC_CMD;
+use wsp_engine::errors::{classify, EngineError};
 use wsp_engine::exec_detached::put::{machine_answer, INLINE_EXEC_MS};
 use wsp_engine::golden::{build_golden, prepare_builder, seal_golden, Builder, GoldenError, SealResult};
 use wsp_engine::golden_seam::used_kb_cmd;
 use wsp_engine::machine::{MachineSpec, MachineState, SnapshotProgress};
+use wsp_wire::views::golden_image::GoldenLogin;
 use wsp_words::words::image::{credential_on_builder_line, ProviderAnswer};
 use wsp_words::words::init::disk_sync_failed_line;
-use wsp_wire::views::golden_image::GoldenLogin;
 
 fn prep(opts: wsp_engine::golden::PrepareBuilderOptions, clock: &Manual) -> Builder {
     run(prepare_builder(opts, clock)).expect("the builder is prepared")
@@ -29,7 +30,7 @@ fn seal_ok(builder: Builder, opts: wsp_engine::golden::SealGoldenOptions, clock:
 }
 
 fn seal_err(builder: Builder, opts: wsp_engine::golden::SealGoldenOptions, clock: &Manual) -> GoldenError {
-    run(seal_golden(builder, opts, clock)).err().expect("the seal is refused")
+    run(seal_golden(builder, opts, clock)).expect_err("the seal is refused")
 }
 
 fn last_n(lines: &[String], n: usize) -> Vec<String> {
@@ -289,10 +290,13 @@ fn seal_stamps_the_logins_it_is_given_onto_the_version_name_and_state_only() {
     let mut so = seal_opts(&rec, "true");
     so.logins = Some(logins.clone());
     let sealed = seal_ok(b, so, &clock);
-    equal_json(&sealed.version.logins, json!([
-        {"name": "GitHub CLI login", "state": "signed-in"},
-        {"name": "Codex login", "state": "skipped"},
-    ]));
+    equal_json(
+        &sealed.version.logins,
+        json!([
+            {"name": "GitHub CLI login", "state": "signed-in"},
+            {"name": "Codex login", "state": "skipped"},
+        ]),
+    );
     let b2 = prep(prepare_opts(&rec, "true"), &clock);
     let sealed2 = seal_ok(b2, seal_opts(&rec, "true"), &clock);
     assert!(sealed2.version.logins.is_none());
@@ -301,10 +305,7 @@ fn seal_stamps_the_logins_it_is_given_onto_the_version_name_and_state_only() {
 // golden.test.ts:696
 #[test]
 fn seal_retries_a_kill_the_provider_accepted_without_acting_on_and_forks_only_once_the_builder_reads_gone() {
-    let rec = recording_backend(Opts {
-        ignore_kill: Some(Box::new(|id: &str, nth: u32| id == "m1" && nth == 1)),
-        ..Opts::default()
-    });
+    let rec = recording_backend(Opts { ignore_kill: Some(Box::new(|id: &str, nth: u32| id == "m1" && nth == 1)), ..Opts::default() });
     let clock = Manual::new();
     let st = stage_recorder();
     let builder = prep(prepare_opts(&rec, "true"), &clock);
@@ -314,10 +315,7 @@ fn seal_retries_a_kill_the_provider_accepted_without_acting_on_and_forks_only_on
     let sealed = seal_ok(builder.clone(), so, &clock);
     assert_eq!(sealed.version.version.0, 1.0);
     assert_eq!(st.all().last().unwrap(), "sealed:v1");
-    assert_eq!(
-        rec.state.timeline(),
-        vec!["create m1", "snapshot m1", "kill m1", "kill m1", "create m2", "kill m2"]
-    );
+    assert_eq!(rec.state.timeline(), vec!["create m1", "snapshot m1", "kill m1", "kill m1", "create m2", "kill m2"]);
     assert!(matches!(run(builder.machine.state()).expect("the builder reads"), MachineState::Gone));
 }
 
@@ -334,10 +332,7 @@ fn seal_fails_with_a_typed_error_when_the_builder_outlives_three_kills_and_never
     let err = seal_err(builder, so, &clock);
     let message = err.message();
     let GoldenError::Engine(engine) = err else { panic!("want a machine that is still alive, got {err:?}") };
-    assert!(
-        matches!(&engine, EngineError::MachineAlive { machine_id, state: MachineState::Running } if machine_id == "m1"),
-        "{engine:?}"
-    );
+    assert!(matches!(&engine, EngineError::MachineAlive { machine_id, state: MachineState::Running } if machine_id == "m1"), "{engine:?}");
     let host: wsp_words::exit::HostError = engine.into();
     assert_eq!(host.kind.as_ref().map(|k| k.as_str()), Some("machineAlive"));
     assert!(message.contains("m1"), "{message}");
@@ -360,10 +355,7 @@ fn a_smoke_fork_that_outlives_its_kills_still_seals_the_proven_image_and_the_sea
     let sealed = seal_ok(builder, so, &clock);
     assert_eq!(sealed.manifest.head.0, 1.0);
     assert!(rec.state.deleted_snapshots().is_empty());
-    assert_eq!(
-        rec.state.timeline(),
-        vec!["create m1", "snapshot m1", "kill m1", "create m2", "kill m2", "kill m2", "kill m2"]
-    );
+    assert_eq!(rec.state.timeline(), vec!["create m1", "snapshot m1", "kill m1", "create m2", "kill m2", "kill m2", "kill m2"]);
     let last = st.all().last().unwrap().clone();
     assert!(last.starts_with("sealed:v1; machine m2 is still running after three kills"), "{last}");
 }
@@ -416,11 +408,10 @@ fn asks_for_no_root_disk_on_a_backend_whose_machines_take_no_disk_request_and_bo
 
 // golden.test.ts:764
 #[test]
-fn a_snapshot_the_provider_refuses_with_its_502_is_asked_for_three_times_while_the_builder_reads_running_each_attempt_a_stage_line_with_the_provider_s_answer_then_the_seal_fails_typed_and_the_builder_is_left_as_it_was() {
+fn a_snapshot_the_provider_refuses_with_its_502_is_asked_for_three_times_while_the_builder_reads_running_each_attempt_a_stage_line_with_the_provider_s_answer_then_the_seal_fails_typed_and_the_builder_is_left_as_it_was(
+) {
     let rec = recording_backend(Opts {
-        snapshot: Some(Box::new(|_id: &str, nth: u32| -> wsp_engine::errors::Result<()> {
-            Err(refused_snapshot(&format!("req_{nth}")))
-        })),
+        snapshot: Some(Box::new(|_id: &str, nth: u32| -> wsp_engine::errors::Result<()> { Err(refused_snapshot(&format!("req_{nth}"))) })),
         ..Opts::default()
     });
     let clock = Manual::new();
@@ -469,16 +460,14 @@ fn a_snapshot_that_lands_on_the_second_attempt_seals_as_any_other() {
     so.snapshot_retry_ms = Some(1);
     let sealed = seal_ok(builder, so, &clock);
     assert_eq!(sealed.version.snapshot_id, "snap_wsp-h1-default-v1");
-    assert_eq!(
-        rec.state.timeline(),
-        vec!["create m1", "snapshot m1", "snapshot m1", "kill m1", "create m2", "kill m2"]
-    );
+    assert_eq!(rec.state.timeline(), vec!["create m1", "snapshot m1", "snapshot m1", "kill m1", "create m2", "kill m2"]);
     assert_eq!(st.all().last().unwrap(), "sealed:v1");
 }
 
 // golden.test.ts:791
 #[test]
-fn a_refused_snapshot_on_a_builder_the_provider_answers_404_for_ends_at_the_first_attempt_nothing_is_killed_and_the_error_says_the_provider_no_longer_has_it() {
+fn a_refused_snapshot_on_a_builder_the_provider_answers_404_for_ends_at_the_first_attempt_nothing_is_killed_and_the_error_says_the_provider_no_longer_has_it(
+) {
     let slot: Rc<RefCell<Option<Rc<State>>>> = Rc::new(RefCell::new(None));
     let hook_slot = slot.clone();
     let rec = recording_backend(Opts {
@@ -561,7 +550,8 @@ fn any_other_snapshot_failure_is_not_asked_again_and_leaves_the_builder_as_it_wa
 
 // golden.test.ts:824
 #[test]
-fn a_snapshot_job_that_failed_on_a_computer_you_own_with_no_status_of_its_own_is_reported_as_the_provider_s_500_and_leaves_the_builder_the_next_seal_snapshots_the_same_builder() {
+fn a_snapshot_job_that_failed_on_a_computer_you_own_with_no_status_of_its_own_is_reported_as_the_provider_s_500_and_leaves_the_builder_the_next_seal_snapshots_the_same_builder(
+) {
     let rec = recording_backend(Opts {
         snapshot: Some(Box::new(|_id: &str, nth: u32| -> wsp_engine::errors::Result<()> {
             if nth == 1 {

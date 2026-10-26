@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The helpers golden_import_b.rs and golden_import_b_b.rs share: the fixtures, the runners, the stage and command matchers,
 //! and the two fake machines the TS builds by hand (a backend whose exec fails, and a machine whose free-disk read fails).
-#![allow(dead_code, unused_imports)]
+#![allow(dead_code, unused_imports, clippy::type_complexity)]
 
 use std::cell::{Cell, RefCell};
 use std::os::unix::fs::PermissionsExt;
@@ -10,9 +10,9 @@ use std::process::Command;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use crate::golden_roads_common::*;
 use async_trait::async_trait;
 use futures::FutureExt;
-use crate::golden_roads_common::*;
 use indexmap::IndexMap;
 use sha2::{Digest, Sha256};
 use wsp_catalog::mcp::MCP_SERVERS_JSON;
@@ -26,8 +26,8 @@ use wsp_engine::golden::{
 };
 use wsp_engine::golden_seam::{
     install_tools, tool_installs_for_rows, AgentInstall, BrewTable, GoldenFiles, GoldenImport, GoldenVolatile, InstallToolsOptions,
-    McpAgentPlan, McpPlan, McpScope, NodeInstall, PackFiles, PackedFiles, PluginSeedPlan, PluginsPlan, RecipeEntry, SeedLinks, SeedPlugin,
-    LeaveOut, SeedRead, SkippedPath, SkippedRow, ToolInstall, ToolResult, ToolStage, TOOLS_PATH,
+    LeaveOut, McpAgentPlan, McpPlan, McpScope, NodeInstall, PackFiles, PackedFiles, PluginSeedPlan, PluginsPlan, RecipeEntry, SeedLinks,
+    SeedPlugin, SeedRead, SkippedPath, SkippedRow, ToolInstall, ToolResult, ToolStage, TOOLS_PATH,
 };
 use wsp_engine::machine::{
     BackendOffers, BackendPricing, BaseTemplates, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineKind, MachineLife,
@@ -250,7 +250,9 @@ pub fn pack_failing(message: &'static str) -> PackFiles {
 }
 
 pub fn pack_tgz(silenced: Vec<String>) -> PackFiles {
-    pack_with(move || Ok(PackedFiles { tar: b"tgz-bytes".to_vec(), bytes: 1200, unpacked: 4096, silenced: silenced.clone(), ..Default::default() }))
+    pack_with(move || {
+        Ok(PackedFiles { tar: b"tgz-bytes".to_vec(), bytes: 1200, unpacked: 4096, silenced: silenced.clone(), ..Default::default() })
+    })
 }
 
 pub fn strings(v: &[&str]) -> Vec<String> {
@@ -278,7 +280,11 @@ pub fn pnpm_answer(bin: &Path, cmd: &str) -> Option<ExecResult> {
             .env("PATH", format!("{}:/usr/bin:/bin", bin.display()))
             .output()
             .expect("bash runs");
-        return Some(exec(i64::from(out.status.code().unwrap_or(1)), &String::from_utf8_lossy(&out.stdout), &String::from_utf8_lossy(&out.stderr)));
+        return Some(exec(
+            i64::from(out.status.code().unwrap_or(1)),
+            &String::from_utf8_lossy(&out.stdout),
+            &String::from_utf8_lossy(&out.stderr),
+        ));
     }
     Some(if cmd == FREE_KB_CMD {
         exec(0, &format!("{}\n", mb(3000)), "")
@@ -476,7 +482,6 @@ pub fn links_left_out(line: &str) -> bool {
     let head = "installing-harness:plugins built in: v@acme; left out: the links into /seed (";
     line.strip_prefix(head).is_some_and(|rest| rest.find("socket hang up").is_some_and(|i| !rest[..i].contains('\n')))
 }
-
 
 /// A backend over `inner` whose `exec` of any command containing `needle` fails with `message`.
 pub fn failing_exec(inner: Arc<dyn MachineBackend>, needle: &'static str, message: &'static str) -> Arc<dyn MachineBackend> {

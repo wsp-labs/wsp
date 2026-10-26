@@ -55,9 +55,8 @@ pub fn join_smoke(checks: &[String]) -> String {
 
 /// golden.ts:1271 `PROJECT_CHECKS`: the version checks the catalog's install rows name for the managers a project's
 /// install runs.
-static PROJECT_CHECKS: LazyLock<HashSet<String>> = LazyLock::new(|| {
-    SEED_ROWS.iter().flat_map(|row| row.installs.iter().flatten()).filter_map(|i| i.check.clone()).collect()
-});
+static PROJECT_CHECKS: LazyLock<HashSet<String>> =
+    LazyLock::new(|| SEED_ROWS.iter().flat_map(|row| row.installs.iter().flatten()).filter_map(|i| i.check.clone()).collect());
 
 /// golden.ts:1275. A tools row's version check where its tool is a manager a project's install runs: one on the image
 /// that does not start fails every project there, and `command -v` reads a command whose package lost its files as

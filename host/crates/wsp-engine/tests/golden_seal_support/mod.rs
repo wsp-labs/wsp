@@ -2,7 +2,7 @@
 //! Helpers the golden seal and template tests share: wrappers over the recording backend for the hooks its options do
 //! not carry, a frame recorder that keeps each frame's `left`, the scripts the tests run for real under bash, and a
 //! matcher that reads a wire object the way `toMatchObject` does.
-#![allow(dead_code)]
+#![allow(dead_code, clippy::type_complexity)]
 use std::cell::RefCell;
 use std::path::Path;
 use std::process::{Command, Output};
@@ -18,11 +18,11 @@ use sha2::{Digest, Sha256};
 use wsp_engine::errors::{classify, EngineError, Result, RetryClock};
 use wsp_engine::fetch::Fetch;
 use wsp_engine::golden::{DeployDaemon, StageFn};
+use wsp_engine::machine::MachineListRow;
 use wsp_engine::machine::{
     BackendOffers, BackendPricing, BaseTemplates, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineKind, MachineLife,
     MachineOffers, MachineShape, MachineSpec, MachineState, RunOptions, Seen, SnapshotOptions, TemplateRow, Waiting,
 };
-use wsp_engine::machine::MachineListRow;
 use wsp_engine::vault::TarEntry;
 use wsp_wire::views::golden_image::{GoldenStage, GoldenStep};
 use wsp_words::words::image::BuilderReading;
@@ -38,7 +38,8 @@ pub const BUILDER_DISK_GB: f64 = 20.0;
 
 /// catalog signin.ts `NEVER_IN_IMAGE` at 65f6b89c7: the login file, the key file, and each shared login's target
 /// (`GUEST_HOME`, `CLAUDE_CONFIG_REL`, `CLAUDE_KEY_FILE` and codex's `shared.target`).
-pub const NEVER_IN_IMAGE: [&str; 3] = ["/root/.claude-cfg/.credentials.json", "/root/.claude-cfg/anthropic-api-key", "/root/.codex/auth.json"];
+pub const NEVER_IN_IMAGE: [&str; 3] =
+    ["/root/.claude-cfg/.credentials.json", "/root/.claude-cfg/anthropic-api-key", "/root/.codex/auth.json"];
 
 pub fn not_on_road() -> EngineError {
     EngineError::Other { message: "not on this road".to_string(), code: None }
@@ -284,13 +285,14 @@ pub struct Frame {
 pub fn frame_recorder() -> (StageFn, Rc<RefCell<Vec<Frame>>>) {
     let frames: Rc<RefCell<Vec<Frame>>> = Rc::new(RefCell::new(Vec::new()));
     let sink = frames.clone();
-    let on_stage: StageFn = Arc::new(move |stage: GoldenStage, detail: Option<&str>, _step: Option<GoldenStep>, left: Option<&[String]>| {
-        sink.borrow_mut().push(Frame {
-            stage: stage_word(stage).to_string(),
-            detail: detail.map(str::to_string),
-            left: left.map(<[String]>::to_vec),
+    let on_stage: StageFn =
+        Arc::new(move |stage: GoldenStage, detail: Option<&str>, _step: Option<GoldenStep>, left: Option<&[String]>| {
+            sink.borrow_mut().push(Frame {
+                stage: stage_word(stage).to_string(),
+                detail: detail.map(str::to_string),
+                left: left.map(<[String]>::to_vec),
+            });
         });
-    });
     (on_stage, frames)
 }
 

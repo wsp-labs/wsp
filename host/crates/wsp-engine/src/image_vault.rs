@@ -216,7 +216,11 @@ pub fn vault_members(road: VaultRoad, tar: &[u8]) -> Result<Vec<VaultMember>, En
         Err(e) => return Err(refusal(road, "its first bytes", &format!("they do not decompress as tar's gzip reads them ({e})"))),
     };
     if raw.len() % TAR_BLOCK != 0 {
-        return Err(refusal(road, "its last bytes", &format!("the archive is {} bytes, which is not a whole number of tar blocks", raw.len())));
+        return Err(refusal(
+            road,
+            "its last bytes",
+            &format!("the archive is {} bytes, which is not a whole number of tar blocks", raw.len()),
+        ));
     }
     let mut members = Vec::new();
     let mut pax: Option<Pax> = None;

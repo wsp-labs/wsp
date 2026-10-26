@@ -657,7 +657,8 @@ async fn puts_each_thing_the_pack_left_out_of_the_copy_in_the_jobs_rows_with_its
         .collect();
     let (machine, _) = box_machine(no_answer, TOOLS_PATH);
     let said = Arc::new(Mutex::new(Vec::new()));
-    let packed = PackedFiles { tar: tar.clone(), bytes: tar.len() as u64, unpacked: 4, files: Some(1), skipped, stood: None, ..Default::default() };
+    let packed =
+        PackedFiles { tar: tar.clone(), bytes: tar.len() as u64, unpacked: 4, files: Some(1), skipped, stood: None, ..Default::default() };
     let with_pack =
         ProvisionPlan { files: Some(PlanFiles { lands: plan.files.as_ref().unwrap().lands.clone(), pack: pack_of(packed) }), ..plan };
     let rows = provision_box(&machine, &with_pack, said_into(said.clone()), &on()).await.unwrap();

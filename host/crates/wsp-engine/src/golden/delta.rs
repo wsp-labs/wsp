@@ -11,7 +11,9 @@ use wsp_words::words::base::plural;
 
 use super::prepare::{iso_now, size_asked, size_built, spec_of};
 use super::smoke::{manager_check_of, next_left_behind, next_missing, next_setup_sha, next_smoke, AGENT_INSTALLERS};
-use super::types::{plain, Applied, ApplyDeltaOptions, ApplyImportOptions, Builder, GoldenDelta, GoldenError, Staged, UpgradeBuilderOptions};
+use super::types::{
+    plain, Applied, ApplyDeltaOptions, ApplyImportOptions, Builder, GoldenDelta, GoldenError, Staged, UpgradeBuilderOptions,
+};
 use crate::errors::{EngineError, RetryClock};
 use crate::golden::apply_golden_import;
 use crate::golden_seam::{GoldenImport, BUILDER_IDLE_MS};
@@ -61,7 +63,10 @@ pub async fn apply_delta(
     let retired = delta.retired.clone();
     if !retired.is_empty() {
         let names: Vec<&str> = retired.iter().map(|r| r.name.as_str()).collect();
-        stage.say(GoldenStage::ApplyingSetup, &format!("{} left on the image, retired: {}", plural(retired.len() as f64, "row"), names.join(", ")));
+        stage.say(
+            GoldenStage::ApplyingSetup,
+            &format!("{} left on the image, retired: {}", plural(retired.len() as f64, "row"), names.join(", ")),
+        );
     }
     // The stages report only when one of them ran; a delta that only retires rows still has them to report.
     let report = delta.import.on_result.clone();
@@ -102,14 +107,17 @@ pub async fn apply_delta(
             if rung_of(&r.id) == "tools" {
                 return manager_check_of(&r.id).into_iter().collect::<Vec<_>>();
             }
-            let installer = if rung_of(&r.id) == "agents" && !r.id.starts_with(MCP_ID_PREFIX) { AGENT_INSTALLERS.get(name_of(&r.id)) } else { None };
+            let installer =
+                if rung_of(&r.id) == "agents" && !r.id.starts_with(MCP_ID_PREFIX) { AGENT_INSTALLERS.get(name_of(&r.id)) } else { None };
             installer.map(|i| i.smoke.clone()).into_iter().collect()
         })
         .collect();
     applied.ledger.smoke = next_smoke(&opts.previous_smoke, &gone, &applied.ledger.smoke);
-    let missing = next_missing(opts.previous_missing.as_deref().unwrap_or(&[]), &delta, applied.ledger.missing_tools.as_deref().unwrap_or(&[]));
+    let missing =
+        next_missing(opts.previous_missing.as_deref().unwrap_or(&[]), &delta, applied.ledger.missing_tools.as_deref().unwrap_or(&[]));
     applied.ledger.missing_tools = (!missing.is_empty()).then_some(missing);
-    let left = next_left_behind(opts.previous_left_behind.as_deref().unwrap_or(&[]), &delta, applied.ledger.left_behind.as_deref().unwrap_or(&[]));
+    let left =
+        next_left_behind(opts.previous_left_behind.as_deref().unwrap_or(&[]), &delta, applied.ledger.left_behind.as_deref().unwrap_or(&[]));
     applied.ledger.left_behind = (!left.is_empty()).then_some(left);
     Ok(applied)
 }

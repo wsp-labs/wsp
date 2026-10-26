@@ -2,7 +2,7 @@
 //! golden.test.ts:34-185: `recordingBackend`, `stageRecorder`, the fetch stubs and the constants the golden tests share.
 //! A backend whose machines answer every call from a script and record each one in order, so a test asserts the exact
 //! sequence a seal, a prepare or an update drove them through.
-#![allow(dead_code)]
+#![allow(dead_code, clippy::type_complexity)]
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -14,8 +14,8 @@ use wsp_engine::errors::{classify, EngineError, ErrorKind, Result, RetryClock, W
 use wsp_engine::fetch::{Fetch, FetchRequest, FetchResponse};
 use wsp_engine::golden::StageFn;
 use wsp_engine::machine::{
-    BackendOffers, BackendPricing, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineKind, MachineLife, MachineListRow,
-    MachineOffers, MachineShape, MachineSpec, MachineState, RunOptions, Seen, Size, SnapshotOptions, SnapshotProgress,
+    BackendOffers, BackendPricing, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineKind, MachineLife,
+    MachineListRow, MachineOffers, MachineShape, MachineSpec, MachineState, RunOptions, Seen, Size, SnapshotOptions, SnapshotProgress,
     SnapshotStoragePricing, TemplateRow, Waiting, WireSnapshotStoragePricing,
 };
 use wsp_wire::views::golden_image::{GoldenStage, GoldenStep};
@@ -514,16 +514,17 @@ pub fn stage_recorder() -> Stages {
     let lines: Rc<RefCell<Vec<String>>> = Rc::new(RefCell::new(Vec::new()));
     let left: Rc<RefCell<Vec<(String, Vec<String>)>>> = Rc::new(RefCell::new(Vec::new()));
     let (l, k) = (lines.clone(), left.clone());
-    let on_stage: StageFn = Arc::new(move |stage: GoldenStage, detail: Option<&str>, _step: Option<GoldenStep>, left: Option<&[String]>| {
-        let word = stage_word(stage);
-        l.borrow_mut().push(match detail {
-            None => word.to_string(),
-            Some(d) => format!("{word}:{d}"),
+    let on_stage: StageFn =
+        Arc::new(move |stage: GoldenStage, detail: Option<&str>, _step: Option<GoldenStep>, left: Option<&[String]>| {
+            let word = stage_word(stage);
+            l.borrow_mut().push(match detail {
+                None => word.to_string(),
+                Some(d) => format!("{word}:{d}"),
+            });
+            if let Some(left) = left {
+                k.borrow_mut().push((word.to_string(), left.to_vec()));
+            }
         });
-        if let Some(left) = left {
-            k.borrow_mut().push((word.to_string(), left.to_vec()));
-        }
-    });
     Stages { lines, on_stage, left }
 }
 
@@ -621,7 +622,8 @@ pub fn file_in(tgz: &[u8], path: &str) -> String {
 fn tar_read(args: &[&str], input: &[u8]) -> Vec<u8> {
     use std::io::Write;
     use std::process::{Command, Stdio};
-    let mut child = Command::new("tar").args(args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("tar");
+    let mut child =
+        Command::new("tar").args(args).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("tar");
     let mut stdin = child.stdin.take().unwrap();
     let bytes = input.to_vec();
     let feeder = std::thread::spawn(move || {
@@ -689,7 +691,12 @@ pub fn seal_opts(rec: &Rec, smoke: &str) -> SealGoldenOptions {
     }
 }
 
-pub fn upgrade_opts(rec: &Rec, head: wsp_wire::views::golden_image::GoldenVersion, delta: wsp_engine::golden::GoldenDelta, setup: &str) -> UpgradeBuilderOptions {
+pub fn upgrade_opts(
+    rec: &Rec,
+    head: wsp_wire::views::golden_image::GoldenVersion,
+    delta: wsp_engine::golden::GoldenDelta,
+    setup: &str,
+) -> UpgradeBuilderOptions {
     UpgradeBuilderOptions {
         backend: rec.dyn_backend(),
         size: MachineSize::default(),
@@ -839,7 +846,9 @@ pub fn is_context_written(line: &str) -> bool {
         Some((w, f)) => (w, Some(f)),
         None => (rest, None),
     };
-    !whole.is_empty() && whole.bytes().all(|c| c.is_ascii_digit()) && frac.is_none_or(|f| !f.is_empty() && f.bytes().all(|c| c.is_ascii_digit()))
+    !whole.is_empty()
+        && whole.bytes().all(|c| c.is_ascii_digit())
+        && frac.is_none_or(|f| !f.is_empty() && f.bytes().all(|c| c.is_ascii_digit()))
 }
 
 /// `Date.parse(iso)` in milliseconds, none for a string that is no time.

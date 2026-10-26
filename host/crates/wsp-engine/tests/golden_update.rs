@@ -6,6 +6,7 @@
 //! Gaps: `recipeDigest`, `diffRecipes`, `rowsToApply` and `retiredBy` (golden-import.ts:620, golden-diff.ts) have no
 //! Rust port. The one test that builds a delta from two recipes (the binary-row toggle) carries the deltas by hand, and
 //! its `recipe` digest assertions are left out.
+#![allow(clippy::type_complexity)]
 mod golden_roads_common;
 mod golden_seal_support;
 
@@ -28,8 +29,8 @@ use wsp_engine::golden::{
     SealGoldenOptions, SealResult, UpgradeBuilderOptions,
 };
 use wsp_engine::golden_seam::{
-    tool_installs_for_rows, AgentInstall, BrewFormula, BrewTable, GoldenImport, RecipeEntry, SkippedRow, ToolInstall, ToolResult, ToolSource,
-    BUILDER_IDLE_MS, TOOLS_PATH,
+    tool_installs_for_rows, AgentInstall, BrewFormula, BrewTable, GoldenImport, RecipeEntry, SkippedRow, ToolInstall, ToolResult,
+    ToolSource, BUILDER_IDLE_MS, TOOLS_PATH,
 };
 use wsp_engine::machine::{
     BackendOffers, BackendPricing, BaseTemplates, Capabilities, Machine, MachineBackend, MachineListRow, MachineSpec, TemplateRow, Waiting,
@@ -73,7 +74,12 @@ fn retired(id: &str, name: &str) -> GoldenRetired {
 
 /// golden.test.ts:2572 `deltaOf`'s four retired rows, the same on the image and in the recipe.
 fn four_retired() -> Vec<GoldenRetired> {
-    vec![retired("shell/zshrc", "~/.zshrc"), retired("tools/npm/bun", "bun"), retired("agents/gemini", "Gemini CLI"), retired("agents/claude", "Claude Code")]
+    vec![
+        retired("shell/zshrc", "~/.zshrc"),
+        retired("tools/npm/bun", "bun"),
+        retired("agents/gemini", "Gemini CLI"),
+        retired("agents/claude", "Claude Code"),
+    ]
 }
 
 /// golden.test.ts:2570 `deltaOf()` with no override.
@@ -236,7 +242,9 @@ fn context_written_for_claude_and_codex(line: &str) -> bool {
         Some((w, f)) => (w, Some(f)),
         None => (size, None),
     };
-    !whole.is_empty() && whole.bytes().all(|c| c.is_ascii_digit()) && frac.is_none_or(|f| !f.is_empty() && f.bytes().all(|c| c.is_ascii_digit()))
+    !whole.is_empty()
+        && whole.bytes().all(|c| c.is_ascii_digit())
+        && frac.is_none_or(|f| !f.is_empty() && f.bytes().all(|c| c.is_ascii_digit()))
 }
 
 /// The binary-row fixtures' road table: one tap formula with a release tag (golden-import.ts `BrewTable`).
@@ -280,7 +288,14 @@ fn sink_of(results: &Rc<RefCell<Vec<ImportResult>>>) -> Arc<dyn Fn(&ImportResult
 /// is not built here (no Rust port), so `recipe` is absent.
 fn plan_of(rows: &[RecipeEntry], recipe_hash: &str, results: &Rc<RefCell<Vec<ImportResult>>>) -> GoldenImport {
     let tools = tool_installs_for_rows(rows, &road_table(), &[], TOOLS_PATH, None).expect("the tool plan").installs;
-    GoldenImport { recipe_hash: recipe_hash.into(), recipe: None, tools, agents: vec![], on_result: Some(sink_of(results)), ..Default::default() }
+    GoldenImport {
+        recipe_hash: recipe_hash.into(),
+        recipe: None,
+        tools,
+        agents: vec![],
+        on_result: Some(sink_of(results)),
+        ..Default::default()
+    }
 }
 
 /// A backend whose first fork from a snapshot is refused as the account's machine cap refuses it (429), and every other
@@ -344,11 +359,8 @@ fn apply_delta_takes_a_retired_tools_version_check_out_of_the_smoke_like_an_agen
         retired: vec![retired("tools/npm/pnpm", "pnpm")],
         retired_on_image: vec![retired("tools/npm/pnpm", "pnpm")],
     };
-    let applied = apply(
-        &machine,
-        pnpm,
-        ApplyDeltaOptions { fetch: Some(b.dyn_fetch()), ..apply_opts("claude --version && pnpm --version") },
-    );
+    let applied =
+        apply(&machine, pnpm, ApplyDeltaOptions { fetch: Some(b.dyn_fetch()), ..apply_opts("claude --version && pnpm --version") });
     assert_eq!(applied.ledger.smoke, "claude --version");
 }
 
@@ -395,7 +407,12 @@ fn when_the_account_cap_refuses_the_fork_beside_a_kept_builder_the_builder_is_ki
     let stages = stage_recorder();
     let result = seal(
         builder,
-        SealGoldenOptions { backend: capped.clone(), keep_builder: true, on_stage: Some(stages.on_stage.clone()), ..seal_opts(&rec, "true") },
+        SealGoldenOptions {
+            backend: capped.clone(),
+            keep_builder: true,
+            on_stage: Some(stages.on_stage.clone()),
+            ..seal_opts(&rec, "true")
+        },
     );
     assert!(!result.builder_kept);
     assert_eq!(rec.state.killed(), vec!["m1", "m2"]);
@@ -411,13 +428,8 @@ fn a_smoke_that_fails_on_a_kept_builder_still_kills_the_builder_and_drops_the_sn
     exec_results.insert("boom --version".to_string(), exec(127, "", "not found"));
     let rec = recording_backend(Opts { exec_results, ..Opts::default() });
     let builder = prep(prepare_opts(&rec, "true"));
-    let err = run(seal_golden(
-        builder,
-        SealGoldenOptions { keep_builder: true, ..seal_opts(&rec, "boom --version") },
-        &*Manual::new(),
-    ))
-    .err()
-    .expect("the seal is refused");
+    let err = run(seal_golden(builder, SealGoldenOptions { keep_builder: true, ..seal_opts(&rec, "boom --version") }, &*Manual::new()))
+        .expect_err("the seal is refused");
     assert!(err.message().contains("smoke"), "want the refusal to name the smoke, got {:?}", err.message());
     assert_eq!(rec.state.killed(), vec!["m1", "m2"]);
     assert_eq!(rec.state.deleted_snapshots(), vec!["snap_wsp-h1-default-v1"]);
@@ -438,10 +450,7 @@ fn apply_delta_leaves_dropped_rows_on_the_image_and_names_them_once_before_the_s
     assert!(!b.rec.state.ran.borrow().iter().any(|(_, s)| removes_or_uninstalls(s)));
     assert!(!b.cmds().iter().any(|c| removes_or_uninstalls(c)));
     let lines = stages.all();
-    assert_lines(
-        &lines[..1],
-        &[Line::Is("applying-setup:4 rows left on the image, retired: ~/.zshrc, bun, Gemini CLI, Claude Code")],
-    );
+    assert_lines(&lines[..1], &[Line::Is("applying-setup:4 rows left on the image, retired: ~/.zshrc, bun, Gemini CLI, Claude Code")]);
     assert_lines(
         &lines[1..],
         &[
@@ -595,11 +604,8 @@ fn next_missing_takes_a_row_planned_again_from_the_fresh_list() {
 fn next_missing_drops_the_tool_whose_id_the_delta_addressed_not_every_tool_sharing_its_label() {
     let brew_gh = missing_tool("tools/brew/gh", "gh", "skipped", "no Linux bottle");
     let cli_gh = missing_tool("tools/cli/gh", "gh", "failed", "exit 1: download refused");
-    let retired_gh = GoldenDelta {
-        retired: vec![retired("tools/brew/gh", "gh")],
-        retired_on_image: vec![retired("tools/brew/gh", "gh")],
-        ..delta_of()
-    };
+    let retired_gh =
+        GoldenDelta { retired: vec![retired("tools/brew/gh", "gh")], retired_on_image: vec![retired("tools/brew/gh", "gh")], ..delta_of() };
     assert_eq!(next_missing(&[brew_gh.clone(), cli_gh.clone()], &retired_gh, &[]), vec![cli_gh.clone()]);
 
     let replanned = GoldenDelta {
@@ -635,17 +641,22 @@ fn apply_delta_keeps_previous_missing_tools_the_delta_did_not_touch_beside_this_
     let applied = apply(
         &machine,
         replanned,
-        ApplyDeltaOptions { previous_missing: Some(vec![gopls(), bun(), jq()]), fetch: Some(b.dyn_fetch()), ..apply_opts(&head_version().smoke.cmd) },
+        ApplyDeltaOptions {
+            previous_missing: Some(vec![gopls(), bun(), jq()]),
+            fetch: Some(b.dyn_fetch()),
+            ..apply_opts(&head_version().smoke.cmd)
+        },
     );
-    assert_eq!(
-        applied.ledger.missing_tools,
-        Some(vec![gopls(), missing_tool("tools/brew/jq", "jq", "skipped", "no Linux bottle known")])
-    );
+    assert_eq!(applied.ledger.missing_tools, Some(vec![gopls(), missing_tool("tools/brew/jq", "jq", "skipped", "no Linux bottle known")]));
     let clean_machine = sandbox(&b.rec);
     let clean = apply(
         &clean_machine,
         delta_of(),
-        ApplyDeltaOptions { previous_missing: Some(vec![bun(), jq()]), fetch: Some(b.dyn_fetch()), ..apply_opts(&head_version().smoke.cmd) },
+        ApplyDeltaOptions {
+            previous_missing: Some(vec![bun(), jq()]),
+            fetch: Some(b.dyn_fetch()),
+            ..apply_opts(&head_version().smoke.cmd)
+        },
     );
     assert_eq!(clean.ledger.missing_tools, None);
 }
@@ -657,7 +668,7 @@ fn next_left_behind_keeps_previous_notes_for_untouched_rows_beside_what_this_pac
     let codex_note = left_behind_row("agents/codex", "~/.codex/config.toml", "hook left behind: ~/x");
     // delta_of retires agents/claude and plans agents/codex again.
     assert_eq!(next_left_behind(&[hook.clone(), codex_note], &delta_of(), &[]), Vec::<GoldenLeftBehind>::new());
-    let untouched = GoldenDelta { retired: vec![], retired_on_image: vec![], import: GoldenImport { agents: vec![], ..delta_of().import }, ..delta_of() };
+    let untouched = GoldenDelta { retired: vec![], retired_on_image: vec![], import: GoldenImport { agents: vec![], ..delta_of().import } };
     assert_eq!(next_left_behind(std::slice::from_ref(&hook), &untouched, &[]), vec![hook.clone()]);
     let replanned = GoldenDelta {
         retired: vec![],
@@ -666,7 +677,6 @@ fn next_left_behind_keeps_previous_notes_for_untouched_rows_beside_what_this_pac
             agents: vec![agent("agents/claude", "Claude Code", "claude-install", "claude --version", "script")],
             ..delta_of().import
         },
-        ..delta_of()
     };
     let fresh = left_behind_row("agents/claude", "~/.claude/settings.json", "hook left behind: ~/.claude/hooks/new");
     assert_eq!(next_left_behind(std::slice::from_ref(&hook), &replanned, std::slice::from_ref(&fresh)), vec![fresh]);
@@ -677,12 +687,16 @@ fn next_left_behind_keeps_previous_notes_for_untouched_rows_beside_what_this_pac
 fn left_behind_notes_ride_apply_delta_upgrade_and_the_next_seal() {
     let b = backend_default();
     let hook = left_behind_row("agents/claude", "~/.claude/settings.json", "hook left behind: ~/.claude/hooks/gone");
-    let untouched = GoldenDelta { retired: vec![], retired_on_image: vec![], import: GoldenImport { agents: vec![], ..delta_of().import }, ..delta_of() };
+    let untouched = GoldenDelta { retired: vec![], retired_on_image: vec![], import: GoldenImport { agents: vec![], ..delta_of().import } };
     let machine = sandbox(&b.rec);
     let applied = apply(
         &machine,
         untouched.clone(),
-        ApplyDeltaOptions { previous_left_behind: Some(vec![hook.clone()]), fetch: Some(b.dyn_fetch()), ..apply_opts(&head_version().smoke.cmd) },
+        ApplyDeltaOptions {
+            previous_left_behind: Some(vec![hook.clone()]),
+            fetch: Some(b.dyn_fetch()),
+            ..apply_opts(&head_version().smoke.cmd)
+        },
     );
     assert_eq!(applied.ledger.left_behind, Some(vec![hook.clone()]));
     let builder = upgrade(UpgradeBuilderOptions {
@@ -725,7 +739,10 @@ fn base_floor_is_read_at_seal_carried_by_an_upgrade_and_refused_when_absent() {
         ..Opts::default()
     });
     let fetch: Arc<dyn Fetch> = FetchStub::ok();
-    let floor = vec![GoldenBaseTool { name: "curl".into(), version: "8.5.0".into() }, GoldenBaseTool { name: "jq".into(), version: "1.7.1".into() }];
+    let floor = vec![
+        GoldenBaseTool { name: "curl".into(), version: "8.5.0".into() },
+        GoldenBaseTool { name: "jq".into(), version: "1.7.1".into() },
+    ];
     let builder = prep(prepare_opts(&rec, "true"));
     assert_eq!(builder.base, Some(floor.clone()));
     let v1 = seal(builder, seal_opts(&rec, "true"));
@@ -746,10 +763,7 @@ fn base_floor_is_read_at_seal_carried_by_an_upgrade_and_refused_when_absent() {
     ))
     .err()
     .expect("the pre-floor version is refused");
-    assert_eq!(
-        refused.message(),
-        "golden v1 was sealed before the base tools existed and cannot take an update; seal it again"
-    );
+    assert_eq!(refused.message(), "golden v1 was sealed before the base tools existed and cannot take an update; seal it again");
     assert_eq!(rec.state.created().len(), booted);
     let machine = sandbox(&rec);
     let err = run(apply_delta(
@@ -758,12 +772,8 @@ fn base_floor_is_read_at_seal_carried_by_an_upgrade_and_refused_when_absent() {
         ApplyDeltaOptions { previous_base: None, fetch: Some(fetch), ..apply_opts("true") },
         &*Manual::new(),
     ))
-    .err()
-    .expect("the pre-floor golden is refused");
-    assert_message_has(
-        &err.to_string(),
-        "this golden was sealed before the base tools existed and cannot take an update; seal it again",
-    );
+    .expect_err("the pre-floor golden is refused");
+    assert_message_has(&err.to_string(), "this golden was sealed before the base tools existed and cannot take an update; seal it again");
 }
 
 // golden.test.ts:2817
@@ -789,7 +799,13 @@ fn update_reports_a_newly_ticked_covered_row_as_the_bases_by_the_planners_note()
     let last = results.borrow().last().cloned().expect("a result was reported");
     assert_eq!(
         last.tools,
-        vec![ToolResult { id: "tools/brew/jq".into(), label: "jq".into(), outcome: "installed".into(), note: Some("jq is part of the base".into()), ..Default::default() }]
+        vec![ToolResult {
+            id: "tools/brew/jq".into(),
+            label: "jq".into(),
+            outcome: "installed".into(),
+            note: Some("jq is part of the base".into()),
+            ..Default::default()
+        }]
     );
     let cmds = b.cmds();
     assert!(!cmds.iter().any(|c| c.contains("apt-get install") || c.contains("brew install")));
@@ -800,15 +816,11 @@ fn update_reports_a_newly_ticked_covered_row_as_the_bases_by_the_planners_note()
 fn upgrade_builder_forks_head_at_kind_and_size_and_applies_only_the_delta() {
     let b = backend_default();
     let stages = stage_recorder();
-    let labels: IndexMap<String, String> = [
-        ("wsp", "1"),
-        ("wsp-builder", "1"),
-        ("wsp-owner", "h_me"),
-        ("createdAt", "2026-09-04T00:00:00.000Z"),
-    ]
-    .into_iter()
-    .map(|(k, v)| (k.to_string(), v.to_string()))
-    .collect();
+    let labels: IndexMap<String, String> =
+        [("wsp", "1"), ("wsp-builder", "1"), ("wsp-owner", "h_me"), ("createdAt", "2026-09-04T00:00:00.000Z")]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
     let builder = upgrade(UpgradeBuilderOptions {
         fetch: Some(b.dyn_fetch()),
         on_stage: Some(stages.on_stage.clone()),
@@ -840,12 +852,7 @@ fn upgrade_builder_forks_head_at_kind_and_size_and_applies_only_the_delta() {
     match_object(&builder.size, json!({ "cpu": 2, "memMb": 8192 }));
     assert_eq!(
         builder.import,
-        Some(ledger_of(
-            "h2",
-            all_stages(),
-            "claude --version && gemini --version && codex --version",
-            Some(snapshot_digest())
-        ))
+        Some(ledger_of("h2", all_stages(), "claude --version && gemini --version && codex --version", Some(snapshot_digest())))
     );
     // The version's sha chains the previous version's with what this delta ran, so v(n+1)'s sha says both.
     let planned = next_setup_sha("s1", "true", &delta_retiring_nothing().import);
@@ -914,15 +921,13 @@ fn a_binary_row_toggled_after_the_seal_installs_then_retires_on_the_image() {
     });
     let installs = guarded_cmds(n1);
     assert!(installs.iter().any(|c| c.contains("brew install gh")));
-    assert!(installs.iter().any(|c| c.contains("name='\\''diskbloom'\\''") && c.contains(r#"install -m 0755 "$bin" "/usr/local/bin/$name""#)));
+    assert!(installs
+        .iter()
+        .any(|c| c.contains("name='\\''diskbloom'\\''") && c.contains(r#"install -m 0755 "$bin" "/usr/local/bin/$name""#)));
     assert!(!installs.iter().any(|c| c.contains("uninstall")));
     let up_result = results.borrow().last().cloned().expect("the up result");
-    let binary_outcomes: Vec<(String, String)> = up_result
-        .tools
-        .iter()
-        .filter(|t| binaries.iter().any(|x| x.id == t.id))
-        .map(|t| (t.id.clone(), t.outcome.clone()))
-        .collect();
+    let binary_outcomes: Vec<(String, String)> =
+        up_result.tools.iter().filter(|t| binaries.iter().any(|x| x.id == t.id)).map(|t| (t.id.clone(), t.outcome.clone())).collect();
     assert_eq!(
         binary_outcomes,
         vec![
@@ -970,10 +975,7 @@ fn a_binary_row_toggled_after_the_seal_installs_then_retires_on_the_image() {
     let v3 = seal(b3.clone(), SealGoldenOptions { manifest: Some(v2.manifest.clone()), ..seal_opts(&b.rec, "true") });
     assert_eq!(v3.version.version.0, 3.0);
     // The lineage carries what v3's image holds that its recipe does not ask for.
-    assert_eq!(
-        v3.version.retired,
-        Some(vec![retired("tools/brew/gh", "gh"), retired("tools/brew/zingzy/tap/diskbloom", "diskbloom")])
-    );
+    assert_eq!(v3.version.retired, Some(vec![retired("tools/brew/gh", "gh"), retired("tools/brew/zingzy/tap/diskbloom", "diskbloom")]));
     assert!(v2.version.retired.is_none());
     let ledger = b3.import.clone().expect("the builder carries its ledger");
     assert_eq!(ledger.recipe_hash, "h3");

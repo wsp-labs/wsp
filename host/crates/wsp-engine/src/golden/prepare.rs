@@ -13,8 +13,8 @@ use wsp_words::words::init::machine_left_line;
 use super::seal::seal_golden;
 use super::smoke::setup_sha_of;
 use super::types::{
-    plain, ApplyImportOptions, BuildGoldenOptions, Builder, BuiltGolden, GoldenError, MachineSize, PrepareBuilderOptions, SealGoldenOptions,
-    Staged,
+    plain, ApplyImportOptions, BuildGoldenOptions, Builder, BuiltGolden, GoldenError, MachineSize, PrepareBuilderOptions,
+    SealGoldenOptions, Staged,
 };
 use crate::errors::{EngineError, RetryClock};
 use crate::exec_detached::{machine_answer, INLINE_EXEC_MS};
