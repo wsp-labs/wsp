@@ -15,8 +15,6 @@ use super::activity_table::{activity_table, cpu_word, kind_word, TableOpts};
 use super::client::*;
 use super::io::as_text;
 use super::workspaces_help::thread_of;
-use crate::cloud::cloud_on;
-use crate::cloud_text::cloud_text;
 
 /// `STARTED_WORDS` (activity.ts:25): what each door says the start is.
 pub const STARTED_WORDS: &str = "the start activity listed it with, its startedAt in epoch milliseconds";
@@ -122,17 +120,16 @@ pub fn processes_asked(value: Option<&str>, on: Option<&str>) -> Result<Option<S
     one_of("processes", PROCESSES_CHOICES, value, on)
 }
 
-/// `ProcessesIn` (activity.ts:67): the optional `processes` input of settle and delete, its words through
-/// `cloud_text` with the cloud as this process reads it.
+/// `ProcessesIn` (activity.ts:67): the optional `processes` input of settle and delete, its describe with the cloud
+/// span still in it: `in_cloud_words` cuts it where the TS cuts it at load.
 pub fn processes_in() -> ToolInput {
     ToolInput {
         name: "processes",
         kind: InputKind::Enum(PROCESSES_CHOICES.to_vec()),
         optional: true,
-        describe: Some(cloud_text(
-            "what to do with the processes a thread still runs beside its agent: stop ends each by identity, and on a box ends everything in the thread's cgroup there; keep leaves them running; refused without one while any run<!-- cloud -->. A thread on a cloud machine is not read and goes as before<!-- /cloud -->",
-            cloud_on(),
-        )),
+        describe: Some(
+            "what to do with the processes a thread still runs beside its agent: stop ends each by identity, and on a box ends everything in the thread's cgroup there; keep leaves them running; refused without one while any run<!-- cloud -->. A thread on a cloud machine is not read and goes as before<!-- /cloud -->".to_string(),
+        ),
     }
 }
 
