@@ -393,7 +393,9 @@ mod citations {
                 Some(l.chars().take_while(|c| c.is_alphanumeric() || *c == '_').collect::<String>())
             });
             let Some(item) = item else { continue };
-            let camel = if let Some(ts_name) = [("EphemeralKey", "freshEphemeral"), ("SealRefusal", "SEAL_REFUSAL")].iter().find(|(r, _)| *r == item) {
+            let camel = if let Some(ts_name) =
+                [("EphemeralKey", "freshEphemeral"), ("SealRefusal", "SEAL_REFUSAL")].iter().find(|(r, _)| *r == item)
+            {
                 ts_name.1.to_string()
             } else if item.chars().all(|c| c.is_uppercase() || c == '_') {
                 item.clone()

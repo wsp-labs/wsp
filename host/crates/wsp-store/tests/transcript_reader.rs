@@ -129,7 +129,10 @@ fn oracle_end() -> (SessionEvent, Value) {
 fn event_json_of_a_delta_is_the_oracles_text_and_size() {
     let f = fixture("transcript_reader");
     let got = event_json(&oracle_delta());
-    assert_eq!(got, EventJson { json: f["eventJson"][0]["json"].as_str().unwrap().to_string(), bytes: f["eventJson"][0]["bytes"].as_u64().unwrap() });
+    assert_eq!(
+        got,
+        EventJson { json: f["eventJson"][0]["json"].as_str().unwrap().to_string(), bytes: f["eventJson"][0]["bytes"].as_u64().unwrap() }
+    );
 }
 
 #[test]
@@ -155,10 +158,7 @@ fn event_bytes_is_the_size_event_json_counts() {
 #[test]
 fn event_bytes_count_utf16_units_not_utf8_bytes() {
     let got = event_json(&text(Some("a"), 1, "😀"));
-    assert_eq!(
-        got.json,
-        r#"{"type":"session.delta","workspaceId":"w","sessionId":"s","threadId":"a","pos":1,"kind":"text","text":"😀"}"#
-    );
+    assert_eq!(got.json, r#"{"type":"session.delta","workspaceId":"w","sessionId":"s","threadId":"a","pos":1,"kind":"text","text":"😀"}"#);
     assert_eq!(got.bytes, utf16(&got.json));
     assert_ne!(got.bytes, got.json.len() as u64);
 }

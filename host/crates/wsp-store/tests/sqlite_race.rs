@@ -21,7 +21,7 @@ fn a_start_over_no_state_file_opens_one_and_answers_no_keys() {
     let state = std::env::var(STATE_ENV).map(PathBuf::from).unwrap_or_else(|_| alone.state());
     let store = sqlite_store(&state, writer());
     let keys = run(store.keys("workspaces")).unwrap();
-    println!("KEYS {}", serde_json::to_string(&keys).unwrap());
+    println!("\nKEYS {}", serde_json::to_string(&keys).unwrap());
     assert_eq!(keys, Vec::<String>::new());
 }
 
