@@ -26,6 +26,7 @@ use crate::slate_runs::{rewound_record, RunRecord, RunState, SecretHandle, Timer
 /// The slate's content at one version.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SlateSnap {
+    #[serde(default, deserialize_with = "crate::pending::slate::order::doc_option")]
     pub document: Option<SlateDoc>,
     pub values: SlateValues,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -67,6 +68,7 @@ pub struct TurnMark {
 /// `previous`: the snapshot and the version it was.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PreviousSnap {
+    #[serde(default, deserialize_with = "crate::pending::slate::order::doc_option")]
     pub document: Option<SlateDoc>,
     pub values: SlateValues,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -112,6 +114,7 @@ pub struct SlateRecord {
     /// Absent only in a stored record of before revisions; read back as `revision ?? version` (slates.ts:433).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub revision: Option<i64>,
+    #[serde(default, deserialize_with = "crate::pending::slate::order::doc_option")]
     pub document: Option<SlateDoc>,
     pub values: SlateValues,
     #[serde(default, skip_serializing_if = "Option::is_none")]

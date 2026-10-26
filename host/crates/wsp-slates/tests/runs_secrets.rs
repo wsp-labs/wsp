@@ -290,7 +290,7 @@ fn forget_of_a_whole_thread_saves_only_when_it_held_a_kept_one() {
 fn save_with_no_file_does_nothing() {
     let s = create_secrets(None, ManualClock::new(1_000).clock());
     s.set(THREAD, "a", "kept-value", true);
-    s.save();
+    s.save().expect("saves");
     assert_eq!(s.plaintext(THREAD, "a"), Some("kept-value".to_string()));
 }
 
@@ -321,7 +321,7 @@ fn save_with_none_kept_writes_an_empty_object() {
     let file = secrets_file(root.path());
     let s = create_secrets(Some(file.clone()), ManualClock::new(1_000).clock());
     s.set(THREAD, "mem", "memory-value", false);
-    s.save();
+    s.save().expect("saves");
     assert_eq!(std::fs::read_to_string(&file).unwrap(), "{}");
 }
 

@@ -5,9 +5,8 @@ use super::*;
 pub(super) fn dedent(text: &str) -> String {
     let text = text.replace("\r\n", "\n");
     let mut lines: Vec<&str> = text.split('\n').collect();
-    while lines.first().is_some_and(|l| js_trim(l).is_empty()) {
-        lines.remove(0);
-    }
+    let blank = lines.iter().take_while(|l| js_trim(l).is_empty()).count();
+    lines.drain(..blank);
     while lines.last().is_some_and(|l| js_trim(l).is_empty()) {
         lines.pop();
     }

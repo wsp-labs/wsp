@@ -9,6 +9,7 @@ use std::process::Stdio;
 use std::rc::Rc;
 
 use indexmap::IndexMap;
+use serde_json::{Map, Value};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::process::Child;
 use tokio::sync::oneshot;
@@ -118,6 +119,140 @@ pub fn reshape_result(o: ReshapeStart, clock: Rc<dyn Clock>) -> Reshape {
     Reshape { done, kill: group_killer(pid) }
 }
 
+/// How deep a printed JSON may nest: a value the slate stores nests at most `SLATE_NEST_LIMIT`, and the run's record wraps it.
+/// node's JSON.parse takes far more and fails on its stack; a deeper text is refused here as the TS refuses a parse failure.
+pub const JSON_DEPTH_MAX: usize = crate::pending::slate::SLATE_NEST_LIMIT - 10;
+
+enum Open {
+    Arr(Vec<Value>),
+    Obj(Map<String, Value>, String),
+}
+
+/// A JSON text as serde_json reads it, with no recursion limit: the nesting lives on an explicit stack and each string,
+/// number and word is left to serde_json. `None` where the text is not JSON or nests past `JSON_DEPTH_MAX`.
+pub fn parse_json(text: &str) -> Option<Value> {
+    let b = text.as_bytes();
+    let mut at = 0;
+    let mut open: Vec<Open> = Vec::new();
+    'value: loop {
+        skip_space(b, &mut at);
+        let mut done = match *b.get(at)? {
+            b'[' => {
+                at += 1;
+                skip_space(b, &mut at);
+                if b.get(at) != Some(&b']') {
+                    open.push(Open::Arr(Vec::new()));
+                    if open.len() > JSON_DEPTH_MAX {
+                        return None;
+                    }
+                    continue 'value;
+                }
+                at += 1;
+                Value::Array(Vec::new())
+            }
+            b'{' => {
+                at += 1;
+                skip_space(b, &mut at);
+                if b.get(at) != Some(&b'}') {
+                    let key = read_key(text, &mut at)?;
+                    open.push(Open::Obj(Map::new(), key));
+                    if open.len() > JSON_DEPTH_MAX {
+                        return None;
+                    }
+                    continue 'value;
+                }
+                at += 1;
+                Value::Object(Map::new())
+            }
+            _ => read_leaf(text, &mut at)?,
+        };
+        loop {
+            skip_space(b, &mut at);
+            let Some(top) = open.last_mut() else {
+                return (at == b.len()).then_some(done);
+            };
+            let closer = match top {
+                Open::Arr(items) => {
+                    items.push(done);
+                    b']'
+                }
+                Open::Obj(map, key) => {
+                    map.insert(std::mem::take(key), done);
+                    b'}'
+                }
+            };
+            match b.get(at).copied() {
+                Some(b',') => {
+                    at += 1;
+                    if let Some(Open::Obj(_, key)) = open.last_mut() {
+                        *key = read_key(text, &mut at)?;
+                    }
+                    continue 'value;
+                }
+                Some(c) if c == closer => {
+                    at += 1;
+                    done = match open.pop() {
+                        Some(Open::Arr(items)) => Value::Array(items),
+                        Some(Open::Obj(map, _)) => Value::Object(map),
+                        None => return None,
+                    };
+                }
+                _ => return None,
+            }
+        }
+    }
+}
+
+fn skip_space(b: &[u8], at: &mut usize) {
+    while matches!(b.get(*at), Some(b' ' | b'\t' | b'\n' | b'\r')) {
+        *at += 1;
+    }
+}
+
+/// A key and its colon, leaving `at` on the value after the colon.
+fn read_key(text: &str, at: &mut usize) -> Option<String> {
+    skip_space(text.as_bytes(), at);
+    let key = read_string(text, at)?;
+    skip_space(text.as_bytes(), at);
+    if text.as_bytes().get(*at) != Some(&b':') {
+        return None;
+    }
+    *at += 1;
+    Some(key)
+}
+
+fn read_string(text: &str, at: &mut usize) -> Option<String> {
+    let b = text.as_bytes();
+    let start = *at;
+    if b.get(start) != Some(&b'"') {
+        return None;
+    }
+    let mut end = start + 1;
+    loop {
+        match *b.get(end)? {
+            b'"' => break,
+            b'\\' => end += 2,
+            _ => end += 1,
+        }
+    }
+    *at = end + 1;
+    serde_json::from_str::<String>(&text[start..=end]).ok()
+}
+
+fn read_leaf(text: &str, at: &mut usize) -> Option<Value> {
+    if text.as_bytes().get(*at) == Some(&b'"') {
+        return read_string(text, at).map(Value::String);
+    }
+    let start = *at;
+    while text.as_bytes().get(*at).is_some_and(|c| c.is_ascii_alphanumeric() || matches!(c, b'-' | b'+' | b'.')) {
+        *at += 1;
+    }
+    if *at == start {
+        return None;
+    }
+    serde_json::from_str(&text[start..*at]).ok()
+}
+
 /// What a `then` that ended says: the JSON it printed, or why not, on whichever computer it ran.
 pub fn reshape_answer(end: &RoadEnd, timeout_s: f64, scrub: &dyn Fn(&str) -> String) -> ReshapeAnswer {
     let err = run_output_tail(&scrub(&end.err), RUN_OUTPUT_MAX_CHARS as usize);
@@ -136,9 +271,9 @@ pub fn reshape_answer(end: &RoadEnd, timeout_s: f64, scrub: &dyn Fn(&str) -> Str
         return ReshapeAnswer::Failed { why: format!("then exited with {said}"), exit: end.code, err };
     }
     let out = scrub(&end.out);
-    match serde_json::from_str::<serde_json::Value>(&out) {
-        Ok(json) => ReshapeAnswer::Json(json),
-        Err(_) => {
+    match parse_json(&out) {
+        Some(json) => ReshapeAnswer::Json(json),
+        None => {
             let trimmed = js_trim(&out);
             let why = if trimmed.is_empty() {
                 "then printed no JSON".to_string()
@@ -232,8 +367,9 @@ fn new_session(cmd: &mut tokio::process::Command) {
     }
 }
 
-fn spawn_failure(e: &io::Error) -> String {
-    let word = match e.raw_os_error() {
+/// The errno name node puts in a spawn error, or the system's own words for one it has no name for here.
+pub(crate) fn errno_word(e: &io::Error) -> String {
+    match e.raw_os_error() {
         Some(libc::ENOENT) => "ENOENT".to_string(),
         Some(libc::EACCES) => "EACCES".to_string(),
         Some(libc::EPERM) => "EPERM".to_string(),
@@ -245,8 +381,11 @@ fn spawn_failure(e: &io::Error) -> String {
         Some(libc::EAGAIN) => "EAGAIN".to_string(),
         Some(libc::ETXTBSY) => "ETXTBSY".to_string(),
         _ => e.to_string(),
-    };
-    format!("spawn bash {word}")
+    }
+}
+
+pub(crate) fn spawn_failure(e: &io::Error) -> String {
+    format!("spawn bash {}", errno_word(e))
 }
 
 fn signal_name(n: i32) -> Option<String> {

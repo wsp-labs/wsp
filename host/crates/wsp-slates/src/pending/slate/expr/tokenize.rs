@@ -297,23 +297,25 @@ pub(super) fn tokenize(src: &[u16]) -> PResult<Vec<Token>> {
 }
 
 /// The index of the } closing a ${ whose body starts at start, quotes and nested braces skipped; None when none.
-pub(super) fn closing_brace_units(src: &[u16], start: usize) -> Option<usize> {
+/// Every character it looks for is ASCII, so it reads the same over UTF-16 units and over UTF-8 bytes.
+fn closing_brace_in<U: Copy + Into<u32>>(src: &[U], start: usize) -> Option<usize> {
+    let ascii = |c: u8| u32::from(c);
     let mut depth = 1;
-    let mut quote: Option<u16> = None;
+    let mut quote: Option<u32> = None;
     let mut j = start;
     while j < src.len() {
-        let ch = src[j];
+        let ch: u32 = src[j].into();
         if let Some(q) = quote {
-            if ch == u16::from(b'\\') {
+            if ch == ascii(b'\\') {
                 j += 1;
             } else if ch == q {
                 quote = None;
             }
-        } else if ch == u16::from(b'\'') || ch == u16::from(b'"') || ch == u16::from(b'`') {
+        } else if ch == ascii(b'\'') || ch == ascii(b'"') || ch == ascii(b'`') {
             quote = Some(ch);
-        } else if ch == u16::from(b'{') {
+        } else if ch == ascii(b'{') {
             depth += 1;
-        } else if ch == u16::from(b'}') {
+        } else if ch == ascii(b'}') {
             depth -= 1;
             if depth == 0 {
                 return Some(j);
@@ -322,6 +324,15 @@ pub(super) fn closing_brace_units(src: &[u16], start: usize) -> Option<usize> {
         j += 1;
     }
     None
+}
+
+pub(super) fn closing_brace_units(src: &[u16], start: usize) -> Option<usize> {
+    closing_brace_in(src, start)
+}
+
+/// The byte index of the } closing a { whose body starts at the byte start of src, or None when none closes.
+pub(crate) fn closing_brace_bytes(src: &str, start: usize) -> Option<usize> {
+    closing_brace_in(src.as_bytes(), start)
 }
 
 /// The index of the } closing a ${ whose body starts at start (a UTF-16 offset), or None when none closes.

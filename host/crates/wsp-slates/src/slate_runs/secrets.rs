@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Unit runs_secrets: slate-runs.ts:132-138, 197-208, 499-611 at 65f6b89c7. Spec: spec/runs_secrets.md.
 use std::cell::RefCell;
-use std::path::PathBuf;
+use std::io;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use base64::engine::general_purpose::{STANDARD, URL_SAFE};
@@ -10,6 +11,7 @@ use indexmap::{IndexMap, IndexSet};
 use serde_json::{Map, Value};
 use wsp_core::clock::Clock;
 use wsp_store::own_file::write_own;
+use wsp_words::exit::HostError;
 use wsp_words::js::utf16;
 
 use super::parts::SecretHandle;
@@ -25,6 +27,8 @@ pub trait RunApprovals {
 /// The person typed it; an empty text clears it.
 pub trait SlateSecrets {
     fn set(&self, thread_id: &str, name: &str, plaintext: &str, keep: bool) -> SecretHandle;
+    /// As `set`, but a kept secret the host cannot save is an error, which refuses the typing.
+    fn typed(&self, thread_id: &str, name: &str, plaintext: &str, keep: bool) -> Result<SecretHandle, HostError>;
     fn clear(&self, thread_id: &str, name: &str) -> SecretHandle;
     fn handle(&self, thread_id: &str, name: &str) -> SecretHandle;
     /// One secret, or with none every secret of the thread.
@@ -158,9 +162,9 @@ pub fn create_secrets(file: Option<PathBuf>, clock: Rc<dyn Clock>) -> Rc<Secrets
 
 impl Secrets {
     /// Writes the kept secrets, compact, through `write_own`; nothing without a file.
-    pub fn save(&self) {
+    pub fn save(&self) -> Result<(), HostError> {
         let Some(file) = self.file.as_ref() else {
-            return;
+            return Ok(());
         };
         let mut out = Map::new();
         for (thread_id, names) in self.held.borrow().iter() {
@@ -173,49 +177,16 @@ impl Secrets {
             }
         }
         let (Some(dir), Some(name)) = (file.parent(), file.file_name().and_then(|n| n.to_str())) else {
-            return;
+            return Ok(());
         };
-        let _ = write_own(dir, name, serde_json::to_string(&Value::Object(out)).unwrap_or_default());
+        write_own(dir, name, serde_json::to_string(&Value::Object(out)).unwrap_or_default()).map_err(|e| save_words(&e, file))
     }
 
-    fn held_kept(&self, thread_id: &str, name: &str) -> bool {
-        self.held.borrow().get(thread_id).and_then(|names| names.get(name)).is_some_and(|k| k.keep)
-    }
-}
-
-impl SlateSecrets for Secrets {
-    fn set(&self, thread_id: &str, name: &str, plaintext: &str, keep: bool) -> SecretHandle {
-        if plaintext.is_empty() {
-            self.forget(thread_id, Some(name));
-            return self.handle(thread_id, name);
-        }
-        let was = self.held_kept(thread_id, name);
-        let at = self.clock.now();
-        self.held
-            .borrow_mut()
-            .entry(thread_id.to_string())
-            .or_default()
-            .insert(name.to_string(), Kept { text: plaintext.to_string(), at, keep });
-        if keep || was {
-            self.save();
-        }
-        self.handle(thread_id, name)
-    }
-    fn clear(&self, thread_id: &str, name: &str) -> SecretHandle {
-        self.forget(thread_id, Some(name));
-        self.handle(thread_id, name)
-    }
-    fn handle(&self, thread_id: &str, name: &str) -> SecretHandle {
-        match self.held.borrow().get(thread_id).and_then(|names| names.get(name)) {
-            None => SecretHandle { secret: true, set: false, len: 0, at: None },
-            Some(k) => SecretHandle { secret: true, set: true, len: utf16::len(&k.text) as i64, at: Some(k.at) },
-        }
-    }
-    fn forget(&self, thread_id: &str, name: Option<&str>) {
+    fn remove(&self, thread_id: &str, name: Option<&str>) -> Result<(), HostError> {
         let kept = {
             let mut held = self.held.borrow_mut();
             let Some(names) = held.get_mut(thread_id) else {
-                return;
+                return Ok(());
             };
             match name {
                 None => {
@@ -231,8 +202,64 @@ impl SlateSecrets for Secrets {
             }
         };
         if kept {
-            self.save();
+            self.save()?;
         }
+        Ok(())
+    }
+
+    fn held_kept(&self, thread_id: &str, name: &str) -> bool {
+        self.held.borrow().get(thread_id).and_then(|names| names.get(name)).is_some_and(|k| k.keep)
+    }
+}
+
+/// node's words for a write that failed, as writeOwn throws them; the rename names the file it writes over.
+fn save_words(e: &io::Error, file: &Path) -> HostError {
+    let (code, what) = match e.raw_os_error() {
+        Some(libc::ENOENT) => ("ENOENT", "no such file or directory"),
+        Some(libc::EACCES) => ("EACCES", "permission denied"),
+        Some(libc::EPERM) => ("EPERM", "operation not permitted"),
+        Some(libc::ENOTDIR) => ("ENOTDIR", "not a directory"),
+        Some(libc::EISDIR) => ("EISDIR", "illegal operation on a directory"),
+        Some(libc::ENOSPC) => ("ENOSPC", "no space left on device"),
+        Some(libc::EROFS) => ("EROFS", "read-only file system"),
+        _ => return HostError::new(e.to_string()),
+    };
+    HostError::new(format!("{code}: {what}, rename '{}'", file.display()))
+}
+
+impl SlateSecrets for Secrets {
+    fn set(&self, thread_id: &str, name: &str, plaintext: &str, keep: bool) -> SecretHandle {
+        self.typed(thread_id, name, plaintext, keep).unwrap_or_else(|_| self.handle(thread_id, name))
+    }
+    fn typed(&self, thread_id: &str, name: &str, plaintext: &str, keep: bool) -> Result<SecretHandle, HostError> {
+        if plaintext.is_empty() {
+            self.remove(thread_id, Some(name))?;
+            return Ok(self.handle(thread_id, name));
+        }
+        let was = self.held_kept(thread_id, name);
+        let at = self.clock.now();
+        self.held
+            .borrow_mut()
+            .entry(thread_id.to_string())
+            .or_default()
+            .insert(name.to_string(), Kept { text: plaintext.to_string(), at, keep });
+        if keep || was {
+            self.save()?;
+        }
+        Ok(self.handle(thread_id, name))
+    }
+    fn clear(&self, thread_id: &str, name: &str) -> SecretHandle {
+        self.forget(thread_id, Some(name));
+        self.handle(thread_id, name)
+    }
+    fn handle(&self, thread_id: &str, name: &str) -> SecretHandle {
+        match self.held.borrow().get(thread_id).and_then(|names| names.get(name)) {
+            None => SecretHandle { secret: true, set: false, len: 0, at: None },
+            Some(k) => SecretHandle { secret: true, set: true, len: utf16::len(&k.text) as i64, at: Some(k.at) },
+        }
+    }
+    fn forget(&self, thread_id: &str, name: Option<&str>) {
+        let _ = self.remove(thread_id, name);
     }
     fn scrub(&self, thread_id: &str, text: &str) -> String {
         let held = self.held.borrow();

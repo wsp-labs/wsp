@@ -113,7 +113,7 @@ pub const SLATE_LIMITS: SlateLimits = SlateLimits {
 };
 
 /// types.ts:270-281: the one shape of an error, a warning and a runtime problem, keys in this order.
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
 pub struct SlateProblem {
     pub code: String,
     pub name: String,
@@ -132,6 +132,48 @@ pub struct SlateProblem {
     pub fix: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub since: Option<String>,
+    /// Written with `line` before `piece`, as the syntax road writes it.
+    #[serde(skip)]
+    pub line_first: order::TextOrder,
+}
+
+impl Serialize for SlateProblem {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeMap;
+        let mut m = s.serialize_map(None)?;
+        m.serialize_entry("code", &self.code)?;
+        m.serialize_entry("name", &self.name)?;
+        m.serialize_entry("message", &self.message)?;
+        if self.line_first.0 {
+            if let Some(line) = &self.line {
+                m.serialize_entry("line", line)?;
+            }
+        }
+        if let Some(piece) = &self.piece {
+            m.serialize_entry("piece", piece)?;
+        }
+        if let Some(prop) = &self.prop {
+            m.serialize_entry("prop", prop)?;
+        }
+        if !self.line_first.0 {
+            if let Some(line) = &self.line {
+                m.serialize_entry("line", line)?;
+            }
+        }
+        if let Some(column) = &self.column {
+            m.serialize_entry("column", column)?;
+        }
+        if let Some(at) = &self.at {
+            m.serialize_entry("at", at)?;
+        }
+        if let Some(fix) = &self.fix {
+            m.serialize_entry("fix", fix)?;
+        }
+        if let Some(since) = &self.since {
+            m.serialize_entry("since", since)?;
+        }
+        m.end()
+    }
 }
 
 /// types.ts:98-105.
@@ -239,7 +281,7 @@ pub struct SlatePiece {
 }
 
 /// types.ts:142-154: the stored document.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Deserialize)]
 pub struct SlateDoc {
     pub schema: i64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -255,6 +297,9 @@ pub struct SlateDoc {
     pub pieces: IndexMap<String, SlatePiece>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub files: Option<IndexMap<String, String>>,
+    /// The key order it is written in: the schema's, the text road's, or the one a stored row had.
+    #[serde(skip)]
+    pub order: order::KeyOrder,
 }
 
 /// A parsed own path: `$name` and the steps below it (paths.ts).
@@ -409,6 +454,7 @@ pub mod examples;
 pub mod expr;
 pub mod image;
 pub mod kit;
+pub mod order;
 pub mod patch;
 pub mod paths;
 pub mod problems;
@@ -442,7 +488,10 @@ pub use kit::{
     SLATE_ITEM_KINDS, SLATE_PIECES, SLATE_RESERVED_PROPS, SLATE_TONES,
 };
 pub use patch::{apply_slate_patch, carry_slate_values, slate_start_values};
-pub use paths::{get_slate_value, parse_slate_own_path, set_slate_value, slate_equal, slate_own_name, slate_segments, slate_step};
+pub use paths::{
+    get_slate_value, parse_slate_own_path, set_slate_value, slate_depth, slate_equal, slate_own_name, slate_segments, slate_step,
+    SLATE_NEST_LIMIT,
+};
 pub use problems::{
     or_list, slate_description_missing, slate_host_away, slate_nearest, slate_problem, slate_server_not_set_up, slate_unknown_piece,
     UnknownPiece, SLATE_CODES, SLATE_WARNINGS,
@@ -457,4 +506,4 @@ pub use sources::{
 };
 pub use steps::{slate_domain_key, slate_link_domain, slate_step_module, SlateStepModule, SLATE_STEPS};
 pub use syntax::{compile_slate_text, parse_slate, parse_slate_patch, print_slate, SlateCompiled};
-pub use validate::{validate_document, validate_slate, SlateLines, SlateValidated};
+pub use validate::{validate_document, validate_document_with, validate_slate, SlateLines, SlateValidated};

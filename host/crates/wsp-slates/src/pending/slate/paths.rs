@@ -115,6 +115,26 @@ pub fn get_slate_value(values: &SlateValues, path: &str) -> Option<Value> {
     path.segs.iter().try_fold(head, |at, seg| step_ref(at, seg)).cloned()
 }
 
+/// How many lists and records a value, or a path, may nest; node's stack gives out at a depth that moves with its stack.
+pub const SLATE_NEST_LIMIT: usize = 500;
+
+/// How many lists and records deep a value goes: a scalar is 0.
+pub fn slate_depth(value: &Value) -> usize {
+    let mut deepest = 0;
+    let mut stack = vec![(value, 0usize)];
+    while let Some((v, at)) = stack.pop() {
+        match v {
+            Value::Array(items) => stack.extend(items.iter().map(|x| (x, at + 1))),
+            Value::Object(fields) => stack.extend(fields.values().map(|x| (x, at + 1))),
+            _ => {}
+        }
+        if v.is_array() || v.is_object() {
+            deepest = deepest.max(at + 1);
+        }
+    }
+    deepest
+}
+
 fn write_at(at: Option<&Value>, segs: &[PathSeg], value: &Value) -> Option<Value> {
     let Some((seg, rest)) = segs.split_first() else {
         return Some(value.clone());
@@ -158,6 +178,9 @@ fn write_at(at: Option<&Value>, segs: &[PathSeg], value: &Value) -> Option<Value
 pub fn set_slate_value(values: &SlateValues, path: &str, value: Value) -> Option<SlateValues> {
     let path = parse_slate_own_path(path)?;
     if UNSAFE.contains(&path.name.as_str()) || path.segs.iter().any(|s| matches!(s, PathSeg::Key(k) if UNSAFE.contains(&k.as_str()))) {
+        return None;
+    }
+    if path.segs.len() + slate_depth(&value) > SLATE_NEST_LIMIT {
         return None;
     }
     let head = match values.get(&path.name) {

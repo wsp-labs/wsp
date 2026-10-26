@@ -242,7 +242,12 @@ struct Ctx {
     doc: Value,
     kinds: IndexMap<String, Kind>,
     derived_types: std::cell::RefCell<IndexMap<String, SlateType>>,
+    derived_depth: std::cell::Cell<usize>,
+    infinite: HashSet<String>,
 }
+
+/// Types read through this many chained derived values at most; a document with that many is over the limit of 32 and refused.
+const DERIVED_TYPE_DEPTH: usize = 64;
 
 struct Validator {
     ctx: Rc<Ctx>,
@@ -254,11 +259,20 @@ struct Validator {
 }
 
 pub fn validate_document(doc: &SlateDoc, lines: Option<&SlateLines>) -> SlateValidated {
-    validate_json(&serde_json::to_value(doc).unwrap_or(Value::Null), lines)
+    validate_document_with(doc, lines, &[])
+}
+
+/// `validate_document` for a document read from text, whose values in `infinite` start at a number past the double range.
+pub fn validate_document_with(doc: &SlateDoc, lines: Option<&SlateLines>, infinite: &[String]) -> SlateValidated {
+    check_json(&serde_json::to_value(doc).unwrap_or(Value::Null), lines, infinite)
 }
 
 pub(crate) fn validate_json(doc: &Value, lines: Option<&SlateLines>) -> SlateValidated {
-    let mut v = Validator::new(doc.clone(), lines.cloned());
+    check_json(doc, lines, &[])
+}
+
+fn check_json(doc: &Value, lines: Option<&SlateLines>, infinite: &[String]) -> SlateValidated {
+    let mut v = Validator::new(doc.clone(), lines.cloned(), infinite);
     v.run();
     SlateValidated { errors: v.errors, warnings: v.warnings }
 }

@@ -565,3 +565,10 @@ fn the_constants_have_the_ts_text_and_values() {
     assert_eq!(CLOSE_GRACE_MS, 1_000);
     assert_eq!(DEFAULT_TIMEOUT_S, 60);
 }
+
+// slate-runs.ts:662-668: scripts append the same stableJson as files, so a run with scripts is not the run without
+#[test]
+fn run_key_moves_with_scripts() {
+    let scripts = Some(IndexMap::from([("a.sh".to_string(), "1".to_string())]));
+    assert_ne!(run_key(&CmdRunDecl { scripts, ..cmd("x") }), run_key(&cmd("x")));
+}

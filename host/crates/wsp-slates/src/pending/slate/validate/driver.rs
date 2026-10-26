@@ -22,7 +22,7 @@ fn wrote(doc: &Value, w: &Where, fix: &str) -> bool {
 }
 
 impl Validator {
-    pub(super) fn new(doc: Value, lines: Option<SlateLines>) -> Validator {
+    pub(super) fn new(doc: Value, lines: Option<SlateLines>, infinite: &[String]) -> Validator {
         let mut kinds: IndexMap<String, Kind> = IndexMap::new();
         for (n, v) in doc.get("values").and_then(Value::as_object).into_iter().flatten() {
             kinds.insert(n.clone(), if is_true(v.get("secret")) { Kind::Secret } else { Kind::Value });
@@ -34,7 +34,13 @@ impl Validator {
             kinds.insert(n.clone(), Kind::Run);
         }
         Validator {
-            ctx: Rc::new(Ctx { doc, kinds, derived_types: std::cell::RefCell::new(IndexMap::new()) }),
+            ctx: Rc::new(Ctx {
+                doc,
+                kinds,
+                derived_types: std::cell::RefCell::new(IndexMap::new()),
+                derived_depth: std::cell::Cell::new(0),
+                infinite: infinite.iter().cloned().collect(),
+            }),
             lines,
             errors: Vec::new(),
             warnings: Vec::new(),
@@ -354,47 +360,56 @@ impl Validator {
         let mut state: IndexMap<String, bool> = IndexMap::new();
         let mut reported: HashSet<String> = HashSet::new();
         for n in deps.keys().cloned().collect::<Vec<_>>() {
-            self.derived_visit(&n, &mut Vec::new(), &deps, &mut state, &mut reported);
+            self.derived_visit(&n, &deps, &mut state, &mut reported);
         }
     }
 
     fn derived_visit(
         &mut self,
-        n: &str,
-        stack: &mut Vec<String>,
+        root: &str,
         deps: &IndexMap<String, Vec<String>>,
         state: &mut IndexMap<String, bool>,
         reported: &mut HashSet<String>,
     ) {
-        match state.get(n) {
-            Some(&true) => return,
-            Some(&false) => {
-                let start = stack.iter().position(|s| s == n).unwrap_or(0);
-                let mut cycle: Vec<String> = stack[start..].to_vec();
-                cycle.push(n.to_string());
-                let mut sorted = cycle.clone();
-                sorted.sort();
-                let key = sorted.join(",");
-                if !reported.contains(&key) {
-                    reported.insert(key);
-                    let shown: Vec<String> = cycle.iter().map(|x| format!("${x}")).collect();
-                    self.add(
-                        "S510",
-                        &format!("derived values read each other in a cycle: {}", shown.join(" reads ")),
-                        &Where::at(&format!("${n}"), "value"),
-                        Some("make one of them a value"),
-                    );
+        let mut stack: Vec<(String, usize)> = Vec::new();
+        let mut entering = Some(root.to_string());
+        loop {
+            if let Some(n) = entering.take() {
+                match state.get(&n) {
+                    Some(&true) => {}
+                    Some(&false) => {
+                        let start = stack.iter().position(|(s, _)| *s == n).unwrap_or(0);
+                        let mut cycle: Vec<String> = stack[start..].iter().map(|(s, _)| s.clone()).collect();
+                        cycle.push(n.clone());
+                        let mut sorted = cycle.clone();
+                        sorted.sort();
+                        if reported.insert(sorted.join(",")) {
+                            let shown: Vec<String> = cycle.iter().map(|x| format!("${x}")).collect();
+                            self.add(
+                                "S510",
+                                &format!("derived values read each other in a cycle: {}", shown.join(" reads ")),
+                                &Where::at(&format!("${n}"), "value"),
+                                Some("make one of them a value"),
+                            );
+                        }
+                    }
+                    None => {
+                        state.insert(n.clone(), false);
+                        stack.push((n, 0));
+                    }
                 }
-                return;
             }
-            None => {}
+            let Some((n, at)) = stack.last_mut() else { return };
+            match deps.get(n.as_str()).and_then(|d| d.get(*at)) {
+                Some(m) => {
+                    *at += 1;
+                    entering = Some(m.clone());
+                }
+                None => {
+                    let (done, _) = stack.pop().expect("a frame");
+                    state.insert(done, true);
+                }
+            }
         }
-        state.insert(n.to_string(), false);
-        stack.push(n.to_string());
-        for m in deps.get(n).cloned().unwrap_or_default() {
-            self.derived_visit(&m, stack, deps, state, reported);
-        }
-        stack.pop();
-        state.insert(n.to_string(), true);
     }
 }

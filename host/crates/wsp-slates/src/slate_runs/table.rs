@@ -26,7 +26,7 @@ use super::parts::{
     TIMER_FLOOR_S,
 };
 use super::parts::{Reshape, ReshapeAnswer};
-use super::road::{local_road, reshape_result, ReshapeStart, RoadEnd, RoadEvents, RoadStart, RunRoad, Stream};
+use super::road::{local_road, parse_json, reshape_result, ReshapeStart, RoadEnd, RoadEvents, RoadStart, RunRoad, Stream};
 use super::secrets::{create_secrets, DefaultApprovals, RunApprovals, Secrets, SlateSecrets};
 use crate::pending::slate::SLATE_SECRET_IN_ARGS;
 
@@ -261,7 +261,7 @@ fn command_ended(ctx: &Rc<CtxInner>, o: RoadEnd) {
     let raw = inner.secrets.scrub(&ctx.thread, &o.out);
     let out = run_output_tail(&raw, RUN_OUTPUT_MAX_CHARS as usize);
     let err = run_output_tail(&inner.secrets.scrub(&ctx.thread, &o.err), RUN_OUTPUT_MAX_CHARS as usize);
-    let json = if js_trim(&out).is_empty() { None } else { serde_json::from_str::<Value>(&out).ok() };
+    let json = if js_trim(&out).is_empty() { None } else { parse_json(&out) };
     let exit = if o.timed_out { Some(EXEC_DEADLINE_EXIT) } else { o.code };
     let why = if let Some(error) = &o.error {
         Some(inner.secrets.scrub(&ctx.thread, error))

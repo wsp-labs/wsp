@@ -5,6 +5,7 @@ use std::collections::HashSet;
 
 use serde_json::{json, Map, Value};
 
+use super::order::KeyOrder;
 use super::validate::{validate_json, SlateLines};
 use super::*;
 
@@ -107,7 +108,7 @@ fn detach(d: &mut Map<String, Value>, id: &str) {
     };
     let list: Vec<Value> = child_list(p).into_iter().filter(|c| c != id).map(Value::String).collect();
     if list.is_empty() {
-        p.remove("children");
+        p.shift_remove("children");
     } else {
         p.insert("children".to_string(), Value::Array(list));
     }
@@ -177,11 +178,11 @@ fn apply_op(d: &mut Map<String, Value>, op: &Value, lines: Option<&SlateLines>, 
                 }
             }
             if p.get("props").and_then(Value::as_object).is_some_and(Map::is_empty) {
-                p.remove("props");
+                p.shift_remove("props");
             }
             match op.get("when") {
                 Some(Value::Null) => {
-                    p.remove("when");
+                    p.shift_remove("when");
                 }
                 Some(v) => {
                     p.insert("when".to_string(), v.clone());
@@ -190,7 +191,7 @@ fn apply_op(d: &mut Map<String, Value>, op: &Value, lines: Option<&SlateLines>, 
             }
             match op.get("fallback") {
                 Some(Value::Null) => {
-                    p.remove("fallback");
+                    p.shift_remove("fallback");
                 }
                 Some(v) => {
                     p.insert("fallback".to_string(), v.clone());
@@ -315,7 +316,7 @@ fn apply_op(d: &mut Map<String, Value>, op: &Value, lines: Option<&SlateLines>, 
                         None => false,
                     };
                     if emptied {
-                        d.remove("files");
+                        d.shift_remove("files");
                     }
                 }
                 Some(text) => {
@@ -393,8 +394,10 @@ pub fn apply_slate_patch(doc: Option<&SlateDoc>, values: &SlateValues, ops: &[Va
     if !checked.errors.is_empty() {
         return SlateApplied { document: None, values: None, errors: checked.errors, warnings: checked.warnings };
     }
-    let next: SlateDoc = match serde_json::from_value(Value::Object(d)) {
-        Ok(next) => next,
+    let patched = Value::Object(d);
+    let order = KeyOrder::observed(&patched);
+    let next: SlateDoc = match serde_json::from_value::<SlateDoc>(patched) {
+        Ok(next) => SlateDoc { order, ..next },
         Err(_) => {
             return refused(vec![slate_problem(
                 "D202",
