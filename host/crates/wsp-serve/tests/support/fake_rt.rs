@@ -209,7 +209,7 @@ impl Runtime for FakeRuntime {
     async fn owner(&self) -> Result<String, HostError> {
         self.script.call("runtime.owner", json!({}))
     }
-    async fn reap(&self, older_than_ms: Option<u64>, _say: Option<Rc<dyn Fn(&str)>>) -> Result<SweepResult, HostError> {
+    async fn reap(&self, older_than_ms: Option<u64>, _say: Option<wsp_core::types::api::SayStops>) -> Result<SweepResult, HostError> {
         self.script.call("runtime.reap", json!({ "olderThanMs": older_than_ms, "say": "_" }))
     }
     async fn close(&self) -> Result<(), HostError> {

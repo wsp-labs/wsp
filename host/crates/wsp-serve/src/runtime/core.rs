@@ -2,6 +2,7 @@
 //! What `runtimeCore` itself decides (runtime.ts:491-992): the options' defaults, a thread's launch, the timers,
 //! what stands on a computer, the place door's recording and the bus wiring. The state is wsp-core's; the calls the
 //! core makes on the areas are `CoreCtx`. Spec: spec/runtime_core.md.
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::Rc;
 
@@ -18,6 +19,7 @@ use wsp_core::types::wiring::{
 };
 use wsp_engine::machine::{ExecOptions, MachineState};
 use wsp_machines::images::builders::StageAt;
+use wsp_machines::places::types::CopyBuild;
 use wsp_wire::types::env::{HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV};
 use wsp_wire::types::place_state::NAP_AFTER_MS;
 use wsp_wire::types::recipe_file::RecipeFileFoldersValue;
@@ -230,15 +232,24 @@ pub trait CoreCtx {
     fn emit(&self, event: EventUnion) -> Result<(), HostError>;
 }
 
+/// The maps the core writes and other areas read (runtime.ts:836-871): handles, so the context and the areas share them.
+#[derive(Clone, Default)]
+pub struct CoreHandles {
+    /// What each place's row says about its copy (runtime.ts:840), as `copy_build_of` answers it.
+    pub copy_rows: Rc<RefCell<IndexMap<String, Rc<CopyBuild>>>>,
+    /// Each build's stage on a joined computer, by place and image name (runtime.ts:836).
+    pub stage_at: Rc<RefCell<IndexMap<String, StageAt>>>,
+    pub snooze_timers: Rc<RefCell<IndexMap<String, wsp_core::clock::Cancel>>>,
+    pub resume_timers: Rc<RefCell<IndexMap<String, wsp_core::clock::Cancel>>>,
+}
+
 /// The core's timers and readings over a `CoreCtx` (runtime.ts:860-939). One per runtime.
 pub struct Core {
     pub(crate) ctx: Rc<dyn CoreCtx>,
-    /// What each place's row says about its copy (runtime.ts:840), as `copy_build_of` answers it, in JSON.
-    pub(crate) copy_rows: std::cell::RefCell<IndexMap<String, serde_json::Value>>,
-    /// Each build's stage on a joined computer, by place and image name (runtime.ts:836).
-    pub(crate) stage_at: std::cell::RefCell<IndexMap<String, StageAt>>,
-    pub(crate) snooze_timers: std::cell::RefCell<IndexMap<String, wsp_core::clock::Cancel>>,
-    pub(crate) resume_timers: std::cell::RefCell<IndexMap<String, wsp_core::clock::Cancel>>,
+    pub(crate) copy_rows: Rc<RefCell<IndexMap<String, Rc<CopyBuild>>>>,
+    pub(crate) stage_at: Rc<RefCell<IndexMap<String, StageAt>>>,
+    pub(crate) snooze_timers: Rc<RefCell<IndexMap<String, wsp_core::clock::Cancel>>>,
+    pub(crate) resume_timers: Rc<RefCell<IndexMap<String, wsp_core::clock::Cancel>>>,
 }
 
 /// A timer's delay for `wait` ms, cut to the timer's cap (runtime.ts:877, 896).
@@ -253,12 +264,16 @@ fn drop_stopped(e: HostError, went: &[String]) -> HostError {
 
 impl Core {
     pub fn new(ctx: Rc<dyn CoreCtx>) -> Rc<Core> {
+        Core::with_handles(ctx, CoreHandles::default())
+    }
+    /// The core over maps the context also holds.
+    pub fn with_handles(ctx: Rc<dyn CoreCtx>, handles: CoreHandles) -> Rc<Core> {
         Rc::new(Core {
             ctx,
-            copy_rows: std::cell::RefCell::default(),
-            stage_at: std::cell::RefCell::default(),
-            snooze_timers: std::cell::RefCell::default(),
-            resume_timers: std::cell::RefCell::default(),
+            copy_rows: handles.copy_rows,
+            stage_at: handles.stage_at,
+            snooze_timers: handles.snooze_timers,
+            resume_timers: handles.resume_timers,
         })
     }
     /// `threadLaunch(entry, threadId, rootThreadId, o)` (spec C6-C9).
@@ -538,9 +553,8 @@ impl Core {
                         self.copy_rows.borrow_mut().shift_remove(place);
                     }
                     Some(build) => {
-                        if let Ok(row) = serde_json::to_value(build) {
-                            self.copy_rows.borrow_mut().insert(place.to_string(), row);
-                        }
+                        let row = CopyBuild { line: build.line, stopped: build.stopped };
+                        self.copy_rows.borrow_mut().insert(place.to_string(), Rc::new(row));
                     }
                 }
             }
@@ -618,7 +632,7 @@ impl Core {
         }
     }
     /// The copy row of a place, as `copyRows.get(placeId)`.
-    pub fn copy_row(&self, place_id: &str) -> Option<serde_json::Value> {
+    pub fn copy_row(&self, place_id: &str) -> Option<Rc<CopyBuild>> {
         self.copy_rows.borrow().get(place_id).cloned()
     }
     /// `rowSaysFailure(place, e)` (spec C27): false for a fork-nowhere or a provisioning refusal (wsp-machines'

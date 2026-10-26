@@ -556,6 +556,8 @@ pub struct PlaceWiring {
     pub back: Option<Rc<dyn PlaceBackHolder>>,
 }
 
+impl wsp_core::types::pending::PlaceWiring for PlaceWiring {}
+
 /// One image snapshot this host saved at a provider (types.ts:384-387).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HeldImage {

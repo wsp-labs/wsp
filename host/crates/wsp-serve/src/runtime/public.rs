@@ -6,20 +6,31 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use wsp_core::types::api::CatalogAt;
+
+use super::api::{AgentsApiOf, ConversationsApiOf, GoldenApiOf, HarnessesApiOf, ImageApiOf, OriginStatusOf, PreferencesApiOf, UsageDoorOf};
+use super::ctx::Ctx;
+use wsp_account::projects::projects::Projects;
+use wsp_account::projects::workspaces::Workspaces;
 use wsp_core::types::api::{
     AgentsApi, ConversationsApi, DaemonEventListener, GoldenApi, HarnessesApi, ImageApi, PreferencesApi, ProjectsApi, SessionsApi,
     WorkspacesApi,
 };
+use wsp_core::types::api::{CatalogAt, SayStops};
 use wsp_core::types::events::EventBus;
 use wsp_core::types::internal::BuilderLife;
 use wsp_core::types::pending::{DaemonChannel, DeviceDoor};
 use wsp_core::types::wiring::{AdoptedMachine, SweepResult};
 use wsp_core::types::wiring::{Detach, OriginStatusApi, RecipeShelf, SysListener, UsageDoor};
+use wsp_core::types::wiring::{ResolvedRecipe, ShelvedRecipe};
 use wsp_engine::golden_seam::BUILDER_IDLE_MS;
 use wsp_engine::machine::MachineBackend;
 use wsp_engine::orphans::{date_parse, ListedMachine, ReapFailure, ReapReason, ReapResult, ReapedMachine, SparedMachine};
 use wsp_frames::ProcKind;
+use wsp_machines::places::helpers::{login_here, vault_sign_in, HomesHere};
+use wsp_threads::threads::sessions::SessionsArea;
+use wsp_wire::types::agents_report::AgentSignInState;
+use wsp_wire::types::place_word::HERE_PLACE_ID;
+use wsp_wire::types::recipe_file::RecipeFile;
 use wsp_wire::views::harness::{HarnessCatalog, HarnessCatalogUnshaped};
 use wsp_wire::views::workspace::{Caller, WorkspacePhase};
 use wsp_words::exit::HostError;
@@ -465,92 +476,206 @@ pub async fn status_history(ctx: &dyn StatusCtx, workspace_id: &str, origin: Opt
 /// What `watchPlaceSys` refuses this computer with when it reads nothing of itself (runtime.ts:1053).
 pub const NO_SAMPLES_HERE: &str = "this host reads nothing of the computer it runs on";
 
-/// The assembled runtime: the core, every area, and the public members over them. Implements wsp-core's `Runtime`,
-/// the one a socket serves (spec U1).
-#[allow(dead_code)]
+/// The assembled runtime: the context and the public members over it. Implements wsp-core's `Runtime`, the one a socket
+/// serves (spec U1).
 pub struct AssembledRuntime {
-    pub(crate) core: Rc<super::core::Core>,
+    pub(crate) ctx: Rc<Ctx>,
+    workspaces: Rc<Workspaces>,
+    projects: Rc<Projects>,
+    sessions: Rc<SessionsArea>,
+    agents: AgentsApiOf,
+    preferences: PreferencesApiOf,
+    conversations: ConversationsApiOf,
+    image: ImageApiOf,
+    golden: GoldenApiOf,
+    harnesses: HarnessesApiOf,
 }
 
-#[allow(unused_variables)]
+impl AssembledRuntime {
+    pub(crate) fn over(ctx: Rc<Ctx>) -> AssembledRuntime {
+        AssembledRuntime {
+            workspaces: ctx.workspaces.get(),
+            projects: ctx.projects.get(),
+            sessions: ctx.sessions_area.get(),
+            agents: AgentsApiOf(ctx.clone()),
+            preferences: PreferencesApiOf(ctx.clone()),
+            conversations: ConversationsApiOf(ctx.clone()),
+            image: ImageApiOf(ctx.clone()),
+            golden: GoldenApiOf(ctx.clone()),
+            harnesses: HarnessesApiOf(ctx.clone()),
+            ctx,
+        }
+    }
+
+    /// The context every area reads, for a test that calls one of its traits.
+    pub fn context(&self) -> Rc<Ctx> {
+        self.ctx.clone()
+    }
+}
+
 #[async_trait(?Send)]
 impl wsp_core::types::api::Runtime for AssembledRuntime {
     type Places = dyn wsp_machines::places::types::PlaceDoor;
     type Slates = dyn wsp_slates::slates::Slates;
     type Activity = dyn wsp_threads::activity::ActivityDoor;
     fn events(&self) -> Rc<dyn EventBus> {
-        todo!()
+        self.ctx.bus.clone()
     }
     fn backend(&self) -> std::sync::Arc<dyn MachineBackend> {
-        todo!()
+        self.ctx.backend.clone()
     }
     fn places(&self) -> Option<Rc<Self::Places>> {
-        todo!()
+        self.ctx.place_door.get()
     }
+    /// Where the host wired a shelf: its own, with the picks read against what this host can serve (runtime.ts:1030-1041).
     fn recipes(&self) -> Option<Rc<dyn RecipeShelf>> {
-        todo!()
+        let shelf = self.ctx.opts.recipes.clone()?;
+        Some(Rc::new(ServableShelf { ctx: self.ctx.clone(), shelf }))
     }
     async fn here_channel(&self, on_event: DaemonEventListener) -> Result<Rc<dyn DaemonChannel>, HostError> {
-        todo!()
+        let ctx = &self.ctx;
+        let road = ctx.kinds.get().local_road().await.map_err(|e| e.into_host())?;
+        let channels = ctx.channels.get();
+        let events: Rc<dyn Fn(serde_json::Value)> = Rc::new(move |event| {
+            if let serde_json::Value::Object(frame) = event {
+                on_event(frame);
+            }
+        });
+        let channel = channels.channel_over(&road, wsp_words::words::computer::THIS_COMPUTER, events).await?;
+        let owned = channels.held_to_owner(HERE_PLACE_ID, channel);
+        let scopes = ctx.proc_scopes.get();
+        let here = scopes.clone();
+        let scoped = scopes.scoped_procs(Rc::new(move || here.scopes_here()), owned);
+        Ok(channels.kill_guarded(scoped, true))
     }
     fn place_kills(&self, channel: Rc<dyn DaemonChannel>) -> Rc<dyn DaemonChannel> {
-        todo!()
+        self.ctx.channels.get().kill_guarded(channel, false)
     }
     async fn watch_place_sys(&self, place_id: &str, listener: SysListener) -> Result<Detach, HostError> {
-        todo!()
+        if place_id != HERE_PLACE_ID {
+            let Some(door) = self.ctx.place_door.get() else {
+                return Err(HostError::new(wsp_wire::wire::machine_link::no_such_place_refusal(place_id, &[])));
+            };
+            let release = door.watch_sys(place_id, listener).await?;
+            return Ok(release);
+        }
+        match self.ctx.opts.local.as_ref().and_then(|local| local.sys_samples.clone()) {
+            Some(samples) => samples(listener).await,
+            None => Err(HostError::new(NO_SAMPLES_HERE)),
+        }
     }
     fn own_process(&self, thread_id: &str, pid: u32, kind: ProcKind) -> Detach {
-        todo!()
+        let kind = serde_json::to_value(kind)
+            .and_then(serde_json::from_value::<wsp_wire::wire::daemon::ProcKind>)
+            .unwrap_or(wsp_wire::wire::daemon::ProcKind::Other);
+        let release = self.ctx.proc_scopes.get().own_process(thread_id, i64::from(pid), kind);
+        Box::new(move || release())
     }
     fn agents(&self) -> &dyn AgentsApi {
-        todo!()
+        &self.agents
     }
     fn workspaces(&self) -> &dyn WorkspacesApi {
-        todo!()
+        &*self.workspaces
     }
     fn projects(&self) -> &dyn ProjectsApi {
-        todo!()
+        &*self.projects
     }
     fn sessions(&self) -> &dyn SessionsApi {
-        todo!()
+        &*self.sessions
     }
     fn harnesses(&self) -> &dyn HarnessesApi {
-        todo!()
+        &self.harnesses
     }
     fn golden(&self) -> &dyn GoldenApi {
-        todo!()
+        &self.golden
     }
     fn image(&self) -> &dyn ImageApi {
-        todo!()
+        &self.image
     }
     fn status(&self) -> Rc<dyn OriginStatusApi> {
-        todo!()
+        Rc::new(OriginStatusOf(self.ctx.clone()))
     }
     fn usage(&self) -> Rc<dyn UsageDoor> {
-        todo!()
+        Rc::new(UsageDoorOf(self.ctx.clone()))
     }
     fn conversations(&self) -> &dyn ConversationsApi {
-        todo!()
+        &self.conversations
     }
     fn slates(&self) -> Rc<Self::Slates> {
-        todo!()
+        self.ctx.slates.get()
     }
     fn activity(&self) -> Rc<Self::Activity> {
-        todo!()
+        self.ctx.activity.get()
     }
     fn devices(&self) -> Rc<dyn DeviceDoor> {
-        todo!()
+        self.ctx.device_door.clone()
     }
     fn preferences(&self) -> &dyn PreferencesApi {
-        todo!()
+        &self.preferences
     }
     async fn owner(&self) -> Result<String, HostError> {
-        todo!()
+        self.ctx.booted().await?;
+        Ok(self.ctx.state.with(|state| state.owner.clone()))
     }
-    async fn reap(&self, older_than_ms: Option<u64>, say: Option<Rc<dyn Fn(&str)>>) -> Result<SweepResult, HostError> {
-        todo!()
+    async fn reap(&self, older_than_ms: Option<u64>, say: Option<SayStops>) -> Result<SweepResult, HostError> {
+        let swept = reap(&*self.ctx, older_than_ms.map(|ms| ms as i64), say).await?;
+        Ok(swept.into())
     }
     async fn close(&self) -> Result<(), HostError> {
-        todo!()
+        close(&*self.ctx).await
+    }
+}
+
+/// `opts.recipes` with its `options` read against what this host can serve: an agent's sign-in to copy is offered only
+/// where the vault or this computer's login can serve it, read at every ask (runtime.ts:1030-1041).
+struct ServableShelf {
+    ctx: Rc<Ctx>,
+    shelf: Rc<dyn RecipeShelf>,
+}
+
+#[async_trait(?Send)]
+impl RecipeShelf for ServableShelf {
+    async fn list(&self) -> Result<Vec<ShelvedRecipe>, HostError> {
+        self.shelf.list().await
+    }
+    async fn read(&self, word: &str) -> Result<ShelvedRecipe, HostError> {
+        self.shelf.read(word).await
+    }
+    async fn get(&self, word: &str) -> Result<(ShelvedRecipe, String), HostError> {
+        self.shelf.get(word).await
+    }
+    async fn save(&self, file: serde_json::Value) -> Result<ShelvedRecipe, HostError> {
+        self.shelf.save(file).await
+    }
+    async fn remove(&self, word: &str) -> Result<ShelvedRecipe, HostError> {
+        self.shelf.remove(word).await
+    }
+    async fn options(&self, folders: Option<Vec<(String, String)>>) -> Result<serde_json::Value, HostError> {
+        let mut options = self.shelf.options(folders).await?;
+        let agents = self.ctx.agents.get();
+        let homes: HomesHere = Rc::new(move || {
+            let agents = agents.clone();
+            Box::pin(async move { agents.homes_here().await })
+        });
+        let vault = self.ctx.opts.vault.as_ref().map(|vault| vault()).unwrap_or_default();
+        let offered = options.get_mut("agents").and_then(serde_json::Value::as_array_mut);
+        for agent in offered.into_iter().flatten() {
+            let id = agent["id"].as_str().unwrap_or_default().to_string();
+            let Some(signins) = agent["signins"].as_array_mut() else { continue };
+            let offers_vault = signins.iter().any(|word| word == "vault");
+            if offers_vault
+                && !matches!(vault_sign_in(&id, &vault), AgentSignInState::VaultKey)
+                && login_here(homes.clone(), &id).await.is_none()
+            {
+                signins.retain(|word| word != "vault");
+            }
+        }
+        Ok(options)
+    }
+    async fn resolve(&self, slug: &str) -> Result<ResolvedRecipe, HostError> {
+        self.shelf.resolve(slug).await
+    }
+    async fn resolve_file(&self, file: RecipeFile) -> Result<ResolvedRecipe, HostError> {
+        self.shelf.resolve_file(file).await
     }
 }

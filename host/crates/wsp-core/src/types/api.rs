@@ -64,6 +64,10 @@ use super::wiring::{
 /// A daemon event as a channel hands it on.
 pub type DaemonEventListener = Rc<dyn Fn(serde_json::Map<String, serde_json::Value>)>;
 
+/// What a sweep says its stops with: a type of its own, since `async_trait` would fix the lifetime of a `&str` written
+/// inside `Fn(..)` in a method's arguments, and the runtime keeps the line writer past the call.
+pub type SayStops = Rc<dyn Fn(&str)>;
+
 /// The host's core, as every door calls it. api.ts:65-712.
 ///
 /// `places`, `slates` and `activity` are typed by the crates that hold them (wsp-machines' `PlaceDoor`, wsp-slates'
@@ -100,7 +104,7 @@ pub trait Runtime {
     fn preferences(&self) -> &dyn PreferencesApi;
     /// This state file's owner id, minted on the first read when it has none.
     async fn owner(&self) -> Result<String, HostError>;
-    async fn reap(&self, older_than_ms: Option<u64>, say: Option<Rc<dyn Fn(&str)>>) -> Result<SweepResult, HostError>;
+    async fn reap(&self, older_than_ms: Option<u64>, say: Option<SayStops>) -> Result<SweepResult, HostError>;
     /// Writes every transcript still waiting on its debounce.
     async fn close(&self) -> Result<(), HostError>;
 }
