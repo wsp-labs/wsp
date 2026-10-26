@@ -6,7 +6,7 @@
 //! so a callback may call any method of the session from inside `on_event`.
 
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -90,6 +90,41 @@ pub struct ClaudeSession {
 enum SessionInner {
     Turn(Rc<Turn>),
     Lost(Rc<Lost>),
+}
+
+/// A session the registry does not keep alive.
+#[derive(Clone)]
+pub struct WeakSession(WeakInner);
+
+#[derive(Clone)]
+enum WeakInner {
+    Turn(Weak<Turn>),
+    Lost(Weak<Lost>),
+}
+
+impl WeakSession {
+    pub(crate) fn alive(&self) -> bool {
+        match &self.0 {
+            WeakInner::Turn(w) => w.strong_count() > 0,
+            WeakInner::Lost(w) => w.strong_count() > 0,
+        }
+    }
+    pub(crate) fn upgrade(&self) -> Option<ClaudeSession> {
+        let inner = match &self.0 {
+            WeakInner::Turn(w) => SessionInner::Turn(w.upgrade()?),
+            WeakInner::Lost(w) => SessionInner::Lost(w.upgrade()?),
+        };
+        Some(ClaudeSession { inner })
+    }
+}
+
+impl ClaudeSession {
+    pub(crate) fn downgrade(&self) -> WeakSession {
+        WeakSession(match &self.inner {
+            SessionInner::Turn(t) => WeakInner::Turn(Rc::downgrade(t)),
+            SessionInner::Lost(l) => WeakInner::Lost(Rc::downgrade(l)),
+        })
+    }
 }
 
 /// The session a start answers once it may have resumed a lost session: the launch running now answers for it.
@@ -371,7 +406,7 @@ pub fn follow(core: &Arc<AdapterCore>, o: FollowOptions) -> ClaudeSession {
         }),
     });
     let session = ClaudeSession { inner: SessionInner::Turn(turn.clone()) };
-    core.sessions.lock().unwrap().insert(o.local_id, session.clone());
+    core.register(o.local_id, &session);
     tokio::task::spawn_local(async move {
         let result = turn.read_all().await;
         let _ = finish_tx.send(result);

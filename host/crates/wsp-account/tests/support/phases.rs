@@ -100,12 +100,14 @@ pub fn other(message: &str) -> EngineError {
 }
 
 /// golden.ts:45 `MachineAliveError`: a machine that answered three kills and is still there, kind "machineAlive".
-/// `EngineError` has no variant for it yet, so it is one place here: this is the one line to change when it has.
 pub fn alive(machine_id: &str, state: &str) -> EngineError {
-    EngineError::Other {
-        message: format!("machine {machine_id} is still {state} after three kills; it bills until reap or a kill by hand takes"),
-        code: Some("machineAlive".to_owned()),
-    }
+    let state = match state {
+        "starting" => wsp_engine::machine::MachineState::Starting,
+        "paused" => wsp_engine::machine::MachineState::Paused,
+        "gone" => wsp_engine::machine::MachineState::Gone,
+        _ => wsp_engine::machine::MachineState::Running,
+    };
+    EngineError::machine_alive(machine_id, state)
 }
 
 pub fn done(reason: Option<&str>) -> Result<WakeResult, EngineError> {

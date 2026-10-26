@@ -340,7 +340,7 @@ impl AgentsReads {
             ask.clone(),
             run.clone(),
         );
-        crate::local_task::spawn(async move {
+        wsp_engine::local_task::try_spawn_local(async move {
             let gh_step = {
                 let step = step.clone();
                 let gh_name = catalog_entry(GITHUB_CLI)

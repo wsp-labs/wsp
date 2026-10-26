@@ -474,6 +474,32 @@ fn local_memory_key_follows_a_made_worktree_then_the_git_top() {
     });
 }
 
+// kinds.ts:171-173: `report("landing", ...)` runs before the plan is read, so a report that throws stops the import there.
+#[test]
+fn local_import_stops_where_its_report_fails() {
+    run(async {
+        let (host, area) = kinds();
+        let local = module(&area, WorkspaceKind::Local);
+        let entry = local_entry(&host, json!({}));
+        hold(&project(
+            "pr_l",
+            "/home/z/lab",
+            json!({ "computer": "here" }),
+        ));
+        let (o, bundler) = import_options("ws_l", "/home/z/lab");
+        let refused = import_of(
+            &*local,
+            &entry,
+            o,
+            import_report_refused("the bus refused it"),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(refused.message, "the bus refused it");
+        assert_eq!(bundler.plans(), 0, "the folder was never measured");
+    });
+}
+
 #[test]
 fn local_import_registers_in_place() {
     run(async {

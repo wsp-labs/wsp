@@ -273,6 +273,12 @@ impl HarnessAdapter for FakeAdapter {
     fn fork_session(&self, _session: String, _turn: ForkTurn) -> Option<LocalBoxFuture<'static, Result<ForkedSession, String>>> {
         self.forks.then(|| async { Err("the fake adapter forks nothing".to_string()) }.boxed_local())
     }
+    fn reverts(&self) -> bool {
+        self.reverts
+    }
+    fn forks(&self) -> bool {
+        self.forks
+    }
     fn forks_by_count(&self) -> bool {
         self.forks_by_count
     }

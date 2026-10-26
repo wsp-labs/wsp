@@ -449,7 +449,7 @@ impl BootArea {
             return;
         }
         let area = self.clone();
-        crate::local_task::spawn(async move {
+        wsp_engine::local_task::try_spawn_local(async move {
             area.push_rows();
         });
     }
@@ -534,7 +534,7 @@ impl BootArea {
         .boxed_local()
         .shared();
         *self.rows_out.borrow_mut() = Some(chain.clone());
-        crate::local_task::spawn(chain);
+        wsp_engine::local_task::try_spawn_local(chain);
     }
 
     /// The batch of one push: the gone ids, then the placed rows, then the told bookkeeping (boot.ts:834-844).
@@ -735,7 +735,7 @@ impl BootArea {
         let mut stamps = ThreadStamps::new();
         stamps.insert("snoozedUntil".into(), json!(now));
         let area = self.clone();
-        crate::local_task::spawn(async move {
+        wsp_engine::local_task::try_spawn_local(async move {
             if let Err(e) = area.mark(&standing, Stamped::Same(stamps), None).await {
                 area.rt.warn(&format!(
                     "snooze not ended for {}: {}",

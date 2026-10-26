@@ -13,7 +13,6 @@ use std::future::Future;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::local_task::spawn as spawn_local;
 use async_trait::async_trait;
 use futures::future::{select, Either, LocalBoxFuture};
 use indexmap::{IndexMap, IndexSet};
@@ -23,6 +22,7 @@ use wsp_core::recipe_sync::{recipe_changes, steps_for, RecipeChange, RecipeChang
 use wsp_core::types::pending::Clock;
 use wsp_engine::errors::{EngineError, Result as EngineResult};
 use wsp_engine::link_backend::{LinkAsk, MachineLink};
+use wsp_engine::local_task::try_spawn_local as spawn_local;
 use wsp_wire::types::recipe_file::{RecipeFile, NO_RECIPE};
 use wsp_wire::views::place::{
     PlaceSetup, PlaceSetupEvent, PlaceSetupState, PlaceSetupStep, PlaceSync, PlaceSyncEvent,
@@ -258,7 +258,7 @@ pub async fn under_folders_of<T>(place_id: &str, work: impl Future<Output = T>) 
     };
     let place = place_id.to_string();
     let mut rest = Box::pin(set);
-    crate::local_task::spawn(std::future::poll_fn(move |cx| {
+    wsp_engine::local_task::try_spawn_local(std::future::poll_fn(move |cx| {
         polled_under(&place, || rest.as_mut().poll(cx))
     }));
     out

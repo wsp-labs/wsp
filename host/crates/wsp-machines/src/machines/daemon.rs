@@ -134,7 +134,7 @@ fn start<T: Clone + 'static>(
     let mut first = join.clone();
     let _ = (&mut first).now_or_never();
     let keep = join.clone();
-    crate::local_task::spawn(async move {
+    wsp_engine::local_task::try_spawn_local(async move {
         let _ = keep.await;
         forget();
     });
@@ -266,7 +266,7 @@ impl DaemonArea {
         let caller = origin.cloned();
         let ws = workspace_id.to_string();
         let thread_said = thread_word(thread.unwrap_or(""));
-        crate::local_task::spawn(async move {
+        wsp_engine::local_task::try_spawn_local(async move {
             let answer = rt.sessions_start(&ws, ask, caller.as_ref()).await;
             if started_tx.is_canceled() {
                 if let Err(e) = &answer {

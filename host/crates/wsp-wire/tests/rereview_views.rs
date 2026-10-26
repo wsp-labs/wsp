@@ -54,7 +54,7 @@ fn head_of_a_cut_text_and_a_cut_patch() -> String {
     let line = format!("\"+{}\"", "p".repeat(99));
     let lines = vec![line; 20].join(",");
     format!(
-        r#"{{"type":"session.delta","workspaceId":"w","sessionId":"s","kind":"tool_result","text":"{}","toolUseId":"t","line":4,"bytes":3000,"patch":[{{"path":"a.ts","hunks":[{{"oldStart":1,"oldLines":0,"newStart":1,"newLines":20,"lines":[{lines}]}}]}}],"cut":3000,"patchCut":true}}"#,
+        r#"{{"type":"session.delta","workspaceId":"w","sessionId":"s","line":4,"kind":"tool_result","text":"{}","toolUseId":"t","bytes":3000,"patch":[{{"path":"a.ts","hunks":[{{"oldStart":1,"oldLines":0,"newStart":1,"newLines":20,"lines":[{lines}]}}]}}],"cut":3000,"patchCut":true}}"#,
         "x".repeat(2048)
     )
 }
@@ -77,7 +77,7 @@ fn a_head_that_cuts_the_text_and_the_patch_writes_cut_before_patch_cut() {
 /// (the stored row's keys, then the new one).
 fn head_of_a_cut_text() -> String {
     format!(
-        r#"{{"type":"session.delta","workspaceId":"w","sessionId":"s","kind":"tool_result","text":"{}","toolUseId":"t","line":4,"bytes":3000,"cut":3000}}"#,
+        r#"{{"type":"session.delta","workspaceId":"w","sessionId":"s","line":4,"kind":"tool_result","text":"{}","toolUseId":"t","bytes":3000,"cut":3000}}"#,
         "x".repeat(2048)
     )
 }

@@ -9,8 +9,9 @@ use tokio::task::JoinHandle;
 
 use crate::errors::{EngineError, Result};
 
-/// `spawn_local` where there is a `LocalSet` to run it, and nothing where there is none.
-pub(crate) fn try_spawn_local<T: 'static>(task: impl Future<Output = T> + 'static) -> Option<JoinHandle<T>> {
+/// `spawn_local` where there is a `LocalSet` to run it, and nothing where there is none. The one panic `spawn_local` makes
+/// outside a `LocalSet` is caught, and kept out of the log by a hook that passes every other panic on.
+pub fn try_spawn_local<T: 'static>(task: impl Future<Output = T> + 'static) -> Option<JoinHandle<T>> {
     static QUIET: std::sync::Once = std::sync::Once::new();
     // The one panic `spawn_local` makes outside a LocalSet is caught here, so it is kept out of the log.
     QUIET.call_once(|| {

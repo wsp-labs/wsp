@@ -15,8 +15,9 @@ use wsp_core::types::wiring::{
     home_outcome, outcome_words, LandRequest, LandState, LandedProject, PackedState, ProjectExportOptions, ProjectImportOptions,
     StateAgent, StateRequest, LISTING_DEADLINE_MS,
 };
-use wsp_engine::exec_detached::{GUEST_TMP, INLINE_EXEC_MS};
+use wsp_engine::exec_detached::INLINE_EXEC_MS;
 use wsp_engine::project_state::{parse_state_listing, state_listing};
+use wsp_engine::vault::{dest_exists, guest_tmp_path_at};
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::views::project_bundle::{
@@ -24,7 +25,7 @@ use wsp_wire::views::project_bundle::{
 };
 use wsp_wire::views::workspace::Caller;
 use wsp_wire::wire::machine_link::ExecResult;
-use wsp_words::exit::{HostError, Kind};
+use wsp_words::exit::HostError;
 use wsp_words::project_path::under_project;
 use wsp_words::words::base::plural;
 use wsp_words::words::units::fmt_bytes;
@@ -115,45 +116,35 @@ fn engine_err<E: std::fmt::Display>(error: E) -> HostError {
     HostError::new(error.to_string())
 }
 
-/// `destExists(dest, files)`: the refusal an export of a standing destination without `replace` is.
-fn dest_exists(dest: &str, files: u64) -> HostError {
-    HostError::with_kind(
-        format!("{dest} already exists on this computer with {}; export with replace to overwrite it", plural(files as f64, "file")),
-        Kind::Exists,
-    )
-}
-
-/// `guestTmpPath(what, dir = GUEST_TMP)`: the directory with its trailing slashes cut, then `<what>-<ms>-<six base-36 chars>`.
-fn guest_tmp_path(what: &str, dir: &str, now_ms: i64, random: f64) -> String {
-    let dir = dir.trim_end_matches('/');
-    let mut x = random.fract().abs();
-    let mut suffix = String::new();
-    for _ in 0..6 {
-        x *= 36.0;
-        let digit = x.floor() as u32;
-        suffix.push(char::from_digit(digit.min(35), 36).unwrap_or('0'));
-        x -= f64::from(digit);
-    }
-    format!("{dir}/{what}-{now_ms}-{suffix}")
-}
-
 /// The last 200 UTF-16 units of a command's stderr, as the TS slices it.
 fn tail_of(text: &str) -> String {
     let units: Vec<u16> = text.encode_utf16().collect();
     String::from_utf16_lossy(&units[units.len().saturating_sub(200)..])
 }
 
+/// What a part or landing report that failed left: the first failure, which the road that ran the upload reads once it
+/// returns, since the hooks cannot stop the upload themselves.
+type HookFailure = Rc<RefCell<Option<HostError>>>;
+
 /// The upload hooks: each part says `uploading` with its progress; `landing` names the path when one is given. The
 /// parts are written in `tmp_dir`, the machine's kind's scratch folder.
-fn upload_hooks(report: &ImportReport, landing: Option<String>, tmp_dir: String) -> LandHooks {
+fn upload_hooks(report: &ImportReport, landing: Option<String>, tmp_dir: String, failed: &HookFailure) -> LandHooks {
     let part_report = report.clone();
+    let part_failed = failed.clone();
     let on_part: Rc<dyn Fn(Progress)> = Rc::new(move |p: Progress| {
         let message = format!("Part {} of {}, {} of {}.", p.part, p.parts, fmt_bytes(p.bytes as f64), fmt_bytes(p.total as f64));
-        part_report(ProjectImportStage::Uploading, &message, Some((p.bytes, p.total)));
+        if let Err(e) = part_report(ProjectImportStage::Uploading, &message, Some((p.bytes, p.total))) {
+            part_failed.borrow_mut().get_or_insert(e);
+        }
     });
     let on_landing: Option<Rc<dyn Fn()>> = landing.map(|dest| {
         let landing_report = report.clone();
-        Rc::new(move || landing_report(ProjectImportStage::Landing, &format!("Landing at {dest}."), None)) as Rc<dyn Fn()>
+        let landing_failed = failed.clone();
+        Rc::new(move || {
+            if let Err(e) = landing_report(ProjectImportStage::Landing, &format!("Landing at {dest}."), None) {
+                landing_failed.borrow_mut().get_or_insert(e);
+            }
+        }) as Rc<dyn Fn()>
     });
     LandHooks { on_part, on_landing, tmp_dir, timeout_ms: MOVE_DEADLINE_MS }
 }
@@ -200,7 +191,7 @@ impl Projects {
         let listing = state_listing(&homes, &o.source, on_machine, o.agents.as_deref()).map_err(engine_err)?;
         if let Some(files) = o.lander.probe(&o.dest).await? {
             if o.replace != Some(true) {
-                return Err(dest_exists(&o.dest, files));
+                return Err(dest_exists(&o.dest, files).into());
             }
         }
         report(ProjectExportStage::Packing, &format!("Packing {} on the machine.", o.source), None)?;
@@ -380,7 +371,7 @@ impl Projects {
                 plural(plan.excluded.len() as f64, "cache"),
             ),
             None,
-        );
+        )?;
         let carry: Vec<String> = o.carry.clone().unwrap_or_default();
         let rewrite: Vec<String> = o.rewrite.clone().unwrap_or_default();
         let rewriting: Vec<(String, ProjectRewrite)> = plan
@@ -460,8 +451,8 @@ impl Projects {
             };
             format!("{head}.")
         };
-        report(ProjectImportStage::Consented, &format!("{consented}{agents_line}"), None);
-        report(ProjectImportStage::Packing, &format!("Packing {}.", plural(plan_files - cut.len() as f64, "file")), None);
+        report(ProjectImportStage::Consented, &format!("{consented}{agents_line}"), None)?;
+        report(ProjectImportStage::Packing, &format!("Packing {}.", plural(plan_files - cut.len() as f64, "file")), None)?;
         let packed = o.bundler.pack(&carry, &rewrite, provider).await?;
         let mut state: Option<PackedState> = None;
         if !travelling.is_empty() {
@@ -477,10 +468,14 @@ impl Projects {
             }
             state = Some(o.bundler.pack_state(StateRequest { dest: o.dest.clone(), agents }).await?);
         }
+        let hook_failed: HookFailure = Rc::default();
         let tar_len = packed.tar.len() as u64;
-        report(ProjectImportStage::Uploading, &format!("Uploading {}.", fmt_bytes(tar_len as f64)), Some((0, tar_len)));
-        let hooks = upload_hooks(&report, Some(o.dest.clone()), self.ctx.scratch(entry));
+        report(ProjectImportStage::Uploading, &format!("Uploading {}.", fmt_bytes(tar_len as f64)), Some((0, tar_len)))?;
+        let hooks = upload_hooks(&report, Some(o.dest.clone()), self.ctx.scratch(entry), &hook_failed);
         let parts = self.ctx.land_bundle(entry, packed.tar.clone(), &o.dest, o.replace, hooks).await?;
+        if let Some(e) = hook_failed.borrow_mut().take() {
+            return Err(e);
+        }
         let name_of = |id: &str| plan.agents.iter().find(|a| a.agent == id).map(|a| a.name.clone()).unwrap_or_else(|| id.to_owned());
         let mut agents: Vec<ProjectAgentResult> = state.as_ref().map(|s| s.agents.clone()).unwrap_or_default();
         let outcomes = |agents: &[ProjectAgentResult]| {
@@ -501,12 +496,15 @@ impl Projects {
                     ProjectImportStage::Uploading,
                     &format!("Uploading {}, {}.", what.join(" and "), fmt_bytes(state_len as f64)),
                     Some((0, state_len)),
-                );
-                let hooks = upload_hooks(&report, None, self.ctx.scratch(entry));
+                )?;
+                let hooks = upload_hooks(&report, None, self.ctx.scratch(entry), &hook_failed);
                 self.ctx.import_into(entry, state.tar.clone(), hooks).await?;
+                if let Some(e) = hook_failed.borrow_mut().take() {
+                    return Err(e);
+                }
                 if !state.merges.is_empty() {
                     let names: Vec<String> = state.merges.iter().map(|(agent, _)| name_of(agent)).collect();
-                    report(ProjectImportStage::Landing, &format!("Merging rows into {}.", names.join(", ")), None);
+                    report(ProjectImportStage::Landing, &format!("Merging rows into {}.", names.join(", ")), None)?;
                     for (agent, script) in &state.merges {
                         if let Some(at) = agents.iter().position(|a| &a.agent == agent) {
                             let current = agents[at].clone();
@@ -514,7 +512,7 @@ impl Projects {
                         }
                     }
                 }
-                report(ProjectImportStage::Landing, &format!("Landing sessions: {}.", outcomes(&agents)), None);
+                report(ProjectImportStage::Landing, &format!("Landing sessions: {}.", outcomes(&agents)), None)?;
             }
         }
         let project = match self.ctx.project_of(&o.dest, packed.bytes) {
@@ -589,12 +587,7 @@ impl Projects {
         let began = self.ctx.clock().now();
         let emitter = self.ctx.clone();
         let (workspace_id, source, dest) = (o.workspace_id.clone(), o.source.clone(), o.dest.clone());
-        let emit_failed: Rc<RefCell<Option<HostError>>> = Rc::default();
-        let failed = emit_failed.clone();
         let report: ImportReport = Rc::new(move |stage: ProjectImportStage, message: &str, progress: Option<(u64, u64)>| {
-            if failed.borrow().is_some() {
-                return;
-            }
             let mut event = json!({
                 "type": "project.import",
                 "workspaceId": workspace_id,
@@ -608,34 +601,19 @@ impl Projects {
                 event["bytes"] = json!(bytes);
                 event["total"] = json!(total);
             }
-            if let Err(e) = emitter.emit(event) {
-                *failed.borrow_mut() = Some(e);
-            }
+            emitter.emit(event)
         });
-        let mut outcome = self.import_run(&entry, o, &report, &emit_failed).await;
-        if let Err(e) = &outcome {
-            report(ProjectImportStage::Failed, &e.message, None);
-            if let Some(said) = emit_failed.borrow_mut().take() {
-                outcome = Err(said);
+        match self.import_run(&entry, o, &report).await {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                report(ProjectImportStage::Failed, &e.message, None)?;
+                Err(e)
             }
         }
-        outcome
     }
 
-    /// `emit_failed` holds a bus listener's failure: the report's own return is `()`, so the road reads it where the TS's
-    /// `report(...)` would have thrown.
-    async fn import_run(
-        &self,
-        entry: &Entry,
-        o: ProjectImportOptions,
-        report: &ImportReport,
-        emit_failed: &RefCell<Option<HostError>>,
-    ) -> Result<ProjectImportResult, HostError> {
-        let landed = self.ctx.kind_import(entry, o, report.clone()).await;
-        if let Some(e) = emit_failed.borrow_mut().take() {
-            return Err(e);
-        }
-        let landed = landed?;
+    async fn import_run(&self, entry: &Entry, o: ProjectImportOptions, report: &ImportReport) -> Result<ProjectImportResult, HostError> {
+        let landed = self.ctx.kind_import(entry, o, report.clone()).await?;
         let landed_dest = landed.result.dest.clone();
         let had = record_of(entry).landed.is_some_and(|dirs| dirs.contains(&landed_dest));
         {
@@ -657,10 +635,7 @@ impl Projects {
             return Err(e);
         }
         self.ctx.persist(record_of(entry)).await?;
-        report(ProjectImportStage::Done, &landed.done, None);
-        if let Some(e) = emit_failed.borrow_mut().take() {
-            return Err(e);
-        }
+        report(ProjectImportStage::Done, &landed.done, None)?;
         Ok(landed.result)
     }
 
@@ -746,7 +721,7 @@ impl Projects {
             emitter.emit(event)
         });
         let scratch = self.scratch_dir()?;
-        let on_machine = guest_tmp_path("wsp-state", GUEST_TMP, self.ctx.clock().now(), self.ctx.ids().random());
+        let on_machine = guest_tmp_path_at("wsp-state", None, self.ctx.clock().now(), self.ctx.ids().random());
         let listed = Cell::new(false);
         let mut outcome = self.export_steps(&entry, &o, &scratch, &report, &on_machine, &listed).await;
         if let Err(e) = &outcome {

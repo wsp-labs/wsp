@@ -82,3 +82,43 @@ fn thread_facts_write_a_folded_row_then_the_model_facts() {
     let read: ThreadFacts = reads_exact(row);
     assert_eq!(read.turn_id.as_deref(), Some("turn_1"));
 }
+
+/// A workspace's view is written as records.ts:51-57 builds it: `folder`, then the home spread, then `id`.
+#[test]
+fn a_workspace_view_writes_folder_and_home_before_its_id() {
+    use wsp_wire::views::workspace_more::WorkspaceView;
+    let view = json!({
+        "folder": "/root/lab", "home": "/root", "id": "w1", "name": "lab", "machineId": "m1", "phase": "running", "kind": "cloud",
+        "golden": "g", "createdAt": "2026-10-26T00:00:00.000Z", "project": { "id": "p1", "name": "lab", "path": "/root/lab", "computer": "here" }
+    });
+    let read: WorkspaceView = reads_exact(view);
+    assert_eq!(read.folder.as_deref(), Some("/root/lab"));
+}
+
+/// The rows a turn records are literals in turns.ts:317-565, so a row writes `line` right after `threadId`, a start
+/// writes `attachments` after `startedBy`, a delta writes `exitCode`, `durationMs` and `bytes` in that order, and the
+/// person's row (threads.ts:606) writes `text` before `threadId`.
+#[test]
+fn the_rows_a_turn_records_write_in_the_order_turns_ts_builds_them() {
+    use wsp_wire::views::session_events::{SessionDeltaEvent, SessionNotifyEvent, SessionStartEvent};
+    use wsp_wire::views::session_events_more::{SessionCompactedEvent, SessionRetryEvent, SessionSubagentEvent};
+    let ids = |extra: serde_json::Value| {
+        let mut row = json!({ "workspaceId": "w", "sessionId": "s", "turnId": "u", "threadId": "t" });
+        row.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        row
+    };
+    let _: SessionDeltaEvent = reads_exact(ids(json!({
+        "line": 3, "kind": "tool_result", "text": "ok", "messageId": "m", "toolName": "Bash", "toolUseId": "tu", "isError": false,
+        "parentToolUseId": "tp", "cwd": "/w", "exitCode": 0, "durationMs": 12, "bytes": 4, "patch": []
+    })));
+    let _: SessionStartEvent = reads_exact(ids(json!({
+        "prompt": "go", "requestId": "r", "afterCut": true, "afterLimit": 5, "opensThread": true, "startedBy": "person", "attachments": [],
+        "model": "opus", "cwd": "/w", "agent": "claude", "tools": ["Bash"]
+    })));
+    let _: SessionSubagentEvent =
+        reads_exact(ids(json!({ "line": 1, "task": "a", "state": "running", "parentToolUseId": "tp", "title": "T" })));
+    let _: SessionCompactedEvent = reads_exact(ids(json!({ "line": 1, "before": 10, "after": 5 })));
+    let _: SessionRetryEvent = reads_exact(ids(json!({ "line": 1, "attempt": 1, "of": 3, "why": "overloaded" })));
+    let notify = json!({ "workspaceId": "w", "sessionId": "s", "turnId": "u", "text": "told", "threadId": "t", "notify": "me" });
+    let _: SessionNotifyEvent = reads_exact(notify);
+}

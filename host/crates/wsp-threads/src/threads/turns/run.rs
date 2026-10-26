@@ -830,7 +830,7 @@ impl SessionHandle for TurnHandle {
     fn answer(&self, ask_id: String, option_id: String, reason: Option<String>) -> Option<Local<'static, SessionAnswerResult>> {
         let session = self.st()?.session()?;
         let state = self.st()?;
-        if !state.ctx.session_answers(session.as_ref()) {
+        if !session.answers() {
             return None;
         }
         Some(async move { Ok(state.answer(&ask_id, &option_id, reason.as_deref()).await) }.boxed_local())

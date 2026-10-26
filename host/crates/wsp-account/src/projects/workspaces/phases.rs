@@ -188,19 +188,10 @@ fn phase_of(entry: &Entry) -> WorkspacePhase {
     read_rec(entry, |r| r.phase)
 }
 
-/// The engine's error as the TS rethrows it: its words, the kind it was born with (exit.ts:37 reads the exit class off
-/// it), and the status and code a provider's answer carried.
+/// The engine's error as the TS rethrows it: its words, the kind it was born with, and the status and code a provider's
+/// answer carried.
 fn engine(e: EngineError) -> HostError {
-    let kind = match &e {
-        EngineError::NotFirstLife { .. } => Some(Kind::NotFirstLife),
-        EngineError::VaultTooLarge { .. } => Some(Kind::VaultTooLarge),
-        EngineError::Exists { .. } => Some(Kind::Exists),
-        EngineError::NoProvider { .. } => Some(Kind::NoProvider),
-        EngineError::Invalid { .. } => Some(Kind::Invalid),
-        EngineError::PlaceAbsent { .. } => Some(Kind::Other("absent".to_owned())),
-        other => other.kind().and_then(|kind| serde_json::to_value(kind).ok()).and_then(|word| word.as_str().map(Kind::parse)),
-    };
-    HostError { kind, status: e.status().map(f64::from), code: e.code().map(str::to_owned), ..HostError::new(e.to_string()) }
+    HostError::from(e)
 }
 
 fn conflict(message: String) -> HostError {
@@ -215,18 +206,14 @@ fn workspace_size(size: SizeAsk) -> WorkspaceSize {
     WorkspaceSize { cpu: size.cpu, mem_mb: size.mem_mb }
 }
 
-/// The machine and the state a `machineAlive` refusal names. The engine carries it in the message, since it has no
-/// variant for the refusal (golden.ts:45).
+/// The machine and the state a `machineAlive` refusal names (golden.ts:45).
 fn machine_alive(e: &EngineError) -> Option<(String, String)> {
-    let EngineError::Other { message, code: Some(code) } = e else {
-        return None;
-    };
-    if code != "machineAlive" {
-        return None;
+    match e {
+        EngineError::MachineAlive { machine_id, state } => {
+            Some((machine_id.clone(), wsp_engine::gone::machine_state_word(*state).to_owned()))
+        }
+        _ => None,
     }
-    let machine = message.strip_prefix("machine ")?.split(" is still ").next()?.to_owned();
-    let state = message.split(" is still ").nth(1)?.split(" after ").next()?.to_owned();
-    Some((machine, state))
 }
 
 fn gone_refusal_of(entry: &Entry, action: &str) -> HostError {

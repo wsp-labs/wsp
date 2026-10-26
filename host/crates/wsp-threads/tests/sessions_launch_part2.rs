@@ -1136,15 +1136,7 @@ fn a_sender_that_waited_leaves_the_threads_latest_row_alone() {
 #[test]
 fn a_resume_reads_what_the_machine_holds_for_its_session_once_and_says_it() {
     run_local(async {
-        let r = rig();
-        r.host.hooks.set::<dyn Fn(&Arc<dyn HarnessAdapter>) -> Option<wsp_threads::threads::launch::SessionHeld>>(
-            "SessionsCtx::session_held_of",
-            Rc::new(|_a: &Arc<dyn HarnessAdapter>| {
-                let held: wsp_threads::threads::launch::SessionHeld =
-                    Rc::new(|session: String, _exec: Arc<dyn HarnessExec>| async move { Ok(format!("held {session}")) }.boxed_local());
-                Some(held)
-            }),
-        );
+        let r = rig_with(adapter(|a| a.holds = true));
         let bound = Rc::new(Cell::new(0));
         let seen = bound.clone();
         r.host.hooks.set::<dyn Fn(&Entry, u64) -> Arc<dyn HarnessExec>>(

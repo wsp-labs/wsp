@@ -184,7 +184,7 @@ impl SessionsArea {
         for key in [pinned_number, order_number].into_iter().flatten() {
             if !key.0.is_finite() {
                 return Err(usage_refusal(
-                    &format!("a thread's place in the sidebar is a number, and {} is not one.", non_finite_word(key.0)),
+                    &format!("a thread's place in the sidebar is a number, and {} is not one.", key.js_string()),
                     "Send a finite number, or leave the key out.",
                 ));
             }
@@ -268,16 +268,5 @@ impl SessionsArea {
         }
         let restored = (reads.titled)(&back).into_iter().map(|(thread_id, title)| SettledThread { thread_id, title }).collect();
         Ok(SessionRestoreResult { restored })
-    }
-}
-
-/// JS `String(n)` of a number that is not finite.
-fn non_finite_word(n: f64) -> &'static str {
-    if n.is_nan() {
-        "NaN"
-    } else if n > 0.0 {
-        "Infinity"
-    } else {
-        "-Infinity"
     }
 }

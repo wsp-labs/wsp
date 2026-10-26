@@ -499,7 +499,7 @@ pub async fn listen_near(
 /// Accepts until closed; closing drops the listener at once, so the port is free when close returns.
 fn serve(listener: TcpListener, addr: SocketAddr, on_conn: OnConn) -> Rc<LoopbackListener> {
     let slot = Rc::new(RefCell::new(Some(listener)));
-    let task = crate::local_task::spawn({
+    let task = wsp_engine::local_task::try_spawn_local({
         let slot = Rc::clone(&slot);
         async move {
             while let Some(stream) = accept_one(&slot).await {
@@ -740,18 +740,24 @@ pub(crate) fn refused_engine(e: ReachError) -> EngineError {
         ))
         .ok()
     });
-    match kind {
-        Some(kind) => EngineError::Provider(wsp_engine::errors::WspError {
+    match (kind, e.status) {
+        (Some(kind), Some(status)) => EngineError::Provider(wsp_engine::errors::WspError {
             kind,
-            status: e.status.map_or(0, |s| s as u16),
+            status: status as u16,
             code: e.code,
             message: e.message,
             request_id: None,
             window: None,
             said: None,
         }),
-        None => EngineError::Other {
+        (None, None) => EngineError::Other {
             message: e.message,
+            code: e.code,
+        },
+        (kind, status) => EngineError::Refused {
+            message: e.message,
+            kind,
+            status: status.map(|s| s as u16),
             code: e.code,
         },
     }

@@ -524,9 +524,19 @@ fn fresh_prepares_on_the_recording_backend_and_settles() {
     let ask = w.roads.prepare_asks.borrow()[0].clone();
     assert_eq!(ask.setup, "setup");
     assert!(ask.import.is_some());
+    // golden.ts:239-247: `labels: ctx.builderLabels(recipe.labels)` is one of the options prepareBuilder creates with.
+    let labels: Vec<(String, String)> = ask
+        .size
+        .labels
+        .expect("the builder's labels")
+        .into_iter()
+        .collect();
     assert_eq!(
-        ask.size.labels, None,
-        "the recipe's labels go through builder_labels, not the size"
+        labels,
+        vec![
+            ("team".to_string(), "x".to_string()),
+            ("wsp-builder".to_string(), "1".to_string())
+        ]
     );
     assert!(w.builders.borrow()["m1"].borrow().recipe.is_some());
 }

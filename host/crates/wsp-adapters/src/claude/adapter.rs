@@ -29,6 +29,7 @@ use crate::claude::session_title::{
     draft_for_command, parse_draft_for, parse_rename, parse_session_title, parse_title_for, rename_command, session_title_command,
     title_for_command,
 };
+use crate::claude::turn::WeakSession;
 use crate::claude::turn::{fire, follow, ClaudeKept, ClaudeSession, FollowOptions, Kept, ASIDE_WALL_MS, INTERRUPT_GRACE_MS, RUN_EXIT_MS};
 use crate::pending::{aside_wall_line, claude_memory_dir, harness_exit_line, title_prompt, HarnessEnded};
 use crate::port::{
@@ -96,7 +97,17 @@ pub struct AdapterCore {
     pub env: Env,
     pub guard: String,
     pub memory_dir: Option<String>,
-    pub sessions: Mutex<IndexMap<String, ClaudeSession>>,
+    /// Held weakly: a session holds this core, so a strong map would keep every finished turn for as long as the adapter.
+    pub sessions: Mutex<IndexMap<String, WeakSession>>,
+}
+
+impl AdapterCore {
+    /// Registers a session under its id, in place of an earlier one, and forgets the ones nothing holds any more.
+    pub(crate) fn register(&self, id: String, session: &ClaudeSession) {
+        let mut held = self.sessions.lock().unwrap();
+        held.retain(|_, weak| weak.alive());
+        held.insert(id, session.downgrade());
+    }
 }
 
 /// What attach found. adapter.ts:162.
@@ -263,7 +274,7 @@ impl ClaudeAdapter {
             launcher,
         )?;
         let session = ClaudeSession::delegate(first.local_id(), now, finished);
-        core.sessions.lock().unwrap().insert(first.local_id(), session.clone());
+        core.register(first.local_id(), &session);
         Ok(session)
     }
 
@@ -335,9 +346,9 @@ impl ClaudeAdapter {
         )
     }
 
-    /// A snapshot of the sessions map, in the order they were registered.
+    /// A snapshot of the sessions map, in the order they were registered: the sessions something still holds.
     pub fn sessions(&self) -> IndexMap<String, ClaudeSession> {
-        self.core.sessions.lock().unwrap().clone()
+        self.core.sessions.lock().unwrap().iter().filter_map(|(id, weak)| Some((id.clone(), weak.upgrade()?))).collect()
     }
 
     /// adapter.ts:1438.
@@ -561,6 +572,9 @@ impl crate::port::HarnessAdapter for ClaudeAdapter {
     fn asides(&self) -> bool {
         true
     }
+    fn attaches(&self) -> bool {
+        self.core.deps.exec.attaches()
+    }
     fn attach(
         &self,
         options: AdapterAttachOptions,
@@ -579,6 +593,9 @@ impl crate::port::HarnessAdapter for ClaudeAdapter {
         true
     }
     fn reports_edits(&self) -> bool {
+        true
+    }
+    fn forks(&self) -> bool {
         true
     }
     fn fork_session(&self, session: String, turn: ForkTurn) -> Option<LocalBoxFuture<'static, Result<ForkedSession, String>>> {
@@ -711,6 +728,9 @@ impl crate::port::HarnessSession for ClaudeSession {
     }
     fn tells_unread(&self) -> Option<bool> {
         Some(ClaudeSession::tells_unread(self))
+    }
+    fn answers(&self) -> bool {
+        true
     }
     fn answer(&self, ask_id: String, answer: PermissionAnswer) -> Option<LocalBoxFuture<'static, Result<AnswerOutcome, ExecFailure>>> {
         let session = self.clone();

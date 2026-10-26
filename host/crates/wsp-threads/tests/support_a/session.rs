@@ -137,6 +137,9 @@ impl HarnessSession for FakeSession {
     fn tells_unread(&self) -> Option<bool> {
         self.tells_unread
     }
+    fn answers(&self) -> bool {
+        self.answers
+    }
     fn answer(&self, ask_id: String, answer: PermissionAnswer) -> Option<LocalBoxFuture<'static, Result<AnswerOutcome, ExecFailure>>> {
         if !self.answers {
             return None;

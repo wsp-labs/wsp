@@ -426,6 +426,28 @@ fn a_turn_counts_once_on_its_own_models_ledger_row() {
     });
 }
 
+// F7: turns.ts:421-423 files `use.tokens` as the result carried it; a split the agent left out is absent in the row.
+#[test]
+fn a_turn_files_its_tokens_with_the_splits_it_left_out_still_out() {
+    run_local(async {
+        let t = turn(Setup::default());
+        let filed: Rc<RefCell<Vec<LedgerUse>>> = Rc::default();
+        let f = filed.clone();
+        t.host.hooks.set::<dyn Fn(LedgerUse) -> LocalBoxFuture<'static, Result<(), HostError>>>(
+            "TurnsCtx::ledger_add",
+            Rc::new(move |row: LedgerUse| {
+                f.borrow_mut().push(row);
+                async { Ok(()) }.boxed_local()
+            }),
+        );
+        t.send(json!({ "type": "turn.done", "sessionId": "sess-1", "result": { "status": "completed", "model": "opus",
+            "tokens": { "input": 10, "output": 2, "cacheWrite": 7, "context": 5 } } }));
+        settle().await;
+        let tokens = filed.borrow()[0].tokens.as_ref().map(|t| serde_json::to_value(t).unwrap());
+        assert_eq!(tokens, Some(json!({ "input": 10, "output": 2, "cacheWrite": 7, "context": 5 })));
+    });
+}
+
 // F7: turns.ts:409
 #[test]
 fn no_tokens_and_no_cost_files_nothing() {

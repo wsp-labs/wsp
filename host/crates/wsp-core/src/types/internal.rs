@@ -461,7 +461,7 @@ pub struct KeptProcess {
     pub scope_device_id: Option<String>,
     pub waiting: Rc<std::cell::Cell<bool>>,
     pub file: Option<SessionFileStamp>,
-    pub box_file: Option<futures::future::Shared<futures::future::LocalBoxFuture<'static, Option<u64>>>>,
+    pub box_file: Option<futures::future::Shared<futures::future::LocalBoxFuture<'static, Option<i64>>>>,
     pub used_at: JsNumber,
     pub cancel: Box<dyn FnOnce()>,
 }
@@ -1124,7 +1124,8 @@ pub trait KindModule {
 }
 
 /// internal.ts:1215.
-pub type ImportReport = Rc<dyn Fn(ProjectImportStage, &str, Option<(u64, u64)>)>;
+/// A report that fails (a bus listener that throws) stops the import at that stage, as the TS's throws.
+pub type ImportReport = Rc<dyn Fn(ProjectImportStage, &str, Option<(u64, u64)>) -> Result<(), HostError>>;
 
 /// internal.ts:1216-1219.
 #[derive(Clone, Debug, PartialEq)]

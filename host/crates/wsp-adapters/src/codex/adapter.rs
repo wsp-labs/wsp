@@ -335,7 +335,7 @@ impl CodexAdapter {
 
     /// A snapshot of the sessions map, in registration order.
     pub fn sessions(&self) -> IndexMap<String, CodexSession> {
-        self.sessions.lock().unwrap().clone()
+        crate::codex::turn::live(&self.sessions)
     }
     /// The turn's environment. TS adapter.ts:1452.
     pub fn env(&self) -> Env {
@@ -581,6 +581,12 @@ impl HarnessAdapter for CodexAdapter {
     ) -> Option<LocalBoxFuture<'static, Result<Option<Vec<HarnessCatalogModelProbe>>, String>>> {
         CodexAdapter::account_models(self, version).map(|models| models.map(Ok).boxed_local())
     }
+    fn attaches(&self) -> bool {
+        self.deps.exec.attaches()
+    }
+    fn holds_session(&self) -> bool {
+        true
+    }
     fn attach(
         &self,
         options: AdapterAttachOptions,
@@ -599,6 +605,12 @@ impl HarnessAdapter for CodexAdapter {
         true
     }
     fn reports_edits(&self) -> bool {
+        true
+    }
+    fn reverts(&self) -> bool {
+        true
+    }
+    fn forks(&self) -> bool {
         true
     }
     fn revert(&self, ask: RevertAsk) -> Option<LocalBoxFuture<'static, Result<Reverted, String>>> {
@@ -714,6 +726,9 @@ impl HarnessSession for CodexSession {
         _images: Vec<TurnImage>,
     ) -> Option<LocalBoxFuture<'static, Result<SteerOutcome, ExecFailure>>> {
         Some(CodexSession::steer(self, prompt).map(Ok).boxed_local())
+    }
+    fn answers(&self) -> bool {
+        true
     }
     fn answer(&self, ask_id: String, answer: PermissionAnswer) -> Option<LocalBoxFuture<'static, Result<AnswerOutcome, ExecFailure>>> {
         Some(CodexSession::answer(self, ask_id, answer))

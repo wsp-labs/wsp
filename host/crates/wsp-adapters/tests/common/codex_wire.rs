@@ -354,6 +354,9 @@ impl ExecStreamFactory for Launch {
         self.wires.lock().unwrap().push(w.clone());
         w.stream()
     }
+    fn attaches(&self) -> bool {
+        self.attach_with.lock().unwrap().is_some()
+    }
     fn attach(&self, run: &str, options: AttachRunOptions) -> Option<LocalBoxFuture<'static, Result<Attached, ExecFailure>>> {
         let f = self.attach_with.lock().unwrap().clone()?;
         Some(f(run, options))

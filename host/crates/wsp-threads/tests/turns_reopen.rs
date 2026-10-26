@@ -24,6 +24,9 @@ impl HarnessAdapter for Attaching {
     fn steers(&self) -> bool {
         false
     }
+    fn attaches(&self) -> bool {
+        true
+    }
     fn attach(
         &self,
         options: AdapterAttachOptions,

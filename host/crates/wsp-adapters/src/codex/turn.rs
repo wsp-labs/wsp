@@ -191,7 +191,20 @@ pub struct CodexKept {
 }
 
 /// The turns a registry holds by local id; side questions and side runs never join it. TS adapter.ts:514.
-pub type Sessions = Arc<Mutex<indexmap::IndexMap<String, CodexSession>>>;
+/// Held weakly: a turn holds this map, so a strong one would keep every finished turn for as long as the adapter.
+pub type Sessions = Arc<Mutex<indexmap::IndexMap<String, std::sync::Weak<dyn SessionCore>>>>;
+
+/// Registers a session under its id, in place of an earlier one, and forgets the ones nothing holds any more.
+pub(crate) fn register(sessions: &Sessions, id: String, session: &CodexSession) {
+    let mut held = sessions.lock().unwrap();
+    held.retain(|_, weak| weak.strong_count() > 0);
+    held.insert(id, Arc::downgrade(&session.core));
+}
+
+/// The sessions something still holds, in the order they were registered.
+pub(crate) fn live(sessions: &Sessions) -> indexmap::IndexMap<String, CodexSession> {
+    sessions.lock().unwrap().iter().filter_map(|(id, weak)| Some((id.clone(), CodexSession { core: weak.upgrade()? }))).collect()
+}
 
 /// Starts reading one turn off its stream and answers its session. TS adapter.ts:522.
 pub fn follow(ctx: &TurnContext, sessions: &Sessions, o: FollowOptions) -> CodexSession {
@@ -257,7 +270,7 @@ pub fn follow(ctx: &TurnContext, sessions: &Sessions, o: FollowOptions) -> Codex
     });
     let session = CodexSession { core: Arc::new(turn.clone()) };
     if !turn.aside && !turn.side {
-        sessions.lock().unwrap().insert(o.local_id, session.clone());
+        register(sessions, o.local_id, &session);
     }
     session
 }

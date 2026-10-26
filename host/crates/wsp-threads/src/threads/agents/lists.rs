@@ -68,6 +68,15 @@ pub fn known_catalog(table: &HarnessCatalog, adapter: &dyn HarnessAdapter) -> Ha
     if let Some(terminal) = adapter.terminal_resume() {
         known.terminal_resume = Some(terminal);
     }
+    if adapter.forks() || adapter.reverts() {
+        known.rewinds_conversation = Some(true);
+    }
+    if adapter.reverts() {
+        known.rewinds_by_count = Some(true);
+    }
+    if adapter.forks() {
+        known.forks = Some(true);
+    }
     if adapter.forks_by_count() {
         known.forks_by_count = Some(true);
     }
