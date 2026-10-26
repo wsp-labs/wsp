@@ -5,7 +5,8 @@ mod support;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::rc::Rc;
 
-use wsp_core::context::{KindsArea, Late, RuntimeContext, RuntimeState, StateCell};
+use wsp_core::context::{Cancel, Joined, KindsArea, Late, RuntimeContext, RuntimeState, StateCell};
+use wsp_wire::views::preferences::{preferences_from, Preferences};
 
 #[test]
 fn runtime_state_starts_as_create_runtime_fills_it() {
@@ -113,4 +114,29 @@ fn a_partial_context_serves_the_slots_a_test_filled() {
     assert!(!ctx.core.is_filled());
     let caught = catch_unwind(AssertUnwindSafe(|| ctx.threads.get()));
     assert!(caught.is_err());
+}
+
+// context.ts:174 types preferencesHeld as Preferences, which the preferences area and two other traits read.
+#[test]
+fn preferences_held_is_the_typed_record() {
+    let ctx = RuntimeContext::new();
+    let prefs: Preferences = preferences_from(None);
+    ctx.state.with(|s| s.preferences_held = Some(prefs.clone()));
+    let held: Option<Preferences> = ctx.state.with(|s| s.preferences_held.clone());
+    assert_eq!(held, Some(prefs));
+}
+
+// The context names one Joined (the unit promise runtime state holds) and one Cancel (the clock's); the engine's and
+// the machines' own stay where they are.
+#[test]
+fn the_context_names_its_joined_and_its_cancel() {
+    let joined: Joined = futures::FutureExt::shared(futures::FutureExt::boxed_local(async {}));
+    let cancel: Cancel = Rc::new(|| {});
+    let same_cancel: wsp_core::clock::Cancel = cancel.clone();
+    let ctx = RuntimeContext::new();
+    ctx.state.with(|s| {
+        s.ticking = Some(joined);
+        s.sweep_timer = Some(same_cancel);
+    });
+    assert!(ctx.state.with(|s| s.ticking.is_some() && s.sweep_timer.is_some()));
 }
