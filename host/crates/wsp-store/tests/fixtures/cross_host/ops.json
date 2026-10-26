@@ -1,0 +1,413 @@
+{
+ "a": [
+  {
+   "put": [
+    "workspaces",
+    "ws_1",
+    {
+     "id": "ws_1",
+     "name": "héllo   \u0001 / \"q\" 🦀",
+     "z": 1,
+     "a": 2,
+     "2": 0,
+     "n": 1.5,
+     "big": 1e+21,
+     "small": 1e-07,
+     "whole": 10.0,
+     "nested": {
+      "k": [
+       1,
+       2,
+       {
+        "x": null
+       }
+      ],
+      "e": [],
+      "o": {}
+     }
+    }
+   ]
+  },
+  {
+   "put": [
+    "workspaces",
+    "ws_2",
+    {
+     "id": "ws_2",
+     "dir": "/srv/two"
+    }
+   ]
+  },
+  {
+   "put": [
+    "workspaces",
+    "ws_10",
+    {
+     "id": "ws_10"
+    }
+   ]
+  },
+  {
+   "put": [
+    "owner",
+    "id",
+    {
+     "id": "h_0a993e4c"
+    }
+   ]
+  },
+  {
+   "put": [
+    "reads",
+    "since",
+    {
+     "at": 1761400000000
+    }
+   ]
+  },
+  {
+   "put": [
+    "threads",
+    "t_1",
+    {
+     "id": "t_1",
+     "title": "first"
+    }
+   ]
+  },
+  {
+   "put": [
+    "threads",
+    "t_2",
+    {
+     "id": "t_2",
+     "title": "second"
+    }
+   ]
+  },
+  {
+   "put": [
+    "nulls",
+    "n",
+    null
+   ]
+  },
+  {
+   "put": [
+    "ids",
+    "2",
+    {
+     "id": "2"
+    }
+   ]
+  },
+  {
+   "put": [
+    "ids",
+    "10",
+    {
+     "id": "10"
+    }
+   ]
+  },
+  {
+   "put": [
+    "ids",
+    "b",
+    {
+     "id": "b"
+    }
+   ]
+  },
+  {
+   "putBlob": [
+    "vaults",
+    "v1",
+    "00ff1080"
+   ]
+  },
+  {
+   "putBlob": [
+    "vaults",
+    "v2",
+    ""
+   ]
+  },
+  {
+   "putBlob": [
+    "transcripts",
+    "ws_1",
+    "7b226576656e7473223a5b5d7d"
+   ]
+  },
+  {
+   "append": [
+    "ws_1",
+    [
+     {
+      "type": "session.delta",
+      "workspaceId": "w",
+      "sessionId": "s",
+      "threadId": "t_1",
+      "pos": 1,
+      "kind": "text",
+      "text": "héllo"
+     },
+     {
+      "type": "session.delta",
+      "workspaceId": "w",
+      "sessionId": "s",
+      "threadId": "t_2",
+      "pos": 2,
+      "kind": "text",
+      "text": "two"
+     },
+     {
+      "type": "session.delta",
+      "workspaceId": "w",
+      "sessionId": "s",
+      "pos": 3,
+      "kind": "text",
+      "text": "loose"
+     },
+     {
+      "type": "session.delta",
+      "workspaceId": "w",
+      "sessionId": "s",
+      "threadId": "t_1",
+      "pos": 4,
+      "kind": "tool_result",
+      "text": "output"
+     }
+    ]
+   ]
+  },
+  {
+   "append": [
+    "ws_2",
+    [
+     {
+      "type": "session.delta",
+      "workspaceId": "w",
+      "sessionId": "s",
+      "threadId": "t_3",
+      "pos": 1,
+      "kind": "text",
+      "text": "🦀 wave"
+     },
+     {
+      "type": "session.delta",
+      "workspaceId": "w",
+      "sessionId": "s",
+      "threadId": "t_3",
+      "pos": 2,
+      "kind": "text",
+      "text": "done"
+     }
+    ]
+   ]
+  },
+  {
+   "putIndex": [
+    "ws_1",
+    "{\"of\":{\"bytes\":1,\"at\":2},\"threads\":{}}"
+   ]
+  }
+ ],
+ "b": [
+  {
+   "put": [
+    "workspaces",
+    "ws_2",
+    {
+     "id": "ws_2",
+     "dir": "/srv/two",
+     "again": true
+    }
+   ]
+  },
+  {
+   "delete": [
+    "workspaces",
+    "ws_10"
+   ]
+  },
+  {
+   "put": [
+    "workspaces",
+    "ws_3",
+    {
+     "id": "ws_3"
+    }
+   ]
+  },
+  {
+   "delete": [
+    "threads",
+    "t_1"
+   ]
+  },
+  {
+   "put": [
+    "threads",
+    "t_1",
+    {
+     "id": "t_1",
+     "title": "first, again"
+    }
+   ]
+  },
+  {
+   "delete": [
+    "owner",
+    "gone"
+   ]
+  },
+  {
+   "putBlob": [
+    "vaults",
+    "v1",
+    "aa"
+   ]
+  },
+  {
+   "deleteBlob": [
+    "transcripts",
+    "ws_1"
+   ]
+  },
+  {
+   "putBlob": [
+    "vaults",
+    "v3",
+    "0102"
+   ]
+  },
+  {
+   "append": [
+    "ws_1",
+    [
+     {
+      "type": "session.delta",
+      "workspaceId": "w",
+      "sessionId": "s",
+      "threadId": "t_1",
+      "pos": 5,
+      "kind": "text",
+      "text": "five"
+     },
+     {
+      "type": "session.delta",
+      "workspaceId": "w",
+      "sessionId": "s",
+      "threadId": "t_2",
+      "pos": 6,
+      "kind": "text",
+      "text": "six"
+     }
+    ]
+   ]
+  },
+  {
+   "remove": [
+    "ws_1",
+    [
+     2
+    ]
+   ]
+  },
+  {
+   "putIndex": [
+    "ws_1",
+    "{\"of\":{\"bytes\":3,\"at\":4},\"threads\":{\"t_1\":1}}"
+   ]
+  },
+  {
+   "putIndex": [
+    "ws_2",
+    "{}"
+   ]
+  },
+  {
+   "clear": [
+    "ws_2"
+   ]
+  }
+ ],
+ "dump": {
+  "collections": [
+   "workspaces",
+   "owner",
+   "reads",
+   "threads",
+   "nulls",
+   "ids",
+   "never"
+  ],
+  "ids": {
+   "workspaces": [
+    "ws_1",
+    "ws_2",
+    "ws_3",
+    "ws_10",
+    "none"
+   ],
+   "owner": [
+    "id",
+    "gone"
+   ],
+   "threads": [
+    "t_1",
+    "t_2"
+   ],
+   "nulls": [
+    "n"
+   ],
+   "ids": [
+    "2",
+    "10",
+    "b"
+   ]
+  },
+  "blobs": [
+   [
+    "vaults",
+    "v1"
+   ],
+   [
+    "vaults",
+    "v2"
+   ],
+   [
+    "vaults",
+    "v3"
+   ],
+   [
+    "transcripts",
+    "ws_1"
+   ],
+   [
+    "vaults",
+    "none"
+   ]
+  ],
+  "workspaces": [
+   "ws_1",
+   "ws_2",
+   "ws_none"
+  ],
+  "threads": [
+   "t_1",
+   "t_2",
+   "t_3",
+   ""
+  ],
+  "positions": [
+   1,
+   2,
+   3,
+   5,
+   99
+  ]
+ }
+}

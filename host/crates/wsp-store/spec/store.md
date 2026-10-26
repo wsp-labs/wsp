@@ -17,7 +17,7 @@ answers every call without waiting (rule 2.20). A record is a JSON value; a blob
    `transcripts()`, `None` by default (store.ts:9-24). Errors are `HostError` with no kind: the TS throws a plain
    `Error(message)`, which classes as provider.
 2. `shape_now(writer)` is `{shape: STATE_SHAPE, wsp, daemon, bin, at}` in that key order, `at` the ISO time of now with
-   milliseconds and `Z` (store.ts:43; rule 2.26). `STATE_SHAPE` is 3 here, one past the TS host's 2 (rule 2.19).
+   milliseconds and `Z` (store.ts:43; rule 2.26). `STATE_SHAPE` is 2, the TS host's own (rule 2.19).
 3. The refusals, word for word (store.ts:48-74), with `S` this host's `STATE_SHAPE` and `<words>` =
    `<bin> (wsp <wsp>, daemon <daemon>)` (`state_writer_words`, wsp-wire):
    - newer: `<path> was written by a newer wsp (state shape <N>; this wsp reads <S>; written <at> by <words>): run that wsp, or move the file aside`
@@ -39,7 +39,7 @@ answers every call without waiting (rule 2.20). A record is a JSON value; a blob
 ## Edge cases
 
 - `state_shape_unreadable_line` of the text `not json {` quotes it: `("not json {")` (fixture `shapeUnreadable[3]`).
-- `refuse_other_shape(Some(shape 3))` is Ok; `Some(shape 2)` (a TS host's state) is the older sentence.
+- `refuse_other_shape(Some(shape 2))` is Ok (a TS host's state); `Some(shape 1)` is the older sentence and `Some(shape 3)` the newer.
 - Mark after x, y, x: x `{bytes 5, at 3}`, y `{bytes 4, at 2}` (fixture `marks`).
 
 ## Behaviour nobody wrote down
@@ -56,8 +56,8 @@ None: the store serves no op of its own. Every op that writes a record reaches i
 
 ## Decisions
 
-1. `STATE_SHAPE` lives in this crate as 3; wsp-wire's `STATE_SHAPE` stays the TS record's 2 (`daemon_version.rs:26`).
-   The store and the refusals read this crate's.
+1. `STATE_SHAPE` lives in wsp-wire (`daemon_version.rs`) as 2, the TS host's; this crate re-exports it, so the store
+   and the refusals read the one number.
 2. The memory store hands out copies (above).
 3. Dropped with Proposal 3: `jsonFileStore`, `readStateFile`, `readJson`, `stateNotAnObjectLine` and `jsonKind`, and the
    `Data` type (store.ts:31,63-68,114-264).
