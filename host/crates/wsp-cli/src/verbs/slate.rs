@@ -111,16 +111,22 @@ pub fn state_value(word: &str) -> Option<(String, Value)> {
 }
 
 /// A parsed JSON value as JavaScript holds it: every number is a double, which a frame writes as `String(n)` does.
-fn js_value(value: Value) -> Value {
-    match value {
-        Value::Number(n) if n.is_f64() => {
-            let text = wsp_words::js::number_string(n.as_f64().unwrap_or_default());
-            serde_json::from_str(&text).unwrap_or(Value::Number(n))
+fn js_value(mut value: Value) -> Value {
+    let mut work = vec![&mut value];
+    while let Some(at) = work.pop() {
+        match at {
+            Value::Number(n) if n.is_f64() => {
+                let text = wsp_words::js::number_string(n.as_f64().unwrap_or_default());
+                if let Ok(read) = serde_json::from_str(&text) {
+                    *n = read;
+                }
+            }
+            Value::Array(items) => work.extend(items.iter_mut()),
+            Value::Object(map) => work.extend(map.values_mut()),
+            _ => {}
         }
-        Value::Array(items) => Value::Array(items.into_iter().map(js_value).collect()),
-        Value::Object(map) => Value::Object(map.into_iter().map(|(key, value)| (key, js_value(value))).collect()),
-        other => other,
     }
+    value
 }
 
 /// `SLATE_TOOL_NAMES` (slate.ts:224): the four slate tools.
