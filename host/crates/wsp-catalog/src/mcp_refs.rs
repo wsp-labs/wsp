@@ -6,17 +6,16 @@ use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::Value;
+use std::collections::HashSet;
+use std::rc::Rc;
 
 use crate::js_regex::compiled;
+use crate::jsonc::is_js_space;
 use crate::jsonc_tree::{JsonPath, PathSeg};
 use crate::mcp::{KnownValue, McpFormat, McpReferred, ReferredServer, WholeRef};
 use crate::mcp_bearer::{bearer_of, mcp_bearer_variable};
 use wsp_words::exit::HostError;
 
-const FLAG_ARG: &str = r"^(-{1,2}[A-Za-z0-9][\w.-]*)=([^]+)$";
-const HEADER_LINE: &str = r"^([A-Za-z0-9-]+):[ \t]*([^/][^]*)$";
-const VALUE_FORM: &str = r"^(?:bearer|basic|token)\s+(.+)$";
-const ADDRESS: &str = r"^[a-z][a-z0-9+.-]*:\/\/[^?#]*\?([^#]*)";
 const BEARER_HEADER: &str = r"^Bearer\s+(\S.*)$";
 const OAUTH_SECRETS: [&str; 4] = ["clientsecret", "refreshtoken", "accesstoken", "idtoken"];
 
@@ -45,10 +44,37 @@ pub fn crosses_lines(value: &str) -> bool {
 /// (mcp.ts:190).
 pub fn value_forms(value: &str) -> Vec<String> {
     let mut out = vec![value.to_string()];
-    if let Some(g) = groups(VALUE_FORM, "i", value) {
-        out.push(group(&g, 1).to_string());
+    if let Some(rest) = value_rest(&Part::whole(value)) {
+        out.push(value[rest].to_string());
     }
     out
+}
+
+/// Where the value form's text stands in `part`, for `/^(?:bearer|basic|token)\s+(.+)$/i` read without a regex, whose
+/// `.+$` would scan to the end of the string at every level of a chain of scheme words: the word, a run of white
+/// space, then everything to the end where no line end stands. Where nothing is left after the run, `\s+` gives back
+/// its last character to `.+`, which takes it only if it is not a line end and the run has another.
+fn value_rest(part: &Part) -> Option<std::ops::Range<usize>> {
+    let s = part.as_str();
+    let word = ["bearer", "basic", "token"].into_iter().find(|w| s.len() > w.len() && s.as_bytes()[..w.len()].eq_ignore_ascii_case(w.as_bytes()))?;
+    let (mut at, mut run, mut last) = (word.len(), 0, word.len());
+    for c in s[word.len()..].chars().take_while(|c| is_js_space(*c)) {
+        last = at;
+        at += c.len_utf8();
+        run += 1;
+    }
+    if run == 0 || part.has_line_end(at..s.len()) {
+        return None;
+    }
+    if at < s.len() {
+        return Some(at..s.len());
+    }
+    let alone = s[last..].chars().next().is_some_and(|c| !is_line_end(c));
+    (run >= 2 && alone).then_some(last..s.len())
+}
+
+fn is_line_end(c: char) -> bool {
+    matches!(c, '\n' | '\r' | '\u{2028}' | '\u{2029}')
 }
 
 /// Why a value typed for a catalog row's own variable does not travel as a server's (mcp.ts:374).
@@ -64,54 +90,170 @@ pub const EVERY_MACHINE: [&str; 8] = ["HOME", "USER", "LOGNAME", "PATH", "PWD", 
 /// here they only slice the same string, so bytes serve.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Place {
-    pub text: String,
+    pub text: Part,
     pub at: String,
     pub start: Option<usize>,
 }
 
+/// A stretch of a string, shared with every other stretch cut from it, so the parts a chain of scheme words leaves
+/// (each the one before it less a word) cost no copy of the text: they would be quadratic in its length.
+#[derive(Clone)]
+pub struct Part {
+    base: Rc<Base>,
+    from: usize,
+    to: usize,
+}
+
+/// A string and where its line ends stand, which is what tells whether a stretch of it holds one without a scan.
+struct Base {
+    text: String,
+    line_ends: Vec<usize>,
+}
+
+impl Part {
+    fn whole(text: &str) -> Part {
+        let line_ends = text.char_indices().filter(|(_, c)| is_line_end(*c)).map(|(i, _)| i).collect();
+        Part { base: Rc::new(Base { text: text.to_string(), line_ends }), from: 0, to: text.len() }
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.base.text[self.from..self.to]
+    }
+
+    /// The part for `sub`, a slice of this part's own text.
+    fn of(&self, sub: &str) -> Part {
+        if sub.is_empty() {
+            return Part { base: self.base.clone(), from: self.from, to: self.from };
+        }
+        let from = sub.as_ptr() as usize - self.as_str().as_ptr() as usize + self.from;
+        Part { base: self.base.clone(), from, to: from + sub.len() }
+    }
+
+    /// Whether a line end stands in the stretch of this part at `range`.
+    fn has_line_end(&self, range: std::ops::Range<usize>) -> bool {
+        let ends = &self.base.line_ends;
+        ends.partition_point(|&i| i < self.from + range.start) < ends.partition_point(|&i| i < self.from + range.end)
+    }
+}
+
+impl std::ops::Deref for Part {
+    type Target = str;
+    fn deref(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl std::borrow::Borrow<str> for Part {
+    fn borrow(&self) -> &str {
+        self.as_str()
+    }
+}
+
+impl PartialEq for Part {
+    fn eq(&self, other: &Part) -> bool {
+        self.as_str() == other.as_str()
+    }
+}
+
+impl Eq for Part {}
+
+impl std::hash::Hash for Part {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.as_str().hash(state);
+    }
+}
+
+impl std::fmt::Debug for Part {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.as_str().fmt(f)
+    }
+}
+
 /// Every part of `s` a value can stand as whole, in the TS generator's order (mcp.ts:262): the string; a `--flag=v`'s
 /// value; a header line's value; what follows a scheme word; each query value raw, then decoded where decoding changes
-/// it. The empty string has none.
+/// it. The empty string has none. Depth-first with a stack of the parts still to visit, so a string that nests by
+/// its own text (`bearer bearer ...`) costs the stack nothing.
 pub fn places(s: &str, at: &str, start: Option<usize>) -> Vec<Place> {
     let mut out = Vec::new();
-    push_places(s, at, start, &mut out);
+    let mut work = vec![(Part::whole(s), at.to_string(), start)];
+    while let Some((part, at, start)) = work.pop() {
+        let s = part.as_str();
+        if s.is_empty() {
+            continue;
+        }
+        out.push(Place { text: part.clone(), at: at.clone(), start });
+        let tail = |sub: &str| start.map(|st| st + s.len() - sub.len());
+        let mut inner: Vec<(Part, String, Option<usize>)> = Vec::new();
+        if let Some((flag, sub)) = flag_arg(s) {
+            inner.push((part.of(sub), format!("the {flag} argument"), tail(sub)));
+        }
+        if let Some((name, sub)) = header_line(s) {
+            inner.push((part.of(sub), format!("the {name} header"), tail(sub)));
+        }
+        if let Some(rest) = value_rest(&part) {
+            let sub = &s[rest];
+            inner.push((part.of(sub), at.clone(), tail(sub)));
+        }
+        if let Some((mut offset, query)) = address_query(s) {
+            for pair in query.split('&') {
+                let (key, raw) = match pair.find('=') {
+                    Some(i) => (&pair[..i], &pair[i + 1..]),
+                    None => (pair, ""),
+                };
+                let whose = format!("the {key} parameter of an address");
+                inner.push((part.of(raw), whose.clone(), start.map(|st| st + offset + key.len() + 1)));
+                let decoded = query_value(raw);
+                if decoded != raw {
+                    inner.push((Part::whole(&decoded), whose, None));
+                }
+                offset += pair.len() + 1;
+            }
+        }
+        work.extend(inner.into_iter().rev());
+    }
     out
 }
 
-fn push_places(s: &str, at: &str, start: Option<usize>, out: &mut Vec<Place>) {
-    if s.is_empty() {
-        return;
+/// The flag and its value, for `/^(-{1,2}[A-Za-z0-9][\w.-]*)=([^]+)$/` read without a regex: the regexes of the three
+/// readers here would each cost a scan of the whole string at every level of a chain of `--a=`.
+fn flag_arg(s: &str) -> Option<(&str, &str)> {
+    let dashes = s.bytes().take_while(|&c| c == b'-').count();
+    if !(1..=2).contains(&dashes) || !s.as_bytes().get(dashes)?.is_ascii_alphanumeric() {
+        return None;
     }
-    out.push(Place { text: s.to_string(), at: at.to_string(), start });
-    let tail = |part: &str| start.map(|st| st + s.len() - part.len());
-    if let Some(g) = groups(FLAG_ARG, "", s) {
-        let part = group(&g, 2);
-        push_places(part, &format!("the {} argument", group(&g, 1)), tail(part), out);
+    let name = dashes + s.as_bytes()[dashes..].iter().take_while(|c| c.is_ascii_alphanumeric() || matches!(c, b'_' | b'.' | b'-')).count();
+    let value = s[name..].strip_prefix('=')?;
+    (!value.is_empty()).then_some((&s[..name], value))
+}
+
+/// The header name and its value, for `/^([A-Za-z0-9-]+):[ \t]*([^/][^]*)$/`: where nothing but a `/` or the end follows
+/// the spaces, the last space is given back to the value.
+fn header_line(s: &str) -> Option<(&str, &str)> {
+    let name = s.bytes().take_while(|c| c.is_ascii_alphanumeric() || *c == b'-').count();
+    if name == 0 {
+        return None;
     }
-    if let Some(g) = groups(HEADER_LINE, "", s) {
-        let part = group(&g, 2);
-        push_places(part, &format!("the {} header", group(&g, 1)), tail(part), out);
+    let rest = s[name..].strip_prefix(':')?;
+    let spaces = rest.bytes().take_while(|&c| c == b' ' || c == b'\t').count();
+    let value = &rest[spaces..];
+    if !value.is_empty() && !value.starts_with('/') {
+        return Some((&s[..name], value));
     }
-    for rest in value_forms(s).iter().skip(1) {
-        push_places(rest, at, tail(rest), out);
+    (spaces > 0).then(|| (&s[..name], &rest[spaces - 1..]))
+}
+
+/// Where the query of an address starts and the query, for `/^[a-z][a-z0-9+.-]*:\/\/[^?#]*\?([^#]*)/i` read without a regex: fancy-regex runs a
+/// pattern with a case-folded class by trying every start, which is a scan of the whole string at each level of a chain.
+fn address_query(s: &str) -> Option<(usize, &str)> {
+    let b = s.as_bytes();
+    if !b.first()?.is_ascii_alphabetic() {
+        return None;
     }
-    if let Some(g) = groups(ADDRESS, "i", s) {
-        let query = group(&g, 1);
-        let mut offset = group(&g, 0).len() - query.len();
-        for pair in query.split('&') {
-            let (key, raw) = match pair.find('=') {
-                Some(i) => (&pair[..i], &pair[i + 1..]),
-                None => (pair, ""),
-            };
-            let whose = format!("the {key} parameter of an address");
-            push_places(raw, &whose, start.map(|st| st + offset + key.len() + 1), out);
-            let decoded = query_value(raw);
-            if decoded != raw {
-                push_places(&decoded, &whose, None, out);
-            }
-            offset += pair.len() + 1;
-        }
-    }
+    let scheme = b.iter().take_while(|c| c.is_ascii_alphanumeric() || matches!(c, b'+' | b'.' | b'-')).count();
+    let after = s[scheme..].strip_prefix("://")?;
+    let from = scheme + 3 + after.find(['?', '#']).filter(|&i| after.as_bytes()[i] == b'?')? + 1;
+    let query = &s[from..];
+    Some((from, &query[..query.find('#').unwrap_or(query.len())]))
 }
 
 /// `decodeURIComponent` of a query value with `+` as a space; the raw text where it is not valid percent-encoding
@@ -127,18 +269,27 @@ pub fn still_stands(entries: &[Value], servers: &[ReferredServer]) -> Result<(),
     for entry in entries {
         strings_in(entry, &mut strings);
     }
-    let mut held: IndexMap<String, String> = IndexMap::new();
+    let spellings = |form: &str| -> [String; 3] {
+        let encoded = STANDARD.encode(form.as_bytes());
+        let b = encoded.trim_end_matches('=');
+        [format!("{b}{}", "=".repeat((4 - b.len() % 4) % 4)), b.to_string(), b.replace('+', "-").replace('/', "_")]
+    };
+    let lengths: HashSet<usize> = servers
+        .iter()
+        .flat_map(|s| s.values.values())
+        .flat_map(|v| value_forms(v))
+        .flat_map(|form| spellings(&form).into_iter().map(|e| e.len()).chain([form.len()]).collect::<Vec<_>>())
+        .collect();
+    let mut held: IndexMap<Part, String> = IndexMap::new();
     for s in &strings {
         for p in places(s, "the file", None) {
-            held.entry(p.text).or_insert(p.at);
+            if lengths.contains(&p.text.len()) {
+                held.entry(p.text).or_insert(p.at);
+            }
         }
     }
     let where_ = |form: &str| -> Option<String> {
-        let encoded = STANDARD.encode(form.as_bytes());
-        let b = encoded.trim_end_matches('=');
-        let padded = format!("{b}{}", "=".repeat((4 - b.len() % 4) % 4));
-        let url = b.replace('+', "-").replace('/', "_");
-        let found = [padded, b.to_string(), url].iter().find_map(|e| held.get(e).cloned());
+        let found = spellings(form).iter().find_map(|e| held.get(e.as_str()).cloned());
         held.get(form).cloned().or_else(|| found.map(|at| format!("{at}, as base64")))
     };
     for s in servers {
@@ -317,11 +468,6 @@ pub fn codex_headers(server: &str, headers: &IndexMap<String, String>) -> Result
 /// The keys of an `oauth` table that hold a secret, spelled any way (mcp.ts:222).
 pub fn oauth_secret_keys(oauth: &serde_json::Map<String, Value>) -> Vec<String> {
     oauth.keys().filter(|k| OAUTH_SECRETS.contains(&squashed(k).as_str())).cloned().collect()
-}
-
-/// Where a definition still holds an OAuth secret, as dotted paths (mcp.ts:226).
-pub fn oauth_secrets_in(v: &Value, reference: &dyn Fn(&str) -> bool) -> Vec<String> {
-    oauth_secrets_at(v, reference, &[])
 }
 
 /// Whether a reference may read `name`: held outside, written by this file, its bearer's token held either way, or
@@ -503,11 +649,6 @@ fn groups<'a>(source: &'static str, flags: &'static str, s: &'a str) -> Option<V
     Some((0..caps.len()).map(|i| caps.get(i).map(|m| m.as_str())).collect())
 }
 
-/// A capture group's text, nothing for a group that did not take part.
-fn group<'a>(groups: &[Option<&'a str>], i: usize) -> &'a str {
-    groups.get(i).copied().flatten().unwrap_or("")
-}
-
 /// `decodeURIComponent`: each `%XX` a byte, the bytes read as UTF-8; nothing where a percent sign is not followed by
 /// two hex digits or the bytes are not UTF-8.
 fn decode_uri_component(s: &str) -> Option<String> {
@@ -531,11 +672,14 @@ fn decode_uri_component(s: &str) -> Option<String> {
 }
 
 fn strings_in(v: &Value, out: &mut Vec<String>) {
-    match v {
-        Value::String(s) => out.push(s.clone()),
-        Value::Array(items) => items.iter().for_each(|x| strings_in(x, out)),
-        Value::Object(map) => map.values().for_each(|x| strings_in(x, out)),
-        _ => {}
+    let mut work = vec![v];
+    while let Some(x) = work.pop() {
+        match x {
+            Value::String(s) => out.push(s.clone()),
+            Value::Array(items) => work.extend(items.iter().rev()),
+            Value::Object(map) => work.extend(map.values().rev()),
+            _ => {}
+        }
     }
 }
 
@@ -553,39 +697,53 @@ fn path_text(path: &JsonPath) -> String {
         .join(".")
 }
 
-fn oauth_secrets_at(v: &Value, reference: &dyn Fn(&str) -> bool, at: &[String]) -> Vec<String> {
-    match v {
-        Value::Array(items) => {
-            items.iter().enumerate().flat_map(|(i, x)| oauth_secrets_at(x, reference, &extended(at, &i.to_string()))).collect()
+/// Where a definition still holds an OAuth secret, as dotted paths (mcp.ts:226), in the order a walk down the tree
+/// meets them. The path is one stack the walk cuts back as it climbs, so no level copies it.
+pub fn oauth_secrets_in(v: &Value, reference: &dyn Fn(&str) -> bool) -> Vec<String> {
+    let mut found = Vec::new();
+    let mut path: Vec<String> = Vec::new();
+    let mut work: Vec<(&Value, usize, Option<(String, bool)>)> = vec![(v, 0, None)];
+    while let Some((x, depth, step)) = work.pop() {
+        path.truncate(depth);
+        if let Some((segment, oauth)) = step {
+            path.push(segment);
+            if oauth {
+                found.extend(held_in(x, reference, &path));
+            }
         }
-        Value::Object(map) => map
-            .iter()
-            .flat_map(|(k, x)| {
-                let here = extended(at, k);
-                let mut found = if squashed(k) == "oauth" { held_in(x, reference, &here) } else { Vec::new() };
-                found.extend(oauth_secrets_at(x, reference, &here));
-                found
-            })
-            .collect(),
-        _ => Vec::new(),
+        match x {
+            Value::Array(items) => {
+                work.extend(items.iter().enumerate().rev().map(|(i, y)| (y, path.len(), Some((i.to_string(), false)))))
+            }
+            Value::Object(map) => work.extend(map.iter().rev().map(|(k, y)| (y, path.len(), Some((k.clone(), squashed(k) == "oauth"))))),
+            _ => {}
+        }
     }
+    found
 }
 
 /// The secrets an `oauth` value holds, written as a table or as a list of tables.
 fn held_in(x: &Value, reference: &dyn Fn(&str) -> bool, at: &[String]) -> Vec<String> {
-    match x {
-        Value::Array(items) => items.iter().enumerate().flat_map(|(i, y)| held_in(y, reference, &extended(at, &i.to_string()))).collect(),
-        Value::Object(map) => oauth_secret_keys(map)
-            .into_iter()
-            .filter(|s| !matches!(map.get(s), Some(Value::String(v)) if v.is_empty() || reference(v)))
-            .map(|s| extended(at, &s).join("."))
-            .collect(),
-        _ => Vec::new(),
+    let mut found = Vec::new();
+    let mut path = at.to_vec();
+    let mut work: Vec<(&Value, usize, Option<usize>)> = vec![(x, path.len(), None)];
+    while let Some((y, depth, index)) = work.pop() {
+        path.truncate(depth);
+        path.extend(index.map(|i| i.to_string()));
+        match y {
+            Value::Array(items) => work.extend(items.iter().enumerate().rev().map(|(i, z)| (z, path.len(), Some(i)))),
+            Value::Object(map) => {
+                for secret in oauth_secret_keys(map)
+                    .into_iter()
+                    .filter(|s| !matches!(map.get(s), Some(Value::String(v)) if v.is_empty() || reference(v)))
+                {
+                    path.push(secret);
+                    found.push(path.join("."));
+                    path.pop();
+                }
+            }
+            _ => {}
+        }
     }
-}
-
-fn extended(at: &[String], key: &str) -> Vec<String> {
-    let mut out = at.to_vec();
-    out.push(key.to_string());
-    out
+    found
 }
