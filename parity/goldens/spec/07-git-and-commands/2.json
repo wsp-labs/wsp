@@ -1,0 +1,41 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": "no such workspace: ws_00000000",
+      "kind": "not-found"
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "no such workspace: ws_00000000",
+      "kind": "not-found"
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": "no such workspace: ws_00000000",
+      "kind": "not-found"
+    },
+    {
+      "id": 5,
+      "ok": false,
+      "error": "no such workspace: ws_00000000",
+      "kind": "not-found"
+    },
+    {
+      "id": 6,
+      "ok": false,
+      "error": "no thread 0a1b2c3d",
+      "kind": "not-found"
+    }
+  ],
+  "events": []
+}

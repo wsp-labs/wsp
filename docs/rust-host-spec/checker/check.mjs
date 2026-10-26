@@ -142,6 +142,7 @@ function normal(lines, dir) {
   const walk = (v, key) => {
     if (typeof v === "string") {
       if (MINTED[key]?.test(v)) return `<${key}>`;
+      if (typeof key === "string" && /At$/.test(key) && /^<time[^>]* in ms>$/.test(v)) return `<${key}>`;
       let s = dir === undefined ? v : v.replaceAll(dir, "<tmp>");
       if (dir !== undefined) s = s.replaceAll(dir.replaceAll("/", "-"), "<tmp-key>");
       s = s.replace(/\/tmp\/wsp-tape-[A-Za-z0-9]+/g, "<tmp>").replace(/-tmp-wsp-tape-[A-Za-z0-9]+/g, "<tmp-key>");

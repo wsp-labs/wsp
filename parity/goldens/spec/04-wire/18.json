@@ -1,0 +1,93 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": "",
+      "ok": true,
+      "projects": []
+    },
+    {
+      "id": -1,
+      "ok": true,
+      "projects": []
+    },
+    {
+      "id": 0,
+      "ok": true,
+      "projects": []
+    },
+    {
+      "id": 1e+21,
+      "ok": true,
+      "projects": []
+    },
+    {
+      "id": true,
+      "ok": false,
+      "error": {
+        "json": [
+          {
+            "code": "invalid_union",
+            "unionErrors": [
+              {
+                "issues": [
+                  {
+                    "code": "invalid_type",
+                    "expected": "string",
+                    "received": "boolean",
+                    "path": [
+                      "id"
+                    ],
+                    "message": "Expected string, received boolean"
+                  }
+                ],
+                "name": "ZodError"
+              },
+              {
+                "issues": [
+                  {
+                    "code": "invalid_type",
+                    "expected": "number",
+                    "received": "boolean",
+                    "path": [
+                      "id"
+                    ],
+                    "message": "Expected number, received boolean"
+                  }
+                ],
+                "name": "ZodError"
+              }
+            ],
+            "path": [
+              "id"
+            ],
+            "message": "Invalid input"
+          }
+        ],
+        "layout": "indented"
+      }
+    }
+  ],
+  "events": [
+    {
+      "id": 0,
+      "ok": true,
+      "projects": []
+    },
+    {
+      "id": 12345678901234567000,
+      "ok": true,
+      "projects": []
+    },
+    {
+      "id": null,
+      "ok": true,
+      "projects": []
+    }
+  ]
+}
