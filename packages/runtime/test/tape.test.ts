@@ -291,14 +291,14 @@ describe("the tap", () => {
 
   it("keeps the folder the shell's PWD and OLDPWD name", () => {
     dir = mkdtempSync(join(tmpdir(), "wsp-tape-"));
-    tapeOf({ [TAPE_DIR_ENV]: dir, PWD: "/home/lab/project", OLDPWD: "/home/lab/elsewhere" }, "ws", HOST_TOKEN)!.in({
+    tapeOf({ [TAPE_DIR_ENV]: dir, PWD: "/home/dev/project", OLDPWD: "/home/dev/elsewhere" }, "ws", HOST_TOKEN)!.in({
       id: 2,
       op: "projects.add",
-      source: "/home/lab/project",
-      prompt: "cd /home/lab/elsewhere; PWD=/home/lab/project make",
+      source: "/home/dev/project",
+      prompt: "cd /home/dev/elsewhere; PWD=/home/dev/project make",
     });
     const text = readFileSync(join(dir, readdirSync(dir)[0]!), "utf8");
-    expect(text).toContain('"source":"/home/lab/project"');
-    expect(text).toContain("cd /home/lab/elsewhere; PWD=/home/lab/project make");
+    expect(text).toContain('"source":"/home/dev/project"');
+    expect(text).toContain("cd /home/dev/elsewhere; PWD=/home/dev/project make");
   });
 });
