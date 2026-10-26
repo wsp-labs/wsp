@@ -22,7 +22,6 @@ use wsp_core::types::harness::BrokeredKind;
 use wsp_core::types::internal::{SessionEntry, ThreadWords};
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_machines::machines::brokered::{brokered_env, terminal_sign_in, LaunchRead, RepoOfRecord, TerminalSignIn};
-use wsp_machines::places::types::PlaceDoor;
 use wsp_store::sqlite_transcripts::{EventSize, Summed, Total, TranscriptRows};
 use wsp_store::store::Store;
 use wsp_wire::views::place_more::PlaceView;
