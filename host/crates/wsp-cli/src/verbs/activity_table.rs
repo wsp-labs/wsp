@@ -328,6 +328,6 @@ pub fn activity_table(view: &ActivityView, o: TableOpts) -> String {
         ellipsize(js_trim_end(&cells.join(GUTTER)), room)
     };
     let mut out = vec![ellipsize(&totals, room), String::new()];
-    out.extend(all.iter().map(|r| line(*r)));
+    out.extend(all.iter().map(|r| line(r)));
     out.join("\n")
 }

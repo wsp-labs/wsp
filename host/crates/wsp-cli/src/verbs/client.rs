@@ -801,7 +801,7 @@ pub fn printable(s: &str) -> String {
 
 /// `cell(s)` (client.ts:1066): newline and tab to a space, then `without_control_chars`.
 pub fn cell(s: &str) -> String {
-    without_control_chars(&s.replace(|c: char| c == '\n' || c == '\t', " "))
+    without_control_chars(&s.replace(['\n', '\t'], " "))
 }
 
 /// `pick(o)` (client.ts:1069-1071): the given fields in order, the absent ones dropped. A `Some(Value::Null)` is
