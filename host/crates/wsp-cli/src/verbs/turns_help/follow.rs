@@ -2,17 +2,36 @@
 //! `turns-help.ts:482-863` at 65f6b89c7: starting a turn and following it, waiting on threads, restarting the host,
 //! reading a thread and its head. Spec: `spec/turns-follow.md`.
 
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
+use rand_core::{OsRng, RngCore};
+use serde_json::{json, Value};
+use tokio::sync::oneshot;
+
+use wsp_wire::types::check::parse;
 use wsp_wire::types::thread_read::ThreadMessage;
 use wsp_wire::views::preferences::ThreadHead;
-use wsp_wire::views::session::{SessionOrigin, ThreadView};
-use wsp_wire::views::session_events::{SessionQueuedEvent, SessionSteerEvent, SessionStartingEvent};
+use wsp_wire::views::session::{SessionOrigin, SessionStatus, ThreadView};
+use wsp_wire::views::session_events::{SessionQueuedEvent, SessionStartingEvent, SessionSteerEvent, TurnResult};
 use wsp_wire::views::session_events_more::SessionEvent;
+use wsp_wire::views::sub_row::SubResult;
+use wsp_wire::wire::runtime::{SessionStartOutcome, SessionStartResult};
 use wsp_words::exit::HostError;
+use wsp_words::thread_read::{thread_messages, thread_reply_rows, thread_result};
+use wsp_words::words::thread::NOT_DELIVERED_LINE;
+use wsp_words::words::turn::{no_messages_line, no_reply_line, thread_read_text};
+use wsp_words::words::units::fmt_duration;
 
-use super::{Turn, Waited};
-use crate::verbs::client::{BoxFuture, Frame, HostClient, VerbDeps};
+use super::picks::reply_field;
+use super::{Ended, Turn, Waited};
+use crate::host_lock::SERVICE_WAIT_MS;
+use crate::verbs::client::{
+    host_back, other_version, pick, stopped_under, thread_id_of, until_settled, BoxFuture, Frame, FrameOff, FrameSink, HostClient,
+    PushedFrames, VerbDeps,
+};
+use crate::verbs::workspaces_help::threads;
 
 /// The live turn `follow` fills in as its events land (turns-help.ts:624): `on.started` is handed it, and whoever
 /// waited on the turn reads its end off it.
@@ -40,40 +59,155 @@ pub struct FollowOn {
 /// `Sent` and `sent(start)` (turns-help.ts:581): the start with a fresh `requestId` (a v4 UUID) put last; the id
 /// is stripped again before the frame is sent and re-added after `startedBy`.
 pub fn sent(start: &Frame) -> Frame {
-    let _ = start;
-    todo!("turns-help.ts:581")
+    let mut going = start.clone();
+    going.insert("requestId".into(), json!(v4_uuid()));
+    going
 }
 
-/// `begin(client, start, startedBy, news)` (turns-help.ts:537): `client.events()` once, then
-/// `sessions.start {...asked, startedBy, requestId, answerHeld: true}` (the start's fields without its `requestId`,
-/// in order, then those three), hearing `news.queued` and `news.steered` for frames carrying this `requestId` while
-/// the start is under way and `news.starting` until it stops mattering. A reply that is not a `SessionStartResult`
-/// fails with `other_version("sessions.start")`; a session with no `threadId` fails
-/// `the runtime stamped no thread on the session`. Answers the turn (`notice` only where the reply carried one) and
-/// the reply's `turnId`.
-pub async fn begin(client: &dyn HostClient, start: &Frame, started_by: SessionOrigin, news: &FollowOn) -> Result<(Turn, String), HostError> {
-    let _ = (client, start, started_by, news);
-    todo!("turns-help.ts:537")
+fn v4_uuid() -> String {
+    let mut bytes = [0u8; 16];
+    OsRng.fill_bytes(&mut bytes);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    let hex: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+    format!("{}-{}-{}-{}-{}", &hex[0..8], &hex[8..12], &hex[12..16], &hex[16..20], &hex[20..32])
 }
 
-/// `redialUnanswered(failed, socket, redial, redialed)` (turns-help.ts:588): the socket to send a start again on
-/// after `failed` ended the try before the host answered. A socket the host did not stop (close code 4001) fails with
-/// `failed` as it is; one it stopped, with no `redial`, fails `NOT_DELIVERED_LINE`; with one, `redialed` is called and
-/// the dial answers, a dial that fails being `NOT_DELIVERED_LINE` too.
+fn is_session_event(frame: &Frame) -> bool {
+    frame.get("type").and_then(Value::as_str).is_some_and(|kind| kind.starts_with("session."))
+}
+
+fn kind_of(frame: &Frame) -> Option<&str> {
+    frame.get("type").and_then(Value::as_str)
+}
+
+/// Starts a turn as `startedBy` and answers with it the moment the runtime names it: what a detached start returns
+/// and what a follow goes on from. The send carries its own request id so an app view with the same text in flight
+/// cannot take this turn's start for its own, and so each notice is known to be this start's.
+pub async fn begin(
+    client: &dyn HostClient,
+    start: &Frame,
+    started_by: SessionOrigin,
+    news: &FollowOn,
+) -> Result<(Turn, String), HostError> {
+    client.events().await?;
+    let mut asked = start.clone();
+    let request_id = asked.shift_remove("requestId").and_then(|id| id.as_str().map(str::to_owned)).unwrap_or_default();
+    let (queued, steered, id) = (news.queued.clone(), news.steered.clone(), request_id.clone());
+    let news_off = client.on_frame(Arc::new(move |f: &Frame| {
+        if f.get("requestId").and_then(Value::as_str) != Some(id.as_str()) {
+            return;
+        }
+        match kind_of(f) {
+            Some("session.queued") => {
+                if let (Some(cb), Ok(e)) = (&queued, serde_json::from_value::<SessionQueuedEvent>(Value::Object(f.clone()))) {
+                    cb(&e);
+                }
+            }
+            Some("session.steer") => {
+                if let (Some(cb), Ok(e)) = (&steered, serde_json::from_value::<SessionSteerEvent>(Value::Object(f.clone()))) {
+                    cb(&e);
+                }
+            }
+            _ => {}
+        }
+    }));
+    let turn_of: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+    let starting_off: Arc<Mutex<Option<FrameOff>>> = Arc::new(Mutex::new(None));
+    let (starting, turn_cell, off_cell, id) = (news.starting.clone(), turn_of.clone(), starting_off.clone(), request_id.clone());
+    let starting_sink: FrameSink = Arc::new(move |f: &Frame| {
+        let stop = || {
+            let off = off_cell.lock().unwrap().take();
+            if let Some(off) = off {
+                off.off();
+            }
+        };
+        let turn = turn_cell.lock().unwrap().clone();
+        if kind_of(f) == Some("session.end") && turn.is_some() && f.get("turnId").and_then(Value::as_str) == turn.as_deref() {
+            return stop();
+        }
+        if f.get("requestId").and_then(Value::as_str) != Some(id.as_str()) {
+            return;
+        }
+        if kind_of(f) == Some("session.starting") {
+            if let (Some(cb), Ok(e)) = (&starting, serde_json::from_value::<SessionStartingEvent>(Value::Object(f.clone()))) {
+                cb(&e);
+            }
+        }
+        if matches!(kind_of(f), Some("session.starting" | "session.start" | "session.steer")) {
+            stop();
+        }
+    });
+    *starting_off.lock().unwrap() = Some(client.on_frame(starting_sink));
+    let stop_starting = || {
+        let off = starting_off.lock().unwrap().take();
+        if let Some(off) = off {
+            off.off();
+        }
+    };
+    let mut params = asked;
+    params.insert("startedBy".into(), serde_json::to_value(started_by).expect("an origin writes as JSON"));
+    params.insert("requestId".into(), json!(request_id));
+    params.insert("answerHeld".into(), json!(true));
+    let answer = client.request("sessions.start", params).await;
+    news_off.off();
+    let answer = match answer {
+        Ok(answer) => answer,
+        Err(e) => {
+            stop_starting();
+            return Err(e);
+        }
+    };
+    let Ok(reply) = parse::<SessionStartResult>(&Value::Object(answer)) else {
+        stop_starting();
+        return Err(HostError::new(other_version("sessions.start")));
+    };
+    *turn_of.lock().unwrap() = Some(reply.turn_id.clone());
+    if reply.outcome == SessionStartOutcome::Steered {
+        stop_starting();
+    }
+    let Some(thread_id) = reply.session.thread_id.clone() else {
+        return Err(HostError::new("the runtime stamped no thread on the session"));
+    };
+    let turn = Turn {
+        session: reply.session,
+        thread_id,
+        outcome: reply.outcome,
+        result: None,
+        reason: None,
+        after_cut: false,
+        notice: reply.notice,
+    };
+    Ok((turn, reply.turn_id))
+}
+
+/// The socket to send a start again on, after `failed` ended the try before the host answered it: a host that stopped
+/// under it is dialled again, and the host that comes back knows the start by its request id and answers with the turn
+/// it already opened where it took the message, so whether a message landed is the host's to say. Any other failure is
+/// the start's own, and a host that did not come back in time, or no road back, is a message nobody took: the line says
+/// so rather than that a turn goes on.
 pub async fn redial_unanswered(
     failed: HostError,
     socket: Arc<dyn HostClient>,
     redial: Option<Redial<'_>>,
     redialed: Option<&(dyn Fn() + Send + Sync)>,
 ) -> Result<Arc<dyn HostClient>, HostError> {
-    let _ = (failed, socket, redial, redialed);
-    todo!("turns-help.ts:588")
+    if !stopped_under(socket.as_ref()) {
+        return Err(failed);
+    }
+    let Some(redial) = redial else {
+        return Err(HostError::new(NOT_DELIVERED_LINE));
+    };
+    if let Some(redialed) = redialed {
+        redialed();
+    }
+    redial().await.map_err(|_| HostError::new(NOT_DELIVERED_LINE))
 }
 
-/// `startDetached(client, start, startedBy, onQueued, redial)` (turns-help.ts:601): answers once the turn is
-/// started, hearing `session.queued` for a start held behind the thread's running turn. One `requestId` for every
-/// send of the start, so a start sent again after the host stopped under it is the same message to the host that
-/// comes back.
+/// A start whose caller does not stay for the reply: the turn runs on, and a wait on the thread or its notify
+/// carries the end. Answers once the turn is started, so a start queued behind the thread's running turn answers
+/// when that turn has ended and this one began. A host that stops before it answers is dialled again through
+/// `redial`, and the same start goes to the host that comes back.
 pub async fn start_detached(
     client: Arc<dyn HostClient>,
     start: &Frame,
@@ -81,75 +215,264 @@ pub async fn start_detached(
     on_queued: Option<Arc<dyn Fn(&SessionQueuedEvent) + Send + Sync>>,
     redial: Option<Redial<'_>>,
 ) -> Result<Turn, HostError> {
-    let _ = (client, start, started_by, on_queued, redial);
-    todo!("turns-help.ts:601")
+    let going = sent(start);
+    let news = FollowOn { queued: on_queued, ..FollowOn::default() };
+    let mut socket = client;
+    loop {
+        let answer = begin(socket.as_ref(), &going, started_by, &news).await;
+        match answer {
+            Ok((turn, _)) => return Ok(turn),
+            Err(e) => socket = redial_unanswered(e, socket, redial, None).await?,
+        }
+    }
 }
 
-/// `follow(client, start, startedBy, on, redial)` (turns-help.ts:624): starts the turn (`followed: true` added
-/// to the start) and follows it to its reply. Events are picked by the turn's id (`session.*` frames whose `turnId`
-/// is the reply's). The follow ends at `session.done` (which sets `turn.result`), or at `session.end` (which sets
-/// `turn.reason` where one rode it); `session.start` with `afterCut` sets `turn.afterCut`. Nothing after the first
-/// done or end is handed on. A host that stops under the follow once the turn is named is dialled again through
-/// `redial` (`on.redialed` first): `events()` on the new socket, then the thread's whole transcript is read
-/// (`sessions.history {workspaceId, threadId, whole: true}`) and any done or end of this turn in it is taken; and a host that stops
-/// before the start is answered is `redial_unanswered`. The held frames are stopped on every road out. Fails with
-/// `close_words()` when the socket goes any other way.
-pub async fn follow(client: Arc<dyn HostClient>, start: &Frame, started_by: SessionOrigin, on: &FollowOn, redial: Option<Redial<'_>>) -> Result<Turn, HostError> {
-    let _ = (client, start, started_by, on, redial);
-    todo!("turns-help.ts:624")
+/// Folds one of the named turn's frames into the turn and hands it to `on.event` (turns-help.ts:633-641): a cut start,
+/// a done's result, an end's reason; the frame that ends the follow sets `over`, and nothing after it is taken.
+fn take(f: &Frame, turn: &SharedTurn, on: &FollowOn, over: &Mutex<bool>) {
+    if *over.lock().unwrap() {
+        return;
+    }
+    let kind = kind_of(f);
+    let mut live = turn.lock().unwrap();
+    if kind == Some("session.start") && f.get("afterCut") == Some(&Value::Bool(true)) {
+        live.after_cut = true;
+    }
+    if kind == Some("session.done") {
+        live.result = f.get("result").and_then(|result| serde_json::from_value(result.clone()).ok());
+    }
+    if kind == Some("session.end") {
+        if let Some(reason) = f.get("reason").and_then(Value::as_str) {
+            live.reason = Some(reason.to_owned());
+        }
+    }
+    if let (Some(event), Ok(e)) = (&on.event, serde_json::from_value::<SessionEvent>(Value::Object(f.clone()))) {
+        event(&e, &live);
+    }
+    drop(live);
+    *over.lock().unwrap() = matches!(kind, Some("session.done") | Some("session.end"));
 }
 
-/// `waitThrough(deps, named, timeoutMs, redialed)` (turns-help.ts:685): `first_ended` on the host `deps.client()`
-/// dials; a host that stops under the wait (close code 4001) is dialled again (`redialed` first) within
-/// `min(deps.host_wait_ms or SERVICE_WAIT_MS, what is left of the deadline)`; a deadline that passes while the host is
-/// still coming back is `Waited::TimedOutMs`, any other refusal stands. An end of a sub-thread is answered with
-/// what the done after it read off its machine (`sessions.head {threadId, afterRead: true}`, its `facts.sub.result`).
-pub async fn wait_through(deps: &VerbDeps, named: &[ThreadView], timeout_ms: Option<u64>, redialed: Option<&(dyn Fn() + Send + Sync)>) -> Result<Waited, HostError> {
-    let _ = (deps, named, timeout_ms, redialed);
-    todo!("turns-help.ts:685")
+/// One try of `follow` on `socket`: the start when no turn is named yet, else the subscription again, then the turn's
+/// frames until its done or end. On a host that is not the first one, the transcript is read first.
+async fn follow_on(
+    socket: &Arc<dyn HostClient>,
+    original: &Arc<dyn HostClient>,
+    going: &Frame,
+    started_by: SessionOrigin,
+    on: &FollowOn,
+    pushed: &PushedFrames,
+    named: &mut Option<(SharedTurn, String)>,
+) -> Result<Turn, HostError> {
+    if named.is_none() {
+        let (turn, turn_id) = begin(socket.as_ref(), going, started_by, on).await?;
+        let turn = Arc::new(Mutex::new(turn));
+        if let Some(started) = &on.started {
+            started(&turn);
+        }
+        *named = Some((turn, turn_id));
+    } else {
+        socket.events().await?;
+    }
+    let (turn, turn_id) = named.clone().expect("a named turn");
+    let (done_tx, done_rx) = oneshot::channel::<()>();
+    let done = Arc::new(Mutex::new(Some(done_tx)));
+    let over = Arc::new(Mutex::new(false));
+    let (live, on_c, over_c, done_c, id) = (turn.clone(), on.clone(), over.clone(), done.clone(), turn_id.clone());
+    pushed.follow(
+        Arc::new(move |f: &Frame| is_session_event(f) && f.get("turnId").and_then(Value::as_str) == Some(id.as_str())),
+        Arc::new(move |f: &Frame| {
+            take(f, &live, &on_c, &over_c);
+            if *over_c.lock().unwrap() {
+                let tx = done_c.lock().unwrap().take();
+                if let Some(tx) = tx {
+                    let _ = tx.send(());
+                }
+            }
+        }),
+    );
+    if !Arc::ptr_eq(socket, original) {
+        let (workspace_id, thread_id) = {
+            let live = turn.lock().unwrap();
+            (live.session.workspace_id.clone(), live.thread_id.clone())
+        };
+        for event in history(socket.as_ref(), &workspace_id, &thread_id).await? {
+            if let Value::Object(frame) = serde_json::to_value(&event).expect("an event writes as JSON") {
+                if frame.get("turnId").and_then(Value::as_str) == Some(turn_id.as_str())
+                    && matches!(kind_of(&frame), Some("session.done") | Some("session.end"))
+                {
+                    take(&frame, &turn, on, &over);
+                }
+            }
+        }
+        if *over.lock().unwrap() {
+            let settled = turn.lock().unwrap().clone();
+            return Ok(settled);
+        }
+    }
+    let ended = Box::pin(async move {
+        if done_rx.await.is_err() {
+            return std::future::pending().await;
+        }
+        Ok(turn.lock().unwrap().clone())
+    });
+    until_settled(socket.as_ref(), ended).await
+}
+
+/// Starts a turn as `startedBy` and follows it to its reply: `on.queued` when the runtime says the start waits behind
+/// the thread's running turn, `on.started` the thread as soon as the runtime names it, `on.event` every event of the
+/// turn with the turn so far. Events are picked by the turn's id: a start that waited behind the thread's running
+/// turn must not read that turn's end as its own. The follow ends at session.done, which carries the whole reply:
+/// session.end follows the runtime's exit read and reap, minutes later when the machine is slow to answer. A turn the
+/// runtime ended itself has no done, so its end is the last event instead. A host that stops under the follow once
+/// the turn is named is dialled again through `redial`, `on.redialed` says so, and the follow goes on from the new
+/// host, which re-opens the run: an end the transcript already holds is read off it, and the rest arrive as they
+/// come. A host that stops before it answers the start is dialled again the same way and sent the same start, which
+/// it answers with the turn it opened where it took it; none back in time is a message not delivered. Fails when the
+/// host goes away any other way.
+pub async fn follow(
+    client: Arc<dyn HostClient>,
+    start: &Frame,
+    started_by: SessionOrigin,
+    on: &FollowOn,
+    redial: Option<Redial<'_>>,
+) -> Result<Turn, HostError> {
+    let mut asked = start.clone();
+    asked.insert("followed".into(), json!(true));
+    let going = sent(&asked);
+    let original = client.clone();
+    let mut socket = client;
+    let mut named: Option<(SharedTurn, String)> = None;
+    loop {
+        let pushed = PushedFrames::new(socket.as_ref());
+        let attempt = follow_on(&socket, &original, &going, started_by, on, &pushed, &mut named).await;
+        pushed.stop();
+        match attempt {
+            Ok(turn) => return Ok(turn),
+            Err(e) => {
+                if named.is_none() {
+                    socket = redial_unanswered(e, socket, redial, on.redialed.as_deref()).await?;
+                    continue;
+                }
+                let Some(redial) = redial.filter(|_| stopped_under(socket.as_ref())) else {
+                    return Err(e);
+                };
+                if let Some(redialed) = &on.redialed {
+                    redialed();
+                }
+                socket = redial().await?;
+            }
+        }
+    }
+}
+
+/// The first of the named threads to leave running, as `firstEnded` answers it, dialled through a host that stops
+/// under the wait: the threads went on without it, so the question is asked again of the host that comes back. A
+/// deadline that passes while that host is still coming back is the deadline's answer, as it is anywhere else.
+pub async fn wait_through(
+    deps: &VerbDeps,
+    named: &[ThreadView],
+    timeout_ms: Option<u64>,
+    redialed: Option<&(dyn Fn() + Send + Sync)>,
+) -> Result<Waited, HostError> {
+    let until = timeout_ms.map(|ms| Instant::now() + Duration::from_millis(ms));
+    let left = move || until.map(|until| until.saturating_duration_since(Instant::now()).as_millis() as u64);
+    let timed_out = || Waited::TimedOutMs(timeout_ms.unwrap_or_default() as f64);
+    let mut client = deps.client(None).await?;
+    loop {
+        let attempt: Result<Waited, HostError> = async {
+            match first_ended(client.as_ref(), named, left()).await? {
+                Waited::TimedOutMs(_) => Ok(timed_out()),
+                Waited::Ended(ended) => Ok(Waited::Ended(with_sub_result(client.as_ref(), named, ended).await?)),
+            }
+        }
+        .await;
+        match attempt {
+            Ok(waited) => return Ok(waited),
+            Err(e) => {
+                if !stopped_under(client.as_ref()) {
+                    return Err(e);
+                }
+                if let Some(redialed) = redialed {
+                    redialed();
+                }
+                let host_wait = deps.host_wait_ms.unwrap_or(SERVICE_WAIT_MS);
+                match host_back(deps, Some(host_wait.min(left().unwrap_or(host_wait)))).await {
+                    Ok(back) => client = back,
+                    Err(refused) => {
+                        if timeout_ms.is_some() && left() == Some(0) {
+                            return Ok(timed_out());
+                        }
+                        return Err(refused);
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// `hostDidNotStopLine(waitMs)` (turns-help.ts:708): `the host took the restart and was still serving after <fmt_duration>`.
 pub fn host_did_not_stop_line(wait_ms: u64) -> String {
-    let _ = wait_ms;
-    todo!("turns-help.ts:708")
+    format!("the host took the restart and was still serving after {}", fmt_duration(wait_ms as f64, None))
 }
 
 /// `hostRestartedLine(running)` (turns-help.ts:712): `the host restarted and serves again; ` then `no thread is
 /// running on it`, or `1 thread is still running on it: <id>`, or `<n> threads are still running on it: <ids>`, each
 /// id its first 8 characters, comma and space between.
 pub fn host_restarted_line(running: &[String]) -> String {
-    let _ = running;
-    todo!("turns-help.ts:712")
+    let ids: Vec<String> = running.iter().map(|id| id.chars().take(8).collect()).collect();
+    let state = match running.len() {
+        0 => "no thread is running on it".to_owned(),
+        1 => format!("1 thread is still running on it: {}", ids.join(", ")),
+        n => format!("{n} threads are still running on it: {}", ids.join(", ")),
+    };
+    format!("the host restarted and serves again; {state}")
 }
 
-/// `restartHost(deps)` (turns-help.ts:718): `host.restart` on `deps.client()`'s socket, then waits for that socket
-/// to close or `SERVICE_WAIT_MS` (20 s) to pass: past it fails with `host_did_not_stop_line(SERVICE_WAIT_MS)`.
-/// Then `host_back(deps)` and the ids of the threads `status == running` there, in the listing's order.
+/// Has the host restart on the road it came up on and answers, once the host that replaced it serves, with the
+/// threads running there. The host answers the ask before it closes, so the close after the answer is the restart
+/// under way; a road that would not bring it back refuses the ask in its own words, before anything stops.
 pub async fn restart_host(deps: &VerbDeps) -> Result<Vec<String>, HostError> {
-    let _ = deps;
-    todo!("turns-help.ts:718")
+    let client = deps.client(None).await?;
+    client.request("host.restart", Frame::new()).await?;
+    let stopped = tokio::time::timeout(Duration::from_millis(SERVICE_WAIT_MS), client.closed()).await.is_ok();
+    if !stopped {
+        return Err(HostError::new(host_did_not_stop_line(SERVICE_WAIT_MS)));
+    }
+    let back = host_back(deps, None).await?;
+    let rows = threads(back.as_ref(), None).await?;
+    Ok(rows.iter().filter(|t| t.status == SessionStatus::Running).map(thread_id_of).collect())
 }
 
-/// `withSubResult(client, named, ended)` (turns-help.ts:739): `sessions.head {threadId: row.id, afterRead: true}`
-/// for a named thread that is a sub-thread, its `facts.sub.result` added to the end where there is one; any other
-/// thread's end as it came, asking nothing.
-pub async fn with_sub_result(client: &dyn HostClient, named: &[ThreadView], ended: super::Ended) -> Result<super::Ended, HostError> {
-    let _ = (client, named, ended);
-    todo!("turns-help.ts:739")
+/// A sub-thread's end with what the done after it read off its machine, asked of the host once that read is in; any
+/// other thread's end as it came.
+pub async fn with_sub_result(client: &dyn HostClient, named: &[ThreadView], ended: Ended) -> Result<Ended, HostError> {
+    let Some(row) = named.iter().find(|t| thread_id_of(t) == ended.thread_id) else {
+        return Ok(ended);
+    };
+    if row.sub.is_none() {
+        return Ok(ended);
+    }
+    let frame = client.request("sessions.head", pick(vec![("threadId", Some(json!(row.id))), ("afterRead", Some(json!(true)))])).await?;
+    let result = frame.get("facts").and_then(|facts| facts.get("sub")).and_then(|sub| sub.get("result")).filter(|result| !result.is_null());
+    let mut ended = ended;
+    if let Some(result) = result {
+        ended.sub = Some(serde_json::from_value::<SubResult>(result.clone()).map_err(|_| HostError::new(other_version("sessions.head")))?);
+    }
+    Ok(ended)
 }
 
-/// `endedOf(client, workspaceId, threadId, ended)` (turns-help.ts:753): the thread's latest turn as its
-/// transcript ends it (`thread_result` of `history`), else `ended`.
-pub async fn ended_of(client: &dyn HostClient, workspace_id: &str, thread_id: &str, ended: wsp_wire::views::session_events::TurnResult) -> Result<super::Ended, HostError> {
-    let _ = (client, workspace_id, thread_id, ended);
-    todo!("turns-help.ts:753")
+/// The thread's latest turn as its transcript ends it (`thread_result` of `history`), else `ended`.
+pub async fn ended_of(client: &dyn HostClient, workspace_id: &str, thread_id: &str, ended: TurnResult) -> Result<Ended, HostError> {
+    let events = history(client, workspace_id, thread_id).await?;
+    Ok(Ended { thread_id: thread_id.to_owned(), result: thread_result(&events, thread_id).unwrap_or(ended), sub: None })
 }
 
 /// `history(client, workspaceId, threadId)` (turns-help.ts:759): `sessions.history {workspaceId, threadId, whole: true}`, its `events`.
 pub async fn history(client: &dyn HostClient, workspace_id: &str, thread_id: &str) -> Result<Vec<SessionEvent>, HostError> {
-    let _ = (client, workspace_id, thread_id);
-    todo!("turns-help.ts:759")
+    let params = pick(vec![("workspaceId", Some(json!(workspace_id))), ("threadId", Some(json!(thread_id))), ("whole", Some(json!(true)))]);
+    let frame = client.request("sessions.history", params).await?;
+    reply_field(&frame, "sessions.history", "events")
 }
 
 /// What `readThread` answers: the thread's full id and its messages.
@@ -163,41 +486,141 @@ pub struct ThreadRead {
 /// {threadId: thread.id}` (the stamp moves, so the thread stops reading Done), the messages of `thread_messages`, or
 /// with `last` the final reply's rows of `thread_reply_rows`. Nothing is woken.
 pub async fn read_thread(client: &dyn HostClient, thread: &ThreadView, last: bool) -> Result<ThreadRead, HostError> {
-    let _ = (client, thread, last);
-    todo!("turns-help.ts:765")
+    let thread_id = thread_id_of(thread);
+    let events = history(client, &thread.workspace_id, &thread_id).await?;
+    client.request("sessions.read", pick(vec![("threadId", Some(json!(thread.id)))])).await?;
+    let messages = if last { thread_reply_rows(&events, &thread_id) } else { thread_messages(&events, &thread_id) };
+    Ok(ThreadRead { thread_id, messages })
 }
 
 /// `readLine(read, last)` (turns-help.ts:774): no messages is `no_reply_line` (with `last`) or `no_messages_line`,
 /// else `thread_read_text(messages)`. `offset_seconds_at` is the person's clock (UTC offset in seconds at an
 /// instant), which JS reads off `TZ` itself.
 pub fn read_line(read: &ThreadRead, last: bool, offset_seconds_at: &dyn Fn(f64) -> i64) -> String {
-    let _ = (read, last, offset_seconds_at);
-    todo!("turns-help.ts:774")
+    if read.messages.is_empty() {
+        return if last { no_reply_line(&read.thread_id) } else { no_messages_line(&read.thread_id) };
+    }
+    thread_read_text(&read.messages, offset_seconds_at)
 }
 
 /// `threadHead(client, thread)` (turns-help.ts:778): `sessions.head {threadId: thread.id}`, only its `facts`,
 /// `events`, `pos` and `total` kept.
 pub async fn thread_head(client: &dyn HostClient, thread: &ThreadView) -> Result<ThreadHead, HostError> {
-    let _ = (client, thread);
-    todo!("turns-help.ts:778")
+    let frame = client.request("sessions.head", pick(vec![("threadId", Some(json!(thread.id)))])).await?;
+    Ok(ThreadHead {
+        facts: reply_field(&frame, "sessions.head", "facts")?,
+        events: reply_field(&frame, "sessions.head", "events")?,
+        pos: reply_field(&frame, "sessions.head", "pos")?,
+        total: reply_field(&frame, "sessions.head", "total")?,
+        trimmed: None,
+    })
 }
 
 /// `headLine(head)` (turns-help.ts:785): the title; `<harness>[ on <model>], <permissionMode>?, <status>` joined
 /// by `, `; the cwd where there is one; `the newest <events.len()> of <total> events`; and, where the events read as
 /// messages, an empty line then `thread_read_text` of them; joined by newlines.
 pub fn head_line(head: &ThreadHead, offset_seconds_at: &dyn Fn(f64) -> i64) -> String {
-    let _ = (head, offset_seconds_at);
-    todo!("turns-help.ts:785")
+    let facts = &head.facts;
+    let status = serde_json::to_value(facts.status).ok().and_then(|word| word.as_str().map(str::to_owned)).unwrap_or_default();
+    let mut lines = vec![facts.title.clone(), format!("{}, {status}", facts.harness)];
+    if let Some(cwd) = &facts.cwd {
+        lines.push(cwd.clone());
+    }
+    lines.push(format!("the newest {} of {} events", head.events.0.len(), head.total.get()));
+    let rows = thread_messages(&head.events.0, facts.thread_id.as_deref().unwrap_or(&facts.id));
+    if !rows.is_empty() {
+        lines.push(String::new());
+        lines.push(thread_read_text(&rows, offset_seconds_at));
+    }
+    lines.join("\n")
 }
 
-/// `firstEnded(client, named, timeoutMs)` (turns-help.ts:799): `events()`, then the listing (`threads`), after the
-/// subscription, so an end between the two is a held frame. A named thread the listing lacks is over: answered
-/// `{status: failed}` read through `ended_of`. The first named thread (in the order named) the listing shows not
-/// running is answered through `ended_of` with its status. Else the first `session.done` or `session.end` pushed for
-/// any named thread: a done carries its result; an end is read through `ended_of` as `{status: failed, error:
-/// <reason>}` (error only where the end gave a reason). `timeout_ms` passing first is `Waited::TimedOutMs`. The
-/// socket going first fails with `close_words()`. Held frames and the timer are stopped on every road out.
+/// The answer for a named thread a frame ended: a done carries its result as it came; an end is read through
+/// `ended_of` with the failure the end names, if it names one.
+async fn answer_of(client: &dyn HostClient, frame: &Frame) -> Result<Ended, HostError> {
+    let thread_id = frame.get("threadId").and_then(Value::as_str).unwrap_or_default().to_owned();
+    if kind_of(frame) == Some("session.done") {
+        let result = serde_json::from_value::<TurnResult>(frame.get("result").cloned().unwrap_or(Value::Null))
+            .map_err(|_| HostError::new(other_version("session.done")))?;
+        return Ok(Ended { thread_id, result, sub: None });
+    }
+    let workspace_id = frame.get("workspaceId").and_then(Value::as_str).unwrap_or_default();
+    ended_of(client, workspace_id, &thread_id, failed_result(frame.get("reason").and_then(Value::as_str))).await
+}
+
+/// A turn's result that says it failed, with the reason where there is one.
+fn failed_result(error: Option<&str>) -> TurnResult {
+    let mut result = serde_json::Map::new();
+    result.insert("status".into(), json!("failed"));
+    if let Some(error) = error {
+        result.insert("error".into(), json!(error));
+    }
+    serde_json::from_value(Value::Object(result)).expect("a failed turn reads as a result")
+}
+
+/// Blocks until one of the named threads leaves running and answers with that thread's end: at once for one already
+/// over, else on the first done or end the host pushes for any of them; the deadline when `timeoutMs` passes first.
+/// The rows are listed after the subscription, so an end between the two is a held frame and not a gap. A named
+/// thread the listing no longer holds is over too: its only turn was given up before it opened, between the naming
+/// and this call, and its end went out before the subscription, so it is answered failed off what the transcript
+/// holds of it, which is nothing but the status. A done carries its result; an end without one in hand is read off
+/// the transcript, since the reply may have landed before this call. Fails when the host goes away first.
 pub async fn first_ended(client: &dyn HostClient, named: &[ThreadView], timeout_ms: Option<u64>) -> Result<Waited, HostError> {
-    let _ = (client, named, timeout_ms);
-    todo!("turns-help.ts:799")
+    let pushed = PushedFrames::new(client);
+    let answer = first_ended_on(client, named, timeout_ms, &pushed).await;
+    pushed.stop();
+    answer
+}
+
+async fn first_ended_on(
+    client: &dyn HostClient,
+    named: &[ThreadView],
+    timeout_ms: Option<u64>,
+    pushed: &PushedFrames,
+) -> Result<Waited, HostError> {
+    client.events().await?;
+    let rows = threads(client, None).await?;
+    if let Some(gone) = named.iter().find(|t| rows.iter().all(|r| thread_id_of(r) != thread_id_of(t))) {
+        return Ok(Waited::Ended(ended_of(client, &gone.workspace_id, &thread_id_of(gone), failed_result(None)).await?));
+    }
+    if let Some(over) = named.iter().find_map(|t| rows.iter().find(|r| r.id == t.id).filter(|r| r.status != SessionStatus::Running)) {
+        let status = serde_json::to_value(over.status).expect("a status writes as JSON");
+        let result = serde_json::from_value::<TurnResult>(json!({ "status": status }))
+            .map_err(|_| HostError::new(other_version("sessions.list")))?;
+        return Ok(Waited::Ended(ended_of(client, &over.workspace_id, &thread_id_of(over), result).await?));
+    }
+    let ids: HashSet<String> = named.iter().map(thread_id_of).collect();
+    let (tx, rx) = oneshot::channel::<Frame>();
+    let tx = Arc::new(Mutex::new(Some(tx)));
+    pushed.follow(
+        Arc::new(move |f: &Frame| {
+            is_session_event(f)
+                && matches!(kind_of(f), Some("session.done") | Some("session.end"))
+                && f.get("threadId").and_then(Value::as_str).is_some_and(|id| ids.contains(id))
+        }),
+        Arc::new(move |f: &Frame| {
+            let tx = tx.lock().unwrap().take();
+            if let Some(tx) = tx {
+                let _ = tx.send(f.clone());
+            }
+        }),
+    );
+    let answer = Box::pin(async move {
+        tokio::select! {
+            frame = rx => match frame {
+                Ok(frame) => answer_of(client, &frame).await.map(Waited::Ended),
+                Err(_) => std::future::pending().await,
+            },
+            _ = deadline_passed(timeout_ms) => Ok(Waited::TimedOutMs(timeout_ms.unwrap_or_default() as f64)),
+        }
+    });
+    until_settled(client, answer).await
+}
+
+/// Resolves once the deadline `timeout_ms` has passed; never, where there is none.
+async fn deadline_passed(timeout_ms: Option<u64>) {
+    match timeout_ms {
+        Some(ms) => tokio::time::sleep(Duration::from_millis(ms)).await,
+        None => std::future::pending().await,
+    }
 }
