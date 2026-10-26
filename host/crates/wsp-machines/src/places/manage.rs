@@ -7,9 +7,11 @@
 //! What manage reads off places-a's setup area comes through `ManageSetup` (manage.ts:113-116). Where the TS calls
 //! `ctx.door.exec`, the port calls `ManageDoor::exec`, which is the door's.
 
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use async_trait::async_trait;
+use indexmap::IndexMap;
 use wsp_wire::types::recipe_file::RecipeFile;
 use wsp_wire::views::place::{PlaceSetup, PlaceSetupEvent, PlaceSync, PlaceSyncEvent};
 
@@ -82,10 +84,13 @@ pub struct ManageDoor {
     pub setup: Rc<dyn ManageSetup>,
     pub views: Rc<PlaceViewsArea>,
     pub links: Rc<dyn LinkReads>,
+    /// The watchers `on` registered, by the id `off` takes.
+    watches: RefCell<IndexMap<u64, Box<dyn FnOnce()>>>,
+    next_watch: Cell<u64>,
 }
 
 impl ManageDoor {
     pub fn new(ctx: Rc<PlaceDoorContext>, records: Rc<PlaceRecordsArea>, setup: Rc<dyn ManageSetup>, views: Rc<PlaceViewsArea>, links: Rc<dyn LinkReads>) -> Rc<Self> {
-        todo!()
+        Rc::new(ManageDoor { ctx, records, setup, views, links, watches: RefCell::new(IndexMap::new()), next_watch: Cell::new(0) })
     }
 }
