@@ -22,8 +22,8 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::task::spawn_local;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_tungstenite::tungstenite::protocol::CloseFrame;
-use tokio_tungstenite::tungstenite::Message;
-use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
+use tokio_tungstenite::tungstenite::{Error as WsError, Message};
+use tokio_tungstenite::{connect_async_with_config, MaybeTlsStream, WebSocketStream};
 use wsp_wire::types::daemon_contract::PIPE_POOL_MAX;
 use wsp_wire::types::req_id::ReqId;
 use wsp_wire::wire::daemon::{parse_daemon_response, pipe_open_of};
@@ -36,6 +36,7 @@ use wsp_words::js::js_round;
 
 use crate::clock::{real_clock, Cancel, Clock};
 use crate::console;
+use crate::daemon_channel::socket_config;
 use crate::ids::{Ids, OsIds};
 use crate::reach::daemon_ws_url;
 
@@ -221,7 +222,7 @@ impl PipePool {
         if self.core.held.borrow().contains_key(workspace_id) {
             return;
         }
-        let h = Rc::new(Held::new(workspace_id));
+        let h = Rc::new(Held::new(workspace_id, self.core.behind_again_ms));
         self.core.held.borrow_mut().insert(workspace_id.to_string(), h.clone());
         fill(&self.core, &h);
     }
@@ -277,7 +278,7 @@ struct Held {
 }
 
 impl Held {
-    fn new(id: &str) -> Self {
+    fn new(id: &str, behind_again_ms: u64) -> Self {
         Held {
             id: id.to_string(),
             idle: RefCell::new(Vec::new()),
@@ -287,7 +288,7 @@ impl Held {
             stopped: Cell::new(false),
             retry: RefCell::new(None),
             pace: RefCell::new(None),
-            refusals: RefCell::new(token_refusals(PIPE_BEHIND_AGAIN_MS)),
+            refusals: RefCell::new(token_refusals(behind_again_ms)),
             serves: Cell::new(false),
             asking: Cell::new(false),
             said_behind: Cell::new(false),
@@ -356,6 +357,10 @@ impl AsyncWrite for PipeSocket {
         ready!(sink.poll_flush_unpin(cx)).map_err(io::Error::other)?;
         ready!(sink.poll_ready_unpin(cx)).map_err(io::Error::other)?;
         sink.start_send_unpin(Message::Binary(buf.to_vec().into())).map_err(io::Error::other)?;
+        // The TS duplex sends a write at once: a handler that writes and waits for the daemon's answer flushes nothing.
+        if sink.poll_flush_unpin(cx).is_pending() {
+            spawn_local(flush_later(self.sink.clone()));
+        }
         Poll::Ready(Ok(buf.len()))
     }
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
@@ -374,6 +379,15 @@ impl AsyncWrite for PipeSocket {
             None => Poll::Ready(Ok(())),
         }
     }
+}
+
+/// Finishes a flush a write started when the socket's buffer was full.
+async fn flush_later(sink: SinkSlot) {
+    let _ = std::future::poll_fn(|cx| match sink.lock().unwrap_or_else(PoisonError::into_inner).as_mut() {
+        Some(sink) => sink.poll_flush_unpin(cx),
+        None => Poll::Ready(Ok(())),
+    })
+    .await;
 }
 
 impl Drop for PipeSocket {
@@ -608,6 +622,15 @@ fn dial(core: &Rc<Core>, h: &Rc<Held>) {
     spawn_local(dial_task(core.clone(), h.clone(), pipe, ctl_rx, reach));
 }
 
+/// A url `ws` throws on inside the reach's `then`, which leaves the dial to its timer: a scheme that is not ws(s) once
+/// http(s) is turned into it, or a fragment.
+fn ws_refuses(url: &str) -> bool {
+    match url::Url::parse(url) {
+        Ok(parsed) => !matches!(parsed.scheme(), "ws" | "wss") || parsed.fragment().is_some(),
+        Err(_) => true,
+    }
+}
+
 async fn dial_task(
     core: Rc<Core>,
     h: Rc<Held>,
@@ -624,11 +647,15 @@ async fn dial_task(
         _ => return fail_dial(&core, &h, &pipe),
     };
     let Ok(url) = daemon_ws_url(&reach.url) else { return };
+    if ws_refuses(&url) {
+        return;
+    }
     let mut ws = tokio::select! {
         biased;
         _ = &mut ctl => return,
-        dialled = connect_async(url) => match dialled {
+        dialled = connect_async_with_config(url, Some(socket_config()), false) => match dialled {
             Ok((ws, _)) => ws,
+            Err(WsError::Url(_)) => return,
             Err(_) => return fail_dial(&core, &h, &pipe),
         },
     };

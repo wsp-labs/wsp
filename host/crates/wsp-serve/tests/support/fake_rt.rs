@@ -58,7 +58,7 @@ use wsp_wire::views::session::{SessionView, ThreadMarks};
 use wsp_wire::views::session_events_more::{RunStep, SessionEvent, SessionRunEvent};
 use wsp_wire::views::snapshot_lineage::{SealedImageView, SnapshotStorage};
 use wsp_wire::views::workspace::{Caller, DaemonReachView, PortProbeView, PortReachView, ProjectSeed, ProjectView, SeedPlan};
-use wsp_wire::views::workspace_events::{WorkspaceCostEvent, WorkspaceCreatingEvent};
+use wsp_wire::views::workspace_events::WorkspaceCreatingEvent;
 use wsp_wire::views::workspace_more::{ProjectBranch, ThreadScope, WorkspaceStatus, WorkspaceView, WorktreeMade};
 use wsp_wire::wire::capabilities::Capabilities;
 use wsp_wire::wire::limits::PortForward;
@@ -750,7 +750,7 @@ impl StatusApi for FakeStatus {
     async fn poll(&self, ids: &[String]) {
         self.script.call_or("status.poll", json!({ "ids": ids }), || ())
     }
-    async fn history(&self, workspace_id: &str) -> Vec<WorkspaceCostEvent> {
+    async fn history(&self, workspace_id: &str) -> Vec<wsp_core::status::CostPoint> {
         self.script.call_or("statusApi.history", json!({ "workspaceId": workspace_id }), Vec::new)
     }
     async fn spend(&self, places: &[PlaceView], at: Option<i64>) -> Result<Vec<PlaceSpend>, String> {
@@ -763,7 +763,7 @@ impl OriginStatusApi for FakeStatus {
     async fn list(&self, opts: Option<StatusListOptions>, origin: Option<Caller>) -> Result<Vec<WorkspaceStatus>, HostError> {
         self.script.call("status.list", json!({ "opts": opts.as_ref().map(dbg), "origin": oj(&origin) }))
     }
-    async fn history(&self, workspace_id: &str, origin: Option<Caller>) -> Result<Vec<WorkspaceCostEvent>, HostError> {
+    async fn history(&self, workspace_id: &str, origin: Option<Caller>) -> Result<Vec<wsp_core::status::CostPoint>, HostError> {
         self.script.call("status.history", json!({ "workspaceId": workspace_id, "origin": oj(&origin) }))
     }
 }
