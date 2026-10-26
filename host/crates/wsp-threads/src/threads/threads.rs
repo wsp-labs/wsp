@@ -12,11 +12,12 @@ use wsp_account::account::core_types::AccountError;
 use wsp_core::clock::Clock;
 use wsp_core::context::Joined;
 use wsp_core::ids::Ids;
-use wsp_core::types::events::EventBus;
+use wsp_core::types::events::{EventBus, EventListener};
 use wsp_core::types::internal::{KeptProcess, Taken, ThreadRecord, ThreadStamps};
 use wsp_core::types::wiring::{SessionHandle, WorkspaceRecord};
 use wsp_store::store::Store;
 use wsp_wire::types::attachments::Attachment;
+use wsp_wire::wire::events_union::EventUnion;
 use wsp_wire::types::usage::AccountLimit;
 use wsp_wire::views::session::{SessionView, ThreadPrompt};
 use wsp_wire::views::session_events_more::SessionEvent;
@@ -171,7 +172,61 @@ impl ThreadsArea {
     /// `session.end` (threads.ts:385), then the held lines' wake on `workspace.woken` and `workspace.upgraded`
     /// (threads.ts:892).
     pub fn new(ctx: Rc<dyn ThreadsCtx>) -> Rc<ThreadsArea> {
-        todo!()
+        let bus = ctx.bus();
+        let area = Rc::new_cyclic(|me| ThreadsArea {
+            ctx: ctx.clone(),
+            me: me.clone(),
+            kept_agents: RefCell::default(),
+            host_writes: RefCell::default(),
+            lead_asks: RefCell::default(),
+            cap_held: RefCell::default(),
+            cap_order: Cell::new(0),
+            held_writes: RefCell::default(),
+            borrowed: RefCell::default(),
+            held_lines: RefCell::default(),
+            sending: RefCell::default(),
+            prompt_waits: RefCell::default(),
+            dark_tries: RefCell::default(),
+            steers_out: RefCell::default(),
+            checkpoints_landing: RefCell::default(),
+        });
+        let weak = Rc::downgrade(&area);
+        let borrowed_listener: EventListener = Rc::new(move |e: &EventUnion| {
+            let EventUnion::SessionEnd(end) = e else {
+                return Ok(());
+            };
+            let Some(turn) = end.event.turn_id.clone() else {
+                return Ok(());
+            };
+            if let Some(area) = weak.upgrade() {
+                let mut borrowed = area.borrowed.borrow_mut();
+                borrowed.shift_remove(&turn);
+                borrowed.retain(|_, lender| *lender != turn);
+            }
+            Ok(())
+        });
+        let _ = bus.on("*", borrowed_listener);
+        for ty in ["workspace.woken", "workspace.upgraded"] {
+            let weak = Rc::downgrade(&area);
+            let held_listener: EventListener = Rc::new(move |e: &EventUnion| {
+                let workspace_id = match e {
+                    EventUnion::WorkspaceWoken(woken) if ty == "workspace.woken" => woken.event.workspace_id.clone(),
+                    EventUnion::WorkspaceUpgraded(upgraded) if ty == "workspace.upgraded" => upgraded.event.workspace_id.clone(),
+                    _ => return Ok(()),
+                };
+                let Some(area) = weak.upgrade() else {
+                    return Ok(());
+                };
+                let lines = area.held_lines.borrow_mut().shift_remove(&workspace_id).unwrap_or_default();
+                for line in lines {
+                    let owed = line.borrow().clone();
+                    area.deliver(owed, true);
+                }
+                Ok(())
+            });
+            let _ = bus.on(ty, held_listener);
+        }
+        area
     }
 }
 
