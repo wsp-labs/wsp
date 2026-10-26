@@ -105,3 +105,5 @@ Each tool (`call`) takes the same steps with its inputs: `thread`, `text`, `docu
 - The V8 `JSON.parse` reader with V8's messages lives privately in `wsp-words/src/start.rs:222-240` (`parse_json`);
   this unit needs it public. One line in `wsp-words`, outside this crate: the coordinator's call (rule 1.7 does not
   apply, no crate moves).
+- A slate value or `.json` document nested past 1,000 levels is still cut at 128 levels here (`json_whole.rs`: the
+  catalog's reader stops at 1,000, wsp-words' keeps 128); node's `JSON.parse` sends it whole.
