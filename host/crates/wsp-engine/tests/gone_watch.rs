@@ -156,7 +156,10 @@ fn a_read_back_that_ends_with_the_machine_still_there_is_said_and_the_stop_is_as
         w.settled().await;
         assert_eq!(g.held(), Vec::<String>::new());
         assert_eq!(g.deletes(), KILL_ASKS as usize + 1);
-        assert_eq!(*said.lock().unwrap(), vec![format!("{}; asking again in 0 s", alive_words("sb1")), "machine sb1 read gone after asking again".to_string()]);
+        assert_eq!(
+            *said.lock().unwrap(),
+            vec![format!("{}; asking again in 0 s", alive_words("sb1")), "machine sb1 read gone after asking again".to_string()]
+        );
     });
 }
 
@@ -265,7 +268,11 @@ impl Machine for Refusing {
     }
     fn seen(&self) -> Option<&wsp_engine::machine::Seen> {
         static RUNNING: std::sync::OnceLock<wsp_engine::machine::Seen> = std::sync::OnceLock::new();
-        Some(RUNNING.get_or_init(|| wsp_engine::machine::Seen { state: wsp_engine::machine::MachineState::Running, created_at: None, paused_at: None }))
+        Some(RUNNING.get_or_init(|| wsp_engine::machine::Seen {
+            state: wsp_engine::machine::MachineState::Running,
+            created_at: None,
+            paused_at: None,
+        }))
     }
     async fn exec(&self, _: &str, _: wsp_engine::machine::ExecOptions) -> wsp_engine::errors::Result<wsp_engine::machine::ExecResult> {
         unreachable!()
@@ -273,7 +280,12 @@ impl Machine for Refusing {
     async fn run(&self, _: &str, _: wsp_engine::machine::RunOptions) -> wsp_engine::errors::Result<wsp_engine::machine::ExecResult> {
         unreachable!()
     }
-    async fn snapshot(&self, _: &str, _: wsp_engine::machine::MachineLife, _: wsp_engine::machine::SnapshotOptions) -> wsp_engine::errors::Result<String> {
+    async fn snapshot(
+        &self,
+        _: &str,
+        _: wsp_engine::machine::MachineLife,
+        _: wsp_engine::machine::SnapshotOptions,
+    ) -> wsp_engine::errors::Result<String> {
         unreachable!()
     }
     async fn pause(&self, _: Option<u64>) -> wsp_engine::errors::Result<()> {
@@ -285,7 +297,12 @@ impl Machine for Refusing {
     async fn kill(&self) -> wsp_engine::errors::Result<()> {
         self.kills.set(self.kills.get() + 1);
         if self.kills.get() > 1 {
-            return Err(EngineError::Refused { message: format!("refused {}", self.status), kind: Some(self.kind), status: Some(self.status), code: None });
+            return Err(EngineError::Refused {
+                message: format!("refused {}", self.status),
+                kind: Some(self.kind),
+                status: Some(self.status),
+                code: None,
+            });
         }
         Ok(())
     }
@@ -311,7 +328,12 @@ impl MachineBackend for OneMachine {
     fn pricing(&self) -> Arc<dyn wsp_engine::machine::BackendPricing> {
         Arc::new(wsp_engine::no_provider_backend::NoProviderPricing)
     }
-    async fn create(&self, _: MachineSpec, _: Option<wsp_engine::machine::Waiting>, _: Option<String>) -> wsp_engine::errors::Result<Arc<dyn Machine>> {
+    async fn create(
+        &self,
+        _: MachineSpec,
+        _: Option<wsp_engine::machine::Waiting>,
+        _: Option<String>,
+    ) -> wsp_engine::errors::Result<Arc<dyn Machine>> {
         unreachable!()
     }
     async fn get(&self, _id: &str) -> wsp_engine::errors::Result<Arc<dyn Machine>> {
@@ -337,7 +359,11 @@ fn a_refusal_of_the_account_on_a_later_ask_ends_the_watch_with_one_line_and_asks
             w.stop(backend, machine.clone()).await.unwrap();
             w.settled().await;
             assert_eq!(machine.kills.get(), 2, "{status}");
-            assert_eq!(*said.lock().unwrap(), vec![format!("refused {status}; not asked again, the next start's sweep stops machine m1")], "{status}");
+            assert_eq!(
+                *said.lock().unwrap(),
+                vec![format!("refused {status}; not asked again, the next start's sweep stops machine m1")],
+                "{status}"
+            );
             assert_eq!(w.ids(), Vec::<String>::new());
         });
     }
@@ -367,7 +393,7 @@ fn a_missing_machine_is_no_failure_and_any_other_refusal_of_the_first_ask_is_thr
             ..Default::default()
         });
         let machine = refused.create(sandbox(), None, None).await.unwrap();
-        let e = w.stop(refused.clone(), machine).await.err().expect("a refusal");
+        let e = w.stop(refused.clone(), machine).await.expect_err("a refusal");
         assert_eq!(e.status(), Some(409));
         assert_eq!(w.ids(), Vec::<String>::new());
     });

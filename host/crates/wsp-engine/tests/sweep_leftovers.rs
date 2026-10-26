@@ -153,7 +153,7 @@ async fn a_failure_of_the_staging_exec_is_the_sweeps_and_no_cache_command_follow
         }
     }
     let machine = Refuses(Recorder { said: Mutex::new(Vec::new()) });
-    let e = sweep_leftovers(&machine).await.err().expect("the exec's failure");
+    let e = sweep_leftovers(&machine).await.expect_err("the exec's failure");
     assert_eq!(e.to_string(), "link dropped");
     assert_eq!(machine.0.said.lock().unwrap().len(), 1);
 }
