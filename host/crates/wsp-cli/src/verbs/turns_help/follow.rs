@@ -71,6 +71,31 @@ pub fn event_of(frame: &Frame) -> Option<SessionEvent> {
     serde_json::from_value::<SessionEvent>(Value::Object(lenient)).ok()
 }
 
+/// The transcript's events as the readers of `wsp_words::thread_read` take them. The TS only annotates the host's rows,
+/// and those readers never read a row's `workspaceId`, `sessionId`, a delta's `text`, an end's `exitCode` and
+/// `sawResult` or a closed prompt's `outcome`, which a sparse row may lack; a row that is no event the readers know
+/// is one they would pass over.
+pub fn events_of(rows: &[Value]) -> Vec<SessionEvent> {
+    rows.iter()
+        .filter_map(|row| {
+            let Value::Object(frame) = row else { return None };
+            event_of(frame).or_else(|| {
+                let mut filled = frame.clone();
+                let lacking = match kind_of(frame) {
+                    Some("session.delta") => vec![("text", json!(""))],
+                    Some("session.end") => vec![("exitCode", Value::Null), ("sawResult", json!(false))],
+                    Some("session.permission.closed") => vec![("outcome", json!("unanswered"))],
+                    _ => vec![],
+                };
+                for (key, value) in [("workspaceId", json!("")), ("sessionId", json!(""))].into_iter().chain(lacking) {
+                    filled.entry(key).or_insert(value);
+                }
+                event_of(&filled)
+            })
+        })
+        .collect()
+}
+
 /// `Sent` and `sent(start)` (turns-help.ts:581): the start with a fresh `requestId` (a v4 UUID) put last; the id
 /// is stripped again before the frame is sent and re-added after `startedBy`.
 pub fn sent(start: &Frame) -> Frame {
@@ -501,9 +526,7 @@ pub async fn ended_of(client: &dyn HostClient, workspace_id: &str, thread_id: &s
 
 /// `history(client, workspaceId, threadId)` (turns-help.ts:759): `sessions.history {workspaceId, threadId, whole: true}`, its `events`.
 pub async fn history(client: &dyn HostClient, workspace_id: &str, thread_id: &str) -> Result<Vec<SessionEvent>, HostError> {
-    let params = pick(vec![("workspaceId", Some(json!(workspace_id))), ("threadId", Some(json!(thread_id))), ("whole", Some(json!(true)))]);
-    let frame = client.request("sessions.history", params).await?;
-    reply_field(&frame, "sessions.history", "events")
+    Ok(events_of(&history_frames(client, workspace_id, thread_id).await?))
 }
 
 /// `history` as the host wrote it: the `events` of `sessions.history`, each frame with its keys in the host's order.

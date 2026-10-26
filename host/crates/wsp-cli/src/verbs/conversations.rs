@@ -12,7 +12,7 @@ use wsp_words::words::units::fmt_bytes;
 use super::client::*;
 use super::io::as_json;
 use super::turns_help::project_of_folder;
-use super::workspaces_help::projects_of;
+use super::workspaces_help::projects_listed;
 
 /// `projectAsked` (conversations.ts:12-16): the project named, else the one whose folder the line was typed in
 /// (`projects.list` read, a failed read taken as no projects), else none.
@@ -21,8 +21,8 @@ pub async fn project_asked(client: &dyn HostClient, named: Option<&str>, cwd: Op
         return Ok(Some(named.to_owned()));
     }
     let Some(cwd) = cwd else { return Ok(None) };
-    let projects = projects_of(client).await.unwrap_or_default();
-    Ok(project_of_folder(&projects, cwd).map(|project| project.id))
+    let projects = projects_listed(client).await.unwrap_or_default();
+    Ok(project_of_folder(&projects, cwd).and_then(|project| project.get("id").and_then(Value::as_str).map(str::to_owned)))
 }
 
 /// `listed` (conversations.ts:18-20): `conversations.list` with `{project?, agent?}`, the whole reply parsed.

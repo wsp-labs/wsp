@@ -21,7 +21,6 @@ use wsp_wire::types::sub_thread::SubStarted;
 use wsp_wire::views::activity::{ActivityEnded, ProcessesAsk};
 use wsp_wire::views::session::ThreadView;
 use wsp_wire::views::session_events::turn_token_of;
-use wsp_wire::views::workspace::ProjectView;
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::views::workspace_more::WorkspaceOut;
 use wsp_words::exit::{refusal, usage_refusal, HostError, Kind};
@@ -39,7 +38,7 @@ use crate::cloud::cloud_on;
 use crate::repo_root::main_worktree_of;
 use crate::verbs::client::{other_version, pick, thread_id_of, under, CliIo, Frame, HostClient, Out, PushedFrames};
 use crate::verbs::workspaces_help::{
-    create_for, project_of, projects_here, projects_of, thread_of, threads, workspace_of, workspaces, CreateAsked,
+    create_for, project_listed, projects_here, projects_listed, thread_of, threads, workspace_of, workspaces, CreateAsked,
     ProjectPick as HostProjectPick,
 };
 
@@ -137,19 +136,14 @@ pub async fn run_target(
     let branch = r#where.branch.clone();
     let cwd = r#where.cwd.clone();
     if let Some(r#ref) = r#ref {
-        let project = match project_of(client, r#ref).await {
+        let project = match project_listed(client, r#ref).await {
             Ok(project) => Some(pick_of(&project)),
-            Err(_) => projects_here(client)
-                .await
-                .unwrap_or_default()
-                .into_iter()
-                .find(|p| p.id == r#ref || p.name == r#ref)
-                .map(|p| ProjectPick { id: p.id, name: p.name, computer: Some(p.computer), rest: Map::new() }),
+            Err(_) => projects_held(client).await.into_iter().find(|p| p.id == r#ref || p.name == r#ref),
         };
         if let Some(project) = &project {
             let copies = copies_folder(&kind_for_computer(project.computer.as_deref().unwrap_or(""), None));
             if copies || threads_in_folder(client, &project.id).await {
-                let path = project_of(client, &project.id).await.map(|full| full.path).unwrap_or_default();
+                let path = project_listed(client, &project.id).await.map(|full| text_of(&full, "path")).unwrap_or_default();
                 let here = FolderHere { project: Some(folder_project(project.id.clone(), project.name.clone(), path)), branch, cwd };
                 return Ok(RunTarget::Folder(FolderTarget { here, opened: opened_of(Some(project.name.clone()), copies) }));
             }
@@ -164,7 +158,7 @@ pub async fn run_target(
             }
         }
         if !cloud_on {
-            if let Err(e) = project_of(client, r#ref).await {
+            if let Err(e) = project_listed(client, r#ref).await {
                 if e.kind != Some(Kind::NotFound) {
                     return Err(e);
                 }
@@ -186,14 +180,14 @@ pub async fn run_target(
     }
     let project = match caller_cwd {
         None => None,
-        Some(folder) => project_of_folder(&projects_of(client).await.unwrap_or_default(), folder),
+        Some(folder) => project_of_folder(&projects_listed(client).await.unwrap_or_default(), folder),
     };
     let Some(project) = project else {
         return Err(usage_refusal(&wsp_words::projects::no_thread_target_line("<project>"), READ_PROJECTS_FIX));
     };
-    let inside = caller_cwd.is_some_and(|folder| !under(folder, &project.path));
+    let inside = caller_cwd.is_some_and(|folder| !under(folder, &text_of(&project, "path")));
     let cwd = if inside && r#where.cwd.is_none() && r#where.branch.is_none() { caller_cwd.map(str::to_owned) } else { cwd };
-    let name = project.name.clone();
+    let name = text_of(&project, "name");
     let here = FolderHere { project: Some(pick_of(&project)), branch, cwd };
     Ok(RunTarget::Folder(FolderTarget { here, opened: opened_of(Some(name), true) }))
 }
@@ -286,19 +280,17 @@ pub async fn sub_for(
     ask: &SubAsk,
     task: &str,
     title: Option<&str>,
-    say: &(dyn Fn(&str) + Send + Sync),
+    say: Arc<dyn Fn(&str) + Send + Sync>,
 ) -> Result<SubMade, HostError> {
     let taken = taken_names(client).await?;
     let name = taken_name_after(&title.map_or_else(|| name_of_task(task), str::to_owned), &taken);
     let pushed = Arc::new(PushedFrames::new(client));
     client.events().await?;
-    let (tx, mut lines) = unbounded_channel::<String>();
     let watched = name.clone();
+    let heard = say.clone();
     pushed.follow(
         Arc::new(move |f: &Frame| f.get("type") == Some(&json!("workspace.creating")) && f.get("name") == Some(&json!(watched))),
-        Arc::new(move |f: &Frame| {
-            let _ = tx.send(f.get("message").and_then(Value::as_str).unwrap_or_default().to_owned());
-        }),
+        Arc::new(move |f: &Frame| heard(f.get("message").and_then(Value::as_str).unwrap_or_default())),
     );
     let mut sub_params = Map::new();
     sub_params.insert("on".into(), json!(ask.on));
@@ -313,7 +305,7 @@ pub async fn sub_for(
         ("sub", Some(Value::Object(sub_params))),
     ]);
     let made = async {
-        let frame = saying(&mut lines, say, client.request("workspaces.create", params)).await?;
+        let frame = client.request("workspaces.create", params).await?;
         if let Some(notice) = frame.get("notice").and_then(Value::as_str) {
             for line in notice.split('\n') {
                 say(line);
@@ -334,12 +326,12 @@ pub async fn sub_for(
 }
 
 /// The project on this computer a folder is in: the one whose folder holds it, the deepest where two do, else the one
-/// whose repo the folder is a worktree of.
-pub fn project_of_folder(projects: &[ProjectView], folder: &str) -> Option<ProjectView> {
-    let here: Vec<&ProjectView> = projects.iter().filter(|p| copies_folder(&kind_for_computer(&p.computer, None))).collect();
-    let mut holding: Option<&ProjectView> = None;
-    for project in here.iter().copied().filter(|p| under(folder, &p.path)) {
-        if holding.is_none_or(|best| path_length(&project.path) > path_length(&best.path)) {
+/// whose repo the folder is a worktree of. The row is the host's own object, handed back as it came.
+pub fn project_of_folder(projects: &[Value], folder: &str) -> Option<Value> {
+    let here: Vec<&Value> = projects.iter().filter(|p| copies_folder(&kind_for_computer(&text_of(p, "computer"), None))).collect();
+    let mut holding: Option<&Value> = None;
+    for project in here.iter().copied().filter(|p| under(folder, &text_of(p, "path"))) {
+        if holding.is_none_or(|best| path_length(&text_of(project, "path")) > path_length(&text_of(best, "path"))) {
             holding = Some(project);
         }
     }
@@ -347,7 +339,7 @@ pub fn project_of_folder(projects: &[ProjectView], folder: &str) -> Option<Proje
         return Some(holding.clone());
     }
     let main = main_worktree_of(folder)?;
-    here.into_iter().find(|p| p.git.as_ref().is_some_and(|git| git.top == main)).cloned()
+    here.into_iter().find(|p| p.get("git").and_then(|git| git.get("top")).and_then(Value::as_str) == Some(main.as_str())).cloned()
 }
 
 /// What `threadHere` is handed (turns-help.ts:351): a word, or the thread row already read.
@@ -594,9 +586,32 @@ async fn taken_names(client: &dyn HostClient) -> Result<IndexSet<String>, HostEr
     Ok(workspaces(client).await?.into_iter().map(|w| w.name).collect())
 }
 
-/// The folder target's `project` read off a `ProjectView`: the whole object, kept in the order the host wrote it.
-fn pick_of(project: &ProjectView) -> ProjectPick {
-    serde_json::from_value(serde_json::to_value(project).expect("a project writes as JSON")).expect("a project reads back as a pick")
+/// A row's text under a key, empty where it has none.
+fn text_of(row: &Value, key: &str) -> String {
+    row.get(key).and_then(Value::as_str).unwrap_or_default().to_owned()
+}
+
+/// The folder target's `project` read off a project row the host wrote: the whole object, kept in the order it came.
+fn pick_of(project: &Value) -> ProjectPick {
+    let mut rest = project.as_object().cloned().unwrap_or_default();
+    let (id, name) = (rest.shift_remove("id"), rest.shift_remove("name"));
+    let computer = rest.shift_remove("computer").and_then(|c| c.as_str().map(str::to_owned));
+    let text = |v: Option<Value>| v.and_then(|v| v.as_str().map(str::to_owned)).unwrap_or_default();
+    ProjectPick { id: text(id), name: text(name), computer, rest }
+}
+
+/// `projectsHere` (workspaces-help.ts:817-823) as a run reads it: the listing's rows as the host wrote them, else the
+/// projects the thread's own workspaces hold; nothing where both are refused.
+async fn projects_held(client: &dyn HostClient) -> Vec<ProjectPick> {
+    if let Ok(rows) = projects_listed(client).await {
+        return rows.iter().map(pick_of).collect();
+    }
+    let mut by_id: IndexMap<String, ProjectPick> = IndexMap::new();
+    for w in workspaces(client).await.unwrap_or_default() {
+        let project = ProjectPick { id: w.project.id.clone(), name: w.project.name, computer: Some(w.project.computer), rest: Map::new() };
+        by_id.insert(w.project.id, project);
+    }
+    by_id.into_values().collect()
 }
 
 /// The three fields a folder target names its project by: `id`, `name` and `path`.
