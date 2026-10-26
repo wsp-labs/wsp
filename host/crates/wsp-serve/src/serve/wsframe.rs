@@ -7,6 +7,9 @@
 /// `maxPayload`: ws's default, which serve.ts does not change.
 pub const MAX_PAYLOAD: usize = 100 * 1024 * 1024;
 
+/// `maxFragments`: ws's server default, the most fragments one message may come in.
+pub const MAX_FRAGMENTS: usize = 16 * 1024;
+
 /// What `Receiver` hands the socket for one thing it read.
 #[derive(Debug, PartialEq)]
 pub enum Inbound {
@@ -47,6 +50,7 @@ pub struct Receiver {
     length: usize,
     mask: [u8; 4],
     fragmented: u8,
+    fragments: usize,
     total: usize,
     parts: Vec<u8>,
     ended: bool,
@@ -68,6 +72,7 @@ impl Receiver {
             length: 0,
             mask: [0; 4],
             fragmented: 0,
+            fragments: 0,
             total: 0,
             parts: Vec::new(),
             ended: false,
@@ -172,6 +177,10 @@ impl Receiver {
                 if self.opcode > 0x07 {
                     return self.control(data);
                 }
+                self.fragments += 1;
+                if self.fragments > MAX_FRAGMENTS {
+                    return Step::Out(Err(fault(1008, "Too many message fragments", false)));
+                }
                 self.parts.extend_from_slice(&data);
                 self.data_message()
             }
@@ -238,6 +247,7 @@ impl Receiver {
         }
         self.total = 0;
         self.fragmented = 0;
+        self.fragments = 0;
         let bytes = std::mem::take(&mut self.parts);
         if self.opcode == 2 {
             return Step::Out(Ok(Inbound::Binary(bytes)));
