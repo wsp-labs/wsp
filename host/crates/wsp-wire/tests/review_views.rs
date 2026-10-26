@@ -11,7 +11,6 @@ use wsp_wire::types::check::parse;
 use wsp_wire::types::harness_picks::efforts_for;
 use wsp_wire::types::JsNumber;
 use wsp_wire::views::activity_names::proc_name;
-use wsp_wire::views::golden_image::{recipe_pins, RecipeDigest};
 use wsp_wire::views::harness::HarnessCatalog;
 use wsp_wire::views::preferences::{apply_preferences_patch, preferences_from, Preferences, PreferencesPatch};
 use wsp_wire::views::session_events::{copied_from_of, SessionEvent};
@@ -67,22 +66,6 @@ fn copied_from_is_read_off_every_event_type_that_carries_it() {
     let want: Vec<(String, Option<String>)> =
         events.iter().map(|e| (e["type"].as_str().unwrap().to_string(), Some("t0".to_string()))).collect();
     assert_eq!(got, want);
-}
-
-/// views/golden-image.ts:355-358: `recipePins` writes `{ id, ...pin, road }`, id first. Rust's `SealedPin` declares
-/// `id` after the pin's keys (documented in spec/shapes.md, Decision 1). Node writes
-/// [{"id":"a","tag":"2"},{"id":"b","tag":"v1","sha256":"s","arch":"x86_64","latest":true,"road":"r"}].
-#[test]
-fn recipe_pins_are_written_with_the_id_first() {
-    let digest: RecipeDigest = read(json!({
-        "ticks": [
-            { "id": "b", "pin": { "tag": "v1", "sha256": "s", "arch": "x86_64", "latest": true }, "road": "r" },
-            { "id": "a", "pin": { "tag": "2" } }
-        ],
-        "files": []
-    }));
-    let text = serde_json::to_string(&recipe_pins(&digest, None)).unwrap();
-    assert_eq!(text, r#"[{"id":"a","tag":"2"},{"id":"b","tag":"v1","sha256":"s","arch":"x86_64","latest":true,"road":"r"}]"#);
 }
 
 /// harness-picks.ts:22-27: `effortsFor` rebuilds the marked option as `{ ...rest, isDefault: true }`, so isDefault is

@@ -1,0 +1,495 @@
+{
+ "paths": [
+  [
+   "/a/b/state.json",
+   "/a/b/host.lock",
+   "/a/b/host-token",
+   "/a/b/runs",
+   "/a/b/roots",
+   "/a/b/door-port",
+   "/a/b/readings",
+   "/a/b/inbox",
+   "/a/b/host.log"
+  ],
+  [
+   "state.json",
+   "host.lock",
+   "host-token",
+   "runs",
+   "roots",
+   "door-port",
+   "readings",
+   "inbox",
+   "host.log"
+  ],
+  [
+   "/state.json",
+   "/host.lock",
+   "/host-token",
+   "/runs",
+   "/roots",
+   "/door-port",
+   "/readings",
+   "/inbox",
+   "/host.log"
+  ],
+  [
+   "a/b/c.json",
+   "a/b/host.lock",
+   "a/b/host-token",
+   "a/b/runs",
+   "a/b/roots",
+   "a/b/door-port",
+   "a/b/readings",
+   "a/b/inbox",
+   "a/b/host.log"
+  ],
+  [
+   "/a/b/",
+   "/a/host.lock",
+   "/a/host-token",
+   "/a/runs",
+   "/a/roots",
+   "/a/door-port",
+   "/a/readings",
+   "/a/inbox",
+   "/a/host.log"
+  ]
+ ],
+ "addressLines": [
+  [
+   {
+    "port": 4400
+   },
+   null,
+   [
+    "app         http://127.0.0.1:4400",
+    "runtime ws  ws://127.0.0.1:4400/ws (token: /s/host-token)",
+    "state       /s/state.json"
+   ]
+  ],
+  [
+   {
+    "port": 4400,
+    "address": "0.0.0.0"
+   },
+   "h5aab7a97cd80893f.usewsp.com",
+   [
+    "app         http://0.0.0.0:4400",
+    "runtime ws  ws://0.0.0.0:4400/ws (token: /s/host-token)",
+    "state       /s/state.json",
+    "public      https://h5aab7a97cd80893f.usewsp.com"
+   ]
+  ],
+  [
+   {
+    "port": 1,
+    "address": "::1"
+   },
+   null,
+   [
+    "app         http://[::1]:1",
+    "runtime ws  ws://[::1]:1/ws (token: /s/host-token)",
+    "state       /s/state.json"
+   ]
+  ],
+  [
+   {
+    "port": 4400,
+    "address": "::"
+   },
+   null,
+   [
+    "app         http://[::]:4400",
+    "runtime ws  ws://[::]:4400/ws (token: /s/host-token)",
+    "state       /s/state.json"
+   ]
+  ]
+ ],
+ "dial": [
+  [
+   null,
+   "127.0.0.1"
+  ],
+  [
+   "0.0.0.0",
+   "127.0.0.1"
+  ],
+  [
+   "::",
+   "127.0.0.1"
+  ],
+  [
+   "::1",
+   "::1"
+  ],
+  [
+   "127.0.0.2",
+   "127.0.0.2"
+  ],
+  [
+   "[::]",
+   "[::]"
+  ],
+  [
+   "0:0:0:0:0:0:0:0",
+   "0:0:0:0:0:0:0:0"
+  ],
+  [
+   "localhost",
+   "localhost"
+  ],
+  [
+   "",
+   ""
+  ]
+ ],
+ "startedBy": [
+  [
+   {
+    "WSP_STARTED_BY": "verb"
+   },
+   "verb"
+  ],
+  [
+   {
+    "WSP_STARTED_BY": "service"
+   },
+   "service"
+  ],
+  [
+   {
+    "WSP_STARTED_BY": "up"
+   },
+   null
+  ],
+  [
+   {
+    "WSP_STARTED_BY": ""
+   },
+   null
+  ],
+  [
+   {},
+   null
+  ],
+  [
+   {
+    "WSP_STARTED_BY": "Verb"
+   },
+   null
+  ]
+ ],
+ "aliasFrom": [
+  [
+   "box.local",
+   "box.local",
+   true
+  ],
+  [
+   "192.168.1.9",
+   "192.168.1.9",
+   true
+  ],
+  [
+   "[::1]",
+   "1-",
+   false
+  ],
+  [
+   "///",
+   "host",
+   false
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   false
+  ],
+  [
+   "a..b",
+   "a.b",
+   false
+  ],
+  [
+   "a....b",
+   "a.b",
+   false
+  ],
+  [
+   "..",
+   "host",
+   false
+  ],
+  [
+   "a..",
+   "a.",
+   false
+  ],
+  [
+   ".",
+   "host",
+   false
+  ],
+  [
+   "-.-",
+   "host",
+   false
+  ],
+  [
+   "",
+   "host",
+   false
+  ],
+  [
+   "_x",
+   "x",
+   false
+  ],
+  [
+   "Ünïcode name",
+   "n-code-name",
+   false
+  ],
+  [
+   "my host!",
+   "my-host-",
+   false
+  ],
+  [
+   "-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+   false
+  ],
+  [
+   "a.",
+   "a.",
+   true
+  ],
+  [
+   "x/../y",
+   "x-.-y",
+   false
+  ],
+  [
+   "9",
+   "9",
+   true
+  ]
+ ],
+ "aliasOk": [
+  [
+   "box",
+   true
+  ],
+  [
+   "a",
+   true
+  ],
+  [
+   "A9._-",
+   true
+  ],
+  [
+   "../evil",
+   false
+  ],
+  [
+   "a/b",
+   false
+  ],
+  [
+   "",
+   false
+  ],
+  [
+   "-box",
+   false
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   true
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   false
+  ],
+  [
+   "a..b",
+   false
+  ],
+  [
+   ".a",
+   false
+  ],
+  [
+   "_a",
+   false
+  ],
+  [
+   "a b",
+   false
+  ],
+  [
+   "a\n",
+   false
+  ]
+ ],
+ "lines": {
+  "noSuch0": "no host named attic is connected; this computer holds none, and wsp login puts the hosts on your account here.",
+  "noSuch2": "no host named attic is connected; this computer holds box, cellar, and wsp login puts the hosts on your account here.",
+  "several": "this computer can reach 2 hosts on your account (attic, cellar) and none of them is the one every line takes.",
+  "nameOne": "Name one on the line with --host <name>.\n\nRun wsp hosts for the list.",
+  "readThe": "Run wsp hosts for the list.",
+  "notPaired": "--host takes the name of a host on your account; http://x:1 is an address, and wsp hosts lists the names.",
+  "refused": "the host box refused this computer's token, which it has taken away; run wsp logout, wsp login and wsp hosts to sign this computer in again.",
+  "sideLine": "wsp host pair runs on the computer the host runs on, and this line is aimed at box.",
+  "sideFix": "Run it in a terminal over there. Handing out access is the one thing a paired computer cannot do from here.",
+  "sideFix2": "Run it in a terminal over there. Carrying a vault off is not either.",
+  "ignored": "--state names a file on this computer and this line runs against box, which serves its own, so it is not read.",
+  "noAnswer": "the host at ws://box:1/ws did not answer: nothing came back within 5000 ms",
+  "noAnswerKind": "unreachable"
+ },
+ "empty": {
+  "message": "--host was given an empty word, which names no host. Name one as wsp hosts lists it, or leave the flag off.",
+  "kind": "usage",
+  "fix": "Name one as wsp hosts lists it, or leave the flag off."
+ },
+ "badAlias": {
+  "message": "\"../evil\" is not a host alias. A name is letters, digits, dots, dashes and underscores, opens with a letter or a digit, and is at most 64 characters.",
+  "kind": "usage",
+  "fix": "A name is letters, digits, dots, dashes and underscores, opens with a letter or a digit, and is at most 64 characters."
+ },
+ "emptyHost": {
+  "message": "--host was given an empty word, which names no host. Name one as wsp hosts lists it, or leave the flag off.",
+  "kind": "usage"
+ },
+ "noSuch": {
+  "message": "no host named attic is connected; this computer holds none, and wsp login puts the hosts on your account here. Run wsp hosts for the list.",
+  "kind": "usage",
+  "fix": "Run wsp hosts for the list."
+ },
+ "noKey": {
+  "message": "the launch this turn started with names a host and no key for it, so this computer cannot tell which host it would be sending its token to; run wsp hosts to read the account's hosts again",
+  "kind": "auth",
+  "fix": null
+ },
+ "named": [
+  [
+   {
+    "host": " attic ",
+    "env": {}
+   },
+   {
+    "error": "no host named attic is connected; this computer holds none, and wsp login puts the hosts on your account here. Run wsp hosts for the list."
+   }
+  ],
+  [
+   {
+    "env": {
+     "WSP_HOST": "  "
+    }
+   },
+   null
+  ],
+  [
+   {
+    "env": {
+     "WSP_HOST": "http://127.0.0.1:1"
+    }
+   },
+   {
+    "kind": "url",
+    "url": "http://127.0.0.1:1"
+   }
+  ],
+  [
+   {
+    "host": "http://a:1",
+    "env": {
+     "WSP_HOST": "x"
+    }
+   },
+   {
+    "kind": "url",
+    "url": "http://a:1"
+   }
+  ]
+ ],
+ "window": [
+  [
+   "http://127.0.0.1:4400",
+   5000
+  ],
+  [
+   "http://localhost:4400",
+   5000
+  ],
+  [
+   "http://[::1]:4400",
+   5000
+  ],
+  [
+   "http://127.0.0.2:4400",
+   5000
+  ],
+  [
+   "https://h.usewsp.com",
+   15000
+  ],
+  [
+   "not-an-address",
+   15000
+  ],
+  [
+   "http://",
+   15000
+  ],
+  [
+   "ws://127.0.0.1:1/ws",
+   15000
+  ],
+  [
+   "http://0.0.0.0:1",
+   15000
+  ],
+  [
+   "http://LOCALHOST:1",
+   5000
+  ],
+  [
+   "127.0.0.1:4400",
+   15000
+  ],
+  [
+   "http://127.1:1",
+   5000
+  ]
+ ],
+ "wsUrl": [
+  [
+   "http://box.local:4400",
+   "ws://box.local:4400/ws"
+  ],
+  [
+   "https://attic.example",
+   "wss://attic.example/ws"
+  ],
+  [
+   "http://box.local:4400/",
+   "ws://box.local:4400/ws"
+  ],
+  [
+   "ws://box.local:4400",
+   "ws://box.local:4400/ws"
+  ],
+  [
+   "https://relay.example/mine",
+   "wss://relay.example/mine/ws"
+  ],
+  [
+   "wss://a/ws",
+   "wss://a/ws/ws"
+  ]
+ ]
+}

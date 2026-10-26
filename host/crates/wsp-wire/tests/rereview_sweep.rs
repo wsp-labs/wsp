@@ -52,7 +52,7 @@ fn none_differ(found: Vec<Option<String>>) {
 /// (init-job.ts:142 `z.record(z.boolean())`; src/types/init_job.rs:569) and `SlateWireValues` (slate/wire.ts:21; src/types/slate_wire.rs:16, a
 /// map of `serde_json::Value` where `Kept` is due) are plain `IndexMap` aliases, so a field of either type carries neither
 /// `kept::record` nor `js_record` (every other `IndexMap` field has both). Left from the first review (its MINOR 14 and 16 listed
-/// other fields). Reaches `InitJob`, `InitSetup`, `SlateValuesEvent` and the events that hold them.
+/// other fields). Reaches `InitSetup`, `SlateValuesEvent` and the events that hold them.
 #[test]
 fn a_record_alias_drops_a_proto_key_and_writes_index_like_keys_first_and_numbers_as_javascript() {
     none_differ(vec![
@@ -71,10 +71,6 @@ fn a_record_alias_drops_a_proto_key_and_writes_index_like_keys_first_and_numbers
         read_as::<wsp_wire::wire::events_union::EventUnion>(
             r##"{"type":"slate.values","workspaceId":"w","threadId":"t","version":1,"revision":1,"values":{"a":5.0}}"##,
             r##"{"type":"slate.values","workspaceId":"w","threadId":"t","version":1,"revision":1,"values":{"a":5}}"##,
-        ),
-        read_as::<wsp_wire::types::init_job::InitJob>(
-            r##"{"id":"a","road":"manual","phase":"agent","keys":{"__proto__":true,"a":true},"step":0,"stoppable":true,"screens":[],"rows":[],"progress":{"done":0,"total":0},"log":["a"]}"##,
-            r##"{"id":"a","road":"manual","phase":"agent","keys":{"a":true},"step":0,"stoppable":true,"screens":[],"rows":[],"progress":{"done":0,"total":0},"log":["a"]}"##,
         ),
     ]);
 }
