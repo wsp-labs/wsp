@@ -592,6 +592,11 @@ fn all_ended(r: Result<Vec<ActivityEnded>, HostError>) -> Value {
     json_of(&r.expect("the meet answers"))
 }
 
+/// exit.ts:72: a refusal's message is `refusalLine(happened, fix)`.
+fn joined(happened: &str, fix: &str) -> String {
+    wsp_words::words::thread::refusal_line(happened, fix)
+}
+
 fn said_of<T: std::fmt::Debug>(r: Result<T, HostError>) -> (String, Option<String>, Option<Kind>) {
     said(&r.expect_err("the call is refused"))
 }
@@ -698,6 +703,7 @@ fn a_running_turns_agent_pid_names_its_agent_to_the_read() {
         std::fs::write(format!("{}.agent", run.display()), format!("{mine}\n")).expect("the agent file");
         let lab = Lab::new();
         lab.local_thread(T1, "w1", "go", STARTED, "running");
+        lab.scopes(vec![json!({ "thread": T1, "agents": [mine] })]);
         lab.host.rows.borrow()[&format!("s-{T1}")].borrow_mut().run = Some(run.display().to_string());
         lab.here.set_procs(vec![proc_row(mine, json!({ "comm": "agent-x", "cmdline": "agent-x" }))]);
         let view = view_of(lab.read(ActivityAsk::default(), None).await);
@@ -982,7 +988,7 @@ fn a_relayed_caller_reads_nothing_outside_a_thread_and_ends_none() {
         let seen = view_of(lab.read(ActivityAsk::default(), Some(relayed())).await);
         assert_eq!(seen, view_json(THIS_COMPUTER, T0, vec![], vec![], vec![]));
         let said = said_of(lab.end(4700, STARTED + 7_000, Some(relayed())).await);
-        assert_eq!(said, (not_threads_line(4700), Some(NOT_THREADS_FIX.to_string()), Some(Kind::Usage)));
+        assert_eq!(said, (joined(&not_threads_line(4700), &NOT_THREADS_FIX.to_string()), Some(NOT_THREADS_FIX.to_string()), Some(Kind::Usage)));
         assert_eq!(lab.here.signals.borrow().clone(), vec![]);
         assert_eq!(lab.here.chans().len(), 3, "two reads and the end's read; no kill channel");
     });
@@ -1315,7 +1321,7 @@ fn a_running_threads_agent_is_not_kept_and_its_end_is_refused() {
         lab.kept(T1, 4100);
         let said = said_of(lab.end(4100, STARTED, None).await);
         let scope = agent_scope(T1, "start the dev server");
-        assert_eq!(said, (agent_end_line(4100.0, &scope), Some(agent_end_fix(&scope)), Some(Kind::Usage)));
+        assert_eq!(said, (joined(&agent_end_line(4100.0, &scope), &agent_end_fix(&scope)), Some(agent_end_fix(&scope)), Some(Kind::Usage)));
         assert_eq!(lab.host.hooks.called("reap_kept_now"), Vec::<String>::new());
         assert_eq!(lab.here.chans().len(), 1);
     });
@@ -1328,7 +1334,7 @@ fn end_refuses_the_agent_and_sends_nothing() {
         let lab = Lab::main();
         let said = said_of(lab.end(4100, STARTED, None).await);
         let scope = agent_scope(T1, "start the dev server");
-        assert_eq!(said, (agent_end_line(4100.0, &scope), Some(agent_end_fix(&scope)), Some(Kind::Usage)));
+        assert_eq!(said, (joined(&agent_end_line(4100.0, &scope), &agent_end_fix(&scope)), Some(agent_end_fix(&scope)), Some(Kind::Usage)));
         assert_eq!(lab.here.signals.borrow().clone(), vec![]);
         assert_eq!(lab.here.chans(), vec![chan(false, watch_frames())]);
     });
@@ -1341,7 +1347,7 @@ fn end_refuses_a_pid_that_names_another_process_now() {
         let lab = Lab::main();
         let said = said_of(lab.end(4200, STARTED - 60_000, None).await);
         let now: wsp_frames::ProcEntry = serde_json::from_value(proc_row(4200, json!({ "comm": "node", "startedAt": STARTED + 1_000 }))).expect("a process row");
-        assert_eq!(said, (end_reused_line(4200, &now, STARTED - 60_000), Some(END_AGAIN_FIX.to_string()), Some(Kind::NotFound)));
+        assert_eq!(said, (joined(&end_reused_line(4200, &now, STARTED - 60_000), &END_AGAIN_FIX.to_string()), Some(END_AGAIN_FIX.to_string()), Some(Kind::NotFound)));
         assert_eq!(lab.here.signals.borrow().clone(), vec![]);
         assert_eq!(lab.here.chans(), vec![chan(false, watch_frames())]);
     });
@@ -1354,7 +1360,7 @@ fn end_refuses_a_process_wsp_did_not_start() {
         let lab = Lab::main();
         for started in [STARTED, 1] {
             let said = said_of(lab.end(5000, started, None).await);
-            assert_eq!(said, (not_started_line(5000), Some(NOT_STARTED_FIX.to_string()), Some(Kind::Usage)));
+            assert_eq!(said, (joined(&not_started_line(5000), &NOT_STARTED_FIX.to_string()), Some(NOT_STARTED_FIX.to_string()), Some(Kind::Usage)));
         }
         assert_eq!(lab.here.signals.borrow().clone(), vec![]);
         assert_eq!(lab.here.chans(), vec![chan(false, watch_frames()), chan(false, watch_frames())]);
@@ -1650,7 +1656,7 @@ fn a_thread_settling_itself_hears_which_processes_only_the_person_ends() {
         let refusal = lab.meet(&[T1], ProcessesAsk::Ask, MeetVerb::Settle, me()).await.expect_err("the ask is refused");
         assert_eq!(refusal, refusal_of(LeftVerb::Settle, &[t1_left(vec![vite(), esbuild(), python()], 471_000_000)], &[4800]));
         let said = said_of(lab.meet(&[T1], ProcessesAsk::Stop, MeetVerb::Settle, me()).await);
-        assert_eq!(said, (not_threads_line(4800), Some(NOT_THREADS_FIX.to_string()), Some(Kind::Usage)));
+        assert_eq!(said, (joined(&not_threads_line(4800), &NOT_THREADS_FIX.to_string()), Some(NOT_THREADS_FIX.to_string()), Some(Kind::Usage)));
         assert_eq!(lab.here.signals.borrow().clone(), vec![]);
         assert_eq!(lab.here.chans(), vec![chan(false, list_frames()), chan(false, list_frames())], "no kill channel before the refusal");
     });

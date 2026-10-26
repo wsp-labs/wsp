@@ -1303,7 +1303,7 @@ fn a_held_send_of_three_thousand_characters_keeps_them_all_in_its_record_and_its
     local(async {
         let (ctx, area, record) = cap_host(1, 1);
         let long: String = format!("two {}", "wait for a slot and keep every word. ".repeat(80)).chars().take(3000).collect();
-        assert_eq!(long.chars().count(), 3000);
+        assert_eq!(long.chars().count(), 2964, "node: `two ${...repeat(80)}`.slice(0, 3000).length is 2964");
         start_row(&ctx, "n1", "tn");
         area.cap_hold(&record, "n1", None);
         let _waiting = area.cap_wait(CapAt { prompt: long.clone(), ..at("n1", "tn") }, cap_wait_of(1, 1));
