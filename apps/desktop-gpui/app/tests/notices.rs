@@ -629,37 +629,8 @@ fn nothing_is_said_of_a_setup_while_add_a_computer_stands_on_its_computer(cx: &m
     assert!(texts.is_empty(), "the dialog's rows say it: {texts:?}");
 }
 
-/// Catches: the host's road saying a cloud's sealed build while Add a cloud provider stands on that build, whose heading
-/// says it, so the dialog's close says it a second time.
-#[gpui_kit::test]
-fn a_seal_the_cloud_dialog_stands_on_is_said_once_by_its_close(cx: &mut TestAppContext) {
-    use desktop_gpui::screens::dialogs::add_cloud::{self, flow};
-    let (_server, cx) = live(cx);
-    let job = json!({ "id": "j_seal", "phase": "done", "place": { "id": "box", "name": "Boat" }, "golden": { "version": 3 } });
-    cx.update(|window, cx| {
-        let mut on_build = flow::Flow::new(Some("box"));
-        on_build.step = flow::Step::Building;
-        on_build.job = Some(serde_json::from_value(job.clone()).unwrap());
-        add_cloud::open_on(None, on_build, window, cx);
-    });
-    cx.run_until_parked();
-    cx.update(|window, cx| {
-        let notices = overlays::of(window, cx).expect("the window's overlays").read(cx).notices.clone();
-        let frame = json!({ "type": "init.job", "job": job });
-        notices.update(cx, |n, cx| n.hear(Heard { kind: "init.job".into(), frame, preferences: None }, window, cx));
-    });
-    cx.run_until_parked();
-    let sealed = |cx: &mut VisualTestContext| {
-        notices_of(cx).read_with(cx, |n, _| n.standing().iter().filter(|n| n.text.as_ref() == "Boat is ready").count())
-    };
-    assert_eq!(sealed(cx), 0, "the host's road holds it while the dialog stands on the build");
-    cx.update(dialogs::layer::dismiss);
-    cx.run_until_parked();
-    assert_eq!(sealed(cx), 1, "the dialog's close says it once");
-}
-
-/// A change to the build job as the sidebar's road hands it over.
-fn job_moved(cx: &mut VisualTestContext, change: Change) {
+/// A change as the sidebar's road hands it over.
+fn sidebar_moved(cx: &mut VisualTestContext, change: Change) {
     cx.update(|window, cx| {
         let sidebar = overlays::of(window, cx).and_then(|o| o.read(cx).sidebar.clone()).and_then(|s| s.upgrade());
         sidebar.expect("the shell hands the overlays its sidebar").update(cx, |s, cx| {
@@ -668,35 +639,6 @@ fn job_moved(cx: &mut VisualTestContext, change: Change) {
         });
     });
     cx.run_until_parked();
-}
-
-fn job_read(cx: &mut VisualTestContext, job: Value) {
-    job_moved(cx, Change::Job(Some(job)));
-}
-
-fn needs(cx: &mut VisualTestContext) -> Vec<String> {
-    let notices = notices_of(cx);
-    notices.read_with(cx, |n, _| {
-        n.standing().into_iter().filter(|n| n.key.as_deref() == Some("needs-you")).map(|n| n.text.to_string()).collect()
-    })
-}
-
-/// Catches: the notices keeping a build job of their own, so the need stands on after the sidebar's read of the job
-/// no longer carries it, or is ended while the sidebar's job still asks for it; or a need the job's road pushed going
-/// unsaid.
-#[gpui_kit::test]
-fn a_builds_need_goes_once_the_sidebars_job_no_longer_carries_it(cx: &mut TestAppContext) {
-    let (_server, cx) = live(cx);
-    let need = json!({ "what": "Sign in to GitHub" });
-    let job = json!({ "id": "j_need", "phase": "building", "place": { "id": "box", "name": "Boat" }, "needsYou": need });
-    job_read(cx, job.clone());
-    assert_eq!(needs(cx).len(), 0, "a read alone says nothing, as the web says a need only on its push");
-    job_moved(cx, Change::JobNeed(need));
-    assert_eq!(needs(cx).len(), 1, "the push says the need");
-    job_read(cx, job);
-    assert_eq!(needs(cx).len(), 1, "a read that still carries the need keeps it");
-    job_read(cx, json!({ "id": "j_need", "phase": "building", "place": { "id": "box", "name": "Boat" } }));
-    assert_eq!(needs(cx), Vec::<String>::new(), "the sidebar's job no longer carries the need, so it goes");
 }
 
 /// A push the window's rules take, as the notices' road hands it over.
@@ -711,8 +653,8 @@ fn hear(cx: &mut VisualTestContext, frame: Value) {
 
 /// Catches: one of the moments today's page says over the system (`sayOutside` in `hostNotices.ts`) going unsaid by
 /// the window's rules while the window is up with no focus, a sign-in a setup waits on said once per frame rather
-/// than once while it stands, or the sign-in's click opening anything but Add a computer. Seven lines: a setup's
-/// sign-in, its needs-you, ready and failed ends, a build's seal, a build's need, and a workspace waking.
+/// than once while it stands, or the sign-in's click opening anything but Add a computer. Five lines: a setup's
+/// sign-in, its needs-you, ready and failed ends, and a workspace waking.
 #[gpui_kit::test]
 fn the_window_says_the_pages_moments_over_the_system_while_it_has_no_focus(cx: &mut TestAppContext) {
     use desktop_gpui::desktop::notify;
@@ -735,11 +677,7 @@ fn the_window_says_the_pages_moments_over_the_system_while_it_has_no_focus(cx: &
         listed(cx, vec![waiting.clone()]);
         setup_ended(cx, "s_out", end, Some(said));
     }
-    let job = json!({ "id": "j_out", "phase": "done", "place": { "id": "box", "name": "Boat" }, "golden": { "version": 3 } });
-    hear(cx, json!({ "type": "init.job", "job": job }));
-    job_read(cx, json!({ "id": "j_need", "phase": "building", "place": { "id": "box", "name": "Boat" } }));
-    job_moved(cx, Change::JobNeed(json!({ "what": "Sign in to GitHub" })));
-    job_moved(cx, Change::Workspaces(vec![json!({ "id": "ws_api", "kind": "cloud", "name": "api" })]));
+    sidebar_moved(cx, Change::Workspaces(vec![json!({ "id": "ws_api", "kind": "cloud", "name": "api" })]));
     hear(cx, json!({ "type": "workspace.woken", "workspaceId": "ws_api" }));
     let shown = cx.shown_system_notifications();
     let said: Vec<(String, String)> = shown.iter().map(|n| (n.title.to_string(), n.body.to_string())).collect();
@@ -748,8 +686,6 @@ fn the_window_says_the_pages_moments_over_the_system_while_it_has_no_focus(cx: &
         ("wsp needs you", "lab-box needs you: a code"),
         ("lab-box is ready; rg failed", ""),
         ("lab-box: setup failed", "no route"),
-        ("Boat is ready", "Image v3 sealed"),
-        ("wsp needs you", "Sign in to GitHub"),
         ("wsp needs you", "api is awake"),
     ];
     assert_eq!(said, want.map(|(t, b)| (t.to_owned(), b.to_owned())));
@@ -769,11 +705,10 @@ fn settings_at(cx: &mut VisualTestContext) -> Option<desktop_gpui::screens::sett
     })
 }
 
-/// Catches: a computer's notice, a setup's left rows or a sealed build's Open naming a Settings page that does not
+/// Catches: a computer's notice or a setup's left rows naming a Settings page that does not
 /// exist, so Settings opens wherever it last was instead of on that computer's page.
 #[gpui_kit::test]
 fn each_computer_link_opens_that_computers_own_settings_page(cx: &mut TestAppContext) {
-    use desktop_gpui::screens::dialogs::add_cloud;
     use desktop_gpui::screens::settings::model::{At, GroupId};
     let (_server, cx) = live(cx);
     let p_box = Some(At::Computer("p_box".into()));
@@ -795,12 +730,6 @@ fn each_computer_link_opens_that_computers_own_settings_page(cx: &mut TestAppCon
     let setup = of_lab_box(cx).into_iter().find(|n| n.detail.is_some()).and_then(|n| n.action).expect("the left rows' notice opens");
     cx.update(|window, cx| (setup.run)(window, cx));
     assert_eq!(settings_at(cx), p_box, "a setup's left rows open lab-box's page");
-
-    cx.update(|_, cx| desktop_gpui::screens::navigate(Route::Screen("settings:general".into()), cx));
-    assert_eq!(settings_at(cx), Some(At::Group(GroupId::General)), "Settings leaves lab-box's page");
-    let sealed = add_cloud::open_sealed(Some("p_box".into()), "j_owed_nothing".into());
-    cx.update(|window, cx| (sealed.run)(window, cx));
-    assert_eq!(settings_at(cx), p_box, "a sealed build's Open opens its computer's page");
 }
 
 /// Catches: a computer's notice said over that computer's own Settings page, whose rows say it already.

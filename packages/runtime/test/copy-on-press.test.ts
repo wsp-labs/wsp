@@ -262,17 +262,6 @@ describe("where a rebuild goes", () => {
     await rt.close();
   });
 
-  it("prepareAt names the place prepare builds the image's own builder at, before a record and after", async () => {
-    const { rt, seal } = providers();
-    const built = async (o: { place?: string }) => rt.golden.prepare(o).then(v => ({ place: v.placeId, name: v.placeName }));
-    for (const o of [{}, { place: "box" }, { place: "Box" }]) expect(await rt.golden.prepareAt(o)).toEqual(await built(o));
-    await seal({ place: "solari" });
-    for (const o of [{}, { place: "box" }, { place: "fake" }]) {
-      expect(await rt.golden.prepareAt(o)).toEqual({ place: "solari", name: "Solari" });
-      expect(await built(o)).toEqual({ place: "solari", name: "Solari" });
-    }
-    await rt.close();
-  });
 });
 
 describe("the image's home on every road", () => {
@@ -395,7 +384,7 @@ describe("a fork at a place that holds no copy of the image", () => {
       await expect(createOn(rt, { golden: await head(), name: `x-${on}`, on })).rejects.toMatchObject({ kind: "conflict", message: line, fix: imageRebuildFix("fake") });
     }
     expect([fake.machines.length, box.machines.length]).toEqual(machines);
-    expect(refusalLine(imageHeldSignInsLine("Boat"), imageRebuildFix("boat"))).toBe("Your image on Boat was sealed with sign-ins on it. Rebuild it: wsp init --on boat --rebuild.");
+    expect(refusalLine(imageHeldSignInsLine("Boat"), imageRebuildFix("boat"))).toBe("Your image on Boat was sealed with sign-ins on it. The image stays as it is, and this build makes no new version, so a fork on boat stays refused.");
     // The rebuild at the image's own place marks the record and its version; the copy on Boat reads stale against the
     // new hash and is built again, clean, before the fork there.
     await seal();
@@ -404,27 +393,6 @@ describe("a fork at a place that holds no copy of the image", () => {
     const made = await createOn(rt, { golden: await head(), name: "y-box", on: "box" });
     const copy = goldenHead((await store.get("goldens", copyKey("box", "default"))) as never)!;
     expect(copy).toMatchObject({ noSecrets: true, snapshotId: made.golden });
-    await rt.close();
-  });
-
-  it("a fork at a provider of a project image is refused unless the version it was taken from carries the mark, and so is a fork of an older version", async () => {
-    const { rt, store, seal, head } = providers();
-    await seal();
-    const root = await head();
-    const project = (snapshotId: string, golden: string) => ({ snapshotId, projects: [], golden, version: 1, workspaceId: "ws_p", workspaceName: "p", createdAt: "2026-10-13T00:00:00.000Z", place: "fake" });
-    await store.put("project-goldens", "snap_proj", project("snap_proj", root));
-    await store.put("project-goldens", "snap_orphan", project("snap_orphan", "snap_gone"));
-    expect((await createOn(rt, { golden: "snap_proj", name: "p1", on: "fake" })).golden).toBe("snap_proj");
-    const line = refusalLine(imageHeldSignInsLine("fake"), imageRebuildFix("fake"));
-    // A project image whose root no manifest knows any more cannot be judged, so it is not booted.
-    await expect(createOn(rt, { golden: "snap_orphan", name: "p2", on: "fake" })).rejects.toMatchObject({ message: line });
-    // The version under the project image was sealed before the mark; so was the older version a fork names.
-    await seal();
-    await unmarked(store, root);
-    await expect(createOn(rt, { golden: "snap_proj", name: "p3", on: "fake" })).rejects.toMatchObject({ kind: "conflict", message: line });
-    await expect(createOn(rt, { golden: root, name: "p4", on: "fake" })).rejects.toMatchObject({ kind: "conflict", message: line });
-    // The head the second seal marked still forks.
-    await createOn(rt, { golden: await head(), name: "p5", on: "fake" });
     await rt.close();
   });
 

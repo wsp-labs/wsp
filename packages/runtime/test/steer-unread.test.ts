@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LocalBackend } from "@wsp/engine";
-import { HERE_PLACE_ID, NOTIFY_ME, unreadLine, type Attachment, type Caller, type SessionEvent, type ThreadScope, type TurnImage, type TurnResult } from "@wsp/protocol";
+import { HERE_PLACE_ID, NOTIFY_ME, unreadLine, type Attachment, type Caller, type SessionEvent, type TurnImage, type TurnResult } from "@wsp/protocol";
 import { gateLoop, writeStub } from "../../protocol/test/stub-script.js";
 import { HARNESS_ADAPTERS } from "../src/adapters.js";
 import { localExecStream } from "../src/local-exec.js";
@@ -23,10 +23,6 @@ import { until } from "./until.js";
 const LINE = "thread 1234abcd finished (completed): reply with the single word BANANA";
 /** A one-pixel PNG. */
 const DOT: Attachment = { mediaType: "image/png", bytes: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", name: "dot.png" };
-/** A thread's own scope, as the door builds one off the token its turn runs with. */
-const scopeOf = (workspaceId: string, threadId: string): ThreadScope => ({ kind: "thread", threadId, workspaceId, rootThreadId: threadId });
-const asThread = (scope: ThreadScope, origin: "relayed" | "here" = "relayed"): Caller => ({ origin, by: scope });
-
 /** A harness whose turns end when the case says, telling the messages steered into them unread as they end; a stop,
  * the person's or a cut's, ends the turn with every message it was steered unread. With `images` it reads them inline,
  * on a start and on a steer. */
@@ -339,17 +335,6 @@ describe("a host restart while a reply waits on a steered message", () => {
 
   it("a line steered from a paired computer is told to the person after the restart, as before it, and starts no turn", async () => {
     const { rt, workspaceId, threadId } = await restartDuringHold("dies", { as: () => "paired" });
-    await until(async () => (await outcome(rt, workspaceId, threadId)).told.length > 0, 20_000);
-    await new Promise(r => setTimeout(r, 200));
-    expect(await outcome(rt, workspaceId, threadId)).toEqual({ starts: ["Write a 250-word story about a lighthouse."], told: [unreadLine(LINE)] });
-  }, 30_000);
-
-  it("a line steered as a thread goes back as that thread after the restart, so a switch turned off meanwhile refuses it to the person", async () => {
-    const { rt, workspaceId, threadId } = await restartDuringHold("dies", {
-      as: (workspaceId, threadId) => asThread(scopeOf(workspaceId, threadId), "here"),
-      // The host comes back to the folder's switch held off in the store.
-      down: async workspaceId => void (await store.put("workspaces", workspaceId, { ...((await store.get("workspaces", workspaceId)) as Record<string, unknown>), agents: { spawn: false, maxMachines: 1, maxDepth: 2 } })),
-    });
     await until(async () => (await outcome(rt, workspaceId, threadId)).told.length > 0, 20_000);
     await new Promise(r => setTimeout(r, 200));
     expect(await outcome(rt, workspaceId, threadId)).toEqual({ starts: ["Write a 250-word story about a lighthouse."], told: [unreadLine(LINE)] });

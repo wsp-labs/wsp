@@ -1,23 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { resolve } from "node:path";
 import { CLOUD_ON } from "../cloud.js";
 import { cloudText } from "../cloud-text.js";
 import { z } from "zod";
 import {
   ActivityEnded,
-  ProjectGolden,
-  ProjectGoldenRemoved,
   SealedImage,
   SealedImageCopy,
-  SealedProjectImage,
   sealedBuiltLine,
-  sealedExportLine,
-  projectImageRemoveNotice,
-  projectImageRemovedLine,
-  type SealedImageExport,
   WorkspaceOut,
   WorkspaceView,
-  agentsLine,
   deleteNotice,
   goneRefusal,
   usageRefusal,
@@ -48,10 +39,10 @@ import {
   StartResult,
 } from "@wsp/protocol";
 import { hostBack, usageIs, tool, type Verb, PICK_FLAGS, PICK_OPTIONS, flag, flagList, absoluteFolder, openedThreadLine, threadIdOf } from "./client.js";
-import { workspaceOf, threadOf, stateLine, wokeLine, nap, resize, rebuild, rebuiltLine, imageView, buildImageAt, imageLines, HOST_SIDE_VAULT, imagePassphrase, renameWorkspace, renamedWorkspaceLine, awake, committed, askedToFix, mergedIn, fixLine, startedFrom, reviewStarted, reviewPosted, startedLines, reviewLines, threadLabel, folderOf, withShared, sharedOf, VERDICTS, mergedPr, updateLine, madeWorktree, dropping, deleting, forgetQuestion, forget, forgotLine, deleteQuestion, imageRemoveQuestion, deleteWorkspace, deletedLine, projectOf, createFor, agentsAsked, projectImageOf, removeProjectImage, snapshot, projectGoldenLine } from "./workspaces-help.js";
+import { workspaceOf, threadOf, stateLine, wokeLine, nap, resize, rebuild, rebuiltLine, imageView, buildImageAt, imageLines, renameWorkspace, renamedWorkspaceLine, awake, committed, askedToFix, mergedIn, fixLine, startedFrom, reviewStarted, reviewPosted, startedLines, reviewLines, threadLabel, folderOf, withShared, sharedOf, VERDICTS, mergedPr, updateLine, madeWorktree, dropping, deleting, forgetQuestion, forget, forgotLine, deleteQuestion, deleteWorkspace, deletedLine, projectOf, createFor, agentsAsked } from "./workspaces-help.js";
 import { pickFlags, checkedStart, threadHere, subDeleting, threadAt, childOf, sharingWith, refuseMachineThread, threadDeleted, openingOf, notifyOf, follow, turnFailure, followVerb, beforeSending, turnView } from "./turns-help.js";
 import { ProcessesIn, endedLines, processesAsked } from "./activity.js";
-import { confirmed, QUIET, QUIET_LINE, QUIET_TURN, Created, TurnOut, asJson, asText, WorkspaceIn, ThreadIn, SHARED_WITH, AgentIn, NotifyIn, CwdIn, ConfirmIn, PICK_INPUTS, SizeIn, SpawnIn, MaxMachinesIn, MaxDepthIn } from "./io.js";
+import { confirmed, QUIET, QUIET_LINE, QUIET_TURN, Created, TurnOut, asJson, asText, WorkspaceIn, ThreadIn, SHARED_WITH, AgentIn, NotifyIn, CwdIn, ConfirmIn, PICK_INPUTS, SizeIn, MaxMachinesIn, MaxDepthIn } from "./io.js";
 
 /** What a delete naming no thread says to do instead, on the line and on the tool. */
 const NO_THREAD_FIX = "Name a thread wsp threads lists.";
@@ -83,33 +74,12 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
     }),
   },
   {
-    name: "snapshot",
-    cloud: true,
-    usage: "wsp snapshot <workspace>",
-    about: "a project image of the workspace: your image plus the project as it is now, ready to fork",
-    page: "agent",
-    options: {},
-    run: async ctx => {
-      const [ref] = ctx.args;
-      if (ref === undefined || ctx.args.length !== 1) throw usageRefusal("wsp snapshot takes one workspace.", usageIs(ctx));
-      const projectGolden = await snapshot(await ctx.client(), ref);
-      ctx.out.emit({ projectGolden }, projectGoldenLine(projectGolden));
-      return 0;
-    },
-    tool: tool({
-      description: "A project image of the workspace: its image version plus the project loaded on it as its disk stands now, synced first so a file written just before is whole on the image, ready for new with from. Only a running machine with a project imported, on a provider that copies a machine's disk, can be snapshotted, and which life the copy may come from is that provider's rule: a machine that was never resumed on the cloud, any life on a container fork. Anything else, and a disk whose sync fails, is refused in one line and nothing is taken.",
-      input: { workspace: WorkspaceIn },
-      output: { projectGolden: ProjectGolden },
-      call: async ({ workspace: ref }, deps) => asJson({ projectGolden: await snapshot(await deps.client(), ref) }),
-    }),
-  },
-  {
     name: "fork",
     cloud: true,
     usage: 'wsp fork <workspace> [--name <n>] [--size <cpu>x<memGb>] [--send "<task>" [run\'s flags]]',
     about: "a new machine from the source's image version, on the source's branch with its commits pushed first, not a copy of its live disk; --size as new's, the person's alone",
     page: "agent",
-    options: { name: { type: "string" }, size: { type: "string" }, send: { type: "string" }, agent: { type: "string" }, ...PICK_OPTIONS, cwd: { type: "string" }, notify: { type: "string", multiple: true }, spawn: { type: "string" }, "max-machines": { type: "string" }, "max-depth": { type: "string" } },
+    options: { name: { type: "string" }, size: { type: "string" }, send: { type: "string" }, agent: { type: "string" }, ...PICK_OPTIONS, cwd: { type: "string" }, notify: { type: "string", multiple: true }, "max-machines": { type: "string" }, "max-depth": { type: "string" } },
     run: async ctx => {
       const [ref] = ctx.args;
       if (ref === undefined || ctx.args.length !== 1) throw usageRefusal("wsp fork takes one workspace.", usageIs(ctx));
@@ -128,18 +98,18 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
         return { source, notify };
       };
       const { source, notify } = task === undefined ? await reads() : await beforeSending(client, reads);
-      const asked = agentsAsked(flag(ctx.flags, "spawn"), flag(ctx.flags, "max-machines"), flag(ctx.flags, "max-depth"));
+      const asked = agentsAsked(flag(ctx.flags, "max-machines"), flag(ctx.flags, "max-depth"));
       const created = await createFor(client, ctx.out, await projectOf(client, source.project.id), flag(ctx.flags, "name") ?? `${source.name}-fork`, { parent: source.id, ...(flag(ctx.flags, "size") !== undefined ? { size: flag(ctx.flags, "size")! } : {}), ...(asked !== undefined ? { agents: asked } : {}) });
       if (task === undefined) return 0;
       ctx.out.emit({ turn: turnView(await followVerb(ctx, client, openingOf(ctx.env, created.workspace, task, { harness, ...picks, cwd: flag(ctx.flags, "cwd"), notify, elsewhere: ctx.elsewhere }), true, {}, { spend: turnSpendWord(created.workspace) })) });
       return 0;
     },
     tool: tool({
-      description: "A new machine of the source's image version, a child of the source that starts on the source's branch with its commits pushed first (not a copy of its live disk); a thread's fork sits under that thread in its tree, and its size and agents switch are the person's to pick. A workspace in a project's folder is no machine to fork. With a task, its first thread is opened and the reply returned. When that first turn fails, the error still names the workspace, which exists: continue with run on it rather than forking again.",
-      input: { workspace: WorkspaceIn, name: z.string().optional().describe("defaults to <source>-fork"), size: SizeIn, task: z.string().optional(), agent: AgentIn, ...PICK_INPUTS, cwd: CwdIn, notify: NotifyIn, spawn: SpawnIn, max_machines: MaxMachinesIn, max_depth: MaxDepthIn },
+      description: "A new machine of the source's image version, a child of the source that starts on the source's branch with its commits pushed first (not a copy of its live disk); a thread's fork sits under that thread in its tree, and its size and agent caps are the person's to pick. A workspace in a project's folder is no machine to fork. With a task, its first thread is opened and the reply returned. When that first turn fails, the error still names the workspace, which exists: continue with run on it rather than forking again.",
+      input: { workspace: WorkspaceIn, name: z.string().optional().describe("defaults to <source>-fork"), size: SizeIn, task: z.string().optional(), agent: AgentIn, ...PICK_INPUTS, cwd: CwdIn, notify: NotifyIn, max_machines: MaxMachinesIn, max_depth: MaxDepthIn },
       output: Created.extend({ turn: TurnOut.optional(), failure: z.string().optional() }).shape,
       stream: ["workspace", "notice"],
-      call: async ({ workspace: ref, name, size: word, task, agent: harness, cwd: folder, notify: tell, spawn, max_machines: maxMachines, max_depth: maxDepth, ...input }, deps) => {
+      call: async ({ workspace: ref, name, size: word, task, agent: harness, cwd: folder, notify: tell, max_machines: maxMachines, max_depth: maxDepth, ...input }, deps) => {
         absoluteFolder(folder);
         const client = await deps.client();
         const reads = async (): Promise<WorkspaceView> => {
@@ -148,7 +118,7 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
           return source;
         };
         const source = task === undefined ? await reads() : await beforeSending(client, reads);
-        const asked = agentsAsked(spawn, maxMachines, maxDepth);
+        const asked = agentsAsked(maxMachines, maxDepth);
         const created = await createFor(client, QUIET, await projectOf(client, source.project.id), name ?? `${source.name}-fork`, { parent: source.id, ...(word !== undefined ? { size: word } : {}), ...(asked !== undefined ? { agents: asked } : {}) });
         if (task === undefined) return asJson(created);
         let failure: string;
@@ -591,9 +561,9 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
     },
     tool: tool({
       description:
-        "The image this host owns and the copy each place has built of it. The record is the recipe the seal was planned from, the sign-ins it holds and a hash over both; a copy built at that hash is current and any other is stale, whatever version the place's own manifest gave it. A record with no vault was read back off its own copy rather than written at a seal, so it judges none of them and every copy of it asks for the sign-ins again: cutting the next version holds them. An image built on Boat holds no sign-in: its machines use the sign-ins on this computer through wsp.<!-- cloud --> The project images taken off workspaces are listed under it, each with its snapshot id, the workspace it was taken off, its size where the provider lists one and its date.<!-- /cloud -->",
+        "The image this host owns and the copy each place has built of it. The record is the recipe the seal was planned from, the sign-ins it holds and a hash over both; a copy built at that hash is current and any other is stale, whatever version the place's own manifest gave it. A record with no vault was read back off its own copy rather than written at a seal, so it judges none of them and every copy of it asks for the sign-ins again: cutting the next version holds them. An image built on Boat holds no sign-in: its machines use the sign-ins on this computer through wsp.",
       input: {},
-      output: { image: SealedImage.nullable(), copies: z.array(SealedImageCopy), projects: z.array(SealedProjectImage) },
+      output: { image: SealedImage.nullable(), copies: z.array(SealedImageCopy) },
       call: async (_args, deps) => {
         const view = await imageView(await deps.client());
         return asText(imageLines(view).join("\n"), view);
@@ -621,60 +591,6 @@ export const WORKSPACE_VERBS: readonly Verb[] = [
       call: async ({ place, force }, deps) => {
         const { image, built } = await buildImageAt(await deps.client(), QUIET, place, force);
         return asText(sealedBuiltLine(image, built), built);
-      },
-    }),
-  },
-  {
-    name: "image export",
-    cloud: true,
-    usage: "wsp image export <file>",
-    about: "writes the image record and your sign-ins to one encrypted file, sealed to a passphrase you type",
-    page: "agent",
-    options: {},
-    cliOnly: "the vault leaves the host only at a person's hand, with a passphrase they type",
-    hostSide: HOST_SIDE_VAULT,
-    run: async ctx => {
-      const [dest] = ctx.args;
-      if (dest === undefined || ctx.args.length !== 1) throw usageRefusal("wsp image export takes one file on this computer.", usageIs(ctx));
-      const passphrase = await imagePassphrase(ctx);
-      const { exported } = await (await ctx.client()).request<{ exported: SealedImageExport }>("image.export", { dest: resolve(dest), passphrase });
-      ctx.out.emit({ exported }, sealedExportLine(exported));
-      return 0;
-    },
-  },
-  {
-    name: "image remove",
-    cloud: true,
-    usage: "wsp image remove <snapshot id> [--yes]",
-    about: "deletes a project image's snapshot at the provider and drops its record; refused while a workspace stands on it",
-    page: "app",
-    options: { yes: { type: "boolean" } },
-    run: async ctx => {
-      const [id] = ctx.args;
-      if (id === undefined || ctx.args.length !== 1) throw usageRefusal("wsp image remove takes one project image, by the id wsp image lists it under.", usageIs(ctx));
-      const client = await ctx.client();
-      const golden = await projectImageOf(client, id);
-      if (!(await confirmed(ctx, imageRemoveQuestion(golden), id))) return 1;
-      const removed = await removeProjectImage(client, id);
-      ctx.out.emit(removed, projectImageRemovedLine(id, removed.alreadyGone));
-      return 0;
-    },
-    tool: tool({
-      description:
-        "Deletes a project image's snapshot at the provider its place names and then drops its record, so no later fork starts from it; the id is the one the image tool lists each project image under, never a project's name. The provider's listing is read back until the id has left it: a snapshot the provider had already lost drops its record and answers `alreadyGone` true, a listing that still holds the id after the wait keeps the record and says to ask again, and any other refusal of the provider's keeps the record and carries the provider's own words. Refused in one line while any workspace stands on the image, whatever its state, naming them: delete those first, or forget one whose machine is gone. Called without confirm it removes nothing and answers with what would go, which is the line to put to the person.",
-      input: {
-        image: z.string().describe("the project image's snapshot id, as the image tool lists it"),
-        confirm: z.boolean().optional().describe("true deletes the snapshot; absent or false answers with what would go and deletes nothing, so a person can be asked first"),
-      },
-      output: ProjectGoldenRemoved.shape,
-      call: async ({ image: id, confirm }, deps) => {
-        const client = await deps.client();
-        const golden = await projectImageOf(client, id);
-        if (confirm !== true) {
-          return { ...asText(`${id} kept. ${projectImageRemoveNotice(golden)} Ask the person, then call image_remove again with confirm true.`, { projectGolden: golden, alreadyGone: false }), isError: true };
-        }
-        const removed = await removeProjectImage(client, id);
-        return asText(projectImageRemovedLine(id, removed.alreadyGone), removed);
       },
     }),
   },

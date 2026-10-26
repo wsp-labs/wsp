@@ -82,11 +82,6 @@ async fn a_project_of_its_own() {
     );
     refused("workspaces.rebuild", client.call(ask::<WorkspacesRebuildRequest>(json!({ "workspaceId": ws }))).await, "it cannot be rebuilt");
     refused(
-        "workspaces.snapshot",
-        client.call(ask::<WorkspacesSnapshotRequest>(json!({ "workspaceId": ws }))).await,
-        "it cannot be snapshotted",
-    );
-    refused(
         "workspaces.restartDaemon",
         client.call(ask::<WorkspacesRestartDaemonRequest>(json!({ "workspaceId": ws }))).await,
         "wsp-daemon binary missing",

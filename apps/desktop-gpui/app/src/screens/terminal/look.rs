@@ -61,8 +61,6 @@ pub struct Look {
 pub struct Choices {
     /// The family the person typed in the font card (`wsp:terminal-font`), which beats the file's.
     pub family: Option<String>,
-    /// The family the host detected as the person's own terminal's.
-    pub detected: Option<String>,
     /// The size preference reads the file's `font-size` rather than the app's.
     pub size_from_file: bool,
     /// The workspace's zoom, in pixels.
@@ -191,9 +189,6 @@ impl Look {
             None => {
                 if let Some(families) = file.get("fontFamily").and_then(Value::as_array) {
                     chain.extend(families.iter().filter_map(|f| f.as_str()).map(str::to_owned));
-                }
-                if chain.is_empty() {
-                    chain.extend(choices.detected.clone());
                 }
             }
         }

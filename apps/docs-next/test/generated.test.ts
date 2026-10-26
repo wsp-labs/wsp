@@ -34,7 +34,7 @@ describe("the generated pages", () => {
 describe("the command pages", () => {
   const pages = (): string[] => readdirSync(join(DOCS, CLI_DIR)).filter(f => f !== "index.mdx").map(f => f.replace(/\.mdx$/, ""));
 
-  it("are one per line the command line answers, init aside, and nothing else", () => {
+  it("are one per line the command line answers, and nothing else", () => {
     const wanted = COMMAND_LINES.map(l => l.words).filter(w => !NO_PAGE.includes(w)).map(pageName);
     if (WRITE)
       for (const stale of pages().filter(p => !wanted.includes(p))) {
@@ -49,11 +49,6 @@ describe("the command pages", () => {
     const cloud = ALL_VERBS.filter(v => "cloud" in v && v.cloud === true).map(v => pageName(v.name));
     expect(cloud.length).toBeGreaterThan(0);
     expect(pages().filter(p => cloud.includes(p))).toEqual([]);
-  });
-
-  it("give init no page of its own and print its help on the index", () => {
-    expect(pages()).not.toContain("init");
-    expect(readFileSync(join(DOCS, CLI_DIR, "index.mdx"), "utf8")).toContain("usage: wsp init");
   });
 });
 

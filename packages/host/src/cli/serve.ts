@@ -2,26 +2,17 @@
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { basename, dirname } from "node:path";
-import { computeRecipe, nodeHost, scanProject, type Host } from "@wsp/collect";
 import type { HostSsh, PlaceWiring, RestartDoor, Runtime } from "@wsp/runtime";
 import { writeOwn } from "@wsp/own-file";
-import { GUEST_HOME, THREAD_AGENTS } from "@wsp/catalog";
+import { GUEST_HOME } from "@wsp/catalog";
 import { forksNoMachines, isLoopback, listenBeyondLoopbackLine, loopbackThreadsLine, LOOPBACK, verbFailure } from "@wsp/protocol";
-import { checkProviderKeyLive, providerBackendFor, providerKeyCheck, providerKeyRow, providerKeyRows, providerKeySet, wiredProviderId, type ProviderEnv } from "../providers.js";
+import { checkProviderKeyLive, providerKeyCheck, providerKeyRow, providerKeyRows, providerKeySet, wiredProviderId, type ProviderEnv } from "../providers.js";
 import { webDirFor } from "../assets.js";
-import { missingBundleFile } from "../doctor.js";
 import { releaseUpdateLine } from "../daemon-fix.js";
-import { agentsHere } from "../agents-here.js";
-import { InitJobs, timedRuns } from "../init-job.js";
+import { CloudSetup } from "../cloud-setup.js";
 import { envFileFor, keyIn, savedEnv, writeEnvFile, type Keys } from "../env-keys.js";
-import { keychainReader } from "../init-import.js";
 import { adoptLoginPath, withLoginKeys } from "../login-path.js";
-import { readBrewTable } from "../init-brew.js";
-import { exitCodeOf } from "../init.js";
-import { recipePath } from "../init-recipe.js";
-import { historyCache } from "../recipe-file.js";
-import { scanTools } from "../scan.js";
-import { startCallbackRelay, systemOpener, type UrlOpener } from "../relay.js";
+import { type UrlOpener } from "../relay.js";
 import { addressLines, hostTokenPath, lockPathFor, programGone, releaseLock, rewriteLock, startedByEnv, STARTED_BY_ENV, takeLock, type HostStarted } from "../host-lock.js";
 import { starterFor } from "../host-start.js";
 import { hostRoadOf, restartRoads, type RestartingHost, type RestartRoad } from "../restart.js";
@@ -30,76 +21,33 @@ import { admittedDevices, readRelayRecord, relayOnLoopbackLine, startRelay } fro
 import { wspHome } from "../hosts.js";
 import { hereUrl, type HereAt } from "../pairing.js";
 import { placeWiring } from "../places.js";
-import { startHost, workspaceRoads, type HostDoctorReaders, type HostHandle } from "../server.js";
-import { installEach, mcpServerSpec, refreshSkills, runningWsp, serversRefreshedLine, refreshServers, skillsRefreshedLine, type RunningWsp } from "../mcp-install.js";
-import { hostPlatform } from "../verbs.js";
+import { startHost, type HostDoctorReaders, type HostHandle } from "../server.js";
+import { refreshSkills, runningWsp, serversRefreshedLine, refreshServers, skillsRefreshedLine, type RunningWsp } from "../mcp-install.js";
 import { installedVersion, VERSION } from "../version.js";
 import { releaseWatch } from "../release.js";
 import { analyticsOff, hostAnalytics } from "../analytics.js";
 import { followUsage, hostCommon } from "../analytics-events.js";
 import type { CliIO } from "./io.js";
 import { keySources, providerEnvNow, loadKeys, vaultNow } from "./keys.js";
-import { deployHostDaemon, goldenRecipe, hostBrokerOf, hostRecipeWatch, swapProvider, makeRuntime, collectThisComputer, projectFolder, workspaceEnvsFor } from "./wiring.js";
+import { goldenRecipe, hostBrokerOf, hostRecipeWatch, swapProvider, makeRuntime } from "./wiring.js";
 
-/** The init job on this computer for a serving host: wsp init's own readers and build pieces, the keys read off the
- * .env beside the state file this host serves and nothing else at each ask (a key in this process's environment or
- * a checkout's .env is the terminal's and never reads as saved on a screen), the provider module swapped into the
- * runtime once a key is saved, and the wsp tools written by the road wsp mcp install takes, under the command this
- * process runs as. */
-function hostInitDoor(rt: Runtime, statePath: string, run: RunningWsp, openUrl: UrlOpener, log: (line: string) => void, providerEnv: ProviderEnv): InitJobs {
-  const home = homedir();
-  const os = hostPlatform();
-  // Every command the read runs lands in the host's log with its start and how long it took.
-  const here = (): Host => timedRuns(nodeHost(), log);
-  return new InitJobs({
+/** The cloud setup on this computer for a serving host: the keys read off the .env beside the state file this host
+ * serves and nothing else at each ask (a key in this process's environment or a checkout's .env is the terminal's and
+ * never reads as saved on a screen), and the provider module swapped into the runtime once a key is saved. */
+function hostCloudSetup(rt: Runtime, statePath: string, providerEnv: ProviderEnv): CloudSetup {
+  return new CloudSetup({
     rt,
-    statePath,
-    home,
-    platform: os,
+    home: homedir(),
     saved: () => savedEnv(statePath),
     saveKeys: set => writeEnvFile(envFileFor(statePath), set),
     provider: saved => swapProvider(rt, saved),
     keysHeld: saved => Object.fromEntries(Object.entries(providerKeyRows()).map(([id, name]) => [id, keyIn(saved, name) !== undefined])),
     keySet: (key, provider) => providerKeySet(providerEnv, key, provider),
     keyProvider: () => providerKeyRow(providerEnv)?.id,
-    // Read at each ask, as the pricing below is, and out of the same layers: a key saved while this host serves
-    // swaps its module in, and a run beside it is told the provider it forks on now.
+    // Read at each ask: a key saved while this host serves swaps its module in, and a run beside it is told the
+    // provider it forks on now.
     forksOn: () => wiredProviderId(providerEnvNow(providerEnv, statePath)),
     checkKey: (key, provider) => providerKeyCheck(providerEnv, key, provider),
-    // What this host's own provider charges and gives, not one provider's table: a host that forks containers has
-    // no bill and no disk cap, and the screens read both off here.
-    pricing: () => providerBackendFor(providerEnvNow(providerEnv, statePath)).pricing,
-    agents: () => agentsHere(nodeHost(), { versions: false }),
-    installTools: agents => installEach(agents, mcpServerSpec(statePath, run), home),
-    mcpServer: () => mcpServerSpec(statePath, run),
-    log,
-    read: {
-      collect: onRung => collectThisComputer(onRung, here()),
-      recipe: (onHistory, onProject, onHistoryProgress) => computeRecipe(here(), { threadAgents: THREAD_AGENTS, onHistory, onProject, onHistoryProgress, cache: historyCache(statePath) }),
-      scanProject: async folder => {
-        const { path, exists } = projectFolder(folder);
-        return exists ? scanProject(nodeHost(), path) : undefined;
-      },
-      brew: () => readBrewTable(here()),
-      scan: recipe => scanTools(here(), recipe),
-    },
-    build: {
-      secrets: keychainReader(),
-      relay: async (buildRt, builder, hooks) =>
-        startCallbackRelay({
-          runtime: buildRt,
-          openUrl,
-          log: line => {
-            if (!hooks.onLine(line)) log(line);
-          },
-          autoOpen: hooks.autoOpen,
-          openLine: hooks.openLine,
-          builder,
-        }),
-      roads: () => workspaceRoads(rt, workspaceEnvsFor()),
-      recipe: recipe => ({ ...recipe, deployDaemon: deployHostDaemon }),
-      bundleFile: () => missingBundleFile(),
-    },
   });
 }
 
@@ -115,6 +63,11 @@ export interface StopProcess {
   platform: string;
   on(signal: (typeof STOP_SIGNALS)[number], listener: () => void): unknown;
   exit(code: number): void;
+}
+
+/** The shell's own code for a death by that signal. */
+export function exitCodeOf(sig: (typeof STOP_SIGNALS)[number]): number {
+  return sig === "SIGINT" ? 130 : sig === "SIGHUP" ? 129 : 143;
 }
 
 /** How often a serving host checks that its own program is still there. */
@@ -304,8 +257,8 @@ export async function hostFor(
     common: hostCommon(VERSION, started),
     log: line => io.log(line),
   });
-  const init = hostInitDoor(rt, opts.statePath, run, opts.openUrl ?? systemOpener(), line => io.log(line), opts.providerEnv);
-  const usage = followUsage(analytics, rt, init);
+  const init = hostCloudSetup(rt, opts.statePath, opts.providerEnv);
+  const usage = followUsage(analytics, rt);
   try {
     // Written before startHost binds: a client can read the page while the host is still listing at the provider.
     const authToken = randomBytes(24).toString("base64url");
@@ -326,10 +279,8 @@ export async function hostFor(
       ...(links.back !== undefined ? { back: links.back } : {}),
       webDir: opts.webDir ?? webDirFor(),
       // Read at each fork, not once at start: the init job saves a key while this host serves.
-      workspaceEnvs: golden => workspaceEnvsFor().workspaceEnvs(golden),
       ...(opts.openUrl !== undefined ? { openUrl: opts.openUrl } : {}),
       log: line => io.log(line),
-      recipePath: recipePath(opts.statePath),
       statePath: opts.statePath,
       init,
       doctor: hostDoctorReaders(links, opts.statePath),
@@ -413,6 +364,6 @@ export function hostDoctorReaders(links: PlaceWiring, statePath: string): HostDo
   const provision = links.provision;
   return {
     vault: () => vaultNow(statePath),
-    ...(provision !== undefined ? { plan: computer => (computer?.picks !== undefined ? provision.setup(computer.picks, { home: GUEST_HOME }) : provision.plan({ home: GUEST_HOME })) } : {}),
+    ...(provision !== undefined ? { plan: computer => (computer?.picks !== undefined ? provision.setup(computer.picks, { home: GUEST_HOME }) : Promise.resolve(undefined)) } : {}),
   };
 }

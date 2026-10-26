@@ -79,16 +79,3 @@ export async function aptPackages(host: Host): Promise<Pkg[]> {
   }
   return out;
 }
-
-/** What each of these packages takes on this computer, from dpkg's own record: its Installed-Size is kibibytes, as
- * `du -sk` is for the other managers. One run for all of them, and none when nothing needs a size. */
-export async function aptSizes(host: Host, names: readonly string[]): Promise<Map<string, number>> {
-  if (names.length === 0) return new Map();
-  const fields = parseDpkgFields((await host.exec.run("dpkg-query", ["-Wf", "${Package} ${Installed-Size}\n"])) ?? "");
-  const out = new Map<string, number>();
-  for (const name of names) {
-    const kib = Number(fields.get(name));
-    if (Number.isFinite(kib) && kib > 0) out.set(name, kib * 1024);
-  }
-  return out;
-}

@@ -2,12 +2,13 @@
 import { EXIT_CODES, EXIT_WORDS, ExitClass, TURN_END_WORDS } from "@wsp/protocol";
 import { CLOUD_ON } from "../cloud.js";
 import { wrap } from "../init-layout.js";
-import { TAGLINE } from "../init-opening.js";
 import { COMMON_FLAG_WORDS, HELP_WIDTH, helpPage, type Page, usageLines } from "../verbs.js";
 import { HOST_STARTS_ITSELF, type Command, COMMAND_LINES, SHARED_FLAGS } from "./commands.js";
 
 /** One line per exit class, the code first, wrapped to the help's width. */
 const exitCodeHelp = (): string => ExitClass.options.map(cls => wrap(`  ${EXIT_CODES[cls]} ${cls.padEnd(8)}  ${EXIT_WORDS[cls]}`, 80, " ".repeat(14)).join("\n")).join("\n");
+
+const TAGLINE = `your setup, on ${CLOUD_ON ? "cloud machines" : "your computers"}, for coding agents`;
 
 /** The front page, word for word: sixteen words on five nouns, the three rules, and the two pages and the flag
  * help behind them. It is a literal rather than a table of usages because the whole of it is what a person meets
@@ -17,8 +18,6 @@ export const HELP = `wsp - ${TAGLINE}
 
 usage: wsp <verb> ...
 
-  wsp init                        set this computer up: your tools and sign-ins,
-                                  copied so a machine starts ready
   wsp add <user@host|folder|url>  a computer over ssh (user@host or ssh alias);
                                   or a project: a folder here, or a repo cloned
                                   --into <folder> here or --on <computer>

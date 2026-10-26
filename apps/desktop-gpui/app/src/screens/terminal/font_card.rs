@@ -8,23 +8,19 @@ use gpui_kit::{div, prelude::*, px, AnyElement, App, BoxShadow, Entity, SharedSt
 
 use crate::ui::{text, ActivePalette};
 
-/// `DEFAULT_TERMINAL_TEXT_FACES`' first face in `fontChain.ts`, the placeholder with nothing detected.
+/// `DEFAULT_TERMINAL_TEXT_FACES`' first face in `fontChain.ts`, the field's placeholder.
 pub const FIRST_DEFAULT_FACE: &str = "SF Mono";
 
-pub fn placeholder(detected: Option<&str>) -> SharedString {
-    SharedString::from(detected.unwrap_or(FIRST_DEFAULT_FACE).to_owned())
+pub fn placeholder() -> SharedString {
+    SharedString::from(FIRST_DEFAULT_FACE)
 }
 
-pub fn hint(detected: Option<&str>) -> SharedString {
-    let empty = match detected {
-        Some(face) => format!("Empty draws with {face}, your terminal's font."),
-        None => "Empty draws with the default font.".to_owned(),
-    };
-    format!("A font installed on this computer. {empty} Icons a face lacks come from a bundled symbols font.").into()
+pub fn hint() -> SharedString {
+    "A font installed on this computer. Empty draws with the default font. Icons a face lacks come from a bundled symbols font.".into()
 }
 
 /// The card: 288 px, radius 10, 12 px in, on the popover with its shadow.
-pub fn card(input: &Entity<InputState>, detected: Option<&str>, cx: &App) -> AnyElement {
+pub fn card(input: &Entity<InputState>, cx: &App) -> AnyElement {
     let p = cx.palette();
     // The compact input's 28 px inside its control's 1 px border, which today's app draws outside it.
     let field = Styled::h(Input::new(input), px(30.))
@@ -51,7 +47,7 @@ pub fn card(input: &Entity<InputState>, detected: Option<&str>, cx: &App) -> Any
         .text_color(p.foreground)
         .child(div().text_size(text::SETTING_TITLE.0).line_height(text::SETTING_TITLE.1).child("Terminal font"))
         .child(field)
-        .child(div().text_size(text::XS.0).line_height(text::XS.1).text_color(p.muted_foreground).child(hint(detected)))
+        .child(div().text_size(text::XS.0).line_height(text::XS.1).text_color(p.muted_foreground).child(hint()))
         .into_any_element()
 }
 
@@ -60,15 +56,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_hint_and_placeholder_name_the_detected_face() {
+    fn the_hint_and_placeholder_name_the_default_face() {
         assert_eq!(
-            hint(Some("Berkeley Mono")),
-            "A font installed on this computer. Empty draws with Berkeley Mono, your terminal's font. Icons a face lacks come from a bundled symbols font."
-        );
-        assert_eq!(
-            hint(None),
+            hint(),
             "A font installed on this computer. Empty draws with the default font. Icons a face lacks come from a bundled symbols font."
         );
-        assert_eq!(placeholder(None), "SF Mono");
+        assert_eq!(placeholder(), "SF Mono");
+    }
+
+    #[test]
+    fn the_hint_says_only_what_the_web_apps_card_says() {
+        let web = include_str!("../../../../../web/src/components/TerminalFontButton.tsx");
+        let said = hint().to_string();
+        let empty = said.split(". ").nth(1).unwrap();
+        assert!(web.contains(empty), "{empty}");
     }
 }

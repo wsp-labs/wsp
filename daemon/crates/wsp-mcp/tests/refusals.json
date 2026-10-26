@@ -155,14 +155,6 @@
     "tool": "computers_set",
     "arguments": {
       "computer": "attic",
-      "spawn": "yes"
-    },
-    "text": "MCP error -32602: Input validation error: Invalid arguments for tool computers_set: Invalid enum value. Expected 'on' | 'off', received 'yes' at spawn"
-  },
-  {
-    "tool": "computers_set",
-    "arguments": {
-      "computer": "attic",
       "turn_limit": 1.5
     },
     "text": "MCP error -32602: Input validation error: Invalid arguments for tool computers_set: Expected integer, received float at turn_limit"
@@ -255,14 +247,5 @@
       "project": 3
     },
     "text": "MCP error -32602: Input validation error: Invalid arguments for tool skills_show: Invalid input at project"
-  },
-  {
-    "tool": "recipe",
-    "arguments": {
-      "set": [
-        1
-      ]
-    },
-    "text": "MCP error -32602: Input validation error: Invalid arguments for tool recipe: Expected string, received number at set[0]"
   }
 ]

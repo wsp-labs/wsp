@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Computers and each computer's page (`computers.tsx`, `computerSettings.tsx`).
 
-mod ansi;
 mod image;
 mod list;
 mod live;
