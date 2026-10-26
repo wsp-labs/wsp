@@ -609,7 +609,9 @@ fn view_is_the_records_view_of_the_record() {
 #[test]
 fn a_workspace_of_this_computer_is_at_here_and_a_cloud_one_at_its_place() {
     run(options(), |_, c| async move {
-        assert_eq!(Q::place_id_of(&*c, &record("w_1")).as_deref(), Some("here"), "no kind names this computer");
+        let local = cloud_record("w_1", json!({ "kind": "local" }));
+        assert_eq!(Q::place_id_of(&*c, &local).as_deref(), Some("here"));
+        assert_eq!(Q::place_id_of(&*c, &record("w_3")).as_deref(), Some("default"), "no kind and no place: the wired provider");
         let at = cloud_record("w_2", json!({ "place": "pl_9" }));
         assert_eq!(Q::place_id_of(&*c, &at).as_deref(), Some("pl_9"));
         assert_eq!(L::place_id_of(&*c, &at).as_deref(), Some("pl_9"));
@@ -753,7 +755,8 @@ fn an_absent_or_dead_machine_is_attached_to_the_record_and_put_in_the_live_map()
         let absent = Q::attach_absent(&*c, &cell(record("w_1")), "the box is away").expect("an entry");
         assert_eq!(absent.borrow().record.borrow().id, "w_1");
         assert!(Q::live(&*c, "w_1").is_some(), "attach sets it in live");
-        let said = absent.borrow().machine.exec("true", Default::default()).await.expect_err("an absent machine answers nothing");
+        let machine = absent.borrow().machine.clone();
+        let said = machine.exec("true", Default::default()).await.expect_err("an absent machine answers nothing");
         assert!(said.to_string().contains("the box is away"), "it fails with the words it was given: {said}");
         let dead = Q::attach_dead(&*c, &cell(record("w_2"))).expect("an entry");
         assert_eq!(dead.borrow().machine.id(), "", "the queue's dead machine has no id");
