@@ -393,6 +393,63 @@ fn a_machine_frame_the_daemon_refused_keeps_its_kind_and_status_for_the_engine()
     });
 }
 
+struct StatusOnlyReach;
+
+#[async_trait(?Send)]
+impl DaemonReach for StatusOnlyReach {
+    async fn ready(&self) -> Result<(), ReachError> {
+        Ok(())
+    }
+    async fn request(&self, _op: &str, _params: Frame) -> Result<Frame, ReachError> {
+        Err(ReachError {
+            message: "cannot be done".to_string(),
+            kind: None,
+            status: Some(422.0),
+            code: None,
+        })
+    }
+    fn status(&self) -> Option<DaemonLinkStatus> {
+        None
+    }
+    fn stats(&self) -> ReachStats {
+        ReachStats::default()
+    }
+    fn close(&self) {}
+}
+
+// reach.ts:162-170 stamps the status on the error whatever the kind; the engine reads it off a refusal with none too.
+#[test]
+fn a_machine_frame_refused_with_a_status_and_no_kind_keeps_its_status_for_the_engine() {
+    block(async {
+        let scene = Scene::new(SceneOpts::default());
+        scene.records.keep(record(
+            "p1",
+            "old-macbook",
+            report("old-macbook", json!({})),
+        ));
+        let socket = FakeSocket::new(answers_ok());
+        scene.ctx.live.borrow_mut().insert(
+            "p1".to_string(),
+            Live {
+                socket: Rc::clone(&socket) as Rc<dyn LinkSocket>,
+                reach: Rc::new(StatusOnlyReach),
+                seen: Box::new(|| {}),
+                forward: None,
+            },
+        );
+        let err = scene
+            .setup
+            .link_to("p1")
+            .request("machine.get", Map::new(), LinkAsk::default())
+            .await
+            .expect_err("the daemon refused");
+        assert_eq!(
+            (err.status(), err.kind(), err.to_string().as_str()),
+            (Some(422), None, "cannot be done")
+        );
+    });
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // Finding 6: setup.ts:1079-1080 waits a keyed frame out from the moment its socket failed under it; the Rust waits
 // from the last close this host stamped, which on a socket that is closing is the gap before.

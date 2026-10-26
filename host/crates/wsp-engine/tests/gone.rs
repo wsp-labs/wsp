@@ -373,3 +373,13 @@ fn an_engine_error_reaches_a_door_with_its_kind_status_and_code() {
     let plain = HostError::from(EngineError::Other { message: "no".into(), code: Some("ENOENT".into()) });
     assert_eq!((plain.kind, plain.code.as_deref()), (None, Some("ENOENT")));
 }
+
+// reach.ts:162-170: a refusal with a status and no kind keeps the status on its way to a door too.
+#[test]
+fn a_refusal_with_a_status_and_no_kind_keeps_its_status_and_code() {
+    use wsp_words::exit::HostError;
+    let e = EngineError::Refused { message: "cannot be done".into(), status: Some(422), code: Some("EINVAL".into()) };
+    assert_eq!((e.status(), e.kind(), e.code()), (Some(422), None, Some("EINVAL")));
+    let host = HostError::from(e);
+    assert_eq!((host.status, host.kind, host.code.as_deref()), (Some(422.0), None, Some("EINVAL")));
+}
