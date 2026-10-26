@@ -16,6 +16,11 @@ pub const CHANNEL_ID_BYTES: usize = 6;
 pub const NO_SUCH_CHANNEL: &str = "no such daemon channel on this socket";
 
 /// Answers the ops of this unit and sends their replies and pushes; `NotMine` for any other op.
-pub async fn answer_workspaces(socket: &Rc<Socket>, frame: &serde_json::Value, msg: &RuntimeRequest, origin: Option<Caller>) -> Result<Handled, HostError> {
+pub async fn answer_workspaces(
+    socket: &Rc<Socket>,
+    frame: &serde_json::Value,
+    msg: &RuntimeRequest,
+    origin: Option<Caller>,
+) -> Result<Handled, HostError> {
     todo!()
 }

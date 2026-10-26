@@ -12,7 +12,12 @@ use super::socket::Socket;
 
 /// Answers the ops of this unit and sends their replies; `NotMine` for any other op. An error is the switch's to
 /// send (spec O2).
-pub async fn answer_places(socket: &Rc<Socket>, frame: &serde_json::Value, msg: &RuntimeRequest, origin: Option<Caller>) -> Result<Handled, HostError> {
+pub async fn answer_places(
+    socket: &Rc<Socket>,
+    frame: &serde_json::Value,
+    msg: &RuntimeRequest,
+    origin: Option<Caller>,
+) -> Result<Handled, HostError> {
     todo!()
 }
 

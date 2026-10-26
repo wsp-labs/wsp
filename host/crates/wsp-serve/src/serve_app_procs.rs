@@ -14,7 +14,8 @@ use wsp_words::exit::HostError;
 use crate::serve::served::Payload;
 
 pub const APP_PROCS_OFF_ROAD: &str = "only the wsp app on this computer names its processes, over the host's own road";
-pub const APP_PROCS_WATCH_OFF_ROAD: &str = "the app's processes name the sites in the person's browser tabs, so only the host's own road reads them";
+pub const APP_PROCS_WATCH_OFF_ROAD: &str =
+    "the app's processes name the sites in the person's browser tabs, so only the host's own road reads them";
 pub const APP_PROCS_UNOFFERED: &str = "appProcs.set comes after appProcs.offer on the same socket";
 
 /// `msg.op.startsWith("appProcs.")`.
@@ -63,9 +64,34 @@ impl AppProcsHub {
     }
 }
 
+thread_local! {
+    /// The weak map of `appProcsHubOf`: a hub by its owner's address, kept while the owner lives.
+    static HUBS: RefCell<Vec<(usize, Rc<dyn Fn() -> bool>, Rc<AppProcsHub>)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// The hub of the owner at `key`, made at the first ask and dropped with its owner (`alive` says whether it stands).
+pub(crate) fn hub_at(key: usize, alive: Rc<dyn Fn() -> bool>) -> Rc<AppProcsHub> {
+    HUBS.with(|hubs| {
+        let mut hubs = hubs.borrow_mut();
+        hubs.retain(|(_, alive, _)| alive());
+        if let Some((_, _, hub)) = hubs.iter().find(|(held, _, _)| *held == key) {
+            return hub.clone();
+        }
+        let hub = AppProcsHub::new();
+        hubs.push((key, alive, hub.clone()));
+        hub
+    })
+}
+
 /// `appProcsHubOf(owner)`: the one hub of a host, by the runtime it serves (a weak map keyed by the owner). Two
 /// calls with one owner answer one hub; another owner gets its own.
 pub fn app_procs_hub_of(owner: &Rc<dyn std::any::Any>) -> Rc<AppProcsHub> {
-    todo!()
+    let weak = Rc::downgrade(owner);
+    hub_at(Rc::as_ptr(owner) as *const () as usize, Rc::new(move || weak.strong_count() > 0))
 }
 
+/// The hub of a served runtime, keyed as `app_procs_hub_of` keys any owner.
+pub(crate) fn app_procs_hub_for(rt: &Rc<crate::serve::served::DynRuntime>) -> Rc<AppProcsHub> {
+    let weak = Rc::downgrade(rt);
+    hub_at(Rc::as_ptr(rt) as *const () as usize, Rc::new(move || weak.strong_count() > 0))
+}

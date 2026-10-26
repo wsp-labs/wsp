@@ -21,12 +21,24 @@ pub const READINGS_TARGET_REFUSAL: &str = "places.readings names a placeId or a 
 pub const DEFAULT_IMAGE: &str = "default";
 
 /// Answers the ops of this unit and sends their replies; `NotMine` for any other op.
-pub async fn answer_ops(socket: &Rc<Socket>, frame: &serde_json::Value, msg: &RuntimeRequest, origin: Option<Caller>) -> Result<Handled, HostError> {
+pub async fn answer_ops(
+    socket: &Rc<Socket>,
+    frame: &serde_json::Value,
+    msg: &RuntimeRequest,
+    origin: Option<Caller>,
+) -> Result<Handled, HostError> {
     todo!()
 }
 
 /// One level of folders on a joined computer, read by its own daemon over its link (serve.ts:419-440, spec O15).
-pub async fn place_folders(served: &Served, place_id: &str, dir: Option<String>, hidden: Option<bool>, repos: bool, origin: Option<Caller>) -> Result<HostFolderListing, HostError> {
+pub async fn place_folders(
+    served: &Served,
+    place_id: &str,
+    dir: Option<String>,
+    hidden: Option<bool>,
+    repos: bool,
+    origin: Option<Caller>,
+) -> Result<HostFolderListing, HostError> {
     todo!()
 }
 
