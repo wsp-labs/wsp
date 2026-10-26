@@ -354,7 +354,7 @@ fn facts(p: &PieceCx, window: &mut Window, cx: &mut App) -> Option<AnyElement> {
     if p.str("layout").as_deref() == Some("grid") {
         Some(facts_grid(p.el("facts"), &list, place_of(p.slate, p.id()), window, cx))
     } else {
-        let in_row = p.slate.parent(p.id()).is_some_and(|parent| parent.kind == "row");
+        let in_row = p.slate.doc().and_then(|doc| doc.parent(p.id())).is_some_and(|parent| parent.kind == "row");
         Some(facts_line(p.el("facts-width"), &list, in_row, window, cx))
     }
 }
