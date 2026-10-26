@@ -184,40 +184,69 @@ pub fn json_stringify(value: &Value) -> String {
     out
 }
 
-fn write_value(value: &Value, out: &mut String) {
-    match value {
-        Value::Null => out.push_str("null"),
-        Value::Bool(true) => out.push_str("true"),
-        Value::Bool(false) => out.push_str("false"),
-        Value::Number(n) => out.push_str(&JsNumber(n.as_f64().expect("a JSON number reads as a double")).js_string()),
-        Value::String(text) => out.push_str(&serde_json::to_string(text).expect("a string writes as JSON")),
-        Value::Array(items) => {
-            out.push('[');
-            for (i, item) in items.iter().enumerate() {
-                if i > 0 {
-                    out.push(',');
+/// A container being written, with the items left to write; the walk keeps these in a stack of its own, so no depth of
+/// value can overflow the call stack.
+enum Open<'a> {
+    Array(std::slice::Iter<'a, Value>, bool),
+    Object(std::vec::IntoIter<(&'a String, &'a Value)>, bool),
+}
+
+fn write_value(root: &Value, out: &mut String) {
+    let index = |key: &str| {
+        let canonical = key == "0" || (!key.is_empty() && !key.starts_with('0') && key.bytes().all(|b| b.is_ascii_digit()));
+        canonical.then(|| key.parse::<u64>().ok().filter(|n| *n < 4_294_967_295)).flatten()
+    };
+    let mut stack: Vec<Open> = Vec::new();
+    let mut next = Some(root);
+    loop {
+        if let Some(value) = next.take() {
+            match value {
+                Value::Null => out.push_str("null"),
+                Value::Bool(true) => out.push_str("true"),
+                Value::Bool(false) => out.push_str("false"),
+                Value::Number(n) => out.push_str(&JsNumber(n.as_f64().expect("a JSON number reads as a double")).js_string()),
+                Value::String(text) => out.push_str(&serde_json::to_string(text).expect("a string writes as JSON")),
+                Value::Array(items) => {
+                    out.push('[');
+                    stack.push(Open::Array(items.iter(), true));
                 }
-                write_value(item, out);
+                Value::Object(map) => {
+                    let mut entries: Vec<(&String, &Value)> = map.iter().collect();
+                    entries.sort_by_key(|(key, _)| index(key).map_or((1, 0), |n| (0, n)));
+                    out.push('{');
+                    stack.push(Open::Object(entries.into_iter(), true));
+                }
             }
-            out.push(']');
+            continue;
         }
-        Value::Object(map) => {
-            let index = |key: &str| {
-                let canonical = key == "0" || (!key.is_empty() && !key.starts_with('0') && key.bytes().all(|b| b.is_ascii_digit()));
-                canonical.then(|| key.parse::<u64>().ok().filter(|n| *n < 4_294_967_295)).flatten()
-            };
-            let mut entries: Vec<(&String, &Value)> = map.iter().collect();
-            entries.sort_by_key(|(key, _)| index(key).map_or((1, 0), |n| (0, n)));
-            out.push('{');
-            for (i, (key, item)) in entries.into_iter().enumerate() {
-                if i > 0 {
-                    out.push(',');
+        match stack.last_mut() {
+            None => return,
+            Some(Open::Array(items, first)) => match items.next() {
+                Some(item) => {
+                    if !std::mem::replace(first, false) {
+                        out.push(',');
+                    }
+                    next = Some(item);
                 }
-                out.push_str(&serde_json::to_string(key).expect("a key writes as JSON"));
-                out.push(':');
-                write_value(item, out);
-            }
-            out.push('}');
+                None => {
+                    out.push(']');
+                    stack.pop();
+                }
+            },
+            Some(Open::Object(entries, first)) => match entries.next() {
+                Some((key, item)) => {
+                    if !std::mem::replace(first, false) {
+                        out.push(',');
+                    }
+                    out.push_str(&serde_json::to_string(key).expect("a key writes as JSON"));
+                    out.push(':');
+                    next = Some(item);
+                }
+                None => {
+                    out.push('}');
+                    stack.pop();
+                }
+            },
         }
     }
 }
