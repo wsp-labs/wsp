@@ -327,8 +327,7 @@ fn word_of<T: DeserializeOwned>(word: &str) -> Result<T, HostError> {
     serde_json::from_value(Value::from(word)).map_err(|_| HostError::new(format!("{word} is not one of the words this wsp reads")))
 }
 
-/// `readComputers` (client.ts:653-656): both reads go out before either answer is read. `tokio::try_join!` would stop
-/// at a first refusal and leave the second unsent, where the TS `Promise.all` has sent both.
+/// `readComputers` (client.ts:653-656) with the rows as the host wrote them beside the typed ones.
 async fn computers_read(client: &dyn HostClient) -> Result<(Value, ComputersRead), HostError> {
     let (listed, spent) = futures::join!(client.request("places.list", Frame::new()), client.request("cost.spend", Frame::new()));
     let (listed, spent) = (listed?, spent?);
@@ -344,23 +343,6 @@ async fn computers_read(client: &dyn HostClient) -> Result<(Value, ComputersRead
         "pending": listed.get("pending").cloned().filter(|v| !v.is_null()).unwrap_or_else(|| json!([])),
     });
     Ok((raw, read))
-}
-
-/// `readUsage` (client.ts:608-611): `usage.accounts` and `usage.used` both sent before either answer is read, as
-/// `computers_read` does.
-async fn usage_read(client: &dyn HostClient, range: UsageRange, by: UsageSplit) -> Result<UsageRead, HostError> {
-    let mut fresh = Frame::new();
-    fresh.insert("fresh".to_owned(), Value::Bool(true));
-    let ask = match serde_json::to_value(used_ask(&range, &by)).expect("a usage ask writes as JSON") {
-        Value::Object(ask) => ask,
-        _ => Frame::new(),
-    };
-    let (accounts, used) = futures::join!(client.request("usage.accounts", fresh), client.request("usage.used", ask));
-    let (accounts, used) = (accounts?, used?);
-    Ok(UsageRead {
-        accounts: accounts.get("accounts").cloned().unwrap_or(Value::Null),
-        used: used.get("used").cloned().unwrap_or(Value::Null),
-    })
 }
 
 /// `recipes.list`'s answer: the rows as the host wrote them, and read for the line.
@@ -646,7 +628,7 @@ fn call_usage(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResu
     Box::pin(async move {
         let range: UsageRange = word_of(arg_str(&args, "range").unwrap_or("day"))?;
         let by: UsageSplit = word_of(arg_str(&args, "by").unwrap_or("agent"))?;
-        let read = usage_read(&*deps.client(None).await?, range, by).await?;
+        let read = read_usage(&*deps.client(None).await?, range, by).await?;
         Ok(as_json(json!({ "accounts": read.accounts, "used": read.used })))
     })
 }
@@ -659,7 +641,7 @@ fn run_usage(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
         }
         let range_word = one_of("range", USAGE_RANGES, flag(&ctx.flags, "range"), None)?.unwrap_or_else(|| "day".to_owned());
         let by_word = one_of("by", USAGE_SPLITS, flag(&ctx.flags, "by"), None)?.unwrap_or_else(|| "agent".to_owned());
-        let read = usage_read(&*ctx.client(None).await?, word_of(&range_word)?, word_of(&by_word)?).await?;
+        let read = read_usage(&*ctx.client(None).await?, word_of(&range_word)?, word_of(&by_word)?).await?;
         let accounts: Vec<AccountRow> =
             serde_json::from_value(read.accounts.clone()).map_err(|_| HostError::new(other_version("usage.accounts")))?;
         let used: UsedAnswer = serde_json::from_value(read.used.clone()).map_err(|_| HostError::new(other_version("usage.used")))?;

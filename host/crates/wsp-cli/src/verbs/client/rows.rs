@@ -449,10 +449,11 @@ pub struct UsageRead {
 /// `readUsage(client, range, by)` (client.ts:608-611): `usage.accounts {fresh: true}` and `usage.used` sent
 /// together, before either answers.
 pub async fn read_usage(client: &dyn HostClient, range: UsageRange, by: UsageSplit) -> Result<UsageRead, HostError> {
-    let (accounts, used) = tokio::try_join!(
+    let (accounts, used) = futures::join!(
         client.request("usage.accounts", frame_of_value(json!({ "fresh": true }))),
         client.request("usage.used", frame_of_value(serde_json::to_value(used_ask(&range, &by)).expect("a usage ask writes as JSON"))),
-    )?;
+    );
+    let (accounts, used) = (accounts?, used?);
     Ok(UsageRead {
         accounts: accounts.get("accounts").cloned().unwrap_or(Value::Null),
         used: used.get("used").cloned().unwrap_or(Value::Null),
@@ -552,7 +553,8 @@ pub struct ComputersRead {
 /// `readComputers(client)` (client.ts:653-656): `places.list` and `cost.spend` sent together; `pending` empty where
 /// the listing carries none.
 pub async fn read_computers(client: &dyn HostClient) -> Result<ComputersRead, HostError> {
-    let (listed, spent) = tokio::try_join!(client.request("places.list", Frame::new()), client.request("cost.spend", Frame::new()))?;
+    let (listed, spent) = futures::join!(client.request("places.list", Frame::new()), client.request("cost.spend", Frame::new()));
+    let (listed, spent) = (listed?, spent?);
     Ok(ComputersRead {
         computers: reply_field(&listed, "places.list", "places")?,
         spend: reply_field(&spent, "cost.spend", "places")?,
