@@ -15,19 +15,26 @@ import { join } from "node:path";
 const lib = process.argv[2];
 if (!lib) throw new Error("usage: node gen.mjs <ws lib folder>");
 const require = createRequire(join(lib, "x.js"));
-const Receiver = require(join(lib, "receiver.js"));
+const WebSocketServer = require(join(lib, "websocket-server.js"));
+const { PassThrough } = require("node:stream");
 const { kStatusCode } = require(join(lib, "constants.js"));
 const version = JSON.parse(readFileSync(join(lib, "..", "package.json"), "utf8")).version;
 
 const MAX_PAYLOAD = 100 * 1024 * 1024;
-const OPTIONS = {
-  isServer: true,
-  allowSynchronousEvents: true,
-  maxBufferedChunks: 256 * 1024,
-  maxFragments: 16 * 1024,
-  maxPayload: MAX_PAYLOAD,
-  skipUTF8Validation: false,
-};
+
+/** A Receiver as a WebSocketServer hands it to a socket it upgraded: the real one, with the server's own limits
+ * (maxPayload, maxFragments, maxBufferedChunks), and none of the listeners the WebSocket put on it. */
+function serverReceiver() {
+  const wss = new WebSocketServer({ noServer: true });
+  const socket = Object.assign(new PassThrough(), { setTimeout() {}, setNoDelay() {} });
+  const req = { method: "GET", url: "/", headers: { upgrade: "websocket", "sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==", "sec-websocket-version": "13" } };
+  let receiver;
+  wss.handleUpgrade(req, socket, Buffer.alloc(0), ws => (receiver = ws._receiver));
+  receiver.removeAllListeners();
+  socket.removeAllListeners("data");
+  return receiver;
+}
+const LIMITS = (r => ({ maxPayload: r._maxPayload, maxFragments: r._maxFragments, maxBufferedChunks: r._maxBufferedChunks }))(serverReceiver());
 
 let seed = 0x9e3779b9;
 function rand() {
@@ -69,7 +76,7 @@ function frame64(first, length, mask = true) {
 
 const cases = [];
 function add(name, ...chunks) {
-  cases.push({ name, chunks: chunks.map(c => c.toString("hex")) });
+  cases.push({ name, chunks: chunks.map(c => (Buffer.isBuffer(c) ? c.toString("hex") : { hex: c.rep.toString("hex"), n: c.n })) });
 }
 /** The same bytes cut into chunks at every boundary, and once in one piece. */
 function addCut(name, buf) {
@@ -252,10 +259,22 @@ for (let n = 0; n < 800; n++) {
   add(`sequence ${n}`, ...chunks);
 }
 
+// One frame dribbled across reads: a header, then the body a byte at a time, around maxBufferedChunks. Every chunk
+// that waits for the frame's rest stays buffered, so the count reaches the limit at the one-byte chunk past it.
+const header64 = len => Buffer.concat([Buffer.from([0x82, 0x80 | 127]), (b => (b.writeBigUInt64BE(BigInt(len)), b))(Buffer.alloc(8)), Buffer.from([1, 2, 3, 4])]);
+for (const n of [1, 1000, 262144, 262145]) {
+  add(`dribbled frame of ${n} bytes`, header64(n), { rep: Buffer.from([0x01 ^ 0]), n });
+}
+add("dribbled frame, header in pieces", header64(262145).subarray(0, 1), header64(262145).subarray(1, 5), header64(262145).subarray(5), { rep: Buffer.from([0]), n: 262145 });
+add("dribbled frame then another", header64(300000), { rep: Buffer.from([0]), n: 262144 }, header64(1), Buffer.from([0]));
+add("dribbled fragments", frame({ opcode: 2, fin: false, payload: Buffer.alloc(0), len: 262146 }).subarray(0, 14), { rep: Buffer.from([0]), n: 262146 });
+add("tiny chunks of whole frames", { rep: frame({ opcode: 9, payload: Buffer.alloc(0), mask: true }), n: 3000 });
+add("a frame in two-byte chunks", header64(600000), { rep: Buffer.from([0, 0]), n: 300000 });
+
 /** What ws's Receiver says to these chunks: events in order up to its first error or close. */
 async function record(chunks) {
   const events = [];
-  const receiver = new Receiver(OPTIONS);
+  const receiver = serverReceiver();
   let stopped = false;
   const data = (t, hex) => events.push({ t, hex });
   receiver.on("message", (buf, isBinary) => data(isBinary ? "binary" : "text", Buffer.from(buf).toString("hex")));
@@ -270,12 +289,16 @@ async function record(chunks) {
     events.push({ t: "error", code: err[kStatusCode], sentence: err.message });
   });
   for (const chunk of chunks) {
-    if (stopped) break;
-    receiver.write(Buffer.from(chunk, "hex"));
+    if (stopped || receiver._errored) break;
+    const buf = Buffer.from(typeof chunk === "string" ? chunk : chunk.hex, "hex");
+    for (let i = 0; i < (typeof chunk === "string" ? 1 : chunk.n); i++) {
+      if (stopped || receiver._errored) break;
+      receiver.write(buf);
+    }
     await new Promise(resolve => setImmediate(resolve));
   }
   return events;
 }
 
 for (const c of cases) c.events = await record(c.chunks);
-process.stdout.write(JSON.stringify({ ws: version, options: OPTIONS, cases }) + "\n");
+process.stdout.write(JSON.stringify({ ws: version, limits: LIMITS, cases }) + "\n");
