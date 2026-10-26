@@ -3,7 +3,8 @@
 //! `ownNetwork`, and a plugin row writes `project`, `path` and `setIn` after `brings`, and a harness catalog row writes `source`, `version`, `contextWindows`,
 //! `steers`, `renames` and `images` before `harness` (harness-catalog.ts `fromTable`). Read and written back, the text is
 //! the input's byte for byte. A folded thread row is written in `foldThreads`' order (session.ts:395-453), the optional
-//! block first and `turns`, `ran`, the first turn's ids and `costUsd` after it.
+//! block first and `turns`, `ran`, the first turn's ids and `costUsd` after it. A thread's facts (boot.ts:748-756,
+//! `{...thread, ...sub, ...diskFacts(record), model, ...}`) write `diskGone`, then `diskKeptUntil`, after the cost.
 mod common;
 use common::reads_exact;
 use serde_json::json;
@@ -70,6 +71,10 @@ fn a_folded_thread_row_writes_its_optional_block_before_turns_and_cost_last() {
 fn thread_facts_write_a_folded_row_then_the_model_facts() {
     let mut row = folded_row();
     let facts = row.as_object_mut().unwrap();
+    facts.shift_remove("diskKeptUntil");
+    facts.shift_remove("diskGone");
+    facts.insert("diskGone".into(), json!("gone"));
+    facts.insert("diskKeptUntil".into(), json!(3));
     facts.insert("model".into(), json!("opus"));
     facts.insert("effort".into(), json!("high"));
     facts.insert("contextWindow".into(), json!("1m"));

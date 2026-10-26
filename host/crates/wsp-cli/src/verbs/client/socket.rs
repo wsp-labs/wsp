@@ -12,7 +12,6 @@ use async_trait::async_trait;
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine;
 use futures::{SinkExt, StreamExt};
-use indexmap::IndexMap;
 use rand_core::{OsRng, RngCore};
 use serde_json::{json, Value};
 use tokio::net::TcpStream;
@@ -38,8 +37,9 @@ use crate::account::read_device_key_pair;
 use crate::host_lock::{dial_address, held_or_started, host_token_for, host_token_path, serving_host, POLL_MS, SERVICE_WAIT_MS};
 use crate::hosts::{
     address_not_paired_line, aim_address, aim_holds, aim_name, aimed_host, device_refused_line, dial_window_ms, no_answer_refusal,
-    no_answer_within, read_the_hosts, write_host, wsp_home, Env, HostAim, HostPick, HostRecord,
+    no_answer_within, process_env, read_the_hosts, write_host, wsp_home, HostAim, HostPick, HostRecord,
 };
+use crate::json_whole::parse_frame;
 use crate::verbs::client::{
     host_token_missing_line, no_host_serving_line, release_refusal, Admit, Again, BoxFuture, DialOpts, DialWithin, Frame, FrameOff,
     FrameSink, HostAddress, HostClient, Paired, ReleaseHost, VerbDeps, CLOSE_GRACE_MS, UNAUTHORIZED_CLOSE,
@@ -333,7 +333,7 @@ async fn send_request(inner: &Inner, op: &str, params: Frame) -> Result<Frame, H
     let mut body = params;
     body.insert("id".to_owned(), json!(id));
     body.insert("op".to_owned(), json!(op));
-    let text = serde_json::to_string(&Value::Object(body)).expect("a frame writes as JSON");
+    let text = crate::json_whole::stringify(&Value::Object(body));
     let (tx, rx) = oneshot::channel();
     {
         let mut link = inner.link.lock().unwrap();
@@ -407,10 +407,10 @@ fn receive(inner: &Inner, raw: WireFrame<'_>) -> Result<Frame, bool> {
     let mut link = inner.link.lock().unwrap();
     let sealed = link.seal.is_some();
     let text = open_frame(link.seal.as_mut(), raw).map_err(|_| sealed)?;
-    match serde_json::from_str::<Value>(&text) {
-        Ok(Value::Object(frame)) => Ok(frame),
-        Ok(_) => Err(false),
-        Err(_) => Err(sealed),
+    match parse_frame(&text) {
+        Some(Value::Object(frame)) => Ok(frame),
+        Some(_) => Err(false),
+        None => Err(sealed),
     }
 }
 
@@ -626,7 +626,7 @@ fn same_release(answer: &Frame, opts: &DialOpts, aim: &HostAim, state_path: &str
             ReleaseHost::Where { r#where: aim_name(aim), here: is_loopback(&url_hostname(&address)) }
         }
     };
-    let argv: Vec<String> = std::env::args().collect();
+    let argv: Vec<String> = std::env::args_os().map(|arg| arg.to_string_lossy().into_owned()).collect();
     Err(release_refusal(VERSION, theirs, &host, road, &argv))
 }
 
@@ -641,10 +641,6 @@ fn home_of(pick: &HostPick) -> String {
         Some(home) => home.clone(),
         None => wsp_home(&pick.env.clone().unwrap_or_else(process_env)),
     }
-}
-
-fn process_env() -> Env {
-    std::env::vars().collect::<IndexMap<String, String>>()
 }
 
 fn hostname() -> String {

@@ -168,6 +168,22 @@ const tagOf = (s, name) => {
 
 // Types whose Rust struct follows the order the TS code writes (gen.mjs ORDER), not zod's: compared as values.
 const ANY_ORDER = new Set(["views/preferences:Preferences", "views/preferences:PreferencesChangedEvent", "views/preferences:PreferencesStored", "views/harness:HarnessCatalog"]);
+// The same for the cases of a type where the order differs; its other cases write in zod's.
+const ANY_ORDER_CASES = { "agents-report:AgentsReport": ["full"], "agents-report:PluginRow": ["full", "nulls"] };
+
+// Thread rows the TS code writes in an order of its own: foldThreads (views/session.ts) for a thread, and for a thread's
+// facts (runtime/src/machines/boot.ts threadFacts) the folded row less `subagents`, then `sub`, `diskGone` and
+// `diskKeptUntil`, then the model facts. The output is zod's value with its keys in that order (gen.mjs ORDER), so the
+// shape tests compare it as text.
+const THREAD_KEYS = "id threadId workspaceId harness startedBy status title sessionId claudeSessionId startedAt endedAt cwd asking waitingOn setupRefusal sub diskKeptUntil diskGone capped limit resumeAt lastLine failure pid agentPid readAt settledAt pinnedAt order foldedAt replaces replacedBy snoozedUntil wokeAt section rewoundAt forkedFrom permissionMode fast subagents turns ran parentThreadId rootThreadId attempt costUsd".split(" ");
+const FACTS_KEYS = [...THREAD_KEYS.filter(k => !["subagents", "sub", "diskKeptUntil", "diskGone"].includes(k)), "sub", "diskGone", "diskKeptUntil", "model", "effort", "contextWindow", "turnId"];
+const inOrder = (keys, v) => Object.fromEntries([...keys.filter(k => k in v), ...Object.keys(v).filter(k => !keys.includes(k))].map(k => [k, v[k]]));
+const WRITTEN = {
+  "views/session:ThreadView": v => inOrder(THREAD_KEYS, v),
+  "views/preferences:ThreadFacts": v => inOrder(FACTS_KEYS, v),
+  "views/preferences:ThreadHead": v => ({ ...v, facts: inOrder(FACTS_KEYS, v.facts) }),
+  "views/preferences:ThreadHeadEvent": v => ({ ...v, facts: inOrder(FACTS_KEYS, v.facts) }),
+};
 
 const SERDE_LEVEL = new Set(["invalid_type", "unrecognized_keys", "invalid_enum_value", "invalid_literal", "invalid_union_discriminator", "invalid_union"]);
 
@@ -196,7 +212,7 @@ for (const [mod, ns] of Object.entries(M)) {
     if (t === "ZodEnum") for (const v of s._def.values) if (!inputs.some(x => x.input === v)) inputs.push({ case: `value ${v}`, input: v });
     for (const x of inputs) {
       const r = s.safeParse(x.input);
-      if (r.success) entries.push({ type: name, case: x.case, input: x.input, output: JSON.stringify(r.data), ...(ANY_ORDER.has(`${mod}:${name}`) ? { anyOrder: true } : {}) });
+      if (r.success) entries.push({ type: name, case: x.case, input: x.input, output: JSON.stringify(WRITTEN[`${mod}:${name}`]?.(r.data) ?? r.data), ...(ANY_ORDER.has(`${mod}:${name}`) || ANY_ORDER_CASES[`${mod}:${name}`]?.includes(x.case) ? { anyOrder: true } : {}) });
       else skipped.push(`${mod}:${name} ${x.case}: sample refused (${r.error.issues[0].code} at ${JSON.stringify(r.error.issues[0].path)}: ${r.error.issues[0].message})`);
     }
     const full = inputs.find(x => x.case === "full")?.input;

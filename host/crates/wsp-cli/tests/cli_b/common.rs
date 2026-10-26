@@ -160,7 +160,7 @@ impl ScriptedHost {
         if sent.contains_key("requestId") {
             sent.insert("requestId".into(), Value::from("<request id>"));
         }
-        self.frames.lock().unwrap().push(serde_json::to_string(&Value::Object(sent)).unwrap());
+        self.frames.lock().unwrap().push(wsp_cli::json_whole::stringify(&Value::Object(sent)));
         let answer = self.replies.get(&format!("{op} #{nth}")).or_else(|| self.replies.get(op)).cloned();
         let answer = answer.unwrap_or_else(|| {
             if op == "events.subscribe" {
@@ -354,6 +354,16 @@ pub fn holds(c: &Case) {
     }
 }
 
+/// The tools whose TS awaits `client.events()`, and the op it follows (workspaces-help.ts:248 after `places.list`, :787
+/// after `workspaces.landing`; turns-help.ts:803 after the first `sessions.list`) and the op that goes on after it, which
+/// a refusal before the subscription never asks. The record's client answers `events` with a no-op
+/// (mcp-record.test.ts:386), so it holds no `events.subscribe`; node's real client sends one, there, once.
+const SUBSCRIBES_AFTER: [(&str, &str, &str); 3] = [
+    ("image_build", "places.list", "image.build"),
+    ("fork", "workspaces.landing", "workspaces.create"),
+    ("threads_wait", "sessions.list", "sessions.list"),
+];
+
 /// The case's tool call through the verb's `call`, held to the TS server's answer: the content text, the
 /// structured content key for key and in order, and `isError`; and the ops it asked, with their fields.
 pub fn tool_holds(c: &Case) {
@@ -376,11 +386,17 @@ pub fn tool_holds(c: &Case) {
     };
     let want = c.tool_result.clone().expect("a recorded answer");
     assert_eq!(serde_json::to_string(&got).unwrap(), serde_json::to_string(&want).unwrap(), "{}: the tool's answer", c.case);
-    if let Some(Value::Array(asked)) = &c.tool_asked {
+    if let Some(Value::Array(recorded)) = &c.tool_asked {
+        let mut asked = recorded.clone();
+        if let Some((_, after, then)) = SUBSCRIBES_AFTER.iter().find(|(name, ..)| *name == tool) {
+            let at = asked.iter().position(|a| a["op"] == *after);
+            if at.is_some_and(|at| asked.get(at + 1).is_some_and(|next| next["op"] == *then)) {
+                asked.insert(at.unwrap() + 1, serde_json::json!({ "op": "events.subscribe" }));
+            }
+        }
         let sent: Vec<Value> = host
             .sent()
             .iter()
-            .filter(|s| !s.contains("\"op\":\"events.subscribe\""))
             .map(|s| {
                 let mut f: Map<String, Value> = serde_json::from_str(s).unwrap();
                 f.remove("id");
@@ -392,7 +408,7 @@ pub fn tool_holds(c: &Case) {
             })
             .collect();
         assert_eq!(sent.len(), asked.len(), "{}: ops asked {sent:?}", c.case);
-        for (s, a) in sent.iter().zip(asked) {
+        for (s, a) in sent.iter().zip(&asked) {
             assert_eq!(s, a, "{}: an op's fields", c.case);
         }
     }

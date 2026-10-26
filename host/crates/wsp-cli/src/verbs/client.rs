@@ -658,7 +658,7 @@ pub const PLACES_FIX: &str = "Run wsp computers.";
 
 /// `placeNamed(client, word)` (client.ts:978-983): one `places.list`, the first row `names_place` takes.
 pub async fn place_named(client: &dyn HostClient, word: &str) -> Result<PlaceView, HostError> {
-    let places: Vec<PlaceView> = reply_field(&client.request("places.list", Frame::new()).await?, "places.list", "places")?;
+    let places = places_of(&client.request("places.list", Frame::new()).await?, "places.list")?;
     if let Some(found) = places.iter().find(|p| names_place(&place_ref(p), word)) {
         return Ok(found.clone());
     }
@@ -871,6 +871,19 @@ fn place_ref(p: &PlaceView) -> PlaceRef {
 /// refusal the host's answer earns.
 fn reply_field<T: DeserializeOwned>(frame: &Frame, op: &str, key: &str) -> Result<T, HostError> {
     frame.get(key).cloned().and_then(|value| serde_json::from_value(value).ok()).ok_or_else(|| HostError::new(other_version(op)))
+}
+
+/// A `places.list` row without a kind reads as a computer, as the TS's table prints it.
+pub fn places_of(frame: &Frame, op: &str) -> Result<Vec<PlaceView>, HostError> {
+    let rows: Vec<Value> = reply_field(frame, op, "places")?;
+    rows.into_iter()
+        .map(|mut row| {
+            if let Some(object) = row.as_object_mut() {
+                object.entry("kind").or_insert_with(|| Value::from("computer"));
+            }
+            serde_json::from_value(row).map_err(|_| HostError::new(other_version(op)))
+        })
+        .collect()
 }
 
 /// A reply's field where the host may leave it out: None where absent or null.

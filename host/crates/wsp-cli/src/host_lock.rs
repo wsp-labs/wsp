@@ -31,11 +31,21 @@ use crate::repo_root::{basename, dirname, join};
 pub struct HostLock {
     pub pid: JsNumber,
     pub port: JsNumber,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "string_or_none", skip_serializing_if = "Option::is_none")]
     pub address: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, deserialize_with = "present_value", skip_serializing_if = "Option::is_none")]
     pub started_by: Option<Value>,
     pub started_at: String,
+}
+
+/// An `address` that is not a string reads as none: the TS checks `pid`, `port` and `startedAt` only (host-lock.ts:45).
+fn string_or_none<'de, D: serde::Deserializer<'de>>(de: D) -> Result<Option<String>, D::Error> {
+    Ok(Value::deserialize(de)?.as_str().map(str::to_string))
+}
+
+/// `startedBy: null` is present: the TS tests `!== undefined` (host-lock.ts:128), so serde's null-to-None is not kept.
+fn present_value<'de, D: serde::Deserializer<'de>>(de: D) -> Result<Option<Value>, D::Error> {
+    Value::deserialize(de).map(Some)
 }
 
 impl HostLock {

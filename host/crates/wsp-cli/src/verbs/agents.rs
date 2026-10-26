@@ -8,7 +8,6 @@ use serde_json::{json, Value};
 
 use wsp_catalog::catalog::agent_name;
 use wsp_wire::types::agents_report::AgentsReport;
-use wsp_wire::types::check::{issues_of, parse};
 use wsp_wire::views::place_more::PlaceView;
 use wsp_words::exit::{usage_refusal, HostError};
 use wsp_words::place_name::{here_name, is_provider_place};
@@ -22,6 +21,7 @@ use super::agents_help::{
 use super::client::*;
 use super::turns_help::thread_at;
 use super::workspaces_help::HOST_SIDE_VAULT;
+use crate::zod_read::zod_read;
 
 mod call;
 mod run;
@@ -754,18 +754,8 @@ async fn agents_read(client: &dyn HostClient, read: ReadAim<'_>, cloud_on: bool)
     params.insert("target".to_owned(), json!(target));
     let reply = client.request("agents.read", params).await?;
     let report = reply.get("report").cloned().unwrap_or(Value::Null);
-    match parse::<AgentsReport>(&report) {
-        Ok(report) => Ok(report),
-        Err(_) => {
-            let issues: Vec<Value> = issues_of::<AgentsReport>(&report)
-                .iter()
-                .map(|issue| json!({ "code": issue.code, "path": issue.path, "message": issue.message }))
-                .collect();
-            let text = serde_json::to_string(&issues).expect("issues write as JSON");
-            Err(host_schema_refusal(&HostError::new(text), read.schema_usage)
-                .unwrap_or_else(|| HostError::new(other_version("agents.read"))))
-        }
-    }
+    zod_read::<AgentsReport>(&report)
+        .map_err(|e| host_schema_refusal(&e, read.schema_usage).unwrap_or_else(|| HostError::new(other_version("agents.read"))))
 }
 
 /// What a report read names: the thread or computer, and the usages its refusals carry.

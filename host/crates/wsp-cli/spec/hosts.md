@@ -29,7 +29,7 @@ decides which host a line runs against. The command line and the tool server bot
 5. `list_hosts` reads every `*.json` under the hosts folder (none when the folder is missing), keeps the ones that
    read (rule 3), sorts by `localeCompare` (ICU root collation: `attic, box, Box, cellar`), and answers
    `{alias, url, deviceId}`, never the token (:122-131).
-6. `remove_host` removes only a file that reads as a record and answers whether it did (:134-138).
+6. `remove_host` removes only a file that reads as a record and answers whether it did, and fails where `rmSync` throws (:134-138).
 7. `account_records` is every listed record; `account_hosts` drops the one whose `via.hostId` equals this state's
    relay record's `hostId` (`account::read_relay_record`); `account_aim` is One, Several (aliases in list order) or
    None (:177-203). `aimed_alias` is One's alias. All of it reads files only.

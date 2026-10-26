@@ -82,8 +82,14 @@ fn home_directory() -> String {
     }
 }
 
-fn process_env() -> Env {
-    std::env::vars().collect()
+/// `process.env`: a variable that is not UTF-8 is read lossily, as node reads it.
+pub fn process_env() -> Env {
+    std::env::vars_os().map(|(key, value)| (key.to_string_lossy().into_owned(), value.to_string_lossy().into_owned())).collect()
+}
+
+/// `process.env[key]`, read lossily like `process_env`.
+pub fn env_var(key: &str) -> Option<String> {
+    std::env::var_os(key).map(|value| value.to_string_lossy().into_owned())
 }
 
 /// hosts.ts:48: `WSP_HOME` when non-empty, else the default home.
@@ -201,12 +207,18 @@ pub fn list_hosts(home: &str) -> Vec<HostEntry> {
     found.into_iter().map(|(alias, record)| HostEntry { alias, url: record.url, device_id: record.device_id }).collect()
 }
 
-/// Takes the record away. True when there was one to take.
-pub fn remove_host(home: &str, alias: &str) -> bool {
+/// Takes the record away. True when there was one to take. A record that reads and will not go is an error, as
+/// `rmSync` throws (hosts.ts:134-138); node words it `ENOTDIR: not a directory, scandir '<file>'` for a file it cannot unlink.
+pub fn remove_host(home: &str, alias: &str) -> Result<bool, HostError> {
     if read_host(home, alias).is_none() {
-        return false;
+        return Ok(false);
     }
-    fs::remove_file(host_file(home, alias)).is_ok()
+    let file = host_file(home, alias);
+    match fs::remove_file(&file) {
+        Ok(()) => Ok(true),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(true),
+        Err(_) => Err(HostError::new(format!("ENOTDIR: not a directory, scandir '{file}'"))),
+    }
 }
 
 /// hosts.ts:142, re-exported: the protocol's rule.

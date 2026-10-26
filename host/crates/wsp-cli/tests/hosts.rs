@@ -179,11 +179,11 @@ fn the_listing_is_in_locale_order_not_byte_order() {
 fn remove_takes_the_file_away_and_answers_false_when_there_was_none() {
     let home = Dir::new();
     write_host(&home.path, "box", &record("http://box.local:4400", "d_1")).unwrap();
-    assert!(remove_host(&home.path, "box"));
+    assert!(remove_host(&home.path, "box").unwrap());
     assert_eq!(read_host(&home.path, "box"), None);
     assert!(!fs::metadata(format!("{}/hosts/box.json", home.path)).is_ok());
-    assert!(!remove_host(&home.path, "box"));
-    assert!(!remove_host(&home.path, "../evil"));
+    assert!(!remove_host(&home.path, "box").unwrap());
+    assert!(!remove_host(&home.path, "../evil").unwrap());
 }
 
 /// hosts.ts:134-138: a file that is not a record is not removed.
@@ -192,7 +192,7 @@ fn remove_leaves_a_file_that_does_not_read_as_a_record() {
     let home = Dir::new();
     fs::create_dir_all(hosts_dir(&home.path)).unwrap();
     fs::write(format!("{}/broken.json", hosts_dir(&home.path)), "{ not json").unwrap();
-    assert!(!remove_host(&home.path, "broken"));
+    assert!(!remove_host(&home.path, "broken").unwrap());
     assert_eq!(fs::read_to_string(format!("{}/broken.json", hosts_dir(&home.path))).unwrap(), "{ not json");
 }
 

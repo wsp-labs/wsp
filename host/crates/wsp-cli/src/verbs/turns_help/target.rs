@@ -136,8 +136,12 @@ pub async fn run_target(
     let branch = r#where.branch.clone();
     let cwd = r#where.cwd.clone();
     if let Some(r#ref) = r#ref {
+        let mut said_name = None;
         let project = match project_listed(client, r#ref).await {
-            Ok(project) => Some(pick_of(&project)),
+            Ok(project) => {
+                said_name = Some(project.get("name").and_then(Value::as_str).map(str::to_owned));
+                Some(pick_of(&project))
+            }
             Err(_) => projects_held(client).await.into_iter().find(|p| p.id == r#ref || p.name == r#ref),
         };
         if let Some(project) = &project {
@@ -145,7 +149,10 @@ pub async fn run_target(
             if copies || threads_in_folder(client, &project.id).await {
                 let path = project_listed(client, &project.id).await.map(|full| text_of(&full, "path")).unwrap_or_default();
                 let here = FolderHere { project: Some(folder_project(project.id.clone(), project.name.clone(), path)), branch, cwd };
-                return Ok(RunTarget::Folder(FolderTarget { here, opened: opened_of(Some(project.name.clone()), copies) }));
+                return Ok(RunTarget::Folder(FolderTarget {
+                    here,
+                    opened: opened_of(said_name.unwrap_or_else(|| Some(project.name.clone())), copies),
+                }));
             }
         }
         let branch_refused = || usage_refusal(BRANCH_HERE_ONLY_LINE, "Name a project on this computer.");
@@ -187,9 +194,9 @@ pub async fn run_target(
     };
     let inside = caller_cwd.is_some_and(|folder| !under(folder, &text_of(&project, "path")));
     let cwd = if inside && r#where.cwd.is_none() && r#where.branch.is_none() { caller_cwd.map(str::to_owned) } else { cwd };
-    let name = text_of(&project, "name");
+    let name = project.get("name").and_then(Value::as_str).map(str::to_owned);
     let here = FolderHere { project: Some(pick_of(&project)), branch, cwd };
-    Ok(RunTarget::Folder(FolderTarget { here, opened: opened_of(Some(name), true) }))
+    Ok(RunTarget::Folder(FolderTarget { here, opened: opened_of(name, true) }))
 }
 
 /// Whether a thread of this project runs in its folder on the computer holding it, as a project on a computer the
@@ -312,8 +319,7 @@ pub async fn sub_for(
             }
         }
         let workspace = reply_field::<WorkspaceOut>(&frame, "workspaces.create", "workspace")?;
-        let sub = parse::<SubStarted>(frame.get("sub").unwrap_or(&Value::Null))
-            .map_err(|_| HostError::new(other_version("workspaces.create")))?;
+        let sub = crate::zod_read::zod_read_field::<SubStarted>(frame.get("sub"))?;
         Ok::<_, HostError>((workspace, sub))
     };
     match made.await {
@@ -545,13 +551,9 @@ pub async fn thread_deleted(client: &dyn HostClient, thread_id: &str, o: &Thread
         params.insert("check".into(), json!(check));
     }
     let frame = client.request("sessions.delete", params).await?;
-    let refused = || HostError::new(other_version("sessions.delete"));
     let ended = match frame.get("ended") {
         None => None,
-        Some(Value::Array(items)) => {
-            Some(items.iter().map(|item| parse::<ActivityEnded>(item).map_err(|_| refused())).collect::<Result<Vec<_>, _>>()?)
-        }
-        Some(_) => return Err(refused()),
+        Some(value) => Some(crate::zod_read::zod_read::<Vec<ActivityEnded>>(value)?),
     };
     Ok(ThreadDeleted {
         workspace_id: reply_field(&frame, "sessions.delete", "workspaceId")?,
@@ -624,7 +626,7 @@ fn opened_of(name: Option<String>, here: bool) -> Opened {
     Arc::new(move |thread_id: &str, folder: Option<&str>| match folder {
         None => format!("thread {thread_id}"),
         Some(folder) => {
-            let shown = if here { home_shortened(folder, std::env::var("HOME").ok().as_deref()) } else { folder.to_owned() };
+            let shown = if here { home_shortened(folder, crate::hosts::env_var("HOME").as_deref()) } else { folder.to_owned() };
             thread_opened_line(thread_id, name.as_deref(), &shown)
         }
     })

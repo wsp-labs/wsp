@@ -38,7 +38,7 @@ plugins out of oh-my-zsh's `plugins=( )` lists. All three are pure over text.
    it. With no missing and no dropped names the rest comes back joined. Else the block is GUARD_BEGIN, one guard line per
    missing name in order (commands.ts:171, byte for byte), one `# plugin <name> left out: <name> is not on the image`
    per dropped name, then when any are missing `# Guarded above: a call to one of these that is not on this machine is
-   silent instead of an error: <names joined by ", ">. Tick them in wsp init to install them.`, then GUARD_END and an
+   silent instead of an error: <names joined by ", ">.`, then GUARD_END and an
    empty line, then the text.
 
 ## Edge cases
