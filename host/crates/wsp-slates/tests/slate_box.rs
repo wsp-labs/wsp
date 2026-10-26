@@ -17,6 +17,9 @@ use indexmap::IndexMap;
 use tokio::io::AsyncReadExt;
 use tokio::task::LocalSet;
 
+// The tests run bashes against the one folder every box slate lives in, and a sweep of it takes another run's payload.
+static ONE_AT_A_TIME: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 use wsp_core::clock::real_clock;
 use wsp_core::ids::OsIds;
 use wsp_engine::cancel::Cancel;
@@ -350,6 +353,7 @@ fn the_launcher_text_is_the_ts_text() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn writes_the_slates_files_sweeps_and_runs_with_values_folder_and_lines() {
+    let _one = ONE_AT_A_TIME.lock().await;
     // TS slate-box.test.ts:124-144.
     LocalSet::new()
         .run_until(async {
@@ -397,6 +401,7 @@ async fn writes_the_slates_files_sweeps_and_runs_with_values_folder_and_lines() 
 
 #[tokio::test(flavor = "current_thread")]
 async fn the_payload_folder_is_the_accounts_alone_before_decoding() {
+    let _one = ONE_AT_A_TIME.lock().await;
     // TS slate-box.test.ts:146-162.
     LocalSet::new()
         .run_until(async {
@@ -423,6 +428,7 @@ async fn the_payload_folder_is_the_accounts_alone_before_decoding() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn hands_the_launch_alone_to_the_cgroup_machine() {
+    let _one = ONE_AT_A_TIME.lock().await;
     // TS slate-box.test.ts:164-176: the machine runs and writes; the launch alone is handed the cgroup machine.
     LocalSet::new()
         .run_until(async {
@@ -460,6 +466,7 @@ async fn hands_the_launch_alone_to_the_cgroup_machine() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn values_a_box_left_go_once_it_answers_and_live_values_are_spared() {
+    let _one = ONE_AT_A_TIME.lock().await;
     // TS slate-box.test.ts:248-291.
     LocalSet::new()
         .run_until(async {
@@ -522,6 +529,7 @@ async fn values_a_box_left_go_once_it_answers_and_live_values_are_spared() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn ledger_close_cancels_retries() {
+    let _one = ONE_AT_A_TIME.lock().await;
     // spec rule 9: a closed ledger arms no retry and cancels the armed one; a contact still pays.
     LocalSet::new()
         .run_until(async {
@@ -549,6 +557,7 @@ async fn ledger_close_cancels_retries() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn a_failed_upload_ends_with_the_machines_words() {
+    let _one = ONE_AT_A_TIME.lock().await;
     // spec rule 12: the upload's stderr trimmed, else its exit code.
     LocalSet::new()
         .run_until(async {
@@ -581,6 +590,7 @@ async fn a_failed_upload_ends_with_the_machines_words() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn caps_output_at_2_mb_and_marks_it_cut() {
+    let _one = ONE_AT_A_TIME.lock().await;
     // spec rule 12: stdout cut at 2 MiB, stderr given only the room left, cut set.
     LocalSet::new()
         .run_until(async {
@@ -606,6 +616,7 @@ async fn caps_output_at_2_mb_and_marks_it_cut() {
 
 #[tokio::test(flavor = "current_thread")]
 async fn a_kill_cancels_the_command_and_a_then_reshapes_there() {
+    let _one = ONE_AT_A_TIME.lock().await;
     // TS slate-box.test.ts:293-316.
     LocalSet::new()
         .run_until(async {

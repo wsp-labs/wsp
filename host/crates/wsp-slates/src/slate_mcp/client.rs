@@ -18,8 +18,7 @@ use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
-use tokio::net::tcp::OwnedReadHalf;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader, ReadHalf};
 use tokio::net::TcpStream;
 use tokio::task::spawn_local;
 use url::Url;
@@ -35,6 +34,7 @@ use wsp_words::js::{is_js_whitespace, js_collapse_whitespace, js_round, js_trim,
 use crate::pending::slate::problems::{slate_host_away, slate_problem, slate_server_not_set_up};
 use crate::pending::slate::{SlateDoc, SlateProblem, SlateRunDecl};
 use crate::slate_files::WithFiles;
+use crate::tls::{self, Socket};
 
 /// The thread's computer where it is not this one, and this one's name (slate-mcp.ts:18).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -890,8 +890,7 @@ async fn fetch_bounded(url: String, req: McpHttpRequest) -> Result<McpHttpAnswer
 async fn exchange(url: String, req: McpHttpRequest) -> Result<McpHttpAnswer, String> {
     let parsed = Url::parse(&url).map_err(|_| FETCH_FAILED.to_string())?;
     match parsed.scheme() {
-        "http" => {}
-        "https" => return Err("https is not linked into this build".to_string()),
+        "http" | "https" => {}
         _ => return Err(FETCH_FAILED.to_string()),
     }
     let host = parsed.host_str().unwrap_or("").to_string();
@@ -906,8 +905,9 @@ async fn exchange(url: String, req: McpHttpRequest) -> Result<McpHttpAnswer, Str
         Some(p) => format!("{host}:{p}"),
         None => host,
     };
-    let stream = TcpStream::connect((connect_host.as_str(), port)).await.map_err(|_| FETCH_FAILED.to_string())?;
-    let (read, mut write) = stream.into_split();
+    let tcp = TcpStream::connect((connect_host.as_str(), port)).await.map_err(|_| FETCH_FAILED.to_string())?;
+    let stream = tls::over(&parsed, tcp).await.map_err(|_| FETCH_FAILED.to_string())?;
+    let (read, mut write) = tokio::io::split(stream);
     let mut head = format!("POST {target} HTTP/1.1\r\nHost: {host_line}\r\n");
     for (name, value) in &req.headers {
         if name.contains(['\r', '\n', ':']) || value.contains(['\r', '\n']) {
@@ -929,7 +929,7 @@ async fn exchange(url: String, req: McpHttpRequest) -> Result<McpHttpAnswer, Str
     Ok(McpHttpAnswer { status, content_type, session_id, body: String::from_utf8_lossy(&body).into_owned() })
 }
 
-async fn read_head(reader: &mut BufReader<OwnedReadHalf>) -> Result<(u16, Vec<(String, String)>), String> {
+async fn read_head(reader: &mut BufReader<ReadHalf<Socket>>) -> Result<(u16, Vec<(String, String)>), String> {
     let mut line = String::new();
     let mut total = reader.read_line(&mut line).await.map_err(|_| FETCH_FAILED.to_string())?;
     if total == 0 {
@@ -956,7 +956,7 @@ async fn read_head(reader: &mut BufReader<OwnedReadHalf>) -> Result<(u16, Vec<(S
 }
 
 /// A body read no further than one message may be; a declared length over the cap is refused before a byte is read.
-async fn read_body(reader: &mut BufReader<OwnedReadHalf>, headers: &[(String, String)]) -> Result<Vec<u8>, String> {
+async fn read_body(reader: &mut BufReader<ReadHalf<Socket>>, headers: &[(String, String)]) -> Result<Vec<u8>, String> {
     let io = |_: std::io::Error| FETCH_FAILED.to_string();
     let mut body = Vec::new();
     let chunked = header_value(headers, "transfer-encoding").is_some_and(|v| v.to_ascii_lowercase().contains("chunked"));
