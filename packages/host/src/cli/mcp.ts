@@ -4,7 +4,6 @@ import { homedir } from "node:os";
 import { parseArgs } from "node:util";
 import { MCP_AGENT_IDS } from "@wsp/catalog";
 import { authRefusal, type McpServerSpec, hostFromEnv, jsonLine, SCOPED_MCP_ARG, scopedNoPairLine, EXIT_CODES, runForTheList, unknownWordLine, usageRefusal } from "@wsp/protocol";
-import { tapeOf, type Tape } from "@wsp/runtime";
 import { gitRootOf } from "../repo-root.js";
 import { alsoHere } from "../scan.js";
 import { wrap } from "../init-layout.js";
@@ -45,7 +44,7 @@ export async function mcp(io: CliIO, argv: string[], statePathOf: (flag?: string
     // TypeScript server answers there. The agent starts it in its own folder, which is the folder a thread opened with
     // no workspace is placed by.
     const { serveMcp } = await import("../mcp.js");
-    await serveMcp(statePath, { alsoHere, cwd: process.cwd(), env, ...starts, ...(values.host !== undefined ? { host: values.host } : {}), ...(values.scoped === true ? { scoped: true } : {}), ...(values["no-slate"] === true ? { noSlate: true } : {}), ...tapeFor(env) });
+    await serveMcp(statePath, { alsoHere, cwd: process.cwd(), env, ...starts, ...(values.host !== undefined ? { host: values.host } : {}), ...(values.scoped === true ? { scoped: true } : {}), ...(values["no-slate"] === true ? { noSlate: true } : {}) });
     return 0;
   }
   const json = values.json === true;
@@ -117,10 +116,4 @@ function mcpPage(install: boolean): string {
   const line = COMMAND_LINES.find(l => l.words === (install ? `${MCP_COMMAND} install` : MCP_COMMAND))!;
   const flags = install ? ["agent", "remove", "json", "state", "host"] : ["state", "host", "scoped", "no-slate"];
   return helpPage(line.usage, wrap(`  ${line.about}`, HELP_WIDTH, "  "), flags.map(name => [`--${name}`, MCP_FLAG_WORDS[name]!] as const));
-}
-
-/** The tool server's tape, when this process's environment names a folder for one. */
-function tapeFor(env: Readonly<Record<string, string | undefined>>): { tape?: Tape } {
-  const tape = tapeOf(env, "mcp");
-  return tape === undefined ? {} : { tape };
 }

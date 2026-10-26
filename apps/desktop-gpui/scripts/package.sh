@@ -86,7 +86,7 @@ entitlements=../desktop/build/entitlements.mac.plist
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/wsp-package.XXXXXX")
 keychain=
 device=
-kpass=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)
+kpass=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
 cleanup() {
   if [ -n "$device" ]; then hdiutil detach -force "$device" >/dev/null 2>&1 || true; fi
   if [ -n "$keychain" ] && [ "$dry" = 0 ]; then security delete-keychain "$keychain" >/dev/null 2>&1 || true; fi
