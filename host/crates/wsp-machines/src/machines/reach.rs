@@ -2,6 +2,7 @@
 //! Port of packages/runtime/src/machines/reach.ts at 65f6b89c7: a row's status outside the poll, the refusals and
 //! the disk reading it carries, and the roads to a machine's own daemon. Specs: spec/reach_disk.md and
 //! spec/reach_daemon.md.
+#![allow(clippy::result_large_err)]
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 use std::sync::Arc;

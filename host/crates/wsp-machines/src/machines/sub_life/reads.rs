@@ -27,9 +27,12 @@ pub const SUB_DELETE_RETRY_MS: f64 = 600_000.0;
 /// sub-life.ts:25. The longest a lead's line waits on the done read after its sub-thread's turn.
 pub const SUB_LINE_WAIT_MS: f64 = 300_000.0;
 /// sub-life.ts:27-28. How far back the done looks for the agent's last push.
+#[allow(dead_code)]
 pub(crate) const PUSH_READ_EVENTS: usize = 400;
+#[allow(dead_code)]
 pub(crate) const PUSH_READ_BYTES: usize = 2_000_000;
 /// sub-life.ts:30. The row's reason for the nap a done takes.
+#[allow(dead_code)]
 pub(crate) const DONE_NAP: &str = "its sub-thread is done";
 
 // export function subResultCommand(folder: string, branch: string, baseSha: string): string {
@@ -221,13 +224,13 @@ pub fn sub_row_of(record: &WorkspaceRecord) -> Option<SubRow> {
         state,
         on: sub.on.clone(),
         machine: record.name.clone(),
-        size: SubRowSize { cpu: JsInt(record.size.cpu.clone()), mem_mb: JsInt(record.size.mem_mb.clone()), name: sub.size_name.clone() },
-        rate_usd_per_hour: sub.rate_usd_per_hour.clone(),
+        size: SubRowSize { cpu: JsInt(record.size.cpu), mem_mb: JsInt(record.size.mem_mb), name: sub.size_name.clone() },
+        rate_usd_per_hour: sub.rate_usd_per_hour,
         branch: sub.branch.clone(),
         result: sub.result.clone(),
         held: sub.held.as_ref().map(|held| SubHeld { files: held.held.files, commits: held.held.commits }),
-        delete_at: sub.delete_at.clone(),
-        released_at: sub.released_at.clone(),
+        delete_at: sub.delete_at,
+        released_at: sub.released_at,
         cloud_gone: (sub.cloud_gone == Some(true)).then_some(True),
         session_not_kept: session_not_kept(sub.session.as_ref()),
         spawn: sub.spawn.clone(),

@@ -27,6 +27,10 @@ fn record_of_fixture(mut v: Value) -> WorkspaceRecord {
             v[key] = default;
         }
     }
+    // "creating" is no WorkspacePhase (views/workspace.ts:27); subRowOf reads every phase it does not name as napping (sub-life.ts:114), as it reads waking.
+    if v["phase"] == json!("creating") {
+        v["phase"] = json!("waking");
+    }
     serde_json::from_value(v).expect("the fixture's record reads as a real record")
 }
 

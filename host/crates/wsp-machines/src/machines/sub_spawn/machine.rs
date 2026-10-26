@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! sub-spawn.ts:32-74, 283-341, 414-621: the machine of a spawn and of a resume. Spec: spec/sub_spawn_machine.md.
+#![allow(clippy::result_large_err)]
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -14,14 +15,12 @@ use wsp_engine::errors::EngineError;
 use wsp_engine::exec_detached::put::INLINE_EXEC_MS;
 use wsp_engine::machine::{ExecOptions, Machine, MachineBackend};
 use wsp_wire::types::js_number::{JsInt, JsNumber};
-use wsp_wire::types::place_state::DELETE_AFTER_MS;
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::views::sub_row::{SubSpawn, SubSpawnFailed, SubSpawnFailedStep, SubSpawnFiles, SubSpawnMachine};
 use wsp_wire::views::workspace::WorkspacePhase;
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::views::workspace_events::WorkspaceCreateStage;
 use wsp_words::exit::{refusal_said, HostError};
-use wsp_words::js::js_round;
 use wsp_words::js::js_trim;
 use wsp_words::js::utf16::tail;
 use wsp_words::place_word::{names_place, provider_key_name, PlaceRef};
@@ -307,10 +306,11 @@ impl SubSpawnArea {
             spawn.ready_at = Some(JsNumber(ready));
             spawn.asked = None;
         });
-        self.ctx.persist(&record.borrow()).await?;
+        let snapshot = record.borrow().clone();
+        self.ctx.persist(&snapshot).await?;
         entry.borrow_mut().creating = false;
         report(WorkspaceCreateStage::Ready, CREATE_READY, None);
-        let released_at = record.borrow().sub.as_ref().and_then(|sub| sub.released_at.clone());
+        let released_at = record.borrow().sub.as_ref().and_then(|sub| sub.released_at);
         if released_at.is_none() {
             let view = self.ctx.view(&record.borrow());
             self.ctx.emit(json!({ "type": "workspace.created", "workspace": view }));
@@ -327,7 +327,7 @@ impl SubSpawnArea {
 
     /// sub-spawn.ts:476 (rule 8).
     pub(crate) async fn drop_machine(&self, at: &Arc<dyn MachineBackend>, record: &Rc<RefCell<WorkspaceRecord>>, r#box: Option<&str>) {
-        let (id, name) = record_key(record);
+        let (id, _) = record_key(record);
         let entry = self.ctx.live(&id);
         let entry_machine = entry.as_ref().map(|entry| entry.borrow().machine.id().to_string());
         if let Some(entry) = entry.as_ref() {
@@ -409,7 +409,7 @@ impl SubSpawnArea {
             return Err(AreaError::Host(sub_other_host_refusal(&project.name, &host_word, &on)));
         };
         let brokered = self.ctx.brokered(kind_word(record_kind), record_place.as_deref());
-        let ImageAt { head, record: image } = self.image_at(&place, &on, &host, &sub.repo, brokered).await?;
+        let ImageAt { head, record: image } = self.image_at(&place, &on, host, &sub.repo, brokered).await?;
         self.ctx.place_guard(&place).await?;
         self.agent_on(image.as_ref(), &on, harness, brokered)?;
         let seed = self.seed_of(&project).await?;
@@ -464,7 +464,8 @@ impl SubSpawnArea {
                     held.machine_id = String::new();
                 }
                 self.ctx.attach_dead(&record_rc);
-                self.ctx.persist(&record_rc.borrow()).await?;
+                let snapshot = record_rc.borrow().clone();
+                self.ctx.persist(&snapshot).await?;
                 self.ctx.rows_sent().await;
                 self.ctx.forking_remove(&record_name_now);
                 return Err(error);
@@ -487,7 +488,8 @@ impl SubSpawnArea {
                     sub.opening = None;
                 }
             }
-            self.ctx.persist(&record_rc.borrow()).await?;
+            let snapshot = record_rc.borrow().clone();
+            self.ctx.persist(&snapshot).await?;
             return Ok(Resumed { entry, preamble: kept_preamble, notices });
         }
         self.land_session(&entry, thread_id).await;

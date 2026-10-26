@@ -267,7 +267,7 @@ fn local_memory_key_follows_a_made_worktree_then_the_git_top() {
         // Not once it is gone, and never one the person made.
         set_worktree(&entry, json!({ "path": "/wt/lab-feature", "made": true, "gone": true }));
         assert_eq!(local.memory_key(&entry.borrow(), "claude"), Some("-repos-lab".to_string()));
-        set_worktree(&entry, json!({ "path": "/wt/lab-feature" }));
+        set_worktree(&entry, json!({ "path": "/wt/lab-feature", "made": false }));
         assert_eq!(local.memory_key(&entry.borrow(), "claude"), Some("-repos-lab".to_string()));
     });
 }
