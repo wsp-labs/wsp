@@ -14,7 +14,9 @@ use support::status::*;
 use support::{run_local, settle, MemStore};
 use wsp_core::clock::FakeClock;
 use wsp_core::console;
-use wsp_core::status::{StatusListOptions, StatusRecord, StatusTracker, StatusTrackerOptions, StatusWatchOptions, COST_HISTORIES};
+use wsp_core::status::{
+    CostPoint, StatusListOptions, StatusRecord, StatusTracker, StatusTrackerOptions, StatusWatchOptions, COST_HISTORIES,
+};
 use wsp_core::types::pending::{BlobMark, Store};
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::place_more::{PlaceSpend, PlaceView};
@@ -70,18 +72,18 @@ fn newest(r: &Rig) -> Value {
 }
 
 /// Each key of the stored point is the same on the event: the TS `toMatchObject`.
-fn assert_matches(event: &Value, point: &WorkspaceCostEvent) {
+fn assert_matches(event: &Value, point: &CostPoint) {
     let point = serde_json::to_value(point).unwrap();
     for (key, want) in point.as_object().unwrap() {
         assert_eq!(&event[key.as_str()], want, "{key}");
     }
 }
 
-fn awakes(h: &[WorkspaceCostEvent]) -> Vec<f64> {
+fn awakes(h: &[CostPoint]) -> Vec<f64> {
     h.iter().map(|p| p.awake_ms.0).collect()
 }
 
-fn rates_and_awakes(h: &[WorkspaceCostEvent]) -> Vec<(f64, f64)> {
+fn rates_and_awakes(h: &[CostPoint]) -> Vec<(f64, f64)> {
     h.iter().map(|p| (p.rate_usd_per_hour.0, p.awake_ms.0)).collect()
 }
 
@@ -1041,7 +1043,7 @@ fn a_document_with_no_points_is_skipped_and_kept() {
         let t = r.tracker(Default::default());
 
         let ok = t.history("ws_ok").await;
-        assert_eq!(ok, vec![serde_json::from_value::<WorkspaceCostEvent>(point).unwrap()]);
+        assert_eq!(ok, vec![CostPoint::from(serde_json::from_value::<WorkspaceCostEvent>(point).unwrap())]);
         for (id, doc) in &skipped {
             assert!(t.history(id).await.is_empty());
             assert_eq!(&stored(&r, id), doc);

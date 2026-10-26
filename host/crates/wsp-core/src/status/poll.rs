@@ -504,7 +504,24 @@ fn row(base: &Map<String, Value>, state: MachineState, reach: &ReachStatus, reas
     if let Some(reason) = reason {
         out.insert("reason".into(), json!(reason));
     }
-    serde_json::from_value(Value::Object(out)).expect("a record's view with its enrichments is a workspace status")
+    // A number JSON cannot carry went into the base as null, which is how it goes out of the TS; the row takes it back.
+    let rate_unread = out.get("rateUsdPerHour") == Some(&Value::Null);
+    if rate_unread {
+        out.insert("rateUsdPerHour".into(), json!(0.0));
+    }
+    let idle_unread = out.get("idleAt") == Some(&Value::Null);
+    if idle_unread {
+        out.remove("idleAt");
+    }
+    let mut status: WorkspaceStatus =
+        serde_json::from_value(Value::Object(out)).expect("a record's view with its enrichments is a workspace status");
+    if rate_unread {
+        status.rate_usd_per_hour = JsNumber(f64::NAN);
+    }
+    if idle_unread {
+        status.idle_at = Some(JsNumber(f64::NAN));
+    }
+    status
 }
 
 /// The row key the poll holds a row against: the row without its facts, its route, and any `uptimeMs` or `readAt`.
@@ -539,16 +556,17 @@ fn strip_clock_fields(v: &mut Value) {
     }
 }
 
-/// The longest prefix of `s` that is at most `units` UTF-16 units, as `slice(0, units)` reads it.
-fn first_units(s: &str, units: usize) -> &str {
+/// `slice(0, units)`: the longest prefix of `s` that is at most `units` UTF-16 units; a cut that falls inside a pair
+/// leaves the lone half, which the line prints as U+FFFD.
+fn first_units(s: &str, units: usize) -> String {
     let mut used = 0;
     for (i, c) in s.char_indices() {
-        used += c.len_utf16();
-        if used > units {
-            return &s[..i];
+        if used + c.len_utf16() > units {
+            return if c.len_utf16() == 2 && used + 1 == units { format!("{}\u{FFFD}", &s[..i]) } else { s[..i].to_string() };
         }
+        used += c.len_utf16();
     }
-    s
+    s.to_string()
 }
 
 /// `probeExec(r)`: undefined when the guest answered `ok`, else what went wrong and how long it took.
@@ -865,26 +883,20 @@ impl StatusTracker {
     }
 
     /// `suspectOf(r)`: the spell this workspace's current machine is in, begun now when there is none.
-    fn suspect_of(&self, r: &StatusRecord) -> Suspect {
+    /// The spell this workspace's current machine is in, as the object the TS passes around: a judge that holds it
+    /// keeps reading and writing it after another read has dropped it from the map.
+    fn suspect_of(&self, r: &StatusRecord) -> Rc<RefCell<Suspect>> {
         let now = self.clock.now();
         self.st(|s| {
             if let Some(known) = s.suspects.get(&r.view.id) {
-                if known.machine_id == r.view.machine_id {
+                if known.borrow().machine_id == r.view.machine_id {
                     return known.clone();
                 }
             }
-            let fresh = Suspect { machine_id: r.view.machine_id.clone(), bad_since: now, probe: None, zombie: None };
+            let fresh = Rc::new(RefCell::new(Suspect { machine_id: r.view.machine_id.clone(), bad_since: now, probe: None, zombie: None }));
             s.suspects.insert(r.view.id.clone(), fresh.clone());
             fresh
         })
-    }
-
-    fn with_suspect(&self, id: &str, f: impl FnOnce(&mut Suspect)) {
-        self.st(|s| {
-            if let Some(sus) = s.suspects.get_mut(id) {
-                f(sus);
-            }
-        });
     }
 
     fn drop_suspect(&self, id: &str) {
@@ -895,34 +907,27 @@ impl StatusTracker {
 
     /// Starts the exec probe of a suspect that has none in flight (status_poll Behaviour 8; not awaited).
     fn start_probe_if_idle(&self, r: &StatusRecord) {
-        if self.suspect_of(r).probe.is_none() {
-            drop(self.start_probe(r));
+        let spell = self.suspect_of(r);
+        let idle = spell.borrow().probe.is_none();
+        if idle {
+            drop(self.start_probe(r, &spell));
         }
     }
 
     /// The exec probe of a suspect: one future, shared by every reader that waits on it and run to its end on its own.
-    fn start_probe(&self, r: &StatusRecord) -> Shared<LocalBoxFuture<'static, Option<String>>> {
+    fn start_probe(&self, r: &StatusRecord, spell: &Rc<RefCell<Suspect>>) -> Shared<LocalBoxFuture<'static, Option<String>>> {
         let timeout = self.zombie_probe_timeout();
         let clock = self.clock.clone();
         let exec = r.exec.clone();
-        let (id, machine) = (r.view.id.clone(), r.view.machine_id.clone());
-        let me = self.me.clone();
+        let mine = spell.clone();
         let probe: Shared<LocalBoxFuture<'static, Option<String>>> = (async move {
             let fault = probe_exec(exec, timeout, clock).await;
-            if let Some(t) = me.upgrade() {
-                t.st(|s| {
-                    if let Some(sus) = s.suspects.get_mut(&id) {
-                        if sus.machine_id == machine {
-                            sus.probe = None;
-                        }
-                    }
-                });
-            }
+            mine.borrow_mut().probe = None;
             fault
         })
         .boxed_local()
         .shared();
-        self.with_suspect(&r.view.id, |s| s.probe = Some(probe.clone()));
+        spell.borrow_mut().probe = Some(probe.clone());
         tokio::task::spawn_local(probe.clone());
         probe
     }
@@ -931,9 +936,9 @@ impl StatusTracker {
     async fn judge(&self, r: &StatusRecord, reach: ReachStatus, opts: StatusListOptions) -> (MachineState, ReachStatus, Option<String>) {
         let reconcile = opts.reconcile.unwrap_or_default();
         let id = r.view.id.as_str();
-        let s = self.suspect_of(r);
-        let elapsed = self.clock.now() - s.bad_since;
-        if s.zombie.is_none() && elapsed < self.zombie_window() {
+        let spell = self.suspect_of(r);
+        let elapsed = self.clock.now() - spell.borrow().bad_since;
+        if spell.borrow().zombie.is_none() && elapsed < self.zombie_window() {
             let state = self.machine_state(r, reconcile, reach.state == ReachState::Unreachable).await;
             return (state, reach, None);
         }
@@ -942,23 +947,23 @@ impl StatusTracker {
             self.drop_suspect(id);
             return (provider, reach, None);
         }
-        let s = self.suspect_of(r);
-        if let Some(zombie) = s.zombie {
+        let zombie = spell.borrow().zombie.clone();
+        if let Some(zombie) = zombie {
             return (provider, ReachStatus { state: ReachState::Zombie, ..reach }, Some(zombie));
         }
         if opts.zombie_probe == Some(false) {
             return (provider, reach, None);
         }
-        let probe = match s.probe {
+        let held = spell.borrow().probe.clone();
+        let probe = match held {
             Some(probe) => probe,
-            None => self.start_probe(r),
+            None => self.start_probe(r, &spell),
         };
         let Some(fault) = probe.await else {
-            let now = self.clock.now();
-            self.with_suspect(id, |s| s.bad_since = now);
+            spell.borrow_mut().bad_since = self.clock.now();
             return (provider, reach, None);
         };
-        let bad_since = self.suspect_of(r).bad_since;
+        let bad_since = spell.borrow().bad_since;
         let reason = format!(
             "{} reports running at the provider; reach {} since {} ({} s); exec probe \"{}\" {}",
             r.view.machine_id,
@@ -968,7 +973,7 @@ impl StatusTracker {
             ZOMBIE_PROBE_CMD,
             fault
         );
-        self.with_suspect(id, |s| s.zombie = Some(reason.clone()));
+        spell.borrow_mut().zombie = Some(reason.clone());
         warn(&format!("zombie on {} (workspace {id}): {reason}", r.view.machine_id));
         (provider, ReachStatus { state: ReachState::Zombie, ..reach }, Some(reason))
     }

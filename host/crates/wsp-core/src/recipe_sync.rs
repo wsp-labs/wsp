@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Port of packages/runtime/src/recipe-sync.ts at 65f6b89c7: what moved between the recipe a computer last applied and
 //! the recipe it follows now, row by row, and which steps of the setup carry each move. Spec: spec/setup_steps.md.
+use std::cmp::Ordering;
+
 use indexmap::{IndexMap, IndexSet};
 use serde::Serialize;
 use wsp_wire::types::recipe_file::{RecipeFile, RecipeName};
@@ -29,10 +31,22 @@ fn kind_key(kind: RecipeKind) -> &'static str {
     }
 }
 
+/// Rows in JavaScript's key order: the integer-like names first, lowest first, the rest as they were.
+fn js_order(mut rows: IndexMap<String, String>) -> IndexMap<String, String> {
+    let index = |name: &str| name.parse::<u32>().ok().filter(|n| *n != u32::MAX && n.to_string() == name);
+    rows.sort_by(|a, _, b, _| match (index(a.as_str()), index(b.as_str())) {
+        (Some(x), Some(y)) => x.cmp(&y),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => Ordering::Equal,
+    });
+    rows
+}
+
 /// Each row of one kind by name, as its JSON text: two rows are equal where their texts are.
 fn rows_of(file: &RecipeFile, kind: RecipeKind) -> IndexMap<String, String> {
     fn text<T: Serialize>(table: &IndexMap<RecipeName, T>) -> IndexMap<String, String> {
-        table.iter().map(|(name, row)| (name.0.clone(), serde_json::to_string(row).unwrap_or_default())).collect()
+        js_order(table.iter().map(|(name, row)| (name.0.clone(), serde_json::to_string(row).unwrap_or_default())).collect())
     }
     match kind {
         RecipeKind::Agents => text(&file.agents),

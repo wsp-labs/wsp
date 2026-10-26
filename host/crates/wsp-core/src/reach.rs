@@ -15,7 +15,7 @@ use futures::{SinkExt, StreamExt};
 use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 use tokio::sync::{mpsc, oneshot, watch};
-use tokio_tungstenite::connect_async;
+use tokio_tungstenite::connect_async_with_config;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 use tokio_tungstenite::tungstenite::{Error as WsError, Message};
@@ -28,7 +28,7 @@ use wsp_wire::wire::machine_link::MachineErrorKind;
 use wsp_words::daemon_contract::daemon_refused_token;
 
 use crate::clock::{real_clock, Cancel, Clock};
-use crate::daemon_channel::{js_string, reply_id, ChannelEnd};
+use crate::daemon_channel::{js_string, reply_id, socket_config, ChannelEnd, CLOSE_GRACE_MS};
 use crate::ids::{Ids, OsIds};
 
 /// A daemon frame or reply: a JSON object, keys in the order written.
@@ -637,7 +637,7 @@ fn dial(core: Rc<Core>) {
     let sock = Rc::new(Socket { out, open: Cell::new(false) });
     core.state.borrow_mut().sock = Some(sock.clone());
     tokio::task::spawn_local(async move {
-        let ws = match connect_async(core.url.as_str()).await {
+        let ws = match connect_async_with_config(core.url.as_str(), Some(socket_config()), false).await {
             Ok((ws, _)) => ws,
             Err(_) => {
                 on_socket_end(&core, &sock, end_1006());
@@ -672,8 +672,10 @@ async fn run_socket(
     mut sink: Pin<Box<dyn Sink<Message, Error = WsError>>>,
     mut stream: LocalBoxStream<'static, Result<Message, WsError>>,
 ) -> ChannelEnd {
+    let mut gave_up: Option<oneshot::Receiver<()>> = None;
     loop {
         tokio::select! {
+            _ = async { match gave_up.as_mut() { Some(rx) => drop(rx.await), None => std::future::pending::<()>().await } } => return end_1006(),
             msg = stream.next() => match msg {
                 Some(Ok(Message::Text(text))) => handle_message(core, RawFrame::Text(text.as_str())),
                 Some(Ok(Message::Binary(bytes))) => handle_message(core, RawFrame::Binary(&bytes[..])),
@@ -686,6 +688,13 @@ async fn run_socket(
                     Some(Out::Text(text)) => sink.send(Message::text(text)).await,
                     Some(Out::Binary(bytes)) => sink.send(Message::binary(bytes)).await,
                     Some(Out::Close(code, reason)) => {
+                        if gave_up.is_none() {
+                            let (tx, rx) = oneshot::channel();
+                            core.clock.schedule(Box::new(move || {
+                            let _ = tx.send(());
+                        }), CLOSE_GRACE_MS);
+                            gave_up = Some(rx);
+                        }
                         sink.send(Message::Close(Some(CloseFrame { code: CloseCode::from(code), reason: reason.into() }))).await
                     }
                     Some(Out::Terminate) | None => return end_1006(),

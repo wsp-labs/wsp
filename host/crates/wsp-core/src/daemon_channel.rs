@@ -8,6 +8,7 @@ use std::cell::{Cell, RefCell};
 use std::io;
 use std::pin::Pin;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use async_trait::async_trait;
@@ -17,11 +18,14 @@ use serde_json::{json, Map, Value};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
 use tokio::sync::{mpsc, oneshot, watch};
+use tokio_rustls::rustls::pki_types::ServerName;
+use tokio_rustls::rustls::{ClientConfig, RootCertStore};
+use tokio_rustls::TlsConnector;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
-use tokio_tungstenite::tungstenite::protocol::CloseFrame;
+use tokio_tungstenite::tungstenite::protocol::{CloseFrame, WebSocketConfig};
 use tokio_tungstenite::tungstenite::{Error as WsError, Message};
-use tokio_tungstenite::{client_async, WebSocketStream};
+use tokio_tungstenite::{client_async_with_config, WebSocketStream};
 use wsp_words::daemon_contract::daemon_refused_token;
 use wsp_words::js::js_trim;
 
@@ -157,6 +161,18 @@ pub const CONNECT_TIMEOUT_MS: i64 = 15_000;
 // /** The bytes of a refusing door's body kept for its sentence; the first line is what a pane shows. */
 // const DOOR_BODY_CAP = 512;
 pub const DOOR_BODY_CAP: usize = 512;
+
+/// How long a socket that was asked to close may wait for the peer's close frame before it is dropped and reads 1006:
+/// `ws`'s `closeTimeout` (30 s), which the TS's `ws.close(1000)` runs under.
+pub(crate) const CLOSE_GRACE_MS: i64 = 30_000;
+
+/// The most one `ws` message may weigh, which the TS's sockets and the daemon's door (`door.rs:29`) both take.
+const MAX_PAYLOAD: usize = 100 * 1024 * 1024;
+
+/// What every dial of a daemon reads a frame under: `ws`'s 100 MiB, not tungstenite's 16 MiB frame and 64 MiB message.
+pub(crate) fn socket_config() -> WebSocketConfig {
+    WebSocketConfig::default().max_message_size(Some(MAX_PAYLOAD)).max_frame_size(Some(MAX_PAYLOAD))
+}
 
 // daemon-channel.ts:21
 // export interface DaemonChannel {
@@ -298,7 +314,7 @@ pub async fn open_daemon_channel(o: DaemonChannelOptions) -> Result<Rc<dyn Daemo
     });
     let opened = tokio::select! {
         biased;
-        r = connect(&o.url, &o.token, link.clone(), outbound_rx) => r,
+        r = connect(&o.url, &o.token, link.clone(), outbound_rx, clock.clone()) => r,
         _ = expired => Err(unanswered(&format!("daemon connect timed out after {timeout_ms}ms"))),
     };
     cancel_deadline();
@@ -391,7 +407,13 @@ impl DaemonChannel for Channel {
 
 /// The socket is dialled, the auth frame goes out first, and its reply is read before anything else. The socket is
 /// handed to `run` even when the reply refuses the link, as the TS leaves it open.
-async fn connect(url: &str, token: &str, link: Rc<Link>, outbound: mpsc::UnboundedReceiver<Outbound>) -> Result<(), ChannelError> {
+async fn connect(
+    url: &str,
+    token: &str,
+    link: Rc<Link>,
+    outbound: mpsc::UnboundedReceiver<Outbound>,
+    clock: Rc<dyn Clock>,
+) -> Result<(), ChannelError> {
     let ws_url = daemon_ws_url(url).map_err(|e| ChannelError::Refused { message: e.message })?;
     let mut ws = dial(&ws_url).await?;
     let mut auth = Frame::new();
@@ -417,7 +439,7 @@ async fn connect(url: &str, token: &str, link: Rc<Link>, outbound: mpsc::Unbound
         link.deliver(value);
     };
     let accepted = reply.get("ok") == Some(&Value::Bool(true));
-    tokio::task::spawn_local(run(ws, outbound, link));
+    tokio::task::spawn_local(run(ws, outbound, link, clock));
     if accepted {
         Ok(())
     } else {
@@ -426,8 +448,9 @@ async fn connect(url: &str, token: &str, link: Rc<Link>, outbound: mpsc::Unbound
 }
 
 /// Reads the socket until it ends, routing each frame, then settles the end and fails every send still waiting.
-async fn run(mut ws: WebSocketStream<Shared>, mut outbound: mpsc::UnboundedReceiver<Outbound>, link: Rc<Link>) {
+async fn run(mut ws: WebSocketStream<Shared>, mut outbound: mpsc::UnboundedReceiver<Outbound>, link: Rc<Link>, clock: Rc<dyn Clock>) {
     let mut outbound_open = true;
+    let mut gave_up: Option<oneshot::Receiver<()>> = None;
     let end = loop {
         tokio::select! {
             msg = ws.next() => match msg {
@@ -445,9 +468,17 @@ async fn run(mut ws: WebSocketStream<Shared>, mut outbound: mpsc::UnboundedRecei
                 }
                 Some(Outbound::Close) => {
                     let _ = ws.send(Message::Close(Some(CloseFrame { code: CloseCode::Normal, reason: "".into() }))).await;
+                    if gave_up.is_none() {
+                        let (tx, rx) = oneshot::channel();
+                        clock.schedule(Box::new(move || {
+                            let _ = tx.send(());
+                        }), CLOSE_GRACE_MS);
+                        gave_up = Some(rx);
+                    }
                 }
                 None => outbound_open = false,
             },
+            _ = async { match gave_up.as_mut() { Some(rx) => drop(rx.await), None => std::future::pending::<()>().await } } => break end_1006(),
         }
     };
     link.end.send_replace(Some(end));
@@ -463,47 +494,177 @@ fn route(link: &Link, text: &str) {
     }
 }
 
-/// Dials the door and returns the open socket, or the refusal the door answered with.
+/// Dials the door and returns the open socket, or the refusal the door answered with. `wss` is TLS under the web's
+/// roots, as `ws` opens it.
 async fn dial(ws_url: &str) -> Result<WebSocketStream<Shared>, ChannelError> {
     let parsed = url::Url::parse(ws_url).map_err(|e| ChannelError::Refused { message: e.to_string() })?;
     let addrs = parsed.socket_addrs(|| parsed.port_or_known_default()).map_err(|_| ended_before_open(end_1006()))?;
     let tcp = TcpStream::connect(&addrs[..]).await.map_err(|_| ended_before_open(end_1006()))?;
-    let sock = Shared(Rc::new(RefCell::new(tcp)));
+    let wire = if parsed.scheme() == "wss" { Wire::Tls(Box::new(tls_over(&parsed, tcp).await?)) } else { Wire::Plain(tcp) };
+    let sock = Shared(Rc::new(RefCell::new(wire)));
     let request = ws_url.into_client_request().map_err(|e| ChannelError::Refused { message: e.to_string() })?;
-    match client_async(request, sock.clone()).await {
+    match client_async_with_config(request, sock.clone(), Some(socket_config())).await {
         Ok((ws, _)) => Ok(ws),
         Err(WsError::Http(response)) => {
             let response = *response;
             let (parts, tail) = response.into_parts();
-            let want = parts
+            let chunked = parts
                 .headers
-                .get("content-length")
-                .and_then(|v| v.to_str().ok())
-                .and_then(|v| v.parse::<usize>().ok())
-                .unwrap_or(usize::MAX);
-            let body = door_body(tail.unwrap_or_default(), want, sock).await;
+                .get_all("transfer-encoding")
+                .iter()
+                .any(|v| v.to_str().is_ok_and(|v| v.to_ascii_lowercase().contains("chunked")));
+            let length = parts.headers.get("content-length").and_then(|v| v.to_str().ok()).and_then(|v| v.trim().parse::<usize>().ok());
+            let framing = if chunked { Framing::Chunked } else { length.map_or(Framing::UntilClose, Framing::Length) };
+            let body = door_body(tail.unwrap_or_default(), framing, sock).await;
             Err(ChannelError::Door(DaemonDoorError::new(parts.status.as_u16(), &body)))
         }
         Err(_) => Err(ended_before_open(end_1006())),
     }
 }
 
-/// The door's body up to the cap: what the handshake buffered, then reads until the body ends or the cap is full.
-async fn door_body(tail: Vec<u8>, want: usize, mut sock: Shared) -> String {
-    let mut body = tail;
-    while body.len() < want && utf16_len(&body) < DOOR_BODY_CAP {
+/// The TLS session over `tcp` for the host the url names; a handshake that fails reads as a socket that never opened.
+async fn tls_over(url: &url::Url, tcp: TcpStream) -> Result<tokio_rustls::client::TlsStream<TcpStream>, ChannelError> {
+    let name = match url.host() {
+        Some(url::Host::Domain(domain)) => ServerName::try_from(domain.to_string()).ok(),
+        Some(url::Host::Ipv4(ip)) => Some(ServerName::IpAddress(ip.into())),
+        Some(url::Host::Ipv6(ip)) => Some(ServerName::IpAddress(ip.into())),
+        None => None,
+    };
+    let name = name.ok_or_else(|| ChannelError::Refused { message: format!("no host to dial in {url}") })?;
+    let provider = Arc::new(tokio_rustls::rustls::crypto::ring::default_provider());
+    let config = ClientConfig::builder_with_provider(provider)
+        .with_safe_default_protocol_versions()
+        .map(|b| b.with_root_certificates(RootCertStore { roots: webpki_roots::TLS_SERVER_ROOTS.to_vec() }).with_no_client_auth())
+        .map_err(|_| ended_before_open(end_1006()))?;
+    TlsConnector::from(Arc::new(config)).connect(name, tcp).await.map_err(|_| ended_before_open(end_1006()))
+}
+
+/// How the door's body ends: node's http parser reads these three the same way.
+enum Framing {
+    Chunked,
+    Length(usize),
+    UntilClose,
+}
+
+/// The door's body up to the cap, as the http parser would give it: what the handshake buffered, then reads until the
+/// body ends where its framing says or the cap is full.
+async fn door_body(tail: Vec<u8>, framing: Framing, mut sock: Shared) -> String {
+    let mut dechunk = Dechunk::default();
+    let mut body = Vec::new();
+    let mut input = tail;
+    loop {
+        match framing {
+            Framing::Chunked => {
+                dechunk.feed(&input);
+                body = dechunk.body.clone();
+                if dechunk.done {
+                    break;
+                }
+            }
+            Framing::Length(want) => {
+                body.extend_from_slice(&input);
+                if body.len() >= want {
+                    body.truncate(want);
+                    break;
+                }
+            }
+            Framing::UntilClose => body.extend_from_slice(&input),
+        }
+        if utf16_len(&body) >= DOOR_BODY_CAP {
+            break;
+        }
         let mut chunk = [0u8; 512];
         match sock.read(&mut chunk).await {
-            Ok(n) if n > 0 => body.extend_from_slice(&chunk[..n]),
+            Ok(n) if n > 0 => input = chunk[..n].to_vec(),
             _ => break,
         }
     }
     first_units(&String::from_utf8_lossy(&body), DOOR_BODY_CAP).to_string()
 }
 
-/// The TCP stream kept on this side too, so a refusing door's body can be read after the handshake gave it up.
+/// A chunked body decoded as it arrives: size line, that many bytes, a CRLF, and the zero chunk that ends it.
+#[derive(Default)]
+struct Dechunk {
+    raw: Vec<u8>,
+    body: Vec<u8>,
+    left: Option<usize>,
+    done: bool,
+}
+
+impl Dechunk {
+    fn feed(&mut self, bytes: &[u8]) {
+        self.raw.extend_from_slice(bytes);
+        while !self.done {
+            match self.left {
+                None => {
+                    let Some(end) = self.raw.iter().position(|&b| b == b'\n') else { return };
+                    let line: Vec<u8> = self.raw.drain(..=end).collect();
+                    let size = String::from_utf8_lossy(&line);
+                    let size = size.split(';').next().unwrap_or_default().trim();
+                    match usize::from_str_radix(size, 16) {
+                        Ok(0) | Err(_) => self.done = true,
+                        Ok(n) => self.left = Some(n),
+                    }
+                }
+                Some(0) => {
+                    if self.raw.len() < 2 {
+                        return;
+                    }
+                    self.raw.drain(..2);
+                    self.left = None;
+                }
+                Some(n) => {
+                    if self.raw.is_empty() {
+                        return;
+                    }
+                    let take = n.min(self.raw.len());
+                    self.body.extend(self.raw.drain(..take));
+                    self.left = Some(n - take);
+                }
+            }
+        }
+    }
+}
+
+/// The socket as the dial opened it, kept on this side too so a refusing door's body can be read after the handshake
+/// gave the stream up.
+enum Wire {
+    Plain(TcpStream),
+    Tls(Box<tokio_rustls::client::TlsStream<TcpStream>>),
+}
+
 #[derive(Clone)]
-struct Shared(Rc<RefCell<TcpStream>>);
+struct Shared(Rc<RefCell<Wire>>);
+
+impl AsyncRead for Wire {
+    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
+        match self.get_mut() {
+            Wire::Plain(s) => Pin::new(s).poll_read(cx, buf),
+            Wire::Tls(s) => Pin::new(s.as_mut()).poll_read(cx, buf),
+        }
+    }
+}
+
+impl AsyncWrite for Wire {
+    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+        match self.get_mut() {
+            Wire::Plain(s) => Pin::new(s).poll_write(cx, buf),
+            Wire::Tls(s) => Pin::new(s.as_mut()).poll_write(cx, buf),
+        }
+    }
+    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match self.get_mut() {
+            Wire::Plain(s) => Pin::new(s).poll_flush(cx),
+            Wire::Tls(s) => Pin::new(s.as_mut()).poll_flush(cx),
+        }
+    }
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match self.get_mut() {
+            Wire::Plain(s) => Pin::new(s).poll_shutdown(cx),
+            Wire::Tls(s) => Pin::new(s.as_mut()).poll_shutdown(cx),
+        }
+    }
+}
 
 impl AsyncRead for Shared {
     fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {

@@ -3,6 +3,7 @@
 //! as a tunnel, its three ops and the two frames that come back. Spec: spec/tunnels.md.
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::task::Poll;
 
 use base64::engine::general_purpose::STANDARD;
 use base64::Engine as _;
@@ -16,6 +17,7 @@ use tokio::sync::{mpsc, oneshot};
 use wsp_wire::wire::daemon_events::DaemonEvent;
 use wsp_words::exit::HostError;
 
+use crate::node_base64::node_base64;
 use crate::reach::Frame;
 
 /// How one op reaches the far side, settling when it answers. tunnel.ts:15.
@@ -164,7 +166,7 @@ async fn read_side(mut rd: OwnedReadHalf, mut stop: oneshot::Receiver<()>, p: Re
             false
         }
     };
-    let mut buf = vec![0u8; 16 * 1024];
+    let mut buf = vec![0u8; 64 * 1024];
     loop {
         tokio::select! {
             _ = &mut stop => break,
@@ -177,15 +179,28 @@ async fn read_side(mut rd: OwnedReadHalf, mut stop: oneshot::Receiver<()>, p: Re
                         touched();
                     }
                     let data = STANDARD.encode(&buf[..n]);
-                    if (p.link)("tunnel.write", frame([("tunnelId", json!(id)), ("data", json!(data))])).await.is_err() {
-                        p.conn.destroy();
-                        break;
+                    let mut write = (p.link)("tunnel.write", frame([("tunnelId", json!(id)), ("data", json!(data))]));
+                    match futures::poll!(write.as_mut()) {
+                        Poll::Ready(Err(_)) => {
+                            p.conn.destroy();
+                            break;
+                        }
+                        Poll::Ready(Ok(_)) => {}
+                        Poll::Pending => {
+                            let conn = p.conn.clone();
+                            tokio::task::spawn_local(async move {
+                                if write.await.is_err() {
+                                    conn.destroy();
+                                }
+                            });
+                        }
                     }
                 }
                 _ => break,
             },
         }
     }
+    p.conn.end(None);
     p.conns.borrow_mut().shift_remove(&id);
     let _ = (p.link)("tunnel.close", frame([("tunnelId", json!(id))])).await;
 }
@@ -212,7 +227,7 @@ pub fn tunnel_frame(conns: &TunnelConns, event: &DaemonEvent, touched: Option<&d
                 if let Some(touched) = touched {
                     touched();
                 }
-                conn.write(STANDARD.decode(data).unwrap_or_default());
+                conn.write(node_base64(data));
                 true
             }
             None => false,
