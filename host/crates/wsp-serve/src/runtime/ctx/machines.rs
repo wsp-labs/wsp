@@ -2,9 +2,46 @@
 // Each body is todo!() until its packet writes it; the allow goes with the last one.
 #![allow(unused_variables)]
 
+use std::cell::RefCell;
 use std::rc::Rc;
 
-use super::Ctx;
+use indexmap::IndexMap;
+use wsp_machines::machines::daemon::DaemonArea;
+use wsp_machines::machines::machines::MachinesArea;
+use wsp_machines::machines::reach::ReachArea;
+use wsp_threads::threads::threads::ThreadsArea;
+use wsp_threads::threads::transcripts::TranscriptsArea;
+use wsp_wire::views::workspace::ProjectView;
+
+use super::{Ctx, ExecHeld};
+
+/// The areas and shared maps the packet 4 tests put state into and read it back from, since the context's own
+/// fields are crate-private.
+#[doc(hidden)]
+pub struct MachinesSeams {
+    pub reach: Rc<ReachArea>,
+    pub daemon: Rc<DaemonArea>,
+    pub machines: Rc<MachinesArea>,
+    pub transcripts: Rc<TranscriptsArea>,
+    pub threads: Rc<ThreadsArea>,
+    pub projects_held: Rc<RefCell<IndexMap<String, ProjectView>>>,
+    pub execs: Rc<RefCell<IndexMap<u64, ExecHeld>>>,
+}
+
+impl Ctx {
+    #[doc(hidden)]
+    pub fn machines_seams(&self) -> MachinesSeams {
+        MachinesSeams {
+            reach: self.reach.get(),
+            daemon: self.daemon.get(),
+            machines: self.machines.get(),
+            transcripts: self.transcripts.get(),
+            threads: self.threads.get(),
+            projects_held: self.projects_held.clone(),
+            execs: self.execs.clone(),
+        }
+    }
+}
 
 #[async_trait::async_trait(?Send)]
 impl wsp_machines::machines::reach::ReachCtx for Ctx {
