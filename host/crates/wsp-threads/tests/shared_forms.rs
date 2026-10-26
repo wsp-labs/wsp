@@ -82,15 +82,12 @@ fn viewed_marks_are_the_ts_record_per_thread_and_the_session_document_writes_the
 }
 
 #[allow(dead_code)]
-fn the_threads_traits_share_one_signature_each_for_the_calls_more_than_one_asks(
+fn the_threads_traits_share_one_signature_each_for_the_sessions_and_the_transcript(
     sessions: &dyn SessionsCtx,
     turns: &dyn TurnsCtx,
     agents: &dyn AgentsCtx,
     threads: &dyn ThreadsCtx,
     forks: &dyn ForksCtx,
-    conversations: &dyn ConversationsCtx,
-    activity: &dyn ActivityCtx,
-    entry: &Entry,
 ) {
     let _: [LocalBoxFuture<'static, ()>; 5] = [
         sessions.persist_sessions("w"),
@@ -102,6 +99,15 @@ fn the_threads_traits_share_one_signature_each_for_the_calls_more_than_one_asks(
     let _: [Option<Joined>; 3] = [sessions.kept_writes("w"), threads.kept_writes("w"), forks.kept_writes("w")];
     let _: [LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>; 4] =
         [sessions.open_thread("w", "t"), turns.open_thread("w", "t"), threads.open_thread("w", "t"), forks.open_thread("w", "t")];
+}
+
+#[allow(dead_code)]
+fn the_threads_traits_share_one_signature_for_the_daemon_a_frame_goes_to(
+    threads: &dyn ThreadsCtx,
+    conversations: &dyn ConversationsCtx,
+    activity: &dyn ActivityCtx,
+    entry: &Entry,
+) {
     let _: [LocalBoxFuture<'static, Result<Value, AccountError>>; 3] =
         [threads.with_daemon(entry, Value::Null), conversations.with_daemon(entry, Value::Null), activity.with_daemon(entry, Value::Null)];
 }
