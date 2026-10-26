@@ -986,6 +986,8 @@ fn a_deleted_workspace_refuses_the_start() {
             let e = ghost.clone();
             async move { Ok(e) }.boxed_local()
         });
+        // The workspace is gone from `live` by the time the check runs (sessions.ts:351), though its entry was read.
+        hook!(fx.host, "SessionsCtx::live_entry", dyn Fn(&str) -> Option<Entry>, |_w: &str| None);
         let e = fx.refused(go("hi"), None).await;
         assert_eq!(said(&e), said(&err(&wsp_words::place_state::deleted_before_start_line("Second"))));
         assert_eq!(fx.host.hooks.called("refuse_sub_send"), Vec::<String>::new());
@@ -1596,11 +1598,11 @@ fn a_refusal_after_the_mint_revokes_the_device() {
         // files the harness refuses
         let fx = fx_on(Agent::default());
         minted(&fx);
-        let file = Attachment { media_type: "text/plain".into(), bytes: "aGk=".into(), name: Some("notes.sh".into()) };
+        let file = Attachment { media_type: "image/png".into(), bytes: "aGk=".into(), name: Some("shot.png".into()) };
         let records = vec![attachment_record(&file)];
         let e = fx.refused(StartOptions { attachments: Some(vec![file]), ..go("hi") }, None).await;
         settle().await;
-        let line = files_blocked(&records, None, "claude").expect("a harness with no road refuses files");
+        let line = files_blocked(&records, None, "claude").expect("a harness with no road refuses an image (attachments.ts:149)");
         assert_eq!(said(&e), said(&err(&line)));
         assert_eq!(revoked(&fx), strings(&["revoke_device(dev-1)"]));
         nothing_held(&fx.host);
