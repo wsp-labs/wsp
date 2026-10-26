@@ -2,11 +2,23 @@
 //! `packages/host/src/verbs/computers.ts` at 65f6b89c7: `wsp computers`, `computers set`, the recipes, `wsp usage`
 //! and `usage reset`, and the `add` tool. Spec: `spec/computers.md`.
 
+use serde::de::DeserializeOwned;
+use serde_json::{json, Value};
+use wsp_wire::types::js_number::JsNumber;
+use wsp_wire::types::recipe_file::RecipeView;
+use wsp_wire::types::usage::{AccountRow, ResetAnswer, UsageRange, UsageSplit, UsedAnswer, USAGE_RANGES, USAGE_SPLITS};
+use wsp_wire::views::place::PlaceSetAlso;
 use wsp_wire::views::place_more::{PlaceSettingWord, PlaceView};
 use wsp_wire::wire::capabilities::WorkspaceSize;
-use wsp_words::exit::HostError;
+use wsp_words::exit::{usage_refusal, HostError};
+use wsp_words::place_state::{nap_ms_of, place_takes, turn_limit_ms_of};
+use wsp_words::usage::{reset_question, used_ask};
+use wsp_words::words::units::size_from_word;
 
 use super::client::*;
+use super::io::{as_json, confirmed};
+use super::workspaces_help::{agents_asked, count_asked, size_chosen, AgentsAsked};
+use crate::setup_follow::{add_computer, AddAsk};
 
 /// What a `--size` word asks of the host (computers.ts:36-42): the size to set, and the resets with `size` added
 /// where the word names no size and the row takes none.
@@ -18,8 +30,21 @@ pub struct SizeAsked {
 
 /// `sizeAsked` (computers.ts:36-42).
 pub fn size_asked(place: &PlaceView, word: Option<&str>, reset: &[PlaceSettingWord]) -> Result<SizeAsked, HostError> {
-    let _ = (place, word, reset);
-    todo!("computers.ts:36-42")
+    let Some(word) = word else {
+        return Ok(SizeAsked { size: None, reset: reset.to_vec() });
+    };
+    if let Some(size) = size_from_word(word) {
+        return Ok(SizeAsked { size: Some(size), reset: reset.to_vec() });
+    }
+    if place_takes(place, &PlaceSettingWord::Size) {
+        let size = size_chosen(place.sizes.as_deref().unwrap_or(&[]), word)?;
+        return Ok(SizeAsked { size: Some(size), reset: reset.to_vec() });
+    }
+    let mut reset = reset.to_vec();
+    if !reset.contains(&PlaceSettingWord::Size) {
+        reset.push(PlaceSettingWord::Size);
+    }
+    Ok(SizeAsked { size: None, reset })
 }
 
 /// The entries of `verbs/computers.ts`, in the TS table's order (its order is `tools/list`'s).
@@ -70,7 +95,7 @@ pub fn computer_verbs() -> Vec<Verb> {
                 ToolInput { name: "max_machines", kind: InputKind::Integer { min: Some(0) }, optional: true, describe: Some("how many machines may stand at once under one root thread there".to_string()) },
                 ToolInput { name: "max_depth", kind: InputKind::Integer { min: Some(1) }, optional: true, describe: Some("how many levels deep the tree under a root thread there may go".to_string()) },
                 ToolInput { name: "recipe", kind: InputKind::String, optional: true, describe: Some("the saved recipe it follows from now, as recipes lists it, or none: one it follows syncs to it, a change to the recipe reaching it with no step, and none keeps what it has".to_string()) },
-                ToolInput { name: "reset", kind: InputKind::StringList { min: None }, optional: true, describe: Some("the settings to take back to their defaults, by the same words".to_string()) },
+                ToolInput { name: "reset", kind: InputKind::Json, optional: true, describe: Some("the settings to take back to their defaults, by the same words".to_string()) },
             ],
             output: vec!["computer"],
             stream: vec![],
@@ -236,130 +261,442 @@ pub fn computer_verbs() -> Vec<Verb> {
     ]
 }
 
+/// The `reset` words a set sends and the `size` it takes (`sizeAsked` over the typed words): a word the setting enum
+/// has no variant for (`max-machines`) goes on as the caller gave it, so the host reads the name it knows.
+fn reset_plan(place: &PlaceView, size: Option<&str>, words: Vec<String>) -> Result<(Option<WorkspaceSize>, Vec<String>), HostError> {
+    let typed: Vec<PlaceSettingWord> = words.iter().filter_map(|w| serde_json::from_value(Value::from(w.as_str())).ok()).collect();
+    let asked = size_asked(place, size, &typed)?;
+    let mut out = words;
+    if asked.reset.len() > typed.len() {
+        out.push("size".to_owned());
+    }
+    Ok((asked.size, out))
+}
+
+/// `setComputer` (client.ts:664-669) for a row already read: one `places.set` with `placeId`, then the settings in the
+/// order the caller built them, `reset` only when some is given, then the names given. The settings are not a
+/// `PlaceSettingsAsk`, whose field order puts `size` before `deleteAfterMs`, which the recorded frames do not.
+async fn set_place(
+    client: &dyn HostClient,
+    place: &PlaceView,
+    set: Vec<(&'static str, Value)>,
+    reset: &[String],
+    also: &PlaceSetAlso,
+) -> Result<Value, HostError> {
+    let mut params = Frame::new();
+    params.insert("placeId".to_owned(), Value::from(place.id.as_str()));
+    params.extend(set.into_iter().map(|(key, value)| (key.to_owned(), value)));
+    if !reset.is_empty() {
+        params.insert("reset".to_owned(), json!(reset));
+    }
+    for (key, value) in [("name", &also.name), ("ssh", &also.ssh), ("recipe", &also.recipe)] {
+        if let Some(value) = value {
+            params.insert(key.to_owned(), Value::from(value.as_str()));
+        }
+    }
+    let reply = client.request("places.set", params).await?;
+    reply.get("place").cloned().ok_or_else(|| HostError::new(other_version("places.set")))
+}
+
+/// A number as JavaScript writes it: an integral value below 2^53 without a point.
+fn js_num(x: f64) -> Value {
+    serde_json::to_value(JsNumber(x)).expect("a number writes as JSON")
+}
+
+/// `napMsOf` and `turnLimitMsOf` (place-state.ts): None, which is null, where the minutes or hours are 0.
+fn ms_or_null(ms: Option<f64>) -> Value {
+    ms.map_or(Value::Null, js_num)
+}
+
+fn arg_str<'a>(args: &'a Frame, key: &str) -> Option<&'a str> {
+    args.get(key).and_then(Value::as_str)
+}
+
+fn arg_f64(args: &Frame, key: &str) -> Option<f64> {
+    args.get(key).and_then(Value::as_f64)
+}
+
+/// The reply's field read into the type a verb takes; a field the host left out or shaped otherwise is the other-version
+/// refusal.
+fn field<T: DeserializeOwned>(reply: &Frame, op: &str, key: &str) -> Result<T, HostError> {
+    reply.get(key).cloned().and_then(|value| serde_json::from_value(value).ok()).ok_or_else(|| HostError::new(other_version(op)))
+}
+
+/// A word a flag or a tool input gives, read into the enum it names (the words were checked against the same list).
+fn word_of<T: DeserializeOwned>(word: &str) -> Result<T, HostError> {
+    serde_json::from_value(Value::from(word)).map_err(|_| HostError::new(format!("{word} is not one of the words this wsp reads")))
+}
+
+/// `readComputers` (client.ts:653-656): both reads go out before either answer is read. `tokio::try_join!` would stop
+/// at a first refusal and leave the second unsent, where the TS `Promise.all` has sent both.
+async fn computers_read(client: &dyn HostClient) -> Result<(Value, ComputersRead), HostError> {
+    let (listed, spent) = futures::join!(client.request("places.list", Frame::new()), client.request("cost.spend", Frame::new()));
+    let (listed, spent) = (listed?, spent?);
+    let pending = match listed.get("pending") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(value) => serde_json::from_value(value.clone()).map_err(|_| HostError::new(other_version("places.list")))?,
+    };
+    let read =
+        ComputersRead { computers: field(&listed, "places.list", "places")?, spend: field(&spent, "cost.spend", "places")?, pending };
+    let raw = json!({
+        "computers": listed.get("places").cloned().unwrap_or(Value::Null),
+        "spend": spent.get("places").cloned().unwrap_or(Value::Null),
+        "pending": listed.get("pending").cloned().filter(|v| !v.is_null()).unwrap_or_else(|| json!([])),
+    });
+    Ok((raw, read))
+}
+
+/// `readUsage` (client.ts:608-611): `usage.accounts` and `usage.used` both sent before either answer is read, as
+/// `computers_read` does.
+async fn usage_read(client: &dyn HostClient, range: UsageRange, by: UsageSplit) -> Result<UsageRead, HostError> {
+    let mut fresh = Frame::new();
+    fresh.insert("fresh".to_owned(), Value::Bool(true));
+    let ask = match serde_json::to_value(used_ask(&range, &by)).expect("a usage ask writes as JSON") {
+        Value::Object(ask) => ask,
+        _ => Frame::new(),
+    };
+    let (accounts, used) = futures::join!(client.request("usage.accounts", fresh), client.request("usage.used", ask));
+    let (accounts, used) = (accounts?, used?);
+    Ok(UsageRead {
+        accounts: accounts.get("accounts").cloned().unwrap_or(Value::Null),
+        used: used.get("used").cloned().unwrap_or(Value::Null),
+    })
+}
+
+/// `recipes.list`'s answer: the rows as the host wrote them, and read for the line.
+fn recipes_of(reply: &Frame, op: &str) -> Result<(Value, Vec<RecipeView>), HostError> {
+    let raw = reply.get("recipes").cloned().unwrap_or(Value::Null);
+    let recipes = serde_json::from_value(raw.clone()).map_err(|_| HostError::new(other_version(op)))?;
+    Ok((raw, recipes))
+}
+
 /// The `computers` tool's call (`verbs/computers.ts:62-62`).
 fn call_computers(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/computers.ts:62-62")
+        let _ = args;
+        let (raw, _) = computers_read(&*deps.client(None).await?).await?;
+        Ok(as_json(raw))
     })
 }
 
 /// `wsp computers` (`verbs/computers.ts:51-56`).
 fn run_computers(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
     Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/computers.ts:51-56")
+        if !ctx.args.is_empty() {
+            return Err(usage_refusal("wsp computers takes no positional arguments.", &usage_is(ctx)));
+        }
+        let (raw, read) = computers_read(&*ctx.client(None).await?).await?;
+        let line = computer_lines(&read.computers, host_platform(), &read.spend, &read.pending).join("\n");
+        ctx.out.emit(&raw, Some(&line));
+        Ok(0)
     })
+}
+
+/// `agentsAsked` (workspaces-help.ts:827-832): None where neither cap is named, as the helper answers, so that line never
+/// reaches it.
+fn spawn_asked(max_machines: Option<&Value>, max_depth: Option<&Value>, computer: Option<&str>) -> Result<Option<AgentsAsked>, HostError> {
+    if max_machines.is_none() && max_depth.is_none() {
+        return Ok(None);
+    }
+    agents_asked(max_machines, max_depth, computer)
 }
 
 /// The `computers_set` tool's call (`verbs/computers.ts:121-137`).
 fn call_computers_set(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/computers.ts:121-137")
+        let reference = arg_str(&args, "computer").unwrap_or_default();
+        let spawn = spawn_asked(args.get("max_machines"), args.get("max_depth"), None)?;
+        let client = deps.client(None).await?;
+        let place = place_named(&*client, reference).await?;
+        let words: Vec<String> = args
+            .get("reset")
+            .and_then(Value::as_array)
+            .map(|list| list.iter().filter_map(Value::as_str).map(str::to_owned).collect())
+            .unwrap_or_default();
+        let (size, reset) = reset_plan(&place, arg_str(&args, "size"), words)?;
+        let mut set: Vec<(&'static str, Value)> = Vec::new();
+        if let Some(threads) = args.get("threads") {
+            set.push(("threads", threads.clone()));
+        }
+        if let Some(machines) = args.get("machines") {
+            set.push(("machines", machines.clone()));
+        }
+        if let Some(spend) = arg_f64(&args, "spend") {
+            set.push(("spendPerDayUsd", js_num(spend)));
+        }
+        if let Some(size) = size {
+            set.push(("size", serde_json::to_value(size).expect("a size writes as JSON")));
+        }
+        if let Some(minutes) = arg_f64(&args, "delete_after") {
+            set.push(("deleteAfterMs", js_num(minutes * 60_000.0)));
+        }
+        if let Some(minutes) = arg_f64(&args, "nap") {
+            set.push(("napMs", ms_or_null(nap_ms_of(minutes))));
+        }
+        if let Some(hours) = arg_f64(&args, "turn_limit") {
+            set.push(("turnLimitMs", ms_or_null(turn_limit_ms_of(hours))));
+        }
+        if let Some(spawn) = spawn {
+            set.push(("spawn", serde_json::to_value(spawn).expect("spawn writes as JSON")));
+        }
+        let also = PlaceSetAlso {
+            name: arg_str(&args, "name").map(str::to_owned),
+            ssh: arg_str(&args, "ssh").map(str::to_owned),
+            recipe: arg_str(&args, "recipe").map(str::to_owned),
+        };
+        let computer = set_place(&*client, &place, set, &reset, &also).await?;
+        Ok(as_json(json!({ "computer": computer })))
     })
 }
 
 /// `wsp computers set` (`verbs/computers.ts:71-100`).
 fn run_computers_set(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
     Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/computers.ts:71-100")
+        let reference = match ctx.args.as_slice() {
+            [reference] => reference.as_str(),
+            _ => return Err(usage_refusal("wsp computers set takes one computer.", &usage_is(ctx))),
+        };
+        let flags = &ctx.flags;
+        let also = PlaceSetAlso {
+            name: flag(flags, "name").map(str::to_owned),
+            ssh: flag(flags, "ssh").map(str::to_owned),
+            recipe: flag(flags, "recipe").map(str::to_owned),
+        };
+        let max_machines = flag(flags, "max-machines").map(Value::from);
+        let max_depth = flag(flags, "max-depth").map(Value::from);
+        let spawn = spawn_asked(max_machines.as_ref(), max_depth.as_ref(), Some(reference))?;
+        let mut set: Vec<(&'static str, Value)> = Vec::new();
+        if let Some(word) = flag(flags, "threads") {
+            set.push(("threads", json!(count_asked("--threads", &Value::from(word), 1, Some(reference))?)));
+        }
+        if let Some(word) = flag(flags, "machines") {
+            set.push(("machines", json!(count_asked("--machines", &Value::from(word), 1, Some(reference))?)));
+        }
+        if let Some(word) = flag(flags, "spend") {
+            set.push(("spendPerDayUsd", js_num(dollars_asked(word, reference)?)));
+        }
+        if let Some(word) = flag(flags, "delete-after") {
+            set.push(("deleteAfterMs", json!(delete_after_asked(word, reference)? * 60_000)));
+        }
+        if let Some(word) = flag(flags, "nap") {
+            set.push(("napMs", ms_or_null(nap_ms_of(nap_asked(word, reference)? as f64))));
+        }
+        if let Some(word) = flag(flags, "turn-limit") {
+            set.push(("turnLimitMs", ms_or_null(turn_limit_ms_of(turn_limit_asked(word, reference)? as f64))));
+        }
+        if let Some(spawn) = spawn {
+            set.push(("spawn", serde_json::to_value(spawn).expect("spawn writes as JSON")));
+        }
+        let words: Vec<String> = flag_list(flags, "reset")
+            .iter()
+            .map(|word| one_of("reset", &setting_resets(), Some(word.as_str()), Some(reference)).map(|chosen| chosen.unwrap_or_default()))
+            .collect::<Result<_, _>>()?;
+        let settled = !set.is_empty() || !words.is_empty();
+        let client = ctx.client(None).await?;
+        let place = place_named(&*client, reference).await?;
+        let (size, reset) = reset_plan(&place, flag(flags, "size"), words)?;
+        if let Some(size) = size {
+            set.push(("size", serde_json::to_value(size).expect("a size writes as JSON")));
+        }
+        let raw = set_place(&*client, &place, set, &reset, &also).await?;
+        let computer: PlaceView = serde_json::from_value(raw.clone()).map_err(|_| HostError::new(other_version("places.set")))?;
+        let lines = computer_set_lines(&computer, &place.name, &also, settled).join("\n");
+        ctx.out.emit(&json!({ "computer": raw }), Some(&lines));
+        Ok(0)
     })
 }
 
 /// The `add` tool's call (`verbs/computers.ts:158-170`).
 fn call_add(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/computers.ts:158-170")
+        let ask = AddAsk {
+            address: arg_str(&args, "address").unwrap_or_default().to_owned(),
+            recipe: arg_str(&args, "recipe").map(str::to_owned),
+            later: args.get("later").and_then(Value::as_bool),
+            resume: args.get("resume").and_then(Value::as_bool),
+            name: arg_str(&args, "name").map(str::to_owned),
+            ssh_port: args.get("ssh_port").and_then(Value::as_i64),
+            key_path: arg_str(&args, "ssh_key").map(str::to_owned),
+            host_key: arg_str(&args, "host_key").map(str::to_owned),
+        };
+        let answer = add_computer(deps.client(None).await?, &ask, None).await?;
+        Ok(as_json(serde_json::to_value(&answer).expect("an answer writes as JSON")))
     })
 }
 
 /// The `recipes` tool's call (`verbs/computers.ts:190-193`).
 fn call_recipes(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/computers.ts:190-193")
+        let _ = args;
+        let reply = deps.client(None).await?.request("recipes.list", Frame::new()).await?;
+        Ok(as_json(json!({ "recipes": reply.get("recipes").cloned().unwrap_or(Value::Null) })))
     })
 }
 
 /// `wsp recipes` (`verbs/computers.ts:179-184`).
 fn run_recipes(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
     Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/computers.ts:179-184")
+        if !ctx.args.is_empty() {
+            return Err(usage_refusal("wsp recipes takes no positional arguments.", &usage_is(ctx)));
+        }
+        let reply = ctx.client(None).await?.request("recipes.list", Frame::new()).await?;
+        let (raw, recipes) = recipes_of(&reply, "recipes.list")?;
+        ctx.out.emit(&json!({ "recipes": raw }), Some(&recipe_lines(&recipes).join("\n")));
+        Ok(0)
     })
 }
 
 /// The `recipes_show` tool's call (`verbs/computers.ts:214-217`).
 fn call_recipes_show(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/computers.ts:214-217")
+        let name = arg_str(&args, "name").unwrap_or_default();
+        let reply = deps.client(None).await?.request("recipes.get", frame_of_name(name)).await?;
+        Ok(as_json(
+            json!({ "recipe": reply.get("recipe").cloned().unwrap_or(Value::Null), "hash": reply.get("hash").cloned().unwrap_or(Value::Null) }),
+        ))
     })
+}
+
+fn frame_of_name(name: &str) -> Frame {
+    let mut params = Frame::new();
+    params.insert("name".to_owned(), Value::from(name));
+    params
 }
 
 /// `wsp recipes show` (`verbs/computers.ts:202-208`).
 fn run_recipes_show(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
     Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/computers.ts:202-208")
+        let name = match ctx.args.as_slice() {
+            [name] => name.as_str(),
+            _ => return Err(usage_refusal("wsp recipes show takes one recipe.", &usage_is(ctx))),
+        };
+        let reply = ctx.client(None).await?.request("recipes.get", frame_of_name(name)).await?;
+        let recipe_raw = reply.get("recipe").cloned().unwrap_or(Value::Null);
+        let recipe: RecipeView = field(&reply, "recipes.get", "recipe")?;
+        let hash: String = field(&reply, "recipes.get", "hash")?;
+        let lines = recipe_shown_lines(&recipe, &hash).join("\n");
+        ctx.out.emit(&json!({ "recipe": recipe_raw, "hash": hash }), Some(&lines));
+        Ok(0)
     })
 }
 
 /// The `recipes_save` tool's call (`verbs/computers.ts:239-242`).
 fn call_recipes_save(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/computers.ts:239-242")
+        let mut params = Frame::new();
+        params.insert("name".to_owned(), Value::from(arg_str(&args, "name").unwrap_or_default()));
+        params.insert("from".to_owned(), Value::from(arg_str(&args, "from").unwrap_or_default()));
+        let reply = deps.client(None).await?.request("recipes.save", params).await?;
+        Ok(as_json(json!({ "recipe": reply.get("recipe").cloned().unwrap_or(Value::Null) })))
     })
 }
 
 /// `wsp recipes save` (`verbs/computers.ts:226-233`).
 fn run_recipes_save(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
     Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/computers.ts:226-233")
+        let from = flag(&ctx.flags, "from");
+        let name = match (ctx.args.as_slice(), from) {
+            ([name], Some(_)) => name.as_str(),
+            _ => return Err(usage_refusal("wsp recipes save takes one name and the computer to save it from.", &usage_is(ctx))),
+        };
+        let mut params = Frame::new();
+        params.insert("name".to_owned(), Value::from(name));
+        params.insert("from".to_owned(), Value::from(from.unwrap_or_default()));
+        let reply = ctx.client(None).await?.request("recipes.save", params).await?;
+        let recipe: RecipeView = field(&reply, "recipes.save", "recipe")?;
+        let raw = reply.get("recipe").cloned().unwrap_or(Value::Null);
+        ctx.out.emit(&json!({ "recipe": raw }), Some(&recipe_saved_line(&recipe)));
+        Ok(0)
     })
 }
 
 /// The `recipes_remove` tool's call (`verbs/computers.ts:265-268`).
 fn call_recipes_remove(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/computers.ts:265-268")
+        let reply = deps.client(None).await?.request("recipes.remove", frame_of_name(arg_str(&args, "name").unwrap_or_default())).await?;
+        Ok(as_json(json!({ "recipe": reply.get("recipe").cloned().unwrap_or(Value::Null) })))
     })
 }
 
 /// `wsp recipes remove` (`verbs/computers.ts:251-260`).
 fn run_recipes_remove(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
     Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/computers.ts:251-260")
+        let name = match ctx.args.as_slice() {
+            [name] => name.as_str(),
+            _ => return Err(usage_refusal("wsp recipes remove takes one recipe.", &usage_is(ctx))),
+        };
+        let client = ctx.client(None).await?;
+        let mut check = frame_of_name(name);
+        check.insert("check".to_owned(), Value::Bool(true));
+        client.request("recipes.remove", check).await?;
+        let question = format!("Remove the recipe {name}?\nThe computers that follow it keep what it put there and follow none.");
+        if !confirmed(ctx, &question, name).await? {
+            return Ok(1);
+        }
+        let reply = client.request("recipes.remove", frame_of_name(name)).await?;
+        let recipe: RecipeView = field(&reply, "recipes.remove", "recipe")?;
+        let raw = reply.get("recipe").cloned().unwrap_or(Value::Null);
+        ctx.out.emit(&json!({ "recipe": raw }), Some(&recipe_removed_line(&recipe)));
+        Ok(0)
     })
 }
 
 /// The `usage` tool's call (`verbs/computers.ts:290-290`).
 fn call_usage(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/computers.ts:290-290")
+        let range: UsageRange = word_of(arg_str(&args, "range").unwrap_or("day"))?;
+        let by: UsageSplit = word_of(arg_str(&args, "by").unwrap_or("agent"))?;
+        let read = usage_read(&*deps.client(None).await?, range, by).await?;
+        Ok(as_json(json!({ "accounts": read.accounts, "used": read.used })))
     })
 }
 
 /// `wsp usage` (`verbs/computers.ts:277-284`).
 fn run_usage(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
     Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/computers.ts:277-284")
+        if !ctx.args.is_empty() {
+            return Err(usage_refusal("wsp usage takes no positional arguments.", &usage_is(ctx)));
+        }
+        let range_word = one_of("range", USAGE_RANGES, flag(&ctx.flags, "range"), None)?.unwrap_or_else(|| "day".to_owned());
+        let by_word = one_of("by", USAGE_SPLITS, flag(&ctx.flags, "by"), None)?.unwrap_or_else(|| "agent".to_owned());
+        let read = usage_read(&*ctx.client(None).await?, word_of(&range_word)?, word_of(&by_word)?).await?;
+        let accounts: Vec<AccountRow> =
+            serde_json::from_value(read.accounts.clone()).map_err(|_| HostError::new(other_version("usage.accounts")))?;
+        let used: UsedAnswer = serde_json::from_value(read.used.clone()).map_err(|_| HostError::new(other_version("usage.used")))?;
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0.0, |d| d.as_millis() as f64);
+        let line = usage_table_lines(&accounts, &used, now).join("\n");
+        ctx.out.emit(&json!({ "accounts": read.accounts, "used": read.used }), Some(&line));
+        Ok(0)
     })
 }
 
 /// `wsp usage reset` (`verbs/computers.ts:300-312`).
 fn run_usage_reset(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
     Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/computers.ts:300-312")
+        let word = match ctx.args.as_slice() {
+            [word] => word.as_str(),
+            _ => return Err(usage_refusal("wsp usage reset takes one account.", &usage_is(ctx))),
+        };
+        let client = ctx.client(None).await?;
+        let reply = client.request("usage.accounts", Frame::new()).await?;
+        let accounts: Vec<AccountRow> = field(&reply, "usage.accounts", "accounts")?;
+        let row = account_named(&accounts, word)?;
+        let banked = row.credits.as_ref().map(|credits| credits.count.get() as f64);
+        let question = reset_question(&row.label, banked);
+        if !confirmed(ctx, &question, &format!("Every reset banked on {}", row.label)).await? {
+            return Ok(1);
+        }
+        let mut params = Frame::new();
+        params.insert("account".to_owned(), Value::from(row.key.as_str()));
+        if let Some(credit) = flag(&ctx.flags, "credit") {
+            params.insert("creditId".to_owned(), Value::from(credit));
+        }
+        if let Some(on) = flag(&ctx.flags, "on") {
+            params.insert("on".to_owned(), Value::from(on));
+        }
+        let reply = client.request("usage.reset", params).await?;
+        let answer: ResetAnswer = serde_json::from_value(Value::Object(reply)).map_err(|_| HostError::new(other_version("usage.reset")))?;
+        ctx.out.emit(&serde_json::to_value(&answer).expect("an answer writes as JSON"), Some(&answer.said));
+        Ok(0)
     })
 }
