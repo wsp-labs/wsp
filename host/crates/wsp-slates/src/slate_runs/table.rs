@@ -3,45 +3,33 @@
 //!
 //! State is `RunsInner` behind one `Rc`, each field in a `RefCell`; no borrow is held across a call to `deps`, a
 //! road, a kill or a release (rule 3.3): `on_record` re-enters the slate area, which may call `start` again.
-//! The traits, `create_slate_runs` and the public types above `HeldFor` are fixed; `HeldFor`, `Live`, `Timer`,
-//! `ThreadRuns`, `RunsInner` and its methods are the TS's closure state written out, and the implementer may reshape
-//! them.
 use std::cell::{Cell, RefCell};
-use std::path::PathBuf;
-use std::rc::Rc;
+use std::future::ready;
+use std::path::Path;
+use std::rc::{Rc, Weak};
 
 use indexmap::IndexMap;
+use serde_json::{Map, Value};
+use tokio::task::spawn_local;
 use wsp_core::clock::{Cancel, Clock};
+use wsp_wire::types::env::THREAD_ENV;
+use wsp_wire::types::js_number::JsNumber;
+use wsp_wire::types::run_block::RUN_OUTPUT_MAX_CHARS;
+use wsp_wire::wire::daemon::EXEC_DEADLINE_EXIT;
+use wsp_words::js::{js_trim, number_string};
+use wsp_words::run_block::run_output_tail;
 
-use super::parts::{CmdRunDecl, Reshape, RunAsk, RunRecord, RunResult, RunStart, RunStartAnswer};
-use super::road::{RunRoad, Stream};
-use super::secrets::{RunApprovals, Secrets, SlateSecrets};
+use super::parts::{
+    as_text, files_unwritten, is_env_name, last_result, run_key, running_record, spent, timeout_of, CmdRunDecl, Outcome, RunAsk, RunBy,
+    RunInput, RunInputs, RunRecord, RunResult, RunStart, RunStartAnswer, RunState, BACKED_OFF, BACKOFF_AFTER, BACKOFF_MS,
+    DEFAULT_TIMEOUT_S, HELD_APPROVAL, HELD_ASLEEP, HELD_BUDGET, HELD_BUSY, HELD_PRESSED, LINES_KEPT, RUNNING_MAX, SECRET_DOTS,
+    TIMER_FLOOR_S,
+};
+use super::parts::{Reshape, ReshapeAnswer};
+use super::road::{local_road, reshape_result, ReshapeStart, RoadEnd, RoadEvents, RoadStart, RunRoad, Stream};
+use super::secrets::{create_secrets, DefaultApprovals, RunApprovals, Secrets, SlateSecrets};
+use crate::pending::slate::SLATE_SECRET_IN_ARGS;
 
-// slate-runs.ts:140
-// export interface SlateRunsDeps {
-//   /** The person's login environment on this computer. Every WSP_ variable is dropped from it before a run sees it. */
-//   env: () => Readonly<Record<string, string>>;
-//   /** Every change of a run's record, scrubbed: the host writes it as the run's value in one batch. */
-//   onRecord: (threadId: string, run: string, record: RunRecord) => void;
-//   /** Each line a `stream` run prints, scrubbed, as it is printed. */
-//   onLine?: (threadId: string, run: string, line: string, stream: "out" | "err") => void;
-//   /** A timer wants its run started; the host starts it with `by: "timer"` through its batch. */
-//   onTimer?: (threadId: string, run: string) => void;
-//   approvals?: RunApprovals;
-//   /** `slates.secrets.json` beside the state file, for secrets declared `keep`. Unset keeps nothing on disk. */
-//   secretsFile?: string;
-//   /** The slate's own folder with its files written, which every command and then reads as SLATE_DIR. */
-//   dir?: (threadId: string) => string;
-//   /** Where a run of this thread runs when that is not this computer: the thread's own machine, for a run `on` the
-//    * thread whose thread is on a box. Unset, or answering nothing, runs it here. */
-//   road?: (threadId: string, on: "thread" | "host") => RunRoad | undefined;
-//   /** Names a command's process on this computer as the thread's slate run until the returned release. */
-//   own?: (threadId: string, pid: number, kind: "slate") => () => void;
-//   /** Why a run on="host" of this thread does not start, a stored one from a thread now off this computer: said as it
-//    * starts, before anything asks the person. */
-//   hostRefused?: (threadId: string, run: string) => string | undefined;
-//   now?: () => number;
-// }
 pub trait SlateRunsDeps {
     /// The person's login environment on this computer.
     fn env(&self) -> IndexMap<String, String>;
@@ -56,7 +44,7 @@ pub trait SlateRunsDeps {
         None
     }
     /// `slates.secrets.json`; none keeps nothing on disk.
-    fn secrets_file(&self) -> Option<PathBuf> {
+    fn secrets_file(&self) -> Option<std::path::PathBuf> {
         None
     }
     /// The slate's own folder with its files written: none when the host gives no folder; `Err` with the message
@@ -95,40 +83,6 @@ pub enum ApproveScope {
     Always,
 }
 
-// slate-runs.ts:210
-// export interface SlateRuns {
-//   /** The approval key: kind, text, env names and the expressions filling them, args and stdin expressions, on,
-//    * cwd, stream, every, always, timeout, once, then, the slate files it reads and the hashes of the scripts it names.
-//    * A changed value is the same key; a changed declaration is a new one. */
-//   key(decl: CmdRunDecl): string;
-//   start(req: RunStart): RunStartAnswer;
-//   /** The person's answer to a held run: "Run once" or "Always in this thread" starts it now. */
-//   approve(threadId: string, run: string, scope: "once" | "always"): RunStartAnswer | undefined;
-//   /** "Not now": the held run ends cancelled, so its `done` reactions fire. */
-//   deny(threadId: string, run: string): void;
-//   revoke(threadId: string, key: string): void;
-//   allowed(threadId: string): string[];
-//   /** The held runs of a thread with what their sheets show, for a tab that opens on them. */
-//   held(threadId: string): RunAsk[];
-//   cancel(threadId: string, run: string): void;
-//   /** Every run of the thread killed. `quiet` drops their completions and writes nothing, for a rewind, whose
-//    * restored values say what the runs were. */
-//   stopAll(threadId: string, opts?: { quiet?: boolean; why?: string }): void;
-//   /** The declared timers of a slate; replaces what it had. A timer whose key, every and always are unchanged keeps
-//    * its period; a new or changed one fires at once. */
-//   timers(threadId: string, timers: { run: string; every: number; key: string; always?: boolean }[]): void;
-//   /** Whether any window shows the slate. Shown-only timers tick only while it is; `always` ones regardless. */
-//   shown(threadId: string, shown: boolean): void;
-//   /** The person pressed, or the agent wrote: a run held by the start budget may start again. */
-//   release(threadId: string): void;
-//   /** A run's `then`: the literal command on this computer with the raw result, already scrubbed, on its stdin. */
-//   reshape(threadId: string, cmd: string, input: string, folder: string, timeoutS?: number): Reshape;
-//   secrets: SlateSecrets;
-//   /** The thread is gone: its runs, timers, approvals in memory and secrets with it. */
-//   /** Forgets the thread's runs; with `keep`, those running are left running and only its timers stop. */
-//   drop(threadId: string, keep?: boolean): void;
-//   close(): void;
-// }
 pub trait SlateRuns {
     fn key(&self, decl: &CmdRunDecl) -> String;
     fn start(&self, req: RunStart) -> RunStartAnswer;
@@ -151,25 +105,6 @@ pub trait SlateRuns {
     fn close(&self);
 }
 
-// slate-runs.ts:415
-// type HeldFor = "approval" | "busy" | "budget" | "pressed";
-//
-// interface Live {
-//   record: RunRecord;
-//   /** Bumped by every start and cancel, so a completion of an instance nobody is waiting for any more is dropped. */
-//   gen: number;
-//   /** The last result, kept through holds so the next start carries it. */
-//   result?: RunResult;
-//   /** Ends the running command, its whole group, on whichever computer it runs. */
-//   kill?: () => void;
-//   /** The run's `then`, while it reshapes the result. */
-//   reshaping?: Reshape;
-//   held?: { req: RunStart; for: HeldFor };
-//   /** When reactions and timers started it, for the start budget. */
-//   starts: number[];
-//   /** When the person started it, for their own budget, which no press releases. */
-//   pressed?: number[];
-// }
 /// Why a start is held.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum HeldFor {
@@ -191,37 +126,38 @@ pub(crate) struct Live {
     pub pressed: Option<Vec<i64>>,
 }
 
-// slate-runs.ts:434
-// interface Timer {
-//   every: number;
-//   key: string;
-//   always: boolean;
-//   handle?: ReturnType<typeof setInterval>;
-//   /** Failed starts in a row, and when the last one ended. */
-//   failures: number;
-//   failedAt?: number;
-// }
+impl Live {
+    fn new(last: Option<&RunRecord>) -> Live {
+        let mut record = Map::new();
+        record.insert("state".into(), "idle".into());
+        record.insert("runs".into(), last.map_or(0, RunRecord::runs).into());
+        Live {
+            record: RunRecord(record),
+            gen: 0,
+            result: last.and_then(last_result),
+            kill: None,
+            reshaping: None,
+            held: None,
+            starts: Vec::new(),
+            pressed: None,
+        }
+    }
+}
+
+pub(crate) type LiveRef = Rc<RefCell<Live>>;
+
 pub(crate) struct Timer {
     pub every: f64,
     pub key: String,
     pub always: bool,
-    /// The armed interval's cancel.
     pub handle: Option<Cancel>,
     pub failures: i64,
     pub failed_at: Option<i64>,
 }
 
-// slate-runs.ts:444
-// interface ThreadRuns {
-//   runs: Map<string, Live>;
-//   /** Runs held because four were running, in the order they asked. */
-//   queue: string[];
-//   timers: Map<string, Timer>;
-//   shown: boolean;
-// }
 #[derive(Default)]
 pub(crate) struct ThreadRuns {
-    pub runs: IndexMap<String, Live>,
+    pub runs: IndexMap<String, LiveRef>,
     pub queue: Vec<String>,
     pub timers: IndexMap<String, Timer>,
     pub shown: bool,
@@ -230,10 +166,11 @@ pub(crate) struct ThreadRuns {
 /// The table's state.
 pub(crate) struct RunsInner {
     pub deps: Rc<dyn SlateRunsDeps>,
+    pub clock: Rc<dyn Clock>,
     pub approvals: Rc<dyn RunApprovals>,
     pub secrets: Rc<Secrets>,
+    pub local: Rc<dyn RunRoad>,
     pub threads: RefCell<IndexMap<String, ThreadRuns>>,
-    pub closed: Cell<bool>,
 }
 
 /// `createSlateRuns`' answer.
@@ -241,464 +178,863 @@ pub struct SlateRunsTable {
     pub(crate) inner: Rc<RunsInner>,
 }
 
-// slate-runs.ts:613
-// export function createSlateRuns(deps: SlateRunsDeps): SlateRuns {
-//   const now = deps.now ?? Date.now;
-//   const approvals = deps.approvals ?? new DefaultApprovals();
-//   const secrets = createSecrets(deps.secretsFile, now);
-//   const threads = new Map<string, ThreadRuns>();
-//
-//   const thread = (threadId: string): ThreadRuns => {
-//     let t = threads.get(threadId);
-//     if (t === undefined) {
-//       t = { runs: new Map(), queue: [], timers: new Map(), shown: false };
-//       threads.set(threadId, t);
-//     }
-//     return t;
-//   };
-//   const live = (threadId: string, run: string, last?: RunRecord): Live => {
-//     const t = thread(threadId);
-//     let l = t.runs.get(run);
-//     if (l === undefined) {
-//       const result = last === undefined ? undefined : lastResult(last);
-//       l = { record: { state: "idle", runs: last?.runs ?? 0 }, gen: 0, starts: [], ...(result !== undefined ? { result } : {}) };
-//       t.runs.set(run, l);
-//     }
-//     return l;
-//   };
-//   const write = (threadId: string, run: string, l: Live, record: RunRecord): RunRecord => {
-//     l.record = record;
-//     const result = record.state === "running" ? undefined : lastResult(record);
-//     if (result !== undefined) l.result = result;
-//     deps.onRecord(threadId, run, record);
-//     return record;
-//   };
-//   /** Throws where the slate's files could not be written. */
-//   const loginEnv = (threadId: string): Record<string, string> => {
-//     const env: Record<string, string> = {};
-//     for (const [name, value] of Object.entries(deps.env())) if (!name.startsWith("WSP_")) env[name] = value;
-//     if (deps.dir !== undefined) env["SLATE_DIR"] = deps.dir(threadId);
-//     return env;
-//   };
-//   const reshape = (threadId: string, cmd: string, input: string, folder: string, timeoutS = DEFAULT_TIMEOUT_S): Reshape => {
-//     let env: Record<string, string>;
-//     try {
-//       env = loginEnv(threadId);
-//     } catch (e) {
-//       return { done: Promise.resolve({ why: filesUnwritten(e), exit: null, err: "" }), kill: () => {} };
-//     }
-//     return reshapeResult({ cmd, input, cwd: existsSync(folder) ? folder : process.cwd(), env, timeoutS, scrub: text => secrets.scrub(threadId, text) });
-//   };
-//   const running = (t: ThreadRuns): number => [...t.runs.values()].filter(l => l.record.state === "running").length;
 pub fn create_slate_runs(deps: Rc<dyn SlateRunsDeps>) -> Rc<dyn SlateRuns> {
-    todo!()
+    let clock = deps.clock();
+    let approvals = deps.approvals().unwrap_or_else(|| Rc::new(DefaultApprovals::default()));
+    let secrets = create_secrets(deps.secrets_file(), clock.clone());
+    let local = local_road(clock.clone());
+    Rc::new(SlateRunsTable { inner: Rc::new(RunsInner { deps, clock, approvals, secrets, local, threads: RefCell::new(IndexMap::new()) }) })
 }
 
-// slate-runs.ts:670
-//   const shown = (threadId: string, input: RunInput): string =>
-//     "secret" in input ? (secrets.handle(threadId, input.secret).set ? SECRET_DOTS : `${SECRET_DOTS} (not filled)`) : input.value === null ? "(unset)" : asText(input.value);
-//
-//   const ask = (req: RunStart): RunAsk => {
-//     const inputs = req.inputs();
-//     const stdin = inputs.stdin === undefined ? undefined : shown(req.threadId, inputs.stdin).split("\n")[0];
-//     return {
-//       run: req.run,
-//       key: key(req.decl),
-//       cmd: req.decl.cmd,
-//       env: Object.fromEntries(Object.entries(inputs.env ?? {}).map(([name, input]) => [name, shown(req.threadId, input)])),
-//       args: (inputs.args ?? []).map(input => shown(req.threadId, input)),
-//       ...(stdin !== undefined ? { stdin } : {}),
-//       folder: req.decl.cwd === undefined ? req.folder : resolve(req.folder, req.decl.cwd),
-//       on: req.decl.on ?? "thread",
-//       timeout: timeoutOf(req.decl),
-//       ...(req.decl.confirm !== undefined ? { confirm: req.decl.confirm } : {}),
-//       ...(req.decl.then !== undefined ? { then: req.decl.then } : {}),
-//       ...(req.decl.files !== undefined ? { files: req.decl.files } : {}),
-//     };
-//   };
-//
-//   /** A run's end as its timer counts it: a success clears the streak, a failure adds to it and, past the fifth on an
-//    * `always` timer, says the timer backed off. */
-//   const streak = (threadId: string, run: string, state: RunRecord["state"], why: string | undefined): string | undefined => {
-//     const timer = thread(threadId).timers.get(run);
-//     if (timer === undefined) return why;
-//     if (state === "done") timer.failures = 0;
-//     if (state !== "failed") return why;
-//     timer.failures += 1;
-//     timer.failedAt = now();
-//     return timer.always && timer.failures >= BACKOFF_AFTER ? `${why ?? "it failed"}; ${BACKED_OFF}` : why;
-//   };
-//
-//   const hold = (req: RunStart, l: Live, why: HeldFor, beside = false): RunStartAnswer => {
-//     l.held = { req, for: why };
-//     const t = thread(req.threadId);
-//     if (why === "busy" && !t.queue.includes(req.run)) t.queue.push(req.run);
-//     // A start held beside an instance still running leaves that instance and its record be: it stops only once the new
-//     // start launches.
-//     if (beside) return why === "approval" ? { outcome: "held", record: l.record, ask: ask(req) } : { outcome: "held", record: l.record };
-//     const record = write(req.threadId, req.run, l, { state: "held", why: why === "approval" ? HELD_APPROVAL : why === "busy" ? HELD_BUSY : why === "pressed" ? HELD_PRESSED : HELD_BUDGET, runs: l.record.runs });
-//     return why === "approval" ? { outcome: "held", record, ask: ask(req) } : { outcome: "held", record };
-//   };
-//
-//   const fail = (req: RunStart, l: Live, why: string): RunStartAnswer => {
-//     const at = now();
-//     const record = write(req.threadId, req.run, l, { state: "failed", why: streak(req.threadId, req.run, "failed", why)!, exit: null, runs: l.record.runs, endedAt: at });
-//     return { outcome: "failed", record };
-//   };
-//
-//   const next = (threadId: string): void => {
-//     const t = thread(threadId);
-//     while (t.queue.length > 0 && running(t) < RUNNING_MAX) {
-//       const run = t.queue.shift()!;
-//       const l = t.runs.get(run);
-//       if (l?.held?.for !== "busy") continue;
-//       const req = l.held.req;
-//       delete l.held;
-//       launch(req, l);
-//     }
-//   };
-//
-//   const launch = (req: RunStart, l: Live): RunStartAnswer => {
-//     const { threadId, run, decl } = req;
-//     const t = thread(threadId);
-//     // Starting again stops the instance still running, now that this one goes.
-//     if (l.record.state === "running") stop(threadId, run, l, undefined);
-//     if (running(t) >= RUNNING_MAX) return hold(req, l, "busy");
-//     const inputs = req.inputs();
-//     if ((inputs.args ?? []).some(input => "secret" in input)) return fail(req, l, SLATE_SECRET_IN_ARGS);
-//     // On the thread's own machine the command takes that machine's environment, SLATE_DIR there and the thread's mark,
-//     // which names the run's processes as the thread's to that machine's daemon.
-//     const road = deps.road?.(threadId, decl.on ?? "thread");
-//     let env: Record<string, string>;
-//     try {
-//       env = road === undefined ? loginEnv(threadId) : { SLATE_DIR: road.slateDir, [THREAD_ENV]: threadId };
-//     } catch (e) {
-//       return fail(req, l, filesUnwritten(e));
-//     }
-//     for (const [name, input] of Object.entries(inputs.env ?? {})) {
-//       if (!ENV_NAME.test(name)) return fail(req, l, `${name} is not a name an environment variable can have`);
-//       const text = "secret" in input ? secrets.plaintext(threadId, input.secret) : input.value === null ? undefined : asText(input.value);
-//       if (text === undefined) delete env[name];
-//       else env[name] = text;
-//     }
-//     const args = (inputs.args ?? []).map(input => ("secret" in input ? "" : asText(input.value)));
-//     const stdin = inputs.stdin === undefined ? undefined : "secret" in inputs.stdin ? (secrets.plaintext(threadId, inputs.stdin.secret) ?? "") : asText(inputs.stdin.value);
-//     const cwd = decl.cwd === undefined ? req.folder : road === undefined ? resolve(req.folder, decl.cwd) : posix.resolve(req.folder, decl.cwd);
-//     // A folder on the thread's machine is that machine's to find; its launcher says so when it is not there.
-//     if (road === undefined && (!existsSync(cwd) || !statSync(cwd).isDirectory())) return fail(req, l, `the folder ${cwd} does not exist`);
-//     const timeout = timeoutOf(decl);
-//
-//     const gen = ++l.gen;
-//     const startedAt = now();
-//     const runs = l.record.runs + 1;
-//     const record = write(threadId, run, l, runningRecord(l.result, runs, startedAt));
-//
-//     const lines: string[] = [];
-//     const line = (stream: "out" | "err", text: string): void => {
-//       const clean = secrets.scrub(threadId, text);
-//       lines.push(clean);
-//       if (lines.length > LINES_KEPT) lines.shift();
-//       if (l.gen === gen) deps.onLine?.(threadId, run, clean, stream);
-//     };
-//     const end = (o: RoadEnd): void => {
-//       if (l.gen !== gen) return;
-//       delete l.kill;
-//       const raw = secrets.scrub(threadId, o.out);
-//       const out = runOutputTail(raw);
-//       const err = runOutputTail(secrets.scrub(threadId, o.err));
-//       let json: SlateJson | undefined;
-//       if (out.trim() !== "") {
-//         try {
-//           json = JSON.parse(out) as SlateJson;
-//         } catch {
-//           json = undefined;
-//         }
-//       }
-//       const exit = o.timedOut ? EXEC_DEADLINE_EXIT : o.code;
-//       const why = o.error !== undefined ? secrets.scrub(threadId, o.error.message) : o.timedOut ? `timed out after ${timeout} s` : exit === 0 ? undefined : exit === null ? `ended by ${o.signal ?? "a signal"}` : `exited with ${exit}`;
-//       const finish = (fields: Pick<RunRecord, "state" | "why" | "exit" | "err" | "json">): void => {
-//         const endedAt = now();
-//         const said = streak(threadId, run, fields.state, fields.why);
-//         write(threadId, run, l, {
-//           ...fields,
-//           ...(said !== undefined ? { why: said } : {}),
-//           out,
-//           ...(decl.stream === true ? { lines: [...lines] } : {}),
-//           startedAt,
-//           endedAt,
-//           ms: endedAt - startedAt,
-//           runs,
-//           ...(o.cut ? { cut: true as const } : {}),
-//         });
-//         next(threadId);
-//       };
-//       const ok = exit === 0 && o.error === undefined;
-//       if (!ok || decl.then === undefined) {
-//         finish({ state: ok ? "done" : "failed", ...(why !== undefined ? { why } : {}), exit, err, ...(json !== undefined ? { json } : {}) });
-//         return;
-//       }
-//       // A then gets the raw result and nothing the command was given (12): on a box, its login, SLATE_DIR and the mark. It
-//       // has 60 s whatever the command's own timeout, as a tool run's then has.
-//       const shaping = road === undefined ? reshape(threadId, decl.then, raw, cwd) : road.reshape({ cmd: decl.then, input: raw, cwd, env: { SLATE_DIR: road.slateDir, [THREAD_ENV]: threadId }, timeoutS: DEFAULT_TIMEOUT_S, scrub: text => secrets.scrub(threadId, text) });
-//       l.reshaping = shaping;
-//       void shaping.done.then(answer => {
-//         if (l.gen !== gen) return;
-//         delete l.reshaping;
-//         finish("json" in answer ? { state: "done", exit, err, json: answer.json } : { state: "failed", why: answer.why, exit: answer.exit, err: answer.err });
-//       });
-//     };
-//     let release: (() => void) | undefined;
-//     let over = false;
-//     const ended = (o: RoadEnd): void => {
-//       over = true;
-//       release?.();
-//       end(o);
-//     };
-//     const started = (road ?? localRoad).start({ cmd: decl.cmd, args, cwd, env, ...(stdin !== undefined ? { stdin } : {}), timeoutS: timeout, stream: decl.stream === true }, { line, end: ended });
-//     if (!over && started.pid !== undefined) release = deps.own?.(threadId, started.pid, "slate");
-//     // A road may end before it answers, as a launch refused at once does; nothing is left to kill then.
-//     if (l.gen === gen && l.record.state === "running") l.kill = started.kill;
-//     return { outcome: "running", record };
-//   };
-//
-//   const stop = (threadId: string, run: string, l: Live, why: string | undefined): void => {
-//     const was = l.record.state;
-//     l.gen += 1;
-//     l.kill?.();
-//     delete l.kill;
-//     l.reshaping?.kill();
-//     delete l.reshaping;
-//     delete l.held;
-//     const t = thread(threadId);
-//     t.queue = t.queue.filter(r => r !== run);
-//     if (why === undefined || (was !== "running" && was !== "held")) return;
-//     const endedAt = now();
-//     write(threadId, run, l, {
-//       state: "cancelled",
-//       why,
-//       exit: null,
-//       runs: l.record.runs,
-//       ...(l.record.startedAt !== undefined && was === "running" ? { startedAt: l.record.startedAt, ms: endedAt - l.record.startedAt } : {}),
-//       endedAt,
-//     });
-//   };
-//
-//   const tick = (threadId: string): void => {
-//     const t = thread(threadId);
-//     for (const [run, timer] of t.timers) {
+struct Captured {
+    out: String,
+    err: String,
+    exit: Option<i64>,
+    cut: bool,
+}
+
+struct CtxInner {
+    inner: Weak<RunsInner>,
+    thread: String,
+    run: String,
+    gen: u64,
+    l: LiveRef,
+    stream: bool,
+    then: Option<String>,
+    folder: String,
+    timeout: f64,
+    started_at: i64,
+    runs: i64,
+    lines: RefCell<Vec<String>>,
+    over: Cell<bool>,
+    release: RefCell<Option<Rc<dyn Fn()>>>,
+    road: Option<Rc<dyn RunRoad>>,
+    road_env: Option<IndexMap<String, String>>,
+}
+
+impl RoadEvents for Rc<CtxInner> {
+    fn line(&self, stream: Stream, text: &str) {
+        let Some(inner) = self.inner.upgrade() else { return };
+        let clean = inner.secrets.scrub(&self.thread, text);
+        {
+            let mut lines = self.lines.borrow_mut();
+            lines.push(clean.clone());
+            if lines.len() > LINES_KEPT {
+                lines.remove(0);
+            }
+        }
+        let current = self.l.borrow().gen == self.gen;
+        if current {
+            inner.deps.on_line(&self.thread, &self.run, &clean, stream);
+        }
+    }
+    fn end(&self, o: RoadEnd) {
+        self.over.set(true);
+        let release = self.release.borrow_mut().take();
+        if let Some(release) = release {
+            release();
+        }
+        command_ended(self, o);
+    }
+}
+
+fn outcome_fields(state: RunState, why: Option<String>, exit: Option<i64>, err: String, json: Option<Value>) -> Map<String, Value> {
+    let mut m = Map::new();
+    m.insert("state".into(), state.as_str().into());
+    if let Some(why) = why {
+        m.insert("why".into(), why.into());
+    }
+    m.insert("exit".into(), exit.map_or(Value::Null, Value::from));
+    m.insert("err".into(), err.into());
+    if let Some(json) = json {
+        m.insert("json".into(), json);
+    }
+    m
+}
+
+fn command_ended(ctx: &Rc<CtxInner>, o: RoadEnd) {
+    let Some(inner) = ctx.inner.upgrade() else { return };
+    if ctx.l.borrow().gen != ctx.gen {
+        return;
+    }
+    ctx.l.borrow_mut().kill = None;
+    let raw = inner.secrets.scrub(&ctx.thread, &o.out);
+    let out = run_output_tail(&raw, RUN_OUTPUT_MAX_CHARS as usize);
+    let err = run_output_tail(&inner.secrets.scrub(&ctx.thread, &o.err), RUN_OUTPUT_MAX_CHARS as usize);
+    let json = if js_trim(&out).is_empty() { None } else { serde_json::from_str::<Value>(&out).ok() };
+    let exit = if o.timed_out { Some(EXEC_DEADLINE_EXIT) } else { o.code };
+    let why = if let Some(error) = &o.error {
+        Some(inner.secrets.scrub(&ctx.thread, error))
+    } else if o.timed_out {
+        Some(format!("timed out after {} s", number_string(ctx.timeout)))
+    } else if exit == Some(0) {
+        None
+    } else if exit.is_none() {
+        Some(format!("ended by {}", o.signal.as_deref().unwrap_or("a signal")))
+    } else {
+        Some(format!("exited with {}", exit.unwrap_or_default()))
+    };
+    let ok = exit == Some(0) && o.error.is_none();
+    if !ok || ctx.then.is_none() {
+        let state = if ok { RunState::Done } else { RunState::Failed };
+        let fields = outcome_fields(state, why, exit, err, json);
+        finish(ctx, &inner, state, fields, out, o.cut);
+        return;
+    }
+    let then = ctx.then.clone().unwrap_or_default();
+    let shaping = match &ctx.road {
+        Some(road) => {
+            let secrets = inner.secrets.clone();
+            let thread = ctx.thread.clone();
+            road.reshape(ReshapeStart {
+                cmd: then,
+                input: raw,
+                cwd: ctx.folder.clone(),
+                env: ctx.road_env.clone().unwrap_or_default(),
+                timeout_s: DEFAULT_TIMEOUT_S as f64,
+                scrub: Rc::new(move |text: &str| secrets.scrub(&thread, text)),
+            })
+        }
+        None => inner.reshape_local(&ctx.thread, &then, &raw, &ctx.folder, DEFAULT_TIMEOUT_S as f64),
+    };
+    ctx.l.borrow_mut().reshaping = Some(shaping.kill.clone());
+    let captured = Captured { out, err: err.clone(), exit, cut: o.cut };
+    let ctx = ctx.clone();
+    let done = shaping.done;
+    spawn_local(async move {
+        let answer = done.await;
+        reshaped(&ctx, captured, answer);
+    });
+}
+
+fn reshaped(ctx: &Rc<CtxInner>, captured: Captured, answer: ReshapeAnswer) {
+    let Some(inner) = ctx.inner.upgrade() else { return };
+    if ctx.l.borrow().gen != ctx.gen {
+        return;
+    }
+    ctx.l.borrow_mut().reshaping = None;
+    let (state, fields) = match answer {
+        ReshapeAnswer::Json(json) => (RunState::Done, outcome_fields(RunState::Done, None, captured.exit, captured.err, Some(json))),
+        ReshapeAnswer::Failed { why, exit, err } => (RunState::Failed, outcome_fields(RunState::Failed, Some(why), exit, err, None)),
+    };
+    finish(ctx, &inner, state, fields, captured.out, captured.cut);
+}
+
+fn finish(ctx: &Rc<CtxInner>, inner: &Rc<RunsInner>, state: RunState, mut fields: Map<String, Value>, out: String, cut: bool) {
+    let ended_at = inner.clock.now();
+    let why = fields.get("why").and_then(Value::as_str).map(str::to_string);
+    if let Some(said) = inner.streak(&ctx.thread, &ctx.run, state, why.as_deref()) {
+        fields.insert("why".into(), said.into());
+    }
+    fields.insert("out".into(), out.into());
+    if ctx.stream {
+        fields.insert("lines".into(), Value::Array(ctx.lines.borrow().iter().map(|l| Value::String(l.clone())).collect()));
+    }
+    fields.insert("startedAt".into(), ctx.started_at.into());
+    fields.insert("endedAt".into(), ended_at.into());
+    fields.insert("ms".into(), (ended_at - ctx.started_at).into());
+    fields.insert("runs".into(), ctx.runs.into());
+    if cut {
+        fields.insert("cut".into(), true.into());
+    }
+    inner.write(&ctx.thread, &ctx.run, &ctx.l, RunRecord(fields));
+    inner.next(&ctx.thread);
+}
+
+fn held_record(why: &str, runs: i64) -> RunRecord {
+    let mut m = Map::new();
+    m.insert("state".into(), "held".into());
+    m.insert("why".into(), why.into());
+    m.insert("runs".into(), runs.into());
+    RunRecord(m)
+}
+
+fn running_in(t: &ThreadRuns) -> usize {
+    t.runs.values().filter(|l| l.borrow().record.state() == Some(RunState::Running)).count()
+}
+
+fn resolve(base: &str, rel: &str) -> String {
+    let joined = if rel.starts_with('/') { rel.to_string() } else { format!("{base}/{rel}") };
+    let mut parts: Vec<&str> = Vec::new();
+    for part in joined.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                parts.pop();
+            }
+            other => parts.push(other),
+        }
+    }
+    format!("/{}", parts.join("/"))
+}
+
+fn interval_ms(every: f64) -> i64 {
+    (every.max(TIMER_FLOOR_S as f64) * 1_000.0) as i64
+}
+
 impl RunsInner {
-    pub(crate) fn live(&self, thread_id: &str, run: &str, last: Option<&RunRecord>) {
-        todo!()
+    fn with_thread<R>(&self, thread_id: &str, f: impl FnOnce(&mut ThreadRuns) -> R) -> R {
+        let mut threads = self.threads.borrow_mut();
+        f(threads.entry(thread_id.to_string()).or_default())
     }
-    pub(crate) fn write(&self, thread_id: &str, run: &str, record: RunRecord) -> RunRecord {
-        todo!()
+
+    fn live_of(&self, thread_id: &str, run: &str) -> Option<LiveRef> {
+        self.threads.borrow().get(thread_id).and_then(|t| t.runs.get(run).cloned())
     }
-    pub(crate) fn login_env(&self, thread_id: &str) -> Result<IndexMap<String, String>, String> {
-        todo!()
+
+    fn live(&self, thread_id: &str, run: &str, last: Option<&RunRecord>) -> LiveRef {
+        self.with_thread(thread_id, |t| t.runs.entry(run.to_string()).or_insert_with(|| Rc::new(RefCell::new(Live::new(last)))).clone())
     }
-    pub(crate) fn running(&self, thread_id: &str) -> usize {
-        todo!()
+
+    fn write(&self, thread_id: &str, run: &str, l: &LiveRef, record: RunRecord) -> RunRecord {
+        {
+            let mut live = l.borrow_mut();
+            let result = if record.state() == Some(RunState::Running) { None } else { last_result(&record) };
+            live.record = record.clone();
+            if let Some(result) = result {
+                live.result = Some(result);
+            }
+        }
+        self.deps.on_record(thread_id, run, record.clone());
+        record
     }
-    pub(crate) fn ask(&self, req: &RunStart) -> RunAsk {
-        todo!()
+
+    fn login_env(&self, thread_id: &str) -> Result<IndexMap<String, String>, String> {
+        let mut env: IndexMap<String, String> = self.deps.env().into_iter().filter(|(name, _)| !name.starts_with("WSP_")).collect();
+        if let Some(dir) = self.deps.dir(thread_id) {
+            match dir {
+                Ok(dir) => {
+                    env.insert("SLATE_DIR".into(), dir);
+                }
+                Err(message) => return Err(files_unwritten(&message)),
+            }
+        }
+        Ok(env)
     }
-    pub(crate) fn streak(&self, thread_id: &str, run: &str, state: super::parts::RunState, why: Option<&str>) -> Option<String> {
-        todo!()
+
+    fn running(&self, thread_id: &str) -> usize {
+        self.threads.borrow().get(thread_id).map_or(0, running_in)
     }
-    pub(crate) fn hold(&self, req: RunStart, why: HeldFor, beside: bool) -> RunStartAnswer {
-        todo!()
+
+    fn shown(&self, thread_id: &str, input: &RunInput) -> String {
+        match input {
+            RunInput::Secret(name) => {
+                if self.secrets.handle(thread_id, name).set {
+                    SECRET_DOTS.to_string()
+                } else {
+                    format!("{SECRET_DOTS} (not filled)")
+                }
+            }
+            RunInput::Value(Value::Null) => "(unset)".to_string(),
+            RunInput::Value(value) => as_text(value),
+        }
     }
-    pub(crate) fn fail(&self, req: &RunStart, why: &str) -> RunStartAnswer {
-        todo!()
+
+    fn ask(&self, req: &RunStart) -> RunAsk {
+        let inputs: RunInputs = (req.inputs)();
+        let env = inputs
+            .env
+            .as_ref()
+            .map_or_else(IndexMap::new, |m| m.iter().map(|(name, input)| (name.clone(), self.shown(&req.thread_id, input))).collect());
+        let args = inputs.args.as_deref().unwrap_or(&[]).iter().map(|input| self.shown(&req.thread_id, input)).collect();
+        let stdin = inputs.stdin.as_ref().map(|input| {
+            let shown = self.shown(&req.thread_id, input);
+            shown.split('\n').next().unwrap_or("").to_string()
+        });
+        RunAsk {
+            run: req.run.clone(),
+            key: run_key(&req.decl),
+            cmd: req.decl.cmd.clone(),
+            env,
+            args,
+            stdin,
+            folder: match &req.decl.cwd {
+                None => req.folder.clone(),
+                Some(cwd) => resolve(&req.folder, cwd),
+            },
+            on: req.decl.on.clone().unwrap_or_else(|| "thread".into()),
+            timeout: JsNumber(timeout_of(&req.decl)),
+            confirm: req.decl.confirm.clone(),
+            then: req.decl.then.clone(),
+            files: req.decl.files.clone(),
+        }
     }
-    pub(crate) fn next(self: &Rc<Self>, thread_id: &str) {
-        todo!()
+
+    fn streak(&self, thread_id: &str, run: &str, state: RunState, why: Option<&str>) -> Option<String> {
+        let now = self.clock.now();
+        let why = why.map(str::to_string);
+        self.with_thread(thread_id, |t| {
+            let Some(timer) = t.timers.get_mut(run) else { return why };
+            if state == RunState::Done {
+                timer.failures = 0;
+            }
+            if state != RunState::Failed {
+                return why;
+            }
+            timer.failures += 1;
+            timer.failed_at = Some(now);
+            if timer.always && timer.failures >= BACKOFF_AFTER {
+                Some(format!("{}; {BACKED_OFF}", why.as_deref().unwrap_or("it failed")))
+            } else {
+                why
+            }
+        })
     }
-    pub(crate) fn launch(self: &Rc<Self>, req: RunStart) -> RunStartAnswer {
-        todo!()
+
+    fn hold(&self, req: RunStart, l: &LiveRef, why: HeldFor, beside: bool) -> RunStartAnswer {
+        let thread = req.thread_id.clone();
+        let run = req.run.clone();
+        l.borrow_mut().held = Some((req.clone(), why));
+        if why == HeldFor::Busy {
+            self.with_thread(&thread, |t| {
+                if !t.queue.contains(&run) {
+                    t.queue.push(run.clone());
+                }
+            });
+        }
+        let asks = why == HeldFor::Approval;
+        if beside {
+            let record = l.borrow().record.clone();
+            let ask = asks.then(|| self.ask(&req));
+            return RunStartAnswer { outcome: Outcome::Held, record, ask };
+        }
+        let text = match why {
+            HeldFor::Approval => HELD_APPROVAL,
+            HeldFor::Busy => HELD_BUSY,
+            HeldFor::Pressed => HELD_PRESSED,
+            HeldFor::Budget => HELD_BUDGET,
+        };
+        let runs = l.borrow().record.runs();
+        let record = self.write(&thread, &run, l, held_record(text, runs));
+        let ask = asks.then(|| self.ask(&req));
+        RunStartAnswer { outcome: Outcome::Held, record, ask }
     }
+
+    fn fail(&self, req: &RunStart, l: &LiveRef, why: &str) -> RunStartAnswer {
+        let ended_at = self.clock.now();
+        let said = self.streak(&req.thread_id, &req.run, RunState::Failed, Some(why)).unwrap_or_else(|| why.to_string());
+        let runs = l.borrow().record.runs();
+        let mut m = Map::new();
+        m.insert("state".into(), "failed".into());
+        m.insert("why".into(), said.into());
+        m.insert("exit".into(), Value::Null);
+        m.insert("runs".into(), runs.into());
+        m.insert("endedAt".into(), ended_at.into());
+        let record = self.write(&req.thread_id, &req.run, l, RunRecord(m));
+        RunStartAnswer { outcome: Outcome::Failed, record, ask: None }
+    }
+
+    fn next(self: &Rc<Self>, thread_id: &str) {
+        loop {
+            let taken: Option<Option<LiveRef>> = self.with_thread(thread_id, |t| {
+                if t.queue.is_empty() || running_in(t) >= RUNNING_MAX {
+                    return None;
+                }
+                let run = t.queue.remove(0);
+                Some(t.runs.get(&run).cloned())
+            });
+            let Some(taken) = taken else { return };
+            let Some(l) = taken else { continue };
+            let req = {
+                let mut live = l.borrow_mut();
+                if !matches!(live.held, Some((_, HeldFor::Busy))) {
+                    continue;
+                }
+                live.held.take().map(|(req, _)| req)
+            };
+            if let Some(req) = req {
+                self.launch(req, &l);
+            }
+        }
+    }
+
+    fn launch(self: &Rc<Self>, req: RunStart, l: &LiveRef) -> RunStartAnswer {
+        let thread = req.thread_id.clone();
+        let run = req.run.clone();
+        let decl = req.decl.clone();
+        if l.borrow().record.state() == Some(RunState::Running) {
+            self.stop(&thread, &run, l, None);
+        }
+        if self.running(&thread) >= RUNNING_MAX {
+            return self.hold(req, l, HeldFor::Busy, false);
+        }
+        let inputs = (req.inputs)();
+        if inputs.args.as_deref().unwrap_or(&[]).iter().any(|input| matches!(input, RunInput::Secret(_))) {
+            return self.fail(&req, l, SLATE_SECRET_IN_ARGS);
+        }
+        let road = self.deps.road(&thread, decl.on.as_deref().unwrap_or("thread"));
+        let road_env = road
+            .as_ref()
+            .map(|road| IndexMap::from([("SLATE_DIR".to_string(), road.slate_dir()), (THREAD_ENV.to_string(), thread.clone())]));
+        let mut env = match &road_env {
+            Some(env) => env.clone(),
+            None => match self.login_env(&thread) {
+                Ok(env) => env,
+                Err(why) => return self.fail(&req, l, &why),
+            },
+        };
+        if let Some(map) = &inputs.env {
+            for (name, input) in map {
+                if !is_env_name(name) {
+                    return self.fail(&req, l, &format!("{name} is not a name an environment variable can have"));
+                }
+                let text = match input {
+                    RunInput::Secret(secret) => self.secrets.plaintext(&thread, secret),
+                    RunInput::Value(Value::Null) => None,
+                    RunInput::Value(value) => Some(as_text(value)),
+                };
+                match text {
+                    None => {
+                        env.shift_remove(name);
+                    }
+                    Some(text) => {
+                        env.insert(name.clone(), text);
+                    }
+                }
+            }
+        }
+        let args: Vec<String> = inputs
+            .args
+            .as_deref()
+            .unwrap_or(&[])
+            .iter()
+            .map(|input| match input {
+                RunInput::Value(value) => as_text(value),
+                RunInput::Secret(_) => String::new(),
+            })
+            .collect();
+        let stdin = inputs.stdin.as_ref().map(|input| match input {
+            RunInput::Secret(secret) => self.secrets.plaintext(&thread, secret).unwrap_or_default(),
+            RunInput::Value(value) => as_text(value),
+        });
+        let cwd = match &decl.cwd {
+            None => req.folder.clone(),
+            Some(cwd) => resolve(&req.folder, cwd),
+        };
+        if road.is_none() && !Path::new(&cwd).is_dir() {
+            return self.fail(&req, l, &format!("the folder {cwd} does not exist"));
+        }
+        let timeout = timeout_of(&decl);
+
+        let gen = {
+            let mut live = l.borrow_mut();
+            live.gen += 1;
+            live.gen
+        };
+        let started_at = self.clock.now();
+        let runs = l.borrow().record.runs() + 1;
+        let running = running_record(l.borrow().result.as_ref(), runs, started_at);
+        let record = self.write(&thread, &run, l, running);
+
+        let ctx = Rc::new(CtxInner {
+            inner: Rc::downgrade(self),
+            thread: thread.clone(),
+            run: run.clone(),
+            gen,
+            l: l.clone(),
+            stream: decl.stream == Some(true),
+            then: decl.then.clone(),
+            folder: cwd.clone(),
+            timeout,
+            started_at,
+            runs,
+            lines: RefCell::new(Vec::new()),
+            over: Cell::new(false),
+            release: RefCell::new(None),
+            road: road.clone(),
+            road_env,
+        });
+        let start = RoadStart { cmd: decl.cmd.clone(), args, cwd, env, stdin, timeout_s: timeout, stream: ctx.stream };
+        let events: Rc<dyn RoadEvents> = Rc::new(ctx.clone());
+        let started = match &road {
+            Some(road) => road.start(start, events),
+            None => self.local.start(start, events),
+        };
+        if !ctx.over.get() {
+            if let Some(pid) = started.pid {
+                let release = self.deps.own(&thread, pid, "slate");
+                *ctx.release.borrow_mut() = release;
+            }
+        }
+        let still_running = l.borrow().gen == gen && l.borrow().record.state() == Some(RunState::Running);
+        if still_running {
+            l.borrow_mut().kill = Some(started.kill.clone());
+        }
+        RunStartAnswer { outcome: Outcome::Running, record, ask: None }
+    }
+
     /// `why` none writes nothing.
-    pub(crate) fn stop(&self, thread_id: &str, run: &str, why: Option<&str>) {
-        todo!()
+    fn stop(&self, thread_id: &str, run: &str, l: &LiveRef, why: Option<&str>) {
+        let (was, kill, reshaping) = {
+            let mut live = l.borrow_mut();
+            let was = live.record.state();
+            live.gen += 1;
+            let kill = live.kill.take();
+            let reshaping = live.reshaping.take();
+            live.held = None;
+            (was, kill, reshaping)
+        };
+        self.with_thread(thread_id, |t| t.queue.retain(|r| r != run));
+        if let Some(kill) = kill {
+            kill();
+        }
+        if let Some(kill) = reshaping {
+            kill();
+        }
+        let Some(why) = why else { return };
+        if was != Some(RunState::Running) && was != Some(RunState::Held) {
+            return;
+        }
+        let ended_at = self.clock.now();
+        let (runs, started_at) = {
+            let live = l.borrow();
+            (live.record.runs(), live.record.started_at())
+        };
+        let mut m = Map::new();
+        m.insert("state".into(), "cancelled".into());
+        m.insert("why".into(), why.into());
+        m.insert("exit".into(), Value::Null);
+        m.insert("runs".into(), runs.into());
+        if let (Some(started), true) = (started_at, was == Some(RunState::Running)) {
+            m.insert("startedAt".into(), started.into());
+            m.insert("ms".into(), (ended_at - started).into());
+        }
+        m.insert("endedAt".into(), ended_at.into());
+        self.write(thread_id, run, l, RunRecord(m));
     }
-    // slate-runs.ts:858
-    //   const tick = (threadId: string): void => {
-    //     const t = thread(threadId);
-    //     for (const [run, timer] of t.timers) {
-    //       const on = timer.always || t.shown;
-    //       if (on && timer.handle === undefined) {
-    //         const fire = (): void => {
-    //           if (timer.always && timer.failures >= BACKOFF_AFTER && timer.failedAt !== undefined && now() - timer.failedAt < BACKOFF_MS) return;
-    //           deps.onTimer?.(threadId, run);
-    //         };
-    //         fire();
-    //         timer.handle = setInterval(fire, Math.max(timer.every, TIMER_FLOOR_S) * 1_000);
-    //         timer.handle.unref();
-    //       } else if (!on && timer.handle !== undefined) {
-    //         clearInterval(timer.handle);
-    //         delete timer.handle;
-    //       }
-    //     }
-    //   };
-    //   const clearTimers = (t: ThreadRuns): void => {
-    //     for (const timer of t.timers.values()) if (timer.handle !== undefined) clearInterval(timer.handle);
-    //     t.timers.clear();
-    //   };
-    pub(crate) fn tick(self: &Rc<Self>, thread_id: &str) {
-        todo!()
+
+    fn arm(self: &Rc<Self>, thread_id: &str, run: &str, ms: i64) -> Cancel {
+        let weak = Rc::downgrade(self);
+        let (thread_id, run) = (thread_id.to_string(), run.to_string());
+        self.clock.schedule(
+            Box::new(move || {
+                if let Some(inner) = weak.upgrade() {
+                    inner.interval(&thread_id, &run, ms);
+                }
+            }),
+            ms,
+        )
+    }
+
+    fn interval(self: &Rc<Self>, thread_id: &str, run: &str, ms: i64) {
+        let armed = self.with_thread(thread_id, |t| t.timers.get(run).is_some_and(|timer| timer.handle.is_some()));
+        if !armed {
+            return;
+        }
+        let handle = self.arm(thread_id, run, ms);
+        let stored = self.with_thread(thread_id, |t| match t.timers.get_mut(run) {
+            Some(timer) if timer.handle.is_some() => {
+                timer.handle = Some(handle.clone());
+                true
+            }
+            _ => false,
+        });
+        if stored {
+            self.fire(thread_id, run);
+        } else {
+            handle();
+        }
+    }
+
+    fn fire(&self, thread_id: &str, run: &str) {
+        let now = self.clock.now();
+        let skip = self.with_thread(thread_id, |t| match t.timers.get(run) {
+            Some(timer) => timer.always && timer.failures >= BACKOFF_AFTER && timer.failed_at.is_some_and(|at| now - at < BACKOFF_MS),
+            None => true,
+        });
+        if !skip {
+            self.deps.on_timer(thread_id, run);
+        }
+    }
+
+    fn tick(self: &Rc<Self>, thread_id: &str) {
+        let (arm, disarm) = self.with_thread(thread_id, |t| {
+            let shown = t.shown;
+            let mut arm = Vec::new();
+            let mut disarm = Vec::new();
+            for (run, timer) in t.timers.iter_mut() {
+                let on = timer.always || shown;
+                if on && timer.handle.is_none() {
+                    arm.push((run.clone(), interval_ms(timer.every)));
+                } else if !on {
+                    if let Some(handle) = timer.handle.take() {
+                        disarm.push(handle);
+                    }
+                }
+            }
+            (arm, disarm)
+        });
+        for handle in disarm {
+            handle();
+        }
+        for (run, ms) in arm {
+            let handle = self.arm(thread_id, &run, ms);
+            let stored = self.with_thread(thread_id, |t| match t.timers.get_mut(&run) {
+                Some(timer) if timer.handle.is_none() => {
+                    timer.handle = Some(handle.clone());
+                    true
+                }
+                _ => false,
+            });
+            if stored {
+                self.fire(thread_id, &run);
+            } else {
+                handle();
+            }
+        }
+    }
+
+    fn reshape_local(&self, thread_id: &str, cmd: &str, input: &str, folder: &str, timeout_s: f64) -> Reshape {
+        let env = match self.login_env(thread_id) {
+            Ok(env) => env,
+            Err(why) => {
+                return Reshape {
+                    done: Box::pin(ready(ReshapeAnswer::Failed { why, exit: None, err: String::new() })),
+                    kill: Rc::new(|| {}),
+                }
+            }
+        };
+        let cwd = if Path::new(folder).exists() {
+            folder.to_string()
+        } else {
+            std::env::current_dir().map(|p| p.display().to_string()).unwrap_or_default()
+        };
+        let secrets = self.secrets.clone();
+        let thread = thread_id.to_string();
+        reshape_result(
+            ReshapeStart {
+                cmd: cmd.to_string(),
+                input: input.to_string(),
+                cwd,
+                env,
+                timeout_s,
+                scrub: Rc::new(move |text: &str| secrets.scrub(&thread, text)),
+            },
+            self.clock.clone(),
+        )
+    }
+
+    fn start(self: &Rc<Self>, req: RunStart) -> RunStartAnswer {
+        let l = self.live(&req.thread_id, &req.run, req.last.as_ref());
+        let thread = req.thread_id.clone();
+        let run = req.run.clone();
+        if req.asleep && req.by == RunBy::Timer {
+            if l.borrow().record.state() == Some(RunState::Running) {
+                let record = l.borrow().record.clone();
+                return RunStartAnswer { outcome: Outcome::Noop, record, ask: None };
+            }
+            l.borrow_mut().held = None;
+            let runs = l.borrow().record.runs();
+            let mut m = l.borrow().result.clone().unwrap_or_default();
+            m.insert("state".into(), "held".into());
+            m.insert("why".into(), HELD_ASLEEP.into());
+            m.insert("runs".into(), runs.into());
+            let record = self.write(&thread, &run, &l, RunRecord(m));
+            return RunStartAnswer { outcome: Outcome::Held, record, ask: None };
+        }
+        let refused = if req.decl.on.as_deref() == Some("host") { self.deps.host_refused(&thread, &run) } else { None };
+        if let Some(why) = refused {
+            return self.fail(&req, &l, &why);
+        }
+        let beside = l.borrow().record.state() == Some(RunState::Running);
+        if beside && req.decl.once == Some(true) {
+            let record = l.borrow().record.clone();
+            return RunStartAnswer { outcome: Outcome::Noop, record, ask: None };
+        }
+        l.borrow_mut().held = None;
+        let person = req.by == RunBy::Person;
+        let now = self.clock.now();
+        let times = {
+            let live = l.borrow();
+            if person {
+                spent(live.pressed.as_deref(), now)
+            } else {
+                spent(Some(live.starts.as_slice()), now)
+            }
+        };
+        let Some(times) = times else {
+            let why = if person { HeldFor::Pressed } else { HeldFor::Budget };
+            return self.hold(req, &l, why, beside);
+        };
+        {
+            let mut live = l.borrow_mut();
+            if person {
+                live.pressed = Some(times);
+            } else {
+                live.starts = times;
+            }
+        }
+        if req.decl.confirm.is_some() || !self.approvals.has(&thread, &run_key(&req.decl)) {
+            return self.hold(req, &l, HeldFor::Approval, beside);
+        }
+        self.launch(req, &l)
+    }
+
+    fn drop_timers(t: ThreadRuns) {
+        for timer in t.timers.into_values() {
+            if let Some(handle) = timer.handle {
+                handle();
+            }
+        }
     }
 }
 
-// slate-runs.ts:881
-//   return {
-//     key,
-//     start(req) {
-//       const l = live(req.threadId, req.run, req.last);
-//       // A tick on a napping box wakes nothing: the run waits with its last result in view, and no done fires.
-//       if (req.asleep === true && req.by === "timer") {
-//         if (l.record.state === "running") return { outcome: "noop", record: l.record };
-//         delete l.held;
-//         return { outcome: "held", record: write(req.threadId, req.run, l, { ...(l.result ?? {}), state: "held", why: HELD_ASLEEP, runs: l.record.runs }) };
-//       }
-//       const refused = req.decl.on === "host" ? deps.hostRefused?.(req.threadId, req.run) : undefined;
-//       if (refused !== undefined) return fail(req, l, refused);
-//       const beside = l.record.state === "running";
-//       if (beside && req.decl.once === true) return { outcome: "noop", record: l.record };
-//       delete l.held;
-//       // The person's starts have a budget of their own: a scripted window pressing fast restarts nothing past it.
-//       const person = req.by === "person";
-//       const times = spent(person ? l.pressed : l.starts, now());
-//       if (times === undefined) return hold(req, l, person ? "pressed" : "budget", beside);
-//       if (person) l.pressed = times;
-//       else l.starts = times;
-//       if (req.decl.confirm !== undefined || !approvals.has(req.threadId, key(req.decl))) return hold(req, l, "approval", beside);
-//       return launch(req, l);
-//     },
-//     approve(threadId, run, scope) {
-//       const l = threads.get(threadId)?.runs.get(run);
-//       if (l?.held?.for !== "approval") return undefined;
-//       const req = l.held.req;
-//       delete l.held;
-//       if (scope === "always") approvals.allow(threadId, key(req.decl));
-//       return launch(req, l);
-//     },
-//     deny(threadId, run) {
-//       const l = threads.get(threadId)?.runs.get(run);
-//       if (l?.held === undefined) return;
-//       // Turning down a new start leaves the instance still running to finish.
-//       if (l.kill !== undefined || l.reshaping !== undefined) {
-//         delete l.held;
-//         thread(threadId).queue = thread(threadId).queue.filter(r => r !== run);
-//         return;
-//       }
-//       stop(threadId, run, l, "you said not to run it");
-//     },
-//     revoke: (threadId, k) => approvals.revoke(threadId, k),
-//     allowed: threadId => approvals.list(threadId),
-//     held(threadId) {
-//       return [...(threads.get(threadId)?.runs.values() ?? [])].flatMap(l => (l.held?.for === "approval" ? [ask(l.held.req)] : []));
-//     },
-//     cancel(threadId, run) {
-//       const l = threads.get(threadId)?.runs.get(run);
-//       if (l === undefined) return;
-//       stop(threadId, run, l, "cancelled");
-//       next(threadId);
-//     },
-//     stopAll(threadId, opts) {
-//       const t = threads.get(threadId);
-//       if (t === undefined) return;
-//       for (const [run, l] of t.runs) stop(threadId, run, l, opts?.quiet === true ? undefined : (opts?.why ?? "cancelled"));
-//     },
-//     timers(threadId, list) {
-//       const t = thread(threadId);
-//       const kept = new Map([...t.timers].filter(([run, was]) => list.some(n => n.run === run && n.key === was.key && n.every === was.every && (n.always === true) === was.always)));
-//       for (const [run, timer] of t.timers) if (!kept.has(run) && timer.handle !== undefined) clearInterval(timer.handle);
-//       t.timers = kept;
-//       for (const timer of list) if (!kept.has(timer.run)) t.timers.set(timer.run, { every: timer.every, key: timer.key, always: timer.always === true, failures: 0 });
-//       tick(threadId);
-//     },
-//     shown(threadId, on) {
-//       const t = thread(threadId);
-//       t.shown = on;
-//       tick(threadId);
-//     },
-//     reshape,
-//     release(threadId) {
-//       for (const l of threads.get(threadId)?.runs.values() ?? []) l.starts = [];
-//     },
-//     secrets: {
-//       set: secrets.set,
-//       clear: secrets.clear,
-//       handle: secrets.handle,
-//       forget: secrets.forget,
-//       scrub: secrets.scrub,
-//       plaintext: secrets.plaintext,
-//     },
-//     drop(threadId, keep = false) {
-//       const t = threads.get(threadId);
-//       if (t !== undefined) {
-//         if (!keep) for (const [run, l] of t.runs) stop(threadId, run, l, undefined);
-//         clearTimers(t);
-//         threads.delete(threadId);
-//       }
-//       for (const k of approvals.list(threadId)) approvals.revoke(threadId, k);
-//       secrets.forget(threadId);
-//     },
-//     close() {
-//       for (const [threadId, t] of threads) {
-//         for (const [run, l] of t.runs) stop(threadId, run, l, undefined);
-//         clearTimers(t);
-//       }
-//       threads.clear();
-//     },
-//   };
 impl SlateRuns for SlateRunsTable {
     fn key(&self, decl: &CmdRunDecl) -> String {
-        todo!()
+        run_key(decl)
     }
     fn start(&self, req: RunStart) -> RunStartAnswer {
-        todo!()
+        self.inner.start(req)
     }
     fn approve(&self, thread_id: &str, run: &str, scope: ApproveScope) -> Option<RunStartAnswer> {
-        todo!()
+        let l = self.inner.live_of(thread_id, run)?;
+        let req = {
+            let mut live = l.borrow_mut();
+            if !matches!(live.held, Some((_, HeldFor::Approval))) {
+                return None;
+            }
+            live.held.take()?.0
+        };
+        if scope == ApproveScope::Always {
+            self.inner.approvals.allow(thread_id, &run_key(&req.decl));
+        }
+        Some(self.inner.launch(req, &l))
     }
     fn deny(&self, thread_id: &str, run: &str) {
-        todo!()
+        let Some(l) = self.inner.live_of(thread_id, run) else { return };
+        let (held, busy) = {
+            let live = l.borrow();
+            (live.held.is_some(), live.kill.is_some() || live.reshaping.is_some())
+        };
+        if !held {
+            return;
+        }
+        if busy {
+            l.borrow_mut().held = None;
+            self.inner.with_thread(thread_id, |t| t.queue.retain(|r| r != run));
+            return;
+        }
+        self.inner.stop(thread_id, run, &l, Some("you said not to run it"));
     }
     fn revoke(&self, thread_id: &str, key: &str) {
-        todo!()
+        self.inner.approvals.revoke(thread_id, key);
     }
     fn allowed(&self, thread_id: &str) -> Vec<String> {
-        todo!()
+        self.inner.approvals.list(thread_id)
     }
     fn held(&self, thread_id: &str) -> Vec<RunAsk> {
-        todo!()
+        let reqs: Vec<RunStart> = self.inner.threads.borrow().get(thread_id).map_or_else(Vec::new, |t| {
+            t.runs
+                .values()
+                .filter_map(|l| {
+                    let live = l.borrow();
+                    match &live.held {
+                        Some((req, HeldFor::Approval)) => Some(req.clone()),
+                        _ => None,
+                    }
+                })
+                .collect()
+        });
+        reqs.iter().map(|req| self.inner.ask(req)).collect()
     }
     fn cancel(&self, thread_id: &str, run: &str) {
-        todo!()
+        let Some(l) = self.inner.live_of(thread_id, run) else { return };
+        self.inner.stop(thread_id, run, &l, Some("cancelled"));
+        self.inner.next(thread_id);
     }
     fn stop_all(&self, thread_id: &str, quiet: bool, why: Option<&str>) {
-        todo!()
+        let runs: Vec<(String, LiveRef)> = {
+            let threads = self.inner.threads.borrow();
+            let Some(t) = threads.get(thread_id) else { return };
+            t.runs.iter().map(|(run, l)| (run.clone(), l.clone())).collect()
+        };
+        for (run, l) in runs {
+            let why = if quiet { None } else { Some(why.unwrap_or("cancelled")) };
+            self.inner.stop(thread_id, &run, &l, why);
+        }
     }
     fn timers(&self, thread_id: &str, list: Vec<TimerDecl>) {
-        todo!()
+        let cancels = self.inner.with_thread(thread_id, |t| {
+            let mut kept: IndexMap<String, Timer> = IndexMap::new();
+            let mut cancels = Vec::new();
+            for (run, was) in std::mem::take(&mut t.timers) {
+                let same = list.iter().any(|n| n.run == run && n.key == was.key && n.every == was.every && n.always == was.always);
+                if same {
+                    kept.insert(run, was);
+                } else if let Some(handle) = was.handle {
+                    cancels.push(handle);
+                }
+            }
+            for timer in &list {
+                kept.entry(timer.run.clone()).or_insert_with(|| Timer {
+                    every: timer.every,
+                    key: timer.key.clone(),
+                    always: timer.always,
+                    handle: None,
+                    failures: 0,
+                    failed_at: None,
+                });
+            }
+            t.timers = kept;
+            cancels
+        });
+        for cancel in cancels {
+            cancel();
+        }
+        self.inner.tick(thread_id);
     }
     fn shown(&self, thread_id: &str, shown: bool) {
-        todo!()
+        self.inner.with_thread(thread_id, |t| t.shown = shown);
+        self.inner.tick(thread_id);
     }
     fn release(&self, thread_id: &str) {
-        todo!()
+        if let Some(t) = self.inner.threads.borrow().get(thread_id) {
+            for l in t.runs.values() {
+                l.borrow_mut().starts.clear();
+            }
+        }
     }
     fn reshape(&self, thread_id: &str, cmd: &str, input: &str, folder: &str, timeout_s: Option<f64>) -> Reshape {
-        todo!()
+        self.inner.reshape_local(thread_id, cmd, input, folder, timeout_s.unwrap_or(DEFAULT_TIMEOUT_S as f64))
     }
     fn secrets(&self) -> Rc<dyn SlateSecrets> {
-        todo!()
+        self.inner.secrets.clone()
     }
     fn drop_thread(&self, thread_id: &str, keep: bool) {
-        todo!()
+        let runs: Option<Vec<(String, LiveRef)>> =
+            self.inner.threads.borrow().get(thread_id).map(|t| t.runs.iter().map(|(run, l)| (run.clone(), l.clone())).collect());
+        if let Some(runs) = runs {
+            if !keep {
+                for (run, l) in runs {
+                    self.inner.stop(thread_id, &run, &l, None);
+                }
+            }
+            let removed = self.inner.threads.borrow_mut().shift_remove(thread_id);
+            if let Some(t) = removed {
+                RunsInner::drop_timers(t);
+            }
+        }
+        for key in self.inner.approvals.list(thread_id) {
+            self.inner.approvals.revoke(thread_id, &key);
+        }
+        self.inner.secrets.forget(thread_id, None);
     }
     fn close(&self) {
-        todo!()
+        let threads: Vec<(String, Vec<(String, LiveRef)>)> = self
+            .inner
+            .threads
+            .borrow()
+            .iter()
+            .map(|(id, t)| (id.clone(), t.runs.iter().map(|(run, l)| (run.clone(), l.clone())).collect()))
+            .collect();
+        for (thread_id, runs) in &threads {
+            for (run, l) in runs {
+                self.inner.stop(thread_id, run, l, None);
+            }
+        }
+        let removed = std::mem::take(&mut *self.inner.threads.borrow_mut());
+        for (_, t) in removed {
+            RunsInner::drop_timers(t);
+        }
     }
 }

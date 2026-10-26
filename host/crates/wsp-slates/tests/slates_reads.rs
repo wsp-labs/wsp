@@ -143,7 +143,15 @@ async fn approve(s: &Rc<dyn Slates>, key: &str, scope: ApprovalScope) -> Result<
 }
 
 fn press_params(version: i64, piece: &str, request_id: &str) -> EventParams {
-    EventParams { thread_id: THREAD.into(), version, piece: piece.into(), event: "press".into(), request_id: request_id.into(), scope: None, row_action: None }
+    EventParams {
+        thread_id: THREAD.into(),
+        version,
+        piece: piece.into(),
+        event: "press".into(),
+        request_id: request_id.into(),
+        scope: None,
+        row_action: None,
+    }
 }
 
 async fn press(s: &Rc<dyn Slates>, piece: &str, request_id: &str) -> Result<SlateEventAnswer, HostError> {
@@ -227,7 +235,7 @@ fn names(items: &[&str]) -> Vec<String> {
 
 fn ask_without_key(ask: &SlateAsk) -> String {
     let mut j = ask.to_json();
-    j.as_object_mut().unwrap().remove("key");
+    j.as_object_mut().unwrap().shift_remove("key");
     serde_json::to_string(&j).unwrap()
 }
 
@@ -314,7 +322,10 @@ fn a_read_puts_the_paths_it_was_asked_for_in_its_text_not_only_its_structured_an
         let rig = rig("wsp-slates-read-text-");
         let s = &rig.slates;
         agent_write(s, TICKER).await;
-        let read = s.read(ReadParams { values: strs(&["$ticks", "$tick.state"]), text: Some(false), ..Default::default() }, Some(&agent())).await.unwrap();
+        let read = s
+            .read(ReadParams { values: strs(&["$ticks", "$tick.state"]), text: Some(false), ..Default::default() }, Some(&agent()))
+            .await
+            .unwrap();
         assert!(read.text.contains("read:\n  $ticks = 0\n  $tick.state = \"held\""), "{}", read.text);
         assert!(!read.text.contains("<slate"));
     });
@@ -345,7 +356,13 @@ fn a_read_asked_for_a_run_or_a_value_without_its_dollar_says_where_it_is_and_one
         let s = &rig.slates;
         agent_write(s, TICKER).await;
         let read = s
-            .read(ReadParams { values: strs(&["tick", "ticks", "spot.json", "time.now", "$ticks", "len(git.changed)"]), ..Default::default() }, Some(&agent()))
+            .read(
+                ReadParams {
+                    values: strs(&["tick", "ticks", "spot.json", "time.now", "$ticks", "len(git.changed)"]),
+                    ..Default::default()
+                },
+                Some(&agent()),
+            )
             .await
             .unwrap();
         let x401: Vec<Value> = read.problems.iter().filter(|p| p.code == "X401").map(|p| serde_json::to_value(p).unwrap()).collect();
@@ -396,7 +413,11 @@ fn a_read_names_each_approval_by_the_run_it_is_for_not_by_its_key() {
         assert_eq!(serde_json::to_value(&read.approvals).unwrap(), json!({"$tick": "allowed"}));
         approve(s, "domain:example.com", ApprovalScope::Thread).await.unwrap();
         let read = s.read(ReadParams::default(), Some(&agent())).await.unwrap();
-        assert_eq!(serde_json::to_value(&read.approvals).unwrap(), json!({"$tick": "allowed", "domain:example.com": "allowed"}), "a key no run declares stays its key");
+        assert_eq!(
+            serde_json::to_value(&read.approvals).unwrap(),
+            json!({"$tick": "allowed", "domain:example.com": "allowed"}),
+            "a key no run declares stays its key"
+        );
     });
 }
 
@@ -463,7 +484,10 @@ fn a_read_s_text_is_the_sketch_then_the_paths_then_a_blank_line_and_the_document
         let rig = rig("wsp-slates-read-shape-");
         let s = &rig.slates;
         agent_write(s, SMALL).await;
-        let bare = s.read(ReadParams { values: strs(&["$n"]), sketch: Some(false), text: Some(false), ..Default::default() }, Some(&agent())).await.unwrap();
+        let bare = s
+            .read(ReadParams { values: strs(&["$n"]), sketch: Some(false), text: Some(false), ..Default::default() }, Some(&agent()))
+            .await
+            .unwrap();
         assert_eq!(bare.text, "slate v1\nread:\n  $n = 1");
         let full = s.read(ReadParams { values: strs(&["$n"]), ..Default::default() }, Some(&agent())).await.unwrap();
         assert!(full.text.contains("  $n = 1\n\n<slate title=\"Small\">"), "{}", full.text);
@@ -493,7 +517,11 @@ fn a_path_s_line_in_the_text_is_cut_at_4000_units_and_its_value_is_whole() {
         let rig = rig("wsp-slates-read-cut-");
         let s = &rig.slates;
         let big = "x".repeat(5_000);
-        agent_write(s, &format!(r##"<slate title="Big"><value name="big" start="{big}" /><column><text id="t">hi</text></column></slate>"##)).await;
+        agent_write(
+            s,
+            &format!(r##"<slate title="Big"><value name="big" start="{big}" /><column><text id="t">hi</text></column></slate>"##),
+        )
+        .await;
         let read = s.read(ReadParams { values: strs(&["$big"]), text: Some(false), ..Default::default() }, Some(&agent())).await.unwrap();
         let line = format!("  $big = \"{}... (5002 characters)", "x".repeat(3_999));
         assert!(read.text.contains(&line), "the line is the first 4,000 units of the JSON, then the total");
@@ -507,10 +535,11 @@ fn a_bound_source_path_with_no_value_reads_r900_data_missing() {
     support::local(async {
         let rig = rig("wsp-slates-read-r900-");
         let s = &rig.slates;
-        agent_write(s, r##"<slate title="Pr"><column><text id="n">{pr.number}</text></column></slate>"##).await;
+        agent_write(s, r##"<slate title="Pr"><column><text id="n">{pr.checks[0].name}</text></column></slate>"##).await;
         let read = s.read(ReadParams::default(), Some(&agent())).await.unwrap();
-        let found: Vec<(String, String, String)> = read.problems.iter().map(|p| (p.code.clone(), p.name.clone(), p.message.clone())).collect();
-        assert_eq!(found, vec![("R900".to_string(), "data-missing".to_string(), "pr.number has no value yet".to_string())]);
+        let found: Vec<(String, String, String)> =
+            read.problems.iter().map(|p| (p.code.clone(), p.name.clone(), p.message.clone())).collect();
+        assert_eq!(found, vec![("R900".to_string(), "data-missing".to_string(), "pr.checks[0].name has no value yet".to_string())]);
     });
 }
 
@@ -598,8 +627,28 @@ fn the_window_s_view_keeps_the_keys_of_the_ts_in_order_and_adds_empty_only_with_
         agent_write(s, SMALL).await;
         let json = view(s).await.to_json();
         let keys: Vec<&str> = json.as_object().unwrap().keys().map(|k| k.as_str()).collect();
-        assert_eq!(keys, ["threadId", "workspaceId", "version", "revision", "document", "values", "comments", "approvals", "asks", "problems", "shownOnce", "canUndo", "updatedAt"]);
-        assert_has(&json, json!({"threadId": THREAD, "workspaceId": WORKSPACE, "version": 1, "revision": 1, "values": {"n": 1}, "comments": [], "approvals": {}, "asks": [], "problems": [], "shownOnce": false, "canUndo": false}));
+        assert_eq!(
+            keys,
+            [
+                "threadId",
+                "workspaceId",
+                "version",
+                "revision",
+                "document",
+                "values",
+                "comments",
+                "approvals",
+                "asks",
+                "problems",
+                "shownOnce",
+                "canUndo",
+                "updatedAt"
+            ]
+        );
+        assert_has(
+            &json,
+            json!({"threadId": THREAD, "workspaceId": WORKSPACE, "version": 1, "revision": 1, "values": {"n": 1}, "comments": [], "approvals": {}, "asks": [], "problems": [], "shownOnce": false, "canUndo": false}),
+        );
         agent_write(s, "<clear />").await;
         let cleared = view(s).await;
         assert_eq!(cleared.empty, Some(SlateEmpty::Cleared));
@@ -655,7 +704,10 @@ fn a_held_command_asks_with_its_env_args_computer_folder_timeout_and_why_in_orde
         let ask = pressed.ask.expect("the sheet");
         assert_eq!(
             ask_without_key(&ask),
-            format!(r#"{{"run":"say","kind":"cmd","cmd":"echo old","env":{{}},"args":[],"computer":"this computer","folder":{},"timeoutS":60,"why":"needs your approval"}}"#, serde_json::to_string(&folder).unwrap())
+            format!(
+                r#"{{"run":"say","kind":"cmd","cmd":"echo old","env":{{}},"args":[],"computer":"this computer","folder":{},"timeoutS":60,"why":"needs your approval"}}"#,
+                serde_json::to_string(&folder).unwrap()
+            )
         );
         rig.host.threads.borrow_mut().get_mut(THREAD).unwrap().computer = Some("Pixel 9".into());
         agent_write(s, r##"<slate title="Say"><run name="say" cmd="echo new" confirm="Say it?" /><column><button id="go" label="Say" onPress={start($say)} /></column></slate>"##).await;
@@ -663,7 +715,10 @@ fn a_held_command_asks_with_its_env_args_computer_folder_timeout_and_why_in_orde
         let ask = again.ask.expect("the sheet");
         assert_eq!(
             ask_without_key(&ask),
-            format!(r#"{{"run":"say","kind":"cmd","cmd":"echo new","env":{{}},"args":[],"computer":"Pixel 9","folder":{},"timeoutS":60,"confirm":"Say it?","why":"needs your approval"}}"#, serde_json::to_string(&folder).unwrap())
+            format!(
+                r#"{{"run":"say","kind":"cmd","cmd":"echo new","env":{{}},"args":[],"computer":"Pixel 9","folder":{},"timeoutS":60,"confirm":"Say it?","why":"needs your approval"}}"#,
+                serde_json::to_string(&folder).unwrap()
+            )
         );
     });
 }
@@ -686,4 +741,31 @@ fn an_edited_script_names_itself_in_the_ask_that_asks_again() {
         assert_eq!(v.asks.len(), 1);
         assert_has(&v.asks[0].to_json(), json!({"run": "deploy", "why": "deploy.sh changed since you allowed it, so it asks again"}));
     });
+}
+
+// wire.ts:220-236 and 246-253: the answers' JSON, keys in the order slates.ts writes them
+#[test]
+fn the_read_and_event_answers_write_their_keys_in_the_tses_order() {
+    use wsp_slates::pending::wire::{SlateEventAnswer, SlateEventOutcome};
+    let read = wsp_slates::pending::wire::SlateReadAnswer {
+        version: 3,
+        text: "slate v3".into(),
+        document: Some(None),
+        values: Default::default(),
+        state: Default::default(),
+        derived: Default::default(),
+        runs: Default::default(),
+        problems: vec![],
+        waiting: vec![],
+        comments: vec![],
+        approvals: Default::default(),
+    };
+    let keys = |v: &Value| v.as_object().unwrap().keys().cloned().collect::<Vec<_>>();
+    assert_eq!(
+        keys(&read.to_json()),
+        ["version", "text", "document", "values", "state", "derived", "runs", "problems", "waiting", "comments", "approvals"]
+    );
+    assert_eq!(read.to_json()["document"], Value::Null);
+    let event = SlateEventAnswer { outcome: SlateEventOutcome::Started, said: "Sent".into(), turn_id: Some("t1".into()), ask: None };
+    assert_eq!(event.to_json().to_string(), r#"{"outcome":"started","said":"Sent","turnId":"t1"}"#);
 }
