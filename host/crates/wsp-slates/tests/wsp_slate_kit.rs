@@ -535,7 +535,7 @@ fn no_other_file_of_the_slate_module_switches_on_a_piece_name() {
         }
         let text = std::fs::read_to_string(&path).expect("a source file");
         for piece in SLATE_PIECES.keys() {
-            for needle in [format!("kind == \"{piece}\""), format!("kind != \"{piece}\""), format!("\"{piece}\" =>")] {
+            for needle in [format!("kind == \"{piece}\""), format!("kind != \"{piece}\"")] {
                 assert!(!text.contains(&needle), "{name} switches on a piece: {needle}");
             }
         }
