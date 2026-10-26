@@ -461,7 +461,7 @@ pub struct KeptProcess {
     pub scope_device_id: Option<String>,
     pub waiting: Rc<std::cell::Cell<bool>>,
     pub file: Option<SessionFileStamp>,
-    pub box_file: Option<futures::future::Shared<futures::future::LocalBoxFuture<'static, Option<u64>>>>,
+    pub box_file: Option<futures::future::Shared<futures::future::LocalBoxFuture<'static, Option<i64>>>>,
     pub used_at: JsNumber,
     pub cancel: Box<dyn FnOnce()>,
 }
