@@ -19,7 +19,9 @@ const CHILD: &str = "019fcfd6-2883-77e0-9013-4410ede70371";
 const CHILD_TURN: &str = "019fcfd6-28bf-7e00-a873-4554526dc845";
 
 fn thread_answer() -> String {
-    format!(r#"{{"id":"wsp-thread","result":{{"thread":{{"id":"{THREAD}","model":"gpt-5.6-sol","cwd":"/root/app","turns":[]}},"model":"gpt-5.6-sol","cwd":"/root/app"}}}}"#)
+    format!(
+        r#"{{"id":"wsp-thread","result":{{"thread":{{"id":"{THREAD}","model":"gpt-5.6-sol","cwd":"/root/app","turns":[]}},"model":"gpt-5.6-sol","cwd":"/root/app"}}}}"#
+    )
 }
 fn turn_started() -> String {
     format!(r#"{{"method":"turn/started","params":{{"threadId":"{THREAD}","turn":{{"id":"{TURN}","items":[],"status":"inProgress"}}}}}}"#)
@@ -29,11 +31,18 @@ fn completed(status: &str) -> String {
 }
 fn command(phase: &str, id: &str) -> String {
     let status = if phase == "started" { "inProgress" } else { "completed" };
-    format!(r#"{{"method":"item/{phase}","params":{{"item":{{"type":"commandExecution","id":"{id}","command":"/bin/zsh -lc 'sleep 60'","status":"{status}"}},"threadId":"{THREAD}","turnId":"{TURN}"}}}}"#)
+    format!(
+        r#"{{"method":"item/{phase}","params":{{"item":{{"type":"commandExecution","id":"{id}","command":"/bin/zsh -lc 'sleep 60'","status":"{status}"}},"threadId":"{THREAD}","turnId":"{TURN}"}}}}"#
+    )
 }
 
 fn adapter(launch: &Launch) -> CodexAdapter {
-    create_codex_adapter(CodexAdapterDeps { interrupt_grace_ms: Some(15), result_exit_ms: Some(15), ..CodexAdapterDeps::new(launch.factory(), "/root/.codex", "codex login --device-auth") }).unwrap()
+    create_codex_adapter(CodexAdapterDeps {
+        interrupt_grace_ms: Some(15),
+        result_exit_ms: Some(15),
+        ..CodexAdapterDeps::new(launch.factory(), "/root/.codex", "codex login --device-auth")
+    })
+    .unwrap()
 }
 
 fn start(adapter: &CodexAdapter, prompt: &str, keep: bool, events: &Events) -> wsp_adapters::codex::CodexSession {
@@ -77,7 +86,10 @@ async fn a_kept_turn_that_leaves_a_command_running_holds_the_thread_and_lets_it_
     w.push1(command("completed", "cmd_bg"));
     until(|| w.wrote("thread/unsubscribe")).await;
     let unsubscribe = w.written_method("thread/unsubscribe");
-    assert_eq!(unsubscribe, vec![serde_json::json!({"id": "wsp-unsubscribe", "method": "thread/unsubscribe", "params": {"threadId": THREAD}})]);
+    assert_eq!(
+        unsubscribe,
+        vec![serde_json::json!({"id": "wsp-unsubscribe", "method": "thread/unsubscribe", "params": {"threadId": THREAD}})]
+    );
     assert!(!(kept.working)());
 }
 
@@ -154,7 +166,9 @@ async fn a_turn_joins_the_registry_under_its_local_id_and_a_side_question_never_
     let answer = a.aside(AsideQuestion { session: THREAD.into(), question: "where?".into(), ..Default::default() }).await.unwrap();
     assert_eq!(answer.text, "ok");
     assert!(a.sessions().is_empty(), "a side question joins no registry");
-    let session = a.start(HarnessStartOptions { prompt: "go".into(), resume: Some(THREAD.into()), on_event: Some(no_events()), ..Default::default() }).unwrap();
+    let session = a
+        .start(HarnessStartOptions { prompt: "go".into(), resume: Some(THREAD.into()), on_event: Some(no_events()), ..Default::default() })
+        .unwrap();
     let _ = session.finished().await;
     assert_eq!(a.sessions().keys().cloned().collect::<Vec<_>>(), vec![THREAD.to_string()]);
 }
@@ -184,7 +198,8 @@ async fn notes_said_before_the_thread_is_announced_follow_its_session_start_in_o
     let _ = session.finished().await;
     let all = events.all();
     assert!(matches!(&all[0], AdapterEvent::SessionStart { session_id, .. } if session_id == THREAD));
-    let notes: Vec<(String, String)> = events.deltas().into_iter().filter(|d| d.kind == DeltaKind::Note).map(|d| (d.session_id, d.text)).collect();
+    let notes: Vec<(String, String)> =
+        events.deltas().into_iter().filter(|d| d.kind == DeltaKind::Note).map(|d| (d.session_id, d.text)).collect();
     assert_eq!(notes, vec![(THREAD.to_string(), "first warning".to_string()), (THREAD.to_string(), "second warning".to_string())]);
     assert_eq!(events.kinds()[1..3], ["delta:note".to_string(), "delta:note".to_string()]);
 }
@@ -197,7 +212,8 @@ async fn steers_and_interrupts_are_numbered_off_one_counter() {
 async fn steers_and_interrupts_are_numbered_off_one_counter_body() {
     // spec rule 17; adapter.ts:604, 1137, 1157.
     let launch = launcher(scripted_server(WireOpts {
-        on_write: Some(Arc::new(|m: &Value, w: &Wire| match method_of(m).as_str() {
+        on_write: Some(Arc::new(|m: &Value, w: &Wire| {
+            match method_of(m).as_str() {
             "thread/start" => w.push(&[thread_answer()]),
             "turn/start" => w.push(&[
                 turn_started(),
@@ -205,6 +221,7 @@ async fn steers_and_interrupts_are_numbered_off_one_counter_body() {
             ]),
             "turn/steer" | "turn/interrupt" => w.push(&[format!(r#"{{"id":{},"result":{{}}}}"#, m["id"])]),
             _ => {}
+        }
         })),
         ..Default::default()
     }));
@@ -215,7 +232,12 @@ async fn steers_and_interrupts_are_numbered_off_one_counter_body() {
     assert_eq!(session.stop_task(CHILD.into()).await, TaskStop::Accepted);
     assert_eq!(session.steer("two".into()).await, wsp_adapters::port::SteerOutcome::Accepted);
     let w = launch.wire(0);
-    let ids: Vec<String> = w.written().iter().filter(|m| matches!(method_of(m).as_str(), "turn/steer" | "turn/interrupt")).map(|m| m["id"].as_str().unwrap_or("").to_string()).collect();
+    let ids: Vec<String> = w
+        .written()
+        .iter()
+        .filter(|m| matches!(method_of(m).as_str(), "turn/steer" | "turn/interrupt"))
+        .map(|m| m["id"].as_str().unwrap_or("").to_string())
+        .collect();
     assert_eq!(ids, vec!["wsp-steer-1", "wsp-interrupt-2", "wsp-steer-3"]);
     w.push(&[completed("completed")]);
     w.exit(Some(0));
@@ -239,7 +261,17 @@ async fn a_kept_servers_next_turn_resumes_the_thread_with_the_first_turns_option
         ..Default::default()
     }));
     let a = adapter(&launch);
-    let first = a.start(HarnessStartOptions { prompt: "one".into(), keep: true, cwd: Some("/root/app".into()), model: Some("gpt-5.5".into()), permission_mode: Some("workspace-write".into()), on_event: Some(no_events()), ..Default::default() }).unwrap();
+    let first = a
+        .start(HarnessStartOptions {
+            prompt: "one".into(),
+            keep: true,
+            cwd: Some("/root/app".into()),
+            model: Some("gpt-5.5".into()),
+            permission_mode: Some("workspace-write".into()),
+            on_event: Some(no_events()),
+            ..Default::default()
+        })
+        .unwrap();
     let _ = first.finished().await;
     let w = launch.wire(0);
     until(|| w.wrote("thread/unsubscribe")).await;
@@ -248,7 +280,10 @@ async fn a_kept_servers_next_turn_resumes_the_thread_with_the_first_turns_option
     let second = (kept.next)(KeptTurn { prompt: "two".into(), images: vec![], after: None, on_event: no_events() }).unwrap();
     assert_eq!(second.finished().await.status, TurnStatus::Completed);
     let after: Vec<Value> = w.written()[before..].to_vec();
-    assert_eq!(after[0], serde_json::json!({"id": "wsp-thread", "method": "thread/resume", "params": {"threadId": THREAD, "excludeTurns": true, "cwd": "/root/app", "model": "gpt-5.5", "sandbox": "workspace-write", "approvalPolicy": "on-request"}}));
+    assert_eq!(
+        after[0],
+        serde_json::json!({"id": "wsp-thread", "method": "thread/resume", "params": {"threadId": THREAD, "excludeTurns": true, "cwd": "/root/app", "model": "gpt-5.5", "sandbox": "workspace-write", "approvalPolicy": "on-request"}})
+    );
     assert_eq!(method_of(&after[1]), "turn/start");
     assert_eq!(after[1]["params"]["input"][0]["text"], "two");
     assert_eq!(second.local_id(), THREAD, "keyed as a cold resume of the thread is, by the thread id");

@@ -324,7 +324,7 @@ pub fn place_setting_dropped(settings: &PlaceSettings, word: &PlaceSettingWord) 
                     PlaceSettingWord::MaxMachines => spawn.max_machines = None,
                     _ => spawn.max_depth = None,
                 }
-                (spawn.spawn.is_some() || spawn.max_machines.is_some() || spawn.max_depth.is_some()).then_some(spawn)
+                (spawn.max_machines.is_some() || spawn.max_depth.is_some()).then_some(spawn)
             });
         }
     }
@@ -778,8 +778,8 @@ struct SettingSaid {
 fn kind_keys(kind: &PlaceKind) -> &'static [PlaceSettingWord] {
     use PlaceSettingWord::*;
     match kind {
-        PlaceKind::Computer => &[Threads, Nap, TurnLimit, Spawn, MaxDepth],
-        PlaceKind::Provider => &[Machines, Spend, Size, DeleteAfter, Nap, TurnLimit, Spawn, MaxDepth],
+        PlaceKind::Computer => &[Threads, Nap, TurnLimit, MaxMachines, MaxDepth],
+        PlaceKind::Provider => &[Machines, Spend, Size, DeleteAfter, Nap, TurnLimit, MaxMachines, MaxDepth],
     }
 }
 

@@ -40,7 +40,10 @@ mod the_lines_wsp_writes_to_codex_app_server {
             parsed(&rate_limits_read_line(false)),
             json!({ "id": REQUEST::RATE_LIMITS, "method": "account/rateLimits/read", "params": { "excludeResetCreditDetails": true } })
         );
-        assert_eq!(parsed(&rate_limits_read_line(true)), json!({ "id": REQUEST::RATE_LIMITS, "method": "account/rateLimits/read", "params": {} }));
+        assert_eq!(
+            parsed(&rate_limits_read_line(true)),
+            json!({ "id": REQUEST::RATE_LIMITS, "method": "account/rateLimits/read", "params": {} })
+        );
     }
 
     #[test]
@@ -76,7 +79,8 @@ mod the_lines_wsp_writes_to_codex_app_server {
 
     #[test]
     fn resumes_a_thread_by_the_id_the_server_announced_with_the_same_picks() {
-        let line = thread_resume_line(&options(AccessParams { sandbox: Sandbox::ReadOnly, approval_policy: ApprovalPolicy::OnRequest }), THREAD);
+        let line =
+            thread_resume_line(&options(AccessParams { sandbox: Sandbox::ReadOnly, approval_policy: ApprovalPolicy::OnRequest }), THREAD);
         assert_eq!(
             parsed(&line),
             json!({ "id": REQUEST::THREAD, "method": "thread/resume", "params": { "threadId": THREAD, "excludeTurns": true, "sandbox": "read-only", "approvalPolicy": "on-request" } })
@@ -131,8 +135,14 @@ mod the_lines_wsp_writes_to_codex_app_server {
 
     #[test]
     fn answers_an_approval_with_accept_or_decline_alone_under_the_id_the_server_asked() {
-        assert_eq!(parsed(&decision_line(&RequestId::Num(Number::from(0u64)), Decision::Accept)), json!({ "id": 0, "result": { "decision": "accept" } }));
-        assert_eq!(parsed(&decision_line(&RequestId::Str("req-7".into()), Decision::Decline)), json!({ "id": "req-7", "result": { "decision": "decline" } }));
+        assert_eq!(
+            parsed(&decision_line(&RequestId::Num(Number::from(0u64)), Decision::Accept)),
+            json!({ "id": 0, "result": { "decision": "accept" } })
+        );
+        assert_eq!(
+            parsed(&decision_line(&RequestId::Str("req-7".into()), Decision::Decline)),
+            json!({ "id": "req-7", "result": { "decision": "decline" } })
+        );
     }
 
     #[test]
@@ -197,7 +207,11 @@ mod read_message_cases {
     fn a_lone_surrogate_escape_reads_as_the_replacement_character_and_the_line_still_reads() {
         assert_eq!(
             read_message(r#"{"method":"warning","params":{"message":"a\ud800b","pair":"\ud83d\ude00"}}"#),
-            Some(RpcMessage::Notification { method: "warning".into(), params: params(json!({ "message": "a\u{FFFD}b", "pair": "\u{1F600}" })), emitted_at_ms: None })
+            Some(RpcMessage::Notification {
+                method: "warning".into(),
+                params: params(json!({ "message": "a\u{FFFD}b", "pair": "\u{1F600}" })),
+                emitted_at_ms: None
+            })
         );
     }
 }
@@ -270,12 +284,21 @@ mod shell_script_of_cases {
 mod key_order_as_written {
     use super::*;
     use indexmap::IndexMap;
-    use wsp_adapters::codex::rpc::{decision_line, initialize_line, thread_copy_line, thread_fork_line, thread_resume_line, thread_turns_list_line, Decision, RequestId, ServiceTier, ThreadOptions};
+    use wsp_adapters::codex::rpc::{
+        decision_line, initialize_line, thread_copy_line, thread_fork_line, thread_resume_line, thread_turns_list_line, Decision,
+        RequestId, ServiceTier, ThreadOptions,
+    };
 
     fn full() -> ThreadOptions {
         let mut config = IndexMap::new();
         config.insert("mcp_servers.docs.env.TOKEN".to_string(), "x".to_string());
-        ThreadOptions { cwd: Some("/w".into()), model: Some("gpt-5.5".into()), service_tier: Some(ServiceTier::Fast), access: AccessParams { sandbox: Sandbox::WorkspaceWrite, approval_policy: ApprovalPolicy::OnRequest }, config: Some(config) }
+        ThreadOptions {
+            cwd: Some("/w".into()),
+            model: Some("gpt-5.5".into()),
+            service_tier: Some(ServiceTier::Fast),
+            access: AccessParams { sandbox: Sandbox::WorkspaceWrite, approval_policy: ApprovalPolicy::OnRequest },
+            config: Some(config),
+        }
     }
 
     #[test]
@@ -305,8 +328,14 @@ mod key_order_as_written {
 
     #[test]
     fn the_turns_page_writes_a_null_cursor_and_initialize_names_wsp_three_ways() {
-        assert_eq!(thread_turns_list_line("t1", None, 3), r#"{"id":"wsp-turns","method":"thread/turns/list","params":{"threadId":"t1","cursor":null,"limit":3,"sortDirection":"desc","itemsView":"summary"}}"#);
-        assert_eq!(initialize_line(), r#"{"id":"wsp-initialize","method":"initialize","params":{"clientInfo":{"name":"wsp","title":"wsp","version":"1"}}}"#);
+        assert_eq!(
+            thread_turns_list_line("t1", None, 3),
+            r#"{"id":"wsp-turns","method":"thread/turns/list","params":{"threadId":"t1","cursor":null,"limit":3,"sortDirection":"desc","itemsView":"summary"}}"#
+        );
+        assert_eq!(
+            initialize_line(),
+            r#"{"id":"wsp-initialize","method":"initialize","params":{"clientInfo":{"name":"wsp","title":"wsp","version":"1"}}}"#
+        );
     }
 
     #[test]
@@ -336,9 +365,21 @@ mod rules_added {
     #[test]
     fn an_empty_string_is_a_value_and_is_written_only_an_absent_field_is_left_out() {
         // RP3; rpc.ts:17 (`!== undefined`), 75, 99.
-        let o = ThreadOptions { cwd: Some(String::new()), model: Some(String::new()), service_tier: None, access: workspace(), config: Some(Default::default()) };
-        assert_eq!(thread_start_line(&o), r#"{"id":"wsp-thread","method":"thread/start","params":{"cwd":"","model":"","sandbox":"workspace-write","approvalPolicy":"on-request"}}"#);
-        assert_eq!(turn_start_line("T", "x", &[], Some("")), r#"{"id":"wsp-turn","method":"turn/start","params":{"threadId":"T","input":[{"type":"text","text":"x"}],"effort":""}}"#);
+        let o = ThreadOptions {
+            cwd: Some(String::new()),
+            model: Some(String::new()),
+            service_tier: None,
+            access: workspace(),
+            config: Some(Default::default()),
+        };
+        assert_eq!(
+            thread_start_line(&o),
+            r#"{"id":"wsp-thread","method":"thread/start","params":{"cwd":"","model":"","sandbox":"workspace-write","approvalPolicy":"on-request"}}"#
+        );
+        assert_eq!(
+            turn_start_line("T", "x", &[], Some("")),
+            r#"{"id":"wsp-turn","method":"turn/start","params":{"threadId":"T","input":[{"type":"text","text":"x"}],"effort":""}}"#
+        );
         assert_eq!(
             thread_copy_line(&options(workspace()), "T", Some("")),
             r#"{"id":"wsp-thread","method":"thread/fork","params":{"threadId":"T","lastTurnId":"","ephemeral":false,"excludeTurns":true,"sandbox":"workspace-write","approvalPolicy":"on-request"}}"#
@@ -349,11 +390,16 @@ mod rules_added {
     fn a_numeric_id_is_echoed_and_named_as_the_js_number_not_as_its_source_text() {
         // RP4; rpc.ts:122-129, adapter.ts:869 (`String(id)`).
         for (raw, js) in [("1.0", "1"), ("1e2", "100"), ("-0", "0"), ("7", "7")] {
-            let Some(RpcMessage::Request { id, .. }) = read_message(&format!(r#"{{"id":{raw},"method":"item/commandExecution/requestApproval","params":{{}}}}"#)) else {
+            let Some(RpcMessage::Request { id, .. }) =
+                read_message(&format!(r#"{{"id":{raw},"method":"item/commandExecution/requestApproval","params":{{}}}}"#))
+            else {
                 panic!("{raw} reads as a request");
             };
             assert_eq!(decision_line(&id, Decision::Accept), format!(r#"{{"id":{js},"result":{{"decision":"accept"}}}}"#));
-            assert_eq!(refuse_request_line(&id, "x"), format!(r#"{{"id":{js},"error":{{"code":-32601,"message":"wsp does not answer x"}}}}"#));
+            assert_eq!(
+                refuse_request_line(&id, "x"),
+                format!(r#"{{"id":{js},"error":{{"code":-32601,"message":"wsp does not answer x"}}}}"#)
+            );
             assert_eq!(id.js_string(), js);
         }
     }
@@ -364,20 +410,36 @@ mod rules_added {
         // notification; an error object beats a result; an id that is neither string nor number makes a notification
         // where there is a method and nothing where there is not.
         let n = |v: i64| RequestId::Num(Number::from(v));
-        let note = |method: &str, emitted: Option<f64>| Some(RpcMessage::Notification { method: method.into(), params: Map::new(), emitted_at_ms: emitted });
+        let note = |method: &str, emitted: Option<f64>| {
+            Some(RpcMessage::Notification { method: method.into(), params: Map::new(), emitted_at_ms: emitted })
+        };
         assert_eq!(read_message(r#"{"method":5,"id":1,"result":1}"#), Some(RpcMessage::Response { id: n(1), result: json!(1) }));
-        assert_eq!(read_message(r#"{"method":null,"id":"a","result":1}"#), Some(RpcMessage::Response { id: RequestId::Str("a".into()), result: json!(1) }));
+        assert_eq!(
+            read_message(r#"{"method":null,"id":"a","result":1}"#),
+            Some(RpcMessage::Response { id: RequestId::Str("a".into()), result: json!(1) })
+        );
         assert_eq!(read_message(r#"{"method":""}"#), note("", None));
-        assert_eq!(read_message(r#"{"method":"m","id":1,"emittedAtMs":5}"#), Some(RpcMessage::Request { id: n(1), method: "m".into(), params: Map::new() }));
+        assert_eq!(
+            read_message(r#"{"method":"m","id":1,"emittedAtMs":5}"#),
+            Some(RpcMessage::Request { id: n(1), method: "m".into(), params: Map::new() })
+        );
         assert_eq!(read_message(r#"{"method":"m","emittedAtMs":-1.5}"#), note("m", Some(-1.5)));
         assert_eq!(read_message(r#"{"id":1,"error":null,"result":2}"#), Some(RpcMessage::Response { id: n(1), result: json!(2) }));
-        assert_eq!(read_message(r#"{"id":1,"error":{"code":1,"message":"m"},"result":3}"#), Some(RpcMessage::Error { id: n(1), message: "m".into() }));
-        assert_eq!(read_message(r#"{"id":1,"error":{}}"#), Some(RpcMessage::Error { id: n(1), message: "codex refused the request without saying why".into() }));
+        assert_eq!(
+            read_message(r#"{"id":1,"error":{"code":1,"message":"m"},"result":3}"#),
+            Some(RpcMessage::Error { id: n(1), message: "m".into() })
+        );
+        assert_eq!(
+            read_message(r#"{"id":1,"error":{}}"#),
+            Some(RpcMessage::Error { id: n(1), message: "codex refused the request without saying why".into() })
+        );
         assert_eq!(read_message(r#"{"id":1,"error":{"message":""}}"#), Some(RpcMessage::Error { id: n(1), message: String::new() }));
         assert_eq!(read_message(r#"{"id":true,"method":"m"}"#), note("m", None));
         assert_eq!(read_message(r#"{"method":"m","params":[1]}"#), note("m", None));
         assert_eq!(read_message("\u{FEFF}{\"method\":\"m\"}\r"), note("m", None));
-        for none in [r#"{"id":true,"result":1}"#, "\u{0085}{\"method\":\"m\"}", r#"{"id":1}"#, r#"{"id":1,"error":"boom"}"#, r#"{"a":1} {"b":2}"#] {
+        for none in
+            [r#"{"id":true,"result":1}"#, "\u{0085}{\"method\":\"m\"}", r#"{"id":1}"#, r#"{"id":1,"error":"boom"}"#, r#"{"a":1} {"b":2}"#]
+        {
             assert_eq!(read_message(none), None, "{none:?}");
         }
     }

@@ -156,7 +156,7 @@ fn launch(broker: &CodexBroker, env: &[(&str, &str)]) -> Launched {
         cwd: Some(dir.s()),
         broker: Some(broker.clone()),
         launch: Some(program_launch(&program)),
-       
+
         ..Default::default()
     };
     let command = build_command(&options, now_ms()).unwrap();
@@ -275,7 +275,9 @@ mod build_env_cases {
     // and what a provider a person configured with env_key reads. A turn that got no key is set neither.
     #[test]
     fn sets_the_api_key_the_vault_handed_it_under_both_names_and_neither_when_it_handed() {
-        let env = build_env(&CodexEnvOptions { home: "/root/.codex".into(), api_key: Some("sk-x-fake-openai".into()), ..Default::default() }).unwrap();
+        let env =
+            build_env(&CodexEnvOptions { home: "/root/.codex".into(), api_key: Some("sk-x-fake-openai".into()), ..Default::default() })
+                .unwrap();
         assert_eq!(env.get("CODEX_API_KEY").map(String::as_str), Some("sk-x-fake-openai"));
         assert_eq!(env.get("OPENAI_API_KEY").map(String::as_str), Some("sk-x-fake-openai"));
         let none = build_env(&CodexEnvOptions { home: "/root/.codex".into(), ..Default::default() }).unwrap();
@@ -354,7 +356,10 @@ mod build_command_cases {
         assert!(command.contains(&format!("-c mcp_servers.wsp.disabled_tools='{slate}'")), "{command}");
         assert!(command.contains(r#"-c mcp_servers.wsp_slate.command='"/opt/wsp/bin/wsp"'"#), "{command}");
         assert!(command.contains(r#"-c mcp_servers.wsp_slate.args='["mcp"]'"#), "{command}");
-        assert!(command.contains(&format!("-c mcp_servers.wsp_slate.env_vars='{}'", serde_json::to_string(LAUNCH_ENV).unwrap())), "{command}");
+        assert!(
+            command.contains(&format!("-c mcp_servers.wsp_slate.env_vars='{}'", serde_json::to_string(LAUNCH_ENV).unwrap())),
+            "{command}"
+        );
         assert!(command.contains(&format!("-c mcp_servers.wsp_slate.enabled_tools='{slate}'")), "{command}");
         assert!(command.contains(r#"-c mcp_servers.wsp_slate.omit_tools_from='["deferred"]'"#), "{command}");
         let docs = build(BuildCommandOptions { mcp_servers: servers(&[("docs", spec("npx", &[]))]), ..turn_options() });
@@ -385,7 +390,8 @@ mod build_command_cases {
 
     #[test]
     fn refuses_a_server_name_that_is_not_one_plain_word_of_a_config_key() {
-        let err = build_command(&BuildCommandOptions { mcp_servers: servers(&[("a.b", spec("x", &[]))]), ..turn_options() }, NOW).unwrap_err();
+        let err =
+            build_command(&BuildCommandOptions { mcp_servers: servers(&[("a.b", spec("x", &[]))]), ..turn_options() }, NOW).unwrap_err();
         assert!(err.contains("server name"), "{err}");
     }
 
@@ -417,7 +423,11 @@ mod build_command_cases {
             ran.stdout.trim().split('\n').map(String::from).collect()
         };
         let off = |w: &[String]| -> Vec<String> {
-            w.iter().enumerate().filter(|(i, word)| *i > 0 && w[i - 1] == "-c" && word.ends_with(".enabled=false")).map(|(_, word)| word.clone()).collect()
+            w.iter()
+                .enumerate()
+                .filter(|(i, word)| *i > 0 && w[i - 1] == "-c" && word.ends_with(".enabled=false"))
+                .map(|(_, word)| word.clone())
+                .collect()
         };
         let named = words(Some(strs(&["cloudflare", "posthog", "gone", "a.b"])));
         assert_eq!(off(&named), strs(&["mcp_servers.cloudflare.enabled=false", "mcp_servers.posthog.enabled=false"]));
@@ -437,14 +447,26 @@ mod access_params_cases {
 
     #[test]
     fn the_two_sandboxed_modes_keep_their_sandbox_and_ask_the_person_when_the_agent_wan() {
-        assert_eq!(access_params(Some("read-only")).unwrap(), AccessParams { sandbox: Sandbox::ReadOnly, approval_policy: ApprovalPolicy::OnRequest });
-        assert_eq!(access_params(Some("workspace-write")).unwrap(), AccessParams { sandbox: Sandbox::WorkspaceWrite, approval_policy: ApprovalPolicy::OnRequest });
+        assert_eq!(
+            access_params(Some("read-only")).unwrap(),
+            AccessParams { sandbox: Sandbox::ReadOnly, approval_policy: ApprovalPolicy::OnRequest }
+        );
+        assert_eq!(
+            access_params(Some("workspace-write")).unwrap(),
+            AccessParams { sandbox: Sandbox::WorkspaceWrite, approval_policy: ApprovalPolicy::OnRequest }
+        );
     }
 
     #[test]
     fn full_access_and_a_turn_that_names_no_mode_runs_with_no_sandbox_and_asks_nobody() {
-        assert_eq!(access_params(Some("danger-full-access")).unwrap(), AccessParams { sandbox: Sandbox::DangerFullAccess, approval_policy: ApprovalPolicy::Never });
-        assert_eq!(access_params(None).unwrap(), AccessParams { sandbox: Sandbox::DangerFullAccess, approval_policy: ApprovalPolicy::Never });
+        assert_eq!(
+            access_params(Some("danger-full-access")).unwrap(),
+            AccessParams { sandbox: Sandbox::DangerFullAccess, approval_policy: ApprovalPolicy::Never }
+        );
+        assert_eq!(
+            access_params(None).unwrap(),
+            AccessParams { sandbox: Sandbox::DangerFullAccess, approval_policy: ApprovalPolicy::Never }
+        );
     }
 
     #[test]
@@ -480,7 +502,8 @@ mod a_person_s_setup_for_codex_on_a_computer {
     fn runs_the_program_in_place_of_codex_on_the_server_line_the_launch_words_after_app() {
         let launch = setup();
         let with = build_command(&BuildCommandOptions { launch: Some(launch.clone()), ..turn_options() }, NOW).unwrap();
-        let expected = format!("&& {} app-server '-c' 'model_provider=\"ollama\"' -c tools.update_plan.enabled=", agent_word("codex", Some(&launch)));
+        let expected =
+            format!("&& {} app-server '-c' 'model_provider=\"ollama\"' -c tools.update_plan.enabled=", agent_word("codex", Some(&launch)));
         assert!(with.contains(&expected), "{with}");
         let without = build_command(&turn_options(), NOW).unwrap();
         assert!(without.contains(&format!("&& {} app-server -c tools.update_plan.enabled=", agent_word("codex", None))), "{without}");
@@ -525,7 +548,10 @@ mod a_brokered_codex_launch_on_a_chatgpt_login {
         let c = CodexClaims { account_id: claims().account_id, ..Default::default() };
         let Launched { dir, .. } = launch(&chatgpt_with(c.clone()), DEFAULT_ENV);
         let payload = payload_of(&token_of(&login_of(&dir), "access_token"));
-        assert_eq!(payload["https://api.openai.com/auth"], json!({ "chatgpt_account_id": c.account_id, "chatgpt_account_is_fedramp": false }));
+        assert_eq!(
+            payload["https://api.openai.com/auth"],
+            json!({ "chatgpt_account_id": c.account_id, "chatgpt_account_is_fedramp": false })
+        );
     }
 
     #[test]
@@ -587,7 +613,13 @@ mod a_brokered_codex_launch_on_an_api_key {
 
     #[test]
     fn refuses_a_key_beside_the_host_s_chatgpt_login_and_a_key_turn_handed_no_placehold() {
-        let beside = build_env(&CodexEnvOptions { home: "/root/.codex".into(), api_key: Some(key()), broker: Some(chatgpt()), ..Default::default() }).unwrap_err();
+        let beside = build_env(&CodexEnvOptions {
+            home: "/root/.codex".into(),
+            api_key: Some(key()),
+            broker: Some(chatgpt()),
+            ..Default::default()
+        })
+        .unwrap_err();
         assert!(beside.contains("carries no key"), "{beside}");
         // A launch with no turn token carries no key and runs on the key file the last turn left; a turn refuses to start.
         let keyless = build_env(&CodexEnvOptions { home: "/root/.codex".into(), broker: Some(apikey()), ..Default::default() }).unwrap();
@@ -603,7 +635,12 @@ mod a_brokered_codex_launch_on_an_api_key {
         let mut shell_env: Vec<(String, String)> = vec![("PATH".into(), path_env())];
         shell_env.extend(handed);
         let line = build_command(
-            &BuildCommandOptions { cwd: Some(dir.s()), broker: Some(apikey()), launch: Some(program_launch(&program)), ..Default::default() },
+            &BuildCommandOptions {
+                cwd: Some(dir.s()),
+                broker: Some(apikey()),
+                launch: Some(program_launch(&program)),
+                ..Default::default()
+            },
             now_ms(),
         )
         .unwrap();
@@ -732,7 +769,8 @@ mod the_person_s_own_providers_on_a_brokered_launch {
     // left both and codex refused the whole config, so each entry keeps its own credential field.
     #[test]
     fn moves_an_entry_to_the_door_and_gives_the_credential_field_it_holds_the_placehold() {
-        let by_auth = flags_of("acme", json!({ "base_url": "https://gw.acme.dev/v1", "auth": { "command": "acme-token" } }), BrokerKind::Apikey);
+        let by_auth =
+            flags_of("acme", json!({ "base_url": "https://gw.acme.dev/v1", "auth": { "command": "acme-token" } }), BrokerKind::Apikey);
         let auth_args = serde_json::to_string(&json!(["-c", format!("printf %s \"{PLACEHOLDER_KEY_PREFIX}{TOKEN_WORD}\"")])).unwrap();
         assert_eq!(
             by_auth.flags,
@@ -742,7 +780,8 @@ mod the_person_s_own_providers_on_a_brokered_launch {
                 format!("-c model_providers.acme.auth.args='{auth_args}'"),
             ]
         );
-        let by_bearer = flags_of("acme", json!({ "base_url": "https://gw.acme.dev/v1", "experimental_bearer_token": "tok-1" }), BrokerKind::Apikey);
+        let by_bearer =
+            flags_of("acme", json!({ "base_url": "https://gw.acme.dev/v1", "experimental_bearer_token": "tok-1" }), BrokerKind::Apikey);
         let bearer = format!("-c model_providers.acme.experimental_bearer_token='\"{PLACEHOLDER_KEY_PREFIX}'\"{TOKEN_WORD}\"'\"'");
         assert!(by_bearer.flags.contains(&bearer), "{:?}", by_bearer.flags);
         let by_key = flags_of("acme", json!({ "base_url": "https://gw.acme.dev/v1", "env_key": "ACME_KEY" }), BrokerKind::Apikey);
@@ -755,7 +794,10 @@ mod the_person_s_own_providers_on_a_brokered_launch {
         let broker = CodexBroker {
             mode: BrokerMode::Chatgpt { claims: claims(), models: None },
             providers: providers(&[
-                ("by_auth", json!({ "base_url": "https://gw.acme.dev/v1", "auth": { "command": "acme-token" }, "http_headers": { "X-Acme-Key": "s3cret" } })),
+                (
+                    "by_auth",
+                    json!({ "base_url": "https://gw.acme.dev/v1", "auth": { "command": "acme-token" }, "http_headers": { "X-Acme-Key": "s3cret" } }),
+                ),
                 ("by_bearer", json!({ "base_url": "https://gw.acme.dev/v1", "experimental_bearer_token": "tok-1" })),
                 ("by_key", json!({ "base_url": "https://gw.acme.dev/v1", "env_key": "ACME_KEY" })),
             ]),
@@ -789,7 +831,11 @@ mod the_person_s_own_providers_on_a_brokered_launch {
 
     #[test]
     fn sends_an_entry_that_asks_for_openai_s_own_sign_in_down_the_placeholder_login_nam() {
-        let corp = flags_of("corp", json!({ "base_url": "https://gw.acme.dev/backend-api/codex", "requires_openai_auth": true }), BrokerKind::Chatgpt);
+        let corp = flags_of(
+            "corp",
+            json!({ "base_url": "https://gw.acme.dev/backend-api/codex", "requires_openai_auth": true }),
+            BrokerKind::Chatgpt,
+        );
         assert_eq!(corp.flags, vec![format!("-c model_providers.corp.base_url='\"{}/backend-api/codex\"'", door())]);
         assert!(!corp.keyed);
     }
@@ -807,10 +853,8 @@ mod the_person_s_own_providers_on_a_brokered_launch {
 
     #[test]
     fn refuses_a_provider_id_that_is_not_one_plain_word_of_a_config_key() {
-        let broker = CodexBroker {
-            mode: BrokerMode::Apikey,
-            providers: providers(&[("acme.gw", json!({ "base_url": "https://gw.acme.dev/v1" }))]),
-        };
+        let broker =
+            CodexBroker { mode: BrokerMode::Apikey, providers: providers(&[("acme.gw", json!({ "base_url": "https://gw.acme.dev/v1" }))]) };
         let err = build_command(&BuildCommandOptions { broker: Some(broker), ..Default::default() }, NOW).unwrap_err();
         assert!(err.contains("one plain word"), "{err}");
     }
@@ -914,19 +958,29 @@ mod codex_typed_in_a_terminal_on_a_brokered_machine {
 mod rules_added {
     use super::*;
 
-    const AGENT: &str = r#"sh -c '[ -z "${WSP_AGENT_PID_FILE:-}" ] || echo $$ > "$WSP_AGENT_PID_FILE"; unset WSP_AGENT_PID_FILE; exec "$0" "$@"'"#;
+    const AGENT: &str =
+        r#"sh -c '[ -z "${WSP_AGENT_PID_FILE:-}" ] || echo $$ > "$WSP_AGENT_PID_FILE"; unset WSP_AGENT_PID_FILE; exec "$0" "$@"'"#;
 
     #[test]
     fn every_key_set_over_the_base_keeps_the_base_s_place_and_an_empty_key_is_a_key() {
         // CM1, CM2; command.ts:66-74.
         let mut base = IndexMap::new();
-        for (k, v) in [("A", Some("1")), ("CODEX_HOME", Some("/old")), ("B", Some("2")), ("CODEX_API_KEY", Some("old")), ("OPENAI_API_KEY", Some("old2")), ("GONE", None)] {
+        for (k, v) in [
+            ("A", Some("1")),
+            ("CODEX_HOME", Some("/old")),
+            ("B", Some("2")),
+            ("CODEX_API_KEY", Some("old")),
+            ("OPENAI_API_KEY", Some("old2")),
+            ("GONE", None),
+        ] {
             base.insert(k.to_string(), v.map(String::from));
         }
         let env = build_env(&CodexEnvOptions { base: Some(base), home: "/h".into(), api_key: Some("k".into()), broker: None }).unwrap();
         let pairs: Vec<(&str, &str)> = env.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         assert_eq!(pairs, [("A", "1"), ("CODEX_HOME", "/h"), ("B", "2"), ("CODEX_API_KEY", "k"), ("OPENAI_API_KEY", "k")]);
-        let env = build_env(&CodexEnvOptions { base: Some(IndexMap::new()), home: "/h".into(), api_key: Some(String::new()), broker: None }).unwrap();
+        let env =
+            build_env(&CodexEnvOptions { base: Some(IndexMap::new()), home: "/h".into(), api_key: Some(String::new()), broker: None })
+                .unwrap();
         let pairs: Vec<(&str, &str)> = env.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         assert_eq!(pairs, [("CODEX_HOME", "/h"), ("CODEX_API_KEY", ""), ("OPENAI_API_KEY", "")]);
     }
@@ -934,7 +988,8 @@ mod rules_added {
     #[test]
     fn an_empty_folder_is_a_folder_and_the_launch_words_follow_app_server_each_quoted() {
         // CM3; command.ts:326-331.
-        let launch = AgentLaunch { program: Some("/opt/cx".into()), args: Some(vec!["--x".into(), "a b".into(), "it's".into(), String::new()]) };
+        let launch =
+            AgentLaunch { program: Some("/opt/cx".into()), args: Some(vec!["--x".into(), "a b".into(), "it's".into(), String::new()]) };
         let line = build_command(&BuildCommandOptions { cwd: Some(String::new()), launch: Some(launch), ..turn_options() }, NOW).unwrap();
         assert_eq!(line, format!(r#"cd '' && {AGENT} '/opt/cx' app-server '--x' 'a b' 'it'\''s' '' -c tools.update_plan.enabled='true'"#));
     }
@@ -951,7 +1006,11 @@ mod rules_added {
             NOW,
         )
         .unwrap();
-        let off = |name: &str| format!(r#"$(grep -Eqs '^[[:space:]]*(\[mcp_servers\.{name}[].]|mcp_servers\.{name}\.)' "$CODEX_HOME/config.toml" && printf %s '-c mcp_servers.{name}.enabled=false')"#);
+        let off = |name: &str| {
+            format!(
+                r#"$(grep -Eqs '^[[:space:]]*(\[mcp_servers\.{name}[].]|mcp_servers\.{name}\.)' "$CODEX_HOME/config.toml" && printf %s '-c mcp_servers.{name}.enabled=false')"#
+            )
+        };
         let server = |name: &str, command: &str| format!(r#"-c mcp_servers.{name}.command='"{command}"' -c mcp_servers.{name}.args='[]'"#);
         assert_eq!(
             line,

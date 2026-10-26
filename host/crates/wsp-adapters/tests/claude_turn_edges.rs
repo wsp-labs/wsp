@@ -24,7 +24,13 @@ fn n(x: f64) -> JsNumber {
 }
 
 fn deps(exec: &Arc<FakeExec>) -> AdapterDeps {
-    AdapterDeps { result_exit_ms: Some(5), interrupt_grace_ms: Some(5), stop_task_wait_ms: Some(5), steer_join_ms: Some(5), ..AdapterDeps::new(exec.clone(), "/root/.claude-cfg") }
+    AdapterDeps {
+        result_exit_ms: Some(5),
+        interrupt_grace_ms: Some(5),
+        stop_task_wait_ms: Some(5),
+        steer_join_ms: Some(5),
+        ..AdapterDeps::new(exec.clone(), "/root/.claude-cfg")
+    }
 }
 
 fn init() -> String {
@@ -36,7 +42,20 @@ fn ask(id: &str, tool: &str) -> String {
 }
 
 fn bare(status: TurnStatus) -> TurnResult {
-    TurnResult { status, duration_ms: None, waited_ms: None, cost_usd: None, tokens: None, model: None, models: None, text: None, error: None, unreached: None, refusal: None, limit: None }
+    TurnResult {
+        status,
+        duration_ms: None,
+        waited_ms: None,
+        cost_usd: None,
+        tokens: None,
+        model: None,
+        models: None,
+        text: None,
+        error: None,
+        unreached: None,
+        refusal: None,
+        limit: None,
+    }
 }
 
 fn usage(input: u64, output: u64, cached: u64, cache_write: u64) -> UsageTokens {
@@ -55,7 +74,8 @@ async fn one_counter_numbers_every_request_and_a_kept_stop_signals_nothing_body(
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = create_claude_adapter(AdapterDeps { interrupt_grace_ms: Some(2_000), ..deps(&exec) }).unwrap();
     let (events, on_event) = collect();
-    let session = adapter.start(HarnessStartOptions { prompt: "one".into(), keep: true, on_event: Some(on_event), ..Default::default() }).unwrap();
+    let session =
+        adapter.start(HarnessStartOptions { prompt: "one".into(), keep: true, on_event: Some(on_event), ..Default::default() }).unwrap();
     exec.push(init());
     until(|| !events.lock().unwrap().is_empty()).await;
     let set = tokio::task::spawn_local({
@@ -63,14 +83,19 @@ async fn one_counter_numbers_every_request_and_a_kept_stop_signals_nothing_body(
         async move { session.set_access("plan").await }
     });
     until(|| exec.writes().len() == 1).await;
-    exec.push(json!({"type": "control_response", "response": {"subtype": "success", "request_id": "wsp-set-mode-1", "response": {}}}).to_string());
+    exec.push(
+        json!({"type": "control_response", "response": {"subtype": "success", "request_id": "wsp-set-mode-1", "response": {}}}).to_string(),
+    );
     assert_eq!(set.await.unwrap(), Ok(AccessOutcome::Set));
     let stop = tokio::task::spawn_local({
         let session = session.clone();
         async move { session.stop_task("bg-1").await }
     });
     until(|| exec.writes().len() == 2).await;
-    exec.push(json!({"type": "control_response", "response": {"subtype": "error", "request_id": "wsp-stop-task-2", "error": "no such task"}}).to_string());
+    exec.push(
+        json!({"type": "control_response", "response": {"subtype": "error", "request_id": "wsp-stop-task-2", "error": "no such task"}})
+            .to_string(),
+    );
     assert_eq!(stop.await.unwrap(), Ok(TaskStop::Refused { error: "no such task".into() }));
     let interrupt = tokio::task::spawn_local({
         let session = session.clone();
@@ -102,7 +127,14 @@ async fn the_process_going_under_open_prompts_cancels_each_in_order_before_the_e
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
     let (events, on_event) = collect();
-    let session = adapter.start(HarnessStartOptions { prompt: "one".into(), permission_mode: Some("default".into()), on_event: Some(on_event), ..Default::default() }).unwrap();
+    let session = adapter
+        .start(HarnessStartOptions {
+            prompt: "one".into(),
+            permission_mode: Some("default".into()),
+            on_event: Some(on_event),
+            ..Default::default()
+        })
+        .unwrap();
     exec.push(init());
     exec.push(ask("r1", "Bash"));
     exec.push(ask("r2", "Write"));
@@ -116,17 +148,38 @@ async fn the_process_going_under_open_prompts_cancels_each_in_order_before_the_e
     assert_eq!(set.await.unwrap(), Ok(AccessOutcome::Gone), "its answer can never come");
     let failed = TurnResult { error: Some("claude exited with code 1 before emitting a result".into()), ..bare(TurnStatus::Failed) };
     assert_eq!(session.finished().await, failed);
-    let after: Vec<AdapterEvent> = events.lock().unwrap().iter().filter(|e| !matches!(e, AdapterEvent::PermissionAsk { .. } | AdapterEvent::SessionStart { .. })).cloned().collect();
+    let after: Vec<AdapterEvent> = events
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|e| !matches!(e, AdapterEvent::PermissionAsk { .. } | AdapterEvent::SessionStart { .. }))
+        .cloned()
+        .collect();
     assert_eq!(
         after,
         vec![
-            AdapterEvent::PermissionClose { session_id: SID.into(), ask_id: "r1".into(), outcome: PermissionOutcome::Cancelled, option_id: None },
-            AdapterEvent::PermissionClose { session_id: SID.into(), ask_id: "r2".into(), outcome: PermissionOutcome::Cancelled, option_id: None },
+            AdapterEvent::PermissionClose {
+                session_id: SID.into(),
+                ask_id: "r1".into(),
+                outcome: PermissionOutcome::Cancelled,
+                option_id: None
+            },
+            AdapterEvent::PermissionClose {
+                session_id: SID.into(),
+                ask_id: "r2".into(),
+                outcome: PermissionOutcome::Cancelled,
+                option_id: None
+            },
             AdapterEvent::TurnDone { session_id: SID.into(), result: failed, held: None },
             AdapterEvent::SessionEnd { session_id: SID.into(), exit_code: Some(1), saw_result: false, failure: None },
         ]
     );
-    let allow = PermissionAnswer { option_id: PERMISSION_ALLOW.into(), outcome: PermissionOutcome::Allowed, deny_message: String::new(), reason: None };
+    let allow = PermissionAnswer {
+        option_id: PERMISSION_ALLOW.into(),
+        outcome: PermissionOutcome::Allowed,
+        deny_message: String::new(),
+        reason: None,
+    };
     assert_eq!(session.answer("r1", allow.clone()).await, Ok(AnswerOutcome::Gone), "closed at the exit");
     assert_eq!(session.answer("zz", allow).await, Ok(AnswerOutcome::Gone), "never raised");
     assert_eq!(session.steer("x", None, vec![]).await, Ok(SteerOutcome::NotRunning));
@@ -151,13 +204,20 @@ async fn a_call_is_drawn_once_per_message_and_a_run_with_no_result_carries_every
     let exec = FakeExec::scripted(lines, StreamOpts { exit_code: Some(Some(1)), ..Default::default() });
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
     let (events, on_event) = collect();
-    let result = adapter.start(HarnessStartOptions { prompt: "x".into(), on_event: Some(on_event), ..Default::default() }).unwrap().finished().await;
+    let result =
+        adapter.start(HarnessStartOptions { prompt: "x".into(), on_event: Some(on_event), ..Default::default() }).unwrap().finished().await;
     let events = events.lock().unwrap().clone();
     let drawn: Vec<_> = events.iter().filter(|e| matches!(e, AdapterEvent::TurnUsage { .. })).cloned().collect();
     assert_eq!(
         drawn,
         vec![
-            AdapterEvent::TurnUsage { session_id: SID.into(), tokens: 122.0, context: Some(122.0), window: None, at: Some(1_792_922_400_000.0) },
+            AdapterEvent::TurnUsage {
+                session_id: SID.into(),
+                tokens: 122.0,
+                context: Some(122.0),
+                window: None,
+                at: Some(1_792_922_400_000.0)
+            },
             AdapterEvent::TurnUsage { session_id: SID.into(), tokens: 7.0, context: None, window: None, at: None },
         ]
     );
@@ -165,7 +225,15 @@ async fn a_call_is_drawn_once_per_message_and_a_run_with_no_result_carries_every
         result,
         TurnResult {
             error: Some("claude exited with code 1 before emitting a result".into()),
-            tokens: Some(TurnTokens { input: n(121.0), output: n(12.0), cached: Some(n(100.0)), cache_write: Some(n(7.0)), reasoning: Some(n(0.0)), context: None, window: None }),
+            tokens: Some(TurnTokens {
+                input: n(121.0),
+                output: n(12.0),
+                cached: Some(n(100.0)),
+                cache_write: Some(n(7.0)),
+                reasoning: Some(n(0.0)),
+                context: None,
+                window: None
+            }),
             models: Some(vec![
                 TurnResultModelsItem { model: "claude-x".into(), tokens: usage(117, 9, 100, 7), cost_usd: None },
                 TurnResultModelsItem { model: "claude-y".into(), tokens: usage(4, 3, 0, 0), cost_usd: None },
@@ -200,14 +268,25 @@ async fn a_stop_before_any_result_reads_interrupted_with_the_calls_so_far_body()
     assert_eq!(
         result,
         TurnResult {
-            tokens: Some(TurnTokens { input: n(234.0), output: n(10.0), cached: Some(n(200.0)), cache_write: Some(n(14.0)), reasoning: Some(n(0.0)), context: None, window: None }),
+            tokens: Some(TurnTokens {
+                input: n(234.0),
+                output: n(10.0),
+                cached: Some(n(200.0)),
+                cache_write: Some(n(14.0)),
+                reasoning: Some(n(0.0)),
+                context: None,
+                window: None
+            }),
             models: Some(vec![TurnResultModelsItem { model: "claude-x".into(), tokens: usage(234, 10, 200, 14), cost_usd: None }]),
             model: Some("claude-x".into()),
             ..bare(TurnStatus::Interrupted)
         }
     );
     assert_eq!(exec.order(), vec!["teardown"]);
-    assert_eq!(events.lock().unwrap().last(), Some(&AdapterEvent::SessionEnd { session_id: SID.into(), exit_code: Some(143), saw_result: false, failure: None }));
+    assert_eq!(
+        events.lock().unwrap().last(),
+        Some(&AdapterEvent::SessionEnd { session_id: SID.into(), exit_code: Some(143), saw_result: false, failure: None })
+    );
 }
 
 // T11: the registry key is the resume for a resume, a new id for a copy (which forks the session it names) and for a
@@ -220,7 +299,17 @@ async fn each_start_is_registered_under_its_own_local_id() {
 async fn each_start_is_registered_under_its_own_local_id_body() {
     let exec = FakeExec::scripted(vec![init()], StreamOpts::default());
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
-    let start = |resume: Option<&str>, copy: bool| adapter.start(HarnessStartOptions { prompt: "x".into(), resume: resume.map(String::from), copy, on_event: Some(Arc::new(|_| {})), ..Default::default() }).unwrap();
+    let start = |resume: Option<&str>, copy: bool| {
+        adapter
+            .start(HarnessStartOptions {
+                prompt: "x".into(),
+                resume: resume.map(String::from),
+                copy,
+                on_event: Some(Arc::new(|_| {})),
+                ..Default::default()
+            })
+            .unwrap()
+    };
     let fresh = start(None, false);
     let resumed = start(Some("22222222-2222-4222-8222-222222222222"), false);
     let copied = start(Some("33333333-3333-4333-8333-333333333333"), true);
@@ -231,10 +320,15 @@ async fn each_start_is_registered_under_its_own_local_id_body() {
     assert_eq!(keys, vec![fresh.local_id(), "22222222-2222-4222-8222-222222222222".to_string(), copied.local_id()]);
     assert_ne!(copied.local_id(), "33333333-3333-4333-8333-333333333333");
     let word = r#"cd ~ && sh -c '[ -z "${WSP_AGENT_PID_FILE:-}" ] || echo $$ > "$WSP_AGENT_PID_FILE"; unset WSP_AGENT_PID_FILE; exec "$0" "$@"' claude -p --input-format stream-json --output-format stream-json --verbose --dangerously-skip-permissions --permission-prompt-tool stdio"#;
-    assert_eq!(copied.command(), Some(format!("{word} --session-id {} --resume 33333333-3333-4333-8333-333333333333 --fork-session", copied.local_id())));
+    assert_eq!(
+        copied.command(),
+        Some(format!("{word} --session-id {} --resume 33333333-3333-4333-8333-333333333333 --fork-session", copied.local_id()))
+    );
     assert_eq!(
         resumed.command(),
-        Some(format!(r#"wsp_saved=$(ls -1td '/root/.claude-cfg/projects'/*/'22222222-2222-4222-8222-222222222222.jsonl' 2>/dev/null | head -n 1); [ -z "$wsp_saved" ] || tail -c 8388608 "$wsp_saved" | grep -F '"type":"cost-state"' | tail -n 1; {word} --resume 22222222-2222-4222-8222-222222222222"#))
+        Some(format!(
+            r#"wsp_saved=$(ls -1td '/root/.claude-cfg/projects'/*/'22222222-2222-4222-8222-222222222222.jsonl' 2>/dev/null | head -n 1); [ -z "$wsp_saved" ] || tail -c 8388608 "$wsp_saved" | grep -F '"type":"cost-state"' | tail -n 1; {word} --resume 22222222-2222-4222-8222-222222222222"#
+        ))
     );
 }
 
@@ -246,7 +340,15 @@ async fn every_transport_failure_kind_rides_session_end_as_it_came() {
 }
 
 async fn every_transport_failure_kind_rides_session_end_as_it_came_body() {
-    for kind in [ExecFailureKind::Unreached, ExecFailureKind::Unreachable, ExecFailureKind::PlaceAbsent, ExecFailureKind::LaunchUnanswered, ExecFailureKind::Deadline, ExecFailureKind::NoAnswer, ExecFailureKind::Other] {
+    for kind in [
+        ExecFailureKind::Unreached,
+        ExecFailureKind::Unreachable,
+        ExecFailureKind::PlaceAbsent,
+        ExecFailureKind::LaunchUnanswered,
+        ExecFailureKind::Deadline,
+        ExecFailureKind::NoAnswer,
+        ExecFailureKind::Other,
+    ] {
         let exec = FakeExec::manual(StreamOpts::default());
         let adapter = create_claude_adapter(deps(&exec)).unwrap();
         let (events, on_event) = collect();
@@ -258,7 +360,11 @@ async fn every_transport_failure_kind_rides_session_end_as_it_came_body() {
         exec.current().exit.resolve(None);
         let result = session.finished().await;
         assert_eq!(result, TurnResult { error: Some(format!("cut: {kind:?}")), ..bare(TurnStatus::Failed) }, "{kind:?}");
-        assert_eq!(events.lock().unwrap().last(), Some(&AdapterEvent::SessionEnd { session_id: SID.into(), exit_code: None, saw_result: false, failure: Some(failure) }), "{kind:?}");
+        assert_eq!(
+            events.lock().unwrap().last(),
+            Some(&AdapterEvent::SessionEnd { session_id: SID.into(), exit_code: None, saw_result: false, failure: Some(failure) }),
+            "{kind:?}"
+        );
     }
 }
 
@@ -267,10 +373,20 @@ async fn every_transport_failure_kind_rides_session_end_as_it_came_body() {
 fn a_refused_value_fails_the_start_before_any_launch() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
-    let start = adapter.start(HarnessStartOptions { prompt: "x".into(), model: Some("bad model".into()), on_event: Some(Arc::new(|_| {})), ..Default::default() });
+    let start = adapter.start(HarnessStartOptions {
+        prompt: "x".into(),
+        model: Some("bad model".into()),
+        on_event: Some(Arc::new(|_| {})),
+        ..Default::default()
+    });
     assert_eq!(start.err().map(|e| e.0), Some(r#"model must be a plain slug, got "bad model""#.to_string()));
-    let warm = adapter.warm(HarnessWarmOptions { model: Some("bad model".into()), context_window: Some("1m".into()), ..Default::default() });
-    assert_eq!(warm.err().map(|e| e.0), Some(r#"model must be a plain slug, got "bad model[1m]""#.to_string()), "the slug is checked after the window's suffix");
+    let warm =
+        adapter.warm(HarnessWarmOptions { model: Some("bad model".into()), context_window: Some("1m".into()), ..Default::default() });
+    assert_eq!(
+        warm.err().map(|e| e.0),
+        Some(r#"model must be a plain slug, got "bad model[1m]""#.to_string()),
+        "the slug is checked after the window's suffix"
+    );
     assert!(exec.calls().is_empty());
     assert!(adapter.sessions().is_empty());
 }

@@ -6,10 +6,12 @@
 
 use std::sync::{Arc, Mutex};
 
-use futures::future::{LocalBoxFuture, FutureExt};
+use futures::future::{FutureExt, LocalBoxFuture};
 use futures::stream::{self, LocalBoxStream, StreamExt};
 use tokio::sync::{mpsc, watch};
-use wsp_adapters::port::{AdapterEvent, Env, ExecFailure, ExecOptions, ExecSecret, ExecStream, ExecStreamFactory, OnEvent, Settle, SharedFuture, WriteOutcome};
+use wsp_adapters::port::{
+    AdapterEvent, Env, ExecFailure, ExecOptions, ExecSecret, ExecStream, ExecStreamFactory, OnEvent, Settle, SharedFuture, WriteOutcome,
+};
 
 /// What the guest calls the run every scripted stream stands for.
 pub const RUN_HANDLE: &str = "/tmp/wsp-run/ab12";
@@ -20,12 +22,20 @@ pub const FIXTURE_SESSION_ID: &str = "e16ed170-8257-4668-879e-fe836341633c";
 /// A fixture file's non-blank lines.
 pub fn fixture_lines(name: &str) -> Vec<String> {
     let path = format!("{}/tests/fixtures/claude/{}", env!("CARGO_MANIFEST_DIR"), name);
-    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{path}: {e}")).lines().filter(|l| !l.trim().is_empty()).map(String::from).collect()
+    std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("{path}: {e}"))
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(String::from)
+        .collect()
 }
 
 /// A guest's login environment as the runtime hands it.
 pub fn guest_env() -> wsp_adapters::claude::landmines::BaseEnv {
-    [("HOME", "/root"), ("CLAUDE_CONFIG_DIR", "/root/.claude-cfg"), ("IS_SANDBOX", "1")].into_iter().map(|(k, v)| (k.to_string(), Some(v.to_string()))).collect()
+    [("HOME", "/root"), ("CLAUDE_CONFIG_DIR", "/root/.claude-cfg"), ("IS_SANDBOX", "1")]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), Some(v.to_string())))
+        .collect()
 }
 
 /// A process's exit, settled once.
@@ -251,7 +261,17 @@ pub struct FakeExec {
 
 impl FakeExec {
     fn with(script: Script, opts: StreamOpts) -> Arc<Self> {
-        Arc::new(FakeExec { script, opts, calls: Default::default(), order: Default::default(), writes: Default::default(), streams: Default::default(), attach: None, attached: Default::default(), held: Default::default() })
+        Arc::new(FakeExec {
+            script,
+            opts,
+            calls: Default::default(),
+            order: Default::default(),
+            writes: Default::default(),
+            streams: Default::default(),
+            attach: None,
+            attached: Default::default(),
+            held: Default::default(),
+        })
     }
     /// `scriptedExec(lines, opts)`, every stream reporting RUN_HANDLE.
     pub fn scripted(lines: Vec<String>, mut opts: StreamOpts) -> Arc<Self> {
@@ -264,7 +284,17 @@ impl FakeExec {
     }
     /// The same factory with attach offered.
     pub fn attaching(lines: Vec<String>, gone: bool) -> Arc<Self> {
-        let mut f = FakeExec { script: Script::Lines(lines), opts: StreamOpts { run: Some(RUN_HANDLE.to_string()), ..Default::default() }, calls: Default::default(), order: Default::default(), writes: Default::default(), streams: Default::default(), attach: Some(gone), attached: Default::default(), held: Default::default() };
+        let mut f = FakeExec {
+            script: Script::Lines(lines),
+            opts: StreamOpts { run: Some(RUN_HANDLE.to_string()), ..Default::default() },
+            calls: Default::default(),
+            order: Default::default(),
+            writes: Default::default(),
+            streams: Default::default(),
+            attach: Some(gone),
+            attached: Default::default(),
+            held: Default::default(),
+        };
         f.attach = Some(gone);
         Arc::new(f)
     }
@@ -306,7 +336,11 @@ impl ExecStreamFactory for FakeExec {
         }
         self.make()
     }
-    fn attach(&self, run: &str, options: wsp_adapters::port::AttachRunOptions) -> Option<LocalBoxFuture<'static, Result<wsp_adapters::port::Attached, ExecFailure>>> {
+    fn attach(
+        &self,
+        run: &str,
+        options: wsp_adapters::port::AttachRunOptions,
+    ) -> Option<LocalBoxFuture<'static, Result<wsp_adapters::port::Attached, ExecFailure>>> {
         let gone = self.attach?;
         self.attached.lock().unwrap().push((run.to_string(), options));
         let stream = if gone { None } else { Some(self.make()) };
@@ -371,7 +405,8 @@ pub fn deltas(events: &[AdapterEvent]) -> Vec<wsp_adapters::port::TurnDelta> {
 
 /// The one turn.done's result; panics unless there is exactly one.
 pub fn done(events: &[AdapterEvent]) -> wsp_adapters::port::TurnResult {
-    let all: Vec<_> = events.iter().filter_map(|e| if let AdapterEvent::TurnDone { result, .. } = e { Some(result.clone()) } else { None }).collect();
+    let all: Vec<_> =
+        events.iter().filter_map(|e| if let AdapterEvent::TurnDone { result, .. } = e { Some(result.clone()) } else { None }).collect();
     assert_eq!(all.len(), 1, "expected one turn.done, got {}", all.len());
     all.into_iter().next().unwrap()
 }

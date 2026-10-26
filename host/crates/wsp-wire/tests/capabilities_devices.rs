@@ -172,14 +172,12 @@ mod the_init_job_view {
     fn the_setup_the_modal_opens_on_carries_the_provider_key_s_presence_alone_never_a_k() {
         let setup: InitSetup = reads(json!({
             "keys": { "solari": false }, "home": "/Users/me",
-            "agents": [{ "id": "claude", "name": "Claude Code", "configured": true, "takesTools": true }],
-            "pricing": { "size": { "cpu": 2, "memMb": 4096 }, "rateUsdPerHour": 0.11 }, "job": null,
+            "pricing": { "size": { "cpu": 2, "memMb": 4096 }, "rateUsdPerHour": 0.11 },
         }));
-        assert!(setup.job.is_none());
         assert_eq!(serde_json::to_value(&setup.keys).unwrap().as_object().unwrap().keys().collect::<Vec<_>>(), ["solari"]);
         // A key's own text is no presence flag: refused on the key's name (InitKeys is the views writer's type).
         let e = refused::<InitSetup>(
-            json!({ "keys": { "solari": "slr_live_x" }, "home": "/Users/me", "agents": [], "pricing": null, "job": null }),
+            json!({ "keys": { "solari": "slr_live_x" }, "home": "/Users/me", "pricing": null }),
         );
         assert_eq!(e.path, path!["keys", "solari"]);
         assert_eq!(e.code, "invalid_type");

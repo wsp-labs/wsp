@@ -10,8 +10,8 @@ use serde_json::{json, Value};
 use wsp_wire::types::harness_picks::{context_windows_for, efforts_for, marked_default, PickOption};
 use wsp_wire::types::{parse, Check, JsNumber};
 use wsp_wire::views::golden_image::{
-    agent_of_row, golden_head, golden_image, package_of, recipe_pins, tool_row_id, tool_row_prefix, GoldenImage, GoldenManifest,
-    GoldenStage, GoldenVersion, ImageSpec, Recipe, RecipeDigest, RecipeRow, RecipeSource, SealedImage, SealedVault, ToolPin,
+    agent_of_row, golden_head, golden_image, package_of, tool_row_id, tool_row_prefix, GoldenImage, GoldenManifest,
+    GoldenStage, GoldenVersion, ImageSpec, Recipe, RecipeDigest, RecipeRow, RecipeSource, SealedVault, ToolPin,
     BREW_ID_PREFIX,
 };
 use wsp_wire::views::harness::{
@@ -21,7 +21,7 @@ use wsp_wire::views::place::{DoctorLineEvent, PlaceView};
 use wsp_wire::views::project_bundle::{ProjectExportEvent, ProjectExportResult, ProjectImportResult, ProjectPlan};
 use wsp_wire::views::session::{SessionOrigin, SessionView, SubagentView, ThreadView};
 use wsp_wire::views::session_events::{is_session_event, SessionEvent, SESSION_EVENT_TYPES};
-use wsp_wire::views::snapshot_lineage::{ProjectGolden, SnapshotLineage, SnapshotRollbackResult};
+use wsp_wire::views::snapshot_lineage::{SnapshotLineage, SnapshotRollbackResult};
 use wsp_wire::views::workspace::{DaemonReachView, PortReachView, WorkspaceListing, WorkspaceOut, WorkspaceStatus, WorkspaceView};
 
 /// A float that holds a whole number is that integer: JavaScript has one kind of number, and the TS compares by value.
@@ -69,50 +69,11 @@ fn texts<O: PickOption>(options: Vec<O>) -> Vec<String> {
     options.iter().map(|o| o.value().to_string()).collect()
 }
 
-mod a_copy_of_the_image_beside_the_record {
+mod agent_rows_and_tool_pins {
     use super::*;
 
-    fn image() -> Value {
-        json!({ "name": "default", "version": 2, "hash": "a".repeat(64), "recipeHash": "rh", "logins": [], "sealedAt": "t", "sealedFrom": "h1" })
-    }
-
-    // packages/protocol/test/protocol.test.ts:121 at a3b870a6e
     #[test]
-    fn keeps_the_pins_beside_the_recipe_one_per_tick_that_recorded_one_in_id_order_with() {
-        // The TS digest here has no `files`, which the Rust RecipeDigest requires: an empty list is added.
-        let digest: RecipeDigest = serde_json::from_value(json!({
-            "ticks": [
-                { "id": "tools/npm/wrangler", "version": "4.1.0", "road": "npm", "installer": "i", "pin": { "tag": "4.1.0" } },
-                { "id": "agents/codex" },
-                { "id": "tools/catalog/gh", "road": "release", "installer": "k", "pin": { "tag": "v2.86.0", "sha256": "b".repeat(64) } },
-                { "id": "tools/catalog/tmux", "road": "apt", "installer": "j", "pin": { "tag": "3.3a-3", "latest": true } },
-            ],
-            "files": [],
-        }))
-        .expect("a digest");
-        let pins = back(&recipe_pins(&digest, None));
-        assert_eq!(
-            pins,
-            json!([
-                { "id": "tools/catalog/gh", "tag": "v2.86.0", "sha256": "b".repeat(64), "road": "release" },
-                { "id": "tools/catalog/tmux", "tag": "3.3a-3", "latest": true, "road": "apt" },
-                { "id": "tools/npm/wrangler", "tag": "4.1.0", "road": "npm" },
-            ])
-        );
-        assert_eq!(parsed::<SealedImage>(&with(&image(), "pins", pins.clone()))["pins"], pins);
-        assert!(parsed::<SealedImage>(&image()).get("pins").is_none());
-        // A caller's key names the row across computers; the pins sort by that key, so two rows for one tool cannot hide behind their order.
-        let keyed_digest: RecipeDigest = serde_json::from_value(json!({
-            "ticks": [
-                { "id": "tools/npm/wrangler", "pin": { "tag": "4.1.0" } },
-                { "id": "tools/catalog/gh", "pin": { "tag": "v2.86.0" } },
-            ],
-            "files": [],
-        }))
-        .expect("a digest");
-        let last_word = |id: &str| id[id.rfind('/').map_or(0, |i| i + 1)..].to_string();
-        let keyed = recipe_pins(&keyed_digest, Some(&last_word));
-        assert_eq!(keyed.into_iter().map(|p| p.id).collect::<Vec<_>>(), vec!["gh", "wrangler"]);
+    fn the_agent_a_row_names_and_the_one_tool_pin_shape() {
         // The one rule for the agents rung: the agent an agents row names, nothing for an MCP server's row or another rung.
         assert_eq!(agent_of_row("agents/codex"), Some("codex".to_string()));
         assert_eq!(agent_of_row("agents/mcp/claude/wsp"), None);
@@ -978,29 +939,6 @@ mod the_project_export {
             "project": { "name": "p", "dest": "/root/p", "importedAt": "2026-09-12T10:00:00.000Z" },
         }));
         assert_eq!(imported["agents"][0]["skipped"], json!(2));
-    }
-}
-
-mod project_goldens {
-    use super::*;
-
-    // packages/protocol/test/protocol.test.ts:1989 at a3b870a6e
-    #[test]
-    fn a_project_golden_names_its_snapshot_the_projects_it_carries_the_golden_version_i() {
-        let golden = json!({
-            "snapshotId": "snap_project-proj",
-            "projects": [{ "name": "proj", "dest": "/root/work/proj", "importedAt": "2026-09-06T10:00:00.000Z" }],
-            "golden": "snap_golden-v12",
-            "version": 12,
-            "workspaceId": "ws_1",
-            "workspaceName": "task",
-            "createdAt": "2026-09-06T10:05:00.000Z",
-        });
-        assert_eq!(parsed::<ProjectGolden>(&golden), golden);
-        let unversioned = without(&golden, "version");
-        assert_eq!(parsed::<ProjectGolden>(&unversioned), unversioned);
-        assert!(refused::<ProjectGolden>(&without(&golden, "projects")));
-        assert!(refused::<ProjectGolden>(&with(&golden, "version", json!("12"))));
     }
 }
 
