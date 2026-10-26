@@ -3,13 +3,51 @@
 //! whether a recorded pid still leads its run's group, the reap of a run's group and files, the held seed and late
 //! line hand-overs, and the queue a local stream's lines wait in. Port of packages/runtime/src/local-exec.ts:38-435
 //! at 65f6b89c7. Spec: spec/local_exec_reap.md.
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::fs::{self, OpenOptions};
+use std::io::{self, Write};
+use std::os::unix::fs::OpenOptionsExt;
+use std::path::Path;
+use std::pin::Pin;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::task::{Context, Poll, Waker};
+use std::time::{Duration, UNIX_EPOCH};
 
 use futures::future::LocalBoxFuture;
 use futures::stream::LocalBoxStream;
+use futures::Stream;
 use indexmap::IndexSet;
 use wsp_adapters::port::ExecFailure;
+use wsp_words::js::{js_round, to_number};
+use wsp_words::ps_time::ps_cpu_seconds;
+
+use crate::clock::{Clock, RealClock};
+use crate::machine_exec::LineCut;
+
+const MAX_SAFE_INTEGER: i64 = 9_007_199_254_740_991;
+
+/// The state behind a lock another thread can hold only briefly; a poisoned one is read as it was left.
+pub(super) fn lock<T>(state: &Mutex<T>) -> MutexGuard<'_, T> {
+    state.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// A file's text, or `None` where it cannot be read (TS `readFile`).
+pub(super) fn read_file(path: &str) -> Option<String> {
+    fs::read_to_string(path).ok()
+}
+
+/// `kill(target, 0)` succeeds, or fails with EPERM: the target exists.
+fn probe(target: i32) -> bool {
+    // SAFETY: signal 0 sends nothing; it asks the kernel whether the target exists.
+    if unsafe { libc::kill(target, 0) } == 0 {
+        return true;
+    }
+    io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+}
+
+pub(super) fn append(path: &str, text: &[u8]) -> io::Result<()> {
+    OpenOptions::new().append(true).create(true).open(path)?.write_all(text)
+}
 
 /// One reading of the work a turn's tree has done, in the ticks the activity clock counts, for the leader given;
 /// `None` where this computer cannot answer for the tree.
@@ -39,7 +77,10 @@ pub const REAPED_SUFFIXES: [&str; 11] = ["sh", "log", "pid", "agent", "exit", "i
 //   }
 // }
 pub fn signal_group(pid: i32, sig: i32) {
-    todo!()
+    // SAFETY: a negative pid names the group of a process this host started; the error is swallowed as in the TS.
+    unsafe {
+        libc::kill(-pid, sig);
+    }
 }
 
 /// `kill(pid, 0)` succeeds or fails with EPERM.
@@ -53,7 +94,7 @@ pub fn signal_group(pid: i32, sig: i32) {
 //   }
 // }
 pub fn alive(pid: i32) -> bool {
-    todo!()
+    probe(pid)
 }
 
 /// A signal to the pid alone, every error swallowed.
@@ -66,7 +107,10 @@ pub fn alive(pid: i32) -> bool {
 //   }
 // }
 pub fn signal_pid(pid: i32, sig: i32) {
-    todo!()
+    // SAFETY: the pid is one this host recorded for a process of a turn; the error is swallowed as in the TS.
+    unsafe {
+        libc::kill(pid, sig);
+    }
 }
 
 /// Whether a process group with this id exists: `kill(-pid, 0)` succeeds or fails with EPERM.
@@ -82,7 +126,7 @@ pub fn signal_pid(pid: i32, sig: i32) {
 //   }
 // }
 pub fn group_exists(pid: i32) -> bool {
-    todo!()
+    probe(-pid)
 }
 
 /// ps's cumulative CPU column in hundredths, `js_round`ed; 0 when not a safe integer.
@@ -94,7 +138,12 @@ pub fn group_exists(pid: i32) -> bool {
 //   return Number.isSafeInteger(ticks) ? ticks : 0;
 // }
 pub fn cpu_ticks(time: &str) -> i64 {
-    todo!()
+    let ticks = js_round(ps_cpu_seconds(time) * 100.0);
+    if ticks.is_finite() && ticks.fract() == 0.0 && ticks.abs() <= MAX_SAFE_INTEGER as f64 {
+        ticks as i64
+    } else {
+        0
+    }
 }
 
 /// What one tree reader remembers between readings: each process's ticks at the last reading, and the total so far.
@@ -145,8 +194,65 @@ impl TreeTally {
     //     return total;
     //   };
     pub fn add(&mut self, stdout: &str, leader: i64) -> i64 {
-        todo!()
+        let mut rows: HashMap<i64, TreeRow> = HashMap::new();
+        for row in stdout.split('\n') {
+            let mut words = row.split_whitespace();
+            let Some(pid) = words.next().and_then(|w| w.parse::<i64>().ok()) else { continue };
+            let mut number = || words.next().and_then(|w| w.parse::<i64>().ok()).unwrap_or(0);
+            let ppid = number();
+            let pgid = number();
+            let ticks = cpu_ticks(words.next().unwrap_or(""));
+            rows.insert(pid, TreeRow { ppid, pgid, ticks });
+        }
+        let mut in_tree: HashMap<i64, bool> = HashMap::new();
+        let mut now: HashMap<i64, i64> = HashMap::new();
+        for (&pid, row) in &rows {
+            if !reaches(&rows, leader, &mut in_tree, pid) {
+                continue;
+            }
+            let before = self.seen.get(&pid).copied();
+            self.total += match before {
+                Some(before) if row.ticks >= before => row.ticks - before,
+                _ => row.ticks,
+            };
+            now.insert(pid, row.ticks);
+        }
+        self.seen = now;
+        self.total
     }
+}
+
+#[derive(Clone, Copy)]
+struct TreeRow {
+    ppid: i64,
+    pgid: i64,
+    ticks: i64,
+}
+
+/// Whether a pid's parent chain reaches the leader or the leader's group, memoised per reading.
+// TS local-exec.ts:138-154
+fn reaches(rows: &HashMap<i64, TreeRow>, leader: i64, in_tree: &mut HashMap<i64, bool>, pid: i64) -> bool {
+    let mut path: HashSet<i64> = HashSet::new();
+    let mut at = pid;
+    let mut found = in_tree.get(&at).copied();
+    while found.is_none() {
+        let row = rows.get(&at);
+        if at == leader || row.is_some_and(|r| r.pgid == leader) {
+            found = Some(true);
+        // A parent loop ends the walk: procps reads /proc pid by pid, so a pid reused mid-read can print one.
+        } else if row.is_none() || at <= 1 || path.contains(&at) {
+            found = Some(false);
+        } else {
+            path.insert(at);
+            at = row.map_or(at, |r| r.ppid);
+            found = in_tree.get(&at).copied();
+        }
+    }
+    let found = found.unwrap_or(false);
+    for p in path {
+        in_tree.insert(p, found);
+    }
+    found
 }
 
 /// A reader of the turn's tree through this computer's ps, with its own memory; a ps that cannot be spawned or fails
@@ -210,7 +316,18 @@ impl TreeTally {
 //   };
 // }
 pub fn tree_work() -> TreeWorkReader {
-    todo!()
+    let tally = Arc::new(Mutex::new(TreeTally::default()));
+    Arc::new(move |leader: i32| -> LocalBoxFuture<'static, Option<i64>> {
+        let tally = tally.clone();
+        Box::pin(async move {
+            let out = tokio::process::Command::new("ps").args(["-eo", "pid=,ppid=,pgid=,time="]).output().await.ok()?;
+            if !out.status.success() {
+                return None;
+            }
+            let text = String::from_utf8_lossy(&out.stdout);
+            Some(lock(&tally).add(&text, i64::from(leader)))
+        })
+    })
 }
 
 /// One process of a run's group.
@@ -241,7 +358,19 @@ pub struct GroupRow {
 //   });
 // }
 pub async fn group_rows(pgid: i32) -> Vec<GroupRow> {
-    todo!()
+    let Ok(out) = tokio::process::Command::new("ps").args(["-axo", "pid=,ppid=,pgid="]).output().await else { return Vec::new() };
+    if !out.status.success() {
+        return Vec::new();
+    }
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter_map(|line| {
+            let mut words = line.split_whitespace();
+            let (Some(pid), Some(ppid), Some(group)) = (words.next(), words.next(), words.next()) else { return None };
+            let (Ok(pid), Ok(ppid), Ok(group)) = (pid.parse::<i64>(), ppid.parse::<i64>(), group.parse::<i64>()) else { return None };
+            (group == i64::from(pgid)).then_some(GroupRow { pid, ppid })
+        })
+        .collect()
 }
 
 /// The group's members whose parent is not in it, the leader aside, in row order.
@@ -249,7 +378,7 @@ pub async fn group_rows(pgid: i32) -> Vec<GroupRow> {
 // /** The group's processes whose parent is not in it, the leader aside: one whose parent went is the system's now. */
 // const orphansOf = (rows: readonly GroupRow[], leader: number): number[] => rows.filter(r => r.pid !== leader && !rows.some(o => o.pid === r.ppid)).map(r => r.pid);
 pub fn orphans_of(rows: &[GroupRow], leader: i64) -> Vec<i64> {
-    todo!()
+    rows.iter().filter(|r| r.pid != leader && !rows.iter().any(|o| o.pid == r.ppid)).map(|r| r.pid).collect()
 }
 
 /// The input pump's two pids, as the pump wrote them into `base.pump`: positive safe integers, one a line.
@@ -259,7 +388,12 @@ pub fn orphans_of(rows: &[GroupRow], leader: i64) -> Vec<i64> {
 //   return new Set((readFile(`${base}.pump`) ?? "").split("\n").map(Number).filter(pid => Number.isSafeInteger(pid) && pid > 0));
 // }
 pub fn pump_of(base: &str) -> IndexSet<i64> {
-    todo!()
+    read_file(&format!("{base}.pump"))
+        .unwrap_or_default()
+        .split('\n')
+        .filter_map(|line| line.trim().parse::<i64>().ok())
+        .filter(|&pid| pid > 0 && pid <= MAX_SAFE_INTEGER)
+        .collect()
 }
 
 /// What a turn left running in its group: every orphan that is not the pump, and every process under one.
@@ -279,7 +413,18 @@ pub fn pump_of(base: &str) -> IndexSet<i64> {
 //   return [...left];
 // }
 pub fn leftovers(rows: &[GroupRow], leader: i64, pump: &IndexSet<i64>) -> Vec<i64> {
-    todo!()
+    let mut left: IndexSet<i64> = orphans_of(rows, leader).into_iter().filter(|pid| !pump.contains(pid)).collect();
+    let mut grew = true;
+    while grew {
+        grew = false;
+        for r in rows {
+            if left.contains(&r.ppid) && !left.contains(&r.pid) {
+                left.insert(r.pid);
+                grew = true;
+            }
+        }
+    }
+    left.into_iter().collect()
 }
 
 /// The pid the run's agent wrote into `run.agent` as it started, while it lives.
@@ -292,7 +437,8 @@ pub fn leftovers(rows: &[GroupRow], leader: i64, pump: &IndexSet<i64>) -> Vec<i6
 //   return Number.isSafeInteger(pid) && pid > 0 && alive(pid) ? pid : undefined;
 // }
 pub fn agent_pid_of(run: &str) -> Option<i32> {
-    todo!()
+    let pid: i32 = read_file(&format!("{run}.agent")).unwrap_or_default().trim().parse().ok()?;
+    (pid > 0 && alive(pid)).then_some(pid)
 }
 
 /// ps's elapsed time `[[dd-]hh:]mm:ss` as the start it implies, `now_ms` less the span; `None` for anything else.
@@ -306,7 +452,18 @@ pub fn agent_pid_of(run: &str) -> Option<i32> {
 //       return Date.now() - (((Number(days) * 24 + hours) * 60 + minutes) * 60 + seconds) * 1_000;
 //     };
 pub fn parse_etime(out: &str, now_ms: i64) -> Option<i64> {
-    todo!()
+    let said = out.trim();
+    let pieces: Vec<&str> = said.split('-').collect();
+    let span = pieces.last().copied().unwrap_or("");
+    let days = if pieces.len() >= 2 { pieces[pieces.len() - 2] } else { "0" };
+    let parts: Vec<f64> = span.split(':').map(to_number).collect();
+    if parts.len() < 2 || parts.iter().any(|n| !n.is_finite()) {
+        return None;
+    }
+    let (hours, minutes, seconds) = if parts.len() == 3 { (parts[0], parts[1], parts[2]) } else { (0.0, parts[0], parts[1]) };
+    let span_ms = (((to_number(days) * 24.0 + hours) * 60.0 + minutes) * 60.0 + seconds) * 1_000.0;
+    let at = now_ms as f64 - span_ms;
+    (!at.is_nan()).then_some(at as i64)
 }
 
 /// When a process started, by `ps -o etime= -p <pid>`; `None` where ps will not answer.
@@ -332,7 +489,11 @@ pub fn parse_etime(out: &str, now_ms: i64) -> Option<i64> {
 //   });
 // }
 pub async fn started_at(pid: i32) -> Option<i64> {
-    todo!()
+    let out = tokio::process::Command::new("ps").args(["-o", "etime=", "-p", &pid.to_string()]).output().await.ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    parse_etime(&String::from_utf8_lossy(&out.stdout), RealClock.now())
 }
 
 /// Whether the pid a run recorded still leads that run's own group.
@@ -364,7 +525,23 @@ pub async fn started_at(pid: i32) -> Option<i64> {
 //   return claimed === undefined || Math.abs(started - claimed) <= LEADER_WINDOW_MS;
 // }
 pub async fn leads_this_run(base: &str, pid: i32) -> bool {
-    todo!()
+    if !group_exists(pid) {
+        return false;
+    }
+    if !alive(pid) {
+        return true;
+    }
+    let Some(started) = started_at(pid).await else { return true };
+    match claimed_at(base) {
+        None => true,
+        Some(claimed) => (started - claimed).abs() <= LEADER_WINDOW_MS,
+    }
+}
+
+/// The claim folder's modification time in epoch ms, `None` where it cannot be read.
+fn claimed_at(base: &str) -> Option<i64> {
+    let modified = fs::metadata(format!("{base}.d")).ok()?.modified().ok()?;
+    modified.duration_since(UNIX_EPOCH).ok().map(|d| d.as_millis() as i64)
 }
 
 /// What a reader takes once the group is gone, up to the log's size at that moment.
@@ -393,7 +570,29 @@ pub type LastRead = Box<dyn FnOnce(u64) -> LocalBoxFuture<'static, ()>>;
 //   rmSync(`${base}.d`, { recursive: true, force: true });
 // }
 pub async fn reap_run(base: &str, last_read: Option<LastRead>, grace_ms: u64) {
-    todo!()
+    let pid = read_file(&format!("{base}.pid")).unwrap_or_default().trim().parse::<i32>().ok().filter(|&p| p > 0);
+    if let Some(pid) = pid {
+        if leads_this_run(base, pid).await {
+            signal_group(pid, libc::SIGTERM);
+            let mut waited = 0;
+            while waited < grace_ms && group_exists(pid) {
+                tokio::time::sleep(Duration::from_millis(GRACE_POLL_MS.min(grace_ms - waited))).await;
+                waited += GRACE_POLL_MS;
+            }
+            signal_group(pid, libc::SIGKILL);
+        }
+    }
+    if let Some(last_read) = last_read {
+        last_read(log_size(base)).await;
+    }
+    for suffix in REAPED_SUFFIXES {
+        let _ = fs::remove_file(format!("{base}.{suffix}"));
+    }
+    let claim = format!("{base}.d");
+    let _ = match fs::symlink_metadata(&claim) {
+        Ok(meta) if meta.is_dir() => fs::remove_dir_all(&claim),
+        _ => fs::remove_file(&claim),
+    };
 }
 
 /// The log's size, 0 when it cannot be read.
@@ -406,7 +605,7 @@ pub async fn reap_run(base: &str, last_read: Option<LastRead>, grace_ms: u64) {
 //   }
 // }
 pub fn log_size(base: &str) -> u64 {
-    todo!()
+    fs::metadata(format!("{base}.log")).map(|m| m.len()).unwrap_or(0)
 }
 
 /// Hands a run the seed its launch held back, into a channel nothing reached yet, then drops it.
@@ -420,7 +619,17 @@ pub fn log_size(base: &str) -> u64 {
 //   rmSync(`${base}.held`, { force: true });
 // }
 pub fn release_held(base: &str) {
-    todo!()
+    let _ = try_release_held(base);
+}
+
+/// `release_held` where a failed append is the caller's to read: the write road answers `Gone` on it, as the TS does.
+pub(super) fn try_release_held(base: &str) -> io::Result<()> {
+    let Some(held) = read_file(&format!("{base}.held")) else { return Ok(()) };
+    let input = format!("{base}.in");
+    let empty = fs::metadata(&input).is_ok_and(|m| m.len() == 0);
+    let result = if Path::new(&format!("{base}.d")).exists() && empty { append(&input, held.as_bytes()) } else { Ok(()) };
+    let _ = fs::remove_file(format!("{base}.held"));
+    result
 }
 
 /// A late line goes in once, by its key, after the seed, onto a run that has not ended.
@@ -441,7 +650,22 @@ pub fn release_held(base: &str) {
 //   rmSync(`${base}.late.key`, { force: true });
 // }
 pub fn release_late(base: &str) {
-    todo!()
+    release_held(base);
+    let Some(late) = read_file(&format!("{base}.late")) else { return };
+    let key = read_file(&format!("{base}.late.key"));
+    let went = format!("{base}.late.went");
+    if Path::new(&format!("{base}.d")).exists() && !Path::new(&format!("{base}.exit")).exists() && key != read_file(&went) {
+        let _ = append(&format!("{base}.in"), late.as_bytes());
+        let _ = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&went)
+            .and_then(|mut file| file.write_all(key.unwrap_or_default().as_bytes()));
+    }
+    let _ = fs::remove_file(format!("{base}.late"));
+    let _ = fs::remove_file(format!("{base}.late.key"));
 }
 
 /// The line that ends one run's input channel, from the run's own name: `__WSP_EOF_<last 12 of base>__`.
@@ -452,7 +676,9 @@ pub fn release_late(base: &str) {
 //  * earlier one launched closes the same channel without being told anything. */
 // const endMarker = (base: string): string => `__WSP_EOF_${base.slice(-12)}__`;
 pub fn end_marker(base: &str) -> String {
-    todo!()
+    let chars: Vec<char> = base.chars().collect();
+    let tail: String = chars[chars.len().saturating_sub(12)..].iter().collect();
+    format!("__WSP_EOF_{tail}__")
 }
 
 /// One complete line at a time out of a growing byte stream, queued whether or not anybody iterates yet; a reader
@@ -528,26 +754,93 @@ pub fn end_marker(base: &str) -> String {
 // }
 #[derive(Clone)]
 pub struct Lines {
-    inner: Arc<std::sync::Mutex<()>>,
+    inner: Arc<Mutex<LinesState>>,
+}
+
+#[derive(Default)]
+struct LinesState {
+    queue: VecDeque<String>,
+    split: LineCut,
+    wake: Option<Waker>,
+    done: bool,
+    let_go: bool,
+    error: Option<ExecFailure>,
 }
 
 impl Lines {
     pub fn new() -> Self {
-        todo!()
+        Lines { inner: Arc::new(Mutex::new(LinesState::default())) }
     }
     pub fn feed(&self, chunk: &[u8]) {
-        todo!()
+        let mut guard = lock(&self.inner);
+        let st = &mut *guard;
+        if st.let_go {
+            return;
+        }
+        let lines = st.split.take(chunk);
+        st.queue.extend(lines);
+        if let Some(wake) = st.wake.take() {
+            wake.wake();
+        }
     }
     /// Ends the stream with `error` once everything already queued is out.
     pub fn fail(&self, error: ExecFailure) {
-        todo!()
+        lock(&self.inner).error = Some(error);
+        self.end();
     }
     pub fn end(&self) {
-        todo!()
+        let mut guard = lock(&self.inner);
+        let st = &mut *guard;
+        let last = st.split.rest();
+        if let Some(last) = last {
+            if !st.let_go {
+                st.queue.push_back(last);
+            }
+        }
+        st.done = true;
+        if let Some(wake) = st.wake.take() {
+            wake.wake();
+        }
     }
     /// The stream's one reader; dropping it lets go (the queue empties and later feeds are dropped).
     pub fn iterate(&self) -> LocalBoxStream<'static, Result<String, ExecFailure>> {
-        todo!()
+        Box::pin(LinesReader { inner: self.inner.clone(), finished: false })
+    }
+}
+
+struct LinesReader {
+    inner: Arc<Mutex<LinesState>>,
+    finished: bool,
+}
+
+impl Stream for LinesReader {
+    type Item = Result<String, ExecFailure>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if self.finished {
+            return Poll::Ready(None);
+        }
+        let inner = self.inner.clone();
+        let mut guard = lock(&inner);
+        let st = &mut *guard;
+        if let Some(line) = st.queue.pop_front() {
+            return Poll::Ready(Some(Ok(line)));
+        }
+        if st.done {
+            self.finished = true;
+            return Poll::Ready(st.error.clone().map(Err));
+        }
+        st.wake = Some(cx.waker().clone());
+        Poll::Pending
+    }
+}
+
+impl Drop for LinesReader {
+    fn drop(&mut self) {
+        let mut guard = lock(&self.inner);
+        guard.let_go = true;
+        guard.queue.clear();
+        guard.split = LineCut::default();
     }
 }
 

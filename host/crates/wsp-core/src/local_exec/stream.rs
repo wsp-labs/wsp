@@ -5,15 +5,34 @@
 //! spec/local_exec_stream.md.
 //!
 //! Private state sits behind a `std::sync::Mutex` that is never held across an `.await` or a call out (rule 3.3).
-use std::sync::Arc;
+use std::fs::{self, DirBuilder, File, OpenOptions};
+use std::io::{self, Write};
+use std::os::unix::fs::{DirBuilderExt, FileExt, OpenOptionsExt};
+use std::path::Path;
+use std::process::Stdio;
+use std::sync::{Arc, Mutex, Weak};
+use std::time::Duration;
 
-use futures::future::LocalBoxFuture;
+use futures::future::{LocalBoxFuture, Shared};
 use futures::stream::LocalBoxStream;
-use wsp_adapters::port::{Attached, AttachRunOptions, ExecFailure, ExecOptions, ExecStream, ExecStreamFactory, Settle, SharedFuture, WriteOutcome};
+use futures::FutureExt;
+use tokio::sync::oneshot;
+use tokio::task::spawn_local;
+use wsp_adapters::port::{
+    Attached, AttachRunOptions, ExecFailure, ExecFailureKind, ExecOptions, ExecStream, ExecStreamFactory, Settle, SharedFuture, WriteOutcome,
+    AGENT_PID_FILE_ENV,
+};
+use wsp_wire::types::place_state::TURN_WALL_MS;
+use wsp_wire::types::shell_quote::shell_quote;
+use wsp_wire::wire::limits::{EXEC_CHUNK_BYTES, RUN_STOP_MS, TURN_IDLE_MS};
 
-use super::reap::TreeWorkReader;
-use crate::ids::Ids;
-use crate::machine_exec::{NowFn, ReadingSet, TurnWaiting};
+use super::reap::{
+    alive, append, end_marker, group_rows, leftovers, lock, pump_of, read_file, release_held, release_late, reap_run, signal_group, signal_pid,
+    try_release_held, tree_work, Lines, TreeWorkReader,
+};
+use crate::clock::{Clock, RealClock};
+use crate::ids::{Ids, OsIds};
+use crate::machine_exec::{reads_work, turn_activity, turn_cut, NowFn, ReadingSet, TurnActivity, TurnLimits, TurnWaiting};
 
 /// How often the log is read and the limits are read against the clock.
 pub const POLL_MS: u64 = 100;
@@ -64,9 +83,14 @@ impl LocalExecOptions {
     }
 }
 
-pub struct LocalExecFactory {
+/// The options and the waiting question a factory's streams and sweeps share.
+struct Cfg {
     opts: LocalExecOptions,
     waiting: TurnWaiting,
+}
+
+pub struct LocalExecFactory {
+    cfg: Arc<Cfg>,
 }
 
 /// The factory for this computer; `waiting` is `false` always when `None`.
@@ -82,7 +106,51 @@ pub struct LocalExecFactory {
 //    * strength of being there. */
 //   const minted = (run: string): boolean => run.startsWith(`${runDir}/`) && RUN_ID.test(run.slice(runDir.length + 1));
 pub fn local_exec_stream(opts: LocalExecOptions, waiting: Option<TurnWaiting>) -> Arc<LocalExecFactory> {
-    todo!()
+    let waiting = waiting.unwrap_or_else(|| Arc::new(|| false));
+    Arc::new(LocalExecFactory { cfg: Arc::new(Cfg { opts, waiting }) })
+}
+
+/// A launch's refusal, as the TS throws it.
+fn fail(message: impl Into<String>) -> ExecFailure {
+    ExecFailure { kind: ExecFailureKind::Other, message: message.into() }
+}
+
+fn io_fail(e: io::Error) -> ExecFailure {
+    fail(e.to_string())
+}
+
+/// A file the owner alone reads, created exclusively (TS `writeOwned`, flag `wx`).
+fn write_owned(path: &str, text: impl AsRef<[u8]>) -> io::Result<()> {
+    OpenOptions::new().write(true).create_new(true).mode(0o600).open(path)?.write_all(text.as_ref())
+}
+
+/// What one reader of a run needs, read off the factory's options once per stream.
+#[derive(Default)]
+struct Open {
+    started_at: Option<i64>,
+    from: Option<u64>,
+    taken: Option<Vec<String>>,
+}
+
+impl Cfg {
+    fn limits(&self) -> TurnLimits {
+        TurnLimits {
+            idle_ms: self.opts.idle_ms.unwrap_or(TURN_IDLE_MS as f64),
+            deadline_ms: self.opts.deadline_ms.unwrap_or(TURN_WALL_MS as f64),
+        }
+    }
+    fn now_fn(&self) -> NowFn {
+        match &self.opts.now {
+            Some(now) => now.clone(),
+            None => Arc::new(|| RealClock.now()),
+        }
+    }
+    fn ids(&self) -> Arc<dyn Ids> {
+        match &self.opts.ids {
+            Some(ids) => ids.clone(),
+            None => Arc::new(OsIds),
+        }
+    }
 }
 
 impl LocalExecFactory {
@@ -143,14 +211,90 @@ impl LocalExecFactory {
     //     return stream;
     //   };
     pub fn try_launch(&self, command: &str, options: ExecOptions) -> Result<Arc<dyn ExecStream>, ExecFailure> {
-        todo!()
+        let cfg = &*self.cfg;
+        let ExecOptions { env, input, input_after, secret } = options;
+        if secret.is_some() {
+            return Err(fail("a launch on this computer takes no text holding a value; nothing was started"));
+        }
+        let run_dir = &cfg.opts.run_dir;
+        let base = format!("{run_dir}/{}", hex::encode(cfg.ids().bytes(6)));
+        DirBuilder::new().recursive(true).mode(0o700).create(run_dir).map_err(io_fail)?;
+        DirBuilder::new().mode(0o700).create(format!("{base}.d")).map_err(io_fail)?;
+        write_owned(&format!("{base}.sh"), launch_script(&base, command, input.is_some())).map_err(io_fail)?;
+        let seed: Option<String> = input.as_ref().map(|lines| lines.iter().map(|line| format!("{line}\n")).collect());
+        if let Some(seed) = &seed {
+            let channel = if input_after.is_some() { "" } else { seed.as_str() };
+            write_owned(&format!("{base}.in"), channel).map_err(io_fail)?;
+            if input_after.is_some() {
+                write_owned(&format!("{base}.held"), seed).map_err(io_fail)?;
+            }
+        }
+        write_owned(&format!("{base}.log"), "").map_err(io_fail)?;
+        let log = OpenOptions::new().append(true).open(format!("{base}.log")).map_err(io_fail)?;
+        let log_err = log.try_clone().map_err(io_fail)?;
+
+        let mut cmd = tokio::process::Command::new("bash");
+        cmd.arg(format!("{base}.sh"))
+            .current_dir(&cfg.opts.root)
+            .env_clear()
+            .envs(env.iter())
+            .env(AGENT_PID_FILE_ENV, format!("{base}.agent"))
+            .stdin(Stdio::null())
+            .stdout(log)
+            .stderr(log_err);
+        // SAFETY: between fork and exec this calls only setsid, as the TS detached spawn does.
+        unsafe {
+            cmd.pre_exec(|| {
+                if libc::setsid() == -1 {
+                    return Err(io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+        let launch_failed = match cmd.spawn() {
+            Ok(mut child) => {
+                if let Some(pid) = child.id() {
+                    let _ = fs::write(format!("{base}.pid"), format!("{pid}\n"));
+                }
+                spawn_local(async move {
+                    let _ = child.wait().await;
+                });
+                false
+            }
+            Err(_) => true,
+        };
+
+        let stream = open(cfg, base.clone(), input.is_some(), launch_failed, Open::default());
+        if let (Some(_), Some(after)) = (seed, input_after) {
+            let killer = stream.clone();
+            spawn_local(async move {
+                match after.await {
+                    Ok(()) => {
+                        if try_release_held(&base).is_err() {
+                            killer.kill();
+                        }
+                    }
+                    Err(_) => killer.kill(),
+                }
+            });
+        }
+        Ok(stream)
     }
 }
 
 impl ExecStreamFactory for LocalExecFactory {
     /// `try_launch`, with a refusal answered as a stream whose `lines` yields it once and whose `exited` is `None`.
     fn launch(&self, command: &str, options: ExecOptions) -> Arc<dyn ExecStream> {
-        todo!()
+        match self.try_launch(command, options) {
+            Ok(stream) => stream,
+            Err(failure) => {
+                let lines = Lines::new();
+                lines.fail(failure);
+                let (tx, rx) = oneshot::channel::<Option<i32>>();
+                let _ = tx.send(None);
+                Arc::new(RefusedStream { lines, exited: async move { rx.await.ok().flatten() }.boxed_local().shared() })
+            }
+        }
     }
 
     // TS local-exec.ts:757-773
@@ -172,7 +316,9 @@ impl ExecStreamFactory for LocalExecFactory {
     //     return open(run, input, { ...at, taken });
     //   };
     fn attach(&self, run: &str, options: AttachRunOptions) -> Option<LocalBoxFuture<'static, Result<Attached, ExecFailure>>> {
-        todo!()
+        let cfg = self.cfg.clone();
+        let run = run.to_string();
+        Some(Box::pin(async move { attach_run(&cfg, &run, options).await }))
     }
 
     // TS local-exec.ts:775-791
@@ -194,7 +340,22 @@ impl ExecStreamFactory for LocalExecFactory {
     //     return stale;
     //   };
     fn sweep(&self, keep: &[String]) -> Option<LocalBoxFuture<'static, Result<Vec<String>, ExecFailure>>> {
-        todo!()
+        let cfg = self.cfg.clone();
+        let keep: Vec<String> = keep.to_vec();
+        Some(Box::pin(async move {
+            let run_dir = cfg.opts.run_dir.clone();
+            let Ok(entries) = fs::read_dir(&run_dir) else { return Ok(Vec::new()) };
+            let stale: Vec<String> = entries
+                .flatten()
+                .filter_map(|entry| {
+                    let name = entry.file_name().to_string_lossy().into_owned();
+                    name.strip_suffix(".d").map(|id| format!("{run_dir}/{id}"))
+                })
+                .filter(|base| minted(&run_dir, base) && !keep.contains(base))
+                .collect();
+            futures::future::join_all(stale.iter().map(|base| reap_run(base, None, RUN_STOP_MS as u64))).await;
+            Ok(stale)
+        }))
     }
 }
 
@@ -202,7 +363,36 @@ impl ExecStreamFactory for LocalExecFactory {
 // TS local-exec.ts:446-446
 //   const minted = (run: string): boolean => run.startsWith(`${runDir}/`) && RUN_ID.test(run.slice(runDir.length + 1));
 pub fn minted(run_dir: &str, run: &str) -> bool {
-    todo!()
+    run.strip_prefix(run_dir)
+        .and_then(|rest| rest.strip_prefix('/'))
+        .is_some_and(|id| id.len() == 12 && id.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)))
+}
+
+/// The attach road: a run this host could have launched, re-opened by its handle.
+async fn attach_run(cfg: &Cfg, run: &str, options: AttachRunOptions) -> Result<Attached, ExecFailure> {
+    let AttachRunOptions { input, started_at, from } = options;
+    if !minted(&cfg.opts.run_dir, run) {
+        return Err(fail(format!("{run} is not a run this host could have launched")));
+    }
+    if !Path::new(&format!("{run}.d")).exists() {
+        return Ok(Attached::Gone);
+    }
+    if input {
+        release_held(run);
+    }
+    let channel = format!("{run}.in");
+    if input && fs::metadata(&channel).is_ok_and(|m| m.len() == 0) {
+        reap_run(run, None, RUN_STOP_MS as u64).await;
+        return Ok(Attached::Gone);
+    }
+    let at = Open { started_at: Some(started_at as i64), from, taken: None };
+    if !input {
+        return Ok(Attached::Stream(open(cfg, run.to_string(), input, false, at)));
+    }
+    release_late(run);
+    let marker = end_marker(run);
+    let taken: Vec<String> = read_file(&channel).unwrap_or_default().split('\n').filter(|line| !line.is_empty() && *line != marker).map(String::from).collect();
+    Ok(Attached::Stream(open(cfg, run.to_string(), input, false, Open { taken: Some(taken), ..at })))
 }
 
 /// The script `base.sh`: the command in a subshell and its code into `base.exit`, its stdin the pump of `base.in`
@@ -219,7 +409,17 @@ pub fn minted(run_dir: &str, run: &str) -> bool {
 //         : `( ${command}\n) < <(sh -c ${shellQuote(`echo $$ >> ${shellQuote(`${base}.pump`)}; exec tail -n +1 -f ${shellQuote(`${base}.in`)}`)} | { sh -c ${shellQuote(`echo $PPID >> ${shellQuote(`${base}.pump`)}`)}; while IFS= read -r l; do [ "$l" = ${shellQuote(endMarker(base))} ] && break; printf '%s\\n' "$l"; done; } &)\n` +
 //           `echo $? > ${shellQuote(`${base}.exit`)}\n`;
 pub fn launch_script(base: &str, command: &str, has_input: bool) -> String {
-    todo!()
+    let exit = shell_quote(&format!("{base}.exit"));
+    if !has_input {
+        return format!("( {command}\n)\necho $? > {exit}\n");
+    }
+    let pump = shell_quote(&format!("{base}.pump"));
+    let feed = shell_quote(&format!("echo $$ >> {pump}; exec tail -n +1 -f {}", shell_quote(&format!("{base}.in"))));
+    let ppid = shell_quote(&format!("echo $PPID >> {pump}"));
+    let end = shell_quote(&end_marker(base));
+    format!(
+        "( {command}\n) < <(sh -c {feed} | {{ sh -c {ppid}; while IFS= read -r l; do [ \"$l\" = {end} ] && break; printf '%s\\n' \"$l\"; done; }} &)\necho $? > {exit}\n"
+    )
 }
 
 /// One local run as the turn sees it.
@@ -478,47 +678,519 @@ pub fn launch_script(base: &str, command: &str, has_input: bool) -> String {
 //     } satisfies ExecStream;
 //   };
 pub struct LocalStream {
-    state: std::sync::Mutex<()>,
+    inner: Arc<Inner>,
+    pid: Option<u32>,
+    taken: Option<Vec<String>>,
+    exited: SharedFuture<Option<i32>>,
+}
+
+/// One run's reader state; its lock is never held across an await.
+struct Inner {
+    base: String,
+    has_input: bool,
+    limits: TurnLimits,
+    poll_ms: u64,
+    now: NowFn,
+    ids: Arc<dyn Ids>,
+    waiting: TurnWaiting,
+    read_work: TreeWorkReader,
+    reading_set: Option<Arc<ReadingSet>>,
+    launch_failed: bool,
+    lines: Lines,
+    state: Mutex<State>,
+}
+
+/// A line parked with `write_after`, settled once it went in or was dropped.
+struct Parked {
+    seq: u64,
+    done: Shared<LocalBoxFuture<'static, ()>>,
+}
+
+struct State {
+    started_at: i64,
+    activity: TurnActivity,
+    resting: bool,
+    killed: bool,
+    input_closed: bool,
+    parked: Option<Parked>,
+    seq: u64,
+    finished: bool,
+    exit_tx: Option<oneshot::Sender<Option<i32>>>,
+    offset: u64,
+    downs: u32,
+    reading: bool,
+    caught_up: bool,
+    exit_seen: bool,
+    dropped: bool,
+    wake: Option<oneshot::Sender<()>>,
+    reading_key: Option<u64>,
+}
+
+impl Inner {
+    fn now(&self) -> i64 {
+        (self.now)()
+    }
+
+    /// The leader's pid as the launch recorded it, while the file reads as a positive number.
+    fn leader(&self) -> Option<i32> {
+        read_file(&format!("{}.pid", self.base)).unwrap_or_default().trim().parse::<i32>().ok().filter(|&pid| pid > 0)
+    }
+
+    fn signal(&self, sig: i32) {
+        let Some(pid) = self.leader() else { return };
+        if lock(&self.state).finished {
+            return;
+        }
+        signal_group(pid, sig);
+    }
+
+    fn kill(&self) {
+        lock(&self.state).killed = true;
+        self.signal(libc::SIGKILL);
+    }
+
+    fn wake(&self) {
+        let wake = lock(&self.state).wake.take();
+        if let Some(wake) = wake {
+            let _ = wake.send(());
+        }
+    }
+
+    fn let_go(&self) {
+        let (wake, key) = {
+            let mut st = lock(&self.state);
+            st.dropped = true;
+            (st.wake.take(), st.reading_key)
+        };
+        if let Some(wake) = wake {
+            let _ = wake.send(());
+        }
+        if let (Some(set), Some(key)) = (&self.reading_set, key) {
+            set.remove(key);
+        }
+    }
+
+    fn read_exit(&self) -> Option<String> {
+        read_file(&format!("{}.exit", self.base)).map(|text| text.trim().to_string())
+    }
+
+    /// What the log holds past what was read, up to `end`, at most one chunk; empty where the log cannot be read.
+    fn read_log(&self, end: u64) -> Vec<u8> {
+        let log = format!("{}.log", self.base);
+        let Ok(meta) = fs::metadata(&log) else { return Vec::new() };
+        let offset = lock(&self.state).offset;
+        let size = meta.len().min(end);
+        if size <= offset {
+            return Vec::new();
+        }
+        let Ok(file) = File::open(&log) else { return Vec::new() };
+        let mut buf = vec![0u8; ((size - offset) as usize).min(EXEC_CHUNK_BYTES as usize)];
+        let Ok(read) = file.read_at(&mut buf, offset) else { return Vec::new() };
+        buf.truncate(read);
+        lock(&self.state).offset = offset + read as u64;
+        buf
+    }
+
+    fn finish(&self, code: Option<i32>) {
+        let mut st = lock(&self.state);
+        if st.finished {
+            return;
+        }
+        st.finished = true;
+        if let Some(tx) = st.exit_tx.take() {
+            let _ = tx.send(code);
+        }
+    }
+
+    async fn nap(&self, ms: u64) {
+        let (tx, rx) = oneshot::channel();
+        lock(&self.state).wake = Some(tx);
+        tokio::select! {
+            _ = tokio::time::sleep(Duration::from_millis(ms)) => {}
+            _ = rx => {}
+        }
+        lock(&self.state).wake = None;
+    }
+
+    /// Waits for every line parked with `write_after` to go in or be dropped.
+    async fn parked_out(&self) {
+        loop {
+            let done = lock(&self.state).parked.as_ref().map(|parked| parked.done.clone());
+            match done {
+                Some(done) => done.await,
+                None => break,
+            }
+        }
+    }
+
+    fn close_channel(&self) {
+        let _ = try_release_held(&self.base).and_then(|_| append(&format!("{}.in", self.base), format!("{}\n", end_marker(&self.base)).as_bytes()));
+    }
+
+    /// Writes a parked line's key and the line itself, both owner-only; false where either cannot be made.
+    fn park_files(&self, line: &str) -> bool {
+        let key = hex::encode(self.ids.bytes(6));
+        write_owned(&format!("{}.late.key", self.base), key).is_ok() && write_owned(&format!("{}.late", self.base), format!("{line}\n")).is_ok()
+    }
+}
+
+/// The poll of one run: the limits, the exit file and the log, until the run settles or this process lets go.
+async fn poll(inner: Arc<Inner>) {
+    loop {
+        {
+            let st = lock(&inner.state);
+            if st.finished || st.dropped {
+                return;
+            }
+        }
+        if lock(&inner.state).killed || inner.launch_failed {
+            return settle(&inner, None, None).await;
+        }
+        let at = inner.now();
+        if (inner.waiting)() {
+            lock(&inner.state).activity.touch(at);
+        }
+        let quiet = lock(&inner.state).activity.quiet_ms(at);
+        let pid = inner.leader();
+        if let Some(pid) = pid {
+            let start = {
+                let mut st = lock(&inner.state);
+                let start = !st.reading && !st.resting && reads_work(inner.limits.idle_ms, quiet);
+                st.reading = st.reading || start;
+                start
+            };
+            if start {
+                spawn_local(read_tree(inner.clone(), pid, at));
+            }
+        }
+        let (resting, started_at) = {
+            let st = lock(&inner.state);
+            (st.resting, st.started_at)
+        };
+        let cut = if resting { None } else { turn_cut(inner.limits, at - started_at, quiet) };
+        {
+            let st = lock(&inner.state);
+            if cut.is_some() && st.caught_up && !st.exit_seen {
+                drop(st);
+                return settle(&inner, None, cut).await;
+            }
+        }
+
+        // The exit file is read before the log, so a poll that sees an exit code reads a log that is complete.
+        let ended = inner.read_exit();
+        let chunk = inner.read_log(u64::MAX);
+        if !chunk.is_empty() {
+            let now = inner.now();
+            {
+                let mut st = lock(&inner.state);
+                st.activity.touch(now);
+                if chunk.len() < EXEC_CHUNK_BYTES as usize {
+                    st.caught_up = true;
+                }
+                st.exit_seen = ended.as_deref().is_some_and(|code| !code.is_empty());
+            }
+            inner.lines.feed(&chunk);
+            tokio::task::yield_now().await;
+            continue;
+        }
+        if let Some(code) = ended.as_deref().filter(|code| !code.is_empty()) {
+            return settle(&inner, parse_int(code), None).await;
+        }
+        lock(&inner.state).caught_up = true;
+        if cut.is_some() {
+            return settle(&inner, None, cut).await;
+        }
+        if pid.map_or(true, |pid| !alive(pid)) {
+            let downs = {
+                let mut st = lock(&inner.state);
+                st.downs += 1;
+                st.downs
+            };
+            if downs > 1 {
+                return settle(&inner, None, None).await;
+            }
+        }
+        let ms = if resting { RESTING_POLL_MS } else { inner.poll_ms };
+        inner.nap(ms).await;
+    }
+}
+
+/// One tree reading, taken off the poll's clock; its answer moves the idle clock only when the tree is busy.
+async fn read_tree(inner: Arc<Inner>, pid: i32, at: i64) {
+    let ticks = (inner.read_work)(pid).await;
+    let mut st = lock(&inner.state);
+    st.reading = false;
+    if let Some(ticks) = ticks {
+        st.activity.read(ticks, at);
+    }
+}
+
+/// Reaps the run, hands over the rest of its log, then settles its lines and exit code.
+async fn settle(inner: &Arc<Inner>, code: Option<i32>, cut: Option<ExecFailure>) {
+    let key = lock(&inner.state).reading_key;
+    if let (Some(set), Some(key)) = (&inner.reading_set, key) {
+        set.remove(key);
+    }
+    let reader = inner.clone();
+    let last_read: Box<dyn FnOnce(u64) -> LocalBoxFuture<'static, ()>> = Box::new(move |end: u64| {
+        let reader = reader.clone();
+        Box::pin(async move {
+            loop {
+                let chunk = reader.read_log(end);
+                if chunk.is_empty() {
+                    break;
+                }
+                reader.lines.feed(&chunk);
+                tokio::task::yield_now().await;
+            }
+        })
+    });
+    reap_run(&inner.base, Some(last_read), RUN_STOP_MS as u64).await;
+    match cut {
+        Some(cut) => inner.lines.fail(cut),
+        None => inner.lines.end(),
+    }
+    inner.finish(code);
+}
+
+/// `parseInt(text, 10)` as an exit code: the sign and digits that lead the text, `None` where no digit leads.
+fn parse_int(text: &str) -> Option<i32> {
+    let text = text.trim_start();
+    let (sign, rest) = match text.as_bytes().first() {
+        Some(b'-') => (-1i64, &text[1..]),
+        Some(b'+') => (1, &text[1..]),
+        _ => (1, text),
+    };
+    let digits = &rest[..rest.bytes().take_while(u8::is_ascii_digit).count()];
+    if digits.is_empty() {
+        return None;
+    }
+    i32::try_from(sign * digits.parse::<i64>().ok()?).ok()
+}
+
+/// Ends a parked line: its file goes in once `after` resolves, and its marker is cleared when it is the last parked.
+async fn park(inner: Arc<Inner>, line: String, after: Settle, seq: u64, done: oneshot::Sender<()>, before: Option<Shared<LocalBoxFuture<'static, ()>>>) {
+    if let Some(before) = before {
+        before.await;
+    }
+    if inner.park_files(&line) {
+        match after.await {
+            Ok(()) => release_late(&inner.base),
+            Err(_) => {
+                let _ = fs::remove_file(format!("{}.late", inner.base));
+                let _ = fs::remove_file(format!("{}.late.key", inner.base));
+            }
+        }
+    }
+    {
+        let mut st = lock(&inner.state);
+        if st.parked.as_ref().is_some_and(|parked| parked.seq == seq) {
+            st.parked = None;
+        }
+    }
+    let _ = done.send(());
+}
+
+/// Writes one line to the run's input, after a seed still held and every line parked before it.
+async fn write_line(inner: Arc<Inner>, line: String) -> Result<WriteOutcome, ExecFailure> {
+    if !inner.has_input {
+        return Err(fail("this stream has no input channel"));
+    }
+    inner.parked_out().await;
+    {
+        let st = lock(&inner.state);
+        if st.finished || st.input_closed {
+            return Ok(WriteOutcome::Gone);
+        }
+    }
+    let base = &inner.base;
+    if Path::new(&format!("{base}.exit")).exists() || !Path::new(&format!("{base}.d")).exists() {
+        return Ok(WriteOutcome::Gone);
+    }
+    if try_release_held(base).and_then(|_| append(&format!("{base}.in"), format!("{line}\n").as_bytes())).is_err() {
+        return Ok(WriteOutcome::Gone);
+    }
+    let now = inner.now();
+    lock(&inner.state).activity.touch(now);
+    Ok(WriteOutcome::Written)
+}
+
+/// Ends the leftovers of a run kept between turns: TERM now, KILL after the stop grace for any still alive.
+async fn end_leftovers(inner: Arc<Inner>) {
+    let Some(pid) = inner.leader() else { return };
+    let rows = group_rows(pid).await;
+    let left = leftovers(&rows, i64::from(pid), &pump_of(&inner.base));
+    let pids: Vec<i32> = left.iter().filter_map(|&stray| i32::try_from(stray).ok()).collect();
+    for &stray in &pids {
+        signal_pid(stray, libc::SIGTERM);
+    }
+    if !pids.is_empty() {
+        spawn_local(async move {
+            tokio::time::sleep(Duration::from_millis(RUN_STOP_MS as u64)).await;
+            for stray in pids.into_iter().filter(|&stray| alive(stray)) {
+                signal_pid(stray, libc::SIGKILL);
+            }
+        });
+    }
+}
+
+/// A stream for a run that never started: its lines fail with the refusal and its code never comes.
+struct RefusedStream {
+    lines: Lines,
+    exited: SharedFuture<Option<i32>>,
+}
+
+impl ExecStream for RefusedStream {
+    fn lines(&self) -> LocalBoxStream<'static, Result<String, ExecFailure>> {
+        self.lines.iterate()
+    }
+    fn teardown(&self) {}
+    fn kill(&self) {}
+    fn write(&self, _line: String) -> LocalBoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
+        Box::pin(async { Ok(WriteOutcome::Gone) })
+    }
+    fn close_input(&self) {}
+    fn exited(&self) -> SharedFuture<Option<i32>> {
+        self.exited.clone()
+    }
+}
+
+/// Opens the reader of a run: the poll starts now, and the lines and the exit code are queued for whoever reads them.
+fn open(cfg: &Cfg, base: String, has_input: bool, launch_failed: bool, o: Open) -> Arc<dyn ExecStream> {
+    let now = cfg.now_fn();
+    let now_at = now();
+    let started_at = o.started_at.unwrap_or(now_at);
+    let read_work = cfg.opts.read_work.clone().unwrap_or_else(tree_work);
+    let pid = read_file(&format!("{base}.pid")).unwrap_or_default().trim().parse::<u32>().ok().filter(|&pid| pid > 0);
+    let (exit_tx, exit_rx) = oneshot::channel::<Option<i32>>();
+    let exited: SharedFuture<Option<i32>> = async move { exit_rx.await.ok().flatten() }.boxed_local().shared();
+    let inner = Arc::new(Inner {
+        base,
+        has_input,
+        limits: cfg.limits(),
+        poll_ms: cfg.opts.poll_ms.unwrap_or(POLL_MS),
+        now: cfg.now_fn(),
+        ids: cfg.ids(),
+        waiting: cfg.waiting.clone(),
+        read_work,
+        reading_set: cfg.opts.reading.clone(),
+        launch_failed,
+        lines: Lines::new(),
+        state: Mutex::new(State {
+            started_at,
+            activity: turn_activity(now_at),
+            resting: false,
+            killed: false,
+            input_closed: false,
+            parked: None,
+            seq: 0,
+            finished: false,
+            exit_tx: Some(exit_tx),
+            offset: o.from.unwrap_or(0),
+            downs: 0,
+            reading: false,
+            caught_up: false,
+            exit_seen: false,
+            dropped: false,
+            wake: None,
+            reading_key: None,
+        }),
+    });
+    if let Some(set) = &inner.reading_set {
+        let weak: Weak<Inner> = Arc::downgrade(&inner);
+        let key = set.add(Arc::new(move || {
+            if let Some(inner) = weak.upgrade() {
+                inner.let_go();
+            }
+        }));
+        lock(&inner.state).reading_key = Some(key);
+    }
+    spawn_local(poll(inner.clone()));
+    Arc::new(LocalStream { inner, pid, taken: o.taken, exited })
 }
 
 impl ExecStream for LocalStream {
     fn lines(&self) -> LocalBoxStream<'static, Result<String, ExecFailure>> {
-        todo!()
+        self.inner.lines.iterate()
     }
     fn run(&self) -> Option<String> {
-        todo!()
+        Some(self.inner.base.clone())
     }
     /// The leader read once at open.
     fn pid(&self) -> Option<u32> {
-        todo!()
+        self.pid
     }
     fn teardown(&self) {
-        todo!()
+        self.inner.signal(libc::SIGTERM);
     }
     fn kill(&self) {
-        todo!()
+        self.inner.kill();
     }
     fn write(&self, line: String) -> LocalBoxFuture<'static, Result<WriteOutcome, ExecFailure>> {
-        todo!()
+        Box::pin(write_line(self.inner.clone(), line))
     }
     fn close_input(&self) {
-        todo!()
+        let inner = self.inner.clone();
+        {
+            let mut st = lock(&inner.state);
+            if !inner.has_input || st.input_closed || st.finished {
+                return;
+            }
+            st.input_closed = true;
+        }
+        if lock(&inner.state).parked.is_none() {
+            inner.close_channel();
+        } else {
+            spawn_local(async move {
+                inner.parked_out().await;
+                inner.close_channel();
+            });
+        }
     }
     /// `None` on a stream with no input channel (the TS throws), so the caller's own write gets the refusal.
     fn write_after(&self, line: String, after: Settle) -> Option<()> {
-        todo!()
+        let inner = self.inner.clone();
+        if !inner.has_input {
+            return None;
+        }
+        let (done_tx, done_rx) = oneshot::channel::<()>();
+        let done: Shared<LocalBoxFuture<'static, ()>> = async move {
+            let _ = done_rx.await;
+        }
+        .boxed_local()
+        .shared();
+        let (seq, before) = {
+            let mut st = lock(&inner.state);
+            st.seq += 1;
+            let seq = st.seq;
+            let before = st.parked.replace(Parked { seq, done: done.clone() });
+            (seq, before.map(|parked| parked.done))
+        };
+        spawn_local(park(inner, line, after, seq, done_tx, before));
+        Some(())
     }
     fn taken(&self) -> Option<Vec<String>> {
-        todo!()
+        self.taken.clone()
     }
     fn rest(&self) -> Option<()> {
-        todo!()
+        lock(&self.inner.state).resting = true;
+        spawn_local(end_leftovers(self.inner.clone()));
+        Some(())
     }
     /// The log's size, or the offset where the log cannot be read.
     fn next_turn(&self) -> Option<u64> {
-        todo!()
+        let now = self.inner.now();
+        {
+            let mut st = lock(&self.inner.state);
+            st.resting = false;
+            st.started_at = now;
+            st.activity = turn_activity(now);
+        }
+        self.inner.wake();
+        let size = fs::metadata(format!("{}.log", self.inner.base)).map(|m| m.len());
+        Some(size.unwrap_or_else(|_| lock(&self.inner.state).offset))
     }
     fn exited(&self) -> SharedFuture<Option<i32>> {
-        todo!()
+        self.exited.clone()
     }
 }

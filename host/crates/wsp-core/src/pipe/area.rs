@@ -4,13 +4,18 @@
 //! at 65f6b89c7. Spec: spec/pipe_area.md.
 //!
 //! Host state on the owner thread (rule 3.1), as the pool.
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use futures::future::LocalBoxFuture;
+use tokio::task::spawn_local;
+use wsp_wire::views::workspace::WorkspacePhase;
+use wsp_wire::views::workspace_events::WorkspaceCreateStage;
 use wsp_wire::wire::events_union::EventUnion;
 
-use super::pool::PipeHandler;
+use super::pool::{pipe_pool, PipeHandler, PipePool, PipePoolOptions, PipeReach};
 use crate::clock::Clock;
+use crate::console;
 
 /// The broker the host wired, as the pool reads it (`ctx.opts.broker`).
 pub trait PipeBroker {
@@ -54,12 +59,17 @@ pub trait PipeAreaContext {
 
 /// The running area; `close` detaches from the bus, then closes the pool.
 pub struct PipeArea {
-    state: std::cell::RefCell<()>,
+    pool: Rc<PipePool>,
+    detach: RefCell<Option<Box<dyn FnOnce()>>>,
 }
 
 impl PipeArea {
     pub fn close(&self) {
-        todo!()
+        let detach = self.detach.borrow_mut().take();
+        if let Some(detach) = detach {
+            detach();
+        }
+        self.pool.close();
     }
 }
 
@@ -134,7 +144,100 @@ impl PipeArea {
 //   };
 // }
 pub fn pipe_area(ctx: Rc<dyn PipeAreaContext>, brokered: Rc<dyn Fn(&str) -> bool>) -> Option<Rc<PipeArea>> {
-    todo!()
+    let broker = ctx.broker()?;
+    let reach_ctx = ctx.clone();
+    let reach: Rc<dyn Fn(&str) -> LocalBoxFuture<'static, Result<Option<PipeReach>, String>>> = Rc::new(move |id: &str| {
+        let (ctx, id) = (reach_ctx.clone(), id.to_string());
+        Box::pin(async move {
+            if ctx.live(&id).is_none() {
+                return Ok(None);
+            }
+            let url = ctx.daemon_reach_url(&id).await?;
+            let token = ctx.daemon_token_of(&id).await?;
+            Ok(token.map(|token| PipeReach { url, token }))
+        })
+    });
+    let version_ctx = ctx.clone();
+    let version: Rc<dyn Fn(&str) -> LocalBoxFuture<'static, Result<Option<i64>, String>>> = Rc::new(move |id: &str| {
+        let (ctx, id) = (version_ctx.clone(), id.to_string());
+        Box::pin(async move {
+            if ctx.live(&id).is_none() {
+                return Ok(None);
+            }
+            ctx.daemon_version(&id).await
+        })
+    });
+    let handler_broker = broker.clone();
+    let handler: Rc<dyn Fn() -> Option<PipeHandler>> = Rc::new(move || handler_broker.pipe());
+    let ready_broker = broker.clone();
+    let ready: Rc<dyn Fn() -> bool> = Rc::new(move || ready_broker.ready());
+    let rewrite_ctx = ctx.clone();
+    let rewrite: Rc<dyn Fn(&str)> = Rc::new(move |id: &str| {
+        if let Some(entry) = rewrite_ctx.live(id) {
+            rewrite_ctx.forget_daemon_token(&entry.machine_id);
+        }
+    });
+    let pool = pipe_pool(PipePoolOptions {
+        reach,
+        version,
+        handler,
+        ready,
+        rewrite,
+        clock: Some(ctx.clock()),
+        backoff_ms: None,
+        idle_max_ms: None,
+        behind_again_ms: None,
+        dial_rate: None,
+        log: None,
+    });
+    let up_if: Rc<dyn Fn(&str)> = {
+        let (pool, ctx, brokered) = (pool.clone(), ctx.clone(), brokered.clone());
+        Rc::new(move |id: &str| {
+            if ctx.live(id).is_some_and(|entry| entry.phase == "running") && brokered(id) {
+                pool.up(id);
+            }
+        })
+    };
+    let listener_pool = pool.clone();
+    let listener_up = up_if.clone();
+    let listener: Rc<dyn Fn(&EventUnion)> = Rc::new(move |event: &EventUnion| match event {
+        // A create's own clone reaches GitHub through these pipes, so they are dialled from its first stage after the
+        // machine is bound; one that fails takes them down with it.
+        EventUnion::WorkspaceCreating(e) => {
+            if e.event.stage == WorkspaceCreateStage::Failed {
+                listener_pool.down(&e.event.workspace_id);
+            } else {
+                listener_up(&e.event.workspace_id);
+            }
+        }
+        EventUnion::WorkspaceCreated(e) => {
+            if e.event.workspace.phase == WorkspacePhase::Running {
+                listener_up(&e.event.workspace.id);
+            }
+        }
+        EventUnion::WorkspaceWoken(e) => {
+            listener_pool.down(&e.event.workspace_id);
+            listener_up(&e.event.workspace_id);
+        }
+        EventUnion::WorkspaceUpgraded(e) => {
+            listener_pool.down(&e.event.workspace_id);
+            listener_up(&e.event.workspace_id);
+        }
+        EventUnion::WorkspaceNapped(e) => listener_pool.down(&e.event.workspace_id),
+        EventUnion::WorkspaceGone(e) => listener_pool.down(&e.event.workspace_id),
+        EventUnion::WorkspaceDeleted(e) => listener_pool.down(&e.event.workspace_id),
+        _ => {}
+    });
+    let detach = ctx.on_any(listener);
+    let ready_ctx = ctx.clone();
+    spawn_local(async move {
+        if ready_ctx.ready().await.is_ok() {
+            for id in ready_ctx.live_ids() {
+                up_if(&id);
+            }
+        }
+    });
+    Some(Rc::new(PipeArea { pool, detach: RefCell::new(Some(detach)) }))
 }
 
 /// Cuts a machine off at the broker before its provider deletes it; a broker that fails says so through
@@ -146,5 +249,9 @@ pub fn pipe_area(ctx: Rc<dyn PipeAreaContext>, brokered: Rc<dyn Fn(&str) -> bool
 //   await ctx.opts.broker?.revoke?.(entry.record.id).catch((e: unknown) => console.warn(`${entry.record.name} was not cut off from your computer before its delete: ${e instanceof Error ? e.message : String(e)}`));
 // }
 pub async fn cut_off(ctx: &dyn PipeAreaContext, workspace_id: &str, name: &str) {
-    todo!()
+    let Some(broker) = ctx.broker() else { return };
+    let Some(revoke) = broker.revoke(workspace_id) else { return };
+    if let Err(message) = revoke.await {
+        console::warn(&format!("{name} was not cut off from your computer before its delete: {message}"));
+    }
 }
