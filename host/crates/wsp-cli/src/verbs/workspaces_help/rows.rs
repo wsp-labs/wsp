@@ -3,21 +3,131 @@
 //! creating a workspace, sizes. Spec: `spec/ws-rows.md`. The first signatures are the ones other units call (fixed by the lead).
 //! `branchHere` (workspaces-help.ts:871) is another unit's.
 
+use std::collections::HashSet;
+use std::sync::Arc;
+
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-
-use wsp_wire::views::session::ThreadView;
+use serde_json::{json, Value};
+use wsp_wire::text::json_stringify;
+use wsp_wire::types::workspace_state::UNNAMED_COMPUTER;
+use wsp_wire::views::place_kind::PlaceKind;
+use wsp_wire::views::place_more::PlaceView;
+use wsp_wire::views::session::{SessionStatus, ThreadView};
 use wsp_wire::views::snapshot_lineage::WorkspaceCreateResult;
+use wsp_wire::views::sub_row::SubState;
 use wsp_wire::views::workspace::ProjectView;
 use wsp_wire::views::workspace_more::{WorkspaceOut, WorkspaceView, WorktreeFolder};
 use wsp_wire::wire::capabilities::{MachineSizeOffer, WorkspaceSize};
-use wsp_words::exit::HostError;
-use wsp_words::workspace_state::{CopyAt, StandsOn};
+use wsp_words::exit::{usage_refusal, HostError};
+use wsp_words::js::{number_string, to_number, utf16};
+use wsp_words::place_name::table_name;
+use wsp_words::projects::{
+    computer_named, copies_folder, copy_takes_none, home_shortened, kind_for_computer, local_folder_refusal, local_worktree_refusal,
+    runs_in_folder, source_word,
+};
+use wsp_words::thread_state::{subagent_state_word, thread_state, thread_word_of, ThreadState};
+use wsp_words::words::base::fmt_threads;
+use wsp_words::words::computer::Platform;
+use wsp_words::words::image::forget_notice;
+use wsp_words::words::units::{disk_expired, offered_size, size_from_word, size_refusal, DiskKeep, DISK_EXPIRED_WORD};
+use wsp_words::workspace_state::{delete_notice, is_local_workspace, machine_word, on_delete_of, workspace_kind, CopyAt, StandsOn};
 
-use super::reads::{reply_field, workspaces, ThreadRow};
-use crate::verbs::client::{Frame, HostClient, Out, SshAsked};
+use super::reads::{params, place_ref, reply_field, threads, workspace_of, workspaces, ThreadRow};
+use crate::verbs::client::{absolute_path, flag_for, host_platform, pick, Frame, HostClient, Out, PushedFrames, SshAsked};
 use crate::verbs::io::Created;
+
+fn wire_word<T: Serialize>(value: &T) -> String {
+    match serde_json::to_value(value) {
+        Ok(Value::String(word)) => word,
+        _ => String::new(),
+    }
+}
+
+fn platform() -> Platform {
+    if host_platform() == "darwin" {
+        Platform::Darwin
+    } else {
+        Platform::Linux
+    }
+}
+
+#[derive(Deserialize)]
+struct LandingSizes {
+    sizes: Vec<MachineSizeOffer>,
+}
+
+fn draw_under<'a>(
+    rows: &'a [ThreadRow],
+    held: &HashSet<&str>,
+    parent: Option<&str>,
+    depth: usize,
+    drawn: &mut HashSet<&'a str>,
+    out: &mut Vec<TreeRow<'a>>,
+) {
+    for row in rows {
+        let id = row.thread.id.as_str();
+        let parent_of = row.thread.parent_thread_id.as_deref().filter(|p| held.contains(p));
+        if drawn.contains(id) || parent_of != parent {
+            continue;
+        }
+        drawn.insert(id);
+        out.push(TreeRow { row, depth });
+        draw_under(rows, held, Some(id), depth + 1, drawn, out);
+    }
+}
+
+async fn create_follow(
+    client: &dyn HostClient,
+    out: &Out,
+    project: &ProjectPick,
+    name: &str,
+    asked: &CreateAsked,
+    chosen: Option<WorkspaceSize>,
+    pushed: &PushedFrames,
+) -> Result<Created, HostError> {
+    client.events().await?;
+    let watched = name.to_owned();
+    let emit_out = out.clone();
+    let stream_out = out.clone();
+    pushed.follow(
+        Arc::new(move |f: &Frame| {
+            f.get("type").and_then(Value::as_str) == Some("workspace.creating")
+                && f.get("name").and_then(Value::as_str) == Some(watched.as_str())
+        }),
+        Arc::new(move |f: &Frame| {
+            emit_out.emit(&Value::Object(f.clone()), None);
+            let message = f.get("message").and_then(Value::as_str).unwrap_or_default();
+            stream_out.stream(&format!("{message}\n"));
+        }),
+    );
+    let mut body = pick(vec![("project", Some(json!(project.id))), ("name", Some(json!(name)))]);
+    if let Some(size) = &chosen {
+        body.insert("cpu".to_owned(), json!(size.cpu));
+        body.insert("memMb".to_owned(), json!(size.mem_mb));
+    }
+    if let Some(agents) = &asked.agents {
+        body.insert("agents".to_owned(), json!(agents));
+    }
+    if let Some(parent) = &asked.parent {
+        body.insert("parent".to_owned(), json!(parent));
+    }
+    let reply = client.request("workspaces.create", body).await?;
+    let workspace: WorkspaceOut = reply_field(&reply, "workspaces.create", "workspace")?;
+    let notice = reply.get("notice").and_then(Value::as_str).map(str::to_owned);
+    let at = workspace.folder.clone().unwrap_or_else(|| workspace.project.path.clone());
+    let line = format!(
+        "created {} {}, a copy of {} at {}{}",
+        workspace.name,
+        workspace.id,
+        workspace.project.name,
+        at,
+        notice.as_ref().map(|n| format!("\n{n}")).unwrap_or_default()
+    );
+    let created = Created { workspace, notice };
+    out.emit(&serde_json::to_value(&created).unwrap_or(Value::Null), Some(&line));
+    Ok(created)
+}
 
 // ---------------------------------------------------------------------------------------------------------------
 // Dropping a workspace (workspaces-help.ts:600-666).
@@ -27,8 +137,7 @@ use crate::verbs::io::Created;
 /// (`made` true) and has not removed (`gone` not true); its path as given. None for no worktree, a worktree wsp did
 /// not make, and a made one that is gone.
 pub fn made_worktree(worktree: Option<&WorktreeFolder>) -> Option<CopyAt> {
-    let _ = worktree;
-    todo!("workspaces-help.ts:604")
+    worktree.filter(|w| w.made && w.gone.is_none()).map(|w| CopyAt { path: w.path.clone() })
 }
 
 /// `Dropping` (workspaces-help.ts:607-613): what dropping a workspace takes off this computer, counted before anyone is
@@ -42,10 +151,13 @@ pub struct Dropping {
 
 /// `onDelete(d)` (workspaces-help.ts:602): `on_delete_of(kind of d.workspace, made_worktree, machine id, d.on)`. Private:
 /// reached through `delete_question` and `deleted_line`.
-#[allow(dead_code)]
 fn on_delete(d: &Dropping) -> wsp_words::workspace_state::MachineOnDelete {
-    let _ = d;
-    todo!("workspaces-help.ts:602")
+    on_delete_of(
+        &workspace_kind(d.workspace.kind.as_ref()),
+        made_worktree(d.workspace.worktree.as_ref()).as_ref(),
+        Some(&d.workspace.machine_id),
+        d.on.as_ref(),
+    )
 }
 
 /// `dropping(client, ref)` (workspaces-help.ts:615-622): `workspace_of(ref)` (one `workspaces.resolve {ref}`; a reply
@@ -56,8 +168,21 @@ fn on_delete(d: &Dropping) -> wsp_words::workspace_state::MachineOnDelete {
 /// threads to find its threads, then wsp delete <thread>.`; both refusals come before any `sessions.list`. Else one
 /// `sessions.list {workspaceId}` folded by `fold_threads`, its length the thread count. A record with no kind is a cloud one.
 pub async fn dropping(client: &dyn HostClient, r#ref: &str) -> Result<Dropping, HostError> {
-    let _ = (client, r#ref);
-    todo!("workspaces-help.ts:615-622")
+    let workspace = workspace_of(client, r#ref).await?;
+    if is_local_workspace(workspace.kind.as_ref()) && workspace.worktree.is_some() {
+        return Err(usage_refusal(
+            &local_worktree_refusal(&workspace.name),
+            "Remove it with wsp worktree remove <project> <branch>, or delete a thread there with wsp delete <thread>.",
+        ));
+    }
+    if runs_in_folder(&workspace_kind(workspace.kind.as_ref())) {
+        return Err(usage_refusal(
+            &local_folder_refusal(&workspace.name),
+            "Run wsp threads to find its threads, then wsp delete <thread>.",
+        ));
+    }
+    let count = threads(client, Some(&workspace.id)).await?.len();
+    Ok(Dropping { workspace, threads: count, on: None })
 }
 
 /// `deleting(client, ref)` (workspaces-help.ts:626-638): `dropping`, then, only where the workspace's record names a
@@ -66,48 +191,68 @@ pub async fn dropping(client: &dyn HostClient, r#ref: &str) -> Result<Dropping, 
 /// place sets `on` to `{name: workspace name, computer: table_name(place)}`; the first row with the id is the place. A
 /// refusal of `dropping` comes before any `places.list`.
 pub async fn deleting(client: &dyn HostClient, r#ref: &str) -> Result<Dropping, HostError> {
-    let _ = (client, r#ref);
-    todo!("workspaces-help.ts:626-638")
+    let mut d = dropping(client, r#ref).await?;
+    let Some(at) = d.workspace.place.clone() else { return Ok(d) };
+    let listed = match client.request("places.list", Frame::new()).await {
+        Ok(reply) => Some(reply_field::<Vec<PlaceView>>(&reply, "places.list", "places")?.into_iter().find(|p| p.id == at)),
+        Err(_) => None,
+    };
+    let computer = match listed {
+        Some(None) => return Ok(d),
+        Some(Some(p)) if matches!(p.kind, PlaceKind::Provider) => return Ok(d),
+        Some(Some(p)) => table_name(&place_ref(&p)),
+        None => UNNAMED_COMPUTER.to_owned(),
+    };
+    d.on = Some(StandsOn { name: d.workspace.name.clone(), computer });
+    Ok(d)
 }
 
 /// `forgetQuestion(f)` (workspaces-help.ts:641-643): `Forget <name>?`, a newline, `forget_notice(threads)`.
 pub fn forget_question(f: &Dropping) -> String {
-    let _ = f;
-    todo!("workspaces-help.ts:641-643")
+    format!("Forget {}?\n{}", f.workspace.name, forget_notice(f.threads as f64))
 }
 
 /// `forget(client, f)` (workspaces-help.ts:646-648): one `workspaces.forget {workspaceId}`; the runtime refuses while
 /// its machine still exists. Answers nothing.
 pub async fn forget(client: &dyn HostClient, f: &Dropping) -> Result<(), HostError> {
-    let _ = (client, f);
-    todo!("workspaces-help.ts:646-648")
+    client.request("workspaces.forget", params(json!({ "workspaceId": f.workspace.id }))).await?;
+    Ok(())
 }
 
 /// `forgotLine(f)` (workspaces-help.ts:650-652): `forgot <name> <id>: its record and <fmt_threads> are gone from this computer`.
 pub fn forgot_line(f: &Dropping) -> String {
-    let _ = f;
-    todo!("workspaces-help.ts:650-652")
+    format!("forgot {} {}: its record and {} are gone from this computer", f.workspace.name, f.workspace.id, fmt_threads(f.threads as f64))
 }
 
 /// `deleteQuestion(d)` (workspaces-help.ts:655-657): `Delete <name>?`, a newline, `delete_notice(threads, kind,
 /// made_worktree, machine id, on)`.
 pub fn delete_question(d: &Dropping) -> String {
-    let _ = d;
-    todo!("workspaces-help.ts:655-657")
+    let on = d.on.as_ref();
+    let copy = made_worktree(d.workspace.worktree.as_ref());
+    format!(
+        "Delete {}?\n{}",
+        d.workspace.name,
+        delete_notice(d.threads as f64, &workspace_kind(d.workspace.kind.as_ref()), copy.as_ref(), Some(&d.workspace.machine_id), on)
+    )
 }
 
 /// `deleteWorkspace(client, d)` (workspaces-help.ts:660-662): one `workspaces.delete {workspaceId}`. A machine already
 /// gone is no error (the host's word, not this function's). Answers nothing.
 pub async fn delete_workspace(client: &dyn HostClient, d: &Dropping) -> Result<(), HostError> {
-    let _ = (client, d);
-    todo!("workspaces-help.ts:660-662")
+    client.request("workspaces.delete", params(json!({ "workspaceId": d.workspace.id }))).await?;
+    Ok(())
 }
 
 /// `deletedLine(d)` (workspaces-help.ts:664-666): `deleted <name> <id>: <on_delete.done(machine id)>, and its record and
 /// <fmt_threads> are gone from this computer`.
 pub fn deleted_line(d: &Dropping) -> String {
-    let _ = d;
-    todo!("workspaces-help.ts:664-666")
+    format!(
+        "deleted {} {}: {}, and its record and {} are gone from this computer",
+        d.workspace.name,
+        d.workspace.id,
+        on_delete(d).done_for(&d.workspace.machine_id),
+        fmt_threads(d.threads as f64)
+    )
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -123,15 +268,23 @@ pub const TITLE_WIDTH: usize = 60;
 /// `shortenedFront(path, width)` (workspaces-help.ts:675-677): the path as it is when its length in UTF-16 units is at
 /// most `width`, else `…` and the last `width - 1` units. Counts units, not characters: an emoji is two.
 pub fn shortened_front(path: &str, width: usize) -> String {
-    let _ = (path, width);
-    todo!("workspaces-help.ts:675-677")
+    let len = utf16::len(path);
+    if len <= width {
+        path.to_owned()
+    } else {
+        format!("…{}", utf16::slice(path, (len + 1 - width) as i64, None))
+    }
 }
 
 /// `shortenedEnd(text, width)` (workspaces-help.ts:680-682): the text as it is when its length in UTF-16 units is at
 /// most `width`, else its first `width - 1` units and `…`.
 pub fn shortened_end(text: &str, width: usize) -> String {
-    let _ = (text, width);
-    todo!("workspaces-help.ts:680-682")
+    let len = utf16::len(text);
+    if len <= width {
+        text.to_owned()
+    } else {
+        format!("{}…", utf16::slice(text, 0, Some(width as i64 - 1)))
+    }
 }
 
 /// `THREAD_HEAD` (workspaces-help.ts:684): the head of the threads table, ten columns.
@@ -145,33 +298,70 @@ pub const THREAD_HEAD: [&str; 10] = ["PROJECT", "FOLDER", "BRANCH", "THREAD", "S
 /// `subagent_state_word`, the literal `agent`, the computer name, its title shortened. `home` is the TS's `os.homedir()`
 /// and `now_ms` its `Date.now()` (read by the expired word), both handed in so a test can pin them.
 pub fn thread_lines(t: &ThreadRow, indent: &str, home: Option<&str>, now_ms: f64) -> Vec<Vec<String>> {
-    let _ = (t, indent, home, now_ms);
-    todo!("workspaces-help.ts:688-693")
+    let thread = &t.thread;
+    let folder = shortened_front(&home_shortened(&t.folder, home), FOLDER_WIDTH);
+    let state = expired_word(t, now_ms).or_else(|| sub_thread_word(t)).map(str::to_owned).unwrap_or_else(|| thread_word_of(thread));
+    let mut lines = vec![vec![
+        t.project_name.clone(),
+        folder.clone(),
+        t.branch.clone(),
+        format!("{indent}{}", thread.id),
+        String::new(),
+        thread.harness.clone(),
+        state,
+        wire_word(&thread.started_by),
+        t.computer_name.clone(),
+        shortened_end(&thread.title, TITLE_WIDTH),
+    ]];
+    for c in thread.subagents.iter().flatten() {
+        lines.push(vec![
+            t.project_name.clone(),
+            folder.clone(),
+            t.branch.clone(),
+            format!("{indent}  {}", thread.id),
+            c.id.clone(),
+            thread.harness.clone(),
+            subagent_state_word(c.state),
+            "agent".to_owned(),
+            t.computer_name.clone(),
+            shortened_end(&c.title, TITLE_WIDTH),
+        ]);
+    }
+    lines
 }
 
 /// `diskGoneLines(rows)` (workspaces-help.ts:696): one `<id>: <diskGone>` line per row that has a `diskGone` (an empty
 /// string counts), in row order.
 pub fn disk_gone_lines(rows: &[ThreadRow]) -> Vec<String> {
-    let _ = rows;
-    todo!("workspaces-help.ts:696")
+    rows.iter().filter_map(|t| t.thread.disk_gone.as_ref().map(|gone| format!("{}: {}", t.thread.id, gone))).collect()
 }
 
 /// `expiredWord(t)` (workspaces-help.ts:699-701): `DISK_EXPIRED_WORD` where nothing is waited on, the thread state is
 /// not `failed` and `disk_expired(t, now)`; else none. Private: reached through `thread_lines`.
-#[allow(dead_code)]
 fn expired_word(t: &ThreadRow, now_ms: f64) -> Option<&'static str> {
-    let _ = (t, now_ms);
-    todo!("workspaces-help.ts:699-701")
+    let thread = &t.thread;
+    let status = wire_word(&thread.status);
+    let keep =
+        DiskKeep { disk_kept_until: thread.disk_kept_until.as_ref().map(|at| at.0), status: &status, asking: thread.asking.as_deref() };
+    (thread.waiting_on.is_none() && thread_state(thread) != ThreadState::Failed && disk_expired(&keep, now_ms)).then_some(DISK_EXPIRED_WORD)
 }
 
 /// `subThreadWord(t)` (workspaces-help.ts:705-711): none for a row with no `sub`, one that asks, or one waited on. A sub
 /// in state `waiting` is `Waiting`, `starting` is `Starting`, `released` is `Released` only while the thread state is
 /// `completed` or `interrupted`; any other sub state is `Not pushed` when the turn is not running and work is held, else
 /// none. Private: reached through `thread_lines`.
-#[allow(dead_code)]
 fn sub_thread_word(t: &ThreadRow) -> Option<&'static str> {
-    let _ = t;
-    todo!("workspaces-help.ts:705-711")
+    let thread = &t.thread;
+    let sub = thread.sub.as_ref()?;
+    if thread.asking.is_some() || thread.waiting_on.is_some() {
+        return None;
+    }
+    match sub.state {
+        SubState::Waiting => Some("Waiting"),
+        SubState::Starting => Some("Starting"),
+        SubState::Released => matches!(thread_state(thread), ThreadState::Completed | ThreadState::Interrupted).then_some("Released"),
+        _ => (!matches!(thread.status, SessionStatus::Running) && sub.held.is_some()).then_some("Not pushed"),
+    }
 }
 
 /// One row of the `--tree` listing: the row (borrowed from the listing) and how many steps it is indented.
@@ -187,8 +377,16 @@ pub struct TreeRow<'a> {
 /// then stand flat at the top in listing order. A row whose id was already drawn is never drawn again, so the second of
 /// two rows with one id is dropped.
 pub fn thread_tree(rows: &[ThreadRow]) -> Vec<TreeRow<'_>> {
-    let _ = rows;
-    todo!("workspaces-help.ts:716-734")
+    let held: HashSet<&str> = rows.iter().map(|r| r.thread.id.as_str()).collect();
+    let mut drawn: HashSet<&str> = HashSet::new();
+    let mut out = Vec::new();
+    draw_under(rows, &held, None, 0, &mut drawn, &mut out);
+    for row in rows {
+        if !drawn.contains(row.thread.id.as_str()) {
+            out.push(TreeRow { row, depth: 0 });
+        }
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -198,8 +396,9 @@ pub fn thread_tree(rows: &[ThreadRow]) -> Vec<TreeRow<'_>> {
 /// `placeNames(client)` (workspaces-help.ts:738-741): one `places.list`; each place's id to `table_name(place)`, in the
 /// list's order. A repeated id keeps its first position and its last name (a JS `Map`).
 pub async fn place_names(client: &dyn HostClient) -> Result<IndexMap<String, String>, HostError> {
-    let _ = client;
-    todo!("workspaces-help.ts:738-741")
+    let reply = client.request("places.list", Frame::new()).await?;
+    let places: Vec<PlaceView> = reply_field(&reply, "places.list", "places")?;
+    Ok(places.iter().map(|p| (p.id.clone(), table_name(&place_ref(p)))).collect())
 }
 
 /// `projectsOf(client)` (workspaces-help.ts:744): `projects.list`, its `projects`.
@@ -210,8 +409,8 @@ pub async fn projects_of(client: &dyn HostClient) -> Result<Vec<ProjectView>, Ho
 
 /// `projectOf(client, ref)` (workspaces-help.ts:749): `projects.resolve {ref}`, its `project`.
 pub async fn project_of(client: &dyn HostClient, r#ref: &str) -> Result<ProjectView, HostError> {
-    let _ = (client, r#ref);
-    todo!("workspaces-help.ts:749")
+    let reply = client.request("projects.resolve", params(json!({ "ref": r#ref }))).await?;
+    reply_field(&reply, "projects.resolve", "project")
 }
 
 /// `projectLine(p, workspaces, threadsHeld, named)` (workspaces-help.ts:756-766): seven cells: name, id,
@@ -223,8 +422,16 @@ pub fn project_line(
     threads_held: &[ThreadView],
     named: &IndexMap<String, String>,
 ) -> Vec<String> {
-    let _ = (p, workspaces, threads_held, named);
-    todo!("workspaces-help.ts:756-766")
+    let count = threads_held.iter().filter(|t| workspaces.iter().any(|w| w.id == t.workspace_id && w.project.id == p.id)).count();
+    vec![
+        p.name.clone(),
+        p.id.clone(),
+        computer_named(&p.computer, Some(named), &platform()),
+        source_word(&p.source),
+        shortened_front(&p.path, FOLDER_WIDTH),
+        p.base.clone().unwrap_or_default(),
+        count.to_string(),
+    ]
 }
 
 /// `NO_PROJECT_YET` (workspaces-help.ts:770).
@@ -281,8 +488,22 @@ pub async fn create_for(
     name: &str,
     asked: &CreateAsked,
 ) -> Result<Created, HostError> {
-    let _ = (client, out, project, name, asked);
-    todo!("workspaces-help.ts:775-812")
+    if copies_folder(&kind_for_computer(&project.computer, None)) && asked.size.is_some() {
+        return Err(usage_refusal(&copy_takes_none(&project.name, &["--size"], None), "Drop them."));
+    }
+    let sized = asked.size.is_some().then(|| json!(true));
+    let reply = client.request("workspaces.landing", pick(vec![("project", Some(json!(project.id))), ("sized", sized)])).await?;
+    let chosen = match &asked.size {
+        None => None,
+        Some(word) => {
+            let landing: LandingSizes = reply_field(&reply, "workspaces.landing", "capabilities")?;
+            Some(size_chosen(&landing.sizes, word)?)
+        }
+    };
+    let pushed = PushedFrames::new(client);
+    let result = create_follow(client, out, project, name, asked, chosen, &pushed).await;
+    pushed.stop();
+    result
 }
 
 /// `projectsHere(client)` (workspaces-help.ts:817-823): `projects_of`; any refusal, or a reply with no `projects`, falls
@@ -306,8 +527,12 @@ pub fn agents_asked(
     max_depth: Option<&Value>,
     computer: Option<&str>,
 ) -> Result<Option<AgentsAsked>, HostError> {
-    let _ = (max_machines, max_depth, computer);
-    todo!("workspaces-help.ts:827-832")
+    let machines = max_machines.map(|word| count_asked("--max-machines", word, 0, computer)).transpose()?;
+    let depth = max_depth.map(|word| count_asked("--max-depth", word, 1, computer)).transpose()?;
+    if machines.is_none() && depth.is_none() {
+        return Ok(None);
+    }
+    Ok(Some(AgentsAsked { max_machines: machines, max_depth: depth }))
 }
 
 /// `countAsked(flagName, word, least, computer)` (workspaces-help.ts:834-838): `word` is a JSON string or number, read as
@@ -316,16 +541,34 @@ pub fn agents_asked(
 /// computer)> takes a whole number of zero|one or more, and got <JSON of the word as a string>.` with the fix `Write it
 /// as <flagName> <n>.`
 pub fn count_asked(flag_name: &str, word: &Value, least: u64, computer: Option<&str>) -> Result<u64, HostError> {
-    let _ = (flag_name, word, least, computer);
-    todo!("workspaces-help.ts:834-838")
+    let text = match word {
+        Value::String(text) => text.clone(),
+        other => number_string(other.as_f64().unwrap_or(f64::NAN)),
+    };
+    let n = match word {
+        Value::String(text) => to_number(text),
+        other => other.as_f64().unwrap_or(f64::NAN),
+    };
+    if !n.is_finite() || n.fract() != 0.0 || n < least as f64 {
+        let got = json_stringify(&Value::String(text));
+        let of = if least == 0 { "zero" } else { "one" };
+        return Err(usage_refusal(
+            &format!("{} takes a whole number of {of} or more, and got {got}.", flag_for(flag_name, computer)),
+            &format!("Write it as {flag_name} <n>."),
+        ));
+    }
+    Ok(n as u64)
 }
 
 /// `sizeChosen(sizes, word)` (workspaces-help.ts:843-847): `size_from_word(word)` (a trimmed `<cpus>x<gigabytes>`), which
 /// must be one of the offered sizes (`offered_size`), else a usage refusal `size_refusal(word, sizes)` (the word as
 /// given) with the fix `Name one of those with --size.`
 pub fn size_chosen(sizes: &[MachineSizeOffer], word: &str) -> Result<WorkspaceSize, HostError> {
-    let _ = (sizes, word);
-    todo!("workspaces-help.ts:843-847")
+    let size = size_from_word(word);
+    match size {
+        Some(size) if offered_size(sizes, &size) => Ok(size),
+        _ => Err(usage_refusal(&size_refusal(word, sizes), "Name one of those with --size.")),
+    }
 }
 
 /// `sshAsked(name, port, keyPath)` (workspaces-help.ts:851-859): the port is read as JS `Number(port)` and must be an
@@ -333,14 +576,33 @@ pub fn size_chosen(sizes: &[MachineSizeOffer], word: &str) -> Result<WorkspaceSi
 /// port is a whole number from 1 to 65535.`; the key goes through `absolute_path("--ssh-key is a path on this computer",
 /// key)`. The port is read before the key. Fields in the order name, port, key; the absent ones left out.
 pub fn ssh_asked(name: Option<&str>, port: Option<&str>, key_path: Option<&str>) -> Result<SshAsked, HostError> {
-    let _ = (name, port, key_path);
-    todo!("workspaces-help.ts:851-859")
+    let dialled = port.map(to_number);
+    if let Some(d) = dialled {
+        if !d.is_finite() || d.fract() != 0.0 || !(1.0..=65535.0).contains(&d) {
+            let got = json_stringify(&Value::String(port.unwrap_or_default().to_owned()));
+            return Err(usage_refusal(&format!("--ssh-port takes a port, and got {got}."), "A port is a whole number from 1 to 65535."));
+        }
+    }
+    let key_path = match key_path {
+        Some(key) => Some(absolute_path("--ssh-key is a path on this computer", key)?),
+        None => None,
+    };
+    Ok(SshAsked { name: name.map(str::to_owned), port: dialled.map(|d| d as u16), key_path })
 }
 
 /// `createdExisting(out, workspace, notice)` (workspaces-help.ts:863-867): not exported by the TS, reached through the
 /// verbs that record a machine. Emits `{workspace, notice?}` with the line `created <name> <id> (<machine_word(kind)>)` plus
 /// `\n<notice>` where a notice is present.
 pub fn created_existing(out: &Out, workspace: &WorkspaceView, notice: Option<&str>) -> WorkspaceCreateResult {
-    let _ = (out, workspace, notice);
-    todo!("workspaces-help.ts:863-867")
+    let created = WorkspaceCreateResult { workspace: workspace.clone(), notice: notice.map(str::to_owned) };
+    let kind = workspace_kind(workspace.kind.as_ref());
+    let line = format!(
+        "created {} {} ({}){}",
+        workspace.name,
+        workspace.id,
+        machine_word(&kind),
+        notice.map(|n| format!("\n{n}")).unwrap_or_default()
+    );
+    out.emit(&serde_json::to_value(&created).unwrap_or(Value::Null), Some(&line));
+    created
 }
