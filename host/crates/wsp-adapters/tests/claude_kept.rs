@@ -45,9 +45,27 @@ fn completed(input: u64, cost: f64) -> TurnResult {
         duration_ms: Some(n(40.0)),
         waited_ms: None,
         cost_usd: Some(n(cost)),
-        tokens: Some(TurnTokens { input: n(input as f64), output: n((input / 2) as f64), cached: Some(n(0.0)), cache_write: Some(n(0.0)), reasoning: Some(n(0.0)), context: Some(n(15.0)), window: Some(n(200_000.0)) }),
+        tokens: Some(TurnTokens {
+            input: n(input as f64),
+            output: n((input / 2) as f64),
+            cached: Some(n(0.0)),
+            cache_write: Some(n(0.0)),
+            reasoning: Some(n(0.0)),
+            context: Some(n(15.0)),
+            window: Some(n(200_000.0)),
+        }),
         model: Some("claude-x".into()),
-        models: Some(vec![TurnResultModelsItem { model: "claude-x".into(), tokens: UsageTokens { input: JsNumber(input as f64), output: JsNumber((input / 2) as f64), cached: 0.into(), cache_write: 0.into(), reasoning: 0.into() }, cost_usd: Some(n(cost)) }]),
+        models: Some(vec![TurnResultModelsItem {
+            model: "claude-x".into(),
+            tokens: UsageTokens {
+                input: JsNumber(input as f64),
+                output: JsNumber((input / 2) as f64),
+                cached: 0.into(),
+                cache_write: 0.into(),
+                reasoning: 0.into(),
+            },
+            cost_usd: Some(n(cost)),
+        }]),
         text: Some("ok".into()),
         error: None,
         unreached: None,
@@ -60,21 +78,27 @@ fn completed(input: u64, cost: f64) -> TurnResult {
 // under the same local id, writes its message under the session the CLI named, and costs only what it added.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_kept_process_takes_the_next_turn_under_the_same_local_id_and_costs_only_what_it_added() {
-    tokio::task::LocalSet::new().run_until(a_kept_process_takes_the_next_turn_under_the_same_local_id_and_costs_only_what_it_added_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_kept_process_takes_the_next_turn_under_the_same_local_id_and_costs_only_what_it_added_body())
+        .await
 }
 
 async fn a_kept_process_takes_the_next_turn_under_the_same_local_id_and_costs_only_what_it_added_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
     let (first_events, on_event) = collect();
-    let first = adapter.start(HarnessStartOptions { prompt: "one".into(), keep: true, on_event: Some(on_event), ..Default::default() }).unwrap();
+    let first =
+        adapter.start(HarnessStartOptions { prompt: "one".into(), keep: true, on_event: Some(on_event), ..Default::default() }).unwrap();
     assert!(first.kept().is_none(), "no result seen yet");
     exec.push(init());
     exec.push(said("hi", "m1"));
     exec.push(result(0.25, 100));
     assert_eq!(first.finished().await, completed(100, 0.25));
     assert_eq!(exec.order(), Vec::<String>::new(), "a kept turn's end closes its view, never the process's input, and signals nothing");
-    assert_eq!(types(&first_events.lock().unwrap()), vec!["session.start", "turn.usage", "turn.delta", "turn.anchor", "turn.done", "session.end"]);
+    assert_eq!(
+        types(&first_events.lock().unwrap()),
+        vec!["session.start", "turn.usage", "turn.delta", "turn.anchor", "turn.done", "session.end"]
+    );
 
     let kept = first.kept().expect("kept, up, and its result seen");
     assert_eq!(kept.session_file(), Some(SessionFile { folder: "/root/.claude/projects".into(), name: format!("{SID}.jsonl"), depth: 1 }));
@@ -87,13 +111,22 @@ async fn a_kept_process_takes_the_next_turn_under_the_same_local_id_and_costs_on
     assert_eq!(sessions.len(), 1);
     assert!(sessions[&first.local_id()].same(&second), "the next turn replaces the first in the registry");
     until(|| exec.writes().len() == 1).await;
-    assert_eq!(exec.writes(), vec![format!(r#"{{"type":"user","message":{{"role":"user","content":[{{"type":"text","text":"two"}}]}},"parent_tool_use_id":null,"session_id":"{SID}"}}"#)], "written at once, under the session the CLI named, with no uuid");
+    assert_eq!(
+        exec.writes(),
+        vec![format!(
+            r#"{{"type":"user","message":{{"role":"user","content":[{{"type":"text","text":"two"}}]}},"parent_tool_use_id":null,"session_id":"{SID}"}}"#
+        )],
+        "written at once, under the session the CLI named, with no uuid"
+    );
 
     exec.push(init());
     exec.push(said("again", "m2"));
     exec.push(result(0.4, 160));
     assert_eq!(second.finished().await, completed(60, 0.15000000000000002), "the second turn starts from the first's totals");
-    assert_eq!(types(&second_events.lock().unwrap()), vec!["session.start", "turn.usage", "turn.delta", "turn.anchor", "turn.done", "session.end"]);
+    assert_eq!(
+        types(&second_events.lock().unwrap()),
+        vec!["session.start", "turn.usage", "turn.delta", "turn.anchor", "turn.done", "session.end"]
+    );
     assert_eq!(exec.order(), vec!["write"]);
 
     let kept = second.kept().expect("still up");
@@ -111,14 +144,17 @@ async fn a_kept_turns_line_waits_for_after_and_goes_nowhere_where_it_rejects() {
 async fn a_kept_turns_line_waits_for_after_and_goes_nowhere_where_it_rejects_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
-    let first = adapter.start(HarnessStartOptions { prompt: "one".into(), keep: true, on_event: Some(Arc::new(|_| {})), ..Default::default() }).unwrap();
+    let first = adapter
+        .start(HarnessStartOptions { prompt: "one".into(), keep: true, on_event: Some(Arc::new(|_| {})), ..Default::default() })
+        .unwrap();
     let done = json!({"type": "result", "subtype": "success", "is_error": false, "result": "ok", "duration_ms": 40, "num_turns": 1, "session_id": SID, "usage": {"input_tokens": 10, "output_tokens": 5}}).to_string();
     exec.push(init());
     exec.push(done.clone());
     first.finished().await;
     let (go, gate) = tokio::sync::oneshot::channel::<Result<(), String>>();
     let after: Settle = Box::pin(async move { gate.await.unwrap_or(Err("dropped".into())) });
-    let second = first.kept().expect("kept").next(KeptTurn { prompt: "two".into(), images: vec![], after: Some(after), on_event: Arc::new(|_| {}) });
+    let second =
+        first.kept().expect("kept").next(KeptTurn { prompt: "two".into(), images: vec![], after: Some(after), on_event: Arc::new(|_| {}) });
     tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     assert!(exec.writes().is_empty(), "held until after settles");
     go.send(Ok(())).unwrap();
@@ -128,7 +164,12 @@ async fn a_kept_turns_line_waits_for_after_and_goes_nowhere_where_it_rejects_bod
     exec.push(done);
     second.finished().await;
     let refused: Settle = Box::pin(async { Err("the seed went".to_string()) });
-    let _third = second.kept().expect("kept").next(KeptTurn { prompt: "three".into(), images: vec![], after: Some(refused), on_event: Arc::new(|_| {}) });
+    let _third = second.kept().expect("kept").next(KeptTurn {
+        prompt: "three".into(),
+        images: vec![],
+        after: Some(refused),
+        on_event: Arc::new(|_| {}),
+    });
     tokio::time::sleep(std::time::Duration::from_millis(20)).await;
     assert_eq!(exec.writes().len(), 1, "a rejected after drops the line");
     assert_eq!(exec.order(), vec!["write"]);
@@ -144,12 +185,33 @@ async fn a_failed_turn_releases_its_process_and_keeps_nothing_body() {
     let exec = FakeExec::manual(StreamOpts::default());
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
     let (_events, on_event) = collect();
-    let session = adapter.start(HarnessStartOptions { prompt: "one".into(), keep: true, on_event: Some(on_event), ..Default::default() }).unwrap();
+    let session =
+        adapter.start(HarnessStartOptions { prompt: "one".into(), keep: true, on_event: Some(on_event), ..Default::default() }).unwrap();
     exec.push(init());
     exec.push(json!({"type": "result", "subtype": "error_during_execution", "is_error": true, "errors": ["MCP server exploded"], "duration_ms": 9, "session_id": SID}).to_string());
     let result = session.finished().await;
-    assert_eq!(result, TurnResult { status: TurnStatus::Failed, duration_ms: Some(n(9.0)), waited_ms: None, cost_usd: None, tokens: None, model: Some("claude-x".into()), models: None, text: None, error: Some("MCP server exploded".into()), unreached: None, refusal: None, limit: None });
-    assert_eq!(exec.order(), vec!["closeInput", "teardown"], "released: the view's close reaches the process, which is ended once the wait passes");
+    assert_eq!(
+        result,
+        TurnResult {
+            status: TurnStatus::Failed,
+            duration_ms: Some(n(9.0)),
+            waited_ms: None,
+            cost_usd: None,
+            tokens: None,
+            model: Some("claude-x".into()),
+            models: None,
+            text: None,
+            error: Some("MCP server exploded".into()),
+            unreached: None,
+            refusal: None,
+            limit: None
+        }
+    );
+    assert_eq!(
+        exec.order(),
+        vec!["closeInput", "teardown"],
+        "released: the view's close reaches the process, which is ended once the wait passes"
+    );
     assert!(session.kept().is_none());
 }
 
@@ -173,26 +235,66 @@ async fn an_attached_turn_keeps_no_process_body() {
     });
     let adapter = create_claude_adapter(deps(&exec)).unwrap();
     let (_events, on_event) = collect();
-    let attach = AdapterAttachOptions { run: "/tmp/run".into(), session_id: SID.into(), started_at: 1.0, model: None, cwd: None, prompt: None, effort: None, from: None, steered: None, on_event };
-    let AttachedSession::Session(session) = adapter.attach(attach).expect("attaches").await.expect("answered") else { panic!("the run is there") };
+    let attach = AdapterAttachOptions {
+        run: "/tmp/run".into(),
+        session_id: SID.into(),
+        started_at: 1.0,
+        model: None,
+        cwd: None,
+        prompt: None,
+        effort: None,
+        from: None,
+        steered: None,
+        on_event,
+    };
+    let AttachedSession::Session(session) = adapter.attach(attach).expect("attaches").await.expect("answered") else {
+        panic!("the run is there")
+    };
     assert_eq!(adapter.sessions().keys().cloned().collect::<Vec<_>>(), vec![SID.to_string()], "registered under the row's session id");
     exec.push(said("hi", "m1"));
     exec.push(result(0.25, 100));
     let result = session.finished().await;
     assert_eq!(
         result,
-        TurnResult { status: TurnStatus::Completed, duration_ms: Some(n(40.0)), waited_ms: None, cost_usd: None, tokens: Some(TurnTokens { input: n(10.0), output: n(5.0), cached: None, cache_write: None, reasoning: None, context: Some(n(15.0)), window: Some(n(200_000.0)) }), model: None, models: None, text: Some("ok".into()), error: None, unreached: None, refusal: None, limit: None },
+        TurnResult {
+            status: TurnStatus::Completed,
+            duration_ms: Some(n(40.0)),
+            waited_ms: None,
+            cost_usd: None,
+            tokens: Some(TurnTokens {
+                input: n(10.0),
+                output: n(5.0),
+                cached: None,
+                cache_write: None,
+                reasoning: None,
+                context: Some(n(15.0)),
+                window: Some(n(200_000.0))
+            }),
+            model: None,
+            models: None,
+            text: Some("ok".into()),
+            error: None,
+            unreached: None,
+            refusal: None,
+            limit: None
+        },
         "no init was read and no totals were saved: no model, no cost, the result's own usage"
     );
     assert!(session.kept().is_none());
-    assert_eq!(exec.order(), vec!["closeInput", "teardown"], "nothing keeps the process: its input closes and it is ended once the wait passes");
+    assert_eq!(
+        exec.order(),
+        vec!["closeInput", "teardown"],
+        "nothing keeps the process: its input closes and it is ended once the wait passes"
+    );
 }
 
 // A1, A2: a warm process starts with no input, rests at once, and its first turn is a fresh session under the warm id
 // with the warm command; its close ends it after the result wait.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_warm_process_rests_until_its_first_turn_which_is_a_fresh_session_under_the_warm_id() {
-    tokio::task::LocalSet::new().run_until(a_warm_process_rests_until_its_first_turn_which_is_a_fresh_session_under_the_warm_id_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_warm_process_rests_until_its_first_turn_which_is_a_fresh_session_under_the_warm_id_body())
+        .await
 }
 
 async fn a_warm_process_rests_until_its_first_turn_which_is_a_fresh_session_under_the_warm_id_body() {
@@ -211,13 +313,21 @@ async fn a_warm_process_rests_until_its_first_turn_which_is_a_fresh_session_unde
     assert_eq!(session.claude_session_id(), id);
     assert_eq!(session.command(), Some(calls[0].command.clone()), "the warm command, the guard being empty");
     until(|| exec.writes().len() == 1).await;
-    assert_eq!(exec.writes(), vec![format!(r#"{{"type":"user","message":{{"role":"user","content":[{{"type":"text","text":"first"}}]}},"parent_tool_use_id":null,"session_id":"{id}"}}"#)]);
+    assert_eq!(
+        exec.writes(),
+        vec![format!(
+            r#"{{"type":"user","message":{{"role":"user","content":[{{"type":"text","text":"first"}}]}},"parent_tool_use_id":null,"session_id":"{id}"}}"#
+        )]
+    );
     assert_eq!(adapter.sessions().keys().cloned().collect::<Vec<_>>(), vec![id.clone()]);
     exec.push(init());
     exec.push(said("hi", "m1"));
     exec.push(result(0.25, 100));
     assert_eq!(session.finished().await, completed(100, 0.25), "fresh: the whole total is this turn's");
-    assert_eq!(types(&events.lock().unwrap()), vec!["session.start", "turn.usage", "turn.delta", "turn.anchor", "turn.done", "session.end"]);
+    assert_eq!(
+        types(&events.lock().unwrap()),
+        vec!["session.start", "turn.usage", "turn.delta", "turn.anchor", "turn.done", "session.end"]
+    );
     warm.close(false).await;
     assert_eq!(exec.order(), vec!["write", "closeInput", "teardown"], "close waits result_exit_ms, then ends the tree");
 }

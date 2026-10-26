@@ -14,7 +14,10 @@ use codex_wire::*;
 use serde_json::Value;
 use wsp_adapters::codex::adapter::{create_codex_adapter, CodexAdapter, CodexAdapterDeps};
 use wsp_adapters::codex::CodexSession;
-use wsp_adapters::port::{AdapterEvent, AnswerOutcome, HarnessStartOptions, PermissionAnswer, PermissionOutcome, SteerOutcome, TaskStop, TurnResult, TurnStatus, PERMISSION_ALLOW};
+use wsp_adapters::port::{
+    AdapterEvent, AnswerOutcome, HarnessStartOptions, PermissionAnswer, PermissionOutcome, SteerOutcome, TaskStop, TurnResult, TurnStatus,
+    PERMISSION_ALLOW,
+};
 use wsp_wire::views::session::TurnRefusal;
 
 const THREAD: &str = "01a0e2c1-5d10-7b42-9a6e-3f1c2d4b5a60";
@@ -24,7 +27,9 @@ const CHILD_TURN: &str = "019fcfd6-28bf-7e00-a873-4554526dc845";
 const NOT_SIGNED_IN: &str = "Codex is not signed in where this thread runs; run codex login --device-auth there";
 
 fn thread_answer() -> String {
-    format!(r#"{{"id":"wsp-thread","result":{{"thread":{{"id":"{THREAD}","model":"gpt-5.6-sol","cwd":"/root/app","turns":[]}},"model":"gpt-5.6-sol","cwd":"/root/app"}}}}"#)
+    format!(
+        r#"{{"id":"wsp-thread","result":{{"thread":{{"id":"{THREAD}","model":"gpt-5.6-sol","cwd":"/root/app","turns":[]}},"model":"gpt-5.6-sol","cwd":"/root/app"}}}}"#
+    )
 }
 fn turn_started() -> String {
     format!(r#"{{"method":"turn/started","params":{{"threadId":"{THREAD}","turn":{{"id":"{TURN}","items":[],"status":"inProgress"}}}}}}"#)
@@ -33,16 +38,24 @@ fn completed(status: &str) -> String {
     format!(r#"{{"method":"turn/completed","params":{{"threadId":"{THREAD}","turn":{{"id":"{TURN}","items":[],"status":"{status}"}}}}}}"#)
 }
 fn child_started() -> String {
-    format!(r#"{{"method":"turn/started","params":{{"threadId":"{CHILD}","turn":{{"id":"{CHILD_TURN}","items":[],"status":"inProgress"}}}}}}"#)
+    format!(
+        r#"{{"method":"turn/started","params":{{"threadId":"{CHILD}","turn":{{"id":"{CHILD_TURN}","items":[],"status":"inProgress"}}}}}}"#
+    )
 }
 fn agent_message(text: &str) -> String {
-    format!(r#"{{"method":"item/completed","params":{{"item":{{"type":"agentMessage","id":"m1","text":"{text}"}},"threadId":"{THREAD}","turnId":"{TURN}"}}}}"#)
+    format!(
+        r#"{{"method":"item/completed","params":{{"item":{{"type":"agentMessage","id":"m1","text":"{text}"}},"threadId":"{THREAD}","turnId":"{TURN}"}}}}"#
+    )
 }
 fn approval(id: &str) -> String {
-    format!(r#"{{"id":{id},"method":"item/commandExecution/requestApproval","params":{{"threadId":"{THREAD}","turnId":"{TURN}","itemId":"call_1","command":"/bin/zsh -lc 'ls'","cwd":"/root/app"}}}}"#)
+    format!(
+        r#"{{"id":{id},"method":"item/commandExecution/requestApproval","params":{{"threadId":"{THREAD}","turnId":"{TURN}","itemId":"call_1","command":"/bin/zsh -lc 'ls'","cwd":"/root/app"}}}}"#
+    )
 }
 fn error_note(message: &str) -> String {
-    format!(r#"{{"method":"error","params":{{"error":{{"message":"{message}","additionalDetails":null}},"willRetry":false,"threadId":"{THREAD}","turnId":"{TURN}"}}}}"#)
+    format!(
+        r#"{{"method":"error","params":{{"error":{{"message":"{message}","additionalDetails":null}},"willRetry":false,"threadId":"{THREAD}","turnId":"{TURN}"}}}}"#
+    )
 }
 
 fn method_of(m: &Value) -> String {
@@ -67,7 +80,12 @@ fn scripted(rest: Vec<String>, hang: bool) -> Launch {
 }
 
 fn adapter(launch: &Launch) -> CodexAdapter {
-    create_codex_adapter(CodexAdapterDeps { interrupt_grace_ms: Some(10), result_exit_ms: Some(10), ..CodexAdapterDeps::new(launch.factory(), "/root/.codex", "codex login --device-auth") }).unwrap()
+    create_codex_adapter(CodexAdapterDeps {
+        interrupt_grace_ms: Some(10),
+        result_exit_ms: Some(10),
+        ..CodexAdapterDeps::new(launch.factory(), "/root/.codex", "codex login --device-auth")
+    })
+    .unwrap()
 }
 
 fn start(adapter: &CodexAdapter, events: &Events) -> CodexSession {
@@ -75,7 +93,20 @@ fn start(adapter: &CodexAdapter, events: &Events) -> CodexSession {
 }
 
 fn failed(error: &str) -> TurnResult {
-    TurnResult { status: TurnStatus::Failed, duration_ms: None, waited_ms: None, cost_usd: None, tokens: None, model: None, models: None, text: None, error: Some(error.into()), unreached: None, refusal: None, limit: None }
+    TurnResult {
+        status: TurnStatus::Failed,
+        duration_ms: None,
+        waited_ms: None,
+        cost_usd: None,
+        tokens: None,
+        model: None,
+        models: None,
+        text: None,
+        error: Some(error.into()),
+        unreached: None,
+        refusal: None,
+        limit: None,
+    }
 }
 
 fn allow() -> PermissionAnswer {
@@ -84,14 +115,18 @@ fn allow() -> PermissionAnswer {
 
 fn session_end(events: &Events) -> (Option<i32>, bool, Option<String>) {
     match events.all().last() {
-        Some(AdapterEvent::SessionEnd { exit_code, saw_result, failure, .. }) => (*exit_code, *saw_result, failure.as_ref().map(|f| f.message.clone())),
+        Some(AdapterEvent::SessionEnd { exit_code, saw_result, failure, .. }) => {
+            (*exit_code, *saw_result, failure.as_ref().map(|f| f.message.clone()))
+        }
         other => panic!("the last event is session.end, not {other:?}"),
     }
 }
 
 #[tokio::test]
 async fn the_stderr_tail_keeps_the_last_five_non_blank_trimmed_lines_unreadable_json_among_them() {
-    tokio::task::LocalSet::new().run_until(the_stderr_tail_keeps_the_last_five_non_blank_trimmed_lines_unreadable_json_among_them_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(the_stderr_tail_keeps_the_last_five_non_blank_trimmed_lines_unreadable_json_among_them_body())
+        .await
 }
 
 async fn the_stderr_tail_keeps_the_last_five_non_blank_trimmed_lines_unreadable_json_among_them_body() {
@@ -104,7 +139,10 @@ async fn the_stderr_tail_keeps_the_last_five_non_blank_trimmed_lines_unreadable_
     until(|| events.any("turn.anchor")).await;
     sleep_ms(5).await;
     launch.wire(0).exit(Some(3));
-    assert_eq!(session.finished().await, failed("codex exited with code 3 before its turn ended: {\"neither\":true}\nthree\n[1,2]\nfour\nfive"));
+    assert_eq!(
+        session.finished().await,
+        failed("codex exited with code 3 before its turn ended: {\"neither\":true}\nthree\n[1,2]\nfour\nfive")
+    );
     assert_eq!(events.kinds(), ["session.start", "session.start", "turn.anchor", "turn.done", "session.end"]);
     assert_eq!(session_end(&events), (Some(3), false, None));
 }
@@ -117,7 +155,10 @@ async fn an_error_with_no_message_leaves_an_empty_reason_and_a_signal_reads_code
 async fn an_error_with_no_message_leaves_an_empty_reason_and_a_signal_reads_code_null_body() {
     // CT2; adapter.ts:1047-1048, 1117-1118. `lastError` is "" (not absent), so the stderr tail is not read and the
     // words end in ": ". A process ended by a signal has no code: JS writes `null`.
-    let launch = scripted(vec![format!(r#"{{"method":"error","params":{{"error":{{}},"willRetry":false,"threadId":"{THREAD}"}}}}"#), "a stderr line".into()], true);
+    let launch = scripted(
+        vec![format!(r#"{{"method":"error","params":{{"error":{{}},"willRetry":false,"threadId":"{THREAD}"}}}}"#), "a stderr line".into()],
+        true,
+    );
     let session = start(&adapter(&launch), &Events::default());
     sleep_ms(20).await;
     launch.wire(0).exit(Some(1));
@@ -134,7 +175,9 @@ async fn an_error_with_no_message_leaves_an_empty_reason_and_a_signal_reads_code
 
 #[tokio::test]
 async fn failure_words_said_before_the_stream_throws_beat_the_stream_s_message_which_rides_session_end() {
-    tokio::task::LocalSet::new().run_until(failure_words_said_before_the_stream_throws_beat_the_stream_s_message_which_rides_session_end_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(failure_words_said_before_the_stream_throws_beat_the_stream_s_message_which_rides_session_end_body())
+        .await
 }
 
 async fn failure_words_said_before_the_stream_throws_beat_the_stream_s_message_which_rides_session_end_body() {
@@ -155,7 +198,9 @@ async fn failure_words_said_before_the_stream_throws_beat_the_stream_s_message_w
 
 #[tokio::test]
 async fn a_process_that_goes_mid_turn_cancels_its_asks_then_fails_its_children_then_ends_the_turn() {
-    tokio::task::LocalSet::new().run_until(a_process_that_goes_mid_turn_cancels_its_asks_then_fails_its_children_then_ends_the_turn_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_process_that_goes_mid_turn_cancels_its_asks_then_fails_its_children_then_ends_the_turn_body())
+        .await
 }
 
 async fn a_process_that_goes_mid_turn_cancels_its_asks_then_fails_its_children_then_ends_the_turn_body() {
@@ -174,11 +219,27 @@ async fn a_process_that_goes_mid_turn_cancels_its_asks_then_fails_its_children_t
     assert_eq!(steered.await, SteerOutcome::NotRunning);
     assert_eq!(
         events.kinds(),
-        ["session.start", "session.start", "turn.anchor", "subagent", "turn.tasks", "permission.ask", "permission.close", "subagent", "turn.tasks", "turn.done", "session.end"]
+        [
+            "session.start",
+            "session.start",
+            "turn.anchor",
+            "subagent",
+            "turn.tasks",
+            "permission.ask",
+            "permission.close",
+            "subagent",
+            "turn.tasks",
+            "turn.done",
+            "session.end"
+        ]
     );
     let all = events.all();
-    assert!(matches!(&all[6], AdapterEvent::PermissionClose { ask_id, outcome: PermissionOutcome::Cancelled, option_id: None, .. } if ask_id == "7"));
-    assert!(matches!(&all[7], AdapterEvent::Subagent { task, state: wsp_adapters::port::SubagentState::Failed, parent_tool_use_id: Some(parent), title: None, summary: None, usage: None, .. } if task == CHILD && parent == CHILD));
+    assert!(
+        matches!(&all[6], AdapterEvent::PermissionClose { ask_id, outcome: PermissionOutcome::Cancelled, option_id: None, .. } if ask_id == "7")
+    );
+    assert!(
+        matches!(&all[7], AdapterEvent::Subagent { task, state: wsp_adapters::port::SubagentState::Failed, parent_tool_use_id: Some(parent), title: None, summary: None, usage: None, .. } if task == CHILD && parent == CHILD)
+    );
     assert!(matches!(&all[8], AdapterEvent::TurnTasks { running: 0, .. }));
     assert_eq!(session_end(&events), (Some(1), false, None));
 
@@ -204,8 +265,14 @@ async fn a_turn_that_completes_under_an_open_ask_says_turn_done_first_then_cance
     let events = Events::default();
     let session = start(&a, &events);
     let result = session.finished().await;
-    assert_eq!((result.status, result.text.as_deref(), result.model.as_deref()), (TurnStatus::Completed, Some("done"), Some("gpt-5.6-sol")));
-    assert_eq!(events.kinds(), ["session.start", "session.start", "turn.anchor", "permission.ask", "delta:text", "turn.done", "permission.close", "session.end"]);
+    assert_eq!(
+        (result.status, result.text.as_deref(), result.model.as_deref()),
+        (TurnStatus::Completed, Some("done"), Some("gpt-5.6-sol"))
+    );
+    assert_eq!(
+        events.kinds(),
+        ["session.start", "session.start", "turn.anchor", "permission.ask", "delta:text", "turn.done", "permission.close", "session.end"]
+    );
     let w = launch.wire(0);
     assert!(w.closed());
     assert_eq!(session.steer("x".into()).await, SteerOutcome::NotRunning);
@@ -220,12 +287,17 @@ async fn a_turn_that_completes_under_an_open_ask_says_turn_done_first_then_cance
 
 #[tokio::test]
 async fn a_lead_end_with_no_status_or_an_unknown_one_fails_in_the_default_words_and_another_turn_s_end_is_ignored() {
-    tokio::task::LocalSet::new().run_until(a_lead_end_with_no_status_or_an_unknown_one_fails_in_the_default_words_and_another_turn_s_end_is_ignored_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_lead_end_with_no_status_or_an_unknown_one_fails_in_the_default_words_and_another_turn_s_end_is_ignored_body())
+        .await
 }
 
 async fn a_lead_end_with_no_status_or_an_unknown_one_fails_in_the_default_words_and_another_turn_s_end_is_ignored_body() {
     // CT6; adapter.ts:1053-1056, 778. The lead's failed result carries durationMs; one ended only by the exit does not.
-    for line in [format!(r#"{{"method":"turn/completed","params":{{"threadId":"{THREAD}","turn":{{"id":"{TURN}","items":[]}}}}}}"#), completed("weird")] {
+    for line in [
+        format!(r#"{{"method":"turn/completed","params":{{"threadId":"{THREAD}","turn":{{"id":"{TURN}","items":[]}}}}}}"#),
+        completed("weird"),
+    ] {
         let launch = scripted(vec![line], true);
         let session = start(&adapter(&launch), &Events::default());
         let result = session.finished().await;
@@ -242,7 +314,9 @@ async fn a_lead_end_with_no_status_or_an_unknown_one_fails_in_the_default_words_
 
 #[tokio::test]
 async fn a_thread_or_handshake_the_server_refuses_ends_the_turn_under_its_local_id_with_no_session_start() {
-    tokio::task::LocalSet::new().run_until(a_thread_or_handshake_the_server_refuses_ends_the_turn_under_its_local_id_with_no_session_start_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_thread_or_handshake_the_server_refuses_ends_the_turn_under_its_local_id_with_no_session_start_body())
+        .await
 }
 
 async fn a_thread_or_handshake_the_server_refuses_ends_the_turn_under_its_local_id_with_no_session_start_body() {
@@ -273,7 +347,10 @@ async fn a_thread_or_handshake_the_server_refuses_ends_the_turn_under_its_local_
             assert!(matches!(&all[0], AdapterEvent::SessionStart { prompted: Some(false), .. }));
         } else {
             assert_eq!(events.kinds(), ["turn.done", "session.end"]);
-            assert!(all.iter().all(|e| e.session_id() == session.local_id()), "nothing named the thread, so its events go under the local id");
+            assert!(
+                all.iter().all(|e| e.session_id() == session.local_id()),
+                "nothing named the thread, so its events go under the local id"
+            );
             assert!(!launch.wire(0).wrote("turn/start"));
         }
     }
@@ -281,7 +358,9 @@ async fn a_thread_or_handshake_the_server_refuses_ends_the_turn_under_its_local_
 
 #[tokio::test]
 async fn a_lead_that_ended_while_its_child_ran_is_completed_when_the_process_goes_and_its_stdin_never_closed() {
-    tokio::task::LocalSet::new().run_until(a_lead_that_ended_while_its_child_ran_is_completed_when_the_process_goes_and_its_stdin_never_closed_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_lead_that_ended_while_its_child_ran_is_completed_when_the_process_goes_and_its_stdin_never_closed_body())
+        .await
 }
 
 async fn a_lead_that_ended_while_its_child_ran_is_completed_when_the_process_goes_and_its_stdin_never_closed_body() {
@@ -298,14 +377,19 @@ async fn a_lead_that_ended_while_its_child_ran_is_completed_when_the_process_goe
     w.exit(Some(0));
     let result = session.finished().await;
     assert!(result.duration_ms.is_some());
-    assert_eq!((result.status, result.text.as_deref(), result.model.as_deref(), result.error.as_deref()), (TurnStatus::Completed, Some("lead said"), Some("gpt-5.6-sol"), None));
+    assert_eq!(
+        (result.status, result.text.as_deref(), result.model.as_deref(), result.error.as_deref()),
+        (TurnStatus::Completed, Some("lead said"), Some("gpt-5.6-sol"), None)
+    );
     assert_eq!(events.kinds()[6..], ["subagent", "turn.tasks", "turn.done", "session.end"]);
     assert_eq!(session_end(&events), (Some(0), true, None));
 }
 
 #[tokio::test]
 async fn a_launched_start_s_model_rides_the_thread_line_but_the_turn_names_the_model_the_server_answered() {
-    tokio::task::LocalSet::new().run_until(a_launched_start_s_model_rides_the_thread_line_but_the_turn_names_the_model_the_server_answered_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_launched_start_s_model_rides_the_thread_line_but_the_turn_names_the_model_the_server_answered_body())
+        .await
 }
 
 async fn a_launched_start_s_model_rides_the_thread_line_but_the_turn_names_the_model_the_server_answered_body() {
@@ -313,7 +397,13 @@ async fn a_launched_start_s_model_rides_the_thread_line_but_the_turn_names_the_m
     let launch = scripted(vec![agent_message("ok"), completed("completed")], false);
     let events = Events::default();
     let session = adapter(&launch)
-        .start(HarnessStartOptions { prompt: "go".into(), model: Some("my-model".into()), cwd: Some("/my/cwd".into()), on_event: Some(events.on_event()), ..Default::default() })
+        .start(HarnessStartOptions {
+            prompt: "go".into(),
+            model: Some("my-model".into()),
+            cwd: Some("/my/cwd".into()),
+            on_event: Some(events.on_event()),
+            ..Default::default()
+        })
         .unwrap();
     let result = session.finished().await;
     assert_eq!(result.model.as_deref(), Some("gpt-5.6-sol"));
@@ -337,22 +427,31 @@ async fn failure_words_said_earlier_beat_the_completed_turn_s_own_error() {
 
 async fn failure_words_said_earlier_beat_the_completed_turn_s_own_error_body() {
     // CT11; adapter.ts:770-771 (`failureWords(message) ?? words`).
-    let failed_with = format!(r#"{{"method":"turn/completed","params":{{"threadId":"{THREAD}","turn":{{"id":"{TURN}","items":[],"status":"failed","error":{{"message":"other boom"}}}}}}}}"#);
+    let failed_with = format!(
+        r#"{{"method":"turn/completed","params":{{"threadId":"{THREAD}","turn":{{"id":"{TURN}","items":[],"status":"failed","error":{{"message":"other boom"}}}}}}}}"#
+    );
     let launch = scripted(vec![error_note("Missing environment variable: `FOO_KEY`"), failed_with], false);
     let result = start(&adapter(&launch), &Events::default()).finished().await;
     assert!(result.duration_ms.is_some());
-    assert_eq!(TurnResult { duration_ms: None, ..result }, failed("Codex's model provider reads its key from the environment variable FOO_KEY, which is not set on this machine"));
+    assert_eq!(
+        TurnResult { duration_ms: None, ..result },
+        failed("Codex's model provider reads its key from the environment variable FOO_KEY, which is not set on this machine")
+    );
 }
 
 #[tokio::test]
 async fn a_later_turn_started_takes_the_turn_id_with_no_new_anchor_and_the_old_turn_s_end_is_ignored() {
-    tokio::task::LocalSet::new().run_until(a_later_turn_started_takes_the_turn_id_with_no_new_anchor_and_the_old_turn_s_end_is_ignored_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_later_turn_started_takes_the_turn_id_with_no_new_anchor_and_the_old_turn_s_end_is_ignored_body())
+        .await
 }
 
 async fn a_later_turn_started_takes_the_turn_id_with_no_new_anchor_and_the_old_turn_s_end_is_ignored_body() {
     // CT12; adapter.ts:966-973, 1053-1054.
     let started = |id: &str| format!(r#"{{"method":"turn/started","params":{{"threadId":"{THREAD}","turn":{{"id":"{id}"}}}}}}"#);
-    let done = |id: &str| format!(r#"{{"method":"turn/completed","params":{{"threadId":"{THREAD}","turn":{{"id":"{id}","status":"completed"}}}}}}"#);
+    let done = |id: &str| {
+        format!(r#"{{"method":"turn/completed","params":{{"threadId":"{THREAD}","turn":{{"id":"{id}","status":"completed"}}}}}}"#)
+    };
     let (one, two) = (started("tt1"), started("tt2"));
     let launch = launcher(scripted_server(WireOpts {
         hang: true,
@@ -376,13 +475,22 @@ async fn a_later_turn_started_takes_the_turn_id_with_no_new_anchor_and_the_old_t
     assert!(!events.any("turn.done"), "the first turn's end names a turn that is no longer this one");
     w.push1(done("tt2"));
     assert_eq!(session.finished().await.status, TurnStatus::Completed);
-    let anchors: Vec<String> = events.all().into_iter().filter_map(|e| match e { AdapterEvent::TurnAnchor { anchor, .. } => Some(anchor), _ => None }).collect();
+    let anchors: Vec<String> = events
+        .all()
+        .into_iter()
+        .filter_map(|e| match e {
+            AdapterEvent::TurnAnchor { anchor, .. } => Some(anchor),
+            _ => None,
+        })
+        .collect();
     assert_eq!(anchors, ["tt1"]);
 }
 
 #[tokio::test]
 async fn an_answer_s_close_carries_the_caller_s_outcome_and_option_and_a_deny_s_reason_is_steered_after_the_decision() {
-    tokio::task::LocalSet::new().run_until(an_answer_s_close_carries_the_caller_s_outcome_and_option_and_a_deny_s_reason_is_steered_after_the_decision_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(an_answer_s_close_carries_the_caller_s_outcome_and_option_and_a_deny_s_reason_is_steered_after_the_decision_body())
+        .await
 }
 
 async fn an_answer_s_close_carries_the_caller_s_outcome_and_option_and_a_deny_s_reason_is_steered_after_the_decision_body() {
@@ -391,9 +499,15 @@ async fn an_answer_s_close_carries_the_caller_s_outcome_and_option_and_a_deny_s_
     let events = Events::default();
     let session = start(&adapter(&launch), &events);
     until(|| events.of("permission.ask").len() == 2).await;
-    let odd = PermissionAnswer { option_id: "whatever".into(), outcome: PermissionOutcome::Allowed, deny_message: String::new(), reason: None };
+    let odd =
+        PermissionAnswer { option_id: "whatever".into(), outcome: PermissionOutcome::Allowed, deny_message: String::new(), reason: None };
     assert_eq!(session.answer("13".into(), odd).await, Ok(AnswerOutcome::Answered));
-    let deny = PermissionAnswer { option_id: "deny".into(), outcome: PermissionOutcome::Denied, deny_message: String::new(), reason: Some("use the other file".into()) };
+    let deny = PermissionAnswer {
+        option_id: "deny".into(),
+        outcome: PermissionOutcome::Denied,
+        deny_message: String::new(),
+        reason: Some("use the other file".into()),
+    };
     assert_eq!(session.answer("14".into(), deny).await, Ok(AnswerOutcome::Answered));
     sleep_ms(5).await;
     let closes: Vec<(String, PermissionOutcome, Option<String>)> = events
@@ -404,7 +518,10 @@ async fn an_answer_s_close_carries_the_caller_s_outcome_and_option_and_a_deny_s_
             _ => None,
         })
         .collect();
-    assert_eq!(closes, [("13".into(), PermissionOutcome::Allowed, Some("whatever".into())), ("14".into(), PermissionOutcome::Denied, Some("deny".into()))]);
+    assert_eq!(
+        closes,
+        [("13".into(), PermissionOutcome::Allowed, Some("whatever".into())), ("14".into(), PermissionOutcome::Denied, Some("deny".into()))]
+    );
     let w = launch.wire(0);
     let written = w.written();
     assert_eq!(
@@ -421,15 +538,24 @@ async fn an_answer_s_close_carries_the_caller_s_outcome_and_option_and_a_deny_s_
 
 #[tokio::test]
 async fn the_reconnect_stall_is_cleared_by_any_notification_but_an_error_and_never_by_a_request_a_response_or_stderr() {
-    tokio::task::LocalSet::new().run_until(the_reconnect_stall_is_cleared_by_any_notification_but_an_error_and_never_by_a_request_a_response_or_stderr_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(the_reconnect_stall_is_cleared_by_any_notification_but_an_error_and_never_by_a_request_a_response_or_stderr_body())
+        .await
 }
 
 async fn the_reconnect_stall_is_cleared_by_any_notification_but_an_error_and_never_by_a_request_a_response_or_stderr_body() {
     // CT14; adapter.ts:612-628, 951. The stall's end is the exit road: no durationMs; a hanging process is torn down, then killed.
-    let reconnecting = format!(r#"{{"method":"error","params":{{"error":{{"message":"Reconnecting... 2/5","additionalDetails":"error sending request"}},"willRetry":true,"threadId":"{THREAD}","turnId":"{TURN}"}}}}"#);
+    let reconnecting = format!(
+        r#"{{"method":"error","params":{{"error":{{"message":"Reconnecting... 2/5","additionalDetails":"error sending request"}},"willRetry":true,"threadId":"{THREAD}","turnId":"{TURN}"}}}}"#
+    );
     let launch = scripted(vec![], true);
     let events = Events::default();
-    let a = create_codex_adapter(CodexAdapterDeps { reconnect_stall_ms: Some(30), interrupt_grace_ms: Some(10), ..CodexAdapterDeps::new(launch.factory(), "/root/.codex", "codex login --device-auth") }).unwrap();
+    let a = create_codex_adapter(CodexAdapterDeps {
+        reconnect_stall_ms: Some(30),
+        interrupt_grace_ms: Some(10),
+        ..CodexAdapterDeps::new(launch.factory(), "/root/.codex", "codex login --device-auth")
+    })
+    .unwrap();
     let session = start(&a, &events);
     until(|| events.any("turn.anchor")).await;
     let w = launch.wire(0);
@@ -442,7 +568,20 @@ async fn the_reconnect_stall_is_cleared_by_any_notification_but_an_error_and_nev
     sleep_ms(10).await;
     w.push(&[approval("5"), r#"{"id":"x-unknown","result":{}}"#.to_string(), "stderr text".to_string()]);
     assert_eq!(session.finished().await, failed("stopped after 0m 00s of Codex reconnecting to its model provider with no answer"));
-    assert_eq!(events.kinds(), ["session.start", "session.start", "turn.anchor", "turn.retry", "turn.retry", "permission.ask", "permission.close", "turn.done", "session.end"]);
+    assert_eq!(
+        events.kinds(),
+        [
+            "session.start",
+            "session.start",
+            "turn.anchor",
+            "turn.retry",
+            "turn.retry",
+            "permission.ask",
+            "permission.close",
+            "turn.done",
+            "session.end"
+        ]
+    );
     assert_eq!(w.order(), ["teardown", "kill"]);
 }
 
@@ -453,8 +592,14 @@ async fn a_kept_turn_writes_its_unsubscribe_and_says_its_compaction_before_turn_
 
 async fn a_kept_turn_writes_its_unsubscribe_and_says_its_compaction_before_turn_done_body() {
     // CT15; adapter.ts:749-763, 1055. A compaction with no usage after it is said with `before` alone.
-    let compacting = |phase: &str| format!(r#"{{"method":"item/{phase}","params":{{"item":{{"type":"contextCompaction","id":"c1"}},"threadId":"{THREAD}","turnId":"{TURN}"}}}}"#);
-    let usage = format!(r#"{{"method":"thread/tokenUsage/updated","params":{{"threadId":"{THREAD}","turnId":"{TURN}","tokenUsage":{{"total":{{"inputTokens":900,"outputTokens":0}},"last":{{"inputTokens":900,"outputTokens":0}}}}}}}}"#);
+    let compacting = |phase: &str| {
+        format!(
+            r#"{{"method":"item/{phase}","params":{{"item":{{"type":"contextCompaction","id":"c1"}},"threadId":"{THREAD}","turnId":"{TURN}"}}}}"#
+        )
+    };
+    let usage = format!(
+        r#"{{"method":"thread/tokenUsage/updated","params":{{"threadId":"{THREAD}","turnId":"{TURN}","tokenUsage":{{"total":{{"inputTokens":900,"outputTokens":0}},"last":{{"inputTokens":900,"outputTokens":0}}}}}}}}"#
+    );
     let launch = scripted(vec![usage, compacting("started"), compacting("completed"), completed("completed")], false);
     let wires = launch.wires.clone();
     let seen = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
@@ -471,11 +616,23 @@ async fn a_kept_turn_writes_its_unsubscribe_and_says_its_compaction_before_turn_
             _ => {}
         }
     });
-    let session = adapter(&launch).start(HarnessStartOptions { prompt: "go".into(), keep: true, on_event: Some(on_event), ..Default::default() }).unwrap();
+    let session = adapter(&launch)
+        .start(HarnessStartOptions { prompt: "go".into(), keep: true, on_event: Some(on_event), ..Default::default() })
+        .unwrap();
     let _ = session.finished().await;
     assert_eq!(
         *seen.lock().unwrap(),
-        ["session.start", "session.start", "turn.anchor", "turn.usage", "turn.compacted", "before:Some(900.0) after:None", "turn.done", "unsubscribed:true", "session.end"]
+        [
+            "session.start",
+            "session.start",
+            "turn.anchor",
+            "turn.usage",
+            "turn.compacted",
+            "before:Some(900.0) after:None",
+            "turn.done",
+            "unsubscribed:true",
+            "session.end"
+        ]
     );
 }
 
@@ -489,7 +646,12 @@ async fn a_stop_before_the_prompt_is_due_sends_no_turn_and_ends_interrupted_body
     let launch = scripted(vec![], true);
     let events = Events::default();
     let session = adapter(&launch)
-        .start(HarnessStartOptions { prompt: "go".into(), prompt_after: Some(futures::future::pending().boxed_local()), on_event: Some(events.on_event()), ..Default::default() })
+        .start(HarnessStartOptions {
+            prompt: "go".into(),
+            prompt_after: Some(futures::future::pending().boxed_local()),
+            on_event: Some(events.on_event()),
+            ..Default::default()
+        })
         .unwrap();
     until(|| events.any("session.start")).await;
     session.interrupt().await;
@@ -503,7 +665,9 @@ async fn a_stop_before_the_prompt_is_due_sends_no_turn_and_ends_interrupted_body
 
 #[tokio::test]
 async fn a_stop_on_a_server_that_never_exits_tears_it_down_once_per_end_wait_then_kills_it_once() {
-    tokio::task::LocalSet::new().run_until(a_stop_on_a_server_that_never_exits_tears_it_down_once_per_end_wait_then_kills_it_once_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_stop_on_a_server_that_never_exits_tears_it_down_once_per_end_wait_then_kills_it_once_body())
+        .await
 }
 
 async fn a_stop_on_a_server_that_never_exits_tears_it_down_once_per_end_wait_then_kills_it_once_body() {
@@ -527,6 +691,9 @@ async fn a_stop_on_a_server_that_never_exits_tears_it_down_once_per_end_wait_the
     let w = launch.wire(0);
     assert_eq!(w.order(), ["teardown", "teardown", "kill"]);
     assert!(w.closed());
-    assert_eq!(w.written_method("turn/interrupt"), vec![serde_json::json!({"id": "wsp-interrupt-1", "method": "turn/interrupt", "params": {"threadId": THREAD, "turnId": TURN}})]);
+    assert_eq!(
+        w.written_method("turn/interrupt"),
+        vec![serde_json::json!({"id": "wsp-interrupt-1", "method": "turn/interrupt", "params": {"threadId": THREAD, "turnId": TURN}})]
+    );
     assert_eq!(session_end(&events), (None, true, None));
 }

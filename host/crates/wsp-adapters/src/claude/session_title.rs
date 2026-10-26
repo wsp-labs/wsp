@@ -40,7 +40,13 @@ pub fn parse_session_title(stdout: &str) -> Option<String> {
 
 /// The print-mode question as the title asks it: the person's customizations off, no tool, and no session kept.
 fn question_line(model: Option<&str>, launch: Option<&AgentLaunch>) -> String {
-    let mut words = vec![format!("{} -p", program_word("claude", launch)), "--safe-mode".into(), "--output-format json".into(), "--tools ''".into(), "--no-session-persistence".into()];
+    let mut words = vec![
+        format!("{} -p", program_word("claude", launch)),
+        "--safe-mode".into(),
+        "--output-format json".into(),
+        "--tools ''".into(),
+        "--no-session-persistence".into(),
+    ];
     if let Some(model) = model {
         words.push(format!("--model {}", shell_quote(model)));
     }
@@ -65,7 +71,9 @@ pub fn draft_for_command(prompt_file: &str, model: Option<&str>, launch: Option<
 /// The result field of the first answer that is a result, not an error, and carries a string.
 fn first_result(stdout: &str) -> Option<String> {
     let answer = stdout.split('\n').filter_map(parse_line).find(|answer| {
-        string(answer.get("type")) == Some("result") && answer.get("is_error") != Some(&Value::Bool(true)) && string(answer.get("result")).is_some()
+        string(answer.get("type")) == Some("result")
+            && answer.get("is_error") != Some(&Value::Bool(true))
+            && string(answer.get("result")).is_some()
     })?;
     string(answer.get("result")).map(String::from)
 }

@@ -9,20 +9,25 @@ mod claude_exec;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use futures::future::{LocalBoxFuture, FutureExt};
+use futures::future::{FutureExt, LocalBoxFuture};
 use serde_json::{json, Value};
 use wsp_adapters::claude::adapter::{create_claude_adapter, AdapterDeps, AttachedSession, ClaudeAdapter};
 use wsp_adapters::claude::catalog::claude_screen_commands;
 use wsp_adapters::claude::landmines::{user_message_line, BaseEnv};
 use wsp_adapters::claude::turn::ClaudeSession;
 use wsp_adapters::pending::{internal_tool_result, subagent_asked, NO_REPORT_LINE, SUBAGENT_ASKED_CHARS};
-use wsp_adapters::port::{agent_word, AdapterAttachOptions, AdapterEvent, AgentLaunch, DeltaKind, Env, ExecFailure, HarnessExec, HarnessStartOptions, OnEvent, PlanStep, SessionHarness, SteerOutcome, SubagentState, SubagentUsage, TurnDelta, TurnImage, TurnStatus, TurnTokens};
-use wsp_wire::types::usage::UsageTokens;
+use wsp_adapters::port::{
+    agent_word, AdapterAttachOptions, AdapterEvent, AgentLaunch, DeltaKind, Env, ExecFailure, HarnessExec, HarnessStartOptions, OnEvent,
+    PlanStep, SessionHarness, SteerOutcome, SubagentState, SubagentUsage, TurnDelta, TurnImage, TurnStatus, TurnTokens,
+};
 use wsp_wire::types::js_number::JsNumber;
+use wsp_wire::types::usage::UsageTokens;
 use wsp_wire::views::harness::ScreenControl;
 use wsp_wire::views::session_events::PlanStepState;
 
-use claude_exec::{collect, deltas, fixture_lines, guest_env, json as parse_json, types, until, FakeExec, StreamOpts, FIXTURE_SESSION_ID, RUN_HANDLE};
+use claude_exec::{
+    collect, deltas, fixture_lines, guest_env, json as parse_json, types, until, FakeExec, StreamOpts, FIXTURE_SESSION_ID, RUN_HANDLE,
+};
 
 const SID: &str = FIXTURE_SESSION_ID;
 const CONFIG_DIR: &str = "/root/.claude-cfg";
@@ -84,7 +89,18 @@ fn env_of<'a>(env: &'a Env, key: &str) -> Option<&'a str> {
 }
 
 fn attach_opts(run: &str, session_id: &str, on_event: OnEvent) -> AdapterAttachOptions {
-    AdapterAttachOptions { run: run.to_string(), session_id: session_id.to_string(), started_at: 1.0, model: None, cwd: None, prompt: None, effort: None, from: None, steered: None, on_event }
+    AdapterAttachOptions {
+        run: run.to_string(),
+        session_id: session_id.to_string(),
+        started_at: 1.0,
+        model: None,
+        cwd: None,
+        prompt: None,
+        effort: None,
+        from: None,
+        steered: None,
+        on_event,
+    }
 }
 
 fn recording_exec(ran: Arc<Mutex<Vec<(String, Option<Env>)>>>, answer: String) -> Arc<dyn HarnessExec> {
@@ -114,7 +130,13 @@ fn text_deltas_of(events: &[AdapterEvent]) -> Vec<TurnDelta> {
 }
 
 fn tokens(input: u64, output: u64, cached: u64, cache_write: u64) -> UsageTokens {
-    UsageTokens { input: JsNumber(input as f64), output: JsNumber(output as f64), cached: JsNumber(cached as f64), cache_write: JsNumber(cache_write as f64), reasoning: JsNumber(0.0) }
+    UsageTokens {
+        input: JsNumber(input as f64),
+        output: JsNumber(output as f64),
+        cached: JsNumber(cached as f64),
+        cache_write: JsNumber(cache_write as f64),
+        reasoning: JsNumber(0.0),
+    }
 }
 
 fn spent(tool_uses: i64, duration_ms: Option<f64>) -> SubagentUsage {
@@ -136,7 +158,18 @@ struct Sub {
 }
 
 fn sub(task: &str, parent: &str, state: SubagentState) -> Sub {
-    Sub { session: SID.to_string(), task: task.to_string(), parent: parent.to_string(), state, title: None, summary: None, depth: None, model: None, asked: None, usage: None }
+    Sub {
+        session: SID.to_string(),
+        task: task.to_string(),
+        parent: parent.to_string(),
+        state,
+        title: None,
+        summary: None,
+        depth: None,
+        model: None,
+        asked: None,
+        usage: None,
+    }
 }
 
 impl Sub {
@@ -169,7 +202,18 @@ impl Sub {
         self
     }
     fn ev(self) -> AdapterEvent {
-        AdapterEvent::Subagent { session_id: self.session, task: self.task, state: self.state, parent_tool_use_id: Some(self.parent), title: self.title, summary: self.summary, depth: self.depth, model: self.model, asked: self.asked, usage: self.usage }
+        AdapterEvent::Subagent {
+            session_id: self.session,
+            task: self.task,
+            state: self.state,
+            parent_tool_use_id: Some(self.parent),
+            title: self.title,
+            summary: self.summary,
+            depth: self.depth,
+            model: self.model,
+            asked: self.asked,
+            usage: self.usage,
+        }
     }
 }
 
@@ -198,7 +242,15 @@ fn subagent_fixture() -> SubagentFixture {
         blocks.iter().find(|b| b["id"] == call).unwrap()["input"]["prompt"].as_str().unwrap().to_string()
     };
     let (a_call, b_call) = (field(0, "tool_use_id"), field(1, "tool_use_id"));
-    SubagentFixture { a_id: field(0, "task_id"), b_id: field(1, "task_id"), a_prompt: prompt_of(&a_call), b_prompt: prompt_of(&b_call), a_call, b_call, lines }
+    SubagentFixture {
+        a_id: field(0, "task_id"),
+        b_id: field(1, "task_id"),
+        a_prompt: prompt_of(&a_call),
+        b_prompt: prompt_of(&b_call),
+        a_call,
+        b_call,
+        lines,
+    }
 }
 
 fn user_line(text: &str, uuid: &str) -> String {
@@ -253,8 +305,21 @@ fn screen_commands_are_one_table_by_name_without_a_slash() {
     let adapter = adapter_for(&exec);
     let table = claude_screen_commands();
     assert_eq!(adapter.screen_commands(), table);
-    assert_eq!(table.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), vec!["login", "logout", "model", "permissions", "config", "help"]);
-    assert_eq!(table.iter().map(|c| c.control).collect::<Vec<_>>(), vec![ScreenControl::SignIn, ScreenControl::SignIn, ScreenControl::Model, ScreenControl::Access, ScreenControl::Settings, ScreenControl::Docs]);
+    assert_eq!(
+        table.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+        vec!["login", "logout", "model", "permissions", "config", "help"]
+    );
+    assert_eq!(
+        table.iter().map(|c| c.control).collect::<Vec<_>>(),
+        vec![
+            ScreenControl::SignIn,
+            ScreenControl::SignIn,
+            ScreenControl::Model,
+            ScreenControl::Access,
+            ScreenControl::Settings,
+            ScreenControl::Docs
+        ]
+    );
     for c in &table {
         assert!(!c.name.starts_with('/'), "{}", c.name);
     }
@@ -273,7 +338,12 @@ async fn launches_with_the_picked_model_effort_and_permission_mode() {
 async fn launches_with_the_picked_model_effort_and_permission_mode_body() {
     let exec = FakeExec::scripted(stream_lines(), StreamOpts::default());
     let adapter = adapter_for(&exec);
-    let options = HarnessStartOptions { model: Some("claude-opus-5".into()), effort: Some("low".into()), permission_mode: Some("acceptEdits".into()), ..go("go", noop()) };
+    let options = HarnessStartOptions {
+        model: Some("claude-opus-5".into()),
+        effort: Some("low".into()),
+        permission_mode: Some("acceptEdits".into()),
+        ..go("go", noop())
+    };
     adapter.start(options).unwrap().finished().await;
     let command = exec.calls()[0].command.clone();
     assert!(command.contains("--model 'claude-opus-5'"), "{command}");
@@ -297,13 +367,20 @@ async fn keeps_its_auto_memory_in_the_folder_it_was_keyed_to_body() {
     let adapter = adapter_with(deps);
     adapter.start(go("go", noop())).unwrap().finished().await;
     let first = exec.calls()[0].clone();
-    assert!(first.command.contains(r#"--settings '{"autoMemoryDirectory":"/Users/z/.claude/projects/-Users-z-wt/memory"}'"#), "{}", first.command);
+    assert!(
+        first.command.contains(r#"--settings '{"autoMemoryDirectory":"/Users/z/.claude/projects/-Users-z-wt/memory"}'"#),
+        "{}",
+        first.command
+    );
     assert_eq!(env_of(&first.env, "CLAUDE_CODE_PROJECT_DIR_NAME"), Some("-Users-z-wt"));
     assert_eq!(env_of(&first.env, "CLAUDE_CONFIG_DIR"), None);
     adapter.start(HarnessStartOptions { fast: Some(true), ..go("go", noop()) }).unwrap().finished().await;
     let second = exec.calls()[1].command.clone();
     assert_eq!(second.matches("--settings").count(), 1, "{second}");
-    assert!(second.contains(r#"--settings '{"fastMode":true,"autoMemoryDirectory":"/Users/z/.claude/projects/-Users-z-wt/memory"}'"#), "{second}");
+    assert!(
+        second.contains(r#"--settings '{"fastMode":true,"autoMemoryDirectory":"/Users/z/.claude/projects/-Users-z-wt/memory"}'"#),
+        "{second}"
+    );
     let bare = FakeExec::scripted(stream_lines(), StreamOpts::default());
     let adapter = adapter_with(AdapterDeps::new(bare.clone(), "/Users/z/.claude"));
     adapter.start(go("go", noop())).unwrap().finished().await;
@@ -362,7 +439,8 @@ async fn attaches_to_a_run_an_earlier_process_launched_body() {
     let exec = FakeExec::attaching(stream_lines(), false);
     let adapter = adapter_for(&exec);
     let (events, on_event) = collect();
-    let attached = adapter.attach(attach_opts(RUN_HANDLE, "e16ed170-8257-4668-879e-fe836341633c", on_event)).expect("attach offered").await.unwrap();
+    let attached =
+        adapter.attach(attach_opts(RUN_HANDLE, "e16ed170-8257-4668-879e-fe836341633c", on_event)).expect("attach offered").await.unwrap();
     let session = match attached {
         AttachedSession::Session(s) => s,
         AttachedSession::Gone => panic!("expected a session, got gone"),
@@ -450,7 +528,25 @@ async fn normalizes_the_stream_into_session_start_delta_done_end_body() {
     let result = session.finished().await;
     let events = snap(&events);
 
-    assert_eq!(types(&events), vec!["session.start", "limit", "turn.usage", "turn.delta", "turn.usage", "turn.delta", "turn.delta", "turn.usage", "turn.delta", "turn.usage", "turn.delta", "turn.anchor", "turn.done", "session.end"]);
+    assert_eq!(
+        types(&events),
+        vec![
+            "session.start",
+            "limit",
+            "turn.usage",
+            "turn.delta",
+            "turn.usage",
+            "turn.delta",
+            "turn.delta",
+            "turn.usage",
+            "turn.delta",
+            "turn.usage",
+            "turn.delta",
+            "turn.anchor",
+            "turn.done",
+            "session.end"
+        ]
+    );
 
     match &events[0] {
         AdapterEvent::SessionStart { session_id, model, cwd, tools, .. } => {
@@ -463,7 +559,10 @@ async fn normalizes_the_stream_into_session_start_delta_done_end_body() {
     }
 
     let ds = deltas(&events);
-    assert_eq!(ds.iter().map(|d| d.kind).collect::<Vec<_>>(), vec![DeltaKind::Text, DeltaKind::ToolUse, DeltaKind::ToolResult, DeltaKind::Thinking, DeltaKind::Text]);
+    assert_eq!(
+        ds.iter().map(|d| d.kind).collect::<Vec<_>>(),
+        vec![DeltaKind::Text, DeltaKind::ToolUse, DeltaKind::ToolResult, DeltaKind::Thinking, DeltaKind::Text]
+    );
     assert_eq!(ds[1].tool_name.as_deref(), Some("Bash"));
     assert_eq!(ds[1].tool_use_id.as_deref(), Some("toolu_01WspFixBash1"));
     assert!(ds[1].text.contains("curl -s http://localhost:3000"), "{}", ds[1].text);
@@ -476,7 +575,18 @@ async fn normalizes_the_stream_into_session_start_delta_done_end_body() {
     assert_eq!(result.cost_usd, Some(JsNumber(0.0187)));
     assert_eq!(result.text.as_deref(), Some("Server is live at :3000 and answered: Hello, World!"));
     assert_eq!(result.model.as_deref(), Some("claude-sonnet-4-5"));
-    assert_eq!(result.tokens, Some(TurnTokens { input: JsNumber(22_564.0), output: JsNumber(251.0), cached: Some(JsNumber(18_435.0)), cache_write: Some(JsNumber(4_113.0)), reasoning: Some(JsNumber(0.0)), context: Some(JsNumber(4_269.0)), window: Some(JsNumber(200_000.0)) }));
+    assert_eq!(
+        result.tokens,
+        Some(TurnTokens {
+            input: JsNumber(22_564.0),
+            output: JsNumber(251.0),
+            cached: Some(JsNumber(18_435.0)),
+            cache_write: Some(JsNumber(4_113.0)),
+            reasoning: Some(JsNumber(0.0)),
+            context: Some(JsNumber(4_269.0)),
+            window: Some(JsNumber(200_000.0))
+        })
+    );
 
     match events.last().unwrap() {
         AdapterEvent::SessionEnd { exit_code, saw_result, .. } => {
@@ -540,8 +650,24 @@ async fn reads_the_todo_list_and_the_proposed_plan_as_the_turns_plan_body() {
     assert_eq!(
         plans,
         vec![
-            AdapterEvent::TurnPlan { session_id: SID.into(), steps: Some(vec![step("step 1", PlanStepState::Working), step("step 2", PlanStepState::Pending), step("step 3", PlanStepState::Pending)]), text: None },
-            AdapterEvent::TurnPlan { session_id: SID.into(), steps: Some(vec![step("step 1", PlanStepState::Done), step("step 2", PlanStepState::Working), step("step 3", PlanStepState::Pending)]), text: None },
+            AdapterEvent::TurnPlan {
+                session_id: SID.into(),
+                steps: Some(vec![
+                    step("step 1", PlanStepState::Working),
+                    step("step 2", PlanStepState::Pending),
+                    step("step 3", PlanStepState::Pending)
+                ]),
+                text: None
+            },
+            AdapterEvent::TurnPlan {
+                session_id: SID.into(),
+                steps: Some(vec![
+                    step("step 1", PlanStepState::Done),
+                    step("step 2", PlanStepState::Working),
+                    step("step 3", PlanStepState::Pending)
+                ]),
+                text: None
+            },
             AdapterEvent::TurnPlan { session_id: SID.into(), steps: None, text: Some("# Add --quiet\n\n1. Parse the flag".into()) },
         ]
     );
@@ -558,9 +684,17 @@ async fn keeps_the_task_list_built_call_by_call_as_the_turns_plan_body() {
     let lines = stream_lines();
     let script = vec![
         lines[1].clone(),
-        tool_call_line("toolu_c1", "TaskCreate", json!({"subject": "Write line 1", "description": "first", "activeForm": "Writing line 1"})),
+        tool_call_line(
+            "toolu_c1",
+            "TaskCreate",
+            json!({"subject": "Write line 1", "description": "first", "activeForm": "Writing line 1"}),
+        ),
         tool_answer_line("toolu_c1", "Task #1 created successfully: Write line 1"),
-        tool_call_line("toolu_c2", "TaskCreate", json!({"subject": "Write line 2", "description": "second", "activeForm": "Writing line 2"})),
+        tool_call_line(
+            "toolu_c2",
+            "TaskCreate",
+            json!({"subject": "Write line 2", "description": "second", "activeForm": "Writing line 2"}),
+        ),
         tool_answer_line("toolu_c2", "Task #2 created successfully: Write line 2"),
         tool_call_line("toolu_u1", "TaskUpdate", json!({"taskId": "1", "status": "in_progress"})),
         tool_answer_line("toolu_u1", "Updated task #1 status"),
@@ -573,10 +707,16 @@ async fn keeps_the_task_list_built_call_by_call_as_the_turns_plan_body() {
     let (_, events) = run_lines(script, "list it").await;
     let one = |state| step("Write line 1", state);
     let two = step("Write line 2", PlanStepState::Pending);
-    let plans: Vec<Option<Vec<PlanStep>>> = events.iter().filter_map(|e| if let AdapterEvent::TurnPlan { steps, .. } = e { Some(steps.clone()) } else { None }).collect();
+    let plans: Vec<Option<Vec<PlanStep>>> =
+        events.iter().filter_map(|e| if let AdapterEvent::TurnPlan { steps, .. } = e { Some(steps.clone()) } else { None }).collect();
     assert_eq!(
         plans,
-        vec![Some(vec![one(PlanStepState::Pending)]), Some(vec![one(PlanStepState::Pending), two.clone()]), Some(vec![one(PlanStepState::Working), two.clone()]), Some(vec![one(PlanStepState::Done), two])]
+        vec![
+            Some(vec![one(PlanStepState::Pending)]),
+            Some(vec![one(PlanStepState::Pending), two.clone()]),
+            Some(vec![one(PlanStepState::Working), two.clone()]),
+            Some(vec![one(PlanStepState::Done), two])
+        ]
     );
     assert_eq!(tool_rows(&events), vec![]);
 }
@@ -592,7 +732,10 @@ async fn stamps_every_line_a_subagent_wrote_with_the_call_that_launched_it_body(
     let (_, events) = run_lines(fx.lines.clone(), "fan out").await;
     let ds = deltas(&events);
     let (a, b) = (Some(fx.a_call.clone()), Some(fx.b_call.clone()));
-    assert_eq!(ds.iter().map(|d| d.parent_tool_use_id.clone()).collect::<Vec<_>>(), vec![None, None, None, a.clone(), b.clone(), a.clone(), b.clone(), b, a, None, None]);
+    assert_eq!(
+        ds.iter().map(|d| d.parent_tool_use_id.clone()).collect::<Vec<_>>(),
+        vec![None, None, None, a.clone(), b.clone(), a.clone(), b.clone(), b, a, None, None]
+    );
     assert_eq!(ds[3].text, ds[4].text);
     assert_ne!(ds[3].parent_tool_use_id, ds[4].parent_tool_use_id);
     assert!(!ds.iter().any(|d| d.text.contains("task_started")));
@@ -654,7 +797,9 @@ fn spend_expected() -> Vec<(String, SubagentState, SubagentUsage)> {
     let one_all = tokens(2 + 10_308 + 2 + 654 + 10_308, 19, 10_308, 10_308 + 654);
     let two_first = tokens(2 + 3_913 + 6_395, 16, 6_395, 3_913);
     let two_all = tokens(2 + 3_913 + 6_395 + 2 + 654 + 10_308, 19, 6_395 + 10_308, 3_913 + 654);
-    let row = |task: &str, state, tokens, ms| (task.to_string(), state, SubagentUsage { tokens: Some(tokens), tool_uses: Some(1.into()), duration_ms: Some(JsNumber(ms)) });
+    let row = |task: &str, state, tokens, ms| {
+        (task.to_string(), state, SubagentUsage { tokens: Some(tokens), tool_uses: Some(1.into()), duration_ms: Some(JsNumber(ms)) })
+    };
     vec![
         row(SPEND_ONE, SubagentState::Running, one_first, 1_085.0),
         row(SPEND_TWO, SubagentState::Running, two_first, 1_129.0),
@@ -681,7 +826,10 @@ async fn counts_a_call_once_however_many_of_its_blocks_the_cli_writes() {
 
 async fn counts_a_call_once_however_many_of_its_blocks_the_cli_writes_body() {
     let mut lines = spend_lines();
-    let at = lines.iter().position(|l| l.contains(&format!("\"agent_id\":\"{SPEND_ONE}\"")) && l.contains("\"type\":\"assistant\"")).expect("an assistant line of the first subagent");
+    let at = lines
+        .iter()
+        .position(|l| l.contains(&format!("\"agent_id\":\"{SPEND_ONE}\"")) && l.contains("\"type\":\"assistant\""))
+        .expect("an assistant line of the first subagent");
     let mut early: Value = serde_json::from_str(&lines[at]).unwrap();
     early["message"]["usage"]["output_tokens"] = json!(4);
     lines.insert(at, early.to_string());
@@ -736,7 +884,10 @@ async fn a_subagents_model_comes_off_its_first_line_never_an_api_error_body() {
     let (_, events) = run_lines(lines, "count").await;
     assert_eq!(
         subagent_events(&events),
-        vec![sub("a1", "toolu_t", SubagentState::Running).title("count").asked("Count to three.").ev(), sub("a1", "toolu_t", SubagentState::Running).model("claude-haiku-4-5").ev()]
+        vec![
+            sub("a1", "toolu_t", SubagentState::Running).title("count").asked("Count to three.").ev(),
+            sub("a1", "toolu_t", SubagentState::Running).model("claude-haiku-4-5").ev()
+        ]
     );
 }
 
@@ -769,7 +920,10 @@ fn fold_of(events: &[AdapterEvent], call: &str) -> Vec<TurnDelta> {
 }
 
 fn handed_back(events: &[AdapterEvent], handback: &str) -> Vec<TurnDelta> {
-    deltas(events).into_iter().filter(|d| d.tool_name.as_deref() == Some("SubagentHandback") || d.tool_use_id.as_deref() == Some(handback)).collect()
+    deltas(events)
+        .into_iter()
+        .filter(|d| d.tool_name.as_deref() == Some("SubagentHandback") || d.tool_use_id.as_deref() == Some(handback))
+        .collect()
 }
 
 fn answer(session: &str, call: &str, text: &str) -> TurnDelta {
@@ -777,7 +931,10 @@ fn answer(session: &str, call: &str, text: &str) -> TurnDelta {
 }
 
 fn answers(events: &[AdapterEvent], call: &str) -> Vec<TurnDelta> {
-    deltas(events).into_iter().filter(|d| d.kind == DeltaKind::ToolResult && d.tool_use_id.as_deref() == Some(call) && d.parent_tool_use_id.is_none()).collect()
+    deltas(events)
+        .into_iter()
+        .filter(|d| d.kind == DeltaKind::ToolResult && d.tool_use_id.as_deref() == Some(call) && d.parent_tool_use_id.is_none())
+        .collect()
 }
 
 fn kind_text(ds: Vec<TurnDelta>) -> Vec<(DeltaKind, String)> {
@@ -846,13 +1003,19 @@ async fn answers_a_backgrounded_launch_with_the_report_and_draws_no_hand_back_bo
     let events = replay(recorded("subagent-handback.jsonl")).await;
     let fold = fold_of(&events, BG);
     assert_eq!(fold.last().unwrap(), &answer(BG_SID, BG, report));
-    let tool_results: Vec<String> = fold.iter().filter(|d| d.kind == DeltaKind::ToolResult && d.tool_use_id.as_deref() == Some(BG)).map(|d| if internal_tool_result(&d.text) { "note".to_string() } else { d.text.clone() }).collect();
+    let tool_results: Vec<String> = fold
+        .iter()
+        .filter(|d| d.kind == DeltaKind::ToolResult && d.tool_use_id.as_deref() == Some(BG))
+        .map(|d| if internal_tool_result(&d.text) { "note".to_string() } else { d.text.clone() })
+        .collect();
     assert_eq!(tool_results, vec!["note".to_string(), report.to_string()]);
     let own: Vec<TurnDelta> = fold.iter().filter(|d| d.parent_tool_use_id.as_deref() == Some(BG)).cloned().collect();
     assert_eq!(kind_text(own), vec![(DeltaKind::Thinking, String::new()), (DeltaKind::Text, report.to_string())]);
     assert_eq!(handed_back(&events, "toolu_01WspFixHandBgCall"), vec![]);
-    let usage = SubagentUsage { tokens: Some(tokens(2 + 21_895, 5, 0, 21_895)), tool_uses: Some(1.into()), duration_ms: Some(JsNumber(2_000.0)) };
-    let ended: Vec<AdapterEvent> = events.iter().filter(|e| matches!(e, AdapterEvent::Subagent { state: SubagentState::Done, .. })).cloned().collect();
+    let usage =
+        SubagentUsage { tokens: Some(tokens(2 + 21_895, 5, 0, 21_895)), tool_uses: Some(1.into()), duration_ms: Some(JsNumber(2_000.0)) };
+    let ended: Vec<AdapterEvent> =
+        events.iter().filter(|e| matches!(e, AdapterEvent::Subagent { state: SubagentState::Done, .. })).cloned().collect();
     assert_eq!(ended, vec![sub("aafea93324a2f8ca1", BG, SubagentState::Done).session(BG_SID).summary(report).usage(usage).ev()]);
 }
 
@@ -907,7 +1070,11 @@ async fn draws_a_report_auto_mode_flagged_with_its_warning_above_it_body() {
     .await;
     let warned = format!("{warning}\n\n{BG_REPORT}");
     assert_eq!(fold_of(&events, BG).last().unwrap(), &answer(BG_SID, BG, &warned));
-    let texts: Vec<String> = fold_of(&events, BG).into_iter().filter(|d| d.parent_tool_use_id.as_deref() == Some(BG) && d.kind == DeltaKind::Text).map(|d| d.text).collect();
+    let texts: Vec<String> = fold_of(&events, BG)
+        .into_iter()
+        .filter(|d| d.parent_tool_use_id.as_deref() == Some(BG) && d.kind == DeltaKind::Text)
+        .map(|d| d.text)
+        .collect();
     assert_eq!(texts, vec![warned]);
     assert_eq!(done_summaries(&events), vec![(SubagentState::Done, Some(warning.to_string()))]);
 }

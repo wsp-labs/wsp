@@ -11,20 +11,25 @@ mod claude_exec;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use futures::future::{LocalBoxFuture, FutureExt};
+use futures::future::{FutureExt, LocalBoxFuture};
 use serde_json::{json, Value};
 use wsp_adapters::claude::adapter::{create_claude_adapter, AdapterDeps, AttachedSession, ClaudeAdapter};
 use wsp_adapters::claude::catalog::claude_screen_commands;
 use wsp_adapters::claude::landmines::{user_message_line, BaseEnv};
 use wsp_adapters::claude::turn::ClaudeSession;
 use wsp_adapters::pending::{internal_tool_result, subagent_asked, NO_REPORT_LINE, SUBAGENT_ASKED_CHARS};
-use wsp_adapters::port::{agent_word, AdapterAttachOptions, AdapterEvent, AgentLaunch, DeltaKind, Env, ExecFailure, HarnessExec, HarnessStartOptions, OnEvent, PlanStep, SessionHarness, SteerOutcome, SubagentState, SubagentUsage, TurnDelta, TurnImage, TurnStatus, TurnTokens};
-use wsp_wire::types::usage::UsageTokens;
+use wsp_adapters::port::{
+    agent_word, AdapterAttachOptions, AdapterEvent, AgentLaunch, DeltaKind, Env, ExecFailure, HarnessExec, HarnessStartOptions, OnEvent,
+    PlanStep, SessionHarness, SteerOutcome, SubagentState, SubagentUsage, TurnDelta, TurnImage, TurnStatus, TurnTokens,
+};
 use wsp_wire::types::js_number::JsNumber;
+use wsp_wire::types::usage::UsageTokens;
 use wsp_wire::views::harness::ScreenControl;
 use wsp_wire::views::session_events::PlanStepState;
 
-use claude_exec::{collect, deltas, fixture_lines, guest_env, json as parse_json, types, until, FakeExec, StreamOpts, FIXTURE_SESSION_ID, RUN_HANDLE};
+use claude_exec::{
+    collect, deltas, fixture_lines, guest_env, json as parse_json, types, until, FakeExec, StreamOpts, FIXTURE_SESSION_ID, RUN_HANDLE,
+};
 
 const SID: &str = FIXTURE_SESSION_ID;
 const CONFIG_DIR: &str = "/root/.claude-cfg";
@@ -86,7 +91,18 @@ fn env_of<'a>(env: &'a Env, key: &str) -> Option<&'a str> {
 }
 
 fn attach_opts(run: &str, session_id: &str, on_event: OnEvent) -> AdapterAttachOptions {
-    AdapterAttachOptions { run: run.to_string(), session_id: session_id.to_string(), started_at: 1.0, model: None, cwd: None, prompt: None, effort: None, from: None, steered: None, on_event }
+    AdapterAttachOptions {
+        run: run.to_string(),
+        session_id: session_id.to_string(),
+        started_at: 1.0,
+        model: None,
+        cwd: None,
+        prompt: None,
+        effort: None,
+        from: None,
+        steered: None,
+        on_event,
+    }
 }
 
 fn recording_exec(ran: Arc<Mutex<Vec<(String, Option<Env>)>>>, answer: String) -> Arc<dyn HarnessExec> {
@@ -116,7 +132,13 @@ fn text_deltas_of(events: &[AdapterEvent]) -> Vec<TurnDelta> {
 }
 
 fn tokens(input: u64, output: u64, cached: u64, cache_write: u64) -> UsageTokens {
-    UsageTokens { input: JsNumber(input as f64), output: JsNumber(output as f64), cached: JsNumber(cached as f64), cache_write: JsNumber(cache_write as f64), reasoning: JsNumber(0.0) }
+    UsageTokens {
+        input: JsNumber(input as f64),
+        output: JsNumber(output as f64),
+        cached: JsNumber(cached as f64),
+        cache_write: JsNumber(cache_write as f64),
+        reasoning: JsNumber(0.0),
+    }
 }
 
 fn spent(tool_uses: i64, duration_ms: Option<f64>) -> SubagentUsage {
@@ -138,7 +160,18 @@ struct Sub {
 }
 
 fn sub(task: &str, parent: &str, state: SubagentState) -> Sub {
-    Sub { session: SID.to_string(), task: task.to_string(), parent: parent.to_string(), state, title: None, summary: None, depth: None, model: None, asked: None, usage: None }
+    Sub {
+        session: SID.to_string(),
+        task: task.to_string(),
+        parent: parent.to_string(),
+        state,
+        title: None,
+        summary: None,
+        depth: None,
+        model: None,
+        asked: None,
+        usage: None,
+    }
 }
 
 impl Sub {
@@ -171,7 +204,18 @@ impl Sub {
         self
     }
     fn ev(self) -> AdapterEvent {
-        AdapterEvent::Subagent { session_id: self.session, task: self.task, state: self.state, parent_tool_use_id: Some(self.parent), title: self.title, summary: self.summary, depth: self.depth, model: self.model, asked: self.asked, usage: self.usage }
+        AdapterEvent::Subagent {
+            session_id: self.session,
+            task: self.task,
+            state: self.state,
+            parent_tool_use_id: Some(self.parent),
+            title: self.title,
+            summary: self.summary,
+            depth: self.depth,
+            model: self.model,
+            asked: self.asked,
+            usage: self.usage,
+        }
     }
 }
 
@@ -200,7 +244,15 @@ fn subagent_fixture() -> SubagentFixture {
         blocks.iter().find(|b| b["id"] == call).unwrap()["input"]["prompt"].as_str().unwrap().to_string()
     };
     let (a_call, b_call) = (field(0, "tool_use_id"), field(1, "tool_use_id"));
-    SubagentFixture { a_id: field(0, "task_id"), b_id: field(1, "task_id"), a_prompt: prompt_of(&a_call), b_prompt: prompt_of(&b_call), a_call, b_call, lines }
+    SubagentFixture {
+        a_id: field(0, "task_id"),
+        b_id: field(1, "task_id"),
+        a_prompt: prompt_of(&a_call),
+        b_prompt: prompt_of(&b_call),
+        a_call,
+        b_call,
+        lines,
+    }
 }
 
 fn user_line(text: &str, uuid: &str) -> String {
@@ -250,7 +302,6 @@ fn finish_result_line() -> String {
 
 // TS: adapter.test.ts:158
 
-
 // TS: adapter.test.ts:612
 const BG: &str = "toolu_01WspFixHandBg";
 
@@ -265,7 +316,10 @@ fn answer(session: &str, call: &str, text: &str) -> TurnDelta {
 }
 
 fn answers(events: &[AdapterEvent], call: &str) -> Vec<TurnDelta> {
-    deltas(events).into_iter().filter(|d| d.kind == DeltaKind::ToolResult && d.tool_use_id.as_deref() == Some(call) && d.parent_tool_use_id.is_none()).collect()
+    deltas(events)
+        .into_iter()
+        .filter(|d| d.kind == DeltaKind::ToolResult && d.tool_use_id.as_deref() == Some(call) && d.parent_tool_use_id.is_none())
+        .collect()
 }
 
 fn done_summaries(events: &[AdapterEvent]) -> Vec<(SubagentState, Option<String>)> {
@@ -350,7 +404,11 @@ async fn leaves_a_hand_back_the_cli_refused_as_the_failed_call_it_was_body() {
     }))
     .await;
     let fold = fold_of(&events, BG);
-    let rows: Vec<(DeltaKind, Option<String>, Option<String>, Option<bool>)> = fold.iter().filter(|d| d.parent_tool_use_id.as_deref() == Some(BG)).map(|d| (d.kind, d.tool_name.clone(), if d.kind == DeltaKind::ToolResult { Some(d.text.clone()) } else { None }, d.is_error)).collect();
+    let rows: Vec<(DeltaKind, Option<String>, Option<String>, Option<bool>)> = fold
+        .iter()
+        .filter(|d| d.parent_tool_use_id.as_deref() == Some(BG))
+        .map(|d| (d.kind, d.tool_name.clone(), if d.kind == DeltaKind::ToolResult { Some(d.text.clone()) } else { None }, d.is_error))
+        .collect();
     assert_eq!(
         rows,
         vec![
@@ -394,7 +452,13 @@ async fn answers_a_launch_made_inside_a_subagent_with_the_report_body() {
     let sid = "21921000-0000-4aaa-8bbb-000000000005";
     let outer_report = "I launched one general-purpose subagent (model haiku) with the prompt \"What is 2+2? Answer in one short sentence, no tools.\" It finished and reported: \"2 + 2 = 4.\"";
     let events = replay(recorded("subagent-handback-nested.jsonl")).await;
-    let on_page: Vec<String> = deltas(&events).into_iter().filter(|d| d.kind == DeltaKind::ToolResult && d.tool_use_id.as_deref() == Some(inner) && d.parent_tool_use_id.as_deref() == Some(outer)).map(|d| d.text).collect();
+    let on_page: Vec<String> = deltas(&events)
+        .into_iter()
+        .filter(|d| {
+            d.kind == DeltaKind::ToolResult && d.tool_use_id.as_deref() == Some(inner) && d.parent_tool_use_id.as_deref() == Some(outer)
+        })
+        .map(|d| d.text)
+        .collect();
     assert_eq!(on_page, vec!["2 + 2 = 4.".to_string()]);
     assert_eq!(answers(&events, inner), vec![answer(sid, inner, "2 + 2 = 4.")]);
     let own: Vec<TurnDelta> = fold_of(&events, inner).into_iter().filter(|d| d.parent_tool_use_id.as_deref() == Some(inner)).collect();
@@ -412,7 +476,11 @@ async fn says_a_report_once_when_the_subagent_wrote_it_as_text_then_handed_it_ba
 async fn says_a_report_once_when_the_subagent_wrote_it_as_text_then_handed_it_back_body() {
     let call = "toolu_01WspFixTf1";
     let events = replay(recorded("subagent-handback-text-first.jsonl")).await;
-    let texts: Vec<String> = fold_of(&events, call).into_iter().filter(|d| d.parent_tool_use_id.as_deref() == Some(call) && d.kind == DeltaKind::Text).map(|d| d.text).collect();
+    let texts: Vec<String> = fold_of(&events, call)
+        .into_iter()
+        .filter(|d| d.parent_tool_use_id.as_deref() == Some(call) && d.kind == DeltaKind::Text)
+        .map(|d| d.text)
+        .collect();
     assert_eq!(texts, vec!["pong".to_string()]);
     assert_eq!(fold_of(&events, call).last().unwrap(), &answer("21921000-0000-4aaa-8bbb-000000000004", call, "pong"));
 }
@@ -435,7 +503,10 @@ async fn lets_a_later_notification_replace_a_subagents_earlier_end_body() {
         }
     }))
     .await;
-    assert_eq!(done_summaries(&events), vec![(SubagentState::Done, Some(BG_REPORT.to_string())), (SubagentState::Done, Some(again.to_string()))]);
+    assert_eq!(
+        done_summaries(&events),
+        vec![(SubagentState::Done, Some(BG_REPORT.to_string())), (SubagentState::Done, Some(again.to_string()))]
+    );
     assert_eq!(not_internal(answers(&events, BG)).last().unwrap(), &answer(BG_SID, BG, again));
 }
 
@@ -484,7 +555,11 @@ async fn ends_a_fork_which_never_hands_back_in_an_auto_run_body() {
         }
     };
     let lines = with_init("subagent-bypass-background.jsonl", json!({"permissionMode": "auto"}), &fork);
-    assert_eq!(lines.iter().filter(|l| l.contains(r#""subagent_type":"fork""#)).count(), 2, "the call and its task_started line name a fork");
+    assert_eq!(
+        lines.iter().filter(|l| l.contains(r#""subagent_type":"fork""#)).count(),
+        2,
+        "the call and its task_started line name a fork"
+    );
     let events = replay(lines).await;
     assert_eq!(done_summaries(&events), vec![(SubagentState::Done, Some(BG_REPORT.to_string()))]);
     assert_eq!(not_internal(answers(&events, call)), vec![answer("21921000-0000-4aaa-8bbb-000000000006", call, BG_REPORT)]);
@@ -511,7 +586,8 @@ async fn holds_a_subagents_notification_while_a_command_it_started_runs_and_answ
 async fn holds_a_subagents_notification_while_a_command_it_started_runs_and_answers_once_body() {
     let call = "toolu_01WspFixOw1";
     let sid = "21921000-0000-4aaa-8bbb-000000000008";
-    let report = "The background command `sleep 3; echo hi` ran with run_in_background: true and completed with exit code 0. It printed: hi";
+    let report =
+        "The background command `sleep 3; echo hi` ran with run_in_background: true and completed with exit code 0. It printed: hi";
     let waiting = "This agent has not reported yet: it is waiting on its own background work and will deliver its report through SubagentHandback when that finishes.\n";
     let lines: Vec<String> = with_init("subagent-handback-own-work.jsonl", json!({"permissionMode": "default"}), &same)
         .into_iter()
@@ -537,10 +613,15 @@ async fn leaves_a_background_command_alone_in_auto_mode() {
 async fn leaves_a_background_command_alone_in_auto_mode_body() {
     let call = "toolu_01WspFixBc1";
     let recorded_lines = recorded("background-command-auto.jsonl");
-    let woken = recorded_lines.iter().enumerate().position(|(i, line)| i > 1 && serde_json::from_str::<Value>(line).unwrap()["subtype"] == "init").expect("a second init");
+    let woken = recorded_lines
+        .iter()
+        .enumerate()
+        .position(|(i, line)| i > 1 && serde_json::from_str::<Value>(line).unwrap()["subtype"] == "init")
+        .expect("a second init");
     let finished = regex::Regex::new("^started\n\n`Sleep 4 seconds then echo done` completed, \\d+m?s after the reply$").unwrap();
     for mode in ["auto", "default"] {
-        let lines: Vec<String> = with_init("background-command-auto.jsonl", json!({"permissionMode": mode}), &same).into_iter().take(woken).collect();
+        let lines: Vec<String> =
+            with_init("background-command-auto.jsonl", json!({"permissionMode": mode}), &same).into_iter().take(woken).collect();
         let events = replay(lines).await;
         let firsts: Vec<String> = answers(&events, call).iter().map(|d| d.text.split('.').next().unwrap().to_string()).collect();
         assert_eq!(firsts, vec!["Command running in background with ID: bnf8k15go".to_string()], "{mode}");
@@ -596,7 +677,11 @@ async fn forwards_init_slash_commands_permission_mode_and_agents_as_harness_body
     match &events[0] {
         AdapterEvent::SessionStart { harness, .. } => assert_eq!(
             harness,
-            &Some(SessionHarness { slash_commands: Some(["compact", "context", "cost", "init", "review"].map(String::from).to_vec()), permission_mode: Some("bypassPermissions".into()), agents: Some(vec!["general-purpose".into()]) })
+            &Some(SessionHarness {
+                slash_commands: Some(["compact", "context", "cost", "init", "review"].map(String::from).to_vec()),
+                permission_mode: Some("bypassPermissions".into()),
+                agents: Some(vec!["general-purpose".into()])
+            })
         ),
         other => panic!("expected session.start, got {other:?}"),
     }
@@ -626,7 +711,8 @@ async fn spawns_with_the_landmine_safe_command_and_env() {
 async fn spawns_with_the_landmine_safe_command_and_env_body() {
     let exec = FakeExec::scripted(stream_lines(), StreamOpts::default());
     let mut deps = AdapterDeps::new(exec.clone(), CONFIG_DIR);
-    deps.base_env = Some(guest_env_with(&[("CLAUDECODE", "1"), ("CLAUDE_CODE_ENTRYPOINT", "cli"), ("PATH", "/usr/bin"), ("HOME", "/Users/z")]));
+    deps.base_env =
+        Some(guest_env_with(&[("CLAUDECODE", "1"), ("CLAUDE_CODE_ENTRYPOINT", "cli"), ("PATH", "/usr/bin"), ("HOME", "/Users/z")]));
     let adapter = adapter_with(deps);
     let session = adapter.start(go("say ok", noop())).unwrap();
     session.finished().await;
@@ -1003,7 +1089,10 @@ async fn carries_a_steered_messages_images_as_base64_blocks_ahead_of_its_words_b
     assert_eq!(line["type"], "user");
     assert_eq!(line["uuid"], "steer-1");
     assert_eq!(line["message"]["role"], "user");
-    assert_eq!(line["message"]["content"], json!([{"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo="}}, {"type": "text", "text": "what is this?"}]));
+    assert_eq!(
+        line["message"]["content"],
+        json!([{"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "iVBORw0KGgo="}}, {"type": "text", "text": "what is this?"}])
+    );
     exec.push(steer_result_line());
     exec.end(Some(0));
     assert_eq!(session.finished().await.status, TurnStatus::Completed);
@@ -1051,7 +1140,9 @@ async fn after_the_process_exited_without_a_result_answers_not_running_body() {
 // TS: adapter.test.ts:1095
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn when_the_guest_says_the_process_is_already_gone_answers_not_running_and_no_line_landed() {
-    tokio::task::LocalSet::new().run_until(when_the_guest_says_the_process_is_already_gone_answers_not_running_and_no_line_landed_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(when_the_guest_says_the_process_is_already_gone_answers_not_running_and_no_line_landed_body())
+        .await
 }
 
 async fn when_the_guest_says_the_process_is_already_gone_answers_not_running_and_no_line_landed_body() {
@@ -1161,7 +1252,13 @@ async fn a_result_read_while_a_steers_write_travels_does_not_end_the_turn_under_
     assert!(!seen(&events, "turn.done"));
     let uuid = written_uuid(&exec.writes()[0]);
     let lifecycle = |state: &str| json!({"type": "command_lifecycle", "command_uuid": uuid, "state": state, "session_id": SID}).to_string();
-    for line in [lifecycle("queued"), lifecycle("started"), init_line(), steer_result_line().replace("\"result\":\"ok\"", "\"result\":\"raced\""), lifecycle("completed")] {
+    for line in [
+        lifecycle("queued"),
+        lifecycle("started"),
+        init_line(),
+        steer_result_line().replace("\"result\":\"ok\"", "\"result\":\"raced\""),
+        lifecycle("completed"),
+    ] {
         exec.push(line);
     }
     until(|| seen(&events, "turn.done")).await;
@@ -1197,7 +1294,9 @@ async fn emits_the_reply_at_the_result_but_leaves_the_turn_open_until_the_proces
     until(|| seen(&events, "turn.done")).await;
     assert!(!is_settled());
 
-    m.push(json!({"type": "assistant", "message": {"content": [{"type": "text", "text": "still tidying up"}]}, "session_id": SID}).to_string());
+    m.push(
+        json!({"type": "assistant", "message": {"content": [{"type": "text", "text": "still tidying up"}]}, "session_id": SID}).to_string(),
+    );
     until(|| text_deltas_of(&snap(&events)).iter().any(|d| d.text == "still tidying up")).await;
     assert!(!is_settled());
 

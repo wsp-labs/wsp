@@ -8,11 +8,14 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use futures::future::{LocalBoxFuture, FutureExt};
+use futures::future::{FutureExt, LocalBoxFuture};
 use futures::stream::{LocalBoxStream, StreamExt};
 use serde_json::{Map, Value};
 use tokio::sync::{watch, Notify};
-use wsp_adapters::port::{AdapterEvent, AttachRunOptions, Attached, Env, ExecFailure, ExecFailureKind, ExecOptions, ExecStream, ExecStreamFactory, OnEvent, SharedFuture, WriteOutcome};
+use wsp_adapters::port::{
+    AdapterEvent, AttachRunOptions, Attached, Env, ExecFailure, ExecFailureKind, ExecOptions, ExecStream, ExecStreamFactory, OnEvent,
+    SharedFuture, WriteOutcome,
+};
 
 pub const RUN_HANDLE: &str = "/tmp/wsp-run/cd34";
 
@@ -79,7 +82,14 @@ pub struct Wire {
 pub fn wire(opts: WireOpts) -> Wire {
     let (tx, _rx) = watch::channel(None);
     Wire {
-        state: Arc::new(Mutex::new(WireState { queue: VecDeque::new(), done: false, written: Vec::new(), order: Vec::new(), closed: false, taken: false })),
+        state: Arc::new(Mutex::new(WireState {
+            queue: VecDeque::new(),
+            done: false,
+            written: Vec::new(),
+            order: Vec::new(),
+            closed: false,
+            taken: false,
+        })),
         wake: Arc::new(Notify::new()),
         exit: Arc::new(tx),
         opts,
@@ -302,7 +312,12 @@ pub struct Launch {
 }
 
 pub fn launcher(make: impl Fn(&[String]) -> Wire + 'static) -> Launch {
-    Launch { make: Arc::new(make), calls: Arc::new(Mutex::new(Vec::new())), wires: Arc::new(Mutex::new(Vec::new())), attach_with: Arc::new(Mutex::new(None)) }
+    Launch {
+        make: Arc::new(make),
+        calls: Arc::new(Mutex::new(Vec::new())),
+        wires: Arc::new(Mutex::new(Vec::new())),
+        attach_with: Arc::new(Mutex::new(None)),
+    }
 }
 
 impl Launch {
@@ -329,7 +344,12 @@ impl Launch {
 impl ExecStreamFactory for Launch {
     fn launch(&self, command: &str, options: ExecOptions) -> Arc<dyn ExecStream> {
         let input = options.input.clone();
-        self.calls.lock().unwrap().push(Call { command: command.to_string(), env: options.env.clone(), input: input.clone(), secret_input: options.secret.as_ref().map(|s| s.input).unwrap_or(false) });
+        self.calls.lock().unwrap().push(Call {
+            command: command.to_string(),
+            env: options.env.clone(),
+            input: input.clone(),
+            secret_input: options.secret.as_ref().map(|s| s.input).unwrap_or(false),
+        });
         let w = (self.make)(&input.unwrap_or_default());
         self.wires.lock().unwrap().push(w.clone());
         w.stream()
@@ -402,7 +422,9 @@ pub fn type_of(e: &AdapterEvent) -> String {
 /// `delta:<kind>` for a delta, else the type.
 pub fn kind_of(e: &AdapterEvent) -> String {
     match e {
-        AdapterEvent::TurnDelta(d) => format!("delta:{}", serde_json::to_value(d.kind).ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_default()),
+        AdapterEvent::TurnDelta(d) => {
+            format!("delta:{}", serde_json::to_value(d.kind).ok().and_then(|v| v.as_str().map(String::from)).unwrap_or_default())
+        }
         other => type_of(other),
     }
 }

@@ -83,7 +83,11 @@ pub fn run_shell(shell: &str, line: &str, env: &[(String, String)], input: &str)
         });
         let out = child.wait_with_output().unwrap();
         let _ = writer.join();
-        return Ran { status: out.status.code().unwrap_or(-1), stdout: String::from_utf8_lossy(&out.stdout).into_owned(), stderr: String::from_utf8_lossy(&out.stderr).into_owned() };
+        return Ran {
+            status: out.status.code().unwrap_or(-1),
+            stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+        };
     }
     unreachable!()
 }
@@ -167,10 +171,13 @@ impl FakeAppServer {
     pub fn requests(&self) -> Vec<Map<String, Value>> {
         let log = Path::new(&self.home).join("requests.log");
         let text = std::fs::read_to_string(log).unwrap_or_default();
-        text.lines().filter(|l| !l.is_empty()).map(|l| match serde_json::from_str::<Value>(l).unwrap() {
-            Value::Object(m) => m,
-            _ => panic!("not an object"),
-        }).collect()
+        text.lines()
+            .filter(|l| !l.is_empty())
+            .map(|l| match serde_json::from_str::<Value>(l).unwrap() {
+                Value::Object(m) => m,
+                _ => panic!("not an object"),
+            })
+            .collect()
     }
 }
 

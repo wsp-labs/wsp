@@ -17,10 +17,17 @@ const ONE_M: &str = "[1m]";
 
 /// catalog.ts:20, in that order.
 pub fn claude_screen_commands() -> Vec<ScreenCommand> {
-    [("login", ScreenControl::SignIn), ("logout", ScreenControl::SignIn), ("model", ScreenControl::Model), ("permissions", ScreenControl::Access), ("config", ScreenControl::Settings), ("help", ScreenControl::Docs)]
-        .into_iter()
-        .map(|(name, control)| ScreenCommand { name: name.to_string(), control })
-        .collect()
+    [
+        ("login", ScreenControl::SignIn),
+        ("logout", ScreenControl::SignIn),
+        ("model", ScreenControl::Model),
+        ("permissions", ScreenControl::Access),
+        ("config", ScreenControl::Settings),
+        ("help", ScreenControl::Docs),
+    ]
+    .into_iter()
+    .map(|(name, control)| ScreenCommand { name: name.to_string(), control })
+    .collect()
 }
 
 /// catalog.ts:29.
@@ -30,13 +37,17 @@ pub const CONTEXT_WINDOWS: [&str; 2] = ["200k", "1m"];
 pub fn catalog_probe_command(launch: Option<&AgentLaunch>) -> String {
     let claude = program_word("claude", launch);
     let init = INIT_REQUEST.replace('"', "\\\"");
-    let handshake = format!("printf '%s\\n' \"{init}\" | {claude} -p --bare --output-format stream-json --input-format stream-json --verbose");
+    let handshake =
+        format!("printf '%s\\n' \"{init}\" | {claude} -p --bare --output-format stream-json --input-format stream-json --verbose");
     format!("{}; echo {SEP}; {claude} --help; echo {SEP}; {handshake}", version_probe_command(launch))
 }
 
 /// catalog.ts:53.
 pub fn version_probe_command(launch: Option<&AgentLaunch>) -> String {
-    format!("cd ~ && unset ${{!CLAUDE_CODE_@}} CLAUDECODE FORCE_CODE_TERMINAL; {ENV_FROM_INPUT}; {} --version", program_word("claude", launch))
+    format!(
+        "cd ~ && unset ${{!CLAUDE_CODE_@}} CLAUDECODE FORCE_CODE_TERMINAL; {ENV_FROM_INPUT}; {} --version",
+        program_word("claude", launch)
+    )
 }
 
 /// catalog.ts:59: the first `\d+\.\d+\.\d+`.
@@ -109,7 +120,16 @@ fn models_of(init: &Map<String, Value>) -> Option<Vec<HarnessCatalogModelProbe>>
         let context_windows = if one_m { context_windows() } else { vec![] };
         by_slug.insert(
             slug.clone(),
-            HarnessCatalogModelProbe { slug, label, description, efforts: Some(efforts), default_effort: None, context_windows, is_default: false, fast: None },
+            HarnessCatalogModelProbe {
+                slug,
+                label,
+                description,
+                efforts: Some(efforts),
+                default_effort: None,
+                context_windows,
+                is_default: false,
+                fast: None,
+            },
         );
     }
     if by_slug.is_empty() {
@@ -127,7 +147,9 @@ fn without_one_m_context(label: &str) -> &str {
     const TAIL: &str = "(1M context)";
     let cut = label.len().checked_sub(TAIL.len());
     match cut {
-        Some(at) if label.is_char_boundary(at) && label[at..].eq_ignore_ascii_case(TAIL) => label[..at].trim_end_matches(wsp_words::js::is_js_whitespace),
+        Some(at) if label.is_char_boundary(at) && label[at..].eq_ignore_ascii_case(TAIL) => {
+            label[..at].trim_end_matches(wsp_words::js::is_js_whitespace)
+        }
         _ => label,
     }
 }
@@ -146,7 +168,12 @@ fn effort_choices(help: &str) -> Vec<String> {
     let Some(at) = help.find("--effort <level>") else { return vec![] };
     let window = utf16::slice(&help[at..], 0, Some(300));
     let Some(parens) = Regex::new(r"\(([^)]*)\)").ok().and_then(|re| re.captures(&window)) else { return vec![] };
-    parens[1].split(',').map(js_trim).filter(|word| !word.is_empty() && word.bytes().all(|b| b.is_ascii_lowercase())).map(String::from).collect()
+    parens[1]
+        .split(',')
+        .map(js_trim)
+        .filter(|word| !word.is_empty() && word.bytes().all(|b| b.is_ascii_lowercase()))
+        .map(String::from)
+        .collect()
 }
 
 /// catalog.ts:143. `None` without an initialize response naming a model.

@@ -11,16 +11,21 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 
-use futures::future::{LocalBoxFuture, FutureExt};
+use futures::future::{FutureExt, LocalBoxFuture};
 use indexmap::IndexMap;
 use regex::Regex;
 use serde_json::{json, Value};
 use wsp_adapters::claude::adapter::{create_claude_adapter, AdapterDeps};
 use wsp_adapters::claude::landmines::{
-    broker_door_url, build_command, build_env, forwards_subagent_text, saved_spend_command, sign_in_guard, user_message_line, BaseEnv, BrokerKind, BrokeredSignIn, BuildCommandOptions, ClaudeEnvOptions, FIRST_BYTE_ENV, OFF_SERVERS_FILE, PROJECT_DIR_ENV, SAVED_SPEND_TAIL_BYTES,
+    broker_door_url, build_command, build_env, forwards_subagent_text, saved_spend_command, sign_in_guard, user_message_line, BaseEnv,
+    BrokerKind, BrokeredSignIn, BuildCommandOptions, ClaudeEnvOptions, FIRST_BYTE_ENV, OFF_SERVERS_FILE, PROJECT_DIR_ENV,
+    SAVED_SPEND_TAIL_BYTES,
 };
 use wsp_adapters::pending::McpServerSpec;
-use wsp_adapters::port::{agent_word, AgentLaunch, DraftAsk, Env, ExecFailure, ExecStream, ExecStreamFactory, ExecOptions, HarnessExec, HarnessStartOptions, TitleTurn, TurnImage};
+use wsp_adapters::port::{
+    agent_word, AgentLaunch, DraftAsk, Env, ExecFailure, ExecOptions, ExecStream, ExecStreamFactory, HarnessExec, HarnessStartOptions,
+    TitleTurn, TurnImage,
+};
 use wsp_frames::shell_quote;
 
 use claude_exec::{FakeExec, StreamOpts};
@@ -74,7 +79,8 @@ fn servers(entries: Vec<(&str, McpServerSpec)>) -> Option<IndexMap<String, McpSe
 }
 
 fn mcp_flag_json(cmd: &str) -> Value {
-    let flag = Regex::new(r"--mcp-config '(.+?)' ").unwrap().captures(cmd).unwrap_or_else(|| panic!("no --mcp-config in {cmd}"))[1].to_string();
+    let flag =
+        Regex::new(r"--mcp-config '(.+?)' ").unwrap().captures(cmd).unwrap_or_else(|| panic!("no --mcp-config in {cmd}"))[1].to_string();
     serde_json::from_str(&flag).unwrap()
 }
 
@@ -110,7 +116,14 @@ mod build_env_cases {
     use super::*;
 
     fn base() -> BaseEnv {
-        base_env(&[("CLAUDECODE", "1"), ("CLAUDE_CODE_ENTRYPOINT", "cli"), ("CLAUDE_CODE_SSE_PORT", "12345"), ("FORCE_CODE_TERMINAL", "true"), ("PATH", "/root/.local/bin:/usr/bin"), ("HOME", "/Users/z")])
+        base_env(&[
+            ("CLAUDECODE", "1"),
+            ("CLAUDE_CODE_ENTRYPOINT", "cli"),
+            ("CLAUDE_CODE_SSE_PORT", "12345"),
+            ("FORCE_CODE_TERMINAL", "true"),
+            ("PATH", "/root/.local/bin:/usr/bin"),
+            ("HOME", "/Users/z"),
+        ])
     }
 
     // TS: landmines.test.ts:21
@@ -128,9 +141,14 @@ mod build_env_cases {
     #[test]
     fn keeps_the_plugin_seed_a_guests_login_names_through_the_strip_on_every_road() {
         assert_eq!(PLUGIN_SEED_ENV, "CLAUDE_CODE_PLUGIN_SEED_DIR");
-        let guest = with(&base(), &[("CLAUDE_CONFIG_DIR", "/root/.claude-cfg"), ("CLAUDE_CODE_PLUGIN_SEED_DIR", "/root/.claude-plugin-seed")]);
+        let guest =
+            with(&base(), &[("CLAUDE_CONFIG_DIR", "/root/.claude-cfg"), ("CLAUDE_CODE_PLUGIN_SEED_DIR", "/root/.claude-plugin-seed")]);
         assert_eq!(get(&build_env(&env_of(&guest)), "CLAUDE_CODE_PLUGIN_SEED_DIR"), Some("/root/.claude-plugin-seed"));
-        let through_broker = build_env(&ClaudeEnvOptions { base: Some(guest.clone()), brokered: brokered("turn-token-TESTONLY", BrokerKind::Token), ..Default::default() });
+        let through_broker = build_env(&ClaudeEnvOptions {
+            base: Some(guest.clone()),
+            brokered: brokered("turn-token-TESTONLY", BrokerKind::Token),
+            ..Default::default()
+        });
         assert_eq!(get(&through_broker, "CLAUDE_CODE_PLUGIN_SEED_DIR"), Some("/root/.claude-plugin-seed"));
         assert_eq!(get(&build_env(&env_of(&guest)), "CLAUDE_CODE_ENTRYPOINT"), None);
         assert_eq!(get(&build_env(&env_of(&base())), "CLAUDE_CODE_PLUGIN_SEED_DIR"), None);
@@ -146,9 +164,14 @@ mod build_env_cases {
     #[test]
     fn drops_an_inherited_project_key_and_sets_the_one_the_caller_named_after_the_strip() {
         assert_eq!(get(&build_env(&env_of(&with(&base(), &[(PROJECT_DIR_ENV, "-Users-z-repo")]))), PROJECT_DIR_ENV), None);
-        let keyed = build_env(&ClaudeEnvOptions { base: Some(base()), project_dir_name: Some("-Users-z-repo".into()), ..Default::default() });
+        let keyed =
+            build_env(&ClaudeEnvOptions { base: Some(base()), project_dir_name: Some("-Users-z-repo".into()), ..Default::default() });
         assert_eq!(get(&keyed, PROJECT_DIR_ENV), Some("-Users-z-repo"));
-        let stale = build_env(&ClaudeEnvOptions { base: Some(with(&base(), &[(PROJECT_DIR_ENV, "-stale")])), project_dir_name: Some("-Users-z-repo".into()), ..Default::default() });
+        let stale = build_env(&ClaudeEnvOptions {
+            base: Some(with(&base(), &[(PROJECT_DIR_ENV, "-stale")])),
+            project_dir_name: Some("-Users-z-repo".into()),
+            ..Default::default()
+        });
         assert_eq!(get(&stale, PROJECT_DIR_ENV), Some("-Users-z-repo"));
         assert!(!build_env(&env_of(&base())).contains_key(PROJECT_DIR_ENV));
     }
@@ -173,8 +196,17 @@ mod build_env_cases {
         let env = build_env(&env_of(&base()));
         assert_eq!(get(&env, "CLAUDE_CODE_AUTO_CONNECT_IDE"), Some("0"));
         assert_eq!(get(&env, "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL"), Some("1"));
-        let allowed = ["CLAUDE_CODE_AUTO_CONNECT_IDE", "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL", "CLAUDE_CODE_ENABLE_TODO_TOOLS", "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS", "CLAUDE_CODE_MCP_STARTUP_WAIT_MS"];
-        let leaked: Vec<&String> = env.keys().filter(|k| (k.starts_with("CLAUDE_CODE_") || k.as_str() == "CLAUDECODE") && !allowed.contains(&k.as_str())).collect();
+        let allowed = [
+            "CLAUDE_CODE_AUTO_CONNECT_IDE",
+            "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL",
+            "CLAUDE_CODE_ENABLE_TODO_TOOLS",
+            "CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS",
+            "CLAUDE_CODE_MCP_STARTUP_WAIT_MS",
+        ];
+        let leaked: Vec<&String> = env
+            .keys()
+            .filter(|k| (k.starts_with("CLAUDE_CODE_") || k.as_str() == "CLAUDECODE") && !allowed.contains(&k.as_str()))
+            .collect();
         assert_eq!(leaked, Vec::<&String>::new());
     }
 
@@ -192,7 +224,8 @@ mod build_env_cases {
         assert_eq!(get(&build_env(&env_of(&base())), "CLAUDE_CODE_MCP_STARTUP_WAIT_MS"), Some("0"));
         let set = with(&base(), &[("CLAUDE_CODE_MCP_STARTUP_WAIT_MS", "30000")]);
         assert_eq!(get(&build_env(&env_of(&set)), "CLAUDE_CODE_MCP_STARTUP_WAIT_MS"), Some("0"));
-        let through_broker = build_env(&ClaudeEnvOptions { base: Some(base()), brokered: brokered("wsp-turn-x", BrokerKind::Token), ..Default::default() });
+        let through_broker =
+            build_env(&ClaudeEnvOptions { base: Some(base()), brokered: brokered("wsp-turn-x", BrokerKind::Token), ..Default::default() });
         assert_eq!(get(&through_broker, "CLAUDE_CODE_MCP_STARTUP_WAIT_MS"), Some("0"));
     }
 
@@ -200,11 +233,13 @@ mod build_env_cases {
     #[test]
     fn gives_up_on_a_model_call_no_reply_has_started_for_in_30_s_unless_the_person_set_their_own_wait() {
         assert_eq!(get(&build_env(&env_of(&base())), FIRST_BYTE_ENV), Some("30000"));
-        let with_token = build_env(&ClaudeEnvOptions { base: Some(base()), oauth_token: Some("sk-ant-oat01-TESTONLY".into()), ..Default::default() });
+        let with_token =
+            build_env(&ClaudeEnvOptions { base: Some(base()), oauth_token: Some("sk-ant-oat01-TESTONLY".into()), ..Default::default() });
         assert_eq!(get(&with_token, FIRST_BYTE_ENV), Some("30000"));
         assert_eq!(get(&build_env(&env_of(&with(&base(), &[(FIRST_BYTE_ENV, "120000")]))), FIRST_BYTE_ENV), Some("120000"));
         assert!(!build_env(&env_of(&base())).contains_key("API_TIMEOUT_MS"));
-        let through_broker = build_env(&ClaudeEnvOptions { base: Some(base()), brokered: brokered("wsp-turn-x", BrokerKind::Token), ..Default::default() });
+        let through_broker =
+            build_env(&ClaudeEnvOptions { base: Some(base()), brokered: brokered("wsp-turn-x", BrokerKind::Token), ..Default::default() });
         assert!(!through_broker.contains_key(FIRST_BYTE_ENV));
     }
 
@@ -219,7 +254,11 @@ mod build_env_cases {
     #[test]
     fn sets_our_own_long_lived_token_after_the_strip_so_an_inherited_one_never_rides_along() {
         let inherited = with(&base(), &[("CLAUDE_CODE_OAUTH_TOKEN", "inherited")]);
-        let env = build_env(&ClaudeEnvOptions { base: Some(inherited.clone()), oauth_token: Some("sk-ant-oat01-TESTONLY".into()), ..Default::default() });
+        let env = build_env(&ClaudeEnvOptions {
+            base: Some(inherited.clone()),
+            oauth_token: Some("sk-ant-oat01-TESTONLY".into()),
+            ..Default::default()
+        });
         assert_eq!(get(&env, "CLAUDE_CODE_OAUTH_TOKEN"), Some("sk-ant-oat01-TESTONLY"));
         let with_key = build_env(&ClaudeEnvOptions { base: Some(inherited), api_key: Some("sk-ant-x".into()), ..Default::default() });
         assert_eq!(get(&with_key, "CLAUDE_CODE_OAUTH_TOKEN"), None);
@@ -243,7 +282,9 @@ mod brokered_launch {
 
     fn base() -> BaseEnv {
         let mut b = base_env(&REAL);
-        for (k, v) in [("HOME", "/root"), ("PATH", "/usr/bin"), ("IS_SANDBOX", "1"), ("DISABLE_AUTOUPDATER", "1"), ("WSP_HOST_TOKEN", TOKEN)] {
+        for (k, v) in
+            [("HOME", "/root"), ("PATH", "/usr/bin"), ("IS_SANDBOX", "1"), ("DISABLE_AUTOUPDATER", "1"), ("WSP_HOST_TOKEN", TOKEN)]
+        {
             b.insert(k.to_string(), Some(v.to_string()));
         }
         b
@@ -312,7 +353,13 @@ mod brokered_launch {
     #[test]
     fn holds_no_real_credential_whatever_the_login_or_the_vault_carried() {
         for kind in [BrokerKind::Login, BrokerKind::Token, BrokerKind::Key, BrokerKind::Gateway] {
-            let env = build_env(&ClaudeEnvOptions { base: Some(base()), api_key: Some("sk-ant-api03-VAULT".into()), oauth_token: Some("sk-ant-oat01-VAULT".into()), brokered: brokered(TOKEN, kind), ..Default::default() });
+            let env = build_env(&ClaudeEnvOptions {
+                base: Some(base()),
+                api_key: Some("sk-ant-api03-VAULT".into()),
+                oauth_token: Some("sk-ant-oat01-VAULT".into()),
+                brokered: brokered(TOKEN, kind),
+                ..Default::default()
+            });
             let values: Vec<&str> = env.values().map(String::as_str).collect();
             let mut secrets: Vec<&str> = REAL.iter().map(|(_, v)| *v).collect();
             secrets.extend(["sk-ant-api03-VAULT", "sk-ant-oat01-VAULT"]);
@@ -328,9 +375,20 @@ mod brokered_launch {
     // TS: landmines.test.ts:167
     #[test]
     fn keeps_the_rest_of_the_launch_the_logins_own_variables_the_headless_flags_and_the_project_key() {
-        let env = build_env(&ClaudeEnvOptions { base: Some(base()), brokered: brokered(TOKEN, BrokerKind::Token), project_dir_name: Some("-root-lab".into()), ..Default::default() });
-        assert_matches_object(&env, &[("HOME", "/root"), ("PATH", "/usr/bin"), ("IS_SANDBOX", "1"), ("DISABLE_AUTOUPDATER", "1"), ("WSP_HOST_TOKEN", TOKEN)]);
-        assert_matches_object(&env, &[("CLAUDE_CODE_AUTO_CONNECT_IDE", "0"), ("CLAUDE_CODE_ENABLE_TODO_TOOLS", "1"), (PROJECT_DIR_ENV, "-root-lab")]);
+        let env = build_env(&ClaudeEnvOptions {
+            base: Some(base()),
+            brokered: brokered(TOKEN, BrokerKind::Token),
+            project_dir_name: Some("-root-lab".into()),
+            ..Default::default()
+        });
+        assert_matches_object(
+            &env,
+            &[("HOME", "/root"), ("PATH", "/usr/bin"), ("IS_SANDBOX", "1"), ("DISABLE_AUTOUPDATER", "1"), ("WSP_HOST_TOKEN", TOKEN)],
+        );
+        assert_matches_object(
+            &env,
+            &[("CLAUDE_CODE_AUTO_CONNECT_IDE", "0"), ("CLAUDE_CODE_ENABLE_TODO_TOOLS", "1"), (PROJECT_DIR_ENV, "-root-lab")],
+        );
     }
 
     // TS: landmines.test.ts:173
@@ -344,10 +402,17 @@ mod brokered_launch {
     // TS: landmines.test.ts:178
     #[test]
     fn leaves_a_launch_that_is_not_brokered_as_it_was() {
-        let vaulted = build_env(&ClaudeEnvOptions { base: Some(base()), oauth_token: Some("sk-ant-oat01-VAULT".into()), ..Default::default() });
+        let vaulted =
+            build_env(&ClaudeEnvOptions { base: Some(base()), oauth_token: Some("sk-ant-oat01-VAULT".into()), ..Default::default() });
         let inherited = build_env(&env_of(&base()));
         for env in [&vaulted, &inherited] {
-            for name in ["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST", "DISABLE_UPDATES", "API_TIMEOUT_MS", "ENABLE_TOOL_SEARCH"] {
+            for name in [
+                "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+                "CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST",
+                "DISABLE_UPDATES",
+                "API_TIMEOUT_MS",
+                "ENABLE_TOOL_SEARCH",
+            ] {
                 assert!(!env.contains_key(name), "{name}");
             }
             assert_matches_object(env, &[("ANTHROPIC_BASE_URL", "https://gateway.acme.example"), ("ANTHROPIC_AUTH_TOKEN", "gateway-REAL")]);
@@ -388,8 +453,12 @@ mod build_command_cases {
             launch: launch_args(&["--settings", &json!({"theme": "dark"}).to_string()]),
             ..Default::default()
         });
-        assert!(cmd.contains(r#"--settings '{"theme":"dark","deniedMcpServers":[{"serverName":"cloudflare"},{"serverName":"posthog"}]}'"#), "{cmd}");
-        assert!(!command(BuildCommandOptions { session_id: Some(ID.into()), off_servers: Some(vec![]), ..Default::default() }).contains("--settings"));
+        assert!(
+            cmd.contains(r#"--settings '{"theme":"dark","deniedMcpServers":[{"serverName":"cloudflare"},{"serverName":"posthog"}]}'"#),
+            "{cmd}"
+        );
+        assert!(!command(BuildCommandOptions { session_id: Some(ID.into()), off_servers: Some(vec![]), ..Default::default() })
+            .contains("--settings"));
     }
 
     // TS: landmines.test.ts:203
@@ -415,15 +484,34 @@ mod build_command_cases {
         };
         let cwd = root.path().to_str().unwrap().to_string();
         let managed = root.join("managed-settings.d");
-        run(&command(BuildCommandOptions { session_id: Some(ID.into()), cwd: Some(cwd.clone()), off_servers: Some(vec!["cloudflare".into(), "posthog".into()]), ..Default::default() }), &managed);
+        run(
+            &command(BuildCommandOptions {
+                session_id: Some(ID.into()),
+                cwd: Some(cwd.clone()),
+                off_servers: Some(vec!["cloudflare".into(), "posthog".into()]),
+                ..Default::default()
+            }),
+            &managed,
+        );
         let written: Value = serde_json::from_str(&std::fs::read_to_string(managed.join(&file_name)).unwrap()).unwrap();
         assert_eq!(written, json!({"deniedMcpServers": [{"serverName": "cloudflare"}, {"serverName": "posthog"}]}));
         assert_eq!(std::fs::read_to_string(&ran).unwrap().trim(), cwd);
         std::fs::remove_file(&ran).unwrap();
         std::fs::write(root.join("blocked"), "").unwrap();
-        run(&command(BuildCommandOptions { session_id: Some(ID.into()), cwd: Some(cwd.clone()), off_servers: Some(vec!["cloudflare".into()]), ..Default::default() }), &root.join("blocked").join("managed-settings.d"));
+        run(
+            &command(BuildCommandOptions {
+                session_id: Some(ID.into()),
+                cwd: Some(cwd.clone()),
+                off_servers: Some(vec!["cloudflare".into()]),
+                ..Default::default()
+            }),
+            &root.join("blocked").join("managed-settings.d"),
+        );
         assert!(ran.exists());
-        run(&command(BuildCommandOptions { session_id: Some(ID.into()), cwd: Some(cwd), off_servers: Some(vec![]), ..Default::default() }), &managed);
+        run(
+            &command(BuildCommandOptions { session_id: Some(ID.into()), cwd: Some(cwd), off_servers: Some(vec![]), ..Default::default() }),
+            &managed,
+        );
         assert!(!managed.join(&file_name).exists());
         assert!(!command(BuildCommandOptions { session_id: Some(ID.into()), ..Default::default() }).contains(OFF_SERVERS_FILE));
     }
@@ -479,7 +567,12 @@ mod build_command_cases {
     // TS: landmines.test.ts:263
     #[test]
     fn maps_the_picked_model_effort_and_permission_mode_to_the_clis_flags() {
-        let cmd = command(BuildCommandOptions { model: Some("claude-opus-5".into()), effort: Some("high".into()), permission_mode: Some("acceptEdits".into()), ..fresh() });
+        let cmd = command(BuildCommandOptions {
+            model: Some("claude-opus-5".into()),
+            effort: Some("high".into()),
+            permission_mode: Some("acceptEdits".into()),
+            ..fresh()
+        });
         assert!(cmd.contains("--model 'claude-opus-5'"));
         assert!(cmd.contains("--effort 'high'"));
         assert!(cmd.contains("--permission-mode 'acceptEdits'"));
@@ -518,7 +611,8 @@ mod build_command_cases {
     // TS: landmines.test.ts:294
     #[test]
     fn a_context_window_rides_the_model_as_the_clis_own_suffix_and_200k_is_the_plain_slug() {
-        let with_window = |window: &str| BuildCommandOptions { model: Some("claude-opus-5".into()), context_window: Some(window.into()), ..fresh() };
+        let with_window =
+            |window: &str| BuildCommandOptions { model: Some("claude-opus-5".into()), context_window: Some(window.into()), ..fresh() };
         assert!(command(with_window("1m")).contains("--model 'claude-opus-5[1m]'"));
         assert!(command(with_window("200k")).contains("--model 'claude-opus-5'"));
         assert!(err_of(with_window("2m")).contains("contextWindow"));
@@ -530,7 +624,10 @@ mod build_command_cases {
     fn servers_handed_to_a_turn_ride_one_mcp_config_as_the_json_a_config_file_holds() {
         let args = ["/opt/wsp/bin.js", "mcp", "--state", "/Users/me/.wsp/state.json"];
         let cmd = command(BuildCommandOptions { mcp_servers: servers(vec![("wsp", spec("/usr/local/bin/node", &args))]), ..fresh() });
-        assert_eq!(mcp_flag_json(&cmd), json!({"mcpServers": {"wsp": {"command": "/usr/local/bin/node", "args": args, "alwaysLoad": true}}}));
+        assert_eq!(
+            mcp_flag_json(&cmd),
+            json!({"mcpServers": {"wsp": {"command": "/usr/local/bin/node", "args": args, "alwaysLoad": true}}})
+        );
         let docs = command(BuildCommandOptions { mcp_servers: servers(vec![("docs", spec("npx", &[]))]), ..fresh() });
         assert_eq!(mcp_flag_json(&docs), json!({"mcpServers": {"docs": {"command": "npx", "args": []}}}));
         assert!(!cmd.contains("--strict-mcp-config"));
@@ -544,7 +641,10 @@ mod build_command_cases {
         let wsp = spec("/usr/local/bin/node", &["/opt/wsp/bin.js", "mcp"]);
         let no_slate = McpServerSpec { no_slate: Some(true), ..wsp.clone() };
         let cmd = command(BuildCommandOptions { mcp_servers: servers(vec![("wsp", no_slate)]), ..fresh() });
-        assert_eq!(mcp_flag_json(&cmd), json!({"mcpServers": {"wsp": {"command": "/usr/local/bin/node", "args": ["/opt/wsp/bin.js", "mcp"]}}}));
+        assert_eq!(
+            mcp_flag_json(&cmd),
+            json!({"mcpServers": {"wsp": {"command": "/usr/local/bin/node", "args": ["/opt/wsp/bin.js", "mcp"]}}})
+        );
         let slate = command(BuildCommandOptions { mcp_servers: servers(vec![("wsp", wsp)]), ..fresh() });
         assert_eq!(mcp_flag_json(&slate)["mcpServers"]["wsp"]["alwaysLoad"], json!(true));
     }
@@ -576,7 +676,8 @@ mod build_command_cases {
     // TS: landmines.test.ts:322
     #[test]
     fn a_launch_whose_wsp_server_gives_the_thread_a_slate_brings_the_slates_brief_and_no_other_launch_does() {
-        let scoped = command(BuildCommandOptions { mcp_servers: servers(vec![("wsp", spec("/opt/wsp", &["mcp", "--scoped"]))]), ..fresh() });
+        let scoped =
+            command(BuildCommandOptions { mcp_servers: servers(vec![("wsp", spec("/opt/wsp", &["mcp", "--scoped"]))]), ..fresh() });
         let brief = brief_of(&scoped).expect("the launch carries --append-system-prompt");
         assert_eq!(brief, wsp_wire::types::wsp_tools::SLATE_BRIEF);
         assert!(brief.contains("your first tool call is mcp__wsp__slate_catalog"));
@@ -600,9 +701,15 @@ mod build_command_cases {
     // TS: landmines.test.ts:340
     #[test]
     fn rejects_a_picked_value_that_is_not_a_plain_slug() {
-        assert_eq!(err_of(BuildCommandOptions { model: Some("opus; rm -rf /".into()), ..fresh() }), r#"model must be a plain slug, got "opus; rm -rf /""#);
+        assert_eq!(
+            err_of(BuildCommandOptions { model: Some("opus; rm -rf /".into()), ..fresh() }),
+            r#"model must be a plain slug, got "opus; rm -rf /""#
+        );
         assert_eq!(err_of(BuildCommandOptions { effort: Some("".into()), ..fresh() }), r#"effort must be a plain slug, got """#);
-        assert_eq!(err_of(BuildCommandOptions { permission_mode: Some("accept edits".into()), ..fresh() }), r#"permissionMode must be a plain slug, got "accept edits""#);
+        assert_eq!(
+            err_of(BuildCommandOptions { permission_mode: Some("accept edits".into()), ..fresh() }),
+            r#"permissionMode must be a plain slug, got "accept edits""#
+        );
         assert!(command(BuildCommandOptions { model: Some("claude-opus-5[1m]".into()), ..fresh() }).contains("--model 'claude-opus-5[1m]'"));
     }
 
@@ -610,7 +717,8 @@ mod build_command_cases {
     #[test]
     fn rejects_zero_or_two_session_identifiers() {
         assert!(err_of(BuildCommandOptions::default()).contains("exactly one"));
-        assert!(err_of(BuildCommandOptions { session_id: Some(SESSION.into()), resume: Some(SESSION.into()), ..Default::default() }).contains("exactly one"));
+        assert!(err_of(BuildCommandOptions { session_id: Some(SESSION.into()), resume: Some(SESSION.into()), ..Default::default() })
+            .contains("exactly one"));
     }
 
     // TS: landmines.test.ts:354
@@ -670,7 +778,12 @@ mod user_message_line_cases {
     // TS: landmines.test.ts:393
     #[test]
     fn carries_every_image_of_the_message_in_the_order_the_person_added_them_each_with_its_own_type() {
-        let line = user_message_line("these three", SESSION, &[image("image/png", "AAA="), image("image/jpeg", "BBB="), image("image/webp", "CCC=")], None);
+        let line = user_message_line(
+            "these three",
+            SESSION,
+            &[image("image/png", "AAA="), image("image/jpeg", "BBB="), image("image/webp", "CCC=")],
+            None,
+        );
         let content = parsed(&line)["message"]["content"].as_array().unwrap().clone();
         let types: Vec<&str> = content.iter().map(|b| b["type"].as_str().unwrap()).collect();
         assert_eq!(types, ["image", "image", "image", "text"]);
@@ -714,7 +827,10 @@ mod saved_spend {
     // TS: landmines.test.ts:424
     #[test]
     fn is_the_last_cost_state_line_of_the_sessions_file() {
-        let out = printed("last", &[saved(json!(1)), r#"{"type":"user"}"#.to_string(), saved(json!(352.3)), r#"{"type":"last-prompt"}"#.to_string()]);
+        let out = printed(
+            "last",
+            &[saved(json!(1)), r#"{"type":"user"}"#.to_string(), saved(json!(352.3)), r#"{"type":"last-prompt"}"#.to_string()],
+        );
         assert_eq!(out, format!("{}\nlaunched\n", saved(json!(352.3))));
     }
 
@@ -803,7 +919,13 @@ mod sign_in_order {
     }
 
     fn options(env: &IndexMap<String, String>, vault: &Vault) -> ClaudeEnvOptions {
-        ClaudeEnvOptions { base: Some(as_base(env)), api_key: vault.api_key.clone(), oauth_token: vault.oauth_token.clone(), brokered: vault.brokered.clone(), project_dir_name: None }
+        ClaudeEnvOptions {
+            base: Some(as_base(env)),
+            api_key: vault.api_key.clone(),
+            oauth_token: vault.oauth_token.clone(),
+            brokered: vault.brokered.clone(),
+            project_dir_name: None,
+        }
     }
 
     fn deps(exec: Arc<dyn ExecStreamFactory>, base: &IndexMap<String, String>, vault: &Vault) -> AdapterDeps {
@@ -816,7 +938,11 @@ mod sign_in_order {
     }
 
     fn reported(stdout: &str, stderr: &str) -> String {
-        Regex::new(r#"key=[^ "]+ token=[^ "]+"#).unwrap().find(stdout).map(|m| m.as_str().to_string()).unwrap_or_else(|| format!("no result: {stdout} {stderr}"))
+        Regex::new(r#"key=[^ "]+ token=[^ "]+"#)
+            .unwrap()
+            .find(stdout)
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_else(|| format!("no result: {stdout} {stderr}"))
     }
 
     /// The turn's launch line as the adapter hands it to the exec, run the way this computer runs one: its environment
@@ -827,9 +953,19 @@ mod sign_in_order {
         d.result_exit_ms = Some(5);
         d.interrupt_grace_ms = Some(5);
         let adapter = create_claude_adapter(d).unwrap();
-        let _session = adapter.start(HarnessStartOptions { prompt: "go".into(), on_event: Some(Arc::new(|_| {})), ..Default::default() }).unwrap();
+        let _session =
+            adapter.start(HarnessStartOptions { prompt: "go".into(), on_event: Some(Arc::new(|_| {})), ..Default::default() }).unwrap();
         let call = exec.calls().into_iter().next().expect("the adapter launched nothing");
-        let mut child = Command::new("bash").arg("-c").arg(&call.command).env_clear().envs(call.env.iter()).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+        let mut child = Command::new("bash")
+            .arg("-c")
+            .arg(&call.command)
+            .env_clear()
+            .envs(call.env.iter())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
         drop(child.stdin.take());
         let ran = child.wait_with_output().unwrap();
         reported(&String::from_utf8_lossy(&ran.stdout), &String::from_utf8_lossy(&ran.stderr))
@@ -855,7 +991,16 @@ mod sign_in_order {
             let input: String = env.map(|e| e.iter().map(|(k, v)| format!("{k}={v}\0")).collect()).unwrap_or_default();
             async move {
                 let out = tokio::task::spawn_blocking(move || {
-                    let mut child = Command::new("bash").arg("-c").arg(&command).env_clear().envs(base.iter()).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+                    let mut child = Command::new("bash")
+                        .arg("-c")
+                        .arg(&command)
+                        .env_clear()
+                        .envs(base.iter())
+                        .stdin(Stdio::piped())
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::piped())
+                        .spawn()
+                        .unwrap();
                     let mut stdin = child.stdin.take().unwrap();
                     let _ = stdin.write_all(input.as_bytes());
                     drop(stdin);
@@ -863,7 +1008,13 @@ mod sign_in_order {
                 })
                 .await
                 .unwrap();
-                seen.lock().unwrap().push(Regex::new(r#"key=[^ "]+ token=[^ "]+"#).unwrap().find(&out).map(|m| m.as_str().to_string()).unwrap_or_else(|| format!("no result: {out}")));
+                seen.lock().unwrap().push(
+                    Regex::new(r#"key=[^ "]+ token=[^ "]+"#)
+                        .unwrap()
+                        .find(&out)
+                        .map(|m| m.as_str().to_string())
+                        .unwrap_or_else(|| format!("no result: {out}")),
+                );
                 Ok(out)
             }
             .boxed_local()
@@ -887,7 +1038,9 @@ mod sign_in_order {
     // TS: sign-in-order.test.ts:105
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn wsps_own_token_stands_above_a_key_from_the_login_shell_and_the_two_never_ride_together() {
-        tokio::task::LocalSet::new().run_until(wsps_own_token_stands_above_a_key_from_the_login_shell_and_the_two_never_ride_together_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(wsps_own_token_stands_above_a_key_from_the_login_shell_and_the_two_never_ride_together_body())
+            .await
     }
 
     async fn wsps_own_token_stands_above_a_key_from_the_login_shell_and_the_two_never_ride_together_body() {
@@ -913,18 +1066,24 @@ mod sign_in_order {
         let sign_in = Vault { oauth_token: Some(WSP_TOKEN.into()), brokered: brokered(turn, BrokerKind::Login), ..Default::default() };
         assert_eq!(launch_signs_in_with(&base, &sign_in), format!("key=none token={turn}"));
         assert_eq!(title_signs_in_with(&base, &sign_in).await, format!("key=none token={turn}"));
-        assert_eq!(launch_signs_in_with(&base, &Vault { brokered: brokered(turn, BrokerKind::Key), ..Default::default() }), format!("key={turn} token=none"));
+        assert_eq!(
+            launch_signs_in_with(&base, &Vault { brokered: brokered(turn, BrokerKind::Key), ..Default::default() }),
+            format!("key={turn} token=none")
+        );
     }
 
     // TS: sign-in-order.test.ts:124
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn the_persons_own_claude_sign_in_stands_above_a_key_or_a_token_from_the_login_shell_which_are_dropped() {
-        tokio::task::LocalSet::new().run_until(the_persons_own_claude_sign_in_stands_above_a_key_or_a_token_from_the_login_shell_which_are_dropped_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(the_persons_own_claude_sign_in_stands_above_a_key_or_a_token_from_the_login_shell_which_are_dropped_body())
+            .await
     }
 
     async fn the_persons_own_claude_sign_in_stands_above_a_key_or_a_token_from_the_login_shell_which_are_dropped_body() {
         let root = stand_in("own-login", Own::Login);
-        let lents: [Vec<(&str, &str)>; 2] = [vec![("ANTHROPIC_API_KEY", RC_KEY)], vec![("CLAUDE_CODE_OAUTH_TOKEN", RC_TOKEN), ("ANTHROPIC_API_KEY", RC_KEY)]];
+        let lents: [Vec<(&str, &str)>; 2] =
+            [vec![("ANTHROPIC_API_KEY", RC_KEY)], vec![("CLAUDE_CODE_OAUTH_TOKEN", RC_TOKEN), ("ANTHROPIC_API_KEY", RC_KEY)]];
         for lent in lents {
             let base = inherited(root.path(), &lent);
             assert_eq!(launch_signs_in_with(&base, &Vault::default()), "key=none token=none");
@@ -948,7 +1107,9 @@ mod sign_in_order {
     // TS: sign-in-order.test.ts:141
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn with_neither_a_token_from_the_login_shell_reaches_the_cli_alone_since_a_key_beside_it_would_win() {
-        tokio::task::LocalSet::new().run_until(with_neither_a_token_from_the_login_shell_reaches_the_cli_alone_since_a_key_beside_it_would_win_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(with_neither_a_token_from_the_login_shell_reaches_the_cli_alone_since_a_key_beside_it_would_win_body())
+            .await
     }
 
     async fn with_neither_a_token_from_the_login_shell_reaches_the_cli_alone_since_a_key_beside_it_would_win_body() {

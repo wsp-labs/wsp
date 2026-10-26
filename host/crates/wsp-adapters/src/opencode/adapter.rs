@@ -18,8 +18,8 @@ use crate::opencode::command::{build_command, build_env, BuildCommandOptions, Op
 use crate::pending::{refused_turn, Refusal};
 use crate::port::{
     end_after_result, end_run, system_now, AdapterAttachOptions, AdapterError, AdapterEvent, AgentLaunch, AttachRunOptions, Attached,
-    AttachmentRoad, DeltaKind, Env, ExecFailure, ExecOptions, ExecStream, ExecStreamFactory, HarnessAdapter, HarnessCatalogAnswer, HarnessExec,
-    HarnessSession, HarnessStartOptions, Now, OnEvent, SharedFuture, TurnDelta, TurnResult, TurnStatus, TurnTokens,
+    AttachmentRoad, DeltaKind, Env, ExecFailure, ExecOptions, ExecStream, ExecStreamFactory, HarnessAdapter, HarnessCatalogAnswer,
+    HarnessExec, HarnessSession, HarnessStartOptions, Now, OnEvent, SharedFuture, TurnDelta, TurnResult, TurnStatus, TurnTokens,
 };
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::session::TurnRefusal;
@@ -684,7 +684,10 @@ impl HarnessAdapter for OpenCodeAdapter {
     fn attachments(&self) -> Option<AttachmentRoad> {
         OpenCodeAdapter::attachments(self)
     }
-    fn probe_catalog(&self, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<HarnessCatalogAnswer>, ExecFailure>>> {
+    fn probe_catalog(
+        &self,
+        exec: Arc<dyn HarnessExec>,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<HarnessCatalogAnswer>, ExecFailure>>> {
         let me = self.clone();
         Some(async move { me.probe_catalog(exec).await }.boxed_local())
     }

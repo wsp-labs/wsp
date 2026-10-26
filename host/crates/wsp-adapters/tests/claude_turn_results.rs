@@ -8,7 +8,7 @@ mod claude_exec;
 
 use std::sync::{Arc, Mutex};
 
-use futures::future::{LocalBoxFuture, FutureExt};
+use futures::future::{FutureExt, LocalBoxFuture};
 use regex::Regex;
 use serde_json::{json, Map, Value};
 use wsp_adapters::claude::adapter::{create_claude_adapter, AdapterDeps, ClaudeAdapter};
@@ -17,7 +17,10 @@ use wsp_adapters::claude::chain::{chain_read_command, chain_write_command, copy_
 use wsp_adapters::claude::landmines::{user_message_line, BaseEnv};
 use wsp_adapters::claude::turn::ClaudeSession;
 use wsp_adapters::pending::{background_tasks_line, notify_tail, LOST_SESSION_NOTE};
-use wsp_adapters::port::{agent_word, AdapterEvent, AgentLaunch, DeltaKind, DraftAsk, Env, ExecFailure, ExecFailureKind, ExecStreamFactory, ForkTurn, ForkedSession, HarnessExec, HarnessLimit, HarnessStartOptions, OnEvent, SteerOutcome, TitleTurn, TurnResult, TurnStatus, TurnTokens};
+use wsp_adapters::port::{
+    agent_word, AdapterEvent, AgentLaunch, DeltaKind, DraftAsk, Env, ExecFailure, ExecFailureKind, ExecStreamFactory, ForkTurn,
+    ForkedSession, HarnessExec, HarnessLimit, HarnessStartOptions, OnEvent, SteerOutcome, TitleTurn, TurnResult, TurnStatus, TurnTokens,
+};
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::types::usage::{LimitKind, LimitStatus, LimitWindow, TurnLimit, UsageTokens};
 use wsp_wire::types::workspace_state::CLOUD_SIGN_IN_ROAD;
@@ -76,7 +79,20 @@ fn strs(lines: &[&str]) -> Vec<String> {
 }
 
 fn turn(status: TurnStatus) -> TurnResult {
-    TurnResult { status, duration_ms: None, waited_ms: None, cost_usd: None, tokens: None, model: None, models: None, text: None, error: None, unreached: None, refusal: None, limit: None }
+    TurnResult {
+        status,
+        duration_ms: None,
+        waited_ms: None,
+        cost_usd: None,
+        tokens: None,
+        model: None,
+        models: None,
+        text: None,
+        error: None,
+        unreached: None,
+        refusal: None,
+        limit: None,
+    }
 }
 
 fn failed(error: &str) -> TurnResult {
@@ -103,7 +119,10 @@ async fn result_run(result_line: &str) -> (Vec<AdapterEvent>, TurnResult) {
 
 /// The `turn.done` events, each with its result and its `held` mark.
 fn dones(events: &Events) -> Vec<(TurnResult, Option<bool>)> {
-    snap(events).into_iter().filter_map(|e| if let AdapterEvent::TurnDone { result, held, .. } = e { Some((result, held)) } else { None }).collect()
+    snap(events)
+        .into_iter()
+        .filter_map(|e| if let AdapterEvent::TurnDone { result, held, .. } = e { Some((result, held)) } else { None })
+        .collect()
 }
 
 /// The last event's exit code and sawResult; panics unless it is a session.end.
@@ -115,7 +134,20 @@ fn end_of(events: &[AdapterEvent]) -> (Option<i32>, bool) {
 }
 
 fn text_deltas(events: &[AdapterEvent]) -> Vec<String> {
-    events.iter().filter_map(|e| if let AdapterEvent::TurnDelta(d) = e { if d.kind == DeltaKind::Text { Some(d.text.clone()) } else { None } } else { None }).collect()
+    events
+        .iter()
+        .filter_map(|e| {
+            if let AdapterEvent::TurnDelta(d) = e {
+                if d.kind == DeltaKind::Text {
+                    Some(d.text.clone())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 fn tokens_of(input: f64, output: f64) -> TurnTokens {
@@ -187,7 +219,10 @@ async fn a_run_killed_by_a_signal_names_the_signal_never_a_bare_code() {
 }
 
 async fn a_run_killed_by_a_signal_names_the_signal_never_a_bare_code_body() {
-    let exec = FakeExec::scripted(vec![init_fixture()], StreamOpts { exit_code: Some(None), signalled: Some("SIGKILL".to_string()), ..Default::default() });
+    let exec = FakeExec::scripted(
+        vec![init_fixture()],
+        StreamOpts { exit_code: Some(None), signalled: Some("SIGKILL".to_string()), ..Default::default() },
+    );
     let (_, result) = run_x(&exec).await;
     assert_eq!(result, failed("claude was killed (SIGKILL) before it answered"));
 }
@@ -233,7 +268,10 @@ async fn exit_127_from_a_launch_that_exported_no_path_says_so() {
 async fn exit_127_from_a_launch_that_exported_no_path_says_so_body() {
     let exec = script_exit(vec![], Some(127));
     let (_, result) = run_x(&exec).await;
-    assert_eq!(result.error.as_deref(), Some("claude was not found on PATH (exit 127); the launch exported no PATH, the machine's own was searched"));
+    assert_eq!(
+        result.error.as_deref(),
+        Some("claude was not found on PATH (exit 127); the launch exported no PATH, the machine's own was searched")
+    );
 }
 
 // TS: adapter.test.ts:1285
@@ -259,13 +297,24 @@ async fn when_the_transport_ends_the_turn_itself_its_line_is_the_turns_error_bod
 // TS: adapter.test.ts:1316
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_result_with_no_text_and_no_usage_fails_with_the_stderr_tail_after_the_result_included() {
-    tokio::task::LocalSet::new().run_until(a_result_with_no_text_and_no_usage_fails_with_the_stderr_tail_after_the_result_included_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_result_with_no_text_and_no_usage_fails_with_the_stderr_tail_after_the_result_included_body())
+        .await
 }
 
 async fn a_result_with_no_text_and_no_usage_fails_with_the_stderr_tail_after_the_result_included_body() {
     let usage = json!({"input_tokens": 0, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "output_tokens": 0, "service_tier": "standard"});
     let empty = json!({"type": "result", "subtype": "success", "is_error": false, "duration_ms": 26, "result": "", "session_id": FIXTURE_SESSION_ID, "total_cost_usd": 0, "usage": usage}).to_string();
-    let exec = script_exit(vec![init_fixture(), "No conversation found with session ID: e16ed170".to_string(), empty, "".to_string(), "Error: transcript ended mid-turn".to_string()], Some(1));
+    let exec = script_exit(
+        vec![
+            init_fixture(),
+            "No conversation found with session ID: e16ed170".to_string(),
+            empty,
+            "".to_string(),
+            "Error: transcript ended mid-turn".to_string(),
+        ],
+        Some(1),
+    );
     let adapter = adapter_over(&exec);
     let (events, on_event) = collect();
     let result = adapter.start(opts_resume("x", FIXTURE_SESSION_ID, on_event)).unwrap().finished().await;
@@ -293,7 +342,9 @@ async fn a_result_with_no_text_and_no_usage_fails_with_the_stderr_tail_after_the
 // TS: adapter.test.ts:1339
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_result_with_no_text_and_a_quiet_stderr_fails_with_the_duration_alone_and_the_tail_keeps_five_lines() {
-    tokio::task::LocalSet::new().run_until(a_result_with_no_text_and_a_quiet_stderr_fails_with_the_duration_alone_and_the_tail_keeps_five_lines_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_result_with_no_text_and_a_quiet_stderr_fails_with_the_duration_alone_and_the_tail_keeps_five_lines_body())
+        .await
 }
 
 async fn a_result_with_no_text_and_a_quiet_stderr_fails_with_the_duration_alone_and_the_tail_keeps_five_lines_body() {
@@ -306,7 +357,10 @@ async fn a_result_with_no_text_and_a_quiet_stderr_fails_with_the_duration_alone_
     lines.extend(["one", "two", "three", "four", "five", "six"].iter().map(|w| format!("line {w}")));
     lines.push(empty);
     let (_, result) = run_x(&script(lines)).await;
-    assert_eq!(result.error.as_deref(), Some("claude answered with no output and no usage after 1.5s: line two\nline three\nline four\nline five\nline six"));
+    assert_eq!(
+        result.error.as_deref(),
+        Some("claude answered with no output and no usage after 1.5s: line two\nline three\nline four\nline five\nline six")
+    );
 }
 
 // TS: adapter.test.ts:1353
@@ -316,7 +370,8 @@ async fn a_resume_after_a_run_that_died_with_background_work_answers_the_persons
 }
 
 async fn a_resume_after_a_run_that_died_with_background_work_answers_the_persons_message_body() {
-    let init = json!({"type": "system", "subtype": "init", "cwd": "/w", "session_id": FIXTURE_SESSION_ID, "model": "claude-haiku-4-5"}).to_string();
+    let init = json!({"type": "system", "subtype": "init", "cwd": "/w", "session_id": FIXTURE_SESSION_ID, "model": "claude-haiku-4-5"})
+        .to_string();
     let lines = vec![
         json!({"type": "system", "subtype": "task_notification", "task_id": "b7oi2218c", "tool_use_id": "toolu_1", "status": "stopped", "output_file": "", "summary": "Background shell command didn't finish before the previous session ended", "session_id": FIXTURE_SESSION_ID}).to_string(),
         init.clone(),
@@ -380,7 +435,10 @@ async fn a_lost_session_resume_starts_a_new_session_seeded_with_the_thread_so_fa
     let (events, on_event) = collect();
     let seed = "person: fix the login page\nagent: done, pushed to fix/login";
     let session = adapter
-        .start(HarnessStartOptions { seed: Some(Arc::new(move || async move { Ok(seed.to_string()) }.boxed_local())), ..opts_resume("now add a test", FIXTURE_SESSION_ID, on_event) })
+        .start(HarnessStartOptions {
+            seed: Some(Arc::new(move || async move { Ok(seed.to_string()) }.boxed_local())),
+            ..opts_resume("now add a test", FIXTURE_SESSION_ID, on_event)
+        })
         .unwrap();
     let result = session.finished().await;
     assert_eq!(result.status, TurnStatus::Completed);
@@ -400,14 +458,26 @@ async fn a_lost_session_resume_starts_a_new_session_seeded_with_the_thread_so_fa
         _ => unreachable!(),
     }
     assert_ne!(session.claude_session_id(), FIXTURE_SESSION_ID);
-    let note = events[started..].iter().find_map(|e| if let AdapterEvent::TurnDelta(d) = e { if d.kind == DeltaKind::Note { Some(d.text.clone()) } else { None } } else { None });
+    let note = events[started..].iter().find_map(|e| {
+        if let AdapterEvent::TurnDelta(d) = e {
+            if d.kind == DeltaKind::Note {
+                Some(d.text.clone())
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    });
     assert_eq!(note.as_deref(), Some(LOST_SESSION_NOTE));
 }
 
 // TS: adapter.test.ts:1423
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_lost_session_resume_fails_with_the_clis_own_sentence_where_nothing_seeds_a_new_one() {
-    tokio::task::LocalSet::new().run_until(a_lost_session_resume_fails_with_the_clis_own_sentence_where_nothing_seeds_a_new_one_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_lost_session_resume_fails_with_the_clis_own_sentence_where_nothing_seeds_a_new_one_body())
+        .await
 }
 
 async fn a_lost_session_resume_fails_with_the_clis_own_sentence_where_nothing_seeds_a_new_one_body() {
@@ -426,7 +496,8 @@ async fn a_reports_answer_that_carries_words_is_the_turns_reply() {
 }
 
 async fn a_reports_answer_that_carries_words_is_the_turns_reply_body() {
-    let init = json!({"type": "system", "subtype": "init", "cwd": "/w", "session_id": FIXTURE_SESSION_ID, "model": "claude-haiku-4-5"}).to_string();
+    let init = json!({"type": "system", "subtype": "init", "cwd": "/w", "session_id": FIXTURE_SESSION_ID, "model": "claude-haiku-4-5"})
+        .to_string();
     let exec = script(vec![
         init,
         json!({"type": "assistant", "message": {"id": "msg_1", "role": "assistant", "content": [{"type": "text", "text": "hi"}]}, "parent_tool_use_id": null, "session_id": FIXTURE_SESSION_ID}).to_string(),
@@ -479,7 +550,10 @@ async fn the_clis_refusal_for_want_of_a_sign_in_is_a_failed_turn_carrying_its_se
     let away = there.start(opts("say hi", quiet())).unwrap().finished().await;
     assert_eq!(away.status, TurnStatus::Failed);
     assert_eq!(away.refusal, Some(TurnRefusal::SignIn));
-    assert_eq!(away.error.as_deref(), Some("Not logged in \u{b7} Please run /login; sign this workspace in from the Workspace panel, then send again"));
+    assert_eq!(
+        away.error.as_deref(),
+        Some("Not logged in \u{b7} Please run /login; sign this workspace in from the Workspace panel, then send again")
+    );
 
     // A caller that handed no road leaves the CLI's own sentence to stand alone; the cause still classes the turn.
     let bare = script_exit(lines, Some(1));
@@ -509,7 +583,9 @@ async fn a_user_abort_is_read_before_the_error_flag_body() {
 // TS: adapter.test.ts:1499
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_refusal_with_no_known_cause_keeps_its_own_sentence_and_a_turn_that_did_work_reads_completed() {
-    tokio::task::LocalSet::new().run_until(a_refusal_with_no_known_cause_keeps_its_own_sentence_and_a_turn_that_did_work_reads_completed_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_refusal_with_no_known_cause_keeps_its_own_sentence_and_a_turn_that_did_work_reads_completed_body())
+        .await
 }
 
 async fn a_refusal_with_no_known_cause_keeps_its_own_sentence_and_a_turn_that_did_work_reads_completed_body() {
@@ -679,7 +755,16 @@ fn completed_after_reply(task: &str) -> Regex {
 }
 
 fn task_counts(events: &Events) -> Vec<(u32, Option<String>)> {
-    snap(events).into_iter().filter_map(|e| if let AdapterEvent::TurnTasks { running, replied, .. } = e { Some((running, replied.and_then(|r| r.text))) } else { None }).collect()
+    snap(events)
+        .into_iter()
+        .filter_map(|e| {
+            if let AdapterEvent::TurnTasks { running, replied, .. } = e {
+                Some((running, replied.and_then(|r| r.text)))
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 // TS: adapter.test.ts:1603
@@ -705,7 +790,8 @@ async fn held_reply_closes_ends_and_delivers_nothing_until_the_task_is_done_body
     until(|| dones(&events).len() == 1).await;
     let result = dones(&events)[0].0.clone();
     assert_eq!(result.status, TurnStatus::Completed);
-    let shape = Regex::new(&format!(r"^Waiting for the background sleep to finish\.\n\n`{SLEEP_DESC}` completed, \d+m?s after the reply$")).unwrap();
+    let shape = Regex::new(&format!(r"^Waiting for the background sleep to finish\.\n\n`{SLEEP_DESC}` completed, \d+m?s after the reply$"))
+        .unwrap();
     finished_after(&shape, result.text.as_deref().unwrap());
     assert_eq!(result.duration_ms, Some(n(10657.0)));
     assert_eq!(result.cost_usd, Some(n(0.26918)));
@@ -783,7 +869,10 @@ async fn a_send_during_the_hold_steers_the_agent_and_its_next_reply_ends_the_hol
     assert_eq!(dones(&events), vec![]);
 
     m.push(b.none.clone());
-    m.push(json!({"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "ok"}]}, "session_id": SID}).to_string());
+    m.push(
+        json!({"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "ok"}]}, "session_id": SID})
+            .to_string(),
+    );
     m.push(json!({"type": "result", "subtype": "success", "is_error": false, "duration_ms": 900, "result": "ok", "session_id": SID, "usage": {"input_tokens": 2, "output_tokens": 2}}).to_string());
     until(|| dones(&events).len() == 1).await;
     let result = dones(&events)[0].0.clone();
@@ -794,7 +883,9 @@ async fn a_send_during_the_hold_steers_the_agent_and_its_next_reply_ends_the_hol
 // TS: adapter.test.ts:1678
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn hands_the_runtime_the_reply_once_over_its_tasks_and_marks_the_turns_end_as_that_reply() {
-    tokio::task::LocalSet::new().run_until(hands_the_runtime_the_reply_once_over_its_tasks_and_marks_the_turns_end_as_that_reply_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(hands_the_runtime_the_reply_once_over_its_tasks_and_marks_the_turns_end_as_that_reply_body())
+        .await
 }
 
 async fn hands_the_runtime_the_reply_once_over_its_tasks_and_marks_the_turns_end_as_that_reply_body() {
@@ -831,7 +922,9 @@ async fn a_woken_agents_own_reply_is_a_new_one_not_marked_held_body() {
 // TS: adapter.test.ts:1705
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_woken_agent_cut_before_its_own_reply_ends_a_turn_not_marked_held_failed_with_the_exit() {
-    tokio::task::LocalSet::new().run_until(a_woken_agent_cut_before_its_own_reply_ends_a_turn_not_marked_held_failed_with_the_exit_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_woken_agent_cut_before_its_own_reply_ends_a_turn_not_marked_held_failed_with_the_exit_body())
+        .await
 }
 
 async fn a_woken_agent_cut_before_its_own_reply_ends_a_turn_not_marked_held_failed_with_the_exit_body() {
@@ -894,7 +987,9 @@ async fn is_held_until_the_last_task_is_gone_and_every_finished_task_is_under_th
 // TS: adapter.test.ts:1745
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn ended_with_a_server_still_running_reads_done_and_names_the_running_work_as_its_last_line() {
-    tokio::task::LocalSet::new().run_until(ended_with_a_server_still_running_reads_done_and_names_the_running_work_as_its_last_line_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(ended_with_a_server_still_running_reads_done_and_names_the_running_work_as_its_last_line_body())
+        .await
 }
 
 async fn ended_with_a_server_still_running_reads_done_and_names_the_running_work_as_its_last_line_body() {
@@ -1000,7 +1095,8 @@ mod shell {
     }
 
     pub fn result() -> String {
-        json!({"type": "result", "subtype": "success", "is_error": false, "duration_ms": 1, "result": "done", "session_id": SID}).to_string()
+        json!({"type": "result", "subtype": "success", "is_error": false, "duration_ms": 1, "result": "done", "session_id": SID})
+            .to_string()
     }
 
     /// Each delta's kind, tool name and folder.
@@ -1074,7 +1170,14 @@ async fn takes_a_write_under_the_harness_folder_as_the_shells_folder_when_no_cd_
     ])
     .await;
     let uses: Vec<_> = deltas.into_iter().filter(|(kind, _, _)| *kind == DeltaKind::ToolUse).collect();
-    assert_eq!(uses, vec![row(DeltaKind::ToolUse, Some("Write"), Some("/root/2048")), row(DeltaKind::ToolUse, Some("Edit"), None), row(DeltaKind::ToolUse, Some("Write"), None)]);
+    assert_eq!(
+        uses,
+        vec![
+            row(DeltaKind::ToolUse, Some("Write"), Some("/root/2048")),
+            row(DeltaKind::ToolUse, Some("Edit"), None),
+            row(DeltaKind::ToolUse, Some("Write"), None)
+        ]
+    );
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1097,7 +1200,14 @@ async fn names_the_turns_last_message_once_before_the_reply_as_the_point_a_cut_k
     rewind_adapter(&exec).start(opts("go", on_event)).unwrap().finished().await;
     let events = snap(&events);
     let anchors: Vec<AdapterEvent> = events.iter().filter(|e| matches!(e, AdapterEvent::TurnAnchor { .. })).cloned().collect();
-    assert_eq!(anchors, vec![AdapterEvent::TurnAnchor { session_id: FIXTURE_SESSION_ID.to_string(), anchor: "1a2b3c4d-0006-4aaa-8bbb-000000000006".to_string(), kept: None }]);
+    assert_eq!(
+        anchors,
+        vec![AdapterEvent::TurnAnchor {
+            session_id: FIXTURE_SESSION_ID.to_string(),
+            anchor: "1a2b3c4d-0006-4aaa-8bbb-000000000006".to_string(),
+            kept: None
+        }]
+    );
     let at = events.iter().position(|e| matches!(e, AdapterEvent::TurnAnchor { .. })).unwrap();
     let done_at = events.iter().position(|e| matches!(e, AdapterEvent::TurnDone { .. })).unwrap();
     assert!(at < done_at);
@@ -1167,7 +1277,8 @@ async fn forks_a_session_through_a_turns_anchor_on_a_copy_and_never_resumes_at_a
 /// A recording's lines as Claude Code printed them, its provenance line left out and its session swapped for the
 /// fixture's own, so a test resuming FIXTURE_SESSION_ID reads them as that session's.
 fn recorded(name: &str) -> Vec<String> {
-    let lines: Vec<String> = fixture_lines(&format!("{name}.jsonl")).into_iter().filter(|l| !l.contains("\"_fixture_provenance\"")).collect();
+    let lines: Vec<String> =
+        fixture_lines(&format!("{name}.jsonl")).into_iter().filter(|l| !l.contains("\"_fixture_provenance\"")).collect();
     let first: Value = serde_json::from_str(&lines[0]).unwrap();
     let session = first["session_id"].as_str().expect("a session_id on the first line").to_string();
     lines.iter().map(|l| l.replace(&session, FIXTURE_SESSION_ID)).collect()
@@ -1202,7 +1313,8 @@ async fn says_each_retry_which_one_of_how_many_and_why_before_the_reply_body() {
     assert_eq!(done.text.as_deref(), Some("hello"));
     assert_eq!(retries(&events), vec![retry_event(1.0, "Anthropic was overloaded"), retry_event(2.0, "Anthropic was overloaded")]);
     let last_retry = events.iter().rposition(|e| matches!(e, AdapterEvent::TurnRetry { .. })).unwrap();
-    let first_text = events.iter().position(|e| matches!(e, AdapterEvent::TurnDelta(d) if d.kind == DeltaKind::Text)).expect("a text delta");
+    let first_text =
+        events.iter().position(|e| matches!(e, AdapterEvent::TurnDelta(d) if d.kind == DeltaKind::Text)).expect("a text delta");
     assert!(first_text > last_retry);
 }
 
@@ -1261,7 +1373,9 @@ fn compacted_event(before: f64, after: f64) -> AdapterEvent {
 // TS: adapter.test.ts:1958
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn says_the_compaction_with_both_figures_and_the_reply_after_it_is_what_the_model_then_held() {
-    tokio::task::LocalSet::new().run_until(says_the_compaction_with_both_figures_and_the_reply_after_it_is_what_the_model_then_held_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(says_the_compaction_with_both_figures_and_the_reply_after_it_is_what_the_model_then_held_body())
+        .await
 }
 
 async fn says_the_compaction_with_both_figures_and_the_reply_after_it_is_what_the_model_then_held_body() {

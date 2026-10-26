@@ -33,9 +33,9 @@ use crate::pending::title_prompt;
 use crate::port::{
     keep_run, system_now, AdapterAttachOptions, AdapterError, AgentLaunch, AnswerOutcome, AsideAnswer, AsideQuestion, AttachRunOptions,
     Attached, AttachmentRoad, ConversationStore, DraftAsk, Env, ExecFailure, ExecFailureKind, ExecOptions, ExecSecret, ExecStreamFactory,
-    ForkTurn, ForkedSession, HarnessAdapter, HarnessCatalogAnswer, HarnessCatalogModelProbe, HarnessExec, HarnessSession, HarnessStartOptions,
-    KeptAgent, KeptTurn, Now, PermissionAnswer, RevertAsk, Reverted, SessionFile, SessionRenameWrite, SharedFuture, SteerOutcome, TaskStop,
-    TitleTurn, TurnImage, TurnResult, TurnStatus,
+    ForkTurn, ForkedSession, HarnessAdapter, HarnessCatalogAnswer, HarnessCatalogModelProbe, HarnessExec, HarnessSession,
+    HarnessStartOptions, KeptAgent, KeptTurn, Now, PermissionAnswer, RevertAsk, Reverted, SessionFile, SessionRenameWrite, SharedFuture,
+    SteerOutcome, TaskStop, TitleTurn, TurnImage, TurnResult, TurnStatus,
 };
 use wsp_wire::views::session_events::TurnTokens;
 
@@ -575,7 +575,10 @@ impl HarnessAdapter for CodexAdapter {
         let me = self.clone();
         Some(async move { me.session_held(&session_id, exec).await.map_err(|e| e.to_string()) }.boxed_local())
     }
-    fn account_models(&self, version: Option<String>) -> Option<LocalBoxFuture<'static, Result<Option<Vec<HarnessCatalogModelProbe>>, String>>> {
+    fn account_models(
+        &self,
+        version: Option<String>,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<Vec<HarnessCatalogModelProbe>>, String>>> {
         CodexAdapter::account_models(self, version).map(|models| models.map(Ok).boxed_local())
     }
     fn attach(
@@ -604,7 +607,9 @@ impl HarnessAdapter for CodexAdapter {
     }
     fn fork_session(&self, session: String, turn: ForkTurn) -> Option<LocalBoxFuture<'static, Result<ForkedSession, String>>> {
         let me = self.clone();
-        Some(async move { me.fork_session(&session, turn).await.map(|(session, turn)| ForkedSession::Fork { session, turn }) }.boxed_local())
+        Some(
+            async move { me.fork_session(&session, turn).await.map(|(session, turn)| ForkedSession::Fork { session, turn }) }.boxed_local(),
+        )
     }
     fn forks_by_count(&self) -> bool {
         true
@@ -621,7 +626,10 @@ impl HarnessAdapter for CodexAdapter {
     fn waits_for_prompt(&self) -> bool {
         true
     }
-    fn probe_catalog(&self, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<HarnessCatalogAnswer>, ExecFailure>>> {
+    fn probe_catalog(
+        &self,
+        exec: Arc<dyn HarnessExec>,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<HarnessCatalogAnswer>, ExecFailure>>> {
         let me = self.clone();
         Some(async move { me.probe_catalog(exec).await }.boxed_local())
     }

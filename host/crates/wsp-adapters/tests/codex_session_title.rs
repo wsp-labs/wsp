@@ -17,13 +17,17 @@ use serde_json::{json, Value};
 use wsp_adapters::codex::catalog::catalog_probe_command;
 use wsp_adapters::codex::command::{build_env, CodexEnvOptions};
 use wsp_adapters::codex::session_held::{parse_session_held, session_held_command};
-use wsp_adapters::codex::session_title::{draft_for_command, parse_draft_for, parse_rename, parse_session_title, parse_title_for, rename_command, session_title_command, title_for_command};
+use wsp_adapters::codex::session_title::{
+    draft_for_command, parse_draft_for, parse_rename, parse_session_title, parse_title_for, rename_command, session_title_command,
+    title_for_command,
+};
 use wsp_adapters::port::{AgentLaunch, SessionRenameWrite};
 
 use codex_shell::{bash, fake_app_server, nul_env, run_shell, sqlite, write_stub, FakeAppServer, TempDir};
 
 const THREAD: &str = "01a079b6-6f04-7f73-84d6-40e9e6885ffd";
-const SCHEMA: &str = "create table threads (id text primary key, rollout_path text not null, cwd text not null, title text not null, name text);";
+const SCHEMA: &str =
+    "create table threads (id text primary key, rollout_path text not null, cwd text not null, title text not null, name text);";
 const NOW: i64 = 1_791_900_000_000;
 
 fn host_env() -> Vec<(String, String)> {
@@ -50,7 +54,9 @@ fn row(id: &str, title: &str, name: Option<&str>) -> String {
         None => "null".to_string(),
         Some(n) => format!("'{n}'"),
     };
-    format!("insert into threads (id, rollout_path, cwd, title, name) values ('{id}', 'sessions/r.jsonl', '/root/work', '{title}', {name});")
+    format!(
+        "insert into threads (id, rollout_path, cwd, title, name) values ('{id}', 'sessions/r.jsonl', '/root/work', '{title}', {name});"
+    )
 }
 
 /// The command as the guest runs it: one bash line, its stdout read the way the adapter reads it.
@@ -91,7 +97,10 @@ mod the_title_codex_keeps_for_a_thread {
 
     #[test]
     fn comes_out_of_the_highest_schema_version_not_the_last_name_in_the_folder() {
-        let home = codex_home(&[("state_5.sqlite", vec![row(THREAD, "old schema", None)]), ("state_10.sqlite", vec![row(THREAD, "live schema", None)])]);
+        let home = codex_home(&[
+            ("state_5.sqlite", vec![row(THREAD, "old schema", None)]),
+            ("state_10.sqlite", vec![row(THREAD, "live schema", None)]),
+        ]);
         assert_eq!(title_of(&home, THREAD), Some("live schema".to_string()));
     }
 
@@ -150,8 +159,14 @@ mod the_title_codex_makes_for_a_thread {
     fn reads_no_title_out_of_a_turn_that_failed_said_nothing_or_explained_itself_over_s() {
         assert_eq!(parse_title_for(r#"{"type":"turn.failed","error":{"message":"401 Unauthorized"}}"#), None);
         assert_eq!(parse_title_for(""), None);
-        assert_eq!(parse_title_for(r#"{"type":"item.completed","item":{"id":"i1","type":"agent_message","text":"Here it is:\nA title"}}"#), None);
-        assert_eq!(parse_title_for(r#"{"type":"item.completed","item":{"id":"i1","type":"agent_message","text":"Seed thread titles here"}}"#), Some("Seed thread titles here".to_string()));
+        assert_eq!(
+            parse_title_for(r#"{"type":"item.completed","item":{"id":"i1","type":"agent_message","text":"Here it is:\nA title"}}"#),
+            None
+        );
+        assert_eq!(
+            parse_title_for(r#"{"type":"item.completed","item":{"id":"i1","type":"agent_message","text":"Seed thread titles here"}}"#),
+            Some("Seed thread titles here".to_string())
+        );
     }
 }
 
@@ -207,7 +222,10 @@ mod naming_a_codex_thread_from_wsp {
         let locked = fake_app_server(json!({ "thread/name/set": { "error": { "code": -32603, "message": "database is locked" } } }));
         assert_eq!(rename_through(&locked, "the name"), SessionRenameWrite::Failed { error: "database is locked".to_string() });
         let gone = fake_app_server(json!({ "thread/name/set": "exit" }));
-        assert_eq!(rename_through(&gone, "the name"), SessionRenameWrite::Failed { error: "codex's app server did not answer the rename".to_string() });
+        assert_eq!(
+            rename_through(&gone, "the name"),
+            SessionRenameWrite::Failed { error: "codex's app server did not answer the rename".to_string() }
+        );
     }
 
     #[test]
@@ -276,7 +294,10 @@ fn held_home(files: &[&str], schema: Option<Schema>, rows: &[(&str, &str)]) -> T
         for (id, path) in rows {
             let abs = home.join(path);
             sql.push(if schema == Schema::V0163 {
-                format!("insert into threads (id, rollout_path, title, history_mode) values ('{id}', '{}', '{OPENING}', 'paginated');", abs.display())
+                format!(
+                    "insert into threads (id, rollout_path, title, history_mode) values ('{id}', '{}', '{OPENING}', 'paginated');",
+                    abs.display()
+                )
             } else {
                 format!("insert into threads (id, rollout_path, title) values ('{id}', '{}', '{OPENING}');", abs.display())
             });
@@ -308,7 +329,13 @@ mod what_the_machine_holds_for_a_session_codex_would_not_resume {
         assert!(Regex::new(r"^boot (unread|[0-9a-f-]{36}); ").unwrap().is_match(&line), "{line}");
         let bytes = opening_line().len();
         assert!(line.contains(&format!("; rollout files: {} ({bytes} bytes); ", home.join(&reverted).display())), "{line}");
-        assert!(line.contains(&format!("; index row: state_5.sqlite {{\"path\":\"{}\",\"mode\":\"paginated\"}}, the file it names is missing", home.join(&named).display())), "{line}");
+        assert!(
+            line.contains(&format!(
+                "; index row: state_5.sqlite {{\"path\":\"{}\",\"mode\":\"paginated\"}}, the file it names is missing",
+                home.join(&named).display()
+            )),
+            "{line}"
+        );
         assert!(!line.contains(OTHER), "{line}");
         assert!(!line.contains(OPENING), "{line}");
     }
@@ -318,7 +345,13 @@ mod what_the_machine_holds_for_a_session_codex_would_not_resume {
         let named = format!("{DAY}/rollout-2026-10-16T01-19-52-{HELD_THREAD}.jsonl");
         let home = held_home(&[&named], Some(Schema::V0163), &[(HELD_THREAD, &named)]);
         let line = held_in(home.path(), HELD_THREAD);
-        assert!(line.contains(&format!("; index row: state_5.sqlite {{\"path\":\"{}\",\"mode\":\"paginated\"}}, the file it names is there", home.join(&named).display())), "{line}");
+        assert!(
+            line.contains(&format!(
+                "; index row: state_5.sqlite {{\"path\":\"{}\",\"mode\":\"paginated\"}}, the file it names is there",
+                home.join(&named).display()
+            )),
+            "{line}"
+        );
     }
 
     #[test]
@@ -330,7 +363,13 @@ mod what_the_machine_holds_for_a_session_codex_would_not_resume {
         let named = format!("{DAY}/rollout-2026-10-16T01-19-52-{HELD_THREAD}.jsonl");
         let older = held_home(&[&named], Some(Schema::Older), &[(HELD_THREAD, &named)]);
         let line = held_in(older.path(), HELD_THREAD);
-        assert!(line.contains(&format!("; index row: state_5.sqlite {{\"path\":\"{}\"}}, the file it names is there", older.join(&named).display())), "{line}");
+        assert!(
+            line.contains(&format!(
+                "; index row: state_5.sqlite {{\"path\":\"{}\"}}, the file it names is there",
+                older.join(&named).display()
+            )),
+            "{line}"
+        );
         let empty = held_home(&[], None, &[]);
         let line = held_in(empty.path(), HELD_THREAD);
         assert!(Regex::new(r"; index row: no state db$").unwrap().is_match(&line), "{line}");
@@ -367,7 +406,10 @@ mod a_persons_setup_for_codex_on_a_computer {
 
     #[test]
     fn the_probe_a_title_and_a_draft_run_the_program_and_none_of_the_launch_words() {
-        let launch = AgentLaunch { program: Some("/opt/codex".to_string()), args: Some(vec!["-c".to_string(), "model_provider=\"ollama\"".to_string()]) };
+        let launch = AgentLaunch {
+            program: Some("/opt/codex".to_string()),
+            args: Some(vec!["-c".to_string(), "model_provider=\"ollama\"".to_string()]),
+        };
         let bare = Regex::new(r"(^|[;&] *)codex ").unwrap();
         for line in [
             catalog_probe_command(Some(&launch), None).unwrap(),
@@ -408,8 +450,14 @@ mod rules_added {
     #[test]
     fn a_rename_s_answer_must_be_an_object_and_only_a_lowercase_no_rollout_found_start_is_no_session() {
         // ST3; session-title.ts:155-160.
-        assert_eq!(parse_rename(r#"{"id":2,"result":[]}"#), SessionRenameWrite::Failed { error: "codex's app server did not answer the rename".into() });
-        assert_eq!(parse_rename(r#"{"id":2,"error":{"message":"No rollout found"}}"#), SessionRenameWrite::Failed { error: "No rollout found".into() });
+        assert_eq!(
+            parse_rename(r#"{"id":2,"result":[]}"#),
+            SessionRenameWrite::Failed { error: "codex's app server did not answer the rename".into() }
+        );
+        assert_eq!(
+            parse_rename(r#"{"id":2,"error":{"message":"No rollout found"}}"#),
+            SessionRenameWrite::Failed { error: "No rollout found".into() }
+        );
         assert_eq!(parse_rename(r#"{"id":2,"error":{"message":""}}"#), SessionRenameWrite::Failed { error: String::new() });
         assert_eq!(parse_rename(r#"{"id":2,"error":{"message":"no rollout found for thread x"}}"#), SessionRenameWrite::NoSession);
     }
@@ -417,7 +465,10 @@ mod rules_added {
     #[test]
     fn the_held_words_split_a_file_line_on_single_spaces_and_a_state_db_answer_outranks_a_row() {
         // ST4; lost-session.ts:35-58.
-        assert_eq!(parse_session_held("boot T\nlisted\nfile  12  /a\nnodb\nrow {\"path\":\"/a\"}\n"), "boot T; rollout files: 12  /a ( bytes); index row: no state db");
+        assert_eq!(
+            parse_session_held("boot T\nlisted\nfile  12  /a\nnodb\nrow {\"path\":\"/a\"}\n"),
+            "boot T; rollout files: 12  /a ( bytes); index row: no state db"
+        );
         assert_eq!(parse_session_held(""), "boot unread; rollout files: none, the listing cut short; index row: not read");
         assert_eq!(parse_session_held("boot T\nnohome\n"), "boot T; rollout files: none; index row: no Codex home");
     }
