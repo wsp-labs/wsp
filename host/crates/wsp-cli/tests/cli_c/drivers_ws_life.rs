@@ -4,10 +4,9 @@
 use serde::de::DeserializeOwned;
 use serde_json::{json, Map, Value};
 use wsp_cli::verbs::client::BoxFuture;
-use wsp_cli::verbs::turns_help::Turn;
+use wsp_cli::verbs::turns_help::{HostResult, Turn};
 use wsp_cli::verbs::workspaces_help as w;
 use wsp_wire::views::session::SessionView;
-use wsp_wire::views::session_events::TurnResult;
 use wsp_wire::wire::runtime::SessionStartOutcome;
 use wsp_words::exit::{HostError, Kind};
 
@@ -196,8 +195,8 @@ pub fn turn_of(env: &Env) -> Option<Turn> {
     let session: SessionView =
         serde_json::from_value(json!({ "id": "s_1", "workspaceId": "ws_1", "harness": "claude", "status": "failed" }))
             .expect("a session reads");
-    let result: Option<TurnResult> =
-        turn.get("refusal").map(|r| serde_json::from_value(json!({ "status": "completed", "refusal": r })).expect("a result reads"));
+    let result: Option<HostResult> =
+        turn.get("refusal").map(|r| HostResult::read(json!({ "status": "completed", "refusal": r })).expect("a result reads"));
     Some(Turn {
         session,
         thread_id: turn["threadId"].as_str().expect("a thread id").to_string(),

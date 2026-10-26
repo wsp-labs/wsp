@@ -10,9 +10,9 @@ use wsp_words::exit::HostError;
 use super::super::agents_help::{
     add_tools, added_line, agent_defaults_line, agent_defaults_set, agent_row_lines, agent_setup_lines, agent_setup_set, aimed_usage,
     default_agent_line, default_agent_set, gone_from_line, is_in_line, plugin_changed, plugin_row_lines, plugin_turned_line, project_asked,
-    removed_line, search_skills_sh, server_changed, server_command, server_row_lines, server_scope, server_tools_of, server_values,
-    shown_text, skill_added, skill_changed, skill_hit_lines, skill_row_lines, skill_shown, tool_lines, tools_added_line, tools_project,
-    turned_in_line, turned_line, AgentSetAsk, AgentSetupAsk, PluginChange, ProjectAsked, ServerOp, SkillChange,
+    read_plugins, removed_line, search_skills_sh, server_changed, server_command, server_row_lines, server_scope, server_tools_of,
+    server_values, shown_text, skill_added, skill_changed, skill_hit_lines, skill_row_lines, skill_shown, tool_lines, tools_added_line,
+    tools_project, turned_in_line, turned_line, AgentSetAsk, AgentSetupAsk, PluginChange, ProjectAsked, ServerOp, SkillChange,
 };
 use super::super::client::*;
 use super::super::io::as_text;
@@ -365,7 +365,7 @@ pub(super) fn call_plugins(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result
         )
         .await?;
         let text = plugin_row_lines(&report).join("\n");
-        Ok(as_text(&text, facts_and(&report, "plugins", json_of(&report.plugins.clone().unwrap_or_default()))))
+        Ok(as_text(&text, facts_and(&report, "plugins", json_of(&read_plugins(&report)))))
     })
 }
 

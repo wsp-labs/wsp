@@ -26,10 +26,9 @@ use common::{fixture, RecordingIo};
 use wsp_cli::cloud_text::cloud_text;
 use wsp_cli::verbs::client::{CallToolResult, FlagRow, FlagValue, Flags, InputKind, ToolInput};
 use wsp_cli::verbs::io::{self, NotifyLength, TurnOut};
-use wsp_cli::verbs::turns_help::{Ended, Turn, Waited};
+use wsp_cli::verbs::turns_help::{Ended, HostResult, Turn, Waited};
 use wsp_wire::views::project_bundle::{HostFolderListing, ProjectPlan};
 use wsp_wire::views::session::{SessionView, ThreadView};
-use wsp_wire::views::session_events::TurnResult;
 use wsp_wire::views::sub_row::SubResult;
 use wsp_wire::wire::runtime::SessionStartOutcome;
 use wsp_words::exit::{verb_failure, HostError, Kind};
@@ -189,7 +188,7 @@ fn turn_of(v: &Value) -> Turn {
         session: parsed::<SessionView>("session", &v["session"]),
         thread_id: v["threadId"].as_str().unwrap().to_owned(),
         outcome: parsed::<SessionStartOutcome>("outcome", &v["outcome"]),
-        result: v.get("result").map(|r| parsed::<TurnResult>("result", r)),
+        result: v.get("result").map(|r| HostResult::read(r.clone()).expect("a result the recording holds reads")),
         reason: None,
         after_cut: v.get("afterCut") == Some(&json!(true)),
         notice: None,
@@ -510,7 +509,7 @@ fn wait_answer_is_the_end_under_the_notify_line_or_the_timeout() {
             let waited = match c["waited"].get("ended") {
                 Some(e) => Waited::Ended(Ended {
                     thread_id: e["threadId"].as_str().unwrap().to_owned(),
-                    result: parsed::<TurnResult>("result", &e["result"]),
+                    result: HostResult::read(e["result"].clone()).expect("a result the recording holds reads"),
                     sub: e.get("sub").map(|s| parsed::<SubResult>("sub", s)),
                 }),
                 None => Waited::TimedOutMs(c["waited"]["timedOutMs"].as_f64().unwrap()),

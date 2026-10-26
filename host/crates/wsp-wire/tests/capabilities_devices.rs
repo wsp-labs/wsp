@@ -176,9 +176,7 @@ mod the_init_job_view {
         }));
         assert_eq!(serde_json::to_value(&setup.keys).unwrap().as_object().unwrap().keys().collect::<Vec<_>>(), ["solari"]);
         // A key's own text is no presence flag: refused on the key's name (InitKeys is the views writer's type).
-        let e = refused::<InitSetup>(
-            json!({ "keys": { "solari": "slr_live_x" }, "home": "/Users/me", "pricing": null }),
-        );
+        let e = refused::<InitSetup>(json!({ "keys": { "solari": "slr_live_x" }, "home": "/Users/me", "pricing": null }));
         assert_eq!(e.path, path!["keys", "solari"]);
         assert_eq!(e.code, "invalid_type");
     }

@@ -1353,10 +1353,7 @@ pub fn scope_of(caller: Option<&Caller>) -> Option<ThreadScope> {
 /// The held setting (crate::types::place_state's AGENTS_ON where none is held) with each field the patch names over it.
 pub fn agents_from(held: Option<&WorkspaceAgents>, patch: &WorkspaceAgentsPatch) -> WorkspaceAgents {
     let base = held.cloned().unwrap_or(crate::types::place_state::AGENTS_ON);
-    WorkspaceAgents {
-        max_machines: patch.max_machines.unwrap_or(base.max_machines),
-        max_depth: patch.max_depth.unwrap_or(base.max_depth),
-    }
+    WorkspaceAgents { max_machines: patch.max_machines.unwrap_or(base.max_machines), max_depth: patch.max_depth.unwrap_or(base.max_depth) }
 }
 
 /// A patch of WorkspaceAgents: an absent field keeps the held one.

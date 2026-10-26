@@ -496,16 +496,54 @@ pub struct WaitOut {
     pub timed_out: Option<bool>,
 }
 
-/// `ThreadRowOut` (io.ts:269): the thread's row, then these four.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+/// `ThreadRowOut` (io.ts:269): the thread's row, then these four. The TS spreads the row `foldThreads` built, whose
+/// `waitingOn` and `sub` are the host's own objects, so they print as the host wrote them: `raw_waiting_on` and
+/// `raw_sub` hold those two where the session row carried them.
+#[derive(Clone, Debug, PartialEq)]
 pub struct ThreadRowOut {
-    #[serde(flatten)]
     pub thread: ThreadView,
+    pub raw_waiting_on: Option<Value>,
+    pub raw_sub: Option<Value>,
     pub project_name: String,
     pub folder: String,
     pub branch: String,
     pub computer_name: String,
+}
+
+impl<'de> Deserialize<'de> for ThreadRowOut {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let Value::Object(row) = Value::deserialize(deserializer)? else {
+            return Err(serde::de::Error::custom("a thread row is an object"));
+        };
+        let text = |key: &str| row.get(key).and_then(Value::as_str).unwrap_or_default().to_owned();
+        Ok(ThreadRowOut {
+            raw_waiting_on: row.get("waitingOn").cloned(),
+            raw_sub: row.get("sub").cloned(),
+            project_name: text("projectName"),
+            folder: text("folder"),
+            branch: text("branch"),
+            computer_name: text("computerName"),
+            thread: serde_json::from_value(Value::Object(row)).map_err(serde::de::Error::custom)?,
+        })
+    }
+}
+
+impl Serialize for ThreadRowOut {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let Value::Object(mut row) = serde_json::to_value(&self.thread).map_err(serde::ser::Error::custom)? else {
+            return Err(serde::ser::Error::custom("a thread row writes as an object"));
+        };
+        for (key, raw) in [("waitingOn", &self.raw_waiting_on), ("sub", &self.raw_sub)] {
+            if let (Some(raw), Some(slot)) = (raw, row.get_mut(key)) {
+                *slot = raw.clone();
+            }
+        }
+        row.insert("projectName".into(), Value::String(self.project_name.clone()));
+        row.insert("folder".into(), Value::String(self.folder.clone()));
+        row.insert("branch".into(), Value::String(self.branch.clone()));
+        row.insert("computerName".into(), Value::String(self.computer_name.clone()));
+        row.serialize(serializer)
+    }
 }
 
 /// `asJson(structured)` (io.ts:275): the text is `json_line(structured, 2)`.
