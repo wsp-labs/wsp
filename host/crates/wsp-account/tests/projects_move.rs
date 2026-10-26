@@ -103,7 +103,14 @@ fn strings(v: &[&str]) -> Vec<String> {
 }
 
 /// The scene's reports for a copy import, and the sentence it ends on.
-async fn scene(plan: Value, provider: bool, carry: &[&str], rewrite: &[&str], agents: &[&str], dest: &str) -> (Vec<(String, String, Option<(u64, u64)>)>, String) {
+async fn scene(
+    plan: Value,
+    provider: bool,
+    carry: &[&str],
+    rewrite: &[&str],
+    agents: &[&str],
+    dest: &str,
+) -> (Vec<(String, String, Option<(u64, u64)>)>, String) {
     let (fake, area, entry) = rig();
     fake.base.answer_with("provider_row", vec![json!(provider)]);
     let bundler = FakeBundler::new(&fake.base, plan);
@@ -120,10 +127,17 @@ fn copy_import_reports_each_stage_as_the_ts_words_it() {
     // spec copy rules 1-7 and 11: every scene's reports whole, in order, with the progress each carries.
     run(async {
         let planned = "6 files, 4 KB and the repository; 3 secret-shaped files; 2 caches left behind.";
-        let upload = |dest: &str| vec![line("uploading", "Uploading 2 KB.", Some((0, 2048))), line("uploading", "Part 1 of 1, 2 KB of 2 KB.", Some((2048, 2048))), line("landing", &format!("Landing at {dest}."), None)];
+        let upload = |dest: &str| {
+            vec![
+                line("uploading", "Uploading 2 KB.", Some((0, 2048))),
+                line("uploading", "Part 1 of 1, 2 KB of 2 KB.", Some((2048, 2048))),
+                line("landing", &format!("Landing at {dest}."), None),
+            ]
+        };
 
         // project-import.test.ts:108: a provider, one secret carried, the file of values cut.
-        let (got, done) = scene(plan_of(secrets(vec![]), vec![], &[".env"], true), true, &["config/secrets.json"], &[], &[], "/root/work/proj").await;
+        let (got, done) =
+            scene(plan_of(secrets(vec![]), vec![], &[".env"], true), true, &["config/secrets.json"], &[], &[], "/root/work/proj").await;
         let mut want = vec![
             line("planned", planned, None),
             line("consented", "Carrying config/secrets.json; cut .env, keys/id_ed25519.", None),
@@ -134,21 +148,50 @@ fn copy_import_reports_each_stage_as_the_ts_words_it() {
         assert_eq!(done, "4 files, 4 KB, landed at /root/work/proj.");
 
         // :169: a file of values carried onto a provider's machine is cut, and the consented line says so.
-        let (got, _) = scene(plan_of(secrets(vec![]), vec![], &[".env"], true), true, &[".env", "keys/id_ed25519"], &[], &[], "/root/proj").await;
+        let (got, _) =
+            scene(plan_of(secrets(vec![]), vec![], &[".env"], true), true, &[".env", "keys/id_ed25519"], &[], &[], "/root/proj").await;
         assert_eq!(got[1], line("consented", "Carrying keys/id_ed25519; cut .env, config/secrets.json.", None));
         assert_eq!(got[2], line("packing", "Packing 4 files.", None));
 
         // :190: a rewrite the person accepted.
-        let (got, done) = scene(plan_of(secrets(vec![git_config()]), vec![], &[".env"], true), true, &["config/secrets.json"], &[".git/config"], &[], "/root/proj").await;
+        let (got, done) = scene(
+            plan_of(secrets(vec![git_config()]), vec![], &[".env"], true),
+            true,
+            &["config/secrets.json"],
+            &[".git/config"],
+            &[],
+            "/root/proj",
+        )
+        .await;
         assert_eq!(got[0], line("planned", "6 files, 4 KB and the repository; 4 secret-shaped files; 2 caches left behind.", None));
-        assert_eq!(got[1], line("consented", "Carrying config/secrets.json; rewriting .git/config to https://github.com/example/proj.git; cut .env, keys/id_ed25519.", None));
+        assert_eq!(
+            got[1],
+            line(
+                "consented",
+                "Carrying config/secrets.json; rewriting .git/config to https://github.com/example/proj.git; cut .env, keys/id_ed25519.",
+                None
+            )
+        );
         assert_eq!(got[2], line("packing", "Packing 4 files.", None));
         assert_eq!(done, "4 files, 4 KB, landed at /root/proj.");
-        let (got, _) = scene(plan_of(secrets(vec![auth_config(json!(["https://github.com/example/proj.git"]))]), vec![], &[".env"], true), true, &[], &[".git/config"], &[], "/root/other").await;
+        let (got, _) = scene(
+            plan_of(secrets(vec![auth_config(json!(["https://github.com/example/proj.git"]))]), vec![], &[".env"], true),
+            true,
+            &[],
+            &[".git/config"],
+            &[],
+            "/root/other",
+        )
+        .await;
         assert_eq!(got[1], line("consented", "Rewriting .git/config to https://github.com/example/proj.git without http.extraheader; cut .env, config/secrets.json, keys/id_ed25519.", None));
         assert_eq!(got[2], line("packing", "Packing 3 files.", None));
-        let (got, _) = scene(plan_of(secrets(vec![auth_config(json!([]))]), vec![], &[".env"], true), true, &[], &[".git/config"], &[], "/root/third").await;
-        assert_eq!(got[1], line("consented", "Rewriting .git/config without http.extraheader; cut .env, config/secrets.json, keys/id_ed25519.", None));
+        let (got, _) =
+            scene(plan_of(secrets(vec![auth_config(json!([]))]), vec![], &[".env"], true), true, &[], &[".git/config"], &[], "/root/third")
+                .await;
+        assert_eq!(
+            got[1],
+            line("consented", "Rewriting .git/config without http.extraheader; cut .env, config/secrets.json, keys/id_ed25519.", None)
+        );
 
         // Nothing secret-shaped and nothing cut, no repository: the short sentences.
         let (got, done) = scene(plan_of(vec![], vec![], &[], false), false, &[], &[], &[], "/root/bare").await;
@@ -159,14 +202,22 @@ fn copy_import_reports_each_stage_as_the_ts_words_it() {
 
         // :354: with no agent named nothing about them is read and the consented line says so.
         let (got, _) = scene(plan_of(secrets(vec![]), agents_plan(), &[".env"], true), true, &[], &[], &[], "/root/proj").await;
-        assert_eq!(got[1], line("consented", "No secret-shaped file travels; cut .env, config/secrets.json, keys/id_ed25519. No agent sessions travel.", None));
+        assert_eq!(
+            got[1],
+            line(
+                "consented",
+                "No secret-shaped file travels; cut .env, config/secrets.json, keys/id_ed25519. No agent sessions travel.",
+                None
+            )
+        );
 
         // The file in two parts: each part says its share, and the done line says how many.
         let (fake, area, entry) = rig();
         fake.base.answer_with("land_bundle_parts", vec![json!([[1, 2, 1024, 2048], [2, 2, 2048, 2048]])]);
         let bundler = FakeBundler::new(&fake.base, plan_of(secrets(vec![]), vec![], &[".env"], true));
         let (report, said) = reporter();
-        let landed = area.copy_import(&entry, import_opts(&bundler, "/root/proj", &["config/secrets.json"], &[], &[]), report).await.unwrap();
+        let landed =
+            area.copy_import(&entry, import_opts(&bundler, "/root/proj", &["config/secrets.json"], &[], &[]), report).await.unwrap();
         assert_eq!(
             said_of(&said)[3..],
             vec![
@@ -228,11 +279,19 @@ fn copy_import_lands_sessions_and_merges_rows() {
     run(async {
         let (fake, area, entry) = rig();
         fake.base.answer_with("agents_on_machine", vec![json!(["claude", "codex"])]);
-        fake.base.answer_with("merge_on_machine", vec![json!({ "agent": "codex", "files": 1, "bytes": 25, "outcome": "moved", "rows": 3 })]);
+        fake.base
+            .answer_with("merge_on_machine", vec![json!({ "agent": "codex", "files": 1, "bytes": 25, "outcome": "moved", "rows": 3 })]);
         let bundler = FakeBundler::new(&fake.base, plan_of(secrets(vec![]), agents_plan(), &[".env"], true));
         *bundler.state.borrow_mut() = Some(moved_state());
         let (report, said) = reporter();
-        let landed = area.copy_import(&entry, import_opts(&bundler, "/root/work/proj", &["config/secrets.json"], &[], &["claude", "pi", "codex"]), report).await.unwrap();
+        let landed = area
+            .copy_import(
+                &entry,
+                import_opts(&bundler, "/root/work/proj", &["config/secrets.json"], &[], &["claude", "pi", "codex"]),
+                report,
+            )
+            .await
+            .unwrap();
         let sentence = "Claude Code moved, Pi carried unchanged since it is not on the machine, Codex moved, 3 rows merged";
         assert_eq!(
             said_of(&said),
@@ -262,7 +321,17 @@ fn copy_import_lands_sessions_and_merges_rows() {
                 "project": { "name": "proj", "dest": "/root/work/proj", "importedAt": "2026-10-25T00:00:00.000Z", "size": 4000 },
             })
         );
-        let ran = ["bundler_plan", "provider_row", "bundler_pack", "agents_on_machine", "guest_agent_homes", "bundler_pack_state", "land_bundle", "import_into", "merge_on_machine"];
+        let ran = [
+            "bundler_plan",
+            "provider_row",
+            "bundler_pack",
+            "agents_on_machine",
+            "guest_agent_homes",
+            "bundler_pack_state",
+            "land_bundle",
+            "import_into",
+            "merge_on_machine",
+        ];
         assert_eq!(fake.base.names_of(&ran), ran.to_vec());
         assert_eq!(fake.base.args_of("agents_on_machine"), vec![json!({ "id": "ws_1", "agents": ["claude", "pi", "codex"] })]);
         assert_eq!(
@@ -273,7 +342,10 @@ fn copy_import_lands_sessions_and_merges_rows() {
                 { "agent": "codex", "home": "/root/.codex", "present": true },
             ] })]
         );
-        assert_eq!(fake.base.args_of("land_bundle"), vec![json!({ "id": "ws_1", "bytes": 2048, "dest": "/root/work/proj", "replace": null })]);
+        assert_eq!(
+            fake.base.args_of("land_bundle"),
+            vec![json!({ "id": "ws_1", "bytes": 2048, "dest": "/root/work/proj", "replace": null })]
+        );
         assert_eq!(fake.base.args_of("import_into"), vec![json!({ "id": "ws_1", "bytes": 3072 })]);
         let merged = &fake.base.args_of("merge_on_machine")[0];
         assert_eq!(merged["script"], "/tmp/wsp-merge-0000/codex.py");
@@ -281,7 +353,8 @@ fn copy_import_lands_sessions_and_merges_rows() {
 
         // Rows alone still travel (:307): no session file, a merge to run, and the sentence for rows already there.
         let (fake, area, entry) = rig();
-        fake.base.answer_with("merge_on_machine", vec![json!({ "agent": "hermes", "files": 0, "bytes": 0, "outcome": "moved", "rows": 0 })]);
+        fake.base
+            .answer_with("merge_on_machine", vec![json!({ "agent": "hermes", "files": 0, "bytes": 0, "outcome": "moved", "rows": 0 })]);
         let hermes = json!({ "agent": "hermes", "name": "Hermes Agent", "sessions": 1, "bytes": 0, "carry": "transcript-only" });
         let bundler = FakeBundler::new(&fake.base, plan_of(secrets(vec![]), vec![hermes], &[".env"], true));
         *bundler.state.borrow_mut() = Some(PackedState {
@@ -309,12 +382,16 @@ fn copy_import_lands_sessions_and_merges_rows() {
             merges: vec![],
         });
         let (report, said) = reporter();
-        let landed = area.copy_import(&entry, import_opts(&bundler, "/root/proj", &[], &[], &["claude", "opencode"]), report).await.unwrap();
+        let landed =
+            area.copy_import(&entry, import_opts(&bundler, "/root/proj", &[], &[], &["claude", "opencode"]), report).await.unwrap();
         assert_eq!(
             said_of(&said)[1],
             line("consented", "No secret-shaped file travels; cut .env, config/secrets.json, keys/id_ed25519. Sessions travel for Claude Code (2 sessions); Pi, Codex stay; OpenCode could not be read (file is not a database).", None)
         );
-        assert_eq!(fake.base.args_of("bundler_pack_state")[0]["agents"], json!([{ "agent": "claude", "home": "/root/.claude-cfg", "present": true }]));
+        assert_eq!(
+            fake.base.args_of("bundler_pack_state")[0]["agents"],
+            json!([{ "agent": "claude", "home": "/root/.claude-cfg", "present": true }])
+        );
         assert_eq!(landed.result.agents.iter().map(|a| a.agent.clone()).collect::<Vec<_>>(), vec!["claude"]);
         assert_eq!(landed.done, "3 files, 4 KB, landed at /root/proj; sessions: Claude Code moved.");
     });
@@ -329,7 +406,8 @@ fn copy_import_refuses_an_agent_the_catalog_lacks() {
         let bundler = FakeBundler::new(&fake.base, plan_of(secrets(vec![]), agents_plan(), &[".env"], true));
         *bundler.state.borrow_mut() = Some(moved_state());
         let (report, said) = reporter();
-        let refusal = area.copy_import(&entry, import_opts(&bundler, "/root/proj", &[], &[], &["claude", "codex"]), report).await.unwrap_err();
+        let refusal =
+            area.copy_import(&entry, import_opts(&bundler, "/root/proj", &[], &[], &["claude", "codex"]), report).await.unwrap_err();
         assert_eq!(refusal, plain("codex is not an agent the catalog knows"));
         assert_eq!(said_of(&said).iter().map(|s| s.0.clone()).collect::<Vec<_>>(), vec!["planned", "consented", "packing"]);
         assert_eq!(fake.base.names_of(&["bundler_pack_state", "land_bundle", "import_into", "merge_on_machine"]), Vec::<String>::new());
@@ -355,13 +433,22 @@ fn import_adds_the_dest_to_landed_before_the_roots_write() {
         let (fake, area, entry) = rig();
         entry.borrow().record.borrow_mut().landed = Some(strings(&["/root/a"]));
         fake.base.answer_with("kind_import_advance", vec![json!(40)]);
-        fake.base.answer_with("kind_import_reports", vec![json!([["planned", "6 files, 4 KB; 0 secret-shaped files; 0 caches left behind.", null], ["uploading", "Part 1 of 1, 1 KB of 1 KB.", [1024, 1024]]])]);
+        fake.base.answer_with(
+            "kind_import_reports",
+            vec![json!([
+                ["planned", "6 files, 4 KB; 0 secret-shaped files; 0 caches left behind.", null],
+                ["uploading", "Part 1 of 1, 1 KB of 1 KB.", [1024, 1024]]
+            ])],
+        );
         let result = area.import(plain_import(&fake), Some(person())).await.unwrap();
         let ran = ["spawn_guard", "entry_of", "copy_blocked", "kind_import", "write_daemon_roots", "persist"];
         assert_eq!(fake.base.names_of(&ran), ran.to_vec());
         assert_eq!(fake.base.args_of("spawn_guard"), vec![json!({ "act": "import", "scoped": false })]);
         assert_eq!(fake.base.args_of("entry_of")[0]["id"], "ws_1");
-        assert_eq!(fake.base.args_of("write_daemon_roots"), vec![json!({ "id": "ws_1", "strict": true, "landed": ["/root/a", "/root/work/proj"] })]);
+        assert_eq!(
+            fake.base.args_of("write_daemon_roots"),
+            vec![json!({ "id": "ws_1", "strict": true, "landed": ["/root/a", "/root/work/proj"] })]
+        );
         assert_eq!(rec(&entry).landed, Some(strings(&["/root/a", "/root/work/proj"])));
         assert_eq!(fake.base.persisted.borrow().len(), 1);
         assert_eq!(fake.base.persisted.borrow()[0].landed, Some(strings(&["/root/a", "/root/work/proj"])));
@@ -371,7 +458,11 @@ fn import_adds_the_dest_to_landed_before_the_roots_write() {
         let events = fake.base.events.borrow().clone();
         assert_eq!(
             events,
-            vec![import_event("planned", "6 files, 4 KB; 0 secret-shaped files; 0 caches left behind.", 40), progress, import_event("done", "4 files, 4 KB, landed at /root/work/proj.", 40)]
+            vec![
+                import_event("planned", "6 files, 4 KB; 0 secret-shaped files; 0 caches left behind.", 40),
+                progress,
+                import_event("done", "4 files, 4 KB, landed at /root/work/proj.", 40)
+            ]
         );
         assert_eq!(keys(&events[1]), vec!["type", "workspaceId", "source", "dest", "stage", "message", "elapsedMs", "bytes", "total"]);
         assert_eq!(result.dest, "/root/work/proj");
@@ -420,13 +511,22 @@ fn import_reports_failed_on_any_failure() {
     run(async {
         // The kind's own import fails, after saying one stage.
         let (fake, area, entry) = rig();
-        fake.base.answer_with("kind_import_reports", vec![json!([["planned", "6 files, 4 KB; 0 secret-shaped files; 0 caches left behind.", null]])]);
-        fake.base.answer_with("kind_import", vec![fails("/root/work/proj already exists on the machine; import with replace to overwrite it", Some("exists"))]);
+        fake.base.answer_with(
+            "kind_import_reports",
+            vec![json!([["planned", "6 files, 4 KB; 0 secret-shaped files; 0 caches left behind.", null]])],
+        );
+        fake.base.answer_with(
+            "kind_import",
+            vec![fails("/root/work/proj already exists on the machine; import with replace to overwrite it", Some("exists"))],
+        );
         let err = area.import(plain_import(&fake), None).await.unwrap_err();
         assert_eq!(err.message, "/root/work/proj already exists on the machine; import with replace to overwrite it");
         assert_eq!(
             fake.base.events.borrow().clone(),
-            vec![import_event("planned", "6 files, 4 KB; 0 secret-shaped files; 0 caches left behind.", 0), import_event("failed", &err.message, 0)]
+            vec![
+                import_event("planned", "6 files, 4 KB; 0 secret-shaped files; 0 caches left behind.", 0),
+                import_event("failed", &err.message, 0)
+            ]
         );
         assert_eq!(fake.base.names_of(&["write_daemon_roots", "persist"]), Vec::<String>::new());
         assert_eq!(rec(&entry).landed, None);
@@ -522,7 +622,10 @@ fn scratch_is_gone(fake: &FakeProjects) {
 }
 
 fn homes() -> indexmap::IndexMap<String, String> {
-    [("claude", "/root/.claude-cfg"), ("codex", "/root/.codex"), ("pi", "/root/.pi/agent"), ("hermes", "/root/.hermes")].into_iter().map(|(a, h)| (a.to_owned(), h.to_owned())).collect()
+    [("claude", "/root/.claude-cfg"), ("codex", "/root/.codex"), ("pi", "/root/.pi/agent"), ("hermes", "/root/.hermes")]
+        .into_iter()
+        .map(|(a, h)| (a.to_owned(), h.to_owned()))
+        .collect()
 }
 
 const LISTED: [&str; 2] = ["/root/.claude-cfg/projects/-root-work-proj", "/root/.codex/sessions/2026/09/06/rollout-t1.jsonl"];
@@ -534,7 +637,10 @@ fn listing_stdout() -> String {
 fn three_agents(lander: &FakeLander) {
     *lander.agents.borrow_mut() = vec![
         landed_agent("Claude Code", json!({ "agent": "claude", "files": 3, "bytes": 300, "outcome": "moved", "sessions": 2 })),
-        landed_agent("Codex", json!({ "agent": "codex", "files": 1, "bytes": 100, "outcome": "transcript-only", "sessions": 2, "skipped": 1 })),
+        landed_agent(
+            "Codex",
+            json!({ "agent": "codex", "files": 1, "bytes": 100, "outcome": "transcript-only", "sessions": 2, "skipped": 1 }),
+        ),
         landed_agent("Hermes Agent", json!({ "agent": "hermes", "files": 0, "bytes": 0, "outcome": "nothing", "sessions": 1 })),
     ];
 }
@@ -576,7 +682,18 @@ fn export_lands_folder_and_state_and_says_done() {
             ]
         );
         assert_eq!(keys(&events[1]), vec!["type", "workspaceId", "source", "dest", "stage", "message", "elapsedMs", "bytes", "total"]);
-        let ran = ["spawn_guard", "entry_of", "copy_blocked", "guest_agent_homes", "lander_probe", "export_folder", "machine_run", "export_paths_into", "lander_land", "machine_exec"];
+        let ran = [
+            "spawn_guard",
+            "entry_of",
+            "copy_blocked",
+            "guest_agent_homes",
+            "lander_probe",
+            "export_folder",
+            "machine_run",
+            "export_paths_into",
+            "lander_land",
+            "machine_exec",
+        ];
         assert_eq!(fake.base.names_of(&ran), ran.to_vec());
         assert_eq!(fake.base.args_of("spawn_guard"), vec![json!({ "act": "export", "scoped": false })]);
         assert_eq!(fake.base.args_of("lander_probe"), vec![json!({ "dest": DEST })]);
@@ -587,18 +704,27 @@ fn export_lands_folder_and_state_and_says_done() {
         let root = scratch_root(script).expect("the listing names a scratch root");
         assert_eq!(script, state_listing(&homes(), GUEST_SOURCE, &root, None).unwrap());
         assert_eq!(run_args["deadlineMs"], 120_000);
-        assert_eq!(fake.base.args_of("machine_exec"), vec![json!({ "id": "ws_1", "cmd": format!("rm -rf '{root}'"), "timeoutMs": 20_000 })]);
+        assert_eq!(
+            fake.base.args_of("machine_exec"),
+            vec![json!({ "id": "ws_1", "cmd": format!("rm -rf '{root}'"), "timeoutMs": 20_000 })]
+        );
         // The copies travel from the scratch root that mirrors the homes, the rest from the root of the machine.
         let archive = fake.base.args_of("export_folder")[0]["archive"].as_str().unwrap().to_owned();
         assert_eq!(fake.base.args_of("export_folder")[0]["source"], GUEST_SOURCE);
         let state_archive = fake.base.args_of("export_paths_into")[0]["archive"].as_str().unwrap().to_owned();
         assert_eq!(
             fake.base.args_of("export_paths_into")[0]["groups"],
-            json!([["/", [LISTED[0], LISTED[1]]], [root, [format!("{root}/root/.codex/state_5.sqlite"), format!("{root}/root/.hermes/state.db")]]])
+            json!([
+                ["/", [LISTED[0], LISTED[1]]],
+                [root, [format!("{root}/root/.codex/state_5.sqlite"), format!("{root}/root/.hermes/state.db")]]
+            ])
         );
         // The lander is handed both archives as they stood on disk, and the homes the state mirrors.
         let landing = &fake.base.args_of("lander_land")[0];
-        assert_eq!((landing["source"].clone(), landing["dest"].clone(), landing["replace"].clone()), (json!(GUEST_SOURCE), json!(DEST), json!(false)));
+        assert_eq!(
+            (landing["source"].clone(), landing["dest"].clone(), landing["replace"].clone()),
+            (json!(GUEST_SOURCE), json!(DEST), json!(false))
+        );
         assert_eq!(landing["archive"], archive);
         assert_eq!(landing["state"], json!({ "archive": state_archive, "homes": homes(), "agents": null }));
         assert_eq!(landing["unread"], Value::Null);
@@ -625,11 +751,20 @@ fn a_store_the_machine_cannot_read_brings_nothing_from_that_home_it_is_not_in_th
         fake.base.answer_with("machine_run", vec![json!({ "exitCode": 0, "stdout": stdout, "stderr": "" })]);
         let lander = FakeLander::new(&fake.base);
         let sentence = "could not read /root/.hermes/state.db on the machine, so nothing from it travelled: file is not a database";
-        *lander.agents.borrow_mut() = vec![landed_agent("Hermes Agent", json!({ "agent": "hermes", "files": 0, "bytes": 0, "outcome": "failed", "error": sentence }))];
+        *lander.agents.borrow_mut() = vec![landed_agent(
+            "Hermes Agent",
+            json!({ "agent": "hermes", "files": 0, "bytes": 0, "outcome": "failed", "error": sentence }),
+        )];
         let result = area.export(export_opts(&lander, None, None), None).await.unwrap();
         assert_eq!(fake.base.args_of("lander_land")[0]["unread"], json!([unread]));
-        assert_eq!(serde_json::to_value(&result.agents).unwrap(), json!([{ "agent": "hermes", "files": 0, "bytes": 0, "outcome": "failed", "error": sentence }]));
-        assert!(fake.base.events.borrow().last().unwrap()["message"].as_str().unwrap().contains(&format!("Hermes Agent failed: {sentence}")));
+        assert_eq!(
+            serde_json::to_value(&result.agents).unwrap(),
+            json!([{ "agent": "hermes", "files": 0, "bytes": 0, "outcome": "failed", "error": sentence }])
+        );
+        assert!(fake.base.events.borrow().last().unwrap()["message"]
+            .as_str()
+            .unwrap()
+            .contains(&format!("Hermes Agent failed: {sentence}")));
         // Neither the store nor the home beside it is asked for: only the path and the copy come.
         let groups = fake.base.args_of("export_paths_into")[0]["groups"].clone();
         assert!(!groups.to_string().contains(".hermes"));
@@ -647,7 +782,10 @@ fn export_refuses_a_standing_dest_unless_replace() {
         let err = area.export(export_opts(&lander, None, None), None).await.unwrap_err();
         let said = "/Users/dev/code/proj already exists on this computer with 12 files; export with replace to overwrite it";
         assert_eq!((err.message.as_str(), err.kind.clone()), (said, Some(Kind::Exists)));
-        assert_eq!(fake.base.names_of(&["export_folder", "machine_run", "export_paths_into", "lander_land", "machine_exec"]), Vec::<String>::new());
+        assert_eq!(
+            fake.base.names_of(&["export_folder", "machine_run", "export_paths_into", "lander_land", "machine_exec"]),
+            Vec::<String>::new()
+        );
         assert_eq!(fake.base.events.borrow().clone(), vec![export_event("failed", said, None)]);
         scratch_is_gone(&fake);
 
@@ -674,13 +812,21 @@ fn agents_named_narrow_the_roots_looked_for_on_the_machine_and_reach_the_lander(
     // project-export.test.ts:211.
     run(async {
         let (fake, area, _entry) = rig();
-        fake.base.answer_with("machine_run", vec![json!({ "exitCode": 0, "stdout": "/root/.claude-cfg/projects/-root-work-proj\n", "stderr": "" })]);
+        fake.base.answer_with(
+            "machine_run",
+            vec![json!({ "exitCode": 0, "stdout": "/root/.claude-cfg/projects/-root-work-proj\n", "stderr": "" })],
+        );
         let lander = FakeLander::new(&fake.base);
-        *lander.agents.borrow_mut() = vec![landed_agent("Claude Code", json!({ "agent": "claude", "files": 3, "bytes": 300, "outcome": "moved", "sessions": 2 }))];
+        *lander.agents.borrow_mut() =
+            vec![landed_agent("Claude Code", json!({ "agent": "claude", "files": 3, "bytes": 300, "outcome": "moved", "sessions": 2 }))];
         let result = area.export(export_opts(&lander, None, Some(&["claude", "pi"])), None).await.unwrap();
         let script = fake.base.args_of("machine_run")[0]["script"].as_str().unwrap().to_owned();
         let cmd = fake.base.args_of("machine_exec")[0]["cmd"].as_str().unwrap().to_owned();
-        let root = cmd.strip_prefix("rm -rf '").and_then(|c| c.strip_suffix('\'')).expect("the machine is told to remove the scratch root").to_owned();
+        let root = cmd
+            .strip_prefix("rm -rf '")
+            .and_then(|c| c.strip_suffix('\''))
+            .expect("the machine is told to remove the scratch root")
+            .to_owned();
         assert_eq!(script, state_listing(&homes(), GUEST_SOURCE, &root, Some(&strings(&["claude", "pi"]))).unwrap());
         assert_eq!(fake.base.args_of("lander_land")[0]["state"]["agents"], json!(["claude", "pi"]));
         assert_eq!(result.agents.iter().map(|a| a.agent.clone()).collect::<Vec<_>>(), vec!["claude"]);
@@ -697,7 +843,10 @@ fn a_folder_that_is_not_on_the_machine_a_napping_workspace_and_an_unknown_one_ar
         fake.base.answer_with("export_folder_fails", vec![fails("/root/work/proj is not a folder on the machine", None)]);
         let err = area.export(export_opts(&lander, None, None), None).await.unwrap_err();
         assert_eq!(err, plain("/root/work/proj is not a folder on the machine"));
-        assert_eq!(fake.base.events.borrow().last().unwrap(), &export_event("failed", "/root/work/proj is not a folder on the machine", None));
+        assert_eq!(
+            fake.base.events.borrow().last().unwrap(),
+            &export_event("failed", "/root/work/proj is not a folder on the machine", None)
+        );
         assert_eq!(fake.base.args_of("lander_probe"), vec![json!({ "dest": DEST })]);
 
         let fake = FakeProjects::new();
@@ -745,7 +894,10 @@ fn export_cleans_the_machine_and_the_scratch_on_failure() {
     run(async {
         // The folder's pack fails before any listing ran: no rm on the machine, the scratch folder gone, failed said.
         let (fake, area, _entry) = rig();
-        fake.base.answer_with("export_folder_fails", vec![fails("packing /root/work/proj on the machine failed (exit 2): tar: no space left", None)]);
+        fake.base.answer_with(
+            "export_folder_fails",
+            vec![fails("packing /root/work/proj on the machine failed (exit 2): tar: no space left", None)],
+        );
         let lander = FakeLander::new(&fake.base);
         let err = area.export(export_opts(&lander, None, None), None).await.unwrap_err();
         assert_eq!(err.message, "packing /root/work/proj on the machine failed (exit 2): tar: no space left");
@@ -765,7 +917,10 @@ fn export_cleans_the_machine_and_the_scratch_on_failure() {
         assert_eq!(fake.base.names_of(&["export_paths_into", "lander_land"]), Vec::<String>::new());
         let script = fake.base.args_of("machine_run")[0]["script"].as_str().unwrap().to_owned();
         let root = scratch_root(&script).unwrap();
-        assert_eq!(fake.base.args_of("machine_exec"), vec![json!({ "id": "ws_1", "cmd": format!("rm -rf '{root}'"), "timeoutMs": 20_000 })]);
+        assert_eq!(
+            fake.base.args_of("machine_exec"),
+            vec![json!({ "id": "ws_1", "cmd": format!("rm -rf '{root}'"), "timeoutMs": 20_000 })]
+        );
         scratch_is_gone(&fake);
 
         // The landing fails after both archives came: cleaned the same way.

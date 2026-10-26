@@ -16,7 +16,7 @@ use wsp_core::types::wiring::{
 use wsp_engine::exec_detached::{GUEST_TMP, INLINE_EXEC_MS};
 use wsp_engine::project_state::{parse_state_listing, state_listing};
 use wsp_wire::types::js_number::JsNumber;
-use wsp_wire::types::shell_quote::{shell_line, shell_quote};
+use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::views::project_bundle::{
     ProjectAgent, ProjectAgentResult, ProjectExportResult, ProjectExportStage, ProjectImportResult, ProjectImportStage, ProjectRewrite,
 };
@@ -59,7 +59,8 @@ pub trait MoveRoads {
     /// `moduleOf(kind).scratch(entry)`.
     fn scratch(&self, entry: &Entry) -> String;
     /// `landBundle(machine, tar, dest, {replace?, tmpDir, timeoutMs, onPart, onLanding})`: the parts it took.
-    async fn land_bundle(&self, entry: &Entry, tar: Vec<u8>, dest: &str, replace: Option<bool>, hooks: LandHooks) -> Result<u64, HostError>;
+    async fn land_bundle(&self, entry: &Entry, tar: Vec<u8>, dest: &str, replace: Option<bool>, hooks: LandHooks)
+        -> Result<u64, HostError>;
     /// `importInto(machine, tar, "/", {overlay: true, tmpDir, timeoutMs, onPart})`.
     async fn import_into(&self, entry: &Entry, tar: Vec<u8>, hooks: LandHooks) -> Result<(), HostError>;
     /// `mergeOnMachine(machine, script, agent)`.
@@ -69,9 +70,22 @@ pub trait MoveRoads {
     /// `ctx.computerRows()` row of the record's place or provider is a provider place.
     async fn provider_row(&self, entry: &Entry) -> Result<bool, HostError>;
     /// `exportFolder(machine, source, caches, archive, {timeoutMs, onProgress})`: what it left out.
-    async fn export_folder(&self, entry: &Entry, source: &str, caches: &[String], archive: &str, on_progress: Rc<dyn Fn(Progress)>) -> Result<Vec<String>, HostError>;
+    async fn export_folder(
+        &self,
+        entry: &Entry,
+        source: &str,
+        caches: &[String],
+        archive: &str,
+        on_progress: Rc<dyn Fn(Progress)>,
+    ) -> Result<Vec<String>, HostError>;
     /// `exportPathsInto(machine, groups, archive, {timeoutMs, onProgress})`.
-    async fn export_paths_into(&self, entry: &Entry, groups: Vec<(String, Vec<String>)>, archive: &str, on_progress: Rc<dyn Fn(Progress)>) -> Result<(), HostError>;
+    async fn export_paths_into(
+        &self,
+        entry: &Entry,
+        groups: Vec<(String, Vec<String>)>,
+        archive: &str,
+        on_progress: Rc<dyn Fn(Progress)>,
+    ) -> Result<(), HostError>;
     /// `machine.run(script, {deadlineMs})`.
     async fn machine_run(&self, entry: &Entry, script: &str, deadline_ms: u64) -> Result<ExecResult, HostError>;
     /// `machine.exec(cmd, {timeoutMs})`.
@@ -151,7 +165,13 @@ impl Projects {
     }
 
     /// The export's steps, then the listing's cleanup on the machine where a listing ran.
-    async fn export_run(&self, entry: &Entry, o: &ProjectExportOptions, scratch: &str, report: ExportReport) -> Result<ProjectExportResult, HostError> {
+    async fn export_run(
+        &self,
+        entry: &Entry,
+        o: &ProjectExportOptions,
+        scratch: &str,
+        report: ExportReport,
+    ) -> Result<ProjectExportResult, HostError> {
         let on_machine = guest_tmp_path("wsp-state", GUEST_TMP, self.ctx.clock().now(), self.ctx.ids().random());
         let listed = Cell::new(false);
         let outcome = self.export_steps(entry, o, scratch, &report, &on_machine, &listed).await;
@@ -174,7 +194,11 @@ impl Projects {
         let downloading = |what: &'static str| -> Rc<dyn Fn(Progress)> {
             let report = report.clone();
             Rc::new(move |p: Progress| {
-                report(ProjectExportStage::Downloading, &format!("{what}: {} of {}.", fmt_bytes(p.bytes as f64), fmt_bytes(p.total as f64)), Some((p.bytes, p.total)));
+                report(
+                    ProjectExportStage::Downloading,
+                    &format!("{what}: {} of {}.", fmt_bytes(p.bytes as f64), fmt_bytes(p.total as f64)),
+                    Some((p.bytes, p.total)),
+                );
             })
         };
         let homes = self.ctx.guest_agent_homes();
@@ -227,7 +251,8 @@ impl Projects {
             })
             .await?;
         let outcomes: Vec<String> = landed.agents.iter().map(home_outcome).collect();
-        let caches_text = if excluded.is_empty() { String::new() } else { format!("; {} left behind", plural(excluded.len() as f64, "cache")) };
+        let caches_text =
+            if excluded.is_empty() { String::new() } else { format!("; {} left behind", plural(excluded.len() as f64, "cache")) };
         let sessions = if outcomes.is_empty() {
             "no agent sessions for it on the machine".to_owned()
         } else {
@@ -235,7 +260,14 @@ impl Projects {
         };
         report(
             ProjectExportStage::Done,
-            &format!("{}, {}, landed at {}{}; {}.", plural(landed.files as f64, "file"), fmt_bytes(landed.bytes as f64), o.dest, caches_text, sessions),
+            &format!(
+                "{}, {}, landed at {}{}; {}.",
+                plural(landed.files as f64, "file"),
+                fmt_bytes(landed.bytes as f64),
+                o.dest,
+                caches_text,
+                sessions
+            ),
             None,
         );
         Ok(ProjectExportResult {
@@ -368,7 +400,8 @@ impl Projects {
             .filter(|s| carry.contains(&s.path) && !rewritten.contains(&s.path) && !held.contains(&s.path))
             .map(|s| s.path.clone())
             .collect();
-        let mut cut: Vec<String> = plan.secrets.iter().filter(|s| !carry.contains(&s.path) && !rewritten.contains(&s.path)).map(|s| s.path.clone()).collect();
+        let mut cut: Vec<String> =
+            plan.secrets.iter().filter(|s| !carry.contains(&s.path) && !rewritten.contains(&s.path)).map(|s| s.path.clone()).collect();
         for path in &held {
             if !cut.contains(path) {
                 cut.push(path.clone());
@@ -446,10 +479,13 @@ impl Projects {
         }
         let tar_len = packed.tar.len() as u64;
         report(ProjectImportStage::Uploading, &format!("Uploading {}.", fmt_bytes(tar_len as f64)), Some((0, tar_len)));
-        let parts = self.ctx.land_bundle(entry, packed.tar.clone(), &o.dest, o.replace, upload_hooks(&report, Some(o.dest.clone()))).await?;
+        let parts =
+            self.ctx.land_bundle(entry, packed.tar.clone(), &o.dest, o.replace, upload_hooks(&report, Some(o.dest.clone()))).await?;
         let name_of = |id: &str| plan.agents.iter().find(|a| a.agent == id).map(|a| a.name.clone()).unwrap_or_else(|| id.to_owned());
         let mut agents: Vec<ProjectAgentResult> = state.as_ref().map(|s| s.agents.clone()).unwrap_or_default();
-        let outcomes = |agents: &[ProjectAgentResult]| agents.iter().map(|a| format!("{} {}", name_of(&a.agent), outcome_words(a))).collect::<Vec<_>>().join(", ");
+        let outcomes = |agents: &[ProjectAgentResult]| {
+            agents.iter().map(|a| format!("{} {}", name_of(&a.agent), outcome_words(a))).collect::<Vec<_>>().join(", ")
+        };
         if let Some(state) = &state {
             let files: f64 = agents.iter().map(|a| a.files.0).sum();
             if files > 0.0 || !state.merges.is_empty() {
@@ -461,7 +497,11 @@ impl Projects {
                     what.push("the rows to merge".to_owned());
                 }
                 let state_len = state.tar.len() as u64;
-                report(ProjectImportStage::Uploading, &format!("Uploading {}, {}.", what.join(" and "), fmt_bytes(state_len as f64)), Some((0, state_len)));
+                report(
+                    ProjectImportStage::Uploading,
+                    &format!("Uploading {}, {}.", what.join(" and "), fmt_bytes(state_len as f64)),
+                    Some((0, state_len)),
+                );
                 self.ctx.import_into(entry, state.tar.clone(), upload_hooks(&report, None)).await?;
                 if !state.merges.is_empty() {
                     let names: Vec<String> = state.merges.iter().map(|(agent, _)| name_of(agent)).collect();
@@ -482,7 +522,14 @@ impl Projects {
         };
         let parts_text = if parts > 1 { format!(" in {parts} parts") } else { String::new() };
         let sessions_text = if agents.is_empty() { String::new() } else { format!("; sessions: {}", outcomes(&agents)) };
-        let done = format!("{}, {}, landed at {}{}{}.", plural(packed.files as f64, "file"), fmt_bytes(packed.bytes as f64), o.dest, parts_text, sessions_text);
+        let done = format!(
+            "{}, {}, landed at {}{}{}.",
+            plural(packed.files as f64, "file"),
+            fmt_bytes(packed.bytes as f64),
+            o.dest,
+            parts_text,
+            sessions_text
+        );
         let result = ProjectImportResult {
             dest: o.dest.clone(),
             files: JsNumber(packed.files as f64),
@@ -494,7 +541,6 @@ impl Projects {
             project,
         };
         Ok(ImportLanded { result, done })
-    
     }
 
     // ts: projects.ts:482-517
@@ -680,7 +726,6 @@ impl Projects {
         }
         std::fs::remove_dir_all(&scratch).ok();
         outcome
-    
     }
 }
 

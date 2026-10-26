@@ -21,9 +21,9 @@ use wsp_words::exit::{HostError, Kind};
 use wsp_words::js::js_trim;
 use wsp_words::js_date::iso_string;
 use wsp_words::projects::{
-    copies_folder, cwd_outside_line, home_shortened, no_branches_line, not_on_this_computer_line, place_branch_line,
-    runs_in_folder, worktree_command_failed_line, worktree_command_running_line, worktree_setup_line, worktree_step_words,
-    workspace_lands, WorkspaceLands, WorktreeCommandEnd,
+    copies_folder, cwd_outside_line, home_shortened, no_branches_line, not_on_this_computer_line, place_branch_line, runs_in_folder,
+    workspace_lands, worktree_command_failed_line, worktree_command_running_line, worktree_setup_line, worktree_step_words, WorkspaceLands,
+    WorktreeCommandEnd,
 };
 use wsp_words::start::taken_name_after;
 use wsp_words::words::computer::{GUEST_NAMES_FIX, GUEST_NAMES_WORKSPACE_LINE};
@@ -145,15 +145,20 @@ impl Folders {
     //|     return live.get(id)!;
     //|   };
     /// A folder's record, written once (spec rule 1).
-    pub async fn record_folder(self: &Rc<Self>, project: &ProjectView, worktree: Option<WorktreeFolder>, parent: Option<String>) -> Result<Entry, HostError> {
+    pub async fn record_folder(
+        self: &Rc<Self>,
+        project: &ProjectView,
+        worktree: Option<WorktreeFolder>,
+        parent: Option<String>,
+    ) -> Result<Entry, HostError> {
         let ctx = self.ctx.clone();
         let kind = ctx.kind_of(&project.computer);
         let place = match workspace_lands(&project.computer, None) {
             WorkspaceLands::Place { place } => Some(place),
             WorkspaceLands::Here | WorkspaceLands::Wired => None,
         };
-        ctx.admit_folder(kind.clone(), &project.name, place.as_deref()).await?;
-        let (machine, size) = ctx.folder_machine(kind.clone(), place.as_deref()).await?;
+        ctx.admit_folder(kind, &project.name, place.as_deref()).await?;
+        let (machine, size) = ctx.folder_machine(kind, place.as_deref()).await?;
         let id = format!("ws_{}", hex::encode(ctx.ids().bytes(4)));
         let taken: IndexSet<String> = ctx.live().borrow().values().map(|entry| record_of(entry).name).collect();
         let named = match worktree.as_ref().and_then(|tree| tree.branch.as_deref()) {
@@ -342,7 +347,8 @@ impl Folders {
     //|   };
     /// What a worktree this call made runs once before any thread starts there; the line the first thread opens with.
     pub async fn settle_worktree(&self, project: &ProjectView, made: &WorktreeReport) -> Result<Option<String>, HostError> {
-        let own = self.ctx.preferences().await?.project_defaults.get(&project.id).and_then(|fields| fields.clone().into_inner().after_worktree);
+        let own =
+            self.ctx.preferences().await?.project_defaults.get(&project.id).and_then(|fields| fields.clone().into_inner().after_worktree);
         let mut commands: Vec<(String, String)> = Vec::new();
         for module in made.modules.iter().filter(|module| module.rebuild) {
             for ecosystem in ECOSYSTEM_MODULES.iter().filter(|ecosystem| ecosystem.carry.id == module.id) {
@@ -424,7 +430,12 @@ impl Folders {
     //|     return held;
     //|   };
     /// The record naming a worktree at this path, written again where one stands, else a new child record.
-    pub async fn worktree_record_at(self: &Rc<Self>, project: &ProjectView, tree: WorktreeFolder, parent: Option<String>) -> Result<Entry, HostError> {
+    pub async fn worktree_record_at(
+        self: &Rc<Self>,
+        project: &ProjectView,
+        tree: WorktreeFolder,
+        parent: Option<String>,
+    ) -> Result<Entry, HostError> {
         let found = self.ctx.folders_of(&project.id).into_iter().find_map(|entry| {
             let was = record_of(&entry).worktree?;
             (was.path == tree.path).then_some((entry, was))

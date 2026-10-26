@@ -235,7 +235,9 @@ impl ProjectIcons {
         let mut out = IndexMap::new();
         for hash in hashes {
             let image = if is_hash(hash) {
-                fs::read(folder.join(format!("{hash}.png"))).ok().map(|bytes| format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
+                fs::read(folder.join(format!("{hash}.png")))
+                    .ok()
+                    .map(|bytes| format!("data:image/png;base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
             } else {
                 None
             };
@@ -296,7 +298,10 @@ pub struct ProjectIconsArea {
 }
 
 /// `inTurn(run)`: `body` runs after the turn before it settles; the caller gets its answer, the chain's tail none.
-fn enqueue<T: 'static>(work: &RefCell<Option<IconTurn>>, body: LocalBoxFuture<'static, Result<T, HostError>>) -> LocalBoxFuture<'static, Result<T, HostError>> {
+fn enqueue<T: 'static>(
+    work: &RefCell<Option<IconTurn>>,
+    body: LocalBoxFuture<'static, Result<T, HostError>>,
+) -> LocalBoxFuture<'static, Result<T, HostError>> {
     let prev = work.borrow().clone();
     let (answer, answered) = oneshot::channel::<Result<T, HostError>>();
     let tail: IconTurn = async move {
@@ -360,7 +365,7 @@ pub fn project_icons_area(ctx: Rc<dyn ProjectIconsCtx>) -> Rc<ProjectIconsArea> 
     let (listener_ctx, listener_images, listener_work) = (ctx.clone(), images.clone(), work.clone());
     ctx.on_recipes_changed(Rc::new(move || {
         let (ctx, images) = (listener_ctx.clone(), listener_images.clone());
-        let _ = enqueue(&listener_work, async move { sweep_now(&*ctx, &images).await }.boxed_local());
+        drop(enqueue(&listener_work, async move { sweep_now(&*ctx, &images).await }.boxed_local()));
     }));
     Rc::new(ProjectIconsArea { ctx, images, work })
 }

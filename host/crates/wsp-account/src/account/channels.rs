@@ -20,9 +20,9 @@ use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::wire::place_link::PlaceReport;
 
 use crate::account::box_panels::{BoxPanelsCtx, BoxPanelsOpener, Watchers};
+use crate::account::core_types::{AccountResult, Entry};
 use wsp_core::clock::Cancel;
 use wsp_core::types::internal::ThreadRecord;
-use crate::account::core_types::{AccountResult, Entry};
 
 pub mod copy;
 pub mod daemon;
@@ -44,10 +44,32 @@ pub const COMPUTER_WATCHES: [&str; 2] = ["ports.watch", "sys.watch"];
 pub const COMPUTER_PROCS: [&str; 5] = ["proc.watch", "proc.unwatch", "proc.inspect", "proc.kill", "container.stop"];
 /// channels.ts:295.
 pub const WORKSPACE_FRAMES: [&str; 22] = [
-    "pty.create", "pty.attach", "pty.detach", "pty.write", "pty.resize", "pty.kill", "pty.tab", "pty.list", "fs.list", "fs.files", "fs.read", "fs.write", "fs.search", "git.status", "git.diff", "git.snapshot", "git.range", "git.turn", "git.push", "git.pr", "git.prList", "ping",
+    "pty.create",
+    "pty.attach",
+    "pty.detach",
+    "pty.write",
+    "pty.resize",
+    "pty.kill",
+    "pty.tab",
+    "pty.list",
+    "fs.list",
+    "fs.files",
+    "fs.read",
+    "fs.write",
+    "fs.search",
+    "git.status",
+    "git.diff",
+    "git.snapshot",
+    "git.range",
+    "git.turn",
+    "git.push",
+    "git.pr",
+    "git.prList",
+    "ping",
 ];
 /// channels.ts:299: `WORKSPACE_FRAMES`, then these.
-pub const GUEST_ROAD_EXTRA: [&str; 7] = ["guest.watch", "guest.reply", "guest.close", "ssh.start", "tunnel.open", "tunnel.write", "tunnel.close"];
+pub const GUEST_ROAD_EXTRA: [&str; 7] =
+    ["guest.watch", "guest.reply", "guest.close", "ssh.start", "tunnel.open", "tunnel.write", "tunnel.close"];
 /// channels.ts:378: one document per workspace, pty id → thread.
 pub const PTY_THREADS: &str = "pty-threads";
 /// channels.ts:494.
@@ -207,7 +229,8 @@ pub struct ChannelsArea {
     /// channels.ts:308: each owner's ptys.
     pub(crate) pty_owners: RefCell<IndexMap<String, Rc<RefCell<IndexSet<String>>>>>,
     /// channels.ts:379: each workspace's tag read, joined by a second reader.
-    pub(crate) tags_held: RefCell<IndexMap<String, futures::future::Shared<LocalBoxFuture<'static, Rc<RefCell<IndexMap<String, String>>>>>>>,
+    pub(crate) tags_held:
+        RefCell<IndexMap<String, futures::future::Shared<LocalBoxFuture<'static, Rc<RefCell<IndexMap<String, String>>>>>>>,
     /// channels.ts:381: the tags once read (`tagsRead`).
     pub(crate) tags_read: RefCell<IndexMap<String, Rc<RefCell<IndexMap<String, String>>>>>,
     /// channels.ts:406: each workspace's last queued tag write.

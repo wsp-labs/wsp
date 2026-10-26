@@ -22,7 +22,7 @@ use wsp_account::account::core_types::{AccountResult, Frame};
 use wsp_account::account::proc_scopes::{KeptRow, LatestRow, ProcScopesArea, ProcScopesCtx, ScopeRecord, ScopeRow, ThreadTerminal};
 use wsp_core::daemon_channel::{ChannelEnd, ChannelError, DaemonChannel};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
-use wsp_wire::wire::daemon::{ProcKind, ProcScope};
+use wsp_wire::wire::daemon::ProcKind;
 
 fn fx(name: &str) -> Value {
     oracle("proc_scopes")[name].clone()
@@ -103,7 +103,15 @@ fn base_live() -> Value {
 fn world(w: &Value) -> Rc<Scopes> {
     let list = |k: &str| w[k].as_array().cloned().unwrap_or_default();
     Rc::new(Scopes {
-        turn_groups: list("turnGroups").iter().map(|g| (g[0].as_str().unwrap().to_string(), g[1].as_array().unwrap().iter().map(|p| (p[0].as_i64().unwrap(), p[1].as_str().unwrap().to_string())).collect())).collect(),
+        turn_groups: list("turnGroups")
+            .iter()
+            .map(|g| {
+                (
+                    g[0].as_str().unwrap().to_string(),
+                    g[1].as_array().unwrap().iter().map(|p| (p[0].as_i64().unwrap(), p[1].as_str().unwrap().to_string())).collect(),
+                )
+            })
+            .collect(),
         groups: list("groupsAlive").iter().map(|g| g.as_i64().unwrap()).collect(),
         sessions: list("sessions")
             .iter()
@@ -115,12 +123,65 @@ fn world(w: &Value) -> Rc<Scopes> {
                 pid: s["pid"].as_i64(),
             })
             .collect(),
-        kept: RefCell::new(list("kept").iter().map(|k| (k[0].as_str().unwrap().to_string(), KeptRow { workspace_id: k[1]["workspace"].as_str().unwrap().into(), pid: k[1]["pid"].as_i64(), warm_unclaimed: k[1]["warmUnclaimed"] == json!(true) })).collect()),
-        latest: w["latest"].as_object().map(|m| m.iter().map(|(t, l)| (t.clone(), LatestRow { workspace_id: l["workspace"].as_str().unwrap().into(), cwd: l["cwd"].as_str().map(String::from) })).collect()).unwrap_or_default(),
-        thread_records: list("threadRecords").iter().map(|r| (r[0].as_str().unwrap().to_string(), r[1].as_str().unwrap().to_string())).collect(),
-        terminals: list("terminals").iter().map(|t| ThreadTerminal { thread: t["thread"].as_str().unwrap().into(), workspace: t["workspace"].as_str().unwrap().into(), pid: t["pid"].as_i64().unwrap() }).collect(),
-        records: w["live"].as_array().unwrap().iter().map(|l| (l["id"].as_str().unwrap().to_string(), ScopeRecord { kind: kind_of(l["kind"].as_str().unwrap()), place: l["place"].as_str().map(String::from), checkout: l["path"].as_str().unwrap().into() })).collect(),
-        owned: list("owned").iter().map(|o| (o[0].as_str().unwrap().to_string(), o[1].as_i64().unwrap(), o[2].as_str().unwrap().to_string())).collect(),
+        kept: RefCell::new(
+            list("kept")
+                .iter()
+                .map(|k| {
+                    (
+                        k[0].as_str().unwrap().to_string(),
+                        KeptRow {
+                            workspace_id: k[1]["workspace"].as_str().unwrap().into(),
+                            pid: k[1]["pid"].as_i64(),
+                            warm_unclaimed: k[1]["warmUnclaimed"] == json!(true),
+                        },
+                    )
+                })
+                .collect(),
+        ),
+        latest: w["latest"]
+            .as_object()
+            .map(|m| {
+                m.iter()
+                    .map(|(t, l)| {
+                        (
+                            t.clone(),
+                            LatestRow { workspace_id: l["workspace"].as_str().unwrap().into(), cwd: l["cwd"].as_str().map(String::from) },
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
+        thread_records: list("threadRecords")
+            .iter()
+            .map(|r| (r[0].as_str().unwrap().to_string(), r[1].as_str().unwrap().to_string()))
+            .collect(),
+        terminals: list("terminals")
+            .iter()
+            .map(|t| ThreadTerminal {
+                thread: t["thread"].as_str().unwrap().into(),
+                workspace: t["workspace"].as_str().unwrap().into(),
+                pid: t["pid"].as_i64().unwrap(),
+            })
+            .collect(),
+        records: w["live"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|l| {
+                (
+                    l["id"].as_str().unwrap().to_string(),
+                    ScopeRecord {
+                        kind: kind_of(l["kind"].as_str().unwrap()),
+                        place: l["place"].as_str().map(String::from),
+                        checkout: l["path"].as_str().unwrap().into(),
+                    },
+                )
+            })
+            .collect(),
+        owned: list("owned")
+            .iter()
+            .map(|o| (o[0].as_str().unwrap().to_string(), o[1].as_i64().unwrap(), o[2].as_str().unwrap().to_string()))
+            .collect(),
         dials: RefCell::default(),
         dialled: Cell::new(0),
     })
@@ -296,7 +357,9 @@ fn p2_live_threads_go_first() {
         let live = |n: usize| {
             (0..n).map(|i| json!({ "thread": format!("th_{i:03}"), "workspace": "ws_a", "status": "running", "startedAt": i, "pid": 20_000 + i })).collect::<Vec<_>>()
         };
-        let folders = |names: &[&str]| names.iter().map(|n| json!({ "id": format!("ws_{n}"), "kind": "local", "path": format!("/work/{n}") })).collect::<Vec<_>>();
+        let folders = |names: &[&str]| {
+            names.iter().map(|n| json!({ "id": format!("ws_{n}"), "kind": "local", "path": format!("/work/{n}") })).collect::<Vec<_>>()
+        };
         let done = |n: &str, at: i64| json!({ "thread": n, "workspace": format!("ws_{n}"), "status": "completed", "startedAt": at });
         // 255 live and three folders' newest: the first of them fits.
         let mut sessions = vec![done("n1", 1), done("n2", 2)];
@@ -306,7 +369,10 @@ fn p2_live_threads_go_first() {
         lives.extend(folders(&["n1", "n2", "n3"]));
         let names = threads(&here(&area_of(&world(&json!({ "live": lives, "sessions": sessions })))));
         let f = fx("scope_cap_mixed");
-        same(json!({ "count": names.len(), "first": names[0], "last": names.last().unwrap(), "tail": names[names.len() - 3..], "head": names[..2] }), &f);
+        same(
+            json!({ "count": names.len(), "first": names[0], "last": names.last().unwrap(), "tail": names[names.len() - 3..], "head": names[..2] }),
+            &f,
+        );
         // 254 live and two: both fit.
         let mut sessions = vec![done("n1", 1), done("n2", 2)];
         sessions.extend(live(254));
@@ -327,7 +393,9 @@ fn p2_live_threads_go_first() {
 #[test]
 fn p4_a_warm_agent_is_named_until_claimed() {
     run(async {
-        let w = world(&json!({ "live": [{ "id": "ws_a", "kind": "local", "path": "/work/ws_a" }], "kept": [["t_warm", { "workspace": "ws_a", "warmUnclaimed": true }]] }));
+        let w = world(
+            &json!({ "live": [{ "id": "ws_a", "kind": "local", "path": "/work/ws_a" }], "kept": [["t_warm", { "workspace": "ws_a", "warmUnclaimed": true }]] }),
+        );
         let area = area_of(&w);
         let find = |scopes: Value| scopes.as_array().unwrap().iter().find(|s| s["thread"] == json!("t_warm")).cloned();
         assert_eq!(find(here(&area)), Some(json!({ "thread": "t_warm", "workspace": "ws_a", "folder": "/work/ws_a", "warm": true })));
@@ -340,6 +408,7 @@ fn p4_a_warm_agent_is_named_until_claimed() {
 
 // P5
 #[test]
+#[allow(unused_assignments)]
 fn p5_a_release_takes_only_its_own_pid() {
     run(async {
         let log = fx("release");
@@ -432,12 +501,16 @@ fn p7_named_before_a_watch_and_as_they_move() {
         area.own_process("t_x", 901, proc_kind("tool"));
         settle().await;
         assert_eq!(chan.ops(), ["proc.scopes", "proc.watch", "proc.scopes", "proc.unwatch"]);
-        assert_eq!(chan.sent()[0], json!({ "id": null, "op": "proc.scopes", "scopes": [{ "thread": "t_x", "pids": [{ "pid": 900, "kind": "slate" }] }] }));
+        assert_eq!(
+            chan.sent()[0],
+            json!({ "id": null, "op": "proc.scopes", "scopes": [{ "thread": "t_x", "pids": [{ "pid": 900, "kind": "slate" }] }] })
+        );
     });
 }
 
 // P7: a refused scopes frame is ignored, a second watch is told again, the push leaves at close and at the channel's end.
 #[test]
+#[allow(unused_assignments)]
 fn p7_a_refused_scopes_frame_is_ignored_and_the_push_leaves_at_close_and_at_the_end() {
     run(async {
         let f = fx("scoped");
@@ -520,7 +593,10 @@ fn p8_this_computers_daemon_is_told_while_a_root_stands() {
         area.proc_scopes_moved();
         settle().await;
         assert_eq!(w.dialled.get(), 1);
-        assert_eq!(chan.sent(), vec![json!({ "id": null, "op": "proc.scopes", "scopes": [{ "thread": "t_x", "pids": [{ "pid": 900, "kind": "slate" }] }] })]);
+        assert_eq!(
+            chan.sent(),
+            vec![json!({ "id": null, "op": "proc.scopes", "scopes": [{ "thread": "t_x", "pids": [{ "pid": 900, "kind": "slate" }] }] })]
+        );
         let second = area.own_process("t_x", 901, proc_kind("tool"));
         settle().await;
         assert_eq!(chan.sent().len(), 2);
@@ -541,13 +617,17 @@ fn p8_never_dialled_without_a_daemon_here() {
         area.own_process("t_x", 900, proc_kind("slate"));
         settle().await;
         assert_eq!(area.scopes_here().len(), 1);
-        assert_eq!(serde_json::to_value(area.scopes_here()).unwrap(), json!([{ "thread": "t_x", "pids": [{ "pid": 900, "kind": "slate" }] }]));
+        assert_eq!(
+            serde_json::to_value(area.scopes_here()).unwrap(),
+            json!([{ "thread": "t_x", "pids": [{ "pid": 900, "kind": "slate" }] }])
+        );
         assert_eq!(fx("no_daemon")["scopes"], json!([{ "thread": "t_x", "pids": [{ "pid": 900, "kind": "slate" }] }]));
     });
 }
 
 // P8
 #[test]
+#[allow(unused_assignments)]
 fn p8_a_failed_dial_dials_again() {
     run(async {
         let f = fx("standing");

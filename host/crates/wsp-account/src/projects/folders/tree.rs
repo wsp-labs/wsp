@@ -521,10 +521,10 @@ impl Folders {
         let pr = record_of(entry).pr;
         let mut settled = match &pr {
             Some(pr) if matches!(pr.state, PullRequestState::Merged) => {
-                Some(WorktreeSettled { at: pr.merged_at.clone().unwrap_or_else(|| JsNumber::from(now)), why: WorktreeSettledWhy::Merged })
+                Some(WorktreeSettled { at: pr.merged_at.unwrap_or_else(|| JsNumber::from(now)), why: WorktreeSettledWhy::Merged })
             }
             Some(pr) if matches!(pr.state, PullRequestState::Closed) => {
-                Some(WorktreeSettled { at: pr.closed_at.clone().unwrap_or_else(|| JsNumber::from(now)), why: WorktreeSettledWhy::Closed })
+                Some(WorktreeSettled { at: pr.closed_at.unwrap_or_else(|| JsNumber::from(now)), why: WorktreeSettledWhy::Closed })
             }
             _ => None,
         };
@@ -568,7 +568,8 @@ impl Folders {
         if remote.is_empty() || merge.is_empty() || remote == "." {
             return Ok(false);
         }
-        let cmd = format!("GIT_TERMINAL_PROMPT=0 {}", shell_line(&["git", "-C", path, "ls-remote", "--exit-code", "--heads", &remote, &merge]));
+        let cmd =
+            format!("GIT_TERMINAL_PROMPT=0 {}", shell_line(&["git", "-C", path, "ls-remote", "--exit-code", "--heads", &remote, &merge]));
         let asked = self.ctx.local_exec(&cmd, INLINE_EXEC_MS, None).await?;
         Ok(asked.exit_code.get() == 2)
     }

@@ -3,7 +3,7 @@
 //! <args>)` and answers from the script under that name (an `$error` answer is the refusal), with a default that lets
 //! the happy path through. Entries the fake makes (`create_staged`, `project_folder`) are held in `base.live`, and every
 //! call out checks that no borrow of a live entry is held (rule 3.3).
-#![allow(dead_code)]
+#![allow(dead_code, unused_imports)]
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -12,13 +12,11 @@ use futures::channel::oneshot;
 use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 use wsp_account::projects::workspaces::create::{CreateCtx, LeadStart};
-use wsp_account::projects::workspaces::seam::{
-    Base, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, Live, ProjectsHeld,
-};
+use wsp_account::projects::workspaces::seam::{Base, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, Live, ProjectsHeld};
 use wsp_core::clock::Clock;
 use wsp_core::ids::Ids;
-use wsp_core::types::pending::Store;
 use wsp_core::types::internal::ThreadRecord;
+use wsp_core::types::pending::Store;
 use wsp_core::types::wiring::{CreateWorkspaceOptions, CreatedWorkspace, StageReport, WorkspaceRecord};
 use wsp_engine::errors::{EngineError, ErrorKind, WspError};
 use wsp_wire::views::preferences::Preferences;
@@ -31,8 +29,8 @@ use wsp_wire::wire::capabilities::Capabilities;
 use wsp_wire::wire::machine_link::ExecResult;
 use wsp_words::exit::{HostError, Kind};
 
-pub use crate::base::{person as the_person, thread as asker};
 use crate::base::{kinded, record, refused, view_of, BaseOf, FakeBase};
+pub use crate::base::{person as the_person, thread as asker};
 
 /// A thread's scope: `{kind: thread, threadId, workspaceId, rootThreadId}`.
 pub fn scope(thread_id: &str, workspace_id: &str, root: &str) -> ThreadScope {
@@ -331,7 +329,8 @@ impl CreateCtx for FakeCreate {
     }
 
     fn same_repository(&self, a: &ProjectView, b: &ProjectView, origin: Option<&Caller>) -> bool {
-        self.base.call("same_repository", json!({ "a": a.id, "b": b.id, "scoped": origin.is_some_and(|c| matches!(c, Caller::Scoped { .. })) }));
+        self.base
+            .call("same_repository", json!({ "a": a.id, "b": b.id, "scoped": origin.is_some_and(|c| matches!(c, Caller::Scoped { .. })) }));
         self.base.answer("same_repository").and_then(|v| v.as_bool()).unwrap_or(false)
     }
 
@@ -389,7 +388,11 @@ impl CreateCtx for FakeCreate {
         Ok(LeadStart {
             base: v.get("base").and_then(Value::as_str).map(str::to_owned),
             on_leads: v.get("onLeads").and_then(Value::as_bool).unwrap_or(false),
-            lines: v.get("lines").and_then(Value::as_array).map(|a| a.iter().filter_map(|l| l.as_str().map(str::to_owned)).collect()).unwrap_or_default(),
+            lines: v
+                .get("lines")
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(|l| l.as_str().map(str::to_owned)).collect())
+                .unwrap_or_default(),
         })
     }
 
@@ -454,7 +457,11 @@ impl CreateCtx for FakeCreate {
             Ok(answer) => {
                 let entry = self.base.hold(record(id, "cloud", &project.id, over));
                 let rec = entry.borrow().record.borrow().clone();
-                Ok(CreatedWorkspace { view: view_of(&self.base, &rec), notice: answer.get("notice").and_then(Value::as_str).map(str::to_owned), sub: None })
+                Ok(CreatedWorkspace {
+                    view: view_of(&self.base, &rec),
+                    notice: answer.get("notice").and_then(Value::as_str).map(str::to_owned),
+                    sub: None,
+                })
             }
         }
     }
@@ -489,7 +496,16 @@ impl CreateCtx for FakeCreate {
         self.failed.clone()
     }
 
-    fn failed_view(&self, id: &str, name: &str, kind: WorkspaceKind, golden: &str, began: i64, project: &ProjectView, said: &str) -> WorkspaceView {
+    fn failed_view(
+        &self,
+        id: &str,
+        name: &str,
+        kind: WorkspaceKind,
+        golden: &str,
+        began: i64,
+        project: &ProjectView,
+        said: &str,
+    ) -> WorkspaceView {
         self.base.call("failed_view", json!({ "id": id, "name": name, "kind": serde_json::to_value(kind).unwrap(), "golden": golden, "began": began, "project": project.id, "said": said }));
         self.of_json(json!({
             "id": id, "name": name, "machineId": "", "phase": "gone", "kind": serde_json::to_value(kind).unwrap(), "golden": golden,

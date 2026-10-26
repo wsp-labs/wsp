@@ -10,10 +10,10 @@ use wsp_wire::views::workspace::{scope_of, Caller, ProjectView, SeedPlan};
 use wsp_wire::views::workspace_more::ProjectBranch;
 use wsp_wire::wire::machine_link::project_unsaved_refusal;
 use wsp_words::exit::{not_found_refusal, usage_refusal, HostError, Kind};
+use wsp_words::js::collate;
 use wsp_words::projects::{
     bare_folder, bare_no_such_project_line, copies_folder, kind_for_computer, no_such_project_line, project_in_use_refusal,
 };
-use wsp_words::js::collate;
 use wsp_words::words::computer::{spawn_folder_refusal, spawn_repository_refusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX};
 
 use super::add::ComputerRow;
@@ -51,10 +51,8 @@ impl Projects {
         self.ctx.ready().await?;
         let scoped = scope_of(origin.as_ref()).is_some();
         let held: Vec<ProjectView> = self.ctx.projects_held().borrow().values().cloned().collect();
-        let mut served: Vec<ProjectView> = held
-            .into_iter()
-            .filter(|project| !scoped || self.ctx.project_reached(origin.as_ref(), &project.id))
-            .collect();
+        let mut served: Vec<ProjectView> =
+            held.into_iter().filter(|project| !scoped || self.ctx.project_reached(origin.as_ref(), &project.id)).collect();
         served.sort_by(|a, b| collate(&a.created_at, &b.created_at));
         Ok(served)
     }
@@ -169,7 +167,9 @@ impl Projects {
         let packed = self.seed_wiring()?.pack(plan, choice, &homes).await?;
         match road.seed_into(&project, packed.tar, &at.deps).await {
             Some(seeded) => seeded,
-            None => Err(HostError::new(format!("{} keeps no folder of its own on {} to copy files into", project.name, at.deps.computer_name))),
+            None => {
+                Err(HostError::new(format!("{} keeps no folder of its own on {} to copy files into", project.name, at.deps.computer_name)))
+            }
         }
     }
 

@@ -28,9 +28,17 @@ pub trait ReviewCtx: Base {
     fn project_by_repo(&self, repo: &str, named: Option<&str>) -> Result<ProjectView, HostError>;
     async fn issue_of(&self, remote: &str, number: i64) -> Result<IssueRead, HostError>;
     async fn pull_request_of(&self, remote: &str, number: i64) -> Result<PullRequest, HostError>;
+    #[allow(clippy::wrong_self_convention)]
     fn from_of(&self, kind: WorkspaceFromKind, repo: &str, read: &IssueRead, fact: Option<&PullRequest>) -> WorkspaceFrom;
     async fn picks_hold(&self, project: &ProjectView, picks: &StartPicksAsked) -> Result<(), HostError>;
-    async fn workspace_from(&self, project: &ProjectView, from: WorkspaceFrom, fact: Option<PullRequest>, kind: StartKind, origin: Option<Caller>) -> Result<Placed, HostError>;
+    async fn workspace_from(
+        &self,
+        project: &ProjectView,
+        from: WorkspaceFrom,
+        fact: Option<PullRequest>,
+        kind: StartKind,
+        origin: Option<Caller>,
+    ) -> Result<Placed, HostError>;
     async fn open_with(&self, placed: &Placed, o: OpenAsk, origin: Option<Caller>) -> Result<StartResult, HostError>;
     fn read_only_of(&self, agent: &str) -> Option<String>;
     fn reviewers(&self) -> Vec<String>;
@@ -124,7 +132,7 @@ pub async fn start(ctx: &Rc<dyn ReviewCtx>, ask: StartFromLinkAsk, origin: Optio
         harness: ask.agent.clone(),
         model: ask.model.clone(),
         effort: ask.effort.clone(),
-        access: ask.access.clone(),
+        access: ask.access,
         permission_mode: None,
         fast: None,
     };
@@ -314,7 +322,12 @@ pub async fn review_draft(ctx: &Rc<dyn ReviewCtx>, ask: ReviewDraftAsk, origin: 
 //|       void ctx.readPullRequest(entry, true);
 //|       return { url: done.url, number: from.number, comments: ticked.length - done.folded.length, folded: done.folded.length };
 //|     },
-pub async fn review_post(ctx: &Rc<dyn ReviewCtx>, workspace_id: &str, thread_id: Option<String>, origin: Option<Caller>) -> Result<ReviewPostResult, HostError> {
+pub async fn review_post(
+    ctx: &Rc<dyn ReviewCtx>,
+    workspace_id: &str,
+    thread_id: Option<String>,
+    origin: Option<Caller>,
+) -> Result<ReviewPostResult, HostError> {
     ctx.spawn_guard("review_post", origin.as_ref())?;
     let entry = ctx.entry_of(workspace_id, origin, EntryAsk { thread: thread_id.clone(), ..EntryAsk::default() }).await?;
     let record = record_of(&entry);
@@ -404,7 +417,12 @@ pub async fn token_refused(ctx: &Rc<dyn ReviewCtx>, id: &str) -> Result<(), Host
 //|       const channel = ctx.rootedPorts(id, ctx.checkoutOf(entry.record), ptys, ctx.heldToOwner(id, ctx.threadTagged(id, await ctx.copyChannel(entry, heard, ctx.WORKSPACE_FRAMES))));
 //|       return ctx.killGuarded(ctx.scopedProcs(ctx.scopesHere, channel), isLocalWorkspace(entry.record));
 //|     },
-pub async fn daemon_channel(ctx: &Rc<dyn ReviewCtx>, id: &str, on_event: DaemonEventListener, origin: Option<Caller>) -> Result<Rc<dyn DaemonChannel>, HostError> {
+pub async fn daemon_channel(
+    ctx: &Rc<dyn ReviewCtx>,
+    id: &str,
+    on_event: DaemonEventListener,
+    origin: Option<Caller>,
+) -> Result<Rc<dyn DaemonChannel>, HostError> {
     let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
     if !ctx.shared_daemon(&entry) {
         return ctx.copy_channel(&entry, on_event).await;

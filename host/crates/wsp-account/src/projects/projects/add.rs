@@ -9,30 +9,31 @@ use async_trait::async_trait;
 use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 use serde_json::{json, Value};
-use wsp_core::types::wiring::{folder_named, same_source, ADD_IS_A_COMPUTER_LINE};
 use wsp_core::types::internal::NO_SEED_WIRING;
+use wsp_core::types::wiring::{folder_named, same_source, ADD_IS_A_COMPUTER_LINE};
 use wsp_engine::machine::{Machine, MachineBackend};
+use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::types::projects::INTO_TAKES_A_REPO_LINE;
 use wsp_wire::views::place_kind::PlaceKind;
-use wsp_wire::views::workspace::{scope_of, Caller, ProjectSeed, ProjectSource, ProjectAddStage, ProjectView, SeedChoice, SeedFile, SeedPlan};
+use wsp_wire::views::workspace::{
+    scope_of, Caller, ProjectAddStage, ProjectSeed, ProjectSource, ProjectView, SeedChoice, SeedFile, SeedPlan,
+};
 use wsp_wire::views::workspace_more::ProjectBranch;
+use wsp_wire::wire::machine_link::no_such_place_refusal;
 use wsp_words::exit::{usage_refusal, HostError, Kind};
+use wsp_words::js_date::iso_string;
 use wsp_words::place_name::table_name;
 use wsp_words::place_word::{names_place, PlaceRef};
-use wsp_words::projects::cloud_project_refusal;
-use wsp_wire::types::place_word::HERE_PLACE_ID;
-use wsp_wire::wire::machine_link::no_such_place_refusal;
 use wsp_words::project_path::claude_project_key;
 use wsp_words::project_seed::{
     held_back_picks, left_behind_line, project_seed_of, seed_not_here_refusal, seed_picks, seed_save_refusal, seed_travels, SeedAsked,
 };
+use wsp_words::projects::cloud_project_refusal;
 use wsp_words::projects::{
-    added_project_on, adding_project_line, clone_into_needed, copies_folder, folder_on_copy_refusal, into_is_here_line,
-    kind_for_computer, no_computer_for_source_line, project_source_of, runs_in_folder, same_source_refusal,
-    seed_choice_needed, source_kind, SourceKind,
+    added_project_on, adding_project_line, clone_into_needed, copies_folder, folder_on_copy_refusal, into_is_here_line, kind_for_computer,
+    no_computer_for_source_line, project_source_of, runs_in_folder, same_source_refusal, seed_choice_needed, source_kind, SourceKind,
 };
 use wsp_words::workspace_state::kind_words;
-use wsp_words::js_date::iso_string;
 
 use super::Projects;
 
@@ -173,7 +174,6 @@ impl Projects {
     //|   };
     pub fn seed_wiring(&self) -> Result<Rc<dyn wsp_core::types::wiring::SeedWiring>, HostError> {
         self.ctx.seed_wiring().ok_or_else(|| HostError::new(NO_SEED_WIRING))
-    
     }
 
     // ts: projects.ts:116-122
@@ -194,7 +194,6 @@ impl Projects {
         } else {
             LandingKind::Provider
         }
-    
     }
 
     // ts: projects.ts:124-150
@@ -244,7 +243,6 @@ impl Projects {
             clone_env,
         };
         Ok(LandingAt { deps, at, place_id })
-    
     }
 
     // ts: projects.ts:152-158
@@ -263,7 +261,6 @@ impl Projects {
             }
         }
         Ok(())
-    
     }
 
     // ts: projects.ts:164-176
@@ -308,7 +305,6 @@ impl Projects {
             })
             .collect();
         Ok(SeedPlan { remembered: remembered.is_some(), files, ..plan })
-    
     }
 
     // ts: projects.ts:178-197
@@ -340,7 +336,11 @@ impl Projects {
             return Err(seed_not_here_refusal(&project.name, &self.ctx.name_of_computer(&project.computer, &rows)));
         }
         if o.save && scope_of(origin.as_ref()).is_some() {
-            let asked = SeedAsked { keep: Some(o.keep.clone().unwrap_or_default()), cut: Some(o.cut.clone().unwrap_or_default()), none: Some(o.none) };
+            let asked = SeedAsked {
+                keep: Some(o.keep.clone().unwrap_or_default()),
+                cut: Some(o.cut.clone().unwrap_or_default()),
+                none: Some(o.none),
+            };
             return Err(seed_save_refusal(&project.name, &asked));
         }
         let folder = match &project.source {
@@ -369,7 +369,6 @@ impl Projects {
             self.ctx.store().put(SEED_CHOICES, &folder, json_of(&choice)?).await?;
         }
         Ok(project_seed_of(&project.name, &plan, &picks, o.save))
-    
     }
 
     // ts: projects.ts:199-341
@@ -534,7 +533,8 @@ impl Projects {
         if kind == SourceKind::Folder && o.into.is_some() {
             return Err(HostError::new(INTO_TAKES_A_REPO_LINE));
         }
-        let folder_path = if kind == SourceKind::Folder { Some(folder_named(&o.source, &self.ctx.home_dir(), &process_cwd())) } else { None };
+        let folder_path =
+            if kind == SourceKind::Folder { Some(folder_named(&o.source, &self.ctx.home_dir(), &process_cwd())) } else { None };
         let source = project_source_of(&o.source, &kind, folder_path.as_deref());
         let computer: Option<String> = match &o.on {
             None if kind == SourceKind::Folder || o.into.is_some() => Some(HERE_PLACE_ID.to_owned()),
@@ -565,7 +565,8 @@ impl Projects {
         let source_word = source_word_of(&source);
         if !takes.contains(&source_word) {
             let name = self.ctx.name_of_computer(&computer, &rows);
-            let said = if source_word == "folder" { folder_on_copy_refusal(&name) } else { no_computer_for_source_line(&o.source, &clones) };
+            let said =
+                if source_word == "folder" { folder_on_copy_refusal(&name) } else { no_computer_for_source_line(&o.source, &clones) };
             return Err(HostError::new(said));
         }
         if source_word != "folder" && copies_folder(&computer_kind) {
@@ -605,9 +606,7 @@ impl Projects {
             let ctx = ctx.clone();
             Box::pin(async move { ctx.remote_here(&folder).await })
         });
-        let resolved = module
-            .resolve(&source, ResolveAsk { seeding: road.kind() != LandingKind::Mac, seed_plan, folder_remote })
-            .await?;
+        let resolved = module.resolve(&source, ResolveAsk { seeding: road.kind() != LandingKind::Mac, seed_plan, folder_remote }).await?;
         let seeding = resolved.seed.is_some() && road.kind() != LandingKind::Mac;
         if seeding && o.seed.is_none() {
             let word = source_path.clone().unwrap_or_else(|| o.source.clone());
@@ -686,9 +685,7 @@ impl Projects {
                 (Some(packed), Some((plan, choice))) => Some((packed.tar.clone(), choice.clone(), plan.clone())),
                 _ => None,
             };
-            let landed = road
-                .land(LandAsk { project: project.clone(), seed: landed_seed, report: report.clone() }, &at.deps)
-                .await?;
+            let landed = road.land(LandAsk { project: project.clone(), seed: landed_seed, report: report.clone() }, &at.deps).await?;
             let recorded = self.keep(&project, landed.clone(), o.seed.as_ref(), folder_for_seed.as_deref(), resolved.seed.as_ref()).await?;
             report(ProjectAddStage::Done, &added_project_on(&recorded.project, &self.ctx.name_of_computer(&computer, &rows)));
             let mut notices: Vec<String> = Vec::new();
@@ -707,7 +704,6 @@ impl Projects {
             report(ProjectAddStage::Failed, &e.message);
         }
         outcome
-    
     }
 }
 

@@ -255,7 +255,8 @@ fn workspace_from_on_a_provider_brokered_picks_the_thread_first_and_names_the_br
         h.base().answer_with("landing_place", vec![json!("pl_boat")]);
         h.base().answer_with("pull_request_of_record", vec![bor.clone()]);
         let from = from_pr("pull_request", &fact);
-        let placed = ok(h.area.workspace_from(&cloud_project(), from, Some(pr(REPO, 7, json!({}))), StartKind::Start, Some(person())).await);
+        let placed =
+            ok(h.area.workspace_from(&cloud_project(), from, Some(pr(REPO, 7, json!({}))), StartKind::Start, Some(person())).await);
         assert_eq!(placed.r#as, Some(StartAs { thread_id: UUID_1.to_owned(), turn_id: UUID_2.to_owned() }));
         assert_eq!(h.base().args_of("brokered_start"), vec![json!({ "provider": true })]);
         assert_eq!(
@@ -264,10 +265,15 @@ fn workspace_from_on_a_provider_brokered_picks_the_thread_first_and_names_the_br
         );
         assert_eq!(
             h.base().args_of("create_workspace"),
-            vec![json!({ "project": "pr_1", "name": NAME, "branchOfRecord": bor, "opensThread": UUID_1, "origin": origin_text(&Some(person())) })]
+            vec![
+                json!({ "project": "pr_1", "name": NAME, "branchOfRecord": bor, "opensThread": UUID_1, "origin": origin_text(&Some(person())) })
+            ]
         );
         assert!(h.base().asks().is_empty());
-        assert_eq!(h.base().names_of(&["pull_request_of_record", "create_workspace", "persist", "with_daemon", "delete_workspace"]), vec!["pull_request_of_record", "create_workspace", "persist"]);
+        assert_eq!(
+            h.base().names_of(&["pull_request_of_record", "create_workspace", "persist", "with_daemon", "delete_workspace"]),
+            vec!["pull_request_of_record", "create_workspace", "persist"]
+        );
         assert_eq!(placed.entry.borrow().record.borrow().id, "ws_made");
     });
 }
@@ -281,7 +287,10 @@ fn workspace_from_brokered_with_no_branch_of_record_still_checks_the_head_out() 
         h.base().answer_with("brokered_start", vec![json!(true)]);
         h.base().answer_with("pull_request_of_record", vec![json!(null)]);
         h.base().answer_with("ask:git.prCheckout", vec![json!({ "branch": "lab/review-me" })]);
-        let placed = ok(h.area.workspace_from(&cloud_project(), from_pr("pull_request", &fact), Some(pr(REPO, 7, json!({}))), StartKind::Start, None).await);
+        let placed = ok(h
+            .area
+            .workspace_from(&cloud_project(), from_pr("pull_request", &fact), Some(pr(REPO, 7, json!({}))), StartKind::Start, None)
+            .await);
         assert_eq!(placed.r#as, Some(StartAs { thread_id: UUID_1.to_owned(), turn_id: UUID_2.to_owned() }));
         assert_eq!(
             h.base().args_of("create_workspace"),
@@ -299,11 +308,15 @@ fn workspace_from_puts_from_and_pr_on_the_record_before_persist() {
         let fact = pr_json(REPO, 7, json!({}));
         h.base().answer_with("ask:git.prCheckout", vec![json!({ "branch": "lab/review-me" })]);
         let from = from_pr("pull_request", &fact);
-        let placed = ok(h.area.workspace_from(&cloud_project(), from.clone(), Some(pr(REPO, 7, json!({}))), StartKind::Start, Some(person())).await);
+        let placed =
+            ok(h.area.workspace_from(&cloud_project(), from.clone(), Some(pr(REPO, 7, json!({}))), StartKind::Start, Some(person())).await);
         assert_eq!(placed.r#as, None);
         assert_eq!(placed.behind, None);
         assert_eq!(placed.setup, None);
-        assert_eq!(h.base().names_of(&["create_workspace", "persist", "with_daemon", "delete_workspace"]), vec!["create_workspace", "persist", "with_daemon"]);
+        assert_eq!(
+            h.base().names_of(&["create_workspace", "persist", "with_daemon", "delete_workspace"]),
+            vec!["create_workspace", "persist", "with_daemon"]
+        );
         assert_eq!(
             h.base().args_of("create_workspace"),
             vec![json!({ "project": "pr_1", "name": NAME, "origin": origin_text(&Some(person())) })]
@@ -327,7 +340,10 @@ fn a_non_brokered_start_makes_no_uuids_and_no_branch_of_record() {
         let h = H::new();
         h.base().answer_with("ask:git.prCheckout", vec![json!({ "branch": "lab/review-me" })]);
         let fact = pr_json(REPO, 7, json!({}));
-        let placed = ok(h.area.workspace_from(&cloud_project(), from_pr("pull_request", &fact), Some(pr(REPO, 7, json!({}))), StartKind::Start, None).await);
+        let placed = ok(h
+            .area
+            .workspace_from(&cloud_project(), from_pr("pull_request", &fact), Some(pr(REPO, 7, json!({}))), StartKind::Start, None)
+            .await);
         assert_eq!(placed.r#as, None);
         assert_eq!(h.base().args_of("brokered_start"), vec![json!({ "provider": true })]);
         assert!(h.base().args_of("pull_request_of_record").is_empty());
@@ -373,7 +389,9 @@ fn two_live_records_named_alike_take_the_next_number() {
         h.base().hold(record("ws_b", "cloud", "pr_1", json!({ "name": format!("{NAME} 2"), "phase": "gone" })));
         h.base().answer_with("ask:git.prCheckout", vec![json!({ "branch": "lab/review-me" })]);
         let fact = pr_json(REPO, 7, json!({}));
-        ok(h.area.workspace_from(&cloud_project(), from_pr("pull_request", &fact), Some(pr(REPO, 7, json!({}))), StartKind::Start, None).await);
+        ok(h.area
+            .workspace_from(&cloud_project(), from_pr("pull_request", &fact), Some(pr(REPO, 7, json!({}))), StartKind::Start, None)
+            .await);
         assert_eq!(h.base().args_of("create_workspace")[0]["name"], json!(format!("{NAME} 3")));
     });
 }
@@ -383,12 +401,26 @@ fn a_refused_checkout_takes_the_workspace_back_and_answers_its_own_refusal() {
     // start-review.test.ts:220
     run(async {
         let h = H::new();
-        let sentence = "no signed-in command line for github.com is on this computer; the branch is pushed and the pull request waits for one";
+        let sentence =
+            "no signed-in command line for github.com is on this computer; the branch is pushed and the pull request waits for one";
         h.base().answer_with("ask:git.prCheckout", vec![err_answer(sentence, None)]);
         let fact = pr_json(REPO, 7, json!({}));
-        let e = refusal(h.area.workspace_from(&cloud_project(), from_pr("pull_request", &fact), Some(pr(REPO, 7, json!({}))), StartKind::Start, Some(person())).await);
+        let e = refusal(
+            h.area
+                .workspace_from(
+                    &cloud_project(),
+                    from_pr("pull_request", &fact),
+                    Some(pr(REPO, 7, json!({}))),
+                    StartKind::Start,
+                    Some(person()),
+                )
+                .await,
+        );
         said(&e, sentence, None);
-        assert_eq!(h.base().names_of(&["create_workspace", "persist", "with_daemon", "delete_workspace"]), vec!["create_workspace", "persist", "with_daemon", "delete_workspace"]);
+        assert_eq!(
+            h.base().names_of(&["create_workspace", "persist", "with_daemon", "delete_workspace"]),
+            vec!["create_workspace", "persist", "with_daemon", "delete_workspace"]
+        );
         assert_eq!(h.base().args_of("delete_workspace"), vec![json!({ "id": "ws_made", "origin": origin_text(&Some(person())) })]);
     });
 }
@@ -401,7 +433,11 @@ fn a_refused_checkout_whose_delete_fails_warns_and_still_refuses() {
         h.base().answer_with("ask:git.prCheckout", vec![err_answer("the checkout was refused", Some("conflict"))]);
         h.base().answer_with("delete_workspace", vec![err_answer("the disk is busy", None)]);
         let fact = pr_json(REPO, 7, json!({}));
-        let e = refusal(h.area.workspace_from(&cloud_project(), from_pr("pull_request", &fact), Some(pr(REPO, 7, json!({}))), StartKind::Start, None).await);
+        let e = refusal(
+            h.area
+                .workspace_from(&cloud_project(), from_pr("pull_request", &fact), Some(pr(REPO, 7, json!({}))), StartKind::Start, None)
+                .await,
+        );
         said(&e, "the checkout was refused", Some(Kind::Conflict));
         assert_eq!(h.base().args_of("delete_workspace").len(), 1);
         assert_eq!(warned.lines(), vec![format!("{NAME} was not taken back after its checkout failed: the disk is busy")]);
@@ -414,7 +450,9 @@ fn a_joined_box_refuses_a_pull_request_and_runs_an_issue_in_the_folder() {
         let h = H::new();
         let boxed = project("pr_1", "spoo", "pl_box", json!({ "remote": REMOTE }));
         let fact = pr_json(REPO, 7, json!({}));
-        let e = refusal(h.area.workspace_from(&boxed, from_pr("pull_request", &fact), Some(pr(REPO, 7, json!({}))), StartKind::Start, None).await);
+        let e = refusal(
+            h.area.workspace_from(&boxed, from_pr("pull_request", &fact), Some(pr(REPO, 7, json!({}))), StartKind::Start, None).await,
+        );
         said(
             &e,
             "wsp makes no worktrees on box yet; start the thread without a branch, or make one inside the project folder with git worktree add and name it as the folder",
@@ -437,7 +475,11 @@ fn a_made_workspace_not_found_after_is_refused() {
         let h = H::new();
         h.base().answer_with("create_workspace", vec![json!({ "id": "ws_made", "live": false })]);
         let fact = pr_json(REPO, 7, json!({}));
-        let e = refusal(h.area.workspace_from(&cloud_project(), from_pr("pull_request", &fact), Some(pr(REPO, 7, json!({}))), StartKind::Start, None).await);
+        let e = refusal(
+            h.area
+                .workspace_from(&cloud_project(), from_pr("pull_request", &fact), Some(pr(REPO, 7, json!({}))), StartKind::Start, None)
+                .await,
+        );
         said(&e, &format!("{NAME} was made and then not found"), None);
         assert!(h.base().persisted.borrow().is_empty());
         assert!(h.base().events.borrow().is_empty());
@@ -462,7 +504,15 @@ fn folder_from_fetches_a_branch_no_worktree_holds_then_records_the_pr_on_the_wor
         assert!(Rc::ptr_eq(&placed.entry, &entry));
         assert_eq!((placed.behind.clone(), placed.setup.clone()), (None, None));
         assert_eq!(
-            h.base().names_of(&["worktrees_of", "project_folder", "write_daemon_roots", "with_daemon", "worktree_folder", "take_setup_line", "persist"]),
+            h.base().names_of(&[
+                "worktrees_of",
+                "project_folder",
+                "write_daemon_roots",
+                "with_daemon",
+                "worktree_folder",
+                "take_setup_line",
+                "persist"
+            ]),
             vec!["worktrees_of", "project_folder", "write_daemon_roots", "with_daemon", "worktree_folder", "take_setup_line", "persist"]
         );
         assert_eq!(h.base().args_of("write_daemon_roots"), vec![json!({ "id": "ws_folder", "strict": false })]);
@@ -472,7 +522,12 @@ fn folder_from_fetches_a_branch_no_worktree_holds_then_records_the_pr_on_the_wor
         );
         assert!(h.base().args_of("git").is_empty());
         assert_eq!(h.base().args_of("worktree_folder"), vec![json!({ "project": "pr_1", "top": TOP, "branch": "feat/pr" })]);
-        let want = record("ws_wt", "local", "pr_1", json!({ "worktree": { "path": WT, "branch": "feat/pr", "made": true }, "from": from, "base": "main", "pr": pr_record_json(&fact) }));
+        let want = record(
+            "ws_wt",
+            "local",
+            "pr_1",
+            json!({ "worktree": { "path": WT, "branch": "feat/pr", "made": true }, "from": from, "base": "main", "pr": pr_record_json(&fact) }),
+        );
         assert_eq!(h.base().persisted.borrow().len(), 1);
         assert_eq!(serde_json::to_value(&h.base().persisted.borrow()[0]).unwrap(), serde_json::to_value(&want).unwrap());
         let mut seen = fact.clone();
@@ -530,7 +585,10 @@ fn fetch_head_keeps_the_daemon_refusal_when_the_remote_holds_the_branch() {
         h.base().answer_with("git:ls-remote", vec![ex(0, "abc\trefs/heads/feat/pr\n", "")]);
         let e = refusal(h.area.fetch_head(&here_project(), TOP, &pr(REPO, 7, json!({ "branch": "feat/pr" })), "feat/pr").await);
         said(&e, "feat/pr cannot be fast-forwarded", Some(Kind::Conflict));
-        assert_eq!(h.base().args_of("git"), vec![git_call(TOP, &["ls-remote", "--exit-code", REMOTE, "refs/heads/feat/pr"], Some(CLONE_MS))]);
+        assert_eq!(
+            h.base().args_of("git"),
+            vec![git_call(TOP, &["ls-remote", "--exit-code", REMOTE, "refs/heads/feat/pr"], Some(CLONE_MS))]
+        );
     });
 }
 
@@ -554,7 +612,10 @@ fn remote_holds_reads_exit_2_alone_as_no() {
             let h = H::new();
             h.base().answer_with("git:ls-remote", vec![ex(code, "", "")]);
             assert_eq!(ok(h.area.remote_holds(TOP, REMOTE, "refs/heads/feat/pr").await), holds, "exit {code}");
-            assert_eq!(h.base().args_of("git"), vec![git_call(TOP, &["ls-remote", "--exit-code", REMOTE, "refs/heads/feat/pr"], Some(CLONE_MS))]);
+            assert_eq!(
+                h.base().args_of("git"),
+                vec![git_call(TOP, &["ls-remote", "--exit-code", REMOTE, "refs/heads/feat/pr"], Some(CLONE_MS))]
+            );
         }
     });
 }
@@ -571,7 +632,10 @@ fn folder_from_on_the_project_folders_own_branch_writes_nothing() {
         h.base().answer_with("git:merge-base --is-ancestor 1111 2222", vec![ex(1, "", "")]);
         let entry = held_entry(&h, "ws_wt", json!({}));
         let before = rec_json(&entry);
-        let placed = ok(h.area.folder_from(&here_project(), from_pr("pull_request", &fact), Some(pr(REPO, 7, json!({ "branch": "feat/pr" })))).await);
+        let placed = ok(h
+            .area
+            .folder_from(&here_project(), from_pr("pull_request", &fact), Some(pr(REPO, 7, json!({ "branch": "feat/pr" }))))
+            .await);
         assert_eq!(
             placed.behind,
             Some(format!("this project folder is behind pull request #7, and wsp never moves your own checkout; run git pull --ff-only in {TOP} to update it"))
@@ -799,7 +863,11 @@ fn catch_up_answers_each_line_in_order() {
                 h.base().answer_with(k, vec![v.clone()]);
             }
             let path = if row.worktree.is_some() { WT } else { TOP };
-            let over = if row.fork { json!({ "branch": "feat/pr", "fork": { "owner": "ana", "pushable": true } }) } else { json!({ "branch": "feat/pr" }) };
+            let over = if row.fork {
+                json!({ "branch": "feat/pr", "fork": { "owner": "ana", "pushable": true } })
+            } else {
+                json!({ "branch": "feat/pr" })
+            };
             let wt = match row.worktree {
                 Some(made) => json!({ "worktree": { "path": WT, "branch": "feat/pr", "made": made } }),
                 None => json!({}),
@@ -810,7 +878,12 @@ fn catch_up_answers_each_line_in_order() {
             assert_eq!(h.base().args_of("git"), row.git, "{}: git runs, path {path}", row.name);
             assert_eq!(h.base().asks(), row.asks, "{}: daemon asks", row.name);
             if !row.asks.is_empty() {
-                assert_eq!(h.base().names_of(&["write_daemon_roots", "with_daemon"]), vec!["write_daemon_roots", "with_daemon"], "{}", row.name);
+                assert_eq!(
+                    h.base().names_of(&["write_daemon_roots", "with_daemon"]),
+                    vec!["write_daemon_roots", "with_daemon"],
+                    "{}",
+                    row.name
+                );
                 assert_eq!(h.base().args_of("write_daemon_roots"), vec![json!({ "id": "ws_wt", "strict": false })], "{}", row.name);
             }
             assert!(h.base().persisted.borrow().is_empty(), "{}", row.name);
@@ -878,20 +951,25 @@ fn picks_hold_fills_model_and_effort_from_the_open_defaults_and_names_the_mode()
         *h.base().prefs.borrow_mut() = Some(prefs());
         h.base().answer_with("resolved_picks", vec![open_picks()]);
         h.base().answer_with("named_mode", vec![json!("acceptEdits")]);
-        let asked = StartPicksAsked { harness: Some("codex".into()), access: Some(AccessChoice::AutoEdit), fast: Some(true), ..Default::default() };
+        let asked =
+            StartPicksAsked { harness: Some("codex".into()), access: Some(AccessChoice::AutoEdit), fast: Some(true), ..Default::default() };
         ok(h.area.picks_hold(&here_project(), &asked).await);
-        assert_eq!(
-            h.base().args_of("named_mode"),
-            vec![json!({ "catalog": "codex", "harness": "codex", "access": "auto-edit" })]
-        );
+        assert_eq!(h.base().args_of("named_mode"), vec![json!({ "catalog": "codex", "harness": "codex", "access": "auto-edit" })]);
         assert_eq!(
             h.base().args_of("start_picks_refusal"),
-            vec![json!({ "catalog": "codex", "picks": { "model": "sonnet", "effort": "high", "permissionMode": "acceptEdits", "fast": true } })]
+            vec![
+                json!({ "catalog": "codex", "picks": { "model": "sonnet", "effort": "high", "permissionMode": "acceptEdits", "fast": true } })
+            ]
         );
         let h = H::new();
         *h.base().prefs.borrow_mut() = Some(prefs());
         h.base().answer_with("resolved_picks", vec![open_picks()]);
-        let asked = StartPicksAsked { harness: Some("codex".into()), model: Some("opus".into()), permission_mode: Some("read-only".into()), ..Default::default() };
+        let asked = StartPicksAsked {
+            harness: Some("codex".into()),
+            model: Some("opus".into()),
+            permission_mode: Some("read-only".into()),
+            ..Default::default()
+        };
         ok(h.area.picks_hold(&here_project(), &asked).await);
         assert!(h.base().args_of("named_mode").is_empty());
         assert_eq!(
@@ -992,7 +1070,8 @@ fn read_only_of_is_the_catalogs_read_only_mode() {
 // ---------------------------------------------------------------------------------------------------------------
 // Rule 12: take_review
 
-const DIFF: &str = "diff --git a/check.sh b/check.sh\n--- a/check.sh\n+++ b/check.sh\n@@ -1,3 +1,4 @@\n #!/bin/sh\n+unused=1\n exit 0\n # end\n";
+const DIFF: &str =
+    "diff --git a/check.sh b/check.sh\n--- a/check.sh\n+++ b/check.sh\n@@ -1,3 +1,4 @@\n #!/bin/sh\n+unused=1\n exit 0\n # end\n";
 
 fn fence(body: &Value) -> String {
     format!("```json\n{}\n```", body)
@@ -1009,7 +1088,8 @@ fn block() -> Value {
     })
 }
 
-const REASK: &str = "Your review could not be read: the reply has no fenced json block. End your reply with the one fenced json block the task asked for.";
+const REASK: &str =
+    "Your review could not be read: the reply has no fenced json block. End your reply with the one fenced json block the task asked for.";
 
 /// A workspace under review, its reviewer thread named, and the project that holds its remote.
 fn under_review(h: &H, over: Value) -> Entry {
@@ -1054,7 +1134,10 @@ fn take_review_reads_the_draft_marks_lines_outside_the_diff_and_emits() {
         assert_eq!(serde_json::to_value(&persisted[0]).unwrap()["review"], want);
         assert_eq!(h.base().events.borrow().clone(), vec![json!({ "type": "workspace.review", "workspaceId": "ws_rev" })]);
         assert_eq!(h.base().asks(), vec![json!({ "op": "git.prDiff", "cwd": "/home/me", "remote": REMOTE, "number": 7 })]);
-        assert_eq!(h.base().names_of(&["on_this_computer", "persist", "emit", "send_detached"]), vec!["on_this_computer", "persist", "emit"]);
+        assert_eq!(
+            h.base().names_of(&["on_this_computer", "persist", "emit", "send_detached"]),
+            vec!["on_this_computer", "persist", "emit"]
+        );
     });
 }
 
@@ -1132,7 +1215,10 @@ fn take_review_warns_when_the_reask_cannot_be_sent() {
         for _ in 0..6 {
             tokio::task::yield_now().await;
         }
-        assert_eq!(warned.lines(), vec!["the reviewer of Review #7 Rename the status word was not asked again: the thread is gone".to_owned()]);
+        assert_eq!(
+            warned.lines(),
+            vec!["the reviewer of Review #7 Rename the status word was not asked again: the thread is gone".to_owned()]
+        );
         assert_eq!(rec_json(&entry)["review"]["reasked"], json!(true));
     });
 }

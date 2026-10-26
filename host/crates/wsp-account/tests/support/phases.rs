@@ -5,7 +5,7 @@
 //! `Result<_, EngineError>` the test sets, the last answer staying. A wake can be held on a oneshot, and a held wake
 //! ends when the entry's stop token is pulled, as the engine's call ends on an abort. `sleeps` waits on the test clock,
 //! and a sleep dropped before it fires cancels its timer. Every call out checks that no borrow of a live entry is held.
-#![allow(dead_code)]
+#![allow(dead_code, unused_imports)]
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -14,13 +14,11 @@ use async_trait::async_trait;
 use futures::channel::oneshot;
 use serde_json::{json, Value};
 use wsp_account::projects::workspaces::phases::{MachineRead, PhasesCtx, ResumeAsks};
-use wsp_account::projects::workspaces::seam::{
-    Base, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, Live, ProjectsHeld,
-};
+use wsp_account::projects::workspaces::seam::{Base, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, Live, ProjectsHeld};
 use wsp_core::clock::{Cancel, Clock};
 use wsp_core::ids::Ids;
-use wsp_core::types::pending::Store;
 use wsp_core::types::internal::ThreadRecord;
+use wsp_core::types::pending::Store;
 use wsp_core::types::wiring::{SizeAsk, WorkspaceRecord};
 use wsp_engine::errors::{EngineError, ErrorKind, WspError};
 use wsp_engine::lifecycle::WakeResult;
@@ -34,8 +32,8 @@ use wsp_wire::wire::capabilities::Capabilities;
 use wsp_wire::wire::machine_link::{ExecResult, MachineShape};
 use wsp_words::exit::{HostError, Kind};
 
-pub use crate::base::{person as the_person, thread as asker};
 use crate::base::{kinded, merge, view_of, BaseOf, FakeBase};
+pub use crate::base::{person as the_person, thread as asker};
 
 /// `refusalLine(happened, fix)` (thread.ts:393).
 pub fn refusal_line(happened: &str, fix: &str) -> String {
@@ -80,7 +78,10 @@ pub fn missing() -> EngineError {
 
 /// A resume the provider never took inside its cap (errors.ts:36).
 pub fn unanswered() -> EngineError {
-    EngineError::ResumeUnanswered { message: "the provider has not answered the resume request; reading the machine".to_owned(), cause: None }
+    EngineError::ResumeUnanswered {
+        message: "the provider has not answered the resume request; reading the machine".to_owned(),
+        cause: None,
+    }
 }
 
 /// The provider deleted the paused machine's disk (errors.ts:95).
@@ -125,7 +126,11 @@ impl<T: Clone> Seq<T> {
     }
     pub fn next(&self) -> Option<T> {
         let mut q = self.q.borrow_mut();
-        if q.len() > 1 { q.pop_front() } else { q.front().cloned() }
+        if q.len() > 1 {
+            q.pop_front()
+        } else {
+            q.front().cloned()
+        }
     }
 }
 
@@ -502,12 +507,14 @@ impl PhasesCtx for FakePhases {
             let e = entry.borrow();
             let r = e.record.borrow();
             (
-                e.resize_to.map(|s| json!({ "cpu": serde_json::to_value(s.cpu).unwrap(), "memMb": serde_json::to_value(s.mem_mb).unwrap() })),
+                e.resize_to
+                    .map(|s| json!({ "cpu": serde_json::to_value(s.cpu).unwrap(), "memMb": serde_json::to_value(s.mem_mb).unwrap() })),
                 serde_json::to_value(&r.size).unwrap(),
                 r.shape.as_ref().map(|s| serde_json::to_value(s).unwrap()),
             )
         };
-        self.base.call("ws_wake", json!({ "id": Self::id_of(entry), "landed": landed, "resizeTo": resize_to, "size": size, "shape": shape }));
+        self.base
+            .call("ws_wake", json!({ "id": Self::id_of(entry), "landed": landed, "resizeTo": resize_to, "size": size, "shape": shape }));
         match self.wakes.next().unwrap_or(WakePlan::Done(done(None))) {
             WakePlan::Done(r) => r,
             WakePlan::Hold => {
@@ -592,10 +599,7 @@ impl PhasesCtx for FakePhases {
     }
 
     fn size_built(&self, shape: Option<&MachineShape>, asked: SizeAsk) -> SizeAsk {
-        SizeAsk {
-            cpu: shape.and_then(|s| s.cpu).unwrap_or(asked.cpu),
-            mem_mb: shape.and_then(|s| s.mem_mb).unwrap_or(asked.mem_mb),
-        }
+        SizeAsk { cpu: shape.and_then(|s| s.cpu).unwrap_or(asked.cpu), mem_mb: shape.and_then(|s| s.mem_mb).unwrap_or(asked.mem_mb) }
     }
 
     async fn status_now(&self, entry: &Entry) -> Result<(), HostError> {

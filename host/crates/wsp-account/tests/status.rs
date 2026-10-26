@@ -85,7 +85,16 @@ struct Facts {
 
 impl Default for Facts {
     fn default() -> Self {
-        Facts { reason: None, idle_at: None, away: None, unreached: None, reach: "ok".into(), daemon: false, reads: (false, None, false, false), rate: 0.11 }
+        Facts {
+            reason: None,
+            idle_at: None,
+            away: None,
+            unreached: None,
+            reach: "ok".into(),
+            daemon: false,
+            reads: (false, None, false, false),
+            rate: 0.11,
+        }
     }
 }
 
@@ -192,7 +201,10 @@ impl Lab {
         self.row_with(id, state, labels)
     }
     fn row_with(&self, id: &str, state: &str, labels: IndexMap<String, String>) -> ListedRow {
-        self.w.machines.borrow_mut().insert(id.into(), MachineAt { state: state.into(), get_fail: None, stop_fail: None, stream_url: None });
+        self.w
+            .machines
+            .borrow_mut()
+            .insert(id.into(), MachineAt { state: state.into(), get_fail: None, stop_fail: None, stream_url: None });
         ListedRow { id: id.into(), state: state.into(), labels }
     }
     fn machine(&self, id: &str, f: impl FnOnce(&mut MachineAt)) {
@@ -239,7 +251,13 @@ impl Sweep {
 
 /// The area's calls on the context that make a record real, in order.
 fn steps_of(lab: &Lab) -> Vec<String> {
-    lab.w.log.borrow().iter().filter(|l| ["attach ", "persist ", "sync ", "emit ", "status "].iter().any(|p| l.starts_with(p))).cloned().collect()
+    lab.w
+        .log
+        .borrow()
+        .iter()
+        .filter(|l| ["attach ", "persist ", "sync ", "emit ", "status "].iter().any(|p| l.starts_with(p)))
+        .cloned()
+        .collect()
 }
 
 fn some(s: &str) -> Option<String> {
@@ -251,7 +269,10 @@ fn ids(items: &[&str]) -> Vec<String> {
 }
 
 fn unreached_line(whose: &str, state: &str, goes_at: i64) -> String {
-    format!("not recorded: {whose}, so nothing here reaches this {state} machine of yours; deleted at {}, a day after this host first saw it", iso(goes_at))
+    format!(
+        "not recorded: {whose}, so nothing here reaches this {state} machine of yours; deleted at {}, a day after this host first saw it",
+        iso(goes_at)
+    )
 }
 
 #[async_trait(?Send)]
@@ -389,7 +410,9 @@ impl StatusCtx for World {
             None => Err(ReadFailure::Missing),
             Some(m) => match &m.get_fail {
                 Some(f) => Err(f.clone()),
-                None => Ok(Confirmed { state: m.state.clone(), stream_url: m.stream_url.clone(), size: json!({ "cpu": 2, "memMb": 4096 }) }),
+                None => {
+                    Ok(Confirmed { state: m.state.clone(), stream_url: m.stream_url.clone(), size: json!({ "cpu": 2, "memMb": 4096 }) })
+                }
             },
         }
     }
@@ -466,12 +489,33 @@ fn full_facts() -> Facts {
 fn load(entry: &Entry) {
     entry.borrow_mut().generation = 3;
     entry.borrow_mut().wake_ask = Some(WakeAsk { ask: 2, of: 3 });
-    entry.borrow_mut().checkout = Some(serde_json::from_value::<Checkout>(json!({ "branch": "main", "ahead": 1, "behind": 0, "changed": 2, "readAt": 7 })).unwrap());
+    entry.borrow_mut().checkout =
+        Some(serde_json::from_value::<Checkout>(json!({ "branch": "main", "ahead": 1, "behind": 0, "changed": 2, "readAt": 7 })).unwrap());
     entry.borrow_mut().pr = Some(serde_json::from_value::<PullRequestSeen>(json!({ "why": "gh is not signed in", "readAt": 5 })).unwrap());
 }
 
 const FULL_KEYS: [&str; 21] = [
-    "id", "name", "kind", "phase", "size", "rateUsdPerHour", "generation", "reason", "wakeAsk", "checkout", "pr", "idleAt", "away", "unreached", "daemonReach", "daemonAnswers", "daemonAnswersPromptMs", "providerState", "metrics", "facts", "exec",
+    "id",
+    "name",
+    "kind",
+    "phase",
+    "size",
+    "rateUsdPerHour",
+    "generation",
+    "reason",
+    "wakeAsk",
+    "checkout",
+    "pr",
+    "idleAt",
+    "away",
+    "unreached",
+    "daemonReach",
+    "daemonAnswers",
+    "daemonAnswersPromptMs",
+    "providerState",
+    "metrics",
+    "facts",
+    "exec",
 ];
 
 // S1
@@ -490,7 +534,11 @@ fn s1_row_keys_and_order() {
         let rows = lab.area.records().await;
 
         assert!(lab.w.ready_before_held.get(), "the rows wait for ready before they read the held entries");
-        assert_eq!(rows.iter().map(|r| r["id"].as_str().unwrap().to_string()).collect::<Vec<_>>(), ids(&["w_full", "w_bare", "w_nap"]), "live map order");
+        assert_eq!(
+            rows.iter().map(|r| r["id"].as_str().unwrap().to_string()).collect::<Vec<_>>(),
+            ids(&["w_full", "w_bare", "w_nap"]),
+            "live map order"
+        );
         assert_eq!(keys_of(&rows[0]), FULL_KEYS.to_vec());
         let want = json!({
             "id": "w_full", "name": "name of w_full", "kind": "cloud", "phase": "running",
@@ -522,8 +570,39 @@ fn s1_facts_skipped_when_unreachable() {
 
         let rows = lab.area.records().await;
 
-        assert_eq!(keys_of(&rows[0]), vec!["id", "name", "kind", "phase", "size", "rateUsdPerHour", "generation", "daemonAnswers", "providerState", "metrics", "facts", "exec"]);
-        assert_eq!(keys_of(&rows[1]), vec!["id", "name", "kind", "phase", "size", "rateUsdPerHour", "generation", "daemonAnswers", "providerState", "metrics", "exec"]);
+        assert_eq!(
+            keys_of(&rows[0]),
+            vec![
+                "id",
+                "name",
+                "kind",
+                "phase",
+                "size",
+                "rateUsdPerHour",
+                "generation",
+                "daemonAnswers",
+                "providerState",
+                "metrics",
+                "facts",
+                "exec"
+            ]
+        );
+        assert_eq!(
+            keys_of(&rows[1]),
+            vec![
+                "id",
+                "name",
+                "kind",
+                "phase",
+                "size",
+                "rateUsdPerHour",
+                "generation",
+                "daemonAnswers",
+                "providerState",
+                "metrics",
+                "exec"
+            ]
+        );
     });
 }
 
@@ -689,7 +768,9 @@ fn s5_skips_table() {
         let holder_running = lab.row("m_h1", "running", Some("ws_h1"), 3 * DAY);
         let mut listing = vec![known, dropped_running, dropped_paused, young, stored, holder_running];
         for (ws, flag) in [("ws_creating", 0), ("ws_waking", 1), ("ws_deleting", 2), ("ws_napping", 3)] {
-            let entry = lab.hold(json!({ "id": ws, "name": ws, "kind": "cloud", "phase": "running", "project": "p1", "machineId": format!("held_{ws}") }));
+            let entry = lab.hold(
+                json!({ "id": ws, "name": ws, "kind": "cloud", "phase": "running", "project": "p1", "machineId": format!("held_{ws}") }),
+            );
             match flag {
                 0 => entry.borrow_mut().creating = true,
                 1 => entry.borrow_mut().waking = Some(in_flight()),
@@ -768,7 +849,11 @@ fn s6_unreached_named_with_its_deletion_time() {
             assert_eq!(swept.known_ids(), ids(&["m_empty", "m_moved", "m_none", "m_run"]));
             assert!(swept.reaped.is_empty() && swept.adopted.is_empty());
             for id in ["m_none", "m_run", "m_empty", "m_moved"] {
-                assert_eq!(lab.get("unrecorded-machines", id).unwrap().to_string(), format!("{{\"machineId\":\"{id}\",\"place\":\"box\",\"seenAt\":\"{}\"}}", iso(T0)), "the first sighting is stored whole, in this key order");
+                assert_eq!(
+                    lab.get("unrecorded-machines", id).unwrap().to_string(),
+                    format!("{{\"machineId\":\"{id}\",\"place\":\"box\",\"seenAt\":\"{}\"}}", iso(T0)),
+                    "the first sighting is stored whole, in this key order"
+                );
             }
             lab.advance(10 * MIN);
         }
@@ -799,7 +884,10 @@ fn s6_deleted_a_day_after_first_seen() {
 
         assert!(late.failed.is_empty(), "the sweep that deletes it names it no more");
         assert_eq!(*lab.w.stops.borrow(), ids(&["m_p", "m_r"]));
-        assert_eq!(lab.w.log.borrow().iter().filter(|l| l.starts_with("stop ")).cloned().collect::<Vec<_>>(), vec!["stop box m_p".to_string(), "stop box m_r".to_string()]);
+        assert_eq!(
+            lab.w.log.borrow().iter().filter(|l| l.starts_with("stop ")).cloned().collect::<Vec<_>>(),
+            vec!["stop box m_p".to_string(), "stop box m_r".to_string()]
+        );
         let mut labels_p: IndexMap<String, String> = IndexMap::new();
         labels_p.insert("wsp".into(), "1".into());
         labels_p.insert("wsp-host".into(), "1".into());
@@ -809,8 +897,22 @@ fn s6_deleted_a_day_after_first_seen() {
         assert_eq!(
             late.reaped,
             vec![
-                ReapedMachine { id: "m_p".into(), labels: Some(labels_p), builder: false, reason: ReapReason::Unrecorded, age_ms: Some(4 * DAY), name: None },
-                ReapedMachine { id: "m_r".into(), labels: Some(listing[1].labels.clone()), builder: false, reason: ReapReason::Unrecorded, age_ms: Some(DAY + 3_600_000), name: None },
+                ReapedMachine {
+                    id: "m_p".into(),
+                    labels: Some(labels_p),
+                    builder: false,
+                    reason: ReapReason::Unrecorded,
+                    age_ms: Some(4 * DAY),
+                    name: None
+                },
+                ReapedMachine {
+                    id: "m_r".into(),
+                    labels: Some(listing[1].labels.clone()),
+                    builder: false,
+                    reason: ReapReason::Unrecorded,
+                    age_ms: Some(DAY + 3_600_000),
+                    name: None
+                },
             ]
         );
         assert!(lab.keys("unrecorded-machines").is_empty());
@@ -826,14 +928,21 @@ fn s6_first_sighting_survives_a_restart() {
         let row = lab.row("m1", "paused", Some("ws_d913623a"), 3 * DAY);
         let listing = [row];
         let first = lab.sweep(&listing, &[]).await;
-        assert_eq!(first.failed_lines(), vec![(some("m1"), unreached_line("no workspace of this host is ws_d913623a", "paused", T0 + DAY))]);
+        assert_eq!(
+            first.failed_lines(),
+            vec![(some("m1"), unreached_line("no workspace of this host is ws_d913623a", "paused", T0 + DAY))]
+        );
         let stamp = lab.get("unrecorded-machines", "m1").unwrap().to_string();
 
         lab.advance(6 * 3_600_000);
         let again = lab.restarted();
         let second = again.sweep(&listing, &[]).await;
 
-        assert_eq!(second.failed_lines(), vec![(some("m1"), unreached_line("no workspace of this host is ws_d913623a", "paused", T0 + DAY))], "the deletion time does not move with the restart");
+        assert_eq!(
+            second.failed_lines(),
+            vec![(some("m1"), unreached_line("no workspace of this host is ws_d913623a", "paused", T0 + DAY))],
+            "the deletion time does not move with the restart"
+        );
         assert_eq!(again.get("unrecorded-machines", "m1").unwrap().to_string(), stamp, "the stored first sighting is not written again");
         assert!(!again.w.log.borrow().iter().any(|l| l.starts_with("put unrecorded-machines")), "a host that finds the row writes nothing");
 
@@ -861,8 +970,15 @@ fn s6_a_failed_delete_is_retried() {
 
         let first = lab.sweep(&listing, &[]).await;
 
-        assert_eq!(first.failed_lines(), vec![(some("m1"), "could not delete: provider said no; no record of this host's reaches it, retried next sweep".to_string())]);
-        assert_eq!(first.reaped.iter().map(|r| r.id.clone()).collect::<Vec<_>>(), ids(&["m2"]), "a machine the provider no longer has counts as stopped");
+        assert_eq!(
+            first.failed_lines(),
+            vec![(some("m1"), "could not delete: provider said no; no record of this host's reaches it, retried next sweep".to_string())]
+        );
+        assert_eq!(
+            first.reaped.iter().map(|r| r.id.clone()).collect::<Vec<_>>(),
+            ids(&["m2"]),
+            "a machine the provider no longer has counts as stopped"
+        );
         assert_eq!(first.known_ids(), ids(&["m1", "m2"]));
         assert_eq!(lab.keys("unrecorded-machines"), ids(&["m1"]), "the failed one is kept for the next sweep");
 
@@ -889,7 +1005,10 @@ fn s6_a_reaped_machine_carries_its_age_where_its_label_parses() {
         lab.sweep(&listing, &[]).await;
         lab.advance(DAY);
         let swept = lab.sweep(&listing, &[]).await;
-        assert_eq!(swept.reaped.iter().map(|r| (r.id.clone(), r.age_ms)).collect::<Vec<_>>(), vec![("m_bad".to_string(), None), ("m_absent".to_string(), None)]);
+        assert_eq!(
+            swept.reaped.iter().map(|r| (r.id.clone(), r.age_ms)).collect::<Vec<_>>(),
+            vec![("m_bad".to_string(), None), ("m_absent".to_string(), None)]
+        );
     });
 }
 
@@ -921,7 +1040,11 @@ fn s10_unrecorded_rows_the_listing_dropped_go() {
 
         assert_eq!(swept.failed.len(), 1);
         assert_eq!(lab.keys("unrecorded-machines"), ids(&["m_elsewhere", "m_still"]));
-        assert_eq!(lab.get("unrecorded-machines", "m_still").unwrap()["seenAt"], json!(iso(T0 - MIN)), "a row already stored keeps its first sighting");
+        assert_eq!(
+            lab.get("unrecorded-machines", "m_still").unwrap()["seenAt"],
+            json!(iso(T0 - MIN)),
+            "a row already stored keeps its first sighting"
+        );
     });
 }
 
@@ -956,12 +1079,19 @@ fn s7_no_project_is_reported_and_left() {
             let swept = lab.sweep(&listing, &[]).await;
             assert_eq!(
                 swept.failed_lines(),
-                vec![(some("m_unstamped"), format!("{says} running")), (some("m_gone"), format!("{says} paused")), (some("m_noproject"), format!("{says} running"))]
+                vec![
+                    (some("m_unstamped"), format!("{says} running")),
+                    (some("m_gone"), format!("{says} paused")),
+                    (some("m_noproject"), format!("{says} running"))
+                ]
             );
             assert_eq!(swept.known_ids(), ids(&["m_gone", "m_noproject", "m_unstamped"]));
             lab.advance(DAY);
         }
-        assert!(lab.w.reads.borrow().is_empty(), "a row reported off the listing alone is never read, since each read resets the provider's idle timer");
+        assert!(
+            lab.w.reads.borrow().is_empty(),
+            "a row reported off the listing alone is never read, since each read resets the provider's idle timer"
+        );
         assert!(lab.w.stops.borrow().is_empty());
         assert!(lab.keys("unrecorded-machines").is_empty());
     });
@@ -981,7 +1111,9 @@ fn ported_a_machine_it_cannot_name_is_reported_off_the_listing_sweep_after_sweep
             got.sort();
             assert_eq!(got, ids(&["m_stamped", "m_unstamped"]));
             assert_eq!(swept.failed[1].message, "not recorded: this host holds no project for it, and a workspace is one project's copy; it is a machine of yours still running");
-            assert!(swept.failed[0].message.starts_with("not recorded: no workspace of this host is ws_1, so nothing here reaches this running machine of yours; deleted at "));
+            assert!(swept.failed[0].message.starts_with(
+                "not recorded: no workspace of this host is ws_1, so nothing here reaches this running machine of yours; deleted at "
+            ));
         }
         assert!(lab.w.reads.borrow().is_empty());
         assert!(lab.w.stops.borrow().is_empty());
@@ -1010,7 +1142,11 @@ fn s8_the_confirming_read() {
 
         assert!(swept.adopted.is_empty());
         assert_eq!(swept.failed_lines(), vec![(some("m_refused"), "not recorded: Bad Gateway; retried next sweep".to_string())]);
-        assert_eq!(swept.known_ids(), ids(&["m_refused", "m_starting", "m_stopped"]), "a machine the provider no longer knows is left to the listing's lag, not claimed");
+        assert_eq!(
+            swept.known_ids(),
+            ids(&["m_refused", "m_starting", "m_stopped"]),
+            "a machine the provider no longer knows is left to the listing's lag, not claimed"
+        );
         assert_eq!(*lab.w.reads.borrow(), ids(&["m_missing", "m_refused", "m_stopped", "m_starting"]));
         assert!(lab.w.live.borrow().is_empty());
         assert!(lab.w.stops.borrow().is_empty());
@@ -1030,7 +1166,7 @@ fn s8_a_failed_state_read_fails_the_adopt() {
         lab.machine("m_a", |m| m.get_fail = Some(ReadFailure::StateFailed("state read timed out".into())));
         let mut known: BTreeSet<String> = BTreeSet::new();
         let mut failed = vec![];
-        let err = lab.area.adopt_lost(&[first, second], &mut known, &mut failed, "box").await.err().expect("the adopt fails whole");
+        let err = lab.area.adopt_lost(&[first, second], &mut known, &mut failed, "box").await.expect_err("the adopt fails whole");
         assert_eq!(err.message, "state read timed out");
         assert_eq!(*lab.w.reads.borrow(), ids(&["m_a"]), "the row after it is never read");
         assert!(failed.is_empty());
@@ -1052,7 +1188,10 @@ fn ported_a_confirming_read_the_provider_refuses_is_tried_again_next_sweep() {
         assert!(lab.w.live.borrow().is_empty());
         lab.machine("m1", |m| m.get_fail = None);
         let second = lab.sweep(&listing, &[]).await;
-        assert_eq!(second.adopted, vec![AdoptedMachine { id: "m1".into(), workspace_id: "ws_1".into(), name: "first".into(), phase: WorkspacePhase::Running }]);
+        assert_eq!(
+            second.adopted,
+            vec![AdoptedMachine { id: "m1".into(), workspace_id: "ws_1".into(), name: "first".into(), phase: WorkspacePhase::Running }]
+        );
     });
 }
 
@@ -1082,7 +1221,10 @@ fn ported_a_body_a_rebuild_replaced_is_not_recorded_twice() {
         lab.hold(json!({ "id": "ws_1", "name": "first", "kind": "cloud", "phase": "running", "project": "p1", "machineId": "m1" }));
         let body = lab.row("m_body", "running", Some("ws_1"), 2 * MIN);
         let swept = lab.sweep(&[body], &[]).await;
-        assert!(swept.adopted.is_empty() && swept.failed.is_empty() && swept.known.is_empty(), "the engine kills it, so it is neither claimed nor reported");
+        assert!(
+            swept.adopted.is_empty() && swept.failed.is_empty() && swept.known.is_empty(),
+            "the engine kills it, so it is neither claimed nor reported"
+        );
         assert_eq!(lab.w.live.borrow().len(), 1);
         assert!(lab.w.reads.borrow().is_empty());
     });
@@ -1096,7 +1238,10 @@ fn ported_a_deleted_workspaces_machine_that_comes_back() {
         lab.put("dropped-machines", "m1", json!({ "machineId": "m1", "at": iso(T0 - 3_600_000) }));
         let running = lab.row("m1", "running", Some("ws_1"), 3_600_000);
         let swept = lab.sweep(&[running], &[]).await;
-        assert!(swept.failed.is_empty() && swept.adopted.is_empty() && swept.known.is_empty(), "a dropped row that runs is left unclaimed so the engine kills it");
+        assert!(
+            swept.failed.is_empty() && swept.adopted.is_empty() && swept.known.is_empty(),
+            "a dropped row that runs is left unclaimed so the engine kills it"
+        );
         assert!(lab.w.live.borrow().is_empty());
 
         let paused = lab.row("m1", "paused", Some("ws_1"), 3_600_000);
@@ -1116,7 +1261,14 @@ fn s9_adopted_record_whole() {
         let lab = lab();
         lab.names("ws_1", "first", Some("p1"));
         let mut labels: IndexMap<String, String> = IndexMap::new();
-        for (k, v) in [("wsp", "1"), ("wsp-host", "1"), ("wsp-owner", OWNER), ("wsp-workspace", "ws_1"), ("wsp-name", "the fork's name"), ("wsp-golden", "snap_g")] {
+        for (k, v) in [
+            ("wsp", "1"),
+            ("wsp-host", "1"),
+            ("wsp-owner", OWNER),
+            ("wsp-workspace", "ws_1"),
+            ("wsp-name", "the fork's name"),
+            ("wsp-golden", "snap_g"),
+        ] {
             labels.insert(k.into(), v.into());
         }
         labels.insert("createdAt".into(), iso(T0 - 2 * MIN));
@@ -1124,7 +1276,10 @@ fn s9_adopted_record_whole() {
 
         let swept = lab.sweep_at(&[row], &[], "wired").await;
 
-        assert_eq!(swept.adopted, vec![AdoptedMachine { id: "m1".into(), workspace_id: "ws_1".into(), name: "first".into(), phase: WorkspacePhase::Running }]);
+        assert_eq!(
+            swept.adopted,
+            vec![AdoptedMachine { id: "m1".into(), workspace_id: "ws_1".into(), name: "first".into(), phase: WorkspacePhase::Running }]
+        );
         assert!(swept.failed.is_empty() && swept.reaped.is_empty() && swept.known.is_empty());
         let want = json!({
             "id": "ws_1", "name": "first", "kind": "cloud", "project": "p1", "machineId": "m1", "phase": "running", "golden": "snap_g",
@@ -1132,8 +1287,21 @@ fn s9_adopted_record_whole() {
         });
         assert_eq!(lab.get("workspaces", "ws_1"), Some(want.clone()));
         let view = json!({ "id": "ws_1", "name": "first", "kind": "cloud", "phase": "running" });
-        assert_eq!(lab.w.events.borrow().iter().map(|e| e.to_string()).collect::<Vec<_>>(), vec![json!({ "type": "workspace.created", "workspace": view }).to_string()]);
-        assert_eq!(steps_of(&lab), vec!["attach ws_1".to_string(), "persist ws_1".to_string(), "sync ws_1".to_string(), "emit workspace.created".to_string(), format!("status ws_1 ok {restored}")], "attach, persist, sync the daemon, announce, then the status");
+        assert_eq!(
+            lab.w.events.borrow().iter().map(|e| e.to_string()).collect::<Vec<_>>(),
+            vec![json!({ "type": "workspace.created", "workspace": view }).to_string()]
+        );
+        assert_eq!(
+            steps_of(&lab),
+            vec![
+                "attach ws_1".to_string(),
+                "persist ws_1".to_string(),
+                "sync ws_1".to_string(),
+                "emit workspace.created".to_string(),
+                format!("status ws_1 ok {restored}")
+            ],
+            "attach, persist, sync the daemon, announce, then the status"
+        );
         // The second sweep finds the workspace held and its machine running: nothing is adopted twice.
         let again = lab.sweep_at(&[ListedRow { id: "m1".into(), state: "running".into(), labels: labels.clone() }], &[], "wired").await;
         assert!(again.adopted.is_empty() && again.failed.is_empty() && again.known.is_empty());
@@ -1156,15 +1324,30 @@ fn s9_a_paused_machine_at_another_place_hydrates_napping_there() {
 
         let swept = lab.sweep_at(&[row], &[], "box").await;
 
-        assert_eq!(swept.adopted, vec![AdoptedMachine { id: "m2".into(), workspace_id: "ws_2".into(), name: "there".into(), phase: WorkspacePhase::Napping }]);
+        assert_eq!(
+            swept.adopted,
+            vec![AdoptedMachine { id: "m2".into(), workspace_id: "ws_2".into(), name: "there".into(), phase: WorkspacePhase::Napping }]
+        );
         let want = json!({
             "id": "ws_2", "name": "there", "kind": "cloud", "project": "p2", "place": "box", "machineId": "m2", "phase": "napping", "golden": "snap_head",
             "createdAt": iso(T0), "spec": { "labels": labels }, "size": { "cpu": 2, "memMb": 4096 }, "firstLife": false, "screen": { "streamUrl": "https://screen/m2" }
         });
-        assert_eq!(lab.get("workspaces", "ws_2"), Some(want), "the golden head stands in for a missing label and now for an unreadable createdAt");
+        assert_eq!(
+            lab.get("workspaces", "ws_2"),
+            Some(want),
+            "the golden head stands in for a missing label and now for an unreadable createdAt"
+        );
         let log = lab.w.log.borrow().clone();
         assert!(!log.iter().any(|l| l.starts_with("sync ")), "a paused machine's daemon is not synced");
-        assert_eq!(steps_of(&lab), vec!["attach ws_2".to_string(), "persist ws_2".to_string(), "emit workspace.created".to_string(), format!("status ws_2 napping {restored}")]);
+        assert_eq!(
+            steps_of(&lab),
+            vec![
+                "attach ws_2".to_string(),
+                "persist ws_2".to_string(),
+                "emit workspace.created".to_string(),
+                format!("status ws_2 napping {restored}")
+            ]
+        );
     });
 }
 
@@ -1172,7 +1355,9 @@ fn s9_a_paused_machine_at_another_place_hydrates_napping_there() {
 fn s9_the_golden_falls_back_to_empty_and_the_name_to_the_machine() {
     run(async {
         let lab = lab();
-        lab.hold(json!({ "id": "ws_other", "name": "first", "kind": "cloud", "phase": "running", "project": "p1", "machineId": "m_other" }));
+        lab.hold(
+            json!({ "id": "ws_other", "name": "first", "kind": "cloud", "phase": "running", "project": "p1", "machineId": "m_other" }),
+        );
         lab.names("ws_1", "first", Some("p1"));
         let mut labels: IndexMap<String, String> = IndexMap::new();
         for (k, v) in [("wsp", "1"), ("wsp-owner", OWNER), ("wsp-workspace", "ws_1")] {
@@ -1180,7 +1365,11 @@ fn s9_the_golden_falls_back_to_empty_and_the_name_to_the_machine() {
         }
         let row = lab.row_with("m1", "running", labels);
         let swept = lab.sweep_at(&[row], &[], "wired").await;
-        assert_eq!(swept.adopted, vec![AdoptedMachine { id: "m1".into(), workspace_id: "ws_1".into(), name: "m1".into(), phase: WorkspacePhase::Running }], "a name a live workspace holds is not taken twice");
+        assert_eq!(
+            swept.adopted,
+            vec![AdoptedMachine { id: "m1".into(), workspace_id: "ws_1".into(), name: "m1".into(), phase: WorkspacePhase::Running }],
+            "a name a live workspace holds is not taken twice"
+        );
         let stored = lab.get("workspaces", "ws_1").unwrap();
         assert_eq!(stored["golden"], json!(""));
         assert_eq!(stored["name"], json!("m1"));
@@ -1196,7 +1385,15 @@ fn ported_the_sweep_adopts_the_box_when_its_name_was_kept_and_no_record_holds_th
         lab.names("ws_kept", "kept", Some("p1"));
         let row = lab.row("m_lost", "running", Some("ws_kept"), 3 * MIN);
         let swept = lab.sweep_at(&[row], &[], "wired").await;
-        assert_eq!(swept.adopted, vec![AdoptedMachine { id: "m_lost".into(), workspace_id: "ws_kept".into(), name: "kept".into(), phase: WorkspacePhase::Running }]);
+        assert_eq!(
+            swept.adopted,
+            vec![AdoptedMachine {
+                id: "m_lost".into(),
+                workspace_id: "ws_kept".into(),
+                name: "kept".into(),
+                phase: WorkspacePhase::Running
+            }]
+        );
         assert!(lab.w.stops.borrow().is_empty());
         let stored = lab.get("workspaces", "ws_kept").unwrap();
         assert_eq!(stored["machineId"], json!("m_lost"));
@@ -1211,7 +1408,10 @@ fn ported_a_lost_record_at_a_place_is_recorded_again_there() {
         lab.names("ws_1", "there", Some("p1"));
         let row = lab.row("m1", "paused", Some("ws_1"), 2 * MIN);
         let swept = lab.sweep_at(&[row], &[], "box").await;
-        assert_eq!(swept.adopted, vec![AdoptedMachine { id: "m1".into(), workspace_id: "ws_1".into(), name: "there".into(), phase: WorkspacePhase::Napping }]);
+        assert_eq!(
+            swept.adopted,
+            vec![AdoptedMachine { id: "m1".into(), workspace_id: "ws_1".into(), name: "there".into(), phase: WorkspacePhase::Napping }]
+        );
         let stored = lab.get("workspaces", "ws_1").unwrap();
         assert_eq!((stored["place"].clone(), stored["machineId"].clone()), (json!("box"), json!("m1")));
     });
@@ -1244,7 +1444,10 @@ fn ported_a_box_first_seen_a_day_ago_is_deleted_and_a_young_one_named() {
         let old = lab.row("m_old", "paused", Some("ws_old"), 3_600_000);
         lab.put("unrecorded-machines", "m_old", json!({ "machineId": "m_old", "place": "default", "seenAt": iso(T0 - 25 * 3_600_000) }));
         let swept = lab.sweep_at(&[young, old], &[], "default").await;
-        assert_eq!(swept.failed_lines(), vec![(some("m_young"), unreached_line("no workspace of this host is ws_young", "paused", T0 + DAY))]);
+        assert_eq!(
+            swept.failed_lines(),
+            vec![(some("m_young"), unreached_line("no workspace of this host is ws_young", "paused", T0 + DAY))]
+        );
         assert_eq!(swept.reaped.len(), 1);
         assert_eq!((swept.reaped[0].id.clone(), swept.reaped[0].age_ms), ("m_old".to_string(), Some(3_600_000)));
         assert_eq!(*lab.w.stops.borrow(), ids(&["m_old"]));

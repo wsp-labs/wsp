@@ -33,13 +33,15 @@ use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 
-use common::{error_json, in_flight, live, oracle, plain, record, run, settle};
-use wsp_account::account::core_types::{AccountResult, Frame, Entry};
+use common::{error_json, live, oracle, plain, record, run, settle};
+use wsp_account::account::core_types::{AccountResult, Entry, Frame};
+use wsp_account::account::usage::{AccountKey, LabelOf, LimitReading, NameOf, PlanRoad, ResetPlaceView, UsageArea, UsageCtx, UsageEntry};
 use wsp_core::clock::Cancel;
-use wsp_account::account::usage::{LabelOf, NameOf, AccountKey, LimitReading, PlanRoad, ResetPlaceView, UsageArea, UsageCtx, UsageEntry};
 use wsp_core::types::wiring::{DeleteSaid, ReadingsTarget, WorkspaceRecord};
 use wsp_frames::{UsageLogsReply, UsageStore};
-use wsp_wire::types::usage::{AccountsAnswer, HarnessLimit, HarnessLimitAccount, ReadingsRange, ResetAnswer, ResetOutcome, UsageRange, UsageSplit, UsedAnswer};
+use wsp_wire::types::usage::{
+    AccountsAnswer, HarnessLimit, HarnessLimitAccount, ReadingsRange, ResetAnswer, ResetOutcome, UsageRange, UsageSplit, UsedAnswer,
+};
 use wsp_wire::views::place_more::PlaceView;
 use wsp_wire::views::workspace::{Caller, WorkspacePhase};
 use wsp_wire::views::workspace_more::WorkspaceOrigin;
@@ -329,7 +331,11 @@ impl UsageCtx for World {
         self.listed("away", place_id)
     }
     fn name_of(&self, place_id: &str) -> String {
-        self.place_values().iter().find(|p| p["id"] == json!(place_id)).and_then(|p| p["name"].as_str().map(String::from)).unwrap_or(place_id.to_string())
+        self.place_values()
+            .iter()
+            .find(|p| p["id"] == json!(place_id))
+            .and_then(|p| p["name"].as_str().map(String::from))
+            .unwrap_or(place_id.to_string())
     }
     fn linked(&self, place_id: &str) -> bool {
         self.listed("links", place_id)
@@ -373,8 +379,16 @@ impl UsageCtx for World {
     fn local_home(&self, agent: &str) -> String {
         self.w.borrow()["homes"][agent].as_str().unwrap().to_string()
     }
-    async fn local_exec_lines(&self, script: &str, env: IndexMap<String, String>, idle_ms: i64, deadline_ms: i64) -> AccountResult<Vec<String>> {
-        self.execs.borrow_mut().push(json!({ "where": "here", "script": script, "env": env, "options": { "idleMs": idle_ms, "deadlineMs": deadline_ms } }));
+    async fn local_exec_lines(
+        &self,
+        script: &str,
+        env: IndexMap<String, String>,
+        idle_ms: i64,
+        deadline_ms: i64,
+    ) -> AccountResult<Vec<String>> {
+        self.execs
+            .borrow_mut()
+            .push(json!({ "where": "here", "script": script, "env": env, "options": { "idleMs": idle_ms, "deadlineMs": deadline_ms } }));
         self.event("exec here");
         if self.plan_reads_held.get() {
             self.plan_gate.notified().await;
@@ -394,7 +408,9 @@ impl UsageCtx for World {
         Ok(serde_json::from_value(answer).unwrap())
     }
     async fn sys_history(&self, target: &ReadingsTarget, frame: Frame, origin: Option<&Caller>) -> AccountResult<Value> {
-        self.histories.borrow_mut().push(json!({ "target": format!("{target:?}"), "frame": Value::Object(frame).to_string(), "origin": origin.is_some() }));
+        self.histories
+            .borrow_mut()
+            .push(json!({ "target": format!("{target:?}"), "frame": Value::Object(frame).to_string(), "origin": origin.is_some() }));
         self.history_answer.borrow().clone().map_err(|m| plain(&m).into())
     }
     async fn ready(&self) {
@@ -405,7 +421,13 @@ impl UsageCtx for World {
         self.get("sessions").as_array().unwrap().iter().map(|s| s.as_str().unwrap().to_string()).collect()
     }
     fn projects_on(&self, place_id: &str) -> Vec<(String, String)> {
-        self.get("projects").as_array().unwrap().iter().filter(|p| p["computer"] == json!(place_id)).map(|p| (p["id"].as_str().unwrap().to_string(), p["path"].as_str().unwrap().to_string())).collect()
+        self.get("projects")
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|p| p["computer"] == json!(place_id))
+            .map(|p| (p["id"].as_str().unwrap().to_string(), p["path"].as_str().unwrap().to_string()))
+            .collect()
     }
     fn project_name(&self, id: &str) -> Option<String> {
         self.get("projects").as_array().unwrap().iter().find(|p| p["id"] == json!(id)).map(|p| p["name"].as_str().unwrap().to_string())
@@ -415,11 +437,15 @@ impl UsageCtx for World {
     }
     fn launch_of(&self, place_id: &str, agent: &str) -> (IndexMap<String, String>, Option<String>, Option<String>) {
         let setup = self.get("launch")[format!("{place_id}/{agent}")].clone();
-        let env = setup["env"].as_object().map(|o| o.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string())).collect()).unwrap_or_default();
+        let env = setup["env"]
+            .as_object()
+            .map(|o| o.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string())).collect())
+            .unwrap_or_default();
         (env, setup["configDir"].as_str().map(String::from), setup["launch"]["program"].as_str().map(String::from))
     }
     async fn login_home(&self, place_id: &str, agent: &str) -> Option<String> {
-        let logins = self.place_values().iter().find(|p| p["id"] == json!(place_id)).and_then(|p| p["logins"].as_str().map(String::from))?;
+        let logins =
+            self.place_values().iter().find(|p| p["id"] == json!(place_id)).and_then(|p| p["logins"].as_str().map(String::from))?;
         (agent == "codex").then(|| format!("{logins}/codex"))
     }
     async fn read_sign_ins_here(&self) -> AccountResult<Option<Vec<(String, String)>>> {
@@ -434,7 +460,14 @@ impl UsageCtx for World {
         if reader == json!("fail") {
             return Err(plain("no agents").into());
         }
-        Ok(Some(reader.as_array().unwrap().iter().map(|a| (a["id"].as_str().unwrap().to_string(), a["signIn"].as_str().unwrap().to_string())).collect()))
+        Ok(Some(
+            reader
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|a| (a["id"].as_str().unwrap().to_string(), a["signIn"].as_str().unwrap().to_string()))
+                .collect(),
+        ))
     }
     fn on_agents_changed(&self, f: Rc<dyn Fn()>) {
         self.changed.borrow_mut().push(f);
@@ -476,15 +509,24 @@ impl UsageCtx for World {
     }
     fn account_on_computer(&self, agent: &str, place_id: &str, computer_name: &str, limits: &[Value]) -> AccountKey {
         for l in limits {
-            if l["agent"] == json!(agent) && l["road"] != json!("vault") && l["computers"].as_array().is_some_and(|c| c.contains(&json!(place_id))) {
-                return AccountKey { key: l["key"].as_str().unwrap().into(), label: l["label"].as_str().unwrap().into(), road: l["road"].as_str().unwrap().into() };
+            if l["agent"] == json!(agent)
+                && l["road"] != json!("vault")
+                && l["computers"].as_array().is_some_and(|c| c.contains(&json!(place_id)))
+            {
+                return AccountKey {
+                    key: l["key"].as_str().unwrap().into(),
+                    label: l["label"].as_str().unwrap().into(),
+                    road: l["road"].as_str().unwrap().into(),
+                };
             }
         }
         own_account(agent, place_id, computer_name)
     }
     fn account_of(&self, agent: &str, named: Option<&HarnessLimitAccount>, place_id: &str, computer_name: &str) -> AccountKey {
         match named {
-            Some(n) => AccountKey { key: format!("{agent}:{}", n.id), label: n.label.clone().unwrap_or(n.id.clone()), road: "named".into() },
+            Some(n) => {
+                AccountKey { key: format!("{agent}:{}", n.id), label: n.label.clone().unwrap_or(n.id.clone()), road: "named".into() }
+            }
             None => own_account(agent, place_id, computer_name),
         }
     }
@@ -513,7 +555,12 @@ impl UsageCtx for World {
     fn plan_parse(&self, _agent: &str, out: &str) -> Option<HarnessLimit> {
         out.strip_prefix("limit:").map(|j| serde_json::from_str(j).unwrap())
     }
-    async fn account_rows(&self, limits: Vec<Value>, places: Vec<(String, String, Option<Value>)>, name_of: NameOf) -> AccountResult<AccountsAnswer> {
+    async fn account_rows(
+        &self,
+        limits: Vec<Value>,
+        places: Vec<(String, String, Option<Value>)>,
+        name_of: NameOf,
+    ) -> AccountResult<AccountsAnswer> {
         self.event("account_rows");
         let listed: Vec<Value> = places
             .iter()
@@ -538,7 +585,8 @@ impl UsageCtx for World {
     }
     async fn kept_computer_names(&self, places: &[PlaceView]) -> AccountResult<IndexMap<String, String>> {
         self.event("kept names");
-        let mut kept: IndexMap<String, String> = self.get("keptNames").as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string())).collect();
+        let mut kept: IndexMap<String, String> =
+            self.get("keptNames").as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string())).collect();
         kept.insert("gone".into(), "old-box".into());
         for p in places {
             if p.id != "here" {
@@ -703,7 +751,11 @@ fn expect_logs(w: &World, name: &str) {
     assert_eq!(Value::Array(w.filed.borrow().clone()).to_string(), want["filed"].to_string(), "entries and computers filed in {name}");
     assert_eq!(Value::Array(w.readings.borrow().clone()), canon(&want["readings"]), "limit readings filed in {name}");
     assert_eq!(Value::Array(w.alerts.borrow().clone()), canon(&want["alerts"]), "readings told to the alerts in {name}");
-    assert_eq!(Value::Array(w.snapshots.borrow().clone()), canon(&want["snapshots"]), "snapshots the agents' readers were handed in {name}");
+    assert_eq!(
+        Value::Array(w.snapshots.borrow().clone()),
+        canon(&want["snapshots"]),
+        "snapshots the agents' readers were handed in {name}"
+    );
 }
 
 // TS: test/usage.test.ts:274, :308; test/usage-boxes.test.ts:48
@@ -719,11 +771,21 @@ fn u4_logs_project_and_account() {
         let filed = w.filed.borrow()[0].clone();
         let entries = filed["entries"].as_array().unwrap();
         // The first project of that computer the folder is under; a folder under none, and a computer's own projects only.
-        let projects: Vec<(&str, &str)> = entries.iter().map(|e| (e["session"].as_str().unwrap(), e["project"].as_str().unwrap())).collect();
+        let projects: Vec<(&str, &str)> =
+            entries.iter().map(|e| (e["session"].as_str().unwrap(), e["project"].as_str().unwrap())).collect();
         assert_eq!(projects, vec![("s-a", "pH"), ("s-b", ""), ("s-c", ""), ("s-d", "pB"), ("s-e", "")]);
         // An account a turn named stays the account; any other agent's work is the computer's own login.
         let accounts: Vec<(&str, &str)> = entries.iter().map(|e| (e["agent"].as_str().unwrap(), e["account"].as_str().unwrap())).collect();
-        assert_eq!(accounts, vec![("claude", "claude@here"), ("codex", "codex:acct_1"), ("claude", "claude@here"), ("claude", "claude@box1"), ("claude", "claude@box1")]);
+        assert_eq!(
+            accounts,
+            vec![
+                ("claude", "claude@here"),
+                ("codex", "codex:acct_1"),
+                ("claude", "claude@here"),
+                ("claude", "claude@box1"),
+                ("claude", "claude@box1")
+            ]
+        );
     });
 }
 
@@ -850,7 +912,10 @@ fn u4_a_silent_computer_times_out_with_its_label() {
         let after = w.mark("after the bound");
         let want = scenario("logs_timeout");
         assert_eq!(vec![before, after], want["marks"].as_array().unwrap().clone());
-        assert_eq!(*w.warns.borrow(), vec!["the agent logs on studio were not read for usage: usage.logs on studio was not answered in 30s".to_string()]);
+        assert_eq!(
+            *w.warns.borrow(),
+            vec!["the agent logs on studio were not read for usage: usage.logs on studio was not answered in 30s".to_string()]
+        );
         // The computer that answered is filed alone.
         assert_eq!(Value::Array(w.filed.borrow().clone()).to_string(), want["filed"].to_string());
     });
@@ -888,7 +953,8 @@ fn u5_sign_ins_held_a_minute_and_dropped_on_change() {
         let mut got = vec![];
         let calls: Vec<_> = (0..40).map(|_| a.here_sign_ins()).collect();
         let all = futures::future::join_all(calls).await;
-        let kept: IndexMap<String, String> = [("claude".to_string(), "signed-in".to_string()), ("codex".to_string(), "vault-key".to_string())].into_iter().collect();
+        let kept: IndexMap<String, String> =
+            [("claude".to_string(), "signed-in".to_string()), ("codex".to_string(), "vault-key".to_string())].into_iter().collect();
         assert!(all.iter().all(|r| *r == kept), "only signed-in and vault-key are kept, in the reader's order: {:?}", all[0]);
         got.push(w.mark("40 at once"));
         w.advance(59_999).await;
@@ -934,7 +1000,11 @@ fn u6_accounts_add_this_computer() {
             let a = area(&w);
             a.usage_accounts().await.unwrap();
             let got = w.rows.borrow().clone();
-            assert_eq!(Value::Array(got).to_string(), Value::Array(scenario(name)["rows"].as_array().unwrap().clone()).to_string(), "the rows asked for in {name}");
+            assert_eq!(
+                Value::Array(got).to_string(),
+                Value::Array(scenario(name)["rows"].as_array().unwrap().clone()).to_string(),
+                "the rows asked for in {name}"
+            );
             assert_eq!(w.sign_in_reads.get(), 1);
         }
         // The names the namer gives: a computer listed, this computer where no row is listed, and one kept after its removal.
@@ -1088,7 +1158,11 @@ fn u9_plans_read_once_a_window() {
         expect_plans(&w, "plans");
         // Every plan reading is filed without a moment of its own, the ledger stamping its clock; a named account's key.
         assert!(w.readings.borrow().iter().all(|r| r.get("at").is_none()));
-        assert!(w.readings.borrow().iter().any(|r| r["key"] == json!("codex:acct_7f3a") && r["label"] == json!("dev@example.com") && r["road"] == json!("named")));
+        assert!(w
+            .readings
+            .borrow()
+            .iter()
+            .any(|r| r["key"] == json!("codex:acct_7f3a") && r["label"] == json!("dev@example.com") && r["road"] == json!("named")));
         // Told to the alerts every time, with no comparison.
         assert_eq!(w.alerts.borrow().len(), 6);
     });
@@ -1137,7 +1211,10 @@ fn u9_a_silent_plan_read_times_out_with_its_label() {
         let after = w.mark("after the bound");
         w.compare_marks("plans_timeout", &[before, after]);
         expect_plans(&w, "plans_timeout");
-        assert!(w.warns.borrow().contains(&"Codex's limits on studio were not read: codex limits on studio was not answered in 30s".to_string()));
+        assert!(w
+            .warns
+            .borrow()
+            .contains(&"Codex's limits on studio were not read: codex limits on studio was not answered in 30s".to_string()));
     });
 }
 
@@ -1188,7 +1265,10 @@ fn u10_reset_names_the_place() {
         a.reset("codex@here", None, Some("srv")).await.unwrap();
         a.reset("codex@here", Some("c1"), Some("nowhere")).await.unwrap();
         let answer = a.reset("codex@here", None, None).await.unwrap();
-        assert_eq!(Value::Array(w.spends.borrow().clone()).to_string(), Value::Array(scenario("reset_names_the_place")["spends"].as_array().unwrap().clone()).to_string());
+        assert_eq!(
+            Value::Array(w.spends.borrow().clone()).to_string(),
+            Value::Array(scenario("reset_names_the_place")["spends"].as_array().unwrap().clone()).to_string()
+        );
         // A word is read as a place only where the person named one; an unknown one is this computer.
         assert_eq!(*w.place_for_words.borrow(), vec!["srv".to_string(), "nowhere".to_string()]);
         assert_eq!(serde_json::to_value(&answer).unwrap(), json!({ "outcome": "reset", "said": "ok" }));
@@ -1235,7 +1315,12 @@ fn u11_used_labels_table() {
 #[test]
 fn u11_logs_are_read_where_outside_or_source_asks() {
     run(async {
-        for (name, range_split, outside) in [("used_flag_outside", UsageSplit::Agent, Some(true)), ("used_flag_source", UsageSplit::Source, None), ("used_flag_outside_false", UsageSplit::Agent, Some(false)), ("logs_not_asked", UsageSplit::Project, None)] {
+        for (name, range_split, outside) in [
+            ("used_flag_outside", UsageSplit::Agent, Some(true)),
+            ("used_flag_source", UsageSplit::Source, None),
+            ("used_flag_outside_false", UsageSplit::Agent, Some(false)),
+            ("logs_not_asked", UsageSplit::Project, None),
+        ] {
             let w = world(name);
             area(&w).used(UsageRange::Day, range_split, outside).await.unwrap();
             let want = scenario(name);
@@ -1281,9 +1366,15 @@ fn u12_readings_frame_and_answer() {
         let w = world("accounts_here_row_given");
         let a = area(&w);
         let now = w.clock.get();
-        let point = json!({ "at": now - 600_000, "cpu": 12.5, "load1": 0.3, "mem": { "used": 1, "total": 4 }, "disk": { "used": 2, "total": 8 } });
+        let point =
+            json!({ "at": now - 600_000, "cpu": 12.5, "load1": 0.3, "mem": { "used": 1, "total": 4 }, "disk": { "used": 2, "total": 8 } });
         // The range's span and step, as READINGS_SPAN_MS and READINGS_STEP_MS write them, in the frame's own key order.
-        for (range, span, step) in [(ReadingsRange::V15m, 900_000i64, 15_000i64), (ReadingsRange::Day, 86_400_000, 300_000), (ReadingsRange::Week, 604_800_000, 1_800_000), (ReadingsRange::Month, 2_592_000_000, 7_200_000)] {
+        for (range, span, step) in [
+            (ReadingsRange::V15m, 900_000i64, 15_000i64),
+            (ReadingsRange::Day, 86_400_000, 300_000),
+            (ReadingsRange::Week, 604_800_000, 1_800_000),
+            (ReadingsRange::Month, 2_592_000_000, 7_200_000),
+        ] {
             w.histories.borrow_mut().clear();
             *w.history_answer.borrow_mut() = Ok(json!({ "points": [point], "stepMs": 600_000, "truncated": false }));
             let origin = Caller::Road(WorkspaceOrigin::Here);
@@ -1291,8 +1382,14 @@ fn u12_readings_frame_and_answer() {
             let frame = format!(r#"{{"op":"sys.history","from":{},"to":{},"stepMs":{}}}"#, now - span, now, step);
             assert_eq!(*w.histories.borrow(), vec![json!({ "target": r#"Workspace("w1")"#, "frame": frame, "origin": true })]);
             // The answer carries the daemon's own step, the points as it sent them, and the range asked.
-            assert_eq!(canon(&serde_json::to_value(&answer).unwrap()), canon(&json!({ "points": [point], "stepMs": 600_000, "from": now - span, "to": now })));
-            assert_eq!(serde_json::to_value(&answer).unwrap().as_object().unwrap().keys().collect::<Vec<_>>(), vec!["points", "stepMs", "from", "to"]);
+            assert_eq!(
+                canon(&serde_json::to_value(&answer).unwrap()),
+                canon(&json!({ "points": [point], "stepMs": 600_000, "from": now - span, "to": now }))
+            );
+            assert_eq!(
+                serde_json::to_value(&answer).unwrap().as_object().unwrap().keys().collect::<Vec<_>>(),
+                vec!["points", "stepMs", "from", "to"]
+            );
         }
         // A target that is a computer, and no origin.
         w.histories.borrow_mut().clear();

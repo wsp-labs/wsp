@@ -243,7 +243,9 @@ impl ChannelsArea {
             let killed = self
                 .with_daemon(
                     entry,
-                    Box::new(move |ask: crate::account::core_types::Ask| -> LocalBoxFuture<'static, AccountResult<Frame>> { Box::pin(async move { ask(kill).await }) }),
+                    Box::new(move |ask: crate::account::core_types::Ask| -> LocalBoxFuture<'static, AccountResult<Frame>> {
+                        Box::pin(async move { ask(kill).await })
+                    }),
                 )
                 .await;
             if let Err(e) = killed {
@@ -609,11 +611,8 @@ impl DaemonChannel for RootedPorts {
         }
         if op == "pty.list" && is_ok(&reply) {
             if let Some(rows) = reply.get("ptys").and_then(Value::as_array) {
-                let standing: HashSet<String> = rows
-                    .iter()
-                    .filter(|row| row.get("exited") != Some(&Value::Bool(true)))
-                    .map(|row| js_str_opt(row.get("id")))
-                    .collect();
+                let standing: HashSet<String> =
+                    rows.iter().filter(|row| row.get("exited") != Some(&Value::Bool(true))).map(|row| js_str_opt(row.get("id"))).collect();
                 let mut gone = 0_usize;
                 if let Some(ptys) = self.area.port_pids.borrow_mut().get_mut(&self.ws) {
                     let ids: Vec<String> = ptys.keys().cloned().collect();

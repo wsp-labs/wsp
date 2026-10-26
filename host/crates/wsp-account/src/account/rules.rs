@@ -8,21 +8,21 @@ use async_trait::async_trait;
 use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 
+use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::internal::WorkspaceLike;
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::views::workspace::{road_of, scope_of, Caller, ProjectView, WorkspacePhase};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::views::workspace_more::{ThreadScope, WorkspaceAgents, WorkspaceOrigin};
-use wsp_core::types::internal::ThreadRecord;
 use wsp_words::exit::{not_found_refusal, refusal, HostError, Kind};
 use wsp_words::projects::{child_on_another_computer_line, copies_folder, runs_in_folder};
 use wsp_words::sub_thread::sub_starts_nothing_refusal;
 use wsp_words::words::computer::{
     child_to_leads_computer_line, elsewhere_workspace_line, folder_gone_refusal, no_workspace_refusal, relayed_record_refusal,
     relayed_refusal, root_gone_refusal, spawn_act_refusal, spawn_cap_refusal, spawn_depth_refusal, spawn_folder_refusal,
-    spawn_reach_refusal, spawn_repository_refusal, thread_word, tree_thread_out_of_reach_line, AcrossAct, DepthHeld,
-    SpawnAct, SPAWN_ACTS_ALLOWED, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX,
+    spawn_reach_refusal, spawn_repository_refusal, thread_word, tree_thread_out_of_reach_line, AcrossAct, DepthHeld, SpawnAct,
+    SPAWN_ACTS_ALLOWED, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX,
 };
 use wsp_words::words::computer::{provider_cannot_refusal, undriven_refusal};
 use wsp_words::words::thread::NO_PROVIDER_LINE;
@@ -137,7 +137,10 @@ fn record_of_entry(entry: &Entry) -> WorkspaceRecord {
 /// `phaseHoldsSlot(record)` (place-state.ts:87), read off the record's phase and queue alone.
 fn phase_holds_slot_of(record: &WorkspaceRecord) -> bool {
     let state = workspace_state(&WorkspaceStateInput { phase: record.phase, machine_state: None, reach: None, wake_refused: None });
-    state != WorkspaceState::Paused && state != WorkspaceState::Gone && state != WorkspaceState::Released && !(record.phase == WorkspacePhase::Queued && record.queue.is_some())
+    state != WorkspaceState::Paused
+        && state != WorkspaceState::Gone
+        && state != WorkspaceState::Released
+        && !(record.phase == WorkspacePhase::Queued && record.queue.is_some())
 }
 
 /// `inTree` (rules.ts:65).
@@ -380,18 +383,19 @@ impl RulesArea {
     }
 
     /// R12, rules.ts:157.
-    pub fn away_for(&self, record: &WorkspaceLike, caller: Option<&Caller>, act: AcrossAct, word: &str) -> Result<Option<HostError>, HostError> {
+    pub fn away_for(
+        &self,
+        record: &WorkspaceLike,
+        caller: Option<&Caller>,
+        act: AcrossAct,
+        word: &str,
+    ) -> Result<Option<HostError>, HostError> {
         let Some(away) = self.away_on(record, caller)? else {
             return Ok(None);
         };
         let lead = self.lead_acts_on(record, caller)?;
-        let line = elsewhere_workspace_line(
-            word,
-            &self.ctx.place_name(&away.on),
-            &self.ctx.place_name(&away.box_computer),
-            act,
-            lead.as_deref(),
-        );
+        let line =
+            elsewhere_workspace_line(word, &self.ctx.place_name(&away.on), &self.ctx.place_name(&away.box_computer), act, lead.as_deref());
         Ok(Some(usage(&line)))
     }
 
@@ -443,7 +447,13 @@ impl RulesArea {
     }
 
     /// R15, rules.ts:194. `act` defaults to `work` at the call sites that name none.
-    pub fn refuse_relayed(&self, record: Option<&WorkspaceLike>, caller: Option<&Caller>, act: AcrossAct, thread: Option<&str>) -> Result<(), HostError> {
+    pub fn refuse_relayed(
+        &self,
+        record: Option<&WorkspaceLike>,
+        caller: Option<&Caller>,
+        act: AcrossAct,
+        thread: Option<&str>,
+    ) -> Result<(), HostError> {
         let Some(line) = self.refusal_for(record, caller)? else {
             return Ok(());
         };

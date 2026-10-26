@@ -3,7 +3,7 @@
 //! answers from the script under its own name, with the default noted at the method. A scripted
 //! `err_answer(..)` is the method's failure. Entries are held in `base.live`: a test pre-holds the entry it wants
 //! (`ws_folder` for the project folder, `ws_wt` for the worktree) and the fake otherwise makes a plain one.
-#![allow(dead_code)]
+#![allow(dead_code, unused_imports)]
 use std::rc::Rc;
 
 use async_trait::async_trait;
@@ -11,14 +11,12 @@ use serde_json::{json, Map, Value};
 use wsp_account::projects::folders::tree::ListedWorktree;
 use wsp_account::projects::projects::add::LandingKind;
 use wsp_account::projects::start_from::{ResolvedPicks, StartFromCtx};
-use wsp_account::projects::workspaces::seam::{
-    Base, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, Live, ProjectsHeld,
-};
+use wsp_account::projects::workspaces::seam::{Base, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, Live, ProjectsHeld};
 use wsp_core::clock::Clock;
 use wsp_core::ids::Ids;
 use wsp_core::types::harness::StartPicksAsked;
-use wsp_core::types::pending::Store;
 use wsp_core::types::internal::ThreadRecord;
+use wsp_core::types::pending::Store;
 use wsp_core::types::wiring::{CreateWorkspaceOptions, CreatedWorkspace, WorkspaceRecord};
 use wsp_wire::types::pull_request::PullRequest;
 use wsp_wire::types::start::IssueRead;
@@ -250,8 +248,18 @@ impl StartFromCtx for FakeStart {
     }
 
     /// Default none.
-    async fn pull_request_of_record(&self, remote: &str, number: i64, project: &str, computer: &str, start: bool) -> Result<Option<BranchOfRecord>, HostError> {
-        self.base.call("pull_request_of_record", json!({ "remote": remote, "number": number, "project": project, "computer": computer, "start": start }));
+    async fn pull_request_of_record(
+        &self,
+        remote: &str,
+        number: i64,
+        project: &str,
+        computer: &str,
+        start: bool,
+    ) -> Result<Option<BranchOfRecord>, HostError> {
+        self.base.call(
+            "pull_request_of_record",
+            json!({ "remote": remote, "number": number, "project": project, "computer": computer, "start": start }),
+        );
         self.base.answer_as::<Option<BranchOfRecord>>("pull_request_of_record", || None)
     }
 
@@ -325,7 +333,13 @@ impl StartFromCtx for FakeStart {
     }
 
     /// Default: a catalog for the harness with no defaults. A script `null` is no table for the harness.
-    async fn resolved_picks(&self, home: &Entry, harness: &str, _prefs: &Preferences, project_id: &str) -> Result<Option<ResolvedPicks>, HostError> {
+    async fn resolved_picks(
+        &self,
+        home: &Entry,
+        harness: &str,
+        _prefs: &Preferences,
+        project_id: &str,
+    ) -> Result<Option<ResolvedPicks>, HostError> {
         self.base.call("resolved_picks", json!({ "home": home.borrow().record.borrow().id, "harness": harness, "projectId": project_id }));
         let said = self.base.answer_as::<Option<Value>>("resolved_picks", || Some(json!({ "catalog": catalog_json(harness) })))?;
         Ok(said.map(|v| ResolvedPicks {
@@ -343,7 +357,8 @@ impl StartFromCtx for FakeStart {
 
     /// Default none.
     fn named_mode(&self, catalog: &HarnessCatalog, harness: &str, access: &AccessChoice) -> Option<String> {
-        self.base.call("named_mode", json!({ "catalog": catalog.harness, "harness": harness, "access": serde_json::to_value(access).unwrap() }));
+        self.base
+            .call("named_mode", json!({ "catalog": catalog.harness, "harness": harness, "access": serde_json::to_value(access).unwrap() }));
         self.base.answer_as::<Option<String>>("named_mode", || None).unwrap()
     }
 

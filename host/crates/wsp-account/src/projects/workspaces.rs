@@ -121,10 +121,22 @@ impl WorkspacesApi for Workspaces {
     async fn exec(&self, id: &str, cmd: &str, timeout_ms: Option<u64>, origin: Option<Caller>) -> Result<ExecResult, HostError> {
         git::exec(&self.git, id, cmd, timeout_ms, origin).await
     }
-    async fn exec_stream(&self, id: &str, argv: Vec<String>, cwd: Option<String>, origin: Option<Caller>) -> Result<RunningExec, HostError> {
+    async fn exec_stream(
+        &self,
+        id: &str,
+        argv: Vec<String>,
+        cwd: Option<String>,
+        origin: Option<Caller>,
+    ) -> Result<RunningExec, HostError> {
         git::exec_stream(&self.git, id, argv, cwd, origin).await
     }
-    async fn bring_back(&self, workspace_id: &str, title: Option<String>, body: Option<String>, origin: Option<Caller>) -> Result<BringBackResult, HostError> {
+    async fn bring_back(
+        &self,
+        workspace_id: &str,
+        title: Option<String>,
+        body: Option<String>,
+        origin: Option<Caller>,
+    ) -> Result<BringBackResult, HostError> {
         git::bring_back(&self.git, workspace_id, title, body, origin).await
     }
     async fn folder_for(&self, ask: FolderForAsk, origin: Option<Caller>) -> Result<FolderFor, HostError> {
@@ -157,22 +169,46 @@ impl WorkspacesApi for Workspaces {
     async fn viewed(&self, workspace_id: &str, mark: Option<ViewedMark>, origin: Option<Caller>) -> Result<ViewedMarks, HostError> {
         git::viewed(&self.git, workspace_id, mark, origin).await
     }
-    async fn pull_request_view(&self, workspace_id: &str, fresh: Option<bool>, origin: Option<Caller>) -> Result<PullRequestPage, HostError> {
+    async fn pull_request_view(
+        &self,
+        workspace_id: &str,
+        fresh: Option<bool>,
+        origin: Option<Caller>,
+    ) -> Result<PullRequestPage, HostError> {
         git::pull_request_view(&self.git, workspace_id, fresh.unwrap_or(false), origin).await
     }
     async fn pull_request_diff(&self, workspace_id: &str, origin: Option<Caller>) -> Result<GitPrDiffReply, HostError> {
         git::pull_request_diff(&self.git, workspace_id, origin).await
     }
-    async fn pull_request_send(&self, workspace_id: &str, items: Vec<PullRequestItem>, thread_id: Option<String>, origin: Option<Caller>) -> Result<PullRequestSendResult, HostError> {
+    async fn pull_request_send(
+        &self,
+        workspace_id: &str,
+        items: Vec<PullRequestItem>,
+        thread_id: Option<String>,
+        origin: Option<Caller>,
+    ) -> Result<PullRequestSendResult, HostError> {
         git::pull_request_send(&self.git, workspace_id, items, thread_id, origin).await
     }
     async fn pull_request_reply(&self, ask: PullRequestReplyAsk, origin: Option<Caller>) -> Result<GitPrReplyReply, HostError> {
         git::pull_request_reply(&self.git, ask, origin).await
     }
-    async fn pull_request_resolve(&self, workspace_id: &str, thread_id: &str, resolved: bool, origin: Option<Caller>) -> Result<GitPrResolveReply, HostError> {
+    async fn pull_request_resolve(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        resolved: bool,
+        origin: Option<Caller>,
+    ) -> Result<GitPrResolveReply, HostError> {
         git::pull_request_resolve(&self.git, workspace_id, thread_id, resolved, origin).await
     }
-    async fn pull_request_react(&self, workspace_id: &str, subject: &str, content: ReactionContent, on: bool, origin: Option<Caller>) -> Result<GitPrReactReply, HostError> {
+    async fn pull_request_react(
+        &self,
+        workspace_id: &str,
+        subject: &str,
+        content: ReactionContent,
+        on: bool,
+        origin: Option<Caller>,
+    ) -> Result<GitPrReactReply, HostError> {
         git::pull_request_react(&self.git, workspace_id, subject, content, on, origin).await
     }
     async fn fix(&self, ask: FixAsk, origin: Option<Caller>) -> Result<FixResult, HostError> {
@@ -196,7 +232,12 @@ impl WorkspacesApi for Workspaces {
     async fn review_draft(&self, ask: ReviewDraftAsk, origin: Option<Caller>) -> Result<Option<ReviewDraft>, HostError> {
         review::review_draft(&self.review, ask, origin).await
     }
-    async fn review_post(&self, workspace_id: &str, thread_id: Option<String>, origin: Option<Caller>) -> Result<ReviewPostResult, HostError> {
+    async fn review_post(
+        &self,
+        workspace_id: &str,
+        thread_id: Option<String>,
+        origin: Option<Caller>,
+    ) -> Result<ReviewPostResult, HostError> {
         review::review_post(&self.review, workspace_id, thread_id, origin).await
     }
     async fn daemon_reach(&self, id: &str, origin: Option<Caller>) -> Result<DaemonReachView, HostError> {
@@ -205,7 +246,12 @@ impl WorkspacesApi for Workspaces {
     async fn token_refused(&self, id: &str) -> Result<(), HostError> {
         review::token_refused(&self.review, id).await
     }
-    async fn daemon_channel(&self, id: &str, on_event: DaemonEventListener, origin: Option<Caller>) -> Result<Rc<dyn DaemonChannel>, HostError> {
+    async fn daemon_channel(
+        &self,
+        id: &str,
+        on_event: DaemonEventListener,
+        origin: Option<Caller>,
+    ) -> Result<Rc<dyn DaemonChannel>, HostError> {
         review::daemon_channel(&self.review, id, on_event, origin).await
     }
     async fn guest_channel(&self, id: &str, on_event: DaemonEventListener) -> Result<Rc<dyn DaemonChannel>, HostError> {

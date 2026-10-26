@@ -17,7 +17,8 @@ use wsp_engine::run_env::{env_input, with_env_from_input};
 use wsp_frames::{UsageLogFormat, UsageLogsReply, UsageStore};
 use wsp_wire::types::check::parse;
 use wsp_wire::types::usage::{
-    AccountsAnswer, HarnessLimit, HarnessLimitAccount, ReadingsRange, ResetAnswer, UsageRange, UsageSplit, UsedAnswer, READINGS_SPAN_MS, READINGS_STEP_MS, USAGE_WORDS,
+    AccountsAnswer, HarnessLimit, HarnessLimitAccount, ReadingsRange, ResetAnswer, UsageRange, UsageSplit, UsedAnswer, READINGS_SPAN_MS,
+    READINGS_STEP_MS, USAGE_WORDS,
 };
 use wsp_wire::views::place_more::PlaceView;
 use wsp_wire::views::workspace::{Caller, WorkspacePhase};
@@ -28,8 +29,8 @@ use wsp_words::exit::HostError;
 use wsp_words::project_path::under_project;
 use wsp_words::sub_thread::{cloud_said, sub_cloud_gone_line};
 use wsp_words::usage::reset_no_logins_line;
-use wsp_words::workspace_state::absent_computer;
 use wsp_words::words::computer::THIS_COMPUTER;
+use wsp_words::workspace_state::absent_computer;
 
 use crate::account::core_types::{AccountError, AccountResult, Entry, Frame};
 
@@ -127,7 +128,13 @@ pub trait UsageCtx {
     fn local_env(&self) -> IndexMap<String, String>;
     fn local_home(&self, agent: &str) -> String;
     /// `local.execStream({ idleMs, deadlineMs })(script, { env })`, its lines, then its exit.
-    async fn local_exec_lines(&self, script: &str, env: IndexMap<String, String>, idle_ms: i64, deadline_ms: i64) -> AccountResult<Vec<String>>;
+    async fn local_exec_lines(
+        &self,
+        script: &str,
+        env: IndexMap<String, String>,
+        idle_ms: i64,
+        deadline_ms: i64,
+    ) -> AccountResult<Vec<String>>;
     /// `usage.logs` on a computer: this one through `onThisComputer`, a joined one over its link (absent →
     /// `absentComputer`), parsed as `UsageLogsReply`.
     async fn read_logs_on(&self, place_id: &str, stores: &[UsageStore]) -> AccountResult<UsageLogsReply>;
@@ -172,7 +179,12 @@ pub trait UsageCtx {
     fn plan_parse(&self, agent: &str, out: &str) -> Option<HarnessLimit>;
     /// `accountRows({ limits, places, nameOf, ... })`: the ledger's limits, the listed computers (id, name, sign-ins)
     /// and the namer, the plan brands, vaulted, prints-limits and burn being the context's own.
-    async fn account_rows(&self, limits: Vec<Value>, places: Vec<(String, String, Option<Value>)>, name_of: NameOf) -> AccountResult<AccountsAnswer>;
+    async fn account_rows(
+        &self,
+        limits: Vec<Value>,
+        places: Vec<(String, String, Option<Value>)>,
+        name_of: NameOf,
+    ) -> AccountResult<AccountsAnswer>;
     /// `accountNames({ limits, nameOf, ... })`: an account a turn read limits for, named as the limits name it.
     async fn account_names(&self, limits: Vec<Value>, name_of: NameOf) -> AccountResult<IndexMap<String, String>>;
     /// `keptComputerNames(store, places)`: every name kept, the listed ones written.
@@ -203,7 +215,13 @@ pub struct UsageArea {
 }
 
 /// The label of one split value (usage.ts:59, `usageLabel`), off the context and the names it is given.
-fn usage_label_with(ctx: &dyn UsageCtx, computer_name: &dyn Fn(&str) -> String, accounts: &IndexMap<String, String>, split: UsageSplit, value: &str) -> String {
+fn usage_label_with(
+    ctx: &dyn UsageCtx,
+    computer_name: &dyn Fn(&str) -> String,
+    accounts: &IndexMap<String, String>,
+    split: UsageSplit,
+    value: &str,
+) -> String {
     match split {
         UsageSplit::Agent => ctx.agent_label(value),
         UsageSplit::Project => {
@@ -313,9 +331,12 @@ impl UsageArea {
     /// in <ms/1000>s` (helpers.ts `bounded`).
     async fn bounded<T: 'static>(&self, work: LocalBoxFuture<'static, AccountResult<T>>, ms: i64, what: &str) -> AccountResult<T> {
         let (fired_tx, fired_rx) = oneshot::channel::<()>();
-        let cancel = self.ctx.schedule(ms, Box::new(move || {
-            let _ = fired_tx.send(());
-        }));
+        let cancel = self.ctx.schedule(
+            ms,
+            Box::new(move || {
+                let _ = fired_tx.send(());
+            }),
+        );
         let answer = match select(work, fired_rx).await {
             Either::Left((answer, _)) => answer,
             Either::Right(_) => Err(HostError::new(format!("{what} was not answered in {}s", (ms as f64 / 1000.0).round() as i64)).into()),
@@ -341,7 +362,11 @@ impl UsageArea {
         let stores = Self::usage_stores();
         let boxes: Vec<String> = places
             .iter()
-            .filter(|place| is_joined_computer(&place.id, kind_word(place)) && place.id != wsp_wire::types::place_word::HERE_PLACE_ID && self.ctx.linked(&place.id))
+            .filter(|place| {
+                is_joined_computer(&place.id, kind_word(place))
+                    && place.id != wsp_wire::types::place_word::HERE_PLACE_ID
+                    && self.ctx.linked(&place.id)
+            })
             .map(|place| place.id.clone())
             .collect();
         let mut targets: Vec<String> = Vec::new();
@@ -355,7 +380,8 @@ impl UsageArea {
             let ctx = self.ctx.clone();
             let work_id = id.clone();
             let work_stores = stores.clone();
-            let work: LocalBoxFuture<'static, AccountResult<UsageLogsReply>> = Box::pin(async move { ctx.read_logs_on(&work_id, &work_stores).await });
+            let work: LocalBoxFuture<'static, AccountResult<UsageLogsReply>> =
+                Box::pin(async move { ctx.read_logs_on(&work_id, &work_stores).await });
             let id = id.clone();
             async move {
                 match self.bounded(work, LOG_READ_MS as i64, &what).await {
@@ -401,7 +427,7 @@ impl UsageArea {
                     computer: id.clone(),
                     project,
                     model: row.model.clone(),
-                    tokens: serde_json::to_value(&row.tokens).unwrap_or(Value::Null),
+                    tokens: serde_json::to_value(row.tokens).unwrap_or(Value::Null),
                     cost_usd: row.cost,
                     session: row.session.clone(),
                     source: "log".to_string(),
@@ -485,7 +511,13 @@ impl UsageArea {
         let here_value = Value::Object(here.iter().map(|(agent, state)| (agent.clone(), Value::String(state.clone()))).collect());
         let mut listed: Vec<(String, String, Option<Value>)> = places
             .iter()
-            .map(|place| (place.id.clone(), place.name.clone(), place.sign_ins.as_ref().map(|signs| Value::Object(signs.iter().map(|(a, s)| (a.clone(), json!(s))).collect()))))
+            .map(|place| {
+                (
+                    place.id.clone(),
+                    place.name.clone(),
+                    place.sign_ins.as_ref().map(|signs| Value::Object(signs.iter().map(|(a, s)| (a.clone(), json!(s))).collect())),
+                )
+            })
             .collect();
         match listed.iter_mut().find(|row| row.0 == wsp_wire::types::place_word::HERE_PLACE_ID) {
             Some(row) => {
@@ -543,12 +575,9 @@ impl UsageArea {
             return ResetPlaceView { id: place_id.to_string(), name, kind: "here".to_string(), connected: self.ctx.local_wired() };
         }
         match views.iter().find(|view| view.id == place_id) {
-            Some(view) if is_joined_computer(&view.id, kind_word(view)) => ResetPlaceView {
-                id: place_id.to_string(),
-                name,
-                kind: "box".to_string(),
-                connected: self.ctx.linked(place_id),
-            },
+            Some(view) if is_joined_computer(&view.id, kind_word(view)) => {
+                ResetPlaceView { id: place_id.to_string(), name, kind: "box".to_string(), connected: self.ctx.linked(place_id) }
+            }
             _ => ResetPlaceView { id: place_id.to_string(), name, kind: "provider".to_string(), connected: false },
         }
     }
@@ -569,7 +598,11 @@ impl UsageArea {
             if !self.ctx.local_wired() {
                 return Err(HostError::new(absent_computer(&at.name, None).sentence));
             }
-            return Ok(PlanRoad { home: config_dir.unwrap_or_else(|| self.ctx.local_home(agent)), env: IndexMap::new(), launch_program: program });
+            return Ok(PlanRoad {
+                home: config_dir.unwrap_or_else(|| self.ctx.local_home(agent)),
+                env: IndexMap::new(),
+                launch_program: program,
+            });
         }
         if let Some(home) = config_dir {
             return Ok(PlanRoad { home, env: IndexMap::new(), launch_program: program });
@@ -652,7 +685,8 @@ impl UsageArea {
             let command = self.ctx.plan_read_command(&agent, &road);
             let this = self.clone();
             let (run_place, run_agent) = (place.clone(), agent.clone());
-            let work: LocalBoxFuture<'static, AccountResult<String>> = Box::pin(async move { this.reset_run(&run_place, &command, &run_agent).await });
+            let work: LocalBoxFuture<'static, AccountResult<String>> =
+                Box::pin(async move { this.reset_run(&run_place, &command, &run_agent).await });
             let out = self.bounded(work, RESET_EXEC_MS as i64, &format!("{agent} limits on {}", place.name)).await?;
             if let Some(limit) = self.ctx.plan_parse(&agent, &out) {
                 self.file_plan_limit(&agent, &place, limit).await?;
@@ -700,7 +734,13 @@ impl UsageArea {
     }
 
     /// U11, usage.ts:59: a split value as a person reads it.
-    pub fn usage_label(&self, computer_name: &dyn Fn(&str) -> String, accounts: &IndexMap<String, String>, split: UsageSplit, value: &str) -> String {
+    pub fn usage_label(
+        &self,
+        computer_name: &dyn Fn(&str) -> String,
+        accounts: &IndexMap<String, String>,
+        split: UsageSplit,
+        value: &str,
+    ) -> String {
         usage_label_with(&*self.ctx, computer_name, accounts, split, value)
     }
 
@@ -740,6 +780,5 @@ fn kind_word(place: &PlaceView) -> &'static str {
     match place.kind {
         wsp_wire::views::place_kind::PlaceKind::Computer => "computer",
         wsp_wire::views::place_kind::PlaceKind::Provider => "provider",
-        _ => "",
     }
 }

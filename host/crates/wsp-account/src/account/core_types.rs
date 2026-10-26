@@ -4,7 +4,6 @@
 use std::rc::Rc;
 
 use futures::future::LocalBoxFuture;
-use serde_json::{Map, Value};
 
 use wsp_core::types::internal::{is_no_host_cli, DaemonRefusal};
 use wsp_words::exit::HostError;

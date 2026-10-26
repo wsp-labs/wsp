@@ -16,7 +16,9 @@ use wsp_frames::True;
 use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::types::thread_defaults::AccessChoice;
 use wsp_wire::views::harness::HarnessCatalog;
-use wsp_wire::views::preferences::{apply_preferences_patch, labs_from_env, preferences_from, server_icons_left_line, Preferences, PreferencesPatch};
+use wsp_wire::views::preferences::{
+    apply_preferences_patch, labs_from_env, preferences_from, server_icons_left_line, Preferences, PreferencesPatch,
+};
 use wsp_wire::views::workspace::Caller;
 use wsp_words::exit::{refusal_parts, HostError, Kind};
 use wsp_words::projects::{bare_no_such_project_line, home_shortened};
@@ -121,7 +123,12 @@ pub trait PreferencesCtx {
     fn pause_mode(&self, entry: &Entry) -> Option<String>;
     /// The projects on a place: id, name, `checkout ?? path`.
     fn projects_on(&self, place_id: &str) -> Vec<(String, String, String)>;
-    async fn workspace_channel(&self, workspace_id: &str, on_event: Rc<dyn Fn(Value)>, origin: Option<&Caller>) -> AccountResult<Rc<dyn DaemonChannel>>;
+    async fn workspace_channel(
+        &self,
+        workspace_id: &str,
+        on_event: Rc<dyn Fn(Value)>,
+        origin: Option<&Caller>,
+    ) -> AccountResult<Rc<dyn DaemonChannel>>;
     async fn local_channel(&self, on_event: Rc<dyn Fn(Value)>) -> AccountResult<Rc<dyn DaemonChannel>>;
     fn place_channel(&self, place_id: &str, on_event: Rc<dyn Fn(Value)>) -> Option<Rc<dyn DaemonChannel>>;
     fn place_name(&self, place_id: &str) -> Option<String>;
@@ -215,7 +222,10 @@ async fn read_preferences(ctx: &dyn PreferencesCtx, labs: bool) -> AccountResult
 
 /// The chain every write runs on (preferences.ts:17): each write waits for the one before, and a failed one does not
 /// stop the next.
-fn enqueue_write<T: 'static>(writes: &RefCell<Option<Shared<LocalBoxFuture<'static, ()>>>>, body: LocalBoxFuture<'static, AccountResult<T>>) -> LocalBoxFuture<'static, AccountResult<T>> {
+fn enqueue_write<T: 'static>(
+    writes: &RefCell<Option<Shared<LocalBoxFuture<'static, ()>>>>,
+    body: LocalBoxFuture<'static, AccountResult<T>>,
+) -> LocalBoxFuture<'static, AccountResult<T>> {
     let prev = writes.borrow().clone();
     let (answer, answered) = oneshot::channel::<AccountResult<T>>();
     let tail: Shared<LocalBoxFuture<'static, ()>> = async move {
@@ -263,7 +273,8 @@ impl PreferencesArea {
                 let next = if check.threads_shut.is_none() || merged.threads_shut.is_none() {
                     merged
                 } else {
-                    let shut: IndexMap<String, bool> = merged.threads_shut.iter().flat_map(|shut| shut.keys()).map(|lead| (lead.clone(), true)).collect();
+                    let shut: IndexMap<String, bool> =
+                        merged.threads_shut.iter().flat_map(|shut| shut.keys()).map(|lead| (lead.clone(), true)).collect();
                     let kept: IndexMap<String, True> = area.held_leads(&shut).into_keys().map(|lead| (lead, True)).collect();
                     Preferences { threads_shut: Some(kept), ..merged }
                 };
@@ -276,7 +287,10 @@ impl PreferencesArea {
     }
 
     /// F3, preferences.ts:72: the record moved by `change` in its turn among every other write.
-    pub async fn change_preferences(self: &Rc<Self>, change: Box<dyn FnOnce(Preferences) -> AccountResult<Preferences>>) -> AccountResult<Preferences> {
+    pub async fn change_preferences(
+        self: &Rc<Self>,
+        change: Box<dyn FnOnce(Preferences) -> AccountResult<Preferences>>,
+    ) -> AccountResult<Preferences> {
         let ctx = self.ctx.clone();
         let labs = self.labs_flag();
         let body: LocalBoxFuture<'static, AccountResult<Preferences>> = async move {
@@ -423,7 +437,12 @@ impl PreferencesArea {
     }
 
     /// F7, preferences.ts:135.
-    pub async fn agents_channel(&self, target: ChannelTarget, on_event: Rc<dyn Fn(Value)>, origin: Option<&Caller>) -> AccountResult<Rc<dyn DaemonChannel>> {
+    pub async fn agents_channel(
+        &self,
+        target: ChannelTarget,
+        on_event: Rc<dyn Fn(Value)>,
+        origin: Option<&Caller>,
+    ) -> AccountResult<Rc<dyn DaemonChannel>> {
         match target {
             ChannelTarget::Workspace(workspace_id) => self.ctx.workspace_channel(&workspace_id, on_event, origin).await,
             ChannelTarget::Place(place_id) if place_id == HERE_PLACE_ID => self.ctx.local_channel(on_event).await,

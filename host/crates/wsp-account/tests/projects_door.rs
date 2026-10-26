@@ -231,7 +231,10 @@ fn resolve_for_a_thread_refuses_in_the_ts_order() {
         fake.base.answer_with("project_of_scope", vec![json!("pr_own")]);
         fake.base.answer_with("of_threads_repository", vec![json!(true)]);
         assert_eq!(area.resolve("lab", Some(lead())).await.unwrap_err(), folder);
-        assert_eq!(fake.base.names_of(&["project_reached", "elsewhere_refusal", "of_threads_repository"]), vec!["project_reached", "elsewhere_refusal", "of_threads_repository"]);
+        assert_eq!(
+            fake.base.names_of(&["project_reached", "elsewhere_refusal", "of_threads_repository"]),
+            vec!["project_reached", "elsewhere_refusal", "of_threads_repository"]
+        );
 
         // (f) every other project: the repository rule, naming the thread's own project.
         let (fake, area) = rig();
@@ -264,7 +267,10 @@ fn folder_stands_is_false_on_a_road_with_none() {
         fake.base.script.borrow_mut().shift_remove("road_folder_stands:box");
         fake.base.answer_with("road_folder_stands:box", vec![fails("pl_box said no", Some("unreachable"))]);
         assert_eq!(area.folder_stands("pr_box").await.unwrap_err().message, "pl_box said no");
-        assert_eq!(area.folder_stands("nothing").await.unwrap_err(), kinded("no project \"nothing\"; this host holds lab, web", Kind::NotFound));
+        assert_eq!(
+            area.folder_stands("nothing").await.unwrap_err(),
+            kinded("no project \"nothing\"; this host holds lab, web", Kind::NotFound)
+        );
     });
 }
 
@@ -374,7 +380,10 @@ fn takes_the_records_no_thread_names_with_it_a_worktree_wsp_made_and_the_frozen_
             fake.base.args_of("copier_worktree_forget"),
             vec![json!({ "from": "/home/me/lab", "home": "/home/me/.wsp", "project": lab.id })]
         );
-        assert_eq!(fake.base.args_of("delete_workspace").iter().map(|a| a["id"].clone()).collect::<Vec<_>>(), vec![json!("ws_home"), json!("ws_tree")]);
+        assert_eq!(
+            fake.base.args_of("delete_workspace").iter().map(|a| a["id"].clone()).collect::<Vec<_>>(),
+            vec![json!("ws_home"), json!("ws_tree")]
+        );
         assert!(fake.base.live.borrow().is_empty());
         assert_eq!(area.list(None).await.unwrap(), vec![]);
     });
@@ -488,14 +497,20 @@ fn remove_deletes_the_records_then_the_road_then_the_row_and_forgets_the_look() 
             vec!["spawn_guard", "delete_workspace", "delete_workspace", "copier_worktree_forget", "road_remove", "forget_icon"]
         );
         assert_eq!(fake.base.args_of("spawn_guard"), vec![json!({ "act": "delete", "scoped": false })]);
-        assert_eq!(fake.base.args_of("copier_worktree_forget"), vec![json!({ "from": "/home/me/lab", "home": "/home/me/.wsp", "project": "pr_lab" })]);
+        assert_eq!(
+            fake.base.args_of("copier_worktree_forget"),
+            vec![json!({ "from": "/home/me/lab", "home": "/home/me/.wsp", "project": "pr_lab" })]
+        );
         // The road runs while the record is still held and nothing has been written.
         let road = &fake.base.args_of("road_remove")[0];
         assert_eq!((road["held"].clone(), road["writes"].clone()), (json!(true), json!([])));
         // The look goes last: the record, the row and the event are all gone by then.
         let look = &fake.base.args_of("forget_icon")[0];
         assert_eq!(look["project"], lab.id);
-        assert_eq!((look["held"].clone(), look["writes"].clone(), look["events"].clone()), (json!(false), json!(["delete projects/pr_lab"]), json!(1)));
+        assert_eq!(
+            (look["held"].clone(), look["writes"].clone(), look["events"].clone()),
+            (json!(false), json!(["delete projects/pr_lab"]), json!(1))
+        );
         assert_eq!(fake.base.store.row("projects", "pr_lab"), None);
         assert_eq!(fake.base.events.borrow().clone(), vec![json!({ "type": "project.removed", "projectId": "pr_lab" })]);
         assert!(fake.base.live.borrow().is_empty());
@@ -562,7 +577,9 @@ fn remove_keeps_the_record_when_the_road_cannot_reach_its_computer() {
 fn remove_forgets_the_frozen_copies_only_for_a_folder_here_with_a_top_and_a_state_path() {
     // spec rule 7: a project top, a state path, a copier and a copying computer; each missing one skips the call.
     run(async {
-        for (name, computer, top, state_path) in [("no state path", "here", true, false), ("a box", "pl_box", true, true), ("no git top", "here", false, true)] {
+        for (name, computer, top, state_path) in
+            [("no state path", "here", true, false), ("a box", "pl_box", true, true), ("no git top", "here", false, true)]
+        {
             let (fake, area) = rig();
             fake.copier.set(true);
             fake.state_path.set(state_path);
@@ -666,7 +683,10 @@ fn branch_asks_the_landing_road() {
         let based = area.branch("based", None).await.unwrap();
         assert_eq!((based.branch.as_deref(), based.folder), (Some("release"), false));
         let asked = fake.base.args_of("road_branch");
-        assert_eq!(asked.iter().map(|a| (a["kind"].clone(), a["project"].clone())).collect::<Vec<_>>(), vec![(json!("provider"), json!("pr_plain")), (json!("provider"), json!("pr_based"))]);
+        assert_eq!(
+            asked.iter().map(|a| (a["kind"].clone(), a["project"].clone())).collect::<Vec<_>>(),
+            vec![(json!("provider"), json!("pr_plain")), (json!("provider"), json!("pr_based"))]
+        );
         assert_eq!(asked[0]["deps"]["computerName"], "solari");
         // A folder here answers with its own branch and says it is a folder.
         hold(&fake, project("pr_here", "lab", "here", json!({})));
