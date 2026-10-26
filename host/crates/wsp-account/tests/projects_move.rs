@@ -679,7 +679,8 @@ fn agents_named_narrow_the_roots_looked_for_on_the_machine_and_reach_the_lander(
         *lander.agents.borrow_mut() = vec![landed_agent("Claude Code", json!({ "agent": "claude", "files": 3, "bytes": 300, "outcome": "moved", "sessions": 2 }))];
         let result = area.export(export_opts(&lander, None, Some(&["claude", "pi"])), None).await.unwrap();
         let script = fake.base.args_of("machine_run")[0]["script"].as_str().unwrap().to_owned();
-        let root = scratch_root(&script).unwrap();
+        let cmd = fake.base.args_of("machine_exec")[0]["cmd"].as_str().unwrap().to_owned();
+        let root = cmd.strip_prefix("rm -rf '").and_then(|c| c.strip_suffix('\'')).expect("the machine is told to remove the scratch root").to_owned();
         assert_eq!(script, state_listing(&homes(), GUEST_SOURCE, &root, Some(&strings(&["claude", "pi"]))).unwrap());
         assert_eq!(fake.base.args_of("lander_land")[0]["state"]["agents"], json!(["claude", "pi"]));
         assert_eq!(result.agents.iter().map(|a| a.agent.clone()).collect::<Vec<_>>(), vec!["claude"]);

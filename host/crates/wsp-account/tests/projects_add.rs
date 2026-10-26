@@ -672,6 +672,7 @@ fn add_writes_the_project_keys_in_the_ts_order() {
         assert_eq!((got.project.id.as_str(), got.project.created_at.as_str()), ("pr_fixed", "2026-01-02T03:04:05.000Z"));
         // The id was not drawn: the next add takes the first draw, and its age is the clock's, which moved on.
         fake.base.clock.advance(61_000);
+        fake.base.script.borrow_mut().shift_remove("git_top_of");
         let next = area.add(ask("/home/me/other"), None).await.unwrap();
         assert_eq!((next.project.id.as_str(), next.project.created_at.as_str()), ("pr_11111111", "1970-01-01T00:17:41.000Z"));
         assert_eq!(keys(&pj(&next.project)), ["id", "name", "computer", "source", "path", "remote", "defaultBranch", "memoryKey", "memoryDir", "createdAt"]);
@@ -779,7 +780,7 @@ fn is_refused_in_that_computer_s_own_absent_sentence_while_it_is_not_connected_w
 // add: seeding a computer that clones
 
 fn ready_to_seed(fake: &FakeProjects) {
-    fake.base.answer_with("road_land", vec![json!({ "fields": { "checkout": "/root/lab", "seeded": { "files": 1, "bytes": 12, "memory": "landed", "commits": 0 } } })]);
+    fake.base.answer_with("road_land", vec![json!({ "fields": { "checkout": "/root/lab", "seeded": { "files": 1, "bytes": 12, "memory": "landed", "commits": 0, "at": CREATED } } })]);
 }
 
 #[test]
@@ -811,7 +812,7 @@ fn recorded_lab() -> Value {
         "id": "pr_11111111", "name": "lab", "computer": "here", "source": { "kind": "folder", "path": LAB }, "path": "/root/lab",
         "remote": "https://github.com/acme/lab.git", "defaultBranch": "main", "memoryKey": "-home-me-code-lab",
         "memoryDir": "/home/me/.claude/projects/-home-me-code-lab/memory", "checkout": "/root/lab",
-        "seeded": { "files": 1, "bytes": 12, "memory": "landed", "commits": 0 }, "createdAt": CREATED,
+        "seeded": { "files": 1, "bytes": 12, "memory": "landed", "commits": 0, "at": CREATED }, "createdAt": CREATED,
     })
 }
 

@@ -1085,7 +1085,7 @@ pub fn scratch_root(script: &str) -> Option<String> {
         if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(&rest[..end]) {
             if let Ok(Value::String(text)) = serde_json::from_slice::<Value>(&bytes) {
                 if text.starts_with("/tmp/wsp-state-") {
-                    return Some(text);
+                    return Some(text.splitn(4, '/').take(3).collect::<Vec<_>>().join("/"));
                 }
             }
         }

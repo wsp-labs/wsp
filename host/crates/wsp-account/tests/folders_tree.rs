@@ -326,6 +326,7 @@ fn remove_takes_the_tree_and_marks_the_record_gone() {
     let (first_id, second_id) = (rec(&first).id, rec(&second).id);
     rig.thread_on(&first_id);
     rig.base.calls.borrow_mut().clear();
+    rig.base.persisted.borrow_mut().clear();
     run(rig.folders.remove_worktree(&first, false, RemoveAsk::default())).unwrap();
     assert_eq!(rig.base.args_of("copier_worktree_remove"), vec![remove_ask(&path, false)]);
     assert_eq!(rig.base.names_of(&["copier_worktree_remove", "persist", "drop"]), vec!["copier_worktree_remove", "persist"]);
