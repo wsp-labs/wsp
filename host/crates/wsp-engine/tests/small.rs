@@ -283,7 +283,6 @@ fn image() -> SealedImage {
         hash: "a".repeat(64),
         recipe_hash: "rh".into(),
         recipe: None,
-        pins: None,
         logins: vec![GoldenLogin { name: "codex".into(), state: LoginState::SignedIn }],
         sealed_at: "2026-09-12T00:00:00.000Z".into(),
         sealed_from: "this-mac".into(),

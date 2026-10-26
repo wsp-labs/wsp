@@ -112,17 +112,17 @@ fn a_slate_values_record_is_written_as_zod_writes_a_kept_record() {
 /// MINOR (left from the first review's finding 14, "fixed for every generated record"). init-job.ts:142
 /// `InitKeys = z.record(z.boolean())`: zod's record drops `__proto__` and writes index-like keys first, ascending, then the
 /// rest in the order sent. types/init_job.rs:569 `InitKeys = IndexMap<String, bool>` has no `js_record` or
-/// `kept::record`, so `InitSetup.keys`, `InitJob.keys` and the `init.job` event write the order sent and keep `__proto__`.
+/// `kept::record`, so `InitSetup.keys` writes the order sent and keeps `__proto__`.
 #[test]
 fn an_init_keys_record_is_written_as_zod_writes_a_record() {
     let base = |keys: &str| {
         format!(
-            r#"{{"keys":{keys},"keyProvider":"a","home":"a","agents":[],"pricing":null,"place":{{"id":"a","name":"a","kind":"computer"}},"forksOn":"a","buildRefusal":"a","job":null}}"#
+            r#"{{"keys":{keys},"keyProvider":"a","home":"a","pricing":null,"place":{{"id":"a","name":"a","kind":"computer"}},"forksOn":"a","buildRefusal":"a"}}"#
         )
     };
     let want = |keys: &str| {
         format!(
-            r#"{{"keys":{keys},"keyProvider":"a","home":"a","agents":[],"pricing":null,"place":{{"id":"a","name":"a","kind":"computer"}},"forksOn":"a","buildRefusal":"a","job":null}}"#
+            r#"{{"keys":{keys},"keyProvider":"a","home":"a","pricing":null,"place":{{"id":"a","name":"a","kind":"computer"}},"forksOn":"a","buildRefusal":"a"}}"#
         )
     };
     none_differ(vec![
@@ -211,9 +211,8 @@ fn a_number_received_by_a_literal_is_written_as_javascript_writes_it() {
 /// The one numeric literal the crate reads (`literal!(LitV1, 1)`, views/golden_image/agents_bin.rs:6); a recipe file a person edits.
 #[test]
 fn a_numeric_literal_takes_every_text_javascript_reads_as_that_number() {
-    let at =
-        |version: &str| format!(r#"{{"version":{version},"at":"a","tick":"used","histories":[],"rows":[],"custom":[],"engine":true}}"#);
-    let want = r#"{"version":1,"at":"a","tick":"used","histories":[],"rows":[],"custom":[],"engine":true}"#;
+    let at = |version: &str| format!(r#"{{"version":{version},"at":"a","histories":[],"rows":[],"custom":[]}}"#);
+    let want = r#"{"version":1,"at":"a","histories":[],"rows":[],"custom":[]}"#;
     none_differ(vec![read_as::<Recipe>(&at("1.0"), want), read_as::<Recipe>(&at("1e0"), want), read_as::<Recipe>(&at("10e-1"), want)]);
 }
 

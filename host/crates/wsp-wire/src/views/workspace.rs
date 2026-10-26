@@ -1122,44 +1122,6 @@ impl Check for ProjectViewInstalled {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProjectViewImage {
-    pub snapshot_id: String,
-    pub built_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub lockfile_sha: Option<String>,
-}
-
-impl Check for ProjectViewImage {
-    fn check(&self) -> Result<(), SchemaError> {
-        Ok(())
-    }
-
-    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
-        let serde_json::Value::Object(obj) = value else {
-            return Some(vec![crate::types::check::not_object(value)]);
-        };
-        let mut out = Vec::new();
-        crate::types::keys::req_key::<String>(obj, "snapshotId", &mut out);
-        crate::types::keys::req_key::<String>(obj, "builtAt", &mut out);
-        crate::types::keys::opt_key::<String>(obj, "lockfileSha", &mut out);
-        Some(out)
-    }
-
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        match path.split_first() {
-            None => Some(crate::types::check::Zod::Word("object")),
-            Some((key, rest)) => match key.as_str()? {
-                "snapshotId" => <String as Check>::describe(rest),
-                "builtAt" => <String as Check>::describe(rest),
-                "lockfileSha" => <Option<String> as Check>::describe(rest),
-                _ => None,
-            },
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ProjectViewGit {
     pub top: String,
 }
@@ -1209,8 +1171,6 @@ pub struct ProjectView {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub installed: Option<ProjectViewInstalled>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub image: Option<ProjectViewImage>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub base: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub git: Option<ProjectViewGit>,
@@ -1218,12 +1178,11 @@ pub struct ProjectView {
 }
 
 impl Check for ProjectView {
-    /// Nested checks: source, seeded, installed, image, git.
+    /// Nested checks: source, seeded, installed, git.
     fn check(&self) -> Result<(), SchemaError> {
         self.source.check().map_err(|e| e.under("source"))?;
         self.seeded.check().map_err(|e| e.under("seeded"))?;
         self.installed.check().map_err(|e| e.under("installed"))?;
-        self.image.check().map_err(|e| e.under("image"))?;
         self.git.check().map_err(|e| e.under("git"))?;
         Ok(())
     }
@@ -1245,7 +1204,6 @@ impl Check for ProjectView {
         crate::types::keys::opt_key::<String>(obj, "checkout", &mut out);
         crate::types::keys::opt_key::<ProjectViewSeeded>(obj, "seeded", &mut out);
         crate::types::keys::opt_key::<ProjectViewInstalled>(obj, "installed", &mut out);
-        crate::types::keys::opt_key::<ProjectViewImage>(obj, "image", &mut out);
         crate::types::keys::opt_key::<String>(obj, "base", &mut out);
         crate::types::keys::opt_key::<ProjectViewGit>(obj, "git", &mut out);
         crate::types::keys::req_key::<String>(obj, "createdAt", &mut out);
@@ -1268,7 +1226,6 @@ impl Check for ProjectView {
                 "checkout" => <Option<String> as Check>::describe(rest),
                 "seeded" => <Option<ProjectViewSeeded> as Check>::describe(rest),
                 "installed" => <Option<ProjectViewInstalled> as Check>::describe(rest),
-                "image" => <Option<ProjectViewImage> as Check>::describe(rest),
                 "base" => <Option<String> as Check>::describe(rest),
                 "git" => <Option<ProjectViewGit> as Check>::describe(rest),
                 "createdAt" => <String as Check>::describe(rest),
@@ -1396,17 +1353,12 @@ pub fn scope_of(caller: Option<&Caller>) -> Option<ThreadScope> {
 /// The held setting (crate::types::place_state's AGENTS_ON where none is held) with each field the patch names over it.
 pub fn agents_from(held: Option<&WorkspaceAgents>, patch: &WorkspaceAgentsPatch) -> WorkspaceAgents {
     let base = held.cloned().unwrap_or(crate::types::place_state::AGENTS_ON);
-    WorkspaceAgents {
-        spawn: patch.spawn.unwrap_or(base.spawn),
-        max_machines: patch.max_machines.unwrap_or(base.max_machines),
-        max_depth: patch.max_depth.unwrap_or(base.max_depth),
-    }
+    WorkspaceAgents { max_machines: patch.max_machines.unwrap_or(base.max_machines), max_depth: patch.max_depth.unwrap_or(base.max_depth) }
 }
 
 /// A patch of WorkspaceAgents: an absent field keeps the held one.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct WorkspaceAgentsPatch {
-    pub spawn: Option<bool>,
     pub max_machines: Option<JsInt>,
     pub max_depth: Option<JsInt>,
 }

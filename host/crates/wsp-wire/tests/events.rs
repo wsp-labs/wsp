@@ -570,41 +570,6 @@ mod callback_relay_wire_shapes {
     }
 }
 
-mod the_init_job_view {
-    use super::*;
-
-    // init-job.test.ts:163
-    #[test]
-    fn the_event_rides_the_events_channel_beside_the_runtime_s_own_and_the_ops_parse_as() {
-        // Only the event half: the ops are the RuntimeRequest union's, and the event's own shape is the views'.
-        let row = |id: &str, kind: &str, label: &str, state: &str| json!({ "id": id, "kind": kind, "label": label, "state": state });
-        let job = json!({
-            "id": "init_1", "road": "manual", "phase": "building", "keys": { "solari": true }, "step": 0, "stoppable": true, "screens": [],
-            "rows": [row("stage/creating", "stage", "Creating the machine", "done"), row("stage/deploying-daemon", "stage", "Installing the base tools", "running"), row("stage/ready", "stage", "Waiting for the machine", "waiting")],
-            "progress": { "done": 1, "total": 3 }, "log": ["Recipe saved to /tmp/recipe.json"],
-        });
-        let event = json!({ "type": "init.job", "job": job, "seq": 3 });
-        let r = reads_with(parse_event, event);
-        assert!(matches!(r, EventUnion::InitJob(_)));
-        let w = written(&r);
-        assert_eq!(w["seq"], 3);
-        assert_eq!(w["job"], job);
-    }
-
-    // init-job.test.ts:234
-    #[test]
-    fn the_need_s_arrival_is_its_own_event_on_the_same_channel_one_per_need_and_the_wir() {
-        let event = json!({ "type": "job.needs-you", "jobId": "init_1", "needsYou": { "what": "sign in to GitHub CLI login", "since": 1760000000000u64 } });
-        let r = reads_with(parse_event, with(&event, "seq", json!(4)));
-        assert!(matches!(r, EventUnion::JobNeedsYou(_)));
-        assert_eq!(written(&r)["seq"], 4);
-        // A need without its clock is refused.
-        let err = refused_with(parse_event, json!({ "type": "job.needs-you", "jobId": "init_1", "needsYou": { "what": "sign in" } }));
-        assert_eq!(err.path, path!["needsYou", "since"]);
-        assert_eq!(err.code, "invalid_type");
-    }
-}
-
 mod the_agents_report_on_the_wire {
     use super::*;
 
@@ -670,12 +635,12 @@ mod edges_the_ts_module_printed {
     }
 
     #[test]
-    fn an_unknown_type_is_one_discriminator_issue_naming_all_77_types_in_order() {
+    fn an_unknown_type_is_one_discriminator_issue_naming_all_75_types_in_order() {
         let e = refused_with(parse_event, json!({ "type": "nope" }));
         assert_eq!((e.code.as_str(), e.path.clone()), ("invalid_union_discriminator", path!["type"]));
         let options: Vec<String> = EVENT_TYPES.iter().map(|s| s.to_string()).collect();
         assert_eq!(e.detail["options"], json!(options));
-        assert_eq!((EVENT_TYPES.len(), EVENT_TYPES[0], EVENT_TYPES[76]), (77, "workspace.creating", "aside.text"));
+        assert_eq!((EVENT_TYPES.len(), EVENT_TYPES[0], EVENT_TYPES[74]), (75, "workspace.creating", "aside.text"));
     }
 
     // events-union.ts:105-109: seq a non-negative integer (0 before the first event), gap only the literal true.

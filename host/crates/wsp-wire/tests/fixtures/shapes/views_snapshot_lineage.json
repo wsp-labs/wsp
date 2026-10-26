@@ -1,196 +1,5 @@
 [
  {
-  "type": "ProjectGolden",
-  "case": "full",
-  "input": {
-   "snapshotId": "text é",
-   "projects": [
-    {
-     "name": "text é",
-     "dest": "text é",
-     "importedAt": "text é",
-     "size": 7
-    }
-   ],
-   "golden": "text é",
-   "version": 7,
-   "workspaceId": "text é",
-   "workspaceName": "text é",
-   "createdAt": "text é",
-   "place": "text é"
-  },
-  "output": "{\"snapshotId\":\"text é\",\"projects\":[{\"name\":\"text é\",\"dest\":\"text é\",\"importedAt\":\"text é\",\"size\":7}],\"golden\":\"text é\",\"version\":7,\"workspaceId\":\"text é\",\"workspaceName\":\"text é\",\"createdAt\":\"text é\",\"place\":\"text é\"}"
- },
- {
-  "type": "ProjectGolden",
-  "case": "minimal",
-  "input": {
-   "snapshotId": "s",
-   "projects": [],
-   "golden": "s",
-   "workspaceId": "s",
-   "workspaceName": "s",
-   "createdAt": "s"
-  },
-  "output": "{\"snapshotId\":\"s\",\"projects\":[],\"golden\":\"s\",\"workspaceId\":\"s\",\"workspaceName\":\"s\",\"createdAt\":\"s\"}"
- },
- {
-  "type": "ProjectGolden",
-  "case": "nulls",
-  "input": {
-   "snapshotId": "s",
-   "projects": [],
-   "golden": "s",
-   "version": 7,
-   "workspaceId": "s",
-   "workspaceName": "s",
-   "createdAt": "s",
-   "place": "s"
-  },
-  "output": "{\"snapshotId\":\"s\",\"projects\":[],\"golden\":\"s\",\"version\":7,\"workspaceId\":\"s\",\"workspaceName\":\"s\",\"createdAt\":\"s\",\"place\":\"s\"}"
- },
- {
-  "type": "ProjectGolden",
-  "case": "missing snapshotId",
-  "input": {
-   "projects": [
-    {
-     "name": "text é",
-     "dest": "text é",
-     "importedAt": "text é",
-     "size": 7
-    }
-   ],
-   "golden": "text é",
-   "version": 7,
-   "workspaceId": "text é",
-   "workspaceName": "text é",
-   "createdAt": "text é",
-   "place": "text é"
-  },
-  "issue": {
-   "code": "invalid_type",
-   "path": [
-    "snapshotId"
-   ],
-   "serdeLevel": true
-  }
- },
- {
-  "type": "ProjectGolden",
-  "case": "version: not an integer",
-  "input": {
-   "snapshotId": "text é",
-   "projects": [
-    {
-     "name": "text é",
-     "dest": "text é",
-     "importedAt": "text é",
-     "size": 7
-    }
-   ],
-   "golden": "text é",
-   "version": 2.5,
-   "workspaceId": "text é",
-   "workspaceName": "text é",
-   "createdAt": "text é",
-   "place": "text é"
-  },
-  "issue": {
-   "code": "invalid_type",
-   "path": [
-    "version"
-   ],
-   "serdeLevel": true
-  }
- },
- {
-  "type": "ProjectGoldenRemoved",
-  "case": "full",
-  "input": {
-   "projectGolden": {
-    "snapshotId": "text é",
-    "projects": [
-     {
-      "name": "text é",
-      "dest": "text é",
-      "importedAt": "text é",
-      "size": 7
-     }
-    ],
-    "golden": "text é",
-    "version": 7,
-    "workspaceId": "text é",
-    "workspaceName": "text é",
-    "createdAt": "text é",
-    "place": "text é"
-   },
-   "alreadyGone": true
-  },
-  "output": "{\"projectGolden\":{\"snapshotId\":\"text é\",\"projects\":[{\"name\":\"text é\",\"dest\":\"text é\",\"importedAt\":\"text é\",\"size\":7}],\"golden\":\"text é\",\"version\":7,\"workspaceId\":\"text é\",\"workspaceName\":\"text é\",\"createdAt\":\"text é\",\"place\":\"text é\"},\"alreadyGone\":true}"
- },
- {
-  "type": "ProjectGoldenRemoved",
-  "case": "minimal",
-  "input": {
-   "projectGolden": {
-    "snapshotId": "s",
-    "projects": [],
-    "golden": "s",
-    "workspaceId": "s",
-    "workspaceName": "s",
-    "createdAt": "s"
-   },
-   "alreadyGone": false
-  },
-  "output": "{\"projectGolden\":{\"snapshotId\":\"s\",\"projects\":[],\"golden\":\"s\",\"workspaceId\":\"s\",\"workspaceName\":\"s\",\"createdAt\":\"s\"},\"alreadyGone\":false}"
- },
- {
-  "type": "ProjectGoldenRemoved",
-  "case": "missing projectGolden",
-  "input": {
-   "alreadyGone": true
-  },
-  "issue": {
-   "code": "invalid_type",
-   "path": [
-    "projectGolden"
-   ],
-   "serdeLevel": true
-  }
- },
- {
-  "type": "ProjectGoldenRemoved",
-  "case": "alreadyGone: not a boolean",
-  "input": {
-   "projectGolden": {
-    "snapshotId": "text é",
-    "projects": [
-     {
-      "name": "text é",
-      "dest": "text é",
-      "importedAt": "text é",
-      "size": 7
-     }
-    ],
-    "golden": "text é",
-    "version": 7,
-    "workspaceId": "text é",
-    "workspaceName": "text é",
-    "createdAt": "text é",
-    "place": "text é"
-   },
-   "alreadyGone": "yes"
-  },
-  "issue": {
-   "code": "invalid_type",
-   "path": [
-    "alreadyGone"
-   ],
-   "serdeLevel": true
-  }
- },
- {
   "type": "SealedImageView",
   "case": "full",
   "input": {
@@ -202,7 +11,6 @@
     "recipe": {
      "version": 1,
      "at": "text é",
-     "tick": "default",
      "histories": [
       {
        "agent": "text é",
@@ -234,19 +42,8 @@
        "check": "text é",
        "why": "text é"
       }
-     ],
-     "engine": true
+     ]
     },
-    "pins": [
-     {
-      "tag": "text é",
-      "sha256": "text é",
-      "arch": "aarch64",
-      "latest": true,
-      "id": "text é",
-      "road": "text é"
-     }
-    ],
     "logins": [
      {
       "name": "text é",
@@ -278,28 +75,9 @@
      "builtAt": "text é",
      "sizeBytes": 7
     }
-   ],
-   "projects": [
-    {
-     "snapshotId": "text é",
-     "projects": [
-      {
-       "name": "text é",
-       "dest": "text é",
-       "importedAt": "text é"
-      }
-     ],
-     "golden": "text é",
-     "version": 7,
-     "workspaceId": "text é",
-     "workspaceName": "text é",
-     "createdAt": "text é",
-     "place": "text é",
-     "sizeBytes": 2.5
-    }
    ]
   },
-  "output": "{\"image\":{\"name\":\"text é\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"recipeHash\":\"text é\",\"recipe\":{\"version\":1,\"at\":\"text é\",\"tick\":\"default\",\"histories\":[{\"agent\":\"text é\",\"state\":\"no-reader\",\"sessions\":7,\"calls\":7}],\"rows\":[{\"id\":\"text é\",\"kind\":\"tool\",\"on\":true,\"source\":{\"kind\":\"popular\",\"sessions\":7,\"images\":7}}],\"custom\":[{\"kind\":\"custom\",\"id\":\"text é\",\"name\":\"text é\",\"install\":[\"text é\"],\"check\":\"text é\",\"why\":\"text é\"}],\"engine\":true},\"pins\":[{\"tag\":\"text é\",\"sha256\":\"text é\",\"arch\":\"aarch64\",\"latest\":true,\"id\":\"text é\",\"road\":\"text é\"}],\"logins\":[{\"name\":\"text é\",\"state\":\"deferred\"}],\"sealedAt\":\"text é\",\"sealedFrom\":\"text é\",\"vault\":{\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"bytes\":7,\"paths\":7,\"held\":[\"text é\"],\"takenAt\":\"text é\"},\"usedBytes\":7,\"place\":\"text é\",\"noSecrets\":true},\"copies\":[{\"place\":\"text é\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"snapshotId\":\"text é\",\"templateId\":\"text é\",\"builtAt\":\"text é\",\"sizeBytes\":7}],\"projects\":[{\"snapshotId\":\"text é\",\"projects\":[{\"name\":\"text é\",\"dest\":\"text é\",\"importedAt\":\"text é\"}],\"golden\":\"text é\",\"version\":7,\"workspaceId\":\"text é\",\"workspaceName\":\"text é\",\"createdAt\":\"text é\",\"place\":\"text é\",\"sizeBytes\":2.5}]}"
+  "output": "{\"image\":{\"name\":\"text é\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"recipeHash\":\"text é\",\"recipe\":{\"version\":1,\"at\":\"text é\",\"histories\":[{\"agent\":\"text é\",\"state\":\"no-reader\",\"sessions\":7,\"calls\":7}],\"rows\":[{\"id\":\"text é\",\"kind\":\"tool\",\"on\":true,\"source\":{\"kind\":\"popular\",\"sessions\":7,\"images\":7}}],\"custom\":[{\"kind\":\"custom\",\"id\":\"text é\",\"name\":\"text é\",\"install\":[\"text é\"],\"check\":\"text é\",\"why\":\"text é\"}]},\"logins\":[{\"name\":\"text é\",\"state\":\"deferred\"}],\"sealedAt\":\"text é\",\"sealedFrom\":\"text é\",\"vault\":{\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"bytes\":7,\"paths\":7,\"held\":[\"text é\"],\"takenAt\":\"text é\"},\"usedBytes\":7,\"place\":\"text é\",\"noSecrets\":true},\"copies\":[{\"place\":\"text é\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"snapshotId\":\"text é\",\"templateId\":\"text é\",\"builtAt\":\"text é\",\"sizeBytes\":7}]}"
  },
  {
   "type": "SealedImageView",
@@ -314,20 +92,18 @@
     "sealedAt": "s",
     "sealedFrom": "s"
    },
-   "copies": [],
-   "projects": []
+   "copies": []
   },
-  "output": "{\"image\":{\"name\":\"s\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"recipeHash\":\"s\",\"logins\":[],\"sealedAt\":\"s\",\"sealedFrom\":\"s\"},\"copies\":[],\"projects\":[]}"
+  "output": "{\"image\":{\"name\":\"s\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"recipeHash\":\"s\",\"logins\":[],\"sealedAt\":\"s\",\"sealedFrom\":\"s\"},\"copies\":[]}"
  },
  {
   "type": "SealedImageView",
   "case": "nulls",
   "input": {
    "image": null,
-   "copies": [],
-   "projects": []
+   "copies": []
   },
-  "output": "{\"image\":null,\"copies\":[],\"projects\":[]}"
+  "output": "{\"image\":null,\"copies\":[]}"
  },
  {
   "type": "SealedImageView",
@@ -342,25 +118,6 @@
      "templateId": "text é",
      "builtAt": "text é",
      "sizeBytes": 7
-    }
-   ],
-   "projects": [
-    {
-     "snapshotId": "text é",
-     "projects": [
-      {
-       "name": "text é",
-       "dest": "text é",
-       "importedAt": "text é"
-      }
-     ],
-     "golden": "text é",
-     "version": 7,
-     "workspaceId": "text é",
-     "workspaceName": "text é",
-     "createdAt": "text é",
-     "place": "text é",
-     "sizeBytes": 2.5
     }
    ]
   },
@@ -386,140 +143,12 @@
      "builtAt": "text é",
      "sizeBytes": 7
     }
-   ],
-   "projects": [
-    {
-     "snapshotId": "text é",
-     "projects": [
-      {
-       "name": "text é",
-       "dest": "text é",
-       "importedAt": "text é"
-      }
-     ],
-     "golden": "text é",
-     "version": 7,
-     "workspaceId": "text é",
-     "workspaceName": "text é",
-     "createdAt": "text é",
-     "place": "text é",
-     "sizeBytes": 2.5
-    }
    ]
   },
   "issue": {
    "code": "invalid_type",
    "path": [
     "image"
-   ],
-   "serdeLevel": true
-  }
- },
- {
-  "type": "SealedProjectImage",
-  "case": "full",
-  "input": {
-   "snapshotId": "text é",
-   "projects": [
-    {
-     "name": "text é",
-     "dest": "text é",
-     "importedAt": "text é",
-     "size": 7
-    }
-   ],
-   "golden": "text é",
-   "version": 7,
-   "workspaceId": "text é",
-   "workspaceName": "text é",
-   "createdAt": "text é",
-   "place": "text é",
-   "sizeBytes": 2.5
-  },
-  "output": "{\"snapshotId\":\"text é\",\"projects\":[{\"name\":\"text é\",\"dest\":\"text é\",\"importedAt\":\"text é\",\"size\":7}],\"golden\":\"text é\",\"version\":7,\"workspaceId\":\"text é\",\"workspaceName\":\"text é\",\"createdAt\":\"text é\",\"place\":\"text é\",\"sizeBytes\":2.5}"
- },
- {
-  "type": "SealedProjectImage",
-  "case": "minimal",
-  "input": {
-   "snapshotId": "s",
-   "projects": [],
-   "golden": "s",
-   "workspaceId": "s",
-   "workspaceName": "s",
-   "createdAt": "s"
-  },
-  "output": "{\"snapshotId\":\"s\",\"projects\":[],\"golden\":\"s\",\"workspaceId\":\"s\",\"workspaceName\":\"s\",\"createdAt\":\"s\"}"
- },
- {
-  "type": "SealedProjectImage",
-  "case": "nulls",
-  "input": {
-   "snapshotId": "s",
-   "projects": [],
-   "golden": "s",
-   "version": 7,
-   "workspaceId": "s",
-   "workspaceName": "s",
-   "createdAt": "s",
-   "place": "s",
-   "sizeBytes": 3
-  },
-  "output": "{\"snapshotId\":\"s\",\"projects\":[],\"golden\":\"s\",\"version\":7,\"workspaceId\":\"s\",\"workspaceName\":\"s\",\"createdAt\":\"s\",\"place\":\"s\",\"sizeBytes\":3}"
- },
- {
-  "type": "SealedProjectImage",
-  "case": "missing snapshotId",
-  "input": {
-   "projects": [
-    {
-     "name": "text é",
-     "dest": "text é",
-     "importedAt": "text é",
-     "size": 7
-    }
-   ],
-   "golden": "text é",
-   "version": 7,
-   "workspaceId": "text é",
-   "workspaceName": "text é",
-   "createdAt": "text é",
-   "place": "text é",
-   "sizeBytes": 2.5
-  },
-  "issue": {
-   "code": "invalid_type",
-   "path": [
-    "snapshotId"
-   ],
-   "serdeLevel": true
-  }
- },
- {
-  "type": "SealedProjectImage",
-  "case": "version: not an integer",
-  "input": {
-   "snapshotId": "text é",
-   "projects": [
-    {
-     "name": "text é",
-     "dest": "text é",
-     "importedAt": "text é",
-     "size": 7
-    }
-   ],
-   "golden": "text é",
-   "version": 2.5,
-   "workspaceId": "text é",
-   "workspaceName": "text é",
-   "createdAt": "text é",
-   "place": "text é",
-   "sizeBytes": 2.5
-  },
-  "issue": {
-   "code": "invalid_type",
-   "path": [
-    "version"
    ],
    "serdeLevel": true
   }
@@ -1053,7 +682,6 @@
     "wakeRefused": "text é",
     "diskGone": "text é",
     "agents": {
-     "spawn": true,
      "maxMachines": 7,
      "maxDepth": 7
     },
@@ -1108,7 +736,7 @@
    },
    "notice": "text é"
   },
-  "output": "{\"workspace\":{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"queue\":{\"since\":\"text é\",\"why\":\"minute\"},\"screen\":{\"streamUrl\":\"text é\"},\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"spawn\":true,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"provider\":\"text é\",\"pauseMode\":\"disk\",\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\",\"oid\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true}}},\"review\":{\"note\":\"text é\",\"at\":2.5,\"reasked\":true},\"branchOfRecord\":{\"repoId\":7,\"owner\":\"text é\",\"name\":\"text é\",\"branch\":\"text é\",\"startSha\":\"text é\",\"public\":true}},\"notice\":\"text é\"}"
+  "output": "{\"workspace\":{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"queue\":{\"since\":\"text é\",\"why\":\"minute\"},\"screen\":{\"streamUrl\":\"text é\"},\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"provider\":\"text é\",\"pauseMode\":\"disk\",\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\",\"oid\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true}}},\"review\":{\"note\":\"text é\",\"at\":2.5,\"reasked\":true},\"branchOfRecord\":{\"repoId\":7,\"owner\":\"text é\",\"name\":\"text é\",\"branch\":\"text é\",\"startSha\":\"text é\",\"public\":true}},\"notice\":\"text é\"}"
  },
  {
   "type": "WorkspaceCreateResult",

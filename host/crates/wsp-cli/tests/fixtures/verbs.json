@@ -1,0 +1,5566 @@
+[
+ {
+  "name": "computers",
+  "shape": "cli",
+  "usage": "wsp computers",
+  "about": "your computers: this Mac, each box you added, with what each has, whether it is connected, how many machines it holds and what runs there against its cap",
+  "page": "front",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Every computer this host holds, which is the whole of where work can run: the computer the app runs on and each box joined to it. A row carries what that computer last reported (cores, memory, free disk, the engine it has for a project's own containers) and whether it is connected right now. Every row carries its cap, threads at once on a computer (the number the person set, else one thread per 2 GB of memory up to twice its cores), and running, every thread running there now on a computer; a row whose running meets its cap is full. A row whose copy of the image is building says which stage it is at, and one whose last build stopped says why. A project lives on a computer: on the computer the app runs on its threads run in the project's folder, and on a box they run on a machine forked from the image with the project inside. pending holds every add that has not reached Set up: how far it got, what was chosen for it, and why it stopped where one did. A thread's own token is answered Boat once it is added, where run with on starts a sub-thread, and from a folder the computers its projects are on, with no pending and no road.",
+   "input": [],
+   "output": [
+    "computers",
+    "spend",
+    "pending"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "computers set",
+  "shape": "cli",
+  "usage": "wsp computers set <computer> [--name <new>] [--ssh <login>] [--threads <n>] [--machines <n>] [--spend <usd>] [--size <cpu>x<memGb>] [--delete-after <minutes>] [--nap <minutes>|off] [--turn-limit <hours>|off] [--max-machines <n>] [--max-depth <n>] [--recipe <name>|none] [--reset <setting>]...",
+  "about": "what you set on one of your computers: its name, the ssh login it is reached by, how many threads run there at once, how long a quiet machine there runs before it naps, how long one turn there may run, the caps on agents starting agents, the recipe it follows, and on a cloud how many machines at once, how much it spends a day, the size a sub-thread's machine gets and how long a finished one stays; --reset takes a setting back to its default",
+  "page": "agent",
+  "options": [
+   {
+    "name": "name",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "ssh",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "threads",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "machines",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "spend",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "size",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "delete-after",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "nap",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "turn-limit",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "max-machines",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "max-depth",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "recipe",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "reset",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Sets what the person may set on one computer and answers its row as it now reads, the same row computers lists: name, what a computer the person added is called from now, in every listing and wherever a computer is named, its id, its projects and its machines staying as they are, refused for the computer the app runs on and for a name another computer answers to; ssh, the login user@host the host reaches it by over ssh from now, for an update or a remove while its link is down and for the forward it dials back through, saved only once the computer that login reaches reads as this same one, its place file naming this computer and this host; threads, how many threads may run there at once, a new one waiting past it, except a turn a thread there follows to its end, not detached, which runs in that thread's slot (one per 2 GB of that computer's memory up to twice its cores until it is set); nap, the minutes a machine there with no window of its own runs with no turn and no work before it naps and stops costing anything, waking on the next message (20 until it is set, 0 never naps it), which every machine there counts again from now and which the computer the app runs on does not take, since its threads run in folders; turn_limit, the hours one turn there may run before it is stopped, a send carrying it on from where it stopped (none on a computer the person owns until it is set, 0 is none), read at each turn's start; max_machines and max_depth, how many machines and levels deep the agents there may start where the folder or the machine they run in holds no caps of its own (up to 3 machines and 2 levels deep, until it is set), read at every ask so one made before the change follows it; machines and spend on a cloud, how many machines may run there at once and the dollars a day it may spend before it starts no new machine (3 and $10 until they are set); size on a cloud, the size a sub-thread's machine gets when the thread starting it names none, as <cpu>x<memGb>, one of the sizes that cloud's row lists (the size its provider builds at until it is set); delete_after on a cloud, the minutes a finished sub-thread's machine stays before it is deleted, read at each finish, 0 deleting it once it is done (30 until it is set). A setting left out keeps what stands, and each word under reset takes that setting back to its default. The row carries cap, what runs there now, capDefault, what it reads by default, and settings, what the person set. A setting the computer's kind does not take, and a call that sets nothing, are refused in one line.",
+   "input": [
+    {
+     "name": "computer",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the computer, by the name computers lists or its id"
+    },
+    {
+     "name": "name",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "what to call a computer the person added from now"
+    },
+    {
+     "name": "ssh",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the login user@host the host reaches that computer by over ssh from now, saved once it reads as the same computer"
+    },
+    {
+     "name": "threads",
+     "kind": {
+      "type": "integer",
+      "min": 1
+     },
+     "optional": true,
+     "describe": "how many threads may run on that computer at once"
+    },
+    {
+     "name": "machines",
+     "kind": {
+      "type": "integer",
+      "min": 1
+     },
+     "optional": true,
+     "describe": "how many machines may run on that cloud at once"
+    },
+    {
+     "name": "spend",
+     "kind": {
+      "type": "number"
+     },
+     "optional": true,
+     "describe": "the dollars a day that cloud may spend before it starts no new machine"
+    },
+    {
+     "name": "size",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "on a cloud, the size a sub-thread's machine gets when the thread starting it names none, as <cpu>x<memGb>"
+    },
+    {
+     "name": "delete_after",
+     "kind": {
+      "type": "integer",
+      "min": 0
+     },
+     "optional": true,
+     "describe": "on a cloud, the minutes a finished sub-thread's machine stays before it is deleted; 0 deletes it once it is done"
+    },
+    {
+     "name": "nap",
+     "kind": {
+      "type": "integer",
+      "min": 0
+     },
+     "optional": true,
+     "describe": "the minutes a quiet machine there runs before it naps; 0 never naps it"
+    },
+    {
+     "name": "turn_limit",
+     "kind": {
+      "type": "integer",
+      "min": 0
+     },
+     "optional": true,
+     "describe": "the hours one turn there may run before it is stopped; 0 never stops one"
+    },
+    {
+     "name": "max_machines",
+     "kind": {
+      "type": "integer",
+      "min": 0
+     },
+     "optional": true,
+     "describe": "how many machines may stand at once under one root thread there"
+    },
+    {
+     "name": "max_depth",
+     "kind": {
+      "type": "integer",
+      "min": 1
+     },
+     "optional": true,
+     "describe": "how many levels deep the tree under a root thread there may go"
+    },
+    {
+     "name": "recipe",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the saved recipe it follows from now, as recipes lists it, or none: one it follows syncs to it, a change to the recipe reaching it with no step, and none keeps what it has"
+    },
+    {
+     "name": "reset",
+     "kind": {
+      "type": "json"
+     },
+     "optional": true,
+     "describe": "the settings to take back to their defaults, by the same words"
+    }
+   ],
+   "output": [
+    "computer"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "add",
+  "shape": "commandTool",
+  "usage": null,
+  "about": null,
+  "page": null,
+  "options": null,
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Adds a computer of the person's over ssh and sets it up from a saved recipe, as `wsp add <user@host> --recipe <name>` does: address is user@host or an alias from the ssh config, and the host logs in, checks it can run wsp there (root, or a login whose sudo runs it as root, systemd with cgroup v2, room on the disk), installs wsp, waits for it to dial back, then puts on the base tools and everything the recipe picks. With resume, address names a computer already added, or one that joined and waits on its picks, and sets it up again: from recipe where one is named, else from what it holds, running only what is missing, a sign-in that waited or ran out among it. This tool never waits on the person: it answers at the first sign-in waiting on them (the page and the code are in waiting, to hand over), at the end, or after ten minutes, and is called again with resume for the next of those; with later it does not stop at a sign-in and leaves it waiting. setup is the setup's steps as the computer's row holds them, each with its state and what it took; an install that fails is refused with the step it failed at. A login whose sudo asks for a password is refused with the line that says where the person types it, at a terminal or in the app, since no password travels through this tool. A computer this host has never dialled needs host_key, as the person read it off that computer, or the add is refused with the key it answered with. A project, a provider's key and the join code are not added here: projects_add records a project, and the other two belong at the host's own terminal.",
+   "input": [
+    {
+     "name": "address",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "user@host, an alias from the ssh config, or with resume a computer already added"
+    },
+    {
+     "name": "recipe",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the saved recipe to set it up from, as recipes lists it"
+    },
+    {
+     "name": "later",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "go on past a sign-in that waits on the person and leave it waiting"
+    },
+    {
+     "name": "resume",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "set up a computer already added, or one that joined and waits on its picks"
+    },
+    {
+     "name": "name",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "what to call the computer here; what its address calls it without one"
+    },
+    {
+     "name": "ssh_port",
+     "kind": {
+      "type": "integer",
+      "min": 1
+     },
+     "optional": true,
+     "describe": "the port ssh dials it on (default 22)"
+    },
+    {
+     "name": "ssh_key",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the key file ssh logs in with"
+    },
+    {
+     "name": "host_key",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the host key of a computer this one has never dialled, as read off that computer"
+    }
+   ],
+   "output": [
+    "computer",
+    "setup",
+    "waiting"
+   ],
+   "stream": [
+    "setup",
+    "waiting"
+   ]
+  }
+ },
+ {
+  "name": "recipes",
+  "shape": "cli",
+  "usage": "wsp recipes",
+  "about": "your saved recipes: what each puts on a computer in one line, and the computers that follow it",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Every recipe this host keeps: a named pick of what goes on a computer of the person's (agents and how each signs in, MCP servers per agent, CLIs by the manager they came from, skills, plugins, folders to move over as projects, and the git, shell and GitHub configs), chosen from what the computer the app runs on has. Each carries summary, one line of what it holds, machines, the computers that follow it, since a recipe edit reaches them, and savedAt, when its file was last written. A recipe holds names and never a secret; a token reaches a computer only in the environment of a run there.",
+   "input": [],
+   "output": [
+    "recipes"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "recipes show",
+  "shape": "cli",
+  "usage": "wsp recipes show <name>",
+  "about": "one recipe whole: every row it holds by kind, the computers that follow it, and the hash it resolves to on this computer now",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "One recipe by its name: file is the recipe as saved, every row by kind (agents with signin vault, machine, token or key, mcp with the agents each server goes to, clis with via, the manager it came from, and needs where it builds with the C toolchain, skills with from, the folder it is read from here, plugins, folders with from, name, icon, hue and keep, configs git, shell and github, github with signin vault, machine or skip), machines the computers that follow it, and hash what it resolves to on the computer the app runs on now: the versions, the skill folders and the configs read there, which a computer that applied it is held against.",
+   "input": [
+    {
+     "name": "name",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the recipe's name, as recipes lists it"
+    }
+   ],
+   "output": [
+    "recipe",
+    "hash"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "recipes save",
+  "shape": "cli",
+  "usage": "wsp recipes save <name> --from <computer>",
+  "about": "saves what one of your computers was set up with as a recipe under that name, and that computer follows it from then on",
+  "page": "agent",
+  "options": [
+   {
+    "name": "from",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Saves the picks one of the person's computers was set up with as a recipe under name, rewriting a recipe of that name whole, and that computer follows it from then on, so an edit to the recipe reaches it. Refused for a name with no letter or digit in it, for the computer the app runs on, and for a computer set up before picks were kept. The answer is the recipe as saved.",
+   "input": [
+    {
+     "name": "name",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "what to call the recipe"
+    },
+    {
+     "name": "from",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the computer whose picks to save, by the name computers lists"
+    }
+   ],
+   "output": [
+    "recipe"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "recipes remove",
+  "shape": "cli",
+  "usage": "wsp recipes remove <name> [--yes]",
+  "about": "takes a recipe away; the computers that followed it keep what they have and follow none",
+  "page": "agent",
+  "options": [
+   {
+    "name": "yes",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Takes a recipe's file away. The computers that followed it keep everything it put there and follow none from then on, so nothing reaches them from it again. The answer is the recipe as it stood, machines naming the computers it was taken off.",
+   "input": [
+    {
+     "name": "name",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the recipe's name, as recipes lists it"
+    }
+   ],
+   "output": [
+    "recipe"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "usage",
+  "shape": "cli",
+  "usage": "wsp usage [--range day|week|month] [--by agent|account|computer|project|model|source]",
+  "about": "what each agent account signed in on any of your computers may still use, and what was used over a day, a week or a month split one way, the work your agents logged outside wsp counted with wsp's threads as on the Usage page (--by source shows how much is outside); two answers, never added together",
+  "page": "agent",
+  "options": [
+   {
+    "name": "range",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "by",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Two answers that are never added together. accounts: every agent account signed in on any computer, the same one on three computers once, each with how much of its plan's windows is used and when each starts again, as that agent printed them in the last turn wsp ran on it; an agent that prints none reports no plan limit, a sign-in by API key pays per token with no plan window, and an account no turn has run on yet has no reading. used: the tokens the turns used over the range (today, the last seven days or the last thirty), split by agent, account, computer, project, model or source (a model once for each agent that ran it, and a row by agent, account or model naming its agent; every split counts the turns wsp's threads ran with the work the agents on this computer and on each joined one logged outside wsp, as each computer's own daemon read it, as the Usage page does, and by source the two stand as two rows), each row with the cost its agent reported, a list price off one table for every token and what the cache saved, input counting the cached and the written tokens, the turns wsp ran, and a series over the range with one line per row.",
+   "input": [
+    {
+     "name": "range",
+     "kind": {
+      "type": "enum",
+      "options": [
+       "day",
+       "week",
+       "month"
+      ]
+     },
+     "optional": true,
+     "describe": "day (the default), week or month"
+    },
+    {
+     "name": "by",
+     "kind": {
+      "type": "enum",
+      "options": [
+       "agent",
+       "account",
+       "computer",
+       "project",
+       "model",
+       "source"
+      ]
+     },
+     "optional": true,
+     "describe": "agent (the default), account, computer, project, model or source"
+    }
+   ],
+   "output": [
+    "accounts",
+    "used"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "usage reset",
+  "shape": "cliOnly",
+  "usage": "wsp usage reset <account> [--credit <id>] [--on <computer>] [--yes]",
+  "about": "spends one of the resets a Codex account has banked, on a computer of yours that holds its login, after reading the account there: its five-hour and weekly windows start again now; asks first unless --yes",
+  "page": "agent",
+  "options": [
+   {
+    "name": "credit",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "yes",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": "spends a reset the person owns; the skill already says an agent does not read the person's accounts, and a thread's socket is refused every usage op",
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": null
+ },
+ {
+  "name": "agents",
+  "shape": "cli",
+  "usage": "wsp agents [<thread>] [--on <computer>]",
+  "about": "the coding agents on this computer, a box you added or where a thread runs: each one's version and the newest out, whether it is signed in there, and whether it carries the wsp tools",
+  "page": "agent",
+  "options": [
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "The coding agents the catalog knows, as they stand on one computer or where a thread runs: whether each is on that login's PATH and where, the version its command answers, the newest its vendor publishes as this host last read it (asked of npm, GitHub or the vendor from this host alone, kept a day, never with Newest agent versions off in Settings > Privacy or WSP_UPDATE_CHECK=0) and the version wsp's install pins, its sign-in there (signed in, signed in with a token or key from this host's vault, not signed in, or unknown) and how it stands in the status command's own words (signInDetail), the kind of that login (signInKind: api-key, subscription or oauth) and the plan it names (signInPlan), how a person signs it in, whether its threads there get the wsp tools (one of its MCP config files names the wsp server, or on any computer but the one the app runs on, its launch hands the server over), the vendor's own command that brings it up to the newest where it is older (update, which wsp shows and never runs), and on a computer how the person set it to run there (setup: on or off, the program, the config folder, the launch words and the names of its variables, never a value). Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale with its pauseMode (disk: the nap stopped it, memory: it naps), and is not woken.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+    }
+   ],
+   "output": [
+    "target",
+    "home",
+    "user",
+    "readAt",
+    "stale",
+    "pauseMode",
+    "refused",
+    "projects",
+    "reach",
+    "agents"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "skills",
+  "shape": "cli",
+  "usage": "wsp skills [<thread>] [--on <computer>]",
+  "about": "the skills on this computer, a box you added or where a thread runs, each by name with every folder it lives in and which agent loads it from there",
+  "page": "agent",
+  "options": [
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Every skill on one computer or where a thread runs, one row per folder name: its description off its SKILL.md, every folder it lives in with the agent whose own folder that is (none for the shared ~/.agents/skills) and where a folder links to, and whether it is the person's own, a project's inside a thread, or a plugin's. Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale with its pauseMode (disk: the nap stopped it, memory: it naps), and is not woken.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+    }
+   ],
+   "output": [
+    "target",
+    "home",
+    "user",
+    "readAt",
+    "stale",
+    "pauseMode",
+    "refused",
+    "projects",
+    "reach",
+    "skills"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "skills search",
+  "shape": "cli",
+  "usage": "wsp skills search <query> [--limit <n>]",
+  "about": "searches skills.sh for skills by their words, each with how often it was installed and the id wsp skills add takes",
+  "page": "agent",
+  "options": [
+   {
+    "name": "limit",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Skills on skills.sh whose words match the query, most installed first as skills.sh ranks them: each one's name, the repo it comes from, how many times it was installed, and the id skills_add takes. The host asks skills.sh; an empty query is refused.",
+   "input": [
+    {
+     "name": "query",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the words to search skills.sh for"
+    },
+    {
+     "name": "limit",
+     "kind": {
+      "type": "integer",
+      "min": 1
+     },
+     "optional": true,
+     "describe": "how many to answer, 20 without it"
+    }
+   ],
+   "output": [
+    "skills"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "skills show",
+  "shape": "cli",
+  "usage": "wsp skills show <skill> [<thread>] [--on <computer>] [--project [<name>]]",
+  "about": "prints a skill's SKILL.md: one on skills.sh by its <owner>/<repo>/<skill> before it is installed, or one already on this computer, a box you added or where a thread runs by its name",
+  "page": "agent",
+  "options": [
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "project",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": "on"
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "A skill's SKILL.md as text, its first 64 KB and the whole file's size: a skill on skills.sh by its <owner>/<repo>/<skill>, read by the host with nothing installed, or a skill already on one computer or where a thread runs by its name. Nothing in it runs.",
+   "input": [
+    {
+     "name": "skill",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "an <owner>/<repo>/<skill> off skills_search, or the name of a skill skills lists"
+    },
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+    },
+    {
+     "name": "project",
+     "kind": {
+      "type": "json"
+     },
+     "optional": true,
+     "describe": "the project's skill of that name rather than the one that is not a project's: true with a thread, the thread's own project, or the project's name, as projects lists it, with on"
+    }
+   ],
+   "output": [
+    "text",
+    "size"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "skills add",
+  "shape": "cli",
+  "usage": "wsp skills add <skill> [<thread>] [--on <computer>] [--agent <id>]... [--project [<name>]]",
+  "about": "installs a skill off skills.sh by its <owner>/<repo>/<skill> into the shared skills folder, with a link or a copy for each agent named that does not read that folder; every file is checked first and lands as a plain file that runs nothing",
+  "page": "agent",
+  "options": [
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "agent",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "project",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": "on"
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Installs one skill off skills.sh on one computer or where a thread runs, as the login it was added with: its files land once in ~/.agents/skills/<name> (the project's .agents/skills with project, from a thread), and each agent named that does not read that folder gets a link to it or a copy in its own skills folder; with no agent named, every agent whose own folder's home is there gets it. The download is checked whole before anything lands: every path plain and inside the skill, at most 200 files, 1 MB each and 5 MB in all, a SKILL.md at its root; every file lands 0644 and nothing in the skill runs. A skill already there is refused rather than written over.",
+   "input": [
+    {
+     "name": "skill",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the skill's <owner>/<repo>/<skill>, as skills_search answers it"
+    },
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+    },
+    {
+     "name": "agent",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "the catalog ids of the agents to put it in; every agent whose folder is there without it"
+    },
+    {
+     "name": "project",
+     "kind": {
+      "type": "json"
+     },
+     "optional": true,
+     "describe": "put it in a project rather than the home: true for the thread's own, or the project's name, as projects lists it, with on"
+    }
+   ],
+   "output": [
+    "path",
+    "agents"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "skills remove",
+  "shape": "cli",
+  "usage": "wsp skills remove <name> [<thread>] [--on <computer>] [--project [<name>]] [--yes]",
+  "about": "removes a skill by its name: every folder it lives in and every link to it, where a link's own folder elsewhere stays",
+  "page": "agent",
+  "options": [
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "project",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": "on"
+   },
+   {
+    "name": "yes",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Removes one skill on one computer or where a thread runs by its name, as the login it was added with: every folder skills lists for it and every link to it; a folder a link points to outside the skills folders stays. The skill wsp writes and a plugin's are always on and are refused; a napping machine is not woken. The report there reads again at once.",
+   "input": [
+    {
+     "name": "name",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the skill's name, as skills lists it"
+    },
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+    },
+    {
+     "name": "project",
+     "kind": {
+      "type": "json"
+     },
+     "optional": true,
+     "describe": "the project's skill of that name rather than the one that is not a project's: true with a thread, the thread's own project, or the project's name, as projects lists it, with on"
+    }
+   ],
+   "output": [
+    "removed"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "skills disable",
+  "shape": "cli",
+  "usage": "wsp skills disable <name> [<thread>] [--on <computer>]",
+  "about": "turns a skill off by its name, its SKILL.md renamed SKILL.md.off where it lives, so no agent loads it until it is turned on",
+  "page": "agent",
+  "options": [
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Turns one skill off on one computer or where a thread runs by its name, as the login it was added with: its SKILL.md is renamed SKILL.md.off in each folder it really lives in, which every link to it follows, and no agent config is edited. A project's skill lives in the repo and is refused. The skill wsp writes and a plugin's are always on and are refused; a napping machine is not woken. The report there reads again at once.",
+   "input": [
+    {
+     "name": "name",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the skill's name, as skills lists it"
+    },
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+    }
+   ],
+   "output": [
+    "paths"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "skills enable",
+  "shape": "cli",
+  "usage": "wsp skills enable <name> [<thread>] [--on <computer>]",
+  "about": "turns a skill that was turned off on again, its SKILL.md.off renamed back",
+  "page": "agent",
+  "options": [
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Turns one skill on again on one computer or where a thread runs by its name, as the login it was added with: its SKILL.md is renamed back from SKILL.md.off in each folder it really lives in, which every link to it follows, and no agent config is edited. A project's skill lives in the repo and is refused. The skill wsp writes and a plugin's are always on and are refused; a napping machine is not woken. The report there reads again at once.",
+   "input": [
+    {
+     "name": "name",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the skill's name, as skills lists it"
+    },
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+    }
+   ],
+   "output": [
+    "paths"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "servers",
+  "shape": "cli",
+  "usage": "wsp servers [<thread>] [--on <computer>]",
+  "about": "the MCP servers the agents on this computer, a box you added or where a thread runs are set up with: how each is reached, the file it is defined in and its sign-in as its config says it",
+  "page": "agent",
+  "options": [
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Every MCP server each agent's own config file defines on one computer or where a thread runs, and a thread's project files: the agent, the file, how it is reached (its command with every value hidden, or its url's host), the names of the variables it sets or reads and never their values, whether the file switches it off, whether wsp's recipe put it there on a box, and its sign-in as the config alone says it: open for a command or a fixed header, unknown for a remote server until something connects. On a machine at a provider, which holds no sign-in or key of the person's, a server that needs one carries off with the sentence saying why, and no server there carries a sign-in line. On any computer but the one the app runs on it also lists the wsp server each thread's launch there hands an agent that takes servers on its launch, marked launch, with no file, and never turned off or removed. Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale with its pauseMode (disk: the nap stopped it, memory: it naps), and is not woken.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+    }
+   ],
+   "output": [
+    "target",
+    "home",
+    "user",
+    "readAt",
+    "stale",
+    "pauseMode",
+    "refused",
+    "projects",
+    "reach",
+    "servers"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "agents signin",
+  "shape": "cliOnly",
+  "usage": "wsp agents signin <agent> [<thread>]",
+  "about": "signs an agent in on this computer or where a thread runs, its own sign-in run there and shown in this terminal; a box you added takes wsp add <computer> --sign-in <agent>",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": "runs the agent's own sign-in in a terminal a person types into, which is where the ones that ask them to pick a provider are answered",
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": null
+ },
+ {
+  "name": "agents key",
+  "shape": "cliOnly",
+  "usage": "wsp agents key <agent> [--api-key]",
+  "about": "puts an agent's token or API key into this host's vault, typed where nothing echoes it; Claude Code's token is the one claude setup-token prints, Codex signs in on this computer with its own login, which machines at a provider use through wsp, and --api-key takes the agent's API key instead",
+  "page": "agent",
+  "options": [
+   {
+    "name": "api-key",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": "takes a token typed at the host's own terminal into its vault, which is the person's to hand over",
+  "hostSide": "The vault leaves the host only as a sealed file on the computer that typed the line.",
+  "toolOnly": null,
+  "tool": null
+ },
+ {
+  "name": "agents addtools",
+  "shape": "cli",
+  "usage": "wsp agents addtools <agent>",
+  "about": "writes the wsp server into an agent's own config on this computer, the entry wsp mcp install writes, with the wsp skill beside it",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Writes the wsp server into one agent's own MCP config on the computer the app runs on, the same entry wsp mcp install writes, with the wsp skill beside it, and answers the file. The wsp tools go into an agent's config on this computer; a thread on any other computer is handed them with every turn.",
+   "input": [
+    {
+     "name": "agent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the catalog id of the agent, as agents lists it"
+    }
+   ],
+   "output": [
+    "file"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "agents default",
+  "shape": "cli",
+  "usage": "wsp agents default <agent>",
+  "about": "the agent a new thread runs when neither the line nor its project names one; the catalog's first without it",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Sets the agent a new thread runs when neither its start nor its project names one, on every computer and in the app alike; the catalog's first agent without it. A project's own agent, set with projects_set, wins over it, and an agent turned off on a computer is passed over there. An agent this host runs no thread of is refused naming the ones it runs.",
+   "input": [
+    {
+     "name": "agent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the catalog id of the agent, one of claude, codex, opencode, cursor"
+    }
+   ],
+   "output": [
+    "defaultAgent"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "agents set",
+  "shape": "cli",
+  "usage": "wsp agents set <agent> [--model <slug>] [--effort <word>] [--access <word>] [--hide <model>]... [--show <model>]... [--order <model,model>] [--add-model <id>]... [--drop-model <id>]... [--reset <field>]...",
+  "about": "an agent's defaults on every computer: the model, effort and access a new thread on it starts on, and which models its picker lists",
+  "page": "agent",
+  "options": [
+   {
+    "name": "model",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "effort",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "access",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "hide",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "show",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "order",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "add-model",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "drop-model",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "reset",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Sets one agent's defaults, the same on every computer and in the app: the model and effort a new thread on it starts on, its access, and its model picker: models hidden from it (a start still takes one by name), the order it lists models in, and model ids the binary does not list that the person runs anyway, which a start then takes. A project's own model, effort and access, set with projects_set, win over these, and what a start names wins over both. An access word the agent maps to none of its modes is refused naming the ones it takes. reset puts a field back on the agent's own: model, effort, access or models.",
+   "input": [
+    {
+     "name": "agent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the catalog id of the agent, as agents lists it"
+    },
+    {
+     "name": "model",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the model a new thread on it starts on, by the agent's own slug"
+    },
+    {
+     "name": "effort",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the effort a new thread on it starts at, by the agent's own word, where its model takes that one"
+    },
+    {
+     "name": "access",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "how far the agent may go without asking, in wsp's words: ask (asks about each action that needs permission), auto-edit (edits files without asking), full (every action without asking) or plan (reads and proposes, changes nothing); each is mapped to the agent's own mode and refused where the agent has none, and a harness's own spelling is refused. Absent means the project's access, else the one set for that agent, else full"
+    },
+    {
+     "name": "hide",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "models to take off its picker, by slug"
+    },
+    {
+     "name": "show",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "hidden models to put back on its picker, by slug"
+    },
+    {
+     "name": "order",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "the models its picker lists first, in this order, by slug; the rest follow in the agent's own order"
+    },
+    {
+     "name": "add_model",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "model ids the binary does not list that a start may name and the picker shows"
+    },
+    {
+     "name": "drop_model",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "model ids added before, taken back off"
+    },
+    {
+     "name": "reset",
+     "kind": {
+      "type": "json"
+     },
+     "optional": true,
+     "describe": "fields to put back on the agent's own: model, effort, access, models"
+    }
+   ],
+   "output": [
+    "agent",
+    "defaults"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "agents setup",
+  "shape": "cli",
+  "usage": "wsp agents setup <agent> [--on <computer>] [--enable | --disable] [--program <path>] [--config <folder>] [--arg <word>]... [--env <NAME>]... [--unset-env <NAME>]... [--reset <field>]...",
+  "about": "how an agent runs on one computer: on or off there, the program run in its place, its config folder, words added to every launch and variables every launch carries, each value typed where nothing echoes it",
+  "page": "agent",
+  "options": [
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "enable",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "disable",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "program",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "config",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "arg",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "env",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "unset-env",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "reset",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Sets how one agent runs on one computer, this computer without on: whether it is offered there at all (off, the app's lists drop it there and a start naming it is refused naming the computer), the program run in its place, the folder it keeps its config, sessions and sign-in in (an agent with no variable for one is refused, and a folder that is not under that computer's home once its links are followed, the home itself, or wsp's own folder; a login kept under the old folder does not follow, so sign it in again there), words added to every turn's launch, and variables taken off its launch. A variable that decides how the process starts or what it loads (PATH, HOME, LD_ and DYLD_ ones, NODE_OPTIONS and the like) is never set, nor one of wsp's own. A variable's value is never taken here: the person types it at wsp agents setup --env, where nothing echoes it. Answers the agent's row as that computer's read now gives it, its variables by name alone. reset puts back the agent's own program, config or args.",
+   "input": [
+    {
+     "name": "agent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the catalog id of the agent, as agents lists it"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer it runs on, by the name computers lists; absent is the computer the app runs on"
+    },
+    {
+     "name": "enabled",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "false turns the agent off on that computer, true back on"
+    },
+    {
+     "name": "program",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the program run in the agent's place there, a path or a word on that computer's PATH"
+    },
+    {
+     "name": "config",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the folder on that computer the agent keeps its config, sessions and sign-in in, absolute"
+    },
+    {
+     "name": "args",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "words added to every turn's launch there, each passed as one word; they replace any set before"
+    },
+    {
+     "name": "unset_env",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "variables to take off its launch there, by name"
+    },
+    {
+     "name": "reset",
+     "kind": {
+      "type": "json"
+     },
+     "optional": true,
+     "describe": "fields to put back on the agent's own: program, config, args"
+    }
+   ],
+   "output": [
+    "agent"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "servers signin",
+  "shape": "cliOnly",
+  "usage": "wsp servers signin <name> --agent <id> [<thread>] [--on <computer>]",
+  "about": "signs one MCP server in by its agent's own command for it, run where the server is set up and shown in this terminal",
+  "page": "agent",
+  "options": [
+   {
+    "name": "agent",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": "runs the harness's own sign-in for the server in a terminal a person types into, where the page's answer is pasted",
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": null
+ },
+ {
+  "name": "servers tools",
+  "shape": "cli",
+  "usage": "wsp servers tools <name> --agent <id> [<thread>] [--on <computer>] [--project <name>] [--refresh]",
+  "about": "starts one MCP server once where it is set up and lists its tools with their descriptions, and says whether it needs a sign-in",
+  "page": "agent",
+  "options": [
+   {
+    "name": "agent",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "project",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": "on"
+   },
+   {
+    "name": "refresh",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "One MCP server's tools with their descriptions, and its sign-in as that one connect found it (open, signed in, needs a sign-in, failed, or unknown), with why nothing came back where nothing did. Starts that one server once on that computer or where the thread runs, as the login it was added with and with the command and variables its agent's config gives it, or asks its address once from there, and stops it within 20 seconds; the answer is the server's state, the one the app shows, and stands three minutes unless refreshed or a sign-in there ends; an edited entry is asked again. A server behind a sign-in its agent holds brings no list, since no login file is read: Claude Code is asked for its word on it, and for any other agent it answers unknown, naming that agent as the one holding the sign-in. A napping machine is not woken.",
+   "input": [
+    {
+     "name": "name",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the server's name, as servers lists it"
+    },
+    {
+     "name": "agent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the catalog id of the agent whose config names it, as servers lists it"
+    },
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+    },
+    {
+     "name": "project",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the project on that computer whose server it is, by the name projects lists, with on; a thread finds its own project's servers"
+    },
+    {
+     "name": "refresh",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "start it again even where an answer from the last three minutes stands"
+    }
+   ],
+   "output": [
+    "auth",
+    "tools",
+    "holder",
+    "refused",
+    "readAt"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "servers add",
+  "shape": "cli",
+  "usage": "wsp servers add <name> [<thread>] [--on <computer>] --agent <id> (--command \"<line>\" | --url <address> [--header <name>=<VARIABLE>]...) [--env <NAME>]... [--project [<name>]]",
+  "about": "writes one MCP server into an agent's own config: a command with its arguments and variables, or an address with its headers, each value read off this terminal's environment: the file names a variable and the value goes to the vault, an argument or the address naming a variable as ${NAME} keeps that name there, and an agent that reads no variable there refuses it",
+  "page": "agent",
+  "options": [
+   {
+    "name": "agent",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "command",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "env",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "url",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "header",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "project",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": "on"
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Writes one MCP server into one agent's own config on one computer or where a thread runs, the project's file with project from a thread: a command with its arguments and the variables it is given, or an address with its headers. Every value is read by name off the environment the wsp tools run with and never goes into an answer: the file names a variable and the value goes to the vault, which hands it to each turn there: on a computer the person added only to Claude Code and Codex, in that turn's launch and never its environment, and not to a Codex server whose own config reads its token through its bearer variable; elsewhere in the turn's environment. A header travels as WSP_MCP_<SERVER>_<HEADER>, and a Codex copy reads an Authorization: Bearer header whole as WSP_MCP_<SERVER>_AUTHORIZATION_BEARER, which the vault fills from the token it keeps alone under WSP_MCP_<SERVER>_AUTHORIZATION. An argument or the address may name one of those variables as ${NAME}, an address's variables being only the ones it names: the name stays in the agent's own syntax, and an agent that reads no variable there is refused. A name already in the file is refused rather than written over. Written as the login the computer was added with, into that agent's own file, which keeps its mode; a file that is a link out of the home, or out of the project for a project's file, is not written through, and a file the agent wrote meanwhile is left as it was. A napping machine is not woken. The report there reads again at once.",
+   "input": [
+    {
+     "name": "name",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "what to call the server in the agent's config"
+    },
+    {
+     "name": "agent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the catalog id of the agent whose config takes it"
+    },
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+    },
+    {
+     "name": "command",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the line the server runs, the program and its arguments as a shell would split them, nothing expanded; or url"
+    },
+    {
+     "name": "env",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "variables the server is given, or the address names as ${NAME}, each by its name, its value read off the same name in the environment the wsp tools run with; an argument or the address may name one as ${NAME}"
+    },
+    {
+     "name": "url",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the server's https address; or command"
+    },
+    {
+     "name": "header",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "headers sent to the address, each <name>=<VARIABLE>, its value read off that variable in the environment the wsp tools run with"
+    },
+    {
+     "name": "project",
+     "kind": {
+      "type": "json"
+     },
+     "optional": true,
+     "describe": "put it in a project's file rather than the agent's own: true for the thread's own project, or the project's name, as projects lists it, with on"
+    }
+   ],
+   "output": [
+    "file"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "servers remove",
+  "shape": "cli",
+  "usage": "wsp servers remove <name> [<thread>] [--on <computer>] --agent <id> [--scope <user|home|local|project>] [--project [<name>]] [--yes]",
+  "about": "takes one MCP server's entry out of an agent's own config, every other line of the file as it was, and, once no agent's config on this computer lists that server, frees the vault's values kept for it that no other server holds",
+  "page": "agent",
+  "options": [
+   {
+    "name": "agent",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "scope",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "project",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": "on"
+   },
+   {
+    "name": "yes",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Takes one MCP server's entry out of one agent's own config on one computer or where a thread runs, in the scope servers lists it under, every other server and line of the file as it was, and, once no agent's config on this computer lists that server, frees the vault's values kept for it that no other server holds. Written as the login the computer was added with, into that agent's own file, which keeps its mode; a file that is a link out of the home, or out of the project for a project's file, is not written through, and a file the agent wrote meanwhile is left as it was. A napping machine is not woken. The report there reads again at once.",
+   "input": [
+    {
+     "name": "name",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the server's name, as servers lists it"
+    },
+    {
+     "name": "agent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the catalog id of the agent whose config names it, as servers lists it"
+    },
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+    },
+    {
+     "name": "scope",
+     "kind": {
+      "type": "enum",
+      "options": [
+       "user",
+       "home",
+       "local",
+       "project"
+      ]
+     },
+     "optional": true,
+     "describe": "the scope servers lists it under: user, home, local or project; user without it"
+    },
+    {
+     "name": "project",
+     "kind": {
+      "type": "json"
+     },
+     "optional": true,
+     "describe": "the project's server of that name: true with a thread, the thread's own project, or the project's name, as projects lists it, with on"
+    }
+   ],
+   "output": [
+    "file"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "servers disable",
+  "shape": "cli",
+  "usage": "wsp servers disable <name> [<thread>] [--on <computer>] --agent <id> [--scope <user|home|local|project>] [--project [<name>]]",
+  "about": "turns one MCP server off by the switch its agent reads, so the agent leaves it out until it is turned on",
+  "page": "agent",
+  "options": [
+   {
+    "name": "agent",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "scope",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "project",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": "on"
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Turns one MCP server off in one agent's own config on one computer or where a thread runs, by the switch that agent reads (Codex's enabled line, OpenCode's enabled field, Gemini CLI's mcp.excluded); Claude Code keeps no such switch per server and is refused. Written as the login the computer was added with, into that agent's own file, which keeps its mode; a file that is a link out of the home, or out of the project for a project's file, is not written through, and a file the agent wrote meanwhile is left as it was. A napping machine is not woken. The report there reads again at once.",
+   "input": [
+    {
+     "name": "name",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the server's name, as servers lists it"
+    },
+    {
+     "name": "agent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the catalog id of the agent whose config names it, as servers lists it"
+    },
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+    },
+    {
+     "name": "scope",
+     "kind": {
+      "type": "enum",
+      "options": [
+       "user",
+       "home",
+       "local",
+       "project"
+      ]
+     },
+     "optional": true,
+     "describe": "the scope servers lists it under: user, home, local or project; user without it"
+    },
+    {
+     "name": "project",
+     "kind": {
+      "type": "json"
+     },
+     "optional": true,
+     "describe": "the project's server of that name: true with a thread, the thread's own project, or the project's name, as projects lists it, with on"
+    }
+   ],
+   "output": [
+    "file"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "servers enable",
+  "shape": "cli",
+  "usage": "wsp servers enable <name> [<thread>] [--on <computer>] --agent <id> [--scope <user|home|local|project>] [--project [<name>]]",
+  "about": "turns an MCP server that was turned off on again",
+  "page": "agent",
+  "options": [
+   {
+    "name": "agent",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "scope",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "project",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": "on"
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Turns one MCP server on again in one agent's own config on one computer or where a thread runs, by the switch that agent reads (Codex's enabled line, OpenCode's enabled field, Gemini CLI's mcp.excluded); Claude Code keeps no such switch per server and is refused. Written as the login the computer was added with, into that agent's own file, which keeps its mode; a file that is a link out of the home, or out of the project for a project's file, is not written through, and a file the agent wrote meanwhile is left as it was. A napping machine is not woken. The report there reads again at once.",
+   "input": [
+    {
+     "name": "name",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the server's name, as servers lists it"
+    },
+    {
+     "name": "agent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the catalog id of the agent whose config names it, as servers lists it"
+    },
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+    },
+    {
+     "name": "scope",
+     "kind": {
+      "type": "enum",
+      "options": [
+       "user",
+       "home",
+       "local",
+       "project"
+      ]
+     },
+     "optional": true,
+     "describe": "the scope servers lists it under: user, home, local or project; user without it"
+    },
+    {
+     "name": "project",
+     "kind": {
+      "type": "json"
+     },
+     "optional": true,
+     "describe": "the project's server of that name: true with a thread, the thread's own project, or the project's name, as projects lists it, with on"
+    }
+   ],
+   "output": [
+    "file"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "plugins",
+  "shape": "cli",
+  "usage": "wsp plugins [<thread>] [--on <computer>]",
+  "about": "each agent's plugins on this computer, a box you added or where a thread runs: on or off, missing where the agent names one it cannot load, its marketplace and version, and what it brings",
+  "page": "agent",
+  "options": [
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Every plugin of each agent on one computer or where a thread runs, one row per agent and plugin in each scope: its id (name@marketplace), the agent, the scope it is installed for (user, or a project's or a project's local with that project), whether the agent's own settings turn it on there (Claude Code: local over project over user settings, then the plugin's default; Codex: what its app server answers), missing where the agent names it and loads nothing of it (Claude Code's folder for it is not there, or Codex lists no such plugin), its folder, its version, its description, where its marketplace comes from, and what it brings: skills, commands and subagents by the names a turn gives them, the events its hooks run on, its tool servers, language servers and apps. Claude Code's are read off its files, never by claude plugin list, which fetches; Codex's are asked of its app server. Read as the login the computer was added with, off each agent's config and whether its files are there: no MCP server is started and no login file is opened. A napping machine answers what stood there when it last ran, marked stale with its pauseMode (disk: the nap stopped it, memory: it naps), and is not woken.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+    }
+   ],
+   "output": [
+    "target",
+    "home",
+    "user",
+    "readAt",
+    "stale",
+    "pauseMode",
+    "refused",
+    "projects",
+    "reach",
+    "plugins"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "plugins disable",
+  "shape": "cli",
+  "usage": "wsp plugins disable <id> --agent <id> [<thread>] [--on <computer>]",
+  "about": "turns one agent's plugin off for the login, by the agent's own road, so its next turn loads nothing of it",
+  "page": "agent",
+  "options": [
+   {
+    "name": "agent",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Turns one agent's plugin off on one computer or where a thread runs, by its id and agent. Written for the login the computer was added with, where that agent's own command reads it: Claude Code's user settings, its enabledPlugins key written as claude plugin enable or disable writes it but with nothing downloaded first, Codex's config.toml through its app server's config write, which refuses a file changed since wsp read it. A plugin plugins does not list, a missing one, and one a project's settings switch are refused. A turn running now keeps what it loaded; the next one follows. A napping machine is not woken. The report there reads again at once. Answers its row after.",
+   "input": [
+    {
+     "name": "plugin",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the plugin's id, name@marketplace, as plugins lists it"
+    },
+    {
+     "name": "agent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the catalog id of the agent whose plugin it is, as plugins lists it; one id can name a plugin of two agents"
+    },
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+    }
+   ],
+   "output": [
+    "plugin"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "plugins enable",
+  "shape": "cli",
+  "usage": "wsp plugins enable <id> --agent <id> [<thread>] [--on <computer>]",
+  "about": "turns one agent's plugin that was turned off on again",
+  "page": "agent",
+  "options": [
+   {
+    "name": "agent",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Turns one agent's plugin on again on one computer or where a thread runs, by its id and agent. Written for the login the computer was added with, where that agent's own command reads it: Claude Code's user settings, its enabledPlugins key written as claude plugin enable or disable writes it but with nothing downloaded first, Codex's config.toml through its app server's config write, which refuses a file changed since wsp read it. A plugin plugins does not list, a missing one, and one a project's settings switch are refused. A turn running now keeps what it loaded; the next one follows. A napping machine is not woken. The report there reads again at once. Answers its row after.",
+   "input": [
+    {
+     "name": "plugin",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the plugin's id, name@marketplace, as plugins lists it"
+    },
+    {
+     "name": "agent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the catalog id of the agent whose plugin it is, as plugins lists it; one id can name a plugin of two agents"
+    },
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, whose computer and project to read; absent reads a computer"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer to read, by the name computers lists; absent with no thread is the computer the app runs on"
+    }
+   ],
+   "output": [
+    "plugin"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "projects",
+  "shape": "cli",
+  "usage": "wsp projects",
+  "about": "your projects, each on its computer: where its code comes from, where its folder sits, the branch a machine of it starts on and how many threads it has",
+  "page": "front",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Every project this host holds: its name, the computer it lives on, where its code comes from (a folder on the computer the app runs on, or a repo a computer clones), where its folder sits, the branch a machine of it starts on, and its repo's top folder where it is a folder here inside a git repo. The name is what run takes. A project is recorded with add and is one source on one computer; on the computer the app runs on its threads run in its folder, or in a worktree of its repo for another branch. defaults holds, by project id, the agent, model, effort and access a new thread there starts on when its start names none, each with where it came from: the project's own (projects_set), the person's default (agents_set, agents_default) or the agent's own.",
+   "input": [],
+   "output": [
+    "projects",
+    "defaults"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "projects add",
+  "shape": "toolOnly",
+  "usage": null,
+  "about": null,
+  "page": null,
+  "options": null,
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": "the command line records a project with wsp add, the same word that joins a computer and takes a provider's key; those two belong at the terminal the host runs at, so the tool door carries the project half alone",
+  "tool": {
+   "description": "Records a project: one source on one computer. A folder on the computer the app runs on is the project as it stands, a git repo or not, a folder inside a repo being a project of that repo; its threads run in it. A repo is cloned into a folder of its own name inside the folder named with into on the computer the app runs on, made where it does not exist yet, or into that folder itself where its name is the repo's or the repo's with a number, and the clone's folder is then a folder project there, or by the computer named with on, whose machines then hold a checkout of it. A repo with neither into nor on, a clone's folder that holds files, and a source already recorded on that computer are each refused in one line, and a clone that fails says git's own last line. The answer is the project, whose name is what run takes.",
+   "input": [
+    {
+     "name": "source",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "a folder on the computer the app runs on, or a repo's url"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer that clones the repo, by the name computers lists; a folder, and a repo cloned with into, take none"
+    },
+    {
+     "name": "into",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "an absolute path on the computer the app runs on to clone the repo in: into a folder of the repo's name inside it, made where it does not exist yet, or into the path itself where its name is the repo's or the repo's with a number; the project is then the clone's folder"
+    },
+    {
+     "name": "name",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "what to call the project here; the folder's or the repo's own last word without it"
+    },
+    {
+     "name": "base",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the branch a machine of the project starts on; the remote's own default branch at the clone without it"
+    }
+   ],
+   "output": [
+    "project",
+    "notice"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "projects remove",
+  "shape": "cli",
+  "usage": "wsp projects remove <project> [--yes] [--force]",
+  "about": "takes a project out of this wsp; its folder is left where it is, on this computer or on a computer you joined, a project with a machine standing on it is refused naming them, and one whose checkout on a computer of yours holds work no remote has is stopped naming it",
+  "page": "agent",
+  "options": [
+   {
+    "name": "yes",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "force",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Takes a project's record out of this wsp. Its folder stays exactly where it is, on this computer or on a computer you joined, the memory its agent keeps on that computer stays, and no repo is ever asked for anything. Refused in one line while a machine of it stands, naming them; delete those first. Refused in one line too while its checkout on a computer of yours holds work no remote has, naming it by its path there, unless force.",
+   "input": [
+    {
+     "name": "project",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the project's name, or its id when two share a name"
+    },
+    {
+     "name": "force",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "remove it even where its checkout on a computer of yours holds work no remote has"
+    }
+   ],
+   "output": [
+    "project",
+    "said"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "projects set",
+  "shape": "cli",
+  "usage": "wsp projects set <project> [--agent <id>] [--model <slug>] [--effort <word>] [--access <word>] [--after-worktree <command>] [--tracker <owner/name>]... [--reset <field>]...",
+  "about": "what a new thread on one project starts on, over the agent's own defaults: its agent, model, effort and access; the shell line a new worktree of it runs once, after each ecosystem's own install, for what none of them knows; and the repos besides its own that gh on a sub-thread's machine may comment on, the whole list each time",
+  "page": "agent",
+  "options": [
+   {
+    "name": "agent",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "model",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "effort",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "access",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "after-worktree",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "tracker",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "reset",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Sets what a new thread on one project starts on, over each agent's own defaults and under what a start names: its agent, model, effort and access. Nothing about a computer is a project's to set (threads at once, an agent's program, config folder, launch words, variables, or whether it is on); agents_setup sets those per computer. A model or effort kept for the project's agent drops to the agent's own on a thread that runs another agent, and an access word the project's agent maps to none of its modes is refused naming the ones it takes. after_worktree is a shell line a new worktree of the project runs once at its top, after the locked install of each ecosystem whose lockfile it holds, each run in the folder holding that lockfile (uv sync --locked, cargo fetch --locked, go list -mod=readonly -deps -test ./..., npm install --no-save, pnpm install --frozen-lockfile where the node_modules carried in were installed from another lockfile, and the like), for what none of them knows. trackers is the whole list of repos besides the project's own, each owner/name, that gh on a sub-thread's machine may comment on, issues and pull requests both; every other gh write there stays refused. Answers what a new thread there now starts on, each value with where it came from, the after-worktree command and the trackers. reset puts a field back on the layer below: agent, model, effort or access, after-worktree takes the command away and trackers empties the list.",
+   "input": [
+    {
+     "name": "project",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the project's name, or its id when two share a name"
+    },
+    {
+     "name": "agent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the agent a new thread on it runs, one of claude, codex, opencode, cursor"
+    },
+    {
+     "name": "model",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the model a new thread on it starts on, by the agent's own slug"
+    },
+    {
+     "name": "effort",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the effort a new thread on it starts at, by the agent's own word"
+    },
+    {
+     "name": "access",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "how far the agent may go without asking, in wsp's words: ask (asks about each action that needs permission), auto-edit (edits files without asking), full (every action without asking) or plan (reads and proposes, changes nothing); each is mapped to the agent's own mode and refused where the agent has none, and a harness's own spelling is refused. Absent means the project's access, else the one set for that agent, else full"
+    },
+    {
+     "name": "after_worktree",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a shell line a new worktree of the project runs once at its top, after each ecosystem's own install"
+    },
+    {
+     "name": "trackers",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "the whole list of repos, each owner/name, besides the project's own that gh on a sub-thread's machine may comment on"
+    },
+    {
+     "name": "reset",
+     "kind": {
+      "type": "json"
+     },
+     "optional": true,
+     "describe": "fields to put back on the layer below: agent, model, effort, access, after-worktree to take the command away, or trackers to empty the list"
+    }
+   ],
+   "output": [
+    "project",
+    "defaults",
+    "afterWorktree",
+    "trackers"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "projects seed",
+  "shape": "cli",
+  "usage": "wsp projects seed <project> [--keep <path>]... [--cut <path>]... [--none] [--yes]",
+  "about": "what git ignores in a project's folder on this computer, and which of it goes to a sub-thread's machine: the menu with each path's size and why, the picks marked; --yes saves the picks, which every later sub-thread of the project takes",
+  "page": "agent",
+  "options": [
+   {
+    "name": "keep",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "cut",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "none",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "yes",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "What git ignores in a project's folder on this computer, and which of it goes to a sub-thread's machine: every path with its size, its kind (config, rebuilt, data, never for a login, unknown), the words its row ends in and whether it is picked. The picks start from the ones saved for the folder, else from nothing, since nothing git ignores is sent until the person saves picks; none empties them, keep adds paths off the menu and cut takes them away, each relative to the folder. A path git tracks or that is not there, the repository's own .git and a login are refused by name; a saved path no longer in the folder stays saved and is named in picked.missing. confirm saves the picks, which every later sub-thread of the project takes, as the same record wsp add --remember keeps; without it the menu is answered and nothing is saved. A thread's own token reads the menu and is refused the save, with the line to hand the person. A project whose folder is on another computer is refused.",
+   "input": [
+    {
+     "name": "project",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the project, by name or id; its folder must be on this computer"
+    },
+    {
+     "name": "keep",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "paths off the menu to send, each relative to the project's folder"
+    },
+    {
+     "name": "cut",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "paths off the menu to keep on this computer"
+    },
+    {
+     "name": "none",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "send nothing git ignores"
+    },
+    {
+     "name": "confirm",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true saves the picks; without it the menu is answered and nothing is saved"
+    }
+   ],
+   "output": [
+    "project",
+    "folder",
+    "rows",
+    "picked",
+    "saved"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "threads",
+  "shape": "cli",
+  "usage": "wsp threads [<project>] [--tree] [--watch]",
+  "about": "who is working, where and on which computer: every thread as the sidebar lists it, with its project, the folder it works in, that folder's branch, the agent, the state and who opened it, and under each thread the agent's own subagents with their SUBAGENT id; --tree indents the threads an agent spawned under the one that spawned them, and --watch draws the same table again every second where it stands",
+  "page": "front",
+  "options": [
+   {
+    "name": "tree",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "watch",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Every thread as the sidebar lists it: its project, the folder it works in (the project folder, or a worktree of the project's repo), that folder's branch as git reads it now, the computer it runs on, the agent inside, its state, who opened it (person, cli or agent) and its title. claudeSessionId is the agent's own id for the thread's session, absent until the agent announced one; for a Claude Code thread on this computer, cd into folder and run claude --resume with it to go on with the thread in a terminal, once the thread is not running; a thread on another computer goes on in a terminal there, its line also setting the CLAUDE_CONFIG_DIR its turns run with, as the app's Continue in terminal copies it. capped is on a thread waiting for a slot on its computer: the computer and what runs there against its threads at once; it starts on its own when one frees. Optionally within one project. A thread an agent inside another thread opened carries parentThreadId and rootThreadId, which is the tree stop ends as one. lastLine is the last line of the latest turn's reply and failure why that turn failed. subagents lists the agent's own subagents of every turn (id, title, state running, done, failed or stopped, model, asked: the start of what it was asked, lastLine or failure once it ends); stop takes one of them alone by its id.",
+   "input": [
+    {
+     "name": "project",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "one project's threads, by the name or the id projects lists"
+    }
+   ],
+   "output": [
+    "threads"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "threads wait",
+  "shape": "cli",
+  "usage": "wsp threads wait <thread>... [--timeout <s>] [--tail]",
+  "about": "blocks until one of the threads leaves running and prints its finished line, with the reply whole under it; --tail prints the reply's last line alone, which is what a notify sends, and --timeout gives up after so many seconds and says so on stderr",
+  "page": "agent",
+  "options": [
+   {
+    "name": "timeout",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "tail",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Blocks until one of the named threads leaves running and answers with that thread's end: its id, status (completed, interrupted or failed), how long it worked, what it cost and the last line of its reply, and on a sub-thread result, what its machine was read to hold, the text being the one line a notify sends. One thread per call: a caller that started three builders calls this three times, dropping each returned id from the list, since a thread already over comes back at once and would come back again. With timeout, the seconds to wait before answering with nothing and timedOut true, so other work fits between calls; keep it under your own tool call limit and call again. This blocks, so it is for a shell script and not for your own conversation. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report. A caller that is not a wsp thread cannot be woken at all, so it takes the reply of one turn as the call returns, and hands work of more than one turn to a single coordinator thread in the project's folder on this computer. Never poll threads for a state change.",
+   "input": [
+    {
+     "name": "threads",
+     "kind": {
+      "type": "stringList",
+      "min": 1
+     },
+     "optional": false,
+     "describe": "thread ids, or prefixes that each pick one"
+    },
+    {
+     "name": "timeout",
+     "kind": {
+      "type": "number"
+     },
+     "optional": true,
+     "describe": "seconds to wait; absent waits until one of the threads finishes"
+    }
+   ],
+   "output": [
+    "finished",
+    "timedOut"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "commit",
+  "shape": "cli",
+  "usage": "wsp commit <thread> [--message \"<message>\"] [--file <path>]...",
+  "about": "commits every changed file in the folder the thread works in, other threads' changes there included, or the files named; without a message the thread's agent drafts one",
+  "page": "agent",
+  "options": [
+   {
+    "name": "message",
+    "type": "string",
+    "multiple": false,
+    "short": "m",
+    "valueWith": null
+   },
+   {
+    "name": "file",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Commits the files changed in the folder the thread works in against its last commit, untracked ones added, with the message given, running the folder's hooks as git does. Other threads working in the same folder share its changes, so a commit of every file takes theirs too and the answer names them in sharedWith; files names some by path from the checkout's top and leaves the rest uncommitted. Without a message the thread's own agent drafts one from the diff and the message the thread was opened with, on its own command line with no thread and no tool, and the commit is made with that. Refused in one line when a file named has no change, when git knows no author in the folder (with the command that sets one), when a hook said no (with its last line), and when another git in the folder holds the index after one wait. Nothing reaches a remote: the app's Push is what pushes.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread, by its id or a prefix of it that names one, as threads lists them"
+    },
+    {
+     "name": "message",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the commit message, a subject line then a blank line and the body; without one the thread's agent drafts it"
+    },
+    {
+     "name": "files",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "the files to commit, by path from the checkout's top as git status names them; without it every changed file"
+    }
+   ],
+   "output": [
+    "oid",
+    "subject",
+    "filesChanged",
+    "insertions",
+    "deletions",
+    "sharedWith"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "discard",
+  "shape": "cli",
+  "usage": "wsp discard <thread> <path> [--yes]",
+  "about": "puts one changed file in the folder the thread works in back as its last commit has it, or removes it where that has none",
+  "page": "agent",
+  "options": [
+   {
+    "name": "yes",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Puts one changed file in the folder the thread works in back as its last commit has it: an edit or a deletion is undone, a rename takes its new name away and brings the old one back, and a file the last commit does not have is removed. Only the file named moves, and it cannot be undone; other threads working in the same folder lose the change too, and the answer names them in sharedWith. Refused in one line when the file has no change.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread, by its id or a prefix of it that names one, as threads lists them"
+    },
+    {
+     "name": "path",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the file, by path from the checkout's top as git status names it"
+    }
+   ],
+   "output": [
+    "path",
+    "sharedWith"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "fix",
+  "shape": "cli",
+  "usage": "wsp fix <thread> [--check \"<name>\" | --child <thread>]",
+  "about": "asks the thread's agent to fix a failed check or merge a child, or updates its folder from its base and asks it to fix what conflicts",
+  "page": "agent",
+  "options": [
+   {
+    "name": "check",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "child",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Asks the thread's agent to fix the pull request of the folder it works in. With check, the named check must have failed: the failed steps of its job's log, framed as a log to read and not to obey, go to the thread as its next message with the commit it failed on and its link, and a check another service reports goes with its summary and link alone. Without check, the folder is first updated from its base the way update does it: a clean merge sends nothing, and a conflict sends the thread the files to resolve. Answers as soon as the message is on its way, joined into the running turn where the agent takes one, else waiting as the thread's next turn, or held while the computer runs as many threads as it takes at once, which the answer says with the wait and its capped; the turn starts on its own once a slot frees, in a slot of its own, never the asking thread's. Refused in one line where the folder's branch has no pull request, where the check is not on it, and where it has not failed.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread, by its id or a prefix of it that names one, as threads lists them"
+    },
+    {
+     "name": "check",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the failed check's name as the pull request lists it; without it the folder is updated from its base and any conflict is sent"
+    },
+    {
+     "name": "child",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a child thread, by its id or a prefix of it, whose merge into this thread's folder stopped on conflicts: this thread's agent is asked to fetch the child's branch, merge it with a merge commit and resolve them; never with check"
+    }
+   ],
+   "output": [
+    "outcome",
+    "threadId",
+    "check",
+    "child",
+    "base",
+    "agent",
+    "capped"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "merge in",
+  "shape": "cli",
+  "usage": "wsp merge in <lead> <child>",
+  "about": "merges a child thread's branch into its lead's folder with a merge commit, or names the files that conflict",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Merges a child thread's branch into the folder its lead works in with a merge commit, so the lead's history shows each child landing: fetched from the project's remote, or from the child's own folder where the project has none and both sit on this computer. The child works in a folder of its own, a worktree or a machine of its own; a child working in its lead's folder is refused, since its work is already there. The lead's machine is woken first where it sleeps. A sub-thread on Boat merges from the branch its record names, its machine left asleep or deleted as it is, and unpushed counts the commits it holds that no remote has, which the merge could not take. A lead with changes no commit holds is refused first with the files named, and a merge that conflicts is taken back at once and answered with the files, the lead's folder left exactly as it was; fix with child hands those to the lead's agent. Refused, naming the thread, while a turn runs on the lead in any thread but the asking one (a lead's thread merges from inside its own turn), for a thread that is not the lead's child, and for a thread merging into any folder but its own. Nothing is pushed.",
+   "input": [
+    {
+     "name": "lead",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread, by its id or a prefix of it that names one, as threads lists them"
+    },
+    {
+     "name": "child",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the child thread whose branch is merged in, by its id or a prefix of it"
+    }
+   ],
+   "output": [
+    "lead",
+    "child",
+    "branch",
+    "merged",
+    "commits",
+    "conflicts",
+    "unpushed"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "merge",
+  "shape": "cli",
+  "usage": "wsp merge <thread> [--method merge|squash|rebase] [--when-checks-pass]",
+  "about": "merges the pull request of the thread's branch, or merges it once its checks pass",
+  "page": "agent",
+  "options": [
+   {
+    "name": "method",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "when-checks-pass",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Merges the pull request of the branch the thread's folder is on as the person, by the method named or the repository's own default, and only while its head is still the commit the host last read, so a push since then fails it in the git host's own words. when_checks_pass arms it to merge once its checks pass instead, where the repository allows that. Answers with the number, the method, and whether it merged now or waits on its checks. Refused in one line where the branch has no open pull request, where the repository does not allow the method or does not merge by itself, and with the git host's own reason where it refused, branch protection included. A thread's own token is refused: merging is the person's act.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread, by its id or a prefix of it that names one, as threads lists them"
+    },
+    {
+     "name": "method",
+     "kind": {
+      "type": "enum",
+      "options": [
+       "merge",
+       "squash",
+       "rebase"
+      ]
+     },
+     "optional": true,
+     "describe": "merge, squash or rebase; without it the repository's default"
+    },
+    {
+     "name": "when_checks_pass",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "merge once the checks pass rather than now, where the repository allows it"
+    }
+   ],
+   "output": [
+    "number",
+    "method",
+    "merged",
+    "autoArmed"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "start",
+  "shape": "cli",
+  "usage": "wsp start <link> [--project <name>] [--agent <id>] [--model, --effort, --access <word>]",
+  "about": "a thread off a GitHub issue or pull request link, the issue or the pull request its first message; an issue's thread runs in the project folder, a pull request's in a worktree on its branch",
+  "page": "agent",
+  "options": [
+   {
+    "name": "project",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "agent",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "model",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "effort",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "access",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Opens a thread off a GitHub issue or pull request link, returning as soon as the thread is started. The link names the repository, and the project here whose remote is that repository is the one used (project names one where two computers hold it); a link no project matches is refused naming the repository and the add line. The issue's or pull request's title, description, comments and link are the thread's first message, and an issue's thread is asked to have its pull request close the issue. On the computer the app runs on an issue's thread runs in the project folder, and a pull request's head is fetched into the project's repo as a branch and its thread runs in a worktree on it, so the project folder's checkout never moves. A thread's own token is refused: starting work from a link is the person's act.",
+   "input": [
+    {
+     "name": "link",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "a GitHub issue or pull request link, https://github.com/<owner>/<repo>/issues/<n> or /pull/<n>"
+    },
+    {
+     "name": "project",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the project by name or id where two projects hold the repository; absent is this computer's"
+    },
+    {
+     "name": "agent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the agent to run in the thread, one of claude, codex, opencode, cursor; absent means the host's default"
+    },
+    {
+     "name": "model",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the model the turn runs on, by the agent's own slug (claude-sonnet-5); absent on a new thread means the project's, else the one set for that agent, else the catalog's default, on send the thread's own"
+    },
+    {
+     "name": "effort",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the reasoning effort, by the agent's own word (low, medium, high, xhigh, max); absent on a new thread means the agent's default, high for claude; on send, the thread's own"
+    },
+    {
+     "name": "access",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "how far the agent may go without asking, in wsp's words: ask (asks about each action that needs permission), auto-edit (edits files without asking), full (every action without asking) or plan (reads and proposes, changes nothing); each is mapped to the agent's own mode and refused where the agent has none, and a harness's own spelling is refused. Absent means the project's access, else the one set for that agent, else full"
+    }
+   ],
+   "output": [
+    "workspace",
+    "threadId",
+    "sessionId"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "review",
+  "shape": "cli",
+  "usage": "wsp review <link|thread> [--agent <id>] [--model, --effort <word>]",
+  "about": "a reviewer thread on a pull request, read-only, whose review waits in wsp until you post it",
+  "page": "agent",
+  "options": [
+   {
+    "name": "agent",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "model",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "effort",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Starts a reviewer thread on a pull request, off its link or off the pull request of the branch a thread's folder is on, and returns as soon as the thread is started, its id first, which review_post takes. On the computer the app runs on the reviewer works in a worktree on the pull request's head, at its agent's read-only access (Codex unless another is named; an agent with no read-only access is refused naming the ones that have one), with the description, the diff against the base and the repository's own review rules in its first message. Its reply ends in a review the host keeps as a draft; nothing reaches the git host until review_post. A thread's own token is refused.",
+   "input": [
+    {
+     "name": "target",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "a GitHub pull request link, or the thread whose branch's pull request to review, by its id or a prefix of it"
+    },
+    {
+     "name": "agent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the reviewing agent, codex or claude; absent is codex"
+    },
+    {
+     "name": "model",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the model the turn runs on, by the agent's own slug (claude-sonnet-5); absent on a new thread means the project's, else the one set for that agent, else the catalog's default, on send the thread's own"
+    },
+    {
+     "name": "effort",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the reasoning effort, by the agent's own word (low, medium, high, xhigh, max); absent on a new thread means the agent's default, high for claude; on send, the thread's own"
+    }
+   ],
+   "output": [
+    "workspace",
+    "threadId",
+    "sessionId"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "review post",
+  "shape": "cli",
+  "usage": "wsp review post <thread> [--verdict comment|approve|request-changes] [--summary \"<text>\"]",
+  "about": "posts a reviewer thread's review on its pull request as you, its ticked comments on their lines",
+  "page": "agent",
+  "options": [
+   {
+    "name": "verdict",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "summary",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Posts a reviewer thread's review on its pull request as the person, in one call: the verdict, the summary and every ticked comment on its line, pinned to the head the review was written against. verdict and summary edit the draft first. A comment on a line outside the diff goes into the summary, since the git host takes none there. Refused in one line where the thread has no review yet, and with the git host's own reason where it refused, approving one's own pull request included. A thread's own token is refused: posting under the person's name is the person's act.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread, by its id or a prefix of it that names one, as threads lists them"
+    },
+    {
+     "name": "verdict",
+     "kind": {
+      "type": "enum",
+      "options": [
+       "comment",
+       "approve",
+       "request_changes"
+      ]
+     },
+     "optional": true,
+     "describe": "comment, approve or request_changes; absent is the draft's"
+    },
+    {
+     "name": "summary",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the review's summary; absent is the draft's"
+    }
+   ],
+   "output": [
+    "url",
+    "number",
+    "comments",
+    "folded"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "update",
+  "shape": "cli",
+  "usage": "wsp update <thread>",
+  "about": "merges the latest commits of the base into the branch of the folder the thread works in, or names the files that conflict",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Merges the latest commits of the base from the remote into the branch the thread's folder is on, with a merge commit, so a branch already pushed is never rewritten; other threads working in the same folder get them too, and the answer names them in sharedWith. A folder with changes no commit holds is refused first with the files named. A merge that conflicts is taken back at once and answered with the files that conflict, the folder left exactly as it was; fix sends those to the agent. Nothing is pushed.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread, by its id or a prefix of it that names one, as threads lists them"
+    }
+   ],
+   "output": [
+    "base",
+    "merged",
+    "commits",
+    "conflicts",
+    "sharedWith"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "resize",
+  "shape": "cli",
+  "usage": "wsp resize <thread> --size <cpu>x<memGb>",
+  "about": "moves the machine a thread runs on to another size its provider sells: a stop, then a resume at that size",
+  "page": "app",
+  "options": [
+   {
+    "name": "size",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Moves the machine a thread runs on to another size its provider sells, as a stop and then a resume at that size, and returns its record once it runs again. On Boat small and default share a 75 GB root disk and a move to large grows it to 160 GB with the files kept; xlarge's was never measured. Refused while a turn runs on it, since the stop would end it, and on a provider that changes no machine's size; a machine already at that size comes back unchanged. A thread's own token is refused: the bigger size is the person's spend.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread, by its id or a prefix of it that names one, as threads lists them"
+    },
+    {
+     "name": "size",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the size to move to, as <cpu>x<memGb>, like 4x8"
+    }
+   ],
+   "output": [
+    "workspace"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "image",
+  "shape": "cli",
+  "usage": "wsp image",
+  "about": "the image this host owns: its version, its hash, whether it holds your sign-ins (an image built on Boat holds none), and the copy each place has built of it",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "The image this host owns and the copy each place has built of it. The record is the recipe the seal was planned from, the sign-ins it holds and a hash over both; a copy built at that hash is current and any other is stale, whatever version the place's own manifest gave it. A record with no vault was read back off its own copy rather than written at a seal, so it judges none of them and every copy of it asks for the sign-ins again: cutting the next version holds them. An image built on Boat holds no sign-in: its machines use the sign-ins on this computer through wsp.",
+   "input": [],
+   "output": [
+    "image",
+    "copies"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "image build",
+  "shape": "cli",
+  "usage": "wsp image build <place> [--force]",
+  "about": "builds this host's image at a place from the record, its sign-ins coming from the vault and no sign-in run again",
+  "page": "agent",
+  "options": [
+   {
+    "name": "force",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Builds this host's image at a place from the record alone: a builder is forked there with the recipe the image was sealed from and every sign-in set to skip, the sign-ins the seal held are landed on it out of the vault, and the copy is sealed and recorded under that place at the record's hash. Nothing signs in again and no Keychain is read. A place that already holds a copy built from this record is answered with that copy and `built` false, so asking twice costs nothing, unless `force` asks for a new copy, which takes the daemon this host ships now; a place whose copy is building is answered with that build, never a second one. A joined computer builds its copy at the end of its setup; every other copy, and every copy a newer version left behind, is built only when this line asks or when a fork there finds no current copy, and that fork says so before the build starts, since a build bills where it runs. Refused in one line for a place this host does not hold, for a place that takes no copy at all, and for a record sealed without the recipe it was built from. A record holding no sign-ins is refused too, since every copy of it would ask for them again; `force` builds it anyway.",
+   "input": [
+    {
+     "name": "place",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the place to build the copy at, by the name wsp computers lists"
+    },
+    {
+     "name": "force",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "build a new copy even where the place already holds this version; a record holding no sign-ins is built too, and its copy asks for every one of them again"
+    }
+   ],
+   "output": [
+    "copy",
+    "built"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "delete",
+  "shape": "cli",
+  "usage": "wsp delete <thread> [--processes stop|keep] [--yes]",
+  "about": "takes a thread away, its turns and checkpoints with it, and the worktree wsp made for it once no other thread is in it, never the project folder, refused while one still runs processes, on this computer or a box, unless --processes says to stop or keep them",
+  "page": "front",
+  "options": [
+   {
+    "name": "yes",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "processes",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [
+   "workspace"
+  ],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Takes a thread away, named by thread: its turns and checkpoints go, and where it is the last thread in a worktree wsp made, that worktree goes with it, refused over files no commit holds; the project folder is never touched. A sub-thread goes with its machine on Boat and its kept session, answering machine deleted; the question names work its machine holds that no remote has, and a thread's own token is refused it while such work stands. Called without confirm it deletes nothing and answers with what would go, which is the line to put to the person. A thread that still runs processes beside its agent (a dev server, a watcher), on this computer or a box, is refused, naming them, until processes says stop, which ends each by identity before the thread goes (on a box, everything in the thread's cgroup there), or keep, which leaves them running.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the thread, by its id or a prefix of it that names one"
+    },
+    {
+     "name": "processes",
+     "kind": {
+      "type": "enum",
+      "options": [
+       "stop",
+       "keep"
+      ]
+     },
+     "optional": true,
+     "describe": "what to do with the processes a thread still runs beside its agent: stop ends each by identity, and on a box ends everything in the thread's cgroup there; keep leaves them running; refused without one while any run"
+    },
+    {
+     "name": "confirm",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true deletes it; absent or false answers with what would go and deletes nothing, so a person can be asked first"
+    }
+   ],
+   "output": [
+    "threadId",
+    "workspaceId",
+    "worktree",
+    "name",
+    "machineId",
+    "threads",
+    "ended",
+    "machine"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "run",
+  "shape": "cli",
+  "usage": "wsp run [<project>] [--on boat [--size <cpu>x<memGb>] [--from <ref>]] [--beside <thread>] [--fork <thread> [--at <n>]] [--branch <branch>] [--cwd <path>] [--agent <id>] [--model, --effort, --access <word>] [--fast] [--notify <thread|me>] [--title <title>] [--replaces <thread>] [--file <path>] [--resume <id> [--copy]] [--detach] \"<message>\"",
+  "about": "an agent works in the project's folder and you read its reply: a thread with the agent, model, effort and access the app offers; a project on a box runs in its folder there as the login the box was added with; --on boat starts it as a sub-thread of the thread asking, on a machine of its own on Boat forked from your image at --size or Boat's own size, which fetches your pushed branch, or with --from a branch, tag or commit the remote holds, and pushes --branch or wsp/<slug>; --beside runs it in the folder another thread works in, on that thread's computer; --branch runs it in a worktree of the project's repo on that branch, made under wsp's folder unless one already holds it, and --cwd in a folder inside the project or one of its worktrees; --fork starts it from another thread's conversation through its latest finished turn, or the one --at counts from 1, on that thread's agent in its folder, or with --branch in a new worktree whose files are that turn's; with no project, run from inside one of your project folders, or from a thread, beside it; follows its first turn, or with --detach prints the id and returns",
+  "page": "front",
+  "options": [
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "size",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "from",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "beside",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "fork",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "at",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "branch",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "cwd",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "agent",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "model",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "effort",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "access",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "fast",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "notify",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "title",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "replaces",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "file",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "resume",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "copy",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "detach",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Opens a thread under the named agent, on the model, effort and access mode named or the catalog's defaults (a cheaper model for a review, say), and follows its first turn; returns the reply text as soon as it is complete, with the thread id for send. It runs in the project's folder, on a box in its folder there as the login the box was added with; with beside, in the folder that thread works in, on its computer, which is how a fresh thread picks up where a long one stands; with branch, in a worktree of the project's repo on that branch (one that already holds the branch, wherever it is, else one wsp makes under its own folder with the dependencies carried in); with cwd, in that folder, which must be inside the project or one of its worktrees. With no project, from a thread, it runs beside that thread in its folder. With detach true it returns the thread id the moment the turn is started, without the reply: the road for a turn that runs for minutes or an hour. A turn ends when the agent process exits, not at its reply, and the thread reads running until then. With notify, each turn of the thread sends one line (outcome, duration, cost, and the reply whole into a thread or its last line to the person) to every target named, so a caller need not wait here or poll. The notify line goes once, at the reply; a reply given with background tasks still running says so, and a second line goes at the turn's end. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report. With replaces, the thread restarts a stopped or failed one, which settles once it starts, so the person sees one row. With fork, the thread starts from another thread's conversation through one of its finished turns, the latest or the one at counts, and nothing after, on that thread's agent and in its folder, or with branch in a new worktree whose files are that turn's checkpoint, leaving that thread as it was. A start on a computer already running as many threads as its threads at once waits for a slot and starts on its own when one frees (outcome `held`), with capped beside it, the computer and what runs there against its number, which the thread's row in threads carries while it waits; a thread that follows a run or a send to its end, not detached, lends that thread's next turn its own slot, one turn at a time, a turn already held ahead of the message included, and every other start, a child started detached included, waits for a slot of its own. When the person asks for another agent, on another model or another harness, start it as a wsp thread with run, so it shows in their sidebar; your own subagent tool is for your own sub-steps.",
+   "input": [
+    {
+     "name": "project",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the project the thread works on, by the name or the id projects lists. Absent from a thread, the thread runs beside the one asking, in its folder"
+    },
+    {
+     "name": "beside",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread, by its id or a prefix of it, beside which the new thread runs: in the folder that thread works in, on the computer it runs on; never with project or branch"
+    },
+    {
+     "name": "fork",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a thread to fork, by id or a prefix of it, as threads lists them: the new thread runs on that thread's agent, at its model and effort unless named, with its conversation through one finished turn and nothing after, in that thread's folder, or with branch in a new worktree on that branch whose files are that turn's checkpoint; never with project, beside, cwd or replaces, and an agent other than the thread's is refused"
+    },
+    {
+     "name": "at",
+     "kind": {
+      "type": "integer",
+      "min": 1
+     },
+     "optional": true,
+     "describe": "with fork, the finished turn the fork carries the conversation through, counted from 1 in the order thread_read lists them; absent, the thread's latest finished turn"
+    },
+    {
+     "name": "branch",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a branch other than the one the project's folder has checked out: the thread runs in the worktree holding it, made under wsp's folder from the project folder's current commit for a new branch"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "boat, to start the thread as a sub-thread of the thread asking on a machine of its own on Boat, forked from the person's image. It fetches your pushed branch, or the ref from names, and pushes a branch of its own; without from your branch must be pushed first. It carries the thread's own project, which project may name or leave out; another project is refused. Never with beside, fork, at, cwd, resume, copy or replaces"
+    },
+    {
+     "name": "size",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "with on, the machine's size as <cpu>x<memGb>: 2x4, 4x8, 8x16 or 16x32, those the person's plan sells; Boat's own size setting without it. A thread that builds or runs a test suite wants 4x8"
+    },
+    {
+     "name": "from",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "with on, a branch, tag or commit the remote already holds (origin/main, main, v1.2, a commit id) that the sub-thread starts from instead of your branch, which then need not be pushed; a ref the remote does not hold is refused naming it"
+    },
+    {
+     "name": "cwd",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a folder inside the project or one of its worktrees, absolute, which the thread starts in"
+    },
+    {
+     "name": "message",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": null
+    },
+    {
+     "name": "agent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the agent to run in the thread, one of claude, codex, opencode, cursor; absent means the host's default"
+    },
+    {
+     "name": "model",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the model the turn runs on, by the agent's own slug (claude-sonnet-5); absent on a new thread means the project's, else the one set for that agent, else the catalog's default, on send the thread's own"
+    },
+    {
+     "name": "effort",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the reasoning effort, by the agent's own word (low, medium, high, xhigh, max); absent on a new thread means the agent's default, high for claude; on send, the thread's own"
+    },
+    {
+     "name": "access",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "how far the agent may go without asking, in wsp's words: ask (asks about each action that needs permission), auto-edit (edits files without asking), full (every action without asking) or plan (reads and proposes, changes nothing); each is mapped to the agent's own mode and refused where the agent has none, and a harness's own spelling is refused. Absent means the project's access, else the one set for that agent, else full"
+    },
+    {
+     "name": "fast",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true runs the turn in the agent's fast mode, on a model that offers one, and is refused naming the model otherwise; absent runs at the agent's usual speed"
+    },
+    {
+     "name": "notify",
+     "kind": {
+      "type": "stringList",
+      "min": 1
+     },
+     "optional": true,
+     "describe": "who is told each time a turn of the new thread ends, each one a thread (by id, or a prefix of it) the line goes into as a message carrying that turn's whole reply, or me, which is the thread this call came out of when it came out of one and otherwise the person's app, where the line is its last reply line alone. Several targets each get the line once, which is how a builder's end reaches its orchestrator and a reviewer together; a target whose thread is gone by then falls back to the person, and the new thread's own id is refused. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report."
+    },
+    {
+     "name": "title",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the thread's name, as a person's: it shows in the sidebar and in the agent's own list from the first second, and the title the host asks the agent for as the turn starts never replaces it; absent lets the thread be titled by its opening words until, seconds in, the agent names it"
+    },
+    {
+     "name": "replaces",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a stopped or failed thread this new thread restarts, by id or a prefix of it, as threads lists them: the new thread's row names it, and once the new one starts the host settles it, so the person sees one row for the job; a restart the person starts of a child stands under that child's lead. Refused while that thread or one under it is working, for a thread that already has a restart (name that restart instead), and from a thread for one that is not under it, each before a machine is forked or woken"
+    },
+    {
+     "name": "files",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "paths on this computer, absolute or relative to the folder wsp runs in, of files to send with the message, at most 5. An image (PNG, JPEG, GIF or WebP, up to 10 MB) goes to the agent as an image; any other file, up to 10 MB, lands in the folder the thread works in, under .wsp-files where git lists none of it, and the message names its path. The host reads each file and sends its bytes, so the machine never reaches back for this computer’s files; an image to an agent that reads none is refused naming that agent."
+    },
+    {
+     "name": "resume",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "a conversation the agent kept in the project's folder outside wsp, by the id conversations lists: the new thread opens on it, in the folder it ran in, under its own name, with its newest messages written above the message, and nothing of wsp's is written into the agent's own store until the thread is renamed here. Refused with beside, branch or cwd, since the conversation names its folder, where the agent holds no such conversation, where it is a wsp thread already, and where another app holds it open, unless copy"
+    },
+    {
+     "name": "copy",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "with resume, true runs the thread on a copy of the conversation the agent makes (Claude Code's --fork-session, Codex's thread/fork), the original left byte for byte as it was: the answer to one open in another app"
+    },
+    {
+     "name": "detach",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true answers with the thread id the moment the turn is started, without the reply, and the turn's end reaches whoever notify named; for a turn that runs for minutes or an hour, so this call does not block for it. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report."
+    }
+   ],
+   "output": [
+    "threadId",
+    "workspaceId",
+    "harness",
+    "text",
+    "outcome",
+    "capped",
+    "afterCut",
+    "notice",
+    "sub"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "worktree",
+  "shape": "cli",
+  "usage": "wsp worktree <project> <branch>",
+  "about": "a worktree of the project's repo on the branch, for an agent to work in by path or to start a thread in: the one git already has the branch checked out in, wherever it is, else one wsp makes under its own folder, from the project folder's current commit for a new branch, with the folder's .env files and installed dependencies carried in; prints its path",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "A worktree of the project's repo on the branch, answered with its path: the one git already has the branch checked out in, the project folder or a worktree the person or an agent made included, else one wsp makes under its own folder, a new branch starting from the project folder's current commit, with .env files carried in from the project folder and, for each folder of the branch holding an ecosystem's lockfile where the project folder holds that ecosystem's folder there, or at the top for one that carries nothing (uv, Poetry, Cargo, Go), its relocatable dependency folders under it carried in, the folders tied to their path (a virtualenv, target) never copied, and its install run once in that folder, without writing a tracked file, unless what was carried records that it was installed from that very lockfile, then the project's after-worktree command (projects_set). On a Linux disk that shares no blocks a carried folder is a mount, so git clean -fdx there says Device or resource busy once for each and leaves it as it was. made says whether wsp made it, which is the only kind it ever removes. A running session cannot move into it: work there by path, or start a thread in it with run and cwd. git worktree add works too, without the carried files and the cleanup.",
+   "input": [
+    {
+     "name": "project",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the project, by the name or the id projects lists"
+    },
+    {
+     "name": "branch",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the branch, existing or new"
+    }
+   ],
+   "output": [
+    "path",
+    "branch",
+    "made"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "worktree remove",
+  "shape": "cli",
+  "usage": "wsp worktree remove <project> <branch> [--force] [--yes]",
+  "about": "takes away a worktree wsp made for the branch, with git: refused while a thread is working in it, and over files no commit holds unless --force; the branch stays, and a worktree wsp did not make is never removed",
+  "page": "agent",
+  "options": [
+   {
+    "name": "force",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "yes",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Takes away the worktree wsp made for the branch, with git: refused while a thread is working in it, and over files no commit holds unless force, which loses them. The branch itself stays, and a detached worktree's commit is kept under refs/rescue. A worktree the person or an agent made is never removed; threads that ran in a removed worktree go on in the project folder.",
+   "input": [
+    {
+     "name": "project",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the project, by the name or the id projects lists"
+    },
+    {
+     "name": "branch",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the branch the worktree holds"
+    },
+    {
+     "name": "force",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "remove it over files no commit holds, which go with it"
+    }
+   ],
+   "output": [
+    "project",
+    "branch",
+    "removed"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "thread read",
+  "shape": "cli",
+  "usage": "wsp thread read <thread> [--last]",
+  "about": "the thread's messages as the app lists them, oldest first: who each one is, when the runtime recorded it and the text, with every tool call folded to the one line the app's row reads; --last prints the final reply alone, the whole message its finished line carries. A tool's output and the agent's reasoning are no rows of it. Reading marks the thread read, so it stops reading Done here and in the app",
+  "page": "agent",
+  "options": [
+   {
+    "name": "last",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "The thread's messages as the app lists them, oldest first: each one's who (person for the message that opened or steered a turn, agent for the agent's own words, tool for one call of its folded to a line, turn for the outcome, duration and cost the turn ended with), at, the ms epoch the runtime recorded it, and its text. With last true, the final reply alone, the whole message the thread's finished line carries, and a row under it saying so when the thread has started another turn since, so a report is never read as the one being written. This is how you read a thread you did not open, and how you read the report behind a line that reached you; the transcript is the host's, so nothing on a machine is touched and a paused machine's thread reads the same as a running one's. A thread of many turns answers with all of them, so read one with last true when the report is what you are after. A call's output and the agent's reasoning are no rows of it. A thread whose rows the transcript's cap has dropped answers with none, which is an answer and not an error. Reading marks the thread read, as the app showing it does, so a finished thread stops reading Done in threads and in the app.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread's id, or a prefix of it that names one, as threads lists them"
+    },
+    {
+     "name": "last",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true answers with the final reply alone, the whole message the thread's finished line carries, with a row under it where the thread has started another turn since; absent answers with every message"
+    }
+   ],
+   "output": [
+    "threadId",
+    "messages"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "thread head",
+  "shape": "cli",
+  "usage": "wsp thread head <thread>",
+  "about": "the thread's facts and its newest events, what the app draws first on opening it: the title, the agent, model and access it runs on, where it stands and its folder, then as many of its newest events as fit in 64 KB, each tool result past 2 KB cut and marked with its whole length. Reading a head marks nothing",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "The thread's head (by id, or a prefix of it): facts, the thread as threads lists it with the model, effort and context window its latest turn runs on and turnId while a turn runs; events, as many of the thread's newest transcript events as fit in 64 KB, oldest first, each tool result past 2 KB cut with cut set to its whole length; pos, the newest position the transcript has issued, which every event carries as its own pos; and total, how many events of the thread the transcript holds. It is the cheap look at a thread: read the whole conversation with thread_read. Nothing on a machine is touched and the thread is not marked read.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread's id, or a prefix of it that names one, as threads lists them"
+    }
+   ],
+   "output": [
+    "facts",
+    "events",
+    "pos",
+    "total",
+    "trimmed"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "thread rename",
+  "shape": "cli",
+  "usage": "wsp thread rename <thread> \"<title>\"",
+  "about": "names the thread inside the agent's own store, so the agent shows the same name",
+  "page": "app",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Names the thread (by id, or a prefix of it) in the agent's own store on the machine, the field the agent writes when a person renames the session inside it, so the thread reads by that name in wsp and in the agent. outcome renamed means the store took it; unsupported means the thread's agent keeps no name of a person's, which is an answer, not an error; no-session means the agent's store on the machine has no such session; failed means the store refused the write and error carries the machine's own line for it. Whether an agent keeps a name is on its row in harnesses.list, from the adapter on the machine.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": null
+    },
+    {
+     "name": "title",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": null
+    }
+   ],
+   "output": [
+    "threadId",
+    "title",
+    "harness",
+    "outcome",
+    "error"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "thread forget",
+  "shape": "cli",
+  "usage": "wsp thread forget <thread> [--yes]",
+  "about": "drops a thread no turn ever ran on, the row a launch that never got going leaves behind; refused once a turn of it did work",
+  "page": "agent",
+  "options": [
+   {
+    "name": "yes",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Drops a thread (by id, or a prefix of it) no turn ever ran on: the row a launch that never got going leaves in threads and in the person's sidebar goes, and nothing is asked of the machine. A launch the agent refused outright, for want of a sign-in, counts as one that ran nothing and goes the same way. Refused in one line once a turn of the thread did work, since that work is written down on it and nowhere else; delete takes a thread that ran, with its turns.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread's id, or a prefix of it that names one, as threads lists them"
+    }
+   ],
+   "output": [
+    "threadId",
+    "workspaceId"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "thread settle",
+  "shape": "cli",
+  "usage": "wsp thread settle <thread>... [--finished] [--processes stop|keep]",
+  "about": "folds each thread and every thread under it into the sidebar's Settled, leaving a tree with a thread still working or asking in it; a thread settles itself and the threads it started, never its lead; refused while one still runs processes, on this computer or a box, unless --processes says to stop or keep them",
+  "page": "agent",
+  "options": [
+   {
+    "name": "finished",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "processes",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Settles each thread (by id, or a prefix of it) and every thread under it: they fold into the person's Settled in the sidebar, as the app's Settle does, and come back by themselves on their next turn. A thread with a thread working or asking anywhere in its tree is left whole, with why, as is one already settled; with finished, each thread named stays and every finished thread under it settles, a failed one staying for the person to read and one with work under it left with why. A thread settles itself and the threads under it, never its lead or a thread beside it. Settle each child once its report is acted on. The answer lists what settled and what was left, with why.",
+   "input": [
+    {
+     "name": "threads",
+     "kind": {
+      "type": "stringList",
+      "min": 1
+     },
+     "optional": false,
+     "describe": "the threads' ids, or prefixes that each name one, as threads lists them"
+    },
+    {
+     "name": "finished",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "settle the finished threads under each thread named, and not the thread itself"
+    },
+    {
+     "name": "processes",
+     "kind": {
+      "type": "enum",
+      "options": [
+       "stop",
+       "keep"
+      ]
+     },
+     "optional": true,
+     "describe": "what to do with the processes a thread still runs beside its agent: stop ends each by identity, and on a box ends everything in the thread's cgroup there; keep leaves them running; refused without one while any run"
+    }
+   ],
+   "output": [
+    "settled",
+    "left",
+    "ended"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "thread restore",
+  "shape": "cli",
+  "usage": "wsp thread restore <thread>...",
+  "about": "brings each thread back out of the sidebar's Settled with what the latest settle naming it moved",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Brings each thread (by id, or a prefix of it) back out of the person's Settled in the sidebar, with the threads under it that the latest settle naming it moved: after a settle with finished, the finished threads that settle moved. A thread folded by the quiet time or settled before stays. A thread restores itself and the threads under it, never its lead or a thread beside it. The answer lists what came back.",
+   "input": [
+    {
+     "name": "threads",
+     "kind": {
+      "type": "stringList",
+      "min": 1
+     },
+     "optional": false,
+     "describe": "the threads' ids, or prefixes that each name one, as threads lists them"
+    }
+   ],
+   "output": [
+    "restored"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "thread allow",
+  "shape": "cli",
+  "usage": "wsp thread allow <thread>",
+  "about": "answers the prompt the thread is stopped on and lets the call run",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Answers the prompt the thread is stopped on and lets the call run, by thread id or a prefix of it. A thread stopped on a prompt reads Needs you in threads and runs nothing until somebody picks, so this is how a thread you did not open is unstuck; the prompt itself is on the thread's own rows, which thread_read prints. Refused in one line when the thread is waiting on no prompt and when the prompt it is stopped on carries no such answer, which is what a call that asks the person something rather than for consent does.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread's id, or a prefix of it that names one, as threads lists them"
+    }
+   ],
+   "output": [
+    "threadId",
+    "askId",
+    "optionId"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "thread deny",
+  "shape": "cli",
+  "usage": "wsp thread deny <thread> [--reason \"<words>\"]",
+  "about": "answers the prompt the thread is stopped on and refuses the call",
+  "page": "agent",
+  "options": [
+   {
+    "name": "reason",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Answers the prompt the thread is stopped on and refuses the call, by thread id or a prefix of it. A thread stopped on a prompt reads Needs you in threads and runs nothing until somebody picks, so this is how a thread you did not open is unstuck; the prompt itself is on the thread's own rows, which thread_read prints. Refused in one line when the thread is waiting on no prompt and when the prompt it is stopped on carries no such answer, which is what a call that asks the person something rather than for consent does.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread's id, or a prefix of it that names one, as threads lists them"
+    },
+    {
+     "name": "reason",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "what the agent should do instead, in your words; the agent reads it with the refusal, as it reads the reason a person types in the app"
+    }
+   ],
+   "output": [
+    "threadId",
+    "askId",
+    "optionId"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "slate catalog",
+  "shape": "cli",
+  "usage": "wsp slate catalog [<name>]",
+  "about": "what a slate can hold: the index of pieces, sources, steps, functions and rules, or one entry in full",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "What a slate, the live panel beside the chat, can hold: every piece, and the runs that keep it fresh. Call it first whenever the person wants to see, watch, monitor or keep an eye on something, tick things off as they go, or see what's unread, even when another tool fetches the data.",
+   "input": [
+    {
+     "name": "name",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "leave out first: the index of every piece; then an entry, like runs"
+    }
+   ],
+   "output": [
+    "text"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "slate write",
+  "shape": "cli",
+  "usage": "wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]... [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]",
+  "about": "writes the thread's slate from a .slate file (a whole <slate> or a patch) or a .json document and prints its sketch; --check stores nothing, and with --set or --press rehearses values and a press on a copy, the file optional",
+  "page": "agent",
+  "options": [
+   {
+    "name": "check",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "set",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "press",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "row",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "action",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "if-version",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Writes this thread's slate, the live panel here beside the chat. Use it to show the person what they want to see, watch, monitor or keep an eye on while you work (live data, traffic, metrics, a price, logs, a PR, progress, status), a dashboard, a form to fill in or a checklist. A run with every= refreshes on a timer with no turns, so nothing polls. A run's script goes in a <file name=\"x.py\">, run as python3 \"$SLATE_DIR/x.py\", never in the project.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "another thread's id"
+    },
+    {
+     "name": "text",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "JSX-like text: a <slate>, or a patch"
+    },
+    {
+     "name": "document",
+     "kind": {
+      "type": "json"
+     },
+     "optional": true,
+     "describe": "JSON form from slate_read; not for writing"
+    },
+    {
+     "name": "check",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "validate, write nothing"
+    },
+    {
+     "name": "values",
+     "kind": {
+      "type": "json"
+     },
+     "optional": true,
+     "describe": "with check: $path: value"
+    },
+    {
+     "name": "press",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "with check: piece id to press"
+    },
+    {
+     "name": "row",
+     "kind": {
+      "type": "integer",
+      "min": null
+     },
+     "optional": true,
+     "describe": "pressed row, from 0"
+    },
+    {
+     "name": "action",
+     "kind": {
+      "type": "integer",
+      "min": null
+     },
+     "optional": true,
+     "describe": "row action, from 0"
+    },
+    {
+     "name": "if_version",
+     "kind": {
+      "type": "integer",
+      "min": null
+     },
+     "optional": true,
+     "describe": "only at this version"
+    }
+   ],
+   "output": [
+    "version",
+    "text",
+    "warnings",
+    "problems",
+    "waiting"
+   ],
+   "stream": [
+    "text"
+   ]
+  }
+ },
+ {
+  "name": "slate state",
+  "shape": "cli",
+  "usage": "wsp slate state [<thread>] [<path>=<json>...] [--start <run>]... [--if-version <n>]",
+  "about": "sets the slate's $values by path, like '$steps[2].done=true' or 'i=2', starts runs the person let run every time, and prints its sketch",
+  "page": "agent",
+  "options": [
+   {
+    "name": "if-version",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "start",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Sets the slate's live $values by path, so the person sees progress, status or a checklist tick move as you work; reactions fire. start starts a run the person allowed to run always.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "another thread's id"
+    },
+    {
+     "name": "values",
+     "kind": {
+      "type": "json"
+     },
+     "optional": true,
+     "describe": "$path: new value"
+    },
+    {
+     "name": "start",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "runs allowed always"
+    },
+    {
+     "name": "if_version",
+     "kind": {
+      "type": "integer",
+      "min": null
+     },
+     "optional": true,
+     "describe": "only at this version"
+    }
+   ],
+   "output": [
+    "version",
+    "text",
+    "problems",
+    "waiting",
+    "notStarted"
+   ],
+   "stream": [
+    "text"
+   ]
+  }
+ },
+ {
+  "name": "slate read",
+  "shape": "cli",
+  "usage": "wsp slate read [<thread>] [--values <path>]... [--no-text] [--no-sketch] [--document]",
+  "about": "the slate as it stands: the sketch, then the JSX-like form, the values, derived values, runs, problems and the paths named; --no-text leaves out the JSX-like form, --document adds the stored JSON",
+  "page": "agent",
+  "options": [
+   {
+    "name": "values",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "no-text",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "no-sketch",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "document",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Reads this thread's slate: what the person filled in or pressed, live values, run output and logs, and the sketch: the panel's words as the person sees them.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "another thread's id"
+    },
+    {
+     "name": "values",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "$run.json, $value, source path, or *"
+    },
+    {
+     "name": "text",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "false: no JSX-like form"
+    },
+    {
+     "name": "sketch",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "false: no sketch"
+    },
+    {
+     "name": "document",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true: add stored JSON"
+    }
+   ],
+   "output": [
+    "version",
+    "text",
+    "document",
+    "values",
+    "derived",
+    "runs",
+    "state",
+    "problems",
+    "waiting",
+    "comments",
+    "approvals"
+   ],
+   "stream": [
+    "text"
+   ]
+  }
+ },
+ {
+  "name": "send",
+  "shape": "cli",
+  "usage": "wsp send <thread> [--model, --effort <value>] [--fast] [--file <path>] [--detach] \"<message>\"",
+  "about": "a message to the thread, on a named model or effort, fast or not, with files; the thread keeps its own access and a running turn its own picks; --detach prints the id and returns",
+  "page": "front",
+  "options": [
+   {
+    "name": "model",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "effort",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "fast",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "file",
+    "type": "string",
+    "multiple": true,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "detach",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Sends a message to an existing thread (by id, or a prefix of it) and returns the reply when it is complete; a person's message on the same thread lands in order with yours. With detach true it returns the thread id the moment the turn is started, without the reply, and the turn's end reaches whoever the thread's start named. A model or effort named here is the turn's; the thread runs on the agent and at the access its own turns ran at, which a message does not change; a turn that joins a running one keeps that one's. On a thread whose turn is not running the message starts a new turn (outcome `started`); when the turn is still running the message joins it (outcome `steered`) or waits for it and then runs (outcome `queued`), and the reply is that turn's. When the thread's turn has replied but its agent process is still running, the message waits for that process and runs as the thread's next turn (outcome `queued`), which the runtime says as `This thread replied, still working; the message runs as its next turn once that process exits`. A send is never refused for meeting a turn, and two sends keep the order they arrived in. A start on a computer already running as many threads as its threads at once waits for a slot and starts on its own when one frees (outcome `held`), with capped beside it, the computer and what runs there against its number, which the thread's row in threads carries while it waits; a thread that follows a run or a send to its end, not detached, lends that thread's next turn its own slot, one turn at a time, a turn already held ahead of the message included, and every other start, a child started detached included, waits for a slot of its own.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": null
+    },
+    {
+     "name": "message",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": null
+    },
+    {
+     "name": "model",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the model the turn runs on, by the agent's own slug (claude-sonnet-5); absent on a new thread means the project's, else the one set for that agent, else the catalog's default, on send the thread's own"
+    },
+    {
+     "name": "effort",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the reasoning effort, by the agent's own word (low, medium, high, xhigh, max); absent on a new thread means the agent's default, high for claude; on send, the thread's own"
+    },
+    {
+     "name": "fast",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true runs the turn in the agent's fast mode, on a model that offers one, and is refused naming the model otherwise; absent runs at the agent's usual speed"
+    },
+    {
+     "name": "files",
+     "kind": {
+      "type": "stringList",
+      "min": null
+     },
+     "optional": true,
+     "describe": "paths on this computer, absolute or relative to the folder wsp runs in, of files to send with the message, at most 5. An image (PNG, JPEG, GIF or WebP, up to 10 MB) goes to the agent as an image; any other file, up to 10 MB, lands in the folder the thread works in, under .wsp-files where git lists none of it, and the message names its path. The host reads each file and sends its bytes, so the machine never reaches back for this computer’s files; an image to an agent that reads none is refused naming that agent."
+    },
+    {
+     "name": "detach",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true answers with the thread id the moment the turn is started, without the reply, and the turn's end reaches whoever notify named; for a turn that runs for minutes or an hour, so this call does not block for it. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report."
+    }
+   ],
+   "output": [
+    "threadId",
+    "workspaceId",
+    "harness",
+    "text",
+    "outcome",
+    "capped",
+    "afterCut",
+    "notice"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "restart",
+  "shape": "cli",
+  "usage": "wsp restart",
+  "about": "stops the host and brings it back on the road it came up on, its service, the verb that started it or the app; running turns go on and the host that comes back re-opens them. A host wsp up holds in a terminal refuses",
+  "page": "agent",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": "the restart is the fix the release refusal names for an older host here, which comes back on the release installed",
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Stops the host and brings it back on the road it came up on: its service's manager, the verb that started it, or the app. Running turns go on across it and the host that comes back re-opens them, your own turn included, so a coordinator thread lands a host change with this and keeps working. Answers once that host serves, with running the ids of the threads running on it then. A run, send or wait this cut dials the host again and carries on. Refused for a host wsp up holds in a terminal, which only that terminal brings back.",
+   "input": [],
+   "output": [
+    "running"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "stop",
+  "shape": "cli",
+  "usage": "wsp stop <thread> [--subagent <id>]",
+  "about": "stops the thread's running turn, as the app's stop does, or with --subagent one of its agent's own subagents alone; the computer stays up",
+  "page": "front",
+  "options": [
+   {
+    "name": "subagent",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Stops the thread's running turn (by id, or a prefix of it), as the app's stop button does; the computer stays up and the thread takes the next send. outcome accepted means the turn ended interrupted; not-running means it had already ended, which is an answer, not an error. A thread whose agents spawned threads of their own stops as one: under names each of those that was running and was stopped with it. Given the id of one of the agent's own subagents (off threads' subagents), that one is stopped alone and the turn runs on: accepted means the agent took the stop, refused and unsupported carry the reason in error. On a computer the person added, left says what the thread started there that the stop could not end, or that the computer is not answering, in which case the turn reads stopped now and ends there once that computer connects again; a stop on a message waiting for that end gives the message up and says so in left.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": null
+    },
+    {
+     "name": "subagent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "one of the agent's own subagents, by the id threads lists it under, to stop alone"
+    }
+   ],
+   "output": [
+    "threadId",
+    "task",
+    "outcome",
+    "under",
+    "error",
+    "left"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "exec",
+  "shape": "cli",
+  "usage": "wsp exec <thread> [--cwd <dir>] -- <command...>",
+  "about": "runs the command where the thread works, each word as given, in --cwd or the thread's own folder",
+  "page": "agent",
+  "options": [
+   {
+    "name": "cwd",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Runs a command on the computer the thread runs on as argv (each word as given; use sh -c for a shell line), in the folder cwd names or the folder the thread works in, and returns its output lines, exit code and the folder it ran in. A non-zero exit is a result; the computer going away is an error.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": false,
+     "describe": "the thread, by its id or a prefix of it that names one, as threads lists them"
+    },
+    {
+     "name": "argv",
+     "kind": {
+      "type": "stringList",
+      "min": 1
+     },
+     "optional": false,
+     "describe": null
+    },
+    {
+     "name": "cwd",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the folder the command runs in, absolute; absent means the folder the thread works in"
+    }
+   ],
+   "output": [
+    "exitCode",
+    "output",
+    "cwd"
+   ],
+   "stream": [
+    "output"
+   ]
+  }
+ },
+ {
+  "name": "folders",
+  "shape": "cli",
+  "usage": "wsp folders [<folder>] [--hidden] [--repos] [--on <computer>]",
+  "about": "the folders inside one folder on this computer or on a box you added with --on, or with --repos every git repo under the home folder, most recently used first, for naming one to record",
+  "page": "app",
+  "options": [
+   {
+    "name": "hidden",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "repos",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "on",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "The folders directly inside one folder on the person's own computer, or on a box they added, one level at a time, as the app's import dialog browses them: each folder's absolute path, whether git tracks it, and how many hidden ones the level holds. Browse this to name a folder for import instead of guessing a path. The roots are that computer's home folder and the folder of every project on it; a path outside those is refused, and folder absent lists the home folder. Folders only: no file is named and nothing is read.",
+   "input": [
+    {
+     "name": "folder",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the folder to list, absolute and inside the roots; absent lists the home folder"
+    },
+    {
+     "name": "hidden",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true lists the hidden folders too, which are otherwise only counted"
+    },
+    {
+     "name": "repos",
+     "kind": {
+      "type": "boolean"
+     },
+     "optional": true,
+     "describe": "true answers every git repo under the home folder and the recorded projects instead of one level, each with its branch and when git last wrote to it, most recent first; folder is ignored"
+    },
+    {
+     "name": "on",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer whose folders to list, by the name computers lists; absent is the computer the app runs on"
+    }
+   ],
+   "output": [
+    "dir",
+    "roots",
+    "folders",
+    "hidden"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "setup",
+  "shape": "cli",
+  "usage": "wsp setup",
+  "about": "the setup on this host as the app's Settings reads it: which keys are held (never their values)",
+  "page": "app",
+  "options": [],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "The setup on this host, as the app's Settings reads it: which keys the host holds (their presence, never a value), this computer's home folder. Read it to tell the person which provider key is missing.",
+   "input": [],
+   "output": [
+    "setup"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "terminal config",
+  "shape": "cli",
+  "usage": "wsp terminal config [--scheme light|dark]",
+  "about": "the Ghostty config on this computer as the app's terminal pane applies it, read from ~/.config/ghostty and Application Support with its includes and theme resolved: the font and its fallbacks, the size, the colors, the cursor, the padding, the background opacity, and the blur, which is read but not applied; --scheme picks the side of a light:...,dark:... theme",
+  "page": "app",
+  "options": [
+   {
+    "name": "scheme",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": "the Ghostty config it reads is the person's own, in their home on this computer",
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "The person's Ghostty config on this computer as the app's terminal pane applies it: every config file Ghostty would load and the theme it names, read now, with only the keys the pane honours. files is empty when they have no Ghostty config, and each other key is absent when no file sets it, so the pane keeps its default there. backgroundBlur is read and not applied: the desktop window's own material is the blur, and a browser tab has none. Read this to say how their terminal looks or to check what a config change did; nothing is written.",
+   "input": [
+    {
+     "name": "scheme",
+     "kind": {
+      "type": "enum",
+      "options": [
+       "light",
+       "dark"
+      ]
+     },
+     "optional": true,
+     "describe": "which side of a light:...,dark:... theme to resolve; dark when absent"
+    }
+   ],
+   "output": [
+    "files",
+    "fontFamily",
+    "fontSize",
+    "theme",
+    "background",
+    "foreground",
+    "palette",
+    "selectionBackground",
+    "cursorColor",
+    "cursorStyle",
+    "cursorStyleBlink",
+    "windowPaddingX",
+    "windowPaddingY",
+    "backgroundOpacity",
+    "backgroundBlur"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "conversations",
+  "shape": "cli",
+  "usage": "wsp conversations [<project>] [--agent <id>]",
+  "about": "the conversations Claude Code and Codex kept in the project's folder and its worktrees outside wsp, newest first, each with its id, last change, size, branch and title, and whether another app holds it open; wsp run --resume <id> opens a thread on one",
+  "page": "agent",
+  "options": [
+   {
+    "name": "agent",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "The conversations the agents kept in a project's folder and its worktrees on the project's computer outside wsp, Claude Code's off its transcripts and Codex's off its own app server, newest first: agent, id, title (the person's name for it, else the agent's, else its last or first prompt), firstPrompt, branch, cwd, lastAt (ms), bytes, origin (terminal, wsp or script), live (another app holds it open now), thread (the wsp thread already on it, which is the one to send into) and letsGo (where the agent refuses a second writer: how soon it lets go of one whose window closed, in its own sentence). A Claude Code conversation a script ran is left out unless it is a wsp thread's. held names an agent whose store did not answer, in two halves. run with resume opens a thread on one; one that is live needs copy.",
+   "input": [
+    {
+     "name": "project",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the project, by the name or the id projects lists; absent from a thread, the thread's own project"
+    },
+    {
+     "name": "agent",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "one agent's conversations alone, one of claude, codex, opencode, cursor; absent lists every agent's"
+    }
+   ],
+   "output": [
+    "rows",
+    "held"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "activity",
+  "shape": "cli",
+  "usage": "wsp activity [<thread>] [--computer <computer>] [--wide]",
+  "about": "this computer's processes, or a box's, as Settings > Activity lists them: wsp's own, then each thread heaviest first with what it started, then what has no thread, each with its kind, ports, memory and CPU; a thread named shows its own alone, on this computer or the box it runs on",
+  "page": "agent",
+  "options": [
+   {
+    "name": "computer",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "wide",
+    "type": "boolean",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "This computer's processes, or a box's with computer, grouped under the thread that started them: each thread's tree from its agent down to what the agent ran (a dev server, a test run, a tool server), with each process's pid, ppid, depth in the tree, kind (agent, tool, dev, test, build, slate, terminal, tab, app, wsp, other), command, memory in bytes, CPU as a share of one core, the TCP ports it listens on, and startedAt, which activity_end takes back with the pid. A thread's memory and cpu are its processes' together. wsp holds wsp's own processes, and unowned what the daemon names as wsp's with no thread; what the person started outside wsp is not listed. With thread, that thread's alone, on the computer it runs on. On a box a thread's processes are what stands in its cgroup there. A thread reads itself and the threads under it alone.",
+   "input": [
+    {
+     "name": "thread",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the thread, by its id or a prefix of it that names one, whose processes alone to list"
+    },
+    {
+     "name": "computer",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer: this one, which is the default, or a box wsp computers lists"
+    }
+   ],
+   "output": [
+    "computer",
+    "at",
+    "threads",
+    "wsp",
+    "unowned"
+   ],
+   "stream": []
+  }
+ },
+ {
+  "name": "activity end",
+  "shape": "cli",
+  "usage": "wsp activity end <pid> --started <ms> [--computer <computer>]",
+  "about": "ends one process on this computer and everything under it, by the pid and the start wsp activity --json listed: TERM, then KILL after 2 s; refuses a process wsp did not start, an agent, which wsp stop ends, and a pid that names another process now",
+  "page": "agent",
+  "options": [
+   {
+    "name": "started",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   },
+   {
+    "name": "computer",
+    "type": "string",
+    "multiple": false,
+    "short": null,
+    "valueWith": null
+   }
+  ],
+  "readsHere": null,
+  "startsNoHost": null,
+  "anyRelease": null,
+  "cloud": false,
+  "cloudFlags": [],
+  "cliOnly": null,
+  "hostSide": null,
+  "toolOnly": null,
+  "tool": {
+   "description": "Ends one process on this computer and every process under it, by its pid and the startedAt activity listed it with: TERM to each, then KILL to whatever of them is still there after 2 s, each only while it is still the process listed. Never a process group. Refused, with nothing signalled: a pid no longer running, a process wsp did not start (one activity does not list), a pid that names another process now (read activity again), an agent from its turn's process down to the agent's binary, or a process with one under it, which only the thread's stop ends, and wsp's own processes. A thread's kept agent, the one it keeps warm for its next turn, is freed through its thread instead. A thread ends only what it and the threads under it run. The answer lists each process ended, those KILL went to and any still running after it.",
+   "input": [
+    {
+     "name": "pid",
+     "kind": {
+      "type": "integer",
+      "min": 1
+     },
+     "optional": false,
+     "describe": "the process's pid, as activity lists it"
+    },
+    {
+     "name": "started",
+     "kind": {
+      "type": "number"
+     },
+     "optional": false,
+     "describe": "the start activity listed it with, its startedAt in epoch milliseconds"
+    },
+    {
+     "name": "computer",
+     "kind": {
+      "type": "string"
+     },
+     "optional": true,
+     "describe": "the computer, which must be this one; a box ends a thread's processes when its thread settles with processes stop"
+    }
+   ],
+   "output": [
+    "pid",
+    "ended",
+    "forced",
+    "left",
+    "freed"
+   ],
+   "stream": []
+  }
+ }
+]

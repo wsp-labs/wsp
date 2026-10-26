@@ -78,9 +78,6 @@ pub const RUNTIME_OPS: &[&str] = &[
     "workspaces.mergeIn",
     "workspaces.delete",
     "workspaces.forget",
-    "workspaces.snapshot",
-    "projectGoldens.list",
-    "projectGoldens.remove",
     "workspaces.touch",
     "daemon.open",
     "sys.subscribe",
@@ -168,14 +165,6 @@ pub const RUNTIME_OPS: &[&str] = &[
     "plugins.toggle",
     "init.get",
     "init.keys",
-    "init.start",
-    "init.answer",
-    "init.step",
-    "init.draft",
-    "init.retry",
-    "init.build",
-    "init.signInCode",
-    "init.cancel",
     "preferences.get",
     "preferences.set",
     "release.get",
@@ -198,7 +187,6 @@ pub const RUNTIME_OPS: &[&str] = &[
     "project.export",
     "image.get",
     "image.build",
-    "image.export",
     "slates.get",
     "slates.write",
     "slates.state",
@@ -296,7 +284,6 @@ pub const DEVICE_OPS: &[&str] = &[
     "workspaces.look",
     "workspaces.delete",
     "workspaces.forget",
-    "workspaces.snapshot",
     "workspaces.touch",
     "workspaces.portReach",
     "workspaces.portProbe",
@@ -315,8 +302,6 @@ pub const DEVICE_OPS: &[&str] = &[
     "projects.remove",
     "projects.icon",
     "projects.icons",
-    "projectGoldens.list",
-    "projectGoldens.remove",
     "sys.subscribe",
     "sys.unsubscribe",
     "harnesses.list",
@@ -364,8 +349,6 @@ pub const DEVICE_OPS: &[&str] = &[
 #[serde(rename_all = "camelCase")]
 pub struct PlacesSetSpawn {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub spawn: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub max_machines: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub max_depth: Option<JsInt>,
@@ -381,8 +364,6 @@ pub struct PlacesSetSize {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspacesCreateAgents {
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub spawn: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub max_machines: Option<JsInt>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]

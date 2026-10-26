@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! What the dead-code cut (383708c78) changed in the words the crate ports, each value printed by node 22 for the TS at the
-//! cut (65f6b89c7). The wire's place setting word is still `spawn` in Rust where the TS says `max-machines`; the tests name
-//! the TS word in their comments and read the Rust variant until the wire's drift pass renames it.
+//! cut (65f6b89c7).
 
 use serde_json::{json, Value};
 use wsp_wire::views::place::{PlaceSettingWord, PlaceSettings};
@@ -17,7 +16,7 @@ fn settings(value: Value) -> PlaceSettings {
 }
 
 fn spawn() -> PlaceSettingWord {
-    serde_json::from_value(json!("spawn")).unwrap()
+    serde_json::from_value(json!("max-machines")).unwrap()
 }
 
 // projectRemovedAtProviderLine("spoo", "hetzner")
@@ -51,10 +50,10 @@ fn the_machines_setting_is_named_by_its_own_part_alone() {
 // placeSettingDropped(..., "max-machines"): the TS key order is not kept (the struct writes its own), so the value is compared.
 #[test]
 fn dropping_the_machines_setting_keeps_every_other_part_and_key() {
-    let both = settings(json!({ "spawn": { "spawn": true, "maxMachines": 2, "maxDepth": 1 }, "size": { "cpu": 2, "memMb": 512 } }));
+    let both = settings(json!({ "spawn": { "maxMachines": 2, "maxDepth": 1 }, "size": { "cpu": 2, "memMb": 512 } }));
     assert_eq!(
         serde_json::to_value(place_setting_dropped(&both, &spawn())).unwrap(),
-        json!({ "size": { "cpu": 2, "memMb": 512 }, "spawn": { "spawn": true, "maxDepth": 1 } })
+        json!({ "size": { "cpu": 2, "memMb": 512 }, "spawn": { "maxDepth": 1 } })
     );
     let only = settings(json!({ "spawn": { "maxMachines": 2 }, "threads": 3 }));
     assert_eq!(serde_json::to_value(place_setting_dropped(&only, &spawn())).unwrap(), json!({ "threads": 3 }));
@@ -76,8 +75,8 @@ fn a_machines_cap_reads_in_the_cuts_words_whatever_its_count() {
         let place = json!({
             "id": "p_1", "kind": "computer", "name": "spoo", "default": false, "takesForks": false,
             "capDefault": { "threads": 2 },
-            "spawn": { "spawn": true, "maxMachines": n, "maxDepth": 2 },
-            "spawnDefault": { "spawn": true, "maxMachines": 3, "maxDepth": 2 },
+            "spawn": { "maxMachines": n, "maxDepth": 2 },
+            "spawnDefault": { "maxMachines": 3, "maxDepth": 2 },
             "settings": { "spawn": { "maxMachines": n } },
         });
         assert_eq!(place_settings_line(&serde_json::from_value(place).unwrap()), want);

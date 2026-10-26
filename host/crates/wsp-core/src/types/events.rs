@@ -247,8 +247,6 @@ pub fn event_type(event: &EventUnion) -> &'static str {
         EventUnion::ProjectExport(_) => "project.export",
         EventUnion::PreferencesChanged(_) => "preferences.changed",
         EventUnion::ReleaseChanged(_) => "release.changed",
-        EventUnion::InitJob(_) => "init.job",
-        EventUnion::JobNeedsYou(_) => "job.needs-you",
         EventUnion::PlaceStage(_) => "place.stage",
         EventUnion::PlaceSetup(_) => "place.setup",
         EventUnion::PlaceSync(_) => "place.sync",
@@ -330,8 +328,6 @@ pub fn event_seq(event: &EventUnion) -> Option<u64> {
         EventUnion::ProjectExport(v) => v.seq,
         EventUnion::PreferencesChanged(v) => v.seq,
         EventUnion::ReleaseChanged(v) => v.seq,
-        EventUnion::InitJob(v) => v.seq,
-        EventUnion::JobNeedsYou(v) => v.seq,
         EventUnion::PlaceStage(v) => v.seq,
         EventUnion::PlaceSetup(v) => v.seq,
         EventUnion::PlaceSync(v) => v.seq,
@@ -596,14 +592,6 @@ pub fn with_seq(event: EventUnion, seq: u64) -> EventUnion {
         EventUnion::ReleaseChanged(mut v) => {
             v.seq = Some(JsInt::from(seq as i64));
             EventUnion::ReleaseChanged(v)
-        }
-        EventUnion::InitJob(mut v) => {
-            v.seq = Some(JsInt::from(seq as i64));
-            EventUnion::InitJob(v)
-        }
-        EventUnion::JobNeedsYou(mut v) => {
-            v.seq = Some(JsInt::from(seq as i64));
-            EventUnion::JobNeedsYou(v)
         }
         EventUnion::PlaceStage(mut v) => {
             v.seq = Some(JsInt::from(seq as i64));
