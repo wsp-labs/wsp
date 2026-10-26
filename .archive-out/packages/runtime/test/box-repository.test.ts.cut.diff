@@ -1,0 +1,13 @@
+diff --git a/packages/runtime/test/box-repository.test.ts b/packages/runtime/test/box-repository.test.ts
+index 180739317..0069d8652 100644
+--- a/packages/runtime/test/box-repository.test.ts
++++ b/packages/runtime/test/box-repository.test.ts
+@@ -65,7 +65,7 @@ describe("a lead on a folder here whose repository moved", () => {
+     const saved = async (): Promise<Record<string, string | undefined>> => Object.fromEntries((await rt.projects.list()).map(p => [p.name, p.remote]));
+     const before = await saved();
+     execFileSync("git", ["-C", repo, "remote", "set-url", "origin", "https://github.com/lab-co/lab.git"]);
+-    const lead = await rt.workspaces.create({ project: wsp.id, name: "lead", agents: { spawn: true } });
++    const lead = await rt.workspaces.create({ project: wsp.id, name: "lead", agents: { } });
+     const asLead: Caller = { origin: "here", by: { kind: "thread", threadId: "lead-thread", workspaceId: lead.id, rootThreadId: "lead-thread" } };
+ 
+     expect((await rt.projects.list(asLead)).map(p => p.name)).toEqual(["wsp", "wsp-boat", "wsp-hertzner", "box-old", "box-new"]);

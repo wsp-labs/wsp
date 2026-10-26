@@ -1,0 +1,15 @@
+diff --git a/packages/host/test/login-path-runtime.test.ts b/packages/host/test/login-path-runtime.test.ts
+index e0ed30d7c..4aae682b3 100644
+--- a/packages/host/test/login-path-runtime.test.ts
++++ b/packages/host/test/login-path-runtime.test.ts
+@@ -69,8 +69,8 @@ describe("the login shell PATH and the runtime built over it", () => {
+     handle = await serve(io, { port: 0, statePath, webDir, runtime: built });
+     const folder = mkdtempSync(join(tmpdir(), "wsp-login-path-"));
+     execFileSync("git", ["init", "-q", folder]);
+-    const project = await handle.addProject(folder);
+-    const workspace = await handle.createWorkspace(project.name, undefined, project.id);
++    const project = await built.projects.add({ source: folder });
++    const workspace = await built.workspaces.create({ project: project.id, name: project.name });
+     const thread = await threadOn(built, workspace.id);
+ 
+     const ran = captured();

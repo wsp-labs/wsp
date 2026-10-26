@@ -1,0 +1,13 @@
+diff --git a/apps/web/test/composer-drawer/main.tsx b/apps/web/test/composer-drawer/main.tsx
+index 2a7cac1d4..b350a9f30 100644
+--- a/apps/web/test/composer-drawer/main.tsx
++++ b/apps/web/test/composer-drawer/main.tsx
+@@ -136,8 +136,6 @@ const api: Api = {
+     return () => watching.delete(fn);
+   },
+   getGolden: async () => undefined,
+-  listProjectGoldens: async () => [],
+-  snapshotWorkspace: async id => ({ snapshotId: "snap_taken", projects: [], golden: "", workspaceId: id, workspaceName: "wsp", createdAt: new Date().toISOString() }),
+ } as Api;
+ 
+ useStore.setState({

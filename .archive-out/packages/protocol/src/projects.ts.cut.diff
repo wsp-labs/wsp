@@ -1,0 +1,53 @@
+diff --git a/packages/protocol/src/projects.ts b/packages/protocol/src/projects.ts
+index da9f09c11..dd12b862a 100644
+--- a/packages/protocol/src/projects.ts
++++ b/packages/protocol/src/projects.ts
+@@ -6,7 +6,7 @@
+ // record a project one way and read it back another.
+ import { THIS_COMPUTER, thisComputer } from "./format.js";
+ import { HERE_PLACE_ID, namesPlace } from "./place-word.js";
+-import type { ProjectSource, ProjectView, WorkspaceKind, WorkspaceProject } from "./index.js";
++import type { ProjectSource, ProjectView, WorkspaceKind } from "./index.js";
+ import { folderName, underProject } from "./project-path.js";
+ import { shellQuote } from "./shell-quote.js";
+ import { EXEC_DEADLINE_EXIT } from "./wire/daemon.js";
+@@ -352,10 +352,9 @@ export const MEMORY_KEPT_CLAUSE = "the memory its agent keeps on that computer s
+  * their threads work in, so it stays as it is and only the record goes. */
+ export const projectLeftOnComputerLine = (name: string, computer: string, folder: string): string => `${name} is no longer a project on ${computer}; its folder ${folder} stays there as it is`;
+ 
+-/** What a remove says for a project a provider keeps in an image: nothing runs on any machine, and the image
+- * stays where it is, since no verb deletes one yet. */
+-export const projectRemovedAtProviderLine = (name: string, computer: string, snapshotId?: string): string =>
+-  `${name} is no longer a project on ${computer}; ${snapshotId === undefined ? "nothing of it was held there" : `its project image ${snapshotId} stays at the provider`}`;
++/** What a remove says for a project a provider holds nothing of: only the record goes. */
++export const projectRemovedAtProviderLine = (name: string, computer: string): string =>
++  `${name} is no longer a project on ${computer}; nothing of it was held there`;
+ 
+ /** What the seeding says where the computer already keeps this project's memory at the path its agent reads:
+  * that memory is the agent's own work on that computer and stays, so the folder the seed carried is not landed
+@@ -394,25 +393,6 @@ export function registeredLine(dest: string): string {
+   return `${folderName(dest)} registered at ${dest}; nothing was copied.`;
+ }
+ 
+-/** Whether a project image already holds this project's checkout, so a fork of it clones and installs nothing: the
+- * image records every project that was on the disk and the path each sat at, and a fork of the whole disk comes up
+- * with all of them where they were. Read off the snapshot a fork names and never off the project's own record,
+- * which says nothing about which image a given workspace was forked from. */
+-export function imageCarriesCheckout(projects: readonly WorkspaceProject[] | undefined, path: string): boolean {
+-  return projects !== undefined && projects.some(p => p.dest === path);
+-}
+-
+-/** What a fork of a project golden starts with, after the created line; nothing for an image carrying none. */
+-export function projectsInPlace(projects: readonly WorkspaceProject[]): string {
+-  return projects.length === 0 ? "" : ` with ${projects.map(p => p.name).join(", ")} in place`;
+-}
+-
+-/** The name a fork of a project golden goes by: the newest project it carries, which is also the name `new --from`
+- * takes for it; the snapshot id where a manifest carries none. */
+-export function goldenForkName(g: { projects: readonly WorkspaceProject[]; snapshotId: string }): string {
+-  return g.projects.at(-1)?.name ?? g.snapshotId;
+-}
+-
+ /** Why an import onto this computer takes no consent flags: nothing is carried, cut, sent or replaced by a register. */
+ export function registerTakesNoConsentLine(flags: readonly string[]): string {
+   return `${flags.join(", ")} ${flags.length === 1 ? "has" : "have"} no meaning on this computer: the folder is registered at its path and nothing is carried, cut or replaced`;

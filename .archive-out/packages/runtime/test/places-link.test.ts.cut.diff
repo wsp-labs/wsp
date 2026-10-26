@@ -1,0 +1,13 @@
+diff --git a/packages/runtime/test/places-link.test.ts b/packages/runtime/test/places-link.test.ts
+index 0d2900cf6..2f5432880 100644
+--- a/packages/runtime/test/places-link.test.ts
++++ b/packages/runtime/test/places-link.test.ts
+@@ -308,7 +308,7 @@ describe("the forward a computer dials back through", () => {
+     const stages: PlaceStageEvent[] = [];
+     await addedOverTheForward(memoryStore(), backHolder().holder, stages);
+     const joined = stages.find(s => s.step === "join" && s.state === "done");
+-    expect(joined?.note).toBe("over ssh, engine none");
++    expect(joined?.note).toBe("over ssh");
+     expect(joined?.note).not.toContain("127.0.0.1");
+   });
+ 

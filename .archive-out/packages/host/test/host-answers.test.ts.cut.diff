@@ -1,0 +1,34 @@
+diff --git a/packages/host/test/host-answers.test.ts b/packages/host/test/host-answers.test.ts
+index f75427b06..858194074 100644
+--- a/packages/host/test/host-answers.test.ts
++++ b/packages/host/test/host-answers.test.ts
+@@ -87,9 +87,9 @@ const folder = join(home, "repo");
+ mkdirSync(folder, { recursive: true });
+ execFileSync("git", ["init", "-q", folder]);
+ let { runtime, host } = await serve();
+-const project = await host.addProject(folder);
++const project = await runtime.projects.add({ source: folder });
+ const made = [];
+-for (let i = 0; i < ${WORKSPACES}; i++) made.push(await host.createWorkspace(\`old \${i}\`, undefined, project.id));
++for (let i = 0; i < ${WORKSPACES}; i++) made.push(await runtime.workspaces.create({ project: project.id, name: \`old \${i}\` }));
+ await host.close();
+ 
+ // Their transcripts as an older build kept them, inside the state file: each one full, tool output in every event.
+@@ -113,7 +113,7 @@ const probe = setInterval(() => {
+ }, 20);
+ 
+ const fresh = [];
+-for (let i = 0; i < ${NEW_WORKSPACES}; i++) fresh.push(await host.createWorkspace(\`new \${i}\`, undefined, project.id));
++for (let i = 0; i < ${NEW_WORKSPACES}; i++) fresh.push(await runtime.workspaces.create({ project: project.id, name: \`new \${i}\` }));
+ for (const w of [...fresh, made[0]]) {
+   for (let n = 0; n < ${TURNS}; n++) {
+     const handle = await runtime.sessions.start(w.id, { prompt: "go", harness: "claude" });
+@@ -184,7 +184,7 @@ const runtime = createRuntime({
+   adapters: {},
+ });
+ const host = await startHost({ runtime, webDir, port: 0, statePath });
+-const project = await host.addProject(${JSON.stringify(folder)});
++const project = await runtime.projects.add({ source: ${JSON.stringify(folder)} });
+ 
+ let last = performance.now();
+ let maxLagMs = 0;

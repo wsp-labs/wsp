@@ -1,0 +1,31 @@
+diff --git a/packages/host/test/mcp-binary.test.ts b/packages/host/test/mcp-binary.test.ts
+index 3102a65b9..4d5884f58 100644
+--- a/packages/host/test/mcp-binary.test.ts
++++ b/packages/host/test/mcp-binary.test.ts
+@@ -170,7 +170,7 @@ const CALLED: readonly Called[] = [
+   { tool: "computers_set", argv: ["computers", "set", "here", "--reset", "threads"], arguments: { computer: "here", reset: ["threads"] } },
+   { tool: "computers_set", argv: ["computers", "set", "here", "--nap", "5"], arguments: { computer: "here", nap: 5 }, refused: true },
+   { tool: "computers_set", argv: ["computers", "set", "here", "--turn-limit", "8"], arguments: { computer: "here", turn_limit: 8 } },
+-  { tool: "computers_set", argv: ["computers", "set", "here", "--spawn", "off", "--max-machines", "1"], arguments: { computer: "here", spawn: "off", max_machines: 1 } },
++  { tool: "computers_set", argv: ["computers", "set", "here", "--max-machines", "1"], arguments: { computer: "here", max_machines: 1 } },
+   { tool: "computers_set", argv: ["computers", "set", "nowhere", "--threads", "2"], arguments: { computer: "nowhere", threads: 2 }, refused: true },
+   { tool: "recipes", argv: ["recipes"], arguments: {} },
+   { tool: "recipes_show", argv: ["recipes", "show", "laptop"], arguments: { name: "laptop" }, refused: true },
+@@ -509,7 +509,7 @@ suite(`the tool server in the daemon binary${MCP_BIN === undefined ? " (set WSP_
+       const mac = await runtime.projects.add({ source: repo, on: HERE_PLACE_ID, name: "lab" });
+       const cloud = await runtime.projects.add({ source: "https://github.com/dev/lab.git", on: "default", name: "lab-cloud" });
+       await runtime.projects.add({ source: "https://github.com/dev/other.git", on: "default", name: "other-cloud" });
+-      const folder = await runtime.workspaces.create({ project: mac.id, name: "lab", agents: { spawn: true } });
++      const folder = await runtime.workspaces.create({ project: mac.id, name: "lab", agents: { } });
+       const turn = await runtime.sessions.start(folder.id, { prompt: "coordinate" });
+       const launch = held.envs[0]!;
+       const pair = { [HOST_URL_ENV]: launch[HOST_URL_ENV]!, [HOST_TOKEN_ENV]: launch[HOST_TOKEN_ENV]!, [TURN_TOKEN_ENV]: launch[TURN_TOKEN_ENV]! };
+@@ -564,7 +564,7 @@ suite(`the tool server in the daemon binary${MCP_BIN === undefined ? " (set WSP_
+       mkdirSync(repo, { recursive: true });
+       execFileSync("git", ["init", "-q", "-b", "main", repo]);
+       const mac = await runtime.projects.add({ source: repo, on: HERE_PLACE_ID, name: "lab" });
+-      const folder = await runtime.workspaces.create({ project: mac.id, name: "lab", agents: { spawn: true } });
++      const folder = await runtime.workspaces.create({ project: mac.id, name: "lab", agents: { } });
+       const turn = await runtime.sessions.start(folder.id, { prompt: "coordinate" });
+       const lead = turn.view().threadId!;
+       const asLead = { origin: "here" as const, by: { kind: "thread" as const, threadId: lead, workspaceId: folder.id, rootThreadId: lead } };

@@ -1,0 +1,36 @@
+diff --git a/packages/host/test/places.test.ts b/packages/host/test/places.test.ts
+index 70f58ec0d..f51b94684 100644
+--- a/packages/host/test/places.test.ts
++++ b/packages/host/test/places.test.ts
+@@ -249,18 +249,18 @@ describe("a provider as a place", () => {
+ 
+ describe("the table wsp places prints", () => {
+   const rows: PlaceView[] = [
+-    { id: "here", kind: "computer", name: "zingzys-mac", default: false, shape: { cpu: 8, memMb: 16384 }, engine: "docker", present: true, takesForks: false },
+-    { id: "p_1", kind: "computer", name: "box", default: true, shape: { cpu: 4, memMb: 4096 }, diskFreeBytes: 831 * 1024 ** 3, engine: "none", present: true, lastSeenAt: "2026-09-12T00:00:00.000Z", takesForks: true },
++    { id: "here", kind: "computer", name: "zingzys-mac", default: false, shape: { cpu: 8, memMb: 16384 }, present: true, takesForks: false },
++    { id: "p_1", kind: "computer", name: "box", default: true, shape: { cpu: 4, memMb: 4096 }, diskFreeBytes: 831 * 1024 ** 3, present: true, lastSeenAt: "2026-09-12T00:00:00.000Z", takesForks: true },
+     { id: "solari", kind: "provider", name: "solari", default: false, rateUsdPerHour: 0.018, takesForks: true },
+   ];
+ 
+-  it("carries the cores, the memory, the free disk, its engine and the presence, with the default marked once, and no column for whether it runs workspaces", () => {
++  it("carries the cores, the memory, the free disk and the presence, with the default marked once, and no column for whether it runs workspaces", () => {
+     const printed = placeLines(rows);
+     expect(printed[0]).toContain("PLACE");
+     expect(printed[0]).toContain("DISK FREE");
+     // Every place on this list forks, so the column that said yes or no said one word forever.
+     expect(printed[0]).not.toContain("WORKSPACES");
+-    expect(printed[0]).toContain("ENGINE");
++    expect(printed[0]).not.toContain("ENGINE");
+     expect(printed[1]).toContain("zingzys-mac");
+     expect(printed[2]).toContain("box");
+     expect(printed[2]).toContain("default");
+@@ -434,7 +434,7 @@ describe("the table wsp places prints", () => {
+   it("says how many forks a place holds of how many it takes, and nothing there for one that has not said yet", () => {
+     const printed = placeLines([
+       { ...rows[1]!, forks: { running: 1, room: 2 } },
+-      { ...rows[0]!, id: "p_2", name: "laptop", engine: "none" },
++      { ...rows[0]!, id: "p_2", name: "laptop"},
+     ]);
+     expect(printed[0]).toContain("FORKS");
+     expect(printed[1]).toContain("1 of 3");

@@ -1,0 +1,54 @@
+diff --git a/packages/protocol/src/wire/capabilities.ts b/packages/protocol/src/wire/capabilities.ts
+index e2619b327..f43a492b9 100644
+--- a/packages/protocol/src/wire/capabilities.ts
++++ b/packages/protocol/src/wire/capabilities.ts
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+ 
+ import { z } from "zod";
+-import { InitJob, InitAgent, InitKeys, SetupPlace } from "../init-job.js";
++import { InitKeys } from "../setup.js";
+ import { WorkspaceKind } from "../views/workspace-kind.js";
+ 
+ // --- backend capabilities ----------------------------------------------------
+@@ -9,9 +9,8 @@ import { WorkspaceKind } from "../views/workspace-kind.js";
+ export const WorkspaceSize = z.object({ cpu: z.number(), memMb: z.number() });
+ export type WorkspaceSize = z.infer<typeof WorkspaceSize>;
+ 
+-/** What the cloud setup modal opens on: which keys the host holds (their presence, never a value), the agents on this
+- * computer the agent road can start, the price of the machine the build boots, and the init job when one is running
+- * or over. */
++/** What the cloud setup opens on: which keys the host holds (their presence, never a value) and the price of the
++ * machine a copy build boots. */
+ export const InitSetup = z.object({
+   keys: InitKeys,
+   /** The provider whose key the setup's own key step asks for, by the word WSP_PROVIDER holds: the one this host
+@@ -19,23 +18,15 @@ export const InitSetup = z.object({
+    * which is a host set up for a provider that reads none. The step reads its held state out of `keys` by this
+    * word rather than by a provider's name. */
+   keyProvider: z.string().optional(),
+-  /** This computer's home directory, so a field can show a real path of the person's as its example. */
++  /** This computer's home directory. */
+   home: z.string(),
+-  agents: z.array(InitAgent),
+-  /** What a machine costs at the place the build boots on, and the disk that place gives a builder where it caps
+-   * one; null where no place here runs workspaces, so there is no image to build and nothing to price. */
++  /** What a machine costs at the place a copy build boots on, and the disk that place gives a builder where it caps
++   * one; null where no place here runs workspaces, so there is nothing to price. */
+   pricing: z.object({ size: WorkspaceSize, rateUsdPerHour: z.number(), builderDiskGb: z.number().positive().optional() }).nullable(),
+-  /** The place the build boots on: the one the ask named, else the default place; absent with `pricing` null. */
+-  place: SetupPlace.optional(),
+   /** The provider this host forks on, under the word its machines are stamped with: where every workspace it makes
+-   * lands, and what `wsp up --provider` moves. A run beside this host reads it to say so where the provider it was
+-   * given is another one. Absent on a host of an earlier build, which says nothing about where it forks. */
++   * lands, and what `wsp up --provider` moves. Absent on a host of an earlier build, which says nothing about where
++   * it forks. */
+   forksOn: z.string().optional(),
+-  /** Why no build can start here, in the runtime's one sentence for it: no place runs workspaces, or several do and
+-   * none is the default. Present exactly when `pricing` is null, so the sheet and the command line read the same
+-   * refusal. */
+-  buildRefusal: z.string().optional(),
+-  job: InitJob.nullable(),
+ });
+ export type InitSetup = z.infer<typeof InitSetup>;
+ 

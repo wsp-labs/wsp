@@ -1,0 +1,40 @@
+diff --git a/daemon/crates/wsp-mcp/record/tools/review.json b/daemon/crates/wsp-mcp/record/tools/review.json
+index 09df0f302..fc98ebe55 100644
+--- a/daemon/crates/wsp-mcp/record/tools/review.json
++++ b/daemon/crates/wsp-mcp/record/tools/review.json
+@@ -239,9 +239,6 @@
+             "agents": {
+               "type": "object",
+               "properties": {
+-                "spawn": {
+-                  "type": "boolean"
+-                },
+                 "maxMachines": {
+                   "type": "integer",
+                   "minimum": 0
+@@ -252,7 +249,6 @@
+                 }
+               },
+               "required": [
+-                "spawn",
+                 "maxMachines",
+                 "maxDepth"
+               ],
+@@ -799,9 +795,6 @@
+             "agents": {
+               "type": "object",
+               "properties": {
+-                "spawn": {
+-                  "type": "boolean"
+-                },
+                 "maxMachines": {
+                   "type": "integer",
+                   "minimum": 0
+@@ -812,7 +805,6 @@
+                 }
+               },
+               "required": [
+-                "spawn",
+                 "maxMachines",
+                 "maxDepth"
+               ],

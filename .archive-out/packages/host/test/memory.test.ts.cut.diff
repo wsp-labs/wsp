@@ -1,0 +1,34 @@
+diff --git a/packages/host/test/memory.test.ts b/packages/host/test/memory.test.ts
+index 56d6c17df..eb84446f5 100644
+--- a/packages/host/test/memory.test.ts
++++ b/packages/host/test/memory.test.ts
+@@ -124,15 +124,15 @@ const host = await startHost({ runtime, webDir, port: 0, statePath });
+ const folder = join(home, "repo");
+ mkdirSync(folder, { recursive: true });
+ execFileSync("git", ["init", "-q", "-b", "main", folder]);
+-const project = await host.addProject(folder);
+-const workspace = await host.createWorkspace("here", undefined, project.id);
++const project = await runtime.projects.add({ source: folder });
++const workspace = await runtime.workspaces.create({ project: project.id, name: "here" });
+ const worktree = (await runtime.workspaces.folderFor({ project: project.id, branch: "feat/side" })).workspace;
+ // Fifty more projects, each to wear an image of its own during the day.
+ const worn = [];
+ for (let i = 0; i < ${IMAGES}; i++) {
+   const at = join(home, \`lab-\${i}\`);
+   mkdirSync(at, { recursive: true });
+-  worn.push((await host.addProject(at)).id);
++  worn.push((await runtime.projects.add({ source: at })).id);
+ }
+ 
+ // The host writes its index and its transcripts behind a queue. What it holds is only known once it has been left
+@@ -294,8 +294,8 @@ if (!${again}) {
+   const folder = join(home, "repo");
+   mkdirSync(folder, { recursive: true });
+   execFileSync("git", ["init", "-q", "-b", "main", folder]);
+-  const project = await host.addProject(folder);
+-  const workspace = await host.createWorkspace("here", undefined, project.id);
++  const project = await runtime.projects.add({ source: folder });
++  const workspace = await runtime.workspaces.create({ project: project.id, name: "here" });
+   for (let t = 0; t < ${TALKING_THREADS}; t++) {
+     const handle = await runtime.sessions.start(workspace.id, { prompt: String(t).padStart(3, "0"), harness: "claude" });
+     await handle.finished?.catch(() => {});

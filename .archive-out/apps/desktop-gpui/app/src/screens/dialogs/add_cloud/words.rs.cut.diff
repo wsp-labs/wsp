@@ -1,0 +1,59 @@
+diff --git a/apps/desktop-gpui/app/src/screens/dialogs/add_cloud/words.rs b/apps/desktop-gpui/app/src/screens/dialogs/add_cloud/words.rs
+index 03b9be297..d9e0c69d3 100644
+--- a/apps/desktop-gpui/app/src/screens/dialogs/add_cloud/words.rs
++++ b/apps/desktop-gpui/app/src/screens/dialogs/add_cloud/words.rs
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+ //! The words of Add a cloud provider: each cloud's name and key name (`PROVIDER_KEY_WORDS`), what its key step says
+-//! (`cloudKey.ts`), the pick steps' heads, and the few protocol words and figures the flow reads.
++//! (`cloudKey.ts`), and the protocol word the flow reads.
+ 
+ use crate::screens::settings::pages::computers::{ProviderWords, PROVIDERS};
+ 
+@@ -64,46 +64,3 @@ pub fn key_step(id: &str) -> Option<&'static KeyStep> {
+ 
+ /// `KEY_REFUSED`: the kind a refusal carries where the provider answered about the key.
+ pub const KEY_REFUSED: &str = "keyRefused";
+-
+-/// `CLOUD_SETUP_WORDS.screen.alwaysOn` and its why.
+-pub const ALWAYS_ON: &str = "always on";
+-pub const ALWAYS_ON_WHY: &str = "wsp needs it on every image, so it stays on.";
+-/// `CLOUD_SETUP_WORDS.build.again`.
+-pub const BUILD_AGAIN: &str = "Start over";
+-/// `CLOUD_SETUP_WORDS.build.signingIn`: the stage the build's sign-ins fold into.
+-pub const SIGNING_IN: &str = "Signing in on the computer";
+-/// `SIGN_IN_STAGE_ID`.
+-pub const SIGN_IN_STAGE_ID: &str = "stage/sign-ins";
+-/// The first launch's screen, which the build answers from the agents configured here.
+-pub const FIRST_LAUNCH_SCREEN: &str = "wsp";
+-
+-/// Each pick step's title and its line, `cloud` the provider's name and `here` the computer the host runs on.
+-pub fn pick_words(pick: &str, cloud: &str, here: &str) -> (String, String) {
+-    match pick {
+-        "agents" => {
+-            ("Agents".into(), format!("The coding agents to put on your image on {cloud}. They use the sign-ins on {here} through wsp."))
+-        }
+-        "tools" => ("CLIs".into(), format!("The command-line tools your agents run, to put on your image on {cloud}. Most used first.")),
+-        _ => (format!("Also on {here}"), format!("What a package manager put on {here}, to put on your image on {cloud} too.")),
+-    }
+-}
+-
+-/// `AGENTS_PAGE_WORDS`' sign-in words.
+-pub const SIGNED_IN_KEY: &str = "Signed in with an API key";
+-pub const SIGNED_IN_SUBSCRIPTION: &str = "Signed in with a subscription";
+-pub const SIGNED_IN_WITH: &str = "Signed in with ";
+-
+-pub use crate::ui::fmt_bytes;
+-
+-#[cfg(test)]
+-mod tests {
+-    use super::*;
+-
+-    #[test]
+-    fn bytes_read_as_the_web_writes_them() {
+-        assert_eq!(fmt_bytes(512), "512 B");
+-        assert_eq!(fmt_bytes(3 * 1024 * 1024), "3 MB");
+-        assert_eq!(fmt_bytes(1536 * 1024 * 1024), "1.5 GB");
+-        assert_eq!(fmt_bytes(2 * 1024 * 1024 * 1024), "2 GB");
+-    }
+-}

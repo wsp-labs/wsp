@@ -1,0 +1,57 @@
+diff --git a/packages/runtime/test/branch-of-record.test.ts b/packages/runtime/test/branch-of-record.test.ts
+index 4a48f0f6d..ff931b5a7 100644
+--- a/packages/runtime/test/branch-of-record.test.ts
++++ b/packages/runtime/test/branch-of-record.test.ts
+@@ -440,13 +440,6 @@ async function onProvider(o: { leadBranch?: string; image?: true; clone?: { exit
+   };
+   rt = boot();
+   let project = await projectOn(rt, undefined, "https://github.com/acme/web.git", { name: "web", base: "main" });
+-  if (o.image === true) {
+-    // The project's own image, which holds its checkout: the host started again reads it off the record.
+-    project = { ...project, image: { snapshotId: "snap_g", builtAt: "2026-10-01T00:00:00.000Z" } };
+-    await store.put("projects", project.id, project);
+-    await rt.close();
+-    rt = boot();
+-  }
+   return { rt, backend, stdin, frames, broker, project, bin };
+ }
+ 
+@@ -456,7 +449,7 @@ const cloneOf = (m: StubMachine): string => m.execLog.find(c => c.includes("git
+ 
+ /** A lead workspace at the provider with its thread run, and the broker then ready: the caller its thread asks as. */
+ async function leadThread(rt: Runtime, broker: { on: boolean }, project: string): Promise<{ lead: string; threadId: string; asking: Caller }> {
+-  const lead = await rt.workspaces.create({ project, golden: "snap_g", name: "lead", agents: { spawn: true } });
++  const lead = await rt.workspaces.create({ project, golden: "snap_g", name: "lead", agents: { } });
+   const turn = await rt.sessions.start(lead.id, { prompt: "coordinate", harness: "claude" });
+   await turn.finished;
+   const threadId = turn.view().threadId!;
+@@ -548,29 +541,6 @@ describe("a workspace's clone at a provider", () => {
+     expect(freeBranchName({ live }, "wsp/y", undefined)).toBe("wsp/y");
+   });
+ 
+-  it("whose project image holds the checkout, puts that checkout on its branch of record and records the commit it stood on", async () => {
+-    const { rt, backend, stdin, broker, project } = await onProvider({ image: true });
+-    broker.on = true;
+-    const ws = await rt.workspaces.create({ project: project.id, name: "pricing page" });
+-    const landed = stdin.find(s => s.machine === ws.machineId)!;
+-    expect(landed.cmd.split("\n").slice(1)).toEqual([
+-      "set -e",
+-      "git -C /root/web config --add remote.origin.fetch '+refs/heads/wsp/pricing-page*:refs/remotes/origin/wsp/pricing-page*'",
+-      "git -C /root/web checkout -q -B wsp/pricing-page",
+-      "git -C /root/web rev-parse HEAD",
+-    ]);
+-    expect(cloneOf(backend.machines.find(m => m.id === ws.machineId)!)).toBe("");
+-    // Only the machine can say where the image's checkout stands: the commit comes back off its last line.
+-    expect((await rt.workspaces.get(ws.id)).branchOfRecord).toEqual({ repoId: 4242, owner: "acme", name: "web", branch: "wsp/pricing-page", startSha: IMAGE_SHA });
+-  });
+-
+-  it("whose project image holds the checkout, still starts a thread-asked fork on its parent's commit", async () => {
+-    const { rt, stdin, broker, project } = await onProvider({ image: true, leadBranch: "feat/parent" });
+-    const { asking } = await leadThread(rt, broker, project.id);
+-    const ws = await rt.workspaces.create({ project: project.id, name: "pricing page" }, asking);
+-    expect((await rt.workspaces.get(ws.id)).branchOfRecord?.startSha).toBe(PARENT_SHA);
+-    expect(stdin.find(s => s.machine === ws.machineId)!.cmd).toContain(`git -C /root/web checkout -q -B wsp/pricing-page ${PARENT_SHA}`);
+-  });
+ });
+ 
+ describe("a thread started from a pull request at a provider", () => {

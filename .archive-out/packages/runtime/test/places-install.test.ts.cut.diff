@@ -1,0 +1,22 @@
+diff --git a/packages/runtime/test/places-install.test.ts b/packages/runtime/test/places-install.test.ts
+index 7c0a6cd0f..c6d644837 100644
+--- a/packages/runtime/test/places-install.test.ts
++++ b/packages/runtime/test/places-install.test.ts
+@@ -59,7 +59,7 @@ describe("putting the agent on a computer over ssh", () => {
+     expect(stages.every(s => s.addId === "a_mine")).toBe(true);
+     // The road its link came in on and the one fact the box's own row does not already carry: a size here as well
+     // cuts the line the app draws.
+-    expect(stages.at(-1)?.note).toBe("at http://192.168.1.20:4400, engine none");
++    expect(stages.at(-1)?.note).toBe("at http://192.168.1.20:4400");
+     // The computer is held by the time its join is done, so that step names the row a reader acts on.
+     expect(stages.at(-1)?.placeId).toBe(added.place.id);
+   });
+@@ -82,7 +82,7 @@ describe("putting the agent on a computer over ssh", () => {
+     ctx.srv = await serveRuntime(ctx.runtime, { port: 0, authToken: "host-token", devices: ctx.runtime.devices });
+     ctx.runtime.events.on("place.stage", e => stages.push(e as PlaceStageEvent));
+     await ctx.runtime.places!.add({ address: "root@10.0.0.9", name: "box", hostUrls: DOOR }, Date.now());
+-    expect(stages.find(s => s.step === "join" && s.state === "done")?.note).toBe("engine none");
++    expect(stages.find(s => s.step === "join" && s.state === "done")?.note ?? "").toBe("");
+   });
+ 
+   it("waits for the link the agent dials, not the socket the join itself opened and closed", async () => {

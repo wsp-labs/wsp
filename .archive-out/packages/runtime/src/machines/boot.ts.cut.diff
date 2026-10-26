@@ -1,0 +1,13 @@
+diff --git a/packages/runtime/src/machines/boot.ts b/packages/runtime/src/machines/boot.ts
+index 857af8f0a..2061198ec 100644
+--- a/packages/runtime/src/machines/boot.ts
++++ b/packages/runtime/src/machines/boot.ts
+@@ -1065,7 +1065,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
+   };
+   return {
+     refreshBuilders, isHeldAway, rereadHeld, hydrateWorkspace, ready, entryOf, childOf, reachesRow, entryOfRow,
+-    listedRows, placedRows, rowGone, setupRefusalMoved, threadFacts, factsAfterRead, settledNow, pushHead, rowsSent, mark, endSnoozeFor, armResume, resumeAfterLimit, treeRecords, treeStandsOn, talksToTreeOn, computerRows, nameOfComputer, imageHeadOrNone,
++    listedRows, placedRows, rowGone, setupRefusalMoved, threadFacts, factsAfterRead, settledNow, pushHead, rowsSent, mark, endSnoozeFor, armResume, resumeAfterLimit, treeRecords, treeStandsOn, talksToTreeOn, computerRows, nameOfComputer,
+     imageHead, landingPlace,
+   };
+ }

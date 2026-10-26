@@ -1,0 +1,12 @@
+diff --git a/packages/runtime/test/places-setup.test.ts b/packages/runtime/test/places-setup.test.ts
+index 5cb571d88..5fd837807 100644
+--- a/packages/runtime/test/places-setup.test.ts
++++ b/packages/runtime/test/places-setup.test.ts
+@@ -239,7 +239,6 @@ function provisioner(
+   const picked: RecipeFile[] = [];
+   const rows = { ...ROWS, ...o.rows };
+   const wired: PlaceProvisioner = {
+-    plan: async () => ({ noRecipe: "/nowhere/recipe.json" }),
+     setup: async picks => {
+       picked.push(picks);
+       return o.plan ?? PLAN;

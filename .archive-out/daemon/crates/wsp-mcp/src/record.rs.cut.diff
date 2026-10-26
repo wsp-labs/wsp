@@ -1,0 +1,12 @@
+diff --git a/daemon/crates/wsp-mcp/src/record.rs b/daemon/crates/wsp-mcp/src/record.rs
+index 054ca8836..b8b64d52e 100644
+--- a/daemon/crates/wsp-mcp/src/record.rs
++++ b/daemon/crates/wsp-mcp/src/record.rs
+@@ -159,7 +159,6 @@ pub struct Release {
+     pub restart: String,
+     pub reopen_app: String,
+     pub restart_up: String,
+-    pub init_finish: String,
+     pub update_there: String,
+     pub update_here: String,
+     pub roads: HashMap<String, String>,

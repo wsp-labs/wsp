@@ -1,0 +1,39 @@
+diff --git a/packages/host/test/host-release.test.ts b/packages/host/test/host-release.test.ts
+index 6656db2c4..4f61a5ed8 100644
+--- a/packages/host/test/host-release.test.ts
++++ b/packages/host/test/host-release.test.ts
+@@ -34,8 +34,8 @@ afterEach(async () => {
+ const noPrompt = (q: string): Promise<string> => Promise.reject(new Error(`unexpected prompt: ${q}`));
+ const io = (log: string[], err: string[]): CliIO => ({ log: l => log.push(l), error: l => err.push(l), ask: noPrompt, askSecret: noPrompt });
+ 
+-/** The lock each road writes: the app's service unit marks its host as the service, and init's host carries no mark. */
+-const LOCK_OF: Record<HostRoad, HostLock["startedBy"]> = { app: "service", service: "service", verb: "verb", up: "up", init: undefined };
++/** The lock each road writes: the app's service unit marks its host as the service. */
++const LOCK_OF: Record<HostRoad, HostLock["startedBy"]> = { app: "service", service: "service", verb: "verb", up: "up" };
+ 
+ /** A host serving a state file of its own under the release given, which names the road it comes back by beside it,
+  * answers every op it is asked and records them. */
+@@ -77,7 +77,6 @@ it("an older host serving this state is refused in one sentence naming both rele
+     // The app's host runs off the app's bundle under the service mark the app writes, and comes back on its release.
+     app: `quit and reopen the app that holds it once the app is on wsp ${VERSION}.`,
+     up: UP_RESTART_LINE,
+-    init: "let the wsp init that serves it finish, then run this line again.",
+   };
+   for (const road of Object.keys(fixes) as HostRoad[]) {
+     const { statePath, asked } = await hostOf("0.0.1", road);
+@@ -90,13 +89,13 @@ it("an older host serving this state is refused in one sentence naming both rele
+   }
+ });
+ 
+-it("names the road a host comes back by off its install and what started it: the app's bundle whatever started it, else the road, else init's", () => {
++it("names the road a host comes back by off its install and what started it: the app's bundle whatever started it, else the road, else a terminal's wsp up", () => {
+   const app = { argv: [process.execPath, "/Applications/wsp.app/Contents/Resources/wsp/bin/wsp"] };
+   const npm = { argv: [process.execPath, "/usr/local/lib/node_modules/@wsp-labs/wsp/dist/bin.js"] };
+   expect(hostRoadOf(app, "service")).toBe("app");
+   expect(hostRoadOf(npm, "service")).toBe("service");
+   expect(hostRoadOf(npm, "up")).toBe("up");
+-  expect(hostRoadOf(npm, undefined)).toBe("init");
++  expect(hostRoadOf(npm, undefined)).toBe("up");
+ });
+ 
+ it("a newer host is refused with the line that brings this computer's wsp to its release", async () => {

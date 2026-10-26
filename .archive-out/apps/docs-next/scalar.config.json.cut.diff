@@ -1,0 +1,21 @@
+diff --git a/apps/docs-next/scalar.config.json b/apps/docs-next/scalar.config.json
+index 993ce1c77..1b9bab1b2 100644
+--- a/apps/docs-next/scalar.config.json
++++ b/apps/docs-next/scalar.config.json
+@@ -603,16 +603,6 @@
+                     "title": "wsp projects set",
+                     "filepath": "content/reference/cli/projects-set.mdx"
+                   },
+-                  "/recipe": {
+-                    "type": "page",
+-                    "title": "wsp recipe",
+-                    "filepath": "content/reference/cli/recipe.mdx"
+-                  },
+-                  "/recipe-scan": {
+-                    "type": "page",
+-                    "title": "wsp recipe scan",
+-                    "filepath": "content/reference/cli/recipe-scan.mdx"
+-                  },
+                   "/recipes": {
+                     "type": "page",
+                     "title": "wsp recipes",

@@ -1,0 +1,22 @@
+diff --git a/apps/web/test/agent-settings.test.tsx b/apps/web/test/agent-settings.test.tsx
+index 4cc638515..21ef2b5eb 100644
+--- a/apps/web/test/agent-settings.test.tsx
++++ b/apps/web/test/agent-settings.test.tsx
+@@ -19,7 +19,7 @@ import { descriptionOf, mountSettings, pageAt, resetSettings, rowOf, settingsApi
+ import { pickOption } from "./select.js";
+ 
+ const MAC = "zingzy's MacBook Pro";
+-const here: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", label: MAC, default: true, present: true, takesForks: false, engine: "none", shape: { cpu: 8, memMb: 16384 } };
++const here: PlaceView = { id: "here", kind: "computer", name: "zingzy-mbp", label: MAC, default: true, present: true, takesForks: false, shape: { cpu: 8, memMb: 16384 } };
+ 
+ const REPORT = AGENTS_SETUP_REPORT;
+ const CLAUDE = REPORT.agents[0]!;
+@@ -566,7 +566,7 @@ describe("an agent's page", () => {
+   });
+ 
+   it("reads the picked computer's own setup, and opens from the sidebar's sub-row", async () => {
+-    const box: PlaceView = { id: "p_2", kind: "computer", name: "spoo", default: false, present: true, takesForks: true, engine: "none" };
++    const box: PlaceView = { id: "p_2", kind: "computer", name: "spoo", default: false, present: true, takesForks: true };
+     useStore.setState({ places: [here, box] });
+     useSettingsStore.getState().pickAgentsPlace("p_2");
+     const made = agentsApi();

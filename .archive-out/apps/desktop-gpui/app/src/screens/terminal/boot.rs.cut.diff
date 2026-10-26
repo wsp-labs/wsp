@@ -1,0 +1,81 @@
+diff --git a/apps/desktop-gpui/app/src/screens/terminal/boot.rs b/apps/desktop-gpui/app/src/screens/terminal/boot.rs
+index 7689cfa8f..3e3a6f3b2 100644
+--- a/apps/desktop-gpui/app/src/screens/terminal/boot.rs
++++ b/apps/desktop-gpui/app/src/screens/terminal/boot.rs
+@@ -1,12 +1,11 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+-//! The boot line of the page the host serves (`window.__WSP__ = {...};`, server.ts `loadPage`), read once a launch with
+-//! the first terminal for the family the host detected from the recipe (`detectedTerminalFont` in `fontSetting.ts`).
++//! The boot line of the page the host serves (`window.__WSP__ = {...};`, server.ts `loadPage`), whose keys Settings
++//! reads once off the host's page.
+ 
+ use std::io::{Read, Write};
+ use std::net::{IpAddr, SocketAddr, TcpStream, ToSocketAddrs};
+ use std::time::{Duration, Instant};
+ 
+-use gpui_kit::{App, AppContext, Global, Task};
+ use serde_json::Value;
+ 
+ /// The most of the host's page read for its boot line, which stands in the page's head.
+@@ -70,52 +69,6 @@ fn read_boot_key_within(page: &str, key: &str, wait: Duration) -> Result<Option<
+     Err("the host's page holds no boot line".into())
+ }
+ 
+-/// `terminalFont` as `detectedTerminalFont` takes it: trimmed, and an empty one is none.
+-pub fn family_of(value: Option<Value>) -> Option<String> {
+-    value.as_ref().and_then(Value::as_str).map(str::trim).filter(|f| !f.is_empty()).map(str::to_owned)
+-}
+-
+-/// The host's page, and the family its boot line names once read.
+-#[derive(Default)]
+-struct Boot {
+-    page: Option<String>,
+-    font: Option<Option<String>>,
+-    reading: Option<Task<()>>,
+-}
+-
+-impl Global for Boot {}
+-
+-/// Hands the terminal the page the host serves, whose boot line [`detected_font`] reads.
+-pub fn read_from(page: Option<String>, cx: &mut App) {
+-    cx.default_global::<Boot>().page = page;
+-}
+-
+-/// The family the host detected as the person's own terminal's, none until its page answers; the first ask reads the
+-/// page off the main thread and redraws the windows once it has.
+-pub fn detected_font(cx: &mut App) -> Option<String> {
+-    let boot = cx.default_global::<Boot>();
+-    if let Some(font) = &boot.font {
+-        return font.clone();
+-    }
+-    let page = boot.page.clone().filter(|_| boot.reading.is_none())?;
+-    let read = cx.background_spawn(async move { read_boot_key(&page, "terminalFont") });
+-    let reading = cx.spawn(async move |cx| {
+-        let font = match read.await {
+-            Ok(value) => family_of(value),
+-            Err(e) => {
+-                eprintln!("desktop-gpui: the host's page: {e}");
+-                None
+-            }
+-        };
+-        cx.update(|cx| {
+-            cx.global_mut::<Boot>().font = Some(font);
+-            cx.refresh_windows();
+-        });
+-    });
+-    cx.global_mut::<Boot>().reading = Some(reading);
+-    None
+-}
+-
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+@@ -128,8 +81,6 @@ mod tests {
+         assert_eq!(boot_key(PAGE, "terminalFont"), Some(Some(Value::from(" Berkeley Mono "))));
+         assert_eq!(boot_key(PAGE, "productUsageOff"), Some(None), "a boot line without the key");
+         assert_eq!(boot_key("<html><head></head></html>", "terminalFont"), None, "a page with no boot line");
+-        assert_eq!(family_of(boot_key(PAGE, "terminalFont").flatten()), Some("Berkeley Mono".to_owned()));
+-        assert_eq!(family_of(Some(Value::from("  "))), None);
+     }
+ 
+     /// Serves `PAGE` to each of `times` asks on loopback, handing back each ask's first read.

@@ -1,0 +1,82 @@
+diff --git a/packages/host/src/analytics-events.ts b/packages/host/src/analytics-events.ts
+index 731b78ffa..1b333d725 100644
+--- a/packages/host/src/analytics-events.ts
++++ b/packages/host/src/analytics-events.ts
+@@ -1,20 +1,18 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+-// What the host counts, read off the runtime's bus, the init job's events and
+-// the ops that failed. Every property is picked by name from a field of a known
+-// shape and is a catalog id, a word off a fixed list, a count or a time. The
++// What the host counts, read off the runtime's bus and the ops that failed. Every property is picked by name from a
++// field of a known shape and is a catalog id, a word off a fixed list, a count or a time. The
+ // bus events carry the prompt, the folder, the reply and the error beside those
+ // fields, and nothing here spreads one, so none of that can ride along.
+-import { everyModel, exitClassOf, HERE_PLACE_ID, KIND_CLASS, type EventUnion, type InitJobEvent, type InitNeedsYouEvent, type InitPhase, type PlaceSetupStep, type SessionOrigin } from "@wsp/protocol";
++import { everyModel, exitClassOf, HERE_PLACE_ID, KIND_CLASS, type EventUnion, type PlaceSetupStep, type SessionOrigin } from "@wsp/protocol";
+ import { harnessCatalog, type Runtime } from "@wsp/runtime";
+ import { NO_ANALYTICS, type Analytics, type AnalyticsProps } from "./analytics.js";
+ 
+-/** How many turns, setups and init jobs the reader remembers between their start and their end. */
++/** How many turns and setups the reader remembers between their start and their end. */
+ export const USAGE_MEMORY_MAX = 4_096;
+ /** One op that keeps failing the same way is counted once a minute, so a loop cannot flood the queue. */
+ export const OP_FAILED_EVERY_MS = 60_000;
+ 
+ type Sink = (event: string, properties: AnalyticsProps) => void;
+-type InitEvent = InitJobEvent | InitNeedsYouEvent;
+ 
+ const OTHER = "other";
+ 
+@@ -59,7 +57,6 @@ function remember<K, V>(map: Map<K, V>, key: K, value: V): void {
+ 
+ export interface UsageReader {
+   bus(e: EventUnion): void;
+-  init(e: InitEvent): void;
+   failed(op: string, e: unknown): void;
+   started(counts: { projects: number; computers: number; workspaces: number; firstRun: boolean }): void;
+ }
+@@ -69,7 +66,6 @@ export function usageReader(record: Sink, now: () => number = Date.now): UsageRe
+   // A harness may report one turn's end twice; the second is not a second turn.
+   const ended = new Map<string, true>();
+   const setups = new Map<string, { at: number; failed: Set<PlaceSetupStep> }>();
+-  const inits = new Map<string, { at: number; phase: InitPhase }>();
+   const ops = new Map<string, number>();
+   return {
+     bus(e) {
+@@ -135,20 +131,6 @@ export function usageReader(record: Sink, now: () => number = Date.now): UsageRe
+           return;
+       }
+     },
+-    init(e) {
+-      if (e.type !== "init.job") return;
+-      const { id, phase, road } = e.job;
+-      const seen = inits.get(id);
+-      if (phase !== "done" && phase !== "failed" && phase !== "cancelled") {
+-        if (seen === undefined) remember(inits, id, { at: now(), phase });
+-        else seen.phase = phase;
+-        return;
+-      }
+-      // The job's view is sent again after it ended; only the first end it is seen reaching counts.
+-      if (seen === undefined) return;
+-      inits.delete(id);
+-      record("init.ended", { road, outcome: phase, durationMs: now() - seen.at, ...(phase === "done" ? {} : { stoppedAt: seen.phase }) });
+-    },
+     failed(op, e) {
+       const cls = exitClassOf(e);
+       const key = `${op} ${cls}`;
+@@ -181,7 +163,6 @@ export interface UsageFollow {
+ export function followUsage(
+   client: Analytics,
+   rt: Pick<Runtime, "events" | "preferences" | "projects" | "workspaces" | "places">,
+-  init?: { on(fn: (e: InitEvent) => void): () => void },
+ ): UsageFollow {
+   // A build with no key reads nothing at all, so a dev host and every test host pay for none of this.
+   if (client === NO_ANALYTICS) return NO_USAGE;
+@@ -200,7 +181,6 @@ export function followUsage(
+     rt.events.on("preferences.changed", e => {
+       if (e.type === "preferences.changed") client.setOn(e.preferences.productUsage);
+     }),
+-    ...(init === undefined ? [] : [init.on(quiet(reader.init))]),
+   ];
+   let closed = false;
+   return {

@@ -1,0 +1,15 @@
+diff --git a/apps/web/test/computer-pick.test.ts b/apps/web/test/computer-pick.test.ts
+index 23d4c4c3d..f86872e11 100644
+--- a/apps/web/test/computer-pick.test.ts
++++ b/apps/web/test/computer-pick.test.ts
+@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
+ import { groupsOn } from "../src/sidebar/computerPick.js";
+ 
+ const PLACES: PlaceView[] = [
+-  { id: "here", kind: "computer", name: "studio.local", default: false, engine: "none", present: true, takesForks: false },
+-  { id: "p_spoo", kind: "computer", name: "spoo", default: false, engine: "none", present: true, takesForks: true },
++  { id: "here", kind: "computer", name: "studio.local", default: false, present: true, takesForks: false },
++  { id: "p_spoo", kind: "computer", name: "spoo", default: false, present: true, takesForks: true },
+ ];
+ const group = (id: string, computer?: string) => ({ project: { id, name: id, ...(computer === undefined ? {} : { computer }) }, workspaces: [] });
+ 

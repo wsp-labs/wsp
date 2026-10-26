@@ -1,0 +1,15 @@
+diff --git a/packages/host/test/login-keys-runtime.test.ts b/packages/host/test/login-keys-runtime.test.ts
+index 1a8ab0bc7..95110b139 100644
+--- a/packages/host/test/login-keys-runtime.test.ts
++++ b/packages/host/test/login-keys-runtime.test.ts
+@@ -73,8 +73,8 @@ describe("the Claude key in the login shell and a thread on this computer", () =
+ 
+     const folder = mkdtempSync(join(dir, "repo-"));
+     execFileSync("git", ["init", "-q", folder]);
+-    const project = await handle.addProject(folder);
+-    const workspace = await handle.createWorkspace(project.name, undefined, project.id);
++    const project = await built.projects.add({ source: folder });
++    const workspace = await built.workspaces.create({ project: project.id, name: project.name });
+     const thread = await threadOn(built, workspace.id);
+ 
+     // exec runs under claude's own launch environment, the one a turn on this computer starts with.

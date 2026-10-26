@@ -1,0 +1,19 @@
+diff --git a/packages/host/src/cli/io.ts b/packages/host/src/cli/io.ts
+index 03b4ef8ae..5fefbbbb9 100644
+--- a/packages/host/src/cli/io.ts
++++ b/packages/host/src/cli/io.ts
+@@ -91,14 +91,3 @@ function readAnswerKey(input: Stream<Readable>, accept: readonly string[], until
+     void until.then(() => done(undefined));
+   });
+ }
+-
+-/** What an init under --json speaks through: stdout carries the objects alone, so every line the run says goes to
+- * stderr beside them, and a key that is not in the environment or a .env file is an error rather than a prompt on a
+- * stream nobody is reading. */
+-export function jsonCliIO(err: Writable = process.stderr): CliIO {
+-  const say = (line: string): void => void err.write(`${line}\n`);
+-  const nobodyLine = (q: string, variable?: string): string => `${q.split("\n")[0]}: --json asks nothing; set ${variable ?? "it"} in ${KEY_LAYER_WORDS}.`;
+-  const nobody = (q: string): Promise<never> => Promise.reject(new Error(nobodyLine(q)));
+-  const noKey = (q: string, variable?: string): Promise<never> => Promise.reject(authRefusal(nobodyLine(q, variable)));
+-  return { log: say, error: say, stream: text => void err.write(text), ask: nobody, askSecret: noKey };
+-}

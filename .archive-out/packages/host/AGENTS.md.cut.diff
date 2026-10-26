@@ -1,0 +1,22 @@
+diff --git a/packages/host/AGENTS.md b/packages/host/AGENTS.md
+index cbc4ec7e4..4824b3c65 100644
+--- a/packages/host/AGENTS.md
++++ b/packages/host/AGENTS.md
+@@ -31,10 +31,7 @@ A box's agent is root there and can go around anything its daemon enforces, so a
+ - A test gated on an env variable skips quietly in CI: name its file in a CI step, its variable in `GATES` (`vitest.env.ts`) (#1297).
+ - Each node process wsp ships calls `connectPatiently()` first, the bin via `runBin()`: node's 250 ms per address drops a slow first one (#2250, #2259).
+ - The broker reads a machine's workspace with `heldOrCreating()`: get refuses one mid-create, and the create's clone passes the broker (#2266).
+-- A line an init run prints reaches only the job's log tail, which no client shows: one for the terminal beside the host goes as json in its own view field (`cleanup`, `update`, sign-in rows) (#2257, #2273).
+-- A sign-in stage sends each row it settles or skips via `settledOutcomes()`, or the job ends it as never reached; a "Taken as" reason comes from `runInit()`'s `takenAs` alone (#2286).
+ - A fake server's sockets and a child's stdin it writes carry an error listener: a child that answers before reading stdin (git http-backend on a GET) exits first, an unhandled EPIPE (#2280, #2267).
+-- A sign-in row's outcome is in its `state` alone, and a key-set row has no `login`: a line beside a host that drops `row.state` or keys on `login` prints no word (#2293).
+ 
+ ## One home for
+ 
+@@ -48,5 +45,5 @@ A box's agent is root there and can go around anything its daemon enforces, so a
+ | a tools probe with its own drain bound | `src/server-tools.ts` | `stdioScript()` |
+ | the line an agent's config starts the tools with | `src/mcp-install.ts` | `mcpServerSpec()` |
+ | a file a workspace may write: no link, no wait, a cap | `src/place-report.ts` | `readPlainHere()` |
+-| where prepare builds an image's builder, init's one place to attach | `packages/runtime/src/images/golden.ts` | `prepareAt()` |
++| where prepare builds an image's builder | `packages/runtime/src/images/golden.ts` | `prepareAt()` |
+ | an agent config read on a machine; a `ScopeUnread` is there, unread | `packages/engine/src/golden-mcp.ts` | `readConfigsCmd()` |

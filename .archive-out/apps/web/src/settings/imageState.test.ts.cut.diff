@@ -1,0 +1,68 @@
+diff --git a/apps/web/src/settings/imageState.test.ts b/apps/web/src/settings/imageState.test.ts
+index 63b716af6..036e2a73c 100644
+--- a/apps/web/src/settings/imageState.test.ts
++++ b/apps/web/src/settings/imageState.test.ts
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+ import { describe, expect, it } from "vitest";
+-import { copyBuildingLine, copyStoppedLine, type GoldenStageEvent, type InitJob, type PlaceView, type SealedImage, type SealedImageCopy, type SealedImageView } from "@wsp/protocol";
++import { copyBuildingLine, copyStoppedLine, type GoldenStageEvent, type PlaceView, type SealedImage, type SealedImageCopy, type SealedImageView } from "@wsp/protocol";
+ import { builtWhen } from "./image.js";
+ import { imageChips, imageState, type ImageState } from "./imageState.js";
+ 
+@@ -36,13 +36,10 @@ const image: SealedImage = {
+   place: "solari",
+ };
+ const copyAt = (place: string, hash: string = HASH): SealedImageCopy => ({ place, version: 1, hash, snapshotId: `snap_${place}`, builtAt: AT, sizeBytes: 3 * 1024 ** 3 });
+-const viewWith = (...copies: SealedImageCopy[]): SealedImageView => ({ image, copies: [copyAt("solari"), ...copies], projects: [] });
++const viewWith = (...copies: SealedImageCopy[]): SealedImageView => ({ image, copies: [copyAt("solari"), ...copies] });
+ const frame = (stage: GoldenStageEvent["stage"], place: string, detail?: string): GoldenStageEvent => ({ type: "golden.stage", name: "default", stage, place, ...(detail !== undefined ? { detail } : {}) });
+-const job = (phase: InitJob["phase"], place: { id: string; name: string } | undefined, error?: string): InitJob =>
+-  ({ id: "j", road: "screens", phase, keys: {}, step: 0, stoppable: false, screens: [], rows: [], progress: { done: 0, total: 0 }, log: [], ...(place !== undefined ? { place } : {}), ...(error !== undefined ? { error } : {}) }) as unknown as InitJob;
+-
+-const read = (place: PlaceView, o: { view?: SealedImageView | null; job?: InitJob | null; frames?: Record<string, readonly GoldenStageEvent[]> } = {}): ImageState | undefined =>
+-  imageState(place, { view: o.view === undefined ? viewWith() : o.view, job: o.job ?? null, frames: o.frames ?? {} });
++const read = (place: PlaceView, o: { view?: SealedImageView | null; frames?: Record<string, readonly GoldenStageEvent[]> } = {}): ImageState | undefined =>
++  imageState(place, { view: o.view === undefined ? viewWith() : o.view, frames: o.frames ?? {} });
+ 
+ describe("one reading of a computer's image", () => {
+   it("has nothing to say about a place that cannot hold the image, whatever else it carries", () => {
+@@ -61,7 +58,7 @@ describe("one reading of a computer's image", () => {
+   it("reads none where no copy stands and nothing builds, whether or not the image exists elsewhere", () => {
+     expect(read(box)).toEqual({ kind: "none" });
+     expect(read(box, { view: null })).toEqual({ kind: "none" });
+-    expect(read(box, { view: { image: null, copies: [], projects: [] } })).toEqual({ kind: "none" });
++    expect(read(box, { view: { image: null, copies: [] } })).toEqual({ kind: "none" });
+   });
+ 
+   it("reads ready on a copy built from the image as it is, and stale on one built from an older record", () => {
+@@ -71,7 +68,7 @@ describe("one reading of a computer's image", () => {
+ 
+   it("never reads stale where the record has nothing to judge its copies by", () => {
+     const { vault: _vault, ...unvaulted } = image;
+-    const view = { image: unvaulted, copies: [copyAt("box", "c".repeat(64))], projects: [] };
++    const view = { image: unvaulted, copies: [copyAt("box", "c".repeat(64))] };
+     expect(read(box, { view })?.kind).toBe("ready");
+   });
+ 
+@@ -106,20 +103,6 @@ describe("one reading of a computer's image", () => {
+     const frames = { box: [frame("creating", "box"), frame("failed", "box", "no room at box today")] };
+     expect(read({ ...box, build: copyBuildingLine("creating") }, { frames })).toEqual({ kind: "stopped", said: copyStoppedLine("no room at box today") });
+   });
+-
+-  it("reads building while the image's own build runs on this place, and never on another", () => {
+-    const running = job("signing-in", { id: "box", name: "box" });
+-    expect(read(box, { view: null, job: running })).toEqual({ kind: "building", job: running });
+-    expect(read(srv, { view: null, job: running })).toEqual({ kind: "none" });
+-    expect(read(box, { view: null, job: job("building", undefined) })).toEqual({ kind: "none" });
+-  });
+-
+-  it("reads a first build that stopped here as stopped, and leaves a standing image readable after a rebuild stopped", () => {
+-    const failed = job("failed", { id: "box", name: "box" }, "the provider refused the key");
+-    expect(read(box, { view: null, job: failed })).toEqual({ kind: "stopped", said: "the provider refused the key" });
+-    expect(read(box, { view: viewWith(copyAt("box")), job: failed })?.kind).toBe("ready");
+-    expect(read(box, { view: null, job: job("cancelled", { id: "box", name: "box" }) })).toEqual({ kind: "none" });
+-  });
+ });
+ 
+ describe("the chips a state is drawn with", () => {

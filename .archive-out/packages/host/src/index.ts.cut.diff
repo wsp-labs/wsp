@@ -1,0 +1,13 @@
+diff --git a/packages/host/src/index.ts b/packages/host/src/index.ts
+index 18e617c8c..c6fb625f5 100644
+--- a/packages/host/src/index.ts
++++ b/packages/host/src/index.ts
+@@ -37,7 +37,7 @@ export {
+   type ServiceDeps,
+   type StopProcess,
+ } from "./cli.js";
+-export { SECRET_NAME, redact } from "./init-log.js";
++export { SECRET_NAME, redact } from "./secret-redact.js";
+ export { SERVICE_MANAGERS, httpProbe, installService, logSince, logSize, logTail, noManagerLine, runAll, runFailureLine, serviceAddressHere, serviceEnv, serviceManagerFor, serviceStartsAtLogin, serviceTag, stopService, systemRunner, untilServing, type HostProbe, type RunFailure, type ServiceManager, type ServicePlan, type ServiceRunner } from "./service.js";
+ export { LAUNCHD_PATH, adoptLoginPath, needsLoginPath, takeLoginPath, type LoginShellDeps } from "./login-path.js";
+ export { SECTION_BEGIN, SECTION_END, sectionText } from "./agents-md.js";

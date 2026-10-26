@@ -1,0 +1,21 @@
+diff --git a/packages/host/src/cli/mcp.ts b/packages/host/src/cli/mcp.ts
+index 4fd1c3c11..dc9ac72c8 100644
+--- a/packages/host/src/cli/mcp.ts
++++ b/packages/host/src/cli/mcp.ts
+@@ -6,7 +6,6 @@ import { MCP_AGENT_IDS } from "@wsp/catalog";
+ import { authRefusal, type McpServerSpec, hostFromEnv, jsonLine, SCOPED_MCP_ARG, scopedNoPairLine, EXIT_CODES, runForTheList, unknownWordLine, usageRefusal } from "@wsp/protocol";
+ import { tapeOf, type Tape } from "@wsp/runtime";
+ import { gitRootOf } from "../repo-root.js";
+-import { alsoHere } from "../scan.js";
+ import { wrap } from "../init-layout.js";
+ import type { HostStarter } from "../host-start.js";
+ import { emptyHostRefusal } from "../hosts.js";
+@@ -46,7 +45,7 @@ export async function mcp(io: CliIO, argv: string[], statePathOf: (flag?: string
+     // TypeScript server answers there. The agent starts it in its own folder, which is the folder a thread opened with
+     // no workspace is placed by.
+     const { serveMcp } = await import("../mcp.js");
+-    await serveMcp(statePath, { alsoHere, cwd: process.cwd(), env, ...starts, ...(values.host !== undefined ? { host: values.host } : {}), ...(values.scoped === true ? { scoped: true } : {}), ...(values["no-slate"] === true ? { noSlate: true } : {}), ...(values["no-look"] === true ? { noLook: true } : {}), ...tapeFor(env) });
++    await serveMcp(statePath, { cwd: process.cwd(), env, ...starts, ...(values.host !== undefined ? { host: values.host } : {}), ...(values.scoped === true ? { scoped: true } : {}), ...(values["no-slate"] === true ? { noSlate: true } : {}), ...(values["no-look"] === true ? { noLook: true } : {}), ...tapeFor(env) });
+     return 0;
+   }
+   const json = values.json === true;

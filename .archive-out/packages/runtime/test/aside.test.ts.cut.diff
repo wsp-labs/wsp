@@ -1,0 +1,13 @@
+diff --git a/packages/runtime/test/aside.test.ts b/packages/runtime/test/aside.test.ts
+index ab2ab41ba..86ff16c33 100644
+--- a/packages/runtime/test/aside.test.ts
++++ b/packages/runtime/test/aside.test.ts
+@@ -297,7 +297,7 @@ describe("a side question beside a thread", () => {
+     const own = ownSessions(asked, ["44444444-4444-4444-8444-444444444444", "55555555-5555-4555-8555-555555555555"]);
+     const factory: HarnessAdapterFactory = ctx => ({ ...own(ctx), mcpServers: true, asideServers: true });
+     rt = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: factory }, local: localWiring, agents: { here: { url: "http://127.0.0.1:4801" }, wspMcp } });
+-    const ws = await createOn(rt, { on: HERE_PLACE_ID, name: "mac", agents: { spawn: true, maxMachines: 3, maxDepth: 2 } });
++    const ws = await createOn(rt, { on: HERE_PLACE_ID, name: "mac", agents: { maxMachines: 3, maxDepth: 2 } });
+     const lead = await rt.sessions.start(ws.id, { prompt: "lead" });
+     await lead.finished;
+     const leadThread = lead.view().threadId!;

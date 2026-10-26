@@ -1,0 +1,103 @@
+diff --git a/packages/runtime/test/owed-lines.test.ts b/packages/runtime/test/owed-lines.test.ts
+index 3cd35c4e2..3e26a0c28 100644
+--- a/packages/runtime/test/owed-lines.test.ts
++++ b/packages/runtime/test/owed-lines.test.ts
+@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it } from "vitest";
+ import { createClaudeAdapter } from "@wsp/adapter-claude";
+ import { createCodexAdapter } from "@wsp/adapter-codex";
+ import { MachineUnreachableError, MachineUnreached, PlaceAbsentError, type ExecResult } from "@wsp/engine";
+-import { LINK_RETRY_WINDOW_MS, NOTIFY_ME, TURN_TOKEN_ENV, agentsOffRefusal, notFoundRefusal, usageRefusal, type Caller, type ExecStreamFactory } from "@wsp/protocol";
++import { LINK_RETRY_WINDOW_MS, NOTIFY_ME, TURN_TOKEN_ENV, notFoundRefusal, usageRefusal, type Caller, type ExecStreamFactory } from "@wsp/protocol";
+ import type { Clock } from "../src/clock.js";
+ import { createRuntime, type HarnessAdapterFactory, type Runtime } from "../src/runtime.js";
+ import { memoryStore } from "../src/store.js";
+@@ -85,7 +85,7 @@ describe("a child's finished line its lead cannot take yet", () => {
+       return rt;
+     };
+     let rt = host(clock);
+-    const leadWs = await createOn(rt, { golden: "snap_g", name: "lead", agents: { spawn: true } });
++    const leadWs = await createOn(rt, { golden: "snap_g", name: "lead", agents: { } });
+     const lead = await rt.sessions.start(leadWs.id, { prompt: "orchestrate", ...(o.leadNotify !== undefined ? { notify: [...o.leadNotify] } : {}) });
+     await until(() => fed.runOf("orchestrate") !== undefined);
+     const leadRun = fed.runOf("orchestrate")!;
+@@ -359,7 +359,7 @@ describe("a child's finished line its lead cannot take yet", () => {
+     for (const e of [new MachineUnreached(7, 61_000, new TypeError("fetch failed")), new MachineUnreachableError("m1", "Sandbox is not reachable", 502, "the machine is not reachable"), new PlaceAbsentError("hetzner is away"), new DeadlineError("the launch timed out after 30000 ms"), new LaunchUnanswered(lost.message, { cause: lost }), deadLink]) {
+       expect(computerSilent(e), String(e)).toBe(true);
+     }
+-    for (const e of [new Error(agentsOffRefusal("lead", "send")), new Error("the person stopped this send while it waited for hetzner"), usageRefusal("no such agent", "pick one"), notFoundRefusal("no thread t1"), launchRefused(), lost, undefined]) {
++    for (const e of [new Error("the person stopped this send while it waited for hetzner"), usageRefusal("no such agent", "pick one"), notFoundRefusal("no thread t1"), launchRefused(), lost, undefined]) {
+       expect(computerSilent(e), String(e)).toBe(false);
+     }
+   });
+@@ -503,7 +503,7 @@ describe("a child's finished line its lead cannot take yet", () => {
+     const a = fakeClock();
+     const s = await setup(a.clock);
+     await s.leadWaits();
+-    const otherWs = await createOn(s.rt(), { golden: "snap_g", name: "lead-2", agents: { spawn: true } });
++    const otherWs = await createOn(s.rt(), { golden: "snap_g", name: "lead-2", agents: { } });
+     const other = await s.rt().sessions.start(otherWs.id, { prompt: "coordinate" });
+     await until(() => s.fed.runOf("coordinate") !== undefined);
+     const otherRun = s.fed.runOf("coordinate")!;
+@@ -547,7 +547,7 @@ describe("a child's finished line its lead cannot take yet", () => {
+     };
+     const a = fakeClock();
+     let rt = host(a.clock);
+-    const leadWs = await createOn(rt, { golden: "snap_g", name: "lead", agents: { spawn: true } });
++    const leadWs = await createOn(rt, { golden: "snap_g", name: "lead", agents: { } });
+     const lead = await rt.sessions.start(leadWs.id, { prompt: "orchestrate", harness: "codex" });
+     await until(() => fed.runs.length === 1);
+     const leadRun = fed.runs[0]!;
+@@ -734,7 +734,7 @@ describe("a child's finished line its lead cannot take yet", () => {
+       adapters: { claude: c => createClaudeAdapter({ exec: exec(c), configDir: "/root/.claude-cfg", resultExitMs: 60_000 }) },
+     });
+     runtimes.push(rt);
+-    const leadWs = await createOn(rt, { golden: "snap_g", name: "lead", agents: { spawn: true } });
++    const leadWs = await createOn(rt, { golden: "snap_g", name: "lead", agents: { } });
+     const lead = await rt.sessions.start(leadWs.id, { prompt: "orchestrate" });
+     await until(() => fed.runOf("orchestrate") !== undefined);
+     fed.runOf("orchestrate")!.push(init, said("msg_l", "waiting"), result("waiting"));
+@@ -782,7 +782,7 @@ describe("a child's finished line its lead cannot take yet", () => {
+       },
+     });
+     runtimes.push(rt);
+-    const leadWs = await createOn(rt, { golden: "snap_g", name: "lead", agents: { spawn: true } });
++    const leadWs = await createOn(rt, { golden: "snap_g", name: "lead", agents: { } });
+     const lead = await rt.sessions.start(leadWs.id, { prompt: "orchestrate", harness: "codex" });
+     await until(() => fed.runs.length === 1);
+     const leadRun = fed.runs[0]!;
+@@ -900,7 +900,7 @@ describe("a child's finished line its lead cannot take yet", () => {
+     const h = twoHosts();
+     const a = fakeClock();
+     let rt = h.host(a.clock);
+-    const leadWs = await createOn(rt, { golden: "snap_g", name: "lead", agents: { spawn: true }, idleWindowMs: null });
++    const leadWs = await createOn(rt, { golden: "snap_g", name: "lead", agents: { }, idleWindowMs: null });
+     const lead = await rt.sessions.start(leadWs.id, { prompt: "orchestrate" });
+     await until(() => h.fed.runOf("orchestrate") !== undefined);
+     h.fed.runOf("orchestrate")!.push(init, said("msg_l", "waiting"), result("waiting"));
+@@ -1000,7 +1000,7 @@ describe("a child's finished line its lead cannot take yet", () => {
+     const h = twoHosts();
+     const a = fakeClock();
+     let rt = h.host(a.clock);
+-    const leadWs = await createOn(rt, { golden: "snap_g", name: "lead", agents: { spawn: true }, idleWindowMs: null });
++    const leadWs = await createOn(rt, { golden: "snap_g", name: "lead", agents: { }, idleWindowMs: null });
+     const lead = await rt.sessions.start(leadWs.id, { prompt: "orchestrate" });
+     await until(() => h.fed.runOf("orchestrate") !== undefined);
+     h.fed.runOf("orchestrate")!.push(init, said("msg_l", "waiting"), result("waiting"));
+@@ -1073,7 +1073,7 @@ describe("a child's finished line its lead cannot take yet", () => {
+     const { fed, store, host } = twoHosts();
+     const a = fakeClock();
+     let rt = host(a.clock);
+-    const leadWs = await createOn(rt, { golden: "snap_g", name: "lead", agents: { spawn: true } });
++    const leadWs = await createOn(rt, { golden: "snap_g", name: "lead", agents: { } });
+     const lead = await rt.sessions.start(leadWs.id, { prompt: "orchestrate", harness: "codex" });
+     await until(() => fed.runs.length === 1);
+     const leadRun = fed.runs[0]!;
+@@ -1136,7 +1136,7 @@ describe("a child's finished line its lead cannot take yet", () => {
+     const { fed, store, host } = twoHosts();
+     const a = fakeClock();
+     let rt = host(a.clock);
+-    const leadWs = await createOn(rt, { golden: "snap_g", name: "lead", agents: { spawn: true } });
++    const leadWs = await createOn(rt, { golden: "snap_g", name: "lead", agents: { } });
+     const lead = await rt.sessions.start(leadWs.id, { prompt: "orchestrate", harness: "codex" });
+     await until(() => fed.runs.length === 1);
+     fed.runs[0]!.push(...opened);

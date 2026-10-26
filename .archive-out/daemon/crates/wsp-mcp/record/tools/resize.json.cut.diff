@@ -1,0 +1,40 @@
+diff --git a/daemon/crates/wsp-mcp/record/tools/resize.json b/daemon/crates/wsp-mcp/record/tools/resize.json
+index 7a8706a33..fd02f713c 100644
+--- a/daemon/crates/wsp-mcp/record/tools/resize.json
++++ b/daemon/crates/wsp-mcp/record/tools/resize.json
+@@ -233,9 +233,6 @@
+             "agents": {
+               "type": "object",
+               "properties": {
+-                "spawn": {
+-                  "type": "boolean"
+-                },
+                 "maxMachines": {
+                   "type": "integer",
+                   "minimum": 0
+@@ -246,7 +243,6 @@
+                 }
+               },
+               "required": [
+-                "spawn",
+                 "maxMachines",
+                 "maxDepth"
+               ],
+@@ -779,9 +775,6 @@
+             "agents": {
+               "type": "object",
+               "properties": {
+-                "spawn": {
+-                  "type": "boolean"
+-                },
+                 "maxMachines": {
+                   "type": "integer",
+                   "minimum": 0
+@@ -792,7 +785,6 @@
+                 }
+               },
+               "required": [
+-                "spawn",
+                 "maxMachines",
+                 "maxDepth"
+               ],

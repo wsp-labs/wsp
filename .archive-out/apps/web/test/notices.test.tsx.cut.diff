@@ -1,0 +1,30 @@
+diff --git a/apps/web/test/notices.test.tsx b/apps/web/test/notices.test.tsx
+index 4e0b7c3f8..8f40769bf 100644
+--- a/apps/web/test/notices.test.tsx
++++ b/apps/web/test/notices.test.tsx
+@@ -9,7 +9,7 @@ vi.mock("../src/components/DiffWorkerPoolProvider.js", () => ({
+   DiffWorkerPoolProvider: ({ children }: { children?: ReactNode }) => children,
+ }));
+ 
+-import { DEFAULT_PREFERENCES, type InitJob, type WorkspaceView } from "@wsp/protocol";
++import { DEFAULT_PREFERENCES, type WorkspaceView } from "@wsp/protocol";
+ import { RequestError, type Api } from "../src/protocol/client.js";
+ import { useStore } from "../src/protocol/store.js";
+ import { FIRST_PAGE, useSettingsStore } from "../src/settings/settingsStore.js";
+@@ -298,14 +298,8 @@ describe("the store's refusals", () => {
+     expect(said()).toEqual([]);
+   });
+ 
+-  it("a refused capabilities read is said once a bind, however often it is asked", async () => {
+-    let emit: (e: Parameters<Parameters<Api["subscribe"]>[0]>[0]) => void = () => {};
+-    await bindWith({
+-      capabilities: async () => { throw new RequestError("no provider wired"); },
+-      subscribe: fn => { emit = fn; return () => {}; },
+-    });
+-    const done: InitJob = { id: "init_1", road: "manual", phase: "done", keys: {}, step: 0, stoppable: false, screens: [], rows: [], progress: { done: 1, total: 1 }, log: [] };
+-    act(() => emit({ type: "init.job", job: done }));
++  it("a refused capabilities read is said once a bind", async () => {
++    await bindWith({ capabilities: async () => { throw new RequestError("no provider wired"); } });
+     await act(() => new Promise<void>(resolve => setTimeout(resolve, 0)));
+     expect(said()).toEqual(["What the host can do was not read: no provider wired"]);
+   });

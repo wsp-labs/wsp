@@ -1,0 +1,23 @@
+diff --git a/apps/docs-next/scripts/cli.ts b/apps/docs-next/scripts/cli.ts
+index 6088d293d..abfea95a5 100644
+--- a/apps/docs-next/scripts/cli.ts
++++ b/apps/docs-next/scripts/cli.ts
+@@ -1,7 +1,7 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+ // The command line's pages: an index from the help pages and one page per line COMMAND_LINES holds, each the help
+-// that line's --help prints, run through the same dispatcher the binary runs. init has no page of its own; its help
+-// prints on the index. The sidebar group lists exactly these pages.
++// that line's --help prints, run through the same dispatcher the binary runs. A line named in NO_PAGE has none of its own;
++// its help prints on the index. The sidebar group lists exactly these pages.
+ import { readFileSync } from "node:fs";
+ import { join } from "node:path";
+ import { cli, COMMAND_LINES, type CliIO } from "../../../packages/host/src/cli.js";
+@@ -12,7 +12,7 @@ const CONFIG = "scalar.config.json";
+ export const CLI_DIR = "content/reference/cli";
+ 
+ /** The line that prints on the index rather than on a page of its own. */
+-export const NO_PAGE = ["init"];
++export const NO_PAGE: string[] = [];
+ 
+ /** What `wsp <argv>` prints, stdout and stderr in the order written, with no host dialled and none started. */
+ async function printed(argv: string[]): Promise<string> {

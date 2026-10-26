@@ -1,0 +1,101 @@
+diff --git a/packages/host/src/verbs/client.ts b/packages/host/src/verbs/client.ts
+index 387d34857..967802269 100644
+--- a/packages/host/src/verbs/client.ts
++++ b/packages/host/src/verbs/client.ts
+@@ -91,7 +91,6 @@ import { readDeviceKeyPair } from "../account.js";
+ import { releaseUpdateLine } from "../daemon-fix.js";
+ import { VERSION } from "../version.js";
+ import type { WatchSignals } from "../watch.js";
+-import type { ScanInput } from "../recipe-command.js";
+ 
+ export type Frame = Record<string, unknown> & { id?: string | number | null; ok?: boolean; type?: string };
+ 
+@@ -489,9 +488,8 @@ export function placeLines(places: readonly PlaceView[]): string[] {
+     p.shape === undefined ? "" : String(p.shape.cpu),
+     p.shape === undefined ? "" : fmtBytes(p.shape.memMb * 1024 * 1024),
+     p.diskFreeBytes === undefined ? "" : fmtBytes(p.diskFreeBytes),
+-    p.engine === undefined ? "" : p.engine,
+-    // How a project's files get into a workspace there: beside the engine, since both are what that computer
+-    // brings to a workspace rather than what the workspace asked for.
++    // How a project's files get into a workspace there, as that computer brings it to a workspace rather than as
++    // the workspace asked for it.
+     p.copies === undefined ? "" : p.copies,
+     p.kind === "provider" ? fmtPrice(p.rateUsdPerHour ?? 0) : p.present === true ? "yes" : "no",
+     p.forks === undefined ? "" : `${p.forks.running} of ${p.forks.running + p.forks.room}`,
+@@ -502,7 +500,7 @@ export function placeLines(places: readonly PlaceView[]): string[] {
+     placeDaemonBehind(p) ?? "",
+     p.build ?? "",
+   ]);
+-  return table([["PLACE", "KIND", "CORES", "MEMORY", "DISK FREE", "ENGINE", "COPIES", "PRESENT", "FORKS", "LAST SEEN", "DEFAULT", "BEHIND", "IMAGE"], ...rows]);
++  return table([["PLACE", "KIND", "CORES", "MEMORY", "DISK FREE", "COPIES", "PRESENT", "FORKS", "LAST SEEN", "DEFAULT", "BEHIND", "IMAGE"], ...rows]);
+ }
+ 
+ /** The computer every screen and every reader here is told it is on; the one reading, so a run, its hand-off and
+@@ -515,7 +513,7 @@ export const hostPlatform = (): Platform => (platform() === "darwin" ? "darwin"
+  * workspace lands on is its project's to say. The platform is handed in, since what this computer is called is
+  * read where the host runs and not guessed here, and so is the spend, which is a read of its own. */
+ /** The STARTS column, shown only once a cloud reads its own starts. */
+-const STARTS_AT = 12;
++const STARTS_AT = 11;
+ 
+ export function computerLines(places: readonly PlaceView[], platform: "darwin" | "linux", spend: readonly PlaceSpend[] = [], pending: readonly PendingComputer[] = []): string[] {
+   if (places.length === 0) return ["This host holds no computer. wsp add prints the join line for a computer you are sitting at."];
+@@ -528,7 +526,6 @@ export function computerLines(places: readonly PlaceView[], platform: "darwin" |
+     p.shape === undefined ? "" : String(p.shape.cpu),
+     p.shape === undefined ? "" : fmtBytes(p.shape.memMb * 1024 * 1024),
+     p.diskFreeBytes === undefined ? "" : fmtBytes(p.diskFreeBytes),
+-    p.engine === undefined ? "" : p.engine,
+     p.copies === undefined ? "" : p.copies,
+     p.kind === "provider" ? fmtPrice(p.rateUsdPerHour ?? 0) : p.present === true ? "yes" : "no",
+     p.forks === undefined ? "" : `${p.forks.running} of ${p.forks.running + p.forks.room}`,
+@@ -549,11 +546,11 @@ export function computerLines(places: readonly PlaceView[], platform: "darwin" |
+   // An add that has not reached Set up is a row of its own until it does: its word and how far it got.
+   const waiting = pending.filter(p => p.placeId === undefined || !places.some(r => r.id === p.placeId)).map(p => {
+     const word = pendingWord(p);
+-    return [p.name ?? p.address, "pending", "", "", "", "", "", "", "", "", "", "", "", word.word, "", "", "", word.sentence ?? "", ""];
++    return [p.name ?? p.address, "pending", "", "", "", "", "", "", "", "", "", "", word.word, "", "", "", word.sentence ?? "", ""];
+   });
+   const starts = places.some(p => p.starts !== undefined);
+   const shown = (row: readonly string[]): string[] => row.filter((_, at) => starts || at !== STARTS_AT);
+-  return table([["COMPUTER", "KIND", "CORES", "MEMORY", "DISK FREE", "ENGINE", "COPIES", "PRESENT", "WORKSPACES", "THREADS", "MACHINES", "SPEND", "STARTS", "STATE", "LAST SEEN", "BEHIND", "IMAGE", "TOOLS", "AGENTS"], ...rows, ...waiting].map(shown));
++  return table([["COMPUTER", "KIND", "CORES", "MEMORY", "DISK FREE", "COPIES", "PRESENT", "WORKSPACES", "THREADS", "MACHINES", "SPEND", "STARTS", "STATE", "LAST SEEN", "BEHIND", "IMAGE", "TOOLS", "AGENTS"], ...rows, ...waiting].map(shown));
+ }
+ 
+ /** What a computer set to follow a recipe prints: the recipe it follows now, or that it keeps what it has. */
+@@ -738,12 +735,9 @@ export function table(rows: ReadonlyArray<ReadonlyArray<string>>): string[] {
+ 
+ export type Flags = Record<string, string | boolean | string[] | undefined>;
+ 
+-/** What both doors are handed beside the line or the arguments: the state file the host serves, which the recipe
+- * verbs write beside, and the scanner for tools outside the catalog when the caller has one (it reaches the engine,
+- * which the MCP server may not import, so each door decides whether it runs). */
++/** What both doors are handed beside the line or the arguments: the state file the host serves. */
+ export interface VerbDeps {
+   statePath: string;
+-  alsoHere?: ScanInput["alsoHere"];
+   /** The folder the caller runs in: the shell's for the command line, the client's for the tool server, which the
+    * agent starts in its own folder. What a thread opened with no workspace named is placed by. Absent where the
+    * caller has none. */
+@@ -1021,7 +1015,6 @@ export const RELEASE_WORDS = {
+   restart: "restart that host with wsp restart.",
+   reopenApp: (mine: string): string => `quit and reopen the app that holds it once the app is on wsp ${mine}.`,
+   restartUp: UP_RESTART_LINE,
+-  initFinish: "let the wsp init that serves it finish, then run this line again.",
+   updateThere: (mine: string): string => `update wsp to ${mine} on that computer and restart its host there.`,
+   updateHere: (line: string, theirs: string): string => `${line} on this computer brings this line to ${theirs}.`,
+ };
+@@ -1031,11 +1024,11 @@ export const RELEASE_WORDS = {
+ export type ReleaseHost = { state: string } | { where: string; here: boolean };
+ 
+ /** What brings an older host on this computer level, off the road it names beside its release (`hostRoadOf`): the
+- * app's host comes back on the app's own release, a terminal's wsp up and init's host refuse a restart, and every
+- * other host takes one. */
++ * app's host comes back on the app's own release, a terminal's wsp up refuses a restart, and every other host takes
++ * one. */
+ export function releaseHereFix(mine: string, road: string | undefined): string {
+   const W = RELEASE_WORDS;
+-  return road === "app" ? W.reopenApp(mine) : road === "up" ? W.restartUp : road === "init" ? W.initFinish : W.restart;
++  return road === "app" ? W.reopenApp(mine) : road === "up" ? W.restartUp : W.restart;
+ }
+ 
+ /** What a line and a host of two releases read, in one sentence: both releases, and what to run on the older end. */

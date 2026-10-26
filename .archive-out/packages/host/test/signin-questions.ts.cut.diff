@@ -1,0 +1,26 @@
+diff --git a/packages/host/test/signin-questions.ts b/packages/host/test/signin-questions.ts
+index 7453e456e..26e63be6d 100644
+--- a/packages/host/test/signin-questions.ts
++++ b/packages/host/test/signin-questions.ts
+@@ -8,7 +8,20 @@
+ // hermes 0.20.0). Codes and tokens in these lines are dead: their flows were
+ // killed before anyone signed in. loginOf beside them is for the tests that
+ // need the line a row runs without spelling its flags out a second time.
+-import { hasLogin, signInFor } from "../src/signin-table.js";
++import { LOGIN_ROWS, hasLogin, type SignIn as CatalogSignIn } from "@wsp/catalog";
++
++export type { LoginSource } from "@wsp/catalog";
++
++/** A catalog row, or a shell for a tool with no row. */
++export type SignIn = CatalogSignIn | { kind: "shell" };
++
++/** Every sign-in row the catalog files, by the login id the collector emits: an entry's own, and the keys row beside a login whose key files travel only by copy. */
++export const SIGN_INS: Readonly<Record<string, CatalogSignIn>> = Object.fromEntries(LOGIN_ROWS.map(r => [r.id, r.signIn]));
++
++/** The row for a tool by its name (the last segment of a manifest id). */
++export function signInFor(name: string): SignIn {
++  return SIGN_INS[name] ?? { kind: "shell" };
++}
+ 
+ export function loginOf(name: string): string {
+   const s = signInFor(name);

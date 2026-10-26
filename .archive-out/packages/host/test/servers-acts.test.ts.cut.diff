@@ -1,0 +1,69 @@
+diff --git a/packages/host/test/servers-acts.test.ts b/packages/host/test/servers-acts.test.ts
+index 9ae07133f..a1da3b41e 100644
+--- a/packages/host/test/servers-acts.test.ts
++++ b/packages/host/test/servers-acts.test.ts
+@@ -90,10 +90,12 @@ describe("adding an MCP server", () => {
+     const at = fixture();
+     const file = join(at.home, ".claude.json");
+     const before = json(file);
+-    const added = await serversActs({ here: () => here(at) }).add(HERE, { agent: "claude", name: "acme", command: "npx", args: ["-y", "@acme/mcp"], env: { ACME_KEY: "sk-acme-x" } });
++    const vaulted: Record<string, string>[] = [];
++    const added = await serversActs({ here: () => here(at), vault: memVault(vaulted) }).add(HERE, { agent: "claude", name: "acme", command: "npx", args: ["-y", "@acme/mcp"], env: { ACME_KEY: "sk-acme-x" } });
+     expect(added).toEqual({ file: "~/.claude.json" });
++    expect(vaulted).toEqual([{ ACME_KEY: "sk-acme-x" }]);
+     const after = json(file);
+-    expect(after.mcpServers).toEqual({ ...before.mcpServers, acme: { command: "npx", args: ["-y", "@acme/mcp"], env: { ACME_KEY: "sk-acme-x" } } });
++    expect(after.mcpServers).toEqual({ ...before.mcpServers, acme: { command: "npx", args: ["-y", "@acme/mcp"], env: { ACME_KEY: "${ACME_KEY}" } } });
+     expect(after.projects).toEqual(before.projects);
+     expect(mode(file)).toBe(0o600);
+     expect(existsSync(join(at.home, "SPAWNED"))).toBe(false);
+@@ -103,10 +105,13 @@ describe("adding an MCP server", () => {
+     const at = fixture();
+     const file = join(at.home, ".codex/config.toml");
+     const before = readFileSync(file, "utf8");
+-    await serversActs({ here: () => here(at) }).add(HERE, { agent: "codex", name: "acme", url: "https://mcp.acme.example/mcp", headers: { Authorization: "Bearer tok-acme" } });
++    const vaulted: Record<string, string>[] = [];
++    await serversActs({ here: () => here(at), vault: memVault(vaulted) }).add(HERE, { agent: "codex", name: "acme", url: "https://mcp.acme.example/mcp", headers: { Authorization: "Bearer tok-acme" } });
+     const after = readFileSync(file, "utf8");
+     expect(after.startsWith(before)).toBe(true);
+-    expect(CODEX_TOML.read(after, at.home).find(s => s.name === "acme")?.transport).toEqual({ kind: "http", url: "https://mcp.acme.example/mcp", headers: { Authorization: "Bearer tok-acme" } });
++    expect(after).not.toContain("tok-acme");
++    expect(vaulted).toEqual([{ WSP_MCP_ACME_AUTHORIZATION: "tok-acme" }]);
++    expect(CODEX_TOML.read(after, at.home).find(s => s.name === "acme")?.transport).toMatchObject({ kind: "http", url: "https://mcp.acme.example/mcp" });
+   });
+ 
+   it("on a box, writes Claude Code's server into the config under the store a thread's Claude there reads, where the list and the tools find it", async () => {
+@@ -259,24 +264,6 @@ describe("adding an MCP server", () => {
+     expect(vaulted).toEqual([]);
+   });
+ 
+-  it("puts a named variable's value in place in this computer's own file, and leaves a ${...} no variable was given for as typed", async () => {
+-    const at = fixture();
+-    await serversActs({ here: () => here(at) }).add(HERE, { agent: "codex", name: "acme", command: "npx", args: ["acme-mcp", "--token=${ACME_TOKEN}", "--keep=${HOME}"], env: { ACME_TOKEN: "sk_TESTONLY_arg" } });
+-    expect(CODEX_TOML.read(readFileSync(join(at.home, ".codex/config.toml"), "utf8"), at.home).find(s => s.name === "acme")?.transport).toEqual({ kind: "stdio", command: "npx", args: ["acme-mcp", "--token=sk_TESTONLY_arg", "--keep=${HOME}"], env: { ACME_TOKEN: "sk_TESTONLY_arg" } });
+-    await serversActs({ here: () => here(at) }).add(HERE, { agent: "claude", name: "acme9", url: "https://mcp.acme.example/mcp?key=${ACME_TOKEN}", env: { ACME_TOKEN: "sk_TESTONLY_arg" } });
+-    expect(json(join(at.home, ".claude.json")).mcpServers!.acme9).toEqual({ type: "http", url: "https://mcp.acme.example/mcp?key=sk_TESTONLY_arg" });
+-  });
+-
+-  it("records every value passed on this computer in the vault too, never an empty value", async () => {
+-    const at = fixture();
+-    const vaulted: Record<string, string>[] = [];
+-    const acts = serversActs({ here: () => here(at), vault: memVault(vaulted) });
+-    await acts.add(HERE, { agent: "claude", name: "acme", command: "npx", args: ["--token=${ACME_TOKEN}"], env: { ACME_TOKEN: "sk_TESTONLY_arg", EMPTY: "" } });
+-    await acts.add(HERE, { agent: "claude", name: "plain", command: "npx" });
+-    expect(vaulted).toEqual([{ ACME_TOKEN: "sk_TESTONLY_arg" }]);
+-    expect(json(join(at.home, ".claude.json")).mcpServers!.acme).toMatchObject({ args: ["--token=sk_TESTONLY_arg"], env: { ACME_TOKEN: "sk_TESTONLY_arg" } });
+-  });
+-
+   it.runIf(CLOUD_ON)("refuses a catalog row's or a provider's key as a server's variable, on this computer and on another, naming whose key it is, and writes nothing", async () => {
+     const at = fixture();
+     const files = [".claude.json", ".codex/config.toml"].map(f => join(at.home, f));
+@@ -488,7 +475,7 @@ describe("adding an MCP server", () => {
+     writeFileSync(outside, readFileSync(file));
+     rmSync(file);
+     symlinkSync(outside, file);
+-    const acts = serversActs({ here: () => here(at) });
++    const acts = serversActs({ here: () => here(at), vault: memVault([]) });
+     const was = readFileSync(outside, "utf8");
+     await expect(acts.add(HERE, { agent: "claude", name: "acme", command: "npx" })).rejects.toThrow(/^~\/\.claude\.json is a link to .*elsewhere\/claude\.json, outside the folder it belongs to, so wsp does not write through it\.$/);
+     await expect(acts.remove(HERE, { agent: "claude", name: "airtable" })).rejects.toThrow(/is a link to/);

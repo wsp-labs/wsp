@@ -1,0 +1,223 @@
+diff --git a/packages/protocol/test/format.test.ts b/packages/protocol/test/format.test.ts
+index a8094ab88..bfdf44e37 100644
+--- a/packages/protocol/test/format.test.ts
++++ b/packages/protocol/test/format.test.ts
+@@ -3,6 +3,13 @@ import { readFileSync } from "node:fs";
+ import { join } from "node:path";
+ import { describe, expect, it } from "vitest";
+ import {
++  COPY_BUILD_FIX,
++  IMAGE_NO_VAULT,
++  NO_IMAGE_FIX,
++  NO_IMAGE_YET,
++  NO_NEW_VERSION,
++  NO_SEALED_IMAGE,
++  imageRebuildFix,
+   spawnDepthRefusal,
+   HOST_BEAT_MS,
+   ADDRESS_NEXT_START,
+@@ -68,7 +75,6 @@ import {
+   REPO_STATE_WORDS,
+   missingToolRow,
+   behindGoldenLine,
+-  builderStaysLine,
+   DAEMON_INSTALL_FAILED,
+   DAEMON_INSTALLING,
+   DAEMON_UPDATE_FAILED,
+@@ -97,7 +103,6 @@ import {
+   fmtThreads,
+   fmtUptime,
+   forgetNotice,
+-  goldenBuildLine,
+   goneWords,
+   harnessExitLine,
+   isCodeSearchTool,
+@@ -127,24 +132,9 @@ import {
+   plural,
+   providerAnswerLine,
+   providerRoadRetryLine,
+-  SEAL_FAILED_BUILDER_GONE_LINE,
+-  SEAL_FAILED_LINE,
+-  sealFailedBuilderStaysLine,
+-  sealFailedBuilderUnreadLine,
+-  INSTALLER_MOVED_LINE,
+-  NO_ROAD_WORDS,
+-  installedHereLine,
+-  installsByLine,
+-  leftOutLine,
+-  notHereLine,
+   thisComputer,
+   SUM_SHOWN,
+   pinMismatchLine,
+-  pinWords,
+-  pinsReadLine,
+-  sealedPinLine,
+-  INSTALLS_LATEST,
+-  roadMovedLine,
+   shortSum,
+   sizeFromWord,
+   sizeRefusal,
+@@ -181,14 +171,10 @@ import {
+   waitedOnYouPart,
+   refusedTurn,
+   signInRefusalLine,
+-  upgradeSealFailedGoneLine,
+-  upgradeSealFailedStaysLine,
+-  upgradeSealFailedUnreadLine,
+   vaultKeptLine,
+   HOSTNAME_KEPT,
+   hostnameSetLine,
+   startingLine,
+-  imageHomeKeptLine,
+   CREATE_READY,
+   vaultStaleLine,
+   vaultOverCapLine,
+@@ -199,7 +185,6 @@ import {
+   NOT_GONE,
+   repoLine,
+   secretsNote,
+-  secretSignalsLine,
+   SESSIONS_NOTE,
+   shellVersionNotice,
+   type GoldenMissingTool,
+@@ -1301,16 +1286,6 @@ describe("the nap's words when its vault was not stored", () => {
+   });
+ });
+ 
+-describe("wsp init --on once an image stands", () => {
+-  it("says in one sentence that the image is built at its own place when --on named another, and nothing when it named that place by id or name", () => {
+-    const home = { id: "p_abc", name: "spoo" };
+-    expect(imageHomeKeptLine("solari", home)).toBe("your image lives on spoo, so it is built there and not on solari");
+-    expect(imageHomeKeptLine("spoo", home)).toBeUndefined();
+-    expect(imageHomeKeptLine("p_abc", home)).toBeUndefined();
+-    expect(imageHomeKeptLine(undefined, home)).toBeUndefined();
+-  });
+-});
+-
+ describe("a create's own words", () => {
+   it("the fork's line names the workspace and the computer it starts on, and nothing of the image it copies", () => {
+     expect(startingLine("spoo-fix", "hetzner")).toBe("starting spoo-fix on hetzner");
+@@ -1384,23 +1359,6 @@ describe("a resume the provider does not take", () => {
+   });
+ });
+ 
+-describe("goldenBuildLine", () => {
+-  it("names the version it builds and the one it builds on top of, then what it changes", () => {
+-    expect(goldenBuildLine(2, 3, [{ count: 2, noun: "tool", word: "added" }])).toBe("Builds version 3 on top of version 2: 2 tools added");
+-  });
+-
+-  it("pluralises each noun on its own count and drops what did not change", () => {
+-    expect(goldenBuildLine(1, 2, [{ count: 1, noun: "tool", word: "added" }, { count: 0, noun: "agent", word: "added" }, { count: 3, noun: "row", word: "retired" }])).toBe(
+-      "Builds version 2 on top of version 1: 1 tool added, 3 rows retired",
+-    );
+-  });
+-
+-  it("a build with no version under it names no version to build on, and a build that changes nothing says only what it makes", () => {
+-    expect(goldenBuildLine(0, 1, [{ count: 4, noun: "tool", word: "added" }])).toBe("Builds version 1: 4 tools added");
+-    expect(goldenBuildLine(2, 3, [{ count: 0, noun: "tool", word: "added" }])).toBe("Builds version 3 on top of version 2");
+-  });
+-});
+-
+ describe("REPO_STATE_WORDS", () => {
+   it("carries no word for any folder git named no branch for: a slot shows the branch or nothing until it is known", () => {
+     for (const row of Object.values(REPO_STATE_WORDS)) expect(Object.keys(row)).toEqual(["pane"]);
+@@ -1490,23 +1448,6 @@ describe("providerAnswerLine, snapshotAttemptLine and snapshotFailedLine", () =>
+   });
+ });
+ 
+-describe("builderStaysLine and the seal's and the update's last lines", () => {
+-  it("the stays-up sentence is one rule, and the failed seal's last line wraps it", () => {
+-    const stays = builderStaysLine("m1", 0.11, "wsp init --recipe '/tmp/r.json'");
+-    expect(stays).toBe("Builder m1 stays up at about $0.11/hr; wsp init --recipe '/tmp/r.json' attaches to it again, and the sweep stops it once it is six hours old.");
+-    expect(sealFailedBuilderStaysLine("m1", 0.11, "wsp init --recipe '/tmp/r.json'")).toBe(`Seal failed; the builder is as you left it. ${stays}`);
+-    expect(sealFailedBuilderUnreadLine("m1", 0.11, "wsp init --recipe '/tmp/r.json'")).toBe(`Seal failed; the provider could not be read about the builder, so nothing on it was touched. ${stays}`);
+-    expect(SEAL_FAILED_BUILDER_GONE_LINE).toBe("Seal failed and the builder is gone: the provider dropped it after refusing the snapshot. Run wsp init again; the recipe is kept.");
+-  });
+-
+-  it("the update's last lines say the image stands and whether the provider still has the machine the new version ran on", () => {
+-    expect(upgradeSealFailedStaysLine(1, "m1", 0.11)).toBe("Image v1 is unchanged. Builder m1 is as it was, up at about $0.11/hr; run wsp init again to retry, and the sweep stops it once it is six hours old.");
+-    expect(upgradeSealFailedGoneLine(1)).toBe("Image v1 is unchanged and the builder is gone: the provider dropped it after refusing the snapshot. Run wsp init again to retry.");
+-    expect(upgradeSealFailedUnreadLine(1, "m1")).toBe("Image v1 is unchanged. The provider could not be read about builder m1, so nothing on it was touched; run wsp init again to retry, and the sweep stops it once it is six hours old.");
+-    expect(SEAL_FAILED_LINE).toBe("Seal failed and the builder is gone. Run wsp init again; the recipe is kept.");
+-  });
+-});
+-
+ describe("a pinned release that moved", () => {
+   it("the failure names the download, its tag, and the recorded and served sums, both cut so the reason line keeps them", () => {
+     expect(SUM_SHOWN).toBe(12);
+@@ -1517,29 +1458,23 @@ describe("a pinned release that moved", () => {
+     // With the widest tool and asset names the catalog has, the line stays under the 160 characters the reason rule keeps.
+     expect(pinMismatchLine("google-cloud-cli-575.0.0-linux-x86_64.tar.gz", "575.0.0", "b".repeat(12), "c".repeat(12)).length).toBeLessThan(160);
+   });
++});
+ 
+-  it("why a tool installs differently now: the road in the roads' words, the lines otherwise", () => {
+-    expect(roadMovedLine("with Homebrew", "by its own installer")).toBe("now by its own installer, was with Homebrew");
+-    expect(INSTALLER_MOVED_LINE).toBe("its install lines changed");
+-    expect(roadMovedLine("with Homebrew", NO_ROAD_WORDS)).toBe("now by no road, was with Homebrew");
+-  });
+-
+-  it("a pin in words: the version alone where a copy gets it, with the latest mark where the road installs the current one on every place", () => {
+-    expect(INSTALLS_LATEST).toBe("installs latest");
+-    expect(pinWords({ tag: "v2.86.0", sha256: "b".repeat(64) })).toBe("v2.86.0");
+-    expect(pinWords({ tag: "3.3a-3", latest: true })).toBe("3.3a-3, installs latest");
+-    // The record's line: the row by name, the version, the checksum where the road hashed one, the latest mark in the road's words.
+-    expect(sealedPinLine("GitHub CLI", { tag: "v2.86.0", sha256: "b".repeat(64) })).toBe("GitHub CLI  v2.86.0  checksum bbbbbbbbbbbb");
+-    expect(sealedPinLine("tmux", { tag: "3.3a-3", latest: true }, "by apt")).toBe("tmux  3.3a-3  installs latest by apt");
+-    expect(sealedPinLine("Claude Code", { tag: "2.1.3", latest: true })).toBe("Claude Code  2.1.3  installs latest");
+-    expect(sealedPinLine("wrangler", { tag: "4.1.0" })).toBe("wrangler  4.1.0");
+-    // The stage's one line: the pinned rows, then once the rows that install latest with the version this build got; nothing when nothing was read.
+-    expect(pinsReadLine([{ name: "wrangler", tag: "4.1.0" }, { name: "GitHub CLI", tag: "v2.86.0" }], [{ name: "tmux", tag: "3.3a-3", words: "by apt" }, { name: "Go", tag: "1.22.1", words: "with Homebrew" }])).toBe(
+-      "pinned: wrangler 4.1.0, GitHub CLI v2.86.0; installs latest on every place: tmux 3.3a-3 by apt, Go 1.22.1 with Homebrew",
+-    );
+-    expect(pinsReadLine([], [{ name: "Claude Code", tag: "2.1.3" }])).toBe("installs latest on every place: Claude Code 2.1.3");
+-    expect(pinsReadLine([{ name: "a, b", tag: "1" }], [])).toBe('pinned: "a, b" 1');
+-    expect(pinsReadLine([], [])).toBeUndefined();
++describe("what an image refusal tells a person to do", () => {
++  it("where there is no image it names wsp doctor on the cloud computer, and where a next version is asked for it says the image stays as it is and this build makes none", () => {
++    expect(NO_IMAGE_FIX).toBe("Run wsp doctor with the name of your cloud computer; it builds the default image there.");
++    expect(NO_SEALED_IMAGE).toBe("no image yet. Run wsp doctor with the name of your cloud computer; it builds the default image there.");
++    expect(NO_IMAGE_YET).toBe(NO_SEALED_IMAGE);
++    expect(NO_NEW_VERSION).toBe("The image stays as it is, and this build makes no new version.");
++    expect(IMAGE_NO_VAULT).toBe("no sign-ins held; this build makes no new version to hold them");
++    expect(imageRebuildFix("Boat")).toBe("The image stays as it is, and this build makes no new version, so a fork on Boat stays refused.");
++    expect(COPY_BUILD_FIX.noImage).toBe(NO_IMAGE_FIX);
++    expect(COPY_BUILD_FIX.noRecipe).toBe("The image stays as it is, and this build makes no new version. This one cannot be copied.");
++    expect(COPY_BUILD_FIX.noVault).toBe("The image stays as it is, and this build makes no new version. Run it again with --force to copy this one anyway.");
++  });
++
++  it("names no road that is gone", () => {
++    for (const words of [NO_IMAGE_FIX, NO_NEW_VERSION, IMAGE_NO_VAULT, imageRebuildFix("Boat"), ...Object.values(COPY_BUILD_FIX)]) expect(words).not.toMatch(/wsp init|seal|the next version/i);
+   });
+ });
+ 
+@@ -1550,18 +1485,6 @@ describe("the computer being read", () => {
+   });
+ });
+ 
+-describe("a tools row outside the catalog", () => {
+-  it("says it is on this computer, what the build does with it, and when a file's tick has no row here", () => {
+-    expect(installedHereLine("darwin", undefined)).toBe("installed on this Mac");
+-    expect(installedHereLine("darwin", "0.1.0")).toBe("installed on this Mac, 0.1.0");
+-    expect(installedHereLine("linux", "0.1.0")).toBe("installed on this computer, 0.1.0");
+-    expect(installsByLine("from its release", "the v0.1.0 release of github.com/Zingzy/diskbloom")).toBe("installs from its release: the v0.1.0 release of github.com/Zingzy/diskbloom");
+-    expect(leftOutLine("no Linux bottle known")).toBe("left out of the build: no Linux bottle known");
+-    expect(notHereLine("darwin", "zingzy/tap/diskbloom", "/tmp/given.json")).toBe("zingzy/tap/diskbloom is ticked in /tmp/given.json, but this Mac has no row that installs it; it is left out.");
+-    expect(notHereLine("linux", "direnv", "/tmp/given.json")).toBe("direnv is ticked in /tmp/given.json, but this computer has no row that installs it; it is left out.");
+-  });
+-});
+-
+ describe("the import dialog's words", () => {
+   it("names the workspace the folder goes into and that it lands at the same path", () => {
+     expect(importIntoLine("dev2")).toBe("Into dev2, at the same path.");
+@@ -1578,10 +1501,6 @@ describe("the import dialog's words", () => {
+     expect(SESSIONS_NOTE).toBe("Ticked agents' sessions go with the folder. The rest stay here.");
+   });
+ 
+-  it("names why a file looks like a secret and its size, the one spelling the CLI's plan column and the dialog's hover share", () => {
+-    expect(secretSignalsLine({ path: ".env", bytes: 120, signals: ["name", "keys"] })).toBe("name, keys, 120 B");
+-  });
+-
+   const ev = (over: { stage: string; message?: string; bytes?: number; total?: number }) => ({ message: "", ...over }) as Parameters<typeof importProgress>[0][number];
+   const dest = "/Users/me/code/proj";
+   /** The events one import with travelling sessions makes, in the runtime's order: the project upload lands, then the sessions tar uploads and lands. */

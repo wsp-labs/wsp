@@ -1,0 +1,13 @@
+diff --git a/packages/collect/src/detect/commands.ts b/packages/collect/src/detect/commands.ts
+index d73e7cc2e..9bf1c45e1 100644
+--- a/packages/collect/src/detect/commands.ts
++++ b/packages/collect/src/detect/commands.ts
+@@ -159,7 +159,7 @@ export function dropPlugins(text: string, drop: (name: string) => boolean): { te
+ function notes(missing: readonly string[], dropped: readonly string[]): string[] {
+   return [
+     ...dropped.map(name => `# plugin ${name} left out: ${name} is not on the image`),
+-    ...(missing.length > 0 ? [`# Guarded above: a call to one of these that is not on this machine is silent instead of an error: ${missing.join(", ")}. Tick them in wsp init to install them.`] : []),
++    ...(missing.length > 0 ? [`# Guarded above: a call to one of these that is not on this machine is silent instead of an error: ${missing.join(", ")}.`] : []),
+   ];
+ }
+ 

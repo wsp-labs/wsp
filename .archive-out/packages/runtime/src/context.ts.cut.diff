@@ -1,0 +1,31 @@
+diff --git a/packages/runtime/src/context.ts b/packages/runtime/src/context.ts
+index 8d795d591..42258e9d3 100644
+--- a/packages/runtime/src/context.ts
++++ b/packages/runtime/src/context.ts
+@@ -36,7 +36,6 @@ import type {
+   RecipeDigest,
+   SealedImage,
+   SealedImageBuilt,
+-  ProjectGolden,
+   ProjectRef,
+   ProjectSource,
+   ProjectView,
+@@ -412,9 +411,7 @@ export interface RecordsArea {
+   readonly migrateCopies: () => Promise<void>;
+   readonly recordOf: (name: string) => Promise<SealedImage | undefined>;
+   readonly recordedImages: () => Promise<Set<string>>;
+-  readonly recipeAsksEngine: (version: GoldenVersion) => Promise<boolean>;
+-  readonly imageOf: (snapshotId: string) => Promise<{ golden: string; version?: GoldenVersion; projects?: WorkspaceProject[] }>;
+-  readonly projectGoldenOf: (raw: unknown) => ProjectGolden;
++  readonly imageOf: (snapshotId: string) => Promise<{ golden: string; version?: GoldenVersion }>;
+ }
+ 
+ export interface ReachArea {
+@@ -535,7 +532,6 @@ export interface BootArea {
+   readonly talksToTreeOn: (workspaceId: string, caller: Caller | undefined) => boolean;
+   readonly computerRows: () => Promise<{ id: string; name: string; kind: PlaceKind }[]>;
+   readonly nameOfComputer: (computer: string, rows: readonly { id: string; name: string }[]) => string;
+-  readonly imageHeadOrNone: () => Promise<string | undefined>;
+   readonly imageHead: () => Promise<string>;
+   readonly landingPlace: (computer: string) => Promise<{ placeId?: string }>;
+ }

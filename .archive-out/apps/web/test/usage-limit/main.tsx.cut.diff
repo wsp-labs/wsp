@@ -1,0 +1,13 @@
+diff --git a/apps/web/test/usage-limit/main.tsx b/apps/web/test/usage-limit/main.tsx
+index b7d1e7bfb..5cc5f9cf9 100644
+--- a/apps/web/test/usage-limit/main.tsx
++++ b/apps/web/test/usage-limit/main.tsx
+@@ -145,8 +145,6 @@ const api: Api = {
+     return () => watching.delete(fn);
+   },
+   getGolden: async () => undefined,
+-  listProjectGoldens: async () => [],
+-  snapshotWorkspace: async id => ({ snapshotId: "snap_taken", projects: [], golden: "", workspaceId: id, workspaceName: "wsp", createdAt: new Date().toISOString() }),
+ } as Api;
+ 
+ useStore.setState({

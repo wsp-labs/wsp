@@ -1,0 +1,20 @@
+diff --git a/apps/web/src/protocol/store/hooks.ts b/apps/web/src/protocol/store/hooks.ts
+index 9c1fab5e5..7286dd957 100644
+--- a/apps/web/src/protocol/store/hooks.ts
++++ b/apps/web/src/protocol/store/hooks.ts
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+ import { useEffect, useMemo } from "react";
+-import { foldThreads, workspaceStateOf, type AbsentComputer, type BringBackResult, type Capabilities, type GoldenStageEvent, type HarnessCatalog, type InitJob, type PlaceView, type PortForward, type Preferences, type ProjectView, type SessionView, type ThreadView, type WorkspaceState, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
++import { foldThreads, workspaceStateOf, type AbsentComputer, type BringBackResult, type Capabilities, type GoldenStageEvent, type HarnessCatalog, type PlaceView, type PortForward, type Preferences, type ProjectView, type SessionView, type ThreadView, type WorkspaceState, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
+ import { deriveSidebarProjects } from "../../adapt/workspaces.js";
+ import type { Launch, SidebarProjectSnapshot } from "../../adapt/view-model.js";
+ import type { ProtocolEvent } from "../client.js";
+@@ -82,7 +82,6 @@ export function useForwarded(workspaceId: string | null, port: number | null): b
+   return useStore(s => workspaceId !== null && port !== null && s.forwards.some(f => f.workspaceId === workspaceId && f.port === port && f.kind === "url"));
+ }
+ export function useCapabilities(): Capabilities | null { return useStore(s => s.capabilities); }
+-export function useInitJob(): InitJob | null { return useStore(s => s.initJob); }
+ export function useGoldenFrames(): Record<string, GoldenStageEvent[]> { return useStore(s => s.goldenFrames); }
+ /** The catalogs a composer reads: the workspace's machine's once it answered, else the runtime's table. */
+ export function useHarnessCatalogs(workspaceId: string | null): HarnessCatalog[] {

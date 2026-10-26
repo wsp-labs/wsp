@@ -1,0 +1,29 @@
+diff --git a/packages/host/test/doctor.test.ts b/packages/host/test/doctor.test.ts
+index bf7cf949a..b34ca8864 100644
+--- a/packages/host/test/doctor.test.ts
++++ b/packages/host/test/doctor.test.ts
+@@ -67,7 +67,7 @@ import {
+ } from "../src/doctor.js";
+ import { agentName, catalogEntry, GUEST_HOME, VAULT_VARIABLES } from "@wsp/catalog";
+ import { daemonFixLine, releaseUpdateLine } from "../src/daemon-fix.js";
+-import { redact } from "../src/init-log.js";
++import { redact } from "../src/secret-redact.js";
+ import { captured, copyingFake, createOn, projectOn } from "./verbs-fixture.js";
+ import { commandPage, COMMANDS_FOR_HELP, doctorRow, localWiring, SHARED_FLAGS, type CliIO } from "../src/cli.js";
+ import { SEALED_GOLDEN } from "./sealed-golden.js";
+@@ -809,15 +809,6 @@ describe("the doctor's computer road", () => {
+     expect(behind.created).toHaveLength(1);
+   });
+ 
+-  it("says what stands in for the recipe on a host that wired no plan, and on a computer whose recipe was never written here", async () => {
+-    const host = fakeHost({ projects: [project({ checkout: "/root/a" })] });
+-    const io = captured();
+-    expect(await computerDoctor(host.rt, io, computer(), { vault: () => ({}) })).toBe(0);
+-    expect(io.lines.some(l => l.includes("this host wired no recipe plan, so there is nothing to read inside"))).toBe(true);
+-    const noRecipe = captured();
+-    expect(await computerDoctor(host.rt, noRecipe, computer(), { vault: () => ({}), plan: async () => ({ noRecipe: "/Users/dev/.wsp/recipe.json" }) })).toBe(0);
+-    expect(noRecipe.lines.some(l => l.includes("this computer holds no recipe at /Users/dev/.wsp/recipe.json"))).toBe(true);
+-  });
+ });
+ 
+ 

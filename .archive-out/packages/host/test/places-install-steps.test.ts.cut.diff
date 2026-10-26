@@ -1,0 +1,13 @@
+diff --git a/packages/host/test/places-install-steps.test.ts b/packages/host/test/places-install-steps.test.ts
+index 5304980de..d619e98ee 100644
+--- a/packages/host/test/places-install-steps.test.ts
++++ b/packages/host/test/places-install-steps.test.ts
+@@ -16,7 +16,7 @@ import { BackCutError, backBindLine } from "../src/place-back.js";
+ import { LOGIN_KEPT_LINE, loginKeptLine } from "../src/login-files.js";
+ import { heldPlaceScript, PLACE_HELD_LINE, PLACE_LEFT_LINE } from "@wsp/protocol";
+ import { placeReport } from "../src/place-report.js";
+-import { opts, spooConfig, tmp } from "./places-fixture.js";
++import { spooConfig, tmp } from "./places-fixture.js";
+ 
+ describe("the install over ssh marks its steps off the lines the deploy prints", () => {
+   /** A daemon asset folder with a stand-in binary per guest target named, and a wsp command as npm lays it out.

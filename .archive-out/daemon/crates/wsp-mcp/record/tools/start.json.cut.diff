@@ -1,0 +1,40 @@
+diff --git a/daemon/crates/wsp-mcp/record/tools/start.json b/daemon/crates/wsp-mcp/record/tools/start.json
+index 019fbf372..9c91d8474 100644
+--- a/daemon/crates/wsp-mcp/record/tools/start.json
++++ b/daemon/crates/wsp-mcp/record/tools/start.json
+@@ -247,9 +247,6 @@
+             "agents": {
+               "type": "object",
+               "properties": {
+-                "spawn": {
+-                  "type": "boolean"
+-                },
+                 "maxMachines": {
+                   "type": "integer",
+                   "minimum": 0
+@@ -260,7 +257,6 @@
+                 }
+               },
+               "required": [
+-                "spawn",
+                 "maxMachines",
+                 "maxDepth"
+               ],
+@@ -815,9 +811,6 @@
+             "agents": {
+               "type": "object",
+               "properties": {
+-                "spawn": {
+-                  "type": "boolean"
+-                },
+                 "maxMachines": {
+                   "type": "integer",
+                   "minimum": 0
+@@ -828,7 +821,6 @@
+                 }
+               },
+               "required": [
+-                "spawn",
+                 "maxMachines",
+                 "maxDepth"
+               ],

@@ -1,0 +1,15 @@
+diff --git a/scripts/file-size-known.json b/scripts/file-size-known.json
+index 11d1b15b8..7518d2864 100644
+--- a/scripts/file-size-known.json
++++ b/scripts/file-size-known.json
+@@ -8,8 +8,7 @@
+   "daemon/crates/wsp-runtime/src/ops.rs": 2980,
+   "packages/catalog/src/mcp.ts": 1757,
+   "packages/engine/src/golden-import.ts": 1534,
+-  "packages/host/src/doctor.ts": 1920,
+-  "packages/host/src/init.ts": 1592,
+-  "packages/runtime/src/serve.ts": 1939,
++  "packages/host/src/doctor.ts": 1919,
++  "packages/runtime/src/serve.ts": 1891,
+   "packages/runtime/src/slates.ts": 1539
+ }

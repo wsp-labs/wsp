@@ -1,0 +1,293 @@
+diff --git a/apps/docs-next/content/reference/mcp-tools.mdx b/apps/docs-next/content/reference/mcp-tools.mdx
+index a10af3079..f0e73fcc8 100644
+--- a/apps/docs-next/content/reference/mcp-tools.mdx
++++ b/apps/docs-next/content/reference/mcp-tools.mdx
+@@ -2,7 +2,7 @@
+ 
+ {/* Written by apps/docs-next/scripts/mcp-tools.ts: change the script or its source and run pnpm --filter @wsp/docs-next generate. */}
+ 
+-`wsp mcp` serves these 77 tools over stdio to an agent on your computer, and `wsp mcp install --agent <id>` writes it into that agent's own config. A tool answers a failure as a tool error that carries the object `--json` prints.
++`wsp mcp` serves these 75 tools over stdio to an agent on your computer, and `wsp mcp install --agent <id>` writes it into that agent's own config. A tool answers a failure as a tool error that carries the object `--json` prints.
+ 
+ Each tool but `projects_add` is a line of the command line, its words joined with `_`, and that line's page links here.
+ 
+@@ -125,7 +125,6 @@ Adds a computer of the person's over ssh and sets it up from a saved recipe, as
+ | `computer.os` | string |  |  |
+ | `computer.shape` | object |  |  |
+ | `computer.diskFreeBytes` | integer |  |  |
+-| `computer.engine` | `none`, `docker`, `podman` |  |  |
+ | `computer.copies` | `reflink`, `snapshot`, `plain` |  |  |
+ | `computer.present` | boolean |  |  |
+ | `computer.takesRuntime` | boolean |  |  |
+@@ -384,7 +383,6 @@ Nothing.
+ | `computers[].os` | string |  |  |
+ | `computers[].shape` | object |  |  |
+ | `computers[].diskFreeBytes` | integer |  |  |
+-| `computers[].engine` | `none`, `docker`, `podman` |  |  |
+ | `computers[].copies` | `reflink`, `snapshot`, `plain` |  |  |
+ | `computers[].present` | boolean |  |  |
+ | `computers[].takesRuntime` | boolean |  |  |
+@@ -451,7 +449,7 @@ Nothing.
+ 
+ ## computers_set
+ 
+-Sets what the person may set on one computer and answers its row as it now reads, the same row computers lists: name, what a computer the person added is called from now, in every listing and wherever a computer is named, its id, its projects and its machines staying as they are, refused for the computer the app runs on and for a name another computer answers to; ssh, the login user@host the host reaches it by over ssh from now, for an update or a remove while its link is down and for the forward it dials back through, saved only once the computer that login reaches reads as this same one, its place file naming this computer and this host; threads, how many threads may run there at once, a new one waiting past it, except a turn a thread there follows to its end, not detached, which runs in that thread's slot (one per 2 GB of that computer's memory up to twice its cores until it is set); nap, the minutes a machine there with no window of its own runs with no turn and no work before it naps and stops costing anything, waking on the next message (20 until it is set, 0 never naps it), which every machine there counts again from now and which the computer the app runs on does not take, since its threads run in folders; turn_limit, the hours one turn there may run before it is stopped, a send carrying it on from where it stopped (none on a computer the person owns until it is set, 0 is none), read at each turn's start; spawn, max_machines and max_depth, what the agents there may ask of this host where the folder or the machine they run in holds no switch of its own (on, up to 3 machines and 2 levels deep, until it is set), read at every ask so one made before the change follows it; machines and spend on a cloud, how many machines may run there at once and the dollars a day it may spend before it starts no new machine (3 and $10 until they are set); size on a cloud, the size a sub-thread's machine gets when the thread starting it names none, as \<cpu>x\<memGb>, one of the sizes that cloud's row lists (the size its provider builds at until it is set); delete_after on a cloud, the minutes a finished sub-thread's machine stays before it is deleted, read at each finish, 0 deleting it once it is done (30 until it is set). A setting left out keeps what stands, and each word under reset takes that setting back to its default. The row carries cap, what runs there now, capDefault, what it reads by default, and settings, what the person set. A setting the computer's kind does not take, and a call that sets nothing, are refused in one line.
++Sets what the person may set on one computer and answers its row as it now reads, the same row computers lists: name, what a computer the person added is called from now, in every listing and wherever a computer is named, its id, its projects and its machines staying as they are, refused for the computer the app runs on and for a name another computer answers to; ssh, the login user@host the host reaches it by over ssh from now, for an update or a remove while its link is down and for the forward it dials back through, saved only once the computer that login reaches reads as this same one, its place file naming this computer and this host; threads, how many threads may run there at once, a new one waiting past it, except a turn a thread there follows to its end, not detached, which runs in that thread's slot (one per 2 GB of that computer's memory up to twice its cores until it is set); nap, the minutes a machine there with no window of its own runs with no turn and no work before it naps and stops costing anything, waking on the next message (20 until it is set, 0 never naps it), which every machine there counts again from now and which the computer the app runs on does not take, since its threads run in folders; turn_limit, the hours one turn there may run before it is stopped, a send carrying it on from where it stopped (none on a computer the person owns until it is set, 0 is none), read at each turn's start; max_machines and max_depth, how many machines and levels deep the agents there may start where the folder or the machine they run in holds no caps of its own (up to 3 machines and 2 levels deep, until it is set), read at every ask so one made before the change follows it; machines and spend on a cloud, how many machines may run there at once and the dollars a day it may spend before it starts no new machine (3 and $10 until they are set); size on a cloud, the size a sub-thread's machine gets when the thread starting it names none, as \<cpu>x\<memGb>, one of the sizes that cloud's row lists (the size its provider builds at until it is set); delete_after on a cloud, the minutes a finished sub-thread's machine stays before it is deleted, read at each finish, 0 deleting it once it is done (30 until it is set). A setting left out keeps what stands, and each word under reset takes that setting back to its default. The row carries cap, what runs there now, capDefault, what it reads by default, and settings, what the person set. A setting the computer's kind does not take, and a call that sets nothing, are refused in one line.
+ 
+ **Takes**
+ 
+@@ -467,11 +465,10 @@ Sets what the person may set on one computer and answers its row as it now reads
+ | `delete_after` | integer |  | on a cloud, the minutes a finished sub-thread's machine stays before it is deleted; 0 deletes it once it is done |
+ | `nap` | integer |  | the minutes a quiet machine there runs before it naps; 0 never naps it |
+ | `turn_limit` | integer |  | the hours one turn there may run before it is stopped; 0 never stops one |
+-| `spawn` | `on`, `off` |  | whether agents there may open threads and fork machines under the thread they run in, capped, where the folder or the machine they run in holds no switch of its own |
+-| `max_machines` | integer |  | how many machines may stand at once under one root thread there while spawn is on |
+-| `max_depth` | integer |  | how many levels deep the tree under a root thread there may go while spawn is on |
++| `max_machines` | integer |  | how many machines may stand at once under one root thread there |
++| `max_depth` | integer |  | how many levels deep the tree under a root thread there may go |
+ | `recipe` | string |  | the saved recipe it follows from now, as recipes lists it, or none: one it follows syncs to it, a change to the recipe reaching it with no step, and none keeps what it has |
+-| `reset` | `threads`, `machines`, `spend`, `size`, `delete-after`, `nap`, `turn-limit`, `spawn`, `max-depth`[] |  | the settings to take back to their defaults, by the same words |
++| `reset` | `threads`, `machines`, `spend`, `size`, `delete-after`, `nap`, `turn-limit`, `max-machines`, `max-depth`[] |  | the settings to take back to their defaults, by the same words |
+ 
+ **Answers**
+ 
+@@ -487,7 +484,6 @@ Sets what the person may set on one computer and answers its row as it now reads
+ | `computer.os` | string |  |  |
+ | `computer.shape` | object |  |  |
+ | `computer.diskFreeBytes` | integer |  |  |
+-| `computer.engine` | `none`, `docker`, `podman` |  |  |
+ | `computer.copies` | `reflink`, `snapshot`, `plain` |  |  |
+ | `computer.present` | boolean |  |  |
+ | `computer.takesRuntime` | boolean |  |  |
+@@ -714,16 +710,6 @@ Nothing.
+ | `copies[].templateId` | string |  |  |
+ | `copies[].builtAt` | string | yes |  |
+ | `copies[].sizeBytes` | integer |  |  |
+-| `projects` | object[] | yes |  |
+-| `projects[].snapshotId` | string | yes |  |
+-| `projects[].projects` | object[] | yes |  |
+-| `projects[].golden` | string | yes |  |
+-| `projects[].version` | integer |  |  |
+-| `projects[].workspaceId` | string | yes |  |
+-| `projects[].workspaceName` | string | yes |  |
+-| `projects[].createdAt` | string | yes |  |
+-| `projects[].place` | string |  |  |
+-| `projects[].sizeBytes` | number |  |  |
+ 
+ ## image_build
+ 
+@@ -928,7 +914,6 @@ Nothing.
+ | `projects[].checkout` | string |  |  |
+ | `projects[].seeded` | object |  |  |
+ | `projects[].installed` | object |  |  |
+-| `projects[].image` | object |  |  |
+ | `projects[].base` | string |  |  |
+ | `projects[].git` | object |  |  |
+ | `projects[].createdAt` | string | yes |  |
+@@ -965,7 +950,6 @@ Records a project: one source on one computer. A folder on the computer the app
+ | `project.checkout` | string |  |  |
+ | `project.seeded` | object |  |  |
+ | `project.installed` | object |  |  |
+-| `project.image` | object |  |  |
+ | `project.base` | string |  |  |
+ | `project.git` | object |  |  |
+ | `project.createdAt` | string | yes |  |
+@@ -999,7 +983,6 @@ Takes a project's record out of this wsp. Its folder stays exactly where it is,
+ | `project.checkout` | string |  |  |
+ | `project.seeded` | object |  |  |
+ | `project.installed` | object |  |  |
+-| `project.image` | object |  |  |
+ | `project.base` | string |  |  |
+ | `project.git` | object |  |  |
+ | `project.createdAt` | string | yes |  |
+@@ -1072,7 +1055,6 @@ Sets what a new thread on one project starts on, over each agent's own defaults
+ | `project.checkout` | string |  |  |
+ | `project.seeded` | object |  |  |
+ | `project.installed` | object |  |  |
+-| `project.image` | object |  |  |
+ | `project.base` | string |  |  |
+ | `project.git` | object |  |  |
+ | `project.createdAt` | string | yes |  |
+@@ -1084,151 +1066,6 @@ Sets what a new thread on one project starts on, over each agent's own defaults
+ | `afterWorktree` | string |  |  |
+ | `trackers` | string[] |  |  |
+ 
+-## recipe
+-
+-The recipe for a machine, read off this computer and written to a file: every catalog agent and tool with its tick, why it has that tick, and what it adds to the machine, plus the commands the person's agents ran that no catalog row carries. tick names the rule: used ticks what their agents actually ran here, installed ticks what is on this computer, default ticks what the catalog ships on; an agent wsp cannot open a thread on is off unless installed. The file is the state, so a second call is not a fresh start: naming tick or project lets the rule decide every tick again and throws away the flips a call before it made, and a call that names neither keeps what the file says and puts its own flips on top. Sign-in answers stand through every call whatever the rule, since nothing but the person decides one, and a build on Boat ignores them: its machines use the sign-ins on this computer through wsp. Put the heavy rows to the person with their sizes before anything is built, then flip rows with set and run `wsp init --recipe <out> --non-interactive --json` from a shell, handing the person each sign-in line it prints, since the sign-ins finish in their browser; a build on Boat prints none and waits on nobody, and stops before anything boots with the one line that fixes a sign-in this computer lacks. Only names and counts are read; nothing a session held is returned.
+-
+-**Takes**
+-
+-| Field | Type | Required | What it is |
+-|---|---|---|---|
+-| `tick` | `used`, `installed`, `default` |  | which rule decides every tick: used, installed, default. Naming it re-decides every row from the rule, so any flip an earlier call made goes; absent, the file's own rule and its ticks stand, and used decides a first call and any row the file does not carry |
+-| `set` | string[] |  | rows to flip, "\<id>=on" or "\<id>=off", applied over whatever decided the row: a catalog id, or the id recipe_scan gives a package one of this computer's own package managers has (alsoHere), which ticks that package as a row of its own and installs it by its own road. On a call that names tick or project they sit over the rule's fresh answer; on any other call they sit over the ticks already in the file |
+-| `signin` | string[] |  | what happens to a row's sign-in, "\<id>=copy\|machine\|later\|key\|skip\|token"; key brings the key files beside its login and the login still runs on the machine. An answer already in the file stands until a later call names that row again, whatever tick or project do to the ticks |
+-| `add` | string[] |  | tools neither the catalog carries nor this computer has, "\<id>=\<install command>"; the line runs on the machine as given after every catalog install, and such a row is never offered a sign-in. A package recipe_scan already lists under alsoHere is refused here and ticked with set instead, since it is a row of its own. Rows an earlier call added stand, whatever tick or project do to the ticks |
+-| `add_check` | string[] |  | what proves an added tool landed, "\<id>=\<command that exits 0>"; without one the id on PATH is the check |
+-| `why` | string |  | what the rows this call adds are for, in your own words; absent, they say an agent added them |
+-| `engine` | boolean |  | mark the recipe so every machine from its image gets the place's container engine (Docker or podman) through a socket of its own, for a project whose compose file needs one; it stays in the file until edited out |
+-| `project` | string[] |  | folders on this computer, absolute, to weigh the histories by: only sessions that ran in one of them or under it count. Naming one re-decides every tick from the rule, as tick does, so any flip an earlier call made goes |
+-| `out` | string |  | where the recipe file goes, absolute; absent means the host's own recipe.json beside its state |
+-
+-**Answers**
+-
+-| Field | Type | Required | What it is |
+-|---|---|---|---|
+-| `tick` | `used`, `installed`, `default` |  |  |
+-| `at` | string | yes |  |
+-| `out` | string | yes |  |
+-| `agents` | object[] | yes |  |
+-| `agents[].id` | string | yes |  |
+-| `agents[].kind` | `agent`, `tool`, `custom` | yes |  |
+-| `agents[].name` | string | yes |  |
+-| `agents[].on` | boolean | yes |  |
+-| `agents[].base` | boolean | yes |  |
+-| `agents[].group` | `Always on the image`, `Your project needs`, `You use these`, `Installed here, never used`, `Added by your agent`, `Also in the catalog` | yes |  |
+-| `agents[].why` | string | yes |  |
+-| `agents[].size` | integer |  |  |
+-| `agents[].heavy` | boolean | yes |  |
+-| `agents[].note` | string |  |  |
+-| `agents[].pin` | object |  |  |
+-| `tools` | object[] | yes |  |
+-| `tools[].id` | string | yes |  |
+-| `tools[].kind` | `agent`, `tool`, `custom` | yes |  |
+-| `tools[].name` | string | yes |  |
+-| `tools[].on` | boolean | yes |  |
+-| `tools[].base` | boolean | yes |  |
+-| `tools[].group` | `Always on the image`, `Your project needs`, `You use these`, `Installed here, never used`, `Added by your agent`, `Also in the catalog` | yes |  |
+-| `tools[].why` | string | yes |  |
+-| `tools[].size` | integer |  |  |
+-| `tools[].heavy` | boolean | yes |  |
+-| `tools[].note` | string |  |  |
+-| `tools[].pin` | object |  |  |
+-| `totalBytes` | integer | yes |  |
+-| `heavy` | object[] | yes |  |
+-| `heavy[].id` | string | yes |  |
+-| `heavy[].kind` | `agent`, `tool`, `custom` | yes |  |
+-| `heavy[].name` | string | yes |  |
+-| `heavy[].on` | boolean | yes |  |
+-| `heavy[].base` | boolean | yes |  |
+-| `heavy[].group` | `Always on the image`, `Your project needs`, `You use these`, `Installed here, never used`, `Added by your agent`, `Also in the catalog` | yes |  |
+-| `heavy[].why` | string | yes |  |
+-| `heavy[].size` | integer |  |  |
+-| `heavy[].heavy` | boolean | yes |  |
+-| `heavy[].note` | string |  |  |
+-| `heavy[].pin` | object |  |  |
+-| `commands` | object[] | yes |  |
+-| `commands[].name` | string | yes |  |
+-| `commands[].calls` | integer | yes |  |
+-| `commands[].sessions` | integer | yes |  |
+-| `custom` | object[] | yes |  |
+-| `custom[].kind` | `"custom"` | yes |  |
+-| `custom[].id` | string | yes |  |
+-| `custom[].name` | string | yes |  |
+-| `custom[].install` | string[] | yes |  |
+-| `custom[].check` | string | yes |  |
+-| `custom[].manager` | string |  |  |
+-| `custom[].size` | integer |  |  |
+-| `custom[].why` | string | yes |  |
+-
+-## recipe_scan
+-
+-Every option this computer offers for a machine, read once and written nowhere: the person's agents and the catalog's tools with the tick their own use reaches and what each adds to the machine, what else a package manager on this computer has that the image could take (alsoHere, by manager, with the line that installs each on the machine, each row's id being the one to hand recipe's set, which ticks that package as a row of its own), whose scanned says whether anything looked, the commands their agents ran that the catalog does not carry, and the sign-in each ticked row brings. An image built on Boat asks no sign-in: its machines use the sign-ins on this computer through wsp, so the sign-in rows answer only for a box the person added. Every row carries a recommended value and a one-line reason, so apply those and put only the rows whose reason says worth a question. Run this before recipe, and before asking the person anything. Only names and counts are read.
+-
+-**Takes**
+-
+-| Field | Type | Required | What it is |
+-|---|---|---|---|
+-| `project` | string[] |  | folders on this computer, absolute, to weigh the histories by: only sessions that ran in one of them or under it count |
+-
+-**Answers**
+-
+-| Field | Type | Required | What it is |
+-|---|---|---|---|
+-| `tick` | `used`, `installed`, `default` | yes |  |
+-| `at` | string | yes |  |
+-| `agents` | object[] | yes |  |
+-| `agents[].id` | string | yes |  |
+-| `agents[].kind` | `agent`, `tool`, `custom` | yes |  |
+-| `agents[].name` | string | yes |  |
+-| `agents[].on` | boolean | yes |  |
+-| `agents[].base` | boolean | yes |  |
+-| `agents[].group` | `Always on the image`, `Your project needs`, `You use these`, `Installed here, never used`, `Added by your agent`, `Also in the catalog` | yes |  |
+-| `agents[].why` | string | yes |  |
+-| `agents[].size` | integer |  |  |
+-| `agents[].heavy` | boolean | yes |  |
+-| `agents[].note` | string |  |  |
+-| `agents[].pin` | object |  |  |
+-| `agents[].recommended` | object | yes |  |
+-| `tools` | object[] | yes |  |
+-| `tools[].id` | string | yes |  |
+-| `tools[].kind` | `agent`, `tool`, `custom` | yes |  |
+-| `tools[].name` | string | yes |  |
+-| `tools[].on` | boolean | yes |  |
+-| `tools[].base` | boolean | yes |  |
+-| `tools[].group` | `Always on the image`, `Your project needs`, `You use these`, `Installed here, never used`, `Added by your agent`, `Also in the catalog` | yes |  |
+-| `tools[].why` | string | yes |  |
+-| `tools[].size` | integer |  |  |
+-| `tools[].heavy` | boolean | yes |  |
+-| `tools[].note` | string |  |  |
+-| `tools[].pin` | object |  |  |
+-| `tools[].recommended` | object | yes |  |
+-| `totalBytes` | integer | yes |  |
+-| `heavy` | object[] | yes |  |
+-| `heavy[].id` | string | yes |  |
+-| `heavy[].kind` | `agent`, `tool`, `custom` | yes |  |
+-| `heavy[].name` | string | yes |  |
+-| `heavy[].on` | boolean | yes |  |
+-| `heavy[].base` | boolean | yes |  |
+-| `heavy[].group` | `Always on the image`, `Your project needs`, `You use these`, `Installed here, never used`, `Added by your agent`, `Also in the catalog` | yes |  |
+-| `heavy[].why` | string | yes |  |
+-| `heavy[].size` | integer |  |  |
+-| `heavy[].heavy` | boolean | yes |  |
+-| `heavy[].note` | string |  |  |
+-| `heavy[].pin` | object |  |  |
+-| `heavy[].recommended` | object | yes |  |
+-| `alsoHere` | object | yes |  |
+-| `alsoHere.scanned` | boolean | yes |  |
+-| `alsoHere.managers` | object[] | yes |  |
+-| `commands` | object[] | yes |  |
+-| `commands[].name` | string | yes |  |
+-| `commands[].calls` | integer | yes |  |
+-| `commands[].sessions` | integer | yes |  |
+-| `signIns` | object[] | yes |  |
+-| `signIns[].id` | string | yes |  |
+-| `signIns[].name` | string | yes |  |
+-| `signIns[].signIn` | string | yes |  |
+-| `signIns[].recommended` | object | yes |  |
+-
+ ## recipes
+ 
+ Every recipe this host keeps: a named pick of what goes on a computer of the person's (agents and how each signs in, MCP servers per agent, CLIs by the manager they came from, skills, plugins, folders to move over as projects, and the git, shell and GitHub configs), chosen from what the computer the app runs on has. Each carries summary, one line of what it holds, machines, the computers that follow it, since a recipe edit reaches them, and savedAt, when its file was last written. A recipe holds names and never a secret; a token reaches a computer only in the environment of a run there.
+@@ -1589,7 +1426,7 @@ Every MCP server each agent's own config file defines on one computer or where a
+ 
+ ## servers_add
+ 
+-Writes one MCP server into one agent's own config on one computer or where a thread runs, the project's file with project from a thread: a command with its arguments and the variables it is given, or an address with its headers. Every value is read by name off the environment the wsp tools run with and never goes into an answer: on this computer it goes into that file, a variable's value into the vault as well, and on any other the file names a variable and the value goes to the vault, which hands it to each turn there: on a computer the person added only to Claude Code and Codex, in that turn's launch and never its environment, and not to a Codex server whose own config reads its token through its bearer variable; elsewhere in the turn's environment. A header travels as WSP_MCP_\<SERVER>_\<HEADER>, and a Codex copy reads an Authorization: Bearer header whole as WSP_MCP_\<SERVER>_AUTHORIZATION_BEARER, which the vault fills from the token it keeps alone under WSP_MCP_\<SERVER>_AUTHORIZATION. An argument or the address may name one of those variables as $\{NAME\}, an address's variables being only the ones it names: on this computer the value is put in place, on any other the name stays in the agent's own syntax, and an agent that reads no variable there is refused. A name already in the file is refused rather than written over. Written as the login the computer was added with, into that agent's own file, which keeps its mode; a file that is a link out of the home, or out of the project for a project's file, is not written through, and a file the agent wrote meanwhile is left as it was. A napping machine is not woken. The report there reads again at once.
++Writes one MCP server into one agent's own config on one computer or where a thread runs, the project's file with project from a thread: a command with its arguments and the variables it is given, or an address with its headers. Every value is read by name off the environment the wsp tools run with and never goes into an answer: the file names a variable and the value goes to the vault, which hands it to each turn there: on a computer the person added only to Claude Code and Codex, in that turn's launch and never its environment, and not to a Codex server whose own config reads its token through its bearer variable; elsewhere in the turn's environment. A header travels as WSP_MCP_\<SERVER>_\<HEADER>, and a Codex copy reads an Authorization: Bearer header whole as WSP_MCP_\<SERVER>_AUTHORIZATION_BEARER, which the vault fills from the token it keeps alone under WSP_MCP_\<SERVER>_AUTHORIZATION. An argument or the address may name one of those variables as $\{NAME\}, an address's variables being only the ones it names: the name stays in the agent's own syntax, and an agent that reads no variable there is refused. A name already in the file is refused rather than written over. Written as the login the computer was added with, into that agent's own file, which keeps its mode; a file that is a link out of the home, or out of the project for a project's file, is not written through, and a file the agent wrote meanwhile is left as it was. A napping machine is not woken. The report there reads again at once.
+ 
+ **Takes**
+ 
+@@ -1704,7 +1541,7 @@ One MCP server's tools with their descriptions, and its sign-in as that one conn
+ 
+ ## setup
+ 
+-The setup on this host, as the app's Settings reads it: which keys the host holds (their presence, never a value), the agents on this computer and whether each carries the wsp tools, and the init job when one runs or ran: its road, phase, screens, rows and progress. The rows are the image's stages, each sign-in with the page the person opens on this computer and the code it asks for while it waits, then its state, and the first machine once forked. A build on Boat has no sign-in rows: its machines use the sign-ins on this computer through wsp, which the build checks before anything boots. Read it to tell the person where the build is and which sign-in waits for them; the build is started from the app's Settings, and wsp init --recipe from a shell is the same run.
++The setup on this host, as the app's Settings reads it: which keys the host holds (their presence, never a value), this computer's home folder. Read it to tell the person which provider key is missing.
+ 
+ **Takes**
+ 
+@@ -1718,12 +1555,8 @@ Nothing.
+ | `setup.keys` | object | yes |  |
+ | `setup.keyProvider` | string |  |  |
+ | `setup.home` | string | yes |  |
+-| `setup.agents` | object[] | yes |  |
+ | `setup.pricing` | object or null | yes |  |
+-| `setup.place` | object |  |  |
+ | `setup.forksOn` | string |  |  |
+-| `setup.buildRefusal` | string |  |  |
+-| `setup.job` | object or null | yes |  |
+ 
+ ## skills
+ 

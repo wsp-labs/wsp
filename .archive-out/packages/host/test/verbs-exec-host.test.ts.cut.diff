@@ -1,0 +1,89 @@
+diff --git a/packages/host/test/verbs-exec-host.test.ts b/packages/host/test/verbs-exec-host.test.ts
+index 0a3e02fc1..48782b7cd 100644
+--- a/packages/host/test/verbs-exec-host.test.ts
++++ b/packages/host/test/verbs-exec-host.test.ts
+@@ -7,7 +7,7 @@ import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+ import { createServer, type AddressInfo, type Socket } from "node:net";
+ import { tmpdir } from "node:os";
+ import { join } from "node:path";
+-import { noProjectImageLine, projectImageInUseRefusal, projectImageRemoveNotice, projectImageRemovedLine, HERE_PLACE_ID, runForTheList, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, notAThreadLine, NAME_A_THREAD_FIX, refusalLine, EXIT_CODES, HOST_STOPPING_LINE, UP_RESTART_LINE, noReplyLine, notifyLine, RuntimeRequest, WorkspaceView } from "@wsp/protocol";
++import { HERE_PLACE_ID, runForTheList, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, notAThreadLine, NAME_A_THREAD_FIX, refusalLine, EXIT_CODES, HOST_STOPPING_LINE, UP_RESTART_LINE, noReplyLine, notifyLine, RuntimeRequest, WorkspaceView } from "@wsp/protocol";
+ import { describe, expect, it, vi } from "vitest";
+ import { WebSocketServer } from "ws";
+ import { cli } from "../src/cli.js";
+@@ -334,7 +334,7 @@ describe("wsp verbs over the host: wait, read, exec and the host itself", () =>
+   describe("one list behind every verb", () => {
+     /** The workspace a thread of this host's runs on, its agents allowed to spawn. */
+     async function leadWorkspace(): Promise<WorkspaceView> {
+-      await h.run("new", "alpha", "--spawn", "on");
++      await h.run("new", "alpha");
+       return (await h.rt.workspaces.list()).find(w => w.name === "alpha")!;
+     }
+     /** What a turn's launch hands the thread running on that workspace: the address of this host and a token scoped
+@@ -651,66 +651,4 @@ describe("wsp verbs over the host: wait, read, exec and the host itself", () =>
+     }
+   });
+ 
+-  it.runIf(CLOUD_ON)("snapshot takes a project golden of the workspace it names and says how to fork it; a workspace that was resumed is refused in one line", async () => {
+-    await h.run("new", "alpha");
+-    const [alpha] = await h.rt.workspaces.list();
+-    const { code, io } = await h.run("snapshot", "alpha");
+-    expect(code, io.errors.join("\n")).toBe(0);
+-    const [golden] = await h.rt.golden.projects();
+-    expect(golden).toMatchObject({ projects: [{ name: alpha!.project.name, dest: alpha!.project.path }], golden: "snap_gold", version: 1, workspaceId: alpha!.id, workspaceName: "alpha" });
+-    expect(io.lines).toEqual([
+-      `project image ${golden!.snapshotId}: image v1 plus ${alpha!.project.name} imported ${golden!.projects[0]!.importedAt.slice(0, 10)}, taken from alpha`,
+-    ]);
+-    expect(io.errors).toEqual([]);
+-
+-    const asJson = await h.run("snapshot", alpha!.id, "--json");
+-    expect(asJson.code).toBe(0);
+-    expect(h.json(asJson.io)).toEqual([{ projectGolden: expect.objectContaining({ projects: golden!.projects, golden: "snap_gold" }) }]);
+-
+-    await h.rt.workspaces.nap(alpha!.id);
+-    await h.rt.workspaces.wake(alpha!.id);
+-    const resumed = await h.run("snapshot", "alpha");
+-    expect(resumed.code).toBe(1);
+-    expect(resumed.io.errors).toHaveLength(1);
+-    expect(resumed.io.errors[0]).toMatch(/^wsp snapshot: snapshot \S+ refused: machine m\d+ is not first-life/);
+-    expect(await h.rt.golden.projects()).toHaveLength(2);
+-  });
+-
+-  it.runIf(CLOUD_ON)("wsp image lists every project image by its id, project, size and date; image remove asks once, deletes the snapshot at the provider and drops the record, and is refused while a workspace stands on it", async () => {
+-    await h.run("new", "alpha");
+-    const [alpha] = await h.rt.workspaces.list();
+-    const taken = await h.rt.workspaces.snapshot(alpha!.id);
+-    const listed = await h.run("image");
+-    expect(listed.io.lines.join("\n").split("\n")).toContain(`${taken.snapshotId}  project alpha  ${alpha!.project.name}  7.5 GB  ${taken.createdAt}`);
+-
+-    expect((await h.run("new", h.cloud.name, "task-a", "--from", taken.snapshotId)).code).toBe(0);
+-    const standing = await h.run("image", "remove", taken.snapshotId, "--yes");
+-    expect(standing.code).toBe(1);
+-    expect(standing.io.errors).toEqual([`wsp image remove: ${projectImageInUseRefusal(taken.snapshotId, ["task-a"])}`]);
+-    expect(h.backend.snapshots.map(s => s.id)).toContain(taken.snapshotId);
+-    expect((await h.run("delete", "task-a", "--yes")).code).toBe(0);
+-
+-    const kept = await h.answer("no", "image", "remove", taken.snapshotId);
+-    const asJson = await h.run("image", "remove", taken.snapshotId, "--json");
+-    expect(asJson.code).toBe(EXIT_CODES.usage);
+-    expect(kept.code).toBe(1);
+-    expect(kept.io.errors).toEqual([`${taken.snapshotId} kept`]);
+-    expect(h.asked.at(-1)).toBe(`Remove project image ${taken.snapshotId}?\n${projectImageRemoveNotice(taken)}`);
+-    expect(h.backend.snapshots.map(s => s.id)).toContain(taken.snapshotId);
+-
+-    const removed = await h.answer("yes", "image", "remove", taken.snapshotId);
+-    expect(removed.code).toBe(0);
+-    expect(removed.io.lines).toEqual([projectImageRemovedLine(taken.snapshotId, false)]);
+-    expect(h.backend.snapshots.map(s => s.id)).not.toContain(taken.snapshotId);
+-    expect(await h.rt.golden.projects()).toEqual([]);
+-
+-    const missing = await h.run("image", "remove", taken.snapshotId, "--yes");
+-    expect(missing.code).toBe(EXIT_CODES.usage);
+-    expect(missing.io.errors).toEqual([`wsp image remove: ${noProjectImageLine(taken.snapshotId)}`]);
+-    // A project's name is no id: a remove never picks one of several images by the newest.
+-    const named = await h.run("image", "remove", h.cloud.name, "--yes");
+-    expect(named.code).toBe(EXIT_CODES.usage);
+-    expect(named.io.errors).toEqual([`wsp image remove: ${noProjectImageLine(h.cloud.name)}`]);
+-    expect((await h.run("image", "remove")).code).toBe(EXIT_CODES.usage);
+-  });
+ });

@@ -1,0 +1,29 @@
+diff --git a/packages/engine/test/golden-custom.test.ts b/packages/engine/test/golden-custom.test.ts
+index 7bba6fff4..374d982bf 100644
+--- a/packages/engine/test/golden-custom.test.ts
++++ b/packages/engine/test/golden-custom.test.ts
+@@ -9,7 +9,6 @@ import { describe, expect, it, onTestFinished } from "vitest";
+ import { APT_INDEX, BREW_ENV, BREW_PREFIX, BREW_REAL, FROM_A_READABLE_DIR, LINUXBREW_HOME, LINUXBREW_SHIM, brewHasCheck } from "@wsp/catalog";
+ import type { RecipeCustomRow } from "@wsp/protocol";
+ import { CUSTOM_PREFIX, TOOLS_PATH, customInstallsFor, customPrelude, recipeDigest, recipeHash, toolInstallsFor, type RecipeEntry } from "../src/golden-import.js";
+-import { diffRecipes } from "../src/golden-diff.js";
+ import { installTools } from "../src/golden-tools.js";
+ import type { ExecResult, Machine } from "../src/machine.js";
+ import { writeStub } from "../../protocol/test/stub-script.js";
+@@ -229,16 +228,6 @@ describe("a recipe's rows outside the catalog in its digest", () => {
+   it("a check that changed alone is not a change to the machine", () => {
+     expect(recipeHash(recipeDigest(entries, [], [just], new Map()))).toBe(recipeHash(recipeDigest(entries, [], [{ ...just, check: "just --version" }], new Map())));
+   });
+-
+-  it("read as an added, changed or removed tool when a later run is diffed against the golden's own digest", () => {
+-    const before = recipeDigest(entries, [], [just], new Map());
+-    const after = recipeDigest(entries, [], [{ ...just, install: ["apt-get install -y just"] }, ruff], new Map());
+-    expect(diffRecipes(before, after).tools).toEqual([
+-      { id: "tools/custom/just", label: "just", change: "changed", from: "brew install just", to: "apt-get install -y just" },
+-      { id: "tools/custom/ruff", label: "ruff", change: "added", to: "uv tool install ruff" },
+-    ]);
+-    expect(diffRecipes(after, before).tools.map(t => t.change)).toEqual(["changed", "removed"]);
+-  });
+ });
+ 
+ describe("the tools stage on rows outside the catalog", () => {

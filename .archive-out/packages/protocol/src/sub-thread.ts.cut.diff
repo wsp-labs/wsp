@@ -1,0 +1,19 @@
+diff --git a/packages/protocol/src/sub-thread.ts b/packages/protocol/src/sub-thread.ts
+index eae754718..343098a60 100644
+--- a/packages/protocol/src/sub-thread.ts
++++ b/packages/protocol/src/sub-thread.ts
+@@ -265,12 +265,12 @@ export const subFromNotOnRemoteRefusal = (ref: string, name: string | undefined)
+ /** S5: the remote did not answer the read of the ref --from names. */
+ export const subFromUnreadRefusal = (ref: string, said: string): Error => provider(`the remote did not say where ${ref} stands (${said})`, "Check the remote answers with git ls-remote origin, then start the sub-thread again.");
+ /** S6: no image on the cloud. */
+-export const subNoImageRefusal = (on: string): Error => usage(`${on} holds no image of yours yet`, `Build one in Settings > Computers > ${on}, or run wsp init --on ${on.toLowerCase()}.`);
++export const subNoImageRefusal = (on: string): Error => usage(`${on} holds no image of yours yet`, `Build one in Settings > Computers > ${on}.`);
+ /** S6: the image holds no sign-in for the remote's git host, so the sub-thread could fetch nothing private and push nothing. */
+ export const subNoSignInRefusal = (on: string, host: { label: string; cli: string; login: string }, repo: string): Error =>
+   usage(
+     `the image on ${on} holds no ${host.label} sign-in (${host.cli}), so a sub-thread could neither clone ${repo} nor push its branch`,
+-    `Run wsp init --on ${on.toLowerCase()} again with the ${host.login} set to copy.`,
++    `Seal the image on ${on} again with the ${host.login} set to copy.`,
+   );
+ /** S6, on a cloud whose credentials the host keeps: gh on this computer, whose login the host adds to every git and gh
+  * request a sub-thread sends, holds none. */

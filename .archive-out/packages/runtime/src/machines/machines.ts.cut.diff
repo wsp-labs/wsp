@@ -1,0 +1,27 @@
+diff --git a/packages/runtime/src/machines/machines.ts b/packages/runtime/src/machines/machines.ts
+index 441b055b9..29b36ff3f 100644
+--- a/packages/runtime/src/machines/machines.ts
++++ b/packages/runtime/src/machines/machines.ts
+@@ -20,10 +20,9 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
+   } = ctx;
+   /** Size is always explicit: a create that names none gets the provider's own
+    * default (2048 MB on Solari), not the size the record and the rate assume. */
+-  const forkSpec = (r: WorkspaceRecord, kind: MachineKind, image: ReturnType<typeof goldenImage>["spec"] | undefined, engine: boolean, override?: WorkspaceSpec, npmBin?: string): MachineSpec & WorkspaceSize => ({
++  const forkSpec = (r: WorkspaceRecord, kind: MachineKind, image: ReturnType<typeof goldenImage>["spec"] | undefined, override?: WorkspaceSpec, npmBin?: string): MachineSpec & WorkspaceSize => ({
+     ...image,
+     kind,
+-    ...(engine ? { engine: true } : {}),
+     // The project's own folders on its computer, as the create recorded them: a wake mounts what the create did,
+     // and the copy of the checkout it was made with is made again from the same folder.
+     ...(r.spec.binds !== undefined && r.spec.binds.length > 0 ? { binds: r.spec.binds } : {}),
+@@ -311,8 +310,8 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
+       async b => {
+         const image = ctx.keepsImages(b) ? await ctx.imageOf(record.golden) : undefined;
+         const golden = image?.version;
+-        // A project golden's snapshot is the image; only a version's own snapshot may stand behind a template.
+-        const spec = forkSpec(record, golden?.kind ?? "sandbox", image === undefined ? undefined : goldenImage(image.projects === undefined && golden !== undefined ? golden : { snapshotId: record.golden }).spec, record.spec.engine === true || (golden !== undefined && (await ctx.recipeAsksEngine(golden))), override, golden?.npmBin);
++        // Only a version's own snapshot may stand behind a template.
++        const spec = forkSpec(record, golden?.kind ?? "sandbox", image === undefined ? undefined : goldenImage(golden !== undefined ? golden : { snapshotId: record.golden }).spec, override, golden?.npmBin);
+         // A place that has never held this image says missing about a reference no registry has: the fork lands
+         // nowhere and the sentence says where it would land until that place holds a copy.
+         const machine = await b.create(spec, report === undefined ? undefined : (line, box) => report("fork-requested", line, { waiting: true, ...(box !== undefined ? { box } : {}) })).catch((e: unknown) => {

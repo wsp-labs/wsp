@@ -1,0 +1,56 @@
+diff --git a/daemon/crates/wsp-mcp/record/tools/projects.json b/daemon/crates/wsp-mcp/record/tools/projects.json
+index d20c87bad..80bb47f7f 100644
+--- a/daemon/crates/wsp-mcp/record/tools/projects.json
++++ b/daemon/crates/wsp-mcp/record/tools/projects.json
+@@ -174,25 +174,6 @@
+                 ],
+                 "additionalProperties": false
+               },
+-              "image": {
+-                "type": "object",
+-                "properties": {
+-                  "snapshotId": {
+-                    "type": "string"
+-                  },
+-                  "builtAt": {
+-                    "type": "string"
+-                  },
+-                  "lockfileSha": {
+-                    "type": "string"
+-                  }
+-                },
+-                "required": [
+-                  "snapshotId",
+-                  "builtAt"
+-                ],
+-                "additionalProperties": false
+-              },
+               "base": {
+                 "type": "string"
+               },
+@@ -483,25 +464,6 @@
+                 ],
+                 "additionalProperties": false
+               },
+-              "image": {
+-                "type": "object",
+-                "properties": {
+-                  "snapshotId": {
+-                    "type": "string"
+-                  },
+-                  "builtAt": {
+-                    "type": "string"
+-                  },
+-                  "lockfileSha": {
+-                    "type": "string"
+-                  }
+-                },
+-                "required": [
+-                  "snapshotId",
+-                  "builtAt"
+-                ],
+-                "additionalProperties": false
+-              },
+               "base": {
+                 "type": "string"
+               },

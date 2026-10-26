@@ -1,0 +1,12 @@
+diff --git a/apps/desktop-gpui/app/src/screens/settings/pages/computers.rs b/apps/desktop-gpui/app/src/screens/settings/pages/computers.rs
+index b74862528..2799a6a98 100644
+--- a/apps/desktop-gpui/app/src/screens/settings/pages/computers.rs
++++ b/apps/desktop-gpui/app/src/screens/settings/pages/computers.rs
+@@ -1,7 +1,6 @@
+ // SPDX-License-Identifier: AGPL-3.0-only
+ //! Computers and each computer's page (`computers.tsx`, `computerSettings.tsx`).
+ 
+-mod ansi;
+ mod image;
+ mod list;
+ mod live;

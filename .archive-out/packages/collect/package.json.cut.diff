@@ -1,0 +1,17 @@
+diff --git a/packages/collect/package.json b/packages/collect/package.json
+index b776ad106..ddcabf312 100644
+--- a/packages/collect/package.json
++++ b/packages/collect/package.json
+@@ -3,10 +3,9 @@
+   "type": "module",
+   "main": "dist/index.js",
+   "scripts": {
+-    "build": "tsup src/index.ts src/live.ts --format esm",
++    "build": "tsup src/index.ts --format esm",
+     "test": "vitest run packages/collect",
+-    "live": "tsup src/index.ts src/live.ts --format esm --silent && node dist/live.js",
+-    "bottles": "tsup src/index.ts src/live.ts --format esm --silent && node scripts/fetch-linux-bottles.mjs"
++    "bottles": "tsup src/index.ts --format esm --silent && node scripts/fetch-linux-bottles.mjs"
+   },
+   "dependencies": {
+     "@wsp/catalog": "workspace:*",

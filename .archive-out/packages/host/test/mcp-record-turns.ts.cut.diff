@@ -1,0 +1,225 @@
+diff --git a/packages/host/test/mcp-record-turns.ts b/packages/host/test/mcp-record-turns.ts
+index 63c943c79..ed8fbde21 100644
+--- a/packages/host/test/mcp-record-turns.ts
++++ b/packages/host/test/mcp-record-turns.ts
+@@ -9,7 +9,6 @@ import { mkdtempSync, writeFileSync } from "node:fs";
+ import { tmpdir } from "node:os";
+ import { join } from "node:path";
+ import { CATALOG_AGENTS } from "@wsp/catalog";
+-import { floorApplies, type CommandCount } from "@wsp/collect";
+ import {
+   ACCESS_CHOICES,
+   accessNotTakenLine,
+@@ -18,7 +17,6 @@ import {
+   AFTER_CUT_LINE,
+   BOAT_DISK_GONE_LINE,
+   diskGoneReplacedLine,
+-  alsoTitle,
+   fmtDuration,
+   goneRefusal,
+   HOST_CLOSED_LINE,
+@@ -26,13 +24,10 @@ import {
+   FILES_MAX,
+   filesRefusal,
+   IMAGE_MAX_BYTES,
+-  INSTALLS_LATEST,
+-  jsonLine,
+   threadResult,
+   notifyLine,
+   NOTIFY_ME,
+   permissionAskLine,
+-  pinWords,
+   startPicks,
+   threadOpenedLine,
+   threadMovedLine,
+@@ -40,15 +35,12 @@ import {
+   usageRefusal,
+   replacesWorkingLine,
+   replacesWorkingFix,
+-  verbFailure,
+   TURN_TOKEN_ENV,
+-  UNKNOWN_SIZE,
+   UNTYPED_FILE,
+   waitTimedOutLine,
+   workspaceAsleepAgainLine,
+   workspaceStaysAwakeLine,
+   type HarnessCatalog,
+-  type Recipe,
+   type ThreadView,
+   type TurnResult,
+   BUILT_IN_LIST_CLAUSE,
+@@ -78,10 +70,6 @@ import {
+   subFromNoCloudRefusal,
+   threadOpRefusal,
+ } from "@wsp/protocol";
+-import { BASE_GROUP, FLOOR_LINE, GROUP_LABEL, tableLines, totalsLine, type TableRow } from "../src/init-table.js";
+-import { GUTTER } from "../src/init-layout.js";
+-import { COMMANDS_SHOWN, COMMANDS_TITLE, commandTableLines, NOT_SCANNED, recipeAnswer, recipePrintout, recipeScan, scanPrintout, SIGN_INS_TITLE, signInTableLines } from "../src/recipe-answer.js";
+-import type { ScanRow } from "../src/scan.js";
+ import {
+   absoluteFolder,
+   accessWordOf,
+@@ -102,13 +90,10 @@ import {
+   restoredLines,
+   threadOf,
+   runTarget,
+-  toolFailure,
+   turnFailure,
+-  VERBS,
+   workspaceOf,
+   type HostClient,
+   type Turn,
+-  type VerbDeps,
+ } from "../src/verbs.js";
+ import { activityLines, endedLines } from "../src/verbs/activity.js";
+ import { SERVICE_WAIT_MS } from "../src/host-lock.js";
+@@ -203,53 +188,6 @@ async function fileWords(): Promise<Record<string, unknown>> {
+   };
+ }
+ 
+-/** The recipe tools' own refusals, read off the tools, which refuse a relative path before anything is scanned. */
+-async function recipeRefusals(): Promise<Record<string, string>> {
+-  const deps: VerbDeps = { statePath: "/nonexistent/state.json", env: {}, client: async () => answering({}) };
+-  const call = (name: string, args: Record<string, unknown>): Promise<string> =>
+-    refused(async () => {
+-      const verb = VERBS.find(v => v.name === name && "tool" in v && v.tool !== undefined)! as unknown as { tool: { call(args: Record<string, unknown>, deps: VerbDeps): Promise<unknown> } };
+-      await verb.tool.call(args, deps);
+-    });
+-  return { outNotAbsolute: await call("recipe", { out: "{path}" }), projectNotAbsolute: await call("recipe scan", { project: ["{path}"] }) };
+-}
+-
+-/** What the recipe's two tables are drawn out of on a terminal with no colour: the marks, the columns' words and the
+- * lines around them. */
+-function recipeTableWords(): Record<string, unknown> {
+-  const row = (on: boolean): TableRow => ({ id: "i", kind: "tool", name: "n", on, base: on, group: BASE_GROUP, why: "w", heavy: false });
+-  const mark = (on: boolean): string => tableLines([row(on)], 1)[0]!.split(GUTTER)[0]!;
+-  const unknown = totalsLine([{ ...row(true), base: false }], "tools");
+-  const counted = totalsLine([{ ...row(true), size: 0 }], "tools");
+-  const head = (line: string): string[] => line.trim().split(/ {2,}/);
+-  const empty = recipePrintout({ at: "", out: "", agents: [], tools: [], totalBytes: 0, heavy: [], commands: [], custom: [] });
+-  const more = commandTableLines(Array.from({ length: COMMANDS_SHOWN + 1 }, (_, i) => ({ name: `c${i}`, calls: 1, sessions: 1 })));
+-  return {
+-    agentsTitle: empty[0],
+-    toolsTitle: empty[empty.indexOf("") + 1],
+-    tickOn: mark(true),
+-    tickOff: mark(false),
+-    gutter: GUTTER,
+-    groupLabels: GROUP_LABEL,
+-    floorLine: FLOOR_LINE,
+-    floorApplies: { used: floorApplies("used"), installed: floorApplies("installed"), default: floorApplies("default"), none: floorApplies(undefined) },
+-    unknownSize: UNKNOWN_SIZE,
+-    totals: counted.replace("1 tool", "{on}").replace("0 B", "{bytes}"),
+-    totalsUnknown: unknown.slice(unknown.indexOf(", 1 of")).replace("1", "{unknown}"),
+-    pinLatest: pinWords({ tag: "{tag}", latest: true }),
+-    installsLatest: INSTALLS_LATEST,
+-    commandsTitle: COMMANDS_TITLE,
+-    commandsShown: COMMANDS_SHOWN,
+-    commandsHead: head(commandTableLines([{ name: "n", calls: 1, sessions: 1 }])[1]!),
+-    none: commandTableLines([])[1],
+-    more: more.at(-1)!.replace("1", "{count}"),
+-    notScanned: NOT_SCANNED,
+-    signInsTitle: SIGN_INS_TITLE,
+-    signInsHead: head(signInTableLines([{ id: "i", name: "n", signIn: "s", recommended: { value: "v", why: "w" } }])[1]!),
+-    alsoTitle: { darwin: alsoTitle("darwin"), linux: alsoTitle("linux") },
+-  };
+-}
+-
+ /** Activity's sentences in the shape the Rust side fills; the columns of its rows are laid out there as activityLines
+  * lays them. */
+ function activityWords(): Record<string, string> {
+@@ -357,7 +295,6 @@ export async function turnWords(): Promise<Record<string, unknown>> {
+     files: await fileWords(),
+     turnTokenEnv: TURN_TOKEN_ENV,
+     notifyMe: NOTIFY_ME,
+-    recipe: { ...(await recipeRefusals()), ...recipeTableWords() },
+   };
+ }
+ 
+@@ -750,87 +687,3 @@ export const TURN_ANSWERED: Record<string, TurnCase[]> = {
+   ],
+ };
+ 
+-/** A recipe tool's call as the tool server makes it: the command line it runs and what that line printed, or none
+- * where the tool refuses before running anything. `result` is what the TypeScript tool answers the same call with. */
+-export interface RecipeCase {
+-  case: string;
+-  arguments: Record<string, unknown>;
+-  /** The platform the printout names this computer by; a case for another platform is not this computer's to replay. */
+-  platform?: "darwin" | "linux";
+-  wsp?: { argv: string[]; stdout: string; stderr: string; exit: number };
+-  result?: Record<string, unknown>;
+-}
+-
+-const RECIPE: Recipe = {
+-  version: 1,
+-  at: "2026-09-27T10:00:00.000Z",
+-  tick: "used",
+-  histories: [
+-    { agent: "claude", state: "read", sessions: 42, calls: 1_200 },
+-    { agent: "codex", state: "empty", sessions: 0, calls: 0 },
+-  ],
+-  rows: [
+-    { id: "claude", kind: "agent", on: true, source: { kind: "installed", paths: ["/usr/local/bin/claude"], bin: true } },
+-    { id: "codex", kind: "agent", on: false, source: { kind: "installed", paths: [], bin: true } },
+-    { id: "node", kind: "tool", on: true, source: { kind: "used", sessions: 12, calls: 340 }, pin: { tag: "v22.11.0", sha256: "ab12" } },
+-    { id: "docker", kind: "tool", on: false, source: { kind: "used", sessions: 1, calls: 2 } },
+-    { id: "gh", kind: "tool", on: true, source: { kind: "project", why: "the \u0085 workflow calls gh" }, pin: { tag: "2.62.0", latest: true } },
+-    { id: "go", kind: "tool", on: true, source: { kind: "installed", paths: ["/usr/local/go/bin/go"], bin: true } },
+-    { id: "rust", kind: "tool", on: true, size: 1_600_000_000, source: { kind: "used", sessions: 30, calls: 900 } },
+-  ],
+-  custom: [{ kind: "custom", id: "just", name: "just", install: ["brew install just", "echo é"], check: "command -v just", why: "for the build", size: 5_300_000 }],
+-};
+-
+-const COMMANDS: CommandCount[] = Array.from({ length: COMMANDS_SHOWN + 2 }, (_, i) => ({ name: i === 0 ? "maké" : `cmd-${String(i).padStart(2, "0")}`, calls: 1_000 - i * 7, sessions: 30 - i }) as CommandCount);
+-const ALSO_HERE = [
+-  { id: "brew/ffmpeg", name: "ffmpeg", manager: "brew", group: "Homebrew", install: "apt-get install -y ffmpeg", check: "command -v ffmpeg", size: 52_000_000 },
+-  { id: "brew/tree", name: "tree", manager: "brew", group: "Homebrew", install: "apt-get install -y tree", check: "command -v tree" },
+-  { id: "npm/tsx", name: "tsx", manager: "npm", group: "npm globals", install: "npm i -g tsx", check: "command -v tsx", size: 900 },
+-] as unknown as ScanRow[];
+-
+-const printed = (value: unknown): string => `${jsonLine(value)}\n`;
+-const answeredWith = (text: string, value: object): Record<string, unknown> => ({ content: [{ type: "text", text }], structuredContent: value });
+-const READING = "Reading this computer against the catalog and your agents' session histories. Nothing leaves this computer.\n";
+-const recipeUsage = (VERBS.find(v => v.name === "recipe") as { usage: string }).usage;
+-
+-export function recipeCases(): Record<string, RecipeCase[]> {
+-  const full = recipeAnswer(RECIPE, "/tmp/recipe \u0085.json", COMMANDS);
+-  const bare = recipeAnswer({ ...RECIPE, tick: undefined, rows: [], custom: undefined }, "/nonexistent/recipe.json", []);
+-  const refusal = usageRefusal('--set takes <id>=on or <id>=off, and got "node=maybe".', "Write the row id, an equals sign, then on or off.");
+-  const scanned = recipeScan(RECIPE, COMMANDS, ALSO_HERE);
+-  const unscanned = recipeScan({ ...RECIPE, tick: "installed" }, [], undefined);
+-  const nothingElse = recipeScan({ ...RECIPE, tick: "default" }, [], []);
+-  const scan = (platform: "darwin" | "linux", value: ReturnType<typeof recipeScan>, name: string, args: Record<string, unknown> = {}): RecipeCase => ({
+-    case: `${name} on ${platform}`,
+-    arguments: args,
+-    platform,
+-    wsp: { argv: ["recipe", "scan", "--json", "--state", "{state}", ...(args["project"] as string[] | undefined ?? []).map(p => `--project=${p}`)], stdout: printed(value), stderr: READING, exit: 0 },
+-    result: answeredWith(scanPrintout(value, platform).join("\n"), value),
+-  });
+-  return {
+-    recipe: [
+-      {
+-        case: "every input",
+-        arguments: { tick: "used", set: ["node=on", "docker=off"], signin: ["gh=machine"], add: ["just=brew install just"], add_check: ["just=just --version"], why: "for the build \u0085", engine: true, project: ["/root/wsp"], out: "/tmp/recipe \u0085.json" },
+-        wsp: {
+-          argv: ["recipe", "--json", "--state", "{state}", "--tick=used", "--set=node=on", "--set=docker=off", "--signin=gh=machine", "--add=just=brew install just", "--add-check=just=just --version", "--why=for the build \u0085", "--engine", "--project=/root/wsp", "--out=/tmp/recipe \u0085.json"],
+-          stdout: printed(full),
+-          stderr: READING,
+-          exit: 0,
+-        },
+-        result: answeredWith(recipePrintout(full).join("\n"), full),
+-      },
+-      { case: "no input", arguments: { engine: false }, wsp: { argv: ["recipe", "--json", "--state", "{state}"], stdout: printed(bare), stderr: "", exit: 0 }, result: answeredWith(recipePrintout(bare).join("\n"), bare) },
+-      { case: "refused by the command line", arguments: { set: ["node=maybe"] }, wsp: { argv: ["recipe", "--json", "--state", "{state}", "--set=node=maybe"], stdout: "", stderr: `${READING}${jsonLine(verbFailure(refusal))}\n`, exit: verbFailure(refusal).exit }, result: toolFailure(refusal, recipeUsage) as unknown as Record<string, unknown> },
+-      { case: "a relative out", arguments: { out: "recipe.json" } },
+-      { case: "a relative project", arguments: { project: ["/root/wsp", "src"] } },
+-    ],
+-    recipe_scan: [
+-      scan("linux", scanned, "scanned", { project: ["/root/wsp"] }),
+-      scan("darwin", scanned, "scanned", { project: ["/root/wsp"] }),
+-      scan("linux", unscanned, "nothing looked"),
+-      scan("linux", nothingElse, "nothing else here"),
+-      { case: "a relative project", arguments: { project: ["src"] } },
+-    ],
+-  };
+-}

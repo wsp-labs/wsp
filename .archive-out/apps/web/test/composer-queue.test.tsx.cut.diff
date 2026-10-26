@@ -1,0 +1,13 @@
+diff --git a/apps/web/test/composer-queue.test.tsx b/apps/web/test/composer-queue.test.tsx
+index d1567d07f..b99b34e01 100644
+--- a/apps/web/test/composer-queue.test.tsx
++++ b/apps/web/test/composer-queue.test.tsx
+@@ -342,7 +342,7 @@ describe("composer queue", () => {
+     api.listWorkspaces = async () => [box];
+     api.getWorkspace = async () => box;
+     api.listHarnesses = async workspaceId => (workspaceId === WS ? [onBox] : [table]);
+-    useStore.setState({ places: [{ id: "p_2", kind: "computer", name: "hetzner", default: false, present: true, takesForks: true, engine: "docker", buildsImages: true }] });
++    useStore.setState({ places: [{ id: "p_2", kind: "computer", name: "hetzner", default: false, present: true, takesForks: true, buildsImages: true }] });
+     await setup(api);
+     emit({ type: "session.start", ...scope, prompt: "go" });
+     emit({ type: "session.delta", ...scope, kind: "text", text: "on it" });

@@ -1,0 +1,16 @@
+diff --git a/apps/docs-next/content/reference/cli/up.mdx b/apps/docs-next/content/reference/cli/up.mdx
+index 7291311e4..6069e2dee 100644
+--- a/apps/docs-next/content/reference/cli/up.mdx
++++ b/apps/docs-next/content/reference/cli/up.mdx
+@@ -19,9 +19,8 @@ usage: wsp up [--port <n>] [--listen <addr>] [--advertise <url>] [--no-relay]
+                  (default 4400)
+   --listen       the address to bind (default 127.0.0.1, this computer alone).
+                  No page carries the host's token on any address: the desktop
+-                 attaches by the token file beside the state, the browser wsp
+-                 init opens is let in by init, and every other browser pairs for
+-                 a device token of its own
++                 attaches by the token file beside the state, and every browser
++                 pairs for a device token of its own
+   --advertise    the address a computer being joined dials this host at; without
+                  it, the relay's name or what this computer answers on
+   --no-relay     serve without the tunnel, on a computer that is linked to a

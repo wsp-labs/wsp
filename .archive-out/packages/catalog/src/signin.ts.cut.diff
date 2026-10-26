@@ -1,0 +1,29 @@
+diff --git a/packages/catalog/src/signin.ts b/packages/catalog/src/signin.ts
+index 643ca074a..c5c623c0f 100644
+--- a/packages/catalog/src/signin.ts
++++ b/packages/catalog/src/signin.ts
+@@ -202,13 +202,6 @@ export function signInRoadOf(s: SignIn): SignInRoad {
+   return s.headless ?? "code";
+ }
+ 
+-/** The login as a row names it: the command up to the flags that answer its questions, which a row has no room for
+- * and nobody has to type. */
+-export function loginWords(s: LoginSignIn): string {
+-  const at = s.login.indexOf(" --");
+-  return at === -1 ? s.login : s.login.slice(0, at);
+-}
+-
+ /** Whether a login starts as a sign-in on the machine: a browser or device flow the relay finishes there. A key has no
+  * browser flow to produce it and a tool with no sign-in has nothing to run, so those start as a copy. */
+ export function signsInByDefault(s: SignIn | { kind: "shell" }): boolean {
+@@ -560,8 +553,8 @@ export const NEVER_IN_IMAGE: readonly string[] = [
+   ...SHARED_LOGINS.map(s => s.target),
+ ];
+ 
+-/** Where the secrets step of an image build writes the values typed at it: login shells read profile.d, and fish
+- * reads its conf.d instead, so a fish machine gets the value twice. */
++/** Where a machine exports the secrets it is given by name: login shells read profile.d, and fish reads its conf.d
++ * instead, so a fish machine gets the value twice. */
+ export const SECRETS_FILES = { sh: "/etc/profile.d/wsp-secrets.sh", fish: "/etc/fish/conf.d/wsp-secrets.fish" } as const;
+ 
+ /** Every path a sign-in or a typed secret leaves on a machine: each row's login state, every file the seal refuses,

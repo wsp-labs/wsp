@@ -1,0 +1,12 @@
+diff --git a/apps/desktop-gpui/host-client/tests/ops/settings.rs b/apps/desktop-gpui/host-client/tests/ops/settings.rs
+index c08a9aafa..4bc2ae512 100644
+--- a/apps/desktop-gpui/host-client/tests/ops/settings.rs
++++ b/apps/desktop-gpui/host-client/tests/ops/settings.rs
+@@ -55,7 +55,6 @@ async fn image_and_snapshots() {
+         client.call(ask::<SnapshotsRollbackRequest>(json!({ "version": 999 }))).await,
+         "no golden named \"default\"",
+     );
+-    answered("projectGoldens.list", client.call(ask::<ProjectGoldensListRequest>(json!({}))).await);
+     answered("image.get", client.call(ask::<ImageGetRequest>(json!({}))).await);
+     refused(
+         "image.build",
