@@ -487,6 +487,9 @@ impl ExecStreamFactory for MachineExecFactory {
     //     if (res.stdout.includes(HANDSHAKE.gone)) return "gone";
     //     throw new Error(`the machine did not answer whether it still holds ${run}; ${machineAnswer(res)}`);
     //   };
+    fn attaches(&self) -> bool {
+        true
+    }
     fn attach(&self, run: &str, options: AttachRunOptions) -> Option<LocalBoxFuture<'static, Result<Attached, ExecFailure>>> {
         let core = self.core.clone();
         let run = run.to_string();

@@ -501,6 +501,10 @@ pub enum Attached {
 /// How a turn's process is launched. TS adapter-port.ts:300.
 pub trait ExecStreamFactory {
     fn launch(&self, command: &str, options: ExecOptions) -> Arc<dyn ExecStream>;
+    /// Whether `attach` answers (the TS `attach !== undefined`), read without asking anything of a machine.
+    fn attaches(&self) -> bool {
+        false
+    }
     /// `None` where runs die with their host (TS `attach` absent).
     fn attach(&self, run: &str, options: AttachRunOptions) -> Option<LocalBoxFuture<'static, Result<Attached, ExecFailure>>> {
         let _ = (run, options);
@@ -869,6 +873,10 @@ pub trait HarnessSession {
     fn tells_unread(&self) -> Option<bool> {
         None
     }
+    /// Whether `answer` answers (the TS `started.answer !== undefined`), readable without answering anything.
+    fn answers(&self) -> bool {
+        false
+    }
     fn answer(&self, ask_id: String, answer: PermissionAnswer) -> Option<LocalBoxFuture<'static, Result<AnswerOutcome, ExecFailure>>> {
         let _ = (ask_id, answer);
         None
@@ -941,6 +949,14 @@ pub trait HarnessAdapter {
     ) -> Option<LocalBoxFuture<'static, Result<Option<Vec<HarnessCatalogModelProbe>>, String>>> {
         let _ = version;
         None
+    }
+    /// Whether `attach` answers: the TS `adapter.attach !== undefined`, readable without asking a machine anything.
+    fn attaches(&self) -> bool {
+        false
+    }
+    /// Whether `session_held` answers: the TS `adapter.sessionHeld !== undefined`.
+    fn holds_session(&self) -> bool {
+        false
     }
     fn attach(
         &self,

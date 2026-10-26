@@ -34,7 +34,7 @@ use super::start::{drop_scope, refuse_now, Prepared};
 use super::{HeldSend, SessionsArea, SessionsCtx};
 use crate::threads::agents::launch::LaunchServers;
 use crate::threads::agents::lists::SESSION_TITLE_TIMEOUT_MS;
-use crate::threads::launch::{seed_after_loss, LaunchAsked, LaunchPicks, LostAt, Seed};
+use crate::threads::launch::{seed_after_loss, LaunchAsked, LaunchPicks, LostAt, Seed, SessionHeld};
 use crate::threads::threads::{CapAt, Entry, Row};
 use crate::threads::turns::{Open, Opening, SnapshotFrom, TurnSnapshot, TurnStart};
 use crate::threads::unit;
@@ -347,9 +347,16 @@ fn seed_for(
         }
         .boxed_local()
     });
-    let seed = match ctx.session_held_of(adapter) {
-        Some(held) => seed_after_loss(Some(held), ctx.harness_exec(entry, SESSION_TITLE_TIMEOUT_MS), at, earlier),
-        None => earlier,
+    let held_by = adapter.clone();
+    let seed = match adapter.holds_session() {
+        true => {
+            let held: SessionHeld = Rc::new(move |session: String, exec| match held_by.session_held(session, exec) {
+                Some(read) => read,
+                None => futures::future::ready(Err("the adapter has no way to read what a machine holds".to_string())).boxed_local(),
+            });
+            seed_after_loss(Some(held), ctx.harness_exec(entry, SESSION_TITLE_TIMEOUT_MS), at, earlier)
+        }
+        false => earlier,
     };
     Arc::new(move || {
         let read = seed();

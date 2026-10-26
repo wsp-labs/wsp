@@ -102,6 +102,9 @@ impl TurnsArea {
             Ok(built) => built.adapter,
             Err(e) => return cannot(&e.message),
         };
+        if !adapter.attaches() {
+            return Reopened::Cannot;
+        }
         let left = |e: &HostError| {
             if !again {
                 console::warn(&format!("thread {} on {} was left running: {}", thread_word(&thread_id), view.workspace_id, e.message));

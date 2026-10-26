@@ -192,6 +192,9 @@ impl HarnessAdapter for Agent {
     fn steers(&self) -> bool {
         false
     }
+    fn forks(&self) -> bool {
+        self.forks
+    }
     fn fork_session(&self, _s: String, _t: ForkTurn) -> Option<LocalBoxFuture<'static, Result<ForkedSession, String>>> {
         if self.forks {
             Some(futures::future::ready(Err("not forked here".to_string())).boxed_local())
@@ -236,8 +239,6 @@ fn fx_on(agent: Agent) -> Fx {
     );
     let asked = Rc::new(RefCell::new(Vec::new()));
     let seen = asked.clone();
-    let forks = agent.forks;
-    hook!(host, "SessionsCtx::adapter_forks", dyn Fn(&dyn HarnessAdapter) -> bool, move |_a: &dyn HarnessAdapter| forks);
     let agent: Arc<dyn HarnessAdapter> = Arc::new(agent);
     hook!(
         host,

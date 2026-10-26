@@ -235,6 +235,8 @@ struct Started {
 
 #[derive(Default)]
 struct FakeAdapter {
+    /// Whether it reads what a machine holds for a session (`sessionHeld`), answering `held <session>`.
+    holds: bool,
     steers: bool,
     steers_images: bool,
     attachments: Option<AttachmentRoad>,
@@ -276,6 +278,12 @@ impl HarnessAdapter for FakeAdapter {
     }
     fn reports_edits(&self) -> bool {
         self.reports_edits
+    }
+    fn holds_session(&self) -> bool {
+        self.holds
+    }
+    fn session_held(&self, session_id: String, _exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<String, String>>> {
+        self.holds.then(|| async move { Ok(format!("held {session_id}")) }.boxed_local())
     }
     fn attachments(&self) -> Option<AttachmentRoad> {
         self.attachments

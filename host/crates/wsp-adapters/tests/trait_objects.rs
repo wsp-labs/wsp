@@ -116,3 +116,24 @@ fn cursor_answers_as_its_ts_object_declares() {
     };
     assert_eq!(answers(Arc::new(adapter)), want);
 }
+
+// adapter.attach !== undefined where the exec factory has an attach (adapter-claude adapter.ts:1426, adapter-codex :1397).
+#[test]
+fn an_adapter_attaches_only_where_its_exec_factory_does() {
+    let plain =
+        create_claude_adapter(AdapterDeps::new(FakeExec::scripted(Vec::new(), StreamOpts::default()), "/root/.claude-cfg")).unwrap();
+    assert!(!HarnessAdapter::attaches(&plain));
+    let attaching = create_claude_adapter(AdapterDeps::new(FakeExec::attaching(Vec::new(), false), "/root/.claude-cfg")).unwrap();
+    assert!(HarnessAdapter::attaches(&attaching));
+}
+
+// adapter-codex adapter.ts:233 declares sessionHeld; the others declare none.
+#[test]
+fn only_codex_holds_a_session() {
+    let claude =
+        create_claude_adapter(AdapterDeps::new(FakeExec::scripted(Vec::new(), StreamOpts::default()), "/root/.claude-cfg")).unwrap();
+    assert!(!HarnessAdapter::holds_session(&claude));
+    let launch = launcher(scripted_server(WireOpts::default()));
+    let codex = create_codex_adapter(CodexAdapterDeps::new(launch.factory(), "/root/.codex", LOGIN)).unwrap();
+    assert!(HarnessAdapter::holds_session(&codex));
+}
