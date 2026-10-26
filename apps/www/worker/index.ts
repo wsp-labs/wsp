@@ -79,6 +79,15 @@ export async function classic(download: { asset: string; before: string }): Prom
   return Response.redirect(found ? latest : `${REPO}/releases/download/${CLASSIC_FALLBACK_TAG}/${download.before}`, 302);
 }
 
+/** The visitor's country as Cloudflare read it from the request, for the site's counts: PostHog's cookieless mode drops
+ * the address before its own lookup runs (PostHog#48660), so the page sends this instead and PostHog sees no address.
+ * Tor and unknown come back empty. */
+export function country(request: Request): Response {
+  const code = (request as { cf?: { country?: unknown } }).cf?.country;
+  const known = typeof code === "string" && /^[A-Z]{2}$/.test(code) && code !== "XX" && code !== "T1";
+  return new Response(known ? code : "", { headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
+}
+
 /** Scalar's address, wherever it is written, as ours. */
 const ours = (text: string): string => text.replace(SCALAR_URL, `https://${CANONICAL}${DOCS}`);
 
@@ -91,6 +100,7 @@ export default {
     }
     if (url.pathname === "/.well-known/security.txt") return new Response(SECURITY_TXT, { headers: { "content-type": "text/plain; charset=utf-8" } });
     if (url.pathname === "/api/waitlist") return waitlist(request, env);
+    if (url.pathname === "/api/country") return country(request);
     if (url.pathname === "/docs" || url.pathname.startsWith("/docs/")) return docs(request, url);
     const download = CLASSIC_DOWNLOADS[url.pathname];
     if (download !== undefined) return classic(download);
