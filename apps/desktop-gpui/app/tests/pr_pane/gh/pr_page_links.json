@@ -1,0 +1,62 @@
+{
+  "extends": "closed",
+  "pr": {
+    "body": "[open](file:///etc/description)",
+    "reviews": {
+      "nodes": [
+        {
+          "id": "PRR_kwDOKwStub6Rv02",
+          "databaseId": 2002,
+          "author": { "login": "ben" },
+          "authorAssociation": "MEMBER",
+          "state": "CHANGES_REQUESTED",
+          "body": "[open](smb://host/review)",
+          "submittedAt": "@-90m",
+          "reactions": {}
+        }
+      ]
+    },
+    "comments": {
+      "nodes": [
+        {
+          "id": "IC_kwDOKwStub6Ic01",
+          "databaseId": 1001,
+          "author": { "__typename": "User", "login": "cam", "avatarUrl": "" },
+          "authorAssociation": "CONTRIBUTOR",
+          "body": "[open](vscode://file/etc/comment)",
+          "url": "https://github.com/wsp-test/repo/pull/42#issuecomment-1001",
+          "createdAt": "@-150m",
+          "reactions": {}
+        }
+      ]
+    },
+    "reviewThreads": {
+      "nodes": [
+        {
+          "id": "PRRT_kwDOKwStub6Th01",
+          "isResolved": false,
+          "path": "src/pane.rs",
+          "diffSide": "RIGHT",
+          "comments": {
+            "nodes": [
+              {
+                "id": "PRRC_kwDOKwStub6Rc01",
+                "databaseId": 3001,
+                "author": { "__typename": "User", "login": "ben", "avatarUrl": "" },
+                "authorAssociation": "MEMBER",
+                "body": "[open](file:///etc/thread)",
+                "url": "https://github.com/wsp-test/repo/pull/42#discussion_r3001",
+                "createdAt": "@-90m",
+                "line": 12,
+                "originalLine": 12,
+                "replyTo": null,
+                "pullRequestReview": { "databaseId": 2002 },
+                "reactions": {}
+              }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

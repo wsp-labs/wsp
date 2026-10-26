@@ -12,6 +12,13 @@ export const DOWNLOADS: Record<Exclude<Platform, "windows">, { label: string; hr
   linux: { label: "Download for Linux", href: downloadUrl(STABLE_NAMES.appImage) },
 };
 
+/** The classic app's downloads, which the site's Worker sends to the newest release's copy, or to the last release that
+ * carried the classic app under the app's names while no release carries one of its own. */
+export const CLASSIC: Record<Exclude<Platform, "windows">, string> = {
+  mac: "/download/classic/mac",
+  linux: "/download/classic/linux",
+};
+
 /** Which download to put first. Mac against Linux is the one thing a browser answers reliably; the chip is not, since
  * Safari on an M-series Mac reports an Intel one, and one bundle covers both chips so nothing has to ask. Windows has
  * no build yet, so it gets the waitlist. A phone and anything else get the Mac button. */

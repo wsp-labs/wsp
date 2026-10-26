@@ -1,0 +1,13 @@
+<slate title="Held controls">
+  <value name="name" start="Ada" />
+  <value name="pick" start="Done" />
+  <value name="answer" start={null} />
+  <value name="on" start={false} />
+  <column>
+    <input label="Your name" value={$name} held="Waiting on the build" />
+    <select label="Hide" value={$pick} held="Waiting on the build"><option value="Done" /><option value="Canceled" /></select>
+    <choices label="Which layer routes packets?" value={$answer} options={["Link", "Network"]} held="Waiting on the build" />
+    <toggle label="Show done" value={$on} held="Waiting on the build" />
+    <button label="Deploy" held="Waiting on the build" onPress={set($on, true)} />
+  </column>
+</slate>

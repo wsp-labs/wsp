@@ -3,6 +3,8 @@
 //! dialled again, the transcript the host kept is read for the turn's end, and the fork answers with the reply. A
 //! host that goes any other way is the first turn's failure, and the fork still names the workspace it made.
 
+mod common;
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
@@ -48,6 +50,7 @@ async fn host(code: u16) -> (u16, Arc<AtomicUsize>) {
     let counted = sockets.clone();
     tokio::spawn(async move {
         while let Ok((tcp, _)) = listener.accept().await {
+            let Some(tcp) = common::upgrade_or_page(tcp, &common::wsp_page(TOKEN)).await else { continue };
             let first = counted.fetch_add(1, Ordering::SeqCst) == 0;
             tokio::spawn(async move {
                 let Ok(mut ws) = tokio_tungstenite::accept_async(tcp).await else { return };
