@@ -10,14 +10,19 @@ mod projects;
 
 use std::rc::Rc;
 
-use base::{kinded, person, project, record, refused, run, thread};
+use base::{kinded, person, project, record, run, thread};
 use projects::{catalog, fails, pj, FakeProjects};
 use serde_json::{json, Value};
 use wsp_account::projects::projects::door::RemoveWords;
 use wsp_account::projects::projects::Projects;
 use wsp_core::types::api::ProjectsApi;
 use wsp_wire::views::workspace::{Caller, ProjectView};
-use wsp_words::exit::Kind;
+use wsp_words::exit::{HostError, Kind};
+
+/// exit.ts:72 `refusal(happened, fix, kind)`: the message is the two halves joined, the fix rides beside it.
+fn refused(happened: &str, fix: &str, kind: Kind) -> HostError {
+    wsp_words::exit::refusal(happened, fix, Some(kind))
+}
 
 fn rig() -> (Rc<FakeProjects>, Rc<Projects>) {
     let fake = FakeProjects::new();
@@ -256,6 +261,7 @@ fn folder_stands_is_false_on_a_road_with_none() {
         assert_eq!(asked.iter().map(|a| a["kind"].clone()).collect::<Vec<_>>(), vec![json!("mac"), json!("box"), json!("mac")]);
         assert_eq!(asked[1]["project"], "pr_box");
         assert_eq!(asked[1]["deps"]["computerName"], "box");
+        fake.base.script.borrow_mut().shift_remove("road_folder_stands:box");
         fake.base.answer_with("road_folder_stands:box", vec![fails("pl_box said no", Some("unreachable"))]);
         assert_eq!(area.folder_stands("pr_box").await.unwrap_err().message, "pl_box said no");
         assert_eq!(area.folder_stands("nothing").await.unwrap_err(), kinded("no project \"nothing\"; this host holds lab, web", Kind::NotFound));
@@ -294,6 +300,7 @@ fn unsaved_asks_the_road() {
         assert_eq!(area.unsaved(&lab).await.unwrap(), None);
         fake.base.answer_with("road_unsaved:mac", vec![json!(unsaved_line())]);
         assert_eq!(area.unsaved(&lab).await.unwrap(), Some(unsaved_line().to_owned()));
+        fake.base.script.borrow_mut().shift_remove("road_unsaved:mac");
         fake.base.answer_with("road_unsaved:mac", vec![fails("git said no", None)]);
         assert_eq!(area.unsaved(&lab).await.unwrap_err().message, "git said no");
         let asked = fake.base.args_of("road_unsaved");
@@ -359,7 +366,7 @@ fn takes_the_records_no_thread_names_with_it_a_worktree_wsp_made_and_the_frozen_
         fake.base.hold(record("ws_tree", "local", "pr_lab", json!({ "name": "feat-w" })));
         *fake.holding.borrow_mut() = vec!["ws_home".to_owned()];
         let refusal = area.remove_with("pr_lab", None, RemoveWords::default()).await.unwrap_err();
-        assert_eq!(refusal, kinded("lab has workspaces standing on it: home; delete their threads first", Kind::Conflict));
+        assert_eq!(refusal, kinded("lab has a workspace standing on it: home; delete its threads first", Kind::Conflict));
         assert_eq!(fake.base.args_of("copier_worktree_forget"), Vec::<Value>::new());
         fake.holding.borrow_mut().clear();
         area.remove_with("pr_lab", None, RemoveWords::default()).await.unwrap();
@@ -380,7 +387,7 @@ fn a_project_is_dropped_once_no_workspace_stands_on_it_and_the_drop_goes_out_as_
         let (fake, area, _lab) = removable();
         fake.base.hold(record("ws_work", "cloud", "pr_lab", json!({ "name": "work" })));
         let refusal = area.remove_with("pr_lab", None, RemoveWords::default()).await.unwrap_err();
-        assert_eq!(refusal, kinded("lab has workspaces standing on it: work; delete their threads first", Kind::Conflict));
+        assert_eq!(refusal, kinded("lab has a workspace standing on it: work; delete its threads first", Kind::Conflict));
         fake.base.live.borrow_mut().shift_remove("ws_work");
         area.remove_with("pr_lab", None, RemoveWords::default()).await.unwrap();
         assert_eq!(area.list(None).await.unwrap(), vec![]);
@@ -454,6 +461,7 @@ fn remove_with_check_answers_unsaved_and_removes_nothing() {
         nothing_removed(&fake);
         assert_eq!(fake.base.args_of("road_unsaved").len(), 1);
 
+        fake.base.script.borrow_mut().shift_remove("road_unsaved");
         fake.base.answer_with("road_unsaved", vec![Value::Null]);
         let clean = area.remove_with("pr_lab", None, RemoveWords { check: true, ..Default::default() }).await.unwrap();
         assert_eq!((clean.said.as_str(), clean.unsaved), ("", None));
