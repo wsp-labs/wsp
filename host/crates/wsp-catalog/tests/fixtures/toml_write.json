@@ -1,0 +1,234 @@
+[
+{
+"text": "10 = []\n\"é\" = 0.1\nenv = [ \"it's\", { mcp_servers = { \"tab\\tkey\" = 0.1 }, \"\\\"q\\\"\" = \"back\\\\slash\" } ]\n",
+"out": "10 = []\n\"é\" = 0.1\nenv = [ \"it's\", { mcp_servers = { \"tab\\tkey\" = 0.1 }, \"\\\"q\\\"\" = \"back\\\\slash\" } ]\n"
+},
+{
+"text": "x-y = [ 1e-7, 741, 357 ]\n\"\\\"q\\\"\" = 1152921504606846976.0\n\"with space\" = true\n",
+"out": "x-y = [ 1e-7, 741, 357 ]\n\"\\\"q\\\"\" = 1152921504606846976.0\n\"with space\" = true\n"
+},
+{
+"text": "\n",
+"out": "\n"
+},
+{
+"text": "\n",
+"out": "\n"
+},
+{
+"text": "\n",
+"out": "\n"
+},
+{
+"text": "10 = \"a\\\"b\"\n\"dot.ted\" = 45\na = [ false, 97 ]\n\"\\u007f\" = [ {}, { a = { \"with space\" = { 1 = { \"\" = 48, k_1 = true }, 10 = false, \"tab\\tkey\" = { \"\\u007f\" = 23 }, \"\\\"q\\\"\" = { b = false, mcp_servers = 76 } }, \"é\" = -1.25 } }, 389 ]\n",
+"out": "10 = \"a\\\"b\"\n\"dot.ted\" = 45\na = [ false, 97 ]\n\"\\u007f\" = [ {}, { a = { \"with space\" = { 1 = { \"\" = 48, k_1 = true }, 10 = false, \"tab\\tkey\" = { \"\\u007f\" = 23 }, \"\\\"q\\\"\" = { b = false, mcp_servers = 76 } }, \"é\" = -1.25 } }, 389 ]\n"
+},
+{
+"text": "mcp_servers = \"tab\\t\"\n\n[10]\n[\"\\u007f\"]\n",
+"out": "mcp_servers = \"tab\\t\"\n\n[10]\n[\"\\u007f\"]\n"
+},
+{
+"text": "1 = [ -120, 86 ]\ncommand = \"plain\"\n",
+"out": "1 = [ -120, 86 ]\ncommand = \"plain\"\n"
+},
+{
+"text": "\"\\\"q\\\"\" = true\nk_1 = 26\n\"with space\" = \" \"\n\n[command]\n",
+"out": "\"\\\"q\\\"\" = true\nk_1 = 26\n\"with space\" = \" \"\n\n[command]\n"
+},
+{
+"text": "\n",
+"out": "\n"
+},
+{
+"text": "\"\\\"q\\\"\" = 44\n",
+"out": "\"\\\"q\\\"\" = 44\n"
+},
+{
+"text": "\"\" = 8\n\n[\"dot.ted\"]\n\"é\" = inf\n",
+"out": "\"\" = 8\n\n[\"dot.ted\"]\n\"é\" = inf\n"
+},
+{
+"text": "a = \"plain\"\n\n[\"tab\\tkey\"]\n10 = -616\n",
+"out": "a = \"plain\"\n\n[\"tab\\tkey\"]\n10 = -616\n"
+},
+{
+"text": "\n",
+"out": "\n"
+},
+{
+"text": "10 = 34\n\"dot.ted\" = 78\n\n[\"tab\\tkey\"]\n\"\" = \"it's\"\n\n[\"\\u007f\"]\n\"dot.ted\" = \"plain\"\n\"tab\\tkey\" = true\n",
+"out": "10 = 34\n\"dot.ted\" = 78\n\n[\"tab\\tkey\"]\n\"\" = \"it's\"\n\n[\"\\u007f\"]\n\"dot.ted\" = \"plain\"\n\"tab\\tkey\" = true\n"
+},
+{
+"text": "\"é\" = 0.5\ncommand = 13\n\n[\"\"]\n\"tab\\tkey\" = true\n",
+"out": "\"é\" = 0.5\ncommand = 13\n\n[\"\"]\n\"tab\\tkey\" = true\n"
+},
+{
+"text": "\n",
+"out": "\n"
+},
+{
+"text": "\"with space\" = true\nk_1 = 1.5e+300\nx-y = [ false, \"😀\", \"nl\\nx\" ]\n\"\" = true\n",
+"out": "\"with space\" = true\nk_1 = 1.5e+300\nx-y = [ false, \"😀\", \"nl\\nx\" ]\n\"\" = true\n"
+},
+{
+"text": "\"\\u007f\" = []\n",
+"out": "\"\\u007f\" = []\n"
+},
+{
+"text": "\n",
+"out": "\n"
+},
+{
+"text": "x-y = 9\n\"\" = 11\n",
+"out": "x-y = 9\n\"\" = 11\n"
+},
+{
+"text": "1 = \"é\"\nx-y = \" \"\n\"\\u007f\" = true\n\n[env]\n",
+"out": "1 = \"é\"\nx-y = \" \"\n\"\\u007f\" = true\n\n[env]\n"
+},
+{
+"text": "\"with space\" = [ 31, true ]\n",
+"out": "\"with space\" = [ 31, true ]\n"
+},
+{
+"text": "\"dot.ted\" = [ 37, 0.5, [ [ {} ] ] ]\n",
+"out": "\"dot.ted\" = [ 37, 0.5, [ [ {} ] ] ]\n"
+},
+{
+"text": "\n",
+"out": "\n"
+},
+{
+"text": "k_1 = \"\"\n\n[\"\\u007f\"]\nx-y = [ 72 ]\n",
+"out": "k_1 = \"\"\n\n[\"\\u007f\"]\nx-y = [ 72 ]\n"
+},
+{
+"text": "mcp_servers = -872\n\"\\u007f\" = 18\n",
+"out": "mcp_servers = -872\n\"\\u007f\" = 18\n"
+},
+{
+"text": "[10]\n",
+"out": "[10]\n"
+},
+{
+"text": "\n",
+"out": "\n"
+},
+{
+"text": "1 = 0.5\n\n[\"\\u007f\"]\n10 = -430\nk_1 = 24\n\"\" = 47\n",
+"out": "1 = 0.5\n\n[\"\\u007f\"]\n10 = -430\nk_1 = 24\n\"\" = 47\n"
+},
+{
+"text": "b = 35\n",
+"out": "b = 35\n"
+},
+{
+"text": "x-y = 47\n",
+"out": "x-y = 47\n"
+},
+{
+"text": "\"\\\"q\\\"\" = \"\\u0001\"\n",
+"out": "\"\\\"q\\\"\" = \"\\u0001\"\n"
+},
+{
+"text": "\"\\\"q\\\"\" = 97\n\n[\"\\u007f\"]\nk_1 = 30\nenv = 70\n",
+"out": "\"\\\"q\\\"\" = 97\n\n[\"\\u007f\"]\nk_1 = 30\nenv = 70\n"
+},
+{
+"text": "\n",
+"out": "\n"
+},
+{
+"text": "10 = \"plain\"\nmcp_servers = \"back\\\\slash\"\n",
+"out": "10 = \"plain\"\nmcp_servers = \"back\\\\slash\"\n"
+},
+{
+"text": "command = [ [], { env = \"\" }, { 1 = 89 } ]\n\"dot.ted\" = []\n\n[1.k_1]\ncommand = 7\nk_1 = true\n\n[x-y]\nenv = [ { command = [], \"é\" = {} }, { \"\\u007f\" = -87 }, [ -891 ] ]\n\"dot.ted\" = \" \"\n\n[x-y.\"é\"]\n",
+"out": "command = [ [], { env = \"\" }, { 1 = 89 } ]\n\"dot.ted\" = []\n\n[1.k_1]\ncommand = 7\nk_1 = true\n\n[x-y]\nenv = [ { command = [], \"é\" = {} }, { \"\\u007f\" = -87 }, [ -891 ] ]\n\"dot.ted\" = \" \"\n\n[x-y.\"é\"]\n"
+},
+{
+"text": "x-y = 123456789.125\n\n[\"\\u007f\"]\nmcp_servers = [ 50, false, \"back\\\\slash\" ]\n\n[command]\nb = 18\n\"\" = 33\n\"with space\" = [ \"😀\", 63 ]\n",
+"out": "x-y = 123456789.125\n\n[\"\\u007f\"]\nmcp_servers = [ 50, false, \"back\\\\slash\" ]\n\n[command]\nb = 18\n\"\" = 33\n\"with space\" = [ \"😀\", 63 ]\n"
+},
+{
+"text": "\"é\" = [ 0.1, {}, { a = 27 } ]\n",
+"out": "\"é\" = [ 0.1, {}, { a = 27 } ]\n"
+},
+{
+"text": "\"\" = \"it's\"\n\n[1]\n1 = -inf\n",
+"out": "\"\" = \"it's\"\n\n[1]\n1 = -inf\n"
+},
+{
+"text": "[mcp_servers.x]\ncommand = \"c\"\nenv.TOKEN = \"s\"\n[mcp_servers.x.d]\nk = 1\n",
+"out": "[mcp_servers.x]\ncommand = \"c\"\n\n[mcp_servers.x.env]\nTOKEN = \"s\"\n\n[mcp_servers.x.d]\nk = 1\n"
+},
+{
+"text": "[mcp_servers.x]\ncommand = \"c\"\nenv.TOKEN = \"s\"\n[mcp_servers.x.d.d]\nk = 1\n",
+"out": "[mcp_servers.x]\ncommand = \"c\"\n\n[mcp_servers.x.env]\nTOKEN = \"s\"\n\n[mcp_servers.x.d.d]\nk = 1\n"
+},
+{
+"text": "[mcp_servers.x]\ncommand = \"c\"\nenv.TOKEN = \"s\"\n[mcp_servers.x.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d]\nk = 1\n",
+"out": "[mcp_servers.x]\ncommand = \"c\"\n\n[mcp_servers.x.env]\nTOKEN = \"s\"\n\n[mcp_servers.x.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d]\nk = 1\n"
+},
+{
+"text": "[mcp_servers.x]\ncommand = \"c\"\nenv.TOKEN = \"s\"\n[mcp_servers.x.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d]\nk = 1\n",
+"out": "[mcp_servers.x]\ncommand = \"c\"\n\n[mcp_servers.x.env]\nTOKEN = \"s\"\n\n[mcp_servers.x.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d]\nk = 1\n"
+},
+{
+"text": "[mcp_servers.x]\ncommand = \"c\"\nenv.TOKEN = \"s\"\n[mcp_servers.x.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d]\nk = 1\n",
+"out": "[mcp_servers.x]\ncommand = \"c\"\n\n[mcp_servers.x.env]\nTOKEN = \"s\"\n\n[mcp_servers.x.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d]\nk = 1\n"
+},
+{
+"text": "[mcp_servers.x]\ncommand = \"c\"\nenv.TOKEN = \"s\"\n[mcp_servers.x.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d]\nk = 1\n",
+"out": "[mcp_servers.x]\ncommand = \"c\"\n\n[mcp_servers.x.env]\nTOKEN = \"s\"\n\n[mcp_servers.x.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d.d]\nk = 1\n"
+},
+{
+"text": "a = 1.0\nb = 20.50\nc = 1e3\nd = nan\ne = -inf\n",
+"out": "a = 1\nb = 20.5\nc = 1000\nd = nan\ne = -inf\n"
+},
+{
+"text": "x = 1979-05-27T07:32:00Z\n",
+"out": "x = 1979-05-27T07:32:00.000Z\n"
+},
+{
+"text": "x = 1979-05-27\n",
+"out": "x = 1979-05-27\n"
+},
+{
+"text": "x = 07:32:00\n",
+"out": "x = 07:32:00.000\n"
+},
+{
+"text": "[[a]]\nb = 1\n[[a]]\nb = 2\n[a.c]\nd = 3\n[[a.e]]\nf = [1, 2, [3, 4]]\n",
+"out": "[[a]]\nb = 1\n\n[[a]]\nb = 2\n\n[a.c]\nd = 3\n\n[[a.e]]\nf = [ 1, 2, [ 3, 4 ] ]\n"
+},
+{
+"text": "a.b.c = 1\na.b.d = \"x\"\n[z]\n\"q w\" = { x = 1, y = [ ], z = { } }\n",
+"out": "[a.b]\nc = 1\nd = \"x\"\n\n[z.\"q w\"]\nx = 1\ny = []\n\n[z.\"q w\".z]\n"
+},
+{
+"text": "a = [ { b = 1 }, { c = [ { d = 2 } ] } ]\n",
+"out": "[[a]]\nb = 1\n\n[[a]]\n[[a.c]]\nd = 2\n"
+},
+{
+"text": "[a]\n[a.b]\n[a.c]\nx=1\n",
+"out": "[a.b]\n[a.c]\nx = 1\n"
+},
+{
+"text": "",
+"out": "\n"
+},
+{
+"text": "\"\" = 1\n",
+"out": "\"\" = 1\n"
+},
+{
+"text": "a = [[]]\nb = []\n",
+"out": "a = [ [] ]\nb = []\n"
+},
+{
+"text": "[[a]]\n[[a]]\n[[a.b]]\nx = \"s\"\n",
+"out": "[[a]]\n\n[[a]]\n[[a.b]]\nx = \"s\"\n"
+}
+]
