@@ -247,6 +247,26 @@ describe("a guest session on the host", () => {
       expect(await hello(await tokenOn(workspaceId, "t0"))).not.toContain("slate");
     });
 
+    it("lists slate_look to a lead's server only while an app on the host's computer draws looks", async () => {
+      const listed = async (lookable: boolean): Promise<string[]> => {
+        door = guestDoor({
+          authorize: token => rt.devices.match(token).then(device => (device === undefined ? undefined : { kind: "device", device })),
+          hostUrl: () => `http://${LOOPBACK}:${handle!.port}`,
+          kinds: guestKinds(statePath),
+          lookable: () => lookable,
+        });
+        sent = [];
+        const token = await tokenOn(workspaceId);
+        door.event(link, opened({ token, kind: "mcp", argv: ["mcp"], session: "g0" }));
+        await call(token, { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "t", version: "0" } } });
+        const tools = await call(token, { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
+        door.event(link, { type: "guest.closed", session: "g0" });
+        return (tools["result"] as { tools: { name: string }[] }).tools.map(t => t.name).filter(n => n.startsWith("slate_"));
+      };
+      expect(await listed(false)).toEqual(expect.not.arrayContaining(["slate_look"]));
+      expect(await listed(true)).toContain("slate_look");
+    });
+
     it("puts the word on the line of this computer's binary for a thread another thread started, and only there", async () => {
       const seen = join(dir, "argv");
       const server = join(dir, "tool-server");
