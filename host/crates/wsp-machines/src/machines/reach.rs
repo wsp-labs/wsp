@@ -66,7 +66,7 @@ pub trait ReachCtx {
         token: &str,
         on_event: Rc<dyn Fn(DaemonEvent)>,
         heartbeat_ms: Option<i64>,
-    ) -> Rc<dyn DaemonReach>;
+    ) -> AreaResult<Rc<dyn DaemonReach>>;
     fn project_held(&self, id: &str) -> AreaResult<ProjectView>;
     /// `withDaemon(entry, ask => ask(frame))`.
     async fn with_daemon(&self, entry: &Entry, frame: Value) -> AreaResult<Value>;

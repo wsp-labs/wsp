@@ -409,16 +409,18 @@ fn a_stop_pulled_during_the_wait_lets_go_at_once() {
     });
 }
 
-// reach.ts:207 `connectDaemon(..)` throws on a url it cannot dial; the ping reads the throw as the daemon it could not ask.
+// reach.ts:207 `connectDaemon(..)` throws on options it cannot dial; the edge road's catch (reach.ts:268) says it with the budget.
 #[test]
-fn a_link_the_runtime_cannot_open_is_the_daemon_it_could_not_ask() {
+fn a_link_the_runtime_cannot_open_is_the_edge_road_not_answering() {
     run(async {
         let w = world(edge());
         plan().set_up();
-        *knobs().connect_failure.borrow_mut() = Some(wsp_words::exit::HostError::new("connectDaemon needs the daemon's token to dial a previewUrl"));
+        *knobs().connect_failure.borrow_mut() = Some(wsp_words::exit::HostError::new(
+            "connectDaemon needs the daemon's token to dial a previewUrl",
+        ));
         assert_eq!(
             ping(&w).await.unwrap(),
-            Some("the daemon on bx_1 could not be asked (connectDaemon needs the daemon's token to dial a previewUrl)".to_string())
+            Some("daemon on bx_1 did not answer within 900000 ms (connectDaemon needs the daemon's token to dial a previewUrl)".to_string())
         );
         assert!(plan().links.borrow().is_empty(), "no link was made");
     });
