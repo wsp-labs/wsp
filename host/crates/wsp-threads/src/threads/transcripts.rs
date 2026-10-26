@@ -8,6 +8,7 @@ use std::sync::Arc;
 use futures::future::{LocalBoxFuture, Shared};
 use indexmap::{IndexMap, IndexSet};
 use wsp_core::clock::{Cancel, Clock};
+use wsp_core::daemon_token::assert_token_shape;
 use wsp_core::context::{Joined, StateCell};
 use wsp_core::ids::Ids;
 use wsp_core::types::events::EventBus;
@@ -16,6 +17,7 @@ use wsp_engine::machine::Machine;
 use wsp_store::sqlite_transcripts::TranscriptRows;
 use wsp_store::store::Store;
 use wsp_wire::views::session::SessionView;
+use wsp_wire::wire::events_union::EventUnion;
 use wsp_wire::views::session_events_more::SessionEvent;
 use wsp_words::exit::HostError;
 
@@ -103,6 +105,35 @@ impl TranscriptsArea {
     /// Builds the area: checks the daemon token seed's shape (a bad one fails the build, transcripts.ts:518), then
     /// registers the `workspace.cost` listener (transcripts.ts:718).
     pub fn new(ctx: Rc<dyn TranscriptsCtx>) -> Result<Rc<TranscriptsArea>, HostError> {
-        todo!()
+        if let Some(seed) = ctx.daemon_token_seed() {
+            assert_token_shape(&seed)?;
+        }
+        let area = Rc::new_cyclic(|me| TranscriptsArea {
+            ctx: ctx.clone(),
+            me: me.clone(),
+            kept_writes: RefCell::default(),
+            transcript_queue: RefCell::default(),
+            transcript_timers: RefCell::default(),
+            machine_tokens: RefCell::default(),
+            daemon_tokens: RefCell::default(),
+            writing: RefCell::default(),
+            flushes_queued: RefCell::default(),
+            warming: Cell::new(false),
+            viewed_marks: RefCell::default(),
+            accrued: RefCell::default(),
+        });
+        let weak = Rc::downgrade(&area);
+        let _ = area.ctx.bus().on(
+            "workspace.cost",
+            Rc::new(move |e: &EventUnion| {
+                if let EventUnion::WorkspaceCost(v) = e {
+                    if let Some(area) = weak.upgrade() {
+                        area.accrued.borrow_mut().insert(v.event.workspace_id.clone(), v.event.accrued_usd.0);
+                    }
+                }
+                Ok(())
+            }),
+        );
+        Ok(area)
     }
 }
