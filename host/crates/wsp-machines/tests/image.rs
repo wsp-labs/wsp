@@ -829,7 +829,10 @@ fn build_joins_one_in_flight_and_calls_starting_each_time() {
 }
 
 fn row(stopped: bool) -> Rc<CopyRow> {
-    Rc::new(CopyRow { stopped })
+    Rc::new(CopyRow {
+        line: if stopped { "stopped".into() } else { "building".into() },
+        stopped,
+    })
 }
 
 // I8: image.ts:121-123; places-image.test.ts:223. A build that fails while the place's row stands and is not stopped
