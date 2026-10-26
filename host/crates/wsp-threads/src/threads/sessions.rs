@@ -280,12 +280,12 @@ pub struct SessionsArea {
 
 impl SessionsArea {
     pub fn new(ctx: Rc<dyn SessionsCtx>) -> Self {
-        todo!()
+        SessionsArea { ctx, stops: Rc::new(RefCell::new(StopState::default())), last_settle_at: Rc::new(Cell::new(0.0)) }
     }
 
     /// sessions.ts:1497: whether a stop's end of the thread's group holds its next turn.
     pub fn stop_holds(&self, thread_id: &str) -> bool {
-        todo!()
+        self.stops.borrow().ending.contains_key(thread_id)
     }
 }
 

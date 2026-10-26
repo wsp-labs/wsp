@@ -231,7 +231,7 @@ pub struct TurnsArea {
 
 impl TurnsArea {
     pub fn new(ctx: Rc<dyn TurnsCtx>) -> Self {
-        todo!()
+        TurnsArea { ctx }
     }
 }
 
