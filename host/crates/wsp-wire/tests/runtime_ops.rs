@@ -506,31 +506,6 @@ mod the_project_export {
     }
 }
 
-mod project_goldens {
-    use super::*;
-
-    // protocol.test.ts:2006
-    #[test]
-    fn workspaces_snapshot_names_the_workspace_and_projectgoldens_list_takes_nothing() {
-        let r = read(json!({ "id": 30, "op": "workspaces.snapshot", "workspaceId": "ws_1" }));
-        op!(r, RuntimeOp::WorkspacesSnapshot { workspace_id, .. } => assert_eq!(workspace_id, "ws_1"));
-        let r = read(json!({ "id": 31, "op": "projectGoldens.list" }));
-        op!(r, RuntimeOp::ProjectGoldensList { .. } => ());
-        lacks(json!({ "id": 32, "op": "workspaces.snapshot" }), "workspaceId");
-    }
-
-    // protocol.test.ts:2013
-    #[test]
-    fn projectgoldens_remove_names_the_snapshot_replies_with_the_record_and_its_line_an() {
-        let r = read(json!({ "id": 33, "op": "projectGoldens.remove", "snapshotId": "snap_project-proj" }));
-        op!(r, RuntimeOp::ProjectGoldensRemove { snapshot_id, .. } => assert_eq!(snapshot_id, "snap_project-proj"));
-        lacks(json!({ "id": 34, "op": "projectGoldens.remove" }), "snapshotId");
-        // The records of wsp's own machines, which a paired computer manages and a thread never deletes.
-        assert!(DEVICE_OPS.contains(&"projectGoldens.remove"));
-        assert!(!THREAD_OPS.contains(&"projectGoldens.remove"));
-    }
-}
-
 mod the_newest_release_as_the_host_read_it {
     use super::*;
 
@@ -814,9 +789,9 @@ mod an_agents_setup_on_a_computer {
 mod the_init_job_view {
     use super::*;
 
-    // init-job.test.ts:163 (the request half; the init.job event is another unit's)
+    // init-job.test.ts:163 (the request half)
     #[test]
-    fn the_event_rides_the_events_channel_beside_the_runtimes_own_and_the_ops_parse_as() {
+    fn init_get_is_the_bare_op_and_init_keys_takes_no_solari() {
         read(json!({ "id": 1, "op": "init.get" }));
         // solari is no field of init.keys: zod strips it and the request reads as the bare op.
         reads_with_as(
@@ -824,46 +799,6 @@ mod the_init_job_view {
             json!({ "id": 2, "op": "init.keys", "solari": "slr_live_x" }),
             json!({ "id": 2, "op": "init.keys" }),
         );
-        let r = read(json!({ "id": 2, "op": "init.keys", "rows": { "logins/codex": "sk-x-fake" } }));
-        op!(r, RuntimeOp::InitKeys { rows, .. } => {
-            assert_eq!(rows.unwrap().get("logins/codex").map(String::as_str), Some("sk-x-fake"));
-        });
-        let r = read(json!({ "id": 3, "op": "init.start", "road": "agent", "harness": "claude" }));
-        op!(r, RuntimeOp::InitStart { road, harness, .. } => {
-            assert_eq!(serde_json::to_value(road).unwrap(), serde_json::to_value(json!("agent")).unwrap());
-            assert_eq!(harness.as_deref(), Some("claude"));
-        });
-        let r = read(json!({ "id": 4, "op": "init.answer", "screen": "tools", "ticks": ["gh"], "answers": {} }));
-        op!(r, RuntimeOp::InitAnswer { screen, ticks, answers, .. } => {
-            assert_eq!(serde_json::to_value(screen).unwrap(), serde_json::to_value(json!("tools")).unwrap());
-            assert_eq!(ticks, Some(vec!["gh".to_string()]));
-            assert!(answers.unwrap().is_empty());
-        });
-        let r = read(json!({ "id": 4, "op": "init.step", "at": 2 }));
-        op!(r, RuntimeOp::InitStep { at, .. } => assert_eq!(at, 2.into()));
-        let r = read(json!({ "id": 5, "op": "init.build", "firstWorkspace": "first", "importFolder": "/Users/me/proj" }));
-        op!(r, RuntimeOp::InitBuild { first_workspace, import_folder, .. } => {
-            assert_eq!(first_workspace.as_deref(), Some("first"));
-            assert_eq!(import_folder.as_deref(), Some("/Users/me/proj"));
-        });
-        let r = read(json!({ "id": 6, "op": "init.cancel" }));
-        op!(r, RuntimeOp::InitCancel { .. } => ());
-        let r = read(json!({ "id": 7, "op": "init.signInCode", "tool": "gcloud", "code": "4/0Afake" }));
-        op!(r, RuntimeOp::InitSignInCode { tool, code, .. } => {
-            assert_eq!(tool, "gcloud");
-            assert_eq!(code, "4/0Afake");
-        });
-        let e = refuse(json!({ "id": 7, "op": "init.start", "road": "wizard" }));
-        assert_eq!(e.path, path!["road"]);
-        let e = refuse(json!({ "id": 8, "op": "init.answer", "screen": "build" }));
-        assert_eq!(e.path, path!["screen"]);
-        let e = refuse(json!({ "id": 9, "op": "init.step", "at": -1 }));
-        assert_eq!((e.code.as_str(), e.path), ("too_small", path!["at"]));
-        // A code is one line typed into a terminal on the machine, so the wire takes neither an empty one nor a flood.
-        let e = refuse(json!({ "id": 10, "op": "init.signInCode", "tool": "gcloud", "code": "" }));
-        assert_eq!((e.code.as_str(), e.path), ("too_small", path!["code"]));
-        let e = refuse(json!({ "id": 11, "op": "init.signInCode", "tool": "gcloud", "code": "x".repeat(257) }));
-        assert_eq!((e.code.as_str(), e.path), ("too_big", path!["code"]));
     }
 }
 
@@ -898,12 +833,12 @@ mod refusals_as_zod_writes_them {
     use super::*;
 
     #[test]
-    fn an_unknown_op_is_one_discriminator_issue_naming_all_211_ops_in_order() {
+    fn an_unknown_op_is_one_discriminator_issue_naming_all_199_ops_in_order() {
         let e = refused_with(parse_runtime_request, json!({ "id": 1, "op": "nope" }));
         assert_eq!((e.code.as_str(), e.path.clone()), ("invalid_union_discriminator", path!["op"]));
         let options: Vec<String> = RUNTIME_OPS.iter().map(|s| s.to_string()).collect();
         assert_eq!(e.detail["options"], json!(options));
-        assert_eq!((RUNTIME_OPS[0], RUNTIME_OPS[210]), ("auth", "slates.image"));
+        assert_eq!((RUNTIME_OPS[0], RUNTIME_OPS[198]), ("auth", "slates.image"));
         // The op's issue comes first even when origin is wrong too.
         let e = refused_with(parse_runtime_request, json!({ "op": "nope", "origin": "x" }));
         assert_eq!(e.code, "invalid_union_discriminator");

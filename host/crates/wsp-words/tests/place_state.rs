@@ -279,7 +279,7 @@ mod one_rule_for_each_setting {
         use PlaceSettingWord::*;
         assert!(!place_takes(&place(json!({ "kind": "computer", "takesForks": false })), &Nap));
         assert!(place_takes(&place(json!({ "kind": "computer", "takesForks": true })), &Nap));
-        assert!(place_takes(&place(json!({ "kind": "computer", "takesForks": false })), &Spawn));
+        assert!(place_takes(&place(json!({ "kind": "computer", "takesForks": false })), &MaxMachines));
         assert!(!place_takes(&place(json!({ "kind": "provider", "takesForks": true })), &Threads));
     }
 }

@@ -761,7 +761,7 @@ impl CreateRuntime for FakeRuntime {
     fn spawn_at(&self, place: &str) -> WorkspaceAgents {
         self.log.push(json!(["spawnAt", place]));
         // The oracle's `{machines: 3, threads: 2}`, as the Rust agents write it.
-        WorkspaceAgents { spawn: true, max_machines: JsInt::from(3), max_depth: JsInt::from(2) }
+        WorkspaceAgents { max_machines: JsInt::from(3), max_depth: JsInt::from(2) }
     }
     fn tree_of(&self, spawned: Option<&ThreadScope>) -> Map<String, Value> {
         // The oracle's fake answers `{rootThreadId, threadId}`; the runtime's own `treeOf` answers `{parentThreadId,

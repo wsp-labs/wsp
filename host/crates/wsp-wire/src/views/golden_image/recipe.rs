@@ -7,22 +7,17 @@ use super::*;
 pub struct Recipe {
     pub version: LitV1,
     pub at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub tick: Option<RecipeTick>,
     pub histories: Vec<RecipeHistory>,
     pub rows: Vec<RecipeRow>,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub custom: Option<Vec<RecipeCustomRow>>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub engine: Option<bool>,
 }
 impl Check for Recipe {
     /// Rules: at: at least 1 UTF-16 units.
-    /// Nested checks: tick, histories, rows, custom.
+    /// Nested checks: histories, rows, custom.
     fn check(&self) -> Result<(), SchemaError> {
         self.version.check().map_err(|e| e.under("version"))?;
         crate::types::check::text_at_least(&self.at, 1).map_err(|e| e.under("at"))?;
-        self.tick.check().map_err(|e| e.under("tick"))?;
         self.histories.check().map_err(|e| e.under("histories"))?;
         self.rows.check().map_err(|e| e.under("rows"))?;
         self.custom.check().map_err(|e| e.under("custom"))?;
@@ -36,11 +31,9 @@ impl Check for Recipe {
         let mut out = Vec::new();
         crate::types::keys::req_key::<LitV1>(obj, "version", &mut out);
         crate::types::keys::req_key_with::<String>(obj, "at", &mut out, Self::rule_at);
-        crate::types::keys::opt_key::<RecipeTick>(obj, "tick", &mut out);
         crate::types::keys::req_key::<Vec<RecipeHistory>>(obj, "histories", &mut out);
         crate::types::keys::req_key::<Vec<RecipeRow>>(obj, "rows", &mut out);
         crate::types::keys::opt_key::<Vec<RecipeCustomRow>>(obj, "custom", &mut out);
-        crate::types::keys::opt_key::<bool>(obj, "engine", &mut out);
         Some(out)
     }
 
@@ -50,11 +43,9 @@ impl Check for Recipe {
             Some((key, rest)) => match key.as_str()? {
                 "version" => <LitV1 as Check>::describe(rest),
                 "at" => <String as Check>::describe(rest),
-                "tick" => <Option<RecipeTick> as Check>::describe(rest),
                 "histories" => <Vec<RecipeHistory> as Check>::describe(rest),
                 "rows" => <Vec<RecipeRow> as Check>::describe(rest),
                 "custom" => <Option<Vec<RecipeCustomRow>> as Check>::describe(rest),
-                "engine" => <Option<bool> as Check>::describe(rest),
                 _ => None,
             },
         }
@@ -497,79 +488,6 @@ impl SealedVault {
     }
 }
 
-/// TS: packages/protocol/src/views/golden-image.ts:349 at a3b870a6e.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SealedPin {
-    pub tag: String,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub sha256: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub arch: Option<ToolPinArch>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub latest: Option<True>,
-    pub id: String,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub road: Option<String>,
-}
-impl Check for SealedPin {
-    /// Rules: tag: at least 1 UTF-16 units; sha256: at least 1 UTF-16 units; id: at least 1 UTF-16 units.
-    fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::text_at_least(&self.tag, 1).map_err(|e| e.under("tag"))?;
-        if let Some(v) = &self.sha256 {
-            crate::types::check::text_at_least(v, 1).map_err(|e| e.under("sha256"))?;
-        }
-        self.arch.check().map_err(|e| e.under("arch"))?;
-        crate::types::check::text_at_least(&self.id, 1).map_err(|e| e.under("id"))?;
-        Ok(())
-    }
-
-    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
-        let serde_json::Value::Object(obj) = value else {
-            return Some(vec![crate::types::check::not_object(value)]);
-        };
-        let mut out = Vec::new();
-        crate::types::keys::req_key_with::<String>(obj, "tag", &mut out, Self::rule_tag);
-        crate::types::keys::opt_key_with::<String>(obj, "sha256", &mut out, Self::rule_sha256);
-        crate::types::keys::opt_key::<ToolPinArch>(obj, "arch", &mut out);
-        crate::types::keys::opt_key::<True>(obj, "latest", &mut out);
-        crate::types::keys::req_key_with::<String>(obj, "id", &mut out, Self::rule_id);
-        crate::types::keys::opt_key::<String>(obj, "road", &mut out);
-        Some(out)
-    }
-
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        match path.split_first() {
-            None => Some(crate::types::check::Zod::Word("object")),
-            Some((key, rest)) => match key.as_str()? {
-                "tag" => <String as Check>::describe(rest),
-                "sha256" => <Option<String> as Check>::describe(rest),
-                "arch" => <Option<ToolPinArch> as Check>::describe(rest),
-                "latest" => None,
-                "id" => <String as Check>::describe(rest),
-                "road" => <Option<String> as Check>::describe(rest),
-                _ => None,
-            },
-        }
-    }
-}
-impl SealedPin {
-    fn rule_tag(x: &String) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::text_at_least(x, 1)?;
-        Ok(())
-    }
-    fn rule_sha256(x: &Option<String>) -> Result<(), crate::types::check::SchemaError> {
-        if let Some(v) = x {
-            crate::types::check::text_at_least(v, 1)?;
-        }
-        Ok(())
-    }
-    fn rule_id(x: &String) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::text_at_least(x, 1)?;
-        Ok(())
-    }
-}
-
 /// TS: packages/protocol/src/views/golden-image.ts:362 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -580,8 +498,6 @@ pub struct SealedImage {
     pub recipe_hash: String,
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
     pub recipe: Option<Recipe>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub pins: Option<Vec<SealedPin>>,
     pub logins: Vec<GoldenLogin>,
     pub sealed_at: String,
     pub sealed_from: String,
@@ -596,12 +512,11 @@ pub struct SealedImage {
 }
 impl Check for SealedImage {
     /// Rules: version: > 0; hash: exactly 64 UTF-16 units; usedBytes: >= 0.
-    /// Nested checks: recipe, pins, logins, vault.
+    /// Nested checks: recipe, logins, vault.
     fn check(&self) -> Result<(), SchemaError> {
         crate::types::check::num_above(self.version.0 .0, 0.0).map_err(|e| e.under("version"))?;
         crate::types::check::text_exactly(&self.hash, 64).map_err(|e| e.under("hash"))?;
         self.recipe.check().map_err(|e| e.under("recipe"))?;
-        self.pins.check().map_err(|e| e.under("pins"))?;
         self.logins.check().map_err(|e| e.under("logins"))?;
         self.vault.check().map_err(|e| e.under("vault"))?;
         if let Some(v) = self.used_bytes {
@@ -620,7 +535,6 @@ impl Check for SealedImage {
         crate::types::keys::req_key_with::<String>(obj, "hash", &mut out, Self::rule_hash);
         crate::types::keys::req_key::<String>(obj, "recipeHash", &mut out);
         crate::types::keys::opt_key::<Recipe>(obj, "recipe", &mut out);
-        crate::types::keys::opt_key::<Vec<SealedPin>>(obj, "pins", &mut out);
         crate::types::keys::req_key::<Vec<GoldenLogin>>(obj, "logins", &mut out);
         crate::types::keys::req_key::<String>(obj, "sealedAt", &mut out);
         crate::types::keys::req_key::<String>(obj, "sealedFrom", &mut out);
@@ -640,7 +554,6 @@ impl Check for SealedImage {
                 "hash" => <String as Check>::describe(rest),
                 "recipeHash" => <String as Check>::describe(rest),
                 "recipe" => <Option<Recipe> as Check>::describe(rest),
-                "pins" => <Option<Vec<SealedPin>> as Check>::describe(rest),
                 "logins" => <Vec<GoldenLogin> as Check>::describe(rest),
                 "sealedAt" => <String as Check>::describe(rest),
                 "sealedFrom" => <String as Check>::describe(rest),
@@ -784,56 +697,6 @@ impl Check for SealedImageBuilt {
     }
 }
 
-/// TS: packages/protocol/src/views/golden-image.ts:415 at a3b870a6e.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SealedImageExport {
-    pub path: String,
-    pub bytes: JsInt,
-    pub hash: String,
-}
-impl Check for SealedImageExport {
-    /// Rules: bytes: >= 0; hash: exactly 64 UTF-16 units.
-    fn check(&self) -> Result<(), SchemaError> {
-        crate::types::check::num_at_least(self.bytes.0 .0, 0.0).map_err(|e| e.under("bytes"))?;
-        crate::types::check::text_exactly(&self.hash, 64).map_err(|e| e.under("hash"))?;
-        Ok(())
-    }
-
-    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
-        let serde_json::Value::Object(obj) = value else {
-            return Some(vec![crate::types::check::not_object(value)]);
-        };
-        let mut out = Vec::new();
-        crate::types::keys::req_key::<String>(obj, "path", &mut out);
-        crate::types::keys::req_key_with::<JsInt>(obj, "bytes", &mut out, Self::rule_bytes);
-        crate::types::keys::req_key_with::<String>(obj, "hash", &mut out, Self::rule_hash);
-        Some(out)
-    }
-
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        match path.split_first() {
-            None => Some(crate::types::check::Zod::Word("object")),
-            Some((key, rest)) => match key.as_str()? {
-                "path" => <String as Check>::describe(rest),
-                "bytes" => <i64 as Check>::describe(rest),
-                "hash" => <String as Check>::describe(rest),
-                _ => None,
-            },
-        }
-    }
-}
-impl SealedImageExport {
-    fn rule_bytes(x: &JsInt) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::num_at_least(x.0 .0, 0.0)?;
-        Ok(())
-    }
-    fn rule_hash(x: &String) -> Result<(), crate::types::check::SchemaError> {
-        crate::types::check::text_exactly(x, 64)?;
-        Ok(())
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SealedVaultHeaderTo {
     #[serde(rename = "passphrase")]
@@ -961,62 +824,6 @@ pub fn golden_image(v: &GoldenVersion) -> GoldenImage {
 // }
 pub fn custom_rows(recipe: &Recipe) -> Vec<RecipeCustomRow> {
     recipe.custom.clone().unwrap_or_default()
-}
-
-// views/golden-image.ts:250 at a3b870a6e
-// export function commandCheck(bin: string): string {
-//   return `command -v ${shellQuote(bin)}`;
-// }
-/// `command -v <bin quoted by crate::types::shell_quote::shell_quote>`.
-pub fn command_check(bin: &str) -> String {
-    format!("command -v {}", crate::types::shell_quote::shell_quote(bin))
-}
-
-/// A pin as `recipePins` builds it, `{ id, ...pin, road }`: the id first, where a parsed `SealedPin` has it after the
-/// pin's keys.
-#[derive(Clone, Debug, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RecipePin {
-    pub id: String,
-    pub tag: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sha256: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub arch: Option<ToolPinArch>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub latest: Option<True>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub road: Option<String>,
-}
-
-// views/golden-image.ts:355 at a3b870a6e
-// export function recipePins(digest: Pick<RecipeDigest, "ticks">, key: (id: string) => string = id => id): SealedPin[] {
-//   return digest.ticks
-//     .flatMap((t): SealedPin[] => (t.pin === undefined ? [] : [{ id: key(t.id), ...t.pin, ...(t.road !== undefined ? { road: t.road } : {}) }]))
-//     .sort((a, b) => a.id.localeCompare(b.id));
-// }
-/// One pin per tick that has one, its id through `key` (the identity where the TS caller passes none), then the pin's
-/// own keys, then `road` where the tick has one; sorted by id as `String.prototype.localeCompare` orders them
-/// (`crate::text::collate`).
-pub fn recipe_pins(digest: &RecipeDigest, key: Option<&dyn Fn(&str) -> String>) -> Vec<RecipePin> {
-    let mut pins: Vec<RecipePin> = digest
-        .ticks
-        .iter()
-        .filter_map(|tick| {
-            let pin = tick.pin.as_ref()?;
-            let id = key.map_or_else(|| tick.id.clone(), |key| key(&tick.id));
-            Some(RecipePin {
-                id,
-                tag: pin.tag.clone(),
-                sha256: pin.sha256.clone(),
-                arch: pin.arch,
-                latest: pin.latest,
-                road: tick.road.clone(),
-            })
-        })
-        .collect();
-    pins.sort_by(|a, b| crate::text::collate(&a.id, &b.id));
-    pins
 }
 
 // views/golden-image.ts:442 at a3b870a6e (private)

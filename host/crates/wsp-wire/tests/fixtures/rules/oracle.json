@@ -1933,256 +1933,6 @@
    "want": "tools//"
   }
  ],
- "command_check": [
-  {
-   "args": [
-    "jq"
-   ],
-   "want": "command -v 'jq'"
-  },
-  {
-   "args": [
-    "it's"
-   ],
-   "want": "command -v 'it'\\''s'"
-  },
-  {
-   "args": [
-    "a b"
-   ],
-   "want": "command -v 'a b'"
-  }
- ],
- "recipe_pins": [
-  {
-   "args": [
-    {
-     "ticks": [
-      {
-       "id": "tools/brew/zz",
-       "pin": {
-        "tag": "1.0",
-        "sha256": "aa"
-       }
-      },
-      {
-       "id": "tools/brew/Ab",
-       "pin": {
-        "tag": "2.0",
-        "latest": true
-       },
-       "road": "brew"
-      },
-      {
-       "id": "tools/npm/ab",
-       "pin": {
-        "tag": "3"
-       }
-      },
-      {
-       "id": "tools/npm/b",
-       "road": "npm"
-      },
-      {
-       "id": "agents/claude",
-       "pin": {
-        "tag": "4",
-        "arch": "aarch64"
-       }
-      },
-      {
-       "id": "tools/brew/é",
-       "pin": {
-        "tag": "5"
-       }
-      },
-      {
-       "id": "tools/brew/e",
-       "pin": {
-        "tag": "6"
-       }
-      },
-      {
-       "id": "tools/brew/_x",
-       "pin": {
-        "tag": "7"
-       }
-      },
-      {
-       "id": "tools/brew/10",
-       "pin": {
-        "tag": "8"
-       }
-      },
-      {
-       "id": "tools/brew/9",
-       "pin": {
-        "tag": "9"
-       }
-      }
-     ],
-     "files": []
-    },
-    null
-   ],
-   "want": [
-    {
-     "id": "agents/claude",
-     "tag": "4",
-     "arch": "aarch64"
-    },
-    {
-     "id": "tools/brew/_x",
-     "tag": "7"
-    },
-    {
-     "id": "tools/brew/10",
-     "tag": "8"
-    },
-    {
-     "id": "tools/brew/9",
-     "tag": "9"
-    },
-    {
-     "id": "tools/brew/Ab",
-     "tag": "2.0",
-     "latest": true,
-     "road": "brew"
-    },
-    {
-     "id": "tools/brew/e",
-     "tag": "6"
-    },
-    {
-     "id": "tools/brew/é",
-     "tag": "5"
-    },
-    {
-     "id": "tools/brew/zz",
-     "tag": "1.0",
-     "sha256": "aa"
-    },
-    {
-     "id": "tools/npm/ab",
-     "tag": "3"
-    }
-   ]
-  },
-  {
-   "args": [
-    {
-     "ticks": [
-      {
-       "id": "tools/brew/zz",
-       "pin": {
-        "tag": "1.0",
-        "sha256": "aa"
-       }
-      },
-      {
-       "id": "tools/brew/Ab",
-       "pin": {
-        "tag": "2.0",
-        "latest": true
-       },
-       "road": "brew"
-      },
-      {
-       "id": "tools/npm/ab",
-       "pin": {
-        "tag": "3"
-       }
-      },
-      {
-       "id": "tools/npm/b",
-       "road": "npm"
-      },
-      {
-       "id": "agents/claude",
-       "pin": {
-        "tag": "4",
-        "arch": "aarch64"
-       }
-      },
-      {
-       "id": "tools/brew/é",
-       "pin": {
-        "tag": "5"
-       }
-      },
-      {
-       "id": "tools/brew/e",
-       "pin": {
-        "tag": "6"
-       }
-      },
-      {
-       "id": "tools/brew/_x",
-       "pin": {
-        "tag": "7"
-       }
-      },
-      {
-       "id": "tools/brew/10",
-       "pin": {
-        "tag": "8"
-       }
-      },
-      {
-       "id": "tools/brew/9",
-       "pin": {
-        "tag": "9"
-       }
-      }
-     ],
-     "files": []
-    },
-    "prefix"
-   ],
-   "want": [
-    {
-     "id": "p/agents/claude",
-     "tag": "4",
-     "arch": "aarch64"
-    },
-    {
-     "id": "p/tools/brew/_x",
-     "tag": "7"
-    },
-    {
-     "id": "p/tools/brew/10",
-     "tag": "8"
-    },
-    {
-     "id": "p/tools/brew/9",
-     "tag": "9"
-    },
-    {
-     "id": "p/tools/brew/Ab",
-     "tag": "2.0",
-     "latest": true,
-     "road": "brew"
-    },
-    {
-     "id": "p/tools/brew/e",
-     "tag": "6"
-    },
-    {
-     "id": "p/tools/brew/é",
-     "tag": "5"
-    },
-    {
-     "id": "p/tools/brew/zz",
-     "tag": "1.0",
-     "sha256": "aa"
-    },
-    {
-     "id": "p/tools/npm/ab",
-     "tag": "3"
-    }
-   ]
-  }
- ],
  "golden_head": [
   {
    "args": [
@@ -4864,7 +4614,6 @@
     {}
    ],
    "want": {
-    "spawn": true,
     "maxMachines": 3,
     "maxDepth": 2
    }
@@ -4872,7 +4621,6 @@
   {
    "args": [
     {
-     "spawn": false,
      "maxMachines": 1,
      "maxDepth": 1
     },
@@ -4881,22 +4629,8 @@
     }
    ],
    "want": {
-    "spawn": false,
     "maxMachines": 1,
     "maxDepth": 4
-   }
-  },
-  {
-   "args": [
-    null,
-    {
-     "spawn": false
-    }
-   ],
-   "want": {
-    "spawn": false,
-    "maxMachines": 3,
-    "maxDepth": 2
    }
   }
  ],
