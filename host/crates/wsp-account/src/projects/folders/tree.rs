@@ -370,7 +370,8 @@ impl Folders {
         }
         .boxed_local()
         .shared();
-        state.borrow_mut().sweeping = Some(sweeping);
+        state.borrow_mut().sweeping = Some(sweeping.clone());
+        self.ctx.spawn(sweeping.boxed_local());
     }
 
     // ts: folders.ts:297-304

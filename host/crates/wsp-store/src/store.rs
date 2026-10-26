@@ -46,8 +46,8 @@ pub struct BlobMark {
 /// The top-level name the shape document sits under in the TS state file (store.ts:36); the refusals name it.
 pub const STATE_SHAPE_KEY: &str = "$shape";
 
-/// The shape this host writes and reads: one past the TS host's `STATE_SHAPE = 2` (02, rule 2.19), so a TS host's
-/// `state.db` is refused as an older shape and never read. Its one home is wsp-wire.
+/// The shape this host writes and reads: the TS host's own `STATE_SHAPE = 2` (02, rule 2.19), so a TS host's `state.db`
+/// is opened as it is and any other shape is refused. Its one home is wsp-wire.
 pub use wsp_wire::wire::daemon_version::STATE_SHAPE;
 
 /// The build a save records as the writer (store.ts:41): `StateShape` less `shape` and `at`.

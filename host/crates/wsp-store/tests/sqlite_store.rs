@@ -234,7 +234,7 @@ fn keeps_its_records_in_state_db_in_wal_mode_and_writes_no_state_json() {
         .unwrap()
         .map(Result::unwrap)
         .collect();
-    assert_eq!(tables, vec!["blobs", "collections", "events", "shape", "transcript_index"]);
+    assert_eq!(tables, vec!["blobs", "collections", "events", "migrations", "shape", "transcript_index"]);
     let mode: String = c.query_row("pragma journal_mode", [], |r| r.get(0)).unwrap();
     assert_eq!(mode, "wal");
     let rows: Vec<(String, String, String)> = c
@@ -248,7 +248,7 @@ fn keeps_its_records_in_state_db_in_wal_mode_and_writes_no_state_json() {
 }
 
 #[test]
-fn a_fresh_database_holds_the_schema_and_the_shape_row_and_nothing_else() {
+fn a_fresh_database_holds_the_schema_the_ts_hosts_migrations_rows_and_the_shape_row_and_nothing_else() {
     let home = Home::new();
     let store = sqlite_store(&home.state(), writer());
     assert_eq!(run(store.keys("workspaces")).unwrap(), Vec::<String>::new());
@@ -266,11 +266,20 @@ fn a_fresh_database_holds_the_schema_and_the_shape_row_and_nothing_else() {
         let n: i64 = c.query_row(&format!("select count(*) from {table}"), [], |r| r.get(0)).unwrap();
         assert_eq!(n, 0, "{table}");
     }
+    // The rows the TS host leaves, which it needs to open the file; this host never reads them.
+    let migrated: Vec<(String, i64)> = c
+        .prepare("select module, version from migrations order by rowid")
+        .unwrap()
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(migrated, vec![("store".to_string(), 1), ("transcripts".to_string(), 1)]);
     let shape = shape_row(&home);
     assert_eq!(shape.as_object().unwrap().keys().collect::<Vec<_>>(), vec!["shape", "wsp", "daemon", "bin", "at"]);
     assert_eq!(
         (shape["shape"].clone(), shape["wsp"].clone(), shape["daemon"].clone(), shape["bin"].clone()),
-        (json!(3), json!("test"), json!(1), json!("/usr/local/bin/wsp"))
+        (json!(2), json!("test"), json!(1), json!("/usr/local/bin/wsp"))
     );
 }
 
@@ -283,7 +292,7 @@ fn the_shape_is_beside_the_collections_and_no_collection_read_sees_it() {
     let held = shape_row(&home);
     assert_eq!(
         (held["shape"].clone(), held["wsp"].clone(), held["daemon"].clone(), held["bin"].clone()),
-        (json!(3), json!("0.2.0"), json!(160), json!("/Users/z/.local/bin/wsp"))
+        (json!(2), json!("0.2.0"), json!(160), json!("/Users/z/.local/bin/wsp"))
     );
     assert_eq!(run(store.list("$shape")).unwrap(), Vec::<Value>::new());
     assert_eq!(run(store.keys("$shape")).unwrap(), Vec::<String>::new());
@@ -315,11 +324,11 @@ fn reads_never_write_the_shape_and_each_stores_first_write_stamps_it_again() {
 #[test]
 fn refuses_every_call_of_a_state_a_newer_wsp_wrote_and_leaves_its_bytes() {
     let home = Home::new();
-    let wrote = json!({"shape": 4, "wsp": "0.3.0", "daemon": 161, "bin": NEWER_BIN, "at": "2026-09-18T15:15:00.000Z"});
+    let wrote = json!({"shape": 3, "wsp": "0.3.0", "daemon": 161, "bin": NEWER_BIN, "at": "2026-09-18T15:15:00.000Z"});
     seed(&home, Some(&wrote.to_string()));
     let before = fs::read(home.db()).unwrap();
     let refusal = format!(
-        "{} was written by a newer wsp (state shape 4; this wsp reads 3; written 2026-09-18T15:15:00.000Z by {NEWER_BIN} (wsp 0.3.0, daemon 161)): run that wsp, or move the file aside",
+        "{} was written by a newer wsp (state shape 3; this wsp reads 2; written 2026-09-18T15:15:00.000Z by {NEWER_BIN} (wsp 0.3.0, daemon 161)): run that wsp, or move the file aside",
         db_text(&home)
     );
     refuses_all(&sqlite_store(&home.state(), writer()), &refusal);
@@ -329,8 +338,8 @@ fn refuses_every_call_of_a_state_a_newer_wsp_wrote_and_leaves_its_bytes() {
 
 #[test]
 fn refuses_every_call_of_a_state_whose_shape_document_does_not_parse() {
-    // A copy had its shape set to the bare number 3 by hand: no build can be named off that.
-    for (row, shown) in [("3", "3"), ("null", "null"), (r#"{"shape":3}"#, r#"{"shape":3}"#), ("not json {", r#""not json {""#)] {
+    // A copy had its shape set to the bare number 2 by hand: no build can be named off that.
+    for (row, shown) in [("2", "2"), ("null", "null"), (r#"{"shape":2}"#, r#"{"shape":2}"#), ("not json {", r#""not json {""#)] {
         let home = Home::new();
         seed(&home, Some(row));
         let before = fs::read(home.db()).unwrap();
@@ -345,11 +354,11 @@ fn refuses_every_call_of_a_state_whose_shape_document_does_not_parse() {
 
 #[test]
 fn refuses_every_call_of_a_state_in_an_older_shape_or_with_no_shape_row() {
-    let older = json!({"shape": 2, "wsp": "0.1.0", "daemon": 159, "bin": "/Users/z/.local/bin/wsp", "at": "2026-09-10T08:00:00.000Z"});
+    let older = json!({"shape": 1, "wsp": "0.1.0", "daemon": 159, "bin": "/Users/z/.local/bin/wsp", "at": "2026-09-10T08:00:00.000Z"});
     for (row, words) in [
         (
             Some(older.to_string()),
-            "shape 2, written 2026-09-10T08:00:00.000Z by /Users/z/.local/bin/wsp (wsp 0.1.0, daemon 159)".to_string(),
+            "shape 1, written 2026-09-10T08:00:00.000Z by /Users/z/.local/bin/wsp (wsp 0.1.0, daemon 159)".to_string(),
         ),
         (None, "none recorded".to_string()),
     ] {
@@ -357,7 +366,7 @@ fn refuses_every_call_of_a_state_in_an_older_shape_or_with_no_shape_row() {
         seed(&home, row.as_deref());
         let before = fs::read(home.db()).unwrap();
         let refusal = format!(
-            "{} holds state in an older shape ({words}; this wsp reads shape 3): move the file aside and this wsp starts a fresh one",
+            "{} holds state in an older shape ({words}; this wsp reads shape 2): move the file aside and this wsp starts a fresh one",
             db_text(&home)
         );
         refuses_all(&sqlite_store(&home.state(), writer()), &refusal);
@@ -366,7 +375,7 @@ fn refuses_every_call_of_a_state_in_an_older_shape_or_with_no_shape_row() {
 }
 
 #[test]
-fn refuses_a_ts_hosts_state_db_as_an_older_shape_and_never_reads_it() {
+fn opens_a_ts_hosts_state_db_as_it_is_and_leaves_its_migrations_table_and_rows() {
     let home = Home::new();
     let c = raw(&home);
     // The TS host's seven statements (sqlite-store.ts:30-32,137; sqlite-transcripts.ts:15-17) and what it writes.
@@ -384,13 +393,32 @@ fn refuses_a_ts_hosts_state_db_as_an_older_shape_and_never_reads_it() {
     )
     .unwrap();
     drop(c);
-    let before = fs::read(home.db()).unwrap();
-    let refusal = format!(
-        "{} holds state in an older shape (shape 2, written 2026-10-25T07:00:00.000Z by /usr/local/lib/wsp/bin.js (wsp 0.3.8, daemon 167); this wsp reads shape 3): move the file aside and this wsp starts a fresh one",
-        db_text(&home)
-    );
-    refuses_all(&sqlite_store(&home.state(), writer()), &refusal);
-    assert_eq!(fs::read(home.db()).unwrap(), before);
+    let schema_of = |c: &Connection| -> Vec<(String, String)> {
+        c.prepare("select name, sql from sqlite_master where sql is not null order by rowid")
+            .unwrap()
+            .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+            .unwrap()
+            .map(Result::unwrap)
+            .collect()
+    };
+    let schema = schema_of(&raw(&home));
+    let store = sqlite_store(&home.state(), writer());
+    assert_eq!(run(store.get("owner", "id")).unwrap(), Some(json!({"id": "h_0a993e4c"})));
+    assert_eq!(shape_row(&home)["wsp"], json!("0.3.8"), "a read wrote the shape row");
+    run(store.put("workspaces", "a", json!({"id": "a"}))).unwrap();
+    assert_eq!(run(store.keys("workspaces")).unwrap(), vec!["a"]);
+    let c = raw(&home);
+    assert_eq!(shape_row(&home)["shape"], json!(2));
+    assert_eq!(shape_row(&home)["wsp"], json!("test"), "the first write stamps the shape row with this writer");
+    assert_eq!(schema_of(&c), schema, "the schema was left as the TS host made it");
+    let migrations: Vec<(String, i64)> = c
+        .prepare("select module, version from migrations order by module")
+        .unwrap()
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(migrations, vec![("store".to_string(), 1), ("transcripts".to_string(), 1)]);
 }
 
 #[test]
@@ -398,10 +426,10 @@ fn refuses_a_state_another_process_moved_to_a_newer_shape_while_held_open() {
     let home = Home::new();
     let store = sqlite_store(&home.state(), writer());
     run(store.put("workspaces", "a", json!({"id": "a"}))).unwrap();
-    let wrote = json!({"shape": 4, "wsp": "0.3.0", "daemon": 1, "bin": "/Users/z/.local/bin/wsp", "at": "2026-09-19T08:00:00.000Z"});
+    let wrote = json!({"shape": 3, "wsp": "0.3.0", "daemon": 1, "bin": "/Users/z/.local/bin/wsp", "at": "2026-09-19T08:00:00.000Z"});
     raw(&home).execute("update shape set json = ?", params![wrote.to_string()]).unwrap();
     let refusal = format!(
-        "{} was written by a newer wsp (state shape 4; this wsp reads 3; written 2026-09-19T08:00:00.000Z by /Users/z/.local/bin/wsp (wsp 0.3.0, daemon 1)): run that wsp, or move the file aside",
+        "{} was written by a newer wsp (state shape 3; this wsp reads 2; written 2026-09-19T08:00:00.000Z by /Users/z/.local/bin/wsp (wsp 0.3.0, daemon 1)): run that wsp, or move the file aside",
         db_text(&home)
     );
     assert_eq!(message(run(store.get("workspaces", "a"))), refusal);
@@ -411,11 +439,11 @@ fn refuses_a_state_another_process_moved_to_a_newer_shape_while_held_open() {
 #[test]
 fn a_refused_open_is_tried_again_whole_at_the_next_call() {
     let home = Home::new();
-    let newer = json!({"shape": 4, "wsp": "0.3.0", "daemon": 1, "bin": "/b", "at": "2026-09-19T08:00:00.000Z"});
+    let newer = json!({"shape": 3, "wsp": "0.3.0", "daemon": 1, "bin": "/b", "at": "2026-09-19T08:00:00.000Z"});
     seed(&home, Some(&newer.to_string()));
     let store = sqlite_store(&home.state(), writer());
     assert!(message(run(store.keys("workspaces"))).contains("was written by a newer wsp"));
-    let fixed = json!({"shape": 3, "wsp": "0.4.0", "daemon": 1, "bin": "/b", "at": "2026-09-19T08:00:00.000Z"});
+    let fixed = json!({"shape": 2, "wsp": "0.4.0", "daemon": 1, "bin": "/b", "at": "2026-09-19T08:00:00.000Z"});
     raw(&home).execute("update shape set json = ?", params![fixed.to_string()]).unwrap();
     assert_eq!(run(store.keys("workspaces")).unwrap(), vec!["a"]);
 }
@@ -426,7 +454,7 @@ fn the_transcript_rows_of_a_refused_state_refuse_in_the_same_sentence() {
     seed(&home, None);
     let store = sqlite_store(&home.state(), writer());
     let refusal = format!(
-        "{} holds state in an older shape (none recorded; this wsp reads shape 3): move the file aside and this wsp starts a fresh one",
+        "{} holds state in an older shape (none recorded; this wsp reads shape 2): move the file aside and this wsp starts a fresh one",
         db_text(&home)
     );
     let rows = store.transcripts().expect("the SQLite store keeps transcripts as rows");
@@ -466,7 +494,7 @@ fn a_zero_byte_state_db_opens_as_a_fresh_database() {
     let store = sqlite_store(&home.state(), writer());
     run(store.put("workspaces", "a", json!({"id": "a"}))).unwrap();
     assert_eq!(run(store.keys("workspaces")).unwrap(), vec!["a"]);
-    assert_eq!(shape_row(&home)["shape"], json!(3));
+    assert_eq!(shape_row(&home)["shape"], json!(2));
 }
 
 #[test]
