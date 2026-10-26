@@ -75,3 +75,17 @@ fn put_body(depth: usize) {
 fn sqlite_put_of_a_deep_record() {
     in_child("sqlite_put_of_a_deep_record", 100_000, put_body);
 }
+
+fn put_answers_body(depth: usize) {
+    let home = Home::new();
+    let store = sqlite_store(&home.state(), writer());
+    run(store.put("things", "a", nested(depth))).expect("the record is stored");
+    assert_eq!(run(store.keys("things")).expect("the keys"), vec!["a".to_string()]);
+}
+
+// `put` answers Ok for a record 100,000 levels deep (node's JSON.stringify throws a RangeError from about 3,650 levels:
+// ruling 7 leaves the answer to the Rust), and drops the record it was given without a level of the stack per level.
+#[test]
+fn sqlite_put_of_a_deep_record_answers() {
+    in_child("sqlite_put_of_a_deep_record_answers", 100_000, put_answers_body);
+}
