@@ -425,7 +425,7 @@ pub use image::{
     slate_address_refused, slate_image_missing, slate_image_not_a_file, slate_image_source, slate_image_too_big, slate_list_too_long,
     slate_looks_svg, slate_not_an_image, SlateImageSource, SLATE_IMAGE_LAYOUTS, SLATE_IMAGE_MAX_BYTES,
 };
-pub use patch::apply_slate_patch;
+pub use patch::{apply_slate_patch, carry_slate_values, slate_start_values};
 pub use paths::{get_slate_value, parse_slate_own_path, set_slate_value, slate_equal, slate_own_name, slate_segments, slate_step};
 pub use problems::{
     or_list, slate_description_missing, slate_host_away, slate_nearest, slate_problem, slate_server_not_set_up, slate_unknown_piece,
@@ -445,5 +445,5 @@ pub use sources::{
     SLATE_SOURCE_NAMES,
 };
 pub use steps::{slate_domain_key, slate_link_domain, slate_step_module, SlateStepModule, SLATE_STEPS};
-pub use syntax::{parse_slate, parse_slate_patch, print_slate};
-pub use validate::validate_slate;
+pub use syntax::{compile_slate_text, parse_slate, parse_slate_patch, print_slate, SlateCompiled};
+pub use validate::{validate_document, validate_slate, SlateLines, SlateValidated};
