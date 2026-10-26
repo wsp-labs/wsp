@@ -478,7 +478,8 @@ pub(super) fn call_exec(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<Ca
     Box::pin(async move {
         let given = absolute_folder(frame_str(&args, "cwd").as_deref())?;
         let client = deps.client(None).await?;
-        let (thread, workspace) = thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp exec", false, cloud_on_in(&deps.env)).await?;
+        let (thread, workspace) =
+            thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp exec", false, cloud_on_in(&deps.env)).await?;
         let asked = given.or_else(|| thread_cwd(thread.cwd.as_deref(), workspace.worktree.as_ref()));
         let quiet = |_: &str| {};
         let woken = awake(&*client, &view_of(&workspace)?, "exec", &quiet).await?;

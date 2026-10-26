@@ -20,8 +20,8 @@ use super::client::*;
 use super::io::{as_json, as_text, confirmed, timeout_flag, wait_answer};
 use super::turns_help::{project_defaults_of, wait_through};
 use super::workspaces_help::{
-    disk_gone_lines, place_names, project_listed, project_row_line, projects_listed, thread_lines, thread_rows, thread_tree, threads, threads_of,
-    workspaces, NO_PROJECT_YET, THREAD_HEAD,
+    disk_gone_lines, place_names, project_listed, project_row_line, projects_listed, thread_lines, thread_rows, thread_tree, threads,
+    threads_of, workspaces, NO_PROJECT_YET, THREAD_HEAD,
 };
 
 /// `projectSetLines` (projects.ts:24-29): what a new thread on the project starts on, then the after-worktree

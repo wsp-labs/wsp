@@ -795,7 +795,10 @@ async fn prepare_run(
         return Ok(Prepared { opened: None, woken: None, opening });
     }
     let named = match &ask.beside {
-        Some(beside) => RunTarget::Workspace { workspace: thread_at_in(client, beside, "wsp run --beside", false, cloud_on_in(&*env)).await?.1, opened: None },
+        Some(beside) => RunTarget::Workspace {
+            workspace: thread_at_in(client, beside, "wsp run --beside", false, cloud_on_in(&*env)).await?.1,
+            opened: None,
+        },
         None => {
             let wher = RunWhere { branch: ask.branch.clone(), cwd: ask.cwd.clone() };
             run_target(client, ask.project.as_deref(), caller_cwd, env, Some(elsewhere), &wher, crate::cloud::cloud_on_in(&*env)).await?

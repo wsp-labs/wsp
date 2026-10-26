@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use tokio::sync::oneshot;
 
+use super::workspaces_help::HostRow;
 use crate::init_layout::colour_depth;
 use wsp_catalog::catalog::catalog_agents;
 use wsp_catalog::git_hosts::THREAD_AGENTS;
@@ -20,7 +21,6 @@ use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::types::project_import::ProjectImportRequest;
 use wsp_wire::types::sub_thread::SubOut;
-use super::workspaces_help::HostRow;
 use wsp_wire::views::project_bundle::{HostFolderListing, ProjectExportResult, ProjectImportResult, ProjectPlan, TerminalScheme};
 use wsp_wire::views::session::{ThreadCapWait, ThreadView};
 use wsp_wire::views::session_events::TurnStatus;
