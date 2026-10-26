@@ -47,16 +47,6 @@ fn event_doc(event: &impl serde::Serialize) -> Value {
     serde_json::to_value(event).unwrap_or(Value::Null)
 }
 
-/// Whether the adapter has a revert or a fork road: the port answers only by being asked, so each road is asked for
-/// a future it drops unpolled (the adapters' roads build their work lazily).
-fn roads(adapter: &dyn HarnessAdapter) -> (bool, bool) {
-    let revert = adapter
-        .revert(RevertAsk { session: String::new(), cwd: None, at: RevertAt::BeforeTurn(String::new()) })
-        .is_some();
-    let fork = adapter.fork_session(String::new(), ForkTurn::Anchor(String::new())).is_some();
-    (revert, fork)
-}
-
 /// The files go back to `before` after a refused rewind (TS `putBack`): a failure to put them back is warned.
 async fn put_back(ctx: &Rc<dyn SessionsCtx>, entry: &Entry, cwd: &str, thread_id: &str, before: Option<&str>, error: HostError) -> HostError {
     if let Some(before) = before {
@@ -191,7 +181,7 @@ impl SessionsArea {
         if let (Some(why), false) = (uncut.as_deref(), files) {
             return Err(conflict(&if shared { REWIND_SHARED_LINE.to_string() } else { rewind_kept_line(why, false) }));
         }
-        let (has_revert, has_fork) = roads(adapter.as_ref());
+        let (has_revert, has_fork) = (ctx.adapter_reverts(adapter.as_ref()), ctx.adapter_forks(adapter.as_ref()));
         let copies = !has_revert && has_fork;
         let cuts_conversation = (copies || has_revert) && uncut.is_none();
         if copies && kept_anchor.is_none() {

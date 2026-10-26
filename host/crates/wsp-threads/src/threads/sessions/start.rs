@@ -138,13 +138,6 @@ fn agent_off_line(agent: &str, computer: &str) -> String {
     format!("{agent} is off on {computer}, so no thread there runs it")
 }
 
-/// Whether the adapter has a fork road. The port answers only by being asked, so a probe that drops the future it
-/// returns: a conforming adapter builds its fork lazily.
-fn adapter_forks(adapter: &dyn HarnessAdapter) -> bool {
-    let probe = adapter.fork_session(String::new(), ForkTurn::Anchor(String::new()));
-    probe.is_some()
-}
-
 impl SessionsArea {
     /// sessions.ts:1489, the wrapper over the whole start. Rule S26; the rest is `prepare` then `launch_prepared`.
     pub async fn start_send(&self, workspace_id: &str, opts: StartOptions, origin: Option<Caller>) -> Result<Rc<dyn SessionHandle>, HostError> {
@@ -434,7 +427,7 @@ impl SessionsArea {
             }
         };
         let adapter = built.adapter.clone();
-        let no_fork_road = !adapter_forks(adapter.as_ref());
+        let no_fork_road = !ctx.adapter_forks(adapter.as_ref());
         let fork_turn = match plan.as_ref() {
             None => None,
             Some(plan) => {

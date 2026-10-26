@@ -208,6 +208,8 @@ fn fx_on(agent: Agent) -> Fx {
     );
     let asked = Rc::new(RefCell::new(Vec::new()));
     let seen = asked.clone();
+    let forks = agent.forks;
+    hook!(host, "SessionsCtx::adapter_forks", dyn Fn(&dyn HarnessAdapter) -> bool, move |_a: &dyn HarnessAdapter| forks);
     let agent: Arc<dyn HarnessAdapter> = Arc::new(agent);
     hook!(host, "LaunchCtx::adapter_for", dyn Fn(&Entry, AdapterAsk) -> Result<BuiltAdapter, HostError>, move |_e: &Entry, ask: AdapterAsk| {
         let h = ask.named.clone().expect("the harness is named");

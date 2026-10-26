@@ -136,6 +136,8 @@ fn rig_on(host: &Rc<FakeHost>, entry: &Entry, session: Arc<FakeSession>, turn: R
     let slot: Rc<RefCell<Option<OnEvent>>> = Rc::new(RefCell::new(None));
     let mut t = turn_start(entry, &turn, &session, &slot);
     tweak(&mut t);
+    let answers = session.answers;
+    host.hooks.set::<dyn Fn(&dyn HarnessSession) -> bool>("TurnsCtx::session_answers", Rc::new(move |_s: &dyn HarnessSession| answers));
     let handle = TurnsArea::new(host.clone()).run_turn(t).ok().expect("the turn opens");
     let forward = slot.borrow().clone().expect("open handed the forward over");
     Rig { host: host.clone(), turn, session, forward, handle }

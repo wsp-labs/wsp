@@ -263,3 +263,6 @@
 //@ LaunchCtx::vault
         Default::default()
 //@end
+//@ TurnsCtx::session_answers
+        true
+//@end
