@@ -21,7 +21,7 @@ use wsp_wire::types::sub_thread::{
 use wsp_wire::views::golden_image::{golden_head, GoldenManifest, GoldenVersion};
 use wsp_wire::views::workspace::{scope_of, BranchOfRecord, Caller, ProjectView};
 use wsp_wire::wire::daemon::{GitStatusReply, DETACHED_HEAD};
-use wsp_words::exit::{HostError, Kind};
+use wsp_words::exit::{not_found_refusal, HostError, Kind};
 use wsp_words::js::js_round;
 use wsp_words::place_word::{names_place, provider_key_name, PlaceRef};
 use wsp_words::projects::{copies_folder, kind_for_computer, runs_in_folder};
@@ -177,10 +177,11 @@ impl SubSpawnArea {
         let on = provider_key_name(&row.name);
         let place_id = self.ctx.landing_place(&row.id).await?;
         let place = place_id.clone().unwrap_or_else(|| row.id.clone());
-        let lead = self
-            .ctx
-            .live(&scope.workspace_id)
-            .expect("a scope's workspace is a live thread");
+        let lead = self.ctx.live(&scope.workspace_id).ok_or_else(|| {
+            AreaError::Host(not_found_refusal(
+                &wsp_words::words::computer::no_workspace_refusal(None),
+            ))
+        })?;
         let (lead_kind, lead_name, lead_project) = {
             let lead_record = lead.borrow().record.borrow().clone();
             (

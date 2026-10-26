@@ -136,7 +136,7 @@ impl AddState {
 }
 
 fn spawn_local_write(write: PendingWrite) {
-    tokio::task::spawn_local(write);
+    crate::local_task::spawn(write);
 }
 
 /// The road back the install hands the add before any byte of wsp's is sent (manage.ts:255).
@@ -374,7 +374,7 @@ impl ManageDoor {
             state.move_to(joined.clone()).await;
             let views = Rc::clone(&self.views);
             let (place, floor) = (place_id.clone(), joined.clone());
-            tokio::task::spawn_local(async move {
+            crate::local_task::spawn(async move {
                 let _ = views.floor_once(&floor, &place).await;
             });
             return Ok(PlaceAdded {
@@ -674,6 +674,7 @@ impl ManageDoor {
             .live
             .borrow()
             .get(place_id)
+            .filter(|live| Rc::ptr_eq(&live.reach, &reach))
             .and_then(|live| live.forward.clone());
         let forward = match opened {
             Some(forward) => forward,
@@ -682,7 +683,13 @@ impl ManageDoor {
                     .map(|opened| opened.map(Rc::new))
                     .boxed_local()
                     .shared();
-                if let Some(live) = self.ctx.live.borrow_mut().get_mut(place_id) {
+                if let Some(live) = self
+                    .ctx
+                    .live
+                    .borrow_mut()
+                    .get_mut(place_id)
+                    .filter(|live| Rc::ptr_eq(&live.reach, &reach))
+                {
                     live.forward = Some(forward.clone());
                 }
                 forward

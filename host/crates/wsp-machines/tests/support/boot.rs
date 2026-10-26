@@ -1734,7 +1734,6 @@ impl BootRuntime for Fake {
         Ok(false)
     }
     async fn reattach(&self, row: &Row, again: bool) -> Reopened {
-        tick().await;
         let turn = row.borrow().turn_id.clone();
         self.gen("reattach", vec![json!(turn), json!(again)]);
         match self
@@ -1750,22 +1749,18 @@ impl BootRuntime for Fake {
         }
     }
     async fn devices(&self) -> Result<Vec<ScopedDevice>, HostError> {
-        tick().await;
         self.gen("deviceDoor.list", vec![]);
         Ok(self.device_list.borrow().clone())
     }
     async fn revoke_device(&self, device_id: &str) -> Result<(), HostError> {
-        tick().await;
         self.gen("deviceDoor.revoke", vec![json!(device_id)]);
         Ok(())
     }
     async fn revoke_asides(&self) -> Result<(), HostError> {
-        tick().await;
         self.gen("deviceDoor.revokeAsides", vec![]);
         Ok(())
     }
     async fn shell_held_devices(&self) -> Result<IndexSet<String>, HostError> {
-        tick().await;
         self.gen("shellHeldDevices", vec![]);
         Ok(self.shells.borrow().iter().cloned().collect())
     }
@@ -1773,17 +1768,14 @@ impl BootRuntime for Fake {
         self.running.borrow().iter().any(|t| t == thread_id)
     }
     async fn worktree_mounted(&self, entry: &Entry) -> Result<(), HostError> {
-        tick().await;
         self.gen("worktreeMounted", vec![json!(entry_id(entry))]);
         Ok(())
     }
     async fn sweep_runs(&self, entry: &Entry) -> Result<(), HostError> {
-        tick().await;
         self.gen("sweepRuns", vec![json!(entry_id(entry))]);
         Ok(())
     }
     async fn resume_queue(&self) -> Result<(), HostError> {
-        tick().await;
         self.gen("resumeQueue", vec![]);
         Ok(())
     }
@@ -1813,12 +1805,10 @@ impl BootRuntime for Fake {
         self.gen("armSubs", vec![]);
     }
     async fn deliver_owed(&self) -> Result<(), HostError> {
-        tick().await;
         self.gen("deliverOwed", vec![]);
         Ok(())
     }
     async fn move_old_copies(&self) -> Result<(), HostError> {
-        tick().await;
         self.gen("moveOldCopies", vec![]);
         Ok(())
     }
@@ -1826,7 +1816,6 @@ impl BootRuntime for Fake {
         self.gen("armSweep", vec![]);
     }
     async fn slates_ready(&self) -> Result<(), HostError> {
-        tick().await;
         self.gen("slates.ready", vec![]);
         Ok(())
     }
