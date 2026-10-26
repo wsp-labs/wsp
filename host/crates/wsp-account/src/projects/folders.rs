@@ -87,6 +87,8 @@ pub trait FoldersCtx: Base {
     async fn local_exec(&self, cmd: &str, timeout_ms: u64, stdin: Option<Vec<u8>>) -> Result<ExecResult, HostError>;
     /// `ctx.state`'s sweep fields.
     fn sweep_state(&self) -> Rc<RefCell<SweepState>>;
+    /// A TS `void f()`: `f` runs now, nothing awaits it.
+    fn spawn(&self, f: LocalBoxFuture<'static, ()>);
 }
 
 /// The folders area: its context, the host's git write queue and the setup lines kept for a first start.

@@ -9,8 +9,11 @@ tests/fixtures/store/sqlite_store.json.
 
 ## What it does
 
-The host's records and blobs in `state.db` beside the state file, in chapter 02's fresh schema (`SCHEMA`): the TS
-host's statements less `migrations`, run once, in one transaction, on a database with no `shape` table. The store
+The host's records and blobs in `state.db` beside the state file, in the TS host's own tables: a `state.db` that host
+made is opened as it is (its `migrations` table and rows are never read, dropped or rewritten), and a database with no
+`shape` table gets `SCHEMA`, the TS host's statements, once, in one transaction, with the `migrations` rows `MIGRATED`
+that the TS host needs to open the file (without them it runs its first migration again and fails on
+`table collections already exists`; tests/cross_host.rs). The store
 opens at its first call, refuses a database in any other shape, and stamps the shape row at each process's first
 write. A checkpointer on a thread of its own copies the WAL into the database; a commit past 64 MiB of WAL does it
 itself. The connection belongs to the state owner's thread and runs synchronously (rules 2.20, 3.1): `SqliteStore` is
@@ -29,7 +32,7 @@ not `Send`, and every future it returns is ready at its first poll.
    c. With a `shape` table: refuse a wrong shape (7) **before** anything writes, so a refused file keeps its bytes.
    d. `journal_mode = wal`, `synchronous = normal`, `wal_autocheckpoint = ceil(WAL_BOUND_BYTES / page_size)` (16384 at
       4 KiB pages), `journal_size_limit = 16777216` (:311-315).
-   e. `begin immediate`; probe again; with a `shape` table refuse a wrong shape, else run `SCHEMA` and insert the shape
+   e. `begin immediate`; probe again; with a `shape` table refuse a wrong shape, else run `SCHEMA`, insert the `MIGRATED` rows and the shape
       row `shape_now(writer)`; `commit` (:316-321). The second probe is what lets two processes open one fresh file at
       once: the one that waited finds the other's schema and runs none.
    f. Any error in c to e rolls back if a transaction is open, closes the connection and reaches the caller as SQLite's
@@ -60,8 +63,9 @@ not `Send`, and every future it returns is ready at its first poll.
    already wrote one (2e); the first write writes it again with a new `at`.
 9. Each write is one autocommit statement (rule 2.8). Busy handling is `busy_timeout` alone, no retry (rule 2.7): a
    write waits up to 10 s on another connection's lock, then fails with SQLite's message.
-10. A fresh database holds exactly the `SCHEMA` objects (tables `blobs collections events shape transcript_index`, index
-    `events_thread`, no `migrations`) and one row, the shape (rule 2.29). The table and column names are a contract with
+10. A fresh database holds exactly the `SCHEMA` objects (tables `blobs collections events migrations shape
+    transcript_index`, index `events_thread`), the two `migrations` rows and the shape row (rule 2.29, which allows a new
+    file without `migrations`; the TS host cannot open one, so this host writes it). The table and column names are a contract with
     the doctor, init and the GPUI app (rule 2.4).
 11. Modes (rules 2.1, 2.3): `state.db` is 0600 because the build makes it so; `-wal` and `-shm` take its mode; the
     folder is 0700 when the build made or repaired it. Folders above it are not touched.
@@ -80,9 +84,10 @@ not `Send`, and every future it returns is ready at its first poll.
 
 - A `state.db` of text bytes: every call fails with `<db> does not read as a state file (file is not a database), ...`
   and the bytes stay (store.test.ts:408-416).
-- A TS host's `state.db` (its seven tables, `migrations` rows, shape 2): the older sentence naming shape 2 and
-  `this wsp reads shape 3`, bytes kept.
-- Shape row `3`, `null`, `{"shape":3}`, or text `not json {`: the shape-unreadable sentence with that value.
+- A TS host's `state.db` (its tables, `migrations` rows, shape 2): opened as it is; every record reads and writes as the
+  TS host's does, the `migrations` table and its rows stay (tests/cross_host.rs).
+- A database in shape 1, none recorded, or 3: the older or newer sentence with `this wsp reads shape 2`, bytes kept.
+- Shape row `2`, `null`, `{"shape":2}`, or text `not json {`: the shape-unreadable sentence with that value.
 - A `shape` table with no row: the older sentence, `none recorded`.
 - A database with a `collections` table and no `shape` table: the open's `SCHEMA` fails with SQLite's
   `table collections already exists`, rolled back; the table's rows stay.
@@ -109,8 +114,8 @@ None directly. Rule 2.23's measured fresh start (two records after boot) is the 
 1. The checkpointer is a std thread watched by a supervisor thread; `CheckpointerSpawn` is the seam the TS tests
    reach by mocking `node:worker_threads`. `warn` is the seam for `console.warn`.
 2. `pragma(name)` is added for tests to read the per-connection pragmas; the TS tests had no way to and did not.
-3. Dropped (Proposal 3): `STORE_MODULES`, `StoreModule`, `migrate`, `stateMigratedByNewerLine`, the `migrations` table,
-   `importedStatePath`, `moveAside`, `fileBlobs`, `writeOwnLeftover`, the import inside `buildDatabase`, and the move
+3. Dropped (Proposal 3): `STORE_MODULES`, `StoreModule`, `migrate`, `stateMigratedByNewerLine`, every read of the
+   `migrations` table (it is written once, in a new file, and otherwise left alone), `importedStatePath`, `moveAside`, `fileBlobs`, `writeOwnLeftover`, the import inside `buildDatabase`, and the move
    aside of a state file found beside the database.
 
 ## After the port
