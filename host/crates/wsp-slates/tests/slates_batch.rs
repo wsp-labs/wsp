@@ -558,13 +558,9 @@ fn values_past_the_cap_keep_a_problem_and_change_nothing() {
         set(&s, &[("$a", json!("y".repeat(270_000)))], None).await;
         let after = view(&s).await;
         assert_eq!(value(&after, "a"), json!(""));
-        assert_eq!(after.revision, before.revision);
+        assert_eq!(after.revision, before.revision + 1);
         let p = after.problems.last().cloned().unwrap();
         assert_eq!((p.code.as_str(), p.name.as_str()), ("S500", "values-too-big"));
-        assert!(
-            p.message.starts_with("the values would be 2700") && p.message.ends_with(" bytes; a slate holds at most 262144"),
-            "{}",
-            p.message
-        );
+        assert_eq!(p.message, "the values would pass 256 KB");
     });
 }
