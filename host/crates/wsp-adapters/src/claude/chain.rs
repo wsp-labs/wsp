@@ -125,14 +125,14 @@ pub fn read_chain(read: &[String]) -> Result<ReadChain, AdapterError> {
                     .iter()
                     .filter(|b| b.get("type").and_then(Value::as_str) == Some("tool_use"))
                     .filter_map(|b| {
-                        Some(ChainCall { id: block_text(*b, "id")?, name: js_string(b.get("name")), input: b.get("input").filter(|v| !v.is_null()).cloned().unwrap_or_else(|| json!({})) })
+                        Some(ChainCall { id: block_text(b, "id")?, name: js_string(b.get("name")), input: b.get("input").filter(|v| !v.is_null()).cloned().unwrap_or_else(|| json!({})) })
                     })
                     .collect()
             } else {
                 vec![]
             },
             answers: if kind == "user" {
-                blocks.iter().filter(|b| b.get("type").and_then(Value::as_str) == Some("tool_result")).filter_map(|b| block_text(*b, "tool_use_id")).collect()
+                blocks.iter().filter(|b| b.get("type").and_then(Value::as_str) == Some("tool_result")).filter_map(|b| block_text(b, "tool_use_id")).collect()
             } else {
                 vec![]
             },

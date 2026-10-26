@@ -150,7 +150,7 @@ impl Wire {
     /// The seed lines, written as the TS fake writes them: each through `write`, so each reaches `on_write`.
     pub fn seed(&self, lines: &[String]) {
         for line in lines {
-            let _ = self.write(line.clone());
+            drop(self.write(line.clone()));
         }
     }
 }

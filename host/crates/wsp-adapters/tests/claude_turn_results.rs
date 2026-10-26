@@ -334,7 +334,7 @@ async fn a_resume_after_a_run_that_died_with_background_work_answers_the_persons
     assert_eq!(result.duration_ms, Some(n(1237.0)));
     let events = snap(&events);
     assert_eq!(events.iter().filter(|e| matches!(e, AdapterEvent::TurnDone { .. })).count(), 1);
-    assert_eq!(end_of(&events).1, true);
+    assert!(end_of(&events).1);
 }
 
 /// The two launches of a resume of a session the machine no longer holds: the first answers the gone session, every
@@ -734,7 +734,7 @@ async fn ends_when_the_task_wakes_the_agent_and_the_agents_next_reply_is_the_tur
     // One reply, and the woken agent's words reached the pane before it.
     assert_eq!(dones(&events).len(), 1);
     assert_eq!(text_deltas(&snap(&events)), vec![WOKE_TEXT.to_string()]);
-    assert_eq!(end_of(&snap(&events)).1, true);
+    assert!(end_of(&snap(&events)).1);
 }
 
 // TS: adapter.test.ts:1641
@@ -914,7 +914,7 @@ async fn ended_with_a_server_still_running_reads_done_and_names_the_running_work
     // The line a thread's row and a wait read.
     assert_eq!(notify_tail(&result), Some(background_tasks_line(1)));
     assert_eq!(dones(&events).len(), 1);
-    assert_eq!(end_of(&snap(&events)).1, true);
+    assert!(end_of(&snap(&events)).1);
 }
 
 // TS: adapter.test.ts:1763

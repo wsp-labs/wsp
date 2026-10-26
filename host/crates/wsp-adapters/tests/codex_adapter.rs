@@ -1247,12 +1247,13 @@ mod the_title_codex_makes_for_a_thread {
         codex.rename_session(THREAD, "the name", exec).await.unwrap();
         let asked = asked.lock().unwrap();
         assert_eq!(asked.len(), 4);
+        let secrets = Regex::new(r"it's here|tok-x|CODEX_HOME=").unwrap();
         for (cmd, env) in asked.iter() {
             let env = env.as_ref().expect("no env on the input");
             assert_eq!(env.get("CODEX_HOME").map(String::as_str), Some("/root/it's here"));
             assert_eq!(env.get("GATEWAY_TOKEN").map(String::as_str), Some("tok-x"));
             assert!(cmd.contains(ENV_FROM_INPUT), "{cmd}");
-            assert!(!Regex::new(r"it's here|tok-x|CODEX_HOME=").unwrap().is_match(cmd), "{cmd}");
+            assert!(!secrets.is_match(cmd), "{cmd}");
         }
     }
 }

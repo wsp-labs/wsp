@@ -27,7 +27,7 @@ pub fn version_probe_command(base_env: Option<&IndexMap<String, Option<String>>>
 
 /// TS catalog.ts:28.
 pub fn parse_version(stdout: &str) -> Option<String> {
-    let last = js_trim(js_trim(stdout).split('\n').last().unwrap_or(""));
+    let last = js_trim(js_trim(stdout).split('\n').next_back().unwrap_or(""));
     (!last.is_empty()).then(|| last.to_string())
 }
 

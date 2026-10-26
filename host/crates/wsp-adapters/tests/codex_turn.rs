@@ -19,7 +19,7 @@ use serde_json::{json, Value};
 use wsp_adapters::codex::adapter::CodexAdapterDeps;
 use wsp_adapters::codex::command::{build_command, BrokerMode, BuildCommandOptions, CodexBroker};
 use wsp_adapters::codex::{create_codex_adapter, CodexAdapter, CodexSession};
-use wsp_adapters::pending::{codex_key_refused_line, codex_missing_env_line, codex_not_signed_in_line, codex_reconnect_line, lost_session_prompt, CodexClaims, LOST_SESSION_NOTE};
+use wsp_adapters::pending::{codex_key_refused_line, codex_missing_env_line, codex_not_signed_in_line, codex_reconnect_line, CodexClaims};
 use wsp_adapters::port::{
     agent_word, AdapterEvent, AnswerOutcome, DeltaKind, ExecFailure, FilePatch, HarnessStartOptions, OnEvent, PermissionAnswer, PermissionAsk, PermissionOutcome, PlanStep, Settle, SteerOutcome, TurnDelta, TurnImage,
     TurnResult, TurnStatus, TurnTokens, PERMISSION_ALLOW, PERMISSION_DENY,
@@ -500,7 +500,7 @@ mod codex_adapter_over_codex_app_server {
                 AdapterEvent::Limit { limit, .. } => Some(limit.clone()),
                 _ => None,
             })
-            .last()
+            .next_back()
             .expect("no limit");
         assert_eq!(
             limit,

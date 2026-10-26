@@ -52,6 +52,7 @@ pub(super) struct Compaction {
 }
 
 /// What a side run does with each answer: the next line to send, or how the run ends. TS turn-pages.ts:10.
+#[allow(clippy::large_enum_variant)]
 pub enum SideStep {
     Send(String),
     End(TurnResult),
@@ -273,6 +274,7 @@ pub struct KeptThread {
 /// The thread's next turn on a server its last turn left up: thread/resume then turn/start, written together, where
 /// the thread was let go. An image with no path, or one not absolute, refuses before anything is written. TS
 /// adapter.ts:1238.
+#[allow(clippy::too_many_arguments)]
 pub fn next_on(
     ctx: &TurnContext,
     sessions: &Sessions,
@@ -986,7 +988,7 @@ impl Turn {
             let running: Vec<String> =
                 st.children.children.iter().filter(|(_, c)| c.state == SubagentState::Running).map(|(k, _)| k.clone()).collect();
             for task in running {
-                st.children.end_child(&thread, &task, ended.clone(), &mut out);
+                st.children.end_child(&thread, &task, ended, &mut out);
             }
             if st.turn_result.is_none() {
                 if let Some(end) = st.lead_end.clone() {
