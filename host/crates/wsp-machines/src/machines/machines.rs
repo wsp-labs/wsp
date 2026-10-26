@@ -229,7 +229,48 @@ impl MachinesArea {
     /// The area's bus listeners, called by the wiring for every event in emit order: the `workspace.status` adoption
     /// (machines.ts:765) and the idle touches and forgets (:840-846).
     pub fn on_event(self: &Rc<Self>, event: &EventUnion) {
-        todo!()
+        const TOUCHES: [&str; 10] = [
+            "session.start",
+            "session.delta",
+            "session.done",
+            "session.end",
+            "session.steer",
+            "inbox.file",
+            "workspace.woken",
+            "workspace.upgraded",
+            "project.import",
+            "project.export",
+        ];
+        const FORGETS: [&str; 3] = ["workspace.napped", "workspace.gone", "workspace.deleted"];
+        let kind = wsp_core::types::events::event_type(event);
+        if kind == "workspace.status" {
+            let Ok(value) = serde_json::to_value(event) else { return };
+            let status = &value["status"];
+            if status["phase"] == "running" && status["machineState"] == "paused" {
+                let entry = self.rt.live().borrow().get(status["id"].as_str().unwrap_or_default()).cloned();
+                if let Some(entry) = entry {
+                    let area = self.clone();
+                    tokio::task::spawn_local(async move {
+                        if let Err(e) = area.adopt_pause(&entry).await {
+                            area.rt.warn(&e.message);
+                        }
+                    });
+                }
+            }
+            return;
+        }
+        let touches = TOUCHES.contains(&kind) || kind == "workspace.created";
+        if !touches && !FORGETS.contains(&kind) {
+            return;
+        }
+        let Ok(value) = serde_json::to_value(event) else { return };
+        let id = if kind == "workspace.created" { value["workspace"]["id"].as_str() } else { value["workspaceId"].as_str() };
+        let Some(id) = id else { return };
+        if touches {
+            self.rt.idle().touch(id);
+        } else {
+            self.rt.idle().forget(id);
+        }
     }
 }
 

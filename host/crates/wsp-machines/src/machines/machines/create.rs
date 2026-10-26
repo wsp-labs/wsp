@@ -404,7 +404,7 @@ impl ExecHook for ObserveExec {
 }
 
 /// Whether a machine stays as the provider holds it: `kill_until_gone` (golden.ts:119) with its constants.
-const GONE_READS: u32 = 12;
+pub(crate) const GONE_READS: u32 = 12;
 const KILL_ASKS: u32 = 3;
 const KILL_GRACE_MS: i64 = 30_000;
 const KILL_POLL_MS: i64 = 1_000;
@@ -450,7 +450,7 @@ pub(crate) fn iso(ms: i64) -> String {
 }
 
 /// A provider's answer as a host error, with its kind, status and code kept (`AreaError::into_host`).
-fn host_of(e: EngineError) -> HostError {
+pub(crate) fn host_of(e: EngineError) -> HostError {
     AreaError::from(e).into_host()
 }
 
@@ -459,7 +459,7 @@ pub(crate) fn host_to_engine(e: HostError) -> EngineError {
     EngineError::Other { message: e.message, code: None }
 }
 
-fn is_missing_host(e: &HostError) -> bool {
+pub(crate) fn is_missing_host(e: &HostError) -> bool {
     matches!(e.kind, Some(Kind::Missing))
 }
 
@@ -469,7 +469,7 @@ fn parse_row<T: DeserializeOwned>(v: serde_json::Value) -> Result<T, HostError> 
 
 /// One read of a machine as `readOnce` reads it: the state its handle reported, or a state read on the handle; a 404
 /// reads as gone (golden.ts:150).
-async fn read_once(at: &Arc<dyn MachineBackend>, id: &str) -> Result<MachineState, EngineError> {
+pub(crate) async fn read_once(at: &Arc<dyn MachineBackend>, id: &str) -> Result<MachineState, EngineError> {
     match at.get(id).await {
         Ok(machine) => match machine.seen().map(|s| s.state) {
             Some(state) => Ok(state),
@@ -480,7 +480,7 @@ async fn read_once(at: &Arc<dyn MachineBackend>, id: &str) -> Result<MachineStat
     }
 }
 
-async fn sleep_ms(clock: &Rc<dyn Clock>, ms: i64) {
+pub(crate) async fn sleep_ms(clock: &Rc<dyn Clock>, ms: i64) {
     let (tx, rx) = oneshot::channel::<()>();
     let run: Timer = Box::new(move || {
         let _ = tx.send(());
@@ -522,7 +522,7 @@ async fn kill_until_gone(clock: &Rc<dyn Clock>, at: &Arc<dyn MachineBackend>, ma
     Err(HostError::with_kind(format!("machine {} is still {} after three kills; it bills until reap or a kill by hand takes", machine.id(), machine_state_word(alive)), Kind::MachineAlive))
 }
 
-fn machine_state_word(state: MachineState) -> &'static str {
+pub(crate) fn machine_state_word(state: MachineState) -> &'static str {
     match state {
         MachineState::Starting => "starting",
         MachineState::Running => "running",

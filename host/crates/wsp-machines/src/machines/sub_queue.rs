@@ -30,7 +30,7 @@ use crate::machines::area_error::{AreaError, AreaResult};
 use crate::machines::machines::Entry;
 use wsp_core::clock::Cancel;
 use wsp_core::context::Joined;
-use wsp_core::types::internal::{SessionEntry, SubStartOpts, SubStartRecord, SubTree, SUB_STARTS};
+use wsp_core::types::internal::{SessionEntry, SubStartOpts, SubStartRecord, SubTree};
 use wsp_core::types::wiring::WorkspaceRecord;
 
 /// sub-queue.ts:21. How often a held spawn reads its cloud's limits again for a slot.
@@ -124,14 +124,17 @@ pub trait SubQueueCtx {
     fn on_event(&self, kind: &str, f: Rc<dyn Fn(&Value)>);
 }
 
+/// One callback a held start answers through, taken once.
+pub(crate) type Answer<A> = Box<dyn FnOnce(A)>;
+
 /// sub-queue.ts:32 `Held`: one held spawn's start, with the caller still waiting where there is one.
 pub(crate) struct Held {
     pub record: SubStartRecord,
     /// The machine's name, which a delete of its record names.
     pub name: String,
-    pub started: RefCell<Option<Box<dyn FnOnce(StartedTurn)>>>,
-    pub failed: RefCell<Option<Box<dyn FnOnce(HostError)>>>,
-    pub tell: RefCell<Option<Box<dyn FnOnce(ThreadCapWait)>>>,
+    pub started: RefCell<Option<Answer<StartedTurn>>>,
+    pub failed: RefCell<Option<Answer<HostError>>>,
+    pub tell: RefCell<Option<Answer<ThreadCapWait>>>,
     pub written: Cell<bool>,
     pub left: RefCell<Option<Box<dyn FnOnce()>>>,
     pub gone: wsp_core::context::Joined,
@@ -158,7 +161,7 @@ pub struct SubQueueArea {
     pub(crate) timer: RefCell<Option<Cancel>>,
 }
 
-fn fire<A>(cell: &RefCell<Option<Box<dyn FnOnce(A)>>>, arg: A) {
+fn fire<A>(cell: &RefCell<Option<Answer<A>>>, arg: A) {
     let f = cell.borrow_mut().take();
     if let Some(f) = f {
         f(arg);
@@ -421,7 +424,7 @@ impl SubQueueArea {
         self.persist_cell(record).await?;
         let view = self.ctx.view(&snapshot(record));
         self.ctx.emit(json!({ "type": "workspace.created", "workspace": view }));
-        self.pump_queue();
+        drop(self.pump_queue());
         Ok(())
     }
 
@@ -575,7 +578,7 @@ impl SubQueueArea {
                         if let Some(wait) = wait {
                             fire(&h.tell, wait);
                         }
-                        area.pump_queue();
+                        drop(area.pump_queue());
                     }
                     Err(e) => {
                         let line = format!("the held start was not written down: {}", e.message());
@@ -756,7 +759,7 @@ impl SubQueueArea {
             Box::new(move || {
                 if let Some(area) = me.upgrade() {
                     area.timer.borrow_mut().take();
-                    area.pump_queue();
+                    drop(area.pump_queue());
                 }
             }),
         );
@@ -841,7 +844,7 @@ impl SubQueueArea {
             let turn = x.record.turn_id.clone();
             self.ctx.update_session(&turn, &mut |row| row.view.capped = Some(wait.clone()));
             let record = record_of(entry);
-            let differs = record.borrow().queue.as_ref().map_or(true, |q| Some(cap_why_of(q.why)) != wait.why);
+            let differs = record.borrow().queue.as_ref().is_none_or(|q| Some(cap_why_of(q.why)) != wait.why);
             if differs {
                 let since = since_of(entry);
                 record.borrow_mut().queue = Some(WorkspaceViewQueue { since, why: queue_why_of(wait.why) });
@@ -907,13 +910,13 @@ impl SubQueueArea {
         match attempt {
             Ok(None) => {}
             Ok(Some(handle)) => {
-                self.pump_queue();
+                drop(self.pump_queue());
                 fire(&h.started, handle);
                 return;
             }
             Err(e) => self.let_through_failed(&entry, &h, &claim, e, waiting_view).await,
         }
-        self.pump_queue();
+        drop(self.pump_queue());
     }
 
     /// The catch of sub-queue.ts:413-441: a stop drops, a cap refusal queues again, any other failure fails the first
@@ -985,7 +988,7 @@ impl SubQueueArea {
             self.last_wait.borrow_mut().insert(id, wait);
             self.hold_of(r);
         }
-        self.pump_queue();
+        drop(self.pump_queue());
         Ok(())
     }
 
@@ -1039,7 +1042,7 @@ impl SubQueueArea {
             }
         }
         if matches!(kind, "workspace.napped" | "workspace.deleted" | "workspace.gone" | "workspace.released" | "place.changed") {
-            self.pump_queue();
+            drop(self.pump_queue());
         }
     }
 }

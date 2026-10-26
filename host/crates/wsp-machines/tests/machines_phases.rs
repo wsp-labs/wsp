@@ -342,7 +342,7 @@ fn idle_touches_and_forgets_on_the_bus_events() {
             on("session.start", json!({ "sessionId": "s" }), "ws_a"),
             on("session.delta", json!({ "sessionId": "s", "kind": "text", "text": "x" }), "ws_b"),
             on("session.done", json!({ "sessionId": "s", "result": { "status": "completed" } }), "ws_c"),
-            on("session.end", json!({ "sessionId": "s", "sawResult": true }), "ws_d"),
+            on("session.end", json!({ "sessionId": "s", "sawResult": true, "exitCode": null }), "ws_d"),
             on("session.steer", json!({ "sessionId": "s", "prompt": "p" }), "ws_e"),
             on("inbox.file", json!({ "path": "/f", "bytes": 1 }), "ws_f"),
             on("workspace.woken", json!({ "machineId": "m-1" }), "ws_g"),

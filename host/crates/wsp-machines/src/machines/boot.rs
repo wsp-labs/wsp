@@ -33,6 +33,12 @@ use wsp_words::exit::HostError;
 
 use super::machines::{Entry, Ids, Row, ThreadOn};
 
+/// The turn, workspace and thread key of a held row (boot.ts `threadKeyOf`).
+fn row_keys(s: &Row) -> (String, String, String) {
+    let e = s.borrow();
+    (e.turn_id.clone(), e.view.workspace_id.clone(), wsp_wire::views::session::thread_key_of(&e.view))
+}
+
 /// A computer a project can live on, by its row in the places table (boot.ts:1038).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ComputerRow {
@@ -241,17 +247,111 @@ pub struct BootArea {
     pub(crate) rows_moved: RefCell<IndexMap<String, String>>,
     pub(crate) rows_gone: RefCell<IndexMap<String, (String, Option<String>)>>,
     pub(crate) rows_queued: std::cell::Cell<bool>,
+    /// `rowsOut`: the last link of the rows chain, each push waits for the one before it.
+    pub(crate) rows_out: RefCell<Option<futures::future::Shared<futures::future::LocalBoxFuture<'static, ()>>>>,
 }
 
 impl BootArea {
     /// `bootArea(ctx)` (boot.ts:29).
     pub fn new(rt: Rc<dyn BootRuntime>, config: BootConfig) -> Rc<Self> {
-        todo!()
+        Rc::new(BootArea {
+            rt,
+            config,
+            hydrated: RefCell::default(),
+            admitting: RefCell::default(),
+            passes: std::cell::Cell::new(0),
+            held_answers: RefCell::default(),
+            told_rows: RefCell::default(),
+            told_behind: RefCell::default(),
+            rows_moved: RefCell::default(),
+            rows_gone: RefCell::default(),
+            rows_queued: std::cell::Cell::new(false),
+            rows_out: RefCell::default(),
+        })
     }
 
     /// The `*` listener (boot.ts:873), boot_rows.md rule 8: the wiring calls it for every event in emit order.
     pub fn on_event(self: &Rc<Self>, event: &EventUnion) {
-        todo!()
+        let kind = wsp_core::types::events::event_type(event);
+        let Ok(e) = serde_json::to_value(event) else { return };
+        let text = |key: &str| e.get(key).and_then(serde_json::Value::as_str).map(str::to_string);
+        match kind {
+            "thread.head" => {
+                let (Some(ws), Some(thread)) = (text("workspaceId"), text("threadId")) else { return };
+                self.row_moved(&ws, &thread);
+                for s in self.held_rows() {
+                    let (turn, row_ws, key) = row_keys(&s);
+                    let behind = self.rt.stopped_behind(&s).and_then(|b| b.get("threadId").and_then(serde_json::Value::as_str).map(str::to_string));
+                    let told = self.told_behind.borrow().contains(&turn);
+                    if told && behind.as_deref() == Some(thread.as_str()) {
+                        self.row_moved(&row_ws, &key);
+                    }
+                }
+            }
+            "session.held" | "session.capped" | "session.uncapped" | "session.subagent" => {
+                if let (Some(ws), Some(thread)) = (text("workspaceId"), text("threadId")) {
+                    self.row_moved(&ws, &thread);
+                }
+            }
+            "thread.marked" => {
+                let Some(ws) = text("workspaceId") else { return };
+                for thread in e.get("threadIds").and_then(serde_json::Value::as_array).into_iter().flatten().filter_map(serde_json::Value::as_str) {
+                    self.row_moved(&ws, thread);
+                }
+            }
+            "workspace.napped" | "workspace.woken" | "workspace.upgraded" => {
+                let Some(ws) = text("workspaceId") else { return };
+                for s in self.held_rows() {
+                    let (_, row_ws, key) = row_keys(&s);
+                    if row_ws == ws {
+                        self.row_moved(&row_ws, &key);
+                    }
+                }
+            }
+            "session.start" => {
+                let (Some(turn), Some(session)) = (text("turnId"), text("sessionId")) else { return };
+                if turn != session {
+                    if let Some(ws) = text("workspaceId") {
+                        self.row_gone(&turn, &ws, text("threadId").as_deref());
+                    }
+                }
+            }
+            "session.end" => {
+                let (Some(turn), Some(session)) = (text("turnId"), text("sessionId")) else { return };
+                let held = self.held_rows().iter().any(|s| row_keys(s).0 == turn);
+                if !held {
+                    if let Some(ws) = text("workspaceId") {
+                        self.row_gone(&session, &ws, text("threadId").as_deref());
+                    }
+                }
+            }
+            "session.permission" | "session.permission.closed" => {
+                if let (Some(ws), Some(thread)) = (text("workspaceId"), text("threadId")) {
+                    self.row_moved(&ws, &thread);
+                }
+                for s in self.held_rows() {
+                    let (turn, row_ws, key) = row_keys(&s);
+                    let running = s.borrow().view.status == wsp_wire::views::session::SessionStatus::Running;
+                    let told = self.told_behind.borrow().contains(&turn);
+                    if running && (told || self.rt.stopped_behind(&s).is_some()) {
+                        self.row_moved(&row_ws, &key);
+                    }
+                }
+            }
+            "session.delta" => {
+                let Some(thread) = text("threadId") else { return };
+                let Some(ws) = text("workspaceId") else { return };
+                let moves = if text("kind").as_deref() == Some("tool_use") {
+                    text("toolName").is_some_and(|tool| wsp_words::wsp_tools::threads_followed(&tool, &text("text").unwrap_or_default()).is_some())
+                } else {
+                    text("kind").as_deref() == Some("tool_result") && text("turnId").is_some_and(|turn| self.told_behind.borrow().contains(&turn))
+                };
+                if moves {
+                    self.row_moved(&ws, &thread);
+                }
+            }
+            _ => {}
+        }
     }
 }
 

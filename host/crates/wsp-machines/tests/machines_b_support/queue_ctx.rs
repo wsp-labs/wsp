@@ -103,10 +103,11 @@ impl SubQueueCtx for FakeHost {
     fn place_id_of(&self, record: &WorkspaceRecord) -> Option<String> {
         record.place.clone()
     }
-    /// A running record on a cloud holds a slot; a napping, released or queued one does not.
+    /// phaseHoldsSlot (place-state.ts:87): every phase but napping, gone and released, and a queued record still waiting with `queue`.
     fn holds_slot(&self, record: &WorkspaceRecord) -> bool {
         let phase = serde_json::to_value(&record.phase).unwrap();
-        phase == json!("running") || phase == json!("waking") || phase == json!("pausing")
+        let free = ["napping", "gone", "released"].iter().any(|p| phase == json!(p));
+        !free && !(phase == json!("queued") && record.queue.is_some())
     }
     fn place_name_of(&self, place_id: &str) -> Option<String> {
         (place_id == "box").then(|| "Boat".to_string())

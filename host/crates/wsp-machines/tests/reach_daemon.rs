@@ -720,7 +720,7 @@ fn reads_each_childs_branch_against_the_leads() {
             fail_status("ws_lead", "no daemon");
             put_kid(&t.host, "ws_c1", "pr_kid", json!({}));
             on_branch("ws_c1", "child/one");
-            put_kid(&t.host, "ws_c2", "pr_kid", json!({ "worktree": { "branch": "wt/x" } }));
+            put_kid(&t.host, "ws_c2", "pr_kid", json!({ "worktree": { "path": "/wt/x", "made": true, "branch": "wt/x" } }));
             fail_status("ws_c2", "no daemon");
             put_kid(&t.host, "ws_c3", "pr_kid", json!({ "base": "feat" }));
             fail_status("ws_c3", "no daemon");
@@ -746,6 +746,7 @@ fn reads_each_childs_branch_against_the_leads() {
 #[test]
 fn a_child_merged_counts_against_the_commit_the_merge_took() {
     run(async {
+        let t = tree_world(None);
         let since = Rc::new(Cell::new(0i64));
         let s = since.clone();
         // The remote's lead branch lacks the merge until the lead's bring back; the commit the merge took is in the copy.
@@ -758,7 +759,6 @@ fn a_child_merged_counts_against_the_commit_the_merge_took() {
             }
         });
         let merged_tree = json!({ "merged": { "oid": "d00d", "at": 1, "head": "c0de" }, "conflicts": ["lead.txt"], "pushRefused": "no credential here" });
-        let t = tree_world(None);
         on_branch("ws_lead", "tree/lead");
         put_kid(&t.host, "ws_c1", "pr_kid", json!({ "tree": merged_tree }));
         on_branch("ws_c1", "child/one");

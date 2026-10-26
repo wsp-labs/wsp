@@ -92,6 +92,7 @@ fn a_lacks_refusal_on_the_record_holds_the_sync_after_a_restart() {
         assert!(fresh.unread_at().borrow().is_empty());
         assert!(fresh.daemon_syncs().is_empty(), "the join is dropped when the sync ends");
 
+        w.log.clear();
         // A minute on the mark is an hour old, and a third area offers the machine again exactly as the oracle's "the hour out" scene.
         w.clock.advance(60_000);
         let hour = w.fresh_area();
