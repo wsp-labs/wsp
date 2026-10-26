@@ -130,14 +130,20 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
         origin: Option<&Caller>,
     ) -> Result<(StartOptions, Option<ForkPlan>), HostError>;
     fn claim_warm(&self, workspace_id: &str, harness: &str) -> Option<String>;
-    fn opens_in(&self, record: &WorkspaceRecord, origin: Option<&Caller>) -> bool;
-    fn of_threads_repository(&self, origin: Option<&Caller>, project: &str) -> bool;
-    fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &str, name: &str) -> Option<HostError>;
-    fn away_for(&self, record: &WorkspaceRecord, origin: Option<&Caller>, act: &str, workspace_id: &str) -> Option<HostError>;
+    fn opens_in(&self, record: &WorkspaceRecord, origin: Option<&Caller>) -> Result<bool, HostError>;
+    fn of_threads_repository(&self, origin: Option<&Caller>, project: &str) -> Result<bool, HostError>;
+    fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &str, name: &str) -> Result<Option<HostError>, HostError>;
+    fn away_for(
+        &self,
+        record: &WorkspaceRecord,
+        origin: Option<&Caller>,
+        act: &str,
+        workspace_id: &str,
+    ) -> Result<Option<HostError>, HostError>;
     /// `ctx.actsOn(record, origin)`: whether the caller acts on that workspace's computer.
     fn acts_on(&self, record: &WorkspaceRecord, origin: Option<&Caller>) -> bool;
     /// `ctx.placeName(ctx.projectHeld(project).computer)`.
-    fn project_computer_name(&self, project: &str) -> String;
+    fn project_computer_name(&self, project: &str) -> Result<String, HostError>;
     async fn worktree_gone(&self, entry: &Entry, why: &str, starting: bool) -> Result<(), HostError>;
     fn computer_of(&self, entry: &Entry) -> String;
     fn refuse_sub_send(&self, entry: &Entry) -> Result<(), HostError>;
@@ -319,7 +325,7 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
 
     // sessions_rewind
     fn reap_kept(&self, thread_id: &str);
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String;
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError>;
     async fn wake(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<(), HostError>;
     /// `ctx.queued(id, () => ctx.withDaemon(entry, ask => ask({ op: "git.restore", cwd, checkpoint, scope })))`.
     async fn git_restore(&self, entry: &Entry, cwd: &str, checkpoint: &str) -> Result<Map<String, Value>, HostError>;

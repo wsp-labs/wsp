@@ -523,7 +523,12 @@ fn an_opening_the_computer_rule_keeps_out_is_refused_in_its_own_words() {
             dyn Fn(&WorkspaceRecord, Option<&Caller>) -> Result<bool, HostError>,
             |_r: &WorkspaceRecord, _o: Option<&Caller>| Ok(false)
         );
-        hook!(fx.host, "SessionsCtx::of_threads_repository", dyn Fn(Option<&Caller>, &str) -> Result<bool, HostError>, |_o: Option<&Caller>, _p: &str| Ok(true));
+        hook!(
+            fx.host,
+            "SessionsCtx::of_threads_repository",
+            dyn Fn(Option<&Caller>, &str) -> Result<bool, HostError>,
+            |_o: Option<&Caller>, _p: &str| Ok(true)
+        );
         hook!(
             fx.host,
             "SessionsCtx::elsewhere_refusal",
@@ -545,7 +550,12 @@ fn an_opening_the_computer_rule_keeps_out_is_refused_in_its_own_words() {
             dyn Fn(&WorkspaceRecord, Option<&Caller>) -> Result<bool, HostError>,
             |_r: &WorkspaceRecord, _o: Option<&Caller>| Ok(false)
         );
-        hook!(fx.host, "SessionsCtx::of_threads_repository", dyn Fn(Option<&Caller>, &str) -> Result<bool, HostError>, |_o: Option<&Caller>, _p: &str| Ok(true));
+        hook!(
+            fx.host,
+            "SessionsCtx::of_threads_repository",
+            dyn Fn(Option<&Caller>, &str) -> Result<bool, HostError>,
+            |_o: Option<&Caller>, _p: &str| Ok(true)
+        );
         hook!(
             fx.host,
             "SessionsCtx::away_for",
@@ -576,7 +586,12 @@ fn an_opening_the_computer_rule_keeps_out_is_refused_in_its_own_words() {
         assert_eq!(fx.host.hooks.called("elsewhere_refusal"), Vec::<String>::new(), "a project of another repository reads as absent here");
 
         let fx = fx_on(Agent::default());
-        hook!(fx.host, "SessionsCtx::of_threads_repository", dyn Fn(Option<&Caller>, &str) -> Result<bool, HostError>, |_o: Option<&Caller>, _p: &str| Ok(true));
+        hook!(
+            fx.host,
+            "SessionsCtx::of_threads_repository",
+            dyn Fn(Option<&Caller>, &str) -> Result<bool, HostError>,
+            |_o: Option<&Caller>, _p: &str| Ok(true)
+        );
         let w = want;
         hook!(
             fx.host,
@@ -632,21 +647,20 @@ fn a_send_across_computers_carries_no_files_and_no_follow() {
     run_local(async {
         let road = Some(AttachmentRoad::Inline);
         let child = by(WorkspaceOrigin::Relayed, scope("kid", "wbox", "lead-t"));
-        let across = |fx: &Fx| {
-            fx.host.add_entry(entry("wbox", json!({ "name": "box", "kind": "place", "project": "pbox" })));
-            fx.thread_on("t1", "w1", "claude");
-            hook!(
-                fx.host,
-                "SessionsCtx::acts_on",
-                dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool,
-                |r: &WorkspaceRecord, _o: Option<&Caller>| r.id != "w1"
-            );
-            hook!(fx.host, "SessionsCtx::project_computer_name", dyn Fn(&str) -> Result<String, HostError>, |p: &str| Ok(if p == "pbox" {
-                "hetzner".to_string()
-            } else {
-                "default".to_string()
-            }));
-        };
+        let across =
+            |fx: &Fx| {
+                fx.host.add_entry(entry("wbox", json!({ "name": "box", "kind": "place", "project": "pbox" })));
+                fx.thread_on("t1", "w1", "claude");
+                hook!(
+                    fx.host,
+                    "SessionsCtx::acts_on",
+                    dyn Fn(&WorkspaceRecord, Option<&Caller>) -> bool,
+                    |r: &WorkspaceRecord, _o: Option<&Caller>| r.id != "w1"
+                );
+                hook!(fx.host, "SessionsCtx::project_computer_name", dyn Fn(&str) -> Result<String, HostError>, |p: &str| Ok(
+                    if p == "pbox" { "hetzner".to_string() } else { "default".to_string() }
+                ));
+            };
         let file = Attachment { media_type: "text/plain".into(), bytes: "aGk=".into(), name: Some("notes.sh".into()) };
         let sent = |o: StartOptions| StartOptions { thread: Some("t1".into()), ..o };
 

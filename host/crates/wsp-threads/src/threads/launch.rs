@@ -125,7 +125,7 @@ pub trait LaunchCtx {
     async fn catalog_on(&self, harness: &str, entry: &Entry, adapter: &dyn HarnessAdapter) -> Result<Option<HarnessCatalog>, HostError>;
     /// `ctx.defaultsOn(catalog, prefs, prefs.projectDefaults[project])`.
     fn defaults_on(&self, catalog: HarnessCatalog, prefs: &Preferences, project: &str) -> DefaultsOn;
-    fn named_mode(&self, catalog: Option<&HarnessCatalog>, harness: &str, access: &AccessChoice) -> Option<String>;
+    fn named_mode(&self, catalog: Option<&HarnessCatalog>, harness: &str, access: &AccessChoice) -> Result<Option<String>, HostError>;
     fn access_of(&self, workspace_id: &str, thread_id: &str, session: Option<&str>) -> Option<String>;
     fn ran_on(&self, workspace_id: &str, thread_id: &str, session: Option<&str>) -> RanPicks;
     fn resumed_fact(&self, workspace_id: &str, session: &str, fact: &str) -> Option<String>;
@@ -204,10 +204,11 @@ impl LaunchArea {
         let resolved = self.ctx.catalog_on(harness, entry, adapter).await?.map(|catalog| self.ctx.defaults_on(catalog, prefs, &project));
         let catalog = resolved.as_ref().map(|r| r.catalog.clone());
         let (open_model, open_effort) = resolved.map(|r| (r.open_model, r.open_effort)).unwrap_or_default();
-        let named = asked
-            .permission_mode
-            .clone()
-            .or_else(|| asked.access.and_then(|access| self.ctx.named_mode(catalog.as_ref(), harness, &access)));
+        let named = match (asked.permission_mode.clone(), asked.access) {
+            (Some(mode), _) => Some(mode),
+            (None, Some(access)) => self.ctx.named_mode(catalog.as_ref(), harness, &access)?,
+            (None, None) => None,
+        };
         let read_catalog = catalog.clone();
         let ctx = self.ctx.clone();
         let (asked, thread_id) = (asked.clone(), thread_id.to_string());

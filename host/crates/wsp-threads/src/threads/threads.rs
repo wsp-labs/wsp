@@ -125,8 +125,8 @@ pub trait ThreadsCtx {
     fn end_snooze_for(&self, view: &SessionView);
     /// `ctx.withDaemon(entry, ask => ask(frame))`.
     fn with_daemon(&self, entry: &Entry, frame: Value) -> LocalBoxFuture<'static, Result<Value, AccountError>>;
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String;
-    fn project_held(&self, project: &str) -> ProjectView;
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError>;
+    fn project_held(&self, project: &str) -> Result<ProjectView, HostError>;
     /// `ctx.reachOf(entry)`: `reachable` and the other reach words.
     fn reach_of(&self, entry: &Entry) -> ReachState;
     /// `opts.turnSnapshotMs`.

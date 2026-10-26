@@ -81,7 +81,7 @@ pub trait AgentsCtx {
     fn place_id_of(&self, record: &WorkspaceRecord) -> Option<String>;
     /// `atProvider(placeId, ctx.places)`.
     fn at_provider(&self, place_id: Option<&str>) -> bool;
-    fn place_agent_home(&self, place: &str, home: &str, agent: &str) -> String;
+    fn place_agent_home(&self, place: &str, home: &str, agent: &str) -> Result<String, HostError>;
     fn ready(&self) -> LocalBoxFuture<'static, Result<(), HostError>>;
     fn know_broker(&self, entry: &Entry, harness: &str) -> LocalBoxFuture<'static, Result<(), HostError>>;
     fn unreached_of(&self, entry: &Entry) -> Option<String>;
@@ -104,7 +104,7 @@ pub trait AgentsCtx {
     fn kind_login_stands(&self, entry: &Entry, agent: &str) -> bool;
     /// `runsInFolder(ctx.kindOf(computer))`.
     fn computer_runs_in_folder(&self, computer: &str) -> bool;
-    fn brokered_launch(&self, entry: &Entry, harness: &str, token: Option<&str>) -> Option<BrokeredLaunch>;
+    fn brokered_launch(&self, entry: &Entry, harness: &str, token: Option<&str>) -> Result<Option<BrokeredLaunch>, HostError>;
     fn vault(&self) -> Env;
     fn vault_on(&self, entry: &Entry) -> Env;
     fn exec_factory_for(&self, entry: &Entry, turn: TurnLaunch, waiting: Option<TurnWaiting>) -> Arc<dyn ExecStreamFactory>;

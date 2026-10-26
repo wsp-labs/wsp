@@ -464,23 +464,21 @@ impl AgentsArea {
         env
     }
     /// The folder each agent's store variable names on a joined computer (agents.ts:524-530).
-    pub fn place_stores(&self, place: &str, home: &str) -> IndexMap<String, String> {
+    pub fn place_stores(&self, place: &str, home: &str) -> Result<IndexMap<String, String>, HostError> {
         let mut stores = IndexMap::new();
         for agent in catalog_agents() {
             let Some(variable) = agent.state_home_env.as_deref() else {
                 continue;
             };
-            let value = self
-                .ctx
-                .setup_launch(place, &agent.id)
-                .env
-                .get(variable)
-                .cloned()
-                .or_else(|| self.ctx.setup_config_dir(place, &agent.id))
-                .unwrap_or_else(|| self.ctx.place_agent_home(place, home, &agent.id));
+            let named =
+                self.ctx.setup_launch(place, &agent.id).env.get(variable).cloned().or_else(|| self.ctx.setup_config_dir(place, &agent.id));
+            let value = match named {
+                Some(value) => value,
+                None => self.ctx.place_agent_home(place, home, &agent.id)?,
+            };
             stores.insert(agent.id.clone(), value);
         }
-        stores
+        Ok(stores)
     }
     /// The agent's config files a launch in `folder` reads, as the turn's login (agents.ts:534-555).
     pub async fn turn_configs_on(&self, entry: &Entry, harness: &str, folder: &str) -> Result<Option<TurnConfigs>, HostError> {
@@ -647,7 +645,7 @@ impl AgentsArea {
             return Err(HostError::new(wsp_words::words::thread::no_adapter_line(&harness, &agents)));
         };
         let token = ask.turn_env.as_ref().and_then(|env| env.get(HOST_TOKEN_ENV)).cloned();
-        let brokered: Option<BrokeredLaunch> = self.ctx.brokered_launch(entry, &harness, token.as_deref());
+        let brokered: Option<BrokeredLaunch> = self.ctx.brokered_launch(entry, &harness, token.as_deref())?;
         let vault = match brokered.as_ref() {
             Some(brokered) => brokered.vault.clone(),
             None => self.ctx.vault_on(entry),

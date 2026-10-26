@@ -97,7 +97,7 @@ impl SessionsArea {
             return Err(conflict(&rewind_children_line(&running)));
         }
         let record = record_of(&entry);
-        let cwd = ctx.checkout_of(&record);
+        let cwd = ctx.checkout_of(&record)?;
         let sub_released = record.sub.as_ref().and_then(|s| s.released_at.map(|t| t.0));
         let gone = |started: Option<f64>| sub_turn_gone(sub_released, started);
 

@@ -135,7 +135,7 @@ fn keep_checkpoint_of_a_folder_with_no_repo_asks_nothing() {
         assert!(ctx.frames.borrow().is_empty(), "a folder git holds no repo in keeps no checkpoint");
         let said = ctx.recorded_json();
         assert_eq!((said[0]["kept"].clone(), said[0].get("ref").cloned(), said[0].get("based").cloned()), (json!("k1"), None, None));
-        assert!(area.not_a_repo(&e.borrow().record.borrow()));
+        assert!(area.not_a_repo(&e.borrow().record.borrow()).expect("the project is held"));
     });
 }
 
