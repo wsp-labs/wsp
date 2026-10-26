@@ -601,6 +601,12 @@ impl HarnessAdapter for CodexAdapter {
     fn reports_edits(&self) -> bool {
         true
     }
+    fn reverts(&self) -> bool {
+        true
+    }
+    fn forks(&self) -> bool {
+        true
+    }
     fn revert(&self, ask: RevertAsk) -> Option<LocalBoxFuture<'static, Result<Reverted, String>>> {
         let me = self.clone();
         Some(started(async move { me.revert(ask).await }.boxed_local()))

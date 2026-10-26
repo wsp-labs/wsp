@@ -953,6 +953,14 @@ pub trait HarnessAdapter {
     fn reports_edits(&self) -> bool {
         false
     }
+    /// Whether `revert` answers: the TS `adapter.revert !== undefined`, readable without starting any work.
+    fn reverts(&self) -> bool {
+        false
+    }
+    /// Whether `fork_session` answers: the TS `adapter.forkSession !== undefined`, readable without starting any work.
+    fn forks(&self) -> bool {
+        false
+    }
     fn revert(&self, ask: RevertAsk) -> Option<LocalBoxFuture<'static, Result<Reverted, String>>> {
         let _ = ask;
         None

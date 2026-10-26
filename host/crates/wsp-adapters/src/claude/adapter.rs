@@ -581,6 +581,9 @@ impl crate::port::HarnessAdapter for ClaudeAdapter {
     fn reports_edits(&self) -> bool {
         true
     }
+    fn forks(&self) -> bool {
+        true
+    }
     fn fork_session(&self, session: String, turn: ForkTurn) -> Option<LocalBoxFuture<'static, Result<ForkedSession, String>>> {
         let me = self.clone();
         Some(async move { me.fork_session(&session, turn).await.map_err(|e| e.0) }.boxed_local())
