@@ -29,7 +29,8 @@ use wsp_words::workspace_state::absent_computer;
 use crate::watch::Redraw;
 
 use super::{
-    frame_of_value, is_provider, json_string, kind_word, optional_field, place_named, place_ref, reply_field, BoxFuture, Frame, HostClient,
+    frame_of_value, is_provider, json_string, kind_word, optional_field, place_named, place_ref, places_of, reply_field, BoxFuture, Frame,
+    HostClient,
 };
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -556,7 +557,7 @@ pub async fn read_computers(client: &dyn HostClient) -> Result<ComputersRead, Ho
     let (listed, spent) = futures::join!(client.request("places.list", Frame::new()), client.request("cost.spend", Frame::new()));
     let (listed, spent) = (listed?, spent?);
     Ok(ComputersRead {
-        computers: reply_field(&listed, "places.list", "places")?,
+        computers: places_of(&listed, "places.list")?,
         spend: reply_field(&spent, "cost.spend", "places")?,
         pending: optional_field(&listed, "places.list", "pending")?.unwrap_or_default(),
     })

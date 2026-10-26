@@ -18,10 +18,10 @@ use super::agents_help::{
 };
 use super::client::*;
 use super::io::{as_json, as_text, confirmed, timeout_flag, wait_answer};
-use super::turns_help::{project_defaults_of, wait_through};
+use super::turns_help::{project_defaults_of, wait_through, Waited};
 use super::workspaces_help::{
-    disk_gone_lines, place_names, project_listed, project_row_line, projects_listed, thread_lines, thread_rows, thread_tree, threads,
-    threads_of, workspaces, NO_PROJECT_YET, THREAD_HEAD,
+    disk_gone_lines, place_names, project_listed, project_row_line, projects_listed, shown, thread_lines, thread_rows, thread_tree,
+    threads, threads_of, workspaces, NO_PROJECT_YET, THREAD_HEAD,
 };
 
 /// `projectSetLines` (projects.ts:24-29): what a new thread on the project starts on, then the after-worktree
@@ -70,7 +70,7 @@ pub async fn project_seed(client: &dyn HostClient, project: &str, ask: &SeedAsk)
         params.insert("save".to_owned(), Value::Bool(true));
     }
     let reply = client.request("projects.seed", params).await?;
-    serde_json::from_value(Value::Object(reply)).map_err(|_| HostError::new(other_version("projects.seed")))
+    crate::zod_read::zod_read(&Value::Object(reply))
 }
 
 /// `projectSeedText` (projects.ts:44-47): the head, a blank line, the menu indented two spaces and a blank line
@@ -101,7 +101,7 @@ fn now_ms() -> f64 {
 
 /// The home folder `os.homedir()` names, from `HOME`.
 fn home() -> Option<String> {
-    std::env::var("HOME").ok().filter(|home| !home.is_empty())
+    crate::hosts::env_var("HOME").filter(|home| !home.is_empty())
 }
 
 fn json_of<T: serde::Serialize>(value: &T) -> Value {
@@ -375,6 +375,7 @@ fn call_projects_add(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallT
         }
         let reply = client.request("projects.add", params).await?;
         let project: ProjectView = field(&reply, "projects.add", "project")?;
+        let shown_project = reply.get("project").cloned().unwrap_or(Value::Null);
         let notice = reply.get("notice").and_then(Value::as_str).map(str::to_owned);
         let named = place_names(&*client).await.unwrap_or_default();
         let said = wsp_words::projects::added_project_line(&project, Some(&named), &platform());
@@ -383,11 +384,27 @@ fn call_projects_add(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallT
             None => said,
         };
         let structured = match &notice {
-            Some(notice) => json!({ "project": json_of(&project), "notice": notice }),
-            None => json!({ "project": json_of(&project) }),
+            Some(notice) => json!({ "project": shown_project, "notice": notice }),
+            None => json!({ "project": shown_project }),
         };
         Ok(as_text(&text, structured))
     })
+}
+
+/// A null project dies at the read of its id, as the TS does; a row without an id leaves the key out of the frame.
+fn project_id_of(project: &Value) -> Result<Option<Value>, HostError> {
+    if project.is_null() {
+        return Err(HostError::new("Cannot read properties of null (reading 'id')"));
+    }
+    Ok(project.get("id").cloned())
+}
+
+/// A reply without `said` has no line and no `said` key.
+fn said_of(reply: &Frame) -> Result<Option<String>, HostError> {
+    reply
+        .get("said")
+        .map(|value| serde_json::from_value(value.clone()).map_err(|_| HostError::new(other_version("projects.remove"))))
+        .transpose()
 }
 
 /// The `projects_remove` tool's call (`verbs/projects.ts:141-146`).
@@ -395,14 +412,14 @@ fn call_projects_remove(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<Ca
     Box::pin(async move {
         let client = deps.client(None).await?;
         let project = project_listed(&*client, arg_str(&args, "project").unwrap_or_default()).await?;
-        let mut params = Frame::new();
-        params.insert("projectId".to_owned(), Value::from(row_text(&project, "id")));
+        let mut params = pick(vec![("projectId", project_id_of(&project)?)]);
         if args.get("force") == Some(&Value::Bool(true)) {
             params.insert("force".to_owned(), Value::Bool(true));
         }
         let reply = client.request("projects.remove", params).await?;
-        let said: String = field(&reply, "projects.remove", "said")?;
-        Ok(as_text(&said, json!({ "project": project, "said": said })))
+        let said = said_of(&reply)?;
+        let structured = pick(vec![("project", Some(project)), ("said", said.as_ref().map(|s| json!(s)))]);
+        Ok(as_text(said.as_deref().unwrap_or_default(), Value::Object(structured)))
     })
 }
 
@@ -415,11 +432,10 @@ fn run_projects_remove(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError
         };
         let client = ctx.client(None).await?;
         let project = project_listed(&*client, reference).await?;
-        let (project_id, project_name) = (row_text(&project, "id").to_owned(), row_text(&project, "name").to_owned());
+        let project_id = project_id_of(&project)?;
+        let project_name = shown(project.get("name"));
         let force = flag_set(&ctx.flags, "force");
-        let mut check = Frame::new();
-        check.insert("projectId".to_owned(), Value::from(project_id.as_str()));
-        check.insert("check".to_owned(), Value::Bool(true));
+        let mut check = pick(vec![("projectId", project_id.clone()), ("check", Some(Value::Bool(true)))]);
         if force {
             check.insert("force".to_owned(), Value::Bool(true));
         }
@@ -435,14 +451,14 @@ fn run_projects_remove(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError
         if !confirmed(ctx, &question, &project_name).await? {
             return Ok(1);
         }
-        let mut remove = Frame::new();
-        remove.insert("projectId".to_owned(), Value::from(project_id.as_str()));
+        let mut remove = pick(vec![("projectId", project_id)]);
         if force {
             remove.insert("force".to_owned(), Value::Bool(true));
         }
         let reply = client.request("projects.remove", remove).await?;
-        let said: String = field(&reply, "projects.remove", "said")?;
-        ctx.out.emit(&json!({ "project": project, "said": said }), Some(&said));
+        let said = said_of(&reply)?;
+        let answer = pick(vec![("project", Some(project)), ("said", said.as_ref().map(|s| json!(s)))]);
+        ctx.out.emit(&Value::Object(answer), said.as_deref());
         Ok(0)
     })
 }
@@ -461,7 +477,7 @@ fn call_projects_set(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallT
             reset: arg_list(&args, "reset"),
         };
         let set = project_defaults_set(&*deps.client(None).await?, project, &ask).await?;
-        let text = project_set_lines(&set.project.name, &set.defaults, set.after_worktree.as_deref(), set.trackers.as_deref()).join("\n");
+        let text = project_set_lines(&set.project_name, &set.defaults, set.after_worktree.as_deref(), set.trackers.as_deref()).join("\n");
         Ok(as_text(&text, json_of(&set)))
     })
 }
@@ -484,7 +500,7 @@ fn run_projects_set(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> 
             reset: Some(flag_list(flags, "reset")),
         };
         let set = project_defaults_set(&*ctx.client(None).await?, reference, &ask).await?;
-        let line = project_set_lines(&set.project.name, &set.defaults, set.after_worktree.as_deref(), set.trackers.as_deref()).join("\n");
+        let line = project_set_lines(&set.project_name, &set.defaults, set.after_worktree.as_deref(), set.trackers.as_deref()).join("\n");
         ctx.out.emit(&json_of(&set), Some(&line));
         Ok(0)
     })
@@ -549,13 +565,22 @@ fn run_threads(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
     })
 }
 
+/// A timeout answers the milliseconds it was given, not the whole ones the wait slept (io.ts:315): `fmtDuration` rounds them.
+fn timed_out_as_given(waited: Waited, given_ms: Option<f64>) -> Waited {
+    match (waited, given_ms) {
+        (Waited::TimedOutMs(_), Some(ms)) => Waited::TimedOutMs(ms),
+        (waited, _) => waited,
+    }
+}
+
 /// The `threads_wait` tool's call (`verbs/projects.ts:267-271`).
 fn call_threads_wait(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
         let refs = arg_list(&args, "threads").unwrap_or_default();
         let named = threads_of(&*deps.client(None).await?, &refs).await?;
-        let timeout_ms = args.get("timeout").and_then(Value::as_f64).map(|seconds| (seconds * 1_000.0) as u64);
-        let waited = wait_through(deps, &named, timeout_ms, None).await?;
+        let given_ms = args.get("timeout").and_then(Value::as_f64).map(|seconds| seconds * 1_000.0);
+        let waited = wait_through(deps, &named, given_ms.map(|ms| ms as u64), None).await?;
+        let waited = timed_out_as_given(waited, given_ms);
         let (value, line) = wait_answer(&named, &waited, NotifyLength::Tail);
         Ok(as_text(&line, json_of(&value)))
     })
@@ -567,12 +592,13 @@ fn run_threads_wait(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> 
         if ctx.args.is_empty() {
             return Err(usage_refusal("wsp threads wait takes one thread or more.", &usage_is(ctx)));
         }
-        let timeout_ms = timeout_flag(flag(&ctx.flags, "timeout"))?.map(|ms| ms as u64);
+        let given_ms = timeout_flag(flag(&ctx.flags, "timeout"))?;
         let client = ctx.client(None).await?;
         let named = threads_of(&*client, &ctx.args).await?;
         let io = ctx.io.clone();
         let redialed = move || io.error(HOST_RESTARTING_LINE);
-        let waited = wait_through(&ctx.deps, &named, timeout_ms, Some(&redialed)).await?;
+        let waited = wait_through(&ctx.deps, &named, given_ms.map(|ms| ms as u64), Some(&redialed)).await?;
+        let waited = timed_out_as_given(waited, given_ms);
         let length = if flag_set(&ctx.flags, "tail") { NotifyLength::Tail } else { NotifyLength::Whole };
         let (value, line) = wait_answer(&named, &waited, length);
         if value.timed_out == Some(true) {

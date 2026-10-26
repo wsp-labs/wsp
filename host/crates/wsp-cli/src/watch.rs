@@ -55,12 +55,15 @@ fn signal_number(name: &str) -> c_int {
     }
 }
 
-/// Starts the thread that calls the listeners of each signal the handler took, once per process.
+/// Starts the thread that calls the listeners of each signal the handler took, once per process. With no descriptor
+/// left for the pipe nothing starts and `SIGNAL_PIPE` stays negative.
 fn start_dispatcher() {
     DISPATCHER.call_once(|| {
         let mut fds = [0 as c_int; 2];
         // SAFETY: pipe writes two descriptors into the array on success.
-        assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0, "a pipe for the stop signals");
+        if unsafe { libc::pipe(fds.as_mut_ptr()) } != 0 {
+            return;
+        }
         SIGNAL_PIPE.store(fds[1], Ordering::SeqCst);
         let read_end = fds[0];
         std::thread::spawn(move || loop {
@@ -93,6 +96,9 @@ pub struct ProcessSignals;
 impl WatchSignals for ProcessSignals {
     fn on(&self, signal: &'static str, listener: StopListener) {
         start_dispatcher();
+        if SIGNAL_PIPE.load(Ordering::SeqCst) < 0 {
+            return;
+        }
         let number = signal_number(signal);
         PROCESS_LISTENERS.lock().unwrap().push((number, listener));
         // SAFETY: installs the handler above, which only writes one byte to the pipe.

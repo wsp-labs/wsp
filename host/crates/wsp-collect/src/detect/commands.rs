@@ -392,7 +392,7 @@ fn notes(missing: &[String], dropped: &[String]) -> Vec<String> {
     let mut out: Vec<String> = dropped.iter().map(|name| format!("# plugin {name} left out: {name} is not on the image")).collect();
     if !missing.is_empty() {
         out.push(format!(
-            "# Guarded above: a call to one of these that is not on this machine is silent instead of an error: {}. Tick them in wsp init to install them.",
+            "# Guarded above: a call to one of these that is not on this machine is silent instead of an error: {}.",
             missing.join(", ")
         ));
     }

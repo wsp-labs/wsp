@@ -460,7 +460,7 @@ pub(super) fn run_exec(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError
                 out.emit(&json_of(event), Some(text));
             }
         });
-        let run = exec_on(&*client, &woken.workspace.id, &words, folder.as_deref(), sink).await?;
+        let run = exec_on(&*client, woken_id(&woken).as_deref(), &words, folder.as_deref(), sink).await?;
         if let Some(error) = &run.exit.error {
             return Err(HostError::new(error.clone()));
         }
@@ -490,7 +490,7 @@ pub(super) fn call_exec(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<Ca
                 collected.lock().unwrap().push(text.clone());
             }
         });
-        let run = exec_on(&*client, &woken.workspace.id, &frame_list(&args, "argv"), asked.as_deref(), sink).await?;
+        let run = exec_on(&*client, woken_id(&woken).as_deref(), &frame_list(&args, "argv"), asked.as_deref(), sink).await?;
         if let Some(error) = run.exit.error {
             return Err(HostError::new(error));
         }
@@ -563,8 +563,9 @@ pub(super) fn call_setup(_args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<
     })
 }
 
-/// The Ghostty config of this computer, read as the scheme names (dark where none is named).
-async fn read_terminal_config(scheme: Option<TerminalScheme>) -> Result<TerminalConfig, HostError> {
+/// The Ghostty config of this computer, read as the scheme names (dark where none is named): the typed config for the
+/// lines, and the object as it was built, keys in the order the config named them, for `--json`.
+async fn read_terminal_config(scheme: Option<TerminalScheme>) -> Result<(TerminalConfig, Map<String, Value>), HostError> {
     let scheme = scheme.unwrap_or(TerminalScheme::Dark);
     let config = tokio::task::spawn_blocking(move || -> Result<Map<String, Value>, HostError> {
         let host = node_host()?;
@@ -572,7 +573,8 @@ async fn read_terminal_config(scheme: Option<TerminalScheme>) -> Result<Terminal
     })
     .await
     .map_err(|e| HostError::new(e.to_string()))??;
-    serde_json::from_value(Value::Object(config)).map_err(|e| HostError::new(e.to_string()))
+    let typed = serde_json::from_value(Value::Object(config.clone())).map_err(|e| HostError::new(e.to_string()))?;
+    Ok((typed, config))
 }
 
 /// `terminal config`'s run (threads.ts:656-662).
@@ -582,8 +584,8 @@ pub(super) fn run_terminal_config(ctx: &VerbContext) -> BoxFuture<'_, Result<i32
             return Err(usage_refusal("wsp terminal config takes no positional arguments.", &usage_is(ctx)));
         }
         let scheme = io::scheme_flag(flag(&ctx.flags, "scheme"))?;
-        let config = read_terminal_config(scheme).await?;
-        ctx.out.emit(&json_of(&config), Some(&terminal_config_lines(&config).join("\n")));
+        let (config, read) = read_terminal_config(scheme).await?;
+        ctx.out.emit(&Value::Object(read), Some(&terminal_config_lines(&config).join("\n")));
         Ok(0)
     })
 }
@@ -592,8 +594,8 @@ pub(super) fn run_terminal_config(ctx: &VerbContext) -> BoxFuture<'_, Result<i32
 pub(super) fn call_terminal_config(args: Frame, _deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
     Box::pin(async move {
         let scheme = io::scheme_flag(frame_str(&args, "scheme").as_deref())?;
-        let config = read_terminal_config(scheme).await?;
-        Ok(as_text(&terminal_config_lines(&config).join("\n"), json_of(&config)))
+        let (config, read) = read_terminal_config(scheme).await?;
+        Ok(as_text(&terminal_config_lines(&config).join("\n"), Value::Object(read)))
     })
 }
 

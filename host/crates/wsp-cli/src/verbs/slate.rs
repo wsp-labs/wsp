@@ -2,12 +2,12 @@
 //! `packages/host/src/verbs/slate.ts` at 65f6b89c7: the slate verbs, a live panel per thread the agent builds and
 //! the person reads, presses and fills in. Spec: `spec/slate.md`.
 
+use crate::json_whole::{parse_document, parse_value};
 use indexmap::IndexMap;
 use serde_json::{json, Value};
 use wsp_wire::types::js_number::JsNumber;
 use wsp_words::exit::{usage_refusal, HostError};
 use wsp_words::js::to_number;
-use wsp_words::v8_json::{parse_json, parse_json_lax};
 
 use super::client::*;
 use super::io::{as_text, resolve_path};
@@ -42,9 +42,10 @@ pub async fn slate_ask(client: &dyn HostClient, op: &str, params: Frame) -> Resu
 /// `emitSlate` (slate.ts:35-39): `{text}` as one frame printed as the text, then the rest with no line.
 pub fn emit_slate(ctx: &VerbContext, answer: Frame) {
     let mut rest = answer;
-    let text = rest.shift_remove("text").unwrap_or(Value::Null);
-    let line = text.as_str().unwrap_or_default().to_owned();
-    ctx.out.emit(&json!({ "text": text }), Some(&line));
+    let text = rest.shift_remove("text");
+    let line = text.as_ref().and_then(Value::as_str).map(str::to_owned);
+    let sketch = text.map_or_else(|| json!({}), |text| json!({ "text": text }));
+    ctx.out.emit(&sketch, line.as_deref());
     ctx.out.emit(&Value::Object(rest), None);
 }
 
@@ -73,7 +74,7 @@ pub fn slate_file(ctx: &VerbContext, path: &str) -> Result<SlateFile, HostError>
     if path.ends_with(".slate") {
         return Ok(SlateFile::Text(text));
     }
-    let parsed = parse_json(&text).map_err(|message| {
+    let parsed = parse_document(&text).map_err(|message| {
         usage_refusal(&format!("{path} does not parse as JSON ({message})."), "Fix the JSON or write the JSX-like form to a .slate file.")
     })?;
     match parsed {
@@ -105,7 +106,7 @@ pub fn if_version_of(ctx: &VerbContext) -> Result<Option<f64>, HostError> {
 pub fn state_value(word: &str) -> Option<(String, Value)> {
     let at = word.find('=').filter(|at| *at > 0)?;
     let raw = &word[at + 1..];
-    let value = parse_json_lax(raw).map_or_else(|| Value::from(raw), js_value);
+    let value = parse_value(raw).map_or_else(|| Value::from(raw), js_value);
     Some((word[..at].to_owned(), value))
 }
 

@@ -10,6 +10,7 @@ use wsp_catalog::catalog::agent_name;
 use wsp_wire::types::changes::CommitDraft;
 use wsp_wire::types::pull_request::{FixResult, FixResultV0Outcome, GitUpdateReply, MergeMethod, MergeResult};
 use wsp_wire::types::tree::MergeInResult;
+use wsp_wire::types::Check;
 use wsp_wire::views::activity::ProcessesAsk;
 use wsp_wire::views::harness::{ReviewPostResult, StartResult};
 use wsp_wire::views::session::{SessionStatus, ThreadView};
@@ -32,8 +33,14 @@ use wsp_words::workspace_state::{gone_refusal, workspace_state, WorkspaceState, 
 use super::reads::{listed_status, params, reply_field, thread_of, threads, workspace_of, workspace_row, workspace_statuses, HostRow};
 use crate::verbs::client::{access_word_of, opened_thread_said, other_version, pick, thread_id_of, under, Frame, HostClient};
 use crate::verbs::turns_help::Turn;
+use crate::zod_read::zod_read;
 
-fn parsed<T: DeserializeOwned>(reply: Frame, op: &str) -> Result<T, HostError> {
+fn parsed<T: DeserializeOwned + Check>(reply: Frame, _op: &str) -> Result<T, HostError> {
+    zod_read(&Value::Object(reply))
+}
+
+/// A reply the TS reads without a zod parse (a cast, or `safeParse` answering `otherVersion`).
+fn read_as<T: DeserializeOwned>(reply: Frame, op: &str) -> Result<T, HostError> {
     serde_json::from_value(Value::Object(reply)).map_err(|_| HostError::new(other_version(op)))
 }
 
@@ -168,10 +175,22 @@ pub async fn committed(
     say: &(dyn Fn(&str) + Send + Sync),
     thread_id: Option<&str>,
 ) -> Result<GitCommitReply, HostError> {
+    committed_of(client, Some(json!(workspace_id)), message, files, say, thread_id).await
+}
+
+/// `committed` for a workspace id the answer may lack: the key is left out of the frames.
+pub async fn committed_of(
+    client: &dyn HostClient,
+    workspace_id: Option<Value>,
+    message: Option<&str>,
+    files: &[String],
+    say: &(dyn Fn(&str) + Send + Sync),
+    thread_id: Option<&str>,
+) -> Result<GitCommitReply, HostError> {
     let text = match message {
         Some(text) => text.to_owned(),
         None => {
-            let body = commit_scope(params(json!({ "workspaceId": workspace_id })), files, thread_id);
+            let body = commit_scope(pick(vec![("workspaceId", workspace_id.clone())]), files, thread_id);
             let draft: CommitDraft = parsed(client.request("workspaces.commitDraft", body).await?, "workspaces.commitDraft")?;
             let Some(text) = draft.message else {
                 return Err(usage_refusal(&no_draft_line(draft.note.as_deref()), NO_DRAFT_FIX));
@@ -180,7 +199,7 @@ pub async fn committed(
             text
         }
     };
-    let body = commit_scope(params(json!({ "workspaceId": workspace_id, "message": text })), files, thread_id);
+    let body = commit_scope(pick(vec![("workspaceId", workspace_id), ("message", Some(json!(text)))]), files, thread_id);
     parsed(client.request("workspaces.commit", body).await?, "workspaces.commit")
 }
 
@@ -203,14 +222,25 @@ pub async fn asked_to_fix(
     child: Option<&ChildRef>,
     thread_id: &str,
 ) -> Result<FixResult, HostError> {
+    asked_to_fix_of(client, Some(workspace_id), check, child, thread_id).await
+}
+
+/// `asked_to_fix` for a workspace id the answer may lack: the key is left out of the frame.
+pub async fn asked_to_fix_of(
+    client: &dyn HostClient,
+    workspace_id: Option<&str>,
+    check: Option<&str>,
+    child: Option<&ChildRef>,
+    thread_id: &str,
+) -> Result<FixResult, HostError> {
     let body = pick(vec![
-        ("workspaceId", Some(json!(workspace_id))),
+        ("workspaceId", workspace_id.map(|id| json!(id))),
         ("check", check.map(|check| json!(check))),
         ("child", child.map(|child| json!(child.workspace_id))),
         ("childThreadId", child.map(|child| json!(child.thread_id))),
         ("threadId", Some(json!(thread_id))),
     ]);
-    parsed(client.request("workspaces.fix", body).await?, "workspaces.fix")
+    read_as(client.request("workspaces.fix", body).await?, "workspaces.fix")
 }
 
 /// The lead of a merge in: its workspace and its thread.
@@ -294,7 +324,7 @@ pub async fn started_from(client: &dyn HostClient, o: &StartedFromAsk) -> Result
         ("effort", o.effort.as_ref().map(|v| json!(v))),
         ("access", access.map(|v| json!(v))),
     ]);
-    parsed(client.request("workspaces.start", body).await?, "workspaces.start")
+    read_as(client.request("workspaces.start", body).await?, "workspaces.start")
 }
 
 /// What `reviewStarted` asks: a link or a workspace's own pull request, and the picks.
@@ -323,7 +353,7 @@ pub async fn review_started(client: &dyn HostClient, o: &ReviewStartedAsk) -> Re
         ("model", o.model.as_ref().map(|v| json!(v))),
         ("effort", o.effort.as_ref().map(|v| json!(v))),
     ]);
-    parsed(client.request("workspaces.review", body).await?, "workspaces.review")
+    read_as(client.request("workspaces.review", body).await?, "workspaces.review")
 }
 
 /// The edits `reviewPosted` makes to a review's draft first.
@@ -660,18 +690,24 @@ pub fn rename_line(renamed: &Renamed) -> String {
     format!("thread {} {words}", renamed.thread_id)
 }
 
+/// The woken workspace's id as the host wrote it, None where the answer lacks one.
+pub fn woken_id(woken: &Woken) -> Option<String> {
+    woken.workspace.raw().get("id").and_then(Value::as_str).map(str::to_owned)
+}
+
 async fn launch_owed(client: &dyn HostClient, woken: &Woken, turn: Option<&Turn>) -> Result<Option<String>, HostError> {
     let name = woken.workspace.name.as_str();
-    let rows = threads(client, Some(&woken.workspace.id)).await?;
+    let id = woken_id(woken);
+    let rows = threads(client, id.as_deref()).await?;
     let mine = turn.and_then(|t| rows.iter().position(|row| thread_id_of(row) == t.thread_id));
     if mine.is_some_and(|i| rows[i].ran) {
         return Ok(None);
     }
     if rows.iter().enumerate().any(|(i, row)| Some(i) != mine && matches!(row.status, SessionStatus::Running)) {
-        let listed = workspace_statuses(client).await?.iter().map(listed_status).find(|w| w.id == woken.workspace.id);
+        let listed = workspace_statuses(client).await?.iter().map(listed_status).find(|w| Some(w.id.as_str()) == id.as_deref());
         let naps = listed.and_then(|w| w.idle_at).map(|at| (at - now_ms()).max(0.0));
         return Ok(Some(workspace_stays_awake_line(name, naps)));
     }
-    client.request("workspaces.nap", params(json!({ "workspaceId": woken.workspace.id }))).await?;
+    client.request("workspaces.nap", pick(vec![("workspaceId", id.map(|id| json!(id)))])).await?;
     Ok(Some(workspace_asleep_again_line(name)))
 }

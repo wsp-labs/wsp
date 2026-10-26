@@ -55,14 +55,11 @@ for (const [bin, p] of [[undefined, "/usr/bin"], ["/home/a/.npm/bin", "/usr/bin:
 for (const id of ["agents/claude", "agents/mcp/github", "agents/", "tools/brew/jq", "agents"]) add("agent_of_row", [id], G.agentOfRow({ id }) ?? null);
 for (const id of ["tools/brew/jq", "tools/brew/hashicorp/tap/terraform", "tools/npm", "tools/npm/", "x"]) add("package_of", [id], G.packageOf({ id }));
 for (const [m, p] of [["brew", "jq"], ["npm", "@scope/x"], ["", ""]]) add("tool_row_id", [m, p], G.toolRowId(m, p));
-for (const b of ["jq", "it's", "a b"]) add("command_check", [b], G.commandCheck(b));
 const digest = { ticks: [
   { id: "tools/brew/zz", pin: { tag: "1.0", sha256: "aa" } }, { id: "tools/brew/Ab", pin: { tag: "2.0", latest: true }, road: "brew" },
   { id: "tools/npm/ab", pin: { tag: "3" } }, { id: "tools/npm/b", road: "npm" }, { id: "agents/claude", pin: { tag: "4", arch: "aarch64" } },
   { id: "tools/brew/é", pin: { tag: "5" } }, { id: "tools/brew/e", pin: { tag: "6" } }, { id: "tools/brew/_x", pin: { tag: "7" } }, { id: "tools/brew/10", pin: { tag: "8" } }, { id: "tools/brew/9", pin: { tag: "9" } },
 ], files: [] };
-add("recipe_pins", [digest, null], G.recipePins(digest));
-add("recipe_pins", [digest, "prefix"], G.recipePins(digest, id => `p/${id}`));
 const versions = [{ version: 1, snapshotId: "s1", baseTemplate: "b", setupSha: "x", createdAt: "t", smoke: { cmd: "true", exitCode: 0 } }, { version: 2, snapshotId: "s2", templateId: "tpl", baseTemplate: "b", setupSha: "x", createdAt: "t", smoke: { cmd: "true", exitCode: 0 } }];
 for (const m of [undefined, { head: 2, versions }, { head: 3, versions }, { head: 1, versions: [] }]) add("golden_head", [m ?? null], G.goldenHead(m) ?? null);
 for (const v of versions) add("golden_image", [v], G.goldenImage(v));
@@ -173,7 +170,7 @@ const res = (over) => ({ branch: "b", pushedSha: null, commits: 0, unpushed: 0, 
 for (const r of [res({}), res({ unpushed: 1 }), res({ changed: 2 }), res({ readFailed: "x" }), res({ readFailed: "" })]) add("sub_all_pushed", [r], SR.subAllPushed(r));
 for (const [rel, st] of [[undefined, 5], [10, undefined], [10, 5], [10, 10], [10, 11], [0, -1]]) add("sub_turn_gone", [rel ?? null, st ?? null], SR.subTurnGone(rel === undefined ? undefined : { releasedAt: rel }, st));
 const W = V("workspace");
-for (const [held, patch] of [[undefined, {}], [{ spawn: false, maxMachines: 1, maxDepth: 1 }, { maxDepth: 4 }], [undefined, { spawn: false }]]) add("agents_from", [held ?? null, patch], W.agentsFrom(held, patch));
+for (const [held, patch] of [[undefined, {}], [{ maxMachines: 1, maxDepth: 1 }, { maxDepth: 4 }]]) add("agents_from", [held ?? null, patch], W.agentsFrom(held, patch));
 
 // --- preferences
 const PR = V("preferences");

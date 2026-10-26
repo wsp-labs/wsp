@@ -97,6 +97,9 @@ const anon = new Map();
 const ORDER = {
   // views/preferences.ts:218 applyPreferencesPatch, which preferencesFrom and every preferences.set write through.
   "views/preferences:Preferences": "theme lightTheme darkTheme sidebarMode terminalSize terminalZoom access projectLook projectIcon computerLook serverIcons agentVersions usageLogs productUsage keepAwake transparency projectOrder keybindings appFont codeFont agentDefaults projectDefaults sendWith midTurn notifyNeeds notifyDone planAlerts settleAfter askDelete onQuit newThreadIn labs sidebarWidth target editor updateDismissed cloudCardDismissed textSize codeSize defaultAgent recipeLook threadsShut".split(" "),
+  // views/session.ts foldThreads, and for the facts boot.ts threadFacts (see WRITTEN in fixtures.mjs).
+  "views/session:ThreadView": "id threadId workspaceId harness startedBy status title sessionId claudeSessionId startedAt endedAt cwd asking waitingOn setupRefusal sub diskKeptUntil diskGone capped limit resumeAt lastLine failure pid agentPid readAt settledAt pinnedAt order foldedAt replaces replacedBy snoozedUntil wokeAt section rewoundAt forkedFrom permissionMode fast subagents turns ran parentThreadId rootThreadId attempt costUsd".split(" "),
+  "views/preferences:ThreadFacts": "id threadId workspaceId harness startedBy status title sessionId claudeSessionId startedAt endedAt cwd asking waitingOn setupRefusal capped limit resumeAt lastLine failure pid agentPid readAt settledAt pinnedAt order foldedAt replaces replacedBy snoozedUntil wokeAt section rewoundAt forkedFrom permissionMode fast turns ran parentThreadId rootThreadId attempt costUsd sub diskGone diskKeptUntil model effort contextWindow turnId".split(" "),
 };
 
 // --- per-module output

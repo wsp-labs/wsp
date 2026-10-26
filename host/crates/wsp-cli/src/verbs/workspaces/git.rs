@@ -11,8 +11,8 @@ async fn renamed_answer(client: &dyn HostClient, reference: &str, name: &str) ->
     let reply =
         client.request("workspaces.rename", pick(vec![("workspaceId", Some(json!(source.id))), ("name", Some(json!(name)))])).await?;
     let workspace = reply.get("workspace").cloned().unwrap_or(Value::Null);
-    let typed: WorkspaceOut = serde_json::from_value(workspace.clone()).map_err(|_| HostError::new(other_version("workspaces.rename")))?;
-    let line = renamed_workspace_line(&RenamedWorkspace { was: source.name.clone(), workspace: typed });
+    let typed = workspace_typed(workspace.clone(), "workspaces.rename")?;
+    let line = renamed_workspace_line(&RenamedWorkspace { was: source.name.clone(), workspace: shown_out(typed, &workspace) });
     Ok((line, json!({ "was": source.name, "workspace": workspace })))
 }
 
@@ -98,8 +98,9 @@ pub(super) fn call_fork(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<Ca
         let asked = agents_asked(args.get("max_machines"), args.get("max_depth"), None)?;
         let project = project_of(&*client, &source.project.id).await?;
         let child_name = name.unwrap_or_else(|| format!("{}-fork", source.name));
-        let created = create_for_unheard(
+        let created = create_for(
             &*client,
+            &Out::quiet(),
             &project_pick(&project),
             &child_name,
             &CreateAsked { size: word, agents: asked, parent: Some(source.id.clone()) },
@@ -214,9 +215,9 @@ pub(super) fn call_commit(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<
         let at = thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp commit", false, cloud_of(&deps.env)).await?;
         let woke = awake(&*client, &view_of(&at.1)?, "commit", &quiet_tell).await?;
         let message = frame_str(&args, "message");
-        let made = committed(
+        let made = committed_of(
             &*client,
-            &woke.workspace.id,
+            woke.workspace.raw().get("id").cloned(),
             message.as_deref(),
             &frame_list(&args, "files"),
             &quiet_tell,
@@ -241,8 +242,15 @@ pub(super) fn run_commit(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErr
         let say = stderr_of(ctx);
         let woke = awake(&*client, &view_of(&at.1)?, "commit", &say).await?;
         let message = flag(&ctx.flags, "message");
-        let made =
-            committed(&*client, &woke.workspace.id, message, &flag_list(&ctx.flags, "file"), &say, Some(&thread_id_of(&at.0))).await?;
+        let made = committed_of(
+            &*client,
+            woke.workspace.raw().get("id").cloned(),
+            message,
+            &flag_list(&ctx.flags, "file"),
+            &say,
+            Some(&thread_id_of(&at.0)),
+        )
+        .await?;
         let shared = sharing_with(&*client, &at).await?;
         let line = with_shared(&committed_line(&thread_label(&at.0), &made_commit(&made)), &shared);
         ctx.out.emit(&with_shared_field(object_of(&made), &shared), Some(&line));
@@ -262,7 +270,7 @@ pub(super) fn call_discard(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result
                 .request(
                     "workspaces.discard",
                     pick(vec![
-                        ("workspaceId", Some(json!(woke.workspace.id))),
+                        ("workspaceId", woke.workspace.raw().get("id").cloned()),
                         ("path", Some(json!(path))),
                         ("threadId", Some(json!(thread_id_of(&at.0)))),
                     ]),
@@ -292,7 +300,7 @@ pub(super) fn run_discard(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostEr
             .request(
                 "workspaces.discard",
                 pick(vec![
-                    ("workspaceId", Some(json!(woke.workspace.id))),
+                    ("workspaceId", woke.workspace.raw().get("id").cloned()),
                     ("path", Some(json!(path))),
                     ("check", Some(json!(true))),
                     ("threadId", Some(json!(thread_id))),
@@ -309,7 +317,7 @@ pub(super) fn run_discard(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostEr
                 .request(
                     "workspaces.discard",
                     pick(vec![
-                        ("workspaceId", Some(json!(woke.workspace.id))),
+                        ("workspaceId", woke.workspace.raw().get("id").cloned()),
                         ("path", Some(json!(path))),
                         ("threadId", Some(json!(thread_id))),
                     ]),
@@ -339,11 +347,11 @@ pub(super) fn call_fix(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<Cal
             None => None,
         };
         let woke_id = match &check {
-            None => awake(&*client, &view_of(&at.1)?, "fix", &quiet_tell).await?.workspace.id.clone(),
-            Some(_) => at.1.id.clone(),
+            None => woken_id(&awake(&*client, &view_of(&at.1)?, "fix", &quiet_tell).await?),
+            Some(_) => Some(at.1.id.clone()),
         };
         let child_ref = kid.as_ref().map(|k| ChildRef { workspace_id: k.1.id.clone(), thread_id: thread_id_of(&k.0) });
-        let asked = asked_to_fix(&*client, &woke_id, check.as_deref(), child_ref.as_ref(), &thread_id_of(&at.0)).await?;
+        let asked = asked_to_fix_of(&*client, woke_id.as_deref(), check.as_deref(), child_ref.as_ref(), &thread_id_of(&at.0)).await?;
         let child_label = kid.as_ref().map(|k| thread_label(&k.0));
         Ok(as_text(&fix_line(&thread_label(&at.0), &asked, child_label.as_deref()), json_of(&asked)))
     })
@@ -369,11 +377,11 @@ pub(super) fn run_fix(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>
         };
         let say = stderr_of(ctx);
         let woke_id = match &check {
-            None => awake(&*client, &view_of(&at.1)?, "fix", &say).await?.workspace.id.clone(),
-            Some(_) => at.1.id.clone(),
+            None => woken_id(&awake(&*client, &view_of(&at.1)?, "fix", &say).await?),
+            Some(_) => Some(at.1.id.clone()),
         };
         let child_ref = kid.as_ref().map(|k| ChildRef { workspace_id: k.1.id.clone(), thread_id: thread_id_of(&k.0) });
-        let asked = asked_to_fix(&*client, &woke_id, check.as_deref(), child_ref.as_ref(), &thread_id_of(&at.0)).await?;
+        let asked = asked_to_fix_of(&*client, woke_id.as_deref(), check.as_deref(), child_ref.as_ref(), &thread_id_of(&at.0)).await?;
         let child_label = kid.as_ref().map(|k| thread_label(&k.0));
         ctx.out.emit(&json_of(&asked), Some(&fix_line(&thread_label(&at.0), &asked, child_label.as_deref())));
         Ok(0)
@@ -461,7 +469,7 @@ pub(super) fn call_update(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<
             client
                 .request(
                     "workspaces.update",
-                    pick(vec![("workspaceId", Some(json!(woke.workspace.id))), ("threadId", Some(json!(thread_id_of(&at.0))))]),
+                    pick(vec![("workspaceId", woke.workspace.raw().get("id").cloned()), ("threadId", Some(json!(thread_id_of(&at.0))))]),
                 )
                 .await?,
             "workspaces.update",
@@ -487,7 +495,7 @@ pub(super) fn run_update(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostErr
             client
                 .request(
                     "workspaces.update",
-                    pick(vec![("workspaceId", Some(json!(woke.workspace.id))), ("threadId", Some(json!(thread_id_of(&at.0))))]),
+                    pick(vec![("workspaceId", woke.workspace.raw().get("id").cloned()), ("threadId", Some(json!(thread_id_of(&at.0))))]),
                 )
                 .await?,
             "workspaces.update",
