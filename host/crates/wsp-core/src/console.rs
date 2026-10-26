@@ -5,7 +5,16 @@ use std::rc::Rc;
 
 /// Writes `line` to stderr, and to every capture open on this thread.
 pub fn warn(line: &str) {
-    todo!()
+    eprintln!("{line}");
+    CAPTURES.with(|c| {
+        for open in c.borrow().iter() {
+            open.borrow_mut().push(line.to_string());
+        }
+    });
+}
+
+thread_local! {
+    static CAPTURES: RefCell<Vec<Rc<RefCell<Vec<String>>>>> = const { RefCell::new(Vec::new()) };
 }
 
 /// The lines warned on this thread while it is held; dropping it stops the capture.
@@ -15,17 +24,19 @@ pub struct Captured {
 
 /// Starts capturing this thread's warn lines.
 pub fn capture() -> Captured {
-    todo!()
+    let lines = Rc::new(RefCell::new(Vec::new()));
+    CAPTURES.with(|c| c.borrow_mut().push(lines.clone()));
+    Captured { lines }
 }
 
 impl Captured {
     pub fn lines(&self) -> Vec<String> {
-        todo!()
+        self.lines.borrow().clone()
     }
 }
 
 impl Drop for Captured {
     fn drop(&mut self) {
-        todo!()
+        CAPTURES.with(|c| c.borrow_mut().retain(|open| !Rc::ptr_eq(open, &self.lines)));
     }
 }

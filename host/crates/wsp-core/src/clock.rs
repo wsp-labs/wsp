@@ -5,6 +5,7 @@
 //! The one time seam of the runtime (rule 3.15). `unref` is dropped: it has no meaning in Rust.
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Stops a timer that has not fired; a second call, or one after it fired, does nothing (clock.ts:21).
 pub type Cancel = Rc<dyn Fn()>;
@@ -44,17 +45,22 @@ pub struct RealClock;
 
 impl Clock for RealClock {
     fn now(&self) -> i64 {
-        todo!()
+        SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as i64)
     }
     /// Panics outside a `LocalSet`, as `spawn_local` does. Clamps the delay as Node does (spec Behaviour 4).
     fn schedule(&self, f: Timer, ms: i64) -> Cancel {
-        todo!()
+        let ms = if (1..=TIMEOUT_MAX_MS).contains(&ms) { ms } else { 1 };
+        let task = tokio::task::spawn_local(async move {
+            tokio::time::sleep(Duration::from_millis(ms as u64)).await;
+            f();
+        });
+        Rc::new(move || task.abort())
     }
 }
 
 /// `realClock` as the handle every option defaults to.
 pub fn real_clock() -> Rc<dyn Clock> {
-    todo!()
+    Rc::new(RealClock)
 }
 
 struct Pending {
@@ -94,18 +100,18 @@ pub struct FakeClock {
 impl FakeClock {
     /// Starts at `start` epoch ms.
     pub fn new(start: i64) -> Self {
-        todo!()
+        FakeClock { state: Rc::new(RefCell::new(FakeState { now: start, ..FakeState::default() })) }
     }
     /// Starts at the system time, as `fakeClock()` with no argument.
     pub fn at_now() -> Self {
-        todo!()
+        Self::new(RealClock.now())
     }
     /// A `Clock` sharing this fake's state.
     pub fn clock(&self) -> Rc<dyn Clock> {
-        todo!()
+        Rc::new(self.clone())
     }
     pub fn now(&self) -> i64 {
-        todo!()
+        self.state.borrow().now
     }
     // fake-clock.ts:20
     // const advance = (ms: number): void => {
@@ -123,25 +129,53 @@ impl FakeClock {
     /// Runs the timers that fall due by `now + ms`, earliest first, ties in scheduling order, each with `now` at its
     /// own `at` and no borrow of the state held; then lands on the target.
     pub fn advance(&self, ms: i64) {
-        todo!()
+        let target = self.state.borrow().now + ms;
+        loop {
+            let due = {
+                let mut st = self.state.borrow_mut();
+                let next = st.timers.iter().enumerate().filter(|(_, t)| t.at <= target).min_by_key(|(_, t)| (t.at, t.id)).map(|(i, _)| i);
+                next.map(|i| {
+                    let t = st.timers.remove(i);
+                    st.now = t.at;
+                    t.f
+                })
+            };
+            match due {
+                Some(f) => f(),
+                None => break,
+            }
+        }
+        self.state.borrow_mut().now = target;
     }
     // fake-clock.ts:34
     // pending: () => timers.size,
     pub fn pending(&self) -> usize {
-        todo!()
+        self.state.borrow().timers.len()
     }
     // fake-clock.ts:37
     // dueFor: (at: number) => [...timers.values()].some(t => t.at === at),
     pub fn due_for(&self, at: i64) -> bool {
-        todo!()
+        self.state.borrow().timers.iter().any(|t| t.at == at)
     }
 }
 
 impl Clock for FakeClock {
     fn now(&self) -> i64 {
-        todo!()
+        self.state.borrow().now
     }
     fn schedule(&self, f: Timer, ms: i64) -> Cancel {
-        todo!()
+        let id = {
+            let mut st = self.state.borrow_mut();
+            st.seq += 1;
+            let (id, at) = (st.seq, st.now + ms);
+            st.timers.push(Pending { id, at, f });
+            id
+        };
+        let state = Rc::downgrade(&self.state);
+        Rc::new(move || {
+            if let Some(state) = state.upgrade() {
+                state.borrow_mut().timers.retain(|t| t.id != id);
+            }
+        })
     }
 }
