@@ -20,6 +20,7 @@ use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::types::project_import::ProjectImportRequest;
 use wsp_wire::types::sub_thread::SubOut;
+use super::workspaces_help::HostRow;
 use wsp_wire::views::project_bundle::{HostFolderListing, ProjectExportResult, ProjectImportResult, ProjectPlan, TerminalScheme};
 use wsp_wire::views::session::{ThreadCapWait, ThreadView};
 use wsp_wire::views::session_events::TurnStatus;
@@ -894,7 +895,7 @@ pub async fn host_folders(
     client: &dyn HostClient,
     asked: &FoldersAsked,
     here: &(dyn Fn(&str) -> Result<String, HostError> + Send + Sync),
-) -> Result<HostFolderListing, HostError> {
+) -> Result<HostRow<HostFolderListing>, HostError> {
     let place = match asked.on.as_deref() {
         Some(on) => Some(place_named(client, on).await?),
         None => None,
@@ -921,7 +922,7 @@ pub async fn host_folders(
         params.insert("on".to_owned(), json!(place.id));
     }
     let reply = client.request("host.folders", params).await?;
-    field_of(&reply, "host.folders", "listing")
+    HostRow::from_reply(&reply, "host.folders", "listing")
 }
 
 /// `initSetup(client)` (io.ts:449-452): `init.get {}`'s `setup`, parsed against `InitSetup`; a shape it refuses is
