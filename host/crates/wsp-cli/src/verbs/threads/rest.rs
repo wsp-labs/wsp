@@ -494,8 +494,12 @@ pub(super) fn call_exec(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<Ca
             return Err(HostError::new(error));
         }
         let output = output.lock().unwrap().clone();
-        let mut structured = exec_answer(run.exit.exit_code, run.ran_in.as_deref());
+        let mut structured = Map::new();
+        structured.insert("exitCode".to_owned(), json!(run.exit.exit_code));
         structured.insert("output".to_owned(), json!(output));
+        if let Some(cwd) = run.ran_in.as_deref() {
+            structured.insert("cwd".to_owned(), json!(cwd));
+        }
         let text = output.join("\n");
         Ok(as_text(&text, Value::Object(structured)))
     })

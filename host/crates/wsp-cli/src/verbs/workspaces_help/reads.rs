@@ -84,6 +84,15 @@ impl<T> HostRow<T> {
     }
 }
 
+impl<T: DeserializeOwned> HostRow<T> {
+    /// A reply's field read into its type, kept as the host wrote it; the other-version refusal where it will not read.
+    pub fn from_reply(reply: &Frame, op: &str, key: &str) -> Result<Self, HostError> {
+        let raw: Value = reply_field(reply, op, key)?;
+        let typed = serde_json::from_value(raw.clone()).map_err(|_| HostError::new(other_version(op)))?;
+        Ok(HostRow { typed, raw })
+    }
+}
+
 impl<T> std::ops::Deref for HostRow<T> {
     type Target = T;
     fn deref(&self) -> &T {
