@@ -149,7 +149,7 @@ describe("wsp computers set --name", () => {
     expect(((await placesOf()).find(p => p.name === "hetzner") as PlaceView & { recipe?: string }).recipe).toBe("none");
     const nothing = await wsp("computers", "set", "hetzner");
     expect(nothing.code).toBe(EXIT_CODES.usage);
-    expect(nothing.errors.join("\n")).toContain("nothing to set on hetzner: it takes threads at once, nap after, turn limit, agents may start agents, levels deep, a new name and a new ssh login");
+    expect(nothing.errors.join("\n")).toContain("nothing to set on hetzner: it takes threads at once, nap after, turn limit, machines under a root thread, levels deep, a new name and a new ssh login");
   });
 });
 

@@ -261,7 +261,7 @@ describe("the tool servers and the skills", () => {
     const why = cloudServerOffLine("notion");
     const report: AgentsReport = { ...AGENTS_REPORT, servers: AGENTS_REPORT.servers.map(({ signInLine: _line, ...s }) => (s.name === "notion" ? { ...s, off: why } : s)) };
     const tools = fakeTools();
-    drawPanel({ report, on: { name: "wsp-fork (Boat)" }, ctx: { where: "fork", tools, editImage: () => {}, reach: "none" } });
+    drawPanel({ report, on: { name: "wsp-fork (Boat)" }, ctx: { where: "fork", tools, reach: "none" } });
     tab("Tool servers");
     expect(stateOf(SERVER.notion)).toEqual(["Off", "quiet"]);
     expect(slotOf(SERVER.notion)).toEqual([]);
@@ -269,7 +269,7 @@ describe("the tool servers and the skills", () => {
     expect(stateOf(SERVER.linear), "a server it does not mark keeps its own word").toEqual(["Checking", "quiet"]);
     openRow(SERVER.notion);
     expect(panel().querySelector("[data-settings-line=under-none]")?.textContent).toBe(why);
-    expect(headActs()).toEqual(["Edit image"]);
+    expect(headActs()).toEqual([]);
     expect(panel().textContent).not.toMatch(/mcp login|Sign in/);
   });
 
@@ -621,21 +621,6 @@ describe("the states", () => {
     expect(panel().querySelector("[data-k=agents-stale]")?.textContent).toBe("Stopped");
   });
 
-  it("offers Edit image on a fork in Add's place and on every item's page, and nothing else", () => {
-    const editImage = vi.fn();
-    drawPanel({ ctx: { where: "fork", editImage } });
-    expect(slotOf("codex")).toEqual([]);
-    openRow("claude");
-    expect(headActs()).toEqual(["Edit image"]);
-    fireEvent.click(headAct("edit-image")!);
-    expect(editImage).toHaveBeenCalledTimes(1);
-    back();
-    tab("Skills");
-    const add = panel().querySelector<HTMLButtonElement>("[data-k=kind-add]")!;
-    expect(add.textContent).toBe("Edit image");
-    fireEvent.click(add);
-    expect(editImage).toHaveBeenCalledTimes(2);
-  });
 });
 
 describe("the status dots", () => {
@@ -695,25 +680,32 @@ describe("the pure rules", () => {
     ]);
   });
 
-  it("reads a cloud's agents off the image it sealed, at the pins, signed in where the seal carried the login", () => {
+  it("reads a cloud's agents off the image's recipe, signed in where the seal carried the login", () => {
+    const source = { kind: "installed" as const, paths: [], bin: true };
     const image = {
       name: "default",
       version: 3,
       hash: "a".repeat(64),
       recipeHash: "r",
-      pins: [
-        { id: "claude", tag: "2.1.280" },
-        { id: "gh", tag: "2.60.0" },
-        { id: "codex", tag: "0.62.0" },
-      ],
+      recipe: {
+        version: 1 as const,
+        at: "2026-09-24T09:00:00.000Z",
+        histories: [],
+        rows: [
+          { id: "claude", kind: "agent" as const, on: true, source },
+          { id: "gh", kind: "tool" as const, on: true, source },
+          { id: "codex", kind: "agent" as const, on: true, source },
+          { id: "gemini", kind: "agent" as const, on: false, source },
+        ],
+      },
       logins: [{ name: "claude", state: "copied" }],
       sealedAt: "2026-09-24T09:00:00.000Z",
       sealedFrom: "zingzy-mbp",
     } as SealedImage;
     const report = imageAgentsReport(image, "solari");
-    expect(report.agents.map(a => [a.id, a.version, a.signIn])).toEqual([
-      ["claude", "2.1.280", "signed-in"],
-      ["codex", "0.62.0", "unknown"],
+    expect(report.agents.map(a => [a.id, a.signIn])).toEqual([
+      ["claude", "signed-in"],
+      ["codex", "unknown"],
     ]);
   });
 });

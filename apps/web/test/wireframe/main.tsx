@@ -32,9 +32,6 @@
 //   first-run        the first run with nothing typed
 //   first-run-refused    the runtime's own sentence in the slot under the button
 //   first-run-starting   Start held while the create runs
-//   first-run-no-agent   the line for a computer with no agent on it, Start held
-//   first-run-agents     six agents on this computer, which fill the line's two
-//                        lines and are cut at the second
 //   creating         a workspace being made on the box, its tile selected: the
 //                    image built there first, then the machine's own steps
 //   creating-refused the same create refused at the box
@@ -86,16 +83,6 @@
 //                         with &computer=solari; settings-computer is the box's
 //                         ready card and settings-cloud the cloud's copy behind
 //                         (&projects=1: the box's agents over the two projects it holds)
-//   settings-image-recipe, -recipe-last, -recipe-choice  the box's card with the
-//                         recipe open on its first screen, on the screen that
-//                         builds, and on the road before any job (&image=none);
-//                         settings-image-signin, a build there waiting on a sign-in
-//   settings-image-build, -build-sealing, -build-stopped, -build-failed, -build-key
-//                         the box's first build in its card: running, on the seal
-//                         (Cancel held), stopped with its machine still being
-//                         removed, failed on a stage, and (&computer=solari) the
-//                         saved key refused, with Change the key; &advance=1 on
-//                         the running build moves it to its next stage 300 ms in
 //   bring-back-paused    the row's menu on a machine that is stopped, with
 //                        Bring back held and its reason under the pointer
 //   bring-back-absent    the same on a workspace whose computer is not
@@ -120,10 +107,9 @@
 //                    restricted renderer's render test
 import { createRoot } from "react-dom/client";
 import { CATALOG_AGENTS, agentName } from "@wsp/catalog";
-import { manyAgents } from "./agents";
 import { ACTIVITY_APP_PROCS, ACTIVITY_SESSIONS, feedActivity, holdDesignTab } from "./activity";
 import { wireAppProcs } from "../../src/machine/appProcs";
-import { DAEMON_VERSION, DEFAULT_PREFERENCES, cloudServerOffLine, copyFirstLine, hostnameSetLine, type AgentsReport, type HarnessCatalog, GOLDEN_STAGE_WORDS, MACHINE_ROW_LABEL, STOP_LEFT_MACHINE_LINE, hereWord, serverNotSetUpLine, startingLine, type AgentsSignInEvent, type Capabilities, type DeviceView, type InitAgent, type InitJob, type InitRow, type InitScreen, type PlaceAddJob, type PlaceAddStep, type PlaceApplied, type PlaceView, type ProjectView, type SealedImage, type SessionView, type ThreadDefaults, type WorkspaceLanding, type WorkspaceView } from "@wsp/protocol";
+import { DAEMON_VERSION, DEFAULT_PREFERENCES, cloudServerOffLine, copyFirstLine, hostnameSetLine, type AgentsReport, type HarnessCatalog, hereWord, serverNotSetUpLine, startingLine, type AgentsSignInEvent, type Capabilities, type DeviceView, type PlaceAddJob, type PlaceAddStep, type PlaceApplied, type PlaceView, type ProjectView, type SealedImage, type SessionView, type ThreadDefaults, type WorkspaceLanding, type WorkspaceView } from "@wsp/protocol";
 import { AppShell } from "../../src/shell/AppShell";
 import { FirstRun } from "../../src/shell/FirstRun";
 import { AgentsSurface } from "../../src/components/agents/AgentsSurface";
@@ -140,7 +126,6 @@ import { useCreation, useStore } from "../../src/protocol/store";
 import { useAddFlow } from "../../src/settings/add/addFlow";
 import { useAdds } from "../../src/settings/adds";
 import { useRightPanelStore } from "../../src/rightPanelStore";
-import { KEY_REFUSED_LINE, KEY_REFUSED_ROWS } from "../fixtures/keyRefusedJob";
 import "../../src/index.css";
 import { imageBuildLine } from "../../src/shell/creationLog";
 import { WorkspaceThread } from "../../src/shell/WorkspaceThread";
@@ -268,9 +253,6 @@ const SESSIONS: Record<string, SessionView[]> = {
   ws_fork: [thread("th_child", "ws_fork", "move the pricing table", { startedBy: "agent", parentThreadId: "th_lead" } as Partial<SessionView>)],
 };
 
-/** Six agents on one computer, the list that fills the first run's line to both its lines and is cut there. */
-const MANY_AGENTS: InitAgent[] = manyAgents(6);
-
 const GB = 1024 * 1024 * 1024;
 /** The agents a joined computer reported, by their catalog ids, which is what the wire carries. */
 const REPORTED = CATALOG_AGENTS.map(entry => entry.id);
@@ -323,8 +305,8 @@ const COMPUTERS: PlaceView[] = [
     settings: { napMs: 30 * 60_000 },
     napMs: 30 * 60_000,
     napDefault: 20 * 60_000,
-    spawn: { spawn: true, maxMachines: 3, maxDepth: 2 },
-    spawnDefault: { spawn: true, maxMachines: 3, maxDepth: 2 },
+    spawn: { maxMachines: 3, maxDepth: 2 },
+    spawnDefault: { maxMachines: 3, maxDepth: 2 },
     behind: { word: "daemon 40, host 111", fix: "wsp add spoo --update", act: "update" },
   }),
   box("p_dev4", "dev4", { setup: { state: "running", addId: "a_1", startedAt: AT, steps: [{ step: "clis", state: "running" }], waiting: [] } }),
@@ -356,52 +338,9 @@ let keySaved = screen === "settings-agents-boat";
 /** The Image card in each state it reads, on the box's page or the cloud's (?computer=solari): no image anywhere, an
  * image with no copy there, a copy building, a build that stopped, a copy a newer version left behind, and the copy
  * standing. The record carries a recipe here, so the ready card draws every chip a real record gives it. */
-const BUILD_SCREENS = ["settings-image-signin", "settings-image-build", "settings-image-build-sealing", "settings-image-build-stopped", "settings-image-build-failed", "settings-image-build-key"];
-const RECIPE_SCREENS = ["settings-image-recipe", "settings-image-recipe-last", "settings-image-recipe-choice", ...BUILD_SCREENS];
-const IMAGE_SCREENS = [...RECIPE_SCREENS, "settings-image-nothing", "settings-image-copy", "settings-image-copying", "settings-image-stopped", "settings-image-stale", "settings-image-ready"];
+const IMAGE_SCREENS = ["settings-image-nothing", "settings-image-copy", "settings-image-copying", "settings-image-stopped", "settings-image-stale", "settings-image-ready"];
 const imageAt = params.get("computer") === "solari" ? { id: "solari", word: "solari" } : { id: "p_spoo", word: "spoo" };
-/** The init job the recipe screens stand on, which the host hands over with its setup. */
-function recipeJob(): InitJob | null {
-  const built = buildJob();
-  if (built !== null) return built;
-  if (screen !== "settings-image-recipe" && screen !== "settings-image-recipe-last") return null;
-  const MB = 1024 * 1024;
-  const screens: InitScreen[] = [
-    { id: "agents", title: "Agents", top: "Which agents go on the image", items: [{ id: "claude", label: "Claude Code", size: 208 * MB, why: "used here, 412 sessions", detail: [] }, { id: "codex", label: "Codex", size: 455 * MB, why: "used here, 38 sessions", detail: [] }, { id: "hermes", label: "Hermes Agent", size: 484 * MB, why: "not installed here", detail: [] }], ticks: ["claude", "codex"], answers: {}, footer: [], tally: "agents" },
-    { id: "tools", title: "Tools", top: "Tools from your usage", items: [{ id: "node", label: "node", size: 60 * MB, group: "always on the image", detail: [], lock: "on" }, { id: "gh", label: "gh", size: 12 * MB, why: "29,623 calls", group: "from your usage", detail: [] }, { id: "rg", label: "ripgrep", size: 6 * MB, why: "8,112 calls", group: "from your usage", detail: [] }], ticks: ["node", "gh", "rg"], answers: {}, footer: [], tally: "tools" },
-    { id: "logins", title: "Sign-ins", top: "How sign-ins reach the machine", items: [{ id: "logins/claude", label: "Claude Code login", group: "Agents", mark: "claude", why: "Keychain", detail: [], choices: [{ value: "copy", label: "copy from this Mac" }, { value: "machine", label: "sign in on the machine" }, { value: "later", label: "later" }] }, { id: "logins/gh", label: "GitHub CLI login", group: "Developer CLIs", mark: "gh", why: "hosts.yml", detail: [], choices: [{ value: "copy", label: "copy from this Mac" }, { value: "skip", label: "skip" }] }], ticks: [], answers: { "logins/claude": "copy", "logins/gh": "copy" }, footer: [] },
-  ];
-  return { id: "init_w", road: "manual", phase: "answering", keys: {}, step: screen === "settings-image-recipe" ? 0 : 2, stoppable: true, disk: { fixed: 2 * GB, total: 20 * GB }, screens, rows: [], progress: { done: 0, total: 0 }, log: [] };
-}
-/** The image's first build on the computer the page is of, in the state the screen names. */
-function buildJob(): InitJob | null {
-  if (!BUILD_SCREENS.includes(screen)) return null;
-  const stage = (id: keyof typeof GOLDEN_STAGE_WORDS, state: string, more: Partial<InitRow> = {}): InitRow => ({ id: `stage/${id}`, kind: "stage", label: GOLDEN_STAGE_WORDS[id], state, ...more });
-  const early = (["creating", "deploying-daemon", "applying-setup", "uploading-files", "installing-harness"] as const).map(id => stage(id, "done", { ms: 9_000 }));
-  const late = (["snapshotting", "promoting", "smoke-forking", "sealed"] as const).map(id => stage(id, "waiting"));
-  // The copy is over once the stage reaches it; a build that never got there leaves both skipped.
-  const signIns = (state: string, more: Partial<InitRow> = {}): InitRow[] => [
-    state === "skipped" || state === "waiting" ? { id: "sign-in/claude", kind: "sign-in", tool: "claude", label: "Claude Code login", state } : { id: "sign-in/claude", kind: "sign-in", tool: "claude", label: "Claude Code login", state: "copied", login: "copied" },
-    { id: "sign-in/gh", kind: "sign-in", tool: "gh", label: "GitHub CLI login", state, ...more },
-  ];
-  const job = (phase: InitJob["phase"], rows: InitRow[], more: Partial<InitJob> = {}): InitJob => ({ id: "init_w", road: "manual", phase, keys: {}, step: 3, stoppable: true, screens: [], rows, progress: { done: rows.filter(r => r.state === "done").length, total: rows.length }, log: [], place: { id: imageAt.id, name: imageAt.word }, ...more });
-  const tools = (state: string, lines: string[]): InitRow => stage("installing-tools", state, { lines, since: Date.now() - 42_000 });
-  switch (screen) {
-    case "settings-image-signin":
-      return job("signing-in", [...early, stage("installing-tools", "done"), stage("installing-mcp", "done"), stage("ready", "done"), ...signIns("waiting for you", { page: "https://github.com/login/device", code: "7F2C-91AB", finish: "code" }), ...late], { needsYou: { what: "sign in to GitHub CLI login", since: 1 } });
-    case "settings-image-build":
-      return job("building", [...early, tools("running", ["brew: installing gh 2.62.0", "brew: installing ripgrep 14.1.1", "brew: pouring node@22"]), stage("installing-mcp", "waiting"), stage("ready", "waiting"), ...signIns("waiting"), ...late]);
-    case "settings-image-build-sealing":
-      return job("sealing", [...early, stage("installing-tools", "done"), stage("installing-mcp", "done"), stage("ready", "done"), ...signIns("signed in", { login: "signed-in" }), stage("snapshotting", "running", { since: Date.now() - 18_000 }), ...late.slice(1)], { stoppable: false });
-    case "settings-image-build-stopped":
-      return job("cancelled", [...early, tools("stopped", ["brew: installing gh 2.62.0"]), stage("installing-mcp", "waiting"), stage("ready", "waiting"), ...signIns("skipped"), ...late, { id: "machine/b_w", kind: "machine", label: MACHINE_ROW_LABEL, state: "machine still running, retrying", detail: "503 Service Unavailable" }], { error: `The build was stopped at installing tools. ${STOP_LEFT_MACHINE_LINE}` });
-    case "settings-image-build-failed":
-      return job("failed", [...early, tools("failed", ["brew: installing gh 2.62.0", "brew: installing ripgrep 14.1.1", "Error: ripgrep: no bottle for this machine"]), stage("installing-mcp", "waiting"), stage("ready", "waiting"), ...signIns("skipped"), ...late], { error: "The build stopped at installing tools: ripgrep: no bottle for this machine." });
-    default:
-      return job("failed", KEY_REFUSED_ROWS, { keyRefused: true, error: KEY_REFUSED_LINE });
-  }
-}
-const firstRunScreens = ["first-run", "first-run-refused", "first-run-starting", "first-run-no-agent", "first-run-agents"];
+const firstRunScreens = ["first-run", "first-run-refused", "first-run-starting"];
 /** The screens that are Settings in the centre rather than a workspace, each by the page it opens on. */
 const SETTINGS_SCREENS: Record<string, SettingsAt> = {
   "settings-appearance": { kind: "group", group: "appearance" },
@@ -646,7 +585,7 @@ const api = {
     ? {
         initKeys: async () => {
           keySaved = true;
-          return { keys: { solari: true, box: true }, home: "/Users/dev", agents: [], pricing: null, job: null };
+          return { keys: { solari: true, box: true }, home: "/Users/dev", pricing: null };
         },
       }
     : {}),
@@ -658,16 +597,7 @@ const api = {
   initGet: async () => ({
     keys: { solari: settings || params.get("fork") === "solari" },
     home: "/Users/dev",
-    agents:
-      screen === "first-run-no-agent"
-        ? []
-        : screen === "first-run-agents"
-          ? MANY_AGENTS
-          : // This computer's own block: one agent holding the wsp tools and one that could, which are the two
-            // states a row here can be read in.
-            CATALOG_AGENTS.map((entry, at) => ({ id: entry.id, name: entry.name, configured: at === 0, takesTools: true })),
     pricing: null,
-    job: recipeJob(),
   }),
   // The one screen that records a project: refused by the runtime's own sentence, or still running, or taken.
   projectsAdd: async () => {
@@ -679,18 +609,16 @@ const api = {
   ...(screen === "bring-back-roadless" ? {} : { bringBack: async () => ({ branch: "agent/stripe-import", base: "main", ahead: 1, uncommitted: 0, stat: [] }) }),
   daemon: { open: () => () => {} },
   image: async () =>
-    !settings || screen === "settings-image-nothing" || screen === "settings-image-recipe" || screen === "settings-image-recipe-last" || BUILD_SCREENS.includes(screen) || params.get("image") === "none"
-      ? { image: null, copies: [], projects: [] }
+    !settings || screen === "settings-image-nothing" || params.get("image") === "none"
+      ? { image: null, copies: [] }
       : screen === "settings-image-copy"
-        ? { image: IMAGE_RECORD, copies: IMAGE_COPIES.filter(copy => copy.place !== imageAt.word), projects: [] }
+        ? { image: IMAGE_RECORD, copies: IMAGE_COPIES.filter(copy => copy.place !== imageAt.word) }
         : screen === "settings-image-stale"
-          ? { image: IMAGE_RECORD, copies: IMAGE_COPIES.map(copy => (copy.place === imageAt.word ? { ...copy, version: 2, hash: "b".repeat(63) + "2" } : copy)), projects: [] }
+          ? { image: IMAGE_RECORD, copies: IMAGE_COPIES.map(copy => (copy.place === imageAt.word ? { ...copy, version: 2, hash: "b".repeat(63) + "2" } : copy)) }
           : screen === "settings-image-ready"
-            ? { image: IMAGE_RECORD, copies: IMAGE_COPIES.map(copy => (copy.place === imageAt.word ? { ...copy, version: 3, hash: IMAGE.hash } : copy)), projects: [] }
-            : { image: IMAGE, copies: params.get("copies") === "none" ? [] : IMAGE_COPIES, projects: [] },
+            ? { image: IMAGE_RECORD, copies: IMAGE_COPIES.map(copy => (copy.place === imageAt.word ? { ...copy, version: 3, hash: IMAGE.hash } : copy)) }
+            : { image: IMAGE, copies: params.get("copies") === "none" ? [] : IMAGE_COPIES },
   imageBuild: async () => new Promise<never>(() => {}),
-  initStart: async () => new Promise<never>(() => {}),
-  initDraft: async () => new Promise<never>(() => {}),
   hostTerminalConfig: async () => ({ files: [] }),
   ...(screen === "settings-agents-boat" ? { brokerStatus: async () => ({ claude: "login" as const, codex: "chatgpt" as const, github: "Zingzy" }) } : {}),
   agentsRead: async () => onCloud(screen === "agents-widths" || screen === "skill-preview" ? PANEL_REPORT : toolsScreen ? AGENTS_TOOLS_REPORT : agentScreen ? AGENTS_SETUP_REPORT : params.get("projects") === "1" ? AGENTS_PAGE_REPORT : AGENTS_REPORT),
@@ -837,11 +765,6 @@ if (activityScreen) {
 }
 useStore.getState().bind(api);
 // The frames a copy build at the box sent, set after the bind, whose pull starts every place over.
-// A focus change during the build: the running stage ends and the next one starts, as the host's next view says.
-if (screen === "settings-image-build" && params.get("advance") === "1") {
-  const job = buildJob()!;
-  setTimeout(() => useStore.setState({ initJob: { ...job, rows: job.rows.map(r => (r.id === "stage/installing-tools" ? { ...r, state: "done" } : r.id === "stage/installing-mcp" ? { ...r, state: "running", lines: ["npx: fetched the servers"] } : r)) } }), 300);
-}
 if (screen === "settings-image-copying") useStore.setState({ goldenFrames: { [imageAt.id]: [{ type: "golden.stage", name: "default", stage: "applying-setup", place: imageAt.id }] } });
 if (screen === "settings-image-stopped") useStore.setState({ goldenFrames: { [imageAt.id]: [{ type: "golden.stage", name: "default", stage: "failed", detail: `${imageAt.word} went away before the build finished`, place: imageAt.id }] } });
 // A workspace nobody has touched shows an open right panel, which at a phone's width is the whole screen: the
@@ -979,10 +902,6 @@ setTimeout(() => {
     typed("folder", "/Users/dev/notes");
     typed("work", "add a README badge");
     setTimeout(() => document.querySelector<HTMLButtonElement>("[data-k=start]")?.click(), 60);
-  }
-  if (screen === "first-run-no-agent" || screen === "first-run-agents") {
-    typed("folder", "/Users/dev/spoo");
-    typed("work", "add a README badge");
   }
   // At 390 the sidebar is a sheet that opens after this page does, so the collapse is tried until the row is there.
   if (screen === "sidebar-fallback") {

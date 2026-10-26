@@ -66,7 +66,6 @@ function creationOf(raw: unknown): Creation | undefined {
     asked: r["asked"],
     queued: true,
     ...(opens !== undefined ? { opens } : {}),
-    ...(text(r["golden"]) ? { golden: r["golden"] } : {}),
     ...(size.success ? { size: size.data } : {}),
     ...(text(r["where"]) ? { where: r["where"] } : {}),
     workspaceId,

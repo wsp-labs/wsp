@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { AgentSignInState, CloudPlan, CloudStarts, ContextMenuItem, HostsView, PlaceView, ProjectExportEvent, ProjectImportEvent, ProjectSecret, TerminalConfig, TerminalRgb, WorkspaceGlyph } from "../index.js";
+import type { AgentSignInState, CloudPlan, CloudStarts, ContextMenuItem, HostsView, PlaceView, ProjectExportEvent, ProjectImportEvent, TerminalConfig, TerminalRgb, WorkspaceGlyph } from "../index.js";
 import { dotColour, effectiveOpacity, themeInk, type Rgb, type WorkspaceTheme } from "../workspace-look.js";
 import { compareVersions } from "../semver.mjs";
 import { plural } from "./base.js";
@@ -21,11 +21,6 @@ export function secretsNote(n: number): string {
 
 /** What the ticks on the agent rows do. */
 export const SESSIONS_NOTE = "Ticked agents' sessions go with the folder. The rest stay here.";
-
-/** Why a secret-shaped file was flagged and its size, as the CLI's plan column and the dialog's hover both print it. */
-export function secretSignalsLine(s: ProjectSecret): string {
-  return `${s.signals.join(", ")}, ${fmtBytes(s.bytes)}`;
-}
 
 /** The line under the export dialog's title: which workspace the folder leaves, and the computer it lands on. */
 export function exportFromLine(workspaceName: string, here: string): string {
@@ -260,14 +255,6 @@ export function placeSpendLine(spend: { monthUsd: number; rateUsdPerHour: number
  * its workspaces have all been asleep since last month: a count of two where one charged reads as two bills. */
 export function placesSpendFoot(monthUsd: number, providers: number): string {
   return `${spentThisMonth(monthUsd)} across ${plural(providers, "provider")}`;
-}
-
-/** The doctor's word on the engine a project's own containers run on here: the engine when the box has one, else
- * the line that says installing one opens it. A place that has not yet said reads nothing. */
-export function placeEngineLine(view: Pick<PlaceView, "name" | "engine">): string | undefined {
-  if (view.engine === undefined) return undefined;
-  if (view.engine === "none") return `${view.name} has no container engine; a project's docker compose runs there once you install Docker or podman on it`;
-  return `${view.name} runs a project's own containers on ${view.engine}; a workspace made with --engine gets a socket to it and sees its own containers alone`;
 }
 
 /** An agent wsp hands a token or a key of the person's at every turn, which needs no login on the computer. */

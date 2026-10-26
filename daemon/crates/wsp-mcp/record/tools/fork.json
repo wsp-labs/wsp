@@ -2,7 +2,7 @@
   "cloudOff": null,
   "cloudOn": {
     "name": "fork",
-    "description": "A new machine of the source's image version, a child of the source that starts on the source's branch with its commits pushed first (not a copy of its live disk); a thread's fork sits under that thread in its tree, and its size and agents switch are the person's to pick. A workspace in a project's folder is no machine to fork. With a task, its first thread is opened and the reply returned. When that first turn fails, the error still names the workspace, which exists: continue with run on it rather than forking again.",
+    "description": "A new machine of the source's image version, a child of the source that starts on the source's branch with its commits pushed first (not a copy of its live disk); a thread's fork sits under that thread in its tree, and its size and agent caps are the person's to pick. A workspace in a project's folder is no machine to fork. With a task, its first thread is opened and the reply returned. When that first turn fails, the error still names the workspace, which exists: continue with run on it rather than forking again.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -49,23 +49,15 @@
           "minItems": 1,
           "description": "who is told each time a turn of the new thread ends, each one a thread (by id, or a prefix of it) the line goes into as a message carrying that turn's whole reply, or me, which is the thread this call came out of when it came out of one and otherwise the person's app, where the line is its last reply line alone. Several targets each get the line once, which is how a builder's end reaches its orchestrator and a reviewer together; a target whose thread is gone by then falls back to the person, and the new thread's own id is refused. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report."
         },
-        "spawn": {
-          "type": "string",
-          "enum": [
-            "on",
-            "off"
-          ],
-          "description": "whether the agents on this workspace may drive this host: open threads and fork machines under the thread they run in, capped. Absent is on under the default caps, which is what every workspace made without it reads as"
-        },
         "max_machines": {
           "type": "integer",
           "minimum": 0,
-          "description": "how many machines may stand at once under one root thread while spawn is on; defaults to 3"
+          "description": "how many machines may stand at once under one root thread; defaults to 3"
         },
         "max_depth": {
           "type": "integer",
           "minimum": 1,
-          "description": "how many levels deep the tree under a root thread may go while spawn is on, 2 by default; 1 stops at the root's own children"
+          "description": "how many levels deep the tree under a root thread may go, 2 by default; 1 stops at the root's own children"
         }
       },
       "required": [
@@ -285,9 +277,6 @@
             "agents": {
               "type": "object",
               "properties": {
-                "spawn": {
-                  "type": "boolean"
-                },
                 "maxMachines": {
                   "type": "integer",
                   "minimum": 0
@@ -298,7 +287,6 @@
                 }
               },
               "required": [
-                "spawn",
                 "maxMachines",
                 "maxDepth"
               ],

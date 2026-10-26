@@ -17,8 +17,6 @@ import type {
   PauseMode,
   RecipeDigest,
   SealedImage,
-  ProjectGolden,
-  WorkspaceProject,
   WorkspaceSize,
   WorkspaceView,
 } from "@wsp/protocol";
@@ -27,7 +25,6 @@ import {
   WORKSPACES,
   GOLDENS,
   GOLDEN_RECIPES,
-  PROJECT_GOLDENS,
   IMAGES,
   copyKey,
   recipeKey,
@@ -197,7 +194,7 @@ export function recordsArea(ctx: RuntimeContext): RecordsArea {
     return {
       name,
       version: head.version,
-      hash: imageHash(hash, undefined, []),
+      hash: imageHash(hash, undefined),
       recipeHash: hash,
       logins: head.logins ?? [],
       sealedAt: head.createdAt,
@@ -206,8 +203,8 @@ export function recordsArea(ctx: RuntimeContext): RecordsArea {
     };
   };
 
-  /** Every snapshot and template id this state file stands on: each golden's versions and their templates, each
-   * project golden, and the image every live workspace forks from. A row wsp made that is in none of them is an
+  /** Every snapshot and template id this state file stands on: each golden's versions and their templates, and the
+   * image every live workspace forks from. A row wsp made that is in none of them is an
    * orphan, whatever its name; a row in one of them is kept even when its name predates the owner mark. */
   const recordedImages = async (): Promise<Set<string>> => {
     const ids = new Set<string>();
@@ -217,7 +214,6 @@ export function recordsArea(ctx: RuntimeContext): RecordsArea {
         if (v.templateId !== undefined) ids.add(v.templateId);
       }
     }
-    for (const raw of await store.list(PROJECT_GOLDENS)) ids.add((raw as ProjectGolden).snapshotId);
     for (const e of live.values()) ids.add(e.record.golden);
     return ids;
   };
@@ -235,41 +231,13 @@ export function recordsArea(ctx: RuntimeContext): RecordsArea {
   const goldenVersionOf = async (snapshotId: string): Promise<GoldenVersion | undefined> =>
     (await goldenManifestOf(snapshotId))?.versions.find(v => v.snapshotId === snapshotId);
 
-  /** Whether the small recipe this version was sealed from asks for the engine socket on every fork: the sealed
-   * record of the image whose wired copy holds this version says. A version no record names asks for none. */
-  const recipeAsksEngine = async (version: GoldenVersion): Promise<boolean> => {
-    for (const raw of await store.list(IMAGES)) {
-      const image = raw as SealedImage;
-      // A copy at any place carries the record's hash it was built from, whatever version number that place gave it.
-      if (version.imageHash !== undefined && version.imageHash === image.hash) return image.recipe?.engine === true;
-      if (image.version !== version.version) continue;
-      const manifest = await copyOf(places.wired, image.name);
-      if (manifest?.versions.some(v => v.snapshotId === version.snapshotId && v.version === version.version)) return image.recipe?.engine === true;
-    }
-    return false;
-  };
-
-  /** What stands behind a snapshot a workspace forks from: a golden version, or a project golden and the version at
-   * the root of its lineage. `golden` is that root's snapshot id, the one a snapshot taken from the fork records. */
-  const imageOf = async (snapshotId: string): Promise<{ golden: string; version?: GoldenVersion; projects?: WorkspaceProject[] }> => {
+  /** The sealed version behind the snapshot a workspace forks from, when a manifest knows it. */
+  const imageOf = async (snapshotId: string): Promise<{ golden: string; version?: GoldenVersion }> => {
     const version = await goldenVersionOf(snapshotId);
-    if (version !== undefined) return { golden: snapshotId, version };
-    const stored = await store.get(PROJECT_GOLDENS, snapshotId);
-    if (stored === undefined) return { golden: snapshotId };
-    const project = projectGoldenOf(stored);
-    const root = await goldenVersionOf(project.golden);
-    return { golden: project.golden, ...(root !== undefined ? { version: root } : {}), projects: project.projects };
-  };
-
-  /** A project golden as stored, read as one of today: a manifest from before a snapshot carried every project on
-   * the disk named the one it was taken for under `project`, and reads as a golden of that one. */
-  const projectGoldenOf = (raw: unknown): ProjectGolden => {
-    const { project: single, ...rest } = raw as Omit<ProjectGolden, "projects"> & { projects?: WorkspaceProject[]; project?: WorkspaceProject };
-    return { ...rest, projects: rest.projects ?? (single !== undefined ? [single] : []) };
+    return { golden: snapshotId, ...(version !== undefined ? { version } : {}) };
   };
   return {
     view, putLook, persist, shapeOf, sizeBuilt, readMemory, forkedFrom, copyOf, putCopy, copyRecipeOf, putCopyRecipe,
-    dropCopyRecipe, migrateCopies, recordOf, recordedImages, recipeAsksEngine, imageOf,
-    projectGoldenOf,
+    dropCopyRecipe, migrateCopies, recordOf, recordedImages, imageOf,
   };
 }

@@ -9,7 +9,6 @@ import { CLOUD_BUILT, CLOUD_ON } from "./cloud.js";
 // The writer of a host's own .env now sits beside its reader; the name stays exported here for every caller
 // that already had it from this module.
 export { writeEnvFile } from "./env-keys.js";
-import { alsoHere } from "./scan.js";
 import { systemOpener } from "./relay.js";
 import { starterFor, type HostStarter } from "./host-start.js";
 import { wspHome } from "./hosts.js";
@@ -17,15 +16,14 @@ import { runningWsp, type RunningWsp } from "./mcp-install.js";
 import { cloudLineOf, failed, findVerb, jsonAsked, runVerb, takeCommon, verbUsage } from "./verbs.js";
 import { VERSION } from "./version.js";
 import { type CliIO, terminalIO } from "./cli/io.js";
-export { type CliIO, terminalIO, jsonCliIO } from "./cli/io.js";
+export { type CliIO, terminalIO } from "./cli/io.js";
 export { type KeySources, keySources, type NoProviderKey, type LoadedKeys, loadKeys, keysFound, vaultNow, saveQuestion } from "./cli/keys.js";
 import { statePathFrom } from "./cli/state.js";
 export { devCheckoutState, type StatePick, statePick, defaultStatePath, statesHere, stateStore } from "./cli/state.js";
 import { SERVE_FLAGS, optsFor, type SharedFlags, SHARED_OPTIONS } from "./cli/flags.js";
 export { type ServeAsked, SERVE_FLAGS, type SharedOpts, optsFor, SHARED_OPTIONS } from "./cli/flags.js";
-export { goldenRecipe, localWorkFolder, type LocalDaemonStart, localWiring, hostRecipeWatch, providerSlotOf, swapProvider, forgetProviderKey, servingWiring, makeRuntime, hostSeed, projectFolder } from "./cli/wiring.js";
+export { goldenRecipe, localWorkFolder, type LocalDaemonStart, localWiring, hostRecipeWatch, providerSlotOf, swapProvider, forgetProviderKey, servingWiring, makeRuntime, hostSeed } from "./cli/wiring.js";
 export { type StopProcess, OWN_FILES_POLL_MS, stopOnSignals, type UncaughtProcess, stayOnUncaught, type ServeOptions, serve, noClaudeKeyNote, hostDoctorReaders } from "./cli/serve.js";
-export { terminalInitIO, providerBesideRefusal, upCommandFor } from "./cli/init.js";
 export { up, type ServiceDeps, hostRoadWord, hostStoppedLine, systemService, serviceArgv, keyOnlyInThisShell, claudeKeyOnlyInThisShell, upServiceCommand, downCommand, statusCommand, pickUpPorts } from "./cli/service.js";
 import { type CommandDeps, SYSTEM_COMMAND_DEPS, HOST_COMMANDS, HOST_WORD, HOST_LINES, findCommand, JSON_COMMANDS, MCP_COMMAND, mcpUsage, SHARED_FLAGS, readers } from "./cli/commands.js";
 export { HOST_STARTS_ITSELF, type HostFlag, type CommandDeps, SYSTEM_COMMAND_DEPS, DOCTOR_HANDLES_ENV, doctorKeyAsk, doctorRow, HOST_FLAG, HOST_COMMANDS, SHARED_WORDS, COMMANDS_FOR_HELP, HOST_WORD, HOST_LINES, JSON_COMMANDS, PROSE_COMMANDS, MCP_OPTIONS, type CommandLine, COMMAND_LINES, type SharedFlag, SHARED_FLAGS, readers } from "./cli/commands.js";
@@ -81,7 +79,7 @@ export async function cli(
   const verb = findVerb(rest);
   if (verb !== undefined) {
     const words = verb.name.split(" ");
-    return runVerb(verb, [...words, ...common, ...rest.slice(words.length)], io, chooseState, { alsoHere, cwd: caller.cwd ?? process.cwd(), env, open: systemOpener(), ...starts, ...(caller.elsewhere === true ? { elsewhere: true } : {}) });
+    return runVerb(verb, [...words, ...common, ...rest.slice(words.length)], io, chooseState, { cwd: caller.cwd ?? process.cwd(), env, open: systemOpener(), ...starts, ...(caller.elsewhere === true ? { elsewhere: true } : {}) });
   }
   if (rest[0] === MCP_COMMAND) {
     const argv = [...common, ...rest.slice(1)];

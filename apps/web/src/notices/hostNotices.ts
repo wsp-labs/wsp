@@ -18,14 +18,13 @@
 // sound while the person keeps that switch on. The
 // dock's badge counts the threads waiting on the person. A newer release is
 // never a notice: the sidebar's update card says it.
-import { NOTIFY_ME, waitLine, setupNeedsYouLine, setupReadyLine, askingLine, exitLine, foldThreads, initJobBuilding, initNeedsYouLine, needsYouCount, outsideLine, planAlertLine, threadFinishedLine, threadStoppedLine, titleWithNeed, type InitJob, type OutsideLine, type OutsideMoment, type PlaceView, type TurnResult } from "@wsp/protocol";
+import { NOTIFY_ME, waitLine, setupNeedsYouLine, askingLine, exitLine, foldThreads, needsYouCount, outsideLine, planAlertLine, threadFinishedLine, threadStoppedLine, titleWithNeed, type OutsideLine, type OutsideMoment, type PlaceView, type TurnResult } from "@wsp/protocol";
 import { useCallback, useEffect, useRef } from "react";
 import type { ProtocolEvent } from "../protocol/client.js";
 import { threadOnScreen, useProtocolEvents, useStore } from "../protocol/store.js";
 import { desktopBridge } from "../lib/desktopShell.js";
 import { placeName } from "../settings/places.js";
 import { openSetup, sayEnded, useAddFlow } from "../settings/add/addFlow.js";
-import { openReadyOwed, useCloudFlow } from "../settings/add/cloudFlow.js";
 import { useSettingsStore } from "../settings/settingsStore.js";
 import { needsYouRoad, type NeedsYouRoad } from "../shell/needsYou.js";
 import { copyName } from "../sidebar/workspaceRows.js";
@@ -44,11 +43,8 @@ export const HOST_NOTICE_WORDS = {
   threadFinished: threadFinishedLine,
   threadFailed: threadStoppedLine,
   gone: (name: string, reason: string): string => `${name} is gone: ${reason}`,
-  imageNotBuilt: (said: string | undefined): string => (said === undefined ? "The image was not built" : `The image was not built: ${said}`),
-  imageSealed: (version: number | undefined): string => (version === undefined ? "Image sealed" : `Image v${version} sealed`),
 };
 
-const NEED_KEY = "needs-you";
 const askKey = (workspaceId: string, threadId: string | undefined, askId: string): string => `${askPrefix(workspaceId, threadId)}${askId}`;
 const askPrefix = (workspaceId: string, threadId: string | undefined): string => `ask:${workspaceId}:${threadId ?? workspaceId}:`;
 
@@ -70,18 +66,6 @@ const lineFor = (moment: OutsideMoment): OutsideLine | undefined => outsideLine(
 const onScreenNow = (e: { workspaceId: string; sessionId: string; threadId?: string | undefined }): boolean => threadOnScreen(useStore.getState(), e);
 
 const workspaceOnScreen = (workspaceId: string): boolean => !useStore.getState().settingsOpen && useStore.getState().selectedId === workspaceId;
-
-/** Whether a build's own rows are in front of the person: the Image card of the computer it runs on drawing it. The
- * Computers list shows no sign-in, so it is not the build's home. */
-function buildOnScreen(placeId: string | undefined): boolean {
-  return placeId !== undefined && useStore.getState().settingsOpen && useSettingsStore.getState().buildShown === placeId;
-}
-
-/** Whether Add a cloud provider stands on that provider's build, whose own heading says how it ended. */
-function cloudBuildOnScreen(placeId: string | undefined): boolean {
-  const flow = useCloudFlow.getState();
-  return placeId !== undefined && flow.open && flow.provider === placeId && flow.step === "building";
-}
 
 function computerOnScreen(placeId: string | undefined): boolean {
   const s = useStore.getState();
@@ -112,36 +96,9 @@ const openComputer = (placeId: string | undefined): NoticeAction => ({
   },
 });
 
-/** A sealed build's Open: Add a cloud provider's ready page where that build still owes it, else the computer's page. */
-const openSealed = (placeId: string | undefined, jobId: string): NoticeAction => ({
-  word: HOST_NOTICE_WORDS.open,
-  run: () => (placeId !== undefined && openReadyOwed(placeId, jobId) ? undefined : openComputer(placeId).run()),
-});
-
-/** A build's computer by the name wsp places lists, else the name the job carries, and its image's words. */
-function sealWords(job: InitJob): { name: string | undefined; sealed: string } {
-  const place = useStore.getState().places.find(p => p.id === job.place?.id);
-  return { name: place === undefined ? job.place?.name : placeName(place), sealed: HOST_NOTICE_WORDS.imageSealed(job.golden?.version) };
-}
-
-/** A seal said in the window, its Open the ready page where that build owes it. Add a cloud provider closed on a
- * sealed build says it too, since its heading stood in for this notice. */
-export function saySealed(job: InitJob): void {
-  const { name, sealed } = sealWords(job);
-  if (name === undefined) addNotice({ kind: "done", text: sealed });
-  else addNotice({ kind: "done", text: setupReadyLine(name), detail: `${sealed}.`, where: name, action: openSealed(job.place?.id, job.id) });
-}
-
 /** What the rules keep between events, for one mounted effect. */
 interface Held {
   road: NeedsYouRoad | null;
-  /** The need the keyed notice stands for. */
-  need: string | undefined;
-  /** Whether the build's rows were in front of the person at the last change, so leaving them with a need standing
-   * says it and coming back to them ends it. */
-  shown: boolean;
-  /** The jobs whose end has been said. */
-  jobsEnded: Set<string>;
   /** Each running turn's result, by turn id, from its session.done until the session.end that always follows it. */
   results: Map<string, TurnResult>;
   /** The sign-in waits said, by computer and sign-in row, with the computer and the run they were said for: each is
@@ -188,25 +145,6 @@ function endWait(h: Held, key: string): void {
 
 function sayOutside(held: Held, opens: () => void, line: OutsideLine | undefined): void {
   if (line !== undefined) held.road?.say(line, opens);
-}
-
-function sayNeed(held: Held, what: string, placeId: string | undefined): void {
-  held.need = what;
-  addNotice({ kind: "waiting", key: NEED_KEY, text: initNeedsYouLine(what), action: openComputer(placeId) });
-}
-
-/** The build's rows came into view or left it: a need they carried is said once they are gone, and ended once they
- * are back. */
-function settleShown(held: Held): void {
-  const job = useStore.getState().initJob;
-  const shown = buildOnScreen(job?.place?.id);
-  if (shown === held.shown) return;
-  held.shown = shown;
-  if (shown) {
-    if (held.need === undefined) return;
-    held.need = undefined;
-    useNotices.getState().end(NEED_KEY);
-  } else if (job?.needsYou !== undefined && held.need === undefined) sayNeed(held, job.needsYou.what, job.place?.id);
 }
 
 function endAsks(workspaceId: string, threadId: string | undefined): void {
@@ -314,26 +252,6 @@ const RULES: { [T in ProtocolEvent["type"]]?: Rule<T> } = {
     const where = workspaceNamed(e.workspaceId);
     addNotice({ kind: "note", text: e.text, ...(where === undefined ? {} : { where }), action: openThread(e.workspaceId, e.threadId) });
   },
-  "job.needs-you": (e, held) => {
-    const at = useStore.getState().initJob?.place?.id;
-    sayOutside(held, () => openComputer(at).run(), lineFor({ kind: "signIn", what: e.needsYou.what }));
-    if (buildOnScreen(at)) return;
-    sayNeed(held, e.needsYou.what, at);
-  },
-  "init.job": (e, held) => {
-    // A build already running when this page loaded never saw the press that asks for the browser's leave.
-    if (initJobBuilding(e.job.phase)) held.road?.ready();
-    const { id, phase } = e.job;
-    if ((phase !== "done" && phase !== "failed") || held.jobsEnded.has(id)) return;
-    held.jobsEnded.add(id);
-    const at = e.job.place?.id;
-    const { name, sealed } = sealWords(e.job);
-    // A build sent to the background ends with nobody watching, so its end goes out on the shell's road too.
-    if (phase === "done" && name !== undefined) sayOutside(held, openSealed(at, id).run, lineFor({ kind: "imageReady", computer: name, image: sealed }));
-    if (buildOnScreen(at) || cloudBuildOnScreen(at)) return;
-    if (phase === "failed") addNotice({ kind: "error", text: HOST_NOTICE_WORDS.imageNotBuilt(e.job.error), action: openComputer(at) });
-    else saySealed(e.job);
-  },
   "workspace.gone": e => {
     const name = workspaceNamed(e.workspaceId);
     if (name === undefined || workspaceOnScreen(e.workspaceId)) return;
@@ -353,14 +271,14 @@ const RULES: { [T in ProtocolEvent["type"]]?: Rule<T> } = {
 };
 
 /** Mounted once under the store: every rule above on the host's events, the window's title carrying the mark while
- * a need or a prompt stands, and a keyed need ended by any read of the job that no longer carries it. */
+ * a prompt stands. */
 export function useHostNotices(): void {
-  // A build waiting on a sign-in and a thread stopped on a permission prompt are the same fact to a person looking
-  // somewhere else, so the window's own title carries the mark for either.
-  const needed = useStore(s => s.initJob?.needsYou !== undefined || Object.values(s.sessions).some(rows => rows.some(row => row.asking !== undefined)));
+  // A thread stopped on a permission prompt is a fact to a person looking somewhere else, so the window's own title
+  // carries the mark.
+  const needed = useStore(s => Object.values(s.sessions).some(rows => rows.some(row => row.asking !== undefined)));
   // Counted where the rows land, so a window showing a thread, which moves its read stamp, takes it off the dock.
   const waiting = useStore(s => needsYouCount(Object.values(s.sessions).flat()));
-  const held = useRef<Held>({ road: null, need: undefined, shown: false, jobsEnded: new Set(), results: new Map(), waits: new Map(), ready: new Map() });
+  const held = useRef<Held>({ road: null, results: new Map(), waits: new Map(), ready: new Map() });
   useEffect(() => {
     const h = held.current;
     const built = needsYouRoad();
@@ -378,20 +296,12 @@ export function useHostNotices(): void {
   }, [waiting]);
   useEffect(() => {
     const h = held.current;
-    h.shown = buildOnScreen(useStore.getState().initJob?.place?.id);
     const offStore = useStore.subscribe((s, prev) => {
       if (s.places !== prev.places && h.waits.size > 0) settleWaits(h, s.places);
       if (s.places !== prev.places && h.ready.size > 0) settleReady(h, s.places);
-      if (s.initJob !== prev.initJob && h.need !== undefined && s.initJob?.needsYou?.what !== h.need) {
-        h.need = undefined;
-        useNotices.getState().end(NEED_KEY);
-      }
-      settleShown(h);
     });
-    const offSettings = useSettingsStore.subscribe(() => settleShown(h));
     return () => {
       offStore();
-      offSettings();
     };
   }, []);
   const onEvent = useCallback((e: ProtocolEvent) => {
