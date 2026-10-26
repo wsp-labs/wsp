@@ -12,8 +12,8 @@ use serde_json::{json, Value};
 use wsp_core::console;
 use wsp_core::daemon_roots::write_daemon_roots_script;
 use wsp_core::daemon_token::{
-    assert_token_shape, daemon_token_for, daemon_token_path_of, rotate_daemon_token, rotate_daemon_token_script, write_daemon_token_script, DAEMON_TOKEN_NONE,
-    DAEMON_TOKEN_SET, TOKEN_NOT_HEX,
+    assert_token_shape, daemon_token_for, daemon_token_path_of, rotate_daemon_token, rotate_daemon_token_script, write_daemon_token_script,
+    DAEMON_TOKEN_NONE, DAEMON_TOKEN_SET, TOKEN_NOT_HEX,
 };
 use wsp_core::github_cache::{memory_github_cache, GitHubCacheEntry};
 use wsp_core::host_id::{host_identity, hostname, local_config_dir, template_host};

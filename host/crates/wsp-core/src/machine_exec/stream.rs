@@ -15,17 +15,19 @@ use futures::channel::oneshot;
 use futures::future::{FutureExt, LocalBoxFuture};
 use futures::stream::LocalBoxStream;
 use futures::StreamExt;
+use tokio::task::spawn_local;
 use wsp_adapters::port::{ExecFailure, ExecFailureKind, ExecStream, Settle, SharedFuture, WriteOutcome};
 use wsp_engine::errors::until_reached;
 use wsp_engine::exec_detached::put::{machine_answer, put_files, GuestWrite, PutFilesOptions, UploadResult, HANDSHAKE};
 use wsp_engine::machine::ExecResult;
-use tokio::task::spawn_local;
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::types::shell_quote::shell_quote as q;
 use wsp_wire::wire::limits::{EXEC_CHUNK_BYTES, LINK_RETRY_WINDOW_MS};
 use wsp_words::words::thread::machine_unreached_line;
 
-use super::factory::{claim, exec_failure_of, grace_checks, holds_run_probe, reap_script, release_held_sh, release_late_sh, Core, Launched, Posting};
+use super::factory::{
+    claim, exec_failure_of, grace_checks, holds_run_probe, reap_script, release_held_sh, release_late_sh, Core, Launched, Posting,
+};
 use super::rules::{reads_work, turn_activity, turn_cut, LineCut, TurnActivity, TurnLimits, LEFTOVERS_AWK, TREE_WORK_AWK};
 
 /// The poll after a write, a hand-over, or a poll that took bytes in a launch's opening, and for how long.
@@ -300,7 +302,8 @@ impl RunState {
                 GuestWrite { path: format!("{}.late.key", self.base), text: hex::encode(self.core.ids.bytes(6)), append: false },
                 GuestWrite { path: format!("{}.late", self.base), text: format!("{line}\n"), append: false },
             ];
-            let options = PutFilesOptions { before: vec!["umask 077".into()], timeout_ms: Some(self.core.exec_timeout_ms), ..Default::default() };
+            let options =
+                PutFilesOptions { before: vec!["umask 077".into()], timeout_ms: Some(self.core.exec_timeout_ms), ..Default::default() };
             put_files(&*self.core.machine, &files, options).await.is_ok()
         } else {
             false
@@ -380,7 +383,16 @@ impl Drop for Reader {
 
 impl Reader {
     fn new(s: Arc<RunState>) -> Self {
-        Reader { s, split: LineCut::new(), queue: VecDeque::new(), stage: Stage::Opening, downs: 0, caught_up: false, exit_seen: false, dark_since: None }
+        Reader {
+            s,
+            split: LineCut::new(),
+            queue: VecDeque::new(),
+            stage: Stage::Opening,
+            downs: 0,
+            caught_up: false,
+            exit_seen: false,
+            dark_since: None,
+        }
     }
     fn push_chunk(&mut self, chunk: &[u8]) {
         let lines = self.split.take(chunk);
@@ -488,7 +500,8 @@ impl Reader {
         }
         if !exit_str.is_empty() {
             let code = js_parse_int(exit_str).and_then(|c| i32::try_from(c).ok());
-            self.stage = Stage::Reaping(Reaping { ending: Ending { code, check_killed: code == Some(SIGKILL_EXIT), fail: None }, end: None });
+            self.stage =
+                Stage::Reaping(Reaping { ending: Ending { code, check_killed: code == Some(SIGKILL_EXIT), fail: None }, end: None });
             return;
         }
         self.caught_up = true;
@@ -522,7 +535,7 @@ impl Reader {
             self.stage = Stage::Reaping(r);
             return;
         }
-        if r.end.map_or(true, |end| self.s.offset() < end) {
+        if r.end.is_none_or(|end| self.s.offset() < end) {
             self.s.remove().await;
         }
         if let Some(last) = self.split.rest() {
@@ -638,7 +651,6 @@ fn settled<T: Clone + 'static>(rx: oneshot::Receiver<T>) -> SharedFuture<T> {
 pub(super) fn upload_answer(res: &UploadResult) -> String {
     machine_answer(&ExecResult { exit_code: JsInt(JsNumber::from(res.exit_code)), stdout: res.stdout.clone(), stderr: res.stderr.clone() })
 }
-
 
 /// Opens the reader. Eager: the run question after an unanswered launch, the seed's hand-over and signals; lazy: the
 /// poll, which runs only while `lines` is iterated.
@@ -1374,7 +1386,8 @@ pub fn js_parse_int(text: &str) -> Option<i64> {
 
 /// Node's `Buffer.from(text, "base64")`: characters outside the alphabet are skipped and a missing padding is fine.
 fn node_base64(text: &str) -> Vec<u8> {
-    let mut clean: String = text.chars().take_while(|&c| c != '=').filter(|c| c.is_ascii_alphanumeric() || *c == '+' || *c == '/').collect();
+    let mut clean: String =
+        text.chars().take_while(|&c| c != '=').filter(|c| c.is_ascii_alphanumeric() || *c == '+' || *c == '/').collect();
     if clean.len() % 4 == 1 {
         clean.pop();
     }

@@ -16,14 +16,15 @@ use wsp_wire::views::workspace_events::WorkspaceStatusEvent;
 use wsp_wire::views::workspace_more::WorkspaceStatus;
 use wsp_wire::wire::events_union::{EventUnion, Sequenced};
 use wsp_words::js::{js_round, js_trim, number_string};
-use wsp_words::workspace_state::reach_shown;
 use wsp_words::words::thread::{gone_words, GoneSeenBy, GoneSighting};
+use wsp_words::workspace_state::reach_shown;
 
 use super::meter::meter_of;
 use super::{
-    ask_daemon, bounded, facts_backoff_ms, iso, machine_state_of, missed, probe_reach, provider_said, Probed, ProbeOptions, Probes, Reconcile,
-    RecordCall, RecordExec, RouteReach, StatusListOptions, StatusReader, StatusRecord, StatusTracker, StatusWatchOptions, Suspect,
-    COST_INTERVAL_MS, POLL_INTERVAL_MS, PROBE_TIMEOUT_MS, PROMPT_MS, RECONCILE_MIN_MS, ZOMBIE_PROBE_CMD, ZOMBIE_PROBE_TIMEOUT_MS, ZOMBIE_WINDOW_MS,
+    ask_daemon, bounded, facts_backoff_ms, iso, machine_state_of, missed, probe_reach, provider_said, ProbeOptions, Probed, Probes,
+    Reconcile, RecordCall, RecordExec, RouteReach, StatusListOptions, StatusReader, StatusRecord, StatusTracker, StatusWatchOptions,
+    Suspect, COST_INTERVAL_MS, POLL_INTERVAL_MS, PROBE_TIMEOUT_MS, PROMPT_MS, RECONCILE_MIN_MS, ZOMBIE_PROBE_CMD, ZOMBIE_PROBE_TIMEOUT_MS,
+    ZOMBIE_WINDOW_MS,
 };
 use crate::clock::{real_clock, Cancel, Clock};
 use crate::console::warn;
@@ -335,36 +336,36 @@ use crate::console::warn;
 //   };
 
 impl StatusTracker {
-//   const list: StatusApi["list"] = async opts => statusesOf(await o.records(), opts);
+    //   const list: StatusApi["list"] = async opts => statusesOf(await o.records(), opts);
     /// Rows for every record; `reconcile` defaults to always, `reader` to app.
     pub async fn list(&self, opts: StatusListOptions) -> Result<Vec<WorkspaceStatus>, String> {
         let records = self.records().await?;
         Ok(self.statuses_of(&records, opts).await)
     }
 
-//   const watch: StatusApi["watch"] = opts => {
-//     watchers++;
-//     if (watchers === 1) {
-//       stopCost = every(guarded("cost", () => costTick()), opts?.costIntervalMs ?? costIntervalMs);
-//       stopPoll = every(guarded("status poll", pollTick), opts?.pollIntervalMs ?? pollIntervalMs);
-//       // Every machine's state before the first cost tick: nothing polls while no client watches, so a client
-//       // attaching after a gap would otherwise meter a stretch the provider ended hours ago.
-//       guarded("status poll", pollTick)();
-//     }
-//     let released = false;
-//     return () => {
-//       if (released) return;
-//       released = true;
-//       watchers--;
-//       if (watchers === 0) {
-//         stopCost?.();
-//         stopPoll?.();
-//         stopCost = stopPoll = undefined;
-//         lastEmitted.clear();
-//         sentFigures.clear();
-//       }
-//     };
-//   };
+    //   const watch: StatusApi["watch"] = opts => {
+    //     watchers++;
+    //     if (watchers === 1) {
+    //       stopCost = every(guarded("cost", () => costTick()), opts?.costIntervalMs ?? costIntervalMs);
+    //       stopPoll = every(guarded("status poll", pollTick), opts?.pollIntervalMs ?? pollIntervalMs);
+    //       // Every machine's state before the first cost tick: nothing polls while no client watches, so a client
+    //       // attaching after a gap would otherwise meter a stretch the provider ended hours ago.
+    //       guarded("status poll", pollTick)();
+    //     }
+    //     let released = false;
+    //     return () => {
+    //       if (released) return;
+    //       released = true;
+    //       watchers--;
+    //       if (watchers === 0) {
+    //         stopCost?.();
+    //         stopPoll?.();
+    //         stopCost = stopPoll = undefined;
+    //         lastEmitted.clear();
+    //         sentFigures.clear();
+    //       }
+    //     };
+    //   };
     /// Refcounted: while one watcher holds it, the poller and the cost ticker run. The answer is the release.
     pub fn watch(&self, opts: StatusWatchOptions) -> Rc<dyn Fn()> {
         let first = self.st(|s| {
@@ -416,9 +417,9 @@ impl StatusTracker {
         self.st(|s| s.watchers > 0)
     }
 
-//   const poll: StatusApi["poll"] = async ids => {
-//     if (watchers > 0 && ids.length > 0) await pollTick(new Set(ids)).catch((e: unknown) => console.warn("status poll tick failed", e));
-//   };
+    //   const poll: StatusApi["poll"] = async ids => {
+    //     if (watchers > 0 && ids.length > 0) await pollTick(new Set(ids)).catch((e: unknown) => console.warn("status poll tick failed", e));
+    //   };
     /// Polls these workspaces now, between ticks, and pushes each row that moved, while a watcher holds the poll.
     pub async fn poll(&self, ids: &[String]) {
         if self.watched() && !ids.is_empty() {
@@ -450,7 +451,12 @@ fn reach_of(state: ReachState) -> ReachStatus {
 
 /// A reach word with the route the row was given, if any.
 fn with_route(state: ReachState, route: &Option<RouteReach>) -> ReachStatus {
-    ReachStatus { state, url: route.as_ref().map(|rt| rt.url.clone()), expires_at: route.as_ref().map(|rt| JsNumber(rt.expires_at)), offline: None }
+    ReachStatus {
+        state,
+        url: route.as_ref().map(|rt| rt.url.clone()),
+        expires_at: route.as_ref().map(|rt| JsNumber(rt.expires_at)),
+        offline: None,
+    }
 }
 
 fn json_of<T: Serialize>(v: &T) -> Value {
@@ -603,7 +609,10 @@ impl StatusTracker {
 
     fn probe_options(&self, opts: StatusListOptions) -> ProbeOptions {
         let d = &self.options.defaults;
-        ProbeOptions { prompt_ms: knob(opts.prompt_ms, d.prompt_ms, PROMPT_MS), timeout_ms: knob(opts.probe_timeout_ms, d.probe_timeout_ms, PROBE_TIMEOUT_MS) }
+        ProbeOptions {
+            prompt_ms: knob(opts.prompt_ms, d.prompt_ms, PROMPT_MS),
+            timeout_ms: knob(opts.probe_timeout_ms, d.probe_timeout_ms, PROBE_TIMEOUT_MS),
+        }
     }
 
     fn reconcile_min(&self) -> i64 {
@@ -721,17 +730,20 @@ impl StatusTracker {
             return self.done(r, &base, state, reach, None);
         }
         let (state, judged, reason) = self.judge(r, status, opts).await;
-        let reach = if judged.state == ReachState::Zombie {
-            judged
-        } else {
-            ReachStatus { state: shown, ..judged }
-        };
+        let reach = if judged.state == ReachState::Zombie { judged } else { ReachStatus { state: shown, ..judged } };
         self.update_probe(reader, id, |p| p.shown = reach.state);
         self.done(r, &base, state, reach, reason.as_deref())
     }
 
     /// `done(state, reach)`: a row in `state`, and the gone verdict told to `on_gone` (status_poll Behaviour 3).
-    fn done(&self, r: &StatusRecord, base: &Map<String, Value>, state: MachineState, reach: ReachStatus, reason: Option<&str>) -> WorkspaceStatus {
+    fn done(
+        &self,
+        r: &StatusRecord,
+        base: &Map<String, Value>,
+        state: MachineState,
+        reach: ReachStatus,
+        reason: Option<&str>,
+    ) -> WorkspaceStatus {
         if state == MachineState::Gone {
             if let Some(on_gone) = &self.options.on_gone {
                 let words = self.st(|s| s.gone_reasons.get(&r.view.id).cloned()).unwrap_or_else(|| gone_words(&r.view.machine_id, None));
@@ -884,7 +896,7 @@ impl StatusTracker {
     /// Starts the exec probe of a suspect that has none in flight (status_poll Behaviour 8; not awaited).
     fn start_probe_if_idle(&self, r: &StatusRecord) {
         if self.suspect_of(r).probe.is_none() {
-            let _ = self.start_probe(r);
+            drop(self.start_probe(r));
         }
     }
 
@@ -1012,9 +1024,12 @@ impl StatusTracker {
     /// `pollTick(only)` (status_poll Behaviour 20): the rows of the records not moved while they were built, each
     /// emitted when it differs from the last row sent for its workspace.
     async fn poll_tick(&self, only: Option<&HashSet<String>>) -> Result<(), String> {
-        let records: Vec<StatusRecord> = self.records().await?.into_iter().filter(|r| only.map_or(true, |ids| ids.contains(&r.view.id))).collect();
+        let records: Vec<StatusRecord> =
+            self.records().await?.into_iter().filter(|r| only.is_none_or(|ids| ids.contains(&r.view.id))).collect();
         let statuses = self.statuses_of(&records, StatusListOptions { reconcile: Some(Reconcile::OnFailure), ..Default::default() }).await;
-        let stamp = |r: &StatusRecord| format!("{} {} {} {}", r.generation, r.view.machine_id, r.unreached.as_deref().unwrap_or(""), r.away.as_deref().unwrap_or(""));
+        let stamp = |r: &StatusRecord| {
+            format!("{} {} {} {}", r.generation, r.view.machine_id, r.unreached.as_deref().unwrap_or(""), r.away.as_deref().unwrap_or(""))
+        };
         let built: IndexMap<String, String> = records.iter().map(|r| (r.view.id.clone(), stamp(r))).collect();
         let now: IndexMap<String, String> = self.records().await?.iter().map(|r| (r.view.id.clone(), stamp(r))).collect();
         let kept: Vec<WorkspaceStatus> = statuses.iter().filter(|s| now.get(&s.id) == built.get(&s.id)).cloned().collect();
@@ -1032,7 +1047,10 @@ impl StatusTracker {
             self.st(|s| {
                 s.last_emitted.insert(status.id.clone(), key);
             });
-            (self.options.emit)(EventUnion::WorkspaceStatus(Sequenced { event: WorkspaceStatusEvent { status: status.clone() }, seq: None }));
+            (self.options.emit)(EventUnion::WorkspaceStatus(Sequenced {
+                event: WorkspaceStatusEvent { status: status.clone() },
+                seq: None,
+            }));
         }
         Ok(())
     }

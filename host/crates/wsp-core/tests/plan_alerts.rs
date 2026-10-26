@@ -20,7 +20,8 @@ const START: i64 = 1_000_000;
 
 /// plan-alerts.test.ts:170 `limit`.
 fn limit(over: Value) -> AccountLimit {
-    let mut base = json!({ "key": "claude:acct", "agent": "claude", "label": "Claude Max", "windows": [], "readAt": 0, "computers": ["here"] });
+    let mut base =
+        json!({ "key": "claude:acct", "agent": "claude", "label": "Claude Max", "windows": [], "readAt": 0, "computers": ["here"] });
     for (k, v) in over.as_object().unwrap() {
         base[k] = v.clone();
     }
@@ -160,7 +161,9 @@ fn low_alerts_are_said_window_by_window_with_the_accounts_own_names_and_arm_noth
     run_local(async {
         let k = keeper();
         let before = limit(json!({ "windows": [{ "kind": "session", "usedPercent": 60 }, { "kind": "week", "usedPercent": 50 }] }));
-        let after = limit(json!({ "key": "codex:b", "agent": "codex", "label": "Codex Pro", "windows": [{ "kind": "session", "usedPercent": 75 }, { "kind": "week", "usedPercent": 95 }] }));
+        let after = limit(
+            json!({ "key": "codex:b", "agent": "codex", "label": "Codex Pro", "windows": [{ "kind": "session", "usedPercent": 75 }, { "kind": "week", "usedPercent": 95 }] }),
+        );
         k.alerts.read(Some(&before), &after);
         assert_eq!(
             *k.said.borrow(),
@@ -309,7 +312,10 @@ fn a_new_block_after_a_timed_comeback_says_its_own_comeback_by_reading() {
         k.alerts.read(Some(&limit(json!({}))), &second);
         let free = limit(json!({ "status": "ok", "windows": [] }));
         k.alerts.read(Some(&second), &free);
-        assert_eq!(k.alerts_said(), vec![json!({ "kind": "blocked" }), json!({ "kind": "back" }), json!({ "kind": "blocked" }), json!({ "kind": "back" })]);
+        assert_eq!(
+            k.alerts_said(),
+            vec![json!({ "kind": "blocked" }), json!({ "kind": "back" }), json!({ "kind": "blocked" }), json!({ "kind": "back" })]
+        );
         assert_eq!(k.alerts.armed(), 0);
     });
 }

@@ -199,7 +199,8 @@ fn every_vault_reads_into_the_secrets_and_the_env_the_ts_made_of_it() {
     assert!(!rows.is_empty());
     for r in rows {
         let name = r["name"].as_str().unwrap();
-        let vault: IndexMap<String, String> = r["vault"].as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string())).collect();
+        let vault: IndexMap<String, String> =
+            r["vault"].as_object().unwrap().iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string())).collect();
         let (id, stands) = (r["id"].as_str().unwrap(), r["stands"].as_bool().unwrap());
         assert_eq!(secrets_json(&secrets_of(&vault, id, stands)), r["secrets"], "{name} secrets");
         assert_eq!(json(&secret_env_of(&vault, id, stands)), r["env"], "{name} env");

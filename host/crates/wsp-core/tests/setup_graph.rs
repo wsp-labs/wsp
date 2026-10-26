@@ -126,7 +126,7 @@ fn spawn_graph(steps: Vec<GraphStep<&'static str>>, width: usize, on_move: Optio
 }
 
 fn answered(done: &Done) -> Option<Result<Vec<&'static str>, String>> {
-    done.borrow().as_ref().map(|r| r.as_ref().map(|v| v.clone()).map_err(|e| e.message.clone()))
+    done.borrow().as_ref().map(|r| r.clone().map_err(|e| e.message.clone()))
 }
 
 // TS: setup-graph.test.ts:39

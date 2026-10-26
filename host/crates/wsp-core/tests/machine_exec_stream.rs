@@ -14,7 +14,10 @@ use futures::{FutureExt, StreamExt};
 use regex::Regex;
 use tokio::sync::oneshot;
 use wsp_adapters::claude::{create_claude_adapter, AdapterDeps};
-use wsp_adapters::port::{end_run, AdapterEvent, AttachRunOptions, Attached, ExecFailure, ExecOptions as Launch, ExecStream, ExecStreamFactory, HarnessStartOptions, Settle, WriteOutcome};
+use wsp_adapters::port::{
+    end_run, AdapterEvent, AttachRunOptions, Attached, ExecFailure, ExecOptions as Launch, ExecStream, ExecStreamFactory,
+    HarnessStartOptions, Settle, WriteOutcome,
+};
 use wsp_core::machine_exec::{machine_exec_stream, KilledWhy, MachineExecOptions, NowFn, ReadingSet, SleepFn, TurnWaiting, TREE_WORK_AWK};
 use wsp_engine::errors::{ErrorKind, Result as EngineResult};
 use wsp_engine::machine::{ExecOptions as MachineOptions, ExecResult};
@@ -70,7 +73,9 @@ where
     F: Fn(String, Inner) -> Fut + 'static,
     Fut: Future<Output = EngineResult<ExecResult>> + 'static,
 {
-    Arc::new(move |cmd: String, _stdin: Option<Vec<u8>>, inner: Inner| -> LocalBoxFuture<'static, EngineResult<ExecResult>> { Box::pin(f(cmd, inner)) })
+    Arc::new(move |cmd: String, _stdin: Option<Vec<u8>>, inner: Inner| -> LocalBoxFuture<'static, EngineResult<ExecResult>> {
+        Box::pin(f(cmd, inner))
+    })
 }
 
 fn with_input(lines: &[&str]) -> Launch {
@@ -288,7 +293,8 @@ mod machine_exec_stream {
     #[test]
     fn waits_one_more_poll_when_the_leader_is_gone_before_its_exit_file_is_there() {
         support::run_local(async {
-            let (_guest, machine) = ScriptGuest::new(vec![Step::append("almost\n"), Step::dead(), Step::append("done\n").exit(0), Step::none()]);
+            let (_guest, machine) =
+                ScriptGuest::new(vec![Step::append("almost\n"), Step::dead(), Step::append("done\n").exit(0), Step::none()]);
             let stream = machine_exec_stream(machine, opts(5), None).launch("claude -p 'hi'", Launch::default());
             assert_eq!(support::lines_ok(&*stream).await, vec!["almost", "done"]);
             assert_eq!(stream.exited().await, Some(0));
@@ -329,7 +335,12 @@ mod machine_exec_stream {
                 })
             };
             let (_guest, machine) = ScriptGuest::new(vec![Step::append("working\n"), Step::only_exit(137), Step::none()]);
-            let options = MachineExecOptions { poll_ms: Some(5), now: Some(Arc::new(|| 1_760_000_000_000_i64)), killed_why: Some(killed_why.clone()), ..Default::default() };
+            let options = MachineExecOptions {
+                poll_ms: Some(5),
+                now: Some(Arc::new(|| 1_760_000_000_000_i64)),
+                killed_why: Some(killed_why.clone()),
+                ..Default::default()
+            };
             let stream = machine_exec_stream(machine, options, None).launch("claude -p 'hi'", Launch::default());
             let (lines, failure) = support::lines_err(&*stream).await;
             assert!(failure.message.contains("killed for memory"), "{}", failure.message);
@@ -408,7 +419,13 @@ mod machine_exec_stream {
                     support::sleep_ms(1).boxed()
                 }
             });
-            let options = MachineExecOptions { poll_ms: Some(1500), now: Some(now_of(&clock)), sleep: Some(sleep), reading: Some(reading.clone()), ..Default::default() };
+            let options = MachineExecOptions {
+                poll_ms: Some(1500),
+                now: Some(now_of(&clock)),
+                sleep: Some(sleep),
+                reading: Some(reading.clone()),
+                ..Default::default()
+            };
             let stream = machine_exec_stream(machine, options, None).launch("codex app-server", with_input(&["first"]));
             let mut lines = stream.lines();
             guest.append("started\n");
@@ -441,7 +458,13 @@ mod machine_exec_stream {
             let reading = ReadingSet::new();
             let launch = || {
                 let (guest, machine) = ScriptGuest::new(vec![]);
-                let options = MachineExecOptions { poll_ms: Some(1500), now: Some(now_of(&clock)), sleep: Some(sleep.clone()), reading: Some(reading.clone()), ..Default::default() };
+                let options = MachineExecOptions {
+                    poll_ms: Some(1500),
+                    now: Some(now_of(&clock)),
+                    sleep: Some(sleep.clone()),
+                    reading: Some(reading.clone()),
+                    ..Default::default()
+                };
                 let stream = machine_exec_stream(machine, options, None).launch("claude -p", with_input(&["say hi"]));
                 (guest, stream.lines())
             };
@@ -545,7 +568,11 @@ mod machine_exec_stream {
                 c.fetch_add(ms as i64, SeqCst);
                 async {}.boxed()
             });
-            let exec = machine_exec_stream(machine, MachineExecOptions { poll_ms: Some(1500), now: Some(now_of(&clock)), sleep: Some(sleep), ..Default::default() }, None);
+            let exec = machine_exec_stream(
+                machine,
+                MachineExecOptions { poll_ms: Some(1500), now: Some(now_of(&clock)), sleep: Some(sleep), ..Default::default() },
+                None,
+            );
             let retries = Arc::new(Mutex::new(Vec::<(i64, i64)>::new()));
             let (seen, c) = (retries.clone(), clock.clone());
             let adapter = create_claude_adapter(AdapterDeps::new(exec, "/root/.claude-cfg")).expect("the adapter");
@@ -581,7 +608,11 @@ mod machine_exec_stream {
             let signals = |g: &ScriptGuest| g.kills().into_iter().filter(|k| !k.contains("rm -rf")).collect::<Vec<_>>();
             let before = signals(&guest);
             assert_eq!(before.len(), 1);
-            assert!(matches(r#"P=\$\(cat '/tmp/wsp-run/[a-f0-9]+'\.tail 2>/dev/null\); \[ -n "\$P" \] && kill -TERM "\$P""#, &before[0]), "{}", before[0]);
+            assert!(
+                matches(r#"P=\$\(cat '/tmp/wsp-run/[a-f0-9]+'\.tail 2>/dev/null\); \[ -n "\$P" \] && kill -TERM "\$P""#, &before[0]),
+                "{}",
+                before[0]
+            );
             assert!(!before[0].contains("-- -"));
             stream.close_input();
             assert_eq!(signals(&guest).len(), 1);
@@ -678,14 +709,28 @@ mod machine_exec_stream {
         support::run_local(async {
             let (guest, machine, clock) = minute_guest(i64::MAX, i64::MAX, 0);
             let reading = ReadingSet::new();
-            let options = MachineExecOptions { poll_ms: Some(1), deadline_ms: Some(30.0 * 60_000.0), now: Some(now_of(&clock)), reading: Some(reading.clone()), ..Default::default() };
+            let options = MachineExecOptions {
+                poll_ms: Some(1),
+                deadline_ms: Some(30.0 * 60_000.0),
+                now: Some(now_of(&clock)),
+                reading: Some(reading.clone()),
+                ..Default::default()
+            };
             let launched = machine_exec_stream(machine.clone(), options, None).launch("claude", Launch::default());
             support::wait_for("the launch to land", 5_000, || !guest.get_launch().is_empty()).await;
             // The host goes and comes back twenty minutes into the turn; the next one re-opens the run by handle.
             reading.let_go_all();
             clock.store(20 * 60_000, SeqCst);
-            let options = MachineExecOptions { poll_ms: Some(1), deadline_ms: Some(30.0 * 60_000.0), now: Some(now_of(&clock)), ..Default::default() };
-            let attached = machine_exec_stream(machine, options, None).attach(&launched.run().expect("a handle"), AttachRunOptions { input: false, started_at: 0.0, from: None }).expect("an attach").await;
+            let options = MachineExecOptions {
+                poll_ms: Some(1),
+                deadline_ms: Some(30.0 * 60_000.0),
+                now: Some(now_of(&clock)),
+                ..Default::default()
+            };
+            let attached = machine_exec_stream(machine, options, None)
+                .attach(&launched.run().expect("a handle"), AttachRunOptions { input: false, started_at: 0.0, from: None })
+                .expect("an attach")
+                .await;
             let Attached::Stream(attached) = attached.expect("an attach that answers") else { panic!("the run was gone") };
             let (_lines, failure) = support::lines_err(&*attached).await;
             assert_eq!(failure.message, format!("stopped after 30m 00s at the 30m turn limit; {WALL_WORDS}"));
@@ -697,7 +742,12 @@ mod machine_exec_stream {
     fn a_run_that_prints_nothing_while_its_process_group_works_runs_past_the_idle_limit() {
         support::run_local(async {
             let (guest, machine, clock) = minute_guest(0, i64::MAX, CORE_MINUTE);
-            let options = MachineExecOptions { poll_ms: Some(1), deadline_ms: Some(30.0 * 60_000.0), now: Some(now_of(&clock)), ..Default::default() };
+            let options = MachineExecOptions {
+                poll_ms: Some(1),
+                deadline_ms: Some(30.0 * 60_000.0),
+                now: Some(now_of(&clock)),
+                ..Default::default()
+            };
             let stream = machine_exec_stream(machine, options, None).launch("claude -p 'build it'", Launch::default());
             let (seen, failure) = support::lines_err(&*stream).await;
             assert_eq!(failure.message, format!("stopped after 30m 00s at the 30m turn limit; {WALL_WORDS}"));
@@ -732,15 +782,17 @@ mod machine_exec_stream {
             let (guest, machine, clock, scripted) = minute_parts(0, 24 * 60_000, 0);
             let dark = Arc::new(AtomicI64::new(0));
             let (c, d) = (clock.clone(), dark.clone());
-            guest.set_hook(Arc::new(move |cmd: String, stdin: Option<Vec<u8>>, inner: Inner| -> LocalBoxFuture<'static, EngineResult<ExecResult>> {
-                let now = c.load(SeqCst);
-                if cmd.contains("__WSP_EOF_") && now >= 5 * 60_000 && now < 20 * 60_000 {
-                    c.fetch_add(60_000, SeqCst);
-                    d.fetch_add(1, SeqCst);
-                    return async { Err(errors::fetch_failed("EAI_AGAIN")) }.boxed();
-                }
-                scripted(cmd, stdin, inner)
-            }));
+            guest.set_hook(Arc::new(
+                move |cmd: String, stdin: Option<Vec<u8>>, inner: Inner| -> LocalBoxFuture<'static, EngineResult<ExecResult>> {
+                    let now = c.load(SeqCst);
+                    if cmd.contains("__WSP_EOF_") && (5 * 60_000..20 * 60_000).contains(&now) {
+                        c.fetch_add(60_000, SeqCst);
+                        d.fetch_add(1, SeqCst);
+                        return async { Err(errors::fetch_failed("EAI_AGAIN")) }.boxed();
+                    }
+                    scripted(cmd, stdin, inner)
+                },
+            ));
             let options = MachineExecOptions { poll_ms: Some(1), now: Some(now_of(&clock)), ..Default::default() };
             let stream = machine_exec_stream(machine, options, None).launch("claude -p 'build it'", Launch::default());
             support::lines_ok(&*stream).await;
@@ -763,11 +815,20 @@ mod machine_exec_stream {
             // One poll a minute on a silent stream, so the first five are inside the half of a ten minute limit.
             let polls = guest.polls();
             assert!(!polls[..5].iter().any(|c| c.contains("awk -v p=")));
-            assert!(polls[5].contains(&format!("W=$(awk -v p=\"$P\" {} /proc/[0-9]*/stat 2>/dev/null)", support::sq(TREE_WORK_AWK))), "{}", polls[5]);
+            assert!(
+                polls[5].contains(&format!("W=$(awk -v p=\"$P\" {} /proc/[0-9]*/stat 2>/dev/null)", support::sq(TREE_WORK_AWK))),
+                "{}",
+                polls[5]
+            );
 
             // The exec verb hands both limits infinite on purpose, and no reading could cut such a stream.
             let (exec, machine) = ScriptGuest::new(vec![Step::none(), Step::none(), Step::append("built\n").exit(0), Step::none()]);
-            let options = MachineExecOptions { poll_ms: Some(1), idle_ms: Some(f64::INFINITY), deadline_ms: Some(f64::INFINITY), ..Default::default() };
+            let options = MachineExecOptions {
+                poll_ms: Some(1),
+                idle_ms: Some(f64::INFINITY),
+                deadline_ms: Some(f64::INFINITY),
+                ..Default::default()
+            };
             let run = machine_exec_stream(machine, options, None).launch("pnpm build", Launch::default());
             support::lines_ok(&*run).await;
             assert!(exec.polls().len() > 2);
@@ -779,7 +840,12 @@ mod machine_exec_stream {
     fn a_stream_that_never_goes_quiet_is_still_cut_at_the_wall_cap_and_the_error_names() {
         support::run_local(async {
             let (guest, machine, clock) = minute_guest(i64::MAX, i64::MAX, 0);
-            let options = MachineExecOptions { poll_ms: Some(1), deadline_ms: Some(2.0 * 3_600_000.0), now: Some(now_of(&clock)), ..Default::default() };
+            let options = MachineExecOptions {
+                poll_ms: Some(1),
+                deadline_ms: Some(2.0 * 3_600_000.0),
+                now: Some(now_of(&clock)),
+                ..Default::default()
+            };
             let stream = machine_exec_stream(machine, options, None).launch("claude", Launch::default());
             let (seen, failure) = support::lines_err(&*stream).await;
             assert_eq!(failure.message, format!("stopped after 2h 00m 00s at the 2h turn limit; {WALL_WORDS}"));
@@ -817,7 +883,8 @@ mod machine_exec_stream_reaping_a_real_turn_s_process_group {
         let _sweep = Sweep;
         let (machine, run_dir, _dir) = local();
         let child_file = beside(&run_dir, "child");
-        let stream = machine_exec_stream(machine, local_opts(20, &run_dir), None).launch(&format!("sleep 300 & echo $! > {}; echo hi", support::sq(&child_file)), Launch::default());
+        let stream = machine_exec_stream(machine, local_opts(20, &run_dir), None)
+            .launch(&format!("sleep 300 & echo $! > {}; echo hi", support::sq(&child_file)), Launch::default());
         let lines = support::lines_ok(&*stream).await;
         assert_eq!(stream.exited().await, Some(0));
         assert_eq!(lines, vec!["hi"]);
@@ -905,7 +972,11 @@ mod machine_exec_stream_ending_a_run_something_outside_its_group_still_writes_to
         let _sweep = Sweep;
         let (guest, run_dir, _dir) = local();
         fn logged(dir: &str) -> u64 {
-            support::names(dir).iter().filter(|name| name.ends_with(".log")).map(|name| std::fs::metadata(format!("{dir}/{name}")).map(|m| m.len()).unwrap_or(0)).sum()
+            support::names(dir)
+                .iter()
+                .filter(|name| name.ends_with(".log"))
+                .map(|name| std::fs::metadata(format!("{dir}/{name}")).map(|m| m.len()).unwrap_or(0))
+                .sum()
         }
         // The run starts, and the launch's answer comes back without the word, once the log holds more than a chunk.
         let dir = run_dir.clone();
@@ -1002,7 +1073,8 @@ mod machine_exec_stream_holding_a_seed_until_it_is_due {
         let _sweep = Sweep;
         let (machine, run_dir, _dir) = local();
         let (input_after, due) = settles();
-        let stream = machine_exec_stream(machine, local_opts(20, &run_dir), None).launch("cat", Launch { input: Some(vec!["hello".to_string()]), input_after: Some(input_after), ..Default::default() });
+        let stream = machine_exec_stream(machine, local_opts(20, &run_dir), None)
+            .launch("cat", Launch { input: Some(vec!["hello".to_string()]), input_after: Some(input_after), ..Default::default() });
         let reading = read(&stream);
         support::wait_for("a tail pid", 5_000, || !text_of(&run_dir, ".tail").trim().is_empty()).await;
         assert_eq!(text_of(&run_dir, ".in"), "");
@@ -1022,7 +1094,8 @@ mod machine_exec_stream_holding_a_seed_until_it_is_due {
         let _sweep = Sweep;
         let (machine, run_dir, _dir) = local();
         let (input_after, due) = settles();
-        let stream = machine_exec_stream(machine, local_opts(20, &run_dir), None).launch("cat", Launch { input: Some(vec!["hello".to_string()]), input_after: Some(input_after), ..Default::default() });
+        let stream = machine_exec_stream(machine, local_opts(20, &run_dir), None)
+            .launch("cat", Launch { input: Some(vec!["hello".to_string()]), input_after: Some(input_after), ..Default::default() });
         let reading = read(&stream);
         assert_eq!(stream.write("world".to_string()).await.unwrap(), WriteOutcome::Written);
         support::wait_for("both lines", 5_000, || reading.lines() == vec!["hello", "world"]).await;
@@ -1038,10 +1111,14 @@ mod machine_exec_stream_holding_a_seed_until_it_is_due {
         let _sweep = Sweep;
         let (machine, run_dir, _dir) = local();
         let factory = machine_exec_stream(machine.clone(), local_opts(20, &run_dir), None);
-        let launched = factory.launch("cat", Launch { input: Some(vec!["hello".to_string()]), input_after: Some(never()), ..Default::default() });
+        let launched =
+            factory.launch("cat", Launch { input: Some(vec!["hello".to_string()]), input_after: Some(never()), ..Default::default() });
         support::wait_for("a held seed", 5_000, || file_with(&run_dir, ".held").is_some()).await;
         let run = launched.run().expect("a handle");
-        let attached = machine_exec_stream(machine, local_opts(20, &run_dir), None).attach(&run, AttachRunOptions { input: true, started_at: now_ms(), from: None }).expect("an attach").await;
+        let attached = machine_exec_stream(machine, local_opts(20, &run_dir), None)
+            .attach(&run, AttachRunOptions { input: true, started_at: now_ms(), from: None })
+            .expect("an attach")
+            .await;
         let Attached::Stream(stream) = attached.expect("an attach that answers") else { panic!("the run was gone") };
         assert_eq!(stream.taken(), Some(vec!["hello".to_string()]));
         let reading = read(&stream);
@@ -1097,10 +1174,14 @@ mod machine_exec_stream_holding_a_line_written_ahead_of_when_it_is_due {
         let _sweep = Sweep;
         // The guest's cat reads a held seed at once and prints it a second later, so two hand-overs that ran at once would
         // both have found the channel empty and both append it.
-        let shell = format!("{}\n", r#"cat() { case "$1" in *.held) local t; t=$(command cat "$1"); sleep 1; printf '%s\n' "$t"; return ;; esac; command cat "$@"; }"#);
+        let shell = format!(
+            "{}\n",
+            r#"cat() { case "$1" in *.held) local t; t=$(command cat "$1"); sleep 1; printf '%s\n' "$t"; return ;; esac; command cat "$@"; }"#
+        );
         let (machine, run_dir, _dir) = local_with(false, &shell);
         let (input_after, due) = settles();
-        let stream = machine_exec_stream(machine, local_opts(20, &run_dir), None).launch("cat", Launch { input: Some(vec!["seed".to_string()]), input_after: Some(input_after), ..Default::default() });
+        let stream = machine_exec_stream(machine, local_opts(20, &run_dir), None)
+            .launch("cat", Launch { input: Some(vec!["seed".to_string()]), input_after: Some(input_after), ..Default::default() });
         let reading = read(&stream);
         support::wait_for("a held seed", 5_000, || file_with(&run_dir, ".held").is_some()).await;
         due.send(Ok(())).unwrap();
@@ -1121,7 +1202,8 @@ mod machine_exec_stream_holding_a_line_written_ahead_of_when_it_is_due {
     own_group_test!(parks_the_line_as_the_login_s_alone_as_every_other_file_of_the_run, 15_000, {
         let _sweep = Sweep;
         let (machine, run_dir, _dir) = local();
-        let stream = machine_exec_stream(machine, local_opts(20, &run_dir), None).launch("cat", Launch { input: Some(vec!["one".to_string()]), input_after: Some(never()), ..Default::default() });
+        let stream = machine_exec_stream(machine, local_opts(20, &run_dir), None)
+            .launch("cat", Launch { input: Some(vec!["one".to_string()]), input_after: Some(never()), ..Default::default() });
         let reading = read(&stream);
         support::wait_for("a held seed", 5_000, || file_with(&run_dir, ".held").is_some()).await;
         assert!(stream.write_after("two".to_string(), never()).is_some());
@@ -1194,7 +1276,8 @@ mod machine_exec_stream_holding_a_line_written_ahead_of_when_it_is_due {
         let _sweep = Sweep;
         let (machine, run_dir, _dir) = local();
         let (input_after, due) = settles();
-        let stream = machine_exec_stream(machine, local_opts(20, &run_dir), None).launch("cat", Launch { input: Some(vec!["seed".to_string()]), input_after: Some(input_after), ..Default::default() });
+        let stream = machine_exec_stream(machine, local_opts(20, &run_dir), None)
+            .launch("cat", Launch { input: Some(vec!["seed".to_string()]), input_after: Some(input_after), ..Default::default() });
         let reading = read(&stream);
         assert!(stream.write_after("late".to_string(), ready()).is_some());
         support::wait_for("seed and late", 5_000, || reading.lines() == vec!["seed", "late"]).await;
@@ -1214,7 +1297,10 @@ mod machine_exec_stream_holding_a_line_written_ahead_of_when_it_is_due {
         support::wait_for("the first line", 5_000, || first.lines() == vec!["one"]).await;
         assert!(launched.write_after("two".to_string(), never()).is_some());
         support::wait_for("a parked line", 5_000, || file_with(&run_dir, ".late").is_some()).await;
-        let attached = machine_exec_stream(machine, local_opts(20, &run_dir), None).attach(&launched.run().expect("a handle"), AttachRunOptions { input: true, started_at: now_ms(), from: None }).expect("an attach").await;
+        let attached = machine_exec_stream(machine, local_opts(20, &run_dir), None)
+            .attach(&launched.run().expect("a handle"), AttachRunOptions { input: true, started_at: now_ms(), from: None })
+            .expect("an attach")
+            .await;
         let Attached::Stream(stream) = attached.expect("an attach that answers") else { panic!("the run was gone") };
         assert_eq!(stream.taken(), Some(vec!["one".to_string(), "two".to_string()]));
         let reading = read(&stream);
@@ -1253,7 +1339,11 @@ mod a_reader_that_lets_go_of_a_run_still_going {
             // A run that prints nothing and never ends, which is what a turn left running on a machine is.
             let (guest, machine) = ScriptGuest::new(vec![]);
             let reading = ReadingSet::new();
-            let factory = machine_exec_stream(machine, MachineExecOptions { poll_ms: Some(10), reading: Some(reading.clone()), ..Default::default() }, None);
+            let factory = machine_exec_stream(
+                machine,
+                MachineExecOptions { poll_ms: Some(10), reading: Some(reading.clone()), ..Default::default() },
+                None,
+            );
             let stream = factory.launch("claude -p hi", Launch::default());
             // Nothing awaits this: the reader is the poll, and letting go is what this case is about.
             let reader = stream.clone();
@@ -1284,7 +1374,12 @@ mod a_reader_that_lets_go_of_a_run_still_going {
         support::run_local(async {
             let (_guest, machine) = ScriptGuest::new(vec![Step::append("done\n").exit(0), Step::none()]);
             let reading = ReadingSet::new();
-            let stream = machine_exec_stream(machine, MachineExecOptions { poll_ms: Some(5), reading: Some(reading.clone()), ..Default::default() }, None).launch("claude -p hi", Launch::default());
+            let stream = machine_exec_stream(
+                machine,
+                MachineExecOptions { poll_ms: Some(5), reading: Some(reading.clone()), ..Default::default() },
+                None,
+            )
+            .launch("claude -p hi", Launch::default());
             support::lines_ok(&*stream).await;
             assert_eq!(stream.exited().await, Some(0));
             assert_eq!(reading.len(), 0);
@@ -1324,7 +1419,12 @@ mod a_reader_let_go_of_while_its_poll_is_in_flight {
                 support::sleep_ms(ms).boxed()
             });
             let reading = ReadingSet::new();
-            let stream = machine_exec_stream(machine, MachineExecOptions { poll_ms: Some(5_000), sleep: Some(sleep), reading: Some(reading.clone()), ..Default::default() }, None).launch("claude -p hi", Launch::default());
+            let stream = machine_exec_stream(
+                machine,
+                MachineExecOptions { poll_ms: Some(5_000), sleep: Some(sleep), reading: Some(reading.clone()), ..Default::default() },
+                None,
+            )
+            .launch("claude -p hi", Launch::default());
             let reader = stream.clone();
             tokio::task::spawn_local(async move {
                 let _ = support::collect(&*reader).await;

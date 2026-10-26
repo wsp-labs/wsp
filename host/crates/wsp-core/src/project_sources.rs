@@ -131,7 +131,12 @@ impl ProjectSourceModule for FolderModule {
         let path = folder_path(source);
         if !deps.seeding {
             let read = (deps.folder_remote)(path).await?;
-            return Ok(ResolvedSource { remote: read.remote, default_branch: branch_or(Some(read.default_branch.as_str())), name: project_name_of(source), seed: None });
+            return Ok(ResolvedSource {
+                remote: read.remote,
+                default_branch: branch_or(Some(read.default_branch.as_str())),
+                name: project_name_of(source),
+                seed: None,
+            });
         }
         let seed = (deps.seed_plan)(path).await?;
         let Some(seed_remote) = seed.remote.clone() else {
@@ -165,7 +170,12 @@ impl ProjectSourceModule for GitModule {
     }
 
     async fn resolve(&self, source: &ProjectSource, _deps: &SourceDeps) -> Result<ResolvedSource, HostError> {
-        Ok(ResolvedSource { remote: self.remote(source), default_branch: DEFAULT_BRANCH.to_string(), name: project_name_of(source), seed: None })
+        Ok(ResolvedSource {
+            remote: self.remote(source),
+            default_branch: DEFAULT_BRANCH.to_string(),
+            name: project_name_of(source),
+            seed: None,
+        })
     }
 
     fn clone_command(&self, remote: &str, dest: &str, branch: Option<&str>) -> String {
@@ -194,7 +204,12 @@ impl ProjectSourceModule for HostModule {
     }
 
     async fn resolve(&self, source: &ProjectSource, _deps: &SourceDeps) -> Result<ResolvedSource, HostError> {
-        Ok(ResolvedSource { remote: self.remote(source), default_branch: DEFAULT_BRANCH.to_string(), name: project_name_of(source), seed: None })
+        Ok(ResolvedSource {
+            remote: self.remote(source),
+            default_branch: DEFAULT_BRANCH.to_string(),
+            name: project_name_of(source),
+            seed: None,
+        })
     }
 
     // The command line takes owner/repo, which the https url the record keeps is read back to: one word on the

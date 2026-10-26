@@ -15,7 +15,9 @@ use indexmap::IndexMap;
 use rest::*;
 use serde_json::{json, Value};
 use wsp_core::console;
-use wsp_core::project_landing::{project_landing, project_landings, LandRequest, LandSeed, LandingComputer, LandingDeps, LandingReport, ProjectLanding};
+use wsp_core::project_landing::{
+    project_landing, project_landings, LandRequest, LandSeed, LandingComputer, LandingDeps, LandingReport, ProjectLanding,
+};
 use wsp_core::project_sources::{project_source, ProjectSourceModule};
 use wsp_engine::Machine;
 use wsp_wire::views::workspace::{ProjectSource, ProjectView};
@@ -80,7 +82,12 @@ impl Machine for Shared {
     async fn run(&self, s: &str, o: wsp_engine::machine::RunOptions) -> wsp_engine::errors::Result<wsp_engine::machine::ExecResult> {
         self.0.run(s, o).await
     }
-    async fn snapshot(&self, n: &str, l: wsp_engine::machine::MachineLife, o: wsp_engine::machine::SnapshotOptions) -> wsp_engine::errors::Result<String> {
+    async fn snapshot(
+        &self,
+        n: &str,
+        l: wsp_engine::machine::MachineLife,
+        o: wsp_engine::machine::SnapshotOptions,
+    ) -> wsp_engine::errors::Result<String> {
         self.0.snapshot(n, l, o).await
     }
     async fn pause(&self, w: Option<u64>) -> wsp_engine::errors::Result<()> {
@@ -153,7 +160,10 @@ fn each_road_names_the_folder_a_project_takes_on_its_computer() {
     let got = vec![
         json!(["box folder", road("box").path("legacy", &folder, &d).unwrap()]),
         json!(["box git", road("box").path("lab", &git, &deps(Some(m.clone()), "/home/dev/", &lands)).unwrap()]),
-        json!(["box no computer", out_of(road("box").path("lab", &git, &none))["err"].clone().as_str().map(|e| json!({ "err": e })).unwrap()]),
+        json!([
+            "box no computer",
+            out_of(road("box").path("lab", &git, &none))["err"].clone().as_str().map(|e| json!({ "err": e })).unwrap()
+        ]),
         json!(["provider git", road("provider").path("lab", &git, &d).unwrap()]),
         json!(["provider folder", road("provider").path("legacy", &folder, &d).unwrap()]),
         json!(["mac folder", road("mac").path("legacy", &folder, &d).unwrap()]),
@@ -173,7 +183,18 @@ fn each_road_keeps_the_memory_where_its_computer_reads_it() {
     let got = vec![
         json!(["box", json(&road("box").places(&project(json!({})), "-root-lab", &dev).unwrap())]),
         json!(["provider", json(&road("provider").places(&project(json!({})), "-root-lab", &d).unwrap())]),
-        json!(["mac folder", json(&road("mac").places(&project(json!({ "source": { "kind": "folder", "path": "/srv/legacy" }, "path": "/elsewhere" })), "-srv-legacy", &d).unwrap())]),
+        json!([
+            "mac folder",
+            json(
+                &road("mac")
+                    .places(
+                        &project(json!({ "source": { "kind": "folder", "path": "/srv/legacy" }, "path": "/elsewhere" })),
+                        "-srv-legacy",
+                        &d
+                    )
+                    .unwrap()
+            )
+        ]),
         json!(["mac git", json(&road("mac").places(&project(json!({ "path": "/Users/dev/lab" })), "-Users-dev-lab", &d).unwrap())]),
     ];
     assert_eq!(Value::Array(got), f["places"]);
@@ -230,11 +251,23 @@ fn each_road_reads_the_branch_a_new_thread_starts_on() {
             json!(["provider default", json(&road("provider").branch(&project(json!({})), &d).await)]),
             json!(["mac here", json(&road("mac").branch(&project(json!({ "path": "/Users/dev/web" })), &d).await)]),
             json!(["mac detached", json(&road("mac").branch(&project(json!({ "path": "/Users/dev/other" })), &d).await)]),
-            json!(["box main", json(&road("box").branch(&project(json!({ "path": "/root/x" })), &read(ExecResultLike::Answer(0, " main \n"))).await)]),
-            json!(["box detached", json(&road("box").branch(&project(json!({ "path": "/root/x" })), &read(ExecResultLike::Answer(1, ""))).await)]),
-            json!(["box empty", json(&road("box").branch(&project(json!({ "path": "/root/x" })), &read(ExecResultLike::Answer(0, "\n"))).await)]),
+            json!([
+                "box main",
+                json(&road("box").branch(&project(json!({ "path": "/root/x" })), &read(ExecResultLike::Answer(0, " main \n"))).await)
+            ]),
+            json!([
+                "box detached",
+                json(&road("box").branch(&project(json!({ "path": "/root/x" })), &read(ExecResultLike::Answer(1, ""))).await)
+            ]),
+            json!([
+                "box empty",
+                json(&road("box").branch(&project(json!({ "path": "/root/x" })), &read(ExecResultLike::Answer(0, "\n"))).await)
+            ]),
             json!(["box throws", json(&road("box").branch(&project(json!({ "path": "/root/x" })), &read(ExecResultLike::Throws)).await)]),
-            json!(["box no computer", json(&road("box").branch(&project(json!({ "path": "/root/x" })), &LandingDeps { computer: None, ..d.clone() }).await)]),
+            json!([
+                "box no computer",
+                json(&road("box").branch(&project(json!({ "path": "/root/x" })), &LandingDeps { computer: None, ..d.clone() }).await)
+            ]),
         ];
         assert_eq!(Value::Array(got), f["branch"]);
     });
@@ -254,7 +287,10 @@ fn the_box_road_reads_whether_the_folder_stands_and_fails_on_a_read_that_broke()
         let mut got = vec![];
         for code in [0, 1, 2] {
             let m = RecMachine::new(vec![("test -e", result(code, "", if code > 1 { "test: broke\n" } else { "" }))]);
-            let r = road("box").folder_stands(&project(json!({ "path": "/srv/it's" })), &deps(Some(m.clone()), "/root", &lands)).await.expect("the box road reads it");
+            let r = road("box")
+                .folder_stands(&project(json!({ "path": "/srv/it's" })), &deps(Some(m.clone()), "/root", &lands))
+                .await
+                .expect("the box road reads it");
             got.push(json!([code, out_of(r)]));
             if code == 0 {
                 assert_eq!(m.ran_json(), f["folderStandsCmd"]);
@@ -271,11 +307,18 @@ fn the_box_road_puts_a_seeds_files_into_a_standing_folder_and_says_why_it_could_
         let f = fx();
         let lands: Lands = Rc::default();
         let m = RecMachine::new(vec![]);
-        road("box").seed_into(&project(json!({ "path": "/srv/legacy" })), b"tar".to_vec(), &deps(Some(m.clone()), "/home/dev", &lands)).await.unwrap().unwrap();
+        road("box")
+            .seed_into(&project(json!({ "path": "/srv/legacy" })), b"tar".to_vec(), &deps(Some(m.clone()), "/home/dev", &lands))
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(m.ran_json(), f["seedInto"]["ran"]);
         assert_eq!(Value::Array(lands.borrow().clone()), f["seedInto"]["land"]);
         let failing = RecMachine::new(vec![("tar -xzf", result(2, "", "tar: broke\n"))]);
-        let r = road("box").seed_into(&project(json!({ "path": "/srv/legacy" })), b"t".to_vec(), &deps(Some(failing), "/root", &lands)).await.unwrap();
+        let r = road("box")
+            .seed_into(&project(json!({ "path": "/srv/legacy" })), b"t".to_vec(), &deps(Some(failing), "/root", &lands))
+            .await
+            .unwrap();
         assert_eq!(out_of(r.map(|()| Value::Null)), f["seedInto"]["fails"]);
     });
 }
@@ -287,16 +330,29 @@ fn the_box_road_reads_what_a_checkout_holds_unpushed_and_nothing_where_it_holds_
         let f = fx();
         let lands: Lands = Rc::default();
         let none = RecMachine::new(vec![]);
-        assert_eq!(road("box").unsaved(&project(json!({ "path": "/root/x" })), &deps(Some(none.clone()), "/root", &lands)).await, Some(None));
+        assert_eq!(
+            road("box").unsaved(&project(json!({ "path": "/root/x" })), &deps(Some(none.clone()), "/root", &lands)).await,
+            Some(None)
+        );
         assert_eq!(none.cmds(), Vec::<String>::new());
         let m = RecMachine::new(vec![("rev-parse --git-dir", result(0, "1 0 0\n", ""))]);
-        let said = road("box").unsaved(&project(json!({ "name": "web", "path": "/root/x", "checkout": "/root/web-2" })), &deps(Some(m.clone()), "/root", &lands)).await;
+        let said = road("box")
+            .unsaved(
+                &project(json!({ "name": "web", "path": "/root/x", "checkout": "/root/web-2" })),
+                &deps(Some(m.clone()), "/root", &lands),
+            )
+            .await;
         assert_eq!(json!([["no checkout", null], ["checkout", said.flatten(), m.ran_json()]]), f["unsaved"]);
     });
 }
 
 /// One land through a road, as the oracle ran it: what it answered, every command, every report, every land.
-async fn land(kind: &str, req: impl FnOnce(LandingReport) -> LandRequest, m: Option<Rc<RecMachine>>, clone_env: Option<IndexMap<String, String>>) -> (Value, Value, Value, Value) {
+async fn land(
+    kind: &str,
+    req: impl FnOnce(LandingReport) -> LandRequest,
+    m: Option<Rc<RecMachine>>,
+    clone_env: Option<IndexMap<String, String>>,
+) -> (Value, Value, Value, Value) {
     let lands: Lands = Rc::default();
     let (report, reports) = reporter();
     let mut d = deps(m.clone(), "/root", &lands);
@@ -323,7 +379,10 @@ fn seed_plan() -> Value {
 fn the_box_road_claims_a_folder_clones_and_installs_and_records_what_ran() {
     run_local(async {
         let f = fx();
-        let m = RecMachine::new(vec![("mkdir '/root/spoo-ts'", result(0, "/root/spoo-ts\n", "")), ("ls -A", result(0, "package-lock.json\nREADME.md\n", ""))]);
+        let m = RecMachine::new(vec![
+            ("mkdir '/root/spoo-ts'", result(0, "/root/spoo-ts\n", "")),
+            ("ls -A", result(0, "package-lock.json\nREADME.md\n", "")),
+        ]);
         let (out, ran, reports, _) = land("box", request(project(json!({})), src("git"), None), Some(m), Some(IndexMap::new())).await;
         assert_eq!(out, f["land"]["plain"]["out"]);
         assert_eq!(ran, f["land"]["plain"]["ran"]);
@@ -335,11 +394,18 @@ fn the_box_road_claims_a_folder_clones_and_installs_and_records_what_ran() {
 #[test]
 fn writes_the_installs_log_under_a_path_a_leave_takes_so_a_leave_leaves_nothing_of_the_landings_in_wsps_folder() {
     run_local(async {
-        let m = RecMachine::new(vec![("mkdir '/root/spoo-ts'", result(0, "/root/spoo-ts\n", "")), ("ls -A", result(0, "package-lock.json\n", ""))]);
+        let m = RecMachine::new(vec![
+            ("mkdir '/root/spoo-ts'", result(0, "/root/spoo-ts\n", "")),
+            ("ls -A", result(0, "package-lock.json\n", "")),
+        ]);
         let (out, _, _, _) = land("box", request(project(json!({})), src("git"), None), Some(m.clone()), None).await;
         assert!(out.get("ok").is_some(), "{out}");
         let all = m.cmds().join("\n");
-        let log = regex::Regex::new(r"npm ci >> '([^']+)' 2>&1").unwrap().captures(&all).map(|c| c[1].to_string()).unwrap_or_else(|| panic!("{all}"));
+        let log = regex::Regex::new(r"npm ci >> '([^']+)' 2>&1")
+            .unwrap()
+            .captures(&all)
+            .map(|c| c[1].to_string())
+            .unwrap_or_else(|| panic!("{all}"));
         assert!(place_owned_paths("/root").iter().any(|row| log.starts_with(&format!("{row}/"))), "{log}");
     });
 }
@@ -349,13 +415,19 @@ fn writes_the_installs_log_under_a_path_a_leave_takes_so_a_leave_leaves_nothing_
 fn the_box_road_clones_with_the_vaults_env_on_the_clones_input_and_installs_each_lockfile_in_order() {
     run_local(async {
         let f = fx();
-        let m = RecMachine::new(vec![("mkdir '/root/spoo-ts'", result(0, "/root/spoo-ts-2\n", "")), ("ls -A", result(0, "Cargo.lock\npnpm-lock.yaml\n", ""))]);
+        let m = RecMachine::new(vec![
+            ("mkdir '/root/spoo-ts'", result(0, "/root/spoo-ts-2\n", "")),
+            ("ls -A", result(0, "Cargo.lock\npnpm-lock.yaml\n", "")),
+        ]);
         let env: IndexMap<String, String> = [("GH_TOKEN".to_string(), "gho_x".to_string())].into_iter().collect();
         let (out, ran, reports, _) = land("box", request(project(json!({ "base": "dev" })), src("github"), None), Some(m), Some(env)).await;
         assert_eq!(out, f["land"]["vault"]["out"]);
         assert_eq!(ran, f["land"]["vault"]["ran"]);
         assert_eq!(reports, f["land"]["vault"]["reports"]);
-        assert!(!ran.to_string().contains("gho_x\\n") && !ran[1]["cmd"].as_str().unwrap().contains("gho_x"), "the token rides the input, never the command");
+        assert!(
+            !ran.to_string().contains("gho_x\\n") && !ran[1]["cmd"].as_str().unwrap().contains("gho_x"),
+            "the token rides the input, never the command"
+        );
     });
 }
 
@@ -370,7 +442,11 @@ fn the_box_road_lands_a_seed_its_commits_and_keeps_the_memory_already_there() {
             ("am --3way", result(0, "x\n2\n", "")),
             ("rmdir", result(0, "wsp-memory-kept\n", "")),
         ]);
-        let seed = LandSeed { tar: b"seed archive".to_vec(), choice: wire(&json!({ "files": [".env.local"], "memory": true, "commits": true })), plan: wire(&seed_plan()) };
+        let seed = LandSeed {
+            tar: b"seed archive".to_vec(),
+            choice: wire(&json!({ "files": [".env.local"], "memory": true, "commits": true })),
+            plan: wire(&seed_plan()),
+        };
         let p = project(json!({ "source": { "kind": "folder", "path": "/Users/dev/web" } }));
         let (out, ran, reports, lands) = land("box", request(p, src("folder"), Some(seed)), Some(m), None).await;
         assert_eq!(out, f["land"]["seeded"]["out"]);
@@ -390,7 +466,11 @@ fn a_patch_git_refuses_is_put_back_and_said_once_and_the_add_still_lands() {
             ("symbolic-ref", result(128, "", "fatal: not a symbolic ref\n")),
             ("am --3way", result(1, "", "error: patch failed\n")),
         ]);
-        let seed = LandSeed { tar: b"t".to_vec(), choice: wire(&json!({ "files": [], "memory": false, "commits": true })), plan: wire(&seed_plan()) };
+        let seed = LandSeed {
+            tar: b"t".to_vec(),
+            choice: wire(&json!({ "files": [], "memory": false, "commits": true })),
+            plan: wire(&seed_plan()),
+        };
         let p = project(json!({ "source": { "kind": "folder", "path": "/Users/dev/web" }, "base": "dev" }));
         let (out, ran, reports, _) = land("box", request(p, src("folder"), Some(seed)), Some(m), None).await;
         assert_eq!(out, f["land"]["refused"]["out"]);
@@ -404,13 +484,21 @@ fn a_patch_git_refuses_is_put_back_and_said_once_and_the_add_still_lands() {
 fn a_clone_or_an_install_that_fails_sweeps_the_folder_it_claimed_and_a_home_with_no_free_name_claims_none() {
     run_local(async {
         let f = fx();
-        let clone = RecMachine::new(vec![("mkdir '/root/spoo-ts'", result(0, "/root/spoo-ts\n", "")), ("git clone", result(128, "", "Cloning...\nfatal: repository not found\n"))]);
+        let clone = RecMachine::new(vec![
+            ("mkdir '/root/spoo-ts'", result(0, "/root/spoo-ts\n", "")),
+            ("git clone", result(128, "", "Cloning...\nfatal: repository not found\n")),
+        ]);
         let (out, ran, _, _) = land("box", request(project(json!({})), src("git"), None), Some(clone), None).await;
         assert_eq!(json!({ "out": out, "ran": ran }), f["land"]["cloneFailed"]);
-        let install = RecMachine::new(vec![("mkdir '/root/spoo-ts'", result(0, "/root/spoo-ts\n", "")), ("ls -A", result(0, "package-lock.json\n", "")), ("npm ci", result(1, "", "npm ERR! nope\n"))]);
+        let install = RecMachine::new(vec![
+            ("mkdir '/root/spoo-ts'", result(0, "/root/spoo-ts\n", "")),
+            ("ls -A", result(0, "package-lock.json\n", "")),
+            ("npm ci", result(1, "", "npm ERR! nope\n")),
+        ]);
         let (out, ran, _, _) = land("box", request(project(json!({})), src("git"), None), Some(install), None).await;
         assert_eq!(json!({ "out": out, "ran": ran }), f["land"]["installFailed"]);
-        let full = RecMachine::new(vec![("mkdir '/root/spoo-ts'", result(1, "", "every name from spoo-ts to spoo-ts-99 is taken in /root\n"))]);
+        let full =
+            RecMachine::new(vec![("mkdir '/root/spoo-ts'", result(1, "", "every name from spoo-ts to spoo-ts-99 is taken in /root\n"))]);
         let (out, ran, _, _) = land("box", request(project(json!({})), src("git"), None), Some(full), None).await;
         assert_eq!(json!({ "out": out, "ran": ran }), f["land"]["noFolder"]);
     });
@@ -422,7 +510,10 @@ fn a_sweep_that_fails_is_warned_and_the_adds_own_failure_is_the_answer() {
     run_local(async {
         let f = fx();
         let caught = console::capture();
-        let m = Rc::new(RecMachine::plain(vec![("mkdir '/root/spoo-ts'", result(0, "/root/spoo-ts\n", "")), ("git clone", result(1, "", ""))]).failing("rm -rf"));
+        let m = Rc::new(
+            RecMachine::plain(vec![("mkdir '/root/spoo-ts'", result(0, "/root/spoo-ts\n", "")), ("git clone", result(1, "", ""))])
+                .failing("rm -rf"),
+        );
         let (out, ran, _, _) = land("box", request(project(json!({})), src("git"), None), Some(m), None).await;
         assert_eq!(json!({ "out": out, "ran": ran }), f["land"]["sweepFailed"]);
         assert_eq!(caught.lines(), ["/root/spoo-ts on hetzner was not swept after the add of spoo-ts failed: the link went"]);

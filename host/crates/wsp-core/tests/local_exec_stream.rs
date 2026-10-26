@@ -17,7 +17,9 @@ use futures::future::LocalBoxFuture;
 use futures::stream::LocalBoxStream;
 use futures::StreamExt;
 use tokio::sync::oneshot;
-use wsp_adapters::port::{end_run, AttachRunOptions, Attached, Env, ExecFailure, ExecOptions as Launch, ExecStream, ExecStreamFactory, Settle, WriteOutcome};
+use wsp_adapters::port::{
+    end_run, AttachRunOptions, Attached, Env, ExecFailure, ExecOptions as Launch, ExecStream, ExecStreamFactory, Settle, WriteOutcome,
+};
 use wsp_core::local_exec::{group_exists, local_exec_stream, LocalExecFactory, LocalExecOptions, TreeWorkReader};
 use wsp_core::machine_exec::{turn_cut, ReadingSet, TurnLimits};
 
@@ -295,7 +297,8 @@ mod local_exec_stream {
 
     own_group_test!(a_child_that_never_writes_is_cut_at_the_idle_limit_with_the_same_line_a_cloud_tu, 15_000, {
         let c = Case::new("wsp-localexec-");
-        let factory = local_exec_stream(LocalExecOptions { idle_ms: Some(120.0), deadline_ms: Some(60_000.0), poll_ms: Some(10), ..c.opts() }, None);
+        let factory =
+            local_exec_stream(LocalExecOptions { idle_ms: Some(120.0), deadline_ms: Some(60_000.0), poll_ms: Some(10), ..c.opts() }, None);
         let stream = go(&factory, "sleep 30");
         let started = Instant::now();
         let (_, failure) = support::lines_err(&*stream).await;
@@ -311,7 +314,8 @@ mod local_exec_stream {
         let c = Case::new("wsp-localexec-");
         // A group of this test's own, standing for the shell that is between the truncate of its exit file and the
         // write of the code; its pid is one this test started and wrote down, never one found by name.
-        let pid = spawn_group(Command::new("bash").args(["-c", "sleep 300"]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()));
+        let pid =
+            spawn_group(Command::new("bash").args(["-c", "sleep 300"]).stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()));
         assert!(pid > 0);
         support::strays::record(pid);
         owner_dir(&c.run_dir);
@@ -335,7 +339,16 @@ mod local_exec_stream {
 
     own_group_test!(a_child_that_prints_nothing_while_the_tree_it_started_burns_a_core_is_not_cut_at, 15_000, {
         let c = Case::new("wsp-localexec-");
-        let factory = local_exec_stream(LocalExecOptions { idle_ms: Some(400.0), deadline_ms: Some(30_000.0), poll_ms: Some(20), read_work: Some(burning_tree()), ..c.opts() }, None);
+        let factory = local_exec_stream(
+            LocalExecOptions {
+                idle_ms: Some(400.0),
+                deadline_ms: Some(30_000.0),
+                poll_ms: Some(20),
+                read_work: Some(burning_tree()),
+                ..c.opts()
+            },
+            None,
+        );
         let stream = go(&factory, "sleep 2; echo still working; sleep 20");
         let mut it = stream.lines();
         // The line lands five idle limits into a silent turn, so only the tree's work can have held the turn open.
@@ -349,7 +362,8 @@ mod local_exec_stream {
     own_group_test!(a_child_that_prints_nothing_while_the_tree_it_started_sleeps_is_cut_at_the_idle, 20_000, {
         let c = Case::new("wsp-localexec-");
         let marker = c.path("idle.pid");
-        let factory = local_exec_stream(LocalExecOptions { idle_ms: Some(400.0), deadline_ms: Some(30_000.0), poll_ms: Some(20), ..c.opts() }, None);
+        let factory =
+            local_exec_stream(LocalExecOptions { idle_ms: Some(400.0), deadline_ms: Some(30_000.0), poll_ms: Some(20), ..c.opts() }, None);
         let stream = go(&factory, &format!("sleep 20 & echo $! > {marker}; sleep 20"));
         let sleeping = grandchild(&marker).await;
         let reader = stream.clone();
@@ -384,7 +398,8 @@ mod local_exec_stream {
 
     own_group_test!(a_child_that_keeps_writing_past_the_wall_is_cut_at_the_cap, 15_000, {
         let c = Case::new("wsp-localexec-");
-        let factory = local_exec_stream(LocalExecOptions { idle_ms: Some(60_000.0), deadline_ms: Some(150.0), poll_ms: Some(10), ..c.opts() }, None);
+        let factory =
+            local_exec_stream(LocalExecOptions { idle_ms: Some(60_000.0), deadline_ms: Some(150.0), poll_ms: Some(10), ..c.opts() }, None);
         let stream = go(&factory, &gate_loop(&c.path("stop"), "echo tick", 30));
         let (_, failure) = support::lines_err(&*stream).await;
         assert!(failure.message.ends_with(&format!("at the 0m turn limit; {WALL_WORDS}")), "{}", failure.message);
@@ -397,18 +412,39 @@ mod local_exec_stream {
         const WALL_MS: u64 = 3_000;
         let reading = ReadingSet::new();
         let started_at = now_ms();
-        let launched = local_exec_stream(LocalExecOptions { idle_ms: Some(60_000.0), deadline_ms: Some(WALL_MS as f64), poll_ms: Some(20), reading: Some(reading.clone()), ..c.opts() }, None)
-            .launch(&gate_loop(&c.path("stop"), "echo tick", 30), Launch::default());
+        let launched = local_exec_stream(
+            LocalExecOptions {
+                idle_ms: Some(60_000.0),
+                deadline_ms: Some(WALL_MS as f64),
+                poll_ms: Some(20),
+                reading: Some(reading.clone()),
+                ..c.opts()
+            },
+            None,
+        )
+        .launch(&gate_loop(&c.path("stop"), "echo tick", 30), Launch::default());
         sleep_ms(WALL_MS / 2).await;
         // The host goes: its reader lets go of the run, which keeps running, and the next host re-opens it by handle.
         reading.let_go_all();
         let attached_at = Instant::now();
-        let next = local_exec_stream(LocalExecOptions { idle_ms: Some(60_000.0), deadline_ms: Some(WALL_MS as f64), poll_ms: Some(20), ..c.opts() }, None);
-        let attached = attached_stream(&next, &launched.run().expect("a run"), AttachRunOptions { input: false, started_at: started_at as f64, from: None }).await;
+        let next = local_exec_stream(
+            LocalExecOptions { idle_ms: Some(60_000.0), deadline_ms: Some(WALL_MS as f64), poll_ms: Some(20), ..c.opts() },
+            None,
+        );
+        let attached = attached_stream(
+            &next,
+            &launched.run().expect("a run"),
+            AttachRunOptions { input: false, started_at: started_at as f64, from: None },
+        )
+        .await;
         let (_, failure) = support::lines_err(&*attached).await;
         assert!(failure.message.ends_with(&format!("turn limit; {WALL_WORDS}")), "{}", failure.message);
         // Half the wall was left when it was re-opened, and that half is all it got.
-        assert!(attached_at.elapsed() < Duration::from_millis((WALL_MS as f64 * 0.9) as u64), "the re-opened turn ran {:?}", attached_at.elapsed());
+        assert!(
+            attached_at.elapsed() < Duration::from_millis((WALL_MS as f64 * 0.9) as u64),
+            "the re-opened turn ran {:?}",
+            attached_at.elapsed()
+        );
         assert_eq!(attached.exited().await, None);
         c.sweep().await;
     });
@@ -418,12 +454,29 @@ mod local_exec_stream {
         const WALL_MS: u64 = 1_000;
         let reading = ReadingSet::new();
         let started_at = now_ms();
-        let launched = local_exec_stream(LocalExecOptions { idle_ms: Some(60_000.0), deadline_ms: Some(WALL_MS as f64), poll_ms: Some(20), reading: Some(reading.clone()), ..c.opts() }, None)
-            .launch("sleep 0.3; echo the-reply", Launch::default());
+        let launched = local_exec_stream(
+            LocalExecOptions {
+                idle_ms: Some(60_000.0),
+                deadline_ms: Some(WALL_MS as f64),
+                poll_ms: Some(20),
+                reading: Some(reading.clone()),
+                ..c.opts()
+            },
+            None,
+        )
+        .launch("sleep 0.3; echo the-reply", Launch::default());
         reading.let_go_all();
         sleep_ms(WALL_MS * 12 / 10).await;
-        let next = local_exec_stream(LocalExecOptions { idle_ms: Some(60_000.0), deadline_ms: Some(WALL_MS as f64), poll_ms: Some(20), ..c.opts() }, None);
-        let attached = attached_stream(&next, &launched.run().expect("a run"), AttachRunOptions { input: false, started_at: started_at as f64, from: None }).await;
+        let next = local_exec_stream(
+            LocalExecOptions { idle_ms: Some(60_000.0), deadline_ms: Some(WALL_MS as f64), poll_ms: Some(20), ..c.opts() },
+            None,
+        );
+        let attached = attached_stream(
+            &next,
+            &launched.run().expect("a run"),
+            AttachRunOptions { input: false, started_at: started_at as f64, from: None },
+        )
+        .await;
         assert_eq!(support::lines_ok(&*attached).await, strs(&["the-reply"]));
         assert_eq!(attached.exited().await, Some(0));
         c.sweep().await;
@@ -434,12 +487,29 @@ mod local_exec_stream {
         const WALL_MS: u64 = 1_000;
         let reading = ReadingSet::new();
         let started_at = now_ms();
-        let launched = local_exec_stream(LocalExecOptions { idle_ms: Some(60_000.0), deadline_ms: Some(WALL_MS as f64), poll_ms: Some(20), reading: Some(reading.clone()), ..c.opts() }, None)
-            .launch("echo while-away; sleep 30", Launch::default());
+        let launched = local_exec_stream(
+            LocalExecOptions {
+                idle_ms: Some(60_000.0),
+                deadline_ms: Some(WALL_MS as f64),
+                poll_ms: Some(20),
+                reading: Some(reading.clone()),
+                ..c.opts()
+            },
+            None,
+        )
+        .launch("echo while-away; sleep 30", Launch::default());
         reading.let_go_all();
         sleep_ms(WALL_MS * 12 / 10).await;
-        let next = local_exec_stream(LocalExecOptions { idle_ms: Some(60_000.0), deadline_ms: Some(WALL_MS as f64), poll_ms: Some(20), ..c.opts() }, None);
-        let attached = attached_stream(&next, &launched.run().expect("a run"), AttachRunOptions { input: false, started_at: started_at as f64, from: None }).await;
+        let next = local_exec_stream(
+            LocalExecOptions { idle_ms: Some(60_000.0), deadline_ms: Some(WALL_MS as f64), poll_ms: Some(20), ..c.opts() },
+            None,
+        );
+        let attached = attached_stream(
+            &next,
+            &launched.run().expect("a run"),
+            AttachRunOptions { input: false, started_at: started_at as f64, from: None },
+        )
+        .await;
         let (seen, failure) = support::lines_err(&*attached).await;
         assert!(failure.message.ends_with(&format!("turn limit; {WALL_WORDS}")), "{}", failure.message);
         assert_eq!(seen, strs(&["while-away"]));
@@ -459,7 +529,8 @@ mod local_exec_stream {
         let c = Case::new("wsp-localexec-");
         // A poll slower than the grace, so no read falls between the TERM and the KILL: the lines are read at the end or never.
         let n = EXEC_CHUNK_BYTES + 1000;
-        let command = format!(r#"trap 'head -c {n} /dev/zero | tr "\0" x; echo; echo last words' TERM; echo ready; {}"#, gate(&c.path("stop")));
+        let command =
+            format!(r#"trap 'head -c {n} /dev/zero | tr "\0" x; echo; echo last words' TERM; echo ready; {}"#, gate(&c.path("stop")));
         let stream = go(&local_exec_stream(LocalExecOptions { poll_ms: Some(1_500), ..c.opts() }, None), &command);
         let mut it = stream.lines();
         assert_eq!(next_line(&mut it).await.as_deref(), Some("ready"));
@@ -509,7 +580,10 @@ mod what_a_run_leaves_on_this_computer {
         let carries = ["sh", "in", "log"];
         let readable: Vec<String> = support::names(&c.run_dir)
             .into_iter()
-            .filter(|name| carries.contains(&name.rsplit('.').next().unwrap()) && (std::fs::metadata(format!("{}/{name}", c.run_dir)).unwrap().permissions().mode() & 0o077) != 0)
+            .filter(|name| {
+                carries.contains(&name.rsplit('.').next().unwrap())
+                    && (std::fs::metadata(format!("{}/{name}", c.run_dir)).unwrap().permissions().mode() & 0o077) != 0
+            })
             .collect();
         assert_eq!(readable, Vec::<String>::new());
 
@@ -528,9 +602,17 @@ mod what_a_run_leaves_on_this_computer {
         // A turn as an agent's launch makes one, its prompt on an input channel; an exec as the exec verb makes one.
         let turn = factory.launch(
             &format!(r#"{seen}; read -r line; echo "got $line""#),
-            Launch { env: env_of(&[("ANTHROPIC_API_KEY", key.as_str())]), input: Some(strs(&["hello"])), input_after: Some(pending()), ..Launch::default() },
+            Launch {
+                env: env_of(&[("ANTHROPIC_API_KEY", key.as_str())]),
+                input: Some(strs(&["hello"])),
+                input_after: Some(pending()),
+                ..Launch::default()
+            },
         );
-        let exec = factory.launch(&format!("{seen}; {}", gate(&gate_file)), Launch { env: env_of(&[("ANTHROPIC_API_KEY", key.as_str())]), ..Launch::default() });
+        let exec = factory.launch(
+            &format!("{seen}; {}", gate(&gate_file)),
+            Launch { env: env_of(&[("ANTHROPIC_API_KEY", key.as_str())]), ..Launch::default() },
+        );
         let mut turn_lines = turn.lines();
         let mut exec_lines = exec.lines();
         assert_eq!(next_line(&mut turn_lines).await, Some(format!("seen {}", key.len())));
@@ -565,7 +647,9 @@ mod what_a_run_leaves_on_this_computer {
             drop(script);
             let log = std::fs::OpenOptions::new().append(true).create(true).mode(0o600).open(format!("{base}.log")).unwrap();
             let err = log.try_clone().unwrap();
-            let pid = spawn_group(Command::new("bash").arg(format!("{base}.sh")).current_dir(&c.root).stdin(Stdio::null()).stdout(log).stderr(err));
+            let pid = spawn_group(
+                Command::new("bash").arg(format!("{base}.sh")).current_dir(&c.root).stdin(Stdio::null()).stdout(log).stderr(err),
+            );
             started.push(pid);
             std::fs::write(format!("{base}.pid"), format!("{pid}\n")).unwrap();
             base
@@ -578,7 +662,7 @@ mod what_a_run_leaves_on_this_computer {
         // The host that comes next re-opens the run its rows hold and sweeps the one they do not.
         let next = local_exec_stream(LocalExecOptions { poll_ms: Some(10), ..c.opts() }, None);
         let attached = attached_stream(&next, &read, attach_opts(false)).await;
-        assert_eq!(next.sweep(&[read.clone()]).expect("a sweep").await.unwrap(), vec![ended.clone()]);
+        assert_eq!(next.sweep(std::slice::from_ref(&read)).expect("a sweep").await.unwrap(), vec![ended.clone()]);
         std::fs::write(&gate_file, "").unwrap();
         assert_eq!(lines_and_code(&attached).await, (strs(&["done"]), Some(0)));
         assert_eq!(support::names(&c.run_dir), Vec::<String>::new());
@@ -602,9 +686,13 @@ mod a_run_kept_between_turns {
         // "leave" starts a holder keeping a sleep under it until the gate opens: no orphan when the next host re-opens the
         // run, and one by the time the turn ends.
         let hold = format!("sleep 300 > /dev/null 2>&1 & echo $! > {}; echo $$ > {}; {}", sq(&child), sq(&holder), gate(&gate_file));
-        let agent = format!(r#"while IFS= read -r l; do if [ "$l" = leave ]; then sh -c {} & echo left; else echo "said $l"; fi; done"#, sq(&hold));
+        let agent =
+            format!(r#"while IFS= read -r l; do if [ "$l" = leave ]; then sh -c {} & echo left; else echo "said $l"; fi; done"#, sq(&hold));
         let reading = ReadingSet::new();
-        let first = c.ended(local_exec_stream(LocalExecOptions { poll_ms: Some(20), reading: Some(reading.clone()), ..c.opts() }, None).launch(&agent, with_input(&["leave"])));
+        let first = c.ended(
+            local_exec_stream(LocalExecOptions { poll_ms: Some(20), reading: Some(reading.clone()), ..c.opts() }, None)
+                .launch(&agent, with_input(&["leave"])),
+        );
         assert_eq!(next_line(&mut first.lines()).await.as_deref(), Some("left"));
         let sleeper = grandchild(&child).await;
         let held = grandchild(&holder).await;
@@ -612,7 +700,8 @@ mod a_run_kept_between_turns {
         let run = first.run().expect("a run");
         let next = local_exec_stream(LocalExecOptions { poll_ms: Some(20), ..c.opts() }, None);
         let from = std::fs::metadata(format!("{run}.log")).unwrap().len();
-        let reopened = c.ended(attached_stream(&next, &run, AttachRunOptions { input: true, started_at: now_ms() as f64, from: Some(from) }).await);
+        let reopened =
+            c.ended(attached_stream(&next, &run, AttachRunOptions { input: true, started_at: now_ms() as f64, from: Some(from) }).await);
         std::fs::write(&gate_file, "go\n").unwrap();
         wait_for("the sleeper to leave the holder", 5_000, || support::strays::ppid_of(sleeper) != held).await;
         let mut lines = reopened.lines();
@@ -646,7 +735,8 @@ mod a_real_turn_s_process_group {
 
     own_group_test!(a_turn_the_idle_limit_cut_takes_its_whole_group_with_it_and_still_ends_on_the_cu, 15_000, {
         let c = Case::new("wsp-localexec-group-");
-        let factory = local_exec_stream(LocalExecOptions { idle_ms: Some(120.0), deadline_ms: Some(60_000.0), poll_ms: Some(10), ..c.opts() }, None);
+        let factory =
+            local_exec_stream(LocalExecOptions { idle_ms: Some(120.0), deadline_ms: Some(60_000.0), poll_ms: Some(10), ..c.opts() }, None);
         let stream = go(&factory, &format!("sleep 300 & echo $! > {}; sleep 300", c.path("child")));
         let pid = left_running(&c).await;
         let (_, failure) = support::lines_err(&*stream).await;
@@ -699,7 +789,8 @@ mod a_real_turn_s_process_group {
         let c = Case::new("wsp-localexec-group-");
         let (due, rx) = oneshot::channel::<()>();
         let factory = c.factory();
-        let stream = c.ended(factory.launch("cat", Launch { input: Some(strs(&["hello"])), input_after: Some(settle_on(rx)), ..Launch::default() }));
+        let stream =
+            c.ended(factory.launch("cat", Launch { input: Some(strs(&["hello"])), input_after: Some(settle_on(rx)), ..Launch::default() }));
         let mut reader = stream.lines();
         sleep_ms(100).await;
         assert_eq!(support::read(&format!("{}.in", stream.run().unwrap())), "");
@@ -789,10 +880,10 @@ mod a_real_turn_s_process_group {
 
     own_group_test!(a_held_seed_whose_time_never_comes_kills_the_run_and_the_child_never_reads_it, 20_000, {
         let c = Case::new("wsp-localexec-group-");
-        let stream = c.ended(
-            local_exec_stream(c.opts(), None)
-                .launch(&format!("cat > {}", c.path("read")), Launch { input: Some(strs(&["hello"])), input_after: Some(rejected("no snapshot")), ..Launch::default() }),
-        );
+        let stream = c.ended(local_exec_stream(c.opts(), None).launch(
+            &format!("cat > {}", c.path("read")),
+            Launch { input: Some(strs(&["hello"])), input_after: Some(rejected("no snapshot")), ..Launch::default() },
+        ));
         assert_eq!(stream.exited().await, None);
         assert!(!std::path::Path::new(&format!("{}.d", stream.run().unwrap())).exists());
         assert_eq!(support::read(&c.path("read")), "");
@@ -802,8 +893,10 @@ mod a_real_turn_s_process_group {
         let c = Case::new("wsp-localexec-group-");
         let reading = ReadingSet::new();
         let factory = local_exec_stream(LocalExecOptions { reading: Some(reading.clone()), ..c.opts() }, None);
-        let held = c.ended(factory.launch("cat", Launch { input: Some(strs(&["hello"])), input_after: Some(pending()), ..Launch::default() }));
-        let reached = c.ended(factory.launch("cat", Launch { input: Some(strs(&["hello"])), input_after: Some(resolved()), ..Launch::default() }));
+        let held =
+            c.ended(factory.launch("cat", Launch { input: Some(strs(&["hello"])), input_after: Some(pending()), ..Launch::default() }));
+        let reached =
+            c.ended(factory.launch("cat", Launch { input: Some(strs(&["hello"])), input_after: Some(resolved()), ..Launch::default() }));
         let reached_run = reached.run().unwrap();
         wait_for("the seed in the channel", 5_000, || !support::read(&format!("{reached_run}.in")).is_empty()).await;
         // A host that went between handing the seed over and dropping it: the seed is in the channel and still held.
@@ -893,9 +986,9 @@ mod a_real_turn_s_process_group {
             (read, most_in_one_turn)
         };
         let ((), (read, most_in_one_turn)) = futures::join!(ticker, reader);
-        assert_eq!(read as u64, (bytes + 998) / 999);
+        assert_eq!(read as u64, bytes.div_ceil(999));
         // A chunk's lines and what the turn before it left: a read that held the loop hands over every line in one turn.
-        assert!(most_in_one_turn <= (3 * EXEC_CHUNK_BYTES + 999) / 1000, "{most_in_one_turn} lines in one turn");
+        assert!(most_in_one_turn <= (3 * EXEC_CHUNK_BYTES).div_ceil(1000), "{most_in_one_turn} lines in one turn");
         assert_eq!(attached.exited().await, None);
         c.sweep().await;
     });
@@ -983,7 +1076,8 @@ mod a_real_turn_s_process_group {
         let gate_file = c.path("gate");
         let reading = ReadingSet::new();
         let factory = local_exec_stream(LocalExecOptions { reading: Some(reading.clone()), ..c.opts() }, None);
-        let launched = go(&factory, &format!("sleep 300 & echo $! > {}; echo first; {}; echo second; sleep 300", c.path("child"), gate(&gate_file)));
+        let launched =
+            go(&factory, &format!("sleep 300 & echo $! > {}; echo first; {}; echo second; sleep 300", c.path("child"), gate(&gate_file)));
         let pid = left_running(&c).await;
         let mut reader = launched.lines();
         assert_eq!(next_line(&mut reader).await.as_deref(), Some("first"));

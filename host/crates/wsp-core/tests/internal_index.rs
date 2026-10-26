@@ -397,10 +397,10 @@ fn end_children_stops_only_that_turns_running_children() {
     let mut index = index_of(&events[..9]);
     end_children(&mut index, "t1", Some("u0"), Some(50.0));
     let k4 = &index.children["t1"]["k4"];
-    assert_eq!(serde_json::to_value(&k4.view.state).unwrap(), json!("stopped"));
+    assert_eq!(serde_json::to_value(k4.view.state).unwrap(), json!("stopped"));
     assert_eq!(k4.view.ended_at.map(|n| n.0), Some(50.0));
     let k1 = &index.children["t1"]["k1"];
-    assert_eq!(serde_json::to_value(&k1.view.state).unwrap(), json!("running"));
+    assert_eq!(serde_json::to_value(k1.view.state).unwrap(), json!("running"));
     end_children(&mut index, "t1", Some("u1"), None);
     let k1 = &index.children["t1"]["k1"];
     assert_eq!(k1.view.ended_at.map(|n| n.0), Some(2.0), "no end time reads the start time");

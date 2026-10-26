@@ -12,10 +12,12 @@ use futures::stream::LocalBoxStream;
 use futures::StreamExt;
 use indexmap::IndexMap;
 use wsp_adapters::port::{
-    Attached, AttachRunOptions, ExecFailure, ExecFailureKind, ExecOptions, ExecStream, ExecStreamFactory, WriteOutcome, AGENT_PID_FILE_ENV,
+    AttachRunOptions, Attached, ExecFailure, ExecFailureKind, ExecOptions, ExecStream, ExecStreamFactory, WriteOutcome, AGENT_PID_FILE_ENV,
 };
 use wsp_engine::errors::{far_end_answered, never_sent, until_reached, EngineError, RetryClock};
-use wsp_engine::exec_detached::put::{exec_fits, machine_answer, put_files, GuestWrite, PutFilesOptions, HANDSHAKE, INLINE_EXEC_MS, RUN_DIR};
+use wsp_engine::exec_detached::put::{
+    exec_fits, machine_answer, put_files, GuestWrite, PutFilesOptions, HANDSHAKE, INLINE_EXEC_MS, RUN_DIR,
+};
 use wsp_engine::machine::ExecOptions as MachineExec;
 use wsp_engine::run_env::{env_input, ENV_FROM_INPUT};
 use wsp_engine::Machine;
@@ -180,7 +182,9 @@ pub struct MachineExecFactory {
 /// The factory for one machine; `waiting` is `false` always when `None`.
 pub fn machine_exec_stream(machine: Arc<dyn Machine>, opts: MachineExecOptions, waiting: Option<TurnWaiting>) -> Arc<MachineExecFactory> {
     let now: NowFn = opts.now.unwrap_or_else(|| Arc::new(|| RealClock.now()));
-    let retry_sleep: SleepFn = opts.sleep.clone().unwrap_or_else(|| Arc::new(|ms: u64| -> LocalBoxFuture<'static, ()> { Box::pin(tokio::time::sleep(std::time::Duration::from_millis(ms))) }));
+    let retry_sleep: SleepFn = opts.sleep.clone().unwrap_or_else(|| {
+        Arc::new(|ms: u64| -> LocalBoxFuture<'static, ()> { Box::pin(tokio::time::sleep(std::time::Duration::from_millis(ms))) })
+    });
     Arc::new(MachineExecFactory {
         core: Arc::new(Core {
             machine,
@@ -293,14 +297,22 @@ impl MachineExecFactory {
         if secret.is_some() && !machine.takes_stdin() {
             return Err(ExecFailure {
                 kind: ExecFailureKind::Other,
-                message: format!("{} takes no input on its launch, so text holding a value would ride its command; nothing was started", machine.id()),
+                message: format!(
+                    "{} takes no input on its launch, so text holding a value would ride its command; nothing was started",
+                    machine.id()
+                ),
             });
         }
         let seed_text: Option<String> = input.as_ref().map(|lines| lines.iter().map(|line| format!("{line}\n")).collect());
         let mut held: Vec<Held> = Vec::new();
         if let Some(secret) = &secret {
             for (i, (variable, text)) in secret.files.iter().flatten().enumerate() {
-                held.push(Held { name: format!("WSP_LAND_{i}"), path: format!("{base}.f{i}"), text: text.clone(), variable: Some(variable.clone()) });
+                held.push(Held {
+                    name: format!("WSP_LAND_{i}"),
+                    path: format!("{base}.f{i}"),
+                    text: text.clone(),
+                    variable: Some(variable.clone()),
+                });
             }
             if let (true, Some(text)) = (secret.input, &seed_text) {
                 held.push(Held { name: "WSP_LAND_IN".into(), path: seed_path.clone(), text: text.clone(), variable: None });
@@ -365,16 +377,16 @@ impl MachineExecFactory {
                 let res = until_reached(
                     || {
                         posts.fetch_add(1, SeqCst);
-                        let (launch_on, files, before, after, stdin) = (launch_on.clone(), files.clone(), before.clone(), after.clone(), stdin.clone());
+                        let (launch_on, files, before, after, stdin) =
+                            (launch_on.clone(), files.clone(), before.clone(), after.clone(), stdin.clone());
                         let may_have_run = may_have_run.clone();
                         async move {
                             put_files(&*launch_on, &files, PutFilesOptions { before, after, timeout_ms: Some(timeout_ms), stdin })
                                 .await
-                                .map_err(|e| {
-                                    if !never_sent(&e) && !far_end_answered(&e) {
+                                .inspect_err(|e| {
+                                    if !never_sent(e) && !far_end_answered(e) {
                                         may_have_run.store(true, SeqCst);
                                     }
-                                    e
                                 })
                         }
                     },
@@ -442,7 +454,8 @@ struct Held {
 
 fn env_key(key: &str) -> bool {
     let mut chars = key.chars();
-    matches!(chars.next(), Some(first) if first == '_' || first.is_ascii_alphabetic()) && chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
+    matches!(chars.next(), Some(first) if first == '_' || first.is_ascii_alphabetic())
+        && chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
 }
 
 impl ExecStreamFactory for MachineExecFactory {
@@ -495,7 +508,8 @@ impl ExecStreamFactory for MachineExecFactory {
             .map_err(|e| exec_failure_of(&e))?;
             let said: Vec<&str> = res.stdout.split('\n').collect();
             if let Some(at) = said.iter().position(|line| line.contains(HANDSHAKE.run)) {
-                let taken = options.input.then(|| said[at + 1..].iter().filter(|line| !line.is_empty()).map(|line| line.to_string()).collect());
+                let taken =
+                    options.input.then(|| said[at + 1..].iter().filter(|line| !line.is_empty()).map(|line| line.to_string()).collect());
                 let launched = eager(Box::pin(async { Ok(()) }));
                 let stream = open(
                     core.clone(),
@@ -515,7 +529,10 @@ impl ExecStreamFactory for MachineExecFactory {
             if res.stdout.contains(HANDSHAKE.gone) {
                 return Ok(Attached::Gone);
             }
-            Err(ExecFailure { kind: ExecFailureKind::Other, message: format!("the machine did not answer whether it still holds {run}; {}", machine_answer(&res)) })
+            Err(ExecFailure {
+                kind: ExecFailureKind::Other,
+                message: format!("the machine did not answer whether it still holds {run}; {}", machine_answer(&res)),
+            })
         }))
     }
 
@@ -597,9 +614,9 @@ impl ExecStreamFactory for MachineExecFactory {
 //   /** A handle this factory could have minted: the run directory it launches into and a name of its own shape. */
 //   const minted = (run: string): boolean => run.startsWith(`${runDir}/`) && RUN_ID.test(run.slice(runDir.length + 1));
 pub fn minted(run_dir: &str, run: &str) -> bool {
-    run.strip_prefix(run_dir).and_then(|rest| rest.strip_prefix('/')).is_some_and(|id| {
-        id.len() == 12 && id.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-    })
+    run.strip_prefix(run_dir)
+        .and_then(|rest| rest.strip_prefix('/'))
+        .is_some_and(|id| id.len() == 12 && id.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)))
 }
 
 /// The claim folder: the one path that says a run is on the machine.

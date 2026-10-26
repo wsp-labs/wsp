@@ -19,16 +19,16 @@ use futures::FutureExt;
 use tokio::sync::oneshot;
 use tokio::task::spawn_local;
 use wsp_adapters::port::{
-    Attached, AttachRunOptions, ExecFailure, ExecFailureKind, ExecOptions, ExecStream, ExecStreamFactory, Settle, SharedFuture, WriteOutcome,
-    AGENT_PID_FILE_ENV,
+    AttachRunOptions, Attached, ExecFailure, ExecFailureKind, ExecOptions, ExecStream, ExecStreamFactory, Settle, SharedFuture,
+    WriteOutcome, AGENT_PID_FILE_ENV,
 };
 use wsp_wire::types::place_state::TURN_WALL_MS;
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::wire::limits::{EXEC_CHUNK_BYTES, RUN_STOP_MS, TURN_IDLE_MS};
 
 use super::reap::{
-    alive, append, end_marker, group_rows, leftovers, lock, pump_of, read_file, release_held, release_late, reap_run, signal_group, signal_pid,
-    try_release_held, tree_work, Lines, TreeWorkReader,
+    alive, append, end_marker, group_rows, leftovers, lock, pump_of, read_file, reap_run, release_held, release_late, signal_group,
+    signal_pid, tree_work, try_release_held, Lines, TreeWorkReader,
 };
 use crate::clock::{Clock, RealClock};
 use crate::ids::{Ids, OsIds};
@@ -79,7 +79,17 @@ pub struct LocalExecOptions {
 impl LocalExecOptions {
     /// Every option at its default but the two folders.
     pub fn new(root: impl Into<String>, run_dir: impl Into<String>) -> Self {
-        Self { root: root.into(), run_dir: run_dir.into(), idle_ms: None, deadline_ms: None, now: None, poll_ms: None, read_work: None, reading: None, ids: None }
+        Self {
+            root: root.into(),
+            run_dir: run_dir.into(),
+            idle_ms: None,
+            deadline_ms: None,
+            now: None,
+            poll_ms: None,
+            read_work: None,
+            reading: None,
+            ids: None,
+        }
     }
 }
 
@@ -391,7 +401,8 @@ async fn attach_run(cfg: &Cfg, run: &str, options: AttachRunOptions) -> Result<A
     }
     release_late(run);
     let marker = end_marker(run);
-    let taken: Vec<String> = read_file(&channel).unwrap_or_default().split('\n').filter(|line| !line.is_empty() && *line != marker).map(String::from).collect();
+    let taken: Vec<String> =
+        read_file(&channel).unwrap_or_default().split('\n').filter(|line| !line.is_empty() && *line != marker).map(String::from).collect();
     Ok(Attached::Stream(open(cfg, run.to_string(), input, false, Open { taken: Some(taken), ..at })))
 }
 
@@ -824,13 +835,15 @@ impl Inner {
     }
 
     fn close_channel(&self) {
-        let _ = try_release_held(&self.base).and_then(|_| append(&format!("{}.in", self.base), format!("{}\n", end_marker(&self.base)).as_bytes()));
+        let _ = try_release_held(&self.base)
+            .and_then(|_| append(&format!("{}.in", self.base), format!("{}\n", end_marker(&self.base)).as_bytes()));
     }
 
     /// Writes a parked line's key and the line itself, both owner-only; false where either cannot be made.
     fn park_files(&self, line: &str) -> bool {
         let key = hex::encode(self.ids.bytes(6));
-        write_owned(&format!("{}.late.key", self.base), key).is_ok() && write_owned(&format!("{}.late", self.base), format!("{line}\n")).is_ok()
+        write_owned(&format!("{}.late.key", self.base), key).is_ok()
+            && write_owned(&format!("{}.late", self.base), format!("{line}\n")).is_ok()
     }
 }
 
@@ -868,12 +881,12 @@ async fn poll(inner: Arc<Inner>) {
             (st.resting, st.started_at)
         };
         let cut = if resting { None } else { turn_cut(inner.limits, at - started_at, quiet) };
-        {
+        let cut_now = {
             let st = lock(&inner.state);
-            if cut.is_some() && st.caught_up && !st.exit_seen {
-                drop(st);
-                return settle(&inner, None, cut).await;
-            }
+            cut.is_some() && st.caught_up && !st.exit_seen
+        };
+        if cut_now {
+            return settle(&inner, None, cut).await;
         }
 
         // The exit file is read before the log, so a poll that sees an exit code reads a log that is complete.
@@ -900,7 +913,7 @@ async fn poll(inner: Arc<Inner>) {
         if cut.is_some() {
             return settle(&inner, None, cut).await;
         }
-        if pid.map_or(true, |pid| !alive(pid)) {
+        if pid.is_none_or(|pid| !alive(pid)) {
             let downs = {
                 let mut st = lock(&inner.state);
                 st.downs += 1;
@@ -969,7 +982,14 @@ fn parse_int(text: &str) -> Option<i32> {
 }
 
 /// Ends a parked line: its file goes in once `after` resolves, and its marker is cleared when it is the last parked.
-async fn park(inner: Arc<Inner>, line: String, after: Settle, seq: u64, done: oneshot::Sender<()>, before: Option<Shared<LocalBoxFuture<'static, ()>>>) {
+async fn park(
+    inner: Arc<Inner>,
+    line: String,
+    after: Settle,
+    seq: u64,
+    done: oneshot::Sender<()>,
+    before: Option<Shared<LocalBoxFuture<'static, ()>>>,
+) {
     if let Some(before) = before {
         before.await;
     }

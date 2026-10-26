@@ -203,7 +203,10 @@ fn answer(state: &Mutex<State>, cmd: &str) -> Result<ExecResult> {
     let mut s = state.lock().unwrap();
     s.calls.push(cmd.to_string());
     if cmd.ends_with("echo WSP_PIECE") {
-        let m = Regex::new(r"printf %s '([A-Za-z0-9+/=]*)' > '([^']*)'\.(\d+) \|\| exit 1\n").unwrap().captures(cmd).map(|c| (c[1].to_string(), c[2].to_string(), c[3].to_string()));
+        let m = Regex::new(r"printf %s '([A-Za-z0-9+/=]*)' > '([^']*)'\.(\d+) \|\| exit 1\n")
+            .unwrap()
+            .captures(cmd)
+            .map(|c| (c[1].to_string(), c[2].to_string(), c[3].to_string()));
         let (b64, base, n) = m.unwrap_or_else(|| panic!("piece exec without a numbered file: {cmd}"));
         s.pieces.insert(format!("{base}.{n}"), b64);
         return ok("WSP_PIECE\n");
@@ -246,7 +249,8 @@ fn answer(state: &Mutex<State>, cmd: &str) -> Result<ExecResult> {
         if let Some(mark) = first_capture(r"(__WSP_REAPED_[a-z0-9]+__)", cmd) {
             let from: usize = first_capture(r"tail -c \+(\d+)", cmd).map(|n| n.parse::<usize>().unwrap() - 1).unwrap_or(0);
             let end = (from + 262_144).min(s.log.len());
-            let chunk = if from < s.log.len() { base64::engine::general_purpose::STANDARD.encode(&s.log[from..end]) } else { String::new() };
+            let chunk =
+                if from < s.log.len() { base64::engine::general_purpose::STANDARD.encode(&s.log[from..end]) } else { String::new() };
             return ok(format!("{chunk}\n{mark} {}\n", s.log.len()));
         }
         return ok("");
@@ -379,7 +383,11 @@ impl Machine for LocalGuest {
             drop(input);
         }
         let out = child.wait_with_output().await.expect("bash's output");
-        Ok(ExecResult { exit_code: super::code(out.status.code().unwrap_or(1) as i64), stdout: String::from_utf8_lossy(&out.stdout).into_owned(), stderr: String::from_utf8_lossy(&out.stderr).into_owned() })
+        Ok(ExecResult {
+            exit_code: super::code(out.status.code().unwrap_or(1) as i64),
+            stdout: String::from_utf8_lossy(&out.stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&out.stderr).into_owned(),
+        })
     }
     async fn run(&self, _script: &str, _opts: RunOptions) -> Result<ExecResult> {
         panic!("the machine road never runs")

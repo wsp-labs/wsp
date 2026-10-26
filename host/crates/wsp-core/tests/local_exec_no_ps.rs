@@ -38,7 +38,8 @@ impl Case {
         // Every ps fails, so both readings this module makes meet the failure; only the tree's is counted, since that is
         // the one the idle clock pays for every second. The reap's one read of a leader's age at the end of a run is not
         // a reading of the tree and says nothing about the clock.
-        let script = format!("#!/bin/sh\nfor a in \"$@\"; do\n  if [ \"$a\" = \"-eo\" ]; then echo tree >> '{counter}'; fi\ndone\nexit 1\n");
+        let script =
+            format!("#!/bin/sh\nfor a in \"$@\"; do\n  if [ \"$a\" = \"-eo\" ]; then echo tree >> '{counter}'; fi\ndone\nexit 1\n");
         let mut f = std::fs::OpenOptions::new().write(true).create_new(true).mode(0o755).open(format!("{bin}/ps")).expect("a stub ps");
         f.write_all(script.as_bytes()).expect("a stub ps's text");
         drop(f);
@@ -47,7 +48,15 @@ impl Case {
     }
 
     fn factory(&self, idle_ms: f64, deadline_ms: f64) -> Arc<LocalExecFactory> {
-        local_exec_stream(LocalExecOptions { idle_ms: Some(idle_ms), deadline_ms: Some(deadline_ms), poll_ms: Some(20), ..LocalExecOptions::new(self.root.clone(), self.run_dir.clone()) }, None)
+        local_exec_stream(
+            LocalExecOptions {
+                idle_ms: Some(idle_ms),
+                deadline_ms: Some(deadline_ms),
+                poll_ms: Some(20),
+                ..LocalExecOptions::new(self.root.clone(), self.run_dir.clone())
+            },
+            None,
+        )
     }
 
     /// What `spawns.trees` counted.
@@ -73,7 +82,8 @@ mod local_exec_stream_where_the_group_read_cannot_spawn {
         let c = Case::new();
         let marker = format!("{}/busy.pid", c.root);
         let factory = c.factory(300.0, 30_000.0);
-        let stream: Arc<dyn ExecStream> = factory.launch(&format!("( while :; do :; done ) & echo $! > {marker}; sleep 20"), Launch::default());
+        let stream: Arc<dyn ExecStream> =
+            factory.launch(&format!("( while :; do :; done ) & echo $! > {marker}; sleep 20"), Launch::default());
         let busy = grandchild(&marker).await;
         let (lines, failure) = support::collect(&*stream).await;
         assert!(is_idle_cut(&failure.expect("a cut").message));

@@ -13,7 +13,8 @@ use base64::Engine as _;
 use regex::Regex;
 use wsp_adapters::port::{AttachRunOptions, ExecOptions as Launch, ExecStream, ExecStreamFactory, Settle};
 use wsp_core::machine_exec::factory::{
-    attach_probe, claim, claim_mkdir, grace_checks, holds_run_probe, minted, reap_script, release_held_sh, release_late_sh, run_script, sweep_listing, sweep_page,
+    attach_probe, claim, claim_mkdir, grace_checks, holds_run_probe, minted, reap_script, release_held_sh, release_late_sh, run_script,
+    sweep_listing, sweep_page,
 };
 use wsp_core::machine_exec::stream::{append_before, close_input_cmd, end_leftovers_cmd, js_parse_int, poll_cmd, reap_read, signal_cmd};
 use wsp_core::machine_exec::{machine_exec_stream, MachineExecOptions};
@@ -124,7 +125,17 @@ fn the_shell_text_is_the_ts_text_byte_for_byte() {
         // idle cut ends it.
         {
             let (rec, machine) = recorder();
-            let f = machine_exec_stream(machine, MachineExecOptions { poll_ms: Some(1), run_dir: Some("/r".into()), idle_ms: Some(2.0), deadline_ms: Some(1e9), ..Default::default() }, None);
+            let f = machine_exec_stream(
+                machine,
+                MachineExecOptions {
+                    poll_ms: Some(1),
+                    run_dir: Some("/r".into()),
+                    idle_ms: Some(2.0),
+                    deadline_ms: Some(1e9),
+                    ..Default::default()
+                },
+                None,
+            );
             let env = [("A", "x y"), ("BAD-KEY", "z")].iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
             let s = f.launch("claude -p 'hi'", Launch { env, input: Some(vec!["seed".into()]), ..Default::default() });
             s.write("more".into()).await.unwrap();
@@ -142,7 +153,11 @@ fn the_shell_text_is_the_ts_text_byte_for_byte() {
         // An attach with input, one without, and a sweep naming another run.
         {
             let (rec, machine) = recorder();
-            let f = machine_exec_stream(machine, MachineExecOptions { poll_ms: Some(1), run_dir: Some("/r".into()), ..Default::default() }, None);
+            let f = machine_exec_stream(
+                machine,
+                MachineExecOptions { poll_ms: Some(1), run_dir: Some("/r".into()), ..Default::default() },
+                None,
+            );
             let _ = f.attach("/r/bbbbbbbbbbbb", AttachRunOptions { input: true, started_at: 0.0, from: None }).unwrap().await.unwrap();
             let _ = f.attach("/r/bbbbbbbbbbbb", AttachRunOptions { input: false, started_at: 0.0, from: None }).unwrap().await.unwrap();
             let _ = f.sweep(&["/r/cccccccccccc".to_string()]).unwrap().await.unwrap();
@@ -152,7 +167,11 @@ fn the_shell_text_is_the_ts_text_byte_for_byte() {
         // A held seed that comes due at once, then a kill.
         {
             let (rec, machine) = recorder();
-            let f = machine_exec_stream(machine, MachineExecOptions { poll_ms: Some(1), run_dir: Some("/r".into()), ..Default::default() }, None);
+            let f = machine_exec_stream(
+                machine,
+                MachineExecOptions { poll_ms: Some(1), run_dir: Some("/r".into()), ..Default::default() },
+                None,
+            );
             let s = f.launch("echo hi", Launch { input: Some(vec!["seed".into()]), input_after: Some(resolved()), ..Default::default() });
             support::sleep_ms(30).await;
             s.kill();
@@ -195,7 +214,10 @@ fn the_shell_builders_are_the_ts_text() {
     // The script, decoded out of the launch the TS sent.
     let script = format!("{{ echo 500 > /proc/self/oom_score_adj; }} 2>/dev/null; renice 0 $$ >/dev/null 2>&1\n( tail -n +1 -f '{b}'.in > '{b}'.fifo & echo $! > '{b}'.tail )\n{{ claude -p 'hi'\n}} < '{b}'.fifo\necho $? > '{b}'.exit\nkill $(cat '{b}'.tail) 2>/dev/null\n");
     assert_eq!(run_script(b, "claude -p 'hi'", true), script);
-    assert_eq!(run_script(b, "echo hi", false), format!("{{ echo 500 > /proc/self/oom_score_adj; }} 2>/dev/null; renice 0 $$ >/dev/null 2>&1\necho hi\necho $? > '{b}'.exit\n"));
+    assert_eq!(
+        run_script(b, "echo hi", false),
+        format!("{{ echo 500 > /proc/self/oom_score_adj; }} 2>/dev/null; renice 0 $$ >/dev/null 2>&1\necho hi\necho $? > '{b}'.exit\n")
+    );
     // The poll that asks for the tree's work.
     let work = poll_cmd(b, "__WSP_EOF_0123456789ab__", 7, true);
     assert!(work.contains(&format!("tail -c +8 '{b}'.log 2>/dev/null | head -c 262144 | base64 -w0; P=$(cat '{b}'.pid 2>/dev/null); W=$(awk -v p=\"$P\" '{}' /proc/[0-9]*/stat 2>/dev/null); printf", wsp_core::machine_exec::TREE_WORK_AWK)));
@@ -210,7 +232,17 @@ fn the_shell_builders_are_the_ts_text() {
 #[test]
 fn a_handle_is_minted_only_in_the_run_folder_with_12_lowercase_hex() {
     assert!(minted("/tmp/wsp-run", "/tmp/wsp-run/aabbccddeeff"));
-    for bad in ["/tmp/wsp-run/../../etc/x", "/tmp/wsp-run/$(id)", "/etc/wsp-run/aabbccddeeff", "/tmp/wsp-run/nothex000000", "/tmp/wsp-run/aabbccddeef", "/tmp/wsp-run/AABBCCDDEEFF", "/tmp/wsp-run/aabbccddeeff/", "/tmp/wsp-run//aabbccddeeff", "/tmp/wsp-runaabbccddeeff"] {
+    for bad in [
+        "/tmp/wsp-run/../../etc/x",
+        "/tmp/wsp-run/$(id)",
+        "/etc/wsp-run/aabbccddeeff",
+        "/tmp/wsp-run/nothex000000",
+        "/tmp/wsp-run/aabbccddeef",
+        "/tmp/wsp-run/AABBCCDDEEFF",
+        "/tmp/wsp-run/aabbccddeeff/",
+        "/tmp/wsp-run//aabbccddeeff",
+        "/tmp/wsp-runaabbccddeeff",
+    ] {
         assert!(!minted("/tmp/wsp-run", bad), "{bad}");
     }
 }

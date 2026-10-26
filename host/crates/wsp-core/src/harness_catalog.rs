@@ -163,7 +163,9 @@ pub fn catalog_from_probe(table: &HarnessCatalog, probe: &HarnessCatalogProbe) -
         .collect();
     let lists_legacy = table.legacy_listed == Some(true);
     let folded = |m: &HarnessModel| {
-        lists_legacy && m.is_default != Some(true) && table.legacy_models.as_ref().is_some_and(|legacy| legacy.iter().any(|l| l.value == m.value))
+        lists_legacy
+            && m.is_default != Some(true)
+            && table.legacy_models.as_ref().is_some_and(|legacy| legacy.iter().any(|l| l.value == m.value))
     };
     let models: Vec<HarnessModel> = heard.iter().filter(|m| !folded(m)).cloned().collect();
     let legacy_models: Option<Vec<HarnessModel>> = table.legacy_models.as_ref().map(|legacy| {

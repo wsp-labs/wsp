@@ -20,7 +20,13 @@ const TOKEN: &str = "channel-token";
 
 fn options(url: String, token: &str, events: &Rc<RefCell<Vec<Value>>>) -> DaemonChannelOptions {
     let events = events.clone();
-    DaemonChannelOptions { url, token: token.into(), on_event: Rc::new(move |e| events.borrow_mut().push(e)), connect_timeout_ms: None, clock: None }
+    DaemonChannelOptions {
+        url,
+        token: token.into(),
+        on_event: Rc::new(move |e| events.borrow_mut().push(e)),
+        connect_timeout_ms: None,
+        clock: None,
+    }
 }
 
 fn frame(v: Value) -> Map<String, Value> {
@@ -63,8 +69,14 @@ fn dials_once_authenticates_and_round_trips_the_daemons_own_replies_with_the_hel
         assert_eq!(created["ok"], json!(true));
         let pty = created["ptyId"].as_str().unwrap().to_string();
         assert_eq!(channel.send(frame(json!({"op": "pty.attach", "ptyId": pty}))).await.unwrap()["ok"], json!(true));
-        assert_eq!(channel.send(frame(json!({"op": "pty.write", "ptyId": pty, "data": "channel-mark-42\r"}))).await.unwrap()["ok"], json!(true));
-        until("the pty's data", 5_000, || events.borrow().iter().any(|e| e["type"] == "pty.data" && e["data"].as_str().unwrap_or("").contains("channel-mark-42"))).await;
+        assert_eq!(
+            channel.send(frame(json!({"op": "pty.write", "ptyId": pty, "data": "channel-mark-42\r"}))).await.unwrap()["ok"],
+            json!(true)
+        );
+        until("the pty's data", 5_000, || {
+            events.borrow().iter().any(|e| e["type"] == "pty.data" && e["data"].as_str().unwrap_or("").contains("channel-mark-42"))
+        })
+        .await;
         assert_eq!(daemon.frames().len(), 4, "one dial: the auth frame and three sends");
         channel.close();
     });
@@ -137,7 +149,10 @@ fn a_frame_that_does_not_parse_is_dropped_and_the_next_one_still_lands() {
 #[test]
 fn an_auth_reply_that_is_not_ok_rejects_plainly_with_the_daemons_words_or_the_default() {
     run_local(async {
-        for (reply, words) in [(json!({"id": 1, "ok": false, "error": "not this host"}), "not this host"), (json!({"id": 1, "ok": false}), "the machine refused the daemon link")] {
+        for (reply, words) in [
+            (json!({"id": 1, "ok": false, "error": "not this host"}), "not this host"),
+            (json!({"id": 1, "ok": false}), "the machine refused the daemon link"),
+        ] {
             let port = scripted(move |mut ws| async move {
                 next_json(&mut ws).await;
                 ws.send(Message::text(reply.to_string())).await.unwrap();
@@ -160,7 +175,10 @@ fn a_token_the_daemon_refuses_rejects_as_a_token_error_carrying_its_4401_sentenc
         let events = Rc::new(RefCell::new(Vec::new()));
         let failed = open_daemon_channel(options(daemon.url(), "stale", &events)).await.err().unwrap();
         assert_eq!(failed.kind(), Some("reauth"));
-        assert_eq!(failed.to_string(), "the machine refused this host's daemon token (4401 daemon token refused; the host holds the current one)");
+        assert_eq!(
+            failed.to_string(),
+            "the machine refused this host's daemon token (4401 daemon token refused; the host holds the current one)"
+        );
         assert!(matches!(failed, ChannelError::Token(_)));
         assert!(!is_daemon_unanswered(&failed));
     });

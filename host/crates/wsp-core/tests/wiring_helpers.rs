@@ -16,9 +16,9 @@ use wsp_core::types::pending::Clock;
 use wsp_core::types::wiring::*;
 use wsp_engine::errors::{EngineError, Result as EngineResult};
 use wsp_engine::machine::*;
-use wsp_engine::Cancel;
 use wsp_engine::no_provider_backend::NoProviderBackend;
-use wsp_wire::views::project_bundle::{ProjectAgentOutcome, ProjectAgentResult};
+use wsp_engine::Cancel;
+use wsp_wire::views::project_bundle::ProjectAgentResult;
 use wsp_wire::views::workspace::ProjectSource;
 use wsp_wire::wire::machine_link::{ExecResult, MachineShape};
 

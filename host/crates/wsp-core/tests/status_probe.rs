@@ -12,9 +12,9 @@ use support::status::{event, missing, offline, other, refused_port};
 use support::{run_local, settle};
 use wsp_core::clock::{Clock, FakeClock};
 use wsp_core::status::{
-    ask_daemon, bounded, cost_moved, facts_backoff_ms, machine_state_of, missed, phase_leaving_gone, probe_reach, provider_said, DaemonAnswers,
-    ProbeOptions, Probed, COST_INTERVAL_MS, DAEMON_ANSWER, FACTS_BACKOFF_MAX_MS, POLL_INTERVAL_MS, PROBE_TIMEOUT_MS, PROMPT_MS, RECONCILE_MIN_MS,
-    ZOMBIE_PROBE_CMD, ZOMBIE_PROBE_TIMEOUT_MS, ZOMBIE_WINDOW_MS,
+    ask_daemon, bounded, cost_moved, facts_backoff_ms, machine_state_of, missed, phase_leaving_gone, probe_reach, provider_said,
+    DaemonAnswers, ProbeOptions, Probed, COST_INTERVAL_MS, DAEMON_ANSWER, FACTS_BACKOFF_MAX_MS, POLL_INTERVAL_MS, PROBE_TIMEOUT_MS,
+    PROMPT_MS, RECONCILE_MIN_MS, ZOMBIE_PROBE_CMD, ZOMBIE_PROBE_TIMEOUT_MS, ZOMBIE_WINDOW_MS,
 };
 use wsp_engine::errors::EngineError;
 use wsp_wire::views::workspace::{MachineState, ReachState, WorkspacePhase};
@@ -167,7 +167,10 @@ fn a_guest_that_says_its_port_is_dead_reads_no_daemon() {
         let o = ProbeOptions { prompt_ms: 2_500, timeout_ms: 10_000 };
         assert_eq!(ask_daemon(&answers(&fc, Ok(false), 0, &asked), o, &clock).await, probed(ReachState::NoDaemon, false, false));
         assert_eq!(ask_daemon(&answers(&fc, Err(offline()), 0, &asked), o, &clock).await, probed(ReachState::Unreachable, false, true));
-        assert_eq!(ask_daemon(&answers(&fc, Err(refused_port()), 0, &asked), o, &clock).await, probed(ReachState::Unreachable, false, false));
+        assert_eq!(
+            ask_daemon(&answers(&fc, Err(refused_port()), 0, &asked), o, &clock).await,
+            probed(ReachState::Unreachable, false, false)
+        );
     });
 }
 
@@ -228,7 +231,9 @@ fn facts_backoff_doubles_from_one_poll_to_five_minutes() {
 }
 
 fn cost(id: &str, phase: &str, rate: f64, accrued: f64) -> wsp_wire::wire::events_union::EventUnion {
-    event(json!({"type": "workspace.cost", "workspaceId": id, "phase": phase, "rateUsdPerHour": rate, "awakeMs": 1, "accruedUsd": accrued, "at": "1970-01-01T00:00:00.000Z"}))
+    event(
+        json!({"type": "workspace.cost", "workspaceId": id, "phase": phase, "rateUsdPerHour": rate, "awakeMs": 1, "accruedUsd": accrued, "at": "1970-01-01T00:00:00.000Z"}),
+    )
 }
 
 #[test]
@@ -242,7 +247,9 @@ fn cost_moved_lets_a_figure_through_once_and_forgets_a_deleted_workspace() {
     assert!(moved.admit(&cost("ws_a", "running", 0.0, 0.5)));
     assert!(moved.admit(&cost("ws_a", "napping", 0.0, 0.5)));
     // awakeMs and at are no part of the figures.
-    let later = event(json!({"type": "workspace.cost", "workspaceId": "ws_a", "phase": "napping", "rateUsdPerHour": 0, "awakeMs": 99, "accruedUsd": 0.5, "at": "2026-01-01T00:00:00.000Z"}));
+    let later = event(
+        json!({"type": "workspace.cost", "workspaceId": "ws_a", "phase": "napping", "rateUsdPerHour": 0, "awakeMs": 99, "accruedUsd": 0.5, "at": "2026-01-01T00:00:00.000Z"}),
+    );
     assert!(!moved.admit(&later));
 }
 

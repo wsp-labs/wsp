@@ -260,9 +260,8 @@ impl IdlePolicy {
                     if current {
                         let again = policy.clone();
                         let retry_id = id.clone();
-                        let cancel = policy
-                            .clock()
-                            .schedule(Box::new(move || again.fire(retry_id, serial, window)), policy.options.retry_ms);
+                        let cancel =
+                            policy.clock().schedule(Box::new(move || again.fire(retry_id, serial, window)), policy.options.retry_ms);
                         if let Some(a) = policy.state.borrow_mut().armed.get_mut(&id).filter(|a| a.serial == serial) {
                             a.cancel = cancel;
                         }

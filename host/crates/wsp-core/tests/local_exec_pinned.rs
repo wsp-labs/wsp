@@ -9,9 +9,11 @@ use std::sync::Arc;
 
 use futures::StreamExt;
 use indexmap::IndexSet;
-use wsp_adapters::port::{Attached, AttachRunOptions, ExecOptions as Launch, ExecStream, ExecStreamFactory};
+use wsp_adapters::port::{AttachRunOptions, Attached, ExecOptions as Launch, ExecStream, ExecStreamFactory};
 use wsp_core::clock::Clock;
-use wsp_core::local_exec::reap::{end_marker, leftovers, orphans_of, parse_etime, pump_of, reap_run, release_held, release_late, GroupRow, Lines, TreeTally};
+use wsp_core::local_exec::reap::{
+    end_marker, leftovers, orphans_of, parse_etime, pump_of, reap_run, release_held, release_late, GroupRow, Lines, TreeTally,
+};
 use wsp_core::local_exec::{agent_pid_of, local_exec_stream, LocalExecOptions};
 
 fn tmp() -> tempfile::TempDir {
@@ -189,7 +191,12 @@ own_group_test!(a_reap_with_no_readable_pid_signals_nothing_and_deletes_the_file
     let mut sleep = std::process::Command::new("sleep");
     sleep.arg("300");
     let pid = support::strays::spawn_reaped(sleep);
-    for (id, pid_text) in [("aaaaaaaaaaaa", format!("{pid}x\n")), ("bbbbbbbbbbbb", "0\n".to_string()), ("cccccccccccc", "-5\n".to_string()), ("dddddddddddd", String::new())] {
+    for (id, pid_text) in [
+        ("aaaaaaaaaaaa", format!("{pid}x\n")),
+        ("bbbbbbbbbbbb", "0\n".to_string()),
+        ("cccccccccccc", "-5\n".to_string()),
+        ("dddddddddddd", String::new()),
+    ] {
         let base = runs.join(id).to_string_lossy().into_owned();
         std::fs::create_dir(format!("{base}.d")).unwrap();
         for suffix in ["sh", "log", "agent", "exit", "in", "held", "late", "fifo", "tail", "pump", "late.key", "late.went"] {
@@ -324,7 +331,10 @@ own_group_test!(the_environment_is_the_turn_s_alone, 20_000, {
     let runs = dir.path().join("runs").to_string_lossy().into_owned();
     let factory = local_exec_stream(LocalExecOptions::new(&root, &runs), None);
     let env = [("GIVEN", "yes")].iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
-    let s = factory.launch("echo \"${WSP_CORE_C_HOST_ONLY-unset} ${HOME-nohome} $GIVEN ${WSP_AGENT_PID_FILE##*/}\"", Launch { env, ..Default::default() });
+    let s = factory.launch(
+        "echo \"${WSP_CORE_C_HOST_ONLY-unset} ${HOME-nohome} $GIVEN ${WSP_AGENT_PID_FILE##*/}\"",
+        Launch { env, ..Default::default() },
+    );
     let run = s.run().unwrap();
     let id = run.rsplit('/').next().unwrap().to_string();
     assert_eq!(support::lines_ok(&*s).await, vec![format!("unset nohome yes {id}.agent")]);

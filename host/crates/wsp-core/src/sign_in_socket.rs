@@ -77,7 +77,8 @@ fn held_behind_answer(send: Send, socket: Rc<dyn SocketSide>) -> (Rc<dyn Fn(Agen
 }
 
 /// The ops this handler takes, in the TS's order. sign-in-socket.ts:11.
-pub const SIGN_IN_OPS: [&str; 6] = ["agents.signIn", "servers.signIn", "agents.cloudSignIn", "agents.signIns", "agents.signInCode", "agents.signInStop"];
+pub const SIGN_IN_OPS: [&str; 6] =
+    ["agents.signIn", "servers.signIn", "agents.cloudSignIn", "agents.signIns", "agents.signInCode", "agents.signInStop"];
 
 /// What a host with no road to the logins machines at a provider borrow answers agents.cloudSignIn with.
 /// sign-in-socket.ts:17.
@@ -85,7 +86,13 @@ pub const CLOUD_SIGN_IN_UNSERVED: &str = "the host that answered wired no sign-i
 
 /// The host's own road to an agent's login on this computer, which machines at a provider borrow.
 /// sign-in-socket.ts:20.
-pub type CloudSignIn = Rc<dyn Fn(AgentsCloudSignInAgent, Rc<dyn Fn(AgentsSignInEvent)>, Option<Caller>) -> LocalBoxFuture<'static, Result<SignInFollowing, HostError>>>;
+pub type CloudSignIn = Rc<
+    dyn Fn(
+        AgentsCloudSignInAgent,
+        Rc<dyn Fn(AgentsSignInEvent)>,
+        Option<Caller>,
+    ) -> LocalBoxFuture<'static, Result<SignInFollowing, HostError>>,
+>;
 
 /// One sign-in op, as the handler reads it off the request. sign-in-socket.ts:12.
 #[derive(Clone, Debug, PartialEq)]
@@ -109,10 +116,10 @@ pub fn sign_in_op(op: &RuntimeOp) -> Option<SignInOp> {
             target: target.clone(),
             agent: agent.clone(),
             name: name.clone(),
-            scope: scope.clone(),
+            scope: *scope,
             project: project.clone(),
         },
-        RuntimeOp::AgentsCloudSignIn { id, agent } => SignInOp::CloudSignIn { id: id.clone(), agent: agent.clone() },
+        RuntimeOp::AgentsCloudSignIn { id, agent } => SignInOp::CloudSignIn { id: id.clone(), agent: *agent },
         RuntimeOp::AgentsSignIns { id } => SignInOp::SignIns { id: id.clone() },
         RuntimeOp::AgentsSignInCode { id, sign_in_id, code } => {
             SignInOp::Code { id: id.clone(), sign_in_id: sign_in_id.clone(), code: code.clone() }
@@ -125,7 +132,13 @@ pub fn sign_in_op(op: &RuntimeOp) -> Option<SignInOp> {
 /// The runs the handler asks of the runtime's agents (sign-in-socket.ts:27 `Runtime["agents"]`).
 #[async_trait(?Send)]
 pub trait SignInRuns {
-    async fn sign_in(&self, target: AgentsTarget, ask: SignInAsk, emit: Rc<dyn Fn(AgentsSignInEvent)>, origin: Option<Caller>) -> Result<SignInFollowing, HostError>;
+    async fn sign_in(
+        &self,
+        target: AgentsTarget,
+        ask: SignInAsk,
+        emit: Rc<dyn Fn(AgentsSignInEvent)>,
+        origin: Option<Caller>,
+    ) -> Result<SignInFollowing, HostError>;
     fn sign_ins(&self) -> Vec<AgentsSignInRun>;
     fn sign_in_follow(&self, sign_in_id: &str, emit: Rc<dyn Fn(AgentsSignInEvent)>) -> Result<SignInFollowing, HostError>;
     async fn sign_in_code(&self, sign_in_id: &str, code: &str) -> Result<(), HostError>;
@@ -134,7 +147,13 @@ pub trait SignInRuns {
 
 #[async_trait(?Send)]
 impl<R: Runtime + ?Sized> SignInRuns for R {
-    async fn sign_in(&self, target: AgentsTarget, ask: SignInAsk, emit: Rc<dyn Fn(AgentsSignInEvent)>, origin: Option<Caller>) -> Result<SignInFollowing, HostError> {
+    async fn sign_in(
+        &self,
+        target: AgentsTarget,
+        ask: SignInAsk,
+        emit: Rc<dyn Fn(AgentsSignInEvent)>,
+        origin: Option<Caller>,
+    ) -> Result<SignInFollowing, HostError> {
         self.agents().sign_in(target, ask, emit, origin).await
     }
 

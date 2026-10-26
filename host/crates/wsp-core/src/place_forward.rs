@@ -72,7 +72,13 @@ pub async fn open_place_forward(reach: Rc<dyn DaemonReach>, daemon_port: u16) ->
     Ok(PlaceForward { port, held: ForwardHeld { conns, stop: RefCell::new(Some(stop)), closed: Cell::new(false) } })
 }
 
-async fn accept_all(listener: TcpListener, reach: Rc<dyn DaemonReach>, daemon_port: u16, conns: TunnelConns, mut stopped: oneshot::Receiver<()>) {
+async fn accept_all(
+    listener: TcpListener,
+    reach: Rc<dyn DaemonReach>,
+    daemon_port: u16,
+    conns: TunnelConns,
+    mut stopped: oneshot::Receiver<()>,
+) {
     let mut seq = 0u64;
     loop {
         tokio::select! {

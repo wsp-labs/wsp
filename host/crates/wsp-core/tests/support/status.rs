@@ -80,17 +80,30 @@ pub fn facts(uptime_ms: f64) -> MachineFacts {
 
 /// The provider's 404 for a machine it no longer knows.
 pub fn missing(said: &str) -> EngineError {
-    EngineError::Provider(serde_json::from_value::<WspError>(json!({"kind": "missing", "message": said, "status": 404})).unwrap_or_else(|_| panic!("WspError shape")))
+    EngineError::Provider(
+        serde_json::from_value::<WspError>(json!({"kind": "missing", "message": said, "status": 404}))
+            .unwrap_or_else(|_| panic!("WspError shape")),
+    )
 }
 
 /// A request that never left this computer: no DNS.
 pub fn offline() -> EngineError {
-    EngineError::Road(RoadError { name: "TypeError".into(), message: "fetch failed".into(), code: None, cause: Some(RoadCause { message: "getaddrinfo ENOTFOUND edge.example".into(), code: Some("ENOTFOUND".into()), errors: None }) })
+    EngineError::Road(RoadError {
+        name: "TypeError".into(),
+        message: "fetch failed".into(),
+        code: None,
+        cause: Some(RoadCause { message: "getaddrinfo ENOTFOUND edge.example".into(), code: Some("ENOTFOUND".into()), errors: None }),
+    })
 }
 
 /// A request that left and met nothing: a refused port.
 pub fn refused_port() -> EngineError {
-    EngineError::Road(RoadError { name: "TypeError".into(), message: "fetch failed".into(), code: None, cause: Some(RoadCause { message: "getaddrinfo ECONNREFUSED edge.example".into(), code: Some("ECONNREFUSED".into()), errors: None }) })
+    EngineError::Road(RoadError {
+        name: "TypeError".into(),
+        message: "fetch failed".into(),
+        code: None,
+        cause: Some(RoadCause { message: "getaddrinfo ECONNREFUSED edge.example".into(), code: Some("ECONNREFUSED".into()), errors: None }),
+    })
 }
 
 pub fn other(message: &str) -> EngineError {

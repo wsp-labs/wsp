@@ -10,7 +10,9 @@ use wsp_adapters::claude::catalog::parse_catalog_probe;
 use wsp_adapters::port::{HarnessCatalogModelProbe, HarnessCatalogProbe};
 use wsp_catalog::git_hosts::THREAD_AGENTS;
 use wsp_catalog::roads::CLAUDE_CODE;
-use wsp_core::harness_catalog::{catalog_from_probe, harness_catalog, harness_catalogs, model_label, named_only, not_run_refused, smallest_model, tool_asks};
+use wsp_core::harness_catalog::{
+    catalog_from_probe, harness_catalog, harness_catalogs, model_label, named_only, not_run_refused, smallest_model, tool_asks,
+};
 use wsp_wire::types::harness_picks::{efforts_for, every_model, listed_pick, marked_default, model_of};
 use wsp_wire::views::harness::{start_picks, HarnessCatalog, HarnessCatalogSource, HarnessModel, HarnessOption, StartPicks};
 use wsp_words::words::computer::THIS_COMPUTER;
@@ -18,7 +20,8 @@ use wsp_words::words::thread::{catalog_source_line, no_models_line};
 
 const OPEN_MODELS: [&str; 2] = ["opencode", "cursor"];
 
-const MODELS: &str = "Opus 5.5 (claude-opus-5-5), Fable 5.1 (claude-fable-5-1), Sonnet 5.5 (claude-sonnet-5-5), Haiku 5.5 (claude-haiku-5-5)";
+const MODELS: &str =
+    "Opus 5.5 (claude-opus-5-5), Fable 5.1 (claude-fable-5-1), Sonnet 5.5 (claude-sonnet-5-5), Haiku 5.5 (claude-haiku-5-5)";
 
 fn table(id: &str) -> HarnessCatalog {
     harness_catalog(id).unwrap_or_else(|| panic!("no table row for {id}"))
@@ -170,14 +173,20 @@ fn at_most_one_default_and_unique(what: &str, list: &[(String, Option<bool>)]) {
 #[test]
 fn names_every_harness_the_recipe_collects_each_parsing_as_the_wire_type_with_at_most_one_default_per_picker() {
     let catalogs = harness_catalogs();
-    assert_eq!(catalogs.iter().map(|c| c.harness.as_str()).collect::<Vec<_>>(), ["claude", "codex", "gemini", "opencode", "pi", "hermes", "cursor"]);
+    assert_eq!(
+        catalogs.iter().map(|c| c.harness.as_str()).collect::<Vec<_>>(),
+        ["claude", "codex", "gemini", "opencode", "pi", "hermes", "cursor"]
+    );
     for catalog in &catalogs {
         let id = &catalog.harness;
         roundtrip(catalog);
         assert_eq!(catalog.source, HarnessCatalogSource::Table, "{id}");
         assert_eq!(catalog.refusal, None, "{id}");
         let opts = |list: &[HarnessOption]| list.iter().map(|o| (o.value.clone(), o.is_default)).collect::<Vec<_>>();
-        at_most_one_default_and_unique(&format!("{id} models"), &every_model(catalog).iter().map(|m| (m.value.clone(), m.is_default)).collect::<Vec<_>>());
+        at_most_one_default_and_unique(
+            &format!("{id} models"),
+            &every_model(catalog).iter().map(|m| (m.value.clone(), m.is_default)).collect::<Vec<_>>(),
+        );
         at_most_one_default_and_unique(&format!("{id} efforts"), &opts(&catalog.efforts));
         at_most_one_default_and_unique(&format!("{id} contextWindows"), &opts(&catalog.context_windows));
         at_most_one_default_and_unique(&format!("{id} permissionModes"), &opts(&catalog.permission_modes));
@@ -228,7 +237,10 @@ fn the_claude_row_is_the_pinned_binarys_own_handshake_so_a_bump_of_the_pin_fails
     assert!(row.version.as_deref().unwrap().contains(&format!(" {version}, ")), "{:?}", row.version);
     let heard = catalog_from_probe(&row, &recorded);
     let models = |c: &HarnessCatalog| {
-        c.models.iter().map(|m| (m.value.clone(), m.is_default == Some(true), m.efforts.clone(), m.context_windows.clone())).collect::<Vec<_>>()
+        c.models
+            .iter()
+            .map(|m| (m.value.clone(), m.is_default == Some(true), m.efforts.clone(), m.context_windows.clone()))
+            .collect::<Vec<_>>()
     };
     assert_eq!(models(&row), models(&heard));
     assert_eq!(values(&row.efforts), values(&heard.efforts));
@@ -300,7 +312,8 @@ fn each_current_claude_model_starts_at_the_effort_the_table_gives_it_but_opus_5_
         .collect();
     assert_eq!(differs, vec![("claude-opus-5-5".to_string(), s("high"), s("medium"))]);
     let row_efforts: Vec<Option<Vec<String>>> = row.models.iter().map(|m| m.efforts.clone()).collect();
-    let recorded_efforts: Vec<Option<Vec<String>>> = row.models.iter().map(|m| Some(Recorded::levels(recorded.of(&m.value).unwrap()))).collect();
+    let recorded_efforts: Vec<Option<Vec<String>>> =
+        row.models.iter().map(|m| Some(Recorded::levels(recorded.of(&m.value).unwrap()))).collect();
     assert_eq!(row_efforts, recorded_efforts);
 }
 
@@ -367,7 +380,10 @@ fn codex_offers_the_models_and_reasoning_efforts_its_app_server_reports_and_no_c
     let five = &["low", "medium", "high", "xhigh", "max"];
     let four = &["low", "medium", "high", "xhigh"];
     assert_eq!(all.iter().map(|m| m.efforts.clone()).collect::<Vec<_>>(), [strs(six), strs(six), strs(five), strs(four), strs(four)]);
-    assert_eq!(all.iter().map(|m| m.default_effort.clone()).collect::<Vec<_>>(), [s("low"), s("medium"), s("medium"), s("medium"), s("medium")]);
+    assert_eq!(
+        all.iter().map(|m| m.default_effort.clone()).collect::<Vec<_>>(),
+        [s("low"), s("medium"), s("medium"), s("medium"), s("medium")]
+    );
     assert_eq!(smallest_model(Some(&codex)), s("gpt-5.2"));
     assert_eq!(values(&codex.efforts), six.map(String::from));
     assert_eq!(codex.efforts.iter().find(|o| o.is_default == Some(true)).map(|o| o.value.as_str()), Some("low"));
@@ -400,10 +416,7 @@ fn claude_code_offers_the_models_effort_levels_context_windows_and_permission_mo
     );
     assert_eq!(values(&claude.efforts), ["low", "medium", "high", "xhigh", "max"]);
     assert_eq!(claude.efforts.iter().find(|o| o.is_default == Some(true)).map(|o| o.value.as_str()), Some("high"));
-    assert_eq!(
-        claude.context_windows,
-        vec![option("200k", "200k"), HarnessOption { is_default: Some(true), ..option("1m", "1M") }]
-    );
+    assert_eq!(claude.context_windows, vec![option("200k", "200k"), HarnessOption { is_default: Some(true), ..option("1m", "1M") }]);
     assert_eq!(values(&claude.permission_modes), ["default", "acceptEdits", "bypassPermissions", "auto", "manual", "dontAsk"]);
     for mode in &claude.permission_modes {
         assert!(mode.description.is_some(), "{} has no description", mode.value);
@@ -422,7 +435,7 @@ fn a_cli_without_a_flag_or_with_open_values_leaves_that_list_empty() {
 // TS: harness-catalog.test.ts:172
 #[test]
 fn models_named_and_never_offered_are_none_an_agents_table_lists() {
-    let listed: Vec<String> = harness_catalogs().iter().flat_map(|c| every_model(c)).map(|m| m.value).collect();
+    let listed: Vec<String> = harness_catalogs().iter().flat_map(every_model).map(|m| m.value).collect();
     let both: Vec<String> = named_only().iter().filter(|m| listed.contains(&m.value)).map(|m| m.value.clone()).collect();
     assert_eq!(both, Vec::<String>::new());
     for m in named_only() {
@@ -437,8 +450,11 @@ fn the_default_effort_of_a_pick_is_the_picked_models_own() {
     assert_eq!(shown(&codex, Some("gpt-5.5")), s("medium"));
     assert_eq!(shown(&codex, Some("gpt-5.6-terra")), s("medium"));
     assert_eq!(shown(&codex, Some("gpt-5.6-sol")), s("low"));
-    let marked: Vec<String> =
-        efforts_for(&codex, model_of(&codex, Some("gpt-5.5")).as_ref()).into_iter().filter(|o| o.is_default == Some(true)).map(|o| o.value.clone()).collect();
+    let marked: Vec<String> = efforts_for(&codex, model_of(&codex, Some("gpt-5.5")).as_ref())
+        .into_iter()
+        .filter(|o| o.is_default == Some(true))
+        .map(|o| o.value.clone())
+        .collect();
     assert_eq!(marked, ["medium"]);
 }
 
@@ -450,7 +466,10 @@ fn the_default_effort_is_the_catalogs_mark_for_a_model_that_names_none_and_for_n
     let marked_model = marked_default(&claude.models).cloned();
     assert_eq!(marked_default(&efforts_for(&claude, marked_model.as_ref())).map(|o| o.value.as_str()), Some("high"));
     assert_eq!(marked_default(&efforts_for(&claude, None)).map(|o| o.value.as_str()), Some("high"));
-    assert_eq!(claude.models.iter().map(|m| default_effort_of(&claude, m)).collect::<Vec<_>>(), [s("high"), s("high"), s("medium"), s("medium")]);
+    assert_eq!(
+        claude.models.iter().map(|m| default_effort_of(&claude, m)).collect::<Vec<_>>(),
+        [s("high"), s("high"), s("medium"), s("medium")]
+    );
     assert_eq!(shown(&claude, Some("claude-haiku-4-5-20251001")), None);
     let sonnet = model_of(&claude, Some("claude-sonnet-4-6")).unwrap();
     assert_eq!(sonnet.label, "Sonnet 4.6");
@@ -489,13 +508,16 @@ fn tool_asks_never_at_its_bypass_or_with_no_mode_named_else_before_every_tool_or
 // TS: harness-catalog.test.ts:232
 #[test]
 fn an_access_mode_says_what_the_agent_may_do_naming_no_agent_and_nothing_inside_one() {
-    let mut words: Vec<Regex> = ["classifier", r"\bCLIs?\b", "print mode", r"\bmachines?\b"].iter().map(|w| Regex::new(&format!("(?i){w}")).unwrap()).collect();
+    let mut words: Vec<Regex> =
+        ["classifier", r"\bCLIs?\b", "print mode", r"\bmachines?\b"].iter().map(|w| Regex::new(&format!("(?i){w}")).unwrap()).collect();
     for c in harness_catalogs() {
         words.push(Regex::new(&format!(r"(?i)\b{}\b", regex::escape(&c.harness))).unwrap());
         words.push(Regex::new(&format!(r"(?i)\b{}\b", regex::escape(&c.label))).unwrap());
     }
-    let modes: Vec<(String, Option<String>)> =
-        harness_catalogs().iter().flat_map(|c| c.permission_modes.iter().map(|o| (format!("{} {}", c.harness, o.value), o.description.clone())).collect::<Vec<_>>()).collect();
+    let modes: Vec<(String, Option<String>)> = harness_catalogs()
+        .iter()
+        .flat_map(|c| c.permission_modes.iter().map(|o| (format!("{} {}", c.harness, o.value), o.description.clone())).collect::<Vec<_>>())
+        .collect();
     assert!(modes.len() > 15, "{} modes", modes.len());
     for (where_, description) in modes {
         let description = description.unwrap_or_else(|| panic!("{where_} has no description"));
@@ -532,7 +554,14 @@ fn every_harness_with_an_access_mode_names_the_mode_that_asks_nothing_and_marks_
     }
     let named: Vec<(String, Option<String>)> =
         catalogs.iter().filter(|c| !c.permission_modes.is_empty()).map(|c| (c.harness.clone(), c.bypass_mode.clone())).collect();
-    let wanted = [("claude", "bypassPermissions"), ("codex", "danger-full-access"), ("gemini", "yolo"), ("opencode", "auto"), ("hermes", "yolo"), ("cursor", "force")];
+    let wanted = [
+        ("claude", "bypassPermissions"),
+        ("codex", "danger-full-access"),
+        ("gemini", "yolo"),
+        ("opencode", "auto"),
+        ("hermes", "yolo"),
+        ("cursor", "force"),
+    ];
     assert_eq!(named, wanted.map(|(h, m)| (h.to_string(), s(m))));
 }
 
@@ -540,7 +569,8 @@ fn every_harness_with_an_access_mode_names_the_mode_that_asks_nothing_and_marks_
 #[test]
 fn each_agent_with_an_adapter_maps_wsps_words_to_modes_it_lists_and_a_word_it_cannot_honour_maps_to_none() {
     let catalogs = harness_catalogs();
-    let access: Value = Value::Object(catalogs.iter().filter(|c| c.access.is_some()).map(|c| (c.harness.clone(), json(&c.access))).collect());
+    let access: Value =
+        Value::Object(catalogs.iter().filter(|c| c.access.is_some()).map(|c| (c.harness.clone(), json(&c.access))).collect());
     assert_eq!(
         access,
         jv!({
@@ -573,7 +603,10 @@ fn start_picks_a_start_that_opens_a_thread_without_a_pick_runs_every_default_the
         picks(Some("claude-sonnet-5"), Some("low"), Some("acceptEdits"))
     );
     assert_eq!(start(&claude, picks(None, Some("max"), None), false), picks(None, Some("max"), None));
-    let no_default = HarnessCatalog { models: claude.models.iter().cloned().map(|m| HarnessModel { is_default: None, ..m }).collect(), ..claude.clone() };
+    let no_default = HarnessCatalog {
+        models: claude.models.iter().cloned().map(|m| HarnessModel { is_default: None, ..m }).collect(),
+        ..claude.clone()
+    };
     assert_eq!(start(&no_default, StartPicks::default(), true), picks(None, Some("high"), Some("bypassPermissions")));
 }
 
@@ -589,7 +622,10 @@ fn start_picks_fast_rides_a_start_on_a_model_that_offers_it_is_refused_naming_on
     assert_eq!(start(&claude, StartPicks { fast: Some(false), ..Default::default() }, true).fast, None);
     assert!(refusal(&claude, fast(Some("claude-haiku-4-5-20251001")), true).contains("Haiku 4.5 has no fast mode"));
     assert_eq!(start(&claude, fast(None), false), StartPicks { fast: Some(true), ..Default::default() });
-    assert_eq!(start_picks(Some(&claude), &fast(None), false, Some("claude-opus-5-5")).unwrap(), StartPicks { fast: Some(true), ..Default::default() });
+    assert_eq!(
+        start_picks(Some(&claude), &fast(None), false, Some("claude-opus-5-5")).unwrap(),
+        StartPicks { fast: Some(true), ..Default::default() }
+    );
     let refused = start_picks(Some(&claude), &fast(None), false, Some("claude-haiku-4-5-20251001")).expect_err("haiku has no fast mode");
     assert!(refused.message.contains("Haiku 4.5 has no fast mode"), "{}", refused.message);
 }
@@ -611,12 +647,11 @@ fn start_picks_listed_pick_keeps_a_remembered_pick_this_list_carries_and_drops_o
 #[test]
 fn start_picks_refuses_a_value_the_catalog_does_not_list_naming_the_list_in_the_composers_words() {
     let claude = table("claude");
-    assert!(
-        refusal(&claude, picks(Some("claude-opus-4-1"), None, None), true)
-            .contains(&format!("model \"claude-opus-4-1\" is not one claude takes; one of: {MODELS}"))
-    );
-    assert!(refusal(&claude, picks(None, Some("ultra"), None), false)
-        .contains("effort \"ultra\" is not one claude takes; one of: Low (low), Medium (medium), High (high), Extra high (xhigh), Max (max)"));
+    assert!(refusal(&claude, picks(Some("claude-opus-4-1"), None, None), true)
+        .contains(&format!("model \"claude-opus-4-1\" is not one claude takes; one of: {MODELS}")));
+    assert!(refusal(&claude, picks(None, Some("ultra"), None), false).contains(
+        "effort \"ultra\" is not one claude takes; one of: Low (low), Medium (medium), High (high), Extra high (xhigh), Max (max)"
+    ));
     assert!(refusal(&claude, picks(None, None, Some("yolo")), true).contains(
         "access mode \"yolo\" is not one claude takes; one of: Default (default), Accept edits (acceptEdits), Bypass (bypassPermissions), Auto (auto), Manual (manual), Don't ask (dontAsk)"
     ));
@@ -641,7 +676,10 @@ fn narrowed_catalog() -> HarnessCatalog {
 #[test]
 fn start_picks_a_model_that_takes_no_effort_at_all_is_given_none_and_one_that_takes_some_runs_the_default_its_own_list_carries() {
     let narrowed = narrowed_catalog();
-    assert_eq!(start(&narrowed, picks(Some("claude-haiku-4-5"), None, None), true), picks(Some("claude-haiku-4-5"), None, Some("bypassPermissions")));
+    assert_eq!(
+        start(&narrowed, picks(Some("claude-haiku-4-5"), None, None), true),
+        picks(Some("claude-haiku-4-5"), None, Some("bypassPermissions"))
+    );
     assert_eq!(start(&narrowed, StartPicks::default(), true), picks(Some("claude-opus-5"), Some("high"), Some("bypassPermissions")));
     let off = HarnessCatalog {
         models: vec![HarnessModel { is_default: Some(true), efforts: strs(&["low", "max"]), ..model("claude-opus-5", "Opus 5") }],
@@ -654,8 +692,12 @@ fn start_picks_a_model_that_takes_no_effort_at_all_is_given_none_and_one_that_ta
 #[test]
 fn start_picks_an_effort_is_checked_against_the_models_own_list_where_the_model_has_one() {
     let narrowed = narrowed_catalog();
-    assert_eq!(start(&narrowed, picks(None, Some("max"), None), true), picks(Some("claude-opus-5"), Some("max"), Some("bypassPermissions")));
-    assert!(refusal(&narrowed, picks(None, Some("low"), None), true).contains("effort \"low\" is not one Opus 5 takes; one of: High (high), Max (max)"));
+    assert_eq!(
+        start(&narrowed, picks(None, Some("max"), None), true),
+        picks(Some("claude-opus-5"), Some("max"), Some("bypassPermissions"))
+    );
+    assert!(refusal(&narrowed, picks(None, Some("low"), None), true)
+        .contains("effort \"low\" is not one Opus 5 takes; one of: High (high), Max (max)"));
     assert!(refusal(&narrowed, picks(Some("claude-haiku-4-5"), Some("low"), None), true).contains("Haiku takes no effort"));
     assert_eq!(start(&narrowed, picks(None, Some("low"), None), false), picks(None, Some("low"), None));
 }
@@ -691,15 +733,23 @@ fn start_picks_a_start_on_the_codex_table_runs_its_default_model_and_refuses_a_m
 #[test]
 fn start_picks_a_start_on_a_legacy_model_runs_that_model_at_the_levels_the_binary_lists_for_it() {
     let claude = table("claude");
-    assert_eq!(start(&claude, picks(Some("claude-sonnet-5-5"), None, None), true), picks(Some("claude-sonnet-5-5"), Some("medium"), Some("bypassPermissions")));
+    assert_eq!(
+        start(&claude, picks(Some("claude-sonnet-5-5"), None, None), true),
+        picks(Some("claude-sonnet-5-5"), Some("medium"), Some("bypassPermissions"))
+    );
     assert_eq!(
         start(&claude, picks(Some("claude-opus-5"), Some("high"), None), true),
         picks(Some("claude-opus-5"), Some("high"), Some("bypassPermissions"))
     );
     assert_eq!(start(&claude, picks(Some("claude-opus-4-7"), None, None), true).effort, s("xhigh"));
     assert_eq!(start(&claude, picks(Some("claude-opus-4-6"), None, None), true).effort, s("high"));
-    assert!(refusal(&claude, picks(Some("claude-opus-4-6"), Some("xhigh"), None), true).contains("effort \"xhigh\" is not one Opus 4.6 takes"));
-    assert_eq!(start(&claude, picks(Some("claude-sonnet-4-5"), None, None), true), picks(Some("claude-sonnet-4-5"), None, Some("bypassPermissions")));
+    assert!(
+        refusal(&claude, picks(Some("claude-opus-4-6"), Some("xhigh"), None), true).contains("effort \"xhigh\" is not one Opus 4.6 takes")
+    );
+    assert_eq!(
+        start(&claude, picks(Some("claude-sonnet-4-5"), None, None), true),
+        picks(Some("claude-sonnet-4-5"), None, Some("bypassPermissions"))
+    );
     assert!(refusal(&claude, picks(Some("claude-sonnet-4-5"), Some("high"), None), true).contains("Sonnet 4.5 takes no effort"));
     assert!(refusal(&claude, picks(Some("claude-opus-4-1"), None, None), true).contains(&format!(
         "model \"claude-opus-4-1\" is not one claude takes; one of: {MODELS}; legacy: Opus 5 (claude-opus-5), Opus 4.8 (claude-opus-4-8),"
@@ -733,8 +783,12 @@ fn fast_and_plan_in_the_tables_mark_the_models_that_offer_faster_output() {
         &["read-only", "workspace-write", "danger-full-access"],
     );
     let heard = catalog_from_probe(&table("codex"), &astra);
-    assert_eq!(every_model(&heard).iter().map(|m| (m.value.clone(), m.fast)).collect::<Vec<_>>(), [("gpt-6-astra".to_string(), Some(true)), ("gpt-5.2".to_string(), None)]);
-    let bare = plain_probe("2.1.283", vec![HarnessCatalogModelProbe { is_default: true, ..model_probe("claude-opus-5-5", "Opus 5.5") }], &[], &[]);
+    assert_eq!(
+        every_model(&heard).iter().map(|m| (m.value.clone(), m.fast)).collect::<Vec<_>>(),
+        [("gpt-6-astra".to_string(), Some(true)), ("gpt-5.2".to_string(), None)]
+    );
+    let bare =
+        plain_probe("2.1.283", vec![HarnessCatalogModelProbe { is_default: true, ..model_probe("claude-opus-5-5", "Opus 5.5") }], &[], &[]);
     assert_eq!(catalog_from_probe(&claude, &bare).models[0].fast, Some(true));
 }
 
@@ -782,7 +836,8 @@ fn catalog_from_probe_takes_the_binarys_values_and_defaults_borrows_the_tables_l
 fn catalog_from_probe_keeps_the_tables_legacy_models_on_a_binary_that_lists_none_of_them() {
     let claude = table("claude");
     let catalog = catalog_from_probe(&claude, &probe());
-    let wanted: Vec<HarnessModel> = claude.legacy_models.clone().unwrap().into_iter().filter(|m| m.value != "claude-haiku-4-5-20251001").collect();
+    let wanted: Vec<HarnessModel> =
+        claude.legacy_models.clone().unwrap().into_iter().filter(|m| m.value != "claude-haiku-4-5-20251001").collect();
     assert_eq!(catalog.legacy_models, Some(wanted));
     let mut models = probe().models;
     models.push(HarnessCatalogModelProbe { efforts: strs(&["low"]), ..model_probe("claude-opus-4-8", "Opus") });
@@ -790,7 +845,16 @@ fn catalog_from_probe_keeps_the_tables_legacy_models_on_a_binary_that_lists_none
     assert!(model_values(&current.models).contains(&"claude-opus-4-8".to_string()));
     assert_eq!(
         model_values(current.legacy_models.as_deref().unwrap()),
-        ["claude-opus-5", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5", "claude-fable-5", "claude-sonnet-5", "claude-sonnet-4-6", "claude-sonnet-4-5"]
+        [
+            "claude-opus-5",
+            "claude-opus-4-7",
+            "claude-opus-4-6",
+            "claude-opus-4-5",
+            "claude-fable-5",
+            "claude-sonnet-5",
+            "claude-sonnet-4-6",
+            "claude-sonnet-4-5"
+        ]
     );
     assert_eq!(start(&catalog, picks(Some("claude-fable-5"), None, None), false), picks(Some("claude-fable-5"), None, None));
 }
@@ -834,14 +898,19 @@ fn catalog_from_probe_a_probe_without_a_version_says_so_instead_of_pretending_to
 // TS: harness-catalog.test.ts:493
 #[test]
 fn catalog_from_probe_a_model_whose_efforts_the_binary_did_not_name_keeps_none_of_its_own() {
-    let routed_model = HarnessCatalogModelProbe { is_default: true, ..model_probe("anthropic/claude-sonnet-4.5", "anthropic/claude-sonnet-4.5") };
+    let routed_model =
+        HarnessCatalogModelProbe { is_default: true, ..model_probe("anthropic/claude-sonnet-4.5", "anthropic/claude-sonnet-4.5") };
     let others = probe().models.into_iter().map(|m| HarnessCatalogModelProbe { is_default: false, ..m });
     let routed = HarnessCatalogProbe { models: std::iter::once(routed_model).chain(others).collect(), ..probe() };
     let catalog = catalog_from_probe(&table("codex"), &routed);
     roundtrip(&catalog);
     assert_eq!(
         catalog.models[0],
-        HarnessModel { is_default: Some(true), context_windows: strs(&[]), ..model("anthropic/claude-sonnet-4.5", "anthropic/claude-sonnet-4.5") }
+        HarnessModel {
+            is_default: Some(true),
+            context_windows: strs(&[]),
+            ..model("anthropic/claude-sonnet-4.5", "anthropic/claude-sonnet-4.5")
+        }
     );
     assert_eq!(catalog.models[0].efforts, None);
     assert_eq!(values(&plain(efforts_for(&catalog, Some(&catalog.models[0])))), ["low", "high", "turbo"]);
@@ -854,7 +923,11 @@ fn catalog_from_probe_a_model_whose_efforts_the_binary_did_not_name_keeps_none_o
 // TS: harness-catalog.test.ts:507
 #[test]
 fn catalog_from_probe_carries_each_models_own_default_effort() {
-    let models = probe().models.into_iter().map(|m| if m.slug == "claude-next-6" { HarnessCatalogModelProbe { default_effort: s("turbo"), ..m } } else { m }).collect();
+    let models = probe()
+        .models
+        .into_iter()
+        .map(|m| if m.slug == "claude-next-6" { HarnessCatalogModelProbe { default_effort: s("turbo"), ..m } } else { m })
+        .collect();
     let catalog = catalog_from_probe(&table("claude"), &HarnessCatalogProbe { models, ..probe() });
     roundtrip(&catalog);
     assert_eq!(catalog.models.iter().map(|m| m.default_effort.clone()).collect::<Vec<_>>(), [None, None, s("turbo")]);
@@ -868,7 +941,11 @@ fn catalog_from_probe_carries_each_models_own_default_effort() {
 fn catalog_from_probe_marks_the_effort_the_binary_reports_for_the_model_it_would_run() {
     let codex = table("codex");
     let with_default = |effort: &str| {
-        let models = probe().models.into_iter().map(|m| if m.is_default { HarnessCatalogModelProbe { default_effort: s(effort), ..m } } else { m }).collect();
+        let models = probe()
+            .models
+            .into_iter()
+            .map(|m| if m.is_default { HarnessCatalogModelProbe { default_effort: s(effort), ..m } } else { m })
+            .collect();
         HarnessCatalogProbe { models, ..probe() }
     };
     let turbo = catalog_from_probe(&codex, &with_default("turbo"));
@@ -905,13 +982,21 @@ fn every_probe_reads_into_the_catalog_the_ts_made_of_it() {
     let codex = table("codex");
     let base = probe();
     let with_default_effort = |effort: &str| -> HarnessCatalogProbe {
-        let models = base.models.iter().cloned().map(|m| if m.is_default { HarnessCatalogModelProbe { default_effort: s(effort), ..m } } else { m }).collect();
+        let models = base
+            .models
+            .iter()
+            .cloned()
+            .map(|m| if m.is_default { HarnessCatalogModelProbe { default_effort: s(effort), ..m } } else { m })
+            .collect();
         HarnessCatalogProbe { models, ..probe() }
     };
     let routed = HarnessCatalogProbe {
-        models: std::iter::once(HarnessCatalogModelProbe { is_default: true, ..model_probe("anthropic/claude-sonnet-4.5", "anthropic/claude-sonnet-4.5") })
-            .chain(base.models.iter().cloned().map(|m| HarnessCatalogModelProbe { is_default: false, ..m }))
-            .collect(),
+        models: std::iter::once(HarnessCatalogModelProbe {
+            is_default: true,
+            ..model_probe("anthropic/claude-sonnet-4.5", "anthropic/claude-sonnet-4.5")
+        })
+        .chain(base.models.iter().cloned().map(|m| HarnessCatalogModelProbe { is_default: false, ..m }))
+        .collect(),
         ..probe()
     };
     let cases: Vec<(&str, HarnessCatalog, HarnessCatalogProbe)> = vec![
@@ -921,7 +1006,12 @@ fn every_probe_reads_into_the_catalog_the_ts_made_of_it() {
             "claude+probe+opus-4-8",
             claude.clone(),
             HarnessCatalogProbe {
-                models: base.models.iter().cloned().chain([HarnessCatalogModelProbe { efforts: strs(&["low"]), ..model_probe("claude-opus-4-8", "Opus") }]).collect(),
+                models: base
+                    .models
+                    .iter()
+                    .cloned()
+                    .chain([HarnessCatalogModelProbe { efforts: strs(&["low"]), ..model_probe("claude-opus-4-8", "Opus") }])
+                    .collect(),
                 ..probe()
             },
         ),
@@ -930,7 +1020,11 @@ fn every_probe_reads_into_the_catalog_the_ts_made_of_it() {
             "codex+codexProbe, default gpt-5.5",
             codex.clone(),
             HarnessCatalogProbe {
-                models: codex_probe().models.into_iter().map(|m| HarnessCatalogModelProbe { is_default: m.slug == "gpt-5.5", ..m }).collect(),
+                models: codex_probe()
+                    .models
+                    .into_iter()
+                    .map(|m| HarnessCatalogModelProbe { is_default: m.slug == "gpt-5.5", ..m })
+                    .collect(),
                 ..codex_probe()
             },
         ),
@@ -940,7 +1034,12 @@ fn every_probe_reads_into_the_catalog_the_ts_made_of_it() {
             "claude+perModel",
             claude.clone(),
             HarnessCatalogProbe {
-                models: base.models.iter().cloned().map(|m| if m.slug == "claude-next-6" { HarnessCatalogModelProbe { default_effort: s("turbo"), ..m } } else { m }).collect(),
+                models: base
+                    .models
+                    .iter()
+                    .cloned()
+                    .map(|m| if m.slug == "claude-next-6" { HarnessCatalogModelProbe { default_effort: s("turbo"), ..m } } else { m })
+                    .collect(),
                 ..probe()
             },
         ),
@@ -964,7 +1063,12 @@ fn every_probe_reads_into_the_catalog_the_ts_made_of_it() {
         (
             "claude+bare opus",
             claude.clone(),
-            plain_probe("2.1.283", vec![HarnessCatalogModelProbe { is_default: true, ..model_probe("claude-opus-5-5", "Opus 5.5") }], &[], &[]),
+            plain_probe(
+                "2.1.283",
+                vec![HarnessCatalogModelProbe { is_default: true, ..model_probe("claude-opus-5-5", "Opus 5.5") }],
+                &[],
+                &[],
+            ),
         ),
         ("claude+empty", claude.clone(), plain_probe("9.9.9", vec![], &[], &[])),
         ("pi+probe", table("pi"), probe()),
@@ -1008,8 +1112,13 @@ fn smallest_model_answers_every_row_as_the_ts_does() {
     let codex = table("codex");
     let lists = catalog_from_probe(&codex, &codex_probe());
     let gemini = table("gemini");
-    let cases: Vec<(&str, Option<&HarnessCatalog>)> =
-        vec![("claude", Some(&claude)), ("codex", Some(&codex)), ("gemini", Some(&gemini)), ("none", None), ("codex+codexProbe", Some(&lists))];
+    let cases: Vec<(&str, Option<&HarnessCatalog>)> = vec![
+        ("claude", Some(&claude)),
+        ("codex", Some(&codex)),
+        ("gemini", Some(&gemini)),
+        ("none", None),
+        ("codex+codexProbe", Some(&lists)),
+    ];
     let wanted = fx["smallest"].as_array().unwrap();
     assert_eq!(wanted.len(), cases.len());
     for (case, (name, catalog)) in cases.into_iter().enumerate() {

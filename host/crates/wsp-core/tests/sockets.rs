@@ -160,7 +160,10 @@ fn a_place_subscribe_twice_watches_once_and_a_workspace_of_the_same_id_is_its_ow
         handle(ask(1, false, None, Some("x")), send.clone(), Some(Caller::Road(WorkspaceOrigin::Here))).await.unwrap();
         handle(ask(2, false, None, Some("x")), send.clone(), None).await.unwrap();
         handle(ask(3, false, Some("x"), None), send.clone(), None).await.unwrap();
-        assert_eq!(*rt.asked.borrow(), vec![("place".to_string(), "x".to_string(), None), ("workspace".to_string(), "x".to_string(), None)]);
+        assert_eq!(
+            *rt.asked.borrow(),
+            vec![("place".to_string(), "x".to_string(), None), ("workspace".to_string(), "x".to_string(), None)]
+        );
         assert_eq!(*out.borrow(), vec![json!({ "id": 1, "ok": true }), json!({ "id": 2, "ok": true }), json!({ "id": 3, "ok": true })]);
         (rt.listeners.borrow()[0])(sample(0.5));
         assert_eq!(out.borrow()[3], json!({ "type": "place.sys", "placeId": "x", "sample": json(&sample(0.5)) }));
@@ -309,7 +312,13 @@ impl Runs {
 
 #[async_trait(?Send)]
 impl SignInRuns for Runs {
-    async fn sign_in(&self, _target: AgentsTarget, ask: SignInAsk, emit: Rc<dyn Fn(AgentsSignInEvent)>, origin: Option<Caller>) -> Result<SignInFollowing, HostError> {
+    async fn sign_in(
+        &self,
+        _target: AgentsTarget,
+        ask: SignInAsk,
+        emit: Rc<dyn Fn(AgentsSignInEvent)>,
+        origin: Option<Caller>,
+    ) -> Result<SignInFollowing, HostError> {
         self.calls.borrow_mut().push(json!({
             "op": "sign_in", "agent": ask.agent, "server": ask.server, "terminal": ask.terminal,
             "scope": ask.scope.map(|s| json(&s)), "project": ask.project, "origin": origin.is_some(),
@@ -355,13 +364,25 @@ fn start(n: i64) -> SignInOp {
 // spec: I0 (the six ops, and every other op is none of them)
 #[test]
 fn the_sign_in_ops_are_the_six_and_every_other_op_is_none() {
-    assert_eq!(SIGN_IN_OPS, ["agents.signIn", "servers.signIn", "agents.cloudSignIn", "agents.signIns", "agents.signInCode", "agents.signInStop"]);
+    assert_eq!(
+        SIGN_IN_OPS,
+        ["agents.signIn", "servers.signIn", "agents.cloudSignIn", "agents.signIns", "agents.signInCode", "agents.signInStop"]
+    );
     let op: RuntimeOp = wire(&json!({ "op": "agents.signInStop", "id": 4, "signInId": "s1" }));
     assert_eq!(sign_in_op(&op), Some(SignInOp::Stop { id: id(4), sign_in_id: "s1".into() }));
-    let op: RuntimeOp = wire(&json!({ "op": "servers.signIn", "id": 5, "target": { "placeId": "here" }, "agent": "claude", "name": "linear", "scope": "user" }));
+    let op: RuntimeOp = wire(
+        &json!({ "op": "servers.signIn", "id": 5, "target": { "placeId": "here" }, "agent": "claude", "name": "linear", "scope": "user" }),
+    );
     assert_eq!(
         sign_in_op(&op),
-        Some(SignInOp::ServerSignIn { id: id(5), target: target(), agent: "claude".into(), name: "linear".into(), scope: Some(McpScope::User), project: None })
+        Some(SignInOp::ServerSignIn {
+            id: id(5),
+            target: target(),
+            agent: "claude".into(),
+            name: "linear".into(),
+            scope: Some(McpScope::User),
+            project: None
+        })
     );
     let op: RuntimeOp = wire(&json!({ "op": "agents.signInLine", "id": 6, "target": { "placeId": "here" }, "agent": "claude" }));
     assert_eq!(sign_in_op(&op), None);
@@ -387,7 +408,10 @@ fn a_start_answers_with_its_run_before_the_steps_it_pushed_while_starting() {
                 frame_of(&event("s1", "signed-in")),
             ]
         );
-        assert_eq!(r.calls.borrow()[0], json!({ "op": "sign_in", "agent": "claude", "server": null, "terminal": null, "scope": null, "project": null, "origin": true }));
+        assert_eq!(
+            r.calls.borrow()[0],
+            json!({ "op": "sign_in", "agent": "claude", "server": null, "terminal": null, "scope": null, "project": null, "origin": true })
+        );
         assert_eq!(sock.leaves(), 1);
     });
 }
@@ -417,11 +441,28 @@ fn a_terminal_start_and_a_servers_start_ask_with_their_own_fields() {
         let sock = Rc::new(Sock::default());
         let handle = sign_in_socket(r.clone(), sock.clone(), None);
         let (_out, send) = sent();
-        handle(SignInOp::SignIn { id: id(1), target: target(), agent: "codex".into(), terminal: Some(true) }, send.clone(), None).await.unwrap();
+        handle(SignInOp::SignIn { id: id(1), target: target(), agent: "codex".into(), terminal: Some(true) }, send.clone(), None)
+            .await
+            .unwrap();
         *r.next_id.borrow_mut() = "s2".into();
-        handle(SignInOp::SignIn { id: id(2), target: target(), agent: "codex".into(), terminal: Some(false) }, send.clone(), None).await.unwrap();
+        handle(SignInOp::SignIn { id: id(2), target: target(), agent: "codex".into(), terminal: Some(false) }, send.clone(), None)
+            .await
+            .unwrap();
         *r.next_id.borrow_mut() = "s3".into();
-        handle(SignInOp::ServerSignIn { id: id(3), target: target(), agent: "claude".into(), name: "linear".into(), scope: Some(McpScope::Local), project: Some("pr_1".into()) }, send.clone(), None).await.unwrap();
+        handle(
+            SignInOp::ServerSignIn {
+                id: id(3),
+                target: target(),
+                agent: "claude".into(),
+                name: "linear".into(),
+                scope: Some(McpScope::Local),
+                project: Some("pr_1".into()),
+            },
+            send.clone(),
+            None,
+        )
+        .await
+        .unwrap();
         assert_eq!(
             *r.calls.borrow(),
             vec![
@@ -484,10 +525,17 @@ fn a_cloud_sign_in_is_refused_unserved_and_otherwise_runs_the_hosts_own_road() {
             a.borrow_mut().push(format!("{} {}", json(&agent), origin.is_some()));
             emit(event("c1", "running"));
             let l = leaves.clone();
-            async move { Ok(SignInFollowing { sign_in_id: "c1".into(), leave: Box::new(move || l.borrow_mut().push("c1".into())) }) }.boxed_local()
+            async move { Ok(SignInFollowing { sign_in_id: "c1".into(), leave: Box::new(move || l.borrow_mut().push("c1".into())) }) }
+                .boxed_local()
         });
         let served = sign_in_socket(r.clone(), sock.clone(), Some(cloud));
-        served(SignInOp::CloudSignIn { id: id(2), agent: AgentsCloudSignInAgent::Claude }, send.clone(), Some(Caller::Road(WorkspaceOrigin::Here))).await.unwrap();
+        served(
+            SignInOp::CloudSignIn { id: id(2), agent: AgentsCloudSignInAgent::Claude },
+            send.clone(),
+            Some(Caller::Road(WorkspaceOrigin::Here)),
+        )
+        .await
+        .unwrap();
         assert_eq!(*asked.borrow(), [r#""claude" true"#]);
         assert_eq!(*out.borrow(), vec![json!({ "id": 2, "ok": true, "signInId": "c1" }), frame_of(&event("c1", "running"))]);
         assert!(r.calls.borrow().is_empty(), "the runtime's agents were not asked");
@@ -532,7 +580,10 @@ fn the_list_follows_the_live_runs_this_socket_does_not_hold_and_answers_them_all
         handle(SignInOp::SignIns { id: id(2) }, send.clone(), None).await.unwrap();
         let follows: Vec<Value> = r.calls.borrow().iter().filter(|c| c["op"] == "follow").cloned().collect();
         assert_eq!(follows, vec![json!({ "op": "follow", "id": "s2" })]);
-        assert_eq!(out.borrow()[1], json!({ "id": 2, "ok": true, "runs": [json(&run_row("s1", false)), json(&run_row("s2", false)), json(&run_row("s3", true))] }));
+        assert_eq!(
+            out.borrow()[1],
+            json!({ "id": 2, "ok": true, "runs": [json(&run_row("s1", false)), json(&run_row("s2", false)), json(&run_row("s3", true))] })
+        );
         assert_eq!(sock.leaves(), 2);
         r.emit("s2", event("s2", "waiting"));
         assert_eq!(out.borrow()[2], frame_of(&event("s2", "waiting")));
@@ -570,7 +621,9 @@ fn a_code_and_a_stop_reach_a_held_run_and_are_refused_for_any_other() {
 }
 
 fn forward(ws: &str, port: i64) -> PortForward {
-    wire(&json!({ "workspaceId": ws, "port": port, "startedAt": "2026-10-25T00:00:00.000Z", "name": format!("{ws}:{port}"), "kind": "url" }))
+    wire(
+        &json!({ "workspaceId": ws, "port": port, "startedAt": "2026-10-25T00:00:00.000Z", "name": format!("{ws}:{port}"), "kind": "url" }),
+    )
 }
 
 /// One forward source the test scripts.
@@ -598,7 +651,13 @@ impl ForwardsSource for Source {
     }
 }
 
-fn source(name: &'static str, held: Vec<PortForward>, stops: bool, asked: &Rc<RefCell<Vec<String>>>, offs: &Rc<RefCell<Vec<&'static str>>>) -> Rc<Source> {
+fn source(
+    name: &'static str,
+    held: Vec<PortForward>,
+    stops: bool,
+    asked: &Rc<RefCell<Vec<String>>>,
+    offs: &Rc<RefCell<Vec<&'static str>>>,
+) -> Rc<Source> {
     Rc::new(Source { name, held, stops, asked: asked.clone(), listeners: RefCell::default(), offs: offs.clone() })
 }
 
@@ -625,7 +684,10 @@ fn every_forward_source_as_one_lists_in_order_stops_at_the_first_holder_and_hear
     assert_eq!([relay.listeners.borrow().len(), panes.listeners.borrow().len(), last.listeners.borrow().len()], [1, 1, 1]);
     (relay.listeners.borrow()[0])(&ForwardEvent::Close(wire::<ForwardCloseEvent>(&json!({ "workspaceId": "w1", "port": 3000 }))));
     (panes.listeners.borrow()[0])(&ForwardEvent::Open(ForwardOpenEvent { forward: forward("p2", 9000) }));
-    assert_eq!(*heard.borrow(), vec![json!({ "close": { "workspaceId": "w1", "port": 3000 } }), json!({ "open": json(&forward("p2", 9000)) })]);
+    assert_eq!(
+        *heard.borrow(),
+        vec![json!({ "close": { "workspaceId": "w1", "port": 3000 } }), json!({ "open": json(&forward("p2", 9000)) })]
+    );
     off();
     assert_eq!(*offs.borrow(), ["relay", "panes", "last"]);
 }
@@ -635,7 +697,10 @@ fn every_forward_source_as_one_lists_in_order_stops_at_the_first_holder_and_hear
 fn a_stop_no_source_holds_is_false_after_asking_each_once() {
     let asked: Rc<RefCell<Vec<String>>> = Rc::default();
     let offs: Rc<RefCell<Vec<&'static str>>> = Rc::default();
-    let all = forwards_of(vec![Some(source("a", vec![], false, &asked, &offs) as Rc<dyn ForwardsSource>), Some(source("b", vec![], false, &asked, &offs))]);
+    let all = forwards_of(vec![
+        Some(source("a", vec![], false, &asked, &offs) as Rc<dyn ForwardsSource>),
+        Some(source("b", vec![], false, &asked, &offs)),
+    ]);
     assert!(!all.stop("w9", 1));
     assert_eq!(*asked.borrow(), ["a w9:1", "b w9:1"]);
     let none = forwards_of(vec![None, None]);

@@ -16,7 +16,8 @@ pub fn setup_patched(kept: Option<&AgentSetup>, set: &AgentSetupSet) -> Option<A
 /// thread-defaults.ts:402. Why a variable cannot be part of an agent's setup, or `None` where it may. `dropped` is the
 /// agent's own launch's strip test (the TS's `RegExp[]`); `None` drops nothing.
 pub fn agent_env_refusal(name: &str, agent: &str, dropped: Option<&dyn Fn(&str) -> bool>) -> Option<String> {
-    words::agent_env_refusal(name, agent, &[]).or_else(|| dropped.filter(|dropped| dropped(name)).map(|_| words::dropped_env_line(agent, name)))
+    words::agent_env_refusal(name, agent, &[])
+        .or_else(|| dropped.filter(|dropped| dropped(name)).map(|_| words::dropped_env_line(agent, name)))
 }
 
 /// thread-defaults.ts:421.
@@ -30,6 +31,11 @@ pub fn no_config_dir_line(agent: &str) -> String {
 }
 
 /// thread-defaults.ts:337. A usage refusal with its fix, or `None`.
-pub fn not_run_refusal(lists: Option<&HarnessCatalog>, table: Option<&HarnessCatalog>, model: Option<&str>, update: Option<&str>) -> Option<HostError> {
+pub fn not_run_refusal(
+    lists: Option<&HarnessCatalog>,
+    table: Option<&HarnessCatalog>,
+    model: Option<&str>,
+    update: Option<&str>,
+) -> Option<HostError> {
     words::not_run_refusal(lists, table, model, update)
 }

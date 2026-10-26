@@ -24,13 +24,13 @@ use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
-pub use wsp_wire::wire::daemon::{PipeDoor, PipeOpen};
-use wsp_wire::wire::daemon::{parse_daemon_response, pipe_open_of};
 use wsp_wire::types::daemon_contract::PIPE_POOL_MAX;
 use wsp_wire::types::req_id::ReqId;
-use wsp_wire::wire::machine_link::DaemonResponse;
+use wsp_wire::wire::daemon::{parse_daemon_response, pipe_open_of};
+pub use wsp_wire::wire::daemon::{PipeDoor, PipeOpen};
 use wsp_wire::wire::daemon_version::PIPE_DAEMON_VERSION;
 use wsp_wire::wire::limits::link_backoff_ms;
+use wsp_wire::wire::machine_link::DaemonResponse;
 use wsp_words::daemon_contract::daemon_refused_token;
 use wsp_words::js::js_round;
 
@@ -439,7 +439,13 @@ fn wait(core: &Rc<Core>, h: &Rc<Held>) {
 
 fn link_down(core: &Rc<Core>, h: &Rc<Held>) {
     if h.attempt.get() == 0 {
-        say(core, &format!("{}: a pipe could not be dialled, so its others were closed and the pool is dialled again as the link comes back", h.id));
+        say(
+            core,
+            &format!(
+                "{}: a pipe could not be dialled, so its others were closed and the pool is dialled again as the link comes back",
+                h.id
+            ),
+        );
     }
     end_idle(h);
     if !h.stopped.get() {
@@ -785,7 +791,6 @@ fn down(core: &Rc<Core>, id: &str) {
     }
 }
 
-
 // TS pipe.ts:146-392
 // export function pipePool(o: PipePoolOptions): PipePool {
 //   const clock = o.clock ?? realClock;
@@ -1036,7 +1041,8 @@ fn down(core: &Rc<Core>, id: &str) {
 // }
 /// Spawns its dials with `spawn_local`: call it inside a `LocalSet`.
 pub fn pipe_pool(o: PipePoolOptions) -> Rc<PipePool> {
-    let backoff: Rc<dyn Fn(u32) -> u64> = o.backoff_ms.unwrap_or_else(|| Rc::new(|attempt: u32| link_backoff_ms(i64::from(attempt), OsIds.random()) as u64));
+    let backoff: Rc<dyn Fn(u32) -> u64> =
+        o.backoff_ms.unwrap_or_else(|| Rc::new(|attempt: u32| link_backoff_ms(i64::from(attempt), OsIds.random()) as u64));
     let log: Rc<dyn Fn(&str)> = o.log.unwrap_or_else(|| Rc::new(|line: &str| console::warn(line)));
     let core = Core {
         reach: o.reach,
