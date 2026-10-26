@@ -26,6 +26,7 @@ use wsp_wire::types::release::{ReleaseChangedEvent, ReleaseView};
 use wsp_wire::views::harness::StartResult;
 use wsp_wire::views::place::DoctorLineEvent;
 use wsp_wire::views::place_more::PlaceView;
+use wsp_wire::views::workspace::WorkspaceOut;
 use wsp_wire::views::workspace_more::WorkspaceView;
 use wsp_wire::wire::devices::{AccountDevice, AccountView};
 use wsp_wire::wire::place_link::{PlaceDoorView, SshHostSuggestion};
@@ -223,10 +224,14 @@ pub async fn serve_runtime(rt: Rc<DynRuntime>, opts: ServeOptions) -> Result<Rc<
 
 /// Every workspace a verb answers with goes out through the schema that drops the display stream. serve.ts:372.
 pub fn handed(workspace: WorkspaceView) -> serde_json::Value {
-    todo!()
+    serde_json::to_value(&workspace)
+        .and_then(serde_json::from_value::<WorkspaceOut>)
+        .and_then(serde_json::to_value)
+        .unwrap_or(serde_json::Value::Null)
 }
 
-/// A start's answer with its workspace handed. serve.ts:373.
+/// A start's answer with its workspace handed. serve.ts:373. `StartResult.workspace` is already a `WorkspaceOut`, so
+/// the answer is the start's own fields as they serialize.
 pub fn started_out(made: StartResult) -> serde_json::Value {
-    todo!()
+    serde_json::to_value(made).unwrap_or(serde_json::Value::Null)
 }
