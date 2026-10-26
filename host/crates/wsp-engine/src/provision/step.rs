@@ -14,7 +14,7 @@ use wsp_catalog::road_modules::road_module_named;
 use wsp_catalog::roads::is_road;
 use wsp_wire::types::daemon_contract::TOOL_PREFIX;
 use wsp_wire::types::js_number::JsInt;
-use wsp_wire::views::golden_image::{agent_of_row, GoldenStage};
+use wsp_wire::views::golden_image::{agent_of_row, GoldenStage, GoldenStep};
 use wsp_wire::views::place::{PlaceProvisionRow, PlaceProvisionRowOutcome, PlaceSetupStep};
 use wsp_words::js::{js_trim, utf16};
 use wsp_words::views::place_setup_words::provision_servers_line;
@@ -311,7 +311,7 @@ async fn floor_step(
     stage: &ProvisionStage,
 ) -> Result<Vec<PlaceProvisionRow>> {
     let listener = stage.clone();
-    let on_stage: ToolStage = Arc::new(move |_which: GoldenStage, detail: Option<&str>| {
+    let on_stage: ToolStage = Arc::new(move |_which: GoldenStage, detail: Option<&str>, _step: Option<GoldenStep>| {
         if let Some(detail) = detail {
             listener(detail, None, None);
         }
@@ -362,7 +362,7 @@ async fn tools_step(
     };
     let on_stage: ToolStage = {
         let (at, stage) = (at.clone(), stage.clone());
-        Arc::new(move |_which: GoldenStage, detail: Option<&str>| {
+        Arc::new(move |_which: GoldenStage, detail: Option<&str>, _step: Option<GoldenStep>| {
             if let Some(detail) = detail {
                 stage(detail, at().as_ref(), None);
             }

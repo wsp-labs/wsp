@@ -688,7 +688,7 @@ impl MachinesArea {
     }
 
     /// `claiming` without the closure: the handle a fork holds across its own awaits (see `end_claim`).
-    fn begin_claim(
+    pub fn begin_claim(
         self: &Rc<Self>,
         purpose: &str,
         at: Arc<dyn MachineBackend>,
@@ -704,7 +704,7 @@ impl MachinesArea {
     }
 
     /// Every id the handle claimed leaves `inflight` once its run settles, either way (machines.ts:230).
-    fn end_claim(&self, claim: &Claimed) {
+    pub fn end_claim(&self, claim: &Claimed) {
         let mine = claim.mine.borrow().clone();
         let mut inflight = self.inflight.borrow_mut();
         for id in mine {

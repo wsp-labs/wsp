@@ -9,6 +9,7 @@ use std::time::Instant;
 use indexmap::IndexMap;
 use wsp_catalog::road_modules::{road_module_named, road_step, BREW_PREFIX, HOMEBREW_COMMIT, HOMEBREW_TAG};
 use wsp_catalog::roads::{is_road, RoadName};
+use wsp_wire::views::golden_image::GoldenStep;
 use wsp_wire::wire::machine_link::ExecResult;
 use wsp_words::words::base::{listed_name, name_list};
 use wsp_words::words::thread::{step_retry_line, timed_out_line};
@@ -325,14 +326,19 @@ struct Loop<'a> {
 
 impl Loop<'_> {
     fn stage(&self, detail: &str) {
-        (self.on_stage)(self.at, Some(detail));
+        (self.on_stage)(self.at, Some(detail), None);
     }
 
-    async fn run(&self, cmd: &str, label: &str, road: RoadName) -> Result<ExecResult> {
+    fn stepped(&self, detail: &str, step: &GoldenStep) {
+        (self.on_stage)(self.at, Some(detail), Some(step.clone()));
+    }
+
+    async fn run(&self, cmd: &str, label: &str, road: RoadName, step: Option<&GoldenStep>) -> Result<ExecResult> {
         let on_stage = self.on_stage.clone();
         let at = self.at;
         let label = label.to_string();
-        let on_line: OnLine = Arc::new(move |line: &str| on_stage(at, Some(&format!("{label}: {line}"))));
+        let step = step.cloned();
+        let on_line: OnLine = Arc::new(move |line: &str| on_stage(at, Some(&format!("{label}: {line}")), step.clone()));
         let opts = RunOptions { deadline_ms: guard_deadline_ms(road_limit_s(road)), on_line: Some(on_line), ..Default::default() };
         self.machine.run(&guarded_road(road, cmd), opts).await
     }
@@ -349,7 +355,7 @@ async fn brew_housekeeping(lp: &Loop<'_>, path: &str, prefix: Option<&str>) -> R
     let before = free_bytes(lp.machine, prefix).await?;
     let mut failed = Vec::new();
     for cmd in brew_housekeeping_cmds(path) {
-        let res = lp.run(&cmd, "Homebrew cleanup", RoadName::Brew).await?;
+        let res = lp.run(&cmd, "Homebrew cleanup", RoadName::Brew, None).await?;
         if res.exit_code.get() != 0 {
             failed.push(reason_of(&res, road_limit_s(RoadName::Brew) as f64));
         }
@@ -600,18 +606,19 @@ pub async fn install_tools_at(
         }
         let road = road_named(&tool.manager)?;
         let limit = road_limit_s(road);
-        lp.stage(&format!("{} ({}/{})", tool.label, i + 1, tools.len()));
+        let step = GoldenStep { label: tool.label.clone(), command: tool.shown.clone().unwrap_or_else(|| tool.cmd.clone()) };
+        lp.stepped(&format!("{} ({}/{})", tool.label, i + 1, tools.len()), &step);
         let t0 = Instant::now();
-        let mut res = lp.run(&tool.cmd, &tool.label, road).await?;
+        let mut res = lp.run(&tool.cmd, &tool.label, road, Some(&step)).await?;
         if res.exit_code.get() != 0 && res.stderr.contains(CELLAR_LOCKED) {
-            lp.stage(&format!("{}: another brew holds its cellar; waiting for it, then once more", tool.label));
+            lp.stepped(&format!("{}: another brew holds its cellar; waiting for it, then once more", tool.label), &step);
             machine.run(&brew_lock_wait_cmd(), RunOptions { deadline_ms: (BREW_LOCK_WAIT_S + 60) * 1000, ..Default::default() }).await?;
-            res = lp.run(&tool.cmd, &tool.label, road).await?;
+            res = lp.run(&tool.cmd, &tool.label, road, Some(&step)).await?;
         }
         let mut timeouts = if res.exit_code.get() == 124 { 1 } else { 0 };
         if timeouts == 1 && road_step(road).retry {
-            lp.stage(&format!("{}: {}", tool.label, step_retry_line(limit as f64)));
-            res = lp.run(&tool.cmd, &tool.label, road).await?;
+            lp.stepped(&format!("{}: {}", tool.label, step_retry_line(limit as f64)), &step);
+            res = lp.run(&tool.cmd, &tool.label, road, Some(&step)).await?;
             if res.exit_code.get() == 124 {
                 timeouts = 2;
             }

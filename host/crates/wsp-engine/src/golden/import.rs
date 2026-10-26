@@ -440,7 +440,7 @@ pub async fn apply_golden_import(
                 let tools = install_tools_at(
                     &**machine,
                     &imp.tools,
-                    stage.listener(),
+                    stage.tool_listener(),
                     GoldenStage::InstallingTools,
                     InstallToolsOptions::default(),
                 )

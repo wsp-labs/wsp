@@ -13,7 +13,7 @@ use futures::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
 
 use indexmap::IndexMap;
-pub use wsp_wire::views::golden_image::{GoldenBaseTool, GoldenLeftBehind, GoldenStage, RecipeDigest};
+pub use wsp_wire::views::golden_image::{GoldenBaseTool, GoldenLeftBehind, GoldenStage, GoldenStep, RecipeDigest};
 
 mod base;
 mod import_agents;
@@ -448,9 +448,9 @@ pub struct ToolResult {
     pub road: Option<ToolRoad>,
 }
 
-/// A tools-loop stage line: `(stage, detail)`. The TS's third argument, the step a screen clocks, is the image
-/// machinery's and not passed here.
-pub type ToolStage = Arc<dyn Fn(GoldenStage, Option<&str>)>;
+/// A tools-loop stage line: `(stage, detail, step)`. The step is the install a screen clocks the lines of; the loop's
+/// own lines carry none.
+pub type ToolStage = Arc<dyn Fn(GoldenStage, Option<&str>, Option<GoldenStep>)>;
 /// `onTool`: awaited for each row as the loop reaches it.
 pub type OnTool = Arc<dyn Fn(ToolResult) -> LocalBoxFuture<'static, ()>>;
 

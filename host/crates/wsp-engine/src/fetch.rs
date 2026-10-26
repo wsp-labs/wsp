@@ -177,24 +177,28 @@ pub trait Fetch {
 
 /// `globalThis.fetch`: the platform's own HTTP client.
 pub fn platform_fetch() -> Arc<dyn Fetch> {
-    Arc::new(PlatformFetch)
+    Arc::new(PlatformFetch { manual: false })
 }
 
-struct PlatformFetch;
+/// `globalThis.fetch` with `{ redirect: "manual" }`: a 3xx answer is the answer, its `location` left unfollowed.
+pub fn platform_fetch_manual() -> Arc<dyn Fetch> {
+    Arc::new(PlatformFetch { manual: true })
+}
 
-fn builder() -> reqwest::ClientBuilder {
-    reqwest::Client::builder()
-        .no_proxy()
-        .connect_timeout(CONNECT_TIMEOUT)
-        .read_timeout(SILENCE_TIMEOUT)
-        .redirect(reqwest::redirect::Policy::limited(REDIRECTS))
+struct PlatformFetch {
+    manual: bool,
+}
+
+fn builder(manual: bool) -> reqwest::ClientBuilder {
+    let redirects = if manual { reqwest::redirect::Policy::none() } else { reqwest::redirect::Policy::limited(REDIRECTS) };
+    reqwest::Client::builder().no_proxy().connect_timeout(CONNECT_TIMEOUT).read_timeout(SILENCE_TIMEOUT).redirect(redirects)
 }
 
 /// The client for a plain `http://` request. It holds an empty root store and is never asked to verify a certificate,
 /// so a computer with no CA bundle still makes it: nothing is read from the system.
-fn plain_client() -> Result<reqwest::Client, RoadError> {
-    static CLIENT: Mutex<Option<reqwest::Client>> = Mutex::new(None);
-    let mut slot = CLIENT.lock().unwrap();
+fn plain_client(manual: bool) -> Result<reqwest::Client, RoadError> {
+    static CLIENTS: [Mutex<Option<reqwest::Client>>; 2] = [Mutex::new(None), Mutex::new(None)];
+    let mut slot = CLIENTS[usize::from(manual)].lock().unwrap();
     if let Some(client) = slot.as_ref() {
         return Ok(client.clone());
     }
@@ -204,7 +208,7 @@ fn plain_client() -> Result<reqwest::Client, RoadError> {
         .map(|c| c.with_root_certificates(rustls::RootCertStore::empty()).with_no_client_auth());
     let client = roots
         .map_err(|e| e.to_string())
-        .and_then(|config| builder().tls_backend_preconfigured(config).build().map_err(|e| e.to_string()))
+        .and_then(|config| builder(manual).tls_backend_preconfigured(config).build().map_err(|e| e.to_string()))
         .map_err(|why| fetch_failed_with(&why, None))?;
     *slot = Some(client.clone());
     Ok(client)
@@ -212,14 +216,14 @@ fn plain_client() -> Result<reqwest::Client, RoadError> {
 
 /// The client for an `https://` request: the system's roots, loaded on the first one. A computer with none cannot verify
 /// the peer, and node's answer to that is its own error, which this request gets; the next one tries again.
-fn tls_client() -> Result<reqwest::Client, RoadError> {
-    static CLIENT: Mutex<Option<reqwest::Client>> = Mutex::new(None);
-    let mut slot = CLIENT.lock().unwrap();
+fn tls_client(manual: bool) -> Result<reqwest::Client, RoadError> {
+    static CLIENTS: [Mutex<Option<reqwest::Client>>; 2] = [Mutex::new(None), Mutex::new(None)];
+    let mut slot = CLIENTS[usize::from(manual)].lock().unwrap();
     if let Some(client) = slot.as_ref() {
         return Ok(client.clone());
     }
     let _ = rustls::crypto::ring::default_provider().install_default();
-    let client = builder()
+    let client = builder(manual)
         .build()
         .map_err(|_| fetch_failed_with("unable to get local issuer certificate", Some("UNABLE_TO_GET_ISSUER_CERT_LOCALLY")))?;
     *slot = Some(client.clone());
@@ -507,10 +511,10 @@ fn decoded(headers: &[(String, String)], body: Vec<u8>) -> Result<Vec<u8>, RoadE
     Ok(body)
 }
 
-async fn send(req: FetchRequest) -> Result<(Prepared, reqwest::Response, Target), RoadError> {
+async fn send(req: FetchRequest, manual: bool) -> Result<(Prepared, reqwest::Response, Target), RoadError> {
     let prepared = prepare(req)?;
     let target = Target::of(&prepared.url);
-    let client = if prepared.url.scheme() == "https" { tls_client()? } else { plain_client()? };
+    let client = if prepared.url.scheme() == "https" { tls_client(manual)? } else { plain_client(manual)? };
     let mut builder = client.request(prepared.method.clone(), prepared.url.clone()).headers(prepared.headers.clone());
     if let Some(body) = prepared.body.clone() {
         builder = builder.body(body);
@@ -540,7 +544,7 @@ impl Fetch for PlatformFetch {
     async fn fetch(&self, req: FetchRequest) -> Result<FetchResponse, RoadError> {
         let abort = req.abort.clone();
         started(abort.as_ref())?;
-        let (_, res, _) = until_ended(abort.as_ref(), send(req)).await?;
+        let (_, res, _) = until_ended(abort.as_ref(), send(req, self.manual)).await?;
         let status = res.status().as_u16();
         let headers = header_pairs(&res);
         let body = until_ended(abort.as_ref(), async { res.bytes().await.map_err(|e| body_error(&e)) }).await?;
@@ -552,7 +556,7 @@ impl Fetch for PlatformFetch {
         use futures::StreamExt;
         let abort = req.abort.clone();
         started(abort.as_ref())?;
-        let (prepared, res, _) = until_ended(abort.as_ref(), send(req)).await?;
+        let (prepared, res, _) = until_ended(abort.as_ref(), send(req, self.manual)).await?;
         let status = res.status().as_u16();
         let headers = header_pairs(&res);
         if prepared.method == reqwest::Method::HEAD || matches!(status, 101 | 204 | 205 | 304) {
