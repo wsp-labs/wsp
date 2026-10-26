@@ -307,7 +307,7 @@ fn get_answers_null_and_no_copies_for_an_unknown_image() {
         let w = World::new();
         let a = ImageArea::new(w.clone());
         let view = to_json(&a.get(None).await.unwrap());
-        assert_eq!(view, json!({"image": null, "copies": [], "projects": []}));
+        assert_eq!(view, json!({"image": null, "copies": []}));
         assert_eq!(to_json(&a.get(Some("other")).await.unwrap())["image"], Value::Null);
         assert_eq!(w.log(), ["ready", "ready"]);
 
@@ -1026,7 +1026,7 @@ fn copy_for_fork_at_a_provider_refuses_a_version_holding_sign_ins() {
         seed_copy(w, "solari", vec![version_with(1, "snap-sol", Some(H1), false, None)], 1);
         let e = refused(a.copy_for_fork("snap-own", None, None).await);
         assert_eq!(e, held_refusal("boat"));
-        assert_eq!(e.message, "Your image on boat was sealed with sign-ins on it. Rebuild it: wsp init --on boat --rebuild.");
+        assert_eq!(e.message, "Your image on boat was sealed with sign-ins on it. Seal your image again for boat.");
         let e = refused(a.copy_for_fork("snap-own", Some("solari"), None).await);
         assert_eq!(e, held_refusal("boat"), "the copy elsewhere names the place the image was sealed at");
 
@@ -1053,7 +1053,7 @@ fn copy_for_fork_at_a_provider_refuses_a_version_holding_sign_ins() {
         w.store.seed("goldens", "elsewhere/default", json!({"head": 1, "versions": [version_with(1, "snap-nowhere", None, false, None)]}));
         let e = err(a.refuse_held_sign_ins("snap-nowhere", "solari").await);
         assert_eq!(e, held_refusal("solari"));
-        assert_eq!(e.fix.as_deref(), Some("Rebuild it: wsp init --on solari --rebuild."));
+        assert_eq!(e.fix.as_deref(), Some("Seal your image again for solari."));
     });
 }
 
