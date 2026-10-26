@@ -580,6 +580,46 @@ pub fn with_custom_models(catalog: &HarnessCatalog, picker: Option<&ModelPicker>
     next
 }
 
+// thread-defaults.ts:275
+/// The model picker's list: hidden models off it and kept apart, the person's order first, the rest in the catalog's.
+/// Hiding the marked model moves the mark to the first one shown; a start still takes a hidden model by name.
+pub fn shape_models(catalog: &HarnessCatalog, picker: Option<&ModelPicker>) -> HarnessCatalog {
+    let Some(picker) = picker else {
+        return catalog.clone();
+    };
+    let hide: &[String] = picker.hide.as_deref().unwrap_or_default();
+    let order: &[String] = picker.order.as_deref().unwrap_or_default();
+    let rank = |m: &HarnessModel| order.iter().position(|o| *o == m.value).unwrap_or(order.len());
+    let shown = |list: &[HarnessModel]| {
+        let mut kept: Vec<HarnessModel> = list.iter().filter(|m| !hide.contains(&m.value)).cloned().collect();
+        kept.sort_by_key(rank);
+        kept
+    };
+    let models = shown(&catalog.models);
+    let legacy_models = catalog.legacy_models.as_deref().map(shown);
+    let hidden: Vec<HarnessModel> = catalog
+        .models
+        .iter()
+        .chain(catalog.legacy_models.iter().flatten())
+        .filter(|m| hide.contains(&m.value))
+        .map(|m| HarnessModel { is_default: None, ..m.clone() })
+        .collect();
+    let kept: Vec<HarnessModel> = models.iter().chain(legacy_models.iter().flatten()).cloned().collect();
+    let lost_mark = marked_default(&every_model(catalog)).is_some() && marked_default(&kept).is_none();
+    let mut next = catalog.clone();
+    next.models = match models.first() {
+        Some(first) if lost_mark => marked_models(&models, &first.value),
+        _ => models,
+    };
+    if legacy_models.is_some() {
+        next.legacy_models = legacy_models;
+    }
+    if !hidden.is_empty() {
+        next.hidden_models = Some(hidden);
+    }
+    next
+}
+
 // thread-defaults.ts:432
 /// Why a launch did not start: the config folder kept at setup now leads somewhere `why` refuses.
 pub fn config_dir_launch_refusal(agent: &str, agent_id: &str, folder: &str, why: &str) -> String {

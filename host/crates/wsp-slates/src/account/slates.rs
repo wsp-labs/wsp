@@ -22,6 +22,7 @@ use wsp_core::ids::OsIds;
 use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::wiring::{Detach, WorkspaceRecord};
 use wsp_engine::machine::Machine;
+use wsp_engine::place_machine::PlaceFolderMachine;
 use wsp_engine::target_line::TargetLogin;
 use wsp_frames::ProcKind;
 use wsp_store::store::Store;
@@ -76,11 +77,14 @@ pub trait SlatesAreaCtx {
     fn running_turn(&self, thread: &str) -> Option<String>;
     fn live(&self, workspace: &str) -> Option<Entry>;
     fn box_of(&self, thread: &str) -> Option<Entry>;
+    /// The joined computer's folder machine the thread's box is, where it is one (`machine instanceof PlaceFolderMachine`).
+    fn place_of(&self, thread: &str) -> Option<Arc<PlaceFolderMachine>>;
     fn folder_of(&self, workspace: &str, session: &str) -> Option<String>;
     fn runs_in(&self, entry: &Entry, ran_in: Option<&str>, fallback: &str) -> String;
     /// The kind module's `folder(record)`.
     fn kind_folder(&self, entry: &Entry) -> Option<String>;
-    fn checkout_of(&self, entry: &Entry) -> String;
+    /// `ctx.checkoutOf(record)`, which throws where the record's project is gone.
+    fn checkout_of(&self, entry: &Entry) -> Result<String, HostError>;
     fn path_exists(&self, path: &str) -> bool;
     fn home_dir(&self) -> String;
     fn computer_of(&self, entry: &Entry) -> String;
@@ -102,7 +106,7 @@ pub trait SlatesAreaCtx {
     fn tree_under(&self, lead: &str) -> Vec<String>;
     fn thread_of_token(&self, token: &str) -> Result<String, HostError>;
     fn own_process(&self, thread: &str, pid: u32, kind: ProcKind) -> Detach;
-    fn daemon_image(&self, entry: &Entry, path: String) -> LocalBoxFuture<'static, Result<Value, String>>;
+    fn daemon_image(&self, entry: &Entry, path: String) -> LocalBoxFuture<'static, Result<Value, ImageRefusal>>;
     fn daemon_hash(&self, entry: &Entry, root: String, paths: Vec<String>) -> LocalBoxFuture<'static, Result<Value, String>>;
     fn agents_server(&self, target: AgentsTarget, agent: &str, name: &str) -> LocalBoxFuture<'static, Result<ReadServer, ServerReadError>>;
     /// This computer's agents reader; `None` when the host reads no agent's MCP config.
@@ -120,7 +124,8 @@ pub trait SlatesAreaCtx {
     fn transcript(&self, workspace: &str) -> Vec<Value>;
     fn usage_account_key(&self, entry: &Entry, harness: &str) -> String;
     fn usage_accounts(&self) -> LocalBoxFuture<'static, Vec<AccountRow>>;
-    fn project_name(&self, project: &str) -> String;
+    /// `ctx.projectHeld(project).name`, which throws where the project is gone.
+    fn project_name(&self, project: &str) -> Result<String, HostError>;
     fn accrued(&self, workspace: &str) -> Option<f64>;
     fn start_session(&self, start: Delivery) -> LocalBoxFuture<'static, Result<Delivered, HostError>>;
     /// Calls `f` on the `session.queued` event with this request id; the answer stops listening.
@@ -193,8 +198,9 @@ impl<C: SlatesAreaCtx + 'static> SlatesWiring<C> {
             return Ok(McpServerSpec { open: Some(open), post: Some(post), ..spec });
         }
 
+        let path = ctx.checkout_of(&entry)?;
         let Some(read) = ctx.agents_reader_server(
-            vec![AgentsProject { id: workspace_id, name: "thread".into(), path: ctx.checkout_of(&entry) }],
+            vec![AgentsProject { id: workspace_id, name: "thread".into(), path }],
             &harness,
             name,
         ) else {
@@ -330,8 +336,8 @@ impl<C: SlatesAreaCtx + 'static> SlateSourceContext for Sources<C> {
         };
         Some(SlateWorkspaceFacts {
             computer: Some(self.ctx.computer_of(&entry)),
-            project: Some(self.ctx.project_name(&project)),
-            folder: Some(self.ctx.checkout_of(&entry)),
+            project: Some(self.ctx.project_name(&project).ok()?),
+            folder: Some(self.ctx.checkout_of(&entry).ok()?),
             checkout,
             pr,
             rate_usd_per_hour: Some(self.ctx.entry_rate_usd_per_hour(&entry).unwrap_or(0.0)),
@@ -394,12 +400,16 @@ impl<C: SlatesAreaCtx + 'static> SlatesDeps for SlatesWiring<C> {
                 tool_asks,
             });
         };
-        let fallback = ctx.kind_folder(&entry).unwrap_or_else(|| ctx.checkout_of(&entry));
+        // The facts answer none where the checkout read throws (slates.ts:40 would reject): the seam is infallible.
+        let fallback = match ctx.kind_folder(&entry) {
+            Some(folder) => folder,
+            None => ctx.checkout_of(&entry).ok()?,
+        };
         let folder = ctx.runs_in(&entry, ran_in.as_deref(), &fallback);
         let host_folder = if is_local_workspace(Some(&record_of(&entry).kind)) {
             folder.clone()
         } else {
-            let checkout = ctx.checkout_of(&entry);
+            let checkout = ctx.checkout_of(&entry).ok()?;
             if ctx.path_exists(&checkout) {
                 checkout
             } else {
@@ -428,6 +438,10 @@ impl<C: SlatesAreaCtx + 'static> SlatesDeps for SlatesWiring<C> {
         Some(machine)
     }
 
+    fn place_of(&self, thread_id: &str) -> Option<Arc<PlaceFolderMachine>> {
+        self.ctx.place_of(thread_id)
+    }
+
     fn image_on(&self, thread_id: &str) -> Option<ImageOn> {
         let entry = self.ctx.box_of(thread_id)?;
         let name = self.ctx.computer_of(&entry);
@@ -435,7 +449,7 @@ impl<C: SlatesAreaCtx + 'static> SlatesDeps for SlatesWiring<C> {
         let read: Rc<dyn Fn(String) -> LocalBoxFuture<'static, Result<FsImageReply, ImageRefusal>>> = Rc::new(move |path: String| {
             let reply = ctx.daemon_image(&entry, path);
             async move {
-                let value = reply.await.map_err(|message| ImageRefusal { code: None, message })?;
+                let value = reply.await?;
                 wsp_wire::types::check::parse::<FsImageReply>(&value).map_err(|e| ImageRefusal { code: None, message: e.message })
             }
             .boxed_local()

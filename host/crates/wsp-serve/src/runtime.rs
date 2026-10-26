@@ -3,6 +3,7 @@
 //! area in its fixed order, then the public runtime. Specs: spec/runtime_core.md, spec/runtime_of.md.
 pub mod core;
 pub mod join;
+pub mod probe;
 pub mod public;
 
 use std::rc::Rc;

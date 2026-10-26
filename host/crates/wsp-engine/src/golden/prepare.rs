@@ -120,7 +120,7 @@ pub async fn prepare_builder(opts: PrepareBuilderOptions, clock: &dyn RetryClock
         let size = size_built(&*machine, asked).await;
         stage.bare(GoldenStage::DeployingDaemon);
         // The floor goes on before the daemon: the deploy's own steps type the tools it puts there.
-        let base = install_base_with(&*machine, stage.listener(), InstallBaseOptions::default()).await?;
+        let base = install_base_with(&*machine, stage.tool_listener(), InstallBaseOptions::default()).await?;
         let deployed = match &opts.deploy_daemon {
             Some(deploy) => deploy(machine.clone()).await?,
             None => None,

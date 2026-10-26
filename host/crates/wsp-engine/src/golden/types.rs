@@ -22,8 +22,7 @@ use crate::machine::{Machine, MachineBackend};
 use crate::machine_context::ContextResult;
 
 /// golden.ts:31 `StageListener`: `(stage, detail, step, left)`. `left` names the machines the stage made and could not
-/// remove; only a failure that tried to clean up carries it. The engine's tools loop cannot carry a `step` (its own
-/// listener has two arguments), so the frames it writes carry none.
+/// remove; only a failure that tried to clean up carries it. `step` is set by the tools loop's install frames alone.
 pub type StageFn = Arc<dyn Fn(GoldenStage, Option<&str>, Option<GoldenStep>, Option<&[String]>)>;
 
 /// golden.ts:380 `MachineSize`.
@@ -333,10 +332,15 @@ impl Stage {
     pub(crate) fn failed(&self, detail: &str, left: &[String]) {
         (self.0)(GoldenStage::Failed, Some(detail), None, Some(left));
     }
-    /// The two-argument listener the tools loop, the MCP round and the plugins take.
+    /// The two-argument listener the MCP round and the plugins take.
     pub(crate) fn listener(&self) -> crate::golden_seam::StageListener {
         let f = self.0.clone();
         Arc::new(move |stage, detail| f(stage, detail, None, None))
+    }
+    /// The listener the tools loop takes: its install frames carry the step they clock.
+    pub(crate) fn tool_listener(&self) -> crate::golden_seam::ToolStage {
+        let f = self.0.clone();
+        Arc::new(move |stage, detail, step| f(stage, detail, step, None))
     }
 }
 

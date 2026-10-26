@@ -108,8 +108,6 @@ struct BashMachine {
 }
 
 impl BashMachine {
-    // wsp-engine holds a machine in an `Arc` and runs it on one thread; the fake follows its seam.
-    #[allow(clippy::arc_with_non_send_sync)]
     fn new() -> Arc<BashMachine> {
         Arc::new(BashMachine {
             killed: Cell::new(false),

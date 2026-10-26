@@ -170,7 +170,7 @@ impl Clock for FakeClock {
         let id = {
             let mut st = self.state.borrow_mut();
             st.seq += 1;
-            let (id, at) = (st.seq, st.now + ms);
+            let (id, at) = (st.seq, st.now.saturating_add(ms));
             st.timers.push(Pending { id, at, f });
             id
         };

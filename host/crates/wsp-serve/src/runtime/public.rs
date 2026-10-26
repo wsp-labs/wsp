@@ -439,7 +439,7 @@ pub trait StatusCtx {
         &self,
         o: Option<wsp_core::status::StatusListOptions>,
     ) -> Result<Vec<wsp_wire::views::workspace_more::WorkspaceStatus>, HostError>;
-    fn listed_for(&self, origin: Option<&Caller>) -> Vec<String>;
+    fn listed_for(&self, origin: Option<&Caller>) -> Result<Vec<String>, HostError>;
     fn refuse_named(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<(), HostError>;
     async fn history(&self, workspace_id: &str) -> Result<Vec<serde_json::Value>, HostError>;
 }
@@ -451,7 +451,7 @@ pub async fn status_list(
     origin: Option<Caller>,
 ) -> Result<Vec<wsp_wire::views::workspace_more::WorkspaceStatus>, HostError> {
     let rows = ctx.probe_list(o).await?;
-    let shown: HashSet<String> = ctx.listed_for(origin.as_ref()).into_iter().collect();
+    let shown: HashSet<String> = ctx.listed_for(origin.as_ref())?.into_iter().collect();
     Ok(rows.into_iter().filter(|row| shown.contains(&row.id)).collect())
 }
 

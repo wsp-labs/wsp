@@ -7,6 +7,10 @@ license = "AGPL-3.0-only"
 publish = false
 description = "The slates area of the runtime: the slate store, its runs, its files, images, tools and sources"
 
+[lints.clippy]
+# The engine holds its handles in `Arc`s and runs them on one thread (`?Send` traits); the crates that hand it one follow.
+arc_with_non_send_sync = "allow"
+
 [dependencies]
 async-trait = "0.1"
 base64 = "0.22"
