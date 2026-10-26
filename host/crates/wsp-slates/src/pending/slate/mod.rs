@@ -399,6 +399,7 @@ pub mod catalog;
 pub mod chart;
 pub mod expr;
 pub mod image;
+pub mod kit;
 pub mod patch;
 pub mod paths;
 pub mod problems;
@@ -434,7 +435,15 @@ pub use shape::{
     sketch_slate_result, slate_field_words, slate_result_shape, SlateColumn, SlateFact, SlateNested, SlateResultShape, SLATE_RESULT_ROWS,
 };
 pub use sketch::sketch_slate;
-pub use sources::{is_slate_source, SLATE_SOURCE_NAMES};
+pub use kit::{
+    slate_figure, slate_held_text, slate_piece_module, slate_reserved_prop, SlateChildLimit, SlateItemSpec, SlateBinds, SlateMost,
+    SlatePieceCheck, SlatePieceModule, SlatePropSpec, SlatePropType, SlateSketchFn, SlateSketchView, SLATE_EVENTS, SLATE_FIGURES,
+    SLATE_ITEM_KINDS, SLATE_PIECES, SLATE_RESERVED_PROPS, SLATE_TONES,
+};
+pub use sources::{
+    is_slate_source, slate_is_series, slate_shape_text, slate_shape_type, slate_source_type, SlateShape, SlateSourceModule, SLATE_SOURCES,
+    SLATE_SOURCE_NAMES,
+};
 pub use steps::{slate_domain_key, slate_link_domain, slate_step_module, SlateStepModule, SLATE_STEPS};
 pub use syntax::{parse_slate, parse_slate_patch, print_slate};
 pub use validate::validate_slate;
