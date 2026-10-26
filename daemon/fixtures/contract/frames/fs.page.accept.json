@@ -1,0 +1,13 @@
+[
+  {
+    "id": 1,
+    "op": "fs.page",
+    "path": "/tmp/dial.html"
+  },
+  {
+    "id": 1,
+    "op": "fs.page",
+    "path": "/root/repo/figures/dial.html",
+    "machineId": "wsp-a"
+  }
+]

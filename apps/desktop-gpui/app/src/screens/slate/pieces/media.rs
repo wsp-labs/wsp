@@ -429,7 +429,7 @@ impl SlateScreen {
 }
 
 /// How many times the slate's runs have finished, which moves when a run ends and not while it ticks along.
-fn runs_ended(slate: &Slate) -> u64 {
+pub(super) fn runs_ended(slate: &Slate) -> u64 {
     let Some(doc) = slate.doc() else { return 0 };
     doc.runs
         .keys()

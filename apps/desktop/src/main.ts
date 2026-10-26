@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { adoptLoginPath, agentsHere, aimedHost, appLogsDir, computerNameHere, connectPatiently, daemonBinaryHere, dialHost, hostLogPath, installEach, mcpServerSpec, releaseFetch, runningWsp, serviceAddressHere, shimPath, systemService, wspHome, VERSION, type CliIO } from "@wsp/host";
 import { BROWSER_PARTITION, DEFAULT_PREFERENCES, HOME_ENV, type BundleOutcome, HOST_WORDS, OutsideLine, ThemePreference, hostMenuAction, hostsMenuItems } from "@wsp/protocol";
-import { BrowserWindow, Menu, Notification, Tray, app, crashReporter, dialog, ipcMain, nativeImage, nativeTheme, powerSaveBlocker, session as sessions, shell, webContents, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
+import { BrowserWindow, Menu, Notification, Tray, app, crashReporter, dialog, ipcMain, nativeImage, nativeTheme, powerSaveBlocker, screen, session as sessions, shell, webContents, type IpcMainEvent, type IpcMainInvokeEvent } from "electron";
 import { APP_LOG, openAppLog, rendererReport } from "./app-log.js";
 import { appProcLabels, pagesOf } from "./app-procs.js";
 import { awakeWanted } from "./awake.js";
@@ -31,6 +31,7 @@ import { installShim, keepAppImage, replaceOlderOnPath, shimText, type ShimTarge
 import { sayStartFailed, startingAfter } from "./starting.js";
 import { trayModel, trayNotice, type TrayAct, type TrayModel, type TrayRow } from "./tray.js";
 import { desktopOf, setsMenu, titleBarOverlayFor, vibrancyFor, windowOptions, type UpdateRoad } from "./window.js";
+import { drawLook } from "./slate-look.js";
 import { isShellZoomChord, shellChordOf } from "./zoom.js";
 
 // Before any fetch: node gives each address 250 ms, which drops GitHub's first on a network slow to connect.
@@ -708,8 +709,18 @@ function follow(on: HostSession): void {
     },
     event: sayWhileClosed,
     log: io.error,
-    ...(on.remote ? {} : { appProcs: readAppProcs }),
+    ...(on.remote ? {} : { appProcs: readAppProcs, slateLook: (threadId: string, width?: number) => drawLook(threadId, width, { url: on.url, scale: screen.getPrimaryDisplay().scaleFactor, open: openLookWindow }) }),
   });
+}
+
+/** The window a look is drawn in: the main window's page and preload, offscreen at the display's scale, never shown,
+ * opening and leaving for nothing. */
+function openLookWindow(size: { width: number; height: number }, scale: number): BrowserWindow {
+  const base = windowOptions(process.platform, app.getVersion(), PRELOAD, updateRoad, DESKTOP);
+  const look = new BrowserWindow({ ...size, show: false, frame: false, webPreferences: { ...base.webPreferences, offscreen: { deviceScaleFactor: scale } } });
+  look.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  look.webContents.on("will-navigate", event => event.preventDefault());
+  return look;
 }
 
 const readAppProcs = () => appProcLabels(app.getAppMetrics(), pagesOf(webContents.getAllWebContents().filter(c => !c.isDestroyed())));

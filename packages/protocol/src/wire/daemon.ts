@@ -667,6 +667,9 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   z.object({ id: reqId, op: z.literal("fs.read"), path: z.string(), encoding: FsReadEncoding.optional(), machineId: z.string().optional() }),
   /** A slate's image by its whole path, answered with its bytes only where they are an image under FS_IMAGE_CAP_BYTES. */
   z.object({ id: reqId, op: z.literal("fs.image"), path: z.string(), machineId: z.string().optional() }),
+  /** A slate frame's page by its whole path, read as fs.image reads: its bytes only where it is named .html or .htm and
+   * is UTF-8 text under FS_PAGE_CAP_BYTES, answered in an FsImageReply typed text/html. */
+  z.object({ id: reqId, op: z.literal("fs.page"), path: z.string(), machineId: z.string().optional() }),
   /** The files a slate's command names inside root, hashed: what an Always pins on the thread's own computer. */
   z.object({ id: reqId, op: z.literal("fs.hash"), root: z.string(), paths: z.array(z.string()), machineId: z.string().optional() }),
   /** Replaces an existing regular file's contents whole and answers an FsWriteReply: written beside it and renamed
