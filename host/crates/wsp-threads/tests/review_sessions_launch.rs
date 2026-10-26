@@ -45,7 +45,10 @@ fn a_start_stopped_while_it_waits_for_a_slot_fails_at_once_with_the_stops_words(
             Rc::new(|_r: &WorkspaceRecord, _t: &str| Some(full_wait())),
         );
         let (stop, waits) = gate();
-        r.host.hooks.set::<dyn Fn(CapAt, ThreadCapWait) -> Joined>("SessionsCtx::cap_wait", Rc::new(move |_a: CapAt, _f: ThreadCapWait| waits.clone()));
+        r.host.hooks.set::<dyn Fn(CapAt, ThreadCapWait) -> Joined>(
+            "SessionsCtx::cap_wait",
+            Rc::new(move |_a: CapAt, _f: ThreadCapWait| waits.clone()),
+        );
         let mut p = prepared(&r);
         p.opts.on_held = Some(Rc::new(|_h: HeldStart| {}));
         let join = r.spawn(p);

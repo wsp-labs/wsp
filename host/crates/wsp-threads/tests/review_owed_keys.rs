@@ -46,7 +46,8 @@ fn bare(id: &str) -> Owed {
         notify: PARENT.into(),
         text: "t".into(),
         by: Some(
-            serde_json::from_value(json!({ "kind": "thread", "threadId": "lead", "workspaceId": "ws1", "rootThreadId": "lead" })).expect("a scope"),
+            serde_json::from_value(json!({ "kind": "thread", "threadId": "lead", "workspaceId": "ws1", "rootThreadId": "lead" }))
+                .expect("a scope"),
         ),
         road: Some(serde_json::from_value(json!("here")).expect("an origin")),
         started_by: None,
@@ -77,8 +78,13 @@ fn a_line_awaiting_a_sub_threads_result_keeps_awaits_result_before_since_and_req
 /// `images` before `since`.
 #[test]
 fn an_unread_steers_line_keeps_started_by_before_by_and_images_before_since() {
-    let images = serde_json::from_value(json!({ "under": "req-s", "records": [{ "mediaType": "image/png", "bytes": 3 }] })).expect("images");
-    let line = Owed { started_by: Some(serde_json::from_value(json!("person")).expect("an origin")), images: Some(images), ..bare("u-t:unread:st1") };
+    let images =
+        serde_json::from_value(json!({ "under": "req-s", "records": [{ "mediaType": "image/png", "bytes": 3 }] })).expect("images");
+    let line = Owed {
+        started_by: Some(serde_json::from_value(json!("person")).expect("an origin")),
+        images: Some(images),
+        ..bare("u-t:unread:st1")
+    };
     assert_eq!(
         keys(&serde_json::to_value(&line).expect("a line serializes")),
         words(&["id", "from", "notify", "text", "startedBy", "by", "road", "toPerson", "images", "since", "requestId", "tries", "next"])
@@ -100,7 +106,12 @@ fn the_person_row_of_a_fallen_line_has_its_text_before_its_thread() {
             by: None,
             road: None,
             started_by: None,
-            to_person: Some(PersonRow { workspace_id: "ws-c".into(), session_id: "cs-c".into(), turn_id: "u-c".into(), text: "told".into() }),
+            to_person: Some(PersonRow {
+                workspace_id: "ws-c".into(),
+                session_id: "cs-c".into(),
+                turn_id: "u-c".into(),
+                text: "told".into(),
+            }),
             since: None,
             request_id: None,
             tries: None,

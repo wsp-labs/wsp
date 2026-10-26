@@ -52,9 +52,9 @@ fn record_copies_survives_a_stored_index_whose_pos_is_u64_max() {
 /// it hold (rows.rs:685); the TS adds floats (transcripts.ts:466).
 #[test]
 fn load_index_survives_a_stored_words_size_at_the_top_of_usize_for_a_running_thread() {
+    use wsp_core::types::internal::SessionEntry;
     use wsp_core::types::internal::ThreadWords;
     use wsp_wire::types::js_number::JsNumber;
-    use wsp_core::types::internal::SessionEntry;
     local(async {
         let ctx = FakeTranscriptsCtx::new();
         let words = |size: usize, last: f64| ThreadWords {

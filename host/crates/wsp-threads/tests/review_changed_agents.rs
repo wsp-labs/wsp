@@ -38,7 +38,8 @@ fn defaults_on_adds_a_custom_model_after_the_binarys_hides_none_and_leaves_the_c
     prefs.agent_defaults.insert(
         "claude".to_string(),
         wsp_wire::types::thread_defaults::Fields::new(
-            serde_json::from_value(json!({ "models": { "hide": ["claude-opus-5-5"], "custom": ["claude-opus-6-preview"] } })).expect("agent defaults"),
+            serde_json::from_value(json!({ "models": { "hide": ["claude-opus-5-5"], "custom": ["claude-opus-6-preview"] } }))
+                .expect("agent defaults"),
         ),
     );
     let answered = AgentsArea::defaults_on(&claude_table(), &prefs, None);
