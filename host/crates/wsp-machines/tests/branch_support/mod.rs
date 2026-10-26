@@ -168,6 +168,8 @@ pub struct FakeCtx {
     pub read_log: RefCell<Vec<String>>,
     pub marketplaces: RefCell<Vec<MarketplaceFile>>,
     minted: Cell<u32>,
+    /// When set, `turn_road_of` answers this error (the TS `moduleOf(record.kind).turnRoad` throws on an unwired kind).
+    pub turn_road_failure: RefCell<Option<HostError>>,
 }
 
 impl FakeCtx {
@@ -196,6 +198,7 @@ impl FakeCtx {
             read_log: RefCell::default(),
             marketplaces: RefCell::default(),
             minted: Cell::new(0),
+            turn_road_failure: RefCell::new(None),
         })
     }
 
@@ -368,16 +371,19 @@ impl BranchCtx for FakeCtx {
             None => Ok(true),
         }
     }
-    fn turn_road_of(&self, record: &WorkspaceRecord) -> MintMore {
+    fn turn_road_of(&self, record: &WorkspaceRecord) -> Result<MintMore, HostError> {
+        if let Some(e) = self.turn_road_failure.borrow().clone() {
+            return Err(e);
+        }
         let road = if record.kind == WorkspaceKind::Cloud {
             WorkspaceOrigin::Relayed
         } else {
             WorkspaceOrigin::Here
         };
-        MintMore {
+        Ok(MintMore {
             road: Some(road),
             aside: false,
-        }
+        })
     }
     fn place_name(&self, place: &str) -> String {
         self.place_names

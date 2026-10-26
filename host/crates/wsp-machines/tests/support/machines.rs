@@ -1139,6 +1139,10 @@ pub struct Rt {
     pub unlogged: RefCell<Vec<String>>,
     lazy_records: RefCell<Vec<(usize, String)>>,
     pub cfg: RefCell<RtCfg>,
+    /// When set, `backend_for` answers this error (the TS `backendFor` throws for a kind with no module).
+    pub backend_for_failure: RefCell<Option<HostError>>,
+    /// When set, `module_of` answers this error (the TS `moduleOf` throws for a kind it does not wire).
+    pub module_of_failure: RefCell<Option<HostError>>,
 }
 
 impl Rt {
@@ -1304,15 +1308,21 @@ impl MachinesRuntime for Rt {
         self.log.push(json!(["subLost", id, reason]));
         Ok(GoneOutcome::Settled)
     }
-    fn backend_for(&self, _record: &WorkspaceRecord) -> Arc<dyn MachineBackend> {
-        self.backend.borrow().clone()
+    fn backend_for(&self, _record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError> {
+        if let Some(e) = self.backend_for_failure.borrow().clone() {
+            return Err(e);
+        }
+        Ok(self.backend.borrow().clone())
     }
-    fn module_of(&self, kind: &str) -> Rc<dyn KindModule> {
-        Rc::new(FakeKind {
+    fn module_of(&self, kind: &str) -> Result<Rc<dyn KindModule>, HostError> {
+        if let Some(e) = self.module_of_failure.borrow().clone() {
+            return Err(e);
+        }
+        Ok(Rc::new(FakeKind {
             kind: kind.into(),
             log: self.log.clone(),
             dropped_err: self.cfg.borrow().dropped_err.clone(),
-        })
+        }))
     }
     fn keeps_images(&self, _backend: &Arc<dyn MachineBackend>) -> bool {
         self.cfg.borrow().keeps_images
@@ -1547,6 +1557,8 @@ impl World {
             unlogged: RefCell::new(Vec::new()),
             lazy_records: RefCell::new(Vec::new()),
             cfg: RefCell::new(RtCfg::default()),
+            backend_for_failure: RefCell::new(None),
+            module_of_failure: RefCell::new(None),
         });
         let area = MachinesArea::new(
             rt.clone() as Rc<dyn MachinesRuntime>,

@@ -814,6 +814,12 @@ pub struct FakeRuntime {
     pub area: RefCell<Weak<CreateArea>>,
     /// What the live map and the log held the moment each `bind` returned, with no await since the fork called it.
     pub bound: RefCell<Vec<Value>>,
+    /// When set, `project_held` answers this error (the TS `projectHeld` throws on an unknown project).
+    pub project_held_failure: RefCell<Option<HostError>>,
+    /// When set, `daemon_answers_ms` answers this error (the TS `lifecycleOf(entry)` throws where no lifecycle is declared).
+    pub daemon_answers_failure: RefCell<Option<HostError>>,
+    /// When set, `module_of` answers this error (the TS `moduleOf` throws for a kind it does not wire).
+    pub module_of_failure: RefCell<Option<HostError>>,
 }
 
 fn is_backend(a: &Arc<dyn MachineBackend>, b: &Arc<dyn MachineBackend>) -> bool {
@@ -917,9 +923,12 @@ impl CreateRuntime for FakeRuntime {
             .push(json!(["rememberProject", project.memory_dir]));
         Ok(())
     }
-    fn project_held(&self, project_id: &str) -> ProjectView {
+    fn project_held(&self, project_id: &str) -> Result<ProjectView, HostError> {
         self.log.push(json!(["projectHeld", project_id]));
-        self.project.clone()
+        if let Some(e) = self.project_held_failure.borrow().clone() {
+            return Err(e);
+        }
+        Ok(self.project.clone())
     }
     fn keeps_images(&self, at: &Arc<dyn MachineBackend>) -> bool {
         self.log.push(json!([
@@ -1111,8 +1120,11 @@ impl CreateRuntime for FakeRuntime {
             .filter(|s| *s)
             .map(|_| "computer".to_string())
     }
-    fn daemon_answers_ms(&self, _entry: &Entry) -> u64 {
-        30_000
+    fn daemon_answers_ms(&self, _entry: &Entry) -> Result<u64, HostError> {
+        if let Some(e) = self.daemon_answers_failure.borrow().clone() {
+            return Err(e);
+        }
+        Ok(30_000)
     }
     async fn daemon_reach(&self, _entry: &Entry) -> Result<(), HostError> {
         if self.s.get("reach").and_then(Value::as_str) == Some("fails") {
@@ -1150,8 +1162,11 @@ impl CreateRuntime for FakeRuntime {
             _ => false,
         }
     }
-    fn module_of(&self, kind: &str) -> Rc<dyn KindModule> {
-        Rc::new(FakeModule {
+    fn module_of(&self, kind: &str) -> Result<Rc<dyn KindModule>, HostError> {
+        if let Some(e) = self.module_of_failure.borrow().clone() {
+            return Err(e);
+        }
+        Ok(Rc::new(FakeModule {
             log: self.log.clone(),
             kind: kind.to_string(),
             land_fails: self
@@ -1159,7 +1174,7 @@ impl CreateRuntime for FakeRuntime {
                 .get("landFails")
                 .and_then(Value::as_bool)
                 .unwrap_or(false),
-        })
+        }))
     }
     async fn write_daemon_roots(&self, entry: &Entry) -> Result<(), HostError> {
         let id = entry.borrow().record.borrow().id.clone();
@@ -1444,6 +1459,9 @@ impl World {
             holders,
             area: RefCell::new(Weak::new()),
             bound: RefCell::new(vec![]),
+            project_held_failure: RefCell::new(None),
+            daemon_answers_failure: RefCell::new(None),
+            module_of_failure: RefCell::new(None),
         });
         let area = CreateArea::new(rt.clone());
         *rt.area.borrow_mut() = Rc::downgrade(&area);

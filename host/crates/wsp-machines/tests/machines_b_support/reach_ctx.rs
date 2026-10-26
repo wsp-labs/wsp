@@ -63,6 +63,12 @@ pub struct Knobs {
     pub status_gate: RefCell<Option<Arc<Semaphore>>>,
     /// What `on_this_computer` answers for the frame it was handed.
     pub compare: RefCell<Option<Rc<dyn Fn(&Value) -> Result<Value, String>>>>,
+    /// When set, `project_held` answers this error (the TS `projectHeld` throws on an unknown project).
+    pub project_held_failure: RefCell<Option<HostError>>,
+    /// When set, `checkout_of` answers this error (the TS `checkoutOf` reaches `projectHeld`).
+    pub checkout_failure: RefCell<Option<HostError>>,
+    /// When set, `kind_has_daemon` answers this error (the TS `moduleOf(kind).hasDaemon` throws on an unwired kind).
+    pub kind_has_daemon_failure: RefCell<Option<HostError>>,
 }
 
 impl Knobs {
@@ -81,6 +87,9 @@ impl Knobs {
             status: RefCell::new(IndexMap::new()),
             status_gate: RefCell::new(None),
             compare: RefCell::new(None),
+            project_held_failure: RefCell::new(None),
+            checkout_failure: RefCell::new(None),
+            kind_has_daemon_failure: RefCell::new(None),
         }
     }
 }
@@ -385,8 +394,11 @@ impl ReachCtx for FakeHost {
     fn unreached_of(&self, entry: &Entry) -> Option<String> {
         knobs().unreached.borrow().get(&entry_id(entry)).cloned()
     }
-    fn kind_has_daemon(&self, _entry: &Entry) -> bool {
-        knobs().has_daemon.get()
+    fn kind_has_daemon(&self, _entry: &Entry) -> AreaResult<bool> {
+        if let Some(e) = knobs().kind_has_daemon_failure.borrow().clone() {
+            return Err(AreaError::Host(e));
+        }
+        Ok(knobs().has_daemon.get())
     }
     fn view(&self, record: &WorkspaceRecord) -> Value {
         json!({ "id": record.id, "name": record.name, "phase": record.phase })
@@ -456,14 +468,17 @@ impl ReachCtx for FakeHost {
         }
         link
     }
-    fn project_held(&self, id: &str) -> ProjectView {
+    fn project_held(&self, id: &str) -> AreaResult<ProjectView> {
+        if let Some(e) = knobs().project_held_failure.borrow().clone() {
+            return Err(AreaError::Host(e));
+        }
         let v = knobs()
             .projects
             .borrow()
             .get(id)
             .cloned()
             .unwrap_or_else(|| panic!("the test set no project {id}"));
-        serde_json::from_value(v).expect("a project view")
+        Ok(serde_json::from_value(v).expect("a project view"))
     }
     async fn with_daemon(&self, entry: &Entry, frame: Value) -> AreaResult<Value> {
         let id = entry_id(entry);
@@ -492,8 +507,11 @@ impl ReachCtx for FakeHost {
             ))),
         }
     }
-    fn checkout_of(&self, _record: &WorkspaceRecord) -> String {
-        CWD.to_string()
+    fn checkout_of(&self, _record: &WorkspaceRecord) -> AreaResult<String> {
+        if let Some(e) = knobs().checkout_failure.borrow().clone() {
+            return Err(AreaError::Host(e));
+        }
+        Ok(CWD.to_string())
     }
     fn served_by_its_computer(&self, _entry: &Entry) -> bool {
         knobs().served.get()

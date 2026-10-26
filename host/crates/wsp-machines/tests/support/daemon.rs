@@ -549,6 +549,14 @@ pub struct FakeRuntime {
     pub roots_hold: Rc<RefCell<Option<oneshot::Receiver<()>>>>,
     pub area: RefCell<Weak<DaemonArea>>,
     pub request_ids: RefCell<Vec<String>>,
+    /// When set, `module_of` answers this error (the TS `moduleOf` throws for a kind it does not wire).
+    pub module_of_failure: RefCell<Option<HostError>>,
+    /// When set, `project_path` answers this error (the TS `projectHeld(id).path` throws on an unknown project).
+    pub project_path_failure: RefCell<Option<HostError>>,
+    /// When set, `checkout_of` answers this error (the TS `checkoutOf` reaches `projectHeld`).
+    pub checkout_failure: RefCell<Option<HostError>>,
+    /// When set, `backend_for` answers this error (the TS `backendFor` throws for a kind with no module).
+    pub backend_for_failure: RefCell<Option<HostError>>,
 }
 
 impl FakeRuntime {
@@ -683,7 +691,10 @@ impl DaemonRuntime for FakeRuntime {
             .filter(|c| c.served)
             .map(|_| "computer".to_string())
     }
-    fn module_of(&self, kind: &str) -> Rc<dyn KindModule> {
+    fn module_of(&self, kind: &str) -> Result<Rc<dyn KindModule>, HostError> {
+        if let Some(e) = self.module_of_failure.borrow().clone() {
+            return Err(e);
+        }
         let cfg = self
             .cfgs
             .iter()
@@ -691,26 +702,35 @@ impl DaemonRuntime for FakeRuntime {
             .expect("an entry of that kind")
             .md
             .clone();
-        Rc::new(FakeModule {
+        Ok(Rc::new(FakeModule {
             log: self.log.clone(),
             cfg,
             daemon_version: self.daemon_version,
             gates: self.gates.clone(),
             roots_hold: self.roots_hold.clone(),
-        })
+        }))
     }
-    fn project_path(&self, project_id: &str) -> String {
-        format!("/work/{project_id}")
+    fn project_path(&self, project_id: &str) -> Result<String, HostError> {
+        if let Some(e) = self.project_path_failure.borrow().clone() {
+            return Err(e);
+        }
+        Ok(format!("/work/{project_id}"))
     }
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String {
-        format!("/work/{}/{}", record.project, record.id)
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError> {
+        if let Some(e) = self.checkout_failure.borrow().clone() {
+            return Err(e);
+        }
+        Ok(format!("/work/{}/{}", record.project, record.id))
     }
-    fn backend_for(&self, record: &WorkspaceRecord) -> Arc<dyn MachineBackend> {
+    fn backend_for(&self, record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError> {
+        if let Some(e) = self.backend_for_failure.borrow().clone() {
+            return Err(e);
+        }
         let signed_urls = self
             .cfg_of(&record.id)
             .map(|c| c.signed_urls)
             .unwrap_or(true);
-        Arc::new(FakeBackend { signed_urls })
+        Ok(Arc::new(FakeBackend { signed_urls }))
     }
 }
 
@@ -875,6 +895,10 @@ impl World {
             gates: Rc::default(),
             roots_hold: Rc::new(RefCell::new(roots_hold)),
             area: RefCell::new(Weak::new()),
+            module_of_failure: RefCell::new(None),
+            project_path_failure: RefCell::new(None),
+            checkout_failure: RefCell::new(None),
+            backend_for_failure: RefCell::new(None),
             request_ids: RefCell::new(vec![]),
         });
         let area = DaemonArea::new(rt.clone());

@@ -940,14 +940,22 @@ impl KindsCtx for FakeHost {
     fn wired_place(&self) -> String {
         world(|w| w.wired.clone())
     }
-    fn project_held(&self, id: &str) -> ProjectView {
-        world(|w| w.projects.get(id).cloned())
-            .unwrap_or_else(|| panic!("the test held no project {id}"))
+    fn project_held(&self, id: &str) -> AreaResult<ProjectView> {
+        if let Some(e) = self.project_held_failure.borrow().clone() {
+            return Err(AreaError::Host(e));
+        }
+        Ok(world(|w| w.projects.get(id).cloned())
+            .unwrap_or_else(|| panic!("the test held no project {id}")))
     }
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String {
+    fn checkout_of(&self, record: &WorkspaceRecord) -> AreaResult<String> {
+        if let Some(e) = self.checkout_failure.borrow().clone() {
+            return Err(AreaError::Host(e));
+        }
         match record.worktree.as_ref().map(|t| t.path.clone()) {
-            Some(path) => path,
-            None => self.project_held(&record.project).path,
+            Some(path) => Ok(path),
+            None => Ok(world(|w| w.projects.get(&record.project).cloned())
+                .unwrap_or_else(|| panic!("the test held no project {}", record.project))
+                .path),
         }
     }
     fn computer_of(&self, entry: &LiveWorkspace) -> String {
