@@ -370,6 +370,9 @@ pub fn live_entry(fields: Value) -> (Entry, Arc<FakeMachine>) {
 }
 
 impl TranscriptsCtx for FakeTranscriptsCtx {
+    fn spawn(&self, work: LocalBoxFuture<'static, ()>) {
+        super::spawn_detached(work);
+    }
     fn clock(&self) -> Rc<dyn Clock> {
         self.clock.clone()
     }

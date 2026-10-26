@@ -21,7 +21,7 @@ use wsp_words::words::thread::still_running_line;
 use wsp_words::words::tools::tool_call_facts;
 use wsp_words::words::turn::{notify_body, turn_lines, NotifyLength};
 
-use super::run::{detach, session_status_of, TurnState};
+use super::run::{detach, failure as failure_of, session_status_of, TurnState};
 use super::{BurnAsk, LedgerUse, LimitAsk};
 use crate::threads::threads::Row;
 
@@ -221,6 +221,7 @@ impl TurnState {
         };
         let ctx = self.ctx.clone();
         detach(
+            &self.ctx,
             async move {
                 let _ = ctx.persist_record(record).await;
             }
@@ -238,6 +239,7 @@ impl TurnState {
                 let ctx = self.ctx.clone();
                 let title = title.clone();
                 detach(
+                    &self.ctx,
                     async move {
                         let _ = ctx.name_in_harness(view, &title).await;
                     }
@@ -445,6 +447,7 @@ impl TurnState {
             let ctx = self.ctx.clone();
             let turn = self.turn_id.clone();
             detach(
+                &self.ctx,
                 async move {
                     if let Err(e) = ctx.ledger_add(row).await {
                         wsp_core::console::warn(&format!("the use of turn {turn} was not filed: {}", e.message));
@@ -474,6 +477,7 @@ impl TurnState {
         let ctx = self.ctx.clone();
         let key = account.key;
         detach(
+            &self.ctx,
             async move {
                 let kept: Result<(), HostError> = async {
                     let (before, after) = ctx.ledger_limit(ask).await?;
@@ -563,7 +567,7 @@ impl TurnState {
         failure: Option<wsp_adapters::port::ExecFailure>,
     ) {
         if let Some(failure) = failure {
-            self.row.borrow_mut().turn_live.get_or_insert_with(TurnLive::default).failure = Some(HostError::new(failure.message));
+            self.row.borrow_mut().turn_live.get_or_insert_with(TurnLive::default).failure = Some(failure_of(failure));
         }
         self.close_open_asks();
         if let Some(reply) = self.live_reply() {

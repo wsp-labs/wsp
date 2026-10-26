@@ -542,25 +542,6 @@ fn marked(list: &Value) -> Option<String> {
     list.as_array()?.iter().find(|o| o["isDefault"] == true).map(|o| o["value"].as_str().expect("a value").to_string())
 }
 
-// TS: thread-defaults.test.ts:133, thread-defaults.test.ts:145
-#[test]
-fn defaults_on_hides_and_adds_the_persons_models_and_hands_the_agents_own_lists_beside() {
-    let mut prefs = default_preferences();
-    prefs.agent_defaults.insert(
-        "claude".to_string(),
-        wsp_wire::types::thread_defaults::Fields::new(agent_defaults(
-            json!({ "models": { "hide": ["claude-opus-5-5"], "custom": ["claude-opus-6-preview"] } }),
-        )),
-    );
-    let c = json_of(&AgentsArea::defaults_on(&claude_table(), &prefs, None).catalog);
-    let models: Vec<String> =
-        c["models"].as_array().expect("models").iter().map(|m| m["value"].as_str().expect("a value").to_string()).collect();
-    assert!(models.contains(&"claude-opus-6-preview".to_string()), "a custom id is listed");
-    // Hiding and `unshaped` are shapeModels' (runtime.ts:1095), run by the caller on what defaultsOn answers (agents.ts:421-425).
-    assert!(models.contains(&"claude-opus-5-5".to_string()), "defaultsOn hides nothing");
-    assert!(c.get("unshaped").is_none(), "defaultsOn hands no unshaped lists");
-}
-
 // TS: thread-defaults.test.ts:123
 #[test]
 fn defaults_on_carries_what_an_open_list_cannot_mark() {

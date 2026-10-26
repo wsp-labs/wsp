@@ -26,6 +26,7 @@ use wsp_words::tool_result::kept_patch;
 
 use super::kept::image_keys_of;
 use super::TranscriptsArea;
+use crate::threads::unit;
 
 pub use wsp_core::types::internal::{
     PENDING_FLUSH_BYTES, TOOL_RESULT_KEPT, TRANSCRIPT_BYTES, TRANSCRIPT_CAP, TRANSCRIPT_FLUSH_MS, WORDS_HELD,
@@ -312,7 +313,7 @@ impl TranscriptsArea {
         };
         let ws = ws_of(&event).to_string();
         let mut stamped = event;
-        stamp(&mut stamped, Some(at), self.issued_pos(&ws) + 1);
+        stamp(&mut stamped, Some(at), self.issued_pos(&ws).saturating_add(1));
         self.append(stamped.clone());
         let _ = self.ctx.emit(union_of(&stamped));
         if matches!(stamped, SessionEvent::SessionStartEvent(_) | SessionEvent::SessionEndEvent(_)) {
@@ -326,7 +327,7 @@ impl TranscriptsArea {
     pub fn record_copies(&self, events: &[SessionEvent]) {
         for e in events {
             let mut copy = e.clone();
-            stamp(&mut copy, None, self.issued_pos(ws_of(e)) + 1);
+            stamp(&mut copy, None, self.issued_pos(ws_of(e)).saturating_add(1));
             self.append(copy);
         }
     }
@@ -427,7 +428,7 @@ impl TranscriptsArea {
         .boxed_local()
         .shared();
         self.transcript_queue.borrow_mut().insert(workspace_id.to_string(), link.clone());
-        tokio::task::spawn_local(link);
+        self.ctx.spawn(unit(link));
         async move {
             match answer.await {
                 Ok(result) => result,
@@ -682,7 +683,7 @@ impl TranscriptsArea {
             .map(|(ws, thread, _, size, cold)| {
                 let left = WORDS_HELD.saturating_sub(held);
                 let share = if !cold && running.contains(&thread) { size } else { size.min(left) };
-                held += share;
+                held = held.saturating_add(share);
                 (ws, thread, share)
             })
             .collect()

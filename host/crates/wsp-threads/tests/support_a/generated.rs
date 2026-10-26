@@ -317,6 +317,12 @@ impl LaunchCtx for FakeHost {
         }
         Ok(())
     }
+    fn spawn(&self, work: LocalBoxFuture<'static, ()>) {
+        if let Some(hook) = self.hooks.get::<dyn Fn(LocalBoxFuture<'static, ()>) -> ()>("LaunchCtx::spawn") {
+            return hook(work);
+        }
+        spawn_detached(work);
+    }
 }
 
 #[async_trait(?Send)]
@@ -969,5 +975,11 @@ impl TurnsCtx for FakeHost {
             return hook(workspace_id, thread_id).await;
         }
         Ok(self.thread_events(thread_id))
+    }
+    fn spawn(&self, work: LocalBoxFuture<'static, ()>) {
+        if let Some(hook) = self.hooks.get::<dyn Fn(LocalBoxFuture<'static, ()>) -> ()>("TurnsCtx::spawn") {
+            return hook(work);
+        }
+        spawn_detached(work);
     }
 }

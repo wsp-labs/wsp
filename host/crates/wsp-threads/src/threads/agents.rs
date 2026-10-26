@@ -113,6 +113,8 @@ pub trait AgentsCtx {
     fn resolve_project(&self, reference: &str, origin: Option<Caller>) -> LocalBoxFuture<'static, Result<ProjectView, HostError>>;
     fn list_projects(&self, origin: Option<Caller>) -> LocalBoxFuture<'static, Result<Vec<ProjectView>, HostError>>;
     fn project_folder(&self, project: &ProjectView) -> LocalBoxFuture<'static, Result<Entry, HostError>>;
+    /// TS `void promise`: work that outlives its caller. The host runs it on its `LocalSet`, so where it runs is its to say.
+    fn spawn(&self, work: LocalBoxFuture<'static, ()>);
 }
 
 /// One catalog entry (agents.ts:33).
@@ -220,6 +222,14 @@ impl AgentsArea {
         self.agent_asks.borrow().values().cloned().collect()
     }
 
+    /// Starts `future` now, as the TS starts an async call's synchronous half (wsp-adapters' `started`): polled once here,
+    /// and spawned for the rest where it is still pending.
+    pub(super) fn fire(&self, mut future: LocalBoxFuture<'static, ()>) {
+        if future.as_mut().poll(&mut std::task::Context::from_waker(futures::task::noop_waker_ref())).is_pending() {
+            self.ctx.spawn(future);
+        }
+    }
+
     /// `holdAsk` (agents.ts:43): starts an ask of the agent's own CLI now, so it runs whether or not its caller waits,
     /// and holds it in `agent_asks` until it settles.
     pub(crate) fn hold<T: Clone + 'static>(&self, ask: LocalBoxFuture<'static, T>) -> Shared<LocalBoxFuture<'static, T>> {
@@ -230,7 +240,7 @@ impl AgentsArea {
         self.agent_asks.borrow_mut().insert(id, done);
         let me = self.me.clone();
         let run = shared.clone();
-        fire(
+        self.fire(
             async move {
                 run.await;
                 if let Some(area) = me.upgrade() {
@@ -240,16 +250,6 @@ impl AgentsArea {
             .boxed_local(),
         );
         shared
-    }
-}
-
-/// Starts `future` now, as the TS starts an async call's synchronous half (wsp-adapters' `started`): polled once here,
-/// and spawned for the rest where it is still pending.
-pub(super) fn fire(mut future: LocalBoxFuture<'static, ()>) {
-    if future.as_mut().poll(&mut std::task::Context::from_waker(futures::task::noop_waker_ref())).is_pending() {
-        tokio::task::spawn_local(async move {
-            future.await;
-        });
     }
 }
 

@@ -345,7 +345,7 @@ fn a_start_that_fails_before_its_launch_leaves_no_row_and_ends_the_wait() {
         p.launch.scoped_device_id = Some("dev-1".to_string());
         let join = r.spawn(p);
         settle().await;
-        assert!(!r.seen.borrow().is_empty(), "the agent's lists are read before the folder is (sessions.ts:569, :571)");
+        assert_eq!(r.seen.borrow().len(), 1, "the agent's lists are asked once, before the folder is read (sessions.ts:569-571)");
         let e = err(join.await.expect("the launch ran"));
         let line = no_cwd_line(&home_shortened("/gone/dir", None));
         assert_eq!(said(&e), (line.clone(), None, Some(Kind::Usage)));

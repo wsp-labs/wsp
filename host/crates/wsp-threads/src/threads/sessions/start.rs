@@ -109,13 +109,13 @@ pub(crate) fn refuse_now(ctx: &Rc<dyn SessionsCtx>, workspace_id: &str, entry: &
 /// The revoke of a scoped device, detached (TS `dropScope`): a failure is warned, never raised.
 pub(crate) fn drop_scope(ctx: &Rc<dyn SessionsCtx>, device: Option<&str>, thread_id: &str) {
     let Some(device) = device.map(str::to_string) else { return };
-    let ctx = ctx.clone();
+    let revoker = ctx.clone();
     let thread = thread_word(thread_id);
-    tokio::task::spawn_local(async move {
-        if let Err(e) = ctx.revoke_device(&device).await {
+    ctx.spawn(Box::pin(async move {
+        if let Err(e) = revoker.revoke_device(&device).await {
             console::warn(&format!("the token of thread {thread} was not taken away: {}", e.message));
         }
-    });
+    }));
 }
 
 fn hex(bytes: &[u8]) -> String {

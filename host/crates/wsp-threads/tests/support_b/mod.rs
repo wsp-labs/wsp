@@ -663,7 +663,21 @@ impl wsp_adapters::port::KeptAgent for FakeKeptAgent {
 /// Runs `f` on a current-thread runtime inside a `LocalSet`, as the host runs.
 pub fn local<F: std::future::Future<Output = ()>>(f: F) {
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime");
+    IN_LOCAL_SET.with(|in_set| in_set.set(true));
     tokio::task::LocalSet::new().block_on(&rt, f);
+    IN_LOCAL_SET.with(|in_set| in_set.set(false));
+}
+
+thread_local! {
+    static IN_LOCAL_SET: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// What the host's `spawn` does with detached work: runs it on the `LocalSet` the test runs in; where the test has none,
+/// as a host with no executor has, nothing is spawned and nothing panics.
+pub fn spawn_detached(work: futures::future::LocalBoxFuture<'static, ()>) {
+    if IN_LOCAL_SET.with(std::cell::Cell::get) {
+        tokio::task::spawn_local(work);
+    }
 }
 
 /// Lets every spawned local task run until none can.

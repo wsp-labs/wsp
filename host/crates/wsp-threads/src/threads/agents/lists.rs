@@ -32,7 +32,7 @@ use wsp_words::workspace_state::{workspace_state, WorkspaceState, WorkspaceState
 
 use super::super::threads::{Entry, Row};
 use super::launch::AdapterAsk;
-use super::{fire, ready, AccountRead, AgentsArea, CatalogHeld, TitleRead};
+use super::{ready, AccountRead, AgentsArea, CatalogHeld, TitleRead};
 
 pub use wsp_core::types::events::{
     AGENT_VERSION_READ_MS, CATALOG_PROBE_TIMEOUT_MS, CATALOG_TTL_MS, FIRST_RUN_READ_MS, SESSION_TITLE_REFRESH_MAX,
@@ -249,7 +249,7 @@ fn keep_lists(area: &AgentsArea, key: String, machine_id: String, harness: Strin
         return;
     };
     let store = area.ctx.store();
-    fire(
+    area.fire(
         async move {
             if let Err(e) = store.put(AGENT_LISTS, &key, value).await {
                 warn(&format!(
@@ -361,14 +361,15 @@ impl AgentsArea {
             }
         }
         .shared();
-        fire(before.clone().map(|_| ()).boxed_local());
+        self.fire(before.clone().map(|_| ()).boxed_local());
         let catalog = self.hold(chain);
         {
             let area = area.clone();
             let key = key.clone();
             let catalog = catalog.clone();
             let skipped = skipped.clone();
-            tokio::task::spawn_local(async move {
+            let ctx = area.ctx.clone();
+            ctx.spawn(Box::pin(async move {
                 catalog.clone().await;
                 if skipped.get() {
                     area.catalogs.borrow_mut().shift_remove(&key);
@@ -377,7 +378,7 @@ impl AgentsArea {
                         asking.catalog = catalog;
                     }
                 }
-            });
+            }));
         }
         let held = {
             let catalog = catalog.clone();
@@ -458,7 +459,7 @@ impl AgentsArea {
         let done: Joined = body.boxed_local().shared();
         pending.borrow_mut().done = done.clone();
         self.title_reads.borrow_mut().insert(key, pending);
-        fire(done.clone().boxed_local());
+        self.fire(done.clone().boxed_local());
         done.boxed_local()
     }
 
@@ -521,7 +522,7 @@ impl AgentsArea {
         self.ctx.persist_sessions(&workspace).await;
         if let Some(view) = unnamed.filter(|_| force) {
             if let Some(name) = view.harness_title.clone() {
-                fire(self.name_in_harness(&view, &name));
+                self.fire(self.name_in_harness(&view, &name));
             }
         }
         for thread in moved {

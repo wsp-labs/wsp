@@ -145,6 +145,9 @@ impl FakeThreadsCtx {
 }
 
 impl ThreadsCtx for FakeThreadsCtx {
+    fn spawn(&self, work: LocalBoxFuture<'static, ()>) {
+        super::spawn_detached(work);
+    }
     fn clock(&self) -> Rc<dyn Clock> {
         self.clock.clone()
     }
