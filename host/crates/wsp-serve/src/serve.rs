@@ -10,6 +10,7 @@
 pub mod answer;
 pub mod door;
 pub mod flat;
+pub mod listener;
 pub mod ops;
 pub mod places;
 pub mod served;
@@ -23,6 +24,7 @@ use async_trait::async_trait;
 use tokio::io::{AsyncRead, AsyncWrite};
 use wsp_core::devices::{DeviceDoor, HeldDevice};
 use wsp_core::types::wiring::{HostEditor, HostFolders, HostSsh, HostTerminalConfig, InitDoor, ProjectBundler, ProjectLander, RecipeShelf};
+use wsp_wire::types::app_ports::LOOPBACK;
 use wsp_wire::types::release::{ReleaseChangedEvent, ReleaseView};
 use wsp_wire::views::harness::StartResult;
 use wsp_wire::views::place::DoctorLineEvent;
@@ -220,7 +222,10 @@ pub trait RuntimeServer {
 
 /// Serves the runtime: binds its own port where given, and answers the upgrades the host hands it. serve.ts:375.
 pub async fn serve_runtime(rt: Rc<DynRuntime>, opts: ServeOptions) -> Result<Rc<dyn RuntimeServer>, HostError> {
-    todo!()
+    let bind = opts.port.map(|port| (opts.host.clone().unwrap_or_else(|| LOOPBACK.to_string()), port));
+    let served = door::Served::new(rt, opts)?;
+    let server: Rc<dyn RuntimeServer> = Rc::new(listener::Wire::start(served, bind).await?);
+    Ok(server)
 }
 
 /// Every workspace a verb answers with goes out through the schema that drops the display stream. serve.ts:372.
