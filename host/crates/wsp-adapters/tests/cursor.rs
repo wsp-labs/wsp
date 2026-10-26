@@ -4,7 +4,6 @@
 //! Fixtures: no-login.jsonl is what cursor-agent 2026.09.26-dd393fe printed under an empty home with no credential, exit 1.
 //! turn.jsonl and every inline line below are hand-written: no real model turn ran.
 
-use wsp_adapters::port::AttachmentRoad;
 
 #[path = "common/codex_scripted.rs"]
 mod codex_scripted;

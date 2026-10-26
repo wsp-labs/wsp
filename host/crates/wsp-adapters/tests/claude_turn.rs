@@ -324,8 +324,7 @@ async fn folds_the_persons_own_settings_into_its_one_flag_body() {
         deps.project_dir_name = Some("-Users-z-wt".into());
         deps.launch = Some(AgentLaunch { program: None, args: Some(args) });
         adapter_with(deps).start(HarnessStartOptions { fast: Some(true), ..go("go", noop()) }).unwrap().finished().await;
-        let command = exec.calls()[0].command.clone();
-        command
+        exec.calls()[0].command.clone()
     }
     let inline = launched(vec!["--debug".into(), "--settings".into(), json!({"fastMode": false, "theme": "dark"}).to_string()]).await;
     assert_eq!(inline.matches("--settings").count(), 1, "{inline}");
@@ -964,7 +963,7 @@ async fn ends_a_withheld_subagent_it_waited_on_in_wsps_words_body() {
     assert_eq!(answers(&events, call), vec![answer(sid, call, NO_REPORT_LINE)]);
     assert_eq!(fold_of(&events, call).last().unwrap(), &answer(sid, call, NO_REPORT_LINE));
     assert!(!deltas(&events).iter().any(|d| d.text.contains("SendMessage")));
-    let last_own = fold_of(&events, call).into_iter().filter(|d| d.parent_tool_use_id.as_deref() == Some(call)).last().unwrap();
+    let last_own = fold_of(&events, call).into_iter().rfind(|d| d.parent_tool_use_id.as_deref() == Some(call)).unwrap();
     assert_eq!(last_own.kind, DeltaKind::Note);
     assert_eq!(last_own.text, NO_REPORT_LINE);
     assert_eq!(done_summaries(&events), vec![(SubagentState::Done, Some(NO_REPORT_LINE.to_string()))]);

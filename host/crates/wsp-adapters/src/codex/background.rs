@@ -32,5 +32,5 @@ pub fn ended_between(run: &dyn ExecStream, background: &mut Background, raw: &st
         return;
     }
     let Some(thread) = background.held.take() else { return };
-    let _ = tokio::task::spawn_local(run.write(thread_unsubscribe_line(&thread)));
+    drop(tokio::task::spawn_local(run.write(thread_unsubscribe_line(&thread))));
 }

@@ -78,7 +78,7 @@ impl Children {
         out.push(AdapterEvent::Subagent {
             session_id: lead.to_string(),
             task: task.to_string(),
-            state: c.state.clone(),
+            state: c.state,
             parent_tool_use_id: Some(c.parent.clone()),
             title: if running { c.title.clone() } else { None },
             summary: if running { None } else { c.summary.clone() },

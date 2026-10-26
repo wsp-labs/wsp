@@ -33,7 +33,7 @@ pub const PAGE_AGAIN: &str = "codex could not list the thread's turns: it handed
 pub fn server_opened(turn: &CountedTurn) -> bool {
     let result = turn.result.as_ref();
     turn.anchor.is_some()
-        || (result.map_or(true, |r| r.refusal.is_none())
+        || (result.is_none_or(|r| r.refusal.is_none())
             && !result.and_then(|r| r.error.as_deref()).is_some_and(|e| e.starts_with(NEVER_OPENED)))
 }
 

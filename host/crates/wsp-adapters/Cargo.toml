@@ -22,3 +22,8 @@ wsp-catalog = { path = "../wsp-catalog" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "sync", "time", "test-util"] }
+
+# The host runs on one thread, so ports hand out Arc<dyn ..> that is not Send; the port's types are TS promises and callbacks.
+[lints.clippy]
+arc_with_non_send_sync = "allow"
+type_complexity = "allow"
