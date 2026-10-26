@@ -1,0 +1,22 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": {
+        "jsonLines": [
+          {
+            "dir": "<tmp>/home",
+            "roots": [
+              "<tmp>/home"
+            ],
+            "folders": [],
+            "hidden": 1
+          }
+        ],
+        "layout": "<json>\n"
+      },
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

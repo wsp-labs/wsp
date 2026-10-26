@@ -9,7 +9,7 @@ import { useStore } from "../protocol/store";
 import { selectWorkspaceRightPanelState, useRightPanelStore } from "../rightPanelStore";
 import { useComposerDraftStore } from "../components/chat/composerDraftStore";
 import { MountedComposer } from "../components/chat/testing";
-import { SlateSurface } from "./SlateSurface";
+import { SlateSurface, ThreadSlate } from "./SlateSurface";
 import { useSlateStore } from "./store";
 import { slate } from "./testing";
 import { COALESCE_MS } from "./pieces/press";
@@ -76,6 +76,24 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("the Slate tab", () => {
+  it("holds the slate and its sources on the host while the tab shows it, and a look holds nothing", async () => {
+    const doc = slate({ root: "root", pieces: { root: { type: "text", props: { value: { format: "on ${git.branch}" } } } } });
+    const tab = host([record({ document: doc })]);
+    select(tab, "t1");
+    useStore.setState({ conn: "live" } as never);
+    const { unmount } = render(<SlateSurface />);
+    await waitFor(() => expect(tab.subscribe).toHaveBeenCalledWith("t1", ["slate"]));
+    expect(tab.subscribe).toHaveBeenCalledWith("t1", ["git"]);
+    unmount();
+    const look = host([record({ document: doc })]);
+    select(look, "t1");
+    useSlateStore.setState({ byThread: {} });
+    render(<ThreadSlate threadId="t1" whole />);
+    await waitFor(() => expect(document.querySelector("[data-slate-surface]")).not.toBeNull());
+    await act(async () => new Promise(r => setTimeout(r, 50)));
+    expect(look.subscribe).not.toHaveBeenCalled();
+  });
+
   it("asks for a thread when none is open", () => {
     select(host([null]), null);
     render(<SlateSurface />);

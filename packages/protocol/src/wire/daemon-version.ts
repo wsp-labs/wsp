@@ -177,6 +177,8 @@ const DAEMON_CONTENTS = [
   "83099b125e585d337464a4f27fed457423ca7f35df3a3cd5ff6d3e10a4d01ead",
   "1c5f1c782e9b153ce0d0a1295174450091fe71de9d3eaf8258f2a3344c54a67e",
   "ca5c18addf281365b4a68a189d212dda48f405176d2707db0bbe9f421f463120",
+  "3ff0b2bde09e00c6a5df41f6012420f6126c9c71fb2cfe7c547c1659955807b1",
+  "0d781b0460c7fcded623d316b56f80623dec91c6cd3b74113bc164b164537231",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -712,7 +714,14 @@ const DAEMON_CONTENTS = [
  * link followed at their own names, no wait on a fifo, a plain file only and under a cap.
  * Version 165: worked time leaves out questions, merges list their files.
  * Version 166: a file a commit and a merge both changed counts both.
- * Version 167: cut low-signal tests. */
+ * Version 167: cut low-signal tests.
+ * Version 168: v0.3.9.
+ * Version 169: fs.page reads a slate frame's page by its whole path as fs.image reads an image, anywhere on the
+ * computer or inside the workspace it names with no link followed there, and answers its bytes typed text/html only
+ * where the path ends in .html or .htm, it is a regular file of at most 1 MB (FS_PAGE_CAP_BYTES, the most a frame's
+ * page may weigh) and its bytes are UTF-8; past the cap it answers the size alone, and a path named otherwise is
+ * refused bad-request. The tool server takes --no-look beside --scoped, for a turn launched while no app on the host's
+ * computer draws looks, and then lists no slate_look. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary

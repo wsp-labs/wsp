@@ -1,0 +1,17 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": "Boat could not be reached to check the key: no answer",
+      "kind": "keyUnchecked"
+    }
+  ],
+  "events": []
+}

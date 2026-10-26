@@ -83,10 +83,6 @@ import {
   MINT_JOIN_REFUSAL,
   SSH_HOSTS_REFUSAL,
   issuesLine,
-  redacted,
-  markedCut,
-  requestSecrets,
-  RUNTIME_OPS,
   EDITOR_TICKET_REFUSAL,
   editorOpensHereLine,
   sshAlias,
@@ -129,9 +125,12 @@ import { forwardsOf, type ForwardsSource } from "./forwards.js";
 import { costMoved } from "./status.js";
 import { answerProject, isProjectRequest, threadPlaces } from "./serve-projects.js";
 import { answerConversations, isConversationsRequest } from "./serve-conversations.js";
-import { answerSlate, isSlateRequest, type SlateHolds } from "./serve-slates.js";
+import { answerSlate, isSlateRequest, slateLookHubOf, type SlateHolds } from "./serve-slates.js";
 import { serveStart } from "./serve-start.js";
+import { refusedLine } from "./refused-line.js";
+import { tapeOf } from "./tape.js";
 export type { ForwardsSource };
+export type { GuestKindModule, GuestOpening, GuestSession } from "./guest-kinds.js";
 
 /** The address a host binds when nobody names another and the path the runtime answers upgrades on, both the
  * protocol's own rule; re-exported so the host and its tests keep reading them off the server they start. */
@@ -174,6 +173,8 @@ export interface ServeOptions {
   /** What the host knows of the account's own computers, for the one door a device with no code comes in by;
    * without it device.auth is refused, which is what a host on no account answers. */
   admitted?: AdmittedDevices;
+  /** The environment read for a folder to write each socket's tape into; the process's own unless a test hands one. */
+  tapes?: Readonly<Record<string, string | undefined>>;
   ticketTtlMs?: number;
   pairTtlMs?: number;
   /** How long a socket that has not been let in yet has to send its first frame, the protocol's own number unless
@@ -221,33 +222,6 @@ export interface ServeOptions {
   failed?: (op: string, e: unknown) => void;
   /** Takes one line per refused frame: the op, the kind and the sentence's first line, never the request itself. */
   log?: (line: string) => void;
-}
-
-/** What a kind's module is handed when a guest session opens: what the guest asked for, the environment its verbs
- * run under, and the two ways back to it. The host's guest door hands one for a process inside a machine, and this
- * socket for the wsp command's forwarder on this computer. */
-export interface GuestOpening {
-  argv: readonly string[];
-  cwd: string;
-  /** The pair a verb reads its host and its token off, as a turn's own launch leaves them, plus the turn's token. */
-  env: Record<string, string>;
-  /** The token is a thread another thread started, which has no slate: its tool server says nothing of one. */
-  noSlate?: true;
-  reply(message: unknown): void;
-  close(error?: string): void;
-}
-
-/** One open session, as the door talks to it. */
-export interface GuestSession {
-  message(message: unknown): void;
-  /** The guest's end went, or the workspace did: whatever this session holds open is dropped. A link that drops
-   * and redials is neither, and the session stands across it. */
-  close(): void;
-}
-
-/** A kind of guest session: the tool server, or one command line. */
-export interface GuestKindModule {
-  open(opening: GuestOpening): GuestSession;
 }
 
 /** How the runtime asks the host who this wsp is signed in to. The host owns the records; the runtime owns who may
@@ -351,26 +325,6 @@ function doorFrom<K extends keyof ServeOptions>(opts: ServeOptions, key: K, miss
     if (door === undefined) throw new Error(missing);
     return door as NonNullable<ServeOptions[K]>;
   };
-}
-
-const DECLARED_OPS = new Set(RUNTIME_OPS);
-/** More secret values than any real frame carries (a record of logins, an environment); past it the sentence is not
- * scanned at all, since each value is one pass over the line on the host's own thread. */
-const SCANNED_SECRETS = 256;
-
-/** The log line of one refused frame: an op the protocol declares, else `frame`, since the frame may be a stranger's;
- * the kind; and the sentence's first line with the request's secrets blanked, then cut. Blanked before the cut, since
- * a cut through a secret would leave its head where the blanking no longer matches it. */
-function refusedLine(frame: unknown, payload: Record<string, unknown>, said?: string): string {
-  const asked = isObjectFrame(frame) ? frame["op"] : undefined;
-  const op = typeof asked === "string" && DECLARED_OPS.has(asked) ? asked : "frame";
-  const kind = typeof payload["kind"] === "string" ? payload["kind"] : "none";
-  const secrets = [...new Set(requestSecrets(frame))];
-  if (secrets.length > SCANNED_SECRETS) return `refused ${op} kind=${kind}: (sentence withheld, ${secrets.length} secret values)`;
-  const text = said ?? String(payload["error"]);
-  const end = text.indexOf("\n");
-  const first = redacted(end === -1 ? text : text.slice(0, end), secrets);
-  return `refused ${op} kind=${kind}: ${markedCut(first)}`;
 }
 
 /** Every workspace a verb answers with goes through here on its way out. The record's view holds the display stream
@@ -621,8 +575,10 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
       held.add(bound);
     };
 
+    const tape = tapeOf(opts.tapes ?? process.env, "ws", opts.authToken);
     const send = (payload: Record<string, unknown>): void => {
       if (ws.readyState !== ws.OPEN) return;
+      tape?.out(payload);
       const text = JSON.stringify(payload);
       ws.send(seal === undefined ? text : seal.seal(text));
     };
@@ -642,7 +598,9 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
         try {
           // A frame that does not open under the key both ends agreed, and a frame sent in the clear after the
           // seal began, are both a carrier writing into this link rather than the computer on the other end.
-          parsed = JSON.parse(openFrame(seal, raw));
+          const text = openFrame(seal, raw);
+          tape?.in(text);
+          parsed = JSON.parse(text);
         } catch {
           send({ id: null, ok: false, error: "invalid json" });
           if (!authed) ws.close(4401, UNAUTHORIZED);
@@ -875,7 +833,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
           return true;
         };
         try {
-          if (isSlateRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerSlate(rt.slates, msg, origin, slateHolds)) });
+          if (isSlateRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerSlate(rt.slates, msg, origin, slateHolds, { hub: slateLookHubOf(rt.slates), send, own: ownRoad() })) });
           if (isProjectRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerProject(rt.projects, msg, origin)) });
           if (isAppProcsRequest(msg)) return void send({ id: msg.id, ok: true, ...appProcsHubOf(rt).answer(msg, { send, detaches, own: ownRoad() }) });
           if (isProcessesRequest(msg)) return void send({ id: msg.id, ok: true, ...(await answerProcesses(rt, msg, origin)) });

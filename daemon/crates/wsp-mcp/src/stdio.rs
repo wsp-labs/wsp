@@ -93,7 +93,7 @@ fn take(line: &[u8], host: &Arc<Host>, answer: &mpsc::UnboundedSender<String>, c
             let _ = answer.send(result(&id, "{}"));
         }
         "tools/list" => {
-            let listed: Vec<String> = tools::listed(host.cloud(), host.args().guest, host.args().no_slate).map(compact).collect();
+            let listed: Vec<String> = tools::listed(host.cloud(), serves(host)).map(compact).collect();
             let _ = answer.send(result(&id, &format!(r#"{{"tools":[{}]}}"#, listed.join(","))));
         }
         "tools/call" => {
@@ -111,6 +111,11 @@ fn take(line: &[u8], host: &Arc<Host>, answer: &mpsc::UnboundedSender<String>, c
             let _ = answer.send(error(&id, METHOD_NOT_FOUND, "Method not found"));
         }
     }
+}
+
+fn serves(host: &Host) -> tools::Serves {
+    let args = host.args();
+    tools::Serves { guest: args.guest, no_slate: args.no_slate, no_look: args.no_look }
 }
 
 /// The version the client asked for where this server speaks it, else the newest it speaks, and the instructions for
@@ -136,7 +141,7 @@ fn greeting(params: Option<&Value>, cloud: bool, scoped: bool, no_slate: bool) -
 }
 
 async fn called(host: Arc<Host>, asked: CallParams) -> String {
-    let Some((tool, entry)) = tools::named(&asked.name, host.cloud(), host.args().guest, host.args().no_slate) else {
+    let Some((tool, entry)) = tools::named(&asked.name, host.cloud(), serves(&host)) else {
         return refused_text(&format!("MCP error -32602: Tool {} not found", asked.name));
     };
     let arguments = match refused_before_call(tool.name, entry, asked.arguments) {
@@ -145,7 +150,12 @@ async fn called(host: Arc<Host>, asked: CallParams) -> String {
     };
     match (tool.call)(host, arguments).await {
         Ok(answered) => format!(
-            r#"{{"content":[{{"type":"text","text":{}}}],"structuredContent":{}{}}}"#,
+            r#"{{"content":[{}{{"type":"text","text":{}}}],"structuredContent":{}{}}}"#,
+            answered
+                .image
+                .as_deref()
+                .map(|png| format!(r#"{{"type":"image","data":{},"mimeType":"image/png"}},"#, json_string(png)))
+                .unwrap_or_default(),
             json_string(&answered.text),
             answered.structured,
             if answered.error { r#","isError":true"# } else { "" }

@@ -1,0 +1,18 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": false,
+      "error": "that computer's wsp is older than this host and seals no link; update wsp there and join again",
+      "kind": "auth"
+    }
+  ],
+  "events": [
+    {
+      "close": {
+        "code": 4401,
+        "reason": "unauthorized"
+      }
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": {
+        "json": {
+          "error": "wsp review takes one pull request link or thread. usage: wsp review <link|thread> [--agent <id>] [--model, --effort <word>]",
+          "class": "usage",
+          "exit": 3
+        },
+        "layout": "compact, a newline after"
+      }
+    }
+  ],
+  "events": []
+}

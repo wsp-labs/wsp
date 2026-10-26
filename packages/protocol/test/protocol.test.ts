@@ -946,6 +946,8 @@ describe("runtime wire types", () => {
       "slates.write", "slates.read", "slates.event", "slates.approve", "slates.cancel", "slates.revoke",
       // The app's processes name the sites in the person's browser tabs, and only the app on this computer names them.
       "appProcs.watch", "appProcs.unwatch", "appProcs.offer", "appProcs.set",
+      // A look opens a window in the app on this computer, and only that app offers and answers one.
+      "slates.look", "slateLook.offer", "slateLook.answer",
       // A computer's processes carry their command lines, and an End signals a process on this computer.
       "activity.read", "activity.end",
       // A key goes out to its provider, and a sign-in runs on this computer.

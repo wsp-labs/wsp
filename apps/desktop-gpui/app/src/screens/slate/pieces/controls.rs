@@ -49,6 +49,7 @@ pub fn draw(p: &PieceCx, window: &mut Window, cx: &mut App) -> Option<AnyElement
         "input" => input(p, window, cx),
         "select" => select(p, window, cx),
         "choices" => choices(p, window, cx),
+        "decision" => decision(p, window, cx),
         "toggle" => toggle(p, window, cx),
         _ => return None,
     })
@@ -230,11 +231,21 @@ fn button(p: &PieceCx, window: &mut Window, cx: &mut App) -> AnyElement {
         Some(t) => control.tooltip(t),
         None => control,
     };
+    // A held button says why under itself, where the person looks for it, not only on hover.
+    let why = held.clone().map(|w| {
+        div()
+            .debug_selector(|| "slate-held-why".into())
+            .text_size(px(12.))
+            .line_height(px(16.))
+            .text_color(cx.palette().muted_foreground)
+            .child(w)
+    });
     v_flex()
         .min_w_0()
         .items_start()
         .gap(px(4.))
         .child(held_hover(p.el("held"), held, control))
+        .children(why)
         .children(outcome(p.outcome(), cx))
         .into_any_element()
 }
@@ -838,6 +849,94 @@ fn choice_key(key: &str, stop: usize, n: usize) -> Option<usize> {
     }
 }
 
+/// `decision.tsx`: the question as a setting's title, the answers as outline keycaps and the agent's pick named under
+/// them with its reason; once answered, the answer with a check and a quiet Change, which clears it.
+fn decision(p: &PieceCx, _window: &mut Window, cx: &mut App) -> AnyElement {
+    let pal = cx.palette().clone();
+    let path = two_way(p.piece.prop("value"));
+    let picked = current(p, path.as_deref()).cloned().filter(|v| !v.is_null() && v.as_str() != Some(""));
+    let held = held_by(p.prop("held"));
+    let open = held.is_none() && path.is_some() && !p.busy();
+    let list: Vec<Choice> = choices_of(&present(p, "options")).into_iter().take(4).collect();
+    let mine = list.iter().find(|c| same(Some(&c.value), p.prop("pick")));
+    let answered = list.iter().find(|c| same(Some(&c.value), picked.as_ref()));
+    let mut others = list.iter().filter(|c| !mine.is_some_and(|m| std::ptr::eq(m, *c)) && c.note.is_some()).peekable();
+    let title = div()
+        .text_size(px(14.))
+        .line_height(px(20.))
+        .font_weight(if answered.is_none() { FontWeight::MEDIUM } else { FontWeight::NORMAL })
+        .text_color(if answered.is_none() { pal.foreground } else { pal.muted_foreground })
+        .children(p.str("label"));
+    let body = match answered {
+        None => v_flex()
+            .min_w_0()
+            .gap(px(10.))
+            .child(h_flex().min_w_0().flex_wrap().gap(px(8.)).children(list.iter().enumerate().map(|(ix, c)| {
+                let (picker, value) = (Picker::of(p, path.clone()), c.value.clone());
+                let suggested = mine.is_some_and(|m| std::ptr::eq(m, c));
+                let answer = Button::outline(p.el(&format!("answer-{ix}")), c.label.clone());
+                let answer = if suggested { answer.edge(pal.foreground.opacity(0.3)) } else { answer };
+                let answer = answer.held(!open).on_click(move |_, _, cx| picker.pick(value.clone(), cx));
+                div().flex_none().when(suggested, |d| d.debug_selector(|| "slate-answer-mine".into())).child(answer)
+            })))
+            .when(mine.is_some() || others.peek().is_some(), |el| {
+                // The other answers' notes stand under the pick's, quieter, so each answer's cost reads without a hover.
+                el.child(
+                    v_flex()
+                        .min_w_0()
+                        .gap(px(4.))
+                        .text_size(px(12.))
+                        .line_height(px(16.))
+                        .children(mine.map(|c| {
+                            let why = c.note.as_ref().map(|n| format!(". {n}")).unwrap_or_default();
+                            div().text_color(pal.muted_foreground).child(format!("My pick: {}{why}", c.label))
+                        }))
+                        .children(others.map(|c| {
+                            div().debug_selector(|| "slate-answer-note".into()).text_color(pal.muted_foreground).child(format!(
+                                "{}: {}",
+                                c.label,
+                                c.note.clone().unwrap_or_default()
+                            ))
+                        })),
+                )
+            })
+            .into_any_element(),
+        Some(c) => {
+            // Change clears the answer to pick again and sends nothing, as the web's decision does.
+            let picker = Picker { change: false, ..Picker::of(p, path.clone()) };
+            h_flex()
+                .min_w_0()
+                .items_center()
+                .gap(px(8.))
+                .child(Icon::new(Glyph::Check).with_size(px(16.)).flex_none().text_color(pal.success))
+                .child(div().flex_1().min_w_0().text_size(px(14.)).line_height(px(20.)).text_color(pal.foreground).child(c.label.clone()))
+                .child(
+                    Button::ghost(p.el("change"), "Change")
+                        .xs()
+                        .held(!open)
+                        .on_click(move |_, _, cx| picker.pick(Value::String(String::new()), cx)),
+                )
+                .into_any_element()
+        }
+    };
+    v_flex()
+        .min_w_0()
+        .gap(px(10.))
+        .debug_selector(move || format!("slate-decision-{}", if answered.is_some() { "answered" } else { "open" }))
+        .child(title)
+        .child(body)
+        .children(held.map(|why| {
+            div()
+                .debug_selector(|| "slate-held-why".into())
+                .text_size(px(12.))
+                .line_height(px(16.))
+                .text_color(pal.muted_foreground)
+                .child(why)
+        }))
+        .children(outcome(p.outcome(), cx))
+        .into_any_element()
+}
+
 fn choices(p: &PieceCx, window: &mut Window, cx: &mut App) -> AnyElement {
     let pal = cx.palette().clone();
     let path = two_way(p.piece.prop("value"));
@@ -863,32 +962,20 @@ fn choices(p: &PieceCx, window: &mut Window, cx: &mut App) -> AnyElement {
             let chosen = at == Some(ix);
             let right = known && same(Some(&choice.value), answer.as_ref());
             let wrong = known && chosen && !right;
-            let mark = if right {
-                Some(
-                    div()
-                        .flex_none()
-                        .text_size(px(13.))
-                        .line_height(px(20.))
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(pal.success)
-                        .child(words::RIGHT)
-                        .into_any_element(),
-                )
+            let word = if right {
+                Some((words::RIGHT, pal.success))
             } else if wrong {
-                Some(
-                    div()
-                        .flex_none()
-                        .text_size(px(13.))
-                        .line_height(px(20.))
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(pal.error_foreground)
-                        .child(words::WRONG)
-                        .into_any_element(),
-                )
-            } else if chosen {
-                Some(Icon::new(Glyph::Check).with_size(px(14.)).flex_none().text_color(pal.foreground).into_any_element())
+                Some((words::WRONG, pal.error_foreground))
             } else {
                 None
+            };
+            let mark = word.map(|(w, ink)| {
+                div().flex_none().text_size(px(13.)).line_height(px(20.)).font_weight(FontWeight::MEDIUM).text_color(ink).child(w)
+            });
+            let radio = if chosen {
+                Icon::new(Glyph::CircleDot).with_size(px(16.)).flex_none().text_color(pal.foreground)
+            } else {
+                Icon::new(Glyph::Circle).with_size(px(16.)).flex_none().text_color(pal.muted_foreground.opacity(0.7))
             };
             let state = if right {
                 "right"
@@ -908,13 +995,14 @@ fn choices(p: &PieceCx, window: &mut Window, cx: &mut App) -> AnyElement {
             h_flex()
                 .id(id)
                 .debug_selector(move || format!("slate-choice-{state}{}", if ring { "-ring" } else { "" }))
-                .min_h(px(44.))
+                .min_h(px(48.))
                 .w_full()
                 .min_w_0()
-                .gap(px(16.))
+                .items_center()
+                .gap(px(12.))
                 .py(px(12.))
                 .px(inset)
-                .when(ix > 0 || !label.is_empty(), |el| el.border_t_1().border_color(rule))
+                .when(ix > 0, |el| el.border_t_1().border_color(rule))
                 .bg(fill)
                 .when(ring, |el| el.shadow(vec![crate::ui::focus::ring_inset(pal.ring)]))
                 .when_some(held.clone(), |el, why| el.tooltip(tip(why)))
@@ -924,12 +1012,18 @@ fn choices(p: &PieceCx, window: &mut Window, cx: &mut App) -> AnyElement {
                         picker.pick(value.clone(), cx)
                     })
                 })
+                .child(div().flex_none().debug_selector(|| "slate-choice-radio".into()).child(radio))
                 .child(
                     v_flex()
                         .flex_1()
                         .min_w_0()
-                        .gap(px(2.))
-                        .child(div().text_size(px(14.)).line_height(px(20.)).text_color(pal.foreground).child(choice.label.clone()))
+                        .child(
+                            div()
+                                .text_size(px(14.))
+                                .line_height(px(20.))
+                                .text_color(if at.is_some() && !chosen { pal.muted_foreground } else { pal.foreground })
+                                .child(choice.label.clone()),
+                        )
                         .children(
                             choice
                                 .note
@@ -943,9 +1037,9 @@ fn choices(p: &PieceCx, window: &mut Window, cx: &mut App) -> AnyElement {
         .collect();
     let values: Vec<Value> = list.iter().map(|c| c.value.clone()).collect();
     let picker = Picker::of(p, path.clone());
-    v_flex()
+    let options = v_flex()
         .id(p.el("choices"))
-        .debug_selector(|| "slate-choices".into())
+        .debug_selector(|| "slate-choices-card".into())
         .min_w_0()
         .when(open && !values.is_empty(), |el| {
             el.track_focus(&focus).on_key_down(move |e: &KeyDownEvent, _, cx| {
@@ -957,10 +1051,24 @@ fn choices(p: &PieceCx, window: &mut Window, cx: &mut App) -> AnyElement {
         .when(place == Place::Page, |el| {
             el.overflow_hidden().rounded(size::CARD_RADIUS).border_1().border_color(pal.border.opacity(0.6)).bg(pal.card.opacity(0.4))
         })
+        .children(rows);
+    // The question is a setting's title over a card of its own, so questions one after another stand apart.
+    v_flex()
+        .debug_selector(|| "slate-choices".into())
+        .min_w_0()
+        .gap(px(10.))
         .when(!label.is_empty(), |el| {
-            el.child(div().py(px(12.)).px(inset).text_size(px(14.)).line_height(px(20.)).text_color(pal.foreground).child(label.clone()))
+            el.child(
+                div()
+                    .debug_selector(|| "slate-choices-title".into())
+                    .text_size(px(14.))
+                    .line_height(px(20.))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(pal.foreground)
+                    .child(label.clone()),
+            )
         })
-        .children(rows)
+        .child(options)
         .into_any_element()
 }
 

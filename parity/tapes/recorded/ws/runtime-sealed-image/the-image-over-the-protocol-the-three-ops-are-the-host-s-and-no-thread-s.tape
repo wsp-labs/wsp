@@ -1,0 +1,7 @@
+{"meta":{"door":"ws","source":"packages/runtime/test/sealed-image.test.ts > the image over the protocol > the three ops are the host's and no thread's, and image.get answers a view the protocol parses","outs":"recorded"}}
+{"in":{"token":"<host-token>","id":1,"op":"auth"}}
+{"out":{"id":1,"ok":true}}
+{"in":{"id":2,"op":"image.get"}}
+{"out":{"id":2,"ok":true,"view":{"image":{"name":"default","version":1,"hash":"5d73a1fde4aed32362c9e8ad9fa5aed97851a90e00c94d7c797daf67128d6b71","recipeHash":"h1","recipe":{"version":1,"at":"2026-09-12T00:00:00.000Z","histories":[],"rows":[{"id":"codex","kind":"agent","on":true,"source":{"kind":"used","sessions":3,"calls":12}}]},"pins":[],"logins":[],"sealedAt":"2026-10-25T17:47:14.452Z","sealedFrom":"h1","noSecrets":true,"usedBytes":3145728000,"place":"default"},"copies":[{"place":"default","version":1,"hash":"5d73a1fde4aed32362c9e8ad9fa5aed97851a90e00c94d7c797daf67128d6b71","snapshotId":"snap_wsp-h1h9db87e3b-default-v1","builtAt":"2026-10-25T17:47:14.452Z","sizeBytes":8000000000}],"projects":[]}}}
+{"in":{"dest":"/tmp/never-written","passphrase":"<redacted-1>","id":3,"op":"image.export"}}
+{"out":{"id":3,"ok":false,"error":"[\n  {\n    \"code\": \"too_small\",\n    \"minimum\": 12,\n    \"type\": \"string\",\n    \"inclusive\": true,\n    \"exact\": false,\n    \"message\": \"String must contain at least 12 character(s)\",\n    \"path\": [\n      \"passphrase\"\n    ]\n  }\n]"}}

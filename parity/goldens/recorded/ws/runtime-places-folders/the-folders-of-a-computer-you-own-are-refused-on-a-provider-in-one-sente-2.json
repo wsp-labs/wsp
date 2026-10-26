@@ -1,0 +1,29 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": "no place named solari; you have <computer>",
+      "kind": "usage"
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "no place named pl_nobody; you have <computer>",
+      "kind": "usage"
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": "no place named p_00000001; you have <computer>",
+      "kind": "usage"
+    }
+  ],
+  "events": []
+}

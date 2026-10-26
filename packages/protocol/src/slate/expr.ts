@@ -1055,7 +1055,13 @@ export interface SlateCheckScope {
   row?: SlateType;
 }
 
-function merge(a: SlateType, b: SlateType): SlateType {
+/** Two types one value may take as one: a record has the fields of either, so a field only some rows carry is known. */
+export function merge(a: SlateType, b: SlateType): SlateType {
+  if (a.t === "record" && b.t === "record" && a.fields !== undefined && b.fields !== undefined) {
+    const fields: Record<string, SlateType> = { ...a.fields };
+    for (const [k, t] of Object.entries(b.fields)) fields[k] = fields[k] === undefined ? t : merge(fields[k]!, t);
+    return { t: "record", fields };
+  }
   if (a.t === b.t) return a;
   if (a.t === "null") return b;
   if (b.t === "null") return a;

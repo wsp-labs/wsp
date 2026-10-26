@@ -1,0 +1,114 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! A tape line is read as `JSON.parse` reads it, so a lone surrogate in a key or a value is a frame the harness holds,
+//! sends and compares code unit for code unit (docs/rust-host-spec/08-text-numbers-time.md, rule 8.26).
+
+use serde_json::{json, Value};
+use std::path::Path;
+use xtask::diff::diff;
+use xtask::json;
+use xtask::normalize::{canonical, Facts};
+use xtask::tape::{self, Tape};
+
+const HIGH: &str = r#"{"in":{"id":4,"op":"projects.resolve","ref":"a\ud83db\u0000\t\""}}"#;
+const LOW: &str = r#"{"in":{"id":5,"op":"projects.resolve","ref":"a\ude00b","\ude00k":"\udbffx"}}"#;
+
+fn read(line: &str) -> Tape {
+    Tape::parse("lone", line, "lone.tape", 1).unwrap_or_else(|e| panic!("{e}"))
+}
+
+#[test]
+fn a_lone_high_or_low_surrogate_in_a_key_or_a_value_is_a_tape_line() {
+    let tape = read(&format!("{HIGH}\n{LOW}\n"));
+    assert_eq!(tape.ins.len(), 2);
+    assert_eq!(tape.ins[0]["op"], "projects.resolve");
+    assert_eq!(tape.ins[1]["op"], "projects.resolve");
+}
+
+#[test]
+fn every_tape_of_the_repository_and_every_tape_block_of_the_spec_is_read() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let tapes = tape::load(&root).unwrap_or_else(|e| panic!("{e}"));
+    assert!(tapes.iter().any(|t| t.id == "spec/08-text-numbers-time/1"), "the spec's lone surrogate tape is among them");
+}
+
+#[test]
+fn a_frame_goes_on_the_wire_as_the_code_units_the_line_wrote() {
+    let tape = read(&format!("{HIGH}\n{LOW}\n"));
+    assert_eq!(json::write(&tape.ins[0]), r#"{"id":4,"op":"projects.resolve","ref":"a\ud83db\u0000\t\""}"#);
+    assert_eq!(json::write(&tape.ins[1]), r#"{"id":5,"op":"projects.resolve","ref":"a\ude00b","\ude00k":"\udbffx"}"#);
+    let read_back = json::read(&json::write(&tape.ins[1])).unwrap();
+    assert_eq!(read_back, tape.ins[1]);
+}
+
+#[test]
+fn a_pair_stays_one_character_and_an_escaped_backslash_stays_text() {
+    let pair = json::read(r#""\ud83d\ude00 \\ud83d \\\ud83d""#).unwrap();
+    assert_eq!(pair, Value::String("\u{1F600} \\ud83d \\\u{10F83D}".into()));
+    assert_eq!(json::write(&pair), format!(r#""{} \\ud83d \\\ud83d""#, '\u{1F600}'));
+}
+
+#[test]
+fn halves_compare_code_unit_for_code_unit_and_a_difference_prints_as_an_escape() {
+    let (a, b) = (json::read(r#"{"e":"a\ud83db"}"#).unwrap(), json::read(r#"{"e":"a\ud83eb"}"#).unwrap());
+    assert!(diff(&a, &a).is_empty());
+    let found = diff(&a, &b);
+    assert_eq!(found.len(), 1);
+    assert_eq!((found[0].golden.as_str(), found[0].live.as_str()), (r#""a\ud83db""#, r#""a\ud83eb""#));
+    // A replacement character is not the unit it replaced.
+    assert_eq!(diff(&a, &json!({ "e": "a\u{FFFD}b" })).len(), 1);
+    // A lone high half then a lone low half are two units, and a pair is one character.
+    assert_ne!(json::read(r#""\ude00\ud83d""#).unwrap(), json::read(r#""\ud83d\ude00""#).unwrap());
+}
+
+#[test]
+fn text_that_looks_like_the_stand_in_for_a_half_is_refused_not_mistaken_for_one() {
+    for line in ["\"\u{10F83D}\"", r#""\udbfe\udc00""#] {
+        let err = json::read(line).unwrap_err();
+        assert!(err.contains("stands in for a lone surrogate"), "{err}");
+    }
+}
+
+#[test]
+fn a_pair_split_across_a_key_and_its_value_stays_two_halves() {
+    let line = r#"{"\ud83d":"\ude00","a\udbff":"\udfffb"}"#;
+    let v = json::read(line).unwrap();
+    assert_eq!(v.as_object().unwrap().len(), 2);
+    assert_eq!(json::write(&v), line);
+}
+
+#[test]
+fn a_frame_sent_as_text_and_a_command_line_word_go_out_as_a_client_sends_them() {
+    let text = Tape::parse("raw", r#"{"in":"{\"id\":1}\ud83d"}"#, "raw.tape", 1).unwrap();
+    assert_eq!(text.ins[0], Value::String("{\"id\":1}\u{FFFD}".into()));
+    let cli =
+        Tape::parse("cli", "{\"meta\":{\"door\":\"cli\"}}\n{\"in\":{\"argv\":[\"projects\",\"a\\ude00b\",3]}}\n", "cli.tape", 1).unwrap();
+    assert_eq!(cli.ins[0], json!({ "argv": ["projects", "a\u{FFFD}b", 3] }));
+    // An object frame keeps its half, which the wire writes as an escape.
+    let object = Tape::parse("obj", r#"{"in":{"id":1,"ref":"a\ud83db"}}"#, "obj.tape", 1).unwrap();
+    assert_eq!(json::write(&object.ins[0]), r#"{"id":1,"ref":"a\ud83db"}"#);
+}
+
+#[test]
+fn json_carried_as_text_is_read_as_json_when_it_holds_a_lone_half() {
+    let (a, b) = ("GzIxfkwlRKUKZSXqmEoiQepWdQTZkabc", "QhWzpLomnbVcxZaSdfGhJkLpOiUyTrEw");
+    let tool = |ticket: &str, name: &str| {
+        let text = format!(r#"{{"ticket":"{ticket}","name":"{name}"}}"#);
+        canonical(&[json!({ "result": { "content": [{ "type": "text", "text": text }] } })], &[], &Facts::default())
+    };
+    let line = |ticket: &str, name: &str| {
+        let stdout = format!("{{\"ticket\":\"{ticket}\",\"name\":\"{name}\"}}\n");
+        canonical(&[json!({ "exit": 0, "stdout": stdout })], &[], &Facts::default())
+    };
+    for run in [&tool as &dyn Fn(&str, &str) -> Value, &line] {
+        assert!(diff(&run(a, "plain"), &run(b, "plain")).is_empty(), "the control: a plain name");
+        let found = diff(&run(a, r"a\ud83db"), &run(b, r"a\ud83db"));
+        assert!(found.is_empty(), "two runs of one host differ: {found:?}");
+    }
+}
+
+#[test]
+fn a_real_character_of_the_stand_in_range_is_refused_naming_its_file_and_line() {
+    let text = format!("{HIGH}\n{{\"in\":{{\"id\":6,\"op\":\"auth\",\"x\":\"{}\"}}}}\n", '\u{10FFFD}');
+    let err = Tape::parse("real", &text, "parity/tapes/real.tape", 1).unwrap_err();
+    assert!(err.starts_with("parity/tapes/real.tape:2: ") && err.contains("stands in for a lone surrogate"), "{err}");
+}

@@ -125,6 +125,7 @@
   "slates.event": "SlatesEventRequest",
   "slates.get": "SlatesGetRequest",
   "slates.image": "SlatesImageRequest",
+  "slates.page": "SlatesPageRequest",
   "slates.read": "SlatesReadRequest",
   "slates.resolve": "SlatesResolveRequest",
   "slates.revoke": "SlatesRevokeRequest",
@@ -17386,6 +17387,70 @@
     }
    ]
   },
+  "SlatesPageAnswer": {
+   "anyOf": [
+    {
+     "type": "object",
+     "properties": {
+      "html": {
+       "type": "string"
+      },
+      "version": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "html"
+     ]
+    },
+    {
+     "type": "object",
+     "properties": {
+      "unchanged": {
+       "type": "boolean",
+       "enum": [
+        true
+       ]
+      },
+      "version": {
+       "type": "string"
+      }
+     },
+     "required": [
+      "unchanged",
+      "version"
+     ]
+    },
+    {
+     "type": "object",
+     "properties": {
+      "problem": {
+       "type": "object",
+       "properties": {
+        "code": {
+         "type": "string"
+        },
+        "name": {
+         "type": "string"
+        },
+        "message": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "code",
+        "name",
+        "message"
+       ],
+       "additionalProperties": {}
+      }
+     },
+     "required": [
+      "problem"
+     ]
+    }
+   ]
+  },
   "SlatesResolveAnswer": {
    "type": "object",
    "properties": {
@@ -24785,6 +24850,24 @@
    ]
   },
   "SlatesImageRequest": {
+   "type": "object",
+   "properties": {
+    "threadId": {
+     "type": "string"
+    },
+    "src": {
+     "type": "string"
+    },
+    "have": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "threadId",
+    "src"
+   ]
+  },
+  "SlatesPageRequest": {
    "type": "object",
    "properties": {
     "threadId": {

@@ -124,6 +124,16 @@ jobs:
         env:
           RUST_TEST_THREADS: "1"
         run: cargo test --locked --no-fail-fast --workspace --test '*'
+      # A slate frame's sealed web view on the page that tries every forbidden thing, in WebKitGTK with Trusted Types
+      # and with them turned off; each check opens a window, which the offscreen tests cannot hold.
+      - name: The slate frame's seal
+        if: ${{ !cancelled() }}
+        working-directory: apps/desktop-gpui
+        run: |
+          cargo build --locked --bin desktop-gpui
+          for screen in frame-check frame-check-without-trusted-types; do
+            timeout 120 xvfb-run --auto-servernum target/debug/desktop-gpui --screen "$screen"
+          done
       - name: The disk the test targets took
         if: always()
         run: df -h /

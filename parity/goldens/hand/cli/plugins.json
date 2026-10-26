@@ -1,0 +1,25 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": {
+        "jsonLines": [
+          {
+            "target": {
+              "placeId": "here"
+            },
+            "home": "<tmp>/home",
+            "user": "root",
+            "readAt": "<time>",
+            "refused": [],
+            "projects": [],
+            "plugins": []
+          }
+        ],
+        "layout": "<json>\n"
+      },
+      "stderr": ""
+    }
+  ],
+  "events": []
+}

@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp skills remove takes one skill's name and one thread at most. usage: wsp skills remove <name> [<thread>] [--on <computer>] [--project [<name>]] [--yes]\n"
+    }
+  ],
+  "events": []
+}

@@ -7,6 +7,7 @@
 import type { Readable, Writable } from "node:stream";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import type { Tape } from "@wsp/runtime";
 import { instructions } from "./skill.js";
 import { SLATE_TOOL_NAMES, VERBS, c1Escaped, dialHost, hasTool, toolFailure, toolName, type DialOpts, type HostClient, type Verb, type VerbDeps } from "./verbs.js";
 import { VERSION } from "./version.js";
@@ -53,7 +54,7 @@ const pickOf = (opts: { env: VerbDeps["env"]; host?: string; start?: VerbDeps["s
   ...(opts.start !== undefined ? { start: opts.start } : {}),
 });
 
-export function mcpServer(statePath: string, opts: { dial?: Dialer; dialAnyRelease?: Dialer; alsoHere?: VerbDeps["alsoHere"]; cwd?: string; env: VerbDeps["env"]; host?: string; start?: VerbDeps["start"]; skip?: (verb: Verb) => boolean; elsewhere?: boolean; hostWaitMs?: number; scoped?: boolean; noSlate?: boolean }): McpServer {
+export function mcpServer(statePath: string, opts: { dial?: Dialer; dialAnyRelease?: Dialer; alsoHere?: VerbDeps["alsoHere"]; cwd?: string; env: VerbDeps["env"]; host?: string; start?: VerbDeps["start"]; skip?: (verb: Verb) => boolean; elsewhere?: boolean; hostWaitMs?: number; scoped?: boolean; noSlate?: boolean; noLook?: boolean }): McpServer {
   const server = new McpServer({ name: "wsp", version: VERSION }, { instructions: instructions(opts.scoped === true, opts.noSlate !== true) });
   const deps: VerbDeps = { statePath, env: opts.env, client: opts.dial ?? dialer(statePath, pickOf(opts)), ...(opts.alsoHere !== undefined ? { alsoHere: opts.alsoHere } : {}), ...(opts.cwd !== undefined ? { cwd: opts.cwd } : {}), ...(opts.elsewhere === true ? { elsewhere: true } : {}), ...(opts.hostWaitMs !== undefined ? { hostWaitMs: opts.hostWaitMs } : {}) };
   // A line that dials past the release check, as restart does, gets a socket of its own, so no other tool rides one
@@ -63,6 +64,7 @@ export function mcpServer(statePath: string, opts: { dial?: Dialer; dialAnyRelea
     if (!hasTool(verb) || opts.skip?.(verb) === true) continue;
     const name = toolName(verb.name);
     if (opts.noSlate === true && SLATE_TOOL_NAMES.has(name)) continue;
+    if (opts.noLook === true && name === "slate_look") continue;
     // A Claude Code launch with a slate loads this server's tools up front (alwaysLoad); every tool but the slate's stays behind its tool search.
     const listed = { _meta: { "anthropic/alwaysLoad": SLATE_TOOL_NAMES.has(name) } };
     server.registerTool(name, { description: verb.tool.description, inputSchema: verb.tool.input, outputSchema: verb.tool.output, ...listed }, args => verb.tool.call(args, "anyRelease" in verb && verb.anyRelease !== undefined ? anyRelease : deps).catch((e: unknown) => toolFailure(e, "usage" in verb ? verb.usage : undefined)));
@@ -71,7 +73,7 @@ export function mcpServer(statePath: string, opts: { dial?: Dialer; dialAnyRelea
 }
 
 /** The server on stdio until the agent is done with it: its stdin ending closes the transport, and the host socket with it. */
-export async function serveMcp(statePath: string, opts: { alsoHere?: VerbDeps["alsoHere"]; cwd?: string; env: VerbDeps["env"]; host?: string; start?: VerbDeps["start"]; scoped?: boolean; noSlate?: boolean }, streams: { input: Readable; output: Writable } = { input: process.stdin, output: process.stdout }): Promise<void> {
+export async function serveMcp(statePath: string, opts: { alsoHere?: VerbDeps["alsoHere"]; cwd?: string; env: VerbDeps["env"]; host?: string; start?: VerbDeps["start"]; scoped?: boolean; noSlate?: boolean; noLook?: boolean; tape?: Tape }, streams: { input: Readable; output: Writable } = { input: process.stdin, output: process.stdout }): Promise<void> {
   const dial = dialer(statePath, pickOf(opts));
   const dialAnyRelease = dialer(statePath, { ...pickOf(opts), anyRelease: true });
   const server = mcpServer(statePath, { dial, dialAnyRelease, ...opts });
@@ -81,6 +83,19 @@ export async function serveMcp(statePath: string, opts: { alsoHere?: VerbDeps["a
   });
   streams.input.once("end", () => void transport.close());
   await server.connect(transport);
+  const tape = opts.tape;
+  if (tape !== undefined) {
+    const heard = transport.onmessage;
+    transport.onmessage = message => {
+      tape.in(message);
+      heard?.(message);
+    };
+    const say = transport.send.bind(transport);
+    transport.send = async message => {
+      tape.out(message);
+      return say(message);
+    };
+  }
   await closed;
   await dial.close();
   await dialAnyRelease.close();
