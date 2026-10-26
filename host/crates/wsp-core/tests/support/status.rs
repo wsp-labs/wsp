@@ -8,7 +8,7 @@ use futures::future::LocalBoxFuture;
 use serde_json::{json, Value};
 use wsp_core::clock::{Clock, FakeClock};
 use wsp_core::status::{DaemonAnswers, RouteReach, StatusRecord, StatusTracker, StatusTrackerOptions, StatusWatchOptions};
-use wsp_engine::errors::{EngineError, RoadError, WspError};
+use wsp_engine::errors::{EngineError, RoadCause, RoadError, WspError};
 use wsp_engine::machine::ExecResult;
 use wsp_wire::views::workspace::{MachineFacts, MachineState, WorkspacePhase};
 use wsp_wire::views::workspace_more::{WorkspaceStatus, WorkspaceView};
@@ -85,12 +85,12 @@ pub fn missing(said: &str) -> EngineError {
 
 /// A request that never left this computer: no DNS.
 pub fn offline() -> EngineError {
-    EngineError::Road(RoadError { name: "TypeError".into(), message: "fetch failed".into(), code: Some("ENOTFOUND".into()), cause: None })
+    EngineError::Road(RoadError { name: "TypeError".into(), message: "fetch failed".into(), code: None, cause: Some(RoadCause { message: "getaddrinfo ENOTFOUND edge.example".into(), code: Some("ENOTFOUND".into()), errors: None }) })
 }
 
 /// A request that left and met nothing: a refused port.
 pub fn refused_port() -> EngineError {
-    EngineError::Road(RoadError { name: "TypeError".into(), message: "fetch failed".into(), code: Some("ECONNREFUSED".into()), cause: None })
+    EngineError::Road(RoadError { name: "TypeError".into(), message: "fetch failed".into(), code: None, cause: Some(RoadCause { message: "getaddrinfo ECONNREFUSED edge.example".into(), code: Some("ECONNREFUSED".into()), errors: None }) })
 }
 
 pub fn other(message: &str) -> EngineError {
@@ -235,7 +235,7 @@ pub fn woken(id: &str, machine: &str) -> EventUnion {
 }
 
 pub fn upgraded(id: &str) -> EventUnion {
-    event(json!({"type": "workspace.upgraded", "workspaceId": id, "size": {"cpu": 4, "memMb": 4096}}))
+    event(json!({"type": "workspace.upgraded", "workspaceId": id, "machineId": "sbx_1"}))
 }
 
 pub fn napped(id: &str, found: bool) -> EventUnion {
