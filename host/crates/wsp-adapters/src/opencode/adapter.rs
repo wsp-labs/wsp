@@ -18,8 +18,8 @@ use crate::opencode::command::{build_command, build_env, BuildCommandOptions, Op
 use crate::pending::{refused_turn, Refusal};
 use crate::port::{
     end_after_result, end_run, system_now, AdapterAttachOptions, AdapterError, AdapterEvent, AgentLaunch, AttachRunOptions, Attached,
-    DeltaKind, Env, ExecFailure, ExecOptions, ExecStream, ExecStreamFactory, HarnessCatalogAnswer, HarnessExec, HarnessStartOptions, Now,
-    OnEvent, SharedFuture, TurnDelta, TurnResult, TurnStatus, TurnTokens,
+    AttachmentRoad, DeltaKind, Env, ExecFailure, ExecOptions, ExecStream, ExecStreamFactory, HarnessAdapter, HarnessCatalogAnswer, HarnessExec,
+    HarnessSession, HarnessStartOptions, Now, OnEvent, SharedFuture, TurnDelta, TurnResult, TurnStatus, TurnTokens,
 };
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::session::TurnRefusal;
@@ -656,5 +656,61 @@ impl OpenCodeAdapter {
     pub async fn probe_version(&self, exec: Arc<dyn HarnessExec>) -> Result<Option<String>, ExecFailure> {
         let stdout = exec.exec(&version_probe_command(self.deps.base_env.as_ref(), self.deps.launch.as_ref()), None).await?;
         Ok(parse_version(&stdout))
+    }
+}
+
+/// The runtime's view of the OpenCode adapter: the members of adapter.ts:278-304 its object declares.
+impl HarnessAdapter for OpenCodeAdapter {
+    fn start(&self, options: HarnessStartOptions) -> Result<Arc<dyn HarnessSession>, AdapterError> {
+        OpenCodeAdapter::start(self, options).map(|session| Arc::new(session) as Arc<dyn HarnessSession>)
+    }
+    fn attach(
+        &self,
+        options: AdapterAttachOptions,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<Arc<dyn HarnessSession>>, ExecFailure>>> {
+        OpenCodeAdapter::attach(self, options).map(|pending| {
+            async move {
+                Ok(match pending.await? {
+                    AttachedSession::Session(session) => Some(Arc::new(session) as Arc<dyn HarnessSession>),
+                    AttachedSession::Gone => None,
+                })
+            }
+            .boxed_local()
+        })
+    }
+    fn steers(&self) -> bool {
+        OpenCodeAdapter::steers(self)
+    }
+    fn attachments(&self) -> Option<AttachmentRoad> {
+        OpenCodeAdapter::attachments(self)
+    }
+    fn probe_catalog(&self, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<HarnessCatalogAnswer>, ExecFailure>>> {
+        let me = self.clone();
+        Some(async move { me.probe_catalog(exec).await }.boxed_local())
+    }
+    fn probe_version(&self, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+        let me = self.clone();
+        Some(async move { me.probe_version(exec).await }.boxed_local())
+    }
+    fn env(&self) -> Option<Env> {
+        Some(OpenCodeAdapter::env(self))
+    }
+}
+
+impl HarnessSession for OpenCodeSession {
+    fn local_id(&self) -> String {
+        OpenCodeSession::local_id(self)
+    }
+    fn finished(&self) -> SharedFuture<TurnResult> {
+        OpenCodeSession::finished(self)
+    }
+    fn run(&self) -> Option<String> {
+        OpenCodeSession::run(self)
+    }
+    fn pid(&self) -> Option<u32> {
+        OpenCodeSession::pid(self)
+    }
+    fn interrupt(&self) -> LocalBoxFuture<'static, ()> {
+        OpenCodeSession::interrupt(self)
     }
 }
