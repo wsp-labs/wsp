@@ -604,7 +604,7 @@ fn a_late_folders_servers_go_after_every_step() {
         assert_eq!((carried[0].0.as_str(), carried[0].1.as_str()), ("app", "/root/app"));
         let mut ended: Vec<&str> = carried[0].2.iter().map(|s| s.word()).collect();
         ended.sort();
-        assert_eq!(ended, vec!["agents", "clis", "configs", "context", "github", "mcp", "plugins", "skills"]);
+        assert_eq!(ended, vec!["agents", "clis", "configs", "context", "floor", "github", "mcp", "plugins", "skills"]);
         assert_eq!(
             pin(&scene, "agents/mcp/claude/@/root/app/kept"),
             json!({ "id": "agents/mcp/claude/@/root/app/kept", "label": "Claude Code kept", "outcome": "installed", "step": "folderServers" })

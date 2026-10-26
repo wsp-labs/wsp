@@ -81,6 +81,14 @@ pub fn base64_of(text: &str) -> String {
     base64::engine::general_purpose::STANDARD.encode(text)
 }
 
+/// The text a `putFiles` command writes: the base64 inside its `printf %s '...'` (places-setup.test.ts:1156 `written`).
+pub fn written(cmd: &str) -> String {
+    use base64::Engine;
+    let from = cmd.find("printf %s '").map_or(0, |at| at + "printf %s '".len());
+    let b64: String = cmd[from..].chars().take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '=')).collect();
+    String::from_utf8(base64::engine::general_purpose::STANDARD.decode(b64).unwrap_or_default()).unwrap_or_default()
+}
+
 /// A plain error with that message.
 pub fn err(message: impl Into<String>) -> HostError {
     HostError::new(message)
@@ -787,7 +795,11 @@ impl SignIns {
     }
 }
 
-pub fn sign_in_event(v: Value) -> AgentsSignInEvent {
+pub fn sign_in_event(mut v: Value) -> AgentsSignInEvent {
+    let agent = v.get("agent").and_then(Value::as_str).unwrap_or("").to_string();
+    let object = v.as_object_mut().expect("a sign-in event is an object");
+    object.entry("type").or_insert(json!("agents.signIn"));
+    object.entry("signInId").or_insert(json!(agent));
     serde_json::from_value(v).expect("a sign-in event")
 }
 
