@@ -8,12 +8,18 @@ use wsp_wire::types::js_number::JsNumber;
 use wsp_words::v8_json::{parse_json, parse_json_lax, KEPT_DEPTH};
 
 fn kept_to_the_limit(value: &Value, level: usize) -> bool {
-    level >= KEPT_DEPTH
-        || match value {
-            Value::Array(items) => items.iter().any(|item| kept_to_the_limit(item, level + 1)),
-            Value::Object(fields) => fields.values().any(|field| kept_to_the_limit(field, level + 1)),
-            _ => false,
+    let mut work = vec![(value, level)];
+    while let Some((value, level)) = work.pop() {
+        if level >= KEPT_DEPTH {
+            return true;
         }
+        match value {
+            Value::Array(items) => work.extend(items.iter().map(|item| (item, level + 1))),
+            Value::Object(fields) => work.extend(fields.values().map(|field| (field, level + 1))),
+            _ => {}
+        }
+    }
+    false
 }
 
 fn whole(text: &str, kept: Value) -> Value {
@@ -47,34 +53,61 @@ pub fn stringify(value: &Value) -> String {
     text
 }
 
+/// A container being written: what is left of its members, and whether none is written yet.
+enum Open<'a> {
+    Array(std::slice::Iter<'a, Value>, bool),
+    Object(serde_json::map::Iter<'a>, bool),
+}
+
+/// The text of `value`, with the open containers on a stack so no depth of value overflows a thread's.
 fn write_value(value: &Value, text: &mut String) {
-    match value {
-        Value::Number(n) => match n.as_f64() {
-            Some(f) if n.is_f64() || f.abs() > 9_007_199_254_740_992.0 => text.push_str(&JsNumber(f).js_string()),
-            _ => text.push_str(&n.to_string()),
-        },
-        Value::Array(items) => {
-            text.push('[');
-            for (at, item) in items.iter().enumerate() {
-                if at > 0 {
-                    text.push(',');
-                }
-                write_value(item, text);
+    let mut stack: Vec<Open> = Vec::new();
+    let mut next = Some(value);
+    loop {
+        match next.take() {
+            Some(Value::Number(n)) => match n.as_f64() {
+                Some(f) if n.is_f64() || f.abs() > 9_007_199_254_740_992.0 => text.push_str(&JsNumber(f).js_string()),
+                _ => text.push_str(&n.to_string()),
+            },
+            Some(Value::Array(items)) => {
+                text.push('[');
+                stack.push(Open::Array(items.iter(), true));
             }
-            text.push(']');
-        }
-        Value::Object(fields) => {
-            text.push('{');
-            for (at, (key, field)) in fields.iter().enumerate() {
-                if at > 0 {
-                    text.push(',');
-                }
-                text.push_str(&Value::String(key.clone()).to_string());
-                text.push(':');
-                write_value(field, text);
+            Some(Value::Object(fields)) => {
+                text.push('{');
+                stack.push(Open::Object(fields.iter(), true));
             }
-            text.push('}');
+            Some(other) => text.push_str(&other.to_string()),
+            None => {}
         }
-        other => text.push_str(&other.to_string()),
+        match stack.last_mut() {
+            None => return,
+            Some(Open::Array(items, first)) => match items.next() {
+                Some(item) => {
+                    if !std::mem::take(first) {
+                        text.push(',');
+                    }
+                    next = Some(item);
+                }
+                None => {
+                    stack.pop();
+                    text.push(']');
+                }
+            },
+            Some(Open::Object(fields, first)) => match fields.next() {
+                Some((key, field)) => {
+                    if !std::mem::take(first) {
+                        text.push(',');
+                    }
+                    text.push_str(&Value::String(key.clone()).to_string());
+                    text.push(':');
+                    next = Some(field);
+                }
+                None => {
+                    stack.pop();
+                    text.push('}');
+                }
+            },
+        }
     }
 }
