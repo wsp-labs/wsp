@@ -15,8 +15,8 @@ use wsp_wire::wire::capabilities::{MachineSizeOffer, WorkspaceSize};
 use wsp_words::exit::HostError;
 use wsp_words::workspace_state::{CopyAt, StandsOn};
 
-use super::reads::ThreadRow;
-use crate::verbs::client::{HostClient, Out, SshAsked};
+use super::reads::{reply_field, workspaces, ThreadRow};
+use crate::verbs::client::{Frame, HostClient, Out, SshAsked};
 use crate::verbs::io::Created;
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -204,8 +204,8 @@ pub async fn place_names(client: &dyn HostClient) -> Result<IndexMap<String, Str
 
 /// `projectsOf(client)` (workspaces-help.ts:744): `projects.list`, its `projects`.
 pub async fn projects_of(client: &dyn HostClient) -> Result<Vec<ProjectView>, HostError> {
-    let _ = client;
-    todo!("workspaces-help.ts:744")
+    let reply = client.request("projects.list", Frame::new()).await?;
+    reply_field(&reply, "projects.list", "projects")
 }
 
 /// `projectOf(client, ref)` (workspaces-help.ts:749): `projects.resolve {ref}`, its `project`.
@@ -217,7 +217,12 @@ pub async fn project_of(client: &dyn HostClient, r#ref: &str) -> Result<ProjectV
 /// `projectLine(p, workspaces, threadsHeld, named)` (workspaces-help.ts:756-766): seven cells: name, id,
 /// `computer_named(p.computer, named, host_platform())`, `source_word(source)`, the path shortened at `FOLDER_WIDTH`, the
 /// base or an empty cell, and the count of threads whose workspace is one of `workspaces` of this project.
-pub fn project_line(p: &ProjectView, workspaces: &[WorkspaceOut], threads_held: &[ThreadView], named: &IndexMap<String, String>) -> Vec<String> {
+pub fn project_line(
+    p: &ProjectView,
+    workspaces: &[WorkspaceOut],
+    threads_held: &[ThreadView],
+    named: &IndexMap<String, String>,
+) -> Vec<String> {
     let _ = (p, workspaces, threads_held, named);
     todo!("workspaces-help.ts:756-766")
 }
@@ -269,7 +274,13 @@ pub struct CreateAsked {
 /// 6. The reply's `workspace` and `notice` (kept as the host wrote them) are emitted with the line `created <name> <id>, a
 ///    copy of <project name> at <folder or project path>` plus `\n<notice>` where a notice is present (an empty one too).
 /// Frames after the reply are dropped. The held frames stop on every road out once the create was sent.
-pub async fn create_for(client: &dyn HostClient, out: &Out, project: &ProjectPick, name: &str, asked: &CreateAsked) -> Result<Created, HostError> {
+pub async fn create_for(
+    client: &dyn HostClient,
+    out: &Out,
+    project: &ProjectPick,
+    name: &str,
+    asked: &CreateAsked,
+) -> Result<Created, HostError> {
     let _ = (client, out, project, name, asked);
     todo!("workspaces-help.ts:775-812")
 }
@@ -278,13 +289,23 @@ pub async fn create_for(client: &dyn HostClient, out: &Out, project: &ProjectPic
 /// back to `workspaces()` and the projects they hold, once each by project id (a repeated id keeps its first position
 /// and its last name and computer). A list that is empty is an answer: no fallback read.
 pub async fn projects_here(client: &dyn HostClient) -> Result<Vec<ProjectPick>, HostError> {
-    let _ = client;
-    todo!("workspaces-help.ts:817-823")
+    if let Ok(held) = projects_of(client).await {
+        return Ok(held.into_iter().map(|p| ProjectPick { id: p.id, name: p.name, computer: p.computer }).collect());
+    }
+    let mut by_id: IndexMap<String, ProjectPick> = IndexMap::new();
+    for w in workspaces(client).await? {
+        by_id.insert(w.project.id.clone(), ProjectPick { id: w.project.id, name: w.project.name, computer: w.project.computer });
+    }
+    Ok(by_id.into_values().collect())
 }
 
 /// `agentsAsked(maxMachines, maxDepth, computer)` (workspaces-help.ts:827-832): `--max-machines` read before
 /// `--max-depth`, each by `count_asked` (least 0 and 1); none when neither is named.
-pub fn agents_asked(max_machines: Option<&Value>, max_depth: Option<&Value>, computer: Option<&str>) -> Result<Option<AgentsAsked>, HostError> {
+pub fn agents_asked(
+    max_machines: Option<&Value>,
+    max_depth: Option<&Value>,
+    computer: Option<&str>,
+) -> Result<Option<AgentsAsked>, HostError> {
     let _ = (max_machines, max_depth, computer);
     todo!("workspaces-help.ts:827-832")
 }
