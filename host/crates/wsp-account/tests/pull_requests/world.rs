@@ -304,6 +304,7 @@ struct World {
     checkout_answer: RefCell<Option<Checkout>>,
     mark_error: RefCell<Option<String>>,
     nap_error: RefCell<Option<String>>,
+    status_error: RefCell<Option<String>>,
 }
 
 
@@ -329,6 +330,7 @@ impl World {
             checkout_answer: RefCell::new(None),
             mark_error: RefCell::new(None),
             nap_error: RefCell::new(None),
+            status_error: RefCell::new(None),
         });
         w.set_project(Some("main"), "main", REMOTE);
         w.here_says("git.prRead", |_| ok(json!({ "pr": open(json!({})) })));
@@ -517,10 +519,14 @@ impl PullRequestsCtx for World {
         self.persisted.borrow_mut().push(serde_json::to_value(record).unwrap());
         Ok(())
     }
-    async fn status_now(&self, entry: &Entry) {
+    async fn status_now(&self, entry: &Entry) -> AccountResult<()> {
         self.put("status".into());
         let pr = serde_json::to_value(&entry.borrow().pr).unwrap();
         self.statuses.borrow_mut().push(pr);
+        match self.status_error.borrow().clone() {
+            Some(m) => Err(plain(&m).into()),
+            None => Ok(()),
+        }
     }
     async fn read_checkout(&self, entry: &Entry, force: bool) -> AccountResult<Option<Checkout>> {
         self.put(format!("checkout {force}"));

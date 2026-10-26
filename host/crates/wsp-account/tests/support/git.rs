@@ -192,7 +192,7 @@ impl Base for FakeGit {
     async fn git_here(&self, ask: GitAsk) -> Result<ExecResult, HostError> {
         self.inner.git_here(ask).await
     }
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String {
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError> {
         self.inner.checkout_of(record)
     }
     async fn preferences(&self) -> Result<Preferences, HostError> {

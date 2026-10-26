@@ -199,7 +199,7 @@ impl Base for FakeStart {
     async fn git_here(&self, ask: GitAsk) -> Result<ExecResult, HostError> {
         self.b().git_here(ask).await
     }
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String {
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError> {
         self.b().checkout_of(record)
     }
     async fn preferences(&self) -> Result<Preferences, HostError> {
@@ -360,11 +360,11 @@ impl StartFromCtx for FakeStart {
         self.base.answer_as::<()>("access_word_refusal", || ()).err()
     }
 
-    /// Default none.
-    fn named_mode(&self, catalog: &HarnessCatalog, harness: &str, access: &AccessChoice) -> Option<String> {
+    /// Default none; a scripted error is the throw `namedMode` makes.
+    fn named_mode(&self, catalog: &HarnessCatalog, harness: &str, access: &AccessChoice) -> Result<Option<String>, HostError> {
         self.base
             .call("named_mode", json!({ "catalog": catalog.harness, "harness": harness, "access": serde_json::to_value(access).unwrap() }));
-        self.base.answer_as::<Option<String>>("named_mode", || None).unwrap()
+        self.base.answer_as::<Option<String>>("named_mode", || None)
     }
 
     /// Default none; a scripted error is the pick's refusal.

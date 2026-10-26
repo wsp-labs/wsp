@@ -604,6 +604,12 @@ pub struct FakeProjects {
     /// What each move road was told beside its arguments: the folder its parts are written in and its deadline.
     pub roads: RefCell<Vec<Value>>,
     pub tmp: tempfile::TempDir,
+    /// The failures the context's lookups answer in place of their values (each throws where the TS does).
+    pub state_fail: RefCell<Option<HostError>>,
+    pub reached_fail: RefCell<Option<HostError>>,
+    pub elsewhere_fail: RefCell<Option<HostError>>,
+    pub threads_fail: RefCell<Option<HostError>>,
+    pub scratch_fail: RefCell<Option<HostError>>,
 }
 
 /// The rows every test starts with: this computer, a joined box, and a provider named by its id.
@@ -642,6 +648,11 @@ impl FakeProjects {
             runs: RefCell::new(vec!["claude".to_owned()]),
             roads: RefCell::new(Vec::new()),
             tmp: tempfile::tempdir().expect("a scratch folder"),
+            state_fail: RefCell::new(None),
+            reached_fail: RefCell::new(None),
+            elsewhere_fail: RefCell::new(None),
+            threads_fail: RefCell::new(None),
+            scratch_fail: RefCell::new(None),
             base,
         })
     }
@@ -725,7 +736,7 @@ impl Base for FakeProjects {
     async fn git_here(&self, ask: GitAsk) -> Result<ExecResult, HostError> {
         self.me().git_here(ask).await
     }
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String {
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError> {
         self.me().checkout_of(record)
     }
     async fn preferences(&self) -> Result<Preferences, HostError> {
@@ -766,9 +777,12 @@ impl MoveRoads for FakeProjects {
             })
             .unwrap()
     }
-    fn scratch(&self, entry: &Entry) -> String {
+    fn scratch(&self, entry: &Entry) -> Result<String, HostError> {
         self.base.call("scratch", json!({ "id": rec(entry).id }));
-        "/tmp".to_owned()
+        if let Some(e) = self.scratch_fail.borrow().clone() {
+            return Err(e);
+        }
+        Ok("/tmp".to_owned())
     }
     async fn land_bundle(
         &self,
@@ -923,8 +937,11 @@ impl MoveRoads for FakeProjects {
 
 #[async_trait(?Send)]
 impl ProjectsCtx for FakeProjects {
-    fn state_folder(&self) -> String {
-        format!("{HOME}/.wsp")
+    fn state_folder(&self) -> Result<String, HostError> {
+        if let Some(e) = self.state_fail.borrow().clone() {
+            return Err(e);
+        }
+        Ok(format!("{HOME}/.wsp"))
     }
     fn has_state_path(&self) -> bool {
         self.state_path.get()
@@ -1005,21 +1022,30 @@ impl ProjectsCtx for FakeProjects {
         self.base.projects.borrow_mut().insert(project.id.clone(), project);
         Ok(())
     }
-    fn project_reached(&self, origin: Option<&Caller>, project_id: &str) -> bool {
+    fn project_reached(&self, origin: Option<&Caller>, project_id: &str) -> Result<bool, HostError> {
         self.base.call("project_reached", json!({ "scoped": scoped(origin), "project": project_id }));
-        self.reached.borrow().iter().any(|p| p == project_id)
+        if let Some(e) = self.reached_fail.borrow().clone() {
+            return Err(e);
+        }
+        Ok(self.reached.borrow().iter().any(|p| p == project_id))
     }
     fn project_of_scope(&self, origin: Option<&Caller>) -> Option<String> {
         self.base.call("project_of_scope", json!({ "scoped": scoped(origin) }));
         self.base.answer_as::<Option<String>>("project_of_scope", || None).unwrap()
     }
-    fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &ProjectView, word: &str) -> Option<HostError> {
+    fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &ProjectView, word: &str) -> Result<Option<HostError>, HostError> {
         self.base.call("elsewhere_refusal", json!({ "scoped": scoped(origin), "project": project.id, "word": word }));
-        self.base.answer("elsewhere_refusal").and_then(|v| error_in(&v))
+        if let Some(e) = self.elsewhere_fail.borrow().clone() {
+            return Err(e);
+        }
+        Ok(self.base.answer("elsewhere_refusal").and_then(|v| error_in(&v)))
     }
-    fn of_threads_repository(&self, origin: Option<&Caller>, project_id: &str) -> bool {
+    fn of_threads_repository(&self, origin: Option<&Caller>, project_id: &str) -> Result<bool, HostError> {
         self.base.call("of_threads_repository", json!({ "scoped": scoped(origin), "project": project_id }));
-        self.base.answer_as("of_threads_repository", || false).unwrap()
+        if let Some(e) = self.threads_fail.borrow().clone() {
+            return Err(e);
+        }
+        self.base.answer_as("of_threads_repository", || false)
     }
     fn holds_thread(&self, workspace_id: &str) -> bool {
         self.base.call("holds_thread", json!({ "id": workspace_id }));

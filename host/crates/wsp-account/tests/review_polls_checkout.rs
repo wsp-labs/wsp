@@ -94,7 +94,7 @@ impl Base for Slow {
     async fn git_here(&self, ask: GitAsk) -> Result<ExecResult, HostError> {
         self.0.git_here(ask).await
     }
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String {
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError> {
         self.0.checkout_of(record)
     }
     async fn preferences(&self) -> Result<Preferences, HostError> {

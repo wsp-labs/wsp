@@ -100,6 +100,10 @@ pub struct FakeFolders {
     /// A landing a test holds open, by thread id: `checkpoints_landed` waits on it.
     pub landing: RefCell<IndexMap<String, oneshot::Receiver<()>>>,
     joined: RefCell<IndexMap<String, Joined>>,
+    /// The failure `state_folder` answers (`ctx.stateFolder` throws).
+    pub state_fail: RefCell<Option<HostError>>,
+    /// The failure `elsewhere_refusal` answers (its own lookups throw); a scripted refusal is still an answer.
+    pub elsewhere_fail: RefCell<Option<HostError>>,
 }
 
 impl FakeFolders {
@@ -116,6 +120,8 @@ impl FakeFolders {
             branches: RefCell::new(IndexMap::new()),
             landing: RefCell::new(IndexMap::new()),
             joined: RefCell::new(IndexMap::new()),
+            state_fail: RefCell::new(None),
+            elsewhere_fail: RefCell::new(None),
         })
     }
 
@@ -193,7 +199,7 @@ impl Base for FakeFolders {
     async fn git_here(&self, ask: GitAsk) -> Result<ExecResult, HostError> {
         self.b().git_here(ask).await
     }
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String {
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError> {
         self.b().checkout_of(record)
     }
     async fn preferences(&self) -> Result<Preferences, HostError> {
@@ -216,8 +222,11 @@ fn record_id(entry: &Entry) -> String {
 
 #[async_trait(?Send)]
 impl FoldersCtx for FakeFolders {
-    fn state_folder(&self) -> String {
-        format!("{}/.wsp", self.base.home)
+    fn state_folder(&self) -> Result<String, HostError> {
+        if let Some(e) = self.state_fail.borrow().clone() {
+            return Err(e);
+        }
+        Ok(format!("{}/.wsp", self.base.home))
     }
     fn has_state_path(&self) -> bool {
         self.state_path.get()
@@ -317,12 +326,15 @@ impl FoldersCtx for FakeFolders {
             .cloned()
             .ok_or_else(|| plain(&format!("no project {word}")))
     }
-    fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &ProjectView, word: &str) -> Option<HostError> {
+    fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &ProjectView, word: &str) -> Result<Option<HostError>, HostError> {
         self.base.call(
             "elsewhere_refusal",
             json!({ "project": project.id, "word": word, "scoped": matches!(origin, Some(Caller::Scoped { .. })) }),
         );
-        self.base.answer_as::<()>("elsewhere_refusal", || ()).err()
+        if let Some(e) = self.elsewhere_fail.borrow().clone() {
+            return Err(e);
+        }
+        Ok(self.base.answer_as::<()>("elsewhere_refusal", || ()).err())
     }
     async fn picks_hold(&self, project: &ProjectView, picks: &StartPicksAsked) -> Result<(), HostError> {
         self.base.call("picks_hold", json!({ "project": project.id, "harness": picks.harness }));

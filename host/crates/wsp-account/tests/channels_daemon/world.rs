@@ -354,6 +354,7 @@ struct World {
     local_road: RefCell<AccountResult<DaemonReachView>>,
     local_roads_asked: Cell<usize>,
     adopted: RefCell<Vec<String>>,
+    adopt_fail: RefCell<Option<HostError>>,
     broker: Cell<bool>,
     roots: RefCell<HashMap<String, String>>,
     // this process
@@ -420,6 +421,7 @@ impl World {
             local_road: RefCell::new(Err(unanswered())),
             local_roads_asked: Cell::new(0),
             adopted: RefCell::default(),
+            adopt_fail: RefCell::new(None),
             broker: Cell::new(false),
             roots: RefCell::default(),
             host_pid: Cell::new(100),
@@ -593,8 +595,12 @@ impl ChannelsCtx for World {
         self.local_roads_asked.set(self.local_roads_asked.get() + 1);
         self.local_road.borrow().clone()
     }
-    async fn adopt_pause(&self, entry: &Entry) {
+    async fn adopt_pause(&self, entry: &Entry) -> AccountResult<()> {
         self.adopted.borrow_mut().push(entry.borrow().record.borrow().id.clone());
+        match self.adopt_fail.borrow().clone() {
+            Some(e) => Err(e.into()),
+            None => Ok(()),
+        }
     }
     fn broker_ready(&self) -> bool {
         self.broker.get()
@@ -693,7 +699,7 @@ impl ChannelsCtx for World {
     fn terminal_line(&self, _harness: &str, _program: Option<&str>) -> String {
         unreachable!()
     }
-    async fn thread_folder(&self, _entry: &Entry) -> String {
+    async fn thread_folder(&self, _entry: &Entry) -> AccountResult<String> {
         unreachable!()
     }
     fn thread_env(&self, _entry: &Entry) -> IndexMap<String, String> {

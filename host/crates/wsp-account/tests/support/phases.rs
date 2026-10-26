@@ -160,6 +160,8 @@ pub struct FakePhases {
     /// `ws.currentPhase`.
     pub engine_phase: Cell<WorkspacePhase>,
     pub caps: RefCell<Capabilities>,
+    /// The failure `backend_capabilities` answers (`backendFor` throws where a record's kind has no module).
+    pub caps_fail: RefCell<Option<HostError>>,
     /// Paths `path_exists` answers true for.
     pub paths: RefCell<Vec<String>>,
     /// Thread ids `thread_runs` answers true for.
@@ -184,6 +186,7 @@ impl FakePhases {
             replacement: RefCell::new("m_new".to_owned()),
             engine_phase: Cell::new(WorkspacePhase::Napping),
             caps: RefCell::new(caps_with_sizes()),
+            caps_fail: RefCell::new(None),
             paths: RefCell::new(vec![]),
             running_threads: RefCell::new(vec![]),
             cut_gate: RefCell::new(None),
@@ -298,7 +301,7 @@ impl Base for FakePhases {
     async fn git_here(&self, ask: GitAsk) -> Result<ExecResult, HostError> {
         BaseOf(self.base.clone()).git_here(ask).await
     }
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String {
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError> {
         BaseOf(self.base.clone()).checkout_of(record)
     }
     async fn preferences(&self) -> Result<Preferences, HostError> {
@@ -584,9 +587,12 @@ impl PhasesCtx for FakePhases {
         }
     }
 
-    async fn backend_capabilities(&self, entry: &Entry) -> Capabilities {
+    async fn backend_capabilities(&self, entry: &Entry) -> Result<Capabilities, HostError> {
         self.base.call("backend_capabilities", json!({ "id": Self::id_of(entry) }));
-        self.caps.borrow().clone()
+        if let Some(e) = self.caps_fail.borrow().clone() {
+            return Err(e);
+        }
+        Ok(self.caps.borrow().clone())
     }
 
     fn thread_runs(&self, thread_id: &str) -> bool {

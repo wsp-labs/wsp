@@ -525,7 +525,9 @@ impl ChannelsCtx for Sim {
     async fn local_road(&self) -> AccountResult<DaemonReachView> {
         unreachable!("the copy area dials no local road")
     }
-    async fn adopt_pause(&self, _entry: &Entry) {}
+    async fn adopt_pause(&self, _entry: &Entry) -> AccountResult<()> {
+        Ok(())
+    }
     fn broker_ready(&self) -> bool {
         self.flag("broker")
     }
@@ -639,9 +641,12 @@ impl ChannelsCtx for Sim {
     fn terminal_line(&self, harness: &str, program: Option<&str>) -> String {
         format!("write-terminal {harness} {}", program.unwrap_or(""))
     }
-    async fn thread_folder(&self, _entry: &Entry) -> String {
+    async fn thread_folder(&self, _entry: &Entry) -> AccountResult<String> {
         self.fx.push(json!(["thread-folder"]));
-        self.w["threadFolder"].as_str().unwrap_or("/srv/alpha/work").to_string()
+        if let Some(message) = self.w["threadFolderError"].as_str() {
+            return Err(plain(message).into());
+        }
+        Ok(self.w["threadFolder"].as_str().unwrap_or("/srv/alpha/work").to_string())
     }
     fn thread_env(&self, _entry: &Entry) -> IndexMap<String, String> {
         env_of(&self.w["threadEnv"])

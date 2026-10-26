@@ -147,7 +147,7 @@ impl ChannelsCtx for Lit {
     async fn local_road(&self) -> AccountResult<DaemonReachView> {
         self.0.local_road().await
     }
-    async fn adopt_pause(&self, entry: &Entry) {
+    async fn adopt_pause(&self, entry: &Entry) -> AccountResult<()> {
         self.0.adopt_pause(entry).await
     }
     fn broker_ready(&self) -> bool {
@@ -222,7 +222,7 @@ impl ChannelsCtx for Lit {
     fn brokered_env(&self, token: &str, entry: &Entry) -> IndexMap<String, String> {
         self.0.brokered_env(token, entry)
     }
-    async fn thread_folder(&self, entry: &Entry) -> String {
+    async fn thread_folder(&self, entry: &Entry) -> AccountResult<String> {
         self.0.thread_folder(entry).await
     }
     fn thread_env(&self, entry: &Entry) -> IndexMap<String, String> {
