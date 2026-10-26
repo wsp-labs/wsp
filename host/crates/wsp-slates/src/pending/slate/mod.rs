@@ -414,7 +414,12 @@ pub use chart::{
     slate_axis_word, slate_chart_axis, slate_shares, slate_span_state, slate_time, SlateChartAxis, SlateShare, SLATE_DONUT_PARTS,
     SLATE_SPAN_STATES, SLATE_TIME_FLOOR,
 };
-pub use expr::{evaluate_slate_expression, resolve_slate_prop, slate_dependencies, slate_text};
+pub use expr::{
+    check_slate_expression, closing_brace, evaluate_slate_ast, evaluate_slate_expression, parse_slate_expression, parse_slate_format, resolve_slate_prop,
+    slate_ast_dependencies, slate_dependencies, slate_path_text, slate_prop_dependencies, slate_text, slate_truthy, SlateBinOp,
+    SlateCheckScope, SlateExpr, SlateExprCheck, SlateExprParse, SlateFormatParse, SlateFormatPart, SlateFunction, SlatePipeArg, SlatePipeStep,
+    SlatePipeStepNode, SlateScopeProblem, SlateTemplatePart, SlateType, SlateTypeName, SLATE_FUNCTIONS, SLATE_PIPE_STEPS,
+};
 pub use image::{
     slate_address_refused, slate_image_missing, slate_image_not_a_file, slate_image_source, slate_image_too_big, slate_list_too_long,
     slate_looks_svg, slate_not_an_image, SlateImageSource, SLATE_IMAGE_LAYOUTS, SLATE_IMAGE_MAX_BYTES,
