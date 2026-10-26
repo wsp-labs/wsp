@@ -251,7 +251,7 @@ fn a_close_drops_the_offer_and_tells_every_watcher() {
     app.close();
     assert_eq!(page.pushed().last().cloned().unwrap(), json!({ "type": "app.procs", "procs": [] }));
     page.close();
-    assert_eq!(wanted(&app), vec![json!(true)], "the offer was already dropped, so nothing is asked of it");
+    assert_eq!(wanted(&app), Vec::<Value>::new(), "the offer came after the watch and was dropped, so nothing is ever pushed to it");
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -870,10 +870,10 @@ fn project_answers_pass_only_the_fields_sent() {
 
         rt.script.once::<Result<_, HostError>>(
             "projects.icons",
-            Ok(indexmap::IndexMap::<String, Option<String>>::from([("h1".to_string(), None::<String>)])),
+            Ok(indexmap::IndexMap::<String, Option<String>>::from([(H1.to_string(), None::<String>)])),
         );
-        let icons = answer_project(rt.projects(), &req("projects.icons", json!({ "hashes": ["h1"] })), here()).await.unwrap();
-        assert_eq!(Value::Object(icons), json!({ "icons": { "h1": null } }));
+        let icons = answer_project(rt.projects(), &req("projects.icons", json!({ "hashes": [H1] })), here()).await.unwrap();
+        assert_eq!(Value::Object(icons), json!({ "icons": { H1: null } }));
     })
 }
 
@@ -976,6 +976,8 @@ fn processes_and_conversations_pass_only_the_fields_sent() {
 fn found(workspace_id: &str, cwd: &str, setup: &str) -> FolderFor {
     FolderFor { workspace: workspace(workspace_id, "local"), cwd: Some(cwd.into()), setup: Some(setup.into()) }
 }
+
+const H1: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
 fn script_folder(rt: &FakeRuntime) {
     rt.script.once::<Result<FolderFor, HostError>>("workspaces.folderFor", Ok(found("ws_7", "/work", "make")));
@@ -1217,6 +1219,7 @@ fn answers_reach_the_reply_each_in_turn() {
             })),
         );
         seen.borrow_mut().clear();
+        script_folder(&rt);
         serve_start(
             &*rt,
             &start_msg(json!({ "project": "app", "answerHeld": true })),

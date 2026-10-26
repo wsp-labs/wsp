@@ -56,7 +56,7 @@ fn dopts(rt: &Rc<FakeRuntime>) -> ServeOptions {
 fn report() -> Value {
     json!({
         "name": "box-1", "platform": "linux", "arch": "arm64", "os": "Ubuntu 24.04", "shape": { "cpu": 2, "memMb": 4096 },
-        "login": {}, "runsWorkspaces": true, "engine": "none", "daemonVersion": 150, "wsp": [], "agents": [], "dialed": "wss://host"
+        "login": {}, "runsWorkspaces": true, "engine": "none", "daemonVersion": 150, "wsp": ["wsp"], "agents": [], "dialed": "wss://host"
     })
 }
 
