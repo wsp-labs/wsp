@@ -428,7 +428,7 @@ impl ChannelsArea {
         let Some(sign_in) = self.ctx.terminal_sign_in(&harness, entry, token) else {
             return IndexMap::new();
         };
-        let line = self.ctx.terminal_line(&harness, sign_in.program.as_deref().unwrap_or(""));
+        let line = self.ctx.terminal_line(&harness, sign_in.program.as_deref());
         self.write_terminal(entry, &harness, &line).await;
         let mut env = sign_in.env;
         env.insert(TERMINAL_ENV.to_string(), harness);
