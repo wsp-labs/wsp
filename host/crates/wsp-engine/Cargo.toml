@@ -19,9 +19,13 @@ indexmap = { version = "2", features = ["serde"] }
 jiff = "0.2"
 libc = "0.2"
 rand = "0.8"
+# The platform HTTP client (fetch.rs). The ring provider only: with aws-lc-rs on as well, both providers in one process
+# panic at run time (#2450's design).
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "stream"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 rusqlite = { version = "0.32", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["preserve_order"] }
+serde_json = { version = "1", features = ["preserve_order", "unbounded_depth"] }
 sha2 = "0.10"
 thiserror = "2"
 tokio = { version = "1", features = ["process", "time", "io-util", "fs", "rt", "rt-multi-thread", "macros", "sync"] }
@@ -35,3 +39,8 @@ wsp-words = { path = "../wsp-words" }
 [dev-dependencies]
 tempfile = "3"
 tokio = { version = "1", features = ["rt-multi-thread", "test-util"] }
+
+[lints.clippy]
+# The interface's error type is large and its handles are single-thread by design (`?Send` traits).
+result_large_err = "allow"
+arc_with_non_send_sync = "allow"

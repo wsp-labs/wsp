@@ -2,15 +2,28 @@
 //! Unit mcp_rows (spec/golden-mcp_rows.md): golden-mcp.ts:337-566 at a4033dc34. Which kept servers' commands the
 //! machine lacks, the plan with those dropped, every server as a row with the words a person reads, and the builder's
 //! whole round.
-use indexmap::{IndexMap, IndexSet};
+use std::sync::Arc;
 
-use super::{McpAgentPlan, McpPlan, McpResult, McpToolRow, ScopeOutcome, StageListener, ToolInstall, ToolResult};
-use crate::machine::Machine;
+use indexmap::{IndexMap, IndexSet};
+use wsp_catalog::catalog::{base_floor, catalog_entry, catalog_id_of_row};
+use wsp_catalog::roads::{RoadName, UV_INSTALL};
+use wsp_wire::types::shell_quote::shell_quote;
+use wsp_words::agents_report::config_unread_line;
+
+use super::import_roads::CUSTOM_PREFIX;
+use super::mcp_files::{edit_scopes, land_configs, parse_configs, read_configs_cmd, read_failed, refused, scope_row_id, ReadAsk, READ_MS};
+use super::tools_disk::{closing, free_note, guard_deadline_ms, guarded_road, reason_of, road_limit_s};
+use super::{
+    DropName, EditedName, EditedOutcome, GoldenStage, McpAgentPlan, McpPlan, McpResult, McpToolRow, ScopeOutcome, StageListener,
+    ToolInstall, ToolResult, TOOLS_PATH,
+};
+use crate::exec_detached::INLINE_EXEC_MS;
+use crate::machine::{ExecOptions, Machine, OnLine, RunOptions};
 
 /// golden-mcp.ts:348 `FETCHERS`: the runner's basename and who fetches for it (`npx` npx, `uvx` uv, `uv` uv), in the
 /// TS's order.
 pub fn fetchers() -> IndexMap<&'static str, &'static str> {
-    todo!()
+    IndexMap::from([("npx", "npx"), ("uvx", "uv"), ("uv", "uv")])
 }
 
 // TS golden-mcp.ts:371-380
@@ -26,7 +39,15 @@ pub fn fetchers() -> IndexMap<&'static str, &'static str> {
 // }
 /// golden-mcp.ts:373 `mcpTally`: `<n> installed, <n> skipped, <n> on first use`, zero counts left out; `None` for none.
 pub fn mcp_tally(rows: &[McpResult]) -> Option<String> {
-    todo!()
+    let words = [("installed", "installed"), ("skipped", "skipped"), ("fetched-on-first-use", "on first use")];
+    let said: Vec<String> = words
+        .iter()
+        .filter_map(|(outcome, word)| {
+            let n = rows.iter().filter(|r| r.outcome == *outcome).count();
+            (n > 0).then(|| format!("{n} {word}"))
+        })
+        .collect();
+    (!said.is_empty()).then(|| said.join(", "))
 }
 
 /// A row `command_row` and `server_needs` read: its id and the command it names, where it names one.
@@ -70,7 +91,10 @@ impl CommandRowItem for ToolInstall {
 // }
 /// golden-mcp.ts:394 `commandRow`.
 pub fn command_row<'a, R: CommandRowItem>(command: &str, rows: &'a [R]) -> Option<&'a R> {
-    todo!()
+    let name = basename(command);
+    rows.iter()
+        .find(|r| named_commands(*r).iter().any(|n| n == name))
+        .or_else(|| rows.iter().find(|r| is_binary_row(r.row_id()) && basename(r.row_id()) == name))
 }
 
 // TS golden-mcp.ts:399-408
@@ -86,7 +110,21 @@ pub fn command_row<'a, R: CommandRowItem>(command: &str, rows: &'a [R]) -> Optio
 // }
 /// golden-mcp.ts:403 `serverNeeds`, in `rows`' order.
 pub fn server_needs<'a, R: CommandRowItem>(command: &str, rows: &'a [R], ready: &IndexSet<String>) -> Vec<&'a R> {
-    todo!()
+    let name = basename(command);
+    let floor = base_floor();
+    if fetchers().contains_key(name)
+        || ready.contains(name)
+        || floor.iter().any(|e| e.bin == name || e.brings.iter().flatten().any(|b| b.bin == name))
+    {
+        return Vec::new();
+    }
+    match command_row(command, rows) {
+        Some(row) => vec![row],
+        None => rows
+            .iter()
+            .filter(|r| (is_binary_row(r.row_id()) || r.row_id().starts_with(CUSTOM_PREFIX)) && named_commands(*r).is_empty())
+            .collect(),
+    }
 }
 
 // TS golden-mcp.ts:410-420
@@ -103,12 +141,30 @@ pub fn server_needs<'a, R: CommandRowItem>(command: &str, rows: &'a [R], ready: 
 // }
 /// golden-mcp.ts:412 `absentReason`.
 pub fn absent_reason(command: &str, plan: &McpPlan, tools: &[ToolResult]) -> String {
-    todo!()
+    let base = "command not on the machine";
+    let Some(row) = command_row(command, &plan.tools) else {
+        return base.to_string();
+    };
+    if !row.ticked {
+        let reason = row.reason.as_ref().map(|r| format!(" ({r})")).unwrap_or_default();
+        return format!("{base}; {} was not ticked{reason}", row.id);
+    }
+    match tools.iter().find(|t| t.id == row.id) {
+        Some(result) if result.outcome == "skipped" || result.outcome == "failed" => {
+            let verb = if result.outcome == "failed" { "failed" } else { "was skipped" };
+            let note = result.note.as_ref().map(|n| format!(" ({n})")).unwrap_or_default();
+            format!("{base}; {} {verb}{note}", row.id)
+        }
+        _ => format!("{base}; {} was ticked, but nothing by that name is on PATH", row.id),
+    }
 }
 
 /// golden-mcp.ts:423 `asRun`: a leading `~/` is the plan's guest home.
 pub fn as_run(plan: &McpPlan, command: &str) -> String {
-    todo!()
+    match command.strip_prefix("~/") {
+        Some(rest) => format!("{}/{rest}", plan.guest_home),
+        None => command.to_string(),
+    }
 }
 
 // TS golden-mcp.ts:425-437
@@ -128,7 +184,34 @@ pub fn as_run(plan: &McpPlan, command: &str) -> String {
 /// golden-mcp.ts:427 `absentCommands(machine, plan, read, path)`: the commands the check printed `no ` for, in its
 /// order; nothing asked when no kept server names a command; a rejected exec reads as a refused one. Never fails.
 pub async fn absent_commands(machine: &dyn Machine, plan: &McpPlan, read: &[ScopeOutcome], path: &str) -> Vec<String> {
-    todo!()
+    let mut commands: IndexSet<String> = IndexSet::new();
+    for outcome in read {
+        for r in &outcome.results {
+            if let Some(command) = &r.command {
+                commands.insert(as_run(plan, command));
+            }
+        }
+    }
+    if commands.is_empty() {
+        return Vec::new();
+    }
+    let checks: Vec<String> = commands
+        .iter()
+        .map(|c| {
+            format!(
+                "if command -v {} >/dev/null 2>&1; then echo {}; else echo {}; fi",
+                shell_quote(c),
+                shell_quote(&format!("ok {c}")),
+                shell_quote(&format!("no {c}"))
+            )
+        })
+        .collect();
+    let script = format!("export PATH={path}\n{}", checks.join("\n"));
+    let check = match machine.exec(&script, ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..Default::default() }).await {
+        Ok(res) => res,
+        Err(e) => refused(&e.to_string()),
+    };
+    check.stdout.split('\n').filter_map(|line| line.strip_prefix("no ").map(str::to_string)).collect()
 }
 
 // TS golden-mcp.ts:439-456
@@ -158,12 +241,49 @@ pub fn without_absent(
     missing: &IndexSet<String>,
     tools: &[ToolResult],
 ) -> Vec<McpAgentPlan> {
-    todo!()
+    let mut at = 0;
+    let mut out = Vec::with_capacity(agents.len());
+    for agent in agents {
+        let mut scopes = Vec::with_capacity(agent.scopes.len());
+        for scope in &agent.scopes {
+            let results: &[EditedName] = read.get(at).map_or(&[], |o| o.results.as_slice());
+            at += 1;
+            let command_of = |name: &str| results.iter().find(|r| r.name == name).and_then(|r| r.command.clone());
+            let absent: Vec<String> = scope
+                .keep
+                .iter()
+                .filter(|name| {
+                    command_of(name.as_str()).is_some_and(|c| !fetchers().contains_key(basename(&c)) && missing.contains(&as_run(plan, &c)))
+                })
+                .cloned()
+                .collect();
+            if absent.is_empty() {
+                scopes.push(scope.clone());
+                continue;
+            }
+            let mut next = scope.clone();
+            next.keep.retain(|n| !absent.contains(n));
+            for name in &absent {
+                let command = command_of(name.as_str()).unwrap_or_default();
+                next.drop.push(DropName { name: name.clone(), reason: absent_reason(&command, plan, tools), keys: None });
+            }
+            scopes.push(next);
+        }
+        out.push(McpAgentPlan { scopes, ..agent.clone() });
+    }
+    out
 }
 
 /// golden-mcp.ts:459 `mcpOpening`: `<label> <count>` per agent, joined with `, `.
 pub fn mcp_opening(agents: &[McpAgentPlan]) -> String {
-    todo!()
+    agents
+        .iter()
+        .map(|a| {
+            let kept: usize = a.scopes.iter().map(|s| s.keep.len() + s.drop.len()).sum();
+            format!("{} {}", a.label, kept + a.aside.len())
+        })
+        .collect::<Vec<String>>()
+        .join(", ")
 }
 
 /// golden-mcp.ts:468 `mcpRows`'s options.
@@ -294,7 +414,113 @@ pub struct McpRowsOptions {
 /// golden-mcp.ts:468 `mcpRows`. Never fails: the uv install's rejection reads as a refused run, and a df that
 /// rejects leaves the free reading off the closing line.
 pub async fn mcp_rows(machine: &dyn Machine, plan: &McpPlan, o: McpRowsOptions) -> Vec<McpResult> {
-    todo!()
+    let McpRowsOptions { agents, report, failure, missing, present, stage } = o;
+    let mut rows: Vec<Pending> = Vec::new();
+    let mut at = 0;
+    for agent in &agents {
+        for scope in &agent.scopes {
+            let outcome = report.as_ref().and_then(|r| r.get(at));
+            at += 1;
+            let id = |name: &str| scope_row_id(&agent.id, scope.project.as_ref(), scope.folder.as_deref(), name);
+            let not_on_machine = format!("{}'s config is not on the machine", agent.label);
+            let skipped_keep = failure.clone().or_else(|| match outcome {
+                Some(ScopeOutcome { file: Some(file), unread: Some(why), .. }) => Some(config_unread_line(file, why)),
+                Some(ScopeOutcome { file: Some(_), error: Some(error), .. }) => {
+                    Some(format!("{}'s config on the machine did not parse ({error})", agent.label))
+                }
+                Some(ScopeOutcome { file: Some(_), .. }) => None,
+                _ => Some(not_on_machine),
+            });
+            for name in scope.keep.iter().map(String::as_str) {
+                let found = outcome.and_then(|o| o.results.iter().find(|x| x.name == name));
+                let Some(r) = found.filter(|r| skipped_keep.is_none() && r.outcome != EditedOutcome::Missing) else {
+                    rows.push(skipped(
+                        id(name),
+                        &agent.label,
+                        name,
+                        skipped_keep.as_deref().unwrap_or("not in the config that travelled"),
+                        None,
+                    ));
+                    continue;
+                };
+                let fetcher = r.command.as_deref().and_then(|c| fetchers().get(basename(c)).copied());
+                rows.push(Pending {
+                    id: id(name),
+                    agent: agent.label.clone(),
+                    name: name.to_string(),
+                    outcome: if fetcher.is_some() { "fetched-on-first-use" } else { "installed" }.to_string(),
+                    command: r.command.clone(),
+                    notes: fetcher.map(|f| format!("{f} fetches the package on first use")).into_iter().collect(),
+                    shorts: fetcher.map(|f| format!("package fetched on first use by {f}")).into_iter().collect(),
+                    keys: None,
+                });
+            }
+            for d in &scope.drop {
+                rows.push(skipped(id(d.name.as_str()), &agent.label, &d.name, &d.reason, d.keys.clone()));
+            }
+        }
+        for a in &agent.aside {
+            rows.push(skipped(a.id.clone(), &agent.label, &a.name, &a.reason, None));
+        }
+    }
+
+    let via_uv: Vec<usize> = rows
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| r.command.as_deref().is_some_and(|c| matches!(basename(c), "uv" | "uvx") && missing.contains(&as_run(plan, c))))
+        .map(|(i, _)| i)
+        .collect();
+    if !via_uv.is_empty() {
+        let names: Vec<&str> = via_uv.iter().map(|&i| rows[i].name.as_str()).collect();
+        let text = format!("uv for {}", names.join(", "));
+        stage(GoldenStage::InstallingMcp, Some(text.as_str()));
+        let line_stage = stage.clone();
+        let on_line: OnLine = Arc::new(move |line: &str| {
+            let text = format!("uv: {line}");
+            line_stage(GoldenStage::InstallingMcp, Some(text.as_str()));
+        });
+        let script = guarded_road(RoadName::Script, &UV_INSTALL);
+        let install = match machine
+            .run(
+                &script,
+                RunOptions { deadline_ms: guard_deadline_ms(road_limit_s(RoadName::Script)), on_line: Some(on_line), ..Default::default() },
+            )
+            .await
+        {
+            Ok(res) => res,
+            Err(e) => refused(&e.to_string()),
+        };
+        let limit = road_limit_s(RoadName::Script) as f64;
+        for &i in &via_uv {
+            let row = &mut rows[i];
+            if install.exit_code.get() == 0 {
+                row.notes.insert(0, "uv installed for it".to_string());
+                row.shorts.insert(0, "uv installed".to_string());
+            } else {
+                let short = format!("uv did not install ({})", reason_of(&install, limit));
+                row.notes.insert(0, format!("{short}; the server starts once it is installed there"));
+                row.shorts.insert(0, short);
+            }
+        }
+    }
+    let via_uv_ids: IndexSet<String> = via_uv.iter().map(|&i| rows[i].id.clone()).collect();
+    for row in rows.iter_mut() {
+        let Some(command) = row.command.clone() else {
+            continue;
+        };
+        if via_uv_ids.contains(&row.id) || !missing.contains(&as_run(plan, &command)) {
+            continue;
+        }
+        let short = format!("{} is not on the machine", basename(&command));
+        row.notes.push(format!("{short}; the server starts once it is installed there"));
+        row.shorts.push(short);
+    }
+
+    let summary = summarize(&rows, &present);
+    let free = free_note(machine, None).await.ok().flatten();
+    let text = closing(&[Some(summary.as_str()), free.as_deref()]);
+    stage(GoldenStage::InstallingMcp, Some(text.as_str()));
+    rows.into_iter().map(strip).collect()
 }
 
 // TS golden-mcp.ts:536-564
@@ -329,5 +555,127 @@ pub async fn mcp_rows(machine: &dyn Machine, plan: &McpPlan, o: McpRowsOptions) 
 // }
 /// golden-mcp.ts:542 `applyMcp(machine, plan, stage, tools)`: the builder's round. Never fails.
 pub async fn apply_mcp(machine: &dyn Machine, plan: &McpPlan, stage: StageListener, tools: &[ToolResult]) -> Vec<McpResult> {
-    todo!()
+    stage(GoldenStage::InstallingMcp, Some(mcp_opening(&plan.agents).as_str()));
+    let mut missing: IndexSet<String> = IndexSet::new();
+    let mut agents = plan.agents.clone();
+    let asks: Vec<ReadAsk> = plan
+        .agents
+        .iter()
+        .flat_map(|a| a.scopes.iter())
+        .map(|s| ReadAsk { files: s.files.clone(), base: plan.guest_home.clone() })
+        .collect();
+    let res = match machine.run(&read_configs_cmd(&asks), RunOptions { deadline_ms: READ_MS, unlogged: true, ..Default::default() }).await {
+        Ok(res) => res,
+        Err(e) => refused(&e.to_string()),
+    };
+    let mut failure: Option<String> = (res.exit_code.get() != 0).then(|| read_failed(&res));
+    let mut report: Option<Vec<ScopeOutcome>> = None;
+    let files = if failure.is_none() { parse_configs(&res.stdout, &asks) } else { None };
+    match files {
+        None => failure = failure.or_else(|| Some(read_failed(&res))),
+        Some(files) => {
+            let first = edit_scopes(plan, &agents, &files);
+            for command in absent_commands(machine, plan, &first.outcomes, TOOLS_PATH).await {
+                missing.insert(command);
+            }
+            agents = without_absent(plan, &agents, &first.outcomes, &missing, tools);
+            let second = edit_scopes(plan, &agents, &files);
+            let base = plan.guest_home.clone();
+            failure = land_configs(machine, &|_: &str| base.clone(), &files, &second.texts).await;
+            report = Some(second.outcomes);
+        }
+    }
+    mcp_rows(machine, plan, McpRowsOptions { agents, report, failure, missing, present: IndexSet::new(), stage }).await
+}
+
+struct Pending {
+    id: String,
+    agent: String,
+    name: String,
+    outcome: String,
+    command: Option<String>,
+    notes: Vec<String>,
+    shorts: Vec<String>,
+    keys: Option<Vec<String>>,
+}
+
+fn skipped(id: String, agent: &str, name: &str, note: &str, keys: Option<Vec<String>>) -> Pending {
+    Pending {
+        id,
+        agent: agent.to_string(),
+        name: name.to_string(),
+        outcome: "skipped".to_string(),
+        command: None,
+        notes: vec![note.to_string()],
+        shorts: Vec::new(),
+        keys,
+    }
+}
+
+fn strip(r: Pending) -> McpResult {
+    McpResult {
+        id: r.id,
+        agent: r.agent,
+        name: r.name,
+        outcome: r.outcome,
+        note: (!r.notes.is_empty()).then(|| r.notes.join("; ")),
+        keys: r.keys,
+    }
+}
+
+fn summarize(rows: &[Pending], present: &IndexSet<String>) -> String {
+    let mut parts: Vec<String> = Vec::new();
+    let already: Vec<&str> = rows.iter().filter(|r| present.contains(&r.id)).map(|r| r.name.as_str()).collect();
+    if !already.is_empty() {
+        parts.push(format!("{} already there", already.join(", ")));
+    }
+    let installed: Vec<&str> = rows
+        .iter()
+        .filter(|r| r.outcome == "installed" && r.shorts.is_empty() && !present.contains(&r.id))
+        .map(|r| r.name.as_str())
+        .collect();
+    if !installed.is_empty() {
+        parts.push(format!("{} installed", installed.join(", ")));
+    }
+    let mut by_note: IndexMap<String, Vec<&str>> = IndexMap::new();
+    for r in rows {
+        if r.outcome == "skipped" || r.shorts.is_empty() || present.contains(&r.id) {
+            continue;
+        }
+        by_note.entry(r.shorts.join(", ")).or_default().push(r.name.as_str());
+    }
+    for (short, names) in &by_note {
+        parts.push(format!("{}: {short}", names.join(", ")));
+    }
+    for r in rows.iter().filter(|r| r.outcome == "skipped") {
+        let note = r.notes.first().map_or("no reason given", String::as_str);
+        parts.push(format!("{} skipped ({note})", r.name));
+    }
+    if parts.is_empty() {
+        "nothing to do".to_string()
+    } else {
+        parts.join("; ")
+    }
+}
+
+fn named_commands<R: CommandRowItem>(row: &R) -> Vec<String> {
+    let entry = catalog_entry(&catalog_id_of_row(row.row_id()).unwrap_or_default());
+    let mut names: Vec<String> = row.row_bin().map(str::to_string).into_iter().collect();
+    if let Some(entry) = entry {
+        names.push(entry.bin().to_string());
+        if let Some(tool) = entry.as_tool() {
+            names.extend(tool.brings.iter().flatten().map(|b| b.bin.clone()));
+        }
+    }
+    names
+}
+
+fn basename(path: &str) -> &str {
+    path.rsplit_once('/').map_or(path, |(_, last)| last)
+}
+
+fn is_binary_row(id: &str) -> bool {
+    id.strip_prefix("tools/")
+        .and_then(|rest| rest.split_once('/'))
+        .is_some_and(|(manager, _)| ["brew", "go", "cargo", "npm", "pnpm", "bun", "pipx", "uv", "hand"].contains(&manager))
 }

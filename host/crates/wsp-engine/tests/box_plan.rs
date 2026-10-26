@@ -8,7 +8,7 @@ use wsp_engine::box_backend::{
     box_budgets, box_class_for, box_labels, box_name, box_snapshot_name, BoxBudgetsAsk, BoxClassType, BoxPricing, SizeAsk,
     BOX_BASE_TEMPLATE, BOX_CLASSES, BOX_INLINE_MAX_MS, BOX_NAME_MAX, SNAPSHOT_NAME_MAX,
 };
-use wsp_engine::machine::{BackendPricing, MachineBackend, MachineKind, Size, SnapshotStoragePricing, WireSnapshotStoragePricing};
+use wsp_engine::machine::{BackendPricing, MachineBackend, Size, SnapshotStoragePricing, WireSnapshotStoragePricing};
 use wsp_engine::machine::{Capabilities, LifecycleBudgets};
 use wsp_wire::types::JsNumber;
 use wsp_wire::wire::capabilities::{MachineSizeOffer, PauseMode};
@@ -118,6 +118,7 @@ fn reads_a_size_onto_the_class_table_the_match_else_the_smallest_that_holds_it_e
 
 /// box-backend.test.ts:234
 #[test]
+#[allow(clippy::assertions_on_constants)]
 fn an_inline_command_is_bounded_under_the_edges_cut_and_above_the_detached_roads_own_execs() {
     assert!(BOX_INLINE_MAX_MS > INLINE_EXEC_MS);
     assert!(BOX_INLINE_MAX_MS < 70_000);

@@ -50,7 +50,7 @@ where
     let t: SshTransport = Arc::new(move |reach: SshReach, script: String, opts: SshTransportOptions| {
         log.lock().unwrap().push(Carried { reach: reach.clone(), script: script.clone(), opts: opts.clone() });
         let out = answer(&reach, &script, &opts);
-        async move { out }.boxed_local()
+        async move { Ok(out) }.boxed_local()
     });
     (t, carried)
 }

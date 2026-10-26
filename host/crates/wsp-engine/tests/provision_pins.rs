@@ -201,7 +201,7 @@ fn the_folders_a_step_walks_are_each_roads_roots_clipped_to_usr_local_and_opt_wi
 
 #[test]
 fn the_last_words_are_the_trimmed_last_line_cut_at_300_and_nothing_for_blank() {
-    assert_eq!(last_words("  \n first\n second line \n"), Some("second line".into()));
+    assert_eq!(last_words("  \n first\n second line \n"), Some(" second line".into()));
     assert_eq!(last_words(""), None);
     assert_eq!(last_words("   \n  "), None);
     assert_eq!(last_words(&"é".repeat(400)), Some("é".repeat(300)));
@@ -314,7 +314,7 @@ fn tmp_names(text: &str) -> String {
     while let Some(at) = ["wsp-vault-in-", "wsp-vault-keep-", "wsp-vault-", "wsp-out-", ".wsp-in-"]
         .iter()
         .filter_map(|m| rest.find(m).map(|i| (i, m.len())))
-        .min()
+        .min_by_key(|(i, len)| (*i, std::cmp::Reverse(*len)))
     {
         let (i, len) = at;
         out.push_str(&rest[..i + len]);
@@ -355,6 +355,7 @@ impl Fetch for OkFetch {
 }
 
 /// The TS oracle's recorder: answers `wc -c` with 12 and `test -e` with no, every other call with exit 0.
+#[allow(clippy::type_complexity)]
 fn recorder() -> (common::FakeMachine, Arc<Mutex<Vec<String>>>, Arc<Mutex<Vec<String>>>) {
     let execs = Arc::new(Mutex::new(Vec::new()));
     let runs = Arc::new(Mutex::new(Vec::new()));

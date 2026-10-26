@@ -5,5 +5,8 @@
 /// `key_base64` the way node's `Buffer.from(s, "base64")` decodes: url-safe letters accepted, characters outside the
 /// alphabet skipped, padding optional, decoding stopping at the first `=`.
 pub fn key_fingerprint(key_base64: &str) -> String {
-    todo!()
+    use base64::engine::general_purpose::STANDARD_NO_PAD;
+    use base64::Engine;
+    use sha2::{Digest, Sha256};
+    format!("SHA256:{}", STANDARD_NO_PAD.encode(Sha256::digest(crate::node_base64::node_base64_decode(key_base64))))
 }

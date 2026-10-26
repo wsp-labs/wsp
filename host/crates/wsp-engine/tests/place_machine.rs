@@ -332,6 +332,7 @@ fn text() -> String {
 }
 
 #[derive(Clone, Copy)]
+#[allow(clippy::enum_variant_names)]
 enum Road {
     AMessageWrittenIntoARunningTurn,
     AStepRunForMinutes,
@@ -374,8 +375,17 @@ async fn zero_room_of(road: Road) -> i64 {
     let (l, machine) = folder_on(10_000);
     go(road, &machine).await.unwrap();
     let first = uploads(&l).into_iter().find(|cmd| cmd.contains("WSP_PIECE")).unwrap();
-    let from = first.find("printf %s '").unwrap() + "printf %s '".len();
-    let part_len = first[from..].chars().take_while(|c| c.is_ascii_alphanumeric() || "+/=".contains(*c)).count();
+    // /printf %s '([A-Za-z0-9+/=]*)'/: the first quoted word that is all base64 letters, as a start line's own printfs
+    // (shell files with spaces and punctuation in them) are passed over.
+    let marker = "printf %s '";
+    let part_len = first
+        .match_indices(marker)
+        .find_map(|(at, _)| {
+            let rest = &first[at + marker.len()..];
+            let word = &rest[..rest.find('\'')?];
+            word.chars().all(|c| c.is_ascii_alphanumeric() || "+/=".contains(c)).then_some(word.chars().count())
+        })
+        .unwrap();
     let encoded_len = BASE64.encode(text()).len();
     let measured = first.len() as i64 - part_len as i64 - "0".len() as i64 + encoded_len.to_string().len() as i64;
     10_000 + longest() - measured

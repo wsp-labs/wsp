@@ -135,7 +135,7 @@ fn a_template_row_reads_the_snapshots_status_and_its_error_only_when_failed() {
         snapshot_id: None,
         kind: None,
         size_bytes: None,
-        created_at: "2026-09-11T06:47:23.959Z".into(),
+        created_at: Some("2026-09-11T06:47:23.959Z".into()),
     };
     let row = serde_json::to_value(template_row_of(&v("ready", Some("ignored")))).unwrap();
     assert_eq!(row, json!({ "id": "wsp-g-v1", "name": "wsp-g-v1", "status": "ready", "createdAt": "2026-09-11T06:47:23.959Z" }));

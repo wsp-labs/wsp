@@ -82,7 +82,7 @@ fn mins(n: i64) -> i64 {
 
 /// The last line of the script inside each command the fake was sent.
 fn last_lines(api: &FakeBox) -> Vec<String> {
-    api.commands_sent().iter().map(|c| inner(c).split('\n').last().unwrap_or_default().to_string()).collect()
+    api.commands_sent().iter().map(|c| inner(c).split('\n').next_back().unwrap_or_default().to_string()).collect()
 }
 
 /// `s` with each `<stem>-<12 hex>` read as `<stem>-X`, as the TS's `.replace(/stem-[0-9a-f]{12}/g, "stem-X")` does.
@@ -679,7 +679,8 @@ async fn reads_a_file_off_the_box_through_get_files_one_past_the_cap_in_pieces_t
     let reads: Vec<String> =
         api.seen().iter().filter(|s| s.method == "GET").skip(1).map(|s| masked(s.query_get("path").unwrap(), "wsp-get")).collect();
     assert_eq!(reads, vec!["/tmp/wsp-get-X.0000", "/tmp/wsp-get-X.0001"]);
-    let commands: Vec<String> = posted_commands(&api).iter().map(|c| masked(inner(c).split('\n').last().unwrap(), "wsp-get")).collect();
+    let commands: Vec<String> =
+        posted_commands(&api).iter().map(|c| masked(inner(c).split('\n').next_back().unwrap(), "wsp-get")).collect();
     assert_eq!(
         commands,
         vec![

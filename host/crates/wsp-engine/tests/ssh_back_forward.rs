@@ -377,67 +377,88 @@ async fn a_config_ssh_cannot_read_is_refused_with_sshs_own_line() {
     assert!(refused.to_string().contains("Bad configuration option: frob"), "{refused}");
 }
 
+/// ssh-backend.ts:329-336: the TS holder drains both pipes from the moment it spawns; the Rust one does it on a local
+/// task, so a holder is started inside a `LocalSet`.
+async fn on_local_set<T>(body: impl Future<Output = T>) -> T {
+    tokio::task::LocalSet::new().run_until(body).await
+}
+
 #[tokio::test]
 async fn the_forward_is_up_when_the_box_echoes_wsp_back_up() {
-    let (child, mut fake) = fake_child();
-    let spawned = Arc::new(Mutex::new(Vec::new()));
-    let held = hold_back_forward(&carried(), 4640, 4640, spawn_of(child, spawned.clone()));
-    let mut expected = vec!["ssh".to_string()];
-    expected.extend(ssh_back_args(&carried(), 4640, 4640));
-    assert_eq!(*spawned.lock().unwrap(), vec![expected]);
-    fake.err("Allocated port 41234 for remote forward to 127.0.0.1:4640\n").await;
-    settle().await;
-    assert!(tokio::time::timeout(Duration::from_millis(20), held.up()).await.is_err(), "up settled on a stderr line");
-    fake.out("WSP_BACK_UP\n").await;
-    assert_eq!(within(held.up()).await, Ok(()));
-    assert!(!fake.stdin_ended().await);
+    on_local_set(async {
+        let (child, mut fake) = fake_child();
+        let spawned = Arc::new(Mutex::new(Vec::new()));
+        let held = hold_back_forward(&carried(), 4640, 4640, spawn_of(child, spawned.clone()));
+        let mut expected = vec!["ssh".to_string()];
+        expected.extend(ssh_back_args(&carried(), 4640, 4640));
+        assert_eq!(*spawned.lock().unwrap(), vec![expected]);
+        fake.err("Allocated port 41234 for remote forward to 127.0.0.1:4640\n").await;
+        settle().await;
+        assert!(tokio::time::timeout(Duration::from_millis(20), held.up()).await.is_err(), "up settled on a stderr line");
+        fake.out("WSP_BACK_UP\n").await;
+        assert_eq!(within(held.up()).await, Ok(()));
+        assert!(!fake.stdin_ended().await);
+    })
+    .await;
 }
 
 #[tokio::test]
 async fn a_line_the_box_wrote_on_stderr_reaches_the_host_with_no_control_characters_in_it() {
-    let (child, mut fake) = fake_child();
-    let held = hold_back_forward(&carried(), 4640, 4640, spawn_quiet(child));
-    fake.err("\x1b]0;pwned\x07motd from the box\x1b[2J\n").await;
-    settle().await;
-    fake.exit(ChildEnd::Exited(255));
-    assert_eq!(within(held.ended()).await, "]0;pwnedmotd from the box[2J");
+    on_local_set(async {
+        let (child, mut fake) = fake_child();
+        let held = hold_back_forward(&carried(), 4640, 4640, spawn_quiet(child));
+        fake.err("\x1b]0;pwned\x07motd from the box\x1b[2J\n").await;
+        settle().await;
+        fake.exit(ChildEnd::Exited(255));
+        assert_eq!(within(held.ended()).await, "]0;pwnedmotd from the box[2J");
+    })
+    .await;
 }
 
 #[tokio::test]
 async fn a_child_that_ends_before_it_is_up_rejects_with_sshs_last_line() {
-    let (child, mut fake) = fake_child();
-    let held = hold_back_forward(&carried(), 4640, 4640, spawn_quiet(child));
-    fake.err("Warning: Permanently added 'box' (ED25519) to the list of known hosts.\n").await;
-    fake.err("Warning: remote port forwarding failed for listen port 4640\n").await;
-    fake.err("Error: remote port forwarding failed for listen port 4640\n").await;
-    settle().await;
-    fake.exit(ChildEnd::Exited(255));
-    assert_eq!(within(held.up()).await, Err("Error: remote port forwarding failed for listen port 4640".to_string()));
-    assert_eq!(within(held.ended()).await, "Error: remote port forwarding failed for listen port 4640");
+    on_local_set(async {
+        let (child, mut fake) = fake_child();
+        let held = hold_back_forward(&carried(), 4640, 4640, spawn_quiet(child));
+        fake.err("Warning: Permanently added 'box' (ED25519) to the list of known hosts.\n").await;
+        fake.err("Warning: remote port forwarding failed for listen port 4640\n").await;
+        fake.err("Error: remote port forwarding failed for listen port 4640\n").await;
+        settle().await;
+        fake.exit(ChildEnd::Exited(255));
+        assert_eq!(within(held.up()).await, Err("Error: remote port forwarding failed for listen port 4640".to_string()));
+        assert_eq!(within(held.ended()).await, "Error: remote port forwarding failed for listen port 4640");
+    })
+    .await;
 }
 
 #[tokio::test]
 async fn a_child_that_says_nothing_but_sshs_own_known_hosts_note_says_its_exit_code() {
-    let (child, mut fake) = fake_child();
-    let held = hold_back_forward(&carried(), 4640, 4640, spawn_quiet(child));
-    fake.err("Warning: Permanently added 'box' (ED25519) to the list of known hosts.\n").await;
-    settle().await;
-    fake.exit(ChildEnd::Exited(255));
-    assert_eq!(within(held.up()).await, Err("ssh exited with 255".to_string()));
+    on_local_set(async {
+        let (child, mut fake) = fake_child();
+        let held = hold_back_forward(&carried(), 4640, 4640, spawn_quiet(child));
+        fake.err("Warning: Permanently added 'box' (ED25519) to the list of known hosts.\n").await;
+        settle().await;
+        fake.exit(ChildEnd::Exited(255));
+        assert_eq!(within(held.up()).await, Err("ssh exited with 255".to_string()));
+    })
+    .await;
 }
 
 #[tokio::test]
 async fn releasing_the_holder_closes_the_childs_stdin_and_stops_the_child() {
-    let (child, mut fake) = fake_child();
-    let held = hold_back_forward(&carried(), 4640, 4640, spawn_quiet(child));
-    fake.out("WSP_BACK_UP\n").await;
-    within(held.up()).await.unwrap();
-    held.release();
-    settle().await;
-    assert!(fake.stdin_ended().await);
-    assert_eq!(fake.killed(), vec!["SIGTERM"]);
-    fake.exit(ChildEnd::Signalled("SIGTERM".to_string()));
-    assert_eq!(within(held.ended()).await, "ssh ended on SIGTERM");
+    on_local_set(async {
+        let (child, mut fake) = fake_child();
+        let held = hold_back_forward(&carried(), 4640, 4640, spawn_quiet(child));
+        fake.out("WSP_BACK_UP\n").await;
+        within(held.up()).await.unwrap();
+        held.release();
+        settle().await;
+        assert!(fake.stdin_ended().await);
+        assert_eq!(fake.killed(), vec!["SIGTERM"]);
+        fake.exit(ChildEnd::Signalled("SIGTERM".to_string()));
+        assert_eq!(within(held.ended()).await, "ssh ended on SIGTERM");
+    })
+    .await;
 }
 
 #[test]
@@ -455,36 +476,42 @@ fn a_box_that_writes_without_a_newline_leaves_only_a_bounded_tail_held() {
 
 #[tokio::test]
 async fn a_newline_free_flood_on_stderr_still_lets_the_up_line_and_sshs_last_line_through() {
-    let (child, mut fake) = fake_child();
-    let held = hold_back_forward(&carried(), 4640, 4640, spawn_quiet(child));
-    let chunk = "x".repeat(65536);
-    within(async {
-        for _ in 0..64 {
-            fake.err(&chunk).await;
-        }
+    on_local_set(async {
+        let (child, mut fake) = fake_child();
+        let held = hold_back_forward(&carried(), 4640, 4640, spawn_quiet(child));
+        let chunk = "x".repeat(65536);
+        within(async {
+            for _ in 0..64 {
+                fake.err(&chunk).await;
+            }
+        })
+        .await;
+        fake.out("WSP_BACK_UP\n").await;
+        assert_eq!(within(held.up()).await, Ok(()));
+        within(async {
+            for _ in 0..64 {
+                fake.err(&chunk).await;
+            }
+        })
+        .await;
+        settle().await;
+        fake.exit(ChildEnd::Exited(255));
+        assert!(within(held.ended()).await.chars().count() <= 300);
     })
     .await;
-    fake.out("WSP_BACK_UP\n").await;
-    assert_eq!(within(held.up()).await, Ok(()));
-    within(async {
-        for _ in 0..64 {
-            fake.err(&chunk).await;
-        }
-    })
-    .await;
-    settle().await;
-    fake.exit(ChildEnd::Exited(255));
-    assert!(within(held.ended()).await.chars().count() <= 300);
 }
 
 #[tokio::test]
 async fn a_child_that_ends_after_it_was_up_resolves_ended_with_its_last_line() {
-    let (child, mut fake) = fake_child();
-    let held = hold_back_forward(&carried(), 4640, 4640, spawn_quiet(child));
-    fake.out("WSP_BACK_UP\n").await;
-    within(held.up()).await.unwrap();
-    fake.err("Timeout, server box not responding.\n").await;
-    settle().await;
-    fake.exit(ChildEnd::Exited(255));
-    assert_eq!(within(held.ended()).await, "Timeout, server box not responding.");
+    on_local_set(async {
+        let (child, mut fake) = fake_child();
+        let held = hold_back_forward(&carried(), 4640, 4640, spawn_quiet(child));
+        fake.out("WSP_BACK_UP\n").await;
+        within(held.up()).await.unwrap();
+        fake.err("Timeout, server box not responding.\n").await;
+        settle().await;
+        fake.exit(ChildEnd::Exited(255));
+        assert_eq!(within(held.ended()).await, "Timeout, server box not responding.");
+    })
+    .await;
 }

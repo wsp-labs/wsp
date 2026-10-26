@@ -4,13 +4,19 @@
 //! Brewfile, the rows outside the catalog.
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use wsp_catalog::catalog::{Below as CatalogBelow, ToolEntry};
-use wsp_catalog::pending::ToolPin;
-use wsp_catalog::roads::{InstallRoad, RoadName};
+use wsp_catalog::catalog::{
+    at_catalog_pin, base_entry_for, catalog_entry, catalog_tool_for, install_after, pinned_note, Below as CatalogBelow, CatalogEntry,
+    RoadEvidence, ToolEntry,
+};
+use wsp_catalog::road_modules::{
+    as_linuxbrew, fixes_version, install_env, install_homes, road_module, row_road as manager_row_road, ToolRow, BREW_ENV,
+};
+use wsp_catalog::roads::{version_of, InstallRoad, RoadName, APT_ENV, ROADS};
 use wsp_wire::types::init_job::LoginChoice;
-use wsp_wire::views::golden_image::RecipeCustomRow;
+use wsp_wire::types::shell_quote::shell_quote;
+use wsp_wire::views::golden_image::{package_of, tool_row_prefix, RecipeCustomRow, ToolPin, BREW_ID_PREFIX};
 
-use super::{PinRead, SkippedItem, ToolInstall};
+use super::{PinRead, SkippedItem, ToolInstall, TAP_PREFIX};
 
 /// golden-import.ts:22 `RecipeEntry`: the collector's manifest row with the person's tick, as a recipe file carries it.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -152,7 +158,11 @@ pub const MACOS_ONLY_FORMULAE: [&str; 4] =
 // };
 /// golden-import.ts:691 `asksVersion`: the road's version where the road fixes one.
 pub fn asks_version(road: &InstallRoad) -> Option<String> {
-    todo!()
+    if fixes_version(road) {
+        version_of(road)
+    } else {
+        None
+    }
 }
 
 // TS golden-import.ts:701-709
@@ -167,7 +177,9 @@ pub fn asks_version(road: &InstallRoad) -> Option<String> {
 // }
 /// golden-import.ts:704 `roadReads`.
 pub fn road_reads(road: &InstallRoad, bin: &str, prefix: Option<&str>) -> RoadReads {
-    todo!()
+    let module = road_module(road);
+    let bins = module.bins(road, Some(&install_homes(prefix)));
+    RoadReads { present: module.present(road, bin), bins: (!bins.is_empty()).then_some(bins), check: None }
 }
 
 // TS golden-import.ts:711-717
@@ -180,7 +192,7 @@ pub fn road_reads(road: &InstallRoad, bin: &str, prefix: Option<&str>) -> RoadRe
 // }
 /// golden-import.ts:714 `roadStepReads`.
 pub fn road_step_reads(road: &InstallRoad, bin: &str, prefix: Option<&str>) -> RoadReads {
-    todo!()
+    RoadReads { check: road_module(road).check(road, bin), ..road_reads(road, bin, prefix) }
 }
 
 // TS golden-import.ts:719-724
@@ -192,7 +204,8 @@ pub fn road_step_reads(road: &InstallRoad, bin: &str, prefix: Option<&str>) -> R
 // }
 /// golden-import.ts:720 `pinReadOf`.
 pub fn pin_read_of(road: &InstallRoad, bin: &str, prefix: Option<&str>) -> PinRead {
-    todo!()
+    let module = road_module(road);
+    PinRead { read: module.installed(road, bin, Some(&install_homes(prefix))), fixed: fixes_version(road), words: module.words() }
 }
 
 // TS golden-import.ts:765-774
@@ -208,17 +221,23 @@ pub fn pin_read_of(road: &InstallRoad, bin: &str, prefix: Option<&str>) -> PinRe
 // }
 /// golden-import.ts:767 `baseRowFor`.
 pub fn base_row_for(e: &RecipeEntry, brew: &BrewTable) -> Option<BaseRow> {
-    todo!()
+    if e.rung != "tools" {
+        return None;
+    }
+    let pkg = package_of(&e.id);
+    let entry = base_entry_for(&pkg)?;
+    let version = e.version.clone().or_else(|| brew.get(&pkg).and_then(|f| f.version.clone()));
+    Some(BaseRow { id: e.id.clone(), name: entry.name.clone(), entry, version })
 }
 
 /// golden-import.ts:858 `isTap`: the id is under `tools/brew-tap/`.
 pub fn is_tap(id: &str) -> bool {
-    todo!()
+    id.starts_with(TAP_PREFIX)
 }
 
 /// golden-import.ts:862 `formulaOf`: the id after `tools/brew/`.
 pub fn formula_of(id: &str) -> Option<String> {
-    todo!()
+    id.strip_prefix(BREW_ID_PREFIX).map(str::to_string)
 }
 
 // TS golden-import.ts:856-899
@@ -266,9 +285,69 @@ pub fn formula_of(id: &str) -> Option<String> {
 //   out.text = lines.length > 0 ? `${lines.join("\n")}\n` : "";
 //   return out;
 // }
+/// golden-import.ts:146 `withheld`: a credential-shaped row is not copied without the person's answer on its row.
+pub(super) fn withheld(e: &RecipeEntry) -> bool {
+    e.consent == Some(true) && e.choice != Some(LoginChoice::Copy)
+}
+
+/// golden-import.ts:147 `WITHHELD_NOTE`.
+pub(super) const WITHHELD_NOTE: &str = "credential-shaped; not copied without your answer on its row";
+
+fn ticked(e: &RecipeEntry) -> bool {
+    e.bring == Some(true)
+}
+
+fn tap_of(id: &str) -> String {
+    id[TAP_PREFIX.len()..].to_string()
+}
+
+fn macos_only(formula: &str, info: Option<&BrewFormula>) -> bool {
+    MACOS_ONLY_FORMULAE.contains(&formula) || info.is_some_and(|i| i.macos_only)
+}
+
+fn release_for(e: &RecipeEntry, brew: &BrewTable) -> Option<PlannedRoad> {
+    let formula = formula_of(&e.id)?;
+    let info = brew.get(&formula);
+    if e.linux.as_deref() != Some("unknown") || !formula.contains('/') || macos_only(&formula, info) {
+        return None;
+    }
+    let info = info?;
+    Some(PlannedRoad { id: e.id.clone(), name: info.name.clone(), source: info.source.clone()?, pin: e.pin.clone() })
+}
+
 /// golden-import.ts:875 `brewfileFor`.
 pub fn brewfile_for(entries: &[RecipeEntry], brew: &BrewTable) -> Brewfile {
-    todo!()
+    let mut out = Brewfile::default();
+    for e in entries {
+        if !ticked(e) || e.rung != "tools" {
+            continue;
+        }
+        if let Some(base) = base_row_for(e, brew) {
+            out.base.push(base);
+        } else if is_tap(&e.id) {
+            out.taps.push(tap_of(&e.id));
+        } else if let Some(formula) = formula_of(&e.id) {
+            if catalog_tool_of(e).is_some() {
+                continue;
+            }
+            let info = brew.get(&formula);
+            if e.linux.as_deref() == Some("no") {
+                out.skipped.push(SkippedItem { id: e.id.clone(), note: "no Linux bottle".to_string() });
+            } else if e.linux.as_deref() == Some("unknown") && macos_only(&formula, info) {
+                out.skipped.push(SkippedItem { id: e.id.clone(), note: "macOS only".to_string() });
+            } else if let Some(road) = release_for(e, brew) {
+                out.roads.push(road);
+            } else if e.linux.as_deref() == Some("unknown") {
+                out.skipped.push(SkippedItem { id: e.id.clone(), note: "no Linux bottle known".to_string() });
+            } else {
+                out.formulae.push(formula);
+            }
+        }
+    }
+    let lines: Vec<String> =
+        out.taps.iter().map(|t| format!("tap \"{t}\"")).chain(out.formulae.iter().map(|f| format!("brew \"{f}\""))).collect();
+    out.text = if lines.is_empty() { String::new() } else { format!("{}\n", lines.join("\n")) };
+    out
 }
 
 // TS golden-import.ts:904-935
@@ -306,7 +385,41 @@ pub fn brewfile_for(entries: &[RecipeEntry], brew: &BrewTable) -> Brewfile {
 // }
 /// golden-import.ts:928 `catalogToolOf`.
 pub fn catalog_tool_of(e: &RecipeEntry) -> Option<&'static ToolEntry> {
-    todo!()
+    let pkg = package_of(&e.id);
+    if e.id.starts_with(CATALOG_PREFIX) {
+        return match catalog_entry(&pkg)? {
+            CatalogEntry::Tool(tool) => Some(tool),
+            CatalogEntry::Agent(_) => None,
+        };
+    }
+    if e.id.starts_with(BREW_ID_PREFIX) {
+        manager_tool(&pkg)
+    } else {
+        None
+    }
+}
+
+/// golden-import.ts:911 `MANAGER_ORDER`: the managers whose rows the collector writes, in the order their steps run.
+pub(super) const MANAGER_ORDER: [RoadName; 7] =
+    [RoadName::Npm, RoadName::Pnpm, RoadName::Bun, RoadName::Uv, RoadName::Pipx, RoadName::Cargo, RoadName::Go];
+
+/// golden-import.ts:904 `managerBehind`: the manager whose own toolchain an install runs on top of, when what it waits
+/// on names one.
+pub(super) fn manager_behind(dep: Option<&str>) -> Option<RoadName> {
+    let dep = dep?;
+    MANAGER_ORDER.into_iter().find(|m| catalog_tool_for(m.as_str()).is_some_and(|t| t.id == dep))
+}
+
+fn manager_tool(formula: &str) -> Option<&'static ToolEntry> {
+    let entry = catalog_tool_for(formula)?;
+    if matches!(entry.install_road, InstallRoad::Brew { .. }) {
+        return None;
+    }
+    MANAGER_ORDER.iter().any(|m| catalog_tool_for(m.as_str()).is_some_and(|t| t.id == entry.id)).then_some(entry)
+}
+
+pub(super) fn road_word(manager: RoadName) -> &'static str {
+    manager.as_str()
 }
 
 // TS golden-import.ts:937-945
@@ -321,7 +434,13 @@ pub fn catalog_tool_of(e: &RecipeEntry) -> Option<&'static ToolEntry> {
 // }
 /// golden-import.ts:942 `managerFormula`.
 pub fn manager_formula(manager: RoadName) -> Option<String> {
-    todo!()
+    match catalog_tool_for(road_word(manager)) {
+        Some(tool) => match &tool.install_road {
+            InstallRoad::Brew { formula, .. } => Some(formula.clone()),
+            _ => None,
+        },
+        None => (manager == RoadName::Pipx).then(|| "pipx".to_string()),
+    }
 }
 
 // TS golden-import.ts:947-996
@@ -377,7 +496,80 @@ pub fn manager_formula(manager: RoadName) -> Option<String> {
 // }
 /// golden-import.ts:958 `rowRoad`.
 pub fn row_road(e: &RecipeEntry, brew: &BrewTable) -> Option<PlannedRow> {
-    todo!()
+    let pkg = package_of(&e.id);
+    let version = e.version.as_deref();
+    if let Some(known) = catalog_tool_of(e) {
+        let module = road_module(&known.install_road);
+        let takes_version = module_takes_version(known.install_road.name());
+        let asked = match version {
+            Some(v) if takes_version => module.at(&known.install_road, v).unwrap_or_else(|| known.install_road.clone()),
+            _ => known.install_road.clone(),
+        };
+        let at = at_catalog_pin(&asked, version);
+        let pinned = known.install_road.version();
+        let mut notes: Vec<String> = Vec::new();
+        if known.source.road == RoadEvidence::Unmeasured {
+            notes.push(UNMEASURED_ROAD.to_string());
+        }
+        if let Some(note) = &at.note {
+            notes.push(note.clone());
+        } else if let Some(v) = version.filter(|v| !takes_version && Some(*v) != pinned) {
+            notes.push(match pinned {
+                Some(p) => pinned_note(v, p),
+                None => format!("{v} asked, installed {} at its current version", module.words()),
+            });
+        }
+        return Some(PlannedRow {
+            road: with_pin(at.road, e.pin.as_ref()),
+            bin: Some(known.bin.clone()),
+            pinned: at.pinned,
+            below: at.below.map(|b| CatalogBelow { node: b.node, road: with_pin(b.road, e.pin.as_ref()) }),
+            after: install_after(known),
+            note: (!notes.is_empty()).then(|| notes.join("; ")),
+        });
+    }
+    if let Some(release) = release_for(e, brew) {
+        let road = InstallRoad::Release {
+            repo: Some(release.source.repo.clone()),
+            version: Some(release.source.tag.clone()),
+            assets: None,
+            pin: release.pin.clone(),
+            go: Some(format!("github.com/{}@{}", release.source.repo, release.source.tag)),
+        };
+        return Some(PlannedRow { road, bin: Some(release.name), pinned: None, below: None, after: None, note: None });
+    }
+    if e.id.starts_with(CATALOG_PREFIX) {
+        return None;
+    }
+    let manager = ROADS.iter().find(|m| e.id.starts_with(&tool_row_prefix(m.as_str())))?;
+    let row = ToolRow { name: pkg, version: e.version.clone(), paths: e.paths.clone(), label: e.label.clone() };
+    let from_row = manager_row_road(manager.as_str(), &row)?;
+    let at = at_catalog_pin(&from_row, version);
+    let bin = road_module(&at.road).bin(&at.road);
+    Some(PlannedRow { road: at.road, bin, pinned: at.pinned, below: at.below, after: None, note: at.note })
+}
+
+fn module_takes_version(road: RoadName) -> bool {
+    matches!(road, RoadName::Npm | RoadName::Pnpm | RoadName::Bun | RoadName::Uv | RoadName::Pipx | RoadName::Cargo | RoadName::Go)
+}
+
+fn with_pin(mut road: InstallRoad, pin: Option<&ToolPin>) -> InstallRoad {
+    let Some(pin) = pin else { return road };
+    match &mut road {
+        InstallRoad::Brew { pin: p, .. }
+        | InstallRoad::Go { pin: p, .. }
+        | InstallRoad::Release { pin: p, .. }
+        | InstallRoad::Vendor { pin: p, .. }
+        | InstallRoad::Apt { pin: p, .. }
+        | InstallRoad::Script { pin: p, .. } => *p = Some(pin.clone()),
+        InstallRoad::Npm { package, .. }
+        | InstallRoad::Pnpm(package)
+        | InstallRoad::Bun(package)
+        | InstallRoad::Uv(package)
+        | InstallRoad::Pipx(package)
+        | InstallRoad::Cargo(package) => package.pin = Some(pin.clone()),
+    }
+    road
 }
 
 // TS golden-import.ts:803-814
@@ -396,7 +588,9 @@ pub fn row_road(e: &RecipeEntry, brew: &BrewTable) -> Option<PlannedRow> {
 /// golden-import.ts:812 `pathLine(path, prefix)`: `export PATH=<path> NAME=value ...` with the install homes' env, in
 /// `install_env`'s order, nothing quoted.
 pub fn path_line(path: &str, prefix: Option<&str>) -> String {
-    todo!()
+    let mut words = vec!["export".to_string(), format!("PATH={path}")];
+    words.extend(install_env(&install_homes(prefix)).iter().map(|(name, value)| format!("{name}={value}")));
+    words.join(" ")
 }
 
 // TS golden-import.ts:824-826
@@ -405,7 +599,7 @@ pub fn path_line(path: &str, prefix: Option<&str>) -> String {
 // export const brewHousekeeping = (path: string): readonly string[] => [withPath(asLinuxbrew("autoremove"), path), withPath(asLinuxbrew("cleanup -s --prune=all"), path)];
 /// golden-import.ts:826 `brewHousekeeping`: autoremove, then `cleanup -s --prune=all`, each as linuxbrew on the PATH.
 pub fn brew_housekeeping(path: &str) -> Vec<String> {
-    todo!()
+    ["autoremove", "cleanup -s --prune=all"].iter().map(|cmd| format!("{}\n{}", path_line(path, None), as_linuxbrew(cmd))).collect()
 }
 
 // TS golden-import.ts:1020-1022
@@ -414,7 +608,7 @@ pub fn brew_housekeeping(path: &str) -> Vec<String> {
 // export const customPrelude = (path: string, prefix?: string): string => [pathLine(path, prefix), APT_ENV, `export ${BREW_ENV}`].join("\n");
 /// golden-import.ts:1022 `customPrelude`.
 pub fn custom_prelude(path: &str, prefix: Option<&str>) -> String {
-    todo!()
+    [path_line(path, prefix), APT_ENV.to_string(), format!("export {}", *BREW_ENV)].join("\n")
 }
 
 // TS golden-import.ts:1024-1051
@@ -447,18 +641,42 @@ pub fn custom_prelude(path: &str, prefix: Option<&str>) -> String {
 //   });
 // }
 /// golden-import.ts:1035 `customInstallsFor(custom, after, path, prefix)`, in the recipe's order.
+fn custom_road(c: &RecipeCustomRow) -> Option<InstallRoad> {
+    let manager = c.manager.as_deref()?;
+    manager_row_road(manager, &ToolRow { name: c.name.clone(), version: None, paths: Vec::new(), label: c.name.clone() })
+}
+
 pub fn custom_installs_for(
     custom: &[RecipeCustomRow],
     after: &dyn Fn(&RecipeCustomRow) -> Option<String>,
     path: &str,
     prefix: Option<&str>,
 ) -> Vec<ToolInstall> {
-    todo!()
+    custom
+        .iter()
+        .map(|c| {
+            let reads = custom_road(c).map(|road| road_step_reads(&road, &c.name, prefix));
+            let cmd: Vec<String> = std::iter::once(custom_prelude(path, prefix)).chain(c.install.iter().cloned()).collect();
+            let install: Vec<&str> = c.install.iter().map(String::as_str).collect();
+            ToolInstall {
+                id: format!("{CUSTOM_PREFIX}{}", c.id),
+                label: c.name.clone(),
+                manager: "script".to_string(),
+                cmd: cmd.join("\n"),
+                present: reads.as_ref().and_then(|r| r.present.clone()),
+                bins: reads.as_ref().and_then(|r| r.bins.clone()),
+                check: Some(reads.as_ref().and_then(|r| r.check.clone()).unwrap_or_else(|| c.check.clone())),
+                shown: Some(shown_of(&install)),
+                after: after(c),
+                ..Default::default()
+            }
+        })
+        .collect()
 }
 
 /// golden-import.ts:1054 `shownOf`: the lines joined with `; `.
 pub fn shown_of(lines: &[&str]) -> String {
-    todo!()
+    lines.join("; ")
 }
 
 /// golden-import.ts:1058 `viaRoad`'s answer.
@@ -479,7 +697,14 @@ pub enum ViaRoad {
 // }
 /// golden-import.ts:1058 `viaRoad(road, bin, path, prefix)`.
 pub fn via_road(road: &InstallRoad, bin: &str, path: &str, prefix: Option<&str>) -> ViaRoad {
-    todo!()
+    let module = road_module(road);
+    match module.install(road, bin, Some(&install_homes(prefix))) {
+        Err(note) => ViaRoad::Note(note.0),
+        Ok(line) => {
+            let shown = module.shown(road, bin).unwrap_or_else(|| shown_of(&line.split('\n').collect::<Vec<_>>()));
+            ViaRoad::Step { cmd: format!("{}\n{line}", path_line(path, prefix)), shown }
+        }
+    }
 }
 
 // TS golden-import.ts:1065-1068
@@ -489,10 +714,17 @@ pub fn via_road(road: &InstallRoad, bin: &str, path: &str, prefix: Option<&str>)
 // }
 /// golden-import.ts:1066 `aptIndexStep`.
 pub fn apt_index_step(id: &str, cmd: &str) -> ToolInstall {
-    todo!()
+    ToolInstall {
+        id: id.to_string(),
+        label: "apt index".to_string(),
+        manager: "apt".to_string(),
+        cmd: cmd.to_string(),
+        shown: Some("apt-get update".to_string()),
+        ..Default::default()
+    }
 }
 
 /// golden-import.ts:1071 `brewTapCheck`.
 pub fn brew_tap_check(tap: &str) -> String {
-    todo!()
+    format!("{} 2>/dev/null | grep -qx {}", as_linuxbrew("tap"), shell_quote(tap))
 }

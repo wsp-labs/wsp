@@ -149,7 +149,7 @@ async fn reads_the_owners_answer_of_17_06_utc_the_20_plan_100_machines_three_win
     let api = FakeBox::new().on("GET", "/limits", vec![limits_reply(owner_limits())]);
     let on = backend_with(api.clone() as Arc<dyn Fetch>, Default::default());
     let read = on.backend.limits().await.unwrap();
-    assert_eq!(read.trial, false);
+    assert!(!read.trial);
     assert_eq!(read.plan_key.as_deref(), Some("box_20"));
     assert_eq!(read.plan_usd, Some(20.0));
     assert_eq!(read.machines_at_once, Some(100.0));
@@ -157,7 +157,7 @@ async fn reads_the_owners_answer_of_17_06_utc_the_20_plan_100_machines_three_win
     let starts = read.starts.expect("the three windows");
     assert_eq!((starts.minute, starts.hour, starts.day), (window(0.0, 12.0), window(9.0, 60.0), window(187.0, 200.0)));
     assert_eq!(read.sizes, vec![BoxClassType::Small, BoxClassType::Default, BoxClassType::Large]);
-    assert_eq!(read.can_start, true);
+    assert!(read.can_start);
     assert_eq!(read.start_blocked_reason, None);
     assert_eq!(read.credit_balance_hours, Some(81.6));
     assert_eq!(read.billing_status, None);
@@ -172,7 +172,7 @@ async fn a_trial_offers_small_and_default_and_reads_2_machines_a_100_plan_adds_x
     let api = FakeBox::new().on("GET", "/limits", vec![limits_reply(trial_limits())]);
     let on = backend_with(api.clone() as Arc<dyn Fetch>, Default::default());
     let read = on.backend.limits().await.unwrap();
-    assert_eq!(read.trial, true);
+    assert!(read.trial);
     assert_eq!(read.machines_at_once, Some(2.0));
     assert_eq!(read.sizes, vec![BoxClassType::Small, BoxClassType::Default]);
     let starts = read.starts.expect("the three windows");
@@ -333,7 +333,7 @@ async fn a_trial_is_read_off_the_plan_key_too_which_reads_trial_before_any_payme
     let api = FakeBox::new().on("GET", "/limits", vec![limits_reply(no_tier)]);
     let on = backend_with(api.clone() as Arc<dyn Fetch>, Default::default());
     let read = on.backend.limits().await.unwrap();
-    assert_eq!(read.trial, true);
+    assert!(read.trial);
     assert_eq!(read.sizes, vec![BoxClassType::Small, BoxClassType::Default]);
 }
 
@@ -488,7 +488,12 @@ async fn a_402_and_a_503_out_of_capacity_print_boats_lines_503_only_once_the_cre
     assert_eq!(w.message, "Boat's balance is used up, so no machine starts; add time at boat.dev/dashboard. Boat stops running machines 24 hours after the balance ran out.");
     let (capped, _, _) = refused_default(error(402, "team_member_cap_reached", "Member usage cap reached.")).await;
     assert_eq!(provider(&capped).message, "this Boat organization caps your usage; ask its owner to raise your cap.");
-    let (full, api, _) = refused_default(error(503, "out_of_capacity", "No capacity.")).await;
+    // The TS draws `Math.random()` for its jitter; 48 asks hold for a draw of 0.25 or more, 51 for less. Take the middle.
+    let api = FakeBox::new().on("POST", "/sandboxes", vec![error(503, "out_of_capacity", "No capacity.").into()]);
+    let on = backend_on(&api, "standard", Default::default());
+    *on.clock.draw.lock().unwrap() = 0.5;
+    api.on("GET", "/limits", vec![limits_reply(owner_limits())]);
+    let full = on.backend.create(named_spec(), None, None).await.map(|_| ()).unwrap_err();
     let w = provider(&full);
     assert_eq!(w.kind, ErrorKind::Transient);
     assert_eq!(w.code.as_deref(), Some("out_of_capacity"));

@@ -72,6 +72,7 @@ async fn the_person_hears_each_state_the_box_passes_through_once_in_order() {
         )
         .on("POST", "/sandboxes/bx_1/commands", vec![command("", Some(0), json!({}))]);
     let on = backend_on(&api, "trial", Default::default());
+    #[allow(clippy::type_complexity)]
     let heard: Arc<Mutex<Vec<(String, Option<ProviderBoxState>)>>> = Arc::default();
     let h = heard.clone();
     let waiting: Waiting = Arc::new(move |line: &str, b: Option<&ProviderBoxState>| h.lock().unwrap().push((line.to_string(), b.cloned())));

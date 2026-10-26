@@ -16,14 +16,13 @@ use common::{
 };
 use wsp_engine::errors::{is_missing, EngineError, Result, RetryClock, RoadCause, RoadError, PROVIDER_READ_CAP_MS};
 use wsp_engine::fetch::Fetch;
-use wsp_engine::golden_seam::EXEC_ENV;
 use wsp_engine::machine::{
-    BackendPricing, ExecOptions, ExecResult, MachineBackend, MachineLife, MachineListRow, MachineShape, MachineSpec, MachineState,
-    PreviewReach, Size, SnapshotOptions, SnapshotRow, TemplateRow, Waiting,
+    BackendPricing, ExecOptions, MachineBackend, MachineLife, MachineListRow, MachineShape, MachineSpec, MachineState, PreviewReach, Size,
+    SnapshotOptions, SnapshotRow, TemplateRow, Waiting,
 };
 use wsp_engine::solari_backend::{
     preview_token_expiry, solari_lifecycle_budgets, MoveBudgetsGiven, SolariBackend, SolariBackendOptions, SolariPricing,
-    IDLE_TIMEOUT_MAX_MS, PREVIEW_TTL_MS, REQUEST_ID_HEADER, RESUME_CAP_MS, SOLARI_INLINE_MAX_MS,
+    IDLE_TIMEOUT_MAX_MS, PREVIEW_TTL_MS, REQUEST_ID_HEADER, RESUME_CAP_MS,
 };
 use wsp_engine::tool_sizes::BUILDER_DISK_GB;
 use wsp_wire::types::JsNumber;
@@ -483,14 +482,14 @@ fn mint_token(exp: i64) -> String {
 fn reads_the_ms_exp_claim_from_the_real_token_shape() {
     let now = now_ms();
     let exp = now + 60 * 60_000;
-    assert_eq!(preview_token_expiry(&mint_token(exp), now), exp);
+    assert_eq!(preview_token_expiry(&mint_token(exp), now) as i64, exp);
 }
 
 // TS: packages/engine/test/solari-backend.test.ts:314
 #[test]
 fn falls_back_to_the_measured_60_min_ttl_when_the_token_is_opaque() {
     let now = now_ms();
-    assert_eq!(preview_token_expiry("not-a-token-at-all", now), now + PREVIEW_TTL_MS);
+    assert_eq!(preview_token_expiry("not-a-token-at-all", now) as i64, now + PREVIEW_TTL_MS);
     assert_eq!(PREVIEW_TTL_MS, 60 * 60_000);
 }
 

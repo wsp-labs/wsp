@@ -173,7 +173,7 @@ async fn creates_from_the_stock_image_on_the_trial_class_two_hour_stop_no_secret
     assert!(landed.contains(&format!("cat > '{DAEMON_ENV_FILE}'")));
     assert!(landed.contains("ANTHROPIC_API_KEY=\"sk-ant-x\""));
     let mut expected = vec!["GET /limits", "POST /sandboxes", "GET /sandboxes/bx_tumrjngm", "GET /sandboxes/bx_tumrjngm"];
-    expected.extend(std::iter::repeat("POST /sandboxes/bx_tumrjngm/commands").take(4));
+    expected.extend(std::iter::repeat_n("POST /sandboxes/bx_tumrjngm/commands", 4));
     assert_eq!(api.calls(), expected);
 }
 
@@ -194,6 +194,7 @@ async fn creates_from_a_named_snapshot_renames_to_the_labels_and_off_the_trial_a
         .on("PATCH", "/sandboxes/bx_uwepudz7", vec![info("bx_uwepudz7", "idle", json!({ "name": "wsp;o=h_1" }))])
         .on("POST", "/sandboxes/bx_uwepudz7/commands", vec![cmd("")]);
     let backend = backend(&api, "standard");
+    #[allow(clippy::type_complexity)]
     let heard: Arc<Mutex<Vec<(String, Option<(String, String)>)>>> = Arc::default();
     let sink = heard.clone();
     let waiting: Waiting = Arc::new(move |line: &str, boat: Option<&ProviderBoxState>| {
@@ -238,7 +239,7 @@ async fn creates_from_a_named_snapshot_renames_to_the_labels_and_off_the_trial_a
     assert_eq!(last["from"], "wsp-mac-default-v2");
     assert_eq!(last["type"], "small");
     assert_eq!(last["name"], "wsp");
-    let patch = api.seen().into_iter().filter(|s| s.method == "PATCH").last().unwrap();
+    let patch = api.seen().into_iter().rfind(|s| s.method == "PATCH").unwrap();
     assert_eq!(patch.body, json!({ "name": "wsp" }));
     // One read of the tier serves every create.
     assert_eq!(count(&api, "GET /limits"), 1);

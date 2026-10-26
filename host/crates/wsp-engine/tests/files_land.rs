@@ -35,7 +35,7 @@ use wsp_words::views::place_setup_words::{
 const HOME: &str = "/Users/dev";
 
 fn may(id: &str, path: &str) -> bool {
-    agent_state_file(id, &format!("{HOME}/{path}"), HOME)
+    agent_state_file(id, &format!("{HOME}/{path}"), HOME).unwrap()
 }
 
 // TS: packages/engine/test/provision-files.test.ts:50
