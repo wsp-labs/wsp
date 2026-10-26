@@ -22,12 +22,24 @@ pub fn parse_session_title(stdout: &str) -> Option<String> {
 }
 
 /// TS session-title.ts:466.
-pub fn title_for_command(prompt: &str, model: Option<&str>, launch: Option<&AgentLaunch>, broker: Option<&CodexBroker>, now_ms: i64) -> Result<String, String> {
+pub fn title_for_command(
+    prompt: &str,
+    model: Option<&str>,
+    launch: Option<&AgentLaunch>,
+    broker: Option<&CodexBroker>,
+    now_ms: i64,
+) -> Result<String, String> {
     todo!()
 }
 
 /// TS session-title.ts:484.
-pub fn draft_for_command(prompt_file: &str, model: Option<&str>, launch: Option<&AgentLaunch>, broker: Option<&CodexBroker>, now_ms: i64) -> Result<String, String> {
+pub fn draft_for_command(
+    prompt_file: &str,
+    model: Option<&str>,
+    launch: Option<&AgentLaunch>,
+    broker: Option<&CodexBroker>,
+    now_ms: i64,
+) -> Result<String, String> {
     todo!()
 }
 

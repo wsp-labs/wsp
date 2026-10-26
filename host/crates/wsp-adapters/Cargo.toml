@@ -17,6 +17,8 @@ regex = "1"
 uuid = { version = "1", features = ["v4"] }
 wsp-frames = { path = "../../../daemon/crates/wsp-frames" }
 wsp-wire = { path = "../wsp-wire" }
+wsp-words = { path = "../wsp-words" }
+wsp-catalog = { path = "../wsp-catalog" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "sync", "time", "test-util"] }

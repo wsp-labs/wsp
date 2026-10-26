@@ -9,7 +9,11 @@ use indexmap::IndexMap;
 
 use crate::claude::landmines::{BaseEnv, BrokeredSignIn};
 use crate::claude::turn::{ClaudeKept, ClaudeSession};
-use crate::port::{AdapterAttachOptions, AdapterError, AgentLaunch, AsideAnswer, AsideQuestion, ConversationStore, DraftAsk, Env, ExecFailure, ExecStreamFactory, ForkTurn, ForkedSession, HarnessCatalogProbe, HarnessExec, HarnessStartOptions, HarnessWarmOptions, Now, ScreenCommand, SessionFile, SessionRenameWrite, TitleTurn};
+use crate::port::{
+    AdapterAttachOptions, AdapterError, AgentLaunch, AsideAnswer, AsideQuestion, ConversationStore, DraftAsk, Env, ExecFailure,
+    ExecStreamFactory, ForkTurn, ForkedSession, HarnessCatalogProbe, HarnessExec, HarnessStartOptions, HarnessWarmOptions, Now,
+    ScreenCommand, SessionFile, SessionRenameWrite, TitleTurn,
+};
 
 /// adapter.ts:117.
 #[derive(Clone)]
@@ -41,7 +45,23 @@ pub struct AdapterDeps {
 impl AdapterDeps {
     /// Deps with every optional field `None`.
     pub fn new(exec: Arc<dyn ExecStreamFactory>, config_dir: impl Into<String>) -> Self {
-        AdapterDeps { exec, config_dir: config_dir.into(), base_env: None, project_dir_name: None, api_key: None, oauth_token: None, brokered: None, interrupt_grace_ms: None, result_exit_ms: None, steer_join_ms: None, sign_in_refusal: None, aside_wall_ms: None, launch: None, stop_task_wait_ms: None, now: None }
+        AdapterDeps {
+            exec,
+            config_dir: config_dir.into(),
+            base_env: None,
+            project_dir_name: None,
+            api_key: None,
+            oauth_token: None,
+            brokered: None,
+            interrupt_grace_ms: None,
+            result_exit_ms: None,
+            steer_join_ms: None,
+            sign_in_refusal: None,
+            aside_wall_ms: None,
+            launch: None,
+            stop_task_wait_ms: None,
+            now: None,
+        }
     }
 }
 
@@ -118,7 +138,12 @@ impl ClaudeAdapter {
         todo!()
     }
     /// adapter.ts:1449.
-    pub async fn rename_session(&self, session_id: &str, title: &str, exec: Arc<dyn HarnessExec>) -> Result<SessionRenameWrite, ExecFailure> {
+    pub async fn rename_session(
+        &self,
+        session_id: &str,
+        title: &str,
+        exec: Arc<dyn HarnessExec>,
+    ) -> Result<SessionRenameWrite, ExecFailure> {
         todo!()
     }
     /// adapter.ts:1451.
@@ -153,7 +178,10 @@ impl crate::port::HarnessAdapter for ClaudeAdapter {
     fn warm(&self, options: HarnessWarmOptions) -> Option<Result<Box<dyn crate::port::KeptAgent>, AdapterError>> {
         todo!()
     }
-    fn attach(&self, options: AdapterAttachOptions) -> Option<LocalBoxFuture<'static, Result<Option<Arc<dyn crate::port::HarnessSession>>, ExecFailure>>> {
+    fn attach(
+        &self,
+        options: AdapterAttachOptions,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<Arc<dyn crate::port::HarnessSession>>, ExecFailure>>> {
         todo!()
     }
     fn steers(&self) -> bool {
@@ -186,22 +214,38 @@ impl crate::port::HarnessAdapter for ClaudeAdapter {
     fn waits_for_prompt(&self) -> bool {
         todo!()
     }
-    fn probe_catalog(&self, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<crate::port::HarnessCatalogAnswer>, ExecFailure>>> {
+    fn probe_catalog(
+        &self,
+        exec: Arc<dyn HarnessExec>,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<crate::port::HarnessCatalogAnswer>, ExecFailure>>> {
         todo!()
     }
     fn probe_version(&self, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         todo!()
     }
-    fn session_title(&self, harness_session_id: String, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+    fn session_title(
+        &self,
+        harness_session_id: String,
+        exec: Arc<dyn HarnessExec>,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         todo!()
     }
     fn session_file(&self, session_id: &str) -> Option<SessionFile> {
         todo!()
     }
-    fn rename_session(&self, harness_session_id: String, title: String, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<SessionRenameWrite, ExecFailure>>> {
+    fn rename_session(
+        &self,
+        harness_session_id: String,
+        title: String,
+        exec: Arc<dyn HarnessExec>,
+    ) -> Option<LocalBoxFuture<'static, Result<SessionRenameWrite, ExecFailure>>> {
         todo!()
     }
-    fn title_for(&self, turn: TitleTurn, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
+    fn title_for(
+        &self,
+        turn: TitleTurn,
+        exec: Arc<dyn HarnessExec>,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
         todo!()
     }
     fn draft_for(&self, ask: DraftAsk, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {

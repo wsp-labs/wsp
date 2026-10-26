@@ -20,10 +20,17 @@ pub const RECONNECT_STALL_MS: u64 = 90_000;
 pub const ASIDE_INSTRUCTIONS: &str = "The person is asking a side question about this conversation while its work goes on elsewhere. Answer it from the conversation so far, briefly. Run nothing, edit nothing and call no tool.";
 
 /// The two approvals the server raises, with the tool name each is asked under. TS adapter.ts:488.
-pub const APPROVALS: [(&str, &str); 2] = [("item/commandExecution/requestApproval", "command_execution"), ("item/fileChange/requestApproval", "file_change")];
+pub const APPROVALS: [(&str, &str); 2] =
+    [("item/commandExecution/requestApproval", "command_execution"), ("item/fileChange/requestApproval", "file_change")];
 
 /// The breakdown fields, by TurnTokens' name and the server's key. TS adapter.ts:347.
-pub const BREAKDOWN: [(&str, &str); 5] = [("input", "inputTokens"), ("cached", "cachedInputTokens"), ("cacheWrite", "cacheWriteInputTokens"), ("output", "outputTokens"), ("reasoning", "reasoningOutputTokens")];
+pub const BREAKDOWN: [(&str, &str); 5] = [
+    ("input", "inputTokens"),
+    ("cached", "cachedInputTokens"),
+    ("cacheWrite", "cacheWriteInputTokens"),
+    ("output", "outputTokens"),
+    ("reasoning", "reasoningOutputTokens"),
+];
 
 /// A failure in wsp's words, with the cause wsp classes it as where it claims one. TS adapter.ts:288.
 #[derive(Clone, Debug, PartialEq, Eq)]
