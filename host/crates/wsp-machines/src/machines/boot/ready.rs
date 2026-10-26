@@ -56,6 +56,20 @@ async fn settle_by<F: std::future::Future<Output = ()>>(clock: &Rc<dyn wsp_core:
     cancel();
 }
 
+/// A call the TS makes runs to its first wait the moment it is made: the context's own turn is taken at the call, and the
+/// caller goes on one turn later, as `await` does.
+async fn at_call<F: std::future::Future>(fut: F) -> F::Output {
+    let mut fut = Box::pin(fut);
+    let mut cx = std::task::Context::from_waker(futures::task::noop_waker_ref());
+    for _ in 0..2 {
+        if let std::task::Poll::Ready(out) = fut.as_mut().poll(&mut cx) {
+            tokio::task::yield_now().await;
+            return out;
+        }
+    }
+    fut.await
+}
+
 impl BootArea {
     /// `ready()` (boot.ts:329): the one start, joined; spec rules 1-14 in order.
     pub fn ready(self: &Rc<Self>) -> Ready {
@@ -115,19 +129,22 @@ impl BootArea {
     /// `persistSessions` started and not awaited, its failure swallowed by the chain (boot.ts:529).
     fn persist_later(self: &Rc<Self>, workspace_id: String) {
         let area = self.clone();
-        tokio::task::spawn_local(async move {
-            area.rt.persist_sessions(&workspace_id).await;
-        });
+        let mut write = async move { area.rt.persist_sessions(&workspace_id).await }.boxed_local();
+        let mut cx = std::task::Context::from_waker(futures::task::noop_waker_ref());
+        if write.as_mut().poll(&mut cx).is_pending() && write.as_mut().poll(&mut cx).is_pending() {
+            tokio::task::spawn_local(write);
+        }
     }
 
     /// `revokeButShells` (boot.ts:36): every device given that no shell holds is revoked.
     async fn revoke_but_shells(&self, devices: &[ScopedDevice]) -> Result<(), HostError> {
-        let shells = self.rt.shell_held_devices().await?;
+        let shells = at_call(self.rt.shell_held_devices()).await?;
         for device in devices {
             if !shells.contains(&device.id) {
-                self.rt.revoke_device(&device.id).await?;
+                at_call(self.rt.revoke_device(&device.id)).await?;
             }
         }
+        tokio::task::yield_now().await;
         Ok(())
     }
 
@@ -164,23 +181,28 @@ impl BootArea {
             self.spawn_warned(async move { area.reread_held(&id, GoneSeenBy::RecordLoad).await }, line);
         }
         let works = self.start_workspace_work(&mut sessions, &landing, &to_sync);
-        self.rt.resume_queue().await?;
         let mut started = self.finish_cards(&sessions, &landing);
         started.extend(works.into_iter().map(|work| work.boxed_local()));
-        start_all(started).await;
-        self.end_held_starts().await?;
-        let stale: Vec<ScopedDevice> = self.rt.devices().await?.into_iter().filter(|d| d.thread_id.as_ref().is_some_and(|t| !self.rt.thread_runs(t))).collect();
-        if !stale.is_empty() {
-            self.revoke_but_shells(&stale).await?;
+        let area = self.clone();
+        let load = load.clone();
+        let tail = async move {
+            at_call(area.rt.resume_queue()).await?;
+            area.end_held_starts().await?;
+            let stale: Vec<ScopedDevice> = at_call(area.rt.devices()).await?.into_iter().filter(|d| d.thread_id.as_ref().is_some_and(|t| !area.rt.thread_runs(t))).collect();
+            if !stale.is_empty() {
+                area.revoke_but_shells(&stale).await?;
+            }
+            at_call(area.rt.revoke_asides()).await?;
+            area.rt.arm_subs();
+            area.detach(area.rt_deliver_owed(), "the lines owed to threads were not sent".to_string()).await;
+            area.admit_builders(&load).await?;
+            area.detach(area.rt_move_old_copies(), "the move off old copies stopped".to_string()).await;
+            area.rt.arm_sweep();
+            area.detach(area.rt_slates_ready(), "the slates were not loaded".to_string()).await;
+            Ok(())
         }
-        self.rt.revoke_asides().await?;
-        self.rt.arm_subs();
-        self.detach(self.rt_deliver_owed(), "the lines owed to threads were not sent".to_string()).await;
-        self.admit_builders(&load).await?;
-        self.detach(self.rt_move_old_copies(), "the move off old copies stopped".to_string()).await;
-        self.rt.arm_sweep();
-        self.detach(self.rt_slates_ready(), "the slates were not loaded".to_string()).await;
-        Ok(())
+        .boxed_local();
+        start_all(started, tail).await
     }
 
     /// `rt.deliverOwed()` as a future of its own (boot.ts:580).
@@ -382,7 +404,7 @@ impl BootArea {
             Some(Value::Array(many)) => Some(many.iter().filter_map(Value::as_str).map(str::to_string).collect()),
             _ => None,
         };
-        let steered = row.get("steered").and_then(|s| read_steered(s));
+        let steered = row.get("steered").and_then(read_steered);
         let has_live = row.get("reply").is_some() || number(row, "told").is_some() || steered.is_some() || number(row, "waited").is_some() || number(row, "waitingSince").is_some();
         let from = number(row, "from").filter(|f| f.fract() == 0.0 && *f >= 0.0 && *f <= 9_007_199_254_740_991.0).map(|f| f as u64);
         let turn_live = has_live.then(|| TurnLive {
@@ -503,7 +525,10 @@ impl BootArea {
                 let held = held.clone();
                 async move {
                     let (entry, synced_now) = match &late {
-                        None => (Some(held.clone()), synced),
+                        None => {
+                            tokio::task::yield_now().await;
+                            (Some(held.clone()), synced)
+                        }
                         Some(late) => {
                             let landed = late.clone().await;
                             let entry = landed.clone().or_else(|| area.rt.live().borrow().get(&id).cloned());
@@ -514,10 +539,11 @@ impl BootArea {
                     let Some(entry) = entry else { return Ok::<(), HostError>(()) };
                     let made = serde_json::to_value(entry.borrow().record.borrow().worktree.clone()).ok().and_then(|w| w.get("made").and_then(Value::as_bool)) == Some(true);
                     if made {
-                        area.rt.worktree_mounted(&entry).await?;
+                        at_call(area.rt.worktree_mounted(&entry)).await?;
                     }
                     area.reopen(left, false).await?;
-                    area.rt.sweep_runs(&entry).await?;
+                    tokio::task::yield_now().await;
+                    at_call(area.rt.sweep_runs(&entry)).await?;
                     if synced_now {
                         area.rt.sync_daemon(&entry);
                     }
@@ -542,9 +568,12 @@ impl BootArea {
 
     /// The held starts a restart ends with the restart named (boot.ts:487-507).
     async fn end_held_starts(&self) -> Result<(), HostError> {
-        for h in self.rt.store().list(HELD_STARTS).await? {
+        let held = self.rt.store().list(HELD_STARTS).await?;
+        tokio::task::yield_now().await;
+        for h in held {
             let turn_id = text(&h, "turnId").unwrap_or_default();
             self.rt.store().delete(HELD_STARTS, &turn_id).await?;
+            tokio::task::yield_now().await;
             let ws = text(&h, "workspaceId").unwrap_or_default();
             if !self.rt.live().borrow().contains_key(&ws) {
                 continue;
@@ -622,11 +651,14 @@ impl BootArea {
             let area = self.clone();
             let row = row.clone();
             async move {
-                let answer = area.rt.reattach(&row, again).await;
+                let answer = at_call(area.rt.reattach(&row, again)).await;
                 (row, answer)
             }
         }))
         .await;
+        for _ in 0..if answers.is_empty() { 1 } else { 2 } {
+            tokio::task::yield_now().await;
+        }
         let mut cut: IndexSet<String> = IndexSet::new();
         for (row, answer) in &answers {
             let (started, thread) = {
@@ -662,7 +694,7 @@ impl BootArea {
         if cut.is_empty() {
             return Ok(());
         }
-        let stale: Vec<ScopedDevice> = self.rt.devices().await?.into_iter().filter(|d| d.thread_id.as_ref().is_some_and(|t| cut.contains(t) && !self.rt.thread_runs(t))).collect();
+        let stale: Vec<ScopedDevice> = at_call(self.rt.devices()).await?.into_iter().filter(|d| d.thread_id.as_ref().is_some_and(|t| cut.contains(t) && !self.rt.thread_runs(t))).collect();
         if !stale.is_empty() {
             self.revoke_but_shells(&stale).await?;
         }
@@ -703,7 +735,7 @@ impl BootArea {
                     });
                 }
             }),
-            wsp_wire::wire::limits::LINK_RETRY_WINDOW_MS as i64,
+            wsp_wire::wire::limits::LINK_RETRY_WINDOW_MS,
         );
     }
 }
@@ -749,25 +781,35 @@ async fn read_card(area: &Rc<BootArea>, ws: &str, row: &Row, card: CardOf) -> Re
     Ok(())
 }
 
-/// Starts several background calls the way the TS starts calls it does not await: each runs to its first wait in
-/// the order given, before the start goes on, and the rest are spawned.
-async fn start_all(futs: Vec<LocalBoxFuture<'static, ()>>) {
+/// Starts several background calls the way the TS starts calls it does not await: they and the start's own steps are
+/// polled in the order given each turn, as one microtask queue runs them, and what is left when the start ends goes on
+/// as one task.
+async fn start_all(futs: Vec<LocalBoxFuture<'static, ()>>, mut tail: LocalBoxFuture<'static, Result<(), HostError>>) -> Result<(), HostError> {
     let mut live: Vec<Option<LocalBoxFuture<'static, ()>>> = futs.into_iter().map(Some).collect();
-    for _ in 0..2 {
+    let out = futures::future::poll_fn(|cx| {
         for slot in live.iter_mut() {
-            let done = match slot.as_mut() {
-                Some(fut) => futures::future::poll_fn(|cx| std::task::Poll::Ready(fut.as_mut().poll(cx).is_ready())).await,
-                None => continue,
-            };
-            if done {
+            if slot.as_mut().is_some_and(|fut| fut.as_mut().poll(cx).is_ready()) {
                 *slot = None;
             }
         }
-        tokio::task::yield_now().await;
+        tail.as_mut().poll(cx)
+    })
+    .await;
+    if live.iter().any(Option::is_some) {
+        tokio::task::spawn_local(futures::future::poll_fn(move |cx| {
+            for slot in live.iter_mut() {
+                if slot.as_mut().is_some_and(|fut| fut.as_mut().poll(cx).is_ready()) {
+                    *slot = None;
+                }
+            }
+            if live.iter().all(Option::is_none) {
+                std::task::Poll::Ready(())
+            } else {
+                std::task::Poll::Pending
+            }
+        }));
     }
-    for fut in live.into_iter().flatten() {
-        tokio::task::spawn_local(fut);
-    }
+    out
 }
 
 /// The rows a start reads out of the sessions documents: the ones running and the ones whose card is still read.

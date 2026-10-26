@@ -60,8 +60,11 @@ impl BootArea {
             return Ok(entry);
         }
         let pending = self.rt.boot_work().borrow().get(id).cloned();
-        if let Some(pending) = pending {
-            pending.await;
+        match pending {
+            Some(pending) => {
+                pending.await;
+            }
+            None => tokio::task::yield_now().await,
         }
         let live = self.rt.live().borrow().get(id).cloned();
         Ok(live.unwrap_or(entry))
@@ -112,8 +115,11 @@ impl BootArea {
             return Ok(None);
         }
         let pending = self.rt.boot_work().borrow().get(&row.workspace_id).cloned();
-        if let Some(pending) = pending {
-            pending.await;
+        match pending {
+            Some(pending) => {
+                pending.await;
+            }
+            None => tokio::task::yield_now().await,
         }
         let live = self.rt.live().borrow().get(&row.workspace_id).cloned();
         Ok(Some(live.unwrap_or(entry)))
@@ -129,7 +135,7 @@ impl BootArea {
                 let root_ok = root.as_ref().is_none_or(|root| r.record.root_thread_id.as_deref().unwrap_or(thread) == root.as_str());
                 let ws_ok = workspace_id.is_none_or(|ws| ws == r.workspace_id);
                 let live = self.rt.live().borrow().contains_key(&r.workspace_id);
-                root_ok && ws_ok && live && self.reaches_row(&RowAt { thread_id: Some(thread.clone()), workspace_id: r.workspace_id.clone() }, caller, talk.clone())
+                root_ok && ws_ok && live && self.reaches_row(&RowAt { thread_id: Some(thread.clone()), workspace_id: r.workspace_id.clone() }, caller, talk)
             })
             .map(|(thread, r)| (thread, r.workspace_id.clone(), r.record))
             .collect()
@@ -142,7 +148,7 @@ impl BootArea {
         }
         let views: Vec<SessionView> = self.rt.sessions().borrow().values().map(|s| s.borrow().view.clone()).collect();
         let by_row = views.iter().any(|v| {
-            v.workspace_id == workspace_id && self.reaches_row(&RowAt { thread_id: v.thread_id.clone(), workspace_id: v.workspace_id.clone() }, caller, talk.clone())
+            v.workspace_id == workspace_id && self.reaches_row(&RowAt { thread_id: v.thread_id.clone(), workspace_id: v.workspace_id.clone() }, caller, talk)
         });
         by_row || !self.tree_records(caller, talk, Some(workspace_id)).is_empty()
     }
