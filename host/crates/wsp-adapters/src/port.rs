@@ -886,6 +886,30 @@ pub trait HarnessAdapter {
         let _ = options;
         None
     }
+    /// Whether `warm` answers: the TS `adapter.warm !== undefined`, readable without a launch.
+    fn warms(&self) -> bool {
+        false
+    }
+    /// Whether `rename_session` answers: the TS `adapter.renameSession !== undefined`.
+    fn renames(&self) -> bool {
+        false
+    }
+    /// Whether `aside` answers: the TS `adapter.aside !== undefined`.
+    fn asides(&self) -> bool {
+        false
+    }
+    /// What the machine holds for `session_id`, as one log line, for a resume the agent refused. `None` where the TS
+    /// `sessionHeld` is absent. TS harness.ts:259.
+    fn session_held(&self, session_id: String, exec: Arc<dyn HarnessExec>) -> Option<LocalBoxFuture<'static, Result<String, String>>> {
+        let _ = (session_id, exec);
+        None
+    }
+    /// The models the person's account lists beyond the binary's own. `None` where the TS `accountModels` is absent;
+    /// `Ok(None)` where the read answered nothing. TS harness.ts:251.
+    fn account_models(&self, version: Option<String>) -> Option<LocalBoxFuture<'static, Result<Option<Vec<HarnessCatalogModelProbe>>, String>>> {
+        let _ = version;
+        None
+    }
     fn attach(
         &self,
         options: AdapterAttachOptions,
