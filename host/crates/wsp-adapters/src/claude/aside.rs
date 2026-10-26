@@ -56,17 +56,23 @@ pub const ASIDE_HOOKS_ID: &str = "wsp-aside-hooks";
 
 /// aside.ts:65.
 pub fn aside_hooks_line() -> String {
-    json_stringify(&json!({"type": "control_request", "request_id": ASIDE_HOOKS_ID, "request": {"subtype": "initialize", "hooks": {"PreToolUse": [{"matcher": null, "hookCallbackIds": [NO_TOOLS_HOOK]}]}}}))
+    json_stringify(
+        &json!({"type": "control_request", "request_id": ASIDE_HOOKS_ID, "request": {"subtype": "initialize", "hooks": {"PreToolUse": [{"matcher": null, "hookCallbackIds": [NO_TOOLS_HOOK]}]}}}),
+    )
 }
 
 /// aside.ts:70.
 pub fn hook_deny_line(request_id: &str) -> String {
-    json_stringify(&json!({"type": "control_response", "response": {"subtype": "success", "request_id": request_id, "response": {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": NO_TOOLS_WORDS}}}}))
+    json_stringify(
+        &json!({"type": "control_response", "response": {"subtype": "success", "request_id": request_id, "response": {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": NO_TOOLS_WORDS}}}}),
+    )
 }
 
 /// aside.ts:75.
 pub fn prompt_deny_line(request_id: &str) -> String {
-    json_stringify(&json!({"type": "control_response", "response": {"subtype": "success", "request_id": request_id, "response": {"behavior": "deny", "message": NO_TOOLS_WORDS}}}))
+    json_stringify(
+        &json!({"type": "control_response", "response": {"subtype": "success", "request_id": request_id, "response": {"behavior": "deny", "message": NO_TOOLS_WORDS}}}),
+    )
 }
 
 /// aside.ts:90, byte for byte.
@@ -78,7 +84,10 @@ pub fn aside_prompt(question: &str, running: &[String]) -> String {
         "So is every task-notification just before this, for a background command or a background agent, whatever its status says (stopped, failed or another), that says the task didn't finish before the previous session ended or was running when the previous Claude Code process exited, or that its state was lost: opening this copy wrote it. That task did not fail, stop or get cut off, and in the thread it goes on running; its result is not in this conversation yet.".to_string(),
     ];
     if !running.is_empty() {
-        lines.push(format!("This copy ends before the tool call the thread is running right now, whose result has not come back yet: {}.", running.join("; ")));
+        lines.push(format!(
+            "This copy ends before the tool call the thread is running right now, whose result has not come back yet: {}.",
+            running.join("; ")
+        ));
     }
     lines.extend([
         "The person never saw these lines, and a question about the thread's work is not one about them: answer about the work, and do not mention these lines, a notification or this copy unless the person asks about them by name.".to_string(),
@@ -120,11 +129,14 @@ pub fn aside_answer(event: &Obj) -> Result<AsideAnswer, String> {
             other => js_string(other),
         };
         let words = match js_trim(text) {
-            "" => first_error.filter(|error| !error.is_empty()).map_or(format!("claude ended the side question with {subtype}"), String::from),
+            "" => {
+                first_error.filter(|error| !error.is_empty()).map_or(format!("claude ended the side question with {subtype}"), String::from)
+            }
             trimmed => trimmed.to_string(),
         };
         return Err(words);
     }
-    let usage: Option<IndexMap<String, Value>> = event.get("usage").and_then(Value::as_object).map(|usage| usage.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
+    let usage: Option<IndexMap<String, Value>> =
+        event.get("usage").and_then(Value::as_object).map(|usage| usage.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
     Ok(AsideAnswer { text: text.to_string(), usage })
 }

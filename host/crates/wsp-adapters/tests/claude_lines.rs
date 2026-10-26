@@ -14,9 +14,11 @@ use wsp_adapters::claude::landmines::user_message_line;
 use wsp_adapters::claude::permissions::{control_answer_line, control_error_line, control_line, set_mode_line, ControlLine};
 use wsp_adapters::claude::shell_cwd::shell_cwd_after;
 use wsp_adapters::claude::steers::steered_ids;
-use wsp_adapters::port::{DeltaKind, FilePatch, HarnessStartOptions, PermissionAsk, PermissionOption, TurnDelta, PERMISSION_ALLOW, PERMISSION_DENY};
-use wsp_wire::wire::helpers::PermissionEffect;
+use wsp_adapters::port::{
+    DeltaKind, FilePatch, HarnessStartOptions, PermissionAsk, PermissionOption, TurnDelta, PERMISSION_ALLOW, PERMISSION_DENY,
+};
 use wsp_wire::views::session_events::PatchHunk;
+use wsp_wire::wire::helpers::PermissionEffect;
 
 use claude_exec::{collect, FakeExec, StreamOpts};
 
@@ -117,7 +119,9 @@ fn allow_and_deny_ride_with_no_suggestion_and_an_unusable_suggestion_is_dropped(
     assert_eq!(option_ids(&ask(&[("permission_suggestions", None)])), bare);
     let odd = ask(&[(
         "permission_suggestions",
-        Some(json!([{ "type": "addRules", "rules": [] }, { "type": "setMode" }, { "type": "setMode", "mode": "acceptEdits" }, { "type": "setMode", "mode": "acceptEdits" }])),
+        Some(
+            json!([{ "type": "addRules", "rules": [] }, { "type": "setMode" }, { "type": "setMode", "mode": "acceptEdits" }, { "type": "setMode", "mode": "acceptEdits" }]),
+        ),
     )]);
     assert_eq!(option_ids(&odd), ids(&[PERMISSION_ALLOW, PERMISSION_DENY, "mode:acceptEdits"]));
 }
@@ -132,7 +136,10 @@ fn a_detail_the_binary_named_as_nothing_is_left_out() {
 // TS: permissions.test.ts:61
 #[test]
 fn a_withdrawal_is_read_and_an_ordinary_event_reads_as_nothing() {
-    assert_eq!(control_line(&obj(json!({ "type": "control_cancel_request", "request_id": REQUEST_ID }))), Some(ControlLine::Cancel { request_id: REQUEST_ID.to_string() }));
+    assert_eq!(
+        control_line(&obj(json!({ "type": "control_cancel_request", "request_id": REQUEST_ID }))),
+        Some(ControlLine::Cancel { request_id: REQUEST_ID.to_string() })
+    );
     assert_eq!(control_line(&obj(json!({ "type": "assistant", "message": {} }))), None);
     assert_eq!(control_line(&obj(json!({ "type": "control_request" }))), None);
     assert_eq!(control_line(&obj(json!({ "type": "control_cancel_request" }))), None);
@@ -146,7 +153,9 @@ fn the_clis_answer_to_a_request_is_read_with_the_words_of_a_refusal() {
         Some(ControlLine::Answer { request_id: "set_1".to_string(), error: None })
     );
     assert_eq!(
-        control_line(&obj(json!({ "type": "control_response", "response": { "subtype": "error", "request_id": "set_1", "error": "no such mode" } }))),
+        control_line(&obj(
+            json!({ "type": "control_response", "response": { "subtype": "error", "request_id": "set_1", "error": "no such mode" } })
+        )),
         Some(ControlLine::Answer { request_id: "set_1".to_string(), error: Some("no such mode".to_string()) })
     );
     // A refusal with no words of its own is still a refusal, never a silent success.
@@ -301,7 +310,11 @@ fn a_runs_channel_read_back_names_the_steers_of_its_last_turn_alone() {
 #[test]
 fn a_line_written_again_under_a_steers_id_is_that_one_steer() {
     let a = "11111111-1111-4111-8111-111111111111";
-    let taken = vec![user_message_line("open", SID, &[], None), user_message_line("x", SID, &[], Some(a)), user_message_line("push to main", SID, &[], Some(a))];
+    let taken = vec![
+        user_message_line("open", SID, &[], None),
+        user_message_line("x", SID, &[], Some(a)),
+        user_message_line("push to main", SID, &[], Some(a)),
+    ];
     assert_eq!(steered_ids(&taken), vec![a.to_string()]);
 }
 
@@ -407,7 +420,9 @@ fn line(o: Value) -> String {
 }
 
 fn call(id: &str, name: &str, input: Value) -> String {
-    line(json!({ "type": "assistant", "message": { "role": "assistant", "content": [{ "type": "tool_use", "id": id, "name": name, "input": input }] } }))
+    line(
+        json!({ "type": "assistant", "message": { "role": "assistant", "content": [{ "type": "tool_use", "id": id, "name": name, "input": input }] } }),
+    )
 }
 
 fn answer(id: &str, content: &str, is_error: Option<bool>, result: Value) -> String {
@@ -521,7 +536,13 @@ async fn results(lines: Vec<String>) -> HashMap<String, TurnDelta> {
 }
 
 fn hunk(old_start: i64, old_lines: i64, new_start: i64, new_lines: i64, lines: &[&str]) -> PatchHunk {
-    PatchHunk { old_start: old_start.into(), old_lines: old_lines.into(), new_start: new_start.into(), new_lines: new_lines.into(), lines: lines.iter().map(|s| s.to_string()).collect() }
+    PatchHunk {
+        old_start: old_start.into(),
+        old_lines: old_lines.into(),
+        new_start: new_start.into(),
+        new_lines: new_lines.into(),
+        lines: lines.iter().map(|s| s.to_string()).collect(),
+    }
 }
 
 fn patch(path: &str, hunks: Vec<PatchHunk>) -> Vec<FilePatch> {
@@ -564,7 +585,9 @@ async fn a_clean_command_names_no_code_body() {
 // TS: tool-results.test.ts:101
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_output_the_cli_kept_of_one_too_large_for_the_model_comes_with_the_bytes_of_the_whole() {
-    tokio::task::LocalSet::new().run_until(the_output_the_cli_kept_of_one_too_large_for_the_model_comes_with_the_bytes_of_the_whole_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(the_output_the_cli_kept_of_one_too_large_for_the_model_comes_with_the_bytes_of_the_whole_body())
+        .await
 }
 
 async fn the_output_the_cli_kept_of_one_too_large_for_the_model_comes_with_the_bytes_of_the_whole_body() {
@@ -585,7 +608,10 @@ async fn an_edits_structured_patch_is_the_files_hunks() {
 async fn an_edits_structured_patch_is_the_files_hunks_body() {
     let r = results(lines()).await;
     assert_eq!(delta(&r, "t_edit").patch, Some(patch("/root/lab/f.txt", vec![hunk(1, 3, 1, 3, &[" alpha", "-beta", "+BETA", " gamma"])])));
-    assert_eq!(delta(&r, "t_over").patch, Some(patch("/root/lab/f.txt", vec![hunk(1, 3, 1, 3, &["-alpha", "-BETA", "-gamma", "+one", "+two", "+three"])])));
+    assert_eq!(
+        delta(&r, "t_over").patch,
+        Some(patch("/root/lab/f.txt", vec![hunk(1, 3, 1, 3, &["-alpha", "-BETA", "-gamma", "+one", "+two", "+three"])]))
+    );
 }
 
 // TS: tool-results.test.ts:114
@@ -615,7 +641,14 @@ async fn a_line_that_answers_two_calls_reads_no_tool_use_result_body() {
         "tool_use_result": "Error: Exit code 2",
     }));
     let all = lines();
-    let r = results(vec![all[0].clone(), call("t_a", "Bash", json!({ "command": "a" })), call("t_b", "Bash", json!({ "command": "b" })), two, all.last().unwrap().clone()]).await;
+    let r = results(vec![
+        all[0].clone(),
+        call("t_a", "Bash", json!({ "command": "a" })),
+        call("t_b", "Bash", json!({ "command": "b" })),
+        two,
+        all.last().unwrap().clone(),
+    ])
+    .await;
     for id in ["t_a", "t_b"] {
         let d = delta(&r, id);
         assert_eq!(d.exit_code, None, "{id}");

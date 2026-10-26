@@ -49,14 +49,8 @@ fn answers(adapter: Arc<dyn HarnessAdapter>) -> Answers {
 fn claude_answers_as_its_ts_object_declares() {
     let exec = FakeExec::scripted(Vec::new(), StreamOpts::default());
     let adapter = create_claude_adapter(AdapterDeps::new(exec, "/root/.claude-cfg")).unwrap();
-    let want = Answers {
-        steers: true,
-        warms: true,
-        renames: true,
-        asides: true,
-        attachments: Some(AttachmentRoad::Inline),
-        mcp_servers: true,
-    };
+    let want =
+        Answers { steers: true, warms: true, renames: true, asides: true, attachments: Some(AttachmentRoad::Inline), mcp_servers: true };
     assert_eq!(answers(Arc::new(adapter)), want);
 }
 
@@ -64,14 +58,8 @@ fn claude_answers_as_its_ts_object_declares() {
 fn codex_answers_as_its_ts_object_declares() {
     let launch = launcher(scripted_server(WireOpts::default()));
     let adapter = create_codex_adapter(CodexAdapterDeps::new(launch.factory(), "/root/.codex", LOGIN)).unwrap();
-    let want = Answers {
-        steers: true,
-        warms: false,
-        renames: true,
-        asides: true,
-        attachments: Some(AttachmentRoad::File),
-        mcp_servers: true,
-    };
+    let want =
+        Answers { steers: true, warms: false, renames: true, asides: true, attachments: Some(AttachmentRoad::File), mcp_servers: true };
     assert_eq!(answers(Arc::new(adapter)), want);
 }
 
@@ -79,14 +67,8 @@ fn codex_answers_as_its_ts_object_declares() {
 fn opencode_answers_as_its_ts_object_declares() {
     let exec = scripted_exec(Vec::new(), ScriptOpts::default(), "/tmp/wsp-run/oc01");
     let adapter = create_opencode_adapter(OpenCodeAdapterDeps::new(exec.factory()));
-    let want = Answers {
-        steers: false,
-        warms: false,
-        renames: false,
-        asides: false,
-        attachments: Some(AttachmentRoad::File),
-        mcp_servers: false,
-    };
+    let want =
+        Answers { steers: false, warms: false, renames: false, asides: false, attachments: Some(AttachmentRoad::File), mcp_servers: false };
     assert_eq!(answers(Arc::new(adapter)), want);
 }
 
@@ -94,13 +76,6 @@ fn opencode_answers_as_its_ts_object_declares() {
 fn cursor_answers_as_its_ts_object_declares() {
     let exec = scripted_exec(Vec::new(), ScriptOpts::default(), "/tmp/wsp-run/cu01");
     let adapter = create_cursor_adapter(CursorAdapterDeps::new(exec.factory()));
-    let want = Answers {
-        steers: false,
-        warms: false,
-        renames: false,
-        asides: false,
-        attachments: None,
-        mcp_servers: false,
-    };
+    let want = Answers { steers: false, warms: false, renames: false, asides: false, attachments: None, mcp_servers: false };
     assert_eq!(answers(Arc::new(adapter)), want);
 }

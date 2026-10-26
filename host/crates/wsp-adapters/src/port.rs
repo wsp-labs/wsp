@@ -906,7 +906,10 @@ pub trait HarnessAdapter {
     }
     /// The models the person's account lists beyond the binary's own. `None` where the TS `accountModels` is absent;
     /// `Ok(None)` where the read answered nothing. TS harness.ts:251.
-    fn account_models(&self, version: Option<String>) -> Option<LocalBoxFuture<'static, Result<Option<Vec<HarnessCatalogModelProbe>>, String>>> {
+    fn account_models(
+        &self,
+        version: Option<String>,
+    ) -> Option<LocalBoxFuture<'static, Result<Option<Vec<HarnessCatalogModelProbe>>, String>>> {
         let _ = version;
         None
     }

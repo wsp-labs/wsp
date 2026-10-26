@@ -25,7 +25,8 @@ const HEADLESS_OVERRIDES: [(&str, &str); 5] = [
     ("CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS", "0"),
     ("CLAUDE_CODE_MCP_STARTUP_WAIT_MS", "0"),
 ];
-const BROKERED_DROP: [&str; 5] = ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS", "ANTHROPIC_FOUNDRY_API_KEY", "AWS_BEARER_TOKEN_BEDROCK"];
+const BROKERED_DROP: [&str; 5] =
+    ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_CUSTOM_HEADERS", "ANTHROPIC_FOUNDRY_API_KEY", "AWS_BEARER_TOKEN_BEDROCK"];
 
 /// landmines.ts:12: `^CLAUDE_CODE_`, `^CLAUDECODE$`, `^FORCE_CODE_TERMINAL$`. Whether a variable is a nesting mark.
 pub fn is_landmine(key: &str) -> bool {
@@ -93,7 +94,12 @@ pub fn brokered_sign_in_env(b: &BrokeredSignIn) -> Env {
             env.insert(KEY_ENV.into(), String::new());
         }
     }
-    for (name, value) in [("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1"), ("CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST", "1"), ("DISABLE_UPDATES", "1"), ("API_TIMEOUT_MS", "3600000")] {
+    for (name, value) in [
+        ("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1"),
+        ("CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST", "1"),
+        ("DISABLE_UPDATES", "1"),
+        ("API_TIMEOUT_MS", "3600000"),
+    ] {
         env.insert(name.into(), value.into());
     }
     if b.kind != BrokerKind::Gateway {
@@ -349,7 +355,10 @@ pub const SERVER_VALUES_ENV: &str = "WSP_MCP_VALUES";
 /// landmines.ts:353: one file under SERVER_VALUES_ENV holding `{"mcpServers": entries}`; `None` with no entries.
 pub fn server_values_file(values: Option<&ServerValues>) -> Option<ExecSecret> {
     let entries = values?.entries.as_ref().filter(|entries| !entries.is_empty())?;
-    let servers: Map<String, Value> = entries.iter().map(|(name, entry)| (name.clone(), Value::Object(entry.iter().map(|(k, v)| (k.clone(), v.clone())).collect()))).collect();
+    let servers: Map<String, Value> = entries
+        .iter()
+        .map(|(name, entry)| (name.clone(), Value::Object(entry.iter().map(|(k, v)| (k.clone(), v.clone())).collect())))
+        .collect();
     let mut files = Env::new();
     files.insert(SERVER_VALUES_ENV.into(), json_stringify(&json!({"mcpServers": servers})));
     Some(ExecSecret { files: Some(files), input: false })
@@ -399,7 +408,11 @@ pub fn build_command(options: &BuildCommandOptions) -> Result<String, AdapterErr
     let launch_args = options.launch.as_ref().and_then(|launch| launch.args.clone()).unwrap_or_default();
     let named = person_settings(&launch_args);
     let aside = options.aside;
-    let person = if aside && named.file { PersonSettings { words: without_settings(&launch_args), settings: Map::new(), file: false } } else { named };
+    let person = if aside && named.file {
+        PersonSettings { words: without_settings(&launch_args), settings: Map::new(), file: false }
+    } else {
+        named
+    };
     let (session_id, resume) = (options.session_id.as_deref(), options.resume.as_deref());
     if session_id.is_none() == resume.is_none() {
         return Err(AdapterError("buildCommand needs exactly one of sessionId or resume".into()));
@@ -522,9 +535,13 @@ pub fn saved_spend_command(config_dir: &str, session_id: &str) -> String {
 
 /// landmines.ts:451.
 pub fn user_message_line(text: &str, session_id: &str, images: &[TurnImage], uuid: Option<&str>) -> String {
-    let mut content: Vec<Value> = images.iter().map(|image| json!({"type": "image", "source": {"type": "base64", "media_type": image.media_type, "data": image.bytes}})).collect();
+    let mut content: Vec<Value> = images
+        .iter()
+        .map(|image| json!({"type": "image", "source": {"type": "base64", "media_type": image.media_type, "data": image.bytes}}))
+        .collect();
     content.push(json!({"type": "text", "text": text}));
-    let mut line = json!({"type": "user", "message": {"role": "user", "content": content}, "parent_tool_use_id": null, "session_id": session_id});
+    let mut line =
+        json!({"type": "user", "message": {"role": "user", "content": content}, "parent_tool_use_id": null, "session_id": session_id});
     if let Some(uuid) = uuid {
         line["uuid"] = json!(uuid);
     }

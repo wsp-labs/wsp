@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use futures::future::{LocalBoxFuture, FutureExt};
+use futures::future::{FutureExt, LocalBoxFuture};
 use futures::stream::{self, LocalBoxStream, StreamExt};
 use serde_json::{json, Value};
 use tokio::sync::mpsc;
@@ -21,7 +21,11 @@ use wsp_adapters::claude::landmines::user_message_line;
 use wsp_adapters::claude::turn::ClaudeSession;
 use wsp_adapters::claude::{create_claude_adapter, AdapterDeps, AttachedSession};
 use wsp_adapters::pending::QUESTION_TOOL;
-use wsp_adapters::port::{AccessOutcome, AdapterAttachOptions, AdapterEvent, AnswerOutcome, DeltaKind, ExecFailure, ExecFailureKind, ExecOptions, ExecStream, ExecStreamFactory, HarnessStartOptions, PermissionAnswer, PermissionAsk, PermissionOutcome, SteerOutcome, TaskStop, TurnResult, TurnStatus, WriteOutcome, PERMISSION_ALLOW, PERMISSION_DENY};
+use wsp_adapters::port::{
+    AccessOutcome, AdapterAttachOptions, AdapterEvent, AnswerOutcome, DeltaKind, ExecFailure, ExecFailureKind, ExecOptions, ExecStream,
+    ExecStreamFactory, HarnessStartOptions, PermissionAnswer, PermissionAsk, PermissionOutcome, SteerOutcome, TaskStop, TurnResult,
+    TurnStatus, WriteOutcome, PERMISSION_ALLOW, PERMISSION_DENY,
+};
 use wsp_wire::wire::helpers::PermissionEffect;
 
 use claude_exec::{collect, types, Call, Exit, FakeExec, Script, StreamOpts, RUN_HANDLE};
@@ -198,7 +202,14 @@ struct Io(Arc<Inner>);
 impl Io {
     fn new() -> (Io, Arc<dyn ExecStreamFactory>) {
         let (tx, rx) = mpsc::unbounded_channel();
-        let inner = Arc::new(Inner { stdin: Default::default(), feed: Mutex::new(Some(tx)), rx: Mutex::new(Some(rx)), exit: Exit::new(), writable: AtomicBool::new(true), failing: Default::default() });
+        let inner = Arc::new(Inner {
+            stdin: Default::default(),
+            feed: Mutex::new(Some(tx)),
+            rx: Mutex::new(Some(rx)),
+            exit: Exit::new(),
+            writable: AtomicBool::new(true),
+            failing: Default::default(),
+        });
         (Io(inner.clone()), Arc::new(Factory(inner)))
     }
     fn push(&self, line: impl Into<String>) {
@@ -230,7 +241,14 @@ fn start() -> (Events, ClaudeSession, Io) {
     let (io, factory) = Io::new();
     let adapter = create_claude_adapter(AdapterDeps::new(factory, "/root/.claude-cfg")).unwrap();
     let (events, on_event) = collect();
-    let session = adapter.start(HarnessStartOptions { prompt: "write it".into(), permission_mode: Some("default".into()), on_event: Some(on_event), ..Default::default() }).unwrap();
+    let session = adapter
+        .start(HarnessStartOptions {
+            prompt: "write it".into(),
+            permission_mode: Some("default".into()),
+            on_event: Some(on_event),
+            ..Default::default()
+        })
+        .unwrap();
     (events, session, io)
 }
 
@@ -314,7 +332,10 @@ async fn relays_the_prompt_writes_the_answer_down_the_cli_channel_and_closes_the
     assert_eq!(io.stdin().len(), 1);
 
     assert_eq!(session.answer(ASK, allow_unused()).await.unwrap(), AnswerOutcome::Answered);
-    assert_matches_object(&io.sent(1), json!({ "type": "control_response", "response": { "subtype": "success", "request_id": ASK, "response": { "behavior": "allow" } } }));
+    assert_matches_object(
+        &io.sent(1),
+        json!({ "type": "control_response", "response": { "subtype": "success", "request_id": ASK, "response": { "behavior": "allow" } } }),
+    );
     assert_eq!(closes(&events), vec![closed(ASK, PermissionOutcome::Allowed, Some(PERMISSION_ALLOW))]);
 
     // A second answer has nothing to answer: the row is closed and the CLI would ignore the line.
@@ -344,7 +365,10 @@ async fn an_answer_whose_write_failed_leaves_the_prompt_open_so_answering_again_
 
     assert_eq!(session.answer(ASK, allow_unused()).await.unwrap(), AnswerOutcome::Answered);
     assert_eq!(io.stdin().len(), 2);
-    assert_matches_object(&io.sent(1), json!({ "type": "control_response", "response": { "subtype": "success", "request_id": ASK, "response": { "behavior": "allow" } } }));
+    assert_matches_object(
+        &io.sent(1),
+        json!({ "type": "control_response", "response": { "subtype": "success", "request_id": ASK, "response": { "behavior": "allow" } } }),
+    );
     assert_eq!(closes(&events), vec![closed(ASK, PermissionOutcome::Allowed, Some(PERMISSION_ALLOW))]);
 
     finish(&session, &io).await;
@@ -353,7 +377,9 @@ async fn an_answer_whose_write_failed_leaves_the_prompt_open_so_answering_again_
 // TS: adapter-permissions.test.ts:200
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn puts_a_questions_own_choices_on_the_prompt_and_sends_the_pick_as_the_calls_answer_with_no_allow_in_front() {
-    tokio::task::LocalSet::new().run_until(puts_a_questions_own_choices_on_the_prompt_and_sends_the_pick_as_the_calls_answer_with_no_allow_in_front_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(puts_a_questions_own_choices_on_the_prompt_and_sends_the_pick_as_the_calls_answer_with_no_allow_in_front_body())
+        .await
 }
 
 async fn puts_a_questions_own_choices_on_the_prompt_and_sends_the_pick_as_the_calls_answer_with_no_allow_in_front_body() {
@@ -370,10 +396,16 @@ async fn puts_a_questions_own_choices_on_the_prompt_and_sends_the_pick_as_the_ca
     assert_eq!(options.iter().map(|o| o.effect).collect::<Vec<_>>(), vec![PermissionEffect::Answer, PermissionEffect::Answer]);
     assert!(!options.iter().any(|o| o.id == PERMISSION_ALLOW || o.id == PERMISSION_DENY));
 
-    assert_eq!(session.answer(ASK, answer_with(&options[1].id, PermissionOutcome::Allowed, "unused")).await.unwrap(), AnswerOutcome::Answered);
+    assert_eq!(
+        session.answer(ASK, answer_with(&options[1].id, PermissionOutcome::Allowed, "unused")).await.unwrap(),
+        AnswerOutcome::Answered
+    );
     let answer = io.sent(1);
     // The harness reads the pick off the input it gets back, keyed by the question's own text.
-    assert_matches_object(&answer["response"]["response"], json!({ "behavior": "allow", "updatedInput": { "answers": { "Tabs or spaces?": "Spaces" } } }));
+    assert_matches_object(
+        &answer["response"]["response"],
+        json!({ "behavior": "allow", "updatedInput": { "answers": { "Tabs or spaces?": "Spaces" } } }),
+    );
     assert_eq!(answer["response"]["response"]["updatedInput"]["questions"], question_input()["questions"]);
     assert_ne!(answer["response"]["response"]["behavior"], json!("deny"));
 
@@ -445,7 +477,9 @@ async fn the_runtimes_own_answer_for_a_prompt_nobody_came_to_closes_the_row_as_u
 // TS: adapter-permissions.test.ts:271
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_prompt_the_cli_withdraws_closes_as_cancelled_and_answering_it_afterwards_answers_nothing() {
-    tokio::task::LocalSet::new().run_until(a_prompt_the_cli_withdraws_closes_as_cancelled_and_answering_it_afterwards_answers_nothing_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_prompt_the_cli_withdraws_closes_as_cancelled_and_answering_it_afterwards_answers_nothing_body())
+        .await
 }
 
 async fn a_prompt_the_cli_withdraws_closes_as_cancelled_and_answering_it_afterwards_answers_nothing_body() {
@@ -462,7 +496,9 @@ async fn a_prompt_the_cli_withdraws_closes_as_cancelled_and_answering_it_afterwa
 // TS: adapter-permissions.test.ts:284
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_prompt_whose_process_ends_under_it_closes_as_cancelled_rather_than_waiting_for_an_answer() {
-    tokio::task::LocalSet::new().run_until(a_prompt_whose_process_ends_under_it_closes_as_cancelled_rather_than_waiting_for_an_answer_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_prompt_whose_process_ends_under_it_closes_as_cancelled_rather_than_waiting_for_an_answer_body())
+        .await
 }
 
 async fn a_prompt_whose_process_ends_under_it_closes_as_cancelled_rather_than_waiting_for_an_answer_body() {
@@ -498,7 +534,9 @@ async fn refuses_an_option_the_prompt_never_offered_without_writing_anything_to_
 // TS: adapter-permissions.test.ts:309
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_control_request_of_another_subtype_is_refused_down_the_channel_so_the_cli_stops_waiting_on_it() {
-    tokio::task::LocalSet::new().run_until(a_control_request_of_another_subtype_is_refused_down_the_channel_so_the_cli_stops_waiting_on_it_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_control_request_of_another_subtype_is_refused_down_the_channel_so_the_cli_stops_waiting_on_it_body())
+        .await
 }
 
 async fn a_control_request_of_another_subtype_is_refused_down_the_channel_so_the_cli_stops_waiting_on_it_body() {
@@ -507,14 +545,19 @@ async fn a_control_request_of_another_subtype_is_refused_down_the_channel_so_the
     io.push(json!({ "type": "control_request", "request_id": "req_h", "request": { "subtype": "hook_callback" } }).to_string());
     settle().await;
     assert_eq!(asks(&events).len(), 0);
-    assert_eq!(io.sent(1), json!({ "type": "control_response", "response": { "subtype": "error", "request_id": "req_h", "error": "wsp answers no hook_callback control request" } }));
+    assert_eq!(
+        io.sent(1),
+        json!({ "type": "control_response", "response": { "subtype": "error", "request_id": "req_h", "error": "wsp answers no hook_callback control request" } })
+    );
     finish(&session, &io).await;
 }
 
 // TS: adapter-permissions.test.ts:329
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn writes_the_clis_own_set_permission_mode_down_the_channel_and_settles_once_the_cli_answers_it() {
-    tokio::task::LocalSet::new().run_until(writes_the_clis_own_set_permission_mode_down_the_channel_and_settles_once_the_cli_answers_it_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(writes_the_clis_own_set_permission_mode_down_the_channel_and_settles_once_the_cli_answers_it_body())
+        .await
 }
 
 async fn writes_the_clis_own_set_permission_mode_down_the_channel_and_settles_once_the_cli_answers_it_body() {
@@ -523,7 +566,10 @@ async fn writes_the_clis_own_set_permission_mode_down_the_channel_and_settles_on
     settle().await;
     let moved = set_access(&session, "bypassPermissions");
     settle().await;
-    assert_matches_object(&io.sent(1), json!({ "type": "control_request", "request": { "subtype": "set_permission_mode", "mode": "bypassPermissions" } }));
+    assert_matches_object(
+        &io.sent(1),
+        json!({ "type": "control_request", "request": { "subtype": "set_permission_mode", "mode": "bypassPermissions" } }),
+    );
     io.push(answered(&io.sent(1), None));
     assert_eq!(bounded(moved).await.unwrap().unwrap(), AccessOutcome::Set);
     finish(&session, &io).await;
@@ -549,7 +595,9 @@ async fn a_mode_the_cli_will_not_take_comes_back_refused_rather_than_reading_as_
 // TS: adapter-permissions.test.ts:356
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_mode_that_asks_nobody_answers_the_prompt_the_turn_is_stopped_on_and_every_one_it_raises_after() {
-    tokio::task::LocalSet::new().run_until(the_mode_that_asks_nobody_answers_the_prompt_the_turn_is_stopped_on_and_every_one_it_raises_after_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(the_mode_that_asks_nobody_answers_the_prompt_the_turn_is_stopped_on_and_every_one_it_raises_after_body())
+        .await
 }
 
 async fn the_mode_that_asks_nobody_answers_the_prompt_the_turn_is_stopped_on_and_every_one_it_raises_after_body() {
@@ -562,18 +610,27 @@ async fn the_mode_that_asks_nobody_answers_the_prompt_the_turn_is_stopped_on_and
     let moved = set_access(&session, "bypassPermissions");
     settle().await;
     // The request goes down the channel all the same, and this CLI refuses it: the mode is a launch flag on it.
-    assert_matches_object(&io.sent(1), json!({ "type": "control_request", "request": { "subtype": "set_permission_mode", "mode": "bypassPermissions" } }));
+    assert_matches_object(
+        &io.sent(1),
+        json!({ "type": "control_request", "request": { "subtype": "set_permission_mode", "mode": "bypassPermissions" } }),
+    );
     io.push(answered(&io.sent(1), Some("the session was not launched with --dangerously-skip-permissions")));
     // The prompt in front of the person is allowed by this host, so the turn goes on without a click.
     assert_eq!(bounded(moved).await.unwrap().unwrap(), AccessOutcome::Set);
-    assert_matches_object(&io.sent(2), json!({ "type": "control_response", "response": { "request_id": ASK, "response": { "behavior": "allow" } } }));
+    assert_matches_object(
+        &io.sent(2),
+        json!({ "type": "control_response", "response": { "request_id": ASK, "response": { "behavior": "allow" } } }),
+    );
     assert_eq!(closes(&events), vec![closed(ASK, PermissionOutcome::Allowed, Some(PERMISSION_ALLOW))]);
 
     io.push(next_ask_line());
     settle().await;
     // The next call is allowed the same way and no prompt is put to anyone.
     assert_eq!(asks(&events).len(), 1);
-    assert_matches_object(&io.sent(3), json!({ "type": "control_response", "response": { "request_id": NEXT_ASK, "response": { "behavior": "allow" } } }));
+    assert_matches_object(
+        &io.sent(3),
+        json!({ "type": "control_response", "response": { "request_id": NEXT_ASK, "response": { "behavior": "allow" } } }),
+    );
 
     finish(&session, &io).await;
 }
@@ -581,7 +638,11 @@ async fn the_mode_that_asks_nobody_answers_the_prompt_the_turn_is_stopped_on_and
 // TS: adapter-permissions.test.ts:384
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_mode_that_asks_nobody_never_answers_a_question_one_open_stays_with_the_person_and_one_raised_after_reaches_them() {
-    tokio::task::LocalSet::new().run_until(the_mode_that_asks_nobody_never_answers_a_question_one_open_stays_with_the_person_and_one_raised_after_reaches_them_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(
+            the_mode_that_asks_nobody_never_answers_a_question_one_open_stays_with_the_person_and_one_raised_after_reaches_them_body(),
+        )
+        .await
 }
 
 async fn the_mode_that_asks_nobody_never_answers_a_question_one_open_stays_with_the_person_and_one_raised_after_reaches_them_body() {
@@ -609,7 +670,9 @@ async fn the_mode_that_asks_nobody_never_answers_a_question_one_open_stays_with_
 // TS: adapter-permissions.test.ts:406
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_turn_launched_at_bypass_allows_a_tools_prompt_itself_and_leaves_a_question_with_the_person() {
-    tokio::task::LocalSet::new().run_until(a_turn_launched_at_bypass_allows_a_tools_prompt_itself_and_leaves_a_question_with_the_person_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_turn_launched_at_bypass_allows_a_tools_prompt_itself_and_leaves_a_question_with_the_person_body())
+        .await
 }
 
 async fn a_turn_launched_at_bypass_allows_a_tools_prompt_itself_and_leaves_a_question_with_the_person_body() {
@@ -621,7 +684,10 @@ async fn a_turn_launched_at_bypass_allows_a_tools_prompt_itself_and_leaves_a_que
     settle().await;
     assert_eq!(asks(&events), Vec::<AdapterEvent>::new());
     assert_eq!(io.stdin().len(), 2);
-    assert_matches_object(&io.sent(1), json!({ "type": "control_response", "response": { "subtype": "success", "request_id": ASK, "response": { "behavior": "allow" } } }));
+    assert_matches_object(
+        &io.sent(1),
+        json!({ "type": "control_response", "response": { "subtype": "success", "request_id": ASK, "response": { "behavior": "allow" } } }),
+    );
     io.push(next_question_ask_line());
     settle().await;
     let relayed = ask_bodies(&events);
@@ -635,7 +701,9 @@ async fn a_turn_launched_at_bypass_allows_a_tools_prompt_itself_and_leaves_a_que
 // TS: adapter-permissions.test.ts:423
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_mode_the_cli_offered_on_the_open_prompt_answers_it_as_that_option_and_one_it_did_not_leaves_it_for_the_person() {
-    tokio::task::LocalSet::new().run_until(a_mode_the_cli_offered_on_the_open_prompt_answers_it_as_that_option_and_one_it_did_not_leaves_it_for_the_person_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_mode_the_cli_offered_on_the_open_prompt_answers_it_as_that_option_and_one_it_did_not_leaves_it_for_the_person_body())
+        .await
 }
 
 async fn a_mode_the_cli_offered_on_the_open_prompt_answers_it_as_that_option_and_one_it_did_not_leaves_it_for_the_person_body() {
@@ -650,7 +718,10 @@ async fn a_mode_the_cli_offered_on_the_open_prompt_answers_it_as_that_option_and
     settle().await;
     io.push(answered(&io.sent(1), None));
     assert_eq!(bounded(edits).await.unwrap().unwrap(), AccessOutcome::Set);
-    assert_matches_object(&io.sent(2)["response"]["response"], json!({ "behavior": "allow", "updatedPermissions": [{ "type": "setMode", "mode": "acceptEdits", "destination": "session" }] }));
+    assert_matches_object(
+        &io.sent(2)["response"]["response"],
+        json!({ "behavior": "allow", "updatedPermissions": [{ "type": "setMode", "mode": "acceptEdits", "destination": "session" }] }),
+    );
     assert_eq!(closes(&events), vec![closed(ASK, PermissionOutcome::Allowed, Some("mode:acceptEdits"))]);
 
     finish(&session, &io).await;
@@ -659,7 +730,9 @@ async fn a_mode_the_cli_offered_on_the_open_prompt_answers_it_as_that_option_and
 // TS: adapter-permissions.test.ts:443
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_mode_the_open_prompt_carries_no_option_for_moves_the_turn_and_leaves_that_prompt_standing() {
-    tokio::task::LocalSet::new().run_until(a_mode_the_open_prompt_carries_no_option_for_moves_the_turn_and_leaves_that_prompt_standing_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_mode_the_open_prompt_carries_no_option_for_moves_the_turn_and_leaves_that_prompt_standing_body())
+        .await
 }
 
 async fn a_mode_the_open_prompt_carries_no_option_for_moves_the_turn_and_leaves_that_prompt_standing_body() {
@@ -682,7 +755,9 @@ async fn a_mode_the_open_prompt_carries_no_option_for_moves_the_turn_and_leaves_
 // TS: adapter-permissions.test.ts:462
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_turn_that_has_not_announced_itself_and_one_whose_channel_is_shut_take_nothing_and_write_nothing() {
-    tokio::task::LocalSet::new().run_until(a_turn_that_has_not_announced_itself_and_one_whose_channel_is_shut_take_nothing_and_write_nothing_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_turn_that_has_not_announced_itself_and_one_whose_channel_is_shut_take_nothing_and_write_nothing_body())
+        .await
 }
 
 async fn a_turn_that_has_not_announced_itself_and_one_whose_channel_is_shut_take_nothing_and_write_nothing_body() {
@@ -701,7 +776,9 @@ async fn a_turn_that_has_not_announced_itself_and_one_whose_channel_is_shut_take
 // TS: adapter-permissions.test.ts:475
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_turn_that_replies_with_the_request_open_settles_it_at_the_result_not_minutes_later_when_the_process_goes() {
-    tokio::task::LocalSet::new().run_until(a_turn_that_replies_with_the_request_open_settles_it_at_the_result_not_minutes_later_when_the_process_goes_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_turn_that_replies_with_the_request_open_settles_it_at_the_result_not_minutes_later_when_the_process_goes_body())
+        .await
 }
 
 async fn a_turn_that_replies_with_the_request_open_settles_it_at_the_result_not_minutes_later_when_the_process_goes_body() {
@@ -722,7 +799,9 @@ async fn a_turn_that_replies_with_the_request_open_settles_it_at_the_result_not_
 // TS: adapter-permissions.test.ts:490
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_process_that_dies_with_the_request_open_settles_it_as_gone_rather_than_leaving_the_caller_waiting() {
-    tokio::task::LocalSet::new().run_until(a_process_that_dies_with_the_request_open_settles_it_as_gone_rather_than_leaving_the_caller_waiting_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_process_that_dies_with_the_request_open_settles_it_as_gone_rather_than_leaving_the_caller_waiting_body())
+        .await
 }
 
 async fn a_process_that_dies_with_the_request_open_settles_it_as_gone_rather_than_leaving_the_caller_waiting_body() {
@@ -758,7 +837,9 @@ fn begin(stop_task_wait_ms: Option<u64>) -> (Events, ClaudeSession, Io) {
 // TS: adapter-permissions.test.ts:527
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn writes_the_clis_own_stop_task_for_that_subagent_alone_and_settles_accepted_on_the_clis_answer() {
-    tokio::task::LocalSet::new().run_until(writes_the_clis_own_stop_task_for_that_subagent_alone_and_settles_accepted_on_the_clis_answer_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(writes_the_clis_own_stop_task_for_that_subagent_alone_and_settles_accepted_on_the_clis_answer_body())
+        .await
 }
 
 async fn writes_the_clis_own_stop_task_for_that_subagent_alone_and_settles_accepted_on_the_clis_answer_body() {
@@ -766,7 +847,11 @@ async fn writes_the_clis_own_stop_task_for_that_subagent_alone_and_settles_accep
     settle().await;
     let stopped = stop_task(&session, "a1");
     settle().await;
-    assert_eq!(io.stdin()[1], json!({ "type": "control_request", "request_id": "wsp-stop-task-1", "request": { "subtype": "stop_task", "task_id": "a1" } }).to_string());
+    assert_eq!(
+        io.stdin()[1],
+        json!({ "type": "control_request", "request_id": "wsp-stop-task-1", "request": { "subtype": "stop_task", "task_id": "a1" } })
+            .to_string()
+    );
     assert_eq!(io.stdin().len(), 2);
     io.push(answered(&io.sent(1), None));
     assert_eq!(bounded(stopped).await.unwrap().unwrap(), TaskStop::Accepted);
@@ -792,7 +877,9 @@ async fn a_task_the_cli_does_not_hold_comes_back_refused_in_the_clis_own_words_b
 // TS: adapter-permissions.test.ts:549
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_cli_with_no_stop_for_this_sessions_tasks_reads_as_unsupported_the_answer_an_agent_with_no_such_request_gives() {
-    tokio::task::LocalSet::new().run_until(a_cli_with_no_stop_for_this_sessions_tasks_reads_as_unsupported_the_answer_an_agent_with_no_such_request_gives_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_cli_with_no_stop_for_this_sessions_tasks_reads_as_unsupported_the_answer_an_agent_with_no_such_request_gives_body())
+        .await
 }
 
 async fn a_cli_with_no_stop_for_this_sessions_tasks_reads_as_unsupported_the_answer_an_agent_with_no_such_request_gives_body() {
@@ -808,7 +895,9 @@ async fn a_cli_with_no_stop_for_this_sessions_tasks_reads_as_unsupported_the_ans
 // TS: adapter-permissions.test.ts:559
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_cli_that_answers_nothing_inside_the_wait_comes_back_refused_rather_than_holding_the_caller() {
-    tokio::task::LocalSet::new().run_until(a_cli_that_answers_nothing_inside_the_wait_comes_back_refused_rather_than_holding_the_caller_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_cli_that_answers_nothing_inside_the_wait_comes_back_refused_rather_than_holding_the_caller_body())
+        .await
 }
 
 async fn a_cli_that_answers_nothing_inside_the_wait_comes_back_refused_rather_than_holding_the_caller_body() {
@@ -839,7 +928,9 @@ async fn a_subagent_already_over_and_a_turn_not_running_write_nothing_and_read_n
 // TS: adapter-permissions.test.ts:578
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_stop_still_waiting_when_the_turn_replies_settles_not_running_since_nothing_can_answer_it_now() {
-    tokio::task::LocalSet::new().run_until(a_stop_still_waiting_when_the_turn_replies_settles_not_running_since_nothing_can_answer_it_now_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_stop_still_waiting_when_the_turn_replies_settles_not_running_since_nothing_can_answer_it_now_body())
+        .await
 }
 
 async fn a_stop_still_waiting_when_the_turn_replies_settles_not_running_since_nothing_can_answer_it_now_body() {
@@ -868,7 +959,13 @@ fn init_declaring(capabilities: &[&str]) -> String {
 }
 
 fn init() -> String {
-    init_declaring(&["interrupt_receipt_v1", "interrupt_cancel_queued_v1", "msg_lifecycle_v1", "mcp_read_resource_v1", "mcp_tool_ui_meta_v1"])
+    init_declaring(&[
+        "interrupt_receipt_v1",
+        "interrupt_cancel_queued_v1",
+        "msg_lifecycle_v1",
+        "mcp_read_resource_v1",
+        "mcp_tool_ui_meta_v1",
+    ])
 }
 
 /// A CLI that reports its messages and cannot be asked to cancel the ones it queues.
@@ -894,7 +991,8 @@ fn lifecycle(uuid: &str, state: &str) -> String {
 }
 
 fn interrupt_receipt(response: Value) -> String {
-    json!({ "type": "control_response", "response": { "subtype": "success", "request_id": "wsp-interrupt-1", "response": response } }).to_string()
+    json!({ "type": "control_response", "response": { "subtype": "success", "request_id": "wsp-interrupt-1", "response": response } })
+        .to_string()
 }
 
 /// A stream the test feeds by hand, its writes recorded; `taken` stands for the lines an attach's run channel holds,
@@ -922,7 +1020,10 @@ fn push_all(exec: &FakeExec, lines: Vec<String>) {
 /// The uuid the nth steer line went out under.
 fn steered(exec: &FakeExec, n: usize) -> String {
     let users: Vec<String> = exec.writes().into_iter().filter(|line| json::<Value>(line)["type"] == "user").collect();
-    json::<Value>(users.get(n).unwrap_or_else(|| panic!("{} steer lines, wanted {n}", users.len())))["uuid"].as_str().expect("steer line has no uuid").to_string()
+    json::<Value>(users.get(n).unwrap_or_else(|| panic!("{} steer lines, wanted {n}", users.len())))["uuid"]
+        .as_str()
+        .expect("steer line has no uuid")
+        .to_string()
 }
 
 fn done_events(events: &Events) -> Vec<AdapterEvent> {
@@ -961,7 +1062,8 @@ fn adapter_on(exec: &Arc<FakeExec>, result_exit_ms: Option<u64>, interrupt_grace
 
 fn start_turn(adapter: &wsp_adapters::claude::ClaudeAdapter, prompt: &str, keep: bool) -> (Events, ClaudeSession) {
     let (events, on_event) = collect();
-    let session = adapter.start(HarnessStartOptions { prompt: prompt.into(), keep, on_event: Some(on_event), ..Default::default() }).unwrap();
+    let session =
+        adapter.start(HarnessStartOptions { prompt: prompt.into(), keep, on_event: Some(on_event), ..Default::default() }).unwrap();
     (events, session)
 }
 
@@ -989,7 +1091,9 @@ fn status_and_text(result: &TurnResult) -> (TurnStatus, Option<&str>) {
 // TS: steer-hold.test.ts:112
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_steered_message_is_answered_in_the_same_turn_which_ends_the_moment_the_cli_completes_it() {
-    tokio::task::LocalSet::new().run_until(a_steered_message_is_answered_in_the_same_turn_which_ends_the_moment_the_cli_completes_it_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_steered_message_is_answered_in_the_same_turn_which_ends_the_moment_the_cli_completes_it_body())
+        .await
 }
 
 async fn a_steered_message_is_answered_in_the_same_turn_which_ends_the_moment_the_cli_completes_it_body() {
@@ -1001,7 +1105,18 @@ async fn a_steered_message_is_answered_in_the_same_turn_which_ends_the_moment_th
     until_slow(|| session_started(&events)).await;
     assert_eq!(steer(&session, LINE).await, SteerOutcome::Accepted);
     let uuid = steered(&exec, 0);
-    push_all(&exec, vec![lifecycle(&uuid, "queued"), said("msg_1", STORY), result(STORY, 5164, 0.01280775), lifecycle(&uuid, "started"), init(), said("msg_2", "BANANA"), result("BANANA", 3700, 0.0170532)]);
+    push_all(
+        &exec,
+        vec![
+            lifecycle(&uuid, "queued"),
+            said("msg_1", STORY),
+            result(STORY, 5164, 0.01280775),
+            lifecycle(&uuid, "started"),
+            init(),
+            said("msg_2", "BANANA"),
+            result("BANANA", 3700, 0.0170532),
+        ],
+    );
     settle_long().await;
     assert_eq!(done_events(&events), Vec::<AdapterEvent>::new());
     assert_eq!(exec.order(), vec!["write"]);
@@ -1023,7 +1138,9 @@ async fn a_steered_message_is_answered_in_the_same_turn_which_ends_the_moment_th
 // TS: steer-hold.test.ts:141
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn two_messages_at_once_which_the_cli_takes_as_one_turn_are_both_answered_before_the_turn_ends() {
-    tokio::task::LocalSet::new().run_until(two_messages_at_once_which_the_cli_takes_as_one_turn_are_both_answered_before_the_turn_ends_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(two_messages_at_once_which_the_cli_takes_as_one_turn_are_both_answered_before_the_turn_ends_body())
+        .await
 }
 
 async fn two_messages_at_once_which_the_cli_takes_as_one_turn_are_both_answered_before_the_turn_ends_body() {
@@ -1065,7 +1182,9 @@ async fn two_messages_at_once_which_the_cli_takes_as_one_turn_are_both_answered_
 // TS: steer-hold.test.ts:172
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_slash_command_steered_then_ends_the_turn_on_the_agents_reply_and_not_on_its_own_words() {
-    tokio::task::LocalSet::new().run_until(a_slash_command_steered_then_ends_the_turn_on_the_agents_reply_and_not_on_its_own_words_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_slash_command_steered_then_ends_the_turn_on_the_agents_reply_and_not_on_its_own_words_body())
+        .await
 }
 
 async fn a_slash_command_steered_then_ends_the_turn_on_the_agents_reply_and_not_on_its_own_words_body() {
@@ -1102,7 +1221,9 @@ async fn a_slash_command_steered_then_ends_the_turn_on_the_agents_reply_and_not_
 // TS: steer-hold.test.ts:200
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_message_the_agent_took_at_a_tools_end_is_answered_by_the_turns_own_result_which_ends_it() {
-    tokio::task::LocalSet::new().run_until(a_message_the_agent_took_at_a_tools_end_is_answered_by_the_turns_own_result_which_ends_it_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_message_the_agent_took_at_a_tools_end_is_answered_by_the_turns_own_result_which_ends_it_body())
+        .await
 }
 
 async fn a_message_the_agent_took_at_a_tools_end_is_answered_by_the_turns_own_result_which_ends_it_body() {
@@ -1134,7 +1255,9 @@ async fn a_message_the_agent_took_at_a_tools_end_is_answered_by_the_turns_own_re
 // TS: steer-hold.test.ts:223
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn on_a_cli_that_declares_no_reports_on_its_messages_the_turn_ends_at_its_reply_as_it_always_has() {
-    tokio::task::LocalSet::new().run_until(on_a_cli_that_declares_no_reports_on_its_messages_the_turn_ends_at_its_reply_as_it_always_has_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(on_a_cli_that_declares_no_reports_on_its_messages_the_turn_ends_at_its_reply_as_it_always_has_body())
+        .await
 }
 
 async fn on_a_cli_that_declares_no_reports_on_its_messages_the_turn_ends_at_its_reply_as_it_always_has_body() {
@@ -1157,7 +1280,9 @@ async fn on_a_cli_that_declares_no_reports_on_its_messages_the_turn_ends_at_its_
 // TS: steer-hold.test.ts:244
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_steered_message_is_told_unread_before_the_turns_end_when_the_process_dies_with_it_queued() {
-    tokio::task::LocalSet::new().run_until(a_steered_message_is_told_unread_before_the_turns_end_when_the_process_dies_with_it_queued_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_steered_message_is_told_unread_before_the_turns_end_when_the_process_dies_with_it_queued_body())
+        .await
 }
 
 async fn a_steered_message_is_told_unread_before_the_turns_end_when_the_process_dies_with_it_queued_body() {
@@ -1179,7 +1304,9 @@ async fn a_steered_message_is_told_unread_before_the_turns_end_when_the_process_
 // TS: steer-hold.test.ts:260
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_stop_with_one_still_queued_asks_the_cli_to_cancel_it_answers_at_once_tells_it_unread_and_keeps_the_process() {
-    tokio::task::LocalSet::new().run_until(a_stop_with_one_still_queued_asks_the_cli_to_cancel_it_answers_at_once_tells_it_unread_and_keeps_the_process_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_stop_with_one_still_queued_asks_the_cli_to_cancel_it_answers_at_once_tells_it_unread_and_keeps_the_process_body())
+        .await
 }
 
 async fn a_stop_with_one_still_queued_asks_the_cli_to_cancel_it_answers_at_once_tells_it_unread_and_keeps_the_process_body() {
@@ -1206,7 +1333,9 @@ async fn a_stop_with_one_still_queued_asks_the_cli_to_cancel_it_answers_at_once_
 // TS: steer-hold.test.ts:281
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_stop_with_one_still_queued_on_a_cli_that_cannot_cancel_it_answers_at_once_tells_it_unread_and_the_process_goes() {
-    tokio::task::LocalSet::new().run_until(a_stop_with_one_still_queued_on_a_cli_that_cannot_cancel_it_answers_at_once_tells_it_unread_and_the_process_goes_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_stop_with_one_still_queued_on_a_cli_that_cannot_cancel_it_answers_at_once_tells_it_unread_and_the_process_goes_body())
+        .await
 }
 
 async fn a_stop_with_one_still_queued_on_a_cli_that_cannot_cancel_it_answers_at_once_tells_it_unread_and_the_process_goes_body() {
@@ -1231,7 +1360,9 @@ async fn a_stop_with_one_still_queued_on_a_cli_that_cannot_cancel_it_answers_at_
 // TS: steer-hold.test.ts:301
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_stop_of_a_reply_held_for_a_message_the_cli_has_not_taken_up_answers_at_once_with_the_held_words() {
-    tokio::task::LocalSet::new().run_until(a_stop_of_a_reply_held_for_a_message_the_cli_has_not_taken_up_answers_at_once_with_the_held_words_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_stop_of_a_reply_held_for_a_message_the_cli_has_not_taken_up_answers_at_once_with_the_held_words_body())
+        .await
 }
 
 async fn a_stop_of_a_reply_held_for_a_message_the_cli_has_not_taken_up_answers_at_once_with_the_held_words_body() {
@@ -1258,7 +1389,9 @@ async fn a_stop_of_a_reply_held_for_a_message_the_cli_has_not_taken_up_answers_a
 // TS: steer-hold.test.ts:322
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_same_stop_on_a_cli_that_cannot_cancel_answers_at_once_with_the_held_words_and_the_process_goes() {
-    tokio::task::LocalSet::new().run_until(the_same_stop_on_a_cli_that_cannot_cancel_answers_at_once_with_the_held_words_and_the_process_goes_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(the_same_stop_on_a_cli_that_cannot_cancel_answers_at_once_with_the_held_words_and_the_process_goes_body())
+        .await
 }
 
 async fn the_same_stop_on_a_cli_that_cannot_cancel_answers_at_once_with_the_held_words_and_the_process_goes_body() {
@@ -1281,7 +1414,9 @@ async fn the_same_stop_on_a_cli_that_cannot_cancel_answers_at_once_with_the_held
 // TS: steer-hold.test.ts:339
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_stop_while_the_cli_answers_a_steered_message_answers_at_once_and_keeps_the_process_since_nothing_is_left_queued() {
-    tokio::task::LocalSet::new().run_until(a_stop_while_the_cli_answers_a_steered_message_answers_at_once_and_keeps_the_process_since_nothing_is_left_queued_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_stop_while_the_cli_answers_a_steered_message_answers_at_once_and_keeps_the_process_since_nothing_is_left_queued_body())
+        .await
 }
 
 async fn a_stop_while_the_cli_answers_a_steered_message_answers_at_once_and_keeps_the_process_since_nothing_is_left_queued_body() {
@@ -1292,7 +1427,10 @@ async fn a_stop_while_the_cli_answers_a_steered_message_answers_at_once_and_keep
     until_slow(|| session_started(&events)).await;
     steer(&session, "Now write a 300-word poem about the sea.").await;
     let uuid = steered(&exec, 0);
-    push_all(&exec, vec![lifecycle(&uuid, "queued"), said("msg_1", STORY), result(STORY, 5374, 0.0127), lifecycle(&uuid, "started"), init()]);
+    push_all(
+        &exec,
+        vec![lifecycle(&uuid, "queued"), said("msg_1", STORY), result(STORY, 5374, 0.0127), lifecycle(&uuid, "started"), init()],
+    );
     settle_long().await;
     let stopping = interrupt(&session);
     until_slow(|| interrupt_written(&exec)).await;
@@ -1307,7 +1445,18 @@ async fn a_stop_while_the_cli_answers_a_steered_message_answers_at_once_and_keep
 }
 
 fn attach_options(events_sink: wsp_adapters::port::OnEvent) -> AdapterAttachOptions {
-    AdapterAttachOptions { run: RUN_HANDLE.into(), session_id: SID.into(), started_at: 1.0, model: None, cwd: None, prompt: None, effort: None, from: None, steered: None, on_event: events_sink }
+    AdapterAttachOptions {
+        run: RUN_HANDLE.into(),
+        session_id: SID.into(),
+        started_at: 1.0,
+        model: None,
+        cwd: None,
+        prompt: None,
+        effort: None,
+        from: None,
+        steered: None,
+        on_event: events_sink,
+    }
 }
 
 async fn attach(adapter: &wsp_adapters::claude::ClaudeAdapter, on_event: wsp_adapters::port::OnEvent) -> ClaudeSession {
@@ -1320,18 +1469,30 @@ async fn attach(adapter: &wsp_adapters::claude::ClaudeAdapter, on_event: wsp_ada
 // TS: steer-hold.test.ts:363
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_reopened_turn_waits_on_the_messages_its_runs_channel_took_after_the_turns_opening_and_is_answered_in_the_same_turn() {
-    tokio::task::LocalSet::new().run_until(a_reopened_turn_waits_on_the_messages_its_runs_channel_took_after_the_turns_opening_and_is_answered_in_the_same_turn_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(
+            a_reopened_turn_waits_on_the_messages_its_runs_channel_took_after_the_turns_opening_and_is_answered_in_the_same_turn_body(),
+        )
+        .await
 }
 
 async fn a_reopened_turn_waits_on_the_messages_its_runs_channel_took_after_the_turns_opening_and_is_answered_in_the_same_turn_body() {
     let earlier = user_message_line("an earlier turn's steer", SID, &[], Some("11111111-1111-4111-8111-111111111111"));
     let uuid = "33333333-3333-4333-8333-333333333333";
-    let exec = manual_exec(Some(vec![user_message_line("first", SID, &[], None), earlier, user_message_line("Write a story.", SID, &[], None), user_message_line(LINE, SID, &[], Some(uuid))]));
+    let exec = manual_exec(Some(vec![
+        user_message_line("first", SID, &[], None),
+        earlier,
+        user_message_line("Write a story.", SID, &[], None),
+        user_message_line(LINE, SID, &[], Some(uuid)),
+    ]));
     let adapter = adapter_on(&exec, Some(60_000), None);
     let (events, on_event) = collect();
     let session = attach(&adapter, on_event).await;
     // The log replayed from its first byte: the reply the first host was holding, and the CLI starting on the line.
-    push_all(&exec, vec![init(), lifecycle(uuid, "queued"), said("msg_1", STORY), result(STORY, 5164, 0.0128), lifecycle(uuid, "started"), init()]);
+    push_all(
+        &exec,
+        vec![init(), lifecycle(uuid, "queued"), said("msg_1", STORY), result(STORY, 5164, 0.0128), lifecycle(uuid, "started"), init()],
+    );
     settle_long().await;
     assert_eq!(done_events(&events), Vec::<AdapterEvent>::new());
     assert_eq!(exec.order(), Vec::<String>::new());
@@ -1346,7 +1507,9 @@ async fn a_reopened_turn_waits_on_the_messages_its_runs_channel_took_after_the_t
 // TS: steer-hold.test.ts:383
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_reopened_turn_tells_unread_a_message_its_runs_channel_took_that_the_cli_never_queued_when_the_process_is_gone() {
-    tokio::task::LocalSet::new().run_until(a_reopened_turn_tells_unread_a_message_its_runs_channel_took_that_the_cli_never_queued_when_the_process_is_gone_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(a_reopened_turn_tells_unread_a_message_its_runs_channel_took_that_the_cli_never_queued_when_the_process_is_gone_body())
+        .await
 }
 
 async fn a_reopened_turn_tells_unread_a_message_its_runs_channel_took_that_the_cli_never_queued_when_the_process_is_gone_body() {
@@ -1365,7 +1528,9 @@ async fn a_reopened_turn_tells_unread_a_message_its_runs_channel_took_that_the_c
 // TS: steer-hold.test.ts:398
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn every_steer_goes_out_under_a_uuid_of_its_own_which_the_turns_opening_line_does_not_carry() {
-    tokio::task::LocalSet::new().run_until(every_steer_goes_out_under_a_uuid_of_its_own_which_the_turns_opening_line_does_not_carry_body()).await
+    tokio::task::LocalSet::new()
+        .run_until(every_steer_goes_out_under_a_uuid_of_its_own_which_the_turns_opening_line_does_not_carry_body())
+        .await
 }
 
 async fn every_steer_goes_out_under_a_uuid_of_its_own_which_the_turns_opening_line_does_not_carry_body() {

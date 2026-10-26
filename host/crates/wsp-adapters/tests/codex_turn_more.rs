@@ -14,13 +14,17 @@ use wsp_adapters::codex::adapter::{create_codex_adapter, AttachedSession, CodexA
 use wsp_adapters::codex::turn::CodexSession;
 use wsp_adapters::pending::CODEX_LEGACY_HISTORY;
 use wsp_adapters::port::{
-    AdapterAttachOptions, AdapterEvent, AnswerOutcome, Attached, DeltaKind, HarnessLimit, HarnessStartOptions, PermissionAnswer, PermissionOutcome,
-    SteerOutcome, SubagentState, SubagentUsage, TaskStop, TurnDelta, TurnResult, TurnStatus, TurnTokens, PERMISSION_ALLOW,
+    AdapterAttachOptions, AdapterEvent, AnswerOutcome, Attached, DeltaKind, HarnessLimit, HarnessStartOptions, PermissionAnswer,
+    PermissionOutcome, SteerOutcome, SubagentState, SubagentUsage, TaskStop, TurnDelta, TurnResult, TurnStatus, TurnTokens,
+    PERMISSION_ALLOW,
 };
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::types::usage::{BankedResets, HarnessLimitAccount, LimitKind, LimitStatus, LimitWindow, TurnLimit, UsageTokens};
 
-use codex_wire::{fixture_lines, launcher, no_events, pending_after, scripted_server, server, sleep_ms, until, wire, Events, Launch, Wire, WireOpts, RUN_HANDLE};
+use codex_wire::{
+    fixture_lines, launcher, no_events, pending_after, scripted_server, server, sleep_ms, until, wire, Events, Launch, Wire, WireOpts,
+    RUN_HANDLE,
+};
 
 const THREAD_ID: &str = "01a0e2c1-5d10-7b42-9a6e-3f1c2d4b5a60";
 const TURN_ID: &str = "01a0e2c1-5e02-7c11-8d3f-9b2a1c0d4e71";
@@ -49,7 +53,14 @@ fn go(adapter: &CodexAdapter, prompt: &str, events: &Events) -> CodexSession {
 }
 
 fn go_resume(adapter: &CodexAdapter, prompt: &str, events: &Events) -> CodexSession {
-    adapter.start(HarnessStartOptions { prompt: prompt.into(), resume: Some(THREAD_ID.into()), on_event: Some(events.on_event()), ..Default::default() }).unwrap()
+    adapter
+        .start(HarnessStartOptions {
+            prompt: prompt.into(),
+            resume: Some(THREAD_ID.into()),
+            on_event: Some(events.on_event()),
+            ..Default::default()
+        })
+        .unwrap()
 }
 
 fn go_quiet(adapter: &CodexAdapter, prompt: &str) -> CodexSession {
@@ -73,11 +84,13 @@ fn opened() -> Vec<String> {
 }
 
 fn turn_started() -> String {
-    json!({ "method": "turn/started", "params": { "threadId": THREAD_ID, "turn": { "id": TURN_ID, "items": [], "status": "inProgress" } } }).to_string()
+    json!({ "method": "turn/started", "params": { "threadId": THREAD_ID, "turn": { "id": TURN_ID, "items": [], "status": "inProgress" } } })
+        .to_string()
 }
 
 fn completed(status: &str) -> String {
-    json!({ "method": "turn/completed", "params": { "threadId": THREAD_ID, "turn": { "id": TURN_ID, "items": [], "status": status } } }).to_string()
+    json!({ "method": "turn/completed", "params": { "threadId": THREAD_ID, "turn": { "id": TURN_ID, "items": [], "status": status } } })
+        .to_string()
 }
 
 fn agent_message(id: &str, text: &str) -> String {
@@ -125,7 +138,20 @@ fn assert_match(actual: &Value, expected: Value) {
 }
 
 fn bare(status: TurnStatus) -> TurnResult {
-    TurnResult { status, duration_ms: None, waited_ms: None, cost_usd: None, tokens: None, model: None, models: None, text: None, error: None, unreached: None, refusal: None, limit: None }
+    TurnResult {
+        status,
+        duration_ms: None,
+        waited_ms: None,
+        cost_usd: None,
+        tokens: None,
+        model: None,
+        models: None,
+        text: None,
+        error: None,
+        unreached: None,
+        refusal: None,
+        limit: None,
+    }
 }
 
 fn tokens_of(result: &TurnResult) -> &TurnTokens {
@@ -199,7 +225,17 @@ fn sub(session: &str, task: &str, state: SubagentState, s: Sub) -> AdapterEvent 
 }
 
 fn child_usage(input: u64, cached: u64, output: u64) -> SubagentUsage {
-    SubagentUsage { tokens: Some(UsageTokens { input: JsNumber(input as f64), output: JsNumber(output as f64), cached: JsNumber(cached as f64), cache_write: JsNumber(0.0), reasoning: JsNumber(0.0) }), tool_uses: None, duration_ms: None }
+    SubagentUsage {
+        tokens: Some(UsageTokens {
+            input: JsNumber(input as f64),
+            output: JsNumber(output as f64),
+            cached: JsNumber(cached as f64),
+            cache_write: JsNumber(0.0),
+            reasoning: JsNumber(0.0),
+        }),
+        tool_uses: None,
+        duration_ms: None,
+    }
 }
 
 fn tool_use_delta(session: &str, tool_use_id: &str, prompt: &str) -> TurnDelta {
@@ -249,7 +285,9 @@ mod what_ends_a_codex_turn {
 
     #[tokio::test]
     async fn only_turn_completed_the_thread_going_idle_and_its_last_message_leave_the_turn_op() {
-        tokio::task::LocalSet::new().run_until(only_turn_completed_the_thread_going_idle_and_its_last_message_leave_the_turn_op_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(only_turn_completed_the_thread_going_idle_and_its_last_message_leave_the_turn_op_body())
+            .await
     }
 
     async fn only_turn_completed_the_thread_going_idle_and_its_last_message_leave_the_turn_op_body() {
@@ -269,7 +307,9 @@ mod what_ends_a_codex_turn {
 
     #[tokio::test]
     async fn a_steer_sent_before_the_server_named_the_turn_waits_for_turn_started_and_names_t() {
-        tokio::task::LocalSet::new().run_until(a_steer_sent_before_the_server_named_the_turn_waits_for_turn_started_and_names_t_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(a_steer_sent_before_the_server_named_the_turn_waits_for_turn_started_and_names_t_body())
+            .await
     }
 
     async fn a_steer_sent_before_the_server_named_the_turn_waits_for_turn_started_and_names_t_body() {
@@ -304,7 +344,9 @@ mod what_ends_a_codex_turn {
 
     #[tokio::test]
     async fn a_steer_waiting_for_turn_started_answers_not_running_at_a_stop_whose_server_does() {
-        tokio::task::LocalSet::new().run_until(a_steer_waiting_for_turn_started_answers_not_running_at_a_stop_whose_server_does_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(a_steer_waiting_for_turn_started_answers_not_running_at_a_stop_whose_server_does_body())
+            .await
     }
 
     async fn a_steer_waiting_for_turn_started_answers_not_running_at_a_stop_whose_server_does_body() {
@@ -326,7 +368,9 @@ mod what_ends_a_codex_turn {
 
     #[tokio::test]
     async fn a_steer_waiting_for_a_turn_started_that_never_comes_answers_not_running_once_the() {
-        tokio::task::LocalSet::new().run_until(a_steer_waiting_for_a_turn_started_that_never_comes_answers_not_running_once_the_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(a_steer_waiting_for_a_turn_started_that_never_comes_answers_not_running_once_the_body())
+            .await
     }
 
     async fn a_steer_waiting_for_a_turn_started_that_never_comes_answers_not_running_once_the_body() {
@@ -347,7 +391,9 @@ mod what_ends_a_codex_turn {
 
     #[tokio::test]
     async fn an_interrupt_s_answer_is_not_the_turn_s_end_it_stays_open_until_turn_completed_s() {
-        tokio::task::LocalSet::new().run_until(an_interrupt_s_answer_is_not_the_turn_s_end_it_stays_open_until_turn_completed_s_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(an_interrupt_s_answer_is_not_the_turn_s_end_it_stays_open_until_turn_completed_s_body())
+            .await
     }
 
     async fn an_interrupt_s_answer_is_not_the_turn_s_end_it_stays_open_until_turn_completed_s_body() {
@@ -465,10 +511,21 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
             hang,
             on_write: Some(Arc::new(move |m, w| match method(m) {
                 "thread/start" => w.push(&opened()),
-                "turn/start" => w.push(&[turn_started(), spawn_item("started"), spawn_item("completed"), activity("started"), child_started(), usage_of(CHILD, CHILD_TURN, 900, 900)]),
+                "turn/start" => w.push(&[
+                    turn_started(),
+                    spawn_item("started"),
+                    spawn_item("completed"),
+                    activity("started"),
+                    child_started(),
+                    usage_of(CHILD, CHILD_TURN, 900, 900),
+                ]),
                 "turn/interrupt" if interrupts => {
                     w.push1(result_to(m, json!({})));
-                    w.push1(if m["params"]["threadId"] == CHILD { child_ended("interrupted", json!(null)) } else { completed("interrupted") });
+                    w.push1(if m["params"]["threadId"] == CHILD {
+                        child_ended("interrupted", json!(null))
+                    } else {
+                        completed("interrupted")
+                    });
                 }
                 _ => {}
             })),
@@ -495,7 +552,11 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
         assert!(!events.any("turn.done"));
         assert!(!live.wire(0).closed());
 
-        live.wire(0).push(&[agent_message("lead_m1", "the lead's reply"), usage_of(THREAD_ID, TURN_ID, 36_576, 18_315), completed("completed")]);
+        live.wire(0).push(&[
+            agent_message("lead_m1", "the lead's reply"),
+            usage_of(THREAD_ID, TURN_ID, 36_576, 18_315),
+            completed("completed"),
+        ]);
         let result = session.finished().await;
         assert_eq!(result.status, TurnStatus::Completed);
         assert_eq!(result.text.as_deref(), Some("the lead's reply"));
@@ -527,13 +588,19 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn holds_the_lead_s_reply_while_its_child_runs_no_turn_done_stdin_open_one_task_and() {
-        tokio::task::LocalSet::new().run_until(holds_the_lead_s_reply_while_its_child_runs_no_turn_done_stdin_open_one_task_and_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(holds_the_lead_s_reply_while_its_child_runs_no_turn_done_stdin_open_one_task_and_body())
+            .await
     }
 
     async fn holds_the_lead_s_reply_while_its_child_runs_no_turn_done_stdin_open_one_task_and_body() {
         let live = spawning(false, false);
         let events = Events::default();
-        let session = go(&adapter_over(&live, Extra { result_exit_ms: Some(15), grace_ms: Some(15), ..Default::default() }), "spawn one agent", &events);
+        let session = go(
+            &adapter_over(&live, Extra { result_exit_ms: Some(15), grace_ms: Some(15), ..Default::default() }),
+            "spawn one agent",
+            &events,
+        );
         until(|| events.any("subagent")).await;
         live.wire(0).push(&[agent_message("lead_m1", "spawned it"), usage_of(THREAD_ID, TURN_ID, 18_000, 18_000), completed("completed")]);
         sleep_ms(40).await;
@@ -547,27 +614,47 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
                 THREAD_ID,
                 CHILD,
                 SubagentState::Running,
-                Sub { parent: Some(SPAWN), title: Some("Sleep 20 s and say done."), asked: Some("Sleep 20 s and say done.\nEnd without waiting."), ..Default::default() }
+                Sub {
+                    parent: Some(SPAWN),
+                    title: Some("Sleep 20 s and say done."),
+                    asked: Some("Sleep 20 s and say done.\nEnd without waiting."),
+                    ..Default::default()
+                }
             )
         );
-        let without_usage: Vec<AdapterEvent> = subagents_of(&events).into_iter().filter(|e| matches!(e, AdapterEvent::Subagent { usage: None, .. })).collect();
+        let without_usage: Vec<AdapterEvent> =
+            subagents_of(&events).into_iter().filter(|e| matches!(e, AdapterEvent::Subagent { usage: None, .. })).collect();
         let last = without_usage.last().expect("a subagent event without usage");
         assert_eq!(sub_task_state(last), (CHILD.to_string(), SubagentState::Running));
         assert!(matches!(last, AdapterEvent::Subagent { depth: Some(1), .. }), "{last:?}");
         assert_eq!(
             deltas_for(&events, SPAWN),
-            vec![tool_use_delta(THREAD_ID, SPAWN, "Sleep 20 s and say done.\nEnd without waiting."), tool_result_delta(THREAD_ID, SPAWN, false)]
+            vec![
+                tool_use_delta(THREAD_ID, SPAWN, "Sleep 20 s and say done.\nEnd without waiting."),
+                tool_result_delta(THREAD_ID, SPAWN, false)
+            ]
         );
 
         live.wire(0).push(&[child_says("done"), child_ended("completed", json!(null))]);
         let result = session.finished().await;
         let usage = child_usage(900, 0, 0);
-        let with_usage: Vec<AdapterEvent> = subagents_of(&events).into_iter().filter(|e| matches!(e, AdapterEvent::Subagent { usage: Some(_), .. })).collect();
+        let with_usage: Vec<AdapterEvent> =
+            subagents_of(&events).into_iter().filter(|e| matches!(e, AdapterEvent::Subagent { usage: Some(_), .. })).collect();
         assert_eq!(
             with_usage,
             vec![
-                sub(THREAD_ID, CHILD, SubagentState::Running, Sub { parent: Some(SPAWN), usage: Some(usage.clone()), ..Default::default() }),
-                sub(THREAD_ID, CHILD, SubagentState::Done, Sub { parent: Some(SPAWN), summary: Some("done"), usage: Some(usage), ..Default::default() }),
+                sub(
+                    THREAD_ID,
+                    CHILD,
+                    SubagentState::Running,
+                    Sub { parent: Some(SPAWN), usage: Some(usage.clone()), ..Default::default() }
+                ),
+                sub(
+                    THREAD_ID,
+                    CHILD,
+                    SubagentState::Done,
+                    Sub { parent: Some(SPAWN), summary: Some("done"), usage: Some(usage), ..Default::default() }
+                ),
             ]
         );
         assert_eq!(result.status, TurnStatus::Completed);
@@ -592,7 +679,9 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn a_child_whose_turn_failed_reads_failed_and_one_a_server_s_activity_says_complete() {
-        tokio::task::LocalSet::new().run_until(a_child_whose_turn_failed_reads_failed_and_one_a_server_s_activity_says_complete_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(a_child_whose_turn_failed_reads_failed_and_one_a_server_s_activity_says_complete_body())
+            .await
     }
 
     async fn a_child_whose_turn_failed_reads_failed_and_one_a_server_s_activity_says_complete_body() {
@@ -615,7 +704,9 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn a_child_known_only_from_its_spawn_holds_the_reply_but_not_the_idle_clock_until_i() {
-        tokio::task::LocalSet::new().run_until(a_child_known_only_from_its_spawn_holds_the_reply_but_not_the_idle_clock_until_i_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(a_child_known_only_from_its_spawn_holds_the_reply_but_not_the_idle_clock_until_i_body())
+            .await
     }
 
     async fn a_child_known_only_from_its_spawn_holds_the_reply_but_not_the_idle_clock_until_i_body() {
@@ -646,7 +737,9 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
         let failed_spawn = spawn_item("completed").replace(r#""status":"completed""#, r#""status":"failed""#);
         let live = launcher(scripted_server(on_write(move |m, w| match method(m) {
             "thread/start" => w.push(&opened()),
-            "turn/start" => w.push(&[turn_started(), failed_spawn.clone(), agent_message("lead_m1", "could not spawn"), completed("completed")]),
+            "turn/start" => {
+                w.push(&[turn_started(), failed_spawn.clone(), agent_message("lead_m1", "could not spawn"), completed("completed")])
+            }
             _ => {}
         })));
         let events = Events::default();
@@ -659,7 +752,9 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn knows_a_child_whose_only_sign_is_its_own_turn_starting_and_holds_the_lead_for_it() {
-        tokio::task::LocalSet::new().run_until(knows_a_child_whose_only_sign_is_its_own_turn_starting_and_holds_the_lead_for_it_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(knows_a_child_whose_only_sign_is_its_own_turn_starting_and_holds_the_lead_for_it_body())
+            .await
     }
 
     async fn knows_a_child_whose_only_sign_is_its_own_turn_starting_and_holds_the_lead_for_it_body() {
@@ -671,7 +766,10 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
         let events = Events::default();
         let session = go(&adapter_over(&live, Extra::default()), "x", &events);
         until(|| events.any("subagent")).await;
-        assert_eq!(subagents_of(&events)[0], sub(THREAD_ID, CHILD, SubagentState::Running, Sub { parent: Some(CHILD), ..Default::default() }));
+        assert_eq!(
+            subagents_of(&events)[0],
+            sub(THREAD_ID, CHILD, SubagentState::Running, Sub { parent: Some(CHILD), ..Default::default() })
+        );
         sleep_ms(10).await;
         assert!(!events.any("turn.done"));
         live.wire(0).push1(child_ended("completed", json!(null)));
@@ -680,7 +778,9 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn a_stop_with_a_child_running_interrupts_the_child_first_then_the_lead_and_the_chi() {
-        tokio::task::LocalSet::new().run_until(a_stop_with_a_child_running_interrupts_the_child_first_then_the_lead_and_the_chi_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(a_stop_with_a_child_running_interrupts_the_child_first_then_the_lead_and_the_chi_body())
+            .await
     }
 
     async fn a_stop_with_a_child_running_interrupts_the_child_first_then_the_lead_and_the_chi_body() {
@@ -689,7 +789,10 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
         let session = go(&adapter_over(&live, Extra { grace_ms: Some(5_000), ..Default::default() }), "spawn one agent", &events);
         until(|| events.any("subagent")).await;
         session.interrupt().await;
-        assert_eq!(interrupts_of(&live), vec![json!({ "threadId": CHILD, "turnId": CHILD_TURN }), json!({ "threadId": THREAD_ID, "turnId": TURN_ID })]);
+        assert_eq!(
+            interrupts_of(&live),
+            vec![json!({ "threadId": CHILD, "turnId": CHILD_TURN }), json!({ "threadId": THREAD_ID, "turnId": TURN_ID })]
+        );
         assert_eq!(session.finished().await, bare(TurnStatus::Interrupted));
         assert_last_sub(&events, CHILD, SubagentState::Stopped);
         assert_eq!(live.wire(0).order(), Vec::<String>::new());
@@ -697,7 +800,9 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn a_stop_after_the_lead_s_reply_interrupts_the_child_alone_and_the_held_reply_stan() {
-        tokio::task::LocalSet::new().run_until(a_stop_after_the_lead_s_reply_interrupts_the_child_alone_and_the_held_reply_stan_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(a_stop_after_the_lead_s_reply_interrupts_the_child_alone_and_the_held_reply_stan_body())
+            .await
     }
 
     async fn a_stop_after_the_lead_s_reply_interrupts_the_child_alone_and_the_held_reply_stan_body() {
@@ -739,7 +844,9 @@ mod a_subagent_s_frames_on_its_lead_s_stream {
 
     #[tokio::test]
     async fn stops_one_child_alone_by_its_thread_id_the_lead_running_on_and_its_interrupted_e() {
-        tokio::task::LocalSet::new().run_until(stops_one_child_alone_by_its_thread_id_the_lead_running_on_and_its_interrupted_e_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(stops_one_child_alone_by_its_thread_id_the_lead_running_on_and_its_interrupted_e_body())
+            .await
     }
 
     async fn stops_one_child_alone_by_its_thread_id_the_lead_running_on_and_its_interrupted_e_body() {
@@ -801,7 +908,9 @@ mod a_recorded_codex_turn_whose_lead_spawned_an_agent_and_ended_first {
 
     #[tokio::test]
     async fn holds_the_lead_s_reply_until_the_child_s_own_turn_completes_and_says_the_child_s() {
-        tokio::task::LocalSet::new().run_until(holds_the_lead_s_reply_until_the_child_s_own_turn_completes_and_says_the_child_s_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(holds_the_lead_s_reply_until_the_child_s_own_turn_completes_and_says_the_child_s_body())
+            .await
     }
 
     async fn holds_the_lead_s_reply_until_the_child_s_own_turn_completes_and_says_the_child_s_body() {
@@ -812,9 +921,19 @@ mod a_recorded_codex_turn_whose_lead_spawned_an_agent_and_ended_first {
         // The child's row carries its own thread's total; the lead's turn still counts the child's calls in its tokens.
         let usage = child_usage(19_515, 19_200, 5);
         let expected = vec![
-            sub(LEAD, CHILD, SubagentState::Running, Sub { parent: Some(SPAWN), title: Some(ASKED), model: Some("gpt-5.6-luna"), asked: Some(ASKED), ..Default::default() }),
+            sub(
+                LEAD,
+                CHILD,
+                SubagentState::Running,
+                Sub { parent: Some(SPAWN), title: Some(ASKED), model: Some("gpt-5.6-luna"), asked: Some(ASKED), ..Default::default() },
+            ),
             sub(LEAD, CHILD, SubagentState::Running, Sub { parent: Some(SPAWN), usage: Some(usage.clone()), ..Default::default() }),
-            sub(LEAD, CHILD, SubagentState::Done, Sub { parent: Some(SPAWN), summary: Some("done"), usage: Some(usage), ..Default::default() }),
+            sub(
+                LEAD,
+                CHILD,
+                SubagentState::Done,
+                Sub { parent: Some(SPAWN), summary: Some("done"), usage: Some(usage), ..Default::default() },
+            ),
         ];
         assert_eq!(said, expected);
         let all = events.all();
@@ -828,10 +947,14 @@ mod a_recorded_codex_turn_whose_lead_spawned_an_agent_and_ended_first {
         assert_eq!(tokens.input, JsNumber((77_535 + 19_515) as f64));
         assert_eq!(tokens.window, Some(JsNumber(258_400.0)));
         assert!(!events.deltas().iter().any(|d| d.text == "done"));
-        let spawn_deltas: Vec<(DeltaKind, Option<String>, String)> = deltas_for(&events, SPAWN).into_iter().map(|d| (d.kind, d.tool_name, d.text)).collect();
+        let spawn_deltas: Vec<(DeltaKind, Option<String>, String)> =
+            deltas_for(&events, SPAWN).into_iter().map(|d| (d.kind, d.tool_name, d.text)).collect();
         assert_eq!(
             spawn_deltas,
-            vec![(DeltaKind::ToolUse, Some("spawn_agent".to_string()), json!({ "prompt": ASKED }).to_string()), (DeltaKind::ToolResult, None, String::new())]
+            vec![
+                (DeltaKind::ToolUse, Some("spawn_agent".to_string()), json!({ "prompt": ASKED }).to_string()),
+                (DeltaKind::ToolResult, None, String::new())
+            ]
         );
         assert!(launch.wire(0).closed());
         let last = all.last().expect("events");
@@ -844,7 +967,9 @@ mod a_turn_a_later_host_attaches_to {
 
     #[tokio::test]
     async fn re_opens_the_run_with_its_channel_replays_the_log_and_writes_nothing_in_answer_t() {
-        tokio::task::LocalSet::new().run_until(re_opens_the_run_with_its_channel_replays_the_log_and_writes_nothing_in_answer_t_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(re_opens_the_run_with_its_channel_replays_the_log_and_writes_nothing_in_answer_t_body())
+            .await
     }
 
     async fn re_opens_the_run_with_its_channel_replays_the_log_and_writes_nothing_in_answer_t_body() {
@@ -887,7 +1012,14 @@ mod a_turn_a_later_host_attaches_to {
         let all = events.all();
         assert_eq!(
             all[0],
-            AdapterEvent::SessionStart { session_id: RECORDED_THREAD.into(), model: Some("gpt-5.5".into()), cwd: Some("/root/app".into()), tools: None, harness: None, prompted: None }
+            AdapterEvent::SessionStart {
+                session_id: RECORDED_THREAD.into(),
+                model: Some("gpt-5.5".into()),
+                cwd: Some("/root/app".into()),
+                tools: None,
+                harness: None,
+                prompted: None
+            }
         );
         let tail = &all[all.len() - 2..];
         assert!(matches!(&tail[0], AdapterEvent::TurnDone { .. }), "{:?}", tail[0]);
@@ -900,13 +1032,20 @@ mod the_process_a_finished_turn_leaves {
 
     #[tokio::test]
     async fn a_server_that_does_not_go_after_its_turn_completed_is_ended_with_its_tree_and_th() {
-        tokio::task::LocalSet::new().run_until(a_server_that_does_not_go_after_its_turn_completed_is_ended_with_its_tree_and_th_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(a_server_that_does_not_go_after_its_turn_completed_is_ended_with_its_tree_and_th_body())
+            .await
     }
 
     async fn a_server_that_does_not_go_after_its_turn_completed_is_ended_with_its_tree_and_th_body() {
-        let launch = launcher(scripted_turn(vec![agent_message("msg_1", "done"), completed("completed")], WireOpts { hang: true, ..Default::default() }));
+        let launch = launcher(scripted_turn(
+            vec![agent_message("msg_1", "done"), completed("completed")],
+            WireOpts { hang: true, ..Default::default() },
+        ));
         let events = Events::default();
-        let result = go(&adapter_over(&launch, Extra { grace_ms: Some(15), result_exit_ms: Some(15), ..Default::default() }), "x", &events).finished().await;
+        let result = go(&adapter_over(&launch, Extra { grace_ms: Some(15), result_exit_ms: Some(15), ..Default::default() }), "x", &events)
+            .finished()
+            .await;
         assert_eq!(launch.wire(0).order(), vec!["teardown", "kill"]);
         assert_eq!(result.status, TurnStatus::Completed);
         assert_eq!(result.text.as_deref(), Some("done"));
@@ -920,7 +1059,9 @@ mod the_process_a_finished_turn_leaves {
 
     async fn a_server_that_exits_on_eof_is_left_alone_body() {
         let launch = launcher(server(fixture_lines("codex", "app-server-turn.jsonl"), WireOpts::default()));
-        let result = go_quiet(&adapter_over(&launch, Extra { grace_ms: Some(15), result_exit_ms: Some(15), ..Default::default() }), "x").finished().await;
+        let result = go_quiet(&adapter_over(&launch, Extra { grace_ms: Some(15), result_exit_ms: Some(15), ..Default::default() }), "x")
+            .finished()
+            .await;
         assert_eq!(result.status, TurnStatus::Completed);
         sleep_ms(60).await;
         assert_eq!(launch.wire(0).order(), Vec::<String>::new());
@@ -944,12 +1085,17 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
     #[tokio::test]
     async fn on_a_thread_an_older_codex_made_names_each_turn_s_anchor_with_why_its_history_ca() {
-        tokio::task::LocalSet::new().run_until(on_a_thread_an_older_codex_made_names_each_turn_s_anchor_with_why_its_history_ca_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(on_a_thread_an_older_codex_made_names_each_turn_s_anchor_with_why_its_history_ca_body())
+            .await
     }
 
     async fn on_a_thread_an_older_codex_made_names_each_turn_s_anchor_with_why_its_history_ca_body() {
         let head = opened_with(THREAD_ID, true);
-        let legacy = server(vec![head[0].clone(), head[1].clone(), turn_started(), agent_message("msg_1", "done"), completed("completed")], WireOpts::default());
+        let legacy = server(
+            vec![head[0].clone(), head[1].clone(), turn_started(), agent_message("msg_1", "done"), completed("completed")],
+            WireOpts::default(),
+        );
         let events = Events::default();
         go_resume(&adapter_over(&launcher(legacy), Extra::default()), "x", &events).finished().await;
         assert_eq!(events.of("turn.anchor"), vec![turn_anchor(Some(CODEX_LEGACY_HISTORY))]);
@@ -957,7 +1103,9 @@ mod what_a_rewind_needs_of_a_codex_turn {
 
     #[tokio::test]
     async fn reads_the_history_mode_off_this_thread_s_own_announcement_alone_never_a_later_th() {
-        tokio::task::LocalSet::new().run_until(reads_the_history_mode_off_this_thread_s_own_announcement_alone_never_a_later_th_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(reads_the_history_mode_off_this_thread_s_own_announcement_alone_never_a_later_th_body())
+            .await
     }
 
     async fn reads_the_history_mode_off_this_thread_s_own_announcement_alone_never_a_later_th_body() {
@@ -1069,12 +1217,26 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
     async fn asks_the_account_and_its_limits_once_as_the_turn_opens_and_reads_the_windows_by_body() {
         let (launch, limits) = limits_after(vec![
             plus_account(),
-            rate_limits(snapshot(Snapshot { primary: Some(window(34.5, 300, 1_790_700_000)), secondary: Some(window(12.0, 10_080, 1_791_200_000)), plan_type: Some("plus"), ..Default::default() }), Some("acct_7f3a")),
+            rate_limits(
+                snapshot(Snapshot {
+                    primary: Some(window(34.5, 300, 1_790_700_000)),
+                    secondary: Some(window(12.0, 10_080, 1_791_200_000)),
+                    plan_type: Some("plus"),
+                    ..Default::default()
+                }),
+                Some("acct_7f3a"),
+            ),
             agent_message("m1", "done"),
             completed("completed"),
         ])
         .await;
-        let seed: Vec<String> = launch.call(0).input.unwrap_or_default().iter().map(|l| method(&serde_json::from_str::<Value>(l).unwrap()).to_string()).collect();
+        let seed: Vec<String> = launch
+            .call(0)
+            .input
+            .unwrap_or_default()
+            .iter()
+            .map(|l| method(&serde_json::from_str::<Value>(l).unwrap()).to_string())
+            .collect();
         assert_eq!(seed, vec!["initialize", "initialized", "account/read", "account/rateLimits/read", "thread/start"]);
         assert_eq!(
             limits,
@@ -1097,8 +1259,20 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
     async fn merges_a_rolling_update_into_the_last_reading_a_window_it_leaves_out_kept_and_a_body() {
         let (_, limits) = limits_after(vec![
             plus_account(),
-            rate_limits(snapshot(Snapshot { primary: Some(window(34.5, 300, 1_790_700_000)), secondary: Some(window(12.0, 10_080, 1_791_200_000)), plan_type: Some("plus"), ..Default::default() }), Some("acct_7f3a")),
-            updated(snapshot(Snapshot { primary: Some(window(100.0, 300, 1_790_700_000)), reached: Some("rate_limit_reached"), ..Default::default() })),
+            rate_limits(
+                snapshot(Snapshot {
+                    primary: Some(window(34.5, 300, 1_790_700_000)),
+                    secondary: Some(window(12.0, 10_080, 1_791_200_000)),
+                    plan_type: Some("plus"),
+                    ..Default::default()
+                }),
+                Some("acct_7f3a"),
+            ),
+            updated(snapshot(Snapshot {
+                primary: Some(window(100.0, 300, 1_790_700_000)),
+                reached: Some("rate_limit_reached"),
+                ..Default::default()
+            })),
             completed("completed"),
         ])
         .await;
@@ -1121,8 +1295,12 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
     }
 
     async fn reads_a_window_longer_than_a_week_as_the_month_body() {
-        let (_, limits) = limits_after(vec![rate_limits(primary_only(window(5.0, 43_200, 1_792_000_000)), None), completed("completed")]).await;
-        assert_eq!(limits, vec![HarnessLimit { status: Some(LimitStatus::Ok), ..limit(vec![win(LimitKind::Month, 5.0, 1_792_000_000_000.0)]) }]);
+        let (_, limits) =
+            limits_after(vec![rate_limits(primary_only(window(5.0, 43_200, 1_792_000_000)), None), completed("completed")]).await;
+        assert_eq!(
+            limits,
+            vec![HarnessLimit { status: Some(LimitStatus::Ok), ..limit(vec![win(LimitKind::Month, 5.0, 1_792_000_000_000.0)]) }]
+        );
     }
 
     #[tokio::test]
@@ -1148,7 +1326,11 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
         async fn params_of(limit_details: bool) -> Option<Value> {
             let launch = launcher(scripted_turn(vec![completed("completed")], WireOpts::default()));
             let adapter = adapter_over(&launch, Extra::default());
-            adapter.start(HarnessStartOptions { prompt: "hi".into(), limit_details, on_event: Some(no_events()), ..Default::default() }).unwrap().finished().await;
+            adapter
+                .start(HarnessStartOptions { prompt: "hi".into(), limit_details, on_event: Some(no_events()), ..Default::default() })
+                .unwrap()
+                .finished()
+                .await;
             launch
                 .call(0)
                 .input
@@ -1168,14 +1350,20 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
     }
 
     async fn reads_how_many_resets_the_plan_has_banked_off_the_turn_s_read_where_the_details_body() {
-        let (_, limits) = limits_after(vec![read(primary_only(window(34.5, 300, 1_790_700_000)), json!({ "rateLimitResetCredits": banked(json!(null)) })), completed("completed")]).await;
+        let (_, limits) = limits_after(vec![
+            read(primary_only(window(34.5, 300, 1_790_700_000)), json!({ "rateLimitResetCredits": banked(json!(null)) })),
+            completed("completed"),
+        ])
+        .await;
         let credits: Vec<Option<BankedResets>> = limits.into_iter().map(|l| l.credits).collect();
         assert_eq!(credits, vec![Some(BankedResets { count: 2.into(), credits: None })]);
     }
 
     #[tokio::test]
     async fn keeps_the_banked_resets_off_a_rolling_update_which_never_carries_them_so_the_las() {
-        tokio::task::LocalSet::new().run_until(keeps_the_banked_resets_off_a_rolling_update_which_never_carries_them_so_the_las_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(keeps_the_banked_resets_off_a_rolling_update_which_never_carries_them_so_the_las_body())
+            .await
     }
 
     async fn keeps_the_banked_resets_off_a_rolling_update_which_never_carries_them_so_the_las_body() {
@@ -1191,14 +1379,19 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
 
     #[tokio::test]
     async fn reads_the_windows_off_the_codex_bucket_where_the_answer_names_buckets_and_merges() {
-        tokio::task::LocalSet::new().run_until(reads_the_windows_off_the_codex_bucket_where_the_answer_names_buckets_and_merges_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(reads_the_windows_off_the_codex_bucket_where_the_answer_names_buckets_and_merges_body())
+            .await
     }
 
     async fn reads_the_windows_off_the_codex_bucket_where_the_answer_names_buckets_and_merges_body() {
         let mut other = primary_only(window(90.0, 300, 1_790_700_000));
         other["limitId"] = json!("codex_other");
         let (_, limits) = limits_after(vec![
-            read(primary_only(window(70.0, 300, 1_790_700_000)), json!({ "rateLimitsByLimitId": { "codex": primary_only(window(10.0, 300, 1_790_700_000)), "codex_other": other.clone() } })),
+            read(
+                primary_only(window(70.0, 300, 1_790_700_000)),
+                json!({ "rateLimitsByLimitId": { "codex": primary_only(window(10.0, 300, 1_790_700_000)), "codex_other": other.clone() } }),
+            ),
             updated(other),
             completed("completed"),
         ])
@@ -1237,14 +1430,27 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
 
         #[tokio::test]
         async fn carries_the_limit_with_the_reset_of_the_window_the_latest_reading_has_at_its_cap() {
-            tokio::task::LocalSet::new().run_until(carries_the_limit_with_the_reset_of_the_window_the_latest_reading_has_at_its_cap_body()).await
+            tokio::task::LocalSet::new()
+                .run_until(carries_the_limit_with_the_reset_of_the_window_the_latest_reading_has_at_its_cap_body())
+                .await
         }
 
         async fn carries_the_limit_with_the_reset_of_the_window_the_latest_reading_has_at_its_cap_body() {
             let hour = in_an_hour();
             let result = run(vec![
-                read(snapshot(Snapshot { primary: Some(window(97.0, 300, hour)), secondary: Some(window(40.0, 10_080, hour + 86_400)), ..Default::default() }), json!({})),
-                updated(snapshot(Snapshot { primary: Some(window(100.0, 300, hour)), reached: Some("rate_limit_reached"), ..Default::default() })),
+                read(
+                    snapshot(Snapshot {
+                        primary: Some(window(97.0, 300, hour)),
+                        secondary: Some(window(40.0, 10_080, hour + 86_400)),
+                        ..Default::default()
+                    }),
+                    json!({}),
+                ),
+                updated(snapshot(Snapshot {
+                    primary: Some(window(100.0, 300, hour)),
+                    reached: Some("rate_limit_reached"),
+                    ..Default::default()
+                })),
                 error("usageLimitExceeded"),
                 failed("usageLimitExceeded"),
             ])
@@ -1255,13 +1461,22 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
 
         #[tokio::test]
         async fn carries_the_reset_of_the_fullest_window_ahead_where_the_server_stopped_the_turn() {
-            tokio::task::LocalSet::new().run_until(carries_the_reset_of_the_fullest_window_ahead_where_the_server_stopped_the_turn_body()).await
+            tokio::task::LocalSet::new()
+                .run_until(carries_the_reset_of_the_fullest_window_ahead_where_the_server_stopped_the_turn_body())
+                .await
         }
 
         async fn carries_the_reset_of_the_fullest_window_ahead_where_the_server_stopped_the_turn_body() {
             let hour = in_an_hour();
             let result = run(vec![
-                read(snapshot(Snapshot { primary: Some(window(97.0, 300, hour)), secondary: Some(window(40.0, 10_080, hour + 86_400)), ..Default::default() }), json!({})),
+                read(
+                    snapshot(Snapshot {
+                        primary: Some(window(97.0, 300, hour)),
+                        secondary: Some(window(40.0, 10_080, hour + 86_400)),
+                        ..Default::default()
+                    }),
+                    json!({}),
+                ),
                 updated(primary_only(window(99.0, 300, hour))),
                 error("usageLimitExceeded"),
                 failed("usageLimitExceeded"),
@@ -1289,7 +1504,11 @@ mod a_codex_account_s_plan_limits_on_the_app_server {
 
         async fn carries_none_on_a_turn_that_failed_another_way_whatever_the_reading_says_body() {
             let result = run(vec![
-                updated(snapshot(Snapshot { primary: Some(window(100.0, 300, in_an_hour())), reached: Some("rate_limit_reached"), ..Default::default() })),
+                updated(snapshot(Snapshot {
+                    primary: Some(window(100.0, 300, in_an_hour())),
+                    reached: Some("rate_limit_reached"),
+                    ..Default::default()
+                })),
                 error("serverOverloaded"),
                 failed("serverOverloaded"),
             ])
@@ -1340,7 +1559,9 @@ mod a_codex_thread_s_own_compaction {
 
     #[tokio::test]
     async fn runs_compact_as_the_server_s_own_compaction_of_the_thread_not_as_a_message_to_th() {
-        tokio::task::LocalSet::new().run_until(runs_compact_as_the_server_s_own_compaction_of_the_thread_not_as_a_message_to_th_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(runs_compact_as_the_server_s_own_compaction_of_the_thread_not_as_a_message_to_th_body())
+            .await
     }
 
     async fn runs_compact_as_the_server_s_own_compaction_of_the_thread_not_as_a_message_to_th_body() {
@@ -1351,12 +1572,17 @@ mod a_codex_thread_s_own_compaction {
         assert_eq!(result.status, TurnStatus::Completed);
         assert!(launch.wire(0).wrote("thread/compact/start"));
         assert!(!launch.wire(0).wrote("turn/start"));
-        assert_eq!(launch.wire(0).written_method("thread/compact/start")[0], json!({ "id": "wsp-turn", "method": "thread/compact/start", "params": { "threadId": THREAD_ID } }));
+        assert_eq!(
+            launch.wire(0).written_method("thread/compact/start")[0],
+            json!({ "id": "wsp-turn", "method": "thread/compact/start", "params": { "threadId": THREAD_ID } })
+        );
     }
 
     #[tokio::test]
     async fn reads_what_the_thread_holds_after_the_compaction_off_the_usage_line_s_total_wher() {
-        tokio::task::LocalSet::new().run_until(reads_what_the_thread_holds_after_the_compaction_off_the_usage_line_s_total_wher_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(reads_what_the_thread_holds_after_the_compaction_off_the_usage_line_s_total_wher_body())
+            .await
     }
 
     async fn reads_what_the_thread_holds_after_the_compaction_off_the_usage_line_s_total_wher_body() {
@@ -1376,12 +1602,17 @@ mod a_codex_thread_s_own_compaction {
         let launch = launcher(compacting_server());
         let events = Events::default();
         go_resume(&adapter_over(&launch, Extra::default()), "/compact", &events).finished().await;
-        assert_eq!(events.of("turn.compacted"), vec![AdapterEvent::TurnCompacted { session_id: THREAD_ID.into(), before: None, after: Some(4_607.0) }]);
+        assert_eq!(
+            events.of("turn.compacted"),
+            vec![AdapterEvent::TurnCompacted { session_id: THREAD_ID.into(), before: None, after: Some(4_607.0) }]
+        );
     }
 
     #[tokio::test]
     async fn says_a_compaction_the_server_ran_by_itself_at_a_turn_s_start_with_what_the_threa() {
-        tokio::task::LocalSet::new().run_until(says_a_compaction_the_server_ran_by_itself_at_a_turn_s_start_with_what_the_threa_body()).await
+        tokio::task::LocalSet::new()
+            .run_until(says_a_compaction_the_server_ran_by_itself_at_a_turn_s_start_with_what_the_threa_body())
+            .await
     }
 
     async fn says_a_compaction_the_server_ran_by_itself_at_a_turn_s_start_with_what_the_threa_body() {
@@ -1407,7 +1638,10 @@ mod a_codex_thread_s_own_compaction {
         let events = Events::default();
         let result = go_resume(&adapter_over(&launch, Extra::default()), "go", &events).finished().await;
         assert_eq!(result.status, TurnStatus::Completed);
-        assert_eq!(events.of("turn.compacted"), vec![AdapterEvent::TurnCompacted { session_id: THREAD_ID.into(), before: Some(31_250.0), after: Some(18_935.0) }]);
+        assert_eq!(
+            events.of("turn.compacted"),
+            vec![AdapterEvent::TurnCompacted { session_id: THREAD_ID.into(), before: Some(31_250.0), after: Some(18_935.0) }]
+        );
     }
 
     #[tokio::test]

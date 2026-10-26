@@ -19,11 +19,32 @@ fn obj(v: Value) -> Obj {
 }
 
 fn tokens(input: f64, output: f64) -> TurnTokens {
-    TurnTokens { input: JsNumber(input), output: JsNumber(output), cached: None, cache_write: None, reasoning: None, context: None, window: None }
+    TurnTokens {
+        input: JsNumber(input),
+        output: JsNumber(output),
+        cached: None,
+        cache_write: None,
+        reasoning: None,
+        context: None,
+        window: None,
+    }
 }
 
 fn failed() -> TurnResult {
-    TurnResult { status: TurnStatus::Failed, duration_ms: None, waited_ms: None, cost_usd: None, tokens: None, model: None, models: None, text: None, error: Some("You've hit your limit".into()), unreached: None, refusal: None, limit: None }
+    TurnResult {
+        status: TurnStatus::Failed,
+        duration_ms: None,
+        waited_ms: None,
+        cost_usd: None,
+        tokens: None,
+        model: None,
+        models: None,
+        text: None,
+        error: Some("You've hit your limit".into()),
+        unreached: None,
+        refusal: None,
+        limit: None,
+    }
 }
 
 #[test]
@@ -58,18 +79,28 @@ fn str_arr_keeps_the_strings_and_an_empty_array() {
 #[test]
 fn harness_of_reads_each_field_alone() {
     assert_eq!(harness_of(&obj(json!({"type": "system", "subtype": "init"}))), None);
-    assert_eq!(harness_of(&obj(json!({"slash_commands": []}))), Some(SessionHarness { slash_commands: Some(vec![]), permission_mode: None, agents: None }));
-    assert_eq!(harness_of(&obj(json!({"permissionMode": "default", "agents": ["x", 2]}))), Some(SessionHarness { slash_commands: None, permission_mode: Some("default".into()), agents: Some(vec!["x".into()]) }));
+    assert_eq!(
+        harness_of(&obj(json!({"slash_commands": []}))),
+        Some(SessionHarness { slash_commands: Some(vec![]), permission_mode: None, agents: None })
+    );
+    assert_eq!(
+        harness_of(&obj(json!({"permissionMode": "default", "agents": ["x", 2]}))),
+        Some(SessionHarness { slash_commands: None, permission_mode: Some("default".into()), agents: Some(vec!["x".into()]) })
+    );
 }
 
 #[test]
 fn usage_tokens_names_only_the_counts_the_usage_names() {
     let plain = usage_tokens(&obj(json!({"input_tokens": 10, "output_tokens": 5})));
     assert_eq!(plain, tokens(10.0, 5.0));
-    let cached = usage_tokens(&obj(json!({"input_tokens": 10, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 7, "output_tokens": 5})));
+    let cached =
+        usage_tokens(&obj(json!({"input_tokens": 10, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 7, "output_tokens": 5})));
     assert_eq!(cached, TurnTokens { cached: Some(JsNumber(0.0)), cache_write: Some(JsNumber(7.0)), ..tokens(17.0, 5.0) });
     assert_eq!(usage_tokens(&obj(json!({}))), tokens(0.0, 0.0));
-    assert_eq!(usage_of(&tokens(3.0, 4.0)), UsageTokens { input: 3.into(), output: 4.into(), cached: 0.into(), cache_write: 0.into(), reasoning: 0.into() });
+    assert_eq!(
+        usage_of(&tokens(3.0, 4.0)),
+        UsageTokens { input: 3.into(), output: 4.into(), cached: 0.into(), cache_write: 0.into(), reasoning: 0.into() }
+    );
 }
 
 #[test]
@@ -78,7 +109,18 @@ fn plus_tokens_drops_context_and_window_on_a_sum() {
     assert_eq!(plus_tokens(None, &b), b, "nothing to add to: b stands whole");
     let a = TurnTokens { reasoning: Some(JsNumber(3.0)), ..tokens(10.0, 20.0) };
     let sum = plus_tokens(Some(&a), &TurnTokens { cached: Some(JsNumber(4.0)), ..b.clone() });
-    assert_eq!(sum, TurnTokens { input: JsNumber(11.0), output: JsNumber(22.0), cached: Some(JsNumber(4.0)), cache_write: None, reasoning: Some(JsNumber(3.0)), context: None, window: None });
+    assert_eq!(
+        sum,
+        TurnTokens {
+            input: JsNumber(11.0),
+            output: JsNumber(22.0),
+            cached: Some(JsNumber(4.0)),
+            cache_write: None,
+            reasoning: Some(JsNumber(3.0)),
+            context: None,
+            window: None
+        }
+    );
 }
 
 #[test]
@@ -134,8 +176,14 @@ fn note_rejected_moves_the_stop_by_each_reading() {
     note_rejected(Some(&obj(json!({"status": "rejected", "rateLimitType": "five_hour", "resetsAt": 100}))), &mut rejected);
     note_rejected(Some(&obj(json!({"status": "rejected", "rateLimitType": "seven_day"}))), &mut rejected);
     note_rejected(Some(&obj(json!({"status": "rejected", "rateLimitType": "five_hour", "resetsAt": 200}))), &mut rejected);
-    assert_eq!(rejected.clone().into_iter().collect::<Vec<_>>(), vec![("five_hour".to_string(), Some(200000.0)), ("seven_day".to_string(), None)]);
-    note_rejected(Some(&obj(json!({"status": "rejected", "rateLimitType": "seven_day", "overageStatus": "allowed_warning"}))), &mut rejected);
+    assert_eq!(
+        rejected.clone().into_iter().collect::<Vec<_>>(),
+        vec![("five_hour".to_string(), Some(200000.0)), ("seven_day".to_string(), None)]
+    );
+    note_rejected(
+        Some(&obj(json!({"status": "rejected", "rateLimitType": "seven_day", "overageStatus": "allowed_warning"}))),
+        &mut rejected,
+    );
     note_rejected(Some(&obj(json!({"status": "allowed", "rateLimitType": "five_hour"}))), &mut rejected);
     assert!(rejected.is_empty(), "overage and a later allowed reading take each stop back");
     note_rejected(Some(&obj(json!({"status": "rejected"}))), &mut rejected);
@@ -160,7 +208,14 @@ fn todo_write_reads_its_list_whole() {
     let mut book = PlanBook::default();
     assert_eq!(read_plan_call(Some("TodoWrite"), Some(&json!({"todos": []})), Some("c1"), &mut book), PlanCall::Steps(vec![]));
     assert_eq!(read_plan_call(Some("TodoWrite"), Some(&json!({"todos": "x"})), Some("c1"), &mut book), PlanCall::NotPlan);
-    let steps = read_plan_call(Some("TodoWrite"), Some(&json!({"todos": [{"content": "a", "status": "completed"}, 3, {"status": "in_progress"}, {"content": "c", "status": "weird"}]})), None, &mut book);
+    let steps = read_plan_call(
+        Some("TodoWrite"),
+        Some(
+            &json!({"todos": [{"content": "a", "status": "completed"}, 3, {"status": "in_progress"}, {"content": "c", "status": "weird"}]}),
+        ),
+        None,
+        &mut book,
+    );
     assert_eq!(
         steps,
         PlanCall::Steps(vec![
@@ -182,15 +237,35 @@ fn task_update_moves_deletes_and_ignores_unknown_ids() {
     let mut book = PlanBook::default();
     read_plan_call(Some("TaskCreate"), Some(&json!({"subject": "parse"})), Some("call-1"), &mut book);
     let two = read_plan_call(Some("TaskCreate"), Some(&json!({})), None, &mut book);
-    assert_eq!(two, PlanCall::Steps(vec![PlanStep { text: "parse".into(), state: PlanStepState::Pending }, PlanStep { text: "".into(), state: PlanStepState::Pending }]));
-    assert_eq!(book.unnamed.clone().into_iter().collect::<Vec<_>>(), vec![("call-1".to_string(), 0usize)], "a create with no call id is never named");
-    assert_eq!(read_plan_call(Some("TaskUpdate"), Some(&json!({"taskId": "1", "status": "completed"})), None, &mut book), PlanCall::Nothing, "no task has an id yet");
+    assert_eq!(
+        two,
+        PlanCall::Steps(vec![
+            PlanStep { text: "parse".into(), state: PlanStepState::Pending },
+            PlanStep { text: "".into(), state: PlanStepState::Pending }
+        ])
+    );
+    assert_eq!(
+        book.unnamed.clone().into_iter().collect::<Vec<_>>(),
+        vec![("call-1".to_string(), 0usize)],
+        "a create with no call id is never named"
+    );
+    assert_eq!(
+        read_plan_call(Some("TaskUpdate"), Some(&json!({"taskId": "1", "status": "completed"})), None, &mut book),
+        PlanCall::Nothing,
+        "no task has an id yet"
+    );
     book.tasks[0].id = Some("1".into());
     assert_eq!(
         read_plan_call(Some("TaskUpdate"), Some(&json!({"taskId": "1", "status": "in_progress", "subject": "parse it"})), None, &mut book),
-        PlanCall::Steps(vec![PlanStep { text: "parse it".into(), state: PlanStepState::Working }, PlanStep { text: "".into(), state: PlanStepState::Pending }])
+        PlanCall::Steps(vec![
+            PlanStep { text: "parse it".into(), state: PlanStepState::Working },
+            PlanStep { text: "".into(), state: PlanStepState::Pending }
+        ])
     );
-    assert_eq!(read_plan_call(Some("TaskUpdate"), Some(&json!({"taskId": "1", "status": "deleted"})), None, &mut book), PlanCall::Steps(vec![PlanStep { text: "".into(), state: PlanStepState::Pending }]));
+    assert_eq!(
+        read_plan_call(Some("TaskUpdate"), Some(&json!({"taskId": "1", "status": "deleted"})), None, &mut book),
+        PlanCall::Steps(vec![PlanStep { text: "".into(), state: PlanStepState::Pending }])
+    );
     assert_eq!(book.tasks.len(), 1);
     assert_eq!(book.tasks[0].id, None);
 }
@@ -198,15 +273,35 @@ fn task_update_moves_deletes_and_ignores_unknown_ids() {
 #[test]
 fn child_calls_count_once_at_the_largest_output() {
     let mut book = SpendBook::default();
-    let line = |id: &str, out: u64| obj(json!({"type": "assistant", "message": {"id": id, "usage": {"input_tokens": 5, "cache_read_input_tokens": 100, "output_tokens": out}}}));
+    let line = |id: &str, out: u64| {
+        obj(
+            json!({"type": "assistant", "message": {"id": id, "usage": {"input_tokens": 5, "cache_read_input_tokens": 100, "output_tokens": out}}}),
+        )
+    };
     note_child_call(&mut book, "t1", &line("m1", 3));
     note_child_call(&mut book, "t1", &line("m1", 40));
     note_child_call(&mut book, "t1", &line("m1", 12));
     note_child_call(&mut book, "t1", &line("m2", 1));
     note_child_call(&mut book, "t1", &obj(json!({"type": "assistant", "message": {"id": "m3"}})));
-    assert_eq!(book.totals.get("t1"), Some(&UsageTokens { input: 210.into(), output: 41.into(), cached: 200.into(), cache_write: 0.into(), reasoning: 0.into() }));
+    assert_eq!(
+        book.totals.get("t1"),
+        Some(&UsageTokens { input: 210.into(), output: 41.into(), cached: 200.into(), cache_write: 0.into(), reasoning: 0.into() })
+    );
     assert_eq!(book.calls["t1"].keys().cloned().collect::<Vec<_>>(), vec!["m1", "m2"]);
-    assert_eq!(subagent_spent(&book, "t1"), Some(SubagentUsage { tokens: Some(UsageTokens { input: 210.into(), output: 41.into(), cached: 200.into(), cache_write: 0.into(), reasoning: 0.into() }), tool_uses: None, duration_ms: None }));
+    assert_eq!(
+        subagent_spent(&book, "t1"),
+        Some(SubagentUsage {
+            tokens: Some(UsageTokens {
+                input: 210.into(),
+                output: 41.into(),
+                cached: 200.into(),
+                cache_write: 0.into(),
+                reasoning: 0.into()
+            }),
+            tool_uses: None,
+            duration_ms: None
+        })
+    );
     assert_eq!(subagent_spent(&book, "t2"), None);
 }
 
@@ -214,16 +309,31 @@ fn child_calls_count_once_at_the_largest_output() {
 fn spend_at_end_takes_the_run_time_from_the_end_line_alone() {
     let mut book = SpendBook::default();
     let subagents = |t: &str| t == "t1";
-    let progress = obj(json!({"type": "system", "subtype": "task_progress", "task_id": "t1", "usage": {"tool_uses": 4, "duration_ms": 900, "total_tokens": 99999}}));
+    let progress = obj(
+        json!({"type": "system", "subtype": "task_progress", "task_id": "t1", "usage": {"tool_uses": 4, "duration_ms": 900, "total_tokens": 99999}}),
+    );
     assert_eq!(note_progress(&mut book, &progress, &subagents), Some("t1".to_string()));
     let other = obj(json!({"type": "system", "subtype": "task_progress", "task_id": "bash-1", "usage": {"tool_uses": 1}}));
     assert_eq!(note_progress(&mut book, &other, &subagents), None, "a background command is no subagent");
-    assert_eq!(note_progress(&mut book, &obj(json!({"type": "system", "subtype": "task_progress", "task_id": "t1"})), &subagents), None, "no usage, nothing noted");
-    assert_eq!(subagent_spent(&book, "t1"), Some(SubagentUsage { tokens: None, tool_uses: Some(4.into()), duration_ms: Some(JsNumber(900.0)) }));
+    assert_eq!(
+        note_progress(&mut book, &obj(json!({"type": "system", "subtype": "task_progress", "task_id": "t1"})), &subagents),
+        None,
+        "no usage, nothing noted"
+    );
+    assert_eq!(
+        subagent_spent(&book, "t1"),
+        Some(SubagentUsage { tokens: None, tool_uses: Some(4.into()), duration_ms: Some(JsNumber(900.0)) })
+    );
     let killed = obj(json!({"type": "system", "subtype": "task_updated", "task_id": "t1", "patch": {"status": "killed"}}));
-    assert_eq!(subagent_spent_at_end(&book, "t1", &killed), Some(SubagentUsage { tokens: None, tool_uses: Some(4.into()), duration_ms: None }));
+    assert_eq!(
+        subagent_spent_at_end(&book, "t1", &killed),
+        Some(SubagentUsage { tokens: None, tool_uses: Some(4.into()), duration_ms: None })
+    );
     let ended = obj(json!({"type": "system", "subtype": "task_notification", "task_id": "t1", "usage": {"duration_ms": 1500}}));
-    assert_eq!(subagent_spent_at_end(&book, "t1", &ended), Some(SubagentUsage { tokens: None, tool_uses: Some(4.into()), duration_ms: Some(JsNumber(1500.0)) }));
+    assert_eq!(
+        subagent_spent_at_end(&book, "t1", &ended),
+        Some(SubagentUsage { tokens: None, tool_uses: Some(4.into()), duration_ms: Some(JsNumber(1500.0)) })
+    );
     assert_eq!(subagent_spent_at_end(&book, "nobody", &ended), None);
 }
 
@@ -263,7 +373,10 @@ fn note_rejected_moves_a_stop_set_again_to_the_end() {
     ] {
         note_rejected(Some(&obj(info)), &mut rejected);
     }
-    assert_eq!(rejected.into_iter().collect::<Vec<_>>(), vec![("".to_string(), None), ("seven_day".to_string(), None), ("five_hour".to_string(), Some(0.0))]);
+    assert_eq!(
+        rejected.into_iter().collect::<Vec<_>>(),
+        vec![("".to_string(), None), ("seven_day".to_string(), None), ("five_hour".to_string(), Some(0.0))]
+    );
 }
 
 // Rule R5: with_limit replaces a limit already there; a reset of zero or below still counts, the latest wins.
@@ -273,23 +386,46 @@ fn with_limit_replaces_the_limit_and_counts_a_zero_reset() {
     rejected.insert("a".into(), Some(0.0));
     rejected.insert("b".into(), Some(-5.0));
     let had = TurnResult { limit: Some(TurnLimit { resets_at: Some(JsNumber(1.0)) }), text: Some("t".into()), ..failed() };
-    assert_eq!(with_limit(had, &rejected), TurnResult { limit: Some(TurnLimit { resets_at: Some(JsNumber(0.0)) }), text: Some("t".into()), ..failed() });
+    assert_eq!(
+        with_limit(had, &rejected),
+        TurnResult { limit: Some(TurnLimit { resets_at: Some(JsNumber(0.0)) }), text: Some("t".into()), ..failed() }
+    );
 }
 
 // Rule R6: a message seen again takes the newest line's input, cached and cacheWrite; only output keeps the largest.
 #[test]
 fn a_child_call_seen_again_keeps_the_newest_counts_but_the_largest_output() {
     let mut book = SpendBook::default();
-    note_child_call(&mut book, "t1", &obj(json!({"type": "assistant", "message": {"id": "m1", "usage": {"input_tokens": 10, "output_tokens": 5, "cache_read_input_tokens": 100}}})));
-    note_child_call(&mut book, "t1", &obj(json!({"type": "assistant", "message": {"id": "m1", "usage": {"input_tokens": 3, "output_tokens": 2, "cache_creation_input_tokens": 7}}})));
-    assert_eq!(subagent_spent(&book, "t1").and_then(|u| u.tokens), Some(UsageTokens { input: 10.into(), output: 5.into(), cached: 0.into(), cache_write: 7.into(), reasoning: 0.into() }));
+    note_child_call(
+        &mut book,
+        "t1",
+        &obj(
+            json!({"type": "assistant", "message": {"id": "m1", "usage": {"input_tokens": 10, "output_tokens": 5, "cache_read_input_tokens": 100}}}),
+        ),
+    );
+    note_child_call(
+        &mut book,
+        "t1",
+        &obj(
+            json!({"type": "assistant", "message": {"id": "m1", "usage": {"input_tokens": 3, "output_tokens": 2, "cache_creation_input_tokens": 7}}}),
+        ),
+    );
+    assert_eq!(
+        subagent_spent(&book, "t1").and_then(|u| u.tokens),
+        Some(UsageTokens { input: 10.into(), output: 5.into(), cached: 0.into(), cache_write: 7.into(), reasoning: 0.into() })
+    );
 }
 
 // Rule R7: the cd rule, read against the TS regex; `current` is compared as given, never normalized.
 #[test]
 fn a_cd_moves_the_shell_only_on_the_forms_the_ts_reads() {
-    let cd = |command: &str, current: &str| wsp_adapters::claude::shell_cwd::shell_cwd_after(Some("Bash"), Some(&json!({"command": command})), current, "/w");
-    let got: Vec<Option<String>> = ["cd /a//b/./c/", "cd ''", "cd /a | ls", "cd /a&&ls", "cd -- /a", "cd /", "cd /a/..", "cd /a #x"].iter().map(|c| cd(c, "/x")).collect();
+    let cd = |command: &str, current: &str| {
+        wsp_adapters::claude::shell_cwd::shell_cwd_after(Some("Bash"), Some(&json!({"command": command})), current, "/w")
+    };
+    let got: Vec<Option<String>> = ["cd /a//b/./c/", "cd ''", "cd /a | ls", "cd /a&&ls", "cd -- /a", "cd /", "cd /a/..", "cd /a #x"]
+        .iter()
+        .map(|c| cd(c, "/x"))
+        .collect();
     assert_eq!(got, vec![Some("/a/b/c".into()), None, None, Some("/a".into()), None, Some("/".into()), Some("/".into()), None]);
     assert_eq!(cd("cd /root/x", "/root/x/"), Some("/root/x".into()), "a current with a trailing slash differs from the normalized target");
 }
@@ -302,6 +438,10 @@ fn todo_write_keeps_duplicates_and_reads_odd_entries_as_blank_pending_steps() {
     let todos = json!({"todos": [{"content": 5, "status": 7}, {"content": "x", "status": "completed"}, [], null, {"content": "x", "status": "completed"}]});
     assert_eq!(
         read_plan_call(Some("TodoWrite"), Some(&todos), Some("c1"), &mut book),
-        PlanCall::Steps(vec![PlanStep { text: "".into(), state: PlanStepState::Pending }, PlanStep { text: "x".into(), state: PlanStepState::Done }, PlanStep { text: "x".into(), state: PlanStepState::Done }])
+        PlanCall::Steps(vec![
+            PlanStep { text: "".into(), state: PlanStepState::Pending },
+            PlanStep { text: "x".into(), state: PlanStepState::Done },
+            PlanStep { text: "x".into(), state: PlanStepState::Done }
+        ])
     );
 }
