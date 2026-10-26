@@ -58,14 +58,34 @@ pub enum SlateAsk {
 
 impl SlateAsk {
     pub fn key(&self) -> String {
-        todo!()
+        match self {
+            SlateAsk::Cmd(a) => a.key.clone(),
+            SlateAsk::Tool(v) => v.get("key").and_then(Value::as_str).unwrap_or_default().to_string(),
+        }
     }
     pub fn run(&self) -> String {
-        todo!()
+        match self {
+            SlateAsk::Cmd(a) => a.run.clone(),
+            SlateAsk::Tool(v) => v.get("run").and_then(Value::as_str).unwrap_or_default().to_string(),
+        }
     }
     /// The ask as the wire carries it: `{key, run, kind:"cmd", cmd, ...}` or the tool ask's JSON.
     pub fn to_json(&self) -> Value {
-        todo!()
+        match self {
+            SlateAsk::Cmd(a) => {
+                let Ok(Value::Object(fields)) = serde_json::to_value(a) else { return Value::Null };
+                let mut out = serde_json::Map::new();
+                for (k, v) in fields {
+                    let after_run = k == "run";
+                    out.insert(k, v);
+                    if after_run {
+                        out.insert("kind".into(), Value::String("cmd".into()));
+                    }
+                }
+                Value::Object(out)
+            }
+            SlateAsk::Tool(v) => v.clone(),
+        }
     }
 }
 
@@ -104,7 +124,26 @@ pub struct SlateView {
 impl SlateView {
     /// The view as the wire carries it, in the TS's key order.
     pub fn to_json(&self) -> Value {
-        todo!()
+        let mut out = serde_json::Map::new();
+        out.insert("threadId".into(), Value::String(self.thread_id.clone()));
+        out.insert("workspaceId".into(), Value::String(self.workspace_id.clone()));
+        out.insert("version".into(), self.version.into());
+        out.insert("revision".into(), self.revision.into());
+        out.insert("document".into(), self.document.clone().unwrap_or(Value::Null));
+        out.insert("values".into(), Value::Object(self.values.iter().map(|(k, v)| (k.clone(), v.clone())).collect()));
+        if self.document.is_none() {
+            let empty = self.empty.unwrap_or(SlateEmpty::None);
+            out.insert("empty".into(), serde_json::to_value(empty).unwrap_or(Value::Null));
+        }
+        out.insert("comments".into(), Value::Array(self.comments.clone()));
+        let approvals = self.approvals.iter().map(|(k, v)| (k.clone(), serde_json::to_value(v).unwrap_or(Value::Null)));
+        out.insert("approvals".into(), Value::Object(approvals.collect()));
+        out.insert("asks".into(), Value::Array(self.asks.iter().map(SlateAsk::to_json).collect()));
+        out.insert("problems".into(), serde_json::to_value(&self.problems).unwrap_or(Value::Null));
+        out.insert("shownOnce".into(), self.shown_once.into());
+        out.insert("canUndo".into(), self.can_undo.into());
+        out.insert("updatedAt".into(), self.updated_at.into());
+        Value::Object(out)
     }
 }
 
