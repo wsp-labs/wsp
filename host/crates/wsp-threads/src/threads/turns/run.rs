@@ -8,10 +8,10 @@ use std::sync::Arc;
 use futures::future::{FutureExt, LocalBoxFuture, Shared};
 use indexmap::{IndexMap, IndexSet};
 use wsp_adapters::port::{
-    AccessOutcome, AnswerOutcome, ExecFailure, HarnessSession, OnEvent, PermissionAnswer, PermissionAsk, SteerOutcome, TaskStop, TurnImage,
+    AccessOutcome, AnswerOutcome, ExecFailure, ExecFailureKind, HarnessSession, OnEvent, PermissionAnswer, PermissionAsk, SteerOutcome, TaskStop, TurnImage,
 };
 use wsp_core::console;
-use wsp_core::types::internal::{write_lines, CallSeen, EndRow, KeptLaunch, TurnLive};
+use wsp_core::types::internal::{write_lines, CallSeen, EndRow, KeptLaunch, SessionEntry, TurnLive};
 use wsp_core::types::wiring::{AccessMove, Local, SessionHandle, SteerTaken};
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::session::{PermissionOutcome, SessionStatus, SessionView};
@@ -105,9 +105,21 @@ pub(crate) fn detach(mut work: LocalBoxFuture<'static, ()>) {
     }
 }
 
-/// A session refusal's words as a host error (the transport's own message).
+/// A session refusal as a host error: the transport's own message, marked with the class a silent computer's failure
+/// was thrown as, which `computer_silent` reads (turns.ts:547 keeps the error itself).
 pub(crate) fn failure(e: ExecFailure) -> HostError {
-    HostError::new(e.message)
+    let mark = match e.kind {
+        ExecFailureKind::Unreached => Some("MachineUnreached"),
+        ExecFailureKind::Unreachable => Some("MachineUnreachableError"),
+        ExecFailureKind::PlaceAbsent => Some("PlaceAbsent"),
+        ExecFailureKind::LaunchUnanswered => Some("LaunchUnanswered"),
+        ExecFailureKind::Deadline => Some("DeadlineError"),
+        ExecFailureKind::NoAnswer => Some("DaemonUnanswered"),
+        ExecFailureKind::Other => None,
+    };
+    let mut error = HostError::new(e.message);
+    error.marks.extend(mark.map(String::from));
+    error
 }
 
 /// A turn result with only its status set (TS `{ status }`).
@@ -733,41 +745,63 @@ impl TurnState {
 
 /// The handle a turn answers (turns.ts:617-633).
 pub struct TurnHandle {
-    pub(crate) state: Rc<TurnState>,
+    pub(crate) state: Weak<TurnState>,
+    /// The caller's copy keeps the turn's state; the row's own copy holds it only weakly, since the state holds the row.
+    pub(crate) _keeps: Option<Rc<TurnState>>,
+    pub(crate) row: Weak<RefCell<SessionEntry>>,
+    /// The view as the handle was made, for a handle that outlives both its row and its turn.
+    pub(crate) seen: SessionView,
+    pub(crate) id: String,
+    pub(crate) workspace_id: String,
+    pub(crate) turn_id: String,
+    pub(crate) outcome: SessionStartOutcome,
     pub(crate) finished: Shared<LocalBoxFuture<'static, TurnResult>>,
+}
+
+impl TurnHandle {
+    fn st(&self) -> Option<Rc<TurnState>> {
+        self.state.upgrade()
+    }
 }
 
 impl SessionHandle for TurnHandle {
     fn id(&self) -> String {
-        self.state.row_id.borrow().clone()
+        self.st().map(|s| s.row_id.borrow().clone()).unwrap_or_else(|| self.id.clone())
     }
     fn workspace_id(&self) -> String {
-        self.state.workspace_id.clone()
+        self.workspace_id.clone()
     }
     fn finished(&self) -> Shared<LocalBoxFuture<'static, TurnResult>> {
         self.finished.clone()
     }
     fn turn_id(&self) -> String {
-        self.state.turn_id.clone()
+        self.turn_id.clone()
     }
     fn outcome(&self) -> SessionStartOutcome {
-        self.state.outcome
+        self.outcome
     }
     fn notice(&self) -> Option<String> {
         None
     }
     fn view(&self) -> SessionView {
-        self.state.row.borrow().view.clone()
+        match (self.row.upgrade(), self.st()) {
+            (Some(row), _) => row.borrow().view.clone(),
+            (None, Some(state)) => state.row.borrow().view.clone(),
+            (None, None) => self.seen.clone(),
+        }
     }
     fn interrupt(&self) -> LocalBoxFuture<'static, ()> {
-        self.state.stopped.set(true);
-        match self.state.session() {
+        let Some(state) = self.st() else {
+            return futures::future::ready(()).boxed_local();
+        };
+        state.stopped.set(true);
+        match state.session() {
             Some(session) => session.interrupt(),
             None => futures::future::ready(()).boxed_local(),
         }
     }
     fn steer(&self, prompt: String, id: Option<String>, images: Vec<TurnImage>) -> Option<Local<'static, SteerTaken>> {
-        let pending = self.state.session()?.steer(prompt, id, images)?;
+        let pending = self.st()?.session()?.steer(prompt, id, images)?;
         Some(
             async move {
                 pending
@@ -782,19 +816,19 @@ impl SessionHandle for TurnHandle {
         )
     }
     fn tells_unread(&self) -> Option<bool> {
-        Some(self.state.session().is_some_and(|session| session.tells_unread() == Some(true)))
+        Some(self.st().and_then(|s| s.session()).is_some_and(|session| session.tells_unread() == Some(true)))
     }
     fn answer(&self, ask_id: String, option_id: String, reason: Option<String>) -> Option<Local<'static, SessionAnswerResult>> {
-        let session = self.state.session()?;
-        if !self.state.ctx.session_answers(session.as_ref()) {
+        let session = self.st()?.session()?;
+        let state = self.st()?;
+        if !state.ctx.session_answers(session.as_ref()) {
             return None;
         }
-        let state = self.state.clone();
         Some(async move { Ok(state.answer(&ask_id, &option_id, reason.as_deref()).await) }.boxed_local())
     }
     fn set_access(&self, mode: String) -> Option<Local<'static, AccessMove>> {
-        let pending = self.state.session()?.set_access(mode.clone())?;
-        let state = self.state.clone();
+        let state = self.st()?;
+        let pending = state.session()?.set_access(mode.clone())?;
         Some(
             async move {
                 let outcome = pending.await.map_err(failure)?;
@@ -811,7 +845,7 @@ impl SessionHandle for TurnHandle {
         )
     }
     fn stop_task(&self, task: String) -> Option<Local<'static, TaskStop>> {
-        let pending = self.state.session()?.stop_task(task)?;
+        let pending = self.st()?.session()?.stop_task(task)?;
         Some(async move { pending.await.map_err(failure) }.boxed_local())
     }
 }
@@ -825,8 +859,13 @@ impl TurnsArea {
         state.reads_waiting();
         ctx.idle_hold(&workspace_id);
         let TurnStart { open, resume, .. } = t;
-        let forward_state = state.clone();
-        let on_event: OnEvent = Arc::new(move |event| forward_state.forward(event));
+        state.row.borrow_mut().calls = Some(IndexMap::<String, CallSeen>::new());
+        let forward_state = Rc::downgrade(&state);
+        let on_event: OnEvent = Arc::new(move |event| {
+            if let Some(state) = forward_state.upgrade() {
+                state.forward(event)
+            }
+        });
         let started = match open(on_event) {
             Ok(started) => started,
             Err(e) => {
@@ -875,10 +914,26 @@ impl TurnsArea {
                 }
             }
         }
-        let handle: Rc<dyn SessionHandle> = Rc::new(TurnHandle { state: state.clone(), finished: finished.clone() });
-        let end_state = state.clone();
+        let handle_of = |keeps: bool| -> Rc<dyn SessionHandle> {
+            Rc::new(TurnHandle {
+                state: Rc::downgrade(&state),
+                _keeps: keeps.then(|| state.clone()),
+                row: Rc::downgrade(&state.row),
+                seen: state.row.borrow().view.clone(),
+                id: row_id.clone(),
+                workspace_id: workspace_id.clone(),
+                turn_id: state.turn_id.clone(),
+                outcome: state.outcome,
+                finished: finished.clone(),
+            })
+        };
+        let handle = handle_of(true);
+        let on_row = handle_of(false);
+        let end_state = Rc::downgrade(&state);
         let end: EndRow = Rc::new(move |reason: &str, by_stop: Option<bool>, unreached: Option<bool>| {
-            end_state.end(reason, by_stop.unwrap_or(false), unreached.unwrap_or(false));
+            if let Some(state) = end_state.upgrade() {
+                state.end(reason, by_stop.unwrap_or(false), unreached.unwrap_or(false));
+            }
         });
         let sessions = ctx.sessions();
         if state.turn_id != row_id {
@@ -892,9 +947,8 @@ impl TurnsArea {
             row.notify_road = state.notify_road;
             row.turn_token = state.turn_token.clone();
             row.scope_device_id = state.scope_device_id.clone();
-            row.handle = Some(handle.clone());
+            row.handle = Some(on_row);
             row.end = Some(end);
-            row.calls = Some(IndexMap::<String, CallSeen>::new());
             row.replaces = None;
             row.launch = None;
             row.unanswered = false;
