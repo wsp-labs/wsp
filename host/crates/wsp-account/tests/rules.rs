@@ -14,8 +14,8 @@ use serde_json::{json, Map, Value};
 
 use common::{error_json, live, oracle, plain, project, record, run};
 use wsp_account::account::core_types::Entry;
-use wsp_core::types::internal::ThreadRecord;
 use wsp_account::account::rules::{like_of, CapsHeldAt, RulesArea, RulesCtx, TreeFacts};
+use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::internal::WorkspaceLike;
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_wire::views::workspace::{Caller, ProjectView};
@@ -201,7 +201,10 @@ fn caller(fixture: &Value, name: &str) -> Option<Caller> {
     match c {
         Value::Null => None,
         Value::String(_) => Some(Caller::Road(serde_json::from_value::<WorkspaceOrigin>(c.clone()).unwrap())),
-        _ => Some(Caller::Scoped { origin: serde_json::from_value(c["origin"].clone()).unwrap(), by: serde_json::from_value::<ThreadScope>(c["by"].clone()).unwrap() }),
+        _ => Some(Caller::Scoped {
+            origin: serde_json::from_value(c["origin"].clone()).unwrap(),
+            by: serde_json::from_value::<ThreadScope>(c["by"].clone()).unwrap(),
+        }),
     }
 }
 
@@ -217,7 +220,15 @@ fn record_of(w: &World, id: &str) -> WorkspaceRecord {
 fn like_named(w: &World, id: &str) -> Option<WorkspaceLike> {
     match id {
         "none" => None,
-        "noProject" => Some(WorkspaceLike { id: None, kind: WorkspaceKind::Cloud, name: "nameless".into(), machine_id: Some(String::new()), root_thread_id: None, project: None, worktree: None }),
+        "noProject" => Some(WorkspaceLike {
+            id: None,
+            kind: WorkspaceKind::Cloud,
+            name: "nameless".into(),
+            machine_id: Some(String::new()),
+            root_thread_id: None,
+            project: None,
+            worktree: None,
+        }),
         _ => Some(like_of(&record_of(w, id))),
     }
 }
@@ -315,7 +326,10 @@ fn invariant_3_the_rules_read_the_stamped_scope_alone() {
     let scoped = caller(&w.fixture, "t2");
     assert!(rules.refusal_for(Some(&other), scoped.as_ref()).unwrap().is_some());
     let relayed_t2 = caller(&w.fixture, "tRelayed");
-    assert_eq!(answer(rules.refusal_for(Some(&other), relayed_t2.as_ref())), json!("thread t2 may drive the workspace it runs on and the ones it forked, and alpha-other is neither"));
+    assert_eq!(
+        answer(rules.refusal_for(Some(&other), relayed_t2.as_ref())),
+        json!("thread t2 may drive the workspace it runs on and the ones it forked, and alpha-other is neither")
+    );
 }
 
 #[test]
@@ -449,7 +463,12 @@ fn r12_away_for_matrix() {
     let rules = area(&w);
     for name in caller_names(&w.fixture) {
         for (id, want) in w.fixture["awayFor"][&name].as_object().unwrap() {
-            let got = opt_err(rules.away_for(&like_of(&record_of(&w, id)), caller(&w.fixture, &name).as_ref(), AcrossAct::Wake, &format!("\"{id}\"")));
+            let got = opt_err(rules.away_for(
+                &like_of(&record_of(&w, id)),
+                caller(&w.fixture, &name).as_ref(),
+                AcrossAct::Wake,
+                &format!("\"{id}\""),
+            ));
             assert_eq!(got, *want, "{name} / {id}");
         }
     }
@@ -461,7 +480,11 @@ fn r12_lead_acts_on_matrix() {
     let rules = area(&w);
     for name in caller_names(&w.fixture) {
         for (id, want) in w.fixture["leadActsOn"][&name].as_object().unwrap() {
-            assert_eq!(answer(rules.lead_acts_on(&like_of(&record_of(&w, id)), caller(&w.fixture, &name).as_ref())), *want, "{name} / {id}");
+            assert_eq!(
+                answer(rules.lead_acts_on(&like_of(&record_of(&w, id)), caller(&w.fixture, &name).as_ref())),
+                *want,
+                "{name} / {id}"
+            );
         }
     }
 }

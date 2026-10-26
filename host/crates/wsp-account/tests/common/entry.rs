@@ -105,10 +105,12 @@ impl Machine for FakeMachine {
     async fn daemon_frame(&self, frame: Map<String, Value>) -> EngineResult<Map<String, Value>> {
         let served = self.served.borrow().clone();
         match served {
-            Some(serve) => serve(frame).await.map_err(|e| refused(match e {
-                AccountError::Host(h) => h.message,
-                AccountError::Refusal(r) => r.message,
-            })),
+            Some(serve) => serve(frame).await.map_err(|e| {
+                refused(match e {
+                    AccountError::Host(h) => h.message,
+                    AccountError::Refusal(r) => r.message,
+                })
+            }),
             None => Err(refused("not on this road".into())),
         }
     }

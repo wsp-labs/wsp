@@ -2,17 +2,29 @@
 //! Port of packages/runtime/src/account/preferences.ts at 65f6b89c7: the person's defaults and the wiring of the
 //! agents read. Spec: spec/preferences.md.
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use async_trait::async_trait;
-use futures::future::{LocalBoxFuture, Shared};
+use futures::channel::oneshot;
+use futures::future::{FutureExt, LocalBoxFuture, Shared};
 use indexmap::IndexMap;
-use serde_json::Value;
+use serde_json::{json, Map, Value};
 
 use wsp_core::daemon_channel::DaemonChannel;
-use wsp_wire::views::preferences::{Preferences, PreferencesPatch};
+use wsp_frames::True;
+use wsp_wire::types::place_word::HERE_PLACE_ID;
+use wsp_wire::types::thread_defaults::AccessChoice;
+use wsp_wire::views::harness::HarnessCatalog;
+use wsp_wire::views::preferences::{
+    apply_preferences_patch, labs_from_env, preferences_from, server_icons_left_line, Preferences, PreferencesPatch,
+};
 use wsp_wire::views::workspace::Caller;
-use wsp_words::exit::HostError;
+use wsp_words::exit::{refusal_parts, HostError, Kind};
+use wsp_words::projects::{bare_no_such_project_line, home_shortened};
+use wsp_words::thread_defaults::access_word_refusal;
+use wsp_words::words::thread::no_adapter_line;
+use wsp_words::workspace_state::absent_computer;
 
 use crate::account::core_types::{AccountResult, Entry};
 
@@ -111,7 +123,12 @@ pub trait PreferencesCtx {
     fn pause_mode(&self, entry: &Entry) -> Option<String>;
     /// The projects on a place: id, name, `checkout ?? path`.
     fn projects_on(&self, place_id: &str) -> Vec<(String, String, String)>;
-    async fn workspace_channel(&self, workspace_id: &str, on_event: Rc<dyn Fn(Value)>, origin: Option<&Caller>) -> AccountResult<Rc<dyn DaemonChannel>>;
+    async fn workspace_channel(
+        &self,
+        workspace_id: &str,
+        on_event: Rc<dyn Fn(Value)>,
+        origin: Option<&Caller>,
+    ) -> AccountResult<Rc<dyn DaemonChannel>>;
     async fn local_channel(&self, on_event: Rc<dyn Fn(Value)>) -> AccountResult<Rc<dyn DaemonChannel>>;
     fn place_channel(&self, place_id: &str, on_event: Rc<dyn Fn(Value)>) -> Option<Rc<dyn DaemonChannel>>;
     fn place_name(&self, place_id: &str) -> Option<String>;
@@ -137,84 +154,351 @@ pub struct PreferencesArea {
     pub(crate) labs: Value,
 }
 
+/// The one throw the defaults refuse with (preferences.ts:36).
+fn usage(line: &str) -> HostError {
+    HostError::with_kind(line, Kind::Usage)
+}
+
+/// `modelIdRefusal(id)` (thread-defaults.ts:258): why an id typed by hand is no model id.
+fn model_id_refusal(id: &str) -> Option<String> {
+    if id.is_empty() {
+        return Some("A model id cannot be empty".to_string());
+    }
+    if id.chars().any(char::is_whitespace) {
+        return Some("No model id has a space in it".to_string());
+    }
+    if id.starts_with('-') {
+        return Some("No model id starts with \"-\"".to_string());
+    }
+    let plain = |c: char| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | ':' | '/' | '@' | '+' | '[' | ']');
+    let odd = id.chars().find(|c| !plain(*c))?;
+    Some(format!("No model id has {} in it", serde_json::to_string(&odd.to_string()).unwrap_or_default()))
+}
+
+/// The harness's catalog as `accessRefusal` reads it: the table's own keys over the fields a catalog must carry.
+fn catalog_of(agent: &str, table: &Value) -> Result<HarnessCatalog, HostError> {
+    let mut full = json!({
+        "source": "table", "version": null, "contextWindows": [], "steers": false, "renames": false, "images": false,
+        "harness": agent, "label": "", "models": [], "efforts": [], "permissionModes": []
+    });
+    if let (Value::Object(base), Value::Object(own)) = (&mut full, table) {
+        for (key, value) in own {
+            base.insert(key.clone(), value.clone());
+        }
+    }
+    serde_json::from_value(full).map_err(|e| HostError::new(e.to_string()))
+}
+
+/// `NodeError.message` as the TS reads it back: the code before and the call and path after taken off
+/// (preferences.ts:29).
+fn without_node_words(message: &str) -> String {
+    let message = match message.find(": ") {
+        Some(at) if at > 0 && message[..at].bytes().all(|b| b.is_ascii_uppercase()) => &message[at + 2..],
+        _ => message,
+    };
+    if let Some(at) = message.rfind(", ") {
+        if let Some((word, quoted)) = message[at + 2..].split_once(' ') {
+            let inner = quoted.strip_prefix('\'').and_then(|q| q.strip_suffix('\''));
+            if !word.is_empty() && word.chars().all(|c| c.is_alphanumeric() || c == '_') && inner.is_some_and(|q| !q.contains('\'')) {
+                return message[..at].to_string();
+            }
+        }
+    }
+    message.to_string()
+}
+
+/// The record as the person's writes read it: the held one, else the stored one over the defaults with `labs` set
+/// (preferences.ts:85).
+async fn read_preferences(ctx: &dyn PreferencesCtx, labs: bool) -> AccountResult<Preferences> {
+    if let Some(held) = ctx.held() {
+        return Ok(held);
+    }
+    let stored = ctx.stored().await?;
+    let mut prefs = preferences_from(stored.as_ref());
+    prefs.labs = labs;
+    ctx.set_held(prefs.clone());
+    Ok(prefs)
+}
+
+/// The chain every write runs on (preferences.ts:17): each write waits for the one before, and a failed one does not
+/// stop the next.
+fn enqueue_write<T: 'static>(
+    writes: &RefCell<Option<Shared<LocalBoxFuture<'static, ()>>>>,
+    body: LocalBoxFuture<'static, AccountResult<T>>,
+) -> LocalBoxFuture<'static, AccountResult<T>> {
+    let prev = writes.borrow().clone();
+    let (answer, answered) = oneshot::channel::<AccountResult<T>>();
+    let tail: Shared<LocalBoxFuture<'static, ()>> = async move {
+        if let Some(prev) = prev {
+            prev.await;
+        }
+        let _ = answer.send(body.await);
+    }
+    .boxed_local()
+    .shared();
+    *writes.borrow_mut() = Some(tail.clone());
+    async move {
+        tail.await;
+        answered.await.unwrap_or_else(|_| Err(HostError::new("the preferences write ended before it answered").into()))
+    }
+    .boxed_local()
+}
+
 impl PreferencesArea {
     /// F1, preferences.ts:13: reads `labs` off the env once, registers the `workspace.deleted` forget.
     pub fn new(ctx: Rc<dyn PreferencesCtx>) -> Rc<PreferencesArea> {
-        todo!()
+        let env: HashMap<String, String> = ctx.env().into_iter().collect();
+        let labs = labs_from_env(&env);
+        let forget_ctx = ctx.clone();
+        ctx.on_workspace_deleted(Rc::new(move |workspace_id: &str| forget_ctx.forget_read(workspace_id)));
+        Rc::new(PreferencesArea { ctx, writes: RefCell::new(None), labs: Value::Bool(labs) })
+    }
+
+    fn labs_flag(&self) -> bool {
+        self.labs.as_bool().unwrap_or(false)
     }
 
     /// F2, preferences.ts:85.
     pub async fn get(&self) -> AccountResult<Preferences> {
-        todo!()
+        read_preferences(&*self.ctx, self.labs_flag()).await
     }
 
     /// F3, F4, F5, F6, preferences.ts:86.
     pub async fn set(self: &Rc<Self>, patch: PreferencesPatch) -> AccountResult<SetAnswer> {
-        todo!()
+        let area = self.clone();
+        let check = patch.clone();
+        let next = self
+            .change_preferences(Box::new(move |held: Preferences| {
+                let merged = apply_preferences_patch(&held, &check);
+                let next = if check.threads_shut.is_none() || merged.threads_shut.is_none() {
+                    merged
+                } else {
+                    let shut: IndexMap<String, bool> =
+                        merged.threads_shut.iter().flat_map(|shut| shut.keys()).map(|lead| (lead.clone(), true)).collect();
+                    let kept: IndexMap<String, True> = area.held_leads(&shut).into_keys().map(|lead| (lead, True)).collect();
+                    Preferences { threads_shut: Some(kept), ..merged }
+                };
+                area.defaults_refusal(&check, &next)?;
+                Ok(next)
+            }))
+            .await?;
+        let notice = if patch.server_icons == Some(false) { self.icons_forgotten() } else { None };
+        Ok(SetAnswer { preferences: next, notice })
     }
 
     /// F3, preferences.ts:72: the record moved by `change` in its turn among every other write.
-    pub async fn change_preferences(self: &Rc<Self>, change: Box<dyn FnOnce(Preferences) -> AccountResult<Preferences>>) -> AccountResult<Preferences> {
-        todo!()
+    pub async fn change_preferences(
+        self: &Rc<Self>,
+        change: Box<dyn FnOnce(Preferences) -> AccountResult<Preferences>>,
+    ) -> AccountResult<Preferences> {
+        let ctx = self.ctx.clone();
+        let labs = self.labs_flag();
+        let body: LocalBoxFuture<'static, AccountResult<Preferences>> = async move {
+            ctx.ready().await;
+            let held = read_preferences(&*ctx, labs).await?;
+            let next = change(held)?;
+            ctx.store(&next).await?;
+            ctx.set_held(next.clone());
+            let mut event = Map::new();
+            event.insert("type".to_string(), json!("preferences.changed"));
+            event.insert("preferences".to_string(), serde_json::to_value(&next).unwrap_or(Value::Null));
+            ctx.emit(Value::Object(event));
+            Ok(next)
+        }
+        .boxed_local();
+        enqueue_write(&self.writes, body).await
+    }
+
+    /// An access word the agent maps to none of its modes is refused, in the sentence the agent's table gives
+    /// (preferences.ts:40).
+    fn access_check(&self, agent: &str, access: Option<AccessChoice>) -> Result<(), HostError> {
+        let Some(word) = access else {
+            return Ok(());
+        };
+        let table = self.ctx.access_table(agent);
+        let catalog = catalog_of(agent, &table.table)?;
+        match access_word_refusal(&catalog, word) {
+            Some(refused) => {
+                let said = refusal_parts(&refused).said;
+                Err(usage(said.strip_suffix('.').unwrap_or(said.as_str())))
+            }
+            None => Ok(()),
+        }
     }
 
     /// F5, preferences.ts:35.
     pub fn defaults_refusal(&self, patch: &PreferencesPatch, next: &Preferences) -> Result<(), HostError> {
-        todo!()
+        let adapters = self.ctx.adapter_ids();
+        let agent = |id: &str| -> Result<(), HostError> {
+            if adapters.iter().any(|known| known == id) {
+                Ok(())
+            } else {
+                Err(usage(&no_adapter_line(id, &adapters)))
+            }
+        };
+        let model = |id: &str| -> Result<(), HostError> {
+            match model_id_refusal(id) {
+                Some(said) => Err(usage(&said)),
+                None => Ok(()),
+            }
+        };
+        if let Some(Some(id)) = &patch.default_agent {
+            agent(id)?;
+        }
+        if let Some(map) = &patch.agent_defaults {
+            for (id, set) in map {
+                let Some(set) = set else {
+                    continue;
+                };
+                agent(id)?;
+                self.access_check(id, set.access.flatten())?;
+                let custom = set.models.clone().flatten().and_then(|picker| picker.custom).unwrap_or_default();
+                for named in set.model.clone().flatten().into_iter().chain(custom) {
+                    model(&named)?;
+                }
+            }
+        }
+        if let Some(map) = &patch.project_defaults {
+            for (project_id, set) in map {
+                let Some(set) = set else {
+                    continue;
+                };
+                if !self.ctx.project_held(project_id) {
+                    return Err(usage(&bare_no_such_project_line(project_id)));
+                }
+                if let Some(agent_id) = set.agent.clone().flatten() {
+                    agent(&agent_id)?;
+                }
+                if let Some(model_id) = set.model.clone().flatten() {
+                    model(&model_id)?;
+                }
+                let kept = next.project_defaults.get(project_id).and_then(|fields| fields.clone().into_inner().agent);
+                let landing = kept.unwrap_or_else(|| self.ctx.default_agent_of(next));
+                self.access_check(&landing, set.access.flatten())?;
+            }
+        }
+        Ok(())
     }
 
     /// F4, preferences.ts:67: the shut entries of leads still held.
     pub fn held_leads(&self, shut: &IndexMap<String, bool>) -> IndexMap<String, bool> {
-        todo!()
+        let rows = self.ctx.session_thread_keys();
+        shut.iter()
+            .filter(|(lead, _)| rows.iter().any(|row| row == *lead) || self.ctx.thread_record_held(lead))
+            .map(|(lead, on)| (lead.clone(), *on))
+            .collect()
     }
 
     /// F6, preferences.ts:21.
     pub fn icons_forgotten(&self) -> Option<String> {
-        todo!()
+        let icons = self.ctx.server_icons()?;
+        match icons.forget() {
+            Ok(()) => None,
+            Err(message) => {
+                let home = self.ctx.home_dir();
+                Some(server_icons_left_line(&home_shortened(&icons.folder(), Some(&home)), &without_node_words(&message)))
+            }
+        }
     }
 
     /// F7, preferences.ts:102.
     pub async fn agents_workspace(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<AgentsWorkspace, HostError> {
-        todo!()
+        let entry = self.ctx.entry_of(workspace_id, origin).await?;
+        let record = entry.borrow().record.borrow().clone();
+        let (project_id, project_name) = self.ctx.project_of(&record.project)?;
+        let local = self.ctx.is_local(&entry);
+        let mut stores = IndexMap::new();
+        let mut seeds = IndexMap::new();
+        for agent in self.ctx.catalog_agents() {
+            if !local {
+                if let Some(key) = &agent.state_home_env {
+                    if let Some(folder) = self.ctx.thread_env(&entry, &agent.id).get(key) {
+                        stores.insert(agent.id.clone(), folder.clone());
+                    }
+                }
+                if let Some(key) = &agent.plugin_seed_env {
+                    if let Some(seed) = self.ctx.thread_env(&entry, &agent.id).get(key) {
+                        seeds.insert(agent.id.clone(), seed.clone());
+                    }
+                }
+            }
+        }
+        let brokered = !local && self.ctx.at_provider(&entry);
+        let pause_mode = self.ctx.pause_mode(&entry);
+        let project_path = self.ctx.checkout_of(&entry)?;
+        let phase = serde_json::to_value(record.phase).ok().and_then(|word| word.as_str().map(str::to_string)).unwrap_or_default();
+        Ok(AgentsWorkspace { name: record.name, phase, local, project_id, project_name, project_path, stores, seeds, brokered, pause_mode })
     }
 
     /// F7, preferences.ts:125.
     pub async fn agents_projects(&self, place_id: &str) -> Vec<(String, String, String)> {
-        todo!()
+        self.ctx.ready().await;
+        self.ctx.projects_on(place_id)
     }
 
     /// F7, preferences.ts:135.
-    pub async fn agents_channel(&self, target: ChannelTarget, on_event: Rc<dyn Fn(Value)>, origin: Option<&Caller>) -> AccountResult<Rc<dyn DaemonChannel>> {
-        todo!()
+    pub async fn agents_channel(
+        &self,
+        target: ChannelTarget,
+        on_event: Rc<dyn Fn(Value)>,
+        origin: Option<&Caller>,
+    ) -> AccountResult<Rc<dyn DaemonChannel>> {
+        match target {
+            ChannelTarget::Workspace(workspace_id) => self.ctx.workspace_channel(&workspace_id, on_event, origin).await,
+            ChannelTarget::Place(place_id) if place_id == HERE_PLACE_ID => self.ctx.local_channel(on_event).await,
+            ChannelTarget::Place(place_id) => match self.ctx.place_channel(&place_id, on_event) {
+                Some(link) => Ok(link),
+                None => {
+                    let name = self.ctx.place_name(&place_id).unwrap_or_else(|| place_id.clone());
+                    Err(HostError::new(absent_computer(&name, None).sentence).into())
+                }
+            },
+        }
     }
 
     /// F7, preferences.ts:142.
     pub fn agents_changed(&self, target: Option<Value>) {
-        todo!()
+        let mut event = Map::new();
+        event.insert("type".to_string(), json!("agents.changed"));
+        if let Some(target) = target {
+            event.insert("target".to_string(), target);
+        }
+        self.ctx.emit(Value::Object(event));
     }
 
     /// F7, preferences.ts:143: nothing for an agent with no adapter, else the context's `setup_view`.
     pub fn agents_setup_of(&self, place_id: &str, agent: &str) -> Option<Value> {
-        todo!()
+        if !self.ctx.adapter_ids().iter().any(|known| known == agent) {
+            return None;
+        }
+        Some(self.ctx.setup_view(place_id, agent))
     }
 
     /// F7, preferences.ts:129: whether the person lets this host ask the vendors for each agent's newest version.
     pub async fn agents_latest_on(&self) -> AccountResult<bool> {
-        todo!()
+        Ok(read_preferences(&*self.ctx, self.labs_flag()).await?.agent_versions)
     }
 
     /// F7, preferences.ts:146: the backend's `callbackRelay`.
     pub fn agents_relayed(&self) -> bool {
-        todo!()
+        self.ctx.relayed()
     }
 
     /// F7, preferences.ts:144.
     pub async fn agents_setup_write(&self, place_id: &str, agent: &str, change: Value) -> AccountResult<()> {
-        todo!()
+        let ids = self.ctx.adapter_ids();
+        if !ids.iter().any(|known| known == agent) {
+            return Err(usage(&no_adapter_line(agent, &ids)).into());
+        }
+        self.ctx.setup_write(place_id, agent, change).await?;
+        if self.ctx.drop_setup_refusal(place_id, agent) {
+            self.ctx.setup_refusal_moved(place_id, agent);
+        }
+        Ok(())
     }
 
     /// F7, preferences.ts:130: whether the icon is asked now (read at every ask).
     pub async fn icons_on(&self) -> AccountResult<bool> {
-        todo!()
+        Ok(read_preferences(&*self.ctx, self.labs_flag()).await?.server_icons)
     }
 }

@@ -6,7 +6,7 @@
 #[path = "support/base.rs"]
 mod base;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
 
@@ -52,7 +52,9 @@ fn reading_as(count: Option<u64>, id: &str, label: Option<&str>) -> ResetReading
 }
 
 fn spent(outcome: &str, left: Option<u64>) -> ResetSpend {
-    let limit = left.map(|l| serde_json::from_value(json!({ "windows": [{ "kind": "session", "usedPercent": 0 }], "credits": { "count": l } })).unwrap());
+    let limit = left.map(|l| {
+        serde_json::from_value(json!({ "windows": [{ "kind": "session", "usedPercent": 0 }], "credits": { "count": l } })).unwrap()
+    });
     ResetSpend::Outcome { outcome: outcome.to_owned(), limit }
 }
 
@@ -83,8 +85,11 @@ struct Scripts {
 }
 
 impl Resets for Scripts {
-    fn read_command(&self, road: &ResetRoad) -> String {
-        format!("READ {}", road.home)
+    fn read_command(&self, road: &ResetRoad) -> Result<String, String> {
+        if !road.home.starts_with('/') {
+            return Err(format!("home must be an absolute path, got \"{}\"", road.home));
+        }
+        Ok(format!("READ {}", road.home))
     }
     fn parse_read(&self, _stdout: &str) -> Option<ResetReading> {
         self.reads.borrow_mut().pop_front().flatten()
@@ -99,7 +104,9 @@ impl Resets for Scripts {
         let v: Value = serde_json::from_str(stdout).unwrap();
         match v["kind"].as_str().unwrap() {
             "unanswered" => ResetSpend::Unanswered,
-            "refused" => ResetSpend::Refused { refused: v["refused"].as_str().unwrap().to_owned(), too_old: v["tooOld"].as_bool().unwrap() },
+            "refused" => {
+                ResetSpend::Refused { refused: v["refused"].as_str().unwrap().to_owned(), too_old: v["tooOld"].as_bool().unwrap() }
+            }
             _ => ResetSpend::Outcome {
                 outcome: v["outcome"].as_str().unwrap().to_owned(),
                 limit: v.get("limit").filter(|l| !l.is_null()).map(|l| serde_json::from_value(l.clone()).unwrap()),
@@ -129,6 +136,7 @@ struct Deps {
     runs: RefCell<Vec<(String, String)>>,
     filed: RefCell<Vec<Option<u64>>>,
     minted: RefCell<u32>,
+    relative_home: Cell<bool>,
 }
 
 #[async_trait(?Send)]
@@ -140,7 +148,11 @@ impl UsageResetDeps for Deps {
         Ok(self.limits.clone())
     }
     fn agent_name(&self, agent: &str) -> String {
-        if agent == "codex" { "Codex".to_owned() } else { agent.to_owned() }
+        if agent == "codex" {
+            "Codex".to_owned()
+        } else {
+            agent.to_owned()
+        }
     }
     fn resets(&self, agent: &str) -> Option<Rc<dyn Resets>> {
         (agent == "codex").then(|| self.scripts.clone() as Rc<dyn Resets>)
@@ -149,7 +161,8 @@ impl UsageResetDeps for Deps {
         Ok(places())
     }
     async fn road(&self, _agent: &str, place: &ResetPlace) -> Result<ResetRoad, HostError> {
-        Ok(ResetRoad { home: format!("/logins/{}/codex", place.id), env: None, launch: None })
+        let root = if self.relative_home.get() { "" } else { "/" };
+        Ok(ResetRoad { home: format!("{root}logins/{}/codex", place.id), env: None, launch: None })
     }
     async fn run(&self, place: &ResetPlace, script: &str, _agent: &str) -> Result<String, HostError> {
         self.runs.borrow_mut().push((place.id.clone(), script.to_owned()));
@@ -172,7 +185,10 @@ impl UsageResetDeps for Deps {
         if let Some(r) = self.rows.iter().find(|r| r.key == key) {
             return Ok(Some(r.clone()));
         }
-        Ok((key == KEY).then(|| serde_json::from_value(json!({ "key": key, "agent": "codex", "label": "Codex with ChatGPT Plus", "computers": ["spoo"] })).unwrap()))
+        Ok((key == KEY).then(|| {
+            serde_json::from_value(json!({ "key": key, "agent": "codex", "label": "Codex with ChatGPT Plus", "computers": ["spoo"] }))
+                .unwrap()
+        }))
     }
     fn uuid(&self) -> String {
         *self.minted.borrow_mut() += 1;
@@ -189,7 +205,13 @@ impl Harness {
     fn new(limits: Option<Vec<AccountLimit>>, rows: Vec<AccountRow>, reads: Vec<Option<ResetReading>>, spends: Vec<Spend>) -> Harness {
         Harness::over(MemStore::new(), limits, rows, reads, spends)
     }
-    fn over(store: Rc<MemStore>, limits: Option<Vec<AccountLimit>>, rows: Vec<AccountRow>, reads: Vec<Option<ResetReading>>, spends: Vec<Spend>) -> Harness {
+    fn over(
+        store: Rc<MemStore>,
+        limits: Option<Vec<AccountLimit>>,
+        rows: Vec<AccountRow>,
+        reads: Vec<Option<ResetReading>>,
+        spends: Vec<Spend>,
+    ) -> Harness {
         let deps = Rc::new(Deps {
             store,
             limits: limits.unwrap_or_else(|| vec![named(json!({}))]),
@@ -199,6 +221,7 @@ impl Harness {
             runs: RefCell::new(vec![]),
             filed: RefCell::new(vec![]),
             minted: RefCell::new(0),
+            relative_home: Cell::new(false),
         });
         let reset = usage_resets(deps.clone());
         Harness { deps, reset }
@@ -241,7 +264,12 @@ mod which_computer_a_reset_runs_on {
     #[test]
     fn the_first_of_the_accounts_computers_that_holds_its_login_and_is_connected() {
         run(async {
-            let h = Harness::new(Some(vec![named(json!({ "computers": ["solari", "pl_boat", "pl_out", "pl_spoo"] }))]), vec![], vec![Some(reading(Some(2)))], vec![]);
+            let h = Harness::new(
+                Some(vec![named(json!({ "computers": ["solari", "pl_boat", "pl_out", "pl_spoo"] }))]),
+                vec![],
+                vec![Some(reading(Some(2)))],
+                vec![],
+            );
             h.ask(KEY).await.unwrap();
             assert_eq!(h.places_run(), vec!["pl_spoo", "pl_spoo"]);
             assert_eq!(h.scripts_run()[0], "READ /logins/pl_spoo/codex");
@@ -251,7 +279,12 @@ mod which_computer_a_reset_runs_on {
     #[test]
     fn the_one_the_person_named_refused_with_the_computers_own_sentence_when_away() {
         run(async {
-            let h = Harness::new(Some(vec![named(json!({ "computers": ["pl_spoo", "pl_boat"] }))]), vec![], vec![Some(reading(Some(2)))], vec![]);
+            let h = Harness::new(
+                Some(vec![named(json!({ "computers": ["pl_spoo", "pl_boat"] }))]),
+                vec![],
+                vec![Some(reading(Some(2)))],
+                vec![],
+            );
             let away = h.ask_on(KEY, "pl_boat").await.unwrap_err();
             assert_eq!(away.message, absent("Boat"));
             assert_eq!(away.kind, None);
@@ -383,6 +416,19 @@ mod what_is_refused_before_anything_is_spent {
     }
 
     #[test]
+    fn a_home_the_agent_would_not_read_is_a_plain_refusal_with_nothing_run() {
+        run(async {
+            let h = Harness::new(None, vec![], vec![Some(reading(Some(2)))], vec![]);
+            h.deps.relative_home.set(true);
+            let e = h.ask(KEY).await.unwrap_err();
+            assert_eq!(e.kind, None);
+            assert_eq!(e.message, "home must be an absolute path, got \"logins/pl_spoo/codex\"");
+            assert!(h.scripts_run().is_empty());
+            assert!(h.pending_ids().is_empty());
+        });
+    }
+
+    #[test]
     fn nothing_banked_on_the_read_with_no_spend() {
         run(async {
             let h = Harness::new(None, vec![], vec![Some(reading(Some(0)))], vec![]);
@@ -423,11 +469,27 @@ mod a_spend {
     fn says_each_answer_in_its_words_the_reading_after_it_filed() {
         run(async {
             let cases = [
-                (spent("reset", Some(1)), ResetOutcome::Reset, "Reset used: Codex with ChatGPT Plus on spoo's windows start again now, 1 left"),
-                (spent("nothingToReset", None), ResetOutcome::NothingToReset, "No window of Codex with ChatGPT Plus on spoo is in use right now, so the credit was kept"),
+                (
+                    spent("reset", Some(1)),
+                    ResetOutcome::Reset,
+                    "Reset used: Codex with ChatGPT Plus on spoo's windows start again now, 1 left",
+                ),
+                (
+                    spent("nothingToReset", None),
+                    ResetOutcome::NothingToReset,
+                    "No window of Codex with ChatGPT Plus on spoo is in use right now, so the credit was kept",
+                ),
                 (spent("noCredit", None), ResetOutcome::NoCredit, "No reset banked on Codex with ChatGPT Plus on spoo"),
-                (spent("alreadyRedeemed", None), ResetOutcome::AlreadyRedeemed, "That reset of Codex with ChatGPT Plus on spoo was already used"),
-                (spent("resetPartly", None), ResetOutcome::Unknown, "Codex answered resetPartly for Codex with ChatGPT Plus on spoo; the account was read again"),
+                (
+                    spent("alreadyRedeemed", None),
+                    ResetOutcome::AlreadyRedeemed,
+                    "That reset of Codex with ChatGPT Plus on spoo was already used",
+                ),
+                (
+                    spent("resetPartly", None),
+                    ResetOutcome::Unknown,
+                    "Codex answered resetPartly for Codex with ChatGPT Plus on spoo; the account was read again",
+                ),
             ];
             for (answer, outcome, said) in cases {
                 let h = Harness::new(None, vec![], vec![Some(reading(Some(2)))], vec![Spend::Reply(answer)]);
@@ -448,9 +510,17 @@ mod a_spend {
     fn a_refusal_past_400_units_is_marked_cut() {
         run(async {
             let long = "é".repeat(450);
-            let h = Harness::new(None, vec![], vec![Some(reading(Some(2)))], vec![Spend::Reply(ResetSpend::Refused { refused: long.clone(), too_old: false })]);
+            let h = Harness::new(
+                None,
+                vec![],
+                vec![Some(reading(Some(2)))],
+                vec![Spend::Reply(ResetSpend::Refused { refused: long.clone(), too_old: false })],
+            );
             let e = h.ask(KEY).await.unwrap_err();
-            assert_eq!(e.message, format!("Codex on spoo refused the reset of Codex with ChatGPT Plus: {} (cut 50 characters)", "é".repeat(400)));
+            assert_eq!(
+                e.message,
+                format!("Codex on spoo refused the reset of Codex with ChatGPT Plus: {} (cut 50 characters)", "é".repeat(400))
+            );
         });
     }
 
@@ -486,7 +556,12 @@ mod a_spend {
     #[test]
     fn keeps_the_key_when_the_spend_went_unanswered_and_lets_go_once_answered() {
         run(async {
-            let h = Harness::new(None, vec![], vec![Some(reading(Some(2))), Some(reading(Some(2)))], vec![Spend::Reply(ResetSpend::Unanswered), Spend::Reply(spent("reset", Some(1)))]);
+            let h = Harness::new(
+                None,
+                vec![],
+                vec![Some(reading(Some(2))), Some(reading(Some(2)))],
+                vec![Spend::Reply(ResetSpend::Unanswered), Spend::Reply(spent("reset", Some(1)))],
+            );
             let e = h.ask(KEY).await.unwrap_err();
             assert_eq!(e.message, "Codex on spoo did not answer; the same request goes again on the next press");
             assert_eq!(h.pending(), Some(json!({ "key": "key-1", "before": 2 })));
@@ -510,7 +585,12 @@ mod a_spend {
     #[test]
     fn says_the_count_fell_since_an_unanswered_press_and_spends_nothing() {
         run(async {
-            let h = Harness::new(None, vec![], vec![Some(reading(Some(2))), Some(reading(Some(1)))], vec![Spend::Reply(ResetSpend::Unanswered)]);
+            let h = Harness::new(
+                None,
+                vec![],
+                vec![Some(reading(Some(2))), Some(reading(Some(1)))],
+                vec![Spend::Reply(ResetSpend::Unanswered)],
+            );
             assert!(h.ask(KEY).await.unwrap_err().message.contains("did not answer"));
             let a = h.ask(KEY).await.unwrap();
             assert_eq!(a.outcome, ResetOutcome::Earlier);
@@ -536,7 +616,10 @@ mod a_spend {
             );
             assert_eq!(h.ask(KEY).await.unwrap_err().message, "Codex on spoo is older than 0.141 and has no resets");
             assert!(h.pending().is_none());
-            assert_eq!(h.ask(KEY).await.unwrap_err().message, "Codex on spoo refused the reset of Codex with ChatGPT Plus: chatgpt authentication required");
+            assert_eq!(
+                h.ask(KEY).await.unwrap_err().message,
+                "Codex on spoo refused the reset of Codex with ChatGPT Plus: chatgpt authentication required"
+            );
             assert_eq!(h.spend_runs(), vec!["SPEND key-1 -", "SPEND key-2 -"]);
         });
     }
@@ -546,9 +629,11 @@ mod a_spend {
         run(async {
             // What survives a restart: the pending row, not the joins. A new host over the same store reuses the key.
             let store = MemStore::new();
-            let first = Harness::over(store.clone(), None, vec![], vec![Some(reading(Some(2)))], vec![Spend::Reply(ResetSpend::Unanswered)]);
+            let first =
+                Harness::over(store.clone(), None, vec![], vec![Some(reading(Some(2)))], vec![Spend::Reply(ResetSpend::Unanswered)]);
             assert!(first.ask(KEY).await.is_err());
-            let again = Harness::over(store.clone(), None, vec![], vec![Some(reading(Some(2)))], vec![Spend::Reply(spent("reset", Some(1)))]);
+            let again =
+                Harness::over(store.clone(), None, vec![], vec![Some(reading(Some(2)))], vec![Spend::Reply(spent("reset", Some(1)))]);
             again.ask(KEY).await.unwrap();
             assert_eq!(again.spend_runs(), vec!["SPEND key-1 -"]);
             assert_eq!(*again.deps.minted.borrow(), 0, "no new key is minted");

@@ -3,7 +3,7 @@
 //! `BaseOf`), `MoveRoads` and `ProjectsCtx`; `FakeRoad`, `FakeSource`, `FakeSeed`, `FakeBundler` and `FakeLander` are the
 //! landing road, the source module, the seed reader, the folder's bundler and this computer's lander. Every method logs
 //! `self.base.call(<method name>, args)` and answers from the script (`base.answer_with(name, ..)`) or a default.
-#![allow(dead_code)]
+#![allow(dead_code, unused_imports)]
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -12,26 +12,23 @@ use async_trait::async_trait;
 use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 use wsp_account::projects::projects::add::{
-    ComputerRow, JoinedComputer, LandAsk, Landed, LandingDeps, LandingKind, LandingRoad, ProjectSourceModule, ResolveAsk,
-    SourceResolved,
+    ComputerRow, JoinedComputer, LandAsk, Landed, LandingDeps, LandingKind, LandingRoad, ProjectSourceModule, ResolveAsk, SourceResolved,
 };
 use wsp_account::projects::projects::moves::{LandHooks, MoveRoads, Progress};
 use wsp_account::projects::projects::ProjectsCtx;
-use wsp_account::projects::workspaces::seam::{
-    Base, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, Live, ProjectsHeld,
-};
+use wsp_account::projects::workspaces::seam::{Base, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, Live, ProjectsHeld};
 use wsp_core::clock::Clock;
 use wsp_core::ids::Ids;
+use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::internal::{ImportLanded, ImportReport};
 use wsp_core::types::pending::{CacheRule, Store};
-use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::wiring::{
-    LandRequest, LandedAgent, LandedProject, PackedProject, PackedState, ProjectBundler, ProjectImportOptions, ProjectLander,
-    SeedPack, SeedWiring, StateRequest, WorkspaceRecord,
+    LandRequest, LandedAgent, LandedProject, PackedProject, PackedState, ProjectBundler, ProjectImportOptions, ProjectLander, SeedPack,
+    SeedWiring, StateRequest, WorkspaceRecord,
 };
 use wsp_engine::machine::{
-    BackendPricing, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineKind, MachineLife, MachineListRow,
-    MachineSpec, MachineState, RunOptions, SnapshotOptions,
+    BackendPricing, Capabilities, ExecOptions, ExecResult, Machine, MachineBackend, MachineKind, MachineLife, MachineListRow, MachineSpec,
+    MachineState, RunOptions, SnapshotOptions,
 };
 use wsp_engine::EngineError;
 use wsp_wire::types::thread_defaults::ThreadDefaults;
@@ -192,13 +189,18 @@ impl LandingRoad for FakeRoad {
         self.kind
     }
     fn path(&self, name: &str, source: &ProjectSource, deps: &LandingDeps) -> String {
-        self.base.call("road_path", json!({ "kind": kind_word(self.kind), "name": name, "source": source_json(source), "deps": Self::deps_json(deps) }));
+        self.base.call(
+            "road_path",
+            json!({ "kind": kind_word(self.kind), "name": name, "source": source_json(source), "deps": Self::deps_json(deps) }),
+        );
         if let Some(v) = self.scripted("path") {
             return v.as_str().unwrap().to_owned();
         }
         match (self.kind, source) {
             (_, ProjectSource::Folder(f)) if self.kind == LandingKind::Mac => f.path.clone(),
-            (LandingKind::Box, _) => format!("{}/{name}", deps.computer.as_ref().map(|c| c.home.clone()).unwrap_or_else(|| "/root".to_owned())),
+            (LandingKind::Box, _) => {
+                format!("{}/{name}", deps.computer.as_ref().map(|c| c.home.clone()).unwrap_or_else(|| "/root".to_owned()))
+            }
             _ => format!("/root/{name}"),
         }
     }
@@ -344,7 +346,13 @@ impl ProjectSourceModule for FakeSource {
             }
             ProjectSource::Folder(f) => {
                 let remote = (ask.folder_remote)(f.path.clone()).await?;
-                Ok(SourceResolved { name: last_segment(&f.path), remote, default_branch: "main".to_owned(), seed: None, seed_memory_key: None })
+                Ok(SourceResolved {
+                    name: last_segment(&f.path),
+                    remote,
+                    default_branch: "main".to_owned(),
+                    seed: None,
+                    seed_memory_key: None,
+                })
             }
             ProjectSource::Git(g) => Ok(SourceResolved {
                 name: last_segment(g.url.trim_end_matches(".git")),
@@ -512,7 +520,13 @@ pub struct FakeLander {
 
 impl FakeLander {
     pub fn new(base: &Rc<FakeBase>) -> Rc<FakeLander> {
-        Rc::new(FakeLander { base: base.clone(), agents: RefCell::new(vec![]), files: Cell::new(3), bytes: Cell::new(4000), seen: RefCell::new(vec![]) })
+        Rc::new(FakeLander {
+            base: base.clone(),
+            agents: RefCell::new(vec![]),
+            files: Cell::new(3),
+            bytes: Cell::new(4000),
+            seen: RefCell::new(vec![]),
+        })
     }
 }
 
@@ -750,14 +764,26 @@ impl MoveRoads for FakeProjects {
         self.base.call("scratch", json!({ "id": rec(entry).id }));
         "/tmp".to_owned()
     }
-    async fn land_bundle(&self, entry: &Entry, tar: Vec<u8>, dest: &str, replace: Option<bool>, hooks: LandHooks) -> Result<u64, HostError> {
+    async fn land_bundle(
+        &self,
+        entry: &Entry,
+        tar: Vec<u8>,
+        dest: &str,
+        replace: Option<bool>,
+        hooks: LandHooks,
+    ) -> Result<u64, HostError> {
         self.base.call("land_bundle", json!({ "id": rec(entry).id, "bytes": tar.len(), "dest": dest, "replace": replace }));
         let parts: Vec<Progress> = match self.base.answer("land_bundle_parts") {
             Some(v) => v
                 .as_array()
                 .unwrap()
                 .iter()
-                .map(|p| Progress { part: p[0].as_u64().unwrap(), parts: p[1].as_u64().unwrap(), bytes: p[2].as_u64().unwrap(), total: p[3].as_u64().unwrap() })
+                .map(|p| Progress {
+                    part: p[0].as_u64().unwrap(),
+                    parts: p[1].as_u64().unwrap(),
+                    bytes: p[2].as_u64().unwrap(),
+                    total: p[3].as_u64().unwrap(),
+                })
                 .collect(),
             None => vec![Progress { part: 1, parts: 1, bytes: tar.len() as u64, total: tar.len() as u64 }],
         };
@@ -781,7 +807,8 @@ impl MoveRoads for FakeProjects {
         Ok(())
     }
     async fn merge_on_machine(&self, entry: &Entry, script: &str, agent: ProjectAgentResult) -> Result<ProjectAgentResult, HostError> {
-        self.base.call("merge_on_machine", json!({ "id": rec(entry).id, "script": script, "agent": serde_json::to_value(&agent).unwrap() }));
+        self.base
+            .call("merge_on_machine", json!({ "id": rec(entry).id, "script": script, "agent": serde_json::to_value(&agent).unwrap() }));
         match self.base.answer("merge_on_machine") {
             None => Ok(agent),
             Some(v) => match error_in(&v) {
@@ -798,7 +825,14 @@ impl MoveRoads for FakeProjects {
         self.base.call("provider_row", json!({ "id": rec(entry).id }));
         self.base.answer_as("provider_row", || true)
     }
-    async fn export_folder(&self, entry: &Entry, source: &str, caches: &[String], archive: &str, on_progress: Rc<dyn Fn(Progress)>) -> Result<Vec<String>, HostError> {
+    async fn export_folder(
+        &self,
+        entry: &Entry,
+        source: &str,
+        caches: &[String],
+        archive: &str,
+        on_progress: Rc<dyn Fn(Progress)>,
+    ) -> Result<Vec<String>, HostError> {
         self.base.call("export_folder", json!({ "id": rec(entry).id, "source": source, "caches": caches, "archive": archive }));
         if let Some(e) = self.base.answer("export_folder_fails").and_then(|v| error_in(&v)) {
             return Err(e);
@@ -808,7 +842,13 @@ impl MoveRoads for FakeProjects {
         on_progress(Progress { part: 0, parts: 0, bytes: 6, total: 6 });
         self.base.answer_as("export_folder", || vec!["dist".to_owned(), "node_modules".to_owned()])
     }
-    async fn export_paths_into(&self, entry: &Entry, groups: Vec<(String, Vec<String>)>, archive: &str, on_progress: Rc<dyn Fn(Progress)>) -> Result<(), HostError> {
+    async fn export_paths_into(
+        &self,
+        entry: &Entry,
+        groups: Vec<(String, Vec<String>)>,
+        archive: &str,
+        on_progress: Rc<dyn Fn(Progress)>,
+    ) -> Result<(), HostError> {
         self.base.call("export_paths_into", json!({ "id": rec(entry).id, "groups": groups, "archive": archive }));
         if let Some(e) = self.base.answer("export_paths_into").and_then(|v| error_in(&v)) {
             return Err(e);
@@ -820,7 +860,8 @@ impl MoveRoads for FakeProjects {
     }
     async fn machine_run(&self, entry: &Entry, script: &str, deadline_ms: u64) -> Result<ExecResult, HostError> {
         self.base.call("machine_run", json!({ "id": rec(entry).id, "script": script, "deadlineMs": deadline_ms }));
-        let mut got: ExecResult = self.base.answer_as("machine_run", || ExecResult { exit_code: 0.into(), stdout: String::new(), stderr: String::new() })?;
+        let mut got: ExecResult =
+            self.base.answer_as("machine_run", || ExecResult { exit_code: 0.into(), stdout: String::new(), stderr: String::new() })?;
         // A listing names the copies it wrote under the scratch root it was handed, which only the script knows.
         if got.stdout.contains("{SCRATCH}") {
             got.stdout = got.stdout.replace("{SCRATCH}", &scratch_root(script).expect("the listing names a scratch root"));
@@ -832,7 +873,10 @@ impl MoveRoads for FakeProjects {
         self.base.answer_as("machine_exec", || ExecResult { exit_code: 0.into(), stdout: String::new(), stderr: String::new() })
     }
     async fn kind_import(&self, entry: &Entry, o: ProjectImportOptions, report: ImportReport) -> Result<ImportLanded, HostError> {
-        self.base.call("kind_import", json!({ "id": rec(entry).id, "workspaceId": o.workspace_id, "source": o.source, "dest": o.dest, "replace": o.replace }));
+        self.base.call(
+            "kind_import",
+            json!({ "id": rec(entry).id, "workspaceId": o.workspace_id, "source": o.source, "dest": o.dest, "replace": o.replace }),
+        );
         if let Some(ms) = self.base.answer("kind_import_advance").and_then(|v| v.as_i64()) {
             self.base.clock.advance(ms);
         }
@@ -852,7 +896,10 @@ impl MoveRoads for FakeProjects {
             }),
             Some(v) => match error_in(&v) {
                 Some(e) => Err(e),
-                None => Ok(ImportLanded { result: serde_json::from_value(v["result"].clone()).expect("a scripted result reads"), done: v["done"].as_str().unwrap().to_owned() }),
+                None => Ok(ImportLanded {
+                    result: serde_json::from_value(v["result"].clone()).expect("a scripted result reads"),
+                    done: v["done"].as_str().unwrap().to_owned(),
+                }),
             },
         }
     }
@@ -966,7 +1013,10 @@ impl ProjectsCtx for FakeProjects {
         self.holding.borrow().iter().any(|w| w == workspace_id)
     }
     async fn delete_workspace(&self, id: &str, origin: Option<Caller>) -> Result<(), HostError> {
-        self.base.call("delete_workspace", json!({ "id": id, "scoped": scoped(origin.as_ref()), "writes": self.base.store.writes.borrow().len() }));
+        self.base.call(
+            "delete_workspace",
+            json!({ "id": id, "scoped": scoped(origin.as_ref()), "writes": self.base.store.writes.borrow().len() }),
+        );
         self.base.answer_as("delete_workspace", || ())?;
         self.base.live.borrow_mut().shift_remove(id);
         Ok(())
@@ -1085,7 +1135,7 @@ pub fn scratch_root(script: &str) -> Option<String> {
         if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(&rest[..end]) {
             if let Ok(Value::String(text)) = serde_json::from_slice::<Value>(&bytes) {
                 if text.starts_with("/tmp/wsp-state-") {
-                    return Some(text);
+                    return Some(text.splitn(4, '/').take(3).collect::<Vec<_>>().join("/"));
                 }
             }
         }

@@ -3,6 +3,7 @@
 
 pub mod folders;
 pub mod images;
+#[allow(clippy::module_inception)]
 pub mod projects;
 pub mod start_from;
 pub mod workspaces;

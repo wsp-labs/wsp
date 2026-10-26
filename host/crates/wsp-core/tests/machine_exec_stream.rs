@@ -1154,6 +1154,34 @@ mod machine_exec_stream_holding_a_line_written_ahead_of_when_it_is_due {
         assert_eq!(*lines.lock().unwrap(), vec!["one", "two"]);
     });
 
+    // machine-exec.test.ts:1752-1769 (62fededd7): a wait refused before its line is handed over drops the line. The TS
+    // takes the wait's outcome when writeAfter is called, which a Rust future shows as being polled at once.
+    own_group_test!(a_wait_already_refused_while_an_earlier_line_is_still_parked_is_taken_at_once_and_drops_its_line, 15_000, {
+        let _sweep = Sweep;
+        let (machine, run_dir, _dir) = local();
+        let stream = machine_exec_stream(machine, local_opts(20, &run_dir), None).launch("cat", with_input(&["one"]));
+        let reading = read(&stream);
+        support::wait_for("the first line", 5_000, || reading.lines() == vec!["one"]).await;
+        assert!(stream.write_after("first".to_string(), after_ms(400)).is_some());
+        let polled = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let noted = polled.clone();
+        let refused: Settle = Box::pin(async move {
+            noted.store(true, std::sync::atomic::Ordering::SeqCst);
+            Err("stopped".to_string())
+        });
+        assert!(stream.write_after("never".to_string(), refused).is_some());
+        support::sleep_ms(100).await;
+        assert!(
+            polled.load(std::sync::atomic::Ordering::SeqCst),
+            "the refused wait was not taken while an earlier line still held the queue"
+        );
+        support::wait_for("the first parked line", 5_000, || reading.lines() == vec!["one", "first"]).await;
+        stream.close_input();
+        let lines = reading.seen.clone();
+        reading.done().await;
+        assert_eq!(*lines.lock().unwrap(), vec!["one", "first"]);
+    });
+
     own_group_test!(drops_the_line_when_what_it_waits_on_is_refused, 15_000, {
         let _sweep = Sweep;
         let (machine, run_dir, _dir) = local();

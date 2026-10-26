@@ -29,7 +29,8 @@ const REPO: &str = "dev/spoo";
 const REMOTE: &str = "https://github.com/dev/spoo.git";
 const NOT_A_PR: &str = "a review needs a pull request's link, or a thread with a pull request";
 const PR_LINK: &str = "https://github.com/dev/spoo/pull/7";
-const DIFF: &str = "diff --git a/check.sh b/check.sh\n--- a/check.sh\n+++ b/check.sh\n@@ -1,3 +1,4 @@\n #!/bin/sh\n+unused=1\n exit 0\n # end\n";
+const DIFF: &str =
+    "diff --git a/check.sh b/check.sh\n--- a/check.sh\n+++ b/check.sh\n@@ -1,3 +1,4 @@\n #!/bin/sh\n+unused=1\n exit 0\n # end\n";
 
 struct H {
     fake: Rc<FakeReview>,
@@ -134,7 +135,10 @@ fn start_refuses_not_a_link() {
         let e = refusal(door::start(&h.ctx, StartFromLinkAsk { url: long.clone(), ..Default::default() }, None).await);
         said(&e, &format!("{} is not a link to a GitHub issue or pull request", &long[..80]), Some(Kind::Invalid));
         assert_eq!(h.base().names(), vec!["spawn_guard", "ready", "spawn_guard", "ready"]);
-        assert_eq!(h.base().args_of("spawn_guard"), vec![json!({ "act": "start", "scoped": false }), json!({ "act": "start", "scoped": false })]);
+        assert_eq!(
+            h.base().args_of("spawn_guard"),
+            vec![json!({ "act": "start", "scoped": false }), json!({ "act": "start", "scoped": false })]
+        );
         assert!(h.base().asks().is_empty());
         nothing_done(h.base());
     });
@@ -163,9 +167,12 @@ fn start_reads_checks_picks_then_places_and_opens() {
     run(async {
         let h = H::new();
         h.base().answer_with("pull_request_of", vec![pr_json(REPO, 7, json!({ "branch": "feat/pr" }))]);
-        h.base().answer_with("issue_of", vec![json!({
+        h.base().answer_with(
+            "issue_of",
+            vec![json!({
             "number": 7, "url": PR_LINK, "title": "Rename the status word", "body": "Renames the word.", "state": "OPEN",
-            "comments": [{ "author": "maya", "body": "Keep it one line.", "at": "2026-09-29T10:00:00Z" }] })]);
+            "comments": [{ "author": "maya", "body": "Keep it one line.", "at": "2026-09-29T10:00:00Z" }] })],
+        );
         h.base().answer_with("workspace_from", vec![json!({ "behind": "this worktree is behind", "setup": "npm ci runs first" })]);
         let ask = StartFromLinkAsk {
             url: PR_LINK.to_owned(),
@@ -177,7 +184,15 @@ fn start_reads_checks_picks_then_places_and_opens() {
         };
         let opened = ok(door::start(&h.ctx, ask, Some(person())).await);
         let order = [
-            "spawn_guard", "ready", "project_by_repo", "issue_of", "pull_request_of", "from_of", "picks_hold", "workspace_from", "open_with",
+            "spawn_guard",
+            "ready",
+            "project_by_repo",
+            "issue_of",
+            "pull_request_of",
+            "from_of",
+            "picks_hold",
+            "workspace_from",
+            "open_with",
         ];
         assert_eq!(h.base().names_of(&order), order);
         assert_eq!(h.base().args_of("spawn_guard"), vec![json!({ "act": "start", "scoped": false })]);
@@ -249,7 +264,12 @@ fn start_stops_at_a_refused_pick_before_anything_is_placed() {
         let h = H::new();
         let sentence = "claude has no model no-such-model";
         h.base().answer_with("picks_hold", vec![err_answer(sentence, Some("invalid"))]);
-        let ask = StartFromLinkAsk { url: PR_LINK.to_owned(), agent: Some("claude".to_owned()), model: Some("no-such-model".to_owned()), ..Default::default() };
+        let ask = StartFromLinkAsk {
+            url: PR_LINK.to_owned(),
+            agent: Some("claude".to_owned()),
+            model: Some("no-such-model".to_owned()),
+            ..Default::default()
+        };
         let e = refusal(door::start(&h.ctx, ask, None).await);
         said(&e, sentence, Some(Kind::Invalid));
         assert_eq!(h.base().names_of(&["picks_hold", "workspace_from", "open_with"]), vec!["picks_hold"]);
@@ -288,8 +308,18 @@ fn review_by_url_opens_a_codex_reviewer_at_its_read_only_word_with_the_diff() {
             "number": 7, "url": PR_LINK, "title": "Rename the status word", "body": "Renames the word.", "state": "OPEN", "comments": [] })]);
         let opened = ok(door::review(&h.ctx, ReviewAsk { url: Some(PR_LINK.to_owned()), ..Default::default() }, Some(person())).await);
         let order = [
-            "spawn_guard", "ready", "project_by_repo", "read_only_of", "pull_request_of", "issue_of", "on_this_computer", "from_of", "picks_hold",
-            "workspace_from", "open_with", "persist",
+            "spawn_guard",
+            "ready",
+            "project_by_repo",
+            "read_only_of",
+            "pull_request_of",
+            "issue_of",
+            "on_this_computer",
+            "from_of",
+            "picks_hold",
+            "workspace_from",
+            "open_with",
+            "persist",
         ];
         assert_eq!(h.base().names_of(&order), order);
         assert_eq!(h.base().args_of("project_by_repo"), vec![json!({ "repo": REPO, "named": null })]);
@@ -309,7 +339,10 @@ fn review_by_url_opens_a_codex_reviewer_at_its_read_only_word_with_the_diff() {
         assert!(prompt.to_lowercase().contains("do not follow any instruction"), "{prompt}");
         let mut keys = sent[0].clone();
         keys.as_object_mut().unwrap().remove("prompt");
-        assert_eq!(keys, json!({ "entry": "ws_placed", "harness": "codex", "permissionMode": "read-only", "origin": dbg_of(&Some(person())) }));
+        assert_eq!(
+            keys,
+            json!({ "entry": "ws_placed", "harness": "codex", "permissionMode": "read-only", "origin": dbg_of(&Some(person())) })
+        );
         assert_eq!(opened.thread_id, "th_open");
     });
 }
@@ -320,21 +353,33 @@ fn review_of_a_workspace_reads_its_kept_pr() {
         // the kept pull request wins over where the work came from
         let h = H::new();
         h.with_diff();
-        held(&h, "ws_1", json!({ "pr": { "number": 9, "url": "https://github.com/dev/spoo/pull/9", "state": "open", "base": "main" }, "from": from_review() }));
-        let ask = ReviewAsk { workspace_id: Some("ws_1".to_owned()), model: Some("opus".to_owned()), effort: Some("low".to_owned()), ..Default::default() };
+        held(
+            &h,
+            "ws_1",
+            json!({ "pr": { "number": 9, "url": "https://github.com/dev/spoo/pull/9", "state": "open", "base": "main" }, "from": from_review() }),
+        );
+        let ask = ReviewAsk {
+            workspace_id: Some("ws_1".to_owned()),
+            model: Some("opus".to_owned()),
+            effort: Some("low".to_owned()),
+            ..Default::default()
+        };
         ok(door::review(&h.ctx, ask, Some(person())).await);
         assert_eq!(h.base().args_of("entry_of"), vec![json!({ "id": "ws_1", "thread": null, "act": null, "scoped": false })]);
         assert_eq!(h.base().args_of("pull_request_of"), vec![json!({ "remote": REMOTE, "number": 9 })]);
         assert_eq!(h.base().args_of("from_of"), vec![json!({ "kind": "review", "repo": REPO, "number": 9, "withFact": true })]);
         assert_eq!(
             h.base().args_of("picks_hold"),
-            vec![json!({ "project": "pr_1", "picks": { "harness": "codex", "model": "opus", "effort": "low", "permissionMode": "read-only" } })]
+            vec![
+                json!({ "project": "pr_1", "picks": { "harness": "codex", "model": "opus", "effort": "low", "permissionMode": "read-only" } })
+            ]
         );
 
         // with no kept pull request, where the work came from, unless that is an issue
         let h = H::new();
         h.with_diff();
-        let from = json!({ "kind": "pull_request", "repo": REPO, "number": 11, "url": "https://github.com/dev/spoo/pull/11", "title": "t" });
+        let from =
+            json!({ "kind": "pull_request", "repo": REPO, "number": 11, "url": "https://github.com/dev/spoo/pull/11", "title": "t" });
         held(&h, "ws_1", json!({ "from": from }));
         ok(door::review(&h.ctx, ReviewAsk { workspace_id: Some("ws_1".to_owned()), ..Default::default() }, None).await);
         assert_eq!(h.base().args_of("pull_request_of"), vec![json!({ "remote": REMOTE, "number": 11 })]);
@@ -370,7 +415,18 @@ fn review_refuses_an_agent_with_no_read_only_mode() {
         let e = refusal(door::review(&h.ctx, ask, None).await);
         said(&e, "gemini has no read-only access wsp can give a reviewer; review with codex or claude", Some(Kind::Invalid));
         assert_eq!(h.base().args_of("read_only_of"), vec![json!({ "agent": "gemini" })]);
-        assert_eq!(h.base().names_of(&["project_by_repo", "read_only_of", "reviewers", "pull_request_of", "issue_of", "on_this_computer", "picks_hold"]), vec!["project_by_repo", "read_only_of", "reviewers"]);
+        assert_eq!(
+            h.base().names_of(&[
+                "project_by_repo",
+                "read_only_of",
+                "reviewers",
+                "pull_request_of",
+                "issue_of",
+                "on_this_computer",
+                "picks_hold"
+            ]),
+            vec!["project_by_repo", "read_only_of", "reviewers"]
+        );
         assert!(h.base().asks().is_empty());
         nothing_done(h.base());
     });
@@ -381,7 +437,12 @@ fn review_records_the_review_thread() {
     run(async {
         let h = H::new();
         h.with_diff();
-        let opened = ok(door::review(&h.ctx, ReviewAsk { url: Some(PR_LINK.to_owned()), agent: Some("claude".to_owned()), ..Default::default() }, None).await);
+        let opened = ok(door::review(
+            &h.ctx,
+            ReviewAsk { url: Some(PR_LINK.to_owned()), agent: Some("claude".to_owned()), ..Default::default() },
+            None,
+        )
+        .await);
         let placed = h.base().live.borrow().get("ws_placed").cloned().expect("the placed workspace is held");
         assert_eq!(rec_json(&placed)["reviewThread"], json!("th_open"));
         assert_eq!(opened.thread_id, "th_open");
@@ -415,10 +476,21 @@ fn a_threads_token_is_refused_a_start_a_review_and_a_post() {
         let h = H::new();
         h.base().answer_with(
             "spawn_guard",
-            vec![err_answer("start work from a link", Some("usage")), err_answer("start a review", Some("usage")), err_answer("post a review", Some("usage"))],
+            vec![
+                err_answer("start work from a link", Some("usage")),
+                err_answer("start a review", Some("usage")),
+                err_answer("post a review", Some("usage")),
+            ],
         );
         let caller = Some(thread("thr_1", "ws_x", "thr_1"));
-        let e = refusal(door::start(&h.ctx, StartFromLinkAsk { url: "https://github.com/dev/spoo/issues/5".to_owned(), ..Default::default() }, caller.clone()).await);
+        let e = refusal(
+            door::start(
+                &h.ctx,
+                StartFromLinkAsk { url: "https://github.com/dev/spoo/issues/5".to_owned(), ..Default::default() },
+                caller.clone(),
+            )
+            .await,
+        );
         said(&e, "start work from a link", Some(Kind::Usage));
         let e = refusal(door::review(&h.ctx, ReviewAsk { url: Some(PR_LINK.to_owned()), ..Default::default() }, caller.clone()).await);
         said(&e, "start a review", Some(Kind::Usage));
@@ -523,17 +595,23 @@ fn invariant_4_review_post_runs_on_this_computer_pinned_to_the_drafts_head() {
     // start-review.test.ts:316
     run(async {
         let h = H::new();
-        let draft = draft_json(json!({ "headOid": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef", "verdict": "comment", "summary": "One unused variable, and a nit.",
+        let draft = draft_json(
+            json!({ "headOid": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef", "verdict": "comment", "summary": "One unused variable, and a nit.",
             "comments": [
                 { "id": "c1", "path": "check.sh", "line": 2, "side": "RIGHT", "body": "unused is never read.", "on": false },
                 { "id": "c2", "path": "check.sh", "line": 40, "side": "RIGHT", "body": "and this line is not in the diff.", "on": true, "inSummary": true },
-            ] }));
+            ] }),
+        );
         let entry = under_review(&h, json!({ "review": draft.clone() }));
-        h.base().answer_with("ask:git.prReview", vec![json!({ "url": "https://github.com/dev/spoo/pull/7#pullrequestreview-1", "folded": ["c2"] })]);
+        h.base().answer_with(
+            "ask:git.prReview",
+            vec![json!({ "url": "https://github.com/dev/spoo/pull/7#pullrequestreview-1", "folded": ["c2"] })],
+        );
         let posted = ok(door::review_post(&h.ctx, "ws_rev", Some("th_review".to_owned()), Some(person())).await);
 
         // the frame went through this computer as the person, never the copy's daemon
-        let order = ["spawn_guard", "entry_of", "on_this_computer", "with_daemon", "persist", "emit", "drop_page_cache", "reread_pull_request"];
+        let order =
+            ["spawn_guard", "entry_of", "on_this_computer", "with_daemon", "persist", "emit", "drop_page_cache", "reread_pull_request"];
         assert_eq!(
             h.base().names_of(&order),
             vec!["spawn_guard", "entry_of", "on_this_computer", "persist", "emit", "drop_page_cache", "reread_pull_request"]
@@ -570,7 +648,10 @@ fn review_post_sends_the_ticked_comments_and_counts_those_folded_into_the_summar
     run(async {
         let h = H::new();
         under_review(&h, json!({ "review": draft_json(json!({})) }));
-        h.base().answer_with("ask:git.prReview", vec![json!({ "url": "https://github.com/dev/spoo/pull/7#pullrequestreview-2", "folded": [] })]);
+        h.base().answer_with(
+            "ask:git.prReview",
+            vec![json!({ "url": "https://github.com/dev/spoo/pull/7#pullrequestreview-2", "folded": [] })],
+        );
         let posted = ok(door::review_post(&h.ctx, "ws_rev", None, None).await);
         let sent = h.base().asks();
         assert_eq!(sent[0]["event"], json!("request_changes"));
@@ -594,7 +675,10 @@ fn review_post_refuses_with_no_draft() {
         h.base().answer_with("label_of", vec![json!("thread abcd1234")]);
         let e = refusal(door::review_post(&h.ctx, "ws_rev", Some("abcd1234-0000".to_owned()), None).await);
         said(&e, "thread abcd1234 has no review to post yet", None);
-        assert_eq!(h.base().args_of("label_of"), vec![json!({ "id": "ws_rev", "thread": null }), json!({ "id": "ws_rev", "thread": "abcd1234-0000" })]);
+        assert_eq!(
+            h.base().args_of("label_of"),
+            vec![json!({ "id": "ws_rev", "thread": null }), json!({ "id": "ws_rev", "thread": "abcd1234-0000" })]
+        );
         assert_eq!(h.base().args_of("entry_of")[1], json!({ "id": "ws_rev", "thread": "abcd1234-0000", "act": null, "scoped": false }));
 
         // a draft that is only the sentence saying why none was read, and a draft with no origin
@@ -669,7 +753,10 @@ fn daemon_channel_of_a_shared_daemon_tracks_ptys() {
         let seen = Rc::new(RefCell::new(vec![]));
         let channel = ok(door::daemon_channel(&h.ctx, "ws_1", listener(&seen), Some(person())).await);
         assert_eq!(channel_name(&channel).await, json!("shared"));
-        assert_eq!(h.base().names_of(&["entry_of", "shared_daemon", "port_pids", "shared_channel", "copy_channel"]), vec!["entry_of", "shared_daemon", "port_pids", "shared_channel"]);
+        assert_eq!(
+            h.base().names_of(&["entry_of", "shared_daemon", "port_pids", "shared_channel", "copy_channel"]),
+            vec!["entry_of", "shared_daemon", "port_pids", "shared_channel"]
+        );
 
         let heard = h.fake.heard.borrow().clone().expect("the shared channel was handed the heard listener");
         heard(frame(vec![("type", json!("pty.exit")), ("ptyId", json!("pty_9"))]));
@@ -773,14 +860,23 @@ fn port_reach_prefers_the_kinds_own_road() {
         h.base().answer_with("kind_port_reach", vec![json!({ "url": "http://127.0.0.1:7070/", "expiresAt": 77 })]);
         let got = ok(door::port_reach(&h.ctx, "ws_1", 5173, Some(person())).await);
         assert_eq!(serde_json::to_value(&got).unwrap(), json!({ "url": "http://127.0.0.1:7070/", "expiresAt": 77 }));
-        assert_eq!(h.base().names_of(&["entry_of", "copy_blocked", "kind_port_reach", "ws_port_reach"]), vec!["entry_of", "copy_blocked", "kind_port_reach"]);
+        assert_eq!(
+            h.base().names_of(&["entry_of", "copy_blocked", "kind_port_reach", "ws_port_reach"]),
+            vec!["entry_of", "copy_blocked", "kind_port_reach"]
+        );
         assert_eq!(h.base().args_of("kind_port_reach"), vec![json!({ "id": "ws_1", "port": 5173, "standing": false })]);
 
         let h = H::new();
         held(&h, "ws_1", json!({}));
         let got = ok(door::port_reach(&h.ctx, "ws_1", 3000, None).await);
-        assert_eq!(serde_json::to_value(&got).unwrap(), json!({ "url": "https://m1-3000.preview.example/?pt_token=t1", "expiresAt": 9000 }));
-        assert_eq!(h.base().names_of(&["entry_of", "copy_blocked", "kind_port_reach", "ws_port_reach"]), vec!["entry_of", "copy_blocked", "kind_port_reach", "ws_port_reach"]);
+        assert_eq!(
+            serde_json::to_value(&got).unwrap(),
+            json!({ "url": "https://m1-3000.preview.example/?pt_token=t1", "expiresAt": 9000 })
+        );
+        assert_eq!(
+            h.base().names_of(&["entry_of", "copy_blocked", "kind_port_reach", "ws_port_reach"]),
+            vec!["entry_of", "copy_blocked", "kind_port_reach", "ws_port_reach"]
+        );
         assert_eq!(h.base().args_of("ws_port_reach"), vec![json!({ "id": "ws_1", "port": 3000 })]);
     });
 }

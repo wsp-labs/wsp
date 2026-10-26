@@ -4,17 +4,22 @@
 use std::rc::Rc;
 
 use async_trait::async_trait;
+use futures::FutureExt;
+use serde_json::{json, Value};
 use wsp_core::types::api::{DaemonEventListener, ReviewAsk, ReviewDraftAsk, StartFromLinkAsk};
 use wsp_core::types::harness::StartPicksAsked;
 use wsp_core::types::pending::DaemonChannel;
 use wsp_core::types::wiring::{Detach, SysListener, WorkspaceRecord};
+use wsp_frames::GitPrReviewReply;
 use wsp_wire::types::pull_request::PullRequest;
-use wsp_wire::types::start::{IssueRead, ReviewDraft, WorkspaceFrom, WorkspaceFromKind};
+use wsp_wire::types::start::{GitPrDiffReply, GithubLink, GithubLinkKind, IssueRead, ReviewDraft, WorkspaceFrom, WorkspaceFromKind};
 use wsp_wire::views::harness::{ReviewPostResult, StartResult};
-use wsp_wire::views::workspace::{Caller, DaemonReachView, PortProbeView, PortReachView, ProjectView};
-use wsp_words::exit::HostError;
+use wsp_wire::views::workspace::{scope_of, Caller, DaemonReachView, PortProbeView, PortReachView, ProjectView};
+use wsp_wire::wire::runtime::{asker_of, workspace_id_of};
+use wsp_words::exit::{HostError, Kind};
+use wsp_words::start::{from_task_prompt, github_link_of, is_review_read, owner_repo_of, review_task_prompt, start_words};
 
-use super::seam::{Base, Entry};
+use super::seam::{record_of, Base, DaemonAsk, Entry, EntryAsk};
 use crate::projects::start_from::{OpenAsk, Placed, StartKind};
 
 /// What the start and review half reads off the runtime context, past `Base`. The start pieces are start_from's.
@@ -23,9 +28,17 @@ pub trait ReviewCtx: Base {
     fn project_by_repo(&self, repo: &str, named: Option<&str>) -> Result<ProjectView, HostError>;
     async fn issue_of(&self, remote: &str, number: i64) -> Result<IssueRead, HostError>;
     async fn pull_request_of(&self, remote: &str, number: i64) -> Result<PullRequest, HostError>;
+    #[allow(clippy::wrong_self_convention)]
     fn from_of(&self, kind: WorkspaceFromKind, repo: &str, read: &IssueRead, fact: Option<&PullRequest>) -> WorkspaceFrom;
     async fn picks_hold(&self, project: &ProjectView, picks: &StartPicksAsked) -> Result<(), HostError>;
-    async fn workspace_from(&self, project: &ProjectView, from: WorkspaceFrom, fact: Option<PullRequest>, kind: StartKind, origin: Option<Caller>) -> Result<Placed, HostError>;
+    async fn workspace_from(
+        &self,
+        project: &ProjectView,
+        from: WorkspaceFrom,
+        fact: Option<PullRequest>,
+        kind: StartKind,
+        origin: Option<Caller>,
+    ) -> Result<Placed, HostError>;
     async fn open_with(&self, placed: &Placed, o: OpenAsk, origin: Option<Caller>) -> Result<StartResult, HostError>;
     fn read_only_of(&self, agent: &str) -> Option<String>;
     fn reviewers(&self) -> Vec<String>;
@@ -60,6 +73,35 @@ pub trait ReviewCtx: Base {
     fn reaches_row(&self, thread_id: &str, workspace_id: &str, origin: Option<&Caller>) -> bool;
 }
 
+fn json_of<T: serde::Serialize>(v: &T) -> Value {
+    serde_json::to_value(v).unwrap_or(Value::Null)
+}
+
+fn read_as<T: serde::de::DeserializeOwned>(v: Value) -> Result<T, HostError> {
+    serde_json::from_value(v).map_err(|e| HostError::new(e.to_string()))
+}
+
+fn without_nulls(mut v: Value) -> Value {
+    if let Value::Object(map) = &mut v {
+        map.retain(|_, value| !value.is_null());
+    }
+    v
+}
+
+fn invalid(message: String) -> HostError {
+    HostError::with_kind(message, Kind::Invalid)
+}
+
+/// The record of a live workspace, if this host holds it.
+fn held_record(ctx: &Rc<dyn ReviewCtx>, id: &str) -> Option<WorkspaceRecord> {
+    ctx.live().borrow().get(id).map(record_of)
+}
+
+/// A helper's lines are the TS's (`START_WORDS`), read off wsp-words.
+fn start_link(url: &str) -> Result<GithubLink, HostError> {
+    github_link_of(url).ok_or_else(|| invalid(start_words::not_a_link(url)))
+}
+
 // ts: workspaces.ts:1055-1067
 //|     async start({ url, project: named, agent, model, effort, access }, origin) {
 //|       ctx.spawnGuard("start", origin);
@@ -75,7 +117,36 @@ pub trait ReviewCtx: Base {
 //|       return ctx.openWith(placed, { prompt: fromTaskPrompt(from, read), ...(agent !== undefined ? { harness: agent } : {}), ...(model !== undefined ? { model } : {}), ...(effort !== undefined ? { effort } : {}), ...(access !== undefined ? { access } : {}) }, origin);
 //|     },
 pub async fn start(ctx: &Rc<dyn ReviewCtx>, ask: StartFromLinkAsk, origin: Option<Caller>) -> Result<StartResult, HostError> {
-    todo!()
+    ctx.spawn_guard("start", origin.as_ref())?;
+    ctx.ready().await?;
+    let link = start_link(&ask.url)?;
+    let number = link.number.0 .0 as i64;
+    let project = ctx.project_by_repo(&link.repo, ask.project.as_deref())?;
+    let read = ctx.issue_of(&project.remote, number).await?;
+    let (kind, fact) = match link.kind {
+        GithubLinkKind::PullRequest => (WorkspaceFromKind::PullRequest, Some(ctx.pull_request_of(&project.remote, number).await?)),
+        GithubLinkKind::Issue => (WorkspaceFromKind::Issue, None),
+    };
+    let from = ctx.from_of(kind, &link.repo, &read, fact.as_ref());
+    let picks = StartPicksAsked {
+        harness: ask.agent.clone(),
+        model: ask.model.clone(),
+        effort: ask.effort.clone(),
+        access: ask.access,
+        permission_mode: None,
+        fast: None,
+    };
+    ctx.picks_hold(&project, &picks).await?;
+    let placed = ctx.workspace_from(&project, from.clone(), fact, StartKind::Start, origin.clone()).await?;
+    let open = OpenAsk {
+        prompt: from_task_prompt(&from, &read),
+        harness: ask.agent,
+        model: ask.model,
+        effort: ask.effort,
+        permission_mode: None,
+        access: ask.access,
+    };
+    ctx.open_with(&placed, open, origin).await
 }
 
 // ts: workspaces.ts:1069-1102
@@ -114,7 +185,74 @@ pub async fn start(ctx: &Rc<dyn ReviewCtx>, ask: StartFromLinkAsk, origin: Optio
 //|       return opened;
 //|     },
 pub async fn review(ctx: &Rc<dyn ReviewCtx>, ask: ReviewAsk, origin: Option<Caller>) -> Result<StartResult, HostError> {
-    todo!()
+    ctx.spawn_guard("review", origin.as_ref())?;
+    ctx.ready().await?;
+    let (repo, number, project) = if let Some(url) = &ask.url {
+        let link = start_link(url)?;
+        if link.kind != GithubLinkKind::PullRequest {
+            return Err(invalid(start_words::NOT_A_PULL_REQUEST.to_owned()));
+        }
+        let project = ctx.project_by_repo(&link.repo, None)?;
+        (link.repo.clone(), link.number.0 .0 as i64, project)
+    } else {
+        let entry = match &ask.workspace_id {
+            None => None,
+            Some(id) => Some(ctx.entry_of(id, origin.clone(), EntryAsk::default()).await?),
+        };
+        let Some(entry) = entry else {
+            return Err(invalid(start_words::NOT_A_PULL_REQUEST.to_owned()));
+        };
+        let record = record_of(&entry);
+        let kept_number = match (&record.pr, &record.from) {
+            (Some(pr), _) => Some(pr.number.0 .0),
+            (None, Some(from)) if from.kind != WorkspaceFromKind::Issue => Some(from.number.0 .0),
+            _ => None,
+        };
+        let Some(kept_number) = kept_number else {
+            return Err(invalid(start_words::NOT_A_PULL_REQUEST.to_owned()));
+        };
+        let project = ctx.project_held(&record.project)?;
+        let repo = owner_repo_of(&project.remote).unwrap_or_else(|| project.remote.clone());
+        (repo, kept_number as i64, project)
+    };
+    let reviewer = ask.agent.clone().unwrap_or_else(|| "codex".to_owned());
+    let Some(read_only) = ctx.read_only_of(&reviewer) else {
+        let others = ctx.reviewers();
+        let others: Vec<&str> = others.iter().map(String::as_str).collect();
+        return Err(invalid(start_words::no_read_only(&reviewer, &others)));
+    };
+    let fact = ctx.pull_request_of(&project.remote, number).await?;
+    let read = ctx.issue_of(&project.remote, number).await?;
+    let remote = project.remote.clone();
+    let diff_value = ctx
+        .on_this_computer(Box::new(move |ask: DaemonAsk, home: String| {
+            async move { ask(json!({ "op": "git.prDiff", "cwd": home, "remote": remote, "number": number })).await }.boxed_local()
+        }))
+        .await?;
+    let diff: GitPrDiffReply = read_as(diff_value)?;
+    let from = ctx.from_of(WorkspaceFromKind::Review, &repo, &read, Some(&fact));
+    let picks = StartPicksAsked {
+        harness: Some(reviewer.clone()),
+        model: ask.model.clone(),
+        effort: ask.effort.clone(),
+        access: None,
+        permission_mode: Some(read_only.clone()),
+        fast: None,
+    };
+    ctx.picks_hold(&project, &picks).await?;
+    let placed = ctx.workspace_from(&project, from.clone(), Some(fact), StartKind::Review, origin.clone()).await?;
+    let open = OpenAsk {
+        prompt: review_task_prompt(&from, &read, &diff),
+        harness: Some(reviewer),
+        model: ask.model,
+        effort: ask.effort,
+        permission_mode: Some(read_only),
+        access: None,
+    };
+    let opened = ctx.open_with(&placed, open, origin).await?;
+    placed.entry.borrow().record.borrow_mut().review_thread = Some(opened.thread_id.clone());
+    ctx.persist(record_of(&placed.entry)).await?;
+    Ok(opened)
 }
 
 // ts: workspaces.ts:1104-1119
@@ -135,7 +273,32 @@ pub async fn review(ctx: &Rc<dyn ReviewCtx>, ask: ReviewAsk, origin: Option<Call
 //|       return entry.record.review === undefined ? {} : { review: entry.record.review };
 //|     },
 pub async fn review_draft(ctx: &Rc<dyn ReviewCtx>, ask: ReviewDraftAsk, origin: Option<Caller>) -> Result<Option<ReviewDraft>, HostError> {
-    todo!()
+    let entry = ctx.entry_of(&ask.workspace_id, origin, EntryAsk::default()).await?;
+    let record = record_of(&entry);
+    let draft = record.review.clone();
+    if is_review_read(draft.as_ref()) && (ask.summary.is_some() || ask.verdict.is_some() || ask.on.is_some()) {
+        let ticks: Vec<(String, bool)> = ask.on.clone().unwrap_or_default();
+        let mut value = json_of(&draft);
+        if let Some(summary) = &ask.summary {
+            value["summary"] = json!(summary);
+        }
+        if let Some(verdict) = &ask.verdict {
+            value["verdict"] = json_of(verdict);
+        }
+        if let Some(comments) = value["comments"].as_array_mut() {
+            for comment in comments.iter_mut() {
+                let id = comment["id"].as_str().unwrap_or_default().to_owned();
+                if let Some((_, on)) = ticks.iter().find(|(tick, _)| *tick == id) {
+                    comment["on"] = json!(on);
+                }
+            }
+        }
+        let next: ReviewDraft = read_as(value)?;
+        entry.borrow().record.borrow_mut().review = Some(next);
+        ctx.persist(record_of(&entry)).await?;
+        ctx.emit(json!({ "type": "workspace.review", "workspaceId": ask.workspace_id }))?;
+    }
+    Ok(record_of(&entry).review)
 }
 
 // ts: workspaces.ts:1121-1140
@@ -159,8 +322,65 @@ pub async fn review_draft(ctx: &Rc<dyn ReviewCtx>, ask: ReviewDraftAsk, origin: 
 //|       void ctx.readPullRequest(entry, true);
 //|       return { url: done.url, number: from.number, comments: ticked.length - done.folded.length, folded: done.folded.length };
 //|     },
-pub async fn review_post(ctx: &Rc<dyn ReviewCtx>, workspace_id: &str, thread_id: Option<String>, origin: Option<Caller>) -> Result<ReviewPostResult, HostError> {
-    todo!()
+pub async fn review_post(
+    ctx: &Rc<dyn ReviewCtx>,
+    workspace_id: &str,
+    thread_id: Option<String>,
+    origin: Option<Caller>,
+) -> Result<ReviewPostResult, HostError> {
+    ctx.spawn_guard("review_post", origin.as_ref())?;
+    let entry = ctx.entry_of(workspace_id, origin, EntryAsk { thread: thread_id.clone(), ..EntryAsk::default() }).await?;
+    let record = record_of(&entry);
+    let draft = record.review.clone();
+    let Some(from) = record.from.clone() else {
+        return Err(HostError::new(start_words::no_review_yet(&ctx.label_of(&entry, thread_id.as_deref()))));
+    };
+    if !is_review_read(draft.as_ref()) {
+        return Err(HostError::new(start_words::no_review_yet(&ctx.label_of(&entry, thread_id.as_deref()))));
+    }
+    let draft_value = json_of(&draft);
+    let ticked: Vec<Value> = draft_value["comments"]
+        .as_array()
+        .map(|comments| {
+            comments
+                .iter()
+                .filter(|c| c["on"].as_bool() == Some(true))
+                .map(|c| json!({ "id": c["id"], "path": c["path"], "line": c["line"], "side": c["side"], "body": c["body"] }))
+                .collect()
+        })
+        .unwrap_or_default();
+    let remote = ctx.project_held(&record.project)?.remote;
+    let number = from.number.0 .0 as i64;
+    let ask_remote = remote.clone();
+    let head_oid = draft_value["headOid"].clone();
+    let verdict = draft_value["verdict"].clone();
+    let summary = draft_value["summary"].clone();
+    let comments = ticked.clone();
+    let done_value = ctx
+        .on_this_computer(Box::new(move |ask: DaemonAsk, home: String| {
+            async move {
+                ask(json!({ "op": "git.prReview", "cwd": home, "remote": ask_remote, "number": number, "headOid": head_oid, "event": verdict, "body": summary, "comments": comments })).await
+            }
+            .boxed_local()
+        }))
+        .await?;
+    let done: GitPrReviewReply = read_as(done_value)?;
+    let at = ctx.clock().now();
+    let mut next = draft_value;
+    next["posted"] = json!({ "url": done.url, "at": at, "folded": done.folded });
+    let next: ReviewDraft = read_as(next)?;
+    entry.borrow().record.borrow_mut().review = Some(next);
+    ctx.persist(record_of(&entry)).await?;
+    ctx.emit(json!({ "type": "workspace.review", "workspaceId": workspace_id }))?;
+    ctx.drop_page_cache(&remote, number);
+    ctx.reread_pull_request(&entry);
+    let folded = done.folded.len() as i64;
+    read_as(without_nulls(json!({
+        "url": done.url,
+        "number": number,
+        "comments": ticked.len() as i64 - folded,
+        "folded": folded,
+    })))
 }
 
 // ts: workspaces.ts:1142-1145
@@ -169,7 +389,8 @@ pub async fn review_post(ctx: &Rc<dyn ReviewCtx>, workspace_id: &str, thread_id:
 //|       return ctx.moduleOf(entry.record.kind).daemonRoad(entry);
 //|     },
 pub async fn daemon_reach(ctx: &Rc<dyn ReviewCtx>, id: &str, origin: Option<Caller>) -> Result<DaemonReachView, HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    ctx.daemon_road(&entry).await
 }
 
 // ts: workspaces.ts:1147-1149
@@ -177,7 +398,10 @@ pub async fn daemon_reach(ctx: &Rc<dyn ReviewCtx>, id: &str, origin: Option<Call
 //|       ctx.daemonTokens.delete((await ctx.entryOf(id)).machine.id);
 //|     },
 pub async fn token_refused(ctx: &Rc<dyn ReviewCtx>, id: &str) -> Result<(), HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, None, EntryAsk::default()).await?;
+    let machine = ctx.machine_id(&entry);
+    ctx.forget_daemon_token(&machine);
+    Ok(())
 }
 
 // ts: workspaces.ts:1151-1162
@@ -193,8 +417,29 @@ pub async fn token_refused(ctx: &Rc<dyn ReviewCtx>, id: &str) -> Result<(), Host
 //|       const channel = ctx.rootedPorts(id, ctx.checkoutOf(entry.record), ptys, ctx.heldToOwner(id, ctx.threadTagged(id, await ctx.copyChannel(entry, heard, ctx.WORKSPACE_FRAMES))));
 //|       return ctx.killGuarded(ctx.scopedProcs(ctx.scopesHere, channel), isLocalWorkspace(entry.record));
 //|     },
-pub async fn daemon_channel(ctx: &Rc<dyn ReviewCtx>, id: &str, on_event: DaemonEventListener, origin: Option<Caller>) -> Result<Rc<dyn DaemonChannel>, HostError> {
-    todo!()
+pub async fn daemon_channel(
+    ctx: &Rc<dyn ReviewCtx>,
+    id: &str,
+    on_event: DaemonEventListener,
+    origin: Option<Caller>,
+) -> Result<Rc<dyn DaemonChannel>, HostError> {
+    let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    if !ctx.shared_daemon(&entry) {
+        return ctx.copy_channel(&entry, on_event).await;
+    }
+    let ptys = ctx.port_pids(id);
+    let owner = id.to_owned();
+    let roots = ctx.clone();
+    let heard: DaemonEventListener = Rc::new(move |event: serde_json::Map<String, Value>| {
+        if event.get("type").and_then(Value::as_str) == Some("pty.exit") {
+            let pty = event.get("ptyId").and_then(Value::as_str).unwrap_or_default().to_owned();
+            if ptys.borrow_mut().shift_remove(&pty).is_some() {
+                roots.port_roots_moved(&owner);
+            }
+        }
+        on_event(event);
+    });
+    ctx.shared_channel(&entry, heard).await
 }
 
 // ts: workspaces.ts:1164-1166
@@ -202,7 +447,8 @@ pub async fn daemon_channel(ctx: &Rc<dyn ReviewCtx>, id: &str, on_event: DaemonE
 //|       return ctx.copyChannel(await ctx.entryOf(id), onEvent, ctx.GUEST_ROAD_FRAMES);
 //|     },
 pub async fn guest_channel(ctx: &Rc<dyn ReviewCtx>, id: &str, on_event: DaemonEventListener) -> Result<Rc<dyn DaemonChannel>, HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, None, EntryAsk::default()).await?;
+    ctx.guest_road_channel(&entry, on_event).await
 }
 
 // ts: workspaces.ts:1168-1170
@@ -210,7 +456,8 @@ pub async fn guest_channel(ctx: &Rc<dyn ReviewCtx>, id: &str, on_event: DaemonEv
 //|       return ctx.servedByItsComputer(await ctx.entryOf(id, origin)) !== undefined;
 //|     },
 pub async fn served_by_its_computer(ctx: &Rc<dyn ReviewCtx>, id: &str, origin: Option<Caller>) -> Result<bool, HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    Ok(ctx.served_by_its_computer(&entry).is_some())
 }
 
 // ts: workspaces.ts:1172-1178
@@ -222,7 +469,15 @@ pub async fn served_by_its_computer(ctx: &Rc<dyn ReviewCtx>, id: &str, origin: O
 //|       return local.sysSamples(fn);
 //|     },
 pub async fn watch_sys(ctx: &Rc<dyn ReviewCtx>, id: &str, listener: SysListener, origin: Option<Caller>) -> Result<Detach, HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    if !ctx.metrics_on_host(&entry) {
+        let word = ctx.machine_word(&entry);
+        return Err(HostError::new(format!("{word} reads its own load over its daemon link, not from this host")));
+    }
+    match ctx.sys_samples(listener) {
+        Some(detach) => Ok(detach),
+        None => Err(HostError::new("this host reads nothing of the computer it runs on")),
+    }
 }
 
 // ts: workspaces.ts:1180-1186
@@ -234,7 +489,12 @@ pub async fn watch_sys(ctx: &Rc<dyn ReviewCtx>, id: &str, listener: SysListener,
 //|       return { url: reach.url, expiresAt: reach.expiresAt };
 //|     },
 pub async fn port_reach(ctx: &Rc<dyn ReviewCtx>, id: &str, port: u16, origin: Option<Caller>) -> Result<PortReachView, HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    ctx.copy_blocked(&entry).await?;
+    match ctx.kind_port_reach(&entry, port, false).await {
+        Some(own) => own,
+        None => ctx.ws_port_reach(&entry, port).await,
+    }
 }
 
 // ts: workspaces.ts:1188-1204
@@ -256,7 +516,18 @@ pub async fn port_reach(ctx: &Rc<dyn ReviewCtx>, id: &str, port: u16, origin: Op
 //|       return { status: res.status, body };
 //|     },
 pub async fn port_probe(ctx: &Rc<dyn ReviewCtx>, id: &str, port: u16, origin: Option<Caller>) -> Result<PortProbeView, HostError> {
-    todo!()
+    let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
+    ctx.copy_blocked(&entry).await?;
+    if let Some(own) = ctx.kind_port_reach(&entry, port, true).await {
+        let reach = own?;
+        return ctx.probe(&reach.url).await;
+    }
+    let reach = ctx.ws_port_reach(&entry, port).await?;
+    let probed = ctx.probe(&reach.url).await?;
+    if probed.status.0 .0 == 401.0 {
+        ctx.ws_remint_port_reach(&entry, port).await?;
+    }
+    Ok(probed)
 }
 
 // ts: workspaces.ts:1206-1209
@@ -265,7 +536,9 @@ pub async fn port_probe(ctx: &Rc<dyn ReviewCtx>, id: &str, port: u16, origin: Op
 //|       return ctx.refusalFor(live.get(id)?.record, origin);
 //|     },
 pub async fn origin_refusal(ctx: &Rc<dyn ReviewCtx>, id: &str, origin: Option<Caller>) -> Result<Option<String>, HostError> {
-    todo!()
+    ctx.ready().await?;
+    let record = held_record(ctx, id);
+    Ok(ctx.refusal_for(record.as_ref(), origin.as_ref()))
 }
 
 // ts: workspaces.ts:1217-1231
@@ -286,7 +559,19 @@ pub async fn origin_refusal(ctx: &Rc<dyn ReviewCtx>, id: &str, origin: Option<Ca
 //|     },
 /// Whether a thread's socket sees an event; synchronous.
 pub fn seen_by(ctx: &Rc<dyn ReviewCtx>, event: &serde_json::Value, origin: Option<&Caller>) -> bool {
-    todo!()
+    let Some(scope) = scope_of(origin) else {
+        return true;
+    };
+    if let Some(asked) = asker_of(event) {
+        return asked.thread_id == scope.thread_id || asked.root_thread_id == scope.root_thread_id;
+    }
+    let Some(record) = workspace_id_of(event).and_then(|id| held_record(ctx, id.as_ref())) else {
+        return false;
+    };
+    if let Some(thread) = event.get("threadId").and_then(Value::as_str) {
+        return ctx.reaches_row(thread, &record.id, origin);
+    }
+    ctx.refusal_for(Some(&record), origin).is_none()
 }
 
 // ts: workspaces.ts:1233-1244
@@ -304,5 +589,33 @@ pub fn seen_by(ctx: &Rc<dyn ReviewCtx>, event: &serde_json::Value, origin: Optio
 //|     },
 /// The event as a thread's socket is shown it: a status tree pruned to the children it may see.
 pub fn shown_to(ctx: &Rc<dyn ReviewCtx>, event: serde_json::Value, origin: Option<&Caller>) -> serde_json::Value {
-    todo!()
+    let is_status = event.get("type").and_then(Value::as_str) == Some("workspace.status");
+    let tree = if is_status { event.get("status").and_then(|s| s.get("tree")).cloned() } else { None };
+    let (Some(tree), Some(_)) = (tree, scope_of(origin)) else {
+        return event;
+    };
+    let all = tree.get("children").and_then(Value::as_array).cloned().unwrap_or_default();
+    let children: Vec<Value> = all
+        .iter()
+        .filter(|child| {
+            let id = child.get("workspaceId").and_then(Value::as_str).unwrap_or_default();
+            held_record(ctx, id).is_some_and(|record| ctx.refusal_for(Some(&record), origin).is_none())
+        })
+        .cloned()
+        .collect();
+    if children.len() == all.len() {
+        return event;
+    }
+    let mut status = event.get("status").cloned().unwrap_or(Value::Null);
+    if let Value::Object(map) = &mut status {
+        map.shift_remove("tree");
+        if !children.is_empty() {
+            let mut kept_tree = tree.clone();
+            kept_tree["children"] = Value::Array(children);
+            map.insert("tree".to_owned(), kept_tree);
+        }
+    }
+    let mut out = event;
+    out["status"] = status;
+    out
 }

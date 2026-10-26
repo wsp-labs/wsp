@@ -8,11 +8,32 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::future::LocalBoxFuture;
 use indexmap::IndexMap;
+use serde_json::{json, Value};
+use wsp_core::types::internal::NO_SEED_WIRING;
+use wsp_core::types::wiring::{folder_named, same_source, ADD_IS_A_COMPUTER_LINE};
 use wsp_engine::machine::{Machine, MachineBackend};
+use wsp_wire::types::place_word::HERE_PLACE_ID;
+use wsp_wire::types::projects::INTO_TAKES_A_REPO_LINE;
 use wsp_wire::views::place_kind::PlaceKind;
-use wsp_wire::views::workspace::{Caller, ProjectSeed, ProjectSource, ProjectView, SeedChoice, SeedPlan};
+use wsp_wire::views::workspace::{
+    scope_of, Caller, ProjectAddStage, ProjectSeed, ProjectSource, ProjectView, SeedChoice, SeedFile, SeedPlan,
+};
 use wsp_wire::views::workspace_more::ProjectBranch;
-use wsp_words::exit::HostError;
+use wsp_wire::wire::machine_link::no_such_place_refusal;
+use wsp_words::exit::{usage_refusal, HostError, Kind};
+use wsp_words::js_date::iso_string;
+use wsp_words::place_name::table_name;
+use wsp_words::place_word::{names_place, PlaceRef};
+use wsp_words::project_path::claude_project_key;
+use wsp_words::project_seed::{
+    held_back_picks, left_behind_line, project_seed_of, seed_not_here_refusal, seed_picks, seed_save_refusal, seed_travels, SeedAsked,
+};
+use wsp_words::projects::cloud_project_refusal;
+use wsp_words::projects::{
+    added_project_on, adding_project_line, clone_into_needed, copies_folder, folder_on_copy_refusal, into_is_here_line, kind_for_computer,
+    no_computer_for_source_line, project_source_of, runs_in_folder, same_source_refusal, seed_choice_needed, source_kind, SourceKind,
+};
+use wsp_words::workspace_state::kind_words;
 
 use super::Projects;
 
@@ -152,7 +173,7 @@ impl Projects {
     //|     return opts.seed;
     //|   };
     pub fn seed_wiring(&self) -> Result<Rc<dyn wsp_core::types::wiring::SeedWiring>, HostError> {
-        todo!()
+        self.ctx.seed_wiring().ok_or_else(|| HostError::new(NO_SEED_WIRING))
     }
 
     // ts: projects.ts:116-122
@@ -165,7 +186,14 @@ impl Projects {
     //|   };
     /// Which landing road a computer takes, off the kind of workspace it makes.
     pub fn landing_kind(&self, computer: &str) -> LandingKind {
-        todo!()
+        let kind = self.ctx.kind_of(computer);
+        if copies_folder(&kind) {
+            LandingKind::Mac
+        } else if runs_in_folder(&kind) {
+            LandingKind::Box
+        } else {
+            LandingKind::Provider
+        }
     }
 
     // ts: projects.ts:124-150
@@ -198,7 +226,23 @@ impl Projects {
     //|   };
     /// What a landing road may ask of this runtime, for one computer (spec rule 3).
     pub async fn landing_deps(&self, computer: &str) -> Result<LandingAt, HostError> {
-        todo!()
+        let place_id = self.ctx.landing_place(computer).await?;
+        let at = self.ctx.forking_at(place_id.as_deref()).await.ok();
+        let joined = match &place_id {
+            Some(place) => self.ctx.folder_computer(place),
+            None => None,
+        };
+        let clone_env: IndexMap<String, String> = match (self.ctx.vault_github_token(), &place_id) {
+            (Some(token), Some(place)) if self.ctx.github_from_vault(place) => IndexMap::from([(GITHUB_TOKEN_ENV.to_owned(), token)]),
+            _ => IndexMap::new(),
+        };
+        let deps = LandingDeps {
+            computer: joined,
+            mac_state_home: self.ctx.local_claude_home().unwrap_or_default(),
+            computer_name: self.ctx.place_name(computer),
+            clone_env,
+        };
+        Ok(LandingAt { deps, at, place_id })
     }
 
     // ts: projects.ts:152-158
@@ -211,7 +255,12 @@ impl Projects {
     //|   };
     /// A joined computer this host cannot reach right now holds nothing of a project: its own absent sentence.
     pub async fn readable_computer(&self, at: Option<&Arc<dyn MachineBackend>>, place_id: Option<&str>) -> Result<(), HostError> {
-        todo!()
+        if at.is_none() {
+            if let Some(place) = place_id {
+                self.ctx.landing_backend(place).await?;
+            }
+        }
+        Ok(())
     }
 
     // ts: projects.ts:164-176
@@ -230,7 +279,32 @@ impl Projects {
     //|     },
     /// What a seed of a folder on this computer would carry to the computer `on` names (spec rule 5).
     pub async fn seed_plan(&self, source: &str, on: Option<&str>) -> Result<SeedPlan, HostError> {
-        todo!()
+        self.ctx.ready().await?;
+        let folder = folder_named(source, &self.ctx.home_dir(), &process_cwd());
+        let homes = self.ctx.homes_here().await?;
+        let read = self.seed_wiring()?.plan(&folder, &homes).await?;
+        let place = match on {
+            None => None,
+            Some(on) => self.ctx.computer_rows().await?.into_iter().find(|row| names_place(&place_ref(row), on)),
+        };
+        let plan = match place {
+            Some(row) if row.kind == PlaceKind::Provider => SeedPlan { provider: Some(true), ..read },
+            _ => read,
+        };
+        let remembered = self.stored_choice(&folder).await?;
+        let files = plan
+            .files
+            .iter()
+            .map(|file| {
+                let ticked = seed_travels(&plan, file)
+                    && match &remembered {
+                        None => file.ticked,
+                        Some(choice) => choice.files.contains(&file.path),
+                    };
+                SeedFile { ticked, ..file.clone() }
+            })
+            .collect();
+        Ok(SeedPlan { remembered: remembered.is_some(), files, ..plan })
     }
 
     // ts: projects.ts:178-197
@@ -256,7 +330,45 @@ impl Projects {
     //|     },
     /// The seed picks of a project whose folder is here, moved and, with `save`, kept (spec rule 6).
     pub async fn seed(&self, reference: &str, o: SeedWords, origin: Option<Caller>) -> Result<ProjectSeed, HostError> {
-        todo!()
+        let project = self.resolve(reference, origin.clone()).await?;
+        if project.computer != HERE_PLACE_ID || !matches!(project.source, ProjectSource::Folder(_)) {
+            let rows = self.ctx.computer_rows().await?;
+            return Err(seed_not_here_refusal(&project.name, &self.ctx.name_of_computer(&project.computer, &rows)));
+        }
+        if o.save && scope_of(origin.as_ref()).is_some() {
+            let asked = SeedAsked {
+                keep: Some(o.keep.clone().unwrap_or_default()),
+                cut: Some(o.cut.clone().unwrap_or_default()),
+                none: Some(o.none),
+            };
+            return Err(seed_save_refusal(&project.name, &asked));
+        }
+        let folder = match &project.source {
+            ProjectSource::Folder(folder) => folder_named(&folder.path, &self.ctx.home_dir(), &process_cwd()),
+            _ => String::new(),
+        };
+        let plan = SeedPlan { provider: Some(true), ..self.seed_plan(&folder, None).await? };
+        let prior = self.stored_choice(&folder).await?;
+        let prior_files = prior.as_ref().map(|choice| choice.files.clone()).unwrap_or_default();
+        let start: Vec<String> = if o.none { Vec::new() } else { prior_files.clone() };
+        let keep = o.keep.clone().unwrap_or_default();
+        let cut = o.cut.clone().unwrap_or_default();
+        let picks = seed_picks(&plan, &start, &keep, &cut)?;
+        if o.save {
+            let cuts: Vec<String> = cut.iter().map(|path| path.trim_end_matches('/').to_owned()).collect();
+            let held: Vec<String> = held_back_picks(&plan, &prior_files).into_iter().filter(|path| !cuts.contains(path)).collect();
+            let mut files = picks.files.clone();
+            files.extend(picks.missing.iter().cloned());
+            files.extend(held);
+            let choice = SeedChoice {
+                files,
+                memory: prior.as_ref().is_some_and(|choice| choice.memory),
+                commits: prior.as_ref().is_some_and(|choice| choice.commits),
+                remember: Some(true),
+            };
+            self.ctx.store().put(SEED_CHOICES, &folder, json_of(&choice)?).await?;
+        }
+        Ok(project_seed_of(&project.name, &plan, &picks, o.save))
     }
 
     // ts: projects.ts:199-341
@@ -405,6 +517,277 @@ impl Projects {
     //|     },
     /// Records a project (spec rule 7).
     pub async fn add(self: &Rc<Self>, o: AddAsk, origin: Option<Caller>) -> Result<AddedProject, HostError> {
-        todo!()
+        self.ctx.ready().await?;
+        self.ctx.refuse_recording(&o.source, origin.as_ref())?;
+        let rows = self.ctx.computer_rows().await?;
+        let mut clones: Vec<String> = Vec::new();
+        for row in rows.iter().filter(|row| row.id != HERE_PLACE_ID) {
+            if kind_words(&kind_for_computer(&row.id, None)).project_sources.contains(&"git") {
+                clones.push(row.name.clone());
+            }
+        }
+        let kind = source_kind(&o.source)?;
+        if kind == SourceKind::Computer {
+            return Err(HostError::new(ADD_IS_A_COMPUTER_LINE));
+        }
+        if kind == SourceKind::Folder && o.into.is_some() {
+            return Err(HostError::new(INTO_TAKES_A_REPO_LINE));
+        }
+        let folder_path =
+            if kind == SourceKind::Folder { Some(folder_named(&o.source, &self.ctx.home_dir(), &process_cwd())) } else { None };
+        let source = project_source_of(&o.source, &kind, folder_path.as_deref());
+        let computer: Option<String> = match &o.on {
+            None if kind == SourceKind::Folder || o.into.is_some() => Some(HERE_PLACE_ID.to_owned()),
+            None => None,
+            Some(on) => rows.iter().find(|row| names_place(&place_ref(row), on)).map(|row| row.id.clone()),
+        };
+        let Some(computer) = computer else {
+            return Err(match &o.on {
+                None => HostError::new(no_computer_for_source_line(&o.source, &clones)),
+                Some(on) => {
+                    let held: Vec<String> = rows.iter().map(|row| table_name(&place_ref(row))).collect();
+                    HostError::new(no_such_place_refusal(on, &held))
+                }
+            });
+        };
+        if o.into.is_some() && computer != HERE_PLACE_ID {
+            return Err(HostError::new(into_is_here_line(&self.ctx.name_of_computer(HERE_PLACE_ID, &rows))));
+        }
+        let place = rows.iter().find(|row| row.id == computer);
+        if self.ctx.cloud_projects() == Some(false) {
+            if let Some(row) = place.filter(|row| row.kind == PlaceKind::Provider) {
+                let refused = cloud_project_refusal(&table_name(&place_ref(row)));
+                return Err(usage_refusal(&refused.happened, &refused.fix));
+            }
+        }
+        let computer_kind = kind_for_computer(&computer, None);
+        let takes = kind_words(&computer_kind).project_sources;
+        let source_word = source_word_of(&source);
+        if !takes.contains(&source_word) {
+            let name = self.ctx.name_of_computer(&computer, &rows);
+            let said =
+                if source_word == "folder" { folder_on_copy_refusal(&name) } else { no_computer_for_source_line(&o.source, &clones) };
+            return Err(HostError::new(said));
+        }
+        if source_word != "folder" && copies_folder(&computer_kind) {
+            let Some(into) = o.into.clone() else {
+                return Err(HostError::new(clone_into_needed(&o.source)));
+            };
+            let cloned = self.ctx.clone_here(&o.source, &source, &into).await?;
+            let rest = AddAsk { source: cloned, on: None, into: None, ..o };
+            return Box::pin(self.add(rest, origin)).await;
+        }
+        let held = self.ctx.projects_held().borrow().values().find(|p| p.computer == computer && same_source(&p.source, &source)).cloned();
+        if let Some(held) = held {
+            let said = same_source_refusal(&held.name, &self.ctx.name_of_computer(&computer, &rows));
+            return Err(HostError::with_kind(said, Kind::Conflict));
+        }
+        let source_path = match &source {
+            ProjectSource::Folder(folder) => Some(folder.path.clone()),
+            _ => None,
+        };
+        let top = match &source_path {
+            Some(path) if copies_folder(&computer_kind) => self.ctx.git_top_of(path).await?,
+            _ => None,
+        };
+        let at = self.landing_deps(&computer).await?;
+        self.readable_computer(at.at.as_ref(), at.place_id.as_deref()).await?;
+        let road = self.ctx.landing_road(self.landing_kind(&computer));
+        let module = self.ctx.project_source(&source);
+        let me = Rc::clone(self);
+        let on_computer = computer.clone();
+        let seed_plan: Rc<dyn Fn(String) -> LocalBoxFuture<'static, Result<SeedPlan, HostError>>> = Rc::new(move |folder: String| {
+            let me = me.clone();
+            let on = on_computer.clone();
+            Box::pin(async move { me.seed_plan(&folder, Some(&on)).await })
+        });
+        let ctx = self.ctx.clone();
+        let folder_remote: Rc<dyn Fn(String) -> LocalBoxFuture<'static, Result<String, HostError>>> = Rc::new(move |folder: String| {
+            let ctx = ctx.clone();
+            Box::pin(async move { ctx.remote_here(&folder).await })
+        });
+        let resolved = module.resolve(&source, ResolveAsk { seeding: road.kind() != LandingKind::Mac, seed_plan, folder_remote }).await?;
+        let seeding = resolved.seed.is_some() && road.kind() != LandingKind::Mac;
+        if seeding && o.seed.is_none() {
+            let word = source_path.clone().unwrap_or_else(|| o.source.clone());
+            return Err(HostError::with_kind(seed_choice_needed(&word), Kind::Invalid));
+        }
+        let name = o.name.clone().unwrap_or_else(|| resolved.name.clone());
+        let id = match &o.id {
+            Some(id) => id.clone(),
+            None => format!("pr_{}", hex::encode(self.ctx.ids().bytes(4))),
+        };
+        let path = road.path(&name, &source, &at.deps);
+        let memory_key = resolved.seed_memory_key.clone().unwrap_or_else(|| claude_project_key(source_path.as_deref().unwrap_or(&path)));
+        let created_at = match &o.created_at {
+            Some(created) => created.clone(),
+            None => iso_string(self.ctx.clock().now() as f64).unwrap_or_default(),
+        };
+        let mut fields = json!({
+            "id": id,
+            "name": name,
+            "computer": computer,
+            "source": json_of(&source)?,
+            "path": path,
+            "remote": resolved.remote,
+            "defaultBranch": resolved.default_branch,
+            "memoryKey": memory_key,
+            "memoryDir": "",
+            "createdAt": created_at,
+        });
+        if let Some(base) = &o.base {
+            fields["base"] = json!(base);
+        }
+        if let Some(top) = &top {
+            fields["git"] = json!({ "top": top });
+        }
+        let mut project: ProjectView = read_json(fields)?;
+        project.memory_dir = road.memory_dir(&project, &memory_key, &at.deps);
+        let began = self.ctx.clock().now();
+        let emitter = self.ctx.clone();
+        let project_id = project.id.clone();
+        let stage_computer = computer.clone();
+        let heard = o.report.clone();
+        let report: AddReport = Rc::new(move |stage: ProjectAddStage, message: &str| {
+            let stage_word = json_of(&stage).unwrap_or(Value::Null);
+            let _ = emitter.emit(json!({
+                "type": "project.add",
+                "projectId": project_id,
+                "computer": stage_computer,
+                "stage": stage_word,
+                "message": message,
+                "elapsedMs": emitter.clock().now() - began,
+            }));
+            if let Some(heard) = &heard {
+                heard(message);
+            }
+        });
+        let seed = if seeding { resolved.seed.clone().zip(o.seed.clone()) } else { None };
+        let folder_for_seed = source_path.clone();
+        if !road.lands_at_add(seed.is_some()) {
+            return self.keep(&project, Landed::default(), o.seed.as_ref(), folder_for_seed.as_deref(), resolved.seed.as_ref()).await;
+        }
+        report(ProjectAddStage::Planned, &adding_project_line(&project.name, &source, seed.is_some()));
+        let outcome: Result<AddedProject, HostError> = async {
+            let packed = match &seed {
+                None => None,
+                Some((plan, choice)) => {
+                    let homes = self.ctx.homes_here().await?;
+                    Some(self.seed_wiring()?.pack(plan.clone(), choice.clone(), &homes).await?)
+                }
+            };
+            if let Some(packed) = &packed {
+                if !packed.left.is_empty() {
+                    report(ProjectAddStage::Seeding, &left_behind_line(&packed.left));
+                }
+            }
+            let landed_seed = match (&packed, &seed) {
+                (Some(packed), Some((plan, choice))) => Some((packed.tar.clone(), choice.clone(), plan.clone())),
+                _ => None,
+            };
+            let landed = road.land(LandAsk { project: project.clone(), seed: landed_seed, report: report.clone() }, &at.deps).await?;
+            let recorded = self.keep(&project, landed.clone(), o.seed.as_ref(), folder_for_seed.as_deref(), resolved.seed.as_ref()).await?;
+            report(ProjectAddStage::Done, &added_project_on(&recorded.project, &self.ctx.name_of_computer(&computer, &rows)));
+            let mut notices: Vec<String> = Vec::new();
+            if let Some(notice) = landed.notice.clone() {
+                notices.push(notice);
+            }
+            if let Some(packed) = &packed {
+                if !packed.left.is_empty() {
+                    notices.push(left_behind_line(&packed.left));
+                }
+            }
+            Ok(AddedProject { project: recorded.project, notice: if notices.is_empty() { None } else { Some(notices.join("; ")) } })
+        }
+        .await;
+        if let Err(e) = &outcome {
+            report(ProjectAddStage::Failed, &e.message);
+        }
+        outcome
+    }
+}
+
+/// The seed choices a folder keeps, `SEED_CHOICES` in the TS.
+const SEED_CHOICES: &str = "seed-choices";
+
+/// The env name a GitHub token is handed under, `GITHUB_TOKEN_ENV` in the TS.
+const GITHUB_TOKEN_ENV: &str = "GITHUB_TOKEN";
+
+fn json_of<T: serde::Serialize>(value: &T) -> Result<Value, HostError> {
+    serde_json::to_value(value).map_err(|e| HostError::new(e.to_string()))
+}
+
+fn read_json<T: serde::de::DeserializeOwned>(value: Value) -> Result<T, HostError> {
+    serde_json::from_value(value).map_err(|e| HostError::new(e.to_string()))
+}
+
+fn process_cwd() -> String {
+    std::env::current_dir().map(|dir| dir.to_string_lossy().into_owned()).unwrap_or_else(|_| "/".to_owned())
+}
+
+/// A computer row as the place words read it.
+fn place_ref(row: &ComputerRow) -> PlaceRef {
+    PlaceRef {
+        id: row.id.clone(),
+        name: row.name.clone(),
+        kind: if row.kind == PlaceKind::Provider { Some("provider".to_owned()) } else { None },
+    }
+}
+
+/// A source's kind word, as a computer's `projectSources` lists it.
+fn source_word_of(source: &ProjectSource) -> &'static str {
+    match source {
+        ProjectSource::Folder(_) => "folder",
+        ProjectSource::Git(_) => "git",
+        ProjectSource::Github(_) => "github",
+        ProjectSource::Gitlab(_) => "gitlab",
+    }
+}
+
+impl Projects {
+    /// The choice a folder remembered, read off the store.
+    pub(crate) async fn stored_choice(&self, folder: &str) -> Result<Option<SeedChoice>, HostError> {
+        match self.ctx.store().get(SEED_CHOICES, folder).await? {
+            Some(value) => Ok(Some(read_json(value)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Records what `add` made: the project with what the landing road filled in, then the folder's remembered choice,
+    /// then `project.added`.
+    async fn keep(
+        &self,
+        project: &ProjectView,
+        landed: Landed,
+        seed: Option<&SeedChoice>,
+        folder_path: Option<&str>,
+        resolved_seed: Option<&SeedPlan>,
+    ) -> Result<AddedProject, HostError> {
+        let mut value = json_of(project)?;
+        for (key, field) in landed.fields {
+            value[key] = field;
+        }
+        let recorded: ProjectView = read_json(value)?;
+        self.ctx.remember_project(recorded.clone()).await?;
+        if let (Some(choice), Some(path)) = (seed, folder_path) {
+            if choice.remember == Some(true) {
+                let prior = self.stored_choice(path).await?;
+                let prior_files = prior.map(|prior| prior.files).unwrap_or_default();
+                let held = match resolved_seed {
+                    None => Vec::new(),
+                    Some(plan) => held_back_picks(plan, &prior_files),
+                };
+                let mut files = choice.files.clone();
+                for file in held {
+                    if !files.contains(&file) {
+                        files.push(file);
+                    }
+                }
+                let kept = SeedChoice { files, ..choice.clone() };
+                self.ctx.store().put(SEED_CHOICES, path, json_of(&kept)?).await?;
+            }
+        }
+        self.ctx.emit(json!({ "type": "project.added", "project": json_of(&recorded)? }))?;
+        Ok(AddedProject { project: recorded, notice: None })
     }
 }

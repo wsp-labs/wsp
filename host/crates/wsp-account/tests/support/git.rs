@@ -2,15 +2,15 @@
 //! `FakeGit`: the workspaces_git unit's context over a `FakeBase`. Every `GitCtx` method logs `self.base.call(<name>,
 //! args)` and answers from the script under the same name, with a default that lets the happy path run. `queued`
 //! logs `queued` with the id and then runs the work, so the call order says what ran inside it.
-#![allow(dead_code)]
+#![allow(dead_code, unused_imports)]
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use futures::future::{BoxFuture, FutureExt, LocalBoxFuture};
-use futures::stream::{self, BoxStream, LocalBoxStream, StreamExt};
+use futures::future::{FutureExt, LocalBoxFuture};
+use futures::stream::{self, LocalBoxStream, StreamExt};
 use indexmap::IndexMap;
 use serde_json::{json, Value};
 use wsp_account::projects::folders::tree::{ListedWorktree, RemoveAsk};
@@ -22,8 +22,8 @@ use wsp_adapters::port::{ExecFailure, ExecStream, SharedFuture, WriteOutcome};
 use wsp_core::clock::Clock;
 use wsp_core::ids::Ids;
 use wsp_core::types::api::FolderForAsk;
-use wsp_core::types::pending::Store;
 use wsp_core::types::internal::ThreadRecord;
+use wsp_core::types::pending::Store;
 use wsp_core::types::wiring::{RunningExec, WorkspaceRecord};
 use wsp_wire::types::changes::{Checkout, ViewedMarks};
 use wsp_wire::types::pull_request::{GitUpdateReply, PullRequestPage};
@@ -75,7 +75,12 @@ pub struct FakeGit {
 
 impl FakeGit {
     pub fn new(base: Rc<FakeBase>) -> Rc<FakeGit> {
-        Rc::new(FakeGit { inner: BaseOf(base.clone()), base, viewed: Rc::new(RefCell::new(IndexMap::new())), kills: Arc::new(AtomicUsize::new(0)) })
+        Rc::new(FakeGit {
+            inner: BaseOf(base.clone()),
+            base,
+            viewed: Rc::new(RefCell::new(IndexMap::new())),
+            kills: Arc::new(AtomicUsize::new(0)),
+        })
     }
 
     fn live_entry(&self, id: &str) -> Result<Entry, HostError> {
@@ -84,7 +89,13 @@ impl FakeGit {
 
     fn entry_named(&self, word: &str) -> Result<Entry, HostError> {
         let live = self.base.live.borrow();
-        live.values().find(|e| { let r = rec(e); r.id == word || r.name == word }).cloned().ok_or_else(|| plain(&format!("no workspace {word}")))
+        live.values()
+            .find(|e| {
+                let r = rec(e);
+                r.id == word || r.name == word
+            })
+            .cloned()
+            .ok_or_else(|| plain(&format!("no workspace {word}")))
     }
 
     fn entry_scripted(&self, name: &str) -> Result<Option<Entry>, HostError> {
@@ -208,7 +219,11 @@ impl GitCtx for FakeGit {
     async fn exec_stream_of(&self, entry: &Entry, argv: Vec<String>, cwd: Option<String>) -> Result<RunningExec, HostError> {
         self.base.call("exec_stream_of", json!({ "id": id_of(entry), "argv": argv, "cwd": cwd }));
         let said = self.base.answer_as::<Value>("exec_stream_of", || json!({}))?;
-        let lines: Vec<String> = said.get("lines").and_then(Value::as_array).map(|l| l.iter().filter_map(|s| s.as_str().map(str::to_owned)).collect()).unwrap_or_default();
+        let lines: Vec<String> = said
+            .get("lines")
+            .and_then(Value::as_array)
+            .map(|l| l.iter().filter_map(|s| s.as_str().map(str::to_owned)).collect())
+            .unwrap_or_default();
         let exit = said.get("exit").and_then(Value::as_i64).map(|c| c as i32);
         let ran_in = said.get("ranIn").and_then(Value::as_str).map(str::to_owned);
         Ok(RunningExec { stream: Arc::new(FakeStream { lines, exit, kills: self.kills.clone() }), ran_in })
@@ -232,7 +247,11 @@ impl GitCtx for FakeGit {
         self.base.call("folder_for", json!({ "project": ask.project, "branch": ask.branch, "cwd": ask.cwd, "opens": ask.opens }));
         let said = self.base.answer_as::<Value>("folder_for", || json!({}))?;
         let id = said.get("id").and_then(Value::as_str).expect("the test scripts folder_for with an id").to_owned();
-        Ok((self.live_entry(&id)?, said.get("cwd").and_then(Value::as_str).map(str::to_owned), said.get("setup").and_then(Value::as_str).map(str::to_owned)))
+        Ok((
+            self.live_entry(&id)?,
+            said.get("cwd").and_then(Value::as_str).map(str::to_owned),
+            said.get("setup").and_then(Value::as_str).map(str::to_owned),
+        ))
     }
     fn take_setup_line(&self, id: &str) -> Option<String> {
         self.base.call("take_setup_line", json!({ "id": id }));
@@ -269,7 +288,13 @@ impl GitCtx for FakeGit {
     async fn worktrees_of(&self, top: &str) -> Result<Vec<ListedWorktree>, HostError> {
         self.base.call("worktrees_of", json!({ "top": top }));
         let said = self.base.answer_as::<Vec<Value>>("worktrees_of", Vec::new)?;
-        Ok(said.iter().map(|w| ListedWorktree { path: w["path"].as_str().unwrap().to_owned(), branch: w.get("branch").and_then(Value::as_str).map(str::to_owned) }).collect())
+        Ok(said
+            .iter()
+            .map(|w| ListedWorktree {
+                path: w["path"].as_str().unwrap().to_owned(),
+                branch: w.get("branch").and_then(Value::as_str).map(str::to_owned),
+            })
+            .collect())
     }
     fn folders_of(&self, project_id: &str) -> Vec<Entry> {
         self.base.call("folders_of", json!({ "project": project_id }));
@@ -376,14 +401,26 @@ impl GitCtx for FakeGit {
         self.base.call("send_detached", json!({ "workspaceId": workspace_id, "prompt": prompt, "thread": thread }));
         sent_to(self.base.answer_as::<Value>("send_detached", || json!({ "threadId": thread }))?)
     }
-    async fn child_of(&self, lead: &Entry, child: &str, _origin: Option<Caller>, lead_thread: Option<&str>, child_thread: Option<&str>) -> Result<Entry, HostError> {
+    async fn child_of(
+        &self,
+        lead: &Entry,
+        child: &str,
+        _origin: Option<Caller>,
+        lead_thread: Option<&str>,
+        child_thread: Option<&str>,
+    ) -> Result<Entry, HostError> {
         self.base.call("child_of", json!({ "lead": id_of(lead), "child": child, "leadThread": lead_thread, "childThread": child_thread }));
         self.base.answer_as::<()>("child_of", || ())?;
         self.entry_named(child)
     }
     async fn update_copy(&self, entry: &Entry) -> Result<GitUpdateReply, HostError> {
         self.base.call("update_copy", json!({ "id": id_of(entry) }));
-        self.base.answer_as("update_copy", || GitUpdateReply { base: "main".to_owned(), merged: true, commits: 0.into(), conflicts: vec![] })
+        self.base.answer_as("update_copy", || GitUpdateReply {
+            base: "main".to_owned(),
+            merged: true,
+            commits: 0.into(),
+            conflicts: vec![],
+        })
     }
     fn drop_page_cache(&self, remote: &str, number: i64) {
         self.base.call("drop_page_cache", json!({ "remote": remote, "number": number }));
