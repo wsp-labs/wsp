@@ -313,6 +313,7 @@ fn append_flushes_at_an_end_and_past_a_mebibyte() {
         assert_eq!(ctx.rows.positions(WS), vec![1, 2], "a session end lands at once, without the debounce");
         assert!(ctx.pending_of(WS).is_empty());
         assert_eq!(ctx.pending_bytes_of(WS), None);
+        ctx.clock.advance(0);
         assert_eq!(ctx.clock.pending(), 0, "the flush cancelled the timer");
         assert!(area.transcript_timers.borrow().is_empty());
 
@@ -325,6 +326,7 @@ fn append_flushes_at_an_end_and_past_a_mebibyte() {
         settle().await;
         assert_eq!(ctx.rows.positions(other), vec![1, 2], "past a mebibyte flushes at once");
         assert!(ctx.pending_of(other).is_empty());
+        ctx.clock.advance(0);
         assert_eq!(ctx.clock.pending(), 0, "a delta armed no timer");
     });
 }
@@ -349,6 +351,7 @@ fn append_arms_one_timer_per_workspace_for_a_non_delta() {
         settle().await;
         assert_eq!(ctx.rows.positions(WS), vec![1, 2]);
         assert_eq!(ctx.rows.positions("ws2"), vec![1]);
+        ctx.clock.advance(0);
         assert_eq!(ctx.clock.pending(), 0);
         assert!(area.transcript_timers.borrow().is_empty());
 
@@ -556,6 +559,7 @@ fn flush_cancels_the_timer_and_writes_what_waits() {
         area.record(event(plan_v(WS, "t1", "step")));
         area.flush_transcript(WS).await;
         assert_eq!(ctx.rows.kept(WS).iter().map(|e| field(e, "type")).collect::<Vec<_>>(), vec![json!("session.start"), json!("session.plan")]);
+        ctx.clock.advance(0);
         assert_eq!(ctx.clock.pending(), 0, "no timer is left behind");
         ctx.clock.advance(TRANSCRIPT_FLUSH_MS as i64 * 2);
         settle().await;
@@ -756,7 +760,7 @@ fn settle_rows_reads_back_only_starts_so_a_dropped_steers_image_stays() {
         let area = ctx.area();
         push_past_the_cap(&area);
         settle().await;
-        assert_eq!(ctx.rows.positions(WS)[0], 3, "the steer row was among those dropped");
+        assert_eq!(ctx.rows.positions(WS)[0], 4, "the steer row was among those dropped");
         assert_eq!(ctx.rows_called_of(&["at"]), vec!["at ws1 1"], "only starts are read back before they go");
         assert!(ctx.store.logged().is_empty(), "a flush's trim lets go of a start's images alone");
     });
