@@ -328,14 +328,16 @@ pub fn facts_line(key: SharedString, list: &[Fact], in_row: bool, window: &mut W
         .gap_x(px(12.))
         .gap_y(px(4.))
         .children(list.iter().map(|fact| {
-            // GPUI lays no baselines: the 12 px label lifts to the 13 px sans value's, which sits 1.4 px higher.
-            let lift = if fact.mono || figures { px(0.) } else { px(1.4) };
+            // GPUI lays no baselines: the 12 px label drops to the 13 px sans value's first line, which sits 1.4 px
+            // higher than a bottom edge would put it. A value wider than the row wraps beside its label.
+            let drop = if fact.mono || figures { px(0.) } else { px(19.5 - 16. - 1.4) };
             h_flex()
-                .flex_none()
-                .items_end()
+                .min_w_0()
+                .max_w_full()
+                .items_start()
                 .gap(px(6.))
-                .child(div().pb(lift).text_size(px(12.)).line_height(px(16.)).text_color(muted).child(fact.label.clone()))
-                .child(fact_value(fact, figures, cx).whitespace_nowrap())
+                .child(div().flex_none().pt(drop).text_size(px(12.)).line_height(px(16.)).text_color(muted).child(fact.label.clone()))
+                .child(fact_value(fact, figures, cx))
         }))
         .child(probe)
         .into_any_element()

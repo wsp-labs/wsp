@@ -496,6 +496,21 @@ const FACTS_IN_ROW: &str = r#"<slate title="Checkout incident">
 "#;
 
 #[gpui_kit::test]
+fn facts_in_a_row_at_640_share_one_line(cx: &mut TestAppContext) {
+    let wide = open(cx, FACTS_IN_ROW, 640.);
+    let one_line = at(wide, "slate-facts").size.height;
+    assert!(one_line <= px(24.), "in a row at 640 the facts share a line: {one_line:?}");
+}
+
+#[gpui_kit::test]
+fn facts_in_a_row_at_400_take_two_lines_of_pairs(cx: &mut TestAppContext) {
+    let narrow = open(cx, FACTS_IN_ROW, 400.);
+    let facts = at(narrow, "slate-facts");
+    assert!(facts.size.height <= px(48.), "in a row at 400 the pairs wrap, never a word a line: {:?}", facts.size.height);
+    assert!(facts.right() <= px(400.), "the facts end inside the panel: {facts:?}");
+}
+
+#[gpui_kit::test]
 fn facts_in_a_row_at_760_share_one_line(cx: &mut TestAppContext) {
     // Their own width in a row is their content's, under 480 px, which must not turn them one a line.
     let wide = open(cx, FACTS_IN_ROW, 760.);
@@ -521,6 +536,15 @@ const FACTS_IN_ROW_LONG: &str = r#"<slate title="Checkout incident">
 fn a_fact_in_a_row_too_long_for_its_line_wraps_inside_the_row(cx: &mut TestAppContext) {
     // Wider than the row at 400 px, the value wraps under its label rather than run past the card's edge.
     let narrow = open(cx, FACTS_IN_ROW_LONG, 400.);
-    let facts = at(narrow, "slate-facts").size.height;
-    assert!(facts >= px(3. * 19.5), "the long value wraps onto lines of its own: {facts:?}");
+    let facts = at(narrow, "slate-facts");
+    assert!(facts.size.height >= px(3. * 19.5), "the long value wraps onto lines of its own: {:?}", facts.size.height);
+    assert!(facts.right() <= px(400.), "the facts end inside the panel: {facts:?}");
+}
+
+#[gpui_kit::test]
+fn a_fact_in_a_row_too_long_for_its_line_stays_inside_at_640(cx: &mut TestAppContext) {
+    let wide = open(cx, FACTS_IN_ROW_LONG, 640.);
+    let facts = at(wide, "slate-facts");
+    assert!(facts.right() <= px(640.), "the facts end inside the panel: {facts:?}");
+    assert!(facts.size.height <= px(4. * 19.5), "the long value wraps to a few lines, never a word a line: {:?}", facts.size.height);
 }
