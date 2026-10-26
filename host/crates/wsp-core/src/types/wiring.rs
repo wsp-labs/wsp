@@ -464,6 +464,8 @@ pub struct WorkspaceRecord {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub base: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lead: Option<LeadOf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branch_of_record: Option<BranchOfRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub folder: Option<String>,
@@ -528,8 +530,6 @@ pub struct WorkspaceRecord {
     pub pr_sent: Option<Vec<PullRequestSent>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub landed: Option<Vec<String>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub lead: Option<LeadOf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sub: Option<SubRecord>,
 }
