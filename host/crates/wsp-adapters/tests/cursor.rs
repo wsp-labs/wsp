@@ -470,6 +470,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn a_call_is_the_first_key_of_tool_call_in_js_order_and_one_whose_first_value_is_no_object_is_skipped() {
+        tokio::task::LocalSet::new().run_until(a_call_is_the_first_key_of_tool_call_in_js_order_and_one_whose_first_value_is_no_object_is_skipped_body()).await
+    }
+
+    async fn a_call_is_the_first_key_of_tool_call_in_js_order_and_one_whose_first_value_is_no_object_is_skipped_body() {
         // C1; adapter.ts:94-100 (`Object.keys(..)[0]`).
         let lines = vec![init(), call("started", json!({"a": 5, "readToolCall": {"args": {"path": "x"}}}), json!("c1")), call("started", json!({"b": {"args": {}}, "1": {"args": {}}}), json!("c2")), result(json!({"result": "r"}))];
         let (_, events, _) = run(lines, ScriptOpts::default()).await;
@@ -478,6 +482,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn a_call_s_name_drops_one_trailing_tool_call_and_its_input_is_json_of_args_or_the_function_s_string() {
+        tokio::task::LocalSet::new().run_until(a_call_s_name_drops_one_trailing_tool_call_and_its_input_is_json_of_args_or_the_function_s_string_body()).await
+    }
+
+    async fn a_call_s_name_drops_one_trailing_tool_call_and_its_input_is_json_of_args_or_the_function_s_string_body() {
         // C2; adapter.ts:100-112.
         let lines = vec![
             init(),
@@ -493,6 +501,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn a_completed_result_always_carries_text_and_only_a_boolean_true_is_an_error() {
+        tokio::task::LocalSet::new().run_until(a_completed_result_always_carries_text_and_only_a_boolean_true_is_an_error_body()).await
+    }
+
+    async fn a_completed_result_always_carries_text_and_only_a_boolean_true_is_an_error_body() {
         // C3; adapter.ts:160-180.
         let dur = Some(JsNumber(5.0));
         assert_eq!(run(vec![init(), result(json!({"result": ""}))], ScriptOpts::default()).await.0, TurnResult { duration_ms: dur, text: Some(String::new()), ..bare(TurnStatus::Completed) });
@@ -502,6 +514,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn the_no_credential_sentence_outlives_the_tail_beats_a_stream_failure_and_refuses_an_exit_0() {
+        tokio::task::LocalSet::new().run_until(the_no_credential_sentence_outlives_the_tail_beats_a_stream_failure_and_refuses_an_exit_0_body()).await
+    }
+
+    async fn the_no_credential_sentence_outlives_the_tail_beats_a_stream_failure_and_refuses_an_exit_0_body() {
         // C4; adapter.ts:118-130, 190-205.
         let sentence = "Error: Authentication required. Please run 'agent login' first.";
         let mut lines = vec![sentence.to_string()];
@@ -515,6 +531,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn streamed_text_counts_by_key_presence_null_included_blank_text_is_said_and_parts_are_not_filtered_by_type() {
+        tokio::task::LocalSet::new().run_until(streamed_text_counts_by_key_presence_null_included_blank_text_is_said_and_parts_are_not_filtered_by_type_body()).await
+    }
+
+    async fn streamed_text_counts_by_key_presence_null_included_blank_text_is_said_and_parts_are_not_filtered_by_type_body() {
         // C5; adapter.ts:144-152.
         let say = |content: serde_json::Value, extra: serde_json::Value| {
             let mut v = json!({"type": "assistant", "message": {"role": "assistant", "content": content}, "session_id": CHAT});
@@ -538,6 +558,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn a_tool_s_result_text_takes_a_string_content_even_empty_and_names_its_kind_with_an_empty_why() {
+        tokio::task::LocalSet::new().run_until(a_tool_s_result_text_takes_a_string_content_even_empty_and_names_its_kind_with_an_empty_why_body()).await
+    }
+
+    async fn a_tool_s_result_text_takes_a_string_content_even_empty_and_names_its_kind_with_an_empty_why_body() {
         // C6; adapter.ts:102-116.
         let done = |id: &str, res: serde_json::Value| call("completed", json!({"shellToolCall": {"args": {}, "result": res}}), json!(id));
         let lines = vec![
@@ -555,6 +579,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn an_init_with_no_session_id_says_the_start_under_the_local_id_and_an_empty_one_is_the_id() {
+        tokio::task::LocalSet::new().run_until(an_init_with_no_session_id_says_the_start_under_the_local_id_and_an_empty_one_is_the_id_body()).await
+    }
+
+    async fn an_init_with_no_session_id_says_the_start_under_the_local_id_and_an_empty_one_is_the_id_body() {
         // C7; adapter.ts:139-143.
         let (_, events, session) = run(vec![json!({"type": "system", "subtype": "init"}).to_string(), result(json!({"result": "r"}))], ScriptOpts::default()).await;
         let local = session.local_id();
@@ -566,6 +594,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn the_stderr_tail_is_the_last_five_non_blank_trimmed_lines() {
+        tokio::task::LocalSet::new().run_until(the_stderr_tail_is_the_last_five_non_blank_trimmed_lines_body()).await
+    }
+
+    async fn the_stderr_tail_is_the_last_five_non_blank_trimmed_lines_body() {
         // C8; adapter.ts:118-124.
         let lines = ["", "  a  ", r#"{"type":5}"#, "l1", "l2", "l3", "l4"].map(String::from).to_vec();
         assert_eq!(run(lines, ScriptOpts { exit_code: Some(1), ..Default::default() }).await.0, failed("cursor-agent exited with code 1 before its turn ended: {\"type\":5}\nl1\nl2\nl3\nl4"));

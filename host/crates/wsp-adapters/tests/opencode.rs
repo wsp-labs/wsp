@@ -636,6 +636,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn a_tool_part_reads_its_id_name_input_and_error_as_the_ts_does_on_odd_fields() {
+        tokio::task::LocalSet::new().run_until(a_tool_part_reads_its_id_name_input_and_error_as_the_ts_does_on_odd_fields_body()).await
+    }
+
+    async fn a_tool_part_reads_its_id_name_input_and_error_as_the_ts_does_on_odd_fields_body() {
         // O1; adapter.ts:186-198. callID "" shadows id; no state draws `{}` and an empty result; a string input is JSON-
         // quoted; only the exact status `error` is an error, and a non-string error reads "".
         let tool = |part: Value| {
@@ -663,6 +667,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn an_empty_reason_ends_the_turn_and_context_rides_only_where_tokens_is_an_object() {
+        tokio::task::LocalSet::new().run_until(an_empty_reason_ends_the_turn_and_context_rides_only_where_tokens_is_an_object_body()).await
+    }
+
+    async fn an_empty_reason_ends_the_turn_and_context_rides_only_where_tokens_is_an_object_body() {
         // O2; adapter.ts:200-215.
         let text = line("text", json!({"part": {"type": "text", "text": "a"}}));
         let (r, _, _, _) = run(vec![text, stop(Some(json!({})), "")], ScriptOpts { hang: true, ..Default::default() }, None).await;
@@ -674,6 +682,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn lines_after_the_result_are_still_said_and_a_later_error_changes_nothing() {
+        tokio::task::LocalSet::new().run_until(lines_after_the_result_are_still_said_and_a_later_error_changes_nothing_body()).await
+    }
+
+    async fn lines_after_the_result_are_still_said_and_a_later_error_changes_nothing_body() {
         // O3; adapter.ts:166-215.
         let lines = vec![stop(None, "stop"), line("text", json!({"part": {"type": "text", "text": "late"}})), line("error", json!({"error": {"name": "APIError", "data": {"message": "late failure"}}}))];
         let (r, events, _, _) = run(lines, ScriptOpts::default(), None).await;
@@ -683,6 +695,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn an_empty_sign_in_message_reads_as_the_road_alone_and_a_string_401_is_no_sign_in() {
+        tokio::task::LocalSet::new().run_until(an_empty_sign_in_message_reads_as_the_road_alone_and_a_string_401_is_no_sign_in_body()).await
+    }
+
+    async fn an_empty_sign_in_message_reads_as_the_road_alone_and_a_string_401_is_no_sign_in_body() {
         // O4; adapter.ts:84-95, 230-240.
         let refused = TurnResult { error: Some(ROAD_WORDS.into()), refusal: Some(TurnRefusal::SignIn), ..bare(TurnStatus::Failed) };
         let fail = |e: Value| vec![line("error", json!({ "error": e }))];
@@ -694,6 +710,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn the_logged_error_is_the_first_line_naming_the_ref_with_an_error_field_each_escape_dropped() {
+        tokio::task::LocalSet::new().run_until(the_logged_error_is_the_first_line_naming_the_ref_with_an_error_field_each_escape_dropped_body()).await
+    }
+
+    async fn the_logged_error_is_the_first_line_naming_the_ref_with_an_error_field_each_escape_dropped_body() {
         // O5; adapter.ts:96-110. `ref=r10` is not `ref=r1 `; `xerror=` is not the field; `\n` reads `n`.
         let lines = vec![
             "INFO ref=r1 hello".to_string(),
@@ -707,6 +727,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn the_stderr_tail_is_the_last_ten_non_blank_trimmed_lines_unreadable_json_among_them() {
+        tokio::task::LocalSet::new().run_until(the_stderr_tail_is_the_last_ten_non_blank_trimmed_lines_unreadable_json_among_them_body()).await
+    }
+
+    async fn the_stderr_tail_is_the_last_ten_non_blank_trimmed_lines_unreadable_json_among_them_body() {
         // O6; adapter.ts:166-172, 70.
         let mut lines: Vec<String> = [r#"{"a":1}"#, "[1]", "", "  "].map(String::from).to_vec();
         lines.extend((1..=9).map(|i| format!("  l{i}  ")));
@@ -716,6 +740,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn the_first_string_session_id_announces_once_an_empty_one_included_and_the_registry_keeps_the_local_id() {
+        tokio::task::LocalSet::new().run_until(the_first_string_session_id_announces_once_an_empty_one_included_and_the_registry_keeps_the_local_id_body()).await
+    }
+
+    async fn the_first_string_session_id_announces_once_an_empty_one_included_and_the_registry_keeps_the_local_id_body() {
         // O7; adapter.ts:174-180, 252-270.
         let raw = |sid: Option<&str>, text: &str| {
             let mut v = json!({"type": "text", "timestamp": 1, "part": {"type": "text", "text": text}});
@@ -760,6 +788,10 @@ mod rules_added {
 
     #[tokio::test]
     async fn a_stop_after_the_result_keeps_it_and_the_end_reads_the_process_s_own_code() {
+        tokio::task::LocalSet::new().run_until(a_stop_after_the_result_keeps_it_and_the_end_reads_the_process_s_own_code_body()).await
+    }
+
+    async fn a_stop_after_the_result_keeps_it_and_the_end_reads_the_process_s_own_code_body() {
         // O10; adapter.ts:271-280.
         let events = Events::default();
         let exec = scripted_exec(vec![stop(None, "stop")], ScriptOpts { hang: true, ..Default::default() }, RUN_HANDLE);
