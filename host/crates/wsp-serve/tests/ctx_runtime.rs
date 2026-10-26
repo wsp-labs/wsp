@@ -6,6 +6,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use serde_json::json;
+use wsp_core::types::api::Runtime;
 use wsp_core::types::wiring::{RuntimeOptions, WorkspaceRecord};
 use wsp_engine::fake_backend::{FakeBackend, FakeBackendOptions};
 use wsp_engine::machine::MachineBackend;
@@ -54,7 +55,6 @@ fn a_runtime_wired_without_place_links_has_no_place_door() {
 #[test]
 fn the_public_members_forward() {
     run(|runtime| async move {
-        use wsp_core::types::api::Runtime;
         let _ = runtime.events();
         let _ = runtime.backend();
         let _ = runtime.devices();
@@ -106,7 +106,9 @@ answers!(reach_ctx, |c| wsp_machines::machines::reach::ReachCtx::closing(&*c));
 answers!(daemon_runtime, |c| wsp_machines::machines::daemon::DaemonRuntime::daemon_hello_timeout_ms(&*c));
 answers!(machines_runtime, |c| wsp_machines::machines::machines::MachinesRuntime::ids(&*c));
 answers!(idle_door, |c| wsp_machines::machines::machines::IdleDoor::touch(&*c, "w"));
-answers!(claim, |c| wsp_machines::images::builders::Claim::backend(&*c));
+answers!(claim, |c| wsp_machines::images::builders::Claim::backend(&*wsp_machines::images::builders::BuildersCtx::claiming(
+    &*c, "p", None, None
+)));
 answers!(boot_runtime, |c| wsp_machines::machines::boot::BootRuntime::hostname(&*c));
 answers!(machines_landing_road, |c| wsp_machines::machines::create::LandingRoad::kind(&*c));
 answers!(create_runtime_ctx, |c| wsp_machines::machines::create::CreateRuntime::clock(&*c));

@@ -89,9 +89,7 @@ pub struct ImportLedger {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub left_behind: Option<Vec<GoldenLeftBehind>>,
 }
-/// TS engine `KillConfirm`.
-#[derive(Clone, Debug, Default)]
-pub struct KillConfirm {}
+pub use wsp_engine::gone::KillConfirm;
 /// TS engine `Sighting`: what a provider read found of a machine.
 #[derive(Clone, Debug, Default)]
 pub struct Sighting {}
@@ -99,8 +97,9 @@ pub struct Sighting {}
 // Area types that rule 1.5 moves down into wsp-core because `types/api.ts` and `types/wiring.ts` name them. Each is
 // a handle here; the area writer of its TS file declares its methods on it.
 
-/// TS runtime places.ts `PlaceWiring` (wsp-machines).
-pub trait PlaceWiring {}
+/// TS runtime places.ts `PlaceWiring` (wsp-machines): the host's wiring is the machines' struct, which the runtime
+/// reads back through `Any`.
+pub trait PlaceWiring: std::any::Any {}
 /// TS runtime agents-read.ts `AgentsReader` (wsp-machines).
 pub trait AgentsReader {}
 /// TS agents-read.ts `AgentsActs`.
