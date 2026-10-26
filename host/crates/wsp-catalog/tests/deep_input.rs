@@ -83,7 +83,8 @@ fn upper(s: &str, _command: bool) -> String {
 
 fn parse_json_body(depth: usize) {
     for text in [arrays(depth), objects(depth)] {
-        let _ = parse_json(&text);
+        let err = parse_json(&text).expect_err("past the cap, the one read fails");
+        assert_eq!(err.message, "Maximum call stack size exceeded");
     }
 }
 
@@ -97,6 +98,20 @@ fn parse_json_body(depth: usize) {
 #[test]
 fn parse_json_of_deep_nesting() {
     in_child("parse_json_of_deep_nesting", 100_000, parse_json_body);
+}
+
+fn parse_json_cap_body(depth: usize) {
+    for build in [arrays, objects] {
+        assert!(parse_json(&build(depth)).is_ok(), "{depth} levels read");
+        let err = parse_json(&build(depth + 1)).expect_err("one level past the cap refuses");
+        assert_eq!(err.message, "Maximum call stack size exceeded");
+    }
+}
+
+// The cap itself, on the 1 MiB stack: 1,000 levels read and 1,001 refuse (ruling 2 of #2448).
+#[test]
+fn parse_json_reads_1000_levels_and_refuses_1001() {
+    in_child("parse_json_reads_1000_levels_and_refuses_1001", 1000, parse_json_cap_body);
 }
 
 // ---- trees and writers over a value the parse accepted (999 levels at most) ----
