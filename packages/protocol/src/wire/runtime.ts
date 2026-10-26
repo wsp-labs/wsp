@@ -1029,13 +1029,8 @@ export const RuntimeRequest = z.intersection(RuntimeOp, z.object({ origin: Works
 export const RUNTIME_OPS: readonly string[] = RuntimeOp.options.map(o => o.shape.op.value);
 
 /** The request fields above that carry a secret: a key, a token, a code, a passphrase, or a record of logins or
- * environment values a person puts keys into, and `ticket`, the bearer ticket.issue answers with, which the tap reads
- * off answers by the same list. A new field that carries one is added here, beside its schema. */
-export const SECRET_REQUEST_FIELDS: readonly string[] = ["token", "turnToken", "ticket", "key", "rows", "code", "passphrase", "env", "envs", "headers", "sudoPassword"];
-
-/** More secret values than any real frame carries (a record of logins, an environment); a line holding more is not
- * blanked value by value, since each value is one pass over the line on the host's own thread. */
-export const SCANNED_SECRETS = 256;
+ * environment values a person puts keys into. A new field that carries one is added here, beside its schema. */
+export const SECRET_REQUEST_FIELDS: readonly string[] = ["token", "key", "rows", "code", "passphrase", "env", "envs", "headers", "sudoPassword"];
 
 /** The secret values a request frame carries, read one level into a record and no deeper: a record of logins is as
  * deep as a secret field goes, and the frame may be a stranger's. */

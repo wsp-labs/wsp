@@ -1,5 +1,0 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/pairing.test.ts > a computer the account admitted > admits a computer an already admitted one signed for, and never one signed by a key it has not seen","outs":"recorded"}}
-{"in":{"nonce":"ZH4IRnauUS+rfmZBn8fg1HVu7gSoXc4AHEkKjokRAYo=","ephemeral":"KcEblEAdykOJ83zdaba5FdMfLjbb1G5qzoY/EEEuYiE=","id":1,"op":"seal.open"}}
-{"out":{"id":1,"ok":true,"nonce":"un6xU2OYc2WoF6WvgOYVvYQzznomfeHhG05TNzJd+Xw=","hostPublicKey":"MCowBQYDK2VwAyEAJ2btoge2f7cYGx0CrDy3UgbOlYtm/StTaNNmAHJk8Uc=","signature":"s5A5ZqN2Zl97NFU1VcwVoVCFKklkjX47DMqJljvJ+hsT/Jv5btzYeO3pvdjwpJHBvpiZReiDhtdotJCQ/uh0AA==","ephemeral":"gjW9K49KC9dneyjaQhWa5gwcfkeX5EhG0qcppTDPP0I="}}
-{"in":{"publicKey":"MCowBQYDK2VwAyEATTdZsrcSNV4aRKatqgjRHrdvSGTau7udBc1dJ1hpdaI=","name":"the desk","signature":"41cb5+WDofyaEjjsqs2TSbbrsEFr9Ig1UgVgqy2VLCkF2BRJ9lw82Cr4c/RVYEnOPLD3r6NdKY+nzsYAXkvmCQ==","id":2,"op":"device.auth"}}
-{"out":{"id":2,"ok":true,"deviceId":"d_00000001","deviceToken":"<redacted-1>"}}

@@ -1,3 +1,0 @@
-{"meta":{"door":"ws","source":"hand: a computer joins with a code the host minted, proves its key and is linked as a place"}}
-{"in":{"id":1,"op":"place.join","publicKey":"<joiner-key>","nonce":"<joiner-nonce>","ephemeral":"<joiner-ephemeral>"}}
-{"in":{"id":2,"op":"place.prove","signature":"<joiner-signature>","report":{"name":"old-macbook","platform":"linux","arch":"x64","os":"Ubuntu 24.04","shape":{"cpu":4,"memMb":4096},"diskFreeBytes":892279455744,"login":{"HOME":"/home/maya","USER":"maya","PATH":"/usr/bin"},"runsWorkspaces":true,"engine":"none","daemonVersion":17,"agents":[],"wsp":["/home/maya/.npm-global/bin/wsp"],"dialed":"http://192.168.1.20:14621"},"code":"<join-code>"}}

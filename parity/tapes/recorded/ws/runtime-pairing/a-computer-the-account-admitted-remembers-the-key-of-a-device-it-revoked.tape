@@ -1,5 +1,0 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/pairing.test.ts > a computer the account admitted > remembers the key of a device it revoked and admits it no more, whatever admission the account still carries","outs":"recorded"}}
-{"in":{"nonce":"QCPPSfUN8Fgeh0ZH7WkDEWq9+VtD9RMLQYJLBSZ9vyE=","ephemeral":"DKGagS733+rczrk/TZKSw6rV3nFtMO54A6Pq4Xklm3g=","id":1,"op":"seal.open"}}
-{"out":{"id":1,"ok":true,"nonce":"osBxwwmmNdso048cKwZ7g+tuPJxMLD4pC8sJiUTfcjY=","hostPublicKey":"MCowBQYDK2VwAyEAJ2btoge2f7cYGx0CrDy3UgbOlYtm/StTaNNmAHJk8Uc=","signature":"4MfAAWmskRSdlc06jxPfrTflGdilpf+gtl2/FX0hirzWvjKsi2FN8emdRa2FCpOs/HIeMTZVSOFj2OipIw5UCQ==","ephemeral":"sjBdLkEVHcQGUEF38vLemj6oskoOO3arX4Jv3h/a4D4="}}
-{"in":{"publicKey":"MCowBQYDK2VwAyEAxYstHBDTkOvYuR0W0Z1X4aUhbnKrZBJrutR/f4uyf8s=","name":"the laptop","signature":"azS4u3UxxZ9wNqui7Q+LzHGPMuKQKOQtKIKN1VfY6NU4WMcpc6RDbiBm+q932zbHk/kd2KpGW6GHbXbm4wGwBQ==","id":2,"op":"device.auth"}}
-{"out":{"id":2,"ok":true,"deviceId":"d_00000001","deviceToken":"<redacted-1>"}}
