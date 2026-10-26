@@ -121,6 +121,23 @@ pub(super) fn cut_units(s: &str, n: usize) -> String {
     String::from_utf16_lossy(&s.encode_utf16().take(n).collect::<Vec<u16>>())
 }
 
+/// golden-tools.ts:137 `usedBytes`: what a snapshot of the disk comes to: what the backend says the machine has written
+/// since it booted, where it can read that off the disk itself, else what df says is used under /root. `None` when
+/// neither answers.
+pub async fn used_bytes(machine: &dyn Machine) -> Option<f64> {
+    if machine.offers().describe {
+        if let Ok(shape) = machine.describe().await {
+            if let Some(used) = shape.used_bytes {
+                return Some(used.get() as f64);
+            }
+        }
+    }
+    match df_read(machine, &[DfColumn::Used], None).await {
+        Ok(DfRead::Bytes(bytes)) => Some(bytes[0]),
+        _ => None,
+    }
+}
+
 // TS golden-tools.ts:114-124
 // /** One df column read off the machine, in bytes; a df that fails or prints no number is reported, never assumed. */
 // async function dfRootBytes(machine: Machine, column: "used" | "free", prefix?: string): Promise<{ bytes: number } | { reason: string }> {
