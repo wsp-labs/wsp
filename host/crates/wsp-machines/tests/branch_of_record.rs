@@ -1062,7 +1062,7 @@ fn a_failed_ls_remote_reads_no_heads() {
 
 // B10: spec only (branch-of-record.ts:142)
 #[test]
-fn a_base_tip_that_is_no_commit_is_refused_before_the_heads_are_read() {
+fn a_base_tip_that_is_no_commit_is_refused_after_the_heads_are_read() {
     run(async {
         let rig = Rig::new();
         rig.ctx

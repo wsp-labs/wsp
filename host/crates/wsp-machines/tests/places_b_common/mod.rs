@@ -1286,6 +1286,7 @@ impl Door {
                 PlaceEvent::Joined(_) => "place.joined",
                 PlaceEvent::Changed(_) => "place.changed",
                 PlaceEvent::Removed(_) => "place.removed",
+                PlaceEvent::Present(_) => "place.present",
                 PlaceEvent::Absent(_) => "place.absent",
             })
             .map(String::from)

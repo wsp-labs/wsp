@@ -42,6 +42,7 @@ use wsp_words::words::units::{
 };
 
 use super::machines::{Entry, Ids};
+use crate::unwound::unwound_or_failed;
 
 /// A create as a window holds it before its record lands (context.ts:542 `ShownCreate`).
 pub type ShownCreate = WorkspaceView;
@@ -215,7 +216,7 @@ fn start_join<T: Clone + 'static>(
     let mut first = join.clone();
     let _ = (&mut first).now_or_never();
     let keep = join.clone();
-    tokio::task::spawn_local(async move {
+    crate::local_task::spawn(async move {
         let _ = keep.await;
     });
     join
@@ -411,10 +412,9 @@ impl CreateArea {
         let cell = Rc::new(RefCell::new(record));
         let opens = opens_thread.clone();
         let of_record = o.branch_of_record.is_some();
-        let bind = |m: &Arc<dyn Machine>, r: &WorkspaceRecord| {
-            let mut copy = r.clone();
-            copy.machine_id = m.id().to_string();
-            let entry = rt.attach(&Rc::new(RefCell::new(copy)), m.clone());
+        let bind = |m: &Arc<dyn Machine>, _r: &WorkspaceRecord| {
+            cell.borrow_mut().machine_id = m.id().to_string();
+            let entry = rt.attach(&cell, m.clone());
             {
                 let mut live = entry.borrow_mut();
                 live.creating = true;
@@ -808,7 +808,7 @@ impl CreateArea {
         let me = self.me.clone();
         let owned_key = key.to_string();
         let making: LocalBoxFuture<'static, Result<Entry, HostError>> = async move {
-            let made = make().await;
+            let made = unwound_or_failed(make()).await;
             if let Some(area) = me.upgrade() {
                 area.folder_making.borrow_mut().shift_remove(&owned_key);
             }

@@ -687,6 +687,7 @@ fn the_link_closing_marks_the_place_absent() {
                 PlaceEvent::Joined(_) => json!("joined"),
                 PlaceEvent::Changed(_) => json!("changed"),
                 PlaceEvent::Removed(_) => json!("removed"),
+                PlaceEvent::Present(_) => json!("present"),
             })
             .collect();
         assert_eq!(
@@ -928,8 +929,14 @@ fn attach_says_present_and_wakes_what_waits_on_it() {
             1,
             "nothing is taken off the list"
         );
-        let present = scene.setup_frames();
-        let _ = present;
+        assert!(
+            scene.events.borrow().iter().any(|e| matches!(
+                e,
+                wsp_machines::places::types::PlaceEvent::Present(p)
+                    if p.place_id == "p_spoo" && p.from == "10.0.0.9"
+            )),
+            "link.ts:213 emits place.present with the place and where it dialled from"
+        );
         assert!(scene.ctx.live.borrow().contains_key("p_spoo"));
     });
 }

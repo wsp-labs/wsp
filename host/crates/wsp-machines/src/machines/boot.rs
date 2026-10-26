@@ -279,20 +279,21 @@ pub struct BootArea {
     pub(crate) rt: Rc<dyn BootRuntime>,
     pub(crate) config: BootConfig,
     /// `hydrated`: the one start.
-    pub(crate) hydrated: RefCell<
-        Option<
-            futures::future::Shared<futures::future::LocalBoxFuture<'static, Result<(), String>>>,
-        >,
-    >,
+    pub(crate) hydrated: RefCell<Option<ready::Ready>>,
     /// `admitting`: one read per stored builder at a time.
     pub(crate) admitting: RefCell<
         IndexMap<
             String,
-            futures::future::Shared<futures::future::LocalBoxFuture<'static, Result<(), String>>>,
+            futures::future::Shared<
+                futures::future::LocalBoxFuture<'static, Result<(), HostError>>,
+            >,
         >,
     >,
     /// `passes` and `latest`: the newest builders listing wins.
     pub(crate) passes: std::cell::Cell<u64>,
+    /// The state a held record's re-read sighted, handed to the hydration it starts (`FoundMachine.sighting.state`,
+    /// which wsp-core's `Sighting` does not carry yet): a second read would reset the provider's idle timer.
+    pub(crate) sighted: RefCell<Option<wsp_engine::machine::MachineState>>,
     /// `heldAnswers`: what the provider said to the load's read of a record now held.
     pub(crate) held_answers: RefCell<IndexMap<String, String>>,
     /// `toldRows`, `toldBehind`, `rowsMoved`, `rowsGone`, `rowsQueued`: the row push.
@@ -307,7 +308,9 @@ pub struct BootArea {
     /// `latest`: the newest builders pass, which an older pass that a newer one overtook hands its caller.
     pub(crate) latest: RefCell<
         Option<
-            futures::future::Shared<futures::future::LocalBoxFuture<'static, Result<(), String>>>,
+            futures::future::Shared<
+                futures::future::LocalBoxFuture<'static, Result<(), HostError>>,
+            >,
         >,
     >,
 }
@@ -321,6 +324,7 @@ impl BootArea {
             hydrated: RefCell::default(),
             admitting: RefCell::default(),
             passes: std::cell::Cell::new(0),
+            sighted: RefCell::default(),
             held_answers: RefCell::default(),
             told_rows: RefCell::default(),
             told_behind: RefCell::default(),

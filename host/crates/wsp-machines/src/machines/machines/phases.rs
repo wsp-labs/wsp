@@ -23,8 +23,9 @@ use wsp_words::words::thread::{
     gone_words, idle_reason, GoneSeenBy, GoneSighting, ALREADY_RUNNING, GONE_UNCHECKED, NOT_GONE,
 };
 
-use super::create::{host_of, machine_state_word, read_once, sleep_ms, GONE_READS};
+use super::create::{backstop_of, host_of, machine_state_word, read_once, sleep_ms, GONE_READS};
 use super::{Entry, MachinesArea, Refusal};
+use crate::unwound::unwound_or_failed;
 
 /// What `goneConfirmed` answers: the provider's state, or the error its reads ended on (machines.ts:691).
 #[derive(Clone, Debug, PartialEq)]
@@ -119,9 +120,8 @@ impl MachinesArea {
             reason.map(str::to_string),
         );
         let nap: Joined<WorkspaceView> = async move {
-            let out = area
-                .nap_run(&held, &id_owned, reason_owned.as_deref())
-                .await;
+            let out =
+                unwound_or_failed(area.nap_run(&held, &id_owned, reason_owned.as_deref())).await;
             held.borrow_mut().napping = None;
             out
         }
@@ -227,7 +227,7 @@ impl MachinesArea {
             Box::new(move || {
                 let Some(entry) = weak.upgrade() else { return };
                 entry.borrow_mut().late_read = None;
-                tokio::task::spawn_local(async move {
+                crate::local_task::spawn(async move {
                     let id = entry.borrow().record.borrow().id.clone();
                     let runs = area.runs_under_napping(&entry).await;
                     let out = if runs {
@@ -300,7 +300,7 @@ impl MachinesArea {
         }
         let (area, held) = (self.clone(), entry.clone());
         let adopting: Joined<()> = async move {
-            let out = area.adopt_running_run(&held).await;
+            let out = unwound_or_failed(area.adopt_running_run(&held)).await;
             held.borrow_mut().adopting = None;
             out
         }
@@ -548,7 +548,7 @@ impl MachinesArea {
         let window = self.idle_window_of(&Self::record_snapshot(&entry));
         match window {
             Some(ms) if self.rt.nap_refused_of(&entry).is_some() => {
-                Some(Some(wsp_core::idle::backstop_ms(Some(ms as i64)) as f64))
+                Some(Some(backstop_of(Some(ms))))
             }
             other => Some(other),
         }
@@ -624,7 +624,7 @@ impl MachinesArea {
         }
         let area = self.clone();
         let id = id.to_string();
-        tokio::task::spawn_local(async move {
+        crate::local_task::spawn(async move {
             if let Err(e) = lifecycle.backstop(machine.as_ref(), until_ms, false).await {
                 area.rt.warn(&format!(
                     "backstop of {id} on {} not set: {e}",
@@ -649,7 +649,7 @@ impl MachinesArea {
         entry.borrow_mut().wake_stop = Some(stop.clone());
         let (area, held) = (self.clone(), entry.clone());
         let waking: Joined<WorkspaceView> = async move {
-            let out = area.proven_run(&held, machine.as_ref(), &stop).await;
+            let out = unwound_or_failed(area.proven_run(&held, machine.as_ref(), &stop)).await;
             held.borrow_mut().waking = None;
             held.borrow_mut().wake_stop = None;
             out

@@ -20,6 +20,7 @@ use wsp_words::words::thread::{
 use super::{DiskHeld, ReachArea};
 use crate::machines::area_error::AreaResult;
 use crate::machines::machines::Entry;
+use crate::unwound::unwound;
 use wsp_core::context::Joined;
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_words::place_word::provider_key_name;
@@ -165,7 +166,7 @@ impl ReachArea {
                 let entry = entry.clone();
                 let key = id.clone();
                 let reading: LocalBoxFuture<'static, ()> = Box::pin(async move {
-                    area.read_disk_now(&entry).await;
+                    let _ = unwound(area.read_disk_now(&entry)).await;
                     area.disk_reads.borrow_mut().shift_remove(&key);
                 });
                 let shared = reading.shared();

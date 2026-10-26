@@ -60,6 +60,7 @@ impl GoldenArea {
         ctx.refresh_builders().await?;
 
         let kept = {
+            let wired = ctx.places().wired();
             let list: Vec<BuilderRef> = ctx.builders().borrow().values().cloned().collect();
             list.into_iter().find(|x| {
                 let b = x.borrow();
@@ -68,7 +69,7 @@ impl GoldenArea {
                 });
                 matches!(b.life, BuilderLife::Own | BuilderLife::Reusable)
                     && b.record.name == name
-                    && b.record.place.as_deref().unwrap_or(place.as_str()) == place.as_str()
+                    && b.record.place.as_deref().unwrap_or(wired.as_str()) == place.as_str()
                     && sealed_here
             })
         };
