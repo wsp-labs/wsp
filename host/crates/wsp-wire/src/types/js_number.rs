@@ -18,6 +18,12 @@ impl JsNumber {
     /// The number as JavaScript's `String(n)` writes it.
     pub fn js_string(&self) -> String {
         let n = self.0;
+        if n.is_nan() {
+            return "NaN".into();
+        }
+        if n.is_infinite() {
+            return if n > 0.0 { "Infinity" } else { "-Infinity" }.into();
+        }
         if n == 0.0 {
             return "0".into();
         }

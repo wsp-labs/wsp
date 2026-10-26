@@ -123,6 +123,13 @@ mod javascript_numbers {
     }
 
     #[test]
+    fn nan_and_the_infinities_write_as_node_writes_them() {
+        for (n, want) in [(f64::NAN, "NaN"), (f64::INFINITY, "Infinity"), (f64::NEG_INFINITY, "-Infinity")] {
+            assert_eq!(JsNumber(n).js_string(), want);
+        }
+    }
+
+    #[test]
     fn an_integral_number_under_2_53_writes_as_a_json_integer_and_minus_zero_as_0() {
         for (n, want) in [(3.0, json!(3)), (-0.0, json!(0)), (-42.0, json!(-42)), (9007199254740991.0, json!(9007199254740991_i64))] {
             let v = serde_json::to_value(JsNumber(n)).unwrap();
