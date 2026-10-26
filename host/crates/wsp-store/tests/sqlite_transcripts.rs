@@ -9,7 +9,7 @@ use common::*;
 use rusqlite::Connection;
 use serde_json::{json, Value};
 use wsp_store::sqlite_store::{sqlite_store, SqliteStore};
-use wsp_store::sqlite_transcripts::{EventSize, TranscriptRows, Total};
+use wsp_store::sqlite_transcripts::{EventSize, Total, TranscriptRows};
 use wsp_store::store::Store;
 use wsp_store::transcript_reader::event_json;
 use wsp_wire::views::session_events_more::SessionEvent;
@@ -48,7 +48,8 @@ fn fresh() -> (Home, SqliteStore) {
 fn keeps_each_event_as_a_row_read_back_in_order_and_a_threads_newest_first_under_a_position() {
     let (_home, store) = fresh();
     let r = rows(&store);
-    r.append("w", &[text(Some("a"), 1, "line 1"), text(Some("b"), 2, "line 2"), text(None, 3, "line 3"), text(Some("a"), 4, "line 4")]).unwrap();
+    r.append("w", &[text(Some("a"), 1, "line 1"), text(Some("b"), 2, "line 2"), text(None, 3, "line 3"), text(Some("a"), 4, "line 4")])
+        .unwrap();
     r.append("v", &[text(Some("a"), 1, "line 1")]).unwrap();
     let all = r.all("w").unwrap();
     assert_eq!(poses(&all.events), vec![1, 2, 3, 4]);
@@ -98,7 +99,18 @@ fn undoes_the_whole_of_a_transaction_that_fails() {
     let failed = r.atomically(&mut || {
         r.append("w", &[text(Some("a"), 2, "two")])?;
         r.put_index("w", "{}")?;
-        Err(HostError { message: "stop".into(), fix: None, kind: None, errors: None, warnings: None, left: None, host_key: None, code: None, status: None, marks: vec![] })
+        Err(HostError {
+            message: "stop".into(),
+            fix: None,
+            kind: None,
+            errors: None,
+            warnings: None,
+            left: None,
+            host_key: None,
+            code: None,
+            status: None,
+            marks: vec![],
+        })
     });
     assert_eq!(failed.unwrap_err().message, "stop");
     assert_eq!(poses(&r.all("w").unwrap().events), vec![1]);
@@ -132,7 +144,9 @@ fn stores_each_event_with_its_thread_type_utf16_size_and_json_as_the_ts_does() {
     let got: Vec<(String, i64, String, String, i64, Value)> = c
         .prepare("select workspace, pos, thread, type, size, json from events order by pos")
         .unwrap()
-        .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, serde_json::from_str(&r.get::<_, String>(5)?).unwrap())))
+        .query_map([], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, serde_json::from_str(&r.get::<_, String>(5)?).unwrap()))
+        })
         .unwrap()
         .map(Result::unwrap)
         .collect();
@@ -176,10 +190,7 @@ fn reads_threads_counts_totals_and_sizes_as_the_ts_does() {
         let want: Vec<i64> = serde_json::from_value(f[key].clone()).unwrap();
         assert_eq!(newest(r, "w", "a", before), want, "{key}");
     }
-    assert_eq!(
-        [r.count("w", "a").unwrap(), r.count("w", "").unwrap(), r.count("w", "zzz").unwrap()],
-        [8, 2, 0]
-    );
+    assert_eq!([r.count("w", "a").unwrap(), r.count("w", "").unwrap(), r.count("w", "zzz").unwrap()], [8, 2, 0]);
     let total = |v: &Value| Total { count: v["count"].as_u64().unwrap(), size: v["size"].as_u64().unwrap() };
     assert_eq!(r.total("w", None).unwrap(), total(&f["total"]["all"]));
     assert_eq!(r.total("w", Some("a")).unwrap(), total(&f["total"]["a"]));
@@ -258,7 +269,18 @@ fn an_inner_transaction_joins_the_outer_so_a_caught_inner_failure_keeps_its_writ
         r.put_index("w", "outer")?;
         let inner = r.atomically(&mut || {
             r.append("w", &[text(Some("a"), 20, "inner")])?;
-            Err(HostError { message: "inner stop".into(), fix: None, kind: None, errors: None, warnings: None, left: None, host_key: None, code: None, status: None, marks: vec![] })
+            Err(HostError {
+                message: "inner stop".into(),
+                fix: None,
+                kind: None,
+                errors: None,
+                warnings: None,
+                left: None,
+                host_key: None,
+                code: None,
+                status: None,
+                marks: vec![],
+            })
         });
         caught = inner.unwrap_err().message;
         Ok(())

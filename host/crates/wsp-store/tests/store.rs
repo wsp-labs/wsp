@@ -292,10 +292,7 @@ fn shape_now_writes_shape_three_the_writers_build_and_the_time_in_that_key_order
     assert_eq!(doc.keys().cloned().collect::<Vec<_>>(), ["shape", "wsp", "daemon", "bin", "at"]);
     let at = doc.remove("at").unwrap();
     let at = at.as_str().unwrap().to_string();
-    assert_eq!(
-        Value::Object(doc),
-        json!({"shape": 3, "wsp": "test", "daemon": 1, "bin": "/usr/local/bin/wsp"})
-    );
+    assert_eq!(Value::Object(doc), json!({"shape": 3, "wsp": "test", "daemon": 1, "bin": "/usr/local/bin/wsp"}));
     assert!(is_iso_millis(&at), "at is {at}");
     assert!((epoch_ms(&at) - now).abs() <= 5000, "at {at} is not within 5 seconds of now");
 }
