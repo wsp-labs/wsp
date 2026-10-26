@@ -638,26 +638,47 @@ fn remove_forced(path: &str) -> Result<(), String> {
 }
 
 /// `rmSync(path, { recursive: true, force: true })`: a folder is removed as node does, empty first and then its children.
+/// One stack of folders of its own, each holding the names `readdirSync` would answer, so no depth of folders is a depth of
+/// the thread's stack or a descriptor held open.
 fn remove_tree(path: &str) -> Result<(), String> {
+    let mut open: Vec<(String, std::vec::IntoIter<std::fs::DirEntry>)> = Vec::new();
+    let mut next = Some(path.to_string());
+    loop {
+        if let Some(path) = next.take() {
+            if let Some(entries) = enter(&path)? {
+                open.push((path, entries.into_iter()));
+            }
+        }
+        let Some((here, entries)) = open.last_mut() else { return Ok(()) };
+        match entries.next() {
+            Some(entry) => next = Some(entry.path().to_string_lossy().into_owned()),
+            None => {
+                fs::remove_dir(&*here).map_err(|e| node_error(&e, "rmdir", Some(here)))?;
+                open.pop();
+            }
+        }
+    }
+}
+
+/// One step of `remove_tree` at `path`: a file or an empty folder is removed here; a folder with something in it answers
+/// what is in it, for the caller to remove first.
+fn enter(path: &str) -> Result<Option<Vec<std::fs::DirEntry>>, String> {
     let meta = match fs::symlink_metadata(path) {
         Ok(meta) => meta,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
         Err(e) => return Err(node_error(&e, "lstat", Some(path))),
     };
     if !meta.is_dir() {
-        return remove_forced(path);
+        return remove_forced(path).map(|()| None);
     }
     match fs::remove_dir(path) {
-        Ok(()) => return Ok(()),
+        Ok(()) => return Ok(None),
         Err(e) if matches!(e.raw_os_error(), Some(libc::ENOTEMPTY | libc::EEXIST)) => {}
         Err(e) => return Err(node_error(&e, "rmdir", Some(path))),
     }
     let entries = fs::read_dir(path).map_err(|e| node_error(&e, "scandir", Some(path)))?;
-    for entry in entries {
-        let entry = entry.map_err(|e| node_error(&e, "scandir", Some(path)))?;
-        remove_tree(&entry.path().to_string_lossy())?;
-    }
-    fs::remove_dir(path).map_err(|e| node_error(&e, "rmdir", Some(path)))
+    let names = entries.collect::<io::Result<Vec<_>>>().map_err(|e| node_error(&e, "scandir", Some(path)))?;
+    Ok(Some(names))
 }
 
 /// The log's size, 0 when it cannot be read.
