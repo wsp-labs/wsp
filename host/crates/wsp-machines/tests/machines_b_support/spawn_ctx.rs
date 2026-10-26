@@ -863,7 +863,7 @@ impl SubSpawnCtx for FakeHost {
     async fn fork(
         &self,
         record: &Rc<RefCell<WorkspaceRecord>>,
-        on_machine: Box<dyn Fn(Arc<dyn Machine>)>,
+        on_machine: Box<dyn Fn(Arc<dyn Machine>) -> Result<(), HostError>>,
         report: StageReport,
     ) -> AreaResult<()> {
         let (id, name, golden, size) = {
@@ -961,22 +961,26 @@ impl SubSpawnCtx for FakeHost {
                 },
             }));
         }
-        on_machine(m as Arc<dyn Machine>);
+        on_machine(m as Arc<dyn Machine>)?;
         Ok(())
     }
-    fn attach(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry {
+    fn attach(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        machine: Arc<dyn Machine>,
+    ) -> Result<Entry, HostError> {
         let id = record.borrow().id.clone();
         self.call("attach", &[&id, machine.id()]);
         let entry = live_entry(record.clone(), machine);
         self.live.borrow_mut().insert(id, entry.clone());
-        entry
+        Ok(entry)
     }
-    fn attach_dead(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Entry {
+    fn attach_dead(&self, record: &Rc<RefCell<WorkspaceRecord>>) -> Result<Entry, HostError> {
         let id = record.borrow().id.clone();
         self.call("attach_dead", &[&id]);
         let entry = live_entry(record.clone(), dead_machine(""));
         self.live.borrow_mut().insert(id, entry.clone());
-        entry
+        Ok(entry)
     }
     async fn ping_daemon(&self, entry: &Entry) -> Option<String> {
         self.call("ping_daemon", &[&entry_id(entry)]);

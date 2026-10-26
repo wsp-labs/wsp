@@ -317,14 +317,22 @@ fn revive_no_daemon_on_a_running_machine_deploys_notes_restarting_clears() {
         let (sc, w) =
             start("revive: no-daemon on a running machine deploys, notes restarting, clears");
         let entry = w.entry("a");
-        w.area.revive_daemon(&entry, reach("no-daemon"));
+        w.area
+            .revive_daemon(&entry, reach("no-daemon"))
+            .expect("the revive is asked");
         common::flush().await;
         w.push(json!(["revivedAt", moments_json(&w.area.revived_at())]));
-        w.area.revive_daemon(&entry, reach("no-daemon"));
+        w.area
+            .revive_daemon(&entry, reach("no-daemon"))
+            .expect("the revive is asked");
         w.clock.advance(revive_again_ms() - 1);
-        w.area.revive_daemon(&entry, reach("no-daemon"));
+        w.area
+            .revive_daemon(&entry, reach("no-daemon"))
+            .expect("the revive is asked");
         w.clock.advance(1);
-        w.area.revive_daemon(&entry, reach("no-daemon"));
+        w.area
+            .revive_daemon(&entry, reach("no-daemon"))
+            .expect("the revive is asked");
         finish(&sc, &w, &[]).await;
     })
 }
@@ -335,9 +343,15 @@ fn revive_only_for_no_daemon_on_a_running_machine_with_a_road_and_no_unreached_m
         let (sc, w) = start(
             "revive: only for no-daemon on a running machine with a road and no unreached mark",
         );
-        w.area.revive_daemon(&w.entry("a"), reach("reachable"));
-        w.area.revive_daemon(&w.entry("b"), reach("no-daemon"));
-        w.area.revive_daemon(&w.entry("c"), reach("no-daemon"));
+        w.area
+            .revive_daemon(&w.entry("a"), reach("reachable"))
+            .expect("the revive is asked");
+        w.area
+            .revive_daemon(&w.entry("b"), reach("no-daemon"))
+            .expect("the revive is asked");
+        w.area
+            .revive_daemon(&w.entry("c"), reach("no-daemon"))
+            .expect("the revive is asked");
         w.area.unreached().borrow_mut().insert(
             "d".to_string(),
             Unreached {
@@ -345,7 +359,9 @@ fn revive_only_for_no_daemon_on_a_running_machine_with_a_road_and_no_unreached_m
                 line: "cannot reach".to_string(),
             },
         );
-        w.area.revive_daemon(&w.entry("d"), reach("no-daemon"));
+        w.area
+            .revive_daemon(&w.entry("d"), reach("no-daemon"))
+            .expect("the revive is asked");
         finish(&sc, &w, &[]).await;
     })
 }
@@ -354,7 +370,9 @@ fn revive_only_for_no_daemon_on_a_running_machine_with_a_road_and_no_unreached_m
 fn revive_a_failed_restart_flashes_restart_failed() {
     common::run_local(async {
         let (sc, w) = start("revive: a failed restart flashes restart failed");
-        w.area.revive_daemon(&w.entry("a"), reach("no-daemon"));
+        w.area
+            .revive_daemon(&w.entry("a"), reach("no-daemon"))
+            .expect("the revive is asked");
         finish(&sc, &w, &[]).await;
     })
 }
@@ -364,9 +382,13 @@ fn revive_one_at_a_time_per_machine() {
     common::run_local(async {
         let (sc, w) = start("revive: one at a time per machine");
         let entry = w.entry("a");
-        w.area.revive_daemon(&entry, reach("no-daemon"));
+        w.area
+            .revive_daemon(&entry, reach("no-daemon"))
+            .expect("the revive is asked");
         w.clock.advance(revive_again_ms());
-        w.area.revive_daemon(&entry, reach("no-daemon"));
+        w.area
+            .revive_daemon(&entry, reach("no-daemon"))
+            .expect("the revive is asked");
         common::flush().await;
         w.open_deploy();
         finish(&sc, &w, &[]).await;

@@ -74,7 +74,7 @@ pub trait SubLifeCtx: BackendFor {
     async fn nap_with(&self, workspace_id: &str, reason: &str) -> AreaResult<()>;
     fn end_sessions(&self, workspace_id: &str, reason: &str);
     /// `attach(record, deadMachine(machineId))`: a new live entry for the record on a machine that answers gone.
-    fn attach_dead(&self, entry: &Entry, machine_id: &str) -> Entry;
+    fn attach_dead(&self, entry: &Entry, machine_id: &str) -> Result<Entry, HostError>;
     /// The id leaves `napRefusals`, `stopRefusals` and `unreached` (sub-life.ts:319-321).
     fn forget_marks(&self, workspace_id: &str);
     fn idle_forget(&self, workspace_id: &str);

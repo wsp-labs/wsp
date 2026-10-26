@@ -98,7 +98,7 @@ pub trait BranchCtx {
     /// `ctx.deviceDoor.revoke`.
     async fn revoke(&self, id: &str) -> Result<bool, HostError>;
     /// `ctx.moduleOf(kind).turnRoad`, as the mint's road.
-    fn turn_road_of(&self, record: &WorkspaceRecord) -> MintMore;
+    fn turn_road_of(&self, record: &WorkspaceRecord) -> Result<MintMore, HostError>;
     /// `ctx.placeName(place)`.
     fn place_name(&self, place: &str) -> String;
     /// `places.wired`.
@@ -566,7 +566,7 @@ impl BranchOfRecordArea {
             workspace_id: snapshot.id.clone(),
             root_thread_id: snapshot.root_thread_id.clone().unwrap_or(thread_id),
         };
-        let more = self.ctx.turn_road_of(&snapshot);
+        let more = self.ctx.turn_road_of(&snapshot)?;
         let minted = self
             .ctx
             .mint(&format!("op {op}"), scope, self.ctx.clock().now(), more)

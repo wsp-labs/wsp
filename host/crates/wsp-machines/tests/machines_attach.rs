@@ -56,10 +56,13 @@ fn an_unreachable_answer_marks_the_record_once_and_any_answer_clears_it() {
     common::run_local(async {
         let w = World::new(Opts::default());
         let machine = machine_one();
-        let entry = w.area.attach(
-            &support::shared(running()),
-            machine.clone() as Arc<dyn Machine>,
-        );
+        let entry = w
+            .area
+            .attach(
+                &support::shared(running()),
+                machine.clone() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         let watched = entry.borrow().machine.clone();
         let (err, line) = unreachable_line("m-1");
 
@@ -128,10 +131,13 @@ fn a_stopped_answer_adopts_the_pause() {
     common::run_local(async {
         let w = World::new(Opts::default());
         let machine = machine_one();
-        let entry = w.area.attach(
-            &support::shared(running()),
-            machine.clone() as Arc<dyn Machine>,
-        );
+        let entry = w
+            .area
+            .attach(
+                &support::shared(running()),
+                machine.clone() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         let watched = entry.borrow().machine.clone();
         machine
             .s
@@ -175,7 +181,8 @@ fn a_replaced_machines_errors_mark_nothing() {
         let old = machine_one();
         let entry = w
             .area
-            .attach(&support::shared(running()), old.clone() as Arc<dyn Machine>);
+            .attach(&support::shared(running()), old.clone() as Arc<dyn Machine>)
+            .expect("the attach lands");
         let watched_old = entry.borrow().machine.clone();
         entry.borrow_mut().machine = FakeMachine::quiet("m-2") as Arc<dyn Machine>;
 
@@ -274,15 +281,21 @@ fn follow_machine_moves_the_record_onto_the_engines_machine() {
 fn attach_counts_generations_and_keeps_a_closed_pull_request() {
     common::run_local(async {
         let w = World::new(Opts::default());
-        let first = w.area.attach(
-            &support::shared(running()),
-            machine_one() as Arc<dyn Machine>,
-        );
+        let first = w
+            .area
+            .attach(
+                &support::shared(running()),
+                machine_one() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         assert_eq!(first.borrow().generation, 0);
-        let second = w.area.attach(
-            &support::shared(running()),
-            machine_one() as Arc<dyn Machine>,
-        );
+        let second = w
+            .area
+            .attach(
+                &support::shared(running()),
+                machine_one() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         assert_eq!(second.borrow().generation, 1, "one past the live entry's");
         assert!(
             Rc::ptr_eq(w.rt.live.borrow().get("ws_1").unwrap(), &second),
@@ -303,7 +316,8 @@ fn attach_counts_generations_and_keeps_a_closed_pull_request() {
             let record = support::record_of("running", extras, false);
             let entry = w
                 .area
-                .attach(&support::shared(record), machine_one() as Arc<dyn Machine>);
+                .attach(&support::shared(record), machine_one() as Arc<dyn Machine>)
+                .expect("the attach lands");
             let held = entry.borrow().pr.clone();
             held.map(|p| support::norm(&serde_json::to_value(p).unwrap()))
         };
@@ -337,7 +351,8 @@ fn attach_counts_generations_and_keeps_a_closed_pull_request() {
         let record = support::record_of("running", json!({ "checkout": checkout }), false);
         let entry = w
             .area
-            .attach(&support::shared(record), machine_one() as Arc<dyn Machine>);
+            .attach(&support::shared(record), machine_one() as Arc<dyn Machine>)
+            .expect("the attach lands");
         let held = entry.borrow().checkout.clone();
         assert_eq!(
             held.map(|c| support::norm(&serde_json::to_value(c).unwrap())),
@@ -361,10 +376,13 @@ fn a_computer_that_keeps_no_image_gets_no_vault_hooks_and_loses_its_vault_marks(
 
         let bare = World::new(Opts::default());
         let machine = machine_one();
-        let entry = bare.area.attach(
-            &support::shared(marked()),
-            machine.clone() as Arc<dyn Machine>,
-        );
+        let entry = bare
+            .area
+            .attach(
+                &support::shared(marked()),
+                machine.clone() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         assert_eq!(
             (
                 entry.borrow().record.borrow().vaulted_at.clone(),
@@ -395,10 +413,13 @@ fn a_computer_that_keeps_no_image_gets_no_vault_hooks_and_loses_its_vault_marks(
         let keeping = World::new(Opts::default());
         keeping.rt.cfg.borrow_mut().keeps_images = true;
         let machine = machine_one();
-        let entry = keeping.area.attach(
-            &support::shared(marked()),
-            machine.clone() as Arc<dyn Machine>,
-        );
+        let entry = keeping
+            .area
+            .attach(
+                &support::shared(marked()),
+                machine.clone() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         assert_eq!(
             entry.borrow().record.borrow().vaulted_at.as_deref(),
             Some("2026-09-01T00:00:00.000Z")
@@ -429,10 +450,13 @@ fn a_vault_over_the_cap_replaces_with_no_backup() {
             )));
         }
         let machine = machine_one();
-        let entry = w.area.attach(
-            &support::shared(running()),
-            machine.clone() as Arc<dyn Machine>,
-        );
+        let entry = w
+            .area
+            .attach(
+                &support::shared(running()),
+                machine.clone() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
 
         support::ws_upgrade(&entry, None)
             .await
@@ -467,10 +491,13 @@ fn a_vault_over_the_cap_replaces_with_no_backup() {
             cfg.vault_export
                 .push_back(Err(HostError::new("the machine would not answer")));
         }
-        let entry = other.area.attach(
-            &support::shared(running()),
-            machine_one() as Arc<dyn Machine>,
-        );
+        let entry = other
+            .area
+            .attach(
+                &support::shared(running()),
+                machine_one() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         let err = support::ws_upgrade(&entry, None)
             .await
             .expect_err("rethrown");
@@ -489,10 +516,13 @@ fn a_vault_over_the_cap_replaces_with_no_backup() {
                 Kind::VaultTooLarge,
             )));
         }
-        let entry = provider.area.attach(
-            &support::shared(running()),
-            machine_one() as Arc<dyn Machine>,
-        );
+        let entry = provider
+            .area
+            .attach(
+                &support::shared(running()),
+                machine_one() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         support::ws_upgrade(&entry, None)
             .await
             .expect("the replacement goes on");
@@ -523,10 +553,13 @@ fn stash_vault_skips_while_a_refusal_stands_and_a_disk_keeping_pause() {
             },
         );
         let machine = machine_one();
-        let entry = refused.area.attach(
-            &support::shared(running()),
-            machine.clone() as Arc<dyn Machine>,
-        );
+        let entry = refused
+            .area
+            .attach(
+                &support::shared(running()),
+                machine.clone() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         support::ws_nap(&entry).await.expect("a nap lands");
         assert!(machine.execs().is_empty());
         assert!(refused.rt.cfg.borrow().vault_calls.is_empty());
@@ -540,10 +573,13 @@ fn stash_vault_skips_while_a_refusal_stands_and_a_disk_keeping_pause() {
             cfg.pause_keeps_disk = true;
         }
         let machine = machine_one();
-        let entry = disk.area.attach(
-            &support::shared(running()),
-            machine.clone() as Arc<dyn Machine>,
-        );
+        let entry = disk
+            .area
+            .attach(
+                &support::shared(running()),
+                machine.clone() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         support::ws_nap(&entry).await.expect("a nap lands");
         assert_eq!(machine.execs(), vec![DISK_SYNC_CMD.to_string()]);
         assert!(disk.rt.cfg.borrow().vault_calls.is_empty());
@@ -553,14 +589,17 @@ fn stash_vault_skips_while_a_refusal_stands_and_a_disk_keeping_pause() {
         let stored = World::new(Opts::default());
         stored.rt.cfg.borrow_mut().keeps_images = true;
         let machine = machine_one();
-        let entry = stored.area.attach(
-            &support::shared(support::record_of(
-                "running",
-                json!({ "vaultRefused": "earlier" }),
-                false,
-            )),
-            machine.clone() as Arc<dyn Machine>,
-        );
+        let entry = stored
+            .area
+            .attach(
+                &support::shared(support::record_of(
+                    "running",
+                    json!({ "vaultRefused": "earlier" }),
+                    false,
+                )),
+                machine.clone() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         support::ws_nap(&entry).await.expect("a nap lands");
         assert_eq!(machine.execs(), vec![DISK_SYNC_CMD.to_string()]);
         assert_eq!(
@@ -586,10 +625,13 @@ fn stash_vault_skips_while_a_refusal_stands_and_a_disk_keeping_pause() {
             .borrow_mut()
             .exec
             .push_back(Err(support::plain("exec refused")));
-        let entry = unsynced.area.attach(
-            &support::shared(running()),
-            machine.clone() as Arc<dyn Machine>,
-        );
+        let entry = unsynced
+            .area
+            .attach(
+                &support::shared(running()),
+                machine.clone() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         support::ws_nap(&entry).await.expect("a nap lands");
         assert_eq!(
             unsynced.warns(),
@@ -619,10 +661,13 @@ fn a_stash_that_fails_marks_vault_refused() {
             json!({ "vaultedAt": "2026-09-01T00:00:00.000Z" }),
             false,
         );
-        let entry = w.area.attach(
-            &support::shared(record),
-            machine.clone() as Arc<dyn Machine>,
-        );
+        let entry = w
+            .area
+            .attach(
+                &support::shared(record),
+                machine.clone() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
 
         support::ws_nap(&entry).await.expect("the nap goes on");
 
@@ -667,10 +712,13 @@ fn a_resume_sets_the_hostname_again_and_an_unanswered_one_says_waking() {
         // The machine answers: resume, then the host name once (an exec), then the wake check passes.
         let w = World::new(one_wake());
         let machine = machine_one();
-        let entry = w.area.attach(
-            &support::shared(waking_record()),
-            machine.clone() as Arc<dyn Machine>,
-        );
+        let entry = w
+            .area
+            .attach(
+                &support::shared(waking_record()),
+                machine.clone() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         support::ws_wake(&entry).await.expect("the wake lands");
         assert_eq!(machine.s.borrow_mut().resumes, vec![None]);
         let set = machine.execs();
@@ -685,10 +733,13 @@ fn a_resume_sets_the_hostname_again_and_an_unanswered_one_says_waking() {
         let named = World::new(one_wake());
         named.rt.cfg.borrow_mut().names_workspace = true;
         let machine = machine_one();
-        let entry = named.area.attach(
-            &support::shared(waking_record()),
-            machine.clone() as Arc<dyn Machine>,
-        );
+        let entry = named
+            .area
+            .attach(
+                &support::shared(waking_record()),
+                machine.clone() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         support::ws_wake(&entry).await.expect("the wake lands");
         assert!(machine.execs().is_empty());
 
@@ -697,10 +748,13 @@ fn a_resume_sets_the_hostname_again_and_an_unanswered_one_says_waking() {
         resized.rt.cfg.borrow_mut().names_workspace = true;
         let machine = machine_one();
         machine.s.borrow_mut().resume_at = true;
-        let entry = resized.area.attach(
-            &support::shared(waking_record()),
-            machine.clone() as Arc<dyn Machine>,
-        );
+        let entry = resized
+            .area
+            .attach(
+                &support::shared(waking_record()),
+                machine.clone() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         entry.borrow_mut().resize_to = Some(SizeAsk {
             cpu: JsNumber(4.0),
             mem_mb: JsNumber(8192.0),
@@ -716,10 +770,13 @@ fn a_resume_sets_the_hostname_again_and_an_unanswered_one_says_waking() {
             message: "no answer to the resume".into(),
             cause: None,
         });
-        let entry = silent.area.attach(
-            &support::shared(waking_record()),
-            machine.clone() as Arc<dyn Machine>,
-        );
+        let entry = silent
+            .area
+            .attach(
+                &support::shared(waking_record()),
+                machine.clone() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         let err = support::ws_wake(&entry).await.expect_err("the wake fails");
         assert_eq!(err.to_string(), "no answer to the resume");
         assert_eq!(
@@ -734,16 +791,22 @@ fn a_resume_sets_the_hostname_again_and_an_unanswered_one_says_waking() {
         // A pause carries the wait when the entry has one.
         let waits = World::new(Opts::default());
         let machine = machine_one();
-        let entry = waits.area.attach(
-            &support::shared(running()),
-            machine.clone() as Arc<dyn Machine>,
-        );
+        let entry = waits
+            .area
+            .attach(
+                &support::shared(running()),
+                machine.clone() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         entry.borrow_mut().nap_wait_ms = Some(5000);
         support::ws_nap(&entry).await.expect("a nap lands");
-        let again = waits.area.attach(
-            &support::shared(running()),
-            machine.clone() as Arc<dyn Machine>,
-        );
+        let again = waits
+            .area
+            .attach(
+                &support::shared(running()),
+                machine.clone() as Arc<dyn Machine>,
+            )
+            .expect("the attach lands");
         support::ws_nap(&again).await.expect("a nap lands");
         assert_eq!(machine.s.borrow_mut().pauses, vec![Some(5000), None]);
     })
@@ -817,10 +880,13 @@ fn the_wake_check_names_both_shapes_and_the_daemons_fault() {
             w.rt.cfg.borrow_mut().ping = ping.map(String::from);
             let machine = machine_one();
             machine.s.borrow_mut().describe = describe.map(|d| d.map(from).map_err(support::plain));
-            let entry = w.area.attach(
-                &support::shared(record),
-                machine.clone() as Arc<dyn Machine>,
-            );
+            let entry = w
+                .area
+                .attach(
+                    &support::shared(record),
+                    machine.clone() as Arc<dyn Machine>,
+                )
+                .expect("the attach lands");
             let err = support::ws_wake(&entry)
                 .await
                 .expect_err("the check fails the wake");
@@ -843,7 +909,8 @@ fn the_wake_check_names_both_shapes_and_the_daemons_fault() {
         machine.s.borrow_mut().describe = Some(Ok(from(json!({ "cpu": 2, "memMb": 4096 }))));
         let entry = w
             .area
-            .attach(&support::shared(shaped()), machine as Arc<dyn Machine>);
+            .attach(&support::shared(shaped()), machine as Arc<dyn Machine>)
+            .expect("the attach lands");
         support::ws_wake(&entry)
             .await
             .expect("a healthy machine wakes");

@@ -48,7 +48,7 @@ pub trait ReachCtx {
     /// `ctx.unreachedOf(entry)`.
     fn unreached_of(&self, entry: &Entry) -> Option<String>;
     /// `ctx.moduleOf(kind).hasDaemon(entry)`.
-    fn kind_has_daemon(&self, entry: &Entry) -> bool;
+    fn kind_has_daemon(&self, entry: &Entry) -> AreaResult<bool>;
     /// `ctx.view(record)` as the TS object.
     fn view(&self, record: &WorkspaceRecord) -> Value;
     /// status.ts `machineStateOf(phase)` as its word.
@@ -67,12 +67,12 @@ pub trait ReachCtx {
         on_event: Rc<dyn Fn(DaemonEvent)>,
         heartbeat_ms: Option<i64>,
     ) -> Rc<dyn DaemonReach>;
-    fn project_held(&self, id: &str) -> ProjectView;
+    fn project_held(&self, id: &str) -> AreaResult<ProjectView>;
     /// `withDaemon(entry, ask => ask(frame))`.
     async fn with_daemon(&self, entry: &Entry, frame: Value) -> AreaResult<Value>;
     /// `onThisComputer((ask, home) => ask(frame(home)))`.
     async fn on_this_computer(&self, frame: Box<dyn Fn(&str) -> Value>) -> AreaResult<Value>;
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String;
+    fn checkout_of(&self, record: &WorkspaceRecord) -> AreaResult<String>;
     /// `servedByItsComputer(entry) !== undefined`.
     fn served_by_its_computer(&self, entry: &Entry) -> bool;
     async fn persist(&self, record: &WorkspaceRecord) -> AreaResult<()>;

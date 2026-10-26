@@ -862,7 +862,8 @@ fn attach_queued_answers_the_wait_line_on_every_use() {
         let cell = Rc::new(RefCell::new(
             serde_json::from_value::<WorkspaceRecord>(sub_record("ws_q", "queued")).unwrap(),
         ));
-        area.attach_queued(&cell, None);
+        area.attach_queued(&cell, None)
+            .expect("the queued row attaches");
         assert_eq!(
             host.calls_of("attach_absent"),
             vec![vec![
@@ -871,7 +872,8 @@ fn attach_queued_answers_the_wait_line_on_every_use() {
             ]]
         );
         let w: ThreadCapWait = serde_json::from_value(wait(1, 1, "slot")).unwrap();
-        area.attach_queued(&cell, Some(&w));
+        area.attach_queued(&cell, Some(&w))
+            .expect("the queued row attaches");
         assert_eq!(
             host.calls_of("attach_absent")[1][1],
             wsp_words::place_state::cap_wait_line(&w)

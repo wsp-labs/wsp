@@ -198,7 +198,7 @@ impl BuildersArea {
         if let Some(id) = place_id {
             self.ctx.place_door_of()?.forking_backend(id).await?;
         }
-        let at = self.ctx.backend_of_kind_cloud(place_id);
+        let at = self.ctx.backend_of_kind_cloud(place_id)?;
         Ok((!forks_no_machines(&at.capabilities())).then_some(at))
     }
 

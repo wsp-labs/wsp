@@ -139,9 +139,9 @@ impl SubLifeCtx for FakeHost {
     fn end_sessions(&self, workspace_id: &str, reason: &str) {
         self.call("end_sessions", &[workspace_id, reason]);
     }
-    fn attach_dead(&self, entry: &Entry, machine_id: &str) -> Entry {
+    fn attach_dead(&self, entry: &Entry, machine_id: &str) -> Result<Entry, HostError> {
         self.call("attach_dead", &[&entry_id(entry), machine_id]);
-        self.reattach(entry, FakeMachine::new(machine_id))
+        Ok(self.reattach(entry, FakeMachine::new(machine_id)))
     }
     fn forget_marks(&self, workspace_id: &str) {
         self.call("forget_marks", &[workspace_id]);

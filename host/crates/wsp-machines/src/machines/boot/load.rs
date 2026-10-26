@@ -514,7 +514,10 @@ impl BootArea {
     ) -> Result<(), HostError> {
         let snapshot = entry.borrow().record.borrow().clone();
         let machine_id = snapshot.machine_id.clone();
-        let at = self.rt.backend_for(&snapshot);
+        // boot.ts:207: the `.catch` answers undefined, so a kind with no backend is read as no sighting.
+        let Ok(at) = self.rt.backend_for(&snapshot) else {
+            return Ok(());
+        };
         tokio::task::yield_now().await;
         let seen = sight_machine(at.as_ref(), &machine_id).await;
         // `Promise.resolve().then(sight).catch(...)` answers turns after the sighting does: the promise the callback
@@ -561,7 +564,7 @@ impl BootArea {
         let words = gone_words(&machine_id, Some(&sighting));
         let attached = self
             .rt
-            .attach(&entry.borrow().record.clone(), dead_machine(&machine_id));
+            .attach(&entry.borrow().record.clone(), dead_machine(&machine_id))?;
         self.rt.mark_gone(&attached, &machine_id, &words).await?;
         Ok(())
     }
@@ -602,7 +605,7 @@ impl BootArea {
         };
         let id = stored.id.clone();
         if stored.phase == WorkspacePhase::Queued {
-            self.rt.attach_queued(&Rc::new(RefCell::new(stored)));
+            self.rt.attach_queued(&Rc::new(RefCell::new(stored)))?;
             return Ok(None);
         }
         if stored.phase == WorkspacePhase::Released
@@ -612,7 +615,7 @@ impl BootArea {
                 .is_some_and(|s| s.cloud_gone == Some(true))
         {
             let copy = Rc::new(RefCell::new(stored.clone()));
-            self.rt.attach(&copy, dead_machine(&stored.machine_id));
+            self.rt.attach(&copy, dead_machine(&stored.machine_id))?;
             return Ok(None);
         }
         if let Some(word) = unwired {
@@ -621,8 +624,11 @@ impl BootArea {
             ));
             return Ok(None);
         }
-        let module = self.rt.module_of(kind_key(stored.kind));
-        let at = match module.backend(&stored) {
+        let at = match self
+            .rt
+            .module_of(kind_key(stored.kind))
+            .and_then(|module| module.backend(&stored))
+        {
             Ok(at) => at,
             Err(e) => {
                 self.rt
@@ -755,7 +761,7 @@ impl BootArea {
             record.napped_at = Some(JsNumber(paused_at));
         }
         let rec = Rc::new(RefCell::new(record));
-        let entry = self.rt.attach(&rec, machine.clone());
+        let entry = self.rt.attach(&rec, machine.clone())?;
         if nap_moved && phase == stored.phase {
             let snapshot = rec.borrow().clone();
             self.rt.persist(&snapshot).await?;

@@ -521,7 +521,7 @@ impl SubLifeArea {
         }
         self.run_late_read(entry);
         self.ctx.forget_marks(&id);
-        let released = self.ctx.attach_dead(entry, "");
+        let released = self.ctx.attach_dead(entry, "")?;
         self.persist_record(&record).await?;
         self.ctx.idle_forget(&id);
         self.told(&id);
@@ -658,7 +658,7 @@ impl SubLifeArea {
         });
         self.run_late_read(entry);
         let machine_id = record.borrow().machine_id.clone();
-        self.ctx.attach_dead(entry, &machine_id);
+        self.ctx.attach_dead(entry, &machine_id)?;
         self.persist_record(&record).await?;
         self.ctx.idle_forget(&id);
         Ok(())

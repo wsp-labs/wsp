@@ -93,7 +93,10 @@ pub trait BuildersCtx {
     /// `ctx.backend`: the runtime's own backend.
     fn backend(&self) -> Arc<dyn MachineBackend>;
     /// `ctx.backendOfKind("cloud", placeId)`.
-    fn backend_of_kind_cloud(&self, place_id: Option<&str>) -> Arc<dyn MachineBackend>;
+    fn backend_of_kind_cloud(
+        &self,
+        place_id: Option<&str>,
+    ) -> Result<Arc<dyn MachineBackend>, HostError>;
     /// `opts.broker?.ready() === true`.
     fn broker_ready(&self) -> bool;
     fn host_id(&self) -> String;

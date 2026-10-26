@@ -362,7 +362,7 @@ impl KindModule for FakeModule {
     fn admit_folder(&self, _record: FolderAdmit) -> Option<Local<'static, ()>> {
         unimplemented!()
     }
-    fn folder(&self, _record: &WorkspaceRecord) -> Option<String> {
+    fn folder(&self, _record: &WorkspaceRecord) -> Result<Option<String>, HostError> {
         unimplemented!()
     }
     fn home(&self, _entry: &LiveWorkspace, _agent_id: &str) -> String {
@@ -415,7 +415,11 @@ impl KindModule for FakeModule {
         }
         .boxed_local()
     }
-    fn memory_key(&self, _entry: &LiveWorkspace, _agent_id: &str) -> Option<String> {
+    fn memory_key(
+        &self,
+        _entry: &LiveWorkspace,
+        _agent_id: &str,
+    ) -> Result<Option<String>, HostError> {
         unimplemented!()
     }
     fn end_thread(
@@ -1019,7 +1023,11 @@ impl CreateRuntime for FakeRuntime {
             }
         }
     }
-    fn attach(&self, handle: &Rc<RefCell<WorkspaceRecord>>, machine: Arc<dyn Machine>) -> Entry {
+    fn attach(
+        &self,
+        handle: &Rc<RefCell<WorkspaceRecord>>,
+        machine: Arc<dyn Machine>,
+    ) -> Result<Entry, HostError> {
         let record = handle.borrow().clone();
         self.log.push(json!(["attach", record.id, machine.id()]));
         let id = record.id.clone();
@@ -1027,12 +1035,15 @@ impl CreateRuntime for FakeRuntime {
         live.record = Rc::clone(handle);
         let entry: Entry = Rc::new(RefCell::new(live));
         self.live.borrow_mut().insert(id, entry.clone());
-        entry
+        Ok(entry)
     }
     async fn fork(
         &self,
         record: &Rc<RefCell<WorkspaceRecord>>,
-        bind: &dyn for<'m, 'r> Fn(&'m Arc<dyn Machine>, &'r WorkspaceRecord),
+        bind: &dyn for<'m, 'r> Fn(
+            &'m Arc<dyn Machine>,
+            &'r WorkspaceRecord,
+        ) -> Result<(), HostError>,
         _report: StageReport,
     ) -> Result<Arc<dyn Machine>, HostError> {
         self.log.push(json!([
@@ -1059,7 +1070,7 @@ impl CreateRuntime for FakeRuntime {
                     daemon_answers: m.get("daemonAnswers").is_some(),
                 });
                 let bound = record.borrow().clone();
-                bind(&machine, &bound);
+                bind(&machine, &bound)?;
                 let seen = {
                     let live = self.live.borrow();
                     match live.get(&record.borrow().id) {

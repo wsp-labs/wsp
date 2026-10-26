@@ -357,7 +357,7 @@ impl KindModule for FakeModule {
     fn admit_folder(&self, _record: FolderAdmit) -> Option<Local<'static, ()>> {
         unimplemented!()
     }
-    fn folder(&self, _record: &WorkspaceRecord) -> Option<String> {
+    fn folder(&self, _record: &WorkspaceRecord) -> Result<Option<String>, HostError> {
         unimplemented!()
     }
     fn home(&self, _entry: &LiveWorkspace, _agent_id: &str) -> String {
@@ -419,7 +419,11 @@ impl KindModule for FakeModule {
     ) -> Local<'static, ()> {
         unimplemented!()
     }
-    fn memory_key(&self, _entry: &LiveWorkspace, _agent_id: &str) -> Option<String> {
+    fn memory_key(
+        &self,
+        _entry: &LiveWorkspace,
+        _agent_id: &str,
+    ) -> Result<Option<String>, HostError> {
         unimplemented!()
     }
     fn end_thread(

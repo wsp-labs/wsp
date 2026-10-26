@@ -288,7 +288,7 @@ impl SubSpawnArea {
                 .unwrap_or_default(),
         };
         let at = self.ctx.backend_for(&record.borrow())?;
-        let project = self.ctx.project_held(&record.borrow().project);
+        let project = self.ctx.project_held(&record.borrow().project)?;
         let seed = self.seed_of(&project).await?;
         let now = self.ctx.now();
         self.step(record, &mut |spawn: &mut SubSpawn| {
@@ -356,16 +356,17 @@ impl SubSpawnArea {
         );
         let ctx = Rc::clone(&self.ctx);
         let on_machine_record = Rc::clone(record);
-        let on_machine: Box<dyn Fn(Arc<dyn Machine>)> =
+        let on_machine: Box<dyn Fn(Arc<dyn Machine>) -> Result<(), HostError>> =
             Box::new(move |machine: Arc<dyn Machine>| {
                 {
                     let mut held = on_machine_record.borrow_mut();
                     held.machine_id = machine.id().to_string();
                     held.phase = WorkspacePhase::Running;
                 }
-                let entry = ctx.attach(&on_machine_record, machine);
+                let entry = ctx.attach(&on_machine_record, machine)?;
                 entry.borrow_mut().creating = true;
                 landed();
+                Ok(())
             });
         self.ctx.fork(record, on_machine, report.clone()).await?;
         let entry = self.ctx.live(&id).ok_or_else(|| gone_entry(&id))?;
@@ -639,7 +640,7 @@ impl SubSpawnArea {
             )
         };
         let place = record_place.clone().unwrap_or_else(|| row.id.clone());
-        let project = self.ctx.project_held(&record_project);
+        let project = self.ctx.project_held(&record_project)?;
         let Some(host) = git_host_of(&sub.repo) else {
             let host_word = remote_host(&sub.repo).unwrap_or_else(|| sub.repo.clone());
             return Err(AreaError::Host(sub_other_host_refusal(
@@ -725,7 +726,7 @@ impl SubSpawnArea {
                     held.phase = WorkspacePhase::Released;
                     held.machine_id = String::new();
                 }
-                self.ctx.attach_dead(&record_rc);
+                self.ctx.attach_dead(&record_rc)?;
                 let snapshot = record_rc.borrow().clone();
                 self.ctx.persist(&snapshot).await?;
                 self.ctx.rows_sent().await;
