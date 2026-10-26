@@ -13,6 +13,10 @@ pub fn no_rollout_line(thread_id: &str) -> String {
 
 /// A launch, and where it resumes with a seed (not a copy, not a fork), the second launch behind it; the answer reads
 /// whichever runs now. Registered under the first's local id. TS lost-session.ts:81.
-pub fn start_seeded(launch_turn: std::sync::Arc<dyn Fn(HarnessStartOptions) -> Result<CodexSession, AdapterError>>, sessions: &Sessions, options: HarnessStartOptions) -> Result<CodexSession, AdapterError> {
+pub fn start_seeded(
+    launch_turn: std::sync::Arc<dyn Fn(HarnessStartOptions) -> Result<CodexSession, AdapterError>>,
+    sessions: &Sessions,
+    options: HarnessStartOptions,
+) -> Result<CodexSession, AdapterError> {
     todo!()
 }

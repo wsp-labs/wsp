@@ -82,7 +82,15 @@ impl Children {
     /// Everything else a subagent's thread prints on the lead's stdout: its turn, its tokens, its summary and the signs
     /// in its items. The caller has already counted its commands and kept its changes. TS adapter.ts:791. True where a
     /// child ended.
-    pub fn on_child(&mut self, lead: &str, task: &str, method: &str, params: &Map<String, Value>, emitted_at_ms: Option<f64>, out: &mut Vec<AdapterEvent>) -> bool {
+    pub fn on_child(
+        &mut self,
+        lead: &str,
+        task: &str,
+        method: &str,
+        params: &Map<String, Value>,
+        emitted_at_ms: Option<f64>,
+        out: &mut Vec<AdapterEvent>,
+    ) -> bool {
         todo!()
     }
 }
