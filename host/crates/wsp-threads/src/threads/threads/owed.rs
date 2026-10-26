@@ -33,6 +33,7 @@ use wsp_words::workspace_state::{send_refusal, workspace_state, SendRefusalKind,
 
 use super::tree::{computer_silent, TellAs};
 use super::{Row, ThreadsArea};
+use crate::threads::unit;
 
 pub use wsp_core::types::internal::{NOTIFY_OWED, OWED_FOR_MS, OWED_RETRY_MAX_MS, OWED_RETRY_MS};
 pub use wsp_wire::views::session_events::NOTIFY_ME;
@@ -62,13 +63,17 @@ pub struct Owed {
     pub notify: String,
     pub text: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_by: Option<SessionOrigin>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub by: Option<ThreadScope>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub road: Option<WorkspaceOrigin>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub started_by: Option<SessionOrigin>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub to_person: Option<PersonRow>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub images: Option<OwedImages>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub awaits_result: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub since: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -77,10 +82,6 @@ pub struct Owed {
     pub tries: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next: Option<i64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub images: Option<OwedImages>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub awaits_result: Option<String>,
 }
 
 /// threads.ts:45 `readOwed`: O1.
@@ -138,9 +139,16 @@ impl TryHandle {
     }
 }
 
-/// The first eight characters of an id, as the warnings cut them (`slice(0, 8)`).
+/// The first eight UTF-16 units of an id, as the warnings cut them (`slice(0, 8)`); a pair that straddles the cut is left out.
 fn cut8(text: &str) -> &str {
-    text.char_indices().nth(8).map_or(text, |(at, _)| &text[..at])
+    let mut units = 0;
+    for (at, c) in text.char_indices() {
+        units += c.len_utf16();
+        if units > 8 {
+            return &text[..at];
+        }
+    }
+    text
 }
 
 fn status_word(status: TurnStatus) -> &'static str {
@@ -269,11 +277,11 @@ impl Delivery {
         stamps.insert("readAt".into(), json!(self.area.ctx.clock().now()));
         let marking = self.area.ctx.mark(vec![self.line.from.clone()], stamps, None);
         let from = cut8(&self.line.from).to_string();
-        tokio::task::spawn_local(async move {
+        self.area.ctx.spawn(Box::pin(async move {
             if let Err(e) = marking.await {
                 warn(&format!("thread {from} was not marked read: {}", e.message));
             }
-        });
+        }));
     }
     /// O4: holds the line for the parent's wake where its workspace refuses a send now.
     fn hold_for_wake(&self) -> bool {
@@ -294,21 +302,21 @@ impl Delivery {
     /// O9: gives up at the hour, else goes again on the clock, spaced out as the tries keep failing.
     fn try_again(&self, said: &str) {
         let now = self.area.ctx.clock().now();
-        let left = self.deadline - now;
+        let left = self.deadline.saturating_sub(now);
         if left <= 0 {
             return self.give_up(said);
         }
         let tries = {
             let mut sent = self.sent.borrow_mut();
-            let tries = sent.tries.unwrap_or(0) + 1;
+            let tries = sent.tries.unwrap_or(0).saturating_add(1);
             sent.tries = Some(tries);
             tries
         };
         let doubled = 2_i64.checked_pow(tries - 1).unwrap_or(i64::MAX);
         let wait = (OWED_RETRY_MS as i64).saturating_mul(doubled).min(OWED_RETRY_MAX_MS as i64).min(left);
-        self.sent.borrow_mut().next = Some(now + wait);
+        self.sent.borrow_mut().next = Some(now.saturating_add(wait));
         let owed = self.sent.borrow().clone();
-        tokio::task::spawn_local(self.area.keep_owed(&owed));
+        self.area.ctx.spawn(unit(self.area.keep_owed(&owed)));
         warn(&format!(
             "thread {} ended, but its line did not reach thread {} yet, and goes again in {} s: {said}",
             cut8(&self.line.from),
@@ -372,7 +380,7 @@ impl Delivery {
                 }),
             );
         }
-        let left = self.deadline - self.area.ctx.clock().now();
+        let left = self.deadline.saturating_sub(self.area.ctx.clock().now());
         let stop = if left > 0 || dark {
             let me = self.clone();
             let at_hour = at_hour.clone();
@@ -393,11 +401,11 @@ impl Delivery {
                     }
                     let stopping = me.area.ctx.stop_try(&row_id);
                     let (from, notify) = (cut8(&me.line.from).to_string(), cut8(&me.line.notify).to_string());
-                    tokio::task::spawn_local(async move {
+                    me.area.ctx.spawn(Box::pin(async move {
                         if let Err(e) = stopping.await {
                             warn(&format!("the try of the line of thread {from} into thread {notify} was not stopped: {}", e.message));
                         }
-                    });
+                    }));
                 }),
                 left.max(0),
             ))
@@ -543,7 +551,7 @@ impl Delivery {
             let next = self.sent.borrow().next;
             if let Some(next) = next {
                 if next > now {
-                    return self.deliver_later(next - now);
+                    return self.deliver_later(next.saturating_sub(now));
                 }
             }
         }
@@ -622,11 +630,11 @@ impl ThreadsArea {
         let store = self.ctx.store();
         let id = line.id.clone();
         let warned = format!("the line of thread {} into thread {} stays owed", cut8(&line.from), cut8(&line.notify));
-        tokio::task::spawn_local(async move {
+        self.ctx.spawn(Box::pin(async move {
             if let Err(e) = store.delete(NOTIFY_OWED, &id).await {
                 warn(&format!("{warned}: {}", e.message));
             }
-        });
+        }));
     }
     /// The row a line's person is told through (threads.ts:603, tellPerson).
     fn tell_person(&self, line: &Owed) {
@@ -645,7 +653,7 @@ impl ThreadsArea {
             }
             other.borrow_mut().to_person = None;
             let saved = other.borrow().clone();
-            tokio::task::spawn_local(self.keep_owed(&saved));
+            self.ctx.spawn(unit(self.keep_owed(&saved)));
         }
     }
     fn session_row(&self, row_id: &str) -> Option<Row> {
@@ -703,10 +711,10 @@ impl ThreadsArea {
         };
         let sent = Rc::new(RefCell::new(Owed { since: Some(since), request_id: Some(request_id.clone()), ..line.clone() }));
         self.sending.borrow_mut().insert(line.id.clone(), sent.clone());
-        let deadline = since + OWED_FOR_MS as i64;
+        let deadline = since.saturating_add(OWED_FOR_MS as i64);
         let kept = if line.request_id.is_none() || line.since.is_none() {
             let put = self.keep_owed(&sent.borrow()).shared();
-            tokio::task::spawn_local(put.clone());
+            self.ctx.spawn(unit(put.clone()));
             Some(put)
         } else {
             None
@@ -746,7 +754,7 @@ impl ThreadsArea {
             None => line.road.map(Caller::Road),
             Some(by) => Some(Caller::Scoped { origin: line.road.unwrap_or(WorkspaceOrigin::Here), by: by.clone() }),
         };
-        tokio::task::spawn_local(d.run(kept, as_who));
+        self.ctx.spawn(unit(d.run(kept, as_who)));
     }
     /// threads.ts:622: O13.
     pub fn took_request(&self, workspace_id: &str, request_id: &str) -> bool {

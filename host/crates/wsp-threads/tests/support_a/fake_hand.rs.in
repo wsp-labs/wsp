@@ -266,3 +266,9 @@
 //@ TurnsCtx::session_answers
         true
 //@end
+//@ LaunchCtx::spawn
+        spawn_detached(work);
+//@end
+//@ TurnsCtx::spawn
+        spawn_detached(work);
+//@end

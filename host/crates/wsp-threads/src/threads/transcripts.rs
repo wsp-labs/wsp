@@ -71,6 +71,8 @@ pub trait TranscriptsCtx {
         token: String,
         path: Option<String>,
     ) -> LocalBoxFuture<'static, Result<bool, HostError>>;
+    /// TS `void promise`: work that outlives its caller. The host runs it on its `LocalSet`, so where it runs is its to say.
+    fn spawn(&self, work: LocalBoxFuture<'static, ()>);
 }
 
 /// `{ hasDaemon, at }` (transcripts.ts:529).

@@ -13,3 +13,9 @@ pub mod transcripts;
 pub mod trimmed_row;
 pub mod turns;
 pub mod waits;
+
+/// A future's output left behind, for work handed to a context's `spawn`.
+pub(crate) fn unit<F: std::future::Future + 'static>(work: F) -> futures::future::LocalBoxFuture<'static, ()> {
+    use futures::FutureExt;
+    work.map(|_| ()).boxed_local()
+}

@@ -6,7 +6,6 @@ use std::rc::Rc;
 
 use futures::channel::oneshot;
 use futures::future::FutureExt;
-use tokio::task::spawn_local;
 use wsp_adapters::port::TaskStop;
 use wsp_core::clock::Cancel;
 use wsp_core::console;
@@ -152,10 +151,10 @@ impl SessionsArea {
         let stops = self.stops.clone();
         let id = thread_id.to_string();
         let mine = gate.clone();
-        spawn_local(async move {
+        self.ctx.spawn(Box::pin(async move {
             mine.clone().await;
             forget_hold(&stops, &id, &mine);
-        });
+        }));
     }
 
     /// sessions.ts:74. Rule K2.
@@ -176,7 +175,7 @@ impl SessionsArea {
         let shown = reach.clone();
         let place_owned = place.to_string();
         let has_stop = stopping.is_some();
-        spawn_local(async move {
+        self.ctx.spawn(Box::pin(async move {
             match ctx.ping(&place_owned).await {
                 Ok(()) => {
                     let quiet = shown.quiet.borrow_mut().take();
@@ -189,16 +188,16 @@ impl SessionsArea {
                 }
                 Err(_) => shown.settle(true),
             }
-        });
+        }));
         if let Some(stopping) = stopping {
             let ctx = self.ctx.clone();
             let shown = reach.clone();
             let place_owned = place.to_string();
-            spawn_local(async move {
+            self.ctx.spawn(Box::pin(async move {
                 stopping.await;
                 let away = ctx.place_away(&place_owned);
                 shown.settle(away);
-            });
+            }));
         }
         rx.await.unwrap_or(false)
     }
@@ -368,7 +367,7 @@ impl SessionsArea {
                 }
                 .boxed_local()
                 .shared();
-                spawn_local(stopping.clone());
+                self.ctx.spawn(stopping.clone().boxed_local());
                 Some(stopping)
             }
             None => None,

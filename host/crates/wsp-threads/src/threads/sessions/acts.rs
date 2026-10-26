@@ -29,6 +29,7 @@ use wsp_wire::wire::runtime::{
 };
 use wsp_words::attachments::{attachment_record, files_refusal, steer_files_blocked};
 use wsp_words::exit::{not_found_refusal, HostError, Kind};
+use wsp_words::js::js_trim;
 use wsp_words::run_block::run_output_tail;
 use wsp_words::words::computer::thread_word;
 use wsp_words::words::thread::{aside_unsupported_line, ASIDE_EMPTY_LINE, ASIDE_NO_SESSION_LINE, BLANK_ASIDE_LINE, EMPTY_TITLE_LINE};
@@ -311,7 +312,7 @@ impl SessionsArea {
     /// sessions.ts:1075. Rules C10-C12.
     pub async fn rename_row(&self, row_id: &str, title: &str, origin: Option<Caller>) -> Result<SessionRenameResult, HostError> {
         self.ctx.ready().await?;
-        let named = title.trim().to_string();
+        let named = js_trim(title).to_string();
         if named.is_empty() {
             return Err(HostError::new(EMPTY_TITLE_LINE));
         }
@@ -373,7 +374,7 @@ impl SessionsArea {
         ask_id: Option<String>,
     ) -> Result<SessionAsideResult, HostError> {
         self.ctx.ready().await?;
-        if question.trim().is_empty() {
+        if js_trim(question).is_empty() {
             return Err(HostError::new(BLANK_ASIDE_LINE));
         }
         let not_found = || not_found_refusal(&format!("no session {row_id}"));
@@ -498,7 +499,7 @@ impl SessionsArea {
         ask: AsideQuestion,
     ) -> Result<SessionAsideResult, HostError> {
         let text = self.ctx.aside(adapter, ask).await?;
-        if text.trim().is_empty() {
+        if js_trim(&text).is_empty() {
             return Err(HostError::new(ASIDE_EMPTY_LINE));
         }
         Ok(SessionAsideResult { text })

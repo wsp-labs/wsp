@@ -224,6 +224,8 @@ pub trait TurnsCtx {
     fn exec_sweep(&self, entry: &Entry) -> Option<Sweep>;
     fn adapter_for(&self, entry: &Entry, ask: AdapterAsk) -> Result<BuiltAdapter, HostError>;
     async fn open_thread(&self, workspace_id: &str, thread_id: &str) -> Result<Vec<SessionEvent>, HostError>;
+    /// TS `void promise`: work that outlives its caller. The host runs it on its `LocalSet`, so where it runs is its to say.
+    fn spawn(&self, work: LocalBoxFuture<'static, ()>);
 }
 
 /// turns.ts:17. Clones share one context.

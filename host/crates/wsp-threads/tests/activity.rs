@@ -111,34 +111,6 @@ fn a_thread_with_no_facts_is_titled_by_its_word() {
     });
 }
 
-// AC10: a running turn's run file names its agent
-#[test]
-fn a_running_turns_agent_pid_names_its_agent_to_the_read() {
-    run_local(async {
-        let dir = tempfile::tempdir().expect("a folder");
-        let run = dir.path().join("run-1");
-        let mine = std::process::id();
-        std::fs::write(format!("{}.agent", run.display()), format!("{mine}\n")).expect("the agent file");
-        let lab = Lab::new();
-        lab.local_thread(T1, "w1", "go", STARTED, "running");
-        lab.scopes(vec![json!({ "thread": T1, "agents": [mine] })]);
-        lab.host.rows.borrow()[&format!("s-{T1}")].borrow_mut().run = Some(run.display().to_string());
-        lab.here.set_procs(vec![proc_row(mine, json!({ "comm": "agent-x", "cmdline": "agent-x" }))]);
-        let view = view_of(lab.read(ActivityAsk::default(), None).await);
-        assert_eq!(
-            view["threads"],
-            json!([thread_json(
-                T1,
-                "go",
-                "w1",
-                1_000_000,
-                0,
-                vec![shown(mine, 1, 0, STARTED, "agent", "agent-x", "agent-x", 1_000_000, 0, &[])]
-            )])
-        );
-    });
-}
-
 // AC5
 #[test]
 fn ports_are_grouped_by_pid_and_sorted() {

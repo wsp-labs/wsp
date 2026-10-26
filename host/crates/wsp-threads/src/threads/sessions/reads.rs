@@ -5,7 +5,6 @@ use std::cmp::Ordering;
 use std::collections::HashSet;
 
 use futures::future::{join_all, try_join_all};
-use tokio::task::spawn_local;
 use wsp_core::types::api::{HistoryAsk, PageWindow};
 use wsp_core::types::internal::ThreadRecord;
 use wsp_core::types::internal::{named_only, KeptImage, KeptImages, SearchedHit, TreeTalk, ATTACHMENTS, ATTACHMENT_KEYS};
@@ -23,6 +22,7 @@ use wsp_wire::views::workspace::Caller;
 use wsp_wire::wire::runtime::{SessionSearchHit, SessionSearchResult};
 use wsp_words::attachments::attachment_key;
 use wsp_words::exit::{not_found_refusal, usage_refusal, HostError};
+use wsp_words::js::js_trim;
 use wsp_words::thread_read::thread_result;
 use wsp_words::words::computer::thread_word;
 
@@ -66,9 +66,9 @@ impl SessionsArea {
                 first_reads.push(self.ctx.refresh_title(view, false));
             } else {
                 let ctx = self.ctx.clone();
-                spawn_local(async move {
+                self.ctx.spawn(Box::pin(async move {
                     let _ = ctx.refresh_title(view, false).await;
-                });
+                }));
             }
         }
         try_join_all(first_reads).await?;
@@ -214,7 +214,7 @@ impl SessionsArea {
             None => None,
         };
         let (Some(held), Some(bytes)) = (held, bytes) else {
-            return Err(not_found_refusal(&format!("no image {} kept on that message", index + 1)));
+            return Err(not_found_refusal(&format!("no image {} kept on that message", u64::from(index) + 1)));
         };
         Ok(KeptAttachment { media_type: held.media_type, bytes: base64_of(&bytes) })
     }
@@ -222,7 +222,7 @@ impl SessionsArea {
     /// sessions.ts:1175. Rule Q9.
     pub async fn search_for(&self, query: &str, origin: Option<Caller>) -> Result<SessionSearchResult, HostError> {
         self.ctx.ready().await?;
-        let words = query.trim().to_lowercase();
+        let words = js_trim(query).to_lowercase();
         if words.is_empty() {
             return Ok(SessionSearchResult { hits: Vec::new(), unsearched: None });
         }
