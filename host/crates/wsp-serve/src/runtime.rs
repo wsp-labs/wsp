@@ -2,6 +2,7 @@
 //! Ported from packages/runtime/src/runtime.ts at 65f6b89c7: the hub. `create_runtime` builds the core, then each
 //! area in its fixed order, then the public runtime. Specs: spec/runtime_core.md, spec/runtime_of.md.
 pub mod core;
+pub mod join;
 pub mod public;
 
 use std::rc::Rc;
