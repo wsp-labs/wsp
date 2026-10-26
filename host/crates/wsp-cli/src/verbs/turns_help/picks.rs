@@ -259,7 +259,24 @@ pub async fn checked_start(
 /// `harnesses.list`, with `{workspaceId}` where a workspace is named; the answer's `harnesses`.
 async fn harness_lists(client: &dyn HostClient, workspace_id: Option<&str>) -> Result<Vec<HarnessCatalog>, HostError> {
     let params = pick(vec![("workspaceId", workspace_id.map(|id| json!(id)))]);
-    reply_field(&client.request("harnesses.list", params).await?, "harnesses.list", "harnesses")
+    let rows: Vec<Value> = reply_field(&client.request("harnesses.list", params).await?, "harnesses.list", "harnesses")?;
+    rows.into_iter().map(|row| serde_json::from_value(with_catalog_keys(row)).map_err(|_| HostError::new(other_version("harnesses.list")))).collect()
+}
+
+/// A catalog row as the host listed it, given the keys the typed record requires and the row lacks: the TS reads only the
+/// tables it checks a start against and takes the rest as the host wrote it.
+fn with_catalog_keys(mut row: Value) -> Value {
+    if let Some(object) = row.as_object_mut() {
+        if !matches!(object.get("source").and_then(Value::as_str), Some("harness" | "table")) {
+            object.insert("source".to_owned(), Value::from("harness"));
+        }
+        object.entry("version").or_insert(Value::Null);
+        object.entry("contextWindows").or_insert_with(|| json!([]));
+        for key in ["steers", "renames", "images"] {
+            object.entry(key).or_insert(Value::Bool(false));
+        }
+    }
+    row
 }
 
 /// `PickRefusal` as `pickRefusal` reads a thrown pick error. The wire's refusal does not carry how many options it

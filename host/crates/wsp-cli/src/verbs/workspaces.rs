@@ -39,7 +39,7 @@ use wsp_words::workspace_state::{
     delete_notice, gone_refusal, turn_spend_word, workspace_kind, workspace_state, WorkspaceState, WorkspaceStateInput,
 };
 
-use crate::cloud::cloud_on;
+use crate::cloud::cloud_on_in;
 use crate::cloud_text::cloud_text;
 
 use super::activity::{ended_lines, processes_asked};
@@ -47,11 +47,11 @@ use super::client::*;
 use super::io::{as_json, as_text, confirmed};
 use super::turns_help::{
     before_sending, checked_start, child_of, follow, follow_verb, notify_of, opening_of, pick_flags, refuse_machine_thread, sharing_with,
-    sub_deleting, thread_at, thread_deleted, thread_here, turn_failure, turn_view, FollowOn, OpeningAt, OpeningOpts, Picks, SaidAbout,
+    sub_deleting, thread_at_in, thread_deleted, thread_here, turn_failure, turn_view, FollowOn, OpeningAt, OpeningOpts, Picks, SaidAbout,
     ThreadDeleted, ThreadDeletedAsk, ThreadRef, Turn,
 };
 use super::workspaces_help::{
-    agents_asked, asked_to_fix, awake, build_image_at, committed, create_for, delete_question, delete_workspace, deleted_line, deleting,
+    agents_asked, asked_to_fix, awake, build_image_at, build_image_unheard, committed, create_for, delete_question, delete_workspace, deleted_line, deleting,
     dropping, fix_line, folder_of, forget, forget_question, forgot_line, image_lines, image_view, made_worktree, merged_in, merged_pr,
     project_of, rebuild, rebuilt_line, renamed_workspace_line, review_lines, review_posted, shared_of, started_lines, state_line,
     thread_label, thread_of, update_line, with_shared, woke_line, workspace_of, ChildRef, CreateAsked, Dropping, MergeLead, ProjectPick,
@@ -621,6 +621,13 @@ fn is_link(target: &str) -> bool {
 
 fn verdict_of(word: &str) -> Option<ReviewVerdict> {
     VERDICTS.iter().find(|(name, _)| *name == word).map(|(_, verdict)| verdict.clone())
+}
+
+/// What the tool server answers before a call runs when an enum input names a word off its list.
+fn off_the_list(tool: &str, input: &str, words: &[&str], got: &str) -> CallToolResult {
+    let listed = words.iter().map(|w| format!("'{w}'")).collect::<Vec<_>>().join(" | ");
+    let text = format!("MCP error -32602: Input validation error: Invalid arguments for tool {tool}: Invalid enum value. Expected {listed}, received '{got}' at {input}");
+    CallToolResult { content: vec![TextContent { kind: "text".to_owned(), text }], structured_content: None, is_error: Some(true) }
 }
 
 fn merge_method_of(word: &str) -> Option<MergeMethod> {

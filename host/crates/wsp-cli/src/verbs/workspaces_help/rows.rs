@@ -33,7 +33,7 @@ use wsp_words::words::image::forget_notice;
 use wsp_words::words::units::{disk_expired, offered_size, size_from_word, size_refusal, DiskKeep, DISK_EXPIRED_WORD};
 use wsp_words::workspace_state::{delete_notice, is_local_workspace, machine_word, on_delete_of, workspace_kind, CopyAt, StandsOn};
 
-use super::reads::{params, place_ref, reply_field, threads, workspace_of, workspaces, ThreadRow};
+use super::reads::{params, place_ref, reply_field, threads, with_workspace_keys, workspace_of, workspaces, ThreadRow};
 use crate::verbs::client::{absolute_path, flag_for, host_platform, other_version, pick, Frame, HostClient, Out, PushedFrames, SshAsked};
 use crate::verbs::io::Created;
 
@@ -113,7 +113,9 @@ async fn create_follow(
         body.insert("parent".to_owned(), json!(parent));
     }
     let reply = client.request("workspaces.create", body).await?;
-    let workspace: WorkspaceOut = reply_field(&reply, "workspaces.create", "workspace")?;
+    let shown: Value = reply_field(&reply, "workspaces.create", "workspace")?;
+    let workspace: WorkspaceOut = serde_json::from_value(with_workspace_keys(shown.clone()))
+        .map_err(|_| HostError::new(other_version("workspaces.create")))?;
     let notice = reply.get("notice").and_then(Value::as_str).map(str::to_owned);
     let at = workspace.folder.clone().unwrap_or_else(|| workspace.project.path.clone());
     let line = format!(
@@ -124,7 +126,7 @@ async fn create_follow(
         at,
         notice.as_ref().map(|n| format!("\n{n}")).unwrap_or_default()
     );
-    let created = Created { workspace, notice };
+    let created = Created { workspace, shown: Some(shown), notice };
     out.emit(&serde_json::to_value(&created).unwrap_or(Value::Null), Some(&line));
     Ok(created)
 }
