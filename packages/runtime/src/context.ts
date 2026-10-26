@@ -532,7 +532,6 @@ export interface BootArea {
   readonly talksToTreeOn: (workspaceId: string, caller: Caller | undefined) => boolean;
   readonly computerRows: () => Promise<{ id: string; name: string; kind: PlaceKind }[]>;
   readonly nameOfComputer: (computer: string, rows: readonly { id: string; name: string }[]) => string;
-  readonly imageHeadOrNone: () => Promise<string | undefined>;
   readonly imageHead: () => Promise<string>;
   readonly landingPlace: (computer: string) => Promise<{ placeId?: string }>;
 }

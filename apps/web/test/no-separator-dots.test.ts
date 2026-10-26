@@ -23,7 +23,7 @@ const ALLOWED: ReadonlyArray<{ file: string; text: string; why: string }> = [
   { file: "packages/host/src/places/commands.ts", text: 'l.state === "done" ? "·"', why: "the mark leading an add's or a setup's step that is done, in the column where a failed one carries x" },
   { file: "apps/web/src/slate/mcp.tsx", text: "/^•+/.test(value)", why: "whether a value is a set secret's mask, the dots the host sends in place of it" },
   { file: "apps/web/src/slate/pieces/input.tsx", text: '"•".repeat(', why: "a set secret's mask, the dots shown in place of its value" },
-  { file: "packages/protocol/src/slate/catalog.ts", text: "never by ·, • or |", why: "the catalog's rule telling an agent never to separate things with a dot" },
+  { file: "packages/protocol/src/slate/catalog.ts", text: "never ·, • or | between things", why: "the catalog's rule telling an agent never to separate things with a dot" },
   { file: "packages/protocol/src/slate/kit.ts", text: "${label}: ••••", why: "a set secret's mask, the dots shown in place of its value" },
   { file: "packages/protocol/src/slate/sketch.ts", text: 'SECRET_DOTS = "••••"', why: "a set secret's mask, the dots shown in place of its value" },
   { file: "packages/protocol/src/slate/validate.ts", text: "([·\\u2022])", why: "the slate's own rule refusing a dot between two pieces of text" },

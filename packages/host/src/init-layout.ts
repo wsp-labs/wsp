@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The few rules every wsp init screen shares: cut to a width with an
-// ellipsis, flatten a program's output line to one row, pad cells into
-// aligned columns, print a duration, the bar down the left of the screen being
-// answered, the help line, a card in the frame, and the confirm, text and
-// password prompts drawn with those same rules.
+// The few rules the terminal's prompts and tables share: cut to a width with an
+// ellipsis, pad cells into aligned columns, the bar down the left of the screen
+// being answered, the help line, and the confirm and password prompts drawn
+// with those same rules.
 import type { Readable, Writable } from "node:stream";
 import { WriteStream } from "node:tty";
 import { stripVTControlCharacters, styleText } from "node:util";
-import { ConfirmPrompt, PasswordPrompt, TextPrompt, type State as PromptState } from "@clack/core";
-import { S_BAR, S_RADIO_ACTIVE, S_RADIO_INACTIVE, S_STEP_ACTIVE, S_STEP_CANCEL, S_STEP_SUBMIT, log, unicode } from "@clack/prompts";
+import { ConfirmPrompt, PasswordPrompt, type State as PromptState } from "@clack/core";
+import { S_BAR, S_RADIO_ACTIVE, S_RADIO_INACTIVE, S_STEP_ACTIVE, S_STEP_CANCEL, S_STEP_SUBMIT, unicode } from "@clack/prompts";
 
 export const GUTTER = "  ";
 /** The bar and its end on the screen being answered; finished screens keep clack's thin ones. Both one cell wide, so focus moving never shifts a column. */
@@ -51,42 +50,10 @@ export const padCells = (text: string, width: number, align: Align = "left"): st
 
 export type Align = "left" | "right";
 
-/** Rows of cells padded so each column lines up, two spaces between columns, nothing after the last cell. */
-export function table(rows: readonly (readonly string[])[], align: readonly Align[] = []): string[] {
-  const widths: number[] = [];
-  for (const row of rows) row.forEach((cell, i) => (widths[i] = Math.max(widths[i] ?? 0, cell.length)));
-  return rows.map(row => {
-    const cells = row.map((cell, i) => (align[i] === "right" ? cell.padStart(widths[i]!) : cell.padEnd(widths[i]!)));
-    return cells.join(GUTTER).trimEnd();
-  });
-}
-
 /** The terminal width when the stream knows it, else clack's 80. Capped so a wide window does not spread the columns. */
 export function widthOf(output: Writable | undefined, cap = 100): number {
   const columns = output !== undefined && "columns" in output && typeof output.columns === "number" ? output.columns : 80;
   return Math.min(columns, cap);
-}
-
-/** The terminal height when the stream knows it, else clack's 20. */
-export function rowsOf(output: Writable | undefined): number {
-  return output !== undefined && "rows" in output && typeof output.rows === "number" ? output.rows : 20;
-}
-
-/** The slice of `total` rows that fits `height` rows with the cursor kept near the middle. */
-export function viewport(total: number, cursor: number, height: number): { start: number; end: number } {
-  const h = Math.max(1, height);
-  const start = Math.max(0, Math.min(cursor - Math.floor(h / 2), total - h));
-  return { start, end: Math.min(total, start + h) };
-}
-
-/** The first labels then "+N more", naming up to three and fewer when the width is short; the last label is cut rather than dropped. */
-export function summarize(labels: readonly string[], width: number, named = 3): string {
-  const more = (n: number): string => (labels.length > n ? ` +${labels.length - n} more` : "");
-  for (let n = Math.min(named, labels.length); n > 1; n--) {
-    const line = `${labels.slice(0, n).join(", ")}${more(n)}`;
-    if (line.length <= width) return line;
-  }
-  return labels.length === 0 ? "" : `${ellipsize(labels[0]!, width - more(1).length)}${more(1)}`;
 }
 
 /** The line broken at word ends to fit the width, the rest indented (by two unless the caller says); a line that fits is left
@@ -126,9 +93,6 @@ export const grey = (n: number, s: string): string => `\x1b[38;5;${n}m${s}\x1b[3
 /** The greys the screens paint from, brightest first. From the middle of the ramp, so they read on dark and light
  * backgrounds alike; a key sits a step brighter than what it does, a heavy size a step brighter than the rest. */
 export const GREY = { bright: 247, mid: 243, dim: 239 } as const;
-/** The one accent beside the ramp: a tick that is on, the row under the cursor, the screen being answered, and the
- * rows this computer's own agents ran. Nothing else on a screen takes a hue. */
-export const accent = (s: string): string => styleText("cyan", s);
 const GAP = "   ";
 
 export interface HelpKey {
@@ -150,13 +114,6 @@ export function helpLine(keys: readonly HelpKey[], depth: number): string {
 /** The columns a card's bar and its two spaces take before each line. clack's log.message writes lines as they are
  * (its note is what wraps, at the columns minus 6), so a line kept inside widthOf minus this is never wrapped again. */
 export const CARD_FRAME = 3;
-
-/** A block in the frame: a bold title on the step glyph, then its lines down the bar, wrapped to the width. A line
- * within the width once its escape codes are set aside passes as it is, so a coloured line keeps its colour whole. */
-export function card(title: string, lines: readonly string[], output: Writable): void {
-  const width = widthOf(output) - CARD_FRAME;
-  log.message([styleText("bold", title), ...lines.flatMap(l => (stripVTControlCharacters(l).length <= width ? [l] : wrap(l, width)))], { output, symbol: styleText("green", S_STEP_SUBMIT) });
-}
 
 const dim = (s: string): string => styleText("dim", s);
 const MASK = unicode ? "▪" : "*";

@@ -4,7 +4,7 @@ import { stripVTControlCharacters } from "node:util";
 import { describe, expect, it } from "vitest";
 import { isCancel } from "@clack/core";
 import { unicode } from "@clack/prompts";
-import { S_BAR_FOCUS, S_BAR_FOCUS_END, card, cellWidth, colourDepth, confirmPrompt, ellipsize, helpLine, muted, passwordPrompt, rowsOf, summarize, table, viewport, widthOf, wrap } from "../src/init-layout.js";
+import { S_BAR_FOCUS, S_BAR_FOCUS_END, cellWidth, colourDepth, confirmPrompt, ellipsize, helpLine, muted, passwordPrompt, widthOf, wrap } from "../src/init-layout.js";
 
 describe("init layout", () => {
 
@@ -15,51 +15,11 @@ describe("init layout", () => {
     expect(ellipsize("abcdef", 0)).toBe("");
   });
 
-  it("table pads each column to its widest cell, right-aligns where asked, and leaves no trailing space", () => {
-    const rows = table(
-      [
-        ["Identity", "10", "82.9 KB", "3 can come"],
-        ["Tools", "161", "", "92 can come"],
-        ["Shell", "9", "1.1 MB", ""],
-      ],
-      ["left", "right", "right"],
-    );
-    expect(rows).toEqual([
-      "Identity   10  82.9 KB  3 can come",
-      "Tools     161           92 can come",
-      "Shell       9   1.1 MB",
-    ]);
-  });
-
   it("widthOf reads the stream's columns, falls back to 80, and caps at 100", () => {
     expect(widthOf(new PassThrough())).toBe(80);
     expect(widthOf(Object.assign(new PassThrough(), { columns: 48 }))).toBe(48);
     expect(widthOf(Object.assign(new PassThrough(), { columns: 240 }))).toBe(100);
     expect(widthOf(undefined)).toBe(80);
-  });
-
-  it("rowsOf reads the stream's rows and falls back to 20", () => {
-    expect(rowsOf(new PassThrough())).toBe(20);
-    expect(rowsOf(Object.assign(new PassThrough(), { rows: 30 }))).toBe(30);
-    expect(rowsOf(undefined)).toBe(20);
-  });
-
-  it("viewport keeps the cursor mid-window, pins the window at both ends, and never goes under one row", () => {
-    expect(viewport(20, 0, 5)).toEqual({ start: 0, end: 5 });
-    expect(viewport(20, 10, 5)).toEqual({ start: 8, end: 13 });
-    expect(viewport(20, 19, 5)).toEqual({ start: 15, end: 20 });
-    expect(viewport(3, 1, 5)).toEqual({ start: 0, end: 3 });
-    expect(viewport(20, 7, 0)).toEqual({ start: 7, end: 8 });
-    expect(viewport(0, 0, 4)).toEqual({ start: 0, end: 0 });
-  });
-
-  it("summarize names up to three labels then +N more, drops labels when the width is short, and cuts the last one kept", () => {
-    expect(summarize(["a", "b"], 80)).toBe("a, b");
-    expect(summarize(["a", "b", "c", "d", "e"], 80)).toBe("a, b, c +2 more");
-    expect(summarize(["alpha", "beta", "gamma", "delta"], 20)).toBe("alpha, beta +2 more");
-    expect(summarize(["alpha", "beta", "gamma", "delta"], 14)).toBe("alpha +3 more");
-    expect(summarize(["a".repeat(30), "beta"], 20)).toBe("aaaaaaaaaaa… +1 more");
-    expect(summarize([], 20)).toBe("");
   });
 
   it("wrap breaks a line at word ends inside the width, indents the rest by two, and cuts a word longer than the width", () => {
@@ -78,22 +38,6 @@ describe("init layout", () => {
     expect(wrap(`Save the key to ${path} so wsp stops asking?`, 40)).toEqual(["Save the key to", `  ${path.slice(0, 37)}…`, "  so wsp stops asking?"]);
     expect(wrap(`${path} so`, 40)).toEqual([`${path.slice(0, 39)}…`, "  so"]);
     expect(wrap(`Installs  ${path} plus jq`, 40, " ".repeat(10))).toEqual(["Installs", `          ${path.slice(0, 29)}…`, "          plus jq"]);
-  });
-
-  it("card prints a bold title on the step glyph and its lines down the bar, an empty line as a bare bar, and long lines wrapped to the width", () => {
-    const output = Object.assign(new PassThrough(), { columns: 40 });
-    const chunks: string[] = [];
-    output.on("data", (c: Buffer) => chunks.push(c.toString()));
-    // The coloured line is 45 characters with its codes and 35 without: it fits the width and passes through whole.
-    const red = "\x1b[31mDisk  12.5 GB of 16.1 GB, red line\x1b[39m";
-    card("Summary", ["Identity  2 of 3  1.7 KB", "  GitHub CLI login  copy", "", "Installs  Claude Code, Codex, 89 tools plus Homebrew's toolchain", red], output);
-    const raw = chunks.join("");
-    const lines = stripVTControlCharacters(raw).split("\n");
-    expect(lines).toEqual(["│", "◇  Summary", "│  Identity  2 of 3  1.7 KB", "│    GitHub CLI login  copy", "│", "│  Installs  Claude Code, Codex, 89", "│    tools plus Homebrew's toolchain", "│  Disk  12.5 GB of 16.1 GB, red line", ""]);
-    expect(raw).toContain(`│  ${red}\n`);
-    // The help line is not wrapped, as on the rung screens.
-    expect(lines.slice(0, -1).map(l => l.length).filter(n => n > 40)).toEqual([]);
-    expect(raw).not.toMatch(/[╮╯─├]/);
   });
 
   it("the focused bar and its end are one cell wide like clack's thin ones, so focus moving never shifts a column; ASCII off a unicode terminal", () => {

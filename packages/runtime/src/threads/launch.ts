@@ -4,23 +4,27 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { serverValuesOf } from "@wsp/catalog";
 import { harnessExec, type Machine } from "@wsp/engine";
-import { MCP_SERVER_NAME, NO_SLATE_MCP_ARG, SCOPED_MCP_ARG, THREAD_ENV, TURN_TOKEN_ENV, type McpServerSpec, cloudAddedLine, cloudRemovedLine, placeSaid, isLocalWorkspace, keptPicks, listedPick, scopeOf, startPicks, type AccessChoice, type Preferences, type SessionWarmResult, type StartPicks } from "@wsp/protocol";
+import { MCP_SERVER_NAME, NO_LOOK_MCP_ARG, NO_SLATE_MCP_ARG, SCOPED_MCP_ARG, THREAD_ENV, TURN_TOKEN_ENV, type McpServerSpec, cloudAddedLine, cloudRemovedLine, placeSaid, isLocalWorkspace, keptPicks, listedPick, scopeOf, startPicks, type AccessChoice, type Preferences, type SessionWarmResult, type StartPicks } from "@wsp/protocol";
 import { harnessCatalog, notRunRefused } from "../harness-catalog.js";
 import type { HarnessAdapter } from "../types/harness.js";
 import type { Runtime } from "../types/api.js";
 import { launchesAs, lostSessionLogLine, type KeptLaunch, type ThreadRecord } from "../types/internal.js";
 import { SESSION_TITLE_TIMEOUT_MS } from "../types/events.js";
 import type { PlaceDoor } from "../places.js";
+import { slateLookHubOf } from "../serve-slate-look.js";
 import type { LiveWorkspace } from "../types/wiring.js";
 import type { RuntimeContext } from "../context.js";
 
 /** The wsp server a thread's launch is handed. A thread another thread started has no slate: its launch says nothing of
  * one, and on this computer, where the server is the host's own wsp and knows the word, its server is told too. A box's
  * server is served by this host as a guest, which reads the same off the thread's token; the box's own wsp may be
- * older and never sees a word. */
-export function servedTo(wsp: McpServerSpec | undefined, rootThreadId: string, threadId: string): McpServerSpec | undefined {
-  if (wsp === undefined || rootThreadId === threadId) return wsp;
-  return { ...wsp, noSlate: true as const, ...(wsp.args.includes(SCOPED_MCP_ARG) ? { args: [...wsp.args, NO_SLATE_MCP_ARG] } : {}) };
+ * older and never sees a word. A launch while no app here draws looks is told so the same way, by `look` false. */
+export function servedTo(wsp: McpServerSpec | undefined, rootThreadId: string, threadId: string, look: boolean): McpServerSpec | undefined {
+  if (wsp === undefined) return wsp;
+  const sub = rootThreadId !== threadId;
+  const words = sub ? [NO_SLATE_MCP_ARG] : look ? [] : [NO_LOOK_MCP_ARG];
+  if (words.length === 0) return wsp;
+  return { ...wsp, ...(sub ? { noSlate: true as const } : {}), ...(wsp.args.includes(SCOPED_MCP_ARG) ? { args: [...wsp.args, ...words] } : {}) };
 }
 
 /** Puts a line ahead of a send's message for each cloud added or taken away since the thread last knew them, and answers
@@ -74,9 +78,9 @@ export function launchArea(ctx: RuntimeContext) {
   };
   /** What a launch fixes for the life of the agent's process: the agent, the folder, the servers a caller named, the
    * binary's version and the person's setup for it. */
-  const launchFixed = (entry: LiveWorkspace, harness: string, cwd: string, mcpServers: unknown, version: string | null | undefined): string => {
+  const launchFixed = (entry: LiveWorkspace, harness: string, cwd: string, mcpServers: unknown, version: string | null | undefined, look: boolean): string => {
     const place = ctx.setupPlace(entry);
-    return JSON.stringify({ harness, cwd, mcpServers, version, setup: place === undefined ? undefined : setups.launchOf(place, harness) });
+    return JSON.stringify({ harness, cwd, mcpServers, version, look, setup: place === undefined ? undefined : setups.launchOf(place, harness) });
   };
   /** The warm launches in flight, by workspace and agent: a second ask waits for the first, so one stands. */
   const warming = new Map<string, Promise<SessionWarmResult>>();
@@ -91,7 +95,8 @@ export function launchArea(ctx: RuntimeContext) {
     const folder = await ctx.threadFolder(entry, asked);
     if (isLocalWorkspace(entry.record) && !existsSync(folder)) return { warm: "none" };
     const cwd = ctx.runsIn(entry, undefined, folder);
-    const launch: KeptLaunch = { fixed: launchFixed(entry, harness, cwd, undefined, catalog?.version), picks: { ...picks } };
+    const look = slateLookHubOf(ctx.slates).lookable();
+    const launch: KeptLaunch = { fixed: launchFixed(entry, harness, cwd, undefined, catalog?.version, look), picks: { ...picks } };
     const standing = ctx.warmOn(workspaceId, harness);
     if (standing !== undefined && launchesAs(standing[1].launch, launch) && launchesAs(launch, standing[1].launch)) {
       ctx.rewarm(standing[0]);
@@ -103,7 +108,7 @@ export function launchArea(ctx: RuntimeContext) {
     try {
       const waiting = { on: false };
       const { adapter } = ctx.adapterFor(entry, harness, { [TURN_TOKEN_ENV]: turnToken, [THREAD_ENV]: threadId, ...launchEnv }, () => waiting.on, serverValuesOf(opts.vault?.() ?? {}), threadId);
-      const served = adapter.mcpServers === true ? wsp : undefined;
+      const served = adapter.mcpServers === true ? servedTo(wsp, threadId, threadId, look) : undefined;
       const launchServers = adapter.mcpServers === true || adapter.deniesServers === true ? await ctx.launchServersFor(entry, harness, adapter, cwd) : {};
       const agent = adapter.warm!({
         ...picks,

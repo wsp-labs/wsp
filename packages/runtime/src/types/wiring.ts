@@ -110,7 +110,8 @@ export interface CreateWorkspaceOptions extends WorkspaceSpec {
    * nothing else says where. */
   project: string;
   /** Snapshot id of the image to fork; absent takes the head of this host's own image. No client names one: the wire
-   * op and the command line take none, and a runtime caller that holds a snapshot of its own names it. */
+   * op and the command line take none, so only the host's own creates and the tests do, and a thread naming one is
+   * refused (spawnGoldenRefusal). */
   golden?: string;
   name: string;
   /** A sub-thread of the asking thread on a cloud: a machine of its own from the image, in no project's place. */

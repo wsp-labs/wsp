@@ -115,6 +115,9 @@ describe("image vault", () => {
     expect(imageHash("r1", "v1")).not.toBe(imageHash("r1", "v2"));
     expect(imageHash("r1", undefined)).not.toBe(imageHash("r1", "0".repeat(64)));
     expect(imageHash("r1", undefined)).toHaveLength(64);
+    // Digests taken before pins left the rule: a record sealed then and a hash taken again now are one image.
+    expect(imageHash("a".repeat(64), "b".repeat(64))).toBe("ccd9241c459d7ca7fbca30f725f099d70a372fd033f10698a74e0e809a411c9a");
+    expect(imageHash("a".repeat(64), undefined)).toBe("7a5615b3e1f6c230542314338084b5c34d0ed93380b89e21e2ab96c9bf3a8e9b");
   });
 
   it("every login the pack copies onto a machine lands under some catalog row's state on the machine", () => {

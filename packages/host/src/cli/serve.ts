@@ -2,18 +2,17 @@
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { basename, dirname } from "node:path";
-import { nodeHost, type Host } from "@wsp/collect";
 import type { HostSsh, PlaceWiring, RestartDoor, Runtime } from "@wsp/runtime";
 import { writeOwn } from "@wsp/own-file";
 import { GUEST_HOME } from "@wsp/catalog";
 import { forksNoMachines, isLoopback, listenBeyondLoopbackLine, loopbackThreadsLine, LOOPBACK, verbFailure } from "@wsp/protocol";
-import { checkProviderKeyLive, providerBackendFor, providerKeyCheck, providerKeyRow, providerKeyRows, providerKeySet, wiredProviderId, type ProviderEnv } from "../providers.js";
+import { checkProviderKeyLive, providerKeyCheck, providerKeyRow, providerKeyRows, providerKeySet, wiredProviderId, type ProviderEnv } from "../providers.js";
 import { webDirFor } from "../assets.js";
 import { releaseUpdateLine } from "../daemon-fix.js";
 import { CloudSetup } from "../cloud-setup.js";
 import { envFileFor, keyIn, savedEnv, writeEnvFile, type Keys } from "../env-keys.js";
 import { adoptLoginPath, withLoginKeys } from "../login-path.js";
-import { systemOpener, type UrlOpener } from "../relay.js";
+import { type UrlOpener } from "../relay.js";
 import { addressLines, hostTokenPath, lockPathFor, programGone, releaseLock, rewriteLock, startedByEnv, STARTED_BY_ENV, takeLock, type HostStarted } from "../host-lock.js";
 import { starterFor } from "../host-start.js";
 import { hostRoadOf, restartRoads, type RestartingHost, type RestartRoad } from "../restart.js";
@@ -22,16 +21,15 @@ import { admittedDevices, readRelayRecord, relayOnLoopbackLine, startRelay } fro
 import { wspHome } from "../hosts.js";
 import { hereUrl, type HereAt } from "../pairing.js";
 import { placeWiring } from "../places.js";
-import { startHost, workspaceRoads, type HostDoctorReaders, type HostHandle } from "../server.js";
+import { startHost, type HostDoctorReaders, type HostHandle } from "../server.js";
 import { refreshSkills, runningWsp, serversRefreshedLine, refreshServers, skillsRefreshedLine, type RunningWsp } from "../mcp-install.js";
-import { hostPlatform } from "../verbs.js";
 import { installedVersion, VERSION } from "../version.js";
 import { releaseWatch } from "../release.js";
 import { analyticsOff, hostAnalytics } from "../analytics.js";
 import { followUsage, hostCommon } from "../analytics-events.js";
 import type { CliIO } from "./io.js";
 import { keySources, providerEnvNow, loadKeys, vaultNow } from "./keys.js";
-import { goldenRecipe, hostBrokerOf, hostRecipeWatch, swapProvider, makeRuntime, workspaceEnvsFor } from "./wiring.js";
+import { goldenRecipe, hostBrokerOf, hostRecipeWatch, swapProvider, makeRuntime } from "./wiring.js";
 
 /** The cloud setup on this computer for a serving host: the keys read off the .env beside the state file this host
  * serves and nothing else at each ask (a key in this process's environment or a checkout's .env is the terminal's and
@@ -281,7 +279,6 @@ export async function hostFor(
       ...(links.back !== undefined ? { back: links.back } : {}),
       webDir: opts.webDir ?? webDirFor(),
       // Read at each fork, not once at start: the init job saves a key while this host serves.
-      workspaceEnvs: golden => workspaceEnvsFor().workspaceEnvs(golden),
       ...(opts.openUrl !== undefined ? { openUrl: opts.openUrl } : {}),
       log: line => io.log(line),
       statePath: opts.statePath,

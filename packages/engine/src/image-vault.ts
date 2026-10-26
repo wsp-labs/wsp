@@ -245,7 +245,8 @@ const IMAGE_HASH_RULE = "wsp-image-2";
 /** What an image with no vault hashes as: its own word, never the empty string, so a record with no vault and one
  * whose vault hashed to nothing are different images. */
 const NO_VAULT = "none";
-/** One rule for the image hash: the recipe the copy is built from and the vault it imports, and nothing else. */
+/** One rule for the image hash: the recipe the copy is built from and the vault it imports, and nothing else. The
+ * closing `[]` is the empty pin list every earlier hash ended in, kept so a hash taken again still matches. */
 export function imageHash(recipeHash: string, vaultSha256: string | undefined): string {
-  return createHash("sha256").update(`${IMAGE_HASH_RULE}\n${recipeHash}\n${vaultSha256 ?? NO_VAULT}`).digest("hex");
+  return createHash("sha256").update(`${IMAGE_HASH_RULE}\n${recipeHash}\n${vaultSha256 ?? NO_VAULT}\n[]`).digest("hex");
 }

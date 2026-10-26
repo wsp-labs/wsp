@@ -7,7 +7,7 @@
 // which the command line reads too, and where today ends is daysBack in the
 // app's timestamp reading, which every surface that says "today" reads.
 import { catalogEntry } from "@wsp/catalog";
-import { BUILD_TAKES_UNMEASURED, chargesNothing, customRows, fmtBytes, fmtRate, plural, sealedLoginsHeld, subThreadsOnly, type PlaceView, type Recipe, type SealedImage, type SealedImageCopy } from "@wsp/protocol";
+import { BUILD_TAKES_UNMEASURED, NO_IMAGE_FIX, chargesNothing, customRows, fmtBytes, fmtRate, plural, sealedLoginsHeld, subThreadsOnly, type PlaceView, type Recipe, type SealedImage, type SealedImageCopy } from "@wsp/protocol";
 import { HardDriveIcon, KeyRoundIcon, TagIcon } from "lucide-react";
 import type { ChipItem } from "../components/ui/chips.js";
 import { placeNamed } from "./places.js";
@@ -29,7 +29,7 @@ export const IMAGE_WORDS = {
     stale: "An older copy here",
     ready: "Ready",
   },
-  noImage: "No image yet.",
+  noImage: `No image yet. ${NO_IMAGE_FIX}`,
   /** The row under the state that says what the image holds. */
   holds: "On your image",
   noRecipe: (version: number): string => `v${version} was sealed before what goes on it was kept.`,

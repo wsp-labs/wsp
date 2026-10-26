@@ -91,7 +91,7 @@ fn f64_of(n: &Number) -> f64 {
 fn standing(image: &SealedImage, copy: &SealedImageCopy) -> Option<String> {
     let words = workspace::words();
     image.vault.as_ref()?;
-    Some(if copy.hash.as_deref() == Some(image.hash.as_str()) { words.copy_current } else { words.copy_stale })
+    Some(if copy.hash.as_deref() == Some(image.hash.as_str()) { words.copy_current.clone() } else { words.copy_stale.clone() })
 }
 
 fn copy_line(image: &SealedImage, copy: &SealedImageCopy) -> String {
@@ -104,7 +104,7 @@ fn copy_line(image: &SealedImage, copy: &SealedImageCopy) -> String {
 fn image_line(image: &SealedImage) -> String {
     let words = workspace::words();
     let held = match &image.vault {
-        None => words.image_no_vault,
+        None => words.image_no_vault.clone(),
         Some(vault) => {
             let signed = image.logins.iter().filter(|l| words.logins_held.contains(&l.state)).count();
             format!("{} held, {}", workspace::plural(&Number::from(signed), "sign-in"), workspace::plural(&vault.paths, "path"))
@@ -117,7 +117,7 @@ fn image_line(image: &SealedImage) -> String {
 }
 
 fn image_lines(view: &ImageOut) -> String {
-    let Some(image) = &view.image else { return workspace::words().no_sealed_image };
+    let Some(image) = &view.image else { return workspace::words().no_sealed_image.clone() };
     let mut lines = vec![image_line(image)];
     lines.extend(view.copies.iter().map(|c| copy_line(image, c)));
     lines.join("\n")
@@ -188,7 +188,7 @@ async fn build(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     }
     let built: Built = client.request("image.build", asked).await?;
     let view = image_view(&client).await?;
-    let Some(image) = &view.image else { return Err(Failure::new(workspace::words().no_sealed_image).into()) };
+    let Some(image) = &view.image else { return Err(Failure::new(workspace::words().no_sealed_image.clone()).into()) };
     let built: BuildOut = read(&built.build, "image.build")?;
     let line = copy_line(image, &built.copy);
     let said = if built.built { line } else { format!("{line}  already built from this image; nothing was built") };

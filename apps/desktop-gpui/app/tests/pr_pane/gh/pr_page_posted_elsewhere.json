@@ -1,0 +1,4 @@
+{
+  "extends": "open",
+  "reviewUrl": "file:///etc/posted-review"
+}

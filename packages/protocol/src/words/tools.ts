@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { PermissionEffect, PermissionOption, PermissionOutcome, SessionAnswerOutcome, SessionEvent, SessionPermissionEvent } from "../index.js";
+import type { PermissionEffect, PermissionOption, PermissionOutcome, SessionAnswerOutcome, SessionPermissionEvent } from "../index.js";
 import { folderName, parentFolderName } from "../project-path.js";
-import { lastLine, plural } from "./base.js";
+import { plural } from "./base.js";
 import { fmtBytes } from "./units.js";
 import { titleLine } from "./turn.js";
 /** One tool call's input, as the wire's delta carries it: the JSON the harness reported, already parsed. */

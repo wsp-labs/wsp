@@ -1,0 +1,47 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": "a thread keeps its folder; start a new thread for another branch",
+      "kind": "usage"
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "name the project the thread runs in",
+      "kind": "usage"
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": "no project \"nope\"; wsp add <folder> records one",
+      "kind": "not-found"
+    },
+    {
+      "id": 5,
+      "ok": false,
+      "error": "no project \"\"; wsp add <folder> records one",
+      "kind": "not-found"
+    },
+    {
+      "id": 6,
+      "ok": false,
+      "error": "no project \"nope\"; wsp add <folder> records one",
+      "kind": "not-found"
+    },
+    {
+      "id": 7,
+      "ok": false,
+      "error": "no project \"nope\"; wsp add <folder> records one",
+      "kind": "not-found"
+    }
+  ],
+  "events": []
+}

@@ -5,12 +5,11 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { Manifest, ManifestEntry } from "@wsp/collect";
+import type { Manifest } from "@wsp/collect";
 import type { Recipe, SealedImage } from "@wsp/protocol";
 import { brewTableFor, copyRows, wantsBrew } from "../src/import-plan.js";
 import { ROOT, sourceFiles } from "../../protocol/test/source-files.js";
 import { readFileSync } from "node:fs";
-import { answeredRows, defaultAnswers, manifestFor } from "../src/init-recipe.js";
 import { FIXTURE, RECIPE } from "./init-fixture.js";
 
 /** The laptop the fixture describes, with the files its rows name actually there: the plan reads this computer, so
@@ -46,11 +45,9 @@ const RECORD: SealedImage = {
 describe("the rows a setup is planned from", () => {
   let dir: string;
   let home: string;
-  let statePath: string;
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "wsp-copy-recipe-"));
     home = join(dir, "home");
-    statePath = join(dir, "state.json");
     mkdirSync(home, { recursive: true });
     laptop(home);
   });

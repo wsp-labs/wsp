@@ -3,13 +3,11 @@
 // as it lands, and refuses a snapshot while one stands on the machine. A fork on a computer somebody joined keeps
 // its home as it was.
 import { LOGIN_PATHS } from "@wsp/catalog";
-import type { MachineBackend } from "@wsp/engine";
-import { DAEMON_TOKEN_PATH, verbFailure } from "@wsp/protocol";
+import { DAEMON_TOKEN_PATH } from "@wsp/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { createRuntime, type PlaceBackends } from "../src/runtime.js";
-import { newPlaceKeyPair } from "../src/places.js";
 import { memoryStore } from "../src/store.js";
-import { wiring, report } from "./place-join.js";
+import { report } from "./place-join.js";
 import { code, ctx, forks, join, serving, sockets, type ForkingPlace } from "./places-fixture.js";
 import { createOn, stubBackend, tokenGuest, type StubBackend } from "./stub-backend.js";
 
@@ -36,14 +34,6 @@ function guest(held: string[] = []): { backend: StubBackend; cmds: { machine: st
   );
   return { backend, cmds };
 }
-
-const twoProviders = (wired: string, at: Record<string, MachineBackend>): PlaceBackends => ({
-  get wired() {
-    return wired;
-  },
-  backend: place => at[place],
-  list: () => Object.keys(at),
-});
 
 describe("the vault of a fork at a provider", () => {
   it("a nap archives the home with every login path and both secrets files left out", async () => {

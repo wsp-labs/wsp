@@ -7,9 +7,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { TurnResult } from "@wsp/protocol";
 import { createRuntime, type HarnessAdapterFactory, type HarnessStartOptions } from "../src/runtime.js";
 import { serveRuntime, type RuntimeServer } from "../src/serve.js";
-import { memoryStore } from "../src/store.js";
 import { WsClient, type WireMsg, createOverWire } from "./ws-client.js";
-import { stubBackend } from "./stub-backend.js";
+import { imagedStore, stubBackend } from "./stub-backend.js";
 import { fakeClock } from "./fake-clock.js";
 import { until } from "./until.js";
 
@@ -70,10 +69,10 @@ const texts = (events: WireMsg[]): string[] => events.map(e => e["text"] as stri
 async function boot() {
   const h = drivenHarness();
   const fc = fakeClock();
-  const runtime = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: h.adapter }, clock: fc.clock });
+  const runtime = createRuntime({ backend: stubBackend(), store: imagedStore(), adapters: { claude: h.adapter }, clock: fc.clock });
   srv = await serveRuntime(runtime, { port: 0, authToken: "secret", now: fc.clock.now });
   const c = await WsClient.connect(srv.port, { token: "secret" });
-  const created = await createOverWire(c, "x", { golden: "snap_g" });
+  const created = await createOverWire(c, "x");
   const workspaceId = (created["workspace"] as { id: string }).id;
   await c.request("sessions.start", { workspaceId, prompt: "go" });
   return { h, runtime, workspaceId, c, port: srv.port };
@@ -184,14 +183,14 @@ describe("events.subscribe replay", () => {
   });
 
   it("runtime restarts between the drop and the re-subscribe: a cursor from the old stream is a gap, nothing of the new stream is replayed", async () => {
-    const store = memoryStore();
+    const store = imagedStore();
     const first = drivenHarness();
     const fc = fakeClock();
     const rtA = createRuntime({ backend: stubBackend(), store, adapters: { claude: first.adapter }, clock: fc.clock });
     srv = await serveRuntime(rtA, { port: 0, authToken: "secret", now: fc.clock.now });
     const port = srv.port;
     const c = await WsClient.connect(port, { token: "secret" });
-    const created = await createOverWire(c, "x", { golden: "snap_g" });
+    const created = await createOverWire(c, "x");
     const workspaceId = (created["workspace"] as { id: string }).id;
     await c.request("sessions.start", { workspaceId, prompt: "go" });
     const subA = await c.request("events.subscribe");
@@ -212,7 +211,7 @@ describe("events.subscribe replay", () => {
     await until(async () => (await rtB.workspaces.get(workspaceId)).phase === "gone");
     srv = await serveRuntime(rtB, { port, authToken: "secret", now: fc.clock.now });
     const back = await WsClient.connect(port, { token: "secret" });
-    const again = await createOverWire(back, "y", { golden: "snap_g" });
+    const again = await createOverWire(back, "y");
     await back.request("sessions.start", { workspaceId: (again["workspace"] as { id: string }).id, prompt: "go" });
     for (const t of ["new 1", "new 2", "new 3"]) second.delta(t);
 

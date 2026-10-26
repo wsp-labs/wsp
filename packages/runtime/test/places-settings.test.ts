@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join as joinPath } from "node:path";
 import { describe, expect, it } from "vitest";
-import { AGENTS_ON, foldThreads, placeSettingsLine, dayStart, spendCapRefusal, absentComputer, HERE_PLACE_ID, noSuchPlaceRefusal, type PlaceView, type TurnResult, TURN_WALL_MS, turnCutLine } from "@wsp/protocol";
+import { foldThreads, placeSettingsLine, dayStart, spendCapRefusal, absentComputer, HERE_PLACE_ID, noSuchPlaceRefusal, type PlaceView, type TurnResult, TURN_WALL_MS, turnCutLine } from "@wsp/protocol";
 import { gateLoop } from "../../protocol/test/stub-script.js";
 import type { MachineExecOptions } from "../src/machine-exec.js";
 import { createRuntime, wiredPlace, type HarnessAdapterFactory } from "../src/runtime.js";

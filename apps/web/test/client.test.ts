@@ -164,9 +164,8 @@ describe("makeApi wrappers", () => {
     await api.createWorkspace("pr_1", "beta", { size: { cpu: 2, memMb: 8192 } });
     expect(lastSent()).toEqual({ id: expect.any(Number), op: "workspaces.create", project: "pr_1", name: "beta", cpu: 2, memMb: 8192 });
     expect(RuntimeRequest.safeParse(lastSent()).success).toBe(true);
-    await api.createWorkspace("pr_1", "beta", { golden: "snap_1", size: { cpu: 2, memMb: 8192 } });
-    expect(lastSent()).toEqual({ id: expect.any(Number), op: "workspaces.create", project: "pr_1", name: "beta", golden: "snap_1", cpu: 2, memMb: 8192 });
-    expect(RuntimeRequest.safeParse(lastSent()).success).toBe(true);
+    // No client names an image: a create that carries one reads as one that does not.
+    expect(RuntimeRequest.parse({ id: 1, op: "workspaces.create", project: "pr_1", name: "beta", golden: "snap_1" })).toEqual({ id: 1, op: "workspaces.create", project: "pr_1", name: "beta" });
   });
 
   it("sends no frame the runtime would refuse: every op this client has is one the runtime serves", async () => {

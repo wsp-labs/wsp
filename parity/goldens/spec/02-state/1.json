@@ -1,0 +1,33 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "workspaces": []
+    },
+    {
+      "id": 3,
+      "ok": true,
+      "sessions": []
+    },
+    {
+      "id": 4,
+      "ok": true,
+      "devices": []
+    },
+    {
+      "id": 5,
+      "ok": true,
+      "account": {
+        "signedIn": false
+      }
+    }
+  ],
+  "events": []
+}

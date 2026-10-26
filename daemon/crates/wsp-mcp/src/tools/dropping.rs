@@ -144,7 +144,7 @@ async fn delete(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     if let Some(named) = thread {
         return delete_thread(&client, &named, processes.as_deref().unwrap_or("ask"), confirm == Some(true), host.cloud()).await;
     }
-    let nothing = if host.cloud() { words.delete_names_nothing_cloud } else { words.delete_names_nothing };
+    let nothing = if host.cloud() { &words.delete_names_nothing_cloud } else { &words.delete_names_nothing };
     let Some(workspace) = workspace else { return Err(Failure::usage(nothing).into()) };
     let dropped = workspace_of(&client, &workspace).await?;
     refuse_folder(&dropped)?;

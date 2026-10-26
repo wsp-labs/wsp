@@ -18,7 +18,7 @@
 // sound while the person keeps that switch on. The
 // dock's badge counts the threads waiting on the person. A newer release is
 // never a notice: the sidebar's update card says it.
-import { NOTIFY_ME, waitLine, setupNeedsYouLine, setupReadyLine, askingLine, exitLine, foldThreads, needsYouCount, outsideLine, planAlertLine, threadFinishedLine, threadStoppedLine, titleWithNeed, type OutsideLine, type OutsideMoment, type PlaceView, type TurnResult } from "@wsp/protocol";
+import { NOTIFY_ME, waitLine, setupNeedsYouLine, askingLine, exitLine, foldThreads, needsYouCount, outsideLine, planAlertLine, threadFinishedLine, threadStoppedLine, titleWithNeed, type OutsideLine, type OutsideMoment, type PlaceView, type TurnResult } from "@wsp/protocol";
 import { useCallback, useEffect, useRef } from "react";
 import type { ProtocolEvent } from "../protocol/client.js";
 import { threadOnScreen, useProtocolEvents, useStore } from "../protocol/store.js";

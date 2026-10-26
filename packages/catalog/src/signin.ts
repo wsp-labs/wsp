@@ -202,13 +202,6 @@ export function signInRoadOf(s: SignIn): SignInRoad {
   return s.headless ?? "code";
 }
 
-/** The login as a row names it: the command up to the flags that answer its questions, which a row has no room for
- * and nobody has to type. */
-export function loginWords(s: LoginSignIn): string {
-  const at = s.login.indexOf(" --");
-  return at === -1 ? s.login : s.login.slice(0, at);
-}
-
 /** Whether a login starts as a sign-in on the machine: a browser or device flow the relay finishes there. A key has no
  * browser flow to produce it and a tool with no sign-in has nothing to run, so those start as a copy. */
 export function signsInByDefault(s: SignIn | { kind: "shell" }): boolean {

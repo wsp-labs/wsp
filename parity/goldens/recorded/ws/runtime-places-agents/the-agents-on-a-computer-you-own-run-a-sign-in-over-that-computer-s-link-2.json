@@ -1,0 +1,69 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": "no place named p_00000001; you have <computer>",
+      "kind": "usage"
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "That sign-in is not running any more.",
+      "kind": "usage"
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": "no place named p_00000001; you have <computer>",
+      "kind": "usage"
+    },
+    {
+      "id": 5,
+      "ok": true,
+      "ticket": "<id-1, 32 characters>",
+      "expiresAt": "<time+5m in ms>"
+    },
+    {
+      "id": 6,
+      "ok": false,
+      "error": "That is not a Claude Code token."
+    },
+    {
+      "id": 7,
+      "ok": true
+    },
+    {
+      "id": 8,
+      "ok": false,
+      "error": "That sign-in is not running any more.",
+      "kind": "usage"
+    },
+    {
+      "id": 9,
+      "ok": true,
+      "code": "<code-1>",
+      "expiresAt": "<time+10m in ms>",
+      "hostKey": "<id-2>"
+    },
+    {
+      "id": 10,
+      "ok": false,
+      "error": "no place named p_00000001; you have <computer>",
+      "kind": "usage"
+    },
+    {
+      "id": 11,
+      "ok": false,
+      "error": "no place named p_00000001; you have <computer>",
+      "kind": "usage"
+    }
+  ],
+  "events": []
+}

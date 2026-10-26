@@ -3,7 +3,7 @@
 // offers, what decides whether an act can be taken where the list stands, the
 // sign-in roads, and the lines under the list. Each kind's own rows, detail
 // and acts are its module under kinds/.
-import { LogInIcon, PencilIcon, XIcon, type LucideIcon } from "lucide-react";
+import { LogInIcon, XIcon, type LucideIcon } from "lucide-react";
 import { agentName, catalogEntry, hasLogin, loginIdOf, loginThere, mintsToken, serverSignInRoad, signInRoadOf } from "@wsp/catalog";
 import { outcomeWord } from "../../settings/places.js";
 import { agentOfRow, type AgentRow, type AgentsProject, type AgentsReport, type AgentsTarget, type BrokerStatus, type McpRow, type McpScope, type PageReach, type PlaceProvisionRow, type PluginRow, type PluginScope, type SealedImage, type ServerAdd, type ServerToolsAnswer, type SignInRoad, type SkillHit, type SkillPreview, type SkillRow, TOKEN_SIGN_IN_WORD } from "@wsp/protocol";

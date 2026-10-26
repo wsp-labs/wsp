@@ -7,9 +7,9 @@
 // members once; Homebrew's toolchain is one line; a row nothing measured counts
 // at a stated default for its kind. Nothing here runs a command: the host reads
 // the Mac's Homebrew and hands the table in.
-import { AGENT_INSTALLERS, BREW_TOOLCHAIN, CATALOG_PREFIX, CUSTOM_PREFIX, MACOS_ONLY_FORMULAE, MANAGER_STEP, agentInstallsFor, catalogToolOf, formulaOf, isTap, managerFormula, packageOf, toolInstallsFor, type BrewFormula, type BrewTable, type RecipeEntry, type ToolSource } from "./golden-import.js";
-import { MIB, NODE_BIN, catalogEntry, catalogToolByRoad, catalogToolFor, isRoad, sizeBytes, type RoadName } from "@wsp/catalog";
-import { BREW_ID_PREFIX, toolRowPrefix, type RecipeCustomRow } from "@wsp/protocol";
+import { BREW_TOOLCHAIN, CATALOG_PREFIX, MACOS_ONLY_FORMULAE, catalogToolOf, formulaOf, isTap, packageOf, type BrewFormula, type BrewTable, type RecipeEntry, type ToolSource } from "./golden-import.js";
+import { MIB, catalogEntry, catalogToolByRoad, isRoad, sizeBytes } from "@wsp/catalog";
+import { BREW_ID_PREFIX, toolRowPrefix } from "@wsp/protocol";
 import { TOOLS_DISK_FLOOR } from "./golden-tools.js";
 
 /** Root disk asked for every builder and fork, Solari's cap: a 4 GB root filled during the tools stage and
@@ -19,7 +19,6 @@ export const BUILDER_DISK_GB = 20;
  * 2026-09-05, when the base was the daemon alone). The base image, the filesystem's reserved blocks and everything the
  * base stage installs are inside it, so it is read again on the first golden built with the base floor. */
 export const BUILDER_FREE_BYTES = 17570 * MIB;
-const UPLOAD_HEADROOM_BYTES = 256 * MIB;
 /** What the recipe may take: what the builder has free less the floor the tools stage keeps free for unpack peaks. */
 export const DISK_ROOM_BYTES = BUILDER_FREE_BYTES - TOOLS_DISK_FLOOR;
 
@@ -170,8 +169,6 @@ export function toolSize(e: RecipeEntry, brew: BrewTable): ToolSize | undefined 
   for (const m of members) bytes += formulaBytes(m, brew) ?? 0;
   return { bytes, road: "mac", deps: members.size - 1 };
 }
-
-const installable = (e: RecipeEntry): boolean => e.id.slice(e.id.indexOf("/") + 1) in AGENT_INSTALLERS;
 
 /** An agent's measured install size, by the row's name. */
 export function agentSize(e: RecipeEntry): number | undefined {

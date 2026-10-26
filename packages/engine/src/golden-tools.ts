@@ -7,7 +7,7 @@
 // process descended from it before returning, so a slow brew never holds a
 // cellar lock into the next tool's turn.
 import { BREW_PREFIX, HOMEBREW, MIB, NODE_PATH_LINE, ROAD_MODULES, ROAD_STEPS, type RoadName } from "@wsp/catalog";
-import { fmtBytes, listedName, nameList, shellQuote, stepRetryLine, timedOutLine, type DiskUse, type GoldenStage, type GoldenStep, type RecipeDigest, type ToolPin } from "@wsp/protocol";
+import { fmtBytes, listedName, nameList, shellQuote, stepRetryLine, timedOutLine, type DiskUse, type GoldenStage, type GoldenStep, type ToolPin } from "@wsp/protocol";
 import { INLINE_EXEC_MS, markersOf, pagedReads } from "./exec-detached.js";
 import { TOOLS_PATH, brewHousekeeping as brewHousekeepingCmds, pathLine, type ToolInstall } from "./golden-import.js";
 import type { ExecResult, Machine } from "./machine.js";

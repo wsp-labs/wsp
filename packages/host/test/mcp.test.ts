@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 // The MCP server over the host: an MCP client calls each tool against a host
 // over the fake runtime, through the same socket client and verb logic the
 // command line uses; a thread it opens is the local agent's.
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -14,7 +14,7 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { CATALOG, THREAD_AGENTS } from "@wsp/catalog";
 import { DiskGoneError } from "@wsp/engine";
-import { worktreeRemovedLine, noProjectLine, READ_PROJECTS_FIX, refusalLine, type ProjectView, childStartedLine, cloneIntoTakenLine, HERE_PLACE_ID, addedProjectLine, goneRoadRefusal, EMPTY_MESSAGE_LINE, EXIT_CODES, NO_SUCH_TURN, noSuchProjectLine, noThreadTargetLine, Recipe, registeredLine, registerTakesNoConsentLine, threadOpenedLine, ThreadView, TURN_TOKEN_ENV, type ExitClass, NOT_DELIVERED_LINE, BUILT_IN_LIST_CLAUSE, BOAT_DISK_GONE_LINE, diskGoneReplacedLine } from "@wsp/protocol";
+import { worktreeRemovedLine, noProjectLine, READ_PROJECTS_FIX, refusalLine, type ProjectView, childStartedLine, cloneIntoTakenLine, HERE_PLACE_ID, addedProjectLine, goneRoadRefusal, EMPTY_MESSAGE_LINE, EXIT_CODES, NO_SUCH_TURN, noSuchProjectLine, noThreadTargetLine, registeredLine, registerTakesNoConsentLine, threadOpenedLine, ThreadView, TURN_TOKEN_ENV, type ExitClass, NOT_DELIVERED_LINE, BUILT_IN_LIST_CLAUSE, BOAT_DISK_GONE_LINE, diskGoneReplacedLine } from "@wsp/protocol";
 import { copyKey, createRuntime, memoryStore, type Runtime, type Store } from "@wsp/runtime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { localWiring, serve } from "../src/cli.js";
@@ -24,7 +24,6 @@ import { dialer, mcpServer, serveMcp } from "../src/mcp.js";
 import { instructionsOf, wspSkill } from "../src/skill.js";
 import type { HostHandle } from "../src/server.js";
 import type { HostClient } from "../src/verbs.js";
-import { HERE } from "./recipe-fixture.js";
 
 /** This computer, as the places list names it: the word a caller passes as `on` for the place their own agents run
  * on, which is where a workspace that forks nothing lives. */
@@ -193,7 +192,7 @@ describe("the MCP server over the host", () => {
   it.runIf(CLOUD_ON)("offers the verbs as tools, each described", async () => {
     const c = await connect();
     const { tools } = await c.listTools();
-    expect(tools.map(t => t.name).sort()).toEqual(["activity", "activity_end", "add", "agents", "agents_addtools", "agents_default", "agents_set", "agents_setup", "commit", "computers", "computers_set", "conversations", "delete", "discard", "exec", "export", "fix", "folders", "forget", "fork", "image", "image_build", "merge", "merge_in", "pause", "plugins", "plugins_disable", "plugins_enable", "projects", "projects_add", "projects_remove", "projects_seed", "projects_set", "rebuild", "recipes", "recipes_remove", "recipes_save", "recipes_show", "rename", "resize", "restart", "review", "review_post", "run", "send", "servers", "servers_add", "servers_disable", "servers_enable", "servers_remove", "servers_tools", "setup", "skills", "skills_add", "skills_disable", "skills_enable", "skills_remove", "skills_search", "skills_show", "slate_catalog", "slate_read", "slate_state", "slate_write", "start", "stop", "terminal_config", "thread_allow", "thread_deny", "thread_forget", "thread_head", "thread_read", "thread_rename", "thread_restore", "thread_settle", "threads", "threads_wait", "update", "usage", "wake", "worktree", "worktree_remove"]);
+    expect(tools.map(t => t.name).sort()).toEqual(["activity", "activity_end", "add", "agents", "agents_addtools", "agents_default", "agents_set", "agents_setup", "commit", "computers", "computers_set", "conversations", "delete", "discard", "exec", "export", "fix", "folders", "forget", "fork", "image", "image_build", "merge", "merge_in", "pause", "plugins", "plugins_disable", "plugins_enable", "projects", "projects_add", "projects_remove", "projects_seed", "projects_set", "rebuild", "recipes", "recipes_remove", "recipes_save", "recipes_show", "rename", "resize", "restart", "review", "review_post", "run", "send", "servers", "servers_add", "servers_disable", "servers_enable", "servers_remove", "servers_tools", "setup", "skills", "skills_add", "skills_disable", "skills_enable", "skills_remove", "skills_search", "skills_show", "slate_catalog", "slate_look", "slate_read", "slate_state", "slate_write", "start", "stop", "terminal_config", "thread_allow", "thread_deny", "thread_forget", "thread_head", "thread_read", "thread_rename", "thread_restore", "thread_settle", "threads", "threads_wait", "update", "usage", "wake", "worktree", "worktree_remove"]);
     for (const name of ["agents", "skills", "servers"]) expect(Object.keys((tools.find(t => t.name === name)!.inputSchema as { properties: Record<string, unknown> }).properties).sort(), name).toEqual(["on", "thread"]);
     expect(Object.keys((tools.find(t => t.name === "servers_tools")!.inputSchema as { properties: Record<string, unknown> }).properties).sort()).toEqual(["agent", "name", "on", "project", "refresh", "thread"]);
     expect(Object.keys((tools.find(t => t.name === "folders")!.inputSchema as { properties: Record<string, unknown> }).properties).sort()).toEqual(["folder", "hidden", "on", "repos"]);

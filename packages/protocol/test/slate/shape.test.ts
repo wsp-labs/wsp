@@ -34,14 +34,14 @@ describe("a tool run's result by its shape", () => {
   it("is said by the sketch as the person sees it, and a command's output still as lines", () => {
     const lines = sketch({ inbox: { state: "done", out: JSON.stringify(EMAILS), json: EMAILS, runs: 1 }, df: { state: "done", out: "[1,2]", json: [1, 2], runs: 1 } });
     expect(lines[0]).toBe("output $inbox: done, table of 2 rows: Message id, From address, Subj…  [output-1 output label=Inbox]");
-    expect(lines.slice(1, 3)).toEqual(["output $df: done, 1 line  [output-2 output]", "  [1,2]"]);
+    expect(lines.slice(1, 3)).toEqual(["output $df: done; 1 raw line folded  [output-2 output]", "  [1,2]"]);
     const nested = sketch({ inbox: { state: "done", json: { account: "admin", total: 2, emails: EMAILS }, runs: 2 } });
     expect(nested.slice(0, 3)).toEqual([
       "output $inbox: done, Account admin, Total 2  [output-1 output label=Inbox]",
       "  Emails: table of 2 rows: Message id, From address, Subject, Received time",
       "output $df: not run yet  [output-2 output]",
     ]);
-    expect(sketch({ inbox: { state: "failed", err: "account not found", why: "the tool said it failed", runs: 1 } })[0]).toBe("output $inbox: failed, 1 line (the tool said it failed)  [output-1 output label=Inbox]");
+    expect(sketch({ inbox: { state: "failed", err: "account not found", why: "the tool said it failed", runs: 1 } })[0]).toBe("output $inbox: failed (the tool said it failed); 1 raw line folded  [output-1 output label=Inbox]");
     expect([...lines, ...nested].every(l => l.length <= 100)).toBe(true);
   });
 });

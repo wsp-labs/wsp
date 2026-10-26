@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
 import { catalogEntry, sizeBytes } from "@wsp/catalog";
-import { MIB, TOOLS_DISK_FLOOR } from "../src/golden-tools.js";
+import { MIB } from "../src/golden-tools.js";
 import { brewfileFor, toolInstallsFor, type BrewTable, type RecipeEntry } from "../src/golden-import.js";
 import {
-  BREW_TOOLCHAIN_BYTES,
-  BUILDER_DISK_GB,
-  BUILDER_FREE_BYTES,
-  DISK_ROOM_BYTES,
   agentSize,
   assumedSize,
   brewTable,
@@ -16,8 +12,6 @@ import {
   sourceOf,
   toolSize,
 } from "../src/tool-sizes.js";
-
-const GIB = 1024 * MIB;
 
 function formula(over: Record<string, unknown>): Record<string, unknown> {
   return { tap: "homebrew/core", dependencies: [], build_dependencies: [], requirements: [], urls: { stable: { url: "https://example.org/src.tar.xz", tag: null } }, versions: { stable: "1.0", bottle: true }, installed: [{ version: "1.0", runtime_dependencies: [] }], ...over };

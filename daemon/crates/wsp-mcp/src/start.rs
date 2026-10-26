@@ -9,8 +9,6 @@ use std::path::Path;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
 use tokio::process::Command;
 
 use crate::aim::{self, Lock};
@@ -58,7 +56,7 @@ pub async fn started(state: &Path, wsp: &[String], env: &Env, say: &mut (dyn FnM
     let deadline = Instant::now() + Duration::from_millis(names.start_wait_ms);
     loop {
         if let Some(lock) = aim::serving(state) {
-            if answers(&lock, Duration::from_millis(names.probe_ms)).await {
+            if aim::answers(&lock, Duration::from_millis(names.probe_ms)).await {
                 return Ok(lock);
             }
         }
@@ -78,19 +76,6 @@ pub async fn started(state: &Path, wsp: &[String], env: &Env, say: &mut (dyn FnM
         }
         tokio::time::sleep(Duration::from_millis(names.poll_ms)).await;
     }
-}
-
-/// Whether the host a lock names answers where the lock says: the lock is taken before the host binds anything, so
-/// the lock alone is a claim, and any answer at all to one GET means something bound the port.
-async fn answers(lock: &Lock, within: Duration) -> bool {
-    let at = aim::authority(&aim::dial_address(lock), lock.port);
-    let asked = async {
-        let mut tcp = TcpStream::connect(&at).await.ok()?;
-        tcp.write_all(format!("GET / HTTP/1.1\r\nHost: {at}\r\nConnection: close\r\n\r\n").as_bytes()).await.ok()?;
-        let mut first = [0u8; 1];
-        (tcp.read(&mut first).await.ok()? == 1).then_some(())
-    };
-    matches!(tokio::time::timeout(within, asked).await, Ok(Some(())))
 }
 
 /// The log's non-empty lines past a mark: everything a child that was started there said.

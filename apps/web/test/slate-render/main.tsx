@@ -3,8 +3,8 @@
 // its agent wrote it, with ?doc=diagram a deploy's flow, or a case of cases.ts by its name, at the panel's width (?w=,
 // 400 unless named), inside the panel's 16 px column, with no host behind it.
 import { createRoot } from "react-dom/client";
-import { imageTypeOf, type SlatesImageAnswer } from "@wsp/protocol";
-import { slateDomainKey, slateImageMissing, slateImageSource, slateImageTooBig, slateNotAnImage } from "@wsp/protocol/slate";
+import { imageTypeOf, type SlatesImageAnswer, type SlatesPageAnswer } from "@wsp/protocol";
+import { slateDomainKey, slateFrameSource, slateImageMissing, slatePageTooBig, slateImageSource, slateImageTooBig, slateNotAnImage } from "@wsp/protocol/slate";
 import { ActionRunner, StateSender, type SlateLink } from "../../src/slate/actions";
 import { SlateEngine } from "../../src/slate/engine";
 import { DIAGRAM_TEXT, REACH_TEXT, REACH_VALUES, kitSlate } from "../fixtures/slate/kit-slates";
@@ -41,6 +41,17 @@ async function fromFolder(shown: string, path: string): Promise<SlatesImageAnswe
   for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return { mediaType, bytes: btoa(text) };
 }
+/** The host's read of a frame's page, played over the same folder. */
+async function harnessPage(src: string): Promise<SlatesPageAnswer> {
+  hostAsked.push(src);
+  const said = slateFrameSource(src);
+  if ("problem" in said) return said;
+  if (said.path.startsWith("loading/")) return new Promise(() => {});
+  if (said.path.startsWith("too-big/")) return { problem: slatePageTooBig(said.path, 2_400_000) };
+  const res = await fetch(`files/${said.path.replace(/^\/+/, "")}`);
+  if (!res.ok) return { problem: slateImageMissing(said.path) };
+  return { html: await res.text() };
+}
 const hostAsked: string[] = [];
 (window as unknown as { hostAsked: string[] }).hostAsked = hostAsked;
 async function harnessImage(src: string): Promise<SlatesImageAnswer> {
@@ -56,8 +67,11 @@ async function harnessImage(src: string): Promise<SlatesImageAnswer> {
 const engine = new SlateEngine("t1");
 engine.setRecord(doc, values, 3, 3);
 (window as unknown as { slateEngine: SlateEngine }).slateEngine = engine;
+/** Every event the slate sent the host, so a test can tell a frame fired none. */
+const hostEvents: unknown[] = [];
+(window as unknown as { hostEvents: unknown[] }).hostEvents = hostEvents;
 const link: SlateLink = {
-  event: async () => ({ outcome: "started" }),
+  event: async (ask: unknown) => (hostEvents.push(ask), { outcome: "started" }),
   writeState: async () => ({ version: 4 }),
   approve: async (key: string) => {
     if (key.startsWith(slateDomainKey(""))) allowed.add(key.slice(slateDomainKey("").length));
@@ -67,6 +81,7 @@ const link: SlateLink = {
   consent: () => {},
   fill: () => {},
   image: harnessImage,
+  page: harnessPage,
 } as unknown as SlateLink;
 createRoot(document.getElementById("root")!).render(
   <div data-panel style={{ width }} className="mx-auto w-full max-w-[760px] px-4 py-4">

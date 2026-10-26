@@ -65,33 +65,7 @@
                 }
               ]
             },
-            "place": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "kind": {
-                  "type": "string",
-                  "enum": [
-                    "computer",
-                    "provider"
-                  ]
-                }
-              },
-              "required": [
-                "id",
-                "name"
-              ],
-              "additionalProperties": false
-            },
             "forksOn": {
-              "type": "string"
-            },
-            "buildRefusal": {
               "type": "string"
             }
           },
@@ -182,33 +156,7 @@
                 }
               ]
             },
-            "place": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "kind": {
-                  "type": "string",
-                  "enum": [
-                    "computer",
-                    "provider"
-                  ]
-                }
-              },
-              "required": [
-                "id",
-                "name"
-              ],
-              "additionalProperties": false
-            },
             "forksOn": {
-              "type": "string"
-            },
-            "buildRefusal": {
               "type": "string"
             }
           },

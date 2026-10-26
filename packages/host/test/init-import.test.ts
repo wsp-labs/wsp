@@ -8,15 +8,14 @@ import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, relative } from "node:path";
+import { join, relative } from "node:path";
 import { GUARD_BEGIN, GUARD_END, detectAgents, nodeHost, type ManifestEntry, withIgnoreUnknown } from "@wsp/collect";
-import { NODE_RELEASES, diffRecipes, planFiles, rowsToApply, type PlannedFile, type StagedFile } from "@wsp/engine";
+import { NODE_RELEASES, planFiles, type PlannedFile, type StagedFile } from "@wsp/engine";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CLAUDE_INSTALL, GOLDEN_SMOKE, GUEST_HOME, MCP_SERVERS_JSON } from "@wsp/catalog";
 import { withRefused } from "../../runtime/test/fs-refusal.js";
-import { digestOf, importFor, packPlan, readSecrets, statOf, type SecretReader } from "../src/init-import.js";
+import { digestOf, importFor, packPlan, statOf } from "../src/init-import.js";
 import { serverVault, type ServerVault } from "../src/env-keys.js";
-import { serversActs } from "../src/servers-acts.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 
 vi.mock("node:fs", async importOriginal => (await import("../../runtime/test/fs-refusal.js")).refusingFs(await importOriginal<typeof import("node:fs")>()));
@@ -50,27 +49,6 @@ const row = (over: Partial<ManifestEntry> & Pick<ManifestEntry, "rung" | "id">):
   bring: true,
   ...over,
 });
-
-/** A Keychain with the given items, keyed as the secrets map is (see secretKey), and helper commands keyed by their
- * line; every read is recorded as [service, account], every helper run as [command]. */
-function reader(values: Record<string, string>): SecretReader & { reads: (string | undefined)[][] } {
-  const reads: (string | undefined)[][] = [];
-  return {
-    reads,
-    read: async (service, account) => {
-      reads.push([service, account]);
-      const v = values[account === undefined ? service : `${service} (${account})`];
-      if (v === undefined) throw new Error(`Command failed: security find-generic-password -s ${service} -w\nsecurity: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.\n`);
-      return v;
-    },
-    run: async command => {
-      reads.push([command]);
-      const v = values[command];
-      if (v === undefined) throw Object.assign(new Error(`Command failed: /bin/sh -c ${command}\nsecurity: SecKeychainSearchCopyNext: The specified item could not be found in the keychain.\n`), { code: 44 });
-      return v;
-    },
-  };
-}
 
 const HELPER = "security find-generic-password -s anthropic-api-key -w";
 const CLAUDE_SETTINGS = `{\n  "apiKeyHelper": "${HELPER}",\n  "model": "opus"\n}\n`;
@@ -494,7 +472,8 @@ describe("packPlan", () => {
     // With nothing to seed, an older image's copied plugin list still comes off, and the image reads changed until it has.
     expect(none.plugins?.dropped).toEqual(["/root/.claude-cfg/plugins/known_marketplaces.json", "/root/.claude-cfg/plugins/installed_plugins.json"]);
     const sealed = { ...none.recipe!, files: none.recipe!.files.filter(f => f.dest !== ".claude-plugin-seed") };
-    expect(rowsToApply(diffRecipes(sealed, none.recipe!))).toEqual(new Set(["agents/claude"]));
+    expect(none.recipe!.files.map(f => f.dest)).toContain(".claude-plugin-seed");
+    expect(sealed.files.map(f => f.dest)).not.toContain(".claude-plugin-seed");
     writeFileSync(join(home, ".claude", "settings.json"), JSON.stringify({ enabledPlugins: { "x@acme": true } }));
     expect(importFor([row({ rung: "agents", id: "agents/claude", paths: ["~/.claude/CLAUDE.md"] })], { home, secrets: new Map(), platform: "darwin" }).plugins?.seed).toBeUndefined();
     expect(importFor([row({ rung: "agents", id: "agents/claude", paths: ["~/.claude/settings.json"] })], { home, secrets: new Map(), platform: "darwin" }).plugins?.seed?.plugins.map(p => p.label)).toEqual(["x@acme"]);
@@ -523,9 +502,9 @@ describe("packPlan", () => {
     // The digest of a sealed image is of the bytes the copy lands, so one sealed holding the header reads changed.
     const planned = (rel: string): PlannedFile => plannedAt(join(home, rel), home, { id: "agents/claude", rung: "agents", dir: false });
     const sealed = { ...imp.recipe!, files: imp.recipe!.files.map(f => (f.dest === ".claude-cfg/settings.json" ? { ...f, digest: digestOf(planned(".claude/settings.json"), home) } : f)) };
-    const diff = diffRecipes(sealed, imp.recipe!);
-    expect(diff.files).toEqual([{ id: "agents/claude", dest: ".claude-cfg/settings.json", change: "changed" }]);
-    expect(rowsToApply(diff)).toEqual(new Set(["agents/claude"]));
+    const digestAt = (recipe: { files: { dest: string; digest: string }[] }, dest: string): string | undefined => recipe.files.find(f => f.dest === dest)?.digest;
+    expect(digestAt(sealed, ".claude-cfg/settings.json")).not.toBe(digestAt(imp.recipe!, ".claude-cfg/settings.json"));
+    expect(digestAt(sealed, ".claude-cfg/CLAUDE.md")).toBe(digestAt(imp.recipe!, ".claude-cfg/CLAUDE.md"));
     // A file the cut leaves alone, and every file on a computer the person owns, digests as it did.
     const owned = importFor([claude], opts).recipe!.files;
     expect(owned.find(f => f.dest === ".claude-cfg/settings.json")?.digest).toBe(digestOf(planned(".claude/settings.json"), home));
@@ -571,7 +550,8 @@ describe("packPlan", () => {
     codex("plain0v1");
     const r1 = importFor(rows, opts).recipe!;
     codex("plain0v2");
-    expect(diffRecipes(r1, importFor(rows, opts).recipe!).files).toEqual([{ id: "agents/codex", dest: ".codex/config.toml", change: "changed" }]);
+    const digestOfConfig = (recipe: { files: { dest: string; digest: string }[] }): string | undefined => recipe.files.find(f => f.dest === ".codex/config.toml")?.digest;
+    expect(digestOfConfig(importFor(rows, opts).recipe!)).not.toBe(digestOfConfig(r1));
   });
 
   it("on a provider, a volatile file digests as it does on an owned computer, since no recipe reads its digest", () => {

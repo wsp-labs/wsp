@@ -30,7 +30,6 @@ export { SWEEP_STAGED_CMD, TOOLS_DISK_FLOOR, diskUse, missingCommands, sweepLeft
 export * from "./dotfiles-presets.js";
 export * from "./vault.js";
 export * from "./image-vault.js";
-export * from "./vault-cipher.js";
 export * from "./labels.js";
 export * from "./orphans.js";
 export * from "./golden-import.js";

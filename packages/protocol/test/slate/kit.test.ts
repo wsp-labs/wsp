@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { describe, expect, it } from "vitest";
 import {
-  applySlatePatch, parseSlatePatch, evaluateSlateExpression, parseSlate, printSlate, runSlateBatch, sketchSlate, slateCatalog, slateStartValues, validateSlate,
+  applySlatePatch, parseSlatePatch, evaluateSlateExpression, parseSlate, printSlate, runSlateBatch, sketchSlate, slateCatalog, slateFigure, slateStartValues, validateSlate,
   SLATE_EXAMPLES, SLATE_PIECES, type SlateDoc, type SlateJson, type SlateValues,
 } from "../../src/slate/index.js";
 import { fmtDuration } from "../../src/format.js";
@@ -50,8 +50,8 @@ describe("the richer kit", () => {
     expect(sketch).toContain("(good) Live");
     expect(sketch).toContain("[main]");
     expect(sketch).toContain("Done  (3/4) [########..]  almost");
-    expect(sketch).toContain("Line  last $3.00, min $1.00, max $3.00 over 3 points");
-    expect(sketch).toMatch(/\n {2}x \d\d:\d\d to \d\d:\d\d, y \$0\.00 to \$4\.00\n/);
+    expect(sketch).toContain("Line  last $3, min $1, max $3 over 3 points");
+    expect(sketch).toMatch(/\n {2}x \d\d:\d\d to \d\d:\d\d, y \$0 to \$4\n/);
     expect(sketch).toContain("(x) 2 right");
     expect(compiled(printSlate(doc))).toEqual(doc);
     for (const type of ["heading", "grid", "status", "chip", "ring", "chart", "sparkline", "bars", "choices", "number", "section", "diagram"]) {
@@ -103,7 +103,7 @@ describe("the richer kit", () => {
     }
     expect(values.hist).toEqual([{ at: 1000, v: 2400.5 }, { at: 61000, v: 2401.25 }, { at: 121000, v: 2399 }]);
     const sketch = sketchSlate(doc, values, { now: 121000 });
-    for (const line of ["# Gold", "grid of 3", "Per ounce  $2,399.00  trend 2400.5 to 2399", "Low  $2,399.00", "High  $2,401.25", "Feed", "(good) Live", "[every minute]", "Last hour  (3/60) [#.........]", "Per ounce, last hour  last $2,399.00, min $2,399.00, max $2,401.25 over 3 points", "  x 1000 to 121000, y $2,399.00 to $2,401.50"]) expect(sketch).toContain(line);
+    for (const line of ["# Gold", "grid of 3", "Per ounce  $2,399  trend 2400.5 to 2399", "Low  $2,399", "High  $2,401.25", "Feed", "(good) Live", "[every minute]", "Last hour  (3/60) [#.........]", "Per ounce, last hour  last $2,399, min $2,399, max $2,401.25 over 3 points", "  x 1000 to 121000, y $2,399 to $2,401.50"]) expect(sketch).toContain(line);
     let capped: SlateValues = { ...values, hist: Array.from({ length: 60 }, (_, i) => ({ at: i, v: i })) };
     capped = runSlateBatch(doc, capped, [{ path: "$spot", value: { state: "done", exit: 0, json: { price: 99 }, runs: 2 } }], { by: "run", now: 9 }).values;
     expect((capped.hist as SlateJson[]).length).toBe(60);
@@ -202,5 +202,18 @@ describe("figures", () => {
     const sketch = sketchSlate(compiled(`<slate><column><number label="Up" value={3600000} format="duration" /><number label="Rows" value={1234567} format="integer" /></column></slate>`), {});
     expect(sketch).toContain(`Up  ${fmtDuration(3_600_000)}`);
     expect(sketch).toContain("1,234,567");
+  });
+});
+
+describe("a figure's words", () => {
+  it("say whole dollars with no cents and bytes under 10 of a unit to one decimal", () => {
+    expect(slateFigure(22900, "usd")).toBe("$22,900");
+    expect(slateFigure(4.82, "usd")).toBe("$4.82");
+    expect(slateFigure(38.4, "usd")).toBe("$38.40");
+    expect(slateFigure(1_268_000, "bytes")).toBe("1.2 MB");
+    expect(slateFigure(1_966_000, "bytes")).toBe("1.9 MB");
+    expect(slateFigure(130_000, "bytes")).toBe("127 KB");
+    expect(slateFigure(1_610_612_736, "bytes")).toBe("1.5 GB");
+    expect(slateFigure(512, "bytes")).toBe("512 B");
   });
 });

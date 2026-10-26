@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { homedir } from "node:os";
-import { GUEST_HOME, MCP_AGENT_IDS } from "@wsp/catalog";
+import { MCP_AGENT_IDS } from "@wsp/catalog";
 import { SCOPED_MCP_ARG, isJoinedComputer, PLACE_LEAVE_LINE, PLACE_LEAVE_VERB, DEFAULT_PORT, EXIT_CODES, LOOPBACK, portsPickedLine, namesPlace, noSuchPlaceRefusal, tableName, type PlaceView, usageRefusal } from "@wsp/protocol";
 import { CLOUD_ON } from "../cloud.js";
 import { claudeEnvs, doctor, doctorOverHost, hostDoctor } from "../doctor.js";
@@ -337,10 +337,8 @@ const COMMANDS: Readonly<Record<string, Command>> = {
        * process's own and is closed on the way out, pass or fail. */
       const terminalRoad = async (computer?: PlaceView): Promise<number> => {
         const { keys, env } = await loadKeys(io, keySources(opts.providerEnv, opts.statePath), doctorKeyAsk(computer));
-        // One planner for this run: the recipe the tools step reads against is the one the recipe job puts on a
-        // computer, read through the wiring this runtime holds its links with.
+        // One wiring for this run: the links the runtime holds its computers with.
         const links = placeWiring(opts.statePath);
-        const provision = links.provision;
         const rt = makeRuntime(keys, opts.statePath, goldenRecipe(), env, undefined, local, links);
         try {
           return await doctor(rt, io, {
@@ -442,11 +440,12 @@ export const MCP_OPTIONS: Options = {
   state: { type: "string" },
   scoped: { type: "boolean" },
   "no-slate": { type: "boolean" },
+  "no-look": { type: "boolean" },
   help: { type: "boolean", short: "h" },
 };
 
 export const mcpInstallUsage = (): string => `wsp ${MCP_COMMAND} install --agent <id> [--agent <id>] [--host <alias>] [--json] [--remove]   (${MCP_AGENT_IDS})`;
-export const mcpUsage = (): string => `usage: wsp ${MCP_COMMAND} [--host <alias>] [${SCOPED_MCP_ARG} [--no-slate]]\n       ${mcpInstallUsage()}`;
+export const mcpUsage = (): string => `usage: wsp ${MCP_COMMAND} [--host <alias>] [${SCOPED_MCP_ARG} [--no-slate] [--no-look]]\n       ${mcpInstallUsage()}`;
 
 const without = (options: Options, names: readonly string[]): Options => Object.fromEntries(Object.entries(options).filter(([name]) => !names.includes(name)));
 

@@ -1,0 +1,2 @@
+src/cart.ts(2,14): error TS2322: Type 'string' is not assignable to type 'number'.
+src/cart.ts(3,14): error TS2322: Type 'string' is not assignable to type 'number'.

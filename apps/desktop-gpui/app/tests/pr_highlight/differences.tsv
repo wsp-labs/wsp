@@ -1,0 +1,6 @@
+sample.ts	light	33:36	+	#d5a910	#17a5af
+sample.rs	light	33:13	"{}"	#636363	#199f43/#636363
+sample.css	light	7:0	@	#636363	#d32a61
+sample.ts	dark	33:36	+	#ffd452	#64d1db
+sample.rs	dark	33:13	"{}"	#636363	#5ecc71/#636363
+sample.css	dark	7:0	@	#636363	#ff678d

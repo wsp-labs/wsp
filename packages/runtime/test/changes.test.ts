@@ -3,7 +3,7 @@
 // after a write and never on a timer; a discard and a commit sent down that same road; a commit message drafted by
 // the workspace's own agent with no thread; and the viewed marks kept on the workspace's record.
 import { afterEach, describe, expect, it } from "vitest";
-import { threadElsewhereLine, noChangeLine, cleanCheckoutLine, DRAFT_NOTES, type AdapterEvent, type Caller, type DaemonFrame, type DaemonResponse, type EventUnion, type TurnResult } from "@wsp/protocol";
+import { threadElsewhereLine, noChangeLine, cleanCheckoutLine, DRAFT_NOTES, type AdapterEvent, type DaemonFrame, type DaemonResponse, type EventUnion, type TurnResult } from "@wsp/protocol";
 import { CHECKOUT_TTL_MS, createRuntime, type HarnessAdapter, type HarnessAdapterFactory, type Runtime } from "../src/runtime.js";
 import type { DaemonChannel, DaemonChannelOptions } from "../src/daemon-channel.js";
 import { memoryStore, type Store } from "../src/store.js";

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { HarnessCatalog, MachineSizeOffer, MachineState, WorkspaceSize, WorkspaceView } from "../index.js";
-import { namesPlace, placeSaid } from "../place-word.js";
 import { shellLine } from "../shell-quote.js";
 import { plural } from "./base.js";
 import { threadWord } from "./computer.js";
@@ -143,7 +142,7 @@ export function execFailedLine(said: string): string {
   return `the provider cannot run commands on the machine (${said}) while the machine and its threads may still be running; wait, or pause and wake the workspace, or delete it`;
 }
 
-/** A pause the provider refuses outright: its words, the cause measured on Solari (about 10 GB of memory and disk together), the road left. */
+/** A pause the provider refuses outright: its words, the cause as measured (about 10 GB of memory and disk together), the road left. */
 export function napRefusedLine(said: string): string {
   return `the provider does not pause this machine (${said}): its memory and disk together are over what it pauses; it runs until you delete it`;
 }

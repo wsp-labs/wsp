@@ -17,7 +17,6 @@ import type {
   PauseMode,
   RecipeDigest,
   SealedImage,
-  WorkspaceProject,
   WorkspaceSize,
   WorkspaceView,
 } from "@wsp/protocol";
@@ -26,7 +25,6 @@ import {
   WORKSPACES,
   GOLDENS,
   GOLDEN_RECIPES,
-  PROJECT_GOLDENS,
   IMAGES,
   copyKey,
   recipeKey,

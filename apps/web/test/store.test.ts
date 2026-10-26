@@ -498,11 +498,11 @@ describe("store creations", () => {
     expect(useStore.getState().selectedId).toBe("ws_a");
   });
 
-  it("createWorkspace with a project image forks that image instead of the computer's head, and a retry keeps it", async () => {
+  it("createWorkspace with a picked size creates at that size, and a retry keeps it", async () => {
     const { api, emit } = fakeApi([view("ws_a")], []);
-    const calls: Array<[string, string, string | undefined]> = [];
+    const calls: Array<[string, string, { cpu: number; memMb: number } | undefined]> = [];
     api.createWorkspace = async (project, name, picked) => {
-      calls.push([project, name, picked?.golden]);
+      calls.push([project, name, picked?.size]);
       if (calls.length === 1) {
         emit(stage({ name: "proj-fork" }));
         emit(stage({ name: "proj-fork", stage: "failed", message: "Sandbox limit reached (2)", elapsedMs: 900 }));
@@ -512,10 +512,10 @@ describe("store creations", () => {
     };
     useStore.getState().bind(api);
     await flush();
-    expect(await useStore.getState().createWorkspace("pr_1", "proj-fork", { golden: "snap_project" })).toBeNull();
+    expect(await useStore.getState().createWorkspace("pr_1", "proj-fork", { size: { cpu: 2, memMb: 8192 } })).toBeNull();
     const failed = useStore.getState().creations[0]!;
     await useStore.getState().retryCreation(failed.key);
-    expect(calls).toEqual([["pr_1", "proj-fork", "snap_project"], ["pr_1", "proj-fork", "snap_project"]]);
+    expect(calls).toEqual([["pr_1", "proj-fork", { cpu: 2, memMb: 8192 }], ["pr_1", "proj-fork", { cpu: 2, memMb: 8192 }]]);
     expect(useStore.getState().selectedId).toBe("ws_new");
   });
 

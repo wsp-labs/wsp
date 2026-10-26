@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { HERE_PLACE_ID, usageRefusal, type EventUnion, type Preferences } from "@wsp/protocol";
-import { hostAnalytics, NO_ANALYTICS, type AnalyticsProps } from "../src/analytics.js";
+import { hostAnalytics, type AnalyticsProps } from "../src/analytics.js";
 import { followUsage, hostCommon, OP_FAILED_EVERY_MS, osWord, usageReader } from "../src/analytics-events.js";
 
 // Every property each event may carry. A property not written here fails the suite, so adding one is a change to

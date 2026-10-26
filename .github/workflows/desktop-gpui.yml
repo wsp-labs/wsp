@@ -1,0 +1,141 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+name: desktop-gpui
+
+# The GPUI desktop app under apps/desktop-gpui has its own gate, run on a land/** push that touches it or what its
+# build reads (the daemon's crates, which host-client builds against by path, and the files its tests read outside the
+# app), every night on main and on a run started by hand: format, lints as errors, its cargo tests against a staged
+# daemon, and its node tests. It sits in its own workflow, as the daemon's does, so the paths filter leaves the jobs in
+# ci.yml exactly as they are. The record test also reads the ops apps/web/src sends, and the throwaway hosts run
+# packages/host; a change there alone is left to the nightly run, since most landings touch one of them. A push to main
+# carries a commit its land/** run already tested, so it runs nothing here.
+on:
+  push:
+    branches:
+      - "land/**"
+    paths:
+      - "apps/desktop-gpui/**"
+      - "daemon/crates/**"
+      - "daemon/Cargo.toml"
+      - "daemon/Cargo.lock"
+      - "packages/protocol/src/**"
+      - "packages/host/package.json"
+      - "packages/catalog/src/marks/**"
+      - ".github/workflows/desktop-gpui.yml"
+  schedule:
+    - cron: "47 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-gpui-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "11.9.0"
+  ZIG_VERSION: "0.16.0"
+  ZIG_SHA256: "70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00"
+
+jobs:
+  desktop-gpui:
+    name: Format, lint and test the GPUI app on Linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    # Most of the app's hundred-odd test binaries link all of GPUI, 200 to 400 MB apiece with no debug
+    # info and a third smaller stripped, 39 GB unstripped on Linux: too big for the cache or for the runner as it comes.
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "false"
+      CARGO_PROFILE_DEV_STRIP: "symbols"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Room on the disk for the test targets
+        run: |
+          df -h /
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
+      # GPUI's X11 and Wayland windows, the browser pane's WebKitGTK, Mesa's software Vulkan for the tests that draw
+      # offscreen, the faces the text tests were measured in, and the musl C compiler the staged daemon needs.
+      - name: The system libraries the app links
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libxkbcommon-x11-dev libwayland-dev \
+            libfontconfig1-dev libfreetype-dev mesa-vulkan-drivers fonts-liberation fonts-dejavu-core musl-tools gperf
+      # The terminal links Ghostty's VT library, which build.rs builds with the Zig that Ghostty's commit names.
+      - name: Let ss drop a socket, as the link tests do (SOCK_DESTROY needs CAP_NET_ADMIN)
+        run: |
+          sudo apt-get install -y --no-install-recommends libcap2-bin
+          sudo setcap cap_net_admin+ep "$(command -v ss)"
+          getcap "$(command -v ss)"
+      - name: Zig
+        run: |
+          curl -fsSL "https://ziglang.org/download/$ZIG_VERSION/zig-x86_64-linux-$ZIG_VERSION.tar.xz" -o "$RUNNER_TEMP/zig.tar.xz"
+          echo "$ZIG_SHA256  $RUNNER_TEMP/zig.tar.xz" | sha256sum -c -
+          tar -xf "$RUNNER_TEMP/zig.tar.xz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/zig-x86_64-linux-$ZIG_VERSION" >> "$GITHUB_PATH"
+      - name: Toolchains from each rust-toolchain.toml
+        run: |
+          (cd apps/desktop-gpui && rustup toolchain install && rustup component add clippy rustfmt)
+          (cd daemon && rustup toolchain install)
+      # The daemon workflow's x86_64 musl cache, read only, as flows.yml reads it.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            daemon/target
+          key: daemon-artifacts-x86_64-unknown-linux-musl-${{ hashFiles('daemon/Cargo.lock', 'daemon/rust-toolchain.toml') }}
+          restore-keys: |
+            daemon-artifacts-x86_64-unknown-linux-musl-
+      - name: The daemon's sources newer than anything restored
+        run: git ls-files -z daemon | xargs -0 touch
+      - name: Our patches over GPUI and gpui-kit, and Ghostty's source
+        working-directory: apps/desktop-gpui
+        run: |
+          scripts/gpui-patches.sh apply
+          scripts/ghostty.sh
+      - name: Format
+        working-directory: apps/desktop-gpui
+        run: cargo fmt --check
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The release daemon at packages/wspx/daemon, and the host and web app a test's throwaway host serves.
+      - name: A wsp-daemon staged for the tests
+        run: apps/desktop-gpui/scripts/stage-daemon.sh
+      - name: Lints
+        working-directory: apps/desktop-gpui
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Unit tests
+        working-directory: apps/desktop-gpui
+        run: cargo test --locked --no-fail-fast --workspace --lib --bins
+      - name: Integration tests, one at a time
+        if: ${{ !cancelled() }}
+        working-directory: apps/desktop-gpui
+        # Most start a host or a shell of their own; side by side on a 4-core runner they starve one another.
+        env:
+          RUST_TEST_THREADS: "1"
+        run: cargo test --locked --no-fail-fast --workspace --test '*'
+      # A slate frame's sealed web view on the page that tries every forbidden thing, in WebKitGTK with Trusted Types
+      # and with them turned off; each check opens a window, which the offscreen tests cannot hold.
+      - name: The slate frame's seal
+        if: ${{ !cancelled() }}
+        working-directory: apps/desktop-gpui
+        run: |
+          cargo build --locked --bin desktop-gpui
+          for screen in frame-check frame-check-without-trusted-types; do
+            timeout 120 xvfb-run --auto-servernum target/debug/desktop-gpui --screen "$screen"
+          done
+      - name: The disk the test targets took
+        if: always()
+        run: df -h /
+      - name: The bench's and the parity driver's node tests
+        run: node --test --test-concurrency=2 apps/desktop-gpui/bench/*.test.mjs apps/desktop-gpui/parity/*.test.mjs apps/desktop-gpui/parity/*/*.test.mjs

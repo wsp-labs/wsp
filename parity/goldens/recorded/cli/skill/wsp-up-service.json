@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "wsp up --service: a wsp host (pid <pid>) is already serving <tmp>/state/state.json on port <port>. Stop it first (Ctrl-C in its terminal, or kill <pid>), then run wsp up --service again.\n"
+    }
+  ],
+  "events": []
+}

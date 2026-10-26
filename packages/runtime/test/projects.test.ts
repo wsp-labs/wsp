@@ -6,8 +6,8 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpath
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cloneIntoFileLine, cloneIntoNeeded, cloneIntoTakenLine, cloneUrlRefusal, INTO_TAKES_A_REPO_LINE, noComputerForSourceLine, HERE_PLACE_ID, noRemoteLine, copyTakesNone, idPrefixRefusal, noWorkspaceRefusal, projectInUseRefusal, sameSourceRefusal, seedChoiceNeeded, type AdapterEvent, type Caller, type EventUnion, type SeedPlan, type TurnResult } from "@wsp/protocol";
-import { createRuntime, NO_SEED_WIRING, type HarnessAdapterFactory, type HarnessStartOptions, type Runtime, type SeedWiring } from "../src/runtime.js";
+import { cloneIntoFileLine, cloneIntoNeeded, folderOnCopyRefusal, cloneIntoTakenLine, cloneUrlRefusal, INTO_TAKES_A_REPO_LINE, noComputerForSourceLine, HERE_PLACE_ID, copyTakesNone, idPrefixRefusal, noWorkspaceRefusal, projectInUseRefusal, sameSourceRefusal, type AdapterEvent, type Caller, type EventUnion, type TurnResult } from "@wsp/protocol";
+import { createRuntime, type HarnessAdapterFactory, type HarnessStartOptions, type Runtime, type SeedWiring } from "../src/runtime.js";
 import { memoryStore } from "../src/store.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 import { createOn, fakeLocal, projectOn, stubBackend, tempRepo, type StubBackend, type StubMachine } from "./stub-backend.js";
@@ -55,22 +55,6 @@ function withLocal(backend: StubBackend = stubBackend(), seed?: SeedWiring): { r
   return { rt, backend, starts };
 }
 
-/** What the host's own reader would answer for a folder here, as a test hands it in: the menu is the collector's
- * and is proved there, so these cases hand in one plan and watch what the add does with it. */
-function seedPlanFor(folder: string): SeedPlan {
-  return {
-    source: folder,
-    remote: REPO,
-    branch: "main",
-    defaultBranch: "main",
-    unpushed: null,
-    uncommitted: 0,
-    memory: null,
-    files: [{ path: ".env.local", dir: false, bytes: 4096, kind: "config", row: { id: "next", name: "Next" }, ticked: true }],
-    remembered: false,
-  };
-}
-
 describe("recording a project", () => {
   it("a folder that is a git repo is a project on this computer, in place, and it goes out as an event", async () => {
     const { rt } = withLocal();
@@ -114,6 +98,14 @@ describe("recording a project", () => {
     expect(project).toMatchObject({ computer: "default", name: "spoo-landing", path: "/root/spoo-landing", source: { kind: "git", url: REPO } });
     // The same source on that computer again is the same project, so a second record of it is refused by name.
     await expect(rt.projects.add({ source: REPO, on: "default" })).rejects.toMatchObject({ message: sameSourceRefusal("spoo-landing", "default"), kind: "conflict" });
+  });
+
+  it("a folder on a computer that forks machines records nothing: each machine there clones the repo's url instead", async () => {
+    const { rt } = withLocal();
+    const folder = tempRepo();
+    await expect(rt.projects.add({ source: folder, on: "default" })).rejects.toThrow(folderOnCopyRefusal("default"));
+    expect(await rt.projects.list()).toEqual([]);
+    rmSync(folder, { recursive: true, force: true });
   });
 
   describe("a repo cloned on this computer", () => {

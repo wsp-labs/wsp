@@ -77,6 +77,9 @@ export interface SettingsReads {
   /** Whether this computer's service starts wsp at login; null before an answer, in a browser tab, and where no
    * service is registered. */
   readonly loginStart: boolean | null;
+  /** Whether the desktop shell hands this app over to the Experimental one; null before an answer, in a browser tab,
+   * on a shell from before the switch, in a window on a host elsewhere and where no Experimental app is installed. */
+  readonly experimental: boolean | null;
 }
 
 /** How long a read made as Settings opens stands: what these say moves on the person's own acts here, which write
@@ -101,7 +104,7 @@ export function readImage(read: (() => Promise<SealedImageView>) | undefined): v
   );
 }
 
-export const NO_READS: SettingsReads = { setup: null, file: null, account: null, devices: null, devicesRefused: false, image: null, imageReading: false, imageStale: false, editors: null, sshInclude: null, loginStart: null };
+export const NO_READS: SettingsReads = { setup: null, file: null, account: null, devices: null, devicesRefused: false, image: null, imageReading: false, imageStale: false, editors: null, sshInclude: null, loginStart: null, experimental: null };
 
 export interface SettingsState {
   readonly at: SettingsAt;
@@ -113,10 +116,6 @@ export interface SettingsState {
   readonly devicesAsked: number;
   /** How many times the image has been asked for again, which the read effect follows. */
   readonly imageAsked: number;
-  /** The computer whose image build a card is drawing now, which is where that build's waits are said. */
-  readonly buildShown: string | null;
-  /** The computer whose Image card opens its recipe when it is drawn: an Edit image pressed outside that card. Moving
-   * to another page drops it, so an ask no card took never opens a recipe later. */
   /** The Usage page's tab, kept while the window is open so coming back finds the same one. */
   readonly usageTab: UsageTab;
   /** Each ask to read usage and limits again, from the head's refresh, the minute's tick or the window's focus. */
@@ -144,8 +143,6 @@ export interface SettingsState {
   /** A seal filed a copy the held answer does not have: it stands as stale, so no row draws it as current, and the
    * image is read again with `read`, the store's client, wherever the person is. */
   rereadImage(read?: () => Promise<SealedImageView>): void;
-  showBuild(placeId: string): void;
-  hideBuild(placeId: string): void;
   /** Add a cloud provider, opened on the setup that stands where one does. */
   askAdd(road: AddRoad): void;
   pickUsageTab(tab: UsageTab): void;
@@ -179,7 +176,6 @@ export const useSettingsStore = create<SettingsState>(set => ({
   addProjectAt: null,
   devicesAsked: 0,
   imageAsked: 0,
-  buildShown: null,
   usageTab: "used",
   usageAsked: 0,
   usageRead: { at: null, reading: false },
@@ -244,12 +240,6 @@ export const useSettingsStore = create<SettingsState>(set => ({
     forgetHeld(IMAGE_KEY);
     set(s => ({ reads: { ...s.reads, imageStale: s.reads.image !== null }, imageAsked: s.imageAsked + 1 }));
     readImage(read);
-  },
-  showBuild(placeId) {
-    set({ buildShown: placeId });
-  },
-  hideBuild(placeId) {
-    set(s => (s.buildShown === placeId ? { buildShown: null } : {}));
   },
   askAdd() {
     openCloudAdd();

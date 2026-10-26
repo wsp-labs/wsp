@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CATALOG_AGENTS, DEFAULT_AGENT } from "@wsp/catalog";
-import { INLINE_EXEC_MS, BUILDER_LABEL, CREATED_AT_LABEL, OWNER_LABEL, WSP_LABEL, destExists, exportFolder, exportPathsInto, importInto, landBundle, landBytes, plural, agentsOnMachine, guestAgentHomes, guestTmpPath, parseStateListing, stateListing, type MachineBackend, type MachineSpec, GUEST_TMP, syncDisk } from "@wsp/engine";
+import { INLINE_EXEC_MS, destExists, exportFolder, exportPathsInto, importInto, landBundle, landBytes, plural, agentsOnMachine, guestAgentHomes, guestTmpPath, parseStateListing, stateListing, type MachineBackend, GUEST_TMP } from "@wsp/engine";
 import type { HarnessCatalog, ProjectAddStage, ProjectExportStage, ProjectSeed, ProjectSource, ProjectView, ProjectPlan, SeedChoice, SeedFile, SeedPlan, Caller } from "@wsp/protocol";
 import { projectLanding, type Landed, type LandingDeps, type ProjectLanding } from "../project-landing.js";
 import { projectSource } from "../project-sources.js";
@@ -12,14 +12,13 @@ import { projectSeedOf, projectUnsavedRefusal, refusal, scopeOf, seedNotHereRefu
 import { addedProjectOn, addingProjectLine, actionRefusal, cloudProjectRefusal, isProviderPlace, tableName, kindWords, fmtBytes, notFoundRefusal, claudeProjectKey, folderOnCopyRefusal, cloneIntoNeeded, intoIsHereLine, INTO_TAKES_A_REPO_LINE, noComputerForSourceLine, bareNoSuchProjectLine, noSuchProjectLine, leftBehindLine, projectInUseRefusal, seedChoiceNeeded, sameSourceRefusal, sourceKind, projectSourceOf, bareFolder, copiesFolder, kindForComputer, runsInFolder, shellQuote, underProject, workspaceState, HERE_PLACE_ID, namesPlace, noSuchPlaceRefusal } from "@wsp/protocol";
 import { GITHUB_TOKEN_ENV } from "@wsp/engine";
 import { resolveThreadDefaults, withCustomModels } from "@wsp/protocol";
-import { loginEnvOn } from "../types/harness.js";
 import { type PackedState, type LandRequest, type ProjectImportOptions, type LiveWorkspace, type SeedWiring, ADD_IS_A_COMPUTER_LINE, folderNamed, sameSource, outcomeWords, LISTING_DEADLINE_MS, mergeOnMachine, homeOutcome } from "../types/wiring.js";
 import type { Runtime } from "../types/api.js";
 import { PROJECTS, SEED_CHOICES, NO_SEED_WIRING, type ImportReport, type ImportLanded } from "../types/internal.js";
 import type { RuntimeContext, ProjectsArea } from "../context.js";
 
 export function projectsArea(ctx: RuntimeContext): ProjectsArea {
-  const { opts, store, adapters, local, bus, clock, live, projectsHeld, gone, placeDoor } = ctx;
+  const { opts, store, adapters, local, bus, clock, live, projectsHeld, placeDoor } = ctx;
   /** The import road onto a fork: the plan, what was consented, the pack, the upload in parts, the landing at the
    * path and the agents' state keyed to it there. */
   const copyImport = async (entry: LiveWorkspace, o: ProjectImportOptions, report: ImportReport): Promise<ImportLanded> => {
@@ -223,7 +222,7 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
         const refused = cloudProjectRefusal(tableName(place));
         throw usageRefusal(refused.happened, refused.fix);
       }
-      const computerKind = kindForComputer(computer);
+      const computerKind = ctx.kindOf(computer);
       const takes = kindWords(computerKind).projectSources;
       if (!takes.includes(source.kind)) throw new Error(source.kind === "folder" ? folderOnCopyRefusal(ctx.nameOfComputer(computer, rows)) : noComputerForSourceLine(o.source, clones));
       // A repo here is cloned into the folder the person named, and that folder is then the project: every road

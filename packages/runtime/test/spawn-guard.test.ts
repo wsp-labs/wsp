@@ -6,21 +6,23 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { LocalBackend, type MachineBackend } from "@wsp/engine";
-import { HERE_PLACE_ID,
+import {
+  HERE_PLACE_ID,
   AGENTS_ON,
   HOST_KEY_ENV,
   HOST_TOKEN_ENV,
   HOST_URL_ENV,
   MCP_SERVER_NAME,
-  NOTIFY_ME,
   RUNTIME_OPS,
   LAUNCH_ENV,
   SCOPED_MCP_ARG,
+  NO_LOOK_MCP_ARG,
   NO_SLATE_MCP_ARG,
   SCOPED_TOKEN_ROAD_REFUSAL,
   THREAD_OPS,
   threadOpRefusal,
   MACHINE_WSP_FORKS,
+  NOTIFY_ME,
   folderForkFix,
   folderForkRefusal,
   defaultBranchFix,
@@ -628,7 +630,7 @@ describe("agents spawning agents", () => {
     expect(Object.keys(macLaunch!.env).filter(name => name.startsWith("WSP_")).sort()).toEqual([...LAUNCH_ENV].sort());
     // The tools read the launch pair off the environment the agent hands them, so their line names no host; it
     // carries the mark that makes a tool server missing that pair refuse rather than act as the person.
-    expect(macLaunch!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG] });
+    expect(macLaunch!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG, NO_LOOK_MCP_ARG] });
     const macThread = onMac.view().threadId!;
     const devices = await rt.devices.list();
     expect(devices.find(d => d.scope?.threadId === macThread)?.scope).toEqual({ kind: "thread", threadId: macThread, workspaceId: mac.id, rootThreadId: macThread });
@@ -656,7 +658,7 @@ describe("agents spawning agents", () => {
     const child = await rt.sessions.start(mac.id, { prompt: "builder" }, asThread({ kind: "thread", threadId: leadThread, workspaceId: mac.id, rootThreadId: leadThread }));
     expect(child.view().parentThreadId).toBe(leadThread);
     const [leadLaunch, childLaunch] = held.launches;
-    expect(leadLaunch!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG] });
+    expect(leadLaunch!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG, NO_LOOK_MCP_ARG] });
     expect(childLaunch!.mcpServers?.[MCP_SERVER_NAME]).toEqual({ ...wspMcp, args: [...wspMcp.args, SCOPED_MCP_ARG, NO_SLATE_MCP_ARG], noSlate: true });
     held.end(1);
     held.end(0);
@@ -1377,6 +1379,74 @@ describe("agents spawning agents", () => {
     expect(kid.view().threadId).toBeDefined();
     for (let nth = held.launches.length - 1; nth >= 0; nth--) held.end(nth);
     await rt.close();
+  });
+
+  it("the line a child's end delivers starts the target's turn under the thread that named it, and a line whose namer lost its folder tells the person once", async () => {
+    const held = heldAdapter();
+    const rt = runtimeWith({ claude: held.factory });
+    const lead = await createOn(rt, { golden: "snap_g", name: "lead", agents: { maxMachines: 3, maxDepth: 3 } });
+    const opener = await rt.sessions.start(lead.id, { prompt: "lead" });
+    const rootThread = opener.view().threadId!;
+    const rootScope: ThreadScope = { kind: "thread", threadId: rootThread, workspaceId: lead.id, rootThreadId: rootThread };
+    // The namer and the child run on forks of their own, so the folder the namer works in can go while the lead stays.
+    const namerBox = await createOn(rt, { name: "namer" }, asThread(rootScope));
+    const namer = await rt.sessions.start(namerBox.id, { prompt: "namer" }, asThread(rootScope));
+    const namerScope: ThreadScope = { kind: "thread", threadId: namer.view().threadId!, workspaceId: namerBox.id, rootThreadId: rootThread };
+    const kidBox = await createOn(rt, { name: "kid" }, asThread(namerScope));
+    const kid = await rt.sessions.start(kidBox.id, { prompt: "build it", notify: [rootThread] }, asThread(namerScope));
+    const kidThread = kid.view().threadId!;
+    const stored = async (): Promise<{ threadId?: string; notifyBy?: ThreadScope }[]> => ((await store.get("sessions", kidBox.id)) as { sessions: { threadId?: string; notifyBy?: ThreadScope }[] } | undefined)?.sessions ?? [];
+    await until(async () => (await stored()).some(r => r.threadId === kidThread && r.notifyBy !== undefined));
+    // The row says who named the target, and the index keeps it, so the line goes the same way after a restart.
+    expect((await stored()).find(r => r.threadId === kidThread)?.notifyBy).toEqual(namerScope);
+
+    // The namer's folder goes after the registration: the guard reads it again when the line goes, so nothing starts on
+    // the lead and the person is told once instead of the turn running as theirs.
+    await rt.workspaces.delete(namerBox.id);
+    const starts = async (): Promise<number> => (await rt.sessions.history(lead.id)).filter(e => e.type === "session.start" && e.threadId === rootThread).length;
+    const before = await starts();
+    held.end(held.launches.length - 1);
+    const told = async (): Promise<string[]> => (await rt.sessions.history(kidBox.id)).filter(e => e.type === "session.notify" && e.threadId === kidThread).map(e => (e as { notify: string }).notify);
+    await until(async () => (await told()).length === 2);
+    expect((await told()).sort()).toEqual([NOTIFY_ME, rootThread].sort());
+    expect(await starts()).toBe(before);
+    for (let nth = held.launches.length - 1; nth >= 0; nth--) held.end(nth);
+    await rt.close();
+  });
+
+  it("a row an older host wrote names no thread beside its targets, and its line goes as the person's", async () => {
+    const held = heldAdapter();
+    // One backend for both hosts: the machine the first host forked is the one the second comes back to.
+    const backend = withDaemonRoads(stubBackend());
+    const first = runtimeWith({ claude: held.factory }, undefined, backend);
+    const lead = await createOn(first, { golden: "snap_g", name: "lead", agents: { maxMachines: 3, maxDepth: 3 } });
+    const opener = await first.sessions.start(lead.id, { prompt: "lead" });
+    const rootThread = opener.view().threadId!;
+    const rootScope: ThreadScope = { kind: "thread", threadId: rootThread, workspaceId: lead.id, rootThreadId: rootThread };
+    const namerBox = await createOn(first, { name: "namer" }, asThread(rootScope));
+    const namer = await first.sessions.start(namerBox.id, { prompt: "namer" }, asThread(rootScope));
+    const namerScope: ThreadScope = { kind: "thread", threadId: namer.view().threadId!, workspaceId: namerBox.id, rootThreadId: rootThread };
+    const kidBox = await createOn(first, { name: "kid" }, asThread(namerScope));
+    const kid = await first.sessions.start(kidBox.id, { prompt: "build it", notify: [rootThread] }, asThread(namerScope));
+    const kidThread = kid.view().threadId!;
+    const stored = async (): Promise<{ threadId?: string; notifyBy?: ThreadScope }[]> => ((await store.get("sessions", kidBox.id)) as { sessions: { threadId?: string; notifyBy?: ThreadScope }[] } | undefined)?.sessions ?? [];
+    await until(async () => (await stored()).some(r => r.threadId === kidThread && r.notifyBy !== undefined));
+    // The namer's folder is gone, which refuses any line that names it; the host goes down under the running turn, so
+    // the line is the load's to send.
+    await first.workspaces.delete(namerBox.id);
+    await first.close();
+    // The document as a host from before this rule wrote it: the targets, and nothing about who named them.
+    const doc = (await store.get("sessions", kidBox.id)) as { workspaceId: string; sessions: Record<string, unknown>[] };
+    await store.put("sessions", kidBox.id, { ...doc, sessions: doc.sessions.map(({ notifyBy: _named, ...row }) => row) });
+
+    const again = runtimeWith({ claude: heldAdapter().factory }, undefined, backend);
+    await again.workspaces.list();
+    await until(async () => (await again.sessions.history(kidBox.id)).some(e => e.type === "session.notify" && e.threadId === kidThread && (e as { notify: string }).notify === rootThread));
+    // The turn the cut line asked for ran as the person's: the lead's thread holds a second start and nothing fell
+    // away to the person.
+    await until(async () => (await again.sessions.history(lead.id)).filter(e => e.type === "session.start" && e.threadId === rootThread).length === 2);
+    expect((await again.sessions.history(kidBox.id)).filter(e => e.type === "session.notify" && (e as { notify: string }).notify === NOTIFY_ME)).toEqual([]);
+    await again.close();
   });
 
   it("a thread cannot widen its own caps through the fork it asks for", async () => {

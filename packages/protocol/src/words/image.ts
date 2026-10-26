@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { GoldenMissingTool, GoldenStage, GoldenStageEvent, LoginState, MachineState, SealedImage, SealedImageCopy, ToolPin } from "../index.js";
-import { fmtThreads, listedName, lowerFirst, nameList, plural } from "./base.js";
-import { diskTone, fmtBytes, fmtBytesOf, fmtDuration } from "./units.js";
-import { thisComputer } from "./computer.js";
+import type { GoldenMissingTool, GoldenStage, GoldenStageEvent, LoginState, MachineState, SealedImage, SealedImageCopy } from "../index.js";
+import { fmtThreads, lowerFirst, plural } from "./base.js";
+import { fmtBytes, fmtDuration } from "./units.js";
 import { CLOUD_SETUP_WORDS, GOLDEN_STAGE_WORDS, initStoppedLine, SAVING_IMAGE_LINE } from "./init.js";
 // --- the image and its copies, as `wsp image` and Settings > Image read them ---
 
-/** What a record with no vault says: its copies ask for every sign-in again until the next version holds them. */
-export const IMAGE_NO_VAULT = "no sign-ins held; cut the next version to hold them";
+/** What to do where there is no image: wsp doctor on a cloud computer builds the default one, the only road that makes
+ * an image. Where a next version is asked for, the image stays as it is and NO_NEW_VERSION says so. */
+export const NO_IMAGE_FIX = "Run wsp doctor with the name of your cloud computer; it builds the default image there.";
+/** What a build says where a next version of the image is asked for: this build makes none. */
+export const NO_NEW_VERSION = "The image stays as it is, and this build makes no new version.";
+/** What a record with no vault says: its copies ask for every sign-in again, and this build makes no new version to hold them. */
+export const IMAGE_NO_VAULT = "no sign-ins held; this build makes no new version to hold them";
 /** What a record sealed at a provider says: it holds no sign-in by design, so there is nothing to cut again for. */
 export const IMAGE_NO_SECRETS = "no sign-ins on it";
 /** Whether a copy of this record asks for every sign-in again: it was sealed holding none, and not at a provider,
@@ -17,20 +21,20 @@ export const copyAsksSignIns = (image: Pick<SealedImage, "vault" | "noSecrets">)
 /** Why a fork at a provider is refused: the image was sealed before a provider's seal refused every sign-in, so its
  * disk may still hold them. imageRebuildFix is what to do. */
 export const imageHeldSignInsLine = (where: string): string => `Your image on ${where} was sealed with sign-ins on it`;
-export const imageRebuildFix = (place: string): string => `Seal your image again for ${place}.`;
+export const imageRebuildFix = (place: string): string => `The image stays as it is, and this build makes no new version, so a fork on ${place} stays refused.`;
 /** What to do about each refusal a copy build meets before anything boots: said after it on a terminal, and in the
  * fix ink beside the Image card's press in the app. Only the no-sign-ins one names a flag: the card sends force on
  * such a record before the host could refuse it, so that fix is read on a terminal alone. */
 export const COPY_BUILD_FIX = {
   noCopy: "Start its tasks on a cloud or a computer that holds your image.",
-  noImage: "Build your image first; a copy is made from it.",
-  noRecipe: "Build the next version, then copy that one.",
-  noVault: "Build the next version to hold them, or run it again with --force to copy this one anyway.",
+  noImage: NO_IMAGE_FIX,
+  noRecipe: `${NO_NEW_VERSION} This one cannot be copied.`,
+  noVault: `${NO_NEW_VERSION} Run it again with --force to copy this one anyway.`,
 } as const;
 /** What a host that has sealed nothing says. Named apart from the attachment lines beside it: those are pictures. */
-export const NO_SEALED_IMAGE = "no image yet";
+export const NO_SEALED_IMAGE = `no image yet. ${NO_IMAGE_FIX}`;
 /** The same where a road needed the image to fork and there is none. */
-export const NO_IMAGE_YET = "no image yet";
+export const NO_IMAGE_YET = NO_SEALED_IMAGE;
 /** Whether a copy stands on the record as it is now: built at the record's hash, which is the whole of it. The
  * version is the place's own manifest number and says nothing about which record the copy came from, so a second
  * place's v1 built from the record's v2 is current. A copy with no hash was built before hashes were recorded and
@@ -110,14 +114,6 @@ export function forgetNotice(threads: number): string {
   return `Its record and ${fmtThreads(threads)} leave this computer; the computer it ran on is already gone.`;
 }
 
-/** One noun's change in a golden build line: "2 tools added". */
-export interface GoldenChange {
-  count: number;
-  /** Singular; the line pluralises it. */
-  noun: string;
-  word: string;
-}
-
 /** How much of a checksum a line shows: enough to tell two apart, short enough that a reason line with both fits its cut. */
 export const SUM_SHOWN = 12;
 export const shortSum = (sha256: string): string => sha256.slice(0, SUM_SHOWN);
@@ -128,24 +124,8 @@ export function pinMismatchLine(what: string, tag: string, recorded: string, ser
   return `${what} at ${tag} does not match the checksum recorded on its first install: recorded ${recorded}, served ${served}`;
 }
 
-/** Why a tool in the recipe installs differently now: the road it takes moved. Both sides in the roads' own words. */
-export function roadMovedLine(from: string, to: string): string {
-  return `now ${to}, was ${from}`;
-}
-
-/** Why a tool installs differently now: the version it installs at moved; a side with none reads as unpinned. */
-export function versionMovedLine(from: string | undefined, to: string | undefined): string {
-  return `${from ?? "unpinned"} to ${to ?? "unpinned"}`;
-}
-
-/** The words for a tools row no road installs, where a road's own words would stand. */
-export const NO_ROAD_WORDS = "by no road";
-
 /** What a row marked latest does on every place: the words `wsp recipe`, `wsp image` and the seal's stage all use. */
 export const INSTALLS_LATEST = "installs latest";
-
-/** Why a tool installs differently now when its road stands: the lines the road runs are not the golden's. */
-export const INSTALLER_MOVED_LINE = "its install lines changed";
 
 /** The app's line for a workspace still forked from an older golden version, offered the way the helper update is:
  * a state in words, never a badge. The move is the person's; nothing replaces a machine they are working on. */

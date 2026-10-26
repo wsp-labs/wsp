@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp usage reset: no account <account>; wsp usage lists every account\n"
+    }
+  ],
+  "events": []
+}

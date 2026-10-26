@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { AgentSignInState, CloudPlan, CloudStarts, ContextMenuItem, HostsView, PlaceView, ProjectExportEvent, ProjectImportEvent, ProjectSecret, TerminalConfig, TerminalRgb, WorkspaceGlyph } from "../index.js";
+import type { AgentSignInState, CloudPlan, CloudStarts, ContextMenuItem, HostsView, PlaceView, ProjectExportEvent, ProjectImportEvent, TerminalConfig, TerminalRgb, WorkspaceGlyph } from "../index.js";
 import { dotColour, effectiveOpacity, themeInk, type Rgb, type WorkspaceTheme } from "../workspace-look.js";
 import { compareVersions } from "../semver.mjs";
 import { plural } from "./base.js";
@@ -21,11 +21,6 @@ export function secretsNote(n: number): string {
 
 /** What the ticks on the agent rows do. */
 export const SESSIONS_NOTE = "Ticked agents' sessions go with the folder. The rest stay here.";
-
-/** Why a secret-shaped file was flagged and its size, as the CLI's plan column and the dialog's hover both print it. */
-export function secretSignalsLine(s: ProjectSecret): string {
-  return `${s.signals.join(", ")}, ${fmtBytes(s.bytes)}`;
-}
 
 /** The line under the export dialog's title: which workspace the folder leaves, and the computer it lands on. */
 export function exportFromLine(workspaceName: string, here: string): string {

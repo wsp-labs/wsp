@@ -146,20 +146,27 @@ pub const TOOLS: &[Tool] = &[
     slate::WRITE,
     slate::STATE,
     slate::READ,
+    slate::LOOK,
 ];
+
+/// Which tools a server serves, off the words it was started with.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Serves {
+    pub guest: bool,
+    pub no_slate: bool,
+    /// No app on the host's computer drew looks when the turn was launched: slate_look would only refuse.
+    pub no_look: bool,
+}
 
 /// The tool of that name the state lists, with its entry there; none where that state lists no such tool, which the
 /// TypeScript server does not register.
-pub fn named(name: &str, cloud: bool, guest: bool, no_slate: bool) -> Option<(&'static Tool, &'static str)> {
-    TOOLS
-        .iter()
-        .filter(|tool| tool.name == name && served(tool, guest, no_slate))
-        .find_map(|tool| Some((tool, entry_in(tool.listed, cloud)?)))
+pub fn named(name: &str, cloud: bool, serves: Serves) -> Option<(&'static Tool, &'static str)> {
+    TOOLS.iter().filter(|tool| tool.name == name && served(tool, serves)).find_map(|tool| Some((tool, entry_in(tool.listed, cloud)?)))
 }
 
 /// Every tool the state lists, by its entry there.
-pub fn listed(cloud: bool, guest: bool, no_slate: bool) -> impl Iterator<Item = &'static str> {
-    TOOLS.iter().filter(move |tool| served(tool, guest, no_slate)).filter_map(move |tool| entry_in(tool.listed, cloud))
+pub fn listed(cloud: bool, serves: Serves) -> impl Iterator<Item = &'static str> {
+    TOOLS.iter().filter(move |tool| served(tool, serves)).filter_map(move |tool| entry_in(tool.listed, cloud))
 }
 
 /// The variable a turn's own token rides in, which a guest's tools may read.
@@ -167,9 +174,12 @@ pub(crate) fn turn_token_env() -> &'static String {
     &said::turns().turn_token_env
 }
 
-/// A guest serves no tool that reads this computer, and a thread with no slate is served none of the slate's.
-fn served(tool: &Tool, guest: bool, no_slate: bool) -> bool {
-    (!guest || !crate::record::server().reads_here.iter().any(|name| name == tool.name)) && !(no_slate && slate::NAMES.contains(&tool.name))
+/// A guest serves no tool that reads this computer, a thread with no slate is served none of the slate's, and a turn
+/// launched while no app drew looks is served no slate_look.
+fn served(tool: &Tool, serves: Serves) -> bool {
+    (!serves.guest || !crate::record::server().reads_here.iter().any(|name| name == tool.name))
+        && !(serves.no_slate && slate::NAMES.contains(&tool.name))
+        && !(serves.no_look && tool.name == slate::LOOK.name)
 }
 
 /// A recorded file's entry for one state of WSP_CLOUD, in the bytes it was recorded in.
@@ -192,17 +202,24 @@ pub struct Answer {
     pub text: String,
     pub structured: String,
     pub error: bool,
+    /// A PNG, base64, the content leads with before its text: slate_look's picture.
+    pub image: Option<String>,
 }
 
 impl Answer {
     /// The text is the value as `jsonLine(value, 2)` writes it: asJson in packages/host/src/verbs.ts.
     pub fn json<T: Serialize>(value: &T) -> Answer {
-        Answer { text: js_line(value, true), structured: serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned()), error: false }
+        Answer {
+            text: js_line(value, true),
+            structured: serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned()),
+            error: false,
+            image: None,
+        }
     }
 
     /// The text is a line of its own and the value rides beside it: asText in packages/host/src/verbs.ts.
     pub fn text<T: Serialize>(text: String, value: &T) -> Answer {
-        Answer { text, structured: serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned()), error: false }
+        Answer { text, structured: serde_json::to_string(value).unwrap_or_else(|_| "null".to_owned()), error: false, image: None }
     }
 
     /// The same, marked an error: a call that did nothing yet, or half of what it was asked, and says which.
@@ -376,17 +393,26 @@ mod tests {
     }
 
     #[test]
-    fn a_server_for_a_thread_with_no_slate_lists_none_of_its_tools() {
+    fn a_server_for_a_thread_with_no_slate_lists_none_of_its_tools_and_one_with_no_look_all_but_the_look() {
         let names = |no_slate| -> Vec<String> {
-            listed(false, false, no_slate)
+            listed(false, Serves { no_slate, ..Serves::default() })
                 .map(|entry| serde_json::from_str::<Value>(entry).unwrap()["name"].as_str().unwrap().to_owned())
                 .collect()
         };
         for name in slate::NAMES {
             assert!(names(false).iter().any(|n| n == name), "{name} is served with a slate");
             assert!(!names(true).iter().any(|n| n == name), "{name} is served with no slate");
-            assert!(named(name, false, false, true).is_none());
+            assert!(named(name, false, Serves { no_slate: true, ..Serves::default() }).is_none());
         }
+        let no_look = Serves { no_look: true, ..Serves::default() };
+        let names: Vec<String> = listed(false, no_look)
+            .map(|entry| serde_json::from_str::<Value>(entry).unwrap()["name"].as_str().unwrap().to_owned())
+            .collect();
+        for name in slate::NAMES {
+            assert_eq!(names.iter().any(|n| n == name), name != "slate_look", "{name}");
+        }
+        assert!(named("slate_look", false, no_look).is_none());
+        assert!(named("slate_look", false, Serves::default()).is_some());
     }
 
     #[test]

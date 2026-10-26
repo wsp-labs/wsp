@@ -1,15 +1,15 @@
 name: release
 
 # A pushed v1.2.3 tag is the whole release: the draft with its notes, the four
-# daemon binaries, the mac disk image, the linux AppImage, the command line
-# package on npm through trusted publishing, and the draft turned into a
-# release once every part landed. Every bundle also goes up under a name no
-# version moves, which is what releases/latest/download serves and what the
-# site links. A run started by hand is the dry run and there is no box to untick:
-# the daemon binaries are built and uploaded as artifacts, the command line
-# package is staged with them, the mac disk image is built and checked, the
-# linux AppImage is built and started once, and nothing is drafted, attached
-# or published.
+# daemon binaries, the GPUI app's mac disk image and linux AppImage, then the
+# classic app's (the Electron app, listed second), the command line package on
+# npm through trusted publishing, and the draft turned into a release once every
+# part landed. Every bundle also goes up under a name no version moves, which is
+# what releases/latest/download serves and what the site links. A run started by
+# hand is the dry run and there is no box to untick: the daemon binaries are
+# built and uploaded as artifacts, the command line package is staged with them,
+# each mac disk image is built and checked, each linux AppImage is built and
+# started once, and nothing is drafted, attached or published.
 # The tag runs the workflow of the commit it points at, so the check that the
 # commit stands on main's own line holds against a tag pushed by hand on the
 # wrong commit, not against a credential that strips the check from a commit
@@ -78,6 +78,7 @@ jobs:
       - name: C compiler for the musl target, and libseccomp built against musl
         if: runner.os == 'Linux'
         run: |
+          sudo apt-get update
           sudo apt-get install -y --no-install-recommends musl-tools gperf
           ./scripts/libseccomp-archive.sh musl
       # Public: a Mac daemon's tool server embeds no top-level cloud tool and no provider but Boat. The jobs that ship it read it for Solari.
@@ -141,7 +142,186 @@ jobs:
           esac
 
   mac:
-    name: macOS disk image
+    name: macOS app
+    needs: [draft, daemon]
+    # On a run by hand the draft is skipped and this still runs, so the app is built and checked on a branch before a
+    # tag is the first build to check it.
+    if: ${{ !cancelled() && needs.daemon.result == 'success' && (github.event_name != 'push' || needs.draft.result == 'success') }}
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Every asset name this job works with comes from the one formatter, so nothing here spells one.
+      - name: The names this release's assets carry
+        env:
+          VERSION: ${{ needs.draft.outputs.version }}
+        run: node packages/wspx/scripts/bundle-env.mjs "$VERSION" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: wsp-daemon-*
+          path: daemon-bins
+      - name: The daemon binaries, where the app's build stages them
+        run: node packages/wspx/scripts/daemon-binary.mjs --from-artifacts daemon-bins
+      - name: Toolchain from rust-toolchain.toml
+        working-directory: apps/desktop-gpui
+        run: |
+          rustup toolchain install
+          rustup show
+      # The terminal links Ghostty's VT library, which builds with this Zig alone; the sum is ziglang.org's.
+      - name: Zig 0.16.0
+        run: |
+          curl -fsSL https://ziglang.org/download/0.16.0/zig-aarch64-macos-0.16.0.tar.xz -o "$RUNNER_TEMP/zig.tar.xz"
+          echo "b23d70deaa879b5c2d486ed3316f7eaa53e84acf6fc9cc747de152450d401489  $RUNNER_TEMP/zig.tar.xz" | shasum -a 256 -c
+          tar -xf "$RUNNER_TEMP/zig.tar.xz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/zig-aarch64-macos-0.16.0" >> "$GITHUB_PATH"
+      # The certificate and the Apple account that sign and notarize the app reach this step alone. Unset, each arrives
+      # empty and the script signs ad hoc.
+      - name: Build the app
+        env:
+          WSP_REQUIRE_DAEMON: "1"
+          PUBLIC_BUILD: "1"
+          POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: apps/desktop-gpui/scripts/package.sh --target mac
+      # The whole app: its own binary, Node, the host, its web page and the daemons.
+      - name: The app carries no Solari
+        run: node packages/wspx/scripts/public-check.mjs apps/desktop-gpui/dist/wsp.app
+      # With a certificate the app and the disk image have to be notarized and stapled, so a signed release never
+      # ships what Gatekeeper refuses offline.
+      - name: Check the signature
+        env:
+          WSP_SIGNED: ${{ secrets.CSC_LINK != '' && '1' || '' }}
+        run: |
+          codesign --verify --deep --strict --verbose=2 apps/desktop-gpui/dist/wsp.app
+          if [ -n "$WSP_SIGNED" ]; then
+            xcrun stapler validate apps/desktop-gpui/dist/wsp.app
+            xcrun stapler validate apps/desktop-gpui/dist/*.dmg
+            spctl --assess --type execute --verbose=2 apps/desktop-gpui/dist/wsp.app
+          fi
+      - name: The app is smaller on disk than the classic app
+        run: node packages/wspx/scripts/bundle-size.mjs apps/desktop-gpui/dist/wsp.app
+      - name: Name the disk image after the release, and copy it to the name that never moves
+        run: |
+          shopt -s nullglob
+          set -- apps/desktop-gpui/dist/*.dmg
+          if [ "$#" -ne 1 ]; then
+            echo "expected one dmg in apps/desktop-gpui/dist, found $#"
+            exit 1
+          fi
+          mv "$1" "$MAC_DMG"
+          cp "$MAC_DMG" "$MAC_STABLE"
+      # The zip an installed app of either kind updates itself from; GitHub publishes its sha256 and size beside it,
+      # which the app checks before it unpacks anything.
+      - name: Name the zip after the release
+        run: |
+          shopt -s nullglob
+          set -- apps/desktop-gpui/dist/*.zip
+          if [ "$#" -ne 1 ]; then
+            echo "expected one zip in apps/desktop-gpui/dist, found $#"
+            exit 1
+          fi
+          mv "$1" "$MAC_ZIP"
+      - name: Attach them to the draft
+        if: ${{ github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" "$MAC_DMG" "$MAC_STABLE" "$MAC_ZIP" --clobber
+
+  linux:
+    name: Linux AppImage
+    needs: [draft, daemon]
+    # On a run by hand the draft is skipped and this still runs, so the AppImage is started on a branch before a tag
+    # is the first build to start it.
+    if: ${{ !cancelled() && needs.daemon.result == 'success' && (github.event_name != 'push' || needs.draft.result == 'success') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: The names this release's assets carry
+        env:
+          VERSION: ${{ needs.draft.outputs.version }}
+        run: node packages/wspx/scripts/bundle-env.mjs "$VERSION" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: wsp-daemon-*
+          path: daemon-bins
+      - name: The daemon binaries, where the app's build stages them
+        run: node packages/wspx/scripts/daemon-binary.mjs --from-artifacts daemon-bins
+      - name: Toolchain from rust-toolchain.toml
+        working-directory: apps/desktop-gpui
+        run: |
+          rustup toolchain install
+          rustup show
+      - name: Zig 0.16.0
+        run: |
+          curl -fsSL https://ziglang.org/download/0.16.0/zig-x86_64-linux-0.16.0.tar.xz -o "$RUNNER_TEMP/zig.tar.xz"
+          echo "70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00  $RUNNER_TEMP/zig.tar.xz" | sha256sum -c
+          tar -xf "$RUNNER_TEMP/zig.tar.xz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/zig-x86_64-linux-0.16.0" >> "$GITHUB_PATH"
+      # The libraries the app links (webkit2gtk for the browser pane), mksquashfs for the AppImage, and xwininfo for
+      # the start below. The runner image's package index goes stale between images: 0.3.9's 404'd on liblzma-dev.
+      - name: The libraries the app builds against
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libxkbcommon-x11-dev libwebkit2gtk-4.1-dev squashfs-tools x11-utils
+      - name: Build the bundle
+        env:
+          WSP_REQUIRE_DAEMON: "1"
+          PUBLIC_BUILD: "1"
+          POSTHOG_KEY: ${{ vars.POSTHOG_KEY }}
+        run: apps/desktop-gpui/scripts/package.sh --target linux
+      # The whole AppImage, the app's binary with it, read unpacked: its squashfs is compressed, so the packed file
+      # would hide every word. The runtime unpacks itself into squashfs-root with no FUSE.
+      - name: The app carries no Solari
+        working-directory: ${{ runner.temp }}
+        run: |
+          "$GITHUB_WORKSPACE"/apps/desktop-gpui/dist/*.AppImage --appimage-extract >/dev/null
+          node "$GITHUB_WORKSPACE"/packages/wspx/scripts/public-check.mjs squashfs-root
+      - name: Name the AppImage after the release, and copy it to the name that never moves
+        run: |
+          shopt -s nullglob
+          set -- apps/desktop-gpui/dist/*.AppImage
+          if [ "$#" -ne 1 ]; then
+            echo "expected one AppImage in apps/desktop-gpui/dist, found $#"
+            exit 1
+          fi
+          mv "$1" "$APPIMAGE"
+          cp "$APPIMAGE" "$APPIMAGE_STABLE"
+      # The file this job ships, started once on a virtual display, until its window is up; a library missing from
+      # the bundle or a launch that dies on boot fails the release here.
+      - name: Start the AppImage once and wait for its window
+        timeout-minutes: 5
+        run: xvfb-run --auto-servernum apps/desktop-gpui/scripts/appimage-launch.sh "$APPIMAGE"
+      - name: Attach them to the draft
+        if: ${{ github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" "$APPIMAGE" "$APPIMAGE_STABLE" --clobber
+
+  mac-classic:
+    name: macOS disk image, the classic app
     needs: [draft, daemon]
     # On a run by hand the draft is skipped and this still runs, so the disk image is built and checked on a branch
     # before a tag is the first build to check it.
@@ -210,10 +390,10 @@ jobs:
             echo "expected one dmg in apps/desktop/dist, found $#"
             exit 1
           fi
-          mv "$1" "$MAC_DMG"
-          cp "$MAC_DMG" "$MAC_STABLE"
-      # The zip an installed app updates itself from; GitHub publishes its sha256 and size beside it, which the app
-      # checks before it unpacks anything.
+          mv "$1" "$CLASSIC_MAC_DMG"
+          cp "$CLASSIC_MAC_DMG" "$CLASSIC_MAC_STABLE"
+      # The zip an installed classic app updates itself from; GitHub publishes its sha256 and size beside it, which
+      # the app checks before it unpacks anything.
       - name: Name the zip after the release
         run: |
           shopt -s nullglob
@@ -222,15 +402,15 @@ jobs:
             echo "expected one zip in apps/desktop/dist, found $#"
             exit 1
           fi
-          mv "$1" "$MAC_ZIP"
+          mv "$1" "$CLASSIC_MAC_ZIP"
       - name: Attach them to the draft
         if: ${{ github.event_name == 'push' }}
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" "$MAC_DMG" "$MAC_STABLE" "$MAC_ZIP" --clobber
+        run: gh release upload "$GITHUB_REF_NAME" "$CLASSIC_MAC_DMG" "$CLASSIC_MAC_STABLE" "$CLASSIC_MAC_ZIP" --clobber
 
-  linux:
-    name: Linux AppImage
+  linux-classic:
+    name: Linux AppImage, the classic app
     needs: [draft, daemon]
     # On a run by hand the draft is skipped and this still runs, so the AppImage is started on a branch before a tag
     # is the first build to start it.
@@ -274,24 +454,25 @@ jobs:
             echo "expected one AppImage in apps/desktop/dist, found $#"
             exit 1
           fi
-          mv "$1" "$APPIMAGE"
-          cp "$APPIMAGE" "$APPIMAGE_STABLE"
+          mv "$1" "$CLASSIC_APPIMAGE"
+          cp "$CLASSIC_APPIMAGE" "$CLASSIC_APPIMAGE_STABLE"
       # The file this job ships, started once on a virtual display as its desktop entry starts it, until its window
       # has loaded its page; a library missing from the bundle or a launch that dies on boot fails the release here.
       - name: Start the AppImage once and wait for its window's page
         timeout-minutes: 5
-        run: xvfb-run --auto-servernum node apps/desktop/scripts/appimage-launch.mjs "$APPIMAGE"
+        run: xvfb-run --auto-servernum node apps/desktop/scripts/appimage-launch.mjs "$CLASSIC_APPIMAGE"
       - name: Attach them to the draft
         if: ${{ github.event_name == 'push' }}
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" "$APPIMAGE" "$APPIMAGE_STABLE" --clobber
+        run: gh release upload "$GITHUB_REF_NAME" "$CLASSIC_APPIMAGE" "$CLASSIC_APPIMAGE_STABLE" --clobber
 
   npm:
     name: Command line package on npm
-    needs: [draft, daemon]
-    # On a run by hand the draft is skipped and this still runs, to stage the package with the four binaries.
-    if: ${{ !cancelled() && needs.daemon.result == 'success' && (github.event_name != 'push' || needs.draft.result == 'success') }}
+    needs: [draft, daemon, mac, linux, mac-classic, linux-classic]
+    # On a run by hand the draft is skipped and this still runs, to stage the package with the four binaries. A failed
+    # app job stops it, so npm never publishes a version whose release stays a draft.
+    if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && needs.daemon.result == 'success' && (github.event_name != 'push' || needs.draft.result == 'success') }}
     runs-on: ubuntu-24.04
     # Read because a block that names one grant sets every other to none and the checkout needs it; no write of any
     # kind, so the job that builds every workspace package can publish and can touch nothing here.
@@ -338,7 +519,7 @@ jobs:
 
   publish:
     name: Publish the release
-    needs: [draft, mac, linux, npm]
+    needs: [draft, mac, linux, mac-classic, linux-classic, npm]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

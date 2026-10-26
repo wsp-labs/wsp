@@ -17,7 +17,6 @@ import { failureOf, type Failure } from "../../protocol/failure.js";
 import { useStore } from "../../protocol/store.js";
 import { FACT } from "../format.js";
 import { CARD_INSET, GLYPH, NOTE } from "../layout.js";
-import { INPUT } from "../ProviderKey.js";
 import { Card, Row } from "../rows.js";
 import { cloudsOffered } from "../providers.js";
 import { useSettingsStore } from "../settingsStore.js";
@@ -26,6 +25,8 @@ import { CLOUD_KEY_STEPS } from "./cloudKey.js";
 import { checkKey, closeCloudAdd, goCloud, keyWorksLine, useCloudFlow, type CloudStep, type KeyCheck } from "./cloudFlow.js";
 import { Choice } from "./PickLists.js";
 import { STEP_BODY, STEP_FRAME, STEP_HEAD, StepFoot } from "./StepDialog.js";
+
+const INPUT = "h-10 w-full font-mono [&_input]:h-[38px] [&_input]:ps-9 [&_input]:text-[13px] [&_input]:leading-[38px] sm:[&_input]:h-[38px] sm:[&_input]:text-[13px] sm:[&_input]:leading-[38px]";
 
 /** The key check's line under the field: nothing while typing, the spinner while it asks, the check where it works,
  * the alert where it was refused, and Try again where the provider never answered. */

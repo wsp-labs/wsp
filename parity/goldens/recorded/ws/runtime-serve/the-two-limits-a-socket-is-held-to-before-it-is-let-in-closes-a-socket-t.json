@@ -1,0 +1,16 @@
+{
+  "replies": [
+    {
+      "parity": "no reply",
+      "id": "1"
+    }
+  ],
+  "events": [
+    {
+      "close": {
+        "code": 4401,
+        "reason": "too many bytes before the auth frame"
+      }
+    }
+  ]
+}

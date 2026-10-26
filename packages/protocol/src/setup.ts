@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// The shapes the cloud setup and every sign-in share: what a login came to, how a sign-in finishes, which provider
-// keys a host holds and the place a setup names.
+// The shapes the cloud setup and every sign-in share: what a login came to, how a sign-in finishes and which provider
+// keys a host holds.
 import { z } from "zod";
-import { PlaceKind } from "./views/place-kind.js";
 
 /** What each login came to by the time the golden sealed: a sign-in on the machine, or a copy from this computer
  * checked there with the tool's status command. `copied` is a copy nothing checked: an update re-imported it, or the
@@ -27,10 +26,6 @@ export type LoginChoice = z.infer<typeof LoginChoice>;
 export const SignInFinish = z.enum(["callback", "code", "none"]);
 export type SignInFinish = z.infer<typeof SignInFinish>;
 
-/** The longest code a page hands back that a client may submit: gcloud's is about eighty characters, and the field
- * types into a machine's terminal, so the wire caps it. */
-export const SIGN_IN_CODE_MAX = 256;
-
 /** Which providers this computer holds a key for, keyed by the word WSP_PROVIDER holds: the presence alone, never a
  * value. One entry per provider that reads a key, read off the host's own provider table, so a provider added
  * tomorrow is a row there and nothing here. */
@@ -41,8 +36,3 @@ export type InitKeys = z.infer<typeof InitKeys>;
  * typing another key, from a check that never got an answer, which is worth pressing again. */
 export const KEY_REFUSED = "keyRefused";
 export const KEY_UNCHECKED = "keyUnchecked";
-
-/** A place a setup names: its id, the name wsp places lists and its kind, so a line names a cloud by the name its key
- * rows give it with nothing to guess. The kind is absent from a host of an earlier build. */
-export const SetupPlace = z.object({ id: z.string(), name: z.string(), kind: PlaceKind.optional() });
-export type SetupPlace = z.infer<typeof SetupPlace>;

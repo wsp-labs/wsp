@@ -87,6 +87,14 @@ describe("the Image card", () => {
     expect(card()).toBeNull();
   });
 
+  it("says what to do where the host holds no image yet, in the words the command line says, and offers no press", async () => {
+    const fake = host({ image: null, copies: [] });
+    await open(fake.api, "p_2");
+    expect(description()).toBe("No image yet. Run wsp doctor with the name of your cloud computer; it builds the default image there.");
+    expect(press()).toBeNull();
+    expect(fake.builds).toEqual([]);
+  });
+
   it("offers to copy the image where no copy stands, with the time and no rate on a computer that bills nothing, and sends image.build on the press alone", async () => {
     const fake = host({ image: IMAGE, copies: [copyAt("solari")] });
     await open(fake.api, "p_2");
