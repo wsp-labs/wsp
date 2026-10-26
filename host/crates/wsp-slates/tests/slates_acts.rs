@@ -239,7 +239,7 @@ fn takes_five_of_the_person_s_events_a_second_answers_a_resend_of_one_it_took_an
         for (i, r) in results.iter().enumerate().take(5) {
             assert!(r.is_ok(), "press e{i}: {r:?}");
         }
-        let sixth = results[5].as_ref().err().expect("the sixth is refused");
+        let sixth = results[5].as_ref().expect_err("the sixth is refused");
         assert_eq!(sixth.kind, Some(Kind::Conflict));
         assert_eq!(code_of(sixth).as_deref(), Some("V754"));
         assert!(sixth.message.starts_with("V754 event-rate: too many presses; try again in a moment"), "{}", sixth.message);

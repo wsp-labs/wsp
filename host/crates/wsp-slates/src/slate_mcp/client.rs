@@ -163,10 +163,12 @@ pub trait McpPost {
     fn close(&self);
 }
 
+pub type PipeOut = Rc<dyn Fn(&[u8])>;
+
 /// What a command server's process says, wherever it runs; `exit` is said with why it ended (slate-mcp.ts:96).
 #[derive(Clone)]
 pub struct McpPipeEvents {
-    pub out: Rc<dyn Fn(&[u8])>,
+    pub out: PipeOut,
     pub err: Rc<dyn Fn(&str)>,
     pub exit: Rc<dyn Fn(&str)>,
 }

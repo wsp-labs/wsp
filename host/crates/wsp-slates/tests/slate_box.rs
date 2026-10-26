@@ -105,6 +105,8 @@ struct BashMachine {
 }
 
 impl BashMachine {
+    // wsp-engine holds a machine in an `Arc` and runs it on one thread; the fake follows its seam.
+    #[allow(clippy::arc_with_non_send_sync)]
     fn new() -> Arc<BashMachine> {
         Arc::new(BashMachine {
             killed: Cell::new(false),
@@ -537,7 +539,7 @@ async fn ledger_close_cancels_retries() {
             tokio::time::sleep(Duration::from_millis(350)).await;
             assert!(Path::new(&path).exists(), "no retry ran after close");
             assert_eq!(ledger.owed(machine.as_ref()), vec![path.clone()]);
-            ledger.paid(machine.as_ref(), &[path.clone()]);
+            ledger.paid(machine.as_ref(), std::slice::from_ref(&path));
             assert!(ledger.owed(machine.as_ref()).is_empty());
             assert!(ledger.remove(m, &path).await);
             assert!(!Path::new(&path).exists());

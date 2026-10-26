@@ -160,7 +160,7 @@ impl Pipe {
             }
             match e.get("type").and_then(Value::as_str) {
                 Some("stdio.out") => (events.out)(&decode_lenient(&js_text(e.get("data")))),
-                Some("stdio.err") => (events.err)(&String::from_utf8_lossy(&decode_lenient(&js_text(e.get("data")))).to_string()),
+                Some("stdio.err") => (events.err)(String::from_utf8_lossy(&decode_lenient(&js_text(e.get("data")))).as_ref()),
                 Some("stdio.exit") => match e.get("code").filter(|c| c.is_number()) {
                     Some(code) => (events.exit)(&format!("the server exited with {}", js_text(Some(code)))),
                     None => (events.exit)("the server was stopped"),
@@ -371,9 +371,11 @@ pub fn renew_on_refusal(computer: &str, sign_in: Option<McpSignIn>, send: Rc<dyn
     Rc::new(RenewOnRefusal { computer: computer.to_string(), sign_in, inner: send, renewals: Rc::new(RefCell::new(Renewals::default())) })
 }
 
+type OpenedRoad = Shared<LocalBoxFuture<'static, Result<Rc<dyn StdioRoad>, String>>>;
+
 /// The state every message of one connection shares: the road dialled once, and whether the connection is closed.
 struct PostState {
-    opened: RefCell<Option<Shared<LocalBoxFuture<'static, Result<Rc<dyn StdioRoad>, String>>>>>,
+    opened: RefCell<Option<OpenedRoad>>,
     closed: Cell<bool>,
 }
 

@@ -928,11 +928,10 @@ impl SlateRuns for SlateRunsTable {
                 .values()
                 .filter_map(|l| {
                     let live = l.borrow();
-                    let req = match &live.held {
+                    match &live.held {
                         Some((req, HeldFor::Approval)) => Some(req.clone()),
                         _ => None,
-                    };
-                    req
+                    }
                 })
                 .collect()
         });

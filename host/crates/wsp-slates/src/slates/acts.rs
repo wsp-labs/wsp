@@ -333,7 +333,7 @@ impl SlatesInner {
                     decl: this.approval_decl(&current, &declared),
                     by: RunBy::Person,
                     folder,
-                    inputs: this.inputs_of(r.clone(), &cmd),
+                    inputs: this.inputs_of(r.clone(), cmd),
                     last: Some(last),
                     asleep: false,
                 });

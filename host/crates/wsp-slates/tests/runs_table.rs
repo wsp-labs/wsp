@@ -21,6 +21,8 @@ use wsp_slates::slate_runs::{
 use wsp_wire::types::js_number::JsNumber;
 
 type Hook = Rc<dyn Fn(&str, &RunRecord)>;
+type OwnedLog = RefCell<Vec<(String, u32, String, Rc<RefCell<bool>>)>>;
+type TimerHook = Rc<dyn Fn(&str)>;
 
 /// The runs table's deps, recording what it was told.
 struct Deps {
@@ -30,10 +32,10 @@ struct Deps {
     timers: RefCell<Vec<String>>,
     clock: Rc<dyn Clock>,
     road: RefCell<Option<Rc<dyn RunRoad>>>,
-    owned: RefCell<Vec<(String, u32, String, Rc<RefCell<bool>>)>>,
+    owned: OwnedLog,
     own_on: bool,
     secrets_file: Option<PathBuf>,
-    on_timer: RefCell<Option<Rc<dyn Fn(&str)>>>,
+    on_timer: RefCell<Option<TimerHook>>,
     on_record: RefCell<Option<Hook>>,
     host_refused: RefCell<Option<String>>,
     dir: RefCell<Option<Result<String, String>>>,
@@ -496,7 +498,7 @@ mod consent {
             assert_eq!(serde_json::to_string(&held.record).unwrap(), r#"{"state":"held","why":"needs your approval","runs":0}"#);
             let ask = held.ask.unwrap();
             assert_eq!(
-                (ask.cmd.as_str(), ask.env["ID"].as_str(), ask.folder.as_str(), ask.timeout.clone()),
+                (ask.cmd.as_str(), ask.env["ID"].as_str(), ask.folder.as_str(), ask.timeout),
                 ("echo \"$ID\"", "1", dir.path().to_str().unwrap(), JsNumber::from(60i64))
             );
             assert_eq!(h.runs.held(THREAD).iter().map(|a| a.run.clone()).collect::<Vec<_>>(), ["check"]);
@@ -1135,7 +1137,7 @@ mod timers {
             for _ in 0..6 {
                 h.start("free", decl.clone(), RunInputs::default(), RunBy::Person);
             }
-            assert!(h.of("free").iter().all(|r| s(r, "why").map_or(true, |w| !w.contains("five starts"))));
+            assert!(h.of("free").iter().all(|r| s(r, "why").is_none_or(|w| !w.contains("five starts"))));
         });
     }
 }

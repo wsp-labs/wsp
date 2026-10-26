@@ -60,23 +60,28 @@ pub trait McpSecrets {
 
 /// A release of a process named the thread's.
 pub type Release = Box<dyn FnOnce()>;
+type ServerLookup = Rc<dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<McpServerSpec, String>>>;
+type RecordSink = Rc<dyn Fn(&str, &str, &RunRecord)>;
+type AsksSink = Rc<dyn Fn(&str)>;
+type ReshapeFn = Rc<dyn Fn(&str, &str, &str) -> Reshape>;
+type OwnProcess = Rc<dyn Fn(&str, u32, &str) -> Release>;
 
 /// What `create_slate_mcp` is handed (slate-mcp.ts:142).
 #[derive(Clone)]
 pub struct SlateMcpDeps {
     /// The thread's agent's server by name, resolved; fails with the reason where there is none.
-    pub server: Rc<dyn Fn(&str, &str) -> LocalBoxFuture<'static, Result<McpServerSpec, String>>>,
-    pub on_record: Rc<dyn Fn(&str, &str, &RunRecord)>,
+    pub server: ServerLookup,
+    pub on_record: RecordSink,
     /// The thread's held asks changed after the fact.
-    pub on_asks: Option<Rc<dyn Fn(&str)>>,
+    pub on_asks: Option<AsksSink>,
     pub asks: Rc<dyn Fn(&str) -> ToolAsks>,
     pub approvals: Rc<dyn RunApprovals>,
     pub secrets: Rc<dyn McpSecrets>,
     /// A run's `then` on this computer, in the thread's folder, the raw result already scrubbed on its stdin.
-    pub reshape: Rc<dyn Fn(&str, &str, &str) -> Reshape>,
+    pub reshape: ReshapeFn,
     pub computer: Rc<dyn Fn(&str) -> String>,
     /// Names a stdio server's process as the thread's tool server until the returned release.
-    pub own: Option<Rc<dyn Fn(&str, u32, &str) -> Release>>,
+    pub own: Option<OwnProcess>,
     /// Every time read and timer (rule 3.15); the TS's `now?`.
     pub clock: Rc<dyn Clock>,
     /// How long a connection lives unused while its slate is hidden and no `always` timer keeps it.
@@ -606,7 +611,7 @@ fn launch(this: &Rc<SlateMcp>, req: McpRunStart, l: Rc<RefCell<Live>>, confirmed
         let (this, l, req) = (this.clone(), l.clone(), req.clone());
         async move {
             let mut spec = None;
-            if let Err(why) = run_work(&this, &req, &l, gen, runs, started_at, confirmed, &mut spec).await {
+            if let Err(why) = run_work(&this, &req, &l, Attempt { gen, runs, started_at, confirmed }, &mut spec).await {
                 let current = l.borrow().gen == gen;
                 if current {
                     l.borrow_mut().inflight = None;
@@ -618,44 +623,41 @@ fn launch(this: &Rc<SlateMcp>, req: McpRunStart, l: Rc<RefCell<Live>>, confirmed
         }
         .boxed_local()
     };
-    let _ = track(this, &thread_id, body);
+    drop(track(this, &thread_id, body));
     answer(Outcome::Running, record)
+}
+
+#[derive(Clone, Copy)]
+struct Attempt {
+    gen: u64,
+    runs: i64,
+    started_at: i64,
+    confirmed: bool,
 }
 
 async fn run_work(
     this: &Rc<SlateMcp>,
     req: &McpRunStart,
     l: &Rc<RefCell<Live>>,
-    gen: u64,
-    runs: i64,
-    started_at: i64,
-    confirmed: bool,
+    attempt: Attempt,
     spec_out: &mut Option<McpServerSpec>,
 ) -> Result<(), String> {
     let conn = connect(this, &req.thread_id, &decl_server(&req.decl)).await?;
     let spec = conn.borrow().spec.clone();
     *spec_out = Some(spec);
-    if l.borrow().gen != gen {
+    if l.borrow().gen != attempt.gen {
         return Ok(());
     }
     conn.borrow_mut().busy += 1;
-    let outcome = call(this, req, l, gen, runs, started_at, confirmed, &conn).await;
+    let outcome = call(this, req, l, attempt, &conn).await;
     conn.borrow_mut().busy -= 1;
     let used_at = this.now();
     conn.borrow_mut().used_at = used_at;
     outcome
 }
 
-async fn call(
-    this: &Rc<SlateMcp>,
-    req: &McpRunStart,
-    l: &Rc<RefCell<Live>>,
-    gen: u64,
-    runs: i64,
-    started_at: i64,
-    confirmed: bool,
-    conn: &ConnRc,
-) -> Result<(), String> {
+async fn call(this: &Rc<SlateMcp>, req: &McpRunStart, l: &Rc<RefCell<Live>>, attempt: Attempt, conn: &ConnRc) -> Result<(), String> {
+    let Attempt { gen, runs, started_at, confirmed } = attempt;
     let decl = &req.decl;
     let server = decl_server(decl);
     let (client, spec) = {
@@ -762,7 +764,7 @@ impl SlateMcp {
     fn clean(&self, thread_id: &str, spec: Option<&McpServerSpec>, text: &str) -> String {
         let mut out = self.deps.secrets.scrub(thread_id, text);
         let mut values: Vec<&String> = spec.map(|s| s.secrets.iter().collect()).unwrap_or_default();
-        values.sort_by(|a, b| utf16::len(b).cmp(&utf16::len(a)));
+        values.sort_by_key(|v| std::cmp::Reverse(utf16::len(v)));
         for v in values {
             if utf16::len(v) >= 4 && out.contains(v.as_str()) {
                 out = out.split(v.as_str()).collect::<Vec<_>>().join("***");

@@ -415,7 +415,7 @@ impl SlateSketchView for FakeView {
     }
 
     fn bound(&self, name: &str) -> bool {
-        self.props.get(name).is_some_and(|v| is_slate_binding(v))
+        self.props.get(name).is_some_and(is_slate_binding)
     }
 
     fn row(&self, spec: &Value, item: &Value, index: i64) -> IndexMap<String, Value> {

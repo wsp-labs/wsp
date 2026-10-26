@@ -279,6 +279,8 @@ impl Job {
         }
         self.ledger.paid(self.machine.as_ref(), &owed);
 
+        // wsp-engine's `OnLine` is an `Arc` of a closure the engine runs on one thread; the type is the engine's.
+        #[allow(clippy::arc_with_non_send_sync)]
         let on_line: Option<OnLine> = if o.stream {
             let on = on.clone();
             Some(Arc::new(move |line: &str| on.line(Stream::Out, line)))

@@ -128,7 +128,7 @@ pub fn slate_time(value: Option<&Value>) -> Option<f64> {
 pub fn slate_span_state(given: Option<&Value>, start: Option<f64>, end: Option<f64>) -> &'static str {
     if let Some(Value::String(word)) = given {
         if let Some(known) = SLATE_SPAN_STATES.iter().find(|state| **state == word.as_str()) {
-            return *known;
+            return known;
         }
     }
     match (start, end) {

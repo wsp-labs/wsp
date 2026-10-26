@@ -15,7 +15,7 @@ use super::model::{problem, refused, BatchBy, SlateRecord, MESSAGE_CHARS, PRESS_
 use super::{Delivered, Delivery, RecordRef, SlatesInner, Views};
 use crate::pending::slate::{
     evaluate_slate_expression, is_slate_binding, parse_slate_own_path, resolve_slate_prop, run_slate_batch, slate_equal, slate_text,
-    BatchEvent, BatchSend, SlateBatchContext, SlateEvalContext, SlateRunDecl, SlateWrite, SLATE_LIMITS,
+    BatchEvent, BatchSend, SlateBatchContext, SlateEvalContext, SlateRunDecl, SlateStart, SlateWrite, SLATE_LIMITS,
 };
 use crate::slate_files::{keyed, pin_here, with_files, Pin, PinAsk, UnpinnedWhy};
 use crate::slate_mcp::{code_key, slate_secret_mark, McpRunStart};
@@ -457,7 +457,7 @@ impl SlatesInner {
         let before = snap.values.clone();
         let deferred: Rc<RefCell<Vec<Deferred>>> = Rc::new(RefCell::new(Vec::new()));
         let timer = by == BatchBy::Timer;
-        let start: Rc<dyn Fn(&str, &str) -> Value> = {
+        let start: SlateStart = {
             let area = self.clone();
             let queue = deferred.clone();
             let r = r.clone();
@@ -526,7 +526,7 @@ impl SlatesInner {
             } else {
                 let area = self.clone();
                 let (t, run, record) = (thread_id.clone(), d.run.clone(), started.record.clone());
-                let _ = self.serial(&thread_id, move || async move { area.run_moved(t, run, record).await });
+                drop(self.serial(&thread_id, move || async move { area.run_moved(t, run, record).await }));
             }
         }
 
