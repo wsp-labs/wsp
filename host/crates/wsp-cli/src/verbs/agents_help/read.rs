@@ -19,7 +19,7 @@ use wsp_wire::types::agents_report::{
     McpScope, NappingLit, PluginBrings, PluginRow, PluginScope, ServerToolsAnswer, SignInLine, SkillRow, SkillScope,
     UNCLOSED_QUOTE_REFUSAL,
 };
-use wsp_wire::types::check::{parse, Check};
+use wsp_wire::types::check::Check;
 use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::views::session_events::{FIRST_RUN_WORD, VERSION_UNREAD_WORD};
 use wsp_words::agents_report::{command_words, napped_word};
@@ -31,6 +31,7 @@ use crate::signin_relay::{process_terminal, PtyLink};
 use crate::verbs::client::{cell, flag_set, other_version, place_named, table, BoxFuture, Frame, HostClient, VerbContext};
 use crate::verbs::turns_help::thread_at_in;
 use crate::watch::{watch_block, watch_on, Lines, WatchDeps, WatchOn};
+use crate::zod_read::zod_read;
 
 // ---------------------------------------------------------------------------------------------------------------
 // Drawing rows (agents-help.ts:11-34).
@@ -207,7 +208,7 @@ pub async fn agents_report(
 ) -> Result<ReadReport, HostError> {
     let target = agents_target(client, thread, on, usage, line, None, cloud_on).await?;
     let reply = client.request("agents.read", target_frame(&target)).await?;
-    Ok(ReadReport(read_reply(&reply, "report", "agents.read")?))
+    Ok(ReadReport(read_reply(&reply, "report")?))
 }
 
 /// The keys of a `PluginRow` in the schema's order (agents-report.ts:249-264), which is the order zod's parse writes.
@@ -289,10 +290,10 @@ pub(super) fn target_frame(target: &AgentsTarget) -> Frame {
     params
 }
 
-/// A reply's field read into the type its shape names (zod's parse): a field the reply lacks or shapes otherwise is the
-/// other-version refusal the host's answer earns.
-pub(super) fn read_reply<T: Check + serde::de::DeserializeOwned>(reply: &Frame, key: &str, op: &str) -> Result<T, HostError> {
-    parse::<T>(reply.get(key).unwrap_or(&Value::Null)).map_err(|_| HostError::new(other_version(op)))
+/// A reply's field read into the type its shape names (zod's parse): a field the reply lacks or shapes otherwise is
+/// the zod issue refusal.
+pub(super) fn read_reply<T: Check + serde::de::DeserializeOwned>(reply: &Frame, key: &str) -> Result<T, HostError> {
+    zod_read::<T>(reply.get(key).unwrap_or(&Value::Null))
 }
 
 /// What `reportFacts` answers (agents-help.ts:122): the report's own facts beside the rows one list prints, in this
@@ -592,7 +593,7 @@ pub async fn plugin_changed(
     params.insert("plugin".to_owned(), json!(ask.plugin));
     params.insert("on".to_owned(), json!(ask.on));
     let reply = client.request("plugins.toggle", params).await?;
-    Ok(ReadPlugin(read_reply(&reply, "plugin", "plugins.toggle")?))
+    Ok(ReadPlugin(read_reply(&reply, "plugin")?))
 }
 
 /// `pluginTurnedWords(id, on, agent)` (agents-help.ts:183): `<id> is on|off for <agent>; its next turn loads|leaves out
@@ -657,7 +658,7 @@ pub async fn server_tools_of(
         params.insert("refresh".to_owned(), json!(true));
     }
     let reply = client.request("servers.tools", params).await?;
-    read_reply(&reply, "answer", "servers.tools")
+    read_reply(&reply, "answer")
 }
 
 /// The op of `serverChanged` (agents-help.ts:207).
@@ -891,7 +892,7 @@ async fn relay_here(
     r#where: &str,
     reply: &Frame,
 ) -> Result<BoxSignedIn, HostError> {
-    let line = read_reply::<SignInLine>(reply, "line", "agents.signInLine")?;
+    let line = read_reply::<SignInLine>(reply, "line")?;
     let open: Arc<dyn Fn(String) -> BoxFuture<'static, bool> + Send + Sync> = match &ctx.open {
         Some(opener) => {
             let opener = opener.clone();

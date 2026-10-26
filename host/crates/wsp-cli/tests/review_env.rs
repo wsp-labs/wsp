@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The #2449 review: a variable that is not UTF-8 in the process's environment. Its own test binary, since the
 // variable it sets would reach every test that reads the environment in the same process.
-#![allow(dead_code)]
+#![allow(clippy::result_large_err, clippy::type_complexity, clippy::too_many_arguments, clippy::large_enum_variant, dead_code)]
 
 #[path = "common/mod.rs"]
 mod pty;

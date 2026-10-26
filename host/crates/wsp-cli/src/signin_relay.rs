@@ -10,6 +10,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use async_trait::async_trait;
 use base64::Engine;
 use futures::future::BoxFuture;
+use futures::stream::{FuturesUnordered, StreamExt};
+use futures::FutureExt;
 use indexmap::IndexMap;
 use regex::Regex;
 use serde_json::{json, Map, Value};
@@ -22,7 +24,7 @@ use wsp_words::exit::HostError;
 use wsp_words::js::{js_trim, utf16};
 use wsp_words::words::base::last_line;
 
-use crate::hosts::Env;
+use crate::hosts::process_env;
 use crate::init_layout::{strip_vt, style_text, styles_on};
 
 pub use crate::verbs::client::Frame;
@@ -794,8 +796,7 @@ fn epoch_ms() -> f64 {
 }
 
 fn paint_on() -> bool {
-    let env: Env = std::env::vars().collect();
-    styles_on(&env, std::io::stdout().is_terminal())
+    styles_on(&process_env(), std::io::stdout().is_terminal())
 }
 
 fn dim(s: &str) -> String {
@@ -953,30 +954,40 @@ async fn relay_session(
         raw.set_raw_mode(true);
         *raw_set = true;
     }
-    if let Some(cmd) = command {
-        let s = stage(ctx.link.as_ref(), cmd).await?;
-        let line = shell_line(&s);
-        *staged = Some(s);
-        ctx.link.op("pty.write", frame_of(json!({"ptyId": ctx.pty_id, "data": line}))).await?;
-    }
+    let mut staging: Option<BoxFuture<'_, Result<Staged, HostError>>> = command.map(|cmd| stage(ctx.link.as_ref(), cmd).boxed());
+    let mut line_write: Option<BoxFuture<'_, Result<Frame, HostError>>> = None;
+    let mut writes: FuturesUnordered<BoxFuture<'_, ()>> = FuturesUnordered::new();
     let (mut input_open, mut resize_open) = (true, true);
     loop {
+        let setting_up = staging.is_some() || line_write.is_some();
         tokio::select! {
-            _ = &mut *done_rx => break,
+            _ = &mut *done_rx, if !setting_up => break,
+            made = async { staging.as_mut().expect("guarded").await }, if staging.is_some() => {
+                staging = None;
+                let made = made?;
+                let line = shell_line(&made);
+                *staged = Some(made);
+                line_write = Some(ctx.link.op("pty.write", frame_of(json!({"ptyId": ctx.pty_id, "data": line}))));
+            }
+            written = async { line_write.as_mut().expect("guarded").await }, if line_write.is_some() => {
+                line_write = None;
+                written?;
+            }
             chunk = next_or_pending(&mut terminal.input, input_open) => match chunk {
-                Some(text) => on_key(ctx, text, opens).await,
+                Some(text) => on_key(ctx, text, opens, &writes),
                 None => input_open = false,
             },
             size = next_or_pending(&mut terminal.resized, resize_open) => match size {
-                Some(()) => on_resize(ctx).await,
+                Some(()) => on_resize(ctx, &writes),
                 None => resize_open = false,
             },
+            _ = writes.next(), if !writes.is_empty() => {}
         }
     }
     Ok(())
 }
 
-async fn on_key(ctx: &RelayCtx, text: String, opens: &mut Vec<JoinHandle<()>>) {
+fn on_key<'a>(ctx: &'a RelayCtx, text: String, opens: &mut Vec<JoinHandle<()>>, writes: &FuturesUnordered<BoxFuture<'a, ()>>) {
     if text == "o" {
         let now = (ctx.relay.now)();
         let offer = ctx.relay.state.lock().unwrap().offer.clone();
@@ -1003,13 +1014,15 @@ async fn on_key(ctx: &RelayCtx, text: String, opens: &mut Vec<JoinHandle<()>>) {
             offer.typed = true;
         }
     }
-    let _ = ctx.link.op("pty.write", frame_of(json!({"ptyId": ctx.pty_id, "data": text}))).await;
+    let write = ctx.link.op("pty.write", frame_of(json!({"ptyId": ctx.pty_id, "data": text})));
+    writes.push(async move { drop(write.await) }.boxed());
 }
 
-async fn on_resize(ctx: &RelayCtx) {
+fn on_resize<'a>(ctx: &'a RelayCtx, writes: &FuturesUnordered<BoxFuture<'a, ()>>) {
     let cols = ctx.relay.output.columns().map_or(ctx.cols, i64::from);
     let rows = ctx.relay.output.rows().map_or(ctx.rows, i64::from);
-    let _ = ctx.link.op("pty.resize", frame_of(json!({"ptyId": ctx.pty_id, "cols": cols, "rows": rows}))).await;
+    let resize = ctx.link.op("pty.resize", frame_of(json!({"ptyId": ctx.pty_id, "cols": cols, "rows": rows})));
+    writes.push(async move { drop(resize.await) }.boxed());
 }
 
 /// Hands on what the pty printed once the tool started, or everything when there is no command (signin-relay.ts:191).

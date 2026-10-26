@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use wsp_wire::types::attachments::{Attachment, AttachmentRecord, UNTYPED_FILE};
-use wsp_wire::types::check::parse;
+use wsp_wire::types::check::{issues_of, parse};
 use wsp_wire::types::conversations::{ResumeAsk, COPY_ALONE_FIX, COPY_ALONE_LINE, RESUME_WHERE_FIX, RESUME_WHERE_LINE};
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::types::thread_defaults::{AccessChoice, ThreadDefaults};
@@ -273,6 +273,7 @@ fn with_catalog_keys(mut row: Value) -> Value {
             object.insert("source".to_owned(), Value::from("harness"));
         }
         object.entry("version").or_insert(Value::Null);
+        object.entry("label").or_insert_with(|| Value::from(""));
         object.entry("contextWindows").or_insert_with(|| json!([]));
         for key in ["steers", "renames", "images"] {
             object.entry(key).or_insert(Value::Bool(false));
@@ -290,17 +291,27 @@ fn pick_error_of(refusal: PickRefusal) -> PickError {
 /// `ThreadDefaults` in the host's order; each value written agent, model, effort, access whatever order the host wrote.
 pub async fn project_defaults_of(client: &dyn HostClient) -> Result<IndexMap<String, ThreadDefaults>, HostError> {
     let frame = client.request("projects.defaults", Frame::new()).await?;
-    let refused = || HostError::new(other_version("projects.defaults"));
-    let defaults = frame.get("defaults").and_then(Value::as_object).ok_or_else(refused)?;
-    defaults.iter().map(|(project, value)| parse::<ThreadDefaults>(value).map(|d| (project.clone(), d)).map_err(|_| refused())).collect()
+    let Some(defaults) = frame.get("defaults").and_then(Value::as_object) else {
+        return Err(crate::zod_read::zod_read_field::<IndexMap<String, ThreadDefaults>>(frame.get("defaults"))
+            .err()
+            .unwrap_or_else(|| HostError::new(other_version("projects.defaults"))));
+    };
+    defaults
+        .iter()
+        .map(|(project, value)| {
+            parse::<ThreadDefaults>(value).map(|d| (project.clone(), d)).map_err(|_| {
+                let issues: Vec<_> = issues_of::<ThreadDefaults>(value).into_iter().map(|issue| issue.under(project.as_str())).collect();
+                crate::zod_read::zod_refusal(&issues)
+            })
+        })
+        .collect()
 }
 
 /// `preferencesOf(client)` (turns-help.ts:225): `preferences.get`, its `preferences`, read as `Preferences` (a field the
 /// host leaves out takes its default, one it does not know is dropped).
 pub async fn preferences_of(client: &dyn HostClient) -> Result<Preferences, HostError> {
     let frame = client.request("preferences.get", Frame::new()).await?;
-    let value = frame.get("preferences").cloned().unwrap_or(Value::Null);
-    parse::<Preferences>(&value).map_err(|_| HostError::new(other_version("preferences.get")))
+    crate::zod_read::zod_read_field(frame.get("preferences"))
 }
 
 /// `worktreeFor(client, project, branch)` (turns-help.ts:423-425): `worktree.make {project, branch}` read as
@@ -308,7 +319,7 @@ pub async fn preferences_of(client: &dyn HostClient) -> Result<Preferences, Host
 pub async fn worktree_for(client: &dyn HostClient, project: &str, branch: &str) -> Result<WorktreeMade, HostError> {
     let params = pick(vec![("project", Some(json!(project))), ("branch", Some(json!(branch)))]);
     let frame = client.request("worktree.make", params).await?;
-    parse::<WorktreeMade>(&Value::Object(frame)).map_err(|_| HostError::new(other_version("worktree.make")))
+    crate::zod_read::zod_read(&Value::Object(frame))
 }
 
 /// What `openingOf` names the start's target by (turns-help.ts:434, its `at` argument): a workspace by id, a folder

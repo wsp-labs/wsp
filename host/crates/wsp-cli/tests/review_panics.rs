@@ -3,7 +3,7 @@
 // node behaviour it is held to and fails today. Anything that could wait for ever runs on its own thread and is given
 // ten seconds; what ends the process (a stack overflow, a lowered descriptor limit, a latin-1 variable or argument) runs
 // in a child process of this very binary, started with PANICS_CHILD set.
-#![allow(dead_code)]
+#![allow(clippy::result_large_err, clippy::type_complexity, clippy::too_many_arguments, clippy::large_enum_variant, dead_code)]
 
 #[path = "cli_b/common.rs"]
 mod common;
@@ -96,14 +96,20 @@ fn bounded<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> Result<
         .spawn(move || {
             LAST.with(|l| *l.borrow_mut() = None);
             let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
-            let _ = tx.send(r.map_err(|_| LAST.with(|l| l.borrow().clone()).map(|(a, m)| format!("{a}: {m}")).unwrap_or_else(|| "a panic".into())));
+            let _ = tx.send(
+                r.map_err(|_| LAST.with(|l| l.borrow().clone()).map(|(a, m)| format!("{a}: {m}")).unwrap_or_else(|| "a panic".into())),
+            );
         })
         .unwrap();
     rx.recv_timeout(BOUND).unwrap_or_else(|_| Err("no answer in ten seconds".into()))
 }
 
 /// One tool call through the verb table against a scripted host.
-fn call_tool(tool: &'static str, args: Value, replies: Vec<(&'static str, String)>) -> Result<Result<wsp_cli::verbs::client::CallToolResult, wsp_words::exit::HostError>, String> {
+fn call_tool(
+    tool: &'static str,
+    args: Value,
+    replies: Vec<(&'static str, String)>,
+) -> Result<Result<wsp_cli::verbs::client::CallToolResult, wsp_words::exit::HostError>, String> {
     bounded(move || {
         let table = verbs_for(false);
         let entry = table.iter().find(|v| v.name().replace(' ', "_") == tool).expect("a verb for the tool");
@@ -233,7 +239,13 @@ fn child(name: &str, configure: impl FnOnce(&mut std::process::Command)) -> (boo
     loop {
         if let Some(status) = spawned.try_wait().unwrap() {
             let mut text = String::new();
-            for mut pipe in [spawned.stdout.take().map(|p| Box::new(p) as Box<dyn std::io::Read>), spawned.stderr.take().map(|p| Box::new(p) as Box<dyn std::io::Read>)].into_iter().flatten() {
+            for mut pipe in [
+                spawned.stdout.take().map(|p| Box::new(p) as Box<dyn std::io::Read>),
+                spawned.stderr.take().map(|p| Box::new(p) as Box<dyn std::io::Read>),
+            ]
+            .into_iter()
+            .flatten()
+            {
                 let _ = std::io::Read::read_to_string(&mut pipe, &mut text);
             }
             return (status.success(), text);
@@ -361,8 +373,13 @@ fn slate_state_sends_a_value_nested_200_levels_deep_whole() {
 fn slate_write_sends_a_json_document_nested_200_levels_deep_whole() {
     let deep = format!("{}1{}", "[".repeat(200), "]".repeat(200));
     let doc = format!(r#"{{"schema":2,"root":"r","pieces":{{"r":{{"type":"text","x":{deep}}}}}}}"#);
-    let run = slate_line(&["slate", "write", "d.json"], &[("d.json", doc.clone())], r#"{"id":1,"ok":true,"version":1,"text":"slate v1"}"#, "slates.write")
-        .unwrap_or_else(|p| panic!("{p}"));
+    let run = slate_line(
+        &["slate", "write", "d.json"],
+        &[("d.json", doc.clone())],
+        r#"{"id":1,"ok":true,"version":1,"text":"slate v1"}"#,
+        "slates.write",
+    )
+    .unwrap_or_else(|p| panic!("{p}"));
     assert_eq!(run.frames, vec![format!(r#"{{"document":{doc},"id":2,"op":"slates.write"}}"#)]);
 }
 
@@ -375,7 +392,11 @@ fn slate_write_sends_a_json_document_nested_200_levels_deep_whole() {
 #[test]
 fn a_process_table_where_two_agents_are_each_other_s_parent_fails_the_line_without_ending_the_process() {
     let (ok, text) = child("cycle_child", |_| {});
-    assert!(ok, "the line ended the whole process: {}", text.lines().filter(|l| !l.trim().is_empty()).take(3).collect::<Vec<_>>().join(" | "));
+    assert!(
+        ok,
+        "the line ended the whole process: {}",
+        text.lines().filter(|l| !l.trim().is_empty()).take(3).collect::<Vec<_>>().join(" | ")
+    );
 }
 
 #[test]
@@ -467,4 +488,3 @@ fn a_reply_holding_a_number_past_the_double_range_still_answers_its_request() {
     let answered = waited.unwrap_or_else(|_| panic!("the request was never answered: the frame holding 1e999 was dropped"));
     assert!(answered.is_ok(), "{:?}", answered.err());
 }
-

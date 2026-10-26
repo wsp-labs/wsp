@@ -13,6 +13,7 @@ use super::client::*;
 use super::io::as_json;
 use super::turns_help::project_of_folder;
 use super::workspaces_help::projects_listed;
+use crate::zod_read::zod_read;
 
 /// `projectAsked` (conversations.ts:12-16): the project named, else the one whose folder the line was typed in
 /// (`projects.list` read, a failed read taken as no projects), else none.
@@ -35,7 +36,7 @@ async fn listed(client: &dyn HostClient, project: Option<&str>, agent: Option<&s
         params.insert("agent".to_owned(), Value::from(agent));
     }
     let reply = client.request("conversations.list", params).await?;
-    serde_json::from_value(Value::Object(reply)).map_err(|_| HostError::new(other_version("conversations.list")))
+    zod_read::<ConversationsAnswer>(&Value::Object(reply))
 }
 
 /// `mark` (conversations.ts:24): what a row says beside its title.

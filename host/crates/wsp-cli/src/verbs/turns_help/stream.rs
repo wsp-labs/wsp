@@ -10,7 +10,6 @@ use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::oneshot;
 
 use wsp_catalog::catalog::agent_name;
-use wsp_wire::types::check::parse;
 use wsp_wire::types::sub_thread::SubOut;
 use wsp_wire::views::session::{SessionOrigin, ThreadCapWait, ThreadCapWaitWhy, ThreadView, TurnRefusal};
 use wsp_wire::views::session_events::{
@@ -33,11 +32,12 @@ use wsp_words::words::turn::{compacted_line, retry_line, turn_settled_line, Retr
 use super::follow::{event_of, follow_heard, history, start_detached, FollowOn, RawEvent, SharedTurn};
 use super::{Picks, Turn};
 use crate::verbs::client::{
-    flag_set, host_back, opened_thread_said, other_version, pick, stopped_under, thread_id_of, BoxFuture, CliIo, Frame, HostClient,
-    OpenedFn, Out, VerbContext, HOST_RESTARTING_LINE,
+    flag_set, host_back, opened_thread_said, pick, stopped_under, thread_id_of, BoxFuture, CliIo, Frame, HostClient, OpenedFn, Out,
+    VerbContext, HOST_RESTARTING_LINE,
 };
 use crate::verbs::io::TurnOut;
 use crate::verbs::workspaces_help::thread_of;
+use crate::zod_read::zod_read;
 
 /// `turnFailure(turn)` (turns-help.ts:832): nothing when `result.status` is `completed`; else `result.error`
 /// where there is one (an empty string is one), else the turn's `reason`, else `turn <status>` or, with no result,
@@ -311,7 +311,7 @@ pub async fn answer_ask(
         ("reason", reason.map(|reason| json!(reason))),
     ]);
     let reply = client.request("sessions.answer", params).await?;
-    let answered = parse::<SessionAnswerResult>(&Value::Object(reply)).map_err(|_| HostError::new(other_version("sessions.answer")))?;
+    let answered = zod_read::<SessionAnswerResult>(&Value::Object(reply))?;
     match answer_words(answered.outcome) {
         None => Ok(()),
         Some(words) => Err(HostError::new(words)),

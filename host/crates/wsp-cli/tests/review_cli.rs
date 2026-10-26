@@ -37,7 +37,8 @@ fn line(argv: &[&str], replies: Value, text: Run, json: Run) -> Case {
     c
 }
 
-const WAIT_FRAMES: [&str; 3] = [r#"{"id":2,"op":"sessions.list"}"#, r#"{"id":3,"op":"events.subscribe"}"#, r#"{"id":4,"op":"sessions.list"}"#];
+const WAIT_FRAMES: [&str; 3] =
+    [r#"{"id":2,"op":"sessions.list"}"#, r#"{"id":3,"op":"events.subscribe"}"#, r#"{"id":4,"op":"sessions.list"}"#];
 
 /// `threads wait` keeps `seconds * 1000` whole (io.ts:315, turns-help.ts:692) and prints it through `fmtDuration`,
 /// which rounds (units.ts:327): node prints `after 2ms` for `--timeout=0.0015` and `after 100ms` for 0.0995.
@@ -63,7 +64,12 @@ fn activity_end_sends_the_pid_as_the_number_read() {
         let frame = format!(r#"{{"pid":{sent},"startedAt":5,"id":2,"op":"activity.end"}}"#);
         let said = "nothing was signalled: the process listed as 7 is gone";
         let said_json = r#"{"pid":7,"ended":[],"forced":[],"left":[]}"#;
-        let c = line(&["activity", "end", word, "--started", "5"], ended.clone(), run(&[&frame], &[said], &[], 0), run(&[&frame], &[said_json], &[], 0));
+        let c = line(
+            &["activity", "end", word, "--started", "5"],
+            ended.clone(),
+            run(&[&frame], &[said], &[], 0),
+            run(&[&frame], &[said_json], &[], 0),
+        );
         holds(&c);
     }
 }
@@ -80,7 +86,10 @@ fn a_lock_started_by_null_names_wsp_down_as_the_ts_does() {
     let refused = wsp_cli::host_lock::refuse_if_served(lock.to_str().unwrap(), state.to_str().unwrap()).expect_err("a live lock refuses");
     assert_eq!(
         refused.message,
-        format!("another wsp host (pid {pid}) is already serving {} on port 4000. wsp down stops it, or point --state at a different file.", state.display())
+        format!(
+            "another wsp host (pid {pid}) is already serving {} on port 4000. wsp down stops it, or point --state at a different file.",
+            state.display()
+        )
     );
 }
 
@@ -97,7 +106,10 @@ fn a_lock_whose_address_is_not_a_string_still_holds() {
     let refused = wsp_cli::host_lock::refuse_if_served(lock.to_str().unwrap(), state.to_str().unwrap()).err().map(|e| e.message);
     assert_eq!(
         refused,
-        Some(format!("another wsp host (pid {pid}) is already serving {} on port 4000. Stop it first, or point --state at a different file.", state.display()))
+        Some(format!(
+            "another wsp host (pid {pid}) is already serving {} on port 4000. Stop it first, or point --state at a different file.",
+            state.display()
+        ))
     );
     assert!(wsp_cli::host_lock::serving_host(state.to_str().unwrap()).is_some(), "servingHost names the live host");
 }
@@ -205,7 +217,11 @@ mod relay {
         tokio::time::sleep(Duration::from_millis(20)).await;
         t.type_keys("b");
         tokio::time::sleep(Duration::from_millis(100)).await;
-        assert_eq!(*link.sent.lock().unwrap(), ["pty.create", "pty.attach", "pty.write \"a\"", "pty.write \"b\""], "both keystrokes go out at once");
+        assert_eq!(
+            *link.sent.lock().unwrap(),
+            ["pty.create", "pty.attach", "pty.write \"a\"", "pty.write \"b\""],
+            "both keystrokes go out at once"
+        );
         for sink in link.sinks.lock().unwrap().iter() {
             sink(json!({"type": "pty.exit", "ptyId": "p1", "exitCode": 0}).as_object().unwrap());
         }

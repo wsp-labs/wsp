@@ -13,10 +13,11 @@ use tokio::sync::oneshot;
 
 use super::workspaces_help::HostRow;
 use crate::init_layout::colour_depth;
+use crate::zod_read::zod_read;
 use wsp_catalog::catalog::catalog_agents;
 use wsp_catalog::git_hosts::THREAD_AGENTS;
 use wsp_wire::types::attachments::{FILES_MAX, FILE_MAX_WORDS, IMAGE_MAX_WORDS, IMAGE_TYPE_WORDS};
-use wsp_wire::types::check::{js_trim, parse};
+use wsp_wire::types::check::js_trim;
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::types::project_import::ProjectImportRequest;
@@ -74,15 +75,15 @@ pub type ExecSink = Arc<dyn Fn(&ExecEvent) + Send + Sync>;
 /// (`{workspaceId, argv, cwd?}`), then every `exec.output` and `exec.exit` whose `execId` is the reply's, in arrival
 /// order, to `on`; the first exit ends it. A socket gone first fails it with `close_words()`. The held frames stop
 /// on every road out.
-pub async fn exec_on(
+pub async fn exec_on<'a>(
     client: &dyn HostClient,
-    workspace_id: &str,
+    workspace_id: impl Into<Option<&'a str>>,
     argv: &[String],
     cwd: Option<&str>,
     on: ExecSink,
 ) -> Result<ExecRun, HostError> {
     let pushed = PushedFrames::new(client);
-    let run = exec_follow(client, &pushed, workspace_id, argv, cwd, on).await;
+    let run = exec_follow(client, &pushed, workspace_id.into(), argv, cwd, on).await;
     pushed.stop();
     run
 }
@@ -90,13 +91,15 @@ pub async fn exec_on(
 async fn exec_follow(
     client: &dyn HostClient,
     pushed: &PushedFrames,
-    workspace_id: &str,
+    workspace_id: Option<&str>,
     argv: &[String],
     cwd: Option<&str>,
     on: ExecSink,
 ) -> Result<ExecRun, HostError> {
     let mut params = Frame::new();
-    params.insert("workspaceId".to_owned(), json!(workspace_id));
+    if let Some(workspace_id) = workspace_id {
+        params.insert("workspaceId".to_owned(), json!(workspace_id));
+    }
     params.insert("argv".to_owned(), json!(argv));
     if let Some(cwd) = cwd {
         params.insert("cwd".to_owned(), json!(cwd));
@@ -113,16 +116,34 @@ async fn exec_follow(
                 && frame.get("execId").and_then(Value::as_str) == Some(wanted.as_str())
         }),
         Arc::new(move |frame: &Frame| {
-            let Ok(event) = serde_json::from_value::<ExecEvent>(Value::Object(frame.clone())) else { return };
+            let typed = serde_json::from_value::<ExecEvent>(Value::Object(frame.clone()));
             let mut slot = done.lock().unwrap();
             if slot.is_none() {
                 return;
             }
-            on(&event);
-            if let ExecEvent::ExecExit { exec_id, exit_code, error } = event {
-                if let Some(done) = slot.take() {
-                    let _ = done.send(ExecExit { exec_id, exit_code: exit_code.map(|code| code.0 .0 as i64), error });
+            let exit = match typed {
+                Ok(event) => {
+                    on(&event);
+                    match event {
+                        ExecEvent::ExecExit { exec_id, exit_code, error } => {
+                            ExecExit { exec_id, exit_code: exit_code.map(|code| code.0 .0 as i64), error }
+                        }
+                        ExecEvent::ExecOutput { .. } => return,
+                    }
                 }
+                // The TS takes the first exec.exit as it comes, typed read or not.
+                Err(_) if frame.get("type").and_then(Value::as_str) == Some("exec.exit") => ExecExit {
+                    exec_id: exec_id.clone(),
+                    exit_code: frame.get("exitCode").and_then(Value::as_i64),
+                    error: frame.get("error").map(|error| match error {
+                        Value::String(text) => text.clone(),
+                        other => other.to_string(),
+                    }),
+                },
+                Err(_) => return,
+            };
+            if let Some(done) = slot.take() {
+                let _ = done.send(exit);
             }
         }),
     );
@@ -497,13 +518,14 @@ pub struct WaitOut {
 }
 
 /// `ThreadRowOut` (io.ts:269): the thread's row, then these four. The TS spreads the row `foldThreads` built, whose
-/// `waitingOn` and `sub` are the host's own objects, so they print as the host wrote them: `raw_waiting_on` and
-/// `raw_sub` hold those two where the session row carried them.
+/// `waitingOn`, `sub` and `subagents` are the host's own objects, so they print as the host wrote them:
+/// `raw_waiting_on`, `raw_sub` and `raw_subagents` hold those three where the session row carried them.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ThreadRowOut {
     pub thread: ThreadView,
     pub raw_waiting_on: Option<Value>,
     pub raw_sub: Option<Value>,
+    pub raw_subagents: Option<Value>,
     pub project_name: String,
     pub folder: String,
     pub branch: String,
@@ -519,6 +541,7 @@ impl<'de> Deserialize<'de> for ThreadRowOut {
         Ok(ThreadRowOut {
             raw_waiting_on: row.get("waitingOn").cloned(),
             raw_sub: row.get("sub").cloned(),
+            raw_subagents: row.get("subagents").cloned(),
             project_name: text("projectName"),
             folder: text("folder"),
             branch: text("branch"),
@@ -533,7 +556,7 @@ impl Serialize for ThreadRowOut {
         let Value::Object(mut row) = serde_json::to_value(&self.thread).map_err(serde::ser::Error::custom)? else {
             return Err(serde::ser::Error::custom("a thread row writes as an object"));
         };
-        for (key, raw) in [("waitingOn", &self.raw_waiting_on), ("sub", &self.raw_sub)] {
+        for (key, raw) in [("waitingOn", &self.raw_waiting_on), ("sub", &self.raw_sub), ("subagents", &self.raw_subagents)] {
             if let (Some(raw), Some(slot)) = (raw, row.get_mut(key)) {
                 *slot = raw.clone();
             }
@@ -968,7 +991,7 @@ pub async fn host_folders(
 pub async fn init_setup(client: &dyn HostClient) -> Result<InitSetup, HostError> {
     let reply = client.request("init.get", Frame::new()).await?;
     let setup = reply.get("setup").cloned().unwrap_or(Value::Null);
-    parse::<InitSetup>(&setup).map_err(|_| HostError::new(other_version("init.get")))
+    zod_read::<InitSetup>(&setup)
 }
 
 /// `folderLines(listing)` (io.ts:456-461).
