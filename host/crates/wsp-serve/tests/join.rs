@@ -61,3 +61,42 @@ fn ring_is_the_only_tls_crypto_provider() {
     let Some(lock) = lock else { return };
     assert!(!lock.contains("name = \"aws-lc-rs\""), "aws-lc-rs is compiled in beside ring");
 }
+
+struct SlowAccount {
+    finished: Rc<Cell<bool>>,
+}
+
+#[async_trait::async_trait(?Send)]
+impl wsp_serve::serve::AccountDoor for SlowAccount {
+    async fn read(&self) -> Result<wsp_wire::wire::devices::AccountView, wsp_words::exit::HostError> {
+        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        self.finished.set(true);
+        Err(wsp_words::exit::HostError::new("read to its end"))
+    }
+}
+
+#[test]
+fn a_request_runs_to_its_end_after_its_socket_is_gone() {
+    // wsp-account review item 4: the TS cannot drop a promise, so a create whose socket went away still frees its
+    // landing slot and its name; here the op the dropped socket asked for is read to its end.
+    support::block(async {
+        use futures::SinkExt;
+        use tokio_tungstenite::tungstenite::Message;
+        let rt = support::FakeRuntime::new();
+        let finished = Rc::new(Cell::new(false));
+        let opts = wsp_serve::serve::ServeOptions {
+            port: Some(0),
+            account: Some(Rc::new(SlowAccount { finished: finished.clone() })),
+            ..support::opts()
+        };
+        let server = wsp_serve::serve::serve_runtime(rt.clone(), opts).await.expect("the runtime serves");
+        let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{}/ws", server.port())).await.expect("a socket");
+        ws.send(Message::Text(serde_json::json!({ "id": 1, "op": "auth", "token": support::TOKEN }).to_string().into())).await.unwrap();
+        ws.send(Message::Text(serde_json::json!({ "id": 2, "op": "account.get" }).to_string().into())).await.unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        drop(ws);
+        assert!(!finished.get(), "the read was still out when the socket went");
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        assert!(finished.get(), "a request whose socket is gone still runs to its end");
+    })
+}
