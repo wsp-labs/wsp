@@ -14,6 +14,9 @@ const LONE_BASE: u32 = 0x10F800;
 /// Nesting past this refuses as V8's parser does when its stack is gone; a tree kept deeper would abort a clone or a drop.
 const MAX_DEPTH: usize = 1000;
 
+/// The refusal for nesting past `MAX_DEPTH`.
+pub(crate) const TOO_DEEP: &str = "Maximum call stack size exceeded";
+
 /// The lone surrogate unit a char stands for, if it stands for one.
 pub(crate) fn lone_surrogate(c: char) -> Option<u16> {
     let n = c as u32;
@@ -213,7 +216,7 @@ impl Parser<'_> {
     /// The opening bracket at `pos` of a container `depth` deep; it refuses past the cap and `pos` ends past it.
     fn enter(&mut self, depth: usize) -> Result<(), String> {
         if depth >= MAX_DEPTH {
-            return Err("Maximum call stack size exceeded".to_string());
+            return Err(TOO_DEEP.to_string());
         }
         self.pos += 1;
         Ok(())

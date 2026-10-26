@@ -144,6 +144,34 @@ fn parse_tree_deep_objects() {
     in_child("parse_tree_deep_objects", JSON_FITS, parse_tree_body);
 }
 
+fn tree_cap_body(depth: usize) {
+    for build in [arrays, objects] {
+        assert!(parse_tree(&build(depth)).is_some(), "{depth} levels read");
+        assert!(parse_tree(&build(depth + 1)).is_none(), "one level past the cap is not read");
+    }
+}
+
+// The cap of jsonc_tree.rs::parse_tree, on the 1 MiB stack: 1,000 levels read and 1,001 do not (ruling 2).
+#[test]
+fn parse_tree_reads_1000_levels_and_refuses_1001() {
+    in_child("parse_tree_reads_1000_levels_and_refuses_1001", 1000, tree_cap_body);
+}
+
+fn edit_json_cap_body(depth: usize) {
+    let edit = || (vec![PathSeg::Key("mcpServers".into()), PathSeg::Key("x".into())], Some(serde_json::json!(1)));
+    let fits = format!(r#"{{"mcpServers":{}}}"#, objects(depth - 1));
+    assert!(edit_json(&fits, &[edit()]).expect("1,000 levels edit in place").contains("\"x\""));
+    let past = format!(r#"{{"mcpServers":{}}}"#, objects(depth));
+    let err = edit_json(&past, &[edit()]).expect_err("1,001 levels do not");
+    assert!(err.message.starts_with("the file could not be changed in place"), "{}", err.message);
+}
+
+// edit_json answers node's words at its own limit ("could not be changed in place") past the cap (ruling 2).
+#[test]
+fn edit_json_refuses_past_1000_levels_in_place() {
+    in_child("edit_json_refuses_past_1000_levels_in_place", 1000, edit_json_cap_body);
+}
+
 fn stringify_body(depth: usize) {
     let value = parse_json(&objects(depth)).expect("under the cap");
     assert!(js_stringify(&value).len() > depth);

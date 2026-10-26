@@ -45,7 +45,7 @@ pub struct Comment {
 /// The tree of the text, or nothing for text that holds no value.
 pub fn parse_tree(text: &str) -> Option<Node> {
     let mut parser = Parser { text, bytes: text.as_bytes(), pos: 0 };
-    parser.value()
+    parser.tree()
 }
 
 /// The node at the path: a key finds the first property of that name in an object, an index the element of an array;
@@ -133,6 +133,15 @@ fn find_bytes(bytes: &[u8], from: usize, needle: &[u8]) -> Option<usize> {
     bytes.get(from..)?.windows(needle.len()).position(|w| w == needle).map(|k| from + k)
 }
 
+/// Containers nested past this are not read: the cap of the JSON.parse port, so a tree kept this deep clones and drops.
+const MAX_DEPTH: usize = 1000;
+
+enum Frame {
+    Object(usize, Vec<Node>),
+    Array(usize, Vec<Node>),
+    Property(Node),
+}
+
 struct Parser<'a> {
     text: &'a str,
     bytes: &'a [u8],
@@ -156,12 +165,84 @@ impl Parser<'_> {
         self.bytes.get(self.pos).copied()
     }
 
-    fn value(&mut self) -> Option<Node> {
+    /// The value at `pos`, read with a stack of its own: a container is a frame, not a call. Containers nested past
+    /// `MAX_DEPTH` are not read.
+    fn tree(&mut self) -> Option<Node> {
+        let mut stack: Vec<Frame> = Vec::new();
+        let mut open = 0;
+        loop {
+            self.skip_trivia();
+            let offset = self.pos;
+            let mut done = match self.peek()? {
+                open_byte @ (b'{' | b'[') => {
+                    if open >= MAX_DEPTH {
+                        return None;
+                    }
+                    open += 1;
+                    self.pos += 1;
+                    let (close, frame) = match open_byte {
+                        b'{' => (b'}', Frame::Object(offset, Vec::new())),
+                        _ => (b']', Frame::Array(offset, Vec::new())),
+                    };
+                    self.lone_comma(close)?;
+                    stack.push(frame);
+                    match self.head(&mut stack, &mut open)? {
+                        Some(node) => node,
+                        None => continue,
+                    }
+                }
+                _ => self.leaf_value()?,
+            };
+            loop {
+                match stack.pop() {
+                    None => return Some(done),
+                    Some(Frame::Property(key)) => {
+                        let offset = key.offset;
+                        let length = done.offset + done.length - offset;
+                        let property = container(NodeType::Property, offset, length, vec![key, done]);
+                        let Some(Frame::Object(_, children)) = stack.last_mut() else {
+                            return None;
+                        };
+                        children.push(property);
+                        self.skip_trivia();
+                        match self.peek()? {
+                            b',' => self.pos += 1,
+                            b'}' => {
+                                self.pos += 1;
+                                done = self.close(&mut stack, &mut open);
+                                continue;
+                            }
+                            _ => return None,
+                        }
+                    }
+                    Some(Frame::Array(at, mut children)) => {
+                        children.push(done);
+                        stack.push(Frame::Array(at, children));
+                        self.skip_trivia();
+                        match self.peek()? {
+                            b',' => self.pos += 1,
+                            b']' => {
+                                self.pos += 1;
+                                done = self.close(&mut stack, &mut open);
+                                continue;
+                            }
+                            _ => return None,
+                        }
+                    }
+                    Some(Frame::Object(..)) => return None,
+                }
+                match self.head(&mut stack, &mut open)? {
+                    Some(node) => done = node,
+                    None => break,
+                }
+            }
+        }
+    }
+
+    fn leaf_value(&mut self) -> Option<Node> {
         self.skip_trivia();
         let offset = self.pos;
         match self.peek()? {
-            b'{' => self.object(),
-            b'[' => self.array(),
             b'"' => {
                 let end = string_end(self.bytes, offset)?;
                 let text = crate::json_parse::parse_json_string(&self.text[offset..end])?;
@@ -190,54 +271,43 @@ impl Parser<'_> {
         }
     }
 
-    fn object(&mut self) -> Option<Node> {
-        let offset = self.pos;
-        self.pos += 1;
-        let mut children = Vec::new();
-        self.lone_comma(b'}')?;
-        loop {
-            self.skip_trivia();
-            if self.peek()? == b'}' {
-                self.pos += 1;
-                break;
-            }
-            children.push(self.property()?);
-            self.skip_trivia();
-            match self.peek()? {
-                b',' => self.pos += 1,
-                b'}' => {
-                    self.pos += 1;
-                    break;
-                }
-                _ => return None,
-            }
+    /// What the open container on top of `stack` holds next: its close, as the finished node, or the start of its next
+    /// member (an object's property name is read and pushed), as nothing.
+    fn head(&mut self, stack: &mut Vec<Frame>, open: &mut usize) -> Option<Option<Node>> {
+        self.skip_trivia();
+        let (close, object) = match stack.last()? {
+            Frame::Object(..) => (b'}', true),
+            Frame::Array(..) => (b']', false),
+            Frame::Property(_) => return None,
+        };
+        if self.peek()? == close {
+            self.pos += 1;
+            return Some(Some(self.close(stack, open)));
         }
-        Some(container(NodeType::Object, offset, self.pos - offset, children))
+        if object {
+            self.skip_trivia();
+            if self.peek()? != b'"' {
+                return None;
+            }
+            let key = self.leaf_value()?;
+            self.skip_trivia();
+            if self.peek()? != b':' {
+                return None;
+            }
+            self.pos += 1;
+            stack.push(Frame::Property(key));
+        }
+        Some(None)
     }
 
-    fn array(&mut self) -> Option<Node> {
-        let offset = self.pos;
-        self.pos += 1;
-        let mut children = Vec::new();
-        self.lone_comma(b']')?;
-        loop {
-            self.skip_trivia();
-            if self.peek()? == b']' {
-                self.pos += 1;
-                break;
-            }
-            children.push(self.value()?);
-            self.skip_trivia();
-            match self.peek()? {
-                b',' => self.pos += 1,
-                b']' => {
-                    self.pos += 1;
-                    break;
-                }
-                _ => return None,
-            }
+    /// The container on top of `stack`, whose close bracket `pos` has just passed.
+    fn close(&mut self, stack: &mut Vec<Frame>, open: &mut usize) -> Node {
+        *open -= 1;
+        match stack.pop() {
+            Some(Frame::Object(offset, children)) => container(NodeType::Object, offset, self.pos - offset, children),
+            Some(Frame::Array(offset, children)) => container(NodeType::Array, offset, self.pos - offset, children),
+            _ => unreachable!("a container is open"),
         }
-        Some(container(NodeType::Array, offset, self.pos - offset, children))
     }
 
     /// jsonc-parser recovers a container holding a comma and nothing else (`{,}`, which `read_jsonc` takes as `{}`): the
@@ -253,23 +323,6 @@ impl Parser<'_> {
             }
         }
         Some(())
-    }
-
-    fn property(&mut self) -> Option<Node> {
-        self.skip_trivia();
-        if self.peek()? != b'"' {
-            return None;
-        }
-        let key = self.value()?;
-        self.skip_trivia();
-        if self.peek()? != b':' {
-            return None;
-        }
-        self.pos += 1;
-        let value = self.value()?;
-        let offset = key.offset;
-        let length = value.offset + value.length - offset;
-        Some(container(NodeType::Property, offset, length, vec![key, value]))
     }
 }
 
