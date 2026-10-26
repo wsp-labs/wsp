@@ -270,6 +270,47 @@ fn launch_servers_deep_definition() {
     in_child("launch_servers_deep_definition", JSON_FITS - 3, launch_servers_body);
 }
 
+fn formats_at_the_cap_body(depth: usize) {
+    use wsp_catalog::mcp_launch::{claude_launch_servers, LaunchConfigs, TurnFile};
+    // the server's `extra` stands three levels down, so `depth` of it is `depth + 3` in the file
+    let text = claude_file(&arrays(depth - 3));
+    let scope = McpEditScope { keep: vec!["x".into()], ..Default::default() };
+    McpFormat::McpServersJson.edit(&upper, &scope, &text).expect("edits at the cap");
+    let mscope = McpMergeScope { keep: vec!["x".into()], ..Default::default() };
+    McpFormat::McpServersJson.merge(&no_rewrite, &mscope, Some(r#"{"mcpServers":{}}"#), &text).expect("merges at the cap");
+    let referred = McpFormat::McpServersJson.refer(&text, None, &[], &IndexSet::new()).expect("refers at the cap");
+    assert_eq!(referred.servers.len(), 1);
+    assert!(McpFormat::McpServersJson.entry_of(&text, "x", None).is_some());
+    let configs = LaunchConfigs {
+        user: Some(TurnFile { path: "/home/u/.claude.json".into(), text: text.clone() }),
+        projects: None,
+        folder: "/work".into(),
+        key: None,
+    };
+    let values = indexmap::IndexMap::from([("T".to_string(), "secret".to_string())]);
+    assert_eq!(claude_launch_servers(&configs, &values).len(), 1);
+    let past = claude_file(&arrays(depth - 2));
+    assert!(McpFormat::McpServersJson.edit(&upper, &scope, &past).is_err());
+    assert!(McpFormat::McpServersJson.refer(&past, None, &[], &IndexSet::new()).is_err());
+    assert!(claude_launch_servers(
+        &LaunchConfigs {
+            user: Some(TurnFile { path: "/home/u/.claude.json".into(), text: past }),
+            projects: None,
+            folder: "/work".into(),
+            key: None
+        },
+        &values
+    )
+    .is_empty());
+}
+
+// Every walk over a server definition at the cap, on the 1 MiB stack: a file nested 1,000 levels is read and answered, and
+// 1,001 is refused by the parse (ruling 2, ruling 4).
+#[test]
+fn formats_answer_at_1000_levels() {
+    in_child("formats_answer_at_1000_levels", 1000, formats_at_the_cap_body);
+}
+
 // ---- strings that nest by their own text ----
 
 fn places_body(depth: usize) {
@@ -319,11 +360,44 @@ fn still_stands_repeated_scheme_word() {
 
 // ---- TOML ----
 
+const TOML_TOO_DEEP: &str = "Invalid TOML document: document contains excessively nested structures. aborting.";
+
+fn toml_cap_body(depth: usize) {
+    let header = |n: usize| format!("[{}]\nk = 1\n", vec!["a"; n].join("."));
+    let dotted = |n: usize| format!("{} = 1\n", vec!["a"; n].join("."));
+    let arrays = |n: usize| format!("a = {}{}\n", "[".repeat(n), "]".repeat(n));
+    let inline = |n: usize| format!("a = {}1{}\n", "{b=".repeat(n), "}".repeat(n));
+    let dotted_inline = |n: usize| format!("a = {{{} = 1}}\n", vec!["b"; n].join("."));
+    let cases: [(&str, &dyn Fn(usize) -> String); 5] = [
+        ("header", &header),
+        ("dotted key", &dotted),
+        ("arrays", &arrays),
+        ("inline tables", &inline),
+        ("dotted key in an inline table", &dotted_inline),
+    ];
+    for (name, build) in cases {
+        let fits = match name {
+            "dotted key" => depth + 1,
+            "dotted key in an inline table" => depth,
+            _ => depth,
+        };
+        assert!(parse_toml(&build(fits)).is_ok(), "{name}: {fits} levels read");
+        let err = parse_toml(&build(fits + 1)).expect_err(name);
+        assert!(err.starts_with(TOML_TOO_DEEP), "{name}: {err}");
+    }
+}
+
+// The cap of smol_toml.rs, on the 1 MiB stack: 1,000 levels read and 1,001 refuse, for the tables a header or a dotted
+// key nests (smol-toml has no cap on them, ruling 2) and for arrays and inline tables (smol-toml's maxDepth, ruling 3).
+#[test]
+fn toml_reads_1000_levels_and_refuses_1001() {
+    in_child("toml_reads_1000_levels_and_refuses_1001", 1000, toml_cap_body);
+}
+
 fn toml_header_body(depth: usize) {
     let header = vec!["a"; depth].join(".");
     let text = format!("[{header}]\nk = 1\n");
-    let table = parse_toml(&text).expect("smol-toml reads a header this long");
-    assert!(table.contains_key("a"));
+    assert!(parse_toml(&text).expect_err("past the cap, the one read fails").starts_with(TOML_TOO_DEEP));
 }
 
 // Dies at 1751 parts. smol_toml.rs: the table a `[a.a.a...]` header names is nested once per part with no cap (the 256 cap counts arrays
@@ -337,8 +411,7 @@ fn toml_deep_table_header() {
 fn toml_dotted_body(depth: usize) {
     let key = vec!["a"; depth].join(".");
     let text = format!("{key} = 1\n");
-    let table = parse_toml(&text).expect("smol-toml reads a dotted key this long");
-    assert!(table.contains_key("a"));
+    assert!(parse_toml(&text).expect_err("past the cap, the one read fails").starts_with(TOML_TOO_DEEP));
 }
 
 #[test]
@@ -350,7 +423,8 @@ fn codex_trusts_body(depth: usize) {
     let header = vec!["a"; depth].join(".");
     let text = format!("[{header}]\nk = 1\n");
     assert!(!codex_trusts(&text, "/work"));
-    let _ = trust_codex(Some(&text), "/work");
+    let err = trust_codex(Some(&text), "/work").expect_err("an unreadable file is not edited");
+    assert!(err.message.starts_with(TOML_TOO_DEEP), "{}", err.message);
 }
 
 #[test]
@@ -358,11 +432,32 @@ fn codex_trusts_deep_header() {
     in_child("codex_trusts_deep_header", 20_000, codex_trusts_body);
 }
 
+fn refer_codex_cap_body(depth: usize) {
+    let text = |parts: usize| {
+        format!(
+            "[mcp_servers.x]\ncommand = \"c\"\n[mcp_servers.x.env]\nTOKEN = \"secret-value\"\n[mcp_servers.x.{}]\nk = 1\n",
+            vec!["a"; parts].join(".")
+        )
+    };
+    let referred = McpFormat::CodexToml.refer(&text(depth - 2), None, &[], &IndexSet::new()).expect("1,000 levels refer");
+    assert_eq!(referred.servers.len(), 1);
+    assert_eq!(referred.entries.len(), 1);
+    let err = McpFormat::CodexToml.refer(&text(depth - 1), None, &[], &IndexSet::new()).expect_err("1,001 levels do not");
+    assert!(err.message.contains("excessively nested"), "{}", err.message);
+}
+
+// Codex's refer at the cap, on the 1 MiB stack: a table 1,000 levels down is read, converted and written back, and 1,001
+// is refused as an unreadable file (ruling 2).
+#[test]
+fn refer_codex_reads_1000_levels_and_refuses_1001() {
+    in_child("refer_codex_reads_1000_levels_and_refuses_1001", 1000, refer_codex_cap_body);
+}
+
 fn refer_codex_body(depth: usize) {
     let header = vec!["a"; depth].join(".");
     let text = format!("[mcp_servers.x]\ncommand = \"c\"\n[mcp_servers.x.{header}]\nk = 1\n");
-    let referred = McpFormat::CodexToml.refer(&text, None, &[], &IndexSet::new());
-    assert!(referred.is_ok() || referred.is_err());
+    let err = McpFormat::CodexToml.refer(&text, None, &[], &IndexSet::new()).expect_err("an unreadable file is not referred");
+    assert!(err.message.contains("excessively nested"), "{}", err.message);
 }
 
 // Dies at 616 parts. The refer of a Codex config.toml: serde_json::to_value (mcp_toml_refer.rs:300), table.clone() and Drop of the
@@ -371,7 +466,6 @@ fn refer_codex_body(depth: usize) {
 fn refer_codex_deep_table() {
     in_child("refer_codex_deep_table", 20_000, refer_codex_body);
 }
-
 
 // ---- each walk alone, over a value built by a loop (no parse in front, nothing dropped) ----
 
