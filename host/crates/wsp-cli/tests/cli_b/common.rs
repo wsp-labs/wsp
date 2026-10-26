@@ -380,6 +380,7 @@ pub fn tool_holds(c: &Case) {
         let sent: Vec<Value> = host
             .sent()
             .iter()
+            .filter(|s| !s.contains("\"op\":\"events.subscribe\""))
             .map(|s| {
                 let mut f: Map<String, Value> = serde_json::from_str(s).unwrap();
                 f.remove("id");

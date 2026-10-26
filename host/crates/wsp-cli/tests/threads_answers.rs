@@ -122,8 +122,11 @@ async fn one(m: &mut Misses, tool: &str, verb: &Verb, t: &Tool, usage: &Option<S
         _ => (case.line.clone(), case.asked.clone()),
     };
     let host = ScriptedHost::new(Script { replies: case.replies.clone(), pushed: case.pushed.clone(), closes: case.closes.clone() });
-    let env: Vec<(&str, &str)> =
+    let mut env: Vec<(&str, &str)> =
         case.env.iter().filter(|(k, _)| !guest || GUEST_ENV.contains(&k.as_str())).map(|(k, v)| (k.as_str(), v.as_str())).collect();
+    if guest {
+        env.push(("WSP_HOST_TOKEN", "guest-token"));
+    }
     let mut deps = deps_on(host.clone(), &env);
     deps.elsewhere = guest;
 
