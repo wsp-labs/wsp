@@ -4,6 +4,8 @@
 
 use indexmap::IndexSet;
 
+use super::fields::{rec, str};
+use super::rpc::{read_message, thread_unsubscribe_line, RpcMessage};
 use crate::port::ExecStream;
 
 /// TS background.ts:8.
@@ -16,5 +18,19 @@ pub struct Background {
 
 /// A line the server printed between turns, where a command a turn left going may end. TS background.ts:15.
 pub fn ended_between(run: &dyn ExecStream, background: &mut Background, raw: &str) {
-    todo!()
+    let Some(RpcMessage::Notification { method, params, .. }) = read_message(raw) else { return };
+    if method != "item/completed" {
+        return;
+    }
+    let Some(item) = rec(params.get("item")) else { return };
+    if str(item.get("type")) != Some("commandExecution") {
+        return;
+    }
+    let Some(id) = str(item.get("id")) else { return };
+    background.commands.shift_remove(id);
+    if !background.commands.is_empty() {
+        return;
+    }
+    let Some(thread) = background.held.take() else { return };
+    let _ = tokio::task::spawn_local(run.write(thread_unsubscribe_line(&thread)));
 }
