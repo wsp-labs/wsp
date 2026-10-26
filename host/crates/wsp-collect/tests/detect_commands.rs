@@ -142,7 +142,7 @@ mod guard_commands {
             guard("starship"),
             guard("eza"),
             guard("diskbloom"),
-            "# Guarded above: a call to one of these that is not on this machine is silent instead of an error: starship, eza, diskbloom. Tick them in wsp init to install them.".to_string(),
+            "# Guarded above: a call to one of these that is not on this machine is silent instead of an error: starship, eza, diskbloom.".to_string(),
             GUARD_END.to_string(),
             String::new(),
             "eval \"$(starship init zsh)\"".to_string(),
@@ -176,7 +176,7 @@ mod guard_commands {
             guard("diskbloom"),
             "# plugin eza left out: eza is not on the image".to_string(),
             "# plugin gcloud left out: gcloud is not on the image".to_string(),
-            "# Guarded above: a call to one of these that is not on this machine is silent instead of an error: diskbloom. Tick them in wsp init to install them.".to_string(),
+            "# Guarded above: a call to one of these that is not on this machine is silent instead of an error: diskbloom.".to_string(),
             GUARD_END.to_string(),
             String::new(),
             "plugins=(git)".to_string(),
@@ -190,7 +190,7 @@ mod guard_commands {
     #[test]
     fn keeps_the_files_line_endings() {
         let want = format!(
-            "{GUARD_BEGIN}\r\ndiskbloom() {{ if (unset -f diskbloom; command -v diskbloom) >/dev/null 2>&1; then unset -f diskbloom; diskbloom \"$@\"; else return 127; fi; }}\r\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: diskbloom. Tick them in wsp init to install them.\r\n{GUARD_END}\r\n\r\ndiskbloom\r\n"
+            "{GUARD_BEGIN}\r\ndiskbloom() {{ if (unset -f diskbloom; command -v diskbloom) >/dev/null 2>&1; then unset -f diskbloom; diskbloom \"$@\"; else return 127; fi; }}\r\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: diskbloom.\r\n{GUARD_END}\r\n\r\ndiskbloom\r\n"
         );
         assert_eq!(guard_commands("diskbloom\r\n", &names(&["diskbloom"]), &[]), want);
     }

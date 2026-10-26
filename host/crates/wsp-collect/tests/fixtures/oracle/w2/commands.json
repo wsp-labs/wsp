@@ -2910,7 +2910,7 @@
     ],
     []
    ],
-   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\na\nb\n"
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x.\n# <<< wsp guard <<<\n\na\nb\n"
   },
   {
    "name": "empty text",
@@ -2921,7 +2921,7 @@
     ],
     []
    ],
-   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\n"
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x.\n# <<< wsp guard <<<\n\n"
   },
   {
    "name": "plugins only, empty text",
@@ -2952,7 +2952,7 @@
     ],
     []
    ],
-   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\na"
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x.\n# <<< wsp guard <<<\n\na"
   },
   {
    "name": "nothing to say, no newline",
@@ -2973,7 +2973,7 @@
     ],
     []
    ],
-   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x, x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\na\n"
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x, x.\n# <<< wsp guard <<<\n\na\n"
   },
   {
    "name": "a name with a space",
@@ -2984,7 +2984,7 @@
     ],
     []
    ],
-   "out": "# >>> wsp guard: commands this machine does not have >>>\nx y() { if (unset -f x y; command -v x y) >/dev/null 2>&1; then unset -f x y; x y \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x y. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\na\n"
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx y() { if (unset -f x y; command -v x y) >/dev/null 2>&1; then unset -f x y; x y \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x y.\n# <<< wsp guard <<<\n\na\n"
   },
   {
    "name": "names are pasted raw",
@@ -2999,7 +2999,7 @@
     ],
     []
    ],
-   "out": "# >>> wsp guard: commands this machine does not have >>>\na.b() { if (unset -f a.b; command -v a.b) >/dev/null 2>&1; then unset -f a.b; a.b \"$@\"; else return 127; fi; }\nc-d() { if (unset -f c-d; command -v c-d) >/dev/null 2>&1; then unset -f c-d; c-d \"$@\"; else return 127; fi; }\ne+f() { if (unset -f e+f; command -v e+f) >/dev/null 2>&1; then unset -f e+f; e+f \"$@\"; else return 127; fi; }\n$HOME() { if (unset -f $HOME; command -v $HOME) >/dev/null 2>&1; then unset -f $HOME; $HOME \"$@\"; else return 127; fi; }\nx\"y() { if (unset -f x\"y; command -v x\"y) >/dev/null 2>&1; then unset -f x\"y; x\"y \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: a.b, c-d, e+f, $HOME, x\"y. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\na\n"
+   "out": "# >>> wsp guard: commands this machine does not have >>>\na.b() { if (unset -f a.b; command -v a.b) >/dev/null 2>&1; then unset -f a.b; a.b \"$@\"; else return 127; fi; }\nc-d() { if (unset -f c-d; command -v c-d) >/dev/null 2>&1; then unset -f c-d; c-d \"$@\"; else return 127; fi; }\ne+f() { if (unset -f e+f; command -v e+f) >/dev/null 2>&1; then unset -f e+f; e+f \"$@\"; else return 127; fi; }\n$HOME() { if (unset -f $HOME; command -v $HOME) >/dev/null 2>&1; then unset -f $HOME; $HOME \"$@\"; else return 127; fi; }\nx\"y() { if (unset -f x\"y; command -v x\"y) >/dev/null 2>&1; then unset -f x\"y; x\"y \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: a.b, c-d, e+f, $HOME, x\"y.\n# <<< wsp guard <<<\n\na\n"
   },
   {
    "name": "duplicate plugin notes",
@@ -3013,7 +3013,7 @@
      "p"
     ]
    ],
-   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# plugin p left out: p is not on the image\n# plugin p left out: p is not on the image\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\na\n"
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# plugin p left out: p is not on the image\n# plugin p left out: p is not on the image\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x.\n# <<< wsp guard <<<\n\na\n"
   },
   {
    "name": "plugin notes alone, duplicated",
@@ -3038,7 +3038,7 @@
      "p"
     ]
    ],
-   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# plugin p left out: p is not on the image\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\na\n"
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# plugin p left out: p is not on the image\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x.\n# <<< wsp guard <<<\n\na\n"
   },
   {
    "name": "empty block, nothing to say",
@@ -3058,7 +3058,7 @@
     ],
     []
    ],
-   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n"
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x.\n# <<< wsp guard <<<\n"
   },
   {
    "name": "block in the middle, one blank after, nothing to say",
@@ -3078,7 +3078,7 @@
     ],
     []
    ],
-   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\nbefore\nafter\n"
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x.\n# <<< wsp guard <<<\n\nbefore\nafter\n"
   },
   {
    "name": "no blank after the block",
@@ -3116,7 +3116,7 @@
     ],
     []
    ],
-   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\n# >>> wsp guard: commands this machine does not have >>>\nold2\n# <<< wsp guard <<<\n\nafter\n"
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x.\n# <<< wsp guard <<<\n\n# >>> wsp guard: commands this machine does not have >>>\nold2\n# <<< wsp guard <<<\n\nafter\n"
   },
   {
    "name": "end before begin, nothing to say",
@@ -3136,7 +3136,7 @@
     ],
     []
    ],
-   "out": "# >>> wsp guard: commands this machine does not have >>>\nz() { if (unset -f z; command -v z) >/dev/null 2>&1; then unset -f z; z \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: z. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\n# <<< wsp guard <<<\nx\n# >>> wsp guard: commands this machine does not have >>>\ny\n"
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nz() { if (unset -f z; command -v z) >/dev/null 2>&1; then unset -f z; z \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: z.\n# <<< wsp guard <<<\n\n# <<< wsp guard <<<\nx\n# >>> wsp guard: commands this machine does not have >>>\ny\n"
   },
   {
    "name": "no end line, nothing to say",
@@ -3156,7 +3156,7 @@
     ],
     []
    ],
-   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n\n# >>> wsp guard: commands this machine does not have >>>\nold\nno end\n"
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x.\n# <<< wsp guard <<<\n\n# >>> wsp guard: commands this machine does not have >>>\nold\nno end\n"
   },
   {
    "name": "end line is the last, no newline, nothing to say",
@@ -3176,7 +3176,7 @@
     ],
     []
    ],
-   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\n# <<< wsp guard <<<\n"
+   "out": "# >>> wsp guard: commands this machine does not have >>>\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x.\n# <<< wsp guard <<<\n"
   },
   {
    "name": "end line with a trailing space",
@@ -3214,7 +3214,7 @@
     ],
     []
    ],
-   "out": "# >>> wsp guard: commands this machine does not have >>>\r\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\r\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\r\n# <<< wsp guard <<<\r\n\r\nafter\r\n"
+   "out": "# >>> wsp guard: commands this machine does not have >>>\r\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\r\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x.\r\n# <<< wsp guard <<<\r\n\r\nafter\r\n"
   },
   {
    "name": "mixed endings, LF first",
@@ -3225,7 +3225,7 @@
     ],
     []
    ],
-   "out": "# >>> wsp guard: commands this machine does not have >>>\r\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\r\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\r\n# <<< wsp guard <<<\r\n\r\na\r\nb\r\nc\r\n"
+   "out": "# >>> wsp guard: commands this machine does not have >>>\r\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\r\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x.\r\n# <<< wsp guard <<<\r\n\r\na\r\nb\r\nc\r\n"
   },
   {
    "name": "mixed endings, CRLF first",
@@ -3236,7 +3236,7 @@
     ],
     []
    ],
-   "out": "# >>> wsp guard: commands this machine does not have >>>\r\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\r\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x. Tick them in wsp init to install them.\r\n# <<< wsp guard <<<\r\n\r\na\r\nb\r\nc\r\n"
+   "out": "# >>> wsp guard: commands this machine does not have >>>\r\nx() { if (unset -f x; command -v x) >/dev/null 2>&1; then unset -f x; x \"$@\"; else return 127; fi; }\r\n# Guarded above: a call to one of these that is not on this machine is silent instead of an error: x.\r\n# <<< wsp guard <<<\r\n\r\na\r\nb\r\nc\r\n"
   }
  ]
 }
