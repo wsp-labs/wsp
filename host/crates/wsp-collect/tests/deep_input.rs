@@ -81,7 +81,7 @@ fn sign_in_scan_of_a_deep_settings_file() {
 }
 
 fn try_json_body(depth: usize) {
-    assert!(try_json(&nested(depth)).is_some(), "node reads it");
+    assert!(try_json(&nested(depth)).is_none(), "past the cap, the one line is not read");
 }
 
 // Dies at 877. history/reader.rs:81 try_json, which every history reader (claude, codex, hermes, the cache file) reads each line of a
@@ -89,4 +89,16 @@ fn try_json_body(depth: usize) {
 #[test]
 fn history_line_of_a_deep_tool_input() {
     in_child("history_line_of_a_deep_tool_input", 10_000, try_json_body);
+}
+
+fn try_json_cap_body(depth: usize) {
+    assert!(try_json(&nested(depth - 1)).is_some(), "{depth} levels read");
+    assert!(try_json(&nested(depth)).is_none(), "{} levels do not", depth + 1);
+}
+
+// The cap of the catalog's JSON.parse port as the history reader meets it, on the 1 MiB stack: 1,000 levels read and 1,001 do
+// not (ruling 2).
+#[test]
+fn try_json_reads_1000_levels_and_refuses_1001() {
+    in_child("try_json_reads_1000_levels_and_refuses_1001", 1000, try_json_cap_body);
 }
