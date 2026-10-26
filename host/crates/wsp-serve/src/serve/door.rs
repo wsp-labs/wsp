@@ -35,13 +35,13 @@ use wsp_wire::wire::devices::{
 };
 use wsp_wire::wire::runtime::{request_secrets, DEVICE_OPS, RUNTIME_OPS, THREAD_OPS};
 use wsp_words::exit::marked_cut;
+use wsp_words::v8_json::{parse_json, parse_json_lax};
 use wsp_words::wire::runtime::thread_op_refusal;
 use wsp_words::words::computer::{device_held_refusal, is_object_frame, REQUEST_NOT_AN_OBJECT, SCOPED_TOKEN_ROAD_REFUSAL, UNAUTHORIZED};
 use wsp_words::words::thread::{issues_line, redacted, Issue, PathPart};
 
-use super::flat::Flat;
 use super::served::{DynRuntime, Payload};
-use super::socket::{Incoming, Socket};
+use super::socket::{Incoming, Socket, INFINITE_ID};
 use super::{Authed, NowFn, Released, ServeOptions, Signer, INVALID_JSON, NO_AUTH_TOKEN, SCANNED_SECRETS, TICKET_TTL_MS};
 use crate::serve::answer::answer_frame;
 use crate::serve_app_procs::{app_procs_hub_for, AppProcsHub};
@@ -208,13 +208,21 @@ impl Socket {
         if self.handed_over.get() {
             return;
         }
-        let Some(frame) = self.read(&raw).map(Flat::new) else {
+        let Some((frame, infinite_id)) = self.read(&raw) else {
             self.answer(None, failure(Value::Null, INVALID_JSON), None);
             self.close_unauthed();
             return;
         };
+        if infinite_id {
+            INFINITE_ID.scope((), self.decided(frame)).await
+        } else {
+            self.decided(frame).await
+        }
+    }
+
+    async fn decided(self: &Rc<Self>, frame: Value) {
         if !is_object_frame(&frame) {
-            self.answer(Some(&*frame), failure(Value::Null, REQUEST_NOT_AN_OBJECT), None);
+            self.answer(Some(&frame), failure(Value::Null, REQUEST_NOT_AN_OBJECT), None);
             self.close_unauthed();
             return;
         }
@@ -225,27 +233,27 @@ impl Socket {
             if !asked.is_some_and(|op| THREAD_OPS.contains(&op)) {
                 let place = self.served.rt.workspaces().thread_place(&by);
                 let line = thread_op_refusal(asked.unwrap_or("that frame"), &by.thread_id, place.as_deref());
-                self.answer(Some(&*frame), failure(asked_id, &line), None);
+                self.answer(Some(&frame), failure(asked_id, &line), None);
                 return;
             }
         }
         let paired = self.road.borrow().as_paired();
         if paired && !asked.is_some_and(|op| DEVICE_OPS.contains(&op)) {
             let line = device_held_refusal(asked.unwrap_or("that frame"));
-            self.answer(Some(&*frame), failure(asked_id, &line), None);
+            self.answer(Some(&frame), failure(asked_id, &line), None);
             return;
         }
         let msg = match parse_runtime_request(&frame) {
             Ok(msg) => msg,
             Err(error) => {
                 let issue = Issue { path: error.path.iter().map(path_part).collect(), message: error.message.clone() };
-                self.answer(Some(&*frame), failure(asked_id, &error.issue_text()), Some(&issues_line(&[issue])));
+                self.answer(Some(&frame), failure(asked_id, &error.issue_text()), Some(&issues_line(&[issue])));
                 self.close_unauthed();
                 return;
             }
         };
         if self.authed() {
-            return answer_frame(self, frame.take(), msg).await;
+            return answer_frame(self, frame, msg).await;
         }
         self.at_door(&frame, msg).await;
     }
@@ -473,6 +481,8 @@ impl Socket {
 
     /// `auth`: the host's own token, or a device's. A thread's token takes its road and its thread.
     async fn auth(self: &Rc<Self>, frame: &Value, id: &Value, token: &str) {
+        // The TS awaits `whoIs` even for the host's own token, so a frame that comes in the same read finds the door deciding.
+        tokio::task::yield_now().await;
         let Ok(Some(who)) = self.served.who_is(token).await else {
             return self.refuse(frame, id, UNAUTHORIZED);
         };
@@ -509,13 +519,16 @@ impl Socket {
     }
 
     /// Reads one frame off the socket under its seal, then as JSON (D7). Nothing when either fails.
-    fn read(&self, raw: &Incoming) -> Option<Value> {
+    fn read(&self, raw: &Incoming) -> Option<(Value, bool)> {
         let frame = match raw {
             Incoming::Text(text) => Frame::Text(text.as_str()),
             Incoming::Binary(bytes) => Frame::Binary(bytes.as_slice()),
         };
         let text = open_frame(self.seal.borrow_mut().as_mut(), frame).ok()?;
-        super::flat::parse(&text)
+        let value = parse_json(&text).ok()?;
+        let half = |id: Option<&Value>| id.and_then(Value::as_f64).is_some_and(|number| number.abs() == 0.5);
+        let infinite_id = half(value.get("id")) && parse_json_lax(&text).is_some_and(|lax| lax.get("id") == Some(&Value::Null));
+        Some((value, infinite_id))
     }
 
     fn close_unauthed(&self) {
