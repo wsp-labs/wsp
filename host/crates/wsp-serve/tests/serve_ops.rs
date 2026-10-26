@@ -55,6 +55,7 @@ use wsp_words::exit::{refusal, HostError, Kind};
 use wsp_words::place_word::{place_said, PlaceRef};
 use wsp_words::project_path::ssh_alias;
 use wsp_words::views::activity::{processes_left_refusal, LeftVerb};
+use wsp_words::words::computer::device_held_refusal;
 use wsp_words::words::units::provider_folders_refusal;
 use wsp_words::workspace_state::absent_computer;
 
@@ -337,7 +338,7 @@ impl HostSsh for Ssh {
 }
 
 fn setup() -> Value {
-    json!({ "keys": { "box": false, "solari": true }, "keyProvider": "solari", "home": "/Users/me", "agents": [], "pricing": null, "job": null })
+    json!({ "keys": { "box": false, "solari": true }, "keyProvider": "solari", "home": "/Users/me", "pricing": null })
 }
 
 struct Init {
@@ -1221,7 +1222,7 @@ fn cost_history_passes_the_origin() {
     block(async {
         let r = rig(|_| {});
         let (host, sink) = r.host().await;
-        r.rt.script.once::<Result<Vec<wsp_wire::views::workspace_events::WorkspaceCostEvent>, HostError>>("status.history", Ok(vec![]));
+        r.rt.script.once::<Result<Vec<wsp_core::status::CostPoint>, HostError>>("status.history", Ok(vec![]));
         let reply = request(&host, &sink, 1, "cost.history", json!({ "workspaceId": "ws_1", "origin": "here" })).await;
         assert_eq!(reply.to_string(), r#"{"id":1,"ok":true,"points":[]}"#);
         let a = args_of(&r.rt, "status.history", 0);
@@ -1378,15 +1379,15 @@ fn host_folders_wide_only_for_this_computers_own_window() {
         request(&host, &sink, 4, "host.folders", json!({ "origin": "relayed" })).await;
         assert_eq!(asked()[3], json!({ "wide": false }));
 
+        // host.folders is in neither DEVICE_OPS nor THREAD_OPS (protocol runtime.ts), so a paired computer and a thread
+        // are refused at the door by name and the folders door is never asked.
         let (paired, paired_sink) = r.paired().await;
-        request(&paired, &paired_sink, 1, "host.folders", json!({ "origin": "here" })).await;
-        assert_eq!(asked()[4], json!({ "wide": false }), "a paired computer reads paired whatever it sends");
-
+        let held = request(&paired, &paired_sink, 1, "host.folders", json!({ "origin": "here" })).await;
+        assert_eq!(held["error"], json!(device_held_refusal("host.folders")));
         let (thread, thread_sink) = r.thread("ws_1").await;
         let reply = request(&thread, &thread_sink, 1, "host.folders", json!({ "origin": "here" })).await;
-        assert_eq!(reply["ok"], json!(true));
-        assert_eq!(asked()[5], json!({ "wide": false }), "a thread stays inside the home folder and the projects");
-        assert_eq!(asked().len(), 6);
+        assert_eq!(reply["ok"], json!(false));
+        assert_eq!(asked().len(), 4);
         assert!(r.rt.script.calls_to("places.list").is_empty(), "this computer is read through the folders door, never the place door");
     })
 }
@@ -1541,10 +1542,14 @@ fn agents_ops_gates_and_sentences() {
         );
         assert!(r.failed.borrow().is_empty());
 
-        // agents.signInLine: host only.
+        // agents.signInLine: host only. A paired computer is held at the door (places-agents.test.ts:513-520); the
+        // browser wsp init let in is on the own road without the host's token.
         let (paired, paired_sink) = r.paired().await;
+        let (browser, browser_sink) = r.browser().await;
         let line = json!({ "target": t, "agent": "claude" });
-        let by_device = request(&paired, &paired_sink, 1, "agents.signInLine", line.clone()).await;
+        let held = request(&paired, &paired_sink, 1, "agents.signInLine", line.clone()).await;
+        assert_eq!(held.to_string(), json!({ "id": 1, "ok": false, "error": device_held_refusal("agents.signInLine") }).to_string());
+        let by_device = request(&browser, &browser_sink, 1, "agents.signInLine", line.clone()).await;
         assert_eq!(by_device.to_string(), json!({ "id": 1, "ok": false, "error": SIGN_IN_LINE_REFUSAL }).to_string());
         let off_road = request(&ticketed, &ticket_sink, 40, "agents.signInLine", line.clone()).await;
         assert_eq!(off_road, ticket_reply(40));
@@ -1566,7 +1571,9 @@ fn agents_ops_gates_and_sentences() {
         assert_eq!(args_of(rt, "agents.signInLine", 0)["ask"], json!(format!("{ask:?}")), "name rides as server");
 
         // agents.key: host only; the key never comes back.
-        let by_device = request(&paired, &paired_sink, 2, "agents.key", json!({ "agent": "claude", "key": "sk-secret-1" })).await;
+        let held = request(&paired, &paired_sink, 2, "agents.key", json!({ "agent": "claude", "key": "sk-secret-1" })).await;
+        assert_eq!(held.to_string(), json!({ "id": 2, "ok": false, "error": device_held_refusal("agents.key") }).to_string());
+        let by_device = request(&browser, &browser_sink, 2, "agents.key", json!({ "agent": "claude", "key": "sk-secret-1" })).await;
         assert_eq!(by_device.to_string(), json!({ "id": 2, "ok": false, "error": AGENTS_KEY_REFUSAL }).to_string());
         assert!(rt.script.calls_to("agents.key").is_empty());
         rt.script.once::<Result<(), HostError>>("agents.key", Ok(()));
@@ -1575,11 +1582,10 @@ fn agents_ops_gates_and_sentences() {
         let a = args_of(rt, "agents.key", 0);
         assert_eq!((a["agent"].clone(), a["key"].clone(), a["way"].clone()), (json!("claude"), json!("sk-secret-1"), json!("Token")));
 
-        // A paired computer reads agents, stamped with its road.
-        rt.script.once::<Result<wsp_wire::types::agents_report::AgentsReport, HostError>>("agents.read", Err(HostError::new("stop")));
-        request(&paired, &paired_sink, 3, "agents.read", json!({ "target": t })).await;
-        let read = args_of(rt, "agents.read", 0);
-        assert_eq!((read["target"].clone(), read["origin"].clone()), (t, json!("paired")));
+        // agents.read is no paired computer's either: the door refuses it by name.
+        let held = request(&paired, &paired_sink, 3, "agents.read", json!({ "target": t })).await;
+        assert_eq!(held["error"], json!(device_held_refusal("agents.read")));
+        assert!(rt.script.calls_to("agents.read").is_empty());
     })
 }
 
@@ -1610,7 +1616,7 @@ fn agents_setup_env_values_only_from_the_host() {
         assert_eq!((change["placeId"].clone(), change["agent"].clone()), (json!("pl_1"), json!("claude")));
         assert_eq!(change["change"]["on"], json!(true));
         assert_eq!(change["change"]["env"], json!({ "TOKEN": null }));
-        assert_eq!(change["origin"], json!("paired"));
+        assert_eq!(change["origin"], Value::Null, "the browser wsp init let in is no paired computer and sends no word of its own");
 
         rt.script.once::<Result<wsp_wire::types::agents_report::AgentRow, HostError>>("agents.setup", stop());
         let (host, sink) = r.host().await;
@@ -2111,7 +2117,7 @@ fn project_ops_hand_the_bundler_and_lander() {
         let rt = &r.rt;
         let (host, sink) = r.host().await;
 
-        let plan = json!({ "source": "/s", "branch": "main", "uncommitted": 0, "files": [], "remembered": false });
+        let plan = json!({ "source": "/s", "remote": null, "branch": "main", "defaultBranch": null, "unpushed": null, "uncommitted": 0, "memory": null, "files": [], "remembered": false });
         rt.script.once::<Result<wsp_wire::views::workspace::SeedPlan, HostError>>("projects.seedPlan", Ok(from(plan)));
         let seeded = request(&host, &sink, 1, "project.seed.plan", json!({ "source": "/s", "on": "pl_1" })).await;
         assert_eq!(keys(&seeded), vec!["id", "ok", "plan"]);
