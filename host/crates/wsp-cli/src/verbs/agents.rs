@@ -1,19 +1,59 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! `packages/host/src/verbs/agents.ts` at 65f6b89c7: the agents, skills, MCP servers and plugins on a computer or
 //! where a thread runs, and an agent's defaults, setup, sign-in and key. Spec: `spec/agents-skills.md` and
-//! `spec/agents-servers.md`.
+//! `spec/agents-servers.md`. The run and call bodies are in `agents/run.rs` and `agents/call.rs`.
 
-use wsp_words::exit::HostError;
+use serde::{de::DeserializeOwned, Serialize};
+use serde_json::{json, Value};
 
+use wsp_catalog::catalog::agent_name;
+use wsp_wire::types::agents_report::AgentsReport;
+use wsp_wire::types::check::{issues_of, parse};
+use wsp_wire::views::place_more::PlaceView;
+use wsp_words::exit::{usage_refusal, HostError};
+use wsp_words::place_name::{here_name, is_provider_place};
+use wsp_words::projects::runs_in_folder;
+use wsp_words::words::computer::THIS_COMPUTER;
+use wsp_words::workspace_state::workspace_kind;
+
+use super::agents_help::{
+    agents_target, report_facts, ProjectAsked, ProjectValue, ServerCommand, ServerValues, AGENTS_READ_WORDS, SKILL_CHANGE_WORDS,
+};
 use super::client::*;
-use super::agents_help::{AGENTS_READ_WORDS, SKILL_CHANGE_WORDS};
+use super::turns_help::thread_at;
 use super::workspaces_help::HOST_SIDE_VAULT;
+
+mod call;
+mod run;
+
+use self::call::*;
+use self::run::*;
 
 /// `signInWorkspace` (agents.ts:36-43): the workspace a thread's sign-in runs on, refused before anything runs
 /// where its machine is at a cloud provider.
 pub async fn sign_in_workspace(client: &dyn HostClient, agent: &str, thread: &str) -> Result<String, HostError> {
-    let _ = (client, agent, thread);
-    todo!("agents.ts:36-43")
+    let (_, workspace) = thread_at(client, thread, "wsp agents signin", true).await?;
+    let places = places_of(client).await?;
+    // A machine whose record names no computer is at this host's own provider; one that names a provider is at that one.
+    let place = workspace.place.as_ref().and_then(|id| places.iter().find(|p| &p.id == id));
+    if !runs_in_folder(&workspace_kind(workspace.kind.as_ref())) && (workspace.place.is_none() || place.is_some_and(is_provider_place)) {
+        let here = match here_name(&places) {
+            named if named.is_empty() => THIS_COMPUTER.to_owned(),
+            named => named,
+        };
+        return Err(usage_refusal(&brokered_sign_in_refusal(&agent_name(agent)), &brokered_sign_in_fix(&here)));
+    }
+    Ok(workspace.id)
+}
+
+/// `brokeredSignInRefusal` (agents-signin.ts:346).
+fn brokered_sign_in_refusal(agent: &str) -> String {
+    format!("{agent} does not sign in on a cloud machine.")
+}
+
+/// `brokeredSignInFix` (agents-signin.ts:347).
+fn brokered_sign_in_fix(here: &str) -> String {
+    format!("Sign in on {here} instead: cloud threads use it through wsp.")
 }
 
 /// The entries of `verbs/agents.ts`, in the TS table's order (its order is `tools/list`'s).
@@ -342,7 +382,7 @@ pub fn agent_verbs() -> Vec<Verb> {
                 ToolInput { name: "order", kind: InputKind::StringList { min: None }, optional: true, describe: Some("the models its picker lists first, in this order, by slug; the rest follow in the agent's own order".to_string()) },
                 ToolInput { name: "add_model", kind: InputKind::StringList { min: None }, optional: true, describe: Some("model ids the binary does not list that a start may name and the picker shows".to_string()) },
                 ToolInput { name: "drop_model", kind: InputKind::StringList { min: None }, optional: true, describe: Some("model ids added before, taken back off".to_string()) },
-                ToolInput { name: "reset", kind: InputKind::StringList { min: None }, optional: true, describe: Some("fields to put back on the agent's own: model, effort, access, models".to_string()) },
+                ToolInput { name: "reset", kind: InputKind::Json, optional: true, describe: Some("fields to put back on the agent's own: model, effort, access, models".to_string()) },
             ],
             output: vec!["agent", "defaults"],
             stream: vec![],
@@ -372,7 +412,7 @@ pub fn agent_verbs() -> Vec<Verb> {
                 ToolInput { name: "config", kind: InputKind::String, optional: true, describe: Some("the folder on that computer the agent keeps its config, sessions and sign-in in, absolute".to_string()) },
                 ToolInput { name: "args", kind: InputKind::StringList { min: None }, optional: true, describe: Some("words added to every turn's launch there, each passed as one word; they replace any set before".to_string()) },
                 ToolInput { name: "unset_env", kind: InputKind::StringList { min: None }, optional: true, describe: Some("variables to take off its launch there, by name".to_string()) },
-                ToolInput { name: "reset", kind: InputKind::StringList { min: None }, optional: true, describe: Some("fields to put back on the agent's own: program, config, args".to_string()) },
+                ToolInput { name: "reset", kind: InputKind::Json, optional: true, describe: Some("fields to put back on the agent's own: program, config, args".to_string()) },
             ],
             output: vec!["agent"],
             stream: vec![],
@@ -622,362 +662,117 @@ pub fn agent_verbs() -> Vec<Verb> {
     ]
 }
 
-/// The `agents` tool's call (`verbs/agents.ts:62-65`).
-fn call_agents(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:62-65")
-    })
+async fn places_of(client: &dyn HostClient) -> Result<Vec<PlaceView>, HostError> {
+    let reply = client.request("places.list", Frame::new()).await?;
+    field(&reply, "places.list", "places")
 }
 
-/// `wsp agents` (`verbs/agents.ts:52-57`).
-fn run_agents(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:52-57")
-    })
+fn json_of<T: Serialize>(value: &T) -> Value {
+    serde_json::to_value(value).expect("a view writes as JSON")
 }
 
-/// The `skills` tool's call (`verbs/agents.ts:84-87`).
-fn call_skills(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:84-87")
-    })
+/// A reply's field read into the type a verb takes, or the other-version refusal.
+fn field<T: DeserializeOwned>(reply: &Frame, op: &str, key: &str) -> Result<T, HostError> {
+    reply.get(key).cloned().and_then(|value| serde_json::from_value(value).ok()).ok_or_else(|| HostError::new(other_version(op)))
 }
 
-/// `wsp skills` (`verbs/agents.ts:74-79`).
-fn run_skills(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:74-79")
-    })
+fn arg_str<'a>(args: &'a Frame, key: &str) -> Option<&'a str> {
+    args.get(key).and_then(Value::as_str)
 }
 
-/// The `skills_search` tool's call (`verbs/agents.ts:109-112`).
-fn call_skills_search(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:109-112")
-    })
+fn arg_list(args: &Frame, key: &str) -> Option<Vec<String>> {
+    args.get(key).and_then(Value::as_array).map(|items| items.iter().filter_map(Value::as_str).map(str::to_owned).collect())
 }
 
-/// `wsp skills search` (`verbs/agents.ts:96-104`).
-fn run_skills_search(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:96-104")
-    })
+fn arg_bool(args: &Frame, key: &str) -> Option<bool> {
+    args.get(key).and_then(Value::as_bool)
 }
 
-/// The `skills_show` tool's call (`verbs/agents.ts:132-135`).
-fn call_skills_show(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:132-135")
-    })
+/// A tool's `project` input: `true`, or a project's name.
+fn arg_project(args: &Frame, key: &str) -> Option<ProjectValue> {
+    match args.get(key)? {
+        Value::Bool(asked) => Some(ProjectValue::Flag(*asked)),
+        Value::String(name) => Some(ProjectValue::Name(name.clone())),
+        _ => None,
+    }
 }
 
-/// `wsp skills show` (`verbs/agents.ts:121-127`).
-fn run_skills_show(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:121-127")
-    })
+/// A line's `--project`: the bare flag is the empty name, which `project_asked` reads as asked alone.
+fn flag_project(flags: &Flags, name: &str) -> Option<ProjectValue> {
+    flag(flags, name).map(|value| ProjectValue::Name(value.to_owned()))
 }
 
-/// The `skills_add` tool's call (`verbs/agents.ts:163-166`).
-fn call_skills_add(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:163-166")
-    })
+/// `{...reportFacts(r), <key>: list}`: the facts first, the one list after them.
+fn facts_and(report: &AgentsReport, key: &str, list: Value) -> Value {
+    let mut value = json_of(&report_facts(report));
+    if let Value::Object(fields) = &mut value {
+        fields.insert(key.to_owned(), list);
+    }
+    value
 }
 
-/// `wsp skills add` (`verbs/agents.ts:144-151`).
-fn run_skills_add(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:144-151")
-    })
+/// The body of a `servers.add` (agents.ts:514, 537): agent, name, the command's words, url, the values, then project.
+fn add_body(agent: &str, name: &str, command: ServerCommand, url: Option<&str>, values: ServerValues, project: &ProjectAsked) -> Frame {
+    let mut body = Frame::new();
+    body.insert("agent".to_owned(), json!(agent));
+    body.insert("name".to_owned(), json!(name));
+    if let Value::Object(fields) = json_of(&command) {
+        body.extend(fields);
+    }
+    if let Some(url) = url {
+        body.insert("url".to_owned(), json!(url));
+    }
+    if let Value::Object(fields) = json_of(&values) {
+        body.extend(fields);
+    }
+    if project.project {
+        body.insert("project".to_owned(), json!(true));
+    }
+    body
 }
 
-/// The `skills_remove` tool's call (`verbs/agents.ts:188-191`).
-fn call_skills_remove(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:188-191")
-    })
+/// The body with the scope's keys added after the ones it has.
+fn with_scope(mut body: Frame, scope: &impl Serialize) -> Frame {
+    if let Value::Object(fields) = json_of(scope) {
+        body.extend(fields);
+    }
+    body
 }
 
-/// `wsp skills remove` (`verbs/agents.ts:175-183`).
-fn run_skills_remove(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:175-183")
-    })
+/// The body of a server's write that names one server: agent, then name.
+fn server_body(agent: &str, name: &str) -> Frame {
+    let mut body = Frame::new();
+    body.insert("agent".to_owned(), json!(agent));
+    body.insert("name".to_owned(), json!(name));
+    body
 }
 
-/// The `skills_disable` tool's call (`verbs/agents.ts:212-215`).
-fn call_skills_disable(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:212-215")
-    })
+/// `agentsReport` (agents-help.ts:113-116); a report this build cannot read is the host's refusal (client.ts:1086).
+async fn agents_read(client: &dyn HostClient, read: ReadAim<'_>, cloud_on: bool) -> Result<AgentsReport, HostError> {
+    let target = agents_target(client, read.thread, read.on, read.usage, read.line, None, cloud_on).await?;
+    let mut params = Frame::new();
+    params.insert("target".to_owned(), json!(target));
+    let reply = client.request("agents.read", params).await?;
+    let report = reply.get("report").cloned().unwrap_or(Value::Null);
+    match parse::<AgentsReport>(&report) {
+        Ok(report) => Ok(report),
+        Err(_) => {
+            let issues: Vec<Value> = issues_of::<AgentsReport>(&report)
+                .iter()
+                .map(|issue| json!({ "code": issue.code, "path": issue.path, "message": issue.message }))
+                .collect();
+            let text = serde_json::to_string(&issues).expect("issues write as JSON");
+            Err(host_schema_refusal(&HostError::new(text), read.schema_usage)
+                .unwrap_or_else(|| HostError::new(other_version("agents.read"))))
+        }
+    }
 }
 
-/// `wsp skills disable` (`verbs/agents.ts:201-207`).
-fn run_skills_disable(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:201-207")
-    })
-}
-
-/// The `skills_enable` tool's call (`verbs/agents.ts:212-215`).
-fn call_skills_enable(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:212-215")
-    })
-}
-
-/// `wsp skills enable` (`verbs/agents.ts:201-207`).
-fn run_skills_enable(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:201-207")
-    })
-}
-
-/// The `servers` tool's call (`verbs/agents.ts:235-238`).
-fn call_servers(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:235-238")
-    })
-}
-
-/// `wsp servers` (`verbs/agents.ts:225-230`).
-fn run_servers(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:225-230")
-    })
-}
-
-/// `wsp agents signin` (`verbs/agents.ts:248-257`).
-fn run_agents_signin(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:248-257")
-    })
-}
-
-/// `wsp agents key` (`verbs/agents.ts:267-283`).
-fn run_agents_key(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:267-283")
-    })
-}
-
-/// The `agents_addtools` tool's call (`verbs/agents.ts:302-305`).
-fn call_agents_addtools(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:302-305")
-    })
-}
-
-/// `wsp agents addtools` (`verbs/agents.ts:291-297`).
-fn run_agents_addtools(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:291-297")
-    })
-}
-
-/// The `agents_default` tool's call (`verbs/agents.ts:325-325`).
-fn call_agents_default(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:325-325")
-    })
-}
-
-/// `wsp agents default` (`verbs/agents.ts:314-320`).
-fn run_agents_default(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:314-320")
-    })
-}
-
-/// The `agents_set` tool's call (`verbs/agents.ts:367-380`).
-fn call_agents_set(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:367-380")
-    })
-}
-
-/// `wsp agents set` (`verbs/agents.ts:334-351`).
-fn run_agents_set(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:334-351")
-    })
-}
-
-/// The `agents_setup` tool's call (`verbs/agents.ts:433-442`).
-fn call_agents_setup(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:433-442")
-    })
-}
-
-/// `wsp agents setup` (`verbs/agents.ts:389-419`).
-fn run_agents_setup(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:389-419")
-    })
-}
-
-/// `wsp servers signin` (`verbs/agents.ts:452-463`).
-fn run_servers_signin(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:452-463")
-    })
-}
-
-/// The `servers_tools` tool's call (`verbs/agents.ts:492-496`).
-fn call_servers_tools(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:492-496")
-    })
-}
-
-/// `wsp servers tools` (`verbs/agents.ts:471-480`).
-fn run_servers_tools(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:471-480")
-    })
-}
-
-/// The `servers_add` tool's call (`verbs/agents.ts:533-540`).
-fn call_servers_add(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:533-540")
-    })
-}
-
-/// `wsp servers add` (`verbs/agents.ts:505-518`).
-fn run_servers_add(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:505-518")
-    })
-}
-
-/// The `servers_remove` tool's call (`verbs/agents.ts:565-570`).
-fn call_servers_remove(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:565-570")
-    })
-}
-
-/// `wsp servers remove` (`verbs/agents.ts:549-560`).
-fn run_servers_remove(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:549-560")
-    })
-}
-
-/// The `servers_disable` tool's call (`verbs/agents.ts:595-600`).
-fn call_servers_disable(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:595-600")
-    })
-}
-
-/// `wsp servers disable` (`verbs/agents.ts:580-590`).
-fn run_servers_disable(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:580-590")
-    })
-}
-
-/// The `servers_enable` tool's call (`verbs/agents.ts:595-600`).
-fn call_servers_enable(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:595-600")
-    })
-}
-
-/// `wsp servers enable` (`verbs/agents.ts:580-590`).
-fn run_servers_enable(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:580-590")
-    })
-}
-
-/// The `plugins` tool's call (`verbs/agents.ts:620-623`).
-fn call_plugins(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:620-623")
-    })
-}
-
-/// `wsp plugins` (`verbs/agents.ts:610-615`).
-fn run_plugins(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:610-615")
-    })
-}
-
-/// The `plugins_disable` tool's call (`verbs/agents.ts:646-649`).
-fn call_plugins_disable(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:646-649")
-    })
-}
-
-/// `wsp plugins disable` (`verbs/agents.ts:633-641`).
-fn run_plugins_disable(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:633-641")
-    })
-}
-
-/// The `plugins_enable` tool's call (`verbs/agents.ts:646-649`).
-fn call_plugins_enable(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/agents.ts:646-649")
-    })
-}
-
-/// `wsp plugins enable` (`verbs/agents.ts:633-641`).
-fn run_plugins_enable(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/agents.ts:633-641")
-    })
+/// What a report read names: the thread or computer, and the usages its refusals carry.
+struct ReadAim<'a> {
+    thread: Option<&'a str>,
+    on: Option<&'a str>,
+    usage: &'a str,
+    line: &'a str,
+    schema_usage: &'a str,
 }
