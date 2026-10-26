@@ -229,6 +229,12 @@ fn closed_row(ask_id: &str, outcome: &str, option: Option<&str>) -> Value {
     v
 }
 
+/// A close row on the agent's own session id, which `closeAsk` writes where the view has one (turns.ts:255).
+fn on_agent_session(mut row: Value) -> Value {
+    row["sessionId"] = json!("agent-sess");
+    row
+}
+
 fn finish(r: &Rig, res: Value) {
     r.session.finish(result(res));
 }
@@ -538,7 +544,7 @@ fn an_open_ask_marks_the_row_asking_and_counts_the_time_on_the_person() {
         assert_eq!(host.lead_asks.borrow()[THREAD].ask_id, "ask_2");
         assert!(waiting.get());
         assert_eq!(live_of(&turn).waiting_since, num(T0));
-        assert_eq!(host.recorded_of("session.permission.closed"), vec![closed_row("ask_1", "allowed", Some("allow"))], "a closed ask closes once");
+        assert_eq!(host.recorded_of("session.permission.closed"), vec![on_agent_session(closed_row("ask_1", "allowed", Some("allow")))], "a closed ask closes once");
 
         host.clock.advance(15 * MIN);
         assert_eq!(state.waited_so_far(), (20 * MIN) as f64, "the open span counts to now");
@@ -551,7 +557,7 @@ fn an_open_ask_marks_the_row_asking_and_counts_the_time_on_the_person() {
         assert!(host.lead_asks.borrow().get(THREAD).is_none());
         assert!(!waiting.get());
         assert_eq!((live_of(&turn).waited, live_of(&turn).waiting_since), (num(20 * MIN), None));
-        assert_eq!(host.recorded_of("session.permission.closed"), vec![closed_row("ask_1", "allowed", Some("allow")), closed_row("ask_2", "cancelled", None)]);
+        assert_eq!(host.recorded_of("session.permission.closed"), vec![on_agent_session(closed_row("ask_1", "allowed", Some("allow"))), on_agent_session(closed_row("ask_2", "cancelled", None))]);
         assert_eq!(host.hooks.called("persist_sessions").len(), 4, "one write for each open and each close");
         host.clock.advance(10 * MIN);
         assert_eq!(state.waited_so_far(), (20 * MIN) as f64, "a closed span stops counting");

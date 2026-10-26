@@ -139,6 +139,12 @@ impl HarnessAdapter for StubAdapter {
     fn aside(&self, _q: AsideQuestion) -> Option<LocalBoxFuture<'static, Result<AsideAnswer, String>>> {
         self.aside.then(|| futures::future::ready(Err("this test answers through the context".to_string())).boxed_local())
     }
+    fn renames(&self) -> bool {
+        self.renames
+    }
+    fn asides(&self) -> bool {
+        self.aside
+    }
     fn aside_servers(&self) -> bool {
         self.aside_servers
     }
@@ -866,15 +872,10 @@ fn aside_asks_the_latest_session_with_what_it_ran_at() {
     run_local(async {
         let (host, area) = aside_host();
         let asked_for = adapters(&host, with_aside());
-        let vault = {
-            let mut server = IndexMap::new();
-            server.insert("url".to_string(), json!("http://x"));
-            let mut entries = IndexMap::new();
-            entries.insert("srv".to_string(), server);
-            wsp_adapters::port::ServerValues { entries: Some(entries), config: None }
-        };
-        let given = vault.clone();
-        host.hooks.set::<dyn Fn() -> wsp_adapters::port::ServerValues>("LaunchCtx::vault_server_values", Rc::new(move || given.clone()));
+        // The vault's own record, as `opts.vault()` answers it (sessions.ts:1199): the adapter is handed its server values.
+        let record: IndexMap<String, String> = IndexMap::from([("VAULT_URL".to_string(), "http://x".to_string())]);
+        let vault = wsp_adapters::port::ServerValues { entries: None, config: Some(record.clone()) };
+        host.hooks.set::<dyn Fn() -> IndexMap<String, String>>("LaunchCtx::vault", Rc::new(move || record.clone()));
         let vault_seen: Rc<RefCell<Vec<Option<wsp_adapters::port::ServerValues>>>> = Rc::default();
         let log = vault_seen.clone();
         host.hooks.set::<LaunchAdapterFor>(

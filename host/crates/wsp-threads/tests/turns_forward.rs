@@ -611,7 +611,12 @@ fn promptless_rides_the_end_of_a_turn_awaiting_its_prompt() {
     run_local(async {
         let asked: TurnAsked = serde_json::from_value(json!({ "prompt": "go", "awaitsPrompt": true })).unwrap();
         let t = turn(Setup { asked: Some(asked), ..Setup::default() });
-        t.send(json!({ "type": "session.end", "sessionId": "sess-1", "exitCode": 1, "sawResult": false, "failure": "the stream broke" }));
+        // `failure` is never serialized (adapter-port.ts: read in process), so it is set on the event, not in its JSON.
+        let mut ended = adapter_event(json!({ "type": "session.end", "sessionId": "sess-1", "exitCode": 1, "sawResult": false }));
+        if let wsp_adapters::port::AdapterEvent::SessionEnd { failure, .. } = &mut ended {
+            *failure = Some(wsp_adapters::port::ExecFailure { kind: wsp_adapters::port::ExecFailureKind::Other, message: "the stream broke".into() });
+        }
+        (t.forward)(ended);
         assert_eq!(t.host.recorded_of("session.end"), vec![with(base("session.end"), json!({ "exitCode": 1, "sawResult": false, "promptless": true }))]);
         assert!(t.live().failure.is_some(), "the stream's failure is kept on the turn");
         assert_eq!(serde_json::to_value(&t.view().status).unwrap(), json!("running"), "with no reply the status waits for the finish");

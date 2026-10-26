@@ -552,10 +552,10 @@ fn settle_with_processes_meets_them_first() {
         let done = w.area.settle_threads(ids(&[PARSER]), Some(origin.clone()), SettleAsk { finished: None, processes: Some(ProcessesAsk::Stop) }).await;
         assert_eq!(
             answer(&done),
-            json!({
+            norm(&json!({
                 "settled": [{ "threadId": PARSER, "title": "build the parser" }, { "threadId": TESTS, "title": "write its tests" }],
                 "left": [], "ended": [{ "pid": 4200, "ended": [], "forced": [], "left": [] }],
-            }),
+            })),
         );
         assert_eq!(w.meets.seen.borrow().clone(), vec![(ids(&[PARSER, TESTS]), ProcessesAsk::Stop, MeetVerb::Settle, Some(origin))]);
         let order: Vec<String> = w.host.hooks.calls().into_iter().filter(|c| c.starts_with("meet") || c == "mark").collect();

@@ -53,7 +53,7 @@ fn ev(kind: &str, thread_id: Option<&str>, extra: Value) -> SessionEvent {
 }
 
 fn end_ev(thread_id: &str) -> SessionEvent {
-    ev("session.end", Some(thread_id), json!({ "sawResult": true }))
+    ev("session.end", Some(thread_id), json!({ "exitCode": null, "sawResult": true }))
 }
 
 fn facts(id: &str, workspace_id: &str, extra: Value) -> ThreadFacts {
@@ -159,7 +159,7 @@ fn a_named_workspace_no_thread_of_the_tree_stands_on_is_refused() {
 
         let ok = area.list_rows(Some("w1".into()), Some(scoped("t1"))).await.expect("a workspace a thread of the tree stands on");
         assert_eq!(ok.len(), 1);
-        assert_eq!(calls(&host, &["refuse_named"]), vec!["refuse_named".to_string()], "only the workspace nothing stands on is refused");
+        assert_eq!(calls(&host, &["refuse_named"]), vec!["refuse_named(w2)".to_string()], "only the workspace nothing stands on is refused");
     });
 }
 
@@ -287,10 +287,10 @@ fn history_holds_only_threads_the_caller_drives() {
     run_local(async {
         let (host, area) = host();
         let events = vec![
-            ev("session.end", Some("t1"), json!({ "sawResult": true, "turnId": "a" })),
-            ev("session.end", Some("t2"), json!({ "sawResult": true, "turnId": "b" })),
-            ev("session.end", None, json!({ "sawResult": true, "turnId": "c" })),
-            ev("session.end", Some("t3"), json!({ "sawResult": true, "turnId": "d" })),
+            ev("session.end", Some("t1"), json!({ "exitCode": null, "sawResult": true, "turnId": "a" })),
+            ev("session.end", Some("t2"), json!({ "exitCode": null, "sawResult": true, "turnId": "b" })),
+            ev("session.end", None, json!({ "exitCode": null, "sawResult": true, "turnId": "c" })),
+            ev("session.end", Some("t3"), json!({ "exitCode": null, "sawResult": true, "turnId": "d" })),
         ];
         let held = events.clone();
         host.hooks.set::<OpenTranscript>("SessionsCtx::open_transcript", Rc::new(move |_w: &str| {
@@ -391,7 +391,7 @@ fn a_page_reads_two_hundred_events_and_four_hundred_kib() {
         let windows: Rc<RefCell<Vec<(String, String, ReadWindow)>>> = Rc::default();
         let seen = windows.clone();
         let page: HistoryPage = serde_json::from_value(json!({
-            "events": [ev("session.end", Some("t1"), json!({ "sawResult": true, "pos": 5 }))], "pos": 5, "total": 9,
+            "events": [ev("session.end", Some("t1"), json!({ "exitCode": null, "sawResult": true, "pos": 5 }))], "pos": 5, "total": 9,
         }))
         .expect("a page");
         let answer = page.clone();
@@ -422,7 +422,7 @@ fn a_page_reads_two_hundred_events_and_four_hundred_kib() {
 
 fn head_page() -> HistoryPage {
     serde_json::from_value(json!({
-        "events": [ev("session.end", Some("t1"), json!({ "sawResult": true, "pos": 12 }))], "pos": 12, "total": 4, "trimmed": true,
+        "events": [ev("session.end", Some("t1"), json!({ "exitCode": null, "sawResult": true, "pos": 12 }))], "pos": 12, "total": 4, "trimmed": true,
     }))
     .expect("a page")
 }
