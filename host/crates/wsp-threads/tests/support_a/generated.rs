@@ -466,6 +466,12 @@ impl ActivityCtx for FakeHost {
 
 #[async_trait(?Send)]
 impl TurnsCtx for FakeHost {
+    fn session_answers(&self, session: &dyn HarnessSession) -> bool {
+        if let Some(hook) = self.hooks.get::<dyn Fn(&dyn HarnessSession) -> bool>("TurnsCtx::session_answers") {
+            return hook(session);
+        }
+        true
+    }
     fn clock(&self) -> Rc<dyn Clock> {
         if let Some(hook) = self.hooks.get::<dyn Fn() -> Rc<dyn Clock>>("TurnsCtx::clock") {
             return hook();
@@ -1704,6 +1710,18 @@ impl SessionsCtx for FakeHost {
             return hook(entry, harness, server_values).await;
         }
         panic!("FakeHost: SessionsCtx::launch_adapter_for has no answer; set its hook")
+    }
+    fn adapter_reverts(&self, adapter: &dyn HarnessAdapter) -> bool {
+        if let Some(hook) = self.hooks.get::<dyn Fn(&dyn HarnessAdapter) -> bool>("SessionsCtx::adapter_reverts") {
+            return hook(adapter);
+        }
+        false
+    }
+    fn adapter_forks(&self, adapter: &dyn HarnessAdapter) -> bool {
+        if let Some(hook) = self.hooks.get::<dyn Fn(&dyn HarnessAdapter) -> bool>("SessionsCtx::adapter_forks") {
+            return hook(adapter);
+        }
+        false
     }
     async fn write_session(&self, session: &str, entry: &Entry, adapter: Arc<dyn HarnessAdapter>, title: &str) -> Result<SessionRenameWrite, HostError> {
         self.hooks.log("write_session", vec![session.to_string(), title.to_string()]);

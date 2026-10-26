@@ -765,6 +765,10 @@ impl SessionHandle for TurnHandle {
         Some(self.state.session().is_some_and(|session| session.tells_unread() == Some(true)))
     }
     fn answer(&self, ask_id: String, option_id: String, reason: Option<String>) -> Option<Local<'static, SessionAnswerResult>> {
+        let session = self.state.session()?;
+        if !self.state.ctx.session_answers(session.as_ref()) {
+            return None;
+        }
         let state = self.state.clone();
         Some(async move { Ok(state.answer(&ask_id, &option_id, reason.as_deref()).await) }.boxed_local())
     }

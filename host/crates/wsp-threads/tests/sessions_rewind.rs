@@ -206,6 +206,9 @@ impl Rig {
             reverted: Mutex::new(Vec::new()),
             forked: Mutex::new(Vec::new()),
         });
+        let (reverts, forks) = (adapter.revert.is_some(), adapter.fork.is_some());
+        host.hooks.set::<dyn Fn(&dyn HarnessAdapter) -> bool>("SessionsCtx::adapter_reverts", Rc::new(move |_a: &dyn HarnessAdapter| reverts));
+        host.hooks.set::<dyn Fn(&dyn HarnessAdapter) -> bool>("SessionsCtx::adapter_forks", Rc::new(move |_a: &dyn HarnessAdapter| forks));
         let cut: Rc<RefCell<Vec<Option<Vec<String>>>>> = Rc::new(RefCell::new(Vec::new()));
         let slates: Rc<RefCell<Vec<(String, String, Vec<String>)>>> = Rc::new(RefCell::new(Vec::new()));
         let files: Rc<RefCell<Option<Value>>> = Rc::new(RefCell::new(Some(json!(2))));

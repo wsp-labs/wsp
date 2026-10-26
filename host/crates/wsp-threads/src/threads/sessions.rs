@@ -215,6 +215,11 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     // sessions_acts
     fn record_steer(&self, row: &Row, row_id: &str, ask: &SteerAsk, origin: Option<&Caller>, steer_id: &str);
     async fn launch_adapter_for(&self, entry: &Entry, harness: &str, server_values: Option<wsp_adapters::port::ServerValues>) -> Result<BuiltAdapter, HostError>;
+    /// Whether the adapter has a revert road (TS `adapter.revert !== undefined`): the port answers only by a call, which
+    /// starts work on some adapters, so the wiring reads it.
+    fn adapter_reverts(&self, adapter: &dyn HarnessAdapter) -> bool;
+    /// Whether the adapter has a fork road (TS `adapter.forkSession !== undefined`).
+    fn adapter_forks(&self, adapter: &dyn HarnessAdapter) -> bool;
     async fn write_session(&self, session: &str, entry: &Entry, adapter: Arc<dyn HarnessAdapter>, title: &str) -> Result<SessionRenameWrite, HostError>;
     fn brokered(&self, record: &WorkspaceRecord) -> bool;
     async fn server_values_for(&self, entry: &Entry, harness: &str, cwd: &str) -> Result<Option<wsp_adapters::port::ServerValues>, HostError>;
