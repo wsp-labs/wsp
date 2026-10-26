@@ -720,7 +720,7 @@ async fn sub_start(
     client: &dyn HostClient,
     env: &IndexMap<String, String>,
     req: &SubReq,
-    say: &(dyn Fn(&str) + Send + Sync),
+    say: Arc<dyn Fn(&str) + Send + Sync>,
 ) -> Result<SubRun, HostError> {
     checked_start(client, &req.message, req.harness.as_deref(), &req.picks, None, None).await?;
     files_from(&req.files, req.elsewhere)?;

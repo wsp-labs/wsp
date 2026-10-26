@@ -12,7 +12,6 @@ use serde_json::{json, Value};
 use wsp_cli::verbs::client::BoxFuture;
 use wsp_cli::verbs::turns_help as t;
 use wsp_wire::views::session::ThreadView;
-use wsp_wire::views::workspace::ProjectView;
 use wsp_wire::views::workspace_more::WorkspaceOut;
 use wsp_words::exit::HostError;
 
@@ -50,7 +49,7 @@ pub fn run_target(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
 
 pub fn project_of_folder(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
     Box::pin(async move {
-        let projects: Vec<ProjectView> = from(env.arg("projects").expect("projects"));
+        let projects: Vec<Value> = from(env.arg("projects").expect("projects"));
         done(env, Ok::<_, HostError>(t::project_of_folder(&projects, &env.str_arg("folder").unwrap())))
     })
 }
@@ -67,7 +66,7 @@ pub fn sub_for(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
     Box::pin(async move {
         let ask: t::SubAsk = from(env.arg("ask").expect("ask"));
         let say = env.sinks.say();
-        let made = t::sub_for(env.client.as_ref(), &ask, &env.str_arg("task").unwrap(), env.str_arg("title").as_deref(), &say).await;
+        let made = t::sub_for(env.client.as_ref(), &ask, &env.str_arg("task").unwrap(), env.str_arg("title").as_deref(), std::sync::Arc::new(say)).await;
         done(
             env,
             match made {
