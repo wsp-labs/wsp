@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Unit runs_secrets: slate-runs.ts:132-138, 197-208, 499-611 at 65f6b89c7. Spec: spec/runs_secrets.md.
 use std::cell::RefCell;
-use std::path::PathBuf;
-use std::rc::Rc;
-
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 use base64::engine::general_purpose::{STANDARD, URL_SAFE};
 use base64::Engine;
