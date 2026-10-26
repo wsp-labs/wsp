@@ -115,6 +115,8 @@ thread's row as it goes. `sub_killed_why` words an agent the kernel killed for m
 
 - `stand_up`'s `install -d` and `tar` execs carry no timeout (sub-spawn.ts:440, 453): a machine that hangs holds the
   start until the backend's own limit.
+- A sub-thread dropped between `bind` and the fork's return leaves its box standing, as the TS does: `stand_up` fails the
+  start and `drop_machine` is called with no fault box, so it finds no live entry to kill (sub-spawn.ts:476-494, :433).
 
 ## Tests (tests/sub_spawn_machine.rs)
 
