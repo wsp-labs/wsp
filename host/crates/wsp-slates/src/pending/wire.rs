@@ -188,6 +188,29 @@ pub struct SlateReadAnswer {
     pub approvals: IndexMap<String, String>,
 }
 
+impl SlateReadAnswer {
+    /// The answer as the wire carries it, in the TS's key order (slates.ts:1247-1260).
+    pub fn to_json(&self) -> Value {
+        let map = |m: &IndexMap<String, Value>| Value::Object(m.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
+        let mut out = serde_json::Map::new();
+        out.insert("version".into(), self.version.into());
+        out.insert("text".into(), Value::String(self.text.clone()));
+        if let Some(document) = &self.document {
+            out.insert("document".into(), document.clone().unwrap_or(Value::Null));
+        }
+        out.insert("values".into(), map(&self.values));
+        out.insert("state".into(), map(&self.state));
+        out.insert("derived".into(), map(&self.derived));
+        out.insert("runs".into(), map(&self.runs));
+        out.insert("problems".into(), serde_json::to_value(&self.problems).unwrap_or(Value::Null));
+        out.insert("waiting".into(), serde_json::to_value(&self.waiting).unwrap_or(Value::Null));
+        out.insert("comments".into(), Value::Array(self.comments.clone()));
+        let approvals = self.approvals.iter().map(|(k, v)| (k.clone(), Value::String(v.clone())));
+        out.insert("approvals".into(), Value::Object(approvals.collect()));
+        Value::Object(out)
+    }
+}
+
 /// wire.ts:243.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -206,6 +229,22 @@ pub struct SlateEventAnswer {
     pub said: String,
     pub turn_id: Option<String>,
     pub ask: Option<SlateAsk>,
+}
+
+impl SlateEventAnswer {
+    /// The answer as the wire carries it: `outcome`, `said`, then `turnId` and `ask` where there are any.
+    pub fn to_json(&self) -> Value {
+        let mut out = serde_json::Map::new();
+        out.insert("outcome".into(), serde_json::to_value(self.outcome).unwrap_or(Value::Null));
+        out.insert("said".into(), Value::String(self.said.clone()));
+        if let Some(turn_id) = &self.turn_id {
+            out.insert("turnId".into(), Value::String(turn_id.clone()));
+        }
+        if let Some(ask) = &self.ask {
+            out.insert("ask".into(), ask.to_json());
+        }
+        Value::Object(out)
+    }
 }
 
 /// wire.ts:263-268, as JSON.
