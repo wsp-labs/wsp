@@ -1,5 +1,6 @@
 // Review probe: the machine exec road and the pipe pool, driven past what the ported tests cover.
 // Only the tests that fail on 11db4a4e6 are kept. Each is preceded by its finding number, severity and the TS line.
+#![allow(dead_code)]
 mod support;
 
 use std::future::Future;
@@ -9,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use futures::future::LocalBoxFuture;
 use futures::{FutureExt, StreamExt};
 use regex::Regex;
-use wsp_adapters::port::{ExecFailure, ExecOptions as Launch, ExecStream, ExecStreamFactory};
+use wsp_adapters::port::{ExecFailure, ExecOptions as Launch, ExecStreamFactory};
 use wsp_core::machine_exec::{machine_exec_stream, MachineExecOptions};
 use wsp_engine::errors::Result as EngineResult;
 use wsp_engine::machine::ExecResult;
@@ -231,14 +232,16 @@ fn base64_with_the_url_safe_characters_decodes_as_node_decodes_it() {
 fn writes_made_while_others_wait_reach_the_channel_in_the_order_they_were_made() {
     support::run_local(async {
         let (guest, machine) = ScriptGuest::new(vec![]);
-        guest.set_hook(Arc::new(move |cmd: String, _stdin: Option<Vec<u8>>, inner: Inner| -> LocalBoxFuture<'static, EngineResult<ExecResult>> {
-            Box::pin(async move {
-                if cmd.contains("echo WSP_OK") {
-                    support::sleep_ms(120).await;
-                }
-                inner(&cmd)
-            })
-        }));
+        guest.set_hook(Arc::new(
+            move |cmd: String, _stdin: Option<Vec<u8>>, inner: Inner| -> LocalBoxFuture<'static, EngineResult<ExecResult>> {
+                Box::pin(async move {
+                    if cmd.contains("echo WSP_OK") {
+                        support::sleep_ms(120).await;
+                    }
+                    inner(&cmd)
+                })
+            },
+        ));
         let stream = machine_exec_stream(machine, opts(5), None).launch("cat", with_input(&["seed"]));
         support::settle().await;
         let mut done = Vec::new();
@@ -267,20 +270,24 @@ fn a_write_made_before_close_input_goes_in_before_the_close() {
         let (guest, machine) = ScriptGuest::new(vec![]);
         let events = Arc::new(Mutex::new(Vec::<String>::new()));
         let ev = events.clone();
-        guest.set_hook(Arc::new(move |cmd: String, _stdin: Option<Vec<u8>>, inner: Inner| -> LocalBoxFuture<'static, EngineResult<ExecResult>> {
-            let ev = ev.clone();
-            Box::pin(async move {
-                if cmd.contains("echo WSP_OK") {
-                    let b64 = capture(r"printf %s '([A-Za-z0-9+/=]*)' \| base64 -d >> ", &cmd);
-                    let text = String::from_utf8_lossy(&base64::engine::general_purpose::STANDARD.decode(b64).unwrap_or_default()).trim().to_string();
-                    ev.lock().unwrap().push(format!("w:{text}"));
-                    support::sleep_ms(120).await;
-                } else if cmd.contains(".tail") && cmd.contains("kill -TERM \"$P\"") {
-                    ev.lock().unwrap().push("close".to_string());
-                }
-                inner(&cmd)
-            })
-        }));
+        guest.set_hook(Arc::new(
+            move |cmd: String, _stdin: Option<Vec<u8>>, inner: Inner| -> LocalBoxFuture<'static, EngineResult<ExecResult>> {
+                let ev = ev.clone();
+                Box::pin(async move {
+                    if cmd.contains("echo WSP_OK") {
+                        let b64 = capture(r"printf %s '([A-Za-z0-9+/=]*)' \| base64 -d >> ", &cmd);
+                        let text = String::from_utf8_lossy(&base64::engine::general_purpose::STANDARD.decode(b64).unwrap_or_default())
+                            .trim()
+                            .to_string();
+                        ev.lock().unwrap().push(format!("w:{text}"));
+                        support::sleep_ms(120).await;
+                    } else if cmd.contains(".tail") && cmd.contains("kill -TERM \"$P\"") {
+                        ev.lock().unwrap().push("close".to_string());
+                    }
+                    inner(&cmd)
+                })
+            },
+        ));
         let stream = machine_exec_stream(machine, opts(5), None).launch("cat", with_input(&["seed"]));
         support::settle().await;
         let mut done = Vec::new();
@@ -314,8 +321,8 @@ mod pool {
     use tokio_tungstenite::tungstenite::Message;
     use tokio_tungstenite::{accept_async, WebSocketStream};
     use wsp_core::clock::FakeClock;
-    use wsp_core::pipe::{pipe_pool, PipeDuplex, PipeHandler, PipePool, PipePoolOptions, PipeReach, PIPE_BEHIND_AGAIN_MS};
     use wsp_core::pipe::pool::PipeOpen;
+    use wsp_core::pipe::{pipe_pool, PipeDuplex, PipeHandler, PipePool, PipePoolOptions, PipeReach};
     use wsp_wire::wire::daemon_version::PIPE_DAEMON_VERSION;
 
     use crate::support;
@@ -496,7 +503,9 @@ mod pool {
                 Box::pin(async move {
                     if first_message(&mut ws).await {
                         if n == 0 {
-                            let _ = ws.feed(Message::text(serde_json::json!({ "op": "pipe.open", "door": "http", "heldMs": 0 }).to_string())).await;
+                            let _ = ws
+                                .feed(Message::text(serde_json::json!({ "op": "pipe.open", "door": "http", "heldMs": 0 }).to_string()))
+                                .await;
                             let _ = ws.feed(Message::binary(vec![7u8; 20 * 1024 * 1024])).await;
                             let _ = ws.flush().await;
                         } else {
@@ -507,7 +516,13 @@ mod pool {
                 })
             }))
             .await;
-            let l = lab({ let u = srv.url.clone(); Rc::new(move || u.clone()) }, None);
+            let l = lab(
+                {
+                    let u = srv.url.clone();
+                    Rc::new(move || u.clone())
+                },
+                None,
+            );
             l.pool.up("ws-a");
             support::until("the pipe to be handed over", 3_000, || l.handed.borrow().len() == 1).await;
             let mut duplex = l.handed.borrow_mut().remove(0);
@@ -542,7 +557,9 @@ mod pool {
                 Box::pin(async move {
                     if first_message(&mut ws).await {
                         if n == 0 {
-                            let _ = ws.send(Message::text(serde_json::json!({ "op": "pipe.open", "door": "http", "heldMs": 0 }).to_string())).await;
+                            let _ = ws
+                                .send(Message::text(serde_json::json!({ "op": "pipe.open", "door": "http", "heldMs": 0 }).to_string()))
+                                .await;
                             while let Some(Ok(m)) = ws.next().await {
                                 match m {
                                     Message::Binary(b) => g.borrow_mut().push(b.len()),
@@ -558,7 +575,13 @@ mod pool {
                 })
             }))
             .await;
-            let l = lab({ let u = srv.url.clone(); Rc::new(move || u.clone()) }, None);
+            let l = lab(
+                {
+                    let u = srv.url.clone();
+                    Rc::new(move || u.clone())
+                },
+                None,
+            );
             l.pool.up("ws-a");
             support::until("the pipe to be handed over", 3_000, || l.handed.borrow().len() == 1).await;
             let mut duplex = l.handed.borrow_mut().remove(0);
@@ -578,7 +601,8 @@ mod pool {
             let srv = ws_server(Rc::new(|mut ws, _n, closes| {
                 Box::pin(async move {
                     if first_message(&mut ws).await {
-                        let _ = ws.send(Message::text(serde_json::json!({ "id": 0, "ok": false, "error": "unauthorized" }).to_string())).await;
+                        let _ =
+                            ws.send(Message::text(serde_json::json!({ "id": 0, "ok": false, "error": "unauthorized" }).to_string())).await;
                     }
                     drain(ws, closes).await;
                 })
@@ -611,7 +635,12 @@ mod pool {
             clock.advance(1000);
             support::sleep_ms(300).await;
             let last: String = logs.borrow().last().cloned().unwrap_or_default();
-            println!("P11 refusalLog={:?} connsBefore={before} connsAfter1000ms={} rewrites={}", &last[last.len().saturating_sub(40)..], srv.conns.get(), rewrites.get());
+            println!(
+                "P11 refusalLog={:?} connsBefore={before} connsAfter1000ms={} rewrites={}",
+                &last[last.len().saturating_sub(40)..],
+                srv.conns.get(),
+                rewrites.get()
+            );
             assert!(srv.conns.get() > before, "the pool's own behindAgainMs (100 ms, then the 1 s dial pace) is the first wait of the token refusal count; Rust waits the constant 60 s");
             pool.close();
             srv.stop();
@@ -645,7 +674,8 @@ mod pool {
                 support::sleep_ms(300).await;
                 let pool = pipe_pool(PipePoolOptions {
                     reach: Rc::new(move |_id: &str| {
-                        async move { Ok::<_, String>(Some(PipeReach { url: format!("http://127.0.0.1:{port}/"), token: "t".to_string() })) }.boxed_local()
+                        async move { Ok::<_, String>(Some(PipeReach { url: format!("http://127.0.0.1:{port}/"), token: "t".to_string() })) }
+                            .boxed_local()
                     }),
                     version: Rc::new(|_id: &str| async { Ok::<_, String>(Some(PIPE_DAEMON_VERSION)) }.boxed_local()),
                     handler: Rc::new(|| None),
@@ -667,7 +697,13 @@ mod pool {
         }
         let exe = std::env::current_exe().unwrap();
         let mut child = std::process::Command::new(exe)
-            .args(["pool::p12_the_pool_still_dials_when_the_default_log_cannot_write_to_a_broken_stderr", "--exact", "--nocapture", "--test-threads", "1"])
+            .args([
+                "pool::p12_the_pool_still_dials_when_the_default_log_cannot_write_to_a_broken_stderr",
+                "--exact",
+                "--nocapture",
+                "--test-threads",
+                "1",
+            ])
             .env("REVIEW_STDERR_CHILD", "1")
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
