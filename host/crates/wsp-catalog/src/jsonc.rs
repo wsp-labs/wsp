@@ -82,7 +82,7 @@ pub(crate) fn js_string(s: &str) -> String {
     out
 }
 
-fn strip_comments_and_commas(text: &str) -> String {
+pub(crate) fn strip_comments_and_commas(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut out: Vec<&str> = Vec::new();
     let mut from = 0;

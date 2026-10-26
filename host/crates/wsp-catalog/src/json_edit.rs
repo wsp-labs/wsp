@@ -5,7 +5,9 @@
 use serde_json::{Map, Value};
 
 use crate::json_parse::TOO_DEEP;
-use crate::jsonc::{is_js_space, js_string, js_stringify, js_stringify_pretty, json_object, read_jsonc, write_value};
+use crate::jsonc::{
+    is_js_space, js_string, js_stringify, js_stringify_pretty, json_object, read_jsonc, strip_comments_and_commas, write_value,
+};
 use crate::jsonc_tree::{comments_of, find_member, find_node_at_location, parse_tree, Comment, JsonPath, Node, NodeType, PathSeg};
 use wsp_words::exit::HostError;
 use wsp_words::js::js_trim;
@@ -24,7 +26,11 @@ pub const NOT_IN_PLACE: &str = "the file could not be changed in place, which ke
 /// not one, with `LOST_COMMENT`, or with `NOT_IN_PLACE`.
 pub fn edit_json(text: &str, edits: &[JsonEdit]) -> Result<String, HostError> {
     let mut root = match read_jsonc(text) {
-        Err(e) if e.message == TOO_DEEP => return Err(not_in_place()),
+        Err(e) if e.message == TOO_DEEP => {
+            let stripped = strip_comments_and_commas(text);
+            let object = stripped.trim_start_matches([' ', '\t', '\n', '\r']).starts_with('{');
+            return Err(if object { not_in_place() } else { HostError::new("the file is not a JSON object") });
+        }
         read => read?,
     };
     if json_object(&root).is_none() {
