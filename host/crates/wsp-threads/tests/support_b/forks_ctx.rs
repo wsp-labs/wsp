@@ -339,6 +339,9 @@ impl FakeForksCtx {
 }
 
 impl ForksCtx for FakeForksCtx {
+    fn spawn(&self, work: LocalBoxFuture<'static, ()>) {
+        super::spawn_detached(work);
+    }
     fn ready(&self) -> LocalBoxFuture<'static, Result<(), HostError>> {
         self.call("ready".into());
         async { Ok(()) }.boxed_local()

@@ -8,7 +8,8 @@ use std::sync::Arc;
 use futures::future::{FutureExt, LocalBoxFuture, Shared};
 use indexmap::{IndexMap, IndexSet};
 use wsp_adapters::port::{
-    AccessOutcome, AnswerOutcome, ExecFailure, ExecFailureKind, HarnessSession, OnEvent, PermissionAnswer, PermissionAsk, SteerOutcome, TaskStop, TurnImage,
+    AccessOutcome, AnswerOutcome, ExecFailure, ExecFailureKind, HarnessSession, OnEvent, PermissionAnswer, PermissionAsk, SteerOutcome,
+    TaskStop, TurnImage,
 };
 use wsp_core::console;
 use wsp_core::types::internal::{write_lines, CallSeen, EndRow, KeptLaunch, SessionEntry, TurnLive};
@@ -22,6 +23,7 @@ use wsp_wire::wire::events_union::{EventUnion, Sequenced};
 use wsp_wire::wire::helpers::PermissionEffect;
 use wsp_wire::wire::runtime::{SessionAnswerOutcome, SessionAnswerResult, SessionStartOutcome};
 use wsp_words::exit::HostError;
+use wsp_words::js::js_trim;
 use wsp_words::thread_read::lead_ask;
 use wsp_words::words::computer::thread_word;
 use wsp_words::words::tools::{asking_line, denied_line, permission_mode_option_label, picked_options};
@@ -97,11 +99,11 @@ pub struct TurnState {
 }
 
 /// Starts a TS `void` future: its body runs now up to its first wait, the rest on the local set.
-pub(crate) fn detach(mut work: LocalBoxFuture<'static, ()>) {
+pub(crate) fn detach(ctx: &Rc<dyn TurnsCtx>, mut work: LocalBoxFuture<'static, ()>) {
     let waker = futures::task::noop_waker();
     let mut cx = std::task::Context::from_waker(&waker);
     if work.as_mut().poll(&mut cx).is_pending() {
-        tokio::task::spawn_local(work);
+        ctx.spawn(work);
     }
 }
 
@@ -242,6 +244,7 @@ impl TurnState {
         let ctx = self.ctx.clone();
         let workspace_id = self.workspace_id.clone();
         detach(
+            &self.ctx,
             async move {
                 let _ = ctx.persist_sessions(&workspace_id).await;
             }
@@ -302,6 +305,7 @@ impl TurnState {
         let slates = self.ctx.clone();
         let (thread, turn) = (self.thread_id.clone(), self.turn_id.clone());
         detach(
+            &self.ctx,
             async move {
                 if let Err(e) = slates.slates_turn_ended(&thread, &turn).await {
                     console::warn(&format!(
@@ -327,6 +331,7 @@ impl TurnState {
         landing.borrow_mut().insert(self.thread_id.clone(), kept.clone());
         let thread = self.thread_id.clone();
         detach(
+            &self.ctx,
             async move {
                 kept.clone().await;
                 let mut map = landing.borrow_mut();
@@ -352,7 +357,7 @@ impl TurnState {
         let wrote = self.wrote.as_ref().map(|w| w.borrow().iter().cloned().collect::<BTreeSet<String>>());
         let state = self.clone();
         let session_id = session_id.to_string();
-        tokio::task::spawn_local(async move {
+        self.ctx.spawn(Box::pin(async move {
             let from = match snapshot.from {
                 SnapshotFrom::Known(commit) => commit,
                 SnapshotFrom::Taking(commit) => commit.await,
@@ -391,7 +396,7 @@ impl TurnState {
             if read || !state.ctx.closing() {
                 state.persist();
             }
-        });
+        }));
     }
 
     /// turns.ts:181. Rule N8.
@@ -420,7 +425,7 @@ impl TurnState {
         }
         let outcome = TurnResult { text: None, error: None, ..result.clone() };
         let added = match (held, told.said.as_deref(), result.text.as_deref()) {
-            (true, Some(said), Some(text)) if text.starts_with(said) => text[said.len()..].trim().to_string(),
+            (true, Some(said), Some(text)) if text.starts_with(said) => js_trim(&text[said.len()..]).to_string(),
             _ => String::new(),
         };
         if !added.is_empty() {
@@ -554,7 +559,7 @@ impl TurnState {
         };
         let deny = option.effect == PermissionEffect::Deny;
         let outcome = if deny { PermissionOutcome::Denied } else { PermissionOutcome::Allowed };
-        let reason = reason.map(str::trim).filter(|r| !r.is_empty()).filter(|_| deny).map(String::from);
+        let reason = reason.map(js_trim).filter(|r| !r.is_empty()).filter(|_| deny).map(String::from);
         let answer = PermissionAnswer { option_id: option_id.to_string(), outcome, deny_message: denied_line(reason.as_deref()), reason };
         let Some(pending) = session.answer(ask_id.to_string(), answer) else {
             return gone;
@@ -591,7 +596,7 @@ impl TurnState {
         self.ctx.settle_cut(&self.row, reason, by_stop, unreached);
         self.persist();
         if let Some(session) = self.session() {
-            detach(session.interrupt());
+            detach(&self.ctx, session.interrupt());
         }
         self.turn_over();
     }
@@ -629,16 +634,17 @@ impl TurnState {
                     };
                     match self.ctx.hold_kept(&self.thread_id, hold) {
                         None => keeps = true,
-                        Some(back) => detach(back.agent.close(false)),
+                        Some(back) => detach(&self.ctx, back.agent.close(false)),
                     }
                 }
-                _ => detach(agent.close(false)),
+                _ => detach(&self.ctx, agent.close(false)),
             }
         }
         if let Some(device) = self.scope_device_id.clone().filter(|_| !keeps) {
             let ctx = self.ctx.clone();
             let thread = self.thread_id.clone();
             detach(
+                &self.ctx,
                 async move {
                     if let Err(e) = ctx.revoke_device(&device).await {
                         console::warn(&format!("the token of thread {} was not taken away: {}", thread_word(&thread), e.message));
@@ -683,6 +689,7 @@ impl TurnState {
             let ctx = self.ctx.clone();
             let row = self.row.clone();
             detach(
+                &self.ctx,
                 async move {
                     let _ = ctx.refresh_title(&row, true).await;
                 }
@@ -703,6 +710,7 @@ impl TurnState {
     fn read_ends(self: &Rc<Self>) {
         let state = self.clone();
         detach(
+            &self.ctx,
             async move {
                 let read: Result<(), HostError> = async {
                     state.ctx.read_checkout(&state.entry, true).await?;
@@ -734,6 +742,7 @@ impl TurnState {
         if self.ctx.pull_request_state(&root).is_some_and(|state| state != "open") {
             let ctx = self.ctx.clone();
             detach(
+                &self.ctx,
                 async move {
                     let _ = ctx.settle_tree(&root).await;
                 }
@@ -878,6 +887,7 @@ impl TurnsArea {
         let disk_finished = finished.clone();
         let (disk_ctx, disk_entry, disk_ws) = (ctx.clone(), state.entry.clone(), workspace_id.clone());
         detach(
+            &ctx,
             async move {
                 disk_finished.await;
                 disk_ctx.idle_release(&disk_ws);
@@ -981,6 +991,7 @@ impl TurnsArea {
             let (commit, landing) = (commit.clone(), state.clone());
             let (sessions, turn_id) = (sessions.clone(), state.turn_id.clone());
             detach(
+                &ctx,
                 async move {
                     let commit = commit.await;
                     let row = sessions.borrow().get(&row_id).cloned();
@@ -1000,6 +1011,7 @@ impl TurnsArea {
         }
         let settle_state = state.clone();
         detach(
+            &ctx,
             async move {
                 let result = finished.await;
                 settle_state.settled(result.status);

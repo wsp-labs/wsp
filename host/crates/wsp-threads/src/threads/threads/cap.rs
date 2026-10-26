@@ -22,6 +22,7 @@ use wsp_words::exit::HostError;
 use wsp_words::views::session::fold_threads;
 
 use super::ThreadsArea;
+use crate::threads::unit;
 
 /// Where a waiting turn stands: its thread's ids for the uncapped line (`at`), what its row last said, and the two
 /// ends of its wait.
@@ -86,7 +87,7 @@ impl ThreadsArea {
         }
         .boxed_local()
         .shared();
-        tokio::task::spawn_local(link.clone());
+        self.ctx.spawn(unit(link.clone()));
         *self.held_writes.borrow_mut() = Some(link);
     }
 

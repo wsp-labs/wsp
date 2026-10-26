@@ -26,6 +26,7 @@ use wsp_words::project_path::{repo_path_of, worktree_of};
 use wsp_words::projects::runs_in_folder;
 
 use super::{Entry, Row, Sessions, ThreadsArea};
+use crate::threads::unit;
 
 /// A steer whose write is still out: once its turn ended with it unread, the row and whether a stop ended it.
 #[derive(Clone, Default)]
@@ -366,7 +367,7 @@ impl ThreadsArea {
             }
             workspace_id
         };
-        tokio::task::spawn_local(self.ctx.persist_sessions(&workspace_id));
+        self.ctx.spawn(unit(self.ctx.persist_sessions(&workspace_id)));
     }
 
     /// threads.ts:1017: E6.
@@ -421,12 +422,12 @@ impl ThreadsArea {
             )
         };
         if !kept_here {
-            tokio::task::spawn_local(self.keep_on_turn(row_id, o, caller, steer_id));
+            self.ctx.spawn(unit(self.keep_on_turn(row_id, o, caller, steer_id)));
         }
         let records = records_of(&o.attachments);
         if let Some(thread) = &thread_id {
             if !records.is_empty() {
-                tokio::task::spawn_local(self.ctx.keep_sent_images(&workspace_id, thread, o.request_id.clone(), o.attachments.clone()));
+                self.ctx.spawn(unit(self.ctx.keep_sent_images(&workspace_id, thread, o.request_id.clone(), o.attachments.clone())));
             }
         }
         self.ctx.record(SessionEvent::SessionSteerEvent(SessionSteerEvent {

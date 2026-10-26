@@ -37,6 +37,7 @@ use crate::threads::agents::lists::SESSION_TITLE_TIMEOUT_MS;
 use crate::threads::launch::{seed_after_loss, LaunchAsked, LaunchPicks, LostAt, Seed};
 use crate::threads::threads::{CapAt, Entry, Row};
 use crate::threads::turns::{Open, Opening, SnapshotFrom, TurnSnapshot, TurnStart};
+use crate::threads::unit;
 
 /// The flags a send's timers and its bus listener share (TS `quiet`, `slow`, `offStarted`, `outcome`).
 struct Saying {
@@ -307,7 +308,7 @@ fn start_saying(ctx: &Rc<dyn SessionsCtx>, saying: &Rc<Saying>, entry: &Entry, s
     let (ctx_t, saying_t, entry_t) = (ctx.clone(), saying.clone(), entry.clone());
     let cancel = ctx.clock().schedule(
         Box::new(move || {
-            tokio::task::spawn_local(say_starting(ctx_t, saying_t, entry_t, said));
+            ctx_t.clone().spawn(unit(say_starting(ctx_t, saying_t, entry_t, said)));
         }),
         AGENT_STARTING_MS as i64,
     );
@@ -772,7 +773,8 @@ impl SessionsArea {
                 !reply_seen && adapter.steers() && steer_files_blocked(&st.p.records, adapter.steers_images(), &harness).is_none();
             if let (true, Some(handle)) = (steer_road, handle.clone()) {
                 // A handle's steer is lazy: asking it learns whether the road exists before the turn keeps the message.
-                let pending = handle.steer(o.prompt.clone(), Some(steer_id.clone()), inline_images(o.attachments.as_deref().unwrap_or_default()));
+                let pending =
+                    handle.steer(o.prompt.clone(), Some(steer_id.clone()), inline_images(o.attachments.as_deref().unwrap_or_default()));
                 let answer = match pending {
                     Some(steer) => {
                         ctx.keep_steer(&running, &o, origin.as_ref(), &steer_id).await?;
@@ -1035,14 +1037,14 @@ impl SessionsArea {
                 harness: harness.clone(),
                 request_id: o.request_id.clone(),
             };
-            tokio::task::spawn_local(say_starting(ctx.clone(), st.saying.clone(), entry.clone(), said));
+            ctx.spawn(unit(say_starting(ctx.clone(), st.saying.clone(), entry.clone(), said)));
         }
         {
             let (ctx2, ws2, thread2, request_id, attachments) =
                 (ctx.clone(), ws.clone(), thread_id.clone(), o.request_id.clone(), o.attachments.clone().unwrap_or_default());
-            tokio::task::spawn_local(async move {
+            ctx.spawn(Box::pin(async move {
                 let _ = ctx2.keep_sent_images(&ws2, &thread2, request_id.as_deref(), attachments).await;
-            });
+            }));
         }
         if !ctx.records().borrow().contains_key(&thread_id) {
             let views: Vec<SessionView> = ctx.rows_on(&thread_id).into_iter().filter(|v| v.status != SessionStatus::Running).collect();
@@ -1160,16 +1162,16 @@ impl SessionsArea {
             if let Some(ForkedSession::Resume { drop: drop_copy, .. }) = st.readied.take() {
                 let copy = drop_copy();
                 let source = thread_word(&plan.source.thread_id);
-                tokio::task::spawn_local(async move {
+                ctx.spawn(Box::pin(async move {
                     if let Err(why) = copy.await {
                         console::warn(&format!("the copy a fork of thread {source} made was not removed: {why}"));
                     }
-                });
+                }));
             }
             let (ctx2, ws2, thread2) = (ctx.clone(), ws.clone(), thread_id.clone());
-            tokio::task::spawn_local(async move {
+            ctx.spawn(Box::pin(async move {
                 let _ = ctx2.drop_sent_images(&ws2, &[thread2]).await;
-            });
+            }));
         }
         if let Some(kept) = st.kept_taken.take() {
             ctx.end_kept(&thread_id, &kept);

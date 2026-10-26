@@ -2,6 +2,7 @@
 //! Port of `packages/runtime/src/threads/forks.ts` at 65f6b89c7: a fork read off the thread it forks, every refusal
 //! said before anything is written. Free functions over the context, as the TS's are. Spec: `spec/forks.md`.
 use crate::threads::transcripts::kept::base64_of;
+use crate::threads::unit;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -83,6 +84,8 @@ pub trait ForksCtx {
     fn checkout_of(&self, record: &WorkspaceRecord) -> String;
     fn take_setup_line(&self, workspace_id: &str) -> Option<String>;
     fn remove_worktree(&self, entry: &Entry, force: bool) -> LocalBoxFuture<'static, Result<(), HostError>>;
+    /// TS `void promise`: work that outlives its caller. The host runs it on its `LocalSet`, so where it runs is its to say.
+    fn spawn(&self, work: LocalBoxFuture<'static, ()>);
 }
 
 /// forks.ts:27 `ForkPlan.source`.
@@ -541,6 +544,6 @@ pub async fn pay_cut_owed(
     if let Some(record) = ctx.thread_records().borrow_mut().get_mut(thread_id) {
         record.cut_owed = None;
     }
-    drop(tokio::task::spawn_local(ctx.persist_sessions(workspace_id)));
+    ctx.spawn(unit(ctx.persist_sessions(workspace_id)));
     answer
 }
