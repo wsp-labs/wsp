@@ -18,25 +18,14 @@ use super::super::agents_help::{
     add_tools, added_line, agent_defaults_line, agent_defaults_set, agent_row_lines, agent_setup_lines, agent_setup_set, agents_target,
     default_agent_line, default_agent_set, env_name_of, gone_from_line, is_in_line, plugin_changed, plugin_row_lines, plugin_turned_line,
     project_asked, removed_line, search_skills_sh, server_changed, server_command, server_row_lines, server_scope, server_tools_of,
-    server_values, shown_text, signed_in_line, skill_added, skill_changed, skill_hit_lines, skill_row_lines, skill_shown, tool_lines,
-    tools_added_line, tools_project, turned_in_line, turned_line, AgentSetAsk, AgentSetupAsk, PluginChange, ProjectAsked, ServerOp,
-    SignInAsk, SkillChange,
+    server_values, shown_text, sign_in_here, signed_in_line, skill_added, skill_changed, skill_hit_lines, skill_row_lines, skill_shown,
+    tool_lines, tools_added_line, tools_project, turned_in_line, turned_line, AgentSetAsk, AgentSetupAsk, PluginChange, ProjectAsked,
+    ServerOp, SignInAsk, SkillChange,
 };
 use super::super::client::*;
 use super::super::io::confirmed;
 use super::{add_body, agents_read, facts_and, flag_project, json_of, server_body, sign_in_workspace, with_scope, ReadAim};
 use crate::cloud::cloud_on;
-use crate::place_signin::BoxSignedIn;
-
-/// `read.rs`'s `sign_in_here` (agents-help.ts:276-292): not Send (a `&PlaceLink` across an await), and no stdin relay yet.
-async fn sign_in_here_pending(
-    _ctx: &VerbContext,
-    _target: &AgentsTarget,
-    _ask: &SignInAsk,
-    _place: &str,
-) -> Result<BoxSignedIn, HostError> {
-    todo!("agents_help/read.rs sign_in_here: Send bound on PlaceLink, and no stdin/stdout RelayTerminal yet")
-}
 
 /// The one positional and the optional thread after it, or None for any other count.
 fn one_and_thread(args: &[String]) -> Option<(&str, Option<&str>)> {
@@ -250,7 +239,7 @@ pub(super) fn run_agents_signin(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, 
             None => THIS_COMPUTER.to_owned(),
             Some(thread) => format!("thread {thread}"),
         };
-        let answer = sign_in_here_pending(ctx, &target, &SignInAsk { agent: agent.to_owned(), name: None }, &place).await?;
+        let answer = sign_in_here(ctx, &target, &SignInAsk { agent: agent.to_owned(), name: None }, &place).await?;
         ctx.io.log(&signed_in_line(&agent_name(agent), &place, &answer));
         Ok(if answer.signed_in { 0 } else { 1 })
     })
@@ -273,7 +262,7 @@ pub(super) fn run_agents_key(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, Hos
         let api_key = flag_set(&ctx.flags, "api-key");
         if agent == "codex" && !api_key {
             let target = AgentsTarget::V0(AgentsTargetV0 { place_id: HERE_PLACE_ID.to_owned(), project: None });
-            let answer = sign_in_here_pending(ctx, &target, &SignInAsk { agent: agent.to_owned(), name: None }, THIS_COMPUTER).await?;
+            let answer = sign_in_here(ctx, &target, &SignInAsk { agent: agent.to_owned(), name: None }, THIS_COMPUTER).await?;
             ctx.io.log(&signed_in_line(&agent_name(agent), THIS_COMPUTER, &answer));
             return Ok(if answer.signed_in { 0 } else { 1 });
         }
@@ -434,7 +423,7 @@ pub(super) fn run_servers_signin(ctx: &VerbContext) -> BoxFuture<'_, Result<i32,
             (None, None) => THIS_COMPUTER.to_owned(),
         };
         let ask = SignInAsk { agent: agent.to_owned(), name: Some(name.to_owned()) };
-        let answer = sign_in_here_pending(ctx, &target, &ask, &place).await?;
+        let answer = sign_in_here(ctx, &target, &ask, &place).await?;
         ctx.io.log(&signed_in_line(name, &place, &answer));
         Ok(if answer.signed_in { 0 } else { 1 })
     })

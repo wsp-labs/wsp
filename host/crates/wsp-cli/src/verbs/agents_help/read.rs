@@ -26,7 +26,8 @@ use wsp_words::agents_report::{command_words, napped_word};
 use wsp_words::exit::{usage_refusal, HostError};
 use wsp_words::words::places::agent_sign_in_word;
 
-use crate::place_signin::{relay_sign_in, target_link, BoxSignIn, BoxSignedIn, PlaceLink};
+use crate::place_signin::{relay_sign_in, target_link, BoxSignIn, BoxSignedIn};
+use crate::signin_relay::{process_terminal, PtyLink};
 use crate::verbs::client::{cell, flag_set, other_version, place_named, table, BoxFuture, Frame, HostClient, VerbContext};
 use crate::verbs::turns_help::thread_at_in;
 use crate::watch::{watch_block, watch_on, Lines, WatchDeps, WatchOn};
@@ -805,13 +806,19 @@ pub async fn sign_in_here(ctx: &VerbContext, target: &AgentsTarget, ask: &SignIn
     }
     let reply = client.request("agents.signInLine", params).await?;
     let road = target_link(client.clone(), target).await?;
-    let answer = relay_here(ctx, &road, ask, r#where, &reply).await;
+    let answer = relay_here(ctx, road.link.clone(), ask, r#where, &reply).await;
     road.close().await;
     answer
 }
 
 /// The relay of a sign-in the host planned, on this line's terminal; the reply's `line` is read first.
-async fn relay_here(ctx: &VerbContext, road: &PlaceLink, ask: &SignInAsk, r#where: &str, reply: &Frame) -> Result<BoxSignedIn, HostError> {
+async fn relay_here(
+    ctx: &VerbContext,
+    link: Arc<dyn PtyLink>,
+    ask: &SignInAsk,
+    r#where: &str,
+    reply: &Frame,
+) -> Result<BoxSignedIn, HostError> {
     let line = read_reply::<SignInLine>(reply, "line", "agents.signInLine")?;
     let open: Arc<dyn Fn(String) -> BoxFuture<'static, bool> + Send + Sync> = match &ctx.open {
         Some(opener) => {
@@ -823,19 +830,18 @@ async fn relay_here(ctx: &VerbContext, road: &PlaceLink, ask: &SignInAsk, r#wher
         }
         None => Arc::new(|_url: String| Box::pin(async { false })),
     };
-    let sign_in = BoxSignIn {
-        r#where: r#where.to_owned(),
-        link: road.link.clone(),
-        agent: ask.name.is_none().then(|| ask.agent.clone()),
-        line,
-        open,
-        timeout_ms: None,
-    };
-    let Some(terminal) = ctx.terminal.clone() else {
-        todo!("this process's own terminal: signin_relay.rs has no RelayTerminal built from stdin and stdout yet")
-    };
-    let mut terminal = terminal.lock().await;
-    relay_sign_in(sign_in, &mut terminal).await
+    let sign_in =
+        BoxSignIn { r#where: r#where.to_owned(), link, agent: ask.name.is_none().then(|| ask.agent.clone()), line, open, timeout_ms: None };
+    match ctx.terminal.clone() {
+        Some(terminal) => {
+            let mut terminal = terminal.lock().await;
+            relay_sign_in(sign_in, &mut terminal).await
+        }
+        None => {
+            let mut terminal = process_terminal();
+            relay_sign_in(sign_in, &mut terminal).await
+        }
+    }
 }
 
 /// `signedInLine(what, where, answer)` (agents-help.ts:295-298): `<what> is signed in on <where>` and ` (<detail>)` where
