@@ -33,6 +33,9 @@ pub const REDIRECTS_MAX: u32 = 5;
 pub const FETCH_MS: u64 = 15_000;
 
 const LOCAL_WORDS: &str = "is this computer or its network";
+const HEAD_MAX: usize = 16 * 1024;
+const HEAD_OVER: &str = "Parse Error: Header overflow";
+const STOPPED: &str = "the answer stopped part way";
 
 /// IPv4 blocks: where this computer and its network answer (slate-image-fetch.ts:20).
 const LOCAL_V4: [(u32, u32); 11] = [
@@ -223,6 +226,41 @@ impl Response {
     }
 }
 
+/// One line of an answer, read no further than the head cap `used` leaves; "" at the end of the stream.
+async fn head_line(reader: &mut BufReader<Socket>, used: &mut usize) -> Result<String, String> {
+    let room = HEAD_MAX.saturating_sub(*used);
+    if room == 0 {
+        return Err(HEAD_OVER.to_string());
+    }
+    let mut raw = Vec::new();
+    let n = (&mut *reader).take(room as u64).read_until(b'\n', &mut raw).await.map_err(|e| e.to_string())?;
+    if n == room && raw.last() != Some(&b'\n') {
+        return Err(HEAD_OVER.to_string());
+    }
+    *used += n;
+    Ok(raw.iter().map(|&b| char::from(b)).collect())
+}
+
+/// The status and the headers of one answer's head, which node holds to 16 KiB.
+async fn read_head(reader: &mut BufReader<Socket>) -> Result<(u16, Vec<(String, String)>), String> {
+    let mut used = 0;
+    let first = head_line(reader, &mut used).await?;
+    let status =
+        first.split_whitespace().nth(1).and_then(|s| s.parse::<u16>().ok()).ok_or_else(|| "the answer had no status".to_string())?;
+    let mut headers = Vec::new();
+    loop {
+        let line = head_line(reader, &mut used).await?;
+        let text = line.trim_end_matches(['\r', '\n']);
+        if text.is_empty() {
+            break;
+        }
+        if let Some((name, value)) = text.split_once(':') {
+            headers.push((name.trim().to_lowercase(), value.trim().to_string()));
+        }
+    }
+    Ok((status, headers))
+}
+
 /// Sends one GET to the address the hop checked, on the socket it opens, and reads the status and the headers.
 async fn send_get(url: &Url, to: &LookedUp) -> Result<Response, String> {
     let ip = IpAddr::from_str(&to.address).map_err(|e| e.to_string())?;
@@ -245,22 +283,12 @@ async fn send_get(url: &Url, to: &LookedUp) -> Result<Response, String> {
     );
     stream.write_all(request.as_bytes()).await.map_err(|e| e.to_string())?;
     let mut reader = BufReader::new(stream);
-    let mut line = String::new();
-    reader.read_line(&mut line).await.map_err(|e| e.to_string())?;
-    let status =
-        line.split_whitespace().nth(1).and_then(|s| s.parse::<u16>().ok()).ok_or_else(|| "the answer had no status".to_string())?;
-    let mut headers = Vec::new();
-    loop {
-        line.clear();
-        let read = reader.read_line(&mut line).await.map_err(|e| e.to_string())?;
-        let text = line.trim_end_matches(['\r', '\n']);
-        if read == 0 || text.is_empty() {
-            break;
+    let (status, headers) = loop {
+        let answer = read_head(&mut reader).await?;
+        if !(100..200).contains(&answer.0) {
+            break answer;
         }
-        if let Some((name, value)) = text.split_once(':') {
-            headers.push((name.trim().to_lowercase(), value.trim().to_string()));
-        }
-    }
+    };
     Ok(Response { status, headers, reader })
 }
 
@@ -271,24 +299,21 @@ enum Body {
 
 /// Reads the body up to the cap and one byte more, decoding a chunked answer (slate-image-fetch.ts:226 `body`).
 async fn read_body(res: &mut Response, cap: usize) -> Result<Body, String> {
-    let io = |e: std::io::Error| e.to_string();
+    let io = |e: std::io::Error| if e.kind() == std::io::ErrorKind::UnexpectedEof { STOPPED.to_string() } else { e.to_string() };
     let chunked = res.header("transfer-encoding").is_some_and(|v| v.to_lowercase().contains("chunked"));
     let mut out: Vec<u8> = Vec::new();
     if chunked {
         loop {
-            let mut line = String::new();
-            if res.reader.read_line(&mut line).await.map_err(io)? == 0 {
-                return Err("the answer stopped part way".to_string());
+            let mut used = 0;
+            let line = head_line(&mut res.reader, &mut used).await?;
+            if line.is_empty() {
+                return Err(STOPPED.to_string());
             }
             let size_text = line.split(';').next().unwrap_or("").trim();
             let size = usize::from_str_radix(size_text, 16).map_err(|_| "a chunk had no size".to_string())?;
             if size == 0 {
-                loop {
-                    let mut trailer = String::new();
-                    if res.reader.read_line(&mut trailer).await.map_err(io)? == 0 || trailer.trim_end_matches(['\r', '\n']).is_empty() {
-                        break;
-                    }
-                }
+                let mut used = 0;
+                while !head_line(&mut res.reader, &mut used).await?.trim_end_matches(['\r', '\n']).is_empty() {}
                 break;
             }
             if out.len().saturating_add(size) > cap {
@@ -297,11 +322,12 @@ async fn read_body(res: &mut Response, cap: usize) -> Result<Body, String> {
             let start = out.len();
             out.resize(start + size, 0);
             res.reader.read_exact(&mut out[start..]).await.map_err(io)?;
-            let mut end = String::new();
-            res.reader.read_line(&mut end).await.map_err(io)?;
+            let mut used = 0;
+            head_line(&mut res.reader, &mut used).await?;
         }
     } else {
-        let mut remaining = res.header("content-length").and_then(|v| v.parse::<usize>().ok()).unwrap_or(usize::MAX);
+        let declared = res.header("content-length").and_then(|v| v.parse::<usize>().ok());
+        let mut remaining = declared.unwrap_or(usize::MAX);
         let mut chunk = vec![0u8; 64 * 1024];
         while remaining > 0 {
             let want = remaining.min(chunk.len());
@@ -314,6 +340,9 @@ async fn read_body(res: &mut Response, cap: usize) -> Result<Body, String> {
             }
             out.extend_from_slice(&chunk[..n]);
             remaining -= n.min(remaining);
+        }
+        if declared.is_some() && remaining > 0 {
+            return Err(STOPPED.to_string());
         }
     }
     Ok(Body::Bytes(out))
