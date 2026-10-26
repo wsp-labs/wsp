@@ -26,13 +26,22 @@ pub enum NodeType {
 }
 
 /// A node of the tree: where it stands in the text and what it holds. A string node's `text` is its decoded value.
-#[derive(Debug, Clone, PartialEq)]
 pub struct Node {
     pub kind: NodeType,
     pub offset: usize,
     pub length: usize,
     pub children: Vec<Node>,
     pub text: Option<String>,
+}
+
+impl Drop for Node {
+    /// A tree dropped field by field recurses once per level.
+    fn drop(&mut self) {
+        let mut work = std::mem::take(&mut self.children);
+        while let Some(mut node) = work.pop() {
+            work.append(&mut node.children);
+        }
+    }
 }
 
 /// One comment, `//` to the end of its line (the newline not included) or `/* */` whole.
