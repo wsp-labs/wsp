@@ -732,19 +732,42 @@ impl<'a> Placement<'a> {
     }
 
     /// What a process is, worked out once per pid and kept: the first read of a pid answers every later one, and a
-    /// pid read while its own kind is being worked out (a parent loop) reads `other`.
+    /// pid read while its own kind is being worked out (a parent loop) reads `other`. The parents are worked out from
+    /// the top of the chain down, in a loop.
     pub fn kind_of(&self, pid: u32) -> ProcKind {
         if let Some(held) = self.kinds.borrow().get(&pid).copied() {
             return held;
         }
-        let Some(p) = self.by_pid.get(&pid) else {
-            return ProcKind::Other;
+        let mut path: Vec<&ProcEntry> = Vec::new();
+        let mut at = pid;
+        let mut above = loop {
+            let Some(p) = self.by_pid.get(&at) else {
+                break Some(ProcKind::Other);
+            };
+            self.kinds.borrow_mut().insert(at, ProcKind::Other);
+            path.push(p);
+            let Some(parent) = (p.ppid != p.pid).then(|| self.by_pid.get(&p.ppid)).flatten() else {
+                break None;
+            };
+            if let Some(held) = self.kinds.borrow().get(&parent.pid).copied() {
+                break Some(held);
+            }
+            at = parent.pid;
         };
-        self.kinds.borrow_mut().insert(pid, ProcKind::Other);
+        let mut kind = ProcKind::Other;
+        for p in path.into_iter().rev() {
+            kind = self.kind_above(p, above);
+            self.kinds.borrow_mut().insert(p.pid, kind);
+            above = Some(kind);
+        }
+        kind
+    }
+
+    fn kind_above(&self, p: &ProcEntry, above: Option<ProcKind>) -> ProcKind {
+        let pid = p.pid;
         let input = self.input;
         let parent = if p.ppid != p.pid { self.by_pid.get(&p.ppid) } else { None };
-        let above = parent.map(|q| self.kind_of(q.pid));
-        let kind = if let Some(part) = app_part(input, pid) {
+        if let Some(part) = app_part(input, pid) {
             match part {
                 AppPart::Tab => ProcKind::Tab,
                 AppPart::App => ProcKind::App,
@@ -777,9 +800,7 @@ impl<'a> Placement<'a> {
             }
         } else {
             ProcKind::Other
-        };
-        self.kinds.borrow_mut().insert(pid, kind);
-        kind
+        }
     }
 
     /// wsp's own: the daemon, the host, and the app's parts other than its tabs.
@@ -807,31 +828,30 @@ impl<'a> Placement<'a> {
 
     /// The thread whose End may reach it: its thread, but never by the WSP_THREAD mark (`owner.by == env`) alone.
     pub fn reach_of(&self, pid: u32) -> Option<String> {
-        self.reach(pid, &HashSet::new())
-    }
-
-    fn reach(&self, pid: u32, seen: &HashSet<u32>) -> Option<String> {
-        let p = self.by_pid.get(&pid)?;
-        let Some(Whose::Thread(thread)) = self.whose.get(&pid) else {
-            return None;
-        };
-        if !p.owner.as_ref().is_some_and(|o| o.by == ProcOwnedBy::Env) {
-            return Some(thread.clone());
-        }
-        if let Some(stretch) = self.agent.get(&pid).or_else(|| self.folds_into.get(&pid).and_then(|at| self.agent.get(at))) {
-            return Some(stretch.clone());
-        }
-        if let Some(cg) = self.input.threads.iter().find(|t| t.cgroup.as_deref().is_some_and(|c| in_cgroup(p.cgroup.as_deref(), c))) {
-            return Some(cg.id.clone());
-        }
-        let parent = if p.ppid != p.pid { self.by_pid.get(&p.ppid) } else { None };
-        match parent {
-            Some(parent) if !seen.contains(&parent.pid) => {
-                let mut seen = seen.clone();
-                seen.insert(pid);
-                self.reach(parent.pid, &seen)
+        let mut seen: HashSet<u32> = HashSet::new();
+        let mut at = pid;
+        loop {
+            let p = self.by_pid.get(&at)?;
+            let Some(Whose::Thread(thread)) = self.whose.get(&at) else {
+                return None;
+            };
+            if !p.owner.as_ref().is_some_and(|o| o.by == ProcOwnedBy::Env) {
+                return Some(thread.clone());
             }
-            _ => None,
+            if let Some(stretch) = self.agent.get(&at).or_else(|| self.folds_into.get(&at).and_then(|up| self.agent.get(up))) {
+                return Some(stretch.clone());
+            }
+            if let Some(cg) = self.input.threads.iter().find(|t| t.cgroup.as_deref().is_some_and(|c| in_cgroup(p.cgroup.as_deref(), c))) {
+                return Some(cg.id.clone());
+            }
+            let parent = if p.ppid != p.pid { self.by_pid.get(&p.ppid) } else { None };
+            match parent {
+                Some(parent) if !seen.contains(&parent.pid) => {
+                    seen.insert(at);
+                    at = parent.pid;
+                }
+                _ => return None,
+            }
         }
     }
 }
@@ -1118,32 +1138,81 @@ pub fn place_procs<'a>(input: &'a PlaceInput<'a>) -> Placement<'a> {
     let mut whose: IndexMap<u32, Whose> = IndexMap::new();
     let mut nobody: HashSet<u32> = HashSet::new();
     for p in &placed.procs {
-        place_row(&placed, &tabbed, p, &HashSet::new(), &mut whose, &mut nobody);
+        place_row(&placed, &tabbed, p, &mut whose, &mut nobody);
     }
     placed.whose = whose;
     placed
 }
 
 /// One row's whose: the first rung that names it, read once and kept. A row whose parent names it takes the parent's
-/// answer, and no rung at all leaves it with nobody.
+/// answer, and no rung at all leaves it with nobody. The walk up the parents is a loop, one path set for the whole walk.
 fn place_row(
     placed: &Placement<'_>,
     tabbed: &HashMap<u32, String>,
     p: &ProcEntry,
-    seen: &HashSet<u32>,
     whose: &mut IndexMap<u32, Whose>,
     nobody: &mut HashSet<u32>,
 ) -> Option<Whose> {
-    if let Some(held) = whose.get(&p.pid) {
-        return Some(held.clone());
+    let mut path: Vec<&ProcEntry> = Vec::new();
+    let mut on_path: HashSet<u32> = HashSet::new();
+    let mut at = p;
+    let mut said = loop {
+        if let Some(held) = whose.get(&at.pid) {
+            break Some(held.clone());
+        }
+        if nobody.contains(&at.pid) {
+            break None;
+        }
+        if let Some(named) = rung_naming(placed, tabbed, at) {
+            keep(whose, nobody, at.pid, Some(named.clone()));
+            break Some(named);
+        }
+        let parent = if at.ppid != at.pid { placed.by_pid.get(&at.ppid) } else { None };
+        match parent {
+            Some(parent) if !on_path.contains(&parent.pid) => {
+                on_path.insert(at.pid);
+                path.push(at);
+                at = parent;
+            }
+            _ => {
+                let said = coalition_loose(at, None);
+                keep(whose, nobody, at.pid, said.clone());
+                break said;
+            }
+        }
+    };
+    while let Some(child) = path.pop() {
+        said = coalition_loose(child, said);
+        keep(whose, nobody, child.pid, said.clone());
     }
-    if nobody.contains(&p.pid) {
-        return None;
+    said
+}
+
+fn keep(whose: &mut IndexMap<u32, Whose>, nobody: &mut HashSet<u32>, pid: u32, said: Option<Whose>) {
+    match said {
+        Some(s) => {
+            whose.insert(pid, s);
+        }
+        None => {
+            nobody.insert(pid);
+        }
     }
+}
+
+/// A row no parent names, started by the coalition, is loose.
+fn coalition_loose(p: &ProcEntry, said: Option<Whose>) -> Option<Whose> {
+    if said.is_none() && p.owner.as_ref().is_some_and(|o| o.by == ProcOwnedBy::Coalition) {
+        return Some(Whose::Loose);
+    }
+    said
+}
+
+/// The first rung that names the row by itself, before its parent is asked.
+fn rung_naming(placed: &Placement<'_>, tabbed: &HashMap<u32, String>, p: &ProcEntry) -> Option<Whose> {
     let input = placed.input;
     let stamped = p.owner.as_ref().and_then(|o| o.thread.as_deref()).filter(|s| thread_known(input, s));
     let stretch = placed.agent.get(&p.pid).or_else(|| placed.folds_into.get(&p.pid).and_then(|at| placed.agent.get(at)));
-    let said = if let Some(s) = stamped {
+    if let Some(s) = stamped {
         Some(Whose::Thread(s.to_string()))
     } else if let Some(t) = stretch {
         Some(Whose::Thread(t.clone()))
@@ -1161,29 +1230,8 @@ fn place_row(
     } else if p.pty.is_some() {
         Some(Whose::Loose)
     } else {
-        let parent = if p.ppid != p.pid { placed.by_pid.get(&p.ppid) } else { None };
-        let mut said = match parent {
-            Some(parent) if !seen.contains(&parent.pid) => {
-                let mut seen = seen.clone();
-                seen.insert(p.pid);
-                place_row(placed, tabbed, parent, &seen, whose, nobody)
-            }
-            _ => None,
-        };
-        if said.is_none() && p.owner.as_ref().is_some_and(|o| o.by == ProcOwnedBy::Coalition) {
-            said = Some(Whose::Loose);
-        }
-        said
-    };
-    match &said {
-        Some(s) => {
-            whose.insert(p.pid, s.clone());
-        }
-        None => {
-            nobody.insert(p.pid);
-        }
+        None
     }
-    said
 }
 
 // views/activity.ts:426 at a3b870a6e
