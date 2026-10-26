@@ -83,7 +83,8 @@ Source: `packages/engine/src/project-state/resolver.ts` (267) and the runtime ha
   not JSON (n is 0, the file untouched).
 - M2a. `JSON.parse` reads any depth (5 million levels) and `JSON.stringify` throws `RangeError: Maximum call stack size
   exceeded` from about 3,650. A line is read without recursion; what lies below 3,500 levels is checked for syntax and
-  left out. A line left out that `edit` answers true for fails the rewrite with that RangeError's words and leaves the
+  left out (the 3,500 is an accepted difference, README.md: a line between 3,500 and 3,650 levels that must change
+  succeeds in node and fails here). A line left out that `edit` answers true for fails the rewrite with that RangeError's words and leaves the
   file; one `edit` leaves alone is passed over as it is. A string holds a lone surrogate as an escape char and the
   private-use char that stands for it, a real escape char twice, so U+10F800 to U+10FFFF written raw survive a rewrite.
 - M3. `files_under` follows a linked folder (Node's recursive `readdirSync` does), spelling paths through the link, and

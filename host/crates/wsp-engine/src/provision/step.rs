@@ -163,7 +163,7 @@ fn stores_of(on: &ProvisionOn) -> IndexMap<String, String> {
 /// provision.ts:386 `provisionStep`: the step's rows, each with `step`. Fails only when the computer stopped
 /// answering.
 pub async fn provision_step(
-    machine: &dyn Machine,
+    machine: &Arc<dyn Machine>,
     plan: &ProvisionPlan,
     step: EngineStep,
     run: SharedRun,
@@ -437,7 +437,7 @@ async fn tools_step(
 /// provision.ts:354 `filesRound`: one files round, the archive read off this computer and landed in the homes there.
 /// A round the servers do not read is closed at once; the agents' own round stays open for the servers step.
 async fn files_round(
-    machine: &dyn Machine,
+    machine: &Arc<dyn Machine>,
     files: &super::plan::PlanFiles,
     label: &str,
     run: &SharedRun,
@@ -469,20 +469,22 @@ async fn files_round(
         }
     }
     if close {
-        close_agent_files(machine, &on.home, &once_paths_of(&files.lands), &stores_of(on)).await;
+        close_agent_files(&**machine, &on.home, &once_paths_of(&files.lands), &stores_of(on)).await;
     }
     Ok(landed.rows)
 }
 
 /// provision.ts:436 `stepRows`: the rows of one step, by the step's own rule.
 async fn step_rows(
-    machine: &dyn Machine,
+    machine: &Arc<dyn Machine>,
     plan: &ProvisionPlan,
     step: EngineStep,
     run: &SharedRun,
     stage: &ProvisionStage,
     on: &ProvisionOn,
 ) -> Result<Vec<PlaceProvisionRow>> {
+    let handle = machine;
+    let machine: &dyn Machine = &**handle;
     let split = plan.agents.min(plan.steps.len());
     match step {
         EngineStep::Floor => floor_step(machine, plan, run, stage).await,
@@ -497,9 +499,9 @@ async fn step_rows(
             Ok(rows)
         }
         EngineStep::Clis => tools_step(machine, plan, plan.steps[split..].to_vec(), run, stage).await,
-        EngineStep::Mcp => mcp_step(machine, plan, run, stage, on).await,
+        EngineStep::Mcp => mcp_step(handle, plan, run, stage, on).await,
         EngineStep::Skills => match &plan.skills {
-            Some(skills) => files_round(machine, skills, SKILLS_LABEL, run, stage, on, true).await,
+            Some(skills) => files_round(handle, skills, SKILLS_LABEL, run, stage, on, true).await,
             None => Ok(Vec::new()),
         },
         EngineStep::Github => tools_step(machine, plan, plan.github.clone().unwrap_or_default(), run, stage).await,
@@ -529,7 +531,7 @@ async fn step_rows(
         EngineStep::Configs => {
             let mut rows = tools_step(machine, plan, plan.config_tools.clone().unwrap_or_default(), run, stage).await?;
             if let Some(configs) = &plan.configs {
-                rows.extend(files_round(machine, configs, CONFIGS_LABEL, run, stage, on, true).await?);
+                rows.extend(files_round(handle, configs, CONFIGS_LABEL, run, stage, on, true).await?);
             }
             Ok(rows)
         }
@@ -545,7 +547,7 @@ async fn step_rows(
                 }
             };
             let context = apply_machine_context(
-                machine,
+                handle,
                 ApplyContextOptions {
                     result: Some(result),
                     path: Some(plan.path.clone()),
@@ -563,7 +565,7 @@ async fn step_rows(
 /// The MCP step: the agents' own files round stays open, the servers merge into them, and the files are closed with
 /// the run's landed list cleared.
 async fn mcp_step(
-    machine: &dyn Machine,
+    machine: &Arc<dyn Machine>,
     plan: &ProvisionPlan,
     run: &SharedRun,
     stage: &ProvisionStage,
@@ -584,7 +586,7 @@ async fn mcp_step(
             (run.landed.clone(), run.tools.clone())
         };
         let servers = provision_mcp(
-            machine,
+            &**machine,
             mcp,
             ProvisionMcpOptions {
                 home: on.home.clone(),
@@ -623,12 +625,12 @@ async fn mcp_step(
     }
     if on.stores.is_some() {
         let set_up: BTreeSet<String> = plan.steps[..plan.agents.min(plan.steps.len())].iter().filter_map(|s| agent_of_row(&s.id)).collect();
-        for line in headless_keys(machine, &on.home, &stores, &set_up).await {
+        for line in headless_keys(&**machine, &on.home, &stores, &set_up).await {
             stage(&line, None, None);
         }
     }
     let lands: Vec<ProvisionLanding> = plan.files.as_ref().map(|f| f.lands.clone()).unwrap_or_default();
-    close_agent_files(machine, &on.home, &once_paths_of(&lands), &stores).await;
+    close_agent_files(&**machine, &on.home, &once_paths_of(&lands), &stores).await;
     run.lock().unwrap().landed = OwnedPaths::new();
     Ok(rows)
 }

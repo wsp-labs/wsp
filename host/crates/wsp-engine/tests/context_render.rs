@@ -661,7 +661,7 @@ impl Guest {
     async fn apply(&self, mut opts: ApplyContextOptions) -> wsp_engine::machine_context::ContextOutcome {
         opts.roots = Some(self.roots.clone());
         opts.fetch = Some(self.m.road.clone() as Arc<dyn Fetch>);
-        apply_machine_context(self.m.as_ref(), opts).await
+        apply_machine_context(&(self.m.clone() as Arc<dyn wsp_engine::machine::Machine>), opts).await
     }
 
     fn at(&self, rel: &str) -> PathBuf {

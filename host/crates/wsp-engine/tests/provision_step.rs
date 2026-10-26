@@ -119,7 +119,7 @@ async fn provision_box(
     let run = new_setup_run();
     let mut rows = Vec::new();
     for step in ENGINE_STEPS {
-        rows.extend(provision_step(machine, plan, step, run.clone(), stage.clone(), on).await?);
+        rows.extend(provision_step(&common::handle(machine), plan, step, run.clone(), stage.clone(), on).await?);
     }
     Ok(rows)
 }
@@ -552,7 +552,7 @@ async fn installs_the_agents_alone_lands_their_own_files_with_the_servers_after_
     let jq = ToolInstall { bin: Some("jq".to_string()), ..step("tools/apt/jq", "jq") };
     let mut plan = with_files_and_servers(vec![codex(), jq]);
     plan.agents = 1;
-    let agents = provision_step(&machine, &plan, EngineStep::Agents, new_setup_run(), quiet(), &on()).await.unwrap();
+    let agents = provision_step(&common::handle(&machine), &plan, EngineStep::Agents, new_setup_run(), quiet(), &on()).await.unwrap();
     assert_eq!(agents.iter().map(|r| r.id.clone()).collect::<Vec<_>>(), ["agents/codex"]);
     assert!(!snapshot(&calls).iter().any(|c| c.contains("wsp-land")));
     calls.lock().unwrap().clear();
@@ -819,7 +819,10 @@ async fn runs_git_lfss_install_system_wide_once_wsp_put_the_row_on_never_on_one_
     let lfs = ToolInstall { bin: Some("git-lfs".to_string()), ..step("tools/brew/git-lfs", "Git LFS") };
     let jq = ToolInstall { bin: Some("jq".to_string()), ..step("tools/brew/jq", "jq") };
     let (machine, calls) = box_machine(no_answer, TOOLS_PATH);
-    let rows = provision_step(&machine, &plan_of(vec![lfs.clone(), jq]), EngineStep::Clis, new_setup_run(), quiet(), &on()).await.unwrap();
+    let rows =
+        provision_step(&common::handle(&machine), &plan_of(vec![lfs.clone(), jq]), EngineStep::Clis, new_setup_run(), quiet(), &on())
+            .await
+            .unwrap();
     assert_eq!(outcomes(&rows), pairs(&[("tools/brew/git-lfs", "installed"), ("tools/brew/jq", "installed")]));
     let hooks: Vec<String> = snapshot(&calls).into_iter().filter(|c| c.contains("git lfs install")).collect();
     assert_eq!(hooks.len(), 1);
@@ -832,13 +835,16 @@ async fn runs_git_lfss_install_system_wide_once_wsp_put_the_row_on_never_on_one_
         |cmd| (cmd.contains("wsp-present") || cmd.contains("command -v 'git-lfs'")).then(|| res(0, "wsp-present 0 /usr/bin/git-lfs\n", "")),
         TOOLS_PATH,
     );
-    let kept = provision_step(&theirs, &plan_of(vec![lfs.clone()]), EngineStep::Clis, new_setup_run(), quiet(), &on()).await.unwrap();
+    let kept = provision_step(&common::handle(&theirs), &plan_of(vec![lfs.clone()]), EngineStep::Clis, new_setup_run(), quiet(), &on())
+        .await
+        .unwrap();
     assert_eq!(outcomes(&kept), pairs(&[("tools/brew/git-lfs", "present")]));
     assert!(!snapshot(&their_calls).iter().any(|c| c.contains("git lfs install")));
 
     let (refused, _) =
         box_machine(|cmd| cmd.contains("git lfs install").then(|| res(2, "", "git: 'lfs' is not a git command")), TOOLS_PATH);
-    let failed = provision_step(&refused, &plan_of(vec![lfs]), EngineStep::Clis, new_setup_run(), quiet(), &on()).await.unwrap();
+    let failed =
+        provision_step(&common::handle(&refused), &plan_of(vec![lfs]), EngineStep::Clis, new_setup_run(), quiet(), &on()).await.unwrap();
     assert_eq!(failed.len(), 1);
     assert_eq!(failed[0].id, "tools/brew/git-lfs");
     assert_eq!(word(failed[0].outcome), "failed");
@@ -871,7 +877,7 @@ async fn runs_a_clis_hook_as_its_row_lands_so_the_row_is_said_after_its_hook_and
             said.lock().unwrap().push(format!("said {}", row.id));
         }
     });
-    provision_step(&machine, &plan_of(vec![lfs, jq]), EngineStep::Clis, new_setup_run(), stage, &on()).await.unwrap();
+    provision_step(&common::handle(&machine), &plan_of(vec![lfs, jq]), EngineStep::Clis, new_setup_run(), stage, &on()).await.unwrap();
     assert_eq!(*order.lock().unwrap(), ["hook git-lfs", "said tools/brew/git-lfs", "install jq", "said tools/brew/jq"]);
 }
 
@@ -894,7 +900,7 @@ async fn are_on_the_run_the_moment_each_lands_and_on_it_once_when_the_loop_ends(
             }
         }
     });
-    provision_step(&machine, &plan_of(vec![jq, yq]), EngineStep::Clis, run.clone(), stage, &on()).await.unwrap();
+    provision_step(&common::handle(&machine), &plan_of(vec![jq, yq]), EngineStep::Clis, run.clone(), stage, &on()).await.unwrap();
     assert_eq!(seen.lock().unwrap().get("tools/brew/jq"), Some(&vec!["tools/brew/jq".to_string()]));
     let tools: Vec<(String, String)> = run.lock().unwrap().tools.iter().map(|t| (t.id.clone(), t.outcome.clone())).collect();
     assert_eq!(tools, pairs(&[("tools/brew/jq", "installed"), ("tools/brew/yq", "installed")]));
@@ -916,7 +922,7 @@ async fn is_set_aside_at_once_with_the_sha256_claude_showed_and_the_one_that_ins
         asked: Some(Arc::new(move |out: &str| PluginRoad::Claude.asked(out, name))),
     };
     let plan = ProvisionPlan { plugins: Some(vec![plugin("hooks@acme"), plugin("lint@acme")]), ..plan_of(vec![]) };
-    let rows = provision_step(&machine, &plan, EngineStep::Plugins, new_setup_run(), quiet(), &on()).await.unwrap();
+    let rows = provision_step(&common::handle(&machine), &plan, EngineStep::Plugins, new_setup_run(), quiet(), &on()).await.unwrap();
     assert_eq!(outcomes(&rows), pairs(&[("plugins/hooks@acme", "skipped"), ("plugins/lint@acme", "installed")]));
     assert!(rows[0].note.as_deref().unwrap().contains(&format!("--accept-command {sha}")));
 }
@@ -927,11 +933,11 @@ async fn is_set_aside_at_once_with_the_sha256_claude_showed_and_the_one_that_ins
 async fn installs_build_essential_as_a_setups_floor_step_only_for_a_plan_that_needs_a_compiler() {
     let plan = |compiler: bool| ProvisionPlan { recipe_at: "x".to_string(), path: TOOLS_PATH.to_string(), compiler, ..Default::default() };
     let (off, off_runs) = bare();
-    provision_step(&off, &plan(false), EngineStep::Floor, new_setup_run(), quiet(), &on()).await.unwrap();
+    provision_step(&common::handle(&off), &plan(false), EngineStep::Floor, new_setup_run(), quiet(), &on()).await.unwrap();
     let off_runs = snapshot(&off_runs);
     assert!(!off_runs.iter().any(|r| r.contains("build-essential")));
     assert!(off_runs.iter().any(|r| r.contains("ripgrep")));
     let (with, with_runs) = bare();
-    provision_step(&with, &plan(true), EngineStep::Floor, new_setup_run(), quiet(), &on()).await.unwrap();
+    provision_step(&common::handle(&with), &plan(true), EngineStep::Floor, new_setup_run(), quiet(), &on()).await.unwrap();
     assert!(snapshot(&with_runs).iter().any(|r| r.contains("build-essential")));
 }
