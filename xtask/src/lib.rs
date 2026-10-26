@@ -9,6 +9,7 @@ pub mod diff;
 pub mod golden;
 pub mod held;
 pub mod host;
+pub mod json;
 pub mod normalize;
 pub mod sandbox;
 pub mod seed;

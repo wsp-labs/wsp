@@ -1,0 +1,30 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": false,
+      "error": {
+        "json": [
+          {
+            "code": "invalid_type",
+            "expected": "string",
+            "received": "undefined",
+            "path": [
+              "token"
+            ],
+            "message": "Required"
+          }
+        ],
+        "layout": "indented"
+      }
+    }
+  ],
+  "events": [
+    {
+      "close": {
+        "code": 4401,
+        "reason": "unauthorized"
+      }
+    }
+  ]
+}

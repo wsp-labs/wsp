@@ -1,0 +1,57 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": "no thread ",
+      "kind": "not-found"
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "no account ; wsp usage lists every account",
+      "kind": "not-found"
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": "no such workspace: ",
+      "kind": "not-found"
+    },
+    {
+      "id": 5,
+      "ok": false,
+      "error": "no workspace ",
+      "kind": "not-found"
+    },
+    {
+      "id": 6,
+      "ok": false,
+      "error": "no project \"\"; wsp add <folder> records one",
+      "kind": "not-found"
+    },
+    {
+      "id": 7,
+      "ok": true,
+      "slate": null
+    },
+    {
+      "id": 8,
+      "ok": true,
+      "hits": []
+    },
+    {
+      "id": 9,
+      "ok": false,
+      "error": "name the project the thread runs in",
+      "kind": "usage"
+    }
+  ],
+  "events": []
+}

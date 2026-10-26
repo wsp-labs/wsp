@@ -1,0 +1,21 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": "that pairing code is not one this host is waiting for; run wsp host pair on the host for a fresh one"
+    },
+    {
+      "id": 3,
+      "ok": true,
+      "projects": []
+    }
+  ],
+  "events": []
+}

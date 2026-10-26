@@ -1,0 +1,62 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "project": {
+        "id": "<pr-1>",
+        "name": "home",
+        "computer": "here",
+        "source": {
+          "kind": "folder",
+          "path": "<tmp>/home"
+        },
+        "path": "<tmp>/home",
+        "remote": "",
+        "defaultBranch": "main",
+        "memoryKey": "<tmp-dashed>-home",
+        "memoryDir": "<tmp>/home/.claude/projects/<tmp-dashed>-home/memory",
+        "createdAt": "<time>"
+      }
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": "home is not a git repo, so it has no branches",
+      "kind": "usage"
+    },
+    {
+      "id": 4,
+      "ok": true,
+      "workspace": {
+        "id": "<ws-1>",
+        "name": "home",
+        "machineId": "local",
+        "phase": "running",
+        "kind": "local",
+        "golden": "",
+        "createdAt": "<time>",
+        "project": {
+          "id": "<pr-1>",
+          "name": "home",
+          "path": "<tmp>/home",
+          "computer": "here"
+        },
+        "folder": "<tmp>/home",
+        "home": "<tmp>/home",
+        "agents": {
+          "spawn": true,
+          "maxMachines": 3,
+          "maxDepth": 2
+        }
+      }
+    }
+  ],
+  "events": []
+}

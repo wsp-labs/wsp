@@ -1,0 +1,43 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": false,
+      "error": "sys.subscribe and sys.unsubscribe read one daemon: name workspaceId or placeId, not both"
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": {
+        "json": [
+          {
+            "code": "invalid_type",
+            "expected": "string",
+            "received": "undefined",
+            "path": [
+              "workspaceId"
+            ],
+            "message": "Required"
+          },
+          {
+            "code": "invalid_type",
+            "expected": "number",
+            "received": "undefined",
+            "path": [
+              "port"
+            ],
+            "message": "Required"
+          }
+        ],
+        "layout": "indented"
+      }
+    }
+  ],
+  "events": []
+}
