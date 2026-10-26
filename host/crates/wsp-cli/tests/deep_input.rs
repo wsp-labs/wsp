@@ -81,15 +81,15 @@ fn table_chain_body(depth: usize) {
 fn table_chain_past_node_body(depth: usize) {
     let view = chain_view(depth);
     for wide in [false, true] {
-        let out = try_activity_table(&view, TableOpts { width: None, wide });
-        assert!(out.is_err(), "wide={wide}: node's line fails with RangeError at this depth");
+        let table = try_activity_table(&view, TableOpts { width: None, wide }).expect("a chain has no cap, so the table is printed");
+        assert_eq!(table.split('\n').count(), depth + 4, "wide={wide}: a row per process and four more");
     }
 }
 
 fn reply_body(depth: usize) {
     let text = format!(r#"{{"id":1,"ok":true,"values":{}}}"#, nested(depth));
-    let read = parse_frame(&text).expect("node's JSON.parse reads it");
-    if depth <= 1_000 {
+    let read = parse_frame(&text).expect("a frame is read, past the cap with its containers past 128 levels kept empty");
+    if depth < 1_000 {
         assert_eq!(stringify(&read), text, "node reads and writes it whole");
     }
 }
@@ -109,12 +109,15 @@ fn a_process_chain_1000_deep_prints_its_table() {
 }
 
 // The same past node's depth: node's treeOf/procRows throw RangeError from 1,485 (folded) and 1,550 (--wide), and the line
-// fails with exit 1 and `wsp activity: Maximum call stack size exceeded`.
+// fails with exit 1 and `wsp activity: Maximum call stack size exceeded`. Ruling 7: past node's own RangeError depth the
+// loop may answer, and it prints the table; this test expected the failed line.
 #[test]
 fn a_process_chain_20000_deep_fails_the_line_not_the_process() {
     in_child("a_process_chain_20000_deep_fails_the_line_not_the_process", 20_000, table_chain_past_node_body);
 }
 
+// Ruling 2: the frame holds a level more than `depth` (its own object), so 1,000 of them is 1,001 levels, one past the cap of
+// the catalog's port, and the frame is read by the lax reader instead; the whole read is asserted below 1,000.
 // json_whole.rs:28 `parse_frame` falls to wsp-catalog's JSON.parse port (json_parse.rs, MAX_DEPTH 1000) for any reply
 // past serde_json's 128, and the port dies at 876, under its own cap. Fed by every reply the host sends (a slate value an
 // agent stored up to the slates' 500 bound reads; one past 876 cannot reach here today). node's JSON.parse has no depth
@@ -134,4 +137,104 @@ fn a_reply_200000_deep_is_read_not_an_abort() {
 #[test]
 fn a_state_word_1000_deep_is_sent_whole() {
     in_child("a_state_word_1000_deep_is_sent_whole", 1_000, state_word_body);
+}
+
+fn reply_cap_body(depth: usize) {
+    let frame = |levels: usize| format!(r#"{{"id":1,"values":{}}}"#, nested(levels - 1));
+    let read = parse_frame(&frame(depth)).expect("a frame at the cap is read");
+    assert_eq!(stringify(&read), frame(depth), "{depth} levels read whole");
+    let past = parse_frame(&frame(depth + 1)).expect("a frame past the cap is still answered");
+    assert_ne!(stringify(&past), frame(depth + 1), "{} levels are not read whole", depth + 1);
+}
+
+// The cap of the catalog's port as a reply meets it, on the 1 MiB stack: 1,000 levels read whole, and 1,001 are not (ruling 2).
+#[test]
+fn a_reply_reads_1000_levels_whole_and_not_1001() {
+    in_child("a_reply_reads_1000_levels_whole_and_not_1001", 1000, reply_cap_body);
+}
+
+fn chain_time_body(depth: usize) {
+    let time = |n: usize| {
+        let view = chain_view(n);
+        let start = std::time::Instant::now();
+        let table = try_activity_table(&view, TableOpts { width: None, wide: false }).expect("the table is printed");
+        assert_eq!(table.split('\n').count(), n + 4);
+        start.elapsed()
+    };
+    let small = time(depth / 4).max(std::time::Duration::from_millis(50));
+    let large = time(depth);
+    assert!(large < small * 10, "{depth} processes took {large:?} where {} took {small:?}: not linear", depth / 4);
+}
+
+// A 100,000-process chain prints its table on the 1 MiB stack, and four times the processes take well under ten times as long
+// (a table per level of the chain would be sixteen times). Ruling 5.
+#[test]
+fn a_process_chain_100000_deep_prints_its_table_in_linear_time() {
+    in_child("a_process_chain_100000_deep_prints_its_table_in_linear_time", 100_000, chain_time_body);
+}
+
+fn thread_chain_body(depth: usize) {
+    use wsp_cli::verbs::workspaces_help::reads::ThreadRow;
+    use wsp_cli::verbs::workspaces_help::rows::thread_tree;
+    let rows: Vec<ThreadRow> = (0..depth)
+        .map(|i| {
+            let mut row = serde_json::json!({
+                "id": format!("t-{i}"), "workspaceId": "ws-1", "harness": "claude", "startedBy": "person", "status": "completed",
+                "title": "t", "sessionId": format!("s-{i}"), "turns": 1, "ran": true, "projectName": "wsp", "folder": "/root/wsp",
+                "branch": "main", "computerName": "attic"
+            });
+            if i > 0 {
+                row["parentThreadId"] = serde_json::json!(format!("t-{}", i - 1));
+            }
+            serde_json::from_value(row).expect("a thread row")
+        })
+        .collect();
+    let tree = thread_tree(&rows);
+    assert_eq!(tree.len(), depth);
+    assert!(tree.iter().enumerate().all(|(i, n)| n.depth == i && n.row.thread.id == format!("t-{i}")), "one row a level, in order");
+}
+
+// verbs/workspaces_help/rows.rs `thread_tree`: threads in a chain of parents, 20,000 deep, listed in a tree. node's threadTree
+// recurses once per level, and reads about as deep as the table does.
+#[test]
+fn a_thread_chain_20000_deep_lists_as_a_tree() {
+    in_child("a_thread_chain_20000_deep_lists_as_a_tree", 20_000, thread_chain_body);
+}
+
+fn agent_chain_body(depth: usize) {
+    let procs: Vec<String> = (0..depth)
+        .map(|i| {
+            format!(
+                r#"{{"pid":{},"ppid":{},"depth":0,"startedAt":1700000000000,"kind":"agent","name":"claude","command":"claude --resume x","memory":1024,"cpu":0.5,"ports":[]}}"#,
+                i + 100,
+                i + 99
+            )
+        })
+        .collect();
+    let view = format!(
+        r#"{{"computer":"here","at":1760000010000,"wsp":[],"unowned":[],"threads":[{{"threadId":"thread-7f3a9c21e4b5","title":"t","workspaceId":"ws-1","memory":2048,"cpu":3,"processes":[{}]}}]}}"#,
+        procs.join(",")
+    );
+    let view: ActivityView = serde_json::from_str(&view).expect("an activity view");
+    let table = try_activity_table(&view, TableOpts { width: None, wide: false }).expect("a chain of agents is folded into one row");
+    assert!(table.lines().count() >= 4);
+}
+
+// activity_table.rs `agent_below` recursed once per level of a chain of agents under agents, folding each into the one below.
+#[test]
+fn a_chain_of_2000_agents_folds_into_the_last() {
+    in_child("a_chain_of_2000_agents_folds_into_the_last", 2_000, agent_chain_body);
+}
+
+fn state_cap_body(depth: usize) {
+    let (_, value) = state_value(&format!("$x={}", nested(depth))).expect("a path and a value");
+    assert_eq!(stringify(&value), nested(depth), "{depth} levels are sent whole");
+    let (_, value) = state_value(&format!("$x={}", "[".repeat(depth + 1) + "1" + &"]".repeat(depth + 1))).expect("a path and a value");
+    assert_ne!(stringify(&value), nested(depth + 1), "{} levels are not read whole", depth + 1);
+}
+
+// verbs/slate.rs `state_value` at the cap of the port, on the 1 MiB stack (ruling 2).
+#[test]
+fn a_state_word_reads_1000_levels_whole_and_not_1001() {
+    in_child("a_state_word_reads_1000_levels_whole_and_not_1001", 1000, state_cap_body);
 }
