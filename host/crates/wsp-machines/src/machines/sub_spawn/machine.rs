@@ -22,7 +22,7 @@ use wsp_wire::views::sub_row::{
 use wsp_wire::views::workspace::WorkspacePhase;
 use wsp_wire::views::workspace_events::WorkspaceCreateStage;
 use wsp_wire::views::workspace_kind::WorkspaceKind;
-use wsp_words::exit::{refusal_said, HostError};
+use wsp_words::exit::{not_found_refusal, refusal_said, HostError};
 use wsp_words::js::js_trim;
 use wsp_words::js::utf16::tail;
 use wsp_words::place_word::{names_place, provider_key_name, PlaceRef};
@@ -68,6 +68,14 @@ pub fn fault_of(e: &AreaError) -> Option<SubFault> {
         }),
         _ => None,
     }
+}
+
+/// The read of a sub-thread's live entry that finds none: the TS's `live.get(id)!` then throws a TypeError, which the
+/// start that read it fails with and drops its machine on.
+fn gone_entry(id: &str) -> AreaError {
+    AreaError::Host(not_found_refusal(&format!(
+        "sub-thread {id} is no longer live"
+    )))
 }
 
 /// What `resume_sub` answers (sub-spawn.ts:605): the live entry now, the head its send opens with, the notices.
@@ -257,11 +265,14 @@ impl SubSpawnArea {
                 held.name.clone(),
                 self.ctx.place_id_of(&held),
                 held.provider.clone(),
-                held.lead
-                    .clone()
-                    .expect("a queued sub-thread names its lead"),
+                held.lead.clone(),
                 held.root_thread_id.clone(),
             )
+        };
+        let Some(lead) = lead else {
+            return Err(AreaError::Host(HostError::new(format!(
+                "sub-thread {id} names no lead"
+            ))));
         };
         let rows = self.ctx.computer_rows().await?;
         let row = rows
@@ -357,10 +368,7 @@ impl SubSpawnArea {
                 landed();
             });
         self.ctx.fork(record, on_machine, report.clone()).await?;
-        let entry = self
-            .ctx
-            .live(&id)
-            .expect("a forked sub-thread stands in the live set");
+        let entry = self.ctx.live(&id).ok_or_else(|| gone_entry(&id))?;
         let (preview, daemon_answers) = {
             let offers = entry.borrow().machine.offers();
             (offers.preview_url, offers.daemon_answers)
@@ -543,11 +551,11 @@ impl SubSpawnArea {
         let id = asked.borrow().record.borrow().id.clone();
         let ahead = self.resuming.borrow().get(&id).cloned();
         if let Some(ahead) = ahead {
-            let _ = ahead.await;
+            ahead.await?;
             let entry = self
                 .ctx
                 .live(&id)
-                .expect("a resumed sub-thread stands in the live set");
+                .ok_or_else(|| gone_entry(&id).into_host())?;
             return Ok(Resumed {
                 entry,
                 preamble: None,
@@ -561,15 +569,13 @@ impl SubSpawnArea {
                 notices: Vec::new(),
             });
         }
-        let (signal, done) = futures::channel::oneshot::channel::<()>();
-        let finished: LocalBoxFuture<'static, Result<(), HostError>> = Box::pin(async move {
-            let _ = done.await;
-            Ok(())
-        });
+        let (signal, done) = futures::channel::oneshot::channel::<Result<(), HostError>>();
+        let finished: LocalBoxFuture<'static, Result<(), HostError>> =
+            Box::pin(async move { done.await.unwrap_or(Ok(())) });
         let joined: Joined<()> = finished.shared();
         self.resuming.borrow_mut().insert(id.clone(), joined);
         let outcome = self.resume_once(asked, thread_id, harness, prompt).await;
-        let _ = signal.send(());
+        let _ = signal.send(outcome.as_ref().map(|_| ()).map_err(Clone::clone));
         self.resuming.borrow_mut().shift_remove(&id);
         outcome
     }
@@ -595,11 +601,12 @@ impl SubSpawnArea {
         prompt: Option<&str>,
     ) -> AreaResult<Resumed> {
         let record_rc = Rc::clone(&asked.borrow().record);
-        let sub = record_rc
-            .borrow()
-            .sub
-            .clone()
-            .expect("a released sub-thread carries its sub record");
+        let sub = record_rc.borrow().sub.clone().ok_or_else(|| {
+            AreaError::Host(HostError::new(format!(
+                "sub-thread {} carries no sub record",
+                record_rc.borrow().id
+            )))
+        })?;
         let rows = self.ctx.computer_rows().await?;
         let row = rows.into_iter().find(|r| {
             r.kind == "provider"
@@ -730,7 +737,7 @@ impl SubSpawnArea {
         let entry = self
             .ctx
             .live(&record_id)
-            .expect("a started sub-thread stands in the live set");
+            .ok_or_else(|| gone_entry(&record_id))?;
         if let Some(why) = &seed.why {
             notices.push(sub_not_sent_line(why, &project.name));
         }

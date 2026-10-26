@@ -13,11 +13,11 @@ use std::future::Future;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use crate::local_task::spawn as spawn_local;
 use async_trait::async_trait;
 use futures::future::{select, Either, LocalBoxFuture};
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{Map, Value};
-use tokio::task::spawn_local;
 use wsp_core::console::warn;
 use wsp_core::recipe_sync::{recipe_changes, steps_for, RecipeChange, RecipeChangeHow};
 use wsp_core::types::pending::Clock;
@@ -37,7 +37,7 @@ use wsp_words::views::place_setup_words::{
 use wsp_words::workspace_state::absent_computer;
 
 use super::context::PlaceDoorContext;
-use super::helpers::{first_line_of, Cancel, LandedRow, SyncJob};
+use super::helpers::{first_line_of, refused_engine, Cancel, LandedRow, SyncJob};
 use super::types::{
     ForwardAsk, HeldApplied, HeldRow, PlaceRecord, PlaceResult, Resolved, SetupEvent,
 };
@@ -221,19 +221,40 @@ pub struct PlaceSetupArea {
     next_id: std::cell::Cell<u64>,
 }
 
-tokio::task_local! {
+thread_local! {
     /// The computer whose setup's own folder step the running call belongs to (setup.ts:190).
-    pub static FOLDERS_OF: String;
+    static FOLDERS_OF: RefCell<Option<String>> = const { RefCell::new(None) };
 }
 
 /// The place the current call runs under as its setup's own folder add, if any.
 pub fn current_folders_of() -> Option<String> {
-    FOLDERS_OF.try_with(|place| place.clone()).ok()
+    FOLDERS_OF.with(|place| place.borrow().clone())
 }
 
-/// Runs `work` as the folder add of `place_id`'s own setup.
+/// Polls `work` with `place` marked as the setup whose folder add it belongs to.
+fn polled_under<R>(place: &str, work: impl FnOnce() -> R) -> R {
+    let before = FOLDERS_OF.with(|held| held.replace(Some(place.to_string())));
+    let out = work();
+    FOLDERS_OF.with(|held| *held.borrow_mut() = before);
+    out
+}
+
+/// Runs `work` as the folder add of `place_id`'s own setup. The TS's `AsyncLocalStorage` follows every continuation of
+/// the add, so each task the add starts is under it as well; a task-local would not follow a spawned task. The add runs
+/// on a `LocalSet` of its own, which the mark is set around whenever it is polled, so the tasks the add starts land on
+/// that set and carry the mark, and go on carrying it after the add has answered.
 pub async fn under_folders_of<T>(place_id: &str, work: impl Future<Output = T>) -> T {
-    FOLDERS_OF.scope(place_id.to_string(), work).await
+    let set = tokio::task::LocalSet::new();
+    let out = {
+        let mut run = Box::pin(set.run_until(work));
+        std::future::poll_fn(|cx| polled_under(place_id, || run.as_mut().poll(cx))).await
+    };
+    let place = place_id.to_string();
+    let mut rest = Box::pin(set);
+    crate::local_task::spawn(std::future::poll_fn(move |cx| {
+        polled_under(&place, || rest.as_mut().poll(cx))
+    }));
+    out
 }
 
 fn step_of_word(word: &str) -> Option<PlaceSetupStep> {
@@ -937,21 +958,14 @@ impl MachineLink for PlaceLink {
                 }
                 continue;
             };
+            let sent_at = self.now();
             let bound = ask.timeout_ms.unwrap_or(area.ctx.frame_wait_ms);
             let what = format!("{op} on {}", self.name());
             let frame = {
                 let reach = Rc::clone(&reach);
                 let params = params.clone();
                 let op = op.to_string();
-                async move {
-                    reach
-                        .request(&op, params)
-                        .await
-                        .map_err(|e| EngineError::Other {
-                            message: e.message,
-                            code: e.code,
-                        })
-                }
+                async move { reach.request(&op, params).await.map_err(refused_engine) }
             };
             match bounded_engine(&*area.ctx.clock, frame, bound, &what).await {
                 Ok(answer) => return Ok(answer),
@@ -975,11 +989,9 @@ impl MachineLink for PlaceLink {
                             }
                         }
                     }
-                    let gap = area
-                        .closed_at
-                        .borrow()
-                        .get(place)
-                        .copied()
+                    let closed = area.closed_at.borrow().get(place).copied();
+                    let gap = closed
+                        .filter(|at| *at >= sent_at)
                         .unwrap_or_else(|| self.now());
                     let t = *until.get_or_insert(gap + relink);
                     if !area.dials_back(place, t).await {

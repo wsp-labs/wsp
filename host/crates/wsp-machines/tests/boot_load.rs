@@ -153,7 +153,8 @@ fn a_late_read_that_fails_holds_the_record_on_the_providers_words() {
         let landed = w
             .area
             .load_late("a", asked_err("provider: key refused (401)"))
-            .await;
+            .await
+            .expect("the late load");
         assert!(landed.is_none(), "a held record answers no entry");
         common::flush().await;
         let rec = ws("a", json!({}));
@@ -193,7 +194,11 @@ fn a_late_gone_answer_settles_gone_with_the_loads_words() {
             sights: vec![Sight::Gone],
             ..Opts::default()
         });
-        let landed = w.area.load_late("a", asked_missing("404 gone")).await;
+        let landed = w
+            .area
+            .load_late("a", asked_missing("404 gone"))
+            .await
+            .expect("the late load");
         assert!(landed.is_none());
         common::flush().await;
         let rec = ws("a", json!({}));

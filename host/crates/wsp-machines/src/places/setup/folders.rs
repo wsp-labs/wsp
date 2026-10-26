@@ -4,8 +4,8 @@
 
 use std::rc::Rc;
 
+use crate::local_task::spawn as spawn_local;
 use indexmap::{IndexMap, IndexSet};
-use tokio::task::spawn_local;
 use wsp_core::recipe_sync::{RecipeChange, RecipeChangeHow};
 use wsp_engine::machine::ExecOptions;
 use wsp_engine::provision::ProvisionOn;
@@ -130,44 +130,42 @@ impl SetupRun {
         self: &Rc<Self>,
         key: &str,
         row: &HeldRow,
-    ) -> Vec<PlaceProvisionRow> {
+    ) -> PlaceResult<Vec<PlaceProvisionRow>> {
         self.carried_folders.borrow_mut().insert(key.to_string());
         let Some(project) = row.row.project.as_ref().map(|p| p.id.clone()) else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
         let Some(provisioner) = self.area.ctx.wiring.provision.clone() else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
         if !provisioner.has_project_servers() {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         let servers_id = format!("folders/{key}/servers");
         let servers_label = format!("{} servers", row.row.label);
         if !self.agent_files_there.get() {
             let note = FOLDER_SERVERS_WAIT_LINE.to_string();
-            return vec![PlaceProvisionRow {
+            return Ok(vec![PlaceProvisionRow {
                 note: Some(note),
                 ..plain_row(
                     &servers_id,
                     &servers_label,
                     PlaceProvisionRowOutcome::Skipped,
                 )
-            }];
+            }]);
         }
-        let path = match self
+        let path = self
             .area
             .ctx
             .recording
             .projects_on(&self.ask.place_id)
-            .await
-        {
-            Ok(projects) => projects
-                .into_iter()
-                .find(|p| p.id == project)
-                .map(|p| p.path),
-            Err(_) => None,
+            .await?
+            .into_iter()
+            .find(|p| p.id == project)
+            .map(|p| p.path);
+        let Some(path) = path else {
+            return Ok(Vec::new());
         };
-        let Some(path) = path else { return Vec::new() };
         let stores = self.stores_here().await;
         let on = ProvisionOn {
             home: self.home.clone(),
@@ -197,11 +195,11 @@ impl SetupRun {
                 )
             }],
         };
-        self.ours(rows)
+        Ok(self.ours(rows))
     }
 
     /// The folderServers step: every folder landed so far and not carried yet (setup.ts:689).
-    pub async fn folder_servers(self: &Rc<Self>) -> Vec<PlaceProvisionRow> {
+    pub async fn folder_servers(self: &Rc<Self>) -> PlaceResult<Vec<PlaceProvisionRow>> {
         let mut out = Vec::new();
         let mut at = 0;
         loop {
@@ -214,10 +212,10 @@ impl SetupRun {
             at += 1;
             let carried = self.carried_folders.borrow().contains(&key);
             if !carried {
-                out.extend(self.carry_servers(&key, &row).await);
+                out.extend(self.carry_servers(&key, &row).await?);
             }
         }
-        out
+        Ok(out)
     }
 
     /// The folders, each a project on that computer. One whose repository needs GitHub there waits on the GitHub
@@ -358,7 +356,10 @@ impl SetupRun {
                 run.steps_done.clone().await;
                 let carried = run.carried_folders.borrow().contains(&key);
                 if row.row.outcome == PlaceProvisionRowOutcome::Installed && !carried {
-                    for servers in run.carry_servers(&key, &row).await {
+                    let Ok(carried) = run.carry_servers(&key, &row).await else {
+                        return;
+                    };
+                    for servers in carried {
                         run.land_row(held_of(PlaceProvisionRow {
                             step: Some(PlaceSetupStep::FolderServers),
                             ..servers
@@ -374,14 +375,28 @@ impl SetupRun {
 
     /// The folder each agent's threads there are pointed at that the computer's login reaches (setup.ts:769).
     pub async fn stores_here(self: &Rc<Self>) -> Option<IndexMap<String, String>> {
-        let stores = self
+        self.stores_checked().await.ok().flatten()
+    }
+
+    /// `storesHere` as the TS throws it: a login read that fails fails the caller (setup.ts:769).
+    pub async fn stores_checked(self: &Rc<Self>) -> PlaceResult<Option<IndexMap<String, String>>> {
+        let Some(stores) = self
             .area
             .ctx
             .recording
-            .stores_on(&self.ask.place_id, &self.home)?;
-        let folder = self.area.ctx.door().folder_computer(&self.ask.place_id)?;
-        let login = folder.machine.login_of().await.ok()?;
-        Some(stores_reached(&login, &stores))
+            .stores_on(&self.ask.place_id, &self.home)
+        else {
+            return Ok(None);
+        };
+        let Some(folder) = self.area.ctx.door().folder_computer(&self.ask.place_id) else {
+            return Ok(None);
+        };
+        let login = folder
+            .machine
+            .login_of()
+            .await
+            .map_err(|e| crate::machines::area_error::AreaError::from(e).into_host())?;
+        Ok(Some(stores_reached(&login, &stores)))
     }
 }
 

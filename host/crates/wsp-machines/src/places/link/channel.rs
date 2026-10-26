@@ -4,19 +4,20 @@
 use std::cell::{Cell, RefCell};
 use std::future::poll_fn;
 use std::net::SocketAddr;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 use std::task::Poll;
 
+use crate::local_task::spawn as spawn_local;
 use base64::Engine as _;
 use futures::channel::{mpsc, oneshot};
 use futures::future::{LocalBoxFuture, Shared};
+use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
 use indexmap::IndexMap;
 use serde_json::{json, Map, Value};
 use tokio::io::AsyncReadExt;
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::task::spawn_local;
 use wsp_core::clock::Cancel as ClockCancel;
 use wsp_core::types::pending::{Clock, DaemonReach};
 use wsp_wire::wire::machine_link::{DaemonResponse, SysSample};
@@ -25,7 +26,7 @@ use wsp_words::workspace_state::absent_computer;
 
 use super::LinkDoor;
 use crate::places::context::PlaceDoorContext;
-use crate::places::helpers::{Cancel, ForwardConn, LinkSocket, LoopbackListener};
+use crate::places::helpers::{refused_host, Cancel, ForwardConn, LinkSocket, LoopbackListener};
 use crate::places::readings::{PlaceReadings, Release};
 use crate::places::setup::PlaceSetupArea;
 use crate::places::types::PlaceResult;
@@ -84,28 +85,22 @@ impl PlaceChannel {
             Rc::clone(&door.readings),
             Rc::clone(&door.setup),
         );
-        let socket_for_listener = Rc::clone(&socket);
-        Rc::new_cyclic(|me: &Weak<PlaceChannel>| {
-            let on_close = me.clone();
-            let close_listener = socket_for_listener.on_close(Box::new(move |code, reason| {
-                if let Some(channel) = on_close.upgrade() {
-                    channel.gone(code, reason);
-                }
-            }));
-            PlaceChannel {
-                ctx,
-                readings,
-                setup,
-                place_id: place_id.to_string(),
-                link,
-                socket,
-                reader,
-                state: RefCell::new(ChannelState {
-                    close_listener: Some(close_listener),
-                    ..ChannelState::default()
-                }),
-            }
-        })
+        let channel = Rc::new(PlaceChannel {
+            ctx,
+            readings,
+            setup,
+            place_id: place_id.to_string(),
+            link,
+            socket: Rc::clone(&socket),
+            reader,
+            state: RefCell::new(ChannelState::default()),
+        });
+        let held = Rc::clone(&channel);
+        let close_listener = socket.on_close(Box::new(move |code, reason| {
+            held.gone(code, reason);
+        }));
+        channel.state.borrow_mut().close_listener = Some(close_listener);
+        channel
     }
 
     /// One frame up the link (`op` and the rest its params), `sys.watch` and `sys.unwatch` held here.
@@ -145,10 +140,7 @@ impl PlaceChannel {
             self.unhold();
             return daemon_answer(json!({ "id": null, "ok": true }));
         }
-        let mut said = on
-            .request(&op, params)
-            .await
-            .map_err(|e| HostError::new(e.message))?;
+        let mut said = on.request(&op, params).await.map_err(refused_host)?;
         said.entry("id").or_insert(Value::Null);
         daemon_answer(Value::Object(said))
     }
@@ -304,6 +296,8 @@ pub(super) async fn run_tunnel(
     if opened.is_ok() {
         let (mut rd, mut wr) = conn.into_split();
         pump(&mut rd, &mut wr, &mut inbound, &reach, &id).await;
+    } else {
+        drop(conn);
     }
     into.borrow_mut().shift_remove(&id);
     if let Some(used) = &used {
@@ -321,7 +315,9 @@ async fn read_chunk(rd: &mut OwnedReadHalf) -> std::io::Result<Vec<u8>> {
     Ok(buf)
 }
 
-/// Carries bytes both ways until either end of the connection ends or fails.
+/// Carries bytes both ways until either end of the connection ends or fails. A `tunnel.write` goes out as its chunk is
+/// read and its answer is waited on beside the reads, never before them (link.ts:477); one that fails ends the
+/// connection.
 async fn pump(
     rd: &mut OwnedReadHalf,
     wr: &mut OwnedWriteHalf,
@@ -330,17 +326,26 @@ async fn pump(
     id: &str,
 ) {
     use tokio::io::AsyncWriteExt;
+    let mut writes = FuturesUnordered::new();
     loop {
         tokio::select! {
             chunk = read_chunk(rd) => match chunk {
                 Ok(bytes) if !bytes.is_empty() => {
                     let data = base64::engine::general_purpose::STANDARD.encode(&bytes);
-                    if reach.request("tunnel.write", frame(json!({ "tunnelId": id, "data": data }))).await.is_err() {
-                        return;
+                    let mut ask = reach.request("tunnel.write", frame(json!({ "tunnelId": id, "data": data })));
+                    match futures::poll!(ask.as_mut()) {
+                        Poll::Ready(Err(_)) => return,
+                        Poll::Ready(Ok(_)) => {}
+                        Poll::Pending => writes.push(ask),
                     }
                 }
                 _ => return,
             },
+            Some(answer) = writes.next(), if !writes.is_empty() => {
+                if answer.is_err() {
+                    return;
+                }
+            }
             msg = inbound.next() => match msg {
                 Some(Inbound::Bytes(bytes)) => {
                     if wr.write_all(&bytes).await.is_err() {
@@ -375,11 +380,13 @@ pub(super) async fn listen_loopback(
             }
         }
     });
-    let stop = task.abort_handle();
+    let stop = task.map(|task| task.abort_handle());
     let close: Box<dyn FnOnce()> = Box::new(move || {
         let listener = slot.borrow_mut().take();
         drop(listener);
-        stop.abort();
+        if let Some(stop) = &stop {
+            stop.abort();
+        }
     });
     Ok((
         Rc::new(LoopbackListener {

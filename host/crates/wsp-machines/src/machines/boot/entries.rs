@@ -35,7 +35,7 @@ pub struct RowAt {
 
 /// The start's one result, as an error a verb answers with (boot.ts:329).
 async fn started(area: &Rc<BootArea>) -> Result<(), HostError> {
-    area.ready().await.map_err(HostError::new)?;
+    area.ready().await.map_err(|e| e.0)?;
     tokio::task::yield_now().await;
     Ok(())
 }

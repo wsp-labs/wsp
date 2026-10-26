@@ -7,13 +7,13 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
+use crate::local_task::spawn as spawn_local;
 use async_trait::async_trait;
 use futures::channel::mpsc;
 use futures::FutureExt;
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Map, Value};
 use tokio::net::TcpStream;
-use tokio::task::spawn_local;
 use wsp_core::console::warn;
 use wsp_core::ids::{Ids, OsIds};
 use wsp_core::types::pending::DaemonReach;
@@ -33,7 +33,8 @@ use wsp_wire::views::place::{
 };
 use wsp_wire::views::place_kind::PlaceKind;
 use wsp_wire::views::place_more::{
-    PlaceAbsentEvent, PlaceCap, PlaceCapSet, PlaceChangedEvent, PlaceSettings, PlaceView,
+    PlaceAbsentEvent, PlaceCap, PlaceCapSet, PlaceChangedEvent, PlacePresentEvent, PlaceSettings,
+    PlaceView,
 };
 use wsp_wire::wire::capabilities::WorkspaceSize;
 use wsp_wire::wire::daemon_events::DaemonEvent;
@@ -533,6 +534,10 @@ impl LinkDoor {
             if let Some(door) = weak.upgrade() {
                 door.attach_closed(&closing_place, &closing_socket);
             }
+        }));
+        self.ctx.emit(&PlaceEvent::Present(PlacePresentEvent {
+            place_id: place_id.to_string(),
+            from: from.to_string(),
         }));
         for pending_wake in self.records.awaiting_for(place_id) {
             pending_wake(place_id);

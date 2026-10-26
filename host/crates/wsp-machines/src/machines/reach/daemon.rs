@@ -96,13 +96,24 @@ impl ReachArea {
         }
     }
 
-    /// Fails with WAKE_STOPPED where either stop is pulled before the work settles.
+    /// Fails with WAKE_STOPPED where either stop is pulled before the work settles. The work is called first, as a
+    /// promise is, so a stop already pulled still lets it make its first ask (reach.ts:240).
     async fn or_stopped<T>(
         &self,
         work: impl Future<Output = AreaResult<T>>,
         quit: Option<&CancellationToken>,
         wake: Option<&CancellationToken>,
     ) -> AreaResult<T> {
+        let mut work = Box::pin(work);
+        let first = futures::poll!(work.as_mut());
+        if quit.is_some_and(CancellationToken::is_cancelled)
+            || wake.is_some_and(CancellationToken::is_cancelled)
+        {
+            return Err(stopped_error());
+        }
+        if let std::task::Poll::Ready(done) = first {
+            return done;
+        }
         tokio::select! {
             biased;
             _ = stopped(quit, wake) => Err(stopped_error()),
@@ -228,13 +239,34 @@ impl ReachArea {
             return None;
         }
         let deadline = self.ctx.now() + answers_ms;
-        let dialled = self
-            .or_stopped(
-                self.dial_daemon(entry, deadline, None, Some(answers_ms as i64)),
-                quit,
-                wake,
-            )
-            .await;
+        let dialled = match self.me.upgrade() {
+            Some(area) => {
+                let (tx, rx) = futures::channel::oneshot::channel();
+                let entry = Rc::clone(entry);
+                self.ctx.spawn(Box::pin(async move {
+                    let out = area
+                        .dial_daemon(&entry, deadline, None, Some(answers_ms as i64))
+                        .await;
+                    if let Err(Ok(Some(link))) = tx.send(out) {
+                        link.close();
+                    }
+                }));
+                self.or_stopped(
+                    async { rx.await.unwrap_or_else(|_| Err(stopped_error())) },
+                    quit,
+                    wake,
+                )
+                .await
+            }
+            None => {
+                self.or_stopped(
+                    self.dial_daemon(entry, deadline, None, Some(answers_ms as i64)),
+                    quit,
+                    wake,
+                )
+                .await
+            }
+        };
         let link = match dialled {
             Ok(link) => link,
             Err(error) => {

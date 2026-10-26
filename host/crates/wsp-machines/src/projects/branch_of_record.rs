@@ -416,7 +416,7 @@ impl BranchOfRecordArea {
         }
         .boxed_local();
         let read = work.shared();
-        tokio::task::spawn_local(read.clone());
+        crate::local_task::spawn(read.clone());
         MarketplacesRead {
             at: now,
             repos,

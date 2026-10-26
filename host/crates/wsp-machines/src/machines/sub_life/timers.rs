@@ -39,6 +39,7 @@ use super::{
 };
 use crate::machines::area_error::{AreaError, AreaResult};
 use crate::machines::machines::Entry;
+use crate::unwound::unwound;
 use wsp_core::clock::Cancel;
 use wsp_core::types::internal::GONE_REASON;
 use wsp_core::types::wiring::{DeleteSaid, SubHeldAt, SubRecord, SubSession, WorkspaceRecord};
@@ -248,8 +249,10 @@ impl SubLifeArea {
             if let Some(prev) = prev {
                 prev.await;
             }
-            if let Err(e) = work().await {
-                ctx.warn(&format!("sub-thread machine {owner}: {}", e.message()));
+            match unwound(work()).await {
+                Ok(Ok(())) => {}
+                Ok(Err(e)) => ctx.warn(&format!("sub-thread machine {owner}: {}", e.message())),
+                Err(panic) => ctx.warn(&format!("sub-thread machine {owner}: {panic}")),
             }
         }
         .boxed_local();

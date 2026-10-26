@@ -30,6 +30,7 @@ use wsp_wire::wire::events_union::{EventUnion, Sequenced};
 use wsp_words::exit::{HostError, Kind};
 use wsp_words::words::computer::RESUME_UNANSWERED;
 
+use super::super::area_error::AreaError;
 use super::super::sub_life::SUB_SESSIONS;
 use super::create::{host_to_engine, iso, Around, ExecHook};
 use super::{Entry, MachinesArea, Unreached};
@@ -552,7 +553,7 @@ fn build_hooks(h: &Hooks, golden: String, wake_attempts: u32, vaulted: bool) -> 
                     });
                     area.fork(&record, &bind, over.as_ref(), None, true)
                         .await
-                        .map_err(host_to_engine)
+                        .map_err(AreaError::into_engine)
                 }
                 .boxed_local()
             },

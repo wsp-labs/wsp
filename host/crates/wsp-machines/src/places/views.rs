@@ -449,7 +449,7 @@ impl PlaceViewsArea {
         let records = Rc::clone(&self.records);
         let id = place_id.to_string();
         let fallback = held.clone();
-        let read = tokio::task::spawn_local(async move {
+        let read = crate::local_task::started(async move {
             match links.forking_backend(&id).await {
                 Ok(_) => records
                     .record_of(&id)
@@ -468,7 +468,7 @@ impl PlaceViewsArea {
             ADD_FACTS_MS as i64,
         );
         let answer = match select(read, fired).await {
-            Either::Left((Ok(record), _)) => record,
+            Either::Left((record, _)) => record,
             _ => held.clone(),
         };
         cancel();
@@ -530,7 +530,7 @@ impl PlaceViewsArea {
         };
         (held.seen)();
         if let Some(forward) = held.forward {
-            tokio::task::spawn_local(async move {
+            crate::local_task::spawn(async move {
                 if let Ok(forward) = forward.await {
                     forward.close();
                 }
@@ -552,7 +552,7 @@ impl PlaceViewsArea {
             if linked {
                 let links = Rc::clone(&self.links);
                 let id = record.id.clone();
-                tokio::task::spawn_local(async move {
+                crate::local_task::spawn(async move {
                     let _ = links.forking_backend(&id).await;
                 });
             }

@@ -195,7 +195,13 @@ fn codex_broker_of_matches_the_ts() {
         } else {
             match serde_json::from_value::<BrokerStatus>(row["status"].clone()) {
                 Ok(status) => Some(status),
-                Err(_) => continue,
+                Err(_) => {
+                    assert!(
+                        row["status"]["claude"] == "nonsense" && row["out"].is_null(),
+                        "only a claude kind of nonsense is a status the wire cannot hold, and the TS answers none for it: {row}"
+                    );
+                    continue;
+                }
             }
         };
         let claims = row["claims"].as_object().map(|c| CodexClaims {
