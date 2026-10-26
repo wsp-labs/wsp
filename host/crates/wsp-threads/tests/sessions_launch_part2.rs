@@ -1131,3 +1131,38 @@ fn a_sender_that_waited_leaves_the_threads_latest_row_alone() {
         assert_eq!(r.emitted_of("session.end").len(), 1);
     });
 }
+
+// L18, L21: launch.ts:150-165 (a resume reads what the machine holds for the session it lost, once, and says it)
+#[test]
+fn a_resume_reads_what_the_machine_holds_for_its_session_once_and_says_it() {
+    run_local(async {
+        let r = rig();
+        r.host.hooks.set::<dyn Fn(&Arc<dyn HarnessAdapter>) -> Option<wsp_threads::threads::launch::SessionHeld>>(
+            "SessionsCtx::session_held_of",
+            Rc::new(|_a: &Arc<dyn HarnessAdapter>| {
+                let held: wsp_threads::threads::launch::SessionHeld =
+                    Rc::new(|session: String, _exec: Arc<dyn HarnessExec>| async move { Ok(format!("held {session}")) }.boxed_local());
+                Some(held)
+            }),
+        );
+        r.host.hooks.set::<dyn Fn(&Entry, u64) -> Arc<dyn HarnessExec>>(
+            "SessionsCtx::harness_exec",
+            Rc::new(|_e: &Entry, _ms: u64| Arc::new(NoExec) as Arc<dyn HarnessExec>),
+        );
+        let mut p = prepared(&r);
+        p.opens = false;
+        p.resume = Some("sess-1".to_string());
+        ok(r.run(p).await);
+        open(r.take_turn(0));
+        let seed = r.adapter.starts.lock().unwrap()[0].seed.clone().expect("a resume carries its seed");
+        let warned = console::capture();
+        seed().await.expect("the seed reads");
+        seed().await.expect("the seed reads again");
+        settle().await;
+        assert_eq!(
+            warned.lines(),
+            vec![wsp_core::types::internal::lost_session_log_line("sess-1", "t1", "w1", "held sess-1")],
+            "the machine is read once, and its words are logged with the ids"
+        );
+    });
+}
