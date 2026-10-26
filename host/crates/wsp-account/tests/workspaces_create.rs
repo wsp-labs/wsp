@@ -86,7 +86,7 @@ fn json_of<T: serde::Serialize>(v: &T) -> Value {
 }
 
 fn agents_ask() -> serde_json::Map<String, Value> {
-    json!({ "spawn": true, "maxMachines": 7 }).as_object().unwrap().clone()
+    json!({ "maxMachines": 7 }).as_object().unwrap().clone()
 }
 
 fn view_json(h: &H, id: &str) -> Value {
@@ -331,10 +331,10 @@ fn create_on_a_folder_kind_sets_agents() {
         let mut o = opts("pr_here", "scratch");
         o.agents = Some(agents_ask());
         let made = create(&h.ctx, o, Some(the_person())).await.unwrap();
-        let agents = json!({ "spawn": true, "maxMachines": 7, "maxDepth": 4 });
+        let agents = json!({ "maxMachines": 7, "maxDepth": 4 });
         let expected = serde_json::to_value(record("ws_folder_pr_here", "local", "pr_here", json!({ "name": "wsp", "machineId": "", "agents": agents }))).unwrap();
         assert_eq!(h.f.base.persisted.borrow().iter().map(json_of).collect::<Vec<_>>(), vec![expected]);
-        assert_eq!(h.f.base.args_of("agents_from"), vec![json!({ "place": "here", "agents": { "spawn": true, "maxMachines": 7 } })]);
+        assert_eq!(h.f.base.args_of("agents_from"), vec![json!({ "place": "here", "agents": { "maxMachines": 7 } })]);
         assert_eq!(made.view.agents.as_ref().map(json_of), Some(agents));
         assert!(h.events().is_empty());
         // A folder record that holds a place names it.
@@ -727,7 +727,7 @@ fn a_failed_create_a_thread_asked_for_stays_under_it_failed_with_why() {
         assert_eq!(h.events(), vec![json!({ "type": "workspace.created", "workspace": failed })]);
         assert!(h.f.shown.borrow().is_empty(), "the shown row is cleared");
         assert_eq!(h.f.base.args_of("report").len(), 1);
-        assert_eq!(h.calls(&["show_create", "report", "emit"]), ["show_create", "report", "emit"]);
+        assert_eq!(h.calls(&["show_create", "emit", "report"]), ["show_create", "emit", "report"]);
     });
 }
 
