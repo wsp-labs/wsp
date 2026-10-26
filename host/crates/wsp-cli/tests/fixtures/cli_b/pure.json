@@ -1,0 +1,968 @@
+{
+ "source": "TS at 65f6b89c7, views from packages/host/test/activity-table.test.ts",
+ "views": {
+  "VIEW": {
+   "computer": "lab-mac.local",
+   "at": 1760000100000,
+   "threads": [
+    {
+     "threadId": "11111111-1111-4111-8111-111111111111",
+     "title": "Fix the lab dashboard",
+     "workspaceId": "ws_lab",
+     "memory": 414502092.8,
+     "cpu": 0.4,
+     "processes": [
+      {
+       "pid": 69887,
+       "ppid": 48420,
+       "depth": 0,
+       "startedAt": 1760000000000,
+       "kind": "agent",
+       "name": "bash",
+       "command": "bash /home/dev/.wsp/runs/af35cb2fea39.sh",
+       "memory": 1153433.6,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69888,
+       "ppid": 69887,
+       "depth": 1,
+       "startedAt": 1760000000001,
+       "kind": "agent",
+       "name": "bash",
+       "command": "bash /home/dev/.wsp/runs/af35cb2fea39.sh",
+       "memory": 1153433.6,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69891,
+       "ppid": 69888,
+       "depth": 2,
+       "startedAt": 1760000000002,
+       "kind": "agent",
+       "name": "2.1.296",
+       "command": "claude -p --input-format stream-json --output-format stream-json --verbose --dangerously-skip-permissions --model claude-opus-5-5 --effort high -",
+       "memory": 203004313.6,
+       "cpu": 0.4,
+       "ports": []
+      },
+      {
+       "pid": 69959,
+       "ppid": 69891,
+       "depth": 3,
+       "startedAt": 1760000000003,
+       "kind": "tool",
+       "name": "uv",
+       "command": "/opt/homebrew/bin/uv tool uvx mcp-search-console",
+       "memory": 31037849.6,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69998,
+       "ppid": 69959,
+       "depth": 4,
+       "startedAt": 1760000000004,
+       "kind": "other",
+       "name": "python3.13",
+       "command": "/home/dev/.cache/uv/archive-v0/djbB/bin/python /home/dev/.cache/uv/archive-v0/djbB/bin/mcp-search-console",
+       "memory": 66899148.8,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69961,
+       "ppid": 69891,
+       "depth": 3,
+       "startedAt": 1760000000005,
+       "kind": "tool",
+       "name": "uv",
+       "command": "/opt/homebrew/bin/uv tool uvx mcp-proxy-for-aws@latest https://aws-mcp.example.test/mcp --metadata INSTALL_SOURCE=aws-cli",
+       "memory": 24536678.4,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 70003,
+       "ppid": 69961,
+       "depth": 4,
+       "startedAt": 1760000000006,
+       "kind": "other",
+       "name": "python3.13",
+       "command": "/home/dev/.cache/uv/archive-v0/RBQV/bin/python /home/dev/.cache/uv/archive-v0/RBQV/bin/mcp-proxy-for-aws https://aws-mcp.example.test/mcp",
+       "memory": 82942361.6,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69890,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000007,
+       "kind": "agent",
+       "name": "tail",
+       "command": "tail -n +1 -f /home/dev/.wsp/runs/af35cb2fea39.in",
+       "memory": 943718.4,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69892,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000008,
+       "kind": "agent",
+       "name": "bash",
+       "command": "bash /home/dev/.wsp/runs/af35cb2fea39.sh",
+       "memory": 1258291.2,
+       "cpu": 0,
+       "ports": []
+      }
+     ]
+    },
+    {
+     "threadId": "22222222-2222-4222-8222-222222222222",
+     "title": "Build: Kept-run tests leave their bash and tail running after they finish, and a second clause long enough to pass any terminal (#2137)",
+     "workspaceId": "ws_lab",
+     "memory": 473956352,
+     "cpu": 12.5,
+     "processes": [
+      {
+       "pid": 71000,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000009,
+       "kind": "agent",
+       "name": "codex",
+       "command": "/opt/homebrew/bin/codex exec --json -",
+       "memory": 220200960,
+       "cpu": 2.5,
+       "ports": []
+      },
+      {
+       "pid": 71010,
+       "ppid": 71000,
+       "depth": 1,
+       "startedAt": 1760000000010,
+       "kind": "terminal",
+       "name": "popbar",
+       "command": "popbar --watch",
+       "memory": 15728640,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 71020,
+       "ppid": 71000,
+       "depth": 1,
+       "startedAt": 1760000000011,
+       "kind": "dev",
+       "name": "node",
+       "command": "node /home/dev/acme/lab/node_modules/.bin/vite --port 5174",
+       "memory": 238026752,
+       "cpu": 10,
+       "ports": [
+        5174
+       ]
+      }
+     ]
+    }
+   ],
+   "wsp": [
+    {
+     "pid": 48000,
+     "ppid": 1,
+     "depth": 0,
+     "startedAt": 1760000000012,
+     "kind": "wsp",
+     "name": "node",
+     "command": "/usr/local/bin/node /opt/wsp/packages/host/dist/bin.js host serve",
+     "memory": 538968064,
+     "cpu": 0.3,
+     "ports": [
+      4400,
+      4420
+     ]
+    },
+    {
+     "pid": 48001,
+     "ppid": 48000,
+     "depth": 1,
+     "startedAt": 1760000000013,
+     "kind": "wsp",
+     "name": "wsp-daemon",
+     "command": "/opt/wsp/daemon/aarch64-apple-darwin/wsp-daemon serve --port 59312",
+     "memory": 58720256,
+     "cpu": 1.1,
+     "ports": [
+      59312
+     ]
+    }
+   ],
+   "unowned": [
+    {
+     "pid": 73000,
+     "ppid": 1,
+     "depth": 0,
+     "startedAt": 1760000000014,
+     "kind": "test",
+     "name": "node",
+     "command": "node /home/dev/acme/lab/node_modules/.bin/vitest run",
+     "memory": 146800640,
+     "cpu": 88,
+     "ports": []
+    }
+   ]
+  },
+  "early": {
+   "computer": "lab-mac.local",
+   "at": 1760000100000,
+   "threads": [
+    {
+     "threadId": "11111111-1111-4111-8111-111111111111",
+     "title": "Fix the lab dashboard",
+     "workspaceId": "ws_lab",
+     "memory": 414502092.8,
+     "cpu": 0.4,
+     "processes": [
+      {
+       "pid": 69887,
+       "ppid": 48420,
+       "depth": 0,
+       "startedAt": 1760000000000,
+       "kind": "agent",
+       "name": "bash",
+       "command": "bash /home/dev/.wsp/runs/af35cb2fea39.sh",
+       "memory": 1153433.6,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69890,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000007,
+       "kind": "agent",
+       "name": "tail",
+       "command": "tail -n +1 -f /home/dev/.wsp/runs/af35cb2fea39.in",
+       "memory": 943718.4,
+       "cpu": 0,
+       "ports": []
+      }
+     ]
+    }
+   ],
+   "wsp": [],
+   "unowned": []
+  },
+  "wideTitles": {
+   "computer": "lab-mac.local",
+   "at": 1760000100000,
+   "threads": [
+    {
+     "threadId": "11111111-1111-4111-8111-111111111111",
+     "title": "修复实验室仪表板上的内存图表在窗口缩小时溢出的问题并补上测试用例与说明文档的更新",
+     "workspaceId": "ws_lab",
+     "memory": 414502092.8,
+     "cpu": 0.4,
+     "processes": [
+      {
+       "pid": 69887,
+       "ppid": 48420,
+       "depth": 0,
+       "startedAt": 1760000000000,
+       "kind": "agent",
+       "name": "bash",
+       "command": "bash /home/dev/.wsp/runs/af35cb2fea39.sh",
+       "memory": 1153433.6,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69888,
+       "ppid": 69887,
+       "depth": 1,
+       "startedAt": 1760000000001,
+       "kind": "agent",
+       "name": "bash",
+       "command": "bash /home/dev/.wsp/runs/af35cb2fea39.sh",
+       "memory": 1153433.6,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69891,
+       "ppid": 69888,
+       "depth": 2,
+       "startedAt": 1760000000002,
+       "kind": "agent",
+       "name": "2.1.296",
+       "command": "claude -p --input-format stream-json --output-format stream-json --verbose --dangerously-skip-permissions --model claude-opus-5-5 --effort high -",
+       "memory": 203004313.6,
+       "cpu": 0.4,
+       "ports": []
+      },
+      {
+       "pid": 69959,
+       "ppid": 69891,
+       "depth": 3,
+       "startedAt": 1760000000003,
+       "kind": "tool",
+       "name": "uv",
+       "command": "/opt/homebrew/bin/uv tool uvx mcp-search-console",
+       "memory": 31037849.6,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69998,
+       "ppid": 69959,
+       "depth": 4,
+       "startedAt": 1760000000004,
+       "kind": "other",
+       "name": "python3.13",
+       "command": "/home/dev/.cache/uv/archive-v0/djbB/bin/python /home/dev/.cache/uv/archive-v0/djbB/bin/mcp-search-console",
+       "memory": 66899148.8,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69961,
+       "ppid": 69891,
+       "depth": 3,
+       "startedAt": 1760000000005,
+       "kind": "tool",
+       "name": "uv",
+       "command": "/opt/homebrew/bin/uv tool uvx mcp-proxy-for-aws@latest https://aws-mcp.example.test/mcp --metadata INSTALL_SOURCE=aws-cli",
+       "memory": 24536678.4,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 70003,
+       "ppid": 69961,
+       "depth": 4,
+       "startedAt": 1760000000006,
+       "kind": "other",
+       "name": "python3.13",
+       "command": "/home/dev/.cache/uv/archive-v0/RBQV/bin/python /home/dev/.cache/uv/archive-v0/RBQV/bin/mcp-proxy-for-aws https://aws-mcp.example.test/mcp",
+       "memory": 82942361.6,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69890,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000007,
+       "kind": "agent",
+       "name": "tail",
+       "command": "tail -n +1 -f /home/dev/.wsp/runs/af35cb2fea39.in",
+       "memory": 943718.4,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69892,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000008,
+       "kind": "agent",
+       "name": "bash",
+       "command": "bash /home/dev/.wsp/runs/af35cb2fea39.sh",
+       "memory": 1258291.2,
+       "cpu": 0,
+       "ports": []
+      }
+     ]
+    },
+    {
+     "threadId": "22222222-2222-4222-8222-222222222222",
+     "title": "🚀🔥✅ Ship the lab dashboard 🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪",
+     "workspaceId": "ws_lab",
+     "memory": 473956352,
+     "cpu": 12.5,
+     "processes": [
+      {
+       "pid": 71000,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000009,
+       "kind": "agent",
+       "name": "codex",
+       "command": "/opt/homebrew/bin/codex exec --json -",
+       "memory": 220200960,
+       "cpu": 2.5,
+       "ports": []
+      },
+      {
+       "pid": 71010,
+       "ppid": 71000,
+       "depth": 1,
+       "startedAt": 1760000000010,
+       "kind": "terminal",
+       "name": "popbar",
+       "command": "popbar --watch",
+       "memory": 15728640,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 71020,
+       "ppid": 71000,
+       "depth": 1,
+       "startedAt": 1760000000011,
+       "kind": "dev",
+       "name": "node",
+       "command": "node /home/dev/acme/lab/node_modules/.bin/vite --port 5174",
+       "memory": 238026752,
+       "cpu": 10,
+       "ports": [
+        5174
+       ]
+      }
+     ]
+    }
+   ],
+   "wsp": [
+    {
+     "pid": 48000,
+     "ppid": 1,
+     "depth": 0,
+     "startedAt": 1760000000012,
+     "kind": "wsp",
+     "name": "node",
+     "command": "/usr/local/bin/node /opt/wsp/packages/host/dist/bin.js host serve",
+     "memory": 538968064,
+     "cpu": 0.3,
+     "ports": [
+      4400,
+      4420
+     ]
+    },
+    {
+     "pid": 48001,
+     "ppid": 48000,
+     "depth": 1,
+     "startedAt": 1760000000013,
+     "kind": "wsp",
+     "name": "wsp-daemon",
+     "command": "/opt/wsp/daemon/aarch64-apple-darwin/wsp-daemon serve --port 59312",
+     "memory": 58720256,
+     "cpu": 1.1,
+     "ports": [
+      59312
+     ]
+    }
+   ],
+   "unowned": [
+    {
+     "pid": 73000,
+     "ppid": 1,
+     "depth": 0,
+     "startedAt": 1760000000014,
+     "kind": "test",
+     "name": "node",
+     "command": "node /home/dev/acme/lab/node_modules/.bin/vitest run",
+     "memory": 146800640,
+     "cpu": 88,
+     "ports": []
+    }
+   ]
+  },
+  "box": {
+   "computer": "lab-box",
+   "at": 1760000100000,
+   "threads": [
+    {
+     "threadId": "11111111-1111-4111-8111-111111111111",
+     "title": "Fix the lab dashboard",
+     "workspaceId": "ws_lab",
+     "memory": 414502092.8,
+     "cpu": 0.4,
+     "processes": [
+      {
+       "pid": 69887,
+       "ppid": 48420,
+       "depth": 0,
+       "startedAt": 1760000000000,
+       "kind": "agent",
+       "name": "bash",
+       "command": "bash /home/dev/.wsp/runs/af35cb2fea39.sh",
+       "memory": 1153433.6,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69888,
+       "ppid": 69887,
+       "depth": 1,
+       "startedAt": 1760000000001,
+       "kind": "agent",
+       "name": "bash",
+       "command": "bash /home/dev/.wsp/runs/af35cb2fea39.sh",
+       "memory": 1153433.6,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69891,
+       "ppid": 69888,
+       "depth": 2,
+       "startedAt": 1760000000002,
+       "kind": "agent",
+       "name": "2.1.296",
+       "command": "claude -p --input-format stream-json --output-format stream-json --verbose --dangerously-skip-permissions --model claude-opus-5-5 --effort high -",
+       "memory": 203004313.6,
+       "cpu": 0.4,
+       "ports": []
+      },
+      {
+       "pid": 69959,
+       "ppid": 69891,
+       "depth": 3,
+       "startedAt": 1760000000003,
+       "kind": "tool",
+       "name": "uv",
+       "command": "/opt/homebrew/bin/uv tool uvx mcp-search-console",
+       "memory": 31037849.6,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69998,
+       "ppid": 69959,
+       "depth": 4,
+       "startedAt": 1760000000004,
+       "kind": "other",
+       "name": "python3.13",
+       "command": "/home/dev/.cache/uv/archive-v0/djbB/bin/python /home/dev/.cache/uv/archive-v0/djbB/bin/mcp-search-console",
+       "memory": 66899148.8,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69961,
+       "ppid": 69891,
+       "depth": 3,
+       "startedAt": 1760000000005,
+       "kind": "tool",
+       "name": "uv",
+       "command": "/opt/homebrew/bin/uv tool uvx mcp-proxy-for-aws@latest https://aws-mcp.example.test/mcp --metadata INSTALL_SOURCE=aws-cli",
+       "memory": 24536678.4,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 70003,
+       "ppid": 69961,
+       "depth": 4,
+       "startedAt": 1760000000006,
+       "kind": "other",
+       "name": "python3.13",
+       "command": "/home/dev/.cache/uv/archive-v0/RBQV/bin/python /home/dev/.cache/uv/archive-v0/RBQV/bin/mcp-proxy-for-aws https://aws-mcp.example.test/mcp",
+       "memory": 82942361.6,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69890,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000007,
+       "kind": "agent",
+       "name": "tail",
+       "command": "tail -n +1 -f /home/dev/.wsp/runs/af35cb2fea39.in",
+       "memory": 943718.4,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 69892,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000008,
+       "kind": "agent",
+       "name": "bash",
+       "command": "bash /home/dev/.wsp/runs/af35cb2fea39.sh",
+       "memory": 1258291.2,
+       "cpu": 0,
+       "ports": []
+      }
+     ]
+    },
+    {
+     "threadId": "22222222-2222-4222-8222-222222222222",
+     "title": "Build: Kept-run tests leave their bash and tail running after they finish, and a second clause long enough to pass any terminal (#2137)",
+     "workspaceId": "ws_lab",
+     "memory": 473956352,
+     "cpu": 12.5,
+     "processes": [
+      {
+       "pid": 71000,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000009,
+       "kind": "agent",
+       "name": "codex",
+       "command": "/opt/homebrew/bin/codex exec --json -",
+       "memory": 220200960,
+       "cpu": 2.5,
+       "ports": []
+      },
+      {
+       "pid": 71010,
+       "ppid": 71000,
+       "depth": 1,
+       "startedAt": 1760000000010,
+       "kind": "terminal",
+       "name": "popbar",
+       "command": "popbar --watch",
+       "memory": 15728640,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 71020,
+       "ppid": 71000,
+       "depth": 1,
+       "startedAt": 1760000000011,
+       "kind": "dev",
+       "name": "node",
+       "command": "node /home/dev/acme/lab/node_modules/.bin/vite --port 5174",
+       "memory": 238026752,
+       "cpu": 10,
+       "ports": [
+        5174
+       ]
+      }
+     ]
+    }
+   ],
+   "wsp": [
+    {
+     "pid": 48001,
+     "ppid": 48000,
+     "depth": 1,
+     "startedAt": 1760000000013,
+     "kind": "wsp",
+     "name": "wsp-daemon",
+     "command": "/opt/wsp/daemon/aarch64-apple-darwin/wsp-daemon serve --port 59312",
+     "memory": 58720256,
+     "cpu": 1.1,
+     "ports": [
+      59312
+     ]
+    }
+   ],
+   "unowned": [
+    {
+     "pid": 73000,
+     "ppid": 1,
+     "depth": 0,
+     "startedAt": 1760000000014,
+     "kind": "test",
+     "name": "node",
+     "command": "node /home/dev/acme/lab/node_modules/.bin/vitest run",
+     "memory": 146800640,
+     "cpu": 88,
+     "ports": []
+    }
+   ]
+  },
+  "empty": {
+   "computer": "lab-mac.local",
+   "at": 0,
+   "threads": [],
+   "wsp": [],
+   "unowned": []
+  },
+  "outside": {
+   "computer": "lab-mac.local",
+   "at": 1760000000000,
+   "threads": [],
+   "wsp": [
+    {
+     "pid": 10,
+     "ppid": 1,
+     "depth": 0,
+     "startedAt": 1760000000010,
+     "kind": "wsp",
+     "name": "node",
+     "command": "node wsp host",
+     "memory": 209715200,
+     "cpu": 0,
+     "ports": []
+    },
+    {
+     "pid": 20,
+     "ppid": 10,
+     "depth": 1,
+     "startedAt": 1760000000020,
+     "kind": "wsp",
+     "name": "wsp-daemon",
+     "command": "wsp-daemon serve",
+     "memory": 4194304,
+     "cpu": 0,
+     "ports": []
+    }
+   ],
+   "unowned": [
+    {
+     "pid": 450,
+     "ppid": 410,
+     "depth": 0,
+     "startedAt": 1760000000450,
+     "kind": "dev",
+     "name": "bash",
+     "command": "bash /home/dev/wsp-work/state/runs/0a1b2c3d4e5f.sh",
+     "memory": 2097152,
+     "cpu": 0,
+     "ports": []
+    },
+    {
+     "pid": 500,
+     "ppid": 450,
+     "depth": 1,
+     "startedAt": 1760000000500,
+     "kind": "agent",
+     "name": "2.1.296",
+     "command": "claude -p --input-format stream-json --output-format stream-json --verbose --model claude-opus-5-5",
+     "memory": 671088640,
+     "cpu": 3,
+     "ports": []
+    },
+    {
+     "pid": 510,
+     "ppid": 500,
+     "depth": 2,
+     "startedAt": 1760000000510,
+     "kind": "tool",
+     "name": "uv",
+     "command": "/opt/homebrew/bin/uv tool uvx mcp-search-console",
+     "memory": 31457280,
+     "cpu": 0,
+     "ports": []
+    },
+    {
+     "pid": 511,
+     "ppid": 510,
+     "depth": 3,
+     "startedAt": 1760000000511,
+     "kind": "other",
+     "name": "python3.13",
+     "command": "/home/dev/.cache/uv/archive-v0/djbB/bin/python /home/dev/.cache/uv/archive-v0/djbB/bin/mcp-search-console",
+     "memory": 67108864,
+     "cpu": 0,
+     "ports": []
+    },
+    {
+     "pid": 520,
+     "ppid": 500,
+     "depth": 2,
+     "startedAt": 1760000000520,
+     "kind": "tool",
+     "name": "node",
+     "command": "node /home/dev/.npm/_npx/9f1/node_modules/.bin/mcp-server-github",
+     "memory": 83886080,
+     "cpu": 0,
+     "ports": []
+    },
+    {
+     "pid": 530,
+     "ppid": 500,
+     "depth": 2,
+     "startedAt": 1760000000530,
+     "kind": "other",
+     "name": "zsh",
+     "command": "/bin/zsh -c ls",
+     "memory": 3145728,
+     "cpu": 0,
+     "ports": []
+    },
+    {
+     "pid": 600,
+     "ppid": 1,
+     "depth": 0,
+     "startedAt": 1760000000600,
+     "kind": "agent",
+     "name": "node",
+     "command": "node /opt/homebrew/bin/codex exec --json -",
+     "memory": 41943040,
+     "cpu": 0,
+     "ports": []
+    },
+    {
+     "pid": 601,
+     "ppid": 600,
+     "depth": 1,
+     "startedAt": 1760000000601,
+     "kind": "agent",
+     "name": "codex",
+     "command": "/opt/homebrew/lib/node_modules/@openai/codex/vendor/aarch64-apple-darwin/codex/codex exec --json -",
+     "memory": 220200960,
+     "cpu": 0,
+     "ports": []
+    }
+   ]
+  },
+  "ties": {
+   "computer": "c",
+   "at": 0,
+   "threads": [
+    {
+     "threadId": "b",
+     "title": "B",
+     "workspaceId": "w",
+     "memory": 10485760,
+     "cpu": 0,
+     "processes": [
+      {
+       "pid": 9,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000015,
+       "kind": "dev",
+       "name": "node",
+       "command": "node x",
+       "memory": 1048576,
+       "cpu": 0,
+       "ports": []
+      }
+     ]
+    },
+    {
+     "threadId": "a",
+     "title": "A",
+     "workspaceId": "w",
+     "memory": 10485760,
+     "cpu": 0,
+     "processes": [
+      {
+       "pid": 8,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000016,
+       "kind": "dev",
+       "name": "node",
+       "command": "node y",
+       "memory": 1048576,
+       "cpu": 0,
+       "ports": []
+      },
+      {
+       "pid": 3,
+       "ppid": 1,
+       "depth": 0,
+       "startedAt": 1760000000017,
+       "kind": "dev",
+       "name": "node",
+       "command": "node z",
+       "memory": 1048576,
+       "cpu": 0,
+       "ports": []
+      }
+     ]
+    }
+   ],
+   "wsp": [],
+   "unowned": []
+  }
+ },
+ "tables": {
+  "VIEW 80 fold": "lab-mac.local   wsp 1.5 GB   CPU 102%   11 processes   2 threads\n\n                                                                   MEMORY    CPU\nwsp  The app and what runs it                                      570 MB   1.4%\n  Host :4400 :4420                                                 514 MB   0.3%\n    Daemon :59312                                                   56 MB   1.1%\nBuild: Kept-run tests leave their bash and tail running after th…  452 MB  12.5%\n  Codex                                                            210 MB   2.5%\n    vite :5174            Dev server                               227 MB  10.0%\n    popbar                Terminal                                  15 MB   0.0%\nFix the lab dashboard                                              395 MB   0.4%\n  Claude Code                                                      198 MB   0.4%\n    mcp-search-console    Tool server                               30 MB   0.0%\n      mcp-search-console                                            64 MB   0.0%\n    mcp-proxy-for-aws     Tool server                               23 MB   0.0%\n      mcp-proxy-for-aws                                             79 MB   0.0%\nNo thread  Started with no thread wsp knows of                     140 MB  88.0%\n  vitest                  Test run                                 140 MB  88.0%",
+  "VIEW 160 fold": "lab-mac.local   wsp 1.5 GB   CPU 102%   11 processes   2 threads\n\n                                                                          MEMORY    CPU\nwsp  The app and what runs it                                             570 MB   1.4%\n  Host :4400 :4420                                                        514 MB   0.3%\n    Daemon :59312                                                          56 MB   1.1%\nBuild: Kept-run tests leave their bash and tail running after they fini…  452 MB  12.5%\n  Codex                                                                   210 MB   2.5%\n    vite :5174            Dev server                                      227 MB  10.0%\n    popbar                Terminal                                         15 MB   0.0%\nFix the lab dashboard                                                     395 MB   0.4%\n  Claude Code                                                             198 MB   0.4%\n    mcp-search-console    Tool server                                      30 MB   0.0%\n      mcp-search-console                                                   64 MB   0.0%\n    mcp-proxy-for-aws     Tool server                                      23 MB   0.0%\n      mcp-proxy-for-aws                                                    79 MB   0.0%\nNo thread  Started with no thread wsp knows of                            140 MB  88.0%\n  vitest                  Test run                                        140 MB  88.0%",
+  "VIEW 40 fold": "lab-mac.local   wsp 1.5 GB   CPU 102%  …\n\n                           MEMORY    CPU\nwsp  The app and what ru…  570 MB   1.4%\n  Host :4400 :4420         514 MB   0.3%\n    Daemon :59312           56 MB   1.1%\nBuild: Kept-run tests le…  452 MB  12.5%\n  Codex                    210 MB   2.5%\n    vite :5174             227 MB  10.0%\n    popbar                  15 MB   0.0%\nFix the lab dashboard      395 MB   0.4%\n  Claude Code              198 MB   0.4%\n    mcp-search-console      30 MB   0.0%\n      mcp-search-console    64 MB   0.0%\n    mcp-proxy-for-aws       23 MB   0.0%\n      mcp-proxy-for-aws     79 MB   0.0%\nNo thread  Started with …  140 MB  88.0%\n  vitest                   140 MB  88.0%",
+  "VIEW 100 fold": "lab-mac.local   wsp 1.5 GB   CPU 102%   11 processes   2 threads\n\n                                                                          MEMORY    CPU\nwsp  The app and what runs it                                             570 MB   1.4%\n  Host :4400 :4420                                                        514 MB   0.3%\n    Daemon :59312                                                          56 MB   1.1%\nBuild: Kept-run tests leave their bash and tail running after they fini…  452 MB  12.5%\n  Codex                                                                   210 MB   2.5%\n    vite :5174            Dev server                                      227 MB  10.0%\n    popbar                Terminal                                         15 MB   0.0%\nFix the lab dashboard                                                     395 MB   0.4%\n  Claude Code                                                             198 MB   0.4%\n    mcp-search-console    Tool server                                      30 MB   0.0%\n      mcp-search-console                                                   64 MB   0.0%\n    mcp-proxy-for-aws     Tool server                                      23 MB   0.0%\n      mcp-proxy-for-aws                                                    79 MB   0.0%\nNo thread  Started with no thread wsp knows of                            140 MB  88.0%\n  vitest                  Test run                                        140 MB  88.0%",
+  "VIEW Infinity fold": "lab-mac.local   wsp 1.5 GB   CPU 102%   11 processes   2 threads\n\n                                                                          MEMORY    CPU\nwsp  The app and what runs it                                             570 MB   1.4%\n  Host :4400 :4420                                                        514 MB   0.3%\n    Daemon :59312                                                          56 MB   1.1%\nBuild: Kept-run tests leave their bash and tail running after they fini…  452 MB  12.5%\n  Codex                                                                   210 MB   2.5%\n    vite :5174            Dev server                                      227 MB  10.0%\n    popbar                Terminal                                         15 MB   0.0%\nFix the lab dashboard                                                     395 MB   0.4%\n  Claude Code                                                             198 MB   0.4%\n    mcp-search-console    Tool server                                      30 MB   0.0%\n      mcp-search-console                                                   64 MB   0.0%\n    mcp-proxy-for-aws     Tool server                                      23 MB   0.0%\n      mcp-proxy-for-aws                                                    79 MB   0.0%\nNo thread  Started with no thread wsp knows of                            140 MB  88.0%\n  vitest                  Test run                                        140 MB  88.0%",
+  "VIEW 80 wide": "lab-mac.local   wsp 1.5 GB   CPU 102%   15 processes   2 threads\n\n                                                                            PID  MEMORY    CPU  COMMAND\nwsp  The app and what runs it                                                    570 MB   1.4%\n  Host :4400 :4420                                                        48000  514 MB   0.3%  /usr/local/bin/node /opt/wsp/packages/host/dist/bin.js host serve\n    Daemon :59312                                                         48001   56 MB   1.1%  /opt/wsp/daemon/aarch64-apple-darwin/wsp-daemon serve --port 59312\nBuild: Kept-run tests leave their bash and tail running after they fini…         452 MB  12.5%\n  Codex                                                                   71000  210 MB   2.5%  /opt/homebrew/bin/codex exec --json -\n    vite :5174                Dev server                                  71020  227 MB  10.0%  node /home/dev/acme/lab/node_modules/.bin/vite --port 5174\n    popbar                    Terminal                                    71010   15 MB   0.0%  popbar --watch\nFix the lab dashboard                                                            395 MB   0.4%\n  bash                                                                    69892    1 MB   0.0%  bash /home/dev/.wsp/runs/af35cb2fea39.sh\n  bash                                                                    69887    1 MB   0.0%  bash /home/dev/.wsp/runs/af35cb2fea39.sh\n    bash                                                                  69888    1 MB   0.0%  bash /home/dev/.wsp/runs/af35cb2fea39.sh\n      Claude Code                                                         69891  194 MB   0.4%  claude -p --input-format stream-json --output-format stream-json --verbose --dangerously-skip-permissions --model claude-opus-5-5 --effort high -\n        mcp-search-console    Tool server                                 69959   30 MB   0.0%  /opt/homebrew/bin/uv tool uvx mcp-search-console\n          mcp-search-console                                              69998   64 MB   0.0%  /home/dev/.cache/uv/archive-v0/djbB/bin/python /home/dev/.cache/uv/archive-v0/djbB/bin/mcp-search-console\n        mcp-proxy-for-aws     Tool server                                 69961   23 MB   0.0%  /opt/homebrew/bin/uv tool uvx mcp-proxy-for-aws@latest https://aws-mcp.example.test/mcp --metadata INSTALL_SOURCE=aws-cli\n          mcp-proxy-for-aws                                               70003   79 MB   0.0%  /home/dev/.cache/uv/archive-v0/RBQV/bin/python /home/dev/.cache/uv/archive-v0/RBQV/bin/mcp-proxy-for-aws https://aws-mcp.example.test/mcp\n  tail                                                                    69890  922 KB   0.0%  tail -n +1 -f /home/dev/.wsp/runs/af35cb2fea39.in\nNo thread  Started with no thread wsp knows of                                   140 MB  88.0%\n  vitest                      Test run                                    73000  140 MB  88.0%  node /home/dev/acme/lab/node_modules/.bin/vitest run",
+  "VIEW 20 fold": "lab-mac.local   wsp…\n\n       MEMORY    CPU\nwsp …  570 MB   1.4%\n  Ho…  514 MB   0.3%\n    …   56 MB   1.1%\nBuil…  452 MB  12.5%\n  Co…  210 MB   2.5%\n    …  227 MB  10.0%\n    …   15 MB   0.0%\nFix …  395 MB   0.4%\n  Cl…  198 MB   0.4%\n    …   30 MB   0.0%\n    …   64 MB   0.0%\n    …   23 MB   0.0%\n    …   79 MB   0.0%\nNo t…  140 MB  88.0%\n  vi…  140 MB  88.0%",
+  "VIEW 1 fold": "…\n\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…",
+  "early 80 fold": "lab-mac.local   wsp 395 MB   CPU 0%   1 process   1 thread\n\n                       MEMORY   CPU\nFix the lab dashboard  395 MB  0.4%\n  Agent                  2 MB  0.0%",
+  "early 160 fold": "lab-mac.local   wsp 395 MB   CPU 0%   1 process   1 thread\n\n                       MEMORY   CPU\nFix the lab dashboard  395 MB  0.4%\n  Agent                  2 MB  0.0%",
+  "early 40 fold": "lab-mac.local   wsp 395 MB   CPU 0%   1…\n\n                       MEMORY   CPU\nFix the lab dashboard  395 MB  0.4%\n  Agent                  2 MB  0.0%",
+  "early 100 fold": "lab-mac.local   wsp 395 MB   CPU 0%   1 process   1 thread\n\n                       MEMORY   CPU\nFix the lab dashboard  395 MB  0.4%\n  Agent                  2 MB  0.0%",
+  "early Infinity fold": "lab-mac.local   wsp 395 MB   CPU 0%   1 process   1 thread\n\n                       MEMORY   CPU\nFix the lab dashboard  395 MB  0.4%\n  Agent                  2 MB  0.0%",
+  "early 80 wide": "lab-mac.local   wsp 395 MB   CPU 0%   2 processes   1 thread\n\n                         PID  MEMORY   CPU  COMMAND\nFix the lab dashboard         395 MB  0.4%\n  bash                 69887    1 MB  0.0%  bash /home/dev/.wsp/runs/af35cb2fea39.sh\n  tail                 69890  922 KB  0.0%  tail -n +1 -f /home/dev/.wsp/runs/af35cb2fea39.in",
+  "early 20 fold": "lab-mac.local   wsp…\n\n        MEMORY   CPU\nFix t…  395 MB  0.4%\n  Age…    2 MB  0.0%",
+  "early 1 fold": "…\n\n…\n…\n…",
+  "wideTitles 80 fold": "lab-mac.local   wsp 1.5 GB   CPU 102%   11 processes   2 threads\n\n                                                                   MEMORY    CPU\nwsp  The app and what runs it                                      570 MB   1.4%\n  Host :4400 :4420                                                 514 MB   0.3%\n    Daemon :59312                                                   56 MB   1.1%\n🚀🔥✅ Ship the lab dashboard 🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪…  452 MB  12.5%\n  Codex                                                            210 MB   2.5%\n    vite :5174            Dev server                               227 MB  10.0%\n    popbar                Terminal                                  15 MB   0.0%\n修复实验室仪表板上的内存图表在窗口缩小时溢出的问题并补上测试用例…  395 MB   0.4%\n  Claude Code                                                      198 MB   0.4%\n    mcp-search-console    Tool server                               30 MB   0.0%\n      mcp-search-console                                            64 MB   0.0%\n    mcp-proxy-for-aws     Tool server                               23 MB   0.0%\n      mcp-proxy-for-aws                                             79 MB   0.0%\nNo thread  Started with no thread wsp knows of                     140 MB  88.0%\n  vitest                  Test run                                 140 MB  88.0%",
+  "wideTitles 160 fold": "lab-mac.local   wsp 1.5 GB   CPU 102%   11 processes   2 threads\n\n                                                                          MEMORY    CPU\nwsp  The app and what runs it                                             570 MB   1.4%\n  Host :4400 :4420                                                        514 MB   0.3%\n    Daemon :59312                                                          56 MB   1.1%\n🚀🔥✅ Ship the lab dashboard 🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪…   452 MB  12.5%\n  Codex                                                                   210 MB   2.5%\n    vite :5174            Dev server                                      227 MB  10.0%\n    popbar                Terminal                                         15 MB   0.0%\n修复实验室仪表板上的内存图表在窗口缩小时溢出的问题并补上测试用例与说明…   395 MB   0.4%\n  Claude Code                                                             198 MB   0.4%\n    mcp-search-console    Tool server                                      30 MB   0.0%\n      mcp-search-console                                                   64 MB   0.0%\n    mcp-proxy-for-aws     Tool server                                      23 MB   0.0%\n      mcp-proxy-for-aws                                                    79 MB   0.0%\nNo thread  Started with no thread wsp knows of                            140 MB  88.0%\n  vitest                  Test run                                        140 MB  88.0%",
+  "wideTitles 40 fold": "lab-mac.local   wsp 1.5 GB   CPU 102%  …\n\n                           MEMORY    CPU\nwsp  The app and what ru…  570 MB   1.4%\n  Host :4400 :4420         514 MB   0.3%\n    Daemon :59312           56 MB   1.1%\n🚀🔥✅ Ship the lab dash…  452 MB  12.5%\n  Codex                    210 MB   2.5%\n    vite :5174             227 MB  10.0%\n    popbar                  15 MB   0.0%\n修复实验室仪表板上的内存…  395 MB   0.4%\n  Claude Code              198 MB   0.4%\n    mcp-search-console      30 MB   0.0%\n      mcp-search-console    64 MB   0.0%\n    mcp-proxy-for-aws       23 MB   0.0%\n      mcp-proxy-for-aws     79 MB   0.0%\nNo thread  Started with …  140 MB  88.0%\n  vitest                   140 MB  88.0%",
+  "wideTitles 100 fold": "lab-mac.local   wsp 1.5 GB   CPU 102%   11 processes   2 threads\n\n                                                                          MEMORY    CPU\nwsp  The app and what runs it                                             570 MB   1.4%\n  Host :4400 :4420                                                        514 MB   0.3%\n    Daemon :59312                                                          56 MB   1.1%\n🚀🔥✅ Ship the lab dashboard 🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪…   452 MB  12.5%\n  Codex                                                                   210 MB   2.5%\n    vite :5174            Dev server                                      227 MB  10.0%\n    popbar                Terminal                                         15 MB   0.0%\n修复实验室仪表板上的内存图表在窗口缩小时溢出的问题并补上测试用例与说明…   395 MB   0.4%\n  Claude Code                                                             198 MB   0.4%\n    mcp-search-console    Tool server                                      30 MB   0.0%\n      mcp-search-console                                                   64 MB   0.0%\n    mcp-proxy-for-aws     Tool server                                      23 MB   0.0%\n      mcp-proxy-for-aws                                                    79 MB   0.0%\nNo thread  Started with no thread wsp knows of                            140 MB  88.0%\n  vitest                  Test run                                        140 MB  88.0%",
+  "wideTitles Infinity fold": "lab-mac.local   wsp 1.5 GB   CPU 102%   11 processes   2 threads\n\n                                                                          MEMORY    CPU\nwsp  The app and what runs it                                             570 MB   1.4%\n  Host :4400 :4420                                                        514 MB   0.3%\n    Daemon :59312                                                          56 MB   1.1%\n🚀🔥✅ Ship the lab dashboard 🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪…   452 MB  12.5%\n  Codex                                                                   210 MB   2.5%\n    vite :5174            Dev server                                      227 MB  10.0%\n    popbar                Terminal                                         15 MB   0.0%\n修复实验室仪表板上的内存图表在窗口缩小时溢出的问题并补上测试用例与说明…   395 MB   0.4%\n  Claude Code                                                             198 MB   0.4%\n    mcp-search-console    Tool server                                      30 MB   0.0%\n      mcp-search-console                                                   64 MB   0.0%\n    mcp-proxy-for-aws     Tool server                                      23 MB   0.0%\n      mcp-proxy-for-aws                                                    79 MB   0.0%\nNo thread  Started with no thread wsp knows of                            140 MB  88.0%\n  vitest                  Test run                                        140 MB  88.0%",
+  "wideTitles 80 wide": "lab-mac.local   wsp 1.5 GB   CPU 102%   15 processes   2 threads\n\n                                                                            PID  MEMORY    CPU  COMMAND\nwsp  The app and what runs it                                                    570 MB   1.4%\n  Host :4400 :4420                                                        48000  514 MB   0.3%  /usr/local/bin/node /opt/wsp/packages/host/dist/bin.js host serve\n    Daemon :59312                                                         48001   56 MB   1.1%  /opt/wsp/daemon/aarch64-apple-darwin/wsp-daemon serve --port 59312\n🚀🔥✅ Ship the lab dashboard 🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪…          452 MB  12.5%\n  Codex                                                                   71000  210 MB   2.5%  /opt/homebrew/bin/codex exec --json -\n    vite :5174                Dev server                                  71020  227 MB  10.0%  node /home/dev/acme/lab/node_modules/.bin/vite --port 5174\n    popbar                    Terminal                                    71010   15 MB   0.0%  popbar --watch\n修复实验室仪表板上的内存图表在窗口缩小时溢出的问题并补上测试用例与说明…          395 MB   0.4%\n  bash                                                                    69892    1 MB   0.0%  bash /home/dev/.wsp/runs/af35cb2fea39.sh\n  bash                                                                    69887    1 MB   0.0%  bash /home/dev/.wsp/runs/af35cb2fea39.sh\n    bash                                                                  69888    1 MB   0.0%  bash /home/dev/.wsp/runs/af35cb2fea39.sh\n      Claude Code                                                         69891  194 MB   0.4%  claude -p --input-format stream-json --output-format stream-json --verbose --dangerously-skip-permissions --model claude-opus-5-5 --effort high -\n        mcp-search-console    Tool server                                 69959   30 MB   0.0%  /opt/homebrew/bin/uv tool uvx mcp-search-console\n          mcp-search-console                                              69998   64 MB   0.0%  /home/dev/.cache/uv/archive-v0/djbB/bin/python /home/dev/.cache/uv/archive-v0/djbB/bin/mcp-search-console\n        mcp-proxy-for-aws     Tool server                                 69961   23 MB   0.0%  /opt/homebrew/bin/uv tool uvx mcp-proxy-for-aws@latest https://aws-mcp.example.test/mcp --metadata INSTALL_SOURCE=aws-cli\n          mcp-proxy-for-aws                                               70003   79 MB   0.0%  /home/dev/.cache/uv/archive-v0/RBQV/bin/python /home/dev/.cache/uv/archive-v0/RBQV/bin/mcp-proxy-for-aws https://aws-mcp.example.test/mcp\n  tail                                                                    69890  922 KB   0.0%  tail -n +1 -f /home/dev/.wsp/runs/af35cb2fea39.in\nNo thread  Started with no thread wsp knows of                                   140 MB  88.0%\n  vitest                      Test run                                    73000  140 MB  88.0%  node /home/dev/acme/lab/node_modules/.bin/vitest run",
+  "wideTitles 20 fold": "lab-mac.local   wsp…\n\n       MEMORY    CPU\nwsp …  570 MB   1.4%\n  Ho…  514 MB   0.3%\n    …   56 MB   1.1%\n🚀🔥…  452 MB  12.5%\n  Co…  210 MB   2.5%\n    …  227 MB  10.0%\n    …   15 MB   0.0%\n修复…  395 MB   0.4%\n  Cl…  198 MB   0.4%\n    …   30 MB   0.0%\n    …   64 MB   0.0%\n    …   23 MB   0.0%\n    …   79 MB   0.0%\nNo t…  140 MB  88.0%\n  vi…  140 MB  88.0%",
+  "wideTitles 1 fold": "…\n\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…",
+  "box 80 fold": "lab-box   wsp 1 GB   CPU 102%   10 processes   2 threads\n\n                                                                   MEMORY    CPU\nwsp  What runs wsp here                                             56 MB   1.1%\n  Daemon :59312                                                     56 MB   1.1%\nBuild: Kept-run tests leave their bash and tail running after th…  452 MB  12.5%\n  Codex                                                            210 MB   2.5%\n    vite :5174            Dev server                               227 MB  10.0%\n    popbar                Terminal                                  15 MB   0.0%\nFix the lab dashboard                                              395 MB   0.4%\n  Claude Code                                                      198 MB   0.4%\n    mcp-search-console    Tool server                               30 MB   0.0%\n      mcp-search-console                                            64 MB   0.0%\n    mcp-proxy-for-aws     Tool server                               23 MB   0.0%\n      mcp-proxy-for-aws                                             79 MB   0.0%\nNo thread  Started with no thread wsp knows of                     140 MB  88.0%\n  vitest                  Test run                                 140 MB  88.0%",
+  "box 160 fold": "lab-box   wsp 1 GB   CPU 102%   10 processes   2 threads\n\n                                                                          MEMORY    CPU\nwsp  What runs wsp here                                                    56 MB   1.1%\n  Daemon :59312                                                            56 MB   1.1%\nBuild: Kept-run tests leave their bash and tail running after they fini…  452 MB  12.5%\n  Codex                                                                   210 MB   2.5%\n    vite :5174            Dev server                                      227 MB  10.0%\n    popbar                Terminal                                         15 MB   0.0%\nFix the lab dashboard                                                     395 MB   0.4%\n  Claude Code                                                             198 MB   0.4%\n    mcp-search-console    Tool server                                      30 MB   0.0%\n      mcp-search-console                                                   64 MB   0.0%\n    mcp-proxy-for-aws     Tool server                                      23 MB   0.0%\n      mcp-proxy-for-aws                                                    79 MB   0.0%\nNo thread  Started with no thread wsp knows of                            140 MB  88.0%\n  vitest                  Test run                                        140 MB  88.0%",
+  "box 40 fold": "lab-box   wsp 1 GB   CPU 102%   10 proc…\n\n                           MEMORY    CPU\nwsp  What runs wsp here     56 MB   1.1%\n  Daemon :59312             56 MB   1.1%\nBuild: Kept-run tests le…  452 MB  12.5%\n  Codex                    210 MB   2.5%\n    vite :5174             227 MB  10.0%\n    popbar                  15 MB   0.0%\nFix the lab dashboard      395 MB   0.4%\n  Claude Code              198 MB   0.4%\n    mcp-search-console      30 MB   0.0%\n      mcp-search-console    64 MB   0.0%\n    mcp-proxy-for-aws       23 MB   0.0%\n      mcp-proxy-for-aws     79 MB   0.0%\nNo thread  Started with …  140 MB  88.0%\n  vitest                   140 MB  88.0%",
+  "box 100 fold": "lab-box   wsp 1 GB   CPU 102%   10 processes   2 threads\n\n                                                                          MEMORY    CPU\nwsp  What runs wsp here                                                    56 MB   1.1%\n  Daemon :59312                                                            56 MB   1.1%\nBuild: Kept-run tests leave their bash and tail running after they fini…  452 MB  12.5%\n  Codex                                                                   210 MB   2.5%\n    vite :5174            Dev server                                      227 MB  10.0%\n    popbar                Terminal                                         15 MB   0.0%\nFix the lab dashboard                                                     395 MB   0.4%\n  Claude Code                                                             198 MB   0.4%\n    mcp-search-console    Tool server                                      30 MB   0.0%\n      mcp-search-console                                                   64 MB   0.0%\n    mcp-proxy-for-aws     Tool server                                      23 MB   0.0%\n      mcp-proxy-for-aws                                                    79 MB   0.0%\nNo thread  Started with no thread wsp knows of                            140 MB  88.0%\n  vitest                  Test run                                        140 MB  88.0%",
+  "box Infinity fold": "lab-box   wsp 1 GB   CPU 102%   10 processes   2 threads\n\n                                                                          MEMORY    CPU\nwsp  What runs wsp here                                                    56 MB   1.1%\n  Daemon :59312                                                            56 MB   1.1%\nBuild: Kept-run tests leave their bash and tail running after they fini…  452 MB  12.5%\n  Codex                                                                   210 MB   2.5%\n    vite :5174            Dev server                                      227 MB  10.0%\n    popbar                Terminal                                         15 MB   0.0%\nFix the lab dashboard                                                     395 MB   0.4%\n  Claude Code                                                             198 MB   0.4%\n    mcp-search-console    Tool server                                      30 MB   0.0%\n      mcp-search-console                                                   64 MB   0.0%\n    mcp-proxy-for-aws     Tool server                                      23 MB   0.0%\n      mcp-proxy-for-aws                                                    79 MB   0.0%\nNo thread  Started with no thread wsp knows of                            140 MB  88.0%\n  vitest                  Test run                                        140 MB  88.0%",
+  "box 80 wide": "lab-box   wsp 1 GB   CPU 102%   14 processes   2 threads\n\n                                                                            PID  MEMORY    CPU  COMMAND\nwsp  What runs wsp here                                                           56 MB   1.1%\n  Daemon :59312                                                           48001   56 MB   1.1%  /opt/wsp/daemon/aarch64-apple-darwin/wsp-daemon serve --port 59312\nBuild: Kept-run tests leave their bash and tail running after they fini…         452 MB  12.5%\n  Codex                                                                   71000  210 MB   2.5%  /opt/homebrew/bin/codex exec --json -\n    vite :5174                Dev server                                  71020  227 MB  10.0%  node /home/dev/acme/lab/node_modules/.bin/vite --port 5174\n    popbar                    Terminal                                    71010   15 MB   0.0%  popbar --watch\nFix the lab dashboard                                                            395 MB   0.4%\n  bash                                                                    69892    1 MB   0.0%  bash /home/dev/.wsp/runs/af35cb2fea39.sh\n  bash                                                                    69887    1 MB   0.0%  bash /home/dev/.wsp/runs/af35cb2fea39.sh\n    bash                                                                  69888    1 MB   0.0%  bash /home/dev/.wsp/runs/af35cb2fea39.sh\n      Claude Code                                                         69891  194 MB   0.4%  claude -p --input-format stream-json --output-format stream-json --verbose --dangerously-skip-permissions --model claude-opus-5-5 --effort high -\n        mcp-search-console    Tool server                                 69959   30 MB   0.0%  /opt/homebrew/bin/uv tool uvx mcp-search-console\n          mcp-search-console                                              69998   64 MB   0.0%  /home/dev/.cache/uv/archive-v0/djbB/bin/python /home/dev/.cache/uv/archive-v0/djbB/bin/mcp-search-console\n        mcp-proxy-for-aws     Tool server                                 69961   23 MB   0.0%  /opt/homebrew/bin/uv tool uvx mcp-proxy-for-aws@latest https://aws-mcp.example.test/mcp --metadata INSTALL_SOURCE=aws-cli\n          mcp-proxy-for-aws                                               70003   79 MB   0.0%  /home/dev/.cache/uv/archive-v0/RBQV/bin/python /home/dev/.cache/uv/archive-v0/RBQV/bin/mcp-proxy-for-aws https://aws-mcp.example.test/mcp\n  tail                                                                    69890  922 KB   0.0%  tail -n +1 -f /home/dev/.wsp/runs/af35cb2fea39.in\nNo thread  Started with no thread wsp knows of                                   140 MB  88.0%\n  vitest                      Test run                                    73000  140 MB  88.0%  node /home/dev/acme/lab/node_modules/.bin/vitest run",
+  "box 20 fold": "lab-box   wsp 1 GB …\n\n       MEMORY    CPU\nwsp …   56 MB   1.1%\n  Da…   56 MB   1.1%\nBuil…  452 MB  12.5%\n  Co…  210 MB   2.5%\n    …  227 MB  10.0%\n    …   15 MB   0.0%\nFix …  395 MB   0.4%\n  Cl…  198 MB   0.4%\n    …   30 MB   0.0%\n    …   64 MB   0.0%\n    …   23 MB   0.0%\n    …   79 MB   0.0%\nNo t…  140 MB  88.0%\n  vi…  140 MB  88.0%",
+  "box 1 fold": "…\n\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…",
+  "empty 80 fold": "no thread runs a process on lab-mac.local",
+  "empty 160 fold": "no thread runs a process on lab-mac.local",
+  "empty 40 fold": "no thread runs a process on lab-mac.local",
+  "empty 100 fold": "no thread runs a process on lab-mac.local",
+  "empty Infinity fold": "no thread runs a process on lab-mac.local",
+  "empty 80 wide": "no thread runs a process on lab-mac.local",
+  "empty 20 fold": "no thread runs a process on lab-mac.local",
+  "empty 1 fold": "no thread runs a process on lab-mac.local",
+  "outside 80 fold": "lab-mac.local   wsp 1.2 GB   CPU 3%   10 processes   0 threads\n\n                                                MEMORY   CPU\nwsp  The app and what runs it                   204 MB  0.0%\n  Host                                          200 MB  0.0%\n    Daemon                                        4 MB  0.0%\nNo thread  Started with no thread wsp knows of    1 GB  3.0%\n  Codex                                          40 MB  0.0%\n    Codex                                       210 MB  0.0%\n  bash                      Dev server            2 MB  0.0%\n    Claude Code                                 640 MB  3.0%\n      mcp-server-github     Tool server          80 MB  0.0%\n      mcp-search-console    Tool server          30 MB  0.0%\n        mcp-search-console                       64 MB  0.0%\n      zsh                                         3 MB  0.0%",
+  "outside 160 fold": "lab-mac.local   wsp 1.2 GB   CPU 3%   10 processes   0 threads\n\n                                                MEMORY   CPU\nwsp  The app and what runs it                   204 MB  0.0%\n  Host                                          200 MB  0.0%\n    Daemon                                        4 MB  0.0%\nNo thread  Started with no thread wsp knows of    1 GB  3.0%\n  Codex                                          40 MB  0.0%\n    Codex                                       210 MB  0.0%\n  bash                      Dev server            2 MB  0.0%\n    Claude Code                                 640 MB  3.0%\n      mcp-server-github     Tool server          80 MB  0.0%\n      mcp-search-console    Tool server          30 MB  0.0%\n        mcp-search-console                       64 MB  0.0%\n      zsh                                         3 MB  0.0%",
+  "outside 40 fold": "lab-mac.local   wsp 1.2 GB   CPU 3%   1…\n\n                            MEMORY   CPU\nwsp  The app and what run…  204 MB  0.0%\n  Host                      200 MB  0.0%\n    Daemon                    4 MB  0.0%\nNo thread  Started with n…    1 GB  3.0%\n  Codex                      40 MB  0.0%\n    Codex                   210 MB  0.0%\n  bash                        2 MB  0.0%\n    Claude Code             640 MB  3.0%\n      mcp-server-github      80 MB  0.0%\n      mcp-search-console     30 MB  0.0%\n        mcp-search-console   64 MB  0.0%\n      zsh                     3 MB  0.0%",
+  "outside 100 fold": "lab-mac.local   wsp 1.2 GB   CPU 3%   10 processes   0 threads\n\n                                                MEMORY   CPU\nwsp  The app and what runs it                   204 MB  0.0%\n  Host                                          200 MB  0.0%\n    Daemon                                        4 MB  0.0%\nNo thread  Started with no thread wsp knows of    1 GB  3.0%\n  Codex                                          40 MB  0.0%\n    Codex                                       210 MB  0.0%\n  bash                      Dev server            2 MB  0.0%\n    Claude Code                                 640 MB  3.0%\n      mcp-server-github     Tool server          80 MB  0.0%\n      mcp-search-console    Tool server          30 MB  0.0%\n        mcp-search-console                       64 MB  0.0%\n      zsh                                         3 MB  0.0%",
+  "outside Infinity fold": "lab-mac.local   wsp 1.2 GB   CPU 3%   10 processes   0 threads\n\n                                                MEMORY   CPU\nwsp  The app and what runs it                   204 MB  0.0%\n  Host                                          200 MB  0.0%\n    Daemon                                        4 MB  0.0%\nNo thread  Started with no thread wsp knows of    1 GB  3.0%\n  Codex                                          40 MB  0.0%\n    Codex                                       210 MB  0.0%\n  bash                      Dev server            2 MB  0.0%\n    Claude Code                                 640 MB  3.0%\n      mcp-server-github     Tool server          80 MB  0.0%\n      mcp-search-console    Tool server          30 MB  0.0%\n        mcp-search-console                       64 MB  0.0%\n      zsh                                         3 MB  0.0%",
+  "outside 80 wide": "lab-mac.local   wsp 1.2 GB   CPU 3%   10 processes   0 threads\n\n                                                PID  MEMORY   CPU  COMMAND\nwsp  The app and what runs it                        204 MB  0.0%\n  Host                                           10  200 MB  0.0%  node wsp host\n    Daemon                                       20    4 MB  0.0%  wsp-daemon serve\nNo thread  Started with no thread wsp knows of         1 GB  3.0%\n  Codex                                         600   40 MB  0.0%  node /opt/homebrew/bin/codex exec --json -\n    Codex                                       601  210 MB  0.0%  /opt/homebrew/lib/node_modules/@openai/codex/vendor/aarch64-apple-darwin/codex/codex exec --json -\n  bash                      Dev server          450    2 MB  0.0%  bash /home/dev/wsp-work/state/runs/0a1b2c3d4e5f.sh\n    Claude Code                                 500  640 MB  3.0%  claude -p --input-format stream-json --output-format stream-json --verbose --model claude-opus-5-5\n      mcp-server-github     Tool server         520   80 MB  0.0%  node /home/dev/.npm/_npx/9f1/node_modules/.bin/mcp-server-github\n      mcp-search-console    Tool server         510   30 MB  0.0%  /opt/homebrew/bin/uv tool uvx mcp-search-console\n        mcp-search-console                      511   64 MB  0.0%  /home/dev/.cache/uv/archive-v0/djbB/bin/python /home/dev/.cache/uv/archive-v0/djbB/bin/mcp-search-console\n      zsh                                       530    3 MB  0.0%  /bin/zsh -c ls",
+  "outside 20 fold": "lab-mac.local   wsp…\n\n        MEMORY   CPU\nwsp  …  204 MB  0.0%\n  Host  200 MB  0.0%\n    D…    4 MB  0.0%\nNo th…    1 GB  3.0%\n  Cod…   40 MB  0.0%\n    C…  210 MB  0.0%\n  bash    2 MB  0.0%\n    C…  640 MB  3.0%\n     …   80 MB  0.0%\n     …   30 MB  0.0%\n     …   64 MB  0.0%\n     …    3 MB  0.0%",
+  "outside 1 fold": "…\n\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…\n…",
+  "ties 80 fold": "c   wsp 20 MB   CPU 0%   3 processes   2 threads\n\n                 MEMORY   CPU\nA                 10 MB  0.0%\n  z  Dev server    1 MB  0.0%\n  y  Dev server    1 MB  0.0%\nB                 10 MB  0.0%\n  x  Dev server    1 MB  0.0%",
+  "ties 160 fold": "c   wsp 20 MB   CPU 0%   3 processes   2 threads\n\n                 MEMORY   CPU\nA                 10 MB  0.0%\n  z  Dev server    1 MB  0.0%\n  y  Dev server    1 MB  0.0%\nB                 10 MB  0.0%\n  x  Dev server    1 MB  0.0%",
+  "ties 40 fold": "c   wsp 20 MB   CPU 0%   3 processes   …\n\n                 MEMORY   CPU\nA                 10 MB  0.0%\n  z  Dev server    1 MB  0.0%\n  y  Dev server    1 MB  0.0%\nB                 10 MB  0.0%\n  x  Dev server    1 MB  0.0%",
+  "ties 100 fold": "c   wsp 20 MB   CPU 0%   3 processes   2 threads\n\n                 MEMORY   CPU\nA                 10 MB  0.0%\n  z  Dev server    1 MB  0.0%\n  y  Dev server    1 MB  0.0%\nB                 10 MB  0.0%\n  x  Dev server    1 MB  0.0%",
+  "ties Infinity fold": "c   wsp 20 MB   CPU 0%   3 processes   2 threads\n\n                 MEMORY   CPU\nA                 10 MB  0.0%\n  z  Dev server    1 MB  0.0%\n  y  Dev server    1 MB  0.0%\nB                 10 MB  0.0%\n  x  Dev server    1 MB  0.0%",
+  "ties 80 wide": "c   wsp 20 MB   CPU 0%   3 processes   2 threads\n\n                 PID  MEMORY   CPU  COMMAND\nA                      10 MB  0.0%\n  z  Dev server    3    1 MB  0.0%  node z\n  y  Dev server    8    1 MB  0.0%  node y\nB                      10 MB  0.0%\n  x  Dev server    9    1 MB  0.0%  node x",
+  "ties 20 fold": "c   wsp 20 MB   CPU…\n\n        MEMORY   CPU\nA        10 MB  0.0%\n  z       1 MB  0.0%\n  y       1 MB  0.0%\nB        10 MB  0.0%\n  x       1 MB  0.0%",
+  "ties 1 fold": "…\n\n…\n…\n…\n…\n…\n…"
+ },
+ "lines": {
+  "VIEW": "thread 11111111 Fix the lab dashboard  395 MB  0.4%\n  69887  agent  bash /home/dev/.wsp/runs/af35cb2fea39.sh  1 MB  0.0%\n    69888  agent  bash /home/dev/.wsp/runs/af35cb2fea39.sh  1 MB  0.0%\n      69891  agent  claude -p --input-format stream-json --output-format stream-json --verbose --dangerously-skip-permissions --model claude-opus-5-5 --effort high -  194 MB  0.4%\n        69959  tool  /opt/homebrew/bin/uv tool uvx mcp-search-console  30 MB  0.0%\n          69998  other  /home/dev/.cache/uv/archive-v0/djbB/bin/python /home/dev/.cache/uv/archive-v0/djbB/bin/mcp-search-console  64 MB  0.0%\n        69961  tool  /opt/homebrew/bin/uv tool uvx mcp-proxy-for-aws@latest https://aws-mcp.example.test/mcp --metadata INSTALL_SOURCE=aws-cli  23 MB  0.0%\n          70003  other  /home/dev/.cache/uv/archive-v0/RBQV/bin/python /home/dev/.cache/uv/archive-v0/RBQV/bin/mcp-proxy-for-aws https://aws-mcp.example.test/mcp  79 MB  0.0%\n  69890  agent  tail -n +1 -f /home/dev/.wsp/runs/af35cb2fea39.in  922 KB  0.0%\n  69892  agent  bash /home/dev/.wsp/runs/af35cb2fea39.sh  1 MB  0.0%\nthread 22222222 Build: Kept-run tests leave their bash and tail running after they finish, and a second clause long enough to pass any terminal (#2137)  452 MB  12.5%\n  71000  agent  /opt/homebrew/bin/codex exec --json -  210 MB  2.5%\n    71010  terminal  popbar --watch  15 MB  0.0%\n    71020  dev  node /home/dev/acme/lab/node_modules/.bin/vite --port 5174  :5174  227 MB  10.0%\nwsp\n  48000  wsp  /usr/local/bin/node /opt/wsp/packages/host/dist/bin.js host serve  :4400 :4420  514 MB  0.3%\n    48001  wsp  /opt/wsp/daemon/aarch64-apple-darwin/wsp-daemon serve --port 59312  :59312  56 MB  1.1%\nno thread\n  73000  test  node /home/dev/acme/lab/node_modules/.bin/vitest run  140 MB  88.0%",
+  "early": "thread 11111111 Fix the lab dashboard  395 MB  0.4%\n  69887  agent  bash /home/dev/.wsp/runs/af35cb2fea39.sh  1 MB  0.0%\n  69890  agent  tail -n +1 -f /home/dev/.wsp/runs/af35cb2fea39.in  922 KB  0.0%",
+  "wideTitles": "thread 11111111 修复实验室仪表板上的内存图表在窗口缩小时溢出的问题并补上测试用例与说明文档的更新  395 MB  0.4%\n  69887  agent  bash /home/dev/.wsp/runs/af35cb2fea39.sh  1 MB  0.0%\n    69888  agent  bash /home/dev/.wsp/runs/af35cb2fea39.sh  1 MB  0.0%\n      69891  agent  claude -p --input-format stream-json --output-format stream-json --verbose --dangerously-skip-permissions --model claude-opus-5-5 --effort high -  194 MB  0.4%\n        69959  tool  /opt/homebrew/bin/uv tool uvx mcp-search-console  30 MB  0.0%\n          69998  other  /home/dev/.cache/uv/archive-v0/djbB/bin/python /home/dev/.cache/uv/archive-v0/djbB/bin/mcp-search-console  64 MB  0.0%\n        69961  tool  /opt/homebrew/bin/uv tool uvx mcp-proxy-for-aws@latest https://aws-mcp.example.test/mcp --metadata INSTALL_SOURCE=aws-cli  23 MB  0.0%\n          70003  other  /home/dev/.cache/uv/archive-v0/RBQV/bin/python /home/dev/.cache/uv/archive-v0/RBQV/bin/mcp-proxy-for-aws https://aws-mcp.example.test/mcp  79 MB  0.0%\n  69890  agent  tail -n +1 -f /home/dev/.wsp/runs/af35cb2fea39.in  922 KB  0.0%\n  69892  agent  bash /home/dev/.wsp/runs/af35cb2fea39.sh  1 MB  0.0%\nthread 22222222 🚀🔥✅ Ship the lab dashboard 🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪🧪  452 MB  12.5%\n  71000  agent  /opt/homebrew/bin/codex exec --json -  210 MB  2.5%\n    71010  terminal  popbar --watch  15 MB  0.0%\n    71020  dev  node /home/dev/acme/lab/node_modules/.bin/vite --port 5174  :5174  227 MB  10.0%\nwsp\n  48000  wsp  /usr/local/bin/node /opt/wsp/packages/host/dist/bin.js host serve  :4400 :4420  514 MB  0.3%\n    48001  wsp  /opt/wsp/daemon/aarch64-apple-darwin/wsp-daemon serve --port 59312  :59312  56 MB  1.1%\nno thread\n  73000  test  node /home/dev/acme/lab/node_modules/.bin/vitest run  140 MB  88.0%",
+  "box": "thread 11111111 Fix the lab dashboard  395 MB  0.4%\n  69887  agent  bash /home/dev/.wsp/runs/af35cb2fea39.sh  1 MB  0.0%\n    69888  agent  bash /home/dev/.wsp/runs/af35cb2fea39.sh  1 MB  0.0%\n      69891  agent  claude -p --input-format stream-json --output-format stream-json --verbose --dangerously-skip-permissions --model claude-opus-5-5 --effort high -  194 MB  0.4%\n        69959  tool  /opt/homebrew/bin/uv tool uvx mcp-search-console  30 MB  0.0%\n          69998  other  /home/dev/.cache/uv/archive-v0/djbB/bin/python /home/dev/.cache/uv/archive-v0/djbB/bin/mcp-search-console  64 MB  0.0%\n        69961  tool  /opt/homebrew/bin/uv tool uvx mcp-proxy-for-aws@latest https://aws-mcp.example.test/mcp --metadata INSTALL_SOURCE=aws-cli  23 MB  0.0%\n          70003  other  /home/dev/.cache/uv/archive-v0/RBQV/bin/python /home/dev/.cache/uv/archive-v0/RBQV/bin/mcp-proxy-for-aws https://aws-mcp.example.test/mcp  79 MB  0.0%\n  69890  agent  tail -n +1 -f /home/dev/.wsp/runs/af35cb2fea39.in  922 KB  0.0%\n  69892  agent  bash /home/dev/.wsp/runs/af35cb2fea39.sh  1 MB  0.0%\nthread 22222222 Build: Kept-run tests leave their bash and tail running after they finish, and a second clause long enough to pass any terminal (#2137)  452 MB  12.5%\n  71000  agent  /opt/homebrew/bin/codex exec --json -  210 MB  2.5%\n    71010  terminal  popbar --watch  15 MB  0.0%\n    71020  dev  node /home/dev/acme/lab/node_modules/.bin/vite --port 5174  :5174  227 MB  10.0%\nwsp\n    48001  wsp  /opt/wsp/daemon/aarch64-apple-darwin/wsp-daemon serve --port 59312  :59312  56 MB  1.1%\nno thread\n  73000  test  node /home/dev/acme/lab/node_modules/.bin/vitest run  140 MB  88.0%",
+  "empty": "no thread runs a process on lab-mac.local",
+  "outside": "wsp\n  10  wsp  node wsp host  200 MB  0.0%\n    20  wsp  wsp-daemon serve  4 MB  0.0%\nno thread\n  450  dev  bash /home/dev/wsp-work/state/runs/0a1b2c3d4e5f.sh  2 MB  0.0%\n    500  agent  claude -p --input-format stream-json --output-format stream-json --verbose --model claude-opus-5-5  640 MB  3.0%\n      510  tool  /opt/homebrew/bin/uv tool uvx mcp-search-console  30 MB  0.0%\n        511  other  /home/dev/.cache/uv/archive-v0/djbB/bin/python /home/dev/.cache/uv/archive-v0/djbB/bin/mcp-search-console  64 MB  0.0%\n      520  tool  node /home/dev/.npm/_npx/9f1/node_modules/.bin/mcp-server-github  80 MB  0.0%\n      530  other  /bin/zsh -c ls  3 MB  0.0%\n  600  agent  node /opt/homebrew/bin/codex exec --json -  40 MB  0.0%\n    601  agent  /opt/homebrew/lib/node_modules/@openai/codex/vendor/aarch64-apple-darwin/codex/codex exec --json -  210 MB  0.0%",
+  "ties": "thread b B  10 MB  0.0%\n  9  dev  node x  1 MB  0.0%\nthread a A  10 MB  0.0%\n  8  dev  node y  1 MB  0.0%\n  3  dev  node z  1 MB  0.0%"
+ },
+ "ended": {
+  "freed": "freed the agent thread 11111111 kept",
+  "gone": "nothing was signalled: the process listed as 42 is gone",
+  "one": "ended 42 node",
+  "under": "ended 42 node and 2 under it\nKILL after TERM's 2 s: 43",
+  "left": "ended 42 node and 1 under it\nKILL after TERM's 2 s: 42 43\nstill running after KILL: 43",
+  "freedWithEnded": "freed the agent thread t kept"
+ },
+ "conversations": {
+  "none": [
+   "no Claude Code or Codex conversations in this folder"
+  ],
+  "heldOnly": [
+   "Claude Code's conversations could not be read: at most 64 entries, got 74. Ask again in a moment."
+  ],
+  "rowsAndHeld": [
+   "AGENT  ID                                    CHANGED           SIZE  BRANCH    TITLE",
+   "codex  01a12813-cd12-7a12-9b13-e76892906ff0  1970-01-01 00:00  -     -         lab terminal thread",
+   "Claude Code's conversations could not be read: at most 64 entries, got 74. Ask again in a moment."
+  ],
+  "marks": [
+   "AGENT   ID  CHANGED           SIZE  BRANCH                   TITLE",
+   "claude  a   2026-10-10 23:09  0 B   -       wsp              t\tab\nnew",
+   "claude  b   2026-10-10 23:09  2 KB  -       thread 01234567  x",
+   "codex   c   1969-12-31 23:59  -     main"
+  ]
+ }
+}

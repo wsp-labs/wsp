@@ -1,0 +1,98 @@
+{
+ "local computers": {
+  "stdout": [
+   "usage: wsp computers\n  your computers: this Mac, each box you added, with what each has, whether it\n  is connected, how many machines it holds and what runs there against its cap\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local computers set": {
+  "stdout": [
+   "usage: wsp computers set <computer> [--name <new>] [--ssh <login>]\n       [--threads <n>] [--machines <n>] [--spend <usd>] [--size <cpu>x<memGb>]\n       [--delete-after <minutes>] [--nap <minutes>|off]\n       [--turn-limit <hours>|off] [--max-machines <n>] [--max-depth <n>]\n       [--recipe <name>|none] [--reset <setting>]...\n  what you set on one of your computers: its name, the ssh login it is reached\n  by, how many threads run there at once, how long a quiet machine there runs\n  before it naps, how long one turn there may run, the caps on agents starting\n  agents, the recipe it follows, and on a cloud how many machines at once, how\n  much it spends a day, the size a sub-thread's machine gets and how long a\n  finished one stays; --reset takes a setting back to its default\n\n  --name            what to call a computer you added from now, which every\n                    listing then shows; its id, its projects and its machines\n                    stay as they are\n  --ssh             the login user@host the host reaches a computer you added by\n                    over ssh from now, saved only once the computer it reaches\n                    reads as that same one\n  --threads         how many threads may run on that computer at once; a new one\n                    waits past it\n  --machines        how many machines may run on that cloud at once\n  --spend           the dollars a day that cloud may spend before it starts no\n                    new machine\n  --size            on a cloud, the size a sub-thread's machine gets when the\n                    thread starting it names none, as <cpu>x<memGb>; 2x4 until\n                    it is set\n  --delete-after    on a cloud, the minutes a finished sub-thread's machine\n                    stays before it is deleted, 0 to 1440; 30 until it is set\n  --nap             the minutes a quiet machine there runs before it naps, or\n                    off\n  --turn-limit      the hours one turn there may run before it is stopped, or\n                    off; off on a computer you own until it is set\n  --max-machines    how many machines may stand at once under one root thread;\n                    defaults to 3\n  --max-depth       how many levels of threads may stand under the root thread;\n                    defaults to 2\n  --recipe          the saved recipe it follows from now, by the name wsp\n                    recipes shows, or none to keep what it has and follow\n                    nothing\n  --reset           a setting to take back to its default, by its flag's word;\n                    repeats\n  --json            print the raw protocol values, one JSON object per line,\n                    with everything else on stderr\n  --state           the state file the host serves\n  --host            run the line against a host on your account, by the name wsp\n                    hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local recipes": {
+  "stdout": [
+   "usage: wsp recipes\n  your saved recipes: what each puts on a computer in one line, and the\n  computers that follow it\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local recipes show": {
+  "stdout": [
+   "usage: wsp recipes show <name>\n  one recipe whole: every row it holds by kind, the computers that follow it,\n  and the hash it resolves to on this computer now\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local recipes save": {
+  "stdout": [
+   "usage: wsp recipes save <name> --from <computer>\n  saves what one of your computers was set up with as a recipe under that name,\n  and that computer follows it from then on\n\n  --from     the computer whose picks the recipe is saved from, by the name wsp\n             computers shows; it follows the recipe from then on\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local recipes remove": {
+  "stdout": [
+   "usage: wsp recipes remove <name> [--yes]\n  takes a recipe away; the computers that followed it keep what they have and\n  follow none\n\n  --yes      go ahead without being asked\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local usage": {
+  "stdout": [
+   "usage: wsp usage [--range day|week|month]\n       [--by agent|account|computer|project|model|source]\n  what each agent account signed in on any of your computers may still use, and\n  what was used over a day, a week or a month split one way, the work your\n  agents logged outside wsp counted with wsp's threads as on the Usage page\n  (--by source shows how much is outside); two answers, never added together\n\n  --range    the days what was used is read over: day (today, the default), week\n             (the last seven) or month (the last thirty); the accounts' limits\n             are the same whatever it says\n  --by       how what was used is split: agent (the default), account, computer,\n             project or model\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local usage reset": {
+  "stdout": [
+   "usage: wsp usage reset <account> [--credit <id>] [--on <computer>] [--yes]\n  spends one of the resets a Codex account has banked, on a computer of yours\n  that holds its login, after reading the account there: its five-hour and\n  weekly windows start again now; asks first unless --yes\n\n  --credit    the reset to spend, by the id Codex lists it under; whichever\n              Codex picks without it\n  --on        the computer to spend it on, by the name wsp computers shows, one\n              of the account's own that holds its login; the first of those that\n              is connected without it\n  --yes       go ahead without being asked\n  --json      print the raw protocol values, one JSON object per line, with\n              everything else on stderr\n  --state     the state file the host serves\n  --host      run the line against a host on your account, by the name wsp hosts\n              lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud computers": {
+  "stdout": [
+   "usage: wsp computers\n  your computers: this Mac, each box you added and each cloud account, with what\n  each has, whether it is connected, how many machines it holds and what runs\n  there against its cap, and what each cloud spent today\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud computers set": {
+  "stdout": [
+   "usage: wsp computers set <computer> [--name <new>] [--ssh <login>]\n       [--threads <n>] [--machines <n>] [--spend <usd>] [--size <cpu>x<memGb>]\n       [--delete-after <minutes>] [--nap <minutes>|off]\n       [--turn-limit <hours>|off] [--max-machines <n>] [--max-depth <n>]\n       [--recipe <name>|none] [--reset <setting>]...\n  what you set on one of your computers: its name, the ssh login it is reached\n  by, how many threads run there at once, how long a quiet machine there runs\n  before it naps, how long one turn there may run, the caps on agents starting\n  agents, the recipe it follows, and on a cloud how many machines at once, how\n  much it spends a day, the size a sub-thread's machine gets and how long a\n  finished one stays; --reset takes a setting back to its default\n\n  --name            what to call a computer you added from now, which every\n                    listing then shows; its id, its projects and its machines\n                    stay as they are\n  --ssh             the login user@host the host reaches a computer you added by\n                    over ssh from now, saved only once the computer it reaches\n                    reads as that same one\n  --threads         how many threads may run on that computer at once; a new one\n                    waits past it\n  --machines        how many machines may run on that cloud at once\n  --spend           the dollars a day that cloud may spend before it starts no\n                    new machine\n  --size            on a cloud, the size a sub-thread's machine gets when the\n                    thread starting it names none, as <cpu>x<memGb>; 2x4 until\n                    it is set\n  --delete-after    on a cloud, the minutes a finished sub-thread's machine\n                    stays before it is deleted, 0 to 1440; 30 until it is set\n  --nap             the minutes a quiet machine there runs before it naps, or\n                    off\n  --turn-limit      the hours one turn there may run before it is stopped, or\n                    off; off on a computer you own and 6 on a cloud until it is\n                    set\n  --max-machines    how many machines may stand at once under one root thread;\n                    defaults to 3\n  --max-depth       how many levels of threads may stand under the root thread;\n                    defaults to 2\n  --recipe          the saved recipe it follows from now, by the name wsp\n                    recipes shows, or none to keep what it has and follow\n                    nothing\n  --reset           a setting to take back to its default, by its flag's word;\n                    repeats\n  --json            print the raw protocol values, one JSON object per line,\n                    with everything else on stderr\n  --state           the state file the host serves\n  --host            run the line against a host on your account, by the name wsp\n                    hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud recipes": {
+  "stdout": [
+   "usage: wsp recipes\n  your saved recipes: what each puts on a computer in one line, and the\n  computers that follow it\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud recipes show": {
+  "stdout": [
+   "usage: wsp recipes show <name>\n  one recipe whole: every row it holds by kind, the computers that follow it,\n  and the hash it resolves to on this computer now\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud recipes save": {
+  "stdout": [
+   "usage: wsp recipes save <name> --from <computer>\n  saves what one of your computers was set up with as a recipe under that name,\n  and that computer follows it from then on\n\n  --from     the computer whose picks the recipe is saved from, by the name wsp\n             computers shows; it follows the recipe from then on\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud recipes remove": {
+  "stdout": [
+   "usage: wsp recipes remove <name> [--yes]\n  takes a recipe away; the computers that followed it keep what they have and\n  follow none\n\n  --yes      go ahead without being asked\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud usage": {
+  "stdout": [
+   "usage: wsp usage [--range day|week|month]\n       [--by agent|account|computer|project|model|source]\n  what each agent account signed in on any of your computers may still use, and\n  what was used over a day, a week or a month split one way, the work your\n  agents logged outside wsp counted with wsp's threads as on the Usage page\n  (--by source shows how much is outside); two answers, never added together\n\n  --range    the days what was used is read over: day (today, the default), week\n             (the last seven) or month (the last thirty); the accounts' limits\n             are the same whatever it says\n  --by       how what was used is split: agent (the default), account, computer,\n             project or model\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud usage reset": {
+  "stdout": [
+   "usage: wsp usage reset <account> [--credit <id>] [--on <computer>] [--yes]\n  spends one of the resets a Codex account has banked, on a computer of yours\n  that holds its login, after reading the account there: its five-hour and\n  weekly windows start again now; asks first unless --yes\n\n  --credit    the reset to spend, by the id Codex lists it under; whichever\n              Codex picks without it\n  --on        the computer to spend it on, by the name wsp computers shows, one\n              of the account's own that holds its login; the first of those that\n              is connected without it\n  --yes       go ahead without being asked\n  --json      print the raw protocol values, one JSON object per line, with\n              everything else on stderr\n  --state     the state file the host serves\n  --host      run the line against a host on your account, by the name wsp hosts\n              lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ }
+}

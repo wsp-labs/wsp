@@ -1,0 +1,1269 @@
+{
+ "depth": [
+  {
+   "env": {
+    "TERM": "xterm-256color"
+   },
+   "tty": 8,
+   "notty": 1
+  },
+  {
+   "env": {
+    "TERM": "dumb"
+   },
+   "tty": 1,
+   "notty": 1
+  },
+  {
+   "env": {
+    "TERM": "xterm-256color",
+    "NO_COLOR": "1"
+   },
+   "tty": 1,
+   "notty": 1
+  },
+  {
+   "env": {
+    "TERM": "xterm"
+   },
+   "tty": 4,
+   "notty": 1
+  },
+  {
+   "env": {
+    "TERM": "linux"
+   },
+   "tty": 4,
+   "notty": 1
+  },
+  {
+   "env": {
+    "TERM": "xterm-256color",
+    "COLORTERM": "truecolor"
+   },
+   "tty": 24,
+   "notty": 1
+  },
+  {
+   "env": {
+    "FORCE_COLOR": "1"
+   },
+   "tty": 4,
+   "notty": 4
+  },
+  {
+   "env": {
+    "FORCE_COLOR": "2"
+   },
+   "tty": 8,
+   "notty": 8
+  },
+  {
+   "env": {
+    "FORCE_COLOR": "3"
+   },
+   "tty": 24,
+   "notty": 24
+  },
+  {
+   "env": {
+    "FORCE_COLOR": "0"
+   },
+   "tty": 1,
+   "notty": 1
+  },
+  {
+   "env": {
+    "FORCE_COLOR": ""
+   },
+   "tty": 4,
+   "notty": 4
+  },
+  {
+   "env": {
+    "FORCE_COLOR": "true"
+   },
+   "tty": 4,
+   "notty": 4
+  },
+  {
+   "env": {
+    "FORCE_COLOR": "false"
+   },
+   "tty": 1,
+   "notty": 1
+  },
+  {
+   "env": {
+    "FORCE_COLOR": "7"
+   },
+   "tty": 1,
+   "notty": 1
+  },
+  {
+   "env": {},
+   "tty": 1,
+   "notty": 1
+  },
+  {
+   "env": {
+    "TERM": "screen"
+   },
+   "tty": 4,
+   "notty": 1
+  },
+  {
+   "env": {
+    "TERM": "vt100"
+   },
+   "tty": 4,
+   "notty": 1
+  },
+  {
+   "env": {
+    "TERM": "xterm-kitty"
+   },
+   "tty": 24,
+   "notty": 1
+  },
+  {
+   "env": {
+    "TERM": "rxvt-unicode-256color"
+   },
+   "tty": 4,
+   "notty": 1
+  },
+  {
+   "env": {
+    "TMUX": "1"
+   },
+   "tty": 24,
+   "notty": 1
+  },
+  {
+   "env": {
+    "COLORTERM": "24bit"
+   },
+   "tty": 24,
+   "notty": 1
+  },
+  {
+   "env": {
+    "NODE_DISABLE_COLORS": "1",
+    "TERM": "xterm-256color"
+   },
+   "tty": 1,
+   "notty": 1
+  },
+  {
+   "env": {
+    "NO_COLOR": "",
+    "TERM": "xterm-256color"
+   },
+   "tty": 1,
+   "notty": 1
+  },
+  {
+   "env": {
+    "CI": "true"
+   },
+   "tty": 1,
+   "notty": 1
+  },
+  {
+   "env": {
+    "CI": "1",
+    "GITHUB_ACTIONS": "true"
+   },
+   "tty": 24,
+   "notty": 1
+  },
+  {
+   "env": {
+    "TERM_PROGRAM": "iTerm.app",
+    "TERM_PROGRAM_VERSION": "3.4"
+   },
+   "tty": 24,
+   "notty": 1
+  },
+  {
+   "env": {
+    "TERM_PROGRAM": "Apple_Terminal"
+   },
+   "tty": 8,
+   "notty": 1
+  },
+  {
+   "env": {
+    "TERM": "xterm-256color",
+    "FORCE_COLOR": "0"
+   },
+   "tty": 1,
+   "notty": 1
+  },
+  {
+   "env": {
+    "TERM": "dumb",
+    "FORCE_COLOR": "2"
+   },
+   "tty": 8,
+   "notty": 8
+  }
+ ],
+ "cellWidth": [
+  [
+   "abc",
+   3
+  ],
+  [
+   "修复",
+   4
+  ],
+  [
+   "🚀a",
+   3
+  ],
+  [
+   "👩‍💻",
+   2
+  ],
+  [
+   "é",
+   1
+  ],
+  [
+   "",
+   0
+  ],
+  [
+   "​",
+   0
+  ],
+  [
+   "ｱ",
+   1
+  ],
+  [
+   "Ａ",
+   2
+  ],
+  [
+   "한",
+   2
+  ],
+  [
+   "\t",
+   1
+  ],
+  [
+   "✅",
+   2
+  ],
+  [
+   "❤️",
+   2
+  ],
+  [
+   "à́b",
+   2
+  ],
+  [
+   "🇮🇳",
+   2
+  ],
+  [
+   "\u001b[31mx",
+   6
+  ]
+ ],
+ "ellipsize": [
+  [
+   "abc",
+   3,
+   "abc"
+  ],
+  [
+   "abcdef",
+   4,
+   "abc…"
+  ],
+  [
+   "abcdef",
+   1,
+   "…"
+  ],
+  [
+   "abcdef",
+   0,
+   ""
+  ],
+  [
+   "abcdef",
+   -2,
+   ""
+  ],
+  [
+   "修复实验室",
+   5,
+   "修复…"
+  ],
+  [
+   "修复实验室",
+   6,
+   "修复…"
+  ],
+  [
+   "🚀🔥✅x",
+   4,
+   "🚀…"
+  ],
+  [
+   "👩‍💻👩‍💻",
+   3,
+   "👩‍💻…"
+  ],
+  [
+   "",
+   0,
+   ""
+  ],
+  [
+   "",
+   3,
+   ""
+  ],
+  [
+   "修",
+   1,
+   "…"
+  ],
+  [
+   "修复",
+   2,
+   "…"
+  ]
+ ],
+ "wrap": [
+  [
+   "short line",
+   20,
+   null,
+   [
+    "short line"
+   ]
+  ],
+  [
+   "",
+   10,
+   null,
+   [
+    ""
+   ]
+  ],
+  [
+   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   10,
+   null,
+   [
+    "aaaaaaaaa…"
+   ]
+  ],
+  [
+   "  aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   10,
+   null,
+   [
+    "  aaaaaaa…"
+   ]
+  ],
+  [
+   "one two three four five six",
+   7,
+   null,
+   [
+    "one two",
+    "  three",
+    "  four",
+    "  five",
+    "  six"
+   ]
+  ],
+  [
+   "   lead  spaces here and more",
+   12,
+   null,
+   [
+    "   lead",
+    "  spaces",
+    "  here and",
+    "  more"
+   ]
+  ],
+  [
+   "word     x",
+   4,
+   null,
+   [
+    "word",
+    "  x"
+   ]
+  ],
+  [
+   "修复 实验室 修复实验室修复",
+   6,
+   null,
+   [
+    "修复 …",
+    "  修…"
+   ]
+  ],
+  [
+   "a b",
+   1,
+   null,
+   [
+    "a",
+    "…"
+   ]
+  ],
+  [
+   "ab cd",
+   2,
+   "    ",
+   [
+    "ab",
+    " …"
+   ]
+  ]
+ ],
+ "summarize": [
+  [
+   [
+    "a",
+    "b"
+   ],
+   80,
+   "a, b"
+  ],
+  [
+   [],
+   20,
+   ""
+  ],
+  [
+   [
+    "only"
+   ],
+   2,
+   "o…"
+  ],
+  [
+   [
+    "alpha",
+    "beta",
+    "gamma",
+    "delta"
+   ],
+   14,
+   "alpha +3 more"
+  ],
+  [
+   [
+    "alpha",
+    "beta",
+    "gamma",
+    "delta"
+   ],
+   5,
+   " +3 more"
+  ],
+  [
+   [
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "beta"
+   ],
+   20,
+   "aaaaaaaaaaa… +1 more"
+  ],
+  [
+   [
+    "x"
+   ],
+   0,
+   ""
+  ]
+ ],
+ "viewport": [
+  [
+   20,
+   0,
+   5,
+   {
+    "start": 0,
+    "end": 5
+   }
+  ],
+  [
+   20,
+   10,
+   5,
+   {
+    "start": 8,
+    "end": 13
+   }
+  ],
+  [
+   20,
+   19,
+   5,
+   {
+    "start": 15,
+    "end": 20
+   }
+  ],
+  [
+   3,
+   1,
+   5,
+   {
+    "start": 0,
+    "end": 3
+   }
+  ],
+  [
+   20,
+   7,
+   0,
+   {
+    "start": 7,
+    "end": 8
+   }
+  ],
+  [
+   0,
+   0,
+   4,
+   {
+    "start": 0,
+    "end": 0
+   }
+  ],
+  [
+   5,
+   4,
+   2,
+   {
+    "start": 3,
+    "end": 5
+   }
+  ],
+  [
+   5,
+   9,
+   2,
+   {
+    "start": 3,
+    "end": 5
+   }
+  ],
+  [
+   10,
+   5,
+   -3,
+   {
+    "start": 5,
+    "end": 6
+   }
+  ]
+ ],
+ "rewind": [
+  [
+   [],
+   80,
+   ""
+  ],
+  [
+   [
+    0
+   ],
+   80,
+   "\u001b[1A\u001b[G\u001b[J"
+  ],
+  [
+   [
+    80
+   ],
+   80,
+   "\u001b[1A\u001b[G\u001b[J"
+  ],
+  [
+   [
+    81
+   ],
+   80,
+   "\u001b[2A\u001b[G\u001b[J"
+  ],
+  [
+   [
+    25,
+    3,
+    0
+   ],
+   10,
+   "\u001b[5A\u001b[G\u001b[J"
+  ]
+ ],
+ "table": [
+  [
+   [
+    [
+     "a",
+     "bb"
+    ],
+    [
+     "ccc"
+    ]
+   ],
+   [],
+   [
+    "a    bb",
+    "ccc"
+   ]
+  ],
+  [
+   [
+    [
+     "x",
+     "y",
+     ""
+    ]
+   ],
+   [
+    "right"
+   ],
+   [
+    "x  y"
+   ]
+  ],
+  [
+   [],
+   [],
+   []
+  ]
+ ],
+ "pad": [
+  [
+   "修",
+   4,
+   "left",
+   "修  "
+  ],
+  [
+   "修",
+   4,
+   "right",
+   "  修"
+  ],
+  [
+   "abcdef",
+   3,
+   "left",
+   "abcdef"
+  ]
+ ],
+ "prompts": [
+  {
+   "force": null,
+   "kind": "confirm",
+   "keys": [
+    "\r"
+   ],
+   "opts": {
+    "hint": "No costs nothing."
+   },
+   "columns": null,
+   "raw": "\u001b[?25l◆  Boot it?\n┃  No costs nothing.\n┃  ○ Yes / ● No\n┗  ← → change   y n answer   enter choose   esc cancel\u001b[999D\u001b[3A\u001b[J◇  Boot it?\n│  No costs nothing.\n│  No\n\u001b[?25h",
+   "value": false
+  },
+  {
+   "force": null,
+   "kind": "confirm",
+   "keys": [
+    "\u001b[D",
+    "\u001b[C",
+    "\u001b[D",
+    "\r"
+   ],
+   "opts": {},
+   "columns": null,
+   "raw": "\u001b[?25l◆  Boot it?\n┃  ○ Yes / ● No\n┗  ← → change   y n answer   enter choose   esc cancel\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G┃  ● Yes / ○ No\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G┃  ○ Yes / ● No\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G┃  ● Yes / ○ No\u001b[1B\u001b[999D\u001b[2A\u001b[J◇  Boot it?\n│  Yes\n\u001b[?25h",
+   "value": true
+  },
+  {
+   "force": null,
+   "kind": "confirm",
+   "keys": [
+    "y"
+   ],
+   "opts": {},
+   "columns": null,
+   "raw": "\u001b[?25l◆  Boot it?\n┃  ○ Yes / ● No\n┗  ← → change   y n answer   enter choose   esc cancel\u001b[1A\n\u001b[?25h\u001b[999D\u001b[2A\u001b[J◇  Boot it?\n│  Yes\n",
+   "value": true
+  },
+  {
+   "force": null,
+   "kind": "confirm",
+   "keys": [
+    "n"
+   ],
+   "opts": {
+    "initialValue": true
+   },
+   "columns": null,
+   "raw": "\u001b[?25l◆  Boot it?\n┃  ● Yes / ○ No\n┗  ← → change   y n answer   enter choose   esc cancel\u001b[1A\n\u001b[?25h\u001b[999D\u001b[2A\u001b[J◇  Boot it?\n│  No\n",
+   "value": false
+  },
+  {
+   "force": null,
+   "kind": "confirm",
+   "keys": [
+    "\u001b"
+   ],
+   "opts": {},
+   "columns": null,
+   "raw": "\u001b[?25l◆  Boot it?\n┃  ○ Yes / ● No\n┗  ← → change   y n answer   enter choose   esc cancel\u001b[999D\u001b[2A\u001b[J■  Boot it?\n│  No\n\u001b[?25h",
+   "value": "cancel"
+  },
+  {
+   "force": null,
+   "kind": "confirm",
+   "keys": [
+    "\u0003"
+   ],
+   "opts": {},
+   "columns": null,
+   "raw": "\u001b[?25l◆  Boot it?\n┃  ○ Yes / ● No\n┗  ← → change   y n answer   enter choose   esc cancel\u001b[999D\u001b[2A\u001b[J■  Boot it?\n│  No\n\u001b[?25h",
+   "value": "cancel"
+  },
+  {
+   "force": null,
+   "kind": "confirm",
+   "keys": [
+    "\r"
+   ],
+   "opts": {
+    "message": "Boot a 2 vCPU, 4 GB builder and build this? About $0.11/hr while it runs.",
+    "hint": "No costs nothing and keeps the recipe for wsp init --recipe."
+   },
+   "columns": 40,
+   "raw": "\u001b[?25l◆  Boot a 2 vCPU, 4 GB builder and build\n┃    this? About $0.11/hr while it runs.\n┃  No costs nothing and keeps the recipe\n┃    for wsp init --recipe.\n┃  ○ Yes / ● No\n┗  ← → change   y n answer   enter choose   esc cancel\u001b[999D\u001b[5A\u001b[J◇  Boot a 2 vCPU, 4 GB builder and build\n│    this? About $0.11/hr while it runs.\n│  No costs nothing and keeps the recipe\n│    for wsp init --recipe.\n│  No\n\u001b[?25h",
+   "value": false
+  },
+  {
+   "force": null,
+   "kind": "confirm",
+   "keys": [
+    "\r"
+   ],
+   "opts": {
+    "message": "Boot it?\nIt bills while it runs.",
+    "hint": "No costs nothing."
+   },
+   "columns": null,
+   "raw": "\u001b[?25l◆  Boot it?\n┃  It bills while it runs.\n┃  No costs nothing.\n┃  ○ Yes / ● No\n┗  ← → change   y n answer   enter choose   esc cancel\u001b[999D\u001b[4A\u001b[J◇  Boot it?\n│  It bills while it runs.\n│  No costs nothing.\n│  No\n\u001b[?25h",
+   "value": false
+  },
+  {
+   "force": null,
+   "kind": "password",
+   "keys": [
+    "slr_live_fake_solari_key",
+    "\r"
+   ],
+   "opts": {
+    "message": "No Solari key found.",
+    "hint": "Solari API key  console.getsolari.com"
+   },
+   "columns": null,
+   "raw": "\u001b[?25l◆  No Solari key found.\n┃  Solari API key  console.getsolari.com\n┃  _\n┗  enter next   esc cancel\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[J◇  No Solari key found.\n│  Solari API key  console.getsolari.com\n│  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\n\u001b[?25h",
+   "value": "slr_live_fake_solari_key"
+  },
+  {
+   "force": null,
+   "kind": "password",
+   "keys": [
+    "\r"
+   ],
+   "opts": {
+    "message": "Anthropic API key"
+   },
+   "columns": null,
+   "raw": "\u001b[?25l◆  Anthropic API key\n┃  _\n┗  enter next   esc cancel\u001b[999D\u001b[2A\u001b[J◇  Anthropic API key\n\u001b[?25h",
+   "value": ""
+  },
+  {
+   "force": null,
+   "kind": "password",
+   "keys": [
+    "abc",
+    "\u001b"
+   ],
+   "opts": {
+    "message": "Anthropic API key"
+   },
+   "columns": null,
+   "raw": "\u001b[?25l◆  Anthropic API key\n┃  _\n┗  enter next   esc cancel\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G┃  ▪_\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G┃  ▪▪_\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G┃  ▪▪▪_\u001b[1B\u001b[999D\u001b[2A\u001b[J■  Anthropic API key\n│  ▪▪▪\n\u001b[?25h",
+   "value": "cancel"
+  },
+  {
+   "force": null,
+   "kind": "password",
+   "keys": [
+    "\u0003"
+   ],
+   "opts": {
+    "message": "Anthropic API key"
+   },
+   "columns": null,
+   "raw": "\u001b[?25l◆  Anthropic API key\n┃  _\n┗  enter next   esc cancel\u001b[999D\u001b[2A\u001b[J■  Anthropic API key\n\u001b[?25h",
+   "value": "cancel"
+  },
+  {
+   "force": null,
+   "kind": "password",
+   "keys": [
+    "ab",
+    "",
+    "c",
+    "\r"
+   ],
+   "opts": {
+    "message": "Anthropic API key"
+   },
+   "columns": null,
+   "raw": "\u001b[?25l◆  Anthropic API key\n┃  _\n┗  enter next   esc cancel\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G┃  ▪_\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G┃  ▪▪_\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G┃  ▪_\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G┃  ▪▪_\u001b[1B\u001b[999D\u001b[2A\u001b[J◇  Anthropic API key\n│  ▪▪\n\u001b[?25h",
+   "value": "ac"
+  },
+  {
+   "force": "1",
+   "kind": "confirm",
+   "keys": [
+    "\r"
+   ],
+   "opts": {
+    "hint": "No costs nothing."
+   },
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mBoot it?\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[2mNo costs nothing.\u001b[22m\n\u001b[2m┃\u001b[22m  \u001b[2m○\u001b[22m \u001b[2mYes\u001b[22m \u001b[2m/\u001b[22m \u001b[36m●\u001b[39m No\n\u001b[2m┗\u001b[22m  ← → \u001b[2mchange\u001b[22m\u001b[2m   \u001b[22my n \u001b[2manswer\u001b[22m\u001b[2m   \u001b[22menter \u001b[2mchoose\u001b[22m\u001b[2m   \u001b[22mesc \u001b[2mcancel\u001b[22m\u001b[999D\u001b[3A\u001b[J\u001b[32m◇\u001b[39m  Boot it?\n\u001b[2m│\u001b[22m  \u001b[2mNo costs nothing.\u001b[22m\n\u001b[2m│\u001b[22m  \u001b[2mNo\u001b[22m\n\u001b[?25h",
+   "value": false
+  },
+  {
+   "force": "1",
+   "kind": "confirm",
+   "keys": [
+    "\u001b[D",
+    "\u001b[C",
+    "\u001b[D",
+    "\r"
+   ],
+   "opts": {},
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mBoot it?\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[2m○\u001b[22m \u001b[2mYes\u001b[22m \u001b[2m/\u001b[22m \u001b[36m●\u001b[39m No\n\u001b[2m┗\u001b[22m  ← → \u001b[2mchange\u001b[22m\u001b[2m   \u001b[22my n \u001b[2manswer\u001b[22m\u001b[2m   \u001b[22menter \u001b[2mchoose\u001b[22m\u001b[2m   \u001b[22mesc \u001b[2mcancel\u001b[22m\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  \u001b[36m●\u001b[39m Yes \u001b[2m/\u001b[22m \u001b[2m○\u001b[22m \u001b[2mNo\u001b[22m\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  \u001b[2m○\u001b[22m \u001b[2mYes\u001b[22m \u001b[2m/\u001b[22m \u001b[36m●\u001b[39m No\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  \u001b[36m●\u001b[39m Yes \u001b[2m/\u001b[22m \u001b[2m○\u001b[22m \u001b[2mNo\u001b[22m\u001b[1B\u001b[999D\u001b[2A\u001b[J\u001b[32m◇\u001b[39m  Boot it?\n\u001b[2m│\u001b[22m  \u001b[2mYes\u001b[22m\n\u001b[?25h",
+   "value": true
+  },
+  {
+   "force": "1",
+   "kind": "confirm",
+   "keys": [
+    "y"
+   ],
+   "opts": {},
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mBoot it?\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[2m○\u001b[22m \u001b[2mYes\u001b[22m \u001b[2m/\u001b[22m \u001b[36m●\u001b[39m No\n\u001b[2m┗\u001b[22m  ← → \u001b[2mchange\u001b[22m\u001b[2m   \u001b[22my n \u001b[2manswer\u001b[22m\u001b[2m   \u001b[22menter \u001b[2mchoose\u001b[22m\u001b[2m   \u001b[22mesc \u001b[2mcancel\u001b[22m\u001b[1A\n\u001b[?25h\u001b[999D\u001b[2A\u001b[J\u001b[32m◇\u001b[39m  Boot it?\n\u001b[2m│\u001b[22m  \u001b[2mYes\u001b[22m\n",
+   "value": true
+  },
+  {
+   "force": "1",
+   "kind": "confirm",
+   "keys": [
+    "n"
+   ],
+   "opts": {
+    "initialValue": true
+   },
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mBoot it?\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[36m●\u001b[39m Yes \u001b[2m/\u001b[22m \u001b[2m○\u001b[22m \u001b[2mNo\u001b[22m\n\u001b[2m┗\u001b[22m  ← → \u001b[2mchange\u001b[22m\u001b[2m   \u001b[22my n \u001b[2manswer\u001b[22m\u001b[2m   \u001b[22menter \u001b[2mchoose\u001b[22m\u001b[2m   \u001b[22mesc \u001b[2mcancel\u001b[22m\u001b[1A\n\u001b[?25h\u001b[999D\u001b[2A\u001b[J\u001b[32m◇\u001b[39m  Boot it?\n\u001b[2m│\u001b[22m  \u001b[2mNo\u001b[22m\n",
+   "value": false
+  },
+  {
+   "force": "1",
+   "kind": "confirm",
+   "keys": [
+    "\u001b"
+   ],
+   "opts": {},
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mBoot it?\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[2m○\u001b[22m \u001b[2mYes\u001b[22m \u001b[2m/\u001b[22m \u001b[36m●\u001b[39m No\n\u001b[2m┗\u001b[22m  ← → \u001b[2mchange\u001b[22m\u001b[2m   \u001b[22my n \u001b[2manswer\u001b[22m\u001b[2m   \u001b[22menter \u001b[2mchoose\u001b[22m\u001b[2m   \u001b[22mesc \u001b[2mcancel\u001b[22m\u001b[999D\u001b[2A\u001b[J\u001b[31m■\u001b[39m  Boot it?\n\u001b[2m│\u001b[22m  \u001b[9m\u001b[2mNo\u001b[22m\u001b[29m\n\u001b[?25h",
+   "value": "cancel"
+  },
+  {
+   "force": "1",
+   "kind": "confirm",
+   "keys": [
+    "\u0003"
+   ],
+   "opts": {},
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mBoot it?\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[2m○\u001b[22m \u001b[2mYes\u001b[22m \u001b[2m/\u001b[22m \u001b[36m●\u001b[39m No\n\u001b[2m┗\u001b[22m  ← → \u001b[2mchange\u001b[22m\u001b[2m   \u001b[22my n \u001b[2manswer\u001b[22m\u001b[2m   \u001b[22menter \u001b[2mchoose\u001b[22m\u001b[2m   \u001b[22mesc \u001b[2mcancel\u001b[22m\u001b[999D\u001b[2A\u001b[J\u001b[31m■\u001b[39m  Boot it?\n\u001b[2m│\u001b[22m  \u001b[9m\u001b[2mNo\u001b[22m\u001b[29m\n\u001b[?25h",
+   "value": "cancel"
+  },
+  {
+   "force": "1",
+   "kind": "confirm",
+   "keys": [
+    "\r"
+   ],
+   "opts": {
+    "message": "Boot a 2 vCPU, 4 GB builder and build this? About $0.11/hr while it runs.",
+    "hint": "No costs nothing and keeps the recipe for wsp init --recipe."
+   },
+   "columns": 40,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mBoot a 2 vCPU, 4 GB builder and build\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[36m  this? About $0.11/hr while it runs.\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[2mNo costs nothing and keeps the recipe\u001b[22m\n\u001b[2m┃\u001b[22m  \u001b[2m  for wsp init --recipe.\u001b[22m\n\u001b[2m┃\u001b[22m  \u001b[2m○\u001b[22m \u001b[2mYes\u001b[22m \u001b[2m/\u001b[22m \u001b[36m●\u001b[39m No\n\u001b[2m┗\u001b[22m  ← → \u001b[2mchange\u001b[22m\u001b[2m   \u001b[22my n \u001b[2manswer\u001b[22m\u001b[2m   \u001b[22menter \u001b[2mchoose\u001b[22m\u001b[2m   \u001b[22mesc \u001b[2mcancel\u001b[22m\u001b[999D\u001b[5A\u001b[J\u001b[32m◇\u001b[39m  Boot a 2 vCPU, 4 GB builder and build\n\u001b[2m│\u001b[22m    this? About $0.11/hr while it runs.\n\u001b[2m│\u001b[22m  \u001b[2mNo costs nothing and keeps the recipe\u001b[22m\n\u001b[2m│\u001b[22m  \u001b[2m  for wsp init --recipe.\u001b[22m\n\u001b[2m│\u001b[22m  \u001b[2mNo\u001b[22m\n\u001b[?25h",
+   "value": false
+  },
+  {
+   "force": "1",
+   "kind": "confirm",
+   "keys": [
+    "\r"
+   ],
+   "opts": {
+    "message": "Boot it?\nIt bills while it runs.",
+    "hint": "No costs nothing."
+   },
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mBoot it?\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[36mIt bills while it runs.\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[2mNo costs nothing.\u001b[22m\n\u001b[2m┃\u001b[22m  \u001b[2m○\u001b[22m \u001b[2mYes\u001b[22m \u001b[2m/\u001b[22m \u001b[36m●\u001b[39m No\n\u001b[2m┗\u001b[22m  ← → \u001b[2mchange\u001b[22m\u001b[2m   \u001b[22my n \u001b[2manswer\u001b[22m\u001b[2m   \u001b[22menter \u001b[2mchoose\u001b[22m\u001b[2m   \u001b[22mesc \u001b[2mcancel\u001b[22m\u001b[999D\u001b[4A\u001b[J\u001b[32m◇\u001b[39m  Boot it?\n\u001b[2m│\u001b[22m  It bills while it runs.\n\u001b[2m│\u001b[22m  \u001b[2mNo costs nothing.\u001b[22m\n\u001b[2m│\u001b[22m  \u001b[2mNo\u001b[22m\n\u001b[?25h",
+   "value": false
+  },
+  {
+   "force": "1",
+   "kind": "password",
+   "keys": [
+    "slr_live_fake_solari_key",
+    "\r"
+   ],
+   "opts": {
+    "message": "No Solari key found.",
+    "hint": "Solari API key  console.getsolari.com"
+   },
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mNo Solari key found.\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[2mSolari API key  console.getsolari.com\u001b[22m\n\u001b[2m┃\u001b[22m  \u001b[7m\u001b[8m_\u001b[28m\u001b[27m\n\u001b[2m┗\u001b[22m  enter \u001b[2mnext\u001b[22m\u001b[2m   \u001b[22mesc \u001b[2mcancel\u001b[22m\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[J\u001b[32m◇\u001b[39m  No Solari key found.\n\u001b[2m│\u001b[22m  \u001b[2mSolari API key  console.getsolari.com\u001b[22m\n\u001b[2m│\u001b[22m  \u001b[2m▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[22m\n\u001b[?25h",
+   "value": "slr_live_fake_solari_key"
+  },
+  {
+   "force": "1",
+   "kind": "password",
+   "keys": [
+    "\r"
+   ],
+   "opts": {
+    "message": "Anthropic API key"
+   },
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mAnthropic API key\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[7m\u001b[8m_\u001b[28m\u001b[27m\n\u001b[2m┗\u001b[22m  enter \u001b[2mnext\u001b[22m\u001b[2m   \u001b[22mesc \u001b[2mcancel\u001b[22m\u001b[999D\u001b[2A\u001b[J\u001b[32m◇\u001b[39m  Anthropic API key\n\u001b[?25h",
+   "value": ""
+  },
+  {
+   "force": "1",
+   "kind": "password",
+   "keys": [
+    "abc",
+    "\u001b"
+   ],
+   "opts": {
+    "message": "Anthropic API key"
+   },
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mAnthropic API key\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[7m\u001b[8m_\u001b[28m\u001b[27m\n\u001b[2m┗\u001b[22m  enter \u001b[2mnext\u001b[22m\u001b[2m   \u001b[22mesc \u001b[2mcancel\u001b[22m\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[2A\u001b[J\u001b[31m■\u001b[39m  Anthropic API key\n\u001b[2m│\u001b[22m  \u001b[9m\u001b[2m▪▪▪\u001b[22m\u001b[29m\n\u001b[?25h",
+   "value": "cancel"
+  },
+  {
+   "force": "1",
+   "kind": "password",
+   "keys": [
+    "\u0003"
+   ],
+   "opts": {
+    "message": "Anthropic API key"
+   },
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mAnthropic API key\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[7m\u001b[8m_\u001b[28m\u001b[27m\n\u001b[2m┗\u001b[22m  enter \u001b[2mnext\u001b[22m\u001b[2m   \u001b[22mesc \u001b[2mcancel\u001b[22m\u001b[999D\u001b[2A\u001b[J\u001b[31m■\u001b[39m  Anthropic API key\n\u001b[?25h",
+   "value": "cancel"
+  },
+  {
+   "force": "1",
+   "kind": "password",
+   "keys": [
+    "ab",
+    "",
+    "c",
+    "\r"
+   ],
+   "opts": {
+    "message": "Anthropic API key"
+   },
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mAnthropic API key\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[7m\u001b[8m_\u001b[28m\u001b[27m\n\u001b[2m┗\u001b[22m  enter \u001b[2mnext\u001b[22m\u001b[2m   \u001b[22mesc \u001b[2mcancel\u001b[22m\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[2A\u001b[J\u001b[32m◇\u001b[39m  Anthropic API key\n\u001b[2m│\u001b[22m  \u001b[2m▪▪\u001b[22m\n\u001b[?25h",
+   "value": "ac"
+  },
+  {
+   "force": "3",
+   "kind": "confirm",
+   "keys": [
+    "\r"
+   ],
+   "opts": {
+    "hint": "No costs nothing."
+   },
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mBoot it?\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[2mNo costs nothing.\u001b[22m\n\u001b[2m┃\u001b[22m  \u001b[2m○\u001b[22m \u001b[2mYes\u001b[22m \u001b[2m/\u001b[22m \u001b[36m●\u001b[39m No\n\u001b[2m┗\u001b[22m  \u001b[38;5;247m← →\u001b[39m \u001b[38;5;243mchange\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247my n\u001b[39m \u001b[38;5;243manswer\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247menter\u001b[39m \u001b[38;5;243mchoose\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247mesc\u001b[39m \u001b[38;5;243mcancel\u001b[39m\u001b[999D\u001b[3A\u001b[J\u001b[32m◇\u001b[39m  Boot it?\n\u001b[2m│\u001b[22m  \u001b[2mNo costs nothing.\u001b[22m\n\u001b[2m│\u001b[22m  \u001b[2mNo\u001b[22m\n\u001b[?25h",
+   "value": false
+  },
+  {
+   "force": "3",
+   "kind": "confirm",
+   "keys": [
+    "\u001b[D",
+    "\u001b[C",
+    "\u001b[D",
+    "\r"
+   ],
+   "opts": {},
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mBoot it?\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[2m○\u001b[22m \u001b[2mYes\u001b[22m \u001b[2m/\u001b[22m \u001b[36m●\u001b[39m No\n\u001b[2m┗\u001b[22m  \u001b[38;5;247m← →\u001b[39m \u001b[38;5;243mchange\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247my n\u001b[39m \u001b[38;5;243manswer\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247menter\u001b[39m \u001b[38;5;243mchoose\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247mesc\u001b[39m \u001b[38;5;243mcancel\u001b[39m\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  \u001b[36m●\u001b[39m Yes \u001b[2m/\u001b[22m \u001b[2m○\u001b[22m \u001b[2mNo\u001b[22m\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  \u001b[2m○\u001b[22m \u001b[2mYes\u001b[22m \u001b[2m/\u001b[22m \u001b[36m●\u001b[39m No\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  \u001b[36m●\u001b[39m Yes \u001b[2m/\u001b[22m \u001b[2m○\u001b[22m \u001b[2mNo\u001b[22m\u001b[1B\u001b[999D\u001b[2A\u001b[J\u001b[32m◇\u001b[39m  Boot it?\n\u001b[2m│\u001b[22m  \u001b[2mYes\u001b[22m\n\u001b[?25h",
+   "value": true
+  },
+  {
+   "force": "3",
+   "kind": "confirm",
+   "keys": [
+    "y"
+   ],
+   "opts": {},
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mBoot it?\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[2m○\u001b[22m \u001b[2mYes\u001b[22m \u001b[2m/\u001b[22m \u001b[36m●\u001b[39m No\n\u001b[2m┗\u001b[22m  \u001b[38;5;247m← →\u001b[39m \u001b[38;5;243mchange\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247my n\u001b[39m \u001b[38;5;243manswer\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247menter\u001b[39m \u001b[38;5;243mchoose\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247mesc\u001b[39m \u001b[38;5;243mcancel\u001b[39m\u001b[1A\n\u001b[?25h\u001b[999D\u001b[2A\u001b[J\u001b[32m◇\u001b[39m  Boot it?\n\u001b[2m│\u001b[22m  \u001b[2mYes\u001b[22m\n",
+   "value": true
+  },
+  {
+   "force": "3",
+   "kind": "confirm",
+   "keys": [
+    "n"
+   ],
+   "opts": {
+    "initialValue": true
+   },
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mBoot it?\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[36m●\u001b[39m Yes \u001b[2m/\u001b[22m \u001b[2m○\u001b[22m \u001b[2mNo\u001b[22m\n\u001b[2m┗\u001b[22m  \u001b[38;5;247m← →\u001b[39m \u001b[38;5;243mchange\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247my n\u001b[39m \u001b[38;5;243manswer\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247menter\u001b[39m \u001b[38;5;243mchoose\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247mesc\u001b[39m \u001b[38;5;243mcancel\u001b[39m\u001b[1A\n\u001b[?25h\u001b[999D\u001b[2A\u001b[J\u001b[32m◇\u001b[39m  Boot it?\n\u001b[2m│\u001b[22m  \u001b[2mNo\u001b[22m\n",
+   "value": false
+  },
+  {
+   "force": "3",
+   "kind": "confirm",
+   "keys": [
+    "\u001b"
+   ],
+   "opts": {},
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mBoot it?\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[2m○\u001b[22m \u001b[2mYes\u001b[22m \u001b[2m/\u001b[22m \u001b[36m●\u001b[39m No\n\u001b[2m┗\u001b[22m  \u001b[38;5;247m← →\u001b[39m \u001b[38;5;243mchange\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247my n\u001b[39m \u001b[38;5;243manswer\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247menter\u001b[39m \u001b[38;5;243mchoose\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247mesc\u001b[39m \u001b[38;5;243mcancel\u001b[39m\u001b[999D\u001b[2A\u001b[J\u001b[31m■\u001b[39m  Boot it?\n\u001b[2m│\u001b[22m  \u001b[9m\u001b[2mNo\u001b[22m\u001b[29m\n\u001b[?25h",
+   "value": "cancel"
+  },
+  {
+   "force": "3",
+   "kind": "confirm",
+   "keys": [
+    "\u0003"
+   ],
+   "opts": {},
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mBoot it?\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[2m○\u001b[22m \u001b[2mYes\u001b[22m \u001b[2m/\u001b[22m \u001b[36m●\u001b[39m No\n\u001b[2m┗\u001b[22m  \u001b[38;5;247m← →\u001b[39m \u001b[38;5;243mchange\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247my n\u001b[39m \u001b[38;5;243manswer\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247menter\u001b[39m \u001b[38;5;243mchoose\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247mesc\u001b[39m \u001b[38;5;243mcancel\u001b[39m\u001b[999D\u001b[2A\u001b[J\u001b[31m■\u001b[39m  Boot it?\n\u001b[2m│\u001b[22m  \u001b[9m\u001b[2mNo\u001b[22m\u001b[29m\n\u001b[?25h",
+   "value": "cancel"
+  },
+  {
+   "force": "3",
+   "kind": "confirm",
+   "keys": [
+    "\r"
+   ],
+   "opts": {
+    "message": "Boot a 2 vCPU, 4 GB builder and build this? About $0.11/hr while it runs.",
+    "hint": "No costs nothing and keeps the recipe for wsp init --recipe."
+   },
+   "columns": 40,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mBoot a 2 vCPU, 4 GB builder and build\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[36m  this? About $0.11/hr while it runs.\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[2mNo costs nothing and keeps the recipe\u001b[22m\n\u001b[2m┃\u001b[22m  \u001b[2m  for wsp init --recipe.\u001b[22m\n\u001b[2m┃\u001b[22m  \u001b[2m○\u001b[22m \u001b[2mYes\u001b[22m \u001b[2m/\u001b[22m \u001b[36m●\u001b[39m No\n\u001b[2m┗\u001b[22m  \u001b[38;5;247m← →\u001b[39m \u001b[38;5;243mchange\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247my n\u001b[39m \u001b[38;5;243manswer\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247menter\u001b[39m \u001b[38;5;243mchoose\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247mesc\u001b[39m \u001b[38;5;243mcancel\u001b[39m\u001b[999D\u001b[5A\u001b[J\u001b[32m◇\u001b[39m  Boot a 2 vCPU, 4 GB builder and build\n\u001b[2m│\u001b[22m    this? About $0.11/hr while it runs.\n\u001b[2m│\u001b[22m  \u001b[2mNo costs nothing and keeps the recipe\u001b[22m\n\u001b[2m│\u001b[22m  \u001b[2m  for wsp init --recipe.\u001b[22m\n\u001b[2m│\u001b[22m  \u001b[2mNo\u001b[22m\n\u001b[?25h",
+   "value": false
+  },
+  {
+   "force": "3",
+   "kind": "confirm",
+   "keys": [
+    "\r"
+   ],
+   "opts": {
+    "message": "Boot it?\nIt bills while it runs.",
+    "hint": "No costs nothing."
+   },
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mBoot it?\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[36mIt bills while it runs.\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[2mNo costs nothing.\u001b[22m\n\u001b[2m┃\u001b[22m  \u001b[2m○\u001b[22m \u001b[2mYes\u001b[22m \u001b[2m/\u001b[22m \u001b[36m●\u001b[39m No\n\u001b[2m┗\u001b[22m  \u001b[38;5;247m← →\u001b[39m \u001b[38;5;243mchange\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247my n\u001b[39m \u001b[38;5;243manswer\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247menter\u001b[39m \u001b[38;5;243mchoose\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247mesc\u001b[39m \u001b[38;5;243mcancel\u001b[39m\u001b[999D\u001b[4A\u001b[J\u001b[32m◇\u001b[39m  Boot it?\n\u001b[2m│\u001b[22m  It bills while it runs.\n\u001b[2m│\u001b[22m  \u001b[2mNo costs nothing.\u001b[22m\n\u001b[2m│\u001b[22m  \u001b[2mNo\u001b[22m\n\u001b[?25h",
+   "value": false
+  },
+  {
+   "force": "3",
+   "kind": "password",
+   "keys": [
+    "slr_live_fake_solari_key",
+    "\r"
+   ],
+   "opts": {
+    "message": "No Solari key found.",
+    "hint": "Solari API key  console.getsolari.com"
+   },
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mNo Solari key found.\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[2mSolari API key  console.getsolari.com\u001b[22m\n\u001b[2m┃\u001b[22m  \u001b[7m\u001b[8m_\u001b[28m\u001b[27m\n\u001b[2m┗\u001b[22m  \u001b[38;5;247menter\u001b[39m \u001b[38;5;243mnext\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247mesc\u001b[39m \u001b[38;5;243mcancel\u001b[39m\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[3A\u001b[J\u001b[32m◇\u001b[39m  No Solari key found.\n\u001b[2m│\u001b[22m  \u001b[2mSolari API key  console.getsolari.com\u001b[22m\n\u001b[2m│\u001b[22m  \u001b[2m▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\u001b[22m\n\u001b[?25h",
+   "value": "slr_live_fake_solari_key"
+  },
+  {
+   "force": "3",
+   "kind": "password",
+   "keys": [
+    "\r"
+   ],
+   "opts": {
+    "message": "Anthropic API key"
+   },
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mAnthropic API key\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[7m\u001b[8m_\u001b[28m\u001b[27m\n\u001b[2m┗\u001b[22m  \u001b[38;5;247menter\u001b[39m \u001b[38;5;243mnext\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247mesc\u001b[39m \u001b[38;5;243mcancel\u001b[39m\u001b[999D\u001b[2A\u001b[J\u001b[32m◇\u001b[39m  Anthropic API key\n\u001b[?25h",
+   "value": ""
+  },
+  {
+   "force": "3",
+   "kind": "password",
+   "keys": [
+    "abc",
+    "\u001b"
+   ],
+   "opts": {
+    "message": "Anthropic API key"
+   },
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mAnthropic API key\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[7m\u001b[8m_\u001b[28m\u001b[27m\n\u001b[2m┗\u001b[22m  \u001b[38;5;247menter\u001b[39m \u001b[38;5;243mnext\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247mesc\u001b[39m \u001b[38;5;243mcancel\u001b[39m\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[2A\u001b[J\u001b[31m■\u001b[39m  Anthropic API key\n\u001b[2m│\u001b[22m  \u001b[9m\u001b[2m▪▪▪\u001b[22m\u001b[29m\n\u001b[?25h",
+   "value": "cancel"
+  },
+  {
+   "force": "3",
+   "kind": "password",
+   "keys": [
+    "\u0003"
+   ],
+   "opts": {
+    "message": "Anthropic API key"
+   },
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mAnthropic API key\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[7m\u001b[8m_\u001b[28m\u001b[27m\n\u001b[2m┗\u001b[22m  \u001b[38;5;247menter\u001b[39m \u001b[38;5;243mnext\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247mesc\u001b[39m \u001b[38;5;243mcancel\u001b[39m\u001b[999D\u001b[2A\u001b[J\u001b[31m■\u001b[39m  Anthropic API key\n\u001b[?25h",
+   "value": "cancel"
+  },
+  {
+   "force": "3",
+   "kind": "password",
+   "keys": [
+    "ab",
+    "",
+    "c",
+    "\r"
+   ],
+   "opts": {
+    "message": "Anthropic API key"
+   },
+   "columns": null,
+   "raw": "\u001b[?25l\u001b[36m◆\u001b[39m  \u001b[36mAnthropic API key\u001b[39m\n\u001b[2m┃\u001b[22m  \u001b[7m\u001b[8m_\u001b[28m\u001b[27m\n\u001b[2m┗\u001b[22m  \u001b[38;5;247menter\u001b[39m \u001b[38;5;243mnext\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247mesc\u001b[39m \u001b[38;5;243mcancel\u001b[39m\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[2A\u001b[1B\u001b[2K\u001b[G\u001b[2m┃\u001b[22m  ▪▪\u001b[7m\u001b[8m_\u001b[28m\u001b[27m\u001b[1B\u001b[999D\u001b[2A\u001b[J\u001b[32m◇\u001b[39m  Anthropic API key\n\u001b[2m│\u001b[22m  \u001b[2m▪▪\u001b[22m\n\u001b[?25h",
+   "value": "ac"
+  },
+  {
+   "force": null,
+   "noColor": true,
+   "kind": "confirm",
+   "keys": [
+    "\r"
+   ],
+   "opts": {
+    "hint": "No costs nothing."
+   },
+   "columns": null,
+   "raw": "\u001b[?25l◆  Boot it?\n┃  No costs nothing.\n┃  ○ Yes / ● No\n┗  ← → change   y n answer   enter choose   esc cancel\u001b[999D\u001b[3A\u001b[J◇  Boot it?\n│  No costs nothing.\n│  No\n\u001b[?25h",
+   "value": false
+  },
+  {
+   "force": null,
+   "noColor": true,
+   "kind": "password",
+   "keys": [
+    "slr_live_fake_solari_key",
+    "\r"
+   ],
+   "opts": {
+    "message": "No Solari key found.",
+    "hint": "Solari API key  console.getsolari.com"
+   },
+   "columns": null,
+   "raw": "\u001b[?25l◆  No Solari key found.\n┃  Solari API key  console.getsolari.com\n┃  _\n┗  enter next   esc cancel\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[2B\u001b[2K\u001b[G┃  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪_\u001b[1B\u001b[999D\u001b[3A\u001b[J◇  No Solari key found.\n│  Solari API key  console.getsolari.com\n│  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪\n\u001b[?25h",
+   "value": "slr_live_fake_solari_key"
+  }
+ ],
+ "card": "│\n◇  Summary\n│  Identity  2 of 3  1.7 KB\n│    GitHub CLI login  copy\n│\n│  Installs  Claude Code, Codex, 89\n│    tools plus Homebrew's toolchain\n│  \u001b[31mDisk  12.5 GB of 16.1 GB, red line\u001b[39m\n",
+ "cardColour": "\u001b[90m│\u001b[39m\n\u001b[32m◇\u001b[39m  \u001b[1mSummary\u001b[22m\n\u001b[90m│\u001b[39m  one\n\u001b[90m│\u001b[39m\n",
+ "muted": [
+  [
+   1,
+   "$ git status"
+  ],
+  [
+   4,
+   "\u001b[2m$ git status\u001b[22m"
+  ],
+  [
+   8,
+   "\u001b[38;5;243m$ git status\u001b[39m"
+  ],
+  [
+   24,
+   "\u001b[38;5;243m$ git status\u001b[39m"
+  ]
+ ],
+ "help": [
+  [
+   1,
+   "space tick   ← → fold   esc back"
+  ],
+  [
+   4,
+   "space \u001b[2mtick\u001b[22m\u001b[2m   \u001b[22m← → \u001b[2mfold\u001b[22m\u001b[2m   \u001b[22mesc \u001b[2mback\u001b[22m"
+  ],
+  [
+   8,
+   "\u001b[38;5;247mspace\u001b[39m \u001b[38;5;243mtick\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247m← →\u001b[39m \u001b[38;5;243mfold\u001b[39m\u001b[38;5;243m   \u001b[39m\u001b[38;5;247mesc\u001b[39m \u001b[38;5;243mback\u001b[39m"
+  ]
+ ],
+ "help0": "",
+ "watchOn": [
+  {
+   "message": "wsp workspaces --watch redraws where it stands, and this run has no terminal to redraw on. Run wsp workspaces without --watch to print the list once.",
+   "kind": "usage",
+   "fix": "Run wsp workspaces without --watch to print the list once."
+  },
+  {
+   "message": "wsp threads --watch redraws a table and --json answers with objects. Take one of the two: wsp threads --watch at a terminal, or wsp threads --json for the objects.",
+   "kind": "usage",
+   "fix": "Take one of the two: wsp threads --watch at a terminal, or wsp threads --json for the objects."
+  }
+ ]
+}

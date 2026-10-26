@@ -1,0 +1,50 @@
+{
+ "local slate catalog": {
+  "stdout": [
+   "usage: wsp slate catalog [<name>]\n  what a slate can hold: the index of pieces, sources, steps, functions and\n  rules, or one entry in full\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local slate write": {
+  "stdout": [
+   "usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]...\n       [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]\n  writes the thread's slate from a .slate file (a whole <slate> or a patch) or a\n  .json document and prints its sketch; --check stores nothing, and with --set\n  or --press rehearses values and a press on a copy, the file optional\n\n  --check         validate and sketch the slate, storing nothing\n  --set           with --check, a value to rehearse against, like '$i=2' or\n                  'picked=1'; repeats\n  --press         with --check, a piece to rehearse a press on, after the --set\n                  values\n  --row           the row index of the --press piece inside a list, from 0\n  --action        which row action of a --press table to rehearse, from 0\n  --if-version    the version a read printed; refused with V750 when the\n                  document moved past it\n  --json          print the raw protocol values, one JSON object per line, with\n                  everything else on stderr\n  --state         the state file the host serves\n  --host          run the line against a host on your account, by the name wsp\n                  hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local slate state": {
+  "stdout": [
+   "usage: wsp slate state [<thread>] [<path>=<json>...] [--start <run>]...\n       [--if-version <n>]\n  sets the slate's $values by path, like '$steps[2].done=true' or 'i=2', starts\n  runs the person let run every time, and prints its sketch\n\n  --if-version    the version a read printed; refused with V750 when the\n                  document moved past it\n  --start         a run to start now that the person said \"Always in this\n                  thread\" to; any other answers held; repeats\n  --json          print the raw protocol values, one JSON object per line, with\n                  everything else on stderr\n  --state         the state file the host serves\n  --host          run the line against a host on your account, by the name wsp\n                  hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local slate read": {
+  "stdout": [
+   "usage: wsp slate read [<thread>] [--values <path>]... [--no-text] [--no-sketch]\n       [--document]\n  the slate as it stands: the sketch, then the JSX-like form, the values,\n  derived values, runs, problems and the paths named; --no-text leaves out the\n  JSX-like form, --document adds the stored JSON\n\n  --values       a path to resolve now, like '$check.exit' or\n                 usage.week.percent, or * for every bound one; repeats\n  --no-text      leave out the slate in the JSX-like form a patch is written\n                 against\n  --no-sketch    leave the sketch out\n  --document     also print the stored JSON document\n  --json         print the raw protocol values, one JSON object per line, with\n                 everything else on stderr\n  --state        the state file the host serves\n  --host         run the line against a host on your account, by the name wsp\n                 hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud slate catalog": {
+  "stdout": [
+   "usage: wsp slate catalog [<name>]\n  what a slate can hold: the index of pieces, sources, steps, functions and\n  rules, or one entry in full\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud slate write": {
+  "stdout": [
+   "usage: wsp slate write [<thread>] [<file>] [--check] [--set <path>=<json>]...\n       [--press <piece>] [--row <n>] [--action <n>] [--if-version <n>]\n  writes the thread's slate from a .slate file (a whole <slate> or a patch) or a\n  .json document and prints its sketch; --check stores nothing, and with --set\n  or --press rehearses values and a press on a copy, the file optional\n\n  --check         validate and sketch the slate, storing nothing\n  --set           with --check, a value to rehearse against, like '$i=2' or\n                  'picked=1'; repeats\n  --press         with --check, a piece to rehearse a press on, after the --set\n                  values\n  --row           the row index of the --press piece inside a list, from 0\n  --action        which row action of a --press table to rehearse, from 0\n  --if-version    the version a read printed; refused with V750 when the\n                  document moved past it\n  --json          print the raw protocol values, one JSON object per line, with\n                  everything else on stderr\n  --state         the state file the host serves\n  --host          run the line against a host on your account, by the name wsp\n                  hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud slate state": {
+  "stdout": [
+   "usage: wsp slate state [<thread>] [<path>=<json>...] [--start <run>]...\n       [--if-version <n>]\n  sets the slate's $values by path, like '$steps[2].done=true' or 'i=2', starts\n  runs the person let run every time, and prints its sketch\n\n  --if-version    the version a read printed; refused with V750 when the\n                  document moved past it\n  --start         a run to start now that the person said \"Always in this\n                  thread\" to; any other answers held; repeats\n  --json          print the raw protocol values, one JSON object per line, with\n                  everything else on stderr\n  --state         the state file the host serves\n  --host          run the line against a host on your account, by the name wsp\n                  hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud slate read": {
+  "stdout": [
+   "usage: wsp slate read [<thread>] [--values <path>]... [--no-text] [--no-sketch]\n       [--document]\n  the slate as it stands: the sketch, then the JSX-like form, the values,\n  derived values, runs, problems and the paths named; --no-text leaves out the\n  JSX-like form, --document adds the stored JSON\n\n  --values       a path to resolve now, like '$check.exit' or\n                 usage.week.percent, or * for every bound one; repeats\n  --no-text      leave out the slate in the JSX-like form a patch is written\n                 against\n  --no-sketch    leave the sketch out\n  --document     also print the stored JSON document\n  --json         print the raw protocol values, one JSON object per line, with\n                 everything else on stderr\n  --state        the state file the host serves\n  --host         run the line against a host on your account, by the name wsp\n                 hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ }
+}

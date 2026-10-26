@@ -293,7 +293,7 @@ pub fn place_setting_named(settings: &PlaceSettings, word: &PlaceSettingWord) ->
         PlaceSettingWord::DeleteAfter => settings.delete_after_ms.is_some(),
         PlaceSettingWord::Nap => settings.nap_ms.is_some(),
         PlaceSettingWord::TurnLimit => settings.turn_limit_ms.is_some(),
-        PlaceSettingWord::Spawn => settings.spawn.as_ref().is_some_and(|spawn| spawn.max_machines.is_some()),
+        PlaceSettingWord::MaxMachines => settings.spawn.as_ref().is_some_and(|spawn| spawn.max_machines.is_some()),
         PlaceSettingWord::MaxDepth => settings.spawn.as_ref().is_some_and(|spawn| spawn.max_depth.is_some()),
     }
 }
@@ -318,13 +318,13 @@ pub fn place_setting_dropped(settings: &PlaceSettings, word: &PlaceSettingWord) 
         PlaceSettingWord::DeleteAfter => kept.delete_after_ms = None,
         PlaceSettingWord::Nap => kept.nap_ms = None,
         PlaceSettingWord::TurnLimit => kept.turn_limit_ms = None,
-        PlaceSettingWord::Spawn | PlaceSettingWord::MaxDepth => {
+        PlaceSettingWord::MaxMachines | PlaceSettingWord::MaxDepth => {
             kept.spawn = settings.spawn.clone().and_then(|mut spawn| {
                 match word {
-                    PlaceSettingWord::Spawn => spawn.max_machines = None,
+                    PlaceSettingWord::MaxMachines => spawn.max_machines = None,
                     _ => spawn.max_depth = None,
                 }
-                (spawn.spawn.is_some() || spawn.max_machines.is_some() || spawn.max_depth.is_some()).then_some(spawn)
+                (spawn.max_machines.is_some() || spawn.max_depth.is_some()).then_some(spawn)
             });
         }
     }
@@ -766,7 +766,7 @@ const SETTING_ORDER: [PlaceSettingWord; 9] = [
     PlaceSettingWord::DeleteAfter,
     PlaceSettingWord::Nap,
     PlaceSettingWord::TurnLimit,
-    PlaceSettingWord::Spawn,
+    PlaceSettingWord::MaxMachines,
     PlaceSettingWord::MaxDepth,
 ];
 
@@ -778,8 +778,8 @@ struct SettingSaid {
 fn kind_keys(kind: &PlaceKind) -> &'static [PlaceSettingWord] {
     use PlaceSettingWord::*;
     match kind {
-        PlaceKind::Computer => &[Threads, Nap, TurnLimit, Spawn, MaxDepth],
-        PlaceKind::Provider => &[Machines, Spend, Size, DeleteAfter, Nap, TurnLimit, Spawn, MaxDepth],
+        PlaceKind::Computer => &[Threads, Nap, TurnLimit, MaxMachines, MaxDepth],
+        PlaceKind::Provider => &[Machines, Spend, Size, DeleteAfter, Nap, TurnLimit, MaxMachines, MaxDepth],
     }
 }
 
@@ -796,7 +796,7 @@ fn setting_words(word: PlaceSettingWord) -> &'static str {
         PlaceSettingWord::DeleteAfter => "delete after",
         PlaceSettingWord::Nap => "nap after",
         PlaceSettingWord::TurnLimit => "turn limit",
-        PlaceSettingWord::Spawn => "machines under a root thread",
+        PlaceSettingWord::MaxMachines => "machines under a root thread",
         PlaceSettingWord::MaxDepth => "levels deep",
     }
 }
@@ -890,7 +890,7 @@ fn reads(place: &PlaceView, word: &PlaceSettingWord, fallback: bool) -> Option<S
                 Some(ms) => Some(SettingSaid { long: format!("stops a turn at {}", fmt_limit(ms)), short: fmt_limit(ms) }),
             }
         }
-        PlaceSettingWord::Spawn => {
+        PlaceSettingWord::MaxMachines => {
             let machines = if fallback { place.spawn_default.as_ref() } else { place.spawn.as_ref() }?.max_machines.as_f64();
             Some(SettingSaid { long: format!("up to {} under a root thread", plural(machines, "machine")), short: number_string(machines) })
         }

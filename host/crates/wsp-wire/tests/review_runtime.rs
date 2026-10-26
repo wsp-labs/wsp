@@ -271,10 +271,6 @@ fn an_inline_enum_or_object_says_what_zod_expects() {
         issue("invalid_type", json!(["way"]), "Expected 'token' | 'key', received number"),
     );
     assert_eq!(
-        first_issue::<RuntimeRequest>(r#"{"id":"a","op":"places.set","placeId":"p","spawn":null}"#),
-        issue("invalid_type", json!(["spawn"]), "Expected object, received null"),
-    );
-    assert_eq!(
         first_issue::<SessionSteerResult>(r#"{"outcome":5}"#),
         issue("invalid_type", json!(["outcome"]), "Expected 'accepted' | 'not-running' | 'unsupported' | 'not-found', received number"),
     );

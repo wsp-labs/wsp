@@ -1,0 +1,1658 @@
+{
+ "plan": {
+  "source": "/root/alpha",
+  "repo": true,
+  "files": 1203,
+  "bytes": 52428800,
+  "secrets": [
+   {
+    "path": ".env",
+    "bytes": 120,
+    "signals": [
+     "name",
+     "keys"
+    ]
+   },
+   {
+    "path": "deploy/key.pem",
+    "bytes": 1704,
+    "signals": [
+     "pem",
+     "mode"
+    ]
+   },
+   {
+    "path": ".git/config",
+    "bytes": 300,
+    "signals": [
+     "url"
+    ],
+    "rewrite": {
+     "urls": [
+      "https://github.com/a/b"
+     ],
+     "drop": []
+    }
+   }
+  ],
+  "excluded": [
+   "node_modules",
+   "target"
+  ],
+  "skipped": [
+   {
+    "path": "big.iso",
+    "note": "over the size a file may be"
+   }
+  ],
+  "agents": [
+   {
+    "agent": "claude",
+    "name": "Claude Code",
+    "sessions": 3,
+    "bytes": 4096,
+    "carry": "moves"
+   },
+   {
+    "agent": "codex",
+    "name": "Codex",
+    "sessions": 0,
+    "bytes": 0,
+    "carry": "transcript-only",
+    "error": "its store is locked"
+   },
+   {
+    "agent": "opencode",
+    "name": "OpenCode",
+    "sessions": 1,
+    "bytes": 10,
+    "carry": "transcript-only"
+   }
+  ]
+ },
+ "empty": {
+  "source": "/root/empty",
+  "repo": false,
+  "files": 0,
+  "bytes": 0,
+  "secrets": [],
+  "excluded": [],
+  "skipped": [],
+  "agents": []
+ },
+ "chosen": [
+  {
+   "keep": [],
+   "cut": [],
+   "out": {
+    "ok": [
+     ".git/config"
+    ]
+   }
+  },
+  {
+   "keep": [
+    "deploy/key.pem"
+   ],
+   "cut": [],
+   "out": {
+    "ok": [
+     ".git/config",
+     "deploy/key.pem"
+    ]
+   }
+  },
+  {
+   "keep": [],
+   "cut": [
+    ".env"
+   ],
+   "out": {
+    "ok": [
+     ".git/config"
+    ]
+   }
+  },
+  {
+   "keep": [
+    ".env"
+   ],
+   "cut": [
+    ".env"
+   ],
+   "out": {
+    "ok": [
+     ".git/config"
+    ]
+   }
+  },
+  {
+   "keep": [
+    "nope"
+   ],
+   "cut": [],
+   "out": {
+    "err": {
+     "error": "nope is not a secret-shaped file in the plan; the plan lists .env, deploy/key.pem, .git/config. Name one the plan lists, or drop the flag.",
+     "class": "usage",
+     "exit": 3,
+     "kind": "usage",
+     "fix": "Name one the plan lists, or drop the flag."
+    }
+   }
+  },
+  {
+   "keep": [],
+   "cut": [
+    "nope"
+   ],
+   "out": {
+    "err": {
+     "error": "nope is not a secret-shaped file in the plan; the plan lists .env, deploy/key.pem, .git/config. Name one the plan lists, or drop the flag.",
+     "class": "usage",
+     "exit": 3,
+     "kind": "usage",
+     "fix": "Name one the plan lists, or drop the flag."
+    }
+   }
+  }
+ ],
+ "chosenEmpty": {
+  "err": {
+   "error": "x is not a secret-shaped file in the plan, which lists none. Name one the plan lists, or drop the flag.",
+   "class": "usage",
+   "exit": 3,
+   "kind": "usage",
+   "fix": "Name one the plan lists, or drop the flag."
+  }
+ },
+ "agents": [
+  {
+   "named": null,
+   "out": {
+    "ok": [
+     "claude",
+     "opencode"
+    ]
+   }
+  },
+  {
+   "named": [
+    "claude"
+   ],
+   "out": {
+    "ok": [
+     "claude"
+    ]
+   }
+  },
+  {
+   "named": [
+    "codex"
+   ],
+   "out": {
+    "err": {
+     "error": "codex has no sessions for this folder; the plan lists claude, opencode. Name one the plan lists, or drop the flag and let every agent with sessions come.",
+     "class": "usage",
+     "exit": 3,
+     "kind": "usage",
+     "fix": "Name one the plan lists, or drop the flag and let every agent with sessions come."
+    }
+   }
+  },
+  {
+   "named": [
+    "nope"
+   ],
+   "out": {
+    "err": {
+     "error": "nope has no sessions for this folder; the plan lists claude, opencode. Name one the plan lists, or drop the flag and let every agent with sessions come.",
+     "class": "usage",
+     "exit": 3,
+     "kind": "usage",
+     "fix": "Name one the plan lists, or drop the flag and let every agent with sessions come."
+    }
+   }
+  },
+  {
+   "named": [],
+   "out": {
+    "ok": []
+   }
+  }
+ ],
+ "agentsEmpty": {
+  "err": {
+   "error": "claude has no sessions for this folder. Name one the plan lists, or drop the flag and let every agent with sessions come.",
+   "class": "usage",
+   "exit": 3,
+   "kind": "usage",
+   "fix": "Name one the plan lists, or drop the flag and let every agent with sessions come."
+  }
+ },
+ "planLines": {
+  "full": [
+   "Repository          git, .git travels whole",
+   "Files               1203 files, 50 MB",
+   "Caches left behind  node_modules, target",
+   "Not carried         1 path",
+   "  big.iso           over the size a file may be",
+   "Lands at            /root/alpha",
+   "Secret-shaped       3 files",
+   "  .env              name, keys, 120 B                      left out",
+   "  deploy/key.pem    pem, mode, 2 KB                        left out",
+   "  .git/config       url, 300 B                             rewritten without keys; the remote reads https://github.com/a/b",
+   "Agents              3 agents with sessions for the folder",
+   "  Claude Code       3 sessions                             sessions travel",
+   "  Codex             its store is locked                    stays",
+   "  OpenCode          1 session                              sessions travel"
+  ],
+  "ticked": [
+   "Repository          git, .git travels whole",
+   "Files               1203 files, 50 MB",
+   "Caches left behind  node_modules, target",
+   "Not carried         1 path",
+   "  big.iso           over the size a file may be",
+   "Lands at            /root/alpha",
+   "Secret-shaped       3 files",
+   "  .env              name, keys, 120 B                      travels as is",
+   "  deploy/key.pem    pem, mode, 2 KB                        travels as is",
+   "  .git/config       url, 300 B                             rewritten without keys; the remote reads https://github.com/a/b",
+   "Agents              3 agents with sessions for the folder",
+   "  Claude Code       3 sessions                             stays",
+   "  Codex             its store is locked                    stays",
+   "  OpenCode          1 session                              stays"
+  ],
+  "empty": [
+   "Repository          none",
+   "Files               0 files, 0 B",
+   "Caches left behind  none",
+   "Not carried         none",
+   "Lands at            /root/empty",
+   "Secret-shaped       none",
+   "Agents              none with sessions for the folder"
+  ]
+ },
+ "listing": {
+  "dir": "/root",
+  "roots": [
+   "/root",
+   "/srv/app"
+  ],
+  "folders": [
+   {
+    "path": "/root/alpha",
+    "repo": true,
+    "branch": "main"
+   },
+   {
+    "path": "/root/beta",
+    "repo": true
+   },
+   {
+    "path": "/root/notes",
+    "repo": false
+   }
+  ],
+  "hidden": 4
+ },
+ "emptyListing": {
+  "dir": "/root/empty",
+  "roots": [
+   "/root"
+  ],
+  "folders": [],
+  "hidden": 0
+ },
+ "folderLines": {
+  "full": [
+   "FOLDER       GIT",
+   "/root/alpha  main",
+   "/root/beta   git",
+   "/root/notes",
+   "3 folders in /root, 4 hidden. Browsable: /root, /srv/app."
+  ],
+  "empty": [
+   "FOLDER  GIT",
+   "No folders in /root/empty. Browsable: /root."
+  ]
+ },
+ "flags": {
+  "timeout": [
+   {
+    "value": null,
+    "out": {
+     "ok": null
+    }
+   },
+   {
+    "value": "1",
+    "out": {
+     "ok": 1000
+    }
+   },
+   {
+    "value": "0.5",
+    "out": {
+     "ok": 500
+    }
+   },
+   {
+    "value": "0",
+    "out": {
+     "err": {
+      "error": "--timeout takes seconds, a number above zero, and got \"0\". Write it as --timeout <seconds>.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --timeout <seconds>."
+     }
+    }
+   },
+   {
+    "value": "-1",
+    "out": {
+     "err": {
+      "error": "--timeout takes seconds, a number above zero, and got \"-1\". Write it as --timeout <seconds>.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --timeout <seconds>."
+     }
+    }
+   },
+   {
+    "value": "",
+    "out": {
+     "err": {
+      "error": "--timeout takes seconds, a number above zero, and got \"\". Write it as --timeout <seconds>.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --timeout <seconds>."
+     }
+    }
+   },
+   {
+    "value": " ",
+    "out": {
+     "err": {
+      "error": "--timeout takes seconds, a number above zero, and got \" \". Write it as --timeout <seconds>.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --timeout <seconds>."
+     }
+    }
+   },
+   {
+    "value": "abc",
+    "out": {
+     "err": {
+      "error": "--timeout takes seconds, a number above zero, and got \"abc\". Write it as --timeout <seconds>.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --timeout <seconds>."
+     }
+    }
+   },
+   {
+    "value": "1e3",
+    "out": {
+     "ok": 1000000
+    }
+   },
+   {
+    "value": "Infinity",
+    "out": {
+     "err": {
+      "error": "--timeout takes seconds, a number above zero, and got \"Infinity\". Write it as --timeout <seconds>.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --timeout <seconds>."
+     }
+    }
+   }
+  ],
+  "agents": [
+   {
+    "value": null,
+    "out": {
+     "ok": null
+    }
+   },
+   {
+    "value": "claude",
+    "out": {
+     "ok": [
+      "claude"
+     ]
+    }
+   },
+   {
+    "value": "claude, codex",
+    "out": {
+     "ok": [
+      "claude",
+      "codex"
+     ]
+    }
+   },
+   {
+    "value": ",",
+    "out": {
+     "err": {
+      "error": "--agents was given no agent. Write it as --agents claude,codex, or drop the flag.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --agents claude,codex, or drop the flag."
+     }
+    }
+   },
+   {
+    "value": " , ",
+    "out": {
+     "err": {
+      "error": "--agents was given no agent. Write it as --agents claude,codex, or drop the flag.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Write it as --agents claude,codex, or drop the flag."
+     }
+    }
+   },
+   {
+    "value": "claude,,codex",
+    "out": {
+     "ok": [
+      "claude",
+      "codex"
+     ]
+    }
+   },
+   {
+    "value": "nope",
+    "out": {
+     "err": {
+      "error": "no agent called nope; the catalog knows claude, codex, gemini, opencode, pi, hermes, crush, qwen, goose, amp, cursor. Name one of those, or drop the flag.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Name one of those, or drop the flag."
+     }
+    }
+   },
+   {
+    "value": "claude,nope",
+    "out": {
+     "err": {
+      "error": "no agent called nope; the catalog knows claude, codex, gemini, opencode, pi, hermes, crush, qwen, goose, amp, cursor. Name one of those, or drop the flag.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Name one of those, or drop the flag."
+     }
+    }
+   },
+   {
+    "value": "Claude",
+    "out": {
+     "err": {
+      "error": "no agent called Claude; the catalog knows claude, codex, gemini, opencode, pi, hermes, crush, qwen, goose, amp, cursor. Name one of those, or drop the flag.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Name one of those, or drop the flag."
+     }
+    }
+   }
+  ],
+  "scheme": [
+   {
+    "value": null,
+    "out": {
+     "ok": null
+    }
+   },
+   {
+    "value": "light",
+    "out": {
+     "ok": "light"
+    }
+   },
+   {
+    "value": "dark",
+    "out": {
+     "ok": "dark"
+    }
+   },
+   {
+    "value": "Dark",
+    "out": {
+     "err": {
+      "error": "--scheme takes one of light, dark, and got \"Dark\". Name one of those.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Name one of those."
+     }
+    }
+   },
+   {
+    "value": "",
+    "out": {
+     "err": {
+      "error": "--scheme takes one of light, dark, and got \"\". Name one of those.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Name one of those."
+     }
+    }
+   }
+  ],
+  "projectFolders": [
+   {
+    "folders": [],
+    "out": {
+     "ok": []
+    }
+   },
+   {
+    "folders": [
+     "/a",
+     "/b"
+    ],
+    "out": {
+     "ok": [
+      "/a",
+      "/b"
+     ]
+    }
+   },
+   {
+    "folders": [
+     "/a",
+     "b",
+     "c"
+    ],
+    "out": {
+     "err": {
+      "error": "project is a folder on this computer, absolute, and got \"b\". Give a path that opens with /, since whoever reads it works in a folder this line cannot see.",
+      "class": "usage",
+      "exit": 3,
+      "kind": "usage",
+      "fix": "Give a path that opens with /, since whoever reads it works in a folder this line cannot see."
+     }
+    }
+   }
+  ]
+ },
+ "replaced": [
+  {
+   "message": "/root/x is already there",
+   "kind": "exists",
+   "out": {
+    "message": "/root/x is already there\nRun again with --replace to overwrite it.",
+    "kind": "exists",
+    "same": false
+   }
+  },
+  {
+   "message": "other",
+   "kind": null,
+   "out": {
+    "message": "other",
+    "kind": null,
+    "same": true
+   }
+  },
+  {
+   "message": "gone",
+   "kind": "not-found",
+   "out": {
+    "message": "gone",
+    "kind": "not-found",
+    "same": true
+   }
+  }
+ ],
+ "confirms": [
+  {
+   "yes": true,
+   "tty": false,
+   "answer": "no",
+   "out": {
+    "ok": true
+   },
+   "asked": [],
+   "errors": []
+  },
+  {
+   "yes": false,
+   "tty": false,
+   "answer": "yes",
+   "out": {
+    "err": {
+     "error": "Remove the worktree for b in p? There is no terminal to answer on. Pass --yes to say yes.",
+     "class": "usage",
+     "exit": 3
+    }
+   },
+   "asked": [],
+   "errors": []
+  },
+  {
+   "yes": false,
+   "tty": true,
+   "answer": "yes",
+   "out": {
+    "ok": true
+   },
+   "asked": [
+    "Remove the worktree for b in p?\nThe branch stays."
+   ],
+   "errors": []
+  },
+  {
+   "yes": false,
+   "tty": true,
+   "answer": "no",
+   "out": {
+    "ok": false
+   },
+   "asked": [
+    "Remove the worktree for b in p?\nThe branch stays."
+   ],
+   "errors": [
+    "b kept"
+   ]
+  },
+  {
+   "yes": false,
+   "tty": true,
+   "answer": "",
+   "out": {
+    "ok": false
+   },
+   "asked": [
+    "Remove the worktree for b in p?\nThe branch stays."
+   ],
+   "errors": [
+    "b kept"
+   ]
+  }
+ ],
+ "turnOuts": [
+  {
+   "turn": {
+    "session": {
+     "id": "s-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "status": "running",
+     "threadId": "t-1",
+     "startedBy": "agent",
+     "cwd": "/root/alpha"
+    },
+    "threadId": "t-1",
+    "outcome": "started",
+    "result": {
+     "status": "completed",
+     "text": "all done\nlast line",
+     "durationMs": 1200,
+     "costUsd": 0.25
+    }
+   },
+   "out": {
+    "ok": {
+     "threadId": "t-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "text": "all done\nlast line",
+     "outcome": "started"
+    }
+   },
+   "view": {
+    "threadId": "t-1",
+    "workspaceId": "ws-1",
+    "harness": "claude",
+    "text": "all done\nlast line",
+    "outcome": "started"
+   },
+   "detached": {
+    "content": [
+     {
+      "type": "text",
+      "text": "thread t-1"
+     }
+    ],
+    "structuredContent": {
+     "threadId": "t-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "text": "all done\nlast line",
+     "outcome": "started"
+    }
+   },
+   "detachedOpened": {
+    "content": [
+     {
+      "type": "text",
+      "text": "the disk was gone\nopened t-1 in /root/alpha"
+     }
+    ],
+    "structuredContent": {
+     "threadId": "t-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "text": "all done\nlast line",
+     "outcome": "started",
+     "notice": "the disk was gone"
+    }
+   }
+  },
+  {
+   "turn": {
+    "session": {
+     "id": "s-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "status": "running",
+     "threadId": "t-1",
+     "startedBy": "agent",
+     "cwd": "/root/alpha"
+    },
+    "threadId": "t-1",
+    "outcome": "started"
+   },
+   "out": {
+    "err": {
+     "error": "turn ended without a result",
+     "class": "provider",
+     "exit": 1,
+     "kind": null,
+     "fix": null
+    }
+   },
+   "view": {
+    "threadId": "t-1",
+    "workspaceId": "ws-1",
+    "harness": "claude",
+    "outcome": "started"
+   },
+   "detached": {
+    "content": [
+     {
+      "type": "text",
+      "text": "thread t-1"
+     }
+    ],
+    "structuredContent": {
+     "threadId": "t-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "outcome": "started"
+    }
+   },
+   "detachedOpened": {
+    "content": [
+     {
+      "type": "text",
+      "text": "the disk was gone\nopened t-1 in /root/alpha"
+     }
+    ],
+    "structuredContent": {
+     "threadId": "t-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "outcome": "started",
+     "notice": "the disk was gone"
+    }
+   }
+  },
+  {
+   "turn": {
+    "session": {
+     "id": "s-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "status": "running",
+     "threadId": "t-1",
+     "startedBy": "agent",
+     "cwd": "/root/alpha"
+    },
+    "threadId": "t-1",
+    "outcome": "steered",
+    "result": {
+     "status": "completed",
+     "durationMs": 1200,
+     "costUsd": 0.25
+    },
+    "afterCut": true
+   },
+   "out": {
+    "ok": {
+     "threadId": "t-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "text": "",
+     "outcome": "steered",
+     "afterCut": true
+    }
+   },
+   "view": {
+    "threadId": "t-1",
+    "workspaceId": "ws-1",
+    "harness": "claude",
+    "text": "",
+    "outcome": "steered",
+    "afterCut": true
+   },
+   "detached": {
+    "content": [
+     {
+      "type": "text",
+      "text": "thread t-1"
+     }
+    ],
+    "structuredContent": {
+     "threadId": "t-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "text": "",
+     "outcome": "steered",
+     "afterCut": true
+    }
+   },
+   "detachedOpened": {
+    "content": [
+     {
+      "type": "text",
+      "text": "the disk was gone\nopened t-1 in /root/alpha"
+     }
+    ],
+    "structuredContent": {
+     "threadId": "t-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "text": "",
+     "outcome": "steered",
+     "afterCut": true,
+     "notice": "the disk was gone"
+    }
+   }
+  },
+  {
+   "turn": {
+    "session": {
+     "id": "s-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "status": "running",
+     "threadId": "t-1",
+     "startedBy": "agent",
+     "cwd": "/root/alpha",
+     "capped": {
+      "place": "mini",
+      "running": 2,
+      "atOnce": 2
+     }
+    },
+    "threadId": "t-1",
+    "outcome": "held"
+   },
+   "out": {
+    "err": {
+     "error": "turn ended without a result",
+     "class": "provider",
+     "exit": 1,
+     "kind": null,
+     "fix": null
+    }
+   },
+   "view": {
+    "threadId": "t-1",
+    "workspaceId": "ws-1",
+    "harness": "claude",
+    "outcome": "held",
+    "capped": {
+     "place": "mini",
+     "running": 2,
+     "atOnce": 2
+    }
+   },
+   "detached": {
+    "content": [
+     {
+      "type": "text",
+      "text": "thread t-1\nwaiting while mini is running 2 of 2 threads"
+     }
+    ],
+    "structuredContent": {
+     "threadId": "t-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "outcome": "held",
+     "capped": {
+      "place": "mini",
+      "running": 2,
+      "atOnce": 2
+     }
+    }
+   },
+   "detachedOpened": {
+    "content": [
+     {
+      "type": "text",
+      "text": "the disk was gone\nopened t-1 in /root/alpha\nwaiting while mini is running 2 of 2 threads"
+     }
+    ],
+    "structuredContent": {
+     "threadId": "t-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "outcome": "held",
+     "capped": {
+      "place": "mini",
+      "running": 2,
+      "atOnce": 2
+     },
+     "notice": "the disk was gone"
+    }
+   }
+  },
+  {
+   "turn": {
+    "session": {
+     "id": "s-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "status": "running",
+     "threadId": "t-1",
+     "startedBy": "agent",
+     "cwd": "/root/alpha"
+    },
+    "threadId": "t-1",
+    "outcome": "queued",
+    "result": {
+     "status": "failed",
+     "error": "the agent stopped"
+    }
+   },
+   "out": {
+    "err": {
+     "error": "the agent stopped",
+     "class": "provider",
+     "exit": 1,
+     "kind": null,
+     "fix": null
+    }
+   },
+   "view": {
+    "threadId": "t-1",
+    "workspaceId": "ws-1",
+    "harness": "claude",
+    "text": "",
+    "outcome": "queued"
+   },
+   "detached": {
+    "content": [
+     {
+      "type": "text",
+      "text": "thread t-1"
+     }
+    ],
+    "structuredContent": {
+     "threadId": "t-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "text": "",
+     "outcome": "queued"
+    }
+   },
+   "detachedOpened": {
+    "content": [
+     {
+      "type": "text",
+      "text": "the disk was gone\nopened t-1 in /root/alpha"
+     }
+    ],
+    "structuredContent": {
+     "threadId": "t-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "text": "",
+     "outcome": "queued",
+     "notice": "the disk was gone"
+    }
+   }
+  },
+  {
+   "turn": {
+    "session": {
+     "id": "s-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "status": "running",
+     "threadId": "t-1",
+     "startedBy": "agent",
+     "cwd": "/root/alpha"
+    },
+    "threadId": "t-1",
+    "outcome": "started",
+    "result": {
+     "status": "failed",
+     "error": "sign in first",
+     "refusal": "sign-in"
+    }
+   },
+   "out": {
+    "err": {
+     "error": "sign in first",
+     "class": "auth",
+     "exit": 2,
+     "kind": "auth",
+     "fix": null
+    }
+   },
+   "view": {
+    "threadId": "t-1",
+    "workspaceId": "ws-1",
+    "harness": "claude",
+    "text": "",
+    "outcome": "started"
+   },
+   "detached": {
+    "content": [
+     {
+      "type": "text",
+      "text": "thread t-1"
+     }
+    ],
+    "structuredContent": {
+     "threadId": "t-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "text": "",
+     "outcome": "started"
+    }
+   },
+   "detachedOpened": {
+    "content": [
+     {
+      "type": "text",
+      "text": "the disk was gone\nopened t-1 in /root/alpha"
+     }
+    ],
+    "structuredContent": {
+     "threadId": "t-1",
+     "workspaceId": "ws-1",
+     "harness": "claude",
+     "text": "",
+     "outcome": "started",
+     "notice": "the disk was gone"
+    }
+   }
+  }
+ ],
+ "texts": [
+  {
+   "out": {
+    "threadId": "t",
+    "workspaceId": "w",
+    "harness": "claude",
+    "outcome": "started",
+    "text": "hi"
+   },
+   "text": "hi",
+   "noticed": {
+    "threadId": "t",
+    "workspaceId": "w",
+    "harness": "claude",
+    "outcome": "started",
+    "text": "hi",
+    "notice": "said"
+   },
+   "kept": {
+    "threadId": "t",
+    "workspaceId": "w",
+    "harness": "claude",
+    "outcome": "started",
+    "text": "hi"
+   }
+  },
+  {
+   "out": {
+    "threadId": "t",
+    "workspaceId": "w",
+    "harness": "claude",
+    "outcome": "started",
+    "afterCut": true,
+    "text": "hi"
+   },
+   "text": "previous turn was cut; resuming\nhi",
+   "noticed": {
+    "threadId": "t",
+    "workspaceId": "w",
+    "harness": "claude",
+    "outcome": "started",
+    "afterCut": true,
+    "text": "hi",
+    "notice": "said"
+   },
+   "kept": {
+    "threadId": "t",
+    "workspaceId": "w",
+    "harness": "claude",
+    "outcome": "started",
+    "afterCut": true,
+    "text": "hi"
+   }
+  },
+  {
+   "out": {
+    "threadId": "t",
+    "workspaceId": "w",
+    "harness": "claude",
+    "outcome": "started",
+    "notice": "new disk",
+    "afterCut": true
+   },
+   "text": "new disk\nprevious turn was cut; resuming\n",
+   "noticed": {
+    "threadId": "t",
+    "workspaceId": "w",
+    "harness": "claude",
+    "outcome": "started",
+    "notice": "said",
+    "afterCut": true
+   },
+   "kept": {
+    "threadId": "t",
+    "workspaceId": "w",
+    "harness": "claude",
+    "outcome": "started",
+    "notice": "new disk",
+    "afterCut": true
+   }
+  },
+  {
+   "out": {
+    "threadId": "t",
+    "workspaceId": "w",
+    "harness": "claude",
+    "outcome": "started"
+   },
+   "text": "",
+   "noticed": {
+    "threadId": "t",
+    "workspaceId": "w",
+    "harness": "claude",
+    "outcome": "started",
+    "notice": "said"
+   },
+   "kept": {
+    "threadId": "t",
+    "workspaceId": "w",
+    "harness": "claude",
+    "outcome": "started"
+   }
+  }
+ ],
+ "waits": [
+  {
+   "waited": {
+    "ended": {
+     "threadId": "t-1",
+     "result": {
+      "status": "completed",
+      "text": "all done\nlast line",
+      "durationMs": 1200,
+      "costUsd": 0.25
+     }
+    }
+   },
+   "length": "tail",
+   "out": {
+    "value": {
+     "finished": {
+      "threadId": "t-1",
+      "status": "completed",
+      "durationMs": 1200,
+      "costUsd": 0.25,
+      "reply": "last line"
+     }
+    },
+    "line": "thread t-1 finished (completed, 1.2s, $0.25): last line"
+   }
+  },
+  {
+   "waited": {
+    "ended": {
+     "threadId": "t-1",
+     "result": {
+      "status": "completed",
+      "text": "all done\nlast line",
+      "durationMs": 1200,
+      "costUsd": 0.25
+     }
+    }
+   },
+   "length": "whole",
+   "out": {
+    "value": {
+     "finished": {
+      "threadId": "t-1",
+      "status": "completed",
+      "durationMs": 1200,
+      "costUsd": 0.25,
+      "reply": "last line"
+     }
+    },
+    "line": "thread t-1 finished (completed, 1.2s, $0.25): all done\nlast line"
+   }
+  },
+  {
+   "waited": {
+    "ended": {
+     "threadId": "t-1",
+     "result": {
+      "status": "failed",
+      "error": "boom"
+     }
+    }
+   },
+   "length": "tail",
+   "out": {
+    "value": {
+     "finished": {
+      "threadId": "t-1",
+      "status": "failed",
+      "reply": "boom"
+     }
+    },
+    "line": "thread t-1 finished (failed): boom"
+   }
+  },
+  {
+   "waited": {
+    "ended": {
+     "threadId": "t-1",
+     "result": {
+      "status": "completed",
+      "text": "all done\nlast line",
+      "durationMs": 1200,
+      "costUsd": 0.25
+     },
+     "sub": {
+      "branch": "wsp/x",
+      "sha": "abc1234",
+      "commits": 2
+     }
+    }
+   },
+   "length": "tail",
+   "out": {
+    "value": {
+     "finished": {
+      "threadId": "t-1",
+      "status": "completed",
+      "durationMs": 1200,
+      "costUsd": 0.25,
+      "reply": "last line",
+      "result": {
+       "branch": "wsp/x",
+       "sha": "abc1234",
+       "commits": 2
+      }
+     }
+    },
+    "line": "thread t-1 finished (completed, 1.2s, $0.25): last line"
+   }
+  },
+  {
+   "waited": {
+    "timedOutMs": 30000
+   },
+   "length": "tail",
+   "out": {
+    "value": {
+     "timedOut": true
+    },
+    "line": "2 threads still running after 30s"
+   }
+  }
+ ],
+ "asJson": {
+  "content": [
+   {
+    "type": "text",
+    "text": "{\n  \"a\": 1,\n  \"b\": {\n    \"c\": [\n      \"x\",\n      \"\\u0085\"\n    ]\n  }\n}"
+   }
+  ],
+  "structuredContent": {
+   "a": 1,
+   "b": {
+    "c": [
+     "x",
+     ""
+    ]
+   }
+  }
+ },
+ "asText": {
+  "content": [
+   {
+    "type": "text",
+    "text": "line"
+   }
+  ],
+  "structuredContent": {
+   "a": 1
+  }
+ },
+ "sendMeets": "On a thread whose turn is not running the message starts a new turn (outcome `started`); when the turn is still running the message joins it (outcome `steered`) or waits for it and then runs (outcome `queued`), and the reply is that turn's. When the thread's turn has replied but its agent process is still running, the message waits for that process and runs as the thread's next turn (outcome `queued`), which the runtime says as `This thread replied, still working; the message runs as its next turn once that process exits`. A send is never refused for meeting a turn, and two sends keep the order they arrived in.",
+ "capMeets": "A start on a computer already running as many threads as its threads at once waits for a slot and starts on its own when one frees (outcome `held`), with capped beside it, the computer and what runs there against its number, which the thread's row in threads carries while it waits; a thread that follows a run or a send to its end, not detached, lends that thread's next turn its own slot, one turn at a time, a turn already held ahead of the message included, and every other start, a child started detached included, waits for a slot of its own",
+ "planOnly": "nothing imported; run again with --yes to take these defaults, or --keep <path> and --cut <path> per secret-shaped row",
+ "importNow": "Import now? y/N",
+ "projectsFlag": [
+  {
+   "projects": [
+    "/root/wsp-vm/wt-2449-cli-a/a",
+    "/b",
+    "/root/wsp-vm/c"
+   ]
+  },
+  {},
+  {}
+ ],
+ "reasonFlag": [
+  [
+   "reason",
+   {
+    "type": "string"
+   }
+  ]
+ ],
+ "pickInputs": [
+  {
+   "name": "model",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "the model the turn runs on, by the agent's own slug (claude-sonnet-5); absent on a new thread means the project's, else the one set for that agent, else the catalog's default, on send the thread's own"
+  },
+  {
+   "name": "effort",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "the reasoning effort, by the agent's own word (low, medium, high, xhigh, max); absent on a new thread means the agent's default, high for claude; on send, the thread's own"
+  },
+  {
+   "name": "access",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "how far the agent may go without asking, in wsp's words: ask (asks about each action that needs permission), auto-edit (edits files without asking), full (every action without asking) or plan (reads and proposes, changes nothing); each is mapped to the agent's own mode and refused where the agent has none, and a harness's own spelling is refused. Absent means the project's access, else the one set for that agent, else full"
+  }
+ ],
+ "sendInputs": [
+  {
+   "name": "model",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "the model the turn runs on, by the agent's own slug (claude-sonnet-5); absent on a new thread means the project's, else the one set for that agent, else the catalog's default, on send the thread's own"
+  },
+  {
+   "name": "effort",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "the reasoning effort, by the agent's own word (low, medium, high, xhigh, max); absent on a new thread means the agent's default, high for claude; on send, the thread's own"
+  }
+ ],
+ "shared": [
+  {
+   "name": "WorkspaceIn",
+   "kind": {
+    "type": "string"
+   },
+   "optional": false,
+   "describe": "the workspace's name, or its id when two share a name"
+  },
+  {
+   "name": "ThreadIn",
+   "kind": {
+    "type": "string"
+   },
+   "optional": false,
+   "describe": "the thread, by its id or a prefix of it that names one, as threads lists them"
+  },
+  {
+   "name": "AgentIn",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "the agent to run in the thread, one of claude, codex, opencode, cursor; absent means the host's default"
+  },
+  {
+   "name": "NotifyIn",
+   "kind": {
+    "type": "stringList",
+    "min": 1
+   },
+   "optional": true,
+   "describe": "who is told each time a turn of the new thread ends, each one a thread (by id, or a prefix of it) the line goes into as a message carrying that turn's whole reply, or me, which is the thread this call came out of when it came out of one and otherwise the person's app, where the line is its last reply line alone. Several targets each get the line once, which is how a builder's end reaches its orchestrator and a reviewer together; a target whose thread is gone by then falls back to the person, and the new thread's own id is refused. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report."
+  },
+  {
+   "name": "RunProjectIn",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "the project the thread works on, by the name or the id projects lists. Absent from a thread, the thread runs beside the one asking, in its folder"
+  },
+  {
+   "name": "BesideIn",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "a thread, by its id or a prefix of it, beside which the new thread runs: in the folder that thread works in, on the computer it runs on; never with project or branch"
+  },
+  {
+   "name": "BranchIn",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "a branch other than the one the project's folder has checked out: the thread runs in the worktree holding it, made under wsp's folder from the project folder's current commit for a new branch"
+  },
+  {
+   "name": "OnIn",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "boat, to start the thread as a sub-thread of the thread asking on a machine of its own on Boat, forked from the person's image. It fetches your pushed branch, or the ref from names, and pushes a branch of its own; without from your branch must be pushed first. It carries the thread's own project, which project may name or leave out; another project is refused. Never with beside, fork, at, cwd, resume, copy or replaces"
+  },
+  {
+   "name": "SubSizeIn",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "with on, the machine's size as <cpu>x<memGb>: 2x4, 4x8, 8x16 or 16x32, those the person's plan sells; Boat's own size setting without it. A thread that builds or runs a test suite wants 4x8"
+  },
+  {
+   "name": "SubFromIn",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "with on, a branch, tag or commit the remote already holds (origin/main, main, v1.2, a commit id) that the sub-thread starts from instead of your branch, which then need not be pushed; a ref the remote does not hold is refused naming it"
+  },
+  {
+   "name": "RunCwdIn",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "a folder inside the project or one of its worktrees, absolute, which the thread starts in"
+  },
+  {
+   "name": "ExecCwdIn",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "the folder the command runs in, absolute; absent means the folder the thread works in"
+  },
+  {
+   "name": "CwdIn",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "the folder on the machine the thread works in or the command runs in, absolute. Absent means the workspace's own project, which is where a thread there starts unless it says otherwise"
+  },
+  {
+   "name": "DetachIn",
+   "kind": {
+    "type": "boolean"
+   },
+   "optional": true,
+   "describe": "true answers with the thread id the moment the turn is started, without the reply, and the turn's end reaches whoever notify named; for a turn that runs for minutes or an hour, so this call does not block for it. A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report."
+  },
+  {
+   "name": "ResumeIn",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "a conversation the agent kept in the project's folder outside wsp, by the id conversations lists: the new thread opens on it, in the folder it ran in, under its own name, with its newest messages written above the message, and nothing of wsp's is written into the agent's own store until the thread is renamed here. Refused with beside, branch or cwd, since the conversation names its folder, where the agent holds no such conversation, where it is a wsp thread already, and where another app holds it open, unless copy"
+  },
+  {
+   "name": "CopyIn",
+   "kind": {
+    "type": "boolean"
+   },
+   "optional": true,
+   "describe": "with resume, true runs the thread on a copy of the conversation the agent makes (Claude Code's --fork-session, Codex's thread/fork), the original left byte for byte as it was: the answer to one open in another app"
+  },
+  {
+   "name": "TitleIn",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "the thread's name, as a person's: it shows in the sidebar and in the agent's own list from the first second, and the title the host asks the agent for as the turn starts never replaces it; absent lets the thread be titled by its opening words until, seconds in, the agent names it"
+  },
+  {
+   "name": "ForkIn",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "a thread to fork, by id or a prefix of it, as threads lists them: the new thread runs on that thread's agent, at its model and effort unless named, with its conversation through one finished turn and nothing after, in that thread's folder, or with branch in a new worktree on that branch whose files are that turn's checkpoint; never with project, beside, cwd or replaces, and an agent other than the thread's is refused"
+  },
+  {
+   "name": "AtIn",
+   "kind": {
+    "type": "integer",
+    "min": 1
+   },
+   "optional": true,
+   "describe": "with fork, the finished turn the fork carries the conversation through, counted from 1 in the order thread_read lists them; absent, the thread's latest finished turn"
+  },
+  {
+   "name": "ReplacesIn",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "a stopped or failed thread this new thread restarts, by id or a prefix of it, as threads lists them: the new thread's row names it, and once the new one starts the host settles it, so the person sees one row for the job; a restart the person starts of a child stands under that child's lead. Refused while that thread or one under it is working, for a thread that already has a restart (name that restart instead), and from a thread for one that is not under it, each before a machine is forked or woken"
+  },
+  {
+   "name": "FilesIn",
+   "kind": {
+    "type": "stringList",
+    "min": null
+   },
+   "optional": true,
+   "describe": "paths on this computer, absolute or relative to the folder wsp runs in, of files to send with the message, at most 5. An image (PNG, JPEG, GIF or WebP, up to 10 MB) goes to the agent as an image; any other file, up to 10 MB, lands in the folder the thread works in, under .wsp-files where git lists none of it, and the message names its path. The host reads each file and sends its bytes, so the machine never reaches back for this computer’s files; an image to an agent that reads none is refused naming that agent."
+  },
+  {
+   "name": "FastIn",
+   "kind": {
+    "type": "boolean"
+   },
+   "optional": true,
+   "describe": "true runs the turn in the agent's fast mode, on a model that offers one, and is refused naming the model otherwise; absent runs at the agent's usual speed"
+  },
+  {
+   "name": "ConfirmIn",
+   "kind": {
+    "type": "boolean"
+   },
+   "optional": true,
+   "describe": "true deletes it; absent or false answers with what would go and deletes nothing, so a person can be asked first"
+  },
+  {
+   "name": "SizeIn",
+   "kind": {
+    "type": "string"
+   },
+   "optional": true,
+   "describe": "the machine size as <cpu>x<memGb>, like 2x4; absent takes the image's size. A size the provider does not offer is refused with the list it does, so read that list rather than guessing twice; a build wants the largest memory offered"
+  },
+  {
+   "name": "MaxMachinesIn",
+   "kind": {
+    "type": "integer",
+    "min": 0
+   },
+   "optional": true,
+   "describe": "how many machines may stand at once under one root thread; defaults to 3"
+  },
+  {
+   "name": "MaxDepthIn",
+   "kind": {
+    "type": "integer",
+    "min": 1
+   },
+   "optional": true,
+   "describe": "how many levels deep the tree under a root thread may go, 2 by default; 1 stops at the root's own children"
+  },
+  {
+   "name": "PROJECT_FOLDERS",
+   "kind": {
+    "type": "stringList",
+    "min": null
+   },
+   "optional": true,
+   "describe": "folders on this computer, absolute, to weigh the histories by: only sessions that ran in one of them or under it count"
+  },
+  {
+   "name": "WEIGH_BY_FOLDERS",
+   "kind": {
+    "type": "stringList",
+    "min": null
+   },
+   "optional": true,
+   "describe": "folders on this computer, absolute, to weigh the histories by: only sessions that ran in one of them or under it count. Naming one re-decides every tick from the rule, as tick does, so any flip an earlier call made goes"
+  }
+ ]
+}
