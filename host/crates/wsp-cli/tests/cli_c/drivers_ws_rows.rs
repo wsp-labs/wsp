@@ -43,7 +43,9 @@ fn dropping_of(env: &Env, name: &str) -> w::Dropping {
     w::Dropping {
         workspace: read(&d["workspace"]),
         threads: d["threads"].as_u64().expect("threads") as usize,
-        on: d.get("on").map(|on| StandsOn { name: on["name"].as_str().unwrap().to_string(), computer: on["computer"].as_str().unwrap().to_string() }),
+        on: d
+            .get("on")
+            .map(|on| StandsOn { name: on["name"].as_str().unwrap().to_string(), computer: on["computer"].as_str().unwrap().to_string() }),
     }
 }
 
@@ -192,8 +194,16 @@ pub fn project_line(env: &Env) -> Answer<'_> {
     Box::pin(async move {
         let p: ProjectView = arg(env, "p");
         let workspaces: Vec<WorkspaceOut> = arg(env, "workspaces");
-        let held: Vec<ThreadView> = env.arg("threadsHeld").unwrap().as_array().unwrap().iter().map(|t| read::<ThreadRow>(t).thread).collect();
-        let named: IndexMap<String, String> = env.arg("named").unwrap().as_array().unwrap().iter().map(|e| (e[0].as_str().unwrap().to_string(), e[1].as_str().unwrap().to_string())).collect();
+        let held: Vec<ThreadView> =
+            env.arg("threadsHeld").unwrap().as_array().unwrap().iter().map(|t| read::<ThreadRow>(t).thread).collect();
+        let named: IndexMap<String, String> = env
+            .arg("named")
+            .unwrap()
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| (e[0].as_str().unwrap().to_string(), e[1].as_str().unwrap().to_string()))
+            .collect();
         ok(w::project_line(&p, &workspaces, &held, &named))
     })
 }
@@ -230,7 +240,8 @@ pub fn agents_asked(env: &Env) -> Answer<'_> {
 
 pub fn count_asked(env: &Env) -> Answer<'_> {
     Box::pin(async move {
-        let n = w::count_asked(&text(env, "flagName"), env.arg("word").unwrap(), arg::<u64>(env, "least"), env.str_arg("computer").as_deref())?;
+        let n =
+            w::count_asked(&text(env, "flagName"), env.arg("word").unwrap(), arg::<u64>(env, "least"), env.str_arg("computer").as_deref())?;
         ok(n)
     })
 }

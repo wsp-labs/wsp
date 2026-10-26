@@ -160,7 +160,12 @@ fn run_target__with_the_projects_not_listable_the_first_workspace_of_a_proj() {
 
 #[test]
 fn run_target__with_the_projects_not_listable_the_first_workspace_of_a_proj_2() {
-    holds("turns_target", "runTarget", "with the projects not listable, the first workspace of a project names it, cloud on", d::run_target);
+    holds(
+        "turns_target",
+        "runTarget",
+        "with the projects not listable, the first workspace of a project names it, cloud on",
+        d::run_target,
+    );
 }
 
 #[test]
@@ -180,7 +185,12 @@ fn run_target__a_project_elsewhere_that_opens_in_its_folder_a_branch_asked_() {
 
 #[test]
 fn run_target__a_project_elsewhere_that_opens_in_its_folder_a_branch_asked__2() {
-    holds("turns_target", "runTarget", "a project elsewhere that opens in its folder, a branch asked, is not refused, cloud on", d::run_target);
+    holds(
+        "turns_target",
+        "runTarget",
+        "a project elsewhere that opens in its folder, a branch asked, is not refused, cloud on",
+        d::run_target,
+    );
 }
 
 #[test]
@@ -220,7 +230,12 @@ fn run_target__a_project_on_a_cloud_with_a_folder_forks_and_leaves_the_fold() {
 
 #[test]
 fn run_target__a_project_on_a_cloud_with_a_folder_forks_and_leaves_the_fold_2() {
-    holds("turns_target", "runTarget", "a project on a cloud with a folder forks and leaves the folder to the start, cloud on", d::run_target);
+    holds(
+        "turns_target",
+        "runTarget",
+        "a project on a cloud with a folder forks and leaves the folder to the start, cloud on",
+        d::run_target,
+    );
 }
 
 #[test]
@@ -285,22 +300,42 @@ fn run_target__a_project_on_a_cloud_with_a_machine_of_another_name_forks_cl() {
 
 #[test]
 fn run_target__a_project_on_a_cloud_with_a_machine_of_its_name_the_machine_() {
-    holds("turns_target", "runTarget", "a project on a cloud with a machine of its name: the machine with a cloud, the fork without", d::run_target);
+    holds(
+        "turns_target",
+        "runTarget",
+        "a project on a cloud with a machine of its name: the machine with a cloud, the fork without",
+        d::run_target,
+    );
 }
 
 #[test]
 fn run_target__a_project_on_a_cloud_with_a_machine_of_its_name_the_machine__2() {
-    holds("turns_target", "runTarget", "a project on a cloud with a machine of its name: the machine with a cloud, the fork without, cloud on", d::run_target);
+    holds(
+        "turns_target",
+        "runTarget",
+        "a project on a cloud with a machine of its name: the machine with a cloud, the fork without, cloud on",
+        d::run_target,
+    );
 }
 
 #[test]
 fn run_target__a_project_on_a_cloud_with_a_machine_of_its_name_and_a_branch() {
-    holds("turns_target", "runTarget", "a project on a cloud with a machine of its name and a branch: the branch is refused first", d::run_target);
+    holds(
+        "turns_target",
+        "runTarget",
+        "a project on a cloud with a machine of its name and a branch: the branch is refused first",
+        d::run_target,
+    );
 }
 
 #[test]
 fn run_target__a_project_on_a_cloud_with_a_machine_of_its_name_and_a_branch_2() {
-    holds("turns_target", "runTarget", "a project on a cloud with a machine of its name and a branch: the branch is refused first, cloud on", d::run_target);
+    holds(
+        "turns_target",
+        "runTarget",
+        "a project on a cloud with a machine of its name and a branch: the branch is refused first, cloud on",
+        d::run_target,
+    );
 }
 
 #[test]
@@ -465,12 +500,22 @@ fn run_target__a_word_naming_a_project_hidden_from_the_thread_the_list_refu_2() 
 
 #[test]
 fn run_target__run_beside_starts_beside_the_thread_whose_line_it_is_a_line_() {
-    holds("turns_target", "runTarget", "run-beside: starts beside the thread whose line it is, a line typed on a computer the person joined included (no folder named)", d::run_target);
+    holds(
+        "turns_target",
+        "runTarget",
+        "run-beside: starts beside the thread whose line it is, a line typed on a computer the person joined included (no folder named)",
+        d::run_target,
+    );
 }
 
 #[test]
 fn run_target__run_beside_starts_beside_the_thread_whose_line_it_is_a_line__2() {
-    holds("turns_target", "runTarget", "run-beside: starts beside the thread whose line it is, a line typed on a computer the person joined included (a folder named)", d::run_target);
+    holds(
+        "turns_target",
+        "runTarget",
+        "run-beside: starts beside the thread whose line it is, a line typed on a computer the person joined included (a folder named)",
+        d::run_target,
+    );
 }
 
 #[test]
@@ -480,7 +525,12 @@ fn run_target__run_beside_still_names_the_workspace_on_a_line_from_a_machin() {
 
 #[test]
 fn run_target__run_beside_takes_the_thread_s_own_project_where_a_project_on() {
-    holds("turns_target", "runTarget", "run-beside: takes the thread's own project where a project on another computer shares its name", d::run_target);
+    holds(
+        "turns_target",
+        "runTarget",
+        "run-beside: takes the thread's own project where a project on another computer shares its name",
+        d::run_target,
+    );
 }
 
 #[test]
@@ -645,12 +695,22 @@ fn run_target__no_project_other_variables_are_not_tokens_cloud_on() {
 
 #[test]
 fn run_target__no_project_a_caller_on_a_machine_with_no_token_is_told_to_na() {
-    holds("turns_target", "runTarget", "no project, a caller on a machine with no token is told to name the workspace, and nothing is asked", d::run_target);
+    holds(
+        "turns_target",
+        "runTarget",
+        "no project, a caller on a machine with no token is told to name the workspace, and nothing is asked",
+        d::run_target,
+    );
 }
 
 #[test]
 fn run_target__no_project_a_caller_on_a_machine_with_no_token_is_told_to_na_2() {
-    holds("turns_target", "runTarget", "no project, a caller on a machine with no token is told to name the workspace, and nothing is asked, cloud on", d::run_target);
+    holds(
+        "turns_target",
+        "runTarget",
+        "no project, a caller on a machine with no token is told to name the workspace, and nothing is asked, cloud on",
+        d::run_target,
+    );
 }
 
 #[test]
@@ -740,7 +800,12 @@ fn run_target__no_project_a_folder_that_only_shares_the_project_s_name_as_a() {
 
 #[test]
 fn run_target__no_project_a_folder_that_only_shares_the_project_s_name_as_a_2() {
-    holds("turns_target", "runTarget", "no project, a folder that only shares the project's name as a prefix is not in it, cloud on", d::run_target);
+    holds(
+        "turns_target",
+        "runTarget",
+        "no project, a folder that only shares the project's name as a prefix is not in it, cloud on",
+        d::run_target,
+    );
 }
 
 #[test]
@@ -895,7 +960,12 @@ fn project_of_folder__the_project_s_path_with_a_trailing_slash() {
 
 #[test]
 fn project_of_folder__the_project_s_path_with_a_trailing_slash_the_folder_is_the_p() {
-    holds("turns_target", "projectOfFolder", "the project's path with a trailing slash, the folder is the path without it", d::project_of_folder);
+    holds(
+        "turns_target",
+        "projectOfFolder",
+        "the project's path with a trailing slash, the folder is the path without it",
+        d::project_of_folder,
+    );
 }
 
 #[test]

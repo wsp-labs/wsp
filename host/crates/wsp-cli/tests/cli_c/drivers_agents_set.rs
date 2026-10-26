@@ -16,7 +16,8 @@ use super::common::Env;
 type Driven<'a> = BoxFuture<'a, Result<Value, HostError>>;
 
 fn typed<T: DeserializeOwned>(env: &Env, name: &str) -> T {
-    serde_json::from_value(env.arg(name).unwrap_or_else(|| panic!("case has no argument {name}")).clone()).unwrap_or_else(|e| panic!("argument {name} does not read: {e}"))
+    serde_json::from_value(env.arg(name).unwrap_or_else(|| panic!("case has no argument {name}")).clone())
+        .unwrap_or_else(|e| panic!("argument {name} does not read: {e}"))
 }
 
 fn text(env: &Env, name: &str) -> String {
@@ -57,7 +58,19 @@ pub fn skill_shown(env: &Env) -> Driven<'_> {
         let project = project_asked(env);
         let thread = env.str_arg("thread");
         let on = env.str_arg("on");
-        json_of(s::skill_shown(env.client.as_ref(), &text(env, "skill"), thread.as_deref(), on.as_deref(), &project, &text(env, "usage"), &text(env, "line"), env.cloud()).await?)
+        json_of(
+            s::skill_shown(
+                env.client.as_ref(),
+                &text(env, "skill"),
+                thread.as_deref(),
+                on.as_deref(),
+                &project,
+                &text(env, "usage"),
+                &text(env, "line"),
+                env.cloud(),
+            )
+            .await?,
+        )
     })
 }
 
@@ -74,7 +87,20 @@ pub fn skill_added(env: &Env) -> Driven<'_> {
         let thread = env.str_arg("thread");
         let on = env.str_arg("on");
         let agents = optional_strs(env, "agents");
-        json_of(s::skill_added(env.client.as_ref(), &text(env, "skill"), thread.as_deref(), on.as_deref(), agents.as_deref(), &project, &text(env, "usage"), &text(env, "line"), env.cloud()).await?)
+        json_of(
+            s::skill_added(
+                env.client.as_ref(),
+                &text(env, "skill"),
+                thread.as_deref(),
+                on.as_deref(),
+                agents.as_deref(),
+                &project,
+                &text(env, "usage"),
+                &text(env, "line"),
+                env.cloud(),
+            )
+            .await?,
+        )
     })
 }
 
@@ -96,7 +122,21 @@ pub fn skill_changed(env: &Env) -> Driven<'_> {
         let thread = env.str_arg("thread");
         let on = env.str_arg("on");
         let turn = env.arg("turn").and_then(|v| v.as_bool());
-        json_of(s::skill_changed(env.client.as_ref(), op, &text(env, "name"), thread.as_deref(), on.as_deref(), &project, turn, &text(env, "usage"), &text(env, "line"), env.cloud()).await?)
+        json_of(
+            s::skill_changed(
+                env.client.as_ref(),
+                op,
+                &text(env, "name"),
+                thread.as_deref(),
+                on.as_deref(),
+                &project,
+                turn,
+                &text(env, "usage"),
+                &text(env, "line"),
+                env.cloud(),
+            )
+            .await?,
+        )
     })
 }
 
@@ -176,13 +216,19 @@ pub fn const_text(env: &Env) -> Driven<'_> {
             "NOTHING_TO_SET_FIX" => json!(s::NOTHING_TO_SET_FIX),
             "ENV_NAME_FIX" => json!(s::ENV_NAME_FIX),
             "agentSetupNothingLine" => json!(s::AGENT_SETUP_NOTHING_LINE),
-            "SETUP_WORDS" => json!({ "program": s::SETUP_WORDS.program, "configDir": s::SETUP_WORDS.config_dir, "args": s::SETUP_WORDS.args, "envNames": s::SETUP_WORDS.env_names }),
+            "SETUP_WORDS" => {
+                json!({ "program": s::SETUP_WORDS.program, "configDir": s::SETUP_WORDS.config_dir, "args": s::SETUP_WORDS.args, "envNames": s::SETUP_WORDS.env_names })
+            }
             "projectSetNothingLine" => json!(s::PROJECT_SET_NOTHING_LINE),
             "TRACKER_SHAPE_FIX" => json!(s::TRACKER_SHAPE_FIX),
             "afterWorktreeBlankLine" => json!(s::AFTER_WORKTREE_BLANK_LINE),
             "AFTER_WORKTREE_BLANK_FIX" => json!(s::AFTER_WORKTREE_BLANK_FIX),
-            "FROM_WORDS" => json!({ "named": s::from_word(DefaultFrom::Named), "project": s::from_word(DefaultFrom::Project), "default": s::from_word(DefaultFrom::Default), "catalog": s::from_word(DefaultFrom::Catalog) }),
-            "DEFAULTS_LABELS" => json!({ "agent": s::DEFAULTS_LABELS.agent, "model": s::DEFAULTS_LABELS.model, "effort": s::DEFAULTS_LABELS.effort, "access": s::DEFAULTS_LABELS.access }),
+            "FROM_WORDS" => {
+                json!({ "named": s::from_word(DefaultFrom::Named), "project": s::from_word(DefaultFrom::Project), "default": s::from_word(DefaultFrom::Default), "catalog": s::from_word(DefaultFrom::Catalog) })
+            }
+            "DEFAULTS_LABELS" => {
+                json!({ "agent": s::DEFAULTS_LABELS.agent, "model": s::DEFAULTS_LABELS.model, "effort": s::DEFAULTS_LABELS.effort, "access": s::DEFAULTS_LABELS.access })
+            }
             "SKILL_CHANGE_WORDS" => json!(s::SKILL_CHANGE_WORDS),
             "AGENTS_ON_WORDS" => json!(s::AGENTS_ON_WORDS),
             "AGENTS_READ_WORDS" => json!(s::AGENTS_READ_WORDS),
@@ -217,7 +263,9 @@ pub fn sentence(env: &Env) -> Driven<'_> {
             "envNameLine" => s::env_name_line(&st(0), &st(1)),
             "setupOnLine" => s::setup_on_line(&st(0), on(1)),
             "trackerShapeLine" => s::tracker_shape_line(&st(0)),
-            "trackersLine" => s::trackers_line(&a[0].as_array().expect("a list").iter().map(|v| v.as_str().expect("a repo").to_string()).collect::<Vec<_>>()),
+            "trackersLine" => s::trackers_line(
+                &a[0].as_array().expect("a list").iter().map(|v| v.as_str().expect("a repo").to_string()).collect::<Vec<_>>(),
+            ),
             "afterWorktreeLine" => s::after_worktree_line(&st(0)),
             "noDefaultsAnsweredLine" => s::no_defaults_answered_line(&st(0)),
             "newThreadsHeadLine" => s::new_threads_head_line(&st(0)),

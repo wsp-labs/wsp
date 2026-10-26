@@ -148,7 +148,15 @@ pub fn files_from(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
 pub fn checked_start(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
     Box::pin(async move {
         let task = env.str_arg("task").unwrap();
-        let got = t::checked_start(env.client.as_ref(), &task, env.str_arg("harness").as_deref(), &picks(env, "picks"), env.str_arg("workspaceId").as_deref(), env.str_arg("forkOf").as_deref()).await;
+        let got = t::checked_start(
+            env.client.as_ref(),
+            &task,
+            env.str_arg("harness").as_deref(),
+            &picks(env, "picks"),
+            env.str_arg("workspaceId").as_deref(),
+            env.str_arg("forkOf").as_deref(),
+        )
+        .await;
         done(env, got.map(|()| Value::Null))
     })
 }
@@ -162,7 +170,9 @@ pub fn preferences_of(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
 }
 
 pub fn worktree_for(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
-    Box::pin(async move { done(env, t::worktree_for(env.client.as_ref(), &env.str_arg("project").unwrap(), &env.str_arg("branch").unwrap()).await) })
+    Box::pin(async move {
+        done(env, t::worktree_for(env.client.as_ref(), &env.str_arg("project").unwrap(), &env.str_arg("branch").unwrap()).await)
+    })
 }
 
 pub fn opening_of(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
@@ -177,7 +187,17 @@ pub fn opening_of(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
 pub fn thread_fork(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
     Box::pin(async move {
         let at: Option<t::AtWord> = env.arg("at").map(from);
-        let got = t::thread_fork(env.client.as_ref(), &env.str_arg("ref").unwrap(), at.as_ref(), env.str_arg("branch").as_deref(), &env.str_arg("task").unwrap(), env.str_arg("harness").as_deref(), &picks(env, "picks"), env.cloud()).await;
+        let got = t::thread_fork(
+            env.client.as_ref(),
+            &env.str_arg("ref").unwrap(),
+            at.as_ref(),
+            env.str_arg("branch").as_deref(),
+            &env.str_arg("task").unwrap(),
+            env.str_arg("harness").as_deref(),
+            &picks(env, "picks"),
+            env.cloud(),
+        )
+        .await;
         done(env, got)
     })
 }
@@ -201,6 +221,10 @@ pub fn message_to(env: &Env) -> BoxFuture<'_, Result<Value, HostError>> {
     Box::pin(async move {
         prepare(env);
         let thread: ThreadView = from(env.arg("thread").expect("a thread"));
-        done(env, t::message_to(&thread, &env.str_arg("prompt").unwrap(), &picks(env, "picks"), &env.strs("files"), env.flag("elsewhere")).map(Value::Object))
+        done(
+            env,
+            t::message_to(&thread, &env.str_arg("prompt").unwrap(), &picks(env, "picks"), &env.strs("files"), env.flag("elsewhere"))
+                .map(Value::Object),
+        )
     })
 }

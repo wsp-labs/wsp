@@ -70,7 +70,12 @@ fn skill_hit_lines__a_tab_and_a_newline_in_a_name_become_spaces() {
 
 #[test]
 fn skill_hit_lines__control_characters_and_escapes_are_dropped_skills_sh_test_ts() {
-    holds("agents_set", "skillHitLines", "control characters and escapes are dropped (skills-sh.test.ts what a skills verb prints)", d::skill_hit_lines);
+    holds(
+        "agents_set",
+        "skillHitLines",
+        "control characters and escapes are dropped (skills-sh.test.ts what a skills verb prints)",
+        d::skill_hit_lines,
+    );
 }
 
 #[test]
@@ -1310,7 +1315,12 @@ fn project_defaults_set__a_bad_access_word_is_refused_before_any_frame() {
 
 #[test]
 fn project_defaults_set__an_access_word_is_refused_before_the_project_is_resolved_eve() {
-    holds("agents_set", "projectDefaultsSet", "an access word is refused before the project is resolved even when it is the only field", d::project_defaults_set);
+    holds(
+        "agents_set",
+        "projectDefaultsSet",
+        "an access word is refused before the project is resolved even when it is the only field",
+        d::project_defaults_set,
+    );
 }
 
 #[test]
@@ -1490,7 +1500,12 @@ fn project_defaults_set__the_defaults_read_is_refused() {
 
 #[test]
 fn project_defaults_set__a_project_name_with_control_characters_in_the_missing_defaul() {
-    holds("agents_set", "projectDefaultsSet", "a project name with control characters in the missing-defaults error", d::project_defaults_set);
+    holds(
+        "agents_set",
+        "projectDefaultsSet",
+        "a project name with control characters in the missing-defaults error",
+        d::project_defaults_set,
+    );
 }
 
 #[test]

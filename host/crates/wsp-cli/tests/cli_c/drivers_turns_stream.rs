@@ -67,7 +67,8 @@ pub fn answer_verbs_line(env: &Env) -> BoxFuture<'_, Out> {
 }
 
 fn ask_of(v: &Value) -> SessionPermissionEvent {
-    let mut o = json!({ "workspaceId": "w", "sessionId": "s", "askId": "a", "toolName": v["toolName"], "input": v["input"], "options": [] });
+    let mut o =
+        json!({ "workspaceId": "w", "sessionId": "s", "askId": "a", "toolName": v["toolName"], "input": v["input"], "options": [] });
     if let Some(d) = v.get("detail") {
         o["detail"] = d.clone();
     }
@@ -86,7 +87,9 @@ pub fn no_open_ask_line(env: &Env) -> BoxFuture<'_, Out> {
 }
 
 pub fn no_such_answer_line(env: &Env) -> BoxFuture<'_, Out> {
-    Box::pin(async move { Ok(Value::from(t::no_such_answer_line(&env.str_arg("threadId").expect("threadId"), &env.str_arg("verb").expect("verb")))) })
+    Box::pin(async move {
+        Ok(Value::from(t::no_such_answer_line(&env.str_arg("threadId").expect("threadId"), &env.str_arg("verb").expect("verb"))))
+    })
 }
 
 pub fn answer_roads(_env: &Env) -> BoxFuture<'_, Out> {
@@ -156,7 +159,15 @@ fn context(env: &Env) -> VerbContext {
     if json {
         flags.insert("json".into(), FlagValue::Bool(true));
     }
-    VerbContext { deps: env.deps.clone(), args: Vec::new(), flags, io: io.clone(), out: Printer::formatter(io, json), aim: wsp_cli::hosts::HostAim::Here, usage: "wsp <verb>".into() }
+    VerbContext {
+        deps: env.deps.clone(),
+        args: Vec::new(),
+        flags,
+        io: io.clone(),
+        out: Printer::formatter(io, json),
+        aim: wsp_cli::hosts::HostAim::Here,
+        usage: "wsp <verb>".into(),
+    }
 }
 
 fn turn_json(t: &Turn) -> Value {
@@ -168,7 +179,10 @@ pub fn follow_verb(env: &Env) -> BoxFuture<'_, Out> {
         let ctx = context(env);
         let start: Frame = env.arg("start").and_then(|v| v.as_object()).cloned().expect("start");
         let said = SaidAbout {
-            opened: env.flag("opened").then(|| Arc::new(|id: &str, folder: Option<&str>| opened_line(id, folder)) as Arc<dyn Fn(&str, Option<&str>) -> String + Send + Sync>),
+            opened: env.flag("opened").then(|| {
+                Arc::new(|id: &str, folder: Option<&str>| opened_line(id, folder))
+                    as Arc<dyn Fn(&str, Option<&str>) -> String + Send + Sync>
+            }),
             spend: env.str_arg("spend"),
         };
         let io = env.sinks.clone();
@@ -178,7 +192,10 @@ pub fn follow_verb(env: &Env) -> BoxFuture<'_, Out> {
                 "onTurn thread={} outcome={} result={}",
                 turn.thread_id,
                 serde_json::to_value(&turn.outcome).unwrap().as_str().unwrap(),
-                turn.result.as_ref().map(|r| serde_json::to_value(&r.status).unwrap().as_str().unwrap().to_string()).unwrap_or_else(|| "-".into())
+                turn.result
+                    .as_ref()
+                    .map(|r| serde_json::to_value(&r.status).unwrap().as_str().unwrap().to_string())
+                    .unwrap_or_else(|| "-".into())
             ));
         };
         let turn = t::follow_verb(&ctx, env.client.clone(), &start, env.flag("announce"), &picks_of(env), &said, Some(&on_turn)).await?;
@@ -193,7 +210,16 @@ pub fn detach_verb(env: &Env) -> BoxFuture<'_, Out> {
         let sub: Option<SubOut> = env.arg("sub").map(|v| serde_json::from_value(v.clone()).expect("a sub-thread's answer"));
         let said = env.str_arg("said");
         let opened: OpenedFn<'_> = &|id, folder| opened_line(id, folder);
-        t::detach_verb(&ctx, env.client.clone(), &start, &picks_of(env), if env.flag("opened") { Some(opened) } else { None }, sub.as_ref(), said.as_deref()).await?;
+        t::detach_verb(
+            &ctx,
+            env.client.clone(),
+            &start,
+            &picks_of(env),
+            if env.flag("opened") { Some(opened) } else { None },
+            sub.as_ref(),
+            said.as_deref(),
+        )
+        .await?;
         Ok(Value::Null)
     })
 }
@@ -201,7 +227,8 @@ pub fn detach_verb(env: &Env) -> BoxFuture<'_, Out> {
 pub fn before_sending(env: &Env) -> BoxFuture<'_, Out> {
     Box::pin(async move {
         let client = env.client.clone();
-        let read: BoxFuture<'_, Result<Value, HostError>> = Box::pin(async move { client.request("sessions.list", Frame::new()).await.map(Value::Object) });
+        let read: BoxFuture<'_, Result<Value, HostError>> =
+            Box::pin(async move { client.request("sessions.list", Frame::new()).await.map(Value::Object) });
         t::before_sending(env.client.as_ref(), read).await
     })
 }

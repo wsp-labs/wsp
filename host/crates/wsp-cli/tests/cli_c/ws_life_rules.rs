@@ -66,7 +66,10 @@ fn recorded() -> Vec<Value> {
 }
 
 fn recorded_case(func: &str, name: &str) -> Value {
-    recorded().into_iter().find(|c| c["fn"] == func && c["case"] == name && c["cloud"] != json!(true)).unwrap_or_else(|| panic!("no case {func} / {name}"))
+    recorded()
+        .into_iter()
+        .find(|c| c["fn"] == func && c["case"] == name && c["cloud"] != json!(true))
+        .unwrap_or_else(|| panic!("no case {func} / {name}"))
 }
 
 fn words_of(case: &Value) -> Vec<String> {
@@ -97,7 +100,10 @@ fn invariant_7_the_cloud_setting_moves_no_word_of_ws_life() {
     for on in twins {
         let name = on["case"].as_str().unwrap();
         let base = name.strip_suffix(" (cloud)").expect("a cloud twin is named by its twin");
-        let off = all.iter().find(|c| c["fn"] == on["fn"] && c["case"] == base && c["cloud"] != json!(true)).unwrap_or_else(|| panic!("no twin of {name}"));
+        let off = all
+            .iter()
+            .find(|c| c["fn"] == on["fn"] && c["case"] == base && c["cloud"] != json!(true))
+            .unwrap_or_else(|| panic!("no twin of {name}"));
         for key in ["frames", "said", "stdout", "stderr", "streamed", "value", "error", "hung"] {
             assert_eq!(on[key], off[key], "{} / {name}: {key} moves with the cloud setting", on["fn"]);
         }
@@ -148,7 +154,9 @@ fn ts_it_says_waking_on_every_state_that_is_not_running() {
 /// A gone workspace is refused with the verb's own action word before any frame is sent or any line said.
 #[test]
 fn awake_gone_is_refused_before_any_frame() {
-    for name in ["gone, with the provider's words", "gone, with no words", "gone, with empty words", "gone, a name with spaces and an empty action"] {
+    for name in
+        ["gone, with the provider's words", "gone, with no words", "gone, with empty words", "gone, a name with spaces and an empty action"]
+    {
         run("awake", name);
         let c = recorded_case("awake", name);
         assert_eq!(c["frames"], json!([]), "{name}");
@@ -209,7 +217,12 @@ fn ts_a_dead_launch_with_no_nap_time_or_no_host_says_stays_awake() {
 /// nothing; a thread that did work is no dead launch.
 #[test]
 fn nap_after_dead_launch_owes_nothing_to_a_wake_it_did_not_make_or_a_turn_that_ran() {
-    for name in ["a wake this call did not make owes nothing", "a turn the agent refused ran, so nothing is owed", "a thread whose turn did work is not a dead launch", "a thread of the turn that is still running did work"] {
+    for name in [
+        "a wake this call did not make owes nothing",
+        "a turn the agent refused ran, so nothing is owed",
+        "a thread whose turn did work is not a dead launch",
+        "a thread of the turn that is still running did work",
+    ] {
         run("napAfterDeadLaunch", name);
         let c = recorded_case("napAfterDeadLaunch", name);
         assert!(c["value"].is_null() || c.get("value").is_none(), "{name}");
@@ -261,10 +274,13 @@ async fn ts_a_dead_launch_says_when_the_idle_window_takes_the_machine() {
     ];
     for (offset, said) in table {
         let mut replies: IndexMap<String, String> = IndexMap::new();
-        replies.insert("sessions.list".into(), ok(json!({ "sessions": [
+        replies.insert(
+            "sessions.list".into(),
+            ok(json!({ "sessions": [
             { "id": "s_1", "workspaceId": "ws_1", "harness": "claude", "status": "failed", "threadId": "t_1" },
             { "id": "s_2", "workspaceId": "ws_1", "harness": "claude", "status": "running", "threadId": "t_other" }
-        ] })));
+        ] })),
+        );
         replies.insert("status.list".into(), ok(json!({ "statuses": [listing("ws_1", Some(now_ms() + offset + 30_000))] })));
         let log = Arc::new(Mutex::new(Vec::new()));
         let host = Socket(ScriptedHost::new(Script { replies, ..Script::default() }, log.clone(), Arc::new(Mutex::new(Vec::new()))));
@@ -272,7 +288,14 @@ async fn ts_a_dead_launch_says_when_the_idle_window_takes_the_machine() {
         let line = w::nap_after_dead_launch(&host, &woken, None).await;
         assert_eq!(line.as_deref(), Some(format!("alpha stays awake, naps in {said}").as_str()), "{offset} ms to go");
         let frames = log.lock().unwrap().clone();
-        assert_eq!(frames, vec!["{\"workspaceId\":\"ws_1\",\"id\":2,\"op\":\"sessions.list\"}".to_string(), "{\"id\":3,\"op\":\"status.list\"}".to_string()], "the nap is never asked while another thread works");
+        assert_eq!(
+            frames,
+            vec![
+                "{\"workspaceId\":\"ws_1\",\"id\":2,\"op\":\"sessions.list\"}".to_string(),
+                "{\"id\":3,\"op\":\"status.list\"}".to_string()
+            ],
+            "the nap is never asked while another thread works"
+        );
     }
 }
 

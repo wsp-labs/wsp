@@ -23,7 +23,12 @@ fn frame(v: &Value) -> Frame {
 }
 
 fn threads(env: &Env, name: &str) -> Vec<ThreadView> {
-    env.arg(name).and_then(|v| v.as_array()).expect("threads").iter().map(|v| serde_json::from_value(v.clone()).expect("a thread view")).collect()
+    env.arg(name)
+        .and_then(|v| v.as_array())
+        .expect("threads")
+        .iter()
+        .map(|v| serde_json::from_value(v.clone()).expect("a thread view"))
+        .collect()
 }
 
 /// A whole number as JSON, the way JS writes a millisecond count.
@@ -62,7 +67,8 @@ pub fn turn_json(t: &Turn) -> Value {
 
 fn summary(t: &Turn) -> String {
     let outcome = serde_json::to_value(&t.outcome).unwrap();
-    let status = t.result.as_ref().map(|r| serde_json::to_value(&r.status).unwrap().as_str().unwrap().to_string()).unwrap_or_else(|| "-".into());
+    let status =
+        t.result.as_ref().map(|r| serde_json::to_value(&r.status).unwrap().as_str().unwrap().to_string()).unwrap_or_else(|| "-".into());
     format!(
         "thread={} outcome={} result={} reason={} afterCut={}",
         t.thread_id,
@@ -93,7 +99,9 @@ fn heard(env: &Env) -> FollowOn {
     let said = env.sinks.clone();
     let (a, b, c, d, e, f) = (said.clone(), said.clone(), said.clone(), said.clone(), said.clone(), said.clone());
     FollowOn {
-        queued: Some(Arc::new(move |q| a.said.lock().unwrap().push(format!("queued {}", q.waits_for.clone().unwrap_or_else(|| "-".into()))))),
+        queued: Some(Arc::new(move |q| {
+            a.said.lock().unwrap().push(format!("queued {}", q.waits_for.clone().unwrap_or_else(|| "-".into())))
+        })),
         starting: Some(Arc::new(move |s| b.said.lock().unwrap().push(format!("starting {} installs={}", s.harness, s.installs.is_some())))),
         steered: Some(Arc::new(move |s| c.said.lock().unwrap().push(format!("steered waiting={}", s.waiting == Some(true))))),
         started: Some(Arc::new(move |t| {
@@ -122,7 +130,9 @@ pub fn start_detached(env: &Env) -> BoxFuture<'_, Out> {
             let d = dialer.clone();
             Box::pin(async move { d.redial().await })
         };
-        let turn = t::start_detached(env.client.clone(), &start, origin(env), queued, if env.flag("redial") { Some(&redial) } else { None }).await?;
+        let turn =
+            t::start_detached(env.client.clone(), &start, origin(env), queued, if env.flag("redial") { Some(&redial) } else { None })
+                .await?;
         Ok(turn_json(&turn))
     })
 }
@@ -135,7 +145,8 @@ pub fn follow(env: &Env) -> BoxFuture<'_, Out> {
             let d = dialer.clone();
             Box::pin(async move { d.redial().await })
         };
-        let turn = t::follow(env.client.clone(), &start, origin(env), &heard(env), if env.flag("redial") { Some(&redial) } else { None }).await?;
+        let turn =
+            t::follow(env.client.clone(), &start, origin(env), &heard(env), if env.flag("redial") { Some(&redial) } else { None }).await?;
         Ok(turn_json(&turn))
     })
 }

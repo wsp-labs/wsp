@@ -1210,12 +1210,22 @@ fn nap_after_dead_launch__a_thread_of_the_turn_that_is_still_running_did_work() 
 
 #[test]
 fn nap_after_dead_launch__a_thread_that_never_reached_the_agent_is_a_dead_launch_even_() {
-    holds("ws_life", "napAfterDeadLaunch", "a thread that never reached the agent is a dead launch even beside a refused one", d::nap_after_dead_launch);
+    holds(
+        "ws_life",
+        "napAfterDeadLaunch",
+        "a thread that never reached the agent is a dead launch even beside a refused one",
+        d::nap_after_dead_launch,
+    );
 }
 
 #[test]
 fn nap_after_dead_launch__leaves_it_up_where_another_thread_is_working_with_no_nap_tim() {
-    holds("ws_life", "napAfterDeadLaunch", "leaves it up where another thread is working, with no nap time to say", d::nap_after_dead_launch);
+    holds(
+        "ws_life",
+        "napAfterDeadLaunch",
+        "leaves it up where another thread is working, with no nap time to say",
+        d::nap_after_dead_launch,
+    );
 }
 
 #[test]
