@@ -10,6 +10,7 @@
 //! the computer holds is left to the diff: a wrong port gets those wrong. The names are the spec checker's (docs/rust-host-spec/checker), so a spec tape and a recorded one read
 //! alike.
 
+use crate::json;
 use regex::Regex;
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -122,9 +123,9 @@ fn whole_json(s: &str) -> Option<(Value, &'static str)> {
     if !(t.starts_with('{') || t.starts_with('[')) {
         return None;
     }
-    let v = serde_json::from_str::<Value>(s).ok().filter(|v| v.is_object() || v.is_array())?;
-    let compact = serde_json::to_string(&v).ok()?;
-    let pretty = serde_json::to_string_pretty(&v).ok()?;
+    let v = json::read(s).ok().filter(|v| v.is_object() || v.is_array())?;
+    let compact = json::write(&v);
+    let pretty = json::write_pretty(&v);
     let layout =
         [(compact.as_str(), "compact"), (pretty.as_str(), "indented")].into_iter().find_map(|(text, name)| match s.strip_prefix(text) {
             Some("") => Some(name),
@@ -154,10 +155,7 @@ fn json_layout(text: &str) -> String {
 /// so the rules for keys reach inside them.
 fn json_lines(text: &str) -> Option<Vec<Value>> {
     let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
-    let values: Vec<Value> = lines
-        .iter()
-        .map(|l| serde_json::from_str::<Value>(l).ok().filter(|v| serde_json::to_string(v).ok().as_deref() == Some(*l)))
-        .collect::<Option<_>>()?;
+    let values: Vec<Value> = lines.iter().map(|l| json::read(l).ok().filter(|v| json::write(v) == *l)).collect::<Option<_>>()?;
     values.iter().any(|v| v.is_object() || v.is_array()).then_some(values)
 }
 
