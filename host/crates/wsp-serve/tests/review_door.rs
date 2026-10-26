@@ -13,6 +13,7 @@ use tokio::net::TcpStream;
 use wsp_serve::serve::{serve_runtime, RuntimeServer, ServeOptions, UpgradeHead};
 
 const NO_ACCOUNT: &str = "this host keeps no account records; wsp up serves them";
+const TICKET_ACCOUNT: &str = wsp_wire::wire::devices::ACCOUNT_TICKET_REFUSAL;
 
 #[derive(Debug, PartialEq)]
 enum Ev {
@@ -178,7 +179,7 @@ fn a_ticket_socket_has_no_byte_cap() {
         }
         s.write_all(&frames).await.unwrap();
         let got = read_all(&mut s, 500, true).await;
-        let replies = got.iter().filter(|e| matches!(e, Ev::Text(v) if v["error"] == NO_ACCOUNT)).count();
+        let replies = got.iter().filter(|e| matches!(e, Ev::Text(v) if v["error"] == TICKET_ACCOUNT)).count();
         assert!(!got.iter().any(|e| matches!(e, Ev::Close(..))), "a ticket socket is not held to the pre-auth cap: {got:?}");
         assert_eq!(replies, 8, "{got:?}");
     })
@@ -413,6 +414,8 @@ async fn stop_with_backlog(events: u64) -> usize {
         tokio::task::spawn_local(async move { s.upgrade(head, Box::new(io)).await });
         read_head(&mut client).await;
         client.write_all(&text(&json!({ "id": "a", "op": "auth", "token": TOKEN }).to_string())).await.unwrap();
+        let signed_in = read_all(&mut client, 300, true).await;
+        assert_eq!(signed_in, vec![Ev::Text(json!({ "id": "a", "ok": true }))]);
         client.write_all(&text(&json!({ "id": 1, "op": "events.subscribe" }).to_string())).await.unwrap();
         let got = read_all(&mut client, 300, true).await;
         assert!(got.contains(&Ev::Text(json!({ "id": 1, "ok": true, "seq": 0, "stream": "stream-a" }))), "{got:?}");
