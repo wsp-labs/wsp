@@ -29,10 +29,11 @@ use wsp_wire::wire::events_union::EventUnion;
 
 use crate::clock::{real_clock, Cancel, Clock};
 use crate::types::pending::Store;
-use futures::FutureExt;
+use futures::{FutureExt, StreamExt};
 use std::time::Duration;
 use wsp_engine::errors::road_failed;
 use wsp_engine::fetch::{platform_fetch, Abort, FetchRequest};
+use wsp_words::js::number_string;
 use wsp_words::js_date::iso_string;
 
 mod meter;
@@ -168,7 +169,10 @@ pub async fn probe_reach(url: &str, o: ProbeOptions, now: &dyn Fn() -> i64) -> P
     let abort = Abort::new(Some(Duration::from_millis(o.timeout_ms.max(0) as u64)), None);
     let req = FetchRequest { method: "GET".into(), url: url.into(), headers: Vec::new(), body: None, abort: Some(abort) };
     match platform_fetch().fetch_stream(req).await {
-        Ok(res) => {
+        Ok(mut res) => {
+            if let Some(mut body) = res.body.take() {
+                while let Some(Ok(_)) = body.next().await {}
+            }
             let from_daemon = res.status == DAEMON_ANSWER;
             if now() - started > o.prompt_ms {
                 return Probed { state: ReachState::Slow, from_daemon, offline: false };
@@ -477,11 +481,42 @@ pub struct Stood {
 //    * falls out of the month, so a person who makes and deletes workspaces all year keeps one month of documents. */
 //   ended?: boolean;
 // }
+/// The one value the `type` key of a cost tick takes.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+enum CostKind {
+    #[default]
+    #[serde(rename = "workspace.cost")]
+    Cost,
+}
+
+/// A cost tick as the TS builds and stores it, `type` first (status.ts:808-821): what the stored document holds and
+/// `history()` hands to the wire. The wire's own struct has no `type`, since the event union writes it as its tag.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CostPoint {
+    #[serde(rename = "type", default)]
+    kind: CostKind,
+    #[serde(flatten)]
+    pub event: WorkspaceCostEvent,
+}
+
+impl From<WorkspaceCostEvent> for CostPoint {
+    fn from(event: WorkspaceCostEvent) -> Self {
+        CostPoint { kind: CostKind::Cost, event }
+    }
+}
+
+impl std::ops::Deref for CostPoint {
+    type Target = WorkspaceCostEvent;
+    fn deref(&self) -> &WorkspaceCostEvent {
+        &self.event
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CostHistoryRecord {
     pub workspace_id: String,
-    pub points: Vec<WorkspaceCostEvent>,
+    pub points: Vec<CostPoint>,
     #[serde(default, skip_serializing_if = "Option::is_none", rename = "where")]
     pub where_: Option<Stood>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -590,7 +625,7 @@ impl CostMoved {
             EventUnion::WorkspaceCost(c) => {
                 let cost = &c.event;
                 let phase = serde_json::to_value(cost.phase).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
-                let figures = format!("{} {} {}", phase, cost.rate_usd_per_hour.js_string(), cost.accrued_usd.js_string());
+                let figures = format!("{} {} {}", phase, number_string(cost.rate_usd_per_hour.0), number_string(cost.accrued_usd.0));
                 if self.sent.get(&cost.workspace_id) == Some(&figures) {
                     return false;
                 }
@@ -615,7 +650,7 @@ struct TrackerState {
     ended: IndexSet<String>,
     reconciled: IndexMap<String, (MachineState, i64)>,
     gone_reasons: IndexMap<String, String>,
-    suspects: IndexMap<String, Suspect>,
+    suspects: IndexMap<String, Rc<RefCell<Suspect>>>,
     probes: IndexMap<StatusReader, IndexMap<String, Probes>>,
     doubted: IndexMap<String, String>,
     /// machine id, misses, next at.
@@ -669,7 +704,7 @@ pub trait StatusApi {
     fn watch(&self, opts: StatusWatchOptions) -> Rc<dyn Fn()>;
     fn watched(&self) -> bool;
     async fn poll(&self, ids: &[String]);
-    async fn history(&self, workspace_id: &str) -> Vec<WorkspaceCostEvent>;
+    async fn history(&self, workspace_id: &str) -> Vec<CostPoint>;
     async fn spend(&self, places: &[PlaceView], at: Option<i64>) -> Result<Vec<PlaceSpend>, String>;
 }
 
@@ -687,7 +722,7 @@ impl StatusApi for StatusTracker {
     async fn poll(&self, ids: &[String]) {
         StatusTracker::poll(self, ids).await
     }
-    async fn history(&self, workspace_id: &str) -> Vec<WorkspaceCostEvent> {
+    async fn history(&self, workspace_id: &str) -> Vec<CostPoint> {
         StatusTracker::history(self, workspace_id).await
     }
     async fn spend(&self, places: &[PlaceView], at: Option<i64>) -> Result<Vec<PlaceSpend>, String> {

@@ -44,7 +44,7 @@ use wsp_wire::views::session::SessionView;
 use wsp_wire::views::session_events::TurnResult;
 use wsp_wire::views::sub_row::{SubHeld, SubResult, SubSpawn};
 use wsp_wire::views::workspace::{BranchOfRecord, Caller, DaemonReachView, ProjectSource, SeedChoice, SeedPlan, WorkspacePhase};
-use wsp_wire::views::workspace_events::{WorkspaceCostEvent, WorkspaceCreateStage};
+use wsp_wire::views::workspace_events::WorkspaceCreateStage;
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::views::workspace_more::{
     WorkspaceAgents, WorkspaceStatus, WorkspaceView, WorkspaceViewDaemonRefusedAt, WorkspaceViewQueue, WorkspaceViewScreen, WorktreeFolder,
@@ -53,7 +53,7 @@ use wsp_wire::wire::capabilities::{InitSetup, PauseMode, WorkspaceSize};
 use wsp_wire::wire::machine_link::{MachineShape, ReadingsAnswer, SysSample};
 use wsp_wire::wire::runtime::{BrokerStatus, SessionAnswerResult, SessionStartOutcome};
 use wsp_words::exit::HostError;
-use wsp_words::js::{js_trim, js_trim_end};
+use wsp_words::js::{js_trim, js_trim_end, number_string};
 use wsp_words::words::base::plural;
 
 use super::harness::HarnessAdapterFactory;
@@ -63,6 +63,7 @@ use super::pending::{
     StatusListOptions, StatusWatchOptions, Store, TurnWaiting,
 };
 use crate::console;
+use crate::status::CostPoint;
 use wsp_catalog::plugins::join_path;
 
 /// A future the one owner thread awaits.
@@ -1126,7 +1127,7 @@ pub fn shape_fault(expected: &MachineShape, actual: &MachineShape) -> Option<Str
     for (key, want, got) in [("cpu", expected.cpu, actual.cpu), ("memMb", expected.mem_mb, actual.mem_mb)] {
         if let (Some(want), Some(got)) = (want, got) {
             if want != got {
-                diffs.push(format!("{key} {} != {}", got.js_string(), want.js_string()));
+                diffs.push(format!("{key} {} != {}", number_string(got.0), number_string(want.0)));
             }
         }
     }
@@ -1265,7 +1266,7 @@ pub struct SweepResult {
 #[async_trait(?Send)]
 pub trait OriginStatusApi: StatusApi {
     async fn list(&self, opts: Option<StatusListOptions>, origin: Option<Caller>) -> Result<Vec<WorkspaceStatus>, HostError>;
-    async fn history(&self, workspace_id: &str, origin: Option<Caller>) -> Result<Vec<WorkspaceCostEvent>, HostError>;
+    async fn history(&self, workspace_id: &str, origin: Option<Caller>) -> Result<Vec<CostPoint>, HostError>;
 }
 
 /// wiring.ts:1037.
