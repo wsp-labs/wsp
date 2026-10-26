@@ -79,7 +79,7 @@ None directly: config text arrives through agents.read and servers.* ops, whose 
 
 ## After the port
 
-- `JSON.parse` (jsonc.ts:41) reads any depth, and the port refuses past 1,000 levels (ruling 2 of #2448): a `serde_json::Value` clones recursively (dies at 1,183 levels) and drops recursively (6,509), so a tree kept deeper could abort the host wherever it is cloned or dropped.
+- `JSON.parse` (jsonc.ts:41) reads any depth, and the port refuses past 1,000 levels: a `serde_json::Value` clones recursively (dies at 1,183 levels) and drops recursively (6,509), so a tree kept deeper could abort the host wherever it is cloned or dropped.
 
 ## Rules to tests
 
