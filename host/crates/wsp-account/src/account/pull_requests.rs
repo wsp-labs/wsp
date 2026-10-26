@@ -12,19 +12,23 @@ use serde_json::{json, Value};
 
 use wsp_core::types::events::{CHECKOUT_TTL_MS, PR_PAGE_HOLD_MS, RATE_LIMIT_HOLD_MS, SLATE_PR_POLL_MS};
 use wsp_core::types::wiring::WorkspaceRecord;
-use wsp_wire::types::check::parse;
 use wsp_wire::types::changes::Checkout;
-use wsp_wire::types::pull_request::{GitPrReadReply, GitPrViewReply, GitRepoReadReply, GitUpdateReply, PullRequest, PullRequestSeen, PR_POLL_IDLE_MS, PR_POLL_MS};
+use wsp_wire::types::check::parse;
+use wsp_wire::types::pull_request::{
+    GitPrReadReply, GitPrViewReply, GitRepoReadReply, GitUpdateReply, PullRequest, PullRequestSeen, PR_POLL_IDLE_MS, PR_POLL_MS,
+};
 use wsp_wire::types::tree::TreeRecord;
 use wsp_wire::views::session::{thread_key_of, SessionStatus, SessionView};
 use wsp_wire::views::workspace::{Caller, ProjectView};
 use wsp_words::exit::HostError;
-use wsp_words::pull_request::{is_pull_request_fact, no_pull_request_refusal, pull_request_post_line, pull_request_stopped_line, pull_request_unread_line};
 use wsp_words::projects::runs_in_folder;
+use wsp_words::pull_request::{
+    is_pull_request_fact, no_pull_request_refusal, pull_request_post_line, pull_request_stopped_line, pull_request_unread_line,
+};
 use wsp_words::workspace_state::is_local_workspace;
 
-use wsp_core::clock::Cancel;
 use crate::account::core_types::{AccountError, AccountResult, Ask, Entry, Frame, Work};
+use wsp_core::clock::Cancel;
 
 /// pull-requests.ts:278: how long a remote's repository settings are held.
 pub const REPO_SETTINGS_MS: i64 = 60 * 60_000;
@@ -61,7 +65,10 @@ pub trait PullRequestsCtx {
     /// `sessions.values()`' views, in map order.
     fn session_views(&self) -> Vec<SessionView>;
     /// `ctx.onThisComputer((ask, home) => ...)` (channels_daemon D18).
-    async fn on_this_computer(&self, work: Box<dyn FnOnce(Ask, String) -> futures::future::LocalBoxFuture<'static, AccountResult<Value>>>) -> AccountResult<Value>;
+    async fn on_this_computer(
+        &self,
+        work: Box<dyn FnOnce(Ask, String) -> futures::future::LocalBoxFuture<'static, AccountResult<Value>>>,
+    ) -> AccountResult<Value>;
     /// `ctx.withDaemon(entry, ask => ...)` (channels_daemon D14).
     async fn with_daemon(&self, entry: &Entry, work: Work<Value>) -> AccountResult<Value>;
     fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError>;
@@ -82,7 +89,11 @@ pub trait PullRequestsCtx {
     async fn nap_with(&self, workspace_id: &str) -> AccountResult<()>;
     fn read_lead_of(&self, child: &Entry);
     /// `ctx.queued(id, work)`: the workspace's one-at-a-time queue.
-    async fn queued(&self, workspace_id: &str, work: futures::future::LocalBoxFuture<'static, AccountResult<Value>>) -> AccountResult<Value>;
+    async fn queued(
+        &self,
+        workspace_id: &str,
+        work: futures::future::LocalBoxFuture<'static, AccountResult<Value>>,
+    ) -> AccountResult<Value>;
     fn spawn(&self, f: futures::future::LocalBoxFuture<'static, ()>);
     fn warn(&self, line: &str);
 }
@@ -130,7 +141,7 @@ fn page_key(remote: &str, number: i64) -> String {
 }
 
 fn is_pending(check: &wsp_wire::types::pull_request::PullRequestCheck) -> bool {
-    serde_json::to_value(&check.state).ok() == Some(json!("pending"))
+    serde_json::to_value(check.state).ok() == Some(json!("pending"))
 }
 
 fn ask_frame(ask: Ask, frame: Frame) -> LocalBoxFuture<'static, AccountResult<Value>> {
@@ -143,12 +154,22 @@ impl PullRequestsArea {
     }
 
     /// Q1, pull-requests.ts:20: `parse` reads the reply into the caller's type.
-    pub async fn read_host<T: 'static>(self: &Rc<Self>, entry: &Entry, frame: FrameFor, parse: Rc<dyn Fn(Frame) -> AccountResult<T>>) -> AccountResult<T> {
+    pub async fn read_host<T: 'static>(
+        self: &Rc<Self>,
+        entry: &Entry,
+        frame: FrameFor,
+        parse: Rc<dyn Fn(Frame) -> AccountResult<T>>,
+    ) -> AccountResult<T> {
         Ok(self.read_host_on(entry, frame, parse).await?.read)
     }
 
     /// Q1, pull-requests.ts:25.
-    pub async fn read_host_on<T: 'static>(self: &Rc<Self>, entry: &Entry, frame: FrameFor, parse: Rc<dyn Fn(Frame) -> AccountResult<T>>) -> AccountResult<ReadOn<T>> {
+    pub async fn read_host_on<T: 'static>(
+        self: &Rc<Self>,
+        entry: &Entry,
+        frame: FrameFor,
+        parse: Rc<dyn Fn(Frame) -> AccountResult<T>>,
+    ) -> AccountResult<ReadOn<T>> {
         let here_ctx = self.ctx.clone();
         let here_frame = frame.clone();
         let here = self
@@ -240,12 +261,19 @@ impl PullRequestsArea {
     }
 
     /// Q4, pull-requests.ts:61.
-    pub async fn read_page(self: &Rc<Self>, entry: &Entry, remote: &str, number: i64, fresh: bool) -> AccountResult<ReadOn<GitPrViewReply>> {
+    pub async fn read_page(
+        self: &Rc<Self>,
+        entry: &Entry,
+        remote: &str,
+        number: i64,
+        fresh: bool,
+    ) -> AccountResult<ReadOn<GitPrViewReply>> {
         let key = page_key(remote, number);
         if !fresh {
             if let Some(held) = self.ctx.cache_get(&key) {
                 if self.ctx.now() - held.fetched_at < PR_PAGE_HOLD_MS as i64 {
-                    let page = parse::<GitPrViewReply>(&held.body["page"]).map_err(|e| AccountError::Host(HostError::new(e.issue_text())))?;
+                    let page =
+                        parse::<GitPrViewReply>(&held.body["page"]).map_err(|e| AccountError::Host(HostError::new(e.issue_text())))?;
                     let here = held.body["here"].as_bool().unwrap_or(false);
                     return Ok(ReadOn { read: page, here });
                 }
@@ -264,7 +292,9 @@ impl PullRequestsArea {
                     frame.insert("number".to_string(), json!(number));
                     frame
                 }),
-                Rc::new(|reply: Frame| parse::<GitPrViewReply>(&Value::Object(reply)).map_err(|e| AccountError::Host(HostError::new(e.issue_text())))),
+                Rc::new(|reply: Frame| {
+                    parse::<GitPrViewReply>(&Value::Object(reply)).map_err(|e| AccountError::Host(HostError::new(e.issue_text())))
+                }),
             )
             .await?;
         self.ctx.cache_set(&key, CacheEntry { body: json!({ "page": read.read, "here": read.here }), tag: None, fetched_at });
@@ -282,11 +312,19 @@ impl PullRequestsArea {
     }
 
     /// Q5, pull-requests.ts:74. Invariant 4: this computer's command line alone.
-    pub async fn post_as_person<T: 'static>(self: &Rc<Self>, remote: &str, number: i64, frame: FrameFor, parse: Rc<dyn Fn(Frame) -> AccountResult<T>>) -> AccountResult<T> {
+    pub async fn post_as_person<T: 'static>(
+        self: &Rc<Self>,
+        remote: &str,
+        number: i64,
+        frame: FrameFor,
+        parse: Rc<dyn Fn(Frame) -> AccountResult<T>>,
+    ) -> AccountResult<T> {
         self.ctx.cache_delete(&page_key(remote, number));
         let reply = self
             .ctx
-            .on_this_computer(Box::new(move |ask: Ask, home: String| -> LocalBoxFuture<'static, AccountResult<Value>> { ask_frame(ask, frame(&home)) }))
+            .on_this_computer(Box::new(move |ask: Ask, home: String| -> LocalBoxFuture<'static, AccountResult<Value>> {
+                ask_frame(ask, frame(&home))
+            }))
             .await;
         match reply {
             Ok(reply) => parse(into_frame(reply)),
@@ -440,7 +478,8 @@ impl PullRequestsArea {
             Ok(()) => {}
             Err(e) if e.is_no_host_cli() => {
                 let host = Self::host_of_remote(&remote);
-                let stopped = !is_local_workspace(Some(&record.kind)) && record.phase != wsp_wire::views::workspace::WorkspacePhase::Running;
+                let stopped =
+                    !is_local_workspace(Some(&record.kind)) && record.phase != wsp_wire::views::workspace::WorkspacePhase::Running;
                 let why = if stopped { pull_request_stopped_line(&host, &record.name) } else { pull_request_unread_line(&host) };
                 self.take_pull_request(entry, Some(unread(why, at)?)).await?;
             }
@@ -451,8 +490,25 @@ impl PullRequestsArea {
 
     /// The read itself and what it takes (pull-requests.ts:123-143): `unnamed` is a read by branch, with no kept number.
     #[allow(clippy::too_many_arguments)]
-    async fn try_read(self: &Rc<Self>, entry: &Entry, frame: FrameFor, unnamed: bool, body: Option<PullRequest>, checkout: Option<Checkout>, remote: &str, at: i64) -> AccountResult<()> {
-        let read: GitPrReadReply = self.read_host(entry, frame, Rc::new(|reply: Frame| parse::<GitPrReadReply>(&Value::Object(reply)).map_err(|e| AccountError::Host(HostError::new(e.issue_text()))))).await?;
+    async fn try_read(
+        self: &Rc<Self>,
+        entry: &Entry,
+        frame: FrameFor,
+        unnamed: bool,
+        body: Option<PullRequest>,
+        checkout: Option<Checkout>,
+        remote: &str,
+        at: i64,
+    ) -> AccountResult<()> {
+        let read: GitPrReadReply = self
+            .read_host(
+                entry,
+                frame,
+                Rc::new(|reply: Frame| {
+                    parse::<GitPrReadReply>(&Value::Object(reply)).map_err(|e| AccountError::Host(HostError::new(e.issue_text())))
+                }),
+            )
+            .await?;
         if read.unchanged == Some(true) {
             if let Some(body) = &body {
                 self.take_pull_request(entry, Some(seen_from(body, at)?)).await?;
@@ -462,7 +518,8 @@ impl PullRequestsArea {
         if let Some(pr) = &read.pr {
             if let Some(tag) = &read.seen {
                 let body_value = serde_json::to_value(pr).map_err(|e| AccountError::Host(HostError::new(e.to_string())))?;
-                self.ctx.cache_set(&pr_key(remote, pr.number.get()), CacheEntry { body: body_value, tag: Some(tag.clone()), fetched_at: at });
+                self.ctx
+                    .cache_set(&pr_key(remote, pr.number.get()), CacheEntry { body: body_value, tag: Some(tag.clone()), fetched_at: at });
             }
         }
         if read.pr.is_none() && unnamed {
@@ -575,7 +632,9 @@ impl PullRequestsArea {
             let was = record_of(entry).pr;
             let moved = match &was {
                 None => true,
-                Some(was) => was.state != fact.state || was.number.get() != fact.number.get() || was.branch.as_deref() != Some(fact.branch.as_str()),
+                Some(was) => {
+                    was.state != fact.state || was.number.get() != fact.number.get() || was.branch.as_deref() != Some(fact.branch.as_str())
+                }
             };
             if moved {
                 let read_at = fact.read_at.0;
@@ -804,4 +863,3 @@ fn into_frame(reply: Value) -> Frame {
         _ => Frame::new(),
     }
 }
-

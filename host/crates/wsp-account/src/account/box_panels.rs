@@ -22,7 +22,8 @@ use crate::account::core_types::{AccountResult, Entry, Frame, Release, Served};
 pub const WATCH_CGROUPS_MAX: usize = 16;
 
 /// box-panels.ts:37: the ops a pane's channel into a folder there answers itself, in the TS set's order.
-pub const PANEL_OPS: [&str; 9] = ["ports.watch", "sys.watch", "sys.unwatch", "proc.watch", "proc.unwatch", "proc.inspect", "proc.kill", "container.stop", "pty.create"];
+pub const PANEL_OPS: [&str; 9] =
+    ["ports.watch", "sys.watch", "sys.unwatch", "proc.watch", "proc.unwatch", "proc.inspect", "proc.kill", "container.stop", "pty.create"];
 
 /// B1, box-panels.ts:26. `None` in an ask is "every process"; the answer `None` is the whole table.
 pub fn proc_watch_scope(asks: &[Option<Vec<String>>]) -> Option<Vec<String>> {
@@ -470,7 +471,12 @@ impl PaneState {
             return;
         }
         let me = self.clone();
-        self.ctx.spawn(async move { let _ = me.watch_ports(named.roots).await; }.boxed_local());
+        self.ctx.spawn(
+            async move {
+                let _ = me.watch_ports(named.roots).await;
+            }
+            .boxed_local(),
+        );
     }
 
     /// box-panels.ts:181 `unwatchProcs`: takes the pane's ask back; the last pane on the link unwatches it.
@@ -492,10 +498,20 @@ impl PaneState {
         }
         if empty {
             let said = (self.served)(obj(json!({ "op": "proc.unwatch" })));
-            self.ctx.spawn(async move { let _ = said.await; }.boxed_local());
+            self.ctx.spawn(
+                async move {
+                    let _ = said.await;
+                }
+                .boxed_local(),
+            );
         } else if proc_watch_scope_on(&self.proc_asks, &link) != before {
             let said = self.watch_on_link();
-            self.ctx.spawn(async move { let _ = said.await; }.boxed_local());
+            self.ctx.spawn(
+                async move {
+                    let _ = said.await;
+                }
+                .boxed_local(),
+            );
         }
     }
 
@@ -563,7 +579,8 @@ impl PaneState {
                     Some(Value::Array(items)) => items.iter().enumerate().map(|(i, v)| (i.to_string(), v.clone())).collect(),
                     _ => Map::new(),
                 };
-                let mut env: Map<String, Value> = self.ctx.thread_env(&self.entry).into_iter().map(|(k, v)| (k, Value::String(v))).collect();
+                let mut env: Map<String, Value> =
+                    self.ctx.thread_env(&self.entry).into_iter().map(|(k, v)| (k, Value::String(v))).collect();
                 for (k, v) in asked {
                     env.insert(k, v);
                 }

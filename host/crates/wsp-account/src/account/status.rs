@@ -155,7 +155,7 @@ impl StatusArea {
             row.insert("rateUsdPerHour".to_string(), json!(self.ctx.rate_usd_per_hour(&record)));
             let (generation, wake_ask, checkout, pr) = {
                 let live = entry.borrow();
-                (live.generation, live.wake_ask.clone(), live.checkout.clone(), live.pr.clone())
+                (live.generation, live.wake_ask, live.checkout.clone(), live.pr.clone())
             };
             row.insert("generation".to_string(), json!(generation));
             if let Some(reason) = self.ctx.row_reason(&entry) {
@@ -253,7 +253,13 @@ impl StatusArea {
     }
 
     /// S4-S10, status.ts:81. `known` gains every row the engine must spare; `failed` gains the reports.
-    pub async fn adopt_lost(&self, listing: &[ListedRow], known: &mut BTreeSet<String>, failed: &mut Vec<ReapFailure>, place: &str) -> Result<(Vec<AdoptedMachine>, Vec<ReapedMachine>), HostError> {
+    pub async fn adopt_lost(
+        &self,
+        listing: &[ListedRow],
+        known: &mut BTreeSet<String>,
+        failed: &mut Vec<ReapFailure>,
+        place: &str,
+    ) -> Result<(Vec<AdoptedMachine>, Vec<ReapedMachine>), HostError> {
         let ctx = &*self.ctx;
         let mut adopted = Vec::new();
         let mut reaped = Vec::new();
@@ -299,10 +305,13 @@ impl StatusArea {
             if let (Some(stamped), None) = (&stamped, &kept) {
                 known.insert(row.id.clone());
                 unreached.insert(row.id.clone());
-                let mut seen_at: Option<String> = ctx.store_get(UNRECORDED, &row.id).await.map_err(host_error)?.and_then(|u| u["seenAt"].as_str().map(str::to_string));
+                let mut seen_at: Option<String> =
+                    ctx.store_get(UNRECORDED, &row.id).await.map_err(host_error)?.and_then(|u| u["seenAt"].as_str().map(str::to_string));
                 if seen_at.is_none() {
                     let stamp = iso_of(ctx.now());
-                    ctx.store_put(UNRECORDED, &row.id, json!({ "machineId": row.id, "place": place, "seenAt": stamp })).await.map_err(host_error)?;
+                    ctx.store_put(UNRECORDED, &row.id, json!({ "machineId": row.id, "place": place, "seenAt": stamp }))
+                        .await
+                        .map_err(host_error)?;
                     seen_at = Some(stamp);
                 }
                 let goes_at = parse_date(seen_at.as_deref().unwrap_or_default()) + UNRECORDED_DELETE_MS as f64;

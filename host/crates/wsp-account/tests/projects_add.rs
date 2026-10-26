@@ -118,7 +118,10 @@ fn landing_deps_gives_the_vault_token_only_where_github_came_from_the_vault() {
         assert_eq!(at.deps.computer.as_ref().map(|c| c.home.clone()), Some("/home/maya".to_owned()));
         assert_eq!(at.deps.computer_name, "box");
         assert_eq!(at.deps.mac_state_home, "/home/me/.claude");
-        assert_eq!(fake.base.names_of(&["landing_place", "forking_at", "folder_computer", "github_from_vault"]), vec!["landing_place", "forking_at", "folder_computer", "github_from_vault"]);
+        assert_eq!(
+            fake.base.names_of(&["landing_place", "forking_at", "folder_computer", "github_from_vault"]),
+            vec!["landing_place", "forking_at", "folder_computer", "github_from_vault"]
+        );
         assert_eq!(fake.base.args_of("forking_at"), vec![json!({ "placeId": "pl_box" })]);
         assert_eq!(fake.base.args_of("github_from_vault"), vec![json!({ "placeId": "pl_box" })]);
 
@@ -192,7 +195,10 @@ fn seed_plan_ticks_from_the_remembered_choice() {
         assert_eq!(ticked(&plan), vec![true, true, false, false, true]);
         assert!(!plan.remembered);
         assert_eq!(plan.provider, None);
-        assert_eq!(fake.base.names_of(&["ready", "homes_here", "seed_wiring_plan", "computer_rows"]), vec!["ready", "homes_here", "seed_wiring_plan"]);
+        assert_eq!(
+            fake.base.names_of(&["ready", "homes_here", "seed_wiring_plan", "computer_rows"]),
+            vec!["ready", "homes_here", "seed_wiring_plan"]
+        );
         assert_eq!(fake.base.args_of("seed_wiring_plan"), vec![json!({ "folder": LAB, "homes": { "claude": "/home/me/.claude" } })]);
         assert_eq!(fake.base.store.writes.borrow().clone(), Vec::<String>::new());
 
@@ -225,7 +231,10 @@ fn stays_ticked_for_a_computer_of_the_person_s_own_remembered_or_not_and_is_unti
         let box_plan = area.seed_plan(LAB, Some("box")).await.unwrap();
         assert_eq!((box_plan.remembered, ticked(&box_plan)), (true, vec![true, false, false, false, false]));
         let remembered = area.seed_plan(LAB, Some("solari")).await.unwrap();
-        assert_eq!((remembered.remembered, remembered.provider, ticked(&remembered)), (true, Some(true), vec![true, false, false, false, false]));
+        assert_eq!(
+            (remembered.remembered, remembered.provider, ticked(&remembered)),
+            (true, Some(true), vec![true, false, false, false, false])
+        );
         assert_eq!(fake.base.names_of(&["computer_rows"]).len(), 5);
     });
 }
@@ -236,7 +245,11 @@ fn seed_plan_on_a_provider_marks_provider_and_unticks_secrets() {
     // key, even one the remembered choice names.
     run(async {
         let (fake, area) = rig();
-        fake.base.store.seed("seed-choices", LAB, json!({ "files": [".env", "deploy.pem"], "memory": false, "commits": false, "remember": true }));
+        fake.base.store.seed(
+            "seed-choices",
+            LAB,
+            json!({ "files": [".env", "deploy.pem"], "memory": false, "commits": false, "remember": true }),
+        );
         let plan = area.seed_plan(LAB, Some("solari")).await.unwrap();
         let mut want = lab_menu();
         want["provider"] = json!(true);
@@ -267,7 +280,11 @@ fn rows(picked: &[&str]) -> Value {
         ("node_modules", true, 831520768u64, "rebuilt", "rebuilt on the box"),
         ("deploy.pem", false, 4096, "secret", "stays on this computer"),
     ];
-    Value::Array(all.iter().map(|(p, d, b, k, w)| json!({ "path": p, "dir": d, "bytes": b, "kind": k, "why": w, "picked": picked.contains(p) })).collect())
+    Value::Array(
+        all.iter()
+            .map(|(p, d, b, k, w)| json!({ "path": p, "dir": d, "bytes": b, "kind": k, "why": w, "picked": picked.contains(p) }))
+            .collect(),
+    )
 }
 
 fn put_prior(fake: &FakeProjects, files: &[&str]) {
@@ -336,7 +353,8 @@ fn invariant_3_a_thread_cannot_save_seed_picks() {
         assert_eq!(fake.base.args_of("project_of_scope"), vec![json!({ "scoped": true })]);
 
         let refusal = area.seed("lab", SeedWords { save: true, ..keep.clone() }, Some(lead())).await.unwrap_err();
-        let said = "picking the files that leave this computer is the person's act. Hand them the line wsp projects seed lab --keep .env --yes";
+        let said =
+            "picking the files that leave this computer is the person's act. Hand them the line wsp projects seed lab --keep .env --yes";
         assert_eq!(refusal, base::refused(said, "Hand them the line wsp projects seed lab --keep .env --yes", Kind::Usage));
         assert_eq!(fake.base.store.row("seed-choices", LAB), None);
         assert_eq!(fake.base.store.writes.borrow().clone(), Vec::<String>::new());
@@ -345,7 +363,10 @@ fn invariant_3_a_thread_cannot_save_seed_picks() {
 
         let saved = area.seed("lab", SeedWords { save: true, ..keep }, Some(person())).await.unwrap();
         assert!(saved.saved);
-        assert_eq!(fake.base.store.row("seed-choices", LAB), Some(json!({ "files": [".env"], "memory": false, "commits": false, "remember": true })));
+        assert_eq!(
+            fake.base.store.row("seed-choices", LAB),
+            Some(json!({ "files": [".env"], "memory": false, "commits": false, "remember": true }))
+        );
     });
 }
 
@@ -359,12 +380,22 @@ fn read_as_a_provider_s_menu_since_only_a_sub_thread_reads_them_a_key_stays_here
         put_prior(&fake, &[".env", "deploy.pem"]);
         let seed = area.seed("lab", SeedWords::default(), None).await.unwrap();
         assert_eq!(seed_answer(&seed)["picked"], json!({ "paths": [".env"], "bytes": 1126, "missing": [] }));
-        let refusal = area.seed("lab", SeedWords { keep: Some(vec!["deploy.pem".to_owned()]), ..Default::default() }, None).await.unwrap_err();
-        assert_eq!(refusal, kinded("deploy.pem holds values or a key, which stay on this computer for a provider place; only a box of your own gets them", Kind::Invalid));
+        let refusal =
+            area.seed("lab", SeedWords { keep: Some(vec!["deploy.pem".to_owned()]), ..Default::default() }, None).await.unwrap_err();
+        assert_eq!(
+            refusal,
+            kinded(
+                "deploy.pem holds values or a key, which stay on this computer for a provider place; only a box of your own gets them",
+                Kind::Invalid
+            )
+        );
         assert_eq!(fake.base.store.writes.borrow().clone(), Vec::<String>::new());
         // A box's add reads this same record, so a save made off the provider's menu keeps the key in it.
         area.seed("lab", SeedWords { cut: Some(vec![".env".to_owned()]), save: true, ..Default::default() }, None).await.unwrap();
-        assert_eq!(fake.base.store.row("seed-choices", LAB), Some(json!({ "files": ["deploy.pem"], "memory": false, "commits": false, "remember": true })));
+        assert_eq!(
+            fake.base.store.row("seed-choices", LAB),
+            Some(json!({ "files": ["deploy.pem"], "memory": false, "commits": false, "remember": true }))
+        );
         area.seed("lab", SeedWords { cut: Some(vec!["deploy.pem".to_owned()]), save: true, ..Default::default() }, None).await.unwrap();
         assert_eq!(saved_files(&fake), json!([]));
         assert_eq!(fake.base.store.writes.borrow().clone(), vec!["put seed-choices/".to_owned() + LAB; 2]);
@@ -378,7 +409,11 @@ fn seed_save_keeps_held_back_files_unless_cut_by_name() {
     run(async {
         let (fake, area) = rig();
         hold_lab(&fake);
-        fake.base.store.seed("seed-choices", LAB, json!({ "files": [".env", "deploy.pem"], "memory": true, "commits": true, "remember": true }));
+        fake.base.store.seed(
+            "seed-choices",
+            LAB,
+            json!({ "files": [".env", "deploy.pem"], "memory": true, "commits": true, "remember": true }),
+        );
         area.seed("lab", SeedWords { keep: Some(vec![".env.local".to_owned()]), save: true, ..Default::default() }, None).await.unwrap();
         assert_eq!(
             fake.base.store.row("seed-choices", LAB),
@@ -407,7 +442,8 @@ fn move_by_none_then_keep_then_cut_a_folder_s_slash_named_or_not() {
             save,
         };
         area.seed("lab", words(&[".env", ".env.local"], &[], false, true), None).await.unwrap();
-        let picked = |s: &wsp_wire::views::workspace::ProjectSeed| s.rows.iter().filter(|r| r.picked).map(|r| r.path.clone()).collect::<Vec<_>>();
+        let picked =
+            |s: &wsp_wire::views::workspace::ProjectSeed| s.rows.iter().filter(|r| r.picked).map(|r| r.path.clone()).collect::<Vec<_>>();
         assert_eq!(picked(&area.seed("lab", words(&[], &[], true, false), None).await.unwrap()), Vec::<String>::new());
         assert_eq!(picked(&area.seed("lab", words(&["node_modules/"], &[], true, false), None).await.unwrap()), vec!["node_modules"]);
         assert_eq!(picked(&area.seed("lab", words(&[], &[".env"], false, false), None).await.unwrap()), vec![".env.local"]);
@@ -426,15 +462,20 @@ fn keep_a_saved_pick_whose_file_is_gone_on_a_save_and_name_it_until_it_is_cut() 
         let read = area.seed("lab", SeedWords::default(), None).await.unwrap();
         assert_eq!(seed_answer(&read)["picked"], json!({ "paths": [".env"], "bytes": 1126, "missing": [".env.old"] }));
         assert!(!read.rows.iter().any(|r| r.path == ".env.old"));
-        let kept = area.seed("lab", SeedWords { keep: Some(vec![".env.local".to_owned()]), save: true, ..Default::default() }, None).await.unwrap();
+        let kept = area
+            .seed("lab", SeedWords { keep: Some(vec![".env.local".to_owned()]), save: true, ..Default::default() }, None)
+            .await
+            .unwrap();
         assert_eq!(kept.picked.missing, vec![".env.old".to_owned()]);
         assert_eq!(saved_files(&fake), json!([".env", ".env.local", ".env.old"]));
-        let refused = area.seed("lab", SeedWords { keep: Some(vec![".env.old".to_owned()]), ..Default::default() }, None).await.unwrap_err();
+        let refused =
+            area.seed("lab", SeedWords { keep: Some(vec![".env.old".to_owned()]), ..Default::default() }, None).await.unwrap_err();
         assert_eq!(
             refused,
             kinded(".env.old is not on the seed menu; git tracks it or it is not there, and the menu holds .env, .env.local, .git-credentials, node_modules, deploy.pem", Kind::Invalid)
         );
-        let cut = area.seed("lab", SeedWords { cut: Some(vec![".env.old".to_owned()]), save: true, ..Default::default() }, None).await.unwrap();
+        let cut =
+            area.seed("lab", SeedWords { cut: Some(vec![".env.old".to_owned()]), save: true, ..Default::default() }, None).await.unwrap();
         assert!(cut.picked.missing.is_empty());
         assert_eq!(saved_files(&fake), json!([".env", ".env.local"]));
     });
@@ -459,7 +500,11 @@ fn refuse_a_path_git_tracks_or_that_is_not_there_a_login_and_git_as_usage_in_the
             (words(&["package.json"], &[], false), not_in("package.json")),
             (words(&[], &["src"], false), not_in("src")),
             (words(&[], &[".env.locl"], false), not_in(".env.locl")),
-            (words(&[".git-credentials"], &[], false), ".git-credentials is logins, a login, and a login never travels in a seed; the computer's image carries its own sign-in".to_owned()),
+            (
+                words(&[".git-credentials"], &[], false),
+                ".git-credentials is logins, a login, and a login never travels in a seed; the computer's image carries its own sign-in"
+                    .to_owned(),
+            ),
             (words(&[".git"], &[], false), git(".git")),
             (words(&[".git/config"], &[], true), git(".git/config")),
         ] {
@@ -492,14 +537,27 @@ fn add_refuses_in_the_ts_order() {
         let no_place = "no place named nowhere; you have Mac, box, Solari";
         let into_here = "--into is a folder on Mac; drop --on to clone there, or drop --into to clone on the computer you named";
         let clone_into = "https://github.com/spoo-me/frontend.git is a repo; name the folder to clone it in with --into <folder>";
-        let same = |name: &str, computer: &str| kinded(&format!("that source is already a project on {computer}, {name}; one source on one computer is one project"), Kind::Conflict);
+        let same = |name: &str, computer: &str| {
+            kinded(
+                &format!("that source is already a project on {computer}, {name}; one source on one computer is one project"),
+                Kind::Conflict,
+            )
+        };
         let hold_frontend = |computer: &'static str| -> Setup {
-            Box::new(move |f: &FakeProjects| f.base.hold_project(project("pr_held", "frontend", computer, json!({ "source": { "kind": "git", "url": REPO }, "path": "/home/maya/frontend" }))))
+            Box::new(move |f: &FakeProjects| {
+                f.base.hold_project(project(
+                    "pr_held",
+                    "frontend",
+                    computer,
+                    json!({ "source": { "kind": "git", "url": REPO }, "path": "/home/maya/frontend" }),
+                ))
+            })
         };
         let cloud_off: Setup = Box::new(|f: &FakeProjects| f.cloud_projects.set(Some(false)));
         let cloud_off_too: Setup = Box::new(|f: &FakeProjects| f.cloud_projects.set(Some(false)));
         let ready_fails: Setup = Box::new(|f: &FakeProjects| f.base.answer_with("ready", vec![fails("this host is starting", None)]));
-        let recording_refused: Setup = Box::new(|f: &FakeProjects| f.base.answer_with("refuse_recording", vec![fails("a thread records no project", Some("usage"))]));
+        let recording_refused: Setup =
+            Box::new(|f: &FakeProjects| f.base.answer_with("refuse_recording", vec![fails("a thread records no project", Some("usage"))]));
         let cases: Vec<(&str, Setup, AddAsk, Option<Caller>, HostError)> = vec![
             ("7.1 the host is not ready", ready_fails, ask(LAB), None, plain("this host is starting")),
             ("7.1 a thread may not record", recording_refused, ask(LAB), Some(lead()), kinded("a thread records no project", Kind::Usage)),
@@ -531,7 +589,15 @@ fn add_refuses_in_the_ts_order() {
             assert_eq!(fake.base.events.borrow().clone(), Vec::<Value>::new(), "{name}");
             assert_eq!(fake.base.projects.borrow().len(), before, "{name}");
             assert_eq!(
-                fake.base.names_of(&["remember_project", "road_land", "clone_here", "seed_wiring_pack", "source_resolve", "landing_place", "git_top_of"]),
+                fake.base.names_of(&[
+                    "remember_project",
+                    "road_land",
+                    "clone_here",
+                    "seed_wiring_pack",
+                    "source_resolve",
+                    "landing_place",
+                    "git_top_of"
+                ]),
                 Vec::<String>::new(),
                 "{name}"
             );
@@ -601,7 +667,10 @@ fn says_git_s_own_last_line_when_the_clone_fails_with_how_to_sign_in_where_the_f
         let (fake, area) = rig();
         let said = "fatal: repository 'https://github.com/me/private.git' not found; sign in with gh auth login, or use the repo's ssh url";
         fake.base.answer_with("clone_here", vec![fails(said, None)]);
-        let err = area.add(AddAsk { into: Some("/home/me/gone/code".to_owned()), ..ask("https://github.com/me/private.git") }, None).await.unwrap_err();
+        let err = area
+            .add(AddAsk { into: Some("/home/me/gone/code".to_owned()), ..ask("https://github.com/me/private.git") }, None)
+            .await
+            .unwrap_err();
         assert_eq!(err, plain(said));
         assert_eq!(fake.base.args_of("clone_here").len(), 1);
         nothing_recorded_after_clone(&fake);
@@ -663,9 +732,15 @@ fn add_writes_the_project_keys_in_the_ts_order() {
     run(async {
         let (fake, area) = rig();
         fake.base.answer_with("git_top_of", vec![json!(LAB)]);
-        let named = AddAsk { base: Some("release".to_owned()), id: Some("pr_fixed".to_owned()), created_at: Some("2026-01-02T03:04:05.000Z".to_owned()), ..ask(LAB) };
+        let named = AddAsk {
+            base: Some("release".to_owned()),
+            id: Some("pr_fixed".to_owned()),
+            created_at: Some("2026-01-02T03:04:05.000Z".to_owned()),
+            ..ask(LAB)
+        };
         let got = area.add(named, None).await.unwrap();
-        let order = ["id", "name", "computer", "source", "path", "remote", "defaultBranch", "memoryKey", "memoryDir", "base", "git", "createdAt"];
+        let order =
+            ["id", "name", "computer", "source", "path", "remote", "defaultBranch", "memoryKey", "memoryDir", "base", "git", "createdAt"];
         assert_eq!(keys(&pj(&got.project)), order);
         assert_eq!(keys(&fake.base.store.row("projects", "pr_fixed").unwrap()), order);
         assert_eq!(keys(&fake.base.events.borrow()[0]["project"]), order);
@@ -675,7 +750,10 @@ fn add_writes_the_project_keys_in_the_ts_order() {
         fake.base.script.borrow_mut().shift_remove("git_top_of");
         let next = area.add(ask("/home/me/other"), None).await.unwrap();
         assert_eq!((next.project.id.as_str(), next.project.created_at.as_str()), ("pr_11111111", "1970-01-01T00:17:41.000Z"));
-        assert_eq!(keys(&pj(&next.project)), ["id", "name", "computer", "source", "path", "remote", "defaultBranch", "memoryKey", "memoryDir", "createdAt"]);
+        assert_eq!(
+            keys(&pj(&next.project)),
+            ["id", "name", "computer", "source", "path", "remote", "defaultBranch", "memoryKey", "memoryDir", "createdAt"]
+        );
         assert_eq!(fake.base.store.writes.borrow().clone(), vec!["put projects/pr_fixed", "put projects/pr_11111111"]);
     });
 }
@@ -689,7 +767,10 @@ fn a_repo_s_url_on_a_computer_that_clones_records_the_clone_s_own_path_inside_a_
     run(async {
         let (fake, area) = rig();
         let got = area.add(AddAsk { name: Some("spoo-landing".to_owned()), ..on(REPO, "solari") }, None).await.unwrap();
-        assert_eq!((got.project.computer.as_str(), got.project.name.as_str(), got.project.path.as_str()), ("solari", "spoo-landing", "/root/spoo-landing"));
+        assert_eq!(
+            (got.project.computer.as_str(), got.project.name.as_str(), got.project.path.as_str()),
+            ("solari", "spoo-landing", "/root/spoo-landing")
+        );
         assert_eq!(pj(&got.project)["source"], json!({ "kind": "git", "url": REPO }));
         assert_eq!(got.project.remote, REPO);
         // A repo the computer clones by itself is recorded here: nothing lands at the add, nothing is said.
@@ -697,7 +778,10 @@ fn a_repo_s_url_on_a_computer_that_clones_records_the_clone_s_own_path_inside_a_
         assert_eq!(fake.base.names_of(&["road_land"]), Vec::<String>::new());
         assert_eq!(add_stages(&fake.base), Vec::<(String, String)>::new());
         let again = area.add(on(REPO, "solari"), None).await.unwrap_err();
-        assert_eq!(again, kinded("that source is already a project on solari, spoo-landing; one source on one computer is one project", Kind::Conflict));
+        assert_eq!(
+            again,
+            kinded("that source is already a project on solari, spoo-landing; one source on one computer is one project", Kind::Conflict)
+        );
         assert_eq!(fake.base.store.writes.borrow().clone(), vec!["put projects/pr_11111111"]);
     });
 }
@@ -735,7 +819,10 @@ fn is_cloned_by_the_add_into_the_home_of_the_login_that_computer_was_joined_with
     run(async {
         let (fake, area) = rig();
         fake.joined.borrow_mut().insert("pl_box".to_owned(), projects::joined("/home/maya"));
-        fake.base.answer_with("road_land_reports", vec![json!([["cloning", "cloning https://github.com/spoo-me/spoo-ts into /home/maya/landing-906", 30]])]);
+        fake.base.answer_with(
+            "road_land_reports",
+            vec![json!([["cloning", "cloning https://github.com/spoo-me/spoo-ts into /home/maya/landing-906", 30]])],
+        );
         let spoo = "https://github.com/spoo-me/spoo-ts";
         let got = area.add(AddAsk { name: Some("landing-906".to_owned()), ..on(spoo, "box") }, None).await.unwrap();
         assert_eq!(got.project.path, "/home/maya/landing-906");
@@ -751,7 +838,10 @@ fn is_cloned_by_the_add_into_the_home_of_the_login_that_computer_was_joined_with
             vec![
                 ("planned".to_owned(), "landing-906 from https://github.com/spoo-me/spoo-ts, nothing seeded.".to_owned()),
                 ("cloning".to_owned(), "cloning https://github.com/spoo-me/spoo-ts into /home/maya/landing-906".to_owned()),
-                ("done".to_owned(), "landing-906 pr_11111111: https://github.com/spoo-me/spoo-ts on box, at /home/maya/landing-906".to_owned()),
+                (
+                    "done".to_owned(),
+                    "landing-906 pr_11111111: https://github.com/spoo-me/spoo-ts on box, at /home/maya/landing-906".to_owned()
+                ),
             ]
         );
         assert_eq!(fake.base.events.borrow()[0]["computer"], "pl_box");
@@ -766,7 +856,10 @@ fn is_refused_in_that_computer_s_own_absent_sentence_while_it_is_not_connected_w
         let absent = "srv is not answering; it connects on its own when it is on";
         fake.base.answer_with("forking_at", vec![fails("no backend for pl_box", None)]);
         fake.base.answer_with("landing_backend", vec![fails(absent, None)]);
-        let err = area.add(AddAsk { name: Some("landing-906".to_owned()), ..on("https://github.com/spoo-me/spoo-ts", "box") }, None).await.unwrap_err();
+        let err = area
+            .add(AddAsk { name: Some("landing-906".to_owned()), ..on("https://github.com/spoo-me/spoo-ts", "box") }, None)
+            .await
+            .unwrap_err();
         assert_eq!(err, plain(absent));
         assert_eq!(fake.base.args_of("landing_backend"), vec![json!({ "placeId": "pl_box" })]);
         assert_eq!(fake.base.store.writes.borrow().clone(), Vec::<String>::new());
@@ -825,7 +918,10 @@ fn add_lands_a_seed_reporting_each_stage_and_says_done_once() {
     run(async {
         let (fake, area) = seeding_rig();
         ready_to_seed(&fake);
-        fake.base.answer_with("road_land_reports", vec![json!([["cloning", "cloning https://github.com/acme/lab.git into /root/lab", 250], ["seeding", "1 file seeded", 500]])]);
+        fake.base.answer_with(
+            "road_land_reports",
+            vec![json!([["cloning", "cloning https://github.com/acme/lab.git into /root/lab", 250], ["seeding", "1 file seeded", 500]])],
+        );
         let (lines, report) = heard();
         let picked = choice(&[".env.local"], true, None);
         let got = area.add(AddAsk { seed: Some(picked.clone()), report: Some(report), ..ask(LAB) }, None).await.unwrap();
@@ -847,7 +943,10 @@ fn add_lands_a_seed_reporting_each_stage_and_says_done_once() {
         assert_eq!(got.notice, None);
         assert_eq!(fake.base.store.row("projects", "pr_11111111"), Some(recorded_lab()));
         assert_eq!(fake.base.store.writes.borrow().clone(), vec!["put projects/pr_11111111"]);
-        assert_eq!(fake.base.names_of(&["emit", "seed_wiring_pack", "road_land", "remember_project"]), vec!["emit", "seed_wiring_pack", "road_land", "emit", "emit", "remember_project", "emit", "emit"]);
+        assert_eq!(
+            fake.base.names_of(&["emit", "seed_wiring_pack", "road_land", "remember_project"]),
+            vec!["emit", "seed_wiring_pack", "road_land", "emit", "emit", "remember_project", "emit", "emit"]
+        );
         // The pack and the road are handed one menu (ticked as the add read it) and the person's choice.
         let packed = &fake.base.args_of("seed_wiring_pack")[0];
         let mut menu_here = lab_menu();
@@ -873,22 +972,34 @@ fn add_says_logins_left_behind_as_a_stage_and_a_notice() {
         let left = "2 files inside the folders you ticked stayed on this computer: .git-credentials, deploy/.netrc";
         let (fake, area) = seeding_rig();
         ready_to_seed(&fake);
-        fake.base.answer_with("seed_wiring_pack", vec![json!({ "tar": "seed", "files": 1, "bytes": 12, "commits": 0, "left": [".git-credentials", "deploy/.netrc"] })]);
+        fake.base.answer_with(
+            "seed_wiring_pack",
+            vec![json!({ "tar": "seed", "files": 1, "bytes": 12, "commits": 0, "left": [".git-credentials", "deploy/.netrc"] })],
+        );
         let got = area.add(AddAsk { seed: Some(choice(&[".env.local"], false, None)), ..ask(LAB) }, None).await.unwrap();
         assert_eq!(got.notice.as_deref(), Some(left));
         assert_eq!(add_stages(&fake.base).iter().map(|s| s.0.clone()).collect::<Vec<_>>(), vec!["planned", "seeding", "done"]);
         assert_eq!(add_stages(&fake.base)[1].1, left);
-        assert_eq!(fake.base.names_of(&["emit", "seed_wiring_pack", "road_land"]), vec!["emit", "seed_wiring_pack", "emit", "road_land", "emit", "emit"]);
+        assert_eq!(
+            fake.base.names_of(&["emit", "seed_wiring_pack", "road_land"]),
+            vec!["emit", "seed_wiring_pack", "emit", "road_land", "emit", "emit"]
+        );
         // The notice never reaches the record: it is a field of the answer alone.
         assert_eq!(pj(&got.project), recorded_lab());
         assert_eq!(fake.base.store.row("projects", "pr_11111111"), Some(recorded_lab()));
 
         // The landed notice comes first.
         let (fake, area) = seeding_rig();
-        fake.base.answer_with("seed_wiring_pack", vec![json!({ "tar": "seed", "files": 1, "bytes": 12, "commits": 2, "left": [".git-credentials", "deploy/.netrc"] })]);
+        fake.base.answer_with(
+            "seed_wiring_pack",
+            vec![json!({ "tar": "seed", "files": 1, "bytes": 12, "commits": 2, "left": [".git-credentials", "deploy/.netrc"] })],
+        );
         fake.base.answer_with("road_land", vec![json!({ "fields": { "checkout": "/root/lab" }, "notice": "2 commits stayed on this computer: the remote's git refused them" })]);
         let got = area.add(AddAsk { seed: Some(choice(&[".env.local"], false, None)), ..ask(LAB) }, None).await.unwrap();
-        assert_eq!(got.notice.as_deref(), Some(format!("2 commits stayed on this computer: the remote's git refused them; {left}").as_str()));
+        assert_eq!(
+            got.notice.as_deref(),
+            Some(format!("2 commits stayed on this computer: the remote's git refused them; {left}").as_str())
+        );
         assert_eq!(got.project.checkout.as_deref(), Some("/root/lab"));
 
         // Only the landed notice, and no notice at all.
@@ -927,7 +1038,10 @@ fn a_failed_landing_reports_failed_and_records_nothing() {
         fake.base.answer_with("seed_wiring_pack", vec![fails("could not read /home/me/code/lab/.env.local: permission denied", None)]);
         let err = area.add(seeded(), None).await.unwrap_err();
         assert_eq!(err.message, "could not read /home/me/code/lab/.env.local: permission denied");
-        assert_eq!(add_stages(&fake.base), vec![("planned".to_owned(), "lab from /home/me/code/lab.".to_owned()), ("failed".to_owned(), err.message.clone())]);
+        assert_eq!(
+            add_stages(&fake.base),
+            vec![("planned".to_owned(), "lab from /home/me/code/lab.".to_owned()), ("failed".to_owned(), err.message.clone())]
+        );
         assert_eq!(fake.base.names_of(&["road_land", "remember_project"]), Vec::<String>::new());
 
         // The record cannot be kept after the computer holds the project: failed is said, nothing is stored or announced.
@@ -956,7 +1070,11 @@ fn add_remembers_a_seed_choice_with_held_back_files() {
         let resolved = || json!({ "name": "lab", "remote": "https://github.com/acme/lab.git", "defaultBranch": "main", "seed": provider_menu(), "seedMemoryKey": null });
         let (fake, area) = seeding_rig();
         fake.base.answer_with("source_resolve", vec![resolved()]);
-        fake.base.store.seed("seed-choices", LAB, json!({ "files": [".env", "deploy.pem"], "memory": false, "commits": false, "remember": true }));
+        fake.base.store.seed(
+            "seed-choices",
+            LAB,
+            json!({ "files": [".env", "deploy.pem"], "memory": false, "commits": false, "remember": true }),
+        );
         area.add(AddAsk { seed: Some(choice(&[".env.local"], true, Some(true))), ..ask(LAB) }, None).await.unwrap();
         assert_eq!(
             fake.base.store.row("seed-choices", LAB),
@@ -970,7 +1088,11 @@ fn add_remembers_a_seed_choice_with_held_back_files() {
         // A held-back file the choice already names is stored once.
         let (fake, area) = seeding_rig();
         fake.base.answer_with("source_resolve", vec![resolved()]);
-        fake.base.store.seed("seed-choices", LAB, json!({ "files": [".env", "deploy.pem"], "memory": false, "commits": false, "remember": true }));
+        fake.base.store.seed(
+            "seed-choices",
+            LAB,
+            json!({ "files": [".env", "deploy.pem"], "memory": false, "commits": false, "remember": true }),
+        );
         area.add(AddAsk { seed: Some(choice(&[".env", "deploy.pem"], false, Some(true))), ..ask(LAB) }, None).await.unwrap();
         assert_eq!(fake.base.store.row("seed-choices", LAB).unwrap()["files"], json!([".env", "deploy.pem"]));
 

@@ -15,15 +15,15 @@ use serde_json::{json, Map, Value};
 use wsp_core::daemon_channel::{ChannelEnd, ChannelError, DaemonChannel};
 use wsp_core::types::internal::{default_branch_refused, ChildStart};
 use wsp_core::types::wiring::WorkspaceRecord;
-use wsp_machines::machines::brokered::TERMINAL_ENV;
-use wsp_engine::machine::{ExecOptions, Machine};
 use wsp_engine::exec_detached::put::INLINE_EXEC_MS;
-use wsp_wire::types::env::THREAD_ENV;
-use wsp_wire::types::check::parse;
+use wsp_engine::machine::{ExecOptions, Machine};
+use wsp_machines::machines::brokered::TERMINAL_ENV;
 use wsp_wire::types::bring_back::GitPushReply;
+use wsp_wire::types::check::parse;
+use wsp_wire::types::env::THREAD_ENV;
+use wsp_wire::types::tree::GitStartOnReply;
 use wsp_wire::views::workspace::{Caller, ProjectSource, ProjectView};
 use wsp_wire::wire::daemon::{GitStatusReply, DETACHED_HEAD};
-use wsp_wire::types::tree::GitStartOnReply;
 use wsp_words::exit::HostError;
 use wsp_words::js::js_trim;
 use wsp_words::projects::{copies_folder, kind_for_computer, runs_in_folder};
@@ -33,7 +33,9 @@ use wsp_words::workspace_state::is_local_workspace;
 
 use super::daemon::{channel_refused, frame_op, is_default_branch_error, js_string, record_of};
 use super::ptys::{string_map_of, string_map_value};
-use super::{ChannelsArea, ChannelsCtx, BLOCKED_READS, COMPUTER_PROCS, COMPUTER_WATCHES, GUEST_EVENTS, ORIGIN_READ_MS, PTY_EVENTS, PTY_TOKENS};
+use super::{
+    ChannelsArea, ChannelsCtx, BLOCKED_READS, COMPUTER_PROCS, COMPUTER_WATCHES, GUEST_EVENTS, ORIGIN_READ_MS, PTY_EVENTS, PTY_TOKENS,
+};
 use crate::account::box_panels::BoxPanels;
 use crate::account::core_types::{AccountResult, Ask, Entry, Frame, Served};
 
@@ -166,7 +168,11 @@ impl DaemonChannel for ServedChannel {
             return Ok(unsupported(wsp_wire::wire::machine_link::fork_procs_unread_line(&self.entry_name, &self.ctx.name_of(&self.place))));
         }
         if !self.carries.iter().any(|carried| carried == &op) {
-            return Ok(unsupported(wsp_wire::wire::machine_link::fork_op_refused_line(&op, &self.entry_name, &self.ctx.name_of(&self.place))));
+            return Ok(unsupported(wsp_wire::wire::machine_link::fork_op_refused_line(
+                &op,
+                &self.entry_name,
+                &self.ctx.name_of(&self.place),
+            )));
         }
         let reply = (self.served)(frame.clone()).await.map_err(channel_refused)?;
         if is_ok(&reply) {
@@ -181,9 +187,12 @@ impl DaemonChannel for ServedChannel {
         for pty in detach {
             let served = self.served.clone();
             let frame = frame_of(json!({ "op": "pty.detach", "ptyId": pty }));
-            poll_now(&*self.ctx, Box::pin(async move {
-                let _ = served(frame).await;
-            }));
+            poll_now(
+                &*self.ctx,
+                Box::pin(async move {
+                    let _ = served(frame).await;
+                }),
+            );
         }
         if let Some(panels) = &self.panels {
             panels.close();
@@ -299,22 +308,29 @@ impl DaemonChannel for BlockedChannel {
 
 impl ChannelsArea {
     /// C1-C5, channels.ts:587. `carries` is the client's frame list.
-    pub async fn served_channel(self: &Rc<Self>, entry: &Entry, served: Served, on_event: Rc<dyn Fn(Value)>, carries: &[&str]) -> AccountResult<Rc<dyn DaemonChannel>> {
+    pub async fn served_channel(
+        self: &Rc<Self>,
+        entry: &Entry,
+        served: Served,
+        on_event: Rc<dyn Fn(Value)>,
+        carries: &[&str],
+    ) -> AccountResult<Rc<dyn DaemonChannel>> {
         let record = record_of(entry);
         let place = match (&record.place, self.ctx.has_door()) {
             (Some(place), true) => place.clone(),
-            _ => return Err(HostError::new(wsp_wire::wire::machine_link::place_serves_daemon_line(&record.name, &self.computer_of(entry))).into()),
+            _ => {
+                return Err(
+                    HostError::new(wsp_wire::wire::machine_link::place_serves_daemon_line(&record.name, &self.computer_of(entry))).into()
+                )
+            }
         };
         let version = self.ctx.report_of(&place).await.map(|report| report.daemon_version.get());
         let machine_id = entry.borrow().machine.id().to_string();
         let checkout = self.checkout_of(&record)?;
         let named: Rc<RefCell<IndexSet<String>>> = Rc::default();
         let attached: Rc<RefCell<IndexSet<String>>> = Rc::default();
-        let panels: Option<Rc<dyn BoxPanels>> = if runs_in_folder(&record.kind) {
-            Some(self.box_panels.open(entry, &place, served.clone(), &checkout))
-        } else {
-            None
-        };
+        let panels: Option<Rc<dyn BoxPanels>> =
+            if runs_in_folder(&record.kind) { Some(self.box_panels.open(entry, &place, served.clone(), &checkout)) } else { None };
         let heard: Rc<dyn Fn(Value)> = {
             let panels = panels.clone();
             let named = named.clone();
@@ -400,7 +416,12 @@ impl ChannelsArea {
 
     /// C7, channels.ts:685.
     pub async fn shell_sign_ins(self: &Rc<Self>, entry: &Entry, thread_id: &str, token: &str) -> IndexMap<String, String> {
-        let harness = self.ctx.thread_record(thread_id).map(|record| record.harness).filter(|harness| !harness.is_empty()).or_else(|| self.ctx.latest_harness(thread_id));
+        let harness = self
+            .ctx
+            .thread_record(thread_id)
+            .map(|record| record.harness)
+            .filter(|harness| !harness.is_empty())
+            .or_else(|| self.ctx.latest_harness(thread_id));
         let Some(harness) = harness else {
             return IndexMap::new();
         };
@@ -442,7 +463,15 @@ impl ChannelsArea {
         cancel();
     }
 
-    fn write_run(self: &Rc<Self>, machine: Arc<dyn Machine>, workspace_id: String, machine_id: String, own: String, line: String, written: String) -> LocalBoxFuture<'static, ()> {
+    fn write_run(
+        self: &Rc<Self>,
+        machine: Arc<dyn Machine>,
+        workspace_id: String,
+        machine_id: String,
+        own: String,
+        line: String,
+        written: String,
+    ) -> LocalBoxFuture<'static, ()> {
         let this = self.clone();
         Box::pin(async move {
             let options = ExecOptions { timeout_ms: Some(INLINE_EXEC_MS), ..ExecOptions::default() };
@@ -516,11 +545,8 @@ impl ChannelsArea {
         if held.borrow().is_empty() {
             return;
         }
-        let standing: HashSet<String> = rows
-            .iter()
-            .filter(|row| row.get("exited") != Some(&Value::Bool(true)))
-            .map(|row| js_str_opt(row.get("id")))
-            .collect();
+        let standing: HashSet<String> =
+            rows.iter().filter(|row| row.get("exited") != Some(&Value::Bool(true))).map(|row| js_str_opt(row.get("id"))).collect();
         let gone: Vec<String> = held.borrow().keys().filter(|id| !standing.contains(*id)).cloned().collect();
         self.shells_ended(workspace_id, &gone).await;
     }
@@ -537,7 +563,12 @@ impl ChannelsArea {
     }
 
     /// C10-C12, channels.ts:791.
-    pub async fn copy_channel(self: &Rc<Self>, entry: &Entry, on_event: Rc<dyn Fn(Value)>, carries: &[&str]) -> AccountResult<Rc<dyn DaemonChannel>> {
+    pub async fn copy_channel(
+        self: &Rc<Self>,
+        entry: &Entry,
+        on_event: Rc<dyn Fn(Value)>,
+        carries: &[&str],
+    ) -> AccountResult<Rc<dyn DaemonChannel>> {
         let record = record_of(entry);
         let said = if runs_in_folder(&record.kind) { None } else { self.blocked_line(record.place.as_deref()).await };
         let workspace_id = record.id.clone();
@@ -607,7 +638,8 @@ impl ChannelsArea {
             (Some(up), Some(base)) => up.ends_with(&format!("/{base}")),
             _ => false,
         };
-        let holds_new = read.branch.ahead.0 > 0.0 || read.counts_unknown == Some(true) || (upstream.is_some() && !tracks_itself && !tracks_base);
+        let holds_new =
+            read.branch.ahead.0 > 0.0 || read.counts_unknown == Some(true) || (upstream.is_some() && !tracks_itself && !tracks_base);
         if !holds_new {
             return Ok(if tracks_itself {
                 ChildStart { base: Some(branch), on_leads: true, lines: stayed }
@@ -658,7 +690,10 @@ impl ChannelsArea {
         let cwd = self.checkout_of(&record)?;
         let frame = frame_of(json!({ "op": "git.startOn", "cwd": cwd, "branch": branch }));
         let said = self
-            .with_daemon(child, Box::new(move |ask: Ask| -> LocalBoxFuture<'static, AccountResult<Frame>> { Box::pin(async move { ask(frame).await }) }))
+            .with_daemon(
+                child,
+                Box::new(move |ask: Ask| -> LocalBoxFuture<'static, AccountResult<Frame>> { Box::pin(async move { ask(frame).await }) }),
+            )
             .await?;
         let put: GitStartOnReply = parse(&Value::Object(said)).map_err(|e| HostError::new(e.issue_text()))?;
         if record.worktree.is_some() {
@@ -700,7 +735,8 @@ impl ChannelsArea {
         let Some(theirs) = Self::repository_of(&b.remote) else {
             return false;
         };
-        Self::repository_of(&a.remote).as_deref() == Some(theirs.as_str()) || Self::repository_of(&self.origin_now(a, caller)).as_deref() == Some(theirs.as_str())
+        Self::repository_of(&a.remote).as_deref() == Some(theirs.as_str())
+            || Self::repository_of(&self.origin_now(a, caller)).as_deref() == Some(theirs.as_str())
     }
 
     /// C9: writes the shell tokens of a workspace one at a time, each the map as it stands when it runs.

@@ -3,7 +3,7 @@
 //! and `FakeBase`, which implements `seam::Base` over shared state, logs every call in order with its arguments, and
 //! answers from a script. A unit's own fake (support/<area>.rs) wraps a `FakeBase` and implements the unit's trait the
 //! same way: `self.base.call(name, args)` logs, `self.base.answer(name)` takes the next scripted answer.
-#![allow(dead_code)]
+#![allow(dead_code, unused_imports)]
 use std::cell::{Cell, RefCell};
 use std::collections::VecDeque;
 use std::rc::Rc;
@@ -18,16 +18,16 @@ use serde_json::{json, Value};
 mod entry;
 #[path = "../common/errors.rs"]
 mod errors;
-pub use errors::{kind_named, kinded, plain, refused};
 pub use entry::{entry_over, in_flight, FakeMachine};
+pub use errors::{kind_named, kinded, plain, refused};
 
 use wsp_account::projects::workspaces::seam::{
     Base, DaemonAsk, DaemonWork, Entry, EntryAsk, Event, FreeSlot, GitAsk, HereWork, Live, ProjectsHeld,
 };
 use wsp_core::clock::{Clock, FakeClock};
 use wsp_core::ids::Ids;
-use wsp_core::types::pending::{BlobMark, Store};
 use wsp_core::types::internal::ThreadRecord;
+use wsp_core::types::pending::{BlobMark, Store};
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_wire::views::preferences::Preferences;
 use wsp_wire::views::session::SessionView;
@@ -59,7 +59,6 @@ fn error_of(v: &Value) -> Option<HostError> {
     let kind = e.get("kind").and_then(Value::as_str).map(kind_named);
     Some(HostError { kind, ..plain(&message) })
 }
-
 
 // ---------------------------------------------------------------------------------------------------------------
 // Clock
@@ -221,8 +220,9 @@ pub fn rec_json(entry: &Entry) -> Value {
 
 /// The `Caller` of a thread: road `paired` (a thread's token), scope `{kind: thread, threadId, workspaceId, rootThreadId}`.
 pub fn thread(thread_id: &str, workspace_id: &str, root: &str) -> Caller {
-    let scope = serde_json::from_value(json!({ "kind": "thread", "threadId": thread_id, "workspaceId": workspace_id, "rootThreadId": root }))
-        .expect("a scope reads");
+    let scope =
+        serde_json::from_value(json!({ "kind": "thread", "threadId": thread_id, "workspaceId": workspace_id, "rootThreadId": root }))
+            .expect("a scope reads");
     let origin = serde_json::from_value(json!("paired")).expect("an origin reads");
     Caller::Scoped { origin, by: scope }
 }
@@ -298,7 +298,11 @@ impl FakeBase {
     pub fn answer(&self, name: &str) -> Option<Value> {
         let mut script = self.script.borrow_mut();
         let q = script.get_mut(name)?;
-        if q.len() > 1 { q.pop_front() } else { q.front().cloned() }
+        if q.len() > 1 {
+            q.pop_front()
+        } else {
+            q.front().cloned()
+        }
     }
 
     /// The scripted answer as `T`, an `$error` answer as the error, `default` where nothing is scripted.
@@ -411,7 +415,10 @@ impl Base for BaseOf {
         Ok(())
     }
     async fn entry_of(&self, id: &str, origin: Option<Caller>, ask: EntryAsk) -> Result<Entry, HostError> {
-        self.0.call("entry_of", json!({ "id": id, "thread": ask.thread, "act": ask.act, "scoped": matches!(origin, Some(Caller::Scoped { .. })) }));
+        self.0.call(
+            "entry_of",
+            json!({ "id": id, "thread": ask.thread, "act": ask.act, "scoped": matches!(origin, Some(Caller::Scoped { .. })) }),
+        );
         if let Some(v) = self.0.answer("entry_of") {
             if let Some(e) = error_of(&v) {
                 return Err(e);
@@ -458,7 +465,8 @@ impl Base for BaseOf {
     async fn git_here(&self, ask: GitAsk) -> Result<ExecResult, HostError> {
         self.0.call("git", json!({ "cwd": ask.cwd, "args": ask.args, "timeoutMs": ask.timeout_ms, "input": ask.input }));
         let key = format!("git:{}", ask.args.first().cloned().unwrap_or_default());
-        let scripted = self.0.answer(&format!("git:{}", ask.args.join(" "))).or_else(|| self.0.answer(&key)).or_else(|| self.0.answer("git"));
+        let scripted =
+            self.0.answer(&format!("git:{}", ask.args.join(" "))).or_else(|| self.0.answer(&key)).or_else(|| self.0.answer("git"));
         match scripted {
             None => Ok(ExecResult { exit_code: 0.into(), stdout: String::new(), stderr: String::new() }),
             Some(v) => match error_of(&v) {
@@ -497,7 +505,28 @@ pub fn view_of(base: &FakeBase, record: &WorkspaceRecord) -> WorkspaceView {
     if let Value::Object(m) = &mut v {
         let keep: Vec<String> = m.keys().cloned().collect();
         for k in keep {
-            if ["spec", "idleWindowMs", "size", "firstLife", "shape", "npmBin", "base", "nappedAt", "daemon", "pr", "branchThreads", "checkout", "tree", "reviewThread", "prSent", "landed", "lead", "sub"].contains(&k.as_str()) {
+            if [
+                "spec",
+                "idleWindowMs",
+                "size",
+                "firstLife",
+                "shape",
+                "npmBin",
+                "base",
+                "nappedAt",
+                "daemon",
+                "pr",
+                "branchThreads",
+                "checkout",
+                "tree",
+                "reviewThread",
+                "prSent",
+                "landed",
+                "lead",
+                "sub",
+            ]
+            .contains(&k.as_str())
+            {
                 m.shift_remove(&k);
             }
         }

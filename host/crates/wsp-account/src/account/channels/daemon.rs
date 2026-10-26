@@ -14,10 +14,10 @@ use wsp_core::types::internal::{is_on_default_branch, DaemonRefusal};
 use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_engine::machine::MachineState;
 use wsp_wire::types::place_word::HERE_PLACE_ID;
-use wsp_wire::wire::daemon_version::PIPE_DAEMON_VERSION;
-use wsp_wire::views::place_more::{PlaceSettings, PlaceView};
+use wsp_wire::views::place_more::PlaceSettings;
 use wsp_wire::views::workspace::{agents_from, DaemonReachView, ProjectView, ThreadLit, WorkspaceAgentsPatch, WorkspacePhase};
 use wsp_wire::views::workspace_more::{ProjectRef, ThreadScope, WorkspaceAgents};
+use wsp_wire::wire::daemon_version::PIPE_DAEMON_VERSION;
 use wsp_words::exit::{usage_refusal, HostError, Kind};
 use wsp_words::place_state::{place_at_limit_line, place_spend_limit};
 use wsp_words::projects::{no_such_project_line, runs_in_folder};
@@ -359,7 +359,12 @@ impl ChannelsArea {
     }
 
     /// D11, channels.ts:146.
-    pub async fn channel_over(&self, reach: &DaemonReachView, name: &str, on_event: Rc<dyn Fn(Value)>) -> AccountResult<Rc<dyn DaemonChannel>> {
+    pub async fn channel_over(
+        &self,
+        reach: &DaemonReachView,
+        name: &str,
+        on_event: Rc<dyn Fn(Value)>,
+    ) -> AccountResult<Rc<dyn DaemonChannel>> {
         let Some(token) = reach.daemon_token.as_deref() else {
             return Err(HostError::new(format!("{name} is not answering yet")).into());
         };
@@ -400,7 +405,7 @@ impl ChannelsArea {
             && !is_local_workspace(Some(&record.kind))
             && !runs_in_folder(&record.kind)
             && self.served_by_its_computer(entry).is_none()
-            && record.place.as_ref().map_or(true, |place| !(self.ctx.has_door() && self.ctx.joined(place)))
+            && record.place.as_ref().is_none_or(|place| !(self.ctx.has_door() && self.ctx.joined(place)))
     }
 
     /// D16, channels.ts:180.
@@ -439,12 +444,19 @@ impl ChannelsArea {
         }
         let record = record_of(entry);
         let Some(thread_id) = self.thread_on(&record.id, None) else {
-            return Err(usage_refusal(&format!("{} has no thread yet, so wsp cannot reach GitHub for it.", record.name), "Start a thread on it first.").into());
+            return Err(usage_refusal(
+                &format!("{} has no thread yet, so wsp cannot reach GitHub for it.", record.name),
+                "Start a thread on it first.",
+            )
+            .into());
         };
         let (fired_tx, fired_rx) = oneshot::channel::<()>();
-        let cancel = self.ctx.schedule(HELLO_WAIT_MS, Box::new(move || {
-            let _ = fired_tx.send(());
-        }));
+        let cancel = self.ctx.schedule(
+            HELLO_WAIT_MS,
+            Box::new(move || {
+                let _ = fired_tx.send(());
+            }),
+        );
         let heard = match select(hello.clone(), fired_rx).await {
             Either::Left((version, _)) => version,
             Either::Right(_) => None,
@@ -460,7 +472,8 @@ impl ChannelsArea {
             root_thread_id: self.ctx.root_of(&thread_id),
         };
         let road = self.ctx.turn_road(record.kind);
-        let minted = self.ctx.device_door().mint(&format!("op {op}"), scope, self.ctx.now(), MintMore { road, ..MintMore::default() }).await?;
+        let minted =
+            self.ctx.device_door().mint(&format!("op {op}"), scope, self.ctx.now(), MintMore { road, ..MintMore::default() }).await?;
         let mut sent = frame;
         sent.insert("token".to_string(), Value::String(minted.device_token.clone()));
         let answer = ask(sent).await;
@@ -515,7 +528,11 @@ impl ChannelsArea {
         let record = record_of(entry);
         let place = match (&record.place, self.ctx.has_door()) {
             (Some(place), true) => place.clone(),
-            _ => return Err(HostError::new(wsp_wire::wire::machine_link::place_serves_daemon_line(&record.name, &self.computer_of(entry))).into()),
+            _ => {
+                return Err(
+                    HostError::new(wsp_wire::wire::machine_link::place_serves_daemon_line(&record.name, &self.computer_of(entry))).into()
+                )
+            }
         };
         let version = self.ctx.report_of(&place).await.map(|report| report.daemon_version.get());
         if let Some(version) = version {
@@ -533,7 +550,11 @@ impl ChannelsArea {
     /// D18, channels.ts:247.
     pub async fn on_this_computer<T: 'static>(&self, work: HomeWork<T>) -> AccountResult<T> {
         if !self.ctx.local_has_daemon() {
-            return Err(DaemonRefusal { code: Some("no-host-cli".to_string()), message: "this host runs no daemon on this computer".to_string() }.into());
+            return Err(DaemonRefusal {
+                code: Some("no-host-cli".to_string()),
+                message: "this host runs no daemon on this computer".to_string(),
+            }
+            .into());
         }
         let home = self.ctx.local_home_dir();
         let road = self.ctx.local_road().await?;

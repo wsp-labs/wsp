@@ -17,8 +17,10 @@ use indexmap::IndexMap;
 use serde_json::{json, Value};
 
 use common::{live, oracle, record, run, settle};
-use wsp_account::account::box_panels::{named_watch_refusal, proc_watch_scope, BoxPanels, BoxPanelsCtx, BoxPanelsOpener, Placements, StartedRow, Watchers};
-use wsp_account::account::core_types::{AccountResult, Frame, Entry, Release, Served};
+use wsp_account::account::box_panels::{
+    named_watch_refusal, proc_watch_scope, BoxPanels, BoxPanelsCtx, BoxPanelsOpener, Placements, StartedRow, Watchers,
+};
+use wsp_account::account::core_types::{AccountResult, Entry, Frame, Release, Served};
 use wsp_wire::wire::daemon::ProcScope;
 
 type Reply = Rc<dyn Fn(&Frame) -> Option<Frame>>;
@@ -65,7 +67,10 @@ impl BoxPanelsCtx for World {
         self.deleted.borrow_mut().push(f);
     }
     fn session_rows(&self) -> Vec<StartedRow> {
-        self.started.iter().map(|(t, at)| StartedRow { workspace_id: "w1".into(), thread_id: Some(t.clone()), started_at: Some(*at) }).collect()
+        self.started
+            .iter()
+            .map(|(t, at)| StartedRow { workspace_id: "w1".into(), thread_id: Some(t.clone()), started_at: Some(*at) })
+            .collect()
     }
     fn thread_records(&self) -> Vec<(String, String)> {
         self.threads.borrow().iter().map(|(t, w)| (t.clone(), w.clone())).collect()
@@ -91,7 +96,9 @@ impl BoxPanelsCtx for World {
         self.threads
             .borrow()
             .keys()
-            .map(|t| serde_json::from_value(json!({ "thread": t, "workspace": "w1", "folder": "/srv/alpha", "cgroup": cgroup(t) })).unwrap())
+            .map(|t| {
+                serde_json::from_value(json!({ "thread": t, "workspace": "w1", "folder": "/srv/alpha", "cgroup": cgroup(t) })).unwrap()
+            })
             .collect()
     }
     fn thread_env(&self, _entry: &Entry) -> IndexMap<String, String> {
@@ -122,7 +129,9 @@ impl World {
         BoxPanelsOpener::new(self.clone(), self.watchers.clone(), self.placements.clone())
     }
     fn pane(self: &Rc<Self>, opener: &Rc<BoxPanelsOpener>) -> Rc<dyn BoxPanels> {
-        let entry = live(record(&json!({ "id": "w1", "name": "alpha-studio", "kind": "place", "project": "pA2", "machineId": "", "phase": "running", "place": "box1" })));
+        let entry = live(record(
+            &json!({ "id": "w1", "name": "alpha-studio", "kind": "place", "project": "pA2", "machineId": "", "phase": "running", "place": "box1" }),
+        ));
         opener.open(&entry, "box1", self.daemon(), "/srv/alpha")
     }
     fn reply(&self, r: impl Fn(&Frame) -> Option<Frame> + 'static) {
@@ -172,7 +181,12 @@ async fn send(pane: &Rc<dyn BoxPanels>, frame: Value) -> Value {
 #[test]
 fn b1_proc_watch_scope_table() {
     for row in oracle("box_panels")["scope"].as_array().unwrap() {
-        let asks: Vec<Option<Vec<String>>> = row["asks"].as_array().unwrap().iter().map(|a| a.as_array().map(|l| l.iter().map(|c| c.as_str().unwrap().to_string()).collect())).collect();
+        let asks: Vec<Option<Vec<String>>> = row["asks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| a.as_array().map(|l| l.iter().map(|c| c.as_str().unwrap().to_string()).collect()))
+            .collect();
         assert_eq!(json!(proc_watch_scope(&asks)), row["answer"], "{}", row["name"]);
     }
 }
@@ -189,7 +203,9 @@ fn b2_named_watch_refusal_table() {
 fn b3_ports_three_threads() {
     let want = session("ports three threads");
     let w = world(&["ta", "tb", "tc"], &[("tb", 30.0), ("ta", 10.0)], Some(200));
-    w.reply(|f| (op(f) == "ports.watch").then(|| obj(json!({ "ok": true, "ports": [{ "port": 3000, "pid": 1 }, { "port": 5173, "pid": 2 }] }))));
+    w.reply(|f| {
+        (op(f) == "ports.watch").then(|| obj(json!({ "ok": true, "ports": [{ "port": 3000, "pid": 1 }, { "port": 5173, "pid": 2 }] })))
+    });
     run(async {
         let opener = w.opener();
         let p = w.pane(&opener);
@@ -243,7 +259,11 @@ fn b5_ports_merged_once() {
     run(async {
         let opener = w.opener();
         let p = w.pane(&opener);
-        same(&send(&p, json!({ "op": "ports.watch", "roots": [] })).await, &want["reply"], "a port in two shares answered once, its first row kept");
+        same(
+            &send(&p, json!({ "op": "ports.watch", "roots": [] })).await,
+            &want["reply"],
+            "a port in two shares answered once, its first row kept",
+        );
     });
 }
 

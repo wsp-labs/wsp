@@ -11,15 +11,15 @@ use wsp_core::console::warn;
 use wsp_core::types::api::StartAs;
 use wsp_core::types::harness::StartPicksAsked;
 use wsp_core::types::wiring::{CreateWorkspaceOptions, CreatedWorkspace, CLONE_MS};
+use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::types::pull_request::{GitPrReadReply, GitUpdateReply, PullRequest, PullRequestRecord, PullRequestSeen};
 use wsp_wire::types::start::{
-    GitIssueReadReply, GitPrDiffReply, IssueRead, ReviewDraft, ReviewDraftV1, WorkspaceFrom, WorkspaceFromHead,
-    WorkspaceFromHeadFork, WorkspaceFromKind,
+    GitIssueReadReply, GitPrDiffReply, IssueRead, ReviewDraft, ReviewDraftV1, WorkspaceFrom, WorkspaceFromHead, WorkspaceFromHeadFork,
+    WorkspaceFromKind,
 };
 use wsp_wire::types::thread_defaults::AccessChoice;
 use wsp_wire::types::tree::GitStartOnReply;
-use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::views::harness::{HarnessCatalog, StartResult};
 use wsp_wire::views::preferences::Preferences;
 use wsp_wire::views::session::SessionView;
@@ -28,11 +28,11 @@ use wsp_wire::views::workspace_more::WorkspaceOut;
 use wsp_words::exit::{HostError, Kind};
 use wsp_words::js::js_trim;
 use wsp_words::projects::{copies_folder, kind_for_computer, no_branches_line, place_branch_line, pr_behind_words, runs_in_folder};
+use wsp_words::start::start_words::no_project_for_repo;
 use wsp_words::start::{
     holds_repo, is_review_read, line_in_diff, project_for_repo, review_from_reply, review_reask_prompt, start_name, taken_name_after,
     RepoProject,
 };
-use wsp_words::start::start_words::no_project_for_repo;
 
 use crate::projects::folders::tree::{git_said, ListedWorktree};
 use crate::projects::projects::add::LandingKind;
@@ -88,7 +88,14 @@ pub trait StartFromCtx: Base {
     /// `brokeredStart(ctx, provider)` (branch-of-record.ts, wsp-machines').
     fn brokered_start(&self, provider: bool) -> bool;
     /// `pullRequestOfRecord(ctx, remote, number, project, computer, start)` (branch-of-record.ts).
-    async fn pull_request_of_record(&self, remote: &str, number: i64, project: &str, computer: &str, start: bool) -> Result<Option<BranchOfRecord>, HostError>;
+    async fn pull_request_of_record(
+        &self,
+        remote: &str,
+        number: i64,
+        project: &str,
+        computer: &str,
+        start: bool,
+    ) -> Result<Option<BranchOfRecord>, HostError>;
     /// `ctx.workspaces.create(opts, origin)`.
     async fn create_workspace(&self, opts: CreateWorkspaceOptions, origin: Option<Caller>) -> Result<CreatedWorkspace, HostError>;
     /// `ctx.workspaces.delete(id, origin)`.
@@ -107,7 +114,13 @@ pub trait StartFromCtx: Base {
     fn default_agent_of(&self, prefs: &Preferences, entry: &Entry) -> String;
     /// `harnessCatalog(harness)`, then `launchAdapterFor(home, harness)`, `catalogOn` and `defaultsOn`; none where the
     /// catalog has no table for the harness.
-    async fn resolved_picks(&self, home: &Entry, harness: &str, prefs: &Preferences, project_id: &str) -> Result<Option<ResolvedPicks>, HostError>;
+    async fn resolved_picks(
+        &self,
+        home: &Entry,
+        harness: &str,
+        prefs: &Preferences,
+        project_id: &str,
+    ) -> Result<Option<ResolvedPicks>, HostError>;
     /// `accessWordRefusal(catalog, access)`.
     fn access_word_refusal(&self, catalog: &HarnessCatalog, access: &AccessChoice) -> Option<HostError>;
     /// `ctx.namedMode(catalog, harness, access)`.
@@ -239,7 +252,9 @@ impl StartFrom {
     //|     GitIssueReadReply.parse(await ctx.onThisComputer((ask, home) => ask({ op: "git.issueRead", cwd: home, remote, number }))).issue;
     pub async fn issue_of(&self, remote: &str, number: i64) -> Result<IssueRead, HostError> {
         let remote = remote.to_owned();
-        let work: HereWork = Box::new(move |ask: DaemonAsk, home: String| ask(json!({ "op": "git.issueRead", "cwd": home, "remote": remote, "number": number })));
+        let work: HereWork = Box::new(move |ask: DaemonAsk, home: String| {
+            ask(json!({ "op": "git.issueRead", "cwd": home, "remote": remote, "number": number }))
+        });
         let reply = self.ctx.on_this_computer(work).await?;
         Ok(read_json::<GitIssueReadReply>(reply)?.issue)
     }
@@ -253,7 +268,9 @@ impl StartFrom {
     //|   };
     pub async fn pull_request_of(&self, remote: &str, number: i64) -> Result<PullRequest, HostError> {
         let remote = remote.to_owned();
-        let work: HereWork = Box::new(move |ask: DaemonAsk, home: String| ask(json!({ "op": "git.prRead", "cwd": home, "remote": remote, "number": number })));
+        let work: HereWork = Box::new(move |ask: DaemonAsk, home: String| {
+            ask(json!({ "op": "git.prRead", "cwd": home, "remote": remote, "number": number }))
+        });
         let reply = self.ctx.on_this_computer(work).await?;
         read_json::<GitPrReadReply>(reply)?.pr.ok_or_else(|| HostError::new(format!("#{number} is not a pull request")))
     }
@@ -333,7 +350,15 @@ impl StartFrom {
         let head = match &fact {
             Some(fact) if brokered => {
                 let place = landing_place.unwrap_or_else(|| self.ctx.places_wired());
-                self.ctx.pull_request_of_record(&project.remote, fact.number.get(), &project.name, &self.ctx.place_name(&place), kind == StartKind::Start).await?
+                self.ctx
+                    .pull_request_of_record(
+                        &project.remote,
+                        fact.number.get(),
+                        &project.name,
+                        &self.ctx.place_name(&place),
+                        kind == StartKind::Start,
+                    )
+                    .await?
             }
             _ => None,
         };
@@ -378,7 +403,8 @@ impl StartFrom {
             if !has_head {
                 let number = fact.number.get();
                 let checkout = self.ctx.checkout_of(&record_of(&entry));
-                let work: DaemonWork = Box::new(move |ask: DaemonAsk| ask(json!({ "op": "git.prCheckout", "cwd": checkout, "number": number })));
+                let work: DaemonWork =
+                    Box::new(move |ask: DaemonAsk| ask(json!({ "op": "git.prCheckout", "cwd": checkout, "number": number })));
                 if let Err(e) = self.ctx.with_daemon(&entry, work).await {
                     let id = record_of(&entry).id;
                     if let Err(d) = self.ctx.delete_workspace(&id, origin.clone()).await {
@@ -620,7 +646,10 @@ impl StartFrom {
         let number = fact.number.get() as f64;
         let by_name = fact.fork.is_none() && self.remote_holds(top, &project.remote, &ref_of(&fact.branch)).await?;
         let spec = if by_name { ref_of(&fact.branch) } else { format!("pull/{}/head", fact.number.get()) };
-        let fetched = self.ctx.git_here(git_ask(top, &["fetch", "--quiet", "--no-tags", project.remote.as_str(), spec.as_str()], Some(CLONE_MS))).await?;
+        let fetched = self
+            .ctx
+            .git_here(git_ask(top, &["fetch", "--quiet", "--no-tags", project.remote.as_str(), spec.as_str()], Some(CLONE_MS)))
+            .await?;
         if fetched.exit_code.get() != 0 {
             return Ok(Some(pr_behind_words::unread(number, &git_said(&fetched))));
         }
@@ -736,7 +765,8 @@ impl StartFrom {
     //|   };
     /// The harnesses that can review, Codex first.
     pub fn reviewers(&self) -> Vec<String> {
-        let all: Vec<String> = self.ctx.read_only_modes().into_iter().filter(|(_, mode)| mode.is_some()).map(|(harness, _)| harness).collect();
+        let all: Vec<String> =
+            self.ctx.read_only_modes().into_iter().filter(|(_, mode)| mode.is_some()).map(|(harness, _)| harness).collect();
         let codex = all.iter().filter(|harness| harness.as_str() == "codex").cloned();
         let rest = all.iter().filter(|harness| harness.as_str() != "codex").cloned();
         codex.chain(rest).collect()
@@ -822,7 +852,9 @@ impl StartFrom {
         };
         let remote = self.ctx.project_held(&record.project)?.remote;
         let number = from.number.get();
-        let work: HereWork = Box::new(move |ask: DaemonAsk, home: String| ask(json!({ "op": "git.prDiff", "cwd": home, "remote": remote, "number": number })));
+        let work: HereWork = Box::new(move |ask: DaemonAsk, home: String| {
+            ask(json!({ "op": "git.prDiff", "cwd": home, "remote": remote, "number": number }))
+        });
         let diff = match self.ctx.on_this_computer(work).await {
             Ok(reply) => Some(read_json::<GitPrDiffReply>(reply)?.diff),
             Err(_) => None,

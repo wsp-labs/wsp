@@ -18,7 +18,9 @@ use serde_json::{json, Map, Value};
 
 use common::{error_json, live, oracle, plain, record, run};
 use wsp_account::account::core_types::{AccountResult, Entry};
-use wsp_account::account::preferences::{AccessTable, AgentsWorkspace, CatalogAgentKeys, ChannelTarget, PreferencesArea, PreferencesCtx, ServerIcons, SetAnswer};
+use wsp_account::account::preferences::{
+    AccessTable, AgentsWorkspace, CatalogAgentKeys, ChannelTarget, PreferencesArea, PreferencesCtx, ServerIcons, SetAnswer,
+};
 use wsp_core::daemon_channel::{ChannelEnd, ChannelError, DaemonChannel, Frame};
 use wsp_wire::views::preferences::{Preferences, PreferencesPatch};
 use wsp_wire::views::workspace::Caller;
@@ -94,12 +96,24 @@ fn fixture() -> Rc<Value> {
 }
 
 fn script_named(fx: &Value, name: &str) -> Value {
-    fx["scripts"].as_array().unwrap().iter().find(|s| s["script"]["name"] == json!(name)).unwrap_or_else(|| panic!("no script {name}")).clone()
+    fx["scripts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|s| s["script"]["name"] == json!(name))
+        .unwrap_or_else(|| panic!("no script {name}"))
+        .clone()
 }
 
 fn world_of(fx: &Rc<Value>, script: &Value, doc: Doc) -> Rc<World> {
     let forgets = Rc::new(Cell::new(0));
-    let icons = script.get("icons").map(|i| Rc::new(FakeIcons { folder: RefCell::new(format!("{}/.wsp/icons", fx["home"].as_str().unwrap())), message: i["forget"].as_str().map(String::from), forgets: forgets.clone() }));
+    let icons = script.get("icons").map(|i| {
+        Rc::new(FakeIcons {
+            folder: RefCell::new(format!("{}/.wsp/icons", fx["home"].as_str().unwrap())),
+            message: i["forget"].as_str().map(String::from),
+            forgets: forgets.clone(),
+        })
+    });
     Rc::new(World {
         fx: fx.clone(),
         script: script.clone(),
@@ -154,7 +168,11 @@ impl World {
 impl PreferencesCtx for World {
     fn env(&self) -> IndexMap<String, String> {
         self.env_reads.set(self.env_reads.get() + 1);
-        self.script.get("env").and_then(|e| e.as_object()).map(|e| e.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string())).collect()).unwrap_or_default()
+        self.script
+            .get("env")
+            .and_then(|e| e.as_object())
+            .map(|e| e.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string())).collect())
+            .unwrap_or_default()
     }
     fn server_icons(&self) -> Option<Rc<dyn ServerIcons>> {
         self.icons.clone().map(|i| i as Rc<dyn ServerIcons>)
@@ -233,11 +251,19 @@ impl PreferencesCtx for World {
             .as_array()
             .unwrap()
             .iter()
-            .map(|a| CatalogAgentKeys { id: a["id"].as_str().unwrap().to_string(), state_home_env: a["stateHomeEnv"].as_str().map(String::from), plugin_seed_env: a["pluginSeedEnv"].as_str().map(String::from) })
+            .map(|a| CatalogAgentKeys {
+                id: a["id"].as_str().unwrap().to_string(),
+                state_home_env: a["stateHomeEnv"].as_str().map(String::from),
+                plugin_seed_env: a["pluginSeedEnv"].as_str().map(String::from),
+            })
             .collect()
     }
     fn thread_env(&self, _entry: &Entry, agent: &str) -> IndexMap<String, String> {
-        self.fx["threadEnv"].get(agent).and_then(|e| e.as_object()).map(|e| e.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string())).collect()).unwrap_or_default()
+        self.fx["threadEnv"]
+            .get(agent)
+            .and_then(|e| e.as_object())
+            .map(|e| e.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string())).collect())
+            .unwrap_or_default()
     }
     fn checkout_of(&self, entry: &Entry) -> Result<String, HostError> {
         let r = entry.borrow().record.borrow().clone();
@@ -262,10 +288,21 @@ impl PreferencesCtx for World {
             .unwrap()
             .iter()
             .filter(|p| p["computer"] == json!(place_id))
-            .map(|p| (p["id"].as_str().unwrap().to_string(), p["name"].as_str().unwrap().to_string(), p.get("checkout").unwrap_or(&p["path"]).as_str().unwrap().to_string()))
+            .map(|p| {
+                (
+                    p["id"].as_str().unwrap().to_string(),
+                    p["name"].as_str().unwrap().to_string(),
+                    p.get("checkout").unwrap_or(&p["path"]).as_str().unwrap().to_string(),
+                )
+            })
             .collect()
     }
-    async fn workspace_channel(&self, workspace_id: &str, _on_event: Rc<dyn Fn(Value)>, origin: Option<&Caller>) -> AccountResult<Rc<dyn DaemonChannel>> {
+    async fn workspace_channel(
+        &self,
+        workspace_id: &str,
+        _on_event: Rc<dyn Fn(Value)>,
+        origin: Option<&Caller>,
+    ) -> AccountResult<Rc<dyn DaemonChannel>> {
         Ok(channel(json!({ "chan": format!("workspace {workspace_id}"), "origin": origin.is_some() })))
     }
     async fn local_channel(&self, _on_event: Rc<dyn Fn(Value)>) -> AccountResult<Rc<dyn DaemonChannel>> {
@@ -291,7 +328,13 @@ impl PreferencesCtx for World {
     }
     fn setup_view(&self, place_id: &str, agent: &str) -> Value {
         let _ = place_id;
-        self.agent_world()["setupOf"].as_array().unwrap().iter().find(|s| s["agent"] == json!(agent)).map(|s| s["answer"].clone()).unwrap_or(Value::Null)
+        self.agent_world()["setupOf"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["agent"] == json!(agent))
+            .map(|s| s["answer"].clone())
+            .unwrap_or(Value::Null)
     }
     fn drop_setup_refusal(&self, place_id: &str, agent: &str) -> bool {
         self.refusals.borrow_mut().remove(&format!("{place_id}:{agent}"))
@@ -383,7 +426,14 @@ fn result_of(want: &Value, i: usize) -> &Value {
 fn f2_get_reads_once_and_stamps_labs() {
     let fx = fixture();
     run(async {
-        for name in ["get defaults", "get stored older labs", "get env labs over stored", "get env labs not one", "get malformed stored", "get stored before computer icons"] {
+        for name in [
+            "get defaults",
+            "get stored older labs",
+            "get env labs over stored",
+            "get env labs not one",
+            "get malformed stored",
+            "get stored before computer icons",
+        ] {
             let (w, want) = check_script(&fx, name).await;
             assert!(w.held.borrow().is_some(), "{name}: the record is held after a read");
             assert_eq!(w.env_reads.get(), 1, "{name}: the env is read once, at construction");
@@ -490,17 +540,26 @@ fn ported_preferences_over_the_wire() {
     run(async {
         let (w, want) = check_script(&fx, "over the wire").await;
         let first = &result_of(&want, 0)["preferences"];
-        assert_eq!((first["theme"].clone(), first["sidebarWidth"].clone(), first["terminalZoom"].clone()), (json!("light"), json!(312), json!({ "ws_a": 2 })));
+        assert_eq!(
+            (first["theme"].clone(), first["sidebarWidth"].clone(), first["terminalZoom"].clone()),
+            (json!("light"), json!(312), json!({ "ws_a": 2 }))
+        );
         let emitted = w.emitted.borrow();
         assert_eq!(emitted[0], json!({ "type": "preferences.changed", "preferences": first }));
         let second = &result_of(&want, 1)["preferences"];
-        assert_eq!((second["sidebarMode"].clone(), second["terminalSize"].clone(), second["terminalZoom"].clone()), (json!("spaces"), json!("app"), json!({ "ws_a": 2, "ws_b": -1 })));
+        assert_eq!(
+            (second["sidebarMode"].clone(), second["terminalSize"].clone(), second["terminalZoom"].clone()),
+            (json!("spaces"), json!("app"), json!({ "ws_a": 2, "ws_b": -1 }))
+        );
         assert!(second.get("sidebarWidth").is_none(), "a null width clears the width alone");
         let third = &result_of(&want, 2)["preferences"];
         assert_eq!(third["terminalZoom"], json!({ "ws_a": 2 }));
         assert!(want["after"].get("sidebarWidth").is_none());
         let reopened = &want["reopened"];
-        assert_eq!((reopened["theme"].clone(), reopened["sidebarMode"].clone(), reopened["terminalZoom"].clone()), (json!("light"), json!("spaces"), json!({ "ws_a": 2 })));
+        assert_eq!(
+            (reopened["theme"].clone(), reopened["sidebarMode"].clone(), reopened["terminalZoom"].clone()),
+            (json!("light"), json!("spaces"), json!({ "ws_a": 2 }))
+        );
     });
 }
 
@@ -539,8 +598,16 @@ fn f4_threads_shut_keeps_held_leads_only() {
         assert_eq!(result_of(&want, 1)["preferences"]["threadsShut"], json!({ "lead2": true }));
         assert_eq!(result_of(&want, 2)["preferences"]["threadsShut"], json!({}));
         let (_w, want) = check_script(&fx, "threads shut stale kept when the patch names none").await;
-        assert_eq!(result_of(&want, 0)["preferences"]["threadsShut"], json!({ "thr_stale": true }), "a patch that names no threadsShut leaves the record's alone");
-        assert_eq!(result_of(&want, 1)["preferences"]["threadsShut"], json!({}), "a patch that names threadsShut prunes the merge, the stale one with it");
+        assert_eq!(
+            result_of(&want, 0)["preferences"]["threadsShut"],
+            json!({ "thr_stale": true }),
+            "a patch that names no threadsShut leaves the record's alone"
+        );
+        assert_eq!(
+            result_of(&want, 1)["preferences"]["threadsShut"],
+            json!({}),
+            "a patch that names threadsShut prunes the merge, the stale one with it"
+        );
         let (w, want) = check_script(&fx, "threads shut refused default still prunes nothing").await;
         assert_eq!(result_of(&want, 0)["ok"], json!(false));
         assert!(w.puts.borrow().is_empty());
@@ -611,12 +678,16 @@ fn f5_defaults_refusal_table() {
             }
         }
         // The sentences are the TS's own; these are the ones the TS tests quote.
-        let said: Vec<String> = want["results"].as_array().unwrap().iter().filter_map(|r| r["error"]["message"].as_str().map(String::from)).collect();
+        let said: Vec<String> =
+            want["results"].as_array().unwrap().iter().filter_map(|r| r["error"]["message"].as_str().map(String::from)).collect();
         assert!(said.contains(&"Claude Code takes no plan access; it takes ask, auto-edit, full".to_string()));
         assert!(said.contains(&"No model id has a space in it".to_string()));
         assert!(said.contains(&"no project \"pX\"".to_string()));
         let (w, want) = check_script(&fx, "failed hook").await;
-        assert_eq!(result_of(&want, 0)["error"], json!({ "message": "no adapter registered for harness \"nope\"; agents on this host: none", "kind": "usage" }));
+        assert_eq!(
+            result_of(&want, 0)["error"],
+            json!({ "message": "no adapter registered for harness \"nope\"; agents on this host: none", "kind": "usage" })
+        );
         assert!(w.puts.borrow().is_empty());
         let get = prefs_json(adhoc(&fx, json!({ "name": "after the refusal", "adapters": [] })).1.get().await);
         assert_eq!(get, want["after"]);
@@ -643,7 +714,9 @@ fn ported_a_model_id_no_agent_runs_is_refused_and_nothing_of_the_change_is_store
         assert_eq!(held["agentDefaults"], json!({}));
         assert_eq!(held["projectDefaults"], json!({}));
         assert!(w.puts.borrow().is_empty());
-        let landed = answer_json(area.set(patch(&json!({ "agentDefaults": { "claude": { "models": { "custom": ["provider/model:tag"] } } } }))).await);
+        let landed = answer_json(
+            area.set(patch(&json!({ "agentDefaults": { "claude": { "models": { "custom": ["provider/model:tag"] } } } }))).await,
+        );
         assert_eq!(landed["preferences"]["agentDefaults"]["claude"]["models"]["custom"], json!(["provider/model:tag"]));
     });
 }
@@ -688,13 +761,28 @@ fn ported_a_refused_access_word_leaves_the_stored_default_where_it_was() {
 fn f6_icons_left_notice() {
     let fx = fixture();
     run(async {
-        for name in ["icons forget fails", "icons forget ok", "icons absent", "icons message without a code", "icons message with a call", "icons message with a lower case code", "icons message with two codes"] {
+        for name in [
+            "icons forget fails",
+            "icons forget ok",
+            "icons absent",
+            "icons message without a code",
+            "icons message with a call",
+            "icons message with a lower case code",
+            "icons message with two codes",
+        ] {
             check_script(&fx, name).await;
         }
         let (w, want) = check_script(&fx, "icons forget fails").await;
-        assert_eq!(result_of(&want, 0)["notice"], json!("Server icons are off, but ~/.wsp/icons could not be deleted: permission denied. Delete it by hand."));
+        assert_eq!(
+            result_of(&want, 0)["notice"],
+            json!("Server icons are off, but ~/.wsp/icons could not be deleted: permission denied. Delete it by hand.")
+        );
         assert_eq!(result_of(&want, 0)["preferences"]["serverIcons"], json!(false));
-        assert_eq!(w.emitted.borrow()[0]["preferences"]["serverIcons"], json!(false), "the record is kept and told to every socket either way");
+        assert_eq!(
+            w.emitted.borrow()[0]["preferences"]["serverIcons"],
+            json!(false),
+            "the record is kept and told to every socket either way"
+        );
         assert!(result_of(&want, 1).get("notice").is_none(), "a later set carries no notice");
         assert_eq!(w.forgets.get(), 2, "the folder is forgotten at each set that turns icons off, and not at one that does not");
         let (_w, want) = check_script(&fx, "icons absent").await;
@@ -766,11 +854,19 @@ fn f7_projects_per_place() {
             let got = area.agents_projects(place).await;
             let rows: Vec<Value> = got.iter().map(|(id, name, path)| json!({ "id": id, "name": name, "path": path })).collect();
             assert_eq!(Value::Array(rows), want["answer"], "{place}");
-            assert_eq!(*w.trace.borrow(), vec!["ready".to_string(), format!("projects_on {place}")], "{place}: the area waits for ready before it reads");
+            assert_eq!(
+                *w.trace.borrow(),
+                vec!["ready".to_string(), format!("projects_on {place}")],
+                "{place}: the area waits for ready before it reads"
+            );
             assert_eq!(Value::Array(w.log.borrow().clone()), want["log"]);
         }
         let box_rows = &fx["agents"]["projects"][0]["answer"];
-        assert_eq!(box_rows[0], json!({ "id": "p1", "name": "landing", "path": "/srv/landing" }), "a checkout stands for its project's folder");
+        assert_eq!(
+            box_rows[0],
+            json!({ "id": "p1", "name": "landing", "path": "/srv/landing" }),
+            "a checkout stands for its project's folder"
+        );
         assert_eq!(box_rows[1]["path"], json!("/home/maya/api"));
     });
 }

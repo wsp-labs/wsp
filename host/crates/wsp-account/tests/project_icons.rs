@@ -159,7 +159,8 @@ fn icons_dir() -> (tempfile::TempDir, PathBuf) {
 }
 
 fn listing(dir: &Path) -> Vec<String> {
-    let mut names: Vec<String> = std::fs::read_dir(dir).map(|r| r.map(|e| e.unwrap().file_name().into_string().unwrap()).collect()).unwrap_or_default();
+    let mut names: Vec<String> =
+        std::fs::read_dir(dir).map(|r| r.map(|e| e.unwrap().file_name().into_string().unwrap()).collect()).unwrap_or_default();
     names.sort();
     names
 }
@@ -198,7 +199,7 @@ mod the_file_store {
         assert_eq!(bytes, std::fs::read(dir.join(format!("{hash}.png"))).unwrap());
         // Read from disk at each ask: a file gone by hand reads as none at the next.
         std::fs::remove_file(dir.join(format!("{hash}.png"))).unwrap();
-        assert_eq!(icons.read(&[hash.clone()])[&hash], None);
+        assert_eq!(icons.read(std::slice::from_ref(&hash))[&hash], None);
     }
 
     #[test]
@@ -276,9 +277,10 @@ impl RecipeShelf for Shelf {
 }
 
 fn recipe_naming(image: &str) -> ShelvedRecipe {
-    let file: RecipeFile = serde_json::from_value(json!({ "name": "Builders", "agents": {}, "mcp": {}, "clis": {}, "skills": {}, "plugins": {},
+    let file: RecipeFile =
+        serde_json::from_value(json!({ "name": "Builders", "agents": {}, "mcp": {}, "clis": {}, "skills": {}, "plugins": {},
         "folders": { "lab": { "from": "~/lab", "image": image, "keep": [] } }, "configs": {} }))
-    .expect("a recipe reads");
+        .expect("a recipe reads");
     ShelvedRecipe { slug: "builders".to_owned(), file, saved_at: None }
 }
 
@@ -380,7 +382,10 @@ mod a_projects_image_over_the_area {
             assert_eq!(image.as_deref(), Some(kept_hash("text and phys dropped").as_str()));
             // The re-set project's key moves to the end; the other keeps its place.
             assert_eq!(icons_json(&h.ctx.prefs.borrow()), json!({ "pr_site": "b".repeat(64), "pr_lab": image.clone().unwrap() }));
-            assert_eq!(serde_json::to_string(&h.ctx.prefs.borrow().project_icon).unwrap(), format!(r#"{{"pr_site":"{}","pr_lab":"{}"}}"#, "b".repeat(64), image.clone().unwrap()));
+            assert_eq!(
+                serde_json::to_string(&h.ctx.prefs.borrow().project_icon).unwrap(),
+                format!(r#"{{"pr_site":"{}","pr_lab":"{}"}}"#, "b".repeat(64), image.clone().unwrap())
+            );
             assert_eq!(listing(&h.dir), vec![format!("{}.png", image.unwrap())]);
             assert_eq!(*h.ctx.log.borrow(), vec!["ready", "change start", "change end"]);
         });
@@ -443,7 +448,10 @@ mod a_projects_image_over_the_area {
             let h = host(Some(Ok(vec![])), true);
             let image = h.area.set("pr_site", Some(b64(&good()))).await.unwrap().unwrap();
             let mut p = h.ctx.prefs.borrow().clone();
-            p = prefs(icons_json(&p), json!({ "pr_lab": { "icon": "rocket", "hue": "blue" }, "pr_site": { "icon": "rocket", "hue": "teal" } }));
+            p = prefs(
+                icons_json(&p),
+                json!({ "pr_lab": { "icon": "rocket", "hue": "blue" }, "pr_site": { "icon": "rocket", "hue": "teal" } }),
+            );
             *h.ctx.prefs.borrow_mut() = p;
             h.area.forget("pr_site").await.unwrap();
             let after = h.ctx.prefs.borrow().clone();

@@ -12,8 +12,8 @@ use wsp_core::console;
 use wsp_core::types::internal::{NamedWorkspace, DELETED_REASON, WORKSPACE_NAMES};
 use wsp_core::types::wiring::{DeleteSaid, SizeAsk, WakeAsk, WorkspaceRecord, VAULTS};
 use wsp_engine::errors::{is_missing, EngineError};
-use wsp_engine::Cancel;
 use wsp_engine::lifecycle::WakeResult;
+use wsp_engine::Cancel;
 use wsp_wire::types::workspace_look::WorkspaceLook;
 use wsp_wire::views::workspace::{scope_of, Caller, WorkspacePhase};
 use wsp_wire::views::workspace_more::WorkspaceView;
@@ -22,15 +22,13 @@ use wsp_wire::wire::machine_link::{place_serves_daemon_line, MachineShape};
 use wsp_words::exit::{HostError, Kind};
 use wsp_words::place_word::provider_key_name;
 use wsp_words::projects::runs_in_folder;
-use wsp_words::workspace_state::{gone_refusal, machine_word};
-use wsp_words::words::computer::{
-    forget_undriven_refusal, no_commands_yet_line, wake_asks_in, wake_gave_up_line, AcrossAct, WAKE_STOPPED,
-};
+use wsp_words::words::computer::{forget_undriven_refusal, no_commands_yet_line, wake_asks_in, wake_gave_up_line, AcrossAct, WAKE_STOPPED};
 use wsp_words::words::thread::{
-    delete_refused_line, refusal_line, resize_busy_line, resize_landed_line, resize_no_move_line,
-    RESIZE_AGAIN_FIX, RESIZE_BUSY_FIX, RESIZE_NO_MOVE_FIX,
+    delete_refused_line, refusal_line, resize_busy_line, resize_landed_line, resize_no_move_line, RESIZE_AGAIN_FIX, RESIZE_BUSY_FIX,
+    RESIZE_NO_MOVE_FIX,
 };
 use wsp_words::words::units::{disk_gone_released_line, disk_gone_replaced_line, size_refusal, size_word, SIZE_PICK_FIX};
+use wsp_words::workspace_state::{gone_refusal, machine_word};
 
 use super::create::{name_of, talked};
 use super::seam::{record_of, Base, Entry, EntryAsk};
@@ -175,19 +173,19 @@ pub trait PhasesCtx: Base {
 fn rec<T>(entry: &Entry, f: impl FnOnce(&mut WorkspaceRecord) -> T) -> T {
     let live = entry.borrow();
     let mut record = live.record.borrow_mut();
-    let out = f(&mut record);
-    out
+
+    f(&mut record)
 }
 
 fn read_rec<T>(entry: &Entry, f: impl FnOnce(&WorkspaceRecord) -> T) -> T {
     let live = entry.borrow();
     let record = live.record.borrow();
-    let out = f(&record);
-    out
+
+    f(&record)
 }
 
 fn phase_of(entry: &Entry) -> WorkspacePhase {
-    read_rec(entry, |r| r.phase.clone())
+    read_rec(entry, |r| r.phase)
 }
 
 fn engine(e: EngineError) -> HostError {
@@ -301,7 +299,8 @@ async fn wake_loop(
                     ctx.emit_status(entry, "napping", None).await?;
                     let every = asks.map_or(0, |a| a.every_ms);
                     let wait = (began + i64::from(ask) * every - ctx.clock().now()).max(0);
-                    let stopped_meanwhile = stopped.is_cancelled() || matches!(select(Box::pin(ctx.sleeps(wait)), Box::pin(stopped.cancelled())).await, Either::Right(_));
+                    let stopped_meanwhile = stopped.is_cancelled()
+                        || matches!(select(Box::pin(ctx.sleeps(wait)), Box::pin(stopped.cancelled())).await, Either::Right(_));
                     if !stopped_meanwhile {
                         landed = ctx.took_the_resume(entry).await;
                         ask += 1;
@@ -958,7 +957,7 @@ pub async fn look(ctx: &Rc<dyn PhasesCtx>, id: &str, look: WorkspaceLook, origin
     ctx.put_look(&entry, "theme", theme);
     ctx.put_look(&entry, "glyph", glyph);
     ctx.persist(record_of(&entry)).await?;
-    let (theme, glyph) = read_rec(&entry, |r| (r.theme.clone(), r.glyph.clone()));
+    let (theme, glyph) = read_rec(&entry, |r| (r.theme.clone(), r.glyph));
     ctx.emit(json!({ "type": "workspace.look", "workspaceId": id, "theme": theme, "glyph": glyph }))?;
     Ok(ctx.view(&record_of(&entry)))
 }
@@ -1071,7 +1070,8 @@ pub async fn delete(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -
 
 /// The thread ids a workspace's thread records name, then the threads of its sessions (workspaces.ts:495-500).
 fn thread_ids_of(ctx: &Rc<dyn PhasesCtx>, id: &str) -> (Vec<String>, Vec<String>) {
-    let records: Vec<String> = ctx.thread_records().into_iter().filter(|(_, held)| held.workspace_id == id).map(|(thread, _)| thread).collect();
+    let records: Vec<String> =
+        ctx.thread_records().into_iter().filter(|(_, held)| held.workspace_id == id).map(|(thread, _)| thread).collect();
     let mut threads = records.clone();
     for session in ctx.session_views() {
         if session.workspace_id == id {
@@ -1096,7 +1096,7 @@ async fn delete_steps(ctx: &Rc<dyn PhasesCtx>, entry: &Entry, id: &str, takes: b
     ctx.cut_off(entry).await?;
     ctx.end_sessions(id, DELETED_REASON);
     let (threads, records) = thread_ids_of(ctx, id);
-    let kind = read_rec(entry, |r| r.kind.clone());
+    let kind = read_rec(entry, |r| r.kind);
     if runs_in_folder(&kind) {
         for thread in &threads {
             ctx.drop_checkpoints(entry, thread).await?;
@@ -1106,7 +1106,7 @@ async fn delete_steps(ctx: &Rc<dyn PhasesCtx>, entry: &Entry, id: &str, takes: b
         ctx.remove_worktree_ending(entry).await?;
     }
     ctx.drop_thread_files(entry, records).await?;
-    let (phase, cloud_gone) = read_rec(entry, |r| (r.phase.clone(), r.sub.as_ref().and_then(|s| s.cloud_gone) == Some(true)));
+    let (phase, cloud_gone) = read_rec(entry, |r| (r.phase, r.sub.as_ref().and_then(|s| s.cloud_gone) == Some(true)));
     let standing = phase != WorkspacePhase::Released && phase != WorkspacePhase::Queued && !cloud_gone;
     if standing && !ctx.driven(entry) {
         match ctx.machine_kill(entry).await {
@@ -1144,7 +1144,7 @@ async fn delete_steps(ctx: &Rc<dyn PhasesCtx>, entry: &Entry, id: &str, takes: b
 pub async fn forget(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> Result<(), HostError> {
     let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
     if !ctx.driven(&entry) {
-        let (name, kind) = read_rec(&entry, |r| (r.name.clone(), r.kind.clone()));
+        let (name, kind) = read_rec(&entry, |r| (r.name.clone(), r.kind));
         return Err(conflict(forget_undriven_refusal(&name, &machine_word(&kind))));
     }
     let state = ctx.read_gone(&entry).await?;
@@ -1186,8 +1186,11 @@ pub async fn touch(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) ->
 pub async fn restart_daemon(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> Result<(), HostError> {
     let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
     if !ctx.has_restart_daemon(&entry) {
-        let (name, kind) = read_rec(&entry, |r| (r.name.clone(), r.kind.clone()));
-        return Err(HostError::new(format!("{name}'s daemon runs on {}, which this host does not hold the process of", machine_word(&kind))));
+        let (name, kind) = read_rec(&entry, |r| (r.name.clone(), r.kind));
+        return Err(HostError::new(format!(
+            "{name}'s daemon runs on {}, which this host does not hold the process of",
+            machine_word(&kind)
+        )));
     }
     let started = ctx.restart_daemon_of(&entry).await;
     if ctx.shared_daemon(&entry) {

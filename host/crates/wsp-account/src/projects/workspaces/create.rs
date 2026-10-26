@@ -19,12 +19,12 @@ use wsp_wire::wire::capabilities::Capabilities;
 use wsp_words::exit::{not_found_refusal, refusal, HostError, Kind};
 use wsp_words::js_date::iso_string;
 use wsp_words::projects::{copies_folder, copy_takes_none, runs_in_folder, workspace_lands, WorkspaceLands};
+use wsp_words::wire::machine_link::{place_not_a_workspace_fix, place_not_a_workspace_line};
 use wsp_words::words::computer::{
     folder_fork_fix, folder_fork_refusal, id_prefix_refusal, no_parent_workspace_line, no_workspace_refusal, parent_project_refusal,
-    spawn_folder_refusal, spawn_golden_refusal, spawn_reach_fix, spawn_reach_refusal, spawn_repository_workspace_refusal,
-    ID_PREFIX_MIN, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_WORKSPACE_FIX,
+    spawn_folder_refusal, spawn_golden_refusal, spawn_reach_fix, spawn_reach_refusal, spawn_repository_workspace_refusal, ID_PREFIX_MIN,
+    SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_WORKSPACE_FIX,
 };
-use wsp_words::wire::machine_link::{place_not_a_workspace_fix, place_not_a_workspace_line};
 use wsp_words::words::thread::refusal_line;
 
 use super::seam::{record_of, Base, Entry, EntryAsk, FreeSlot};
@@ -38,6 +38,7 @@ pub struct LeadStart {
 }
 
 /// What the create and lookup half reads off the runtime context, past `Base`.
+#[allow(clippy::too_many_arguments)]
 #[async_trait(?Send)]
 pub trait CreateCtx: Base {
     fn places_wired(&self) -> String;
@@ -72,7 +73,17 @@ pub trait CreateCtx: Base {
     /// `ctx.showCreate(view)`.
     fn show_create(&self, view: WorkspaceView);
     /// `ctx.refOf(project)` and `ctx.treeOf(scope)`, as the shown view's fields.
-    fn shown_view(&self, id: &str, name: &str, kind: WorkspaceKind, golden: &str, created_at: &str, project: &ProjectView, scope: &ThreadScope, parent: Option<&str>) -> WorkspaceView;
+    fn shown_view(
+        &self,
+        id: &str,
+        name: &str,
+        kind: WorkspaceKind,
+        golden: &str,
+        created_at: &str,
+        project: &ProjectView,
+        scope: &ThreadScope,
+        parent: Option<&str>,
+    ) -> WorkspaceView;
     async fn create_staged(
         &self,
         opts: CreateWorkspaceOptions,
@@ -91,7 +102,16 @@ pub trait CreateCtx: Base {
     fn shown_creates(&self) -> Rc<std::cell::RefCell<indexmap::IndexMap<String, WorkspaceView>>>;
     /// `ctx.failedCreates`.
     fn failed_creates(&self) -> Rc<std::cell::RefCell<indexmap::IndexMap<String, WorkspaceView>>>;
-    fn failed_view(&self, id: &str, name: &str, kind: WorkspaceKind, golden: &str, began: i64, project: &ProjectView, said: &str) -> WorkspaceView;
+    fn failed_view(
+        &self,
+        id: &str,
+        name: &str,
+        kind: WorkspaceKind,
+        golden: &str,
+        began: i64,
+        project: &ProjectView,
+        said: &str,
+    ) -> WorkspaceView;
     /// `await ctx.bootWork.get(id)`.
     async fn boot_work(&self, id: &str);
     fn listed_for(&self, origin: Option<&Caller>) -> Vec<Entry>;
@@ -142,7 +162,7 @@ pub async fn landing(ctx: &Rc<dyn CreateCtx>, project: &str, sized: bool, origin
             WorkspaceLands::Here | WorkspaceLands::Wired => None,
         };
         let name = ctx.place_name(place.as_deref().unwrap_or(HERE_PLACE_ID));
-        let capabilities = ctx.backend_capabilities(kind.clone(), place.as_deref());
+        let capabilities = ctx.backend_capabilities(kind, place.as_deref());
         return Ok(Landing { place, name, capabilities, kind: Some(kind) });
     }
     let place_id = ctx.landing_place(&computer).await?;
@@ -345,7 +365,9 @@ async fn fail_create(
                 console::warn(&format!("workspace {id} not stored: {}", p.message));
             }
             let machine = ctx.machine_id(&entry);
-            console::warn(&format!("workspace {id} failed to create and its machine {machine} would not stop; the record stays for wsp delete"));
+            console::warn(&format!(
+                "workspace {id} failed to create and its machine {machine} would not stop; the record stays for wsp delete"
+            ));
             kept = Some(entry);
         }
     }
@@ -361,7 +383,7 @@ async fn fail_create(
     shown_map.borrow_mut().shift_remove(id);
     if kept.is_none() {
         let failed = match &shown {
-            None => ctx.failed_view(id, name, kind.clone(), golden, began, project, &said),
+            None => ctx.failed_view(id, name, *kind, golden, began, project, &said),
             Some(view) => {
                 let mut view = view.clone();
                 view.phase = wsp_wire::views::workspace::WorkspacePhase::Gone;
@@ -438,7 +460,7 @@ pub async fn create(ctx: &Rc<dyn CreateCtx>, opts: CreateWorkspaceOptions, origi
         }
         return Ok(CreatedWorkspace { view: ctx.view(&record_of(&folder)), notice: None, sub: None });
     }
-    ctx.refuse_relayed(kind.clone(), &o.name, &project.id, origin.as_ref())?;
+    ctx.refuse_relayed(kind, &o.name, &project.id, origin.as_ref())?;
     let live = ctx.live();
     let parent: Option<Entry> = match &o.parent {
         None => None,
@@ -487,7 +509,8 @@ pub async fn create(ctx: &Rc<dyn CreateCtx>, opts: CreateWorkspaceOptions, origi
         };
         if let Some(scope) = &spawned {
             let created = iso_string(began as f64).unwrap_or_default();
-            let view = ctx.shown_view(&id, &o.name, kind.clone(), o.golden.as_deref().unwrap_or(""), &created, &project, scope, o.parent.as_deref());
+            let view =
+                ctx.shown_view(&id, &o.name, kind, o.golden.as_deref().unwrap_or(""), &created, &project, scope, o.parent.as_deref());
             ctx.show_create(view);
         }
         let base = start.as_ref().and_then(|s| s.base.clone());
@@ -665,7 +688,7 @@ pub async fn resolve(ctx: &Rc<dyn CreateCtx>, reference: &str, origin: Option<Ca
         return talked(ctx.view(&record_of(&entry)));
     }
     let record = record_of(&entry);
-    ctx.refuse_relayed(record.kind.clone(), &record.name, &record.project, origin.as_ref())?;
+    ctx.refuse_relayed(record.kind, &record.name, &record.project, origin.as_ref())?;
     Ok(ctx.view(&record))
 }
 

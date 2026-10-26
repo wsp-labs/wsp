@@ -11,11 +11,11 @@ use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Value};
 
 use wsp_core::daemon_channel::{ChannelEnd, ChannelError, DaemonChannel};
-use wsp_words::thread_cgroup::thread_cgroup;
-use wsp_words::workspace_state::is_local_workspace;
 use wsp_wire::types::js_number::JsInt;
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::wire::daemon::{ProcKind, ProcScope, ProcScopePid, PROC_SCOPES_MAX, PROC_SCOPE_PIDS_MAX};
+use wsp_words::thread_cgroup::thread_cgroup;
+use wsp_words::workspace_state::is_local_workspace;
 
 use crate::account::core_types::{AccountResult, Frame, Release};
 
@@ -100,7 +100,8 @@ pub struct ProcScopesArea {
     pub(crate) pushes: RefCell<Vec<Rc<dyn Fn()>>>,
     /// proc-scopes.ts:35 `standing`: the dial to this computer's daemon, shared by every move while it stands, and
     /// the scopes' JSON it was last told.
-    pub(crate) standing: RefCell<Option<(futures::future::Shared<futures::future::LocalBoxFuture<'static, Option<Rc<dyn DaemonChannel>>>>, String)>>,
+    pub(crate) standing:
+        RefCell<Option<(futures::future::Shared<futures::future::LocalBoxFuture<'static, Option<Rc<dyn DaemonChannel>>>>, String)>>,
     /// The identity of the standing dial, so a dial that ends clears only itself (`standing === held`).
     standing_id: Cell<u64>,
     standing_seq: Cell<u64>,
@@ -351,10 +352,7 @@ impl ProcScopesArea {
             if !at.contains_key(&terminal.thread) {
                 consider(&mut at, &terminal.thread, &terminal.workspace, 0.0);
             }
-            terminals
-                .entry(terminal.thread)
-                .or_default()
-                .push(ProcScopePid { pid: JsInt::from(terminal.pid), kind: ProcKind::Terminal });
+            terminals.entry(terminal.thread).or_default().push(ProcScopePid { pid: JsInt::from(terminal.pid), kind: ProcKind::Terminal });
         }
         let mut ordered: Vec<(String, Placed)> = at.into_iter().collect();
         ordered.sort_by(|a, b| b.1.started_at.partial_cmp(&a.1.started_at).unwrap_or(Ordering::Equal));

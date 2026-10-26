@@ -27,7 +27,8 @@ use wsp_words::exit::{HostError, Kind};
 
 const CREATED_AT: &str = "1970-01-01T00:16:40.000Z";
 const STATE: &str = "/home/me/.wsp";
-const NO_COPIER_HERE: &str = "this host has no daemon binary beside it to make a worktree with; stage this wsp's daemon binary and try again";
+const NO_COPIER_HERE: &str =
+    "this host has no daemon binary beside it to make a worktree with; stage this wsp's daemon binary and try again";
 const SETUP_HEAD: &str = "Before this thread started, its new worktree ran:";
 
 struct Rig {
@@ -184,7 +185,12 @@ fn record_folder_arms_the_sweep_only_for_a_made_worktree() {
     run(rig.folders.record_folder(&p, None, None)).unwrap();
     run(rig.folders.record_folder(&p, Some(tree(json!({ "path": "/tmp/theirs", "branch": "theirs", "made": false }))), None)).unwrap();
     base::assert_due(&rig.base.clock, &[]);
-    run(rig.folders.record_folder(&p, Some(tree(json!({ "path": "/home/me/.wsp/worktrees/p_web/feat-x", "branch": "feat/x", "made": true }))), None)).unwrap();
+    run(rig.folders.record_folder(
+        &p,
+        Some(tree(json!({ "path": "/home/me/.wsp/worktrees/p_web/feat-x", "branch": "feat/x", "made": true }))),
+        None,
+    ))
+    .unwrap();
     base::assert_due(&rig.base.clock, &[1_600_000]);
     assert!(rig.fake.sweep.borrow().timer.is_some());
 }
@@ -195,7 +201,8 @@ fn record_folder_on_a_joined_box_names_the_place_and_its_machine() {
     let rig = Rig::new();
     let p = rig.hold(boxed());
     let entry = run(rig.folders.record_folder(&p, None, None)).unwrap();
-    let want = folder_record("ws_11111111", "box", json!({ "kind": "place", "place": "pl_spoo", "machineId": "pl_spoo", "project": "p_box" }));
+    let want =
+        folder_record("ws_11111111", "box", json!({ "kind": "place", "place": "pl_spoo", "machineId": "pl_spoo", "project": "p_box" }));
     assert_eq!(rec_json(&entry), want);
     assert_eq!(persisted_json(&rig), json!([want]));
     assert_eq!(rig.base.args_of("admit_folder"), vec![json!({ "kind": "place", "name": "box", "place": "pl_spoo" })]);
@@ -269,9 +276,14 @@ fn place_for_a_branch_with_no_daemon_binary_is_refused_and_the_project_folder_st
 fn worktree_folder_refuses_a_daemon_behind_before_the_copier_runs() {
     let rig = Rig::new();
     let p = rig.hold(web());
-    *rig.fake.here.borrow_mut() = Some(Rc::new(FakeHere { version: (DAEMON_VERSION - 1) as u32, fix: "npm i -g @wsp-labs/wsp".to_owned() }));
+    *rig.fake.here.borrow_mut() =
+        Some(Rc::new(FakeHere { version: (DAEMON_VERSION - 1) as u32, fix: "npm i -g @wsp-labs/wsp".to_owned() }));
     let e = refusal(run(rig.folders.worktree_folder(&p, "/home/me/web", "feat/x", None, None, None)));
-    let said = format!("this computer's wsp daemon is version {} and this wsp needs {}; npm i -g @wsp-labs/wsp stages the right one", DAEMON_VERSION - 1, DAEMON_VERSION);
+    let said = format!(
+        "this computer's wsp daemon is version {} and this wsp needs {}; npm i -g @wsp-labs/wsp stages the right one",
+        DAEMON_VERSION - 1,
+        DAEMON_VERSION
+    );
     assert_eq!(e, plain(&said));
     assert_eq!(rig.base.names_of(&["here_daemon", "copier_worktree"]), vec!["here_daemon"]);
     rig.untouched();
@@ -282,7 +294,10 @@ fn worktree_folder_refuses_a_daemon_behind_before_the_copier_runs() {
 fn worktree_folder_at_the_top_is_the_project_folder() {
     let rig = Rig::new();
     let p = rig.hold(web());
-    rig.base.answer_with("copier_worktree", vec![json!({ "path": "/home/me/web", "branch": "main", "made": false, "carried": [], "fresh": false, "modules": [], "ms": 1 })]);
+    rig.base.answer_with(
+        "copier_worktree",
+        vec![json!({ "path": "/home/me/web", "branch": "main", "made": false, "carried": [], "fresh": false, "modules": [], "ms": 1 })],
+    );
     let got = run(rig.folders.worktree_folder(&p, "/home/me/web", "main", None, None, None)).unwrap();
     assert_eq!(rec_json(&got), folder_record("ws_11111111", "web", json!({})));
     assert_eq!(persisted_json(&rig), json!([folder_record("ws_11111111", "web", json!({}))]));
@@ -327,7 +342,8 @@ fn worktree_folder_keeps_the_setup_line_of_a_fresh_worktree_for_one_start() {
     let rig = Rig::new();
     let p = rig.hold(web());
     rig.after_worktree("make setup");
-    let got = run(rig.folders.worktree_folder(&p, "/home/me/web", "feat/x", Some("ws_parent".to_owned()), Some("t_root".to_owned()), None)).unwrap();
+    let got = run(rig.folders.worktree_folder(&p, "/home/me/web", "feat/x", Some("ws_parent".to_owned()), Some("t_root".to_owned()), None))
+        .unwrap();
     assert_eq!(
         rec_json(&got),
         folder_record(
@@ -355,7 +371,10 @@ fn a_worktree_made_again_comes_back_to_the_record_and_its_tree() {
     ));
     let got = run(rig.folders.worktree_folder(&p, "/home/me/web", "feat/again", None, Some("t_other".to_owned()), None)).unwrap();
     assert!(Rc::ptr_eq(&got, &held));
-    assert_eq!(worktree_of(&got), json!({ "path": "/home/me/.wsp/worktrees/p_web/feat-again", "branch": "feat/again", "made": true, "madeFor": "t_root" }));
+    assert_eq!(
+        worktree_of(&got),
+        json!({ "path": "/home/me/.wsp/worktrees/p_web/feat-again", "branch": "feat/again", "made": true, "madeFor": "t_root" })
+    );
     assert_eq!(rig.base.persisted.borrow().iter().map(|r| r.id.clone()).collect::<Vec<_>>(), vec!["ws_again"]);
     assert_eq!(rig.base.events.borrow().clone(), Vec::<Value>::new());
     assert_eq!(rig.base.args_of("admit_folder"), Vec::<Value>::new());
@@ -458,7 +477,12 @@ fn settle_worktree_says_a_timeout_in_minutes_and_a_failure_with_its_last_line() 
     let shown = "~/.wsp/worktrees/p_web/feat-x";
     assert_eq!(
         rig.fake_exec_commands(),
-        vec![format!("cd {at} && {pnpm}"), format!("cd {at}/svc && {go}"), format!("cd {at} && uv sync --locked"), format!("cd {at} && make seed")]
+        vec![
+            format!("cd {at} && {pnpm}"),
+            format!("cd {at}/svc && {go}"),
+            format!("cd {at} && uv sync --locked"),
+            format!("cd {at} && make seed")
+        ]
     );
     assert_eq!(
         rig.notices(),
@@ -466,7 +490,9 @@ fn settle_worktree_says_a_timeout_in_minutes_and_a_failure_with_its_last_line() 
             notice(&format!("{pnpm} runs in the new worktree at {shown} before its threads start")),
             notice(&format!("{pnpm} in the new worktree at {shown} was stopped after 3 minutes; threads there start without it")),
             notice(&format!("{go} runs in the new worktree at {shown}/svc before its threads start")),
-            notice(&format!("{go} in the new worktree at {shown}/svc exited 1: go: updates to go.sum needed; threads there start without it")),
+            notice(&format!(
+                "{go} in the new worktree at {shown}/svc exited 1: go: updates to go.sum needed; threads there start without it"
+            )),
             notice(&format!("uv sync --locked runs in the new worktree at {shown} before its threads start")),
             notice(&format!("uv sync --locked in the new worktree at {shown} exited 3; threads there start without it")),
             notice(&format!("make seed runs in the new worktree at {shown} before its threads start")),
@@ -515,7 +541,9 @@ fn worktree_mounted_mounts_only_a_made_standing_worktree() {
     rig.hold(project("p_flat", "flat", "here", json!({})));
     let dir = on_disk();
     let path = dir.path().to_str().unwrap().to_owned();
-    let hold = |id: &str, project: &str, worktree: Value| rig.base.hold(record(id, "local", project, if worktree.is_null() { json!({}) } else { json!({ "worktree": worktree }) }));
+    let hold = |id: &str, project: &str, worktree: Value| {
+        rig.base.hold(record(id, "local", project, if worktree.is_null() { json!({}) } else { json!({ "worktree": worktree }) }))
+    };
     let skipped = vec![
         hold("ws_folder", "p_web", Value::Null),
         hold("ws_theirs", "p_web", json!({ "path": path, "branch": "b", "made": false })),
@@ -643,7 +671,8 @@ fn place_for_refuses_a_box_thread_naming_another_computers_project() {
 fn place_for_refuses_branch_and_cwd_together() {
     let rig = Rig::new();
     rig.hold(web());
-    let ask = FolderAsk { project: Some("web".into()), branch: Some("x".into()), cwd: Some("/home/me/web/src".into()), ..Default::default() };
+    let ask =
+        FolderAsk { project: Some("web".into()), branch: Some("x".into()), cwd: Some("/home/me/web/src".into()), ..Default::default() };
     let e = refusal(run(rig.folders.place_for(&ask, None)));
     assert_eq!(e, kinded("name a branch or a folder, not both", Kind::Usage));
     rig.untouched();
@@ -654,7 +683,12 @@ fn place_for_refuses_branch_and_cwd_together() {
 fn place_for_on_a_box_refuses_a_branch_and_a_cwd_outside() {
     let rig = Rig::new();
     rig.hold(boxed());
-    let ask = |branch: Option<&str>, cwd: Option<&str>| FolderAsk { project: Some("box".into()), branch: branch.map(Into::into), cwd: cwd.map(Into::into), ..Default::default() };
+    let ask = |branch: Option<&str>, cwd: Option<&str>| FolderAsk {
+        project: Some("box".into()),
+        branch: branch.map(Into::into),
+        cwd: cwd.map(Into::into),
+        ..Default::default()
+    };
     let outside = |path: &str| kinded(&format!("{path} is not in box or a worktree of it; wsp add it first"), Kind::Usage);
     assert_eq!(refusal(run(rig.folders.place_for(&ask(Some("x"), None), None))), kinded(ASK_PLACE_BRANCH, Kind::Usage));
     assert_eq!(refusal(run(rig.folders.place_for(&ask(None, Some("/etc/passwd")), None))), outside("/etc/passwd"));
@@ -676,7 +710,8 @@ fn place_for_runs_beside_the_asking_thread() {
     rig.hold(project("p_other", "other", "here", json!({})));
     let folder = rig.base.hold(record("ws_folder", "local", "p_web", json!({})));
     let asking = rig.base.hold(record("ws_ask", "local", "p_web", json!({})));
-    let on_tree = rig.base.hold(record("ws_ask_tree", "local", "p_web", json!({ "worktree": { "path": "/tmp/t", "branch": "b", "made": true } })));
+    let on_tree =
+        rig.base.hold(record("ws_ask_tree", "local", "p_web", json!({ "worktree": { "path": "/tmp/t", "branch": "b", "made": true } })));
     let other = rig.base.hold(record("ws_ask_other", "local", "p_other", json!({})));
     let origin = |ws: &str| Some(thread("t1", ws, "t1"));
     let placed = run(rig.folders.place_for(&FolderAsk::default(), origin("ws_ask"))).unwrap();
@@ -721,16 +756,25 @@ fn place_for_with_a_cwd_in_a_plain_git_worktree_records_it_for_the_tree() {
     let rig = Rig::new();
     rig.hold(web());
     rig.base.hold(record("ws_ask", "local", "p_web", json!({})));
-    rig.script_worktrees("worktree /home/me/web\nHEAD abc\nbranch refs/heads/main\n\nworktree /tmp/by-hand\nHEAD def\nbranch refs/heads/by-hand\n\n");
+    rig.script_worktrees(
+        "worktree /home/me/web\nHEAD abc\nbranch refs/heads/main\n\nworktree /tmp/by-hand\nHEAD def\nbranch refs/heads/by-hand\n\n",
+    );
     let ask = FolderAsk { project: Some("web".into()), cwd: Some("/tmp/by-hand/sub".into()), ..Default::default() };
     let placed = run(rig.folders.place_for(&ask, Some(thread("t_child", "ws_ask", "t_root")))).unwrap();
     assert_eq!(placed.cwd, Some("/tmp/by-hand/sub".to_owned()));
     assert_eq!(
         rec_json(&placed.entry),
-        folder_record("ws_11111111", "web@by-hand", json!({ "worktree": { "path": "/tmp/by-hand", "branch": "by-hand", "made": false, "madeFor": "t_root" } }))
+        folder_record(
+            "ws_11111111",
+            "web@by-hand",
+            json!({ "worktree": { "path": "/tmp/by-hand", "branch": "by-hand", "made": false, "madeFor": "t_root" } })
+        )
     );
     assert_eq!(persisted_json(&rig), json!([rec_json(&placed.entry)]));
-    assert_eq!(rig.base.args_of("git"), vec![json!({ "cwd": "/home/me/web", "args": ["worktree", "list", "--porcelain"], "timeoutMs": null, "input": null })]);
+    assert_eq!(
+        rig.base.args_of("git"),
+        vec![json!({ "cwd": "/home/me/web", "args": ["worktree", "list", "--porcelain"], "timeoutMs": null, "input": null })]
+    );
     assert_eq!(rig.base.args_of("copier_worktree"), Vec::<Value>::new());
     assert_eq!(rig.base.events.borrow().len(), 1);
 }

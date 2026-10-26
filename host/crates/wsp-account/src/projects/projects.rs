@@ -111,7 +111,11 @@ impl wsp_core::context::ProjectsArea for Projects {}
 /// `rt.projects`: each call forwards to the unit that holds it (add, door, moves).
 #[async_trait(?Send)]
 impl wsp_core::types::api::ProjectsApi for Projects {
-    async fn add(&self, ask: wsp_core::types::api::ProjectAddAsk, origin: Option<Caller>) -> Result<wsp_core::types::api::ProjectAdded, HostError> {
+    async fn add(
+        &self,
+        ask: wsp_core::types::api::ProjectAddAsk,
+        origin: Option<Caller>,
+    ) -> Result<wsp_core::types::api::ProjectAdded, HostError> {
         let handle = Rc::new(Projects { ctx: self.ctx.clone() });
         let added = handle
             .add(
@@ -133,12 +137,7 @@ impl wsp_core::types::api::ProjectsApi for Projects {
         Projects::seed_plan(self, source, on.as_deref()).await
     }
     async fn seed(&self, reference: &str, ask: wsp_core::types::api::SeedAsk, origin: Option<Caller>) -> Result<ProjectSeed, HostError> {
-        let words = add::SeedWords {
-            keep: ask.keep,
-            cut: ask.cut,
-            none: ask.none == Some(true),
-            save: ask.save == Some(true),
-        };
+        let words = add::SeedWords { keep: ask.keep, cut: ask.cut, none: ask.none == Some(true), save: ask.save == Some(true) };
         Projects::seed(self, reference, words, origin).await
     }
     async fn list(&self, origin: Option<Caller>) -> Result<Vec<ProjectView>, HostError> {
@@ -157,7 +156,13 @@ impl wsp_core::types::api::ProjectsApi for Projects {
     async fn branch(&self, reference: &str, origin: Option<Caller>) -> Result<ProjectBranch, HostError> {
         Projects::branch(self, reference, origin).await
     }
-    async fn remove(&self, id: &str, origin: Option<Caller>, force: Option<bool>, check: Option<bool>) -> Result<wsp_core::types::api::ProjectRemoved, HostError> {
+    async fn remove(
+        &self,
+        id: &str,
+        origin: Option<Caller>,
+        force: Option<bool>,
+        check: Option<bool>,
+    ) -> Result<wsp_core::types::api::ProjectRemoved, HostError> {
         let words = door::RemoveWords { force: force == Some(true), check: check == Some(true), keep_look: false };
         let removed = Projects::remove_with(self, id, origin, words).await?;
         Ok(wsp_core::types::api::ProjectRemoved { said: removed.said, unsaved: removed.unsaved })
