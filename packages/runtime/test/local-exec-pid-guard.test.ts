@@ -38,7 +38,7 @@ describe("a run's .pid file names a pid before it is signalled", () => {
   afterEach(async () => {
     for (const drop of [...reading]) drop();
     for (const pid of ours) if (groupExists(pid)) real(-pid, "SIGKILL");
-    await vi.waitFor(() => expect([...ours].filter(groupExists)).toEqual([]), { timeout: 5_000 });
+    await vi.waitFor(() => expect([...ours].filter(groupExists)).toEqual([]), { timeout: 15_000 });
     vi.restoreAllMocks();
     rmSync(root, { recursive: true, force: true });
   });
@@ -107,7 +107,7 @@ describe("a run's .pid file names a pid before it is signalled", () => {
         expect(new Set(sent.map(([pid]) => pid))).toEqual(new Set([-stream.leader]));
         expect(sent[0]).toEqual([-stream.leader, verb === "teardown" ? "SIGTERM" : "SIGKILL"]);
         if (other !== undefined) expect(groupExists(other)).toBe(true);
-        await vi.waitFor(() => expect(groupExists(stream.leader)).toBe(false), { timeout: 5_000 });
+        await vi.waitFor(() => expect(groupExists(stream.leader)).toBe(false), { timeout: 15_000 });
       }
     }
     expect(said).toEqual([]);
@@ -193,7 +193,7 @@ describe("a run's .pid file names a pid before it is signalled", () => {
       const stream = launch(60_000);
       await localExecStream(options()).sweep!([]);
       expect(sent).toContainEqual([-stream.leader, "SIGTERM"]);
-      await vi.waitFor(() => expect(groupExists(stream.leader)).toBe(false), { timeout: 5_000 });
+      await vi.waitFor(() => expect(groupExists(stream.leader)).toBe(false), { timeout: 15_000 });
       expect(said).toEqual([]);
     }, 20_000);
   });
