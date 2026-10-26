@@ -68,14 +68,16 @@ pub const SESSION_TITLE_REFRESH_MAX: usize = 20;
 /// events.ts:57.
 pub const TITLE_MAKE_TIMEOUT_MS: u64 = 25_000;
 
-/// The bus's whole state and no more (chapter 03, rule 3.20). A removed listener leaves `None` in its slot, so a
-/// delivery that iterates by index skips it and reaches one added mid-delivery (rule 3.7); an empty list is never
-/// removed from the map.
+/// The bus's whole state and no more (chapter 03, rule 3.20). A listener removed while a delivery is walking the
+/// lists leaves `None` in its slot, so the walk by index skips it and reaches one added mid-delivery (rule 3.7); the
+/// slots are swept out when the outermost delivery ends, and a listener removed between deliveries leaves none.
 pub struct BusState {
     pub listeners: IndexMap<String, Vec<Option<EventListener>>>,
     pub ring: VecDeque<EventUnion>,
     pub stream: String,
     pub head: u64,
+    /// How many deliveries are walking the lists now.
+    pub delivering: usize,
 }
 
 /// The bus `eventBus()` makes: the read side plus `emit` and `pass`. events.ts:59-98.
@@ -89,7 +91,7 @@ pub struct Bus {
 /// (chapter 03, rule 3.16), where the TS calls `randomUUID()` (events.ts:62).
 pub fn event_bus(stream: String) -> Rc<Bus> {
     Rc::new_cyclic(|me| Bus {
-        state: RefCell::new(BusState { listeners: IndexMap::new(), ring: VecDeque::new(), stream, head: 0 }),
+        state: RefCell::new(BusState { listeners: IndexMap::new(), ring: VecDeque::new(), stream, head: 0, delivering: 0 }),
         me: me.clone(),
     })
 }
@@ -116,6 +118,7 @@ impl Bus {
 
     /// Calls the `ty` listeners then the `ANY_EVENT` ones, by index, with no borrow held (rule 3.7).
     fn deliver(&self, ty: &str, event: &EventUnion) -> Result<(), HostError> {
+        let _walk = Walk::enter(&self.state);
         for key in [ty, ANY_EVENT] {
             let mut i = 0;
             loop {
@@ -144,6 +147,28 @@ impl Bus {
     }
 }
 
+/// One delivery's hold on the lists: the slots of listeners removed meanwhile are swept when the last one lets go.
+struct Walk<'a>(&'a RefCell<BusState>);
+
+impl<'a> Walk<'a> {
+    fn enter(state: &'a RefCell<BusState>) -> Self {
+        state.borrow_mut().delivering += 1;
+        Walk(state)
+    }
+}
+
+impl Drop for Walk<'_> {
+    fn drop(&mut self) {
+        let mut st = self.0.borrow_mut();
+        st.delivering -= 1;
+        if st.delivering == 0 {
+            for list in st.listeners.values_mut() {
+                list.retain(Option::is_some);
+            }
+        }
+    }
+}
+
 impl EventBus for Bus {
     fn on(&self, event_type: &str, listener: EventListener) -> Unlisten {
         {
@@ -159,8 +184,14 @@ impl EventBus for Bus {
             let Some(bus) = bus.upgrade() else { return };
             let removed = {
                 let mut st = bus.state.borrow_mut();
+                let walking = st.delivering > 0;
                 let Some(list) = st.listeners.get_mut(&key) else { return };
-                list.iter_mut().find(|slot| slot.as_ref().is_some_and(|l| Rc::ptr_eq(l, &listener))).and_then(|slot| slot.take())
+                let Some(at) = list.iter().position(|slot| slot.as_ref().is_some_and(|l| Rc::ptr_eq(l, &listener))) else { return };
+                if walking {
+                    list[at].take()
+                } else {
+                    list.remove(at)
+                }
             };
             drop(removed);
         })

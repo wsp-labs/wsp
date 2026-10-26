@@ -19,6 +19,8 @@ pub mod idle;
 pub mod ids;
 pub mod local_exec;
 pub mod machine_exec;
+pub mod node_base64;
+pub mod node_path;
 pub mod pipe;
 pub mod place_forward;
 pub mod plan_alerts;

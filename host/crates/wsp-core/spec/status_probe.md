@@ -30,7 +30,7 @@ The pure half of the status tracker: what a runtime phase means as a provider st
 - Rule 4.25: figures and the `<status> <message>` line format numbers as JavaScript does.
 
 ## Decisions
-1. `bounded` and `ask_daemon` take the clock (the TS's raw `setTimeout` goes through the clock, rule 3.15).
+1. `bounded` and `ask_daemon` take the clock (the TS's raw `setTimeout` goes through the clock, rule 3.15). One exception: the exec probe's bound (`probe_exec`) runs on the real clock, as `status.ts:290-298` and `:550-561` arm a raw `setTimeout`; under the fake clock a fake-clock bound would expire the probe `status.test.ts:1741-1747` expects to stay in flight.
 2. Errors the record's roads answer are `EngineError`; `missed` and `provider_said` read them with `wsp_engine::errors`.
 
 ## After the port

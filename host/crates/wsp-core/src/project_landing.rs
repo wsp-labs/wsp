@@ -16,7 +16,6 @@ use wsp_engine::exec_detached::put::INLINE_EXEC_MS;
 use wsp_engine::machine::{ExecOptions, Machine};
 use wsp_engine::project_install::{install_script, project_installs, INSTALL_MS, INSTALL_STORES};
 use wsp_engine::run_env::{env_input, with_env_from_input};
-use wsp_wire::types::changes::Checkout;
 use wsp_wire::types::daemon_contract::{BROKER_PORT, SEEDED_REFS};
 use wsp_wire::types::js_number::{JsInt, JsNumber};
 use wsp_wire::types::project_seed::{SEED_DIR, SEED_MEMORY_DIR, SEED_PATCH};
@@ -30,14 +29,14 @@ use wsp_wire::views::workspace_more::ProjectBranch;
 use wsp_wire::wire::machine_link::project_folder_named;
 use wsp_wire::wire::machine_link::ExecResult;
 use wsp_words::exit::HostError;
-use wsp_words::js::to_number;
+use wsp_words::js::{is_js_whitespace, js_round, js_trim, number_string, to_number};
 use wsp_words::js_date::iso_string;
 use wsp_words::project_path::{claude_memory_dir, claude_project_key, place_daemon_paths, place_install_log};
 use wsp_words::project_seed::{seed_bytes, seed_commits_landed_line, seed_commits_lost_line, seeding_line};
 use wsp_words::projects::{
     project_left_on_computer_line, project_path_on, project_removed_at_provider_line, project_removed_here_line, seed_memory_kept_line,
 };
-use wsp_words::workspace_state::{unpushed_line, unpushed_unread_line};
+use wsp_words::workspace_state::unpushed_unread_line;
 
 use crate::console;
 use crate::project_sources::ProjectSourceModule;
@@ -285,7 +284,7 @@ async fn clone_seed_install(
             )));
         }
     }
-    let seconds = (((deps.now)() - began) as f64 / 1000.0).round();
+    let seconds = js_round((((deps.now)() - began) as f64) / 1000.0);
     Ok(Landed {
         installed: Some(ProjectViewInstalled {
             row: installs.iter().map(|i| i.row.as_str()).collect::<Vec<_>>().join(", "),
@@ -826,7 +825,7 @@ pub fn unsaved_of(name: &str, ran: &ExecResult) -> Option<String> {
         return None;
     }
     let text = said.clone().unwrap_or_default();
-    let counts: Vec<f64> = text.split_whitespace().map(to_number).collect();
+    let counts: Vec<f64> = text.split(is_js_whitespace).filter(|n| !n.is_empty()).map(to_number).collect();
     let counted = |n: &f64| n.fract() == 0.0 && *n >= 0.0;
     if counts.len() != 3 || !counts.iter().all(counted) {
         let why = if ran.exit_code.get() != 0 {
@@ -836,19 +835,23 @@ pub fn unsaved_of(name: &str, ran: &ExecResult) -> Option<String> {
         };
         return Some(unpushed_unread_line(name, &why));
     }
-    let (ahead, changed, stashes) = (counts[0], counts[1], counts[2]);
-    let checkout = Checkout {
-        branch: String::new(),
-        ahead: JsInt::from(ahead as i64),
-        behind: JsInt::from(0),
-        changed: JsInt::from(changed as i64),
-        edits_unread: None,
-        counts_unknown: None,
-        stashes: (stashes > 0.0).then(|| JsInt::from(stashes as i64)),
-        head: None,
-        read_at: JsNumber(0.0),
-    };
-    unpushed_line(name, Some(&checkout))
+    counts_line(name, counts[0], counts[1], counts[2])
+}
+
+/// `unpushedLine` for a read of three counts, which are numbers as JavaScript has them: past `i64` they print as it prints them.
+fn counts_line(name: &str, ahead: f64, changed: f64, stashes: f64) -> Option<String> {
+    let count = |n: f64, one: &str, many: &str| format!("{} {}", number_string(n), if n == 1.0 { one } else { many });
+    let parts: Vec<String> = [
+        (ahead > 0.0).then(|| format!("{} not pushed", count(ahead, "commit", "commits"))),
+        (changed > 0.0).then(|| count(changed, "uncommitted file", "uncommitted files")),
+        (stashes > 0.0).then(|| count(stashes, "stash", "stashes")),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    let (last, init) = parts.split_last()?;
+    let listed = if init.is_empty() { last.clone() } else { format!("{} and {last}", init.join(", ")) };
+    Some(format!("{name} holds {listed}"))
 }
 
 /// One command run where the checkout is, with its timeout in ms.
@@ -914,5 +917,6 @@ pub fn free_folder_script(home: &str, name: &str) -> String {
 
 /// The last line of `out` trimmed, `None` where it is empty. project-landing.ts:636.
 pub fn last_line(out: &str) -> Option<String> {
-    wsp_words::words::base::last_line(out)
+    let line = js_trim(js_trim(out).rsplit('\n').next().unwrap_or(""));
+    (!line.is_empty()).then(|| line.to_string())
 }
