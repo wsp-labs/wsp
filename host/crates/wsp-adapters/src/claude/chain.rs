@@ -46,7 +46,10 @@ pub fn session_file_line(config_dir: &str, session: &str) -> Result<String, Adap
 /// chain.ts:46.
 pub fn chain_read_command(session: &str, config_dir: &str) -> Result<String, AdapterError> {
     let blank = shell_quote(&format!(r#"s/([,:{{[])"([^"\\]|\\.){{{READ_STRING},}}"/\1""/g"#));
-    Ok(format!("{}; n=$(wc -l < \"$src\"); echo $n; head -n \"$n\" \"$src\" | sed -E {blank} | grep -n -F '\"uuid\":\"'", session_file_line(config_dir, session)?))
+    Ok(format!(
+        "{}; n=$(wc -l < \"$src\"); echo $n; head -n \"$n\" \"$src\" | sed -E {blank} | grep -n -F '\"uuid\":\"'",
+        session_file_line(config_dir, session)?
+    ))
 }
 
 /// One call an assistant line holds.
@@ -86,7 +89,9 @@ pub(crate) fn js_string(value: Option<&Value>) -> String {
         Some(Value::Bool(flag)) => flag.to_string(),
         Some(Value::Number(number)) => number_string(number.as_f64().unwrap_or(f64::NAN)),
         Some(Value::String(text)) => text.clone(),
-        Some(Value::Array(items)) => items.iter().map(|item| if item.is_null() { String::new() } else { js_string(Some(item)) }).collect::<Vec<_>>().join(","),
+        Some(Value::Array(items)) => {
+            items.iter().map(|item| if item.is_null() { String::new() } else { js_string(Some(item)) }).collect::<Vec<_>>().join(",")
+        }
         Some(Value::Object(_)) => "[object Object]".into(),
     }
 }
@@ -111,7 +116,10 @@ pub fn read_chain(read: &[String]) -> Result<ReadChain, AdapterError> {
         let (Some(at), Some(uuid)) = (safe_count(at), line.get("uuid").and_then(Value::as_str)) else { continue };
         let kind = line.get("type").and_then(Value::as_str).unwrap_or("");
         let message = line.get("message").and_then(Value::as_object);
-        let blocks: Vec<&serde_json::Map<String, Value>> = message.and_then(|m| m.get("content")).and_then(Value::as_array).map_or(vec![], |items| items.iter().filter_map(Value::as_object).collect());
+        let blocks: Vec<&serde_json::Map<String, Value>> = message
+            .and_then(|m| m.get("content"))
+            .and_then(Value::as_array)
+            .map_or(vec![], |items| items.iter().filter_map(Value::as_object).collect());
         let block_text = |block: &serde_json::Map<String, Value>, key: &str| block.get(key).and_then(Value::as_str).map(String::from);
         lines.push(ChainLine {
             at,
@@ -125,14 +133,22 @@ pub fn read_chain(read: &[String]) -> Result<ReadChain, AdapterError> {
                     .iter()
                     .filter(|b| b.get("type").and_then(Value::as_str) == Some("tool_use"))
                     .filter_map(|b| {
-                        Some(ChainCall { id: block_text(*b, "id")?, name: js_string(b.get("name")), input: b.get("input").filter(|v| !v.is_null()).cloned().unwrap_or_else(|| json!({})) })
+                        Some(ChainCall {
+                            id: block_text(b, "id")?,
+                            name: js_string(b.get("name")),
+                            input: b.get("input").filter(|v| !v.is_null()).cloned().unwrap_or_else(|| json!({})),
+                        })
                     })
                     .collect()
             } else {
                 vec![]
             },
             answers: if kind == "user" {
-                blocks.iter().filter(|b| b.get("type").and_then(Value::as_str) == Some("tool_result")).filter_map(|b| block_text(*b, "tool_use_id")).collect()
+                blocks
+                    .iter()
+                    .filter(|b| b.get("type").and_then(Value::as_str) == Some("tool_result"))
+                    .filter_map(|b| block_text(b, "tool_use_id"))
+                    .collect()
             } else {
                 vec![]
             },
@@ -151,7 +167,11 @@ pub fn chain_through(lines: &[ChainLine], anchor: &str) -> Result<Vec<u64>, Adap
     let mut seen: HashSet<&str> = HashSet::new();
     let mut next = Some(anchor);
     while let Some(at) = next.take() {
-        let line = by_uuid.get(at).copied().filter(|_| !seen.contains(at)).ok_or_else(|| AdapterError(format!("the session's chain to message {anchor} is broken at {at}")))?;
+        let line = by_uuid
+            .get(at)
+            .copied()
+            .filter(|_| !seen.contains(at))
+            .ok_or_else(|| AdapterError(format!("the session's chain to message {anchor} is broken at {at}")))?;
         seen.insert(at);
         kept.push(line.at);
         if !line.boundary {
@@ -177,7 +197,12 @@ pub fn live_end(lines: &[ChainLine]) -> Option<LiveEnd> {
     let message = newest.and_then(|line| line.message_id.as_deref());
     let open: Vec<&ChainCall> = match message {
         None => vec![],
-        Some(message) => lines.iter().filter(|line| line.message_id.as_deref() == Some(message)).flat_map(|line| line.calls.iter()).filter(|call| !answered.contains(call.id.as_str())).collect(),
+        Some(message) => lines
+            .iter()
+            .filter(|line| line.message_id.as_deref() == Some(message))
+            .flat_map(|line| line.calls.iter())
+            .filter(|call| !answered.contains(call.id.as_str()))
+            .collect(),
     };
     if open.is_empty() {
         return Some(LiveEnd { anchor: last.uuid.clone(), running: vec![] });
@@ -210,7 +235,9 @@ pub fn chain_write_command(session: &str, fork: &str, config_dir: &str, count: u
     if count < 1 {
         return Err(AdapterError(format!("a copy keeps a whole number of lines, got {count}")));
     }
-    let pick = shell_quote(r#"NR == FNR { n = split($0, r, ","); for (i = 1; i <= n; i++) { m = split(r[i], ab, "-"); for (j = ab[1] + 0; j <= ab[m] + 0; j++) keep[j] = 1 } next } FNR in keep"#);
+    let pick = shell_quote(
+        r#"NR == FNR { n = split($0, r, ","); for (i = 1; i <= n; i++) { m = split(r[i], ab, "-"); for (j = ab[1] + 0; j <= ab[m] + 0; j++) keep[j] = 1 } next } FNR in keep"#,
+    );
     let short = shell_quote(&format!("the copy of session {session} came out short"));
     let source = session_file_line(config_dir, session)?;
     Ok(format!(
@@ -306,7 +333,9 @@ pub async fn copy_session(o: CopyOptions) -> Result<CopiedSession, AdapterError>
     let command = chain_write_command(&o.session, &fork, &o.config_dir, kept.len() as u64)?;
     let wrote = run_copy(&o, &command, Some(vec![line_ranges(&kept)]), wall_ms).await?;
     if wrote.code != Some(0) {
-        return Err(AdapterError(wrote.lines.last().cloned().unwrap_or_else(|| format!("the copy of session {} was not written", o.session))));
+        return Err(AdapterError(
+            wrote.lines.last().cloned().unwrap_or_else(|| format!("the copy of session {} was not written", o.session)),
+        ));
     }
     Ok(CopiedSession { session: fork, running: end.running })
 }

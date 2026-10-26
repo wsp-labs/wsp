@@ -9,7 +9,10 @@ use serde_json::{json, Map, Value};
 
 use crate::claude::landmines::{build_env, BaseEnv, ClaudeEnvOptions};
 use crate::pending::{claude_project_key, folders_stamp_command, shell_quote};
-use crate::port::{program_word, AgentLaunch, ConversationEarlier, ConversationLine, ConversationOrigin, ConversationRoad, ConversationStore, EarlierAsk, EarlierRead, Env, ExecFailure, StoreError, StoredConversation};
+use crate::port::{
+    program_word, AgentLaunch, ConversationEarlier, ConversationLine, ConversationOrigin, ConversationRoad, ConversationStore, EarlierAsk,
+    EarlierRead, Env, ExecFailure, StoreError, StoredConversation,
+};
 use wsp_wire::types::check::parse;
 use wsp_wire::types::shell_quote::ENV_FROM_INPUT;
 use wsp_wire::wire::limits::TRANSCRIPT_DIRS_MAX;
@@ -54,17 +57,16 @@ pub fn runs_of<T: Clone>(list: &[T]) -> Vec<Vec<T>> {
 
 /// conversations.ts:49.
 pub fn live_command(launch: Option<&AgentLaunch>) -> String {
-    format!("cd ~ && unset ${{!CLAUDE_CODE_@}} CLAUDECODE FORCE_CODE_TERMINAL; {ENV_FROM_INPUT}; {} agents --json", program_word("claude", launch))
+    format!(
+        "cd ~ && unset ${{!CLAUDE_CODE_@}} CLAUDECODE FORCE_CODE_TERMINAL; {ENV_FROM_INPUT}; {} agents --json",
+        program_word("claude", launch)
+    )
 }
 
 /// conversations.ts:55. `None` where stdout is not a JSON array.
 pub fn parse_live(stdout: &str) -> Option<IndexSet<String>> {
     let Value::Array(rows) = parse_json_lax(js_trim(stdout))? else { return None };
-    Some(
-        rows.iter()
-            .filter_map(|row| row.as_object()?.get("sessionId")?.as_str().filter(|id| !id.is_empty()).map(String::from))
-            .collect(),
-    )
+    Some(rows.iter().filter_map(|row| row.as_object()?.get("sessionId")?.as_str().filter(|id| !id.is_empty()).map(String::from)).collect())
 }
 
 /// What claude_conversations takes. conversations.ts:71.
@@ -103,7 +105,8 @@ impl ConversationStore for ClaudeStore {
     }
 
     fn stamp(&self, cwds: Vec<String>, road: ConversationRoad) -> Option<LocalBoxFuture<'static, Result<String, StoreError>>> {
-        let folders: Vec<String> = keys_for(&cwds, self.pinned.as_deref()).iter().map(|key| shell_quote(&format!("{}/{key}", self.root))).collect();
+        let folders: Vec<String> =
+            keys_for(&cwds, self.pinned.as_deref()).iter().map(|key| shell_quote(&format!("{}/{key}", self.root))).collect();
         let command = folders_stamp_command(&folders);
         Some(async move { road.exec.exec(&command, None).await.map_err(exec_error) }.boxed_local())
     }
@@ -136,7 +139,12 @@ async fn present_keys(root: &str, keys: Vec<String>, road: &ConversationRoad, fi
     Ok(keys.into_iter().filter(|key| held.contains(key.as_str())).collect())
 }
 
-async fn list_rows(root: &str, pinned: Option<&str>, cwds: &[String], road: &ConversationRoad) -> Result<Vec<StoredConversation>, StoreError> {
+async fn list_rows(
+    root: &str,
+    pinned: Option<&str>,
+    cwds: &[String],
+    road: &ConversationRoad,
+) -> Result<Vec<StoredConversation>, StoreError> {
     let dirs = present_keys(root, keys_for(cwds, pinned), road, None).await?;
     let mut frames = Vec::new();
     for dir_run in runs_of(&dirs) {
@@ -178,7 +186,13 @@ fn voice_word(who: TranscriptVoice) -> &'static str {
     }
 }
 
-async fn earlier_read(root: &str, pinned: Option<&str>, id: &str, ask: &EarlierAsk, road: &ConversationRoad) -> Result<EarlierRead, StoreError> {
+async fn earlier_read(
+    root: &str,
+    pinned: Option<&str>,
+    id: &str,
+    ask: &EarlierAsk,
+    road: &ConversationRoad,
+) -> Result<EarlierRead, StoreError> {
     let dirs = present_keys(root, keys_for(&ask.cwds, pinned), road, Some(&format!("{id}.jsonl"))).await?;
     let frames = runs_of(&dirs).into_iter().map(|dir_run| {
         let mut frame = object(json!({"op": "transcripts.read", "root": root, "dirs": dir_run, "session": id, "last": ask.last}));
@@ -202,7 +216,12 @@ async fn earlier_read(root: &str, pinned: Option<&str>, id: &str, ask: &EarlierA
         lines: reply
             .messages
             .into_iter()
-            .map(|message| ConversationLine { who: voice_word(message.who).to_string(), text: message.text, tool: message.tool, at: message.at.map(|at| at.0) })
+            .map(|message| ConversationLine {
+                who: voice_word(message.who).to_string(),
+                text: message.text,
+                tool: message.tool,
+                at: message.at.map(|at| at.0),
+            })
             .collect(),
         earlier: reply.earlier.0 as u32,
     }))
