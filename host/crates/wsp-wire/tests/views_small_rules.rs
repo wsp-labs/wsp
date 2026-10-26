@@ -50,31 +50,6 @@ mod golden_image_rows {
     }
 
     #[test]
-    fn a_command_check_quotes_the_binary_for_sh() {
-        for (a, want) in cases("command_check") {
-            assert_eq!(command_check(&text(&a[0])), text(&want), "{a:?}");
-        }
-    }
-
-    #[test]
-    fn pins_are_one_per_tick_that_has_one_sorted_by_id_as_locale_compare_orders_them() {
-        // The ids mix case, an accent, an underscore and digits, where localeCompare and a byte sort disagree.
-        for (a, want) in cases("recipe_pins") {
-            let digest: RecipeDigest = of(&a[0]);
-            let pins = if a[1].is_null() {
-                recipe_pins(&digest, None)
-            } else {
-                let key = |id: &str| format!("p/{id}");
-                recipe_pins(&digest, Some(&key))
-            };
-            assert_eq!(serde_json::to_value(&pins).unwrap(), want, "{a:?}");
-            let ids: Vec<&str> = pins.iter().map(|p| p.id.as_str()).collect();
-            let want_ids: Vec<&str> = want.as_array().unwrap().iter().map(|p| p["id"].as_str().unwrap()).collect();
-            assert_eq!(ids, want_ids, "pin order");
-        }
-    }
-
-    #[test]
     fn the_head_is_the_version_it_names_and_nothing_without_a_manifest_or_that_version() {
         for (a, want) in cases("golden_head") {
             let manifest: Option<GoldenManifest> = if a[0].is_null() { None } else { Some(of(&a[0])) };
@@ -263,7 +238,6 @@ mod a_workspace_s_agents {
             let held: Option<WorkspaceAgents> = if a[0].is_null() { None } else { Some(of(&a[0])) };
             let p = &a[1];
             let patch = WorkspaceAgentsPatch {
-                spawn: p["spawn"].as_bool(),
                 max_machines: p["maxMachines"].as_i64().map(Into::into),
                 max_depth: p["maxDepth"].as_i64().map(Into::into),
             };

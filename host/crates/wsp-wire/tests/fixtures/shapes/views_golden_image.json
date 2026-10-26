@@ -1589,7 +1589,6 @@
   "input": {
    "version": 1,
    "at": "text é",
-   "tick": "default",
    "histories": [
     {
      "agent": "text é",
@@ -1631,10 +1630,9 @@
      "size": 7,
      "why": "text é"
     }
-   ],
-   "engine": true
+   ]
   },
-  "output": "{\"version\":1,\"at\":\"text é\",\"tick\":\"default\",\"histories\":[{\"agent\":\"text é\",\"state\":\"no-reader\",\"sessions\":7,\"calls\":7}],\"rows\":[{\"id\":\"text é\",\"kind\":\"tool\",\"on\":true,\"source\":{\"kind\":\"popular\",\"sessions\":7,\"images\":7},\"size\":7,\"signIn\":\"token\",\"pin\":{\"tag\":\"text é\",\"sha256\":\"text é\",\"arch\":\"aarch64\",\"latest\":true}}],\"custom\":[{\"kind\":\"custom\",\"id\":\"text é\",\"name\":\"text é\",\"install\":[\"text é\"],\"check\":\"text é\",\"manager\":\"text é\",\"size\":7,\"why\":\"text é\"}],\"engine\":true}"
+  "output": "{\"version\":1,\"at\":\"text é\",\"histories\":[{\"agent\":\"text é\",\"state\":\"no-reader\",\"sessions\":7,\"calls\":7}],\"rows\":[{\"id\":\"text é\",\"kind\":\"tool\",\"on\":true,\"source\":{\"kind\":\"popular\",\"sessions\":7,\"images\":7},\"size\":7,\"signIn\":\"token\",\"pin\":{\"tag\":\"text é\",\"sha256\":\"text é\",\"arch\":\"aarch64\",\"latest\":true}}],\"custom\":[{\"kind\":\"custom\",\"id\":\"text é\",\"name\":\"text é\",\"install\":[\"text é\"],\"check\":\"text é\",\"manager\":\"text é\",\"size\":7,\"why\":\"text é\"}]}"
  },
  {
   "type": "Recipe",
@@ -1653,20 +1651,17 @@
   "input": {
    "version": 1,
    "at": "s",
-   "tick": "used",
    "histories": [],
    "rows": [],
-   "custom": [],
-   "engine": false
+   "custom": []
   },
-  "output": "{\"version\":1,\"at\":\"s\",\"tick\":\"used\",\"histories\":[],\"rows\":[],\"custom\":[],\"engine\":false}"
+  "output": "{\"version\":1,\"at\":\"s\",\"histories\":[],\"rows\":[],\"custom\":[]}"
  },
  {
   "type": "Recipe",
   "case": "missing version",
   "input": {
    "at": "text é",
-   "tick": "default",
    "histories": [
     {
      "agent": "text é",
@@ -1708,8 +1703,7 @@
      "size": 7,
      "why": "text é"
     }
-   ],
-   "engine": true
+   ]
   },
   "issue": {
    "code": "invalid_literal",
@@ -1725,7 +1719,6 @@
   "input": {
    "version": 1,
    "at": "",
-   "tick": "default",
    "histories": [
     {
      "agent": "text é",
@@ -1767,8 +1760,7 @@
      "size": 7,
      "why": "text é"
     }
-   ],
-   "engine": true
+   ]
   },
   "issue": {
    "code": "too_small",
@@ -1776,124 +1768,6 @@
     "at"
    ],
    "serdeLevel": false
-  }
- },
- {
-  "type": "Recipe",
-  "case": "tick: not one of its values",
-  "input": {
-   "version": 1,
-   "at": "text é",
-   "tick": "not-a-value",
-   "histories": [
-    {
-     "agent": "text é",
-     "state": "no-reader",
-     "sessions": 7,
-     "calls": 7
-    }
-   ],
-   "rows": [
-    {
-     "id": "text é",
-     "kind": "tool",
-     "on": true,
-     "source": {
-      "kind": "popular",
-      "sessions": 7,
-      "images": 7
-     },
-     "size": 7,
-     "signIn": "token",
-     "pin": {
-      "tag": "text é",
-      "sha256": "text é",
-      "arch": "aarch64",
-      "latest": true
-     }
-    }
-   ],
-   "custom": [
-    {
-     "kind": "custom",
-     "id": "text é",
-     "name": "text é",
-     "install": [
-      "text é"
-     ],
-     "check": "text é",
-     "manager": "text é",
-     "size": 7,
-     "why": "text é"
-    }
-   ],
-   "engine": true
-  },
-  "issue": {
-   "code": "invalid_enum_value",
-   "path": [
-    "tick"
-   ],
-   "serdeLevel": true
-  }
- },
- {
-  "type": "Recipe",
-  "case": "engine: not a boolean",
-  "input": {
-   "version": 1,
-   "at": "text é",
-   "tick": "default",
-   "histories": [
-    {
-     "agent": "text é",
-     "state": "no-reader",
-     "sessions": 7,
-     "calls": 7
-    }
-   ],
-   "rows": [
-    {
-     "id": "text é",
-     "kind": "tool",
-     "on": true,
-     "source": {
-      "kind": "popular",
-      "sessions": 7,
-      "images": 7
-     },
-     "size": 7,
-     "signIn": "token",
-     "pin": {
-      "tag": "text é",
-      "sha256": "text é",
-      "arch": "aarch64",
-      "latest": true
-     }
-    }
-   ],
-   "custom": [
-    {
-     "kind": "custom",
-     "id": "text é",
-     "name": "text é",
-     "install": [
-      "text é"
-     ],
-     "check": "text é",
-     "manager": "text é",
-     "size": 7,
-     "why": "text é"
-    }
-   ],
-   "engine": "yes"
-  },
-  "issue": {
-   "code": "invalid_type",
-   "path": [
-    "engine"
-   ],
-   "serdeLevel": true
   }
  },
  {
@@ -2672,34 +2546,6 @@
   "output": "{\"kind\":\"used\",\"sessions\":7,\"calls\":7}"
  },
  {
-  "type": "RecipeTick",
-  "case": "full",
-  "input": "default",
-  "output": "\"default\""
- },
- {
-  "type": "RecipeTick",
-  "case": "minimal",
-  "input": "used",
-  "output": "\"used\""
- },
- {
-  "type": "RecipeTick",
-  "case": "value installed",
-  "input": "installed",
-  "output": "\"installed\""
- },
- {
-  "type": "RecipeTick",
-  "case": "not one of the values",
-  "input": "not-a-value",
-  "issue": {
-   "code": "invalid_enum_value",
-   "path": [],
-   "serdeLevel": true
-  }
- },
- {
   "type": "SealedImage",
   "case": "full",
   "input": {
@@ -2710,7 +2556,6 @@
    "recipe": {
     "version": 1,
     "at": "text é",
-    "tick": "default",
     "histories": [
      {
       "agent": "text é",
@@ -2749,19 +2594,8 @@
       "size": 7,
       "why": "text é"
      }
-    ],
-    "engine": true
+    ]
    },
-   "pins": [
-    {
-     "tag": "text é",
-     "sha256": "text é",
-     "arch": "aarch64",
-     "latest": true,
-     "id": "text é",
-     "road": "text é"
-    }
-   ],
    "logins": [
     {
      "name": "text é",
@@ -2783,7 +2617,7 @@
    "place": "text é",
    "noSecrets": true
   },
-  "output": "{\"name\":\"text é\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"recipeHash\":\"text é\",\"recipe\":{\"version\":1,\"at\":\"text é\",\"tick\":\"default\",\"histories\":[{\"agent\":\"text é\",\"state\":\"no-reader\",\"sessions\":7,\"calls\":7}],\"rows\":[{\"id\":\"text é\",\"kind\":\"tool\",\"on\":true,\"source\":{\"kind\":\"popular\",\"sessions\":7,\"images\":7},\"size\":7,\"signIn\":\"token\",\"pin\":{\"tag\":\"text é\"}}],\"custom\":[{\"kind\":\"custom\",\"id\":\"text é\",\"name\":\"text é\",\"install\":[\"text é\"],\"check\":\"text é\",\"manager\":\"text é\",\"size\":7,\"why\":\"text é\"}],\"engine\":true},\"pins\":[{\"tag\":\"text é\",\"sha256\":\"text é\",\"arch\":\"aarch64\",\"latest\":true,\"id\":\"text é\",\"road\":\"text é\"}],\"logins\":[{\"name\":\"text é\",\"state\":\"deferred\"}],\"sealedAt\":\"text é\",\"sealedFrom\":\"text é\",\"vault\":{\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"bytes\":7,\"paths\":7,\"held\":[\"text é\"],\"takenAt\":\"text é\"},\"usedBytes\":7,\"place\":\"text é\",\"noSecrets\":true}"
+  "output": "{\"name\":\"text é\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"recipeHash\":\"text é\",\"recipe\":{\"version\":1,\"at\":\"text é\",\"histories\":[{\"agent\":\"text é\",\"state\":\"no-reader\",\"sessions\":7,\"calls\":7}],\"rows\":[{\"id\":\"text é\",\"kind\":\"tool\",\"on\":true,\"source\":{\"kind\":\"popular\",\"sessions\":7,\"images\":7},\"size\":7,\"signIn\":\"token\",\"pin\":{\"tag\":\"text é\"}}],\"custom\":[{\"kind\":\"custom\",\"id\":\"text é\",\"name\":\"text é\",\"install\":[\"text é\"],\"check\":\"text é\",\"manager\":\"text é\",\"size\":7,\"why\":\"text é\"}]},\"logins\":[{\"name\":\"text é\",\"state\":\"deferred\"}],\"sealedAt\":\"text é\",\"sealedFrom\":\"text é\",\"vault\":{\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"bytes\":7,\"paths\":7,\"held\":[\"text é\"],\"takenAt\":\"text é\"},\"usedBytes\":7,\"place\":\"text é\",\"noSecrets\":true}"
  },
  {
   "type": "SealedImage",
@@ -2813,7 +2647,6 @@
     "histories": [],
     "rows": []
    },
-   "pins": [],
    "logins": [],
    "sealedAt": "s",
    "sealedFrom": "s",
@@ -2827,7 +2660,7 @@
    "place": "s",
    "noSecrets": false
   },
-  "output": "{\"name\":\"s\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"recipeHash\":\"s\",\"recipe\":{\"version\":1,\"at\":\"s\",\"histories\":[],\"rows\":[]},\"pins\":[],\"logins\":[],\"sealedAt\":\"s\",\"sealedFrom\":\"s\",\"vault\":{\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"bytes\":7,\"paths\":7,\"takenAt\":\"s\"},\"usedBytes\":7,\"place\":\"s\",\"noSecrets\":false}"
+  "output": "{\"name\":\"s\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"recipeHash\":\"s\",\"recipe\":{\"version\":1,\"at\":\"s\",\"histories\":[],\"rows\":[]},\"logins\":[],\"sealedAt\":\"s\",\"sealedFrom\":\"s\",\"vault\":{\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"bytes\":7,\"paths\":7,\"takenAt\":\"s\"},\"usedBytes\":7,\"place\":\"s\",\"noSecrets\":false}"
  },
  {
   "type": "SealedImage",
@@ -2839,7 +2672,6 @@
    "recipe": {
     "version": 1,
     "at": "text é",
-    "tick": "default",
     "histories": [
      {
       "agent": "text é",
@@ -2878,19 +2710,8 @@
       "size": 7,
       "why": "text é"
      }
-    ],
-    "engine": true
+    ]
    },
-   "pins": [
-    {
-     "tag": "text é",
-     "sha256": "text é",
-     "arch": "aarch64",
-     "latest": true,
-     "id": "text é",
-     "road": "text é"
-    }
-   ],
    "logins": [
     {
      "name": "text é",
@@ -2931,7 +2752,6 @@
    "recipe": {
     "version": 1,
     "at": "text é",
-    "tick": "default",
     "histories": [
      {
       "agent": "text é",
@@ -2970,19 +2790,8 @@
       "size": 7,
       "why": "text é"
      }
-    ],
-    "engine": true
+    ]
    },
-   "pins": [
-    {
-     "tag": "text é",
-     "sha256": "text é",
-     "arch": "aarch64",
-     "latest": true,
-     "id": "text é",
-     "road": "text é"
-    }
-   ],
    "logins": [
     {
      "name": "text é",
@@ -3023,7 +2832,6 @@
    "recipe": {
     "version": 1,
     "at": "text é",
-    "tick": "default",
     "histories": [
      {
       "agent": "text é",
@@ -3062,19 +2870,8 @@
       "size": 7,
       "why": "text é"
      }
-    ],
-    "engine": true
+    ]
    },
-   "pins": [
-    {
-     "tag": "text é",
-     "sha256": "text é",
-     "arch": "aarch64",
-     "latest": true,
-     "id": "text é",
-     "road": "text é"
-    }
-   ],
    "logins": [
     {
      "name": "text é",
@@ -3115,7 +2912,6 @@
    "recipe": {
     "version": 1,
     "at": "text é",
-    "tick": "default",
     "histories": [
      {
       "agent": "text é",
@@ -3154,19 +2950,8 @@
       "size": 7,
       "why": "text é"
      }
-    ],
-    "engine": true
+    ]
    },
-   "pins": [
-    {
-     "tag": "text é",
-     "sha256": "text é",
-     "arch": "aarch64",
-     "latest": true,
-     "id": "text é",
-     "road": "text é"
-    }
-   ],
    "logins": [
     {
      "name": "text é",
@@ -3207,7 +2992,6 @@
    "recipe": {
     "version": 1,
     "at": "text é",
-    "tick": "default",
     "histories": [
      {
       "agent": "text é",
@@ -3246,19 +3030,8 @@
       "size": 7,
       "why": "text é"
      }
-    ],
-    "engine": true
+    ]
    },
-   "pins": [
-    {
-     "tag": "text é",
-     "sha256": "text é",
-     "arch": "aarch64",
-     "latest": true,
-     "id": "text é",
-     "road": "text é"
-    }
-   ],
    "logins": [
     {
      "name": "text é",
@@ -3299,7 +3072,6 @@
    "recipe": {
     "version": 1,
     "at": "text é",
-    "tick": "default",
     "histories": [
      {
       "agent": "text é",
@@ -3338,19 +3110,8 @@
       "size": 7,
       "why": "text é"
      }
-    ],
-    "engine": true
+    ]
    },
-   "pins": [
-    {
-     "tag": "text é",
-     "sha256": "text é",
-     "arch": "aarch64",
-     "latest": true,
-     "id": "text é",
-     "road": "text é"
-    }
-   ],
    "logins": [
     {
      "name": "text é",
@@ -3391,7 +3152,6 @@
    "recipe": {
     "version": 1,
     "at": "text é",
-    "tick": "default",
     "histories": [
      {
       "agent": "text é",
@@ -3430,19 +3190,8 @@
       "size": 7,
       "why": "text é"
      }
-    ],
-    "engine": true
+    ]
    },
-   "pins": [
-    {
-     "tag": "text é",
-     "sha256": "text é",
-     "arch": "aarch64",
-     "latest": true,
-     "id": "text é",
-     "road": "text é"
-    }
-   ],
    "logins": [
     {
      "name": "text é",
@@ -3699,218 +3448,6 @@
   }
  },
  {
-  "type": "SealedImageExport",
-  "case": "full",
-  "input": {
-   "path": "text é",
-   "bytes": 7,
-   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-  },
-  "output": "{\"path\":\"text é\",\"bytes\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"}"
- },
- {
-  "type": "SealedImageExport",
-  "case": "minimal",
-  "input": {
-   "path": "s",
-   "bytes": 7,
-   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-  },
-  "output": "{\"path\":\"s\",\"bytes\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"}"
- },
- {
-  "type": "SealedImageExport",
-  "case": "missing path",
-  "input": {
-   "bytes": 7,
-   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-  },
-  "issue": {
-   "code": "invalid_type",
-   "path": [
-    "path"
-   ],
-   "serdeLevel": true
-  }
- },
- {
-  "type": "SealedImageExport",
-  "case": "bytes: not an integer",
-  "input": {
-   "path": "text é",
-   "bytes": 2.5,
-   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-  },
-  "issue": {
-   "code": "invalid_type",
-   "path": [
-    "bytes"
-   ],
-   "serdeLevel": true
-  }
- },
- {
-  "type": "SealedImageExport",
-  "case": "bytes: under 0",
-  "input": {
-   "path": "text é",
-   "bytes": -1,
-   "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-  },
-  "issue": {
-   "code": "too_small",
-   "path": [
-    "bytes"
-   ],
-   "serdeLevel": false
-  }
- },
- {
-  "type": "SealedImageExport",
-  "case": "hash: not 64 long",
-  "input": {
-   "path": "text é",
-   "bytes": 7,
-   "hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-  },
-  "issue": {
-   "code": "too_big",
-   "path": [
-    "hash"
-   ],
-   "serdeLevel": false
-  }
- },
- {
-  "type": "SealedPin",
-  "case": "full",
-  "input": {
-   "tag": "text é",
-   "sha256": "text é",
-   "arch": "aarch64",
-   "latest": true,
-   "id": "text é",
-   "road": "text é"
-  },
-  "output": "{\"tag\":\"text é\",\"sha256\":\"text é\",\"arch\":\"aarch64\",\"latest\":true,\"id\":\"text é\",\"road\":\"text é\"}"
- },
- {
-  "type": "SealedPin",
-  "case": "minimal",
-  "input": {
-   "tag": "s",
-   "id": "s"
-  },
-  "output": "{\"tag\":\"s\",\"id\":\"s\"}"
- },
- {
-  "type": "SealedPin",
-  "case": "nulls",
-  "input": {
-   "tag": "s",
-   "sha256": "s",
-   "arch": "x86_64",
-   "latest": true,
-   "id": "s",
-   "road": "s"
-  },
-  "output": "{\"tag\":\"s\",\"sha256\":\"s\",\"arch\":\"x86_64\",\"latest\":true,\"id\":\"s\",\"road\":\"s\"}"
- },
- {
-  "type": "SealedPin",
-  "case": "missing tag",
-  "input": {
-   "sha256": "text é",
-   "arch": "aarch64",
-   "latest": true,
-   "id": "text é",
-   "road": "text é"
-  },
-  "issue": {
-   "code": "invalid_type",
-   "path": [
-    "tag"
-   ],
-   "serdeLevel": true
-  }
- },
- {
-  "type": "SealedPin",
-  "case": "tag: shorter than 1",
-  "input": {
-   "tag": "",
-   "sha256": "text é",
-   "arch": "aarch64",
-   "latest": true,
-   "id": "text é",
-   "road": "text é"
-  },
-  "issue": {
-   "code": "too_small",
-   "path": [
-    "tag"
-   ],
-   "serdeLevel": false
-  }
- },
- {
-  "type": "SealedPin",
-  "case": "sha256: shorter than 1",
-  "input": {
-   "tag": "text é",
-   "sha256": "",
-   "arch": "aarch64",
-   "latest": true,
-   "id": "text é",
-   "road": "text é"
-  },
-  "issue": {
-   "code": "too_small",
-   "path": [
-    "sha256"
-   ],
-   "serdeLevel": false
-  }
- },
- {
-  "type": "SealedPin",
-  "case": "arch: not one of its values",
-  "input": {
-   "tag": "text é",
-   "sha256": "text é",
-   "arch": "not-a-value",
-   "latest": true,
-   "id": "text é",
-   "road": "text é"
-  },
-  "issue": {
-   "code": "invalid_enum_value",
-   "path": [
-    "arch"
-   ],
-   "serdeLevel": true
-  }
- },
- {
-  "type": "SealedPin",
-  "case": "id: shorter than 1",
-  "input": {
-   "tag": "text é",
-   "sha256": "text é",
-   "arch": "aarch64",
-   "latest": true,
-   "id": "",
-   "road": "text é"
-  },
-  "issue": {
-   "code": "too_small",
-   "path": [
-    "id"
-   ],
-   "serdeLevel": false
-  }
- },
- {
   "type": "SealedVault",
   "case": "full",
   "input": {
@@ -4084,7 +3621,6 @@
     "recipe": {
      "version": 1,
      "at": "text é",
-     "tick": "default",
      "histories": [
       {
        "agent": "text é",
@@ -4116,19 +3652,8 @@
        "check": "text é",
        "why": "text é"
       }
-     ],
-     "engine": true
+     ]
     },
-    "pins": [
-     {
-      "tag": "text é",
-      "sha256": "text é",
-      "arch": "aarch64",
-      "latest": true,
-      "id": "text é",
-      "road": "text é"
-     }
-    ],
     "logins": [
      {
       "name": "text é",
@@ -4151,7 +3676,7 @@
     "noSecrets": true
    }
   },
-  "output": "{\"format\":\"wsp-vault-1\",\"cipher\":\"aes-256-gcm\",\"to\":\"key\",\"salt\":\"text é\",\"nonce\":\"text é\",\"ephemeral\":\"text é\",\"image\":{\"name\":\"text é\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"recipeHash\":\"text é\",\"recipe\":{\"version\":1,\"at\":\"text é\",\"tick\":\"default\",\"histories\":[{\"agent\":\"text é\",\"state\":\"no-reader\",\"sessions\":7,\"calls\":7}],\"rows\":[{\"id\":\"text é\",\"kind\":\"tool\",\"on\":true,\"source\":{\"kind\":\"popular\",\"sessions\":7,\"images\":7}}],\"custom\":[{\"kind\":\"custom\",\"id\":\"text é\",\"name\":\"text é\",\"install\":[\"text é\"],\"check\":\"text é\",\"why\":\"text é\"}],\"engine\":true},\"pins\":[{\"tag\":\"text é\",\"sha256\":\"text é\",\"arch\":\"aarch64\",\"latest\":true,\"id\":\"text é\",\"road\":\"text é\"}],\"logins\":[{\"name\":\"text é\",\"state\":\"deferred\"}],\"sealedAt\":\"text é\",\"sealedFrom\":\"text é\",\"vault\":{\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"bytes\":7,\"paths\":7,\"held\":[\"text é\"],\"takenAt\":\"text é\"},\"usedBytes\":7,\"place\":\"text é\",\"noSecrets\":true}}"
+  "output": "{\"format\":\"wsp-vault-1\",\"cipher\":\"aes-256-gcm\",\"to\":\"key\",\"salt\":\"text é\",\"nonce\":\"text é\",\"ephemeral\":\"text é\",\"image\":{\"name\":\"text é\",\"version\":7,\"hash\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"recipeHash\":\"text é\",\"recipe\":{\"version\":1,\"at\":\"text é\",\"histories\":[{\"agent\":\"text é\",\"state\":\"no-reader\",\"sessions\":7,\"calls\":7}],\"rows\":[{\"id\":\"text é\",\"kind\":\"tool\",\"on\":true,\"source\":{\"kind\":\"popular\",\"sessions\":7,\"images\":7}}],\"custom\":[{\"kind\":\"custom\",\"id\":\"text é\",\"name\":\"text é\",\"install\":[\"text é\"],\"check\":\"text é\",\"why\":\"text é\"}]},\"logins\":[{\"name\":\"text é\",\"state\":\"deferred\"}],\"sealedAt\":\"text é\",\"sealedFrom\":\"text é\",\"vault\":{\"sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"bytes\":7,\"paths\":7,\"held\":[\"text é\"],\"takenAt\":\"text é\"},\"usedBytes\":7,\"place\":\"text é\",\"noSecrets\":true}}"
  },
  {
   "type": "SealedVaultHeader",
@@ -4213,7 +3738,6 @@
     "recipe": {
      "version": 1,
      "at": "text é",
-     "tick": "default",
      "histories": [
       {
        "agent": "text é",
@@ -4245,19 +3769,8 @@
        "check": "text é",
        "why": "text é"
       }
-     ],
-     "engine": true
+     ]
     },
-    "pins": [
-     {
-      "tag": "text é",
-      "sha256": "text é",
-      "arch": "aarch64",
-      "latest": true,
-      "id": "text é",
-      "road": "text é"
-     }
-    ],
     "logins": [
      {
       "name": "text é",
@@ -4306,7 +3819,6 @@
     "recipe": {
      "version": 1,
      "at": "text é",
-     "tick": "default",
      "histories": [
       {
        "agent": "text é",
@@ -4338,19 +3850,8 @@
        "check": "text é",
        "why": "text é"
       }
-     ],
-     "engine": true
+     ]
     },
-    "pins": [
-     {
-      "tag": "text é",
-      "sha256": "text é",
-      "arch": "aarch64",
-      "latest": true,
-      "id": "text é",
-      "road": "text é"
-     }
-    ],
     "logins": [
      {
       "name": "text é",

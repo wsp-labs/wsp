@@ -114,12 +114,6 @@ fn recipe_source_reads_and_writes_as_zod_does() {
     cases::<RecipeSource>(FIXTURES, "RecipeSource");
 }
 
-/// 4 cases: what zod's parse of RecipeTick wrote, or the first issue it raised.
-#[test]
-fn recipe_tick_reads_and_writes_as_zod_does() {
-    cases::<RecipeTick>(FIXTURES, "RecipeTick");
-}
-
 /// 10 cases: what zod's parse of SealedImage wrote, or the first issue it raised.
 #[test]
 fn sealed_image_reads_and_writes_as_zod_does() {
@@ -136,18 +130,6 @@ fn sealed_image_built_reads_and_writes_as_zod_does() {
 #[test]
 fn sealed_image_copy_reads_and_writes_as_zod_does() {
     cases::<SealedImageCopy>(FIXTURES, "SealedImageCopy");
-}
-
-/// 6 cases: what zod's parse of SealedImageExport wrote, or the first issue it raised.
-#[test]
-fn sealed_image_export_reads_and_writes_as_zod_does() {
-    cases::<SealedImageExport>(FIXTURES, "SealedImageExport");
-}
-
-/// 8 cases: what zod's parse of SealedPin wrote, or the first issue it raised.
-#[test]
-fn sealed_pin_reads_and_writes_as_zod_does() {
-    cases::<SealedPin>(FIXTURES, "SealedPin");
 }
 
 /// 9 cases: what zod's parse of SealedVault wrote, or the first issue it raised.

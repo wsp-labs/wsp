@@ -1,0 +1,134 @@
+{
+ "local start": {
+  "stdout": [
+   "usage: wsp start <link> [--project <name>] [--agent <id>]\n       [--model, --effort, --access <word>]\n  a thread off a GitHub issue or pull request link, the issue or the pull\n  request its first message; an issue's thread runs in the project folder, a\n  pull request's in a worktree on its branch\n\n  --project    the project by name or id where two computers hold the link's\n               repository; this computer's without it\n  --agent      which agent runs the thread, by its catalog id (claude, codex,\n               opencode, cursor); the project's own default without it\n  --model      the model the turn runs on, by the agent's own slug\n               (claude-sonnet-5); the thread's own without it\n  --effort     how hard the agent thinks, by its own word (low, medium, high,\n               xhigh, max); absent on a new thread means the agent's default; on\n               send, the thread's own\n  --access     how far the agent may go without asking: ask, auto-edit, full or\n               plan, refused where the agent has no such mode; without it, the\n               project's, else the agent's default, else full\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local review": {
+  "stdout": [
+   "usage: wsp review <link|thread> [--agent <id>] [--model, --effort <word>]\n  a reviewer thread on a pull request, read-only, whose review waits in wsp\n  until you post it\n\n  --agent     the reviewing agent, codex or claude, each at its read-only\n              access; codex without it\n  --model     the model the turn runs on, by the agent's own slug\n              (claude-sonnet-5); the thread's own without it\n  --effort    how hard the agent thinks, by its own word (low, medium, high,\n              xhigh, max); absent on a new thread means the agent's default; on\n              send, the thread's own\n  --json      print the raw protocol values, one JSON object per line, with\n              everything else on stderr\n  --state     the state file the host serves\n  --host      run the line against a host on your account, by the name wsp hosts\n              lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local review post": {
+  "stdout": [
+   "usage: wsp review post <thread> [--verdict comment|approve|request-changes]\n       [--summary \"<text>\"]\n  posts a reviewer thread's review on its pull request as you, its ticked\n  comments on their lines\n\n  --verdict    comment, approve or request-changes; the draft's own, the\n               reviewer's word unless you changed it, without it\n  --summary    the review's summary, written over the draft's\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local update": {
+  "stdout": [
+   "usage: wsp update <thread>\n  merges the latest commits of the base into the branch of the folder the thread\n  works in, or names the files that conflict\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local pause": {
+  "error": "Error: no verb for pause --help"
+ },
+ "local resize": {
+  "stdout": [
+   "usage: wsp resize <thread> --size <cpu>x<memGb>\n  moves the machine a thread runs on to another size its provider sells: a stop,\n  then a resume at that size\n\n  --size     the machine size as <cpu>x<memGb>, like 2x4; a size the provider\n             does not offer is refused naming the ones it does\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local wake": {
+  "error": "Error: no verb for wake --help"
+ },
+ "local rebuild": {
+  "error": "Error: no verb for rebuild --help"
+ },
+ "local image": {
+  "stdout": [
+   "usage: wsp image\n  the image this host owns: its version, its hash, whether it holds your\n  sign-ins (an image built on Boat holds none), and the copy each place has\n  built of it\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local image build": {
+  "stdout": [
+   "usage: wsp image build <place> [--force]\n  builds this host's image at a place from the record, its sign-ins coming from\n  the vault and no sign-in run again\n\n  --force    build again even where the place already holds this version\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "local forget": {
+  "error": "Error: no verb for forget --help"
+ },
+ "local delete": {
+  "stdout": [
+   "usage: wsp delete <thread> [--processes stop|keep] [--yes]\n  takes a thread away, its turns and checkpoints with it, and the worktree wsp\n  made for it once no other thread is in it, never the project folder, refused\n  while one still runs processes, on this computer or a box, unless --processes\n  says to stop or keep them\n\n  --yes          go ahead without being asked\n  --processes    stop ends every process the thread still runs beside its agent,\n                 by identity, before it goes; keep leaves them running; refused\n                 without it while any run\n  --json         print the raw protocol values, one JSON object per line, with\n                 everything else on stderr\n  --state        the state file the host serves\n  --host         run the line against a host on your account, by the name wsp\n                 hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud start": {
+  "stdout": [
+   "usage: wsp start <link> [--project <name>] [--agent <id>]\n       [--model, --effort, --access <word>]\n  a thread off a GitHub issue or pull request link, the issue or the pull\n  request its first message; an issue's thread runs in the project folder, a\n  pull request's in a worktree on its branch\n\n  --project    the project by name or id where two computers hold the link's\n               repository; this computer's without it\n  --agent      which agent runs the thread, by its catalog id (claude, codex,\n               opencode, cursor); the project's own default without it\n  --model      the model the turn runs on, by the agent's own slug\n               (claude-sonnet-5); the thread's own without it\n  --effort     how hard the agent thinks, by its own word (low, medium, high,\n               xhigh, max); absent on a new thread means the agent's default; on\n               send, the thread's own\n  --access     how far the agent may go without asking: ask, auto-edit, full or\n               plan, refused where the agent has no such mode; without it, the\n               project's, else the agent's default, else full\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud review": {
+  "stdout": [
+   "usage: wsp review <link|thread> [--agent <id>] [--model, --effort <word>]\n  a reviewer thread on a pull request, read-only, whose review waits in wsp\n  until you post it\n\n  --agent     the reviewing agent, codex or claude, each at its read-only\n              access; codex without it\n  --model     the model the turn runs on, by the agent's own slug\n              (claude-sonnet-5); the thread's own without it\n  --effort    how hard the agent thinks, by its own word (low, medium, high,\n              xhigh, max); absent on a new thread means the agent's default; on\n              send, the thread's own\n  --json      print the raw protocol values, one JSON object per line, with\n              everything else on stderr\n  --state     the state file the host serves\n  --host      run the line against a host on your account, by the name wsp hosts\n              lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud review post": {
+  "stdout": [
+   "usage: wsp review post <thread> [--verdict comment|approve|request-changes]\n       [--summary \"<text>\"]\n  posts a reviewer thread's review on its pull request as you, its ticked\n  comments on their lines\n\n  --verdict    comment, approve or request-changes; the draft's own, the\n               reviewer's word unless you changed it, without it\n  --summary    the review's summary, written over the draft's\n  --json       print the raw protocol values, one JSON object per line, with\n               everything else on stderr\n  --state      the state file the host serves\n  --host       run the line against a host on your account, by the name wsp\n               hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud update": {
+  "stdout": [
+   "usage: wsp update <thread>\n  merges the latest commits of the base into the branch of the folder the thread\n  works in, or names the files that conflict\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud pause": {
+  "stdout": [
+   "usage: wsp pause <workspace>\n  naps the workspace's machine\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud resize": {
+  "stdout": [
+   "usage: wsp resize <thread> --size <cpu>x<memGb>\n  moves the machine a thread runs on to another size its provider sells: a stop,\n  then a resume at that size\n\n  --size     the machine size as <cpu>x<memGb>, like 2x4; a size the provider\n             does not offer is refused naming the ones it does\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud wake": {
+  "stdout": [
+   "usage: wsp wake <workspace>\n  wakes the workspace's machine and prints the state it came up in\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud rebuild": {
+  "stdout": [
+   "usage: wsp rebuild <workspace>\n  replaces a gone workspace's machine from its image and prints the state of the\n  new one\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud image": {
+  "stdout": [
+   "usage: wsp image\n  the image this host owns: its version, its hash, whether it holds your\n  sign-ins (an image built on Boat holds none), and the copy each place has\n  built of it\n\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud image build": {
+  "stdout": [
+   "usage: wsp image build <place> [--force]\n  builds this host's image at a place from the record, its sign-ins coming from\n  the vault and no sign-in run again\n\n  --force    build again even where the place already holds this version\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud forget": {
+  "stdout": [
+   "usage: wsp forget <workspace> [--yes]\n  drops a gone workspace and its threads from this computer; refused while its\n  machine exists\n\n  --yes      go ahead without being asked\n  --json     print the raw protocol values, one JSON object per line, with\n             everything else on stderr\n  --state    the state file the host serves\n  --host     run the line against a host on your account, by the name wsp hosts\n             lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ },
+ "cloud delete": {
+  "stdout": [
+   "usage: wsp delete <thread>|<workspace> [--processes stop|keep] [--yes]\n  takes a thread away, its turns and checkpoints with it, and the worktree wsp\n  made for it once no other thread is in it, never the project folder, refused\n  while one still runs processes, on this computer or a box, unless --processes\n  says to stop or keep them; a workspace goes as before, its machine deleted at\n  the provider and its record and threads dropped from this computer\n\n  --yes          go ahead without being asked\n  --processes    stop ends every process the thread still runs beside its agent,\n                 by identity, before it goes; keep leaves them running; refused\n                 without it while any run\n  --json         print the raw protocol values, one JSON object per line, with\n                 everything else on stderr\n  --state        the state file the host serves\n  --host         run the line against a host on your account, by the name wsp\n                 hosts lists it under; WSP_HOST names one for a whole shell"
+  ],
+  "exit": 0
+ }
+}

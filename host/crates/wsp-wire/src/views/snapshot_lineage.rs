@@ -5,12 +5,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::literal;
 use crate::types::check::{Check, SchemaError};
-use crate::types::js_number::JsInt;
 use crate::types::js_number::JsNumber;
 use crate::views::golden_image::GoldenVersion;
 use crate::views::golden_image::SealedImage;
 use crate::views::golden_image::SealedImageCopy;
-use crate::views::workspace::WorkspaceProject;
 use crate::views::workspace::WorkspaceView;
 
 literal!(UntouchedLit, "untouched");
@@ -56,161 +54,6 @@ impl Check for SnapshotLineage {
     }
 }
 
-/// TS: packages/protocol/src/views/snapshot-lineage.ts:22 at a3b870a6e.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProjectGolden {
-    pub snapshot_id: String,
-    pub projects: Vec<WorkspaceProject>,
-    pub golden: String,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub version: Option<JsInt>,
-    pub workspace_id: String,
-    pub workspace_name: String,
-    pub created_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub place: Option<String>,
-}
-
-impl Check for ProjectGolden {
-    /// Nested checks: projects.
-    fn check(&self) -> Result<(), SchemaError> {
-        self.projects.check().map_err(|e| e.under("projects"))?;
-        Ok(())
-    }
-
-    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
-        let serde_json::Value::Object(obj) = value else {
-            return Some(vec![crate::types::check::not_object(value)]);
-        };
-        let mut out = Vec::new();
-        crate::types::keys::req_key::<String>(obj, "snapshotId", &mut out);
-        crate::types::keys::req_key::<Vec<WorkspaceProject>>(obj, "projects", &mut out);
-        crate::types::keys::req_key::<String>(obj, "golden", &mut out);
-        crate::types::keys::opt_key::<JsInt>(obj, "version", &mut out);
-        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-        crate::types::keys::req_key::<String>(obj, "workspaceName", &mut out);
-        crate::types::keys::req_key::<String>(obj, "createdAt", &mut out);
-        crate::types::keys::opt_key::<String>(obj, "place", &mut out);
-        Some(out)
-    }
-
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        match path.split_first() {
-            None => Some(crate::types::check::Zod::Word("object")),
-            Some((key, rest)) => match key.as_str()? {
-                "snapshotId" => <String as Check>::describe(rest),
-                "projects" => <Vec<WorkspaceProject> as Check>::describe(rest),
-                "golden" => <String as Check>::describe(rest),
-                "version" => <Option<i64> as Check>::describe(rest),
-                "workspaceId" => <String as Check>::describe(rest),
-                "workspaceName" => <String as Check>::describe(rest),
-                "createdAt" => <String as Check>::describe(rest),
-                "place" => <Option<String> as Check>::describe(rest),
-                _ => None,
-            },
-        }
-    }
-}
-
-/// TS: packages/protocol/src/views/snapshot-lineage.ts:39 at a3b870a6e.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProjectGoldenRemoved {
-    pub project_golden: ProjectGolden,
-    pub already_gone: bool,
-}
-
-impl Check for ProjectGoldenRemoved {
-    /// Nested checks: projectGolden.
-    fn check(&self) -> Result<(), SchemaError> {
-        self.project_golden.check().map_err(|e| e.under("projectGolden"))?;
-        Ok(())
-    }
-
-    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
-        let serde_json::Value::Object(obj) = value else {
-            return Some(vec![crate::types::check::not_object(value)]);
-        };
-        let mut out = Vec::new();
-        crate::types::keys::req_key::<ProjectGolden>(obj, "projectGolden", &mut out);
-        crate::types::keys::req_key::<bool>(obj, "alreadyGone", &mut out);
-        Some(out)
-    }
-
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        match path.split_first() {
-            None => Some(crate::types::check::Zod::Word("object")),
-            Some((key, rest)) => match key.as_str()? {
-                "projectGolden" => <ProjectGolden as Check>::describe(rest),
-                "alreadyGone" => <bool as Check>::describe(rest),
-                _ => None,
-            },
-        }
-    }
-}
-
-/// TS: packages/protocol/src/views/snapshot-lineage.ts:43 at a3b870a6e.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SealedProjectImage {
-    pub snapshot_id: String,
-    pub projects: Vec<WorkspaceProject>,
-    pub golden: String,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub version: Option<JsInt>,
-    pub workspace_id: String,
-    pub workspace_name: String,
-    pub created_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub place: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "crate::types::check::present")]
-    pub size_bytes: Option<JsNumber>,
-}
-
-impl Check for SealedProjectImage {
-    /// Nested checks: projects.
-    fn check(&self) -> Result<(), SchemaError> {
-        self.projects.check().map_err(|e| e.under("projects"))?;
-        Ok(())
-    }
-
-    fn pass(value: &serde_json::Value) -> Option<Vec<crate::types::check::SchemaError>> {
-        let serde_json::Value::Object(obj) = value else {
-            return Some(vec![crate::types::check::not_object(value)]);
-        };
-        let mut out = Vec::new();
-        crate::types::keys::req_key::<String>(obj, "snapshotId", &mut out);
-        crate::types::keys::req_key::<Vec<WorkspaceProject>>(obj, "projects", &mut out);
-        crate::types::keys::req_key::<String>(obj, "golden", &mut out);
-        crate::types::keys::opt_key::<JsInt>(obj, "version", &mut out);
-        crate::types::keys::req_key::<String>(obj, "workspaceId", &mut out);
-        crate::types::keys::req_key::<String>(obj, "workspaceName", &mut out);
-        crate::types::keys::req_key::<String>(obj, "createdAt", &mut out);
-        crate::types::keys::opt_key::<String>(obj, "place", &mut out);
-        crate::types::keys::opt_key::<JsNumber>(obj, "sizeBytes", &mut out);
-        Some(out)
-    }
-
-    fn describe(path: &[serde_json::Value]) -> Option<crate::types::check::Zod> {
-        match path.split_first() {
-            None => Some(crate::types::check::Zod::Word("object")),
-            Some((key, rest)) => match key.as_str()? {
-                "snapshotId" => <String as Check>::describe(rest),
-                "projects" => <Vec<WorkspaceProject> as Check>::describe(rest),
-                "golden" => <String as Check>::describe(rest),
-                "version" => <Option<i64> as Check>::describe(rest),
-                "workspaceId" => <String as Check>::describe(rest),
-                "workspaceName" => <String as Check>::describe(rest),
-                "createdAt" => <String as Check>::describe(rest),
-                "place" => <Option<String> as Check>::describe(rest),
-                "sizeBytes" => <Option<JsNumber> as Check>::describe(rest),
-                _ => None,
-            },
-        }
-    }
-}
-
 /// TS: packages/protocol/src/views/snapshot-lineage.ts:48 at a3b870a6e.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -218,15 +61,13 @@ pub struct SealedImageView {
     #[serde(deserialize_with = "crate::types::check::nullable")]
     pub image: Option<SealedImage>,
     pub copies: Vec<SealedImageCopy>,
-    pub projects: Vec<SealedProjectImage>,
 }
 
 impl Check for SealedImageView {
-    /// Nested checks: image, copies, projects.
+    /// Nested checks: image, copies.
     fn check(&self) -> Result<(), SchemaError> {
         self.image.check().map_err(|e| e.under("image"))?;
         self.copies.check().map_err(|e| e.under("copies"))?;
-        self.projects.check().map_err(|e| e.under("projects"))?;
         Ok(())
     }
 
@@ -237,7 +78,6 @@ impl Check for SealedImageView {
         let mut out = Vec::new();
         crate::types::keys::req_key::<Option<SealedImage>>(obj, "image", &mut out);
         crate::types::keys::req_key::<Vec<SealedImageCopy>>(obj, "copies", &mut out);
-        crate::types::keys::req_key::<Vec<SealedProjectImage>>(obj, "projects", &mut out);
         Some(out)
     }
 
@@ -247,7 +87,6 @@ impl Check for SealedImageView {
             Some((key, rest)) => match key.as_str()? {
                 "image" => <Option<SealedImage> as Check>::describe(rest),
                 "copies" => <Vec<SealedImageCopy> as Check>::describe(rest),
-                "projects" => <Vec<SealedProjectImage> as Check>::describe(rest),
                 _ => None,
             },
         }

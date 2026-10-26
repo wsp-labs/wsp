@@ -1436,18 +1436,13 @@
     "at": "text é",
     "seconds": 2.5
    },
-   "image": {
-    "snapshotId": "text é",
-    "builtAt": "text é",
-    "lockfileSha": "text é"
-   },
    "base": "text é",
    "git": {
     "top": "text é"
    },
    "createdAt": "text é"
   },
-  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"computer\":\"text é\",\"source\":{\"kind\":\"gitlab\",\"repo\":\"text é\"},\"path\":\"text é\",\"remote\":\"text é\",\"defaultBranch\":\"text é\",\"memoryKey\":\"text é\",\"memoryDir\":\"text é\",\"checkout\":\"text é\",\"seeded\":{\"files\":7,\"bytes\":7,\"memory\":\"none\",\"memoryFiles\":7,\"commits\":7,\"at\":\"text é\"},\"installed\":{\"row\":\"text é\",\"command\":\"text é\",\"at\":\"text é\",\"seconds\":2.5},\"image\":{\"snapshotId\":\"text é\",\"builtAt\":\"text é\",\"lockfileSha\":\"text é\"},\"base\":\"text é\",\"git\":{\"top\":\"text é\"},\"createdAt\":\"text é\"}"
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"computer\":\"text é\",\"source\":{\"kind\":\"gitlab\",\"repo\":\"text é\"},\"path\":\"text é\",\"remote\":\"text é\",\"defaultBranch\":\"text é\",\"memoryKey\":\"text é\",\"memoryDir\":\"text é\",\"checkout\":\"text é\",\"seeded\":{\"files\":7,\"bytes\":7,\"memory\":\"none\",\"memoryFiles\":7,\"commits\":7,\"at\":\"text é\"},\"installed\":{\"row\":\"text é\",\"command\":\"text é\",\"at\":\"text é\",\"seconds\":2.5},\"base\":\"text é\",\"git\":{\"top\":\"text é\"},\"createdAt\":\"text é\"}"
  },
  {
   "type": "ProjectView",
@@ -1499,17 +1494,13 @@
     "at": "s",
     "seconds": 3
    },
-   "image": {
-    "snapshotId": "s",
-    "builtAt": "s"
-   },
    "base": "s",
    "git": {
     "top": "s"
    },
    "createdAt": "s"
   },
-  "output": "{\"id\":\"s\",\"name\":\"s\",\"computer\":\"s\",\"source\":{\"kind\":\"folder\",\"path\":\"s\"},\"path\":\"s\",\"remote\":\"s\",\"defaultBranch\":\"s\",\"memoryKey\":\"s\",\"memoryDir\":\"s\",\"checkout\":\"s\",\"seeded\":{\"files\":7,\"bytes\":7,\"memory\":\"landed\",\"commits\":7,\"at\":\"s\"},\"installed\":{\"row\":\"s\",\"command\":\"s\",\"at\":\"s\",\"seconds\":3},\"image\":{\"snapshotId\":\"s\",\"builtAt\":\"s\"},\"base\":\"s\",\"git\":{\"top\":\"s\"},\"createdAt\":\"s\"}"
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"computer\":\"s\",\"source\":{\"kind\":\"folder\",\"path\":\"s\"},\"path\":\"s\",\"remote\":\"s\",\"defaultBranch\":\"s\",\"memoryKey\":\"s\",\"memoryDir\":\"s\",\"checkout\":\"s\",\"seeded\":{\"files\":7,\"bytes\":7,\"memory\":\"landed\",\"commits\":7,\"at\":\"s\"},\"installed\":{\"row\":\"s\",\"command\":\"s\",\"at\":\"s\",\"seconds\":3},\"base\":\"s\",\"git\":{\"top\":\"s\"},\"createdAt\":\"s\"}"
  },
  {
   "type": "ProjectView",
@@ -1540,11 +1531,6 @@
     "command": "text é",
     "at": "text é",
     "seconds": 2.5
-   },
-   "image": {
-    "snapshotId": "text é",
-    "builtAt": "text é",
-    "lockfileSha": "text é"
    },
    "base": "text é",
    "git": {
@@ -2700,49 +2686,21 @@
   "type": "WorkspaceAgents",
   "case": "full",
   "input": {
-   "spawn": true,
    "maxMachines": 7,
    "maxDepth": 7
   },
-  "output": "{\"spawn\":true,\"maxMachines\":7,\"maxDepth\":7}"
+  "output": "{\"maxMachines\":7,\"maxDepth\":7}"
  },
  {
   "type": "WorkspaceAgents",
-  "case": "minimal",
+  "case": "missing maxMachines",
   "input": {
-   "spawn": false,
-   "maxMachines": 7,
-   "maxDepth": 7
-  },
-  "output": "{\"spawn\":false,\"maxMachines\":7,\"maxDepth\":7}"
- },
- {
-  "type": "WorkspaceAgents",
-  "case": "missing spawn",
-  "input": {
-   "maxMachines": 7,
    "maxDepth": 7
   },
   "issue": {
    "code": "invalid_type",
    "path": [
-    "spawn"
-   ],
-   "serdeLevel": true
-  }
- },
- {
-  "type": "WorkspaceAgents",
-  "case": "spawn: not a boolean",
-  "input": {
-   "spawn": "yes",
-   "maxMachines": 7,
-   "maxDepth": 7
-  },
-  "issue": {
-   "code": "invalid_type",
-   "path": [
-    "spawn"
+    "maxMachines"
    ],
    "serdeLevel": true
   }
@@ -2751,7 +2709,6 @@
   "type": "WorkspaceAgents",
   "case": "maxMachines: not an integer",
   "input": {
-   "spawn": true,
    "maxMachines": 2.5,
    "maxDepth": 7
   },
@@ -2767,7 +2724,6 @@
   "type": "WorkspaceAgents",
   "case": "maxMachines: under 0",
   "input": {
-   "spawn": true,
    "maxMachines": -1,
    "maxDepth": 7
   },
@@ -2783,7 +2739,6 @@
   "type": "WorkspaceAgents",
   "case": "maxDepth: not an integer",
   "input": {
-   "spawn": true,
    "maxMachines": 7,
    "maxDepth": 2.5
   },
@@ -2799,7 +2754,6 @@
   "type": "WorkspaceAgents",
   "case": "maxDepth: under 1",
   "input": {
-   "spawn": true,
    "maxMachines": 7,
    "maxDepth": 0
   },
@@ -2856,7 +2810,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -2918,7 +2871,7 @@
     "offline": true
    }
   },
-  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"spawn\":true,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"provider\":\"text é\",\"pauseMode\":\"disk\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\",\"oid\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true}}},\"review\":{\"note\":\"text é\",\"at\":2.5,\"reasked\":true},\"machineState\":\"gone\",\"size\":{\"cpu\":2.5,\"memMb\":2.5},\"rateUsdPerHour\":2.5,\"reason\":\"text é\",\"idleAt\":2.5,\"facts\":{\"os\":\"text é\",\"uptimeMs\":2.5,\"folder\":\"text é\"},\"reach\":{\"state\":\"zombie\",\"offline\":true}}"
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"provider\":\"text é\",\"pauseMode\":\"disk\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\",\"oid\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true}}},\"review\":{\"note\":\"text é\",\"at\":2.5,\"reasked\":true},\"machineState\":\"gone\",\"size\":{\"cpu\":2.5,\"memMb\":2.5},\"rateUsdPerHour\":2.5,\"reason\":\"text é\",\"idleAt\":2.5,\"facts\":{\"os\":\"text é\",\"uptimeMs\":2.5,\"folder\":\"text é\"},\"reach\":{\"state\":\"zombie\",\"offline\":true}}"
  },
  {
   "type": "WorkspaceListing",
@@ -2993,7 +2946,6 @@
    "wakeRefused": "s",
    "diskGone": "s",
    "agents": {
-    "spawn": false,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -3039,7 +2991,7 @@
     "state": "reachable"
    }
   },
-  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"},\"folder\":\"s\",\"home\":\"s\",\"claudeSessionId\":\"s\",\"gone\":\"s\",\"theme\":{\"dots\":[{\"angle\":3,\"radius\":0.5}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"auto\"},\"glyph\":\"terminal\",\"daemonNote\":\"s\",\"daemonRefusedAt\":{\"machineId\":\"s\",\"at\":\"s\",\"why\":\"s\"},\"vaultedAt\":\"s\",\"vaultRefused\":\"s\",\"wakeRefused\":\"s\",\"diskGone\":\"s\",\"agents\":{\"spawn\":false,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"s\",\"rootThreadId\":\"s\",\"parentWorkspaceId\":\"s\",\"place\":\"s\",\"provider\":\"s\",\"pauseMode\":\"memory\",\"worktree\":{\"path\":\"s\",\"made\":false},\"from\":{\"kind\":\"issue\",\"repo\":\"s\",\"number\":7,\"url\":\"s\",\"title\":\"s\"},\"review\":{\"verdict\":\"comment\",\"summary\":\"s\",\"comments\":[],\"headOid\":\"s\",\"threadId\":\"s\",\"at\":3},\"machineState\":\"starting\",\"size\":{\"cpu\":3,\"memMb\":3},\"rateUsdPerHour\":3,\"reason\":\"s\",\"idleAt\":3,\"facts\":{\"os\":\"s\",\"uptimeMs\":3,\"folder\":\"s\"},\"reach\":{\"state\":\"reachable\"}}"
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"},\"folder\":\"s\",\"home\":\"s\",\"claudeSessionId\":\"s\",\"gone\":\"s\",\"theme\":{\"dots\":[{\"angle\":3,\"radius\":0.5}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"auto\"},\"glyph\":\"terminal\",\"daemonNote\":\"s\",\"daemonRefusedAt\":{\"machineId\":\"s\",\"at\":\"s\",\"why\":\"s\"},\"vaultedAt\":\"s\",\"vaultRefused\":\"s\",\"wakeRefused\":\"s\",\"diskGone\":\"s\",\"agents\":{\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"s\",\"rootThreadId\":\"s\",\"parentWorkspaceId\":\"s\",\"place\":\"s\",\"provider\":\"s\",\"pauseMode\":\"memory\",\"worktree\":{\"path\":\"s\",\"made\":false},\"from\":{\"kind\":\"issue\",\"repo\":\"s\",\"number\":7,\"url\":\"s\",\"title\":\"s\"},\"review\":{\"verdict\":\"comment\",\"summary\":\"s\",\"comments\":[],\"headOid\":\"s\",\"threadId\":\"s\",\"at\":3},\"machineState\":\"starting\",\"size\":{\"cpu\":3,\"memMb\":3},\"rateUsdPerHour\":3,\"reason\":\"s\",\"idleAt\":3,\"facts\":{\"os\":\"s\",\"uptimeMs\":3,\"folder\":\"s\"},\"reach\":{\"state\":\"reachable\"}}"
  },
  {
   "type": "WorkspaceListing",
@@ -3085,7 +3037,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -3200,7 +3151,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -3315,7 +3265,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -3430,7 +3379,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -3545,7 +3493,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -3660,7 +3607,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -3803,7 +3749,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -3848,7 +3793,7 @@
     "reasked": true
    }
   },
-  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"spawn\":true,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"provider\":\"text é\",\"pauseMode\":\"disk\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\",\"oid\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true}}},\"review\":{\"note\":\"text é\",\"at\":2.5,\"reasked\":true}}"
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"provider\":\"text é\",\"pauseMode\":\"disk\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\",\"oid\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true}}},\"review\":{\"note\":\"text é\",\"at\":2.5,\"reasked\":true}}"
  },
  {
   "type": "WorkspaceOut",
@@ -3914,7 +3859,6 @@
    "wakeRefused": "s",
    "diskGone": "s",
    "agents": {
-    "spawn": false,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -3944,7 +3888,7 @@
     "at": 3
    }
   },
-  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"},\"folder\":\"s\",\"home\":\"s\",\"claudeSessionId\":\"s\",\"gone\":\"s\",\"theme\":{\"dots\":[{\"angle\":3,\"radius\":0.5}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"auto\"},\"glyph\":\"terminal\",\"daemonNote\":\"s\",\"daemonRefusedAt\":{\"machineId\":\"s\",\"at\":\"s\",\"why\":\"s\"},\"vaultedAt\":\"s\",\"vaultRefused\":\"s\",\"wakeRefused\":\"s\",\"diskGone\":\"s\",\"agents\":{\"spawn\":false,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"s\",\"rootThreadId\":\"s\",\"parentWorkspaceId\":\"s\",\"place\":\"s\",\"provider\":\"s\",\"pauseMode\":\"memory\",\"worktree\":{\"path\":\"s\",\"made\":false},\"from\":{\"kind\":\"issue\",\"repo\":\"s\",\"number\":7,\"url\":\"s\",\"title\":\"s\"},\"review\":{\"verdict\":\"comment\",\"summary\":\"s\",\"comments\":[],\"headOid\":\"s\",\"threadId\":\"s\",\"at\":3}}"
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"},\"folder\":\"s\",\"home\":\"s\",\"claudeSessionId\":\"s\",\"gone\":\"s\",\"theme\":{\"dots\":[{\"angle\":3,\"radius\":0.5}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"auto\"},\"glyph\":\"terminal\",\"daemonNote\":\"s\",\"daemonRefusedAt\":{\"machineId\":\"s\",\"at\":\"s\",\"why\":\"s\"},\"vaultedAt\":\"s\",\"vaultRefused\":\"s\",\"wakeRefused\":\"s\",\"diskGone\":\"s\",\"agents\":{\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"s\",\"rootThreadId\":\"s\",\"parentWorkspaceId\":\"s\",\"place\":\"s\",\"provider\":\"s\",\"pauseMode\":\"memory\",\"worktree\":{\"path\":\"s\",\"made\":false},\"from\":{\"kind\":\"issue\",\"repo\":\"s\",\"number\":7,\"url\":\"s\",\"title\":\"s\"},\"review\":{\"verdict\":\"comment\",\"summary\":\"s\",\"comments\":[],\"headOid\":\"s\",\"threadId\":\"s\",\"at\":3}}"
  },
  {
   "type": "WorkspaceOut",
@@ -3990,7 +3934,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -4088,7 +4031,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -4186,7 +4128,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -4284,7 +4225,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -4382,7 +4322,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -4621,7 +4560,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -4732,7 +4670,7 @@
     "readAt": 2.5
    }
   },
-  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"queue\":{\"since\":\"text é\",\"why\":\"minute\"},\"screen\":{\"streamUrl\":\"text é\"},\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"spawn\":true,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"provider\":\"text é\",\"pauseMode\":\"disk\",\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\",\"oid\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true}}},\"review\":{\"note\":\"text é\",\"at\":2.5,\"reasked\":true},\"branchOfRecord\":{\"repoId\":7,\"owner\":\"text é\",\"name\":\"text é\",\"branch\":\"text é\",\"startSha\":\"text é\",\"public\":true},\"machineState\":\"gone\",\"reach\":{\"state\":\"zombie\",\"url\":\"text é\",\"expiresAt\":2.5,\"offline\":true},\"size\":{\"cpu\":2.5,\"memMb\":2.5},\"rateUsdPerHour\":2.5,\"facts\":{\"os\":\"text é\",\"uptimeMs\":2.5,\"folder\":\"text é\"},\"reason\":\"text é\",\"wakeAsk\":{\"ask\":2.5,\"of\":2.5},\"idleAt\":2.5,\"checkout\":{\"branch\":\"text é\",\"ahead\":7,\"behind\":7,\"changed\":7,\"editsUnread\":true,\"countsUnknown\":true,\"stashes\":7,\"head\":\"text é\",\"readAt\":2.5},\"pr\":{\"why\":\"text é\",\"readAt\":2.5},\"tree\":{\"leadBranch\":\"text é\",\"children\":[{\"merged\":{\"oid\":\"text é\",\"at\":2.5},\"conflicts\":[],\"pushRefused\":\"text é\",\"workspaceId\":\"text é\",\"threadId\":\"text é\",\"branch\":\"text é\",\"pushed\":true,\"aheadOfLead\":7,\"behindLead\":7}],\"readAt\":2.5}}"
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"queue\":{\"since\":\"text é\",\"why\":\"minute\"},\"screen\":{\"streamUrl\":\"text é\"},\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"provider\":\"text é\",\"pauseMode\":\"disk\",\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\",\"oid\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true}}},\"review\":{\"note\":\"text é\",\"at\":2.5,\"reasked\":true},\"branchOfRecord\":{\"repoId\":7,\"owner\":\"text é\",\"name\":\"text é\",\"branch\":\"text é\",\"startSha\":\"text é\",\"public\":true},\"machineState\":\"gone\",\"reach\":{\"state\":\"zombie\",\"url\":\"text é\",\"expiresAt\":2.5,\"offline\":true},\"size\":{\"cpu\":2.5,\"memMb\":2.5},\"rateUsdPerHour\":2.5,\"facts\":{\"os\":\"text é\",\"uptimeMs\":2.5,\"folder\":\"text é\"},\"reason\":\"text é\",\"wakeAsk\":{\"ask\":2.5,\"of\":2.5},\"idleAt\":2.5,\"checkout\":{\"branch\":\"text é\",\"ahead\":7,\"behind\":7,\"changed\":7,\"editsUnread\":true,\"countsUnknown\":true,\"stashes\":7,\"head\":\"text é\",\"readAt\":2.5},\"pr\":{\"why\":\"text é\",\"readAt\":2.5},\"tree\":{\"leadBranch\":\"text é\",\"children\":[{\"merged\":{\"oid\":\"text é\",\"at\":2.5},\"conflicts\":[],\"pushRefused\":\"text é\",\"workspaceId\":\"text é\",\"threadId\":\"text é\",\"branch\":\"text é\",\"pushed\":true,\"aheadOfLead\":7,\"behindLead\":7}],\"readAt\":2.5}}"
  },
  {
   "type": "WorkspaceStatus",
@@ -4814,7 +4752,6 @@
    "wakeRefused": "s",
    "diskGone": "s",
    "agents": {
-    "spawn": false,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -4902,7 +4839,7 @@
     "readAt": 3
    }
   },
-  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"},\"folder\":\"s\",\"home\":\"s\",\"claudeSessionId\":\"s\",\"queue\":{\"since\":\"s\",\"why\":\"slot\"},\"screen\":{\"streamUrl\":\"s\"},\"gone\":\"s\",\"theme\":{\"dots\":[{\"angle\":3,\"radius\":0.5}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"auto\"},\"glyph\":\"terminal\",\"daemonNote\":\"s\",\"vaultedAt\":\"s\",\"vaultRefused\":\"s\",\"daemonRefusedAt\":{\"machineId\":\"s\",\"at\":\"s\",\"why\":\"s\"},\"wakeRefused\":\"s\",\"diskGone\":\"s\",\"agents\":{\"spawn\":false,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"s\",\"rootThreadId\":\"s\",\"parentWorkspaceId\":\"s\",\"place\":\"s\",\"worktree\":{\"path\":\"s\",\"made\":false},\"provider\":\"s\",\"pauseMode\":\"memory\",\"from\":{\"kind\":\"issue\",\"repo\":\"s\",\"number\":7,\"url\":\"s\",\"title\":\"s\"},\"review\":{\"verdict\":\"comment\",\"summary\":\"s\",\"comments\":[],\"headOid\":\"s\",\"threadId\":\"s\",\"at\":3},\"branchOfRecord\":{\"repoId\":7,\"owner\":\"s\",\"name\":\"s\",\"branch\":\"s\"},\"machineState\":\"starting\",\"reach\":{\"state\":\"reachable\"},\"size\":{\"cpu\":3,\"memMb\":3},\"rateUsdPerHour\":3,\"facts\":{\"os\":\"s\",\"uptimeMs\":3,\"folder\":\"s\"},\"reason\":\"s\",\"wakeAsk\":{\"ask\":3,\"of\":3},\"idleAt\":3,\"checkout\":{\"branch\":\"s\",\"ahead\":7,\"behind\":7,\"changed\":7,\"readAt\":3},\"pr\":{\"number\":7,\"url\":\"s\",\"state\":\"open\",\"host\":\"s\",\"draft\":false,\"base\":\"s\",\"branch\":\"s\",\"headOid\":\"s\",\"headSubject\":\"s\",\"mergeable\":\"mergeable\",\"mergeState\":\"s\",\"review\":\"none\",\"checks\":[],\"additions\":7,\"deletions\":7,\"changedFiles\":7,\"commits\":7,\"readAt\":3},\"tree\":{\"leadBranch\":\"s\",\"children\":[],\"readAt\":3}}"
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"},\"folder\":\"s\",\"home\":\"s\",\"claudeSessionId\":\"s\",\"queue\":{\"since\":\"s\",\"why\":\"slot\"},\"screen\":{\"streamUrl\":\"s\"},\"gone\":\"s\",\"theme\":{\"dots\":[{\"angle\":3,\"radius\":0.5}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"auto\"},\"glyph\":\"terminal\",\"daemonNote\":\"s\",\"vaultedAt\":\"s\",\"vaultRefused\":\"s\",\"daemonRefusedAt\":{\"machineId\":\"s\",\"at\":\"s\",\"why\":\"s\"},\"wakeRefused\":\"s\",\"diskGone\":\"s\",\"agents\":{\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"s\",\"rootThreadId\":\"s\",\"parentWorkspaceId\":\"s\",\"place\":\"s\",\"worktree\":{\"path\":\"s\",\"made\":false},\"provider\":\"s\",\"pauseMode\":\"memory\",\"from\":{\"kind\":\"issue\",\"repo\":\"s\",\"number\":7,\"url\":\"s\",\"title\":\"s\"},\"review\":{\"verdict\":\"comment\",\"summary\":\"s\",\"comments\":[],\"headOid\":\"s\",\"threadId\":\"s\",\"at\":3},\"branchOfRecord\":{\"repoId\":7,\"owner\":\"s\",\"name\":\"s\",\"branch\":\"s\"},\"machineState\":\"starting\",\"reach\":{\"state\":\"reachable\"},\"size\":{\"cpu\":3,\"memMb\":3},\"rateUsdPerHour\":3,\"facts\":{\"os\":\"s\",\"uptimeMs\":3,\"folder\":\"s\"},\"reason\":\"s\",\"wakeAsk\":{\"ask\":3,\"of\":3},\"idleAt\":3,\"checkout\":{\"branch\":\"s\",\"ahead\":7,\"behind\":7,\"changed\":7,\"readAt\":3},\"pr\":{\"number\":7,\"url\":\"s\",\"state\":\"open\",\"host\":\"s\",\"draft\":false,\"base\":\"s\",\"branch\":\"s\",\"headOid\":\"s\",\"headSubject\":\"s\",\"mergeable\":\"mergeable\",\"mergeState\":\"s\",\"review\":\"none\",\"checks\":[],\"additions\":7,\"deletions\":7,\"changedFiles\":7,\"commits\":7,\"readAt\":3},\"tree\":{\"leadBranch\":\"s\",\"children\":[],\"readAt\":3}}"
  },
  {
   "type": "WorkspaceStatus",
@@ -4955,7 +4892,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -5126,7 +5062,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -5297,7 +5232,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -5468,7 +5402,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -5639,7 +5572,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -5810,7 +5742,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -6122,7 +6053,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -6175,7 +6105,7 @@
     "public": true
    }
   },
-  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"queue\":{\"since\":\"text é\",\"why\":\"minute\"},\"screen\":{\"streamUrl\":\"text é\"},\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"spawn\":true,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"provider\":\"text é\",\"pauseMode\":\"disk\",\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\",\"oid\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true}}},\"review\":{\"note\":\"text é\",\"at\":2.5,\"reasked\":true},\"branchOfRecord\":{\"repoId\":7,\"owner\":\"text é\",\"name\":\"text é\",\"branch\":\"text é\",\"startSha\":\"text é\",\"public\":true}}"
+  "output": "{\"id\":\"text é\",\"name\":\"text é\",\"machineId\":\"text é\",\"phase\":\"released\",\"kind\":\"place\",\"golden\":\"text é\",\"createdAt\":\"text é\",\"project\":{\"id\":\"text é\",\"name\":\"text é\",\"path\":\"text é\",\"computer\":\"text é\"},\"folder\":\"text é\",\"home\":\"text é\",\"claudeSessionId\":\"text é\",\"queue\":{\"since\":\"text é\",\"why\":\"minute\"},\"screen\":{\"streamUrl\":\"text é\"},\"gone\":\"text é\",\"theme\":{\"dots\":[{\"angle\":2.5,\"radius\":0.5}],\"harmony\":\"analogousThree\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"dark\"},\"glyph\":\"lamp\",\"daemonNote\":\"text é\",\"vaultedAt\":\"text é\",\"vaultRefused\":\"text é\",\"daemonRefusedAt\":{\"machineId\":\"text é\",\"at\":\"text é\",\"why\":\"text é\"},\"wakeRefused\":\"text é\",\"diskGone\":\"text é\",\"agents\":{\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"text é\",\"rootThreadId\":\"text é\",\"parentWorkspaceId\":\"text é\",\"place\":\"text é\",\"worktree\":{\"path\":\"text é\",\"branch\":\"text é\",\"made\":true,\"madeFor\":\"text é\",\"settled\":{\"at\":2.5,\"why\":\"removed\"},\"kept\":\"text é\",\"removeFailed\":\"text é\",\"gone\":true},\"provider\":\"text é\",\"pauseMode\":\"disk\",\"from\":{\"kind\":\"review\",\"repo\":\"text é\",\"number\":7,\"url\":\"text é\",\"title\":\"text é\",\"base\":\"text é\",\"head\":{\"branch\":\"text é\",\"oid\":\"text é\",\"fork\":{\"owner\":\"text é\",\"pushable\":true}}},\"review\":{\"note\":\"text é\",\"at\":2.5,\"reasked\":true},\"branchOfRecord\":{\"repoId\":7,\"owner\":\"text é\",\"name\":\"text é\",\"branch\":\"text é\",\"startSha\":\"text é\",\"public\":true}}"
  },
  {
   "type": "WorkspaceView",
@@ -6248,7 +6178,6 @@
    "wakeRefused": "s",
    "diskGone": "s",
    "agents": {
-    "spawn": false,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -6284,7 +6213,7 @@
     "branch": "s"
    }
   },
-  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"},\"folder\":\"s\",\"home\":\"s\",\"claudeSessionId\":\"s\",\"queue\":{\"since\":\"s\",\"why\":\"slot\"},\"screen\":{\"streamUrl\":\"s\"},\"gone\":\"s\",\"theme\":{\"dots\":[{\"angle\":3,\"radius\":0.5}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"auto\"},\"glyph\":\"terminal\",\"daemonNote\":\"s\",\"vaultedAt\":\"s\",\"vaultRefused\":\"s\",\"daemonRefusedAt\":{\"machineId\":\"s\",\"at\":\"s\",\"why\":\"s\"},\"wakeRefused\":\"s\",\"diskGone\":\"s\",\"agents\":{\"spawn\":false,\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"s\",\"rootThreadId\":\"s\",\"parentWorkspaceId\":\"s\",\"place\":\"s\",\"worktree\":{\"path\":\"s\",\"made\":false},\"provider\":\"s\",\"pauseMode\":\"memory\",\"from\":{\"kind\":\"issue\",\"repo\":\"s\",\"number\":7,\"url\":\"s\",\"title\":\"s\"},\"review\":{\"verdict\":\"comment\",\"summary\":\"s\",\"comments\":[],\"headOid\":\"s\",\"threadId\":\"s\",\"at\":3},\"branchOfRecord\":{\"repoId\":7,\"owner\":\"s\",\"name\":\"s\",\"branch\":\"s\"}}"
+  "output": "{\"id\":\"s\",\"name\":\"s\",\"machineId\":\"s\",\"phase\":\"running\",\"kind\":\"cloud\",\"golden\":\"s\",\"createdAt\":\"s\",\"project\":{\"id\":\"s\",\"name\":\"s\",\"path\":\"s\",\"computer\":\"s\"},\"folder\":\"s\",\"home\":\"s\",\"claudeSessionId\":\"s\",\"queue\":{\"since\":\"s\",\"why\":\"slot\"},\"screen\":{\"streamUrl\":\"s\"},\"gone\":\"s\",\"theme\":{\"dots\":[{\"angle\":3,\"radius\":0.5}],\"harmony\":\"single\",\"grain\":0.5,\"opacity\":0.5,\"mode\":\"auto\"},\"glyph\":\"terminal\",\"daemonNote\":\"s\",\"vaultedAt\":\"s\",\"vaultRefused\":\"s\",\"daemonRefusedAt\":{\"machineId\":\"s\",\"at\":\"s\",\"why\":\"s\"},\"wakeRefused\":\"s\",\"diskGone\":\"s\",\"agents\":{\"maxMachines\":7,\"maxDepth\":7},\"parentThreadId\":\"s\",\"rootThreadId\":\"s\",\"parentWorkspaceId\":\"s\",\"place\":\"s\",\"worktree\":{\"path\":\"s\",\"made\":false},\"provider\":\"s\",\"pauseMode\":\"memory\",\"from\":{\"kind\":\"issue\",\"repo\":\"s\",\"number\":7,\"url\":\"s\",\"title\":\"s\"},\"review\":{\"verdict\":\"comment\",\"summary\":\"s\",\"comments\":[],\"headOid\":\"s\",\"threadId\":\"s\",\"at\":3},\"branchOfRecord\":{\"repoId\":7,\"owner\":\"s\",\"name\":\"s\",\"branch\":\"s\"}}"
  },
  {
   "type": "WorkspaceView",
@@ -6337,7 +6266,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -6450,7 +6378,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -6563,7 +6490,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -6676,7 +6602,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },
@@ -6789,7 +6714,6 @@
    "wakeRefused": "text é",
    "diskGone": "text é",
    "agents": {
-    "spawn": true,
     "maxMachines": 7,
     "maxDepth": 7
    },

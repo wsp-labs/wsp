@@ -84,18 +84,9 @@ mod runtime_wire_types {
             "places.sshHosts",
             "projects.add",
             "init.keys",
-            "init.start",
-            "init.answer",
-            "init.step",
-            "init.draft",
-            "init.retry",
-            "init.build",
-            "init.signInCode",
-            "init.cancel",
             "image.build",
             "golden.prepare",
             "golden.seal",
-            "image.export",
             "host.folders",
             "agents.read",
             "servers.tools",
@@ -330,10 +321,10 @@ mod request_secrets {
         for field in ["token", "key", "rows", "code", "passphrase", "env", "envs"] {
             assert!(wsp_wire::wire::runtime::SECRET_REQUEST_FIELDS.contains(&field), "{field}");
         }
-        let frame = json!({ "id": 1, "op": "init.keys", "provider": "box", "key": "k1", "rows": { "logins/claude": "r1", "deep": { "x": "no" } }, "env": { "A": "e1" } });
+        let frame = json!({ "id": 1, "op": "init.keys", "provider": "box", "key": "k1", "env": { "A": "e1" } });
         let mut got = request_secrets(&frame);
         got.sort();
-        assert_eq!(got, vec!["e1", "k1", "r1"]);
+        assert_eq!(got, vec!["e1", "k1"]);
         assert_eq!(request_secrets(&Value::String("not a frame".into())), Vec::<String>::new());
     }
 
@@ -446,11 +437,11 @@ mod edges_the_ts_module_printed {
         assert_eq!(task_stop_unsupported_line("codex"), "Stop is not available for codex subagents; stop the thread to stop them all");
     }
 
-    // The three lists hold 211, 50 and 87 ops; every thread op and device op is one the host serves.
+    // The three lists hold 199, 50 and 84 ops; every thread op and device op is one the host serves.
     #[test]
     fn the_op_lists_are_the_counts_the_door_reads() {
         parse_runtime_request(&json!({ "id": 1, "op": "auth", "token": "t" })).unwrap();
-        assert_eq!((RUNTIME_OPS.len(), THREAD_OPS.len(), DEVICE_OPS.len()), (211, 50, 87));
+        assert_eq!((RUNTIME_OPS.len(), THREAD_OPS.len(), DEVICE_OPS.len()), (199, 50, 84));
         for op in THREAD_OPS.iter().chain(DEVICE_OPS) {
             assert!(RUNTIME_OPS.contains(op), "{op}");
         }
