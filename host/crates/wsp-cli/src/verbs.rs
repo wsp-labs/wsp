@@ -22,8 +22,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 use async_trait::async_trait;
 use indexmap::IndexMap;
 use regex::Regex;
-use wsp_words::exit::{usage_refusal, HostError};
 use wsp_wire::types::env::CLOUD_ENV;
+use wsp_words::exit::{usage_refusal, HostError};
 use wsp_words::words::thread::foreign_flag_line;
 
 use crate::cloud_text::cloud_text;
@@ -531,6 +531,7 @@ pub async fn run_verb(
     deps: RunDeps,
 ) -> i32 {
     let name = verb.name();
+    let cloud = table.iter().any(Verb::is_cloud);
     let json = json_asked(argv);
     let own_words = name.split(' ').count();
     let rest = argv.get(own_words..).unwrap_or_default();
@@ -546,7 +547,7 @@ pub async fn run_verb(
     let host_side = verb.host_side();
     if flag_set(&flags, "help") {
         let host = if host_side.is_some() { common_flag_words::HOST_SIDE } else { common_flag_words::HOST };
-        io.log(&verb_page(verb, host, crate::cloud::cloud_on()));
+        io.log(&verb_page(verb, host, cloud));
         return 0;
     }
     let state_path = state_path_of(flag(&flags, "state"));
@@ -573,7 +574,7 @@ pub async fn run_verb(
         client: Mutex::new(None),
     });
     let mut env = deps.env.clone();
-    if table.iter().any(Verb::is_cloud) {
+    if cloud {
         env.insert(CLOUD_ENV.to_owned(), "1".to_owned());
     } else {
         env.shift_remove(CLOUD_ENV);

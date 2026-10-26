@@ -166,7 +166,8 @@ pub(super) fn call_review_post(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Re
             return Ok(off_the_list("review_post", "verdict", &["comment", "approve", "request_changes"], word));
         }
         let client = deps.client(None).await?;
-        let at = thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp review post", false, cloud_on_in(&deps.env)).await?;
+        let at = thread_at_in(&*client, &frame_str(&args, "thread").unwrap_or_default(), "wsp review post", false, cloud_on_in(&deps.env))
+            .await?;
         let edits =
             ReviewEdits { verdict: frame_str(&args, "verdict").and_then(|word| verdict_of(&word)), summary: frame_str(&args, "summary") };
         let posted = review_posted(&*client, &at.1.id, &edits, &thread_id_of(&at.0)).await?;

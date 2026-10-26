@@ -117,8 +117,8 @@ async fn create_follow(
     }
     let reply = client.request("workspaces.create", body).await?;
     let shown: Value = reply_field(&reply, "workspaces.create", "workspace")?;
-    let workspace: WorkspaceOut = serde_json::from_value(with_workspace_keys(shown.clone()))
-        .map_err(|_| HostError::new(other_version("workspaces.create")))?;
+    let workspace: WorkspaceOut =
+        serde_json::from_value(with_workspace_keys(shown.clone())).map_err(|_| HostError::new(other_version("workspaces.create")))?;
     let notice = reply.get("notice").and_then(Value::as_str).map(str::to_owned);
     let at = workspace.folder.clone().unwrap_or_else(|| workspace.project.path.clone());
     let line = format!(
