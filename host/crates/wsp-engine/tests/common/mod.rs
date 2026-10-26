@@ -50,6 +50,11 @@ pub struct FakeMachine {
     pub put_bytes: Option<PutFn>,
 }
 
+/// The owned handle a call that runs on after its caller takes: a clone of the fake, which shares its closures.
+pub fn handle(machine: &FakeMachine) -> Arc<dyn Machine> {
+    Arc::new(machine.clone())
+}
+
 impl FakeMachine {
     pub fn new(exec: ExecFn) -> Self {
         FakeMachine { id: "spoo".to_string(), exec, run: None, download_url: None, upload_url: None, put_bytes: None }

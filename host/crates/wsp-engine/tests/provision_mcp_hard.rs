@@ -147,7 +147,7 @@ async fn round(g: &BoxGuest, plan: &McpPlan, files: bool, into: Option<Into>) ->
     let root = g.root_str();
     let owned: OwnedPaths = if files {
         provision_files(
-            &g.machine,
+            &common::handle(&g.machine),
             ProvisionFilesAsk { home: root.clone(), lands: lands(), pack: pack(), say: None, stores: IndexMap::new() },
         )
         .await

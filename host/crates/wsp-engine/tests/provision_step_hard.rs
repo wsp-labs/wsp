@@ -106,7 +106,7 @@ async fn the_tools_loop_says_each_row_with_the_next_step_and_keeps_the_loops_res
     let stage: ProvisionStage = Arc::new(move |detail, at, row| {
         seen.lock().unwrap().push(json!([detail, at.map(|a| format!("{}/{}: {}", a.index, a.of, a.label)), row.map(bare)]));
     });
-    let rows = provision_step(&machine, &plan_of(steps), EngineStep::Clis, run.clone(), stage, &on()).await.unwrap();
+    let rows = provision_step(&common::handle(&machine), &plan_of(steps), EngineStep::Clis, run.clone(), stage, &on()).await.unwrap();
     let want = &oracle("strengthen_step.json")["toolsLoop"];
     assert_eq!(json!(*staged.lock().unwrap()), want["staged"]);
     assert_eq!(json!(rows.iter().map(bare).collect::<Vec<_>>()), want["rows"]);
@@ -151,7 +151,7 @@ async fn a_plugins_note_is_the_last_trimmed_line_of_what_it_said_cut_at_300_else
     let staged = Arc::new(Mutex::new(Vec::<Value>::new()));
     let seen = staged.clone();
     let stage: ProvisionStage = Arc::new(move |detail, _, row| seen.lock().unwrap().push(json!([detail, row.map(bare)])));
-    let rows = provision_step(&machine, &plan, EngineStep::Plugins, new_setup_run(), stage, &on()).await.unwrap();
+    let rows = provision_step(&common::handle(&machine), &plan, EngineStep::Plugins, new_setup_run(), stage, &on()).await.unwrap();
     let want = &oracle("strengthen_step.json")["plugins"];
     assert_eq!(json!(rows.iter().map(bare).collect::<Vec<_>>()), want["rows"]);
     assert_eq!(json!(*staged.lock().unwrap()), want["staged"]);

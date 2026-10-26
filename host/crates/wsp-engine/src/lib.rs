@@ -24,6 +24,7 @@ pub mod land_bytes;
 pub mod lifecycle;
 pub mod link_backend;
 pub mod local_backend;
+pub mod local_task;
 pub mod machine;
 pub mod machine_context;
 pub mod machine_facts;

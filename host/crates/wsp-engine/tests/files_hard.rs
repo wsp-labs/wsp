@@ -95,7 +95,7 @@ async fn each_call_rides_the_road_and_bound_the_ts_gives_it() {
         say: quiet(),
         roots: vec![],
     };
-    land_agent_files(&m, o).await.unwrap();
+    land_agent_files(&common::handle(&m), o).await.unwrap();
     let got = logged(&log);
     assert!(got[0].starts_with("exec[20000] stdin=\"\" rm -rf "), "{}", got[0]);
     assert!(got.iter().any(|c| c.starts_with("run[300000] unlogged=false set -eo pipefail")), "{got:?}");
@@ -116,16 +116,19 @@ async fn the_sweep_fails_the_landing_only_by_err_and_the_landing_error_keeps_the
         roots: vec![],
     };
     let (m, _) = recorder(|cmd| cmd.starts_with("rm -rf").then(|| Ok(res(1, "", "busy"))));
-    assert!(land_agent_files(&m, ask()).await.is_ok());
+    assert!(land_agent_files(&common::handle(&m), ask()).await.is_ok());
     let (m, log) = recorder(|cmd| cmd.starts_with("rm -rf").then(|| Err(other("link down"))));
-    assert_eq!(land_agent_files(&m, ask()).await.unwrap_err().to_string(), "link down");
+    assert_eq!(land_agent_files(&common::handle(&m), ask()).await.unwrap_err().to_string(), "link down");
     assert_eq!(logged(&log).len(), 1);
     let odd = format!("{}x", "\u{1F600}".repeat(200));
     let (m, _) = recorder(move |cmd| cmd.contains(": > \"$landing\"").then(|| Ok(res(3, "", &odd))));
-    let err = land_agent_files(&m, ask()).await.unwrap_err().to_string();
+    let err = land_agent_files(&common::handle(&m), ask()).await.unwrap_err().to_string();
     assert_eq!(err, format!("the agents' files did not land on spoo (exit 3): \u{FFFD}{}x", "\u{1F600}".repeat(149)));
     let (m, _) = recorder(|cmd| cmd.contains(": > \"$landing\"").then(|| Ok(res(124, "", ""))));
-    assert_eq!(land_agent_files(&m, ask()).await.unwrap_err().to_string(), "the agents' files did not land on spoo (exit 124): ");
+    assert_eq!(
+        land_agent_files(&common::handle(&m), ask()).await.unwrap_err().to_string(),
+        "the agents' files did not land on spoo (exit 124): "
+    );
 }
 
 /// F8: every parser splits on `\n` alone, so a path's trailing `\r` stays part of the path.
@@ -192,7 +195,7 @@ async fn a_landing_cut_after_its_walk_fails_its_rows_yet_the_close_lists_what_it
         Box::pin(async move { Ok(PackedFiles { bytes: tar.len() as u64, unpacked: tar.len() as u64, tar, ..PackedFiles::default() }) })
     });
     let got = provision_files(
-        &g.machine,
+        &common::handle(&g.machine),
         ProvisionFilesAsk { home: root.clone(), lands: vec![land(".claude-cfg/skills")], pack, say: None, stores: IndexMap::new() },
     )
     .await;
@@ -281,7 +284,7 @@ async fn failure_notes_keep_an_empty_first_line_and_the_packed_line_prints_zero(
         let (m, _) = recorder(|_| None);
         let pack: PackFiles = Arc::new(move |_| Box::pin(async move { Err(other(said)) }));
         let got = provision_files(
-            &m,
+            &common::handle(&m),
             ProvisionFilesAsk { home: s("/h"), lands: vec![land(".claude-cfg")], pack, say: None, stores: IndexMap::new() },
         )
         .await;
@@ -294,7 +297,7 @@ async fn failure_notes_keep_an_empty_first_line_and_the_packed_line_prints_zero(
         Box::pin(async { Ok(PackedFiles { tar: vec![], bytes: 123, unpacked: 0, skipped: vec![], files: Some(0), stood: Some(vec![]) }) })
     });
     let _ = provision_files(
-        &m,
+        &common::handle(&m),
         ProvisionFilesAsk {
             home: s("/h"),
             lands: vec![land("a"), land("b")],
