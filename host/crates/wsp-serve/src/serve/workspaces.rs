@@ -281,7 +281,7 @@ pub async fn answer_workspaces(
                 on: on.as_ref().map(|items| items.iter().map(|item| (item.id.clone(), item.on)).collect()),
             };
             match rt.workspaces().review_draft(ask, origin).await? {
-                Some(draft) => spread(&draft)?,
+                Some(draft) => fields([("review", value_of(&draft)?)]),
                 None => Payload::new(),
             }
         }

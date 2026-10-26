@@ -9,13 +9,13 @@
 //! authed socket (`ticket.issue`) and redeemed as `?ticket=...` on the next connect.
 pub mod answer;
 pub mod door;
-pub mod flat;
 pub mod listener;
 pub mod ops;
 pub mod places;
 pub mod served;
 pub mod socket;
 pub mod workspaces;
+pub mod wsframe;
 
 use std::net::SocketAddr;
 use std::rc::Rc;
