@@ -17,16 +17,25 @@ pub mod turns_help;
 pub mod workspaces;
 pub mod workspaces_help;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 
+use async_trait::async_trait;
 use indexmap::IndexMap;
-use wsp_words::exit::HostError;
+use regex::Regex;
+use wsp_words::exit::{usage_refusal, HostError};
+use wsp_words::words::thread::foreign_flag_line;
 
+use crate::cloud_text::cloud_text;
 use crate::host_lock::HostStarter;
-use crate::parse_args::ParseArgsError;
+use crate::hosts::{aim_name, aimed_host, host_side_only_fix, host_side_only_line, state_ignored_line, HostAim, HostPick};
+use crate::init_layout::wrap;
+use crate::parse_args::{parse_args, ParseArgsCode, ParseArgsError};
 use crate::signin_relay::RelayTerminal;
 use crate::watch::WatchSignals;
-use client::{CliIo, DialFn, LineVerb, Opener, Page, Verb};
+use client::{
+    absolute_folder, common, dial_host, failed, flag, flag_set, host_schema_refusal, json_asked, optional_values, Again, CliIo, DialFn,
+    DialOpts, Dialer, FlagTable, HostClient, LineVerb, Opener, Out, Page, Tool, Verb, VerbContext, VerbDeps,
+};
 
 pub use crate::verbs::agents_help::set::AGENTS_ON_WORDS;
 
@@ -36,52 +45,152 @@ pub const TERMINAL_SCHEMES: [&str; 2] = ["light", "dark"];
 /// `ALL_VERBS` (verbs.ts:366-374): computers, agents, projects, workspaces, threads, conversations, activity, each
 /// group in its module's order.
 pub fn all_verbs() -> Vec<Verb> {
-    todo!("verbs.ts:366-374")
+    [
+        computers::computer_verbs(),
+        agents::agent_verbs(),
+        projects::project_verbs(),
+        workspaces::workspace_verbs(),
+        threads::thread_verbs(),
+        conversations::conversation_verbs(),
+        activity::activity_verbs(),
+    ]
+    .concat()
+}
+
+fn cloud_flags_of(verb: &Verb) -> Vec<&'static str> {
+    match verb {
+        Verb::Cli(verb) => verb.cloud_flags.clone(),
+        Verb::CliOnly(verb) => verb.cloud_flags.clone(),
+        Verb::ToolOnly(_) | Verb::CommandTool(_) => Vec::new(),
+    }
+}
+
+fn utf16_len(text: &str) -> usize {
+    text.encode_utf16().count()
+}
+
+fn pad_end(text: &str, width: usize) -> String {
+    format!("{text}{}", " ".repeat(width.saturating_sub(utf16_len(text))))
+}
+
+/// The line `opens` tests: its words are the first of argv, in order.
+fn opens(name: &str, argv: &[String]) -> bool {
+    name.split(' ').enumerate().all(|(at, word)| argv.get(at).map(String::as_str) == Some(word))
 }
 
 /// `withoutCloudFlags(v)` (verbs.ts:379-387): a `Cli` or `CliOnly` entry with its `cloud_flags` gone from its
 /// options, from its usage (each ` [--<flag>...]` group, the first match only) and from its tool's input (an input
 /// whose name with `_` as `-` is a dropped flag). Every other entry as it was.
 pub fn without_cloud_flags(verb: &Verb) -> Verb {
-    let _ = verb;
-    todo!("verbs.ts:379-387")
+    let dropped = cloud_flags_of(verb);
+    if dropped.is_empty() {
+        return verb.clone();
+    }
+    let is_dropped = |name: &str| dropped.iter().any(|flag| *flag == name);
+    let usage_without = |usage: &str| {
+        dropped.iter().fold(usage.to_owned(), |line, name| {
+            let group = Regex::new(&format!(r" \[--{}\b[^\]]*\]", regex::escape(name))).expect("a flag name makes a pattern");
+            group.replacen(&line, 1, "").into_owned()
+        })
+    };
+    match verb {
+        Verb::Cli(verb) => {
+            let mut cut = verb.clone();
+            cut.options.0.retain(|(name, _)| !is_dropped(name));
+            cut.usage = usage_without(&verb.usage);
+            cut.tool.input.retain(|input| !is_dropped(&input.name.replace('_', "-")));
+            Verb::Cli(cut)
+        }
+        Verb::CliOnly(verb) => {
+            let mut cut = verb.clone();
+            cut.options.0.retain(|(name, _)| !is_dropped(name));
+            cut.usage = usage_without(&verb.usage);
+            Verb::CliOnly(cut)
+        }
+        other => other.clone(),
+    }
+}
+
+fn worded_tool(tool: &Tool, cloud_on: bool) -> Tool {
+    let mut worded = tool.clone();
+    worded.description = cloud_text(&tool.description, cloud_on);
+    for input in &mut worded.input {
+        input.describe = input.describe.as_deref().map(|text| cloud_text(text, cloud_on));
+    }
+    worded
 }
 
 /// `inCloudWords(v)` (verbs.ts:391-394): usage, about and the tool's description through `cloud_text(_, cloud_on)`.
 pub fn in_cloud_words(verb: &Verb, cloud_on: bool) -> Verb {
-    let _ = (verb, cloud_on);
-    todo!("verbs.ts:391-394")
+    match verb {
+        Verb::Cli(verb) => {
+            let mut worded = verb.clone();
+            worded.usage = cloud_text(&verb.usage, cloud_on);
+            worded.about = cloud_text(&verb.about, cloud_on);
+            worded.tool = worded_tool(&verb.tool, cloud_on);
+            Verb::Cli(worded)
+        }
+        Verb::CliOnly(verb) => {
+            let mut worded = verb.clone();
+            worded.usage = cloud_text(&verb.usage, cloud_on);
+            worded.about = cloud_text(&verb.about, cloud_on);
+            Verb::CliOnly(worded)
+        }
+        Verb::ToolOnly(verb) => {
+            let mut worded = verb.clone();
+            worded.tool = worded_tool(&verb.tool, cloud_on);
+            Verb::ToolOnly(worded)
+        }
+        Verb::CommandTool(verb) => {
+            let mut worded = verb.clone();
+            worded.tool = worded_tool(&verb.tool, cloud_on);
+            Verb::CommandTool(worded)
+        }
+    }
 }
 
 /// `VERBS` (verbs.ts:399) for a given cloud switch: every verb with the cloud on; with it off every verb but the
 /// cloud's own, each without its cloud flags; then every one in its cloud words.
 pub fn verbs_for(cloud_on: bool) -> Vec<Verb> {
-    let _ = cloud_on;
-    todo!("verbs.ts:399")
+    let kept: Vec<Verb> =
+        if cloud_on { all_verbs() } else { all_verbs().iter().filter(|verb| !verb.is_cloud()).map(without_cloud_flags).collect() };
+    kept.iter().map(|verb| in_cloud_words(verb, cloud_on)).collect()
 }
 
 /// `VERBS` of this process: `verbs_for(crate::cloud::cloud_on())`, built once.
 pub fn verbs() -> &'static [Verb] {
-    todo!("verbs.ts:399")
+    static VERBS: OnceLock<Vec<Verb>> = OnceLock::new();
+    VERBS.get_or_init(|| verbs_for(crate::cloud::cloud_on())).as_slice()
 }
 
 /// `cloudLineOf(argv)` (verbs.ts:404-412), with the two switches handed in.
 pub fn cloud_line_of(argv: &[String], cloud_on: bool, cloud_built: bool) -> Option<String> {
-    let _ = (argv, cloud_on, cloud_built);
-    todo!("verbs.ts:404-412")
+    if cloud_on || !cloud_built {
+        return None;
+    }
+    let mut all = all_verbs();
+    all.sort_by_key(|verb| std::cmp::Reverse(utf16_len(verb.name())));
+    let verb = all.iter().find(|verb| opens(verb.name(), argv))?;
+    if verb.is_cloud() {
+        return Some(format!("wsp {}", verb.name()));
+    }
+    let typed = cloud_flags_of(verb)
+        .into_iter()
+        .find(|name| argv.iter().any(|w| w == &format!("--{name}") || w.starts_with(&format!("--{name}="))))?;
+    Some(format!("wsp {} --{typed}", verb.name()))
 }
 
 /// `CLI_VERBS` (verbs.ts:415): the `Cli` and `CliOnly` entries of the table, in its order.
 pub fn cli_verbs(table: &[Verb]) -> Vec<LineVerb<'_>> {
-    let _ = table;
-    todo!("verbs.ts:415")
+    table.iter().filter_map(Verb::line).collect()
 }
 
 /// `findVerb(argv)` (verbs.ts:418-423): the line verb whose words open argv, the longest name in characters first;
 /// among names of one length, the table's order.
 pub fn find_verb<'a>(table: &'a [Verb], argv: &[String]) -> Option<LineVerb<'a>> {
-    let _ = (table, argv);
-    todo!("verbs.ts:418-423")
+    let mut lines = cli_verbs(table);
+    lines.sort_by_key(|verb| std::cmp::Reverse(verb.name().chars().count()));
+    lines.into_iter().find(|verb| opens(verb.name(), argv))
 }
 
 /// `HELP_WIDTH` (verbs.ts:426).
@@ -260,41 +369,72 @@ pub fn flag_words() -> Vec<(&'static str, String)> {
 /// `flagSays(verb, name)` (verbs.ts:608-611): the `"<verb> <name>"` row, else the `name` row, through
 /// `cloud_text(_, cloud_on)`; None where neither exists.
 pub fn flag_says(verb: &str, name: &str, cloud_on: bool) -> Option<String> {
-    let _ = (verb, name, cloud_on);
-    todo!("verbs.ts:608-611")
+    let words = flag_words();
+    let joined = format!("{verb} {name}");
+    let said = words.iter().find(|(key, _)| *key == joined.as_str()).or_else(|| words.iter().find(|(key, _)| *key == name))?;
+    Some(cloud_text(&said.1, cloud_on))
 }
 
 /// `aboutLines(verb, indent)` (verbs.ts:614): `wrap(indent + about, HELP_WIDTH, indent)`.
 pub fn about_lines(about: &str, indent: &str) -> Vec<String> {
-    let _ = (about, indent);
-    todo!("verbs.ts:614")
+    wrap(&format!("{indent}{about}"), HELP_WIDTH, indent)
 }
 
 /// `usageLines(usage, indent, lead)` (verbs.ts:619-632): each line of the usage wrapped on its own, a space inside
 /// brackets held as U+00A0 while wrapping and given back after, the first line opened with `lead` ("  " by default).
 pub fn usage_lines(usage: &str, indent: &str, lead: &str) -> Vec<String> {
-    let _ = (usage, indent, lead);
-    todo!("verbs.ts:619-632")
+    usage
+        .split('\n')
+        .enumerate()
+        .flat_map(|(at, line)| {
+            let mut depth = 0i64;
+            let grouped: String = line
+                .chars()
+                .map(|c| {
+                    match c {
+                        '[' => depth += 1,
+                        ']' => depth -= 1,
+                        _ => {}
+                    }
+                    if c == ' ' && depth > 0 {
+                        '\u{a0}'
+                    } else {
+                        c
+                    }
+                })
+                .collect();
+            let first = if at == 0 { lead } else { "" };
+            wrap(&format!("{first}{grouped}"), HELP_WIDTH, indent).into_iter().map(|l| l.replace('\u{a0}', " ")).collect::<Vec<_>>()
+        })
+        .collect()
 }
 
 /// `verbHelp(page)` (verbs.ts:635-639): each line verb on the page (every one where None), its usage lines at
 /// indent four spaces, its about at six, the verbs joined by one newline.
 pub fn verb_help(table: &[Verb], page: Option<Page>) -> String {
-    let _ = (table, page);
-    todo!("verbs.ts:635-639")
+    cli_verbs(table)
+        .into_iter()
+        .filter(|verb| page.is_none_or(|wanted| verb.page() == wanted))
+        .map(|verb| {
+            let mut lines = usage_lines(verb.usage(), "    ", "  ");
+            lines.extend(about_lines(verb.about(), "      "));
+            lines.join("\n")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// `ownFlagsOf(verb)` (verbs.ts:642): the verb's own flags, in declaration order, none of COMMON's.
 pub fn own_flags_of(verb: LineVerb<'_>) -> Vec<&'static str> {
-    let _ = verb;
-    todo!("verbs.ts:642")
+    verb.options().0.iter().map(|(name, _)| *name).filter(|name| !["host", "state", "json", "help"].contains(name)).collect()
 }
 
 /// `COMMON_FLAG_WORDS` (verbs.ts:647-652).
 pub mod common_flag_words {
     pub const JSON: &str = "print the raw protocol values, one JSON object per line, with everything else on stderr";
     pub const STATE: &str = "the state file the host serves";
-    pub const HOST: &str = "run the line against a host on your account, by the name wsp hosts lists it under; WSP_HOST names one for a whole shell";
+    pub const HOST: &str =
+        "run the line against a host on your account, by the name wsp hosts lists it under; WSP_HOST names one for a whole shell";
     pub const HOST_SIDE: &str = "read to say this line runs at its own host's terminal; it dials no other";
 }
 
@@ -302,30 +442,68 @@ pub mod common_flag_words {
 /// lines, then, where there are rows, a blank line and each row as `  <word padded to the widest + 4><says>`
 /// wrapped at HELP_WIDTH under an indent of that width plus two.
 pub fn help_page(usage: &str, about: &[String], rows: &[(String, String)]) -> String {
-    let _ = (usage, about, rows);
-    todo!("verbs.ts:656-663")
+    let width = rows.iter().map(|(word, _)| utf16_len(word)).max().unwrap_or(0) + 4;
+    let mut lines = usage_lines(usage, "       ", "usage: ");
+    lines.extend(about.iter().cloned());
+    if !rows.is_empty() {
+        lines.push(String::new());
+        for (word, says) in rows {
+            lines.extend(wrap(&format!("  {}{says}", pad_end(word, width)), HELP_WIDTH, &" ".repeat(width + 2)));
+        }
+    }
+    lines.join("\n")
 }
 
 /// `verbPage(verb, host)` (verbs.ts:668-675): the verb's own flags one row each (`flag_says` or ""), then --json,
 /// --state and --host with `host` as its words.
 pub fn verb_page(verb: LineVerb<'_>, host: &str, cloud_on: bool) -> String {
-    let _ = (verb, host, cloud_on);
-    todo!("verbs.ts:668-675")
+    let mut rows: Vec<(String, String)> = own_flags_of(verb)
+        .into_iter()
+        .map(|name| (format!("--{name}"), flag_says(verb.name(), name, cloud_on).unwrap_or_default()))
+        .collect();
+    rows.push(("--json".to_owned(), common_flag_words::JSON.to_owned()));
+    rows.push(("--state".to_owned(), common_flag_words::STATE.to_owned()));
+    rows.push(("--host".to_owned(), host.to_owned()));
+    help_page(verb.usage(), &about_lines(verb.about(), "  "), &rows)
 }
 
 /// `verbUsage(word)` (verbs.ts:678-681): `usage: <usage>` of every line verb whose first word is `word`, one per
 /// line; None where none is.
 pub fn verb_usage(table: &[Verb], word: &str) -> Option<String> {
-    let _ = (table, word);
-    todo!("verbs.ts:678-681")
+    let usages: Vec<String> = cli_verbs(table)
+        .into_iter()
+        .filter(|verb| verb.name().split(' ').next() == Some(word))
+        .map(|verb| format!("usage: {}", verb.usage()))
+        .collect();
+    if usages.is_empty() {
+        None
+    } else {
+        Some(usages.join("\n"))
+    }
 }
 
 /// `parseRefusal(verb, e)` (verbs.ts:685-692): an unknown `--<flag>` that other line verbs read is
 /// `foreign_flag_line("--<flag>", ["wsp <verb>"...], "wsp <this>")`; anything else the parser's own message; both
 /// usage refusals with the fix `usage: <usage>`.
 pub fn parse_refusal(table: &[Verb], verb: LineVerb<'_>, e: &ParseArgsError) -> HostError {
-    let _ = (table, verb, e);
-    todo!("verbs.ts:685-692")
+    let usage = format!("usage: {}", verb.usage());
+    let unknown = Regex::new(r"^Unknown option '--([^']+)'").expect("a fixed pattern");
+    let named = match e.code {
+        ParseArgsCode::UnknownOption => unknown.captures(&e.message).map(|found| found[1].to_owned()),
+        ParseArgsCode::InvalidOptionValue => None,
+    };
+    let Some(named) = named else {
+        return usage_refusal(&e.message, &usage);
+    };
+    let readers: Vec<String> = cli_verbs(table)
+        .into_iter()
+        .filter(|other| other.name() != verb.name() && other.options().has(&named))
+        .map(|other| format!("wsp {}", other.name()))
+        .collect();
+    if readers.is_empty() {
+        return usage_refusal(&e.message, &usage);
+    }
+    usage_refusal(&foreign_flag_line(&format!("--{named}"), &readers, &format!("wsp {}", verb.name())), &usage)
 }
 
 /// What `runVerb` takes beside the line (verbs.ts:694, `Pick<VerbDeps, ...>`).
@@ -351,6 +529,141 @@ pub async fn run_verb(
     state_path_of: &(dyn Fn(Option<&str>) -> String + Send + Sync),
     deps: RunDeps,
 ) -> i32 {
-    let _ = (table, verb, argv, io, state_path_of, deps);
-    todo!("verbs.ts:694-764")
+    let name = verb.name();
+    let json = json_asked(argv);
+    let own_words = name.split(' ').count();
+    let rest = argv.get(own_words..).unwrap_or_default();
+    let parsed = match parse_args(&optional_values(rest, verb.options()), &with_common(verb.options())) {
+        Ok(parsed) => parsed,
+        Err(e) => return failed(io.as_ref(), json, &parse_refusal(table, verb, &e), ""),
+    };
+    let flags = parsed.values;
+    let args = parsed.positionals;
+    if let Err(e) = absolute_folder(flag(&flags, "cwd")) {
+        return failed(io.as_ref(), json, &usage_refusal(&e.message, &format!("usage: {}", verb.usage())), "");
+    }
+    let host_side = verb.host_side();
+    if flag_set(&flags, "help") {
+        let host = if host_side.is_some() { common_flag_words::HOST_SIDE } else { common_flag_words::HOST };
+        io.log(&verb_page(verb, host, crate::cloud::cloud_on()));
+        return 0;
+    }
+    let state_path = state_path_of(flag(&flags, "state"));
+    let pick = HostPick { host: flag(&flags, "host").map(str::to_owned), env: Some(deps.env.clone()), home: None };
+    let aim = match aimed_host(&state_path, &pick) {
+        Ok(aim) => aim,
+        Err(e) => return failed(io.as_ref(), flag_set(&flags, "json"), &e, &format!("wsp {name}: ")),
+    };
+    let elsewhere = !matches!(aim, HostAim::Here);
+    if let (Some(side), true) = (host_side, elsewhere) {
+        let refusal = usage_refusal(&host_side_only_line(name, &aim_name(&aim)), &host_side_only_fix(Some(side)));
+        return failed(io.as_ref(), flag_set(&flags, "json"), &refusal, "");
+    }
+    let state_note = if elsewhere && flag(&flags, "state").is_some() { Some(state_ignored_line(&aim_name(&aim))) } else { None };
+    let dialer = Arc::new(LineDialer {
+        state_path: state_path.clone(),
+        aim: aim.clone(),
+        io: io.clone(),
+        any_release: verb.any_release().is_some(),
+        start: if verb.starts_no_host().is_none() { deps.start.clone() } else { None },
+        dial: deps.dial.clone(),
+        state_note,
+        noted: Mutex::new(false),
+        client: Mutex::new(None),
+    });
+    let ctx = VerbContext {
+        deps: VerbDeps {
+            state_path,
+            cwd: deps.cwd.clone(),
+            env: deps.env.clone(),
+            dialer: dialer.clone(),
+            host_wait_ms: None,
+            start: deps.start.clone(),
+            signals: deps.signals.clone(),
+            dial: None,
+            elsewhere: deps.elsewhere,
+            terminal: deps.terminal.clone(),
+            open: deps.open.clone(),
+        },
+        args,
+        flags: flags.clone(),
+        io: io.clone(),
+        out: Out::formatter(io.clone(), flag_set(&flags, "json")),
+        aim,
+        usage: verb.usage().to_owned(),
+    };
+    let run = verb.run();
+    let code = match run(&ctx).await {
+        Ok(code) => code,
+        Err(e) => {
+            let refused = host_schema_refusal(&e, verb.usage());
+            failed(io.as_ref(), flag_set(&flags, "json"), refused.as_ref().unwrap_or(&e), &format!("wsp {name}: "))
+        }
+    };
+    let open = dialer.client.lock().unwrap().take();
+    if let Some(client) = open {
+        client.close();
+    }
+    code
+}
+
+/// The flags every line takes, then the verb's own: `{ ...COMMON, ...verb.options }`, a verb's flag that COMMON also
+/// names taking COMMON's place in the order.
+fn with_common(own: &FlagTable) -> FlagTable {
+    let mut merged = common();
+    for (name, row) in &own.0 {
+        match merged.0.iter_mut().find(|(known, _)| known == name) {
+            Some(slot) => slot.1 = row.clone(),
+            None => merged.0.push((*name, row.clone())),
+        }
+    }
+    merged
+}
+
+/// The socket a line dials once and hands back to every later plain call, and dials again only past a stop
+/// (`client` of `runVerb`, verbs.ts:746-755).
+struct LineDialer {
+    state_path: String,
+    aim: HostAim,
+    io: Arc<dyn CliIo>,
+    any_release: bool,
+    start: Option<Arc<dyn HostStarter>>,
+    dial: Option<Arc<dyn DialFn>>,
+    state_note: Option<String>,
+    noted: Mutex<bool>,
+    client: Mutex<Option<Arc<dyn HostClient>>>,
+}
+
+#[async_trait]
+impl Dialer for LineDialer {
+    async fn client(&self, again: Option<Again>) -> Result<Arc<dyn HostClient>, HostError> {
+        if let Some(note) = &self.state_note {
+            let mut noted = self.noted.lock().unwrap();
+            if !*noted {
+                *noted = true;
+                self.io.error(note);
+            }
+        }
+        if again.is_none() {
+            let held = self.client.lock().unwrap().clone();
+            if let Some(client) = held {
+                return Ok(client);
+            }
+        }
+        let io = self.io.clone();
+        let opts = DialOpts {
+            aim: Some(self.aim.clone()),
+            say: Some(Arc::new(move |line: &str| io.error(line))),
+            any_release: self.any_release,
+            deadline_ms: again.map(|again| again.within_ms),
+            start: if again.is_none() { self.start.clone() } else { None },
+            ..DialOpts::default()
+        };
+        let client = match &self.dial {
+            Some(dial) => dial.dial(&self.state_path, opts).await?,
+            None => dial_host(&self.state_path, opts).await?,
+        };
+        *self.client.lock().unwrap() = Some(client.clone());
+        Ok(client)
+    }
 }
