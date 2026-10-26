@@ -85,22 +85,25 @@ async fn create_follow(
     asked: &CreateAsked,
     chosen: Option<WorkspaceSize>,
     pushed: &PushedFrames,
+    heard: bool,
 ) -> Result<Created, HostError> {
-    client.events().await?;
-    let watched = name.to_owned();
-    let emit_out = out.clone();
-    let stream_out = out.clone();
-    pushed.follow(
-        Arc::new(move |f: &Frame| {
-            f.get("type").and_then(Value::as_str) == Some("workspace.creating")
-                && f.get("name").and_then(Value::as_str) == Some(watched.as_str())
-        }),
-        Arc::new(move |f: &Frame| {
-            emit_out.emit(&Value::Object(f.clone()), None);
-            let message = f.get("message").and_then(Value::as_str).unwrap_or_default();
-            stream_out.stream(&format!("{message}\n"));
-        }),
-    );
+    if heard {
+        client.events().await?;
+        let watched = name.to_owned();
+        let emit_out = out.clone();
+        let stream_out = out.clone();
+        pushed.follow(
+            Arc::new(move |f: &Frame| {
+                f.get("type").and_then(Value::as_str) == Some("workspace.creating")
+                    && f.get("name").and_then(Value::as_str) == Some(watched.as_str())
+            }),
+            Arc::new(move |f: &Frame| {
+                emit_out.emit(&Value::Object(f.clone()), None);
+                let message = f.get("message").and_then(Value::as_str).unwrap_or_default();
+                stream_out.stream(&format!("{message}\n"));
+            }),
+        );
+    }
     let mut body = pick(vec![("project", Some(json!(project.id))), ("name", Some(json!(name)))]);
     if let Some(size) = &chosen {
         body.insert("cpu".to_owned(), json!(size.cpu));
@@ -526,6 +529,28 @@ pub async fn create_for(
     name: &str,
     asked: &CreateAsked,
 ) -> Result<Created, HostError> {
+    create_for_in(client, out, project, name, asked, true).await
+}
+
+/// `create_for` for a caller that prints no stage (the tool door): the stages have no reader, so no events are
+/// subscribed to.
+pub async fn create_for_unheard(
+    client: &dyn HostClient,
+    project: &ProjectPick,
+    name: &str,
+    asked: &CreateAsked,
+) -> Result<Created, HostError> {
+    create_for_in(client, &Out::quiet(), project, name, asked, false).await
+}
+
+async fn create_for_in(
+    client: &dyn HostClient,
+    out: &Out,
+    project: &ProjectPick,
+    name: &str,
+    asked: &CreateAsked,
+    heard: bool,
+) -> Result<Created, HostError> {
     if copies_folder(&kind_for_computer(&project.computer, None)) && asked.size.is_some() {
         return Err(usage_refusal(&copy_takes_none(&project.name, &["--size"], None), "Drop them."));
     }
@@ -539,7 +564,7 @@ pub async fn create_for(
         }
     };
     let pushed = PushedFrames::new(client);
-    let result = create_follow(client, out, project, name, asked, chosen, &pushed).await;
+    let result = create_follow(client, out, project, name, asked, chosen, &pushed, heard).await;
     pushed.stop();
     result
 }

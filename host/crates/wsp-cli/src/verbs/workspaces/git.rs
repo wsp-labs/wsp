@@ -98,9 +98,8 @@ pub(super) fn call_fork(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<Ca
         let asked = agents_asked(args.get("max_machines"), args.get("max_depth"), None)?;
         let project = project_of(&*client, &source.project.id).await?;
         let child_name = name.unwrap_or_else(|| format!("{}-fork", source.name));
-        let created = create_for(
+        let created = create_for_unheard(
             &*client,
-            &Out::quiet(),
             &project_pick(&project),
             &child_name,
             &CreateAsked { size: word, agents: asked, parent: Some(source.id.clone()) },
@@ -340,7 +339,7 @@ pub(super) fn call_fix(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<Cal
             None => None,
         };
         let woke_id = match &check {
-            None => awake(&*client, &view_of(&at.1)?, "fix", &quiet_tell).await?.workspace.id,
+            None => awake(&*client, &view_of(&at.1)?, "fix", &quiet_tell).await?.workspace.id.clone(),
             Some(_) => at.1.id.clone(),
         };
         let child_ref = kid.as_ref().map(|k| ChildRef { workspace_id: k.1.id.clone(), thread_id: thread_id_of(&k.0) });
@@ -370,7 +369,7 @@ pub(super) fn run_fix(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>
         };
         let say = stderr_of(ctx);
         let woke_id = match &check {
-            None => awake(&*client, &view_of(&at.1)?, "fix", &say).await?.workspace.id,
+            None => awake(&*client, &view_of(&at.1)?, "fix", &say).await?.workspace.id.clone(),
             Some(_) => at.1.id.clone(),
         };
         let child_ref = kid.as_ref().map(|k| ChildRef { workspace_id: k.1.id.clone(), thread_id: thread_id_of(&k.0) });
