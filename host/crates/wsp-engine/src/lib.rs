@@ -16,6 +16,7 @@ pub mod exec_detached;
 pub mod fake_backend;
 pub mod fetch;
 pub mod golden_seam;
+pub mod gone;
 pub(crate) mod js_value;
 pub mod key_check;
 pub mod key_fingerprint;

@@ -15,8 +15,9 @@ use wsp_core::types::wiring::{
     home_outcome, outcome_words, LandRequest, LandState, LandedProject, PackedState, ProjectExportOptions, ProjectImportOptions,
     StateAgent, StateRequest, LISTING_DEADLINE_MS,
 };
-use wsp_engine::exec_detached::{GUEST_TMP, INLINE_EXEC_MS};
+use wsp_engine::exec_detached::INLINE_EXEC_MS;
 use wsp_engine::project_state::{parse_state_listing, state_listing};
+use wsp_engine::vault::{dest_exists, guest_tmp_path_at};
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::types::shell_quote::shell_quote;
 use wsp_wire::views::project_bundle::{
@@ -24,7 +25,7 @@ use wsp_wire::views::project_bundle::{
 };
 use wsp_wire::views::workspace::Caller;
 use wsp_wire::wire::machine_link::ExecResult;
-use wsp_words::exit::{HostError, Kind};
+use wsp_words::exit::HostError;
 use wsp_words::project_path::under_project;
 use wsp_words::words::base::plural;
 use wsp_words::words::units::fmt_bytes;
@@ -115,28 +116,6 @@ fn engine_err<E: std::fmt::Display>(error: E) -> HostError {
     HostError::new(error.to_string())
 }
 
-/// `destExists(dest, files)`: the refusal an export of a standing destination without `replace` is.
-fn dest_exists(dest: &str, files: u64) -> HostError {
-    HostError::with_kind(
-        format!("{dest} already exists on this computer with {}; export with replace to overwrite it", plural(files as f64, "file")),
-        Kind::Exists,
-    )
-}
-
-/// `guestTmpPath(what, dir = GUEST_TMP)`: the directory with its trailing slashes cut, then `<what>-<ms>-<six base-36 chars>`.
-fn guest_tmp_path(what: &str, dir: &str, now_ms: i64, random: f64) -> String {
-    let dir = dir.trim_end_matches('/');
-    let mut x = random.fract().abs();
-    let mut suffix = String::new();
-    for _ in 0..6 {
-        x *= 36.0;
-        let digit = x.floor() as u32;
-        suffix.push(char::from_digit(digit.min(35), 36).unwrap_or('0'));
-        x -= f64::from(digit);
-    }
-    format!("{dir}/{what}-{now_ms}-{suffix}")
-}
-
 /// The last 200 UTF-16 units of a command's stderr, as the TS slices it.
 fn tail_of(text: &str) -> String {
     let units: Vec<u16> = text.encode_utf16().collect();
@@ -200,7 +179,7 @@ impl Projects {
         let listing = state_listing(&homes, &o.source, on_machine, o.agents.as_deref()).map_err(engine_err)?;
         if let Some(files) = o.lander.probe(&o.dest).await? {
             if o.replace != Some(true) {
-                return Err(dest_exists(&o.dest, files));
+                return Err(dest_exists(&o.dest, files).into());
             }
         }
         report(ProjectExportStage::Packing, &format!("Packing {} on the machine.", o.source), None)?;
@@ -746,7 +725,7 @@ impl Projects {
             emitter.emit(event)
         });
         let scratch = self.scratch_dir()?;
-        let on_machine = guest_tmp_path("wsp-state", GUEST_TMP, self.ctx.clock().now(), self.ctx.ids().random());
+        let on_machine = guest_tmp_path_at("wsp-state", None, self.ctx.clock().now(), self.ctx.ids().random());
         let listed = Cell::new(false);
         let mut outcome = self.export_steps(&entry, &o, &scratch, &report, &on_machine, &listed).await;
         if let Err(e) = &outcome {

@@ -7,6 +7,7 @@
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use wsp_words::exit::{HostError, Kind};
 use wsp_words::words::thread::{exec_failed_line, guest_unusable_line, machine_unreached_line, nap_refused_line, stop_refused_line};
 
 pub use wsp_words::words::units::StartWindow;
@@ -120,6 +121,10 @@ pub enum EngineError {
     /// errors.ts:177. Message is `nap_refused_line(said)`.
     #[error("{line}")]
     NapRefused { machine_id: String, said: String, line: String },
+    /// golden.ts:45. A machine that answered `KILL_ASKS` kills with a success status and is still there, in the state it
+    /// last read; kind "machineAlive".
+    #[error("machine {machine_id} is still {} after three kills; it bills until reap or a kill by hand takes", crate::gone::machine_state_word(*.state))]
+    MachineAlive { machine_id: String, state: crate::machine::MachineState },
     /// errors.ts:299. `untilReached` gave up; message is `machine_unreached_line(attempts, elapsed_ms)`.
     #[error("{line}")]
     Unreached { attempts: u32, elapsed_ms: u64, line: String, cause: Box<EngineError> },
@@ -209,6 +214,10 @@ impl EngineError {
     pub fn machine_stopped(machine_id: &str, said: &EngineError) -> Self {
         EngineError::MachineStopped { machine_id: machine_id.into(), message: said.to_string(), carried: carried_from(said) }
     }
+    /// golden.ts:45 `new MachineAliveError(machineId, state)`.
+    pub fn machine_alive(machine_id: &str, state: crate::machine::MachineState) -> Self {
+        EngineError::MachineAlive { machine_id: machine_id.into(), state }
+    }
     /// errors.ts:299: the line is `machine_unreached_line(attempts, elapsed_ms)`.
     pub fn unreached(attempts: u32, elapsed_ms: u64, cause: EngineError) -> Self {
         EngineError::Unreached {
@@ -268,6 +277,7 @@ impl EngineError {
             EngineError::MachineUnreachable { .. } => "MachineUnreachableError",
             EngineError::StopRefused { .. } => "StopRefusedError",
             EngineError::NapRefused { .. } => "NapRefusedError",
+            EngineError::MachineAlive { .. } => "MachineAliveError",
             EngineError::NoProvider { .. } => "NoProviderError",
             EngineError::Road(r) => &r.name,
             _ => "Error",
@@ -280,6 +290,24 @@ impl EngineError {
     /// `instanceof MachineUnreachableError`: true of ExecFailed too.
     pub fn is_machine_unreachable(&self) -> bool {
         matches!(self, EngineError::MachineUnreachable { .. })
+    }
+}
+
+/// The error as every door reads it: its words, the kind it was born with (exit.ts:37 reads the exit class off it), and
+/// the status and code a provider's answer carried.
+impl From<EngineError> for HostError {
+    fn from(e: EngineError) -> HostError {
+        let kind = match &e {
+            EngineError::NotFirstLife { .. } => Some(Kind::NotFirstLife),
+            EngineError::MachineAlive { .. } => Some(Kind::MachineAlive),
+            EngineError::VaultTooLarge { .. } => Some(Kind::VaultTooLarge),
+            EngineError::Exists { .. } => Some(Kind::Exists),
+            EngineError::NoProvider { .. } => Some(Kind::NoProvider),
+            EngineError::Invalid { .. } => Some(Kind::Invalid),
+            EngineError::PlaceAbsent { .. } => Some(Kind::Other("absent".to_owned())),
+            other => other.kind().and_then(|kind| serde_json::to_value(kind).ok()).and_then(|word| word.as_str().map(Kind::parse)),
+        };
+        HostError { kind, status: e.status().map(f64::from), code: e.code().map(str::to_owned), ..HostError::new(e.to_string()) }
     }
 }
 

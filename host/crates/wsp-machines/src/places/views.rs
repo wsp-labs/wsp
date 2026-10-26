@@ -764,7 +764,7 @@ impl PlaceViewsArea {
                 if records.default_id().await?.as_deref() == Some(place_id) {
                     ctx.store.delete(DEFAULT_COLLECTION, DEFAULT_ID).await?;
                 }
-                Ok(())
+                Ok::<(), HostError>(())
             }))
             .await?;
         self.setup.woken(place_id, false);
