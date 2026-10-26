@@ -9,6 +9,7 @@ description = "The threads area of the runtime: sessions, turns, transcripts, fo
 
 [dependencies]
 async-trait = "0.1"
+base64 = "0.22"
 futures = "0.3"
 indexmap = { version = "2", features = ["serde"] }
 serde = { version = "1", features = ["derive"] }

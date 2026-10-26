@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! sessions.ts:901-975, 1175-1187: the reads of threads. Spec: spec/sessions_reads.md.
+use crate::threads::transcripts::kept::base64_of;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 
@@ -31,23 +32,6 @@ use crate::threads::trimmed_row::trimmed_row;
 /// The thread an event names (`e.threadId`), None where it names none.
 fn event_thread(e: &SessionEvent) -> Option<String> {
     serde_json::to_value(e).ok()?.get("threadId")?.as_str().map(str::to_string)
-}
-
-/// Lowercase base64 with padding, the RFC 4648 alphabet, as `Buffer.toString("base64")` writes it.
-fn base64_of(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::new();
-    for chunk in bytes.chunks(3) {
-        let n = chunk.iter().enumerate().fold(0u32, |acc, (i, b)| acc | (u32::from(*b) << (16 - 8 * i)));
-        for i in 0..4 {
-            if i <= chunk.len() {
-                out.push(ALPHABET[((n >> (18 - 6 * i)) & 63) as usize] as char);
-            } else {
-                out.push('=');
-            }
-        }
-    }
-    out
 }
 
 fn entry_asks(being_made: bool, now: bool) -> EntryAsk {

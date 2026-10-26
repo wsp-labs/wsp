@@ -63,6 +63,12 @@ fn to_json<T: Serialize>(value: &T) -> Value {
 }
 
 /// Node's `Buffer.from(text, "base64")`: the alphabet's characters in order, any other skipped, the first `=` ends it.
+/// `Buffer.toString("base64")`.
+pub(crate) fn base64_of(bytes: &[u8]) -> String {
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD.encode(bytes)
+}
+
 fn base64_decode(text: &str) -> Vec<u8> {
     let mut out = Vec::new();
     let mut acc: u32 = 0;
