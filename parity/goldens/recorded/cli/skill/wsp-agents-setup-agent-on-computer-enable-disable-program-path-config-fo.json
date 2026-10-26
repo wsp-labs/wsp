@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp agents setup takes one agent. usage: wsp agents setup <agent> [--on <computer>] [--enable | --disable] [--program <path>] [--config <folder>] [--arg <word>]... [--env <NAME>]... [--unset-env <NAME>]... [--reset <field>]...\n"
+    }
+  ],
+  "events": []
+}

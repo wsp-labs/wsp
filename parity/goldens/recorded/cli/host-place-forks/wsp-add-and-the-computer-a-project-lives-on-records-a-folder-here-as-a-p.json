@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 0,
+      "stdout": "wsp-place-here-<temp> <pr-1>: <tmp>/scratch/wsp-place-here-<temp> on this computer, at <tmp>/scratch/wsp-place-here-<temp>\nopen a thread on it with: wsp run 'wsp-place-here-<temp>' \"<message>\"\n",
+      "stderr": "starting the host for <tmp>/scratch/wsp-place-forks-<temp>/state/state.json; its log is <tmp>/scratch/wsp-place-forks-<temp>/state/host.log, and wsp down stops it\n"
+    }
+  ],
+  "events": []
+}

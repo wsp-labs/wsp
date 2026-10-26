@@ -32,8 +32,11 @@ env:
   PNPM_VERSION: "11.9.0"
 
 jobs:
-  daemon-rust:
-    name: Format, lint, test, build, wire suite
+  # The gate runs as four jobs side by side, each with the cargo target of its own profile cached under its own key, so
+  # none waits for another's compile and each restores only what it builds. The first three are the debug profile's
+  # checks and the release build's; the fourth is the shipped static build and what is held to it.
+  lint:
+    name: Format and lints
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
@@ -52,9 +55,9 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             daemon/target
-          key: daemon-rust-${{ runner.os }}-${{ hashFiles('daemon/Cargo.lock', 'daemon/rust-toolchain.toml') }}
+          key: daemon-lint-${{ runner.os }}-${{ hashFiles('daemon/Cargo.lock', 'daemon/rust-toolchain.toml') }}
           restore-keys: |
-            daemon-rust-${{ runner.os }}-
+            daemon-lint-${{ runner.os }}-
       - name: The one C library the daemon links
         # libcontainer applies the seccomp filter through libseccomp; the build links its archive statically,
         # from a directory of its own so the musl link never sees glibc's libc.a beside it.
@@ -63,9 +66,37 @@ jobs:
           ./scripts/libseccomp-archive.sh
       - name: Format
         run: cargo fmt --check
-      # The tool server is a feature of the binary the guest build leaves off; the lints and the tests read it on.
+      # The tool server is a feature of the binary the guest build leaves off; the lints read it on.
       - name: Lints
         run: cargo clippy --locked --all-targets --features wsp-daemon-bin/mcp -- -D warnings
+
+  test:
+    name: Tests and the TypeScript types
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: daemon
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Toolchain from rust-toolchain.toml
+        run: |
+          rustup toolchain install
+          rustup show
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            daemon/target
+          key: daemon-test-${{ runner.os }}-${{ hashFiles('daemon/Cargo.lock', 'daemon/rust-toolchain.toml') }}
+          restore-keys: |
+            daemon-test-${{ runner.os }}-
+      - name: The one C library the daemon links
+        run: |
+          sudo apt-get install -y --no-install-recommends libseccomp-dev
+          ./scripts/libseccomp-archive.sh
       - name: Tests
         run: cargo test --locked --features wsp-daemon-bin/mcp
       # The protocol package re-exports the TypeScript wsp-frames writes, checked in so a build needs no cargo. The
@@ -73,12 +104,83 @@ jobs:
       # added or removed by hand, or a change to the crate whose types were not written.
       - name: The TypeScript types are the ones the crate writes
         run: ./scripts/ts-types.sh --check
+
+  release:
+    name: Release build and wire suite
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: daemon
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Toolchain from rust-toolchain.toml
+        run: |
+          rustup toolchain install
+          rustup show
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            daemon/target
+          key: daemon-release-${{ runner.os }}-${{ hashFiles('daemon/Cargo.lock', 'daemon/rust-toolchain.toml') }}
+          restore-keys: |
+            daemon-release-${{ runner.os }}-
+      - name: The one C library the daemon links
+        run: |
+          sudo apt-get install -y --no-install-recommends libseccomp-dev
+          ./scripts/libseccomp-archive.sh
       - name: Release build
         run: cargo build --locked --release --features wsp-daemon-bin/mcp
       # What an agent pays at every session start is the shipped profile's, so the budget is measured there, and the
       # figure is printed on a pass too, so a change that moves it is read off the log.
       - name: The tool server's budget, in the shipped profile
         run: cargo test --locked --release --features wsp-daemon-bin/mcp -p wsp-daemon-bin --test bin the_tool_server -- --nocapture
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        working-directory: .
+      # The wire suite as the contract: every daemon test drives a binary, and here it is the one this job built, so a
+      # change to daemon/ is gated on the binary it produced.
+      # The tool server in the same binary, held to the one the host package serves, its sealed dial held to the
+      # runtime's own door, and every recorded answer replayed through the line wsp mcp runs.
+      - name: Wire suite against the binary
+        working-directory: .
+        env:
+          WSP_DAEMON_BIN: daemon/target/release/wsp-daemon
+          WSP_MCP_BIN: daemon/target/release/wsp-daemon
+        run: pnpm exec vitest run --minWorkers=1 --maxWorkers=1 packages/daemon packages/host/test/mcp-binary.test.ts packages/host/test/mcp-binary-seal.test.ts packages/host/test/mcp-binary-replay.test.ts
+
+  musl:
+    name: Static build, shipped-profile tests, live test executables
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: daemon
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Toolchain from rust-toolchain.toml
+        run: |
+          rustup toolchain install
+          rustup show
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            daemon/target
+          key: daemon-musl-${{ runner.os }}-${{ hashFiles('daemon/Cargo.lock', 'daemon/rust-toolchain.toml') }}
+          restore-keys: |
+            daemon-musl-${{ runner.os }}-
       - name: C compiler for the musl target, and libseccomp built against musl
         # ring carries C, and its build looks for x86_64-linux-musl-gcc, which musl-tools provides. The static
         # binary links a libseccomp built against musl, since the distribution's archive is glibc's.
@@ -87,12 +189,12 @@ jobs:
           ./scripts/libseccomp-archive.sh musl
       - name: Static musl build
         run: LIBSECCOMP_LIB_PATH=$PWD/target/libseccomp/musl cargo build --locked --release --target x86_64-unknown-linux-musl
-      # The tests above run a glibc debug build, where every C symbol resolves and nothing is thrown away. The
+      # The tests of the debug job run a glibc build, where every C symbol resolves and nothing is thrown away. The
       # shipped binary is static musl under fat link time optimisation, where a weakly declared C symbol that
       # nothing pulls out of the archive resolves to address zero and the first call to it takes the process
       # down. That is what a plain copy of a project did on a box, with no test able to see it, so the crate
       # that touches the disk runs its own tests in the shipped profile too. One crate, since the whole suite in
-      # this profile costs minutes of link time for nothing the job above does not already cover.
+      # this profile costs minutes of link time for nothing the debug job does not already cover.
       - name: The runtime's tests in the shipped profile
         run: LIBSECCOMP_LIB_PATH=$PWD/target/libseccomp/musl cargo test --locked --release --target x86_64-unknown-linux-musl -p wsp-runtime
       # The live cases drive the kernel as root, so they run on a box and nowhere else, and a box carries no
@@ -142,16 +244,6 @@ jobs:
       - name: The static binary staged
         working-directory: .
         run: node packages/wspx/scripts/daemon-binary.mjs --triple x86_64-unknown-linux-musl
-      # The wire suite as the contract: every daemon test drives a binary, and here it is the one this job built
-      # rather than the static one staged above, so a change to daemon/ is gated on the binary it produced.
-      # The tool server in the same binary, held to the one the host package serves, its sealed dial held to the
-      # runtime's own door, and every recorded answer replayed through the line wsp mcp runs.
-      - name: Wire suite against the binary
-        working-directory: .
-        env:
-          WSP_DAEMON_BIN: daemon/target/release/wsp-daemon
-          WSP_MCP_BIN: daemon/target/release/wsp-daemon
-        run: pnpm exec vitest run --minWorkers=1 --maxWorkers=1 packages/daemon packages/host/test/mcp-binary.test.ts packages/host/test/mcp-binary-seal.test.ts packages/host/test/mcp-binary-replay.test.ts
 
   # The two Linux daemons this head would ship, uploaded on every run so staging one on another computer is a
   # download from the run that built the head instead of a release dispatched by hand. Outside a run that is

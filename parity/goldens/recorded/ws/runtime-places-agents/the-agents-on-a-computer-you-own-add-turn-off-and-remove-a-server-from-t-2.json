@@ -1,0 +1,54 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "seq": 0,
+      "stream": "<uuid-1>"
+    },
+    {
+      "id": 3,
+      "ok": true,
+      "file": "~/.claude.json"
+    },
+    {
+      "id": 4,
+      "ok": false,
+      "error": "no place named p_00000001; you have <computer>",
+      "kind": "usage"
+    },
+    {
+      "id": 5,
+      "ok": false,
+      "error": "no place named p_00000001; you have <computer>",
+      "kind": "usage"
+    },
+    {
+      "id": 6,
+      "ok": false,
+      "error": "no place named p_00000001; you have <computer>",
+      "kind": "usage"
+    },
+    {
+      "id": 7,
+      "ok": true,
+      "ticket": "<id-1, 32 characters>",
+      "expiresAt": "<time+5m in ms>"
+    }
+  ],
+  "events": [
+    {
+      "type": "agents.changed",
+      "target": {
+        "placeId": "here"
+      },
+      "seq": 1
+    }
+  ]
+}

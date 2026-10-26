@@ -1,0 +1,17 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": {
+        "json": {
+          "error": "wsp init --json prints the build's own objects, and the host serving <tmp>/state/state.json (pid <pid>) is what runs this build: its sign-ins and stages ride its own setup, which wsp setup --json reads. Drop --json, or take that host down (wsp down) and run this again.",
+          "class": "usage",
+          "exit": 3
+        },
+        "layout": "compact, a newline after"
+      }
+    }
+  ],
+  "events": []
+}
