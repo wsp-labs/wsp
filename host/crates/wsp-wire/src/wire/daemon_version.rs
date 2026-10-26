@@ -23,8 +23,8 @@ pub struct KilledAlone {
 pub const DAEMON_VERSION: i64 = wsp_frames::numbers::DAEMON_VERSION as i64;
 pub const DAEMON_CONTENT_SHA: &str = "ca5c18addf281365b4a68a189d212dda48f405176d2707db0bbe9f421f463120";
 pub const DAEMON_ROOTS_PATH: &str = "/root/.wsp/roots";
-/// The shape of the fresh schema the Rust store writes; the TS host's own is 2 (daemon-version.ts:742).
-pub const STATE_SHAPE: i64 = 3;
+/// The shape of the state database: the TS host's own (daemon-version.ts:742), which the Rust host opens as it is.
+pub const STATE_SHAPE: i64 = 2;
 pub const STDIO_DAEMON_VERSION: i64 = 154;
 pub const HTTP_POST_DAEMON_VERSION: i64 = 155;
 pub const PIPE_DAEMON_VERSION: i64 = 159;

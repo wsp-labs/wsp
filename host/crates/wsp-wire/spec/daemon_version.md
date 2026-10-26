@@ -10,7 +10,7 @@ The daemon's protocol version and the content hash of what a deploy installs, th
 3. `named_watch_gap(v)` (:793-796): None reads `daemon version unknown, host <N>`; below 136 is `place_daemon_behind(v)`; else None.
 4. `leave_asks(v)` is `v.unwrap_or(0) >= 141`; `leave_takes(v)` is `>= 145` (:811, :818). They read the version a computer's own wsp says it was built with, never its daemon's.
 5. `kill_too_old_of_line(name, procs)` (:829-830): the processes as `<pid> (<command>)` joined by ` and `, `it` for exactly one and `they` otherwise (an empty list writes nothing between "to" and "alone" and says they).
-6. `StateShape` (:746-756): `shape` and `daemon` integers, `wsp`, `bin`, `at` strings, all required; `STATE_SHAPE` is 3, the Rust store's own number (the TS holds 2, daemon-version.ts:742; chapter 02 rule 2.19 of the host spec). `state_writer_words` is `<bin> (wsp <wsp>, daemon <daemon>)`.
+6. `StateShape` (:746-756): `shape` and `daemon` integers, `wsp`, `bin`, `at` strings, all required; `STATE_SHAPE` is 2, the TS host's own (daemon-version.ts:742), since the Rust host opens that host's `state.db` as it is (chapter 02 rule 2.19 of the host spec). `state_writer_words` is `<bin> (wsp <wsp>, daemon <daemon>)`.
 7. The gates are copied: STDIO 154, HTTP_POST 155, PIPE 159, NAMED_WATCH 136, SYS_UNWATCH 152, FS_FOLDERS 73, FORK_BRANCH 150, LEAVE_ASKS 141, LEAVE_TAKES 145; each is at most DAEMON_VERSION.
 8. Every sentence is a plain format of its arguments, copied byte for byte (daemon-version.ts:822-838).
 

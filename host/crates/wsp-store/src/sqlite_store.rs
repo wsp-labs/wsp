@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The host's state in one SQLite database beside the state file, in chapter 02's fresh schema: no migrations table,
-//! no import, no shape upgrade. Port of packages/runtime/src/sqlite-store.ts at 65f6b89c7 less what Proposal 3 drops;
-//! the spec is spec/sqlite_store.md. The connection lives on the state owner's thread and runs synchronously (rule
+//! The host's state in one SQLite database beside the state file, the TS host's own: a `state.db` that host made is
+//! opened as it is, its `migrations` table and rows left alone, and a file made here is one that host opens (owner's
+//! ruling on Proposal 3, #2442; rules 2.19, 2.29). No import, no shape upgrade. Port of
+//! packages/runtime/src/sqlite-store.ts at 65f6b89c7 less what Proposal 3 drops; the spec is spec/sqlite_store.md. The connection lives on the state owner's thread and runs synchronously (rule
 //! 2.20); the checkpointer keeps a connection of its own on a thread of its own.
 use std::cell::{Cell, RefCell};
 use std::fs::OpenOptions;
@@ -12,7 +13,7 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use rusqlite::{Connection, OpenFlags, OptionalExtension};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde_json::Value;
 use wsp_wire::text::json_stringify;
 use wsp_wire::types::js_number::JsNumber;
@@ -23,9 +24,13 @@ use crate::own_file::{own_folder, OWN_FILE_MODE};
 use crate::sqlite_transcripts::{SqliteTranscripts, TranscriptRows};
 use crate::store::{refuse_other_shape, shape_now, state_shape_unreadable_line, state_unreadable_line, BlobMark, StateWriter, Store};
 
-/// The whole schema, run once in one `begin immediate` on a database with no `shape` table (02, Proposal 3): the TS
-/// host's seven statements less `migrations`, verbatim (sqlite-store.ts:30-32, sqlite-transcripts.ts:15-17).
+/// The whole schema, run once in one `begin immediate` on a database with no `shape` table: the TS host's own
+/// statements, `migrations` first as its `migrate` makes it (sqlite-store.ts:137,30-32, sqlite-transcripts.ts:15-17).
+/// A file this host makes holds `migrations` with the rows of `MIGRATED` only so that the TS host opens it: that host
+/// runs a module's statements again where its row is missing and fails on `table collections already exists`. This
+/// host never reads the table (rule 2.29).
 pub const SCHEMA: &[&str] = &[
+    "create table migrations (module text primary key, version integer not null)",
     "create table collections (collection text not null, id text not null, json text not null, primary key (collection, id))",
     "create table blobs (collection text not null, id text not null, bytes blob not null, at real not null, primary key (collection, id))",
     "create table shape (one integer primary key check (one = 1), json text not null)",
@@ -33,6 +38,10 @@ pub const SCHEMA: &[&str] = &[
     "create index events_thread on events (workspace, thread, pos)",
     "create table transcript_index (workspace text primary key, json text not null)",
 ];
+
+/// The `migrations` rows the TS host holds for `SCHEMA`: each module's count of statements run (STORE_MODULES, one
+/// migration each).
+pub const MIGRATED: &[(&str, i64)] = &[("store", 1), ("transcripts", 1)];
 
 /// How long a statement waits on another connection's write before it fails (sqlite-store.ts:53).
 pub const BUSY_MS: u64 = 10_000;
@@ -381,6 +390,9 @@ impl SqliteInner {
             } else {
                 for statement in SCHEMA {
                     exec(conn, statement).map_err(db_err)?;
+                }
+                for (module, version) in MIGRATED {
+                    conn.execute("insert into migrations (module, version) values (?, ?)", params![module, version]).map_err(db_err)?;
                 }
                 let shape = json_stringify(&serde_json::to_value(shape_now(&self.writer)).expect("a shape writes as JSON"));
                 conn.execute("insert into shape (one, json) values (1, ?)", [shape]).map_err(db_err)?;
