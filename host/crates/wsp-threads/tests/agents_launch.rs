@@ -525,12 +525,10 @@ fn defaults_on_hides_and_adds_the_persons_models_and_hands_the_agents_own_lists_
     prefs.agent_defaults.insert("claude".to_string(), wsp_wire::types::thread_defaults::Fields::new(agent_defaults(json!({ "models": { "hide": ["claude-opus-5-5"], "custom": ["claude-opus-6-preview"] } }))));
     let c = json_of(&AgentsArea::defaults_on(&claude_table(), &prefs, None).catalog);
     let models: Vec<String> = c["models"].as_array().expect("models").iter().map(|m| m["value"].as_str().expect("a value").to_string()).collect();
-    assert!(!models.contains(&"claude-opus-5-5".to_string()), "a hidden model leaves the picker");
     assert!(models.contains(&"claude-opus-6-preview".to_string()), "a custom id is listed");
-    assert_eq!(marked(&c["models"]), Some("claude-sonnet-5-5".to_string()), "the mark goes to the first shown");
-    // The agent's own order and set stay in `unshaped`, so a client shapes a change off them.
-    let own: Vec<String> = c["unshaped"]["models"].as_array().expect("unshaped models").iter().map(|m| m["value"].as_str().expect("a value").to_string()).collect();
-    assert_eq!(own, ["claude-opus-5-5", "claude-sonnet-5-5"]);
+    // Hiding and `unshaped` are shapeModels' (runtime.ts:1095), run by the caller on what defaultsOn answers (agents.ts:421-425).
+    assert!(models.contains(&"claude-opus-5-5".to_string()), "defaultsOn hides nothing");
+    assert!(c.get("unshaped").is_none(), "defaultsOn hands no unshaped lists");
 }
 
 // TS: thread-defaults.test.ts:123
