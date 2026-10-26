@@ -81,10 +81,7 @@ async fn a_claude_file_with_a_lone_surrogate_escape_gets_the_server_and_keeps_it
     let own = "{\"note\":\"\\ud83d\",\"other\":\"\\ude00x\",\"mcpServers\":{}}\n";
     let (rows, file) = merge_claude(own, GSC_COPY).await;
     assert_eq!(rows, vec![(s("Installed"), s("npx fetches the package on first use"))], "rows");
-    assert_eq!(
-        file,
-        "{\"note\":\"\\ud83d\",\"other\":\"\\ude00x\",\"mcpServers\":{\"gsc\": {\"command\":\"npx\",\"args\":[\"a\"]}}}\n"
-    );
+    assert_eq!(file, "{\"note\":\"\\ud83d\",\"other\":\"\\ude00x\",\"mcpServers\":{\"gsc\": {\"command\":\"npx\",\"args\":[\"a\"]}}}\n");
 }
 
 // TS packages/catalog/src/jsonc.ts:41 (JSON.parse of the copy that travelled): the same, installed.

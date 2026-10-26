@@ -44,7 +44,8 @@ pub fn parse_state_listing(stdout: &str) -> Result<StateListing> {
                     .decode(encoded)
                     .map_err(|e| EngineError::Other { message: e.to_string(), code: None })?;
                 let text = String::from_utf8_lossy(&bytes);
-                let value = wsp_catalog::json_parse::parse_json(&text).map_err(|e| EngineError::Other { message: e.to_string(), code: None })?;
+                let value =
+                    wsp_catalog::json_parse::parse_json(&text).map_err(|e| EngineError::Other { message: e.to_string(), code: None })?;
                 let store = serde_json::from_value(value).map_err(|e| EngineError::Other { message: e.to_string(), code: None })?;
                 listing.unread.push(store);
             }

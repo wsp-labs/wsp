@@ -20,11 +20,11 @@ use crate::machine::{
     MachineState, OnLine, PreviewReach, RunOptions, Seen, Size, SnapshotOptions, SnapshotRow, SnapshotStoragePricing, Waiting,
     WireSnapshotStoragePricing,
 };
+use wsp_catalog::json_parse::parse_json;
 use wsp_wire::types::js_number::JsInt;
 use wsp_wire::types::JsNumber;
 use wsp_wire::views::activity::iso_time;
 use wsp_wire::wire::capabilities::{MachineSizeOffer, PauseMode};
-use wsp_catalog::json_parse::parse_json;
 use wsp_words::js::{js_key_order, to_fixed};
 
 use crate::js_value::js_string;
@@ -178,7 +178,7 @@ impl MachineRecord {
             mem_mb: number("memMb"),
             disk_gb: number("diskGb"),
             created_at: fields.get("shape").and_then(|s| s.get("createdAt")).and_then(Value::as_str).map(str::to_string),
-            used_bytes: number("usedBytes").filter(|n| n.0.fract() == 0.0).map(|n| JsInt(n)),
+            used_bytes: number("usedBytes").filter(|n| n.0.fract() == 0.0).map(JsInt),
         };
         let labels = fields
             .get("labels")
@@ -291,7 +291,8 @@ impl Machine for FakeMachine {
     }
     async fn state(&self) -> Result<MachineState> {
         let held = self.records.read()?;
-        let recorded = machines_of(&held, &self.id)?.get(&self.id).and_then(|m| serde_json::from_value::<MachineState>(m["state"].clone()).ok());
+        let recorded =
+            machines_of(&held, &self.id)?.get(&self.id).and_then(|m| serde_json::from_value::<MachineState>(m["state"].clone()).ok());
         Ok(recorded.unwrap_or(self.seen.state))
     }
     async fn download_url(&self, _path: &str) -> Result<String> {
@@ -484,7 +485,7 @@ impl MachineBackend for FakeBackend {
             Some(Value::Null) => return Err(other("Cannot convert undefined or null to object")),
             _ => machines_of(&held, "")?,
         };
-        js_key_order(machines.iter().map(|(id, record)| (id, record)))
+        js_key_order(&machines)
             .into_iter()
             .map(|(id, record)| {
                 let record = MachineRecord::read(record)?;

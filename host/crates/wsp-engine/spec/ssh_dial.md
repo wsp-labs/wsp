@@ -34,8 +34,9 @@ Oracle: `tests/fixtures/roads/ssh_dial.json`, `ssh_carried.json` (the TS's own a
 - `SSH_CONNECT_TIMEOUT_S = 10`, `SSH_LINE_CAP = 300`, `SSH_CONTROL_PERSIST_S = 60`, `SSH_CONTROL_DIR_MODE = 0o700`.
 - `box_word(said, cap = 48)` (:96): removes every char in U+0000..=U+001F and U+007F..=U+009F, then keeps the first
   `cap` UTF-16 units.
-- `ssh_control_dir(home)` (:106): `{home}/.wsp/ssh`; `home` defaults to Node's `homedir()`, which is `$HOME` when
-  set and non-empty, else the passwd entry's home.
+- `ssh_control_dir(home)` (:106): `join(home, ".wsp", "ssh")`, normalized (`..`, `.` and doubled slashes fold);
+  `home` defaults to Node's `homedir()`, which is `$HOME` when it is set, an empty one included (the folder is then
+  the relative `.wsp/ssh`), else the passwd entry's home.
 - `make_ssh_control_dir(home)` (:115): creates it and every missing parent with mode 0700 (under the umask), then
   chmods the leaf to 0700 whatever it was (a 0755 folder left by something else is tightened). Answers the path.
   The folder and its sockets are the only thing this unit leaves that survives a restart.
@@ -148,6 +149,9 @@ after it, and `up` and `ended` must say what the TS said.
   (`a_stderr_tail_with_no_newline_is_never_read`).
 - D-H9 A cut inside a surrogate pair writes U+FFFD for the half left, so `box_word` keeps exactly `cap` units
   (`a_cut_inside_an_emoji_writes_the_replacement_character_for_the_half`; the ruling in roads-README.md).
-- D-H10 The TS settles on the child's `exit` event, which can come before its pipes have been read to the end; this
-  spec has the holder read both pipes to their end before it settles (the fake closes them first), so a last line
-  written just before the exit is always counted. A difference only in a race the TS loses.
+- D-H10 The TS settles on the child's `exit` event, which can come before its pipes have been read to the end, and a
+  helper the child left behind can keep a pipe open for good. The holder settles on the exit too, after one more read of
+  what both pipes already hold, and then drops them (`f1a`, `f1b` of the fix round's tests).
+- D-H11 A dropped holder leaves the child running until `release` or its own end, as the TS's does: the local task that
+  drains the pipes holds the holder's state until the child ends. Outside a `LocalSet` there is no task, and `up` and
+  `ended` read the pipes as they are awaited.

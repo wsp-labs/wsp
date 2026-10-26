@@ -182,7 +182,12 @@ pub struct LocalMachine {
 impl LocalMachine {
     async fn shell(&self, cmd: &str, opts: ChildOptions) -> ExecResult {
         let args = ["-c".to_string(), cmd.to_string()];
-        run_child("bash", &args, ChildOptions { cwd: Some(self.root.clone()), env: Some(self.env.clone().unwrap_or_else(process_env)), ..opts }).await
+        run_child(
+            "bash",
+            &args,
+            ChildOptions { cwd: Some(self.root.clone()), env: Some(self.env.clone().unwrap_or_else(process_env)), ..opts },
+        )
+        .await
     }
 }
 

@@ -9,18 +9,18 @@ use indexmap::IndexMap;
 use serde_json::{json, Value};
 
 use super::machine::BoxMachine;
-use super::request::BoxShared;
-use crate::js_value::js_string;
 use super::plan::{
     box_budgets, box_class_for, box_labels, box_name, box_root_disk_gb, is_uuid, state_map, state_of, BoxLimits, BoxPricing, SizeAsk,
     BACKSTOP_RETRY_MAX_MS, BACKSTOP_RETRY_MS, BACKSTOP_SLACK_MS, BOX_BASE_TEMPLATE, BOX_CLASSES, BOX_KEY_KEPT_MS, IN_PROGRESS_WAIT_MS,
     LOST_ANSWER_EVERY_MS, LOST_ANSWER_MS,
 };
+use super::request::BoxShared;
 use super::request::{
     encode_uri_component, other, road_words, template_row_of, BackstopFailure, BoxBackend, BoxView, NamedSnapshotView, RequestOpts,
     SnapshotView, Timer, BOX_DISK_KEPT_MS,
 };
 use crate::errors::{far_end_answered, is_missing, EngineError, Result};
+use crate::js_value::js_string;
 use crate::labels::NAME_LABEL;
 use crate::machine::{
     BackendOffers, BackendPricing, BaseTemplates, Capabilities, CloudLimits, Lifecycle, LifecycleBudgets, Machine, MachineBackend,
