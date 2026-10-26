@@ -8,7 +8,7 @@ A law is a check that reads the source rather than running it. The TS repo has m
 
 ## Proposal 8: the three piles
 
-> **Proposal, awaiting the owner's ruling** (ticket decision 8). Pick: the sorting below. Laws about what crosses the wire or the command line survive unchanged as tapes and contract tests run against the Rust binary; laws about text or structure in any language get a Rust twin in one `cargo xtask laws` command; laws about TypeScript's own shape stay while the TS code they guard stays (the web app keeps `packages/protocol` and `packages/catalog`) and go with it otherwise.
+> **Proposal, accepted by the owner (26 Oct 2026, #2442)** (ticket decision 8). Pick: the sorting below. Laws about what crosses the wire or the command line survive unchanged as tapes and contract tests run against the Rust binary; laws about text or structure in any language get a Rust twin in one `cargo xtask laws` command; laws about TypeScript's own shape stay while the TS code they guard stays (the web app keeps `packages/protocol` and `packages/catalog`) and go with it otherwise.
 
 **Pile 1: survives as a wire or contract test, pointed at the Rust binary.**
 

@@ -207,7 +207,7 @@ An unknown op answers one `invalid_union_discriminator` issue whose `options` an
 
 ## Proposal 4: one error type
 
-> **Proposal, awaiting the owner's ruling** (ticket decision 4). Pick: one `HostError` in `wsp-words`, used by every crate, carrying exactly what the TS reply and the failure object carry.
+> **Proposal, accepted by the owner (26 Oct 2026, #2442)** (ticket decision 4). Pick: one `HostError` in `wsp-words`, used by every crate, carrying exactly what the TS reply and the failure object carry.
 
 ```rust
 pub struct HostError {
@@ -247,6 +247,6 @@ Why: the TS host's whole error contract is a sentence, an optional fix, an optio
 
 ## Proposal 9: the schema refusal's text
 
-> **Proposal, awaiting the owner's ruling** (new; not in the ticket). Pick: the Rust host answers a schema failure with the same envelope (`ok: false`, no kind, the request's id or `null`) and an `error` that is the 2-space JSON text of an issue list in zod 3's shape (`code`, `path`, `message`, and `options`, `keys`, `expected`, `received` where zod has them). An unknown op is exactly one `invalid_union_discriminator` issue on `["op"]` whose `options` are the ops the Rust host serves. Every other failure carries at least the first failing field's issue with zod's code and path. The harness compares `code` and `path` of the first issue and accepts the rest of the text as a difference.
+> **Proposal, accepted by the owner (26 Oct 2026, #2442)** (new; not in the ticket). Pick: the Rust host answers a schema failure with the same envelope (`ok: false`, no kind, the request's id or `null`) and an `error` that is the 2-space JSON text of an issue list in zod 3's shape (`code`, `path`, `message`, and `options`, `keys`, `expected`, `received` where zod has them). An unknown op is exactly one `invalid_union_discriminator` issue on `["op"]` whose `options` are the ops the Rust host serves. Every other failure carries at least the first failing field's issue with zod's code and path. The harness compares `code` and `path` of the first issue and accepts the rest of the text as a difference.
 
 Why not byte for byte: zod collects every issue, in the schema's field order, and words each in its own way (a missing id gives an `invalid_union` with nested `unionErrors`, the tape under rule 4.13 in 04; `forwards.stop` with neither field gives two issues, the tape under rule 5.16); serde stops at the first error and words nothing alike. Reproducing zod's walker for 211 schemas is a port of zod, not of wsp. Why not free text: clients parse the text (`validatorRefusal` above), and the version hint must keep working while TS and Rust hosts coexist on the owner's computers. The issue list's first code and path are what any client reads; the rest is for people, and a schema refusal is a bug in a client, not something a person meets.

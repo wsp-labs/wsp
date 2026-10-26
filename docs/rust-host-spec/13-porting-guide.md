@@ -6,7 +6,7 @@ Two pilots tested the form. The first, on three small host modules: with the int
 
 The chapter has three parts: the recipe (for the coordinator and the packet writers), the gates, and the implementer's page, which is the two pages that go into every packet.
 
-> **Proposal 6, awaiting the owner's ruling** (ticket decision 6, the interface form for a module). Pick: the packet of Part 1 (a stub file with `todo!()` bodies and each TS function as a comment above its stub, a one-page spec in the form of 13.7, the ported tests red), the gate of Part 2, and the implementer's page of Part 3, with the ladder, the held-out tapes and the review loop as the research and the large-module pilot set them. The coordinator asked for this recipe to be written as the rule; the owner rules it on the map, and until then the waves follow it as written.
+> **Proposal 6, accepted by the owner (26 Oct 2026, #2442)** (ticket decision 6, the interface form for a module). Pick: the packet of Part 1 (a stub file with `todo!()` bodies and each TS function as a comment above its stub, a one-page spec in the form of 13.7, the ported tests red), the gate of Part 2, and the implementer's page of Part 3, with the ladder, the held-out tapes and the review loop as the research and the large-module pilot set them. The coordinator asked for this recipe to be written as the rule; the owner rules it on the map, and until then the waves follow it as written.
 
 ## Part 1: the recipe
 

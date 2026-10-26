@@ -24,7 +24,7 @@ What mutates it: op handlers; bus listeners, which run synchronously on the emit
 
 ## Proposal 2: one thread owns the state
 
-> **Proposal, awaiting the owner's ruling** (ticket decision 2). Pick: all host state lives on one thread, a tokio current-thread runtime with a `LocalSet`; op handlers, bus listeners, timers and process readers are local tasks on it, and reach state through one context handle whose borrows never cross an `.await`. Anything that must leave the thread (blocking file work past a small write, archive packing, the checkpointer) runs elsewhere and comes back as a future. The ticket's form, one actor task that every other part sends a message per read and write, is the alternative, and this spec does not pick it.
+> **Proposal, accepted by the owner (26 Oct 2026, #2442)** (ticket decision 2). Pick: all host state lives on one thread, a tokio current-thread runtime with a `LocalSet`; op handlers, bus listeners, timers and process readers are local tasks on it, and reach state through one context handle whose borrows never cross an `.await`. Anything that must leave the thread (blocking file work past a small write, archive packing, the checkpointer) runs elsewhere and comes back as a future. The ticket's form, one actor task that every other part sends a message per read and write, is the alternative, and this spec does not pick it.
 
 Why one thread rather than one actor:
 
@@ -183,7 +183,7 @@ The TS clock is `Clock { now(); schedule(fn, ms, {unref}) => cancel }` (RT/clock
 
 ## Proposal 2b: seeded replay
 
-> **Proposal, awaiting the owner's ruling** (the map's harness item 8, and ticket decision 2's "seeded replay for races"). Pick: a replay build of the Rust host whose every input is a seam (frames, child output, daemon frames, timers, ids, the clock), driven by a scheduler that, at each step, picks which ready input is delivered next from a seeded generator, runs the owner thread until no task can run, and repeats. The seed is printed on failure and a run with that seed reproduces it exactly.
+> **Proposal, accepted by the owner (26 Oct 2026, #2442)** (the map's harness item 8, and ticket decision 2's "seeded replay for races"). Pick: a replay build of the Rust host whose every input is a seam (frames, child output, daemon frames, timers, ids, the clock), driven by a scheduler that, at each step, picks which ready input is delivered next from a seeded generator, runs the owner thread until no task can run, and repeats. The seed is printed on failure and a run with that seed reproduces it exactly.
 
 How it works:
 

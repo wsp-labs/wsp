@@ -25,7 +25,7 @@ Three rules from the map hold over every chapter:
 
 - A `file:line` is repo-relative at `a3b870a6e`. Chapters shorten `packages/runtime/src` to RT or name the file they mean at the top.
 - A **rule** is numbered `N.M`, N the chapter: "rule 4.21". Numbers are stable, not sequential: a rule added in a later pass takes the next free number in its chapter and sits where it belongs, so a number once cited never moves. The key words MUST, MUST NOT, SHOULD and MAY are RFC 2119's. A rule with no subject binds the Rust host.
-- A **proposal** is a boxed block starting "Proposal, awaiting the owner's ruling", numbered to match #2442's decisions where it answers one.
+- A **proposal** is a boxed block, numbered to match #2442's decisions where it answers one. The owner ruled on all of them on 26 Oct 2026: every pick accepted, Proposal 3 with a change (rule 2.19).
 - **After the port** marks a behaviour kept on purpose and ticketed for later.
 - The glossary is the root `AGENTS.md`'s. Words this spec adds: **oracle** (the TS host, whose answers are right by definition); **tape** (recorded frames, below); **unit** and **packet** (13); **the owner thread** (03); **kind** and **class** (05); **the own road** (rule 4.4).
 
@@ -41,7 +41,7 @@ Every example of wire behaviour is a fenced block with the language `tape`. Each
 
 The `close` line and raw text frames are Proposal 10 for the harness (14):
 
-> **Proposal 10, awaiting the owner's ruling** (new, for #2443). Pick: two line kinds beside `in` and `out`: `{"close": {"code", "reason"}}` for a socket the host closed, and an `in` whose value is a JSON string, sent as raw text. Why: every refusal at the door ends in a close whose code a client acts on (4401 against 4408, rule 4.29), and a frame that is not one JSON object (rules 4.8, 4.12, 4.31) can only be sent raw; without both kinds the door has no tape. The harness owns the format, so its reading of them is the ruling.
+> **Proposal 10, accepted by the owner (26 Oct 2026, #2442)** (new, for #2443). Pick: two line kinds beside `in` and `out`: `{"close": {"code", "reason"}}` for a socket the host closed, and an `in` whose value is a JSON string, sent as raw text. Why: every refusal at the door ends in a close whose code a client acts on (4401 against 4408, rule 4.29), and a frame that is not one JSON object (rules 4.8, 4.12, 4.31) can only be sent raw; without both kinds the door has no tape. The harness owns the format, so its reading of them is the ruling.
 
 Each tape runs against a fresh host: an empty temp folder, `env -i`, its own `--state`, a free port, no relay, and a one-line stub page (rule 4.7). The checker waits for each `in` frame's reply by its id, then 250 ms for events that trail it. It normalizes only what differs between two runs of one host: the release in `version`; every UUID and every prefixed id (`ws_`, `pr_`, `p_`, `d_`, `a_`, `h_`) by first sight, so `<ws-1>` is the first workspace id a tape met; the temp folder as `<tmp>`, and as `<tmp-key>` in the dashed form a project's `memoryKey` takes; ISO times; epoch-millisecond values under keys ending in `At`; and the values a host mints fresh, each by its key and shape (`ticket`, a pairing `code`, `hostKey`); #2443's harness owns the full normalizing. The checker compares lines as text, which is stricter than the harness's structural diff.
 

@@ -27,7 +27,7 @@ Each client, as it stands:
 
 ## Proposal 7: a protocol number in the first frame
 
-> **Proposal, awaiting the owner's ruling** (ticket decision 7). Pick: one integer, the protocol number, beside the release. The auth request MAY carry `protocol: [min, max]`, the range the client speaks; the auth reply MUST carry `protocol: <n>`, the host's number, beside `version` and `road`. A host whose number is outside a client's range refuses the auth with kind `usage` and a sentence in two halves naming both and what to update; a client that sends no range is served as today. Discovery stays exactly as it is.
+> **Proposal, accepted by the owner (26 Oct 2026, #2442)** (ticket decision 7). Pick: one integer, the protocol number, beside the release. The auth request MAY carry `protocol: [min, max]`, the range the client speaks; the auth reply MUST carry `protocol: <n>`, the host's number, beside `version` and `road`. A host whose number is outside a client's range refuses the auth with kind `usage` and a sentence in two halves naming both and what to update; a client that sends no range is served as today. Discovery stays exactly as it is.
 
 How the number moves: one constant in `wsp-wire`, starting at 1 with the Rust host's first release. A change that makes an older client misread the wire bumps it: an op removed or renamed, a field removed, renamed or changed in meaning, a refusal's kind changed. Adding an op, an optional field or an event does not. The parity tests check the constant against a list of the wire's shapes kept beside it, so a breaking change that forgets the bump fails a test.
 

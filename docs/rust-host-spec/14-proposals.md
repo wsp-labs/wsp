@@ -23,7 +23,7 @@ The workspace's place, a `host/` workspace beside `daemon/`, is part of Proposal
 
 ## The map's open questions this spec does not settle
 
-- Whether the owner's threads are exported. Under Proposal 3 the layout is unchanged, so an export is a copy of rows; leaving them behind costs nothing (rule 2.19).
+- Whether the owner's threads are exported: settled by the owner's ruling on Proposal 3 (26 Oct 2026). The Rust host opens today's `state.db` as it is, so nothing is exported or left behind (rule 2.19).
 - Windows: no Windows host today, so nothing here is ported for it.
 - Whether the web app keeps a TS protocol package or reads types generated from the Rust wire (01). Until it is settled a wire change touches the Rust type and the zod schema in one change.
 
