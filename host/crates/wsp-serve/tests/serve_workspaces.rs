@@ -440,6 +440,7 @@ fn doctor_lines_reach_subscribers_before_the_reply_and_are_never_replayed() {
         let rt = FakeRuntime::with_places();
         let rows = vec![de::<PlaceView>(json!({ "id": "p_1", "kind": "computer", "name": "spoo", "default": false }))];
         rt.script.on("places.list", move |_| -> Result<Vec<PlaceView>, HostError> { Ok(rows.clone()) });
+        rt.script.on("places.pending", |_| Ok::<Vec<wsp_wire::views::place::PendingComputer>, HostError>(vec![]));
         let doctor = Rc::new(FakeDoctor {
             script: rt.script.clone(),
             lines: RefCell::new(vec![("spoo answers".into(), "out".into()), ("DOCTOR FAIL: spoo".into(), "err".into())]),
@@ -471,6 +472,7 @@ fn doctor_lines_reach_subscribers_before_the_reply_and_are_never_replayed() {
         assert!(late_sink.pushes().is_empty());
 
         socket.closed();
+        late.closed();
         assert!(doctor.listeners.borrow().is_empty(), "the doctor listener is let go with the socket");
     })
 }
@@ -1390,24 +1392,28 @@ fn a_socket_that_goes_takes_its_channels() {
 fn sys_subscribe_on_a_place_is_the_own_road() {
     support::block(async {
         let rt = FakeRuntime::with_places();
+        rt.script.once::<Result<Detach, HostError>>("workspaces.watchSys", Ok(Box::new(|| {})));
+        rt.script.once::<Result<Detach, HostError>>("runtime.watchPlaceSys", Ok(Box::new(|| {})));
         let served = served_with(&rt, base(&rt));
         let (ticket, ticket_sink) = ticketed(&served, "relay").await;
         let gated = request(&ticket, &ticket_sink, 5, "sys.subscribe", json!({ "placeId": "p_1" })).await;
         assert_eq!(gated.to_string(), refused(5, PLACES_TICKET_REFUSAL, Some("ticket")));
-        assert!(rt.script.calls_to("sys.answer").is_empty(), "the road is never reached");
+        assert!(rt.script.calls_to("runtime.watchPlaceSys").is_empty(), "the road is never reached");
 
         // a workspace's readings, and any unsubscribe, are not the places gate's
         let of_workspace = request(&ticket, &ticket_sink, 6, "sys.subscribe", json!({ "workspaceId": "ws_1" })).await;
         assert_eq!(of_workspace.to_string(), json!({ "id": 6, "ok": true }).to_string());
         let unsub = request(&ticket, &ticket_sink, 7, "sys.unsubscribe", json!({ "placeId": "p_1" })).await;
         assert_eq!(unsub["ok"], json!(true));
-        let ops: Vec<Value> = rt.script.calls_to("sys.answer").iter().map(|c| c.args["op"].clone()).collect();
-        assert_eq!(ops, vec![json!("sys.subscribe"), json!("sys.unsubscribe")]);
+        let watched = rt.script.calls_to("workspaces.watchSys");
+        assert_eq!(watched.len(), 1, "a workspace's readings are not the places gate's");
+        assert_eq!(watched[0].args["id"], json!("ws_1"));
+        assert!(rt.script.calls_to("runtime.watchPlaceSys").is_empty(), "an unsubscribe reads nothing of the place");
 
         let (host, host_sink) = host_socket(&served).await;
         let own = request(&host, &host_sink, 8, "sys.subscribe", json!({ "placeId": "p_1" })).await;
         assert_eq!(own.to_string(), json!({ "id": 8, "ok": true }).to_string());
-        assert_eq!(rt.script.calls_to("sys.answer").last().unwrap().args["placeId"], json!("p_1"));
+        assert_eq!(rt.script.calls_to("runtime.watchPlaceSys").last().unwrap().args["placeId"], json!("p_1"));
     })
 }
 
