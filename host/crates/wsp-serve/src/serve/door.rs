@@ -39,8 +39,8 @@ use wsp_words::wire::runtime::thread_op_refusal;
 use wsp_words::words::computer::{device_held_refusal, is_object_frame, REQUEST_NOT_AN_OBJECT, SCOPED_TOKEN_ROAD_REFUSAL, UNAUTHORIZED};
 use wsp_words::words::thread::{issues_line, redacted, Issue, PathPart};
 
-use super::served::{DynRuntime, Payload};
 use super::flat::Flat;
+use super::served::{DynRuntime, Payload};
 use super::socket::{Incoming, Socket};
 use super::{Authed, NowFn, Released, ServeOptions, Signer, INVALID_JSON, NO_AUTH_TOKEN, SCANNED_SECRETS, TICKET_TTL_MS};
 use crate::serve::answer::answer_frame;
@@ -235,7 +235,7 @@ impl Socket {
             self.answer(Some(&*frame), failure(asked_id, &line), None);
             return;
         }
-        let msg = match parse_runtime_request(&*frame) {
+        let msg = match parse_runtime_request(&frame) {
             Ok(msg) => msg,
             Err(error) => {
                 let issue = Issue { path: error.path.iter().map(path_part).collect(), message: error.message.clone() };
@@ -247,7 +247,7 @@ impl Socket {
         if self.authed() {
             return answer_frame(self, frame.take(), msg).await;
         }
-        self.at_door(&*frame, msg).await;
+        self.at_door(&frame, msg).await;
     }
 
     /// The frames a socket not let in may send, one at a time (serve.ts:677-848, spec D12-D19).
