@@ -4,9 +4,59 @@
 //! pause, resize, wake, rebuild, forget), the image and `wsp delete`. Spec: `spec/workspaces-git.md` and
 //! `spec/workspaces-life.md`.
 
-use wsp_words::exit::HostError;
+mod git;
+mod life;
 
+use std::sync::Arc;
+
+use self::git::*;
+use self::life::*;
+
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use serde_json::{json, Map, Value};
+
+use wsp_wire::types::pull_request::{GitUpdateReply, MergeMethod};
+use wsp_wire::types::tree::{MergeInResult, FIX_CHECK_OR_CHILD};
+use wsp_wire::views::activity::ProcessesAsk;
+use wsp_wire::views::harness::{ReviewPostResult, StartResult};
+use wsp_wire::views::session::SessionOrigin;
+use wsp_wire::views::workspace::ProjectView;
+use wsp_wire::views::workspace_more::{WorkspaceOut, WorkspaceView};
+use wsp_wire::wire::capabilities::WorkspaceSize;
+use wsp_wire::wire::daemon::{GitCommitReply, GitDiscardReply};
+use wsp_words::changes::{committed_line, discarded_line, MadeCommit};
+use wsp_words::exit::{usage_refusal, HostError};
+use wsp_words::projects::{thread_delete_question, thread_deleted_line};
+use wsp_words::pull_request::merged_line;
+use wsp_words::start::{start_words, ReviewVerdict};
+use wsp_words::sub_thread::sub_deleted_line;
+use wsp_words::tree::merge_in_line;
+use wsp_words::words::image::sealed_built_line;
+use wsp_words::words::thread::{resize_word_line, resized_line, RESIZE_WORD_FIX};
+use wsp_words::words::units::size_from_word;
+use wsp_words::workspace_state::{
+    delete_notice, gone_refusal, turn_spend_word, workspace_kind, workspace_state, WorkspaceState, WorkspaceStateInput,
+};
+
+use crate::cloud::cloud_on;
+use crate::cloud_text::cloud_text;
+
+use super::activity::{ended_lines, processes_asked};
 use super::client::*;
+use super::io::{as_json, as_text, confirmed};
+use super::turns_help::{
+    before_sending, checked_start, child_of, follow, follow_verb, notify_of, opening_of, pick_flags, refuse_machine_thread, sharing_with,
+    sub_deleting, thread_at, thread_deleted, thread_here, turn_failure, turn_view, FollowOn, OpeningAt, OpeningOpts, Picks, SaidAbout,
+    ThreadDeleted, ThreadDeletedAsk, ThreadRef, Turn,
+};
+use super::workspaces_help::{
+    agents_asked, asked_to_fix, awake, build_image_at, committed, create_for, delete_question, delete_workspace, deleted_line, deleting,
+    dropping, fix_line, folder_of, forget, forget_question, forgot_line, image_lines, image_view, made_worktree, merged_in, merged_pr,
+    project_of, rebuild, rebuilt_line, renamed_workspace_line, review_lines, review_posted, shared_of, started_lines, state_line,
+    thread_label, thread_of, update_line, with_shared, woke_line, workspace_of, ChildRef, CreateAsked, Dropping, MergeLead, ProjectPick,
+    RenamedWorkspace, ReviewEdits, ReviewStartedAsk, StartedFromAsk, VERDICTS,
+};
 
 /// `NO_THREAD_FIX` (workspaces.ts:49): what a delete naming no thread says to do instead.
 pub const NO_THREAD_FIX: &str = "Name a thread wsp threads lists.";
@@ -487,306 +537,129 @@ pub fn workspace_verbs() -> Vec<Verb> {
     ]
 }
 
-/// The `rename` tool's call (`verbs/workspaces.ts:71-74`).
-fn call_rename(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:71-74")
-    })
+fn frame_str(args: &Frame, key: &str) -> Option<String> {
+    args.get(key).and_then(Value::as_str).map(str::to_owned)
 }
 
-/// `wsp rename` (`verbs/workspaces.ts:59-65`).
-fn run_rename(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:59-65")
-    })
+fn frame_list(args: &Frame, key: &str) -> Vec<String> {
+    args.get(key)
+        .and_then(Value::as_array)
+        .map(|items| items.iter().filter_map(Value::as_str).map(str::to_owned).collect())
+        .unwrap_or_default()
 }
 
-/// The `fork` tool's call (`verbs/workspaces.ts:113-136`).
-fn call_fork(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:113-136")
-    })
+fn frame_true(args: &Frame, key: &str) -> bool {
+    args.get(key) == Some(&Value::Bool(true))
 }
 
-/// `wsp fork` (`verbs/workspaces.ts:84-107`).
-fn run_fork(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:84-107")
-    })
+fn frame_picks(args: &Frame) -> Picks {
+    Picks {
+        model: frame_str(args, "model"),
+        effort: frame_str(args, "effort"),
+        access: frame_str(args, "access"),
+        fast: frame_true(args, "fast"),
+    }
 }
 
-/// The `commit` tool's call (`verbs/workspaces.ts:165-172`).
-fn call_commit(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:165-172")
-    })
+fn json_of<T: Serialize>(value: &T) -> Value {
+    serde_json::to_value(value).unwrap_or(Value::Null)
 }
 
-/// `wsp commit` (`verbs/workspaces.ts:145-155`).
-fn run_commit(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:145-155")
-    })
+fn object_of<T: Serialize>(value: &T) -> Map<String, Value> {
+    match json_of(value) {
+        Value::Object(map) => map,
+        _ => Map::new(),
+    }
 }
 
-/// The `discard` tool's call (`verbs/workspaces.ts:200-207`).
-fn call_discard(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:200-207")
-    })
+/// `{...x, ...sharedOf(shared)}`: the answer's fields with `sharedWith` where other threads share the folder.
+fn with_shared_field(mut map: Map<String, Value>, shared: &[String]) -> Value {
+    if let Some(ids) = shared_of(shared) {
+        map.insert("sharedWith".to_owned(), json!(ids));
+    }
+    Value::Object(map)
 }
 
-/// `wsp discard` (`verbs/workspaces.ts:181-194`).
-fn run_discard(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:181-194")
-    })
+fn parsed<T: DeserializeOwned>(reply: Frame, op: &str) -> Result<T, HostError> {
+    serde_json::from_value(Value::Object(reply)).map_err(|_| HostError::new(other_version(op)))
 }
 
-/// The `fix` tool's call (`verbs/workspaces.ts:242-250`).
-fn call_fix(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:242-250")
-    })
+fn view_of(out: &WorkspaceOut) -> Result<WorkspaceView, HostError> {
+    serde_json::from_value(json_of(out)).map_err(|_| HostError::new(other_version("workspaces")))
 }
 
-/// `wsp fix` (`verbs/workspaces.ts:216-229`).
-fn run_fix(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:216-229")
-    })
+fn processes_ask(word: Option<&str>) -> ProcessesAsk {
+    match word {
+        Some("stop") => ProcessesAsk::Stop,
+        Some("keep") => ProcessesAsk::Keep,
+        _ => ProcessesAsk::Ask,
+    }
 }
 
-/// The `merge_in` tool's call (`verbs/workspaces.ts:277-283`).
-fn call_merge_in(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:277-283")
-    })
+fn redial_of(deps: &VerbDeps) -> impl Fn() -> BoxFuture<'static, Result<Arc<dyn HostClient>, HostError>> + Send + Sync {
+    let owned = deps.clone();
+    move || {
+        let owned = owned.clone();
+        Box::pin(async move { host_back(&owned, None).await }) as BoxFuture<'static, Result<Arc<dyn HostClient>, HostError>>
+    }
 }
 
-/// `wsp merge in` (`verbs/workspaces.ts:259-268`).
-fn run_merge_in(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:259-268")
-    })
+fn home() -> Option<String> {
+    std::env::var("HOME").ok().filter(|home| !home.is_empty())
 }
 
-/// The `merge` tool's call (`verbs/workspaces.ts:313-318`).
-fn call_merge(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:313-318")
-    })
+fn stderr_of(ctx: &VerbContext) -> impl Fn(&str) + Send + Sync {
+    let io = ctx.io.clone();
+    move |line: &str| io.error(line)
 }
 
-/// `wsp merge` (`verbs/workspaces.ts:292-303`).
-fn run_merge(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:292-303")
-    })
+fn quiet_tell(_line: &str) {}
+
+fn is_link(target: &str) -> bool {
+    target.starts_with("http://") || target.starts_with("https://")
 }
 
-/// The `start` tool's call (`verbs/workspaces.ts:345-348`).
-fn call_start(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:345-348")
-    })
+fn verdict_of(word: &str) -> Option<ReviewVerdict> {
+    VERDICTS.iter().find(|(name, _)| *name == word).map(|(_, verdict)| verdict.clone())
 }
 
-/// `wsp start` (`verbs/workspaces.ts:327-334`).
-fn run_start(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:327-334")
-    })
+fn merge_method_of(word: &str) -> Option<MergeMethod> {
+    serde_json::from_value(Value::String(word.to_owned())).ok()
 }
 
-/// The `review` tool's call (`verbs/workspaces.ts:376-381`).
-fn call_review(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:376-381")
-    })
+fn project_pick(project: &ProjectView) -> ProjectPick {
+    ProjectPick { id: project.id.clone(), name: project.name.clone(), computer: project.computer.clone() }
 }
 
-/// `wsp review` (`verbs/workspaces.ts:357-365`).
-fn run_review(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:357-365")
-    })
+fn made_commit(made: &GitCommitReply) -> MadeCommit {
+    MadeCommit { oid: made.oid.clone(), subject: made.subject.clone(), files_changed: made.files_changed.as_f64() as u64 }
 }
 
-/// The `review_post` tool's call (`verbs/workspaces.ts:411-416`).
-fn call_review_post(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:411-416")
-    })
+/// `{threadId, ...gone}`: a thread's delete as the answer writes it, its `on` left out on a sub-thread's.
+fn deleted_value(thread_id: &str, gone: &ThreadDeleted, with_on: bool) -> Value {
+    let mut fields = object_of(gone);
+    if !with_on {
+        fields.remove("on");
+    }
+    let mut map = Map::new();
+    map.insert("threadId".to_owned(), json!(thread_id));
+    map.extend(fields);
+    Value::Object(map)
 }
 
-/// `wsp review post` (`verbs/workspaces.ts:390-401`).
-fn run_review_post(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:390-401")
-    })
+fn workspace_gone_value(d: &Dropping) -> Value {
+    json!({ "workspaceId": d.workspace.id, "name": d.workspace.name, "machineId": d.workspace.machine_id, "threads": d.threads })
 }
 
-/// The `update` tool's call (`verbs/workspaces.ts:441-448`).
-fn call_update(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:441-448")
-    })
+fn kept_result(text: String, structured: Value) -> CallToolResult {
+    CallToolResult { is_error: Some(true), ..as_text(&text, structured) }
 }
 
-/// `wsp update` (`verbs/workspaces.ts:425-435`).
-fn run_update(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:425-435")
-    })
+/// The second line of a question, read as `question.split("\n")[1]` reads it.
+fn second_line(question: &str) -> &str {
+    question.split('\n').nth(1).unwrap_or("undefined")
 }
 
-/// The `pause` tool's call (`verbs/workspaces.ts:470-470`).
-fn call_pause(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:470-470")
-    })
-}
-
-/// `wsp pause` (`verbs/workspaces.ts:458-465`).
-fn run_pause(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:458-465")
-    })
-}
-
-/// The `resize` tool's call (`verbs/workspaces.ts:494-498`).
-fn call_resize(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:494-498")
-    })
-}
-
-/// `wsp resize` (`verbs/workspaces.ts:479-488`).
-fn run_resize(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:479-488")
-    })
-}
-
-/// The `wake` tool's call (`verbs/workspaces.ts:520-523`).
-fn call_wake(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:520-523")
-    })
-}
-
-/// `wsp wake` (`verbs/workspaces.ts:508-515`).
-fn run_wake(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:508-515")
-    })
-}
-
-/// The `rebuild` tool's call (`verbs/workspaces.ts:545-548`).
-fn call_rebuild(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:545-548")
-    })
-}
-
-/// `wsp rebuild` (`verbs/workspaces.ts:533-539`).
-fn run_rebuild(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:533-539")
-    })
-}
-
-/// The `image` tool's call (`verbs/workspaces.ts:568-571`).
-fn call_image(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:568-571")
-    })
-}
-
-/// `wsp image` (`verbs/workspaces.ts:557-562`).
-fn run_image(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:557-562")
-    })
-}
-
-/// The `image_build` tool's call (`verbs/workspaces.ts:592-595`).
-fn call_image_build(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:592-595")
-    })
-}
-
-/// `wsp image build` (`verbs/workspaces.ts:580-586`).
-fn run_image_build(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:580-586")
-    })
-}
-
-/// The `forget` tool's call (`verbs/workspaces.ts:620-625`).
-fn call_forget(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:620-625")
-    })
-}
-
-/// `wsp forget` (`verbs/workspaces.ts:605-614`).
-fn run_forget(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:605-614")
-    })
-}
-
-/// The `delete` tool's call (`verbs/workspaces.ts:675-708`).
-fn call_delete(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("verbs/workspaces.ts:675-708")
-    })
-}
-
-/// `wsp delete` (`verbs/workspaces.ts:636-669`).
-fn run_delete(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("verbs/workspaces.ts:636-669")
-    })
+fn ended_lines_of(gone: &ThreadDeleted) -> Vec<String> {
+    gone.ended.iter().flatten().map(ended_lines).collect()
 }
