@@ -10,6 +10,7 @@ use std::sync::Arc;
 use futures::StreamExt;
 use indexmap::IndexSet;
 use wsp_adapters::port::{Attached, AttachRunOptions, ExecOptions as Launch, ExecStream, ExecStreamFactory};
+use wsp_core::clock::Clock;
 use wsp_core::local_exec::reap::{end_marker, leftovers, orphans_of, parse_etime, pump_of, reap_run, release_held, release_late, GroupRow, Lines, TreeTally};
 use wsp_core::local_exec::{agent_pid_of, local_exec_stream, LocalExecOptions};
 
@@ -234,7 +235,7 @@ fn sleeper() -> i32 {
 
 async fn attach(runs: &str, run: &str, input: bool, from: Option<u64>) -> Attached {
     let factory = local_exec_stream(LocalExecOptions { poll_ms: Some(10), ..LocalExecOptions::new(runs, runs) }, None);
-    factory.attach(run, AttachRunOptions { input, started_at: 0.0, from }).unwrap().await.unwrap()
+    factory.attach(run, AttachRunOptions { input, started_at: wsp_core::clock::RealClock.now() as f64, from }).unwrap().await.unwrap()
 }
 
 fn stream(a: Attached) -> Arc<dyn ExecStream> {
