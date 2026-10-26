@@ -2,7 +2,6 @@
 //! Port of packages/runtime/src/account/box-panels.ts at 65f6b89c7: the panes of a folder on a joined computer over
 //! the one link that computer holds. Spec: spec/box_panels.md.
 use std::cell::{Cell, RefCell};
-use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::rc::{Rc, Weak};
 
@@ -14,9 +13,11 @@ use serde_json::{json, Map, Value};
 use wsp_wire::types::thread_cgroup::in_cgroup;
 use wsp_wire::wire::daemon::ProcScope;
 use wsp_wire::wire::daemon_version::{named_watch_gap, place_behind_line};
+use wsp_words::js::utf16;
 use wsp_words::thread_cgroup::thread_cgroup;
 
 use crate::account::core_types::{AccountResult, Entry, Frame, Release, Served};
+use crate::account::proc_scopes::{newest_first, poll_now};
 
 /// box-panels.ts:21: the most cgroups one watch names, the daemon's own cap.
 pub const WATCH_CGROUPS_MAX: usize = 16;
@@ -41,7 +42,7 @@ pub fn proc_watch_scope(asks: &[Option<Vec<String>>]) -> Option<Vec<String>> {
         .filter(|cgroup| !named.iter().any(|other| other != *cgroup && in_cgroup(Some(cgroup.as_str()), other)))
         .cloned()
         .collect();
-    kept.sort();
+    kept.sort_by(|a, b| utf16::cmp(a, b));
     (kept.len() <= WATCH_CGROUPS_MAX).then_some(kept)
 }
 
@@ -183,7 +184,7 @@ struct PaneMut {
 /// The roots and cgroups a pane's ports watch last named (box-panels.ts:96).
 #[derive(Clone)]
 struct Named {
-    roots: Vec<i64>,
+    roots: Vec<Value>,
     cgroups: String,
 }
 
@@ -269,9 +270,17 @@ fn port_key(v: Option<&Value>) -> u64 {
     }
 }
 
-/// `Number.isInteger(r) ? r : (dropped)` for a root.
-fn integer_of(v: &Value) -> Option<i64> {
-    v.as_i64().or_else(|| v.as_f64().filter(|n| n.fract() == 0.0 && n.abs() < 9.0e15).map(|n| n as i64))
+/// `Number.isInteger(r) ? r : (dropped)` for a root, kept as the JSON number the page sent.
+fn integer_of(v: &Value) -> Option<Value> {
+    if let Some(n) = v.as_i64() {
+        return Some(json!(n));
+    }
+    let n = v.as_f64().filter(|n| n.fract() == 0.0)?;
+    if (i64::MIN as f64..i64::MAX as f64).contains(&n) {
+        Some(json!(n as i64))
+    } else {
+        Some(json!(n))
+    }
 }
 
 fn bump(room: &mut Vec<usize>, n: usize) {
@@ -281,14 +290,19 @@ fn bump(room: &mut Vec<usize>, n: usize) {
     room[n] += 1;
 }
 
-/// `procAsks.get(link)`, created on first use, read and written through `f`.
+/// `procAsks.get(link)`, created on first use, read and written through `f`, and gone once no pane asks of it.
 fn with_asks<T>(asks: &ProcAsks, link: &Rc<()>, f: impl FnOnce(&mut IndexMap<u64, Option<Vec<String>>>) -> T) -> T {
+    let key = Rc::as_ptr(link) as usize;
     let mut all = asks.borrow_mut();
-    let entry = all.entry(Rc::as_ptr(link) as usize).or_insert_with(|| (Rc::downgrade(link), IndexMap::new()));
+    let entry = all.entry(key).or_insert_with(|| (Rc::downgrade(link), IndexMap::new()));
     if !entry.0.upgrade().is_some_and(|live| Rc::ptr_eq(&live, link)) {
         *entry = (Rc::downgrade(link), IndexMap::new());
     }
-    f(&mut entry.1)
+    let out = f(&mut entry.1);
+    if entry.1.is_empty() {
+        all.shift_remove(&key);
+    }
+    out
 }
 
 /// `procWatchScope(asksOn(link).values())`.
@@ -328,7 +342,7 @@ impl PaneState {
             }
         }
         let mut ordered: Vec<(String, f64)> = newest.into_iter().collect();
-        ordered.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
+        ordered.sort_by(|a, b| newest_first(a.1, b.1));
         ordered.iter().map(|(thread, _)| thread_cgroup(thread)).collect()
     }
 
@@ -352,7 +366,7 @@ impl PaneState {
     }
 
     /// box-panels.ts:129 `watchPorts`: places the folder's cgroups in watches and asks each for its ports.
-    async fn watch_ports(&self, roots: Vec<i64>) -> AccountResult<Frame> {
+    async fn watch_ports(&self, roots: Vec<Value>) -> AccountResult<Frame> {
         let cgroups = self.cgroups();
         self.state.borrow_mut().named = Some(Named { roots: roots.clone(), cgroups: cgroups.join(",") });
         let (shares, placed) = self.place(&cgroups);
@@ -461,7 +475,9 @@ impl PaneState {
     fn on_push(self: &Rc<Self>) {
         if self.state.borrow().watching_procs {
             let me = self.clone();
-            self.ctx.spawn(async move { me.scope_procs().await }.boxed_local());
+            if let Some(rest) = poll_now(async move { me.scope_procs().await }.boxed_local()) {
+                self.ctx.spawn(rest);
+            }
         }
         let named = self.state.borrow().named.clone();
         let Some(named) = named else {
@@ -471,12 +487,13 @@ impl PaneState {
             return;
         }
         let me = self.clone();
-        self.ctx.spawn(
-            async move {
-                let _ = me.watch_ports(named.roots).await;
-            }
-            .boxed_local(),
-        );
+        let ports = async move {
+            let _ = me.watch_ports(named.roots).await;
+        }
+        .boxed_local();
+        if let Some(rest) = poll_now(ports) {
+            self.ctx.spawn(rest);
+        }
     }
 
     /// box-panels.ts:181 `unwatchProcs`: takes the pane's ask back; the last pane on the link unwatches it.
@@ -539,7 +556,7 @@ impl PaneState {
                 if let Some(refused) = named_watch_refusal(&name, version) {
                     return Ok(refused);
                 }
-                let roots: Vec<i64> = match frame.get("roots") {
+                let roots: Vec<Value> = match frame.get("roots") {
                     Some(Value::Array(items)) => items.iter().filter_map(integer_of).collect(),
                     _ => Vec::new(),
                 };

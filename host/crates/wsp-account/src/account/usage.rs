@@ -337,9 +337,14 @@ impl UsageArea {
                 let _ = fired_tx.send(());
             }),
         );
-        let answer = match select(work, fired_rx).await {
-            Either::Left((answer, _)) => answer,
-            Either::Right(_) => Err(HostError::new(format!("{what} was not answered in {}s", (ms as f64 / 1000.0).round() as i64)).into()),
+        let (answered_tx, answered_rx) = oneshot::channel::<AccountResult<T>>();
+        self.ctx.spawn(Box::pin(async move {
+            let _ = answered_tx.send(work.await);
+        }));
+        let unanswered = || HostError::new(format!("{what} was not answered in {}s", (ms as f64 / 1000.0).round() as i64)).into();
+        let answer = match select(answered_rx, fired_rx).await {
+            Either::Left((answer, _)) => answer.unwrap_or_else(|_| Err(unanswered())),
+            Either::Right(_) => Err(unanswered()),
         };
         cancel();
         answer
@@ -648,7 +653,7 @@ impl UsageArea {
     }
 
     async fn plan_pass(self: &Rc<Self>) {
-        let _ = self.ctx.places(self.ctx.now()).await;
+        let listed = self.ctx.places(self.ctx.now()).await;
         let here = self.here_sign_ins().await;
         let views = self.ctx.places(self.ctx.now()).await;
         let mut ids: Vec<String> = vec![wsp_wire::types::place_word::HERE_PLACE_ID.to_string()];
@@ -660,7 +665,7 @@ impl UsageArea {
         let mut asks: Vec<LocalBoxFuture<'_, ()>> = Vec::new();
         for agent in self.ctx.plan_agents() {
             for id in &ids {
-                let place = self.place_view(id, &views);
+                let place = self.place_view(id, &listed);
                 let key = format!("{agent}@{id}");
                 let now = self.ctx.now();
                 let stamped = self.plan_read_at.borrow().get(&key).copied();

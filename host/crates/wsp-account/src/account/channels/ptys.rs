@@ -15,7 +15,7 @@ use wsp_wire::types::daemon_contract::{APP_DATA_FOLDER, APP_LOCK_FILE};
 use super::daemon::{frame_op, js_string, node_join, record_of};
 use super::{ChannelsArea, GUEST_ROAD_EXTRA, PORT_ROOTS_RECHECK_MS, PTY_THREADS, WORKSPACE_FRAMES};
 use crate::account::core_types::{AccountResult, Entry, Frame};
-use crate::account::proc_scopes::ThreadTerminal;
+use crate::account::proc_scopes::{poll_now, ThreadTerminal};
 
 /// `String(v)` of a frame's key, where a missing key reads "undefined".
 fn js_str_opt(v: Option<&Value>) -> String {
@@ -76,9 +76,14 @@ pub(crate) fn string_map_value(map: &IndexMap<String, String>) -> Value {
     Value::Object(map.iter().map(|(k, v)| (k.clone(), Value::String(v.clone()))).collect())
 }
 
-/// `pty.list`'s rows, each row's id as `String(row.id)`.
-fn listed_ids(rows: &[Value]) -> HashSet<String> {
-    rows.iter().map(|row| js_str_opt(row.get("id"))).collect()
+/// `pty.list`'s rows, each row's id as `String(row.id)`; a null row throws in the TS.
+fn listed_ids(rows: &[Value]) -> Result<HashSet<String>, ChannelError> {
+    rows.iter()
+        .map(|row| match row {
+            Value::Null => Err(ChannelError::Refused { message: "Cannot read properties of null (reading 'id')".to_string() }),
+            _ => Ok(js_str_opt(row.get("id"))),
+        })
+        .collect()
 }
 
 impl ChannelsArea {
@@ -129,24 +134,23 @@ impl ChannelsArea {
         if let Some(held) = held {
             return held.await;
         }
-        let ctx = self.ctx.clone();
-        let id = workspace_id.to_string();
-        let read: LocalBoxFuture<'static, Rc<RefCell<IndexMap<String, String>>>> = Box::pin(async move {
-            let kept = ctx.store_get(PTY_THREADS, &id).await;
-            Rc::new(RefCell::new(string_map_of(kept)))
-        });
-        let shared = read.shared();
         let token = self.seq();
-        self.tags_held_seq.borrow_mut().insert(workspace_id.to_string(), token);
-        self.tags_held.borrow_mut().insert(workspace_id.to_string(), shared.clone());
         let this = self.clone();
         let ws = workspace_id.to_string();
+        let read: LocalBoxFuture<'static, Rc<RefCell<IndexMap<String, String>>>> = Box::pin(async move {
+            let kept = this.ctx.store_get(PTY_THREADS, &ws).await;
+            let tags = Rc::new(RefCell::new(string_map_of(kept)));
+            if this.tags_held_seq.borrow().get(&ws) == Some(&token) {
+                this.tags_read.borrow_mut().insert(ws, tags.clone());
+            }
+            tags
+        });
+        let shared = read.shared();
+        self.tags_held_seq.borrow_mut().insert(workspace_id.to_string(), token);
+        self.tags_held.borrow_mut().insert(workspace_id.to_string(), shared.clone());
         let settled = shared.clone();
         self.ctx.spawn(Box::pin(async move {
-            let tags = settled.await;
-            if this.tags_held_seq.borrow().get(&ws) == Some(&token) {
-                this.tags_read.borrow_mut().insert(ws, tags);
-            }
+            settled.await;
         }));
         shared.await
     }
@@ -359,9 +363,11 @@ impl ChannelsArea {
                 };
                 let frame = frame_of(json!({ "id": null, "op": "ports.watch", "roots": roots, "folder": folder }));
                 let channel = channel.clone();
-                area.ctx.spawn(Box::pin(async move {
+                if let Some(rest) = poll_now(Box::pin(async move {
                     let _ = channel.send(frame).await;
-                }));
+                })) {
+                    area.ctx.spawn(rest);
+                }
             })
         };
         self.port_watchers.borrow_mut().entry(ws.clone()).or_default().push(push.clone());
@@ -425,7 +431,7 @@ impl DaemonChannel for HeldToOwner {
             }
             "pty.list" => {
                 if let Some(rows) = reply.get("ptys").and_then(Value::as_array) {
-                    let held = listed_ids(rows);
+                    let held = listed_ids(rows)?;
                     let mut mine = self.mine.borrow_mut();
                     for id in &listed_from {
                         if !held.contains(id) {
@@ -544,7 +550,7 @@ impl DaemonChannel for ThreadTagged {
         if op != "pty.list" {
             return Ok(reply);
         }
-        let held = listed_ids(&rows);
+        let held = listed_ids(&rows)?;
         let gone: Vec<String> = tags.borrow().keys().filter(|id| !held.contains(*id)).cloned().collect();
         if !gone.is_empty() {
             for id in &gone {
