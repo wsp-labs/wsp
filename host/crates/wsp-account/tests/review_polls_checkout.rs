@@ -8,6 +8,7 @@ mod base;
 mod git;
 include!("workspaces_git/world.rs");
 
+use futures::future::LocalBoxFuture;
 use std::time::Duration;
 
 use async_trait::async_trait;
@@ -93,14 +94,14 @@ impl GitCtx for Slow {
     fn agent_off(&self, entry: &Entry, agent: &str) -> bool { self.0.agent_off(entry, agent) }
     fn has_adapter(&self, agent: &str) -> bool { self.0.has_adapter(agent) }
     async fn drafter(&self, entry: &Entry, agent: &str) -> Result<Option<Option<String>>, HostError> { self.0.drafter(entry, agent).await }
-    async fn put_files(&self, entry: &Entry, path: &str, text: &str) -> Result<ExecResult, HostError> { self.0.put_files(entry, path, text).await }
+    async fn put_files(&self, entry: &Entry, path: &str, text: &str, before: &[&str]) -> Result<ExecResult, HostError> { self.0.put_files(entry, path, text, before).await }
     async fn draft_for(&self, entry: &Entry, agent: &str, prompt_file: &str, model: Option<&str>) -> Result<Option<String>, HostError> { self.0.draft_for(entry, agent, prompt_file, model).await }
     fn viewed_marks(&self) -> Rc<std::cell::RefCell<indexmap::IndexMap<String, ViewedMarks>>> { self.0.viewed_marks() }
     async fn persist_sessions(&self, workspace_id: &str) -> Result<(), HostError> { self.0.persist_sessions(workspace_id).await }
     async fn pull_request_on(&self, workspace_id: &str, origin: Option<Caller>) -> Result<PullRequestOn, HostError> { self.0.pull_request_on(workspace_id, origin).await }
     async fn read_page(&self, entry: &Entry, remote: &str, number: i64, fresh: bool) -> Result<(PullRequestPage, bool), HostError> { self.0.read_page(entry, remote, number, fresh).await }
     async fn merge_settings(&self, remote: &str) -> Result<serde_json::Value, HostError> { self.0.merge_settings(remote).await }
-    async fn read_host(&self, entry: &Entry, ask: serde_json::Value) -> Result<serde_json::Value, HostError> { self.0.read_host(entry, ask).await }
+    async fn read_host(&self, entry: &Entry, frame: wsp_account::account::pull_requests::FrameFor) -> Result<serde_json::Value, HostError> { self.0.read_host(entry, frame).await }
     async fn post_as_person(&self, remote: &str, number: i64, ask: serde_json::Value) -> Result<serde_json::Value, HostError> { self.0.post_as_person(remote, number, ask).await }
     async fn to_first_thread(&self, workspace_id: &str, prompt: &str, origin: Option<Caller>) -> Result<SentTo, HostError> { self.0.to_first_thread(workspace_id, prompt, origin).await }
     async fn send_detached(&self, workspace_id: &str, prompt: &str, thread: &str, origin: Option<Caller>) -> Result<SentTo, HostError> { self.0.send_detached(workspace_id, prompt, thread, origin).await }
@@ -108,6 +109,7 @@ impl GitCtx for Slow {
     async fn update_copy(&self, entry: &Entry) -> Result<GitUpdateReply, HostError> { self.0.update_copy(entry).await }
     fn drop_page_cache(&self, remote: &str, number: i64) { self.0.drop_page_cache(remote, number) }
     fn is_local_workspace(&self, record: &WorkspaceRecord) -> bool { self.0.is_local_workspace(record) }
+    fn spawn(&self, f: LocalBoxFuture<'static, ()>) { self.0.spawn(f) }
 }
 
 #[test]

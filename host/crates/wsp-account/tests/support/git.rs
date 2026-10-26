@@ -13,6 +13,7 @@ use futures::future::{FutureExt, LocalBoxFuture};
 use futures::stream::{self, LocalBoxStream, StreamExt};
 use indexmap::IndexMap;
 use serde_json::{json, Value};
+use wsp_account::account::pull_requests::FrameFor;
 use wsp_account::projects::folders::tree::{ListedWorktree, RemoveAsk};
 use wsp_account::projects::workspaces::git::{GitCtx, PullRequestOn, SentTo};
 use wsp_account::projects::workspaces::seam::{
@@ -71,6 +72,8 @@ pub struct FakeGit {
     inner: BaseOf,
     pub viewed: Rc<RefCell<IndexMap<String, ViewedMarks>>>,
     pub kills: Arc<AtomicUsize>,
+    /// The shell lines each `put_files` was told to run before it wrote.
+    pub put_before: Rc<RefCell<Vec<Vec<String>>>>,
 }
 
 impl FakeGit {
@@ -80,6 +83,7 @@ impl FakeGit {
             base,
             viewed: Rc::new(RefCell::new(IndexMap::new())),
             kills: Arc::new(AtomicUsize::new(0)),
+            put_before: Rc::new(RefCell::new(Vec::new())),
         })
     }
 
@@ -350,7 +354,8 @@ impl GitCtx for FakeGit {
         }
         Ok(Some(said.get("model").and_then(Value::as_str).map(str::to_owned)))
     }
-    async fn put_files(&self, entry: &Entry, path: &str, text: &str) -> Result<ExecResult, HostError> {
+    async fn put_files(&self, entry: &Entry, path: &str, text: &str, before: &[&str]) -> Result<ExecResult, HostError> {
+        self.put_before.borrow_mut().push(before.iter().map(|line| (*line).to_owned()).collect());
         self.base.call("put_files", json!({ "id": id_of(entry), "path": path, "text": text }));
         self.base.answer_as("put_files", exec_ok)
     }
@@ -385,7 +390,8 @@ impl GitCtx for FakeGit {
         self.base.call("merge_settings", json!({ "remote": remote }));
         self.base.answer_as("merge_settings", || json!({ "methods": ["merge", "squash"], "defaultMethod": "squash", "autoMerge": true }))
     }
-    async fn read_host(&self, entry: &Entry, ask: Value) -> Result<Value, HostError> {
+    async fn read_host(&self, entry: &Entry, frame: FrameFor) -> Result<Value, HostError> {
+        let ask = Value::Object(frame(&self.home_dir()));
         self.base.call("read_host", json!({ "id": id_of(entry), "ask": ask }));
         self.base.answer_as("read_host", || json!({}))
     }
@@ -427,6 +433,9 @@ impl GitCtx for FakeGit {
     }
     fn is_local_workspace(&self, record: &WorkspaceRecord) -> bool {
         matches!(record.kind, WorkspaceKind::Local)
+    }
+    fn spawn(&self, f: LocalBoxFuture<'static, ()>) {
+        tokio::task::spawn_local(f);
     }
 }
 
