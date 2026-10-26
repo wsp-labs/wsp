@@ -8,7 +8,7 @@ What `slate_catalog` answers, and `wsp slate catalog` prints: the index with no 
 
 ```text
 The slate is the person's visual companion while you work: words stay in the chat, and your reply never restates it.
-Pieces, visual first (! required, (a|b) the only values, <items>):
+Pieces, visual first (! required, (a|b) only these, <items>):
 decision: label! value! pick held onChange; <option value! label! note>
 stats: <stat label! value! format unit window max trend tone>
 progress: label! items! key name! done! note
@@ -39,8 +39,8 @@ section: title! note collapsible open align onChange; children
 status: value! tone
 output: run! label lines wrap
 empty: title! body
-Every piece: id, when={cond}; items take when too. tone: default muted good warning bad info accent. emphasis: normal strong quiet. gap: tight normal loose. format, where a line lists none: plain tokens bytes percent usd inr duration integer fraction.
-Pick by question: figures stats; done of many progress; a question decision; categories bars; time is a chart, x in ms or ISO; shares donut; sizes treemap; spans timeline; a flow is a diagram.
+Every piece: id, when={cond}; items take when too. tone: default muted good warning bad info accent; stat and ring lack muted info accent; status lacks accent. emphasis: normal strong quiet. gap: tight normal loose. format, where none is listed: plain tokens bytes percent usd inr duration integer fraction.
+Pick: figures stats; done of many progress; a question decision; categories bars; time is a chart, x in ms or ISO; shares donut; sizes treemap; spans timeline; a flow is a diagram.
 Sources, read only:
 thread: id title agent model status turns lastTurn cost tokens context changes plan waitingOn subagents[] ...
 usage: account windows[] session week status note ...
@@ -57,7 +57,7 @@ Rules:
 3. Props are meaning, never style. held is a sentence that disables: bind it to a condition; "" or false enables.
 4. A list binds to items; item and index read the row.
 5. A press reaches you only through send("literal text", $path); <when> chains run without you.
-6. Small edit: patch by id, <props id="price" value={$spot.json.v} />; bigger: resend the whole slate with if_version.
+6. Small edit: patch by id, <props id="price" value={$spot.json.v} />; bigger: resend the slate with if_version.
 7. At a glance: at most 4 sections open, the rest collapsible open={false}; 1 table of 4 columns; notes, cells to 12 words, texts to 30; no logs, drawn tables. Replace a section, never add one beside it.
 8. Fill pieces, not layout: no card in a card, never ·, • or | between things, short labels, no emoji. Heads in sentence case, never bold text.
 9. A live number shows once, with its window and unit: never a progress count as a stat too. Show a run's json fields, never its raw out or error lines, which its <output> leads with; times through date(), time() or ago(). A run's every= keeps it fresh: never poll in chat.
@@ -65,16 +65,16 @@ Rules:
 11. A secret the person types goes in a <secret> input, never a file or the chat. One in a file stays there for the run to read, never you.
 12. A button asked for where the project has no UI goes here: the slate is its UI, and the reply says so.
 <slate title="Deploy">
-  <run name="ci" cmd="./ci-status --json" every={30} />
+  <run name="ci" cmd="./ci --json" every={30} />
   <value name="ship" start="" />
   <column>
     <stats>
       <stat label="Passed" value={$ci.json.passed} max={$ci.json.total} window="this run" />
       <stat label="Spent" value={thread.cost.usd} format="usd" window="this thread" />
     </stats>
-    <chart label="Build, s" items={$ci.json.runs} x={item.at} value={item.s} />
+    <chart label="Build time" items={$ci.json.runs} x={item.at} value={item.s} />
     <decision label="Ship it?" value={$ship} pick="yes" onChange={send("Ship it?", $ship)}>
-      <option value="yes" label="Ship now" /><option value="no" label="Wait" />
+      <option value="yes" label="Ship" /><option value="no" label="Wait" />
     </decision>
   </column>
 </slate>
