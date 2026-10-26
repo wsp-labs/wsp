@@ -183,8 +183,9 @@ fn keeps_ticked_drops_unticked_sets_aside_unticked_agent_and_moves_the_home_scop
             r.reason = Some(s("installed by hand; no Linux build known"));
         }),
     ];
-    let actual =
-        mcp_plan_for(&rows, &McpPlanOptions { home: s(HOME), guest_home: None, agents: agents(), bin_dirs: None }).unwrap().expect("a plan");
+    let actual = mcp_plan_for(&rows, &McpPlanOptions { home: s(HOME), guest_home: None, agents: agents(), bin_dirs: None })
+        .unwrap()
+        .expect("a plan");
     let claude_files = strings(&["/root/.claude-cfg/.claude.json"]);
     let expected = McpPlan {
         agents: vec![

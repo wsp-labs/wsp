@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Port of packages/engine/src/drop-template.ts. Spec: spec/small.md.
 use crate::errors::{is_missing, Result};
+use crate::golden_seam::has_templates;
 use crate::machine::MachineBackend;
 
 /// drop-template.ts:8. `None` does nothing. A backend with templates (capabilities.templates and offers.templates, as
@@ -8,7 +9,7 @@ use crate::machine::MachineBackend;
 /// failure is. A backend without templates does nothing.
 pub async fn drop_template(backend: &dyn MachineBackend, template_id: Option<&str>) -> Result<()> {
     let Some(id) = template_id else { return Ok(()) };
-    if !(backend.capabilities().templates && backend.offers().templates) {
+    if !has_templates(backend) {
         return Ok(());
     }
     match backend.delete_template(id).await {

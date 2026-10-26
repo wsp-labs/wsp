@@ -30,7 +30,10 @@ fn reply(status: u16, body: Value) -> Answer {
 }
 
 fn ip_limit(retry_after: Value) -> Answer {
-    reply(429, json!({ "ok": false, "code": "IP_RATE_LIMIT_EXCEEDED", "message": "Too many requests", "requestId": "req_1", "retryAfter": retry_after }))
+    reply(
+        429,
+        json!({ "ok": false, "code": "IP_RATE_LIMIT_EXCEEDED", "message": "Too many requests", "requestId": "req_1", "retryAfter": retry_after }),
+    )
 }
 
 fn ok() -> Answer {
@@ -86,10 +89,14 @@ async fn a_cancel_with_a_reason_that_lands_in_a_request_limit_wait_answers_that_
         let stop = Cancel::new();
         let firing = stop.clone();
         let api = FakeBox::new()
-            .on("POST", &path("/resume"), vec![with(move |_| {
-                firing.cancel(Some(reason));
-                ip_limit(json!(2))
-            })])
+            .on(
+                "POST",
+                &path("/resume"),
+                vec![with(move |_| {
+                    firing.cancel(Some(reason));
+                    ip_limit(json!(2))
+                })],
+            )
             .on("GET", &path(""), vec![info(ID, "running", json!({}))])
             .on("POST", &path("/commands"), vec![cmd("", 0)]);
         let (on, machine) = machine_on(&api, ID);
@@ -106,7 +113,11 @@ async fn a_cancel_with_a_reason_that_lands_in_a_request_limit_wait_answers_that_
 // machine.rs:624-625 collects `0..pieces`. Probe line read_stat_huge_1e300: err.message "Invalid array length" (so too for 1e21,
 // 99999999999999999999 and 18014398509481984000).
 async fn read_after_stat_says(size: &str) -> Result<Vec<u8>, EngineError> {
-    let api = FakeBox::new().on("POST", &path("/commands"), vec![cmd(size, 0), cmd("", 0)]).on("GET", &path("/files"), vec![reply(200, json!({ "content": "AQID" }))]);
+    let api = FakeBox::new().on("POST", &path("/commands"), vec![cmd(size, 0), cmd("", 0)]).on(
+        "GET",
+        &path("/files"),
+        vec![reply(200, json!({ "content": "AQID" }))],
+    );
     let (_on, machine) = machine_on(&api, ID);
     machine.read_bytes("/root/x", None, None).await
 }
@@ -175,15 +186,22 @@ async fn file_content_is_read_as_node_reads_base64() {
 async fn a_cut_inside_a_surrogate_pair_leaves_the_replacement_character_in_the_firewalls_and_the_daemons_words() {
     let mut bad = Vec::new();
     let stderr = format!("😀{}", "b".repeat(199));
-    let api = FakeBox::new()
-        .on("POST", &path("/commands"), vec![cmd("", 1), command("", Some(1), json!({ "stderr": stderr }))])
-        .on("POST", &path("/host"), vec![reply(200, json!({ "ok": true, "url": "https://3000-x.on.boat.dev/?_token=t9" }))]);
+    let api = FakeBox::new().on("POST", &path("/commands"), vec![cmd("", 1), command("", Some(1), json!({ "stderr": stderr }))]).on(
+        "POST",
+        &path("/host"),
+        vec![reply(200, json!({ "ok": true, "url": "https://3000-x.on.boat.dev/?_token=t9" }))],
+    );
     let on = backend_on(&api, "trial", BoxBudgetsAsk { poll_ms: Some(1000), restore_ms: Some(20_000), ..Default::default() });
     let machine = BoxMachine::new(on.backend.clone(), ID, MachineKind::Sandbox, None, None, false);
     machine.preview_url(3000).await.unwrap();
-    let want = format!("{ID}: the firewall did not hold a rule for port 3000 (\u{fffd}{}); the route is minted without one", "b".repeat(199));
+    let want =
+        format!("{ID}: the firewall did not hold a rule for port 3000 (\u{fffd}{}); the route is minted without one", "b".repeat(199));
     if on.warned.lines() != vec![want.clone()] {
-        bad.push(format!("firewall warn: the TS keeps the half as U+FFFD ({} chars after the bracket), the Rust drops it ({:?} chars)", "200", on.warned.lines().first().map(|l| l.chars().count() as i64 - want.chars().count() as i64)));
+        bad.push(format!(
+            "firewall warn: the TS keeps the half as U+FFFD ({} chars after the bracket), the Rust drops it ({:?} chars)",
+            "200",
+            on.warned.lines().first().map(|l| l.chars().count() as i64 - want.chars().count() as i64)
+        ));
     }
 
     let stdout = format!("WSP_DAEMON_EXITS failed x 0\n{}\nshort\nshort\n  \nlast {}", "y".repeat(130), "😀".repeat(70));
@@ -192,7 +210,10 @@ async fn a_cut_inside_a_surrogate_pair_leaves_the_replacement_character_in_the_f
     let want = format!("{}…; short; last {}\u{fffd}…", "y".repeat(120), "😀".repeat(57));
     let got = machine.daemon_exits().await.unwrap();
     if got.as_deref() != Some(want.as_str()) {
-        bad.push(format!("daemon words: the TS ends `last …😀\u{fffd}…`, the Rust ends {:?}", got.map(|g| g.chars().rev().take(4).collect::<String>().chars().rev().collect::<String>())));
+        bad.push(format!(
+            "daemon words: the TS ends `last …😀\u{fffd}…`, the Rust ends {:?}",
+            got.map(|g| g.chars().rev().take(4).collect::<String>().chars().rev().collect::<String>())
+        ));
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
@@ -227,7 +248,11 @@ async fn one_malformed_box_row_does_not_fail_the_whole_listing() {
 async fn a_snapshot_row_missing_a_field_still_lists() {
     let mut bad = Vec::new();
     let api = FakeBox::new()
-        .on("GET", "/named-snapshots", vec![reply(200, json!({ "snapshots": [{ "name": "a", "status": "ready" }, named("b", "ready", json!({}))] }))])
+        .on(
+            "GET",
+            "/named-snapshots",
+            vec![reply(200, json!({ "snapshots": [{ "name": "a", "status": "ready" }, named("b", "ready", json!({}))] }))],
+        )
         .on("GET", "/snapshots", vec![reply(200, json!({ "snapshots": [] }))]);
     let on = backend_on(&api, "trial", Default::default());
     match on.backend.box_list_snapshots(None).await {
@@ -235,11 +260,17 @@ async fn a_snapshot_row_missing_a_field_still_lists() {
         other => bad.push(format!("no createdAt on the first row: the TS lists ids [a, b], the Rust {:?}", other.map(|r| r.len()))),
     }
 
-    let api = FakeBox::new().on("GET", "/named-snapshots", vec![reply(200, json!({ "snapshots": [{ "name": "a", "createdAt": "x" }, named("b", "ready", json!({}))] }))]);
+    let api = FakeBox::new().on(
+        "GET",
+        "/named-snapshots",
+        vec![reply(200, json!({ "snapshots": [{ "name": "a", "createdAt": "x" }, named("b", "ready", json!({}))] }))],
+    );
     let on = backend_on(&api, "trial", Default::default());
     match on.backend.box_list_templates().await {
         Ok(t) if serde_json::to_value(&t).unwrap()[0]["status"] == "building" => {}
-        other => bad.push(format!("no status on the first row: the TS lists template a as building, the Rust {:?}", other.map(|t| t.len()))),
+        other => {
+            bad.push(format!("no status on the first row: the TS lists template a as building, the Rust {:?}", other.map(|t| t.len())))
+        }
     }
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
@@ -265,9 +296,11 @@ async fn a_read_without_a_state_or_a_created_at_is_waited_on_as_the_ts_waits() {
         ));
     }
 
-    let api = FakeBox::new()
-        .on("POST", "/named-snapshots", vec![ok()])
-        .on("GET", "/named-snapshots/wsp-v1", vec![reply(200, json!({ "snapshot": { "name": "wsp-v1", "status": "ready" } }))]);
+    let api = FakeBox::new().on("POST", "/named-snapshots", vec![ok()]).on(
+        "GET",
+        "/named-snapshots/wsp-v1",
+        vec![reply(200, json!({ "snapshot": { "name": "wsp-v1", "status": "ready" } }))],
+    );
     let (_on, machine) = machine_on(&api, ID);
     let saved = machine.snapshot("wsp-v1", MachineLife { first_life: false }, SnapshotOptions::default()).await;
     if saved.as_deref().ok() != Some("wsp-v1") {
@@ -296,7 +329,11 @@ async fn a_field_of_the_wrong_type_is_read_as_the_ts_reads_it() {
         other => bad.push(format!("timedOut \"true\": the TS answers exit -1, the Rust {other:?}")),
     }
     let api = FakeBox::new()
-        .on("GET", &path(""), vec![info(ID, "running", json!({})), info(ID, "running", json!({ "lastSnapshotStatus": 5, "snapshotCompletedAt": 7 }))])
+        .on(
+            "GET",
+            &path(""),
+            vec![info(ID, "running", json!({})), info(ID, "running", json!({ "lastSnapshotStatus": 5, "snapshotCompletedAt": 7 }))],
+        )
         .on("POST", &path("/stop"), vec![ok()]);
     let (_on, machine) = machine_on(&api, ID);
     let said = "it reported no snapshot attempt, and the last that completed was none";
@@ -425,7 +462,8 @@ async fn a_next_cursor_that_is_a_number_is_followed() {
     let api = FakeBox::new().on("GET", "/sandboxes", vec![page("bx_1", json!(5)), page("bx_2", Value::Null), page("bx_3", Value::Null)]);
     let on = backend_on(&api, "trial", Default::default());
     let ids: Vec<String> = on.backend.box_list(None).await.unwrap().into_iter().map(|r| r.id).collect();
-    let cursors: Vec<Option<String>> = api.seen().iter().filter(|s| s.path == "/sandboxes").map(|s| s.query_get("cursor").map(str::to_string)).collect();
+    let cursors: Vec<Option<String>> =
+        api.seen().iter().filter(|s| s.path == "/sandboxes").map(|s| s.query_get("cursor").map(str::to_string)).collect();
     assert_eq!(cursors, vec![None, Some("5".to_string()), None]);
     assert_eq!(ids, vec!["bx_1", "bx_2", "bx_3"]);
 }
@@ -512,10 +550,14 @@ async fn a_cancel_whose_reason_was_an_error_ends_a_wait_with_that_errors_words()
     let stop = Cancel::new();
     let firing = stop.clone();
     let api = FakeBox::new()
-        .on("POST", &path("/resume"), vec![with(move |_| {
-            firing.cancel(Some("the person stopped waiting"));
-            ok()
-        })])
+        .on(
+            "POST",
+            &path("/resume"),
+            vec![with(move |_| {
+                firing.cancel(Some("the person stopped waiting"));
+                ok()
+            })],
+        )
         .on("GET", &path(""), vec![info(ID, "archived", json!({}))]);
     let (_on, machine) = machine_on(&api, ID);
     let e = machine.resume(Some(&stop)).await.unwrap_err();

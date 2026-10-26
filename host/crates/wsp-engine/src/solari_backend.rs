@@ -477,11 +477,8 @@ impl SolariBackend {
             };
             if res.ok() {
                 let text = res.text();
-                let value = if text.is_empty() {
-                    Value::Object(Map::new())
-                } else {
-                    parse_json(&text).map_err(|e| other(e.to_string()))?
-                };
+                let value =
+                    if text.is_empty() { Value::Object(Map::new()) } else { parse_json(&text).map_err(|e| other(e.to_string()))? };
                 return Ok((value, res));
             }
             let raw = js_trim(&res.text()).to_string();

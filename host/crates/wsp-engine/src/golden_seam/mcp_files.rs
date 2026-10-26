@@ -112,7 +112,8 @@ pub fn parse_mcp_id(id: &str) -> crate::errors::Result<Option<McpId>> {
         return Ok(None);
     }
     if rest.len() >= 3 && rest[1].starts_with('@') {
-        let folder = decode_component(&rest[1][1..]).ok_or_else(|| crate::errors::EngineError::Other { message: "URI malformed".to_string(), code: None })?;
+        let folder = decode_component(&rest[1][1..])
+            .ok_or_else(|| crate::errors::EngineError::Other { message: "URI malformed".to_string(), code: None })?;
         return Ok(Some(McpId { agent, home: false, folder: Some(folder), name: rest[2..].join("/") }));
     }
     let home = rest.len() == 3 && rest[1] == "home";
@@ -594,8 +595,7 @@ pub async fn land_configs(
     // config-write.ts:98 compares the exit code whole, so one an i32 cannot hold is none of the words' codes.
     let code = res.exit_code.as_f64();
     let code = if code.fract() == 0.0 && code.abs() <= i32::MAX as f64 { code as i32 } else { i32::MIN };
-    let why = config_refusal(code, &res.stdout, &changed[0].path, &|p: &str| p.to_string())
-        .unwrap_or_else(|| reason_of(&res, inline_s()));
+    let why = config_refusal(code, &res.stdout, &changed[0].path, &|p: &str| p.to_string()).unwrap_or_else(|| reason_of(&res, inline_s()));
     Some(swept(machine, &landings, &why).await)
 }
 

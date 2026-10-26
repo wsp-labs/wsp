@@ -4,6 +4,8 @@
 //! and the probe that printed it. Nothing outside the crate is read or written: homes, control folders and the stand-in
 //! `ssh` live in temporary folders the tests make.
 #![allow(dead_code)]
+// The one lock serializes tests that set the environment; holding it across the awaits is what it is for.
+#![allow(clippy::await_holding_lock)]
 
 use std::future::Future;
 use std::os::unix::fs::PermissionsExt;
@@ -120,15 +122,14 @@ async fn f1a_ended_answers_when_the_child_exits_though_a_helper_it_left_still_ho
 async fn f1b_ended_answers_when_the_child_exits_though_a_helper_holds_its_stdout() {
     let _g = lock();
     on_local_set(async {
-        let held = hold_back_forward(
-            &carried(),
-            4640,
-            4640,
-            real_spawn("(sleep 4 2>/dev/null) 2>&- & echo WSP_BACK_UP; exit 255".to_string()),
-        );
+        let held =
+            hold_back_forward(&carried(), 4640, 4640, real_spawn("(sleep 4 2>/dev/null) 2>&- & echo WSP_BACK_UP; exit 255".to_string()));
         assert_eq!(settles(1500, held.up()).await, Some(Ok(())));
         let ended = settles(1500, held.ended()).await;
-        assert!(ended == Some("ssh exited with 255".to_string()), "ended after the child exited: TS Some(\"ssh exited with 255\"), Rust {ended:?}");
+        assert!(
+            ended == Some("ssh exited with 255".to_string()),
+            "ended after the child exited: TS Some(\"ssh exited with 255\"), Rust {ended:?}"
+        );
     })
     .await;
 }
@@ -197,7 +198,13 @@ async fn f2_a_cancelled_resume_still_lets_the_link_finish_the_frame() {
         let link: Arc<dyn MachineLink> = Arc::new(TimedLink { behaviour, log: log.clone() });
         let machine = LinkMachine::new(link, handle_c1());
         let cancel = Cancel::new();
-        let reason = if abort.ends_with("none") { None } else if abort.ends_with("error") { Some("stopped by the caller") } else { Some("plain words") };
+        let reason = if abort.ends_with("none") {
+            None
+        } else if abort.ends_with("error") {
+            Some("stopped by the caller")
+        } else {
+            Some("plain words")
+        };
         if abort.starts_with("before") {
             cancel.cancel(reason);
         }
@@ -241,7 +248,9 @@ async fn f3a_an_environment_value_that_is_not_utf8_does_not_stop_an_ssh_command(
     let _home = EnvVar::set("HOME", home.path());
     let _bad = EnvVar::set("WSP_REVIEW_BAD", std::ffi::OsString::from_vec(b"caf\xe9".to_vec()));
     let out = AssertUnwindSafe(ssh_client()(reach(), "echo x".to_string(), SshTransportOptions::default())).catch_unwind().await;
-    let out = out.unwrap_or_else(|_| panic!("ssh_client panicked on an environment value that is not UTF-8; the TS answered exit 0, stdout \"x\\n\""));
+    let out = out.unwrap_or_else(|_| {
+        panic!("ssh_client panicked on an environment value that is not UTF-8; the TS answered exit 0, stdout \"x\\n\"")
+    });
     let out = out.expect("the TS client carried the command");
     assert_eq!((out.exit_code.get(), out.stdout.as_str()), (0, "x\n"));
 }
@@ -388,7 +397,10 @@ fn f8b_a_home_with_dot_dot_makes_only_the_normalized_folder() {
     let made = make_ssh_control_dir(Some(&home)).map(|p| p.to_string_lossy().into_owned());
     let want = format!("{}/y/.wsp/ssh", base.path().display());
     let stray = base.path().join("x").exists();
-    assert!(made.as_deref().ok() == Some(want.as_str()) && !stray, "TS made {want:?} and no `x`, Rust made {made:?} and `x` exists: {stray}");
+    assert!(
+        made.as_deref().ok() == Some(want.as_str()) && !stray,
+        "TS made {want:?} and no `x`, Rust made {made:?} and `x` exists: {stray}"
+    );
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -426,7 +438,9 @@ async fn f10_a_dropped_holder_leaves_the_child_running_as_the_ts_does() {
         pid
     })
     .await;
-    let state = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok().and_then(|t| t.rsplit(')').next().map(|r| r.trim_start().chars().next().unwrap_or('?')));
+    let state = std::fs::read_to_string(format!("/proc/{pid}/stat"))
+        .ok()
+        .and_then(|t| t.rsplit(')').next().map(|r| r.trim_start().chars().next().unwrap_or('?')));
     let alive = matches!(state, Some(c) if c != 'Z');
     if alive {
         unsafe { libc::kill(pid, libc::SIGKILL) };
@@ -527,7 +541,8 @@ async fn f12_a_create_sends_the_spec_whatever_its_numbers() {
 /// plus 5,000 ms. link_backend.rs:238 adds in u64: a debug build panics, a release build wraps to 4,999.
 #[tokio::test]
 async fn f13_a_very_long_wait_rides_the_ask_as_the_wait_plus_the_margin() {
-    let link = Arc::new(Recorder { reply: json!({ "result": { "exitCode": 0, "stdout": "", "stderr": "" } }), asks: Mutex::new(Vec::new()) });
+    let link =
+        Arc::new(Recorder { reply: json!({ "result": { "exitCode": 0, "stdout": "", "stderr": "" } }), asks: Mutex::new(Vec::new()) });
     let machine = LinkMachine::new(link.clone(), handle_c1());
     let long = u64::MAX - 1_000;
     let done = AssertUnwindSafe(machine.exec("x", ExecOptions { timeout_ms: Some(long), ..Default::default() })).catch_unwind().await;

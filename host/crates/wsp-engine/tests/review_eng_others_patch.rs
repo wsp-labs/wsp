@@ -2,6 +2,8 @@
 //! Ticket #2446, reader `others`: the failing tests of findings 1 to 12, each self-contained. The TS answer each one
 //! asserts is written inline with the TS file and line it comes from (node 22.23.4, the review's probes). Every test
 //! fails on the current code for its finding's reason.
+// The one lock serializes the test that sets a process variable; it is held across the awaits on purpose.
+#![allow(clippy::await_holding_lock)]
 #[path = "rest_common/mod.rs"]
 mod common;
 
@@ -13,7 +15,7 @@ use common::{reply, reply_text, FakeFetch, FrozenClock, Play, Warned};
 use wsp_engine::fake_backend::{FakeBackend, FakeBackendOptions};
 use wsp_engine::fetch::Fetch;
 use wsp_engine::local_backend::{LocalBackend, LocalBackendOptions};
-use wsp_engine::machine::{ExecOptions, Machine, MachineBackend, MachineSpec, MachineState};
+use wsp_engine::machine::{ExecOptions, MachineBackend, MachineSpec, MachineState};
 use wsp_engine::solari_backend::{preview_token_expiry, SolariBackend, SolariBackendOptions};
 
 /// Every test that sets or removes a process variable holds this for its whole length.
@@ -55,7 +57,11 @@ async fn a_records_file_that_is_not_utf8_is_refused_and_left_as_it_was() {
     std::fs::write(&records, &garbage).unwrap();
     let got = fake_at(&records).get("fk_new").await;
     let said = got.as_ref().err().map(|e| e.to_string()).unwrap_or_default();
-    assert!(said.contains("is not this stand-in provider's records"), "answered {:?}, wanted the unreadable-records error", got.as_ref().map(|m| m.id().to_string()));
+    assert!(
+        said.contains("is not this stand-in provider's records"),
+        "answered {:?}, wanted the unreadable-records error",
+        got.as_ref().map(|m| m.id().to_string())
+    );
     assert_eq!(std::fs::read(&records).unwrap(), garbage, "the file was written over");
 }
 
@@ -143,7 +149,10 @@ async fn a_machine_record_that_holds_only_its_state_is_listed_and_read() {
 async fn one_listed_sandbox_of_a_kind_the_table_never_learned_does_not_fail_the_listing() {
     let f = FakeFetch::fixed(vec![(
         "GET /sandboxes",
-        reply(200, json!({"sandboxes": [{"sandboxId": "a", "kind": "browser", "state": "running"}, {"sandboxId": "b", "kind": "sandbox", "state": "paused"}]})),
+        reply(
+            200,
+            json!({"sandboxes": [{"sandboxId": "a", "kind": "browser", "state": "running"}, {"sandboxId": "b", "kind": "sandbox", "state": "paused"}]}),
+        ),
     )]);
     let rows = solari(&f).list(None).await;
     assert_eq!(rows.as_ref().map(|r| r.len()).ok(), Some(2), "list answered {:?}", rows.err().map(|e| e.to_string()));
@@ -156,7 +165,10 @@ async fn one_listed_sandbox_of_a_kind_the_table_never_learned_does_not_fail_the_
 ///   listTemplates: [{"id":"t1","name":"base","status":"pending"}]
 #[tokio::test]
 async fn the_key_check_passes_when_a_template_carries_a_status_word_the_table_never_learned() {
-    let f = FakeFetch::fixed(vec![("GET /templates", reply(200, json!({"templates": [{"templateId": "t1", "name": "base", "status": "pending"}]})))]);
+    let f = FakeFetch::fixed(vec![(
+        "GET /templates",
+        reply(200, json!({"templates": [{"templateId": "t1", "name": "base", "status": "pending"}]})),
+    )]);
     let got = solari(&f).check_key().await;
     assert!(got.is_ok(), "check_key answered {:?}", got.err().map(|e| e.to_string()));
 }
@@ -184,7 +196,10 @@ async fn a_refusal_whose_error_is_an_object_or_an_array_reads_as_javascript_writ
 ///   seen: {"state":"paused","createdAt":null}
 #[tokio::test]
 async fn a_create_reply_with_a_null_created_at_still_carries_the_state_it_named() {
-    let f = FakeFetch::fixed(vec![("POST /sandboxes", reply(201, json!({"sandboxId": "x", "kind": "sandbox", "createdAt": null, "state": "paused"})))]);
+    let f = FakeFetch::fixed(vec![(
+        "POST /sandboxes",
+        reply(201, json!({"sandboxId": "x", "kind": "sandbox", "createdAt": null, "state": "paused"})),
+    )]);
     let m = solari(&f).create(sandbox(), None, None).await.unwrap();
     assert_eq!(m.seen().map(|s| s.state), Some(MachineState::Paused));
 }
@@ -248,7 +263,8 @@ async fn the_stand_in_worktree_path_keeps_the_trailing_slash_path_join_keeps() {
     use wsp_engine::copier::{fake_copier, Copier, WorktreeAsk};
     let dir = tempfile::tempdir().unwrap();
     let home = dir.path().join("h").to_str().unwrap().to_string();
-    let ask: WorktreeAsk = serde_json::from_value(json!({"from": "/f", "home": home, "project": "x/", "branch": "", "modules": []})).unwrap();
+    let ask: WorktreeAsk =
+        serde_json::from_value(json!({"from": "/f", "home": home, "project": "x/", "branch": "", "modules": []})).unwrap();
     let got = fake_copier(None, None).worktree(&ask).await.unwrap();
     assert_eq!(got.path, format!("{home}/worktrees/x/"));
 }
@@ -262,7 +278,11 @@ async fn the_fake_lists_integer_like_machine_ids_first_as_a_javascript_object_wa
     let dir = tempfile::tempdir().unwrap();
     let records = dir.path().join("records.json");
     let m = |s: &str| format!(r#"{{"state":"{s}","shape":{{}},"labels":{{}}}}"#);
-    std::fs::write(&records, format!(r#"{{"machines":{{"b":{},"2":{},"1":{},"a":{}}},"snapshots":[]}}"#, m("running"), m("paused"), m("gone"), m("running"))).unwrap();
+    std::fs::write(
+        &records,
+        format!(r#"{{"machines":{{"b":{},"2":{},"1":{},"a":{}}},"snapshots":[]}}"#, m("running"), m("paused"), m("gone"), m("running")),
+    )
+    .unwrap();
     let ids: Vec<String> = fake_at(&records).list(None).await.unwrap().into_iter().map(|r| r.id).collect();
     assert_eq!(ids, ["1", "2", "b", "a"]);
 }

@@ -40,7 +40,8 @@ async fn review_child_deep_line() {
     }
     let dir = tempfile::Builder::new().prefix("deep-").tempdir().unwrap();
     let file = dir.path().join("t.jsonl");
-    std::fs::write(&file, format!("{{\"cwd\":\"{cwd}\",\"x\":{}{}}}\n{{\"cwd\":\"/work/p/ok\"}}\n", "[".repeat(depth), "]".repeat(depth))).unwrap();
+    std::fs::write(&file, format!("{{\"cwd\":\"{cwd}\",\"x\":{}{}}}\n{{\"cwd\":\"/work/p/ok\"}}\n", "[".repeat(depth), "]".repeat(depth)))
+        .unwrap();
     let said = match rewrite_cwd(file.to_str().unwrap(), "/work/p", "/work/q", None).await {
         Ok(n) => format!("changed {n}"),
         Err(e) => format!("error {e}"),
@@ -55,8 +56,15 @@ fn deep_in_child(depth: usize, cwd: &str) -> (String, std::process::ExitStatus) 
         .env("REVIEW_DEEP", format!("{depth}:{cwd}"))
         .output()
         .unwrap();
-    let text = String::from_utf8_lossy(&out.stdout).lines().find_map(|l| l.find("CHILD ").map(|at| l[at..].to_string())).unwrap_or_default();
-    (format!("{text}\n{}", String::from_utf8_lossy(&out.stderr).lines().find(|l| l.contains("overflow") || l.contains("SIG")).unwrap_or("")), out.status)
+    let text =
+        String::from_utf8_lossy(&out.stdout).lines().find_map(|l| l.find("CHILD ").map(|at| l[at..].to_string())).unwrap_or_default();
+    (
+        format!(
+            "{text}\n{}",
+            String::from_utf8_lossy(&out.stderr).lines().find(|l| l.contains("overflow") || l.contains("SIG")).unwrap_or("")
+        ),
+        out.status,
+    )
 }
 
 // TS: project-state/resolver.ts:219 (JSON.parse does not recurse); probe deep.probe.ts printed `DEEP 100000 untouched line changed 1 ... second line now "{\"cwd\":\"/work/q/ok\"}"`.
@@ -101,8 +109,16 @@ async fn a_private_use_character_from_plane_16_survives_a_rewrite_of_its_line() 
     for (name, line, want) in [
         ("raw U+10F800", "{\"cwd\":\"/work/p\",\"text\":\"a\u{10F800}b\"}", "{\"cwd\":\"/work/q\",\"text\":\"a\u{10F800}b\"}\n"),
         ("raw U+10FFFF", "{\"cwd\":\"/work/p\",\"text\":\"a\u{10FFFF}b\"}", "{\"cwd\":\"/work/q\",\"text\":\"a\u{10FFFF}b\"}\n"),
-        ("the escaped pair for U+10FFFF", "{\"cwd\":\"/work/p\",\"text\":\"a\\udbff\\udfffb\"}", "{\"cwd\":\"/work/q\",\"text\":\"a\u{10FFFF}b\"}\n"),
-        ("the escaped pair for U+10F800", "{\"cwd\":\"/work/p\",\"text\":\"\\udbfe\\udc00\"}", "{\"cwd\":\"/work/q\",\"text\":\"\u{10F800}\"}\n"),
+        (
+            "the escaped pair for U+10FFFF",
+            "{\"cwd\":\"/work/p\",\"text\":\"a\\udbff\\udfffb\"}",
+            "{\"cwd\":\"/work/q\",\"text\":\"a\u{10FFFF}b\"}\n",
+        ),
+        (
+            "the escaped pair for U+10F800",
+            "{\"cwd\":\"/work/p\",\"text\":\"\\udbfe\\udc00\"}",
+            "{\"cwd\":\"/work/q\",\"text\":\"\u{10F800}\"}\n",
+        ),
     ] {
         let got = rewritten(line).await;
         if got != want {
@@ -118,7 +134,9 @@ async fn a_private_use_character_from_plane_16_survives_a_rewrite_of_its_line() 
 const STD: &str = "eyJhZ2VudCI6ImNvZGV4Iiwic3RvcmUiOiIvcm9vdC8uY29kZXgvc3RhdGVfNS5zcWxpdGUiLCJ3aHkiOiJsb2NrZWQgPz8+PiBvayEifQ==";
 
 fn unread_after(line: &str) -> Result<Vec<String>, String> {
-    parse_state_listing(&format!("/a\n!unread {line}\n/b\n")).map(|l| l.unread.into_iter().map(|u| u.why).collect()).map_err(|e| e.to_string())
+    parse_state_listing(&format!("/a\n!unread {line}\n/b\n"))
+        .map(|l| l.unread.into_iter().map(|u| u.why).collect())
+        .map_err(|e| e.to_string())
 }
 
 // TS: project-state/listing.ts:38 (Buffer.from(..., "base64") is lenient); probe b64.probe.ts printed `UNREADCASE codex/unpadded ok ["codex"]`, `codex/urlsafe`, `codex/trailing-cr`, `codex/leading-space` and `codex/inner-space` all `ok ["codex"]`.
@@ -158,7 +176,11 @@ async fn a_store_that_will_not_open_for_the_move_fails_with_sqlites_words_alone(
         let home = tempfile::Builder::new().prefix("dirdb-").tempdir().unwrap();
         std::fs::create_dir(home.path().join(file)).unwrap();
         let home_str = home.path().to_str().unwrap().to_string();
-        let mv = ProjectStateMove { from: "/work/p".into(), to: "/work/q".into(), homes: indexmap::IndexMap::from([(agent.to_string(), home_str.clone())]) };
+        let mv = ProjectStateMove {
+            from: "/work/p".into(),
+            to: "/work/q".into(),
+            homes: indexmap::IndexMap::from([(agent.to_string(), home_str.clone())]),
+        };
         let report = move_project_state(&mv, Some(&[agent.to_string()])).await;
         let AgentOutcome::Failed(why) = &report[0].outcome else { panic!("{:?}", report[0].outcome) };
         said.push(format!("{agent}: {}", why.replace(&home_str, "<home>")));
@@ -196,7 +218,7 @@ fn a_merge_line_with_a_negative_fractional_or_huge_count_is_read_as_the_ts_reads
     assert!(matches!(read(r#"{"merged":-1,"kept":0}"#), Ok(MergeOutput::Merged { .. })), "{:?}", read(r#"{"merged":-1,"kept":0}"#));
     assert!(matches!(read(r#"{"merged":1.5,"kept":0}"#), Ok(MergeOutput::Merged { .. })), "{:?}", read(r#"{"merged":1.5,"kept":0}"#));
     match read(r#"{"merged":1e30,"kept":0}"#) {
-        Ok(MergeOutput::Merged { merged, .. }) => assert_eq!(merged as f64, 1e30),
+        Ok(MergeOutput::Merged { merged, .. }) => assert_eq!(merged, 1e30),
         other => panic!("{other:?}"),
     }
 }

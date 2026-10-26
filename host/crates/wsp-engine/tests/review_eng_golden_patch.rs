@@ -182,7 +182,8 @@ async fn an_install_that_moved_half_a_byte_by_df_says_so_in_its_bytes() {
         "",
         vec![res(0, "5000000.0005\n", ""), res(0, "5000000\n", ""), res(0, "5000000\n", ""), res(0, "5000000\n", "")],
     )]);
-    let step = ToolInstall { id: "tools/x".into(), label: "x".into(), manager: "script".into(), cmd: "echo x".into(), ..Default::default() };
+    let step =
+        ToolInstall { id: "tools/x".into(), label: "x".into(), manager: "script".into(), cmd: "echo x".into(), ..Default::default() };
     let stage = Arc::new(|_: GoldenStage, _: Option<&str>| {});
     let opts = InstallToolsOptions { keep_caches: true, ..Default::default() };
     let out = install_tools_at(&m, &[step], stage, GoldenStage::InstallingTools, opts).await.unwrap();

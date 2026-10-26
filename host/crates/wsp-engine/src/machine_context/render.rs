@@ -13,8 +13,8 @@ use wsp_words::words::thread::{background_work_words, ANOTHER_AGENT_WORDS, TURN_
 use wsp_words::words::units::fmt_bytes;
 
 use super::probe::{
-    context_agents, context_path, facts_path, guest_roots, merge_facts, parse_probe, probe_command, skill_path, AliasesUnread, BuildFacts,
-    utf8_text, ContextAgent, ContextProbe, ProbeShells, ALIAS_BOUND_S, BROWSER_SHIM_PATH,
+    context_agents, context_path, facts_path, guest_roots, merge_facts, parse_probe, probe_command, skill_path, utf8_text, AliasesUnread,
+    BuildFacts, ContextAgent, ContextProbe, ProbeShells, ALIAS_BOUND_S, BROWSER_SHIM_PATH,
 };
 use crate::exec_detached::put::INLINE_EXEC_MS;
 use crate::fetch::Fetch;
