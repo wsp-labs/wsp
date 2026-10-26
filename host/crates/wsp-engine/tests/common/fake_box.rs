@@ -64,6 +64,8 @@ pub fn with(f: impl Fn(&Seen) -> Answer + 'static) -> Answer {
 pub struct FakeBox {
     pub seen: Mutex<Vec<Seen>>,
     routes: Mutex<HashMap<String, Vec<Answer>>>,
+    /// The requestId an unrouted request's 404 carries where it is not the unit tests' own.
+    pub unrouted_request_id: Mutex<Option<String>>,
 }
 
 impl FakeBox {
@@ -128,8 +130,13 @@ impl Fetch for FakeBox {
     async fn fetch(&self, req: FetchRequest) -> Result<FetchResponse, RoadError> {
         let seen = Self::seen_of(&req);
         self.seen.lock().unwrap().push(seen.clone());
-        let mut answer =
-            self.next(&format!("{} {}", seen.method, seen.path)).unwrap_or_else(|| Answer::Reply(error(404, "not_found", "not_found")));
+        let mut answer = self.next(&format!("{} {}", seen.method, seen.path)).unwrap_or_else(|| {
+            let mut reply = error(404, "not_found", "not_found");
+            if let Some(id) = self.unrouted_request_id.lock().unwrap().as_ref() {
+                reply.body["requestId"] = Value::String(id.clone());
+            }
+            Answer::Reply(reply)
+        });
         loop {
             match answer {
                 Answer::With(f) => answer = f(&seen),

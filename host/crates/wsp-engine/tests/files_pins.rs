@@ -130,7 +130,7 @@ fn a_store_moves_only_its_own_folder_and_a_store_at_the_home_folder_moves_nothin
 fn an_agent_file_is_its_own_rows_path_and_never_a_lookalike_folder() {
     let o = common::oracle("provision.json");
     for case in o["agentStateFile"].as_array().unwrap() {
-        assert_eq!(agent_state_file(&s(&case[0]), &s(&case[1]), "/root"), case[2].as_bool().unwrap(), "{case}");
+        assert_eq!(agent_state_file(&s(&case[0]), &s(&case[1]), "/root").unwrap(), case[2].as_bool().unwrap(), "{case}");
     }
 }
 

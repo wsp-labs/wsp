@@ -489,7 +489,11 @@ alias grp '{ grep -rn . ; }'";
 /// machine-context.test.ts:622
 #[tokio::test]
 async fn the_fish_alias_probe_names_only_aliases_whose_first_word_is_a_missing_command_over_a_fixed_listing() {
-    let fish = shell_of("fish").expect("fish is not installed on this box, so the fish alias probe has no shell to run under");
+    // machine-context.test.ts:622 runs this under `it.skipIf(shellOf("fish") === undefined)`: no fish, no case.
+    let Some(fish) = shell_of("fish") else {
+        eprintln!("skipped: this machine has no fish");
+        return;
+    };
     let g = Guest::new();
     let bin = g.home().join("bin");
     std::fs::create_dir_all(&bin).unwrap();
@@ -543,7 +547,7 @@ async fn a_login_shell_whose_rc_file_leaves_a_job_holding_the_output_open_ends_t
     assert!(started.elapsed() < Duration::from_millis(8_000), "{:?}", started.elapsed());
     assert_eq!(probe.aliases_unread, None);
     assert!(!pids_in(&pids).is_empty());
-    wait_for("every job the rc file started to end", || pids_in(&pids).into_iter().filter(|p| alive(*p)).next().is_none()).await;
+    wait_for("every job the rc file started to end", || pids_in(&pids).into_iter().find(|p| alive(*p)).is_none()).await;
 }
 
 /// machine-context.test.ts:663
@@ -564,5 +568,5 @@ async fn a_login_shell_that_has_not_answered_by_its_bound_is_ended_with_every_jo
     });
     assert!(doc.contains("- Aliases: not read. The login shell had not finished starting after 8 seconds, so wsp stopped it."), "{doc}");
     assert_eq!(pids_in(&pids).len(), 2);
-    wait_for("every job the rc file started to end", || pids_in(&pids).into_iter().filter(|p| alive(*p)).next().is_none()).await;
+    wait_for("every job the rc file started to end", || pids_in(&pids).into_iter().find(|p| alive(*p)).is_none()).await;
 }

@@ -81,6 +81,11 @@ Source: `packages/engine/src/project-state/resolver.ts` (267) and the runtime ha
   `1e+21`; a duplicate key keeps its first place and its last value; index keys move first, nested objects too; a
   rewritten line loses its `\r` and its outer spaces, an untouched line keeps its own; a line opening with a BOM is
   not JSON (n is 0, the file untouched).
+- M2a. `JSON.parse` reads any depth (5 million levels) and `JSON.stringify` throws `RangeError: Maximum call stack size
+  exceeded` from about 3,650. A line is read without recursion; what lies below 3,500 levels is checked for syntax and
+  left out. A line left out that `edit` answers true for fails the rewrite with that RangeError's words and leaves the
+  file; one `edit` leaves alone is passed over as it is. A string holds a lone surrogate as an escape char and the
+  private-use char that stands for it, a real escape char twice, so U+10F800 to U+10FFFF written raw survive a rewrite.
 - M3. `files_under` follows a linked folder (Node's recursive `readdirSync` does), spelling paths through the link, and
   sorts whole paths by UTF-16 unit. On a regular file it fails `ENOTDIR: not a directory, scandir '<file>'`.
 - M4. A dangling link among a keyed parent's candidates fails the whole call, `ENOENT: no such file or directory, stat

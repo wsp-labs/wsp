@@ -25,5 +25,5 @@ pub const RESERVED_LABEL: &str = "poc";
 
 /// labels.ts:26. A machine no sweep, doctor or cleanup may touch: the key is present, whatever its value (empty too).
 pub fn is_reserved(labels: &IndexMap<String, String>) -> bool {
-    todo!()
+    labels.contains_key(RESERVED_LABEL)
 }

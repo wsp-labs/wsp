@@ -78,7 +78,7 @@ fn capabilities_write_the_ts_json_byte_for_byte() {
 #[test]
 fn preview_token_expiry_reads_tokens_as_node_decodes_them() {
     for c in oracle()["expiry"].as_array().unwrap() {
-        assert_eq!(preview_token_expiry(c["token"].as_str().unwrap(), 1000), c["at"].as_i64().unwrap(), "{}", c["token"]);
+        assert_eq!(preview_token_expiry(c["token"].as_str().unwrap(), 1000) as i64, c["at"].as_i64().unwrap(), "{}", c["token"]);
     }
 }
 

@@ -866,7 +866,7 @@ fn run_merge(script: &str) -> MergeRun {
 }
 
 fn counts(merged: u64, kept: u64) -> Option<MergeOutput> {
-    Some(MergeOutput::Merged { merged, kept, note: None })
+    Some(MergeOutput::Merged { merged: merged as f64, kept: kept as f64, note: None })
 }
 
 async fn merge_for(agent: &str, home: &str, from: &str, to: &str, guest: &str) -> Option<String> {
@@ -1206,7 +1206,7 @@ async fn gemini_a_destination_the_machine_maps_to_its_own_slug_keeps_that_slug_a
         format!("the machine already lists {TO} as proj, so that slug stays and the carried chats under tmp/b_2.x are not listed there");
     assert_eq!(
         run_merge(&script),
-        MergeRun { exit: 0, out: Some(MergeOutput::Merged { merged: 1, kept: 1, note: Some(note.clone()) }), err: String::new() }
+        MergeRun { exit: 0, out: Some(MergeOutput::Merged { merged: 1.0, kept: 1.0, note: Some(note.clone()) }), err: String::new() }
     );
     let after: BTreeMap<String, Node> = BTreeMap::from([
         ("projects.json".to_string(), t(registry(&[(TO, "proj"), (TO_SUB, "sub")]))),
@@ -1217,7 +1217,7 @@ async fn gemini_a_destination_the_machine_maps_to_its_own_slug_keeps_that_slug_a
         ("tmp/sub/.project_root".to_string(), t(TO_SUB)),
     ]);
     assert_eq!(tree(&guest), after);
-    assert_eq!(run_merge(&script).out, Some(MergeOutput::Merged { merged: 0, kept: 2, note: Some(note) }));
+    assert_eq!(run_merge(&script).out, Some(MergeOutput::Merged { merged: 0.0, kept: 2.0, note: Some(note) }));
     assert_eq!(tree(&guest), after);
 }
 
@@ -1265,12 +1265,12 @@ async fn a_home_with_no_row_for_the_path_emits_no_script_and_the_agents_whose_fi
 fn the_scripts_result_is_its_last_line_anything_else_is_an_error_naming_what_came_back() {
     assert_eq!(
         parse_merge_output("noise\n{\"merged\": 2, \"kept\": 1}\n").unwrap(),
-        MergeOutput::Merged { merged: 2, kept: 1, note: None }
+        MergeOutput::Merged { merged: 2.0, kept: 1.0, note: None }
     );
     assert_eq!(parse_merge_output("{\"waiting\": \"no store\"}").unwrap(), MergeOutput::Waiting { waiting: "no store".into() });
     assert_eq!(
         parse_merge_output("{\"merged\": 0, \"kept\": 1, \"note\": \"kept as it was\"}").unwrap(),
-        MergeOutput::Merged { merged: 0, kept: 1, note: Some("kept as it was".into()) }
+        MergeOutput::Merged { merged: 0.0, kept: 1.0, note: Some("kept as it was".into()) }
     );
     assert!(parse_merge_output("Traceback\n").unwrap_err().to_string().contains("Traceback"));
     assert!(parse_merge_output("").unwrap_err().to_string().contains("nothing"));

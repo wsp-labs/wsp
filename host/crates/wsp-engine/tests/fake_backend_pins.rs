@@ -2,7 +2,7 @@
 //! The stand-in's made-up prices at their rounding ties, against the TS (tests/fixtures/scenes/units.json;
 //! spec/fake_backend.md rule F-1).
 use wsp_engine::fake_backend::{FakeBackend, FakeBackendOptions};
-use wsp_engine::machine::{Machine, MachineBackend, Size};
+use wsp_engine::machine::{MachineBackend, Size};
 
 const UNIT: &str = "fake_backend";
 fn pins() -> serde_json::Value {

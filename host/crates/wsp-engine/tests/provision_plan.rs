@@ -343,7 +343,7 @@ fn loads_ubuntus_bwrap_profile_once_bubblewrap_is_on() {
     assert!(check.contains("bwrap --ro-bind / / --unshare-net true"));
     // A failed row is never undone, so a load that leaves bwrap failing takes the profile off itself.
     assert_eq!(
-        profile.cmd.split('\n').last().unwrap(),
+        profile.cmd.split('\n').next_back().unwrap(),
         format!(r#"({check}) >&2 || {{ apparmor_parser -R "$f" 2>/dev/null; rm -f "$f"; exit 1; }}"#)
     );
 }
@@ -355,9 +355,9 @@ async fn reads_the_bwrap_profile_row_present_where_a_user_other_than_root_can_ru
     let plan = provision_plan_of(&import_of(agent_installs_for(&["agents/codex"]), vec![]), RECIPE_AT, TOOLS_PATH, None, None);
     let step = tool(&plan.steps, "agents/codex/bwrap-apparmor");
     let works = scratch(&[("setpriv", "exit 0")]);
-    assert_eq!(sorted_keys(&present_of(&shell_machine(works.path()), &[step.clone()]).await), ["agents/codex/bwrap-apparmor"]);
+    assert_eq!(sorted_keys(&present_of(&shell_machine(works.path()), std::slice::from_ref(&step)).await), ["agents/codex/bwrap-apparmor"]);
     let stopped = scratch(&[("setpriv", "echo 'bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted' >&2; exit 1")]);
-    assert_eq!(present_of(&shell_machine(stopped.path()), &[step.clone()]).await.len(), 0);
+    assert_eq!(present_of(&shell_machine(stopped.path()), std::slice::from_ref(&step)).await.len(), 0);
     let said = common::bash(&format!("PATH={}:$PATH\n{}", stopped.path().display(), step.check.as_deref().unwrap()), None, None).await;
     assert_eq!(said.exit_code, 1.into());
     assert_eq!(said.stdout.trim(), "bwrap fails for users other than root: bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted");
@@ -466,7 +466,7 @@ async fn says_where_a_command_answered_from_when_it_is_outside_the_directories_i
     let step = tool(&tool_installs_for(&["tools/brew/node"], TOOLS_PATH, None), "tools/brew/node");
     let dir = scratch(&[("node", "echo v22.0.0")]);
     let answered = dir.path().join("node").display().to_string();
-    let read = present_of(&shell_machine(dir.path()), &[step.clone()]).await;
+    let read = present_of(&shell_machine(dir.path()), std::slice::from_ref(&step)).await;
     assert_eq!(read.get(&step.id), Some(&PresentRead { path: Some(answered.clone()) }));
     assert_eq!(
         present_elsewhere(&step, read.get(&step.id)),

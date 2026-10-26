@@ -154,7 +154,7 @@ async fn sudo_answers_a_mark_whatever_the_exit_and_reads_the_try_in_order() {
     });
     assert_eq!(read_ssh_sudo(&reach(), &t).await.unwrap(), SshSudo::Tty);
     // stdout's taken is read before stderr's tty and wrong.
-    assert_eq!(try_ssh_sudo(&reach(), "pw", &t).await, SshSudo::Taken);
+    assert_eq!(try_ssh_sudo(&reach(), "pw", &t).await.unwrap(), SshSudo::Taken);
     let (quiet, _c) = transport(|_r, _s, _o| res(0, "   \n", ""));
     assert_eq!(read_ssh_sudo(&reach(), &quiet).await.err().unwrap().to_string(), "dev@box did not answer over ssh: ");
     let (half, _c) = transport(|_r, _s, _o| res(0, "WSP_SUDO taken\n", ""));

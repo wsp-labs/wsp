@@ -967,9 +967,9 @@ impl FileModes {
             let entry = entry.unwrap();
             let ext = Path::new(&entry.file_name()).extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
             let mut seen = self.seen.lock().unwrap();
-            if !seen.contains_key(&ext) {
+            if let std::collections::hash_map::Entry::Vacant(e) = seen.entry(ext) {
                 if let Ok(meta) = entry.metadata() {
-                    seen.insert(ext, format!("{:o}", meta.permissions().mode() & 0o777));
+                    e.insert(format!("{:o}", meta.permissions().mode() & 0o777));
                 }
             }
         }

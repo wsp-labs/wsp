@@ -140,8 +140,8 @@ fn parse_merge_output_answers_as_the_ts_for_every_oracle_line() {
                 let want = match ok.get("waiting") {
                     Some(w) => MergeOutput::Waiting { waiting: s(w) },
                     None => MergeOutput::Merged {
-                        merged: ok["merged"].as_u64().unwrap(),
-                        kept: ok["kept"].as_u64().unwrap(),
+                        merged: ok["merged"].as_f64().unwrap(),
+                        kept: ok["kept"].as_f64().unwrap(),
                         note: ok.get("note").map(s),
                     },
                 };
