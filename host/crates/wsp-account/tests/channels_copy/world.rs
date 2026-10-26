@@ -635,8 +635,8 @@ impl ChannelsCtx for Sim {
             _ => None,
         }
     }
-    fn terminal_line(&self, harness: &str, program: &str) -> String {
-        format!("write-terminal {harness} {program}")
+    fn terminal_line(&self, harness: &str, program: Option<&str>) -> String {
+        format!("write-terminal {harness} {}", program.unwrap_or(""))
     }
     async fn thread_folder(&self, _entry: &Entry) -> String {
         self.fx.push(json!(["thread-folder"]));

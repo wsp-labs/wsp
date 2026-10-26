@@ -218,6 +218,11 @@ impl Base for FakeStart {
 
 #[async_trait(?Send)]
 impl StartFromCtx for FakeStart {
+    fn spawn(&self, f: futures::future::LocalBoxFuture<'static, ()>) {
+        use futures::FutureExt;
+        let _ = f.now_or_never();
+    }
+
     /// Default `here`.
     fn places_wired(&self) -> String {
         self.base.call("places_wired", json!(null));

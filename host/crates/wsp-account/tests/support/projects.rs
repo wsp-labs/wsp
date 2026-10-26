@@ -277,6 +277,9 @@ impl LandingRoad for FakeRoad {
             None => Ok(v.as_bool().unwrap()),
         })
     }
+    fn takes_files(&self) -> bool {
+        self.base.has_answer(&self.key("seed_into")) || self.base.has_answer("road_seed_into")
+    }
     async fn seed_into(&self, project: &ProjectView, tar: Vec<u8>, deps: &LandingDeps) -> Option<Result<(), HostError>> {
         self.base.call(
             "road_seed_into",
@@ -598,6 +601,8 @@ pub struct FakeProjects {
     pub holding: RefCell<Vec<String>>,
     /// The agents an adapter is wired for.
     pub runs: RefCell<Vec<String>>,
+    /// What each move road was told beside its arguments: the folder its parts are written in and its deadline.
+    pub roads: RefCell<Vec<Value>>,
     pub tmp: tempfile::TempDir,
 }
 
@@ -635,6 +640,7 @@ impl FakeProjects {
             reached: RefCell::new(vec![]),
             holding: RefCell::new(vec![]),
             runs: RefCell::new(vec!["claude".to_owned()]),
+            roads: RefCell::new(Vec::new()),
             tmp: tempfile::tempdir().expect("a scratch folder"),
             base,
         })
@@ -773,6 +779,7 @@ impl MoveRoads for FakeProjects {
         hooks: LandHooks,
     ) -> Result<u64, HostError> {
         self.base.call("land_bundle", json!({ "id": rec(entry).id, "bytes": tar.len(), "dest": dest, "replace": replace }));
+        self.roads.borrow_mut().push(json!({ "road": "land_bundle", "tmpDir": hooks.tmp_dir, "timeoutMs": hooks.timeout_ms }));
         let parts: Vec<Progress> = match self.base.answer("land_bundle_parts") {
             Some(v) => v
                 .as_array()
@@ -800,6 +807,7 @@ impl MoveRoads for FakeProjects {
     }
     async fn import_into(&self, entry: &Entry, tar: Vec<u8>, hooks: LandHooks) -> Result<(), HostError> {
         self.base.call("import_into", json!({ "id": rec(entry).id, "bytes": tar.len() }));
+        self.roads.borrow_mut().push(json!({ "road": "import_into", "tmpDir": hooks.tmp_dir, "timeoutMs": hooks.timeout_ms }));
         if let Some(e) = self.base.answer("import_into").and_then(|v| error_in(&v)) {
             return Err(e);
         }
@@ -829,11 +837,14 @@ impl MoveRoads for FakeProjects {
         &self,
         entry: &Entry,
         source: &str,
-        caches: &[String],
+        caches: &CacheRule,
         archive: &str,
+        timeout_ms: u64,
         on_progress: Rc<dyn Fn(Progress)>,
     ) -> Result<Vec<String>, HostError> {
-        self.base.call("export_folder", json!({ "id": rec(entry).id, "source": source, "caches": caches, "archive": archive }));
+        let rule = json!({ "dirs": caches.dirs, "files": caches.files, "markers": caches.markers });
+        self.base.call("export_folder", json!({ "id": rec(entry).id, "source": source, "caches": rule, "archive": archive }));
+        self.roads.borrow_mut().push(json!({ "road": "export_folder", "timeoutMs": timeout_ms }));
         if let Some(e) = self.base.answer("export_folder_fails").and_then(|v| error_in(&v)) {
             return Err(e);
         }
@@ -847,9 +858,11 @@ impl MoveRoads for FakeProjects {
         entry: &Entry,
         groups: Vec<(String, Vec<String>)>,
         archive: &str,
+        timeout_ms: u64,
         on_progress: Rc<dyn Fn(Progress)>,
     ) -> Result<(), HostError> {
         self.base.call("export_paths_into", json!({ "id": rec(entry).id, "groups": groups, "archive": archive }));
+        self.roads.borrow_mut().push(json!({ "road": "export_paths_into", "timeoutMs": timeout_ms }));
         if let Some(e) = self.base.answer("export_paths_into").and_then(|v| error_in(&v)) {
             return Err(e);
         }

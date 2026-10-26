@@ -200,8 +200,8 @@ pub trait ChannelsCtx {
     fn brokered_env(&self, token: &str, entry: &Entry) -> IndexMap<String, String>;
     /// `terminalSignIn(harness, launchToken => ctx.brokeredLaunch(entry, harness, launchToken), token)`.
     fn terminal_sign_in(&self, harness: &str, entry: &Entry, token: &str) -> Option<TerminalSignIn>;
-    /// `terminalLine(harness, program)`.
-    fn terminal_line(&self, harness: &str, program: &str) -> String;
+    /// `terminalLine(harness, program)`: no program where the sign-in carries none, as Claude's does (brokered.ts:94-98).
+    fn terminal_line(&self, harness: &str, program: Option<&str>) -> String;
     async fn thread_folder(&self, entry: &Entry) -> String;
     fn thread_env(&self, entry: &Entry) -> IndexMap<String, String>;
     async fn persist(&self, record: &WorkspaceRecord) -> AccountResult<()>;
