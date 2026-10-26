@@ -313,6 +313,7 @@ fn nothing_held(host: &FakeHost) {
         host.rows.borrow().keys().all(|k| k.starts_with("sess-")),
         "a refusal holds no row of its own (only the fixtures' threads have rows)"
     );
+    assert!(host.rows.borrow().values().all(|r| r.borrow().launch.is_none()), "a refusal leaves no launching row behind");
     assert_eq!(host.hooks.called("cap_hold"), Vec::<String>::new(), "a refusal holds no place under a cap");
 }
 

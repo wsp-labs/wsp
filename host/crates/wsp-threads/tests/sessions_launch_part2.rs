@@ -1145,9 +1145,14 @@ fn a_resume_reads_what_the_machine_holds_for_its_session_once_and_says_it() {
                 Some(held)
             }),
         );
+        let bound = Rc::new(Cell::new(0));
+        let seen = bound.clone();
         r.host.hooks.set::<dyn Fn(&Entry, u64) -> Arc<dyn HarnessExec>>(
             "SessionsCtx::harness_exec",
-            Rc::new(|_e: &Entry, _ms: u64| Arc::new(NoExec) as Arc<dyn HarnessExec>),
+            Rc::new(move |_e: &Entry, ms: u64| {
+                seen.set(ms);
+                Arc::new(NoExec) as Arc<dyn HarnessExec>
+            }),
         );
         let mut p = prepared(&r);
         p.opens = false;
@@ -1164,5 +1169,6 @@ fn a_resume_reads_what_the_machine_holds_for_its_session_once_and_says_it() {
             vec![wsp_core::types::internal::lost_session_log_line("sess-1", "t1", "w1", "held sess-1")],
             "the machine is read once, and its words are logged with the ids"
         );
+        assert_eq!(bound.get(), 15_000, "the machine's exec is bounded by SESSION_TITLE_TIMEOUT_MS (launch.ts:340)");
     });
 }
