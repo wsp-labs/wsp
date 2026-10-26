@@ -1,16 +1,20 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Unit slates_model: slates.ts:81-292, 686-758 at 65f6b89c7. Spec: spec/slates_model.md.
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::rc::Rc;
+use std::sync::OnceLock;
 
 use indexmap::IndexMap;
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use wsp_words::exit::HostError;
+use wsp_words::exit::{HostError, Kind};
 
-use super::SlatesInner;
-use crate::pending::slate::{SlateDoc, SlateProblem, SlateRunDecl, SlateValues};
+use super::{DeliveryOutcome, SlatesInner};
+use crate::pending::slate::{slate_run_idle, SlateDoc, SlateProblem, SlateRunDecl, SlateValues};
 use crate::pending::wire::SlateEmpty;
+use crate::slate_mcp::StopAll;
+use crate::slate_runs::{rewound_record, RunRecord, RunState, SecretHandle, TimerDecl};
 
 // slates.ts:81
 // /** The slate's content at one version: what a snapshot, the undo and a rewind keep. */
@@ -125,6 +129,13 @@ pub struct SlateRecord {
     pub sends_allowed: Option<i64>,
 }
 
+impl SlateRecord {
+    /// `revision`, read as `version` where a stored record has none.
+    pub fn rev(&self) -> i64 {
+        self.revision.unwrap_or(self.version)
+    }
+}
+
 // slates.ts:199
 // type BatchBy = "person" | "agent" | "reaction" | "run" | "timer" | "host";
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -162,172 +173,243 @@ pub const PROBLEMS_KEPT: usize = 20;
 pub const PIECES_NAMED: usize = 20;
 pub use crate::pending::wire::SLATE_SEND_KEY;
 
-// slates.ts:226
-// const problem = (code: string, name: string, message: string, extra: Partial<SlateProblem> = {}): SlateProblem => ({ code, name, message, ...extra });
 /// `{code, name, message, ...extra}`; the extra here is the fix.
 pub fn problem(code: &str, name: &str, message: &str, fix: Option<&str>) -> SlateProblem {
-    todo!()
+    SlateProblem { code: code.into(), name: name.into(), message: message.into(), fix: fix.map(String::from), ..Default::default() }
 }
 
-// slates.ts:228
-// /** A refusal for a reason other than what was written: the version moved, too fast, nothing to undo. */
-// const refused = (p: SlateProblem, kind: string): Error => Object.assign(new Error(`${p.code} ${p.name}: ${p.message}`), { kind, code: p.code });
-//
-// const usage = (p: SlateProblem): Error => Object.assign(new Error(`${p.code} ${p.name}: ${p.message}`), { kind: "usage", code: p.code });
 /// `<code> <name>: <message>` with this kind and the code.
-pub fn refused(p: &SlateProblem, kind: wsp_words::exit::Kind) -> HostError {
-    todo!()
+pub fn refused(p: &SlateProblem, kind: Kind) -> HostError {
+    let mut e = HostError::with_kind(format!("{} {}: {}", p.code, p.name, p.message), kind);
+    e.code = Some(p.code.clone());
+    e
 }
+
 pub fn usage(p: &SlateProblem) -> HostError {
-    todo!()
+    refused(p, Kind::Usage)
 }
 
-// slates.ts:233
-// /** The source names a document or a list of paths reads, read off its text. */
-// const sourcesNamed = (text: string): string[] => SOURCE_NAMES.filter(name => new RegExp(`\\b${name}\\.`).test(text));
-//
-// /** A value path as written, `$` optional: `i` is `$i`. */
-// const ownPath = (path: string): string => (path.startsWith("$") ? path : `$${path}`);
+const SOURCE_NAMES: [&str; 6] = ["thread", "usage", "cost", "time", "git", "pr"];
+
+fn source_patterns() -> &'static [(&'static str, Regex)] {
+    static PATTERNS: OnceLock<Vec<(&'static str, Regex)>> = OnceLock::new();
+    PATTERNS.get_or_init(|| {
+        SOURCE_NAMES
+            .iter()
+            .map(|name| (*name, Regex::new(&format!(r"(?-u:\b){name}\.")).expect("a source name pattern")))
+            .collect()
+    })
+}
+
+/// The source names a document or a list of paths reads, read off its text.
 pub fn sources_named(text: &str) -> Vec<String> {
-    todo!()
-}
-pub fn own_path(path: &str) -> String {
-    todo!()
+    source_patterns().iter().filter(|(_, re)| re.is_match(text)).map(|(name, _)| name.to_string()).collect()
 }
 
-// slates.ts:239
-// /** What a run executes, without how often or how long: a change here makes its last result stale. */
-// const commandOf = (decl: SlateRunDecl): SlateJson => {
-//   const { every: _every, always: _always, timeout: _timeout, stream: _stream, ...what } = decl as SlateRunDecl & { timeout?: number; stream?: true };
-//   return asJson(what);
-// };
+/// A value path as written, `$` optional: `i` is `$i`.
+pub fn own_path(path: &str) -> String {
+    if path.starts_with('$') {
+        path.to_string()
+    } else {
+        format!("${path}")
+    }
+}
+
 /// The declaration as JSON less `every`, `always`, `timeout`, `stream`.
 pub fn command_of(decl: &SlateRunDecl) -> Value {
-    todo!()
+    match serde_json::to_value(decl) {
+        Ok(Value::Object(map)) => {
+            Value::Object(map.into_iter().filter(|(key, _)| !matches!(key.as_str(), "every" | "always" | "timeout" | "stream")).collect())
+        }
+        Ok(other) => other,
+        Err(_) => Value::Null,
+    }
 }
 
-// slates.ts:245
-// /** What each outcome reads as under the pressed piece (09, "Delivery"). */
-// const SAID: Record<"send" | "steer" | "queue", Record<"started" | "steered" | "queued", string>> = {
-//   send: { started: "Sent", steered: "Sent into the running turn", queued: "Waiting for the turn to end" },
-//   steer: { started: "Nothing was running, so it was sent as the next message", steered: "Sent into the running turn", queued: "Waiting for the turn to end" },
-//   // A queue that waits even where the agent takes messages mid-turn needs a flag on the start this build lacks, so
-//   // it goes as a send, and the person is told when that meant joining the running turn.
-//   queue: { started: "Sent", steered: "Sent into the running turn; this agent takes messages mid-turn", queued: "Waiting for the turn to end" },
-// };
 /// `kind` is `send`, `steer` or `queue`; `outcome` `started`, `steered` or `queued`.
-pub fn said(kind: &str, outcome: super::DeliveryOutcome) -> &'static str {
-    todo!()
+pub fn said(kind: &str, outcome: DeliveryOutcome) -> &'static str {
+    use DeliveryOutcome::{Queued, Started, Steered};
+    match (kind, outcome) {
+        ("steer", Started) => "Nothing was running, so it was sent as the next message",
+        ("steer", Steered) => "Sent into the running turn",
+        ("queue", Started) => "Sent",
+        ("queue", Steered) => "Sent into the running turn; this agent takes messages mid-turn",
+        (_, Started) => "Sent",
+        (_, Steered) => "Sent into the running turn",
+        (_, Queued) => "Waiting for the turn to end",
+    }
 }
 
-// slates.ts:254
-// const sizeOf = (value: unknown): number => slateBytes(JSON.stringify(value));
 /// UTF-8 bytes of the JSON text.
 pub fn size_of(value: &Value) -> usize {
-    todo!()
+    serde_json::to_string(value).map_or(0, |text| text.len())
 }
 
-// slates.ts:747
-//   /** Drops the oldest snapshots past the count and the byte cap, then every kept version no turn points at. */
-//   const trimSnapshots = (r: SlateRecord): void => {
-//     const order = Object.keys(r.turns);
-//     while (order.length > SNAPSHOTS_KEPT) delete r.turns[order.shift()!];
-//     const used = (): Set<string> => new Set(Object.values(r.turns).map(t => String(t.revision)));
-//     for (const v of Object.keys(r.kept)) if (!used().has(v)) delete r.kept[v];
-//     while (order.length > 1 && sizeOf(r.kept) > SNAPSHOT_BYTES) {
-//       delete r.turns[order.shift()!];
-//       const live = used();
-//       for (const v of Object.keys(r.kept)) if (!live.has(v)) delete r.kept[v];
-//     }
-//   };
+fn kept_bytes(kept: &IndexMap<String, SlateSnap>) -> usize {
+    serde_json::to_vec(kept).map_or(0, |bytes| bytes.len())
+}
+
+fn drop_unused_snapshots(r: &mut SlateRecord) {
+    let used: HashSet<String> = r.turns.values().map(|mark| mark.revision.to_string()).collect();
+    r.kept.retain(|revision, _| used.contains(revision));
+}
+
+/// Drops the oldest snapshots past the count and the byte cap, then every kept version no turn points at.
 pub fn trim_snapshots(r: &mut SlateRecord) {
-    todo!()
+    let mut order: VecDeque<String> = r.turns.keys().cloned().collect();
+    while order.len() > SNAPSHOTS_KEPT {
+        if let Some(turn) = order.pop_front() {
+            r.turns.shift_remove(&turn);
+        }
+    }
+    drop_unused_snapshots(r);
+    while order.len() > 1 && kept_bytes(&r.kept) > SNAPSHOT_BYTES {
+        if let Some(turn) = order.pop_front() {
+            r.turns.shift_remove(&turn);
+        }
+        drop_unused_snapshots(r);
+    }
 }
 
-// slates.ts:686
-//   const snapOf = (r: SlateRecord): SlateSnap => ({ document: r.document, values: r.values, ...(r.empty !== undefined ? { empty: r.empty } : {}) });
 pub fn snap_of(r: &SlateRecord) -> SlateSnap {
-    todo!()
+    SlateSnap { document: r.document.clone(), values: r.values.clone(), empty: r.empty }
+}
+
+fn secret_value(handle: SecretHandle) -> Value {
+    serde_json::to_value(handle).unwrap_or(Value::Null)
+}
+
+fn every_of(decl: &SlateRunDecl) -> Option<f64> {
+    match decl {
+        SlateRunDecl::Cmd(cmd) => cmd.every.as_ref().map(|every| every.0),
+        SlateRunDecl::Tool(tool) => tool.every.as_ref().map(|every| every.0),
+        SlateRunDecl::Resource(resource) => resource.every.as_ref().map(|every| every.0),
+    }
+}
+
+fn always_of(decl: &SlateRunDecl) -> bool {
+    match decl {
+        SlateRunDecl::Cmd(cmd) => cmd.always == Some(true),
+        SlateRunDecl::Tool(tool) => tool.always == Some(true),
+        SlateRunDecl::Resource(resource) => resource.always == Some(true),
+    }
+}
+
+fn server_of(decl: &SlateRunDecl) -> Option<&str> {
+    match decl {
+        SlateRunDecl::Cmd(_) => None,
+        SlateRunDecl::Tool(tool) => Some(&tool.server),
+        SlateRunDecl::Resource(resource) => Some(&resource.server),
+    }
 }
 
 impl SlatesInner {
-    // slates.ts:688
-    //   /** Every secret's handle read off the store: a rewind or a restart never fills or empties a secret (08, "Reuse"). */
-    //   const refreshSecrets = (r: SlateRecord): void => {
-    //     for (const [name, decl] of Object.entries(r.document?.values ?? {})) if (decl.secret === true) r.values[name] = asJson(runs.secrets.handle(r.threadId, name));
-    //   };
     pub(crate) fn refresh_secrets(&self, r: &mut SlateRecord) {
-        todo!()
+        let Some(doc) = r.document.as_ref() else { return };
+        let secrets = self.runs().secrets();
+        for (name, decl) in &doc.values {
+            if decl.secret == Some(true) {
+                r.values.insert(name.clone(), secret_value(secrets.handle(&r.thread_id, name)));
+            }
+        }
     }
 
-    // slates.ts:693
-    //   const armTimers = (r: SlateRecord, stopped: ReadonlySet<string> = new Set()): void => {
-    //     const list = Object.entries(r.document?.runs ?? {}).flatMap(([run, decl]) => (decl.every !== undefined && !stopped.has(run) ? [{ run, every: decl.every, key: decl.kind === "cmd" ? runs.key(approvalDecl(r, decl) as CmdRunDecl) : JSON.stringify(decl), ...(decl.always === true ? { always: true } : {}) }] : []));
-    //     runs.timers(r.threadId, list);
-    //     const servers = Object.values(r.document?.runs ?? {}).flatMap(decl => (decl.kind === "cmd" ? [] : [{ server: decl.server, kept: decl.every !== undefined && decl.always === true }]));
-    //     mcp.servers(r.threadId, servers.map(s => s.server), servers.filter(s => s.kept).map(s => s.server));
-    //   };
     pub(crate) fn arm_timers(self: &Rc<Self>, r: &SlateRecord, stopped: &HashSet<String>) {
-        todo!()
+        let runs = self.runs();
+        let mut timers = Vec::new();
+        let mut servers: Vec<(String, bool)> = Vec::new();
+        if let Some(doc) = &r.document {
+            for (run, decl) in &doc.runs {
+                let Some(every) = every_of(decl) else { continue };
+                if stopped.contains(run) {
+                    continue;
+                }
+                let key = match decl {
+                    SlateRunDecl::Cmd(_) => runs.key(&self.approval_decl(r, decl)),
+                    _ => serde_json::to_string(decl).unwrap_or_default(),
+                };
+                timers.push(TimerDecl { run: run.clone(), every, key, always: always_of(decl) });
+            }
+            for decl in doc.runs.values() {
+                if let Some(server) = server_of(decl) {
+                    servers.push((server.to_string(), every_of(decl).is_some() && always_of(decl)));
+                }
+            }
+        }
+        runs.timers(&r.thread_id, timers);
+        let names: Vec<String> = servers.iter().map(|(server, _)| server.clone()).collect();
+        let kept: Vec<String> = servers.iter().filter(|(_, kept)| *kept).map(|(server, _)| server.clone()).collect();
+        self.mcp().servers(&r.thread_id, &names, &kept);
     }
 
-    // slates.ts:700
-    //   /** A snapshot put back: every run stopped with its completion dropped, records that said running say cancelled,
-    //    * secrets read as the store holds them, and nothing fires (02, "Rewind"). */
-    //   const become = (r: SlateRecord, snap: SlateSnap): void => {
-    //     runs.stopAll(r.threadId, { quiet: true });
-    //     mcp.stopAll(r.threadId, { quiet: true });
-    //     r.document = snap.document;
-    //     r.values = structuredClone(snap.values);
-    //     for (const name of Object.keys(r.document?.runs ?? {})) {
-    //       const rec = r.values[name];
-    //       if (isRunRecord(rec)) r.values[name] = asJson(rewoundRecord(rec as unknown as RunRecord, deps.now()));
-    //     }
-    //     refreshSecrets(r);
-    //     if (snap.document === null) r.empty = snap.empty ?? "none";
-    //     else delete r.empty;
-    //     armTimers(r);
-    //   };
     /// The TS `become`.
     pub(crate) fn become_snap(self: &Rc<Self>, r: &mut SlateRecord, snap: SlateSnap) {
-        todo!()
+        let thread_id = r.thread_id.clone();
+        self.runs().stop_all(&thread_id, true, None);
+        self.mcp().stop_all(&thread_id, StopAll { quiet: true, why: None });
+        let no_document = snap.document.is_none();
+        let empty = snap.empty;
+        r.document = snap.document;
+        r.values = snap.values;
+        let now = self.deps.clock().now();
+        if let Some(doc) = &r.document {
+            for name in doc.runs.keys() {
+                let rewound = r.values.get(name).and_then(RunRecord::from_json).map(|record| rewound_record(&record, now));
+                if let Some(record) = rewound {
+                    r.values.insert(name.clone(), record.to_json());
+                }
+            }
+        }
+        self.refresh_secrets(r);
+        r.empty = if no_document { Some(empty.unwrap_or(SlateEmpty::None)) } else { None };
+        self.arm_timers(r, &HashSet::new());
     }
 
-    // slates.ts:717
-    //   /** A new document's live values (02, "Values"): names both documents declare keep their live value, names only
-    //    * the new one declares start, names only the old one declared go; a run keeps its record, a secret its handle. */
-    //   const valuesFor = (r: Pick<SlateRecord, "threadId" | "document" | "values">, next: SlateDoc): SlateValues => {
-    //     const before = r.document;
-    //     const live: SlateValues = {};
-    //     for (const [name, decl] of Object.entries(next.values)) {
-    //       if (decl.secret === true) live[name] = asJson(runs.secrets.handle(r.threadId, name));
-    //       else if (before?.values[name] !== undefined && name in r.values) live[name] = r.values[name]!;
-    //       else live[name] = structuredClone(decl.start);
-    //     }
-    //     for (const [name, decl] of Object.entries(next.runs)) {
-    //       const rec = r.values[name];
-    //       const was = before?.runs[name];
-    //       if (was === undefined || !isRunRecord(rec)) live[name] = asJson(structuredClone(SLATE_RUN_IDLE));
-    //       // The last result of a command that is no longer the one declared stays readable, marked, until it runs again.
-    //       else live[name] = ["done", "failed", "cancelled"].includes(rec.state) && !slateEqual(commandOf(was), commandOf(decl)) ? asJson({ ...(rec as object), stale: true }) : rec;
-    //     }
-    //     return live;
-    //   };
     pub(crate) fn values_for(&self, thread_id: &str, before: Option<&SlateDoc>, values: &SlateValues, next: &SlateDoc) -> SlateValues {
-        todo!()
+        let secrets = self.runs().secrets();
+        let mut live = SlateValues::new();
+        for (name, decl) in &next.values {
+            if decl.secret == Some(true) {
+                live.insert(name.clone(), secret_value(secrets.handle(thread_id, name)));
+            } else if before.is_some_and(|old| old.values.contains_key(name)) && values.contains_key(name) {
+                live.insert(name.clone(), values[name].clone());
+            } else {
+                live.insert(name.clone(), decl.start.clone());
+            }
+        }
+        for (name, decl) in &next.runs {
+            let was = before.and_then(|old| old.runs.get(name));
+            match (was, values.get(name).and_then(RunRecord::from_json)) {
+                (Some(was), Some(mut record)) => {
+                    let finished = matches!(record.state(), Some(RunState::Done | RunState::Failed | RunState::Cancelled));
+                    if finished && command_of(was) != command_of(decl) {
+                        record.0.insert("stale".into(), Value::Bool(true));
+                    }
+                    live.insert(name.clone(), record.to_json());
+                }
+                _ => {
+                    live.insert(name.clone(), slate_run_idle());
+                }
+            }
+        }
+        live
     }
 
-    // slates.ts:737
-    //   /** What a dropped declaration leaves behind: its secret forgotten at once, its run stopped. */
-    //   const dropDeclared = (r: SlateRecord, next: SlateDoc | null): void => {
-    //     for (const [name, decl] of Object.entries(r.document?.values ?? {})) if (decl.secret === true && next?.values[name]?.secret !== true) runs.secrets.forget(r.threadId, name);
-    //     for (const name of Object.keys(r.document?.runs ?? {})) {
-    //       if (next?.runs[name] !== undefined) continue;
-    //       runs.cancel(r.threadId, name);
-    //       mcp.cancel(r.threadId, name);
-    //     }
-    //   };
     pub(crate) fn drop_declared(&self, r: &SlateRecord, next: Option<&SlateDoc>) {
-        todo!()
+        let Some(old) = r.document.as_ref() else { return };
+        let secrets = self.runs().secrets();
+        for (name, decl) in &old.values {
+            let still_secret = next.and_then(|doc| doc.values.get(name)).is_some_and(|d| d.secret == Some(true));
+            if decl.secret == Some(true) && !still_secret {
+                secrets.forget(&r.thread_id, Some(name));
+            }
+        }
+        for name in old.runs.keys() {
+            if next.is_some_and(|doc| doc.runs.contains_key(name)) {
+                continue;
+            }
+            self.runs().cancel(&r.thread_id, name);
+            self.mcp().cancel(&r.thread_id, name);
+        }
     }
 }
