@@ -105,10 +105,10 @@ pub trait Base {
 
 /// The view of the entry's record as it stands.
 pub fn view_of(base: &dyn Base, entry: &Entry) -> WorkspaceView {
-    todo!()
+    base.view(&record_of(entry))
 }
 
 /// The record as it stands, cloned out of the entry so no borrow crosses an await (rule 3.3).
 pub fn record_of(entry: &Entry) -> WorkspaceRecord {
-    todo!()
+    entry.borrow().record.borrow().clone()
 }

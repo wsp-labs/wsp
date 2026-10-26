@@ -1,14 +1,35 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The host's git writes one at a time, removing a worktree wsp made, a worktree gone, and the one sweep.
 //! folders.ts:201-358, 448-472 at 65f6b89c7; spec/folders_tree.md.
+use std::path::Path;
 use std::rc::Rc;
 
-use wsp_wire::views::workspace_more::{WorktreeSettled, WorktreeSettledWhy};
+use futures::future::{LocalBoxFuture, Shared};
+use futures::FutureExt;
+use serde_json::{json, Value};
+use wsp_core::console::warn;
+use wsp_core::types::wiring::{last_line_of, NO_COPIER_HERE};
+use wsp_engine::exec_detached::INLINE_EXEC_MS;
+use wsp_frames::True;
+use wsp_wire::types::js_number::JsNumber;
+use wsp_wire::types::projects::{KEPT_ABANDONED_LINE, KEPT_RUNNING_LINE, WORKTREE_BUSY_LINE};
+use wsp_wire::types::pull_request::PullRequestState;
+use wsp_wire::types::shell_quote::shell_line;
+use wsp_wire::views::workspace_more::{WorktreeFolder, WorktreeSettled, WorktreeSettledWhy};
 use wsp_wire::wire::machine_link::ExecResult;
-use wsp_words::exit::HostError;
+use wsp_words::exit::{HostError, Kind};
+use wsp_words::js::js_trim;
+use wsp_words::projects::{kept_changed_line, not_made_worktree_line, worktree_changed_line};
+use wsp_words::words::computer::thread_word;
 
-use super::Folders;
-use crate::projects::workspaces::seam::{Entry, Queued};
+use super::place::under;
+use super::{Folders, WorktreeRemove};
+use crate::projects::workspaces::seam::{record_of, DaemonAsk, DaemonWork, Entry, GitAsk, Queued};
+
+/// `GitAsk` for a git run in `cwd` with no timeout and no input.
+fn git_ask(cwd: &str, args: &[&str]) -> GitAsk {
+    GitAsk { cwd: cwd.to_owned(), args: args.iter().map(|arg| arg.to_string()).collect(), timeout_ms: None, input: None }
+}
 
 /// How often the sweep runs. folders.ts:274.
 pub const SWEEP_MS: i64 = 10 * 60_000;
@@ -40,7 +61,16 @@ pub struct ListedWorktree {
 //|   const gitSaid = (res: { stdout: string; stderr: string }): string => res.stderr.split("\n").find(l => /^(error|fatal): /.test(l))?.trim() ?? lastLine(res);
 /// What git said went wrong: its first error or fatal line, else its last line.
 pub fn git_said(res: &ExecResult) -> String {
-    todo!()
+    match res.stderr.split('\n').find(|line| line.starts_with("error: ") || line.starts_with("fatal: ")) {
+        Some(line) => js_trim(line).to_owned(),
+        None => last_line_of_result(res),
+    }
+}
+
+/// The last line of `stderr.trim() || stdout.trim()`, untrimmed as the TS splits it.
+fn last_line_of_result(res: &ExecResult) -> String {
+    let whole = if js_trim(&res.stderr).is_empty() { js_trim(&res.stdout) } else { js_trim(&res.stderr) };
+    whole.rsplit('\n').next().unwrap_or("").to_owned()
 }
 
 // ts: folders.ts:462-466
@@ -51,7 +81,17 @@ pub fn git_said(res: &ExecResult) -> String {
 //|     return trees;
 /// Parses `git worktree list --porcelain`.
 pub fn parse_worktrees(stdout: &str) -> Vec<ListedWorktree> {
-    todo!()
+    let mut trees: Vec<ListedWorktree> = Vec::new();
+    for line in stdout.split('\n') {
+        if let Some(path) = line.strip_prefix("worktree ") {
+            trees.push(ListedWorktree { path: path.to_owned(), branch: None });
+        } else if let Some(branch) = line.strip_prefix("branch refs/heads/") {
+            if let Some(last) = trees.last_mut() {
+                last.branch = Some(branch.to_owned());
+            }
+        }
+    }
+    trees
 }
 
 impl Folders {
@@ -70,7 +110,31 @@ impl Folders {
     //|   };
     /// The host's own git writes on one folder, one at a time; the caller gets its own result (chain, first form).
     pub fn queued(&self, id: &str, work: Queued<serde_json::Value>) -> Queued<serde_json::Value> {
-        todo!()
+        let previous = self.git_writes.borrow().get(id).cloned();
+        let tail_slot: Rc<std::cell::RefCell<Option<Shared<LocalBoxFuture<'static, ()>>>>> = Rc::new(std::cell::RefCell::new(None));
+        let writes = self.git_writes.clone();
+        let key = id.to_owned();
+        let own_slot = tail_slot.clone();
+        let run = async move {
+            if let Some(previous) = previous {
+                previous.await;
+            }
+            let answer = work.await;
+            let tail = own_slot.borrow().clone();
+            if let Some(tail) = tail {
+                let mut held = writes.borrow_mut();
+                if held.get(&key).is_some_and(|current| current.ptr_eq(&tail)) {
+                    held.shift_remove(&key);
+                }
+            }
+            answer
+        }
+        .boxed_local()
+        .shared();
+        let tail = run.clone().map(|_| ()).boxed_local().shared();
+        *tail_slot.borrow_mut() = Some(tail.clone());
+        self.git_writes.borrow_mut().insert(id.to_owned(), tail);
+        run.boxed_local()
     }
 
     // ts: folders.ts:213-232
@@ -96,7 +160,40 @@ impl Folders {
     //|     });
     /// Takes a worktree wsp made away, under the folder's queue (spec rule 2).
     pub async fn remove_worktree(self: &Rc<Self>, entry: &Entry, force: bool, ask: RemoveAsk) -> Result<(), HostError> {
-        todo!()
+        let id = record_of(entry).id;
+        let me = self.clone();
+        let target = entry.clone();
+        let work: Queued<Value> = async move {
+            let record = record_of(&target);
+            let top = me.ctx.project_held(&record.project)?.git.map(|git| git.top);
+            let (Some(tree), Some(top)) = (record.worktree.clone().filter(|tree| tree.made), top) else {
+                let branch = record.worktree.as_ref().and_then(|tree| tree.branch.clone()).unwrap_or_default();
+                return Err(HostError::new(not_made_worktree_line(&branch)));
+            };
+            if !me.ctx.has_copier() {
+                return Err(HostError::with_kind(NO_COPIER_HERE, Kind::Invalid));
+            }
+            if !ask.ending && me.ctx.turn_runs(&record.id) {
+                return Err(HostError::with_kind(WORKTREE_BUSY_LINE, Kind::Conflict));
+            }
+            if Path::new(&tree.path).exists() && !force {
+                me.refuse_changed(&tree.path).await?;
+            }
+            if ask.check {
+                return Ok(Value::Null);
+            }
+            if Path::new(&tree.path).exists() {
+                let remove = WorktreeRemove { from: top, home: me.ctx.state_folder(), path: tree.path.clone(), force };
+                me.ctx.copier_worktree_remove(remove).await?;
+            }
+            me.setup_lines.borrow_mut().shift_remove(&record.id);
+            if !ask.ending {
+                me.worktree_gone(&target, WorktreeSettledWhy::Removed, false).await?;
+            }
+            Ok(Value::Null)
+        }
+        .boxed_local();
+        self.queued(&id, work).await.map(|_| ())
     }
 
     // ts: folders.ts:233-239
@@ -109,7 +206,16 @@ impl Folders {
     //|   };
     /// Refuses over files no commit holds in a folder, naming how many.
     pub async fn refuse_changed(&self, path: &str) -> Result<(), HostError> {
-        todo!()
+        let read = self.ctx.git_here(git_ask(path, &["status", "--porcelain"])).await?;
+        if read.exit_code.get() != 0 {
+            let said = if js_trim(&read.stderr).is_empty() { js_trim(&read.stdout) } else { js_trim(&read.stderr) };
+            return Err(HostError::new(said));
+        }
+        let changed = read.stdout.split('\n').filter(|line| !js_trim(line).is_empty()).count();
+        if changed > 0 {
+            return Err(HostError::with_kind(worktree_changed_line(changed as f64), Kind::Conflict));
+        }
+        Ok(())
     }
 
     // ts: folders.ts:240-248
@@ -124,7 +230,17 @@ impl Folders {
     //|   };
     /// Drops the checkpoint refs one thread holds in its folder's repo, best effort.
     pub async fn drop_checkpoints(&self, entry: &Entry, thread_id: &str) -> Result<(), HostError> {
-        todo!()
+        self.ctx.checkpoints_landed(thread_id).await;
+        let record = record_of(entry);
+        if self.ctx.not_a_repo(&record) {
+            return Ok(());
+        }
+        let request = json!({ "op": "git.checkpointDrop", "cwd": self.ctx.checkout_of(&record), "scope": record.id, "thread": thread_id });
+        let work: DaemonWork = Box::new(move |ask: DaemonAsk| ask(request));
+        if let Err(e) = self.ctx.with_daemon(entry, work).await {
+            warn(&format!("the checkpoints of thread {} were not dropped: {}", thread_word(thread_id), e.message));
+        }
+        Ok(())
     }
 
     // ts: folders.ts:249-251
@@ -133,7 +249,8 @@ impl Folders {
     //|     [...sessions.values()].some(s => s.view.workspaceId === workspaceId) || [...threadRecords.values()].some(t => t.workspaceId === workspaceId);
     /// Whether any thread names a record, by a row of its turns or by its own record.
     pub fn holds_thread(&self, workspace_id: &str) -> bool {
-        todo!()
+        self.ctx.session_views().iter().any(|view| view.workspace_id == workspace_id)
+            || self.ctx.thread_records().iter().any(|(_, thread)| thread.workspace_id == workspace_id)
     }
 
     // ts: folders.ts:252-264
@@ -152,7 +269,26 @@ impl Folders {
     //|   };
     /// A worktree no longer on disk: its record goes once no thread is left on it, else it is marked gone.
     pub async fn worktree_gone(&self, entry: &Entry, why: WorktreeSettledWhy, starting: bool) -> Result<(), HostError> {
-        todo!()
+        let record = record_of(entry);
+        let Some(tree) = record.worktree.clone() else {
+            return Ok(());
+        };
+        if !starting && !self.holds_thread(&record.id) {
+            return self.ctx.drop_workspace(&record.id).await;
+        }
+        let settled = tree.settled.clone().unwrap_or_else(|| WorktreeSettled { at: JsNumber::from(self.ctx.clock().now()), why });
+        let next = WorktreeFolder {
+            path: tree.path,
+            made: tree.made,
+            branch: tree.branch,
+            made_for: tree.made_for,
+            settled: Some(settled),
+            kept: None,
+            remove_failed: None,
+            gone: Some(True),
+        };
+        entry.borrow().record.borrow_mut().worktree = Some(next);
+        self.ctx.persist(record_of(entry)).await
     }
 
     // ts: folders.ts:265-271
@@ -165,7 +301,13 @@ impl Folders {
     //|   };
     /// The folder a thread's next turn runs in.
     pub fn runs_in(&self, entry: &Entry, ran_in: Option<&str>, folder: &str) -> String {
-        todo!()
+        let Some(ran_in) = ran_in else {
+            return folder.to_owned();
+        };
+        match record_of(entry).worktree {
+            Some(tree) if tree.gone.is_some() && under(ran_in, &tree.path) => folder.to_owned(),
+            _ => ran_in.to_owned(),
+        }
     }
 
     // ts: folders.ts:277-278
@@ -173,7 +315,9 @@ impl Folders {
     //|   const sweepHasWork = (): boolean => [...live.values()].some(e => e.record.worktree?.made === true && e.record.worktree.gone !== true);
     /// Whether any worktree wsp made still stands.
     pub fn sweep_has_work(&self) -> bool {
-        todo!()
+        let live = self.ctx.live();
+        let standing = live.borrow().values().any(|entry| record_of(entry).worktree.is_some_and(|tree| tree.made && tree.gone.is_none()));
+        standing
     }
 
     // ts: folders.ts:279-296
@@ -197,7 +341,36 @@ impl Folders {
     //|   };
     /// Arms the sweep's timer, only while a worktree wsp made stands.
     pub fn arm_sweep(self: &Rc<Self>) {
-        todo!()
+        let state = self.ctx.sweep_state();
+        {
+            let sweep = state.borrow();
+            if sweep.timer.is_some() || sweep.sweeping.is_some() || sweep.stopped {
+                return;
+            }
+        }
+        if !self.sweep_has_work() {
+            return;
+        }
+        let me = self.clone();
+        let cancel = self.ctx.clock().schedule(Box::new(move || me.start_sweep()), SWEEP_MS);
+        state.borrow_mut().timer = Some(cancel);
+    }
+
+    /// The timer's body: the sweep in flight, which re-arms the timer once it settles.
+    fn start_sweep(self: &Rc<Self>) {
+        let state = self.ctx.sweep_state();
+        state.borrow_mut().timer = None;
+        let me = self.clone();
+        let sweeping = async move {
+            if let Err(e) = me.sweep_worktrees().await {
+                warn(&format!("the sweep of worktrees stopped: {}", e.message));
+            }
+            me.ctx.sweep_state().borrow_mut().sweeping = None;
+            me.arm_sweep();
+        }
+        .boxed_local()
+        .shared();
+        state.borrow_mut().sweeping = Some(sweeping);
     }
 
     // ts: folders.ts:297-304
@@ -211,7 +384,24 @@ impl Folders {
     //|   };
     /// Every worktree wsp made and still holds, one at a time.
     pub async fn sweep_worktrees(self: &Rc<Self>) -> Result<(), HostError> {
-        todo!()
+        let snapshot: Vec<Entry> = self.ctx.live().borrow().values().cloned().collect();
+        for entry in snapshot {
+            let record = record_of(&entry);
+            let Some(tree) = record.worktree.clone() else {
+                continue;
+            };
+            if !tree.made || tree.gone.is_some() {
+                continue;
+            }
+            let held = self.ctx.live().borrow().get(&record.id).is_some_and(|live| Rc::ptr_eq(live, &entry));
+            if !held {
+                continue;
+            }
+            if let Err(e) = self.sweep_one(&entry).await {
+                warn(&format!("the worktree at {} was not swept: {}", tree.path, e.message));
+            }
+        }
+        Ok(())
     }
 
     // ts: folders.ts:305-332
@@ -245,7 +435,58 @@ impl Folders {
     //|   };
     /// One worktree wsp made: settled, then removed, or kept with why (spec rule 11).
     pub async fn sweep_one(self: &Rc<Self>, entry: &Entry) -> Result<(), HostError> {
-        todo!()
+        let record = record_of(entry);
+        let Some(tree) = record.worktree.clone() else {
+            return Ok(());
+        };
+        if !Path::new(&tree.path).exists() {
+            return self.worktree_gone(entry, WorktreeSettledWhy::Removed, false).await;
+        }
+        let settled = match tree.settled.clone() {
+            Some(settled) => Some(settled),
+            None => self.settled_now(entry).await?,
+        };
+        let Some(settled) = settled else {
+            return Ok(());
+        };
+        if tree.kept.as_deref() == Some(KEPT_ABANDONED_LINE) {
+            return Ok(());
+        }
+        let age = self.ctx.clock().now() as f64 - settled.at.0;
+        if age < SETTLED_STANDS_MS as f64 {
+            return Ok(());
+        }
+        let abandon = age >= KEPT_FOR_MS as f64;
+        if self.ctx.turn_runs(&record.id) {
+            return self.keep_tree(entry, |next| next.kept = Some(KEPT_RUNNING_LINE.to_owned()), abandon).await;
+        }
+        let status = self.ctx.git_here(git_ask(&tree.path, &["status", "--porcelain"])).await?;
+        let changed = status.stdout.split('\n').filter(|line| !js_trim(line).is_empty()).count();
+        if status.exit_code.get() == 0 && changed > 0 {
+            return self.keep_tree(entry, |next| next.kept = Some(kept_changed_line(changed as f64)), abandon).await;
+        }
+        match self.remove_worktree(entry, false, RemoveAsk::default()).await {
+            Ok(()) => Ok(()),
+            Err(e) => self.keep_tree(entry, |next| next.remove_failed = Some(last_line_of(&e.message)), abandon).await,
+        }
+    }
+
+    /// Writes the tree with `said` over it, and at a week or more `kept` as abandoned, when that changes its JSON text.
+    async fn keep_tree(&self, entry: &Entry, said: impl FnOnce(&mut WorktreeFolder), abandon: bool) -> Result<(), HostError> {
+        let Some(now) = record_of(entry).worktree else {
+            return Ok(());
+        };
+        let mut next = now.clone();
+        said(&mut next);
+        if abandon {
+            next.kept = Some(KEPT_ABANDONED_LINE.to_owned());
+        }
+        if serde_json::to_string(&next).ok() == serde_json::to_string(&now).ok() {
+            return Ok(());
+        }
+        entry.borrow().record.borrow_mut().worktree = Some(next);
+        self.ctx.persist(record_of(entry)).await?;
+        self.ctx.status_now(entry).await
     }
 
     // ts: folders.ts:333-349
@@ -268,7 +509,42 @@ impl Folders {
     //|   };
     /// Whether a worktree wsp made settled since the last sweep, stamped on its record when it did.
     pub async fn settled_now(&self, entry: &Entry) -> Result<Option<WorktreeSettled>, HostError> {
-        todo!()
+        let record = record_of(entry);
+        let Some(tree) = record.worktree.clone() else {
+            return Ok(None);
+        };
+        if self.ctx.project_held(&record.project)?.remote.is_empty() {
+            return Ok(None);
+        }
+        self.ctx.read_pull_request(entry, true).await?;
+        let now = self.ctx.clock().now();
+        let pr = record_of(entry).pr;
+        let mut settled = match &pr {
+            Some(pr) if matches!(pr.state, PullRequestState::Merged) => {
+                Some(WorktreeSettled { at: pr.merged_at.clone().unwrap_or_else(|| JsNumber::from(now)), why: WorktreeSettledWhy::Merged })
+            }
+            Some(pr) if matches!(pr.state, PullRequestState::Closed) => {
+                Some(WorktreeSettled { at: pr.closed_at.clone().unwrap_or_else(|| JsNumber::from(now)), why: WorktreeSettledWhy::Closed })
+            }
+            _ => None,
+        };
+        if settled.is_none() {
+            if let Some(branch) = tree.branch.as_deref() {
+                if self.branch_gone_at_remote(&tree.path, branch).await? {
+                    settled = Some(WorktreeSettled { at: JsNumber::from(self.ctx.clock().now()), why: WorktreeSettledWhy::Deleted });
+                }
+            }
+        }
+        let Some(settled) = settled else {
+            return Ok(None);
+        };
+        if let Some(mut current) = record_of(entry).worktree {
+            current.settled = Some(settled.clone());
+            entry.borrow().record.borrow_mut().worktree = Some(current);
+        }
+        self.ctx.persist(record_of(entry)).await?;
+        self.ctx.status_now(entry).await?;
+        Ok(Some(settled))
     }
 
     // ts: folders.ts:350-358
@@ -283,7 +559,18 @@ impl Folders {
     //|   };
     /// True only where the branch has an upstream and its remote answers that it holds no such branch (exit 2).
     pub async fn branch_gone_at_remote(&self, path: &str, branch: &str) -> Result<bool, HostError> {
-        todo!()
+        let remote_key = format!("branch.{branch}.remote");
+        let merge_key = format!("branch.{branch}.merge");
+        let remote = self.ctx.git_here(git_ask(path, &["config", "--get", &remote_key])).await?;
+        let merge = self.ctx.git_here(git_ask(path, &["config", "--get", &merge_key])).await?;
+        let remote = js_trim(&remote.stdout).to_owned();
+        let merge = js_trim(&merge.stdout).to_owned();
+        if remote.is_empty() || merge.is_empty() || remote == "." {
+            return Ok(false);
+        }
+        let cmd = format!("GIT_TERMINAL_PROMPT=0 {}", shell_line(&["git", "-C", path, "ls-remote", "--exit-code", "--heads", &remote, &merge]));
+        let asked = self.ctx.local_exec(&cmd, INLINE_EXEC_MS, None).await?;
+        Ok(asked.exit_code.get() == 2)
     }
 
     // ts: folders.ts:456-467
@@ -301,6 +588,10 @@ impl Folders {
     //|   };
     /// Every worktree of a repo as git lists it now; none where git fails.
     pub async fn worktrees_of(&self, top: &str) -> Result<Vec<ListedWorktree>, HostError> {
-        todo!()
+        let read = self.ctx.git_here(git_ask(top, &["worktree", "list", "--porcelain"])).await?;
+        if read.exit_code.get() != 0 {
+            return Ok(Vec::new());
+        }
+        Ok(parse_worktrees(&read.stdout))
     }
 }
