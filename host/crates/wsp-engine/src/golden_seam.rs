@@ -12,7 +12,8 @@ use std::sync::Arc;
 use futures::future::LocalBoxFuture;
 use serde::{Deserialize, Serialize};
 
-pub use wsp_wire::views::golden_image::{GoldenBaseTool, GoldenStage};
+use indexmap::IndexMap;
+pub use wsp_wire::views::golden_image::{GoldenBaseTool, GoldenLeftBehind, GoldenStage, RecipeDigest};
 
 mod base;
 mod import_agents;
@@ -136,7 +137,14 @@ pub struct StagedFile {
     pub digest: String,
 }
 
-/// golden.ts:434, the fields provision reads.
+/// golden.ts:429 `CutNames`: an rc file the pack shipped without its secret exports.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CutNames {
+    pub path: String,
+    pub names: Vec<String>,
+}
+
+/// golden.ts:434.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct PackedFiles {
     pub tar: Vec<u8>,
@@ -146,6 +154,16 @@ pub struct PackedFiles {
     pub files: Option<u64>,
     /// `None` is the TS's absent `stood`; `Some(vec![])` is a pack that was asked and left nothing home.
     pub stood: Option<Vec<String>>,
+    /// The rc files stripped at pack time, so the checklist names what to set from what actually left.
+    pub cut: Vec<CutNames>,
+    /// Commands the rc files call that the image does not have, once each.
+    pub silenced: Vec<String>,
+    /// What became of each Mac path the copied files carried, once each.
+    pub mac_paths: Vec<String>,
+    /// The skips a fork should know about, stamped on the sealed version.
+    pub left_behind: Option<Vec<GoldenLeftBehind>>,
+    /// Files that travelled with values cut out, each with what stayed on this computer.
+    pub blanked: Option<Vec<SkippedPath>>,
 }
 
 /// golden.ts:467 `LeaveOut`.
@@ -153,25 +171,125 @@ pub type LeaveOut = Arc<dyn Fn(Vec<StagedFile>) -> LocalBoxFuture<'static, crate
 /// golden.ts:473 `PackFiles`: `pack(leaveOut?)`. A pack that throws is an `Err`.
 pub type PackFiles = Arc<dyn Fn(Option<LeaveOut>) -> LocalBoxFuture<'static, crate::errors::Result<PackedFiles>>>;
 
-/// golden.ts:475 `GoldenImport`, the fields provisionPlanOf reads.
+/// golden.ts:475 `GoldenImport`.
 #[derive(Clone, Default)]
 pub struct GoldenImport {
+    /// Identifies the ticks this plan came from; a builder carrying the same hash needs nothing re-applied.
+    pub recipe_hash: String,
+    /// The parts behind `recipe_hash`; recorded on the builder so a later run can say what changed.
+    pub recipe: Option<RecipeDigest>,
     pub agents: Vec<AgentInstall>,
     pub node: Option<NodeInstall>,
     pub tools: Vec<ToolInstall>,
     pub files: Option<GoldenFiles>,
     pub mcp: Option<McpPlan>,
+    /// The person's login shell and its frameworks, put on the machine before the files land.
+    pub shell: Option<ShellInstall>,
+    /// Applied once the agents are on; absent when no ticked agent keeps plugins.
+    pub plugins: Option<PluginsPlan>,
     pub skipped_agents: Vec<SkippedRow>,
     pub skipped_tools: Vec<SkippedRow>,
+    /// Ticked tools the base stage already put on every golden; they land in the result as installed.
+    pub base_tools: Vec<SkippedRow>,
     /// `recipe.files`: each file row's id, dest and `volatile`.
     pub recipe_files: Vec<RecipeFileRow>,
+    /// Called once per prepare that ran anything; a re-run that skipped every stage has nothing to report.
+    pub on_result: Option<Arc<dyn Fn(&crate::golden::ImportResult)>>,
+    /// Called when a pass that reports no result wrote the machine context: `(context, context_failure)`.
+    pub on_context: Option<OnContext>,
 }
 
-/// golden.ts:479 `files`, the fields read.
+/// golden.ts:517 `onContext`'s argument, `Pick<ImportResult, "context" | "contextFailure">`.
+pub type OnContext = Arc<dyn Fn(&[crate::machine_context::ContextResult], Option<&str>)>;
+
+/// golden.ts:479 `files`.
 #[derive(Clone)]
 pub struct GoldenFiles {
+    /// Files and secrets that will be packed; zero when every ticked path is gone from this computer.
+    pub count: u64,
+    pub rungs: IndexMap<String, u64>,
+    pub bytes: u64,
+    /// Ticked paths the plan set aside, reported before packing.
+    pub skipped: Vec<SkippedPath>,
     pub lands: Vec<crate::provision_files::ProvisionLanding>,
     pub pack: PackFiles,
+    /// The planned files a tool rewrites while it runs: they never decide the hash, so an attach uploads the latest
+    /// copy again.
+    pub volatile: Option<GoldenVolatile>,
+}
+
+/// golden.ts:495 `files.volatile`.
+#[derive(Clone)]
+pub struct GoldenVolatile {
+    pub paths: Vec<String>,
+    pub pack: PackFiles,
+}
+
+/// golden-import.ts:1276 `LoginShell`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoginShell {
+    Zsh,
+    Fish,
+}
+
+impl LoginShell {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            LoginShell::Zsh => "zsh",
+            LoginShell::Fish => "fish",
+        }
+    }
+}
+
+/// golden-import.ts:1278 `ShellInstall`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShellInstall {
+    /// The login shell the ticked rows belong to; chsh sets it for the guest's uid.
+    pub shell: LoginShell,
+    /// The ticked framework rows reinstalled into their homes, in recipe order.
+    pub frameworks: Vec<String>,
+    /// One bash -c script under set -e.
+    pub cmd: String,
+}
+
+/// golden-tools.ts:490 `PluginSeedPlan.plugins[]`.
+#[derive(Clone)]
+pub struct SeedPlugin {
+    pub id: String,
+    pub label: String,
+    pub cmd: String,
+    /// `asked(out)`: what a plugin's own output says in place of the guard's reason.
+    pub asked: Option<Arc<dyn Fn(&str) -> Option<String>>>,
+}
+
+/// golden-tools.ts:489 `PluginSeedPlan`: the plugins the ticked agents switch on, built into the folder every turn on a
+/// fork of the image reads in place.
+#[derive(Clone)]
+pub struct PluginSeedPlan {
+    pub dir: String,
+    pub plugins: Vec<SeedPlugin>,
+    /// Read off the folder once the plugins are in it.
+    pub links: Arc<dyn SeedLinks>,
+}
+
+/// golden-tools.ts:493 `links(read)`: the `[link, target]` pairs the agent finds the built plugins by.
+#[async_trait::async_trait(?Send)]
+pub trait SeedLinks {
+    async fn links(&self, read: &dyn SeedRead) -> Vec<(String, String)>;
+}
+
+/// `read`: a path in the seed folder, its text where it can be read.
+#[async_trait::async_trait(?Send)]
+pub trait SeedRead {
+    async fn read(&self, rel: &str) -> Option<String>;
+}
+
+/// golden-tools.ts:501 `PluginsPlan`: the files an older image copied come off, then the seed builds.
+#[derive(Clone)]
+pub struct PluginsPlan {
+    /// Absolute on the guest.
+    pub dropped: Vec<String>,
+    pub seed: Option<PluginSeedPlan>,
 }
 
 /// `skippedAgents` (`{ id, name, note }`) and `skippedTools` (`{ id, label, note }`), one shape: `label` is the

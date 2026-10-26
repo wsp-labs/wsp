@@ -612,6 +612,7 @@ async fn says_each_stage_of_the_two_rounds_as_a_line_of_its_own_in_the_order_the
         files: Some(1),
         stood: Some(vec![".claude-cfg/skills/old/SKILL.md".to_string()]),
         skipped: vec![],
+        ..Default::default()
     };
     let with_pack =
         ProvisionPlan { files: Some(PlanFiles { lands: plan.files.as_ref().unwrap().lands.clone(), pack: pack_of(packed) }), ..plan };
@@ -656,7 +657,7 @@ async fn puts_each_thing_the_pack_left_out_of_the_copy_in_the_jobs_rows_with_its
         .collect();
     let (machine, _) = box_machine(no_answer, TOOLS_PATH);
     let said = Arc::new(Mutex::new(Vec::new()));
-    let packed = PackedFiles { tar: tar.clone(), bytes: tar.len() as u64, unpacked: 4, files: Some(1), skipped, stood: None };
+    let packed = PackedFiles { tar: tar.clone(), bytes: tar.len() as u64, unpacked: 4, files: Some(1), skipped, stood: None, ..Default::default() };
     let with_pack =
         ProvisionPlan { files: Some(PlanFiles { lands: plan.files.as_ref().unwrap().lands.clone(), pack: pack_of(packed) }), ..plan };
     let rows = provision_box(&machine, &with_pack, said_into(said.clone()), &on()).await.unwrap();
