@@ -69,7 +69,7 @@ pub trait ReviewCtx: Base {
     async fn ws_remint_port_reach(&self, entry: &Entry, port: u16) -> Result<PortReachView, HostError>;
     /// `fetch(url, {redirect: "manual", signal: timeout(PORT_PROBE_TIMEOUT_MS)})` and `readBodyUpTo(res, cap)`.
     async fn probe(&self, url: &str) -> Result<PortProbeView, HostError>;
-    fn refusal_for(&self, record: Option<&WorkspaceRecord>, origin: Option<&Caller>) -> Option<String>;
+    fn refusal_for(&self, record: Option<&WorkspaceRecord>, origin: Option<&Caller>) -> Result<Option<String>, HostError>;
     fn reaches_row(&self, thread_id: &str, workspace_id: &str, origin: Option<&Caller>) -> bool;
 }
 
@@ -538,7 +538,7 @@ pub async fn port_probe(ctx: &Rc<dyn ReviewCtx>, id: &str, port: u16, origin: Op
 pub async fn origin_refusal(ctx: &Rc<dyn ReviewCtx>, id: &str, origin: Option<Caller>) -> Result<Option<String>, HostError> {
     ctx.ready().await?;
     let record = held_record(ctx, id);
-    Ok(ctx.refusal_for(record.as_ref(), origin.as_ref()))
+    ctx.refusal_for(record.as_ref(), origin.as_ref())
 }
 
 // ts: workspaces.ts:1217-1231
@@ -558,20 +558,20 @@ pub async fn origin_refusal(ctx: &Rc<dyn ReviewCtx>, id: &str, origin: Option<Ca
 //|       return ctx.refusalFor(record, origin) === undefined;
 //|     },
 /// Whether a thread's socket sees an event; synchronous.
-pub fn seen_by(ctx: &Rc<dyn ReviewCtx>, event: &serde_json::Value, origin: Option<&Caller>) -> bool {
+pub fn seen_by(ctx: &Rc<dyn ReviewCtx>, event: &serde_json::Value, origin: Option<&Caller>) -> Result<bool, HostError> {
     let Some(scope) = scope_of(origin) else {
-        return true;
+        return Ok(true);
     };
     if let Some(asked) = asker_of(event) {
-        return asked.thread_id == scope.thread_id || asked.root_thread_id == scope.root_thread_id;
+        return Ok(asked.thread_id == scope.thread_id || asked.root_thread_id == scope.root_thread_id);
     }
     let Some(record) = workspace_id_of(event).and_then(|id| held_record(ctx, id.as_ref())) else {
-        return false;
+        return Ok(false);
     };
     if let Some(thread) = event.get("threadId").and_then(Value::as_str) {
-        return ctx.reaches_row(thread, &record.id, origin);
+        return Ok(ctx.reaches_row(thread, &record.id, origin));
     }
-    ctx.refusal_for(Some(&record), origin).is_none()
+    Ok(ctx.refusal_for(Some(&record), origin)?.is_none())
 }
 
 // ts: workspaces.ts:1233-1244
@@ -588,23 +588,24 @@ pub fn seen_by(ctx: &Rc<dyn ReviewCtx>, event: &serde_json::Value, origin: Optio
 //|       return { ...event, status: children.length === 0 ? status : { ...status, tree: { ...tree, children } } };
 //|     },
 /// The event as a thread's socket is shown it: a status tree pruned to the children it may see.
-pub fn shown_to(ctx: &Rc<dyn ReviewCtx>, event: serde_json::Value, origin: Option<&Caller>) -> serde_json::Value {
+pub fn shown_to(ctx: &Rc<dyn ReviewCtx>, event: serde_json::Value, origin: Option<&Caller>) -> Result<serde_json::Value, HostError> {
     let is_status = event.get("type").and_then(Value::as_str) == Some("workspace.status");
     let tree = if is_status { event.get("status").and_then(|s| s.get("tree")).cloned() } else { None };
     let (Some(tree), Some(_)) = (tree, scope_of(origin)) else {
-        return event;
+        return Ok(event);
     };
     let all = tree.get("children").and_then(Value::as_array).cloned().unwrap_or_default();
-    let children: Vec<Value> = all
-        .iter()
-        .filter(|child| {
-            let id = child.get("workspaceId").and_then(Value::as_str).unwrap_or_default();
-            held_record(ctx, id).is_some_and(|record| ctx.refusal_for(Some(&record), origin).is_none())
-        })
-        .cloned()
-        .collect();
+    let mut children: Vec<Value> = Vec::new();
+    for child in &all {
+        let id = child.get("workspaceId").and_then(Value::as_str).unwrap_or_default();
+        if let Some(record) = held_record(ctx, id) {
+            if ctx.refusal_for(Some(&record), origin)?.is_none() {
+                children.push(child.clone());
+            }
+        }
+    }
     if children.len() == all.len() {
-        return event;
+        return Ok(event);
     }
     let mut status = event.get("status").cloned().unwrap_or(Value::Null);
     if let Value::Object(map) = &mut status {
@@ -617,5 +618,5 @@ pub fn shown_to(ctx: &Rc<dyn ReviewCtx>, event: serde_json::Value, origin: Optio
     }
     let mut out = event;
     out["status"] = status;
-    out
+    Ok(out)
 }

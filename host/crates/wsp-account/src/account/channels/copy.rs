@@ -229,7 +229,7 @@ impl DaemonChannel for CopyChannel {
         let thread = asked.shift_remove("thread");
         let cwd = match asked.get("cwd") {
             Some(cwd) if !cwd.is_null() => cwd.clone(),
-            _ => Value::String(self.area.ctx.thread_folder(&self.entry).await),
+            _ => Value::String(self.area.ctx.thread_folder(&self.entry).await.map_err(channel_refused)?),
         };
         let minted = if self.area.brokered(&self.entry) {
             self.area.terminal_token(&self.entry, thread.as_ref()).await.map_err(channel_refused)?

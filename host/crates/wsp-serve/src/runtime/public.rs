@@ -77,7 +77,8 @@ pub trait PublicCtx {
     async fn stop_builder(&self, builder_id: &str, place: &str) -> Result<(), HostError>;
     async fn forget_builder(&self, builder_id: &str) -> Result<(), HostError>;
     /// `known` is `knownIds` (runtime.ts:1141-1147), read once per machine the replay finds.
-    async fn replay_creates(&self, known: &dyn Fn() -> Vec<String>, failed: &mut Vec<ReapFailure>) -> Result<Vec<ReapedMachine>, HostError>;
+    async fn replay_creates(&self, known: &dyn Fn() -> Vec<String>, failed: &mut Vec<ReapFailure>)
+        -> Result<Vec<ReapedMachine>, HostError>;
     /// The wired place, then every other in `places.list()` order, each with whether a backend answers there.
     fn sweep_places(&self) -> Vec<(String, bool)>;
     fn wired_place(&self) -> String;

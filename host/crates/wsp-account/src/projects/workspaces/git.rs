@@ -373,7 +373,7 @@ pub async fn bring_back(
     let entry = ctx.entry_of(workspace_id, origin, EntryAsk::default()).await?;
     ctx.copy_blocked(&entry).await?;
     let record = record_of(&entry);
-    let cwd = ctx.checkout_of(&record);
+    let cwd = ctx.checkout_of(&record)?;
     let base = match &record.base {
         Some(base) => Some(base.clone()),
         None => ctx.project_held(&record.project)?.base,
@@ -654,7 +654,7 @@ pub async fn discard(ctx: &Rc<dyn GitCtx>, ask: DiscardAsk, origin: Option<Calle
     let entry = ctx.entry_of(&ask.workspace_id, origin, EntryAsk { thread: thread.clone(), ..EntryAsk::default() }).await?;
     ctx.copy_blocked(&entry).await?;
     if ask.check == Some(true) {
-        let cwd = ctx.checkout_of(&record_of(&entry));
+        let cwd = ctx.checkout_of(&record_of(&entry))?;
         let status: GitStatusReply = read_as(ask_daemon(ctx, &entry, json!({ "op": "git.status", "cwd": cwd })).await?)?;
         let unread = status.edits_unread;
         if !unread && !status.entries.iter().any(|e| e.xy != "!!" && e.path == ask.path) {
@@ -667,7 +667,7 @@ pub async fn discard(ctx: &Rc<dyn GitCtx>, ask: DiscardAsk, origin: Option<Calle
         let c = ctx.clone();
         let e = entry.clone();
         Box::pin(async move {
-            let cwd = c.checkout_of(&record_of(&e));
+            let cwd = c.checkout_of(&record_of(&e))?;
             ask_daemon(&c, &e, json!({ "op": "git.discard", "cwd": cwd, "path": path })).await
         })
     };
@@ -702,7 +702,7 @@ pub async fn commit(ctx: &Rc<dyn GitCtx>, ask: CommitAsk, origin: Option<Caller>
         .entry_of(&ask.workspace_id, origin, EntryAsk { act: Some(AcrossAct::Commit), thread: thread.clone(), ..EntryAsk::default() })
         .await?;
     ctx.copy_blocked(&entry).await?;
-    let cwd = ctx.checkout_of(&record_of(&entry));
+    let cwd = ctx.checkout_of(&record_of(&entry))?;
     let label = ctx.label_of(&entry, thread.as_deref());
     let paths = ask.paths.clone();
     let message = ask.message.clone();
@@ -819,7 +819,7 @@ pub async fn commit_draft(ctx: &Rc<dyn GitCtx>, ask: CommitDraftAsk, origin: Opt
         Some(model) => model,
         None => return Ok(draft_empty(&draft_note("noAgent"))),
     };
-    let cwd = ctx.checkout_of(&record_of(&entry));
+    let cwd = ctx.checkout_of(&record_of(&entry))?;
     let paths = ask.paths.clone();
     let diff: GitDiffReply = {
         let mut op = json!({ "op": "git.diff", "cwd": cwd, "scope": "head" });
@@ -1121,8 +1121,11 @@ pub async fn fix(ctx: &Rc<dyn GitCtx>, ask: FixAsk, origin: Option<Caller>) -> R
             Some(branch) => branch,
             None => kid_record.worktree.as_ref().and_then(|w| w.branch.clone()).unwrap_or_default(),
         };
-        let remote =
-            if wsp_catalog::git_hosts::remote_host(&project.remote).is_none() { ctx.checkout_of(&kid_record) } else { "origin".to_owned() };
+        let remote = if wsp_catalog::git_hosts::remote_host(&project.remote).is_none() {
+            ctx.checkout_of(&kid_record)?
+        } else {
+            "origin".to_owned()
+        };
         let conflicts = kid_record.tree.as_ref().and_then(|t| t.conflicts.clone()).unwrap_or_default();
         let prompt = merge_child_prompt(&MergeChild { lead_branch: lead_branch.clone(), child_branch, remote, conflicts });
         (prompt, lead_branch)
@@ -1369,14 +1372,15 @@ pub async fn merge_in(ctx: &Rc<dyn GitCtx>, ask: MergeInAsk, origin: Option<Call
         if !ctx.is_local_workspace(&lead_record) || !ctx.is_local_workspace(&kid_record) {
             return Err(HostError::new(no_remote_for_tree_line(&project.name)));
         }
-        from = Some(ctx.checkout_of(&kid_record));
+        from = Some(ctx.checkout_of(&kid_record)?);
     }
     let lead_id = lead_record.id.clone();
     let c = ctx.clone();
     let l = lead.clone();
     let asked_branch = branch.clone();
     let work: Queued<Value> = Box::pin(async move {
-        let mut op = json!({ "op": "git.mergeIn", "cwd": c.checkout_of(&record_of(&l)), "branch": asked_branch });
+        let cwd = c.checkout_of(&record_of(&l))?;
+        let mut op = json!({ "op": "git.mergeIn", "cwd": cwd, "branch": asked_branch });
         if let Some(from) = &from {
             op["from"] = json!(from);
         }

@@ -51,8 +51,12 @@ impl Projects {
         self.ctx.ready().await?;
         let scoped = scope_of(origin.as_ref()).is_some();
         let held: Vec<ProjectView> = self.ctx.projects_held().borrow().values().cloned().collect();
-        let mut served: Vec<ProjectView> =
-            held.into_iter().filter(|project| !scoped || self.ctx.project_reached(origin.as_ref(), &project.id)).collect();
+        let mut served: Vec<ProjectView> = Vec::new();
+        for project in held {
+            if !scoped || self.ctx.project_reached(origin.as_ref(), &project.id)? {
+                served.push(project);
+            }
+        }
         served.sort_by(|a, b| collate(&a.created_at, &b.created_at));
         Ok(served)
     }
@@ -111,13 +115,13 @@ impl Projects {
             let Some(found) = found else {
                 return Err(not_found_refusal(&bare_no_such_project_line(reference)));
             };
-            if self.ctx.project_reached(origin.as_ref(), &found.id) {
+            if self.ctx.project_reached(origin.as_ref(), &found.id)? {
                 return Ok(found);
             }
-            if let Some(away) = self.ctx.elsewhere_refusal(origin.as_ref(), &found, reference) {
+            if let Some(away) = self.ctx.elsewhere_refusal(origin.as_ref(), &found, reference)? {
                 return Err(away);
             }
-            if self.ctx.of_threads_repository(origin.as_ref(), &found.id) {
+            if self.ctx.of_threads_repository(origin.as_ref(), &found.id)? {
                 return Err(usage_refusal(&spawn_folder_refusal(&scope.thread_id, reference), SPAWN_FOLDER_FIX));
             }
             let mine_name = self.ctx.project_held(&mine)?.name;
@@ -270,7 +274,7 @@ impl Projects {
         }
         if let Some(top) = project.git.as_ref().map(|git| git.top.clone()) {
             if self.ctx.has_state_path() && copies_folder(&kind_for_computer(&project.computer, None)) {
-                let home = self.ctx.state_folder();
+                let home = self.ctx.state_folder()?;
                 if let Some(Err(e)) = self.ctx.copier_worktree_forget(&top, &home, &project.id).await {
                     warn(&format!("the frozen copies of {}'s worktrees stayed: {}", project.name, e.message));
                 }

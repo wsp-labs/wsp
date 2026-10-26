@@ -35,7 +35,7 @@ pub use wsp_wire::views::workspace_more::WorktreeAsk;
 /// What the folders area reads off the runtime context, past `Base`.
 #[async_trait(?Send)]
 pub trait FoldersCtx: Base {
-    fn state_folder(&self) -> String;
+    fn state_folder(&self) -> Result<String, HostError>;
     /// `ctx.opts.statePath !== undefined`.
     fn has_state_path(&self) -> bool;
     /// `local?.copier !== undefined`.
@@ -58,7 +58,7 @@ pub trait FoldersCtx: Base {
     /// `ctx.projectsDoor.resolve(word, origin)`.
     async fn resolve_project(&self, word: &str, origin: Option<Caller>) -> Result<ProjectView, HostError>;
     /// `ctx.elsewhereRefusal(origin, project, word)`.
-    fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &ProjectView, word: &str) -> Option<HostError>;
+    fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &ProjectView, word: &str) -> Result<Option<HostError>, HostError>;
     /// `ctx.picksHold(project, picks)` (start_from's).
     async fn picks_hold(&self, project: &ProjectView, picks: &StartPicksAsked) -> Result<(), HostError>;
     /// `ctx.branchAt(path)`.

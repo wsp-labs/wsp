@@ -270,7 +270,7 @@ impl Folders {
             }
             let ask = WorktreeAsk {
                 from: top.clone(),
-                home: me.ctx.state_folder(),
+                home: me.ctx.state_folder()?,
                 project: project.id.clone(),
                 branch: branch.clone(),
                 modules: carry_modules(),
@@ -408,7 +408,7 @@ impl Folders {
         if !tree.made || tree.gone.is_some() || !self.ctx.has_copier() || !Path::new(&tree.path).exists() {
             return Ok(());
         }
-        let home = self.ctx.state_folder();
+        let home = self.ctx.state_folder()?;
         if let Err(e) = self.ctx.copier_worktree_mount(&top, &home, &tree.path).await {
             warn(&format!("the worktree at {} was not mounted again: {}", tree.path, e.message));
         }
@@ -550,7 +550,7 @@ impl Folders {
             _ => None,
         };
         if let (Some(elsewhere), Some(word)) = (&elsewhere, &ask.project) {
-            if let Some(away) = ctx.elsewhere_refusal(origin.as_ref(), elsewhere, word) {
+            if let Some(away) = ctx.elsewhere_refusal(origin.as_ref(), elsewhere, word)? {
                 return Err(away);
             }
         }
@@ -637,7 +637,7 @@ impl Folders {
             return Err(HostError::with_kind(no_branches_line(&project.name), Kind::Usage));
         };
         let checkout = match &beside {
-            Some(entry) => ctx.checkout_of(&record_of(entry)),
+            Some(entry) => ctx.checkout_of(&record_of(entry))?,
             None => project.path.clone(),
         };
         if ctx.branch_at(&checkout).await?.as_deref() == Some(branch.as_str()) {

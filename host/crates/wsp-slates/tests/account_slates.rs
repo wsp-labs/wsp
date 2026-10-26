@@ -716,7 +716,12 @@ struct NoLink;
 
 #[async_trait::async_trait(?Send)]
 impl MachineLink for NoLink {
-    async fn request(&self, _op: &str, _params: serde_json::Map<String, Value>, _ask: LinkAsk) -> wsp_engine::errors::Result<serde_json::Map<String, Value>> {
+    async fn request(
+        &self,
+        _op: &str,
+        _params: serde_json::Map<String, Value>,
+        _ask: LinkAsk,
+    ) -> wsp_engine::errors::Result<serde_json::Map<String, Value>> {
         Err(EngineError::Other { message: "no link".into(), code: None })
     }
     async fn forward(&self, _place_port: u16) -> wsp_engine::errors::Result<u16> {

@@ -93,7 +93,7 @@ pub trait Base {
     /// `ctx.gitHere(cwd, args, timeoutMs, input)`.
     async fn git_here(&self, ask: GitAsk) -> Result<ExecResult, HostError>;
     /// `ctx.checkoutOf(record)`.
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String;
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError>;
     async fn preferences(&self) -> Result<Preferences, HostError>;
     /// `ctx.writeDaemonRoots(entry, strict?)`.
     async fn write_daemon_roots(&self, entry: &Entry, strict: bool) -> Result<(), HostError>;

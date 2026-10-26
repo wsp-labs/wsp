@@ -1006,25 +1006,25 @@ fn seen_by_shows_a_thread_its_tree_only() {
     let doctor = json!({ "type": "doctor.line", "doctorId": "d_1", "line": "spoo answers", "stream": "out" });
 
     // the person sees everything and asks nothing
-    assert!(door::seen_by(&h.ctx, &doctor, None));
-    assert!(door::seen_by(&h.ctx, &doctor, Some(&person())));
+    assert!(door::seen_by(&h.ctx, &doctor, None).unwrap());
+    assert!(door::seen_by(&h.ctx, &doctor, Some(&person())).unwrap());
     assert!(h.base().names().is_empty());
 
     // a thread: an event that names no workspace, or one no record holds, is hidden
-    assert!(!door::seen_by(&h.ctx, &doctor, scope.as_ref()));
-    assert!(!door::seen_by(&h.ctx, &json!({ "type": "workspace.review", "workspaceId": "ws_nobody" }), scope.as_ref()));
+    assert!(!door::seen_by(&h.ctx, &doctor, scope.as_ref()).unwrap());
+    assert!(!door::seen_by(&h.ctx, &json!({ "type": "workspace.review", "workspaceId": "ws_nobody" }), scope.as_ref()).unwrap());
 
     // an event on behalf of a thread reads the asker alone
     let asked = |t: &str, r: &str| json!({ "type": "workspace.creating", "workspaceId": "ws_nobody", "askedBy": { "threadId": t, "rootThreadId": r } });
-    assert!(door::seen_by(&h.ctx, &asked("th_1", "th_other"), scope.as_ref()));
-    assert!(door::seen_by(&h.ctx, &asked("th_2", "th_root"), scope.as_ref()));
-    assert!(!door::seen_by(&h.ctx, &asked("th_2", "th_other"), scope.as_ref()));
+    assert!(door::seen_by(&h.ctx, &asked("th_1", "th_other"), scope.as_ref()).unwrap());
+    assert!(door::seen_by(&h.ctx, &asked("th_2", "th_root"), scope.as_ref()).unwrap());
+    assert!(!door::seen_by(&h.ctx, &asked("th_2", "th_other"), scope.as_ref()).unwrap());
 
     // a workspace event reads the workspace's own rule, named by the event, its workspace or its status
-    assert!(door::seen_by(&h.ctx, &json!({ "type": "workspace.review", "workspaceId": "ws_1" }), scope.as_ref()));
-    assert!(!door::seen_by(&h.ctx, &json!({ "type": "workspace.review", "workspaceId": "ws_2" }), scope.as_ref()));
-    assert!(!door::seen_by(&h.ctx, &json!({ "type": "workspace.created", "workspace": { "id": "ws_2" } }), scope.as_ref()));
-    assert!(door::seen_by(&h.ctx, &json!({ "type": "workspace.status", "status": { "id": "ws_1" } }), scope.as_ref()));
+    assert!(door::seen_by(&h.ctx, &json!({ "type": "workspace.review", "workspaceId": "ws_1" }), scope.as_ref()).unwrap());
+    assert!(!door::seen_by(&h.ctx, &json!({ "type": "workspace.review", "workspaceId": "ws_2" }), scope.as_ref()).unwrap());
+    assert!(!door::seen_by(&h.ctx, &json!({ "type": "workspace.created", "workspace": { "id": "ws_2" } }), scope.as_ref()).unwrap());
+    assert!(door::seen_by(&h.ctx, &json!({ "type": "workspace.status", "status": { "id": "ws_1" } }), scope.as_ref()).unwrap());
     let ruled: Vec<Value> = h.base().args_of("refusal_for").iter().map(|a| a["id"].clone()).collect();
     assert_eq!(ruled, vec![json!("ws_1"), json!("ws_2"), json!("ws_2"), json!("ws_1")]);
     assert!(h.base().args_of("reaches_row").is_empty());
@@ -1040,14 +1040,16 @@ fn seen_by_reads_an_events_thread_row() {
     h.base().answer_with("refusal_for", vec![json!("not this tree's")]);
     let scope = lead_scope();
     let on_cloud = |t: &str| json!({ "type": "session.done", "workspaceId": "ws_cloud", "threadId": t, "turnId": "t" });
-    assert!(door::seen_by(&h.ctx, &on_cloud("th_mine"), scope.as_ref()));
-    assert!(!door::seen_by(&h.ctx, &on_cloud("th_theirs"), scope.as_ref()));
+    assert!(door::seen_by(&h.ctx, &on_cloud("th_mine"), scope.as_ref()).unwrap());
+    assert!(!door::seen_by(&h.ctx, &on_cloud("th_theirs"), scope.as_ref()).unwrap());
     let rows: Vec<Value> = h.base().args_of("reaches_row").iter().map(|a| json!([a["thread"], a["workspace"]])).collect();
     assert_eq!(rows, vec![json!(["th_mine", "ws_cloud"]), json!(["th_theirs", "ws_cloud"])]);
     // the thread row decides, so the workspace's own rule is never read for it
     assert!(h.base().args_of("refusal_for").is_empty());
     // an event with no thread string falls back to the workspace's rule
-    assert!(!door::seen_by(&h.ctx, &json!({ "type": "workspace.review", "workspaceId": "ws_cloud", "threadId": 4 }), scope.as_ref()));
+    assert!(
+        !door::seen_by(&h.ctx, &json!({ "type": "workspace.review", "workspaceId": "ws_cloud", "threadId": 4 }), scope.as_ref()).unwrap()
+    );
     assert_eq!(h.base().args_of("refusal_for").len(), 1);
 }
 
@@ -1071,26 +1073,26 @@ fn shown_to_prunes_children_the_thread_may_not_see() {
 
     // the person, and an event that is no status tree: as given, asking nothing
     let event = status_event(&["ws_a", "ws_b"]);
-    assert_eq!(door::shown_to(&h.ctx, event.clone(), None), event);
-    assert_eq!(door::shown_to(&h.ctx, event.clone(), Some(&person())), event);
+    assert_eq!(door::shown_to(&h.ctx, event.clone(), None).unwrap(), event);
+    assert_eq!(door::shown_to(&h.ctx, event.clone(), Some(&person())).unwrap(), event);
     let other = json!({ "type": "workspace.review", "workspaceId": "ws_1" });
-    assert_eq!(door::shown_to(&h.ctx, other.clone(), scope.as_ref()), other);
+    assert_eq!(door::shown_to(&h.ctx, other.clone(), scope.as_ref()).unwrap(), other);
     let bare = json!({ "type": "workspace.status", "status": { "id": "ws_1", "phase": "running" } });
-    assert_eq!(door::shown_to(&h.ctx, bare.clone(), scope.as_ref()), bare);
+    assert_eq!(door::shown_to(&h.ctx, bare.clone(), scope.as_ref()).unwrap(), bare);
     assert!(h.base().args_of("refusal_for").is_empty());
 
     // every child kept: the event as given
     let all = status_event(&["ws_a"]);
-    assert_eq!(door::shown_to(&h.ctx, all.clone(), scope.as_ref()), all);
+    assert_eq!(door::shown_to(&h.ctx, all.clone(), scope.as_ref()).unwrap(), all);
 
     // one refused and one with no live record: pruned, tree last among the status keys, the others in place
-    let got = door::shown_to(&h.ctx, status_event(&["ws_a", "ws_b", "ws_gone"]), scope.as_ref());
+    let got = door::shown_to(&h.ctx, status_event(&["ws_a", "ws_b", "ws_gone"]), scope.as_ref()).unwrap();
     let want = json!({ "type": "workspace.status", "seq": 4, "status": { "id": "ws_1", "name": "lead", "phase": "running",
         "tree": { "lead": "ws_1", "children": [{ "workspaceId": "ws_a", "name": "ws_a" }] } } });
     assert_eq!(serde_json::to_string(&got).unwrap(), serde_json::to_string(&want).unwrap());
 
     // none kept: the status without its tree
-    let got = door::shown_to(&h.ctx, status_event(&["ws_b", "ws_gone"]), scope.as_ref());
+    let got = door::shown_to(&h.ctx, status_event(&["ws_b", "ws_gone"]), scope.as_ref()).unwrap();
     let want = json!({ "type": "workspace.status", "seq": 4, "status": { "id": "ws_1", "name": "lead", "phase": "running" } });
     assert_eq!(serde_json::to_string(&got).unwrap(), serde_json::to_string(&want).unwrap());
 

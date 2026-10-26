@@ -231,8 +231,10 @@ impl Socket {
         let by = self.road.borrow().by.clone();
         if let Some(by) = by {
             if !asked.is_some_and(|op| THREAD_OPS.contains(&op)) {
-                let place = self.served.rt.workspaces().thread_place(&by);
-                let line = thread_op_refusal(asked.unwrap_or("that frame"), &by.thread_id, place.as_deref());
+                let line = match self.served.rt.workspaces().thread_place(&by) {
+                    Ok(place) => thread_op_refusal(asked.unwrap_or("that frame"), &by.thread_id, place.as_deref()),
+                    Err(e) => e.message,
+                };
                 self.answer(Some(&frame), failure(asked_id, &line), None);
                 return;
             }

@@ -205,12 +205,12 @@ fn io_error(e: std::io::Error) -> HostError {
 
 /// The file store. images.ts:84-134.
 pub struct ProjectIcons {
-    dir: Rc<dyn Fn() -> PathBuf>,
+    dir: Rc<dyn Fn() -> Result<PathBuf, HostError>>,
     ids: Rc<dyn Ids>,
 }
 
 /// `projectIcons(dir)`: the file store over the folder `dir` names, the random part of a write's name from `ids`.
-pub fn project_icons(dir: Rc<dyn Fn() -> PathBuf>, ids: Rc<dyn Ids>) -> ProjectIcons {
+pub fn project_icons(dir: Rc<dyn Fn() -> Result<PathBuf, HostError>>, ids: Rc<dyn Ids>) -> ProjectIcons {
     ProjectIcons { dir, ids }
 }
 
@@ -219,7 +219,7 @@ impl ProjectIcons {
     pub fn keep(&self, png: &[u8]) -> Result<String, HostError> {
         let bytes = kept_project_icon(png)?;
         let hash = hex::encode(Sha256::digest(&bytes));
-        let folder = (self.dir)();
+        let folder = (self.dir)()?;
         fs::DirBuilder::new().recursive(true).mode(0o700).create(&folder).map_err(io_error)?;
         let part = folder.join(format!(".{hash}.{}.part", hex::encode(self.ids.bytes(4))));
         let mut file = fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(&part).map_err(io_error)?;
@@ -230,8 +230,8 @@ impl ProjectIcons {
     }
 
     /// Each hash's image as a data url, read from disk now; None for a hash not kept or not a hash.
-    pub fn read(&self, hashes: &[String]) -> IndexMap<String, Option<String>> {
-        let folder = (self.dir)();
+    pub fn read(&self, hashes: &[String]) -> Result<IndexMap<String, Option<String>>, HostError> {
+        let folder = (self.dir)()?;
         let mut out = IndexMap::new();
         for hash in hashes {
             let image = if is_hash(hash) {
@@ -243,18 +243,18 @@ impl ProjectIcons {
             };
             out.insert(hash.clone(), image);
         }
-        out
+        Ok(out)
     }
 
     /// Whether the image is kept: its file is in the folder's listing now.
-    pub fn holds(&self, hash: &str) -> bool {
+    pub fn holds(&self, hash: &str) -> Result<bool, HostError> {
         let name = format!("{hash}.png");
-        is_hash(hash) && listed(&(self.dir)()).contains(&name)
+        Ok(is_hash(hash) && listed(&(self.dir)()?).contains(&name))
     }
 
     /// Deletes every kept image whose hash is not in `named`, and every part a cut write left.
-    pub fn sweep(&self, named: &IndexSet<String>) {
-        let folder = (self.dir)();
+    pub fn sweep(&self, named: &IndexSet<String>) -> Result<(), HostError> {
+        let folder = (self.dir)()?;
         for name in listed(&folder) {
             if kept_hash_of(&name).is_some_and(|hash| !named.contains(hash)) {
                 let _ = fs::remove_file(folder.join(&name));
@@ -265,13 +265,14 @@ impl ProjectIcons {
                 let _ = fs::remove_file(folder.join(&name));
             }
         }
+        Ok(())
     }
 }
 
 /// What the image area reads off the runtime context. images.ts:137-190.
 #[async_trait(?Send)]
 pub trait ProjectIconsCtx {
-    fn state_folder(&self) -> PathBuf;
+    fn state_folder(&self) -> Result<PathBuf, HostError>;
     /// `ctx.opts.statePath !== undefined`: a host with no state file keeps no files.
     fn has_state_path(&self) -> bool;
     async fn ready(&self) -> Result<(), HostError>;
@@ -352,7 +353,7 @@ async fn sweep_now(ctx: &dyn ProjectIconsCtx, images: &ProjectIcons) -> Result<(
         }
     }
     if ctx.has_state_path() {
-        images.sweep(&named);
+        images.sweep(&named)?;
     }
     Ok(())
 }
@@ -360,7 +361,7 @@ async fn sweep_now(ctx: &dyn ProjectIconsCtx, images: &ProjectIcons) -> Result<(
 /// Builds the area over `<state folder>/project-icons` and listens for `recipes.changed`.
 pub fn project_icons_area(ctx: Rc<dyn ProjectIconsCtx>) -> Rc<ProjectIconsArea> {
     let folder_ctx = ctx.clone();
-    let images = Rc::new(project_icons(Rc::new(move || folder_ctx.state_folder().join("project-icons")), ctx.ids()));
+    let images = Rc::new(project_icons(Rc::new(move || folder_ctx.state_folder().map(|folder| folder.join("project-icons"))), ctx.ids()));
     let work: Rc<RefCell<Option<IconTurn>>> = Rc::new(RefCell::new(None));
     let (listener_ctx, listener_images, listener_work) = (ctx.clone(), images.clone(), work.clone());
     ctx.on_recipes_changed(Rc::new(move || {
@@ -399,7 +400,7 @@ impl ProjectIconsArea {
         if !self.ctx.has_state_path() {
             return Ok(hashes.into_iter().map(|hash| (hash, None)).collect());
         }
-        Ok(self.images.read(&hashes))
+        self.images.read(&hashes)
     }
 
     /// Drops the project's look and its image, then sweeps.
@@ -430,7 +431,7 @@ impl ProjectIconsArea {
                 let Some(hash) = hash else {
                     return Ok(());
                 };
-                if !ctx.has_state_path() || !images.holds(&hash) {
+                if !ctx.has_state_path() || !images.holds(&hash)? {
                     return Ok(());
                 }
                 change_named(&*ctx, &project, Some(hash)).await

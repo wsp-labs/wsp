@@ -5,6 +5,7 @@
 use std::rc::Rc;
 
 use async_trait::async_trait;
+use futures::FutureExt;
 use indexmap::IndexSet;
 use serde_json::{json, Value};
 use wsp_core::console::warn;
@@ -126,7 +127,7 @@ pub trait StartFromCtx: Base {
     /// `accessWordRefusal(catalog, access)`.
     fn access_word_refusal(&self, catalog: &HarnessCatalog, access: &AccessChoice) -> Option<HostError>;
     /// `ctx.namedMode(catalog, harness, access)`.
-    fn named_mode(&self, catalog: &HarnessCatalog, harness: &str, access: &AccessChoice) -> Option<String>;
+    fn named_mode(&self, catalog: &HarnessCatalog, harness: &str, access: &AccessChoice) -> Result<Option<String>, HostError>;
     /// `startPicks(catalog, picks, true)` throwing, as `notRunRefused(catalog, model) ?? pickRefusal(e, catalog)`.
     fn start_picks_refusal(&self, catalog: &HarnessCatalog, picks: &StartPicksAsked) -> Option<HostError>;
     /// `ctx.sessionsApi.start(workspaceId, opts, origin)`, answering `handle.view()`.
@@ -404,9 +405,15 @@ impl StartFrom {
         if let Some(fact) = &fact {
             if !has_head {
                 let number = fact.number.get();
-                let checkout = self.ctx.checkout_of(&record_of(&entry));
-                let work: DaemonWork =
-                    Box::new(move |ask: DaemonAsk| ask(json!({ "op": "git.prCheckout", "cwd": checkout, "number": number })));
+                let ctx = self.ctx.clone();
+                let record = record_of(&entry);
+                let work: DaemonWork = Box::new(move |ask: DaemonAsk| {
+                    async move {
+                        let cwd = ctx.checkout_of(&record)?;
+                        ask(json!({ "op": "git.prCheckout", "cwd": cwd, "number": number })).await
+                    }
+                    .boxed_local()
+                });
                 if let Err(e) = self.ctx.with_daemon(&entry, work).await {
                     let id = record_of(&entry).id;
                     if let Err(d) = self.ctx.delete_workspace(&id, origin.clone()).await {
@@ -530,7 +537,7 @@ impl StartFrom {
         }
         let named = match (&o.permission_mode, &o.access) {
             (Some(mode), _) => Some(mode.clone()),
-            (None, Some(access)) => self.ctx.named_mode(&resolved.catalog, &harness, access),
+            (None, Some(access)) => self.ctx.named_mode(&resolved.catalog, &harness, access)?,
             (None, None) => None,
         };
         let picks = StartPicksAsked {
@@ -684,8 +691,14 @@ impl StartFrom {
             return Ok(Some(pr_behind_words::by_head(number, &path, &project.remote)));
         }
         let branch = fact.branch.clone();
-        let checkout = self.ctx.checkout_of(&record);
-        let work: DaemonWork = Box::new(move |ask: DaemonAsk| ask(json!({ "op": "git.update", "cwd": checkout, "base": branch })));
+        let ctx = self.ctx.clone();
+        let work: DaemonWork = Box::new(move |ask: DaemonAsk| {
+            async move {
+                let cwd = ctx.checkout_of(&record)?;
+                ask(json!({ "op": "git.update", "cwd": cwd, "base": branch })).await
+            }
+            .boxed_local()
+        });
         let updated = match self.asking_in(entry.clone()).await {
             Ok(home) => self.ctx.with_daemon(&home, work).await,
             Err(e) => Err(e),

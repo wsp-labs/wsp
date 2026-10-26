@@ -18,7 +18,7 @@ fn ctx_throws_checkout_of_passes_through_bring_back() {
         w.base.checkout_fail.replace(Some(plain("cart is not a project this host holds")));
         let got = area::bring_back(&w.ctx, "ws1", None, None, origin()).await;
         refusal(got, "cart is not a project this host holds", None);
-        assert_eq!(w.base.names(), vec!["entry_of", "copy_blocked"]);
+        assert_eq!(w.base.names(), vec!["spawn_guard", "entry_of", "copy_blocked"]);
         assert!(w.base.asks().is_empty(), "no daemon op after the throw");
     });
 }

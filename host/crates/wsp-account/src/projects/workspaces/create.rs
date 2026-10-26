@@ -47,12 +47,12 @@ pub trait CreateCtx: Base {
     /// `ctx.landingBackend(placeId).capabilities`.
     async fn landing_capabilities(&self, place_id: Option<&str>) -> Result<Capabilities, HostError>;
     /// `ctx.backendOfKind(kind, place).capabilities`.
-    fn backend_capabilities(&self, kind: WorkspaceKind, place: Option<&str>) -> Capabilities;
+    fn backend_capabilities(&self, kind: WorkspaceKind, place: Option<&str>) -> Result<Capabilities, HostError>;
     /// `ctx.actRefusal(scope, act)`.
-    fn act_refusal(&self, scope: &ThreadScope, act: &str) -> HostError;
+    fn act_refusal(&self, scope: &ThreadScope, act: &str) -> Result<HostError, HostError>;
     /// `ctx.spawnSub(opts, origin)`.
     async fn spawn_sub(&self, opts: CreateWorkspaceOptions, origin: Option<Caller>) -> Result<CreatedWorkspace, HostError>;
-    fn place_of_thread(&self, scope: &ThreadScope) -> Option<String>;
+    fn place_of_thread(&self, scope: &ThreadScope) -> Result<Option<String>, HostError>;
     /// `ctx.nameGiven(name)`.
     fn name_given(&self, name: &str) -> String;
     fn refuse_recording(&self, word: &str, origin: Option<&Caller>) -> Result<(), HostError>;
@@ -114,16 +114,16 @@ pub trait CreateCtx: Base {
     ) -> WorkspaceView;
     /// `await ctx.bootWork.get(id)`.
     async fn boot_work(&self, id: &str);
-    fn listed_for(&self, origin: Option<&Caller>) -> Vec<Entry>;
+    fn listed_for(&self, origin: Option<&Caller>) -> Result<Vec<Entry>, HostError>;
     fn held(&self) -> Vec<Entry>;
     fn drives(&self, view: &WorkspaceView, origin: Option<&Caller>) -> bool;
     fn talks_to_tree_on(&self, id: &str, origin: Option<&Caller>) -> bool;
     fn project_of_scope(&self, origin: Option<&Caller>) -> Option<String>;
-    fn refusal_for(&self, record: Option<&WorkspaceRecord>, origin: Option<&Caller>) -> Option<String>;
-    fn of_threads_repository(&self, origin: Option<&Caller>, project_id: &str) -> bool;
-    fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &ProjectView, word: &str) -> Option<HostError>;
-    fn away_for(&self, record: &WorkspaceRecord, origin: Option<&Caller>, act: &str, word: &str) -> Option<HostError>;
-    fn project_reached(&self, origin: Option<&Caller>, project_id: &str) -> bool;
+    fn refusal_for(&self, record: Option<&WorkspaceRecord>, origin: Option<&Caller>) -> Result<Option<String>, HostError>;
+    fn of_threads_repository(&self, origin: Option<&Caller>, project_id: &str) -> Result<bool, HostError>;
+    fn elsewhere_refusal(&self, origin: Option<&Caller>, project: &ProjectView, word: &str) -> Result<Option<HostError>, HostError>;
+    fn away_for(&self, record: &WorkspaceRecord, origin: Option<&Caller>, act: &str, word: &str) -> Result<Option<HostError>, HostError>;
+    fn project_reached(&self, origin: Option<&Caller>, project_id: &str) -> Result<bool, HostError>;
     /// `placeDoor?.find(word)`: the names of the places it names.
     async fn find_places(&self, word: &str) -> Result<Vec<String>, HostError>;
     /// `ctx.createStages`, in insertion order.
@@ -151,7 +151,7 @@ pub async fn landing(ctx: &Rc<dyn CreateCtx>, project: &str, sized: bool, origin
     ctx.ready().await?;
     let asked = scope_of(origin.as_ref());
     if let (Some(scope), true) = (&asked, sized) {
-        return Err(ctx.act_refusal(scope, "size"));
+        return Err(ctx.act_refusal(scope, "size")?);
     }
     let project = ctx.resolve_project(project, origin.clone()).await?;
     let computer = project.computer.clone();
@@ -162,7 +162,7 @@ pub async fn landing(ctx: &Rc<dyn CreateCtx>, project: &str, sized: bool, origin
             WorkspaceLands::Here | WorkspaceLands::Wired => None,
         };
         let name = ctx.place_name(place.as_deref().unwrap_or(HERE_PLACE_ID));
-        let capabilities = ctx.backend_capabilities(kind, place.as_deref());
+        let capabilities = ctx.backend_capabilities(kind, place.as_deref())?;
         return Ok(Landing { place, name, capabilities, kind: Some(kind) });
     }
     let place_id = ctx.landing_place(&computer).await?;
@@ -413,11 +413,11 @@ pub async fn create(ctx: &Rc<dyn CreateCtx>, opts: CreateWorkspaceOptions, origi
     let asked = scope_of(origin.as_ref());
     if let Some(scope) = &asked {
         if opts.golden.is_some() {
-            let on = ctx.place_of_thread(scope);
+            let on = ctx.place_of_thread(scope)?;
             return Err(HostError::with_kind(spawn_golden_refusal(&scope.thread_id, on.as_deref()), Kind::Usage));
         }
         if opts.spec.cpu.is_some() || opts.spec.mem_mb.is_some() {
-            return Err(ctx.act_refusal(scope, "size"));
+            return Err(ctx.act_refusal(scope, "size")?);
         }
     }
     if let (Some(_), Some(parent)) = (&asked, &opts.parent) {
@@ -449,7 +449,7 @@ pub async fn create(ctx: &Rc<dyn CreateCtx>, opts: CreateWorkspaceOptions, origi
             return Err(invalid(copy_takes_none(&project.name, &words, computer.as_deref())));
         }
         if let (Some(scope), Some(_)) = (&asked, &o.agents) {
-            return Err(ctx.act_refusal(scope, "agents"));
+            return Err(ctx.act_refusal(scope, "agents")?);
         }
         let folder = ctx.project_folder(&project).await?;
         if let Some(agents) = &o.agents {
@@ -491,7 +491,7 @@ pub async fn create(ctx: &Rc<dyn CreateCtx>, opts: CreateWorkspaceOptions, origi
     let spawned = scope_of(origin.as_ref());
     if let (Some(scope), Some(_)) = (&spawned, &o.agents) {
         free_place();
-        return Err(ctx.act_refusal(scope, "agents"));
+        return Err(ctx.act_refusal(scope, "agents")?);
     }
     if let Some(taken) = ctx.name_refusal(&o.name) {
         free_place();
@@ -589,7 +589,7 @@ pub async fn held_or_creating(ctx: &Rc<dyn CreateCtx>, id: &str) -> Result<Optio
 //|     },
 pub async fn list(ctx: &Rc<dyn CreateCtx>, origin: Option<Caller>) -> Result<Vec<WorkspaceView>, HostError> {
     ctx.ready().await?;
-    let listed: Vec<WorkspaceView> = ctx.listed_for(origin.as_ref()).iter().map(|e| ctx.view(&record_of(e))).collect();
+    let listed: Vec<WorkspaceView> = ctx.listed_for(origin.as_ref())?.iter().map(|e| ctx.view(&record_of(e))).collect();
     if scope_of(origin.as_ref()).is_some() {
         return Ok(listed);
     }
@@ -660,7 +660,7 @@ pub async fn list(ctx: &Rc<dyn CreateCtx>, origin: Option<Caller>) -> Result<Vec
 pub async fn resolve(ctx: &Rc<dyn CreateCtx>, reference: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
     ctx.ready().await?;
     let scope = scope_of(origin.as_ref());
-    let rows: Vec<Entry> = if scope.is_none() { ctx.held() } else { ctx.listed_for(origin.as_ref()) };
+    let rows: Vec<Entry> = if scope.is_none() { ctx.held() } else { ctx.listed_for(origin.as_ref())? };
     let tree: Option<Entry> = if scope.is_none() {
         None
     } else {
@@ -708,9 +708,9 @@ async fn resolve_absent(
         };
         if let (Some(theirs), Some(mine)) = (&theirs, &mine) {
             let their_record = record_of(theirs);
-            if ctx.refusal_for(Some(&their_record), origin.as_ref()).is_some() {
+            if ctx.refusal_for(Some(&their_record), origin.as_ref())?.is_some() {
                 let project = ctx.project_held(&their_record.project)?;
-                if !ctx.of_threads_repository(origin.as_ref(), &project.id) {
+                if !ctx.of_threads_repository(origin.as_ref(), &project.id)? {
                     let mine_name = ctx.project_held(mine)?.name;
                     return Err(refusal(
                         &spawn_repository_workspace_refusal(&scope.thread_id, &mine_name, reference),
@@ -719,15 +719,15 @@ async fn resolve_absent(
                     ));
                 }
                 let away = if runs_in_folder(&their_record.kind) {
-                    ctx.elsewhere_refusal(origin.as_ref(), &project, reference)
+                    ctx.elsewhere_refusal(origin.as_ref(), &project, reference)?
                 } else {
-                    ctx.away_for(&their_record, origin.as_ref(), "work", reference)
+                    ctx.away_for(&their_record, origin.as_ref(), "work", reference)?
                 };
                 if let Some(away) = away {
                     return Err(away);
                 }
                 let folder = runs_in_folder(&ctx.kind_of(&project.computer));
-                if !ctx.project_reached(origin.as_ref(), &project.id) && folder {
+                if !ctx.project_reached(origin.as_ref(), &project.id)? && folder {
                     return Err(refusal(&spawn_folder_refusal(&scope.thread_id, reference), SPAWN_FOLDER_FIX, Some(Kind::Usage)));
                 }
                 return Err(refusal(

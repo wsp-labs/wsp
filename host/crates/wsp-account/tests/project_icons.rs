@@ -172,7 +172,7 @@ mod the_file_store {
     fn keep_writes_the_hash_file_at_0600_under_a_0700_folder_and_leaves_no_part() {
         let (_root, dir) = icons_dir();
         let d = dir.clone();
-        let icons = project_icons(Rc::new(move || d.clone()), TestIds::new());
+        let icons = project_icons(Rc::new(move || Ok(d.clone())), TestIds::new());
         let hash = icons.keep(&file_of(&case("text and phys dropped"))).unwrap();
         assert_eq!(hash, kept_hash("text and phys dropped"));
         let file = dir.join(format!("{hash}.png"));
@@ -186,10 +186,10 @@ mod the_file_store {
     fn read_answers_each_hash_in_order_from_disk_null_for_a_bad_hash_or_missing_file() {
         let (_root, dir) = icons_dir();
         let d = dir.clone();
-        let icons = project_icons(Rc::new(move || d.clone()), TestIds::new());
+        let icons = project_icons(Rc::new(move || Ok(d.clone())), TestIds::new());
         let hash = icons.keep(&good()).unwrap();
         let other = "0".repeat(64);
-        let read = icons.read(&[other.clone(), hash.clone(), "../etc/passwd".to_owned(), hash.clone()]);
+        let read = icons.read(&[other.clone(), hash.clone(), "../etc/passwd".to_owned(), hash.clone()]).unwrap();
         assert_eq!(read.keys().cloned().collect::<Vec<_>>(), vec![other.clone(), hash.clone(), "../etc/passwd".to_owned()]);
         assert_eq!(read[&other], None);
         assert_eq!(read["../etc/passwd"], None);
@@ -199,32 +199,32 @@ mod the_file_store {
         assert_eq!(bytes, std::fs::read(dir.join(format!("{hash}.png"))).unwrap());
         // Read from disk at each ask: a file gone by hand reads as none at the next.
         std::fs::remove_file(dir.join(format!("{hash}.png"))).unwrap();
-        assert_eq!(icons.read(std::slice::from_ref(&hash))[&hash], None);
+        assert_eq!(icons.read(std::slice::from_ref(&hash)).unwrap()[&hash], None);
     }
 
     #[test]
     fn holds_reads_the_listing_now() {
         let (_root, dir) = icons_dir();
         let d = dir.clone();
-        let icons = project_icons(Rc::new(move || d.clone()), TestIds::new());
-        assert!(!icons.holds(&"a".repeat(64)), "a folder not made yet holds nothing");
+        let icons = project_icons(Rc::new(move || Ok(d.clone())), TestIds::new());
+        assert!(!icons.holds(&"a".repeat(64)).unwrap(), "a folder not made yet holds nothing");
         let hash = icons.keep(&good()).unwrap();
-        assert!(icons.holds(&hash));
+        assert!(icons.holds(&hash).unwrap());
         std::fs::remove_file(dir.join(format!("{hash}.png"))).unwrap();
-        assert!(!icons.holds(&hash));
+        assert!(!icons.holds(&hash).unwrap());
     }
 
     #[test]
     fn sweep_deletes_unnamed_hashes_and_every_part_and_leaves_other_names() {
         let (_root, dir) = icons_dir();
         let d = dir.clone();
-        let icons = project_icons(Rc::new(move || d.clone()), TestIds::new());
+        let icons = project_icons(Rc::new(move || Ok(d.clone())), TestIds::new());
         let a = icons.keep(&good()).unwrap();
         let b = icons.keep(&file_of(&case("good rgb"))).unwrap();
         std::fs::write(dir.join(format!(".{a}.deadbeef.part")), b"cut").unwrap();
         std::fs::write(dir.join("notes.txt"), b"mine").unwrap();
         std::fs::write(dir.join("ABC.png"), b"not a hash").unwrap();
-        icons.sweep(&IndexSet::from([a.clone()]));
+        icons.sweep(&IndexSet::from([a.clone()])).unwrap();
         let mut want = vec![format!("{a}.png"), "ABC.png".to_owned(), "notes.txt".to_owned()];
         want.sort();
         assert_eq!(listing(&dir), want);
@@ -466,7 +466,7 @@ mod a_projects_image_over_the_area {
         run(async {
             let h = host(Some(Ok(vec![])), true);
             let d = h.dir.clone();
-            let kept = project_icons(Rc::new(move || d.clone()), TestIds::new()).keep(&good()).unwrap();
+            let kept = project_icons(Rc::new(move || Ok(d.clone())), TestIds::new()).keep(&good()).unwrap();
             h.area.wear("pr_lab", Some("c".repeat(64))).await.unwrap();
             h.area.wear("pr_lab", None).await.unwrap();
             assert_eq!(icons_json(&h.ctx.prefs.borrow()), json!({}));
