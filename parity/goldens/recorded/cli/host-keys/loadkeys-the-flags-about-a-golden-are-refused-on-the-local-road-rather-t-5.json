@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp init: no folder at <tmp>/scratch/wsp-keys-<temp>/cwd. Give --project a folder that is already here, or drop the flag and let the run ask.\n"
+    }
+  ],
+  "events": []
+}

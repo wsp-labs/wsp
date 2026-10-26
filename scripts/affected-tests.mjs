@@ -36,13 +36,19 @@ const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+|\brequire\s*\(\s*|n
 /** Folders outside the workspace packages that tests read by path, and the tests that read them: no import names
  * these, so the graph cannot see them. A top folder missing here runs the whole suite. */
 const OUTSIDE = {
+  // The cargo alias for xtask, which no node test reads.
+  ".cargo": [],
   // No test reads the repo's own agent skills.
   ".claude": [],
   ".githooks": ["packages/host/test/githooks.test.ts", "packages/host/test/hooks-path.test.ts"],
   daemon: ["packages/protocol/", "packages/engine/", "packages/runtime/", "packages/daemon/", "packages/host/", "packages/wspx/"],
   // Read by the license law alone, which runs on every change.
   docs: [],
+  // The tapes and goldens, read by cargo xtask parity alone.
+  parity: [],
   skills: ["packages/host/", "packages/wspx/", "apps/desktop/"],
+  // Its own cargo tests; no node test reads it.
+  xtask: [],
 };
 
 const args = process.argv.slice(2);

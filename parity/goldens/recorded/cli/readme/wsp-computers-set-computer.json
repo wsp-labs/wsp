@@ -1,0 +1,10 @@
+{
+  "replies": [
+    {
+      "exit": 3,
+      "stdout": "",
+      "stderr": "wsp computers set: no place named <computer>; you have <computer>. Run wsp computers.\n"
+    }
+  ],
+  "events": []
+}
