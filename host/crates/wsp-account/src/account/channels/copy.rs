@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::channel::oneshot;
-use futures::future::{select, Either, FutureExt, LocalBoxFuture, Shared};
+use futures::future::{join_all, select, Either, FutureExt, LocalBoxFuture, Shared};
 use indexmap::{IndexMap, IndexSet};
 use serde_json::{json, Map, Value};
 
@@ -240,6 +240,12 @@ impl DaemonChannel for CopyChannel {
         sent.insert("cwd".to_string(), cwd);
         if let Some(minted) = &minted {
             let mut env = Map::new();
+            // A JS object lists its index keys first, whatever order they were set in.
+            if let Some(Value::Array(items)) = asked.get("env") {
+                for (i, value) in items.iter().enumerate() {
+                    env.insert(i.to_string(), value.clone());
+                }
+            }
             for (key, value) in self.area.ctx.thread_env(&self.entry) {
                 env.insert(key, Value::String(value));
             }
@@ -257,7 +263,7 @@ impl DaemonChannel for CopyChannel {
             Ok(reply) => reply,
             Err(e) => {
                 if let Some(minted) = &minted {
-                    self.area.revoke_shell_token(&minted.device_id).await;
+                    self.area.revoke_shell_tokens(std::slice::from_ref(&minted.device_id)).await;
                 }
                 return Err(e);
             }
@@ -268,7 +274,7 @@ impl DaemonChannel for CopyChannel {
         let going = self.entry.borrow().deleting.is_some() || !self.area.ctx.live_has(&self.workspace_id);
         match reply.get("ptyId").and_then(Value::as_str) {
             Some(pty) if is_ok(&reply) && !going => self.area.shell_opened(&self.workspace_id, pty, &minted.device_id).await,
-            _ => self.area.revoke_shell_token(&minted.device_id).await,
+            _ => self.area.revoke_shell_tokens(std::slice::from_ref(&minted.device_id)).await,
         }
         Ok(reply)
     }
@@ -520,9 +526,7 @@ impl ChannelsArea {
             return;
         }
         self.keep_shell_tokens(workspace_id).await;
-        for device in gone {
-            self.revoke_shell_token(&device).await;
-        }
+        self.revoke_shell_tokens(&gone).await;
     }
 
     /// C9, channels.ts:764.
@@ -769,10 +773,15 @@ impl ChannelsArea {
         shared.await;
     }
 
-    /// C9, channels.ts:735: a revoke that fails warns and the shell's end stands.
-    async fn revoke_shell_token(&self, device_id: &str) {
-        if let Err(e) = self.ctx.device_door().revoke(device_id).await {
-            self.ctx.warn(&format!("the token of a shell was not taken away: {}", e.message));
+    /// C9, channels.ts:735 and :760: every revoke is asked before any answer is waited on; a revoke that fails warns and
+    /// the shell's end stands.
+    async fn revoke_shell_tokens(&self, device_ids: &[String]) {
+        let door = self.ctx.device_door();
+        let answers = join_all(device_ids.iter().map(|device_id| door.revoke(device_id))).await;
+        for answer in answers {
+            if let Err(e) = answer {
+                self.ctx.warn(&format!("the token of a shell was not taken away: {}", e.message));
+            }
         }
     }
 

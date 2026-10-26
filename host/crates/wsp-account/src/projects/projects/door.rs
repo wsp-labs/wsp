@@ -162,9 +162,16 @@ impl Projects {
         let project = self.resolve(id, None).await?;
         let at = self.landing_deps(&project.computer).await?;
         let road = self.ctx.landing_road(self.landing_kind(&project.computer));
+        if !road.takes_files() {
+            return Err(HostError::new(format!(
+                "{} keeps no folder of its own on {} to copy files into",
+                project.name, at.deps.computer_name
+            )));
+        }
         let choice = wsp_wire::views::workspace::SeedChoice { files, memory: false, commits: false, remember: None };
+        let wiring = self.seed_wiring()?;
         let homes = self.ctx.homes_here().await?;
-        let packed = self.seed_wiring()?.pack(plan, choice, &homes).await?;
+        let packed = wiring.pack(plan, choice, &homes).await?;
         match road.seed_into(&project, packed.tar, &at.deps).await {
             Some(seeded) => seeded,
             None => {
