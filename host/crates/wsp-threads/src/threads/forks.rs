@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Port of `packages/runtime/src/threads/forks.ts` at 65f6b89c7: a fork read off the thread it forks, every refusal
 //! said before anything is written. Free functions over the context, as the TS's are. Spec: `spec/forks.md`.
+use crate::threads::transcripts::kept::base64_of;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -409,23 +410,6 @@ pub async fn copy_images(ctx: &Rc<dyn ForksCtx>, plan: &ForkPlan, workspace_id: 
         ctx.keep_sent_images(workspace_id, thread_id, request_id.map(String::from), images).await;
     }
     Ok(())
-}
-
-/// Lowercase base64 with padding, the RFC 4648 alphabet, as `Buffer.toString("base64")` writes it.
-fn base64_of(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::new();
-    for chunk in bytes.chunks(3) {
-        let n = chunk.iter().enumerate().fold(0u32, |acc, (i, b)| acc | (u32::from(*b) << (16 - 8 * i)));
-        for i in 0..4 {
-            if i <= chunk.len() {
-                out.push(ALPHABET[((n >> (18 - 6 * i)) & 63) as usize] as char);
-            } else {
-                out.push('=');
-            }
-        }
-    }
-    out
 }
 
 /// Readies a fork of one of a harness's sessions through a turn, the agent's refusal said in the caller's words.

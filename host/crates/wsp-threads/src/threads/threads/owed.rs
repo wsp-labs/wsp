@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! threads_owed: lines into threads, kept until a turn takes them, and the cut end. threads.ts:24-62, 586-955.
 //! Spec: spec/threads_owed.md.
+use crate::threads::transcripts::kept::base64_of;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -599,23 +600,6 @@ fn cut_short(rx: oneshot::Receiver<TurnResult>) -> LocalBoxFuture<'static, TurnR
         }
     }
     .boxed_local()
-}
-
-/// Lowercase base64 with padding, the RFC 4648 alphabet, as `Buffer.toString("base64")` writes it.
-fn base64_of(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::new();
-    for chunk in bytes.chunks(3) {
-        let n = chunk.iter().enumerate().fold(0u32, |acc, (i, b)| acc | (u32::from(*b) << (16 - 8 * i)));
-        for i in 0..4 {
-            if i <= chunk.len() {
-                out.push(ALPHABET[((n >> (18 - 6 * i)) & 63) as usize] as char);
-            } else {
-                out.push('=');
-            }
-        }
-    }
-    out
 }
 
 impl ThreadsArea {
