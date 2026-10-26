@@ -54,7 +54,7 @@ fn sub_row() -> wsp_wire::views::sub_row::SubRow {
 #[test]
 fn facts_after_read_waits_for_the_sub_threads_read() {
     common::run_local(async {
-        let w = world(json!([view("r1", "a", "t1", json!({"status": "completed", "startedAt": 1, "endedAt": T0 - 5000})), view("r2", "b", "t2", json!({"status": "running", "startedAt": 2})), view("r3", "a", "t3", json!({}))]), json!({})).await;
+        let w = world(json!([view("r1", "a", "t1", json!({"status": "completed", "startedAt": 1, "endedAt": T0 - 5000})), view("r2", "b", "t2", json!({"status": "running", "startedAt": 2})), view("r3", "c", "t3", json!({}))]), json!({})).await;
         w.rt.sub_rows.borrow_mut().insert("a".into(), sub_row());
         w.rt.sub_rows.borrow_mut().insert("b".into(), sub_row());
         let row = w.rt.sessions.borrow().get("r1").cloned().unwrap();
@@ -71,12 +71,19 @@ fn facts_after_read_waits_for_the_sub_threads_read() {
         assert!(ended.sub.is_some());
         let running = w.area.facts_after_read("t2", None).await.expect("facts").expect("a thread");
         assert_eq!(running.model.as_deref(), Some("m-after"));
-        assert_eq!(w.log.take(), vec![json!(["subRead", "a", T0 - 5000]), json!(["subRead", "b", T0])], "since is the end of an ended turn and now for a running one");
+        assert_eq!(
+            w.log.take(),
+            vec![json!(["refuseRelayed", "a", null, null, null]), json!(["subRead", "a", T0 - 5000]), json!(["refuseRelayed", "b", null, null, null]), json!(["subRead", "b", T0])],
+            "entryOf asks refuseRelayed before each read (boot.ts:636, 666); since is the end of an ended turn and now for a running one"
+        );
 
+        w.log.clear();
         let none = w.area.facts_after_read("t3", None).await.expect("facts").expect("a thread");
         assert!(none.sub.is_none());
         let out_of_reach = w.area.facts_after_read("t1", Some(&thread_caller())).await.expect("facts").expect("a thread");
-        assert!(w.log.take().is_empty(), "a thread with no sub and a caller out of reach wait on nothing");
+        let said = w.log.take();
+        let asked: Vec<&str> = said.iter().map(|e| e[0].as_str().unwrap_or("")).collect();
+        assert_eq!(asked, ["drivesThread"], "a thread with no sub waits on nothing and a caller out of reach is asked once and read no sub (boot.ts:657): {said:?}");
         assert_eq!(out_of_reach.model.as_deref(), Some("m-after"), "the facts as they stand");
     });
 }
@@ -90,7 +97,7 @@ fn push_head_carries_the_facts_and_the_index_pos() {
         w.rt.index_pos.borrow_mut().insert("a".into(), 7);
         w.area.push_head("t1").expect("push");
         w.area.push_head("nobody").expect("push");
-        let facts = json!({"id": "t1", "threadId": "t1", "workspaceId": "a", "harness": "claude", "startedBy": "person", "status": "completed", "title": "r1", "sessionId": "r1", "startedAt": 1, "readAt": T0, "turns": 1, "ran": true});
+        let facts = json!({"id": "t1", "threadId": "t1", "workspaceId": "a", "harness": "claude", "startedBy": "person", "status": "completed", "title": "r1", "sessionId": "r1", "startedAt": 1, "readAt": T0, "turns": 1, "ran": false});
         let got = w.log.take();
         let scene = json!({"name": "push head", "log": [["emit", {"type": "thread.head", "workspaceId": "a", "threadId": "t1", "facts": facts, "pos": 7}]]});
         common::assert_log(&scene, &got[..1]);
@@ -149,6 +156,7 @@ fn a_turn_start_and_end_each_push_that_threads_one_row() {
             ],
             start,
         );
+        w.log.clear();
         w.rt.inject(json!({"type": "thread.marked", "workspaceId": "a", "threadIds": ["t1"]}));
         w.rt.inject(json!({"type": "session.end", "workspaceId": "a", "sessionId": "s1", "turnId": "turn-1", "threadId": "t1"}));
         w.area.rows_sent().await;
@@ -176,6 +184,7 @@ fn a_nap_moves_every_row_on_the_workspace_and_none_elsewhere() {
             vec![json!(["emit", {"type": "workspace.napped", "workspaceId": "a"}]), pushed("r1", "a", "t1", json!({})), pushed("r2", "a", "t2", json!({}))],
             w.log.take(),
         );
+        w.log.clear();
         w.rt.inject(json!({"type": "workspace.woken", "workspaceId": "b", "machineId": "m-b"}));
         w.area.rows_sent().await;
         assert_log("a wake", vec![json!(["emit", {"type": "workspace.woken", "workspaceId": "b", "machineId": "m-b"}]), pushed("r3", "b", "t3", json!({}))], w.log.take());

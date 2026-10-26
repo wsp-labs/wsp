@@ -1052,6 +1052,10 @@ impl Fake {
         for (k, x) in r.as_object().into_iter().flatten() {
             rec[k] = x.clone();
         }
+        // The record's lead names both its thread and its workspace (sub-spawn.ts:236); the scene names the workspace alone.
+        if let Some(lead) = rec.get_mut("lead").and_then(Value::as_object_mut) {
+            lead.entry("threadId").or_insert(json!("t-lead"));
+        }
         let entry = live_workspace(workspace_record(&rec), FakeMachine::plain(&format!("m-{id}")));
         self.live.borrow_mut().insert(id.to_string(), entry.clone());
         entry
