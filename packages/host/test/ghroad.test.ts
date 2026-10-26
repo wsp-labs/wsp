@@ -4,7 +4,7 @@ import { createServer, request, type IncomingMessage, type Server, type ServerRe
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type GhContext, ghRoad } from "../src/ghroad/api.js";
-import type { BranchOfRecord } from "../src/ghroad/writes.js";
+import type { BranchOfRecord } from "@wsp/protocol";
 
 interface Recorded { label: string; method: string; host: string; path: string; body?: string; read: boolean }
 const GH = JSON.parse(readFileSync(new URL("./ghroad-gh.json", import.meta.url), "utf8")) as { gh: string; requests: Recorded[] };
