@@ -1,0 +1,16 @@
+{
+  "replies": [],
+  "events": [
+    {
+      "id": null,
+      "ok": false,
+      "error": "invalid json"
+    },
+    {
+      "close": {
+        "code": 4401,
+        "reason": "unauthorized"
+      }
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! A structural diff of two JSON answers, each difference named by its field's path, as `replies[2].places[0].name`.
 
+use crate::json;
 use serde_json::Value;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -73,7 +74,7 @@ fn around_first_difference(a: &str, b: &str) -> (String, String) {
     let cut = |c: &[char]| {
         let end = (at + 60).min(c.len());
         let piece: String = c[from.min(c.len())..end].iter().collect();
-        format!("{}{}{}", if from > 0 { "..." } else { "" }, Value::from(piece), if end < c.len() { "..." } else { "" })
+        format!("{}{}{}", if from > 0 { "..." } else { "" }, json::write(&Value::from(piece)), if end < c.len() { "..." } else { "" })
     };
     (cut(&ac), cut(&bc))
 }
@@ -81,7 +82,7 @@ fn around_first_difference(a: &str, b: &str) -> (String, String) {
 /// A value as a difference prints it, cut so one line stays one line.
 fn shown(v: Option<&Value>) -> String {
     let Some(v) = v else { return "(absent)".into() };
-    let text = v.to_string();
+    let text = json::write(v);
     if text.chars().count() <= 120 {
         return text;
     }

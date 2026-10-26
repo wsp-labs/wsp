@@ -1,0 +1,68 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": "abc",
+      "ok": true,
+      "projects": []
+    },
+    {
+      "id": 3.5,
+      "ok": true,
+      "projects": []
+    }
+  ],
+  "events": [
+    {
+      "id": null,
+      "ok": false,
+      "error": {
+        "json": [
+          {
+            "code": "invalid_union",
+            "unionErrors": [
+              {
+                "issues": [
+                  {
+                    "code": "invalid_type",
+                    "expected": "string",
+                    "received": "undefined",
+                    "path": [
+                      "id"
+                    ],
+                    "message": "Required"
+                  }
+                ],
+                "name": "ZodError"
+              },
+              {
+                "issues": [
+                  {
+                    "code": "invalid_type",
+                    "expected": "number",
+                    "received": "undefined",
+                    "path": [
+                      "id"
+                    ],
+                    "message": "Required"
+                  }
+                ],
+                "name": "ZodError"
+              }
+            ],
+            "path": [
+              "id"
+            ],
+            "message": "Invalid input"
+          }
+        ],
+        "layout": "indented"
+      }
+    }
+  ]
+}

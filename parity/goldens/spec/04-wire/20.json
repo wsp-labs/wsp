@@ -1,0 +1,35 @@
+{
+  "replies": [
+    {
+      "id": 1,
+      "ok": true,
+      "version": "<version>",
+      "road": "up"
+    },
+    {
+      "id": 2,
+      "ok": true,
+      "projects": []
+    },
+    {
+      "id": 3,
+      "ok": false,
+      "error": {
+        "json": [
+          {
+            "code": "unrecognized_keys",
+            "keys": [
+              "extra"
+            ],
+            "path": [
+              "patch"
+            ],
+            "message": "Unrecognized key(s) in object: 'extra'"
+          }
+        ],
+        "layout": "indented"
+      }
+    }
+  ],
+  "events": []
+}

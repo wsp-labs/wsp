@@ -3,6 +3,7 @@
 //! each tape, on a temp home and state folder. The TS host is `node packages/host/dist/bin.js`; the Rust host is the
 //! same command line in one binary, so it plugs in as another program for the same `ProcessHost`.
 
+use crate::json;
 use crate::normalize::{iso_ms, minted, Facts, EPOCH_MS};
 use crate::seed::Order;
 use crate::tape::{Door, Tape};
@@ -463,11 +464,11 @@ fn mint(host: &Running, wait: Duration) -> Result<(String, String), String> {
     let (mut socket, _) = tungstenite::client::client(format!("ws://127.0.0.1:{}/ws", host.port), stream)
         .map_err(|e| format!("open a socket to mint: {e}"))?;
     let mut ask = |frame: Value| -> Result<Value, String> {
-        socket.send(Message::text(frame.to_string())).map_err(|e| format!("mint: {e}"))?;
+        socket.send(Message::text(json::write(&frame))).map_err(|e| format!("mint: {e}"))?;
         loop {
             match socket.read().map_err(|e| format!("mint: {e}"))? {
                 Message::Text(t) => {
-                    let v: Value = serde_json::from_str(t.as_str()).map_err(|e| format!("mint: {e}"))?;
+                    let v = json::read(t.as_str()).map_err(|e| format!("mint: {e}"))?;
                     if v.get("id") == frame.get("id") {
                         return Ok(v);
                     }
@@ -488,7 +489,7 @@ fn mint(host: &Running, wait: Duration) -> Result<(String, String), String> {
 }
 
 fn ws(tape: &Tape, order: &mut Order, host: &Running, wait: Duration) -> Result<(Vec<Value>, Vec<Value>), String> {
-    let text_of = |v: &Value| v.to_string();
+    let text_of = |v: &Value| json::write(v);
     let joins = tape.ins.iter().any(|f| f.get("publicKey").and_then(Value::as_str) == Some(JOINER_KEY));
     let mints = tape.ins.iter().any(|f| text_of(f).contains(JOIN_CODE));
     let mut joiner = if joins { Some(Joiner::new(if mints { Some(mint(host, wait)?) } else { None })?) } else { None };
@@ -531,7 +532,7 @@ fn ws(tape: &Tape, order: &mut Order, host: &Running, wait: Duration) -> Result<
             }
             let text = match &sent {
                 Value::String(raw) => raw.clone(),
-                other => other.to_string(),
+                other => json::write(other),
             };
             let message = match seal.as_mut() {
                 Some(s) => Message::binary(s.seal(&text)),
@@ -612,7 +613,7 @@ enum Heard {
 
 /// One frame off the socket; once a place link is sealed, a binary frame opened under the seal.
 fn read(socket: &mut WebSocket<TcpStream>, seal: Option<&mut wsp_seal::Seal>) -> Heard {
-    let text = |t: &str| Heard::Frame(serde_json::from_str(t).unwrap_or_else(|_| Value::String(t.to_string())));
+    let text = |t: &str| Heard::Frame(json::read(t).unwrap_or_else(|_| Value::String(t.to_string())));
     match socket.read() {
         Ok(Message::Text(t)) => text(t.as_str()),
         Ok(Message::Binary(b)) => match seal.and_then(|s| s.unseal(&b)) {
@@ -686,7 +687,7 @@ fn mcp(tape: &Tape, place: &Place, program: &[String], wait: Duration) -> Result
     let mut got: HashMap<String, VecDeque<Value>> = HashMap::new();
     let mut events = Vec::new();
     let mut take = |line: String, waiting: &mut Vec<String>, events: &mut Vec<Value>| {
-        let frame: Value = serde_json::from_str(&line).unwrap_or(Value::String(line));
+        let frame = json::read(&line).unwrap_or(Value::String(line));
         match request_id(&frame).filter(|id| frame.get("method").is_none() && waiting.contains(id)) {
             Some(id) => {
                 waiting.remove(waiting.iter().position(|w| *w == id).expect("waiting"));
@@ -702,7 +703,7 @@ fn mcp(tape: &Tape, place: &Place, program: &[String], wait: Duration) -> Result
             waiting.push(id);
         }
         if let Some(pipe) = stdin.as_mut() {
-            if writeln!(pipe, "{frame}").is_err() {
+            if writeln!(pipe, "{}", json::write(frame)).is_err() {
                 stdin = None;
             }
         }
