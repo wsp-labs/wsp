@@ -69,6 +69,8 @@ pub struct Knobs {
     pub checkout_failure: RefCell<Option<HostError>>,
     /// When set, `kind_has_daemon` answers this error (the TS `moduleOf(kind).hasDaemon` throws on an unwired kind).
     pub kind_has_daemon_failure: RefCell<Option<HostError>>,
+    /// When set, `connect_daemon` answers this error (the TS `connectDaemon` throws on options it cannot dial).
+    pub connect_failure: RefCell<Option<HostError>>,
 }
 
 impl Knobs {
@@ -90,6 +92,7 @@ impl Knobs {
             project_held_failure: RefCell::new(None),
             checkout_failure: RefCell::new(None),
             kind_has_daemon_failure: RefCell::new(None),
+            connect_failure: RefCell::new(None),
         }
     }
 }
@@ -438,8 +441,11 @@ impl ReachCtx for FakeHost {
         token: &str,
         on_event: Rc<dyn Fn(DaemonEvent)>,
         heartbeat_ms: Option<i64>,
-    ) -> Rc<dyn DaemonReach> {
+    ) -> AreaResult<Rc<dyn DaemonReach>> {
         self.call("connect_daemon", &[preview_url, token]);
+        if let Some(e) = knobs().connect_failure.borrow().clone() {
+            return Err(AreaError::Host(e));
+        }
         let plan = plan();
         plan.dials.borrow_mut().push(Dial {
             preview_url: preview_url.to_string(),
@@ -466,7 +472,7 @@ impl ReachCtx for FakeHost {
                 .boxed_local(),
             );
         }
-        link
+        Ok(link)
     }
     fn project_held(&self, id: &str) -> AreaResult<ProjectView> {
         if let Some(e) = knobs().project_held_failure.borrow().clone() {
