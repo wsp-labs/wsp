@@ -1,22 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { collect, expand, nodeHost, seedMenu, type Host, type Manifest, type Rung } from "@wsp/collect";
-import { HARNESS_ADAPTERS, createRuntime, hostIdentity, localExecStream, type GoldenRecipe, type GoldenVersion, type HarnessAdapterFactory, type LocalWiring, type Machine, type PlaceWiring, type Runtime, type SeedWiring, type Store } from "@wsp/runtime";
+import { dirname, join } from "node:path";
+import { nodeHost, seedMenu } from "@wsp/collect";
+import { HARNESS_ADAPTERS, createRuntime, hostIdentity, localExecStream, type GoldenRecipe, type HarnessAdapterFactory, type LocalWiring, type Machine, type PlaceWiring, type Runtime, type SeedWiring, type Store } from "@wsp/runtime";
 import { CATALOG_AGENTS, GOLDEN_SETUP, GOLDEN_SMOKE } from "@wsp/catalog";
-import { PRICES_URL, PERSON_HOME_ENV, providerKeyStillLine, type KeyStill, type SealedImage } from "@wsp/protocol";
+import { PRICES_URL, PERSON_HOME_ENV, providerKeyStillLine, type KeyStill } from "@wsp/protocol";
 import { agentHome, type Copier, LocalBackend, providerSlot, type ProviderSlot, verbCopier } from "@wsp/engine";
 import { cloudRoads, noMachinesLine, PROVIDER_ENV, PROVIDER_MODULES, placeIdOf, providerBackendFor, providerPlaces, wiredPlaceRow, wiredProviderId, type ProviderEnv, type ProviderModule } from "../providers.js";
 import { daemonBinaryHere } from "../assets.js";
 import { DAEMON_DEPLOYED_LINE, cappedLine, claudeEnvs, deployDaemon } from "../doctor.js";
 import { daemonFixLine } from "../daemon-fix.js";
 import { envFileFor, keyIn, serverVault, writeEnvFile, type Keys } from "../env-keys.js";
-import { loginEnv, loginFolders } from "../login-path.js";
+import { loginEnv } from "../login-path.js";
 import { CACHE_RULE } from "../project-bundle.js";
 import { packSeed } from "../project-seed.js";
-import { readBrewTable } from "../init-brew.js";
-import { copyGoldenRecipe } from "../image-recipe.js";
 import { hostInboxDir, hostReadingsDir, hostRootsPath, hostRunDir } from "../host-lock.js";
 import type { LocalDaemon, LocalDaemonOptions } from "../local-daemon.js";
 import { startOnce } from "../start-once.js";
@@ -370,7 +367,6 @@ export function makeRuntime(
     // this computer, and the host's pack of whichever rows the person ticked.
     seed: hostSeed(),
     goldenRecipe: recipe,
-    copyRecipe: hostCopyRecipe(statePath),
     hostId: hostIdentity(),
     vaultCaches: CACHE_RULE,
     // Ready only while a host serves this runtime: a line that never serves keeps every turn on today's road.
@@ -392,35 +388,3 @@ export function hostSeed(): SeedWiring {
     pack: ({ homes, ...o }) => packSeed({ ...o, claudeStateHome: homes["claude"]! }),
   };
 }
-
-/** How a copy of the image is planned on this computer for a serving host: the same readers wsp init builds from,
- * the keys as they stand at the ask rather than at the start, and the daemon deploy every build made here gets. */
-function hostCopyRecipe(statePath: string): (image: SealedImage, at: { cloud: boolean }) => Promise<GoldenRecipe> {
-  return (image, at) =>
-    copyGoldenRecipe(image, {
-      cloud: at.cloud,
-      collect: () => collectThisComputer(() => {}),
-      brew: () => readBrewTable(nodeHost()),
-      home: homedir(),
-      platform: hostPlatform(),
-      vault: serverVault(statePath),
-      deployDaemon: deployHostDaemon,
-    });
-}
-
-/** The collector's ladder over this laptop; onRung lets the terminal count rows as each rung lands. Its logins are
- * looked for where the login shell keeps them, which a launch by launchd or a service was not handed. */
-export function collectThisComputer(onRung: (rung: Rung, rows: number) => void, host: Host = nodeHost()): Promise<Manifest> {
-  return collect({ ...host, ...loginFolders() }, { onRung });
-}
-
-/** A folder a `~/`-relative answer or a flag named: where it is, and whether there is one there. The one place both
- * the flag and the wizard's own question resolve a folder. */
-export function projectFolder(folder: string): { path: string; exists: boolean } {
-  const path = resolve(expand({ home: homedir() }, folder.trim()));
-  return { path, exists: existsSync(path) };
-}
-
-/** The envs a new workspace forks with: Claude Code's config dir and the browser shim of the golden it forks from.
- * No sign-in among them; the vault sets the token and the key on each turn instead. */
-export const workspaceEnvsFor = (): { workspaceEnvs: (golden: GoldenVersion) => Record<string, string> } => ({ workspaceEnvs: golden => claudeEnvs(golden) });

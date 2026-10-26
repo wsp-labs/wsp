@@ -230,21 +230,6 @@ describe("Add a tool server", () => {
     expect(go().disabled).toBe(false);
   });
 
-  it("says so where no agent there keeps servers, and is not offered on a copy of the image or where acts are held", () => {
-    host();
-    const bare: AgentsReport = { ...AGENTS_REPORT, agents: AGENTS_REPORT.agents.filter(a => a.id === "pi") };
-    render(<List report={bare} />);
-    openForm();
-    expect(panel().querySelector("[data-settings-line=add-server-none]")?.textContent).toBe(W.noServerAgents("spoo"));
-    cleanup();
-    render(<List ctx={{ heldWhy: "away" }} />);
-    tab("Tool servers");
-    expect(panel().querySelector<HTMLButtonElement>("[data-k=kind-add]")!.disabled).toBe(true);
-    cleanup();
-    render(<List ctx={{ where: "fork", editImage: () => {} }} />);
-    tab("Tool servers");
-    expect(panel().querySelector("[data-k=kind-add]")?.textContent).toBe(W.editImage);
-  });
 });
 
 describe("Turn off, turn on and Remove", () => {

@@ -200,7 +200,6 @@ impl Shell {
             Asked::ComputerSettings(id) => this.go(Route::Screen(format!("{SETTINGS}:computer:{id}").into()), window, cx),
         });
         let page = crate::sidebar::host_page(&state);
-        screens::terminal::boot::read_from(page.clone(), cx);
         let (pair_state, pair_env) = (state.clone(), env.clone());
         let (bought, alias) = (dialogs::pair::bought(cx), crate::desktop::hosts::picked(cx));
         let connecting = runtime.spawn(async move {

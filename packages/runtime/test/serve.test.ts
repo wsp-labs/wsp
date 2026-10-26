@@ -5,7 +5,7 @@ import { once } from "node:events";
 import { connect, type Socket } from "node:net";
 import WebSocket from "ws";
 import { keyFingerprint } from "@wsp/engine";
-import { AUTH_DEADLINE_CLOSE, DAEMON_AUTH_DEADLINE_PASSED, DAEMON_PRE_AUTH_BYTES_EXCEEDED, DOCTOR_UNSERVED, REQUEST_NOT_AN_OBJECT, doctorRowRefusal, doctorRunningLine, HERE_PLACE_ID, HOST_STOPPING_CLOSE, noSuchPlaceRefusal, tableName, PLACE_LINK_NONCE_BYTES, placeLinkTranscript, SEAL_CLIENT, SEAL_UNSERVED, SealOpenReply, WS_PATH, type AdapterEvent, type DoctorLineEvent, type ForwardEvent, type InitJob, type PortForward, type TurnResult } from "@wsp/protocol";
+import { AUTH_DEADLINE_CLOSE, DAEMON_AUTH_DEADLINE_PASSED, DAEMON_PRE_AUTH_BYTES_EXCEEDED, DOCTOR_UNSERVED, REQUEST_NOT_AN_OBJECT, doctorRowRefusal, doctorRunningLine, HERE_PLACE_ID, HOST_STOPPING_CLOSE, noSuchPlaceRefusal, tableName, PLACE_LINK_NONCE_BYTES, placeLinkTranscript, SEAL_CLIENT, SEAL_UNSERVED, SealOpenReply, WS_PATH, type AdapterEvent, type DoctorLineEvent, type ForwardEvent, type PortForward, type TurnResult } from "@wsp/protocol";
 import { copyKey, createRuntime, type HarnessAdapterFactory, type HarnessSession, type HarnessStartOptions, type InitDoor, type Runtime } from "../src/runtime.js";
 import { newPlaceKeyPair, verifyPlaceBytes, type PlaceKeyPair, type PlaceRecord } from "../src/places.js";
 import { freshEphemeral, makeSeal, sealKeys, sharedSecret } from "@wsp/keys";
@@ -13,7 +13,7 @@ import { serveRuntime, type ForwardsSource, type PlaceDoctor, type RuntimeServer
 import { daemonTokenFor } from "../src/daemon-token.js";
 import { memoryStore } from "../src/store.js";
 import { WsClient, createOverWire } from "./ws-client.js";
-import { abortedCall, ownedStore, stubBackend, tokenGuest, type StubBackend } from "./stub-backend.js";
+import { abortedCall, imagedStore, ownedStore, stubBackend, tokenGuest, type StubBackend } from "./stub-backend.js";
 import { fakeClock } from "./fake-clock.js";
 import { until } from "./until.js";
 
@@ -28,7 +28,7 @@ afterEach(async () => {
 });
 
 function rt() {
-  return createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: {} });
+  return createRuntime({ backend: stubBackend(), store: imagedStore(), adapters: {} });
 }
 
 const DAEMON_TOKEN = "cafef00d".repeat(3);
@@ -195,7 +195,7 @@ describe("the key a native client pins before it sends anything", () => {
   /** A runtime with the place wiring every host a person starts has, and the pair it proves itself with. */
   const served = (): { hostKey: PlaceKeyPair; runtime: Runtime } => {
     const hostKey = newPlaceKeyPair();
-    return { hostKey, runtime: createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: {}, placeLinks: { hostKey, provider: () => undefined, here: () => ({ name: "this-mac" }), hostName: () => "this-mac" } }) };
+    return { hostKey, runtime: createRuntime({ backend: stubBackend(), store: imagedStore(), adapters: {}, placeLinks: { hostKey, provider: () => undefined, here: () => ({ name: "this-mac" }), hostName: () => "this-mac" } }) };
   };
 
   /** What a client does before its token crosses: its nonce and its half of a key agreement out, the host's key,
@@ -349,7 +349,7 @@ describe("serveRuntime events", () => {
     const quiet = await WsClient.connect(srv.port, { token: "secret" });
     await sub.request("events.subscribe");
 
-    const created = await createOverWire(sub, "x", { golden: "snap_g" });
+    const created = await createOverWire(sub, "x");
     expect(created.ok).toBe(true);
     await until(() => sub.events.some(e => e.type === "workspace.created"));
     expect(quiet.events).toEqual([]);
@@ -361,7 +361,7 @@ describe("serveRuntime events", () => {
 describe("serveRuntime capabilities", () => {
   it("capabilities.get returns the backend's flags so the UI degrades on facts, not probes", async () => {
     const backend = stubBackend();
-    srv = await serveRuntime(createRuntime({ backend, store: memoryStore(), adapters: {} }), { port: 0, authToken: "secret" });
+    srv = await serveRuntime(createRuntime({ backend, store: imagedStore(), adapters: {} }), { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
     const res = await c.request("capabilities.get");
     expect(res.ok).toBe(true);
@@ -375,7 +375,7 @@ describe("serveRuntime session history", () => {
     const runtime = rt();
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
-    const created = await createOverWire(c, "x", { golden: "snap_g" });
+    const created = await createOverWire(c, "x");
     const id = (created["workspace"] as { id: string }).id;
     const res = await c.request("sessions.history", { workspaceId: id });
     expect(res.ok).toBe(true);
@@ -400,10 +400,10 @@ describe("serveRuntime session history", () => {
         return { localId: "s1", finished, interrupt: async () => {} };
       },
     });
-    const runtime = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: replying } });
+    const runtime = createRuntime({ backend: stubBackend(), store: imagedStore(), adapters: { claude: replying } });
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
-    const workspaceId = ((await createOverWire(c, "x", { golden: "snap_g" }))["workspace"] as { id: string }).id;
+    const workspaceId = ((await createOverWire(c, "x"))["workspace"] as { id: string }).id;
     const handle = await runtime.sessions.start(workspaceId, { prompt: "go" });
     await handle.finished;
     const threadId = handle.view().threadId!;
@@ -438,10 +438,10 @@ describe("serveRuntime session history", () => {
         return { localId: sessionId, finished, interrupt: async () => {} };
       },
     });
-    const runtime = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: said } });
+    const runtime = createRuntime({ backend: stubBackend(), store: imagedStore(), adapters: { claude: said } });
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
-    const workspaceId = ((await createOverWire(c, "x", { golden: "snap_g" }))["workspace"] as { id: string }).id;
+    const workspaceId = ((await createOverWire(c, "x"))["workspace"] as { id: string }).id;
     const one = await runtime.sessions.start(workspaceId, { prompt: "one" });
     await one.finished;
     await (await runtime.sessions.start(workspaceId, { prompt: "two" })).finished;
@@ -508,14 +508,14 @@ function stoppableHarness() {
 describe("serveRuntime harness catalog", () => {
   it("harnesses.list replies with one catalog per harness and sessions.start carries the picks through", async () => {
     const h = stoppableHarness();
-    const runtime = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: h.adapter } });
+    const runtime = createRuntime({ backend: stubBackend(), store: imagedStore(), adapters: { claude: h.adapter } });
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
     const listed = await c.request("harnesses.list");
     const catalogs = listed["harnesses"] as { harness: string; source: string; efforts: { value: string }[] }[];
     expect(catalogs.find(x => x.harness === "claude")?.efforts.map(o => o.value)).toContain("high");
     expect(catalogs.find(x => x.harness === "claude")?.source).toBe("table");
-    const created = await createOverWire(c, "x", { golden: "snap_g" });
+    const created = await createOverWire(c, "x");
     const workspaceId = (created["workspace"] as { id: string }).id;
     // On a workspace the machine is asked; the stub's binary says nothing, so the table answers, marked as such.
     const scoped = await c.request("harnesses.list", { workspaceId });
@@ -544,11 +544,11 @@ describe("serveRuntime session interrupt", () => {
   it.each(table)("$name", async row => {
     const h = stoppableHarness();
     const fc = fakeClock();
-    const runtime = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: h.adapter }, clock: fc.clock });
+    const runtime = createRuntime({ backend: stubBackend(), store: imagedStore(), adapters: { claude: h.adapter }, clock: fc.clock });
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
     await c.request("events.subscribe");
-    const created = await createOverWire(c, "x", { golden: "snap_g" });
+    const created = await createOverWire(c, "x");
     const workspaceId = (created["workspace"] as { id: string }).id;
     const started = await c.request("sessions.start", { workspaceId, prompt: "go" });
     expect(started["session"]).toMatchObject({ id: h.sessionId, status: "running" });
@@ -579,11 +579,11 @@ describe("serveRuntime session interrupt", () => {
 
   it("sessions.steer round-trips: the session.steer event reaches subscribers before the accepted reply, and history holds it", async () => {
     const h = stoppableHarness();
-    const runtime = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: h.adapter } });
+    const runtime = createRuntime({ backend: stubBackend(), store: imagedStore(), adapters: { claude: h.adapter } });
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
     await c.request("events.subscribe");
-    const created = await createOverWire(c, "x", { golden: "snap_g" });
+    const created = await createOverWire(c, "x");
     const workspaceId = (created["workspace"] as { id: string }).id;
     await c.request("sessions.start", { workspaceId, prompt: "go", requestId: "req_1" });
     const arrived: string[] = [];
@@ -608,11 +608,11 @@ describe("serveRuntime session interrupt", () => {
 
   it("a thread the command line starts reaches a window already open: the window hears its start, and the rows it reads then hold it", async () => {
     const h = stoppableHarness();
-    const runtime = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: h.adapter } });
+    const runtime = createRuntime({ backend: stubBackend(), store: imagedStore(), adapters: { claude: h.adapter } });
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const window = await WsClient.connect(srv.port, { token: "secret" });
     await window.request("events.subscribe");
-    const created = await createOverWire(window, "x", { golden: "snap_g" });
+    const created = await createOverWire(window, "x");
     const workspaceId = (created["workspace"] as { id: string }).id;
     // What the window's store does on a start: it reads the workspace's rows again, at once.
     let read: { id: string }[] | undefined;
@@ -633,11 +633,11 @@ describe("serveRuntime session interrupt", () => {
 
   it("sessions.start replies with how the start went: started on a fresh thread, steered when the thread's turn runs and the harness steers, with the running turn as the session", async () => {
     const h = stoppableHarness();
-    const runtime = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: h.adapter } });
+    const runtime = createRuntime({ backend: stubBackend(), store: imagedStore(), adapters: { claude: h.adapter } });
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
     await c.request("events.subscribe");
-    const created = await createOverWire(c, "x", { golden: "snap_g" });
+    const created = await createOverWire(c, "x");
     const workspaceId = (created["workspace"] as { id: string }).id;
     const first = await c.request("sessions.start", { workspaceId, prompt: "go", requestId: "req_1" });
     expect(first).toMatchObject({ ok: true, outcome: "started", turnId: expect.any(String), session: { id: h.sessionId, status: "running" } });
@@ -660,10 +660,10 @@ describe("serveRuntime session interrupt", () => {
 
   it("interrupting the same turn twice is accepted once, then not-running", async () => {
     const h = stoppableHarness();
-    const runtime = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: h.adapter }, clock: fakeClock().clock });
+    const runtime = createRuntime({ backend: stubBackend(), store: imagedStore(), adapters: { claude: h.adapter }, clock: fakeClock().clock });
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
-    const created = await createOverWire(c, "x", { golden: "snap_g" });
+    const created = await createOverWire(c, "x");
     await c.request("sessions.start", { workspaceId: (created["workspace"] as { id: string }).id, prompt: "go" });
     expect((await c.request("sessions.interrupt", { sessionId: h.sessionId }))["outcome"]).toBe("accepted");
     expect((await c.request("sessions.interrupt", { sessionId: h.sessionId }))["outcome"]).toBe("not-running");
@@ -676,9 +676,9 @@ describe("serveRuntime port reach", () => {
   it("workspaces.portReach returns the route a browser frames, without the daemon token; an unknown workspace is refused", async () => {
     const backend = stubBackend();
     backend.execImpl = tokenGuest;
-    srv = await serveRuntime(createRuntime({ backend, store: memoryStore(), adapters: {} }), { port: 0, authToken: "secret" });
+    srv = await serveRuntime(createRuntime({ backend, store: imagedStore(), adapters: {} }), { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
-    const created = await createOverWire(c, "x", { golden: "snap_g" });
+    const created = await createOverWire(c, "x");
     const id = (created["workspace"] as { id: string }).id;
     backend.machines[0]!.previewUrl = async port => ({ url: `https://m1-${port}.preview.example/?pt_token=e`, token: "e", expiresAt: 1_800_000_000_000 });
     const res = await c.request("workspaces.portReach", { workspaceId: id, port: 3000 });
@@ -698,9 +698,9 @@ describe("serveRuntime port reach", () => {
     try {
       const backend = stubBackend();
       backend.execImpl = tokenGuest;
-      srv = await serveRuntime(createRuntime({ backend, store: memoryStore(), adapters: {} }), { port: 0, authToken: "secret" });
+      srv = await serveRuntime(createRuntime({ backend, store: imagedStore(), adapters: {} }), { port: 0, authToken: "secret" });
       const c = await WsClient.connect(srv.port, { token: "secret" });
-      const created = await createOverWire(c, "x", { golden: "snap_g" });
+      const created = await createOverWire(c, "x");
       const id = (created["workspace"] as { id: string }).id;
       backend.machines[0]!.previewUrl = async () => ({ url: `http://127.0.0.1:${guestPort}/?pt_token=e`, token: "e", expiresAt: 1_800_000_000_000 });
       const res = await c.request("workspaces.portProbe", { workspaceId: id, port: 5173 });
@@ -717,9 +717,9 @@ describe("serveRuntime port reach", () => {
 
   it("workspaces.rebuild replies with the workspace on a fresh golden fork and the old machine is dead", async () => {
     const backend = stubBackend();
-    srv = await serveRuntime(createRuntime({ backend, store: memoryStore(), adapters: {} }), { port: 0, authToken: "secret" });
+    srv = await serveRuntime(createRuntime({ backend, store: imagedStore(), adapters: {} }), { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
-    const created = await createOverWire(c, "x", { golden: "snap_g" });
+    const created = await createOverWire(c, "x");
     const id = (created["workspace"] as { id: string }).id;
     const res = await c.request("workspaces.rebuild", { workspaceId: id });
     expect(res.ok).toBe(true);
@@ -776,7 +776,7 @@ describe("serveRuntime golden wizard ops", () => {
   it("golden.prepare defaults to a sandbox with no screen, and the builder's daemon route stays inside this host", async () => {
     const backend = stubBackend();
     backend.execImpl = tokenGuest;
-    const runtime = createRuntime({ backend, store: memoryStore(), adapters: {}, goldenRecipe: recipe, daemonToken: DAEMON_TOKEN });
+    const runtime = createRuntime({ backend, store: imagedStore(), adapters: {}, goldenRecipe: recipe, daemonToken: DAEMON_TOKEN });
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
 
@@ -937,10 +937,10 @@ describe("serveRuntime forwards (the host's, listed and stopped from the app)", 
 describe("serveRuntime thread provenance", () => {
   it("sessions.start records who asked, cli when the request says so and person when it says nothing, and sessions.list carries it", async () => {
     const h = stoppableHarness();
-    const runtime = createRuntime({ backend: stubBackend(), store: memoryStore(), adapters: { claude: h.adapter } });
+    const runtime = createRuntime({ backend: stubBackend(), store: imagedStore(), adapters: { claude: h.adapter } });
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
-    const created = await createOverWire(c, "x", { golden: "snap_g" });
+    const created = await createOverWire(c, "x");
     const workspaceId = (created["workspace"] as { id: string }).id;
     const rows = async (): Promise<string[]> => ((await c.request("sessions.list", { workspaceId }))["sessions"] as { startedBy: string }[]).map(s => s.startedBy);
     const byCli = await c.request("sessions.start", { workspaceId, prompt: "go", startedBy: "cli" });
@@ -991,12 +991,12 @@ const envAdapter = (env: Record<string, string>): HarnessAdapterFactory => () =>
 describe("serveRuntime workspaces.exec", () => {
   it("replies with an exec id, pushes each output line to the asking socket and the exit code last, and pushes nothing to another socket", async () => {
     const backend = stubBackend();
-    const runtime = createRuntime({ backend, store: memoryStore(), adapters: { claude: envAdapter({ CLAUDE_CONFIG_DIR: "/root/.claude", PATH: "/usr/bin" }) } });
+    const runtime = createRuntime({ backend, store: imagedStore(), adapters: { claude: envAdapter({ CLAUDE_CONFIG_DIR: "/root/.claude", PATH: "/usr/bin" }) } });
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
     const other = await WsClient.connect(srv.port, { token: "secret" });
     await other.request("events.subscribe");
-    const created = await createOverWire(c, "x", { golden: "snap_g" });
+    const created = await createOverWire(c, "x");
     const workspaceId = (created["workspace"] as { id: string }).id;
     execGuest(backend, "one\ntwo\n", 3);
 
@@ -1032,10 +1032,10 @@ describe("serveRuntime workspaces.exec", () => {
 
   it("runs the command in the folder the request names, quoted for the machine's shell; without one, in the home, as a harness turn does", async () => {
     const backend = stubBackend();
-    const runtime = createRuntime({ backend, store: memoryStore(), adapters: { claude: envAdapter({ PATH: "/usr/bin" }) } });
+    const runtime = createRuntime({ backend, store: imagedStore(), adapters: { claude: envAdapter({ PATH: "/usr/bin" }) } });
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
-    const created = await createOverWire(c, "x", { golden: "snap_g" });
+    const created = await createOverWire(c, "x");
     const workspaceId = (created["workspace"] as { id: string }).id;
     execGuest(backend, "", 0);
     const scripts = (): string[] => backend.machines[0]!.execLog.filter(cmd => cmd.includes("base64 -d")).map(launch => Buffer.from(/printf %s '([A-Za-z0-9+/=]*)'/.exec(launch)![1]!, "base64").toString("utf8"));
@@ -1059,10 +1059,10 @@ describe("serveRuntime workspaces.exec", () => {
 
   it("refuses like sessions.start when no adapter is registered for the harness whose environment it would run with", async () => {
     const backend = stubBackend();
-    const runtime = createRuntime({ backend, store: memoryStore(), adapters: {} });
+    const runtime = createRuntime({ backend, store: imagedStore(), adapters: {} });
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
-    const created = await createOverWire(c, "x", { golden: "snap_g" });
+    const created = await createOverWire(c, "x");
     const workspaceId = (created["workspace"] as { id: string }).id;
     const refused = await c.request("workspaces.exec", { workspaceId, argv: ["true"] });
     expect(refused).toMatchObject({ ok: false, error: 'no adapter registered for harness "claude"; agents on this host: none' });
@@ -1071,10 +1071,10 @@ describe("serveRuntime workspaces.exec", () => {
 
   it("the asking socket closing ends the command", async () => {
     const backend = stubBackend();
-    const runtime = createRuntime({ backend, store: memoryStore(), adapters: { claude: envAdapter({}) } });
+    const runtime = createRuntime({ backend, store: imagedStore(), adapters: { claude: envAdapter({}) } });
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
-    const created = await createOverWire(c, "x", { golden: "snap_g" });
+    const created = await createOverWire(c, "x");
     const workspaceId = (created["workspace"] as { id: string }).id;
     execGuest(backend, "", undefined);
     const started = await c.request("workspaces.exec", { workspaceId, argv: ["sleep", "600"] });
@@ -1087,10 +1087,10 @@ describe("serveRuntime workspaces.exec", () => {
 
   it("deleting the workspace ends a running exec with the deleted reason on the asking socket", async () => {
     const backend = stubBackend();
-    const runtime = createRuntime({ backend, store: memoryStore(), adapters: { claude: envAdapter({}) } });
+    const runtime = createRuntime({ backend, store: imagedStore(), adapters: { claude: envAdapter({}) } });
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
-    const created = await createOverWire(c, "x", { golden: "snap_g" });
+    const created = await createOverWire(c, "x");
     const workspaceId = (created["workspace"] as { id: string }).id;
     execGuest(backend, "", undefined);
     const started = await c.request("workspaces.exec", { workspaceId, argv: ["sleep", "600"] });
@@ -1108,10 +1108,10 @@ describe("serveRuntime workspaces.exec", () => {
 
   it("napping the workspace ends a running exec with the paused reason on the asking socket", async () => {
     const backend = stubBackend();
-    const runtime = createRuntime({ backend, store: memoryStore(), adapters: { claude: envAdapter({}) } });
+    const runtime = createRuntime({ backend, store: imagedStore(), adapters: { claude: envAdapter({}) } });
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
-    const created = await createOverWire(c, "x", { golden: "snap_g" });
+    const created = await createOverWire(c, "x");
     const workspaceId = (created["workspace"] as { id: string }).id;
     execGuest(backend, "", undefined);
     const started = await c.request("workspaces.exec", { workspaceId, argv: ["sleep", "600"] });
@@ -1130,10 +1130,10 @@ describe("serveRuntime workspaces.exec", () => {
   it("carries the stop of a wake the provider never took, so the row's own stop reaches the runtime", async () => {
     const backend = stubBackend();
     backend.lifecycle.budgets.resumeAsks!.everyMs = 10;
-    const runtime = createRuntime({ backend, store: memoryStore(), adapters: {} });
+    const runtime = createRuntime({ backend, store: imagedStore(), adapters: {} });
     srv = await serveRuntime(runtime, { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
-    const created = await createOverWire(c, "x", { golden: "snap_g" });
+    const created = await createOverWire(c, "x");
     const workspaceId = (created["workspace"] as { id: string }).id;
     await c.request("workspaces.nap", { workspaceId });
     const m = backend.machines[0]!;
@@ -1156,12 +1156,10 @@ describe("serveRuntime workspaces.exec", () => {
   });
 });
 
-describe("serveRuntime init door (the host's init job, read and driven from the app)", () => {
-  const JOB: InitJob = { id: "init_1", road: "manual", phase: "answering", keys: { box: false, solari: true }, step: 0, stoppable: true, screens: [], rows: [], progress: { done: 0, total: 0 }, log: [] };
-  const SETUP = { keys: { box: false, solari: true }, keyProvider: "solari", home: "/Users/me", agents: [{ id: "claude", name: "Claude Code", configured: true, takesTools: true }], pricing: { size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: 0.11 }, job: null };
+describe("serveRuntime init door (the host's cloud setup, read and keyed from the app)", () => {
+  const SETUP = { keys: { box: false, solari: true }, keyProvider: "solari", home: "/Users/me", pricing: { size: { cpu: 2, memMb: 4096 }, rateUsdPerHour: 0.11 } };
   function fakeDoor() {
     const calls: unknown[] = [];
-    const listeners = new Set<Parameters<InitDoor["on"]>[0]>();
     const door: InitDoor = {
       get: async () => SETUP,
       // As the host answers: one entry per provider it can hold a key for, the one just saved true.
@@ -1169,111 +1167,30 @@ describe("serveRuntime init door (the host's init job, read and driven from the 
         calls.push(["keys", k]);
         return { ...SETUP, keys: { ...SETUP.keys, ...(k.provider === undefined ? {} : { [k.provider]: true }) } };
       },
-      step: async o => {
-        calls.push(["step", o]);
-        return { ...JOB, step: o.at };
-      },
-      draft: async o => {
-        calls.push(["draft", o]);
-        return { ...JOB, drafts: [{ at: o.at, ticks: o.ticks ?? [], answers: o.answers ?? {} }] };
-      },
-      retry: async o => {
-        calls.push(["retry", o]);
-        return JOB;
-      },
-      start: async o => {
-        calls.push(["start", o]);
-        return { ...JOB, road: o.road, phase: "reading" as const };
-      },
-      answer: async o => {
-        calls.push(["answer", o]);
-        return JOB;
-      },
-      build: async o => {
-        calls.push(["build", o]);
-        return { ...JOB, phase: "building" as const };
-      },
-      signInCode: async o => {
-        calls.push(["signInCode", o]);
-        return { ...JOB, phase: "signing-in" as const };
-      },
-      cancel: async () => {
-        calls.push(["cancel"]);
-        return { ...JOB, phase: "cancelled" as const };
-      },
-      on: fn => {
-        listeners.add(fn);
-        return () => listeners.delete(fn);
-      },
     };
-    return {
-      door,
-      calls,
-      emit: (job: typeof JOB) => listeners.forEach(fn => fn({ type: "init.job", job })),
-      need: (needsYou: { what: string; since: number }) => listeners.forEach(fn => fn({ type: "job.needs-you", jobId: JOB.id, needsYou })),
-      listeners,
-    };
+    return { door, calls };
   }
 
-  it("every init op reaches the door with its fields and answers with its view; a key never comes back", async () => {
+  it("init.get and init.keys reach the door with their fields and answer with its view; a key never comes back", async () => {
     const { door, calls } = fakeDoor();
     srv = await serveRuntime(rt(), { port: 0, authToken: "secret", init: door });
     const c = await WsClient.connect(srv.port, { token: "secret" });
     expect((await c.request("init.get"))["setup"]).toEqual(SETUP);
-    const saved = await c.request("init.keys", { provider: "box", key: "ascii_live_fake", rows: { "logins/claude": "sk-ant-x" } });
+    const saved = await c.request("init.keys", { provider: "box", key: "ascii_live_fake" });
     expect(saved["setup"]).toEqual({ ...SETUP, keys: { box: true, solari: true } });
-    expect(JSON.stringify(saved)).not.toMatch(/ascii_live_fake|sk-ant-x/);
-    expect((await c.request("init.start", { road: "agent", harness: "claude" }))["job"]).toMatchObject({ road: "agent", phase: "reading" });
-    expect((await c.request("init.answer", { screen: "tools", ticks: ["gh"], answers: { "logins/gh": "machine" } }))["job"]).toEqual(JOB);
-    expect((await c.request("init.step", { at: 2 }))["job"]).toMatchObject({ step: 2 });
-    expect((await c.request("init.retry", { tool: "gh" }))["job"]).toEqual(JOB);
-    expect((await c.request("init.build", { firstWorkspace: "first", rebuild: true }))["job"]).toMatchObject({ phase: "building" });
-    expect((await c.request("init.signInCode", { tool: "gcloud", code: "4/0Afake" }))["job"]).toMatchObject({ phase: "signing-in" });
-    expect((await c.request("init.cancel"))["job"]).toMatchObject({ phase: "cancelled" });
-    // The door is the one home for what the build op takes: naming the whole object here is what makes a field the
-    // server spreads in and the door never declared a type error rather than a field nothing checks.
-    const built: Parameters<InitDoor["build"]>[0] = { firstWorkspace: "first", rebuild: true };
-    expect(calls).toEqual([
-      ["keys", { provider: "box", key: "ascii_live_fake", rows: { "logins/claude": "sk-ant-x" } }],
-      ["start", { road: "agent", harness: "claude" }],
-      ["answer", { screen: "tools", ticks: ["gh"], answers: { "logins/gh": "machine" } }],
-      ["step", { at: 2 }],
-      ["retry", { tool: "gh" }],
-      ["build", built],
-      ["signInCode", { tool: "gcloud", code: "4/0Afake" }],
-      ["cancel"],
-    ]);
+    expect(JSON.stringify(saved)).not.toMatch(/ascii_live_fake/);
+    expect(calls).toEqual([["keys", { provider: "box", key: "ascii_live_fake" }]]);
     c.close();
   });
 
-  it("without a door every init op is refused in one line, and the events channel still serves", async () => {
+  it("without a door both ops are refused in one line, and the events channel still serves", async () => {
     srv = await serveRuntime(rt(), { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port, { token: "secret" });
     const refused = await c.request("init.get");
     expect(refused.ok).toBe(false);
-    expect(refused["error"]).toBe("this runtime has no init job; the host that serves the app wires one");
+    expect(refused["error"]).toBe("this runtime has no cloud setup; the host that serves the app wires one");
     expect((await c.request("events.subscribe")).ok).toBe(true);
     c.close();
-  });
-
-  it("init.job and job.needs-you events reach subscribed sockets and the subscription dies with the socket", async () => {
-    const { door, emit, need, listeners } = fakeDoor();
-    srv = await serveRuntime(rt(), { port: 0, authToken: "secret", init: door });
-    const sub = await WsClient.connect(srv.port, { token: "secret" });
-    const quiet = await WsClient.connect(srv.port, { token: "secret" });
-    await sub.request("events.subscribe");
-    emit({ ...JOB, phase: "building" });
-    // The wait on the person rides the same channel, so a client that speaks once per need has its one signal.
-    need({ what: "sign in to GitHub CLI login", since: 1_760_000_000_000 });
-    await until(() => sub.events.length === 2);
-    expect(sub.events).toEqual([
-      { type: "init.job", job: { ...JOB, phase: "building" } },
-      { type: "job.needs-you", jobId: JOB.id, needsYou: { what: "sign in to GitHub CLI login", since: 1_760_000_000_000 } },
-    ]);
-    expect(quiet.events).toEqual([]);
-    sub.close();
-    await until(() => listeners.size === 0);
-    quiet.close();
   });
 });
 
@@ -1426,7 +1343,7 @@ describe("a window that subscribes after a create began", () => {
       await new Promise<void>(resolve => (boot = resolve));
       return create(spec);
     };
-    srv = await serveRuntime(createRuntime({ backend, store: memoryStore(), adapters: {} }), { port: 0, authToken: "secret" });
+    srv = await serveRuntime(createRuntime({ backend, store: imagedStore(), adapters: {} }), { port: 0, authToken: "secret" });
     const cli = await WsClient.connect(srv.port, { token: "secret" });
     expect((await createOverWire(cli, "refused", { golden: "snap_g" })).ok).toBe(false);
     const held = createOverWire(cli, "held", { golden: "snap_g" });

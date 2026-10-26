@@ -10,8 +10,6 @@ import {
   goldenHead,
   isMissing,
   killUntilGone,
-  snapshotUntilGone,
-  answerOf,
   prepareBuilder,
   refreshPreviewToken,
   promoteVersion,
@@ -41,19 +39,13 @@ import type { GoldenBuilderView, PlaceKind, SnapshotStorage } from "@wsp/protoco
 import {
   forksNoMachines,
   ALREADY_APPLIED,
-  notFoundRefusal,
   buildPlaceAskLine,
   placeSaid,
   NO_BUILD_PLACE_LINE,
-  noProjectImageLine,
-  projectImageInUseRefusal,
-  projectImageRefusedLine,
-  projectImageStillListedLine,
 } from "@wsp/protocol";
 import { PlaceForksNowhereError } from "../places.js";
 import type { Runtime, OrphansDeleted } from "../types/api.js";
 import {
-  PROJECT_GOLDENS,
   GOLDENS,
   copyKey,
   copyKeyParts,
@@ -132,12 +124,6 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
       if (running.length === 0) throw ctx.conflict(NO_BUILD_PLACE_LINE);
       if (running.length > 1) throw ctx.conflict(buildPlaceAskLine(running.map(placeSaid)));
       return running[0]!;
-    },
-
-    async prepareAt(o) {
-      await ctx.ready();
-      const { place } = await prepareAt(o?.name ?? "default", o?.place, false);
-      return { place, name: ctx.placeName(place) };
     },
 
     async prepare(o) {
@@ -301,11 +287,9 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
       const place = await ctx.imagePlace(name);
       const prior = await ctx.copyOf(place, name);
       const head = goldenHead(prior);
-      if (head === undefined) throw new Error(`no golden named "${name}" to update; wsp init builds one`);
+      if (head === undefined) throw new Error(`no golden named "${name}" to update`);
       const at = ctx.backendAt(place);
       const stage = ctx.stageOf(name, place);
-      // The head's digest, whose pins the rows the delta leaves alone keep on the next version's record.
-      const previousRecipe = await ctx.copyRecipeOf(place, name, head.version);
       // Past its window a kept builder is never used, running or not: it is stopped here and the update forks; one
       // the pass could not stop is named so the person knows it still bills. Inside the window, it is suspended for
       // the update's length: the record loses `sealed` and gains `building` before the first exec, so neither the
@@ -330,7 +314,7 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
         } else {
           stage("creating", `your builder from v${head.version}, kept since the save`);
           try {
-            const applied = await applyDelta(kept.builder.machine, o.delta, { setup: recipe.setup, previousSmoke: head.smoke.cmd, previousBase: head.base, ...(head.missingTools !== undefined ? { previousMissing: head.missingTools } : {}), ...(head.leftBehind !== undefined ? { previousLeftBehind: head.leftBehind } : {}), ...(previousRecipe !== undefined ? { previousRecipe } : {}), onStage: stage });
+            const applied = await applyDelta(kept.builder.machine, o.delta, { setup: recipe.setup, previousSmoke: head.smoke.cmd, previousBase: head.base, ...(head.missingTools !== undefined ? { previousMissing: head.missingTools } : {}), ...(head.leftBehind !== undefined ? { previousLeftBehind: head.leftBehind } : {}), onStage: stage });
             const setupSha = nextSetupSha(head.setupSha, recipe.setup, o.delta.import);
             kept.record.import = applied.ledger;
             kept.record.setupSha = setupSha;
@@ -367,7 +351,6 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
             head,
             delta: o.delta,
               setup: recipe.setup,
-              ...(previousRecipe !== undefined ? { previousRecipe } : {}),
               ...(recipe.cpu !== undefined ? { cpu: recipe.cpu } : {}),
               ...(recipe.memMb !== undefined ? { memMb: recipe.memMb } : {}),
               ...(recipe.envs !== undefined ? { envs: recipe.envs } : {}),
@@ -615,28 +598,6 @@ export function goldenArea(ctx: RuntimeContext): GoldenArea {
         }
       }
       return rows;
-    },
-
-    async projects() {
-      await ctx.ready();
-      return (await store.list(PROJECT_GOLDENS)).map(ctx.projectGoldenOf).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    },
-
-    async removeProject(snapshotId) {
-      await ctx.ready();
-      const stored = await store.get(PROJECT_GOLDENS, snapshotId);
-      if (stored === undefined) throw notFoundRefusal(noProjectImageLine(snapshotId));
-      const projectGolden = ctx.projectGoldenOf(stored);
-      const standing = ctx.forkedFrom(snapshotId);
-      if (standing.length > 0) throw ctx.conflict(projectImageInUseRefusal(snapshotId, standing));
-      const at = ctx.backendAt(projectGolden.place ?? places.wired);
-      const read = await snapshotUntilGone(at, snapshotId, opts.killConfirm).catch((e: unknown) => {
-        const { kind, status } = e as { kind?: unknown; status?: unknown };
-        throw Object.assign(new Error(projectImageRefusedLine(snapshotId, answerOf(e))), kind !== undefined ? { kind } : {}, status !== undefined ? { status } : {});
-      });
-      if (read.verdict === "listed") throw new Error(projectImageStillListedLine(snapshotId, read.graceMs));
-      await store.delete(PROJECT_GOLDENS, snapshotId);
-      return { projectGolden, alreadyGone: read.verdict === "missing" };
     },
 
   };

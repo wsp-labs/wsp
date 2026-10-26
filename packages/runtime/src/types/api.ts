@@ -16,8 +16,6 @@ import type {
   PortProbeView,
   PortReachView,
   ProjectExportResult,
-  ProjectGolden,
-  ProjectGoldenRemoved,
   ProjectImportResult,
   ProjectView,
   ProjectBranch,
@@ -195,11 +193,6 @@ export interface Runtime {
      * clears it, so the colour picker and the icon picker each send their own without reading the other's. The record
      * alone changes and the machine is untouched, so this goes out as workspace.look. */
     look(id: string, look: WorkspaceLook, origin?: Caller): Promise<WorkspaceView>;
-    /** Snapshots the running machine as a project golden: the golden it stands on plus the project as it is now, so a
-     * fork of the snapshot starts a task with the project in place. Refused in one sentence when the workspace is not
-     * running or holds no project; a machine that was ever resumed is refused by the engine (kind notFirstLife). The
-     * guest freezes for about three seconds and stays first-life. */
-    snapshot(id: string, origin?: Caller): Promise<ProjectGolden>;
     /** The recipe's daemon deploy on the running machine, replacing the daemon there, then this runtime's token
      * written again so the next reach opens it. The runtime runs it by itself when a machine's daemon is older than
      * this wsp. Throws on a workspace that is not running or a runtime without the deploy. */
@@ -606,9 +599,6 @@ export interface Runtime {
      * copy's build, whose frames name the place; the image's own build names none, wherever it runs, which is how
      * the app tells the two apart. */
     prepare(opts?: { name?: string; kind?: MachineKind; signal?: AbortSignal; recipe?: GoldenRecipe; place?: string; copy?: boolean }): Promise<GoldenBuilderView>;
-    /** Where prepare with the same name and place builds the image's own builder, by id and name: only a builder
-     * standing there is one it attaches to. */
-    prepareAt(opts?: { name?: string; place?: string }): Promise<{ place: string; name: string }>;
     /** Snapshot, smoke-fork, append a version. A builder built from a recipe is kept running for GRACE_MS after a
      * successful seal so one more change re-snapshots it; any other builder, and every failed or refused seal, consumes
      * it, except a snapshot the provider refused: that builder is left as it was and stays recorded for the next init
@@ -632,12 +622,6 @@ export interface Runtime {
      * forks boot from it from then on; one whose snapshot the provider has lost is a row saying so and nothing is
      * written. Undefined on a backend without templates; empty when every version already has one. */
     promote(name?: string): Promise<GoldenPromotion[] | undefined>;
-    /** Every project golden this runtime took, oldest first. */
-    projects(): Promise<ProjectGolden[]>;
-    /** Deletes a project golden's snapshot at the provider of its place and drops the record once the listing reads
-     * it gone, or at once where the provider already lost it. Refused while any workspace stands on it; a refusal
-     * of the provider's, or a listing that holds the id through the read-back window, keeps the record. */
-    removeProject(snapshotId: string): Promise<ProjectGoldenRemoved>;
     /** Every snapshot on the account by count, size and monthly cost past the free GB, sized from the provider's
      * listing and split by who made each one; undefined on a backend that cannot list snapshots. */
     storage(): Promise<SnapshotStorage | undefined>;

@@ -10,7 +10,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { agentsOffRefusal, notAThreadLine, NAME_A_THREAD_FIX, EXIT_CODES, folderForkFix, folderForkRefusal, spawnActRefusal, noWorkspaceRefusal, refusalLine, spawnFolderRefusal, spawnReachFix, spawnReachRefusal, spawnRepositoryRefusal, spawnRepositoryWorkspaceRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX, SPAWN_REPOSITORY_WORKSPACE_FIX, HERE_PLACE_ID, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, LOOPBACK, MCP_SERVER_NAME, SCOPED_MCP_ARG, TURN_TOKEN_ENV, type Caller, type ThreadView, type WorkspaceView } from "@wsp/protocol";
+import { notAThreadLine, NAME_A_THREAD_FIX, EXIT_CODES, folderForkFix, folderForkRefusal, spawnActRefusal, noWorkspaceRefusal, refusalLine, spawnFolderRefusal, spawnReachFix, spawnReachRefusal, spawnRepositoryRefusal, spawnRepositoryWorkspaceRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX, SPAWN_REPOSITORY_WORKSPACE_FIX, HERE_PLACE_ID, HOST_KEY_ENV, HOST_TOKEN_ENV, HOST_URL_ENV, LOOPBACK, MCP_SERVER_NAME, SCOPED_MCP_ARG, TURN_TOKEN_ENV, type Caller, type ThreadView, type WorkspaceView } from "@wsp/protocol";
 import { copyKey, createRuntime, memoryStore, type Runtime } from "@wsp/runtime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cli, localWiring, serve } from "../src/cli.js";
@@ -108,7 +108,7 @@ describe("the wsp command on a thread's machine", () => {
 
   it.runIf(CLOUD_ON)("a turn on a spawn on fork gets its token with no address advertised, and runs a child on its machine that nests under it", async () => {
     const project = await rt.projects.add({ source: "https://github.com/dev/one.git", on: "default" });
-    const one = await rt.workspaces.create({ project: project.id, name: "one", agents: { spawn: true } });
+    const one = await rt.workspaces.create({ project: project.id, name: "one", agents: { } });
     const turn = await rt.sessions.start(one.id, { prompt: "start two children" });
     const threadId = turn.view().threadId!;
     const launch = held.envs[0]!;
@@ -181,7 +181,7 @@ describe("the wsp command a thread on this computer runs", () => {
     execFileSync("git", ["init", "-q", "-b", "main", repo]);
     execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "first"]);
     const project = await rt.projects.add({ source: repo, on: HERE_PLACE_ID, name: "mac" });
-    await rt.workspaces.create({ project: project.id, name: "mac", agents: { spawn: true } });
+    await rt.workspaces.create({ project: project.id, name: "mac", agents: { } });
     const byName = async (name: string): Promise<WorkspaceView> => (await rt.workspaces.list()).find(w => w.name === name)!;
     // The person's own thread in the same folder, which no thread of the lead's tree may see.
     const theirs = await rt.sessions.start((await byName("mac")).id, { prompt: "the person's own" });
@@ -288,7 +288,7 @@ describe("a lead thread on this computer starting children on a cloud computer",
     const mac = await rt.projects.add({ source: repo, on: HERE_PLACE_ID, name: "lab" });
     const cloud = await rt.projects.add({ source: cloudRemote, on: "default", name: "lab-cloud" });
     await rt.projects.add({ source: "https://github.com/dev/other.git", on: "default", name: "other-cloud" });
-    const folder = await rt.workspaces.create({ project: mac.id, name: "lab", agents: { spawn: true } });
+    const folder = await rt.workspaces.create({ project: mac.id, name: "lab", agents: { } });
     const turn = await rt.sessions.start(folder.id, { prompt: "coordinate" });
     const launch = held.envs[0]!;
     return { threadId: turn.view().threadId!, launch: { [HOST_URL_ENV]: launch[HOST_URL_ENV]!, [HOST_TOKEN_ENV]: launch[HOST_TOKEN_ENV]!, [TURN_TOKEN_ENV]: launch[TURN_TOKEN_ENV]! }, cloud: cloud.id, finished: turn.finished };
@@ -385,7 +385,7 @@ describe("a lead thread on this computer starting children on a cloud computer",
     await finished;
   });
 
-  it.runIf(CLOUD_ON)("a lead's fork picks no size and no agents switch, from the command line or the tool, refused naming this computer, and its own folder is no machine to fork", async () => {
+  it.runIf(CLOUD_ON)("a lead's fork picks no size and no agent caps, from the command line or the tool, refused naming this computer, and its own folder is no machine to fork", async () => {
     const { threadId, launch, finished, source } = await leadWithChild();
     const here = (await rt.projects.computers()).find(c => c.id === HERE_PLACE_ID)!.name;
     const before = (await rt.workspaces.list()).length;
@@ -395,7 +395,6 @@ describe("a lead thread on this computer starting children on a cloud computer",
       [["--size", "96x768"], spawnActRefusal(threadId, "size", here)],
       [["--max-depth", "5"], spawnActRefusal(threadId, "agents", here)],
       [["--max-machines", "1"], spawnActRefusal(threadId, "agents", here)],
-      [["--spawn", "off"], spawnActRefusal(threadId, "agents", here)],
     ];
     for (const [flags, said] of lines) {
       const refused = await thread(launch, "fork", source.name, ...flags);
@@ -408,7 +407,6 @@ describe("a lead thread on this computer starting children on a cloud computer",
       [{ size: "96x768" }, spawnActRefusal(threadId, "size", here)],
       [{ max_depth: 5 }, spawnActRefusal(threadId, "agents", here)],
       [{ max_machines: 1 }, spawnActRefusal(threadId, "agents", here)],
-      [{ spawn: "off" }, spawnActRefusal(threadId, "agents", here)],
     ];
     for (const [input, said] of inputs) {
       const refused = await tools.callTool({ name: "fork", arguments: { workspace: source.name, ...input } });
@@ -427,7 +425,7 @@ describe("a lead thread on this computer starting children on a cloud computer",
   it("a lead on a cloud machine reads the person's folder of its repository here as theirs: unlisted and refused by that rule", async () => {
     const { launch, finished } = await lead();
     const cloud = (await rt.projects.list()).find(p => p.name === "lab-cloud")!;
-    const ws = await rt.workspaces.create({ project: cloud.id, name: "cloud-lead", agents: { spawn: true } });
+    const ws = await rt.workspaces.create({ project: cloud.id, name: "cloud-lead", agents: { } });
     const turn = await rt.sessions.start(ws.id, { prompt: "coordinate from the cloud" });
     const threadId = turn.view().threadId!;
     const asLead: Caller = { origin: "relayed", by: { kind: "thread", threadId, workspaceId: ws.id, rootThreadId: threadId } };

@@ -3,7 +3,7 @@
 // offers, what decides whether an act can be taken where the list stands, the
 // sign-in roads, and the lines under the list. Each kind's own rows, detail
 // and acts are its module under kinds/.
-import { LogInIcon, PencilIcon, XIcon, type LucideIcon } from "lucide-react";
+import { LogInIcon, XIcon, type LucideIcon } from "lucide-react";
 import { agentName, catalogEntry, hasLogin, loginIdOf, loginThere, mintsToken, serverSignInRoad, signInRoadOf } from "@wsp/catalog";
 import { outcomeWord } from "../../settings/places.js";
 import { agentOfRow, type AgentRow, type AgentsProject, type AgentsReport, type AgentsTarget, type BrokerStatus, type McpRow, type McpScope, type PageReach, type PlaceProvisionRow, type PluginRow, type PluginScope, type SealedImage, type ServerAdd, type ServerToolsAnswer, type SignInRoad, type SkillHit, type SkillPreview, type SkillRow, TOKEN_SIGN_IN_WORD } from "@wsp/protocol";
@@ -62,10 +62,6 @@ export const AGENTS_LIST_WORDS = {
   keepsSignIn: (agent: string): string => `${agent} keeps this server's sign-in, so wsp cannot list its tools yet.`,
   signInToSee: "sign in to see its tools",
   notListed: "not listed yet",
-  editImage: "Edit image",
-  /** Why Edit image is held on a fork: the image is edited from its cloud's page, which a host with no key for it has
-   * none of. */
-  editImageHeld: "This host holds no key for its cloud",
   waitingOnYou: "waiting on you",
   openInTerminal: "Open in terminal",
   open: "Open",
@@ -371,13 +367,11 @@ export interface AgentActs {
 }
 
 /** What decides the acts: where the report was read, the box it was read on, the away word every act
- * is held with while the computer is not answering or the task is paused, and the one road that exists before the
- * acts' own builds: Edit image. */
+ * is held with while the computer is not answering or the task is paused. */
 export interface RowsContext {
   readonly where: AgentsWhere;
   readonly computer?: string;
   readonly heldWhy?: string | null;
-  readonly editImage?: () => void;
   readonly tools?: ServerTools;
   readonly acts?: AgentActs;
   readonly skills?: SkillActs;
@@ -412,9 +406,6 @@ export const holdAll = (acts: RowAct[], ctx: RowsContext): RowAct[] => {
 
 /** Whether the rows are a copy of the image, so every act is the image's. */
 export const onImage = (ctx: RowsContext): boolean => ctx.where === "fork" || ctx.where === "provider";
-
-/** The one act a copy of the image offers: editing the image every copy is made from. */
-export const editImageAct = (ctx: RowsContext): RowAct => ({ id: "edit-image", label: AGENTS_LIST_WORDS.editImage, icon: PencilIcon, ...(ctx.editImage === undefined ? { hover: AGENTS_LIST_WORDS.editImageHeld } : { run: ctx.editImage }) });
 
 /** An act whose road is a later build: drawn where it will stand, held with the reason. */
 export const notYet = (id: string, label: string, icon: LucideIcon, over: Partial<RowAct> = {}): RowAct => ({ id, label, icon, hover: AGENTS_LIST_WORDS.notYet, ...over });
@@ -511,13 +502,13 @@ export function recipeMissLines(rows: readonly PlaceProvisionRow[]): RefusedLine
 /** Whether the report is the last one read while the task ran, so nothing it offers can be done now. */
 export const pausedReport = (report: AgentsReport | null): boolean => report?.stale === "napping";
 
-/** A cloud's page reads no machine, since nothing stands there between forks: its rows are the agents the image was
- * sealed with, at the versions the seal pinned, signed in where the seal carried the login. */
+/** A cloud's page reads no machine, since nothing stands there between forks: its rows are the agents the image's
+ * recipe holds, signed in where the seal carried the login. */
 export function imageAgentsReport(image: SealedImage, placeId: string): AgentsReport {
-  const agents: AgentRow[] = (image.pins ?? []).flatMap(pin => {
-    if (catalogEntry(pin.id)?.kind !== "agent") return [];
-    const login = image.logins.find(l => l.name === loginIdOf(pin.id))?.state;
-    return [{ id: pin.id, name: agentName(pin.id), installed: true, version: pin.tag, road: "wsp", signIn: login === "signed-in" || login === "copied" ? "signed-in" : "unknown", signInRoad: "none", wspTools: false }];
+  const agents: AgentRow[] = (image.recipe?.rows ?? []).flatMap(row => {
+    if (row.kind !== "agent" || !row.on || catalogEntry(row.id)?.kind !== "agent") return [];
+    const login = image.logins.find(l => l.name === loginIdOf(row.id))?.state;
+    return [{ id: row.id, name: agentName(row.id), installed: true, road: "wsp", signIn: login === "signed-in" || login === "copied" ? "signed-in" : "unknown", signInRoad: "none", wspTools: false }];
   });
   return { target: { placeId }, home: "", user: "", readAt: image.sealedAt, agents, skills: [], servers: [], refused: [] };
 }

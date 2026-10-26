@@ -3,7 +3,7 @@ import { execFileSync } from "node:child_process";
 // The MCP server over the host: an MCP client calls each tool against a host
 // over the fake runtime, through the same socket client and verb logic the
 // command line uses; a thread it opens is the local agent's.
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -14,18 +14,16 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { CATALOG, THREAD_AGENTS } from "@wsp/catalog";
 import { DiskGoneError } from "@wsp/engine";
-import { worktreeRemovedLine, noProjectLine, READ_PROJECTS_FIX, refusalLine, type ProjectView, childStartedLine, cloneIntoTakenLine, HERE_PLACE_ID, noProjectImageLine, projectImageInUseRefusal, projectImageRemoveNotice, projectImageRemovedLine, addedProjectLine, goneRoadRefusal, EMPTY_MESSAGE_LINE, EXIT_CODES, NO_SUCH_TURN, noSuchProjectLine, noThreadTargetLine, ProjectGolden, Recipe, registeredLine, registerTakesNoConsentLine, threadOpenedLine, ThreadView, TURN_TOKEN_ENV, type ExitClass, NOT_DELIVERED_LINE, BUILT_IN_LIST_CLAUSE, BOAT_DISK_GONE_LINE, diskGoneReplacedLine } from "@wsp/protocol";
+import { worktreeRemovedLine, noProjectLine, READ_PROJECTS_FIX, refusalLine, type ProjectView, childStartedLine, cloneIntoTakenLine, HERE_PLACE_ID, addedProjectLine, goneRoadRefusal, EMPTY_MESSAGE_LINE, EXIT_CODES, NO_SUCH_TURN, noSuchProjectLine, noThreadTargetLine, registeredLine, registerTakesNoConsentLine, threadOpenedLine, ThreadView, TURN_TOKEN_ENV, type ExitClass, NOT_DELIVERED_LINE, BUILT_IN_LIST_CLAUSE, BOAT_DISK_GONE_LINE, diskGoneReplacedLine } from "@wsp/protocol";
 import { copyKey, createRuntime, memoryStore, type Runtime, type Store } from "@wsp/runtime";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { localWiring, serve } from "../src/cli.js";
 import { c1Escaped, hostPlatform, noHostServingLine } from "../src/verbs.js";
 import { placeWiring } from "../src/places.js";
 import { dialer, mcpServer, serveMcp } from "../src/mcp.js";
-import { RecipeAnswer, RecipeScan, allRows, recipePrintout, scanPrintout } from "../src/recipe-answer.js";
 import { instructionsOf, wspSkill } from "../src/skill.js";
 import type { HostHandle } from "../src/server.js";
 import type { HostClient } from "../src/verbs.js";
-import { HERE } from "./recipe-fixture.js";
 
 /** This computer, as the places list names it: the word a caller passes as `on` for the place their own agents run
  * on, which is where a workspace that forks nothing lives. */
@@ -194,7 +192,7 @@ describe("the MCP server over the host", () => {
   it.runIf(CLOUD_ON)("offers the verbs as tools, each described", async () => {
     const c = await connect();
     const { tools } = await c.listTools();
-    expect(tools.map(t => t.name).sort()).toEqual(["activity", "activity_end", "add", "agents", "agents_addtools", "agents_default", "agents_set", "agents_setup", "commit", "computers", "computers_set", "conversations", "delete", "discard", "exec", "export", "fix", "folders", "forget", "fork", "image", "image_build", "image_remove", "merge", "merge_in", "pause", "plugins", "plugins_disable", "plugins_enable", "projects", "projects_add", "projects_remove", "projects_seed", "projects_set", "rebuild", "recipe", "recipe_scan", "recipes", "recipes_remove", "recipes_save", "recipes_show", "rename", "resize", "restart", "review", "review_post", "run", "send", "servers", "servers_add", "servers_disable", "servers_enable", "servers_remove", "servers_tools", "setup", "skills", "skills_add", "skills_disable", "skills_enable", "skills_remove", "skills_search", "skills_show", "slate_catalog", "slate_look", "slate_read", "slate_state", "slate_write", "snapshot", "start", "stop", "terminal_config", "thread_allow", "thread_deny", "thread_forget", "thread_head", "thread_read", "thread_rename", "thread_restore", "thread_settle", "threads", "threads_wait", "update", "usage", "wake", "worktree", "worktree_remove"]);
+    expect(tools.map(t => t.name).sort()).toEqual(["activity", "activity_end", "add", "agents", "agents_addtools", "agents_default", "agents_set", "agents_setup", "commit", "computers", "computers_set", "conversations", "delete", "discard", "exec", "export", "fix", "folders", "forget", "fork", "image", "image_build", "merge", "merge_in", "pause", "plugins", "plugins_disable", "plugins_enable", "projects", "projects_add", "projects_remove", "projects_seed", "projects_set", "rebuild", "recipes", "recipes_remove", "recipes_save", "recipes_show", "rename", "resize", "restart", "review", "review_post", "run", "send", "servers", "servers_add", "servers_disable", "servers_enable", "servers_remove", "servers_tools", "setup", "skills", "skills_add", "skills_disable", "skills_enable", "skills_remove", "skills_search", "skills_show", "slate_catalog", "slate_look", "slate_read", "slate_state", "slate_write", "start", "stop", "terminal_config", "thread_allow", "thread_deny", "thread_forget", "thread_head", "thread_read", "thread_rename", "thread_restore", "thread_settle", "threads", "threads_wait", "update", "usage", "wake", "worktree", "worktree_remove"]);
     for (const name of ["agents", "skills", "servers"]) expect(Object.keys((tools.find(t => t.name === name)!.inputSchema as { properties: Record<string, unknown> }).properties).sort(), name).toEqual(["on", "thread"]);
     expect(Object.keys((tools.find(t => t.name === "servers_tools")!.inputSchema as { properties: Record<string, unknown> }).properties).sort()).toEqual(["agent", "name", "on", "project", "refresh", "thread"]);
     expect(Object.keys((tools.find(t => t.name === "folders")!.inputSchema as { properties: Record<string, unknown> }).properties).sort()).toEqual(["folder", "hidden", "on", "repos"]);
@@ -202,7 +200,7 @@ describe("the MCP server over the host", () => {
     for (const t of tools) expect(t.description, t.name).toMatch(/\S/);
     expect(Object.keys((tools.find(t => t.name === "rename")!.inputSchema as { properties: Record<string, unknown> }).properties).sort()).toEqual(["name", "workspace"]);
     expect(Object.keys((tools.find(t => t.name === "run")!.inputSchema as { properties: Record<string, unknown> }).properties).sort()).toEqual(["access", "agent", "at", "beside", "branch", "copy", "cwd", "detach", "effort", "fast", "files", "fork", "from", "message", "model", "notify", "on", "project", "replaces", "resume", "size", "title"]);
-    expect(Object.keys((tools.find(t => t.name === "fork")!.inputSchema as { properties: Record<string, unknown> }).properties).sort()).toEqual(["access", "agent", "cwd", "effort", "max_depth", "max_machines", "model", "name", "notify", "size", "spawn", "task", "workspace"]);
+    expect(Object.keys((tools.find(t => t.name === "fork")!.inputSchema as { properties: Record<string, unknown> }).properties).sort()).toEqual(["access", "agent", "cwd", "effort", "max_depth", "max_machines", "model", "name", "notify", "size", "task", "workspace"]);
     // No access among them: a thread's access is the thread's own and a message does not change it.
     expect(Object.keys((tools.find(t => t.name === "send")!.inputSchema as { properties: Record<string, unknown> }).properties).sort()).toEqual(["detach", "effort", "fast", "files", "message", "model", "thread"]);
     expect(Object.keys((tools.find(t => t.name === "threads_wait")!.inputSchema as { properties: Record<string, unknown> }).properties).sort()).toEqual(["threads", "timeout"]);
@@ -210,9 +208,6 @@ describe("the MCP server over the host", () => {
     expect(Object.keys((tools.find(t => t.name === "delete")!.inputSchema as { properties: Record<string, unknown> }).properties).sort()).toEqual(["confirm", "processes", "thread", "workspace"]);
     expect(Object.keys((tools.find(t => t.name === "worktree")!.inputSchema as { properties: Record<string, unknown> }).properties).sort()).toEqual(["branch", "project"]);
     expect(Object.keys((tools.find(t => t.name === "worktree_remove")!.inputSchema as { properties: Record<string, unknown> }).properties).sort()).toEqual(["branch", "force", "project"]);
-    expect(Object.keys((tools.find(t => t.name === "image_remove")!.inputSchema as { properties: Record<string, unknown> }).properties).sort()).toEqual(["confirm", "image"]);
-    expect(tools.find(t => t.name === "image")!.description).toContain("The project images taken off workspaces are listed under it, each with its snapshot id, the workspace it was taken off, its size where the provider lists one and its date.");
-    expect(Object.keys((tools.find(t => t.name === "recipe")!.inputSchema as { properties: Record<string, unknown> }).properties).sort()).toEqual(["add", "add_check", "engine", "out", "project", "set", "signin", "tick", "why"]);
     expect(c.getServerVersion()?.name).toBe("wsp");
     expect(c.getInstructions()).toBe(instructionsOf(THREAD_AGENTS));
     expect(c.getInstructions()).toContain("run");
@@ -224,19 +219,6 @@ describe("the MCP server over the host", () => {
     const agentInput = (tools.find(t => t.name === "run")!.inputSchema as { properties: Record<string, { description?: string }> }).properties.agent!;
     expect(agentInput.description).toBe(`the agent to run in the thread, one of ${THREAD_AGENTS.join(", ")}; absent means the host's default`);
     for (const t of tools) expect(wspSkill(), t.name).toContain(`\`${t.name}\``);
-  });
-
-  it.runIf(CLOUD_ON)("snapshot takes a project image of the workspace as wsp snapshot does", async () => {
-    await call("new", { name: "alpha" });
-    const [alpha] = await rt.workspaces.list();
-    const taken = await call("snapshot", { workspace: "alpha" });
-    expect(taken.isError).toBe(false);
-    const [golden] = await rt.golden.projects();
-    expect(golden).toMatchObject({ projects: [{ name: alpha!.project.name, dest: alpha!.project.path }], golden: "snap_gold", version: 1, workspaceId: alpha!.id, workspaceName: "alpha" });
-    expect(taken.structured).toEqual({ projectGolden: golden });
-    expect(ProjectGolden.parse((taken.structured as { projectGolden: unknown }).projectGolden)).toEqual(golden);
-    expect(JSON.parse(taken.text)).toEqual(taken.structured);
-
   });
 
   it("run with no project starts in the folder of the project the client's folder is in, and the first line of the reply says so; a server with no client folder is a tool error in one line", async () => {
@@ -596,30 +578,6 @@ describe("the MCP server over the host", () => {
     expect(forgot.text).toBe(`forgot alpha ${alpha!.id}: its record and 0 threads are gone from this computer`);
     expect(await rt.workspaces.list()).toEqual([]);
     expect(await store.get("workspaces", alpha!.id)).toBeUndefined();
-  });
-
-  it.runIf(CLOUD_ON)("image_remove without confirm removes nothing and answers with what would go; with confirm it deletes the snapshot and drops the record, and a workspace standing on it refuses", async () => {
-    await call("new", { name: "alpha" });
-    const [alpha] = await rt.workspaces.list();
-    const golden = await rt.workspaces.snapshot(alpha!.id);
-
-    const asked = await call("image_remove", { image: golden.snapshotId });
-    expect(asked.isError).toBe(true);
-    expect(asked.text).toBe(`${golden.snapshotId} kept. ${projectImageRemoveNotice(golden)} Ask the person, then call image_remove again with confirm true.`);
-    expect(asked.structured).toEqual({ projectGolden: golden, alreadyGone: false });
-    expect(backend.snapshots.map(s => s.id)).toContain(golden.snapshotId);
-
-    await call("new", { name: "task-a", from: golden.snapshotId });
-    expect(await call("image_remove", { image: golden.snapshotId, confirm: true })).toEqual(failedWith(projectImageInUseRefusal(golden.snapshotId, ["task-a"])));
-    await call("delete", { workspace: "task-a", confirm: true });
-
-    const removed = await call("image_remove", { image: golden.snapshotId, confirm: true });
-    expect(removed.isError).toBe(false);
-    expect(removed.structured).toEqual({ projectGolden: golden, alreadyGone: false });
-    expect(removed.text).toBe(projectImageRemovedLine(golden.snapshotId, false));
-    expect(backend.snapshots.map(s => s.id)).not.toContain(golden.snapshotId);
-    expect(await rt.golden.projects()).toEqual([]);
-    expect(await call("image_remove", { image: golden.snapshotId, confirm: true })).toEqual(failedWith(noProjectImageLine(golden.snapshotId), "usage"));
   });
 
   it.runIf(CLOUD_ON)("delete without confirm deletes nothing and answers with what would go; with confirm it kills the machine and drops the record and threads", async () => {
@@ -1221,55 +1179,6 @@ describe("the MCP server over the host", () => {
     await expect(served).resolves.toBeUndefined();
   });
 
-  it("recipe reads this computer, writes the file and answers with the same table the command line prints, set and all", async () => {
-    const out = join(dir, "recipe.json");
-    // The scan this server was handed, which is what a set word naming a package this computer has is answered against.
-    const diskbloom = { id: "brew/zingzy/tap/diskbloom", name: "zingzy/tap/diskbloom", manager: "brew" as const, group: "Homebrew formulae", install: "brew install zingzy/tap/diskbloom", check: "brew list --versions zingzy/tap/diskbloom", size: 4 * 1024 * 1024 };
-    await connect({ alsoHere: async () => [diskbloom] });
-    const first = await call("recipe", { out });
-    const table = RecipeAnswer.parse(first.structured);
-    expect(table.tick).toBe("used");
-    expect(table.out).toBe(out);
-    expect(allRows(table).map(r => r.id).sort()).toEqual(CATALOG.map(e => e.id).sort());
-    expect(first.text).toBe(recipePrintout(table).join("\n"));
-    expect(Recipe.parse(JSON.parse(readFileSync(out, "utf8"))).tick).toBe("used");
-
-    const flipped = RecipeAnswer.parse((await call("recipe", { out, set: ["java=on"] })).structured);
-    expect(allRows(flipped).find(r => r.id === "java")).toMatchObject({ on: true, size: 613280230 });
-    expect(flipped.heavy.map(r => r.id)).toContain("java");
-    // A word no row of any kind answers is a tool error in one line, not a rewritten file.
-    expect(await call("recipe", { out, set: ["jaava=on"] })).toMatchObject({ isError: true, text: `--set jaava=on: "jaava" is no catalog row and no row of ${out} outside the catalog, and no package a manager on ${HERE} has that id. Run wsp recipe scan to read the rows this computer offers.` });
-    expect(Recipe.parse(JSON.parse(readFileSync(out, "utf8"))).rows.find(r => r.id === "java")?.on).toBe(true);
-
-    // The id the scan gives a package this computer has ticks that package's own row, the road the Also screen takes.
-    const ticked = RecipeAnswer.parse((await call("recipe", { out, set: [`${diskbloom.id}=on`] })).structured);
-    expect(allRows(ticked).some(r => r.id === diskbloom.id)).toBe(false);
-    expect(Recipe.parse(JSON.parse(readFileSync(out, "utf8"))).rows.find(r => r.id === "tools/brew/zingzy/tap/diskbloom")).toMatchObject({ on: true, kind: "tool" });
-    // An add for the same package is refused in one line naming the set word, since it is a row already.
-    expect(await call("recipe", { out, add: [`${diskbloom.id}=${diskbloom.install}`] })).toMatchObject({ isError: true, text: `--add ${diskbloom.id}: a package manager on ${HERE} already has ${diskbloom.id}, so it is a row of its own. Tick it with --set ${diskbloom.id}=on.` });
-    expect(Recipe.parse(JSON.parse(readFileSync(out, "utf8"))).custom ?? []).toEqual([]);
-  });
-
-  it("recipe refuses a relative out or project by name: this server's own folder is wherever the agent launched it", async () => {
-    expect(await call("recipe", { out: "recipe.json" })).toMatchObject({ isError: true, text: 'out is a path on this computer, absolute, and got "recipe.json". Give a path that opens with /, since whoever reads it works in a folder this line cannot see.' });
-    expect(await call("recipe", { out: join(dir, "r.json"), project: ["../elsewhere"] })).toMatchObject({ isError: true, text: 'project is a folder on this computer, absolute, and got "../elsewhere". Give a path that opens with /, since whoever reads it works in a folder this line cannot see.' });
-    expect(await call("recipe_scan", { project: ["packages/host"] })).toMatchObject({ isError: true, text: 'project is a folder on this computer, absolute, and got "packages/host". Give a path that opens with /, since whoever reads it works in a folder this line cannot see.' });
-  });
-
-  it("recipe_scan answers with every option and a recommendation per row, and writes nothing", async () => {
-    const out = join(dir, "untouched.json");
-    // No scanner is handed to this server, so nothing looked for tools outside the catalog and it says so.
-    const result = await call("recipe_scan", {});
-    const scan = RecipeScan.parse(result.structured);
-    expect(existsSync(out)).toBe(false);
-    expect(scan.tick).toBe("used");
-    expect(scan.agents.map(r => r.id).sort()).toEqual(CATALOG.filter(e => e.kind === "agent").map(e => e.id).sort());
-    expect(scan.tools.map(r => r.id).sort()).toEqual(CATALOG.filter(e => e.kind === "tool").map(e => e.id).sort());
-    expect(scan.alsoHere).toEqual({ scanned: false, managers: [] });
-    for (const row of [...scan.agents, ...scan.tools]) expect(row.recommended.value, row.id).toBe(row.on ? "on" : "off");
-    expect(result.text).toBe(scanPrintout(scan, hostPlatform()).join("\n"));
-    expect(result.text).toContain("nothing looked for them here");
-  });
 });
 
 describe("the MCP server never talks to the provider", () => {
@@ -1303,7 +1212,6 @@ describe("the MCP server never talks to the provider", () => {
     // The keys package is node crypto and nothing else: a tool server holds a host to the key it pinned before it
     // sends that host a token, and loads no runtime, engine or provider key to do it.
     expect(walked.get("verbs.ts")!.filter(i => i.startsWith("@wsp/"))).toEqual(["@wsp/catalog", "@wsp/collect", "@wsp/keys", "@wsp/protocol"]);
-    expect([...walked.keys()].sort()).toContain("recipe-answer.ts");
     expect([...walked.keys()].sort()).toContain("init-layout.ts");
     // The adapter packages come from the one registry's list of agents, so a new agent is banned here without an edit.
     const banned = new RegExp(`@wsp/(runtime|engine|daemon|web|${THREAD_AGENTS.map(a => `adapter-${a}`).join("|")})`);

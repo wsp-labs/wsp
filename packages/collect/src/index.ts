@@ -12,16 +12,13 @@ export { GUARD_BEGIN, GUARD_END, calledCommands, dropPlugins, guardCommands } fr
 export { TERMINAL_FONT_ID, alacrittyFont, detectTerminalFont, ghosttyFont, itermFont, kittyFont, weztermFont } from "./detect/terminal.js";
 export { GHOSTTY_BUILT_IN_FONT, ghosttyConfigPaths, parseGhosttyDirectives, readGhosttyConfig, themeFor, type GhosttyDirective } from "./ghostty-config.js";
 export { detectToolchains } from "./detect/toolchains.js";
-export { aptPackages, aptSizes, parseAptManual, parseDpkgFields } from "./detect/apt.js";
+export { aptPackages, parseAptManual, parseDpkgFields } from "./detect/apt.js";
 export { brewfileHere, detectTools, jsGlobalFolders, packageCommands, parseBrewfile, parseBunGlobals, parseCargoInstalls, parseGoVersionM, parseNpmGlobals, parsePipxList, parsePnpmGlobals, parseUvToolList, type BrewLine, type GoModule, type Pkg } from "./detect/tools.js";
 export { classifyFormulae, linuxSupport, renderSnapshot, type BottleSnapshot } from "./brew-bottles.js";
 export { LINUX_BOTTLES } from "./data/linux-bottles.js";
 export { AGENTS, agentRowId, detectAgents } from "./detect/agents.js";
 export { type Presence, presenceOf } from "./detect/presence.js";
 export * from "./history/index.js";
-export { type CommandCount, type RecipeOptions, computeRecipe, floorApplies, unknownCommands, withProject } from "./recipe.js";
-export { PROJECT_READERS, type ProjectNeed, type ProjectScan, scanProject } from "./project/index.js";
-export type { ProjectFile, ProjectFinding, ProjectReader } from "./project/reader.js";
 export { KEYLIKE_SEGMENT, MCP_BIN_DIRS, MCP_REMOTE_ID, MCP_REMOTE_LABEL, detectMcp, hidesValue, homePaths, linuxFit, mcpRemoteHash, mcpRemoteOf, mcpRemoteTokenFile, plainArg, readArgs, secretNamed, stdioLine, type ArgRead, type LinuxFit } from "./detect/mcp.js";
 export { SWITCHED_OFF_HERE, detectProjectMcp, outsideProjectLine, type ProjectServer } from "./detect/mcp-project.js";
 export { readCheckout, readTurnServers } from "./detect/turn-servers.js";

@@ -23,7 +23,6 @@ pub struct Snapshot {
     pub projects: Vec<Value>,
     pub places: Vec<Value>,
     pub preferences: Value,
-    pub job: Option<Value>,
     /// Each workspace's live status (`status.subscribe`), which carries its checkout and pull request.
     pub statuses: Vec<Value>,
     pub release: Option<Value>,
@@ -42,9 +41,6 @@ pub enum Change {
     },
     Preferences(Value),
     Places(Vec<Value>),
-    Job(Option<Value>),
-    /// `job.needs-you`: the need the build job now carries.
-    JobNeed(Value),
     Workspaces(Vec<Value>),
     Projects(Vec<Value>),
     /// `workspace.deleted`: the workspace went, and every row, status and port of it with it.
@@ -118,25 +114,14 @@ pub async fn read(host: &HostClient, subscribe: bool) -> Result<Snapshot, Failur
     let statuses = if subscribe { host.statuses().await.unwrap_or_default() } else { Vec::new() };
     let release = sent(host, "release.get", "release").await.ok();
     let forwards = listed(host, "forwards.list", "forwards").await.unwrap_or_default();
-    let (sessions, workspaces, projects, places, preferences, mut setup) = futures::try_join!(
+    let (sessions, workspaces, projects, places, preferences) = futures::try_join!(
         shared::sessions(host, Map::new()),
         listed(host, "workspaces.list", "workspaces"),
         listed(host, "projects.list", "projects"),
         listed(host, "places.list", "places"),
         sent(host, "preferences.get", "preferences"),
-        sent(host, "init.get", "setup"),
     )?;
-    Ok(Snapshot {
-        sessions,
-        workspaces,
-        projects,
-        places,
-        preferences,
-        job: setup.get_mut("job").map(Value::take).filter(|j| !j.is_null()),
-        statuses,
-        release,
-        forwards,
-    })
+    Ok(Snapshot { sessions, workspaces, projects, places, preferences, statuses, release, forwards })
 }
 
 async fn again(host: &HostClient, what: Again) -> Result<Change, Failure> {
@@ -167,9 +152,6 @@ fn step(kind: &str, frame: Value) -> Option<Step> {
         "preferences.changed" => take(frame.get("preferences").cloned().map(Change::Preferences)),
         "thread.rewound" => Some(Step::Read(Again::Sessions)),
         "project.added" | "project.removed" => Some(Step::Read(Again::Projects)),
-        // `useStore`'s init.job: the frame carries the job whole, so it is taken as it stands.
-        "init.job" => take(Some(Change::Job(frame.get("job").filter(|j| !j.is_null()).cloned()))),
-        "job.needs-you" => take(frame.get("needsYou").filter(|n| !n.is_null()).cloned().map(Change::JobNeed)),
         "workspace.status" => take(frame.get("status").cloned().map(Change::Status)),
         "workspace.creating" => take(Some(Change::Creating(frame))),
         "workspace.created" => Some(Step::TakeThenRead(Change::Created(frame), Again::Workspaces)),
@@ -249,7 +231,7 @@ pub async fn ask<O: Op + DeserializeOwned + Send>(host: Arc<HostClient>, params:
 mod tests {
     use serde_json::json;
 
-    use super::{ends_step, step, Again, Change, Step};
+    use super::{ends_step, step, Again, Step};
 
     #[test]
     fn a_setup_frame_that_ends_a_step_reads_the_computers_again() {
@@ -258,16 +240,6 @@ mod tests {
         let landed = step("place.setup", json!({ "placeId": "p", "landed": { "row": "gh" } }));
         assert!(matches!(landed, Some(Step::Read(Again::Places))), "a landed row is read again: {landed:?}");
         assert!(step("place.setup", json!({ "placeId": "p", "line": { "state": "running" } })).is_none(), "a running line reads nothing");
-    }
-
-    #[test]
-    fn a_pushed_job_is_taken_from_its_frame() {
-        let pushed = step("init.job", json!({ "type": "init.job", "job": { "id": "j", "phase": "building" } }));
-        let Some(Step::Take(Change::Job(Some(job)))) = pushed else { panic!("the frame's job is taken: {pushed:?}") };
-        assert_eq!(job["id"], "j");
-        let need = step("job.needs-you", json!({ "type": "job.needs-you", "jobId": "j", "needsYou": { "what": "Sign in" } }));
-        let Some(Step::Take(Change::JobNeed(need))) = need else { panic!("the need is taken on the job's own road: {need:?}") };
-        assert_eq!(need["what"], "Sign in");
     }
 
     #[test]
