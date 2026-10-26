@@ -253,7 +253,7 @@ static ANSWER_ROAD_ROWS: [AnswerRoad; 3] = [
 
 /// `answerRoads(options)` (turns-help.ts:937): the roads this prompt's own options carry, in the roads' order,
 /// each beside the first option of its effect; a road whose effect no option has is left out.
-pub fn roads_of<'a>(options: &'a [PermissionOption]) -> Vec<(&'static AnswerRoad, &'a PermissionOption)> {
+pub fn roads_of(options: &[PermissionOption]) -> Vec<(&'static AnswerRoad, &PermissionOption)> {
     answer_roads().iter().filter_map(|road| options.iter().find(|o| o.effect == road.effect).map(|option| (road, option))).collect()
 }
 
@@ -738,8 +738,8 @@ fn cap_wait_of(capped: &SessionCappedEvent) -> ThreadCapWait {
     ThreadCapWait {
         place_id: capped.place_id.clone(),
         place: capped.place.clone(),
-        running: capped.running.clone(),
-        at_once: capped.at_once.clone(),
+        running: capped.running,
+        at_once: capped.at_once,
         why: capped.why.as_ref().map(|why| match why {
             SessionCappedEventWhy::Slot => ThreadCapWaitWhy::Slot,
             SessionCappedEventWhy::Minute => ThreadCapWaitWhy::Minute,

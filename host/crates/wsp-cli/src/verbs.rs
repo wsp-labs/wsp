@@ -87,7 +87,7 @@ pub fn without_cloud_flags(verb: &Verb) -> Verb {
     if dropped.is_empty() {
         return verb.clone();
     }
-    let is_dropped = |name: &str| dropped.iter().any(|flag| *flag == name);
+    let is_dropped = |name: &str| dropped.contains(&name);
     let usage_without = |usage: &str| {
         dropped.iter().fold(usage.to_owned(), |line, name| {
             let group = Regex::new(&format!(r" \[--{}\b[^\]]*\]", regex::escape(name))).expect("a flag name makes a pattern");

@@ -521,6 +521,7 @@ pub struct CreateAsked {
 /// 5. `workspaces.create {project, name, ...size (cpu, memMb), agents?, parent?}` in that key order.
 /// 6. The reply's `workspace` and `notice` (kept as the host wrote them) are emitted with the line `created <name> <id>, a
 ///    copy of <project name> at <folder or project path>` plus `\n<notice>` where a notice is present (an empty one too).
+///
 /// Frames after the reply are dropped. The held frames stop on every road out once the create was sent.
 pub async fn create_for(
     client: &dyn HostClient,

@@ -620,7 +620,7 @@ fn is_link(target: &str) -> bool {
 }
 
 fn verdict_of(word: &str) -> Option<ReviewVerdict> {
-    VERDICTS.iter().find(|(name, _)| *name == word).map(|(_, verdict)| verdict.clone())
+    VERDICTS.iter().find(|(name, _)| *name == word).map(|(_, verdict)| *verdict)
 }
 
 /// What the tool server answers before a call runs when an enum input names a word off its list.

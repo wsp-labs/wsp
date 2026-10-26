@@ -354,8 +354,8 @@ fn run_slate_write(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
         if let Some(piece) = piece {
             let press = pick(vec![
                 ("piece", Some(Value::from(piece))),
-                ("index", row.map(|n| js_number_value(n))),
-                ("action", action.map(|n| js_number_value(n))),
+                ("index", row.map(js_number_value)),
+                ("action", action.map(js_number_value)),
             ]);
             params.insert("press".to_owned(), Value::Object(press));
         }

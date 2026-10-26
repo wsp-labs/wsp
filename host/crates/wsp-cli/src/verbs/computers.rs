@@ -12,7 +12,7 @@ use wsp_wire::views::place_more::{PlaceSettingWord, PlaceView};
 use wsp_wire::wire::capabilities::WorkspaceSize;
 use wsp_words::exit::{usage_refusal, HostError};
 use wsp_words::place_state::{nap_ms_of, place_takes, turn_limit_ms_of};
-use wsp_words::usage::{reset_question, used_ask};
+use wsp_words::usage::reset_question;
 use wsp_words::words::units::size_from_word;
 
 use super::client::*;

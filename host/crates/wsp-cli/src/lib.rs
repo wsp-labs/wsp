@@ -3,6 +3,9 @@
 //! and the files of chapter 01's `wsp-cli` row). A socket client of the host: it depends on no
 //! runtime crate (rule 1.6).
 
+// HostError is 192 bytes and the signatures the tests call are fixed: boxing or regrouping them is a change of those calls.
+#![allow(clippy::result_large_err, clippy::type_complexity, clippy::too_many_arguments, clippy::large_enum_variant)]
+
 pub mod parse_args;
 pub mod verbs;
 
