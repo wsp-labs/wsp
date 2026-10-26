@@ -1,2 +1,0 @@
-{"meta":{"door":"cli","source":"skill > wsp projects set <project> --agent <id> --model <slug> --effort <word> --access <word> --after-worktree <command> --tracker <owner/name>... --reset <field>..."}}
-{"in":{"argv":["projects","set","<project>","--agent","<id>","--model","<slug>","--effort","<word>","--access","<word>","--after-worktree","<command>","--tracker","<owner/name>...","--reset","<field>..."]}}
