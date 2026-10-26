@@ -351,7 +351,7 @@ pub fn newest_lines(items: &[ConversationLine], total: u32, last: u32) -> Conver
     kept.reverse();
     let calls_before_the_first_message = kept.iter().take_while(|line| line.who == "tool").count();
     kept.drain(..calls_before_the_first_message);
-    ConversationEarlier { cwd: None, title: None, lines: kept, earlier: total.saturating_sub(messages) }
+    ConversationEarlier { cwd: None, title: None, lines: kept, earlier: f64::from(total.saturating_sub(messages)) }
 }
 
 /// The threads Codex kept on a computer. TS adapter.ts:1333.
@@ -465,7 +465,7 @@ async fn earlier_read(
     }
     read_lines.reverse();
     let newest = newest_lines(&read_lines, total, ask.last);
-    Ok(EarlierRead::Read(ConversationEarlier { cwd, title, lines: newest.lines, earlier: if ask.count { newest.earlier } else { 0 } }))
+    Ok(EarlierRead::Read(ConversationEarlier { cwd, title, lines: newest.lines, earlier: if ask.count { newest.earlier } else { 0.0 } }))
 }
 
 impl ConversationStore for CodexConversations {

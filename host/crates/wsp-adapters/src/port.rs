@@ -13,15 +13,19 @@
 //! turn's reader, goes on `tokio::task::spawn_local`, so every test runs inside a `LocalSet`.
 
 use std::sync::Arc;
+use std::task::Context;
 use std::time::Duration;
 
-use futures::future::{LocalBoxFuture, Shared};
+use futures::channel::oneshot;
+use futures::future::{FutureExt, LocalBoxFuture, Shared};
 use futures::stream::LocalBoxStream;
+use futures::task::noop_waker_ref;
 use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 pub use crate::pending::McpServerSpec;
+use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::types::shell_quote::shell_quote;
 pub use wsp_wire::types::usage::HarnessLimit;
 pub use wsp_wire::views::harness::ScreenCommand;
@@ -300,7 +304,7 @@ pub enum AdapterEvent {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         summary: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
-        depth: Option<u32>,
+        depth: Option<JsNumber>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         model: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -518,6 +522,28 @@ pub async fn settles_within<T>(turn: LocalBoxFuture<'_, T>, ms: u64) -> bool {
     }
 }
 
+/// Starts a write or a run's end now, as the TS does with `void stream.write(...)`: the line is taken in this call, so
+/// a close that follows it cannot overtake it.
+pub(crate) fn fire<T: 'static>(mut future: LocalBoxFuture<'static, T>) {
+    if future.as_mut().poll(&mut Context::from_waker(noop_waker_ref())).is_pending() {
+        tokio::task::spawn_local(async move {
+            future.await;
+        });
+    }
+}
+
+/// Starts `future` now, as the TS starts an async call's synchronous half; the result is read off the returned future.
+pub(crate) fn started<T: 'static>(future: LocalBoxFuture<'static, T>) -> LocalBoxFuture<'static, T> {
+    let (tx, rx) = oneshot::channel();
+    fire(
+        async move {
+            let _ = tx.send(future.await);
+        }
+        .boxed_local(),
+    );
+    async move { rx.await.expect("a started future settles") }.boxed_local()
+}
+
 /// True when the process is still running once `ms` passed, false when it exited inside it.
 async fn outlasted(stream: &dyn ExecStream, ms: u64) -> bool {
     let exited = stream.exited();
@@ -720,11 +746,12 @@ pub enum ResetSpend {
     Refused { refused: String, too_old: bool },
 }
 
-/// TS adapter-port.ts:577.
+/// TS adapter-port.ts:577. A command that throws in the TS (a relative home, a key or credit id that is no slug) is an
+/// `Err` holding its words, which the runtime turns into a usage refusal (usage-reset.ts:146-151).
 pub trait PlanResets {
-    fn read_command(&self, road: &ResetRoad) -> String;
+    fn read_command(&self, road: &ResetRoad) -> Result<String, String>;
     fn parse_read(&self, stdout: &str) -> Option<ResetReading>;
-    fn spend_command(&self, road: &ResetRoad, idempotency_key: &str, credit_id: Option<&str>) -> String;
+    fn spend_command(&self, road: &ResetRoad, idempotency_key: &str, credit_id: Option<&str>) -> Result<String, String>;
     fn parse_spend(&self, stdout: &str) -> ResetSpend;
     fn too_old(&self) -> &str;
 }
@@ -1116,7 +1143,7 @@ pub struct ConversationEarlier {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     pub lines: Vec<ConversationLine>,
-    pub earlier: u32,
+    pub earlier: f64,
 }
 
 /// What `earlier` found. TS `ConversationEarlier | "gone" | "open"`.

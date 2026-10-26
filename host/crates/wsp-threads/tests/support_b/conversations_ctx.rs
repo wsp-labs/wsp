@@ -239,7 +239,7 @@ pub fn lasting_error(message: &str) -> StoreError {
 
 /// An earlier read of a conversation: cwd, title, lines as `(who, text)` and the count left out.
 pub fn earlier(cwd: Option<&str>, title: Option<&str>, lines: Vec<ConversationLine>, left: u32) -> ConversationEarlier {
-    ConversationEarlier { cwd: cwd.map(String::from), title: title.map(String::from), lines, earlier: left }
+    ConversationEarlier { cwd: cwd.map(String::from), title: title.map(String::from), lines, earlier: f64::from(left) }
 }
 
 pub fn line(who: &str, text: &str) -> ConversationLine {

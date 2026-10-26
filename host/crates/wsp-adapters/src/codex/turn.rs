@@ -30,7 +30,6 @@ use super::rpc::{
     turn_start_line, turn_steer_line, Decision, RequestId, RpcMessage, ThreadOptions,
 };
 use super::shell_script::shell_script_of;
-use crate::claude::turn::fire;
 use crate::pending::{aside_wall_line, codex_reconnect_line, conversation_written_elsewhere_line};
 use crate::port::DeltaKind;
 use crate::port::{
@@ -38,6 +37,7 @@ use crate::port::{
     PermissionAnswer, PermissionAsk, PermissionOutcome, SessionFile, Settle, SharedFuture, SteerOutcome, SubagentState, TaskStop,
     TurnDelta, TurnImage, TurnResult, TurnStatus, WriteOutcome, PERMISSION_ALLOW, PERMISSION_DENY,
 };
+use crate::port::{fire, started};
 use futures::future::Shared;
 use wsp_wire::types::js_number::JsNumber;
 use wsp_wire::wire::helpers::{PermissionEffect, PermissionOption};
@@ -428,18 +428,6 @@ pub(super) fn bare(status: TurnStatus) -> TurnResult {
 /// A failed result with its words and no duration. TS adapter.ts:1088 (the request errors).
 pub(super) fn plain_failure(error: String) -> TurnResult {
     TurnResult { error: Some(error), ..bare(TurnStatus::Failed) }
-}
-
-/// Starts `future` now, as the TS starts an async call's synchronous half; the result is read off the returned future.
-pub(super) fn started<T: 'static>(future: LocalBoxFuture<'static, T>) -> LocalBoxFuture<'static, T> {
-    let (tx, rx) = oneshot::channel();
-    fire(
-        async move {
-            let _ = tx.send(future.await);
-        }
-        .boxed_local(),
-    );
-    async move { rx.await.expect("a started future settles") }.boxed_local()
 }
 
 /// Polls `future` once, as the TS runs an async call up to its first await: its value where it is already settled,
