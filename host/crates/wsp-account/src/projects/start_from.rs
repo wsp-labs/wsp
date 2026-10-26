@@ -79,6 +79,8 @@ pub type OpenedSession = SessionView;
 /// What the start area reads off the runtime context, past `Base`.
 #[async_trait(?Send)]
 pub trait StartFromCtx: Base {
+    /// A TS `void f()`: `f` runs now, nothing awaits it.
+    fn spawn(&self, f: futures::future::LocalBoxFuture<'static, ()>);
     /// `ctx.places.wired`.
     fn places_wired(&self) -> String;
     /// `ctx.landingDeps(computer)`'s `placeId`, and whether a backend could be read there.
@@ -841,11 +843,11 @@ impl StartFrom {
                     let name = record.name.clone();
                     let prompt = review_reask_prompt(&why);
                     let thread = thread_id.to_owned();
-                    tokio::task::spawn_local(async move {
+                    self.ctx.spawn(Box::pin(async move {
                         if let Err(e) = ctx.send_detached(&id, &prompt, &thread).await {
                             warn(&format!("the reviewer of {name} was not asked again: {}", e.message));
                         }
-                    });
+                    }));
                 }
                 return Ok(());
             }

@@ -288,7 +288,7 @@ pub async fn review_draft(ctx: &Rc<dyn ReviewCtx>, ask: ReviewDraftAsk, origin: 
         if let Some(comments) = value["comments"].as_array_mut() {
             for comment in comments.iter_mut() {
                 let id = comment["id"].as_str().unwrap_or_default().to_owned();
-                if let Some((_, on)) = ticks.iter().find(|(tick, _)| *tick == id) {
+                if let Some((_, on)) = ticks.iter().rev().find(|(tick, _)| *tick == id) {
                     comment["on"] = json!(on);
                 }
             }

@@ -294,6 +294,11 @@ impl FakeBase {
         self.script.borrow_mut().entry(name.to_owned()).or_default().extend(answers);
     }
 
+    /// Whether an answer is scripted for a name, without taking it.
+    pub fn has_answer(&self, name: &str) -> bool {
+        self.script.borrow().get(name).is_some_and(|q| !q.is_empty())
+    }
+
     /// The next scripted answer for a name, the last one repeating; none where nothing is scripted.
     pub fn answer(&self, name: &str) -> Option<Value> {
         let mut script = self.script.borrow_mut();

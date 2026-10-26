@@ -277,6 +277,9 @@ impl LandingRoad for FakeRoad {
             None => Ok(v.as_bool().unwrap()),
         })
     }
+    fn takes_files(&self) -> bool {
+        self.base.has_answer(&self.key("seed_into")) || self.base.has_answer("road_seed_into")
+    }
     async fn seed_into(&self, project: &ProjectView, tar: Vec<u8>, deps: &LandingDeps) -> Option<Result<(), HostError>> {
         self.base.call(
             "road_seed_into",
