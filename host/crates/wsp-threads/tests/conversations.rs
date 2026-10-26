@@ -387,6 +387,18 @@ fn folders_of_lists_the_project_its_worktrees_and_held_folders_once() {
     });
 }
 
+// TS: conversations.ts:98 `ctx.projectHeld(entry.record.project)` throws and the read rejects with it, before git is asked.
+#[test]
+fn folders_of_fails_with_the_project_read_that_threw() {
+    local(async {
+        let h = host();
+        *h.ctx.project_fails.borrow_mut() = Some("no project p1".into());
+        let got = h.area.folders_of(&h.entry).await.expect_err("the read throws");
+        assert_eq!(got.message, "no project p1");
+        assert!(!h.ctx.called().iter().any(|c| c.starts_with("worktreesOf")), "git is not asked");
+    });
+}
+
 #[test]
 fn folders_of_asks_git_only_on_a_kind_that_copies_a_folder_with_a_git_top() {
     local(async {

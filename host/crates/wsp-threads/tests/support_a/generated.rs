@@ -173,14 +173,15 @@ impl LaunchCtx for FakeHost {
         }
         DefaultsOn { catalog, open_model: None, open_effort: None }
     }
-    fn named_mode(&self, catalog: Option<&HarnessCatalog>, harness: &str, access: &AccessChoice) -> Option<String> {
+    fn named_mode(&self, catalog: Option<&HarnessCatalog>, harness: &str, access: &AccessChoice) -> Result<Option<String>, HostError> {
         self.hooks.log("named_mode", vec![harness.to_string()]);
-        if let Some(hook) =
-            self.hooks.get::<dyn Fn(Option<&HarnessCatalog>, &str, &AccessChoice) -> Option<String>>("LaunchCtx::named_mode")
+        if let Some(hook) = self
+            .hooks
+            .get::<dyn Fn(Option<&HarnessCatalog>, &str, &AccessChoice) -> Result<Option<String>, HostError>>("LaunchCtx::named_mode")
         {
             return hook(catalog, harness, access);
         }
-        None
+        Ok(None)
     }
     fn access_of(&self, workspace_id: &str, thread_id: &str, session: Option<&str>) -> Option<String> {
         self.hooks.log("access_of", vec![workspace_id.to_string(), thread_id.to_string(), format!("{:?}", session)]);
@@ -479,12 +480,14 @@ impl ActivityCtx for FakeHost {
         }
         true
     }
-    fn refusal_for(&self, record: &WorkspaceRecord, caller: Option<&Caller>) -> Option<HostError> {
+    fn refusal_for(&self, record: &WorkspaceRecord, caller: Option<&Caller>) -> Result<Option<HostError>, HostError> {
         self.hooks.log("refusal_for", vec![]);
-        if let Some(hook) = self.hooks.get::<dyn Fn(&WorkspaceRecord, Option<&Caller>) -> Option<HostError>>("ActivityCtx::refusal_for") {
+        if let Some(hook) =
+            self.hooks.get::<dyn Fn(&WorkspaceRecord, Option<&Caller>) -> Result<Option<HostError>, HostError>>("ActivityCtx::refusal_for")
+        {
             return hook(record, caller);
         }
-        None
+        Ok(None)
     }
     fn settles_thread(&self, thread_id: &str, caller: Option<&Caller>) -> bool {
         self.hooks.log("settles_thread", vec![thread_id.to_string()]);

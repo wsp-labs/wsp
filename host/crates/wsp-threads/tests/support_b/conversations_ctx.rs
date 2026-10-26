@@ -295,6 +295,8 @@ pub struct FakeConversationsCtx {
     /// Workspace id to the project it is live on.
     pub live_projects: RefCell<IndexMap<String, String>>,
     pub projects: RefCell<IndexMap<String, ProjectView>>,
+    /// Makes `project_held` throw with these words.
+    pub project_fails: RefCell<Option<String>>,
     pub worktrees: RefCell<IndexMap<String, Result<Vec<ListedWorktree>, HostError>>>,
     pub held_folders: RefCell<IndexMap<String, Vec<WorkspaceRecord>>>,
     pub adapters: RefCell<IndexSet<String>>,
@@ -325,6 +327,7 @@ impl FakeConversationsCtx {
             transcript_state: StateCell::new(TranscriptState::default()),
             live_projects: RefCell::default(),
             projects: RefCell::default(),
+            project_fails: RefCell::default(),
             worktrees: RefCell::default(),
             held_folders: RefCell::default(),
             adapters: RefCell::default(),
@@ -405,13 +408,17 @@ impl ConversationsCtx for FakeConversationsCtx {
         self.exec_timeouts.borrow_mut().push(timeout_ms);
         Arc::new(FakeExec { commands: self.exec_commands.clone() })
     }
-    fn project_held(&self, project: &str) -> ProjectView {
+    fn project_held(&self, project: &str) -> Result<ProjectView, HostError> {
         self.call(format!("projectHeld {project}"));
-        self.projects
+        if let Some(why) = self.project_fails.borrow().clone() {
+            return Err(HostError::new(why));
+        }
+        Ok(self
+            .projects
             .borrow()
             .get(project)
             .cloned()
-            .unwrap_or_else(|| project_view(project, project, &format!("/repo/{project}"), Some(&format!("/repo/{project}"))))
+            .unwrap_or_else(|| project_view(project, project, &format!("/repo/{project}"), Some(&format!("/repo/{project}")))))
     }
     fn worktrees_of(&self, top: &str) -> LocalBoxFuture<'static, Result<Vec<ListedWorktree>, HostError>> {
         self.call(format!("worktreesOf {top}"));

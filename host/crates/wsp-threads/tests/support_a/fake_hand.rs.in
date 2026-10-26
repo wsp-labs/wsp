@@ -205,7 +205,7 @@
         true
 //@end
 //@ SessionsCtx::opens_in
-        true
+        Ok(true)
 //@end
 //@ SessionsCtx::snapshot_of
         futures::future::ready(None).boxed_local().shared()
@@ -245,7 +245,7 @@
         IndexMap::new()
 //@end
 //@ SessionsCtx::checkout_of
-        format!("/work/{}", record.id)
+        Ok(format!("/work/{}", record.id))
 //@end
 //@ SessionsCtx::git_restore
         Ok(Map::new())
@@ -254,7 +254,7 @@
         true
 //@end
 //@ SessionsCtx::project_computer_name
-        project.to_string()
+        Ok(project.to_string())
 //@end
 //@ SessionsCtx::kept_warm
         true

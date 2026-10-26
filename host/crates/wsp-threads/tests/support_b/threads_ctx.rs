@@ -62,6 +62,10 @@ pub struct FakeThreadsCtx {
     /// Ops the daemon never answers.
     pub daemon_hangs: RefCell<Vec<String>>,
     pub projects: RefCell<IndexMap<String, ProjectView>>,
+    /// Makes `project_held` throw with these words.
+    pub project_fails: RefCell<Option<String>>,
+    /// Makes `checkout_of` throw with these words.
+    pub checkout_fails: RefCell<Option<String>>,
     pub reach: RefCell<String>,
     pub snapshot_ms: Cell<Option<i64>>,
     pub vault: RefCell<IndexMap<String, String>>,
@@ -104,6 +108,8 @@ impl FakeThreadsCtx {
             daemon: RefCell::default(),
             daemon_hangs: RefCell::default(),
             projects: RefCell::default(),
+            project_fails: RefCell::default(),
+            checkout_fails: RefCell::default(),
             reach: RefCell::new("reachable".into()),
             snapshot_ms: Cell::new(None),
             vault: RefCell::default(),
@@ -306,11 +312,17 @@ impl ThreadsCtx for FakeThreadsCtx {
         let answer = answer.unwrap_or_else(|| Err(AccountError::Host(err(&format!("no answer for {op}")))));
         async move { answer }.boxed_local()
     }
-    fn checkout_of(&self, record: &WorkspaceRecord) -> String {
-        format!("/work/{}", record.id)
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError> {
+        if let Some(why) = self.checkout_fails.borrow().clone() {
+            return Err(HostError::new(why));
+        }
+        Ok(format!("/work/{}", record.id))
     }
-    fn project_held(&self, project: &str) -> ProjectView {
-        self.projects.borrow().get(project).cloned().unwrap_or_else(|| held_project(project, Some(&format!("/repo/{project}"))))
+    fn project_held(&self, project: &str) -> Result<ProjectView, HostError> {
+        if let Some(why) = self.project_fails.borrow().clone() {
+            return Err(HostError::new(why));
+        }
+        Ok(self.projects.borrow().get(project).cloned().unwrap_or_else(|| held_project(project, Some(&format!("/repo/{project}")))))
     }
     fn reach_of(&self, _entry: &Entry) -> ReachState {
         serde_json::from_value(json!(self.reach.borrow().clone())).expect("a ReachState")

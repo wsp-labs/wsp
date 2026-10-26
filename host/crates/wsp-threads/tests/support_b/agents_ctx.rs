@@ -418,6 +418,10 @@ pub struct FakeAgentsCtx {
     pub provider_when_no_place: Cell<bool>,
     /// By (place, agent), for `place_agent_home`; else `<home>/.<agent>-of-<place>`.
     pub place_agent_homes: RefCell<IndexMap<(String, String), String>>,
+    /// Makes `place_agent_home` throw with these words.
+    pub place_home_fails: RefCell<Option<String>>,
+    /// Makes `brokered_launch` throw with these words.
+    pub brokered_fails: RefCell<Option<String>>,
     pub ready_fails: RefCell<Option<String>>,
     /// A harness whose `know_broker` fails, with its message.
     pub broker_failures: RefCell<IndexMap<String, String>>,
@@ -470,6 +474,8 @@ impl FakeAgentsCtx {
             provider_places: RefCell::default(),
             provider_when_no_place: Cell::new(false),
             place_agent_homes: RefCell::default(),
+            place_home_fails: RefCell::default(),
+            brokered_fails: RefCell::default(),
             ready_fails: RefCell::new(None),
             broker_failures: RefCell::default(),
             unreached: RefCell::default(),
@@ -615,12 +621,16 @@ impl AgentsCtx for FakeAgentsCtx {
             None => self.provider_when_no_place.get(),
         }
     }
-    fn place_agent_home(&self, place: &str, home: &str, agent: &str) -> String {
-        self.place_agent_homes
+    fn place_agent_home(&self, place: &str, home: &str, agent: &str) -> Result<String, HostError> {
+        if let Some(why) = self.place_home_fails.borrow().clone() {
+            return Err(HostError::new(why));
+        }
+        Ok(self
+            .place_agent_homes
             .borrow()
             .get(&(place.to_string(), agent.to_string()))
             .cloned()
-            .unwrap_or_else(|| format!("{home}/.{agent}-of-{place}"))
+            .unwrap_or_else(|| format!("{home}/.{agent}-of-{place}")))
     }
     fn ready(&self) -> LocalBoxFuture<'static, Result<(), HostError>> {
         self.call("ready".to_string());
@@ -682,9 +692,12 @@ impl AgentsCtx for FakeAgentsCtx {
     fn computer_runs_in_folder(&self, computer: &str) -> bool {
         self.folder_computers.borrow().contains(computer)
     }
-    fn brokered_launch(&self, entry: &Entry, harness: &str, token: Option<&str>) -> Option<BrokeredLaunch> {
+    fn brokered_launch(&self, entry: &Entry, harness: &str, token: Option<&str>) -> Result<Option<BrokeredLaunch>, HostError> {
         self.call(format!("brokeredLaunch {} {harness} {}", entry.borrow().record.borrow().id, token.unwrap_or("-")));
-        self.brokered.borrow().clone()
+        if let Some(why) = self.brokered_fails.borrow().clone() {
+            return Err(HostError::new(why));
+        }
+        Ok(self.brokered.borrow().clone())
     }
     fn vault(&self) -> Env {
         self.vault.borrow().clone()
