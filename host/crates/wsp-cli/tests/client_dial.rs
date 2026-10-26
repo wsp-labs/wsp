@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The socket to the host (client.ts:95-452, spec/client-dial.md): a real websocket on loopback, a host scripted
 //! frame by frame, and what the line sends, reads and fails with.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 
 #[path = "cli_a_common/mod.rs"]
 mod common;
@@ -15,7 +24,7 @@ use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_tungstenite::tungstenite::protocol::CloseFrame;
 use tokio_tungstenite::tungstenite::Message;
 
-use common::{boxed, RecordingIo, Script, ScriptedClient, ScriptedHost, STOPPING_CLOSE};
+use common::{boxed, Script, ScriptedClient, ScriptedHost, STOPPING_CLOSE};
 use wsp_cli::hosts::{HostAim, HostPick};
 use wsp_cli::verbs::client::{
     dial_host, host_address, host_again, stopped_under, until_settled, DialOpts, Frame, HostAddress, HostClient, PushedFrames,
@@ -235,7 +244,7 @@ mod requests {
             ))]
         });
         let (port, _seen) = host(answer).await;
-        let e = dial(port).await.request("slate.write", Frame::new()).await.err().expect("refused");
+        let e = dial(port).await.request("slate.write", Frame::new()).await.expect_err("refused");
         assert_eq!(e.message, "V750 the document moved");
         assert_eq!(e.kind, Some(Kind::Usage));
         assert_eq!(e.errors, Some(vec![json!({ "code": "V750" })]));
@@ -336,7 +345,7 @@ mod the_socket_going {
     async fn a_close_with_4001_fails_what_waits_with_the_stopping_line_and_no_kind() {
         let (port, _seen) = host(closing_on("sessions.start", Some(4001))).await;
         let client = dial(port).await;
-        let e = client.request("sessions.start", Frame::new()).await.err().expect("failed");
+        let e = client.request("sessions.start", Frame::new()).await.expect_err("failed");
         assert_eq!(e.message, HOST_STOPPING_LINE);
         assert_eq!(e.kind, None, "a plain error: exit 1");
         assert_eq!(client.closed().await, Some(4001));
@@ -349,7 +358,7 @@ mod the_socket_going {
         for code in [Some(1000), Some(4401), None] {
             let (port, _seen) = host(closing_on("x", code)).await;
             let client = dial(port).await;
-            let e = client.request("x", Frame::new()).await.err().expect("failed");
+            let e = client.request("x", Frame::new()).await.expect_err("failed");
             assert_eq!(e.message, HOST_CLOSED_LINE, "close {code:?}");
             assert_eq!(e.kind, None);
             assert!(!stopped_under(client.as_ref()), "close {code:?}");
@@ -543,7 +552,7 @@ mod the_address {
     fn no_lock_is_no_host_serving_the_state_a_plain_error_naming_the_line_that_serves_it() {
         let dir = tempfile::tempdir().unwrap();
         let state = dir.path().join("state.json").to_string_lossy().into_owned();
-        let e = host_address(&state, &HostPick::default(), Some(&HostAim::Here)).err().expect("refused");
+        let e = host_address(&state, &HostPick::default(), Some(&HostAim::Here)).expect_err("refused");
         assert_eq!(e.message, format!("no wsp host is serving {state}; start one with wsp up --state {state}"));
         assert_eq!(e.kind, None);
     }
@@ -552,7 +561,7 @@ mod the_address {
     fn a_lock_with_no_token_beside_it_is_an_auth_refusal_naming_the_token_file() {
         let dir = tempfile::tempdir().unwrap();
         let state = served(dir.path(), json!({ "pid": std::process::id(), "port": 7777, "startedAt": "2026-10-25T00:00:00.000Z" }), None);
-        let e = host_address(&state, &HostPick::default(), Some(&HostAim::Here)).err().expect("refused");
+        let e = host_address(&state, &HostPick::default(), Some(&HostAim::Here)).expect_err("refused");
         assert_eq!(e.message, format!("the host's token file is missing: {}", dir.path().join("host-token").display()));
         assert_eq!(e.kind, Some(Kind::Auth));
     }
@@ -659,7 +668,7 @@ mod waiting {
             tokio::time::sleep(Duration::from_millis(30)).await;
             gone.end(Some(STOPPING_CLOSE));
         });
-        let e = until_settled(socket.as_ref(), boxed(std::future::pending::<Result<u8, HostError>>())).await.err().expect("failed");
+        let e = until_settled(socket.as_ref(), boxed(std::future::pending::<Result<u8, HostError>>())).await.expect_err("failed");
         assert_eq!(e.message, HOST_STOPPING_LINE);
         assert_eq!(e.kind, None);
         assert_eq!(

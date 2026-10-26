@@ -1,5 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Port of `packages/host/test/watch.test.ts` and the `watchOn` entries of `fixtures/layout_oracle.json`.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 use std::sync::atomic::{AtomicU16, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};

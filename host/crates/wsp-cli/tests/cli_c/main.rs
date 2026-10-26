@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! cli-c's tests: the helpers of `turns-help.ts`, `workspaces-help.ts` and `agents-help.ts`, each case recorded
 //! from the TS at 65f6b89c7 (`tests/fixtures/cli_c/record/`). One binary so the units link once.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 mod common;
 
 mod agents_read;

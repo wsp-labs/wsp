@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Tests of `account`, `serving_home`, `repo_root`, `version`, `cloud` and `daemon_fix`. The two serving-home cases port
 //! `packages/host/test/serving-home.test.ts:73-118`; the rest pin the TS source, which has no test of its own.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 use std::fs;
 use std::os::unix::fs::{symlink, PermissionsExt};
 use std::path::Path;
@@ -547,11 +556,11 @@ fn serving_home_sh_reads_no_host_from_a_lock_with_no_pid_a_dead_pid_or_no_lock()
     let Computer { user, own, .. } = computer();
     assert_eq!(in_sh(&user, &[]), Reading { home: own.clone(), serving: false });
     put(&at(&own, "host.lock"), "{\"port\":4400}");
-    assert_eq!(in_sh(&user, &[]).serving, false);
+    assert!(!in_sh(&user, &[]).serving);
     lock_on(&own, dead_pid());
-    assert_eq!(in_sh(&user, &[]).serving, false);
+    assert!(!in_sh(&user, &[]).serving);
     lock_on(&own, std::process::id());
-    assert_eq!(reading(&user, &[]).serving, true);
+    assert!(reading(&user, &[]).serving);
 }
 
 #[test]

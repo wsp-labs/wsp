@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The reads and the write beside the rows (client.ts:614-680, spec/client-rows.md rules 9, 10, 12): which account
 //! a word names, what one computer settings write asks the host, and the reads sent together.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 
 #[path = "cli_a_common/mod.rs"]
 mod common;
@@ -34,9 +43,9 @@ fn an_account_is_named_by_its_key_first_then_by_its_label_or_address_in_any_case
 #[test]
 fn a_word_no_account_answers_is_not_found_and_one_two_answer_names_both_keys() {
     let rows = rows();
-    let none = account_named(&rows, "nobody").err().expect("refused");
+    let none = account_named(&rows, "nobody").expect_err("refused");
     assert_eq!(none.kind, Some(Kind::NotFound));
-    let two = account_named(&rows, "TEAM").err().expect("refused");
+    let two = account_named(&rows, "TEAM").expect_err("refused");
     assert_eq!(two.kind, Some(Kind::Usage));
     assert_eq!(two.message, "TEAM names 2 accounts: codex:team and claude:team. Name one by its key.");
 }
@@ -86,7 +95,7 @@ async fn a_row_already_read_is_not_listed_again_and_a_reset_rides_as_its_words()
 async fn an_unknown_computer_is_refused_before_anything_is_written() {
     let host = host();
     let client = host.client(None).await.unwrap();
-    let e = set_computer(client.as_ref(), ComputerRef::Word("nope"), &none(), &[], &PlaceSetAlso::default()).await.err().expect("refused");
+    let e = set_computer(client.as_ref(), ComputerRef::Word("nope"), &none(), &[], &PlaceSetAlso::default()).await.expect_err("refused");
     assert_eq!(e.kind, Some(Kind::Usage));
     assert!(e.message.ends_with(" Run wsp computers."), "{}", e.message);
     assert_eq!(host.ops(), vec!["places.list"]);

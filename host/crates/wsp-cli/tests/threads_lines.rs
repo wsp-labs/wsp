@@ -2,6 +2,15 @@
 //! The thread verbs' command lines (threads.ts, spec/threads-a.md and spec/threads-b.md): what a line prints on
 //! stdout and stderr, the exit code it ends with, and what it asks the host in which order, driven through
 //! `run_verb` with the verb the table holds.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 
 #[path = "cli_a_common/mod.rs"]
 mod common;

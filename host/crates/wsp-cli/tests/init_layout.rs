@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Port of `packages/host/test/init-layout.test.ts` and the recorded values of `fixtures/layout_oracle.json`
 //! (node 22, @clack/core 1.4.3, @clack/prompts 1.7.0).
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 use std::collections::BTreeSet;
 use std::future::Future;
 use std::sync::{Arc, Mutex};
@@ -469,7 +478,7 @@ async fn replay_group(force: Option<&str>, no_color: bool, kind: Option<&str>) {
         .filter(|(_, c)| {
             c["force"].as_str() == force
                 && (c.get("noColor").and_then(Value::as_bool) == Some(true)) == no_color
-                && kind.map_or(true, |k| c["kind"].as_str() == Some(k))
+                && kind.is_none_or(|k| c["kind"].as_str() == Some(k))
         })
         .collect();
     assert!(!cases.is_empty(), "the oracle holds no such prompts");

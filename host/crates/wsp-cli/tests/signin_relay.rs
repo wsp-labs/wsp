@@ -2,6 +2,15 @@
 //! The pty relay against a scripted link: bytes both ways, raw mode set and restored, size followed, a printed URL
 //! shown once as a hyperlink and opened here on o, the watched pty, the quiet status run. Ported from
 //! packages/host/test/signin-relay.test.ts at 65f6b89c7. The spec is spec/signin_relay.md.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 mod common;
 
 use std::sync::{Arc, Mutex};

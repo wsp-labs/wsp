@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The roads that follow a pushed stream and the reads beside them (io.ts:57-143, 434-452; spec/io.md): which
 //! frames reach the caller, in what order, what the host is asked, and what the socket going does.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 
 #[path = "cli_a_common/mod.rs"]
 mod common;
@@ -101,7 +110,7 @@ mod exec {
         let host = ScriptedHost::new(script(&[("workspaces.exec", r#"{"id":1,"ok":true,"execId":"e"}"#)], &[], Some("workspaces.exec")));
         let client = socket(&host).await;
         let (seen, on) = recorder();
-        let e = exec_on(client.as_ref(), "ws-1", &["sleep".to_owned()], None, on).await.err().expect("failed");
+        let e = exec_on(client.as_ref(), "ws-1", &["sleep".to_owned()], None, on).await.expect_err("failed");
         assert_eq!(e.message, HOST_STOPPING_LINE);
         assert_eq!(e.kind, None);
         assert!(texts(&seen).is_empty());
@@ -130,7 +139,7 @@ mod exec {
         ));
         let client = socket(&host).await;
         let (_seen, on) = recorder();
-        let e = exec_on(client.as_ref(), "ws-9", &["ls".to_owned()], None, on).await.err().expect("refused");
+        let e = exec_on(client.as_ref(), "ws-9", &["ls".to_owned()], None, on).await.expect_err("refused");
         assert_eq!((e.message.as_str(), e.kind.clone()), ("no such workspace", Some(Kind::NotFound)));
     }
 }
@@ -224,7 +233,7 @@ mod export_and_import {
         let client = socket(&host).await;
         let (_seen, on) = stages();
         let req = ExportRequest { source: "/a".into(), dest: "/b".into(), ..ExportRequest::default() };
-        let e = export_project(client.as_ref(), "ws-1", &req, on).await.err().expect("failed");
+        let e = export_project(client.as_ref(), "ws-1", &req, on).await.expect_err("failed");
         assert_eq!(e.message, HOST_STOPPING_LINE);
     }
 
@@ -273,7 +282,7 @@ mod folders {
         );
         let host = ScriptedHost::new(script(&[("host.folders", LISTING), ("places.list", PLACES)], &[], None));
         let asked = FoldersAsked { folder: Some("srv".into()), on: Some("mini".into()), ..FoldersAsked::default() };
-        let e = host_folders(socket(&host).await.as_ref(), &asked, &here).await.err().expect("refused");
+        let e = host_folders(socket(&host).await.as_ref(), &asked, &here).await.expect_err("refused");
         assert_eq!(e.message, "folder is a path on mini, absolute, and got \"srv\". Give a path that opens with /, since whoever reads it works in a folder this line cannot see.");
         assert_eq!(host.ops(), vec!["places.list"], "refused before the listing is asked");
     }
@@ -290,7 +299,7 @@ mod folders {
     async fn an_unknown_computer_is_refused_with_the_names_there_are() {
         let host = ScriptedHost::new(script(&[("places.list", PLACES)], &[], None));
         let asked = FoldersAsked { on: Some("nope".into()), ..FoldersAsked::default() };
-        let e = host_folders(socket(&host).await.as_ref(), &asked, &here).await.err().expect("refused");
+        let e = host_folders(socket(&host).await.as_ref(), &asked, &here).await.expect_err("refused");
         assert_eq!(e.kind, Some(Kind::Usage));
         assert!(e.message.ends_with(" Run wsp computers."), "{}", e.message);
         assert!(e.message.contains("mini"), "the names there are: {}", e.message);

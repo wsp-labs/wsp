@@ -2,6 +2,15 @@
 //! The cases of the tool server's record (daemon/crates/wsp-mcp/tests/answers) recorded with the cloud on, replayed
 //! against the thread verbs' tools. A binary of its own: the cloud is read once per process, and every test here
 //! turns it on before anything else runs.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 
 #[path = "cli_a_common/mod.rs"]
 mod common;
@@ -184,7 +193,7 @@ async fn replay(tool: &str, cloud: bool) {
     let (verb, t, usage) = verb_of(tool);
     let mut m = Misses::default();
     let mut replayed = 0;
-    for case in recorded.cases.iter().filter(|c| c.cloud == cloud && c.platform.as_deref().map_or(true, |p| p == this_platform())) {
+    for case in recorded.cases.iter().filter(|c| c.cloud == cloud && c.platform.as_deref().is_none_or(|p| p == this_platform())) {
         one(&mut m, tool, &verb, &t, &usage, case, false).await;
         replayed += 1;
         if case.guest.is_some() {

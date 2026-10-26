@@ -2,6 +2,15 @@
 //! `verbs/io.rs` against what `packages/host/src/verbs/io.ts` answered (tests/fixtures/io.json, io_cloud.json,
 //! written by "the io helpers" of oracle/cli.oracle.ts). Every test collects all its mismatches, each named by its
 //! case, and panics once.
+#![allow(
+    clippy::result_large_err,
+    clippy::type_complexity,
+    clippy::too_many_arguments,
+    clippy::large_enum_variant,
+    clippy::regex_creation_in_loops,
+    non_snake_case,
+    dead_code
+)]
 
 #[path = "cli_a_common/mod.rs"]
 mod common;
