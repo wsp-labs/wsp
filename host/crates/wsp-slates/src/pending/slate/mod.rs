@@ -325,72 +325,34 @@ pub struct SketchOptions {
 pub fn slate_run_idle() -> Value {
     todo!()
 }
-pub fn slate_problem(code: &str, message: &str, fix: Option<&str>) -> SlateProblem {
-    todo!()
-}
-pub fn is_slate_source(name: &str) -> bool {
-    todo!()
-}
+
 pub fn slate_bytes(text: &str) -> usize {
     todo!()
 }
-pub fn parse_slate(text: &str) -> SlateChecked {
-    todo!()
-}
-pub fn validate_slate(document: &Value) -> SlateChecked {
-    todo!()
-}
-pub fn parse_slate_patch(text: &str, doc: Option<&SlateDoc>) -> SlatePatchParsed {
-    todo!()
-}
-pub fn apply_slate_patch(doc: Option<&SlateDoc>, values: &SlateValues, ops: &[Value], lines: &Value) -> SlateApplied {
-    todo!()
-}
-pub fn print_slate(doc: &SlateDoc) -> String {
-    todo!()
-}
-pub fn sketch_slate(doc: Option<&SlateDoc>, values: &SlateValues, o: SketchOptions) -> String {
-    todo!()
-}
-pub fn run_slate_batch(doc: &SlateDoc, values: &SlateValues, input: Vec<SlateWrite>, ctx: SlateBatchContext) -> SlateBatchResult {
-    todo!()
-}
-pub fn evaluate_slate_expression(expr: &str, ctx: &SlateEvalContext) -> Option<Value> {
-    todo!()
-}
-pub fn resolve_slate_prop(v: &Value, ctx: &SlateEvalContext) -> Option<Value> {
-    todo!()
-}
-pub fn get_slate_value(values: &SlateValues, path: &str) -> Option<Value> {
-    todo!()
-}
-pub fn set_slate_value(values: &SlateValues, path: &str, value: Value) -> Option<SlateValues> {
-    todo!()
-}
-pub fn parse_slate_own_path(path: &str) -> Option<SlateOwnPath> {
-    todo!()
-}
-pub fn slate_step(at: Option<Value>, seg: &PathSeg) -> Option<Value> {
-    todo!()
-}
+
 pub fn is_slate_binding(v: &Value) -> bool {
     todo!()
 }
-pub fn slate_dependencies(expr: &str) -> Vec<String> {
-    todo!()
-}
-pub fn slate_equal(a: Option<&Value>, b: Option<&Value>) -> bool {
-    todo!()
-}
-pub fn slate_nearest(word: &str, options: &[String]) -> Option<String> {
-    todo!()
-}
-pub fn slate_domain_key(domain: &str) -> String {
-    todo!()
-}
-pub fn slate_text(v: &Value) -> String {
-    todo!()
-}
-pub fn slate_catalog(name: Option<&str>) -> String {
-    todo!()
-}
+
+pub mod batch;
+pub mod catalog;
+pub mod expr;
+pub mod patch;
+pub mod paths;
+pub mod problems;
+pub mod sketch;
+pub mod sources;
+pub mod steps;
+pub mod syntax;
+pub mod validate;
+pub use batch::run_slate_batch;
+pub use catalog::slate_catalog;
+pub use expr::{evaluate_slate_expression, resolve_slate_prop, slate_dependencies, slate_text};
+pub use patch::apply_slate_patch;
+pub use paths::{get_slate_value, parse_slate_own_path, set_slate_value, slate_equal, slate_step};
+pub use problems::{slate_nearest, slate_problem};
+pub use sketch::sketch_slate;
+pub use sources::is_slate_source;
+pub use steps::slate_domain_key;
+pub use syntax::{parse_slate, parse_slate_patch, print_slate};
+pub use validate::validate_slate;
