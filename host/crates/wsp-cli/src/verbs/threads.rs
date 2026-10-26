@@ -4,14 +4,54 @@
 //! threads.ts:449-723). The table's words are copied by script from the TS module (tests/fixtures/thread_verbs.json);
 //! every run and call body is the implementer's.
 
-use wsp_words::exit::HostError;
+use std::sync::{Arc, Mutex};
+
+use indexmap::IndexMap;
+use serde_json::{json, Map, Value};
+use wsp_collect::ghostty_config::read_ghostty_config;
+use wsp_collect::live_host::node_host;
+use wsp_wire::types::conversations::{ResumeAsk, RESUME_HERE_FIX, RESUME_HERE_LINE};
+use wsp_wire::types::sub_thread::SubOut;
+use wsp_wire::views::activity::ProcessesAsk;
+use wsp_wire::views::project_bundle::{TerminalConfig, TerminalScheme};
+use wsp_wire::views::session::SessionOrigin;
+use wsp_wire::views::workspace_kind::WorkspaceKind;
+use wsp_wire::views::workspace_more::{WorkspaceOut, WorkspaceView};
+use wsp_wire::wire::runtime::{ExecEvent, SessionSettleResult};
+use wsp_words::exit::{usage_refusal, ExitClass, HostError};
+use wsp_words::js_date::DateZone;
+use wsp_words::projects::worktree_removed_line;
+use wsp_words::sub_thread::{sub_beside_refusal, sub_from_no_cloud_refusal, sub_opened_line, sub_opening, sub_size_no_cloud_refusal};
+use wsp_words::words::init::init_setup_lines;
+use wsp_words::words::places::terminal_config_lines;
+use wsp_words::words::thread::{
+    exec_folder_line, AT_WITHOUT_FORK_FIX, AT_WITHOUT_FORK_LINE, BESIDE_ALONE_FIX, BESIDE_ALONE_LINE, EMPTY_MESSAGE_LINE, FORK_BESIDE_FIX,
+    FORK_BESIDE_LINE, FORK_RESUME_FIX, FORK_RESUME_LINE,
+};
+use wsp_words::workspace_state::turn_spend_word;
 
 use super::activity;
+use super::activity::{ended_lines, processes_asked};
 use super::client::{
-    BoxFuture, CallToolResult, CliOnlyVerb, CliVerb, FlagKind, FlagRow, FlagTable, Frame, InputKind, Page, Tool, ToolInput, Verb,
-    VerbContext, VerbDeps,
+    absolute_folder, absolute_path, flag, flag_list, flag_set, host_back, other_version, usage_is, BoxFuture, CallToolResult, CliOnlyVerb,
+    CliVerb, FlagKind, FlagRow, FlagTable, FlagValue, Frame, HostClient, InputKind, Page, Tool, ToolInput, Verb, VerbContext, VerbDeps,
 };
 use super::io;
+use super::io::{
+    as_json, as_text, confirmed, detached_out, exec_on, folder_lines, host_folders, init_setup, noticed, resolve_path, turn_out, turn_text,
+    ExecSink, ExportRequest, FoldersAsked, TurnOut,
+};
+use super::turns_help::{
+    answer_open_ask, answer_roads, before_sending, checked_start, detach_verb, files_from, follow, follow_verb, fork_for, head_line,
+    host_restarted_line, message_to, notify_of, opening_of, pick_flags, read_line, read_thread, replaced_of, restart_host, resume_asked,
+    run_target, start_detached, sub_for, thread_at, thread_fork, thread_head, turn_view, worktree_for, AnswerRoad, AtWord, FollowOn,
+    Opened, OpeningAt, OpeningOpts, Picks, ResumeWhere, RunTarget, RunWhere, SaidAbout, SharedTurn, SubAsk, SubMade, ThreadRead,
+};
+use super::workspaces_help::{
+    awake, forget_thread, nap_after_dead_launch, pipe_bytes, rename, rename_line, restore_threads, restored_lines, settle_threads,
+    settled_lines, ssh_workspace_of, stop, stop_line, thread_cwd, thread_forgot_line, thread_of, threads_of, with_line, workspace_of,
+    Woken, SSH_PIPES_HERE_LINE,
+};
 
 fn input(name: &'static str, kind: InputKind, optional: bool, describe: Option<&str>) -> ToolInput {
     ToolInput { name, kind, optional, describe: describe.map(str::to_string) }
@@ -20,8 +60,7 @@ fn input(name: &'static str, kind: InputKind, optional: bool, describe: Option<&
 /// The first flag beside `--on` a sub-thread takes none of, as the line or the tool named it: the first pair whose
 /// value is given and not `false` (`besideOn`, threads.ts:84).
 pub fn beside_on(given: &[(&str, Option<serde_json::Value>)]) -> Option<String> {
-    let _ = given;
-    todo!("threads.ts:84")
+    given.iter().find(|(_, value)| matches!(value, Some(v) if *v != serde_json::Value::Bool(false))).map(|(name, _)| (*name).to_owned())
 }
 
 /// `THREAD_VERBS` (threads.ts:104-723): run, worktree, worktree remove, thread read, thread head, thread rename,
@@ -347,9 +386,7 @@ pub fn thread_verbs() -> Vec<Verb> {
             cloud_flags: vec![],
             tool: Tool {
                 description: "Stops the host and brings it back on the road it came up on: its service's manager, the verb that started it, or the app. Running turns go on across it and the host that comes back re-opens them, your own turn included, so a coordinator thread lands a host change with this and keeps working. Answers once that host serves, with running the ids of the threads running on it then. A run, send or wait this cut dials the host again and carries on. Refused for a host wsp up holds in a terminal, which only that terminal brings back.".to_string(),
-                input: vec![
-                    
-                ],
+                input: vec![],
                 output: vec!["running"],
                 stream: vec![],
                 call: call_restart,
@@ -456,9 +493,7 @@ pub fn thread_verbs() -> Vec<Verb> {
             cloud_flags: vec![],
             tool: Tool {
                 description: "The setup on this host, as the app's Settings reads it: which keys the host holds (their presence, never a value), this computer's home folder<!-- cloud -->, what a machine costs and the place a build would boot on, or why no build can start here<!-- /cloud -->. Read it to tell the person which provider key is missing.".to_string(),
-                input: vec![
-                    
-                ],
+                input: vec![],
                 output: vec!["setup"],
                 stream: vec![],
                 call: call_setup,
@@ -516,314 +551,332 @@ pub fn thread_verbs() -> Vec<Verb> {
     verbs
 }
 
-/// `run`'s run (threads.ts:112).
-fn run_run(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:112")
-    })
+/// What `run` asks of a start, read the same off the command line and the tool.
+struct RunAsk {
+    message: String,
+    project: Option<String>,
+    beside: Option<String>,
+    fork: Option<String>,
+    at: Option<AtWord>,
+    branch: Option<String>,
+    cwd: Option<String>,
+    replaces: Option<String>,
+    harness: Option<String>,
+    picks: Picks,
+    notify: Vec<String>,
+    title: Option<String>,
+    files: Vec<String>,
 }
 
-/// `run`'s tool call (threads.ts:171).
-fn call_run(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:171")
-    })
+/// What `prepare_run` leaves for the turn: the stream's opener, the machine woken for it and the start's frame.
+struct Prepared {
+    opened: Option<Opened>,
+    woken: Option<Woken>,
+    opening: Frame,
 }
 
-/// `worktree`'s run (threads.ts:225).
-fn run_worktree(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:225")
-    })
+/// `subStart`'s request (threads.ts:88-95): the sub-thread's ask with the picks, notify, title and files of the start.
+struct SubReq {
+    message: String,
+    on: String,
+    size: Option<String>,
+    from: Option<String>,
+    branch: Option<String>,
+    project: Option<String>,
+    harness: Option<String>,
+    picks: Picks,
+    notify: Option<Vec<String>>,
+    title: Option<String>,
+    files: Vec<String>,
+    elsewhere: bool,
 }
 
-/// `worktree`'s tool call (threads.ts:237).
-fn call_worktree(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:237")
-    })
+/// What `sub_start` answers (threads.ts:101): the start's frame, the sub-thread's answer, the line that names the thread
+/// and the stop of the machine's listening.
+struct SubRun {
+    opening: Frame,
+    sub: SubOut,
+    opened: Opened,
+    stop: Box<dyn Fn() + Send + Sync>,
 }
 
-/// `worktree remove`'s run (threads.ts:249).
-fn run_worktree_remove(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:249")
-    })
+fn json_of<T: serde::Serialize>(value: &T) -> Value {
+    serde_json::to_value(value).unwrap_or(Value::Null)
 }
 
-/// `worktree remove`'s tool call (threads.ts:266).
-fn call_worktree_remove(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:266")
-    })
+fn frame(pairs: &[(&str, Value)]) -> Frame {
+    pairs.iter().map(|(key, value)| ((*key).to_owned(), value.clone())).collect()
 }
 
-/// `thread read`'s run (threads.ts:279).
-fn run_thread_read(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:279")
-    })
+fn frame_str(args: &Frame, key: &str) -> Option<String> {
+    args.get(key).and_then(Value::as_str).map(str::to_owned)
 }
 
-/// `thread read`'s tool call (threads.ts:296).
-fn call_thread_read(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:296")
-    })
+fn frame_bool(args: &Frame, key: &str) -> bool {
+    args.get(key) == Some(&Value::Bool(true))
 }
 
-/// `thread head`'s run (threads.ts:310).
-fn run_thread_head(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:310")
-    })
+fn frame_bool_opt(args: &Frame, key: &str) -> Option<bool> {
+    args.get(key).and_then(Value::as_bool)
 }
 
-/// `thread head`'s tool call (threads.ts:323).
-fn call_thread_head(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:323")
-    })
+fn frame_list(args: &Frame, key: &str) -> Vec<String> {
+    frame_list_opt(args, key).unwrap_or_default()
 }
 
-/// `thread rename`'s run (threads.ts:336).
-fn run_thread_rename(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:336")
-    })
+fn frame_list_opt(args: &Frame, key: &str) -> Option<Vec<String>> {
+    args.get(key).and_then(Value::as_array).map(|items| items.iter().filter_map(Value::as_str).map(str::to_owned).collect())
 }
 
-/// `thread rename`'s tool call (threads.ts:351).
-fn call_thread_rename(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:351")
-    })
+fn frame_value(args: &Frame, key: &str) -> Option<Value> {
+    args.get(key).cloned()
 }
 
-/// `thread forget`'s run (threads.ts:366).
-fn run_thread_forget(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:366")
-    })
+fn frame_picks(args: &Frame) -> Picks {
+    Picks {
+        model: frame_str(args, "model"),
+        effort: frame_str(args, "effort"),
+        access: frame_str(args, "access"),
+        fast: frame_bool(args, "fast"),
+    }
 }
 
-/// `thread forget`'s tool call (threads.ts:382).
-fn call_thread_forget(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:382")
-    })
+fn frame_at(args: &Frame) -> Option<AtWord> {
+    match args.get("at") {
+        Some(Value::Number(n)) => n.as_f64().map(AtWord::Count),
+        _ => None,
+    }
 }
 
-/// `thread settle`'s run (threads.ts:396).
-fn run_thread_settle(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:396")
-    })
+fn flag_value(ctx: &VerbContext, name: &str) -> Option<Value> {
+    match ctx.flags.get(name)? {
+        FlagValue::Str(text) => Some(json!(text)),
+        FlagValue::Bool(flag) => Some(json!(flag)),
+        FlagValue::List(items) => Some(json!(items)),
+    }
 }
 
-/// `thread settle`'s tool call (threads.ts:415).
-fn call_thread_settle(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:415")
-    })
+fn picks_from(ctx: &VerbContext) -> Picks {
+    pick_flags(&ctx.flags)
 }
 
-/// `thread restore`'s run (threads.ts:429).
-fn run_thread_restore(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:429")
-    })
+/// The folder a relative path is taken to be in (`path.resolve`), the caller's own where it has one.
+fn here_cwd(cwd: Option<&str>) -> String {
+    match cwd {
+        Some(cwd) => cwd.to_owned(),
+        None => std::env::current_dir().map(|dir| dir.to_string_lossy().into_owned()).unwrap_or_else(|_| "/".to_owned()),
+    }
 }
 
-/// `thread restore`'s tool call (threads.ts:441).
-fn call_thread_restore(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:441")
-    })
+/// `view_of` for a workspace the host answered as an `WorkspaceOut`: awake reads the same record as its view.
+fn view_of(workspace: &WorkspaceOut) -> Result<WorkspaceView, HostError> {
+    let value = serde_json::to_value(workspace).map_err(|e| HostError::new(e.to_string()))?;
+    serde_json::from_value(value).map_err(|e| HostError::new(e.to_string()))
 }
 
-/// `thread allow`'s run (threads.ts:see ANSWER_VERBS, threads.ts:62-68).
-fn run_thread_allow(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:62-68")
-    })
+/// A thread's read as the tool and the line answer it: its id and its messages.
+fn read_json(read: &ThreadRead) -> Value {
+    json!({ "threadId": read.thread_id, "messages": json_of(&read.messages) })
 }
 
-/// `thread allow`'s tool call (threads.ts:76-79).
-fn call_thread_allow(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:76-79")
-    })
+fn local_offset(at: f64) -> i64 {
+    DateZone::system().offset_seconds(at as i64)
 }
 
-/// `thread deny`'s run (threads.ts:see ANSWER_VERBS, threads.ts:62-68).
-fn run_thread_deny(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:62-68")
-    })
+fn spend_of(woken: Option<&Woken>) -> Option<String> {
+    match woken {
+        Some(woke) => turn_spend_word(Some(woke.workspace.kind.as_ref())),
+        None => turn_spend_word(Some(Some(&WorkspaceKind::Local))),
+    }
 }
 
-/// `thread deny`'s tool call (threads.ts:76-79).
-fn call_thread_deny(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:76-79")
-    })
+fn with_sub(view: TurnOut, sub: &SubOut) -> Value {
+    let mut map = match json_of(&view) {
+        Value::Object(map) => map,
+        _ => Map::new(),
+    };
+    map.insert("sub".to_owned(), json_of(sub));
+    Value::Object(map)
 }
 
-/// `send`'s run (threads.ts:456).
-fn run_send(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:456")
-    })
+fn noticed_value(view: TurnOut, said: Option<&str>) -> Value {
+    json_of(&noticed(view, said))
 }
 
-/// `send`'s tool call (threads.ts:475).
-fn call_send(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:475")
-    })
+/// `() => hostBack(deps)`: the dial a turn makes again after the host let its socket go.
+fn redial_of(deps: &VerbDeps) -> impl Fn() -> BoxFuture<'static, Result<Arc<dyn HostClient>, HostError>> + Send + Sync {
+    let owned = deps.clone();
+    move || {
+        let owned = owned.clone();
+        Box::pin(async move { host_back(&owned, None).await }) as BoxFuture<'static, Result<Arc<dyn HostClient>, HostError>>
+    }
 }
 
-/// `restart`'s run (threads.ts:495).
-fn run_restart(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:495")
-    })
+/// `subStart` (threads.ts:88-102): the picks checked, the files read, the machine made under its listener, and the
+/// opening that starts the thread in its folder there.
+async fn sub_start(
+    client: &dyn HostClient,
+    env: &IndexMap<String, String>,
+    req: &SubReq,
+    say: &(dyn Fn(&str) + Send + Sync),
+) -> Result<SubRun, HostError> {
+    checked_start(client, &req.message, req.harness.as_deref(), &req.picks, None, None).await?;
+    files_from(&req.files, req.elsewhere)?;
+    let ask = SubAsk {
+        on: req.on.clone(),
+        size: req.size.clone(),
+        from: req.from.clone(),
+        branch: req.branch.clone(),
+        harness: req.harness.clone(),
+        project: req.project.clone(),
+    };
+    let SubMade { workspace, sub, stop } = sub_for(client, &ask, &req.message, req.title.as_deref(), say).await?;
+    let opening = opening_of(
+        env,
+        &OpeningAt::Workspace { id: workspace.id.clone() },
+        &sub_opening(&sub.preamble, &req.message),
+        &OpeningOpts {
+            picks: req.picks.clone(),
+            harness: Some(sub.harness.clone()),
+            notify: req.notify.clone(),
+            title: Some(workspace.name.clone()),
+            files: req.files.clone(),
+            elsewhere: req.elsewhere,
+            cwd: Some(sub.folder.clone()),
+            ..OpeningOpts::default()
+        },
+    )?;
+    let on = sub.out.on.clone();
+    let folder = sub.folder.clone();
+    let opened: Opened = Arc::new(move |thread_id: &str, _folder: Option<&str>| sub_opened_line(thread_id, &on, &folder));
+    Ok(SubRun { opening, sub: sub.out, opened, stop })
 }
 
-/// `restart`'s tool call (threads.ts:506).
-fn call_restart(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:506")
-    })
+/// The start `run` makes from its words, after the refusals that come before any read (threads.ts:145-156): a fork, or
+/// the thread beside, or the project's folder, checked, then the machine woken for it and its opening.
+async fn prepare_run(
+    client: &dyn HostClient,
+    env: &IndexMap<String, String>,
+    caller_cwd: Option<&str>,
+    elsewhere: bool,
+    ask: &RunAsk,
+    resume: Option<ResumeAsk>,
+    say: &(dyn Fn(&str) + Send + Sync),
+) -> Result<Prepared, HostError> {
+    if let Some(fork) = &ask.fork {
+        let forked = thread_fork(
+            client,
+            fork,
+            ask.at.as_ref(),
+            ask.branch.as_deref(),
+            &ask.message,
+            ask.harness.as_deref(),
+            &ask.picks,
+            crate::cloud::cloud_on(),
+        )
+        .await?;
+        let notify = notify_of(client, &ask.notify).await?;
+        let opening = opening_of(
+            env,
+            &OpeningAt::Forks(forked),
+            &ask.message,
+            &OpeningOpts {
+                picks: ask.picks.clone(),
+                harness: ask.harness.clone(),
+                notify,
+                title: ask.title.clone(),
+                files: ask.files.clone(),
+                elsewhere,
+                ..OpeningOpts::default()
+            },
+        )?;
+        return Ok(Prepared { opened: None, woken: None, opening });
+    }
+    let named = match &ask.beside {
+        Some(beside) => RunTarget::Workspace { workspace: thread_at(client, beside, "wsp run --beside", false).await?.1, opened: None },
+        None => {
+            let wher = RunWhere { branch: ask.branch.clone(), cwd: ask.cwd.clone() };
+            run_target(client, ask.project.as_deref(), caller_cwd, env, Some(elsewhere), &wher, crate::cloud::cloud_on()).await?
+        }
+    };
+    let (workspace_id, fork_of) = match &named {
+        RunTarget::Workspace { workspace, .. } => (Some(workspace.id.clone()), None),
+        RunTarget::Fork(fork) => (None, Some(fork.fork.id.clone())),
+        RunTarget::Folder(_) => (None, None),
+    };
+    checked_start(client, &ask.message, ask.harness.as_deref(), &ask.picks, workspace_id.as_deref(), fork_of.as_deref()).await?;
+    if resume.is_some() && matches!(named, RunTarget::Fork(_)) {
+        return Err(usage_refusal(RESUME_HERE_LINE, RESUME_HERE_FIX));
+    }
+    let notify = notify_of(client, &ask.notify).await?;
+    let replaces = replaced_of(client, ask.replaces.as_deref()).await?;
+    let (at, cwd) = match &named {
+        RunTarget::Workspace { workspace, .. } => (OpeningAt::Workspace { id: workspace.id.clone() }, ask.cwd.clone()),
+        RunTarget::Folder(folder) => (OpeningAt::Here(folder.here.clone()), None),
+        RunTarget::Fork(fork) => (OpeningAt::Fork(fork.clone()), ask.cwd.clone()),
+    };
+    let read = opening_of(
+        env,
+        &at,
+        &ask.message,
+        &OpeningOpts {
+            picks: ask.picks.clone(),
+            harness: ask.harness.clone(),
+            notify,
+            title: ask.title.clone(),
+            replaces,
+            files: ask.files.clone(),
+            elsewhere,
+            cwd,
+            resume,
+        },
+    )?;
+    let (opened, target) = match named {
+        RunTarget::Folder(folder) => (Some(folder.opened), None),
+        RunTarget::Workspace { workspace, opened } => (opened, Some(workspace)),
+        RunTarget::Fork(fork) => (None, Some(fork_for(client, &fork.fork, &ask.message, say).await?)),
+    };
+    let woken = match target {
+        Some(workspace) => Some(awake(client, &view_of(&workspace)?, "send", say).await?),
+        None => None,
+    };
+    let opening = match &woken {
+        Some(woke) => {
+            let mut read = read;
+            read.insert("workspaceId".to_owned(), json!(woke.workspace.id));
+            read
+        }
+        None => read,
+    };
+    Ok(Prepared { opened, woken, opening })
 }
 
-/// `stop`'s run (threads.ts:518).
-fn run_stop(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:518")
-    })
+/// `run`'s refusals that come before any read, shared by the line and the tool (threads.ts:137-144); the beside one is
+/// named with the usage on the line and with its own fix on the tool.
+fn run_refusals(ask: &RunAsk, resume_copy: bool, resume: Option<&str>, replaced: bool, beside_fix: &str) -> Result<(), HostError> {
+    if ask.beside.is_some() && (ask.project.is_some() || ask.branch.is_some()) {
+        return Err(usage_refusal(BESIDE_ALONE_LINE, beside_fix));
+    }
+    if ask.at.is_some() && ask.fork.is_none() {
+        return Err(usage_refusal(AT_WITHOUT_FORK_LINE, AT_WITHOUT_FORK_FIX));
+    }
+    if ask.fork.is_some() && (ask.project.is_some() || ask.beside.is_some() || ask.cwd.is_some() || replaced) {
+        return Err(usage_refusal(FORK_BESIDE_LINE, FORK_BESIDE_FIX));
+    }
+    if ask.fork.is_some() && (resume.is_some() || resume_copy) {
+        return Err(usage_refusal(FORK_RESUME_LINE, FORK_RESUME_FIX));
+    }
+    Ok(())
 }
 
-/// `stop`'s tool call (threads.ts:529).
-fn call_stop(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:529")
-    })
+/// The answer a turn's end gives where it was followed to its end: the detached line and the turn's own view.
+async fn nap_line(client: &dyn HostClient, woke: &Woken, started: &Mutex<Option<SharedTurn>>) -> Option<String> {
+    let turn = started.lock().unwrap().clone().map(|turn| turn.lock().unwrap().clone());
+    nap_after_dead_launch(client, woke, turn.as_ref()).await
 }
 
-/// `ssh`'s run (threads.ts:544).
-fn run_ssh(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:544")
-    })
-}
+mod rest;
+mod run;
 
-/// `exec`'s run (threads.ts:562).
-fn run_exec(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:562")
-    })
-}
-
-/// `exec`'s tool call (threads.ts:583).
-fn call_exec(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:583")
-    })
-}
-
-/// `folders`'s run (threads.ts:604).
-fn run_folders(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:604")
-    })
-}
-
-/// `folders`'s tool call (threads.ts:622).
-fn call_folders(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:622")
-    })
-}
-
-/// `setup`'s run (threads.ts:634).
-fn run_setup(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:634")
-    })
-}
-
-/// `setup`'s tool call (threads.ts:645).
-fn call_setup(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:645")
-    })
-}
-
-/// `terminal config`'s run (threads.ts:656).
-fn run_terminal_config(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:656")
-    })
-}
-
-/// `terminal config`'s tool call (threads.ts:667).
-fn call_terminal_config(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:667")
-    })
-}
-
-/// `export`'s run (threads.ts:680).
-fn run_export(ctx: &VerbContext) -> BoxFuture<'_, Result<i32, HostError>> {
-    Box::pin(async move {
-        let _ = ctx;
-        todo!("threads.ts:680")
-    })
-}
-
-/// `export`'s tool call (threads.ts:711).
-fn call_export(args: Frame, deps: &VerbDeps) -> BoxFuture<'_, Result<CallToolResult, HostError>> {
-    Box::pin(async move {
-        let _ = (args, deps);
-        todo!("threads.ts:711")
-    })
-}
+use self::rest::*;
+use self::run::*;
