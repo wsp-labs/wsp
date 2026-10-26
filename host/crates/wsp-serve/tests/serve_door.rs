@@ -56,7 +56,7 @@ fn dopts(rt: &Rc<FakeRuntime>) -> ServeOptions {
 fn report() -> Value {
     json!({
         "name": "box-1", "platform": "linux", "arch": "arm64", "os": "Ubuntu 24.04", "shape": { "cpu": 2, "memMb": 4096 },
-        "login": {}, "runsWorkspaces": true, "engine": "none", "daemonVersion": 150, "wsp": ["wsp"], "agents": [], "dialed": "wss://host"
+        "login": {}, "runsWorkspaces": true, "engine": "none", "daemonVersion": 150, "wsp": ["wsp"], "agents": [], "dialed": "https://host"
     })
 }
 
@@ -558,7 +558,7 @@ async fn send_sealed(socket: &Rc<wsp_serve::serve::socket::Socket>, client: &mut
 }
 
 fn opened_replies(sink: &RecordingSink, client: &mut Seal) -> Vec<Value> {
-    sink.binaries.borrow().iter().map(|b| serde_json::from_str(&client.unseal(b).expect("a sealed reply opens")).unwrap()).collect()
+    sink.opened_with(client)
 }
 
 #[test]

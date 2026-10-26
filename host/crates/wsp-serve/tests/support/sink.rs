@@ -16,6 +16,8 @@ pub struct RecordingSink {
     pub paused: Cell<bool>,
     pub open: Cell<bool>,
     pub linked: Cell<bool>,
+    /// The sealed frames already opened, so a second reading opens only what came after.
+    pub opened: RefCell<Vec<Value>>,
 }
 
 impl RecordingSink {
@@ -39,6 +41,16 @@ impl RecordingSink {
     /// Every reply carrying `id`, in order.
     pub fn replies(&self, id: u64) -> Vec<Value> {
         self.frames().into_iter().filter(|f| f.get("id") == Some(&Value::from(id))).collect()
+    }
+    /// Every sealed reply so far, opened with the client's end of the seal; each frame opens once, as its counter moves.
+    pub fn opened_with(&self, client: &mut wsp_store::keys::Seal) -> Vec<Value> {
+        let binaries = self.binaries.borrow();
+        let mut opened = self.opened.borrow_mut();
+        for bytes in binaries.iter().skip(opened.len()) {
+            let text = client.unseal(bytes).expect("a sealed reply opens");
+            opened.push(serde_json::from_str(&text).expect("a sealed reply is JSON"));
+        }
+        opened.clone()
     }
     /// The text of the last frame sent, for key order.
     pub fn last_text(&self) -> String {
