@@ -139,16 +139,21 @@ fn unread_after(line: &str) -> Result<Vec<String>, String> {
         .map_err(|e| e.to_string())
 }
 
-// TS: project-state/listing.ts:38 (Buffer.from(..., "base64") is lenient); probe b64.probe.ts printed `UNREADCASE codex/unpadded ok ["codex"]`, `codex/urlsafe`, `codex/trailing-cr`, `codex/leading-space` and `codex/inner-space` all `ok ["codex"]`.
+// TS: project-state/listing.ts:38 reads with `Buffer.from(..., "base64")`, which is lenient; the listing it reads comes from the script's `base64.b64encode(...).decode("ascii")` (listing.rs:88), which writes padded standard base64 on one line, however long. Only a hand edit makes the other forms, so the Rust read is strict and the six forms below are a refused listing where node reads them (ruling 7 of the fix round, coordinator comment 6405457065, point 2). Probe: node printed `unpadded codex`, `urlsafe codex`, `cr codex`, `space codex` for the forms below, and `long unwrapped 266720 codex` for a 266,720-character line; python3 printed `python b64encode one line 266724 False`.
 #[test]
-#[ignore = "ruling 7 of the fix round: the strict base64 read in listing.rs stays; node reads these leniently (listing.ts:38), so lifting it is one node_base64_decode"]
-fn an_unread_line_in_unpadded_url_safe_or_spaced_base64_reads_as_node_reads_it() {
+fn an_unread_line_is_read_in_the_one_form_python_writes_and_the_hand_edited_forms_are_refused() {
+    assert_eq!(unread_after(STD), Ok(vec!["locked ??>> ok!".to_string()]));
+    let long = {
+        use base64::Engine;
+        let json = format!("{{\"agent\":\"codex\",\"store\":\"{}\",\"why\":\"w\"}}", "/x".repeat(100_000));
+        base64::engine::general_purpose::STANDARD.encode(json)
+    };
+    assert_eq!(unread_after(&long), Ok(vec!["w".to_string()]), "a line of 266,000 characters with no break is one line");
     let unpadded = STD.trim_end_matches('=').to_string();
     let url_safe = STD.replace('+', "-").replace('/', "_");
     let wrapped = format!("{}\r{}", &STD[..40], &STD[40..]);
     let spaced = format!("{} {}", &STD[..40], &STD[40..]);
     let cases: Vec<(&str, String)> = vec![
-        ("standard", STD.to_string()),
         ("unpadded", unpadded),
         ("url-safe", url_safe),
         ("a carriage return inside the line", wrapped),
@@ -156,14 +161,9 @@ fn an_unread_line_in_unpadded_url_safe_or_spaced_base64_reads_as_node_reads_it()
         ("a trailing carriage return", format!("{STD}\r")),
         ("a leading space", format!(" {STD}")),
     ];
-    let refused: Vec<String> = cases
-        .iter()
-        .filter_map(|(name, line)| match unread_after(line) {
-            Ok(whys) if whys == ["locked ??>> ok!"] => None,
-            other => Some(format!("{name}: {other:?}")),
-        })
-        .collect();
-    assert!(refused.is_empty(), "node reads all seven; the Rust refuses {} of them:\n{}", refused.len(), refused.join("\n"));
+    let read: Vec<String> =
+        cases.iter().filter_map(|(name, line)| unread_after(line).ok().map(|whys| format!("{name}: read as {whys:?}"))).collect();
+    assert!(read.is_empty(), "these are hand-edited forms; the strict read refuses all six:\n{}", read.join("\n"));
 }
 
 // ---- sqlite: words and the smallest integer ----
@@ -244,7 +244,7 @@ async fn refused_with(status: u16, body: String) -> (String, usize) {
     let exec: ExecFn = Arc::new(|_cmd: String, _o: ExecOptions| Box::pin(async { Ok(res(0, "", "")) }));
     let machine = FakeMachine::new(exec);
     let o = VaultOptions { fetch: Some(fetch.clone()), ..Default::default() };
-    let e = import_into(&machine, b"x", "/d", &o).await.unwrap_err();
+    let e = import_into(common::handle(&machine), b"x", "/d", &o).await.unwrap_err();
     let calls = *fetch.calls.lock().unwrap();
     (e.to_string().chars().take(150).collect(), calls)
 }
@@ -320,8 +320,12 @@ fn six_entry_tar() -> Vec<u8> {
 
 // TS: vault.ts:424-474 (importInto carries on after its caller stops waiting); probe drop.probe.ts printed `DROP 1.5 s later: tmp [] dest ["dir","empty","ln","old.txt","sub","top.txt"]`.
 #[tokio::test]
-#[ignore = "needs a ruling: import_into borrows its machine, which is not Send, so nothing can run on once a caller drops the future; it takes an owned machine and a LocalSet to spawn on (vault.ts:424-474)"]
 async fn a_caller_that_stops_waiting_on_an_import_still_gets_it_finished_and_the_part_removed() {
+    tokio::task::LocalSet::new().run_until(caller_stops_waiting_on_an_import()).await;
+}
+
+/// The host runs on a `LocalSet`; the import's tail is spawned on it (coordinator ruling 1, comment 6405457065).
+async fn caller_stops_waiting_on_an_import() {
     let root = tempfile::Builder::new().prefix("drop-").tempdir().unwrap();
     std::fs::create_dir(root.path().join("tmp")).unwrap();
     std::fs::create_dir(root.path().join("dest")).unwrap();
@@ -337,7 +341,7 @@ async fn a_caller_that_stops_waiting_on_an_import_still_gets_it_finished_and_the
     machine.run = Some(run);
     let o = VaultOptions { fetch: Some(Arc::new(PutFetch)), tmp_dir: Some(format!("{}/tmp", root.path().display())), ..Default::default() };
     let dest = format!("{}/dest", root.path().display());
-    let waited = tokio::time::timeout(std::time::Duration::from_millis(50), import_into(&machine, &tar, &dest, &o)).await;
+    let waited = tokio::time::timeout(std::time::Duration::from_millis(50), import_into(common::handle(&machine), &tar, &dest, &o)).await;
     assert!(waited.is_err(), "the extract was meant to still be pending");
     tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
     let names = |p: &str| std::fs::read_dir(format!("{}/{p}", root.path().display())).unwrap().count();

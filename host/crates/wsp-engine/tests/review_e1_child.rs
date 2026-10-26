@@ -136,7 +136,7 @@ fn finding_a_fed_spawn_past_its_timeout_answers_at_the_deadline_though_a_child_o
 // config_here.rs:52 `std::env::vars()` panics on any variable that is not valid Unicode; node passes it through.
 // Run in a child of this test binary so the variable never reaches another test.
 #[test]
-#[ignore]
+#[ignore = "the child process of finding_a_config_write_does_not_panic_on_an_environment_variable_that_is_not_unicode"]
 fn review_body_write_config_here_with_the_environment_it_was_given() {
     let dir = tempfile::tempdir().unwrap();
     let base = dir.path().to_str().unwrap().to_string();
@@ -160,7 +160,7 @@ fn finding_a_config_write_does_not_panic_on_an_environment_variable_that_is_not_
 // spawn-fed.ts:17 mkdtempSync throws node's own fs error when the temp folder cannot be made; writeConfigHere lets
 // it out as it is. config_here.rs turns it into the "stands as it was" sentence with Rust's wording.
 #[test]
-#[ignore]
+#[ignore = "the child process of finding_a_config_write_with_no_temp_folder_says_what_node_says"]
 fn review_body_write_config_here_with_no_temp_folder() {
     let base = std::env::var("WSP_REVIEW_BASE").unwrap();
     let err = write_config_here(&format!("{base}/f.json"), &base, None, "text\n", None).unwrap_err();

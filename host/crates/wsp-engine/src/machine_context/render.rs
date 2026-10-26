@@ -360,7 +360,7 @@ fn failed(failure: String) -> ContextOutcome {
 }
 
 /// machine-context.ts:514. Never fails: a guest that does not answer is the outcome's `failure`.
-pub async fn apply_machine_context(machine: &dyn Machine, opts: ApplyContextOptions) -> ContextOutcome {
+pub async fn apply_machine_context(machine: &Arc<dyn Machine>, opts: ApplyContextOptions) -> ContextOutcome {
     let roots = opts.roots.clone().unwrap_or_else(guest_roots);
     let path = opts.path.clone().unwrap_or_else(|| TOOLS_PATH.to_string());
     let cmd = probe_command(Some(&roots), Some(&path), Some(opts.shells.unwrap_or_default()));
@@ -408,7 +408,7 @@ pub async fn apply_machine_context(machine: &dyn Machine, opts: ApplyContextOpti
         Err(e) => return failed(format!("write failed: {}", squeeze(&e.to_string()))),
     };
     let vault = VaultOptions { overlay: true, fetch: opts.fetch.clone(), ..Default::default() };
-    if let Err(e) = import_into(machine, &tar, "/", &vault).await {
+    if let Err(e) = import_into(machine.clone(), &tar, "/", &vault).await {
         return failed(format!("write failed: {}", squeeze(&e.to_string())));
     }
     let summary = summarize(&context, &probe.agents, tar.len() as u64);

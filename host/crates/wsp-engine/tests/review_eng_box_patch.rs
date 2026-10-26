@@ -541,11 +541,10 @@ fn daemon_exits_of_splits_the_words_on_javascripts_whitespace() {
     assert!(bad.is_empty(), "{}", bad.join("\n"));
 }
 
-// Guess, not a finding yet. TS box-backend.ts:760 settle throws the cancel's reason where it is an Error (box-backend.test.ts:849-865 aborts
-// with `new Error("the person stopped waiting")` and expects those words). The Rust Cancel carries words only, so settle answers
-// "resume of bx_tumrjngm was stopped by its caller". Probe line cancel_resume_error_fetch2: err.message "the person stopped waiting".
+// TS box-backend.ts:760 settle throws the cancel's reason where it is an Error (box-backend.test.ts:849-865 aborts with
+// `new Error("the person stopped waiting")` and expects those words). The Rust Cancel carries words, and the coordinator's ruling 4
+// (comment 6405457065) reads every reason as an Error's message. Probe line cancel_resume_error_fetch2: err.message "the person stopped waiting".
 #[tokio::test]
-#[ignore = "needs a ruling: the Rust Cancel cannot say its reason was an Error"]
 async fn a_cancel_whose_reason_was_an_error_ends_a_wait_with_that_errors_words() {
     let stop = Cancel::new();
     let firing = stop.clone();
