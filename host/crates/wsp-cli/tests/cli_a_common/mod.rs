@@ -464,6 +464,19 @@ pub fn server_line(answer: &wsp_cli::verbs::client::CallToolResult) -> String {
 /// The asks sorted by their text, as the record's own replay compares them (the order two requests sent together
 /// reach the host is not the code's to fix).
 pub fn in_order(mut frames: Vec<Value>) -> Vec<Value> {
-    frames.sort_by_key(Value::to_string);
+    let op_first = |frame: &Value| match frame {
+        Value::Object(map) => {
+            let mut ordered = serde_json::Map::new();
+            if let Some(op) = map.get("op") {
+                ordered.insert("op".to_owned(), op.clone());
+            }
+            map.iter().filter(|(k, _)| *k != "op").for_each(|(k, v)| {
+                ordered.insert(k.clone(), v.clone());
+            });
+            Value::Object(ordered).to_string()
+        }
+        other => other.to_string(),
+    };
+    frames.sort_by_key(op_first);
     frames
 }
