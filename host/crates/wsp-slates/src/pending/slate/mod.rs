@@ -419,20 +419,25 @@ pub mod validate;
 pub use batch::{run_slate_batch, SlateBatchSend, SlateBatchWindowStep, SlateWriter};
 pub use catalog::slate_catalog;
 pub use catalog::{slate_takes_figures, slate_tokens, SLATE_CHAPTERS, SLATE_INDEX_EXAMPLE, SLATE_RULES};
-pub use examples::{SlateExample, SLATE_EXAMPLES};
 pub use chart::{
     slate_axis_word, slate_chart_axis, slate_shares, slate_span_state, slate_time, SlateChartAxis, SlateShare, SLATE_DONUT_PARTS,
     SLATE_SPAN_STATES, SLATE_TIME_FLOOR,
 };
+pub use examples::{SlateExample, SLATE_EXAMPLES};
 pub use expr::{
-    check_slate_expression, closing_brace, evaluate_slate_ast, evaluate_slate_expression, parse_slate_expression, parse_slate_format, resolve_slate_prop,
-    slate_ast_dependencies, slate_dependencies, slate_path_text, slate_prop_dependencies, slate_text, slate_truthy, SlateBinOp,
-    SlateCheckScope, SlateExpr, SlateExprCheck, SlateExprParse, SlateFormatParse, SlateFormatPart, SlateFunction, SlatePipeArg, SlatePipeStep,
-    SlatePipeStepNode, SlateScopeProblem, SlateTemplatePart, SlateType, SlateTypeName, SLATE_FUNCTIONS, SLATE_PIPE_STEPS,
+    check_slate_expression, closing_brace, evaluate_slate_ast, evaluate_slate_expression, parse_slate_expression, parse_slate_format,
+    resolve_slate_prop, slate_ast_dependencies, slate_dependencies, slate_path_text, slate_prop_dependencies, slate_text, slate_truthy,
+    SlateBinOp, SlateCheckScope, SlateExpr, SlateExprCheck, SlateExprParse, SlateFormatParse, SlateFormatPart, SlateFunction, SlatePipeArg,
+    SlatePipeStep, SlatePipeStepNode, SlateScopeProblem, SlateTemplatePart, SlateType, SlateTypeName, SLATE_FUNCTIONS, SLATE_PIPE_STEPS,
 };
 pub use image::{
     slate_address_refused, slate_image_missing, slate_image_not_a_file, slate_image_source, slate_image_too_big, slate_list_too_long,
     slate_looks_svg, slate_not_an_image, SlateImageSource, SLATE_IMAGE_LAYOUTS, SLATE_IMAGE_MAX_BYTES,
+};
+pub use kit::{
+    slate_figure, slate_held_text, slate_piece_module, slate_reserved_prop, SlateBinds, SlateChildLimit, SlateItemSpec, SlateMost,
+    SlatePieceCheck, SlatePieceModule, SlatePropSpec, SlatePropType, SlateSketchFn, SlateSketchView, SLATE_EVENTS, SLATE_FIGURES,
+    SLATE_ITEM_KINDS, SLATE_PIECES, SLATE_RESERVED_PROPS, SLATE_TONES,
 };
 pub use patch::{apply_slate_patch, carry_slate_values, slate_start_values};
 pub use paths::{get_slate_value, parse_slate_own_path, set_slate_value, slate_equal, slate_own_name, slate_segments, slate_step};
@@ -444,11 +449,6 @@ pub use shape::{
     sketch_slate_result, slate_field_words, slate_result_shape, SlateColumn, SlateFact, SlateNested, SlateResultShape, SLATE_RESULT_ROWS,
 };
 pub use sketch::{sketch_slate, SlateSketchContext};
-pub use kit::{
-    slate_figure, slate_held_text, slate_piece_module, slate_reserved_prop, SlateChildLimit, SlateItemSpec, SlateBinds, SlateMost,
-    SlatePieceCheck, SlatePieceModule, SlatePropSpec, SlatePropType, SlateSketchFn, SlateSketchView, SLATE_EVENTS, SLATE_FIGURES,
-    SLATE_ITEM_KINDS, SLATE_PIECES, SLATE_RESERVED_PROPS, SLATE_TONES,
-};
 pub use sources::{
     is_slate_source, slate_is_series, slate_shape_text, slate_shape_type, slate_source_type, SlateShape, SlateSourceModule, SLATE_SOURCES,
     SLATE_SOURCE_NAMES,

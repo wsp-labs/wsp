@@ -188,7 +188,8 @@ fn runs_a_press_as_round_0_with_the_row_in_scope_and_hands_window_steps_back() {
     let d = doc("b_press");
     let mut c = ctx("person", NOW);
     let resolve: Rc<dyn Fn(&str) -> Option<Value>> = Rc::new(|path: &str| {
-        (path == "pr.checks").then(|| json!([{"name": "lint", "link": "https://x.example/1"}, {"name": "build", "link": "https://x.example/2"}]))
+        (path == "pr.checks")
+            .then(|| json!([{"name": "lint", "link": "https://x.example/1"}, {"name": "build", "link": "https://x.example/2"}]))
     });
     c.eval.resolve = resolve;
     c.event = Some(BatchEvent { piece: "table-1".into(), kind: "press".into(), item: None, index: Some(1), row_action: Some(0) });
@@ -288,7 +289,8 @@ fn every_spec_example_sketches_under_its_budget() {
 #[test]
 fn says_a_run_started_again_after_a_failure_is_running_again_with_a_failed_last_run() {
     let d = doc("s_run_again");
-    let again = json!({"spot": {"state": "running", "refreshing": true, "exit": 1, "ms": 40, "runs": 2, "startedAt": NOW, "endedAt": NOW - 1000}});
+    let again =
+        json!({"spot": {"state": "running", "refreshing": true, "exit": 1, "ms": 40, "runs": 2, "startedAt": NOW, "endedAt": NOW - 1000}});
     let values: SlateValues = serde_json::from_value(again).unwrap();
     assert!(sketch(&d, &values, opts(NOW, 1)).contains("$spot: running again; the last run failed (exit 1, 40 ms)"));
 }
@@ -329,7 +331,10 @@ fn marks_a_piece_that_reads_a_runs_result_before_the_run_has_one_and_not_one_tha
     assert!(sketch(&d, &ran, opts(NOW, 2)).contains("Market closed  [closed text]"));
 
     let mut failed = start(&d);
-    failed.insert("market".into(), json!({"state": "failed", "why": "exited with 1", "exit": 1, "out": "", "runs": 1, "startedAt": NOW - 1000, "endedAt": NOW}));
+    failed.insert(
+        "market".into(),
+        json!({"state": "failed", "why": "exited with 1", "exit": 1, "out": "", "runs": 1, "startedAt": NOW - 1000, "endedAt": NOW}),
+    );
     assert!(sketch(&d, &failed, opts(NOW, 3)).contains("Market closed (reads $market, which failed)  [closed text]"));
 }
 
@@ -418,7 +423,10 @@ fn draws_a_section_a_literal_open_false_starts_shut_as_collapsed() {
 }
 
 fn plot_lines(s: &str) -> Vec<String> {
-    s.split('\n').filter(|l| Regex::new(r"^  [A-Z]\d{3} ").expect("the code pattern compiles").is_match(l)).map(|l| l.trim().to_string()).collect()
+    s.split('\n')
+        .filter(|l| Regex::new(r"^  [A-Z]\d{3} ").expect("the code pattern compiles").is_match(l))
+        .map(|l| l.trim().to_string())
+        .collect()
 }
 
 #[test]
@@ -435,7 +443,12 @@ fn names_a_plotted_value_that_is_not_a_number_as_a_problem_with_the_binding_what
     assert!(s.contains("R905 chart-1.value: value={item} read an object on 2 of 2 rows, like {\"at\":\"2026-10-04T19:46:00Z\",\"n\":690}, so it draws no point for them; a plotted value is a number, like value={item.n}"), "{s}");
     assert!(s.contains("R905 number-1.trend: trend={$rows} holds an object in 2 of 2 places, like {\"at\":\"2026-10-04T19:46:00Z\",\"n\":690}, so it draws no point for them; a plotted list holds numbers, like trend={pluck($rows, 'n')}"), "{s}");
     assert!(s.contains("R905 bars-1.value: value={item.at} read a string on 2 of 2 rows, like \"2026-10-04T19:46:00Z\", so it draws no point for them; a plotted value is a number"), "{s}");
-    assert!(s.contains("R905 meter-1.value: value={$m} read a string, \"12\", so it draws nothing; a plotted value is a number, like value={num($m)}"), "{s}");
+    assert!(
+        s.contains(
+            "R905 meter-1.value: value={$m} read a string, \"12\", so it draws nothing; a plotted value is a number, like value={num($m)}"
+        ),
+        "{s}"
+    );
     assert!(s.contains("R905 sparkline-1.values: values={pluck($rows, 'at')} holds a string in 2 of 2 places"), "{s}");
 
     let mut short = start(&d);
@@ -562,13 +575,15 @@ fn draws_a_treemaps_parts_with_their_share_of_the_whole_and_a_donuts_biggest_fiv
 
 #[test]
 fn a_timeline_whose_start_is_not_a_time_is_named_as_a_problem() {
-    let (_, problems) = drawn("v_timeline_start_bad", &[("steps", json!([{"name": "Build", "start": "soon", "end": "2026-10-07T14:04:03"}]))]);
+    let (_, problems) =
+        drawn("v_timeline_start_bad", &[("steps", json!([{"name": "Build", "start": "soon", "end": "2026-10-07T14:04:03"}]))]);
     assert_eq!(problems, ["R905 ci.start: start={item.start} read a string on 1 of 1 rows, like \"soon\", which is not a time, so it draws no span; a time is ISO or ms"]);
 }
 
 #[test]
 fn a_timeline_whose_end_is_not_a_time_is_named_as_a_problem() {
-    let (_, problems) = drawn("v_timeline_start_bad", &[("steps", json!([{"name": "Build", "start": "2026-10-07T14:02:10", "end": {"at": 1}}]))]);
+    let (_, problems) =
+        drawn("v_timeline_start_bad", &[("steps", json!([{"name": "Build", "start": "2026-10-07T14:02:10", "end": {"at": 1}}]))]);
     assert_eq!(problems, ["R905 ci.end: end={item.end} read an object on 1 of 1 rows, like {\"at\":1}, which is not a time, so it draws no span; a time is ISO or ms"]);
 }
 
@@ -592,10 +607,12 @@ fn a_series_value_that_is_not_a_number_is_named_as_a_problem() {
 
 #[test]
 fn a_timeline_start_written_in_seconds_is_told_it_reads_as_1970_with_the_fix_and_the_panel_still_draws() {
-    let (s, problems) = drawn("v_timeline_fixable", &[("steps", json!([{"name": "Build", "start": 1_759_900_000, "end": "2026-10-07T14:04:03"}]))]);
+    let (s, problems) =
+        drawn("v_timeline_fixable", &[("steps", json!([{"name": "Build", "start": 1_759_900_000, "end": "2026-10-07T14:04:03"}]))]);
     assert_eq!(problems, ["W021 ci.start: start={item.start} read on 1 of 1 rows, like 1759900000, a time before 2000 that is most likely seconds where a slate reads milliseconds, like start={item.start * 1000}. Fix: start={item.start * 1000}"]);
     assert!(s.contains("0 problems, 1 warning"), "{s}");
-    let (_, fixed) = drawn("v_timeline_fixed", &[("steps", json!([{"name": "Build", "start": 1_759_900_000, "end": "2026-10-07T14:04:03"}]))]);
+    let (_, fixed) =
+        drawn("v_timeline_fixed", &[("steps", json!([{"name": "Build", "start": 1_759_900_000, "end": "2026-10-07T14:04:03"}]))]);
     assert!(fixed.is_empty(), "{fixed:?}");
 }
 
@@ -630,10 +647,7 @@ fn draws_the_example_a_heading_numbers_an_inset_section_a_status_a_chip_a_ring_a
     for (at, price) in [(1000i64, 2400.5f64), (61000, 2401.25), (121000, 2399.0)] {
         values = r_batch_at(&d, &values, "$spot", json!({"state": "done", "exit": 0, "out": "", "json": {"price": price}, "runs": 1}), at);
     }
-    assert_eq!(
-        values["hist"],
-        json!([{"at": 1000, "v": 2400.5}, {"at": 61000, "v": 2401.25}, {"at": 121000, "v": 2399.0}])
-    );
+    assert_eq!(values["hist"], json!([{"at": 1000, "v": 2400.5}, {"at": 61000, "v": 2401.25}, {"at": 121000, "v": 2399.0}]));
     let s = sketch(&d, &values, opts(121_000, 0));
     for line in [
         "# Gold",
@@ -673,7 +687,8 @@ fn logs_a_quizs_answers_with_append_under_a_computed_index() {
 #[test]
 fn marks_a_run_whose_command_changed_since_it_ran() {
     let d = doc("k_stale");
-    let values: SlateValues = serde_json::from_value(json!({"weather": {"state": "done", "exit": 0, "ms": 812, "runs": 1, "stale": true}})).unwrap();
+    let values: SlateValues =
+        serde_json::from_value(json!({"weather": {"state": "done", "exit": 0, "ms": 812, "runs": 1, "stale": true}})).unwrap();
     let s = sketch(&d, &values, opts(NOW, 0));
     assert!(s.contains("$weather: done (exit 0, 812 ms), stale: the command changed since it ran"), "{s}");
     assert!(s.contains("(hidden)"), "{s}");
@@ -861,14 +876,11 @@ fn every_piece_prop_the_person_sees_changes_its_sketch() {
                 }
                 let (a, b) = pair(field, spec);
                 let base = fresh(m);
-                let list: Vec<Value> = base
-                    .get(item.prop)
-                    .and_then(Value::as_array)
-                    .cloned()
-                    .unwrap_or_else(|| {
-                        let entry: Map<String, Value> = item.fields.iter().filter(|(_, f)| f.required).map(|(k, f)| ((*k).to_string(), pair(k, f).0)).collect();
-                        vec![Value::Object(entry)]
-                    });
+                let list: Vec<Value> = base.get(item.prop).and_then(Value::as_array).cloned().unwrap_or_else(|| {
+                    let entry: Map<String, Value> =
+                        item.fields.iter().filter(|(_, f)| f.required).map(|(k, f)| ((*k).to_string(), pair(k, f).0)).collect();
+                    vec![Value::Object(entry)]
+                });
                 let with_field = |v: Value| {
                     let mut props = base.clone();
                     if item.row {
@@ -877,7 +889,15 @@ fn every_piece_prop_the_person_sees_changes_its_sketch() {
                     let edited: Vec<Value> = list
                         .iter()
                         .enumerate()
-                        .map(|(i, x)| if i == 0 { let mut x = x.clone(); x[*field] = v.clone(); x } else { x.clone() })
+                        .map(|(i, x)| {
+                            if i == 0 {
+                                let mut x = x.clone();
+                                x[*field] = v.clone();
+                                x
+                            } else {
+                                x.clone()
+                            }
+                        })
                         .collect();
                     props.insert(item.prop.to_string(), Value::Array(edited));
                     props

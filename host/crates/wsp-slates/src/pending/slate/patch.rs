@@ -220,7 +220,8 @@ fn apply_op(d: &mut Map<String, Value>, op: &Value, lines: Option<&SlateLines>, 
                     pieces.insert(k.clone(), p.clone());
                 }
             }
-            let order: Vec<String> = op.get("order").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(str::to_string).collect();
+            let order: Vec<String> =
+                op.get("order").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(str::to_string).collect();
             insert_children(d, &under, &order, op.get("at").and_then(Value::as_f64));
         }
         Some("remove") => {
@@ -364,12 +365,22 @@ pub fn apply_slate_patch(doc: Option<&SlateDoc>, values: &SlateValues, ops: &[Va
         )]);
     }
     let Some(doc) = doc else {
-        return refused(vec![slate_problem("Z802", "there is no slate to patch; write one with <slate>", Some("<slate title=\"...\">...</slate>"))]);
+        return refused(vec![slate_problem(
+            "Z802",
+            "there is no slate to patch; write one with <slate>",
+            Some("<slate title=\"...\">...</slate>"),
+        )]);
     };
     let lines = lines_map(lines);
     let mut d: Map<String, Value> = match serde_json::to_value(doc) {
         Ok(Value::Object(m)) => m,
-        _ => return refused(vec![slate_problem("D202", "a document is an object with schema, root, values, derived, runs, reactions and pieces", None)]),
+        _ => {
+            return refused(vec![slate_problem(
+                "D202",
+                "a document is an object with schema, root, values, derived, runs, reactions and pieces",
+                None,
+            )])
+        }
     };
     let mut errors = Vec::new();
     for op in ops {
@@ -385,7 +396,11 @@ pub fn apply_slate_patch(doc: Option<&SlateDoc>, values: &SlateValues, ops: &[Va
     let next: SlateDoc = match serde_json::from_value(Value::Object(d)) {
         Ok(next) => next,
         Err(_) => {
-            return refused(vec![slate_problem("D202", "a document is an object with schema, root, values, derived, runs, reactions and pieces", None)]);
+            return refused(vec![slate_problem(
+                "D202",
+                "a document is an object with schema, root, values, derived, runs, reactions and pieces",
+                None,
+            )]);
         }
     };
     let carried = carry_slate_values(Some(doc), &next, values);

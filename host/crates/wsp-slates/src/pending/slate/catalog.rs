@@ -14,7 +14,8 @@ const BOX: [&str; 2] = ["pad", "surface"];
 const SAID_ONCE: [&str; 4] = ["tone", "emphasis", "pad", "align"];
 const BACK: &str = "The pieces and rules: slate_catalog with no name.";
 const NOT_IN: &str = "is not in the catalog";
-const SLATE_RUN_FIELDS: [&str; 15] = ["state", "why", "exit", "out", "err", "json", "lines", "startedAt", "endedAt", "ms", "runs", "cut", "stale", "refreshing", "text"];
+const SLATE_RUN_FIELDS: [&str; 15] =
+    ["state", "why", "exit", "out", "err", "json", "lines", "startedAt", "endedAt", "ms", "runs", "cut", "stale", "refreshing", "text"];
 
 pub const SLATE_CHAPTERS: &[&str] = &["runs", "functions", "steps", "handlers", "patch", "examples"];
 
@@ -139,13 +140,11 @@ fn source_line(s: &SlateSourceModule) -> String {
     match &s.shape {
         SlateShape::Keyed(_) => format!("{}.<server>: state tools[] resources[]", s.name),
         SlateShape::Fields(fields) => {
-            let shown: Vec<(&str, &SlateShape)> = fields
-                .iter()
-                .filter(|(k, _)| s.indexed.as_ref().map_or(true, |ix| ix.contains(*k)))
-                .map(|(k, v)| (*k, v))
-                .collect();
+            let shown: Vec<(&str, &SlateShape)> =
+                fields.iter().filter(|(k, _)| s.indexed.as_ref().map_or(true, |ix| ix.contains(*k))).map(|(k, v)| (*k, v)).collect();
             let more = if shown.len() < fields.len() { " ..." } else { "" };
-            let names: Vec<String> = shown.iter().map(|(k, v)| if matches!(v, SlateShape::List(_)) { format!("{k}[]") } else { k.to_string() }).collect();
+            let names: Vec<String> =
+                shown.iter().map(|(k, v)| if matches!(v, SlateShape::List(_)) { format!("{k}[]") } else { k.to_string() }).collect();
             format!("{}: {}{more}", s.name, names.join(" "))
         }
         _ => s.name.to_string(),
@@ -204,7 +203,8 @@ fn sketch_options() -> SketchOptions {
 }
 
 fn piece_entry(p: &SlatePieceModule) -> String {
-    let own: Vec<(&str, &SlatePropSpec)> = p.props.iter().filter(|(k, _)| !p.items.values().any(|i| i.prop == **k)).map(|(k, v)| (*k, v)).collect();
+    let own: Vec<(&str, &SlatePropSpec)> =
+        p.props.iter().filter(|(k, _)| !p.items.values().any(|i| i.prop == **k)).map(|(k, v)| (*k, v)).collect();
     let sketched = compile_slate_text(&format!("<slate><column>{}</column></slate>", p.example))
         .document
         .map(|doc| sketch_slate(Some(&doc), &SlateValues::new(), sketch_options()).split('\n').nth(1).unwrap_or("").to_string())
@@ -217,7 +217,8 @@ fn piece_entry(p: &SlatePieceModule) -> String {
     for (tag, s) in &p.items {
         let fields: Vec<String> = s.fields.iter().map(|(k, f)| format!("{k}{}", if f.required { "!" } else { "" })).collect();
         let on_press = if s.events.is_some() { " onPress" } else { "" };
-        let row = if s.row { format!(" (item and index read the row{})", if s.row_when { ", when too" } else { "" }) } else { String::new() };
+        let row =
+            if s.row { format!(" (item and index read the row{})", if s.row_when { ", when too" } else { "" }) } else { String::new() };
         lines.push(format!("  <{tag}> {} when{on_press}{row}", fields.join(" ")));
     }
     let events = if p.events.is_empty() { "none".to_string() } else { p.events.iter().map(|e| on_event(e)).collect::<Vec<_>>().join(", ") };
@@ -299,11 +300,16 @@ fn runs_entry() -> String {
 }
 
 fn functions_entry() -> String {
-    const SHOWN: &[&str] = &["percent", "pct", "tokens", "usd", "duration", "ago", "until", "date", "plural", "word", "short", "num", "json", "contains", "orElse", "len", "first", "pluck"];
+    const SHOWN: &[&str] = &[
+        "percent", "pct", "tokens", "usd", "duration", "ago", "until", "date", "plural", "word", "short", "num", "json", "contains",
+        "orElse", "len", "first", "pluck",
+    ];
     let mut lines = vec![String::from(
         r#"Functions (pure; a null argument gives null unless the function takes one). Times read in this computer's zone: date(t) "Mon 5 Oct", time(t) "14:05", ago(t) "30s ago", until(t) "in 4m"."#,
     )];
-    lines.extend(SLATE_FUNCTIONS.iter().map(|(n, f)| if SHOWN.contains(n) { format!("{}: {}", f.sig, f.example) } else { f.sig.to_string() }));
+    lines.extend(
+        SLATE_FUNCTIONS.iter().map(|(n, f)| if SHOWN.contains(n) { format!("{}: {}", f.sig, f.example) } else { f.sig.to_string() }),
+    );
     lines.join("\n")
 }
 
@@ -314,7 +320,10 @@ fn steps_entry() -> String {
 }
 
 fn handlers_entry() -> String {
-    let mut lines = vec![format!("Handler steps, in onPress, onSubmit, onChange and <when do>; one step or [a, b], at most {}:", SLATE_LIMITS.steps_per_reaction)];
+    let mut lines = vec![format!(
+        "Handler steps, in onPress, onSubmit, onChange and <when do>; one step or [a, b], at most {}:",
+        SLATE_LIMITS.steps_per_reaction
+    )];
     lines.extend(SLATE_STEPS.iter().map(|s| {
         let window = if s.runs == "window" { "Window only, on a press. " } else { "" };
         format!("{}: {}. {window}Consent: {}. {}", s.sig, s.purpose, s.consent, s.example)
@@ -323,7 +332,8 @@ fn handlers_entry() -> String {
 }
 
 fn index_text() -> String {
-    let mut lines: Vec<String> = vec![String::from("Slate kit wsp/2, JSX-like text. Pieces (attributes, ! required, (a|b) the only values; <items>):")];
+    let mut lines: Vec<String> =
+        vec![String::from("Slate kit wsp/2, JSX-like text. Pieces (attributes, ! required, (a|b) the only values; <items>):")];
     lines.extend(SLATE_PIECES.values().filter(|p| p.level == "core").map(piece_line));
     lines.push(format!(
         "Every piece: id, when={{cond}}; items take when too. tone: default muted good warning bad info accent. emphasis: normal strong quiet. format, where a line lists none: {}.",
@@ -343,11 +353,7 @@ fn index_text() -> String {
     let steps: Vec<&str> = SLATE_STEPS.iter().map(|s| s.kind).collect();
     let functions: Vec<&str> = SLATE_FUNCTIONS.iter().map(|(n, _)| *n).collect();
     let pipes: Vec<&str> = SLATE_PIPE_STEPS.iter().map(|(n, _)| *n).collect();
-    lines.push(format!(
-        r#"Steps: {}. Functions: {}. ago(t) "30s ago", until(t) "in 4m"."#,
-        steps.join(" "),
-        functions.join(" ")
-    ));
+    lines.push(format!(r#"Steps: {}. Functions: {}. ago(t) "30s ago", until(t) "in 4m"."#, steps.join(" "), functions.join(" ")));
     lines.push(format!("After |: {}. $run reads state exit out err json; a secret only .set .len.", pipes.join(" ")));
     lines.push(String::from("Rules:"));
     lines.extend(SLATE_RULES.iter().enumerate().map(|(i, r)| format!("{}. {r}", i + 1)));
@@ -375,7 +381,12 @@ fn entry(name: &str) -> String {
         "handlers" => handlers_entry(),
         "examples" => SLATE_EXAMPLES.iter().map(|e| format!("{}:\n{}", e.title, e.text)).collect::<Vec<_>>().join("\n\n"),
         _ => {
-            let options: Vec<String> = SLATE_PIECES.keys().chain(SLATE_SOURCES.keys()).map(|k| k.to_string()).chain(SLATE_CHAPTERS.iter().map(|c| c.to_string())).collect();
+            let options: Vec<String> = SLATE_PIECES
+                .keys()
+                .chain(SLATE_SOURCES.keys())
+                .map(|k| k.to_string())
+                .chain(SLATE_CHAPTERS.iter().map(|c| c.to_string()))
+                .collect();
             let tail = match slate_nearest(n, &options) {
                 Some(fix) => format!("; did you mean {fix}?"),
                 None => ".".to_string(),

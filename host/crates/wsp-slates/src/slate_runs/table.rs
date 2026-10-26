@@ -20,14 +20,14 @@ use wsp_words::js::{js_trim, number_string};
 use wsp_words::run_block::run_output_tail;
 
 use super::parts::{
-    as_text, files_unwritten, is_env_name, last_result, run_key, running_record, spent, timeout_of, CmdRunDecl, HELD_ASLEEP,
-    HELD_APPROVAL, HELD_BUDGET, HELD_BUSY, HELD_PRESSED, RunAsk, RunBy, RunInput, RunInputs, RunRecord, RunResult, RunStart,
-    RunStartAnswer, RunState, Outcome, BACKED_OFF, BACKOFF_AFTER, BACKOFF_MS, DEFAULT_TIMEOUT_S, LINES_KEPT, RUNNING_MAX, SECRET_DOTS,
+    as_text, files_unwritten, is_env_name, last_result, run_key, running_record, spent, timeout_of, CmdRunDecl, Outcome, RunAsk, RunBy,
+    RunInput, RunInputs, RunRecord, RunResult, RunStart, RunStartAnswer, RunState, BACKED_OFF, BACKOFF_AFTER, BACKOFF_MS,
+    DEFAULT_TIMEOUT_S, HELD_APPROVAL, HELD_ASLEEP, HELD_BUDGET, HELD_BUSY, HELD_PRESSED, LINES_KEPT, RUNNING_MAX, SECRET_DOTS,
     TIMER_FLOOR_S,
 };
-use super::road::{reshape_result, ReshapeStart, RoadEnd, RoadEvents, RoadStart, RunRoad, Stream, local_road};
-use super::secrets::{create_secrets, DefaultApprovals, RunApprovals, Secrets, SlateSecrets};
 use super::parts::{Reshape, ReshapeAnswer};
+use super::road::{local_road, reshape_result, ReshapeStart, RoadEnd, RoadEvents, RoadStart, RunRoad, Stream};
+use super::secrets::{create_secrets, DefaultApprovals, RunApprovals, Secrets, SlateSecrets};
 use crate::pending::slate::SLATE_SECRET_IN_ARGS;
 
 pub trait SlateRunsDeps {
@@ -183,9 +183,7 @@ pub fn create_slate_runs(deps: Rc<dyn SlateRunsDeps>) -> Rc<dyn SlateRuns> {
     let approvals = deps.approvals().unwrap_or_else(|| Rc::new(DefaultApprovals::default()));
     let secrets = create_secrets(deps.secrets_file(), clock.clone());
     let local = local_road(clock.clone());
-    Rc::new(SlateRunsTable {
-        inner: Rc::new(RunsInner { deps, clock, approvals, secrets, local, threads: RefCell::new(IndexMap::new()) }),
-    })
+    Rc::new(SlateRunsTable { inner: Rc::new(RunsInner { deps, clock, approvals, secrets, local, threads: RefCell::new(IndexMap::new()) }) })
 }
 
 struct Captured {
@@ -317,9 +315,7 @@ fn reshaped(ctx: &Rc<CtxInner>, captured: Captured, answer: ReshapeAnswer) {
     ctx.l.borrow_mut().reshaping = None;
     let (state, fields) = match answer {
         ReshapeAnswer::Json(json) => (RunState::Done, outcome_fields(RunState::Done, None, captured.exit, captured.err, Some(json))),
-        ReshapeAnswer::Failed { why, exit, err } => {
-            (RunState::Failed, outcome_fields(RunState::Failed, Some(why), exit, err, None))
-        }
+        ReshapeAnswer::Failed { why, exit, err } => (RunState::Failed, outcome_fields(RunState::Failed, Some(why), exit, err, None)),
     };
     finish(ctx, &inner, state, fields, captured.out, captured.cut);
 }
@@ -436,9 +432,10 @@ impl RunsInner {
 
     fn ask(&self, req: &RunStart) -> RunAsk {
         let inputs: RunInputs = (req.inputs)();
-        let env = inputs.env.as_ref().map_or_else(IndexMap::new, |m| {
-            m.iter().map(|(name, input)| (name.clone(), self.shown(&req.thread_id, input))).collect()
-        });
+        let env = inputs
+            .env
+            .as_ref()
+            .map_or_else(IndexMap::new, |m| m.iter().map(|(name, input)| (name.clone(), self.shown(&req.thread_id, input))).collect());
         let args = inputs.args.as_deref().unwrap_or(&[]).iter().map(|input| self.shown(&req.thread_id, input)).collect();
         let stdin = inputs.stdin.as_ref().map(|input| {
             let shown = self.shown(&req.thread_id, input);
@@ -566,9 +563,9 @@ impl RunsInner {
             return self.fail(&req, l, SLATE_SECRET_IN_ARGS);
         }
         let road = self.deps.road(&thread, decl.on.as_deref().unwrap_or("thread"));
-        let road_env = road.as_ref().map(|road| {
-            IndexMap::from([("SLATE_DIR".to_string(), road.slate_dir()), (THREAD_ENV.to_string(), thread.clone())])
-        });
+        let road_env = road
+            .as_ref()
+            .map(|road| IndexMap::from([("SLATE_DIR".to_string(), road.slate_dir()), (THREAD_ENV.to_string(), thread.clone())]));
         let mut env = match &road_env {
             Some(env) => env.clone(),
             None => match self.login_env(&thread) {
@@ -647,15 +644,7 @@ impl RunsInner {
             road: road.clone(),
             road_env,
         });
-        let start = RoadStart {
-            cmd: decl.cmd.clone(),
-            args,
-            cwd,
-            env,
-            stdin,
-            timeout_s: timeout,
-            stream: ctx.stream,
-        };
+        let start = RoadStart { cmd: decl.cmd.clone(), args, cwd, env, stdin, timeout_s: timeout, stream: ctx.stream };
         let events: Rc<dyn RoadEvents> = Rc::new(ctx.clone());
         let started = match &road {
             Some(road) => road.start(start, events),
@@ -750,9 +739,7 @@ impl RunsInner {
     fn fire(&self, thread_id: &str, run: &str) {
         let now = self.clock.now();
         let skip = self.with_thread(thread_id, |t| match t.timers.get(run) {
-            Some(timer) => {
-                timer.always && timer.failures >= BACKOFF_AFTER && timer.failed_at.is_some_and(|at| now - at < BACKOFF_MS)
-            }
+            Some(timer) => timer.always && timer.failures >= BACKOFF_AFTER && timer.failed_at.is_some_and(|at| now - at < BACKOFF_MS),
             None => true,
         });
         if !skip {
@@ -1015,9 +1002,8 @@ impl SlateRuns for SlateRunsTable {
         self.inner.secrets.clone()
     }
     fn drop_thread(&self, thread_id: &str, keep: bool) {
-        let runs: Option<Vec<(String, LiveRef)>> = self.inner.threads.borrow().get(thread_id).map(|t| {
-            t.runs.iter().map(|(run, l)| (run.clone(), l.clone())).collect()
-        });
+        let runs: Option<Vec<(String, LiveRef)>> =
+            self.inner.threads.borrow().get(thread_id).map(|t| t.runs.iter().map(|(run, l)| (run.clone(), l.clone())).collect());
         if let Some(runs) = runs {
             if !keep {
                 for (run, l) in runs {

@@ -35,7 +35,8 @@ static AGENT_TOOL: LazyLock<Regex> = LazyLock::new(|| js_re(r"^mcp__([^\n\r\x{20
 static SECONDS_BRACED: LazyLock<Regex> = LazyLock::new(|| js_re(r"^[@]*[0-9]+(\.[0-9]+)?[@]*$"));
 static SECONDS_TEXT: LazyLock<Regex> = LazyLock::new(|| js_re(r"^([0-9]+)[@]*(s|m|h)?$"));
 static LITERAL_SCALAR: LazyLock<Regex> = LazyLock::new(|| js_re(r"^(-?[0-9]+(?:\.[0-9]+)?(?:[eE]-?[0-9]+)?|true|false|null)"));
-static OBJECT_PART: LazyLock<Regex> = LazyLock::new(|| js_re(r#"^[@]*(?:([A-Za-z_][A-Za-z0-9_]*)|"([^"]*)"|'([^']*)')[@]*:[@]*([\s\S]+)$"#));
+static OBJECT_PART: LazyLock<Regex> =
+    LazyLock::new(|| js_re(r#"^[@]*(?:([A-Za-z_][A-Za-z0-9_]*)|"([^"]*)"|'([^']*)')[@]*:[@]*([\s\S]+)$"#));
 static RUN_SPACES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[ \t]+").expect("a pattern"));
 static RUN_NEWLINE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r" ?\n ?").expect("a pattern"));
 static RUN_BLANKS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\n{3,}").expect("a pattern"));
@@ -209,7 +210,11 @@ impl<'a> Reader<'a> {
     fn elements(&mut self) -> Result<Vec<El>, Fatal> {
         let most = SLATE_LIMITS.document_bytes + SLATE_LIMITS.files_bytes;
         if utf16::len(self.src) > most || slate_bytes(self.src) > most {
-            return Err(fatal("D208", format!("the text is over {} KB, the most a slate and its files hold; write less, or patch it in parts", most / 1024), 1));
+            return Err(fatal(
+                "D208",
+                format!("the text is over {} KB, the most a slate and its files hold; write less, or patch it in parts", most / 1024),
+                1,
+            ));
         }
         let mut out = Vec::new();
         loop {
@@ -256,7 +261,11 @@ impl<'a> Reader<'a> {
     fn element(&mut self, depth: usize) -> Result<El, Fatal> {
         let line = self.here();
         if depth > READ_DEPTH {
-            return Err(fatal("D206", format!("elements nest more than {} deep at line {line}; flatten the layout", SLATE_LIMITS.depth), line));
+            return Err(fatal(
+                "D206",
+                format!("elements nest more than {} deep at line {line}; flatten the layout", SLATE_LIMITS.depth),
+                line,
+            ));
         }
         self.i += 1;
         let len = tag_len(self.rest());
@@ -281,7 +290,13 @@ impl<'a> Reader<'a> {
             }
             let alen = attr_len(self.rest());
             if alen == 0 {
-                return self.fail(format!("cannot read an attribute of <{name}> at line {}; write <{name} prop=\"literal\" prop={{formula}} />", self.here()), None);
+                return self.fail(
+                    format!(
+                        "cannot read an attribute of <{name}> at line {}; write <{name} prop=\"literal\" prop={{formula}} />",
+                        self.here()
+                    ),
+                    None,
+                );
             }
             let aname = self.rest()[..alen].to_string();
             let aline = self.here();
@@ -302,9 +317,13 @@ impl<'a> Reader<'a> {
                     let raw = &body[..end_rel];
                     if raw.ends_with('\\') {
                         let fix = if q == '"' {
-                            format!(r#"{aname}='echo "hi"', single quotes outside the double ones; with both quotes inside, the block form <run name="x">{{`...`}}</run>"#)
+                            format!(
+                                r#"{aname}='echo "hi"', single quotes outside the double ones; with both quotes inside, the block form <run name="x">{{`...`}}</run>"#
+                            )
                         } else {
-                            format!(r#"{aname}="echo 'hi'", double quotes outside the single ones; with both quotes inside, the block form <run name="x">{{`...`}}</run>"#)
+                            format!(
+                                r#"{aname}="echo 'hi'", double quotes outside the single ones; with both quotes inside, the block form <run name="x">{{`...`}}</run>"#
+                            )
                         };
                         return self.fail(format!("attribute strings take no escapes ({aname} at line {aline}): a backslash does not hide a {q} inside {q}...{q}"), Some(fix));
                     }
@@ -413,12 +432,8 @@ fn dedent(text: &str) -> String {
     while lines.last().is_some_and(|l| js_trim(l).is_empty()) {
         lines.pop();
     }
-    let indent = lines
-        .iter()
-        .filter(|l| !js_trim(l).is_empty())
-        .map(|l| l.chars().take_while(|c| is_js_whitespace(*c)).count())
-        .min()
-        .unwrap_or(0);
+    let indent =
+        lines.iter().filter(|l| !js_trim(l).is_empty()).map(|l| l.chars().take_while(|c| is_js_whitespace(*c)).count()).min().unwrap_or(0);
     lines.iter().map(|l| l.chars().skip(indent).collect::<String>()).collect::<Vec<_>>().join("\n")
 }
 
@@ -985,7 +1000,12 @@ impl Compiler {
             } else if a.name == "title" {
                 self.error("T303", "title is a literal string: <slate title=\"...\">", a.line, Ext::default());
             } else {
-                self.error("T302", &format!("<slate> takes title alone, not {}", a.name), a.line, Ext { fix: Some("title"), ..Ext::default() });
+                self.error(
+                    "T302",
+                    &format!("<slate> takes title alone, not {}", a.name),
+                    a.line,
+                    Ext { fix: Some("title"), ..Ext::default() },
+                );
             }
         }
         if el.text.is_some() {
@@ -1070,8 +1090,23 @@ impl Compiler {
             "secret" => &["name", "keep"],
             "derived" => &["name", "value"],
             "run" => &[
-                "name", "cmd", "tool", "resource", "env", "args", "stdin", "on", "cwd", "timeout", "stream", "confirm", "every", "once",
-                "always", "then", "description",
+                "name",
+                "cmd",
+                "tool",
+                "resource",
+                "env",
+                "args",
+                "stdin",
+                "on",
+                "cwd",
+                "timeout",
+                "stream",
+                "confirm",
+                "every",
+                "once",
+                "always",
+                "then",
+                "description",
             ],
             "when" => &["id", "change", "done", "do"],
             _ => &[],
@@ -1092,7 +1127,8 @@ impl Compiler {
         let when_ok = is_when && el.attrs.iter().all(|a| a.name != "do");
         let run_ok = el.tag == "run" && el.children.is_empty();
         if has_content && !when_ok && !run_ok {
-            let hint = if is_when { "when takes do={steps}".to_string() } else { format!("<{}> is self-closing and takes no children", el.tag) };
+            let hint =
+                if is_when { "when takes do={steps}".to_string() } else { format!("<{}> is self-closing and takes no children", el.tag) };
             let fix = is_when.then_some("<when change={$id} do={start($check)} />");
             self.error("A601", &hint, el.line, Ext { fix, ..Ext::default() });
         }
@@ -1171,7 +1207,8 @@ impl Compiler {
             self.lines.insert(format!("{key}.{}", a.name), a.line);
         }
         let attr = |n: &str| attr_of(el, n);
-        let kinds: Vec<&str> = ["cmd", "tool", "resource"].into_iter().filter(|k| attr(k).is_some() || (*k == "cmd" && el.text.is_some())).collect();
+        let kinds: Vec<&str> =
+            ["cmd", "tool", "resource"].into_iter().filter(|k| attr(k).is_some() || (*k == "cmd" && el.text.is_some())).collect();
         if attr("cmd").is_some() && el.text.is_some() {
             self.error(
                 "K701",
@@ -1307,14 +1344,24 @@ impl Compiler {
                 }
                 if let Some(on) = attr("on") {
                     if on.kind != Kind::Str || (on.value != "thread" && on.value != "host") {
-                        self.error("K704", "on is \"thread\" or \"host\"", on.line, Ext { piece: Some(&key), prop: Some("on"), ..Ext::default() });
+                        self.error(
+                            "K704",
+                            "on is \"thread\" or \"host\"",
+                            on.line,
+                            Ext { piece: Some(&key), prop: Some("on"), ..Ext::default() },
+                        );
                     } else {
                         r.on = Some(on.value.clone());
                     }
                 }
                 if let Some(cwd) = attr("cwd") {
                     if cwd.kind != Kind::Str {
-                        self.error("T303", "cwd is a literal path", cwd.line, Ext { piece: Some(&key), prop: Some("cwd"), ..Ext::default() });
+                        self.error(
+                            "T303",
+                            "cwd is a literal path",
+                            cwd.line,
+                            Ext { piece: Some(&key), prop: Some("cwd"), ..Ext::default() },
+                        );
                     } else {
                         r.cwd = Some(cwd.value.clone());
                     }
@@ -1324,7 +1371,12 @@ impl Compiler {
                     if s.is_finite() {
                         r.timeout = Some(JsNumber(s));
                     } else {
-                        self.error("K704", "timeout is seconds: timeout={20}", timeout.line, Ext { piece: Some(&key), prop: Some("timeout"), ..Ext::default() });
+                        self.error(
+                            "K704",
+                            "timeout is seconds: timeout={20}",
+                            timeout.line,
+                            Ext { piece: Some(&key), prop: Some("timeout"), ..Ext::default() },
+                        );
                     }
                 }
                 if attr("stream").is_some() {
@@ -1429,7 +1481,12 @@ impl Compiler {
             );
         }
         if change.is_none() == done.is_none() {
-            self.error("A611", "<when> takes exactly one of change={...} or done={$run}", el.line, Ext { piece: Some(&key), ..Ext::default() });
+            self.error(
+                "A611",
+                "<when> takes exactly one of change={...} or done={$run}",
+                el.line,
+                Ext { piece: Some(&key), ..Ext::default() },
+            );
             return;
         }
         let do_attr = match attr_of(el, "do") {
@@ -1456,7 +1513,8 @@ impl Compiler {
                     return;
                 }
                 let text = js_trim(&c.value);
-                let items = if text.starts_with('[') && text.ends_with(']') { split_top(&text[1..text.len() - 1]) } else { vec![text.to_string()] };
+                let items =
+                    if text.starts_with('[') && text.ends_with(']') { split_top(&text[1..text.len() - 1]) } else { vec![text.to_string()] };
                 let mut paths: Vec<String> = Vec::new();
                 for t in items {
                     match path_of(&t) {
@@ -1567,7 +1625,13 @@ impl Compiler {
                     for p in args.iter().skip(1) {
                         match path_of(p) {
                             Some(path) => paths.push(path),
-                            None => self.step_bad(a, piece, &kind, &format!("{p} is not a path; {kind} carries paths after its text, as data"), None),
+                            None => self.step_bad(
+                                a,
+                                piece,
+                                &kind,
+                                &format!("{p} is not a path; {kind} carries paths after its text, as data"),
+                                None,
+                            ),
                         }
                     }
                     let mut step = json!({"do": kind, "text": text});
@@ -1590,13 +1654,7 @@ impl Compiler {
                         Some(p) if SLATE_PANE_KINDS.contains(&p.as_str()) => out.push(json!({"do": "pane", "kind": p})),
                         other => {
                             let fix = slate_nearest(other.as_deref().unwrap_or(""), &strs(SLATE_PANE_KINDS));
-                            self.step_bad(
-                                a,
-                                piece,
-                                &kind,
-                                &format!("pane names one of {}", SLATE_PANE_KINDS.join(", ")),
-                                fix.as_deref(),
-                            );
+                            self.step_bad(a, piece, &kind, &format!("pane names one of {}", SLATE_PANE_KINDS.join(", ")), fix.as_deref());
                         }
                     }
                 }
@@ -1645,7 +1703,9 @@ impl Compiler {
                 self.mint(&el.tag)
             }
         };
-        self.doc.pieces.insert(id.clone(), SlatePiece { kind: el.tag.clone(), props: None, children: None, when: None, on: None, fallback: None });
+        self.doc
+            .pieces
+            .insert(id.clone(), SlatePiece { kind: el.tag.clone(), props: None, children: None, when: None, on: None, fallback: None });
         self.lines.insert(id.clone(), el.line);
         let mut st = PieceState::default();
         for a in &el.attrs {
@@ -1698,7 +1758,12 @@ impl Compiler {
                     let message = if kinds.is_empty() {
                         format!("{} takes no items, not <{}>", el.tag, ch.tag)
                     } else {
-                        format!("{} takes {}, not <{}>", el.tag, kinds.iter().map(|k| format!("<{k}>")).collect::<Vec<_>>().join(" and "), ch.tag)
+                        format!(
+                            "{} takes {}, not <{}>",
+                            el.tag,
+                            kinds.iter().map(|k| format!("<{k}>")).collect::<Vec<_>>().join(" and "),
+                            ch.tag
+                        )
                     };
                     self.error("T314", &message, ch.line, Ext { piece: Some(&id), ..Ext::default() });
                     continue;
@@ -1733,7 +1798,14 @@ impl Compiler {
         Some(id)
     }
 
-    fn piece_attr(&mut self, a: &Attr, id: &str, tag: &str, spec: Option<&'static SlatePieceModule>, st: &mut PieceState) -> Result<(), Fatal> {
+    fn piece_attr(
+        &mut self,
+        a: &Attr,
+        id: &str,
+        tag: &str,
+        spec: Option<&'static SlatePieceModule>,
+        st: &mut PieceState,
+    ) -> Result<(), Fatal> {
         if a.name == "when" {
             if a.kind != Kind::Braced {
                 let shown = if a.kind == Kind::Str { a.value.as_str() } else { "..." };
@@ -1808,7 +1880,9 @@ impl Compiler {
                 let event = a.name[2..].to_ascii_lowercase();
                 if !spec.events.is_some_and(|list| list.contains(&event.as_str())) {
                     let extra = match spec.events {
-                        Some(list) => format!("; it has {}", list.iter().map(|e| format!("on{}", upper_first(e))).collect::<Vec<_>>().join(", ")),
+                        Some(list) => {
+                            format!("; it has {}", list.iter().map(|e| format!("on{}", upper_first(e))).collect::<Vec<_>>().join(", "))
+                        }
                         None => String::new(),
                     };
                     let prop = format!("{at}.{}", a.name);
@@ -1832,7 +1906,12 @@ impl Compiler {
             if a.name == "when" {
                 if a.kind != Kind::Braced {
                     let prop = format!("{at}.when");
-                    self.error("T303", "when takes a formula in braces", a.line, Ext { piece: Some(piece_id), prop: Some(&prop), ..Ext::default() });
+                    self.error(
+                        "T303",
+                        "when takes a formula in braces",
+                        a.line,
+                        Ext { piece: Some(piece_id), prop: Some(&prop), ..Ext::default() },
+                    );
                     continue;
                 }
                 out.insert("when".into(), Value::String(js_trim(&a.value).to_string()));
@@ -1878,7 +1957,9 @@ impl Compiler {
                 Err(message) => {
                     self.error(
                         "S503",
-                        &format!("start takes a literal (a string, a number, true, false, null, a list or a record of literals): {message}"),
+                        &format!(
+                            "start takes a literal (a string, a number, true, false, null, a list or a record of literals): {message}"
+                        ),
                         a.line,
                         Ext { piece: Some(piece), prop: Some("start"), ..Ext::default() },
                     );
@@ -1983,7 +2064,9 @@ impl Compiler {
                             ops.push(json!({"op": "file", "name": name, "text": null}));
                         } else {
                             let mut names: Vec<String> = self.names.keys().cloned().collect();
-                            names.extend(current.and_then(|c| c.files.as_ref()).map(|f| f.keys().cloned().collect::<Vec<_>>()).unwrap_or_default());
+                            names.extend(
+                                current.and_then(|c| c.files.as_ref()).map(|f| f.keys().cloned().collect::<Vec<_>>()).unwrap_or_default(),
+                            );
                             let fix = slate_nearest(&name, &names);
                             self.error(
                                 "D203",
@@ -2168,7 +2251,12 @@ impl Compiler {
                 } else if a.kind == Kind::Braced {
                     Value::String(js_trim(&a.value).to_string())
                 } else {
-                    self.error("T303", "when takes a formula in braces", a.line, Ext { piece: Some(id), prop: Some("when"), ..Ext::default() });
+                    self.error(
+                        "T303",
+                        "when takes a formula in braces",
+                        a.line,
+                        Ext { piece: Some(id), prop: Some("when"), ..Ext::default() },
+                    );
                     Value::Null
                 };
                 op.insert("when".into(), v);
@@ -2516,11 +2604,8 @@ fn step_text(s: &Value) -> String {
 }
 
 fn steps_attr(name: &str, steps: &[Value]) -> String {
-    let body = if steps.len() == 1 {
-        step_text(&steps[0])
-    } else {
-        format!("[{}]", steps.iter().map(step_text).collect::<Vec<_>>().join(", "))
-    };
+    let body =
+        if steps.len() == 1 { step_text(&steps[0]) } else { format!("[{}]", steps.iter().map(step_text).collect::<Vec<_>>().join(", ")) };
     format!("{name}={{{body}}}")
 }
 
@@ -2700,9 +2785,7 @@ impl Printer<'_> {
         }
         let spec = slate_piece_module(&p.kind);
         let mut props: IndexMap<String, Value> = p.props.clone().unwrap_or_default();
-        let is_item_list = |v: Option<&Value>| {
-            matches!(v, Some(Value::Array(xs)) if xs.iter().all(|x| x.is_object() && !is_slate_binding(x) && format_text(x).is_none()))
-        };
+        let is_item_list = |v: Option<&Value>| matches!(v, Some(Value::Array(xs)) if xs.iter().all(|x| x.is_object() && !is_slate_binding(x) && format_text(x).is_none()));
         let mut item_props: IndexMap<String, &'static str> = IndexMap::new();
         if let Some(s) = spec {
             for (tag, item) in &s.items {
@@ -2772,7 +2855,8 @@ impl Printer<'_> {
                 let empty = Map::new();
                 let r = it.as_object().unwrap_or(&empty);
                 let mut ip = vec![format!("<{tag}")];
-                let fields: Vec<String> = spec.and_then(|s| s.items.get(*tag)).map_or(Vec::new(), |i| i.fields.keys().map(|k| k.to_string()).collect());
+                let fields: Vec<String> =
+                    spec.and_then(|s| s.items.get(*tag)).map_or(Vec::new(), |i| i.fields.keys().map(|k| k.to_string()).collect());
                 let mut keys: IndexSet<String> = fields.into_iter().collect();
                 keys.extend(r.keys().cloned());
                 for k in &keys {
@@ -2839,7 +2923,14 @@ impl Printer<'_> {
     }
 }
 
-fn push_tail(parts: &mut Vec<String>, confirm: Option<&Value>, every: Option<&JsNumber>, once: Option<bool>, always: Option<bool>, then: Option<&str>) {
+fn push_tail(
+    parts: &mut Vec<String>,
+    confirm: Option<&Value>,
+    every: Option<&JsNumber>,
+    once: Option<bool>,
+    always: Option<bool>,
+    then: Option<&str>,
+) {
     if let Some(c) = confirm {
         parts.push(match c {
             Value::String(s) => format!("confirm={}", quote_attr(s)),

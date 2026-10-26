@@ -170,7 +170,9 @@ impl SlatesInner {
                 area.skipped.borrow_mut().entry(t.clone()).or_default().insert(name.clone());
                 return Ok(());
             }
-            area.clone().batch(r, Vec::new(), BatchBy::Timer, BatchOptions { starts: vec![(name, RunBy::Timer)], ..Default::default() }).await?;
+            area.clone()
+                .batch(r, Vec::new(), BatchBy::Timer, BatchOptions { starts: vec![(name, RunBy::Timer)], ..Default::default() })
+                .await?;
             Ok(())
         });
     }
@@ -243,9 +245,10 @@ impl SlatesInner {
             declared
                 .into_iter()
                 .filter(|name| {
-                    rec.values.get(*name).and_then(RunRecord::from_json).is_some_and(|run| {
-                        run.state() == Some(RunState::Held) && run.why() == Some(HELD_APPROVAL)
-                    })
+                    rec.values
+                        .get(*name)
+                        .and_then(RunRecord::from_json)
+                        .is_some_and(|run| run.state() == Some(RunState::Held) && run.why() == Some(HELD_APPROVAL))
                 })
                 .cloned()
                 .collect()
@@ -294,7 +297,8 @@ impl SlatesInner {
         if let Some(scope) = scope_of(caller) {
             let Some(asked) = thread_id.filter(|asked| *asked != scope.thread_id) else { return Ok(scope.thread_id) };
             if write {
-                let text = format!("Z800 thread-not-yours: a thread writes its own slate, and thread {} is not this one", thread_word(asked));
+                let text =
+                    format!("Z800 thread-not-yours: a thread writes its own slate, and thread {} is not this one", thread_word(asked));
                 return Err(coded(HostError::with_kind(text, Kind::Usage), "Z800"));
             }
             if !self.deps.under(&scope.thread_id).iter().any(|under| under == asked) {

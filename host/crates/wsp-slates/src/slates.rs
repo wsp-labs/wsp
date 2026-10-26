@@ -649,14 +649,14 @@ pub fn create_slates(deps: Rc<dyn SlatesDeps>) -> Rc<dyn Slates> {
         asks: Rc::new(move |thread_id: &str| asks_deps.thread(thread_id).and_then(|facts| facts.tool_asks).unwrap_or(ToolAsks::Every)),
         approvals,
         secrets: Rc::new(SecretsView(runs.secrets())),
-        reshape: Rc::new(move |thread_id: &str, cmd: &str, input: &str| match reshape_deps.thread(thread_id).and_then(|facts| facts.folder) {
-            Some(folder) => reshape_runs.reshape(thread_id, cmd, input, &folder, None),
-            None => Reshape {
-                done: Box::pin(async {
-                    ReshapeAnswer::Failed { why: NO_FOLDER.to_string(), exit: None, err: String::new() }
-                }),
-                kill: Rc::new(|| {}),
-            },
+        reshape: Rc::new(move |thread_id: &str, cmd: &str, input: &str| {
+            match reshape_deps.thread(thread_id).and_then(|facts| facts.folder) {
+                Some(folder) => reshape_runs.reshape(thread_id, cmd, input, &folder, None),
+                None => Reshape {
+                    done: Box::pin(async { ReshapeAnswer::Failed { why: NO_FOLDER.to_string(), exit: None, err: String::new() } }),
+                    kill: Rc::new(|| {}),
+                },
+            }
         }),
         computer: Rc::new(move |thread_id: &str| {
             computer_deps.thread(thread_id).and_then(|facts| facts.computer).unwrap_or_else(|| "this computer".to_string())

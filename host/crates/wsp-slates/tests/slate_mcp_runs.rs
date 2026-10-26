@@ -1062,7 +1062,11 @@ async fn stop_all_quiet_writes_nothing() {
             wait_for("c out", || hand.held.borrow().len() == 3).await;
             m.mcp.stop_all("t", StopAll { quiet: false, why: Some("the thread was stopped".into()) });
             assert_eq!(m.records.last("c").unwrap()["why"], "the thread was stopped");
-            assert_eq!(m.records.last("a").unwrap()["state"], "cancelled", "the quiet stop wrote nothing for a, so the second stop finds it running");
+            assert_eq!(
+                m.records.last("a").unwrap()["state"],
+                "cancelled",
+                "the quiet stop wrote nothing for a, so the second stop finds it running"
+            );
             m.mcp.close();
         })
         .await;

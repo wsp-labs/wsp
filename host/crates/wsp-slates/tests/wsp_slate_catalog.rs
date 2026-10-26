@@ -33,7 +33,11 @@ fn source_keys() -> Vec<String> {
 fn the_index_keeps_under_its_budget_and_says_what_the_catalog_says_it_does() {
     let index = slate_catalog(None);
     assert!(slate_tokens(&index) < SLATE_LIMITS.catalog_index_tokens, "{} tokens", slate_tokens(&index));
-    for said in ["short labels, no emoji.", "in sentence case, never bold text.", "Show a run's json fields, never its raw out; times through date(), time() or ago()."] {
+    for said in [
+        "short labels, no emoji.",
+        "in sentence case, never bold text.",
+        "Show a run's json fields, never its raw out; times through date(), time() or ago().",
+    ] {
         assert!(index.contains(said), "{said}");
     }
     assert!(index.contains("One in a file stays there for the run to read, never you."));
@@ -42,18 +46,23 @@ fn the_index_keeps_under_its_budget_and_says_what_the_catalog_says_it_does() {
     assert!(index.contains("A button asked for where the project has no UI goes here: the slate is its UI, and the reply says so."));
     assert!(entry_text("chart").contains("in this computer's time zone"));
     assert!(index.contains(r#"held is a sentence that disables: bind it to a condition; "" or false enables."#));
-    assert!(entry_text("patch").contains("version, which every write and read answers, counts the slate's edits and is what if_version takes"));
+    assert!(
+        entry_text("patch").contains("version, which every write and read answers, counts the slate's edits and is what if_version takes")
+    );
     assert!(entry_text("patch").contains("check with press walks a press and its <when> chain on a copy: nothing runs and nothing is sent"));
-    assert!(entry_text("patch").contains(r#"check with values {"$run.json": {...}, "$run.exit": 0} previews the panel for a result the run has not had yet."#));
+    assert!(entry_text("patch")
+        .contains(r#"check with values {"$run.json": {...}, "$run.exit": 0} previews the panel for a result the run has not had yet."#));
     assert!(entry_text("output").contains("how many of the newest lines show, out then err, 8 by default"));
     assert!(entry_text("runs").contains("while the Slate tab is on screen; at once when it comes back."));
     assert!(entry_text("runs").contains("else its text parsed; out is its text;"));
-    assert!(entry_text("functions").contains(r#"Times read in this computer's zone: date(t) "Mon 5 Oct", time(t) "14:05", ago(t) "30s ago", until(t) "in 4m"."#));
+    assert!(entry_text("functions")
+        .contains(r#"Times read in this computer's zone: date(t) "Mon 5 Oct", time(t) "14:05", ago(t) "30s ago", until(t) "in 4m"."#));
     assert!(index.contains("then tool resource description>"));
     assert!(index.contains("with operators, a ? b : c, [lists], {records} and functions, never methods or =>."));
     assert_eq!(entry_text("pipes"), entry_text("steps"));
     assert_eq!(entry_text("tool"), entry_text("runs"));
-    assert!(entry_text("file").contains(r#"The <file name="x.py"> declaration, code a run calls as $SLATE_DIR/x.py, is in slate_catalog runs."#));
+    assert!(entry_text("file")
+        .contains(r#"The <file name="x.py"> declaration, code a run calls as $SLATE_DIR/x.py, is in slate_catalog runs."#));
     assert!(index.contains(r#"ago(t) "30s ago", until(t) "in 4m"."#));
     assert!(index.contains("time is a chart, x in ms or ISO;"));
     assert!(index.contains(SLATE_INDEX_EXAMPLE));
@@ -104,7 +113,9 @@ fn the_runs_entry_gives_each_attribute_a_line_and_says_what_shown_stale_and_a_re
     for attr in ["name", "cmd", "env", "every", "always", "once", "timeout", "on", "confirm", "then", "tool"] {
         assert!(lines.iter().any(|l| l.starts_with(&format!("{attr}:")) || l.starts_with(&format!("{attr}="))), "{attr}");
     }
-    assert!(runs.contains("Before a first result or after a failure, out and json are empty and len of them 0: show a figure with when={$run.exit == 0}."));
+    assert!(runs.contains(
+        "Before a first result or after a failure, out and json are empty and len of them 0: show a figure with when={$run.exit == 0}."
+    ));
     assert!(runs.contains("stale: the command changed since this result."));
     assert!(runs.contains("<value> state and each run's last result outlive an app or host restart."));
 }
@@ -120,7 +131,9 @@ fn the_index_gives_each_core_piece_its_enum_values_and_its_required_marks() {
                 continue;
             }
             let values = match spec.prop_type {
-                SlatePropType::Enum(words) if !["tone", "emphasis", "align"].contains(k) && !slate_takes_figures(spec) => format!("({})", words.join("|")),
+                SlatePropType::Enum(words) if !["tone", "emphasis", "align"].contains(k) && !slate_takes_figures(spec) => {
+                    format!("({})", words.join("|"))
+                }
                 _ => String::new(),
             };
             let token = format!("{k}{}{values}", if spec.required { "!" } else { "" });
