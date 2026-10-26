@@ -1,24 +1,47 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! `turns-help.ts:238-420` at 65f6b89c7: where a run goes and the threads a line names. Spec: `spec/turns-target.md`.
-//! Every body is `todo!`; the drivers in `tests/cli_c/drivers_turns_target.rs` and the cases of
+//! The drivers in `tests/cli_c/drivers_turns_target.rs` and the cases of
 //! `tests/fixtures/cli_c/turns_target.json` say what each one does. `thread_at` is the signature other units call (fixed by
 //! the lead); the cloud flag the TS reads from `CLOUD_ON` is a parameter on the helpers that read it, so a test can run
 //! both settings in one process (`thread_at` itself reads `crate::cloud::cloud_on()` and is `thread_at_in` with it).
 
+use std::future::Future;
 use std::sync::Arc;
 
-use indexmap::IndexMap;
+use async_trait::async_trait;
+use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde_json::{json, Map, Value};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 
+use wsp_wire::types::check::parse;
+use wsp_wire::types::env::HOST_TOKEN_ENV;
+use wsp_wire::types::projects::BRANCH_HERE_ONLY_LINE;
 use wsp_wire::types::sub_thread::SubStarted;
 use wsp_wire::views::activity::{ActivityEnded, ProcessesAsk};
 use wsp_wire::views::session::ThreadView;
+use wsp_wire::views::session_events::turn_token_of;
 use wsp_wire::views::workspace::ProjectView;
+use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::views::workspace_more::WorkspaceOut;
-use wsp_words::exit::HostError;
+use wsp_words::exit::{refusal, usage_refusal, HostError, Kind};
+use wsp_words::projects::{copies_folder, home_shortened, kind_for_computer, runs_in_folder, thread_on_machine_line, thread_opened_line};
+use wsp_words::start::{name_of_task, taken_name_after};
+use wsp_words::workspace_state::workspace_kind;
 
-use crate::verbs::client::HostClient;
+use wsp_words::words::computer::{GUEST_NAMES_FIX, GUEST_NAMES_WORKSPACE_LINE};
+use wsp_words::words::thread::{
+    child_beside_lead_line, no_project_line, not_a_thread_line, WordIs, CHILD_BESIDE_LEAD_FIX, NAME_A_THREAD_FIX, READ_PROJECTS_FIX,
+};
+
+use super::picks::reply_field;
+use crate::cloud::cloud_on;
+use crate::repo_root::main_worktree_of;
+use crate::verbs::client::{other_version, pick, thread_id_of, under, CliIo, Frame, HostClient, Out, PushedFrames};
+use crate::verbs::workspaces_help::{
+    create_for, project_of, projects_here, projects_of, thread_of, threads, workspace_of, workspaces, CreateAsked,
+    ProjectPick as HostProjectPick,
+};
 
 /// A project as the host answered it, kept whole: the TS hands on whatever object `projects.resolve`, `projects.list` or
 /// a workspace's project gave, so `id` and `name` come first, then `computer` where the object carries one, then the rest
@@ -111,64 +134,220 @@ pub async fn run_target(
     r#where: &RunWhere,
     cloud_on: bool,
 ) -> Result<RunTarget, HostError> {
-    let _ = (client, r#ref, caller_cwd, env, elsewhere, r#where, cloud_on);
-    todo!("turns-help.ts:247")
+    let branch = r#where.branch.clone();
+    let cwd = r#where.cwd.clone();
+    if let Some(r#ref) = r#ref {
+        let project = match project_of(client, r#ref).await {
+            Ok(project) => Some(pick_of(&project)),
+            Err(_) => projects_here(client)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .find(|p| p.id == r#ref || p.name == r#ref)
+                .map(|p| ProjectPick { id: p.id, name: p.name, computer: Some(p.computer), rest: Map::new() }),
+        };
+        if let Some(project) = &project {
+            let copies = copies_folder(&kind_for_computer(project.computer.as_deref().unwrap_or(""), None));
+            if copies || threads_in_folder(client, &project.id).await {
+                let path = project_of(client, &project.id).await.map(|full| full.path).unwrap_or_default();
+                let here = FolderHere { project: Some(folder_project(project.id.clone(), project.name.clone(), path)), branch, cwd };
+                return Ok(RunTarget::Folder(FolderTarget { here, opened: opened_of(Some(project.name.clone()), copies) }));
+            }
+        }
+        let branch_refused = || usage_refusal(BRANCH_HERE_ONLY_LINE, "Name a project on this computer.");
+        if let Some(project) = project {
+            if r#where.branch.is_some() {
+                return Err(branch_refused());
+            }
+            if !cloud_on || !workspaces(client).await?.iter().any(|w| w.name == r#ref) {
+                return Ok(RunTarget::Fork(ForkTarget { fork: project }));
+            }
+        }
+        if !cloud_on {
+            if let Err(e) = project_of(client, r#ref).await {
+                if e.kind != Some(Kind::NotFound) {
+                    return Err(e);
+                }
+            }
+            return Err(refusal(&no_project_line(r#ref), READ_PROJECTS_FIX, Some(Kind::NotFound)));
+        }
+        let workspace = workspace_of(client, r#ref).await?;
+        if r#where.branch.is_some() {
+            return Err(branch_refused());
+        }
+        return Ok(RunTarget::Workspace { workspace, opened: None });
+    }
+    let token = turn_token_of(&to_hash_map(env));
+    if token.is_some() || env.get(HOST_TOKEN_ENV).is_some_and(|v| !v.is_empty()) {
+        return Ok(RunTarget::Folder(FolderTarget { here: FolderHere { project: None, branch, cwd }, opened: opened_of(None, true) }));
+    }
+    if elsewhere == Some(true) {
+        return Err(usage_refusal(GUEST_NAMES_WORKSPACE_LINE, GUEST_NAMES_FIX));
+    }
+    let project = match caller_cwd {
+        None => None,
+        Some(folder) => project_of_folder(&projects_of(client).await.unwrap_or_default(), folder),
+    };
+    let Some(project) = project else {
+        return Err(usage_refusal(&wsp_words::projects::no_thread_target_line("<project>"), READ_PROJECTS_FIX));
+    };
+    let inside = caller_cwd.is_some_and(|folder| !under(folder, &project.path));
+    let cwd = if inside && r#where.cwd.is_none() && r#where.branch.is_none() { caller_cwd.map(str::to_owned) } else { cwd };
+    let name = project.name.clone();
+    let here = FolderHere { project: Some(pick_of(&project)), branch, cwd };
+    Ok(RunTarget::Folder(FolderTarget { here, opened: opened_of(Some(name), true) }))
 }
 
-/// `threadsInFolder(client, project)` (turns-help.ts:296-299): whether `workspaces.landing {project}` answers a kind that
-/// runs in a folder; a refused answer or one with no kind is false.
-#[allow(dead_code)]
+/// Whether a thread of this project runs in its folder on the computer holding it, as a project on a computer the
+/// person joined does: the host answers off the project's landing, since only it holds which computers are joined.
 pub(crate) async fn threads_in_folder(client: &dyn HostClient, project: &str) -> bool {
-    let _ = (client, project);
-    todo!("turns-help.ts:296")
+    let Ok(landing) = client.request("workspaces.landing", pick(vec![("project", Some(json!(project)))])).await else {
+        return false;
+    };
+    landing
+        .get("kind")
+        .and_then(|kind| serde_json::from_value::<WorkspaceKind>(kind.clone()).ok())
+        .is_some_and(|kind| runs_in_folder(&kind))
 }
 
-/// `forkFor(client, project, task, say)` (turns-help.ts:304-313): a machine forked for a run on a project elsewhere:
-/// `workspaces.list` for the names taken, then `create_for(project, takenNameAfter(nameOfTask(task), taken))`, which sends
-/// `workspaces.landing`, `events.subscribe` and `workspaces.create {project, name}`. `say` hears each `workspace.creating`
-/// stage of that name as `message` trimmed at its end, then the created line (with the notice after a newline).
-pub async fn fork_for(client: &dyn HostClient, project: &ProjectPick, task: &str, say: &(dyn Fn(&str) + Send + Sync)) -> Result<WorkspaceOut, HostError> {
-    let _ = (client, project, task, say);
-    todo!("turns-help.ts:304")
+/// A machine forked for a run on a project elsewhere, the way the app's New thread makes one: named off the task, with
+/// a number after it where a machine already has that name, as wsp start numbers one. The stages it streams go to
+/// `say`. Called last, once everything else on the line has been read, so a refusal costs no machine.
+pub async fn fork_for(
+    client: &dyn HostClient,
+    project: &ProjectPick,
+    task: &str,
+    say: &(dyn Fn(&str) + Send + Sync),
+) -> Result<WorkspaceOut, HostError> {
+    let taken = taken_names(client).await?;
+    let name = taken_name_after(&name_of_task(task), &taken);
+    let (tx, mut lines) = unbounded_channel::<String>();
+    let out = Out::formatter(Arc::new(QueuedIo(tx)), false);
+    let host_pick =
+        HostProjectPick { id: project.id.clone(), name: project.name.clone(), computer: project.computer.clone().unwrap_or_default() };
+    let created = saying(&mut lines, say, create_for(client, &out, &host_pick, &name, &CreateAsked::default())).await?;
+    Ok(created.workspace)
 }
 
-/// What `subFor` asks (turns-help.ts:320): `on`, then the optional size, base, branch and harness, and the project.
-#[derive(Clone, Debug, Default, Deserialize)]
-pub struct SubAsk {
-    pub on: String,
-    pub size: Option<String>,
-    pub from: Option<String>,
-    pub branch: Option<String>,
-    pub harness: Option<String>,
-    pub project: Option<String>,
+/// The terminal a create's stages and lines are queued on, for `saying` to say them as they land.
+struct QueuedIo(tokio::sync::mpsc::UnboundedSender<String>);
+
+#[async_trait]
+impl CliIo for QueuedIo {
+    fn log(&self, line: &str) {
+        let _ = self.0.send(line.to_owned());
+    }
+
+    fn error(&self, line: &str) {
+        let _ = line;
+    }
+
+    fn stream(&self, text: &str) {
+        let _ = self.0.send(text.trim_end().to_owned());
+    }
+
+    async fn ask(&self, question: &str) -> Result<String, HostError> {
+        Err(HostError::new(format!("unexpected prompt: {question}")))
+    }
+
+    async fn ask_secret(&self, question: &str, _variable: Option<&str>) -> Result<String, HostError> {
+        Err(HostError::new(format!("unexpected prompt: {question}")))
+    }
 }
 
-/// What `subFor` answers: the machine's workspace, the sub-thread's start, and the call that ends the listening.
-pub struct SubMade {
-    pub workspace: WorkspaceOut,
-    pub sub: SubStarted,
-    pub stop: Box<dyn Fn() + Send + Sync>,
+/// Runs `work`, saying each line `lines` holds to `say` as it lands, and the lines still held once `work` answers.
+async fn saying<T>(
+    lines: &mut UnboundedReceiver<String>,
+    say: &(dyn Fn(&str) + Send + Sync),
+    work: impl Future<Output = Result<T, HostError>>,
+) -> Result<T, HostError> {
+    tokio::pin!(work);
+    loop {
+        tokio::select! {
+            biased;
+            answer = &mut work => {
+                while let Ok(line) = lines.try_recv() {
+                    say(&line);
+                }
+                return answer;
+            }
+            Some(line) = lines.recv() => say(&line),
+        }
+    }
 }
 
-/// `subFor(client, ask, task, title, say)` (turns-help.ts:320-337): a sub-thread's machine on a cloud. The name is `title`
-/// (not cut, an empty one is a name) else `name_of_task(task)`, numbered by `taken_name_after` against `workspaces.list`.
-/// Then `events.subscribe`, and `workspaces.create {project: ask.project or "", name, sub: {on, size?, from?, branch?,
-/// harness?}}`; each `workspace.creating` frame of that name, heard while the create is under way, after it and until `stop`
-/// (also one heard during the subscribe), is said as its `message`, whole; the answer's `notice` is said a line at a time
-/// (`split('\n')`) after the answer; `sub` is read as `SubStarted`. On a refusal the listening ends first.
-pub async fn sub_for(client: &dyn HostClient, ask: &SubAsk, task: &str, title: Option<&str>, say: &(dyn Fn(&str) + Send + Sync)) -> Result<SubMade, HostError> {
-    let _ = (client, ask, task, title, say);
-    todo!("turns-help.ts:320")
+/// A sub-thread's machine on a cloud, named off the task as a fork's is unless the title names it, with a number
+/// after it where a machine already has that name. The host reads the asking thread's project off its token and every
+/// check before the cloud is asked for a start. Called last, once everything else on the line has been read, so a
+/// refusal costs no machine. The machine is made once the thread's start comes, so its stages go to `say` after the
+/// answer, until `stop`.
+pub async fn sub_for(
+    client: &dyn HostClient,
+    ask: &SubAsk,
+    task: &str,
+    title: Option<&str>,
+    say: &(dyn Fn(&str) + Send + Sync),
+) -> Result<SubMade, HostError> {
+    let taken = taken_names(client).await?;
+    let name = taken_name_after(&title.map_or_else(|| name_of_task(task), str::to_owned), &taken);
+    let pushed = Arc::new(PushedFrames::new(client));
+    client.events().await?;
+    let (tx, mut lines) = unbounded_channel::<String>();
+    let watched = name.clone();
+    pushed.follow(
+        Arc::new(move |f: &Frame| f.get("type") == Some(&json!("workspace.creating")) && f.get("name") == Some(&json!(watched))),
+        Arc::new(move |f: &Frame| {
+            let _ = tx.send(f.get("message").and_then(Value::as_str).unwrap_or_default().to_owned());
+        }),
+    );
+    let mut sub_params = Map::new();
+    sub_params.insert("on".into(), json!(ask.on));
+    for (key, value) in [("size", &ask.size), ("from", &ask.from), ("branch", &ask.branch), ("harness", &ask.harness)] {
+        if let Some(value) = value {
+            sub_params.insert(key.into(), json!(value));
+        }
+    }
+    let params = pick(vec![
+        ("project", Some(json!(ask.project.as_deref().unwrap_or("")))),
+        ("name", Some(json!(name))),
+        ("sub", Some(Value::Object(sub_params))),
+    ]);
+    let made = async {
+        let frame = saying(&mut lines, say, client.request("workspaces.create", params)).await?;
+        if let Some(notice) = frame.get("notice").and_then(Value::as_str) {
+            for line in notice.split('\n') {
+                say(line);
+            }
+        }
+        let workspace = reply_field::<WorkspaceOut>(&frame, "workspaces.create", "workspace")?;
+        let sub = parse::<SubStarted>(frame.get("sub").unwrap_or(&Value::Null))
+            .map_err(|_| HostError::new(other_version("workspaces.create")))?;
+        Ok::<_, HostError>((workspace, sub))
+    };
+    match made.await {
+        Ok((workspace, sub)) => Ok(SubMade { workspace, sub, stop: Box::new(move || pushed.stop()) }),
+        Err(e) => {
+            pushed.stop();
+            Err(e)
+        }
+    }
 }
 
-/// `projectOfFolder(projects, folder)` (turns-help.ts:341-347): of the projects on this computer (`copies_folder` of
-/// `kind_for_computer`), the one whose path holds the folder (`under`), the deepest (longest path) where two do, the first
-/// listed on a tie; else the one whose `git.top` is the main folder of the repository the folder is in
-/// (`main_worktree_of`, which reads the disk: the nearest `.git` up from the folder, a directory or a worktree's file
-/// pointing under `<main>/.git/worktrees/`).
+/// The project on this computer a folder is in: the one whose folder holds it, the deepest where two do, else the one
+/// whose repo the folder is a worktree of.
 pub fn project_of_folder(projects: &[ProjectView], folder: &str) -> Option<ProjectView> {
-    let _ = (projects, folder);
-    todo!("turns-help.ts:341")
+    let here: Vec<&ProjectView> = projects.iter().filter(|p| copies_folder(&kind_for_computer(&p.computer, None))).collect();
+    let mut holding: Option<&ProjectView> = None;
+    for project in here.iter().copied().filter(|p| under(folder, &p.path)) {
+        if holding.is_none_or(|best| path_length(&project.path) > path_length(&best.path)) {
+            holding = Some(project);
+        }
+    }
+    if let Some(holding) = holding {
+        return Some(holding.clone());
+    }
+    let main = main_worktree_of(folder)?;
+    here.into_iter().find(|p| p.git.as_ref().is_some_and(|git| git.top == main)).cloned()
 }
 
 /// What `threadHere` is handed (turns-help.ts:351): a word, or the thread row already read.
@@ -192,8 +371,18 @@ pub struct ThreadHere {
 /// (`workspaces.list`) runs in a folder (`runs_in_folder(workspace_kind)`; a workspace of no kind is a machine) with
 /// `worktree` the made, not-gone worktree's path.
 pub async fn thread_here(client: &dyn HostClient, r#ref: Option<ThreadRef<'_>>) -> Result<Option<ThreadHere>, HostError> {
-    let _ = (client, r#ref);
-    todo!("turns-help.ts:351")
+    let thread = match r#ref {
+        None => None,
+        Some(ThreadRef::Word(word)) => thread_of(client, word).await.ok(),
+        Some(ThreadRef::Row(row)) => Some(row.clone()),
+    };
+    let Some(thread) = thread else { return Ok(None) };
+    let Some(at) = workspaces(client).await?.into_iter().find(|w| w.id == thread.workspace_id) else { return Ok(None) };
+    if !runs_in_folder(&workspace_kind(at.kind.as_ref())) {
+        return Ok(None);
+    }
+    let worktree = at.worktree.as_ref().filter(|w| w.made && w.gone.is_none()).map(|w| w.path.clone());
+    Ok(Some(ThreadHere { id: thread_id_of(&thread), workspace_id: at.id, worktree }))
 }
 
 /// What `subDeleting` answers (turns-help.ts:361).
@@ -208,55 +397,114 @@ pub struct SubDeleting {
 /// `subDeleting(client, thread)` (turns-help.ts:361-366): nothing for no thread or one with no `sub` (nothing sent); else
 /// `sessions.delete {threadId, check: true}` and its `question`, with the thread's full id and workspace.
 pub async fn sub_deleting(client: &dyn HostClient, thread: Option<&ThreadView>) -> Result<Option<SubDeleting>, HostError> {
-    let _ = (client, thread);
-    todo!("turns-help.ts:361")
+    let Some(thread) = thread.filter(|t| t.sub.is_some()) else { return Ok(None) };
+    let id = thread_id_of(thread);
+    let frame = client.request("sessions.delete", pick(vec![("threadId", Some(json!(id))), ("check", Some(json!(true)))])).await?;
+    let question = reply_field::<String>(&frame, "sessions.delete", "question")?;
+    Ok(Some(SubDeleting { id, workspace_id: thread.workspace_id.clone(), question }))
 }
 
-/// `refuseMachineThread(client, ref)` (turns-help.ts:370-375): nothing for a ref that names no thread (or several, or a
-/// refused listing); a thread whose workspace (`workspaces.list`, its refusal is the answer) does not run in a folder is
-/// refused `thread_on_machine_line(workspace name)`, kind `usage` and no fix; a thread whose workspace is not listed is let by.
+/// Refuses a thread on a box's machine, which goes with its machine, in the runtime's own words; nothing for any
+/// other ref, so the caller's own refusal stands.
 pub async fn refuse_machine_thread(client: &dyn HostClient, r#ref: &str) -> Result<(), HostError> {
-    let _ = (client, r#ref);
-    todo!("turns-help.ts:370")
+    let Ok(thread) = thread_of(client, r#ref).await else { return Ok(()) };
+    let Some(at) = workspaces(client).await?.into_iter().find(|w| w.id == thread.workspace_id) else { return Ok(()) };
+    if !runs_in_folder(&workspace_kind(at.kind.as_ref())) {
+        return Err(HostError::with_kind(thread_on_machine_line(&at.name), Kind::Usage));
+    }
+    Ok(())
 }
 
-/// `threadAt(client, ref, line, orComputer)` (turns-help.ts:381): the thread a ref names (`thread_of`), then its
-/// workspace through `workspaces.get {workspaceId, threadId}` read as `WorkspaceOut` (another shape is
-/// `other_version("workspaces.get")`); a ref naming no thread (kind `not-found` only) is read once more as a project
-/// (or, with the cloud, a machine) and refused as `not_a_thread_line`. Reads the cloud setting as `cloud_on()`.
-pub async fn thread_at(client: &dyn HostClient, r#ref: &str, line: &str, or_computer: bool) -> Result<(ThreadView, WorkspaceOut), HostError> {
-    let _ = (client, r#ref, line, or_computer);
-    todo!("turns-help.ts:381")
+/// A thread a line names and the record of the folder it works in: the thread by its id or a prefix naming one, then
+/// its record through the host, which refuses one the caller may not drive. A word that names no thread is read once
+/// more, so a project's name, or with a cloud a machine's, is refused saying the line takes a thread, in the same
+/// words on the command line and the tool.
+pub async fn thread_at(
+    client: &dyn HostClient,
+    r#ref: &str,
+    line: &str,
+    or_computer: bool,
+) -> Result<(ThreadView, WorkspaceOut), HostError> {
+    thread_at_in(client, r#ref, line, or_computer, cloud_on()).await
 }
 
 /// `thread_at` with the cloud setting given (what the TS reads off `CLOUD_ON`).
-pub async fn thread_at_in(client: &dyn HostClient, r#ref: &str, line: &str, or_computer: bool, cloud_on: bool) -> Result<(ThreadView, WorkspaceOut), HostError> {
-    let _ = (client, r#ref, line, or_computer, cloud_on);
-    todo!("turns-help.ts:381")
+pub async fn thread_at_in(
+    client: &dyn HostClient,
+    r#ref: &str,
+    line: &str,
+    or_computer: bool,
+    cloud_on: bool,
+) -> Result<(ThreadView, WorkspaceOut), HostError> {
+    let thread = match thread_of(client, r#ref).await {
+        Ok(thread) => thread,
+        Err(e) => {
+            if e.kind == Some(Kind::NotFound) {
+                refuse_not_a_thread(client, r#ref, line, or_computer, cloud_on).await?;
+            }
+            return Err(e);
+        }
+    };
+    let params = pick(vec![("workspaceId", Some(json!(thread.workspace_id))), ("threadId", Some(json!(thread_id_of(&thread))))]);
+    let frame = client.request("workspaces.get", params).await?;
+    let workspace = parse::<WorkspaceOut>(frame.get("workspace").unwrap_or(&Value::Null))
+        .map_err(|_| HostError::new(other_version("workspaces.get")))?;
+    Ok((thread, workspace))
 }
 
 /// `childOf(client, lead, ref, line)` (turns-help.ts:396-400): `thread_at_in(ref, line, false)`, and a child in the lead's
 /// own workspace is refused `child_beside_lead_line(child id, lead id)` + `CHILD_BESIDE_LEAD_FIX` (usage).
-pub async fn child_of(client: &dyn HostClient, lead: &(ThreadView, WorkspaceOut), r#ref: &str, line: &str, cloud_on: bool) -> Result<(ThreadView, WorkspaceOut), HostError> {
-    let _ = (client, lead, r#ref, line, cloud_on);
-    todo!("turns-help.ts:396")
+pub async fn child_of(
+    client: &dyn HostClient,
+    lead: &(ThreadView, WorkspaceOut),
+    r#ref: &str,
+    line: &str,
+    cloud_on: bool,
+) -> Result<(ThreadView, WorkspaceOut), HostError> {
+    let kid = thread_at_in(client, r#ref, line, false, cloud_on).await?;
+    if kid.1.id == lead.1.id {
+        return Err(usage_refusal(&child_beside_lead_line(&thread_id_of(&kid.0), &thread_id_of(&lead.0)), CHILD_BESIDE_LEAD_FIX));
+    }
+    Ok(kid)
 }
 
-/// `refuseNotAThread(client, ref, line, orComputer)` (turns-help.ts:404-408): a ref that is the id or name of a project
-/// (`projects_here`, an unreadable list is none) is refused `not_a_thread_line(ref, project, line, orComputer)` +
-/// `NAME_A_THREAD_FIX`; with the cloud, one that is the id or name of a workspace that does not run in a folder (a read
-/// `workspaces.list` that failed is none) is refused the same as a machine; anything else is let by.
+/// Refuses a word that names a project, or with a cloud a machine, in the words of a line that takes a thread;
+/// nothing for any other word, so the line's own refusal stands.
 #[allow(dead_code)]
-pub(crate) async fn refuse_not_a_thread(client: &dyn HostClient, r#ref: &str, line: &str, or_computer: bool, cloud_on: bool) -> Result<(), HostError> {
-    let _ = (client, r#ref, line, or_computer, cloud_on);
-    todo!("turns-help.ts:404")
+pub(crate) async fn refuse_not_a_thread(
+    client: &dyn HostClient,
+    r#ref: &str,
+    line: &str,
+    or_computer: bool,
+    cloud_on: bool,
+) -> Result<(), HostError> {
+    if projects_here(client).await.unwrap_or_default().iter().any(|p| p.id == r#ref || p.name == r#ref) {
+        return Err(usage_refusal(&not_a_thread_line(r#ref, WordIs::Project, line, or_computer), NAME_A_THREAD_FIX));
+    }
+    if !cloud_on {
+        return Ok(());
+    }
+    if workspaces(client)
+        .await
+        .unwrap_or_default()
+        .iter()
+        .any(|w| !runs_in_folder(&workspace_kind(w.kind.as_ref())) && (w.id == r#ref || w.name == r#ref))
+    {
+        return Err(usage_refusal(&not_a_thread_line(r#ref, WordIs::Machine, line, or_computer), NAME_A_THREAD_FIX));
+    }
+    Ok(())
 }
 
-/// `sharingWith(client, at)` (turns-help.ts:411-414): `sessions.list {workspaceId}` of the workspace, the thread ids of
-/// the threads in it (folded as `threads` does), the host's order, minus the thread asking.
+/// The other threads in a thread's folder, by id, which a commit, a discard or an update acted for too.
 pub async fn sharing_with(client: &dyn HostClient, at: &(ThreadView, WorkspaceOut)) -> Result<Vec<String>, HostError> {
-    let _ = (client, at);
-    todo!("turns-help.ts:411")
+    let mine = thread_id_of(&at.0);
+    Ok(threads(client, Some(&at.1.id))
+        .await?
+        .iter()
+        .filter(|t| t.workspace_id == at.1.id)
+        .map(thread_id_of)
+        .filter(|id| *id != mine)
+        .collect())
 }
 
 /// `{ processes?, check? }` of `threadDeleted` (turns-help.ts:417), sent in this order.
@@ -295,6 +543,83 @@ pub struct ThreadDeleted {
 /// the host took, as the fields above: an `ended` the host sent (empty included) is read as `ActivityEnded`s, a `machine`
 /// other than "deleted" is dropped, extra fields are dropped.
 pub async fn thread_deleted(client: &dyn HostClient, thread_id: &str, o: &ThreadDeletedAsk) -> Result<ThreadDeleted, HostError> {
-    let _ = (client, thread_id, o);
-    todo!("turns-help.ts:417")
+    let mut params = Frame::new();
+    params.insert("threadId".into(), json!(thread_id));
+    if let Some(processes) = &o.processes {
+        params.insert("processes".into(), serde_json::to_value(processes).expect("processes write as JSON"));
+    }
+    if let Some(check) = o.check {
+        params.insert("check".into(), json!(check));
+    }
+    let frame = client.request("sessions.delete", params).await?;
+    let refused = || HostError::new(other_version("sessions.delete"));
+    let ended = match frame.get("ended") {
+        None => None,
+        Some(Value::Array(items)) => {
+            Some(items.iter().map(|item| parse::<ActivityEnded>(item).map_err(|_| refused())).collect::<Result<Vec<_>, _>>()?)
+        }
+        Some(_) => return Err(refused()),
+    };
+    Ok(ThreadDeleted {
+        workspace_id: reply_field(&frame, "sessions.delete", "workspaceId")?,
+        worktree: frame.get("worktree").and_then(Value::as_str).map(str::to_owned),
+        threads: reply_field(&frame, "sessions.delete", "threads")?,
+        ended,
+        machine: (frame.get("machine").and_then(Value::as_str) == Some("deleted")).then_some(MachineDeleted::Deleted),
+        on: frame.get("on").and_then(Value::as_str).map(str::to_owned),
+    })
+}
+
+/// What `subFor` asks (turns-help.ts:320): `on`, then the optional size, base, branch and harness, and the project.
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct SubAsk {
+    pub on: String,
+    pub size: Option<String>,
+    pub from: Option<String>,
+    pub branch: Option<String>,
+    pub harness: Option<String>,
+    pub project: Option<String>,
+}
+
+/// What `subFor` answers: the machine's workspace, the sub-thread's start, and the call that ends the listening.
+pub struct SubMade {
+    pub workspace: WorkspaceOut,
+    pub sub: SubStarted,
+    pub stop: Box<dyn Fn() + Send + Sync>,
+}
+
+/// The names of the workspaces the host lists, as a set in the listing's order.
+async fn taken_names(client: &dyn HostClient) -> Result<IndexSet<String>, HostError> {
+    Ok(workspaces(client).await?.into_iter().map(|w| w.name).collect())
+}
+
+/// The folder target's `project` read off a `ProjectView`: the whole object, kept in the order the host wrote it.
+fn pick_of(project: &ProjectView) -> ProjectPick {
+    serde_json::from_value(serde_json::to_value(project).expect("a project writes as JSON")).expect("a project reads back as a pick")
+}
+
+/// The three fields a folder target names its project by: `id`, `name` and `path`.
+fn folder_project(id: String, name: String, path: String) -> ProjectPick {
+    ProjectPick { id, name, computer: None, rest: Map::from_iter([("path".to_owned(), json!(path))]) }
+}
+
+/// The line a folder target says for a thread it opened, with the folder shortened against HOME where `here` says so.
+fn opened_of(name: Option<String>, here: bool) -> Opened {
+    Arc::new(move |thread_id: &str, folder: Option<&str>| match folder {
+        None => format!("thread {thread_id}"),
+        Some(folder) => {
+            let shown = if here { home_shortened(folder, std::env::var("HOME").ok().as_deref()) } else { folder.to_owned() };
+            thread_opened_line(thread_id, name.as_deref(), &shown)
+        }
+    })
+}
+
+/// A thread's environment as the typed map the token reader takes.
+fn to_hash_map(env: &IndexMap<String, String>) -> std::collections::HashMap<String, String> {
+    env.iter().map(|(key, value)| (key.clone(), value.clone())).collect()
+}
+
+/// A path's length in UTF-16 units, as JavaScript's `string.length` counts it.
+fn path_length(path: &str) -> usize {
+    path.encode_utf16().count()
 }
