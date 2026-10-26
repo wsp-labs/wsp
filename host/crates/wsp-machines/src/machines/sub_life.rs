@@ -14,8 +14,8 @@ use wsp_wire::views::workspace::ReachState;
 use wsp_words::exit::HostError;
 
 use crate::machines::area_error::AreaResult;
-use wsp_core::clock::Cancel;
 use crate::machines::machines::Entry;
+use wsp_core::clock::Cancel;
 use wsp_core::types::wiring::WorkspaceRecord;
 
 pub mod reads;
@@ -61,7 +61,13 @@ pub trait SubLifeCtx: BackendFor {
     /// `adapterFor(entry, harness).adapter.sessionFile?.(id)`.
     fn session_file(&self, entry: &Entry, harness: &str, session_id: &str) -> Option<SessionFile>;
     /// `transcriptReader.read(workspaceId, threadId, { limit, bytes })`'s events, as the TS objects.
-    async fn read_transcript(&self, workspace_id: &str, thread_id: &str, limit: usize, bytes: usize) -> AreaResult<Vec<Value>>;
+    async fn read_transcript(
+        &self,
+        workspace_id: &str,
+        thread_id: &str,
+        limit: usize,
+        bytes: usize,
+    ) -> AreaResult<Vec<Value>>;
     async fn put_blob(&self, collection: &str, key: &str, bytes: Vec<u8>) -> AreaResult<()>;
     async fn delete_blob(&self, collection: &str, key: &str) -> AreaResult<()>;
     async fn persist(&self, record: &WorkspaceRecord) -> AreaResult<()>;

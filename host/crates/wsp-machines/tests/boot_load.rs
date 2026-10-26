@@ -16,18 +16,23 @@ use wsp_core::types::internal::{absent_machine, BuilderLife, StoredBuilder};
 use wsp_engine::errors::EngineError;
 use wsp_engine::machine::MachineKind;
 use wsp_machines::machines::boot::load::{late_read_line, LOAD_READS_MS};
-use wsp_words::exit::HostError;
 use wsp_words::words::thread::GoneSeenBy;
 
 use common::{MemStore, StoreLogs};
-use support::{asked_err, asked_missing, live_workspace, workspace_record, ws, GatedStore, Opts, Sight, World};
+use support::{
+    asked_err, asked_missing, live_workspace, workspace_record, ws, GatedStore, Opts, Sight, World,
+};
 
 fn builder(id: &str) -> Value {
     json!({"id": id, "name": format!("b-{id}"), "kind": "sandbox", "baseTemplate": "base", "setupSha": "sha", "createdAt": "2026-09-01T00:00:00.000Z", "firstLife": true})
 }
 
 fn load_world(o: Opts) -> World {
-    World::load(Opts { sight_word: Some("sightMachine"), sight_first: true, ..o })
+    World::load(Opts {
+        sight_word: Some("sightMachine"),
+        sight_first: true,
+        ..o
+    })
 }
 
 /// boot.ts:18 and :27: the one deadline every load read shares, and the line a read still out at it leaves. The
@@ -35,7 +40,10 @@ fn load_world(o: Opts) -> World {
 #[test]
 fn a_read_still_out_at_the_deadline_leaves_the_line_the_provider_has_not_yet_answered() {
     assert_eq!(LOAD_READS_MS, 1_500);
-    assert_eq!(late_read_line("m-a"), "the provider has not yet answered for m-a; it is read in once it does");
+    assert_eq!(
+        late_read_line("m-a"),
+        "the provider has not yet answered for m-a; it is read in once it does"
+    );
 }
 
 /// runtime-golden-import.test.ts:515: a sweep whose last listing is older than a pass that admitted a row neither
@@ -49,8 +57,15 @@ fn an_older_pass_neither_drops_nor_admits_after_a_newer_one_listed() {
         let inner = MemStore::seeded(&json!({}), log, StoreLogs::default());
         let (open, gate) = futures::channel::oneshot::channel::<()>();
         let listed = Rc::new(Cell::new(false));
-        let store: Rc<dyn wsp_core::types::pending::Store> = Rc::new(GatedStore { inner: inner.clone(), gate: RefCell::new(Some(gate)), listed: listed.clone() });
-        let w = World::load(Opts { store_override: Some(store), ..Opts::default() });
+        let store: Rc<dyn wsp_core::types::pending::Store> = Rc::new(GatedStore {
+            inner: inner.clone(),
+            gate: RefCell::new(Some(gate)),
+            listed: listed.clone(),
+        });
+        let w = World::load(Opts {
+            store_override: Some(store),
+            ..Opts::default()
+        });
 
         let first = {
             let area = w.area.clone();
@@ -59,17 +74,42 @@ fn an_older_pass_neither_drops_nor_admits_after_a_newer_one_listed() {
         common::flush().await;
         assert!(listed.get(), "the first pass listed the builders and waits");
 
-        inner.rows.borrow_mut().entry("builders".to_string()).or_default().insert("b1".into(), builder("b1"));
+        inner
+            .rows
+            .borrow_mut()
+            .entry("builders".to_string())
+            .or_default()
+            .insert("b1".into(), builder("b1"));
         w.area.refresh_builders().await.expect("the newer pass");
-        assert_eq!(w.rt.builders.borrow().keys().cloned().collect::<Vec<_>>(), vec!["b1".to_string()], "the newer pass admitted the row");
+        assert_eq!(
+            w.rt.builders.borrow().keys().cloned().collect::<Vec<_>>(),
+            vec!["b1".to_string()],
+            "the newer pass admitted the row"
+        );
 
         let _ = open.send(());
         first.await.unwrap().expect("the older pass");
         common::flush().await;
-        assert_eq!(w.rt.builders.borrow().keys().cloned().collect::<Vec<_>>(), vec!["b1".to_string()], "the older pass dropped nothing it had not listed");
-        let gets: Vec<Value> = w.log.take().into_iter().filter(|e| e[0] == "backend.get").collect();
-        assert_eq!(gets, vec![json!(["backend.get", "solari", "b1"])], "the provider was read for the row once");
-        assert!(inner.rows.borrow()["builders"].contains_key("b1"), "the row stays in the store");
+        assert_eq!(
+            w.rt.builders.borrow().keys().cloned().collect::<Vec<_>>(),
+            vec!["b1".to_string()],
+            "the older pass dropped nothing it had not listed"
+        );
+        let gets: Vec<Value> = w
+            .log
+            .take()
+            .into_iter()
+            .filter(|e| e[0] == "backend.get")
+            .collect();
+        assert_eq!(
+            gets,
+            vec![json!(["backend.get", "solari", "b1"])],
+            "the provider was read for the row once"
+        );
+        assert!(
+            inner.rows.borrow()["builders"].contains_key("b1"),
+            "the row stays in the store"
+        );
     });
 }
 
@@ -77,12 +117,25 @@ fn an_older_pass_neither_drops_nor_admits_after_a_newer_one_listed() {
 #[test]
 fn an_admit_of_an_id_that_settled_reads_the_provider_again() {
     common::run_local(async {
-        let w = World::load(Opts { store: json!({"builders": {"slow": builder("slow")}}), ..Opts::default() });
+        let w = World::load(Opts {
+            store: json!({"builders": {"slow": builder("slow")}}),
+            sights: vec![Sight::Running],
+            ..Opts::default()
+        });
         w.area.refresh_builders().await.expect("first pass");
         w.rt.builders.borrow_mut().shift_remove("slow");
         w.area.refresh_builders().await.expect("second pass");
-        let gets = w.log.take().into_iter().filter(|e| e[0] == "backend.get").count();
-        assert_eq!(gets, 2, "each pass that finds no entry reads the provider once");
+        // admit reads `at.get` on every pass (boot.ts:88); the fake logs a record's first get as backend.get and its later ones as the sighting they stand for.
+        let gets = w
+            .log
+            .take()
+            .into_iter()
+            .filter(|e| e[0] == "backend.get" || e[0] == "readGone")
+            .count();
+        assert_eq!(
+            gets, 2,
+            "each pass that finds no entry reads the provider once"
+        );
         assert!(w.rt.builders.borrow().contains_key("slow"));
     });
 }
@@ -92,8 +145,15 @@ fn an_admit_of_an_id_that_settled_reads_the_provider_again() {
 #[test]
 fn a_late_read_that_fails_holds_the_record_on_the_providers_words() {
     common::run_local(async {
-        let w = load_world(Opts { store: json!({"workspaces": {"a": ws("a", json!({}))}}), sights: vec![Sight::Fails("provider: key refused (401)".into())], ..Opts::default() });
-        let landed = w.area.load_late("a", asked_err("provider: key refused (401)")).await;
+        let w = load_world(Opts {
+            store: json!({"workspaces": {"a": ws("a", json!({}))}}),
+            sights: vec![Sight::Fails("provider: key refused (401)".into())],
+            ..Opts::default()
+        });
+        let landed = w
+            .area
+            .load_late("a", asked_err("provider: key refused (401)"))
+            .await;
         assert!(landed.is_none(), "a held record answers no entry");
         common::flush().await;
         let rec = ws("a", json!({}));
@@ -101,13 +161,25 @@ fn a_late_read_that_fails_holds_the_record_on_the_providers_words() {
             &json!({"name": "late read fails", "log": [["imageOf", "img"], ["attach", rec, "m-a", "sandbox"], ["sightMachine", "m-a"]]}),
             &w.log.take(),
         );
-        let entry = w.rt.live.borrow().get("a").cloned().expect("the record is live, held");
+        let entry =
+            w.rt.live
+                .borrow()
+                .get("a")
+                .cloned()
+                .expect("the record is live, held");
         let machine = entry.borrow().machine.clone();
         let said = machine.state().await.expect_err("the stand-in refuses");
         assert_eq!(said.to_string(), "provider: key refused (401)");
         assert!(w.area.is_held_away("a"));
-        assert_eq!(support::to_json(&entry.borrow().record.borrow().phase), json!("running"), "the record keeps the phase it was left at");
-        assert!(w.rt.rereading.borrow().is_empty(), "the record is no longer marked being read");
+        assert_eq!(
+            support::to_json(&entry.borrow().record.borrow().phase),
+            json!("running"),
+            "the record keeps the phase it was left at"
+        );
+        assert!(
+            w.rt.rereading.borrow().is_empty(),
+            "the record is no longer marked being read"
+        );
     });
 }
 
@@ -116,7 +188,11 @@ fn a_late_read_that_fails_holds_the_record_on_the_providers_words() {
 #[test]
 fn a_late_gone_answer_settles_gone_with_the_loads_words() {
     common::run_local(async {
-        let w = load_world(Opts { store: json!({"workspaces": {"a": ws("a", json!({}))}}), sights: vec![Sight::Gone], ..Opts::default() });
+        let w = load_world(Opts {
+            store: json!({"workspaces": {"a": ws("a", json!({}))}}),
+            sights: vec![Sight::Gone],
+            ..Opts::default()
+        });
         let landed = w.area.load_late("a", asked_missing("404 gone")).await;
         assert!(landed.is_none());
         common::flush().await;
@@ -138,11 +214,17 @@ fn a_late_gone_answer_settles_gone_with_the_loads_words() {
 #[test]
 fn a_record_being_reread_is_not_read_again() {
     common::run_local(async {
-        let w = load_world(Opts { sights: vec![Sight::Running], ..Opts::default() });
+        let w = load_world(Opts {
+            sights: vec![Sight::Running],
+            ..Opts::default()
+        });
         support::held_for_test(&w, "503 busy").await;
         w.rt.rereading.borrow_mut().insert("a".into());
         w.log.clear();
-        w.area.reread_held("a", GoneSeenBy::Sweep).await.expect("reread");
+        w.area
+            .reread_held("a", GoneSeenBy::Sweep)
+            .await
+            .expect("reread");
         assert!(w.log.take().is_empty(), "nothing is asked of the provider");
         assert!(w.area.is_held_away("a"));
     });
@@ -156,16 +238,29 @@ fn held_away_is_no_entry_or_an_absent_stand_in_that_is_not_a_queued_spawn() {
         let w = load_world(Opts::default());
         assert!(w.area.is_held_away("none"));
         let away = |id: &str, phase: &str| {
-            let machine = absent_machine(&format!("m-{id}"), MachineKind::Sandbox, Arc::new(|| EngineError::Other { message: "away".into(), code: None }));
+            let machine = absent_machine(
+                &format!("m-{id}"),
+                MachineKind::Sandbox,
+                Arc::new(|| EngineError::Other {
+                    message: "away".into(),
+                    code: None,
+                }),
+            );
             let entry = live_workspace(workspace_record(&ws(id, json!({"phase": phase}))), machine);
             w.rt.live.borrow_mut().insert(id.to_string(), entry);
         };
         away("q", "queued");
         away("r", "running");
         w.rt.add_plain_live("p", &ws("p", json!({})));
-        assert!(!w.area.is_held_away("q"), "a queued spawn has no machine yet");
+        assert!(
+            !w.area.is_held_away("q"),
+            "a queued spawn has no machine yet"
+        );
         assert!(w.area.is_held_away("r"));
-        assert!(!w.area.is_held_away("p"), "a record on a machine that answered is not held away");
+        assert!(
+            !w.area.is_held_away("p"),
+            "a record on a machine that answered is not held away"
+        );
     });
 }
 
@@ -174,12 +269,25 @@ fn held_away_is_no_entry_or_an_absent_stand_in_that_is_not_a_queued_spawn() {
 #[test]
 fn a_builder_seals_on_first_life_or_where_the_backend_seals_any_life() {
     common::run_local(async {
-        let w = load_world(Opts { no_backend_at: vec!["away"], ..Opts::default() });
+        let w = load_world(Opts {
+            no_backend_at: vec!["away"],
+            ..Opts::default()
+        });
         assert!(w.area.sealable_at(None, true));
-        assert!(w.area.sealable_at(Some("away"), true), "first life is true before any backend is asked");
+        assert!(
+            w.area.sealable_at(Some("away"), true),
+            "first life is true before any backend is asked"
+        );
         assert!(!w.area.sealable_at(None, false));
-        assert!(!w.area.sealable_at(Some("away"), false), "no backend reads false");
-        let any = load_world(Opts { snapshots_any_life: true, no_backend_at: vec!["away"], ..Opts::default() });
+        assert!(
+            !w.area.sealable_at(Some("away"), false),
+            "no backend reads false"
+        );
+        let any = load_world(Opts {
+            snapshots_any_life: true,
+            no_backend_at: vec!["away"],
+            ..Opts::default()
+        });
         assert!(any.area.sealable_at(None, false));
         assert!(any.area.sealable_at(Some("solari"), false));
         assert!(!any.area.sealable_at(Some("away"), false));
@@ -194,13 +302,26 @@ fn life_of_reads_each_of_the_eleven_roads_a_stored_builder_can_take() {
         let fx = common::fixture("boot_builders");
         let scene = common::scene(&fx, "admit: every life a stored builder can read as");
         let w = load_world(Opts::default());
-        let stored = scene["store"]["builders"].as_object().expect("stored builders");
+        let stored = scene["store"]["builders"]
+            .as_object()
+            .expect("stored builders");
         assert_eq!(stored.len(), 11);
         for (id, row) in stored {
-            let want = scene["builders"].as_array().unwrap().iter().find(|b| b["id"] == *id).expect("the builder the oracle left");
+            let want = scene["builders"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|b| b["id"] == *id)
+                .expect("the builder the oracle left");
             let row = common::unscrub_pids(row);
             let stored: StoredBuilder = serde_json::from_value(row).expect("a stored builder");
-            let labels: Option<IndexMap<String, String>> = scene["answers"][id.as_str()]["labels"].as_object().map(|o| o.iter().map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string())).collect());
+            let labels: Option<IndexMap<String, String>> = scene["answers"][id.as_str()]["labels"]
+                .as_object()
+                .map(|o| {
+                    o.iter()
+                        .map(|(k, v)| (k.clone(), v.as_str().unwrap().to_string()))
+                        .collect()
+                });
             let sealable = want["sealable"].as_bool().unwrap();
             let life = w.area.life_of(&stored, labels.as_ref(), sealable);
             let word = match life {

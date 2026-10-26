@@ -33,24 +33,46 @@ impl MemStore {
     }
     /// The stored document, as JSON.
     pub fn doc(&self, collection: &str, id: &str) -> Option<Value> {
-        self.docs.borrow().get(collection).and_then(|c| c.get(id).cloned())
+        self.docs
+            .borrow()
+            .get(collection)
+            .and_then(|c| c.get(id).cloned())
     }
     /// The ids of a collection, in store order.
     pub fn ids(&self, collection: &str) -> Vec<String> {
-        self.docs.borrow().get(collection).map(|c| c.keys().cloned().collect()).unwrap_or_default()
+        self.docs
+            .borrow()
+            .get(collection)
+            .map(|c| c.keys().cloned().collect())
+            .unwrap_or_default()
     }
     pub fn blob(&self, collection: &str, id: &str) -> Option<Vec<u8>> {
-        self.blobs.borrow().get(collection).and_then(|c| c.get(id).cloned())
+        self.blobs
+            .borrow()
+            .get(collection)
+            .and_then(|c| c.get(id).cloned())
     }
     pub fn blob_ids(&self, collection: &str) -> Vec<String> {
-        self.blobs.borrow().get(collection).map(|c| c.keys().cloned().collect()).unwrap_or_default()
+        self.blobs
+            .borrow()
+            .get(collection)
+            .map(|c| c.keys().cloned().collect())
+            .unwrap_or_default()
     }
     /// Seeds a document without logging a call.
     pub fn seed(&self, collection: &str, id: &str, value: Value) {
-        self.docs.borrow_mut().entry(collection.to_string()).or_default().insert(id.to_string(), value);
+        self.docs
+            .borrow_mut()
+            .entry(collection.to_string())
+            .or_default()
+            .insert(id.to_string(), value);
     }
     pub fn seed_blob(&self, collection: &str, id: &str, bytes: &[u8]) {
-        self.blobs.borrow_mut().entry(collection.to_string()).or_default().insert(id.to_string(), bytes.to_vec());
+        self.blobs
+            .borrow_mut()
+            .entry(collection.to_string())
+            .or_default()
+            .insert(id.to_string(), bytes.to_vec());
     }
     pub fn calls(&self) -> Vec<String> {
         self.calls.borrow().clone()
@@ -63,21 +85,34 @@ impl Store for MemStore {
         Ok(self.doc(collection, id))
     }
     async fn put(&self, collection: &str, id: &str, value: Value) -> Result<(), HostError> {
-        self.calls.borrow_mut().push(format!("put {collection}/{id}"));
+        self.calls
+            .borrow_mut()
+            .push(format!("put {collection}/{id}"));
         if self.fail_puts.borrow().iter().any(|c| c == collection) {
             return Err(HostError::new(format!("put {collection} refused")));
         }
-        self.docs.borrow_mut().entry(collection.to_string()).or_default().insert(id.to_string(), value);
+        self.docs
+            .borrow_mut()
+            .entry(collection.to_string())
+            .or_default()
+            .insert(id.to_string(), value);
         Ok(())
     }
     async fn list(&self, collection: &str) -> Result<Vec<Value>, HostError> {
-        Ok(self.docs.borrow().get(collection).map(|c| c.values().cloned().collect()).unwrap_or_default())
+        Ok(self
+            .docs
+            .borrow()
+            .get(collection)
+            .map(|c| c.values().cloned().collect())
+            .unwrap_or_default())
     }
     async fn keys(&self, collection: &str) -> Result<Vec<String>, HostError> {
         Ok(self.ids(collection))
     }
     async fn delete(&self, collection: &str, id: &str) -> Result<(), HostError> {
-        self.calls.borrow_mut().push(format!("delete {collection}/{id}"));
+        self.calls
+            .borrow_mut()
+            .push(format!("delete {collection}/{id}"));
         if let Some(c) = self.docs.borrow_mut().get_mut(collection) {
             c.shift_remove(id);
         }
@@ -87,12 +122,20 @@ impl Store for MemStore {
         Ok(self.blob(collection, id))
     }
     async fn put_blob(&self, collection: &str, id: &str, bytes: Vec<u8>) -> Result<(), HostError> {
-        self.calls.borrow_mut().push(format!("putBlob {collection}/{id}"));
-        self.blobs.borrow_mut().entry(collection.to_string()).or_default().insert(id.to_string(), bytes);
+        self.calls
+            .borrow_mut()
+            .push(format!("putBlob {collection}/{id}"));
+        self.blobs
+            .borrow_mut()
+            .entry(collection.to_string())
+            .or_default()
+            .insert(id.to_string(), bytes);
         Ok(())
     }
     async fn delete_blob(&self, collection: &str, id: &str) -> Result<(), HostError> {
-        self.calls.borrow_mut().push(format!("deleteBlob {collection}/{id}"));
+        self.calls
+            .borrow_mut()
+            .push(format!("deleteBlob {collection}/{id}"));
         if let Some(c) = self.blobs.borrow_mut().get_mut(collection) {
             c.shift_remove(id);
         }
@@ -102,7 +145,10 @@ impl Store for MemStore {
         let bytes = self.blob(collection, id);
         let at = self.stamp.get() + 1.0;
         self.stamp.set(at);
-        Ok(bytes.map(|b| BlobMark { bytes: JsNumber::from(b.len() as f64), at: JsNumber::from(at) }))
+        Ok(bytes.map(|b| BlobMark {
+            bytes: JsNumber::from(b.len() as f64),
+            at: JsNumber::from(at),
+        }))
     }
 }
 
@@ -128,7 +174,12 @@ impl TestClock {
         loop {
             let next = {
                 let timers = self.timers.borrow();
-                timers.iter().enumerate().filter(|(_, t)| t.2.is_some() && t.0 <= until).min_by_key(|(_, t)| (t.0, t.1)).map(|(i, t)| (i, t.0))
+                timers
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, t)| t.2.is_some() && t.0 <= until)
+                    .min_by_key(|(_, t)| (t.0, t.1))
+                    .map(|(i, t)| (i, t.0))
             };
             let Some((i, at)) = next else { break };
             self.now.set(at.max(self.now.get()));
@@ -141,7 +192,11 @@ impl TestClock {
     }
     /// How many timers are armed and not cancelled or fired.
     pub fn armed(&self) -> usize {
-        self.timers.borrow().iter().filter(|t| t.2.is_some()).count()
+        self.timers
+            .borrow()
+            .iter()
+            .filter(|t| t.2.is_some())
+            .count()
     }
 }
 
@@ -153,7 +208,9 @@ impl Clock for TestClock {
         self.asked.borrow_mut().push(ms);
         let id = self.seq.get();
         self.seq.set(id + 1);
-        self.timers.borrow_mut().push((self.now.get() + ms.max(0), id, Some(f)));
+        self.timers
+            .borrow_mut()
+            .push((self.now.get() + ms.max(0), id, Some(f)));
         let me: *const TestClock = self;
         // The clock outlives every timer a test arms; a cancel after the test's end is never called.
         Rc::new(move || unsafe {
@@ -181,7 +238,10 @@ impl Warned {
 
 /// Runs a future on a current-thread runtime inside a `LocalSet`, as the host does (rule 3.1).
 pub fn run<F: std::future::Future>(f: F) -> F::Output {
-    let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a runtime");
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a runtime");
     let local = tokio::task::LocalSet::new();
     local.block_on(&rt, f)
 }

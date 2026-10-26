@@ -1203,7 +1203,11 @@
     "records": {
      "t1": {
       "workspaceId": "a",
-      "harness": "claude"
+      "harness": "claude",
+      "limitResume": {
+       "at": 1790000000000,
+       "turnId": "turn-1"
+      }
      }
     },
     "ctx": {
@@ -1323,7 +1327,11 @@
     "records": {
      "t1": {
       "workspaceId": "a",
-      "harness": "claude"
+      "harness": "claude",
+      "limitResume": {
+       "at": 1790000000000,
+       "turnId": "turn-1"
+      }
      }
     },
     "ctx": {
@@ -1404,7 +1412,11 @@
     "records": {
      "t1": {
       "workspaceId": "a",
-      "harness": "claude"
+      "harness": "claude",
+      "limitResume": {
+       "at": 1790000000000,
+       "turnId": "turn-1"
+      }
      }
     },
     "ctx": {
@@ -1488,7 +1500,11 @@
     "records": {
      "t1": {
       "workspaceId": "a",
-      "harness": "claude"
+      "harness": "claude",
+      "limitResume": {
+       "at": 1790000000000,
+       "turnId": "turn-1"
+      }
      }
     },
     "ctx": {
@@ -1596,6 +1612,10 @@
      "t1": {
       "workspaceId": "a",
       "harness": "claude",
+      "limitResume": {
+       "at": 1790000000000,
+       "turnId": "turn-1"
+      },
       "settledAt": 1
      }
     },

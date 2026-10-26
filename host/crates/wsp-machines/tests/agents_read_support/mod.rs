@@ -19,15 +19,20 @@ use wsp_core::clock::Clock;
 use wsp_core::daemon_channel::{ChannelEnd, ChannelError, DaemonChannel, Frame};
 use wsp_engine::cancel::Cancel;
 use wsp_engine::errors::{EngineError, Result as EResult};
-use wsp_engine::machine::{ExecOptions, ExecResult, Machine, MachineKind, MachineLife, MachineState, RunOptions, SnapshotOptions};
+use wsp_engine::machine::{
+    ExecOptions, ExecResult, Machine, MachineKind, MachineLife, MachineState, RunOptions,
+    SnapshotOptions,
+};
 use wsp_machines::agents_read::{
-    AgentsActs, AgentsOn, AgentsPlaces, AgentsRead, AgentsReadOptions, AgentsReader, AgentsReads, AgentsWorkspace, BoxLogin, CallbackForwards,
-    CodeWriter, DaemonEvent, Follower, GhStep, PluginsActs, ResolvedServer, ServerIcons, ServerToolsAsk, ServersActs, SignInAsk,
+    AgentsActs, AgentsOn, AgentsPlaces, AgentsRead, AgentsReadOptions, AgentsReader, AgentsReads,
+    AgentsWorkspace, BoxLogin, CallbackForwards, CodeWriter, DaemonEvent, Follower, GhStep,
+    PluginsActs, ResolvedServer, ServerIcons, ServerToolsAsk, ServersActs, SignInAsk,
     SignInForward, SignInPlan, SignInRun, SignInStep, SkillAddAsk, SkillAsk, SkillsActs,
 };
 use wsp_wire::types::agents_report::{
-    AgentSignInState, AgentsProject, AgentsSignInEvent, AgentsSignInEventState, AgentsTarget, PluginAsk, PluginRow, ServerAdd, ServerAsk,
-    ServerToolsAnswer, SignInLine, SkillAdded, SkillHit, SkillPreview,
+    AgentSignInState, AgentsProject, AgentsSignInEvent, AgentsSignInEventState, AgentsTarget,
+    PluginAsk, PluginRow, ServerAdd, ServerAsk, ServerToolsAnswer, SignInLine, SkillAdded,
+    SkillHit, SkillPreview,
 };
 use wsp_wire::types::thread_defaults::{AgentSetupSet, AgentSetupView};
 use wsp_wire::views::place::PlaceProvisionRow;
@@ -47,14 +52,21 @@ pub const READ_AT: &str = "2026-09-24T12:00:00.000Z";
 
 /// Every catalog agent id, in catalog order (`CATALOG_AGENTS.map(a => a.id)` at 65f6b89c7); wsp-catalog's Rust catalog is
 /// a stub, so the list is written out.
-pub const CATALOG_IDS: [&str; 11] = ["claude", "codex", "gemini", "opencode", "pi", "hermes", "crush", "qwen", "goose", "amp", "cursor"];
+pub const CATALOG_IDS: [&str; 11] = [
+    "claude", "codex", "gemini", "opencode", "pi", "hermes", "crush", "qwen", "goose", "amp",
+    "cursor",
+];
 
 pub fn landing() -> AgentsProject {
     project("pr_landing", "landing", "/root/landing")
 }
 
 pub fn project(id: &str, name: &str, path: &str) -> AgentsProject {
-    AgentsProject { id: id.to_string(), name: name.to_string(), path: path.to_string() }
+    AgentsProject {
+        id: id.to_string(),
+        name: name.to_string(),
+        path: path.to_string(),
+    }
 }
 
 pub fn target(v: Value) -> AgentsTarget {
@@ -75,12 +87,25 @@ pub fn js<T: serde::Serialize>(v: &T) -> Value {
 
 /// `Object.assign(new Error(sentence), { kind: "usage" })`.
 pub fn usage(sentence: &str) -> HostError {
-    HostError { kind: Some(Kind::Usage), ..HostError::new(sentence) }
+    HostError {
+        kind: Some(Kind::Usage),
+        ..HostError::new(sentence)
+    }
 }
 
 /// The reader's answer of every TS case: `READ`.
 pub fn read_answer() -> AgentsRead {
-    AgentsRead { home: "/root".into(), user: "root".into(), agents: vec![], skills: vec![], servers: vec![], plugins: None, refused: vec![], projects: None, run_as: None }
+    AgentsRead {
+        home: "/root".into(),
+        user: "root".into(),
+        agents: vec![],
+        skills: vec![],
+        servers: vec![],
+        plugins: None,
+        refused: vec![],
+        projects: None,
+        run_as: None,
+    }
 }
 
 pub fn agent_row(id: &str) -> wsp_wire::types::agents_report::AgentRow {
@@ -91,7 +116,8 @@ pub fn agent_row(id: &str) -> wsp_wire::types::agents_report::AgentRow {
 }
 
 pub fn place_row(id: &str, name: &str, kind: &str) -> PlaceView {
-    serde_json::from_value(json!({ "id": id, "name": name, "kind": kind, "default": false })).expect("a place row")
+    serde_json::from_value(json!({ "id": id, "name": name, "kind": kind, "default": false }))
+        .expect("a place row")
 }
 
 pub fn place_row_with(id: &str, name: &str, over: Value) -> PlaceView {
@@ -289,7 +315,9 @@ impl Rig {
             brokered: Cell::new(None),
             ws_stores: RefCell::new(None),
             ws_seeds: RefCell::new(None),
-            machine: Arc::new(FakeMachine { id: "m_landing".into() }),
+            machine: Arc::new(FakeMachine {
+                id: "m_landing".into(),
+            }),
             workspace_origins: RefCell::new(vec![]),
             relayed: Cell::new(None),
             latest: Cell::new(None),
@@ -341,16 +369,23 @@ impl Rig {
     /// One joined computer, spoo, as the place door lists it, with the door standing.
     pub fn with_spoo(&self) {
         self.door_on.set(true);
-        self.rows.borrow_mut().push(place_row("pl_1", "spoo", "computer"));
+        self.rows
+            .borrow_mut()
+            .push(place_row("pl_1", "spoo", "computer"));
     }
 
     /// The projects the host holds on a computer; wires `projects` in the options.
     pub fn hold(&self, place: &str, projects: Vec<AgentsProject>) {
-        self.held.borrow_mut().get_or_insert_with(IndexMap::new).insert(place.to_string(), projects);
+        self.held
+            .borrow_mut()
+            .get_or_insert_with(IndexMap::new)
+            .insert(place.to_string(), projects);
     }
 
     pub fn fail(&self, name: &str, message: &str) {
-        self.fails.borrow_mut().insert(name.to_string(), HostError::new(message));
+        self.fails
+            .borrow_mut()
+            .insert(name.to_string(), HostError::new(message));
     }
 
     pub fn lines(&self) -> Vec<String> {
@@ -359,7 +394,12 @@ impl Rig {
 
     /// The log lines that start with one of the prefixes, in order.
     pub fn lines_of(&self, prefixes: &[&str]) -> Vec<String> {
-        self.log.borrow().iter().filter(|l| prefixes.iter().any(|p| l.starts_with(p))).cloned().collect()
+        self.log
+            .borrow()
+            .iter()
+            .filter(|l| prefixes.iter().any(|p| l.starts_with(p)))
+            .cloned()
+            .collect()
     }
 
     pub fn clear_log(&self) {
@@ -367,11 +407,19 @@ impl Rig {
     }
 
     pub fn changed_json(&self) -> Vec<Value> {
-        self.changed.borrow().iter().map(|t| t.as_ref().map(js).unwrap_or(Value::Null)).collect()
+        self.changed
+            .borrow()
+            .iter()
+            .map(|t| t.as_ref().map(js).unwrap_or(Value::Null))
+            .collect()
     }
 
     pub fn asked_on(&self) -> Vec<Value> {
-        self.read_calls.borrow().iter().map(|(on, _)| on_json(on)).collect()
+        self.read_calls
+            .borrow()
+            .iter()
+            .map(|(on, _)| on_json(on))
+            .collect()
     }
 
     pub fn push_event(&self, e: Value) {
@@ -384,7 +432,11 @@ impl Rig {
     }
 
     pub fn end_channel_from_daemon(&self) {
-        self.ends.borrow().last().expect("a channel is open").finish();
+        self.ends
+            .borrow()
+            .last()
+            .expect("a channel is open")
+            .finish();
     }
 
     pub fn follower(&self) -> Seen {
@@ -405,7 +457,13 @@ impl Rig {
         let icons: Rc<dyn ServerIcons> = Rc::new(Icons(s.clone()));
         let places = {
             let s = s.clone();
-            Rc::new(move || if s.door_on.get() { Some(Rc::new(Door(s.clone())) as Rc<dyn AgentsPlaces>) } else { None })
+            Rc::new(move || {
+                if s.door_on.get() {
+                    Some(Rc::new(Door(s.clone())) as Rc<dyn AgentsPlaces>)
+                } else {
+                    None
+                }
+            })
         };
         let workspace = {
             let s = s.clone();
@@ -429,16 +487,19 @@ impl Rig {
                 .boxed_local()
             })
         };
-        let place_stores: Option<Rc<dyn Fn(&str, &str) -> IndexMap<String, String>>> = if s.place_stores.borrow().is_some() {
-            let s = s.clone();
-            Some(Rc::new(move |place: &str, home: &str| {
-                s.say(format!("place_stores {place} {home}"));
-                s.place_stores.borrow().clone().unwrap_or_default()
-            }))
-        } else {
-            None
-        };
-        let stores_here: Option<Rc<dyn Fn() -> LocalBoxFuture<'static, Result<IndexMap<String, String>, HostError>>>> = if s.stores_here.borrow().is_some() {
+        let place_stores: Option<Rc<dyn Fn(&str, &str) -> IndexMap<String, String>>> =
+            if s.place_stores.borrow().is_some() {
+                let s = s.clone();
+                Some(Rc::new(move |place: &str, home: &str| {
+                    s.say(format!("place_stores {place} {home}"));
+                    s.place_stores.borrow().clone().unwrap_or_default()
+                }))
+            } else {
+                None
+            };
+        let stores_here: Option<
+            Rc<dyn Fn() -> LocalBoxFuture<'static, Result<IndexMap<String, String>, HostError>>>,
+        > = if s.stores_here.borrow().is_some() {
             let s = s.clone();
             Some(Rc::new(move || {
                 let s = s.clone();
@@ -451,43 +512,65 @@ impl Rig {
         } else {
             None
         };
-        let projects: Option<Rc<dyn Fn(String) -> LocalBoxFuture<'static, Result<Vec<AgentsProject>, HostError>>>> = if s.held.borrow().is_some() {
+        let projects: Option<
+            Rc<dyn Fn(String) -> LocalBoxFuture<'static, Result<Vec<AgentsProject>, HostError>>>,
+        > = if s.held.borrow().is_some() {
             let s = s.clone();
             Some(Rc::new(move |place: String| {
                 let s = s.clone();
                 async move {
                     s.say(format!("projects.list {place}"));
-                    Ok(s.held.borrow().as_ref().and_then(|h| h.get(&place).cloned()).unwrap_or_default())
+                    Ok(s.held
+                        .borrow()
+                        .as_ref()
+                        .and_then(|h| h.get(&place).cloned())
+                        .unwrap_or_default())
                 }
                 .boxed_local()
             }))
         } else {
             None
         };
-        let latest_on: Option<Rc<dyn Fn() -> LocalBoxFuture<'static, bool>>> = s.latest.get().map(|v| Rc::new(move || async move { v }.boxed_local()) as Rc<dyn Fn() -> LocalBoxFuture<'static, bool>>);
+        let latest_on: Option<Rc<dyn Fn() -> LocalBoxFuture<'static, bool>>> =
+            s.latest.get().map(|v| {
+                Rc::new(move || async move { v }.boxed_local())
+                    as Rc<dyn Fn() -> LocalBoxFuture<'static, bool>>
+            });
         let channel = {
             let s = s.clone();
-            Rc::new(move |t: AgentsTarget, on_event: Rc<dyn Fn(DaemonEvent)>, origin: Option<Caller>| {
-                let s = s.clone();
-                async move {
-                    s.say(format!("channel.open {}", js(&t)));
-                    s.opened.borrow_mut().push((t, origin));
-                    *s.push.borrow_mut() = Some(on_event);
-                    let end = Rc::new(End::default());
-                    s.ends.borrow_mut().push(end.clone());
-                    Ok(Rc::new(Channel { s: s.clone(), end }) as Rc<dyn DaemonChannel>)
-                }
-                .boxed_local()
-            })
+            Rc::new(
+                move |t: AgentsTarget,
+                      on_event: Rc<dyn Fn(DaemonEvent)>,
+                      origin: Option<Caller>| {
+                    let s = s.clone();
+                    async move {
+                        s.say(format!("channel.open {}", js(&t)));
+                        s.opened.borrow_mut().push((t, origin));
+                        *s.push.borrow_mut() = Some(on_event);
+                        let end = Rc::new(End::default());
+                        s.ends.borrow_mut().push(end.clone());
+                        Ok(Rc::new(Channel { s: s.clone(), end }) as Rc<dyn DaemonChannel>)
+                    }
+                    .boxed_local()
+                },
+            )
         };
         let changed = {
             let s = s.clone();
             Rc::new(move |t: Option<AgentsTarget>| {
-                s.say(format!("changed {}", t.as_ref().map(|t| js(t).to_string()).unwrap_or_else(|| "all".into())));
+                s.say(format!(
+                    "changed {}",
+                    t.as_ref()
+                        .map(|t| js(t).to_string())
+                        .unwrap_or_else(|| "all".into())
+                ));
                 s.changed.borrow_mut().push(t);
             })
         };
-        let relayed: Option<Rc<dyn Fn() -> bool>> = s.relayed.get().map(|v| Rc::new(move || v) as Rc<dyn Fn() -> bool>);
+        let relayed: Option<Rc<dyn Fn() -> bool>> = s
+            .relayed
+            .get()
+            .map(|v| Rc::new(move || v) as Rc<dyn Fn() -> bool>);
         let log = {
             let s = s.clone();
             Rc::new(move |line: &str| {
@@ -495,22 +578,28 @@ impl Rig {
                 s.host_log.borrow_mut().push(line.to_string());
             })
         };
-        let setup_of: Option<Rc<dyn Fn(&str, &str) -> Option<AgentSetupView>>> = if s.setups.borrow().is_some() {
-            let s = s.clone();
-            Some(Rc::new(move |place: &str, agent: &str| {
-                s.say(format!("setup_of {place} {agent}"));
-                s.setups.borrow().as_ref().and_then(|m| m.get(&(place.to_string(), agent.to_string())).cloned())
-            }))
-        } else {
-            None
-        };
+        let setup_of: Option<Rc<dyn Fn(&str, &str) -> Option<AgentSetupView>>> =
+            if s.setups.borrow().is_some() {
+                let s = s.clone();
+                Some(Rc::new(move |place: &str, agent: &str| {
+                    s.say(format!("setup_of {place} {agent}"));
+                    s.setups
+                        .borrow()
+                        .as_ref()
+                        .and_then(|m| m.get(&(place.to_string(), agent.to_string())).cloned())
+                }))
+            } else {
+                None
+            };
         let setup_write = {
             let s = s.clone();
             Rc::new(move |place: String, agent: String, change: AgentSetupSet| {
                 let s = s.clone();
                 async move {
                     s.say(format!("setup_write {place} {agent} {}", js(&change)));
-                    s.setup_writes.borrow_mut().push((place, agent, js(&change)));
+                    s.setup_writes
+                        .borrow_mut()
+                        .push((place, agent, js(&change)));
                     match s.failure("setup_write") {
                         Some(e) => Err(e),
                         None => Ok(()),
@@ -614,7 +703,18 @@ pub fn on_json(on: &AgentsOn) -> Value {
                 put(&mut m, "projects", js(p));
             }
         }
-        AgentsOn::Box { name, login, sign_ins, versions, setup_rows, logins, relayed, projects, stores, .. } => {
+        AgentsOn::Box {
+            name,
+            login,
+            sign_ins,
+            versions,
+            setup_rows,
+            logins,
+            relayed,
+            projects,
+            stores,
+            ..
+        } => {
             put(&mut m, "kind", json!("box"));
             if let Some(n) = name {
                 put(&mut m, "name", json!(n));
@@ -649,7 +749,14 @@ pub fn on_json(on: &AgentsOn) -> Value {
                 put(&mut m, "stores", js(s));
             }
         }
-        AgentsOn::Machine { machine, projects, relayed, brokered, stores, seeds } => {
+        AgentsOn::Machine {
+            machine,
+            projects,
+            relayed,
+            brokered,
+            stores,
+            seeds,
+        } => {
             put(&mut m, "kind", json!("machine"));
             put(&mut m, "machine", json!(machine.id()));
             if let Some(p) = projects {
@@ -682,18 +789,29 @@ pub fn on_kind(on: &AgentsOn) -> &'static str {
 
 pub fn on_projects(on: &AgentsOn) -> Option<Vec<AgentsProject>> {
     match on {
-        AgentsOn::Here { projects, .. } | AgentsOn::Box { projects, .. } | AgentsOn::Machine { projects, .. } => projects.clone(),
+        AgentsOn::Here { projects, .. }
+        | AgentsOn::Box { projects, .. }
+        | AgentsOn::Machine { projects, .. } => projects.clone(),
     }
 }
 
 pub fn machine_on(rig: &Rig, relayed: Option<bool>) -> AgentsOn {
-    AgentsOn::Machine { machine: rig.machine.clone(), projects: None, relayed, brokered: None, stores: None, seeds: None }
+    AgentsOn::Machine {
+        machine: rig.machine.clone(),
+        projects: None,
+        relayed,
+        brokered: None,
+        stores: None,
+        seeds: None,
+    }
 }
 
 pub fn box_on(relayed: Option<bool>) -> AgentsOn {
     AgentsOn::Box {
         name: None,
-        exec: Rc::new(|_cmd, _timeout, _stdin| async { Err(HostError::new("no exec on this road")) }.boxed_local()),
+        exec: Rc::new(|_cmd, _timeout, _stdin| {
+            async { Err(HostError::new("no exec on this road")) }.boxed_local()
+        }),
         login: BoxLogin::default(),
         sign_ins: None,
         versions: None,
@@ -713,7 +831,10 @@ pub struct FakeMachine {
 }
 
 fn nothing() -> EngineError {
-    EngineError::Other { message: "the fake machine runs nothing".to_string(), code: None }
+    EngineError::Other {
+        message: "the fake machine runs nothing".to_string(),
+        code: None,
+    }
 }
 
 #[async_trait(?Send)]
@@ -725,12 +846,20 @@ impl Machine for FakeMachine {
         MachineKind::Sandbox
     }
     async fn exec(&self, _cmd: &str, _opts: ExecOptions) -> EResult<ExecResult> {
-        Ok(serde_json::from_value(json!({ "exitCode": 0, "stdout": "", "stderr": "" })).expect("an exec result"))
+        Ok(
+            serde_json::from_value(json!({ "exitCode": 0, "stdout": "", "stderr": "" }))
+                .expect("an exec result"),
+        )
     }
     async fn run(&self, _script: &str, _opts: RunOptions) -> EResult<ExecResult> {
         Err(nothing())
     }
-    async fn snapshot(&self, _name: &str, _life: MachineLife, _opts: SnapshotOptions) -> EResult<String> {
+    async fn snapshot(
+        &self,
+        _name: &str,
+        _life: MachineLife,
+        _opts: SnapshotOptions,
+    ) -> EResult<String> {
         Err(nothing())
     }
     async fn pause(&self, _wait_ms: Option<u64>) -> EResult<()> {
@@ -761,7 +890,8 @@ pub struct Reader(pub Rc<State>);
 #[async_trait(?Send)]
 impl AgentsReader for Reader {
     async fn read(&self, on: &AgentsOn, latest: bool) -> Result<AgentsRead, HostError> {
-        self.0.say(format!("reader.read {} latest={latest}", on_kind(on)));
+        self.0
+            .say(format!("reader.read {} latest={latest}", on_kind(on)));
         self.0.read_calls.borrow_mut().push((on.clone(), latest));
         match self.0.failure("reader.read") {
             Some(e) => Err(e),
@@ -774,21 +904,42 @@ impl AgentsReader for Reader {
         self.0.forgot.borrow_mut().push(key.to_string());
     }
 
-    async fn tools(&self, on: &AgentsOn, ask: ServerToolsAsk) -> Result<ServerToolsAnswer, HostError> {
-        self.0.say(format!("reader.tools {} {}", on_kind(on), ask.key));
+    async fn tools(
+        &self,
+        on: &AgentsOn,
+        ask: ServerToolsAsk,
+    ) -> Result<ServerToolsAnswer, HostError> {
+        self.0
+            .say(format!("reader.tools {} {}", on_kind(on), ask.key));
         self.0.acted.borrow_mut().push(on.clone());
         self.0.tools_calls.borrow_mut().push((on.clone(), ask));
-        Ok(serde_json::from_value(json!({ "auth": "open", "tools": [], "readAt": READ_AT })).expect("an answer"))
+        Ok(
+            serde_json::from_value(json!({ "auth": "open", "tools": [], "readAt": READ_AT }))
+                .expect("an answer"),
+        )
     }
 
     fn has_server(&self) -> bool {
         self.0.has_server.get()
     }
 
-    async fn server(&self, on: &AgentsOn, agent: &str, name: &str) -> Result<ResolvedServer, HostError> {
-        self.0.say(format!("reader.server {} {agent} {name}", on_kind(on)));
-        self.0.server_calls.borrow_mut().push((on.clone(), agent.to_string(), name.to_string()));
-        Ok(ResolvedServer { spec: serde_json::from_value(json!({ "command": "npx", "args": ["-y", name] })).expect("a spec"), login: None })
+    async fn server(
+        &self,
+        on: &AgentsOn,
+        agent: &str,
+        name: &str,
+    ) -> Result<ResolvedServer, HostError> {
+        self.0
+            .say(format!("reader.server {} {agent} {name}", on_kind(on)));
+        self.0
+            .server_calls
+            .borrow_mut()
+            .push((on.clone(), agent.to_string(), name.to_string()));
+        Ok(ResolvedServer {
+            spec: serde_json::from_value(json!({ "command": "npx", "args": ["-y", name] }))
+                .expect("a spec"),
+            login: None,
+        })
     }
 }
 
@@ -815,17 +966,37 @@ impl AgentsPlaces for Door {
         Ok(())
     }
 
-    fn sign_ins_at(&self, place_id: &str, agents: &[String]) -> Option<IndexMap<String, AgentSignInState>> {
-        self.0.say(format!("door.sign_ins_at {place_id} {}", agents.join(",")));
+    fn sign_ins_at(
+        &self,
+        place_id: &str,
+        agents: &[String],
+    ) -> Option<IndexMap<String, AgentSignInState>> {
+        self.0
+            .say(format!("door.sign_ins_at {place_id} {}", agents.join(",")));
         self.0.sign_ins.borrow().clone()
     }
 
-    async fn exec(&self, place_id: &str, cmd: &str, timeout_ms: Option<u64>, stdin: Option<Vec<u8>>) -> Result<ExecResult, HostError> {
-        self.0.say(format!("door.exec {place_id} {cmd} timeout={timeout_ms:?} stdin={stdin:?}"));
-        Ok(serde_json::from_value(json!({ "exitCode": 0, "stdout": "", "stderr": "" })).expect("an exec result"))
+    async fn exec(
+        &self,
+        place_id: &str,
+        cmd: &str,
+        timeout_ms: Option<u64>,
+        stdin: Option<Vec<u8>>,
+    ) -> Result<ExecResult, HostError> {
+        self.0.say(format!(
+            "door.exec {place_id} {cmd} timeout={timeout_ms:?} stdin={stdin:?}"
+        ));
+        Ok(
+            serde_json::from_value(json!({ "exitCode": 0, "stdout": "", "stderr": "" }))
+                .expect("an exec result"),
+        )
     }
 
-    async fn gh_there(&self, place_id: &str, on_step: GhStep) -> Result<Vec<PlaceProvisionRow>, HostError> {
+    async fn gh_there(
+        &self,
+        place_id: &str,
+        on_step: GhStep,
+    ) -> Result<Vec<PlaceProvisionRow>, HostError> {
         self.0.say(format!("door.gh_there {place_id}"));
         let steps = self.0.gh_steps.borrow().clone();
         for (detail, at, row) in steps {
@@ -835,11 +1006,17 @@ impl AgentsPlaces for Door {
     }
 
     async fn key_landed(&self, agent: &str) -> Result<(), HostError> {
-        self.land("door.key_landed", format!("{agent}"), agent.to_string()).await
+        self.land("door.key_landed", agent.to_string(), agent.to_string())
+            .await
     }
 
     async fn login_landed(&self, place_id: &str, agent: &str) -> Result<(), HostError> {
-        self.land("door.login_landed", format!("{place_id} {agent}"), format!("{place_id} {agent}")).await
+        self.land(
+            "door.login_landed",
+            format!("{place_id} {agent}"),
+            format!("{place_id} {agent}"),
+        )
+        .await
     }
 }
 
@@ -850,7 +1027,10 @@ impl Door {
         }
         let after = self.0.changed.borrow().len();
         self.0.say(format!("{call} {said}"));
-        self.0.landed.borrow_mut().push(format!("{kept} after {after} changes"));
+        self.0
+            .landed
+            .borrow_mut()
+            .push(format!("{kept} after {after} changes"));
         match self.0.failure("door.landed") {
             Some(e) => Err(e),
             None => Ok(()),
@@ -869,7 +1049,8 @@ pub struct Channel {
 #[async_trait(?Send)]
 impl DaemonChannel for Channel {
     async fn send(&self, frame: Frame) -> Result<Frame, ChannelError> {
-        self.s.say(format!("channel.send {}", Value::Object(frame.clone())));
+        self.s
+            .say(format!("channel.send {}", Value::Object(frame.clone())));
         self.s.frames.borrow_mut().push(frame);
         let mut reply = Frame::new();
         reply.insert("ok".into(), json!(true));
@@ -886,7 +1067,10 @@ impl DaemonChannel for Channel {
     async fn closed(&self) -> ChannelEnd {
         loop {
             if self.end.done.get() {
-                return ChannelEnd { code: 1000, reason: String::new() };
+                return ChannelEnd {
+                    code: 1000,
+                    reason: String::new(),
+                };
             }
             self.end.note.notified().await;
         }
@@ -901,8 +1085,12 @@ pub struct Acts(pub Rc<State>);
 #[async_trait(?Send)]
 impl AgentsActs for Acts {
     async fn sign_in_line(&self, on: &AgentsOn, ask: &SignInAsk) -> Result<SignInLine, HostError> {
-        self.0.say(format!("acts.sign_in_line {} {}", on_kind(on), ask.agent));
-        Ok(serde_json::from_value(json!({ "command": "codex login --device-auth" })).expect("a line"))
+        self.0
+            .say(format!("acts.sign_in_line {} {}", on_kind(on), ask.agent));
+        Ok(
+            serde_json::from_value(json!({ "command": "codex login --device-auth" }))
+                .expect("a line"),
+        )
     }
 
     async fn sign_in(&self, on: &AgentsOn, ask: &SignInAsk) -> Result<SignInPlan, HostError> {
@@ -914,7 +1102,9 @@ impl AgentsActs for Acts {
         }
         let agent = ask.agent.clone();
         let plan = s.plan.borrow().clone();
-        Ok(Box::new(move |run: SignInRun| run_plan(s, agent, plan, run).boxed_local()))
+        Ok(Box::new(move |run: SignInRun| {
+            run_plan(s, agent, plan, run).boxed_local()
+        }))
     }
 
     async fn key(&self, agent: &str, _key: &str, way: Option<&str>) -> Result<(), HostError> {
@@ -926,7 +1116,8 @@ impl AgentsActs for Acts {
     }
 
     async fn add_tools(&self, on: &AgentsOn, agent: &str) -> Result<String, HostError> {
-        self.0.say(format!("acts.add_tools {} {agent}", on_kind(on)));
+        self.0
+            .say(format!("acts.add_tools {} {agent}", on_kind(on)));
         match self.0.failure("acts.add_tools") {
             Some(e) => Err(e),
             None => Ok("~/.codex/config.toml".to_string()),
@@ -934,7 +1125,12 @@ impl AgentsActs for Acts {
     }
 }
 
-async fn run_plan(s: Rc<State>, agent: String, plan: Plan, run: SignInRun) -> Result<(), HostError> {
+async fn run_plan(
+    s: Rc<State>,
+    agent: String,
+    plan: Plan,
+    run: SignInRun,
+) -> Result<(), HostError> {
     s.say(format!("plan.start {agent}"));
     s.handed.borrow_mut().push(run.forward.clone());
     let finish = Rc::new(Notify::new());
@@ -946,7 +1142,14 @@ async fn run_plan(s: Rc<State>, agent: String, plan: Plan, run: SignInRun) -> Re
         });
         select(notified, run.stop.clone())
     };
-    let step = |state: AgentsSignInEventState| SignInStep { state, url: None, code: None, paste: None, said: None, pty_id: None };
+    let step = |state: AgentsSignInEventState| SignInStep {
+        state,
+        url: None,
+        code: None,
+        paste: None,
+        said: None,
+        pty_id: None,
+    };
     match plan {
         Plan::Throws(m) => Err(HostError::new(m)),
         Plan::Quiet => {
@@ -958,8 +1161,15 @@ async fn run_plan(s: Rc<State>, agent: String, plan: Plan, run: SignInRun) -> Re
             s.op_replies.borrow_mut().push(Value::Object(reply));
             let emit = run.emit.clone();
             let _off = (run.link.on_event)(Rc::new(move |e: &Map<String, Value>| {
-                let url = e.get("url").map(|u| u.as_str().map(str::to_string).unwrap_or_else(|| u.to_string()));
-                emit(SignInStep { url, ..step(AgentsSignInEventState::Waiting) });
+                let url = e.get("url").map(|u| {
+                    u.as_str()
+                        .map(str::to_string)
+                        .unwrap_or_else(|| u.to_string())
+                });
+                emit(SignInStep {
+                    url,
+                    ..step(AgentsSignInEventState::Waiting)
+                });
             }));
             let codes = s.clone();
             let writer: CodeWriter = Rc::new(move |code: String| {
@@ -983,12 +1193,20 @@ async fn run_plan(s: Rc<State>, agent: String, plan: Plan, run: SignInRun) -> Re
             let reply = (run.link.op)("pty.create".to_string(), extra).await?;
             s.op_replies.borrow_mut().push(Value::Object(reply));
             let a = s.clone();
-            let _keep_a = (run.link.on_event)(Rc::new(move |e: &Map<String, Value>| a.readers_a.borrow_mut().push(Value::Object(e.clone()))));
+            let _keep_a = (run.link.on_event)(Rc::new(move |e: &Map<String, Value>| {
+                a.readers_a.borrow_mut().push(Value::Object(e.clone()))
+            }));
             let b = s.clone();
-            let off_b = (run.link.on_event)(Rc::new(move |e: &Map<String, Value>| b.readers_b.borrow_mut().push(Value::Object(e.clone()))));
+            let off_b = (run.link.on_event)(Rc::new(move |e: &Map<String, Value>| {
+                b.readers_b.borrow_mut().push(Value::Object(e.clone()))
+            }));
             off_b();
-            s.link_seen.borrow_mut().push(format!("bare={:?}", run.link.bare));
-            s.link_seen.borrow_mut().push(format!("closed={}", run.link.closed.is_some()));
+            s.link_seen
+                .borrow_mut()
+                .push(format!("bare={:?}", run.link.bare));
+            s.link_seen
+                .borrow_mut()
+                .push(format!("closed={}", run.link.closed.is_some()));
             if let Some(closed) = run.link.closed.clone() {
                 closed.await;
                 s.link_seen.borrow_mut().push("link closed".to_string());
@@ -1015,47 +1233,86 @@ fn skill_ask_json(a: &SkillAsk) -> Value {
 impl SkillsActs for Skills {
     async fn search(&self, q: &str, limit: u32) -> Result<Vec<SkillHit>, HostError> {
         self.0.say(format!("skills.search {q} {limit}"));
-        self.0.skill_calls.borrow_mut().push(SkillCall::Search(q.into(), limit));
+        self.0
+            .skill_calls
+            .borrow_mut()
+            .push(SkillCall::Search(q.into(), limit));
         Ok(vec![serde_json::from_value(json!({ "id": "a/b/pdf", "source": "a/b", "skillId": "pdf", "name": "pdf", "installs": 3 })).expect("a hit")])
     }
 
     async fn get(&self, skill: &str) -> Result<SkillPreview, HostError> {
         self.0.say(format!("skills.get {skill}"));
-        self.0.skill_calls.borrow_mut().push(SkillCall::Get(skill.into()));
+        self.0
+            .skill_calls
+            .borrow_mut()
+            .push(SkillCall::Get(skill.into()));
         Ok(serde_json::from_value(json!({ "text": "# pdf", "size": 5 })).expect("a preview"))
     }
 
     async fn preview(&self, on: &AgentsOn, ask: &SkillAsk) -> Result<SkillPreview, HostError> {
-        self.0.say(format!("skills.preview {} {}", on_kind(on), skill_ask_json(ask)));
+        self.0.say(format!(
+            "skills.preview {} {}",
+            on_kind(on),
+            skill_ask_json(ask)
+        ));
         self.0.acted.borrow_mut().push(on.clone());
-        self.0.skill_calls.borrow_mut().push(SkillCall::Preview(on_json(on), ask.clone()));
+        self.0
+            .skill_calls
+            .borrow_mut()
+            .push(SkillCall::Preview(on_json(on), ask.clone()));
         Ok(serde_json::from_value(json!({ "text": "# pdf", "size": 5 })).expect("a preview"))
     }
 
     async fn add(&self, on: &AgentsOn, ask: &SkillAddAsk) -> Result<SkillAdded, HostError> {
-        self.0.say(format!("skills.add {} {}", on_kind(on), ask.skill));
+        self.0
+            .say(format!("skills.add {} {}", on_kind(on), ask.skill));
         self.0.acted.borrow_mut().push(on.clone());
-        self.0.skill_calls.borrow_mut().push(SkillCall::Add(on_json(on), ask.clone()));
+        self.0
+            .skill_calls
+            .borrow_mut()
+            .push(SkillCall::Add(on_json(on), ask.clone()));
         match self.0.failure("skills.add") {
             Some(e) => Err(e),
-            None => Ok(serde_json::from_value(json!({ "path": "~/.agents/skills/pdf", "agents": [] })).expect("added")),
+            None => Ok(serde_json::from_value(
+                json!({ "path": "~/.agents/skills/pdf", "agents": [] }),
+            )
+            .expect("added")),
         }
     }
 
     async fn remove(&self, on: &AgentsOn, ask: &SkillAsk) -> Result<Vec<String>, HostError> {
-        self.0.say(format!("skills.remove {} {}", on_kind(on), skill_ask_json(ask)));
+        self.0.say(format!(
+            "skills.remove {} {}",
+            on_kind(on),
+            skill_ask_json(ask)
+        ));
         self.0.acted.borrow_mut().push(on.clone());
-        self.0.skill_calls.borrow_mut().push(SkillCall::Remove(on_json(on), ask.clone()));
+        self.0
+            .skill_calls
+            .borrow_mut()
+            .push(SkillCall::Remove(on_json(on), ask.clone()));
         match self.0.failure("skills.remove") {
             Some(e) => Err(e),
             None => Ok(vec!["~/.agents/skills/pdf".to_string()]),
         }
     }
 
-    async fn toggle(&self, on: &AgentsOn, ask: &SkillAsk, to: bool) -> Result<Vec<String>, HostError> {
-        self.0.say(format!("skills.toggle {} {} to={to}", on_kind(on), skill_ask_json(ask)));
+    async fn toggle(
+        &self,
+        on: &AgentsOn,
+        ask: &SkillAsk,
+        to: bool,
+    ) -> Result<Vec<String>, HostError> {
+        self.0.say(format!(
+            "skills.toggle {} {} to={to}",
+            on_kind(on),
+            skill_ask_json(ask)
+        ));
         self.0.acted.borrow_mut().push(on.clone());
-        self.0.skill_calls.borrow_mut().push(SkillCall::Toggle(on_json(on), ask.clone(), to));
+        self.0
+            .skill_calls
+            .borrow_mut()
+            .push(SkillCall::Toggle(on_json(on), ask.clone(), to));
         match self.0.failure("skills.toggle") {
             Some(e) => Err(e),
             None => Ok(vec!["~/.agents/skills/pdf".to_string()]),
@@ -1068,9 +1325,13 @@ pub struct Servers(pub Rc<State>);
 #[async_trait(?Send)]
 impl ServersActs for Servers {
     async fn add(&self, on: &AgentsOn, ask: &ServerAdd) -> Result<String, HostError> {
-        self.0.say(format!("servers.add {} {}", on_kind(on), ask.name));
+        self.0
+            .say(format!("servers.add {} {}", on_kind(on), ask.name));
         self.0.acted.borrow_mut().push(on.clone());
-        self.0.server_writes.borrow_mut().push(ServerCall::Add(on_json(on), js(ask)));
+        self.0
+            .server_writes
+            .borrow_mut()
+            .push(ServerCall::Add(on_json(on), js(ask)));
         match self.0.failure("servers.add") {
             Some(e) => Err(e),
             None => Ok("~/.claude.json".to_string()),
@@ -1078,9 +1339,13 @@ impl ServersActs for Servers {
     }
 
     async fn remove(&self, on: &AgentsOn, ask: &ServerAsk) -> Result<String, HostError> {
-        self.0.say(format!("servers.remove {} {}", on_kind(on), ask.name));
+        self.0
+            .say(format!("servers.remove {} {}", on_kind(on), ask.name));
         self.0.acted.borrow_mut().push(on.clone());
-        self.0.server_writes.borrow_mut().push(ServerCall::Remove(on_json(on), js(ask)));
+        self.0
+            .server_writes
+            .borrow_mut()
+            .push(ServerCall::Remove(on_json(on), js(ask)));
         match self.0.failure("servers.remove") {
             Some(e) => Err(e),
             None => Ok("~/.claude.json".to_string()),
@@ -1088,9 +1353,16 @@ impl ServersActs for Servers {
     }
 
     async fn toggle(&self, on: &AgentsOn, ask: &ServerAsk, to: bool) -> Result<String, HostError> {
-        self.0.say(format!("servers.toggle {} {} to={to}", on_kind(on), ask.name));
+        self.0.say(format!(
+            "servers.toggle {} {} to={to}",
+            on_kind(on),
+            ask.name
+        ));
         self.0.acted.borrow_mut().push(on.clone());
-        self.0.server_writes.borrow_mut().push(ServerCall::Toggle(on_json(on), js(ask), to));
+        self.0
+            .server_writes
+            .borrow_mut()
+            .push(ServerCall::Toggle(on_json(on), js(ask), to));
         match self.0.failure("servers.toggle") {
             Some(e) => Err(e),
             None => Ok("~/.codex/config.toml".to_string()),
@@ -1110,10 +1382,22 @@ pub struct Plugins(pub Rc<State>);
 
 #[async_trait(?Send)]
 impl PluginsActs for Plugins {
-    async fn toggle(&self, on: &AgentsOn, ask: &PluginAsk, to: bool) -> Result<PluginRow, HostError> {
-        self.0.say(format!("plugins.toggle {} {} to={to}", on_kind(on), ask.plugin));
+    async fn toggle(
+        &self,
+        on: &AgentsOn,
+        ask: &PluginAsk,
+        to: bool,
+    ) -> Result<PluginRow, HostError> {
+        self.0.say(format!(
+            "plugins.toggle {} {} to={to}",
+            on_kind(on),
+            ask.plugin
+        ));
         self.0.acted.borrow_mut().push(on.clone());
-        self.0.plugin_calls.borrow_mut().push((on_json(on), ask.clone(), to));
+        self.0
+            .plugin_calls
+            .borrow_mut()
+            .push((on_json(on), ask.clone(), to));
         match self.0.failure("plugins.toggle") {
             Some(e) => Err(e),
             None => Ok(plugin_row()),
@@ -1175,7 +1459,13 @@ pub struct FakeRelay {
 
 impl FakeRelay {
     pub fn new(rig: &Rig, place: &str) -> Rc<FakeRelay> {
-        Rc::new(FakeRelay { place: place.to_string(), s: rig.s.clone(), asked: RefCell::new(vec![]), opened: RefCell::new(vec![]), closed: Rc::new(RefCell::new(vec![])) })
+        Rc::new(FakeRelay {
+            place: place.to_string(),
+            s: rig.s.clone(),
+            asked: RefCell::new(vec![]),
+            opened: RefCell::new(vec![]),
+            closed: Rc::new(RefCell::new(vec![])),
+        })
     }
 
     fn ours(&self, t: &AgentsTarget) -> bool {
@@ -1193,7 +1483,11 @@ impl CallbackForwards for FakeRelay {
         if !self.ours(target) {
             return None;
         }
-        let forward = Rc::new(FakeForward { n: self.opened.borrow().len() + 1, s: self.s.clone(), closed: self.closed.clone() });
+        let forward = Rc::new(FakeForward {
+            n: self.opened.borrow().len() + 1,
+            s: self.s.clone(),
+            closed: self.closed.clone(),
+        });
         self.opened.borrow_mut().push(forward.clone());
         Some(forward)
     }
@@ -1214,16 +1508,25 @@ pub fn no_follower() -> Follower {
 /// The TS `finished` helper: start a sign-in, let its plan run, finish it, and wait until the end said changed.
 pub async fn finished(rig: &Rig, api: &Rc<AgentsReads>, t: AgentsTarget, ask: SignInAsk) {
     let before = rig.changed.borrow().len();
-    api.sign_in(t, ask, no_follower(), None).await.ok().expect("a sign-in");
+    api.sign_in(t, ask, no_follower(), None)
+        .await
+        .expect("a sign-in");
     tick().await;
     rig.finish_plan();
     until(|| rig.changed.borrow().len() > before).await;
 }
 
 pub fn ask(agent: &str) -> SignInAsk {
-    SignInAsk { agent: agent.to_string(), ..SignInAsk::default() }
+    SignInAsk {
+        agent: agent.to_string(),
+        ..SignInAsk::default()
+    }
 }
 
 pub fn ask_server(agent: &str, server: &str) -> SignInAsk {
-    SignInAsk { agent: agent.to_string(), server: Some(server.to_string()), ..SignInAsk::default() }
+    SignInAsk {
+        agent: agent.to_string(),
+        server: Some(server.to_string()),
+        ..SignInAsk::default()
+    }
 }

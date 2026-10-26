@@ -115,6 +115,7 @@ function world(w: WorldIn) {
 const ws = (id: string, o: Partial<Rec> = {}): Rec => ({ id, kind: "cloud", machineId: `m-${id}`, phase: "running", project: "p", ...o });
 
 async function scene(name: string, w: WorldIn, act: (x: ReturnType<typeof world>) => Promise<void>) {
+  const before = JSON.parse(JSON.stringify(w)) as WorldIn;
   const x = world(w);
   try {
     await act(x);
@@ -122,7 +123,7 @@ async function scene(name: string, w: WorldIn, act: (x: ReturnType<typeof world>
   } finally {
     x.done();
   }
-  return { name, world: w, log: x.log, records: x.records() };
+  return { name, world: before, log: x.log, records: x.records() };
 }
 
 it("daemon", async () => {

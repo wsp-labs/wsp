@@ -14,7 +14,9 @@ fn listed_rows_every_fact_a_listing_carries_and_none_a_row_does_not() {
 
 #[test]
 fn thread_facts_the_listing_s_thread_with_the_latest_row_s_model_and_the_running_tu() {
-    check_rows_scene("thread facts: the listing's thread with the latest row's model and the running turn");
+    check_rows_scene(
+        "thread facts: the listing's thread with the latest row's model and the running turn",
+    );
 }
 
 #[test]

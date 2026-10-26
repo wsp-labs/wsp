@@ -16,7 +16,11 @@ use wsp_wire::wire::place_link::PlaceProveRequest;
 use wsp_words::exit::HostError;
 
 fn views_oracle(key: &str) -> Value {
-    let text = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/oracle/places_b_views.json")).unwrap();
+    let text = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/oracle/places_b_views.json"
+    ))
+    .unwrap();
     serde_json::from_str::<Value>(&text).unwrap()[key].clone()
 }
 
@@ -27,13 +31,32 @@ fn line(key: &str) -> String {
 /// The oracle row with what `with_cap` adds taken off: what `view_of`, `here_row` and `provider_row` answer.
 fn bare(row: &Value) -> Value {
     let mut row = row.clone();
-    for k in ["cap", "capDefault", "settings", "napMs", "napDefault", "turnLimitMs", "turnLimitDefault", "spawn", "spawnDefault", "running", "size", "sizeDefault", "deleteAfterMs"] {
+    for k in [
+        "cap",
+        "capDefault",
+        "settings",
+        "napMs",
+        "napDefault",
+        "turnLimitMs",
+        "turnLimitDefault",
+        "spawn",
+        "spawnDefault",
+        "running",
+        "size",
+        "sizeDefault",
+        "deleteAfterMs",
+    ] {
         row.as_object_mut().unwrap().shift_remove(k);
     }
     row
 }
 
-fn prove(signature: &str, report: Value, code: Option<&str>, client: Option<&str>) -> PlaceProveRequest {
+fn prove(
+    signature: &str,
+    report: Value,
+    code: Option<&str>,
+    client: Option<&str>,
+) -> PlaceProveRequest {
     let mut req = json!({ "id": 7, "signature": signature, "report": report });
     if let Some(c) = code {
         req["code"] = json!(c);
@@ -52,8 +75,16 @@ fn pending_records_sorted_and_passthrough() {
     run(async {
         let d = door(|s| {
             s.pending = vec![
-                pending_json("a_000000000002", "10.0.0.9", json!({ "step": "wsp", "startedAt": "2026-10-03T00:00:00.000Z", "undo": "rm -rf ~/.wsp", "login": "root@10.0.0.9", "keyPath": "/k", "hostKey": "ssh-ed25519 B" })),
-                pending_json("a_000000000001", "10.0.0.5", json!({ "startedAt": "2026-10-02T00:00:00.000Z" })),
+                pending_json(
+                    "a_000000000002",
+                    "10.0.0.9",
+                    json!({ "step": "wsp", "startedAt": "2026-10-03T00:00:00.000Z", "undo": "rm -rf ~/.wsp", "login": "root@10.0.0.9", "keyPath": "/k", "hostKey": "ssh-ed25519 B" }),
+                ),
+                pending_json(
+                    "a_000000000001",
+                    "10.0.0.5",
+                    json!({ "startedAt": "2026-10-02T00:00:00.000Z" }),
+                ),
                 json!({ "id": "a_bad", "address": 5 }),
             ]
         });
@@ -72,12 +103,25 @@ fn put_pending_frame_hides_record_fields() {
     // spec: V2.
     run(async {
         let d = door(|_| {});
-        let p = pending_record(pending_json("a_000000000003", "10.0.0.3", json!({ "undo": "rm x", "login": "root@10.0.0.3", "keyPath": "/k" })));
+        let p = pending_record(pending_json(
+            "a_000000000003",
+            "10.0.0.3",
+            json!({ "undo": "rm x", "login": "root@10.0.0.3", "keyPath": "/k" }),
+        ));
         d.views.put_pending(&p).await.unwrap();
         let stored = d.store.doc("pending-computers", "a_000000000003").unwrap();
-        assert_eq!((stored["undo"].clone(), stored["login"].clone(), stored["keyPath"].clone()), (json!("rm x"), json!("root@10.0.0.3"), json!("/k")));
+        assert_eq!(
+            (
+                stored["undo"].clone(),
+                stored["login"].clone(),
+                stored["keyPath"].clone()
+            ),
+            (json!("rm x"), json!("root@10.0.0.3"), json!("/k"))
+        );
         let frames = d.setups.borrow();
-        let SetupEvent::Pending(frame) = &frames[0] else { panic!("a place.pending frame, got {frames:?}") };
+        let SetupEvent::Pending(frame) = &frames[0] else {
+            panic!("a place.pending frame, got {frames:?}")
+        };
         assert_eq!(frame.id, "a_000000000003");
         let view = js(frame.pending.as_ref().unwrap());
         for k in ["undo", "login", "keyPath", "hostKey"] {
@@ -95,8 +139,13 @@ fn drop_pending_frame_has_no_pending() {
         d.views.drop_pending("a_000000000001").await.unwrap();
         assert!(d.pending_docs().is_empty());
         let frames = d.setups.borrow();
-        let SetupEvent::Pending(frame) = &frames[0] else { panic!("a place.pending frame") };
-        assert_eq!((frame.id.as_str(), frame.pending.is_none()), ("a_000000000001", true));
+        let SetupEvent::Pending(frame) = &frames[0] else {
+            panic!("a place.pending frame")
+        };
+        assert_eq!(
+            (frame.id.as_str(), frame.pending.is_none()),
+            ("a_000000000001", true)
+        );
     });
 }
 
@@ -106,22 +155,46 @@ fn drop_pending_frame_has_no_pending() {
 fn floor_while_choosing_no_provisioner_goes_choosing() {
     // spec: V4. TS: places-setup.test.ts:1221 "a computer added with nothing picked waits at its choices".
     run(async {
-        let d = door(|s| s.pending = vec![pending_json("a_000000000001", "10.0.0.5", json!({ "step": "join" }))]);
+        let d = door(|s| {
+            s.pending = vec![pending_json(
+                "a_000000000001",
+                "10.0.0.5",
+                json!({ "step": "floor" }),
+            )]
+        });
         let p = pending_record(d.pending_docs()[0].clone());
         d.views.floor_while_choosing(&p, PLACE).await.unwrap();
         let stored = d.store.doc("pending-computers", "a_000000000001").unwrap();
-        assert_eq!((stored["step"].clone(), stored["placeId"].clone()), (json!("choosing"), json!(PLACE)));
+        assert_eq!(
+            (stored["step"].clone(), stored["placeId"].clone()),
+            (json!("choosing"), json!(PLACE))
+        );
         assert!(stored.get("failed").is_none());
-        assert_eq!(d.setups.borrow().len(), 1, "one write: no floor step written");
+        assert_eq!(
+            d.setups.borrow().len(),
+            1,
+            "one write: no floor step written"
+        );
     });
 }
 
 fn flooring(rows: Result<Vec<Value>, &'static str>) -> Door {
     door(move |s| {
-        s.pending = vec![pending_json("a_000000000001", "10.0.0.5", json!({ "step": "join" }))];
+        s.pending = vec![pending_json(
+            "a_000000000001",
+            "10.0.0.5",
+            json!({ "step": "floor" }),
+        )];
         *s.setup.link.borrow_mut() = Some(FakeMachineLink::exec_says(""));
         let prov = Rc::new(Provision::default());
-        *prov.floor_rows.borrow_mut() = Some(rows.map(|r| r.into_iter().map(|v| serde_json::from_value(v).unwrap()).collect()).map_err(String::from));
+        *prov.floor_rows.borrow_mut() = Some(
+            rows.map(|r| {
+                r.into_iter()
+                    .map(|v| serde_json::from_value(v).unwrap())
+                    .collect()
+            })
+            .map_err(String::from),
+        );
         s.wiring = Box::new(move |w| w.provision = Some(prov));
     })
 }
@@ -140,10 +213,15 @@ fn floor_failed_row_says_on_pending() {
         let stored = d.store.doc("pending-computers", "a_000000000001").unwrap();
         assert_eq!(stored["step"], json!("choosing"));
         assert_eq!(stored["failed"], json!({ "said": line("floorFailed") }));
-        let steps: Vec<Value> = d.setups.borrow().iter().map(|e| match e {
-            SetupEvent::Pending(p) => js(p.pending.as_ref().unwrap())["step"].clone(),
-            _ => Value::Null,
-        }).collect();
+        let steps: Vec<Value> = d
+            .setups
+            .borrow()
+            .iter()
+            .map(|e| match e {
+                SetupEvent::Pending(p) => js(p.pending.as_ref().unwrap())["step"].clone(),
+                _ => Value::Null,
+            })
+            .collect();
         assert_eq!(steps, vec![json!("floor"), json!("choosing")]);
     });
 }
@@ -156,7 +234,10 @@ fn floor_throw_is_one_floor_row() {
         let p = pending_record(d.pending_docs()[0].clone());
         d.views.floor_while_choosing(&p, PLACE).await.unwrap();
         let stored = d.store.doc("pending-computers", "a_000000000001").unwrap();
-        assert_eq!(stored["failed"], json!({ "said": format!("the base tools did not install: {}", line("floorWord")) }));
+        assert_eq!(
+            stored["failed"],
+            json!({ "said": format!("the base tools did not install: {}", line("floorWord")) })
+        );
     });
 }
 
@@ -167,23 +248,47 @@ fn floor_pending_gone_writes_nothing() {
         let prov = Rc::new(Provision::default());
         let p2 = prov.clone();
         let d = door(move |s| {
-            s.pending = vec![pending_json("a_000000000001", "10.0.0.5", json!({ "step": "join" }))];
+            s.pending = vec![pending_json(
+                "a_000000000001",
+                "10.0.0.5",
+                json!({ "step": "floor" }),
+            )];
             *s.setup.link.borrow_mut() = Some(FakeMachineLink::exec_says(""));
             s.wiring = Box::new(move |w| w.provision = Some(p2));
         });
         let store = d.store.clone();
         *prov.on_floor.borrow_mut() = Some(Box::new(move || {
-            store.docs.borrow_mut().get_mut("pending-computers").unwrap().shift_remove("a_000000000001");
+            store
+                .docs
+                .borrow_mut()
+                .get_mut("pending-computers")
+                .unwrap()
+                .shift_remove("a_000000000001");
         }));
         let p = pending_record(d.pending_docs()[0].clone());
         d.views.floor_once(&p, PLACE).await.unwrap();
-        assert!(d.store.doc("pending-computers", "a_000000000001").is_none(), "the floor's end wrote nothing back");
-        let steps: Vec<Value> = d.setups.borrow().iter().map(|e| match e {
-            SetupEvent::Pending(p) => js(p.pending.as_ref().unwrap())["step"].clone(),
-            _ => Value::Null,
-        }).collect();
-        assert_eq!(steps, vec![json!("floor")], "only the floor step was written");
-        assert!(d.views.flooring.borrow().is_empty(), "floor_once took its mark off");
+        assert!(
+            d.store.doc("pending-computers", "a_000000000001").is_none(),
+            "the floor's end wrote nothing back"
+        );
+        let steps: Vec<Value> = d
+            .setups
+            .borrow()
+            .iter()
+            .map(|e| match e {
+                SetupEvent::Pending(p) => js(p.pending.as_ref().unwrap())["step"].clone(),
+                _ => Value::Null,
+            })
+            .collect();
+        assert_eq!(
+            steps,
+            vec![json!("floor")],
+            "only the floor step was written"
+        );
+        assert!(
+            d.views.flooring.borrow().is_empty(),
+            "floor_once took its mark off"
+        );
     });
 }
 
@@ -192,10 +297,17 @@ fn taken_back_without_undo_road() {
     // spec: V6. TS: places-setup.test.ts:1272 "an add the host stopped mid-install is taken back at the next start".
     run(async {
         let d = door(|_| {});
-        let p = pending_record(pending_json("a_000000000002", "10.0.0.9", json!({ "step": "wsp", "undo": "rm -rf ~/.wsp", "login": "root@10.0.0.9" })));
+        let p = pending_record(pending_json(
+            "a_000000000002",
+            "10.0.0.9",
+            json!({ "step": "wsp", "undo": "rm -rf ~/.wsp", "login": "root@10.0.0.9" }),
+        ));
         d.views.taken_back(&p).await.unwrap();
         let stored = d.store.doc("pending-computers", "a_000000000002").unwrap();
-        assert_eq!(stored["failed"], json!({ "said": line("addNotTakenBack"), "fix": line("addStoppedFix") }));
+        assert_eq!(
+            stored["failed"],
+            json!({ "said": line("addNotTakenBack"), "fix": line("addStoppedFix") })
+        );
         assert_eq!(stored["step"], json!("wsp"), "the step stays");
         assert_eq!(stored["undo"], json!("rm -rf ~/.wsp"));
     });
@@ -207,14 +319,35 @@ fn taken_back_undo_ok() {
     run(async {
         let seen = Rc::new(std::cell::RefCell::new(Vec::new()));
         let s2 = seen.clone();
-        let d = door(move |s| s.wiring = Box::new(move |w| w.undo = Some(Rc::new(Undo(Box::new(move |login, script| {
-            s2.borrow_mut().push((login.clone(), script.to_string()));
-            Ok(())
-        }))))));
-        let p = pending_record(pending_json("a_000000000002", "10.0.0.9", json!({ "step": "wsp", "undo": "rm -rf ~/.wsp", "login": "root@10.0.0.9", "keyPath": "/k", "hostKey": "ssh-ed25519 B" })));
+        let d = door(move |s| {
+            s.wiring = Box::new(move |w| {
+                w.undo = Some(Rc::new(Undo(Box::new(move |login, script| {
+                    s2.borrow_mut().push((login.clone(), script.to_string()));
+                    Ok(())
+                }))))
+            })
+        });
+        let p = pending_record(pending_json(
+            "a_000000000002",
+            "10.0.0.9",
+            json!({ "step": "wsp", "undo": "rm -rf ~/.wsp", "login": "root@10.0.0.9", "keyPath": "/k", "hostKey": "ssh-ed25519 B" }),
+        ));
         d.views.taken_back(&p).await.unwrap();
-        assert_eq!(*seen.borrow(), vec![(PlaceLogin { ssh: "root@10.0.0.9".into(), key_path: Some("/k".into()), host_key: Some("ssh-ed25519 B".into()) }, "rm -rf ~/.wsp".to_string())]);
-        assert_eq!(d.store.doc("pending-computers", "a_000000000002").unwrap()["failed"], json!({ "said": line("addStopped"), "fix": "Add it again." }));
+        assert_eq!(
+            *seen.borrow(),
+            vec![(
+                PlaceLogin {
+                    ssh: "root@10.0.0.9".into(),
+                    key_path: Some("/k".into()),
+                    host_key: Some("ssh-ed25519 B".into())
+                },
+                "rm -rf ~/.wsp".to_string()
+            )]
+        );
+        assert_eq!(
+            d.store.doc("pending-computers", "a_000000000002").unwrap()["failed"],
+            json!({ "said": line("addStopped"), "fix": "Add it again." })
+        );
     });
 }
 
@@ -222,12 +355,27 @@ fn taken_back_undo_ok() {
 fn taken_back_undo_fails_first_line() {
     // spec: V6.
     run(async {
-        let d = door(|s| s.wiring = Box::new(|w| w.undo = Some(Rc::new(Undo(Box::new(|_, _| Err(HostError::new("ssh: connect to host 10.0.0.9 port 22: No route to host\nmore"))))))));
-        let p = pending_record(pending_json("a_000000000002", "10.0.0.9", json!({ "step": "wsp", "undo": "rm", "login": "root@10.0.0.9" })));
+        let d = door(|s| {
+            s.wiring = Box::new(|w| {
+                w.undo = Some(Rc::new(Undo(Box::new(|_, _| {
+                    Err(HostError::new(
+                        "ssh: connect to host 10.0.0.9 port 22: No route to host\nmore",
+                    ))
+                }))))
+            })
+        });
+        let p = pending_record(pending_json(
+            "a_000000000002",
+            "10.0.0.9",
+            json!({ "step": "wsp", "undo": "rm", "login": "root@10.0.0.9" }),
+        ));
         d.views.taken_back(&p).await.unwrap();
         assert_eq!(
             d.store.doc("pending-computers", "a_000000000002").unwrap()["failed"]["said"],
-            json!(format!("{}: ssh: connect to host 10.0.0.9 port 22: No route to host", line("addNotTakenBack")))
+            json!(format!(
+                "{}: ssh: connect to host 10.0.0.9 port 22: No route to host",
+                line("addNotTakenBack")
+            ))
         );
     });
 }
@@ -251,10 +399,19 @@ fn store_files_off_failure_is_empty() {
     // spec: V9: a failure takes nothing off and fails nothing.
     run(async {
         let d = door(|s| {
-            *s.setup.link.borrow_mut() = Some(FakeMachineLink::new(|_, _| Err("the link went".into())));
-            *s.recording.stores.borrow_mut() = Some([("claude".to_string(), "/srv/claude".to_string())].into_iter().collect());
+            *s.setup.link.borrow_mut() =
+                Some(FakeMachineLink::new(|_, _| Err("the link went".into())));
+            *s.recording.stores.borrow_mut() = Some(
+                [("claude".to_string(), "/srv/claude".to_string())]
+                    .into_iter()
+                    .collect(),
+            );
         });
-        assert!(d.views.store_files_off(PLACE, &record(json!({}))).await.is_empty());
+        assert!(d
+            .views
+            .store_files_off(PLACE, &record(json!({})))
+            .await
+            .is_empty());
         let homeless = record(json!({ "report": report(json!({ "login": {} })) }));
         assert!(d.views.store_files_off(PLACE, &homeless).await.is_empty());
     });
@@ -262,8 +419,21 @@ fn store_files_off_failure_is_empty() {
 
 fn undos() -> Vec<PlaceUndo> {
     vec![
-        PlaceUndo { key: "plugins/lint".into(), label: "lint".into(), ids: vec!["plugins/lint".into()], owner: Some("plugins/lint".into()), cmd: Some("claude plugin uninstall lint".into()), ..Default::default() },
-        PlaceUndo { key: "plugins/fmt".into(), label: "fmt".into(), ids: vec!["plugins/fmt".into()], note: Some("no command".into()), ..Default::default() },
+        PlaceUndo {
+            key: "plugins/lint".into(),
+            label: "lint".into(),
+            ids: vec!["plugins/lint".into()],
+            owner: Some("plugins/lint".into()),
+            cmd: Some("claude plugin uninstall lint".into()),
+            ..Default::default()
+        },
+        PlaceUndo {
+            key: "plugins/fmt".into(),
+            label: "fmt".into(),
+            ids: vec!["plugins/fmt".into()],
+            note: Some("no command".into()),
+            ..Default::default()
+        },
     ]
 }
 
@@ -278,9 +448,15 @@ fn plugins_off_only_installed_rows() {
             *s.setup.link.borrow_mut() = Some(FakeMachineLink::exec_says(""));
             s.wiring = Box::new(move |w| w.provision = Some(p2));
         });
-        let got = d.views.plugins_off(PLACE, &record(json!({})), true, None, None).await;
+        let got = d
+            .views
+            .plugins_off(PLACE, &record(json!({})), true, None, None)
+            .await;
         // lint was installed by the setup; fmt was present before wsp and old was never applied.
-        assert_eq!(*prov.log.borrow(), vec!["undo /home/maya plugins/lint".to_string()]);
+        assert_eq!(
+            *prov.log.borrow(),
+            vec!["undo /home/maya plugins/lint".to_string()]
+        );
         assert_eq!(got.off, vec![line("pluginOff")]);
         assert!(got.kept.is_empty());
     });
@@ -294,10 +470,16 @@ fn plugins_off_link_then_login_roads() {
         *prov.undos.borrow_mut() = Some(undos());
         let link = FakeMachineLink::exec_says("");
         let (p2, l2) = (prov.clone(), link.clone());
-        let road = Rc::new(RunOverRoad(Box::new(|_, _, timeout, pw| {
-            assert_eq!((timeout, pw), (300_000, Some("pw")));
-            Ok(RunOver { exit_code: 0, ..Default::default() })
-        }), std::cell::RefCell::new(Vec::new())));
+        let road = Rc::new(RunOverRoad(
+            Box::new(|_, _, timeout, pw| {
+                assert_eq!((timeout, pw), (300_000, Some("pw")));
+                Ok(RunOver {
+                    exit_code: 0,
+                    ..Default::default()
+                })
+            }),
+            std::cell::RefCell::new(Vec::new()),
+        ));
         let r2 = road.clone();
         let d = door(move |s| {
             *s.setup.link.borrow_mut() = Some(l2);
@@ -306,15 +488,57 @@ fn plugins_off_link_then_login_roads() {
                 w.run_over = Some(r2);
             });
         });
-        let linked = d.views.plugins_off(PLACE, &record(json!({})), true, Some(&PlaceLogin { ssh: "maya@10.0.0.5".into(), ..Default::default() }), Some("pw")).await;
+        let linked = d
+            .views
+            .plugins_off(
+                PLACE,
+                &record(json!({})),
+                true,
+                Some(&PlaceLogin {
+                    ssh: "maya@10.0.0.5".into(),
+                    ..Default::default()
+                }),
+                Some("pw"),
+            )
+            .await;
         assert_eq!(linked.off, vec!["plugin lint"]);
-        assert!(link.ops().iter().any(|(op, p)| op == "exec" && p["cmd"] == json!("claude plugin uninstall lint")), "{:?}", link.ops());
-        assert!(road.1.borrow().is_empty(), "nothing over the login while linked");
-        let over = d.views.plugins_off(PLACE, &record(json!({})), false, Some(&PlaceLogin { ssh: "maya@10.0.0.5".into(), ..Default::default() }), Some("pw")).await;
+        assert!(
+            link.ops()
+                .iter()
+                .any(|(op, p)| op == "exec" && p["cmd"] == json!("claude plugin uninstall lint")),
+            "{:?}",
+            link.ops()
+        );
+        assert!(
+            road.1.borrow().is_empty(),
+            "nothing over the login while linked"
+        );
+        let over = d
+            .views
+            .plugins_off(
+                PLACE,
+                &record(json!({})),
+                false,
+                Some(&PlaceLogin {
+                    ssh: "maya@10.0.0.5".into(),
+                    ..Default::default()
+                }),
+                Some("pw"),
+            )
+            .await;
         assert_eq!(over.off, vec!["plugin lint"]);
-        assert_eq!(*road.1.borrow(), vec!["claude plugin uninstall lint".to_string()]);
-        let nowhere = d.views.plugins_off(PLACE, &record(json!({})), false, None, None).await;
-        assert_eq!((nowhere.off.len(), nowhere.kept.clone()), (0, vec!["lint".to_string()]));
+        assert_eq!(
+            *road.1.borrow(),
+            vec!["claude plugin uninstall lint".to_string()]
+        );
+        let nowhere = d
+            .views
+            .plugins_off(PLACE, &record(json!({})), false, None, None)
+            .await;
+        assert_eq!(
+            (nowhere.off.len(), nowhere.kept.clone()),
+            (0, vec!["lint".to_string()])
+        );
     });
 }
 
@@ -323,10 +547,20 @@ fn plugins_off_kept_names_and_labels() {
     // spec: V10: a name with no planned command stays by its name; one whose command failed by its label.
     run(async {
         let prov = Rc::new(Provision::default());
-        *prov.undos.borrow_mut() = Some(vec![PlaceUndo { key: "plugins/lint".into(), label: "Lint (claude)".into(), ids: vec![], cmd: Some("claude plugin uninstall lint".into()), ..Default::default() }]);
+        *prov.undos.borrow_mut() = Some(vec![PlaceUndo {
+            key: "plugins/lint".into(),
+            label: "Lint (claude)".into(),
+            ids: vec![],
+            cmd: Some("claude plugin uninstall lint".into()),
+            ..Default::default()
+        }]);
         let p2 = prov.clone();
         let d = door(move |s| {
-            *s.setup.link.borrow_mut() = Some(FakeMachineLink::new(|_, _| Ok(obj(json!({ "exitCode": 1, "stdout": "", "stderr": "not installed", "truncated": false })))));
+            *s.setup.link.borrow_mut() = Some(FakeMachineLink::new(|_, _| {
+                Ok(obj(
+                    json!({ "exitCode": 1, "stdout": "", "stderr": "not installed", "truncated": false }),
+                ))
+            }));
             s.wiring = Box::new(move |w| w.provision = Some(p2));
         });
         let mut doc = record_json(json!({}));
@@ -334,7 +568,10 @@ fn plugins_off_kept_names_and_labels() {
         let held: PlaceRecord = serde_json::from_value(doc).unwrap();
         let got = d.views.plugins_off(PLACE, &held, true, None, None).await;
         assert!(got.off.is_empty());
-        assert_eq!(got.kept, vec!["old".to_string(), "Lint (claude)".to_string()]);
+        assert_eq!(
+            got.kept,
+            vec!["old".to_string(), "Lint (claude)".to_string()]
+        );
         // No undo road at all: nothing, not even kept names.
         let bare = door(|_| {});
         let none = bare.views.plugins_off(PLACE, &held, true, None, None).await;
@@ -349,6 +586,7 @@ fn facts_on_answers_held_after_add_facts_ms() {
     // spec: V11. TS: places-facts.test.ts:48 "a computer slower than one round trip joins all the same".
     run(async {
         let d = door(|_| {});
+        d.links.slow.set(true);
         let held = record(json!({}));
         let (views, h2) = (d.views.clone(), held.clone());
         let read = tokio::task::spawn_local(async move { views.facts_on(PLACE, &h2).await });
@@ -365,7 +603,10 @@ fn backend_from_replaces_kept_backend() {
     // spec: V12.
     run(async {
         let d = door(|s| *s.setup.link.borrow_mut() = Some(FakeMachineLink::exec_says("")));
-        d.ctx.backends.borrow_mut().insert(PLACE.into(), StubBackend::new().arc());
+        d.ctx
+            .backends
+            .borrow_mut()
+            .insert(PLACE.into(), StubBackend::new().arc());
         let facts = serde_json::from_value(at("/record/report").get("facts").cloned().unwrap_or(json!({
             "offer": "docker",
             "capabilities": StubBackend::new().capabilities,
@@ -375,7 +616,10 @@ fn backend_from_replaces_kept_backend() {
         if let Ok(facts) = facts {
             let made = d.views.backend_from(PLACE, facts);
             let kept = d.ctx.backends.borrow().get(PLACE).cloned().unwrap();
-            assert!(std::sync::Arc::ptr_eq(&made, &kept), "the backend made is the one kept");
+            assert!(
+                std::sync::Arc::ptr_eq(&made, &kept),
+                "the backend made is the one kept"
+            );
             assert_eq!(d.setup.calls(), vec![format!("linkTo {PLACE}")]);
         } else {
             panic!("the backend facts fixture no longer parses");
@@ -388,9 +632,13 @@ fn tunnelled_other_place_is_false() {
     // spec: V13: only tunnel frames, and only a connection a forward of this place holds.
     run(async {
         let d = door(|_| {});
-        let data: wsp_wire::wire::daemon_events::DaemonEvent = serde_json::from_value(json!({ "type": "tunnel.data", "tunnelId": "t1", "data": "aGk=" })).unwrap();
+        let data: wsp_wire::wire::daemon_events::DaemonEvent = serde_json::from_value(
+            json!({ "type": "tunnel.data", "tunnelId": "t1", "data": "aGk=" }),
+        )
+        .unwrap();
         assert!(!d.views.tunnelled(PLACE, &data));
-        let other: wsp_wire::wire::daemon_events::DaemonEvent = serde_json::from_value(json!({ "type": "tunnel.end", "tunnelId": "t1" })).unwrap();
+        let other: wsp_wire::wire::daemon_events::DaemonEvent =
+            serde_json::from_value(json!({ "type": "tunnel.end", "tunnelId": "t1" })).unwrap();
         assert!(!d.views.tunnelled(PLACE, &other));
     });
 }
@@ -406,10 +654,16 @@ fn cut_removes_link_then_closes_1000() {
         assert!(!d.ctx.live.borrow().contains_key(PLACE));
         assert!(seen_cancelled.get(), "the seen timer was cancelled");
         assert!(reach.closed.get());
-        assert_eq!(*socket.closed.borrow(), Some((1000, "removed from this host".to_string())));
+        assert_eq!(
+            *socket.closed.borrow(),
+            Some((1000, "removed from this host".to_string()))
+        );
         // A second cut is nothing.
         d.views.cut(PLACE, "again");
-        assert_eq!(*socket.closed.borrow(), Some((1000, "removed from this host".to_string())));
+        assert_eq!(
+            *socket.closed.borrow(),
+            Some((1000, "removed from this host".to_string()))
+        );
     });
 }
 
@@ -440,7 +694,10 @@ fn forks_of_room_and_running() {
         });
         link(&d, PLACE, FakeReach::answering(vec![]));
         let got = d.views.forks_of(&record(json!({}))).await.unwrap();
-        assert_eq!(js(&got), json!({ "running": 2, "room": views_oracle("room") }));
+        assert_eq!(
+            js(&got),
+            json!({ "running": 2, "room": views_oracle("room") })
+        );
         // A backend that offers no capacity says nothing.
         let mut quiet = StubBackend::new();
         quiet.offers.capacity = false;
@@ -459,7 +716,9 @@ fn forks_of_capacity_bound_is_none() {
     run(async {
         let mut b = StubBackend::new();
         b.offers.capacity = true;
-        *b.capacity.lock().unwrap() = Some(Err("machine.capacity on old-macbook was not answered in 5s".into()));
+        *b.capacity.lock().unwrap() = Some(Err(
+            "machine.capacity on old-macbook was not answered in 5s".into(),
+        ));
         let backend = b.arc();
         let d = door(move |s| {
             s.links.backends.borrow_mut().insert(PLACE.into(), backend);
@@ -479,8 +738,8 @@ fn view_of_full_row() {
         let row = d.views.view_of(&record(json!({})), Some("here"));
         assert_eq!(js(&row), bare(&at("/rows/plain/1")));
         let defaulted = d.views.view_of(&record(json!({})), Some(PLACE));
-        assert_eq!(defaulted.default, true);
-        assert_eq!(d.views.view_of(&record(json!({})), None).default, false);
+        assert!(defaulted.default);
+        assert!(!d.views.view_of(&record(json!({})), None).default);
     });
 }
 
@@ -489,11 +748,21 @@ fn view_of_road_hides_key_path_and_host_key() {
     // spec: V16. Oracle /rows/behind/1: a road holding only a key file is `road: {}`.
     run(async {
         let d = door(|_| {});
-        let row = js(&d.views.view_of(&record(json!({ "road": { "keyPath": "/k", "hostKey": "ssh-ed25519 A" } })), Some("here")));
+        let row = js(&d.views.view_of(
+            &record(json!({ "road": { "keyPath": "/k", "hostKey": "ssh-ed25519 A" } })),
+            Some("here"),
+        ));
         assert_eq!(row["road"], json!({}));
         let full = js(&d.views.view_of(&record(json!({})), Some("here")));
-        assert_eq!(full["road"], json!({ "ssh": "maya@10.0.0.5", "from": "10.0.0.5" }));
-        assert!(js(&d.views.view_of(&record(json!({ "road": null })), Some("here"))).get("road").is_none());
+        assert_eq!(
+            full["road"],
+            json!({ "ssh": "maya@10.0.0.5", "from": "10.0.0.5" })
+        );
+        assert!(js(&d
+            .views
+            .view_of(&record(json!({ "road": null })), Some("here")))
+        .get("road")
+        .is_none());
     });
 }
 
@@ -503,10 +772,20 @@ fn view_of_takes_runtime_needs_leave_asks() {
     run(async {
         let dv = daemon_version();
         let d = door(|_| {});
-        let held = record(json!({ "report": report(json!({ "daemonVersion": dv - 1, "takesRuntime": true, "logins": ["codex/auth.json"] })), "road": { "keyPath": "/k" } }));
-        assert_eq!(js(&d.views.view_of(&held, Some("here"))), bare(&at("/rows/behind/1")));
-        let asks = record(json!({ "report": report(json!({ "takesRuntime": true, "wspDaemonVersion": 999 })) }));
-        assert_eq!(d.views.view_of(&asks, Some("here")).takes_runtime, Some(true));
+        let held = record(
+            json!({ "report": report(json!({ "daemonVersion": dv - 1, "takesRuntime": true, "logins": ["codex/auth.json"] })), "road": { "keyPath": "/k" } }),
+        );
+        assert_eq!(
+            js(&d.views.view_of(&held, Some("here"))),
+            bare(&at("/rows/behind/1"))
+        );
+        let asks = record(
+            json!({ "report": report(json!({ "takesRuntime": true, "wspDaemonVersion": 999 })) }),
+        );
+        assert_eq!(
+            d.views.view_of(&asks, Some("here")).takes_runtime,
+            Some(true)
+        );
     });
 }
 
@@ -516,11 +795,21 @@ fn view_of_sign_ins_absent_without_logins() {
     run(async {
         let d = door(|_| {});
         let old = record(json!({ "report": report(json!({ "logins": null })) }));
-        assert!(js(&d.views.view_of(&old, Some("here"))).get("signIns").is_none());
-        let blocked = record(json!({ "report": report(json!({ "runsWorkspaces": false, "workspacesBlocked": "docker is not running" })) }));
-        assert_eq!(d.views.view_of(&blocked, Some("here")).blocked.as_deref(), Some(line("blocked").as_str()));
+        assert!(js(&d.views.view_of(&old, Some("here")))
+            .get("signIns")
+            .is_none());
+        let blocked = record(
+            json!({ "report": report(json!({ "runsWorkspaces": false, "workspacesBlocked": "docker is not running" })) }),
+        );
+        assert_eq!(
+            d.views.view_of(&blocked, Some("here")).blocked.as_deref(),
+            Some(line("blocked").as_str())
+        );
         link(&d, PLACE, FakeReach::answering(vec![]));
-        assert_eq!(d.views.view_of(&record(json!({})), Some("here")).present, Some(true));
+        assert_eq!(
+            d.views.view_of(&record(json!({})), Some("here")).present,
+            Some(true)
+        );
     });
 }
 
@@ -532,12 +821,30 @@ fn joined_door() -> Door {
     d
 }
 
-fn proving(d: &Door, report: Value, code: Option<&str>, client: Option<&str>) -> (Joining, PlaceProveRequest, Vec<u8>) {
+fn proving(
+    d: &Door,
+    report: Value,
+    code: Option<&str>,
+    client: Option<&str>,
+) -> (Joining, PlaceProveRequest, Vec<u8>) {
     let place = new_place_key_pair();
     let expect = b"the transcript the host's challenge asked the place to sign".to_vec();
     let sig = sign_place_bytes(&place.private_key_pem, &expect).unwrap();
-    d.views.joining.borrow_mut().insert(PLACE.into(), Joining { public_key: place.public_key.clone(), at: NOW });
-    (Joining { public_key: place.public_key, at: NOW }, prove(&sig, report, code, client), expect)
+    d.views.joining.borrow_mut().insert(
+        PLACE.into(),
+        Joining {
+            public_key: place.public_key.clone(),
+            at: NOW,
+        },
+    );
+    (
+        Joining {
+            public_key: place.public_key,
+            at: NOW,
+        },
+        prove(&sig, report, code, client),
+        expect,
+    )
 }
 
 #[test]
@@ -546,20 +853,42 @@ fn joined_writes_record_marks_default_emits() {
     run(async {
         let d = joined_door();
         let (pending, req, expect) = proving(&d, at("/record/report"), Some("CODE1"), None);
-        let proved = d.views.joined(PLACE, pending.clone(), req, &expect, "192.168.1.20", NOW).await.unwrap();
-        let Proved::Report { report, device } = proved else { panic!("a report, got {proved:?}") };
+        let proved = d
+            .views
+            .joined(PLACE, pending.clone(), req, &expect, "192.168.1.20", NOW)
+            .await
+            .unwrap();
+        let Proved::Report { report, device } = proved else {
+            panic!("a report, got {proved:?}")
+        };
         assert_eq!(device, None);
         assert_eq!(js(&report)["login"]["HOME"], json!("/home/maya"));
         let stored = d.stored(PLACE).unwrap();
         assert_eq!(stored["publicKey"], json!(pending.public_key));
-        assert_eq!((stored["joinedAt"].clone(), stored["lastSeenAt"].clone(), stored["reportedAt"].clone()), (json!("2023-11-14T22:13:20.000Z"), json!("2023-11-14T22:13:20.000Z"), json!("2023-11-14T22:13:20.000Z")));
+        assert_eq!(
+            (
+                stored["joinedAt"].clone(),
+                stored["lastSeenAt"].clone(),
+                stored["reportedAt"].clone()
+            ),
+            (
+                json!("2023-11-14T22:13:20.000Z"),
+                json!("2023-11-14T22:13:20.000Z"),
+                json!("2023-11-14T22:13:20.000Z")
+            )
+        );
         assert_eq!(stored["name"], json!("old-macbook"));
         assert_eq!(d.mark(), Some(json!({ "placeId": PLACE })));
         assert!(!d.views.joining.borrow().contains_key(PLACE));
         assert_eq!(*d.devices.spent.borrow(), vec!["CODE1".to_string()]);
         let events = d.events.borrow();
-        let PlaceEvent::Joined(e) = &events[0] else { panic!("place.joined first") };
-        assert_eq!((e.from.as_str(), e.place.default, e.place.id.as_str()), ("192.168.1.20", true, PLACE));
+        let PlaceEvent::Joined(e) = &events[0] else {
+            panic!("place.joined first")
+        };
+        assert_eq!(
+            (e.from.as_str(), e.place.default, e.place.id.as_str()),
+            ("192.168.1.20", true, PLACE)
+        );
     });
 }
 
@@ -569,11 +898,23 @@ fn joined_bad_signature_spends_no_code() {
     run(async {
         let d = joined_door();
         let (pending, req, _) = proving(&d, at("/record/report"), Some("CODE1"), None);
-        let proved = d.views.joined(PLACE, pending, req, b"other bytes", "192.168.1.20", NOW).await.unwrap();
-        assert_eq!(proved, Proved::Refusal { refusal: line("keyRefusal") });
+        let proved = d
+            .views
+            .joined(PLACE, pending, req, b"other bytes", "192.168.1.20", NOW)
+            .await
+            .unwrap();
+        assert_eq!(
+            proved,
+            Proved::Refusal {
+                refusal: line("keyRefusal")
+            }
+        );
         assert!(d.devices.spent.borrow().is_empty());
         assert!(d.stored(PLACE).is_none() && d.mark().is_none() && d.events.borrow().is_empty());
-        assert!(!d.views.joining.borrow().contains_key(PLACE), "the join is forgotten whatever follows");
+        assert!(
+            !d.views.joining.borrow().contains_key(PLACE),
+            "the join is forgotten whatever follows"
+        );
     });
 }
 
@@ -583,13 +924,32 @@ fn joined_blocked_spends_no_code() {
     run(async {
         let d = joined_door();
         let mut blocked = at("/record/report");
-        merge(&mut blocked, json!({ "runsWorkspaces": false, "workspacesBlocked": "docker is not running" }));
+        merge(
+            &mut blocked,
+            json!({ "runsWorkspaces": false, "workspacesBlocked": "docker is not running" }),
+        );
         let (pending, req, expect) = proving(&d, blocked, Some("CODE1"), None);
-        assert_eq!(d.views.joined(PLACE, pending, req, &expect, "x", NOW).await.unwrap(), Proved::Refusal { refusal: line("blocked") });
+        assert_eq!(
+            d.views
+                .joined(PLACE, pending, req, &expect, "x", NOW)
+                .await
+                .unwrap(),
+            Proved::Refusal {
+                refusal: line("blocked")
+            }
+        );
         let mut homeless = at("/record/report");
         merge(&mut homeless, json!({ "login": { "HOME": "relative" } }));
         let (pending, req, expect) = proving(&d, homeless, Some("CODE1"), None);
-        assert_eq!(d.views.joined(PLACE, pending, req, &expect, "x", NOW).await.unwrap(), Proved::Refusal { refusal: line("homeRefusal") });
+        assert_eq!(
+            d.views
+                .joined(PLACE, pending, req, &expect, "x", NOW)
+                .await
+                .unwrap(),
+            Proved::Refusal {
+                refusal: line("homeRefusal")
+            }
+        );
         assert!(d.devices.spent.borrow().is_empty());
         assert!(d.stored(PLACE).is_none());
     });
@@ -601,9 +961,25 @@ fn joined_spent_code_refused_no_record() {
     run(async {
         let d = joined_door();
         let (pending, req, expect) = proving(&d, at("/record/report"), Some("CODE9"), None);
-        assert_eq!(d.views.joined(PLACE, pending, req, &expect, "x", NOW).await.unwrap(), Proved::Refusal { refusal: line("codeRefusal") });
+        assert_eq!(
+            d.views
+                .joined(PLACE, pending, req, &expect, "x", NOW)
+                .await
+                .unwrap(),
+            Proved::Refusal {
+                refusal: line("codeRefusal")
+            }
+        );
         let (pending, req, expect) = proving(&d, at("/record/report"), None, None);
-        assert_eq!(d.views.joined(PLACE, pending, req, &expect, "x", NOW).await.unwrap(), Proved::Refusal { refusal: line("codeRefusal") });
+        assert_eq!(
+            d.views
+                .joined(PLACE, pending, req, &expect, "x", NOW)
+                .await
+                .unwrap(),
+            Proved::Refusal {
+                refusal: line("codeRefusal")
+            }
+        );
         assert!(d.stored(PLACE).is_none() && d.mark().is_none());
     });
 }
@@ -613,14 +989,33 @@ fn joined_notes_awaiting_install_road() {
     // spec: V17 step 6 with R24: the record's first write carries the road the install came in over.
     run(async {
         let d = joined_door();
-        let waiting = Rc::new(std::cell::RefCell::new(wsp_machines::places::records::AwaitingInstall::default()));
-        waiting.borrow_mut().login = Some(PlaceLogin { ssh: "maya@10.0.0.5".into(), key_path: Some("/k".into()), host_key: None });
-        d.records.awaiting.borrow_mut().insert("CODE1".into(), waiting.clone());
+        let waiting = Rc::new(std::cell::RefCell::new(
+            wsp_machines::places::records::AwaitingInstall::default(),
+        ));
+        waiting.borrow_mut().login = Some(PlaceLogin {
+            ssh: "maya@10.0.0.5".into(),
+            key_path: Some("/k".into()),
+            host_key: None,
+        });
+        d.records
+            .awaiting
+            .borrow_mut()
+            .insert("CODE1".into(), waiting.clone());
         let (pending, req, expect) = proving(&d, at("/record/report"), Some("CODE1"), None);
-        d.views.joined(PLACE, pending, req, &expect, "x", NOW).await.unwrap();
+        d.views
+            .joined(PLACE, pending, req, &expect, "x", NOW)
+            .await
+            .unwrap();
         assert_eq!(waiting.borrow().place_id.as_deref(), Some(PLACE));
-        assert_eq!(d.stored(PLACE).unwrap()["road"], json!({ "ssh": "maya@10.0.0.5", "keyPath": "/k" }));
-        assert_eq!(d.store.writes_to(PLACES), vec![format!("put places/{PLACE}")], "one write");
+        assert_eq!(
+            d.stored(PLACE).unwrap()["road"],
+            json!({ "ssh": "maya@10.0.0.5", "keyPath": "/k" })
+        );
+        assert_eq!(
+            d.store.writes_to(PLACES),
+            vec![format!("put places/{PLACE}")],
+            "one write"
+        );
     });
 }
 
@@ -629,10 +1024,31 @@ fn joined_admits_client_device() {
     // spec: V17 step 9. TS: places.test.ts:205 "a join from the app's window gets its token in the same act".
     run(async {
         let d = joined_door();
-        let (pending, req, expect) = proving(&d, at("/record/report"), Some("CODE1"), Some("old-macbook app"));
-        let Proved::Report { device, .. } = d.views.joined(PLACE, pending, req, &expect, "x", NOW).await.unwrap() else { panic!("a report") };
-        assert_eq!(device, Some(ProvedDevice { device_id: "d_old-macbook app".into(), device_token: "token-old-macbook app".into() }));
-        assert_eq!(*d.devices.admitted.borrow(), vec!["old-macbook app".to_string()]);
+        let (pending, req, expect) = proving(
+            &d,
+            at("/record/report"),
+            Some("CODE1"),
+            Some("old-macbook app"),
+        );
+        let Proved::Report { device, .. } = d
+            .views
+            .joined(PLACE, pending, req, &expect, "x", NOW)
+            .await
+            .unwrap()
+        else {
+            panic!("a report")
+        };
+        assert_eq!(
+            device,
+            Some(ProvedDevice {
+                device_id: "d_old-macbook app".into(),
+                device_token: "token-old-macbook app".into()
+            })
+        );
+        assert_eq!(
+            *d.devices.admitted.borrow(),
+            vec!["old-macbook app".to_string()]
+        );
     });
 }
 
@@ -647,14 +1063,26 @@ fn forget_clears_record_caps_mark_and_emits() {
             s.mark = Some(PLACE.into());
         });
         let (socket, _) = link(&d, PLACE, FakeReach::answering(vec![]));
-        d.ctx.backends.borrow_mut().insert(PLACE.into(), StubBackend::new().arc());
+        d.ctx
+            .backends
+            .borrow_mut()
+            .insert(PLACE.into(), StubBackend::new().arc());
         d.views.forget(PLACE).await.unwrap();
         assert!(d.stored(PLACE).is_none() && d.caps(PLACE).is_none() && d.mark().is_none());
         assert!(!d.ctx.kept.borrow().contains_key(PLACE));
         assert!(!d.ctx.backends.borrow().contains_key(PLACE));
         assert!(!d.records.settings_held.borrow().contains_key(PLACE));
-        assert_eq!(*socket.closed.borrow(), Some((1000, "removed from this host".to_string())));
-        assert_eq!(d.setup.calls(), vec![format!("woken {PLACE} false"), format!("closedAt.delete {PLACE}")]);
+        assert_eq!(
+            *socket.closed.borrow(),
+            Some((1000, "removed from this host".to_string()))
+        );
+        assert_eq!(
+            d.setup.calls(),
+            vec![
+                format!("woken {PLACE} false"),
+                format!("closedAt.delete {PLACE}")
+            ]
+        );
         assert_eq!(d.event_types(), vec!["place.removed"]);
     });
 }
@@ -679,14 +1107,18 @@ fn here_row_fields_and_behind_install() {
     run(async {
         let d = door(|_| {});
         assert_eq!(js(&d.views.here_row("here")), bare(&at("/rows/plain/0")));
-        assert_eq!(d.views.here_row(PLACE).default, false);
+        assert!(!d.views.here_row(PLACE).default);
         let dv = daemon_version();
-        let behind = door(move |s| s.opts = Box::new(move |o| o.here_daemon = Some(Rc::new(Here(Some(dv - 1))))));
+        let behind = door(move |s| {
+            s.opts = Box::new(move |o| o.here_daemon = Some(Rc::new(Here(Some(dv - 1)))))
+        });
         let row = js(&behind.views.here_row("here"));
         assert_eq!(row["daemonVersion"], json!(dv - 1));
         assert_eq!(row["behind"]["fix"], json!("run wsp update here"));
         assert_eq!(row["behind"]["act"], json!("install"));
-        let current = door(move |s| s.opts = Box::new(move |o| o.here_daemon = Some(Rc::new(Here(Some(dv))))));
+        let current = door(move |s| {
+            s.opts = Box::new(move |o| o.here_daemon = Some(Rc::new(Here(Some(dv)))))
+        });
         assert!(js(&current.views.here_row("here")).get("behind").is_none());
     });
 }
@@ -699,9 +1131,18 @@ fn rows_of_order_and_one_default() {
             s.recording.running.borrow_mut().insert(PLACE.into(), 2);
         });
         let held = d.records.records().await.unwrap();
-        assert_eq!(js(&d.views.rows_of(&held).await.unwrap()), at("/rows/plain"));
+        assert_eq!(
+            js(&d.views.rows_of(&held).await.unwrap()),
+            at("/rows/plain")
+        );
         let set = door(|s| {
-            s.caps = vec![(PLACE.into(), json!({ "threads": 3, "napMs": null })), ("boat".into(), json!({ "machines": 2, "size": { "cpu": 4, "memMb": 8192 } }))];
+            s.caps = vec![
+                (PLACE.into(), json!({ "threads": 3, "napMs": null })),
+                (
+                    "boat".into(),
+                    json!({ "machines": 2, "size": { "cpu": 4, "memMb": 8192 } }),
+                ),
+            ];
             s.mark = Some(PLACE.into());
             s.recording.running.borrow_mut().insert(PLACE.into(), 2);
         });
@@ -721,7 +1162,10 @@ fn rows_of_mark_on_gone_row_falls_to_here() {
             s.recording.running.borrow_mut().insert(PLACE.into(), 2);
         });
         let held = d.records.records().await.unwrap();
-        assert_eq!(js(&d.views.rows_of(&held).await.unwrap()), at("/rows/goneMark"));
+        assert_eq!(
+            js(&d.views.rows_of(&held).await.unwrap()),
+            at("/rows/goneMark")
+        );
     });
 }
 
@@ -730,14 +1174,37 @@ fn provider_row_rate_sizes() {
     // spec: V22. Oracle /rows/plain/2 (no table: rate from the wiring, no sizes).
     run(async {
         let d = door(|_| {});
-        assert_eq!(js(&d.views.provider_row("boat", "here")), bare(&at("/rows/plain/2")));
+        assert_eq!(
+            js(&d.views.provider_row("boat", "here")),
+            bare(&at("/rows/plain/2"))
+        );
         let mut b = StubBackend::new();
         b.rate = 0.5;
         let backend = b.arc();
-        let table = door(move |s| s.providers = Some(Rc::new(Providers { wired: "boat".into(), rows: [("boat".to_string(), StubBackend::new().arc()), ("solari".to_string(), backend)].into_iter().collect() })));
+        let table = door(move |s| {
+            s.providers = Some(Rc::new(Providers {
+                wired: "boat".into(),
+                rows: [
+                    ("boat".to_string(), StubBackend::new().arc()),
+                    ("solari".to_string(), backend),
+                ]
+                .into_iter()
+                .collect(),
+            }))
+        });
         let row = js(&table.views.provider_row("solari", "solari"));
-        assert_eq!((row["rateUsdPerHour"].clone(), row["default"].clone(), row["buildsImages"].clone()), (json!(0.5), json!(true), json!(true)));
-        assert_eq!(row["sizes"], json!([{ "cpu": 2, "memMb": 4096, "rateUsdPerHour": 0 }]));
+        assert_eq!(
+            (
+                row["rateUsdPerHour"].clone(),
+                row["default"].clone(),
+                row["buildsImages"].clone()
+            ),
+            (json!(0.5), json!(true), json!(true))
+        );
+        assert_eq!(
+            row["sizes"],
+            json!([{ "cpu": 2, "memMb": 4096, "rateUsdPerHour": 0 }])
+        );
     });
 }
 

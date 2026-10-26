@@ -21,10 +21,12 @@ use async_trait::async_trait;
 use indexmap::{IndexMap, IndexSet};
 use serde::{Deserialize, Serialize};
 
+use wsp_core::types::internal::KindModule;
 use wsp_core::types::internal::{SessionEntry, ThreadRecord};
 use wsp_core::types::pending::{Clock, KillConfirm, Store};
-use wsp_core::types::wiring::{GoldenExec, GoneOutcome, LiveWorkspace, PlaceBackends, StageReport, WorkspaceRecord};
-use wsp_core::types::internal::KindModule;
+use wsp_core::types::wiring::{
+    GoldenExec, GoneOutcome, LiveWorkspace, PlaceBackends, StageReport, WorkspaceRecord,
+};
 use wsp_engine::machine::{Machine, MachineBackend};
 use wsp_wire::views::golden_image::GoldenVersion;
 use wsp_wire::views::workspace::ReachState;
@@ -147,7 +149,12 @@ pub trait MachinesRuntime {
     async fn entry_of(&self, id: &str) -> Result<Entry, HostError>;
     fn view(&self, record: &WorkspaceRecord) -> WorkspaceView;
     async fn persist(&self, record: &WorkspaceRecord) -> Result<(), HostError>;
-    async fn emit_status(&self, entry: &Entry, reach: ReachState, said: Option<&str>) -> Result<(), HostError>;
+    async fn emit_status(
+        &self,
+        entry: &Entry,
+        reach: ReachState,
+        said: Option<&str>,
+    ) -> Result<(), HostError>;
     fn reach_of(&self, entry: &Entry) -> ReachState;
     fn nap_refused_of(&self, entry: &Entry) -> Option<String>;
     fn nap_refused_reason(&self, entry: &Entry) -> Option<String>;
@@ -174,11 +181,25 @@ pub trait MachinesRuntime {
     fn place_nap_ms(&self, place_id: Option<&str>) -> Option<Option<f64>>;
     async fn shape_of(&self, machine: &Arc<dyn Machine>) -> Option<MachineShape>;
     fn size_built(&self, shape: Option<&MachineShape>, asked: WorkspaceSize) -> WorkspaceSize;
-    async fn read_memory(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: &Arc<dyn Machine>, sizes: &[WorkspaceSize]) -> bool;
+    async fn read_memory(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        machine: &Arc<dyn Machine>,
+        sizes: &[WorkspaceSize],
+    ) -> bool;
     /// `ctx.vaultExport(m, { maxBytes, leave })`.
-    async fn vault_export(&self, machine: &Arc<dyn Machine>, max_bytes: u64, leave: Option<Vec<String>>) -> Result<Vec<u8>, HostError>;
+    async fn vault_export(
+        &self,
+        machine: &Arc<dyn Machine>,
+        max_bytes: u64,
+        leave: Option<Vec<String>>,
+    ) -> Result<Vec<u8>, HostError>;
     /// `gone.stop(at, machine)`: the delete the gone watch proves.
-    async fn gone_stop(&self, at: &Arc<dyn MachineBackend>, machine: &Arc<dyn Machine>) -> Result<(), HostError>;
+    async fn gone_stop(
+        &self,
+        at: &Arc<dyn MachineBackend>,
+        machine: &Arc<dyn Machine>,
+    ) -> Result<(), HostError>;
 
     // What drop takes away beside the record (machines.ts:540-576), each a call of its own TS line.
     /// `revivedAt`, `unreadAt`, `unreached`, `polledReach`, `napRefusals`, `transcripts`, `transcriptBytes`,
@@ -213,23 +234,83 @@ pub struct MachinesArea {
 impl MachinesArea {
     /// `machinesArea(ctx)` (machines.ts:15): the area over its runtime, with nothing held.
     pub fn new(rt: Rc<dyn MachinesRuntime>, config: MachinesConfig) -> Rc<Self> {
-        todo!()
+        Rc::new(MachinesArea {
+            rt,
+            config,
+            holding: RefCell::default(),
+            inflight: RefCell::default(),
+            rereading: RefCell::default(),
+        })
     }
 
     /// The ids this process created and has not recorded, which the sweep must not read as lost.
     pub fn inflight(&self) -> Vec<String> {
-        todo!()
+        self.inflight.borrow().iter().cloned().collect()
     }
 
     /// The records whose gone verdict is being read again now.
     pub fn rereading(&self) -> Vec<String> {
-        todo!()
+        self.rereading.borrow().iter().cloned().collect()
     }
 
     /// The area's bus listeners, called by the wiring for every event in emit order: the `workspace.status` adoption
     /// (machines.ts:765) and the idle touches and forgets (:840-846).
     pub fn on_event(self: &Rc<Self>, event: &EventUnion) {
-        todo!()
+        const TOUCHES: [&str; 10] = [
+            "session.start",
+            "session.delta",
+            "session.done",
+            "session.end",
+            "session.steer",
+            "inbox.file",
+            "workspace.woken",
+            "workspace.upgraded",
+            "project.import",
+            "project.export",
+        ];
+        const FORGETS: [&str; 3] = ["workspace.napped", "workspace.gone", "workspace.deleted"];
+        let kind = wsp_core::types::events::event_type(event);
+        if kind == "workspace.status" {
+            let Ok(value) = serde_json::to_value(event) else {
+                return;
+            };
+            let status = &value["status"];
+            if status["phase"] == "running" && status["machineState"] == "paused" {
+                let entry = self
+                    .rt
+                    .live()
+                    .borrow()
+                    .get(status["id"].as_str().unwrap_or_default())
+                    .cloned();
+                if let Some(entry) = entry {
+                    let area = self.clone();
+                    tokio::task::spawn_local(async move {
+                        if let Err(e) = area.adopt_pause(&entry).await {
+                            area.rt.warn(&e.message);
+                        }
+                    });
+                }
+            }
+            return;
+        }
+        let touches = TOUCHES.contains(&kind) || kind == "workspace.created";
+        if !touches && !FORGETS.contains(&kind) {
+            return;
+        }
+        let Ok(value) = serde_json::to_value(event) else {
+            return;
+        };
+        let id = if kind == "workspace.created" {
+            value["workspace"]["id"].as_str()
+        } else {
+            value["workspaceId"].as_str()
+        };
+        let Some(id) = id else { return };
+        if touches {
+            self.rt.idle().touch(id);
+        } else {
+            self.rt.idle().forget(id);
+        }
     }
 }
 

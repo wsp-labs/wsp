@@ -23,23 +23,58 @@ async fn replay(name: &str) {
     let want = expected_log(sc);
     let got = w.log.take();
     for (i, (e, g)) in want.iter().zip(got.iter()).enumerate() {
-        assert!(same(g, e), "scene {name:?}: log entry {i} differs\n got {g}\nwant {e}");
+        assert!(
+            same(g, e),
+            "scene {name:?}: log entry {i} differs\n got {g}\nwant {e}"
+        );
     }
-    assert_eq!(got.len(), want.len(), "scene {name:?}: log length differs; got {got:#?}");
+    assert_eq!(
+        got.len(),
+        want.len(),
+        "scene {name:?}: log length differs; got {got:#?}"
+    );
 
     let answer = &sc["answer"];
     match result {
         Ok(created) => {
-            assert!(answer.get("threw").is_none(), "scene {name:?}: the create answered, the oracle threw {answer}");
-            assert_eq!(created.view.id, answer["id"].as_str().expect("id"), "scene {name:?}: the answer's id");
-            assert_eq!(created.view.name, answer["name"].as_str().expect("name"), "scene {name:?}: the answer's name");
-            assert_eq!(created.view.created_at, VIEW_MARK, "scene {name:?}: the answer is what ctx.view made");
-            assert_eq!(created.notice.as_deref(), answer.get("notice").and_then(Value::as_str), "scene {name:?}: the notice");
+            assert!(
+                answer.get("threw").is_none(),
+                "scene {name:?}: the create answered, the oracle threw {answer}"
+            );
+            assert_eq!(
+                created.view.id,
+                answer["id"].as_str().expect("id"),
+                "scene {name:?}: the answer's id"
+            );
+            assert_eq!(
+                created.view.name,
+                answer["name"].as_str().expect("name"),
+                "scene {name:?}: the answer's name"
+            );
+            assert_eq!(
+                created.view.created_at, VIEW_MARK,
+                "scene {name:?}: the answer is what ctx.view made"
+            );
+            assert_eq!(
+                created.notice.as_deref(),
+                answer.get("notice").and_then(Value::as_str),
+                "scene {name:?}: the notice"
+            );
         }
         Err(e) => {
-            let threw = answer.get("threw").unwrap_or_else(|| panic!("scene {name:?}: the create threw {e:?}, the oracle answered {answer}"));
-            assert_eq!(e.message, threw.as_str().expect("a message"), "scene {name:?}: what was thrown");
-            assert_eq!(e.kind, kind_of(answer["kind"].as_str()), "scene {name:?}: the kind of what was thrown");
+            let threw = answer.get("threw").unwrap_or_else(|| {
+                panic!("scene {name:?}: the create threw {e:?}, the oracle answered {answer}")
+            });
+            assert_eq!(
+                e.message,
+                threw.as_str().expect("a message"),
+                "scene {name:?}: what was thrown"
+            );
+            assert_eq!(
+                e.kind,
+                kind_of(answer["kind"].as_str()),
+                "scene {name:?}: the kind of what was thrown"
+            );
         }
     }
 
@@ -48,20 +83,38 @@ async fn replay(name: &str) {
         (None, true) => {}
         (Some(e), false) => {
             let e = e.borrow();
-            assert_eq!(e.creating, want_entry["creating"] == json!(true), "scene {name:?}: creating");
-            assert_eq!(e.of_record_held, want_entry["ofRecordHeld"] == json!(true), "scene {name:?}: ofRecordHeld");
+            assert_eq!(
+                e.creating,
+                want_entry["creating"] == json!(true),
+                "scene {name:?}: creating"
+            );
+            assert_eq!(
+                e.of_record_held,
+                want_entry["ofRecordHeld"] == json!(true),
+                "scene {name:?}: ofRecordHeld"
+            );
             match want_entry["opensThread"].as_str() {
                 None => assert_eq!(e.opens_thread, None, "scene {name:?}: opensThread"),
                 Some(_) => {
                     let given = sc["scene"]["o"].get("opensThread").and_then(Value::as_str);
                     match given {
-                        Some(t) => assert_eq!(e.opens_thread.as_deref(), Some(t), "scene {name:?}: the thread the caller named"),
-                        None => assert!(e.opens_thread.as_deref().is_some_and(|t| !t.is_empty()), "scene {name:?}: a minted thread id"),
+                        Some(t) => assert_eq!(
+                            e.opens_thread.as_deref(),
+                            Some(t),
+                            "scene {name:?}: the thread the caller named"
+                        ),
+                        None => assert!(
+                            e.opens_thread.as_deref().is_some_and(|t| !t.is_empty()),
+                            "scene {name:?}: a minted thread id"
+                        ),
                     }
                 }
             }
         }
-        (live, _) => panic!("scene {name:?}: the live entry is {}, the oracle's is {want_entry}", if live.is_some() { "there" } else { "absent" }),
+        (live, _) => panic!(
+            "scene {name:?}: the live entry is {}, the oracle's is {want_entry}",
+            if live.is_some() { "there" } else { "absent" }
+        ),
     }
 }
 
@@ -87,12 +140,16 @@ fn the_road_refuses_before_anything_is_written() {
 
 #[test]
 fn a_memory_folder_the_road_reads_otherwise_is_remembered() {
-    common::run_local(async { replay("a memory folder the road reads otherwise is remembered").await })
+    common::run_local(async {
+        replay("a memory folder the road reads otherwise is remembered").await
+    })
 }
 
 #[test]
 fn a_project_with_a_checkout_is_copied_a_child_starts_from_its_base() {
-    common::run_local(async { replay("a project with a checkout is copied, a child starts from its base").await })
+    common::run_local(async {
+        replay("a project with a checkout is copied, a child starts from its base").await
+    })
 }
 
 #[test]
@@ -112,22 +169,31 @@ fn a_spawned_fork_carries_its_tree_and_no_agents() {
 
 #[test]
 fn a_brokered_fork_names_its_branch_and_the_thread_it_opens() {
-    common::run_local(async { replay("a brokered fork names its branch and the thread it opens").await })
+    common::run_local(async {
+        replay("a brokered fork names its branch and the thread it opens").await
+    })
 }
 
 #[test]
 fn a_brokered_fork_with_the_branch_named_keeps_it_held_and_opens_the_named_thread() {
-    common::run_local(async { replay("a brokered fork with the branch named keeps it held and opens the named thread").await })
+    common::run_local(async {
+        replay("a brokered fork with the branch named keeps it held and opens the named thread")
+            .await
+    })
 }
 
 #[test]
 fn at_the_machine_cap_a_kept_builder_is_stopped_and_the_fork_goes() {
-    common::run_local(async { replay("at the machine cap a kept builder is stopped and the fork goes").await })
+    common::run_local(async {
+        replay("at the machine cap a kept builder is stopped and the fork goes").await
+    })
 }
 
 #[test]
 fn at_the_cap_with_builders_refused_each_time_the_refusal_names_the_holders() {
-    common::run_local(async { replay("at the cap with builders refused each time the refusal names the holders").await })
+    common::run_local(async {
+        replay("at the cap with builders refused each time the refusal names the holders").await
+    })
 }
 
 #[test]
@@ -142,7 +208,9 @@ fn a_fork_that_fails_another_way_is_thrown_as_it_is() {
 
 #[test]
 fn a_refusal_after_a_builder_stopped_that_is_not_the_cap_is_thrown() {
-    common::run_local(async { replay("a refusal after a builder stopped that is not the cap is thrown").await })
+    common::run_local(async {
+        replay("a refusal after a builder stopped that is not the cap is thrown").await
+    })
 }
 
 #[test]
@@ -152,12 +220,16 @@ fn a_route_and_a_daemon_both_asked_the_sync_started() {
 
 #[test]
 fn a_route_that_is_not_minted_is_a_notice_the_daemon_answering() {
-    common::run_local(async { replay("a route that is not minted is a notice, the daemon answering").await })
+    common::run_local(async {
+        replay("a route that is not minted is a notice, the daemon answering").await
+    })
 }
 
 #[test]
 fn a_daemon_that_does_not_answer_is_noted_and_the_memory_is_not_read() {
-    common::run_local(async { replay("a daemon that does not answer is noted and the memory is not read").await })
+    common::run_local(async {
+        replay("a daemon that does not answer is noted and the memory is not read").await
+    })
 }
 
 #[test]
@@ -187,5 +259,7 @@ fn a_machine_notice_joins_the_answer() {
 
 #[test]
 fn a_clone_that_fails_ends_the_create_before_it_is_persisted() {
-    common::run_local(async { replay("a clone that fails ends the create before it is persisted").await })
+    common::run_local(async {
+        replay("a clone that fails ends the create before it is persisted").await
+    })
 }

@@ -18,21 +18,27 @@ use serde_json::{json, Map, Value};
 
 use wsp_adapters::port::ExecStreamFactory;
 use wsp_core::ids::Ids;
-use wsp_core::types::internal::{EndThread, FolderAdmit, ImportLanded, ImportReport, KindModule, PortRoute, ServerValuesRoad, SessionEntry, ThreadRecord};
+use wsp_core::types::internal::{
+    EndThread, FolderAdmit, ImportLanded, ImportReport, KindModule, PortRoute, ServerValuesRoad,
+    SessionEntry, ThreadRecord,
+};
 use wsp_core::types::pending::{Clock, KillConfirm, MachineExecOptions, Store, TurnWaiting};
 use wsp_core::types::wiring::{
-    GoldenExec, GoneOutcome, Joined, LiveWorkspace, Local, PlaceBackends, ProjectImportOptions, StageReport, WorkspaceRecord,
+    GoldenExec, GoneOutcome, Joined, LiveWorkspace, Local, PlaceBackends, ProjectImportOptions,
+    StageReport, WorkspaceRecord,
 };
-use wsp_engine::Cancel;
 use wsp_engine::errors::{EngineError, ErrorKind, WspError};
 use wsp_engine::lifecycle::{Workspace, WorkspaceHooks, WorkspaceInitial};
 use wsp_engine::machine::{
-    BackendOffers, BackendPricing, Capabilities, ExecOptions, ExecResult, Lifecycle, LifecycleBudgets, Machine, MachineBackend, MachineKind,
-    MachineLife, MachineListRow, MachineOffers, MachineShape, MachineSpec, MachineState, NamedMachine, PreviewReach, ProviderBoxState, RunOptions,
-    Seen, SnapshotOptions, SnapshotStoragePricing, Size, Waiting,
+    BackendOffers, BackendPricing, Capabilities, ExecOptions, ExecResult, Lifecycle,
+    LifecycleBudgets, Machine, MachineBackend, MachineKind, MachineLife, MachineListRow,
+    MachineOffers, MachineShape, MachineSpec, MachineState, NamedMachine, PreviewReach,
+    ProviderBoxState, RunOptions, Seen, Size, SnapshotOptions, SnapshotStoragePricing, Waiting,
 };
+use wsp_engine::Cancel;
 use wsp_machines::machines::machines::{
-    Entry, IdleDoor, ImageRead, MachinesArea, MachinesConfig, MachinesRuntime, Refusal, Row, ThreadOn, Unreached,
+    Entry, IdleDoor, ImageRead, MachinesArea, MachinesConfig, MachinesRuntime, Refusal, Row,
+    ThreadOn, Unreached,
 };
 use wsp_wire::views::golden_image::MachineKind as _WireMachineKind;
 use wsp_wire::views::workspace::{MachineFacts, ReachState, WorkspacePhase};
@@ -56,18 +62,37 @@ async fn tick() {
 
 /// The oracle's `missing()`: kind missing, status 404.
 pub fn missing(message: &str) -> EngineError {
-    EngineError::Provider(WspError { kind: ErrorKind::Missing, status: 404, code: None, message: message.into(), request_id: None, window: None, said: None })
+    EngineError::Provider(WspError {
+        kind: ErrorKind::Missing,
+        status: 404,
+        code: None,
+        message: message.into(),
+        request_id: None,
+        window: None,
+        said: None,
+    })
 }
 
 /// The oracle's `statusErr(status, message)`: an error carrying only a numeric status. The engine's error type has no
 /// status without a kind, so it carries one (conflict).
 pub fn status_err(status: u16, message: &str) -> EngineError {
-    EngineError::Provider(WspError { kind: ErrorKind::Conflict, status, code: None, message: message.into(), request_id: None, window: None, said: None })
+    EngineError::Provider(WspError {
+        kind: ErrorKind::Conflict,
+        status,
+        code: None,
+        message: message.into(),
+        request_id: None,
+        window: None,
+        said: None,
+    })
 }
 
 /// A plain `new Error(message)`.
 pub fn plain(message: &str) -> EngineError {
-    EngineError::Other { message: message.into(), code: None }
+    EngineError::Other {
+        message: message.into(),
+        code: None,
+    }
 }
 
 /// The host-side `missing()`: what a rejection of the runtime's own calls carries.
@@ -110,7 +135,11 @@ pub fn phase_name(p: WorkspacePhase) -> &'static str {
 }
 
 pub fn reach_name(r: ReachState) -> String {
-    serde_json::to_value(r).unwrap().as_str().unwrap().to_string()
+    serde_json::to_value(r)
+        .unwrap()
+        .as_str()
+        .unwrap()
+        .to_string()
 }
 
 /// `Date`-free ISO stamp of an epoch ms, as `new Date(ms).toISOString()`.
@@ -120,7 +149,12 @@ pub fn iso(ms: i64) -> String {
     let days = secs.div_euclid(86_400);
     let rem = secs.rem_euclid(86_400);
     let (y, m, d) = civil(days);
-    format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}.{milli:03}Z", rem / 3600, (rem % 3600) / 60, rem % 60)
+    format!(
+        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}.{milli:03}Z",
+        rem / 3600,
+        (rem % 3600) / 60,
+        rem % 60
+    )
 }
 
 fn civil(z: i64) -> (i64, i64, i64) {
@@ -177,7 +211,14 @@ pub struct MachineDef {
 
 impl MachineDef {
     pub fn new(id: &str) -> Self {
-        MachineDef { id: id.into(), replayed: false, state: None, labels: None, seen: None, stream_url: None }
+        MachineDef {
+            id: id.into(),
+            replayed: false,
+            state: None,
+            labels: None,
+            seen: None,
+            stream_url: None,
+        }
     }
     pub fn stream(mut self, url: &str) -> Self {
         self.stream_url = Some(url.into());
@@ -189,7 +230,12 @@ impl MachineDef {
         self
     }
     pub fn labels(mut self, pairs: &[(&str, &str)]) -> Self {
-        self.labels = Some(pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect());
+        self.labels = Some(
+            pairs
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
+        );
         self
     }
     pub fn seen(mut self, state: MachineState) -> Self {
@@ -203,6 +249,7 @@ pub struct FakeMachine {
     log: Log,
     log_state_id: bool,
     log_nap: bool,
+    silent_state: std::cell::Cell<bool>,
     replayed: bool,
     labels: Option<IndexMap<String, String>>,
     seen: Option<Seen>,
@@ -218,9 +265,14 @@ impl FakeMachine {
             log: log.clone(),
             log_state_id: true,
             log_nap: false,
+            silent_state: std::cell::Cell::new(false),
             replayed: def.replayed,
             labels: def.labels.clone(),
-            seen: def.seen.map(|state| Seen { state, created_at: None, paused_at: None }),
+            seen: def.seen.map(|state| Seen {
+                state,
+                created_at: None,
+                paused_at: None,
+            }),
             stream_url: def.stream_url.clone(),
             s: RefCell::new(Script::default()),
         };
@@ -235,6 +287,7 @@ impl FakeMachine {
             log: log.clone(),
             log_state_id: false,
             log_nap: true,
+            silent_state: std::cell::Cell::new(false),
             replayed: false,
             labels: None,
             seen: None,
@@ -250,6 +303,7 @@ impl FakeMachine {
             log: Log::default(),
             log_state_id: false,
             log_nap: false,
+            silent_state: std::cell::Cell::new(false),
             replayed: false,
             labels: None,
             seen: None,
@@ -260,6 +314,12 @@ impl FakeMachine {
 
     pub fn set_state(&self, state: Result<MachineState, EngineError>) {
         self.s.borrow_mut().state = Some(state);
+    }
+
+    /// The oracle swaps `state` for a function that rejects and logs nothing (machines.oracle.ts:406).
+    pub fn reject_state(&self, e: EngineError) {
+        self.silent_state.set(true);
+        self.set_state(Err(e));
     }
 
     pub fn execs(&self) -> Vec<String> {
@@ -289,7 +349,12 @@ impl Machine for FakeMachine {
     }
     fn offers(&self) -> MachineOffers {
         let s = self.s.borrow_mut();
-        MachineOffers { prove_road: s.prove.is_some(), describe: s.describe.is_some(), resume_at: s.resume_at, ..Default::default() }
+        MachineOffers {
+            prove_road: s.prove.is_some(),
+            describe: s.describe.is_some(),
+            resume_at: s.resume_at,
+            ..Default::default()
+        }
     }
 
     async fn exec(&self, cmd: &str, _opts: ExecOptions) -> Result<ExecResult, EngineError> {
@@ -312,7 +377,12 @@ impl Machine for FakeMachine {
         next.unwrap_or_else(|| Ok(ok_exec("")))
     }
 
-    async fn snapshot(&self, _name: &str, _life: MachineLife, _opts: SnapshotOptions) -> Result<String, EngineError> {
+    async fn snapshot(
+        &self,
+        _name: &str,
+        _life: MachineLife,
+        _opts: SnapshotOptions,
+    ) -> Result<String, EngineError> {
         Err(plain("snapshot is not faked"))
     }
 
@@ -339,7 +409,12 @@ impl Machine for FakeMachine {
         err.map_or(Ok(()), Err)
     }
 
-    async fn resume_at(&self, cpu: f64, mem_mb: u64, _signal: Option<&Cancel>) -> Result<(), EngineError> {
+    async fn resume_at(
+        &self,
+        cpu: f64,
+        mem_mb: u64,
+        _signal: Option<&Cancel>,
+    ) -> Result<(), EngineError> {
         let err = {
             let mut s = self.s.borrow_mut();
             s.resumes.push(Some((cpu, mem_mb)));
@@ -356,6 +431,11 @@ impl Machine for FakeMachine {
     }
 
     async fn state(&self) -> Result<MachineState, EngineError> {
+        if self.silent_state.get() {
+            if let Some(Err(e)) = &self.s.borrow().state {
+                return Err(e.clone());
+            }
+        }
         if self.log_state_id {
             self.log.push(json!(["machine.state", self.id]));
         } else {
@@ -453,7 +533,10 @@ impl BackendPricing for Pricing {
         0.0
     }
     fn default_size(&self) -> Size {
-        Size { cpu: 1.0, mem_mb: 2048.0 }
+        Size {
+            cpu: 1.0,
+            mem_mb: 2048.0,
+        }
     }
     fn snapshot_storage(&self) -> wsp_engine::machine::SnapshotStoragePricing {
         wsp_engine::machine::SnapshotStoragePricing {
@@ -485,7 +568,12 @@ impl Lifecycle for FakeLifecycle {
     fn has_backstop(&self) -> bool {
         self.has_backstop
     }
-    async fn backstop(&self, machine: &dyn Machine, until_ms: i64, _exact: bool) -> Result<(), EngineError> {
+    async fn backstop(
+        &self,
+        machine: &dyn Machine,
+        until_ms: i64,
+        _exact: bool,
+    ) -> Result<(), EngineError> {
         let err = {
             let mut s = self.st.borrow_mut();
             let err = s.backstop_err.clone();
@@ -534,13 +622,28 @@ impl FakeBackend {
                 gets: Vec::new(),
             }),
             life: o_life.map(|(wake_attempts, has_backstop, has_quiet)| {
-                Arc::new(FakeLifecycle { wake_attempts, has_backstop, has_quiet, st: RefCell::new(LifeState { quiet: None, backstops: Vec::new(), backstop_err: None }) })
+                Arc::new(FakeLifecycle {
+                    wake_attempts,
+                    has_backstop,
+                    has_quiet,
+                    st: RefCell::new(LifeState {
+                        quiet: None,
+                        backstops: Vec::new(),
+                        backstop_err: None,
+                    }),
+                })
             }),
         })
     }
 
     /// A provider whose lifecycle the area reads: wake attempts, a quiet figure and a backstop call.
-    pub fn with_lifecycle(log: &Log, name: &str, wake_attempts: u32, has_backstop: bool, has_quiet: bool) -> Arc<FakeBackend> {
+    pub fn with_lifecycle(
+        log: &Log,
+        name: &str,
+        wake_attempts: u32,
+        has_backstop: bool,
+        has_quiet: bool,
+    ) -> Arc<FakeBackend> {
         Arc::new(FakeBackend {
             name: name.into(),
             log: log.clone(),
@@ -561,7 +664,11 @@ impl FakeBackend {
                 wake_attempts,
                 has_backstop,
                 has_quiet,
-                st: RefCell::new(LifeState { quiet: None, backstops: Vec::new(), backstop_err: None }),
+                st: RefCell::new(LifeState {
+                    quiet: None,
+                    backstops: Vec::new(),
+                    backstop_err: None,
+                }),
             })),
         })
     }
@@ -618,14 +725,33 @@ impl MachineBackend for FakeBackend {
     }
     fn offers(&self) -> BackendOffers {
         let b = self.b.borrow_mut();
-        BackendOffers { keyed_create: b.request || b.replays.is_some() || b.named.is_some(), ..Default::default() }
+        BackendOffers {
+            keyed_create: b.request || b.replays.is_some() || b.named.is_some(),
+            ..Default::default()
+        }
     }
 
-    async fn create(&self, spec: MachineSpec, waiting: Option<Waiting>, sent: Option<String>) -> Result<Arc<dyn Machine>, EngineError> {
-        self.log.push(json!(["backend.create", spec.idempotency_key, labels_json(&spec), request_json(&sent)]));
+    async fn create(
+        &self,
+        spec: MachineSpec,
+        waiting: Option<Waiting>,
+        sent: Option<String>,
+    ) -> Result<Arc<dyn Machine>, EngineError> {
+        self.log.push(json!([
+            "backend.create",
+            spec.idempotency_key,
+            labels_json(&spec),
+            request_json(&sent)
+        ]));
         self.b.borrow_mut().created.push(spec.clone());
         if let Some(w) = waiting {
-            w("waiting for a box", Some(&ProviderBoxState { id: "box-early".into(), state: String::new() }));
+            w(
+                "waiting for a box",
+                Some(&ProviderBoxState {
+                    id: "box-early".into(),
+                    state: String::new(),
+                }),
+            );
         }
         let next = self.b.borrow_mut().creates.pop_front();
         tick().await;
@@ -674,7 +800,10 @@ impl MachineBackend for FakeBackend {
         }
     }
 
-    async fn list(&self, _labels: Option<&IndexMap<String, String>>) -> Result<Vec<MachineListRow>, EngineError> {
+    async fn list(
+        &self,
+        _labels: Option<&IndexMap<String, String>>,
+    ) -> Result<Vec<MachineListRow>, EngineError> {
         Ok(Vec::new())
     }
 
@@ -687,9 +816,24 @@ impl MachineBackend for FakeBackend {
         Ok(REQUEST.to_string())
     }
 
-    async fn replay_create(&self, key: &str, bytes: &str, made_at: &str) -> Result<Option<Arc<dyn Machine>>, EngineError> {
-        self.log.push(json!(["replayCreate", key, request_json(&Some(bytes.to_string())), made_at]));
-        let next = self.b.borrow_mut().replays.as_mut().and_then(|r| r.pop_front());
+    async fn replay_create(
+        &self,
+        key: &str,
+        bytes: &str,
+        made_at: &str,
+    ) -> Result<Option<Arc<dyn Machine>>, EngineError> {
+        self.log.push(json!([
+            "replayCreate",
+            key,
+            request_json(&Some(bytes.to_string())),
+            made_at
+        ]));
+        let next = self
+            .b
+            .borrow_mut()
+            .replays
+            .as_mut()
+            .and_then(|r| r.pop_front());
         tick().await;
         match next {
             Some(Replay::Fail(e)) => Err(e),
@@ -699,8 +843,12 @@ impl MachineBackend for FakeBackend {
         }
     }
 
-    async fn named_after(&self, names: &std::collections::BTreeSet<String>) -> Result<Vec<NamedMachine>, EngineError> {
-        self.log.push(json!(["namedAfter", names.iter().collect::<Vec<_>>()]));
+    async fn named_after(
+        &self,
+        names: &std::collections::BTreeSet<String>,
+    ) -> Result<Vec<NamedMachine>, EngineError> {
+        self.log
+            .push(json!(["namedAfter", names.iter().collect::<Vec<_>>()]));
         Ok(self.b.borrow_mut().named.clone().unwrap_or_default())
     }
 }
@@ -735,7 +883,9 @@ pub struct FakeIdle {
 
 impl IdleDoor for FakeIdle {
     fn touch(&self, workspace_id: &str) {
-        self.calls.borrow_mut().push(("touch", workspace_id.to_string()));
+        self.calls
+            .borrow_mut()
+            .push(("touch", workspace_id.to_string()));
         let area = self.area.borrow().upgrade();
         if let Some(area) = area {
             let window: Option<f64> = area.idle_window_of_id(workspace_id).flatten();
@@ -744,7 +894,9 @@ impl IdleDoor for FakeIdle {
         }
     }
     fn forget(&self, workspace_id: &str) {
-        self.calls.borrow_mut().push(("forget", workspace_id.to_string()));
+        self.calls
+            .borrow_mut()
+            .push(("forget", workspace_id.to_string()));
     }
 }
 
@@ -759,7 +911,12 @@ impl KindModule for FakeKind {
     fn backend(&self, _record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError> {
         unimplemented!("fake kind")
     }
-    fn exec_stream(&self, _entry: &LiveWorkspace, _opts: Option<MachineExecOptions>, _waiting: Option<TurnWaiting>) -> Arc<dyn ExecStreamFactory> {
+    fn exec_stream(
+        &self,
+        _entry: &LiveWorkspace,
+        _opts: Option<MachineExecOptions>,
+        _waiting: Option<TurnWaiting>,
+    ) -> Arc<dyn ExecStreamFactory> {
         unimplemented!("fake kind")
     }
     fn admit_folder(&self, _record: FolderAdmit) -> Option<Local<'static, ()>> {
@@ -774,31 +931,60 @@ impl KindModule for FakeKind {
     fn home_dir(&self, _record: &WorkspaceRecord) -> Option<String> {
         unimplemented!("fake kind")
     }
-    fn env(&self, _entry: &LiveWorkspace, _agent_id: Option<&str>, _home_of: &dyn Fn(&str) -> String) -> IndexMap<String, String> {
+    fn env(
+        &self,
+        _entry: &LiveWorkspace,
+        _agent_id: Option<&str>,
+        _home_of: &dyn Fn(&str) -> String,
+    ) -> IndexMap<String, String> {
         unimplemented!("fake kind")
     }
     fn login_stands(&self, _entry: &LiveWorkspace, _agent_id: &str) -> bool {
         unimplemented!("fake kind")
     }
-    fn import(&self, _entry: &LiveWorkspace, _o: ProjectImportOptions, _report: ImportReport) -> Local<'static, ImportLanded> {
+    fn import(
+        &self,
+        _entry: &LiveWorkspace,
+        _o: ProjectImportOptions,
+        _report: ImportReport,
+    ) -> Local<'static, ImportLanded> {
         unimplemented!("fake kind")
     }
     fn roots(&self, _entry: &LiveWorkspace, _dests: &[String]) -> Local<'static, ()> {
         unimplemented!("fake kind")
     }
-    fn land_project(&self, _entry: &LiveWorkspace, _project: wsp_wire::views::workspace::ProjectView, _report: StageReport) -> Local<'static, ()> {
+    fn land_project(
+        &self,
+        _entry: &LiveWorkspace,
+        _project: wsp_wire::views::workspace::ProjectView,
+        _report: StageReport,
+    ) -> Local<'static, ()> {
         unimplemented!("fake kind")
     }
     fn memory_key(&self, _entry: &LiveWorkspace, _agent_id: &str) -> Option<String> {
         unimplemented!("fake kind")
     }
-    fn end_thread(&self, _entry: &LiveWorkspace, _thread_id: &str, _o: EndThread) -> Option<Local<'static, Option<String>>> {
+    fn end_thread(
+        &self,
+        _entry: &LiveWorkspace,
+        _thread_id: &str,
+        _o: EndThread,
+    ) -> Option<Local<'static, Option<String>>> {
         unimplemented!("fake kind")
     }
-    fn end_owed(&self, _entry: &LiveWorkspace, _thread_id: &str) -> Option<Local<'static, Option<Local<'static, ()>>>> {
+    fn end_owed(
+        &self,
+        _entry: &LiveWorkspace,
+        _thread_id: &str,
+    ) -> Option<Local<'static, Option<Local<'static, ()>>>> {
         unimplemented!("fake kind")
     }
-    fn port_reach(&self, _entry: &LiveWorkspace, _port: u16, _standing: bool) -> Option<Local<'static, PortRoute>> {
+    fn port_reach(
+        &self,
+        _entry: &LiveWorkspace,
+        _port: u16,
+        _standing: bool,
+    ) -> Option<Local<'static, PortRoute>> {
         unimplemented!("fake kind")
     }
     fn relayed(&self, _machine_id: Option<&str>) -> bool {
@@ -825,14 +1011,21 @@ impl KindModule for FakeKind {
     fn shared_daemon(&self) -> bool {
         unimplemented!("fake kind")
     }
-    fn daemon_road(&self, _entry: &LiveWorkspace) -> Local<'static, wsp_wire::views::workspace::DaemonReachView> {
+    fn daemon_road(
+        &self,
+        _entry: &LiveWorkspace,
+    ) -> Local<'static, wsp_wire::views::workspace::DaemonReachView> {
         unimplemented!("fake kind")
     }
     fn scratch(&self, _entry: &LiveWorkspace) -> String {
         unimplemented!("fake kind")
     }
     fn dropped(&self, entry: &LiveWorkspace) -> Local<'static, ()> {
-        self.log.push(json!(["module.dropped", self.kind, entry.record.borrow().id]));
+        self.log.push(json!([
+            "module.dropped",
+            self.kind,
+            entry.record.borrow().id
+        ]));
         let err = self.dropped_err.clone();
         async move {
             match err {
@@ -914,7 +1107,11 @@ impl Store for FailPut {
     async fn delete_blob(&self, c: &str, id: &str) -> Result<(), HostError> {
         self.inner.delete_blob(c, id).await
     }
-    async fn stat_blob(&self, c: &str, id: &str) -> Result<Option<wsp_core::types::pending::BlobMark>, HostError> {
+    async fn stat_blob(
+        &self,
+        c: &str,
+        id: &str,
+    ) -> Result<Option<wsp_core::types::pending::BlobMark>, HostError> {
         self.inner.stat_blob(c, id).await
     }
 }
@@ -954,7 +1151,11 @@ impl Rt {
 impl MachinesRuntime for Rt {
     fn store(&self) -> Rc<dyn Store> {
         match self.cfg.borrow().fail_put.clone() {
-            Some((collection, message)) => Rc::new(FailPut { inner: self.store.clone(), collection, message }),
+            Some((collection, message)) => Rc::new(FailPut {
+                inner: self.store.clone(),
+                collection,
+                message,
+            }),
             None => self.store.clone(),
         }
     }
@@ -971,7 +1172,8 @@ impl MachinesRuntime for Rt {
         self.places.clone()
     }
     fn emit(&self, event: EventUnion) -> Result<(), HostError> {
-        self.log.push(json!(["emit", serde_json::to_value(&event).unwrap()]));
+        self.log
+            .push(json!(["emit", serde_json::to_value(&event).unwrap()]));
         let area = self.area.borrow().upgrade();
         if let Some(a) = area {
             a.on_event(&event);
@@ -1017,7 +1219,12 @@ impl MachinesRuntime for Rt {
         self.projects_held.borrow().iter().any(|p| p == project_id)
     }
     fn kept_agents_on(&self, workspace_id: &str) -> Vec<String> {
-        self.kept.borrow().iter().filter(|(_, ws)| ws == workspace_id).map(|(t, _)| t.clone()).collect()
+        self.kept
+            .borrow()
+            .iter()
+            .filter(|(_, ws)| ws == workspace_id)
+            .map(|(t, _)| t.clone())
+            .collect()
     }
 
     fn end_execs(&self, workspace_id: &str, reason: &str) {
@@ -1029,7 +1236,11 @@ impl MachinesRuntime for Rt {
     }
     async fn entry_of(&self, id: &str) -> Result<Entry, HostError> {
         tick().await;
-        self.live.borrow().get(id).cloned().ok_or_else(|| HostError::new(format!("no entry {id}")))
+        self.live
+            .borrow()
+            .get(id)
+            .cloned()
+            .ok_or_else(|| HostError::new(format!("no entry {id}")))
     }
     fn view(&self, record: &WorkspaceRecord) -> WorkspaceView {
         from(json!({
@@ -1039,13 +1250,20 @@ impl MachinesRuntime for Rt {
         }))
     }
     async fn persist(&self, record: &WorkspaceRecord) -> Result<(), HostError> {
-        self.log.push(json!(["persist", serde_json::to_value(record).unwrap()]));
+        self.log
+            .push(json!(["persist", serde_json::to_value(record).unwrap()]));
         tick().await;
         Ok(())
     }
-    async fn emit_status(&self, entry: &Entry, reach: ReachState, said: Option<&str>) -> Result<(), HostError> {
+    async fn emit_status(
+        &self,
+        entry: &Entry,
+        reach: ReachState,
+        said: Option<&str>,
+    ) -> Result<(), HostError> {
         let id = Rt::id_of(entry);
-        self.log.push(json!(["emitStatus", id, reach_name(reach), said]));
+        self.log
+            .push(json!(["emitStatus", id, reach_name(reach), said]));
         tick().await;
         Ok(())
     }
@@ -1090,7 +1308,11 @@ impl MachinesRuntime for Rt {
         self.backend.borrow().clone()
     }
     fn module_of(&self, kind: &str) -> Rc<dyn KindModule> {
-        Rc::new(FakeKind { kind: kind.into(), log: self.log.clone(), dropped_err: self.cfg.borrow().dropped_err.clone() })
+        Rc::new(FakeKind {
+            kind: kind.into(),
+            log: self.log.clone(),
+            dropped_err: self.cfg.borrow().dropped_err.clone(),
+        })
     }
     fn keeps_images(&self, _backend: &Arc<dyn MachineBackend>) -> bool {
         self.cfg.borrow().keeps_images
@@ -1109,7 +1331,8 @@ impl MachinesRuntime for Rt {
     }
     fn place_id_of(&self, record: &WorkspaceRecord) -> Option<String> {
         let at = self.log.0.borrow().len();
-        self.log.push(json!(["placeIdOf", serde_json::to_value(record).unwrap()]));
+        self.log
+            .push(json!(["placeIdOf", serde_json::to_value(record).unwrap()]));
         self.lazy_records.borrow_mut().push((at, record.id.clone()));
         record.place.clone()
     }
@@ -1130,16 +1353,36 @@ impl MachinesRuntime for Rt {
         cfg.size_built_calls.push((shape.cloned(), asked.clone()));
         cfg.size_built.clone().unwrap_or(asked)
     }
-    async fn read_memory(&self, record: &Rc<RefCell<WorkspaceRecord>>, machine: &Arc<dyn Machine>, _sizes: &[WorkspaceSize]) -> bool {
-        self.cfg.borrow_mut().read_memory_calls.push((record.borrow().id.clone(), machine.id().to_string()));
+    async fn read_memory(
+        &self,
+        record: &Rc<RefCell<WorkspaceRecord>>,
+        machine: &Arc<dyn Machine>,
+        _sizes: &[WorkspaceSize],
+    ) -> bool {
+        self.cfg
+            .borrow_mut()
+            .read_memory_calls
+            .push((record.borrow().id.clone(), machine.id().to_string()));
         true
     }
-    async fn vault_export(&self, machine: &Arc<dyn Machine>, max_bytes: u64, leave: Option<Vec<String>>) -> Result<Vec<u8>, HostError> {
+    async fn vault_export(
+        &self,
+        machine: &Arc<dyn Machine>,
+        max_bytes: u64,
+        leave: Option<Vec<String>>,
+    ) -> Result<Vec<u8>, HostError> {
         let mut cfg = self.cfg.borrow_mut();
-        cfg.vault_calls.push((machine.id().to_string(), max_bytes, leave));
-        cfg.vault_export.pop_front().unwrap_or_else(|| Ok(b"vault".to_vec()))
+        cfg.vault_calls
+            .push((machine.id().to_string(), max_bytes, leave));
+        cfg.vault_export
+            .pop_front()
+            .unwrap_or_else(|| Ok(b"vault".to_vec()))
     }
-    async fn gone_stop(&self, _at: &Arc<dyn MachineBackend>, machine: &Arc<dyn Machine>) -> Result<(), HostError> {
+    async fn gone_stop(
+        &self,
+        _at: &Arc<dyn MachineBackend>,
+        machine: &Arc<dyn Machine>,
+    ) -> Result<(), HostError> {
         let err = self.cfg.borrow().gone_stop_err.clone();
         if let Some(e) = err {
             return Err(e);
@@ -1150,7 +1393,9 @@ impl MachinesRuntime for Rt {
     }
 
     fn forget_workspace_maps(&self, workspace_id: &str) {
-        self.unlogged.borrow_mut().push(format!("forget_workspace_maps {workspace_id}"));
+        self.unlogged
+            .borrow_mut()
+            .push(format!("forget_workspace_maps {workspace_id}"));
     }
     fn reap_kept(&self, thread_id: &str) {
         self.log.push(json!(["reapKept", thread_id]));
@@ -1160,23 +1405,30 @@ impl MachinesRuntime for Rt {
         Ok(())
     }
     fn forget_viewed(&self, workspace_id: &str) {
-        self.unlogged.borrow_mut().push(format!("forget_viewed {workspace_id}"));
+        self.unlogged
+            .borrow_mut()
+            .push(format!("forget_viewed {workspace_id}"));
     }
     fn cancel_flush(&self, workspace_id: &str) {
         self.log.push(json!(["cancelFlush", workspace_id]));
     }
     async fn settle_flushes(&self, workspace_id: &str) {
-        self.unlogged.borrow_mut().push(format!("settle_flushes {workspace_id}"));
+        self.unlogged
+            .borrow_mut()
+            .push(format!("settle_flushes {workspace_id}"));
     }
     fn clear_rows(&self, workspace_id: &str) {
         self.log.push(json!(["rows.clear", workspace_id]));
     }
     async fn drop_sent_images(&self, workspace_id: &str) -> Result<(), HostError> {
-        self.log.push(json!(["dropSentImages", workspace_id, "all"]));
+        self.log
+            .push(json!(["dropSentImages", workspace_id, "all"]));
         Ok(())
     }
     fn forget_kept_writes(&self, workspace_id: &str) {
-        self.unlogged.borrow_mut().push(format!("forget_kept_writes {workspace_id}"));
+        self.unlogged
+            .borrow_mut()
+            .push(format!("forget_kept_writes {workspace_id}"));
     }
 }
 
@@ -1196,7 +1448,13 @@ pub struct Opts {
 
 impl Default for Opts {
     fn default() -> Self {
-        Opts { store: json!({}), backend: None, reads: None, gone_confirm_ms: 0, config: None }
+        Opts {
+            store: json!({}),
+            backend: None,
+            reads: None,
+            gone_confirm_ms: 0,
+            config: None,
+        }
     }
 }
 
@@ -1241,13 +1499,28 @@ impl World {
     pub fn new(o: Opts) -> World {
         let log = Log::default();
         let clock = FakeClock::new(T0);
-        let store = MemStore::seeded(&seed_of(&o.store), log.clone(), StoreLogs { put: true, delete: true, blobs: true, ..Default::default() });
+        let store = MemStore::seeded(
+            &seed_of(&o.store),
+            log.clone(),
+            StoreLogs {
+                put: true,
+                delete: true,
+                blobs: true,
+                ..Default::default()
+            },
+        );
         let backend = FakeBackend::new(&log, "solari", o.backend.unwrap_or_default());
         if let Some(reads) = o.reads {
             backend.reads(reads);
         }
-        let places = Rc::new(FakePlaces { wired: "solari".into(), backends: RefCell::new(IndexMap::new()) });
-        places.backends.borrow_mut().insert("pl1".into(), backend.clone() as Arc<dyn MachineBackend>);
+        let places = Rc::new(FakePlaces {
+            wired: "solari".into(),
+            backends: RefCell::new(IndexMap::new()),
+        });
+        places
+            .backends
+            .borrow_mut()
+            .insert("pl1".into(), backend.clone() as Arc<dyn MachineBackend>);
         let rt = Rc::new(Rt {
             log: log.clone(),
             clock: clock.clone(),
@@ -1257,7 +1530,11 @@ impl World {
             places,
             area: RefCell::new(Weak::new()),
             on_exec: RefCell::new(None),
-            idle: Rc::new(FakeIdle { calls: RefCell::new(Vec::new()), area: RefCell::new(Weak::new()), clock: clock.clone() }),
+            idle: Rc::new(FakeIdle {
+                calls: RefCell::new(Vec::new()),
+                area: RefCell::new(Weak::new()),
+                clock: clock.clone(),
+            }),
             live: Rc::new(RefCell::new(IndexMap::new())),
             sessions: Rc::new(RefCell::new(IndexMap::new())),
             thread_records: Rc::new(RefCell::new(IndexMap::new())),
@@ -1271,10 +1548,20 @@ impl World {
             lazy_records: RefCell::new(Vec::new()),
             cfg: RefCell::new(RtCfg::default()),
         });
-        let area = MachinesArea::new(rt.clone() as Rc<dyn MachinesRuntime>, o.config.unwrap_or_else(|| config(o.gone_confirm_ms)));
+        let area = MachinesArea::new(
+            rt.clone() as Rc<dyn MachinesRuntime>,
+            o.config.unwrap_or_else(|| config(o.gone_confirm_ms)),
+        );
         *rt.area.borrow_mut() = Rc::downgrade(&area);
         *rt.idle.area.borrow_mut() = Rc::downgrade(&area);
-        World { log, clock, store, rt, area, backend }
+        World {
+            log,
+            clock,
+            store,
+            rt,
+            area,
+            backend,
+        }
     }
 
     /// The log as the oracle writes it: an object an entry names by its record is read when the scene ends.
@@ -1352,7 +1639,12 @@ pub fn hooks_none() -> WorkspaceHooks {
     }
 }
 
-pub fn live_workspace(record: WorkspaceRecord, machine: Arc<dyn Machine>, ws: Workspace, generation: u64) -> LiveWorkspace {
+pub fn live_workspace(
+    record: WorkspaceRecord,
+    machine: Arc<dyn Machine>,
+    ws: Workspace,
+    generation: u64,
+) -> LiveWorkspace {
     LiveWorkspace {
         record: Rc::new(RefCell::new(record)),
         opens_thread: None,
@@ -1397,7 +1689,14 @@ pub struct EntryOpts {
 
 impl Default for EntryOpts {
     fn default() -> Self {
-        EntryOpts { phase: "running", nap: None, state: None, prove: None, sub: false, record: json!({}) }
+        EntryOpts {
+            phase: "running",
+            nap: None,
+            state: None,
+            prove: None,
+            sub: false,
+            record: json!({}),
+        }
     }
 }
 
@@ -1430,15 +1729,28 @@ impl World {
             s.prove = o.prove;
         }
         let record = record_of(o.phase, o.record, o.sub);
-        let ws = Workspace::new(machine.clone() as Arc<dyn Machine>, hooks_none(), WorkspaceInitial { phase: None, first_life: Some(false) });
+        let ws = Workspace::new(
+            machine.clone() as Arc<dyn Machine>,
+            hooks_none(),
+            WorkspaceInitial {
+                phase: None,
+                first_life: Some(false),
+            },
+        );
         let id = record.id.clone();
-        let entry: Entry = Rc::new(RefCell::new(live_workspace(record, machine.clone() as Arc<dyn Machine>, ws, 0)));
+        let entry: Entry = Rc::new(RefCell::new(live_workspace(
+            record,
+            machine.clone() as Arc<dyn Machine>,
+            ws,
+            0,
+        )));
         self.rt.live.borrow_mut().insert(id, entry.clone());
         Ent { entry, machine }
     }
 
     pub fn session_row(&self, id: &str, workspace: &str, thread: Option<&str>) -> Row {
-        let mut view = json!({ "id": id, "workspaceId": workspace, "harness": "claude", "status": "running" });
+        let mut view =
+            json!({ "id": id, "workspaceId": workspace, "harness": "claude", "status": "running" });
         if let Some(t) = thread {
             view["threadId"] = json!(t);
         }
@@ -1454,7 +1766,9 @@ impl World {
             turn_token: None,
             scope_device_id: None,
             handle: None,
-            end: Some(Rc::new(move |reason, _, _| log.push(json!(["session.end", sid, reason])))),
+            end: Some(Rc::new(move |reason, _, _| {
+                log.push(json!(["session.end", sid, reason]))
+            })),
             turn_live: None,
             run: None,
             from: None,
@@ -1470,14 +1784,23 @@ impl World {
 
     /// The oracle's `sessionsOf`: sessions `s1` (ws_1) and `s2` (ws_2) and one exec of ws_1, each logging its end.
     pub fn sessions_of(&self) {
-        self.rt.sessions.borrow_mut().insert("s1".into(), self.session_row("s1", "ws_1", None));
-        self.rt.sessions.borrow_mut().insert("s2".into(), self.session_row("s2", "ws_2", None));
+        self.rt
+            .sessions
+            .borrow_mut()
+            .insert("s1".into(), self.session_row("s1", "ws_1", None));
+        self.rt
+            .sessions
+            .borrow_mut()
+            .insert("s2".into(), self.session_row("s2", "ws_2", None));
         self.rt.execs.borrow_mut().push("ws_1".into());
     }
 
     /// A running row on a workspace, ended by nobody.
     pub fn running_row(&self, id: &str, workspace: &str) {
-        self.rt.sessions.borrow_mut().insert(id.into(), self.session_row(id, workspace, None));
+        self.rt
+            .sessions
+            .borrow_mut()
+            .insert(id.into(), self.session_row(id, workspace, None));
     }
 
     pub fn marks(&self, e: &Entry) -> Vec<&'static str> {
@@ -1510,8 +1833,20 @@ impl World {
 
     /// The oracle's `after(x, e)`: the record, the marks on the entry, the refusals, the records being read again.
     pub fn after(&self, e: &Entry) -> Value {
-        let nap: Vec<Value> = self.rt.nap_refusals.borrow().iter().map(|(k, r)| json!([k, { "machineId": r.machine_id, "said": r.said }])).collect();
-        let stop: Vec<Value> = self.rt.stop_refusals.borrow().iter().map(|(k, r)| json!([k, { "machineId": r.machine_id, "said": r.said }])).collect();
+        let nap: Vec<Value> = self
+            .rt
+            .nap_refusals
+            .borrow()
+            .iter()
+            .map(|(k, r)| json!([k, { "machineId": r.machine_id, "said": r.said }]))
+            .collect();
+        let stop: Vec<Value> = self
+            .rt
+            .stop_refusals
+            .borrow()
+            .iter()
+            .map(|(k, r)| json!([k, { "machineId": r.machine_id, "said": r.said }]))
+            .collect();
         json!({
             "record": serde_json::to_value(&*e.borrow().record.borrow()).unwrap(),
             "marks": self.marks(e),
@@ -1533,7 +1868,9 @@ impl World {
 
 /// Starts a future on the owner's thread and lets it run to where it first waits, as a TS call runs up to its first
 /// `await`; its answer is read at the join handle.
-pub async fn started<T: 'static>(f: impl Future<Output = T> + 'static) -> tokio::task::JoinHandle<T> {
+pub async fn started<T: 'static>(
+    f: impl Future<Output = T> + 'static,
+) -> tokio::task::JoinHandle<T> {
     let h = tokio::task::spawn_local(f);
     tokio::task::yield_now().await;
     h
@@ -1566,7 +1903,10 @@ pub fn request_back(v: &Value) -> Value {
         Value::Object(o) => Value::Object(
             o.iter()
                 .map(|(k, x)| match (k.as_str(), x) {
-                    ("request", Value::String(s)) => (k.clone(), serde_json::from_str(s).unwrap_or_else(|_| x.clone())),
+                    ("request", Value::String(s)) => (
+                        k.clone(),
+                        serde_json::from_str(s).unwrap_or_else(|_| x.clone()),
+                    ),
                     _ => (k.clone(), request_back(x)),
                 })
                 .collect(),
@@ -1578,7 +1918,22 @@ pub fn request_back(v: &Value) -> Value {
 
 /// The keys a Rust record or view writes that the oracle's records did not carry (required fields the oracle's
 /// records left out, filled with empty values by the test).
-const FILLER: &[&str] = &["name", "machineId", "golden", "createdAt", "project", "spec", "size", "firstLife", "repo", "base", "branch", "folder", "reach", "rateUsdPerHour"];
+const FILLER: &[&str] = &[
+    "name",
+    "machineId",
+    "golden",
+    "createdAt",
+    "project",
+    "spec",
+    "size",
+    "firstLife",
+    "repo",
+    "base",
+    "branch",
+    "folder",
+    "reach",
+    "rateUsdPerHour",
+];
 
 /// `got` without the filler keys `want` does not name, down to the same depth.
 pub fn shed(want: &Value, got: &Value) -> Value {
@@ -1598,7 +1953,12 @@ pub fn shed(want: &Value, got: &Value) -> Value {
             }
             Value::Object(out)
         }
-        (Value::Array(w), Value::Array(g)) => Value::Array(g.iter().enumerate().map(|(i, v)| w.get(i).map_or_else(|| v.clone(), |wv| shed(wv, v))).collect()),
+        (Value::Array(w), Value::Array(g)) => Value::Array(
+            g.iter()
+                .enumerate()
+                .map(|(i, v)| w.get(i).map_or_else(|| v.clone(), |wv| shed(wv, v)))
+                .collect(),
+        ),
         _ => got.clone(),
     }
 }
@@ -1613,8 +1973,14 @@ pub struct Rules {
     pub drop_oracle_only: bool,
 }
 
-pub const CREATES: Rules = Rules { lenient: false, drop_oracle_only: false };
-pub const PHASES: Rules = Rules { lenient: true, drop_oracle_only: true };
+pub const CREATES: Rules = Rules {
+    lenient: false,
+    drop_oracle_only: false,
+};
+pub const PHASES: Rules = Rules {
+    lenient: true,
+    drop_oracle_only: true,
+};
 
 fn sort_names(entry: &Value) -> Value {
     if entry[0] == "namedAfter" {
@@ -1647,33 +2013,58 @@ pub fn want_log(scene: &Value, rules: Rules) -> Vec<Value> {
 
 pub fn assert_log(scene: &Value, got: &[Value], rules: Rules) {
     let want = want_log(scene, rules);
-    let got: Vec<Value> = got.iter().map(|e| norm(&request_back(&sort_names(e)))).collect();
+    let got: Vec<Value> = got
+        .iter()
+        .map(|e| norm(&request_back(&sort_names(e))))
+        .collect();
     for (i, (w, g)) in want.iter().zip(got.iter()).enumerate() {
         let g = if rules.lenient { shed(w, g) } else { g.clone() };
-        assert_eq!(&g, &norm(w), "scene {:?}: log entry {i} differs", scene["name"]);
+        assert_eq!(
+            &g,
+            &norm(w),
+            "scene {:?}: log entry {i} differs",
+            scene["name"]
+        );
     }
-    assert_eq!(got.len(), want.len(), "scene {:?}: log length differs; got {:#?}", scene["name"], got);
+    assert_eq!(
+        got.len(),
+        want.len(),
+        "scene {:?}: log length differs; got {:#?}",
+        scene["name"],
+        got
+    );
 }
 
 /// `got` against the scene's `answer`, with the test's filler keys shed where the rules say so.
 pub fn assert_answer(scene: &Value, got: &Value, rules: Rules) {
     let want = norm(&scene["answer"]);
     let got = norm(&request_back(got));
-    let got = if rules.lenient { shed(&want, &got) } else { got };
+    let got = if rules.lenient {
+        shed(&want, &got)
+    } else {
+        got
+    };
     assert_eq!(got, want, "scene {:?}: answer differs", scene["name"]);
 }
 
 /// The scene's `creates` rows after, as `[[key, row], ...]`.
 pub fn assert_creates(w: &World, scene: &Value) {
     let got = norm(&request_back(&w.store.table("creates")));
-    assert_eq!(got, norm(&scene["creates"]), "scene {:?}: creates rows differ", scene["name"]);
+    assert_eq!(
+        got,
+        norm(&scene["creates"]),
+        "scene {:?}: creates rows differ",
+        scene["name"]
+    );
 }
 
 /// An engine answer `Result<String, HostError>` as the oracle's `{threw, kind}` or the value.
 pub fn answer_of<T: Into<Value>>(r: Result<T, HostError>) -> Value {
     match r {
         Ok(v) => v.into(),
-        Err(e) => json!({ "threw": e.message, "kind": e.kind.as_ref().map(|k| k.as_str().to_string()) }),
+        Err(e) => {
+            json!({ "threw": e.message, "kind": e.kind.as_ref().map(|k| k.as_str().to_string()) })
+        }
     }
 }
 
@@ -1706,26 +2097,38 @@ pub fn before(ms: i64) -> String {
 
 /// The names of a log's entries, for a test that reads only the order of the calls.
 pub fn names_of(log: &[Value]) -> Vec<String> {
-    log.iter().map(|e| e[0].as_str().unwrap_or("?").to_string()).collect()
+    log.iter()
+        .map(|e| e[0].as_str().unwrap_or("?").to_string())
+        .collect()
 }
 
 /// The entries of a log whose first word is one of `kinds`.
 pub fn log_of(log: &[Value], kinds: &[&str]) -> Vec<Value> {
-    log.iter().filter(|e| kinds.iter().any(|k| e[0] == *k)).cloned().collect()
+    log.iter()
+        .filter(|e| kinds.iter().any(|k| e[0] == *k))
+        .cloned()
+        .collect()
 }
-
 
 // ---------------------------------------------------------------------------------------------------------------
 // The creates acts
 
 /// The oracle's `spec`.
 pub fn spec_default() -> MachineSpec {
-    from(json!({ "kind": "sandbox", "template": "img-1", "cpu": 2, "memMb": 4096, "labels": { "a": "1", "createdAt": "stamp" } }))
+    from(
+        json!({ "kind": "sandbox", "template": "img-1", "cpu": 2, "memMb": 4096, "labels": { "a": "1", "createdAt": "stamp" } }),
+    )
 }
 
 /// The oracle's `create(x, b, purpose, spec, place)`: one create through `claiming`, logging what the waiting line says
 /// and what `inflight` holds once the machine answered.
-pub async fn create(w: &World, b: Arc<FakeBackend>, purpose: &str, spec: MachineSpec, place: Option<&str>) -> Result<String, HostError> {
+pub async fn create(
+    w: &World,
+    b: Arc<FakeBackend>,
+    purpose: &str,
+    spec: MachineSpec,
+    place: Option<&str>,
+) -> Result<String, HostError> {
     let log = w.log.clone();
     let area = w.area.clone();
     let waiting_log = w.log.clone();
@@ -1734,9 +2137,10 @@ pub async fn create(w: &World, b: Arc<FakeBackend>, purpose: &str, spec: Machine
             purpose,
             move |h| {
                 async move {
-                    let waiting: Waiting = Arc::new(move |line: &str, bx: Option<&ProviderBoxState>| {
-                        waiting_log.push(json!(["waiting", line, bx.map(|b| b.id.clone())]));
-                    });
+                    let waiting: Waiting =
+                        Arc::new(move |line: &str, bx: Option<&ProviderBoxState>| {
+                            waiting_log.push(json!(["waiting", line, bx.map(|b| b.id.clone())]));
+                        });
                     let m = h.create(spec, Some(waiting)).await?;
                     log.push(json!(["inflight inside", area.inflight()]));
                     Ok::<String, HostError>(m.id().to_string())
@@ -1751,7 +2155,15 @@ pub async fn create(w: &World, b: Arc<FakeBackend>, purpose: &str, spec: Machine
 
 /// The body the scene's first attempt carries: what a held row of the same spec must hold to be replayed.
 pub fn fingerprint_of(scene: &Value) -> String {
-    scene["log"].as_array().unwrap().iter().find(|e| e[0] == "store.put").expect("an attempt put")[3]["body"].as_str().unwrap().to_string()
+    scene["log"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|e| e[0] == "store.put")
+        .expect("an attempt put")[3]["body"]
+        .as_str()
+        .unwrap()
+        .to_string()
 }
 
 /// The scene's seed with the held attempt's body set to the spec's fingerprint, as the oracle's act sets it.
@@ -1766,7 +2178,12 @@ pub fn check_create(w: &World, scene: &Value, answer: Value) {
     assert_log(scene, &w.log_now(), CREATES);
     assert_answer(scene, &answer, CREATES);
     assert_creates(w, scene);
-    assert_eq!(json!(w.area.inflight()), scene["inflight"], "scene {:?}: inflight differs", scene["name"]);
+    assert_eq!(
+        json!(w.area.inflight()),
+        scene["inflight"],
+        "scene {:?}: inflight differs",
+        scene["name"]
+    );
 }
 
 /// The scene's `store` seed, as it was given to the oracle's world.
@@ -1791,7 +2208,11 @@ impl World {
     /// The oracle's `.catch(err => log.push(["rejected", err.message]))` (with the kind where the scene logs one).
     pub fn rejected(&self, err: &HostError, with_kind: bool) {
         if with_kind {
-            self.log.push(json!(["rejected", err.message, err.kind.as_ref().map(|k| k.as_str().to_string())]));
+            self.log.push(json!([
+                "rejected",
+                err.message,
+                err.kind.as_ref().map(|k| k.as_str().to_string())
+            ]));
         } else {
             self.log.push(json!(["rejected", err.message]));
         }
@@ -1823,7 +2244,12 @@ pub fn assert_notes(scene: &Value, e: &Ent) {
         }
     }
     if let Some(p) = want {
-        assert_eq!(e.entry.borrow().ws.current_phase(), p, "scene {:?}: the engine's workspace phase differs", scene["name"]);
+        assert_eq!(
+            e.entry.borrow().ws.current_phase(),
+            p,
+            "scene {:?}: the engine's workspace phase differs",
+            scene["name"]
+        );
     }
 }
 
@@ -1834,17 +2260,24 @@ pub fn check_phases(w: &World, scene: &Value, answer: Value, e: &Ent) {
     assert_notes(scene, e);
 }
 
-
 /// Runs `f` on the engine workspace of an entry, which the entry holds as an `Rc` while the engine's calls take
 /// `&mut self`: the workspace is taken out of the entry for the call and put back, so the hooks it runs may borrow
 /// the entry.
-pub async fn with_ws<T>(entry: &Entry, f: impl for<'a> FnOnce(&'a mut Workspace) -> LocalBoxFuture<'a, T>) -> T {
+pub async fn with_ws<T>(
+    entry: &Entry,
+    f: impl for<'a> FnOnce(&'a mut Workspace) -> LocalBoxFuture<'a, T>,
+) -> T {
     let placeholder = {
         let e = entry.borrow();
-        Rc::new(Workspace::new(e.machine.clone(), hooks_none(), WorkspaceInitial::default()))
+        Rc::new(Workspace::new(
+            e.machine.clone(),
+            hooks_none(),
+            WorkspaceInitial::default(),
+        ))
     };
     let mut ws = std::mem::replace(&mut entry.borrow_mut().ws, placeholder);
-    let out = f(Rc::get_mut(&mut ws).expect("the entry is the engine workspace's only holder")).await;
+    let out =
+        f(Rc::get_mut(&mut ws).expect("the entry is the engine workspace's only holder")).await;
     entry.borrow_mut().ws = ws;
     out
 }
