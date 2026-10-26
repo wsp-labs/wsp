@@ -188,8 +188,19 @@ fn phase_of(entry: &Entry) -> WorkspacePhase {
     read_rec(entry, |r| r.phase)
 }
 
+/// The engine's error as the TS rethrows it: its words, the kind it was born with (exit.ts:37 reads the exit class off
+/// it), and the status and code a provider's answer carried.
 fn engine(e: EngineError) -> HostError {
-    HostError::new(e.to_string())
+    let kind = match &e {
+        EngineError::NotFirstLife { .. } => Some(Kind::NotFirstLife),
+        EngineError::VaultTooLarge { .. } => Some(Kind::VaultTooLarge),
+        EngineError::Exists { .. } => Some(Kind::Exists),
+        EngineError::NoProvider { .. } => Some(Kind::NoProvider),
+        EngineError::Invalid { .. } => Some(Kind::Invalid),
+        EngineError::PlaceAbsent { .. } => Some(Kind::Other("absent".to_owned())),
+        other => other.kind().and_then(|kind| serde_json::to_value(kind).ok()).and_then(|word| word.as_str().map(Kind::parse)),
+    };
+    HostError { kind, status: e.status().map(f64::from), code: e.code().map(str::to_owned), ..HostError::new(e.to_string()) }
 }
 
 fn conflict(message: String) -> HostError {
