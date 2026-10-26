@@ -249,6 +249,8 @@ pub struct BootArea {
     pub(crate) rows_queued: std::cell::Cell<bool>,
     /// `rowsOut`: the last link of the rows chain, each push waits for the one before it.
     pub(crate) rows_out: RefCell<Option<futures::future::Shared<futures::future::LocalBoxFuture<'static, ()>>>>,
+    /// `latest`: the newest builders pass, which an older pass that a newer one overtook hands its caller.
+    pub(crate) latest: RefCell<Option<futures::future::Shared<futures::future::LocalBoxFuture<'static, Result<(), String>>>>>,
 }
 
 impl BootArea {
@@ -267,6 +269,7 @@ impl BootArea {
             rows_gone: RefCell::default(),
             rows_queued: std::cell::Cell::new(false),
             rows_out: RefCell::default(),
+            latest: RefCell::default(),
         })
     }
 
