@@ -300,3 +300,10 @@ pub fn local_wiring(root: &Path, copier: Rc<dyn Copier>) -> wsp_core::types::wir
         close: None,
     }
 }
+
+/// stub-script.ts `writeStub`: a script at `path` the shell can run, made executable.
+pub fn write_stub(path: &Path, body: &str) {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::write(path, body).expect("a stub");
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).expect("a mode");
+}
