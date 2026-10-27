@@ -69,6 +69,9 @@ const PRINTABLE = /[\x20-\x7e\u00a0-\uffff]/;
 /** Arrow keys and the like, CSI or application-mode SS3: a menu moved is not text typed. */
 const CSI = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1bO[A-Z]/g;
 const TAIL_CHARS = 2048;
+/** gh 2.101 and later ask the terminal where its cursor is and read no key until it answers. */
+const CURSOR_QUERY = "\x1b[6n";
+const CURSOR_REPLY = "\x1b[1;1R";
 const OSC8 = /\x1b\]8;[^;\x07\x1b]*;[^\x07\x1b]*(?:\x07|\x1b\\)/g;
 const URL_IN_TEXT = /https?:\/\/[^\s"'<>\x00-\x1f\x7f]+/g;
 
@@ -134,6 +137,20 @@ export class QuestionScanner {
       out.push({ question, matched });
     }
     return out;
+  }
+}
+
+/** Feeds chunks and counts the cursor position queries each one completes, even one split across two chunks. */
+export class CursorQueries {
+  private tail = "";
+  feed(chunk: string): number {
+    const joined = this.tail + chunk;
+    this.tail = joined.slice(-(CURSOR_QUERY.length - 1));
+    let found = 0;
+    for (let at = joined.indexOf(CURSOR_QUERY); at >= 0; at = joined.indexOf(CURSOR_QUERY, at + CURSOR_QUERY.length)) {
+      if (at + CURSOR_QUERY.length > joined.length - chunk.length) found += 1;
+    }
+    return found;
   }
 }
 
@@ -363,6 +380,7 @@ export async function watchPty(o: WatchOptions): Promise<WatchOutcome> {
     for (const url of urls) o.onUrl?.(url);
   };
   const questions = new QuestionScanner(o.questions ?? []);
+  const cursor = new CursorQueries();
   const tool = fromTool();
   let staged: Staged | undefined;
   const detach = o.link.onEvent(e => {
@@ -371,6 +389,7 @@ export async function watchPty(o: WatchOptions): Promise<WatchOutcome> {
       const data = tool(String(e["data"]));
       if (data === "") return;
       o.onData?.(data);
+      for (let n = cursor.feed(data); n > 0; n--) void o.link.op("pty.write", { ptyId, data: CURSOR_REPLY }).catch(() => {});
       for (const asked of questions.feed(data)) {
         if ("answer" in asked.question) void o.link.op("pty.write", { ptyId, data: asked.question.answer }).catch(() => {});
         o.onQuestion?.(asked);
