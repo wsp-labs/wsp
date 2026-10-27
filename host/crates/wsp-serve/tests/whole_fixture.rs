@@ -614,3 +614,18 @@ fn a_lifecycle_has_a_quiet_figure_and_a_backstop_only_once_a_test_gives_them() {
         assert!(!life.has_backstop());
     });
 }
+
+// runtime-reach.test.ts:542 `daemonFrame`: a machine whose computer serves its daemon answers a frame and offers that road.
+#[test]
+fn a_machine_serves_its_daemon_over_its_own_road_only_once_a_test_says_so() {
+    use wsp_engine::machine::Machine as _;
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let m = made(&backend).await;
+        assert!(!m.offers().daemon_frame);
+        assert!(m.daemon_frame(serde_json::Map::new()).await.is_err());
+        m.set_served(true);
+        assert!(m.offers().daemon_frame);
+        assert_eq!(serde_json::Value::Object(m.daemon_frame(serde_json::Map::new()).await.expect("an answer")), json!({ "ok": true }));
+    });
+}
