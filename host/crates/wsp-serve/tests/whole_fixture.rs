@@ -666,3 +666,37 @@ fn write_stub_makes_a_script_the_shell_can_run() {
     let out = std::process::Command::new(&path).output().expect("the stub runs");
     assert_eq!(String::from_utf8_lossy(&out.stdout), "stubbed\n");
 }
+
+// fed-runs.ts: runs of the real adapter fed by hand: lines pushed reach the stream, a write that loses its answer lands or
+// not as told, and an attach after a restart reads the run again from its first line with what its input took.
+#[test]
+fn a_fed_run_streams_the_lines_pushed_loses_a_write_as_told_and_reads_again_on_attach() {
+    use futures::StreamExt as _;
+    use wsp_adapters::port::{AttachRunOptions, Attached, ExecOptions};
+    drive(|| async {
+        let (factory, fed) = common::fed::fed_runs();
+        let stream = factory.launch("claude", ExecOptions { input: Some(vec!["open the run".into()]), ..Default::default() });
+        let run = fed.run_of("open the run").expect("the run");
+        run.push(&["one".into(), "two".into()]);
+        let mut lines = stream.lines();
+        assert_eq!(lines.next().await.expect("a line").expect("ok"), "one");
+        assert_eq!(lines.next().await.expect("a line").expect("ok"), "two");
+        run.loses.set(Some(common::fed::Loses::Landed));
+        assert!(stream.write("{\"uuid\":\"u1\"}".into()).await.is_err());
+        run.loses.set(Some(common::fed::Loses::Lost));
+        assert!(stream.write("{\"uuid\":\"u2\"}".into()).await.is_err());
+        stream.write("{\"uuid\":\"u3\"}".into()).await.expect("a write");
+        assert_eq!(run.writes(), ["{\"uuid\":\"u1\"}", "{\"uuid\":\"u3\"}"]);
+        assert_eq!(fed.steered("open the run", 1), "u3");
+        run.end(Some(0));
+        assert!(lines.next().await.is_none());
+        let id = run.id.clone();
+        let attached = factory.attach(&id, AttachRunOptions { input: true, started_at: 0.0, from: None }).expect("an attach").await.expect("found");
+        let Attached::Stream(again) = attached else { panic!("the run is gone") };
+        let mut replay = again.lines();
+        assert_eq!(replay.next().await.expect("a line").expect("ok"), "one");
+        assert_eq!(again.taken().expect("what its input took"), ["open the run", "{\"uuid\":\"u1\"}", "{\"uuid\":\"u3\"}"]);
+        let gone = factory.attach("/tmp/wsp-run/none", AttachRunOptions { input: true, started_at: 0.0, from: None }).expect("an attach").await.expect("an answer");
+        assert!(matches!(gone, Attached::Gone));
+    });
+}
