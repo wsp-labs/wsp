@@ -3070,3 +3070,32 @@ describe("a computer that follows a recipe", () => {
     expect(p.ran).toEqual(["skills", "skills"]);
   });
 });
+
+describe("a plain resume runs again what follows a step it reruns", () => {
+  it("signs in an agent the first setup failed to install once a resume installs it", async () => {
+    const s = signIns();
+    const agents: PlaceProvisionRow[] = [{ id: "agents/codex", label: "Codex", outcome: "failed", note: "npm ERR! 404" }];
+    await hosting({ provision: provisioner({ rows: { agents } }).wired, acts: s.acts });
+    const picks = RecipeFile.parse({ name: "laptop", agents: { codex: { signin: "machine" } } });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
+    await until(async () => (await rowOf(place.id)).setup?.state !== "running");
+    agents[0] = { id: "agents/codex", label: "Codex", outcome: "installed" };
+    const again = await runtime!.places!.setUp(place.id, {});
+    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state !== "running");
+    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/codex")?.note).not.toBe(waitsForInstallLine("Codex"));
+    expect(s.started).toEqual(["codex"]);
+  });
+
+  it("runs the servers again when a resume reruns a CLI that failed", async () => {
+    const clis: PlaceProvisionRow[] = [{ id: "tools/brew/gh", label: "GitHub CLI", outcome: "failed", note: "brew failed" }];
+    const p = provisioner({ rows: { clis } });
+    await hosting({ provision: p.wired, acts: signIns().acts });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: LAPTOP }, Date.now());
+    await until(async () => (await rowOf(place.id)).setup?.state !== "running");
+    clis[0] = { id: "tools/brew/gh", label: "GitHub CLI", outcome: "installed" };
+    const ranBefore = p.ran.length;
+    const again = await runtime!.places!.setUp(place.id, {});
+    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state !== "running");
+    expect(p.ran.slice(ranBefore)).toContain("mcp");
+  });
+});
