@@ -8,6 +8,7 @@ import { PlaceAddTakenBackError, PlaceHostKeyChangedError, PlaceLoginRefusedErro
 import { BackCutError } from "../place-back.js";
 import { LOGIN_KEPT_LINE, loginKeptLine } from "../login-files.js";
 import { floorBytes } from "@wsp/catalog";
+import { ensureNode } from "../place-node.js";
 import { ADD_TAKEN_LINE, DAEMON_GONE_LINE, PLACE_JOINED_LINE, PlaceAlreadyJoinedError, PlaceJoinedThenFailedError, WSP_READY_LINE, addFound, addFoundScript, addUndoScript, deployDaemon, joinedAddWrites, joinedPlace, loginFilesStep, placeInstallFailedLine, sshDaemonPlace } from "../doctor.js";
 import { assetDir, assetName } from "../assets.js";
 import { DAEMON_BIN, daemonBinaryIn, daemonTargetFor, type DaemonTarget } from "../daemon-binary.js";
@@ -211,6 +212,12 @@ export function placeInstaller(deps: { backend?: SshBackend; sshWord?: SshWordRe
     const at = placeDaemonPaths(login.HOME);
     const place = joinedPlace({ home: login.HOME, path: login.PATH }, { hostUrls: joinUrls, codeFile: at.joinCode, name });
     stage("wsp", "running", target.uname);
+    // Before the undo is written, since Node stays on the box whatever becomes of the rest: the CLIs step puts the
+    // same one on a box that has none, and nothing here is wsp's to take back. The row says what became of the Node
+    // the box had, since a person's own is overwritten or shadowed.
+    const nodeNote = await ensureNode(machine);
+    const wspNote = nodeNote === undefined ? target.uname : `${target.uname}; ${nodeNote}`;
+    if (nodeNote !== undefined) said("wsp", "running", wspNote);
     // What the box already holds of the add's list, read before anything lands: a failed add takes back only what
     // it wrote, and a box that would not say keeps everything.
     const unit = placeUnit(login.HOME);
@@ -227,7 +234,7 @@ export function placeInstaller(deps: { backend?: SshBackend; sshWord?: SshWordRe
       land: [{ path: place.join!.codeFile, bytes: new TextEncoder().encode(`${req.code}\n`) }],
       onLine: line => {
         if (line.includes(WSP_READY_LINE)) {
-          stage("wsp", "done", target.uname);
+          stage("wsp", "done", wspNote);
           // The addresses the box is about to dial, said as its join starts rather than after the wait it ends in:
           // a wrong one is twenty seconds of silence followed by a sentence naming it, and this is the same fact
           // read while it can still be stopped.

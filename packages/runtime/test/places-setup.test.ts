@@ -675,6 +675,23 @@ describe("a remove of a computer set up with picks", () => {
     return (await runtime!.projects.add({ source: folder, on: placeId, name: "app", seed: seedChoiceFrom(await seed.plan(folder, {}), [], []) })).id;
   };
 
+  it("says a failed folder's note into the folders step's log, so the open row shows the cause", async () => {
+    const { folder, seed } = seededFolder();
+    const cmds: string[] = [];
+    await hosting({ provision: provisioner().wired, checkouts: {}, seed, cmds });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: appPicks(folder) }, Date.now());
+    await until(async () => (await rowOf(place.id)).setup?.state === "done");
+    await theirsInItsPlace(folder, seed, place.id);
+    const again = await runtime!.places!.setUp(place.id, { choices: appPicks(folder) });
+    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
+    const note = (await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")?.note;
+    expect(note).toBeTruthy();
+    const at = placeProvisionPaths("/home/maya");
+    const written = (cmd: string): string => Buffer.from(/printf %s '([A-Za-z0-9+/=]*)'/.exec(cmd)![1]!, "base64").toString("utf8");
+    const lines = cmds.filter(c => c.includes(at.log) && c.includes("printf")).flatMap(c => written(c).split("\n"));
+    expect(lines.some(l => l.endsWith(` [folders] app: ${note}`)), lines.join("\n")).toBe(true);
+  });
+
   it("leaves a project the person recorded by hand where a setup's stood through a second setup, and the remove takes it with the computer", async () => {
     const { folder, seed } = seededFolder();
     await hosting({ provision: provisioner().wired, checkouts: {}, seed });
