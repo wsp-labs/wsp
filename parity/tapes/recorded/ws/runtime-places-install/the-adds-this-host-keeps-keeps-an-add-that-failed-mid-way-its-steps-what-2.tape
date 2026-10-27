@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/places-install.test.ts > the adds this host keeps > keeps an add that failed mid-way, its steps, what it said and the fix, for a second client to read off places.list","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/places-install.test.ts > the adds this host keeps > keeps an add that failed mid-way, its steps, what it said and the fix, for a second client to read off places.list","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"id":2,"op":"places.list"}}

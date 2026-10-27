@@ -279,7 +279,7 @@ A project that is not a git repo: `projects.add` of the temp home, a worktree re
 {"in":{"id":3,"op":"worktree.make","project":"home","branch":"b"}}
 {"out":{"id":3,"ok":false,"error":"home is not a git repo, so it has no branches","kind":"usage"}}
 {"in":{"id":4,"op":"folder.make","project":"home"}}
-{"out":{"id":4,"ok":true,"workspace":{"id":"ws_17a973c5","name":"home","machineId":"local","phase":"running","kind":"local","golden":"","createdAt":"2026-10-25T11:09:31.062Z","project":{"id":"pr_f0a701de","name":"home","path":"/tmp/wsp-tape-jOwh37/home","computer":"here"},"folder":"/tmp/wsp-tape-jOwh37/home","home":"/tmp/wsp-tape-jOwh37/home","agents":{"spawn":true,"maxMachines":3,"maxDepth":2}}}}
+{"out":{"id":4,"ok":true,"workspace":{"id":"ws_17a973c5","name":"home","machineId":"local","phase":"running","kind":"local","golden":"","createdAt":"2026-10-25T11:09:31.062Z","project":{"id":"pr_f0a701de","name":"home","path":"/tmp/wsp-tape-jOwh37/home","computer":"here"},"folder":"/tmp/wsp-tape-jOwh37/home","home":"/tmp/wsp-tape-jOwh37/home","agents":{"maxMachines":3,"maxDepth":2}}}}
 ```
 
 Why no tape for the rest: a worktree, a merge or a checkpoint needs a git repo, and no op makes one; a tape's `in` frames can name `<tmp>` and `<tmp>/home`, which hold none. A harness that seeds a repo in the temp folder before the first frame opens `worktree.make`, `worktree.remove` with `check: true` and the merge ops as tapes of 7.6 to 7.12.

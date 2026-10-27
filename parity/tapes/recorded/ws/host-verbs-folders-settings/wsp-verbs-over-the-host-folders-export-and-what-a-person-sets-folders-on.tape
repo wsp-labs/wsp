@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/host/test/verbs-folders-settings.test.ts > wsp verbs over the host: folders, export and what a person sets > folders --on reads the computer it names, this computer by its own name, and refuses a name nobody holds with the computers there are","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/host/test/verbs-folders-settings.test.ts > wsp verbs over the host: folders, export and what a person sets > folders --on reads the computer it names, this computer by its own name, and refuses a name nobody holds with the computers there are","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true,"version":"0.3.8","road":"init"}}
 {"in":{"id":2,"op":"places.list"}}

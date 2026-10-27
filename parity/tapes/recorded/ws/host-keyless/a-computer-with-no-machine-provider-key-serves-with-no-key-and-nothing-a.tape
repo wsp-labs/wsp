@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/host/test/keyless.test.ts > a computer with no machine provider key > serves with no key and nothing asked, records no workspace, and lists a project here","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/host/test/keyless.test.ts > a computer with no machine provider key > serves with no key and nothing asked, records no workspace, and lists a project here","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
 {"in":{"id":2,"op":"places.list"}}
