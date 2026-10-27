@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { platform } from "node:os";
-import { addedProjectLine, defaultSeedChoice, kindForComputer, ProjectAddEvent, seedChoiceFrom, seedConsentLines, seedMenuRows, sourceKind, copiesFolder, type ProjectView, type SeedChoice, type SeedPlan, LOOPBACK, PLACE_DOOR_UNSERVED, PLACE_ADD_WORDS, PlaceUpdateReply, placeCurrentLine, PlaceAddStep, SETUP_STEP_WORDS, jsonLine, setupLines, waitLine, type AddLine, type PendingComputer, type PlaceSetup, type PlaceSetupStep, type PlaceWait, DAEMON_VERSION, joinToken, PlaceView, type DeviceView, type PlaceDoorView, authority, fmtBytes, fmtDuration, fmtSize, placeUpdateLine, shellQuote, hostKeyAsk, hostKeyUnconfirmedRefusal, PLACE_SUDO_KIND, hostKeyUnscannableRefusal, isLoopback, usageRefusal, cloudOffRefusal, SignInLine, PlaceHolds, PlaceRemoved, placeUnsavedRefusal, placeAwayRefusal, placeForgetAnswersRefusal, placeForgetLine, placeForgetsOnly, absentComputer, providerRemoveQuestion, providerImagesLine, providerImagesLeftLine, providerRemovedLine, providerForgetQuestion, providerForgotLine, providerForceRefusal, namesPlace, placeOf, type WorkspaceView, tableName, foldThreads, subHeldOnRemoveLine, type SessionView } from "@wsp/protocol";
-import { keyCheckLine, knownHostKey, offeredHostKey, sshLoginWord, sshWordReach, type KeyCheck, type MachineBackend, type SshReach } from "@wsp/engine";
+import { addedProjectLine, defaultSeedChoice, kindForComputer, ProjectAddEvent, seedChoiceFrom, seedConsentLines, seedMenuRows, sourceKind, copiesFolder, type ProjectView, type SeedChoice, type SeedPlan, LOOPBACK, PLACE_DOOR_UNSERVED, PLACE_ADD_WORDS, PlaceUpdateReply, placeCurrentLine, PlaceAddStep, SETUP_STEP_WORDS, jsonLine, setupLines, waitLine, type AddLine, type PendingComputer, type PlaceSetup, type PlaceSetupStep, type PlaceWait, DAEMON_VERSION, joinToken, PlaceView, type DeviceView, type PlaceDoorView, authority, fmtBytes, fmtDuration, fmtSize, placeUpdateLine, shellQuote, hostKeyAsk, hostKeyUnconfirmedRefusal, PLACE_SUDO_KIND, hostKeyUnscannableRefusal, hostSilentRefusal, isLoopback, usageRefusal, cloudOffRefusal, SignInLine, PlaceHolds, PlaceRemoved, placeUnsavedRefusal, placeAwayRefusal, placeForgetAnswersRefusal, placeForgetLine, placeForgetsOnly, absentComputer, providerRemoveQuestion, providerImagesLine, providerImagesLeftLine, providerRemovedLine, providerForgetQuestion, providerForgotLine, providerForceRefusal, namesPlace, placeOf, type WorkspaceView, tableName, foldThreads, subHeldOnRemoveLine, type SessionView } from "@wsp/protocol";
+import { keyCheckLine, knownHostKey, offeredHostKey, sshLoginWord, sshWordReach, type KeyCheck, type MachineBackend, type OfferedKey, type SshReach } from "@wsp/engine";
 import { sharedOn } from "@wsp/catalog";
 import { randomBytes } from "node:crypto";
 import type { CliIO } from "../cli.js";
@@ -44,7 +44,7 @@ interface PlaceDeps {
    * holds one for is one it has met, and the add proceeds as it always did. */
   heldHostKey(reach: SshReach): Promise<string | undefined>;
   /** The key a computer answers a scan with, and what in the person's own ssh config stopped the scan. */
-  offeredHostKey(reach: SshReach): Promise<{ key?: string; stoppedBy?: string }>;
+  offeredHostKey(reach: SshReach): Promise<OfferedKey>;
   /** The dial a typed word names, a login or an alias out of the person's ssh config. */
   sshWord: SshWordReader;
 }
@@ -522,9 +522,9 @@ async function confirmedHostKey(io: CliIO, address: string, flags: AddFlags, dep
   if (flags.hostKey !== undefined) return { hostKey: flags.hostKey };
   const reach = await deps.sshWord(address, sshFlags(flags));
   if ((await deps.heldHostKey(reach).catch(() => undefined)) !== undefined) return {};
-  const offered = await deps.offeredHostKey(reach).catch((): { key?: string; stoppedBy?: string } => ({}));
+  const offered = await deps.offeredHostKey(reach).catch((): OfferedKey => ({}));
   if (offered.key === undefined) {
-    io.error(hostKeyUnscannableRefusal(address, offered.stoppedBy));
+    io.error(offered.silent !== undefined ? hostSilentRefusal(address, offered.silent) : hostKeyUnscannableRefusal(address, offered.stoppedBy));
     return undefined;
   }
   if (io.isTTY === true && (await io.ask(hostKeyAsk(address, offered.key))) === "yes") return { hostKey: offered.key };
