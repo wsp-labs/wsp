@@ -2,7 +2,7 @@
 //! packages/runtime/test/transcript-index.test.ts at 65f6b89c7. The host holds no transcript whole until one is opened: each
 //! is an index (every thread's words, the facts a send reads) and the events written since its last flush; search and a
 //! resume read the index alone. The Rust store keeps a transcript as rows of the state database, not as a file per
-//! workspace, so the cases that count file reads or break a file (four of the ten) have no form here; see each case below.
+//! workspace, so the cases that count file reads, break a file or plant an index older than its transcript have no form here; see each case below.
 #[macro_use]
 mod common;
 
@@ -97,6 +97,10 @@ fn finds_after_a_restart_what_it_found_while_the_transcripts_were_held() {
         fx.rt.close().await.expect("a close");
 
         let after = runtime(&StubBackend::new(None)).store(&state.store).build();
+        // On rows an index is kept without each thread's lines (`indexBytes(.., lines = false)`) and the host reads them back after
+        // boot; the TS case runs on a memory store, which keeps them. A search before then says how many threads it left unread.
+        let rt = after.rt.clone();
+        wait!([rt] search(&rt, "canonical").await.get("unsearched").is_none());
         let mut found = vec![];
         for q in queries {
             found.push(search(&after.rt, q).await);
@@ -182,7 +186,8 @@ fn an_index_write_that_fails_leaves_nothing_to_be_written_twice_and_boot_reads_t
         let state = sqlite_state();
         let failing = WrappedStore::over(&state.store);
         let adapter = Scripted::new().cwd("/root/app").pieces(2).reply(|p| format!("reply to {p}"));
-        let fx = runtime(&StubBackend::new(None)).store(&failing.store()).adapter("claude", adapter.factory()).build();
+        let backend = StubBackend::new(None);
+        let fx = runtime(&backend).store(&failing.store()).adapter("claude", adapter.factory()).build();
         let ws = create_on(&fx.rt, CreateOn::golden("a"), None).await.expect("a workspace").view.id;
         fx.rt.sessions().start(&ws, opts("one"), None).await.expect("a start").finished().await;
         let warned = wsp_core::console::capture();
@@ -199,7 +204,7 @@ fn an_index_write_that_fails_leaves_nothing_to_be_written_twice_and_boot_reads_t
                 .join("")
         };
 
-        let after = runtime(&StubBackend::new(None)).store(&state.store).adapter("claude", adapter.factory()).build();
+        let after = runtime(&backend).store(&state.store).adapter("claude", adapter.factory()).build();
         after.rt.sessions().start(&ws, opts("three"), None).await.expect("a start").finished().await;
         assert_eq!(texts(history(&after.rt, &ws).await), "reply to onereply to tworeply to three");
         after.rt.close().await.expect("a close");
@@ -207,27 +212,6 @@ fn an_index_write_that_fails_leaves_nothing_to_be_written_twice_and_boot_reads_t
 }
 
 // "an index write" > "left older than its transcript, as a crash between the two writes leaves it, is made again at boot"
-#[test]
-fn an_index_left_older_than_its_transcript_as_a_crash_between_the_two_writes_leaves_it_is_made_again_at_boot() {
-    drive(|| async {
-        let state = sqlite_state();
-        let adapter = Scripted::new().cwd("/root/app").pieces(2).reply(|p| {
-            if p == "one" {
-                "an ordinary answer".into()
-            } else {
-                "a marmalade answer".into()
-            }
-        });
-        let fx = runtime(&StubBackend::new(None)).store(&state.store).adapter("claude", adapter.factory()).build();
-        let ws = create_on(&fx.rt, CreateOn::golden("a"), None).await.expect("a workspace").view.id;
-        fx.rt.sessions().start(&ws, opts("one"), None).await.expect("a start").finished().await;
-        let stale = state.store.transcripts().expect("rows").index(&ws).expect("a read").expect("an index");
-        fx.rt.sessions().start(&ws, opts("two"), None).await.expect("a start").finished().await;
-        fx.rt.close().await.expect("a close");
-        state.store.transcripts().expect("rows").put_index(&ws, &stale).expect("an index write");
-
-        let after = runtime(&StubBackend::new(None)).store(&state.store).build();
-        assert_eq!(search(&after.rt, "marmalade").await["hits"].as_array().map(Vec::len), Some(1));
-        after.rt.close().await.expect("a close");
-    });
-}
+// Not ported: it holds the index of a transcript file back and plays it over a newer file. On rows the index is written in the
+// transaction that changes the rows (`loadRowsIndex`, transcripts.ts), so a crash cannot leave the two apart and boot keeps the
+// index it reads; a stale one planted by hand is used as it stands.

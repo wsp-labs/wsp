@@ -480,8 +480,13 @@ fn a_second_delete_of_the_same_workspace_joins_the_first_one_kill_one_drop() {
         let (counted, machine) = (kills.clone(), m.clone());
         m.set_kill(Rc::new(move || {
             counted.set(counted.get() + 1);
-            machine.killed.set(true);
-            Box::pin(async { Ok(()) })
+            let machine = machine.clone();
+            // The TS kill is an async function: the first delete is still in flight when the second asks.
+            Box::pin(async move {
+                tokio::task::yield_now().await;
+                machine.killed.set(true);
+                Ok(())
+            })
         }));
         let (a, b) = futures::join!(fx.rt.workspaces().delete(&ws, None), fx.rt.workspaces().delete(&ws, None));
         a.expect("a delete");
