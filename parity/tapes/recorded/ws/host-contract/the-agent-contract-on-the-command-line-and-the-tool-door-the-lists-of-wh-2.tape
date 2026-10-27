@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/host/test/contract.test.ts > the agent contract on the command line and the tool door > the lists of what stands on a computer refuse a thread and a computer together, a project named for a thread, and a computer nobody holds, as usage","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/host/test/contract.test.ts > the agent contract on the command line and the tool door > the lists of what stands on a computer refuse a thread and a computer together, a project named for a thread, and a computer nobody holds, as usage","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true,"version":"0.3.8","road":"init"}}
 {"in":{"target":{"placeId":"here"},"id":2,"op":"agents.read"}}

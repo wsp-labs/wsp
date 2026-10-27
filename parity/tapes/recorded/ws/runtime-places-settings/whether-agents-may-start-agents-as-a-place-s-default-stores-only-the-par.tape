@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/places-settings.test.ts > whether agents may start agents, as a place's default > stores only the parts a person set, so a switch turned off and on again follows a later default, and levels deep resets alone","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/places-settings.test.ts > whether agents may start agents, as a place's default > stores only the parts a person set, so a switch turned off and on again follows a later default, and levels deep resets alone","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"placeId":"here","spawn":{"spawn":false},"id":2,"op":"places.set"}}

@@ -2,8 +2,8 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { hostname } from "node:os";
-import { heldPlaceScript, readHeldPlace, leaveAsks, leaveTakes, machineLacksLine, machineNeverAnswered, PLACE_LEAVE_VERB, PlaceAddStep, lastLine, readJoinToken, type PlaceBack, placeDaemonPaths, shellQuote, shellLine, placeNoChipLine, MACHINE_PUT_PART_BYTES, backUrl, hostKeyKeptNote, hostKeyMatches, hostKeyMismatchRefusal, hostKeyUnconfirmedRefusal, PLACE_HOST_KEY_KIND, hostKeyUnscannableRefusal, KNOWN_HOSTS, PLACE_ROOT_SHELLS, placeRootShellRefusal, isLoopback, joinAddressOf } from "@wsp/protocol";
-import { GITHUB_TOKEN_ENV, MissingKnownHostsError, PlaceMachine, runChild, SshBackend, SSH_DIAL_MS, SSH_LINE_CAP, SUDO_ASKS_LINE, clientWords, knownHostKey, landBytes, parseSshAddress, sshClient, sshDial, sshDialsThisComputer, sshLoginWord, sshMachineName, sshRefusalLine, sshWordReach, readSshSudo, trySshSudo, knownHostsWritten, type SshReach, type SshSudo, type SshTransport } from "@wsp/engine";
+import { heldPlaceScript, readHeldPlace, leaveAsks, leaveTakes, machineLacksLine, machineNeverAnswered, PLACE_LEAVE_VERB, PlaceAddStep, lastLine, readJoinToken, type PlaceBack, placeDaemonPaths, shellQuote, shellLine, placeNoChipLine, MACHINE_PUT_PART_BYTES, backUrl, hostKeyKeptNote, hostKeyMatches, hostKeyMismatchRefusal, hostKeyUnconfirmedRefusal, PLACE_HOST_KEY_KIND, hostKeyUnscannableRefusal, hostSilentRefusal, KNOWN_HOSTS, PLACE_ROOT_SHELLS, placeRootShellRefusal, isLoopback, joinAddressOf } from "@wsp/protocol";
+import { GITHUB_TOKEN_ENV, MissingKnownHostsError, PlaceMachine, runChild, SshBackend, SSH_DIAL_MS, SSH_LINE_CAP, SUDO_ASKS_LINE, clientWords, knownHostKey, landBytes, parseSshAddress, sshClient, sshDial, sshDialsThisComputer, sshLoginWord, sshMachineName, sshRefusalLine, sshWordReach, readSshSudo, trySshSudo, knownHostsWritten, type OfferedKey, type SshReach, type SshSudo, type SshTransport } from "@wsp/engine";
 import { PlaceAddTakenBackError, PlaceHostKeyChangedError, PlaceLoginRefusedError, type PlaceDialler, type PlaceInstaller, type PlaceLeaver, type PlaceLogReader, type PlaceStaging, type PlaceUpdateLanded, type PlaceUpdater, type PlaceWiring, type PlaceBackHolder } from "@wsp/runtime";
 import { BackCutError } from "../place-back.js";
 import { LOGIN_KEPT_LINE, loginKeptLine } from "../login-files.js";
@@ -64,7 +64,8 @@ export function placeInstaller(deps: { backend?: SshBackend; sshWord?: SshWordRe
     // its own, the refusal carries the key the computer answers a scan with and the line that pins it. Read before
     // anything is dialled, so the app's sheet and an older client meet the same wall the command line does.
     if (req.hostKey === undefined && (await backend.keyFor(reach).catch(() => undefined)) === undefined) {
-      const offered = await backend.offeredKeyFor(reach).catch((): { key?: string; stoppedBy?: string } => ({}));
+      const offered = await backend.offeredKeyFor(reach).catch((): OfferedKey => ({}));
+      if (offered.silent !== undefined) throw new Error(hostSilentRefusal(req.address, offered.silent));
       if (offered.key === undefined) throw new Error(hostKeyUnscannableRefusal(req.address, offered.stoppedBy));
       throw Object.assign(new Error(hostKeyUnconfirmedRefusal(req.address, offered.key)), { kind: PLACE_HOST_KEY_KIND, hostKey: offered.key });
     }

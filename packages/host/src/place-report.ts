@@ -14,7 +14,7 @@ import { MODPROBE_PATH, PLACE_FILE_MODE, engineWord, parsePlaceFile, placeFileTe
 import { CATALOG_AGENTS, configSum } from "@wsp/catalog";
 import { LOGIN_READ, SSH_STORE_VARS, landedFilesScript, writeConfigHere, localShape, outsideMarks, outsideSweepScript, ownMarks, plainPath, readValues, serversOutLines, unmergeServers, type ScopeRead, type ServerPort } from "@wsp/engine";
 import { CONFIG_NOT_PLAIN, CONFIG_PAST_CAP, CONFIG_READ_MAX_BYTES, DAEMON_VERSION, underProject, RUNTIME_FOLDERS, RUNTIME_PROJECTS, placeCgroupStandsLine, threadCgroupsEndScript, isPlainPath, placeDaemonPaths, placeKeptForLinkLine, placeLineOutLine, placeLineStaysLine, placeLoginUnreadLine, PLACE_LOGIN_LINKED, PLACE_LOGIN_PAST_CAP, LOGIN_READ_MAX_BYTES, PLACE_READ_MAX_BYTES, placeKeptMountedLine, placeKeptMountsUnreadLine, placeOutsideLeftLine, placeRuntimeStandsLine, placeOwnedPaths, placeOwnersUnknownLine, placeStoodBeforeLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, TOOL_LINKS_DIR, TOOL_PREFIX, workFolderIn, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { apparmorOffStep, sshDaemonPlace, type DaemonPlace } from "./doctor.js";
 import { onPath, runningWsp, wspCommand, type RunningWsp } from "./mcp-install.js";
 import { runAll, runFailureLine, serviceManagerFor, STOP_WAIT_MS, systemRunner, type ServiceAddress, type ServiceManager, type ServiceRunner } from "./service.js";
@@ -280,6 +280,9 @@ export interface PlaceSweepOptions {
   runtimeProjects?: readonly string[];
   /** The cgroups wsp made here, taken only where a caller names them, as the runtime's folder is. */
   cgroupRoots?: readonly string[];
+  /** The one folder every path this sweep may take sits under, named by a case so that a path it forgot to move off the
+   * computer refuses the sweep before anything is removed. Absent for a real leave, which takes the computer's own. */
+  within?: string;
   /** This process's mount table, read off /proc unless a caller hands another; throws where it cannot be read. */
   mountTable?: () => string;
 }
@@ -328,6 +331,10 @@ const THREADS_END_MS = 60_000;
  * decided this computer is out of that wsp. */
 export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSweep> {
   const home = opts.home ?? homedir();
+  const profile = opts.apparmorProfile ?? WSP_WORKSPACE_APPARMOR_PATH;
+  const tools = opts.tools ?? { prefix: TOOL_PREFIX, links: TOOL_LINKS_DIR };
+  const stray = opts.within === undefined ? undefined : [home, profile, tools.prefix, tools.links, opts.systemRoot ?? "/", ...(opts.runtimeRoot === undefined ? [] : [opts.runtimeRoot]), ...(opts.cgroupRoots ?? [])].find(path => !underProject(resolved(path), resolved(opts.within!)));
+  if (stray !== undefined) throw new Error(`nothing was removed: ${stray} is outside ${opts.within}, the folder this leave was given`);
   const sh = opts.sh ?? shStdout;
   // The add's record of what stood before it sits in wsp's folder here, which the walk below takes.
   const found = placeFound(home);
@@ -400,8 +407,8 @@ export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSwe
     }
   }
   // The workspace profile only root's install loaded, unloaded before its file goes, as the host's remove does it.
-  const profile = opts.apparmorProfile ?? WSP_WORKSPACE_APPARMOR_PATH;
-  const tools = opts.tools ?? { prefix: TOOL_PREFIX, links: TOOL_LINKS_DIR };
+  // The script joins its paths to the root with a slash, and a root that ends in one reads every entry as past a `//`.
+  const system = opts.systemRoot?.replace(/\/+$/, "");
   const root = (opts.uid ?? process.getuid?.()) === 0;
   // Only root's jobs install outside the home, and only root can take it off. What the setup wrote outside wsp's
   // install folder goes first, since the list naming it sits in that folder; that list hashes each path, so it
@@ -411,14 +418,14 @@ export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSwe
     if (found === undefined) {
       const standing = [profile, tools.prefix, ...(runtime === undefined ? [] : [runtime])].filter(there);
       if (standing.length > 0) removed.push(placeOwnersUnknownLine(standing));
-      removed.push(...outsideMarks(sh(outsideSweepScript(opts.systemRoot))));
+      removed.push(...outsideMarks(sh(outsideSweepScript(system))));
     } else {
       if (found.has(profile)) removed.push(placeStoodBeforeLine(profile));
       else if (there(profile)) {
         sh(apparmorOffStep(profile).join("\n"));
         if (!there(profile)) removed.push(profile);
       }
-      removed.push(...outsideMarks(sh(outsideSweepScript(opts.systemRoot))), ...sweepTools(tools, found));
+      removed.push(...outsideMarks(sh(outsideSweepScript(system))), ...sweepTools(tools, found));
       if (runtime !== undefined) removed.push(...sweepRuntime(runtime, found, opts.mountTable ?? readMountTable, opts.runtimeProjects ?? []));
     }
     removed.push(...sweepCgroups(opts.cgroupRoots ?? []));
@@ -427,6 +434,21 @@ export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSwe
   removed.push(...said.flatMap(one => ("removed" in one ? [one.removed] : [])));
   const unread = unmerged.flatMap(out => ("unread" in out ? serversOutLines(out) : []));
   return { removed, kept: [placeKeptLine(workFolderIn(home)), ...unread, ...said.flatMap(one => ("kept" in one ? [one.kept] : []))] };
+}
+
+/** A path with every link on the way followed: the whole of it where it exists, else the nearest folder that does with
+ * the names after it, which no link can be among. A folder that is itself reached through a link (a Mac's /var) and the
+ * same folder by its real name read as one. */
+function resolved(path: string): string {
+  const missing: string[] = [];
+  for (let at = resolve(path); ; at = dirname(at)) {
+    try {
+      return join(realpathSync(at), ...missing.reverse());
+    } catch {
+      if (dirname(at) === at) return resolve(path);
+      missing.push(basename(at));
+    }
+  }
 }
 
 /** The paths the add found standing before it wrote anything, off the record its deploy left here. Nothing where

@@ -6,11 +6,12 @@
 import { PassThrough } from "node:stream";
 import { stripVTControlCharacters } from "node:util";
 import { describe, expect, it } from "vitest";
-import type { Question } from "@wsp/catalog";
+import { hasLogin, type Question } from "@wsp/catalog";
 import { HERE_PLACE_ID, ptyBareOn } from "@wsp/protocol";
-import { BARE_BASH, OFFER_MS, QuestionScanner, UrlScanner, hyperlink, relayPty, runQuiet, stripOsc8, urlsIn, watchPty, type Asked, type RelayTerminal } from "../src/signin-relay.js";
+import { BARE_BASH, CursorQueries, OFFER_MS, QuestionScanner, UrlScanner, hyperlink, relayPty, runQuiet, stripOsc8, urlsIn, watchPty, type Asked, type RelayTerminal } from "../src/signin-relay.js";
 import { fakePtyLink, type FakePty } from "./fake-pty-link.js";
-import { ASKED } from "./signin-questions.js";
+import { ghOn } from "./gh-recorded.js";
+import { ASKED, signInFor } from "./signin-questions.js";
 
 interface Term extends RelayTerminal {
   input: PassThrough & RelayTerminal["input"];
@@ -524,5 +525,33 @@ describe("runQuiet", () => {
     await tick();
     link.drop();
     expect(await run).toEqual({ output: "", exitCode: -1, timedOut: false, dropped: true });
+  });
+});
+
+describe("watchPty against gh's cursor position query", () => {
+  const login = (() => {
+    const row = signInFor("gh");
+    if (!hasLogin(row)) throw new Error("gh has no login row");
+    return row;
+  })();
+
+  it("answers each query and the Authenticate Git question, and the page and code come out", async () => {
+    const link = fakePtyLink();
+    const gh = ghOn(link);
+    link.script = pty => gh(pty);
+    const seen: string[] = [];
+    const asked: string[] = [];
+    const chunks: string[] = [];
+    await watchPty({ link, command: login.login, timeoutMs: 1_000, flushMs: 5, questions: login.questions ?? [], onQuestion: a => asked.push(a.matched), onUrl: u => seen.push(u), onData: c => chunks.push(c) });
+    const text = stripVTControlCharacters(chunks.join(""));
+    expect(text.match(login.code!)?.[0]).toBe("1290-DB7E");
+    expect(seen.at(-1)).toBe("https://github.com/login/device");
+    expect(asked).toEqual(["Authenticate Git with your GitHub credentials?", "Press Enter to open"]);
+    expect(link.ptys[0]!.writes.slice(1)).toEqual(["\x1b[1;1R", "\x1b[1;1R", "\r", "\x1b[1;1R", "\r"]);
+  });
+
+  it("counts a query once, whole or cut across two chunks, and leaves other escapes alone", () => {
+    const q = new CursorQueries();
+    expect([q.feed("\x1b[6"), q.feed("n"), q.feed("\x1b[6n\x1b[6n"), q.feed("\x1b[0;1;39mPress\x1b[0m"), q.feed("\x1b]11;?\x1b\\")]).toEqual([0, 1, 2, 0, 0]);
   });
 });

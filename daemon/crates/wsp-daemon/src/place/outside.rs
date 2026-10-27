@@ -23,6 +23,9 @@ pub(crate) fn leave_here(
     force: bool,
     projects: &[String],
 ) -> Result<Vec<String>, String> {
+    if let Some(path) = outside_the_root(install, &[home, profile, runtime]) {
+        return Err(format!("nothing was removed: {} is outside {install}, the folder this leave was given", path.display()));
+    }
     let found = super::place_found(home);
     if leave_takes_runtime(found.as_ref(), runtime) && !force {
         let unsaved = unsaved_under(runtime).unwrap_or_else(|_| vec![words::place_unread(runtime.display())]);
@@ -44,6 +47,58 @@ pub(crate) fn leave_here(
         ));
     }
     Ok(swept)
+}
+
+/// The install root, workspace profile and runtime folder a leave over the link takes from: this computer's own unless
+/// the daemon was started with a root.
+pub(crate) fn leave_paths(options: &crate::Options) -> (String, std::path::PathBuf, std::path::PathBuf) {
+    let install = options.install_root.as_deref().map(|root| root.to_string_lossy().into_owned()).unwrap_or_default();
+    let profile =
+        options.apparmor_profile.clone().unwrap_or_else(|| format!("{install}{}", wsp_frames::numbers::WORKSPACE_APPARMOR_PATH).into());
+    let runtime = options.runtime_root.clone().unwrap_or_else(|| format!("{install}{}", wsp_frames::numbers::RUNTIME_ROOT).into());
+    (install, profile, runtime)
+}
+
+/// The first path a leave names or builds that lies outside `install`, the folder /usr/local, /opt, /etc, the cgroups and
+/// the runtime's folder sit under; empty is this computer's own /, which holds every path. A path is read as it
+/// resolves, a link on the way followed to what it points at (the nearest folder that exists, for a name that does not),
+/// so a link under the root that points out puts the path it leads to outside it, as does a `..` in any path.
+fn outside_the_root(install: &str, named: &[&Path]) -> Option<PathBuf> {
+    if install.is_empty() {
+        return None;
+    }
+    let root = resolved(Path::new(install));
+    let built = [numbers::TOOL_PREFIX, numbers::TOOL_LINKS_DIR, "/usr/local", "/opt"]
+        .map(|path| PathBuf::from(format!("{install}{path}")))
+        .into_iter()
+        .chain(
+            [numbers::WORKSPACE_CGROUPS, numbers::THREAD_CGROUPS]
+                .map(|cgroup| PathBuf::from(format!("{install}{}{cgroup}", numbers::CGROUP_MOUNT))),
+        );
+    named
+        .iter()
+        .map(|path| path.to_path_buf())
+        .chain(built)
+        .find(|path| path.components().any(|part| part == std::path::Component::ParentDir) || !resolved(path).starts_with(&root))
+}
+
+/// A path with every link on the way followed: the whole of it where it exists, else the nearest folder that does with
+/// the names after it, which no link can be among.
+fn resolved(path: &Path) -> PathBuf {
+    let mut missing = Vec::new();
+    let mut at = path;
+    loop {
+        if let Ok(real) = std::fs::canonicalize(at) {
+            return missing.iter().rev().fold(real, |whole, name| whole.join(name));
+        }
+        match (at.parent(), at.file_name()) {
+            (Some(parent), Some(name)) => {
+                missing.push(name);
+                at = parent;
+            }
+            _ => return path.to_path_buf(),
+        }
+    }
 }
 
 /// Whether a leave here takes the runtime's folder whole: only root's can, and only with the add's whole record naming
@@ -295,6 +350,63 @@ pub(super) mod tests {
             leave_here(home.path(), &home.path().join("wsp-workspace"), &home.path().to_string_lossy(), &runtime, false, &[]).unwrap();
         assert!(swept.contains(&words::place_line_out(&line, file.display())), "{swept:?}");
         assert_eq!(std::fs::read_to_string(&file).unwrap(), "export EDITOR=vim\n");
+    }
+
+    #[test]
+    fn a_leave_refuses_a_home_profile_or_runtime_folder_outside_its_root_and_removes_nothing() {
+        let root = tempfile::tempdir().unwrap();
+        let machine = tempfile::tempdir().unwrap();
+        let held = |dir: &Path| {
+            std::fs::create_dir_all(dir).unwrap();
+            std::fs::write(dir.join("kept"), "kept\n").unwrap();
+            dir.to_path_buf()
+        };
+        let (home, profile, runtime) = (held(&root.path().join("home")), held(&root.path().join("etc")), held(&root.path().join("wsp")));
+        let (far_home, far_profile, far_runtime) =
+            (held(&machine.path().join("home")), held(&machine.path().join("etc")), held(&machine.path().join("wsp")));
+        let climbing = root.path().join("home/../../elsewhere");
+        let install = root.path().to_string_lossy().into_owned();
+        let named: [(&Path, [&Path; 3]); 4] = [
+            (&far_home, [&far_home, &profile, &runtime]),
+            (&far_profile, [&home, &far_profile, &runtime]),
+            (&far_runtime, [&home, &profile, &far_runtime]),
+            (&climbing, [&home, &profile, &climbing]),
+        ];
+        for (stray, [home, profile, runtime]) in named {
+            let said = leave_here(home, profile, &install, runtime, true, &[]).unwrap_err();
+            assert!(said.starts_with("nothing was removed: ") && said.contains(&stray.display().to_string()), "{said}");
+        }
+        for dir in [&home, &profile, &runtime, &far_home, &far_profile, &far_runtime] {
+            assert!(dir.join("kept").exists(), "a refused leave removed under {}", dir.display());
+        }
+        assert!(leave_here(&home, &profile, &install, &runtime, true, &[]).is_ok());
+    }
+
+    #[test]
+    fn a_leave_with_no_root_takes_from_this_computers_own_paths() {
+        let token = tempfile::NamedTempFile::new().unwrap();
+        let (install, profile, runtime) = leave_paths(&crate::Options::new(token.path()));
+        assert_eq!(install, "");
+        assert_eq!(profile, std::path::PathBuf::from("/etc/apparmor.d/wsp-workspace"));
+        assert_eq!(runtime, std::path::PathBuf::from("/wsp"));
+    }
+
+    #[test]
+    fn a_leave_takes_nothing_through_a_link_under_its_root() {
+        // Only root's leave reaches outside the home.
+        if !nix::unistd::geteuid().is_root() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        let machine = tempfile::tempdir().unwrap();
+        let home = root.path().join("home");
+        record_under(&home, &[]);
+        std::fs::create_dir_all(machine.path().join("opt/wsp/bin")).unwrap();
+        std::fs::write(machine.path().join("opt/wsp/bin/tool"), "the computer's\n").unwrap();
+        std::os::unix::fs::symlink(machine.path().join("opt"), root.path().join("opt")).unwrap();
+        let install = root.path().to_string_lossy().into_owned();
+        let said = leave_here(&home, &root.path().join("etc/wsp-workspace"), &install, &root.path().join("wsp"), true, &[]);
+        assert!(machine.path().join("opt/wsp/bin/tool").exists(), "a link under the root took the folder it points at: {said:?}");
     }
 
     #[test]

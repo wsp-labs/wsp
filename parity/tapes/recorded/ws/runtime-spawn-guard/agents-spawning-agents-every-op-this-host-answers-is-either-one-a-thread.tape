@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/spawn-guard.test.ts > agents spawning agents > every op this host answers is either one a thread may send or one its socket is refused","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/spawn-guard.test.ts > agents spawning agents > every op this host answers is either one a thread may send or one its socket is refused","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<redacted-1>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"id":2,"op":"ticket.issue"}}
@@ -150,12 +150,6 @@
 {"out":{"id":74,"ok":false,"error":"workspaces.delete is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
 {"in":{"id":75,"op":"workspaces.forget"}}
 {"out":{"id":75,"ok":false,"error":"workspaces.forget is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
-{"in":{"id":76,"op":"workspaces.snapshot"}}
-{"out":{"id":76,"ok":false,"error":"workspaces.snapshot is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
-{"in":{"id":77,"op":"projectGoldens.list"}}
-{"out":{"id":77,"ok":false,"error":"projectGoldens.list is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
-{"in":{"id":78,"op":"projectGoldens.remove"}}
-{"out":{"id":78,"ok":false,"error":"projectGoldens.remove is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
 {"in":{"id":79,"op":"workspaces.touch"}}
 {"out":{"id":79,"ok":false,"error":"[\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"string\",\n    \"received\": \"undefined\",\n    \"path\": [\n      \"workspaceId\"\n    ],\n    \"message\": \"Required\"\n  }\n]"}}
 {"in":{"id":80,"op":"daemon.open"}}
@@ -330,22 +324,6 @@
 {"out":{"id":164,"ok":false,"error":"init.get is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
 {"in":{"id":165,"op":"init.keys"}}
 {"out":{"id":165,"ok":false,"error":"init.keys is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
-{"in":{"id":166,"op":"init.start"}}
-{"out":{"id":166,"ok":false,"error":"init.start is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
-{"in":{"id":167,"op":"init.answer"}}
-{"out":{"id":167,"ok":false,"error":"init.answer is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
-{"in":{"id":168,"op":"init.step"}}
-{"out":{"id":168,"ok":false,"error":"init.step is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
-{"in":{"id":169,"op":"init.draft"}}
-{"out":{"id":169,"ok":false,"error":"init.draft is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
-{"in":{"id":170,"op":"init.retry"}}
-{"out":{"id":170,"ok":false,"error":"init.retry is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
-{"in":{"id":171,"op":"init.build"}}
-{"out":{"id":171,"ok":false,"error":"init.build is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
-{"in":{"id":172,"op":"init.signInCode"}}
-{"out":{"id":172,"ok":false,"error":"init.signInCode is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
-{"in":{"id":173,"op":"init.cancel"}}
-{"out":{"id":173,"ok":false,"error":"init.cancel is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
 {"in":{"id":174,"op":"preferences.get"}}
 {"out":{"id":174,"ok":false,"error":"preferences.get is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
 {"in":{"id":175,"op":"preferences.set"}}
@@ -390,8 +368,6 @@
 {"out":{"id":194,"ok":false,"error":"image.get is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
 {"in":{"id":195,"op":"image.build"}}
 {"out":{"id":195,"ok":false,"error":"image.build is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
-{"in":{"id":196,"op":"image.export"}}
-{"out":{"id":196,"ok":false,"error":"image.export is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
 {"in":{"id":197,"op":"slates.get"}}
 {"out":{"id":197,"ok":false,"error":"slates.get is not a thread's to ask for; this request came in on the token of thread 26241f31 on a machine wsp forks, and a thread's token starts work only under its own root and reads only that tree"}}
 {"in":{"id":198,"op":"slates.write"}}

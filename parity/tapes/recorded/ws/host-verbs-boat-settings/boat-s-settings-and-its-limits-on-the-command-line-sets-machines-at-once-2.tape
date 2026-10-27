@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/host/test/verbs-boat-settings.test.ts > Boat's settings and its limits on the command line > sets machines at once and spend per day on Boat, with the cloud on or off","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/host/test/verbs-boat-settings.test.ts > Boat's settings and its limits on the command line > sets machines at once and spend per day on Boat, with the cloud on or off","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true,"version":"0.3.8","road":"init"}}
 {"in":{"id":2,"op":"places.list"}}
