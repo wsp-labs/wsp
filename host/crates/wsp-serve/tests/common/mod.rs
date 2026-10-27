@@ -5,6 +5,7 @@
 //! not a new design. Each test file declares `mod common;`.
 #![allow(dead_code, unused_imports)]
 pub mod adapter;
+pub mod copying;
 pub mod daemon;
 pub mod events;
 pub mod gateway;

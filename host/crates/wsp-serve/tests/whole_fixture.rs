@@ -455,3 +455,56 @@ fn a_gate_holds_a_waiter_until_it_is_opened_and_until_polls_a_condition() {
         assert_eq!(ticks.get(), 3);
     });
 }
+
+// stub-backend.ts:253 `lifecycle`: a test writes the whole budgets record (wake-keeps-machine.test.ts:21) or deletes and
+// sets `resumeAsks` alone (wake-asks-again.test.ts:34).
+#[test]
+fn the_lifecycle_budgets_are_written_whole_and_resume_asks_alone() {
+    use wsp_engine::machine::Lifecycle as _;
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let life = backend.lifecycle();
+        let seen = j(&life.budgets());
+        assert_eq!(seen["wakeAttempts"], 2);
+        assert_eq!(seen["daemonAnswersMs"], 30_000);
+        assert_eq!(seen["resumeAsks"], json!({ "everyMs": 60_000, "forMs": 1_800_000 }));
+        life.set_resume_asks(Some((60.0, 120.0)));
+        assert_eq!(j(&life.budgets())["resumeAsks"], json!({ "everyMs": 60, "forMs": 120 }));
+        life.set_resume_asks(None);
+        assert!(j(&life.budgets()).get("resumeAsks").is_none());
+        life.set_budgets(wsp_engine::box_backend::plan::box_budgets());
+        life.set_daemon_answers_ms(300.0);
+        let box_seen = j(&life.budgets());
+        assert_eq!(box_seen["daemonAnswersMs"], 300);
+        assert_eq!(box_seen["wakeAttempts"], 1);
+    });
+}
+
+// stub-backend.ts:511 `copyingFake`: a copy is a folder copied for real and a remove takes it away.
+#[test]
+fn the_copying_fake_copies_a_folder_for_real_and_a_remove_takes_it_away() {
+    use wsp_engine::copier::{Copier as _, CopyAsk, CopyRoad};
+    drive(|| async {
+        let dir = tempfile::tempdir().expect("a folder");
+        let from = dir.path().join("from");
+        std::fs::create_dir_all(&from).expect("a source");
+        std::fs::write(from.join("a.txt"), "a").expect("a file");
+        let to = dir.path().join("to");
+        let copier = common::copying::copying_fake();
+        let ask = CopyAsk {
+            from: from.display().to_string(),
+            to: to.display().to_string(),
+            base: None,
+            exclude: vec!["node_modules".into()],
+            size_line_bytes: 0.into(),
+            road: None,
+        };
+        let report = copier.make(&ask).await.expect("a copy");
+        assert_eq!(report.path, to.display().to_string());
+        assert_eq!(j(&report)["excluded"], json!(["node_modules"]));
+        assert_eq!(std::fs::read_to_string(to.join("a.txt")).expect("the copy"), "a");
+        copier.remove(&ask.from, &ask.to, CopyRoad::Clonefile).await.expect("a remove");
+        assert!(!to.exists());
+        assert_eq!(copier.log().lock().expect("the log").asks.len(), 1);
+    });
+}
