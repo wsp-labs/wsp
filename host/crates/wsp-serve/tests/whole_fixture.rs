@@ -682,3 +682,35 @@ fn a_deploy_holds_the_daemons_announce_as_a_closure() {
         assert_eq!(hello["version"], 42);
     });
 }
+
+// box-nap.test.ts:49 `slowDaemon` and :78 `lateDaemon`: one holds its answer to the auth frame until `up()`, the other
+// refuses every upgrade with a 502 until `up()`.
+#[test]
+fn the_slow_daemon_holds_its_auth_answer_and_the_late_daemon_refuses_upgrades_until_up() {
+    use common::box_daemons::{late_daemon, slow_daemon};
+    use futures::{SinkExt as _, StreamExt as _};
+    use tokio_tungstenite::tungstenite::Message;
+    drive(|| async {
+        let slow = slow_daemon().await;
+        let (mut ws, _) = tokio_tungstenite::connect_async(slow.url()).await.expect("a socket");
+        ws.send(Message::text(json!({ "id": 1, "op": "auth", "token": "t" }).to_string())).await.expect("a send");
+        assert!(tokio::time::timeout(std::time::Duration::from_millis(100), ws.next()).await.is_err());
+        ws.send(Message::text(json!({ "id": 2, "op": "ping" }).to_string())).await.expect("a send");
+        let pong: serde_json::Value = serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
+        assert_eq!(pong, json!({ "id": 2, "ok": true }));
+        slow.up();
+        let auth: serde_json::Value = serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
+        assert_eq!(auth, json!({ "id": 1, "ok": true }));
+
+        let late = late_daemon().await;
+        let refused = tokio_tungstenite::connect_async(late.url()).await;
+        assert!(refused.is_err(), "the edge answers a 502 before it is up");
+        assert_eq!(late.dials(), 1);
+        late.up();
+        let (mut ws, _) = tokio_tungstenite::connect_async(late.url()).await.expect("a socket");
+        ws.send(Message::text(json!({ "id": 3, "op": "auth", "token": "t" }).to_string())).await.expect("a send");
+        let ok: serde_json::Value = serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
+        assert_eq!(ok, json!({ "id": 3, "ok": true }));
+        assert_eq!(late.dials(), 2);
+    });
+}
