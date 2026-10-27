@@ -351,7 +351,7 @@ fn with_no_door_there_are_no_places_and_nothing_is_linked_or_signed_in() {
         assert!(U::places(&*c, 0).await.is_empty(), "placeDoor?.list(now) ?? []");
         assert!(!U::linked(&*c, "here"));
         assert!(!U::signed_in_at(&*c, "srv_1", "claude"));
-        assert_eq!(U::place_for(&*c, "srv").await, None);
+        assert_eq!(U::place_for(&*c, "srv").await.expect("no door, no refusal"), None);
         assert_eq!(U::box_login_path(&*c, "srv_1").await, None);
         assert!(!U::place_away(&*c, "srv_1"));
         assert_eq!(U::login_home(&*c, "srv_1", "claude").await, None);
@@ -368,7 +368,9 @@ fn a_door_lists_this_computer_and_names_a_place_by_its_own_name() {
         assert!(places.iter().any(|p| p.id == "here"), "this computer is the row every door lists: {places:?}");
         assert_eq!(U::name_of(&*c, "here"), "zingzys-mac");
         assert!(!U::linked(&*c, "srv_1"), "no link to a computer never joined");
-        assert_eq!(U::place_for(&*c, "no-such-computer").await, None, "a word no place answers is no place");
+        // places/link.ts:518 throws for a word naming no computer, and usage.ts:307 lets it through.
+        let refused = U::place_for(&*c, "no-such-computer").await.expect_err("no place of that name");
+        assert!(refused.message.starts_with("no place named no-such-computer; you have zingzys-mac"), "{}", refused.message);
         assert_eq!(U::computer_name(&*c, &places, "here", None), "zingzys-mac");
     });
 }
