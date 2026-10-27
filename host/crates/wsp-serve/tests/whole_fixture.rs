@@ -529,3 +529,32 @@ fn the_fake_local_computer_copies_a_folder_for_real_and_a_removal_takes_it_away(
         assert_eq!((local.home)("claude"), format!("{}/.claude", dir.path().display()));
     });
 }
+
+// forget.test.ts:81 and :173: a store whose transcript rows stop reading on the test's word, and whose puts into one
+// collection wait at a gate; both otherwise answer as the store they wrap.
+#[test]
+fn a_wrapped_store_stops_reading_transcript_rows_and_holds_a_put_at_a_gate() {
+    drive(|| async {
+        let state = sqlite_state();
+        let wrapped = WrappedStore::over(&state.store);
+        let store = wrapped.store();
+        let rows = store.transcripts().expect("rows");
+        assert!(rows.all("ws_1").is_ok());
+        wrapped.set_unreadable(true);
+        assert!(rows.all("ws_1").is_err());
+        assert!(rows.index("ws_1").is_err());
+        wrapped.set_unreadable(false);
+        assert!(rows.all("ws_1").is_ok());
+
+        let (reached, open) = wrapped.gate_puts("sessions");
+        let writing = {
+            let store = store.clone();
+            tokio::task::spawn_local(async move { store.put("sessions", "ws_1", json!({ "sessions": [] })).await })
+        };
+        reached.wait().await;
+        assert!(state.store.get("sessions", "ws_1").await.expect("a read").is_none());
+        open.open();
+        writing.await.expect("the write").expect("written");
+        assert!(state.store.get("sessions", "ws_1").await.expect("a read").is_some());
+    });
+}
