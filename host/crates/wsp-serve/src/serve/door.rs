@@ -35,7 +35,7 @@ use wsp_wire::wire::devices::{
 };
 use wsp_wire::wire::runtime::{request_secrets, DEVICE_OPS, RUNTIME_OPS, THREAD_OPS};
 use wsp_words::exit::marked_cut;
-use wsp_words::v8_json::{parse_json, parse_json_lax};
+use wsp_words::v8_json::{parse_json_lax, parse_json_whole};
 use wsp_words::wire::runtime::thread_op_refusal;
 use wsp_words::words::computer::{device_held_refusal, is_object_frame, REQUEST_NOT_AN_OBJECT, SCOPED_TOKEN_ROAD_REFUSAL, UNAUTHORIZED};
 use wsp_words::words::thread::{issues_line, redacted, Issue, PathPart};
@@ -520,14 +520,15 @@ impl Socket {
         self.send(reply);
     }
 
-    /// Reads one frame off the socket under its seal, then as JSON (D7). Nothing when either fails.
+    /// Reads one frame off the socket under its seal, then as JSON (D7). Nothing when either fails, or when the frame nests
+    /// past the 506 levels a value of the host's cap of 500 needs inside it: a frame is read whole or not at all.
     fn read(&self, raw: &Incoming) -> Option<(Value, bool)> {
         let frame = match raw {
             Incoming::Text(text) => Frame::Text(text.as_str()),
             Incoming::Binary(bytes) => Frame::Binary(bytes.as_slice()),
         };
         let text = open_frame(self.seal.borrow_mut().as_mut(), frame).ok()?;
-        let value = parse_json(&text).ok()?;
+        let value = parse_json_whole(&text).ok()?;
         let half = |id: Option<&Value>| id.and_then(Value::as_f64).is_some_and(|number| number.abs() == 0.5);
         let infinite_id = half(value.get("id")) && parse_json_lax(&text).is_some_and(|lax| lax.get("id") == Some(&Value::Null));
         Some((value, infinite_id))

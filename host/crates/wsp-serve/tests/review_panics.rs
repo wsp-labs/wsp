@@ -70,8 +70,14 @@ fn a_valid_frame_with_a_deeply_nested_unknown_key_is_answered() {
                 .on("workspaces.list", |_| Ok::<Vec<wsp_wire::views::workspace_more::WorkspaceView>, wsp_words::exit::HostError>(vec![]));
             let served = served_with(&rt, opts());
             let (socket, sink) = host_socket(&served).await;
+            // Ruling 2 of fix round 3: the intake reads a frame to 506 levels and refuses a deeper one as a frame it cannot
+            // read ("invalid json", serve.ts:640), never a shortened value. The frame at 100,000 levels, which node answers
+            // ok:true because it reads whole and the schema strips the key, is refused; the host keeps serving.
             send_raw(&socket, &format!(r#"{{"id":5,"op":"workspaces.list","x":{}}}"#, deep(LEVELS))).await;
-            assert_eq!(sink.reply(5).unwrap()["ok"], json!(true));
+            assert_eq!(sink.frames().last().unwrap(), &json!({ "id": null, "ok": false, "error": "invalid json" }));
+            // The deepest frame the intake reads: 506 levels with the frame's own, answered as node answers it.
+            send_raw(&socket, &format!(r#"{{"id":6,"op":"workspaces.list","x":{}}}"#, deep(505))).await;
+            assert_eq!(sink.reply(6).unwrap()["ok"], json!(true));
         })
     })
 }

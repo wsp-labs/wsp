@@ -9,6 +9,13 @@ use serde_json::{Map, Number, Value};
 /// checks hold nothing that deep, and a `Value` that deep would overflow the stack when it is dropped or read.
 pub const KEPT_DEPTH: usize = 128;
 
+/// The levels `parse_json_whole` reads: a frame around a value the host keeps to its cap of 500 levels, the cap and the
+/// 6 levels a frame wraps it in (wsp-catalog's `MAX_DEPTH` plus `WRAPPER_LEVELS`, the store's row cap).
+pub const WHOLE_DEPTH: usize = 506;
+
+/// The refusal for a container past the levels a whole read keeps, the message node's own recursion fails with.
+pub const TOO_DEEP: &str = "Maximum call stack size exceeded";
+
 /// The whole texts V8 names as not valid JSON in full, whatever token failed.
 const JSON_SPECIAL_TEXTS: [&str; 4] = ["NaN", "Infinity", "undefined", "[object Object]"];
 
@@ -25,17 +32,32 @@ enum Beyond {
 /// its sign) where zod's checks read it as the float Infinity is; a container nested past `KEPT_DEPTH` is read whole and
 /// kept empty.
 pub fn parse_json(text: &str) -> Result<Value, String> {
-    read(text, Beyond::Fraction)
+    read(text, Beyond::Fraction, Keep::Cut(KEPT_DEPTH))
+}
+
+/// `parse_json` where a value is never cut: a container past `WHOLE_DEPTH` levels is a refusal (`TOO_DEEP`), not an empty
+/// one.
+pub fn parse_json_whole(text: &str) -> Result<Value, String> {
+    read(text, Beyond::Fraction, Keep::Refuse(WHOLE_DEPTH))
 }
 
 /// `JSON.parse(text)` where only whether it parsed matters: a number past the double range reads as null, as
 /// `JSON.stringify` writes Infinity.
 pub fn parse_json_lax(text: &str) -> Option<Value> {
-    read(text, Beyond::Null).ok()
+    read(text, Beyond::Null, Keep::Cut(KEPT_DEPTH)).ok()
 }
 
-fn read(text: &str, beyond: Beyond) -> Result<Value, String> {
-    let mut reader = JsonReader { src: text.encode_utf16().collect(), at: 0, beyond };
+/// What a container past the kept levels becomes.
+#[derive(Clone, Copy)]
+enum Keep {
+    /// Read for its syntax and kept empty, to this many levels.
+    Cut(usize),
+    /// A refusal past this many levels.
+    Refuse(usize),
+}
+
+fn read(text: &str, beyond: Beyond, keep: Keep) -> Result<Value, String> {
+    let mut reader = JsonReader { src: text.encode_utf16().collect(), at: 0, beyond, keep };
     reader.skip_space();
     let value = reader.value()?;
     reader.skip_space();
@@ -49,6 +71,7 @@ struct JsonReader {
     src: Vec<u16>,
     at: usize,
     beyond: Beyond,
+    keep: Keep,
 }
 
 /// A container being read: what it holds so far, or nothing where it sits past `KEPT_DEPTH`.
@@ -58,6 +81,15 @@ enum Frame {
 }
 
 impl JsonReader {
+    /// Whether a container opened under `levels` others is kept, or a refusal where nothing past the levels is.
+    fn kept(&self, levels: usize) -> Result<bool, String> {
+        match self.keep {
+            Keep::Cut(depth) => Ok(levels < depth),
+            Keep::Refuse(depth) if levels < depth => Ok(true),
+            Keep::Refuse(_) => Err(TOO_DEEP.to_string()),
+        }
+    }
+
     fn unit(&self, at: usize) -> Option<u16> {
         self.src.get(at).copied()
     }
@@ -147,7 +179,7 @@ impl JsonReader {
                         Value::Object(Map::new())
                     } else {
                         let key = self.key("Expected property name or '}' in JSON")?;
-                        let held = (stack.len() < KEPT_DEPTH).then(Map::new);
+                        let held = self.kept(stack.len())?.then(Map::new);
                         stack.push(Frame::Object(held, key));
                         continue;
                     }
@@ -159,7 +191,7 @@ impl JsonReader {
                         self.at += 1;
                         Value::Array(Vec::new())
                     } else {
-                        let held = (stack.len() < KEPT_DEPTH).then(Vec::new);
+                        let held = self.kept(stack.len())?.then(Vec::new);
                         stack.push(Frame::Array(held));
                         continue;
                     }
