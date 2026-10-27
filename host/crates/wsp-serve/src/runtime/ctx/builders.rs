@@ -12,6 +12,29 @@ use wsp_machines::machines::machines::MachinesArea;
 
 use super::Ctx;
 
+/// The areas the packet 14 tests read state back from, since the context's own fields are crate-private.
+#[doc(hidden)]
+pub struct BuildersSeams {
+    pub builders_area: Rc<wsp_machines::images::builders::BuildersArea>,
+    pub golden: Rc<wsp_machines::images::golden::GoldenArea>,
+    pub image: Rc<wsp_machines::images::image::ImageArea>,
+    pub machines: Rc<MachinesArea>,
+    pub gone: Rc<wsp_engine::gone_watch::GoneWatch>,
+}
+
+impl Ctx {
+    #[doc(hidden)]
+    pub fn builders_seams(&self) -> BuildersSeams {
+        BuildersSeams {
+            builders_area: self.builders_area.get(),
+            golden: self.golden.get(),
+            image: self.image.get(),
+            machines: self.machines.get(),
+            gone: self.gone.clone(),
+        }
+    }
+}
+
 #[async_trait::async_trait(?Send)]
 impl wsp_machines::images::builders::BuildersCtx for Ctx {
     fn store(&self) -> std::rc::Rc<dyn wsp_core::types::pending::Store> {
