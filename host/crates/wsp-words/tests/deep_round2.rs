@@ -49,13 +49,13 @@ fn ending(procs: Vec<ProcEntry>, pid: u32) -> Result<Vec<u32>, String> {
     }
 }
 
-// P2 of the review: activity.ts:511 `take` walks `kidsOf` with no set, so a pid listed twice under one parent is taken twice,
-// each time with its kids. node answers [1, 2, 3, 2, 3]; end_plan answered "Maximum call stack size exceeded" for it, a
-// refusal that belongs to a cycle.
+// Ruling 1 of fix round 3: one visited set, "a pid walked once is never walked again". activity.ts:511 `take` walks
+// `kidsOf` with no set and answers [1, 2, 3, 2, 3] here; the port takes each pid once, so a list cannot make an End walk
+// every path. A cycle is still the refusal below.
 #[test]
-fn an_end_over_a_pid_listed_twice_with_no_cycle_takes_it_twice_as_node_does() {
+fn an_end_over_a_pid_listed_twice_with_no_cycle_takes_it_once() {
     let rows = vec![row(1, 0), row(2, 1), row(2, 1), row(3, 2)];
-    assert_eq!(ending(rows, 1), Ok(vec![1, 2, 3, 2, 3]));
+    assert_eq!(ending(rows, 1), Ok(vec![1, 2, 3]));
 }
 
 // A parent cycle is what node's recursion fails on: RangeError, which the port keeps as its message.
@@ -92,4 +92,15 @@ fn a_tree_of_500_object_levels_read_by_v8_json_is_cloned_and_dropped() {
         .output()
         .unwrap();
     assert!(out.status.success(), "the child died ({}): {}", out.status, String::from_utf8_lossy(&out.stderr).lines().last().unwrap_or(""));
+}
+
+// Ruling 1 of fix round 3: a list with every pid twice under the one before, no ring, is 2^39 paths in node and one walk here.
+#[test]
+fn an_end_over_a_chain_of_doubled_pids_takes_each_once() {
+    let mut rows = vec![row(1, 0)];
+    for pid in 2..=40 {
+        rows.push(row(pid, pid - 1));
+        rows.push(row(pid, pid - 1));
+    }
+    assert_eq!(ending(rows, 1), Ok((1..=40).collect::<Vec<u32>>()));
 }

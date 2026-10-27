@@ -62,12 +62,13 @@ fn pids_and_depths(procs: Vec<ProcEntry>) -> Vec<(i64, i64)> {
     activity_of(&read_of(procs)).unowned.iter().map(|p| (p.pid.get(), p.depth.get())).collect()
 }
 
-// activity.ts:411 treeRows walks `kidsOf` with no set at all, so a pid listed twice under one parent is walked twice, each
-// time with the kids of the pid: node prints 1, 2, 3, 2, 3. The walk keeps the pids above the row it is on, so this holds.
+// Ruling 1 of fix round 3: one visited set, "a pid walked once is never walked again". activity.ts:411 treeRows walks
+// `kidsOf` with no set and prints 1, 2, 3, 2, 3 here; the port prints each pid once, so a ring where every pid is listed
+// twice ends (rereview_2448.rs) and the walk is linear on any list.
 #[test]
-fn a_pid_listed_twice_with_no_cycle_is_walked_twice_as_node_walks_it() {
+fn a_pid_listed_twice_with_no_cycle_is_walked_once() {
     let rows = vec![row(1, 0), row(2, 1), row(2, 1), row(3, 2)];
-    assert_eq!(pids_and_depths(rows), vec![(1, 0), (2, 1), (3, 2), (2, 1), (3, 2)]);
+    assert_eq!(pids_and_depths(rows), vec![(1, 0), (2, 1), (3, 2)]);
 }
 
 // Ruling 4 of the round 2 brief: a parent cycle is broken and the rest of the tree is answered.
@@ -87,12 +88,14 @@ fn fold_tree_cuts_a_parent_cycle_and_answers_the_rest() {
     assert!(folded[0].kids[0].kids.is_empty(), "pid 1 under pid 2 is the cycle");
 }
 
+// Ruling 1 of fix round 3: one visited set. node's foldTree keeps both rows of pid 2, each with pid 3 under it; the port
+// keeps the first.
 #[test]
-fn fold_tree_keeps_a_pid_listed_twice_with_no_cycle_as_node_does() {
+fn fold_tree_keeps_a_pid_listed_twice_with_no_cycle_once() {
     let list = vec![row(1, 0), row(2, 1), row(2, 1), row(3, 2)];
     let folded = fold_tree(&list, |_| None);
     assert_eq!(folded.len(), 1);
-    assert_eq!(folded[0].kids.len(), 2);
+    assert_eq!(folded[0].kids.len(), 1);
     assert!(folded[0].kids.iter().all(|k| k.p.pid == 2 && k.kids.len() == 1 && k.kids[0].p.pid == 3));
 }
 
