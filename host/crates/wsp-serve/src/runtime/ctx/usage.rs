@@ -4,6 +4,33 @@
 
 use super::Ctx;
 
+/// What `usageArea` builds once and shares (usage.ts:46-50, 292-303): the price table, the ledger, the plan alerts, the
+/// burn and the resets. The usage area, the status tracker and the turns' filings all read these one values.
+pub struct UsageParts {
+    pub prices: std::rc::Rc<wsp_machines::usage::accounts::PriceTable>,
+    pub ledger: std::rc::Rc<wsp_machines::usage::ledger::UsageLedger>,
+    pub alerts: std::rc::Rc<wsp_core::plan_alerts::PlanAlerts>,
+    pub burn: wsp_machines::usage::accounts::Burn,
+    pub resets: wsp_account::usage_reset::UsageResets,
+}
+
+impl Ctx {
+    /// The usage parts of this context, built on first use and then the same ones.
+    pub fn usage_parts(&self) -> std::rc::Rc<UsageParts> {
+        todo!()
+    }
+
+    /// `void alerts.resume().catch(warn)` (usage.ts:49): arms the plan alerts the state holds.
+    pub fn usage_arm(self: &std::rc::Rc<Ctx>) {
+        todo!()
+    }
+
+    /// `createStatusTracker({..})` (status.ts:11-69): the tracker over the status rows and the poll's callbacks.
+    pub fn usage_status_tracker(self: &std::rc::Rc<Ctx>) -> std::rc::Rc<wsp_core::status::StatusTracker> {
+        todo!()
+    }
+}
+
 #[async_trait::async_trait(?Send)]
 impl wsp_account::account::usage::UsageCtx for Ctx {
     fn now(&self) -> i64 {
