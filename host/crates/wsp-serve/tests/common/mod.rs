@@ -5,6 +5,9 @@
 //! not a new design. Each test file declares `mod common;`.
 #![allow(dead_code, unused_imports)]
 pub mod adapter;
+pub mod box_daemons;
+pub mod box_fake;
+pub mod copying;
 pub mod daemon;
 pub mod events;
 pub mod gateway;
@@ -14,6 +17,7 @@ pub mod lagging;
 pub mod local;
 pub mod ports;
 pub mod projects;
+pub mod reach;
 pub mod store_wrap;
 pub mod stub_backend;
 pub mod vault;
@@ -308,5 +312,15 @@ impl wsp_core::types::wiring::PlaceBackends for Places {
     }
     fn list(&self) -> Vec<String> {
         self.list.clone()
+    }
+}
+
+/// `void promise`: starts `f` at once and runs it as far as it can before its first real wait, as a JS async function
+/// does its synchronous half in the call; what is left runs on the loop.
+pub fn fire<F: Future<Output = ()> + 'static>(f: F) {
+    use std::task::Context;
+    let mut f = Box::pin(f);
+    if f.as_mut().poll(&mut Context::from_waker(futures::task::noop_waker_ref())).is_pending() {
+        tokio::task::spawn_local(f);
     }
 }
