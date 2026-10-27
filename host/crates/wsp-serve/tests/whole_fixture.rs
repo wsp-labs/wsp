@@ -538,3 +538,18 @@ fn project_with_names_the_base_a_project_opens_its_pull_requests_against() {
         assert!(j(&plain).get("base").is_none());
     });
 }
+
+// stub-backend.ts:437 `createOn(rt, { agents, ... })`: the keys of `agents` a test names reach the create.
+#[test]
+fn create_on_hands_the_agents_to_the_create() {
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let fx = runtime(&backend).build();
+        let made = create_on(&fx.rt, CreateOn::golden("a").agents(2, 3), None)
+            .await
+            .expect("a workspace");
+        let view = j(&made.view);
+        assert_eq!(view["agents"]["maxMachines"], 2);
+        assert_eq!(view["agents"]["maxDepth"], 3);
+    });
+}

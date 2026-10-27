@@ -89,6 +89,8 @@ pub struct CreateOn {
     pub mem_mb: Option<f64>,
     pub parent: Option<String>,
     pub idle_window_ms: IdleWindow,
+    /// `agents: { maxMachines, maxDepth }`: the keys of `WorkspaceAgents` a test names.
+    pub agents: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 impl CreateOn {
@@ -109,6 +111,14 @@ impl CreateOn {
     }
     pub fn golden_is(mut self, golden: &str) -> CreateOn {
         self.golden = Some(golden.into());
+        self
+    }
+    /// `agents: { maxMachines, maxDepth }`.
+    pub fn agents(mut self, max_machines: u32, max_depth: u32) -> CreateOn {
+        let mut agents = serde_json::Map::new();
+        agents.insert("maxMachines".into(), max_machines.into());
+        agents.insert("maxDepth".into(), max_depth.into());
+        self.agents = Some(agents);
         self
     }
 }
@@ -137,6 +147,7 @@ pub async fn create_on(rt: &AssembledRuntime, o: CreateOn, origin: Option<Caller
         name: o.name,
         parent: o.parent,
         idle_window_ms: o.idle_window_ms,
+        agents: o.agents,
         ..Default::default()
     };
     rt.workspaces().create(opts, origin).await
