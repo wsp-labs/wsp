@@ -33,6 +33,9 @@ const TEXT_SHIFT: Pixels = px(3.);
 /// `useTypeahead`'s `resetMs`, which Base UI's Select leaves at its default: the typed letters are forgotten this long
 /// after the last one.
 const TYPED_RESET: Duration = Duration::from_millis(750);
+/// gpui-kit's `POPUP_PRIORITY`: deferred draws paint in one order by priority however they nest, so the list stands
+/// above every layer it can open in, the dialogs' 4 among them.
+const LIST_PRIORITY: usize = 100;
 
 type Mark = Rc<dyn Fn(&App) -> AnyElement>;
 type Change<T> = Rc<dyn Fn(&T, &mut Window, &mut App) + 'static>;
@@ -611,8 +614,9 @@ impl<T: Clone + PartialEq + 'static> RenderOnce for Select<T> {
                     },
                 ),
             ))
-            .with_priority(1);
-            let list = deferred(anchored().offset(point(-TEXT_SHIFT, top)).snap_to_window_with_margin(px(8.)).child(list)).with_priority(2);
+            .with_priority(LIST_PRIORITY);
+            let list = deferred(anchored().offset(point(-TEXT_SHIFT, top)).snap_to_window_with_margin(px(8.)).child(list))
+                .with_priority(LIST_PRIORITY);
             div().absolute().top_0().left_0().child(backdrop).child(list)
         });
         div()
