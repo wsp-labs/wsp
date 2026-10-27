@@ -428,6 +428,8 @@ fn prepare_leaves_preparing_once_settled() {
 fn attach_stages_already_applied_and_holds_the_builder() {
     let w = World::new();
     let b = reusable(&w, "b1", "h1");
+    let fake = FakeMachine::new("b1");
+    b.borrow_mut().builder.machine = fake.clone();
     run(area(&w).prepare(ask(Some(importing())))).expect("attached");
     let stages = w.lines("stage ");
     assert_eq!(
@@ -442,9 +444,7 @@ fn attach_stages_already_applied_and_holds_the_builder() {
     assert_eq!(b.borrow().life, BuilderLife::Own);
     assert!(b.borrow().recipe.is_some());
     assert_eq!(w.lines("hold"), vec!["hold b1"]);
-    let machine = b.borrow().builder.machine.clone();
-    let fake = machine.as_ref() as *const dyn wsp_engine::machine::Machine as *const FakeMachine;
-    assert_eq!(unsafe { (*fake).execs() }, vec!["true"]);
+    assert_eq!(fake.execs(), vec!["true"]);
 }
 
 // G7: a builder that does not answer a no-op goes.
