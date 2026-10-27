@@ -691,7 +691,7 @@ fn writes_the_folder_the_records_project_names_on_every_connect_and_again_after_
             .await
             .expect("a list")
             .iter()
-            .map(|p| j(p))
+            .map(j)
             .find(|p| p["id"] == ws.view.project.id.as_str())
             .expect("the project")["path"]
             .as_str()
@@ -905,7 +905,7 @@ fn a_sync_whose_version_read_answers_nothing_says_so_in_the_log_and_asks_again_a
         let r = restart_onto(&daemon, true, false, vec![], false).await;
         r.rt.workspaces().list(None).await.expect("a list");
         until_n(|| said().len() == 1).await;
-        assert_eq!(said(), [r.unread.clone()]);
+        assert_eq!(said(), std::slice::from_ref(&r.unread));
         assert_eq!((r.deployed.borrow().clone(), daemon.dials()), (vec![], 1));
 
         // Probes inside the window find the machine answering and ask it nothing.
