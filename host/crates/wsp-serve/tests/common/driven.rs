@@ -3,7 +3,9 @@
 //! test drives line by line (`calls`, `answers`, `raise`, `reply`, `emit`, `end`), that names a session by `titles`, and
 //! that answers a permission prompt. One adapter, with the three extras the oracle's copy adds (`rename`, a made title,
 //! a start that throws on a `boom` prompt) behind `Driven::oracle()`, and held-turn.test.ts:34's copy (steers, says
-//! nothing at its start, answers nothing) behind `Driven::held_turn()`.
+//! nothing at its start, answers nothing) behind `Driven::held_turn()`. waiting-behind.test.ts:25's copy (a session id of
+//! its own on every start, a prompt laid over `ask()`, a reply that closes what is still open, an answer to a prompt it
+//! does not hold is gone) is `driven(&turns)`, read through `Turns` and `Turn`.
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -21,12 +23,29 @@ use wsp_core::types::harness::{HarnessAdapterContext, HarnessAdapterFactory};
 
 use super::adapter::{event, result};
 
+/// waiting-behind.test.ts `ASK`: the permission prompt a test raises.
+pub fn ask() -> Value {
+    json!({
+        "askId": "ask_1",
+        "toolName": "Read",
+        "toolUseId": "toolu_read",
+        "input": "{\"file_path\":\"/root/hello.txt\"}",
+        "detail": "hello.txt",
+        "options": [
+            { "id": "allow", "label": "Allow", "effect": "allow" },
+            { "id": "deny", "label": "Deny", "effect": "deny" }
+        ]
+    })
+}
+
 /// One turn the test drives.
 pub struct DTurn {
     pub session_id: String,
     pub prompt: String,
     on_event: OnEvent,
     finish: RefCell<Option<oneshot::Sender<TurnResult>>>,
+    /// The ask ids raised and not yet closed.
+    open: RefCell<Vec<String>>,
 }
 
 impl DTurn {
@@ -60,6 +79,7 @@ impl DTurn {
 
     /// `raise()`: the permission prompt `ask`.
     pub fn raise(&self, ask: Value) {
+        self.open.borrow_mut().push(ask["askId"].as_str().unwrap_or_default().to_string());
         self.emit(json!({ "type": "permission.ask", "ask": ask }));
     }
 
@@ -81,6 +101,23 @@ impl DTurn {
         if let Some(tx) = self.finish.borrow_mut().take() {
             let _ = tx.send(r);
         }
+    }
+
+    /// waiting-behind.test.ts `reply(result)`: every open prompt closes as cancelled, then `turn.done` carrying `more`
+    /// over `{ status: "completed", text: "done" }` as written, and `session.end`.
+    fn reply_closing(&self, more: Value) {
+        let Some(tx) = self.finish.borrow_mut().take() else { return };
+        let mut doc = json!({ "status": "completed", "text": "done" });
+        if let (Some(doc), Some(more)) = (doc.as_object_mut(), more.as_object()) {
+            doc.extend(more.clone());
+        }
+        let open: Vec<String> = self.open.borrow_mut().drain(..).collect();
+        for ask_id in open {
+            self.emit(json!({ "type": "permission.close", "askId": ask_id, "outcome": "cancelled" }));
+        }
+        self.emit(json!({ "type": "turn.done", "result": doc }));
+        self.emit(json!({ "type": "session.end", "exitCode": 0, "sawResult": true }));
+        let _ = tx.send(result(doc));
     }
 
     fn settle(&self, r: TurnResult) {
@@ -108,6 +145,7 @@ enum Mode {
     Oracle,
     HeldTurn,
     Replay,
+    Waiting,
 }
 
 impl Driven {
@@ -165,6 +203,10 @@ impl HarnessAdapter for DrivenAdapter {
             return Err(AdapterError("the agent would not start".into()));
         }
         let session_id = match &o.resume {
+            _ if d.mode == Mode::Waiting => {
+                d.opened.set(d.opened.get() + 1);
+                format!("11111111-1111-4111-8111-{:012}", d.opened.get())
+            }
             _ if d.mode == Mode::Replay => "77777777-7777-4777-8777-777777777777".to_string(),
             Some(id) => id.clone(),
             None => {
@@ -174,10 +216,10 @@ impl HarnessAdapter for DrivenAdapter {
         };
         let (tx, rx) = oneshot::channel();
         let on_event = o.on_event.clone().expect("an event sink");
-        let turn = Rc::new(DTurn { session_id: session_id.clone(), prompt: o.prompt.clone(), on_event, finish: RefCell::new(Some(tx)) });
+        let turn = Rc::new(DTurn { session_id: session_id.clone(), prompt: o.prompt.clone(), on_event, finish: RefCell::new(Some(tx)), open: RefCell::default() });
         let start = match d.mode {
             Mode::Oracle => json!({ "type": "session.start", "sessionId": session_id, "cwd": "/root", "model": "claude-sonnet-4-5" }),
-            Mode::Row => json!({ "type": "session.start", "sessionId": session_id, "cwd": "/root" }),
+            Mode::Row | Mode::Waiting => json!({ "type": "session.start", "sessionId": session_id, "cwd": "/root" }),
             Mode::HeldTurn => json!({ "type": "session.start", "sessionId": session_id }),
             Mode::Replay => json!({ "type": "session.start", "sessionId": session_id, "model": "claude-sonnet-4-5" }),
         };
@@ -204,7 +246,7 @@ impl HarnessAdapter for DrivenAdapter {
         id: String,
         _exec: Arc<dyn HarnessExec>,
     ) -> Option<LocalBoxFuture<'static, Result<Option<String>, ExecFailure>>> {
-        if self.driven.mode == Mode::HeldTurn {
+        if matches!(self.driven.mode, Mode::HeldTurn | Mode::Waiting) {
             return None;
         }
         let titles = self.driven.clone();
@@ -244,9 +286,11 @@ impl HarnessSession for DrivenSession {
     }
     fn interrupt(&self) -> LocalBoxFuture<'static, ()> {
         let turn = self.turn.clone();
-        let quiet = self.mode == Mode::HeldTurn;
+        let mode = self.mode;
         async move {
-            if quiet {
+            if mode == Mode::Waiting {
+                turn.reply_closing(json!({ "status": "interrupted" }));
+            } else if mode == Mode::HeldTurn {
                 turn.finish_quiet(result(json!({ "status": "interrupted" })));
             } else {
                 turn.settle(result(json!({ "status": "interrupted" })));
@@ -262,8 +306,16 @@ impl HarnessSession for DrivenSession {
             return None;
         }
         let turn = self.turn.clone();
+        let mode = self.mode;
         Some(
             async move {
+                let held = {
+                    let mut open = turn.open.borrow_mut();
+                    open.iter().position(|id| *id == ask_id).map(|at| open.remove(at))
+                };
+                if mode == Mode::Waiting && held.is_none() {
+                    return Ok(AnswerOutcome::Gone);
+                }
                 turn.emit(json!({
                     "type": "permission.close",
                     "askId": ask_id,
@@ -274,5 +326,53 @@ impl HarnessSession for DrivenSession {
             }
             .boxed_local(),
         )
+    }
+}
+
+/// The turns `driven(&turns)` has started, in order (waiting-behind.test.ts:25).
+pub struct Turns(Rc<Driven>);
+
+impl Turns {
+    pub fn new() -> Rc<Turns> {
+        Rc::new(Turns(Driven::of(Mode::Waiting)))
+    }
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+    pub fn get(&self, n: usize) -> Turn {
+        Turn(self.0.turn(n))
+    }
+}
+
+/// `drivenAdapter(turns)` of waiting-behind.test.ts:25.
+pub fn driven(turns: &Rc<Turns>) -> HarnessAdapterFactory {
+    turns.0.factory()
+}
+
+/// What a running waiting-behind turn lets a test do to it.
+#[derive(Clone)]
+pub struct Turn(Rc<DTurn>);
+
+impl Turn {
+    pub fn calls(&self, tool_use_id: &str, tool_name: &str, input: &str) {
+        self.0.calls(tool_use_id, tool_name, input);
+    }
+
+    pub fn answers(&self, tool_use_id: &str) {
+        self.0.answers(tool_use_id);
+    }
+
+    /// `raise(overrides)`: the prompt of `ask()` with the keys of `overrides` laid over it.
+    pub fn raise(&self, overrides: Value) {
+        let mut ask = ask();
+        if let (Some(ask), Some(more)) = (ask.as_object_mut(), overrides.as_object()) {
+            ask.extend(more.clone());
+        }
+        self.0.raise(ask);
+    }
+
+    /// `reply(result)`: closes every open prompt as cancelled, then `turn.done` and `session.end`.
+    pub fn reply(&self, more: Value) {
+        self.0.reply_closing(more);
     }
 }

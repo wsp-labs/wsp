@@ -27,10 +27,12 @@ pub struct WrappedStore {
     rows: FailingRows,
     hold: Holds,
     held: std::cell::Cell<bool>,
+    gated: RefCell<Option<(String, Rc<Gate>, Rc<Gate>)>>,
 }
 
 /// The transcript rows of the store it wraps, whose reads fail once told to (runtime-comeback.test.ts:812 makes
-/// `getBlob("transcripts")` reject: the Rust store keeps transcripts as rows).
+/// `getBlob("transcripts")` reject, forget.test.ts:173 makes it answer `undefined`: the Rust store keeps transcripts as
+/// rows).
 pub struct FailingRows {
     inner: Rc<dyn Store>,
     message: RefCell<Option<String>>,
@@ -129,6 +131,7 @@ impl WrappedStore {
             rows: FailingRows { inner: inner.clone(), message: RefCell::default(), index_once: RefCell::default() },
             hold: RefCell::default(),
             held: std::cell::Cell::new(false),
+            gated: RefCell::default(),
         })
     }
 
@@ -174,6 +177,20 @@ impl WrappedStore {
         self.held.get()
     }
 
+    /// While `unreadable`, every read of a transcript's rows fails, as the TS's `getBlob` answering `undefined` for
+    /// the `transcripts` collection makes the transcript not read.
+    pub fn set_unreadable(&self, unreadable: bool) {
+        *self.rows.message.borrow_mut() = unreadable.then(|| "the rows do not read".to_string());
+    }
+
+    /// From now on a `put` into `collection` waits at a gate: the first answers `reached` once a write is in it, and
+    /// the write goes on once `open` is opened (forget.test.ts:81).
+    pub fn gate_puts(&self, collection: &str) -> (Rc<Gate>, Rc<Gate>) {
+        let (reached, open) = (Gate::new(), Gate::new());
+        *self.gated.borrow_mut() = Some((collection.into(), reached.clone(), open.clone()));
+        (reached, open)
+    }
+
     /// Every `put` into `collection` fails with `message` from now on.
     pub fn refuse_puts(&self, collection: &str, message: &str) {
         self.refuse.borrow_mut().push((collection.into(), message.into()));
@@ -212,6 +229,11 @@ impl Store for WrappedStore {
         if let Some(gate) = waiting {
             self.held.set(true);
             gate.wait().await;
+        }
+        let gate = self.gated.borrow().as_ref().filter(|(c, _, _)| c == collection).map(|(_, r, o)| (r.clone(), o.clone()));
+        if let Some((reached, open)) = gate {
+            reached.open();
+            open.wait().await;
         }
         self.inner.put(collection, id, value).await
     }
