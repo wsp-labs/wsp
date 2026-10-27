@@ -212,6 +212,8 @@ function provisioner(
     plan?: ProvisionPlan;
     hold?: EngineStep;
     holds?: EngineStep[];
+    /** The base tools that go on while the person chooses stay running until `letFloor`. */
+    holdFloor?: true;
     throws?: { step: EngineStep; error: Error };
     undo?: (removed: readonly { kind: string; name: string }[]) => PlaceUndo[];
     /** A project's own servers are carried, one row each landed folder. */
@@ -236,6 +238,11 @@ function provisioner(
   const stages = new Map<EngineStep, ProvisionStage>();
   const ons = new Map<EngineStep, ProvisionOn>();
   const floors: string[] = [];
+  let letFloor = (): void => {};
+  const floorHeld = new Promise<void>(resolve => (letFloor = resolve));
+  /** How many base-tools runs, the background one and the setup's own, are going at once, and the most there were. */
+  const floorsOpen = { now: 0, most: 0 };
+  const floorOpens = (): void => void (floorsOpen.most = Math.max(floorsOpen.most, ++floorsOpen.now));
   const picked: RecipeFile[] = [];
   const rows = { ...ROWS, ...o.rows };
   const wired: PlaceProvisioner = {
@@ -245,10 +252,17 @@ function provisioner(
     },
     floor: async (_machine, on) => {
       floors.push(on.home);
+      floorOpens();
+      try {
+        if (o.holdFloor === true) await floorHeld;
+      } finally {
+        floorsOpen.now--;
+      }
       return [];
     },
     step: async (_machine, plan, step, _run, stage, on) => {
       ran.push(step);
+      if (step === "floor") floorOpens();
       plans[step] = plan;
       stages.set(step, stage);
       ons.set(step, on);
@@ -260,6 +274,7 @@ function provisioner(
       await each.get(step)?.at;
       if (o.throws?.step === step) throw o.throws.error;
       ended.push(step);
+      if (step === "floor") floorsOpen.now--;
       return rows[step] ?? [];
     },
     ...(o.projectServers === true
@@ -279,7 +294,7 @@ function provisioner(
   const undone: { before: RecipeFile; removed: string[] }[] = [];
   /** A running step says a row has landed, as the tools loop does while the rest of its rows install. */
   const say = (step: EngineStep, row: PlaceProvisionRow): void => stages.get(step)?.(`${row.label}: ${row.outcome}`, undefined, { ...row, step });
-  return { wired, ran, carried, plans, ons, floors, picked, undone, release: () => release(), let: (step: EngineStep) => each.get(step)?.let(), arm, say };
+  return { wired, ran, carried, plans, ons, floors, floorsOpen, letFloor: () => letFloor(), picked, undone, release: () => release(), let: (step: EngineStep) => each.get(step)?.let(), arm, say };
 }
 
 /** Sign-ins as the app's own road runs them, each waiting on the test: the page and the code, then the end. The
@@ -1442,6 +1457,21 @@ describe("a computer added before anything is picked", () => {
     const [pending] = await runtime!.places!.pending();
     expect(pending).not.toHaveProperty("undo");
     expect((await store.get("pending-computers", "a_wait")) as { undo?: string }).toMatchObject({ undo: "undo-script", login: "root@10.0.0.9", hostKey: "ssh-ed25519 SHA256:box" });
+  });
+
+  it("waits for the base tools going on while the person chooses before a setup runs them again", async () => {
+    const p = provisioner({ holdFloor: true });
+    await hosting({ provision: p.wired });
+    const { place } = await runtime!.places!.add({ addId: "a_wait", address: "root@10.0.0.9", hostUrls: DOOR }, Date.now());
+    await until(async () => p.floors.length === 1);
+    const set = await runtime!.places!.setUp(place.id, { choices: LAPTOP, recipe: "laptop" });
+    expect(set.setup?.state).toBe("running");
+    await new Promise(resolve => setTimeout(resolve, 100));
+    expect(p.ran).toEqual([]);
+    p.letFloor();
+    await until(async () => (await rowOf(place.id)).setup?.state === "done");
+    expect(p.floorsOpen.most).toBe(1);
+    expect(p.ran[0]).toBe("floor");
   });
 
   it("keeps the choices through a host restart, refuses a resume with nothing chosen, and sets up from them at the resume", async () => {
