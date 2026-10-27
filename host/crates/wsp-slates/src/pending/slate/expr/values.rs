@@ -80,8 +80,10 @@ pub(super) fn js_object(entries: impl IntoIterator<Item = (String, Value)>) -> V
     for (k, v) in entries {
         map.insert(k, v);
     }
-    let ordered: Map<String, Value> = js_key_order(map.iter()).into_iter().map(|(k, v)| (k.clone(), v.clone())).collect();
-    Value::Object(ordered)
+    let pairs: Vec<(String, Value)> = map.into_iter().collect();
+    let order: Vec<usize> = js_key_order(pairs.iter().enumerate().map(|(at, (key, _))| (key, at))).into_iter().map(|(_, at)| at).collect();
+    let mut slots: Vec<Option<(String, Value)>> = pairs.into_iter().map(Some).collect();
+    Value::Object(order.into_iter().filter_map(|at| slots[at].take()).collect())
 }
 
 /// A time as ms: a number is ms epoch, an ISO string is parsed.
