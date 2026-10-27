@@ -312,8 +312,10 @@ fn build_areas_of(ctx: &Rc<Ctx>) {
 
     ctx.projects.fill(projects_area(ctx.clone()));
     ctx.usage.fill(UsageArea::new(ctx.clone()));
+    ctx.usage_arm();
     ctx.conversations.fill(ConversationsArea::new(ctx.clone()));
     ctx.status.fill(StatusArea::new(ctx.clone()));
+    ctx.status_tracker.fill(ctx.usage_status_tracker());
     ctx.preferences.fill(PreferencesArea::new(ctx.clone()));
     ctx.project_icons.fill(project_icons_area(ctx.clone()));
 
