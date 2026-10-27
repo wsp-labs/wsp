@@ -373,11 +373,17 @@ pub fn json_line(value: &serde_json::Value, space: Option<usize>) -> String {
     // JSON.stringify with a gap of 0 writes no white space at all, the same as no gap, and holds a gap to ten spaces.
     let space = space.filter(|n| *n > 0).map(|n| n.min(10));
     let mut out = String::new();
-    write_json(value, space, 0, &mut out);
+    write_json(value, space, &mut out);
     escape_c1(&out)
 }
 
-fn write_json(value: &serde_json::Value, space: Option<usize>, depth: usize, out: &mut String) {
+/// A container being written, with the items left; a host reply can nest past what one call per level holds.
+enum Open<'a> {
+    Array(std::slice::Iter<'a, serde_json::Value>, bool),
+    Object(serde_json::map::Iter<'a>, bool),
+}
+
+fn write_json(root: &serde_json::Value, space: Option<usize>, out: &mut String) {
     use serde_json::Value;
     let newline = |depth: usize, out: &mut String| {
         if let Some(n) = space {
@@ -385,38 +391,61 @@ fn write_json(value: &serde_json::Value, space: Option<usize>, depth: usize, out
             out.push_str(&" ".repeat(n * depth));
         }
     };
-    match value {
-        Value::Null => out.push_str("null"),
-        Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
-        Value::Number(n) => out.push_str(&number_string(n.as_f64().expect("a JSON number reads as a double"))),
-        Value::String(s) => out.push_str(&serde_json::to_string(s).expect("a string writes as JSON")),
-        Value::Array(items) if items.is_empty() => out.push_str("[]"),
-        Value::Array(items) => {
-            out.push('[');
-            for (i, item) in items.iter().enumerate() {
-                if i > 0 {
-                    out.push(',');
+    let mut stack: Vec<Open> = Vec::new();
+    let mut next = Some(root);
+    loop {
+        if let Some(value) = next.take() {
+            match value {
+                Value::Null => out.push_str("null"),
+                Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+                Value::Number(n) => out.push_str(&number_string(n.as_f64().expect("a JSON number reads as a double"))),
+                Value::String(s) => out.push_str(&serde_json::to_string(s).expect("a string writes as JSON")),
+                Value::Array(items) if items.is_empty() => out.push_str("[]"),
+                Value::Array(items) => {
+                    out.push('[');
+                    stack.push(Open::Array(items.iter(), true));
                 }
-                newline(depth + 1, out);
-                write_json(item, space, depth + 1, out);
+                Value::Object(map) if map.is_empty() => out.push_str("{}"),
+                Value::Object(map) => {
+                    out.push('{');
+                    stack.push(Open::Object(map.iter(), true));
+                }
             }
-            newline(depth, out);
-            out.push(']');
+            continue;
         }
-        Value::Object(map) if map.is_empty() => out.push_str("{}"),
-        Value::Object(map) => {
-            out.push('{');
-            for (i, (key, item)) in map.iter().enumerate() {
-                if i > 0 {
-                    out.push(',');
+        let depth = stack.len();
+        match stack.last_mut() {
+            None => return,
+            Some(Open::Array(items, first)) => match items.next() {
+                Some(item) => {
+                    if !std::mem::replace(first, false) {
+                        out.push(',');
+                    }
+                    newline(depth, out);
+                    next = Some(item);
                 }
-                newline(depth + 1, out);
-                out.push_str(&serde_json::to_string(key).expect("a key writes as JSON"));
-                out.push_str(if space.is_some() { ": " } else { ":" });
-                write_json(item, space, depth + 1, out);
-            }
-            newline(depth, out);
-            out.push('}');
+                None => {
+                    stack.pop();
+                    newline(depth - 1, out);
+                    out.push(']');
+                }
+            },
+            Some(Open::Object(entries, first)) => match entries.next() {
+                Some((key, item)) => {
+                    if !std::mem::replace(first, false) {
+                        out.push(',');
+                    }
+                    newline(depth, out);
+                    out.push_str(&serde_json::to_string(key).expect("a key writes as JSON"));
+                    out.push_str(if space.is_some() { ": " } else { ":" });
+                    next = Some(item);
+                }
+                None => {
+                    stack.pop();
+                    newline(depth - 1, out);
+                    out.push('}');
+                }
+            },
         }
     }
 }

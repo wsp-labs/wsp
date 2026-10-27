@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::os::unix::fs::OpenOptionsExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::task::{Context, Poll, Waker};
@@ -623,41 +623,63 @@ pub async fn reap_run(base: &str, last_read: Option<LastRead>, grace_ms: u64) ->
         last_read(log_size(base)).await;
     }
     for suffix in REAPED_SUFFIXES {
-        remove_forced(&format!("{base}.{suffix}"))?;
+        remove_forced(Path::new(&format!("{base}.{suffix}")))?;
     }
-    remove_tree(&format!("{base}.d"))
+    remove_tree(Path::new(&format!("{base}.d")))
 }
 
 /// `rmSync(path, { force: true })`: an absent file is no error, any other failure is node's words.
-fn remove_forced(path: &str) -> Result<(), String> {
+fn remove_forced(path: &Path) -> Result<(), String> {
     match fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(node_error(&e, "unlink", Some(path))),
+        Err(e) => Err(node_error(&e, "unlink", Some(&path.to_string_lossy()))),
     }
 }
 
 /// `rmSync(path, { recursive: true, force: true })`: a folder is removed as node does, empty first and then its children.
-fn remove_tree(path: &str) -> Result<(), String> {
+/// One stack of folders of its own, each holding the names `readdirSync` would answer with its stream closed, so no depth of
+/// folders is a depth of the thread's stack or a descriptor held open. Links are removed, never followed.
+pub fn remove_tree(path: &Path) -> Result<(), String> {
+    let mut open: Vec<(PathBuf, std::vec::IntoIter<PathBuf>)> = Vec::new();
+    let mut next = Some(path.to_path_buf());
+    loop {
+        if let Some(path) = next.take() {
+            if let Some(entries) = enter(&path)? {
+                open.push((path, entries.into_iter()));
+            }
+        }
+        let Some((here, entries)) = open.last_mut() else { return Ok(()) };
+        match entries.next() {
+            Some(entry) => next = Some(entry),
+            None => {
+                fs::remove_dir(&*here).map_err(|e| node_error(&e, "rmdir", Some(&here.to_string_lossy())))?;
+                open.pop();
+            }
+        }
+    }
+}
+
+/// One step of `remove_tree` at `path`: a file or an empty folder is removed here; a folder with something in it answers
+/// what is in it, for the caller to remove first.
+fn enter(path: &Path) -> Result<Option<Vec<PathBuf>>, String> {
+    let shown = || path.to_string_lossy().into_owned();
     let meta = match fs::symlink_metadata(path) {
         Ok(meta) => meta,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
-        Err(e) => return Err(node_error(&e, "lstat", Some(path))),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(node_error(&e, "lstat", Some(&shown()))),
     };
     if !meta.is_dir() {
-        return remove_forced(path);
+        return remove_forced(path).map(|()| None);
     }
     match fs::remove_dir(path) {
-        Ok(()) => return Ok(()),
+        Ok(()) => return Ok(None),
         Err(e) if matches!(e.raw_os_error(), Some(libc::ENOTEMPTY | libc::EEXIST)) => {}
-        Err(e) => return Err(node_error(&e, "rmdir", Some(path))),
+        Err(e) => return Err(node_error(&e, "rmdir", Some(&shown()))),
     }
-    let entries = fs::read_dir(path).map_err(|e| node_error(&e, "scandir", Some(path)))?;
-    for entry in entries {
-        let entry = entry.map_err(|e| node_error(&e, "scandir", Some(path)))?;
-        remove_tree(&entry.path().to_string_lossy())?;
-    }
-    fs::remove_dir(path).map_err(|e| node_error(&e, "rmdir", Some(path)))
+    let entries = fs::read_dir(path).map_err(|e| node_error(&e, "scandir", Some(&shown())))?;
+    let paths = entries.map(|entry| entry.map(|e| e.path()));
+    paths.collect::<io::Result<Vec<_>>>().map(Some).map_err(|e| node_error(&e, "scandir", Some(&shown())))
 }
 
 /// The log's size, 0 when it cannot be read.

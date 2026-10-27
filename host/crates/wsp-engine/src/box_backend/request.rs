@@ -123,9 +123,57 @@ pub struct SnapshotView {
     pub content_size_bytes: Option<f64>,
 }
 
+/// A wire view and the fields it reads as text. serde walks a nested value one stack level per level, so `read_view`
+/// settles every field that holds a tree before serde sees it.
+pub trait View: serde::de::DeserializeOwned {
+    const TEXT: &'static [&'static str];
+}
+
+impl View for BoxView {
+    const TEXT: &'static [&'static str] = &["id", "state"];
+}
+impl View for CommandView {
+    const TEXT: &'static [&'static str] = &[];
+}
+impl View for NamedSnapshotView {
+    const TEXT: &'static [&'static str] = &["name", "status"];
+}
+impl View for SnapshotView {
+    const TEXT: &'static [&'static str] = &["id"];
+}
+
+/// The view an answer holds: a field read as text is its JavaScript text, a field the view reads as absent when it is not
+/// a scalar (and an array where the TS reads no field) is emptied, so no tree reaches serde, however deep the provider nests it.
+pub fn read_view<T: View>(mut answer: Value) -> serde_json::Result<T> {
+    match &mut answer {
+        Value::Object(fields) => {
+            for (key, field) in fields.iter_mut() {
+                if !matches!(field, Value::Array(_) | Value::Object(_)) {
+                    continue;
+                }
+                *field = if T::TEXT.contains(&key.as_str()) {
+                    Value::String(js_string(field))
+                } else if field.is_array() {
+                    Value::Array(Vec::new())
+                } else {
+                    Value::Object(serde_json::Map::new())
+                };
+            }
+        }
+        Value::Array(_) => answer = Value::Object(serde_json::Map::new()),
+        _ => {}
+    }
+    serde_json::from_value(answer)
+}
+
 /// What a field the TS never checks reads as in a template literal: its JavaScript text, `undefined` where it is absent.
 fn js_text<'de, D: serde::Deserializer<'de>>(d: D) -> std::result::Result<String, D::Error> {
     Ok(js_string(&Value::deserialize(d)?))
+}
+
+/// `answer.<field>`, moved out of the answer (null where it has none), so a deep tree is never cloned.
+pub fn taken(answer: &mut Value, field: &str) -> Value {
+    answer.get_mut(field).map(Value::take).unwrap_or(Value::Null)
 }
 
 fn undefined() -> String {
@@ -717,9 +765,8 @@ impl BoxBackend {
 
     /// box-backend.ts:751.
     pub async fn view(&self, id: &str) -> Result<BoxView> {
-        let raw = self.request("GET", &format!("/sandboxes/{}", encode_uri_component(id)), RequestOpts::default()).await?;
-        let sandbox = raw.get("sandbox").cloned().unwrap_or(Value::Null);
-        serde_json::from_value(sandbox).map_err(|e| other(e.to_string()))
+        let mut raw = self.request("GET", &format!("/sandboxes/{}", encode_uri_component(id)), RequestOpts::default()).await?;
+        read_view(taken(&mut raw, "sandbox")).map_err(|e| other(e.to_string()))
     }
 
     /// box-backend.ts:757. Reads the box until `done`, at the poll pace, inside `budget_ms`.

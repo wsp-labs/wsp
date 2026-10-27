@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use serde_json::{json, Map, Value};
 
 use super::order::KeyOrder;
+use super::paths::from_deep_value;
 use super::validate::{validate_json, SlateLines};
 use super::*;
 
@@ -396,7 +397,7 @@ pub fn apply_slate_patch(doc: Option<&SlateDoc>, values: &SlateValues, ops: &[Va
     }
     let patched = Value::Object(d);
     let order = KeyOrder::observed(&patched);
-    let next: SlateDoc = match serde_json::from_value::<SlateDoc>(patched) {
+    let next: SlateDoc = match from_deep_value::<SlateDoc>(patched) {
         Ok(next) => SlateDoc { order, ..next },
         Err(_) => {
             return refused(vec![slate_problem(

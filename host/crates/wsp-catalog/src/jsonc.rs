@@ -7,6 +7,7 @@ use crate::json_parse::{lone_surrogate, parse_json};
 use crate::plugins::js_entries;
 use wsp_wire::types::js_number::JsNumber;
 use wsp_words::exit::HostError;
+use wsp_words::js::utf16;
 
 /// A JSON object as the catalog reads one: keys in the order the text names them first.
 pub type JsonObject = Map<String, Value>;
@@ -31,7 +32,7 @@ pub fn json_object(value: &Value) -> Option<&JsonObject> {
 /// strings escaped as JavaScript escapes them, keys in the map's order.
 pub fn js_stringify(value: &Value) -> String {
     let mut out = String::new();
-    write_value(value, false, 0, &mut out);
+    write_value(value, false, false, &mut out);
     out
 }
 
@@ -39,7 +40,7 @@ pub fn js_stringify(value: &Value) -> String {
 /// array `[]`.
 pub fn js_stringify_pretty(value: &Value) -> String {
     let mut out = String::new();
-    write_value(value, true, 0, &mut out);
+    write_value(value, true, false, &mut out);
     out
 }
 
@@ -59,6 +60,11 @@ pub(crate) fn string_end(bytes: &[u8], open: usize) -> Option<usize> {
 
 /// A string as `JSON.stringify` writes it.
 pub(crate) fn js_string(s: &str) -> String {
+    js_string_with(s, true)
+}
+
+/// `js_string`, with `lone` saying whether a char standing in for a lone surrogate is written as the surrogate's escape.
+pub(crate) fn js_string_with(s: &str, lone: bool) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('"');
     for c in s.chars() {
@@ -71,7 +77,7 @@ pub(crate) fn js_string(s: &str) -> String {
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
             c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
-            c => match lone_surrogate(c) {
+            c => match if lone { lone_surrogate(c) } else { None } {
                 Some(unit) => out.push_str(&format!("\\u{unit:04x}")),
                 None => out.push(c),
             },
@@ -81,7 +87,7 @@ pub(crate) fn js_string(s: &str) -> String {
     out
 }
 
-fn strip_comments_and_commas(text: &str) -> String {
+pub(crate) fn strip_comments_and_commas(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut out: Vec<&str> = Vec::new();
     let mut from = 0;
@@ -127,45 +133,127 @@ fn strip_comments_and_commas(text: &str) -> String {
     out.concat()
 }
 
-fn write_value(value: &Value, pretty: bool, depth: usize, out: &mut String) {
-    match value {
-        Value::Null => out.push_str("null"),
-        Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
-        Value::Number(n) => out.push_str(&number_text(n)),
-        Value::String(s) => out.push_str(&js_string(s)),
-        Value::Array(items) => {
-            if items.is_empty() {
-                out.push_str("[]");
-                return;
-            }
-            out.push('[');
-            for (i, item) in items.iter().enumerate() {
-                if i > 0 {
-                    out.push(',');
+/// A container being written: what is left of its members, and whether none is written yet.
+enum Open<'a> {
+    Array(std::slice::Iter<'a, Value>, bool),
+    Object(std::vec::IntoIter<(&'a String, &'a Value)>, bool),
+}
+
+/// `value` as `JSON.stringify` writes it, with a stack of the containers open instead of a call for each. With
+/// `canonical` every object's keys stand in UTF-16 order instead of the order JavaScript keeps them in.
+pub(crate) fn write_value(value: &Value, pretty: bool, canonical: bool, out: &mut String) {
+    let mut stack: Vec<Open> = Vec::new();
+    let mut next = Some(value);
+    loop {
+        if let Some(value) = next.take() {
+            match value {
+                Value::Null => out.push_str("null"),
+                Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+                Value::Number(n) => out.push_str(&number_text(n)),
+                Value::String(s) => out.push_str(&js_string(s)),
+                Value::Array(items) if items.is_empty() => out.push_str("[]"),
+                Value::Object(map) if map.is_empty() => out.push_str("{}"),
+                Value::Array(items) => {
+                    out.push('[');
+                    stack.push(Open::Array(items.iter(), true));
                 }
-                newline(pretty, depth + 1, out);
-                write_value(item, pretty, depth + 1, out);
+                Value::Object(map) => {
+                    out.push('{');
+                    let mut entries = js_entries(map);
+                    if canonical {
+                        entries.sort_by(|a, b| utf16::cmp(a.0, b.0));
+                    }
+                    stack.push(Open::Object(entries.into_iter(), true));
+                }
             }
-            newline(pretty, depth, out);
-            out.push(']');
         }
-        Value::Object(map) => {
-            if map.is_empty() {
-                out.push_str("{}");
-                return;
-            }
-            out.push('{');
-            for (i, (key, item)) in js_entries(map).into_iter().enumerate() {
-                if i > 0 {
-                    out.push(',');
+        let depth = stack.len();
+        let Some(top) = stack.last_mut() else {
+            return;
+        };
+        match top {
+            Open::Array(items, first) => match items.next() {
+                Some(item) => {
+                    if !std::mem::take(first) {
+                        out.push(',');
+                    }
+                    newline(pretty, depth, out);
+                    next = Some(item);
                 }
-                newline(pretty, depth + 1, out);
-                out.push_str(&js_string(key));
-                out.push_str(if pretty { ": " } else { ":" });
-                write_value(item, pretty, depth + 1, out);
+                None => {
+                    stack.pop();
+                    newline(pretty, depth - 1, out);
+                    out.push(']');
+                }
+            },
+            Open::Object(members, first) => match members.next() {
+                Some((key, item)) => {
+                    if !std::mem::take(first) {
+                        out.push(',');
+                    }
+                    newline(pretty, depth, out);
+                    out.push_str(&js_string(key));
+                    out.push_str(if pretty { ": " } else { ":" });
+                    next = Some(item);
+                }
+                None => {
+                    stack.pop();
+                    newline(pretty, depth - 1, out);
+                    out.push('}');
+                }
+            },
+        }
+    }
+}
+
+/// A container `map_strings` has open: its members still to read, and what it has built of itself.
+enum Built<'a> {
+    Array(std::iter::Enumerate<std::slice::Iter<'a, Value>>, Vec<Value>, bool),
+    Object(serde_json::map::Iter<'a>, Map<String, Value>, Option<&'a String>),
+}
+
+/// The value with every string `f` gives back, each told whether it is a program: `command` and the first word of a
+/// command array are (mcp.ts:749). The open containers stand on a stack, so no depth of value overflows a thread's.
+pub(crate) fn map_strings(v: &Value, command: bool, f: &mut dyn FnMut(&str, bool) -> String) -> Value {
+    let mut stack: Vec<Built> = Vec::new();
+    let mut entering = Some((v, command));
+    loop {
+        let mut done = None;
+        if let Some((v, command)) = entering.take() {
+            match v {
+                Value::String(s) => done = Some(Value::String(f(s, command))),
+                Value::Array(items) => stack.push(Built::Array(items.iter().enumerate(), Vec::with_capacity(items.len()), command)),
+                Value::Object(map) => stack.push(Built::Object(map.iter(), Map::new(), None)),
+                other => done = Some(other.clone()),
             }
-            newline(pretty, depth, out);
-            out.push('}');
+        } else {
+            let next = match stack.last_mut() {
+                Some(Built::Array(items, _, command)) => items.next().map(|(i, x)| (x, *command && i == 0)),
+                Some(Built::Object(members, _, key)) => members.next().map(|(k, x)| {
+                    *key = Some(k);
+                    (x, k == "command")
+                }),
+                None => return Value::Null,
+            };
+            match next {
+                Some(member) => entering = Some(member),
+                None => {
+                    done = Some(match stack.pop() {
+                        Some(Built::Array(_, items, _)) => Value::Array(items),
+                        Some(Built::Object(_, members, _)) => Value::Object(members),
+                        None => return Value::Null,
+                    })
+                }
+            }
+        }
+        if let Some(value) = done {
+            match stack.last_mut() {
+                None => return value,
+                Some(Built::Array(_, items, _)) => items.push(value),
+                Some(Built::Object(_, members, key)) => {
+                    members.insert(key.take().expect("a member is being read").clone(), value);
+                }
+            }
         }
     }
 }

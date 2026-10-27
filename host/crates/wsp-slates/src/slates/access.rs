@@ -27,6 +27,7 @@ use super::model::{
 };
 use super::{RecordRef, SlateEmit, SlatesInner, Tail, Views};
 use crate::lazy_slates::SLATES;
+use crate::pending::slate::paths::from_deep_value;
 use crate::pending::slate::{SlateProblem, SlateWrite};
 use crate::pending::wire::{SlateEmpty, SlateView};
 use crate::slate_mcp_on::box_slate_dir;
@@ -202,7 +203,7 @@ impl SlatesInner {
             if self.records.borrow().contains_key(&thread_id) {
                 continue;
             }
-            let mut record: SlateRecord = serde_json::from_value(stored).map_err(|e| HostError::new(e.to_string()))?;
+            let mut record = record_of_row(stored)?;
             record.revision.get_or_insert(record.version);
             self.records.borrow_mut().insert(thread_id, Rc::new(std::cell::RefCell::new(record)));
         }
@@ -623,7 +624,7 @@ impl SlatesInner {
             area.pins().drop_thread(&thread);
             area.records.borrow_mut().shift_remove(&thread);
             if let Some(dir) = area.folder_of(&thread) {
-                let _ = std::fs::remove_dir_all(dir);
+                let _ = wsp_core::local_exec::reap::remove_tree(&dir);
             }
             if let Some(machine) = area.deps.machine_of(&thread) {
                 let ledger = area.ledger();
@@ -689,4 +690,10 @@ impl SlatesInner {
 
 fn no_slate() -> HostError {
     usage(&problem("Z802", "no-slate", "this thread has no slate yet; write one with slate_write", None))
+}
+
+/// A stored row as a record. A row a slate holds at the 500 levels a value may nest is read on a stack that holds it, so one
+/// deep slate never aborts the host or stops the others loading.
+pub(crate) fn record_of_row(stored: Value) -> Result<SlateRecord, HostError> {
+    from_deep_value(stored).map_err(HostError::new)
 }

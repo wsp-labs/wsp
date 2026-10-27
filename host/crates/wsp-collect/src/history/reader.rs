@@ -76,7 +76,7 @@ pub fn is_record(v: &Value) -> bool {
 }
 
 /// `JSON.parse(text)`, or `None` where it throws: read as JavaScript reads it, a lone surrogate escape, a number past
-/// f64 and nesting past 128 included.
+/// f64 included, and nesting past 500 levels refused as the catalog's port refuses it.
 pub fn try_json(text: &str) -> Option<Value> {
     parse_json(text).ok()
 }

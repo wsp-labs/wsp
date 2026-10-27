@@ -204,7 +204,7 @@ pub fn refer_codex(text: &str, only: Option<&str>, known: &[KnownValue], outside
     }
     let held = |n: &str| readable(outside, &writes, n, false);
     let mut servers: Vec<ReferredServer> = Vec::new();
-    let mut next = table.clone();
+    let mut next = clone_table(table);
     let mut changed = false;
     for (name, raw_value) in table.iter() {
         let at_server = vec![key("mcp_servers"), key(name)];
@@ -224,7 +224,7 @@ pub fn refer_codex(text: &str, only: Option<&str>, known: &[KnownValue], outside
             continue;
         }
         if let Some(oauth) = oauth {
-            if let Some(secret) = oauth_secret_keys(&json_map(oauth)?).first() {
+            if let Some(secret) = oauth_secret_keys(&json_map(oauth)).first() {
                 return Err(HostError::new(format!(
                     "{name} keeps an OAuth secret in mcp_servers.{name}.oauth.{secret}, and Codex reads no variable there, so the file stays on this computer"
                 )));
@@ -263,7 +263,7 @@ pub fn refer_codex(text: &str, only: Option<&str>, known: &[KnownValue], outside
             }
         }
         servers[index].values = values;
-        let mut def = raw.clone();
+        let mut def = clone_table(raw);
         def.remove("http_headers");
         def.remove("env");
         if !env_header_map.is_empty() {
@@ -274,8 +274,9 @@ pub fn refer_codex(text: &str, only: Option<&str>, known: &[KnownValue], outside
             def.insert("env_http_headers".to_string(), toml::Value::Table(to_toml_table(&merged)));
         }
         if !env.is_empty() {
-            let had: Vec<toml::Value> = raw.get("env_vars").and_then(|v| v.as_array()).cloned().unwrap_or_default();
-            let mut all = had.clone();
+            let had: Vec<toml::Value> =
+                raw.get("env_vars").and_then(|v| v.as_array()).map(|a| a.iter().map(clone_value).collect()).unwrap_or_default();
+            let mut all: Vec<toml::Value> = had.iter().map(clone_value).collect();
             for k in env.keys() {
                 if !had.iter().any(|x| x.as_str() == Some(k.as_str())) {
                     all.push(toml::Value::String(k.clone()));
@@ -293,7 +294,7 @@ pub fn refer_codex(text: &str, only: Option<&str>, known: &[KnownValue], outside
         let Some(raw) = raw_value.as_table() else {
             continue;
         };
-        let strings = arg_strings(&json_map(raw)?);
+        let strings = arg_strings(&json_map(raw));
         let own = servers.iter().find(|s| &s.name == name).map(|s| s.values.clone()).unwrap_or_default();
         for (_, v, where_) in &strings {
             if let Some(hit) = known_hits(v, where_, known, &servers, name, &own)?.into_iter().next() {
@@ -307,18 +308,18 @@ pub fn refer_codex(text: &str, only: Option<&str>, known: &[KnownValue], outside
         known_stands(&values, known, name)?;
     }
     if !changed {
-        let entries = table.values().map(to_json).collect::<Result<Vec<Value>, HostError>>()?;
+        let entries = table.values().map(to_json).collect::<Vec<Value>>();
         return Ok(McpReferred { text: text.to_string(), servers, entries });
     }
-    let mut want = tree.clone();
+    let mut want = clone_table(&tree);
     want.insert("mcp_servers".to_string(), toml::Value::Table(next));
     let out = match refer_lines(text, only) {
         Ok(lined) if same_tree(&lined, &want) => lined,
-        _ => toml::to_string(&want).map_err(|e| HostError::new(e.to_string()))?,
+        _ => crate::toml_write::stringify(&want),
     };
     let written = parse_toml(&out).map_err(HostError::new)?;
     let entries = match written.get("mcp_servers").and_then(|v| v.as_table()) {
-        Some(t) => t.values().map(to_json).collect::<Result<Vec<Value>, HostError>>()?,
+        Some(t) => t.values().map(to_json).collect::<Vec<Value>>(),
         None => Vec::new(),
     };
     still_stands(&entries, &servers)?;
@@ -341,15 +342,87 @@ fn to_toml_table(d: &IndexMap<String, String>) -> toml::Table {
     d.iter().map(|(k, v)| (k.clone(), toml::Value::String(v.clone()))).collect()
 }
 
-fn to_json(v: &toml::Value) -> Result<Value, HostError> {
-    serde_json::to_value(v).map_err(|e| HostError::new(e.to_string()))
+/// A table or an array `rebuild` has open: its members still to read, and the converted ones so far.
+enum Walking<'a, T> {
+    Table(toml::map::Iter<'a>, Vec<(String, T)>, Option<&'a String>),
+    Array(std::slice::Iter<'a, toml::Value>, Vec<T>),
 }
 
-fn json_map(t: &toml::Table) -> Result<serde_json::Map<String, Value>, HostError> {
-    match to_json(&toml::Value::Table(t.clone()))? {
-        Value::Object(map) => Ok(map),
-        _ => Err(HostError::new("the file is not a TOML table")),
+/// The value read member by member into another shape: a scalar by `leaf`, a table by `table` from its converted
+/// members, an array by `array`. The open tables and arrays stand on a stack, so no depth of value overflows a
+/// thread's, as the recursive `Clone` and `Serialize` of `toml::Value` would.
+fn rebuild<T>(
+    root: &toml::Value,
+    leaf: &dyn Fn(&toml::Value) -> T,
+    table: &dyn Fn(Vec<(String, T)>) -> T,
+    array: &dyn Fn(Vec<T>) -> T,
+) -> T {
+    let mut stack: Vec<Walking<T>> = Vec::new();
+    let mut entering = Some(root);
+    loop {
+        let done = match entering.take() {
+            Some(toml::Value::Table(t)) => {
+                stack.push(Walking::Table(t.iter(), Vec::new(), None));
+                None
+            }
+            Some(toml::Value::Array(items)) => {
+                stack.push(Walking::Array(items.iter(), Vec::new()));
+                None
+            }
+            Some(scalar) => Some(leaf(scalar)),
+            None => None,
+        };
+        let done = match done {
+            Some(done) => done,
+            None => {
+                let next = match stack.last_mut() {
+                    Some(Walking::Table(members, _, key)) => members.next().map(|(k, v)| {
+                        *key = Some(k);
+                        v
+                    }),
+                    Some(Walking::Array(items, _)) => items.next(),
+                    None => unreachable!("the root stays open until it is returned"),
+                };
+                match next {
+                    Some(member) => {
+                        entering = Some(member);
+                        continue;
+                    }
+                    None => match stack.pop() {
+                        Some(Walking::Table(_, members, _)) => table(members),
+                        Some(Walking::Array(_, items)) => array(items),
+                        None => unreachable!("the root stays open until it is returned"),
+                    },
+                }
+            }
+        };
+        match stack.last_mut() {
+            None => return done,
+            Some(Walking::Table(_, members, key)) => members.push((key.take().expect("a member is being read").clone(), done)),
+            Some(Walking::Array(_, items)) => items.push(done),
+        }
     }
+}
+
+fn clone_value(v: &toml::Value) -> toml::Value {
+    rebuild(v, &|x| x.clone(), &|members| toml::Value::Table(members.into_iter().collect()), &toml::Value::Array)
+}
+
+fn clone_table(t: &toml::Table) -> toml::Table {
+    t.iter().map(|(k, v)| (k.clone(), clone_value(v))).collect()
+}
+
+fn to_json(v: &toml::Value) -> Value {
+    rebuild(
+        v,
+        &|x| serde_json::to_value(x).expect("a TOML scalar is JSON"),
+        &|members| Value::Object(members.into_iter().collect()),
+        &Value::Array,
+    )
+}
+
+fn json_map(t: &toml::Table) -> serde_json::Map<String, Value> {
+    t.iter().map(|(k, v)| (k.clone(), to_json(v))).collect()
 }
 
 /// Whether the text parses to the tree wanted, compared as `jsonCanonical` compares (mcp.ts:1685).
@@ -357,8 +430,5 @@ fn same_tree(lined: &str, want: &toml::Table) -> bool {
     let Ok(parsed) = parse_toml(lined) else {
         return false;
     };
-    match (to_json(&toml::Value::Table(parsed)), to_json(&toml::Value::Table(want.clone()))) {
-        (Ok(a), Ok(b)) => json_canonical(&a) == json_canonical(&b),
-        _ => false,
-    }
+    json_canonical(&Value::Object(json_map(&parsed))) == json_canonical(&Value::Object(json_map(want)))
 }

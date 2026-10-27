@@ -7,6 +7,8 @@ use std::sync::LazyLock;
 
 use indexmap::IndexMap;
 use regex::Regex;
+
+use super::paths::{clone_value, from_deep_value};
 use serde_json::{json, Map, Value};
 use wsp_wire::text::json_stringify;
 use wsp_words::js::{is_js_whitespace, js_trim, js_trim_start, number_string, JS_WS};
@@ -316,7 +318,7 @@ pub fn validate_slate(document: &Value) -> SlateChecked {
     }
     filled.insert("reactions".to_string(), json!([]));
     for (k, v) in input {
-        filled.insert(k.clone(), v.clone());
+        filled.insert(k.clone(), clone_value(v));
     }
     let filled = Value::Object(filled);
     let mut issues = Vec::new();
@@ -325,7 +327,7 @@ pub fn validate_slate(document: &Value) -> SlateChecked {
         let errors = issues.iter().take(SLATE_LIMITS.errors_per_pass).flat_map(|i| shape_problems(i, &filled)).collect();
         return SlateChecked { document: None, errors, warnings: Vec::new() };
     }
-    let typed: SlateDoc = match serde_json::from_value(filled) {
+    let typed: SlateDoc = match from_deep_value(filled) {
         Ok(doc) => doc,
         Err(_) => return refused("D202", DOCUMENT_SHAPE, None),
     };

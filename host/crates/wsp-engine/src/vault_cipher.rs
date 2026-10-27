@@ -135,37 +135,9 @@ pub fn seal(plain: &[u8], image: &SealedImage, to: &VaultKey) -> Result<Vec<u8>>
     Ok([line, body].concat())
 }
 
-/// The deepest nesting `read_json` follows: far past anything wsp writes, short of what would overflow the stack.
-const JSON_DEPTH: usize = 2_000;
-
-/// `JSON.parse` of the header's text, `None` where it is not JSON. node's parser has no depth limit of its own below
-/// the stack's, where serde_json stops at 128 levels, so the limit is lifted here and a bound of ours put in its place.
+/// `JSON.parse` of the header's text, `None` where it is not JSON or nests past the port's 500 levels (node reads deeper).
 fn read_json(text: &str) -> Option<serde_json::Value> {
-    use serde::Deserialize;
-    let (mut depth, mut deepest, mut in_string, mut escaped) = (0usize, 0usize, false, false);
-    for b in text.bytes() {
-        match (in_string, b) {
-            (true, _) if escaped => escaped = false,
-            (true, b'\\') => escaped = true,
-            (true, b'"') => in_string = false,
-            (true, _) => {}
-            (false, b'"') => in_string = true,
-            (false, b'[' | b'{') => {
-                depth += 1;
-                deepest = deepest.max(depth);
-            }
-            (false, b']' | b'}') => depth = depth.saturating_sub(1),
-            _ => {}
-        }
-    }
-    if deepest > JSON_DEPTH {
-        return None;
-    }
-    let mut de = serde_json::Deserializer::from_str(text);
-    de.disable_recursion_limit();
-    let value = serde_json::Value::deserialize(&mut de).ok()?;
-    de.end().ok()?;
-    Some(value)
+    wsp_catalog::json_parse::parse_json(text).ok()
 }
 
 /// The header line and the ciphertext behind it, the header parsed as `SealedVaultHeader`. Refusals, in the TS's order:

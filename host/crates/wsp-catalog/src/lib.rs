@@ -22,6 +22,7 @@ pub mod mcp_codex;
 pub mod mcp_toml;
 pub mod mcp_toml_refer;
 pub mod smol_toml;
+pub mod toml_write;
 
 pub mod mcp_check;
 pub mod mcp_config;

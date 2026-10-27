@@ -3,7 +3,7 @@
 //! creating a workspace, sizes. Spec: `spec/ws-rows.md`. The first signatures are the ones other units call (fixed by the lead).
 //! `branchHere` (workspaces-help.ts:871) is another unit's.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use indexmap::IndexMap;
@@ -56,26 +56,6 @@ fn platform() -> Platform {
 #[derive(Deserialize)]
 struct LandingSizes {
     sizes: Vec<MachineSizeOffer>,
-}
-
-fn draw_under<'a>(
-    rows: &'a [ThreadRow],
-    held: &HashSet<&str>,
-    parent: Option<&str>,
-    depth: usize,
-    drawn: &mut HashSet<&'a str>,
-    out: &mut Vec<TreeRow<'a>>,
-) {
-    for row in rows {
-        let id = row.thread.id.as_str();
-        let parent_of = row.thread.parent_thread_id.as_deref().filter(|p| held.contains(p));
-        if drawn.contains(id) || parent_of != parent {
-            continue;
-        }
-        drawn.insert(id);
-        out.push(TreeRow { row, depth });
-        draw_under(rows, held, Some(id), depth + 1, drawn, out);
-    }
 }
 
 async fn create_follow(
@@ -383,9 +363,25 @@ pub struct TreeRow<'a> {
 /// two rows with one id is dropped.
 pub fn thread_tree(rows: &[ThreadRow]) -> Vec<TreeRow<'_>> {
     let held: HashSet<&str> = rows.iter().map(|r| r.thread.id.as_str()).collect();
+    let mut under: HashMap<Option<&str>, Vec<&ThreadRow>> = HashMap::new();
+    for row in rows {
+        under.entry(row.thread.parent_thread_id.as_deref().filter(|p| held.contains(p))).or_default().push(row);
+    }
     let mut drawn: HashSet<&str> = HashSet::new();
     let mut out = Vec::new();
-    draw_under(rows, &held, None, 0, &mut drawn, &mut out);
+    let mut stack = vec![under.get(&None).map_or([].iter(), |top| top.iter())];
+    while let Some(level) = stack.last_mut() {
+        let Some(&row) = level.next() else {
+            stack.pop();
+            continue;
+        };
+        let id = row.thread.id.as_str();
+        if !drawn.insert(id) {
+            continue;
+        }
+        out.push(TreeRow { row, depth: stack.len() - 1 });
+        stack.push(under.get(&Some(id)).map_or([].iter(), |kids| kids.iter()));
+    }
     for row in rows {
         if !drawn.contains(row.thread.id.as_str()) {
             out.push(TreeRow { row, depth: 0 });

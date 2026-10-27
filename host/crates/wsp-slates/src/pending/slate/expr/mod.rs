@@ -178,11 +178,54 @@ impl SlateTypeName {
 }
 
 /// A type as the checker knows it: a name, and where known a list's element or a record's fields.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct SlateType {
     pub t: SlateTypeName,
     pub of: Option<Box<SlateType>>,
     pub fields: Option<IndexMap<String, SlateType>>,
+}
+
+/// A type being copied: the copy so far, the members of the original still to copy, and the key it goes under in its parent.
+struct Copying<'a> {
+    copy: SlateType,
+    todo: std::vec::IntoIter<(Option<&'a String>, &'a SlateType)>,
+    key: Option<&'a String>,
+}
+
+impl<'a> Copying<'a> {
+    fn of(src: &'a SlateType, key: Option<&'a String>) -> Copying<'a> {
+        let members: Vec<(Option<&String>, &SlateType)> = src
+            .of
+            .iter()
+            .map(|of| (None, &**of))
+            .chain(src.fields.iter().flat_map(|fields| fields.iter().map(|(name, field)| (Some(name), field))))
+            .collect();
+        let copy = SlateType { t: src.t, of: None, fields: src.fields.as_ref().map(|_| IndexMap::new()) };
+        Copying { copy, todo: members.into_iter(), key }
+    }
+}
+
+/// Chained derived values nest a record's type as deep as their values nest, 500 levels, where a derived `clone` is a call
+/// per level and dies on a 1 MiB stack at about 380: the copy keeps its open types on a stack of its own.
+impl Clone for SlateType {
+    fn clone(&self) -> SlateType {
+        let mut open = vec![Copying::of(self, None)];
+        loop {
+            let Some(top) = open.last_mut() else { unreachable!("the root is open until it is returned") };
+            if let Some((key, member)) = top.todo.next() {
+                open.push(Copying::of(member, key));
+                continue;
+            }
+            let Some(done) = open.pop() else { unreachable!("a type is open") };
+            match (open.last_mut(), done.key) {
+                (None, _) => return done.copy,
+                (Some(parent), None) => parent.copy.of = Some(Box::new(done.copy)),
+                (Some(parent), Some(name)) => {
+                    parent.copy.fields.get_or_insert_with(IndexMap::new).insert(name.clone(), done.copy);
+                }
+            }
+        }
+    }
 }
 
 fn ty(t: SlateTypeName) -> SlateType {

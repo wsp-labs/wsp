@@ -295,9 +295,8 @@ pub(crate) fn join_posix(parts: &[&str]) -> String {
     }
 }
 
-/// How deep a value is kept. node's `JSON.parse` reads any depth, but its `JSON.stringify` throws past about 3,650, so a value
-/// held deeper is one that could not be written back; what lies below this is read for its syntax and not kept.
-const KEPT_DEPTH: usize = 3_500;
+/// How deep a value is kept: the JSON.parse port's cap, since a `Value` of objects clones past 628 levels on a 1 MiB debug stack; node reads deeper.
+const KEPT_DEPTH: usize = 500;
 
 /// `JSON.parse`: None where JS would throw, or where the value is nested past `KEPT_DEPTH`. A number overflow reads as
 /// null, as JSON.stringify writes Infinity.
@@ -320,7 +319,7 @@ pub(crate) fn js_read_kept(text: &str) -> Option<(Value, bool)> {
 /// `JSON.stringify(value)`, or `JSON.stringify(value, null, indent)` with `Some(indent)`.
 pub(crate) fn js_write(value: &Value, indent: Option<usize>) -> String {
     let mut out = String::new();
-    write_value(value, indent, 0, &mut out);
+    write_value(value, indent, &mut out);
     out
 }
 
@@ -379,7 +378,12 @@ impl JsReader {
                     self.at += 1;
                     self.skip_space();
                     if self.eat('}') {
-                        Value::Object(Map::new())
+                        if stack.len() >= KEPT_DEPTH {
+                            truncated = true;
+                            Value::Null
+                        } else {
+                            Value::Object(Map::new())
+                        }
                     } else if stack.len() >= KEPT_DEPTH || matches!(stack.last(), Some(Frame::SkipArray | Frame::SkipObject)) {
                         self.key()?;
                         stack.push(Frame::SkipObject);
@@ -394,7 +398,12 @@ impl JsReader {
                     self.at += 1;
                     self.skip_space();
                     if self.eat(']') {
-                        Value::Array(Vec::new())
+                        if stack.len() >= KEPT_DEPTH {
+                            truncated = true;
+                            Value::Null
+                        } else {
+                            Value::Array(Vec::new())
+                        }
                     } else {
                         let kept = stack.len() < KEPT_DEPTH && !matches!(stack.last(), Some(Frame::SkipArray | Frame::SkipObject));
                         stack.push(if kept { Frame::Array(Vec::new()) } else { Frame::SkipArray });
@@ -585,48 +594,61 @@ fn push_char(c: char, out: &mut String) {
     }
 }
 
-fn write_value(value: &Value, indent: Option<usize>, depth: usize, out: &mut String) {
-    match value {
-        Value::Null => out.push_str("null"),
-        Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
-        Value::Number(n) => out.push_str(&number_string(n.as_f64().unwrap_or(f64::NAN))),
-        Value::String(s) => write_string(s, out),
-        Value::Array(items) => {
-            if items.is_empty() {
-                out.push_str("[]");
-                return;
-            }
-            out.push('[');
-            for (i, item) in items.iter().enumerate() {
-                if i > 0 {
-                    out.push(',');
+/// What a container being written still has to write: its items, or an object's entries in key order.
+enum Open<'a> {
+    Array(std::slice::Iter<'a, Value>),
+    Object(std::vec::IntoIter<(&'a String, &'a Value)>),
+}
+
+/// `JSON.stringify` from a stack of its own, so the depth of a value is no depth of the thread's stack.
+fn write_value(value: &Value, indent: Option<usize>, out: &mut String) {
+    let mut open: Vec<(Open, bool)> = Vec::new();
+    let mut next = Some(value);
+    loop {
+        if let Some(value) = next.take() {
+            match value {
+                Value::Null => out.push_str("null"),
+                Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+                Value::Number(n) => out.push_str(&number_string(n.as_f64().unwrap_or(f64::NAN))),
+                Value::String(s) => write_string(s, out),
+                Value::Array(items) if items.is_empty() => out.push_str("[]"),
+                Value::Array(items) => {
+                    out.push('[');
+                    open.push((Open::Array(items.iter()), false));
                 }
-                newline(indent, depth + 1, out);
-                write_value(item, indent, depth + 1, out);
+                Value::Object(map) if map.is_empty() => out.push_str("{}"),
+                Value::Object(map) => {
+                    out.push('{');
+                    open.push((Open::Object(ordered(map).into_iter()), false));
+                }
             }
-            newline(indent, depth, out);
-            out.push(']');
         }
-        Value::Object(map) => {
-            if map.is_empty() {
-                out.push_str("{}");
-                return;
-            }
-            out.push('{');
-            for (i, (key, item)) in ordered(map).into_iter().enumerate() {
-                if i > 0 {
+        let depth = open.len();
+        let Some((frame, started)) = open.last_mut() else { return };
+        let item = match frame {
+            Open::Array(items) => items.next().map(|item| (None, item)),
+            Open::Object(entries) => entries.next().map(|(key, item)| (Some(key), item)),
+        };
+        match item {
+            Some((key, item)) => {
+                if std::mem::replace(started, true) {
                     out.push(',');
                 }
-                newline(indent, depth + 1, out);
-                write_string(key, out);
-                out.push(':');
-                if indent.is_some() {
-                    out.push(' ');
+                newline(indent, depth, out);
+                if let Some(key) = key {
+                    write_string(key, out);
+                    out.push(':');
+                    if indent.is_some() {
+                        out.push(' ');
+                    }
                 }
-                write_value(item, indent, depth + 1, out);
+                next = Some(item);
             }
-            newline(indent, depth, out);
-            out.push('}');
+            None => {
+                newline(indent, depth - 1, out);
+                out.push(if matches!(frame, Open::Array(_)) { ']' } else { '}' });
+                open.pop();
+            }
         }
     }
 }
@@ -689,18 +711,39 @@ fn cwd_of(line: &str) -> Option<String> {
     }
 }
 
+/// A folder's entries read whole, each as its name and what `file_type` said: a `DirEntry` keeps the folder open while it lives.
+/// A link that loops ends the walk down it (ELOOP) quietly, as node's recursive `readdirSync` does at its 41st level.
+type Listed = (std::ffi::OsString, std::io::Result<std::fs::FileType>);
+
 fn walk_files(dir: &str, ext: &str, out: &mut Vec<String>) -> Result<()> {
-    for entry in dir_entries(dir)? {
-        let name = entry.file_name().to_string_lossy().into_owned();
-        let path = join_posix(&[dir, &name]);
-        let kind = entry.file_type().map_err(|e| node_io(&e, "scandir", dir))?;
+    let mut open = vec![(dir.to_string(), listed(dir)?.into_iter())];
+    while let Some((here, entries)) = open.last_mut() {
+        let Some((file_name, kind)) = entries.next() else {
+            open.pop();
+            continue;
+        };
+        let name = file_name.to_string_lossy().into_owned();
+        let path = join_posix(&[here, &name]);
+        let kind = kind.map_err(|e| node_io(&e, "scandir", here))?;
         if kind.is_dir() || (kind.is_symlink() && fs::metadata(&path).is_ok_and(|m| m.is_dir())) {
-            walk_files(&path, ext, out)?;
+            let inside = match listed(&path) {
+                Err(EngineError::Other { code: Some(code), .. }) if code == "ELOOP" => Vec::new(),
+                listed => listed?,
+            };
+            open.push((path, inside.into_iter()));
         } else if kind.is_file() && name.ends_with(ext) {
             out.push(path);
         }
     }
     Ok(())
+}
+
+fn listed(dir: &str) -> Result<Vec<Listed>> {
+    let entries = fs::read_dir(dir).map_err(|e| node_io(&e, "scandir", dir))?;
+    entries
+        .map(|e| e.map(|entry| (entry.file_name(), entry.file_type())))
+        .collect::<std::io::Result<Vec<_>>>()
+        .map_err(|e| node_io(&e, "scandir", dir))
 }
 
 fn dir_entries(dir: &str) -> Result<Vec<DirEntry>> {

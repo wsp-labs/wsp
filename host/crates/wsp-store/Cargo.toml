@@ -26,6 +26,7 @@ libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"
+serde_json = { version = "1", features = ["preserve_order", "unbounded_depth"] }
 
 [lints.clippy]
 result_large_err = "allow"

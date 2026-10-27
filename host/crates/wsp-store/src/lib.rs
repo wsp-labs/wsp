@@ -5,6 +5,7 @@
 //! `sqlite-transcripts.ts`, `transcript-reader.ts`). Chapter 01 of the Rust host spec puts them here.
 pub mod keys;
 pub mod own_file;
+pub mod row_json;
 pub mod sqlite_store;
 pub mod sqlite_transcripts;
 pub mod store;

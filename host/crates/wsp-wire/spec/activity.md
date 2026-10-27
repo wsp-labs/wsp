@@ -65,6 +65,10 @@ the view the page draws; `processes_left` is what a settle or delete would leave
 12. `fold_tree`: a row folds into `folds_into(pid)` only when that is another pid in the list; a folded row is held by
     its target in list order; others hang under their first standing ancestor, a folded ancestor standing as its
     target unless that target is the row itself; at most `list.len() + 1` steps up (activity-fold.ts:16-48).
+    After-port: `tree_walk` (activity.ts:411-421), `fold_tree` (activity-fold.ts:46) and an End's walk (activity.ts:511)
+    walk a pid once, one visited set (ruling 1 of fix round 3 of #2448). node has no set: a pid listed twice is walked
+    twice (1, 2, 3, 2, 3 for pids 1, 2, 2, 3), and a chain of 40 pids each listed twice is 2^39 steps. node answers a ring
+    of such a chain with RangeError in milliseconds; here the walk ends with each pid once.
 
 ## Edge cases
 
