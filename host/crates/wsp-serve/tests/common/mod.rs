@@ -26,27 +26,34 @@ macro_rules! wait {
 pub mod adapter;
 pub mod box_daemons;
 pub mod box_fake;
+pub mod broker;
 pub mod comeback;
 pub mod copying;
 pub mod daemon;
 pub mod driven;
 pub mod events;
+pub mod fed;
+pub mod folder_host;
 pub mod gateway;
 pub mod gone;
 pub mod images;
 pub mod lagging;
+pub mod live;
 pub mod local;
 pub mod local_wiring;
 pub mod machine_runs;
 pub mod ports;
 pub mod projects;
 pub mod pull_request;
+pub mod quick;
 pub mod reach;
+pub mod recdaemon;
 pub mod scripted;
 pub mod store_wrap;
 pub mod stub_backend;
 pub mod stubs;
 pub mod vault;
+pub mod watched;
 pub mod ws_client;
 pub mod ws_daemon;
 
@@ -74,12 +81,18 @@ pub use local_wiring::{copying_fake, fake_local, fake_local_with, test_platform}
 pub use ports::{dropping_port, Edge, HeldPort};
 pub use projects::{create_on, owned_store, project_on, temp_repo, CreateOn};
 pub use scripted::{Scripted, When};
+pub use broker::TestBroker;
+pub use live::{Live, LiveOptions, LiveSteer};
+pub use projects::{create_on, owned_store, project_on, project_with, temp_repo, CreateOn};
+pub use quick::{Quick, QuickOptions};
+pub use recdaemon::RecDaemon;
 pub use store_wrap::{CountingStore, WrappedStore};
 pub use stub_backend::{
     conflict, exec_async, exec_exit, exec_fn, exec_ok, fetch_failed, missing, token_guest, token_guest_answer, StubBackend, StubMachine,
     GUEST_BRANCH,
 };
 pub use ws_client::{create_over_wire, WsClient};
+pub use watched::Watched;
 pub use ws_daemon::{daemon_of, helloing_daemon, HelloingDaemon};
 pub use wsp_core::types::api::Runtime as _;
 pub use wsp_engine::machine::{Machine, MachineBackend as _};

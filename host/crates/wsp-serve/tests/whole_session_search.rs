@@ -4,6 +4,7 @@
 //! per thread with a snippet around the words, and a thread's token reaching its own tree and nothing else.
 mod common;
 
+use common::projects::AgentsDoc;
 use common::*;
 use serde_json::{json, Value};
 use wsp_core::types::api::StartOptions;
