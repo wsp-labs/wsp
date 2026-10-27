@@ -1017,3 +1017,221 @@ fn a_scripted_turn_prints_its_lines_at_once_a_tick_later_or_at_a_gate_streams_pi
         fx2.rt.close().await.expect("a close");
     });
 }
+
+// waiting-behind.test.ts:25 `drivenAdapter`: a turn raises a prompt, an answer closes it, a reply closes what is still
+// open as cancelled, and each session id is its own.
+#[test]
+fn a_driven_turn_raises_a_prompt_takes_its_answer_and_closes_what_a_reply_leaves_open() {
+    drive(|| async {
+        use common::driven::{driven, Turns};
+        use wsp_core::types::api::AnswerAsk;
+        let backend = StubBackend::new(None);
+        let turns = Turns::new();
+        let fx = runtime(&backend).adapter("claude", driven(&turns)).build();
+        let rt = &*fx.rt;
+        let ws = create_on(rt, CreateOn::golden("a"), None).await.expect("a workspace").view.id;
+        let first = rt.sessions().start(&ws, StartOptions { prompt: "one".into(), ..Default::default() }, None).await.expect("a start");
+        let second = rt.sessions().start(&ws, StartOptions { prompt: "two".into(), ..Default::default() }, None).await.expect("a start");
+        until(|| async { turns.len() == 2 }).await;
+        assert_ne!(first.view().id, second.view().id);
+        turns.get(0).raise(json!({}));
+        turns.get(1).raise(json!({ "askId": "ask_2" }));
+        let answered = rt
+            .sessions()
+            .answer(&first.view().id, AnswerAsk { ask_id: "ask_1".into(), option_id: "allow".into(), reason: None }, None)
+            .await
+            .expect("an answer");
+        assert_eq!(j(&answered), json!({ "outcome": "answered" }));
+        let again = rt
+            .sessions()
+            .answer(&first.view().id, AnswerAsk { ask_id: "ask_1".into(), option_id: "allow".into(), reason: None }, None)
+            .await;
+        assert!(again.is_err() || j(&again.expect("a result")) != json!({ "outcome": "answered" }));
+        turns.get(0).reply(json!({}));
+        turns.get(1).reply(json!({ "text": "second" }));
+        assert_eq!(first.finished().await.text.as_deref(), Some("done"));
+        assert_eq!(second.finished().await.text.as_deref(), Some("second"));
+        let history = rt.sessions().history(&ws, None).await.expect("a history");
+        let closes: Vec<String> = history
+            .iter()
+            .map(j)
+            .filter(|e| e["askId"] == "ask_2" && e["outcome"].is_string())
+            .map(|e| e["outcome"].as_str().unwrap_or_default().to_string())
+            .collect();
+        assert_eq!(closes.iter().filter(|o| *o == "cancelled").count(), 1, "{closes:?}");
+        fx.rt.close().await.expect("a close");
+    });
+}
+
+// stub-backend.ts:460-490 `fakeLocal` and `copyingFake`: this computer is a folder of the test's own, the copy road
+// copies a folder for real and a removal takes it away, and every ask is logged.
+#[test]
+fn the_fake_local_computer_copies_a_folder_for_real_and_a_removal_takes_it_away() {
+    drive(|| async {
+        let dir = tempfile::tempdir().expect("a folder");
+        let from = dir.path().join("from");
+        std::fs::create_dir_all(from.join("src")).expect("a folder");
+        std::fs::write(from.join("src/a.txt"), "a").expect("a file");
+        let (copier, log) = copying_fake();
+        let to = dir.path().join("to");
+        let ask: wsp_engine::copier::CopyAsk = serde_json::from_value(json!({
+            "from": from.display().to_string(), "to": to.display().to_string(), "exclude": ["node_modules"], "sizeLineBytes": 0
+        }))
+        .expect("an ask");
+        use wsp_engine::copier::Copier as _;
+        let report = copier.make(&ask).await.expect("a copy");
+        assert_eq!(std::fs::read_to_string(to.join("src/a.txt")).expect("the copied file"), "a");
+        assert_eq!(j(&report)["excluded"], json!(["node_modules"]));
+        assert_eq!(log.lock().expect("a log").asks.len(), 1);
+        copier.remove(&ask.from, &ask.to, wsp_engine::copier::CopyRoad::Clonefile).await.expect("a removal");
+        assert!(!to.exists());
+        assert_eq!(log.lock().expect("a log").removed.len(), 1);
+        let local = fake_local(dir.path());
+        assert_eq!(local.folder, dir.path().display().to_string());
+        assert_eq!((local.home)("claude"), format!("{}/.claude", dir.path().display()));
+    });
+}
+
+// forget.test.ts:81 and :173: a store whose transcript rows stop reading on the test's word, and whose puts into one
+// collection wait at a gate; both otherwise answer as the store they wrap.
+#[test]
+fn a_wrapped_store_stops_reading_transcript_rows_and_holds_a_put_at_a_gate() {
+    drive(|| async {
+        let state = sqlite_state();
+        let wrapped = WrappedStore::over(&state.store);
+        let store = wrapped.store();
+        let rows = store.transcripts().expect("rows");
+        assert!(rows.all("ws_1").is_ok());
+        wrapped.set_unreadable(true);
+        assert!(rows.all("ws_1").is_err());
+        assert!(rows.index("ws_1").is_err());
+        wrapped.set_unreadable(false);
+        assert!(rows.all("ws_1").is_ok());
+
+        let (reached, open) = wrapped.gate_puts("sessions");
+        let writing = {
+            let store = store.clone();
+            tokio::task::spawn_local(async move { store.put("sessions", "ws_1", json!({ "sessions": [] })).await })
+        };
+        reached.wait().await;
+        assert!(state.store.get("sessions", "ws_1").await.expect("a read").is_none());
+        open.open();
+        writing.await.expect("the write").expect("written");
+        assert!(state.store.get("sessions", "ws_1").await.expect("a read").is_some());
+    });
+}
+
+// forget.test.ts:99 `dying` and `working`: an adapter literal is a start function, its events follow the start, and its session finishes with the result the events carried.
+#[test]
+fn a_scripted_adapter_sends_its_events_and_finishes_with_its_result() {
+    drive(|| async {
+        use common::scripted::{adapter_of, after_a_turn, done_and_end, Plain};
+        let backend = StubBackend::new(None);
+        let start: common::scripted::StartFn = Rc::new(|o| {
+            let on_event = o.on_event.clone().expect("a sink");
+            let doc = json!({ "status": "completed", "text": "all green" });
+            let mut events = vec![json!({ "type": "session.start", "sessionId": "s-1", "cwd": "/root/app" })];
+            events.extend(done_and_end("s-1", &doc, 0, true));
+            Ok(Plain::of("s-1", after_a_turn(on_event, events, doc)))
+        });
+        let fx = runtime(&backend).adapter("claude", adapter_of(start)).build();
+        let ws = create_on(&fx.rt, CreateOn::golden("a"), None).await.expect("a workspace").view.id;
+        let handle = fx.rt.sessions().start(&ws, StartOptions { prompt: "go".into(), ..Default::default() }, None).await.expect("a start");
+        assert_eq!(handle.finished().await.text.as_deref(), Some("all green"));
+        let types: Vec<String> = fx
+            .rt
+            .sessions()
+            .history(&ws, None)
+            .await
+            .expect("a history")
+            .iter()
+            .map(|e| j(e)["type"].as_str().unwrap_or_default().to_string())
+            .collect();
+        assert_eq!(types, ["session.start", "session.done", "session.end"]);
+        fx.rt.close().await.expect("a close");
+    });
+}
+
+// kept-stubs.ts `claudeKeeper` and `codexKeeper`, strays.ts: each stand-in agent answers a message with its pid, its
+// turn count and its turn token, and a test reads whether a process is there without finding it by name.
+#[test]
+fn the_stand_in_agents_name_their_process_and_turn_and_a_test_reads_whether_a_process_is_there() {
+    drive(|| async {
+        use common::stubs::{alive, claude_keeper, codex_keeper, gone, pid_of, token_of};
+        use std::io::Write as _;
+        use std::process::{Command, Stdio};
+        let dir = tempfile::tempdir().expect("a folder");
+        let (claude, codex) = (dir.path().join("claude"), dir.path().join("codex"));
+        claude_keeper(&claude);
+        codex_keeper(&codex);
+        let mut child = Command::new(&claude)
+            .args(["--session-id", "abc"])
+            .env("WSP_TURN", "tok123")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("the claude stand-in");
+        let pid = child.id();
+        child
+            .stdin
+            .as_mut()
+            .expect("stdin")
+            .write_all(b"{\"type\":\"user\",\"message\":{\"content\":[{\"text\":\"hello\"}]}}\n")
+            .expect("a message");
+        drop(child.stdin.take());
+        let out = child.wait_with_output().expect("its output");
+        let said = String::from_utf8_lossy(&out.stdout).to_string();
+        let reply = said
+            .lines()
+            .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+            .find(|v| v["type"] == "result")
+            .expect("a result");
+        let text = reply["result"].as_str().map(str::to_string);
+        assert_eq!(text.as_deref(), Some(format!("hello from {pid} turn 1 token tok123").as_str()));
+        assert_eq!((pid_of(text.as_deref()), token_of(text.as_deref())), (Some(pid), "tok123".to_string()));
+        assert!(!alive(pid));
+        gone(pid).await;
+        let version = Command::new(&claude).arg("--version").output().expect("a version");
+        assert_eq!(String::from_utf8_lossy(&version.stdout).trim(), "2.1.289 (Claude Code)");
+        assert_eq!(Command::new(&codex).arg("nothing").status().expect("codex").code(), Some(2));
+    });
+}
+
+// pull-request.test.ts:84 `fakeDaemons` and :168 `withWorkspace`: two daemons behind one dial told apart by the url, each
+// frame kept with its road, an op nobody answers refused as a daemon refuses it; and a workspace over them whose pull
+// request reads over this computer's own daemon.
+#[test]
+fn two_daemons_behind_one_dial_are_told_apart_by_the_url_and_a_workspace_reads_its_pull_request_over_the_first() {
+    drive(|| async {
+        use common::pull_request::{answer, fake_daemons, ok, with_workspace, Via, With, COPY, HERE};
+        use wsp_core::daemon_channel::DaemonChannelOptions;
+        let d = fake_daemons(vec![("git.hello", answer(|_| ok(json!({ "who": "here" }))))], vec![]);
+        let dial = |url: &str| DaemonChannelOptions {
+            url: url.into(),
+            token: "t".into(),
+            on_event: Rc::new(|_| {}),
+            connect_timeout_ms: None,
+            clock: None,
+        };
+        let open = d.open();
+        let here = open(dial(HERE)).await.expect("a channel");
+        let copy = open(dial(COPY)).await.expect("a channel");
+        let frame = |op: &str| match json!({ "op": op }) {
+            serde_json::Value::Object(map) => map,
+            _ => unreachable!(),
+        };
+        assert_eq!(here.send(frame("git.hello")).await.expect("a reply")["who"], "here");
+        let refused = copy.send(frame("git.hello")).await.expect("a reply");
+        assert_eq!((refused["ok"].clone(), refused["error"].clone()), (json!(false), json!("git.hello was not answered here")));
+        assert_eq!(d.ops(Some(Via::Here)), ["git.hello"]);
+        assert_eq!(d.ops(Some(Via::Copy)), ["git.hello"]);
+
+        let d = fake_daemons(vec![], vec![]);
+        let h = with_workspace(&d, With::default()).await;
+        h.rt().workspaces().checkout(&h.id, None, None).await.expect("a checkout");
+        until(|| async { h.pr_field("number") == Some(json!(12)) }).await;
+        assert_eq!(d.ops(Some(Via::Copy)), ["git.status"]);
+        assert_eq!(d.count(Via::Here, "git.prRead"), 1);
+        assert!(h.remote.starts_with("https://github.com/wsp/stub-"));
+    });
+}
