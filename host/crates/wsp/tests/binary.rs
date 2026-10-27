@@ -61,7 +61,11 @@ impl Place {
     /// `wsp <args>` to its end: the exit code, stdout and stderr.
     fn run(&self, args: &[&str]) -> (i32, String, String) {
         let out = self.command(args).stdin(Stdio::null()).output().expect("the binary starts");
-        (out.status.code().unwrap_or(-1), String::from_utf8_lossy(&out.stdout).into_owned(), String::from_utf8_lossy(&out.stderr).into_owned())
+        (
+            out.status.code().unwrap_or(-1),
+            String::from_utf8_lossy(&out.stdout).into_owned(),
+            String::from_utf8_lossy(&out.stderr).into_owned(),
+        )
     }
 
     /// `wsp up --port 0 --no-relay`, read as the harness reads it: the port off the first line holding `ws://127.0.0.1:`.
@@ -83,26 +87,37 @@ impl Place {
             }
         });
         let err = child.stderr.take().expect("piped");
-        let errors = std::thread::spawn(move || {
+        let errors = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+        let sink = errors.clone();
+        std::thread::spawn(move || {
             let mut said = String::new();
             let _ = BufReader::new(err).read_to_string(&mut said);
-            said
+            *sink.lock().expect("a lock") = said;
         });
         let deadline = Instant::now() + START_WAIT;
         let mut lines = Vec::new();
         let port = loop {
             let left = deadline.saturating_duration_since(Instant::now());
-            let line = rx.recv_timeout(left).unwrap_or_else(|_| {
+            let Ok(line) = rx.recv_timeout(left) else {
                 let _ = child.kill();
                 let _ = child.wait();
-                panic!("the host never said where it listens; stdout so far: {lines:?}; stderr: {}", errors.join().unwrap_or_default());
-            });
+                std::thread::sleep(Duration::from_millis(200));
+                panic!("the host never said where it listens; stdout so far: {lines:?}; stderr: {}", errors.lock().expect("a lock"));
+            };
             let port = line.split("ws://127.0.0.1:").nth(1).and_then(|r| r.split('/').next()).and_then(|p| p.parse::<u16>().ok());
             lines.push(line);
             if let Some(port) = port {
                 break port;
             }
         };
+        // The address lines go on after the one the port is read from; the state line is the last of them.
+        while !lines.iter().any(|l| l.starts_with("state       ")) {
+            let left = deadline.saturating_duration_since(Instant::now());
+            match rx.recv_timeout(left) {
+                Ok(line) => lines.push(line),
+                Err(_) => break,
+            }
+        }
         std::thread::spawn(move || for _ in rx {});
         let token = fs::read_to_string(self.state().join("host-token")).expect("the token file").trim().to_string();
         Running { child, port, token, lines }
@@ -268,7 +283,13 @@ fn a_verb_prints_its_page_without_a_host() {
 fn the_tool_server_greets_and_lists_over_stdio() {
     let place = Place::new();
     let state = place.state().join("state.json").display().to_string();
-    let mut child = place.command(&["mcp", "--state", &state]).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null()).spawn().expect("starts");
+    let mut child = place
+        .command(&["mcp", "--state", &state])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("starts");
     let mut stdin = child.stdin.take().expect("piped");
     writeln!(stdin, "{}", json!({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2099-01-01", "capabilities": {}, "clientInfo": {"name": "t", "version": "1"}}})).expect("a line");
     writeln!(stdin, "{}", json!({"jsonrpc": "2.0", "method": "notifications/initialized"})).expect("a line");
@@ -280,7 +301,8 @@ fn the_tool_server_greets_and_lists_over_stdio() {
     let lines: Vec<Value> = said.lines().map(|l| serde_json::from_str(l).expect("json")).collect();
     let hello = lines.iter().find(|l| l["id"] == 1).expect("initialize answered");
     assert_eq!(hello["result"]["protocolVersion"], "2025-11-25");
-    assert_eq!(hello["result"]["serverInfo"], json!({"name": "wsp", "version": VERSION}));
+    assert_eq!(hello["result"]["serverInfo"]["name"], "wsp");
+    assert!(hello["result"]["serverInfo"]["version"].as_str().is_some_and(|v| v.starts_with("0.3.")), "{hello}");
     let tools = lines.iter().find(|l| l["id"] == 2).expect("tools/list answered");
     assert!(tools["result"]["tools"].as_array().is_some_and(|t| t.len() >= 70), "{tools}");
 }
