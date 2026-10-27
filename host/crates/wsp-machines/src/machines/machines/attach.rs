@@ -11,8 +11,8 @@ use indexmap::IndexSet;
 use serde_json::json;
 
 use wsp_core::types::internal::{
-    SessionEntry, AGENT_LISTS, CREATES, SESSIONS, TRANSCRIPTS, TRANSCRIPT_HEADS, TRANSCRIPT_INDEX,
-    WORKSPACES, WORKSPACE_NAMES,
+    is_absent_machine, SessionEntry, AGENT_LISTS, CREATES, SESSIONS, TRANSCRIPTS, TRANSCRIPT_HEADS,
+    TRANSCRIPT_INDEX, WORKSPACES, WORKSPACE_NAMES,
 };
 use wsp_core::types::wiring::{shape_fault, LiveWorkspace, WorkspaceRecord, WorkspaceSpec, VAULTS};
 use wsp_engine::disk_sync::sync_disk;
@@ -227,6 +227,11 @@ impl MachinesArea {
         entry: Weak<RefCell<LiveWorkspace>>,
         machine: Arc<dyn Machine>,
     ) -> Arc<dyn Machine> {
+        // The TS patches the machine it is given in place, so a stand-in is still the stand-in after it (machines.ts:274):
+        // wrapped, it would no longer read as absent (`isAbsentMachine`) and the record would never be read again.
+        if is_absent_machine(machine.as_ref()) {
+            return machine;
+        }
         let machine_id = machine.id().to_string();
         Arc::new(Around {
             inner: machine,
