@@ -358,7 +358,7 @@ export async function undoPlan(before: RecipeFile, removed: readonly { kind: Rec
  * the picks were made. */
 async function managersFor(host: Host, picks: RecipeFile, home: string, picked: readonly ManifestEntry[]): Promise<ManifestEntry[]> {
   const there = new Set(picked.filter(e => e.bring === true).map(e => catalogIdOfRow(e)));
-  const names = await Promise.all(Object.values(picks.folders).map(folder => host.fs.list(folder.from.replace(/^~(?=\/|$)/, home))));
+  const names = await Promise.all(Object.values(picks.folders).map(folder => host.fs.list(expand({ home }, folder.from))));
   return seedToolsFor(names.flat()).flatMap(id => {
     const entry = catalogEntry(id);
     return entry === undefined || there.has(id) ? [] : [{ rung: "tools" as const, id: `${CATALOG_PREFIX}${id}`, label: entry.name, paths: [], bytes: 0, default: "bring" as const, bring: true, linux: "yes" as const }];
