@@ -500,3 +500,32 @@ fn a_driven_turn_raises_a_prompt_takes_its_answer_and_closes_what_a_reply_leaves
         fx.rt.close().await.expect("a close");
     });
 }
+
+// stub-backend.ts:460-490 `fakeLocal` and `copyingFake`: this computer is a folder of the test's own, the copy road
+// copies a folder for real and a removal takes it away, and every ask is logged.
+#[test]
+fn the_fake_local_computer_copies_a_folder_for_real_and_a_removal_takes_it_away() {
+    drive(|| async {
+        let dir = tempfile::tempdir().expect("a folder");
+        let from = dir.path().join("from");
+        std::fs::create_dir_all(from.join("src")).expect("a folder");
+        std::fs::write(from.join("src/a.txt"), "a").expect("a file");
+        let (copier, log) = copying_fake();
+        let to = dir.path().join("to");
+        let ask: wsp_engine::copier::CopyAsk = serde_json::from_value(json!({
+            "from": from.display().to_string(), "to": to.display().to_string(), "exclude": ["node_modules"], "sizeLineBytes": 0
+        }))
+        .expect("an ask");
+        use wsp_engine::copier::Copier as _;
+        let report = copier.make(&ask).await.expect("a copy");
+        assert_eq!(std::fs::read_to_string(to.join("src/a.txt")).expect("the copied file"), "a");
+        assert_eq!(j(&report)["excluded"], json!(["node_modules"]));
+        assert_eq!(log.lock().expect("a log").asks.len(), 1);
+        copier.remove(&ask.from, &ask.to, wsp_engine::copier::CopyRoad::Clonefile).await.expect("a removal");
+        assert!(!to.exists());
+        assert_eq!(log.lock().expect("a log").removed.len(), 1);
+        let local = fake_local(dir.path());
+        assert_eq!(local.folder, dir.path().display().to_string());
+        assert_eq!((local.home)("claude"), format!("{}/.claude", dir.path().display()));
+    });
+}
