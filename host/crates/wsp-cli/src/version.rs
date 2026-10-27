@@ -7,8 +7,8 @@ use wsp_wire::wire::daemon_version::DAEMON_VERSION;
 
 use crate::repo_root::resolve;
 
-/// The release this build carries (`VERSION`, version.ts:11): `packages/host/package.json`'s version.
-pub const VERSION: &str = "0.3.8";
+/// The release this build carries (`VERSION`, version.ts:11): `packages/host/package.json`'s version, read by build.rs.
+pub const VERSION: &str = env!("WSP_RELEASE");
 
 /// version.ts:9: the `version` string of the `package.json` at `package_json`, read now. `None` where it cannot be
 /// read, is not JSON or holds no string `version` (the TS throws there).
