@@ -145,11 +145,11 @@ pub fn end_plan(
             return Err(refusal(&not_started_line(whole), NOT_STARTED_FIX, Some(Kind::Usage)));
         }
         let mut targets = Vec::new();
-        let mut stack = vec![Take::In(p.clone())];
+        let mut stack = vec![Take::In(Box::new(p.clone()))];
         let mut above = std::collections::HashSet::new();
         while let Some(step) = stack.pop() {
             let q = match step {
-                Take::In(q) => q,
+                Take::In(q) => *q,
                 Take::Out(pid) => {
                     above.remove(&pid);
                     continue;
@@ -165,7 +165,7 @@ pub fn end_plan(
                 return Err(refusal(&wsp_own_line(i64::from(q.pid)), WSP_OWN_FIX, Some(Kind::Usage)));
             }
             stack.push(Take::Out(q.pid));
-            stack.extend(placed.kids_of(q.pid).into_iter().rev().map(Take::In));
+            stack.extend(placed.kids_of(q.pid).into_iter().rev().map(|kid| Take::In(Box::new(kid))));
             targets.push(q);
         }
         Ok(EndPlan::Targets(targets))
@@ -174,7 +174,7 @@ pub fn end_plan(
 
 /// A step of the walk down from the process an End names: a process to take, or the leaving of one whose kids are done.
 enum Take {
-    In(ProcEntry),
+    In(Box<ProcEntry>),
     Out(u32),
 }
 
