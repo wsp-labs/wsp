@@ -58,6 +58,8 @@ export interface SignInPlan {
   line: SignInLine;
   questions: readonly Question[];
   code?: RegExp;
+  /** The address the sign-in's page has, where the tool prints other links around it. */
+  page?: RegExp;
   paste(url: string): boolean;
   status?: StatusCheck;
   /** The one line a failure says in place of the tool's own words, where those words have one. */
@@ -149,7 +151,7 @@ export async function planSignIn(on: AgentsOn, ask: SignInAsk, o: { terminal?: b
   const status = row.status === undefined ? undefined : harnessLine(entry.id, row.status.typed ?? row.status.command, { stores });
   const shared = sharedLoginOf(row);
   const byCode = signInRoadOf(row) === "code";
-  const plan = { name: entry.name, questions: questionsOf(row), ...(row.code !== undefined ? { code: row.code } : {}), ...(row.status !== undefined ? { status: row.status } : {}), paste: (url: string) => byCode && !(on.kind === "here" && redirectsToMachine(url)) };
+  const plan = { name: entry.name, questions: questionsOf(row), ...(row.code !== undefined ? { code: row.code } : {}), ...(row.page !== undefined ? { page: row.page } : {}), ...(row.status !== undefined ? { status: row.status } : {}), paste: (url: string) => byCode && !(on.kind === "here" && redirectsToMachine(url)) };
   if (shared !== undefined && on.kind === "box") {
     if (on.logins === undefined) throw new Error("this computer has not said where it keeps the logins its threads share, so there is nowhere to sign one in");
     const home = loginHomeIn(on.logins, shared);
@@ -207,6 +209,7 @@ export async function watchSignIn(plan: SignInPlan, run: SignInRun, o: { pollMs?
   let unbound: string | undefined;
   let armed: number | undefined;
   const page = (url: string): void => {
+    if (plan.page !== undefined && !plan.page.test(url)) return;
     const code = codeIn(seen, plan.code);
     const byAddress = unbound === url;
     if (told !== undefined && told.url === url && told.code === code && told.byAddress === byAddress) return;
