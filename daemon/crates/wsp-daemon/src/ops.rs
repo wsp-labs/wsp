@@ -215,10 +215,7 @@ pub(crate) async fn handle(conn: &Arc<Conn>, ctx: &Arc<Ctx>, raw: &str) -> Outgo
         match op {
             Some("place.leave") => {
                 let home = crate::place::place_home(ctx.options.home.as_deref());
-                let profile = ctx.options.apparmor_profile.clone().unwrap_or_else(|| wsp_frames::numbers::WORKSPACE_APPARMOR_PATH.into());
-                let install = ctx.options.install_root.as_deref().map(|root| root.to_string_lossy().into_owned()).unwrap_or_default();
-                let runtime =
-                    ctx.options.runtime_root.clone().unwrap_or_else(|| format!("{install}{}", wsp_frames::numbers::RUNTIME_ROOT).into());
+                let (install, profile, runtime) = crate::place::leave_paths(&ctx.options);
                 let force = frame.get("force").and_then(Value::as_bool).unwrap_or(false);
                 let projects: Vec<String> = frame
                     .get("projects")
