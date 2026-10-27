@@ -19,10 +19,11 @@ use wsp_engine::errors::{EngineError, ErrorKind, RoadError};
 use wsp_engine::machine::{
     BackendOffers, BackendPricing, Capabilities, ExecOptions, ExecResult, Lifecycle, LifecycleBudgets, Machine, MachineBackend,
     MachineKind, MachineLife, MachineListRow, MachineOffers, MachineShape, MachineSpec, MachineState, NamedMachine, PreviewReach,
-    ProviderBoxState, RunOptions, Seen, Size, SnapshotOptions, SnapshotRow, SnapshotStoragePricing, TemplateRow, Waiting,
+    ProviderBoxState, RootDisk, RunOptions, Seen, Size, SnapshotOptions, SnapshotRow, SnapshotStoragePricing, TemplateRow, Waiting,
     WireSnapshotStoragePricing,
 };
 use wsp_wire::types::daemon_contract::DAEMON_TOKEN_PATH;
+use wsp_wire::wire::machine_link::NOT_ON_THIS_ROAD;
 use wsp_wire::types::js_number::JsInt;
 use wsp_wire::types::JsNumber;
 use wsp_wire::views::activity::iso_time;
@@ -46,6 +47,10 @@ pub type StateFn = Rc<dyn Fn() -> Fut<MachineState>>;
 pub type PreviewFn = Rc<dyn Fn(u16) -> Fut<PreviewReach>>;
 pub type AnswersFn = Rc<dyn Fn(Option<u64>) -> Fut<bool>>;
 pub type UrlFn = Rc<dyn Fn(String) -> Fut<String>>;
+/// `m.resumeAt = async size => ..`: the move to another size a machine that offers it takes.
+pub type ResumeAtFn = Rc<dyn Fn(f64, u64, Option<Cancel>) -> Fut<()>>;
+/// `backend.rootDiskOf = size => ..`: the root disk a provider measured for a size.
+pub type RootDiskFn = Rc<dyn Fn(Size) -> Option<RootDisk>>;
 /// `m.resume = async (signal?: AbortSignal) => ..`: a resume that reads the caller's cancel.
 pub type ResumeWithFn = Rc<dyn Fn(Option<Cancel>) -> Fut<()>>;
 
@@ -155,6 +160,9 @@ pub struct StubMachine {
     pause: RefCell<UnitFn>,
     resume: RefCell<UnitFn>,
     resume_with: RefCell<Option<ResumeWithFn>>,
+    resume_at: RefCell<Option<ResumeAtFn>>,
+    /// The `waitMs` each pause was handed, oldest first: what `m.pause = async o => ..` collects.
+    pub pause_waits: RefCell<Vec<Option<u64>>>,
     state: RefCell<StateFn>,
     metrics: RefCell<UnitFn>,
     download_url: RefCell<UrlFn>,
@@ -243,6 +251,8 @@ impl StubMachine {
                     })
                 })),
                 resume_with: RefCell::new(None),
+                resume_at: RefCell::new(None),
+                pause_waits: RefCell::default(),
                 state: RefCell::new(Rc::new(move || {
                     let m = this(&state_me);
                     Box::pin(async move { Ok(m.live_state()) })
@@ -361,6 +371,10 @@ impl StubMachine {
         }
         let f = self.resume_fn();
         Rc::new(move |_| f())
+    }
+    /// `m.resumeAt = async size => ..`; `None` takes it away, as a machine that never had one.
+    pub fn set_resume_at(&self, f: Option<ResumeAtFn>) {
+        *self.resume_at.borrow_mut() = f;
     }
     /// `m.resume = async signal => ..`: replaces the resume with one that is handed the caller's cancel.
     pub fn set_resume_with(&self, f: ResumeWithFn) {
@@ -486,6 +500,7 @@ impl Machine for StubMachine {
     }
     fn offers(&self) -> MachineOffers {
         MachineOffers {
+            resume_at: self.resume_at.borrow().is_some(),
             preview_url: self.preview.borrow().is_some(),
             daemon_answers: self.daemon_answers.borrow().is_some(),
             describe: true,
@@ -525,10 +540,15 @@ impl Machine for StubMachine {
         }
         backend.take_snapshot(self, name)
     }
-    async fn pause(&self, _wait_ms: Option<u64>) -> Result<(), EngineError> {
+    async fn pause(&self, wait_ms: Option<u64>) -> Result<(), EngineError> {
         bump(&self.calls.pause);
+        self.pause_waits.borrow_mut().push(wait_ms);
         let f = self.pause_fn();
         f().await
+    }
+    async fn resume_at(&self, cpu: f64, mem_mb: u64, signal: Option<&Cancel>) -> Result<(), EngineError> {
+        let f = self.resume_at.borrow().clone().ok_or_else(|| EngineError::Other { message: NOT_ON_THIS_ROAD.into(), code: None })?;
+        f(cpu, mem_mb, signal.cloned()).await
     }
     async fn resume(&self, signal: Option<&Cancel>) -> Result<(), EngineError> {
         bump(&self.calls.resume);
@@ -683,6 +703,7 @@ pub struct StubBackend {
     create_request: RefCell<Option<CreateRequestFn>>,
     replay_create: RefCell<Option<ReplayFn>>,
     named_after: RefCell<Option<NamedAfterFn>>,
+    root_disk: RefCell<Option<RootDiskFn>>,
 }
 
 impl StubBackend {
@@ -763,6 +784,7 @@ impl StubBackend {
                 create_request: RefCell::new(None),
                 replay_create: RefCell::new(None),
                 named_after: RefCell::new(None),
+                root_disk: RefCell::new(None),
             }
         })
     }
@@ -839,6 +861,10 @@ impl StubBackend {
     }
     pub fn set_replay_create(&self, f: Option<ReplayFn>) {
         *self.replay_create.borrow_mut() = f;
+    }
+    /// `Object.assign(backend, { rootDiskOf })`: the backend now offers the disk it measured for a size.
+    pub fn set_root_disk_of(&self, f: Option<RootDiskFn>) {
+        *self.root_disk.borrow_mut() = f;
     }
     pub fn set_named_after(&self, f: Option<NamedAfterFn>) {
         *self.named_after.borrow_mut() = f;
@@ -993,8 +1019,13 @@ impl MachineBackend for StubBackend {
                 && self.named_after.borrow().is_some(),
             list_snapshots: true,
             templates: true,
+            root_disk_of: self.root_disk.borrow().is_some(),
             ..BackendOffers::default()
         }
+    }
+    fn root_disk_of(&self, size: Size) -> Option<RootDisk> {
+        let f = self.root_disk.borrow().clone()?;
+        f(size)
     }
 
     async fn on_computer(&self, cmd: &str, _timeout_ms: Option<u64>) -> Result<ExecResult, EngineError> {
