@@ -2,11 +2,18 @@
 //! The host process and the command dispatcher, thin: what `up`, `mcp` and the command line need of `cli/wiring.ts`,
 //! `server.ts` and `cli.ts` (chapter 01's `wsp-host` row, ruling 2 on #2476). The 27 host ports and the serve doors
 //! that are `wsp-setup`'s are not here; the runtime answers each as the TS does for a road that is missing.
+pub mod broker;
+pub mod broker_sign_ins;
 pub mod cli;
+pub mod commands;
 pub mod envfile;
+pub mod file_doors;
+pub mod git_roads;
+pub mod guest;
 pub mod io;
 pub mod mcp;
 pub mod paths;
+pub mod serve;
 pub mod server;
 pub mod start;
 pub mod state;
