@@ -111,6 +111,9 @@ export type SignIn =
       /** The shape the one-time code prints in, for a flow whose page asks for one; matched against what the tool
        * printed, past the URLs it printed. Absent, the flow shows no code and none is read out of its output. */
       code?: RegExp;
+      /** The address of the page that takes the code, for a tool that prints other links around it: a link that
+       * does not match is never shown as the page. Absent, the first link the tool prints is the page. */
+      page?: RegExp;
       /** The variable the tool reads an API key from; a key loaded on this computer is set under it on the machine. */
       keyEnv?: string;
       /** Absent when the tool has no status command: the login is then "not verified". */
@@ -349,11 +352,13 @@ export const SIGN_IN_ROWS = {
       { asks: /How would you like to authenticate GitHub CLI\?/, flag: "--web" },
       { asks: /(?:Generate a new SSH key to add to|Upload your SSH public key to) your GitHub account\?/, flag: "--skip-ssh-key" },
       { asks: /Press \[?Enter\]? to (?:open|continue)/, answer: "\r" },
-      // gh sets the git credential helper after the token lands, so this one comes only once the person is through.
+      // gh 2.101 asks this before anything else; older ones ask it once the token has landed.
       { asks: /Authenticate Git with your GitHub credentials\?/, answer: "\r" },
     ],
     // Two groups of four, as gh prints it: "! First copy your one-time code: XXXX-XXXX".
     code: /\b[A-Z0-9]{4}-[A-Z0-9]{4}\b/,
+    // Newer gh prints a docs link about expiring tokens before its first question.
+    page: /^https:\/\/github\.com\/login\/device(?:[?#].*)?$/,
     status: { command: "gh auth status", signedIn: o => /Logged in to/.test(o) && !/Failed to log in/.test(o) },
     stateOnMachine: [".config/gh/hosts.yml"],
   },
