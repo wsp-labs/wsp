@@ -1466,7 +1466,8 @@ describe("a computer added before anything is picked", () => {
     await until(async () => p.floors.length === 1);
     const set = await runtime!.places!.setUp(place.id, { choices: LAPTOP, recipe: "laptop" });
     expect(set.setup?.state).toBe("running");
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await until(async () => (await rowOf(place.id)).setup?.steps.some(l => l.step === "floor") === true);
+    for (let i = 0; i < 5; i++) await new Promise(resolve => setImmediate(resolve));
     expect(p.ran).toEqual([]);
     p.letFloor();
     await until(async () => (await rowOf(place.id)).setup?.state === "done");
