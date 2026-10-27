@@ -1276,6 +1276,21 @@ mod tests {
     }
 
     #[test]
+    fn the_leave_outside_the_home_refuses_a_listed_path_outside_the_root_it_was_given() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = std::fs::canonicalize(dir.path()).expect("canonical root");
+        let machine = tempfile::tempdir().expect("tempdir");
+        let far = std::fs::canonicalize(machine.path()).expect("canonical machine").join("usr/local/bin");
+        std::fs::create_dir_all(&far).expect("far bin");
+        std::fs::create_dir_all(root.join("opt/wsp")).expect("prefix");
+        std::fs::write(far.join("claude"), "claude 2.1.280\n").expect("claude");
+        std::fs::write(root.join("opt/wsp/landed"), format!("{}\t{}\n", sha256_hex(b"claude 2.1.280\n"), far.join("claude").display()))
+            .expect("ledger");
+        assert_eq!(sweep_outside_home(&root.to_string_lossy()), Vec::<String>::new());
+        assert!(far.join("claude").exists(), "a list naming a path outside the root took it");
+    }
+
+    #[test]
     fn the_leave_outside_the_home_takes_what_the_list_names_as_wsp_left_it_and_nothing_else() {
         let dir = tempfile::tempdir().expect("tempdir");
         let root = std::fs::canonicalize(dir.path()).expect("canonical root");

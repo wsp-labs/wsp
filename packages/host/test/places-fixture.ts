@@ -23,17 +23,18 @@ import { runsFromItsOwnFolder } from "./own-folder.js";
 
 runsFromItsOwnFolder();
 
-/** The leave as a case runs it: the workspace profile it takes off is one under the case's own home unless the case
- * names another, since a suite run as root otherwise takes the machine's own profile off it. */
+/** The leave as a case runs it: held to the temporary folder, so a path it forgot to move off the machine (the home, the
+ * profile, wsp's install folder, the runtime's) refuses the leave, since a suite run as root otherwise takes the
+ * machine's own. A case's own home carries what it would otherwise take from the computer's. */
 const sweepPlace = (opts: PlaceSweepOptions = {}): ReturnType<typeof sweepPlaceHere> =>
-  sweepPlaceHere({ ...(opts.home === undefined ? {} : { apparmorProfile: join(opts.home, "etc-apparmor.d", "wsp-workspace"), tools: toolsUnder(opts.home), systemRoot: join(opts.home, "system") }), ...opts });
+  sweepPlaceHere({ ...(opts.home === undefined ? {} : { apparmorProfile: join(opts.home, "etc-apparmor.d", "wsp-workspace"), tools: toolsUnder(opts.home), systemRoot: join(opts.home, "system") }), ...opts, within: tmpdir() });
 
 /** wsp's install folder and the folder its commands are linked into, under a case's own home, for the same reason. */
 const toolsUnder = (home: string): { prefix: string; links: string } => ({ prefix: join(home, "opt-wsp"), links: join(home, "usr-local-bin") });
 
-/** `wsp leave` as a case runs it, with the same profile under the case's own home. */
+/** `wsp leave` as a case runs it, held to the temporary folder the same way. */
 const leaveCommand = (io: Parameters<typeof leaveCommandHere>[0], args: readonly string[], deps: NonNullable<Parameters<typeof leaveCommandHere>[2]>, flags?: Parameters<typeof leaveCommandHere>[3]): ReturnType<typeof leaveCommandHere> =>
-  leaveCommandHere(io, args, { apparmorProfile: join(deps.home, "etc-apparmor.d", "wsp-workspace"), tools: toolsUnder(deps.home), systemRoot: join(deps.home, "system"), ...deps }, flags);
+  leaveCommandHere(io, args, { apparmorProfile: join(deps.home, "etc-apparmor.d", "wsp-workspace"), tools: toolsUnder(deps.home), systemRoot: join(deps.home, "system"), ...deps, within: tmpdir() }, flags);
 
 /** The record an add leaves where nothing it would take stood before it: whole, and naming nothing. */
 function addFoundNothing(home: string): void {

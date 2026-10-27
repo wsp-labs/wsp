@@ -280,6 +280,9 @@ export interface PlaceSweepOptions {
   runtimeProjects?: readonly string[];
   /** The cgroups wsp made here, taken only where a caller names them, as the runtime's folder is. */
   cgroupRoots?: readonly string[];
+  /** The one folder every path this sweep may take sits under, named by a case so that a path it forgot to move off the
+   * computer refuses the sweep before anything is removed. Absent for a real leave, which takes the computer's own. */
+  within?: string;
   /** This process's mount table, read off /proc unless a caller hands another; throws where it cannot be read. */
   mountTable?: () => string;
 }
@@ -328,6 +331,10 @@ const THREADS_END_MS = 60_000;
  * decided this computer is out of that wsp. */
 export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSweep> {
   const home = opts.home ?? homedir();
+  const profile = opts.apparmorProfile ?? WSP_WORKSPACE_APPARMOR_PATH;
+  const tools = opts.tools ?? { prefix: TOOL_PREFIX, links: TOOL_LINKS_DIR };
+  const stray = opts.within === undefined ? undefined : [home, profile, tools.prefix, tools.links, opts.systemRoot ?? "/", ...(opts.runtimeRoot === undefined ? [] : [opts.runtimeRoot]), ...(opts.cgroupRoots ?? [])].find(path => !underProject(resolve(path), resolve(opts.within!)));
+  if (stray !== undefined) throw new Error(`nothing was removed: ${stray} is outside ${opts.within}, the folder this leave was given`);
   const sh = opts.sh ?? shStdout;
   // The add's record of what stood before it sits in wsp's folder here, which the walk below takes.
   const found = placeFound(home);
@@ -400,8 +407,6 @@ export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSwe
     }
   }
   // The workspace profile only root's install loaded, unloaded before its file goes, as the host's remove does it.
-  const profile = opts.apparmorProfile ?? WSP_WORKSPACE_APPARMOR_PATH;
-  const tools = opts.tools ?? { prefix: TOOL_PREFIX, links: TOOL_LINKS_DIR };
   const root = (opts.uid ?? process.getuid?.()) === 0;
   // Only root's jobs install outside the home, and only root can take it off. What the setup wrote outside wsp's
   // install folder goes first, since the list naming it sits in that folder; that list hashes each path, so it

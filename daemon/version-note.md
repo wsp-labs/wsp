@@ -1,0 +1,1 @@
+A leave names the folder it may take from, so the daemon takes an install root on its command line and refuses a home, a workspace profile or a runtime folder outside it before it removes anything, which keeps a test run as root off the computer's own /usr/local, /opt and /etc.
