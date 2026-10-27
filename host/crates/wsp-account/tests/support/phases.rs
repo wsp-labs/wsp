@@ -387,9 +387,9 @@ impl PhasesCtx for FakePhases {
         self.refusal("refuse_pauseless")
     }
 
-    fn talks_to_tree_on(&self, id: &str, origin: Option<&Caller>) -> bool {
+    fn talks_to_tree_on(&self, id: &str, origin: Option<&Caller>) -> Result<bool, HostError> {
         self.base.call("talks_to_tree_on", json!({ "id": id }));
-        origin.is_some_and(|c| matches!(c, Caller::Scoped { .. })) && self.flag("talks_to_tree_on", false)
+        Ok(origin.is_some_and(|c| matches!(c, Caller::Scoped { .. })) && self.flag("talks_to_tree_on", false))
     }
 
     fn refuse_sub_wake(&self, entry: &Entry) -> Result<(), HostError> {

@@ -612,8 +612,8 @@ impl CreateCtx for Ctx {
     fn drives(&self, view: &WorkspaceView, origin: Option<&Caller>) -> bool {
         self.rules.get().drives(view.kind.unwrap_or(WorkspaceKind::Cloud), Some(&view.machine_id), origin)
     }
-    fn talks_to_tree_on(&self, id: &str, origin: Option<&Caller>) -> bool {
-        self.boot.get().talks_to_tree_on(id, origin).unwrap_or(false)
+    fn talks_to_tree_on(&self, id: &str, origin: Option<&Caller>) -> Result<bool, HostError> {
+        self.boot.get().talks_to_tree_on(id, origin)
     }
     fn project_of_scope(&self, origin: Option<&Caller>) -> Option<String> {
         self.rules.get().project_of_scope(&scope_of(origin)?)

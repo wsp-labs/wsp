@@ -156,7 +156,7 @@ impl Store for MemStore {
 #[derive(Default)]
 pub struct TestClock {
     pub now: Cell<i64>,
-    pub timers: RefCell<Vec<(i64, u64, Option<Timer>)>>,
+    pub timers: Rc<RefCell<Vec<(i64, u64, Option<Timer>)>>>,
     pub seq: Cell<u64>,
     /// Every delay `schedule` was asked, in order.
     pub asked: RefCell<Vec<i64>>,
@@ -211,10 +211,9 @@ impl Clock for TestClock {
         self.timers
             .borrow_mut()
             .push((self.now.get() + ms.max(0), id, Some(f)));
-        let me: *const TestClock = self;
-        // The clock outlives every timer a test arms; a cancel after the test's end is never called.
-        Rc::new(move || unsafe {
-            for t in (*me).timers.borrow_mut().iter_mut() {
+        let timers = self.timers.clone();
+        Rc::new(move || {
+            for t in timers.borrow_mut().iter_mut() {
                 if t.1 == id {
                     t.2 = None;
                 }

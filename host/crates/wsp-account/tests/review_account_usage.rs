@@ -90,8 +90,8 @@ impl UsageCtx for Bare {
     fn signed_in_at(&self, _place_id: &str, _agent: &str) -> bool {
         true
     }
-    async fn place_for(&self, _word: &str) -> Option<String> {
-        None
+    async fn place_for(&self, _word: &str) -> Result<Option<String>, HostError> {
+        Ok(None)
     }
     async fn box_login_path(&self, _place_id: &str) -> Option<String> {
         None

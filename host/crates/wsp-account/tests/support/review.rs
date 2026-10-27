@@ -484,9 +484,9 @@ impl ReviewCtx for FakeReview {
     }
 
     /// Default true. A script under `reaches_row:<thread id>` answers for that thread alone.
-    fn reaches_row(&self, thread_id: &str, workspace_id: &str, origin: Option<&Caller>) -> bool {
+    fn reaches_row(&self, thread_id: &str, workspace_id: &str, origin: Option<&Caller>) -> Result<bool, HostError> {
         self.base.call("reaches_row", json!({ "thread": thread_id, "workspace": workspace_id, "origin": format!("{origin:?}") }));
         let key = format!("reaches_row:{thread_id}");
-        self.base.answer(&key).or_else(|| self.base.answer("reaches_row")).and_then(|v| v.as_bool()).unwrap_or(true)
+        Ok(self.base.answer(&key).or_else(|| self.base.answer("reaches_row")).and_then(|v| v.as_bool()).unwrap_or(true))
     }
 }

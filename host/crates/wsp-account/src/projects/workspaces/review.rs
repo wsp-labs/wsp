@@ -70,7 +70,7 @@ pub trait ReviewCtx: Base {
     /// `fetch(url, {redirect: "manual", signal: timeout(PORT_PROBE_TIMEOUT_MS)})` and `readBodyUpTo(res, cap)`.
     async fn probe(&self, url: &str) -> Result<PortProbeView, HostError>;
     fn refusal_for(&self, record: Option<&WorkspaceRecord>, origin: Option<&Caller>) -> Result<Option<String>, HostError>;
-    fn reaches_row(&self, thread_id: &str, workspace_id: &str, origin: Option<&Caller>) -> bool;
+    fn reaches_row(&self, thread_id: &str, workspace_id: &str, origin: Option<&Caller>) -> Result<bool, HostError>;
 }
 
 fn json_of<T: serde::Serialize>(v: &T) -> Value {
@@ -569,7 +569,7 @@ pub fn seen_by(ctx: &Rc<dyn ReviewCtx>, event: &serde_json::Value, origin: Optio
         return Ok(false);
     };
     if let Some(thread) = event.get("threadId").and_then(Value::as_str) {
-        return Ok(ctx.reaches_row(thread, &record.id, origin));
+        return ctx.reaches_row(thread, &record.id, origin);
     }
     Ok(ctx.refusal_for(Some(&record), origin)?.is_none())
 }
