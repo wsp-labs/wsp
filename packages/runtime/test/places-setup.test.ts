@@ -626,7 +626,7 @@ describe("a remove of a computer set up with picks", () => {
     const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "vault" } }, folders: { app: { from: folder, name: "app", keep: [] } } });
     const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
     await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const again = await runtime!.places!.setUp(place.id, {});
+    const again = await runtime!.places!.setUp(place.id, { choices: picks });
     await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
     expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")).toMatchObject({ outcome: "installed", step: "folders" });
     expect(ended(frames).map(f => f.end)).toEqual(["ready", "ready"]);
@@ -666,7 +666,7 @@ describe("a remove of a computer set up with picks", () => {
     const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: appPicks(folder) }, Date.now());
     await until(async () => (await rowOf(place.id)).setup?.state === "done");
     const theirs = await theirsInItsPlace(folder, seed, place.id);
-    const again = await runtime!.places!.setUp(place.id, {});
+    const again = await runtime!.places!.setUp(place.id, { choices: appPicks(folder) });
     await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
     expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")?.outcome).toBe("failed");
     expect((await runtime!.projects.list()).map(p => p.id)).toEqual([theirs]);
@@ -693,11 +693,11 @@ describe("a remove of a computer set up with picks", () => {
     const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
     await until(async () => (await rowOf(place.id)).setup?.state === "done");
     floor.push({ id: "floor/apt", label: "apt", outcome: "failed", note: "apt lock held" });
-    const second = await runtime!.places!.setUp(place.id, {});
+    const second = await runtime!.places!.setUp(place.id, { choices: picks });
     await until(async () => (await rowOf(place.id)).setup?.addId === second.addId && (await rowOf(place.id)).setup?.state === "failed");
     expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")).toMatchObject({ outcome: "installed", earlier: true });
     floor.length = 0;
-    const third = await runtime!.places!.setUp(place.id, {});
+    const third = await runtime!.places!.setUp(place.id, { choices: picks });
     await until(async () => (await rowOf(place.id)).setup?.addId === third.addId && (await rowOf(place.id)).setup?.state === "done");
     const row = await rowOf(place.id);
     expect(row.applied?.rows.find(r => r.id === "folders/app")).toMatchObject({ outcome: "installed", earlier: true, step: "folders" });
@@ -711,7 +711,7 @@ describe("a remove of a computer set up with picks", () => {
     await hosting({ provision: provisioner().wired, checkouts: {}, seed });
     const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: appPicks(folder) }, Date.now());
     await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const again = await runtime!.places!.setUp(place.id, {});
+    const again = await runtime!.places!.setUp(place.id, { choices: appPicks(folder) });
     await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
     const row = await rowOf(place.id);
     expect(setupLines("spoo", row.setup!, row.applied)[0]).toBe("spoo: 2 installed: Claude Code, GitHub CLI, 2 already there");
@@ -990,7 +990,7 @@ describe("a computer added with its picks", () => {
     s.end("codex", { state: "signed-in" });
     await until(async () => (await rowOf(place.id)).setup?.waiting.length === 0);
     await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    const again = await runtime!.places!.setUp(place.id, {});
+    const again = await runtime!.places!.setUp(place.id, { choices: LAPTOP });
     await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
     expect(s.started).toEqual(["codex"]);
     expect((await rowOf(place.id)).setup?.waiting).toEqual([]);
@@ -1932,6 +1932,66 @@ describe("a step the person skips for now", () => {
     expect(ended(frames).at(-1)?.end).toBe("ready");
   });
 
+  it("keeps the skip and every step that ended through a resume of the ended setup, running only the machine context again", async () => {
+    const s = signIns();
+    const p = provisioner();
+    await hosting({ provision: p.wired, acts: s.acts });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: LAPTOP }, Date.now());
+    await until(async () => (await rowOf(place.id)).setup?.state === "done");
+    await until(async () => (await rowOf(place.id)).setup?.waiting.some(w => w.code !== undefined) === true);
+    await runtime!.places!.skip(place.id, "signins/codex");
+    const first = (await rowOf(place.id)).setup!;
+    const ranBefore = p.ran.length;
+    const again = await runtime!.places!.setUp(place.id, {});
+    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
+    expect(p.ran.slice(ranBefore)).toEqual(["context"]);
+    expect(s.started).toEqual(["codex"]);
+    const after = await rowOf(place.id);
+    expect(after.setup?.waiting).toEqual([]);
+    expect(after.applied?.rows.find(r => r.id === "signins/codex")).toMatchObject({ outcome: "skipped", note: SKIPPED_FOR_NOW });
+    expect(after.setup?.steps.filter(l => l.step !== "context").map(l => [l.step, l.startedAt])).toEqual(first.steps.filter(l => l.step !== "context").map(l => [l.step, l.startedAt]));
+    expect(placeWord(after, null).word).toBe("Ready");
+  });
+
+  it("runs a failed step again on a resume of the ended setup, and the skip and the steps that ended still stand", async () => {
+    const s = signIns();
+    const fault: { step: EngineStep; error: Error } = { step: "configs", error: new Error("the write failed") };
+    const p = provisioner({ throws: fault });
+    await hosting({ provision: p.wired, acts: s.acts });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: LAPTOP }, Date.now());
+    await until(async () => (await rowOf(place.id)).setup?.state === "done");
+    await until(async () => (await rowOf(place.id)).setup?.waiting.some(w => w.code !== undefined) === true);
+    await runtime!.places!.skip(place.id, "signins/codex");
+    expect((await rowOf(place.id)).setup?.steps.find(l => l.step === "configs")?.state).toBe("failed");
+    fault.step = "mcp";
+    const ranBefore = p.ran.length;
+    const again = await runtime!.places!.setUp(place.id, {});
+    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
+    expect(p.ran.slice(ranBefore).sort()).toEqual(["configs", "context"]);
+    expect(s.started).toEqual(["codex"]);
+    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/codex")).toMatchObject({ outcome: "skipped", note: SKIPPED_FOR_NOW });
+  });
+
+  it("signs only the failed agent in again when a resume reruns the sign-ins step, the skipped one staying skipped", async () => {
+    const s = signIns();
+    const vault: Record<string, string> = {};
+    await hosting({ provision: provisioner().wired, acts: s.acts, vault });
+    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "key" }, codex: { signin: "machine" } } });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
+    await until(async () => (await rowOf(place.id)).setup?.state === "done");
+    await until(async () => (await rowOf(place.id)).setup?.waiting.some(w => w.row === "signins/codex" && w.code !== undefined) === true);
+    await runtime!.places!.skip(place.id, "signins/codex");
+    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")?.outcome).toBe("failed");
+    vault["ANTHROPIC_API_KEY"] = "sk-ant-api03-x";
+    const again = await runtime!.places!.setUp(place.id, {});
+    await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
+    const after = await rowOf(place.id);
+    expect(after.applied?.rows.find(r => r.id === "signins/claude")?.outcome).toBe("present");
+    expect(after.applied?.rows.find(r => r.id === "signins/codex")).toMatchObject({ outcome: "skipped", note: SKIPPED_FOR_NOW });
+    expect(s.started).toEqual(["codex"]);
+    expect(after.setup?.waiting).toEqual([]);
+  });
+
   it("lands a skipped sign-in as signed in once the person signs it in on that computer afterwards, and says the row changed", async () => {
     const s = signIns();
     await hosting({ provision: provisioner().wired, acts: s.acts });
@@ -2219,7 +2279,7 @@ describe("a step the person skips for now", () => {
     await until(async () => (await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")?.outcome === "installed");
     expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ note: tokenHeldLine("zingzys-mac"), step: "signins" });
     // A token that was not made says what its command said, and its fix still names every way, the token's first.
-    await runtime!.places!.setUp(place.id, {});
+    await runtime!.places!.setUp(place.id, { row: "signins/claude" });
     await until(async () => s.started.length === 2);
     s.end("claude", { state: "failed", said: "the browser was closed" });
     await until(async () => (await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")?.outcome === "failed");
@@ -2322,7 +2382,7 @@ describe("a computer that follows a recipe", () => {
     const setUpAgain = async (): Promise<void> => {
       const before = (await rowOf(set.placeId)).setup?.startedAt;
       await new Promise(resolve => setTimeout(resolve, 5));
-      await runtime!.places!.setUp(set.placeId, {});
+      await runtime!.places!.setUp(set.placeId, { choices: V1, recipe: "laptop" });
       await until(async () => (await rowOf(set.placeId)).setup?.startedAt !== before);
     };
     const settled = (): Promise<void> => until(async () => (await rowOf(set.placeId)).setup?.state === "done");
