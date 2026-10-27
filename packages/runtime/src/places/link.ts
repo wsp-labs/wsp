@@ -50,9 +50,9 @@ export function linkDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, se
     records, wiredProvider, providerIds, providerBackend, recordOf, settingsOf, settingsHeld, awaiting, holdBack,
     defaultId, inTurn, markDefault, markHeld, challenge, signedRefusal, writeSeen, change, withCap, rowIds, loginListed,
   } = recordArea;
-  const { channels, waiting, closedAt, woken, setting, settingNow, foldersOf, syncSoon, startedOrSaid, linkTo, landers, here } = setupArea;
+  const { channels, waiting, closedAt, woken, setting, flooring, settingNow, foldersOf, syncSoon, startedOrSaid, linkTo, landers, here } = setupArea;
   const folderMachines = new Map<string, { key: string; machine: PlaceFolderMachine }>();
-  const { pendingRecords, putPending, flooring, floorOnce, takenBack, backendFrom, tunnelled, cut, joining, joined, forget, joinedRow } = viewArea;
+  const { pendingRecords, putPending, floorOnce, takenBack, backendFrom, tunnelled, cut, joining, joined, forget, joinedRow } = viewArea;
   let tunnelSeq = 0;
 
   /** A sign-in finished outside the setup lands the setup's own row for it, one set aside or failed, under the label
@@ -222,7 +222,7 @@ export function linkDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, se
       if (current?.setup?.state === "running" && !setting.has(placeId)) void startedOrSaid(placeId, current.setup.addId);
       // A computer that follows a recipe catches up on what changed while it was away, or since this host started.
       else if (current?.recipe !== undefined && current.recipe !== NO_RECIPE && current.setup?.state === "done") syncSoon(placeId, 0);
-      for (const pending of await pendingRecords()) if (pending.placeId === placeId && pending.step === "floor" && !flooring.has(pending.id)) void floorOnce(pending, placeId);
+      for (const pending of await pendingRecords()) if (pending.placeId === placeId && pending.step === "floor" && !flooring.has(placeId)) void floorOnce(pending, placeId);
     },
 
     link: placeId => live.get(placeId)?.reach,
