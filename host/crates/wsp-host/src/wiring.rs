@@ -4,7 +4,6 @@
 //! host's own place key, and the agents a turn runs. Every port that is `wsp-setup`'s (the agents reader and its acts,
 //! the skills, servers and plugins roads, the icons, the recipes, the seed, the broker) is left unwired, and the
 //! runtime answers each as the TS does for a road that is missing.
-use std::fs;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -14,7 +13,7 @@ use wsp_catalog::roads::{GOLDEN_SETUP, GOLDEN_SMOKE};
 use wsp_cli::version::state_writer_here;
 use wsp_collect::cache_names::{CACHE_DIRS, FINDER_METADATA};
 use wsp_core::adapters::harness_adapters;
-use wsp_core::host_id::{host_identity, hostname};
+use wsp_core::host_id::host_identity;
 use wsp_core::local_exec::stream::{local_exec_stream, LocalExecOptions};
 use wsp_core::machine_exec::factory::MachineExecOptions;
 use wsp_core::types::wiring::{AgentsReach, GoldenRecipe, LocalWiring, PlaceBackends, Platform, RuntimeOptions};
@@ -26,16 +25,16 @@ use wsp_engine::provider_slot::ProviderSlot;
 use wsp_engine::vault::CacheRule;
 use wsp_machines::places::types::{HerePlace, PlaceWiring};
 use wsp_serve::AssembledRuntime;
-use wsp_store::keys::{new_place_key_pair, PlaceKeyPair};
-use wsp_store::own_file::write_own;
 use wsp_store::sqlite_store::sqlite_store;
 use wsp_wire::types::env::PERSON_HOME_ENV;
 use wsp_wire::views::harness::McpServerSpec;
 use wsp_words::exit::HostError;
 use wsp_words::words::thread::{NO_MACHINES_LINE, NO_PROVIDER_LINE};
 
+use wsp_setup::files::this_computer_key::{host_name_here, host_place_key, place_name_here};
+
 use crate::envfile::vault_now;
-use crate::paths::{basename, dirname, join};
+use crate::paths::join;
 use crate::state::Env;
 
 /// What `wsp up` is wired with beside the state file.
@@ -52,40 +51,6 @@ pub struct Wiring {
 
 pub fn person_home() -> String {
     std::env::var("HOME").unwrap_or_else(|_| "/".to_string())
-}
-
-/// `hostPlaceKeyPath`: beside the state file, so a second state file on one computer is a second wsp with a key of its own.
-fn host_place_key_path(state_path: &str) -> String {
-    join(&[&dirname(state_path), "place-host-key.json"])
-}
-
-/// `hostPlaceKey`: made on the first read and kept, at the person's own mode.
-pub fn host_place_key(state_path: &str) -> PlaceKeyPair {
-    let path = host_place_key_path(state_path);
-    if let Some(held) = fs::read_to_string(&path).ok().and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok()) {
-        if let (Some(public_key), Some(pem)) = (held["publicKey"].as_str(), held["privateKeyPem"].as_str()) {
-            return PlaceKeyPair { public_key: public_key.to_string(), private_key_pem: pem.to_string() };
-        }
-    }
-    let made = new_place_key_pair();
-    let text = serde_json::to_string_pretty(&serde_json::json!({"publicKey": made.public_key, "privateKeyPem": made.private_key_pem}))
-        .expect("a key pair writes as JSON");
-    let _ = write_own(Path::new(&dirname(&path)), &basename(&path), format!("{text}\n"));
-    made
-}
-
-/// `placeNameHere`: this computer's name lowercased, what a person would type for it.
-fn place_name_here() -> String {
-    hostname().to_lowercase()
-}
-
-/// `hostNameHere`: the name without the `.local` a Mac's mDNS name carries.
-fn host_name_here() -> String {
-    let name = hostname();
-    match name.len().checked_sub(6) {
-        Some(at) if name.is_char_boundary(at) && name[at..].eq_ignore_ascii_case(".local") => name[..at].to_string(),
-        _ => name,
-    }
 }
 
 /// `placeWiring(statePath)` as far as this binary holds it: the host's pair and this computer's own row. The installer,
