@@ -148,7 +148,8 @@ pub trait MachinesRuntime {
     /// `execs`: ends every exec of the workspace with the reason (machines.ts:522).
     fn end_execs(&self, workspace_id: &str, reason: &str);
     async fn entry_of(&self, id: &str) -> Result<Entry, HostError>;
-    fn view(&self, record: &WorkspaceRecord) -> WorkspaceView;
+    /// `ctx.view(record)`: throws for a project this host does not hold (records.ts:88).
+    fn view(&self, record: &WorkspaceRecord) -> Result<WorkspaceView, HostError>;
     async fn persist(&self, record: &WorkspaceRecord) -> Result<(), HostError>;
     async fn emit_status(
         &self,

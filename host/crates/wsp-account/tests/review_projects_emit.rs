@@ -76,7 +76,7 @@ impl Base for Lossy {
     async fn persist(&self, record: WorkspaceRecord) -> Result<(), HostError> {
         self.0.persist(record).await
     }
-    fn view(&self, record: &WorkspaceRecord) -> WorkspaceView {
+    fn view(&self, record: &WorkspaceRecord) -> Result<WorkspaceView, HostError> {
         self.0.view(record)
     }
     fn emit(&self, event: Event) -> Result<(), HostError> {

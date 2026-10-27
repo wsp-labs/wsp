@@ -106,7 +106,7 @@ pub trait SubQueueCtx {
     /// `backendFor(record).limits()` where the backend offers it; `Ok(None)` where it does not.
     async fn limits_of(&self, record: &WorkspaceRecord) -> AreaResult<Option<BoxLimits>>;
     /// `ctx.view(record)` as the TS object.
-    fn view(&self, record: &WorkspaceRecord) -> Value;
+    fn view(&self, record: &WorkspaceRecord) -> Result<Value, HostError>;
     async fn persist(&self, record: &WorkspaceRecord) -> AreaResult<()>;
     async fn persist_sessions(&self, workspace_id: &str) -> AreaResult<()>;
     fn emit(&self, event: Value);
@@ -548,7 +548,7 @@ impl SubQueueArea {
         }
         self.attach_queued(record, wait.as_ref())?;
         self.persist_cell(record).await?;
-        let view = self.ctx.view(&snapshot(record));
+        let view = self.ctx.view(&snapshot(record))?;
         self.ctx
             .emit(json!({ "type": "workspace.created", "workspace": view }));
         drop(self.pump_queue());

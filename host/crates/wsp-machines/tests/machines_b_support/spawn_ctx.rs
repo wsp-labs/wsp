@@ -828,8 +828,10 @@ impl SubSpawnCtx for FakeHost {
         );
         None
     }
-    fn view(&self, record: &WorkspaceRecord) -> Value {
-        json!({ "id": record.id, "name": record.name, "phase": record.phase, "machineId": record.machine_id })
+    fn view(&self, record: &WorkspaceRecord) -> Result<Value, HostError> {
+        Ok(
+            json!({ "id": record.id, "name": record.name, "phase": record.phase, "machineId": record.machine_id }),
+        )
     }
     fn stage_reporter(
         &self,

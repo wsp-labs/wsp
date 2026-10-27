@@ -584,14 +584,11 @@ impl AccountRoad for LandingOver {
             _ => LandingKind::Mac,
         }
     }
-    fn path(&self, name: &str, source: &ProjectSource, deps: &AccountDeps) -> String {
-        self.road.path(name, source, &self.deps_of(deps)).unwrap_or_default()
+    fn path(&self, name: &str, source: &ProjectSource, deps: &AccountDeps) -> Result<String, HostError> {
+        self.road.path(name, source, &self.deps_of(deps))
     }
-    fn memory_dir(&self, project: &ProjectView, memory_key: &str, deps: &AccountDeps) -> String {
-        match self.road.places(project, memory_key, &self.deps_of(deps)) {
-            Ok(places) => places.memory_dir,
-            Err(_) => project.memory_dir.clone(),
-        }
+    fn memory_dir(&self, project: &ProjectView, memory_key: &str, deps: &AccountDeps) -> Result<String, HostError> {
+        Ok(self.road.places(project, memory_key, &self.deps_of(deps))?.memory_dir)
     }
     fn lands_at_add(&self, seeding: bool) -> bool {
         self.road.lands_at_add(seeding)
@@ -646,10 +643,10 @@ impl AccountRoad for Ctx {
     fn kind(&self) -> LandingKind {
         review_provider_road(self).kind()
     }
-    fn path(&self, name: &str, source: &ProjectSource, deps: &AccountDeps) -> String {
+    fn path(&self, name: &str, source: &ProjectSource, deps: &AccountDeps) -> Result<String, HostError> {
         review_provider_road(self).path(name, source, deps)
     }
-    fn memory_dir(&self, project: &ProjectView, memory_key: &str, deps: &AccountDeps) -> String {
+    fn memory_dir(&self, project: &ProjectView, memory_key: &str, deps: &AccountDeps) -> Result<String, HostError> {
         review_provider_road(self).memory_dir(project, memory_key, deps)
     }
     fn lands_at_add(&self, seeding: bool) -> bool {

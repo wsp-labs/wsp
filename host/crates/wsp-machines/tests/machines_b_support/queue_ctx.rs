@@ -128,8 +128,8 @@ impl SubQueueCtx for FakeHost {
         let l = self.backend.limits.lock().unwrap().clone();
         Ok(l)
     }
-    fn view(&self, record: &WorkspaceRecord) -> Value {
-        json!({ "id": record.id, "name": record.name, "phase": record.phase })
+    fn view(&self, record: &WorkspaceRecord) -> Result<Value, HostError> {
+        Ok(json!({ "id": record.id, "name": record.name, "phase": record.phase }))
     }
     async fn persist(&self, record: &WorkspaceRecord) -> AreaResult<()> {
         self.call("persist", &[&record.id]);

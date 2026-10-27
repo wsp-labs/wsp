@@ -11,7 +11,7 @@ use wsp_machines::agents_read as reads;
 use wsp_machines::images::held::HeldImages;
 use wsp_machines::machines::machines::Entry;
 use wsp_machines::places::helpers::{login_here as shared_login_here, HomesHere};
-use wsp_machines::places::types::{FolderMove, HeldRow, PlaceResult, ProjectOn, RowId, SignInEmit, SignInHandle, SpentToday};
+use wsp_machines::places::types::{FolderMove, FolderStage, HeldRow, PlaceResult, ProjectOn, RowId, SignInEmit, SignInHandle, SpentToday};
 use wsp_wire::types::agents_report::{AgentsTarget, AgentsTargetV0};
 use wsp_wire::types::js_number::JsInt;
 use wsp_wire::types::place_word::HERE_PLACE_ID;
@@ -93,6 +93,7 @@ impl Recording {
         key: &str,
         folder: &RecipeFileFoldersValue,
         mv: Option<&FolderMove>,
+        stage: Option<FolderStage>,
     ) -> PlaceResult<HeldRow> {
         let ctx = self.ctx();
         let source = expand_home(&folder.from);
@@ -139,7 +140,7 @@ impl Recording {
             seed: Some(seed),
             id: mv.map(|m| m.id.clone()),
             created_at,
-            report: None,
+            report: stage,
         };
         let added = projects.add(ask, None).await?;
         let project = added.project;
@@ -306,9 +307,9 @@ impl wsp_machines::places::types::PlaceRecording for Recording {
         key: &str,
         folder: &wsp_wire::types::recipe_file::RecipeFileFoldersValue,
         mv: Option<&wsp_machines::places::types::FolderMove>,
-        _stage: Option<std::rc::Rc<dyn Fn(&str)>>,
+        stage: Option<wsp_machines::places::types::FolderStage>,
     ) -> Option<wsp_machines::places::types::PlaceResult<wsp_machines::places::types::HeldRow>> {
-        Some(self.add_folder_here(place_id, key, folder, mv).await)
+        Some(self.add_folder_here(place_id, key, folder, mv, stage).await)
     }
     async fn folder_remote(
         &self,

@@ -96,7 +96,7 @@ fn run<Fut: Future<Output = ()>>(opts: impl FnOnce(&State) -> RuntimeOptions, f:
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a tokio runtime");
     let local = tokio::task::LocalSet::new();
     local.block_on(&rt, async move {
-        let runtime = create_runtime(opts);
+        let runtime = create_runtime(opts).expect("a runtime");
         let ctx = runtime.context();
         f(runtime, ctx).await;
         drop(held);
@@ -874,10 +874,10 @@ fn a_tree_stands_on_no_workspace_for_a_person_and_a_person_reaches_every_row() {
     // waits on packet 5: the boot area reads the live records through its context.
     run(options, |_, c| async move {
         put_live(&c, record("w_1")).await;
-        assert!(!S::tree_stands_on(&*c, "w_1", None, None), "a tree is a thread's: a person has none");
+        assert!(!S::tree_stands_on(&*c, "w_1", None, None).expect("read"), "a tree is a thread's: a person has none");
         let view = view("s_1", "w_1", json!({ "threadId": "t_1" }));
-        assert!(S::reaches_row(&*c, &view, None, None), "a person reaches every row");
-        assert!(S::reaches_row(&*c, &view, None, Some(TreeTalk::Send)));
+        assert!(S::reaches_row(&*c, &view, None, None).expect("read"), "a person reaches every row");
+        assert!(S::reaches_row(&*c, &view, None, Some(TreeTalk::Send)).expect("read"));
     });
 }
 
@@ -889,9 +889,9 @@ fn a_persons_tree_records_are_the_thread_and_record_pairs_of_the_workspace_asked
         put_live(&c, record_with("w_2", json!({ "machineId": "m_2" }))).await;
         put_thread(&c, "t_1", thread("w_1", json!({})));
         put_thread(&c, "t_2", thread("w_2", json!({})));
-        let pairs = S::tree_records(&*c, None, TreeTalk::List, Some("w_1"));
+        let pairs = S::tree_records(&*c, None, TreeTalk::List, Some("w_1")).expect("read");
         assert_eq!(pairs.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(), ["t_1"]);
-        let all = S::tree_records(&*c, None, TreeTalk::List, None);
+        let all = S::tree_records(&*c, None, TreeTalk::List, None).expect("read");
         assert_eq!(all.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(), ["t_1", "t_2"]);
     });
 }
@@ -1024,9 +1024,9 @@ fn listed_rows_are_each_held_row_as_a_listing_answers_it_looked_up_by_its_view_i
 fn placed_rows_of_nothing_are_nothing_and_the_rows_come_back_where_no_computer_is_named() {
     // waits on packet 5.
     run(options, |_, c| async move {
-        assert!(S::placed_rows(&*c, Vec::new()).is_empty());
+        assert!(S::placed_rows(&*c, Vec::new()).await.is_empty());
         let rows = vec![view("s_1", "w_1", json!({ "threadId": "t_1" }))];
-        assert_eq!(S::placed_rows(&*c, rows).len(), 1, "a host with no door names no computer on a row");
+        assert_eq!(S::placed_rows(&*c, rows).await.len(), 1, "a host with no door names no computer on a row");
     });
 }
 
@@ -1378,7 +1378,7 @@ fn a_turn_runs_and_comes_back() {
             adapters: adapters.clone(),
             ..Default::default()
         };
-        let first = create_runtime(opts(store.clone()));
+        let first = create_runtime(opts(store.clone())).expect("a runtime");
         let ctx = first.context();
         put_live(&ctx, record("w_1")).await;
         let (started, _off) = listen(&first, "session.start");
@@ -1403,7 +1403,7 @@ fn a_turn_runs_and_comes_back() {
         assert_eq!(text, "Done. The redirect now sends every old path to the canonical host.");
         drop(first);
 
-        let again = create_runtime(opts(store));
+        let again = create_runtime(opts(store)).expect("a runtime");
         let rows = again.sessions().list(Some("w_1".to_string()), None).await.expect("rows");
         assert_eq!(
             rows.iter().filter_map(|r| r.thread_id.clone()).collect::<Vec<_>>(),

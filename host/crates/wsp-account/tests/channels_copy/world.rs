@@ -502,8 +502,8 @@ impl ChannelsCtx for Sim {
         *self.link_on_event.borrow_mut() = Some(on_event);
         Some(Rc::new(LinkChannel { fx: self.fx.clone(), dropped: self.link_dropped.clone() }))
     }
-    async fn spend_today(&self, _rows: &[PlaceView], _now: i64) -> Vec<(String, Option<f64>)> {
-        vec![]
+    async fn spend_today(&self, _rows: &[PlaceView], _now: i64) -> Result<Vec<(String, Option<f64>)>, HostError> {
+        Ok(vec![])
     }
 
     fn projects_held(&self) -> IndexMap<String, ProjectView> {
@@ -623,8 +623,8 @@ impl ChannelsCtx for Sim {
     fn brokered_env(&self, token: &str, _entry: &Entry) -> IndexMap<String, String> {
         [("HOST_TOKEN".to_string(), token.to_string()), ("GH_TOKEN".to_string(), token.to_string())].into_iter().collect()
     }
-    fn terminal_sign_in(&self, harness: &str, _entry: &Entry, token: &str) -> Option<TerminalSignIn> {
-        match harness {
+    fn terminal_sign_in(&self, harness: &str, _entry: &Entry, token: &str) -> Result<Option<TerminalSignIn>, HostError> {
+        Ok(match harness {
             "claude" => Some(TerminalSignIn {
                 program: Some("claude-bin".into()),
                 env: [("SIGN_IN".to_string(), format!("claude:{token}"))].into_iter().collect(),
@@ -636,7 +636,7 @@ impl ChannelsCtx for Sim {
                     .collect(),
             }),
             _ => None,
-        }
+        })
     }
     fn terminal_line(&self, harness: &str, program: Option<&str>) -> String {
         format!("write-terminal {harness} {}", program.unwrap_or(""))

@@ -149,7 +149,7 @@ async fn run_exec(machine: Arc<dyn Machine>, command: String, env: Option<Env>, 
 }
 
 /// `harnessExec(machine, timeoutMs)` (engine run-env.ts:36) as an adapter takes it.
-pub(super) fn harness_exec_on(machine: Arc<dyn Machine>, timeout_ms: u64) -> Arc<dyn HarnessExec> {
+pub fn harness_exec_on(machine: Arc<dyn Machine>, timeout_ms: u64) -> Arc<dyn HarnessExec> {
     Arc::new(move |command: &str, env: Option<&Env>| run_exec(machine.clone(), command.to_string(), env.cloned(), timeout_ms).boxed_local())
 }
 

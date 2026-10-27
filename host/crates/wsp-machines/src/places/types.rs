@@ -596,6 +596,10 @@ pub struct SignInHandle {
 
 pub type SignInEmit = Rc<dyn Fn(AgentsSignInEvent)>;
 
+/// The progress lines an `addFolder` prints. An alias, as `SayStops` is: `async_trait` ties an elided `&str` inside a
+/// boxed callback to the call, and the add keeps this one past it.
+pub type FolderStage = Rc<dyn Fn(&str)>;
+
 /// The one road into the runtime a place needs (types.ts:391-454). A method documented "absent" answers `None` (or
 /// `false`) where the TS method is missing; the door reads that as the TS reads a missing method.
 #[async_trait(?Send)]
@@ -641,7 +645,7 @@ pub trait PlaceRecording {
         key: &str,
         folder: &RecipeFileFoldersValue,
         mv: Option<&FolderMove>,
-        stage: Option<Rc<dyn Fn(&str)>>,
+        stage: Option<FolderStage>,
     ) -> Option<PlaceResult<HeldRow>>;
     /// Absent: `None`.
     async fn folder_remote(

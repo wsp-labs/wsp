@@ -761,7 +761,7 @@ impl StartFrom {
         let id = record_of(&placed.entry).id;
         let view = self.ctx.start_session(&id, Value::Object(opts), origin).await?;
         let thread_id = view.thread_id.clone().unwrap_or_else(|| view.id.clone());
-        let workspace: WorkspaceOut = read_json(json_of(&self.ctx.view(&record_of(&placed.entry)))?)?;
+        let workspace: WorkspaceOut = read_json(json_of(&self.ctx.view(&record_of(&placed.entry))?)?)?;
         Ok(StartResult { workspace, thread_id, session_id: view.id.clone() })
     }
 

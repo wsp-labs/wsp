@@ -481,7 +481,7 @@ impl SubSpawnArea {
         report(WorkspaceCreateStage::Ready, CREATE_READY, None);
         let released_at = record.borrow().sub.as_ref().and_then(|sub| sub.released_at);
         if released_at.is_none() {
-            let view = self.ctx.view(&record.borrow());
+            let view = self.ctx.view(&record.borrow())?;
             self.ctx
                 .emit(json!({ "type": "workspace.created", "workspace": view }));
         } else {

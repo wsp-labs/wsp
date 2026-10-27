@@ -1043,7 +1043,10 @@ fn tools_and_server_refuse_a_napping_workspace() {
             .await
             .unwrap();
         assert_eq!(
-            js(&server.spec),
+            js(server
+                .spec
+                .downcast_ref::<wsp_wire::views::harness::McpServerSpec>()
+                .expect("the spec the fake reader held")),
             json!({ "command": "npx", "args": ["-y", "airtable"] })
         );
         let calls = rig.server_calls.borrow().clone();

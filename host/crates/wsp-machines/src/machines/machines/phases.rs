@@ -113,7 +113,7 @@ impl MachinesArea {
         }
         let snapshot = Self::record_snapshot(&entry);
         if snapshot.phase != WorkspacePhase::Running {
-            return Ok(self.rt.view(&snapshot));
+            return self.rt.view(&snapshot);
         }
         let (area, held, id_owned, reason_owned) = (
             self.clone(),
@@ -215,7 +215,7 @@ impl MachinesArea {
         self.rt
             .emit_status(entry, ReachState::Napping, reason)
             .await?;
-        Ok(self.rt.view(&Self::record_snapshot(entry)))
+        self.rt.view(&Self::record_snapshot(entry))
     }
 
     /// `armLateRead` (machines.ts:640).
@@ -654,7 +654,7 @@ impl MachinesArea {
         let machine = entry.borrow().machine.clone();
         if !machine.offers().prove_road {
             entry.borrow_mut().unchecked = false;
-            return Ok(self.rt.view(&Self::record_snapshot(entry)));
+            return self.rt.view(&Self::record_snapshot(entry));
         }
         let stop = Cancel::new();
         entry.borrow_mut().wake_stop = Some(stop.clone());
@@ -737,7 +737,7 @@ impl MachinesArea {
         let reach = self.rt.reach_of(entry)?;
         self.rt.emit_status(entry, reach, said.as_deref()).await?;
         match outcome {
-            Wake::Proven => Ok(self.rt.view(&Self::record_snapshot(entry))),
+            Wake::Proven => self.rt.view(&Self::record_snapshot(entry)),
             Wake::Stopped => Err(HostError::new(said.unwrap_or_default())),
             Wake::Failed(EngineError::RestoreUnfinished { .. }) => {
                 Err(HostError::new(said.unwrap_or_default()))

@@ -163,7 +163,7 @@ fn run<Fut: Future<Output = ()>>(opts: impl FnOnce(&Path) -> RuntimeOptions, f: 
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a tokio runtime");
     let local = tokio::task::LocalSet::new();
     local.block_on(&rt, async move {
-        let runtime = create_runtime(opts);
+        let runtime = create_runtime(opts).expect("a runtime");
         let ctx = runtime.context();
         f(runtime, ctx).await
     });
@@ -1076,14 +1076,15 @@ fn a_live_entry_is_found_by_its_id_and_the_projects_held_are_the_cores() {
 fn a_view_of_a_record_is_the_workspace_view_as_a_json_object() {
     run(plain, |_, c| async move {
         BootRuntime::projects_held(&*c).borrow_mut().insert("p_1".into(), project("p_1", "web", "/work/web", "here"));
-        let view = S::view(&*c, &record("w_1", json!({})));
+        let view = S::view(&*c, &record("w_1", json!({}))).expect("a view");
         assert_eq!(view.get("id"), Some(&json!("w_1")));
         assert_eq!(view.get("name"), Some(&json!("alpha")));
         assert_eq!(view.get("phase"), Some(&json!("running")));
         assert_eq!(view["project"]["name"], json!("web"));
-        assert!(
-            S::view(&*c, &record("w_2", json!({ "project": "p_gone" }))).is_empty(),
-            "a project this host does not hold is no view: the TS throws, the trait answers none"
+        assert_eq!(
+            S::view(&*c, &record("w_2", json!({ "project": "p_gone" }))).expect_err("refused").message,
+            "no project \"p_gone\"; this host holds web",
+            "a project this host does not hold is no view: records.ts:88 throws, and so does the trait now"
         );
     });
 }

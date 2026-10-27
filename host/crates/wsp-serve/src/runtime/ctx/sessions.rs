@@ -388,9 +388,9 @@ impl SessionsCtx for Ctx {
     fn thread_of_token(&self, token: &str) -> Result<String, HostError> {
         self.threads.get().thread_of_token(token)
     }
-    fn reaches_row(&self, view: &SessionView, origin: Option<&Caller>, talk: Option<TreeTalk>) -> bool {
+    fn reaches_row(&self, view: &SessionView, origin: Option<&Caller>, talk: Option<TreeTalk>) -> Result<bool, HostError> {
         let at = RowAt { thread_id: view.thread_id.clone(), workspace_id: view.workspace_id.clone() };
-        self.boot.get().reaches_row(&at, origin, talk).unwrap_or(false)
+        self.boot.get().reaches_row(&at, origin, talk)
     }
     fn notify_reach(&self, notify: &[String]) -> IndexSet<String> {
         self.threads.get().notify_reach(notify)
@@ -629,8 +629,8 @@ impl SessionsCtx for Ctx {
     }
 
     // sessions_reads
-    fn tree_stands_on(&self, workspace_id: &str, origin: Option<&Caller>, talk: Option<TreeTalk>) -> bool {
-        self.boot.get().tree_stands_on(workspace_id, origin, talk).unwrap_or(false)
+    fn tree_stands_on(&self, workspace_id: &str, origin: Option<&Caller>, talk: Option<TreeTalk>) -> Result<bool, HostError> {
+        self.boot.get().tree_stands_on(workspace_id, origin, talk)
     }
     fn refuse_named(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<(), HostError> {
         self.rules.get().refuse_named(workspace_id, origin)
@@ -645,18 +645,21 @@ impl SessionsCtx for Ctx {
         self.agents.get().refresh_title(&view, ended).await;
         Ok(())
     }
-    fn tree_records(&self, origin: Option<&Caller>, talk: TreeTalk, workspace_id: Option<&str>) -> Vec<(String, ThreadRecord)> {
-        let found = self.boot.get().tree_records(origin, Some(talk), workspace_id).unwrap_or_default();
-        found.into_iter().map(|(thread, _, record)| (thread, record)).collect()
+    fn tree_records(
+        &self,
+        origin: Option<&Caller>,
+        talk: TreeTalk,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<(String, ThreadRecord)>, HostError> {
+        let found = self.boot.get().tree_records(origin, Some(talk), workspace_id)?;
+        Ok(found.into_iter().map(|(thread, _, record)| (thread, record)).collect())
     }
     fn listed_rows(&self, rows: Vec<SessionView>) -> Vec<SessionView> {
         let held: Vec<Row> = rows.iter().filter_map(|view| self.sessions_row_by_id(&view.id)).collect();
         self.boot.get().listed_rows(&held)
     }
-    fn placed_rows(&self, rows: Vec<SessionView>) -> Vec<SessionView> {
-        let boot = self.boot.get();
-        let placed = boot.placed_rows(rows.clone());
-        placed.now_or_never().unwrap_or(rows)
+    async fn placed_rows(&self, rows: Vec<SessionView>) -> Vec<SessionView> {
+        self.boot.get().placed_rows(rows).await
     }
     fn drives_thread(&self, thread_id: Option<&str>, origin: Option<&Caller>) -> bool {
         self.threads.get().drives_thread(thread_id, origin)

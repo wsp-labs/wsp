@@ -232,7 +232,7 @@ impl AgentsArea {
 
     /// `holdAsk` (agents.ts:43): starts an ask of the agent's own CLI now, so it runs whether or not its caller waits,
     /// and holds it in `agent_asks` until it settles.
-    pub(crate) fn hold<T: Clone + 'static>(&self, ask: LocalBoxFuture<'static, T>) -> Shared<LocalBoxFuture<'static, T>> {
+    pub fn hold<T: Clone + 'static>(&self, ask: LocalBoxFuture<'static, T>) -> Shared<LocalBoxFuture<'static, T>> {
         let shared = ask.shared();
         let id = self.asks_seq.get();
         self.asks_seq.set(id + 1);

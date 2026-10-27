@@ -475,7 +475,7 @@ impl SubSpawnArea {
             delete_after_minutes,
             brokered: branch_of_record.is_some().then_some(true),
         });
-        let view = self.ctx.view(&machine_record.borrow());
+        let view = self.ctx.view(&machine_record.borrow())?;
         let notice = (!notices.is_empty()).then(|| notices.join("\n"));
         Ok(SpawnAnswer {
             view,

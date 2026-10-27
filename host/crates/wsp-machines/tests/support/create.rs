@@ -33,7 +33,7 @@ use wsp_engine::machine::{
 };
 use wsp_engine::Cancel;
 use wsp_machines::machines::create::{
-    CreateArea, CreateRuntime, KeptBuilder, LandingRoad, RecordBranchAsk,
+    Building, CreateArea, CreateRuntime, KeptBuilder, LandingRoad, RecordBranchAsk,
 };
 use wsp_machines::machines::machines::Entry;
 use wsp_machines::places::types::PlaceDoor;
@@ -315,13 +315,19 @@ impl LandingRoad for FakeRoad {
             .and_then(Value::as_str)
             .map(str::to_string)
     }
-    fn memory_dir(&self, _project: &ProjectView, memory_key: &str, _deps: &Value) -> String {
+    fn memory_dir(
+        &self,
+        _project: &ProjectView,
+        memory_key: &str,
+        _deps: &Value,
+    ) -> Result<String, HostError> {
         self.log.push(json!(["road.places", memory_key]));
-        self.road
+        Ok(self
+            .road
             .get("memoryDir")
             .and_then(Value::as_str)
             .unwrap_or("/mem")
-            .to_string()
+            .to_string())
     }
     fn workspace_binds(&self, project: &ProjectView) -> Vec<MachineBind> {
         self.log.push(json!(["road.workspaceBinds", project.id]));
@@ -952,7 +958,7 @@ impl CreateRuntime for FakeRuntime {
         &self,
         golden: &str,
         place_id: Option<&str>,
-        building: &dyn Fn(&str, f64),
+        building: &Building<'_>,
     ) -> Result<String, HostError> {
         self.log.push(json!(["copyForFork", golden, place_id]));
         if place_id.is_some() {
@@ -1203,11 +1209,11 @@ impl CreateRuntime for FakeRuntime {
         self.log.push(json!(["markUsed", place_id]));
         Ok(())
     }
-    fn view(&self, record: &WorkspaceRecord) -> WorkspaceView {
-        view_json(json!({
+    fn view(&self, record: &WorkspaceRecord) -> Result<WorkspaceView, HostError> {
+        Ok(view_json(json!({
             "id": record.id, "name": record.name, "machineId": record.machine_id, "phase": "running", "golden": record.golden,
             "createdAt": VIEW_MARK, "project": {"id": record.project, "name": "", "path": "", "computer": ""},
-        }))
+        })))
     }
     fn ref_of(&self, project: &ProjectView) -> ProjectRef {
         // The oracle's `refOf` answers `{id, name}`; the Rust ref also names a path and a computer, empty here.

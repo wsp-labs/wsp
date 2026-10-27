@@ -240,7 +240,7 @@ async fn wake_attempt(ctx: &Rc<dyn PhasesCtx>, entry: &Entry, id: &str, landed: 
     }
     let reach = ctx.reach_of(entry);
     ctx.emit_status(entry, &reach, result.reason.as_deref()).await.map_err(WakeFail::Host)?;
-    Ok(ctx.view(&record_of(entry)))
+    ctx.view(&record_of(entry)).map_err(WakeFail::Host)
 }
 
 /// How a wake attempt ended short of an answer: the engine's error, a host error, or the stop the person pulled.
@@ -431,7 +431,7 @@ pub async fn disk_gone(ctx: &Rc<dyn PhasesCtx>, entry: &Entry, e: EngineError) -
     ctx.tell_threads(&id, &line);
     let reach = ctx.reach_of(entry);
     ctx.emit_status(entry, &reach, Some(&line)).await?;
-    Ok(ctx.view(&record_of(entry)))
+    ctx.view(&record_of(entry))
 }
 
 // ts: workspaces.ts:289-293
@@ -583,7 +583,7 @@ pub async fn wake(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> 
     if phase_of(&entry) == WorkspacePhase::Gone {
         match ctx.recover_gone(&entry).await? {
             None => return Err(gone_refusal_of(&entry, "wake")),
-            Some(WorkspacePhase::Running) => return Ok(ctx.view(&record_of(&entry))),
+            Some(WorkspacePhase::Running) => return ctx.view(&record_of(&entry)),
             Some(_) => {}
         }
     }
@@ -621,7 +621,7 @@ pub async fn wake(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> 
         if entry.borrow().unchecked {
             return ctx.proven(&entry).await;
         }
-        return Ok(ctx.view(&record_of(&entry)));
+        return ctx.view(&record_of(&entry));
     }
     ctx.refuse_pauseless(&entry, "be woken")?;
     let stop = Cancel::new();
@@ -700,7 +700,7 @@ pub async fn resize(ctx: &Rc<dyn PhasesCtx>, id: &str, size: SizeAsk, origin: Op
     }
     let current = read_rec(&entry, |r| (r.size.cpu, r.size.mem_mb));
     if current == (size.cpu, size.mem_mb) {
-        return Ok(ctx.view(&record_of(&entry)));
+        return ctx.view(&record_of(&entry));
     }
     let mut threads: Vec<String> = Vec::new();
     for s in ctx.session_views() {
@@ -744,7 +744,7 @@ pub async fn resize(ctx: &Rc<dyn PhasesCtx>, id: &str, size: SizeAsk, origin: Op
         let name = name_of(&entry);
         return Err(conflict(refusal_line(&resize_landed_line(&name, &workspace_size(landed), &want), RESIZE_AGAIN_FIX)));
     }
-    Ok(ctx.view(&record_of(&entry)))
+    ctx.view(&record_of(&entry))
 }
 
 /// The size the provider reports after a move, kept on the record (workspaces.ts:324-332).
@@ -789,7 +789,7 @@ pub async fn stop_wake(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>
     if let Some(waking) = waking {
         let _ = waking.await;
     }
-    Ok(ctx.view(&record_of(&entry)))
+    ctx.view(&record_of(&entry))
 }
 
 // ts: workspaces.ts:473-481
@@ -810,7 +810,7 @@ pub async fn upgrade(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) 
     ctx.persist(record_of(&entry)).await?;
     let machine_id = read_rec(&entry, |r| r.machine_id.clone());
     ctx.emit(json!({ "type": "workspace.upgraded", "workspaceId": id, "machineId": machine_id }))?;
-    Ok(ctx.view(&record_of(&entry)))
+    ctx.view(&record_of(&entry))
 }
 
 // ts: workspaces.ts:483-527
@@ -867,7 +867,7 @@ pub async fn rebuild(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) 
         let _ = waking.await;
     }
     if ctx.recover_gone(&entry).await?.is_some() {
-        return Ok(ctx.view(&record_of(&entry)));
+        return ctx.view(&record_of(&entry));
     }
     if ctx.keeps_images(&entry) && ctx.pause_keeps_disk(&entry) && phase_of(&entry) != WorkspacePhase::Running {
         let asleep = read_rec(&entry, |r| r.machine_id.clone());
@@ -876,7 +876,7 @@ pub async fn rebuild(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) 
             return Err(conflict(format!("{name} could not be woken to back up before the rebuild: {}", e.message)));
         }
         if read_rec(&entry, |r| r.machine_id.clone()) != asleep {
-            return Ok(ctx.view(&record_of(&entry)));
+            return ctx.view(&record_of(&entry));
         }
     }
     let old = read_rec(&entry, |r| r.machine_id.clone());
@@ -904,7 +904,7 @@ pub async fn rebuild(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) 
     console::warn(&format!("rebuild of {id}: {reason}"));
     let reach = ctx.reach_of(&entry);
     ctx.emit_status(&entry, &reach, Some(&reason)).await?;
-    Ok(ctx.view(&record_of(&entry)))
+    ctx.view(&record_of(&entry))
 }
 
 // ts: workspaces.ts:529-540
@@ -924,7 +924,7 @@ pub async fn rename(ctx: &Rc<dyn PhasesCtx>, id: &str, typed: &str, origin: Opti
     let entry = ctx.entry_of(id, origin, EntryAsk::default()).await?;
     let name = ctx.name_given(typed);
     if name_of(&entry) == name {
-        return Ok(ctx.view(&record_of(&entry)));
+        return ctx.view(&record_of(&entry));
     }
     if let Some(refusal) = ctx.name_refusal(&name) {
         return Err(conflict(refusal));
@@ -936,7 +936,7 @@ pub async fn rename(ctx: &Rc<dyn PhasesCtx>, id: &str, typed: &str, origin: Opti
     let value = serde_json::to_value(&named).map_err(|e| HostError::new(e.to_string()))?;
     ctx.store().put(WORKSPACE_NAMES, id, value).await?;
     ctx.emit(json!({ "type": "workspace.renamed", "workspaceId": id, "name": name }))?;
-    Ok(ctx.view(&record_of(&entry)))
+    ctx.view(&record_of(&entry))
 }
 
 // ts: workspaces.ts:542-549
@@ -957,7 +957,7 @@ pub async fn look(ctx: &Rc<dyn PhasesCtx>, id: &str, look: WorkspaceLook, origin
     ctx.persist(record_of(&entry)).await?;
     let (theme, glyph) = read_rec(&entry, |r| (r.theme.clone(), r.glyph));
     ctx.emit(json!({ "type": "workspace.look", "workspaceId": id, "theme": theme, "glyph": glyph }))?;
-    Ok(ctx.view(&record_of(&entry)))
+    ctx.view(&record_of(&entry))
 }
 
 // ts: workspaces.ts:551-560

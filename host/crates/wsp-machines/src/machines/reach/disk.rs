@@ -434,7 +434,7 @@ impl ReachArea {
             .backend_for(&record)?
             .pricing()
             .rate_usd_per_hour(sized(&record));
-        let mut status: Map<String, Value> = match self.ctx.view(&record) {
+        let mut status: Map<String, Value> = match self.ctx.view(&record)? {
             Value::Object(view) => view,
             _ => Map::new(),
         };

@@ -168,7 +168,7 @@ impl Base for FakeReview {
     async fn persist(&self, record: WorkspaceRecord) -> Result<(), HostError> {
         self.b().persist(record).await
     }
-    fn view(&self, record: &WorkspaceRecord) -> WorkspaceView {
+    fn view(&self, record: &WorkspaceRecord) -> Result<WorkspaceView, HostError> {
         self.b().view(record)
     }
     fn emit(&self, event: Event) -> Result<(), HostError> {

@@ -188,31 +188,11 @@ impl LandingRoad for FakeRoad {
     fn kind(&self) -> LandingKind {
         self.kind
     }
-    fn path(&self, name: &str, source: &ProjectSource, deps: &LandingDeps) -> String {
-        self.base.call(
-            "road_path",
-            json!({ "kind": kind_word(self.kind), "name": name, "source": source_json(source), "deps": Self::deps_json(deps) }),
-        );
-        if let Some(v) = self.scripted("path") {
-            return v.as_str().unwrap().to_owned();
-        }
-        match (self.kind, source) {
-            (_, ProjectSource::Folder(f)) if self.kind == LandingKind::Mac => f.path.clone(),
-            (LandingKind::Box, _) => {
-                format!("{}/{name}", deps.computer.as_ref().map(|c| c.home.clone()).unwrap_or_else(|| "/root".to_owned()))
-            }
-            _ => format!("/root/{name}"),
-        }
+    fn path(&self, name: &str, source: &ProjectSource, deps: &LandingDeps) -> Result<String, HostError> {
+        Ok(self.path_plain(name, source, deps))
     }
-    fn memory_dir(&self, project: &ProjectView, memory_key: &str, deps: &LandingDeps) -> String {
-        self.base.call(
-            "road_memory_dir",
-            json!({ "kind": kind_word(self.kind), "project": project.id, "name": project.name, "path": project.path, "memoryKey": memory_key, "deps": Self::deps_json(deps) }),
-        );
-        match self.scripted("memory_dir") {
-            Some(v) => v.as_str().unwrap().to_owned(),
-            None => format!("{HOME}/.claude/projects/{memory_key}/memory"),
-        }
+    fn memory_dir(&self, project: &ProjectView, memory_key: &str, deps: &LandingDeps) -> Result<String, HostError> {
+        Ok(self.memory_dir_plain(project, memory_key, deps))
     }
     fn lands_at_add(&self, seeding: bool) -> bool {
         self.base.call("road_lands_at_add", json!({ "kind": kind_word(self.kind), "seeding": seeding }));
@@ -706,7 +686,7 @@ impl Base for FakeProjects {
     async fn persist(&self, record: WorkspaceRecord) -> Result<(), HostError> {
         self.me().persist(record).await
     }
-    fn view(&self, record: &WorkspaceRecord) -> WorkspaceView {
+    fn view(&self, record: &WorkspaceRecord) -> Result<WorkspaceView, HostError> {
         self.me().view(record)
     }
     fn emit(&self, event: Event) -> Result<(), HostError> {
@@ -1180,4 +1160,36 @@ pub fn scratch_root(script: &str) -> Option<String> {
         }
     }
     None
+}
+
+impl FakeRoad {
+    fn path_plain(&self, name: &str, source: &ProjectSource, deps: &LandingDeps) -> String {
+        self.base.call(
+            "road_path",
+            json!({ "kind": kind_word(self.kind), "name": name, "source": source_json(source), "deps": Self::deps_json(deps) }),
+        );
+        if let Some(v) = self.scripted("path") {
+            return v.as_str().unwrap().to_owned();
+        }
+        match (self.kind, source) {
+            (_, ProjectSource::Folder(f)) if self.kind == LandingKind::Mac => f.path.clone(),
+            (LandingKind::Box, _) => {
+                format!("{}/{name}", deps.computer.as_ref().map(|c| c.home.clone()).unwrap_or_else(|| "/root".to_owned()))
+            }
+            _ => format!("/root/{name}"),
+        }
+    }
+}
+
+impl FakeRoad {
+    fn memory_dir_plain(&self, project: &ProjectView, memory_key: &str, deps: &LandingDeps) -> String {
+        self.base.call(
+            "road_memory_dir",
+            json!({ "kind": kind_word(self.kind), "project": project.id, "name": project.name, "path": project.path, "memoryKey": memory_key, "deps": Self::deps_json(deps) }),
+        );
+        match self.scripted("memory_dir") {
+            Some(v) => v.as_str().unwrap().to_owned(),
+            None => format!("{HOME}/.claude/projects/{memory_key}/memory"),
+        }
+    }
 }

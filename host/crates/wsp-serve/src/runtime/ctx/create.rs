@@ -23,7 +23,7 @@ use wsp_engine::machine::{Machine, MachineBackend};
 use wsp_machines::images::image::Announce;
 use wsp_machines::machines::area_error::{AreaError, AreaResult};
 use wsp_machines::machines::boot::ComputerRow;
-use wsp_machines::machines::create::{CreateRuntime, KeptBuilder, LandingRoad, RecordBranchAsk};
+use wsp_machines::machines::create::{Building, CreateRuntime, KeptBuilder, LandingRoad, RecordBranchAsk};
 use wsp_machines::machines::kinds::KindsCtx;
 use wsp_machines::machines::machines::{Entry, Ids};
 use wsp_machines::machines::sub_life::SessionFile;
@@ -94,11 +94,8 @@ impl LandingRoad for RoadOver {
     fn refusal(&self, project: &ProjectView, deps: &Value) -> Option<String> {
         self.0.refusal(project, &deps_of(deps))
     }
-    fn memory_dir(&self, project: &ProjectView, memory_key: &str, deps: &Value) -> String {
-        match self.0.places(project, memory_key, &deps_of(deps)) {
-            Ok(places) => places.memory_dir,
-            Err(_) => project.memory_dir.clone(),
-        }
+    fn memory_dir(&self, project: &ProjectView, memory_key: &str, deps: &Value) -> Result<String, HostError> {
+        Ok(self.0.places(project, memory_key, &deps_of(deps))?.memory_dir)
     }
     fn workspace_binds(&self, project: &ProjectView) -> Vec<wsp_wire::views::place::MachineBind> {
         self.0.workspace_binds(project)
@@ -150,13 +147,6 @@ impl Ctx {
     fn create_live_records(&self) -> Vec<Rc<RefCell<WorkspaceRecord>>> {
         self.live.borrow().values().map(|entry| entry.borrow().record.clone()).collect()
     }
-}
-
-/// `async_trait` ties the `&str` of `building` to the borrow of `building` itself, so a line said here, which no caller
-/// keeps past its call, is handed over at that lifetime.
-fn said_to<'a, 'b>(building: &'b dyn Fn(&'a str, f64), place: &str, rate: f64) {
-    let place: &'a str = unsafe { std::mem::transmute::<&str, &'a str>(place) };
-    building(place, rate);
 }
 
 fn host_of(e: AccountError) -> HostError {
@@ -219,7 +209,7 @@ impl CreateRuntime for Ctx {
     fn keeps_images(&self, at: &Arc<dyn MachineBackend>) -> bool {
         self.kinds.get().keeps_images(&**at)
     }
-    async fn copy_for_fork(&self, golden: &str, place_id: Option<&str>, building: &dyn Fn(&str, f64)) -> Result<String, HostError> {
+    async fn copy_for_fork(&self, golden: &str, place_id: Option<&str>, building: &Building<'_>) -> Result<String, HostError> {
         let (said, mut heard) = mpsc::unbounded::<(String, f64)>();
         let announce: Announce = Rc::new(move |place: &str, rate: f64| {
             let _ = said.unbounded_send((place.to_string(), rate));
@@ -234,14 +224,14 @@ impl CreateRuntime for Ctx {
             }
             futures::select! {
                 line = heard.next() => match line {
-                    Some((place, rate)) => said_to(building, &place, rate),
+                    Some((place, rate)) => building(&place, rate),
                     None => open = false,
                 },
                 made = copy => break made,
             }
         };
         while let Ok((place, rate)) = heard.try_recv() {
-            said_to(building, &place, rate);
+            building(&place, rate);
         }
         made.map_err(|e| HostError::new(e.message()))
     }
@@ -371,8 +361,8 @@ impl CreateRuntime for Ctx {
             None => Ok(()),
         }
     }
-    fn view(&self, record: &WorkspaceRecord) -> WorkspaceView {
-        self.records.get().view(record).unwrap_or_else(|e| panic!("{}", e.message))
+    fn view(&self, record: &WorkspaceRecord) -> Result<WorkspaceView, HostError> {
+        self.records.get().view(record)
     }
     fn ref_of(&self, project: &ProjectView) -> ProjectRef {
         self.channels.get().ref_of(project)
@@ -542,9 +532,9 @@ impl SubSpawnCtx for Ctx {
     fn queue_wait(&self, place: &str, limits: Option<&BoxLimits>) -> Option<ThreadCapWait> {
         self.sub_queue.get().queue_wait(place, limits)
     }
-    fn view(&self, record: &WorkspaceRecord) -> Value {
-        let view = self.records.get().view(record).unwrap_or_else(|e| panic!("{}", e.message));
-        serde_json::to_value(view).expect("a view serializes as JSON")
+    fn view(&self, record: &WorkspaceRecord) -> Result<Value, HostError> {
+        let view = self.records.get().view(record)?;
+        serde_json::to_value(view).map_err(|e| HostError::new(e.to_string()))
     }
     fn stage_reporter(&self, id: &str, name: &str, started_at: f64, asked_by: Option<Value>) -> StageReport {
         let scope = asked_by.and_then(|asked| {

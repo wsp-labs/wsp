@@ -545,7 +545,7 @@ impl SessionsArea {
             .launch_picks(
                 &entry,
                 &harness,
-                adapter.as_ref(),
+                adapter.clone(),
                 &st.p.prefs,
                 &thread_id,
                 &LaunchAsked {

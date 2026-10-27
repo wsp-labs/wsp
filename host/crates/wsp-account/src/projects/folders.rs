@@ -50,7 +50,7 @@ pub trait FoldersCtx: Base {
     /// `backendOfKind(kind, place).get(place ?? LOCAL_MACHINE_ID)` and that backend's `pricing.defaultSize`.
     async fn folder_machine(&self, kind: WorkspaceKind, place: Option<&str>) -> Result<(Arc<dyn Machine>, WorkspaceSize), HostError>;
     /// `ctx.attach(record, machine)`: the record becomes a live entry.
-    fn attach(&self, record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Entry;
+    fn attach(&self, record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Result<Entry, HostError>;
     /// `ctx.foldersOf(projectId)`: the live folder records of a project, in insertion order.
     fn folders_of(&self, project_id: &str) -> Vec<Entry>;
     /// `ctx.oneFolder(key, make)`: a second caller of one key joins the first's make.
@@ -70,7 +70,7 @@ pub trait FoldersCtx: Base {
     /// `ctx.checkpointsLanding.get(threadId)` awaited, its failure dropped.
     async fn checkpoints_landed(&self, thread_id: &str);
     /// `ctx.notARepo(record)`.
-    fn not_a_repo(&self, record: &WorkspaceRecord) -> bool;
+    fn not_a_repo(&self, record: &WorkspaceRecord) -> Result<bool, HostError>;
     /// `ctx.readPullRequest(entry, force)`; the fact lands on the record and the entry.
     async fn read_pull_request(&self, entry: &Entry, force: bool) -> Result<(), HostError>;
     /// `ctx.statusNow(entry)`.

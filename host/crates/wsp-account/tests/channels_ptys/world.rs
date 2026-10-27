@@ -565,9 +565,9 @@ impl ChannelsCtx for World {
         self.link_listeners.borrow_mut().push((place_id.to_string(), on_event));
         Some(link)
     }
-    async fn spend_today(&self, rows: &[PlaceView], now: i64) -> Vec<(String, Option<f64>)> {
+    async fn spend_today(&self, rows: &[PlaceView], now: i64) -> Result<Vec<(String, Option<f64>)>, HostError> {
         self.spend_asked.borrow_mut().push((rows.iter().map(|r| r.id.clone()).collect(), now));
-        self.spend.borrow().clone()
+        Ok(self.spend.borrow().clone())
     }
     fn projects_held(&self) -> IndexMap<String, ProjectView> {
         self.projects.borrow().clone()
@@ -686,7 +686,7 @@ impl ChannelsCtx for World {
     fn brokered_env(&self, _token: &str, _entry: &Entry) -> IndexMap<String, String> {
         unreachable!()
     }
-    fn terminal_sign_in(&self, _harness: &str, _entry: &Entry, _token: &str) -> Option<TerminalSignIn> {
+    fn terminal_sign_in(&self, _harness: &str, _entry: &Entry, _token: &str) -> Result<Option<TerminalSignIn>, HostError> {
         unreachable!()
     }
     fn terminal_line(&self, _harness: &str, _program: Option<&str>) -> String {

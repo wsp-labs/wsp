@@ -185,7 +185,7 @@ fn drive<Fut: std::future::Future<Output = ()>>(opts: RuntimeOptions, f: impl Fn
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a tokio runtime");
     let local = tokio::task::LocalSet::new();
     local.block_on(&rt, async move {
-        let runtime = create_runtime(opts);
+        let runtime = create_runtime(opts).expect("a runtime");
         let ctx: Rc<Ctx> = runtime.context();
         f(ctx, runtime).await
     });

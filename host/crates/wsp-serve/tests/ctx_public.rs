@@ -48,7 +48,7 @@ fn world() -> World {
     let backend: Arc<dyn MachineBackend> = Arc::new(FakeBackend::new(FakeBackendOptions::default()));
     let opts =
         RuntimeOptions { backend: Some(backend.clone()), store: Some(store.clone()), clock: Some(clock.clock()), ..Default::default() };
-    let rt = create_runtime(opts);
+    let rt = create_runtime(opts).expect("a runtime");
     let c = rt.context();
     World { rt, c, store, clock, backend, _home: home }
 }
@@ -72,11 +72,21 @@ fn workspace_record(id: &str, place: Option<&str>, project: &str) -> Rc<RefCell<
     Rc::new(RefCell::new(serde_json::from_value(raw).expect("a workspace record")))
 }
 
+fn held_project(id: &str) -> ProjectView {
+    serde_json::from_value(json!({
+        "id": id, "name": format!("proj-{id}"), "computer": "here", "path": "/home/me/web", "source": { "kind": "folder", "path": "/home/me/web" },
+        "remote": "", "defaultBranch": "main", "memoryKey": "", "memoryDir": "", "createdAt": "2026-10-26T00:00:00.000Z",
+    }))
+    .expect("a project")
+}
+
 /// A live entry on a machine of the fake backend, kept in the context's live map.
 async fn attached(w: &World, id: &str, place: Option<&str>, project: &str) -> Entry {
     let spec: wsp_engine::machine::MachineSpec = serde_json::from_value(json!({ "kind": "sandbox" })).expect("a machine spec");
     let machine = w.backend.create(spec, None, None).await.expect("a machine");
     let entry = BootRuntime::attach(&*w.c, &workspace_record(id, None, project), machine).expect("an entry");
+    // The TS view of a record throws for a project the host does not hold (records.ts:88), so the host holds this one.
+    BootRuntime::projects_held(&*w.c).borrow_mut().entry(project.to_string()).or_insert_with(|| held_project(project));
     // A record that names a place goes through the place door on attach; the name is put on after, as a joined computer's would be.
     entry.borrow().record.borrow_mut().place = place.map(str::to_string);
     BootRuntime::live(&*w.c).borrow_mut().insert(id.to_string(), entry.clone());
@@ -254,7 +264,10 @@ fn core_answers_a_launch_with_no_road_and_names_a_kinds_turn_road() {
         assert_eq!(reach.url, None, "no address is dialled where no relay is wired");
         assert!(reach.wsp.is_some());
         assert_eq!(CoreCtx::agents_reach(&*w.c, "w_none"), None);
-        assert_eq!(CoreCtx::turn_road(&*w.c, WorkspaceKind::Cloud), WorkspaceOrigin::Relayed);
+        assert_eq!(CoreCtx::turn_road(&*w.c, WorkspaceKind::Cloud).expect("a road"), WorkspaceOrigin::Relayed);
+        // join A (#2476): a kind this host serves no module of throws in the TS (`moduleOf`), so it is a refusal, not a panic.
+        let refused = CoreCtx::turn_road(&*w.c, WorkspaceKind::Local).expect_err("no local wiring");
+        assert_eq!(refused.message, wsp_words::words::computer::no_kind_line("local"));
     });
 }
 
@@ -775,10 +788,8 @@ fn close_cancels_a_snooze_so_its_wake_never_says_the_thread_marked() {
 }
 
 // A runtime that is closed and dropped is freed: the context and its areas hold each other, and the close is where
-// that is cut. Waits on a `Late::clear` in wsp-core (outside this packet's two files): the slot is a `OnceCell` the
-// context cannot empty through a shared `Rc`.
+// that is cut (join A, #2476: `Late::clear` on each area slot).
 #[test]
-#[ignore = "waits on Late::clear in wsp-core, which this packet's files cannot add"]
 fn a_closed_runtime_is_freed_when_it_is_dropped() {
     run(|w| async move {
         let World { rt, c, .. } = w;

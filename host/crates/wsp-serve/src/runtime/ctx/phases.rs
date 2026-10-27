@@ -19,9 +19,7 @@ use wsp_account::projects::folders::tree::RemoveAsk;
 use wsp_account::projects::workspaces::git::{GitCtx, PullRequestOn, SentTo};
 use wsp_account::projects::workspaces::phases::{MachineRead, PhasesCtx, ResumeAsks};
 use wsp_account::projects::workspaces::seam::Entry;
-use wsp_adapters::port::{
-    AdapterError, DraftAsk, Env, ExecFailure, ExecFailureKind, ExecOptions, ExecStream, HarnessExec, SharedFuture, WriteOutcome,
-};
+use wsp_adapters::port::{AdapterError, DraftAsk, ExecFailure, ExecFailureKind, ExecOptions, ExecStream, SharedFuture, WriteOutcome};
 use wsp_core::types::internal::label_of;
 use wsp_core::types::wiring::{settled, RunningExec, SizeAsk, WorkspaceRecord};
 use wsp_engine::errors::{EngineError, ErrorKind};
@@ -31,13 +29,14 @@ use wsp_engine::lifecycle::WakeResult;
 use wsp_engine::machine::{ExecOptions as MachineExecOptions, Machine, MachineState};
 use wsp_machines::machines::area_error::AreaError;
 use wsp_threads::threads::agents::launch::AdapterAsk;
+use wsp_threads::threads::agents::lists;
 use wsp_wire::views::workspace::{Caller, ProjectView, ReachState, WorkspacePhase};
 use wsp_wire::views::workspace_more::WorkspaceView;
 use wsp_wire::wire::capabilities::Capabilities;
 use wsp_wire::wire::machine_link::{ExecResult, MachineShape};
 use wsp_words::exit::HostError;
 use wsp_words::words::thread::{gone_words, GoneSeenBy, GoneSighting};
-use wsp_words::workspace_state::{is_local_workspace, kind_words};
+use wsp_words::workspace_state::{is_local_workspace, kind_words, machine_word};
 
 use super::Ctx;
 use crate::runtime::core::{reads_state, took_the_resume};
@@ -70,15 +69,6 @@ fn record_of(entry: &Entry) -> WorkspaceRecord {
 
 fn machine_of(entry: &Entry) -> Arc<dyn Machine> {
     entry.borrow().machine.clone()
-}
-
-/// `harnessExec(machine, timeoutMs)` as an adapter takes it: the command's stdout alone answers.
-fn harness_exec_on(machine: Arc<dyn Machine>, timeout_ms: u64) -> Arc<dyn HarnessExec> {
-    let run = wsp_engine::run_env::harness_exec(machine, timeout_ms);
-    Arc::new(move |command: &str, env: Option<&Env>| {
-        let read = run(command.to_string(), env.cloned());
-        async move { read.await.map_err(|e| wsp_core::machine_exec::factory::exec_failure_of(&e)) }.boxed_local()
-    })
 }
 
 impl Ctx {
@@ -307,10 +297,16 @@ impl PhasesCtx for Ctx {
         self.phases_module(entry).is_some_and(|module| module.restart_daemon(&entry.borrow()).is_some())
     }
     async fn restart_daemon_of(&self, entry: &Entry) -> Result<(), HostError> {
-        let restart = self.phases_module(entry).and_then(|module| module.restart_daemon(&entry.borrow()));
+        let record = record_of(entry);
+        let module = self.kinds.get().module_of(record.kind)?;
+        let restart = module.restart_daemon(&entry.borrow());
         match restart {
             Some(restart) => restart.await,
-            None => Err(HostError::new("this kind has no daemon to restart")),
+            None => Err(HostError::new(format!(
+                "{}'s daemon runs on {}, which this host does not hold the process of",
+                record.name,
+                machine_word(&record.kind)
+            ))),
         }
     }
     fn shared_daemon(&self, entry: &Entry) -> bool {
@@ -520,7 +516,7 @@ impl GitCtx for Ctx {
     }
     async fn drafter(&self, entry: &Entry, agent: &str) -> Result<Option<Option<String>>, HostError> {
         let built = self.phases_adapter(entry, agent).await?;
-        let drafts = built.adapter.draft_for(DraftAsk::default(), harness_exec_on(machine_of(entry), 0)).is_some();
+        let drafts = built.adapter.draft_for(DraftAsk::default(), lists::harness_exec_on(machine_of(entry), 0)).is_some();
         if !drafts {
             return Ok(None);
         }
@@ -542,7 +538,7 @@ impl GitCtx for Ctx {
     async fn draft_for(&self, entry: &Entry, agent: &str, prompt_file: &str, model: Option<&str>) -> Result<Option<String>, HostError> {
         let built = self.phases_adapter(entry, agent).await?;
         let ask = DraftAsk { prompt_file: prompt_file.to_string(), model: model.map(str::to_string) };
-        let exec = harness_exec_on(machine_of(entry), wsp_core::types::events::TITLE_MAKE_TIMEOUT_MS);
+        let exec = lists::harness_exec_on(machine_of(entry), wsp_core::types::events::TITLE_MAKE_TIMEOUT_MS);
         match built.adapter.draft_for(ask, exec) {
             Some(answer) => answer.await.map_err(|e| HostError::new(e.message)),
             None => Err(HostError::new(AdapterError("draftFor is not a function".into()).to_string())),

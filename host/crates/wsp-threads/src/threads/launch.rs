@@ -122,7 +122,8 @@ pub trait LaunchCtx {
     fn adapter_warms(&self, adapter: &dyn HarnessAdapter) -> bool;
     async fn confine_setup(&self, entry: &Entry, harness: &str) -> Result<(), HostError>;
     /// `harnessCatalog(harness) === undefined ? undefined : ctx.catalogOn(table, entry, adapter)`, with the table read.
-    async fn catalog_on(&self, harness: &str, entry: &Entry, adapter: &dyn HarnessAdapter) -> Result<Option<HarnessCatalog>, HostError>;
+    async fn catalog_on(&self, harness: &str, entry: &Entry, adapter: Arc<dyn HarnessAdapter>)
+        -> Result<Option<HarnessCatalog>, HostError>;
     /// `ctx.defaultsOn(catalog, prefs, prefs.projectDefaults[project])`.
     fn defaults_on(&self, catalog: HarnessCatalog, prefs: &Preferences, project: &str) -> DefaultsOn;
     fn named_mode(&self, catalog: Option<&HarnessCatalog>, harness: &str, access: &AccessChoice) -> Result<Option<String>, HostError>;
@@ -191,7 +192,7 @@ impl LaunchArea {
         &self,
         entry: &Entry,
         harness: &str,
-        adapter: &dyn HarnessAdapter,
+        adapter: Arc<dyn HarnessAdapter>,
         prefs: &Preferences,
         thread_id: &str,
         asked: &LaunchAsked,
@@ -359,7 +360,7 @@ impl LaunchArea {
             return Ok(warm_result(SessionWarmResultWarm::None));
         }
         self.ctx.confine_setup(entry, harness).await?;
-        let read = self.launch_picks(entry, harness, &*probe, prefs, &thread_id, &launch_asked(asked)).await?;
+        let read = self.launch_picks(entry, harness, probe.clone(), prefs, &thread_id, &launch_asked(asked)).await?;
         let picks = (read.picks_for)(None)?;
         let folder = self.ctx.thread_folder(entry, asked.cwd.as_deref()).await?;
         if local && !self.ctx.folder_exists(&folder) {

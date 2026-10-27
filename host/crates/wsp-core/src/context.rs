@@ -4,7 +4,7 @@
 //!
 //! The runtime's one shared object under Proposal 2: one thread owns it, state is reached only through
 //! `StateCell::with`, and every area through a slot filled after construction and read at the moment it is called.
-use std::cell::{OnceCell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use futures::future::{LocalBoxFuture, Shared};
@@ -87,28 +87,38 @@ impl<S> StateCell<S> {
 /// One member of the context, filled once after construction and read when called.
 pub struct Late<T> {
     name: &'static str,
-    cell: OnceCell<T>,
+    cell: RefCell<Option<T>>,
 }
 
 impl<T: Clone> Late<T> {
     pub fn named(name: &'static str) -> Self {
-        Late { name, cell: OnceCell::new() }
+        Late { name, cell: RefCell::new(None) }
     }
     /// Panics `<name> was built twice` on a second fill.
     pub fn fill(&self, value: T) {
-        if self.cell.set(value).is_err() {
+        let mut cell = self.cell.borrow_mut();
+        if cell.is_some() {
+            drop(cell);
             panic!("{} was built twice", self.name);
         }
+        *cell = Some(value);
+    }
+    /// Empties the slot, so the value it held is dropped: a context that holds its areas and is held by them is freed
+    /// only once the close has cleared each slot. A read after is a read before the build.
+    pub fn clear(&self) {
+        let held = self.cell.borrow_mut().take();
+        drop(held);
     }
     /// Panics `the runtime read <name> before it was built` before the fill.
     pub fn get(&self) -> T {
-        match self.cell.get() {
-            Some(v) => v.clone(),
+        let held = self.cell.borrow().clone();
+        match held {
+            Some(v) => v,
             None => panic!("the runtime read {} before it was built", self.name),
         }
     }
     pub fn is_filled(&self) -> bool {
-        self.cell.get().is_some()
+        self.cell.borrow().is_some()
     }
 }
 

@@ -92,7 +92,7 @@ fn run<Fut: Future<Output = ()>>(opts: RuntimeOptions, f: impl FnOnce(Rc<Assembl
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a tokio runtime");
     let local = tokio::task::LocalSet::new();
     local.block_on(&rt, async move {
-        let runtime = create_runtime(opts);
+        let runtime = create_runtime(opts).expect("a runtime");
         let ctx = runtime.context();
         f(runtime, ctx).await
     });
@@ -900,7 +900,7 @@ fn channels_with_a_door_every_place_read_is_the_doors() {
 fn channels_spend_today_asks_the_status_tracker_for_each_place() {
     // waits on packet 15: `ctx.status_tracker` is filled there.
     run(options(), |_, c| async move {
-        assert!(ChannelsCtx::spend_today(&*c, &[], 1_000).await.is_empty());
+        assert!(ChannelsCtx::spend_today(&*c, &[], 1_000).await.expect("a spend").is_empty());
     });
 }
 

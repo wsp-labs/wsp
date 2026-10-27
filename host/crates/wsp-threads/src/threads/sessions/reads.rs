@@ -43,7 +43,7 @@ impl SessionsArea {
     pub async fn list_rows(&self, workspace_id: Option<String>, origin: Option<Caller>) -> Result<Vec<SessionView>, HostError> {
         self.ctx.ready().await?;
         if let Some(workspace_id) = &workspace_id {
-            if !self.ctx.tree_stands_on(workspace_id, origin.as_ref(), Some(TreeTalk::List)) {
+            if !self.ctx.tree_stands_on(workspace_id, origin.as_ref(), Some(TreeTalk::List))? {
                 self.ctx.refuse_named(workspace_id, origin.as_ref())?;
             }
         }
@@ -52,8 +52,12 @@ impl SessionsArea {
             let views: Vec<SessionView> = sessions.borrow().values().map(|r| r.borrow().view.clone()).collect();
             views
         };
-        let reached: Vec<SessionView> =
-            every.iter().filter(|v| self.ctx.reaches_row(v, origin.as_ref(), Some(TreeTalk::List))).cloned().collect();
+        let mut reached: Vec<SessionView> = Vec::new();
+        for view in &every {
+            if self.ctx.reaches_row(view, origin.as_ref(), Some(TreeTalk::List))? {
+                reached.push(view.clone());
+            }
+        }
         let rows: Vec<SessionView> = match &workspace_id {
             None => reached,
             Some(workspace_id) => reached.into_iter().filter(|v| &v.workspace_id == workspace_id).collect(),
@@ -75,7 +79,7 @@ impl SessionsArea {
         let rowed: HashSet<String> = every.iter().map(thread_key_of).collect();
         let trimmed: Vec<(String, ThreadRecord)> = self
             .ctx
-            .tree_records(origin.as_ref(), TreeTalk::List, workspace_id.as_deref())
+            .tree_records(origin.as_ref(), TreeTalk::List, workspace_id.as_deref())?
             .into_iter()
             .filter(|(thread_id, _)| !rowed.contains(thread_id))
             .collect();
@@ -91,20 +95,18 @@ impl SessionsArea {
         .await
         .into_iter()
         .collect::<Result<Vec<_>, HostError>>()?;
-        let mut listed: Vec<SessionView> = self
-            .ctx
-            .listed_rows(rows)
-            .into_iter()
-            .map(|view| if self.ctx.reaches_row(&view, origin.as_ref(), None) { view } else { named_only(&view) })
-            .collect();
+        let mut listed: Vec<SessionView> = Vec::new();
+        for view in self.ctx.listed_rows(rows) {
+            listed.push(if self.ctx.reaches_row(&view, origin.as_ref(), None)? { view } else { named_only(&view) });
+        }
         listed.extend(trimmed.iter().zip(ends).map(|((thread_id, record), ended)| trimmed_row(&*self.ctx, thread_id, record, ended)));
-        Ok(self.ctx.placed_rows(listed))
+        Ok(self.ctx.placed_rows(listed).await)
     }
 
     /// sessions.ts:928. Rule Q4.
     pub async fn history_of(&self, workspace_id: &str, origin: Option<Caller>) -> Result<Vec<SessionEvent>, HostError> {
         self.ctx.ready().await?;
-        if !self.ctx.tree_stands_on(workspace_id, origin.as_ref(), None) {
+        if !self.ctx.tree_stands_on(workspace_id, origin.as_ref(), None)? {
             self.ctx.entry_of_with(workspace_id, origin.as_ref(), entry_asks(true, false)).await?;
         }
         let events = self.ctx.open_transcript(workspace_id).await?;
@@ -123,7 +125,7 @@ impl SessionsArea {
             return Err(usage_refusal("whole reads one thread's every event.", "Name the thread with threadId, and no before or limit."));
         };
         self.ctx.ready().await?;
-        if !self.ctx.tree_stands_on(workspace_id, origin.as_ref(), None) {
+        if !self.ctx.tree_stands_on(workspace_id, origin.as_ref(), None)? {
             self.ctx.entry_of_with(workspace_id, origin.as_ref(), entry_asks(true, false)).await?;
         }
         if !self.ctx.drives_thread(Some(&thread_id), origin.as_ref()) {
@@ -136,7 +138,7 @@ impl SessionsArea {
     /// sessions.ts:945. Rule Q6.
     pub async fn page_of(&self, workspace_id: &str, window: PageWindow, origin: Option<Caller>) -> Result<HistoryPage, HostError> {
         self.ctx.ready().await?;
-        if !self.ctx.tree_stands_on(workspace_id, origin.as_ref(), None) {
+        if !self.ctx.tree_stands_on(workspace_id, origin.as_ref(), None)? {
             self.ctx.entry_of_with(workspace_id, origin.as_ref(), entry_asks(true, false)).await?;
         }
         if !self.ctx.drives_thread(Some(&window.thread_id), origin.as_ref()) {
@@ -196,7 +198,7 @@ impl SessionsArea {
         origin: Option<Caller>,
     ) -> Result<KeptAttachment, HostError> {
         self.ctx.ready().await?;
-        if !self.ctx.tree_stands_on(workspace_id, origin.as_ref(), None) {
+        if !self.ctx.tree_stands_on(workspace_id, origin.as_ref(), None)? {
             self.ctx.entry_of_with(workspace_id, origin.as_ref(), entry_asks(false, false)).await?;
         }
         if let Some(writes) = self.ctx.kept_writes(workspace_id) {
@@ -231,7 +233,7 @@ impl SessionsArea {
         let mut found: Vec<SearchedHit> = Vec::new();
         let mut unsearched: u32 = 0;
         for workspace_id in self.ctx.index_workspaces() {
-            if !self.ctx.tree_stands_on(&workspace_id, origin.as_ref(), None)
+            if !self.ctx.tree_stands_on(&workspace_id, origin.as_ref(), None)?
                 && self.ctx.entry_of_with(&workspace_id, origin.as_ref(), entry_asks(false, true)).await.is_err()
             {
                 continue;

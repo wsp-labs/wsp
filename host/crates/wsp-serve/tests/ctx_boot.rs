@@ -41,7 +41,7 @@ fn world() -> World {
     let store: Rc<dyn Store> = Rc::new(memory_store());
     let clock = FakeClock::new(1_000_000);
     let opts = RuntimeOptions { backend: Some(backend()), store: Some(store.clone()), clock: Some(clock.clock()), ..Default::default() };
-    let rt = create_runtime(opts);
+    let rt = create_runtime(opts).expect("a runtime");
     let c = rt.context();
     World { rt, c, store, clock }
 }
@@ -466,7 +466,7 @@ fn the_context_answers_for_this_hosts_own_provider_road() {
         assert_eq!(LandingRoad::kind(&*w.c), "provider");
         assert_eq!(LandingRoad::refusal(&*w.c, &project, &json!({})), None);
         assert_eq!(
-            LandingRoad::memory_dir(&*w.c, &project, "-home-wsp-site", &json!({})),
+            LandingRoad::memory_dir(&*w.c, &project, "-home-wsp-site", &json!({})).expect("a folder"),
             wsp_core::project_landing::guest_memory_dir("-home-wsp-site")
         );
         assert!(LandingRoad::workspace_binds(&*w.c, &project).is_empty());
@@ -707,7 +707,7 @@ async fn seed(store: &dyn Store, state: &serde_json::Map<String, Value>) {
 }
 
 fn runtime_over(store: Rc<dyn Store>, backend: Arc<dyn MachineBackend>) -> Rc<AssembledRuntime> {
-    create_runtime(RuntimeOptions { backend: Some(backend), store: Some(store), ..Default::default() })
+    create_runtime(RuntimeOptions { backend: Some(backend), store: Some(store), ..Default::default() }).expect("a runtime")
 }
 
 /// The fake backend holding one machine, and the fixture with its workspace naming that machine (the fake mints its own

@@ -936,8 +936,12 @@ impl AgentsReader for Reader {
             .borrow_mut()
             .push((on.clone(), agent.to_string(), name.to_string()));
         Ok(ResolvedServer {
-            spec: serde_json::from_value(json!({ "command": "npx", "args": ["-y", name] }))
+            spec: Rc::new(
+                serde_json::from_value::<wsp_wire::views::harness::McpServerSpec>(
+                    json!({ "command": "npx", "args": ["-y", name] }),
+                )
                 .expect("a spec"),
+            ),
             login: None,
         })
     }

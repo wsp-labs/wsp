@@ -57,7 +57,7 @@ fn world_with(adjust: impl FnOnce(&mut RuntimeOptions)) -> World {
         ..Default::default()
     };
     adjust(&mut opts);
-    let runtime = create_runtime(opts);
+    let runtime = create_runtime(opts).expect("a runtime");
     World { ctx: runtime.context(), runtime, backend, clock }
 }
 
@@ -523,9 +523,21 @@ fn view_joins_the_held_project_as_the_record_store_reads_it() {
     run(|w| async move {
         let c = &*w.ctx;
         w.ctx.machines_seams().projects_held.borrow_mut().insert("p_1".into(), project("p_1", "web"));
-        let seen = MachinesRuntime::view(c, &record("w_1"));
+        let seen = MachinesRuntime::view(c, &record("w_1")).expect("a view");
         assert_eq!((seen.id.as_str(), seen.project.name.as_str(), seen.project.path.as_str()), ("w_1", "web", "/home/me/web"));
-        assert_eq!(ReachCtx::view(c, &record("w_1")), serde_json::to_value(&seen).expect("a view"));
+        assert_eq!(ReachCtx::view(c, &record("w_1")).expect("a view"), serde_json::to_value(&seen).expect("a view"));
+    });
+}
+
+/// join A (#2476): records.ts:88 throws for a project this host does not hold, so every view of such a record is the
+/// refusal, never a panic.
+#[test]
+fn view_of_a_record_whose_project_is_not_held_is_refused_in_the_records_words() {
+    run(|w| async move {
+        let c = &*w.ctx;
+        let words = "no project \"p_1\"; wsp add <folder> records one";
+        assert_eq!(MachinesRuntime::view(c, &record("w_1")).expect_err("refused").message, words);
+        assert_eq!(ReachCtx::view(c, &record("w_1")).expect_err("refused").message, words);
     });
 }
 // waits on packet 2 (`RecordsCtx::project_ref`, `module_folder`).
@@ -871,6 +883,7 @@ fn the_daemon_note_map_is_the_channels_areas_and_a_forget_takes_the_workspace_ou
 fn sync_daemon_and_write_daemon_roots_run_the_daemon_area_for_the_entry() {
     run(|w| async move {
         let c = &*w.ctx;
+        w.ctx.machines_seams().projects_held.borrow_mut().insert("p_1".into(), project("p_1", "web"));
         let e = live_entry(&w, "w_1").await;
         MachinesRuntime::sync_daemon(c, &e);
         MachinesRuntime::write_daemon_roots(c, &e).await.expect("a write");

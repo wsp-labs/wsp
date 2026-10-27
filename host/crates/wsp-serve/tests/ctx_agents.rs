@@ -106,7 +106,7 @@ fn run<Fut: Future<Output = ()>>(opts: RuntimeOptions, f: impl FnOnce(Rc<Assembl
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a tokio runtime");
     let local = tokio::task::LocalSet::new();
     local.block_on(&rt, async move {
-        let runtime = create_runtime(opts);
+        let runtime = create_runtime(opts).expect("a runtime");
         let ctx = runtime.context();
         f(runtime, ctx).await
     });
@@ -838,7 +838,7 @@ fn launch_confining_a_setup_settles_at_once_where_none_is_kept() {
 fn launch_a_catalog_is_read_for_a_harness_the_table_names_and_none_for_one_it_does_not() {
     run(options(), |_, c| async move {
         let entry = put_live(&c, record("w_1", json!({}))).await;
-        let none = lc(&c).catalog_on("no-such-agent", &entry, &Stub { warms: false }).await.expect("no refusal");
+        let none = lc(&c).catalog_on("no-such-agent", &entry, Arc::new(Stub { warms: false })).await.expect("no refusal");
         assert!(none.is_none());
     });
 }

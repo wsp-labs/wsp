@@ -183,7 +183,8 @@ pub trait CoreCtx {
     async fn read_broker(&self) -> Result<(), HostError>;
     async fn daemon_settled(&self, workspace_id: &str) -> Result<(), HostError>;
     async fn read_public_marketplaces(&self) -> Result<(), HostError>;
-    fn turn_road(&self, kind: WorkspaceKind) -> WorkspaceOrigin;
+    /// `moduleOf(kind).turnRoad`: throws where the kind has no module (runtime.ts:653).
+    fn turn_road(&self, kind: WorkspaceKind) -> Result<WorkspaceOrigin, HostError>;
     /// The live records, in the map's order.
     fn live(&self) -> Vec<StandingEntry>;
     fn projects_held(&self) -> Vec<ProjectView>;
@@ -308,7 +309,7 @@ impl Core {
             workspace_id: workspace_id.to_string(),
             root_thread_id: root_thread_id.to_string(),
         };
-        let road = Some(self.ctx.turn_road(kind));
+        let road = Some(self.ctx.turn_road(kind)?);
         let scoped = self
             .ctx
             .devices()

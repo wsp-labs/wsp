@@ -143,7 +143,7 @@ fn with_local(dir: &tempfile::TempDir) -> RuntimeOptions {
 fn run<Fut: Future<Output = ()>>(opts: RuntimeOptions, f: impl FnOnce(Rc<AssembledRuntime>, Rc<Ctx>) -> Fut) {
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a tokio runtime");
     tokio::task::LocalSet::new().block_on(&rt, async move {
-        let runtime = create_runtime(opts);
+        let runtime = create_runtime(opts).expect("a runtime");
         let ctx = runtime.context();
         f(runtime, ctx).await
     });
@@ -743,7 +743,8 @@ fn turns_ledger_add_files_the_turns_use_as_a_row_of_its_day() {
         let bytes = store.get_blob(wsp_machines::usage::USAGE_DAYS, &day).await.expect("a read").expect("the day");
         let rows: Value = serde_json::from_slice::<Value>(&bytes).expect("a day's json")["rows"].clone();
         assert_eq!(
-            (rows.as_array().map(Vec::len), &rows[0]["account"], &rows[0]["project"], &rows[0]["costUsd"]),
+            // The folded row keeps what the agent reported as `costReported` (usage.ts:256), not as the entry's `costUsd`.
+            (rows.as_array().map(Vec::len), &rows[0]["account"], &rows[0]["project"], &rows[0]["costReported"]),
             (Some(1), &json!("claude@here"), &json!("p_1"), &json!(0.5))
         );
     });
@@ -1419,7 +1420,7 @@ fn conversations_agent_label_computer_of_and_reaches_row_are_the_areas_words_and
         let entry = put_live(&c, record("w_1")).await;
         assert_eq!(V::computer_of(&*c, &entry), "this computer");
         assert!(
-            V::reaches_row(&*c, &view("s_1", "w_9", json!({ "threadId": "t_1" })), None),
+            V::reaches_row(&*c, &view("s_1", "w_9", json!({ "threadId": "t_1" })), None).expect("read"),
             "with no caller, the person's own window reaches the row"
         );
     });

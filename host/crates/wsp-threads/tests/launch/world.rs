@@ -166,8 +166,8 @@ fn picks_rig() -> (Rc<FakeHost>, LaunchArea, Entry) {
 }
 
 async fn read_picks(area: &LaunchArea, e: &Entry, asked: &LaunchAsked) -> Result<PicksRead, HostError> {
-    let adapter = FakeAdapter::warming();
-    area.launch_picks(e, "claude", &adapter, &default_preferences(), "t1", asked).await
+    let adapter: Arc<dyn HarnessAdapter> = Arc::new(FakeAdapter::warming());
+    area.launch_picks(e, "claude", adapter, &default_preferences(), "t1", asked).await
 }
 
 // ---------------------------------------------------------------------------------------------------------------

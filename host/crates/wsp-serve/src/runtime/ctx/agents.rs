@@ -352,24 +352,17 @@ impl LaunchCtx for Ctx {
     async fn confine_setup(&self, entry: &Entry, harness: &str) -> Result<(), HostError> {
         self.agents.get().confine_setup(entry, Some(harness)).await
     }
-    async fn catalog_on(&self, harness: &str, entry: &Entry, adapter: &dyn HarnessAdapter) -> Result<Option<HarnessCatalog>, HostError> {
-        // `harnessCatalog(harness) === undefined ? undefined : ctx.catalogOn(table, entry, adapter)`. The area keeps the
-        // adapter in the read it holds for the next ask, which the trait's borrow cannot give it, so the read goes to the
-        // adapter the same factory builds for this entry and harness.
+    async fn catalog_on(
+        &self,
+        harness: &str,
+        entry: &Entry,
+        adapter: Arc<dyn HarnessAdapter>,
+    ) -> Result<Option<HarnessCatalog>, HostError> {
+        // `harnessCatalog(harness) === undefined ? undefined : ctx.catalogOn(table, entry, adapter)`.
         let Some(table) = wsp_core::harness_catalog::harness_catalog(harness) else {
             return Ok(None);
         };
-        let _ = adapter;
-        let ask = AdapterAsk {
-            named: Some(harness.to_string()),
-            turn_env: None,
-            waiting: None,
-            servers: Env::new(),
-            thread: None,
-            asks_until_stopped: false,
-        };
-        let built = self.agents.get().adapter_for(entry, ask)?;
-        Ok(Some(self.agents.get().catalog_on(&table, entry, built.adapter).await))
+        Ok(Some(self.agents.get().catalog_on(&table, entry, adapter).await))
     }
     fn defaults_on(&self, catalog: HarnessCatalog, prefs: &Preferences, project: &str) -> DefaultsOn {
         let overrides = prefs.project_defaults.get(project).map(|fields| (**fields).clone());

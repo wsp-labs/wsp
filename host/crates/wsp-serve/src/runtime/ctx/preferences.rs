@@ -802,9 +802,12 @@ impl wsp_slates::account::slates::SlatesAreaCtx for Ctx {
         let (agent, name) = (agent.to_string(), name.to_string());
         async move {
             match reads.server(&target, &agent, &name, None).await {
-                Ok(ResolvedServer { .. }) => Err(ServerReadError::Other(
-                    "this host's agents reader answers a server this host cannot start a slate's run on".to_string(),
-                )),
+                Ok(ResolvedServer { spec, login }) => match spec.downcast::<wsp_slates::slate_mcp::McpServerSpec>() {
+                    Ok(spec) => Ok(ReadServer { spec: (*spec).clone(), login }),
+                    Err(_) => {
+                        Err(ServerReadError::Other("this host's agents reader answered a server that is no slate's server".to_string()))
+                    }
+                },
                 Err(e) if wsp_machines::agents_read::is_server_not_set_up(&e) => Err(ServerReadError::NotSetUp(e.message)),
                 Err(e) if wsp_machines::agents_read::is_server_off(&e) => Err(ServerReadError::Off(e.message)),
                 Err(e) => Err(ServerReadError::Other(e.message)),

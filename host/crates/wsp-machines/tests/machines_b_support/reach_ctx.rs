@@ -20,7 +20,7 @@ use wsp_core::types::wiring::WorkspaceRecord;
 use wsp_engine::machine::{ExecOptions, Machine, MachineBackend};
 use wsp_machines::machines::area_error::{AreaError, AreaResult};
 use wsp_machines::machines::machines::Entry;
-use wsp_machines::machines::reach::{ReachArea, ReachCtx};
+use wsp_machines::machines::reach::{HomeFrame, ReachArea, ReachCtx};
 use wsp_wire::types::js_number::JsInt;
 use wsp_wire::views::session::SessionView;
 use wsp_wire::views::workspace::{ProjectView, WorkspacePhase};
@@ -403,8 +403,8 @@ impl ReachCtx for FakeHost {
         }
         Ok(knobs().has_daemon.get())
     }
-    fn view(&self, record: &WorkspaceRecord) -> Value {
-        json!({ "id": record.id, "name": record.name, "phase": record.phase })
+    fn view(&self, record: &WorkspaceRecord) -> Result<Value, HostError> {
+        Ok(json!({ "id": record.id, "name": record.name, "phase": record.phase }))
     }
     fn machine_state_of(&self, phase: &WorkspacePhase) -> String {
         let p = serde_json::to_value(phase).unwrap();
@@ -502,7 +502,7 @@ impl ReachCtx for FakeHost {
             ))),
         }
     }
-    async fn on_this_computer(&self, frame: Box<dyn Fn(&str) -> Value>) -> AreaResult<Value> {
+    async fn on_this_computer(&self, frame: Box<HomeFrame>) -> AreaResult<Value> {
         let f = frame(HOME);
         self.call("on_this_computer", &[&js_text(&f)]);
         let answer = knobs().compare.borrow().clone();

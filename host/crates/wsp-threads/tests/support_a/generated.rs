@@ -154,7 +154,12 @@ impl LaunchCtx for FakeHost {
         }
         Ok(())
     }
-    async fn catalog_on(&self, harness: &str, entry: &Entry, adapter: &dyn HarnessAdapter) -> Result<Option<HarnessCatalog>, HostError> {
+    async fn catalog_on(
+        &self,
+        harness: &str,
+        entry: &Entry,
+        adapter: Arc<dyn HarnessAdapter>,
+    ) -> Result<Option<HarnessCatalog>, HostError> {
         self.hooks.log("catalog_on", vec![harness.to_string()]);
         if let Some(hook) =
             self.hooks
@@ -162,7 +167,7 @@ impl LaunchCtx for FakeHost {
                     "LaunchCtx::catalog_on",
                 )
         {
-            return hook(harness, entry, adapter).await;
+            return hook(harness, entry, &*adapter).await;
         }
         Ok(None)
     }

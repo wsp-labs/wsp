@@ -89,6 +89,23 @@ fn is_filled_reads_without_panicking() {
     assert!(slot.is_filled());
 }
 
+/// join A (#2476): the close empties each slot, so an area that holds the context that holds it is freed.
+#[test]
+fn a_cleared_late_slot_drops_what_it_held_and_reads_as_unbuilt() {
+    let slot: Late<Rc<u32>> = Late::named("heldImages");
+    let held = Rc::new(5);
+    slot.fill(held.clone());
+    assert_eq!(Rc::strong_count(&held), 2);
+    slot.clear();
+    assert_eq!(Rc::strong_count(&held), 1, "the slot let go");
+    assert!(!slot.is_filled());
+    let caught = catch_unwind(AssertUnwindSafe(|| slot.get()));
+    let message = caught.unwrap_err();
+    let text = message.downcast_ref::<String>().cloned().unwrap();
+    assert_eq!(text, "the runtime read heldImages before it was built");
+    slot.clear();
+}
+
 struct Kinds;
 impl KindsArea for Kinds {}
 

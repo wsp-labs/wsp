@@ -163,10 +163,21 @@ pub fn is_server_off(e: &HostError) -> bool {
 }
 
 /// One server resolved for a client, with the login a command there runs as.
-#[derive(Clone, Debug, PartialEq)]
+///
+/// `spec` is slate-mcp.ts's `McpServerSpec` (transport, cwd, env, secrets, the roads it runs and is asked by), whose
+/// shape only wsp-slates holds, so this area carries it unread and the host hands it to the slates as they type it.
+#[derive(Clone)]
 pub struct ResolvedServer {
-    pub spec: McpServerSpec,
+    pub spec: Rc<dyn std::any::Any>,
     pub login: Option<TargetLogin>,
+}
+
+impl std::fmt::Debug for ResolvedServer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ResolvedServer")
+            .field("login", &self.login)
+            .finish_non_exhaustive()
+    }
 }
 
 /// agents-read.ts:64-79 `AgentsReader`.

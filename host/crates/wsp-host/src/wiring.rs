@@ -31,6 +31,7 @@ use wsp_store::own_file::write_own;
 use wsp_store::sqlite_store::sqlite_store;
 use wsp_wire::types::env::PERSON_HOME_ENV;
 use wsp_wire::views::harness::McpServerSpec;
+use wsp_words::exit::HostError;
 use wsp_words::words::thread::{NO_MACHINES_LINE, NO_PROVIDER_LINE};
 
 use crate::envfile::vault_now;
@@ -207,7 +208,7 @@ fn no_machines_line(cloud: bool) -> &'static str {
 }
 
 /// `makeRuntime(keys, statePath, ...)` for a host with no provider key.
-pub fn make_runtime(wiring: &Wiring, cloud: bool) -> Rc<AssembledRuntime> {
+pub fn make_runtime(wiring: &Wiring, cloud: bool) -> Result<Rc<AssembledRuntime>, HostError> {
     let line = no_machines_line(cloud);
     let slot = ProviderSlot::new(Arc::new(NoProviderBackend::new(Some(line.to_string()))));
     let backend = slot.backend();

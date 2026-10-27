@@ -83,6 +83,7 @@ impl Ctx {
         };
         let core = Core::with_handles(me.clone() as Rc<dyn CoreCtx>, handles);
         self.core.fill(core.clone());
+        self.branch_of_record.fill(self.build_branch_area());
         let door = self.opts.place_links.clone().map(|links| self.place_door_over(links));
         self.place_door.fill(door.clone());
         if let Some(door) = door {

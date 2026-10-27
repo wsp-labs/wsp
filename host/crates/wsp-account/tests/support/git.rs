@@ -162,7 +162,7 @@ impl Base for FakeGit {
     async fn persist(&self, record: WorkspaceRecord) -> Result<(), HostError> {
         self.inner.persist(record).await
     }
-    fn view(&self, record: &WorkspaceRecord) -> WorkspaceView {
+    fn view(&self, record: &WorkspaceRecord) -> Result<WorkspaceView, HostError> {
         self.inner.view(record)
     }
     fn emit(&self, event: Event) -> Result<(), HostError> {

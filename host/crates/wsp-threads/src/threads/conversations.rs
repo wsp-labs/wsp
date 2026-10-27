@@ -93,7 +93,7 @@ pub trait ConversationsCtx {
     fn agent_label(&self, agent: &str) -> String;
     fn computer_of(&self, entry: &Entry) -> String;
     fn latest_on(&self, thread_id: &str) -> Option<SessionView>;
-    fn reaches_row(&self, row: &SessionView, origin: Option<&Caller>) -> bool;
+    fn reaches_row(&self, row: &SessionView, origin: Option<&Caller>) -> Result<bool, HostError>;
     fn folder_for(
         &self,
         project: Option<String>,
@@ -431,7 +431,10 @@ impl ConversationsArea {
                     continue;
                 }
                 let reached = thread.as_ref().and_then(|t| self.ctx.latest_on(t));
-                let reaches = reached.is_some_and(|r| self.ctx.reaches_row(&r, origin_r.as_ref()));
+                let reaches = match reached {
+                    Some(r) => self.ctx.reaches_row(&r, origin_r.as_ref())?,
+                    None => false,
+                };
                 let wsp = thread.is_some();
                 let live = !wsp && read.live.as_ref().is_some_and(|live| live.contains(&row.id));
                 rows_r.borrow_mut().push(OutsideConversation {

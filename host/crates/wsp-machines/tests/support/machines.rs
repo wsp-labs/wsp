@@ -1250,12 +1250,12 @@ impl MachinesRuntime for Rt {
             .cloned()
             .ok_or_else(|| HostError::new(format!("no entry {id}")))
     }
-    fn view(&self, record: &WorkspaceRecord) -> WorkspaceView {
-        from(json!({
+    fn view(&self, record: &WorkspaceRecord) -> Result<WorkspaceView, HostError> {
+        Ok(from(json!({
             "id": record.id, "name": record.name, "machineId": record.machine_id, "phase": phase_name(record.phase),
             "golden": record.golden, "createdAt": record.created_at,
             "project": { "id": record.project, "name": "", "path": "", "computer": "" }
-        }))
+        })))
     }
     async fn persist(&self, record: &WorkspaceRecord) -> Result<(), HostError> {
         self.log
@@ -2216,7 +2216,7 @@ pub fn store_of(scene: &Value) -> Value {
 impl World {
     /// The view of an entry's record, as the runtime's `view` writes it.
     pub fn view_of(&self, entry: &Entry) -> WorkspaceView {
-        MachinesRuntime::view(&*self.rt, &entry.borrow().record.borrow())
+        MachinesRuntime::view(&*self.rt, &entry.borrow().record.borrow()).expect("a view")
     }
 
     /// `bus.emit`.

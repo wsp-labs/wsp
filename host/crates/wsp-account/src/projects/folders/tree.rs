@@ -232,7 +232,7 @@ impl Folders {
     pub async fn drop_checkpoints(&self, entry: &Entry, thread_id: &str) -> Result<(), HostError> {
         self.ctx.checkpoints_landed(thread_id).await;
         let record = record_of(entry);
-        if self.ctx.not_a_repo(&record) {
+        if self.ctx.not_a_repo(&record)? {
             return Ok(());
         }
         let ctx = self.ctx.clone();

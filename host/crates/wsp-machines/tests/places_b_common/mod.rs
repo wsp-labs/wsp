@@ -524,7 +524,7 @@ impl PlaceRecording for FakeRecording {
         _: &str,
         _: &wsp_wire::types::recipe_file::RecipeFileFoldersValue,
         _: Option<&FolderMove>,
-        _: Option<Rc<dyn Fn(&str)>>,
+        _: Option<wsp_machines::places::types::FolderStage>,
     ) -> Option<PlaceResult<HeldRow>> {
         None
     }

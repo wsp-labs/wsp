@@ -179,7 +179,7 @@ fn drive<Fut: std::future::Future<Output = ()>>(opts: RuntimeOptions, f: impl Fn
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a tokio runtime");
     let local = tokio::task::LocalSet::new();
     local.block_on(&rt, async move {
-        let runtime = create_runtime(opts);
+        let runtime = create_runtime(opts).expect("a runtime");
         let ctx: Rc<Ctx> = runtime.context();
         f(ctx, runtime).await
     });
@@ -553,16 +553,28 @@ fn create_landing_roads_place_a_projects_memory_as_each_kind_does() {
         let deps = json!({ "computerName": "zingzys-mac", "macStateHome": "/Users/z/.claude", "computer": { "home": "/home/z" } });
         let provider = create(&c).project_landing("provider").expect("a road");
         assert_eq!(provider.refusal(&web, &deps), None);
-        assert_eq!(provider.memory_dir(&web, "-work-web", &deps), "/root/.claude-cfg/projects/-work-web/memory");
+        assert_eq!(provider.memory_dir(&web, "-work-web", &deps).expect("a folder"), "/root/.claude-cfg/projects/-work-web/memory");
         assert!(provider.workspace_binds(&web).is_empty());
         let boxed = create(&c).project_landing("box").expect("a road");
         assert_eq!(boxed.refusal(&web, &deps), None);
-        assert_eq!(boxed.memory_dir(&web, "-work-web", &deps), "/home/z/.claude-cfg/projects/-work-web/memory");
+        assert_eq!(boxed.memory_dir(&web, "-work-web", &deps).expect("a folder"), "/home/z/.claude-cfg/projects/-work-web/memory");
         assert!(boxed.workspace_binds(&web).is_empty());
         let mac = create(&c).project_landing("mac").expect("a road");
         assert_eq!(mac.refusal(&web, &deps), None);
-        assert_eq!(mac.memory_dir(&web, "-work-web", &deps), "/Users/z/.claude/projects/-work-web/memory");
+        assert_eq!(mac.memory_dir(&web, "-work-web", &deps).expect("a folder"), "/Users/z/.claude/projects/-work-web/memory");
         assert!(mac.workspace_binds(&web).is_empty());
+    });
+}
+
+/// join A (#2476): a box with no login to read throws in the TS (`computerOf`), so its memory folder is the refusal and
+/// not the project's own folder.
+#[test]
+fn create_box_road_memory_of_a_box_with_no_login_is_refused() {
+    drive(plain(), |c, _| async move {
+        let web = project("p_1", "web", "/work/web");
+        let boxed = create(&c).project_landing("box").expect("a road");
+        let deps = json!({ "computerName": "a-box", "macStateHome": "" });
+        assert!(boxed.memory_dir(&web, "-work-web", &deps).is_err());
     });
 }
 
@@ -827,10 +839,10 @@ fn create_persist_writes_the_record_to_the_store_and_view_shows_it() {
         create(&c).remember_project(project("p_1", "web", "/work/web")).await.expect("remembered");
         create(&c).persist(&held).await.expect("persisted");
         spawn(&c).persist(&held).await.expect("persisted");
-        let view = create(&c).view(&held);
+        let view = create(&c).view(&held).expect("a view");
         assert_eq!(view.id, "w_1");
         assert_eq!(view.name, "api");
-        assert_eq!(spawn(&c).view(&held)["id"], "w_1");
+        assert_eq!(spawn(&c).view(&held).expect("a view")["id"], "w_1");
     });
 }
 
@@ -939,8 +951,12 @@ fn spawn_fork_hands_the_machine_to_the_callback_and_answers_nothing() {
 /// Waits on packet 4 (`MachinesArea::unfork`) and 5 (the gone watch).
 #[test]
 fn spawn_unfork_kills_the_machine_a_failed_start_made() {
-    drive(plain(), |c, _| async move {
-        let entry = entry_named("w_1", "api").await;
+    drive(plain(), |c, rt| async move {
+        // The machine is the runtime's own backend's: `unfork` kills it and reads its state there, so a machine from
+        // another backend reads as running for good and the kill waits out its three asks (90 s).
+        let spec = serde_json::from_value(json!({ "kind": "sandbox" })).expect("a machine spec");
+        let machine = rt.backend().create(spec, None, None).await.expect("a machine");
+        let entry = entry_over(record(json!({ "id": "w_1", "name": "api", "machineId": machine.id() })), machine);
         create(&c).live().borrow_mut().insert("w_1".into(), entry.clone());
         spawn(&c).unfork(&entry).await.expect("unforked");
     });
@@ -951,6 +967,7 @@ fn spawn_unfork_kills_the_machine_a_failed_start_made() {
 fn spawn_emit_status_reachable_puts_a_reachable_status_on_the_bus() {
     drive(plain(), |c, runtime| async move {
         let status = tap(&runtime, "workspace.status");
+        create(&c).remember_project(project("p_1", "web", "/work/web")).await.expect("remembered");
         let entry = entry_named("w_1", "api").await;
         spawn(&c).emit_status_reachable(&entry).await.expect("emitted");
         let seen = status.borrow();
@@ -968,6 +985,8 @@ fn spawn_emit_status_reachable_puts_a_reachable_status_on_the_bus() {
 fn spawn_enqueue_holds_a_record_for_a_slot_and_queue_wait_says_when() {
     drive(plain(), |c, _| async move {
         assert!(spawn(&c).queue_wait("default", None).is_none(), "no limits, no wait");
+        // The queued row is shown as `ctx.view(record)` shows it (sub-queue.ts:551), which throws for a project not held.
+        create(&c).remember_project(project("p_1", "web", "/work/web")).await.expect("remembered");
         let held = Rc::new(RefCell::new(record(json!({ "id": "w_1", "machineId": "" }))));
         spawn(&c).enqueue(&held, None).await.expect("enqueued");
     });

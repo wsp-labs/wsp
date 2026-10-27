@@ -574,7 +574,7 @@ impl ChannelsArea {
         let Some(limit) = place_spend_limit(row) else {
             return Ok(());
         };
-        let spend = self.ctx.spend_today(&rows, self.ctx.now()).await;
+        let spend = self.ctx.spend_today(&rows, self.ctx.now()).await?;
         let today = spend.iter().find(|(place, _)| place == place_id).and_then(|(_, usd)| *usd);
         if let Some(today) = today {
             if place_at_limit_line(row, Some(today)).is_some() {

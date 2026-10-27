@@ -24,8 +24,8 @@ use wsp_machines::machines::daemon::DaemonArea;
 use wsp_machines::machines::daemon::{DetachedStart, Started};
 use wsp_machines::machines::machines::MachinesArea;
 use wsp_machines::machines::machines::{Entry, IdleDoor, Ids, ImageRead, Row, Unreached};
-use wsp_machines::machines::reach::ForMachine;
 use wsp_machines::machines::reach::ReachArea;
+use wsp_machines::machines::reach::{ForMachine, HomeFrame};
 use wsp_threads::threads::threads::ThreadsArea;
 use wsp_threads::threads::transcripts::kept::ThreadsNamed;
 use wsp_threads::threads::transcripts::TranscriptsArea;
@@ -76,57 +76,14 @@ fn kind_of(word: &str) -> Result<wsp_wire::views::workspace_kind::WorkspaceKind,
     serde_json::from_value(Value::String(word.to_string())).map_err(|_| HostError::new(no_kind_line(word)))
 }
 
-/// The row a copy of `row` is: `SessionEntry` carries no `Clone`, and every field it holds does.
-fn copy_of(row: &SessionEntry) -> SessionEntry {
-    SessionEntry {
-        view: row.view.clone(),
-        turn_id: row.turn_id.clone(),
-        replaces: row.replaces.clone(),
-        notify: row.notify.clone(),
-        notify_by: row.notify_by.clone(),
-        notify_road: row.notify_road,
-        turn_token: row.turn_token.clone(),
-        scope_device_id: row.scope_device_id.clone(),
-        handle: row.handle.clone(),
-        end: row.end.clone(),
-        turn_live: row.turn_live.clone(),
-        run: row.run.clone(),
-        from: row.from,
-        asked: row.asked.clone(),
-        snapshot: row.snapshot.clone(),
-        pid: row.pid,
-        launch: row.launch.clone(),
-        calls: row.calls.clone(),
-        unanswered: row.unanswered,
-        queued: row.queued,
-    }
-}
-
-/// `async_trait` fixes the lifetime of the `&str` in `ReachCtx::on_this_computer`'s `Fn(&str)` to one that outlives the
-/// call, so a home read off the area is handed on as `'static`: each distinct home is kept once.
-fn interned(home: &str) -> &'static str {
-    thread_local! {
-        static HOMES: RefCell<std::collections::HashSet<&'static str>> = RefCell::default();
-    }
-    HOMES.with(|homes| {
-        let mut homes = homes.borrow_mut();
-        if let Some(kept) = homes.get(home) {
-            return *kept;
-        }
-        let kept: &'static str = Box::leak(home.to_string().into_boxed_str());
-        homes.insert(kept);
-        kept
-    })
-}
-
 fn host_of(e: AreaError) -> HostError {
     e.into_host()
 }
 
 impl Ctx {
-    /// `ctx.view(record)`: the TS throws where the record's project is not held, and the trait answers a plain view.
-    fn machines_view_of(&self, record: &WorkspaceRecord) -> WorkspaceView {
-        self.records.get().view(record).unwrap_or_else(|e| panic!("{}", e.message))
+    /// `ctx.view(record)`: refused where the record's project is not held, as records.ts:88 throws.
+    fn machines_view_of(&self, record: &WorkspaceRecord) -> Result<WorkspaceView, HostError> {
+        self.records.get().view(record)
     }
 
     /// `bus.emit(event)` for an event written as the JSON a TS object literal is: a listener that fails is said, since
@@ -152,7 +109,7 @@ impl wsp_machines::machines::reach::ReachCtx for Ctx {
         self.live.borrow().values().cloned().collect()
     }
     fn session_entries(&self) -> Vec<SessionEntry> {
-        self.sessions.borrow().values().map(|row| copy_of(&row.borrow())).collect()
+        self.sessions.borrow().values().map(|row| row.borrow().clone()).collect()
     }
     fn backend_for(&self, record: &WorkspaceRecord) -> Result<Arc<dyn MachineBackend>, HostError> {
         self.kinds.get().backend_for(record)
@@ -181,8 +138,9 @@ impl wsp_machines::machines::reach::ReachCtx for Ctx {
         let has = module.has_daemon(&entry.borrow());
         Ok(has)
     }
-    fn view(&self, record: &WorkspaceRecord) -> Value {
-        serde_json::to_value(self.machines_view_of(record)).expect("a view serializes as JSON")
+    fn view(&self, record: &WorkspaceRecord) -> Result<Value, HostError> {
+        let view = self.machines_view_of(record)?;
+        serde_json::to_value(view).map_err(|e| HostError::new(e.to_string()))
     }
     fn machine_state_of(&self, phase: &WorkspacePhase) -> String {
         serde_json::to_value(machine_state_of(*phase)).ok().and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default()
@@ -232,11 +190,11 @@ impl wsp_machines::machines::reach::ReachCtx for Ctx {
         let asked = self.channels.get().with_daemon(entry, Box::new(move |ask| ask(frame))).await;
         asked.map(Value::Object).map_err(|e| AreaError::Host(e.into()))
     }
-    async fn on_this_computer(&self, frame: Box<dyn Fn(&str) -> Value>) -> AreaResult<Value> {
-        // The frame is built before the road is up, since `async_trait` leaves `frame` borrowed past the call; it
-        // reads the home alone, which is `local.homeDir`, a field the area reads at the same point.
+    async fn on_this_computer(&self, frame: Box<HomeFrame>) -> AreaResult<Value> {
+        // The frame is built before the road is up; it reads the home alone, which is `local.homeDir`, a field the
+        // area reads at the same point.
         let home = self.opts.local.as_ref().map(|local| local.home_dir.clone()).unwrap_or_default();
-        let Value::Object(frame) = frame(interned(&home)) else {
+        let Value::Object(frame) = frame(&home) else {
             return Err(AreaError::Host(HostError::new("a daemon frame is a JSON object")));
         };
         let asked = self.channels.get().on_this_computer(Box::new(move |ask, _home| ask(frame))).await;
@@ -425,7 +383,7 @@ impl wsp_machines::machines::machines::MachinesRuntime for Ctx {
     async fn entry_of(&self, id: &str) -> Result<Entry, HostError> {
         self.boot.get().entry_of(id, None, EntryAsk::default()).await
     }
-    fn view(&self, record: &WorkspaceRecord) -> WorkspaceView {
+    fn view(&self, record: &WorkspaceRecord) -> Result<WorkspaceView, HostError> {
         self.machines_view_of(record)
     }
     async fn persist(&self, record: &WorkspaceRecord) -> Result<(), HostError> {

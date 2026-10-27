@@ -188,13 +188,13 @@ fn the_id_and_the_folder_it_sits_in_are_this_users_alone_whatever_the_umask() {
 fn xdg_config_home_names_the_default_dir_so_no_test_reaches_the_developers_real_config_dir() {
     let xdg = tempfile::tempdir().unwrap();
     let was = std::env::var_os("XDG_CONFIG_HOME");
-    unsafe { std::env::set_var("XDG_CONFIG_HOME", xdg.path()) };
+    std::env::set_var("XDG_CONFIG_HOME", xdg.path());
     let set = local_config_dir();
-    unsafe { std::env::set_var("XDG_CONFIG_HOME", "") };
+    std::env::set_var("XDG_CONFIG_HOME", "");
     let empty = local_config_dir();
     match was {
-        Some(v) => unsafe { std::env::set_var("XDG_CONFIG_HOME", v) },
-        None => unsafe { std::env::remove_var("XDG_CONFIG_HOME") },
+        Some(v) => std::env::set_var("XDG_CONFIG_HOME", v),
+        None => std::env::remove_var("XDG_CONFIG_HOME"),
     }
     assert_eq!(set, xdg.path().join("wsp"));
     assert!(empty.starts_with(std::env::var_os("HOME").unwrap_or_default()), "{} is not under the home dir", empty.display());
