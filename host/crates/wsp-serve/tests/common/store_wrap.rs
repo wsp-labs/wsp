@@ -1,23 +1,219 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The TS tests that reassign `store.put` (runtime-create.test.ts:191): a store that answers like the one it wraps and
-//! refuses the writes a test names.
+//! The TS tests that reassign `store.put` (runtime-create.test.ts:191) and what a store hands out (`store.putBlob`,
+//! `rows.all`, `rows.wordEvents`): a store that answers like the one it wraps, refuses or holds the writes a test names,
+//! and counts or fails those reads. `Watched` is its name in part 2d's tests.
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use std::ops::ControlFlow;
+
 use async_trait::async_trait;
 use serde_json::Value;
-use wsp_store::sqlite_transcripts::TranscriptRows;
+use wsp_store::sqlite_transcripts::{EventSize, Summed, Total, TranscriptRows};
 use wsp_store::store::{BlobMark, Store};
+use wsp_wire::views::session_events::SessionEvent;
 use wsp_words::exit::HostError;
+
+use super::Gate;
+
+type Holds = RefCell<Option<(String, String, Rc<Gate>)>>;
 
 pub struct WrappedStore {
     inner: Rc<dyn Store>,
     refuse: RefCell<Vec<(String, String)>>,
+    refuse_blobs: RefCell<Vec<(String, String)>>,
+    refuse_once: RefCell<Vec<(String, String)>>,
+    holds: RefCell<Vec<(String, Rc<Gate>)>>,
+    puts: RefCell<Vec<String>>,
+    pub rows: FailingRows,
+    /// The collection of each blob written, in order.
+    pub blobs: RefCell<Vec<String>>,
+    hold: Holds,
+    held: std::cell::Cell<bool>,
+    gated: RefCell<Option<(String, Rc<Gate>, Rc<Gate>)>>,
+}
+
+/// The transcript rows of the store it wraps, whose reads fail once told to (runtime-comeback.test.ts:812 makes
+/// `getBlob("transcripts")` reject, forget.test.ts:173 makes it answer `undefined`: the Rust store keeps transcripts as
+/// rows).
+pub struct FailingRows {
+    inner: Rc<dyn Store>,
+    message: RefCell<Option<String>>,
+    /// The next `put_index` fails with this, and the ones after it do not (transcript-index.test.ts: "an index write that fails").
+    index_once: RefCell<Option<String>>,
+    /// How many times a folder's whole transcript was read (`rows.all`).
+    pub folder_reads: std::cell::Cell<u32>,
+    /// How many times a thread's words were read (`rows.wordEvents`).
+    pub word_reads: std::cell::Cell<u32>,
+    /// Fails the folder read, as `rows.all = () => { throw ... }` does.
+    pub fail_all: std::cell::Cell<bool>,
+}
+
+pub type Watched = WrappedStore;
+pub type WatchedRows = FailingRows;
+
+impl FailingRows {
+    fn rows(&self) -> &dyn TranscriptRows {
+        self.inner.transcripts().expect("a store that keeps transcript rows")
+    }
+    fn read(&self) -> Result<(), HostError> {
+        match self.message.borrow().clone() {
+            Some(message) => Err(HostError::new(message)),
+            None => Ok(()),
+        }
+    }
+}
+
+impl TranscriptRows for FailingRows {
+    fn all(&self, w: &str) -> Result<Summed, HostError> {
+        self.folder_reads.set(self.folder_reads.get() + 1);
+        if self.fail_all.get() {
+            return Err(HostError::new("disk I/O error"));
+        }
+        self.read()?;
+        self.rows().all(w)
+    }
+    fn newest(
+        &self,
+        w: &str,
+        t: &str,
+        before: Option<i64>,
+        each: &mut dyn FnMut(SessionEvent) -> ControlFlow<()>,
+    ) -> Result<(), HostError> {
+        self.read()?;
+        self.rows().newest(w, t, before, each)
+    }
+    fn count(&self, w: &str, t: &str) -> Result<u64, HostError> {
+        self.read()?;
+        self.rows().count(w, t)
+    }
+    fn total(&self, w: &str, t: Option<&str>) -> Result<Total, HostError> {
+        self.read()?;
+        self.rows().total(w, t)
+    }
+    fn newest_pos(&self, w: &str) -> Result<i64, HostError> {
+        self.read()?;
+        self.rows().newest_pos(w)
+    }
+    fn sizes(&self, w: &str, t: Option<&str>) -> Result<Vec<EventSize>, HostError> {
+        self.read()?;
+        self.rows().sizes(w, t)
+    }
+    fn word_events(&self, w: &str, t: &str) -> Result<Vec<SessionEvent>, HostError> {
+        self.word_reads.set(self.word_reads.get() + 1);
+        self.read()?;
+        self.rows().word_events(w, t)
+    }
+    fn thread(&self, w: &str, t: &str) -> Result<Summed, HostError> {
+        self.read()?;
+        self.rows().thread(w, t)
+    }
+    fn at(&self, w: &str, positions: &[i64]) -> Result<Vec<SessionEvent>, HostError> {
+        self.read()?;
+        self.rows().at(w, positions)
+    }
+    fn append(&self, w: &str, events: &[SessionEvent]) -> Result<(), HostError> {
+        self.rows().append(w, events)
+    }
+    fn remove(&self, w: &str, positions: &[i64]) -> Result<(), HostError> {
+        self.rows().remove(w, positions)
+    }
+    fn clear(&self, w: &str) -> Result<(), HostError> {
+        self.rows().clear(w)
+    }
+    fn index(&self, w: &str) -> Result<Option<String>, HostError> {
+        self.read()?;
+        self.rows().index(w)
+    }
+    fn put_index(&self, w: &str, json: &str) -> Result<(), HostError> {
+        if let Some(message) = self.index_once.borrow_mut().take() {
+            return Err(HostError::new(message));
+        }
+        self.rows().put_index(w, json)
+    }
+    fn atomically(&self, f: &mut dyn FnMut() -> Result<(), HostError>) -> Result<(), HostError> {
+        self.rows().atomically(f)
+    }
 }
 
 impl WrappedStore {
     pub fn over(inner: &Rc<dyn Store>) -> Rc<WrappedStore> {
-        Rc::new(WrappedStore { inner: inner.clone(), refuse: RefCell::default() })
+        Rc::new(WrappedStore {
+            inner: inner.clone(),
+            refuse: RefCell::default(),
+            refuse_blobs: RefCell::default(),
+            refuse_once: RefCell::default(),
+            holds: RefCell::default(),
+            puts: RefCell::default(),
+            rows: FailingRows {
+                inner: inner.clone(),
+                message: RefCell::default(),
+                index_once: RefCell::default(),
+                folder_reads: Default::default(),
+                word_reads: Default::default(),
+                fail_all: Default::default(),
+            },
+            blobs: RefCell::default(),
+            hold: RefCell::default(),
+            held: std::cell::Cell::new(false),
+            gated: RefCell::default(),
+        })
+    }
+
+    /// The next `put` into `collection` fails with `message`, and the ones after it do not (reconcile.test.ts `refusingOnce`).
+    pub fn refuse_next_put(&self, collection: &str, message: &str) {
+        self.refuse_once.borrow_mut().push((collection.into(), message.into()));
+    }
+
+    /// Every `put_blob` into `collection` fails with `message` from now on (session-images.test.ts: the host dies between two writes).
+    pub fn refuse_blob_puts(&self, collection: &str, message: &str) {
+        self.refuse_blobs.borrow_mut().push((collection.into(), message.into()));
+    }
+
+    /// Every `list` of `collection` waits for `gate` first (runtime-comeback.test.ts:313: a store whose sessions listing answers last).
+    pub fn hold_list(&self, collection: &str, gate: &Rc<Gate>) {
+        self.holds.borrow_mut().push((collection.into(), gate.clone()));
+    }
+
+    /// How many `put`s into `collection` the store has seen (`vi.spyOn(store, "put")`).
+    pub fn puts_into(&self, collection: &str) -> usize {
+        self.puts.borrow().iter().filter(|c| c.as_str() == collection).count()
+    }
+
+    /// The next write of a transcript's index fails with `message`.
+    pub fn fail_next_index_write(&self, message: &str) {
+        *self.rows.index_once.borrow_mut() = Some(message.into());
+    }
+
+    /// Every read of a transcript fails with `message` from now on.
+    pub fn fail_transcripts(&self, message: &str) {
+        *self.rows.message.borrow_mut() = Some(message.into());
+    }
+
+    /// The first `put` into `collection` whose value has `phase` waits for the returned gate (box-nap.test.ts:902).
+    pub fn hold_first_put_at_phase(&self, collection: &str, phase: &str) -> Rc<Gate> {
+        let gate = Gate::new();
+        *self.hold.borrow_mut() = Some((collection.into(), phase.into(), gate.clone()));
+        gate
+    }
+
+    /// Whether a put is waiting on that gate now or was.
+    pub fn held(&self) -> bool {
+        self.held.get()
+    }
+
+    /// While `unreadable`, every read of a transcript's rows fails, as the TS's `getBlob` answering `undefined` for
+    /// the `transcripts` collection makes the transcript not read.
+    pub fn set_unreadable(&self, unreadable: bool) {
+        *self.rows.message.borrow_mut() = unreadable.then(|| "the rows do not read".to_string());
+    }
+
+    /// From now on a `put` into `collection` waits at a gate: the first answers `reached` once a write is in it, and
+    /// the write goes on once `open` is opened (forget.test.ts:81).
+    pub fn gate_puts(&self, collection: &str) -> (Rc<Gate>, Rc<Gate>) {
+        let (reached, open) = (Gate::new(), Gate::new());
+        *self.gated.borrow_mut() = Some((collection.into(), reached.clone(), open.clone()));
+        (reached, open)
     }
 
     /// Every `put` into `collection` fails with `message` from now on.
@@ -37,13 +233,40 @@ impl Store for WrappedStore {
         self.inner.get(collection, id).await
     }
     async fn put(&self, collection: &str, id: &str, value: Value) -> Result<(), HostError> {
+        self.puts.borrow_mut().push(collection.to_string());
         let refused = self.refuse.borrow().iter().find(|(c, _)| c == collection).map(|(_, m)| m.clone());
         if let Some(message) = refused {
             return Err(HostError::new(message));
         }
+        let once = {
+            let mut once = self.refuse_once.borrow_mut();
+            once.iter().position(|(c, _)| c == collection).map(|at| once.remove(at).1)
+        };
+        if let Some(message) = once {
+            return Err(HostError::new(message));
+        }
+        let waiting = self
+            .hold
+            .borrow()
+            .as_ref()
+            .filter(|(c, p, _)| c == collection && value["phase"] == p.as_str() && !self.held.get())
+            .map(|(_, _, g)| g.clone());
+        if let Some(gate) = waiting {
+            self.held.set(true);
+            gate.wait().await;
+        }
+        let gate = self.gated.borrow().as_ref().filter(|(c, _, _)| c == collection).map(|(_, r, o)| (r.clone(), o.clone()));
+        if let Some((reached, open)) = gate {
+            reached.open();
+            open.wait().await;
+        }
         self.inner.put(collection, id, value).await
     }
     async fn list(&self, collection: &str) -> Result<Vec<Value>, HostError> {
+        let held = self.holds.borrow().iter().find(|(c, _)| c == collection).map(|(_, g)| g.clone());
+        if let Some(gate) = held {
+            gate.wait().await;
+        }
         self.inner.list(collection).await
     }
     async fn keys(&self, collection: &str) -> Result<Vec<String>, HostError> {
@@ -56,6 +279,11 @@ impl Store for WrappedStore {
         self.inner.get_blob(collection, id).await
     }
     async fn put_blob(&self, collection: &str, id: &str, bytes: Vec<u8>) -> Result<(), HostError> {
+        self.blobs.borrow_mut().push(collection.to_string());
+        let refused = self.refuse_blobs.borrow().iter().find(|(c, _)| c == collection).map(|(_, m)| m.clone());
+        if let Some(message) = refused {
+            return Err(HostError::new(message));
+        }
         self.inner.put_blob(collection, id, bytes).await
     }
     async fn delete_blob(&self, collection: &str, id: &str) -> Result<(), HostError> {
@@ -65,7 +293,7 @@ impl Store for WrappedStore {
         self.inner.stat_blob(collection, id).await
     }
     fn transcripts(&self) -> Option<&dyn TranscriptRows> {
-        self.inner.transcripts()
+        self.inner.transcripts().map(|_| &self.rows as &dyn TranscriptRows)
     }
 }
 

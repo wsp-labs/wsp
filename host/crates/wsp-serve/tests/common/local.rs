@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex};
 use async_trait::async_trait;
 use futures::future::LocalBoxFuture;
 use futures::{SinkExt, StreamExt};
+use indexmap::IndexMap;
 use serde_json::{json, Value};
 use tokio_tungstenite::tungstenite::Message;
 use wsp_adapters::port::{AdapterError, AttachmentRoad, ForkTurn, ForkedSession, HarnessAdapter, HarnessSession, HarnessStartOptions};
@@ -253,5 +254,249 @@ async fn reply_to(ws: &mut Ws, id: u64) -> Value {
             Message::Close(_) => panic!("the host closed the socket before it answered"),
             _ => {}
         }
+    }
+}
+
+/// What a test sets beside the wiring: the folder runs live in, the poll, a wall of its own, the environment a turn is launched
+/// with, and the set that holds every run the factory is reading (`localExecStream({ root, runDir, pollMs, ...o, deadlineMs })`).
+#[derive(Default)]
+pub struct LocalOpts {
+    /// Changes the options of every exec stream last (`fakeLocal`'s `...o`, then a test's `pollMs`).
+    pub exec: Option<Rc<dyn Fn(&mut wsp_core::local_exec::LocalExecOptions)>>,
+    /// `fakeLocal` as stub-backend.ts writes it: no daemon road.
+    pub no_daemon_road: bool,
+    pub run_dir: Option<String>,
+    pub poll_ms: Option<u64>,
+    pub deadline_ms: Option<f64>,
+    pub vars: Option<IndexMap<String, String>>,
+    /// The environment every exec of the host's own backend runs under (this process's where none).
+    pub backend_vars: Option<IndexMap<String, String>>,
+    pub reading: Option<Arc<wsp_core::machine_exec::ReadingSet>>,
+}
+
+/// `fakeLocal(root)` and the `local` the TS tests that stand a host on this computer write beside it: a `LocalBackend` rooted in a
+/// folder of the test's own, an exec that runs in that folder, and the copier the test hands in.
+pub fn local_wiring(root: &Path, copier: Rc<dyn Copier>) -> wsp_core::types::wiring::LocalWiring {
+    local_wiring_with(root, copier, LocalOpts::default())
+}
+
+pub fn local_wiring_with(root: &Path, copier: Rc<dyn Copier>, o: LocalOpts) -> wsp_core::types::wiring::LocalWiring {
+    use wsp_core::types::wiring::LocalWiring;
+    use wsp_engine::local_backend::{LocalBackend, LocalBackendOptions};
+    let folder = root.display().to_string();
+    let home = folder.clone();
+    let runs = o.run_dir.clone().unwrap_or_else(|| format!("{folder}/runs"));
+    let exec_root = folder.clone();
+    let (poll_ms, deadline_ms, reading, exec) = (o.poll_ms, o.deadline_ms, o.reading.clone(), o.exec.clone());
+    let launch_vars = o
+        .vars
+        .clone()
+        .unwrap_or_else(|| IndexMap::from([("PATH".to_string(), std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".into()))]));
+    LocalWiring {
+        backend: Arc::new(LocalBackend::new(LocalBackendOptions { root: root.to_path_buf(), env: o.backend_vars.clone() })),
+        folder: folder.clone(),
+        exec_stream: Rc::new(move |opts, waiting| {
+            let mut local = wsp_core::local_exec::LocalExecOptions::new(exec_root.clone(), runs.clone());
+            local.poll_ms = poll_ms;
+            if let Some(opts) = opts {
+                local.idle_ms = opts.idle_ms;
+                local.deadline_ms = opts.deadline_ms;
+                local.now = opts.now;
+                local.poll_ms = opts.poll_ms.or(poll_ms);
+                local.reading = opts.reading;
+            }
+            if deadline_ms.is_some() {
+                local.deadline_ms = deadline_ms;
+            }
+            if reading.is_some() {
+                local.reading = reading.clone();
+            }
+            if let Some(exec) = &exec {
+                exec(&mut local);
+            }
+            wsp_core::local_exec::local_exec_stream(local, waiting)
+        }),
+        home: Rc::new(move |_| format!("{home}/.claude")),
+        home_dir: folder.clone(),
+        roots_path: format!("{folder}/roots"),
+        env: Rc::new(move || launch_vars.clone()),
+        daemon_road: if o.no_daemon_road {
+            None
+        } else {
+            Some(Rc::new(|| {
+                Box::pin(async {
+                    Ok(wsp_wire::views::workspace::DaemonReachView {
+                        url: "http://127.0.0.1:1".into(),
+                        expires_at: wsp_wire::types::JsNumber(9_007_199_254_740_991.0),
+                        daemon_token: Some("t".into()),
+                    })
+                })
+            }))
+        },
+        here_daemon: None,
+        restart_daemon: None,
+        sys_samples: None,
+        copier: Some(copier),
+        platform: test_platform(),
+        close: None,
+    }
+}
+
+pub use super::stubs::write_stub;
+
+/// stub-backend.ts:460 `testPlatform`.
+pub fn test_platform() -> wsp_core::types::wiring::Platform {
+    if cfg!(target_os = "macos") {
+        wsp_core::types::wiring::Platform::Darwin
+    } else {
+        wsp_core::types::wiring::Platform::Linux
+    }
+}
+
+/// stub-backend.ts:464 `fakeLocal(root)`, with `exec` changing the options of every local exec stream the runtime opens
+/// (the TS spreads `...o` over `{ root, runDir }`, then a test adds `pollMs`).
+pub fn fake_local_with(
+    root: &Path,
+    env: Option<IndexMap<String, String>>,
+    exec: impl Fn(&mut wsp_core::local_exec::LocalExecOptions) + 'static,
+) -> wsp_core::types::wiring::LocalWiring {
+    let copier: Rc<dyn Copier> = super::copying::copying_fake();
+    local_wiring_with(root, copier, LocalOpts { vars: env, exec: Some(Rc::new(exec)), no_daemon_road: true, ..LocalOpts::default() })
+}
+
+/// `fakeLocal(root)`.
+pub fn fake_local(root: &Path) -> wsp_core::types::wiring::LocalWiring {
+    fake_local_with(root, None, |_| {})
+}
+
+/// ws-client.ts `WsClient` in the call shape part 2d's tests take: one owner, `request(&mut self)`, and a `close` that drops
+/// the socket. It is the one client of `ws_client.rs`.
+pub struct WsClient {
+    inner: Rc<super::ws_client::WsClient>,
+    pub events: Rc<RefCell<Vec<Value>>>,
+}
+
+impl WsClient {
+    pub async fn connect(port: u16, token: &str) -> WsClient {
+        let inner = super::ws_client::WsClient::connect(port, token).await;
+        WsClient { events: inner.events.clone(), inner }
+    }
+
+    pub async fn request(&mut self, op: &str, params: Value) -> Value {
+        self.inner.request(op, params).await
+    }
+
+    pub fn close(self) {
+        self.inner.abort();
+    }
+}
+
+/// What a test does to a command before this computer's machine runs it: `Ok(cmd)` runs that command, `Err(result)` answers in its place.
+pub type Around = Rc<dyn Fn(String) -> LocalBoxFuture<'static, std::result::Result<String, wsp_engine::machine::ExecResult>>>;
+
+/// The TS tests' `machine.exec = async (cmd, o) => ...` on the machine a `LocalBackend` hands out: every exec of the one machine goes
+/// through `around` first, and nothing else about the backend changes.
+pub struct AroundBackend {
+    inner: Arc<wsp_engine::local_backend::LocalBackend>,
+    around: Around,
+}
+
+impl AroundBackend {
+    pub fn new(root: &Path, env: Option<IndexMap<String, String>>, around: Around) -> Arc<AroundBackend> {
+        use wsp_engine::local_backend::{LocalBackend, LocalBackendOptions};
+        Arc::new(AroundBackend { inner: Arc::new(LocalBackend::new(LocalBackendOptions { root: root.to_path_buf(), env })), around })
+    }
+}
+
+struct AroundMachine {
+    inner: Arc<dyn wsp_engine::machine::Machine>,
+    around: Around,
+}
+
+#[async_trait(?Send)]
+impl wsp_engine::machine::MachineBackend for AroundBackend {
+    fn capabilities(&self) -> wsp_engine::machine::Capabilities {
+        self.inner.capabilities()
+    }
+    fn pricing(&self) -> Arc<dyn wsp_engine::machine::BackendPricing> {
+        self.inner.pricing()
+    }
+    async fn create(
+        &self,
+        spec: wsp_engine::machine::MachineSpec,
+        waiting: Option<wsp_engine::machine::Waiting>,
+        sent: Option<String>,
+    ) -> Result<Arc<dyn wsp_engine::machine::Machine>> {
+        self.inner.create(spec, waiting, sent).await
+    }
+    async fn get(&self, id: &str) -> Result<Arc<dyn wsp_engine::machine::Machine>> {
+        let machine = self.inner.get(id).await?;
+        Ok(Arc::new(AroundMachine { inner: machine, around: self.around.clone() }))
+    }
+    async fn list(&self, labels: Option<&IndexMap<String, String>>) -> Result<Vec<wsp_engine::machine::MachineListRow>> {
+        self.inner.list(labels).await
+    }
+    async fn delete_snapshot(&self, id: &str) -> Result<()> {
+        self.inner.delete_snapshot(id).await
+    }
+}
+
+#[async_trait(?Send)]
+impl wsp_engine::machine::Machine for AroundMachine {
+    fn id(&self) -> &str {
+        self.inner.id()
+    }
+    fn kind(&self) -> wsp_engine::machine::MachineKind {
+        self.inner.kind()
+    }
+    fn takes_stdin(&self) -> bool {
+        self.inner.takes_stdin()
+    }
+    fn offers(&self) -> wsp_engine::machine::MachineOffers {
+        self.inner.offers()
+    }
+    async fn exec(&self, cmd: &str, opts: wsp_engine::machine::ExecOptions) -> Result<wsp_engine::machine::ExecResult> {
+        match (self.around)(cmd.to_string()).await {
+            Ok(cmd) => self.inner.exec(&cmd, opts).await,
+            Err(answer) => Ok(answer),
+        }
+    }
+    async fn run(&self, script: &str, opts: wsp_engine::machine::RunOptions) -> Result<wsp_engine::machine::ExecResult> {
+        self.inner.run(script, opts).await
+    }
+    async fn snapshot(
+        &self,
+        name: &str,
+        life: wsp_engine::machine::MachineLife,
+        opts: wsp_engine::machine::SnapshotOptions,
+    ) -> Result<String> {
+        self.inner.snapshot(name, life, opts).await
+    }
+    async fn pause(&self, wait_ms: Option<u64>) -> Result<()> {
+        self.inner.pause(wait_ms).await
+    }
+    async fn resume(&self, signal: Option<&wsp_engine::cancel::Cancel>) -> Result<()> {
+        self.inner.resume(signal).await
+    }
+    async fn kill(&self) -> Result<()> {
+        self.inner.kill().await
+    }
+    async fn state(&self) -> Result<wsp_engine::machine::MachineState> {
+        self.inner.state().await
+    }
+    async fn download_url(&self, path: &str) -> Result<String> {
+        self.inner.download_url(path).await
+    }
+    async fn upload_url(&self, path: &str) -> Result<String> {
+        self.inner.upload_url(path).await
+    }
+    async fn describe(&self) -> Result<wsp_engine::machine::MachineShape> {
+        self.inner.describe().await
+    }
+    async fn facts(&self) -> Result<wsp_engine::machine::MachineFacts> {
+        self.inner.facts().await
+    }
+    async fn put_bytes(&self, path: &str, bytes: &[u8], timeout_ms: Option<u64>) -> Result<Option<wsp_engine::machine::BytesLanded>> {
+        self.inner.put_bytes(path, bytes, timeout_ms).await
     }
 }
