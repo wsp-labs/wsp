@@ -615,3 +615,44 @@ fn a_watched_store_counts_the_reads_of_its_rows_and_keeps_each_blob_collection()
         assert_eq!(watched.rows.folder_reads.get(), 2);
     });
 }
+
+// worktree-sweep.test.ts:136 `host()` and folder-threads.test.ts:128 `here()`: a host stood on this computer reads a real folder,
+// and `Quick` answers each turn at once with the folder it was started in.
+#[test]
+fn a_host_on_this_computer_runs_a_quick_turn_in_the_project_folder_and_makes_no_copy() {
+    use common::local::{git_copier, local_wiring};
+    drive(|| async {
+        let dir = tempfile::tempdir().expect("a folder");
+        let root = std::fs::canonicalize(dir.path()).expect("a real path");
+        let repo = temp_repo();
+        let (copier, log) = git_copier();
+        let quick = Quick::new(QuickOptions::default());
+        let backend = StubBackend::new(None);
+        let local = local_wiring(&root, copier);
+        let state = sqlite_state();
+        let fx = runtime(&backend).store(&state.store).adapter("claude", quick.factory()).with(move |o| o.local = Some(local)).build();
+        let project = fx
+            .rt
+            .projects()
+            .add(wsp_core::types::api::ProjectAddAsk { source: repo.display().to_string(), ..Default::default() }, None)
+            .await
+            .expect("a project");
+        let at = fx
+            .rt
+            .workspaces()
+            .folder_for(wsp_core::types::api::FolderForAsk { project: Some(project.project.id.clone()), ..Default::default() }, None)
+            .await
+            .expect("a folder");
+        let run = fx
+            .rt
+            .sessions()
+            .start(&at.workspace.id, StartOptions { prompt: "hello".into(), ..Default::default() }, None)
+            .await
+            .expect("a start");
+        run.finished().await;
+        assert_eq!(quick.cwds(), [Some(repo.display().to_string())]);
+        assert!(log.lock().unwrap().asks.is_empty());
+        assert!(log.lock().unwrap().worktrees.is_empty());
+        fx.rt.close().await.expect("a close");
+    });
+}
