@@ -15,6 +15,7 @@
 //! What differs from the JavaScript: a number is `Integer` where JavaScript cannot tell it from one (`20.0` is 20), a
 //! date is the `toml` crate's where it reads the text and a string where it does not, and a table lists its keys the
 //! way a JavaScript object does (array indices first).
+use crate::toml_write::UNKNOWN_OFFSET;
 use std::str::FromStr;
 
 use indexmap::IndexMap;
@@ -1143,10 +1144,16 @@ fn date_value(text: &str) -> toml::Value {
         _ => normal.clone(),
     };
     let tries = [text.to_string(), normal, with_seconds];
-    tries
-        .iter()
-        .find_map(|t| toml::value::Datetime::from_str(t).ok())
-        .map_or_else(|| toml::Value::String(text.to_string()), toml::Value::Datetime)
+    let read = tries.iter().find_map(|t| toml::value::Datetime::from_str(t).ok());
+    match read {
+        Some(mut date) => {
+            if text.ends_with("-00:00") && date.offset == Some(toml::value::Offset::Custom { minutes: 0 }) {
+                date.offset = Some(toml::value::Offset::Custom { minutes: UNKNOWN_OFFSET });
+            }
+            toml::Value::Datetime(date)
+        }
+        None => toml::Value::String(text.to_string()),
+    }
 }
 
 /// A day past the end of its month as JavaScript's `Date` takes it: the first days of the next month (`02-30` of a
