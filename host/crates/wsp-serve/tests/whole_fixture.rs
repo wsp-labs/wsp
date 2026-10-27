@@ -589,3 +589,48 @@ fn a_scripted_adapter_sends_its_events_and_finishes_with_its_result() {
         fx.rt.close().await.expect("a close");
     });
 }
+
+// kept-stubs.ts `claudeKeeper` and `codexKeeper`, strays.ts: each stand-in agent answers a message with its pid, its
+// turn count and its turn token, and a test reads whether a process is there without finding it by name.
+#[test]
+fn the_stand_in_agents_name_their_process_and_turn_and_a_test_reads_whether_a_process_is_there() {
+    drive(|| async {
+        use common::stubs::{alive, claude_keeper, codex_keeper, gone, pid_of, token_of};
+        use std::io::Write as _;
+        use std::process::{Command, Stdio};
+        let dir = tempfile::tempdir().expect("a folder");
+        let (claude, codex) = (dir.path().join("claude"), dir.path().join("codex"));
+        claude_keeper(&claude);
+        codex_keeper(&codex);
+        let mut child = Command::new(&claude)
+            .args(["--session-id", "abc"])
+            .env("WSP_TURN", "tok123")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("the claude stand-in");
+        let pid = child.id();
+        child
+            .stdin
+            .as_mut()
+            .expect("stdin")
+            .write_all(b"{\"type\":\"user\",\"message\":{\"content\":[{\"text\":\"hello\"}]}}\n")
+            .expect("a message");
+        drop(child.stdin.take());
+        let out = child.wait_with_output().expect("its output");
+        let said = String::from_utf8_lossy(&out.stdout).to_string();
+        let reply = said
+            .lines()
+            .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+            .find(|v| v["type"] == "result")
+            .expect("a result");
+        let text = reply["result"].as_str().map(str::to_string);
+        assert_eq!(text.as_deref(), Some(format!("hello from {pid} turn 1 token tok123").as_str()));
+        assert_eq!((pid_of(text.as_deref()), token_of(text.as_deref())), (Some(pid), "tok123".to_string()));
+        assert!(!alive(pid));
+        gone(pid).await;
+        let version = Command::new(&claude).arg("--version").output().expect("a version");
+        assert_eq!(String::from_utf8_lossy(&version.stdout).trim(), "2.1.289 (Claude Code)");
+        assert_eq!(Command::new(&codex).arg("nothing").status().expect("codex").code(), Some(2));
+    });
+}

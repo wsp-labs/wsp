@@ -19,6 +19,7 @@ pub mod projects;
 pub mod scripted;
 pub mod store_wrap;
 pub mod stub_backend;
+pub mod stubs;
 pub mod vault;
 pub mod ws_daemon;
 
