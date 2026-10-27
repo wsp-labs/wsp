@@ -10,19 +10,35 @@ use wsp_store::sqlite_transcripts::TranscriptRows;
 use wsp_store::store::{BlobMark, Store};
 use wsp_words::exit::HostError;
 
+type Holds = RefCell<Option<(String, String, Rc<super::Gate>)>>;
+
 pub struct WrappedStore {
     inner: Rc<dyn Store>,
     refuse: RefCell<Vec<(String, String)>>,
+    hold: Holds,
+    held: std::cell::Cell<bool>,
 }
 
 impl WrappedStore {
     pub fn over(inner: &Rc<dyn Store>) -> Rc<WrappedStore> {
-        Rc::new(WrappedStore { inner: inner.clone(), refuse: RefCell::default() })
+        Rc::new(WrappedStore { inner: inner.clone(), refuse: RefCell::default(), hold: RefCell::default(), held: std::cell::Cell::new(false) })
     }
 
     /// Every `put` into `collection` fails with `message` from now on.
     pub fn refuse_puts(&self, collection: &str, message: &str) {
         self.refuse.borrow_mut().push((collection.into(), message.into()));
+    }
+
+    /// The first `put` into `collection` whose value has `phase` waits for the returned gate (box-nap.test.ts:902).
+    pub fn hold_first_put_at_phase(&self, collection: &str, phase: &str) -> Rc<super::Gate> {
+        let gate = super::Gate::new();
+        *self.hold.borrow_mut() = Some((collection.into(), phase.into(), gate.clone()));
+        gate
+    }
+
+    /// Whether a put is waiting on that gate now or was.
+    pub fn held(&self) -> bool {
+        self.held.get()
     }
 
     /// The wrapper as the `Rc<dyn Store>` a runtime takes.
@@ -40,6 +56,11 @@ impl Store for WrappedStore {
         let refused = self.refuse.borrow().iter().find(|(c, _)| c == collection).map(|(_, m)| m.clone());
         if let Some(message) = refused {
             return Err(HostError::new(message));
+        }
+        let waiting = self.hold.borrow().as_ref().filter(|(c, p, _)| c == collection && value["phase"] == p.as_str() && !self.held.get()).map(|(_, _, g)| g.clone());
+        if let Some(gate) = waiting {
+            self.held.set(true);
+            gate.wait().await;
         }
         self.inner.put(collection, id, value).await
     }
