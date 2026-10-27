@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/host/test/place-forks.test.ts > wsp add and the computer a project lives on > refuses a word that names no computer, and names the ones this host holds","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/host/test/place-forks.test.ts > wsp add and the computer a project lives on > refuses a word that names no computer, and names the ones this host holds","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true,"version":"0.3.8","road":"init"}}
 {"in":{"id":2,"op":"places.list"}}

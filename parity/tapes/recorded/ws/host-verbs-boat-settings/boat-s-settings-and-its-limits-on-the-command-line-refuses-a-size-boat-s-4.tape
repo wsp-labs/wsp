@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/host/test/verbs-boat-settings.test.ts > Boat's settings and its limits on the command line > refuses a size Boat's row does not offer, a word that names no size, a delay outside a day, and both on this computer, as usage","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/host/test/verbs-boat-settings.test.ts > Boat's settings and its limits on the command line > refuses a size Boat's row does not offer, a word that names no size, a delay outside a day, and both on this computer, as usage","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true,"version":"0.3.8","road":"init"}}
 {"in":{"id":2,"op":"places.list"}}

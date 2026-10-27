@@ -3,7 +3,7 @@
     {
       "exit": 3,
       "stdout": "",
-      "stderr": "wsp computers set: --spawn for <computer> takes on or off, and got \"on\\\\|off\". Write --spawn on or --spawn off.\n"
+      "stderr": "Unknown option '--spawn'. To specify a positional argument starting with a '-', place it at the end of the command after '--', as in '-- \"--spawn\". usage: wsp computers set <computer> [--name <new>] [--ssh <login>] [--threads <n>] [--machines <n>] [--spend <usd>] [--size <cpu>x<memGb>] [--delete-after <minutes>] [--nap <minutes>|off] [--turn-limit <hours>|off] [--max-machines <n>] [--max-depth <n>] [--recipe <name>|none] [--reset <setting>]...\n"
     }
   ],
   "events": []

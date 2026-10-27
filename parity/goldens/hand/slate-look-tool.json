@@ -22,11 +22,11 @@
         "content": [
           {
             "type": "text",
-            "text": "--set takes <id>=on or <id>=off, and got \"node=maybe\". Write the row id, an equals sign, then on or off."
+            "text": "no thread no-such-thread"
           }
         ],
         "structuredContent": {
-          "error": "--set takes <id>=on or <id>=off, and got \"node=maybe\". Write the row id, an equals sign, then on or off.",
+          "error": "no thread no-such-thread",
           "class": "usage",
           "exit": 3
         },
