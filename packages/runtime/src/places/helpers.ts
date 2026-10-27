@@ -22,6 +22,7 @@ import {
   type RecipeSignIn,
   type PlaceApplied,
   type PlaceSetup,
+  type PlaceWait,
   type PlaceProvisionRow,
   type PlaceSync,
   type PlaceSetupStep,
@@ -49,6 +50,11 @@ export function landedOn(rows: readonly PlaceProvisionRow[], row: LandedRow): Pl
   if (stood === undefined) return row.label === undefined ? undefined : [...rows, { ...row, label: row.label }];
   if (stood.outcome !== "skipped" && stood.outcome !== "failed") return undefined;
   return rows.map(r => (r === stood ? { ...row, label: stood.label, ...(stood.step === undefined ? {} : { step: stood.step }) } : r));
+}
+
+/** The wait standing for a row that starts from its own Sign in, which a sign-in landed under that row's id ends. */
+export function pressedBy(waiting: readonly PlaceWait[] | undefined, row: Pick<LandedRow, "id">): PlaceWait | undefined {
+  return waiting?.find(w => w.press === true && w.row === row.id);
 }
 
 /** One promise with a bound of its own: a place that took a frame and went quiet fails the call rather than
