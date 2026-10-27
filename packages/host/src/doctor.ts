@@ -508,16 +508,16 @@ export async function stageDaemonBundle(
  * to carry: the daemon beside it is a static binary and asks for nothing. */
 export const WSP_COMMAND_NODE_MAJOR = 22;
 
-/** How a node is asked which major it is. Not read into a variable, since `set -e` ends a script on an assignment
- * whose substitution failed and exempts one inside a test. */
-export const NODE_MAJOR = `node -p 'process.versions.node.split(".")[0]'`;
+/** A machine with no node of that major: what the preflight refuses on and the add's node step installs on. The major
+ * is not read into a variable, since `set -e` ends a script on a failed assignment and exempts one inside a test. */
+export const NODE_LACKING = `! command -v node >/dev/null 2>&1 || [ "$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)" -lt ${WSP_COMMAND_NODE_MAJOR} ]`;
 
 /** What every machine wsp reaches over a login must have before a byte of wsp's lands on it: its own systemd to
  * hold the daemon up, and a node new enough for the wsp command beside it, which every turn's agent drives its
  * host through. The daemon itself is one static file and asks nothing. */
 const DAEMON_PREFLIGHT: readonly string[] = [
   NEEDS_SYSTEMD,
-  `if ! command -v node >/dev/null 2>&1 || [ "$(${NODE_MAJOR} 2>/dev/null || echo 0)" -lt ${WSP_COMMAND_NODE_MAJOR} ]; then echo ${shellQuote(NO_NODE_LINE)}; exit 1; fi`,
+  `if ${NODE_LACKING}; then echo ${shellQuote(NO_NODE_LINE)}; exit 1; fi`,
 ];
 
 /** Asked only where the machine can answer: without linger a login's own systemd stops with its last session and
