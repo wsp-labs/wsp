@@ -48,6 +48,18 @@ pub async fn project_on(
     source: Option<&str>,
     name: Option<&str>,
 ) -> Result<wsp_wire::views::workspace::ProjectView, HostError> {
+    project_with(rt, computer, source, name, None).await
+}
+
+/// `projectOn(rt, computer, source, { name, base })`: as `project_on`, naming the base branch the project's pull requests
+/// open against.
+pub async fn project_with(
+    rt: &AssembledRuntime,
+    computer: Option<&str>,
+    source: Option<&str>,
+    name: Option<&str>,
+    base: Option<&str>,
+) -> Result<wsp_wire::views::workspace::ProjectView, HostError> {
     let on = match computer {
         Some(on) => on.to_string(),
         None => forking_computer(rt).await?,
@@ -63,7 +75,7 @@ pub async fn project_on(
             format!("https://github.com/wsp/stub-{n}.git")
         }
     };
-    let ask = ProjectAddAsk { source, on: Some(on), name: name.map(str::to_string), ..Default::default() };
+    let ask = ProjectAddAsk { source, on: Some(on), name: name.map(str::to_string), base: base.map(str::to_string), ..Default::default() };
     Ok(rt.projects().add(ask, None).await?.project)
 }
 
@@ -74,9 +86,13 @@ pub struct CreateOn {
     pub golden: Option<String>,
     pub on: Option<String>,
     pub project: Option<String>,
+    pub cpu: Option<f64>,
     pub mem_mb: Option<f64>,
     pub parent: Option<String>,
     pub idle_window_ms: IdleWindow,
+    /// `agents: { maxMachines, maxDepth }`: the keys of `WorkspaceAgents` a test names.
+    pub agents: Option<serde_json::Map<String, serde_json::Value>>,
+    pub branch_of_record: Option<wsp_wire::views::workspace::BranchOfRecord>,
 }
 
 impl CreateOn {
@@ -91,6 +107,10 @@ impl CreateOn {
         self.on = Some(computer.into());
         self
     }
+    pub fn cpu(mut self, cpu: f64) -> CreateOn {
+        self.cpu = Some(cpu);
+        self
+    }
     pub fn mem(mut self, mem_mb: f64) -> CreateOn {
         self.mem_mb = Some(mem_mb);
         self
@@ -98,6 +118,42 @@ impl CreateOn {
     pub fn golden_is(mut self, golden: &str) -> CreateOn {
         self.golden = Some(golden.into());
         self
+    }
+    /// `branchOfRecord: { repoId, owner, name, branch }`.
+    pub fn branch_of_record(mut self, repo_id: i64, owner: &str, name: &str, branch: &str) -> CreateOn {
+        self.branch_of_record = Some(wsp_wire::views::workspace::BranchOfRecord {
+            repo_id: repo_id.into(),
+            owner: owner.into(),
+            name: name.into(),
+            branch: branch.into(),
+            start_sha: None,
+            public: None,
+        });
+        self
+    }
+}
+
+/// `createOn({ agents })` with the object written out (`.agents(json!({ "maxMachines": 3, "maxDepth": 1 }))`). Two parts
+/// wrote the one option with two call shapes, so each is a trait a test file imports.
+pub trait AgentsDoc {
+    fn agents(self, agents: serde_json::Value) -> CreateOn;
+}
+
+impl AgentsDoc for CreateOn {
+    fn agents(mut self, agents: serde_json::Value) -> CreateOn {
+        self.agents = agents.as_object().cloned();
+        self
+    }
+}
+
+/// `createOn({ agents: { maxMachines, maxDepth } })` as two numbers (`.agents(3, 2)`).
+pub trait AgentsCaps {
+    fn agents(self, max_machines: u32, max_depth: u32) -> CreateOn;
+}
+
+impl AgentsCaps for CreateOn {
+    fn agents(self, max_machines: u32, max_depth: u32) -> CreateOn {
+        AgentsDoc::agents(self, serde_json::json!({ "maxMachines": max_machines, "maxDepth": max_depth }))
     }
 }
 
@@ -119,12 +175,14 @@ pub async fn create_on(rt: &AssembledRuntime, o: CreateOn, origin: Option<Caller
         }
     };
     let opts = CreateWorkspaceOptions {
-        spec: WorkspaceSpec { mem_mb: o.mem_mb.map(JsNumber), ..Default::default() },
+        spec: WorkspaceSpec { cpu: o.cpu.map(JsNumber), mem_mb: o.mem_mb.map(JsNumber), ..Default::default() },
         project: id,
         golden: o.golden,
         name: o.name,
         parent: o.parent,
         idle_window_ms: o.idle_window_ms,
+        agents: o.agents,
+        branch_of_record: o.branch_of_record,
         ..Default::default()
     };
     rt.workspaces().create(opts, origin).await

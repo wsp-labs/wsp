@@ -44,6 +44,12 @@ impl HelloingDaemon {
         self.shared.announced.set(version);
     }
 
+    /// `announce` as a closure a deploy can hold past the borrow of the daemon: `deployDaemon: async () => daemon.announce(v)`.
+    pub fn announcer(&self) -> Rc<dyn Fn(i64)> {
+        let shared = self.shared.clone();
+        Rc::new(move |version| shared.announced.set(version))
+    }
+
     /// `release()`: the hellos held back go out.
     pub fn release(&self) {
         self.shared.held.set(false);

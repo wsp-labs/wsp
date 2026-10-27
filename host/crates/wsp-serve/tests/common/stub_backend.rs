@@ -19,7 +19,7 @@ use wsp_engine::errors::{EngineError, ErrorKind, RoadError};
 use wsp_engine::machine::{
     BackendOffers, BackendPricing, Capabilities, ExecOptions, ExecResult, Lifecycle, LifecycleBudgets, Machine, MachineBackend,
     MachineKind, MachineLife, MachineListRow, MachineOffers, MachineShape, MachineSpec, MachineState, NamedMachine, PreviewReach,
-    ProviderBoxState, RunOptions, Seen, Size, SnapshotOptions, SnapshotRow, SnapshotStoragePricing, TemplateRow, Waiting,
+    ProviderBoxState, RootDisk, RunOptions, Seen, Size, SnapshotOptions, SnapshotRow, SnapshotStoragePricing, TemplateRow, Waiting,
     WireSnapshotStoragePricing,
 };
 use wsp_wire::types::daemon_contract::DAEMON_TOKEN_PATH;
@@ -27,6 +27,7 @@ use wsp_wire::types::js_number::JsInt;
 use wsp_wire::types::JsNumber;
 use wsp_wire::views::activity::iso_time;
 use wsp_wire::wire::capabilities::{MachineSizeOffer, PauseMode};
+use wsp_wire::wire::machine_link::NOT_ON_THIS_ROAD;
 
 use super::vault::VaultServer;
 
@@ -46,6 +47,20 @@ pub type StateFn = Rc<dyn Fn() -> Fut<MachineState>>;
 pub type PreviewFn = Rc<dyn Fn(u16) -> Fut<PreviewReach>>;
 pub type AnswersFn = Rc<dyn Fn(Option<u64>) -> Fut<bool>>;
 pub type UrlFn = Rc<dyn Fn(String) -> Fut<String>>;
+/// `m.resumeAt = async size => ..`: the move to another size a machine that offers it takes.
+/// `lifecycle.quietForMs`: how long the computer running a machine has seen it quiet, or nothing where it cannot say.
+pub type QuietFn = Rc<dyn Fn() -> Fut<Option<u64>>>;
+/// `lifecycle.backstop`: the machine's id and the instant the provider is told to stop it by.
+pub type BackstopFn = Rc<dyn Fn(String, i64) -> Fut<()>>;
+/// `m.startDaemon = async () => exec`: how a machine starts its daemon's unit over its exec road.
+pub type StartDaemonFn = Rc<dyn Fn() -> Fut<ExecResult>>;
+/// `m.daemonExits = async () => said`: what the machine says of a daemon that exits as it starts.
+pub type DaemonExitsFn = Rc<dyn Fn() -> Fut<Option<String>>>;
+pub type ResumeAtFn = Rc<dyn Fn(f64, u64, Option<Cancel>) -> Fut<()>>;
+/// `backend.rootDiskOf = size => ..`: the root disk a provider measured for a size.
+pub type RootDiskFn = Rc<dyn Fn(Size) -> Option<RootDisk>>;
+/// `m.resume = async (signal?: AbortSignal) => ..`: a resume that reads the caller's cancel.
+pub type ResumeWithFn = Rc<dyn Fn(Option<Cancel>) -> Fut<()>>;
 
 /// A `{ kind: "missing", status: 404 }` error: what the provider answers for a machine it no longer holds.
 pub fn missing(message: &str) -> EngineError {
@@ -152,12 +167,20 @@ pub struct StubMachine {
     kill: RefCell<UnitFn>,
     pause: RefCell<UnitFn>,
     resume: RefCell<UnitFn>,
+    resume_with: RefCell<Option<ResumeWithFn>>,
+    resume_at: RefCell<Option<ResumeAtFn>>,
+    served: Cell<bool>,
+    start_daemon: RefCell<Option<StartDaemonFn>>,
+    daemon_exits: RefCell<Option<DaemonExitsFn>>,
+    /// The `waitMs` each pause was handed, oldest first: what `m.pause = async o => ..` collects.
+    pub pause_waits: RefCell<Vec<Option<u64>>>,
     state: RefCell<StateFn>,
     metrics: RefCell<UnitFn>,
     download_url: RefCell<UrlFn>,
     upload_url: RefCell<UrlFn>,
     preview: RefCell<Option<PreviewFn>>,
     daemon_answers: RefCell<Option<AnswersFn>>,
+    prove: RefCell<Option<UnitFn>>,
 }
 
 impl std::fmt::Debug for StubMachine {
@@ -239,6 +262,12 @@ impl StubMachine {
                         Ok(())
                     })
                 })),
+                resume_with: RefCell::new(None),
+                resume_at: RefCell::new(None),
+                served: Cell::new(false),
+                start_daemon: RefCell::new(None),
+                daemon_exits: RefCell::new(None),
+                pause_waits: RefCell::default(),
                 state: RefCell::new(Rc::new(move || {
                     let m = this(&state_me);
                     Box::pin(async move { Ok(m.live_state()) })
@@ -270,6 +299,7 @@ impl StubMachine {
                 })),
                 preview: RefCell::new(None),
                 daemon_answers: RefCell::new(None),
+                prove: RefCell::new(None),
             }
         })
     }
@@ -347,7 +377,39 @@ impl StubMachine {
         self.resume.borrow().clone()
     }
     pub fn set_resume(&self, f: UnitFn) {
+        *self.resume_with.borrow_mut() = None;
         *self.resume.borrow_mut() = f;
+    }
+    /// The resume in force as a function of the caller's cancel, for a test that wraps it as `resume.bind(machine)` does.
+    pub fn resume_with_fn(&self) -> ResumeWithFn {
+        if let Some(f) = self.resume_with.borrow().clone() {
+            return f;
+        }
+        let f = self.resume_fn();
+        Rc::new(move |_| f())
+    }
+    /// `m.startDaemon = ..`; `None` takes it away.
+    pub fn set_start_daemon(&self, f: Option<StartDaemonFn>) {
+        *self.start_daemon.borrow_mut() = f;
+    }
+    pub fn start_daemon_fn(&self) -> Option<StartDaemonFn> {
+        self.start_daemon.borrow().clone()
+    }
+    /// `m.daemonExits = ..`; `None` takes it away.
+    pub fn set_daemon_exits(&self, f: Option<DaemonExitsFn>) {
+        *self.daemon_exits.borrow_mut() = f;
+    }
+    /// `m.daemonFrame = async () => ({ ok: true })`: the machine's computer serves its daemon over its own road.
+    pub fn set_served(&self, served: bool) {
+        self.served.set(served);
+    }
+    /// `m.resumeAt = async size => ..`; `None` takes it away, as a machine that never had one.
+    pub fn set_resume_at(&self, f: Option<ResumeAtFn>) {
+        *self.resume_at.borrow_mut() = f;
+    }
+    /// `m.resume = async signal => ..`: replaces the resume with one that is handed the caller's cancel.
+    pub fn set_resume_with(&self, f: ResumeWithFn) {
+        *self.resume_with.borrow_mut() = Some(f);
     }
     pub fn state_fn(&self) -> StateFn {
         self.state.borrow().clone()
@@ -367,6 +429,11 @@ impl StubMachine {
     pub fn set_download_url(&self, f: UrlFn) {
         *self.download_url.borrow_mut() = f;
     }
+    /// `m.proveRoad = f` (runtime-comeback.test.ts:203): the machine offers a proof of its road, which `f` answers.
+    pub fn set_prove_road(&self, f: Option<UnitFn>) {
+        *self.prove.borrow_mut() = f;
+    }
+
     pub fn set_preview(&self, f: Option<PreviewFn>) {
         *self.preview.borrow_mut() = f;
     }
@@ -469,8 +536,13 @@ impl Machine for StubMachine {
     }
     fn offers(&self) -> MachineOffers {
         MachineOffers {
+            resume_at: self.resume_at.borrow().is_some(),
+            daemon_frame: self.served.get(),
+            start_daemon: self.start_daemon.borrow().is_some(),
+            daemon_exits: self.daemon_exits.borrow().is_some(),
             preview_url: self.preview.borrow().is_some(),
             daemon_answers: self.daemon_answers.borrow().is_some(),
+            prove_road: self.prove.borrow().is_some(),
             describe: true,
             metrics: true,
             ..MachineOffers::default()
@@ -508,13 +580,41 @@ impl Machine for StubMachine {
         }
         backend.take_snapshot(self, name)
     }
-    async fn pause(&self, _wait_ms: Option<u64>) -> Result<(), EngineError> {
+    async fn pause(&self, wait_ms: Option<u64>) -> Result<(), EngineError> {
         bump(&self.calls.pause);
+        self.pause_waits.borrow_mut().push(wait_ms);
         let f = self.pause_fn();
         f().await
     }
-    async fn resume(&self, _signal: Option<&Cancel>) -> Result<(), EngineError> {
+    async fn start_daemon(&self) -> Result<ExecResult, EngineError> {
+        let f = self.start_daemon.borrow().clone().ok_or_else(|| EngineError::Other { message: NOT_ON_THIS_ROAD.into(), code: None })?;
+        f().await
+    }
+    async fn daemon_exits(&self) -> Result<Option<String>, EngineError> {
+        let f = self.daemon_exits.borrow().clone().ok_or_else(|| EngineError::Other { message: NOT_ON_THIS_ROAD.into(), code: None })?;
+        f().await
+    }
+    async fn daemon_frame(
+        &self,
+        _frame: serde_json::Map<String, serde_json::Value>,
+    ) -> Result<serde_json::Map<String, serde_json::Value>, EngineError> {
+        if !self.served.get() {
+            return Err(EngineError::Other { message: NOT_ON_THIS_ROAD.into(), code: None });
+        }
+        let mut answer = serde_json::Map::new();
+        answer.insert("ok".into(), serde_json::Value::Bool(true));
+        Ok(answer)
+    }
+    async fn resume_at(&self, cpu: f64, mem_mb: u64, signal: Option<&Cancel>) -> Result<(), EngineError> {
+        let f = self.resume_at.borrow().clone().ok_or_else(|| EngineError::Other { message: NOT_ON_THIS_ROAD.into(), code: None })?;
+        f(cpu, mem_mb, signal.cloned()).await
+    }
+    async fn resume(&self, signal: Option<&Cancel>) -> Result<(), EngineError> {
         bump(&self.calls.resume);
+        let with = self.resume_with.borrow().clone();
+        if let Some(with) = with {
+            return with(signal.cloned()).await;
+        }
         let f = self.resume_fn();
         f().await
     }
@@ -545,6 +645,14 @@ impl Machine for StubMachine {
         bump(&self.calls.daemon_answers);
         let f = self.answers_fn().ok_or_else(|| EngineError::Other { message: "m.daemonAnswers is not a function".into(), code: None })?;
         f(timeout_ms).await
+    }
+    async fn prove_road(&self, _signal: Option<&Cancel>) -> Result<(), EngineError> {
+        let f = self
+            .prove
+            .borrow()
+            .clone()
+            .ok_or_else(|| EngineError::Other { message: "m.proveRoad is not a function".into(), code: None })?;
+        f().await
     }
     async fn describe(&self) -> Result<MachineShape, EngineError> {
         bump(&self.calls.describe);
@@ -587,6 +695,8 @@ impl BackendPricing for StubPricing {
 /// stub-backend.ts:253 `lifecycle`: the budgets a test shrinks.
 pub struct StubLifecycle {
     budgets: RefCell<LifecycleBudgets>,
+    quiet: RefCell<Option<QuietFn>>,
+    backstop: RefCell<Option<BackstopFn>>,
 }
 
 #[async_trait(?Send)]
@@ -594,14 +704,47 @@ impl Lifecycle for StubLifecycle {
     fn budgets(&self) -> LifecycleBudgets {
         self.budgets.borrow().clone()
     }
+    fn has_backstop(&self) -> bool {
+        self.backstop.borrow().is_some()
+    }
+    async fn backstop(&self, machine: &dyn Machine, until_ms: i64, _exact: bool) -> Result<(), EngineError> {
+        let f = self.backstop.borrow().clone().ok_or_else(|| EngineError::Other { message: NOT_ON_THIS_ROAD.into(), code: None })?;
+        f(machine.id().to_string(), until_ms).await
+    }
+    fn has_quiet_for_ms(&self) -> bool {
+        self.quiet.borrow().is_some()
+    }
+    async fn quiet_for_ms(&self, _machine: &dyn Machine) -> Result<Option<u64>, EngineError> {
+        let f = self.quiet.borrow().clone().ok_or_else(|| EngineError::Other { message: NOT_ON_THIS_ROAD.into(), code: None })?;
+        f().await
+    }
 }
 
 impl StubLifecycle {
+    /// `backend.lifecycle.quietForMs = async () => ..`; `None` is a lifecycle that has none.
+    pub fn set_quiet_for_ms(&self, f: Option<QuietFn>) {
+        *self.quiet.borrow_mut() = f;
+    }
+    /// `backend.lifecycle.backstop = async (machine, until) => ..`; `None` is a lifecycle that has none.
+    pub fn set_backstop(&self, f: Option<BackstopFn>) {
+        *self.backstop.borrow_mut() = f;
+    }
     pub fn set_wake_attempts(&self, n: i64) {
         self.budgets.borrow_mut().wake_attempts = JsInt::from(n);
     }
     pub fn set_daemon_answers_ms(&self, ms: f64) {
         self.budgets.borrow_mut().daemon_answers_ms = JsNumber(ms);
+    }
+    /// `backend.lifecycle.budgets = { ... }`: the whole record, as `{ ...BOX_BUDGETS, daemonAnswersMs: 300 }` writes it.
+    pub fn set_budgets(&self, budgets: LifecycleBudgets) {
+        *self.budgets.borrow_mut() = budgets;
+    }
+    /// `backend.lifecycle.budgets.resumeAsks = { everyMs, forMs }`, or `delete ...resumeAsks` for `None`.
+    pub fn set_resume_asks(&self, asks: Option<(f64, f64)>) {
+        self.budgets.borrow_mut().resume_asks = asks.map(|(every, for_ms)| wsp_wire::wire::machine_link::LifecycleBudgetsResumeAsks {
+            every_ms: JsNumber(every),
+            for_ms: JsNumber(for_ms),
+        });
     }
 }
 
@@ -653,6 +796,8 @@ pub struct StubBackend {
     create_request: RefCell<Option<CreateRequestFn>>,
     replay_create: RefCell<Option<ReplayFn>>,
     named_after: RefCell<Option<NamedAfterFn>>,
+    root_disk: RefCell<Option<RootDiskFn>>,
+    foreign: RefCell<IndexMap<String, Arc<dyn Machine>>>,
 }
 
 impl StubBackend {
@@ -693,6 +838,8 @@ impl StubBackend {
                     for_ms: JsNumber(30.0 * 60_000.0),
                 }),
             }),
+            quiet: RefCell::new(None),
+            backstop: RefCell::new(None),
         });
         Arc::new_cyclic(|me: &Weak<StubBackend>| {
             let make_me = me.clone();
@@ -733,6 +880,8 @@ impl StubBackend {
                 create_request: RefCell::new(None),
                 replay_create: RefCell::new(None),
                 named_after: RefCell::new(None),
+                root_disk: RefCell::new(None),
+                foreign: RefCell::default(),
             }
         })
     }
@@ -809,6 +958,15 @@ impl StubBackend {
     }
     pub fn set_replay_create(&self, f: Option<ReplayFn>) {
         *self.replay_create.borrow_mut() = f;
+    }
+    /// `Object.assign(backend, { rootDiskOf })`: the backend now offers the disk it measured for a size.
+    /// `backend.get = async id => id === machineId ? other : get(id)`: a read of `id` answers `machine`, which is not one the
+    /// stub made (box-nap.test.ts:687).
+    pub fn answer_get_with(&self, id: &str, machine: Arc<dyn Machine>) {
+        self.foreign.borrow_mut().insert(id.to_string(), machine);
+    }
+    pub fn set_root_disk_of(&self, f: Option<RootDiskFn>) {
+        *self.root_disk.borrow_mut() = f;
     }
     pub fn set_named_after(&self, f: Option<NamedAfterFn>) {
         *self.named_after.borrow_mut() = f;
@@ -963,8 +1121,13 @@ impl MachineBackend for StubBackend {
                 && self.named_after.borrow().is_some(),
             list_snapshots: true,
             templates: true,
+            root_disk_of: self.root_disk.borrow().is_some(),
             ..BackendOffers::default()
         }
+    }
+    fn root_disk_of(&self, size: Size) -> Option<RootDisk> {
+        let f = self.root_disk.borrow().clone()?;
+        f(size)
     }
 
     async fn on_computer(&self, cmd: &str, _timeout_ms: Option<u64>) -> Result<ExecResult, EngineError> {
@@ -989,6 +1152,10 @@ impl MachineBackend for StubBackend {
     async fn get(&self, id: &str) -> Result<Arc<dyn Machine>, EngineError> {
         bump(&self.calls.get);
         self.calls.get_ids.borrow_mut().push(id.to_string());
+        let other = self.foreign.borrow().get(id).cloned();
+        if let Some(other) = other {
+            return Ok(other);
+        }
         let f = self.get_fn();
         Ok(f(id.to_string()).await?)
     }

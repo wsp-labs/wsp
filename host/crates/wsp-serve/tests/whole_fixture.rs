@@ -2,6 +2,8 @@
 //! The whole-runtime fixture's own tests (#2476 join B): each proves the fixture answers as the TS `stubBackend` and
 //! its helpers do (packages/runtime/test/stub-backend.ts, runtime-fixture.ts, held-port.ts, split-gateway.ts at
 //! 65f6b89c7), with the TS line each one reads.
+//! Part 1 of 2: the fixture cases of part 1 and parts 2a to 2c; part 2d's are in whole_fixture_2.rs.
+#![allow(dead_code)]
 mod common;
 
 use std::rc::Rc;
@@ -13,17 +15,7 @@ use wsp_core::types::api::StartOptions;
 use wsp_engine::errors::EngineError;
 use wsp_engine::machine::{ExecOptions, MachineLife, MachineSpec, MachineState, SnapshotOptions};
 
-fn spec(doc: serde_json::Value) -> MachineSpec {
-    serde_json::from_value(doc).expect("a machine spec")
-}
-
-async fn made(backend: &Arc<StubBackend>) -> Arc<StubMachine> {
-    backend.make(spec(json!({ "kind": "sandbox" })), None, None).await.expect("a machine")
-}
-
-fn missing_404(e: &EngineError) -> bool {
-    matches!(e, EngineError::Refused { kind: Some(wsp_engine::errors::ErrorKind::Missing), status: Some(404), .. })
-}
+include!("whole_fixture/helpers.rs");
 
 // stub-backend.ts:270: a machine is `m<n>` in the order made, keeps its spec, and carries labels only where the spec names them.
 #[test]
@@ -162,34 +154,6 @@ fn the_vault_urls_take_a_put_and_serve_the_empty_archive_or_what_downloads_gives
         backend.set_downloads(Rc::new(|path| path.as_bytes().to_vec()));
         assert_eq!(http_get(&down).await, b"/root/x.tgz".to_vec());
     });
-}
-
-async fn raw_http(url: &str, request: impl FnOnce(&str, &str) -> Vec<u8>) -> Vec<u8> {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-    let rest = url.strip_prefix("http://").expect("an http url");
-    let (host, path) = rest.split_once('/').map_or((rest, "/".to_string()), |(h, p)| (h, format!("/{p}")));
-    let mut stream = tokio::net::TcpStream::connect(host).await.expect("a connection");
-    stream.write_all(&request(host, &path)).await.expect("a request");
-    let mut out = Vec::new();
-    stream.read_to_end(&mut out).await.expect("a reply");
-    out
-}
-
-async fn reqwest_free_put(url: &str, body: &[u8]) -> String {
-    let body = body.to_vec();
-    let reply = raw_http(url, move |host, path| {
-        let mut req = format!("PUT {path} HTTP/1.1\r\nhost: {host}\r\ncontent-length: {}\r\n\r\n", body.len()).into_bytes();
-        req.extend_from_slice(&body);
-        req
-    })
-    .await;
-    String::from_utf8_lossy(&reply).into_owned()
-}
-
-async fn http_get(url: &str) -> Vec<u8> {
-    let reply = raw_http(url, |host, path| format!("GET {path} HTTP/1.1\r\nhost: {host}\r\n\r\n").into_bytes()).await;
-    let at = reply.windows(4).position(|w| w == b"\r\n\r\n").expect("a head") + 4;
-    reply[at..].to_vec()
 }
 
 // stub-backend.ts:266-269: a command on the computer is logged apart from every machine and answered by the same execImpl,
@@ -453,5 +417,793 @@ fn a_gate_holds_a_waiter_until_it_is_opened_and_until_polls_a_condition() {
         })
         .await;
         assert_eq!(ticks.get(), 3);
+    });
+}
+
+// stub-backend.ts:253 `lifecycle`: a test writes the whole budgets record (wake-keeps-machine.test.ts:21) or deletes and
+// sets `resumeAsks` alone (wake-asks-again.test.ts:34).
+#[test]
+fn the_lifecycle_budgets_are_written_whole_and_resume_asks_alone() {
+    use wsp_engine::machine::Lifecycle as _;
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let life = backend.lifecycle();
+        let seen = j(&life.budgets());
+        assert_eq!(seen["wakeAttempts"], 2);
+        assert_eq!(seen["daemonAnswersMs"], 30_000);
+        assert_eq!(seen["resumeAsks"], json!({ "everyMs": 60_000, "forMs": 1_800_000 }));
+        life.set_resume_asks(Some((60.0, 120.0)));
+        assert_eq!(j(&life.budgets())["resumeAsks"], json!({ "everyMs": 60, "forMs": 120 }));
+        life.set_resume_asks(None);
+        assert!(j(&life.budgets()).get("resumeAsks").is_none());
+        life.set_budgets(wsp_engine::box_backend::plan::box_budgets());
+        life.set_daemon_answers_ms(300.0);
+        let box_seen = j(&life.budgets());
+        assert_eq!(box_seen["daemonAnswersMs"], 300);
+        assert_eq!(box_seen["wakeAttempts"], 1);
+    });
+}
+
+// stub-backend.ts:511 `copyingFake`: a copy is a folder copied for real and a remove takes it away.
+#[test]
+fn the_copying_fake_copies_a_folder_for_real_and_a_remove_takes_it_away() {
+    use wsp_engine::copier::{Copier as _, CopyAsk, CopyRoad};
+    drive(|| async {
+        let dir = tempfile::tempdir().expect("a folder");
+        let from = dir.path().join("from");
+        std::fs::create_dir_all(&from).expect("a source");
+        std::fs::write(from.join("a.txt"), "a").expect("a file");
+        let to = dir.path().join("to");
+        let copier = common::copying::copying_fake();
+        let ask = CopyAsk {
+            from: from.display().to_string(),
+            to: to.display().to_string(),
+            base: None,
+            exclude: vec!["node_modules".into()],
+            size_line_bytes: 0.into(),
+            road: None,
+        };
+        let report = copier.make(&ask).await.expect("a copy");
+        assert_eq!(report.path, to.display().to_string());
+        assert_eq!(j(&report)["excluded"], json!(["node_modules"]));
+        assert_eq!(std::fs::read_to_string(to.join("a.txt")).expect("the copy"), "a");
+        copier.remove(&ask.from, &ask.to, CopyRoad::Clonefile).await.expect("a remove");
+        assert!(!to.exists());
+        assert_eq!(copier.log().lock().expect("the log").asks.len(), 1);
+    });
+}
+
+// wake-asks-again.test.ts:49 `deafResume`: a machine's resume that is handed the caller's cancel, wrapped as
+// `machine.resume.bind(machine)` wraps it, and replaced whole by a plain reassignment.
+#[test]
+fn a_resume_that_reads_the_callers_cancel_is_wrapped_and_a_plain_reassignment_replaces_it() {
+    use wsp_engine::cancel::Cancel;
+    use wsp_engine::machine::Machine as _;
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let m = made(&backend).await;
+        m.pause(None).await.expect("a pause");
+        assert!(m.paused.get());
+        let seen = Rc::new(std::cell::Cell::new(false));
+        let was = m.resume_with_fn();
+        let marked = seen.clone();
+        m.set_resume_with(Rc::new(move |signal| {
+            marked.set(signal.is_some());
+            let was = was.clone();
+            Box::pin(async move { was(None).await })
+        }));
+        let cancel = Cancel::new();
+        m.resume(Some(&cancel)).await.expect("a resume");
+        assert!(seen.get());
+        assert!(!m.paused.get());
+        assert_eq!(m.calls.resume.get(), 1);
+        m.set_resume(Rc::new(|| Box::pin(async { Err(missing("Box not found")) })));
+        assert!(m.resume(Some(&cancel)).await.is_err());
+        assert_eq!(m.calls.resume.get(), 2);
+    });
+}
+
+// disk-watch.test.ts:36 and :213 `movable`: a backend that offers a root disk per size, a machine that offers `resumeAt`
+// once a test gives it one, and a pause that keeps the `waitMs` it was handed.
+#[test]
+fn a_backend_offers_a_root_disk_and_a_machine_a_resume_at_only_once_a_test_gives_one() {
+    use wsp_engine::machine::{Machine as _, MachineBackend as _, RootDisk, Size};
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let size = Size { cpu: 2.0, mem_mb: 4096.0 };
+        assert!(!backend.offers().root_disk_of);
+        assert!(backend.root_disk_of(size).is_none());
+        backend.set_root_disk_of(Some(Rc::new(|s: Size| (s.cpu == 2.0).then(|| RootDisk { name: "small".into(), disk_gb: 75.0 }))));
+        assert!(backend.offers().root_disk_of);
+        assert_eq!(backend.root_disk_of(size).map(|d| (d.name, d.disk_gb)), Some(("small".to_string(), 75.0)));
+        assert!(backend.root_disk_of(Size { cpu: 4.0, mem_mb: 8192.0 }).is_none());
+
+        let m = made(&backend).await;
+        assert!(!m.offers().resume_at);
+        assert!(m.resume_at(4.0, 8192, None).await.is_err());
+        let landed = Rc::new(std::cell::RefCell::new(vec![]));
+        let seen = landed.clone();
+        let machine = m.clone();
+        m.set_resume_at(Some(Rc::new(move |cpu, mem_mb, _| {
+            seen.borrow_mut().push((cpu, mem_mb));
+            machine.paused.set(false);
+            Box::pin(async { Ok(()) })
+        })));
+        assert!(m.offers().resume_at);
+        m.pause(Some(1_800_000)).await.expect("a pause");
+        m.pause(None).await.expect("a pause");
+        assert_eq!(*m.pause_waits.borrow(), [Some(1_800_000), None]);
+        m.resume_at(4.0, 8192, None).await.expect("a resume at a size");
+        assert_eq!(*landed.borrow(), [(4.0, 8192)]);
+        assert!(!m.paused.get());
+    });
+}
+
+// stub-backend.ts:432 `createOn` with `{ cpu, memMb }`: the size a test names reaches the machine's spec.
+#[test]
+fn create_on_carries_the_cpu_and_memory_a_test_names_to_the_machine() {
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let fx = runtime(&backend).build();
+        create_on(&fx.rt, CreateOn::golden("web").cpu(4.0).mem(8192.0), None).await.expect("a workspace");
+        let spec = backend.machine(0).spec_now();
+        assert_eq!((j(&spec)["cpu"].clone(), j(&spec)["memMb"].clone()), (json!(4), json!(8192)));
+        fx.rt.close().await.expect("a close");
+    });
+}
+
+// idle.test.ts:244 and :596 `quietForMs` and `backstop`: a lifecycle has neither until a test gives it one.
+#[test]
+fn a_lifecycle_has_a_quiet_figure_and_a_backstop_only_once_a_test_gives_them() {
+    use wsp_engine::machine::Lifecycle as _;
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let life = backend.lifecycle();
+        let m = made(&backend).await;
+        assert!(!life.has_quiet_for_ms() && !life.has_backstop());
+        assert!(life.quiet_for_ms(&*m).await.is_err());
+        life.set_quiet_for_ms(Some(Rc::new(|| Box::pin(async { Ok(Some(60_000)) }))));
+        assert!(life.has_quiet_for_ms());
+        assert_eq!(life.quiet_for_ms(&*m).await.expect("a figure"), Some(60_000));
+        let heard = Rc::new(std::cell::RefCell::new(vec![]));
+        let seen = heard.clone();
+        life.set_backstop(Some(Rc::new(move |machine, until| {
+            seen.borrow_mut().push((machine, until));
+            Box::pin(async { Ok(()) })
+        })));
+        assert!(life.has_backstop());
+        life.backstop(&*m, 1_000, false).await.expect("a backstop");
+        assert_eq!(*heard.borrow(), [("m1".to_string(), 1_000)]);
+        life.set_backstop(None);
+        assert!(!life.has_backstop());
+    });
+}
+
+// runtime-reach.test.ts:542 `daemonFrame`: a machine whose computer serves its daemon answers a frame and offers that road.
+#[test]
+fn a_machine_serves_its_daemon_over_its_own_road_only_once_a_test_says_so() {
+    use wsp_engine::machine::Machine as _;
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let m = made(&backend).await;
+        assert!(!m.offers().daemon_frame);
+        assert!(m.daemon_frame(serde_json::Map::new()).await.is_err());
+        m.set_served(true);
+        assert!(m.offers().daemon_frame);
+        assert_eq!(serde_json::Value::Object(m.daemon_frame(serde_json::Map::new()).await.expect("an answer")), json!({ "ok": true }));
+    });
+}
+
+// runtime-reach.test.ts:401 `daemonPort`, and the route a test hands a machine's `previewUrl`.
+#[test]
+fn the_daemon_port_answers_502_then_426_and_a_route_leads_a_machine_to_it() {
+    use common::reach::{daemon_port, route_through, token_written};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    drive(|| async {
+        let up = Rc::new(std::cell::Cell::new(false));
+        let edge = daemon_port({
+            let up = up.clone();
+            move || up.get()
+        })
+        .await;
+        let status = |port: u16| async move {
+            let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.expect("a socket");
+            stream.write_all(b"GET / HTTP/1.1\r\nhost: x\r\n\r\n").await.expect("a request");
+            let mut said = String::new();
+            let _ = stream.read_to_string(&mut said).await;
+            said.split_whitespace().nth(1).unwrap_or_default().to_string()
+        };
+        assert_eq!(status(edge.port).await, "502");
+        up.set(true);
+        assert_eq!(status(edge.port).await, "426");
+        assert_eq!(edge.hits(), 2);
+
+        let backend = StubBackend::new(None);
+        let m = made(&backend).await;
+        route_through(&m, edge.port, None);
+        let reach = m.preview_url(7070).await.expect("a route");
+        assert_eq!(reach.url, format!("http://127.0.0.1:{}/?port=7070", edge.port));
+        assert_eq!(reach.token, "e");
+        assert_eq!(token_written("a\nWSP_DAEMON_TOKEN='abc'\nb").as_deref(), Some("abc"));
+        assert_eq!(token_written("WSP_DAEMON_TOKEN='a'b'"), None);
+    });
+}
+
+// runtime-reach.test.ts:164 `deployDaemon: async () => daemon.announce(v)`: a deploy holds the announce past the daemon's borrow.
+#[test]
+fn a_deploy_holds_the_daemons_announce_as_a_closure() {
+    use futures::{SinkExt as _, StreamExt as _};
+    use tokio_tungstenite::tungstenite::Message;
+    drive(|| async {
+        let daemon = helloing_daemon(1, false, None).await;
+        let announce = daemon.announcer();
+        announce(42);
+        let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{}", daemon.port)).await.expect("a socket");
+        ws.send(Message::text(json!({ "id": 1, "op": "auth", "token": "t" }).to_string())).await.expect("a send");
+        let _ok = ws.next().await.expect("a frame").expect("ok");
+        let hello: serde_json::Value =
+            serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
+        assert_eq!(hello["version"], 42);
+    });
+}
+
+// box-nap.test.ts:49 `slowDaemon` and :78 `lateDaemon`: one holds its answer to the auth frame until `up()`, the other
+// refuses every upgrade with a 502 until `up()`.
+#[test]
+fn the_slow_daemon_holds_its_auth_answer_and_the_late_daemon_refuses_upgrades_until_up() {
+    use common::box_daemons::{late_daemon, slow_daemon};
+    use futures::{SinkExt as _, StreamExt as _};
+    use tokio_tungstenite::tungstenite::Message;
+    drive(|| async {
+        let slow = slow_daemon().await;
+        let (mut ws, _) = tokio_tungstenite::connect_async(slow.url()).await.expect("a socket");
+        ws.send(Message::text(json!({ "id": 1, "op": "auth", "token": "t" }).to_string())).await.expect("a send");
+        assert!(tokio::time::timeout(std::time::Duration::from_millis(100), ws.next()).await.is_err());
+        ws.send(Message::text(json!({ "id": 2, "op": "ping" }).to_string())).await.expect("a send");
+        let pong: serde_json::Value =
+            serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
+        assert_eq!(pong, json!({ "id": 2, "ok": true }));
+        slow.up();
+        let auth: serde_json::Value =
+            serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
+        assert_eq!(auth, json!({ "id": 1, "ok": true }));
+
+        let late = late_daemon().await;
+        let refused = tokio_tungstenite::connect_async(late.url()).await;
+        assert!(refused.is_err(), "the edge answers a 502 before it is up");
+        assert_eq!(late.dials(), 1);
+        late.up();
+        let (mut ws, _) = tokio_tungstenite::connect_async(late.url()).await.expect("a socket");
+        ws.send(Message::text(json!({ "id": 3, "op": "auth", "token": "t" }).to_string())).await.expect("a send");
+        let ok: serde_json::Value =
+            serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
+        assert_eq!(ok, json!({ "id": 3, "ok": true }));
+        assert_eq!(late.dials(), 2);
+    });
+}
+
+// box-nap.test.ts:278 `m.startDaemon` and :381 `m.daemonExits`: a machine starts or looks at its daemon's unit only once a
+// test gives it the road; and `void promise` starts a future at once, as a JS call runs its synchronous half.
+#[test]
+fn a_machine_starts_its_daemon_and_reads_its_exit_only_once_a_test_gives_it_the_roads_and_fire_starts_a_future_at_once() {
+    use wsp_engine::machine::Machine as _;
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let m = made(&backend).await;
+        assert!(!m.offers().start_daemon && !m.offers().daemon_exits);
+        assert!(m.start_daemon().await.is_err() && m.daemon_exits().await.is_err());
+        m.set_start_daemon(Some(Rc::new(|| Box::pin(async { Ok(exec_ok("started")) }))));
+        m.set_daemon_exits(Some(Rc::new(|| Box::pin(async { Ok(Some("it exits".to_string())) }))));
+        assert!(m.offers().start_daemon && m.offers().daemon_exits);
+        assert_eq!(m.start_daemon().await.expect("a start").stdout, "started");
+        assert_eq!(m.daemon_exits().await.expect("a look").as_deref(), Some("it exits"));
+
+        let ran = Rc::new(std::cell::Cell::new(false));
+        let seen = ran.clone();
+        fire(async move {
+            seen.set(true);
+            sleep_ms(1).await;
+        });
+        assert!(ran.get(), "the part before the first wait ran inside the call");
+    });
+}
+
+// box-nap.test.ts:687 `backend.get = async id => (id === ws.machineId ? box.machine : get(id))`: a read of one id answers a
+// machine the stub did not make, and every other read is the stub's own.
+#[test]
+fn a_read_of_one_id_can_answer_a_machine_the_stub_did_not_make() {
+    use wsp_engine::machine::{Machine as _, MachineBackend as _};
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let a = made(&backend).await;
+        let b = made(&backend).await;
+        backend.answer_get_with(a.id(), b.clone());
+        assert_eq!(backend.get(a.id()).await.expect("a machine").id(), b.id());
+        assert_eq!(backend.get(b.id()).await.expect("a machine").id(), b.id());
+        assert_eq!(backend.calls.get.get(), 2);
+    });
+}
+
+// box-nap.test.ts:583 `restoringBox`: the real Boat machine over a fake gateway refuses commands while it restores, reads its
+// state as it is told, counts the proofs it is asked and can hold a read.
+#[test]
+fn the_restoring_box_refuses_commands_until_its_clock_reaches_the_restore_and_the_machine_counts_its_proofs() {
+    use common::box_fake::restoring_box;
+    use wsp_engine::machine::{Machine as _, MachineState};
+    drive(|| async {
+        let state = Rc::new(std::cell::RefCell::new("ready".to_string()));
+        let reads = state.clone();
+        let b = restoring_box("bx_1", move || reads.borrow().clone(), 30.0, || {});
+        assert_eq!(b.machine.state().await.expect("a state"), MachineState::Running);
+        *state.borrow_mut() = "archived".into();
+        assert_eq!(b.machine.state().await.expect("a state"), MachineState::Paused);
+        *state.borrow_mut() = "ready".into();
+        b.machine.prove_road(None).await.expect("a proof once restored");
+        assert_eq!(b.machine.proofs.get(), 1);
+        assert!(b.state.commands.borrow().contains(&true), "the box answered sandbox_restoring while its clock ran");
+        assert_eq!(b.state.last_command_restoring(), Some(false));
+        let held = b.state.hold_next();
+        let proving = tokio::task::spawn_local({
+            let machine = b.machine.clone();
+            async move { machine.prove_road(None).await }
+        });
+        sleep_ms(50).await;
+        assert!(!proving.is_finished());
+        held.open();
+        proving.await.expect("a task").expect("a proof");
+        assert_eq!(b.machine.proofs.get(), 2);
+        b.state.deleted.set(true);
+        assert!(b.machine.prove_road(None).await.is_err());
+    });
+}
+
+// box-nap.test.ts:902 `t.store.put = ...`: the first put of a record at one phase waits until the test lets it go.
+#[test]
+fn a_wrapped_store_holds_the_first_put_at_a_phase_until_the_test_lets_it_go() {
+    drive(|| async {
+        let state = sqlite_state();
+        let wrapped = WrappedStore::over(&state.store);
+        let gate = wrapped.hold_first_put_at_phase("workspaces", "waking");
+        let store = wrapped.store();
+        store.put("workspaces", "a", json!({ "phase": "running" })).await.expect("a put");
+        assert!(!wrapped.held());
+        let waiting = tokio::task::spawn_local({
+            let store = store.clone();
+            async move { store.put("workspaces", "a", json!({ "phase": "waking" })).await }
+        });
+        until(|| {
+            let held = wrapped.held();
+            async move { held }
+        })
+        .await;
+        assert_eq!(state.store.get("workspaces", "a").await.expect("a read").expect("a record")["phase"], "running");
+        gate.open();
+        waiting.await.expect("a task").expect("a put");
+        assert_eq!(state.store.get("workspaces", "a").await.expect("a read").expect("a record")["phase"], "waking");
+        store.put("workspaces", "a", json!({ "phase": "waking", "again": true })).await.expect("a put goes through once the hold fired");
+    });
+}
+
+// session-row.test.ts:51 `drivenAdapter`: a turn the test drives line by line, ends when it says, or replies at once while `quick` holds.
+#[test]
+fn a_driven_turn_prints_what_the_test_emits_ends_when_the_test_ends_it_and_replies_at_once_while_quick_holds() {
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let driven = Driven::new();
+        let fx = runtime(&backend).adapter("claude", driven.factory()).build();
+        let ws = create_on(&fx.rt, CreateOn::golden("w"), None).await.expect("a workspace").view.id;
+        let run = fx.rt.sessions().start(&ws, StartOptions { prompt: "work".into(), ..Default::default() }, None).await.expect("a start");
+        until(|| {
+            let driven = driven.clone();
+            async move { driven.len() == 1 }
+        })
+        .await;
+        assert_eq!(driven.last().prompt, "work");
+        driven.last().calls("toolu_1", "Bash", "{}");
+        driven.last().end(json!({ "text": "fine" }));
+        assert_eq!(j(&run.finished().await)["text"], "fine");
+        let types: Vec<String> = fx
+            .rt
+            .sessions()
+            .history(&ws, None)
+            .await
+            .expect("a history")
+            .iter()
+            .map(|e| j(e)["type"].as_str().unwrap_or_default().to_string())
+            .collect();
+        assert_eq!(types, ["session.start", "session.delta", "session.done", "session.end"]);
+        driven.quick.set(true);
+        let quick =
+            fx.rt.sessions().start(&ws, StartOptions { prompt: "again".into(), ..Default::default() }, None).await.expect("a start");
+        assert_eq!(j(&quick.finished().await)["text"], "done");
+        fx.rt.close().await.expect("a close");
+    });
+}
+
+// ws-client.ts `WsClient`: auth first, then request and reply, every pushed event kept; `createOverWire` makes a project and a workspace.
+#[test]
+fn a_ws_client_authenticates_requests_keeps_every_pushed_event_and_sees_the_socket_close() {
+    drive(|| async {
+        let fx = runtime(&StubBackend::new(None)).build();
+        let served = wsp_serve::serve::serve_runtime(
+            fx.rt.clone(),
+            wsp_serve::serve::ServeOptions { port: Some(0), auth_token: "secret".into(), ..Default::default() },
+        )
+        .await
+        .expect("the runtime serves");
+        let c = WsClient::connect(served.port(), "secret").await;
+        let sub = c.request("events.subscribe", json!({})).await;
+        assert_eq!(sub["ok"], json!(true));
+        assert!(sub["seq"].is_number());
+        let created = create_over_wire(&c, "x", json!({ "golden": "snap_g" })).await;
+        assert!(created["workspace"]["id"].is_string(), "{created}");
+        let events = c.received(1).await;
+        assert!(events.iter().all(|e| e["type"].is_string()));
+        c.close().await;
+        c.closed().await;
+        served.close().await.expect("a close");
+    });
+}
+
+// runtime-comeback.test.ts:30 `machineRuns`: a run lives on the machine; a host that comes back attaches by its handle and the
+// log is replayed from its first line; forgetting a run is the machine having swept it.
+#[test]
+fn a_machine_run_outlives_the_host_is_reattached_by_its_handle_replays_its_log_and_is_gone_once_swept() {
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let state = sqlite_state();
+        let h = MachineRuns::new();
+        let rt1 = runtime(&backend).store(&state.store).adapter("claude", h.factory()).build();
+        let ws = create_on(&rt1.rt, CreateOn::golden("a"), None).await.expect("a workspace").view.id;
+        rt1.rt.sessions().start(&ws, StartOptions { prompt: "build it".into(), ..Default::default() }, None).await.expect("a start");
+        let (rt, w) = (rt1.rt.clone(), ws.clone());
+        until(|| {
+            let (rt, w) = (rt.clone(), w.clone());
+            async move { rt.sessions().history(&w, None).await.expect("a history").iter().any(|e| j(e)["type"] == "session.start") }
+        })
+        .await;
+        let run = h.handles()[0].clone();
+        assert!(run.starts_with("/tmp/wsp-run/"));
+        h.emit(&run, json!({ "type": "turn.delta", "sessionId": "sess-1", "kind": "text", "text": "reading" }));
+        rt1.rt.close().await.expect("a close");
+
+        let rt2 = runtime(&backend).store(&state.store).adapter("claude", h.factory()).build();
+        let rows = rt2.rt.sessions().list(Some(ws.clone()), None).await.expect("a list");
+        assert_eq!(rows.iter().map(|r| j(r)["status"].clone()).collect::<Vec<_>>(), [json!("running")]);
+        assert_eq!(h.reopened().iter().map(|r| r.prompt.clone()).collect::<Vec<_>>(), [Some("build it".to_string())]);
+        h.emit(&run, json!({ "type": "turn.done", "sessionId": "sess-1", "result": { "status": "completed", "text": "done" } }));
+        h.emit(&run, json!({ "type": "session.end", "sessionId": "sess-1", "exitCode": 0, "sawResult": true }));
+        let (rt, w) = (rt2.rt.clone(), ws.clone());
+        until(|| {
+            let (rt, w) = (rt.clone(), w.clone());
+            async move { j(&rt.sessions().list(Some(w), None).await.expect("a list")[0])["status"] == "completed" }
+        })
+        .await;
+        h.sweep(&run);
+        assert!(h.handles().is_empty());
+        assert_eq!(h.attempts(), 1);
+        rt2.rt.close().await.expect("a close");
+    });
+}
+
+// runtime-comeback.test.ts:313, :812, :861, :203: a store whose listing answers last, whose puts a test counts and whose transcripts
+// do not read; a harness whose attach a test holds and counts; a machine that offers a proof of its road; a workspace with agent limits.
+#[test]
+fn a_wrapped_store_holds_a_listing_counts_puts_and_fails_transcript_reads_and_a_holder_counts_the_attaches_it_holds() {
+    drive(|| async {
+        let state = sqlite_state();
+        let wrapped = WrappedStore::over(&state.store);
+        let gate = Gate::new();
+        wrapped.hold_list("sessions", &gate);
+        let store = wrapped.store();
+        store.put("sessions", "w1", json!({ "sessions": [] })).await.expect("a put");
+        store.put("workspaces", "w1", json!({})).await.expect("a put");
+        assert_eq!((wrapped.puts_into("sessions"), wrapped.puts_into("workspaces")), (1, 1));
+        let listing = tokio::task::spawn_local({
+            let store = store.clone();
+            async move { store.list("sessions").await.expect("a list").len() }
+        });
+        sleep_ms(30).await;
+        assert!(!listing.is_finished());
+        gate.open();
+        assert_eq!(listing.await.expect("the listing"), 1);
+        assert!(store.transcripts().expect("rows").all("w1").is_ok());
+        wrapped.fail_transcripts("disk said EIO");
+        assert_eq!(store.transcripts().expect("rows").all("w1").err().map(|e| e.message), Some("disk said EIO".to_string()));
+
+        // session-images.test.ts: the host dies between two writes, so the bytes of a blob never land.
+        wrapped.refuse_blob_puts("attachments", "the host went down");
+        assert_eq!(store.put_blob("attachments", "k", vec![1]).await.err().map(|e| e.message), Some("the host went down".to_string()));
+        store.put_blob("vaults", "k", vec![1]).await.expect("a put into another collection");
+
+        // reconcile.test.ts `refusingOnce`: the next put into a collection fails, the ones after it do not.
+        wrapped.refuse_next_put("workspaces", "ENOSPC");
+        assert_eq!(store.put("workspaces", "w2", json!({})).await.err().map(|e| e.message), Some("ENOSPC".to_string()));
+        store.put("workspaces", "w2", json!({})).await.expect("the second put lands");
+        // transcript-index.test.ts: the next write of a transcript's index fails, the next lands.
+        wrapped.fail_next_index_write("disk full");
+        let rows = store.transcripts().expect("rows");
+        assert_eq!(rows.put_index("w1", "{}").err().map(|e| e.message), Some("disk full".to_string()));
+        rows.put_index("w1", "{}").expect("the second write lands");
+
+        let holder = Holder::at(None);
+        let held = Gate::new();
+        holder.hold(&held);
+        assert_eq!((holder.asked.get(), holder.gate.borrow().is_some()), (0, true));
+    });
+}
+
+#[test]
+fn a_machine_offers_a_proof_of_its_road_once_one_is_set_and_a_workspace_takes_the_agent_limits_it_is_created_with() {
+    use common::projects::AgentsDoc;
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let fx = runtime(&backend).build();
+        let ws =
+            create_on(&fx.rt, CreateOn::golden("a").agents(json!({ "maxMachines": 3, "maxDepth": 1 })), None).await.expect("a workspace");
+        assert_matches(&j(&ws.view)["agents"], json!({ "maxMachines": 3, "maxDepth": 1 }));
+        let m = backend.machine(0);
+        assert!(!m.offers().prove_road);
+        let proofs = Rc::new(std::cell::Cell::new(0));
+        let counted = proofs.clone();
+        m.set_prove_road(Some(Rc::new(move || {
+            counted.set(counted.get() + 1);
+            Box::pin(async { Ok(()) })
+        })));
+        assert!(m.offers().prove_road);
+        m.prove_road(None).await.expect("a proof");
+        assert_eq!(proofs.get(), 1);
+        fx.rt.close().await.expect("a close");
+    });
+}
+
+// session-held.test.ts, session-mcp.test.ts, session-search.test.ts: a scripted harness prints its lines at once, a tick later or once a gate
+// opens, streams the reply in pieces, declares the MCP road when told, and records what each start was asked.
+#[test]
+fn a_scripted_turn_prints_its_lines_at_once_a_tick_later_or_at_a_gate_streams_pieces_and_records_its_starts() {
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let gate = Gate::new();
+        let script =
+            Scripted::new().cwd("/root/app").pieces(2).reply(|p| format!("reply to {p}")).takes_mcp().when(When::Gate(gate.clone()));
+        let fx = runtime(&backend).adapter("claude", script.factory()).build();
+        let ws = create_on(&fx.rt, CreateOn::golden("w"), None).await.expect("a workspace").view.id;
+        let run = fx.rt.sessions().start(&ws, StartOptions { prompt: "work".into(), ..Default::default() }, None).await.expect("a start");
+        sleep_ms(30).await;
+        assert!(fx.rt.sessions().history(&ws, None).await.expect("a history").is_empty(), "nothing is printed before the gate opens");
+        gate.open();
+        assert_eq!(j(&run.finished().await)["text"], "reply to work");
+        let history = fx.rt.sessions().history(&ws, None).await.expect("a history");
+        let types: Vec<String> = history.iter().map(|e| j(e)["type"].as_str().unwrap_or_default().to_string()).collect();
+        assert_eq!(types, ["session.start", "session.delta", "session.delta", "session.done", "session.end"]);
+        assert_eq!(script.starts.borrow()[0].prompt, "work");
+        // An adapter that declares the MCP road is handed the host's own server when the start names none.
+        assert_eq!(script.mcp.borrow()[0], Some(json!({ "wsp": { "command": "wsp", "args": ["mcp"] } })));
+        let sync = Scripted::new().session("22222222-2222-4222-8222-222222222222").when(When::Sync);
+        let fx2 = runtime(&backend).adapter("claude", sync.factory()).build();
+        let ws2 = create_on(&fx2.rt, CreateOn::golden("w2"), None).await.expect("a workspace").view.id;
+        let quick = fx2.rt.sessions().start(&ws2, StartOptions { prompt: "x".into(), ..Default::default() }, None).await.expect("a start");
+        assert_eq!(j(&quick.finished().await)["text"], "done");
+        assert_eq!(j(&quick.view())["claudeSessionId"], "22222222-2222-4222-8222-222222222222");
+        fx.rt.close().await.expect("a close");
+        fx2.rt.close().await.expect("a close");
+    });
+}
+
+// waiting-behind.test.ts:25 `drivenAdapter`: a turn raises a prompt, an answer closes it, a reply closes what is still
+// open as cancelled, and each session id is its own.
+#[test]
+fn a_driven_turn_raises_a_prompt_takes_its_answer_and_closes_what_a_reply_leaves_open() {
+    drive(|| async {
+        use common::driven::{driven, Turns};
+        use wsp_core::types::api::AnswerAsk;
+        let backend = StubBackend::new(None);
+        let turns = Turns::new();
+        let fx = runtime(&backend).adapter("claude", driven(&turns)).build();
+        let rt = &*fx.rt;
+        let ws = create_on(rt, CreateOn::golden("a"), None).await.expect("a workspace").view.id;
+        let first = rt.sessions().start(&ws, StartOptions { prompt: "one".into(), ..Default::default() }, None).await.expect("a start");
+        let second = rt.sessions().start(&ws, StartOptions { prompt: "two".into(), ..Default::default() }, None).await.expect("a start");
+        until(|| async { turns.len() == 2 }).await;
+        assert_ne!(first.view().id, second.view().id);
+        turns.get(0).raise(json!({}));
+        turns.get(1).raise(json!({ "askId": "ask_2" }));
+        let answered = rt
+            .sessions()
+            .answer(&first.view().id, AnswerAsk { ask_id: "ask_1".into(), option_id: "allow".into(), reason: None }, None)
+            .await
+            .expect("an answer");
+        assert_eq!(j(&answered), json!({ "outcome": "answered" }));
+        let again = rt
+            .sessions()
+            .answer(&first.view().id, AnswerAsk { ask_id: "ask_1".into(), option_id: "allow".into(), reason: None }, None)
+            .await;
+        assert!(again.is_err() || j(&again.expect("a result")) != json!({ "outcome": "answered" }));
+        turns.get(0).reply(json!({}));
+        turns.get(1).reply(json!({ "text": "second" }));
+        assert_eq!(first.finished().await.text.as_deref(), Some("done"));
+        assert_eq!(second.finished().await.text.as_deref(), Some("second"));
+        let history = rt.sessions().history(&ws, None).await.expect("a history");
+        let closes: Vec<String> = history
+            .iter()
+            .map(j)
+            .filter(|e| e["askId"] == "ask_2" && e["outcome"].is_string())
+            .map(|e| e["outcome"].as_str().unwrap_or_default().to_string())
+            .collect();
+        assert_eq!(closes.iter().filter(|o| *o == "cancelled").count(), 1, "{closes:?}");
+        fx.rt.close().await.expect("a close");
+    });
+}
+
+// stub-backend.ts:460-490 `fakeLocal` and `copyingFake`: this computer is a folder of the test's own, the copy road
+// copies a folder for real and a removal takes it away, and every ask is logged.
+#[test]
+fn the_fake_local_computer_copies_a_folder_for_real_and_a_removal_takes_it_away() {
+    drive(|| async {
+        let dir = tempfile::tempdir().expect("a folder");
+        let from = dir.path().join("from");
+        std::fs::create_dir_all(from.join("src")).expect("a folder");
+        std::fs::write(from.join("src/a.txt"), "a").expect("a file");
+        let (copier, log) = copying_fake();
+        let to = dir.path().join("to");
+        let ask: wsp_engine::copier::CopyAsk = serde_json::from_value(json!({
+            "from": from.display().to_string(), "to": to.display().to_string(), "exclude": ["node_modules"], "sizeLineBytes": 0
+        }))
+        .expect("an ask");
+        use wsp_engine::copier::Copier as _;
+        let report = copier.make(&ask).await.expect("a copy");
+        assert_eq!(std::fs::read_to_string(to.join("src/a.txt")).expect("the copied file"), "a");
+        assert_eq!(j(&report)["excluded"], json!(["node_modules"]));
+        assert_eq!(log.lock().expect("a log").asks.len(), 1);
+        copier.remove(&ask.from, &ask.to, wsp_engine::copier::CopyRoad::Clonefile).await.expect("a removal");
+        assert!(!to.exists());
+        assert_eq!(log.lock().expect("a log").removed.len(), 1);
+        let local = fake_local(dir.path());
+        assert_eq!(local.folder, dir.path().display().to_string());
+        assert_eq!((local.home)("claude"), format!("{}/.claude", dir.path().display()));
+    });
+}
+
+// forget.test.ts:81 and :173: a store whose transcript rows stop reading on the test's word, and whose puts into one
+// collection wait at a gate; both otherwise answer as the store they wrap.
+#[test]
+fn a_wrapped_store_stops_reading_transcript_rows_and_holds_a_put_at_a_gate() {
+    drive(|| async {
+        let state = sqlite_state();
+        let wrapped = WrappedStore::over(&state.store);
+        let store = wrapped.store();
+        let rows = store.transcripts().expect("rows");
+        assert!(rows.all("ws_1").is_ok());
+        wrapped.set_unreadable(true);
+        assert!(rows.all("ws_1").is_err());
+        assert!(rows.index("ws_1").is_err());
+        wrapped.set_unreadable(false);
+        assert!(rows.all("ws_1").is_ok());
+
+        let (reached, open) = wrapped.gate_puts("sessions");
+        let writing = {
+            let store = store.clone();
+            tokio::task::spawn_local(async move { store.put("sessions", "ws_1", json!({ "sessions": [] })).await })
+        };
+        reached.wait().await;
+        assert!(state.store.get("sessions", "ws_1").await.expect("a read").is_none());
+        open.open();
+        writing.await.expect("the write").expect("written");
+        assert!(state.store.get("sessions", "ws_1").await.expect("a read").is_some());
+    });
+}
+
+// forget.test.ts:99 `dying` and `working`: an adapter literal is a start function, its events follow the start, and its session finishes with the result the events carried.
+#[test]
+fn a_scripted_adapter_sends_its_events_and_finishes_with_its_result() {
+    drive(|| async {
+        use common::scripted::{adapter_of, after_a_turn, done_and_end, Plain};
+        let backend = StubBackend::new(None);
+        let start: common::scripted::StartFn = Rc::new(|o| {
+            let on_event = o.on_event.clone().expect("a sink");
+            let doc = json!({ "status": "completed", "text": "all green" });
+            let mut events = vec![json!({ "type": "session.start", "sessionId": "s-1", "cwd": "/root/app" })];
+            events.extend(done_and_end("s-1", &doc, 0, true));
+            Ok(Plain::of("s-1", after_a_turn(on_event, events, doc)))
+        });
+        let fx = runtime(&backend).adapter("claude", adapter_of(start)).build();
+        let ws = create_on(&fx.rt, CreateOn::golden("a"), None).await.expect("a workspace").view.id;
+        let handle = fx.rt.sessions().start(&ws, StartOptions { prompt: "go".into(), ..Default::default() }, None).await.expect("a start");
+        assert_eq!(handle.finished().await.text.as_deref(), Some("all green"));
+        let types: Vec<String> = fx
+            .rt
+            .sessions()
+            .history(&ws, None)
+            .await
+            .expect("a history")
+            .iter()
+            .map(|e| j(e)["type"].as_str().unwrap_or_default().to_string())
+            .collect();
+        assert_eq!(types, ["session.start", "session.done", "session.end"]);
+        fx.rt.close().await.expect("a close");
+    });
+}
+
+// kept-stubs.ts `claudeKeeper` and `codexKeeper`, strays.ts: each stand-in agent answers a message with its pid, its
+// turn count and its turn token, and a test reads whether a process is there without finding it by name.
+#[test]
+fn the_stand_in_agents_name_their_process_and_turn_and_a_test_reads_whether_a_process_is_there() {
+    drive(|| async {
+        use common::stubs::{alive, claude_keeper, codex_keeper, gone, pid_of, token_of};
+        use std::io::Write as _;
+        use std::process::{Command, Stdio};
+        let dir = tempfile::tempdir().expect("a folder");
+        let (claude, codex) = (dir.path().join("claude"), dir.path().join("codex"));
+        claude_keeper(&claude);
+        codex_keeper(&codex);
+        let mut child = Command::new(&claude)
+            .args(["--session-id", "abc"])
+            .env("WSP_TURN", "tok123")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("the claude stand-in");
+        let pid = child.id();
+        child
+            .stdin
+            .as_mut()
+            .expect("stdin")
+            .write_all(b"{\"type\":\"user\",\"message\":{\"content\":[{\"text\":\"hello\"}]}}\n")
+            .expect("a message");
+        drop(child.stdin.take());
+        let out = child.wait_with_output().expect("its output");
+        let said = String::from_utf8_lossy(&out.stdout).to_string();
+        let reply = said
+            .lines()
+            .filter_map(|l| serde_json::from_str::<serde_json::Value>(l).ok())
+            .find(|v| v["type"] == "result")
+            .expect("a result");
+        let text = reply["result"].as_str().map(str::to_string);
+        assert_eq!(text.as_deref(), Some(format!("hello from {pid} turn 1 token tok123").as_str()));
+        assert_eq!((pid_of(text.as_deref()), token_of(text.as_deref())), (Some(pid), "tok123".to_string()));
+        assert!(!alive(pid));
+        gone(pid).await;
+        let version = Command::new(&claude).arg("--version").output().expect("a version");
+        assert_eq!(String::from_utf8_lossy(&version.stdout).trim(), "2.1.289 (Claude Code)");
+        assert_eq!(Command::new(&codex).arg("nothing").status().expect("codex").code(), Some(2));
+    });
+}
+
+// pull-request.test.ts:84 `fakeDaemons` and :168 `withWorkspace`: two daemons behind one dial told apart by the url, each
+// frame kept with its road, an op nobody answers refused as a daemon refuses it; and a workspace over them whose pull
+// request reads over this computer's own daemon.
+#[test]
+fn two_daemons_behind_one_dial_are_told_apart_by_the_url_and_a_workspace_reads_its_pull_request_over_the_first() {
+    drive(|| async {
+        use common::pull_request::{answer, fake_daemons, ok, with_workspace, Via, With, COPY, HERE};
+        use wsp_core::daemon_channel::DaemonChannelOptions;
+        let d = fake_daemons(vec![("git.hello", answer(|_| ok(json!({ "who": "here" }))))], vec![]);
+        let dial = |url: &str| DaemonChannelOptions {
+            url: url.into(),
+            token: "t".into(),
+            on_event: Rc::new(|_| {}),
+            connect_timeout_ms: None,
+            clock: None,
+        };
+        let open = d.open();
+        let here = open(dial(HERE)).await.expect("a channel");
+        let copy = open(dial(COPY)).await.expect("a channel");
+        let frame = |op: &str| match json!({ "op": op }) {
+            serde_json::Value::Object(map) => map,
+            _ => unreachable!(),
+        };
+        assert_eq!(here.send(frame("git.hello")).await.expect("a reply")["who"], "here");
+        let refused = copy.send(frame("git.hello")).await.expect("a reply");
+        assert_eq!((refused["ok"].clone(), refused["error"].clone()), (json!(false), json!("git.hello was not answered here")));
+        assert_eq!(d.ops(Some(Via::Here)), ["git.hello"]);
+        assert_eq!(d.ops(Some(Via::Copy)), ["git.hello"]);
+
+        let d = fake_daemons(vec![], vec![]);
+        let h = with_workspace(&d, With::default()).await;
+        h.rt().workspaces().checkout(&h.id, None, None).await.expect("a checkout");
+        until(|| async { h.pr_field("number") == Some(json!(12)) }).await;
+        assert_eq!(d.ops(Some(Via::Copy)), ["git.status"]);
+        assert_eq!(d.count(Via::Here, "git.prRead"), 1);
+        assert!(h.remote.starts_with("https://github.com/wsp/stub-"));
     });
 }
