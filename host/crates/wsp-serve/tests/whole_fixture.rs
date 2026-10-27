@@ -588,6 +588,16 @@ fn a_wrapped_store_holds_a_listing_counts_puts_and_fails_transcript_reads_and_a_
         assert_eq!(store.put_blob("attachments", "k", vec![1]).await.err().map(|e| e.message), Some("the host went down".to_string()));
         store.put_blob("vaults", "k", vec![1]).await.expect("a put into another collection");
 
+        // reconcile.test.ts `refusingOnce`: the next put into a collection fails, the ones after it do not.
+        wrapped.refuse_next_put("workspaces", "ENOSPC");
+        assert_eq!(store.put("workspaces", "w2", json!({})).await.err().map(|e| e.message), Some("ENOSPC".to_string()));
+        store.put("workspaces", "w2", json!({})).await.expect("the second put lands");
+        // transcript-index.test.ts: the next write of a transcript's index fails, the next lands.
+        wrapped.fail_next_index_write("disk full");
+        let rows = store.transcripts().expect("rows");
+        assert_eq!(rows.put_index("w1", "{}").err().map(|e| e.message), Some("disk full".to_string()));
+        rows.put_index("w1", "{}").expect("the second write lands");
+
         let holder = Holder::at(None);
         let held = Gate::new();
         holder.hold(&held);

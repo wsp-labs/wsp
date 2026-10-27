@@ -122,7 +122,8 @@ impl HarnessAdapter for ScriptAdapter {
         let done: TurnResult = result(json!({ "status": "completed", "text": text }));
         let on_event: OnEvent = o.on_event.clone().expect("an event sink");
         let lines = {
-            let mut lines = vec![match &cfg.cwd {
+            // A start that names a folder is run in it (`o.cwd ?? "/root/app"` of the TS harnesses that echo it).
+            let mut lines = vec![match &o.cwd.clone().or(cfg.cwd.clone()) {
                 Some(cwd) => json!({ "type": "session.start", "sessionId": session_id, "cwd": cwd }),
                 None => json!({ "type": "session.start", "sessionId": session_id }),
             }];
