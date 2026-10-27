@@ -584,38 +584,6 @@ fn create_on_carries_the_cpu_and_memory_a_test_names_to_the_machine() {
         create_on(&fx.rt, CreateOn::golden("web").cpu(4.0).mem(8192.0), None).await.expect("a workspace");
         let spec = backend.machine(0).spec_now();
         assert_eq!((j(&spec)["cpu"].clone(), j(&spec)["memMb"].clone()), (json!(4), json!(8192)));
-// session-row.test.ts:51 `drivenAdapter`: a turn the test drives line by line, ends when it says, or replies at once while `quick` holds.
-#[test]
-fn a_driven_turn_prints_what_the_test_emits_ends_when_the_test_ends_it_and_replies_at_once_while_quick_holds() {
-    drive(|| async {
-        let backend = StubBackend::new(None);
-        let driven = Driven::new();
-        let fx = runtime(&backend).adapter("claude", driven.factory()).build();
-        let ws = create_on(&fx.rt, CreateOn::golden("w"), None).await.expect("a workspace").view.id;
-        let run = fx.rt.sessions().start(&ws, StartOptions { prompt: "work".into(), ..Default::default() }, None).await.expect("a start");
-        until(|| {
-            let driven = driven.clone();
-            async move { driven.len() == 1 }
-        })
-        .await;
-        assert_eq!(driven.last().prompt, "work");
-        driven.last().calls("toolu_1", "Bash", "{}");
-        driven.last().end(json!({ "text": "fine" }));
-        assert_eq!(j(&run.finished().await)["text"], "fine");
-        let types: Vec<String> = fx
-            .rt
-            .sessions()
-            .history(&ws, None)
-            .await
-            .expect("a history")
-            .iter()
-            .map(|e| j(e)["type"].as_str().unwrap_or_default().to_string())
-            .collect();
-        assert_eq!(types, ["session.start", "session.delta", "session.done", "session.end"]);
-        driven.quick.set(true);
-        let quick =
-            fx.rt.sessions().start(&ws, StartOptions { prompt: "again".into(), ..Default::default() }, None).await.expect("a start");
-        assert_eq!(j(&quick.finished().await)["text"], "done");
         fx.rt.close().await.expect("a close");
     });
 }
@@ -849,6 +817,45 @@ fn a_wrapped_store_holds_the_first_put_at_a_phase_until_the_test_lets_it_go() {
         waiting.await.expect("a task").expect("a put");
         assert_eq!(state.store.get("workspaces", "a").await.expect("a read").expect("a record")["phase"], "waking");
         store.put("workspaces", "a", json!({ "phase": "waking", "again": true })).await.expect("a put goes through once the hold fired");
+    });
+}
+
+// session-row.test.ts:51 `drivenAdapter`: a turn the test drives line by line, ends when it says, or replies at once while `quick` holds.
+#[test]
+fn a_driven_turn_prints_what_the_test_emits_ends_when_the_test_ends_it_and_replies_at_once_while_quick_holds() {
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let driven = Driven::new();
+        let fx = runtime(&backend).adapter("claude", driven.factory()).build();
+        let ws = create_on(&fx.rt, CreateOn::golden("w"), None).await.expect("a workspace").view.id;
+        let run = fx.rt.sessions().start(&ws, StartOptions { prompt: "work".into(), ..Default::default() }, None).await.expect("a start");
+        until(|| {
+            let driven = driven.clone();
+            async move { driven.len() == 1 }
+        })
+        .await;
+        assert_eq!(driven.last().prompt, "work");
+        driven.last().calls("toolu_1", "Bash", "{}");
+        driven.last().end(json!({ "text": "fine" }));
+        assert_eq!(j(&run.finished().await)["text"], "fine");
+        let types: Vec<String> = fx
+            .rt
+            .sessions()
+            .history(&ws, None)
+            .await
+            .expect("a history")
+            .iter()
+            .map(|e| j(e)["type"].as_str().unwrap_or_default().to_string())
+            .collect();
+        assert_eq!(types, ["session.start", "session.delta", "session.done", "session.end"]);
+        driven.quick.set(true);
+        let quick =
+            fx.rt.sessions().start(&ws, StartOptions { prompt: "again".into(), ..Default::default() }, None).await.expect("a start");
+        assert_eq!(j(&quick.finished().await)["text"], "done");
+        fx.rt.close().await.expect("a close");
+    });
+}
+
 // ws-client.ts `WsClient`: auth first, then request and reply, every pushed event kept; `createOverWire` makes a project and a workspace.
 #[test]
 fn a_ws_client_authenticates_requests_keeps_every_pushed_event_and_sees_the_socket_close() {

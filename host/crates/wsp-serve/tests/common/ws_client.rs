@@ -21,6 +21,7 @@ pub struct WsClient {
     /// Every frame the host pushed: one with an `op`, or one with a `type` that answers no request.
     pub events: Rc<RefCell<Vec<Value>>>,
     closed: Rc<Cell<bool>>,
+    reader: tokio::task::JoinHandle<()>,
 }
 
 impl WsClient {
@@ -32,7 +33,7 @@ impl WsClient {
         let events: Rc<RefCell<Vec<Value>>> = Rc::default();
         let closed = Rc::new(Cell::new(false));
         let (p, e, c) = (pending.clone(), events.clone(), closed.clone());
-        tokio::task::spawn_local(async move {
+        let reader = tokio::task::spawn_local(async move {
             while let Some(Ok(frame)) = stream.next().await {
                 let Message::Text(text) = frame else { continue };
                 let m: Value = serde_json::from_str(&text).expect("a frame is JSON");
@@ -51,7 +52,7 @@ impl WsClient {
             }
             c.set(true);
         });
-        let client = Rc::new(WsClient { sink: tokio::sync::Mutex::new(sink), next_id: Cell::new(1), pending, events, closed });
+        let client = Rc::new(WsClient { sink: tokio::sync::Mutex::new(sink), next_id: Cell::new(1), pending, events, closed, reader });
         let res = client.request("auth", json!({ "token": token })).await;
         assert_eq!(res["ok"], json!(true), "auth failed: {}", res["error"]);
         client
@@ -76,6 +77,11 @@ impl WsClient {
             tokio::time::sleep(Duration::from_millis(2)).await;
         }
         self.events.borrow().clone()
+    }
+
+    /// Stops reading the socket; with the client dropped, the socket goes without a close frame.
+    pub fn abort(&self) {
+        self.reader.abort();
     }
 
     pub async fn close(&self) {

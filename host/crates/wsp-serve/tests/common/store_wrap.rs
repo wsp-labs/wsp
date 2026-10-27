@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The TS tests that reassign `store.put` (runtime-create.test.ts:191): a store that answers like the one it wraps and
-//! refuses the writes a test names.
+//! The TS tests that reassign `store.put` (runtime-create.test.ts:191) and what a store hands out (`store.putBlob`,
+//! `rows.all`, `rows.wordEvents`): a store that answers like the one it wraps, refuses or holds the writes a test names,
+//! and counts or fails those reads. `Watched` is its name in part 2d's tests.
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -24,7 +25,9 @@ pub struct WrappedStore {
     refuse_once: RefCell<Vec<(String, String)>>,
     holds: RefCell<Vec<(String, Rc<Gate>)>>,
     puts: RefCell<Vec<String>>,
-    rows: FailingRows,
+    pub rows: FailingRows,
+    /// The collection of each blob written, in order.
+    pub blobs: RefCell<Vec<String>>,
     hold: Holds,
     held: std::cell::Cell<bool>,
     gated: RefCell<Option<(String, Rc<Gate>, Rc<Gate>)>>,
@@ -38,7 +41,16 @@ pub struct FailingRows {
     message: RefCell<Option<String>>,
     /// The next `put_index` fails with this, and the ones after it do not (transcript-index.test.ts: "an index write that fails").
     index_once: RefCell<Option<String>>,
+    /// How many times a folder's whole transcript was read (`rows.all`).
+    pub folder_reads: std::cell::Cell<u32>,
+    /// How many times a thread's words were read (`rows.wordEvents`).
+    pub word_reads: std::cell::Cell<u32>,
+    /// Fails the folder read, as `rows.all = () => { throw ... }` does.
+    pub fail_all: std::cell::Cell<bool>,
 }
+
+pub type Watched = WrappedStore;
+pub type WatchedRows = FailingRows;
 
 impl FailingRows {
     fn rows(&self) -> &dyn TranscriptRows {
@@ -54,6 +66,10 @@ impl FailingRows {
 
 impl TranscriptRows for FailingRows {
     fn all(&self, w: &str) -> Result<Summed, HostError> {
+        self.folder_reads.set(self.folder_reads.get() + 1);
+        if self.fail_all.get() {
+            return Err(HostError::new("disk I/O error"));
+        }
         self.read()?;
         self.rows().all(w)
     }
@@ -84,6 +100,7 @@ impl TranscriptRows for FailingRows {
         self.rows().sizes(w, t)
     }
     fn word_events(&self, w: &str, t: &str) -> Result<Vec<SessionEvent>, HostError> {
+        self.word_reads.set(self.word_reads.get() + 1);
         self.read()?;
         self.rows().word_events(w, t)
     }
@@ -128,7 +145,15 @@ impl WrappedStore {
             refuse_once: RefCell::default(),
             holds: RefCell::default(),
             puts: RefCell::default(),
-            rows: FailingRows { inner: inner.clone(), message: RefCell::default(), index_once: RefCell::default() },
+            rows: FailingRows {
+                inner: inner.clone(),
+                message: RefCell::default(),
+                index_once: RefCell::default(),
+                folder_reads: Default::default(),
+                word_reads: Default::default(),
+                fail_all: Default::default(),
+            },
+            blobs: RefCell::default(),
             hold: RefCell::default(),
             held: std::cell::Cell::new(false),
             gated: RefCell::default(),
@@ -254,6 +279,7 @@ impl Store for WrappedStore {
         self.inner.get_blob(collection, id).await
     }
     async fn put_blob(&self, collection: &str, id: &str, bytes: Vec<u8>) -> Result<(), HostError> {
+        self.blobs.borrow_mut().push(collection.to_string());
         let refused = self.refuse_blobs.borrow().iter().find(|(c, _)| c == collection).map(|(_, m)| m.clone());
         if let Some(message) = refused {
             return Err(HostError::new(message));

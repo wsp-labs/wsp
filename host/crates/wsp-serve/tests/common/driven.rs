@@ -216,7 +216,13 @@ impl HarnessAdapter for DrivenAdapter {
         };
         let (tx, rx) = oneshot::channel();
         let on_event = o.on_event.clone().expect("an event sink");
-        let turn = Rc::new(DTurn { session_id: session_id.clone(), prompt: o.prompt.clone(), on_event, finish: RefCell::new(Some(tx)), open: RefCell::default() });
+        let turn = Rc::new(DTurn {
+            session_id: session_id.clone(),
+            prompt: o.prompt.clone(),
+            on_event,
+            finish: RefCell::new(Some(tx)),
+            open: RefCell::default(),
+        });
         let start = match d.mode {
             Mode::Oracle => json!({ "type": "session.start", "sessionId": session_id, "cwd": "/root", "model": "claude-sonnet-4-5" }),
             Mode::Row | Mode::Waiting => json!({ "type": "session.start", "sessionId": session_id, "cwd": "/root" }),
