@@ -43,7 +43,7 @@ pub struct Started {
 }
 
 impl Started {
-    fn of(o: &HarnessStartOptions) -> Started {
+    pub fn of(o: &HarnessStartOptions) -> Started {
         Started {
             prompt: o.prompt.clone(),
             resume: o.resume.clone(),
