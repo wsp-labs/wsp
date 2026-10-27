@@ -98,8 +98,13 @@ impl AgentsApi for AgentsApiOf {
         self.0.agents_read().add_tools(&target, agent, origin.as_ref()).await
     }
 
-    fn forwards(&self, _relay: Rc<dyn CallbackForwards>) -> Detach {
-        panic!("agents.forwards has no target: wsp-core's CallbackForwards carries no reaches or open")
+    fn forwards(&self, relay: Rc<dyn CallbackForwards>) -> Detach {
+        // A relay that is not the machines' holder is one no road reaches: held as no relay, as the TS holds none.
+        let any: Rc<dyn std::any::Any> = relay;
+        match any.downcast::<reads::ForwardsHolder>() {
+            Ok(held) => self.0.agents_read().forwards(held.0.clone()),
+            Err(_) => Box::new(|| {}),
+        }
     }
 
     async fn skills_search(&self, q: &str, limit: Option<u32>) -> Result<Vec<SkillHit>, HostError> {
