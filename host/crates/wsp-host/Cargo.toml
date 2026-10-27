@@ -32,6 +32,7 @@ wsp-core = { path = "../wsp-core" }
 wsp-engine = { path = "../wsp-engine" }
 wsp-machines = { path = "../wsp-machines" }
 wsp-serve = { path = "../wsp-serve" }
+wsp-setup = { path = "../wsp-setup" }
 wsp-store = { path = "../wsp-store" }
 wsp-wire = { path = "../wsp-wire" }
 wsp-words = { path = "../wsp-words" }
