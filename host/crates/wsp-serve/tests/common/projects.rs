@@ -91,6 +91,7 @@ pub struct CreateOn {
     pub idle_window_ms: IdleWindow,
     /// `agents: { maxMachines, maxDepth }`: the keys of `WorkspaceAgents` a test names.
     pub agents: Option<serde_json::Map<String, serde_json::Value>>,
+    pub branch_of_record: Option<wsp_wire::views::workspace::BranchOfRecord>,
 }
 
 impl CreateOn {
@@ -111,6 +112,18 @@ impl CreateOn {
     }
     pub fn golden_is(mut self, golden: &str) -> CreateOn {
         self.golden = Some(golden.into());
+        self
+    }
+    /// `branchOfRecord: { repoId, owner, name, branch }`.
+    pub fn branch_of_record(mut self, repo_id: i64, owner: &str, name: &str, branch: &str) -> CreateOn {
+        self.branch_of_record = Some(wsp_wire::views::workspace::BranchOfRecord {
+            repo_id: repo_id.into(),
+            owner: owner.into(),
+            name: name.into(),
+            branch: branch.into(),
+            start_sha: None,
+            public: None,
+        });
         self
     }
     /// `agents: { maxMachines, maxDepth }`.
@@ -148,6 +161,7 @@ pub async fn create_on(rt: &AssembledRuntime, o: CreateOn, origin: Option<Caller
         parent: o.parent,
         idle_window_ms: o.idle_window_ms,
         agents: o.agents,
+        branch_of_record: o.branch_of_record,
         ..Default::default()
     };
     rt.workspaces().create(opts, origin).await

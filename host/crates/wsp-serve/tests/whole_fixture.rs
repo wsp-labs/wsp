@@ -724,3 +724,40 @@ fn a_local_wiring_carries_the_launch_variables_and_the_run_folder_a_test_names()
     assert_eq!(local.folder, dir.path().display().to_string());
     assert!(local.copier.is_some());
 }
+
+// channels.test.ts:139 `brokeredFork`: where the broker is ready the record keeps the branch of record a create names, and where it is
+// not the record keeps none.
+#[test]
+fn a_ready_broker_makes_the_record_keep_the_branch_of_record_a_create_names() {
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let fx = runtime(&backend).with(|o| o.broker = Some(TestBroker::ready().rc())).build();
+        let made =
+            create_on(&fx.rt, CreateOn::golden("a").branch_of_record(4242, "acme", "lab", "wsp/a"), None).await.expect("a workspace");
+        let record = fx.store.get("workspaces", &made.view.id).await.expect("a read").expect("a record");
+        assert_matches(&record["branchOfRecord"], json!({ "repoId": 4242, "owner": "acme", "name": "lab", "branch": "wsp/a" }));
+        let backend = StubBackend::new(None);
+        let off = runtime(&backend).with(|o| o.broker = Some(TestBroker::gated(|| false).rc())).build();
+        let made =
+            create_on(&off.rt, CreateOn::golden("b").branch_of_record(4242, "acme", "lab", "wsp/b"), None).await.expect("a workspace");
+        let record = off.store.get("workspaces", &made.view.id).await.expect("a read").expect("a record");
+        assert!(record.get("branchOfRecord").is_none());
+    });
+}
+
+// conversations.test.ts `fakeLocal` over `new LocalBackend({ env })`: every exec of this computer's backend runs under the variables a
+// test names.
+#[test]
+fn a_local_wiring_runs_the_backends_execs_under_the_variables_a_test_names() {
+    use common::local::{git_copier, local_wiring_with, LocalOpts};
+    drive(|| async {
+        let dir = tempfile::tempdir().expect("a folder");
+        let (copier, _log) = git_copier();
+        let vars =
+            indexmap::IndexMap::from([("FIXTURE_MARK".to_string(), "kept".to_string()), ("PATH".to_string(), "/usr/bin:/bin".to_string())]);
+        let local = local_wiring_with(dir.path(), copier, LocalOpts { backend_vars: Some(vars), ..Default::default() });
+        let machine = local.backend.get("local").await.expect("a machine");
+        let said = machine.exec("printf %s \"$FIXTURE_MARK\"", ExecOptions::default()).await.expect("an exec");
+        assert_eq!(said.stdout, "kept");
+    });
+}

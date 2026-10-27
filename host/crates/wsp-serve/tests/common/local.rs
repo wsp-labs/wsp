@@ -265,6 +265,8 @@ pub struct LocalOpts {
     pub poll_ms: Option<u64>,
     pub deadline_ms: Option<f64>,
     pub vars: Option<IndexMap<String, String>>,
+    /// The environment every exec of the host's own backend runs under (this process's where none).
+    pub backend_vars: Option<IndexMap<String, String>>,
     pub reading: Option<Arc<wsp_core::machine_exec::ReadingSet>>,
 }
 
@@ -287,7 +289,7 @@ pub fn local_wiring_with(root: &Path, copier: Rc<dyn Copier>, o: LocalOpts) -> w
         .clone()
         .unwrap_or_else(|| IndexMap::from([("PATH".to_string(), std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".into()))]));
     LocalWiring {
-        backend: Arc::new(LocalBackend::new(LocalBackendOptions { root: root.to_path_buf(), env: None })),
+        backend: Arc::new(LocalBackend::new(LocalBackendOptions { root: root.to_path_buf(), env: o.backend_vars.clone() })),
         folder: folder.clone(),
         exec_stream: Rc::new(move |opts, waiting| {
             let mut local = wsp_core::local_exec::LocalExecOptions::new(exec_root.clone(), runs.clone());
