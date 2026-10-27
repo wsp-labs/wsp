@@ -603,6 +603,15 @@ impl StubLifecycle {
     pub fn set_daemon_answers_ms(&self, ms: f64) {
         self.budgets.borrow_mut().daemon_answers_ms = JsNumber(ms);
     }
+    /// `backend.lifecycle.budgets = { ... }`: the whole record, as `{ ...BOX_BUDGETS, daemonAnswersMs: 300 }` writes it.
+    pub fn set_budgets(&self, budgets: LifecycleBudgets) {
+        *self.budgets.borrow_mut() = budgets;
+    }
+    /// `backend.lifecycle.budgets.resumeAsks = { everyMs, forMs }`, or `delete ...resumeAsks` for `None`.
+    pub fn set_resume_asks(&self, asks: Option<(f64, f64)>) {
+        self.budgets.borrow_mut().resume_asks =
+            asks.map(|(every, for_ms)| wsp_wire::wire::machine_link::LifecycleBudgetsResumeAsks { every_ms: JsNumber(every), for_ms: JsNumber(for_ms) });
+    }
 }
 
 /// A put the stub's upload URL took: the machine and guest path it was for, and the body.
