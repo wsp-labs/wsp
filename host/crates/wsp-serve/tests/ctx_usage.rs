@@ -26,7 +26,7 @@ use indexmap::IndexMap;
 use serde_json::{json, Value};
 use wsp_account::account::status::{ListedRow, StatusArea, StatusCtx as S};
 use wsp_account::account::usage::{LimitReading, NameOf, PlanRoad, UsageArea, UsageCtx as U};
-use wsp_account::usage_reset::{Resets as R, UsageResetDeps as D};
+use wsp_account::usage_reset::{ResetPlace, ResetPlaceKind, Resets as R, UsageResetDeps as D};
 use wsp_adapters::port::ResetRoad;
 use wsp_core::clock::FakeClock;
 use wsp_core::daemon_channel::{ChannelEnd, ChannelError, DaemonChannel, DaemonChannelOptions, Frame};
@@ -44,8 +44,8 @@ use wsp_store::store::Store;
 use wsp_wire::types::usage::{UsageRange, UsageSplit};
 use wsp_wire::views::workspace::ProjectView;
 use wsp_wire::wire::events_union::EventUnion;
+use wsp_words::workspace_state::absent_computer;
 
-// ---------------------------------------------------------------------------------------------------------------
 // Fixtures.
 
 fn backend() -> Arc<dyn MachineBackend> {
@@ -100,15 +100,16 @@ fn local_wiring(daemon: bool) -> LocalWiring {
         roots_path: "/home/me/.wsp/roots".into(),
         env: Rc::new(|| IndexMap::from([("PATH".to_string(), "/usr/bin:/bin".to_string()), ("HOME".to_string(), "/home/me".to_string())])),
         daemon_road: daemon.then(|| {
-            let held: Rc<dyn Fn() -> wsp_core::types::wiring::Local<'static, wsp_wire::views::workspace::DaemonReachView>> = Rc::new(|| {
-                Box::pin(async {
-                    Ok(wsp_wire::views::workspace::DaemonReachView {
-                        url: "ws://127.0.0.1:1".into(),
-                        expires_at: wsp_wire::types::js_number::JsNumber(9.0e15),
-                        daemon_token: Some("tok".into()),
+            let held: Rc<dyn Fn() -> wsp_core::types::wiring::Local<'static, wsp_wire::views::workspace::DaemonReachView>> =
+                Rc::new(|| {
+                    Box::pin(async {
+                        Ok(wsp_wire::views::workspace::DaemonReachView {
+                            url: "ws://127.0.0.1:1".into(),
+                            expires_at: wsp_wire::types::js_number::JsNumber(9.0e15),
+                            daemon_token: Some("tok".into()),
+                        })
                     })
-                })
-            });
+                });
             held
         }),
         here_daemon: None,
@@ -144,7 +145,10 @@ impl DaemonChannel for Answering {
     }
 }
 
-fn answering(replies: Value, asked: Rc<RefCell<Vec<Value>>>) -> Rc<dyn Fn(DaemonChannelOptions) -> wsp_core::types::wiring::Local<'static, Rc<dyn DaemonChannel>>> {
+fn answering(
+    replies: Value,
+    asked: Rc<RefCell<Vec<Value>>>,
+) -> Rc<dyn Fn(DaemonChannelOptions) -> wsp_core::types::wiring::Local<'static, Rc<dyn DaemonChannel>>> {
     let replies: IndexMap<String, Value> = replies.as_object().expect("an object").iter().map(|(k, v)| (k.clone(), v.clone())).collect();
     Rc::new(move |_| {
         let channel: Rc<dyn DaemonChannel> = Rc::new(Answering { replies: replies.clone(), asked: asked.clone() });
@@ -251,6 +255,15 @@ fn listen(runtime: &AssembledRuntime, kind: &str) -> (Rc<RefCell<Vec<Value>>>, w
     (seen, runtime.events().on(kind, listener))
 }
 
+fn reset_place(id: &str, name: &str, kind: ResetPlaceKind, connected: bool, signed_in: bool) -> ResetPlace {
+    ResetPlace { id: id.into(), name: name.into(), kind, connected, signed_in: Rc::new(move |_| signed_in) }
+}
+
+/// The system clock the runtime reads (the day range counts back from it).
+fn now_ms() -> i64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("time").as_millis() as i64
+}
+
 fn limit_json(key: &str, agent: &str, label: &str, road: &str, computers: Value) -> Value {
     json!({
         "key": key, "agent": agent, "label": label, "road": road, "windows": [{ "kind": "session", "usedPercent": 40 }],
@@ -259,12 +272,22 @@ fn limit_json(key: &str, agent: &str, label: &str, road: &str, computers: Value)
 }
 
 fn window_limit() -> wsp_wire::types::usage::HarnessLimit {
-    serde_json::from_value(json!({ "windows": [{ "kind": "session", "usedPercent": 40 }, { "kind": "week", "usedPercent": 12 }], "status": "ok" }))
-        .expect("a limit")
+    serde_json::from_value(
+        json!({ "windows": [{ "kind": "session", "usedPercent": 40 }, { "kind": "week", "usedPercent": 12 }], "status": "ok" }),
+    )
+    .expect("a limit")
 }
 
 fn reading(key: &str, agent: &str, label: &str, road: &str, computer: &str, at: Option<f64>) -> LimitReading {
-    LimitReading { key: key.into(), agent: agent.into(), label: label.into(), road: road.into(), computer: computer.into(), limit: window_limit(), at }
+    LimitReading {
+        key: key.into(),
+        agent: agent.into(),
+        label: label.into(),
+        road: road.into(),
+        computer: computer.into(),
+        limit: window_limit(),
+        at,
+    }
 }
 
 fn usage_entry(at: f64, account: &str) -> wsp_account::account::usage::UsageEntry {
@@ -283,33 +306,36 @@ fn usage_entry(at: f64, account: &str) -> wsp_account::account::usage::UsageEntr
     }
 }
 
-// ---------------------------------------------------------------------------------------------------------------
 // UsageCtx: the clock, the door, this computer and the core's maps (usage.ts:27-31, 36-44, 96-139, 208-255).
 
 #[test]
 fn the_clock_is_the_runtimes_and_a_scheduled_call_fires_on_it_until_cancelled() {
     let clock = FakeClock::new(5_000);
     let fake = clock.clone();
-    run(move |dir| RuntimeOptions { clock: Some(fake.clock()), ..plain(dir) }, |_, c| async move {
-        assert_eq!(U::now(&*c), 5_000);
-        let fired = Rc::new(RefCell::new(0));
-        let hits = fired.clone();
-        let cancel = U::schedule(&*c, 1_000, Box::new(move || *hits.borrow_mut() += 1));
-        clock.advance(999);
-        assert_eq!(*fired.borrow(), 0, "not yet");
-        clock.advance(1);
-        assert_eq!(*fired.borrow(), 1, "at its time");
-        let hits = fired.clone();
-        let cancel_second = U::schedule(&*c, 1_000, Box::new(move || *hits.borrow_mut() += 1));
-        cancel_second();
-        clock.advance(5_000);
-        assert_eq!(*fired.borrow(), 1, "a cancelled call never fires");
-        cancel();
-    });
+    run(
+        move |dir| RuntimeOptions { clock: Some(fake.clock()), ..plain(dir) },
+        |_, c| async move {
+            assert_eq!(U::now(&*c), 5_000);
+            let fired = Rc::new(RefCell::new(0));
+            let hits = fired.clone();
+            let cancel = U::schedule(&*c, 1_000, Box::new(move || *hits.borrow_mut() += 1));
+            clock.advance(999);
+            assert_eq!(*fired.borrow(), 0, "not yet");
+            clock.advance(1);
+            assert_eq!(*fired.borrow(), 1, "at its time");
+            let hits = fired.clone();
+            let cancel_second = U::schedule(&*c, 1_000, Box::new(move || *hits.borrow_mut() += 1));
+            cancel_second();
+            clock.advance(5_000);
+            assert_eq!(*fired.borrow(), 1, "a cancelled call never fires");
+            cancel();
+        },
+    );
 }
 
 #[test]
 fn the_agent_logs_are_read_unless_the_preference_is_turned_off() {
+    // waits on packet 16: `PreferencesApi::set` writes through `PreferencesCtx::set_held` and `store`.
     run(plain, |rt, c| async move {
         assert!(U::usage_logs_on(&*c).await, "usageLogs defaults on (DEFAULT_PREFERENCES)");
         let patch = serde_json::from_value(json!({ "usageLogs": false })).expect("a patch");
@@ -334,6 +360,8 @@ fn with_no_door_there_are_no_places_and_nothing_is_linked_or_signed_in() {
 
 #[test]
 fn a_door_lists_this_computer_and_names_a_place_by_its_own_name() {
+    // waits on the join line in ctx/build.rs, `ctx.status_tracker.fill(ctx.usage_status_tracker())`: the door lists a place
+    // through its spend, which reads the status tracker (runtime.ts:1056).
     run(with_door, |_, c| async move {
         assert!(U::has_door(&*c));
         let places = U::places(&*c, 0).await;
@@ -347,22 +375,28 @@ fn a_door_lists_this_computer_and_names_a_place_by_its_own_name() {
 
 #[test]
 fn this_computers_wiring_answers_the_home_the_env_and_the_daemon() {
-    run(|dir| RuntimeOptions { local: Some(local_wiring(true)), ..plain(dir) }, |_, c| async move {
-        assert!(U::local_wired(&*c));
-        assert!(U::local_has_daemon(&*c));
-        assert_eq!(U::local_home(&*c, "claude"), "/home/me/.claude");
-        let env = U::local_env(&*c);
-        assert_eq!(env.get("PATH").map(String::as_str), Some("/usr/bin:/bin"));
-        assert_eq!(env.get("HOME").map(String::as_str), Some("/home/me"));
-    });
+    run(
+        |dir| RuntimeOptions { local: Some(local_wiring(true)), ..plain(dir) },
+        |_, c| async move {
+            assert!(U::local_wired(&*c));
+            assert!(U::local_has_daemon(&*c));
+            assert_eq!(U::local_home(&*c, "claude"), "/home/me/.claude");
+            let env = U::local_env(&*c);
+            assert_eq!(env.get("PATH").map(String::as_str), Some("/usr/bin:/bin"));
+            assert_eq!(env.get("HOME").map(String::as_str), Some("/home/me"));
+        },
+    );
     run(plain, |_, c| async move {
         assert!(!U::local_wired(&*c));
         assert!(!U::local_has_daemon(&*c));
     });
-    run(|dir| RuntimeOptions { local: Some(local_wiring(false)), ..plain(dir) }, |_, c| async move {
-        assert!(U::local_wired(&*c));
-        assert!(!U::local_has_daemon(&*c), "local.daemonRoad !== undefined");
-    });
+    run(
+        |dir| RuntimeOptions { local: Some(local_wiring(false)), ..plain(dir) },
+        |_, c| async move {
+            assert!(U::local_wired(&*c));
+            assert!(!U::local_has_daemon(&*c), "local.daemonRoad !== undefined");
+        },
+    );
 }
 
 #[test]
@@ -425,14 +459,13 @@ fn a_relative_home_is_the_throw_the_ts_catches_and_the_script_is_then_nothing() 
     });
 }
 
-// ---------------------------------------------------------------------------------------------------------------
 // UsageCtx: the places and the daemons (usage.ts:96-139, 323-336); usage-boxes.test.ts.
 
 #[test]
 fn this_computers_agent_logs_are_read_by_its_own_daemon_over_the_stores_the_catalog_names() {
     let asked: Rc<RefCell<Vec<Value>>> = Rc::default();
     let replies = json!({ "usage.logs": { "ok": true, "rows": [
-        { "agent": "claude", "session": "s-term", "at": 1_900_000_000_000_i64, "model": "claude-opus-5", "folder": "/work/web/src",
+        { "agent": "claude", "session": "s-term", "at": now_ms(), "model": "claude-opus-5", "folder": "/work/web/src",
           "tokens": { "input": 40, "output": 1, "cached": 0, "cacheWrite": 0, "reasoning": 0 } },
     ], "limits": [] } });
     let channel = answering(replies, asked.clone());
@@ -460,19 +493,20 @@ fn this_computer_without_a_daemon_reads_no_logs_and_a_joined_one_with_no_link_is
     run(with_door, |_, c| async move {
         let said = U::read_logs_on(&*c, "srv_1", &UsageArea::usage_stores()).await.expect_err("no link to it");
         let name = U::name_of(&*c, "srv_1");
-        assert_eq!(said.message(), wsp_words::workspace_state::absent_computer(&name, None).sentence, "usage.ts:96-97");
+        assert_eq!(said.message(), absent_computer(&name, None).sentence, "usage.ts:96-97");
     });
 }
 
 #[test]
 fn a_usage_read_files_this_computers_log_rows_as_outside_wsp_under_its_own_login_and_the_project_a_folder_is_in() {
+    // waits on packet 16: `usage_logs_on` reads `PreferencesArea::get`, which reads the held preferences.
     // usage.test.ts "files the logs' rows as outside wsp, a folder inside a project under it and any other under no
     // project", and usage-boxes "filed under that computer, a folder in its project under that project".
     let asked: Rc<RefCell<Vec<Value>>> = Rc::default();
     let replies = json!({ "usage.logs": { "ok": true, "rows": [
-        { "agent": "claude", "session": "s-term", "at": 1_900_000_000_000_i64, "model": "claude-opus-5", "folder": "/work/web/src",
+        { "agent": "claude", "session": "s-term", "at": now_ms(), "model": "claude-opus-5", "folder": "/work/web/src",
           "tokens": { "input": 40, "output": 1, "cached": 0, "cacheWrite": 0, "reasoning": 0 } },
-        { "agent": "claude", "session": "s-else", "at": 1_900_000_000_000_i64, "model": "claude-opus-5", "folder": "/tmp/else",
+        { "agent": "claude", "session": "s-else", "at": now_ms(), "model": "claude-opus-5", "folder": "/tmp/else",
           "tokens": { "input": 5, "output": 1, "cached": 0, "cacheWrite": 0, "reasoning": 0 } },
     ], "limits": [] } });
     let channel = answering(replies, asked.clone());
@@ -489,7 +523,7 @@ fn a_usage_read_files_this_computers_log_rows_as_outside_wsp_under_its_own_login
             let by_account = rt.usage().used(UsageRange::Day, UsageSplit::Account, Some(true)).await.expect("used");
             assert_eq!(
                 by_account.rows.iter().map(|r| r.label.as_str()).collect::<Vec<_>>(),
-                vec!["Claude Code signed in on zingzys-mac"],
+                vec!["Claude Code signed in on this computer"],
                 "a terminal's work is under this computer's own login of the agent"
             );
         },
@@ -498,10 +532,11 @@ fn a_usage_read_files_this_computers_log_rows_as_outside_wsp_under_its_own_login
 
 #[test]
 fn a_thread_wsp_ran_is_never_filed_from_the_logs() {
+    // waits on packet 16: `usage_logs_on` reads `PreferencesArea::get`, which reads the held preferences.
     // usage.test.ts "a wsp thread's own transcript is never filed as outside wsp", read through `wsp_sessions`.
     let asked: Rc<RefCell<Vec<Value>>> = Rc::default();
     let replies = json!({ "usage.logs": { "ok": true, "rows": [
-        { "agent": "claude", "session": "s-wsp", "at": 1_900_000_000_000_i64, "model": "claude-opus-5", "folder": "/tmp/x",
+        { "agent": "claude", "session": "s-wsp", "at": now_ms(), "model": "claude-opus-5", "folder": "/tmp/x",
           "tokens": { "input": 40, "output": 1, "cached": 0, "cacheWrite": 0, "reasoning": 0 } },
     ], "limits": [] } });
     let channel = answering(replies, asked);
@@ -509,8 +544,7 @@ fn a_thread_wsp_ran_is_never_filed_from_the_logs() {
         move |dir| RuntimeOptions { local: Some(local_wiring(true)), daemon_channel: Some(channel), ..plain(dir) },
         |rt, c| async move {
             let view: wsp_wire::views::session::SessionView = serde_json::from_value(json!({
-                "id": "sess_1", "workspaceId": "w_1", "threadId": "t_1", "prompt": "go", "state": "ended", "claudeSessionId": "s-wsp",
-                "startedAt": "2026-10-26T00:00:00.000Z",
+                "id": "sess_1", "workspaceId": "w_1", "harness": "claude", "status": "completed", "claudeSessionId": "s-wsp",
             }))
             .expect("a session view");
             let entry = wsp_core::types::internal::SessionEntry {
@@ -568,7 +602,7 @@ fn a_readings_ask_goes_to_this_computers_daemon_and_hands_the_reply_on_as_it_sai
         frame.insert("op".into(), json!("sys.history"));
         let said = U::sys_history(&*c, &ReadingsTarget::Place("srv_1".into()), frame, None).await.expect_err("no link");
         let name = U::name_of(&*c, "srv_1");
-        assert_eq!(said.message(), wsp_words::workspace_state::absent_computer(&name, None).sentence);
+        assert_eq!(said.message(), absent_computer(&name, None).sentence);
     });
 }
 
@@ -593,20 +627,25 @@ fn this_computers_sign_ins_are_none_where_the_host_wired_no_agents_reader() {
     });
 }
 
-// ---------------------------------------------------------------------------------------------------------------
 // UsageCtx: the ledger, the alerts and the account words (usage.ts:46-50, 106-139, 183-206); usage.test.ts.
 
 #[test]
 fn the_ledger_keeps_a_limit_a_turn_printed_and_hands_back_what_it_replaced() {
     run(plain, |_, c| async move {
-        let (before, after) = U::file_limit(&*c, reading("claude:vault-token", "claude", "Claude Code with your sign-in", "vault", "here", None)).await.expect("filed");
+        let (before, after) =
+            U::file_limit(&*c, reading("claude:vault-token", "claude", "Claude Code with your sign-in", "vault", "here", None))
+                .await
+                .expect("filed");
         assert_eq!(before, Value::Null, "the ledger held none: null where the TS has undefined");
         assert_eq!(after["key"], json!("claude:vault-token"));
         assert_eq!(after["windows"][0]["usedPercent"], json!(40));
         let limits = U::limits(&*c).await.expect("limits");
         assert_eq!(limits.len(), 1);
         assert_eq!(limits[0]["key"], json!("claude:vault-token"));
-        let (again, _) = U::file_limit(&*c, reading("claude:vault-token", "claude", "Claude Code with your sign-in", "vault", "here", None)).await.expect("filed");
+        let (again, _) =
+            U::file_limit(&*c, reading("claude:vault-token", "claude", "Claude Code with your sign-in", "vault", "here", None))
+                .await
+                .expect("filed");
         assert_eq!(again["key"], json!("claude:vault-token"), "the second filing replaces the first and hands it back");
     });
 }
@@ -617,7 +656,10 @@ fn a_reading_older_than_the_one_held_leaves_the_held_one_standing() {
     run(plain, |_, c| async move {
         let first = reading("codex@here", "codex", "Codex signed in on zingzys-mac", "own", "here", Some(f64::MAX / 4.0));
         U::file_limit(&*c, first).await.expect("filed");
-        let (before, after) = U::file_limit(&*c, reading("codex@here", "codex", "Codex signed in on zingzys-mac", "own", "here", Some(1.0))).await.expect("filed");
+        let (before, after) =
+            U::file_limit(&*c, reading("codex@here", "codex", "Codex signed in on zingzys-mac", "own", "here", Some(1.0)))
+                .await
+                .expect("filed");
         assert_eq!(before, after, "an older reading changes nothing");
     });
 }
@@ -631,7 +673,11 @@ fn the_ledger_answers_what_was_used_split_by_account_and_names_every_account_onc
         assert_eq!(labels.get("claude@here").map(String::as_str), Some("Claude Code signed in on zingzys-mac"));
         let by_label: wsp_account::account::usage::LabelOf = Rc::new(|_split, value| format!("<{value}>"));
         let used = U::used(&*c, UsageRange::Day, UsageSplit::Account, true, by_label).await.expect("used");
-        assert_eq!(used.rows.iter().map(|r| r.label.as_str()).collect::<Vec<_>>(), vec!["<claude@here>"], "the label comes from the function the area hands it");
+        assert_eq!(
+            used.rows.iter().map(|r| r.label.as_str()).collect::<Vec<_>>(),
+            vec!["<claude@here>"],
+            "the label comes from the function the area hands it"
+        );
     });
 }
 
@@ -640,7 +686,10 @@ fn a_reading_the_ledger_now_holds_is_what_the_alerts_compare_against() {
     // usage.test.ts "tells every client once a reading crosses 70% of a window, and not again for a reading no worse".
     run(plain, |rt, c| async move {
         let (seen, _off) = listen(&rt, "usage.alert");
-        let hot: wsp_wire::types::usage::HarnessLimit = serde_json::from_value(json!({ "windows": [{ "kind": "session", "usedPercent": 75, "resetsAt": 1_900_000_000_000_i64 }], "status": "ok" })).expect("a limit");
+        let hot: wsp_wire::types::usage::HarnessLimit = serde_json::from_value(
+            json!({ "windows": [{ "kind": "session", "usedPercent": 75, "resetsAt": 1_900_000_000_000_i64 }], "status": "ok" }),
+        )
+        .expect("a limit");
         let mut r = reading("claude:vault-token", "claude", "Claude Code with your sign-in", "vault", "here", None);
         let (before_cool, after_cool) = U::file_limit(&*c, r.clone()).await.expect("filed");
         U::alerts_read(&*c, before_cool, after_cool).await.expect("read");
@@ -658,8 +707,12 @@ fn a_reading_the_ledger_now_holds_is_what_the_alerts_compare_against() {
 fn an_account_is_keyed_and_labelled_as_the_ts_does() {
     run(plain, |_, c| async move {
         let own = U::account_of(&*c, "opencode", None, "here", "zingzy's MacBook Pro");
-        assert_eq!((own.key.as_str(), own.label.as_str(), own.road.as_str()), ("opencode@here", "OpenCode signed in on zingzy's MacBook Pro", "own"));
-        let named: wsp_wire::types::usage::HarnessLimitAccount = serde_json::from_value(json!({ "id": "acct_9", "label": "Maya's team" })).expect("an account");
+        assert_eq!(
+            (own.key.as_str(), own.label.as_str(), own.road.as_str()),
+            ("opencode@here", "OpenCode signed in on zingzy's MacBook Pro", "own")
+        );
+        let named: wsp_wire::types::usage::HarnessLimitAccount =
+            serde_json::from_value(json!({ "id": "acct_9", "label": "Maya's team" })).expect("an account");
         let account = U::account_of(&*c, "codex", Some(&named), "here", "Mac");
         assert_eq!((account.key.as_str(), account.label.as_str(), account.road.as_str()), ("codex:acct_9", "Maya's team", "named"));
     });
@@ -681,9 +734,17 @@ fn the_account_rows_list_each_agent_signed_in_here_before_any_turn_has_reported_
     // usage.test.ts "lists each agent signed in here off this computer's own read".
     run(plain, |_, c| async move {
         let name_of: NameOf = Rc::new(|id: &str| if id == "here" { "Mac".to_string() } else { id.to_string() });
-        let places = vec![("here".to_string(), "Mac".to_string(), Some(json!({ "claude": "signed-in", "codex": "signed-in", "opencode": "signed-in" })))];
+        let places = vec![(
+            "here".to_string(),
+            "Mac".to_string(),
+            Some(json!({ "claude": "signed-in", "codex": "signed-in", "opencode": "signed-in" })),
+        )];
         let answer = U::account_rows(&*c, vec![], places, name_of).await.expect("rows");
-        let rows: Vec<(String, Option<String>, usize)> = answer.accounts.iter().map(|a| (a.key.clone(), a.note.map(|n| serde_json::to_value(n).unwrap().as_str().unwrap().to_string()), a.computers.len())).collect();
+        let rows: Vec<(String, Option<String>, usize)> = answer
+            .accounts
+            .iter()
+            .map(|a| (a.key.clone(), a.note.map(|n| serde_json::to_value(n).unwrap().as_str().unwrap().to_string()), a.computers.len()))
+            .collect();
         assert_eq!(
             rows,
             vec![
@@ -709,6 +770,8 @@ fn an_account_a_turn_read_limits_for_is_named_off_that_reading() {
 
 #[test]
 fn a_computers_name_is_kept_once_it_was_listed_and_read_back_when_it_is_gone() {
+    // waits on the join line in ctx/build.rs, `ctx.status_tracker.fill(ctx.usage_status_tracker())`: the door lists a place
+    // through its spend, which reads the status tracker (runtime.ts:1056).
     run(with_door, |_, c| async move {
         let places = U::places(&*c, 0).await;
         let kept = U::kept_computer_names(&*c, &places).await.expect("kept");
@@ -735,7 +798,9 @@ fn spending_a_reset_on_an_account_nobody_has_is_refused_in_the_words_of_the_ts()
 fn a_spend_is_the_ledgers_to_read_so_a_limit_filed_through_the_context_is_the_one_a_spend_sees() {
     // The one ledger, shared: the reading filed through `UsageCtx` is what `UsageResetDeps::limits` and `row` read.
     run(plain, |_, c| async move {
-        U::file_limit(&*c, reading("claude:vault-key", "claude", "Claude Code with an API key", "vault", "here", None)).await.expect("filed");
+        U::file_limit(&*c, reading("claude:vault-key", "claude", "Claude Code with an API key", "vault", "here", None))
+            .await
+            .expect("filed");
         let held = D::limits(&*c).await.expect("limits");
         assert_eq!(held.iter().map(|l| l.key.as_str()).collect::<Vec<_>>(), vec!["claude:vault-key"]);
         let row = D::row(&*c, "claude:vault-key").await.expect("row").expect("the account's row");
@@ -767,7 +832,6 @@ fn spawn_runs_the_future_now_and_warn_is_one_line_to_stderr() {
     });
 }
 
-// ---------------------------------------------------------------------------------------------------------------
 // The one built state: ledger, prices, alerts, burn and resets are built once and shared (usage.ts:46-50, 292-303).
 
 #[test]
@@ -801,7 +865,12 @@ fn a_runtime_whose_state_holds_an_armed_alert_arms_it_again_at_construction() {
 fn the_burn_the_context_holds_is_the_one_an_account_row_reads() {
     // usage.test.ts "reads off the calls its running turns report, on the account each turn runs on".
     run(plain, |_, c| async move {
-        c.usage_parts().burn.add(wsp_machines::usage::accounts::BurnCall { account: "claude@here".into(), thread_id: "t_1".into(), tokens: 150.0, replayed: None });
+        c.usage_parts().burn.add(wsp_machines::usage::accounts::BurnCall {
+            account: "claude@here".into(),
+            thread_id: "t_1".into(),
+            tokens: 150.0,
+            replayed: None,
+        });
         let name_of: NameOf = Rc::new(|id: &str| id.to_string());
         let places = vec![("here".to_string(), "Mac".to_string(), Some(json!({ "claude": "signed-in" })))];
         let answer = U::account_rows(&*c, vec![], places, name_of).await.expect("rows");
@@ -811,7 +880,6 @@ fn the_burn_the_context_holds_is_the_one_an_account_row_reads() {
     });
 }
 
-// ---------------------------------------------------------------------------------------------------------------
 // UsageResetDeps and Resets (usage-reset.ts:53-68, usage.ts:208-263, adapters.ts:85).
 
 #[test]
@@ -819,7 +887,11 @@ fn the_reset_deps_read_the_cores_store_the_catalogs_names_and_a_fresh_id_each_ti
     run(plain, |_, c| async move {
         let store = D::store(&*c);
         store.put("probe", "k", json!({ "v": 1 })).await.expect("put");
-        assert_eq!(wsp_core::types::pending::Store::get(&*D::store(&*c), "probe", "k").await.expect("get"), Some(json!({ "v": 1 })), "the one store");
+        assert_eq!(
+            wsp_core::types::pending::Store::get(&*D::store(&*c), "probe", "k").await.expect("get"),
+            Some(json!({ "v": 1 })),
+            "the one store"
+        );
         assert_eq!(D::agent_name(&*c, "codex"), "Codex");
         assert_eq!(D::agent_name(&*c, "no-such-agent"), "no-such-agent");
         let (a, b) = (D::uuid(&*c), D::uuid(&*c));
@@ -865,47 +937,49 @@ fn the_context_itself_answers_the_resets_words_as_the_one_agent_that_has_them() 
 
 #[test]
 fn each_computer_a_plan_read_may_run_on_is_this_one_a_joined_box_or_a_provider() {
+    // waits on the join line in ctx/build.rs, `ctx.status_tracker.fill(ctx.usage_status_tracker())`: the door lists a place
+    // through its spend, which reads the status tracker (runtime.ts:1056).
     run(with_door, |_, c| async move {
         let place_of = D::places(&*c).await.expect("the places");
         let here = place_of("here");
-        assert_eq!((here.kind, here.name.as_str(), here.connected), (wsp_account::usage_reset::ResetPlaceKind::Here, "zingzys-mac", false), "no local wiring: not connected");
+        assert_eq!(
+            (here.kind, here.name.as_str(), here.connected),
+            (wsp_account::usage_reset::ResetPlaceKind::Here, "zingzys-mac", false),
+            "no local wiring: not connected"
+        );
         let unknown = place_of("srv_9");
         assert_eq!(unknown.kind, wsp_account::usage_reset::ResetPlaceKind::Provider, "an id the host does not know still answers a place");
         assert!(!unknown.connected);
         assert!(!(unknown.signed_in)("codex"));
     });
-    run(|dir| RuntimeOptions { local: Some(local_wiring(true)), ..with_door(dir) }, |_, c| async move {
-        let place_of = D::places(&*c).await.expect("the places");
-        assert!(place_of("here").connected, "connected: local !== undefined");
-    });
+    run(
+        |dir| RuntimeOptions { local: Some(local_wiring(true)), ..with_door(dir) },
+        |_, c| async move {
+            let place_of = D::places(&*c).await.expect("the places");
+            assert!(place_of("here").connected, "connected: local !== undefined");
+        },
+    );
 }
 
 #[test]
 fn the_road_of_an_agents_login_is_its_config_dir_or_this_computers_own_home() {
-    run(|dir| RuntimeOptions { local: Some(local_wiring(true)), ..with_door(dir) }, |_, c| async move {
-        let place_of = D::places(&*c).await.expect("the places");
-        let here = place_of("here");
-        let road = D::road(&*c, "codex", &here).await.expect("a road");
-        assert_eq!(road.home, "/home/me/.codex", "local.home(agent) where the setup names no folder");
-        assert_eq!(road.env.as_ref().map(|e| e.len()), Some(0), "the script exports nothing of the setup's");
-    });
+    // waits on the join line in ctx/build.rs, `ctx.status_tracker.fill(ctx.usage_status_tracker())`: the door lists a place
+    // through its spend, which reads the status tracker (runtime.ts:1056).
+    run(
+        |dir| RuntimeOptions { local: Some(local_wiring(true)), ..with_door(dir) },
+        |_, c| async move {
+            let place_of = D::places(&*c).await.expect("the places");
+            let here = place_of("here");
+            let road = D::road(&*c, "codex", &here).await.expect("a road");
+            assert_eq!(road.home, "/home/me/.codex", "local.home(agent) where the setup names no folder");
+            assert_eq!(road.env.as_ref().map(|e| e.len()), Some(0), "the script exports nothing of the setup's");
+        },
+    );
     run(plain, |_, c| async move {
-        let here = wsp_account::usage_reset::ResetPlace {
-            id: "here".into(),
-            name: "zingzys-mac".into(),
-            kind: wsp_account::usage_reset::ResetPlaceKind::Here,
-            connected: false,
-            signed_in: Rc::new(|_| false),
-        };
+        let here = reset_place("here", "zingzys-mac", ResetPlaceKind::Here, false, false);
         let said = D::road(&*c, "codex", &here).await.expect_err("no local wiring");
-        assert_eq!(said.message, wsp_words::workspace_state::absent_computer("zingzys-mac", None).sentence);
-        let box_place = wsp_account::usage_reset::ResetPlace {
-            id: "srv_1".into(),
-            name: "srv".into(),
-            kind: wsp_account::usage_reset::ResetPlaceKind::Box,
-            connected: true,
-            signed_in: Rc::new(|_| true),
-        };
+        assert_eq!(said.message, absent_computer("zingzys-mac", None).sentence);
+        let box_place = reset_place("srv_1", "srv", ResetPlaceKind::Box, true, true);
         let said = D::road(&*c, "codex", &box_place).await.expect_err("a box that lists no logins");
         assert_eq!(said.message, wsp_words::usage::reset_no_logins_line("srv", "Codex"));
     });
@@ -914,42 +988,25 @@ fn the_road_of_an_agents_login_is_its_config_dir_or_this_computers_own_home() {
 #[test]
 fn one_script_runs_on_a_box_over_the_door_and_here_as_a_child_of_this_host() {
     run(plain, |_, c| async move {
-        let box_place = wsp_account::usage_reset::ResetPlace {
-            id: "srv_1".into(),
-            name: "srv".into(),
-            kind: wsp_account::usage_reset::ResetPlaceKind::Box,
-            connected: true,
-            signed_in: Rc::new(|_| true),
-        };
+        let box_place = reset_place("srv_1", "srv", ResetPlaceKind::Box, true, true);
         let said = D::run(&*c, &box_place, "echo hi", "codex").await.expect_err("no door");
         assert_eq!(said.message, wsp_machines::places::types::NO_PLACE_DOOR);
-        let here = wsp_account::usage_reset::ResetPlace {
-            id: "here".into(),
-            name: "zingzys-mac".into(),
-            kind: wsp_account::usage_reset::ResetPlaceKind::Here,
-            connected: false,
-            signed_in: Rc::new(|_| false),
-        };
+        let here = reset_place("here", "zingzys-mac", ResetPlaceKind::Here, false, false);
         let said = D::run(&*c, &here, "echo hi", "codex").await.expect_err("no local wiring");
-        assert_eq!(said.message, wsp_words::workspace_state::absent_computer("zingzys-mac", None).sentence);
+        assert_eq!(said.message, absent_computer("zingzys-mac", None).sentence);
     });
 }
 
 #[test]
 fn a_reading_a_plans_own_read_gave_is_filed_the_way_a_turns_is_under_the_key_it_answers() {
     run(plain, |_, c| async move {
-        let here = wsp_account::usage_reset::ResetPlace {
-            id: "here".into(),
-            name: "zingzys-mac".into(),
-            kind: wsp_account::usage_reset::ResetPlaceKind::Here,
-            connected: true,
-            signed_in: Rc::new(|_| true),
-        };
+        let here = reset_place("here", "zingzys-mac", ResetPlaceKind::Here, true, true);
         let limit = window_limit();
         let key = D::file(&*c, wsp_account::usage_reset::FileAsk { agent: "codex", place: &here, limit: &limit }).await.expect("filed");
         assert_eq!(key, "codex@here");
         assert_eq!(D::limits(&*c).await.expect("limits").iter().map(|l| l.key.as_str()).collect::<Vec<_>>(), vec!["codex@here"]);
-        let named: wsp_wire::types::usage::HarnessLimit = serde_json::from_value(json!({ "windows": [], "account": { "id": "acct_1", "label": "dev@example.com" } })).expect("a limit");
+        let named: wsp_wire::types::usage::HarnessLimit =
+            serde_json::from_value(json!({ "windows": [], "account": { "id": "acct_1", "label": "dev@example.com" } })).expect("a limit");
         let key = D::file(&*c, wsp_account::usage_reset::FileAsk { agent: "codex", place: &here, limit: &named }).await.expect("filed");
         assert_eq!(key, "codex:acct_1", "the account the harness named wins");
     });
@@ -959,28 +1016,32 @@ fn a_reading_a_plans_own_read_gave_is_filed_the_way_a_turns_is_under_the_key_it_
 fn an_accounts_row_is_found_by_its_key_in_the_accounts_the_door_lists() {
     run(plain, |_, c| async move {
         assert!(D::row(&*c, "claude@here").await.expect("row").is_none(), "no limit, no sign-in: no row");
-        U::file_limit(&*c, reading("claude@here", "claude", "Claude Code signed in on zingzys-mac", "own", "here", None)).await.expect("filed");
+        U::file_limit(&*c, reading("claude@here", "claude", "Claude Code signed in on zingzys-mac", "own", "here", None))
+            .await
+            .expect("filed");
         let row = D::row(&*c, "claude@here").await.expect("row").expect("a row");
         assert_eq!(row.agent, "claude");
     });
 }
 
-// ---------------------------------------------------------------------------------------------------------------
 // StatusCtx (status.ts:9-182).
 
 #[test]
 fn the_status_ctx_reads_the_clock_the_wall_the_owner_and_the_places_word() {
     let clock = FakeClock::new(7_000);
     let fake = clock.clone();
-    run(move |dir| RuntimeOptions { clock: Some(fake.clock()), ..plain(dir) }, |rt, c| async move {
-        assert_eq!(S::now(&*c), 7_000, "clock.now()");
-        let wall = S::wall_now(&*c);
-        let system = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("time").as_millis() as i64;
-        assert!((system - wall).abs() < 5_000, "Date.now() is the system's, apart from the clock: {wall} against {system}");
-        let owner = rt.owner().await.expect("an owner");
-        assert_eq!(S::owner(&*c), owner, "state.owner after boot");
-        assert_eq!(S::places_wired(&*c), "default", "ctx.places.wired");
-    });
+    run(
+        move |dir| RuntimeOptions { clock: Some(fake.clock()), ..plain(dir) },
+        |rt, c| async move {
+            assert_eq!(S::now(&*c), 7_000, "clock.now()");
+            let wall = S::wall_now(&*c);
+            let system = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("time").as_millis() as i64;
+            assert!((system - wall).abs() < 5_000, "Date.now() is the system's, apart from the clock: {wall} against {system}");
+            let owner = rt.owner().await.expect("an owner");
+            assert_eq!(S::owner(&*c), owner, "state.owner after boot");
+            assert_eq!(S::places_wired(&*c), "default", "ctx.places.wired");
+        },
+    );
 }
 
 #[test]
@@ -1014,10 +1075,16 @@ fn a_live_entry_is_found_by_its_id_and_the_projects_held_are_the_cores() {
 #[test]
 fn a_view_of_a_record_is_the_workspace_view_as_a_json_object() {
     run(plain, |_, c| async move {
+        BootRuntime::projects_held(&*c).borrow_mut().insert("p_1".into(), project("p_1", "web", "/work/web", "here"));
         let view = S::view(&*c, &record("w_1", json!({})));
         assert_eq!(view.get("id"), Some(&json!("w_1")));
         assert_eq!(view.get("name"), Some(&json!("alpha")));
         assert_eq!(view.get("phase"), Some(&json!("running")));
+        assert_eq!(view["project"]["name"], json!("web"));
+        assert!(
+            S::view(&*c, &record("w_2", json!({ "project": "p_gone" }))).is_empty(),
+            "a project this host does not hold is no view: the TS throws, the trait answers none"
+        );
     });
 }
 
@@ -1043,25 +1110,52 @@ fn a_rows_words_come_from_the_usage_area_and_the_idle_policy() {
 }
 
 #[test]
-fn a_record_at_a_place_that_is_away_reads_away() {
+fn a_record_at_a_place_the_door_holds_no_backend_or_link_to_reads_away() {
+    // usage.ts:36-38: `placeDoor !== undefined && placeAway(at)` is the door wired and neither a backend nor a link to
+    // the place (runtime.ts:852); the line is `absentComputer(placeDoor.nameOf(at)).sentence`.
     run(with_door, |_, c| async move {
-        // A place the door does not hold is not away: `placeAway` answers false for it.
-        assert_eq!(S::away_line(&*c, &record("w_1", json!({ "place": "srv_1" }))), None);
+        let away = S::away_line(&*c, &record("w_1", json!({ "place": "srv_1" })));
+        assert_eq!(away, Some(absent_computer(&U::name_of(&*c, "srv_1"), None).sentence));
+        assert_eq!(S::away_line(&*c, &record("w_1", json!({}))), None, "a record with no place is never away");
+    });
+    run(plain, |_, c| async move {
+        assert_eq!(S::away_line(&*c, &record("w_1", json!({ "place": "srv_1" }))), None, "no door, nothing is away");
     });
 }
 
 #[test]
 fn the_reach_the_machines_daemon_and_the_optional_reads_of_an_entry_come_off_its_kind_and_machine() {
+    // waits on packet 2 only for `KindsArea::module_of`, which is merged: a cloud machine has a daemon road where it
+    // offers a preview URL and no computer serves it (table.rs, kinds.ts), a folder here where this host wired one.
     run(plain, |_, c| async move {
         let entry = put_live(&c, record("w_1", json!({}))).await;
-        // waits on packet 2: `KindsArea::module_of` for `has_daemon`.
-        assert!(S::has_daemon(&*c, &entry), "a cloud machine has a daemon road");
-        let (answers, prompt_ms, metrics, facts) = S::machine_reads(&*c, &entry);
         let offers = entry.borrow().machine.offers();
-        assert_eq!((answers, metrics, facts), (offers.daemon_answers, offers.metrics, offers.facts), "which optional members the machine offers");
+        assert_eq!(S::has_daemon(&*c, &entry), offers.preview_url, "a cloud machine's daemon road is its preview URL");
+        let (answers, prompt_ms, metrics, facts) = S::machine_reads(&*c, &entry);
+        assert_eq!(
+            (answers, metrics, facts),
+            (offers.daemon_answers, offers.metrics, offers.facts),
+            "which optional members the machine offers"
+        );
         assert_eq!(prompt_ms, entry.borrow().machine.daemon_answers_prompt_ms().map(|ms| ms as f64));
-        assert_eq!(S::reach_of(&*c, &entry), "reachable", "an entry the poll has not marked reads as reachable");
+        let expect = if offers.preview_url || offers.daemon_answers { "reachable" } else { "unsupported" };
+        assert_eq!(S::reach_of(&*c, &entry), expect, "an entry the poll has not marked reads off what its machine can answer");
     });
+    run(
+        |dir| RuntimeOptions { local: Some(local_wiring(true)), ..plain(dir) },
+        |_, c| async move {
+            let entry = put_live(&c, record("w_1", json!({ "kind": "local" }))).await;
+            assert!(S::has_daemon(&*c, &entry), "every folder here shares this computer's daemon where the host wired a road");
+            assert_eq!(S::reach_of(&*c, &entry), "reachable");
+        },
+    );
+    run(
+        |dir| RuntimeOptions { local: Some(local_wiring(false)), ..plain(dir) },
+        |_, c| async move {
+            let entry = put_live(&c, record("w_1", json!({ "kind": "local" }))).await;
+            assert!(!S::has_daemon(&*c, &entry), "no daemon road wired here, none to reach");
+        },
+    );
 }
 
 #[test]
@@ -1079,12 +1173,20 @@ fn the_polled_reach_is_set_per_workspace_and_deleted_with_it() {
 }
 
 #[test]
-fn a_gone_reading_adopts_gone_through_the_machines_area() {
-    // waits on packet 4: `MachinesArea::adopt_gone` (machines.ts adoptGone).
+fn a_gone_reading_is_settled_by_the_machines_area_against_what_the_provider_still_holds() {
+    // machines.ts adoptGone: a record already gone is left (the early return), and a gone reading over a machine the
+    // provider still holds as running leaves the record running.
     run(plain, |_, c| async move {
-        let entry = put_live(&c, record("w_1", json!({}))).await;
-        S::adopt_gone(&*c, &entry, "the provider says the machine is gone").await.expect("adopted");
-        assert_eq!(entry.borrow().record.borrow().phase, wsp_wire::views::workspace::WorkspacePhase::Gone);
+        let gone = put_live(&c, record("w_1", json!({ "phase": "gone" }))).await;
+        S::adopt_gone(&*c, &gone, "the provider says the machine is gone").await.expect("adopted");
+        assert_eq!(gone.borrow().record.borrow().phase, wsp_wire::views::workspace::WorkspacePhase::Gone);
+        let alive = put_live(&c, record("w_2", json!({ "machineId": "m_2" }))).await;
+        S::adopt_gone(&*c, &alive, "the provider says the machine is gone").await.expect("adopted");
+        assert_eq!(
+            alive.borrow().record.borrow().phase,
+            wsp_wire::views::workspace::WorkspacePhase::Running,
+            "the machine answers: the verdict falls"
+        );
     });
 }
 
@@ -1102,11 +1204,17 @@ fn the_daemon_callbacks_take_the_reach_and_the_status_as_words() {
 }
 
 #[test]
-fn a_name_the_create_would_refuse_is_refused_in_its_words_and_the_golden_head_is_none_before_any() {
+fn a_name_the_create_would_refuse_is_refused_in_its_words() {
     run(plain, |_, c| async move {
         assert_eq!(S::name_refusal(&*c, "alpha"), None);
         assert!(S::name_refusal(&*c, "").is_some(), "an empty name is no name");
-        // waits on packet 14: `GoldenArea::get`.
+    });
+}
+
+#[test]
+fn the_golden_head_is_none_before_any_golden_was_made() {
+    // waits on packet 14: `GoldenArea::get` reads through `ready` and the images' roads.
+    run(plain, |_, c| async move {
         assert_eq!(S::golden_head(&*c).await, None);
     });
 }
@@ -1116,7 +1224,8 @@ fn a_provider_row_is_lost_by_the_engines_reading_and_this_hosts_owner() {
     run(plain, |_, c| async move {
         let owner = S::owner(&*c);
         let labels = |extra: &[(&str, &str)]| {
-            let mut l: IndexMap<String, String> = IndexMap::from([("wsp".to_string(), "1".to_string()), ("wsp-owner".to_string(), owner.clone())]);
+            let mut l: IndexMap<String, String> =
+                IndexMap::from([("wsp".to_string(), "1".to_string()), ("wsp-owner".to_string(), owner.clone())]);
             for (k, v) in extra {
                 l.insert(k.to_string(), v.to_string());
             }
@@ -1125,14 +1234,17 @@ fn a_provider_row_is_lost_by_the_engines_reading_and_this_hosts_owner() {
         let now = S::wall_now(&*c);
         let own = ListedRow { id: "m_1".into(), state: "running".into(), labels: labels(&[("createdAt", "2026-01-01T00:00:00.000Z")]) };
         assert!(S::lost_workspace(&*c, &own, &owner, now), "an own, running, old row is lost");
-        let other = ListedRow { id: "m_2".into(), state: "running".into(), labels: labels(&[("createdAt", "2026-01-01T00:00:00.000Z"), ("wsp-owner", "someone-else")]) };
+        let other = ListedRow {
+            id: "m_2".into(),
+            state: "running".into(),
+            labels: labels(&[("createdAt", "2026-01-01T00:00:00.000Z"), ("wsp-owner", "someone-else")]),
+        };
         assert!(!S::lost_workspace(&*c, &other, &owner, now), "another owner's is not");
         let gone = ListedRow { id: "m_3".into(), state: "gone".into(), labels: labels(&[]) };
         assert!(!S::lost_workspace(&*c, &gone, &owner, now), "only a running or paused one");
     });
 }
 
-// ---------------------------------------------------------------------------------------------------------------
 // StatusCtx: the confirming read, the stop and the recording (status.ts:140-178); sweep-places.test.ts.
 
 fn lost_row(id: &str, owner: &str, workspace: &str) -> ListedRow {
@@ -1143,6 +1255,7 @@ fn lost_row(id: &str, owner: &str, workspace: &str) -> ListedRow {
             ("wsp".to_string(), "1".to_string()),
             ("wsp-owner".to_string(), owner.to_string()),
             ("wsp-workspace".to_string(), workspace.to_string()),
+            ("wsp-golden".to_string(), "snap_g".to_string()),
             ("createdAt".to_string(), "2026-01-01T00:00:00.000Z".to_string()),
         ]),
     }
@@ -1170,24 +1283,32 @@ fn a_box_this_host_cannot_name_is_named_at_every_sweep_with_the_time_it_goes() {
     // sweep-places.test.ts:40.
     let clock = FakeClock::new(1_900_000_000_000);
     let fake = clock.clone();
-    run(move |dir| RuntimeOptions { clock: Some(fake.clock()), ..plain(dir) }, |_, c| async move {
-        let owner = S::owner(&*c);
-        let area = StatusArea::new(c.clone());
-        let mut known = std::collections::BTreeSet::new();
-        let mut failed = Vec::new();
-        let (adopted, reaped) = area.adopt_lost(&[lost_row("fk_lost", &owner, "w_unknown")], &mut known, &mut failed, "default").await.expect("swept");
-        assert!(adopted.is_empty() && reaped.is_empty());
-        assert!(known.contains("fk_lost"), "the engine spares it this sweep");
-        assert_eq!(failed.len(), 1);
-        let goes = wsp_words::js_date::iso_string(1_900_000_000_000.0 + wsp_core::types::internal::UNRECORDED_DELETE_MS as f64).expect("a date");
-        assert_eq!(
+    run(
+        move |dir| RuntimeOptions { clock: Some(fake.clock()), ..plain(dir) },
+        |_, c| async move {
+            let owner = S::owner(&*c);
+            let area = StatusArea::new(c.clone());
+            let mut known = std::collections::BTreeSet::new();
+            let mut failed = Vec::new();
+            let (adopted, reaped) =
+                area.adopt_lost(&[lost_row("fk_lost", &owner, "w_unknown")], &mut known, &mut failed, "default").await.expect("swept");
+            assert!(adopted.is_empty() && reaped.is_empty());
+            assert!(known.contains("fk_lost"), "the engine spares it this sweep");
+            assert_eq!(failed.len(), 1);
+            let goes = wsp_words::js_date::iso_string(1_900_000_000_000.0 + wsp_core::types::internal::UNRECORDED_DELETE_MS as f64)
+                .expect("a date");
+            assert_eq!(
             failed[0].message,
             format!("not recorded: no workspace of this host is w_unknown, so nothing here reaches this running machine of yours; deleted at {goes}, a day after this host first saw it")
         );
-        let seen = S::store_get(&*c, wsp_core::types::internal::UNRECORDED, "fk_lost").await.expect("get").expect("its first sighting is kept");
-        assert_eq!(seen["machineId"], json!("fk_lost"));
-        assert_eq!(seen["place"], json!("default"));
-    });
+            let seen = S::store_get(&*c, wsp_core::types::internal::UNRECORDED, "fk_lost")
+                .await
+                .expect("get")
+                .expect("its first sighting is kept");
+            assert_eq!(seen["machineId"], json!("fk_lost"));
+            assert_eq!(seen["place"], json!("default"));
+        },
+    );
 }
 
 #[test]
@@ -1195,22 +1316,28 @@ fn a_box_past_its_delay_is_deleted_and_named_once_more_as_it_goes() {
     // sweep-places.test.ts:54.
     let clock = FakeClock::new(1_900_000_000_000);
     let fake = clock.clone();
-    run(move |dir| RuntimeOptions { clock: Some(fake.clock()), ..plain(dir) }, |_, c| async move {
-        let owner = S::owner(&*c);
-        let area = StatusArea::new(c.clone());
-        let row = lost_row("fk_lost", &owner, "w_unknown");
-        let mut known = std::collections::BTreeSet::new();
-        let mut failed = Vec::new();
-        area.adopt_lost(&[row.clone()], &mut known, &mut failed, "default").await.expect("first sweep");
-        clock.advance(wsp_core::types::internal::UNRECORDED_DELETE_MS as i64 + 1);
-        let (mut known, mut failed) = (std::collections::BTreeSet::new(), Vec::new());
-        let (adopted, reaped) = area.adopt_lost(&[row], &mut known, &mut failed, "default").await.expect("second sweep");
-        assert!(adopted.is_empty());
-        assert_eq!(reaped.len(), 1, "deleted at the first sweep past its delay: {failed:?}");
-        assert_eq!(reaped[0].id, "fk_lost");
-        assert!(failed.is_empty());
-        assert!(S::store_get(&*c, wsp_core::types::internal::UNRECORDED, "fk_lost").await.expect("get").is_none(), "its sighting is let go");
-    });
+    run(
+        move |dir| RuntimeOptions { clock: Some(fake.clock()), ..plain(dir) },
+        |_, c| async move {
+            let owner = S::owner(&*c);
+            let area = StatusArea::new(c.clone());
+            let row = lost_row("fk_lost", &owner, "w_unknown");
+            let mut known = std::collections::BTreeSet::new();
+            let mut failed = Vec::new();
+            area.adopt_lost(std::slice::from_ref(&row), &mut known, &mut failed, "default").await.expect("first sweep");
+            clock.advance(wsp_core::types::internal::UNRECORDED_DELETE_MS as i64 + 1);
+            let (mut known, mut failed) = (std::collections::BTreeSet::new(), Vec::new());
+            let (adopted, reaped) = area.adopt_lost(&[row], &mut known, &mut failed, "default").await.expect("second sweep");
+            assert!(adopted.is_empty());
+            assert_eq!(reaped.len(), 1, "deleted at the first sweep past its delay: {failed:?}");
+            assert_eq!(reaped[0].id, "fk_lost");
+            assert!(failed.is_empty());
+            assert!(
+                S::store_get(&*c, wsp_core::types::internal::UNRECORDED, "fk_lost").await.expect("get").is_none(),
+                "its sighting is let go"
+            );
+        },
+    );
 }
 
 #[test]
@@ -1220,11 +1347,14 @@ fn a_lost_record_of_a_workspace_this_host_still_names_is_recorded_again_not_kill
         let owner = S::owner(&*c);
         let (created, _off) = listen(&rt, "workspace.created");
         BootRuntime::projects_held(&*c).borrow_mut().insert("p_1".into(), project("p_1", "web", "/work/web", "here"));
-        S::store_put(&*c, wsp_core::types::internal::WORKSPACE_NAMES, "w_lost", json!({ "name": "alpha", "project": "p_1" })).await.expect("put");
+        S::store_put(&*c, wsp_core::types::internal::WORKSPACE_NAMES, "w_lost", json!({ "name": "alpha", "project": "p_1" }))
+            .await
+            .expect("put");
         let area = StatusArea::new(c.clone());
         let mut known = std::collections::BTreeSet::new();
         let mut failed = Vec::new();
-        let (adopted, reaped) = area.adopt_lost(&[lost_row("fk_lost", &owner, "w_lost")], &mut known, &mut failed, "default").await.expect("swept");
+        let (adopted, reaped) =
+            area.adopt_lost(&[lost_row("fk_lost", &owner, "w_lost")], &mut known, &mut failed, "default").await.expect("swept");
         assert!(reaped.is_empty() && failed.is_empty(), "{failed:?}");
         assert_eq!(adopted.len(), 1);
         assert_eq!((adopted[0].workspace_id.as_str(), adopted[0].name.as_str()), ("w_lost", "alpha"));
@@ -1242,11 +1372,14 @@ fn a_lost_record_of_a_workspace_this_host_still_names_is_recorded_again_not_kill
 fn a_lost_machine_whose_project_this_host_cannot_name_is_reported_not_recorded() {
     run(plain, |_, c| async move {
         let owner = S::owner(&*c);
-        S::store_put(&*c, wsp_core::types::internal::WORKSPACE_NAMES, "w_lost", json!({ "name": "alpha", "project": "p_gone" })).await.expect("put");
+        S::store_put(&*c, wsp_core::types::internal::WORKSPACE_NAMES, "w_lost", json!({ "name": "alpha", "project": "p_gone" }))
+            .await
+            .expect("put");
         let area = StatusArea::new(c.clone());
         let mut known = std::collections::BTreeSet::new();
         let mut failed = Vec::new();
-        let (adopted, _) = area.adopt_lost(&[lost_row("fk_lost", &owner, "w_lost")], &mut known, &mut failed, "default").await.expect("swept");
+        let (adopted, _) =
+            area.adopt_lost(&[lost_row("fk_lost", &owner, "w_lost")], &mut known, &mut failed, "default").await.expect("swept");
         assert!(adopted.is_empty());
         assert_eq!(
             failed[0].message,
@@ -1255,27 +1388,42 @@ fn a_lost_machine_whose_project_this_host_cannot_name_is_reported_not_recorded()
     });
 }
 
-#[test]
-fn a_record_at_a_place_other_than_the_forking_provider_keeps_its_place() {
-    run(plain, |_, c| async move {
-        let owner = S::owner(&*c);
-        BootRuntime::projects_held(&*c).borrow_mut().insert("p_1".into(), project("p_1", "web", "/work/web", "here"));
-        S::store_put(&*c, wsp_core::types::internal::WORKSPACE_NAMES, "w_lost", json!({ "name": "alpha", "project": "p_1" })).await.expect("put");
-        let area = StatusArea::new(c.clone());
-        let (mut known, mut failed) = (std::collections::BTreeSet::new(), Vec::new());
-        area.adopt_lost(&[lost_row("fk_lost", &owner, "w_lost")], &mut known, &mut failed, "srv_1").await.expect("swept");
-        let entry = S::live(&*c, "w_lost").expect("attached");
-        assert_eq!(entry.borrow().record.borrow().place.as_deref(), Some("srv_1"), "at.place !== ctx.places.wired");
-    });
+/// The provider this host forks on is `default`; `box` is a second place with a backend of its own.
+struct TwoPlaces(Arc<dyn MachineBackend>);
+
+impl wsp_core::types::wiring::PlaceBackends for TwoPlaces {
+    fn wired(&self) -> String {
+        "default".into()
+    }
+    fn backend(&self, place: &str) -> Option<Arc<dyn MachineBackend>> {
+        matches!(place, "default" | "box").then(|| self.0.clone())
+    }
+    fn list(&self) -> Vec<String> {
+        vec!["default".into(), "box".into()]
+    }
 }
 
-// ---------------------------------------------------------------------------------------------------------------
+#[test]
+fn a_confirming_read_asks_the_backend_of_the_place_the_sweep_names() {
+    // status.ts:140-153: `at.backend.get(row.id)` where `at` is the provider the listing came from.
+    run(
+        |dir| RuntimeOptions { places: Some(Rc::new(TwoPlaces(backend()))), ..plain(dir) },
+        |_, c| async move {
+            assert_eq!(S::places_wired(&*c), "default");
+            assert_eq!(S::confirm(&*c, "box", "fk_1").await.expect("confirmed").state, "running");
+            assert!(matches!(S::confirm(&*c, "nowhere", "fk_1").await, Err(wsp_account::account::status::ReadFailure::Failed(_))));
+            assert!(matches!(S::stop_unrecorded(&*c, "nowhere", "fk_1").await, Err(wsp_account::account::status::ReadFailure::Failed(_))));
+        },
+    );
+}
+
 // The status tracker the context builds (status.ts:11-69) and `status.list` (status.test.ts).
 
 #[test]
 fn the_tracker_the_context_builds_lists_a_running_workspace_with_the_size_and_the_rate_off_its_backend() {
     // status.test.ts:100 "enriches views with machine state, reach, size, and rate from backend pricing".
     run(plain, |_, c| async move {
+        BootRuntime::projects_held(&*c).borrow_mut().insert("p_1".into(), project("p_1", "web", "/work/web", "here"));
         put_live(&c, record("w_1", json!({}))).await;
         let tracker = c.usage_status_tracker();
         let statuses = tracker.list(Default::default()).await.expect("a list");
@@ -1293,7 +1441,10 @@ fn the_tracker_the_context_builds_lists_a_running_workspace_with_the_size_and_th
 fn the_tracker_maps_a_napping_workspace_without_probing_it() {
     // status.test.ts:149 "maps napping and gone machines without probing".
     run(plain, |_, c| async move {
-        put_live(&c, record("w_1", json!({ "phase": "napping" }))).await;
+        BootRuntime::projects_held(&*c).borrow_mut().insert("p_1".into(), project("p_1", "web", "/work/web", "here"));
+        let entry = put_live(&c, record("w_1", json!({ "phase": "napping" }))).await;
+        let machine = entry.borrow().machine.clone();
+        machine.pause(None).await.expect("paused");
         let statuses = c.usage_status_tracker().list(Default::default()).await.expect("a list");
         let status = serde_json::to_value(&statuses[0]).expect("a status");
         assert_eq!(status["machineState"], json!("paused"));
@@ -1305,6 +1456,7 @@ fn the_tracker_maps_a_napping_workspace_without_probing_it() {
 fn a_row_carries_what_the_runtime_says_about_it_between_polls() {
     // status.ts:13-43: the reason, the wake ask and the daemon's callbacks ride the row the tracker builds.
     run(plain, |_, c| async move {
+        BootRuntime::projects_held(&*c).borrow_mut().insert("p_1".into(), project("p_1", "web", "/work/web", "here"));
         let entry = put_live(&c, record("w_1", json!({}))).await;
         entry.borrow_mut().wake_said = Some("the wake's own line".into());
         let statuses = c.usage_status_tracker().list(Default::default()).await.expect("a list");
