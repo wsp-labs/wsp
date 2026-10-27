@@ -74,6 +74,7 @@ pub struct CreateOn {
     pub golden: Option<String>,
     pub on: Option<String>,
     pub project: Option<String>,
+    pub cpu: Option<f64>,
     pub mem_mb: Option<f64>,
     pub parent: Option<String>,
     pub idle_window_ms: IdleWindow,
@@ -89,6 +90,10 @@ impl CreateOn {
     }
     pub fn on(mut self, computer: &str) -> CreateOn {
         self.on = Some(computer.into());
+        self
+    }
+    pub fn cpu(mut self, cpu: f64) -> CreateOn {
+        self.cpu = Some(cpu);
         self
     }
     pub fn mem(mut self, mem_mb: f64) -> CreateOn {
@@ -119,7 +124,7 @@ pub async fn create_on(rt: &AssembledRuntime, o: CreateOn, origin: Option<Caller
         }
     };
     let opts = CreateWorkspaceOptions {
-        spec: WorkspaceSpec { mem_mb: o.mem_mb.map(JsNumber), ..Default::default() },
+        spec: WorkspaceSpec { cpu: o.cpu.map(JsNumber), mem_mb: o.mem_mb.map(JsNumber), ..Default::default() },
         project: id,
         golden: o.golden,
         name: o.name,
