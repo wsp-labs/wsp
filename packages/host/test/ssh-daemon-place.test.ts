@@ -16,6 +16,7 @@ import type { Machine } from "@wsp/engine";
 import { BOOT_SCRIPT, CLOUD_PLACE, JOINED, joinedPlace, CONTAINER_PLACE, DAEMON_GONE_LINE, daemonBinaryOn, daemonExecLine, daemonFlags, daemonLogCommand, guestPlace, SYSTEMD, NEEDS_SYSTEMD, deployDaemon, PREFLIGHT_OK_LINE, preflightScript, profileSourceLine, profileSourceStep, daemonUnit, deployScript, loginFilesStep, sshDaemonPlace, stageDaemonBundle, stopDaemonScript, WSP_COMMAND_NODE_MAJOR } from "../src/doctor.js";
 import { daemonBinaryIn, GUEST_DAEMON_TARGETS } from "../src/daemon-binary.js";
 import { ensureNode, NODE_ENSURE_SCRIPT } from "../src/place-node.js";
+import { writeStub } from "../../protocol/test/stub-script.js";
 
 const LOGIN = { home: "/home/maya", path: "/usr/local/bin:/usr/bin:/bin" };
 
@@ -560,7 +561,7 @@ describe("the node step of an add runs for real in bash", () => {
       const found = spawnSync("sh", ["-c", `command -v ${tool}`], { encoding: "utf8" }).stdout.trim();
       if (found !== "" && found.startsWith("/")) symlinkSync(found, join(dir, tool));
     }
-    for (const [name, body] of Object.entries(stubs)) writeFileSync(join(dir, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+    for (const [name, body] of Object.entries(stubs)) writeStub(join(dir, name), `#!/bin/sh\n${body}\n`);
     return { path: dir, done: () => rmSync(dir, { recursive: true, force: true }) };
   }
   const run = (path: string) => spawnSync(join(path, "bash"), ["-c", NODE_ENSURE_SCRIPT], { encoding: "utf8", env: { PATH: path } });
@@ -596,6 +597,17 @@ describe("the node step of an add runs for real in bash", () => {
     const refused = await ensureNode(answering(1, "NODE_FAILED curl: (6) Could not resolve host: nodejs.org\n")).catch((e: unknown) => e);
     expect(machineLacksLine(refused)).toBe("wsp could not put Node 22 on this computer: curl: (6) Could not resolve host: nodejs.org; install Node 22 or newer on it and add it again");
     expect(machineNeverAnswered(await ensureNode(answering(255, "")).catch((e: unknown) => e))).toBe(true);
-    await expect(ensureNode(answering(0, "NODE_INSTALLED v22.23.2\n"))).resolves.toBeUndefined();
+    await expect(ensureNode(answering(0, "NODE_INSTALLED v22.23.2 had=none at=none\n"))).resolves.toBe("wsp put Node 22.23.2 at /usr/local/bin; the computer had no Node");
+    await expect(ensureNode(answering(0, "NODE_KEPT\n"))).resolves.toBeUndefined();
+  });
+
+  it("says a run-out install or a dropped connection in the person's words, with the last thing the box said where it said one", async () => {
+    const answering = (exitCode: number, stdout: string, stderr = ""): Machine => ({ run: async () => ({ exitCode, stdout, stderr }) }) as unknown as Machine;
+    const ranOut = await ensureNode(answering(124, "")).catch((e: unknown) => e);
+    expect((ranOut as Error).message).toBe("this computer stopped answering while wsp put Node 22 on it");
+    expect(machineNeverAnswered(ranOut)).toBe(true);
+    const dropped = await ensureNode(answering(255, "", "\r  5 30.1M  5 1.6M\nConnection to box closed by remote host.\n")).catch((e: unknown) => e);
+    expect((dropped as Error).message).toBe("this computer stopped answering while wsp put Node 22 on it: Connection to box closed by remote host.");
+    for (const said of [(ranOut as Error).message, (dropped as Error).message]) expect(said).not.toMatch(/machine|daemon/);
   });
 });

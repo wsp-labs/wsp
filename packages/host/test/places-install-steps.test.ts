@@ -36,7 +36,7 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
 
   /** A box that takes the deploy and answers the word it is told to say about its own chip, recording every script
    * run on it and every file landed there. `arch` is what its `uname -m` answered on the read that adopted it. */
-  function fakeBox(arch: string | undefined, shell = "bash", box: { reaches?: (url: string) => boolean; holds?: string; held?: string; dials?: string; proxied?: boolean; home?: string; checks?: string[]; road?: SshSudoRoad; tries?: (password: string) => SshSudo; minusNRefused?: boolean; node?: boolean } = {}): { backend: unknown; ran: string[]; landed: string[]; stages: string[]; times: Record<string, number | undefined>; stage: PlaceStaging; tried: string[]; ridden: SshRiding[]; order: string[] } {
+  function fakeBox(arch: string | undefined, shell = "bash", box: { reaches?: (url: string) => boolean; holds?: string; held?: string; dials?: string; proxied?: boolean; home?: string; checks?: string[]; road?: SshSudoRoad; tries?: (password: string) => SshSudo; minusNRefused?: boolean; node?: boolean; had?: string } = {}): { backend: unknown; ran: string[]; landed: string[]; stages: string[]; times: Record<string, number | undefined>; stage: PlaceStaging; tried: string[]; ridden: SshRiding[]; order: string[] } {
     const tried: string[] = [];
     const order: string[] = [];
     const ridden: SshRiding[] = [];
@@ -57,8 +57,9 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
         // A box with no Node 22 refuses the preflight's node check until a script that installs one has run on it.
         if (script.includes("PREFLIGHT_OK")) return node ? { exitCode: 0, stdout: "PREFLIGHT_OK\n", stderr: "" } : { exitCode: 1, stdout: `${NO_NODE_LINE}\n`, stderr: "" };
         if (script.includes("NODE_INSTALLED")) {
+          const had = node;
           node = true;
-          return { exitCode: 0, stdout: "NODE_INSTALLED v22.23.2\n", stderr: "" };
+          return { exitCode: 0, stdout: had ? "NODE_KEPT\n" : `NODE_INSTALLED v22.23.2 ${box.had ?? "had=none at=none"}\n`, stderr: "" };
         }
         if (script === heldPlaceScript("/home/maya")) return { exitCode: 0, stdout: box.held ?? `${PLACE_HELD_LINE}\n${box.holds ?? ""}`, stderr: "" };
         if (script === PLACE_CHECK_SCRIPT) return { exitCode: 0, stdout: (box.checks ?? []).map(l => `wsp-check ${l}\n`).join(""), stderr: "" };
@@ -151,6 +152,20 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
     expect(at("NODE_INSTALLED")).toBeLessThan(at("PREFLIGHT_OK"));
     expect(bare.landed).not.toEqual([]);
     expect(bare.stages.at(-1)).toBe("service done");
+    // The row says what was done, so a box that had no Node is told so, on the running row and the done one.
+    const said = "aarch64; wsp put Node 22.23.2 at /usr/local/bin; the computer had no Node";
+    expect(bare.stages).toContain(`wsp running (${said})`);
+    expect(bare.stages).toContain(`wsp done (${said})`);
+  });
+
+  it("says on the wsp row which Node the box had and what became of it, and says nothing of Node where it already had one", async () => {
+    const ask = { address: "root@box", code: "7QK3M2VD", hostUrls: ["http://192.168.1.20:4400"] };
+    const apt = fakeBox("aarch64", "bash", { node: false, had: "had=v20.20.2 at=/usr/bin/node" });
+    await placeInstaller({ backend: apt.backend as never, ...assets(tmp("node-apt"), [ARM]) })(ask, apt.stage);
+    expect(apt.stages).toContain("wsp done (aarch64; wsp put Node 22.23.2 at /usr/local/bin, ahead of its Node 20.20.2 at /usr/bin/node, which stays where it is)");
+    const local = fakeBox("aarch64", "bash", { node: false, had: "had=v20.20.2 at=/usr/local/bin/node" });
+    await placeInstaller({ backend: local.backend as never, ...assets(tmp("node-local"), [ARM]) })(ask, local.stage);
+    expect(local.stages).toContain("wsp done (aarch64; wsp put Node 22.23.2 at /usr/local/bin in place of its Node 20.20.2, so what that one had installed globally now runs on 22)");
   });
 
   it("says each check on a row of its own: the chip and system, root, systemd with cgroup v2 and the room, inside the one check step", async () => {
@@ -472,7 +487,7 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
           if (opts.found === "unsaid") return { exitCode: 255, stdout: "", stderr: "Connection reset by peer\n" };
           return { exitCode: 0, stdout: `${writes.flatMap((w, i) => (had(w) ? [`WSP_HAD ${i}\n`] : [])).join("")}${ADD_FOUND_END}\n`, stderr: "" };
         }
-        if (script.includes("NODE_INSTALLED")) return { exitCode: 0, stdout: "NODE_INSTALLED v22.23.2\n", stderr: "" };
+        if (script.includes("NODE_INSTALLED")) return { exitCode: 0, stdout: "NODE_KEPT\n", stderr: "" };
         if (opts.preflight !== undefined && script.includes("PREFLIGHT_OK")) {
           box.ran.push(script);
           return { exitCode: 1, stdout: `${opts.preflight}\n`, stderr: "" };
@@ -785,7 +800,7 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
         if (opts.asLogin === true) asLogin.push(script);
         if (script === SSH_SUDO_READ) return { exitCode: 0, stdout: "WSP_SUDO free\n", stderr: "" };
         if (script === SSH_READ_SCRIPT) return { exitCode: 0, stdout: `home /home/maya\narch ${said}\nuser maya\npath /usr/bin:/bin\ncpu 2\nmemkb 4194304\n`, stderr: "" };
-        if (script.includes("NODE_INSTALLED")) return { exitCode: 0, stdout: "NODE_INSTALLED v22.23.2\n", stderr: "" };
+        if (script.includes("NODE_INSTALLED")) return { exitCode: 0, stdout: "NODE_KEPT\n", stderr: "" };
         if (script.includes("PREFLIGHT_OK")) return { exitCode: 0, stdout: "PREFLIGHT_OK\n", stderr: "" };
         if (script.includes("WSP_BYTES_OK")) return { exitCode: 0, stdout: "WSP_BYTES_OK\n", stderr: "" };
         if (script === heldPlaceScript("/home/maya")) return { exitCode: 0, stdout: "", stderr: "" };
@@ -878,7 +893,7 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
       facts: async () => ({ os: "Ubuntu 24.04.4 LTS" }),
       run: async (script: string) =>
         script.includes("NODE_INSTALLED")
-          ? { exitCode: 0, stdout: "NODE_INSTALLED v22.23.2\n", stderr: "" }
+          ? { exitCode: 0, stdout: "NODE_KEPT\n", stderr: "" }
           : script.includes("PREFLIGHT_OK")
           ? { exitCode: 0, stdout: "PREFLIGHT_OK\n", stderr: "" }
           : script === heldPlaceScript("/home/maya")
@@ -911,7 +926,7 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
       putBytes: async () => {},
       exec: async () => ({ exitCode: 0, stdout: "", stderr: "" }),
       facts: async () => ({ os: "Linux 6.8.0" }),
-      run: async (script: string) => (script.includes("NODE_INSTALLED") ? { exitCode: 0, stdout: "NODE_INSTALLED v22.23.2\n", stderr: "" } : script.includes("PREFLIGHT_OK") ? { exitCode: 0, stdout: "PREFLIGHT_OK\n", stderr: "" } : script === heldPlaceScript("/home/maya") ? { exitCode: 0, stdout: "", stderr: "" } : (reachAnswer(script) ?? { exitCode: 0, stdout: "DAEMON_UP\n", stderr: "" })),
+      run: async (script: string) => (script.includes("NODE_INSTALLED") ? { exitCode: 0, stdout: "NODE_KEPT\n", stderr: "" } : script.includes("PREFLIGHT_OK") ? { exitCode: 0, stdout: "PREFLIGHT_OK\n", stderr: "" } : script === heldPlaceScript("/home/maya") ? { exitCode: 0, stdout: "", stderr: "" } : (reachAnswer(script) ?? { exitCode: 0, stdout: "DAEMON_UP\n", stderr: "" })),
     };
     const backend = { adopt: async () => ({ machine, login: { HOME: "/home/maya", PATH: "/usr/bin:/bin", USER: "maya" }, shape: { cpu: 2, memMb: 2048 }, arch: "x86_64" }), keyFor: async () => BOX_KEY, sudoFor: async () => "root" as const, hostNameFor: async (reach: SshReach) => reach.host };
     const install = placeInstaller({ backend: backend as never, ...assets(root) });
@@ -941,7 +956,7 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
       facts: async () => ({ os: "Linux 6.8.0" }),
       run: async (script: string, opts?: { onLine?: (line: string) => void }) => {
         ran.push(script);
-        if (script.includes("NODE_INSTALLED")) return { exitCode: 0, stdout: "NODE_INSTALLED v22.23.2\n", stderr: "" };
+        if (script.includes("NODE_INSTALLED")) return { exitCode: 0, stdout: "NODE_KEPT\n", stderr: "" };
         if (script.includes("PREFLIGHT_OK")) return { exitCode: 0, stdout: "PREFLIGHT_OK\n", stderr: "" };
         const reached = reachAnswer(script);
         if (reached !== undefined) return reached;

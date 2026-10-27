@@ -541,6 +541,25 @@ export function nodeInstallFailedLine(said: string): string {
   return `wsp could not put Node 22 on this computer: ${said.trim()}; install Node 22 or newer on it and add it again`;
 }
 
+/** What a computer is refused with when it stopped answering, or the install ran out its time, while wsp was putting
+ * Node 22 on it: the last thing it said, where it said one, is the only reason there is. */
+export function nodeUnansweredLine(said: string): string {
+  const reason = said.trim();
+  return `this computer stopped answering while wsp put Node 22 on it${reason === "" ? "" : `: ${reason}`}`;
+}
+
+/** What the wsp step says it did to a computer's Node, by the Node 22 it put on, the Node the computer had before
+ * (`none` where it had none) and where that one stood. wsp's install lands at /usr/local/bin, which every login's
+ * PATH reads first: a Node already under /usr/local is overwritten, so what it had installed globally now runs on
+ * 22, and any other Node, apt's or a tarball's, stays where it is and is no longer the one a login finds. */
+export function nodePutLine(put: string, had: string, at: string): string {
+  const version = (v: string): string => v.replace(/^v/, "");
+  const now = `wsp put Node ${version(put)} at /usr/local/bin`;
+  if (had === "none") return `${now}; the computer had no Node`;
+  if (at.startsWith("/usr/local/")) return `${now} in place of its Node ${version(had)}, so what that one had installed globally now runs on 22`;
+  return `${now}, ahead of its Node ${version(had)} at ${at}, which stays where it is`;
+}
+
 /** What a machine whose login does not linger is refused with. Its own systemd stops when its last session ends
  * and takes the daemon with it, so a daemon deployed there is gone the moment the host's connection closes; the
  * person turns linger on once and it holds for every login after. */
