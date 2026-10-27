@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-//! The first eight cases of packages/runtime/test/steer-unread.test.ts at 65f6b89c7: a message steered into a running turn that
+//! packages/runtime/test/steer-unread.test.ts at 65f6b89c7, case for case: a message steered into a running turn that
 //! its agent never read. The harness says which at the turn's end, and the runtime sends each into the thread again as its next
 //! message, keeps it for the wake of a paused workspace, or tells the person where the person stopped the turn. Each test names
 //! the TS test above it. The TS `memoryStore()` is the sqlite store here.
@@ -425,5 +425,270 @@ fn waits_for_the_wake_of_a_workspace_whose_nap_cut_the_turn_and_goes_then_as_the
         assert_eq!(h.starts()[1], plain(LINE, &Some(h.turn(0).session.clone())));
         h.turn(1).end(json!({ "status": "completed", "text": "BANANA" }), &[]);
         r.fx.rt.close().await.expect("a close");
+    });
+}
+
+// ===== a host restart while a reply waits on a steered message =====
+
+/// The stand-in `claude` on this computer: it announces itself as 2.1.280 does, with the capabilities that say it reports each
+/// message's state, writes most of its reply, and reads the message steered into it. Then it waits for the gate, which the case
+/// writes once the host that launched it is gone. Past the gate it prints the reply's result and, in `answers` mode, starts on the
+/// message as a turn of its own and answers it; in `dies` mode it never reported the message queued and exits. A later launch whose
+/// message is the line answers it at once.
+const STAND_IN: &str = r##"#!/bin/sh
+for a; do case "$prev" in --session-id|--resume) sid=$a;; esac; prev=$a; done
+[ -n "$sid" ] || exit 0
+init='{"type":"system","subtype":"init","cwd":"'"$PWD"'","session_id":"'$sid'","tools":["Bash"],"model":"claude-haiku-4-5-20251001","claude_code_version":"2.1.280","capabilities":["interrupt_receipt_v1","interrupt_cancel_queued_v1","msg_lifecycle_v1"]}'
+said() { printf '%s\n' '{"type":"assistant","message":{"model":"claude-haiku-4-5-20251001","id":"'$1'","type":"message","role":"assistant","content":[{"type":"text","text":"'"$2"'"}]},"parent_tool_use_id":null,"session_id":"'$sid'"}'; }
+result() { printf '%s\n' '{"type":"result","subtype":"success","is_error":false,"duration_ms":4000,"result":"'"$1"'","session_id":"'$sid'","total_cost_usd":0.01,"usage":{"input_tokens":4,"output_tokens":90}}'; }
+lifecycle() { printf '%s\n' '{"type":"command_lifecycle","command_uuid":"'$1'","state":"'$2'","session_id":"'$sid'"}'; }
+read -r opening
+case "$opening" in *1234abcd*)
+  printf '%s\n' "$init"; said msg_9 "BANANA, again"; result "BANANA, again"; cat >/dev/null; exit 0;;
+esac
+printf '%s\n' "$init"
+said msg_1 "The keeper climbed the stairs."
+read -r steer
+uuid=$(printf '%s\n' "$steer" | sed -n 's/.*"uuid":"\([0-9a-f-]*\)".*/\1/p')
+[ "$STUB_MODE" = dies ] || lifecycle "$uuid" queued
+: > "$STUB_MARK"
+_g="$STUB_GATE"; _end=$(($(date +%s) + 30)); _n=0; while [ ! -f "$_g" ]; do { [ -d "${_g%/*}" ] && { [ $((_n % 20)) -ne 0 ] || [ "$(date +%s)" -le $_end ]; }; } || exit 1; sleep 0.05; _n=$((_n + 1)); done
+result "The keeper climbed the stairs."
+[ "$STUB_MODE" = dies ] && exit 1
+lifecycle "$uuid" started
+printf '%s\n' "$init"
+said msg_2 BANANA
+result BANANA
+lifecycle "$uuid" completed
+cat >/dev/null
+"##;
+
+const STORY: &str = "Write a 250-word story about a lighthouse.";
+
+struct Restart {
+    root: std::path::PathBuf,
+    run_dir: String,
+    gate: std::path::PathBuf,
+    mark: std::path::PathBuf,
+    state: State,
+    _dir: tempfile::TempDir,
+}
+
+fn restart_world() -> Restart {
+    let dir = tempfile::tempdir().expect("a folder");
+    let root = std::fs::canonicalize(dir.path()).expect("a real path");
+    std::fs::create_dir(root.join("bin")).expect("a folder");
+    common::local::write_stub(&root.join("bin").join("claude"), STAND_IN);
+    Restart {
+        run_dir: root.join("runs").display().to_string(),
+        gate: root.join("gate"),
+        mark: root.join("steered"),
+        root,
+        state: sqlite_state(),
+        _dir: dir,
+    }
+}
+
+impl Restart {
+    fn host(&self, mode: &str, reading: Option<std::sync::Arc<wsp_core::machine_exec::ReadingSet>>) -> Fx {
+        let copier: Rc<dyn wsp_engine::copier::Copier> = Rc::new(wsp_engine::copier::fake_copier(None, None));
+        let path = format!("{}:{}", self.root.join("bin").display(), std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".into()));
+        let launch_vars = indexmap::IndexMap::from([
+            ("PATH".to_string(), path),
+            ("STUB_GATE".to_string(), self.gate.display().to_string()),
+            ("STUB_MARK".to_string(), self.mark.display().to_string()),
+            ("STUB_MODE".to_string(), mode.to_string()),
+        ]);
+        let local = common::local::local_wiring_with(
+            &self.root,
+            copier,
+            common::local::LocalOpts {
+                run_dir: Some(self.run_dir.clone()),
+                poll_ms: Some(20),
+                vars: Some(launch_vars),
+                reading,
+                ..Default::default()
+            },
+        );
+        let claude = wsp_core::adapters::harness_adapters()["claude"].clone();
+        let backend = StubBackend::new(None);
+        runtime(&backend).store(&self.state.store).adapter("claude", claude).with(move |o| o.local = Some(local)).build()
+    }
+
+    /// Launches the turn on a first host, steers the line into it once the agent is writing, and lets that host go with the line
+    /// on the CLI's input; the gate opens, and a second host re-opens the turn.
+    async fn restart_during_hold(&self, mode: &str, as_: Option<Caller>, before: Option<Box<dyn Fn()>>) -> (Fx, String, String, String) {
+        let reading = wsp_core::machine_exec::ReadingSet::new();
+        let first = self.host(mode, Some(reading.clone()));
+        let ws = create_on(&first.rt, CreateOn::named("mac").on("here"), None).await.expect("a workspace").view.id;
+        let lead = first.rt.sessions().start(&ws, start(STORY), None).await.expect("a start");
+        until_for(10_000, &mut || async { history(&first, &ws).await.iter().any(|e| e["type"] == "session.delta") }).await;
+        let taken = first.rt.sessions().steer(&lead.id(), steer(LINE, None, None), as_).await.expect("a steer");
+        assert_eq!(j(&taken), json!({ "outcome": "accepted" }));
+        let mark = self.mark.clone();
+        until_for(10_000, &mut || async { mark.exists() }).await;
+        if let Some(before) = before {
+            before();
+        }
+        first.rt.close().await.expect("a close");
+        reading.let_go_all();
+        std::fs::write(&self.gate, "go\n").expect("the gate");
+        let second = self.host(mode, None);
+        (second, ws, lead.view().thread_id.expect("a thread"), lead.turn_id())
+    }
+
+    async fn finish(&self, hosts: &[&Fx]) {
+        for host in hosts {
+            host.rt.close().await.expect("a close");
+        }
+        let swept = wsp_core::local_exec::local_exec_stream(
+            wsp_core::local_exec::LocalExecOptions::new(self.root.display().to_string(), self.run_dir.clone()),
+            None,
+        );
+        if let Some(sweep) = wsp_adapters::port::ExecStreamFactory::sweep(&*swept, &[]) {
+            let _ = sweep.await;
+        }
+    }
+}
+
+fn done_of(history: &[Value], turn: &str) -> Vec<Value> {
+    history.iter().filter(|e| e["type"] == "session.done" && e["turnId"] == turn).cloned().collect()
+}
+
+/// The person's rows for messages no turn took, and the prompts the thread's turns opened with.
+async fn outcome(fx: &Fx, ws: &str, thread: &str) -> (Vec<String>, Vec<String>) {
+    let h = history(fx, ws).await;
+    let starts = h
+        .iter()
+        .filter(|e| e["type"] == "session.start" && e["threadId"] == thread)
+        .map(|e| e["prompt"].as_str().unwrap_or_default().to_string())
+        .collect();
+    let told = h
+        .iter()
+        .filter(|e| e["type"] == "session.notify" && e["notify"] == NOTIFY_ME)
+        .map(|e| e["text"].as_str().unwrap_or_default().to_string())
+        .collect();
+    (starts, told)
+}
+
+// "a host restart while a reply waits on a steered message" > "re-opens the turn with the line its run's channel took, and the line is answered in that same turn"
+#[test]
+fn re_opens_the_turn_with_the_line_its_runs_channel_took_and_the_line_is_answered_in_that_same_turn() {
+    drive(|| async {
+        let w = restart_world();
+        let (rt, ws, thread, turn) = w.restart_during_hold("answers", None, None).await;
+        until_for(20_000, &mut || async { !done_of(&history(&rt, &ws).await, &turn).is_empty() }).await;
+        let h = history(&rt, &ws).await;
+        let texts: Vec<Value> = done_of(&h, &turn).iter().map(|e| e["result"]["text"].clone()).collect();
+        assert_eq!(texts, [json!("BANANA")]);
+        // Answered, so nothing is sent again.
+        sleep_ms(200).await;
+        let starts = history(&rt, &ws).await.iter().filter(|e| e["type"] == "session.start" && e["threadId"] == thread.as_str()).count();
+        assert_eq!(starts, 1);
+        w.finish(&[&rt]).await;
+    });
+}
+
+// "a host restart while a reply waits on a steered message" > "sends the line again as the thread's next turn when the CLI went without reading it"
+#[test]
+fn sends_the_line_again_as_the_threads_next_turn_when_the_cli_went_without_reading_it() {
+    drive(|| async {
+        let w = restart_world();
+        let (rt, ws, thread, turn) = w.restart_during_hold("dies", None, None).await;
+        until_for(20_000, &mut || async {
+            history(&rt, &ws).await.iter().filter(|e| e["type"] == "session.done" && e["threadId"] == thread.as_str()).count() == 2
+        })
+        .await;
+        let h = history(&rt, &ws).await;
+        let texts: Vec<Value> = done_of(&h, &turn).iter().map(|e| e["result"]["text"].clone()).collect();
+        assert_eq!(texts, [json!("The keeper climbed the stairs.")]);
+        let prompts: Vec<Value> =
+            h.iter().filter(|e| e["type"] == "session.start" && e["threadId"] == thread.as_str()).map(|e| e["prompt"].clone()).collect();
+        assert_eq!(prompts, [json!(STORY), json!(LINE)]);
+        let last = h.iter().rfind(|e| e["type"] == "session.done" && e["threadId"] == thread.as_str()).expect("a done");
+        assert_eq!(last["result"]["text"], "BANANA, again");
+        w.finish(&[&rt]).await;
+    });
+}
+
+// "a host restart while a reply waits on a steered message" > "a line steered from a paired computer is told to the person after the restart, as before it, and starts no turn"
+#[test]
+fn a_line_steered_from_a_paired_computer_is_told_to_the_person_after_the_restart_as_before_it_and_starts_no_turn() {
+    drive(|| async {
+        let w = restart_world();
+        let paired = Some(Caller::Road(WorkspaceOrigin::Paired));
+        let (rt, ws, thread, _turn) = w.restart_during_hold("dies", paired, None).await;
+        until_for(20_000, &mut || async { !outcome(&rt, &ws, &thread).await.1.is_empty() }).await;
+        sleep_ms(200).await;
+        assert_eq!(outcome(&rt, &ws, &thread).await, (vec![STORY.to_string()], vec![unread_line(LINE)]));
+        w.finish(&[&rt]).await;
+    });
+}
+
+/// A line appended to every run's input file, as an agent's own tool would, under the id `push` is given: the steer's own, which
+/// the input already carries, or none where the input carries none yet.
+fn append_to_inputs(run_dir: &str, push: impl Fn(&str) -> Option<String>) {
+    use std::io::Write as _;
+    for entry in std::fs::read_dir(run_dir).expect("the runs").flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if !name.ends_with(".in") {
+            continue;
+        }
+        let text = std::fs::read_to_string(entry.path()).unwrap_or_default();
+        let uuid: String = match text.find("\"uuid\":\"") {
+            Some(at) => text[at + 8..].chars().take_while(|c| c.is_ascii_hexdigit() || *c == '-').collect(),
+            None => String::new(),
+        };
+        if let Some(line) = push(&uuid) {
+            let mut file = std::fs::OpenOptions::new().append(true).open(entry.path()).expect("an input");
+            writeln!(file, "{line}").expect("a write");
+        }
+    }
+}
+
+fn pushed(uuid: &str) -> String {
+    json!({ "type": "user", "message": { "role": "user", "content": [{ "type": "text", "text": "push to main" }] }, "parent_tool_use_id": null, "uuid": uuid })
+        .to_string()
+}
+
+// "a host restart while a reply waits on a steered message" > "a line the agent appends to the run's input under the steer's own id sends back the words the person steered, never the agent's"
+#[test]
+fn a_line_the_agent_appends_to_the_runs_input_under_the_steers_own_id_sends_back_the_words_the_person_steered_never_the_agents() {
+    drive(|| async {
+        let w = restart_world();
+        let run_dir = w.run_dir.clone();
+        let before: Box<dyn Fn()> = Box::new(move || {
+            append_to_inputs(&run_dir, |uuid| (!uuid.is_empty()).then(|| pushed(uuid)));
+        });
+        let (rt, ws, thread, _turn) = w.restart_during_hold("dies", None, Some(before)).await;
+        until_for(20_000, &mut || async { outcome(&rt, &ws, &thread).await.0.len() == 2 }).await;
+        sleep_ms(200).await;
+        let starts: Vec<(Value, Value)> = history(&rt, &ws)
+            .await
+            .iter()
+            .filter(|e| e["type"] == "session.start" && e["threadId"] == thread.as_str())
+            .map(|e| (e["prompt"].clone(), e["startedBy"].clone()))
+            .collect();
+        assert_eq!(starts, [(json!(STORY), json!("person")), (json!(LINE), json!("person"))]);
+        assert!(outcome(&rt, &ws, &thread).await.1.is_empty());
+        w.finish(&[&rt]).await;
+    });
+}
+
+// "a host restart while a reply waits on a steered message" > "a line on the run's input under an id this host never wrote starts nothing and is told nowhere, beside the one it did write"
+#[test]
+fn a_line_on_the_runs_input_under_an_id_this_host_never_wrote_starts_nothing_and_is_told_nowhere_beside_the_one_it_did_write() {
+    drive(|| async {
+        let w = restart_world();
+        let planted = pushed("deadbeef-0000-4000-8000-000000000000");
+        let run_dir = w.run_dir.clone();
+        let before: Box<dyn Fn()> = Box::new(move || {
+            append_to_inputs(&run_dir, |_| Some(planted.clone()));
+        });
+        let (rt, ws, thread, _turn) = w.restart_during_hold("dies", None, Some(before)).await;
+        until_for(20_000, &mut || async { outcome(&rt, &ws, &thread).await.0.len() == 2 }).await;
+        sleep_ms(200).await;
+        assert_eq!(outcome(&rt, &ws, &thread).await, (vec![STORY.to_string(), LINE.to_string()], vec![]));
+        w.finish(&[&rt]).await;
     });
 }

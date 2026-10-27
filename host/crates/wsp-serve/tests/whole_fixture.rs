@@ -709,3 +709,18 @@ fn a_fed_run_streams_the_lines_pushed_loses_a_write_as_told_and_reads_again_on_a
         assert!(matches!(gone, Attached::Gone));
     });
 }
+
+// steer-unread.test.ts `host()` and turn-costs.test.ts `runtime()`: a wiring on this computer carries the launch environment, the run
+// folder and the poll a test names.
+#[test]
+fn a_local_wiring_carries_the_launch_variables_and_the_run_folder_a_test_names() {
+    use common::local::{git_copier, local_wiring_with, LocalOpts};
+    let dir = tempfile::tempdir().expect("a folder");
+    let (copier, _log) = git_copier();
+    let vars = indexmap::IndexMap::from([("STUB_MODE".to_string(), "dies".to_string())]);
+    let local = local_wiring_with(dir.path(), copier, LocalOpts { vars: Some(vars.clone()), poll_ms: Some(20), ..Default::default() });
+    assert_eq!((local.env)(), vars);
+    assert_eq!((local.home)("claude"), format!("{}/.claude", dir.path().display()));
+    assert_eq!(local.folder, dir.path().display().to_string());
+    assert!(local.copier.is_some());
+}
