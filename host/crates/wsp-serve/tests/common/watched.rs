@@ -140,4 +140,3 @@ impl Store for Watched {
         Some(&self.rows)
     }
 }
-

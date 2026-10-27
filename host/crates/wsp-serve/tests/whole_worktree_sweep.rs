@@ -19,7 +19,9 @@ use serde_json::{json, Value};
 use wsp_core::clock::FakeClock;
 use wsp_core::daemon_channel::Frame;
 use wsp_core::types::api::{FolderForAsk, ProjectAddAsk, StartOptions};
-use wsp_engine::copier::{Copier, CopyAsk, CopyReport, CopyRoad, WorktreeAsk, WorktreeAt, WorktreeProject, WorktreeRemoval, WorktreeRemove, WorktreeReport};
+use wsp_engine::copier::{
+    Copier, CopyAsk, CopyReport, CopyRoad, WorktreeAsk, WorktreeAt, WorktreeProject, WorktreeRemoval, WorktreeRemove, WorktreeReport,
+};
 use wsp_engine::errors::{EngineError, Result as EngineResult};
 use wsp_engine::local_backend::MemoryHere;
 use wsp_wire::types::projects::{KEPT_ABANDONED_LINE, KEPT_RUNNING_LINE};
@@ -166,7 +168,8 @@ fn host(mut scratch: Scratch, hold: bool, locked: bool) -> Host {
     let copier: Rc<dyn Copier> = if locked { Rc::new(Locked { inner: copier, log: log.clone() }) } else { copier };
     let d = daemon();
     let time = FakeClock::new(1_790_856_000_000);
-    let agent = Quick::new(QuickOptions { session_prefix: "66666666-6666-4666-8666", announces: true, anchors: false, ..Default::default() });
+    let agent =
+        Quick::new(QuickOptions { session_prefix: "66666666-6666-4666-8666", announces: true, anchors: false, ..Default::default() });
     agent.holding.set(hold);
     let local = local_wiring(&root, copier);
     let state_path = state_dir.join("state.json").display().to_string();
@@ -188,15 +191,24 @@ fn host(mut scratch: Scratch, hold: bool, locked: bool) -> Host {
 
 /// The worktree record a branch start lands on, with one thread run in it so the record outlives its folder.
 async fn worktree_with_thread(h: &Host, folder: &Path, branch: &str, wait: bool) -> Value {
-    let added = h.fx.rt.projects().add(ProjectAddAsk { source: folder.display().to_string(), ..Default::default() }, None).await.expect("a project");
-    let at = h
-        .fx
-        .rt
-        .workspaces()
-        .folder_for(FolderForAsk { project: Some(added.project.id.clone()), branch: Some(branch.into()), ..Default::default() }, None)
-        .await
-        .expect("a folder");
-    let turn = h.fx.rt.sessions().start(&at.workspace.id, StartOptions { prompt: "work".into(), ..Default::default() }, None).await.expect("a start");
+    let added =
+        h.fx.rt
+            .projects()
+            .add(ProjectAddAsk { source: folder.display().to_string(), ..Default::default() }, None)
+            .await
+            .expect("a project");
+    let at =
+        h.fx.rt
+            .workspaces()
+            .folder_for(FolderForAsk { project: Some(added.project.id.clone()), branch: Some(branch.into()), ..Default::default() }, None)
+            .await
+            .expect("a folder");
+    let turn =
+        h.fx.rt
+            .sessions()
+            .start(&at.workspace.id, StartOptions { prompt: "work".into(), ..Default::default() }, None)
+            .await
+            .expect("a start");
     if wait {
         turn.finished().await;
     }
@@ -259,7 +271,12 @@ fn holds_no_timer_while_no_worktree_wsp_made_stands_and_arms_one_when_the_first_
         let mut scratch = Scratch::new();
         let (folder, _) = project(&mut scratch, true);
         let h = host(scratch, false, false);
-        let added = h.fx.rt.projects().add(ProjectAddAsk { source: folder.display().to_string(), ..Default::default() }, None).await.expect("a project");
+        let added =
+            h.fx.rt
+                .projects()
+                .add(ProjectAddAsk { source: folder.display().to_string(), ..Default::default() }, None)
+                .await
+                .expect("a project");
         h.fx.rt.workspaces().list(None).await.expect("a list");
         let idle = h.time.pending();
         h.fx.rt.workspaces().worktree(&added.project.id, "feat/one", None).await.expect("a worktree");
@@ -464,7 +481,12 @@ fn reads_the_pull_request_of_a_worktree_no_thread_ever_ran_in() {
         let mut scratch = Scratch::new();
         let (folder, _) = project(&mut scratch, true);
         let h = host(scratch, false, false);
-        let added = h.fx.rt.projects().add(ProjectAddAsk { source: folder.display().to_string(), ..Default::default() }, None).await.expect("a project");
+        let added =
+            h.fx.rt
+                .projects()
+                .add(ProjectAddAsk { source: folder.display().to_string(), ..Default::default() }, None)
+                .await
+                .expect("a project");
         h.fx.rt.workspaces().worktree(&added.project.id, "feat/z", None).await.expect("a worktree");
         sweep(&h, 0, || async { h.daemon.prs_read().iter().any(|f| f["branch"] == "feat/z") }).await;
         h.fx.rt.close().await.expect("a close");

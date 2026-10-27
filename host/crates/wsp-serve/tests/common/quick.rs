@@ -96,8 +96,17 @@ impl HarnessAdapter for QuickAdapter {
         let q = &self.quick;
         q.n.set(q.n.get() + 1);
         let n = q.n.get();
-        q.starts.borrow_mut().push(LiveStart { prompt: o.prompt.clone(), resume: o.resume.clone(), cwd: o.cwd.clone(), images: o.images.clone() });
-        let session_id = if q.o.announces { format!("{}-{n:012}", q.o.session_prefix) } else { o.resume.clone().unwrap_or_else(|| format!("{}-{n:012}", q.o.session_prefix)) };
+        q.starts.borrow_mut().push(LiveStart {
+            prompt: o.prompt.clone(),
+            resume: o.resume.clone(),
+            cwd: o.cwd.clone(),
+            images: o.images.clone(),
+        });
+        let session_id = if q.o.announces {
+            format!("{}-{n:012}", q.o.session_prefix)
+        } else {
+            o.resume.clone().unwrap_or_else(|| format!("{}-{n:012}", q.o.session_prefix))
+        };
         let on_event = o.on_event.clone().expect("an event sink");
         let held = q.holding.get();
         let (go, wait) = oneshot::channel::<()>();

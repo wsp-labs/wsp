@@ -68,7 +68,16 @@ struct Options {
 
 impl Default for Options {
     fn default() -> Options {
-        Options { announce: true, aside: true, compacts: None, terminal_resume: None, mcp_servers: false, aside_servers: false, hook: None, own_sessions: None }
+        Options {
+            announce: true,
+            aside: true,
+            compacts: None,
+            terminal_resume: None,
+            mcp_servers: false,
+            aside_servers: false,
+            hook: None,
+            own_sessions: None,
+        }
     }
 }
 
@@ -138,7 +147,11 @@ impl HarnessAdapter for Fake {
             Some(sessions) => (sessions[n - 1].clone(), json!({ "cwd": "/root/w", "model": "claude-opus-5" })),
             None => (
                 SESSION.to_string(),
-                if n == 1 { json!({ "cwd": "/root/a", "model": "claude-opus-5" }) } else { json!({ "cwd": "/root/b", "model": "claude-sonnet-5" }) },
+                if n == 1 {
+                    json!({ "cwd": "/root/a", "model": "claude-opus-5" })
+                } else {
+                    json!({ "cwd": "/root/b", "model": "claude-sonnet-5" })
+                },
             ),
         };
         let announce = self.o.announce;
@@ -158,7 +171,9 @@ impl HarnessAdapter for Fake {
                 on_event(event(start));
             }
             on_event(event(json!({ "type": "turn.done", "sessionId": id, "result": serde_json::to_value(&finish).expect("a result") })));
-            on_event(event(json!({ "type": "session.end", "sessionId": id, "exitCode": if announce { 0 } else { 1 }, "sawResult": announce })));
+            on_event(event(
+                json!({ "type": "session.end", "sessionId": id, "exitCode": if announce { 0 } else { 1 }, "sawResult": announce }),
+            ));
             let _ = tx.send(finish);
         });
         let finished: LocalBoxFuture<'static, TurnResult> = async move { rx.await.expect("the turn's end") }.boxed_local();
@@ -227,7 +242,13 @@ async fn two_turns(w: &World) -> (String, String) {
     let first = w.fx.rt.sessions().start(&ws, start("the first thing"), None).await.expect("a start");
     first.finished().await;
     let thread = first.view().thread_id.expect("a thread");
-    w.fx.rt.sessions().start(&ws, StartOptions { thread: Some(thread), ..start("the second thing") }, None).await.expect("a start").finished().await;
+    w.fx.rt
+        .sessions()
+        .start(&ws, StartOptions { thread: Some(thread), ..start("the second thing") }, None)
+        .await
+        .expect("a start")
+        .finished()
+        .await;
     (first.id(), ws)
 }
 
@@ -609,7 +630,8 @@ fn is_refused_under_a_threads_own_token_and_to_a_paired_computer_and_answered_fo
         .await
         .expect("the runtime serves");
         let now = common::now_ms();
-        let scope = serde_json::from_value(json!({ "kind": "thread", "threadId": "t1", "workspaceId": "w1", "rootThreadId": "t1" })).expect("a scope");
+        let scope = serde_json::from_value(json!({ "kind": "thread", "threadId": "t1", "workspaceId": "w1", "rootThreadId": "t1" }))
+            .expect("a scope");
         let thread = w.fx.rt.devices().mint("thread t1", scope, now, MintMore::default()).await.expect("a token").device_token;
         let ask = json!({ "sessionId": first, "question": "what did I ask?" });
         let reply = ws_request(served.port(), &thread, "sessions.aside", ask.clone()).await;
@@ -653,7 +675,12 @@ fn hands_the_copy_the_effort_its_threads_turns_run_at_so_the_request_it_sends_is
     drive(|| async {
         let w = plain(Options::default());
         let ws = create_on(&w.fx.rt, CreateOn::named("mac").on("here"), None).await.expect("a workspace").view.id;
-        let turn = w.fx.rt.sessions().start(&ws, StartOptions { effort: Some("high".into()), ..start("the first thing") }, None).await.expect("a start");
+        let turn =
+            w.fx.rt
+                .sessions()
+                .start(&ws, StartOptions { effort: Some("high".into()), ..start("the first thing") }, None)
+                .await
+                .expect("a start");
         turn.finished().await;
         aside(&w, &turn.id(), "what did I ask?").await.expect("an answer");
         let asked = w.asked.borrow()[0].clone();
@@ -674,7 +701,9 @@ fn hands_a_thread_another_thread_started_the_server_its_turns_get_with_no_slate_
         let lead = w.fx.rt.sessions().start(&ws, start("lead"), None).await.expect("a start");
         lead.finished().await;
         let lead_thread = lead.view().thread_id.expect("a thread");
-        let by = serde_json::from_value(json!({ "kind": "thread", "threadId": lead_thread, "workspaceId": ws, "rootThreadId": lead_thread })).expect("a scope");
+        let by =
+            serde_json::from_value(json!({ "kind": "thread", "threadId": lead_thread, "workspaceId": ws, "rootThreadId": lead_thread }))
+                .expect("a scope");
         let caller = Caller::Scoped { origin: WorkspaceOrigin::Relayed, by };
         let child = w.fx.rt.sessions().start(&ws, start("builder"), Some(caller)).await.expect("a start");
         child.finished().await;

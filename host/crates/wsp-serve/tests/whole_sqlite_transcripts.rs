@@ -25,7 +25,14 @@ use wsp_words::exit::Kind;
 
 fn uuid() -> String {
     let n: u128 = rand::random();
-    format!("{:08x}-{:04x}-4{:03x}-8{:03x}-{:012x}", (n >> 96) as u32, (n >> 80) as u16, (n >> 68) as u16 & 0xfff, (n >> 56) as u16 & 0xfff, n as u64 & 0xffff_ffff_ffff)
+    format!(
+        "{:08x}-{:04x}-4{:03x}-8{:03x}-{:012x}",
+        (n >> 96) as u32,
+        (n >> 80) as u16,
+        (n >> 68) as u16 & 0xfff,
+        (n >> 56) as u16 & 0xfff,
+        n as u64 & 0xffff_ffff_ffff
+    )
 }
 
 #[derive(Clone)]
@@ -136,7 +143,9 @@ impl HarnessAdapter for RefusedOnce {
         let (emit_id, done) = (id.clone(), result.clone());
         tokio::task::spawn_local(async move {
             tokio::task::yield_now().await;
-            on_event(event(json!({ "type": "turn.delta", "sessionId": emit_id, "kind": "text", "text": "forgotten words", "messageId": "m0" })));
+            on_event(event(
+                json!({ "type": "turn.delta", "sessionId": emit_id, "kind": "text", "text": "forgotten words", "messageId": "m0" }),
+            ));
             on_event(event(json!({ "type": "turn.done", "sessionId": emit_id, "result": serde_json::to_value(&done).expect("a result") })));
             on_event(event(json!({ "type": "session.end", "sessionId": emit_id, "exitCode": 1, "sawResult": false })));
             let _ = tx.send(done);
@@ -393,7 +402,8 @@ fn keeps_a_threads_every_event_while_another_thread_in_the_same_folder_runs_past
         let after = page(&rt, &ws, wide()).await;
         assert_eq!(after["total"], before["total"]);
         assert!(after.get("trimmed").is_none());
-        let first = history(&rt, &ws).await.into_iter().find(|e| e["threadId"] == x_id.as_str() && e["type"] == "session.start").expect("a start");
+        let first =
+            history(&rt, &ws).await.into_iter().find(|e| e["threadId"] == x_id.as_str() && e["type"] == "session.start").expect("a start");
         assert_matches(&first, json!({ "prompt": "x 1" }));
         rt.rt.close().await.expect("a close");
         let again = runtime(&backend).store(&state.store).build();
@@ -408,9 +418,8 @@ fn searches_the_threads_whose_words_it_holds_at_300_threads_reading_none_back_sa
 ) {
     drive(|| async {
         // 300 threads of about 20 KB of reply each: 6 MB of words, past what the host holds.
-        let lines = |prompt: &str| {
-            vec![text(format!("{prompt} says marker-{} {}", &prompt[prompt.len() - 3..], "filler words ".repeat(1600)))]
-        };
+        let lines =
+            |prompt: &str| vec![text(format!("{prompt} says marker-{} {}", &prompt[prompt.len() - 3..], "filler words ".repeat(1600)))];
         let state = sqlite_state();
         let watched = Watched::over(&state.store);
         let backend = StubBackend::new(None);
@@ -424,7 +433,12 @@ fn searches_the_threads_whose_words_it_holds_at_300_threads_reading_none_back_sa
             let rt = rt.rt.clone();
             async move {
                 let found = j(&rt.sessions().search(&format!("marker-{}", n3(n)), None).await.expect("a search"));
-                found["hits"].as_array().expect("hits").iter().map(|h| h["threadId"].as_str().expect("a thread").to_string()).collect::<Vec<_>>()
+                found["hits"]
+                    .as_array()
+                    .expect("hits")
+                    .iter()
+                    .map(|h| h["threadId"].as_str().expect("a thread").to_string())
+                    .collect::<Vec<_>>()
             }
         };
         // "th" is in every event's keys ("threadId"), so a search over the stored JSON would read every let-go thread back.
@@ -444,7 +458,12 @@ fn searches_the_threads_whose_words_it_holds_at_300_threads_reading_none_back_sa
                 handle.sessions().page(&ws, page_of(&thread), None).await.expect("a page");
                 let again = |rt: Rc<wsp_serve::AssembledRuntime>| async move {
                     let found = j(&rt.sessions().search(&format!("marker-{}", n3(n)), None).await.expect("a search"));
-                    found["hits"].as_array().expect("hits").iter().map(|h| h["threadId"].as_str().expect("a thread").to_string()).collect::<Vec<_>>()
+                    found["hits"]
+                        .as_array()
+                        .expect("hits")
+                        .iter()
+                        .map(|h| h["threadId"].as_str().expect("a thread").to_string())
+                        .collect::<Vec<_>>()
                 };
                 for _ in 0..50 {
                     if !again(rt_for_found.clone()).await.is_empty() {
@@ -513,7 +532,11 @@ fn holds_the_newest_words_of_a_thread_that_alone_passes_what_the_host_holds_and_
     drive(|| async {
         // Each turn's reply is 1.2 M characters, so two turns pass WORDS_HELD and the first turn's words are the ones let go.
         let lines = |prompt: &str| {
-            vec![text(if prompt.starts_with("older") { "short".to_string() } else { format!("{prompt} said {}", "long words ".repeat(110_000)) })]
+            vec![text(if prompt.starts_with("older") {
+                "short".to_string()
+            } else {
+                format!("{prompt} said {}", "long words ".repeat(110_000))
+            })]
         };
         let state = sqlite_state();
         let backend = StubBackend::new(None);
@@ -573,16 +596,14 @@ fn forgets_one_thread_of_300_off_that_threads_rows_alone_and_leaves_the_other_th
         let state = sqlite_state();
         let watched = Watched::over(&state.store);
         let backend = StubBackend::new(None);
-        let rt = runtime(&backend)
-            .store(&watched.store())
-            .adapter("claude", scripted(lines, None))
-            .adapter("codex", refused_once())
-            .build();
+        let rt =
+            runtime(&backend).store(&watched.store()).adapter("claude", scripted(lines, None)).adapter("codex", refused_once()).build();
         let ws = create_on(&rt.rt, CreateOn::golden("a"), None).await.expect("a workspace").view.id;
         for i in 0..300 {
             turn(&rt, &ws, start(&format!("thread {}", n3(i)))).await;
         }
-        let junk = rt.rt.sessions().start(&ws, StartOptions { harness: Some("codex".into()), ..start("refused") }, None).await.expect("a start");
+        let junk =
+            rt.rt.sessions().start(&ws, StartOptions { harness: Some("codex".into()), ..start("refused") }, None).await.expect("a start");
         junk.finished().await;
         sleep_ms(300).await;
         assert_eq!(hits(&rt, forgotten_words()).await.len(), 1);
@@ -592,7 +613,12 @@ fn forgets_one_thread_of_300_off_that_threads_rows_alone_and_leaves_the_other_th
         assert!(hits(&rt, forgotten_words()).await.is_empty());
         assert_eq!(hits(&rt, "marker-299").await.len(), 1);
         let thread = junk.view().thread_id.expect("a thread");
-        let read = rt.rt.sessions().thread_history(&ws, HistoryAsk { thread_id: Some(thread), ..Default::default() }, None).await.expect("a history");
+        let read = rt
+            .rt
+            .sessions()
+            .thread_history(&ws, HistoryAsk { thread_id: Some(thread), ..Default::default() }, None)
+            .await
+            .expect("a history");
         assert!(read.is_empty());
         rt.rt.close().await.expect("a close");
     });
@@ -637,10 +663,7 @@ fn reads_one_threads_every_event_off_that_thread_alone_never_its_folders_rows() 
         let state = sqlite_state();
         let watched = Watched::over(&state.store);
         let backend = StubBackend::new(None);
-        let rt = runtime(&backend)
-            .store(&watched.store())
-            .adapter("claude", scripted(|p| vec![text(format!("{p} said"))], None))
-            .build();
+        let rt = runtime(&backend).store(&watched.store()).adapter("claude", scripted(|p| vec![text(format!("{p} said"))], None)).build();
         let ws = create_on(&rt.rt, CreateOn::golden("a"), None).await.expect("a workspace").view.id;
         let one = turn(&rt, &ws, start("one")).await;
         turn(&rt, &ws, start("two")).await;
@@ -675,7 +698,8 @@ fn forgets_a_threads_rows_and_search_no_longer_finds_its_words() {
             .build();
         let ws = create_on(&rt.rt, CreateOn::golden("a"), None).await.expect("a workspace").view.id;
         turn(&rt, &ws, start("kept words")).await;
-        let junk = rt.rt.sessions().start(&ws, StartOptions { harness: Some("codex".into()), ..start("refused") }, None).await.expect("a start");
+        let junk =
+            rt.rt.sessions().start(&ws, StartOptions { harness: Some("codex".into()), ..start("refused") }, None).await.expect("a start");
         junk.finished().await;
         let junk_id = junk.view().thread_id.expect("a thread");
         assert_eq!(hits(&rt, forgotten_words()).await.len(), 1);
@@ -766,7 +790,18 @@ fn goes_on_after_the_newest_row_when_a_workspaces_index_does_not_read_at_boot_an
 fn lets_a_starts_images_go_when_a_flush_drops_the_start_not_when_a_read_trims_a_copy_of_it() {
     drive(|| async {
         let held = Gate::new();
-        let lines = |p: &str| count_lines(if p == "fill" { 4960 } else if p == "more" { 40 } else { 10 }, p);
+        let lines = |p: &str| {
+            count_lines(
+                if p == "fill" {
+                    4960
+                } else if p == "more" {
+                    40
+                } else {
+                    10
+                },
+                p,
+            )
+        };
         let gate = held.clone();
         let hold: Hold = Rc::new(move |p| (p == "more").then(|| gate.clone()));
         let state = sqlite_state();

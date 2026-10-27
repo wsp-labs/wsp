@@ -15,7 +15,7 @@ use common::*;
 use serde_json::Value;
 use wsp_adapters::claude::adapter::{create_claude_adapter, AdapterDeps};
 use wsp_adapters::port::{ExecStreamFactory, HarnessAdapter};
-use wsp_core::types::api::{SteerAsk, StartOptions};
+use wsp_core::types::api::{StartOptions, SteerAsk};
 use wsp_core::types::harness::HarnessAdapterFactory;
 use wsp_core::types::wiring::SessionHandle;
 use wsp_words::exit::HostError;
@@ -35,7 +35,9 @@ fn held(reply: &str) -> String {
 fn is_outcome(line: &str) -> bool {
     let Some(rest) = line.strip_prefix("thread ") else { return false };
     let Some((word, rest)) = rest.split_once(" finished (completed") else { return false };
-    word.chars().all(|c| c.is_alphanumeric() || c == '_') && !word.is_empty() && rest.strip_suffix(')').is_some_and(|inner| !inner.contains(')'))
+    word.chars().all(|c| c.is_alphanumeric() || c == '_')
+        && !word.is_empty()
+        && rest.strip_suffix(')').is_some_and(|inner| !inner.contains(')'))
 }
 
 /// One text a test expects in the list a line list read: a text, or the shape of an outcome.
@@ -88,7 +90,8 @@ async fn setup() -> Setup {
     let state = sqlite_state();
     let rt = host(&backend, &state, &factory);
     let lead_ws = create_on(&rt.rt, CreateOn::golden("lead"), None).await.expect("a workspace").view.id;
-    let lead = rt.rt.sessions().start(&lead_ws, StartOptions { prompt: "orchestrate".into(), ..Default::default() }, None).await.expect("a start");
+    let lead =
+        rt.rt.sessions().start(&lead_ws, StartOptions { prompt: "orchestrate".into(), ..Default::default() }, None).await.expect("a start");
     until(|| async { fed.run_of("orchestrate").is_some() }).await;
     let lead_run = fed.run_of("orchestrate").expect("the run");
     lead_run.push(&[init(), said("msg_0", "waiting"), result("waiting", 1, None)]);
@@ -165,8 +168,14 @@ fn a_plain_steer_sends_one_line_the_answer_and_not_the_reply_before_it() {
         let s = setup().await;
         let uuid = s.steer(LINE).await;
         s.run.push(&[
-            lifecycle(&uuid, "queued"), said("msg_1", REPORT), result(REPORT, 1, None), lifecycle(&uuid, "started"), init(),
-            said("msg_2", ANSWER), result(ANSWER, 1, None), lifecycle(&uuid, "completed"),
+            lifecycle(&uuid, "queued"),
+            said("msg_1", REPORT),
+            result(REPORT, 1, None),
+            lifecycle(&uuid, "started"),
+            init(),
+            said("msg_2", ANSWER),
+            result(ANSWER, 1, None),
+            lifecycle(&uuid, "completed"),
         ]);
         s.over(Some(0)).await;
         assert_eq!(s.lead_lines().await, [ANSWER]);
@@ -181,8 +190,13 @@ fn a_process_that_dies_after_the_answer_before_the_cli_completes_the_message_sti
         let s = setup().await;
         let uuid = s.steer(LINE).await;
         s.run.push(&[
-            lifecycle(&uuid, "queued"), said("msg_1", REPORT), result(REPORT, 1, None), lifecycle(&uuid, "started"), init(),
-            said("msg_2", ANSWER), result(ANSWER, 1, None),
+            lifecycle(&uuid, "queued"),
+            said("msg_1", REPORT),
+            result(REPORT, 1, None),
+            lifecycle(&uuid, "started"),
+            init(),
+            said("msg_2", ANSWER),
+            result(ANSWER, 1, None),
         ]);
         sleep_ms(50).await;
         s.run.end(Some(137));
@@ -202,8 +216,13 @@ fn a_steer_into_a_reply_held_over_background_work_sends_that_replys_line_once_an
         until(|| async { s.lead_lines().await.len() == 1 }).await;
         let uuid = s.steer(LINE).await;
         s.run.push(&[
-            lifecycle(&uuid, "queued"), lifecycle(&uuid, "started"), init(), said("msg_2", ANSWER), result(ANSWER, 1, None),
-            lifecycle(&uuid, "completed"), tasks(&[]),
+            lifecycle(&uuid, "queued"),
+            lifecycle(&uuid, "started"),
+            init(),
+            said("msg_2", ANSWER),
+            result(ANSWER, 1, None),
+            lifecycle(&uuid, "completed"),
+            tasks(&[]),
         ]);
         until(|| async { s.lead_lines().await.len() == 2 }).await;
         // The CLI exits with the work done and its agent not woken again: the reply it was holding is the turn's end.
@@ -225,7 +244,12 @@ fn the_same_with_the_background_work_over_before_the_answer_the_answers_line_goe
         until(|| async { s.lead_lines().await.len() == 1 }).await;
         let uuid = s.steer(LINE).await;
         s.run.push(&[
-            tasks(&[]), lifecycle(&uuid, "queued"), lifecycle(&uuid, "started"), init(), said("msg_2", ANSWER), result(ANSWER, 1, None),
+            tasks(&[]),
+            lifecycle(&uuid, "queued"),
+            lifecycle(&uuid, "started"),
+            init(),
+            said("msg_2", ANSWER),
+            result(ANSWER, 1, None),
             lifecycle(&uuid, "completed"),
         ]);
         s.over(Some(0)).await;
@@ -244,7 +268,10 @@ fn a_steer_the_woken_agent_takes_at_a_tools_end_completed_before_its_result_as_2
         s.run.push(&[tasks(&[]), task_done("bk1"), init()]);
         let uuid = s.steer(LINE).await;
         s.run.push(&[
-            lifecycle(&uuid, "queued"), lifecycle(&uuid, "started"), said("msg_2", ANSWER), lifecycle(&uuid, "completed"),
+            lifecycle(&uuid, "queued"),
+            lifecycle(&uuid, "started"),
+            said("msg_2", ANSWER),
+            lifecycle(&uuid, "completed"),
             result(ANSWER, 2, Some("task-notification")),
         ]);
         s.over(Some(0)).await;
@@ -262,8 +289,14 @@ fn cost_steered_into_the_childs_last_words_leaves_the_agents_report_as_the_line_
         let uuid = s.steer("/cost").await;
         let synthetic = said("ac793b79", COST).replace("claude-haiku-4-5-20251001", "<synthetic>");
         s.run.push(&[
-            lifecycle(&uuid, "queued"), said("msg_1", REPORT), result(REPORT, 1, None), lifecycle(&uuid, "started"), init(), synthetic,
-            result(COST, 0, None), lifecycle(&uuid, "completed"),
+            lifecycle(&uuid, "queued"),
+            said("msg_1", REPORT),
+            result(REPORT, 1, None),
+            lifecycle(&uuid, "started"),
+            init(),
+            synthetic,
+            result(COST, 0, None),
+            lifecycle(&uuid, "completed"),
         ]);
         s.over(Some(0)).await;
         assert_eq!(j(&s.kid.finished().await)["text"], REPORT);
@@ -288,7 +321,15 @@ fn cost_steered_over_a_reply_already_told_for_its_background_work_sends_the_repl
         until(|| async { s.lead_lines().await.len() == 1 }).await;
         let uuid = s.steer("/cost").await;
         let synthetic = said("ac793b79", COST).replace("claude-haiku-4-5-20251001", "<synthetic>");
-        s.run.push(&[tasks(&[]), lifecycle(&uuid, "queued"), lifecycle(&uuid, "started"), init(), synthetic, result(COST, 0, None), lifecycle(&uuid, "completed")]);
+        s.run.push(&[
+            tasks(&[]),
+            lifecycle(&uuid, "queued"),
+            lifecycle(&uuid, "started"),
+            init(),
+            synthetic,
+            result(COST, 0, None),
+            lifecycle(&uuid, "completed"),
+        ]);
         s.over(Some(0)).await;
         assert_eq!(j(&s.kid.finished().await)["text"], REPORT);
         assert_lines(&s.lead_lines().await, &[Line::Text(held(REPORT)), Line::Outcome]);
@@ -341,4 +382,3 @@ fn a_steer_whose_reply_the_first_host_held_is_answered_once_on_the_second_its_li
         second.rt.close().await.expect("a close");
     });
 }
-

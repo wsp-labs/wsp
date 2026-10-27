@@ -462,7 +462,12 @@ fn a_gate_holds_a_waiter_until_it_is_opened_and_until_polls_a_condition() {
 fn a_live_harness_keeps_its_starts_and_steers_answers_as_told_and_says_what_the_test_emits() {
     drive(|| async {
         let backend = StubBackend::new(None);
-        let live = Live::new(LiveOptions { steers: true, announces: false, session: Some("66666666-6666-4666-8666-666666666666".into()), ..Default::default() });
+        let live = Live::new(LiveOptions {
+            steers: true,
+            announces: false,
+            session: Some("66666666-6666-4666-8666-666666666666".into()),
+            ..Default::default()
+        });
         let fx = runtime(&backend).adapter("claude", live.factory()).build();
         let ws = create_on(&fx.rt, CreateOn::golden("a"), None).await.expect("a workspace");
         let run = fx
@@ -473,7 +478,8 @@ fn a_live_harness_keeps_its_starts_and_steers_answers_as_told_and_says_what_the_
             .expect("a start");
         assert_eq!(live.turns(), 1);
         live.init(0);
-        let steer = wsp_core::types::api::SteerAsk { prompt: "and say pineapple".into(), request_id: Some("req_2".into()), attachments: None };
+        let steer =
+            wsp_core::types::api::SteerAsk { prompt: "and say pineapple".into(), request_id: Some("req_2".into()), attachments: None };
         let taken = fx.rt.sessions().steer(&run.id(), steer.clone(), None).await.expect("a steer");
         assert_eq!(j(&taken), json!({ "outcome": "accepted" }));
         live.answer.set(false);
@@ -545,9 +551,7 @@ fn create_on_hands_the_agents_to_the_create() {
     drive(|| async {
         let backend = StubBackend::new(None);
         let fx = runtime(&backend).build();
-        let made = create_on(&fx.rt, CreateOn::golden("a").agents(2, 3), None)
-            .await
-            .expect("a workspace");
+        let made = create_on(&fx.rt, CreateOn::golden("a").agents(2, 3), None).await.expect("a workspace");
         let view = j(&made.view);
         assert_eq!(view["agents"]["maxMachines"], 2);
         assert_eq!(view["agents"]["maxDepth"], 3);
@@ -691,12 +695,17 @@ fn a_fed_run_streams_the_lines_pushed_loses_a_write_as_told_and_reads_again_on_a
         run.end(Some(0));
         assert!(lines.next().await.is_none());
         let id = run.id.clone();
-        let attached = factory.attach(&id, AttachRunOptions { input: true, started_at: 0.0, from: None }).expect("an attach").await.expect("found");
+        let attached =
+            factory.attach(&id, AttachRunOptions { input: true, started_at: 0.0, from: None }).expect("an attach").await.expect("found");
         let Attached::Stream(again) = attached else { panic!("the run is gone") };
         let mut replay = again.lines();
         assert_eq!(replay.next().await.expect("a line").expect("ok"), "one");
         assert_eq!(again.taken().expect("what its input took"), ["open the run", "{\"uuid\":\"u1\"}", "{\"uuid\":\"u3\"}"]);
-        let gone = factory.attach("/tmp/wsp-run/none", AttachRunOptions { input: true, started_at: 0.0, from: None }).expect("an attach").await.expect("an answer");
+        let gone = factory
+            .attach("/tmp/wsp-run/none", AttachRunOptions { input: true, started_at: 0.0, from: None })
+            .expect("an attach")
+            .await
+            .expect("an answer");
         assert!(matches!(gone, Attached::Gone));
     });
 }
