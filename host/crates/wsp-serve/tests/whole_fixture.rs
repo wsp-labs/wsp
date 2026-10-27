@@ -849,3 +849,19 @@ fn a_folder_host_runs_a_thread_in_the_projects_folder_and_keeps_every_daemon_fra
         h.fx.rt.close().await.expect("a close");
     });
 }
+
+// folder-threads.test.ts `here(..., again)` and `sqliteStore(...)`: a folder host writes to the store a test hands it, and not to its own.
+#[test]
+fn a_folder_host_writes_to_the_store_a_test_hands_it() {
+    use common::folder_host::{add, ask, folder_for, here, HereOpts, Scratch};
+    drive(|| async {
+        let scratch = Scratch::new();
+        let mine = sqlite_state();
+        let h = here(&scratch, HereOpts { store: Some(mine.store.clone()), ..Default::default() });
+        let project = add(&h, &scratch.repo()).await;
+        folder_for(&h, ask(project["id"].as_str().expect("an id"), None, None)).await;
+        assert_eq!(mine.store.list("workspaces").await.expect("a list").len(), 1);
+        assert!(h.state.store.list("workspaces").await.expect("a list").is_empty());
+        h.fx.rt.close().await.expect("a close");
+    });
+}
