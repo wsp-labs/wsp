@@ -8,7 +8,34 @@ use wsp_core::types::events::EventBus as _;
 
 use super::Ctx;
 
+/// The areas this packet's tests read at their own seams: `Ctx`'s slots are crate-private.
+pub struct PreferencesSeams {
+    pub preferences: Rc<wsp_account::account::preferences::PreferencesArea>,
+    pub agents_read: Rc<wsp_machines::agents_read::AgentsReads>,
+    pub activity: Rc<wsp_threads::activity::Activity>,
+    pub slates: Rc<dyn wsp_slates::slates::Slates>,
+    pub pipe: Option<Rc<wsp_core::pipe::area::PipeArea>>,
+    pub agents: Rc<wsp_threads::threads::agents::AgentsArea>,
+    pub threads: Rc<wsp_threads::threads::threads::ThreadsArea>,
+    pub transcripts: Rc<wsp_threads::threads::transcripts::TranscriptsArea>,
+    pub folders: Rc<wsp_account::projects::folders::Folders>,
+}
+
 impl Ctx {
+    pub fn preferences_seams(&self) -> PreferencesSeams {
+        PreferencesSeams {
+            preferences: self.preferences.get(),
+            agents_read: self.agents_read(),
+            activity: self.activity.get(),
+            slates: self.slates.get(),
+            pipe: self.pipe.get(),
+            agents: self.agents.get(),
+            threads: self.threads.get(),
+            transcripts: self.transcripts.get(),
+            folders: self.folders.get(),
+        }
+    }
+
     /// `agentsReads({ reader, places, workspace, .. })` over the context (preferences.ts:99-151).
     pub(super) fn build_agents_read(&self) -> Rc<wsp_machines::agents_read::AgentsReads> {
         todo!()
