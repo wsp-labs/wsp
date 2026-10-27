@@ -15,6 +15,7 @@ import { putBytesScript } from "@wsp/engine";
 import type { Machine } from "@wsp/engine";
 import { BOOT_SCRIPT, CLOUD_PLACE, JOINED, joinedPlace, CONTAINER_PLACE, DAEMON_GONE_LINE, daemonBinaryOn, daemonExecLine, daemonFlags, daemonLogCommand, guestPlace, SYSTEMD, NEEDS_SYSTEMD, deployDaemon, PREFLIGHT_OK_LINE, preflightScript, profileSourceLine, profileSourceStep, daemonUnit, deployScript, loginFilesStep, sshDaemonPlace, stageDaemonBundle, stopDaemonScript, WSP_COMMAND_NODE_MAJOR } from "../src/doctor.js";
 import { daemonBinaryIn, GUEST_DAEMON_TARGETS } from "../src/daemon-binary.js";
+import { ensureNode, NODE_ENSURE_SCRIPT } from "../src/place-node.js";
 
 const LOGIN = { home: "/home/maya", path: "/usr/local/bin:/usr/bin:/bin" };
 
@@ -547,5 +548,54 @@ describe("a deploy over a daemon that is still running", () => {
       rmSync(home, { recursive: true, force: true });
       rmSync(stage, { recursive: true, force: true });
     }
+  });
+});
+
+describe("the node step of an add runs for real in bash", () => {
+  /** A PATH of its own holding only the tools the script reads with, plus whatever stubs the case names, so the
+   * box's own node, if it has one, is never the one asked. */
+  function box(stubs: Record<string, string>): { path: string; done: () => void } {
+    const dir = mkdtempSync(join(tmpdir(), "wsp-node-step-"));
+    for (const tool of ["sed", "uname", "tail", "tr", "printf", "bash", "sha256sum"]) {
+      const found = spawnSync("sh", ["-c", `command -v ${tool}`], { encoding: "utf8" }).stdout.trim();
+      if (found !== "" && found.startsWith("/")) symlinkSync(found, join(dir, tool));
+    }
+    for (const [name, body] of Object.entries(stubs)) writeFileSync(join(dir, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
+    return { path: dir, done: () => rmSync(dir, { recursive: true, force: true }) };
+  }
+  const run = (path: string) => spawnSync(join(path, "bash"), ["-c", NODE_ENSURE_SCRIPT], { encoding: "utf8", env: { PATH: path } });
+
+  it("keeps a node of the least major or newer and downloads nothing", () => {
+    for (const major of [22, 24]) {
+      const held = box({ node: `echo ${major}`, curl: "echo curl ran >&2; exit 9" });
+      try {
+        const said = run(held.path);
+        expect(said.status, said.stderr).toBe(0);
+        expect(said.stdout.trim()).toBe("NODE_KEPT");
+      } finally {
+        held.done();
+      }
+    }
+  });
+
+  it("installs where the box has no node or an older one, and reads the failure off the install's last line", () => {
+    for (const stubs of [{}, { node: "echo 20" }]) {
+      const held = box({ ...stubs, curl: 'echo "curl: (6) Could not resolve host: nodejs.org" >&2; exit 6' });
+      try {
+        const said = run(held.path);
+        expect(said.status).toBe(1);
+        expect(said.stdout.trim()).toBe("NODE_FAILED curl: (6) Could not resolve host: nodejs.org");
+      } finally {
+        held.done();
+      }
+    }
+  });
+
+  it("refuses with the install's own reason, marked as what the box lacks, and a box that answered nothing as unanswered", async () => {
+    const answering = (exitCode: number, stdout: string): Machine => ({ run: async () => ({ exitCode, stdout, stderr: "ssh: connect timed out" }) }) as unknown as Machine;
+    const refused = await ensureNode(answering(1, "NODE_FAILED curl: (6) Could not resolve host: nodejs.org\n")).catch((e: unknown) => e);
+    expect(machineLacksLine(refused)).toBe("wsp could not put Node 22 on this computer: curl: (6) Could not resolve host: nodejs.org; install Node 22 or newer on it and add it again");
+    expect(machineNeverAnswered(await ensureNode(answering(255, "")).catch((e: unknown) => e))).toBe(true);
+    await expect(ensureNode(answering(0, "NODE_INSTALLED v22.23.2\n"))).resolves.toBeUndefined();
   });
 });

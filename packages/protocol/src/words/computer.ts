@@ -535,6 +535,12 @@ export function noImportRoadLine(name: string, machine: string): string {
 export const NO_NODE_LINE =
   "this machine has no Node 22, which the wsp command beside the daemon runs on; install Node 22 or newer on it and deploy the daemon again";
 
+/** What a computer is refused with when wsp tried to put Node 22 on it and the install did not take: the last line
+ * the install said is the reason, and the person who can run the install by hand reads the same one. */
+export function nodeInstallFailedLine(said: string): string {
+  return `wsp could not put Node 22 on this computer: ${said.trim()}; install Node 22 or newer on it and add it again`;
+}
+
 /** What a machine whose login does not linger is refused with. Its own systemd stops when its last session ends
  * and takes the daemon with it, so a daemon deployed there is gone the moment the host's connection closes; the
  * person turns linger on once and it holds for every login after. */
