@@ -165,6 +165,7 @@ pub struct StubMachine {
     resume: RefCell<UnitFn>,
     resume_with: RefCell<Option<ResumeWithFn>>,
     resume_at: RefCell<Option<ResumeAtFn>>,
+    served: Cell<bool>,
     /// The `waitMs` each pause was handed, oldest first: what `m.pause = async o => ..` collects.
     pub pause_waits: RefCell<Vec<Option<u64>>>,
     state: RefCell<StateFn>,
@@ -256,6 +257,7 @@ impl StubMachine {
                 })),
                 resume_with: RefCell::new(None),
                 resume_at: RefCell::new(None),
+                served: Cell::new(false),
                 pause_waits: RefCell::default(),
                 state: RefCell::new(Rc::new(move || {
                     let m = this(&state_me);
@@ -375,6 +377,10 @@ impl StubMachine {
         }
         let f = self.resume_fn();
         Rc::new(move |_| f())
+    }
+    /// `m.daemonFrame = async () => ({ ok: true })`: the machine's computer serves its daemon over its own road.
+    pub fn set_served(&self, served: bool) {
+        self.served.set(served);
     }
     /// `m.resumeAt = async size => ..`; `None` takes it away, as a machine that never had one.
     pub fn set_resume_at(&self, f: Option<ResumeAtFn>) {
@@ -505,6 +511,7 @@ impl Machine for StubMachine {
     fn offers(&self) -> MachineOffers {
         MachineOffers {
             resume_at: self.resume_at.borrow().is_some(),
+            daemon_frame: self.served.get(),
             preview_url: self.preview.borrow().is_some(),
             daemon_answers: self.daemon_answers.borrow().is_some(),
             describe: true,
@@ -549,6 +556,14 @@ impl Machine for StubMachine {
         self.pause_waits.borrow_mut().push(wait_ms);
         let f = self.pause_fn();
         f().await
+    }
+    async fn daemon_frame(&self, _frame: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Map<String, serde_json::Value>, EngineError> {
+        if !self.served.get() {
+            return Err(EngineError::Other { message: NOT_ON_THIS_ROAD.into(), code: None });
+        }
+        let mut answer = serde_json::Map::new();
+        answer.insert("ok".into(), serde_json::Value::Bool(true));
+        Ok(answer)
     }
     async fn resume_at(&self, cpu: f64, mem_mb: u64, signal: Option<&Cancel>) -> Result<(), EngineError> {
         let f = self.resume_at.borrow().clone().ok_or_else(|| EngineError::Other { message: NOT_ON_THIS_ROAD.into(), code: None })?;
