@@ -186,8 +186,7 @@ fn an_index_write_that_fails_leaves_nothing_to_be_written_twice_and_boot_reads_t
         let state = sqlite_state();
         let failing = WrappedStore::over(&state.store);
         let adapter = Scripted::new().cwd("/root/app").pieces(2).reply(|p| format!("reply to {p}"));
-        let backend = StubBackend::new(None);
-        let fx = runtime(&backend).store(&failing.store()).adapter("claude", adapter.factory()).build();
+        let fx = runtime(&StubBackend::new(None)).store(&failing.store()).adapter("claude", adapter.factory()).build();
         let ws = create_on(&fx.rt, CreateOn::golden("a"), None).await.expect("a workspace").view.id;
         fx.rt.sessions().start(&ws, opts("one"), None).await.expect("a start").finished().await;
         let warned = wsp_core::console::capture();
@@ -204,7 +203,7 @@ fn an_index_write_that_fails_leaves_nothing_to_be_written_twice_and_boot_reads_t
                 .join("")
         };
 
-        let after = runtime(&backend).store(&state.store).adapter("claude", adapter.factory()).build();
+        let after = runtime(&StubBackend::new(None)).store(&state.store).adapter("claude", adapter.factory()).build();
         after.rt.sessions().start(&ws, opts("three"), None).await.expect("a start").finished().await;
         assert_eq!(texts(history(&after.rt, &ws).await), "reply to onereply to tworeply to three");
         after.rt.close().await.expect("a close");

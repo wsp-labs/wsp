@@ -528,9 +528,6 @@ fn a_stop_that_lands_before_the_proofs_first_ask_ends_the_wake_with_the_stops_ow
             let out = rt.workspaces().stop_wake(&id, None).await.map(|_| ()).map_err(|e| e.message);
             *slot.borrow_mut() = Some(out);
         });
-        // The TS's stopWake reaches its read of the wake's stop within the few microtask turns the held write costs; here the
-        // entry lookup takes longer, so the write stays held until the stop has been pulled.
-        sleep_ms(50).await;
         let_put.open();
         until_n(|| stopped.borrow().is_some()).await;
         assert_eq!(stopped.borrow().clone(), Some(Ok(())));
