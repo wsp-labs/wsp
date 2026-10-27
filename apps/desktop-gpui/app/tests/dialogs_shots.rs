@@ -174,4 +174,32 @@ fn main() {
         }
         println!("test every_dialog_state_draws_in_{theme} ... ok");
     }
+    a_select_list_in_the_dialog_draws_over_it(out.as_deref());
+}
+
+/// Catches: a select's list drawn under the dialog it opens in, so it takes presses nobody can see.
+fn a_select_list_in_the_dialog_draws_over_it(out: Option<&Path>) {
+    use desktop_gpui::screens::dialogs::add_computer::{model::AddStep, List};
+    let closed = State::new("agents-order-closed", |w, cx| {
+        computer::open(w, cx, |this, _, cx| computer::on_picks(this, AddStep::Agents, cx));
+        page(w, cx)
+    });
+    let open = State::new("agents-order-open", |w, cx| {
+        computer::open(w, cx, |this, _, cx| {
+            computer::on_picks(this, AddStep::Agents, cx);
+            this.list_state(List::Agents).update(cx, |l, cx| l.open_order(cx));
+        });
+        page(w, cx)
+    });
+    for theme in ["paper", "graphite"] {
+        let (before, after) = (shoot(theme, &closed), shoot(theme, &open));
+        if let Some(out) = out {
+            before.save(out.join(format!("{}-{theme}.png", closed.id))).unwrap();
+            after.save(out.join(format!("{}-{theme}.png", open.id))).unwrap();
+        }
+        let moved = before.pixels().zip(after.pixels()).filter(|(a, b)| (0..3).any(|c| a[c].abs_diff(b[c]) > 15)).count();
+        // The open list moves some 9,000 pixels on Graphite's dark ground and more on Paper; one under the dialog, none.
+        assert!(moved > 2_000, "the order's open list shows over the dialog in {theme}: {moved} pixels moved");
+        println!("test a_select_list_in_the_dialog_draws_over_it_in_{theme} ... ok");
+    }
 }

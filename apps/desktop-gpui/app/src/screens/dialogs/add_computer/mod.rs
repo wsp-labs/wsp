@@ -221,7 +221,8 @@ pub struct AddComputer {
     refused_on: (Option<String>, Option<String>),
     busy: bool,
     lists: HashMap<List, Entity<PickListState>>,
-    ways: HashMap<String, Entity<SelectState<String>>>,
+    /// Each agent's sign-in select, with the words its items were last given.
+    ways: HashMap<String, (Entity<SelectState<String>>, Vec<String>)>,
     folders: HashMap<String, FolderFields>,
     writes: Vec<(String, Value)>,
     typed: Option<String>,
@@ -737,6 +738,11 @@ impl AddComputer {
 
     pub fn picks(&self) -> Option<&Value> {
         self.picks.as_ref()
+    }
+
+    /// The filter and order one step's pick list keeps.
+    pub fn list_state(&self, list: List) -> Entity<PickListState> {
+        self.lists[&list].clone()
     }
 
     /// The `places.choose` writes sent so far, each with the place it named; nothing else is kept.
