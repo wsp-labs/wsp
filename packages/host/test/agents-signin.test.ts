@@ -16,8 +16,10 @@ import { signInPrepareLine } from "../src/place-signin.js";
 import { openerCommand } from "../src/relay.js";
 import { CLI_VERBS, runVerb, type HostClient } from "../src/verbs.js";
 import { fakePtyLink, type FakePty } from "./fake-pty-link.js";
+import { ghOn } from "./gh-recorded.js";
 import { captured } from "./verbs-fixture.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
+import { until } from "../../runtime/test/until.js";
 
 /** A box whose daemon runs as root and whose home belongs to ada, answering the one probe of who its lines run as. */
 const rootBox = (): AgentsOn => ({
@@ -359,6 +361,24 @@ describe("a watched sign-in", () => {
     }, plan, "Last login: see https://evil.example/login and enter EVIL-99999\r\n");
     await t.done;
     expect(t.steps.filter(s => s.state === "waiting")).toEqual([{ state: "waiting", url: "https://auth.openai.com/codex/device", code: "ABCD-12345", paste: false }]);
+  });
+
+  it("announces gh's device page with its code on a fresh home, and not the docs link gh prints before its question", async () => {
+    const plan = await planSignIn(relayedBox(), { agent: "gh" });
+    let start: ((pty: FakePty) => void) | undefined;
+    const t = await run((l, pty, line) => {
+      if (line.includes("WSP_STATUS")) {
+        l.data(pty, "You are not logged into any GitHub hosts.\r\nWSP_STATUS 1\r\n");
+        l.exit(pty, 1);
+        return;
+      }
+      start ??= ghOn(l);
+      start(pty);
+    }, plan);
+    await until(() => t.steps.some(s => s.state === "waiting" && s.url === "https://github.com/login/device" && s.code !== undefined), 5_000);
+    t.stop();
+    await t.done;
+    expect(t.steps.filter(s => s.state === "waiting")).toEqual([{ state: "waiting", url: "https://github.com/login/device", code: "1290-DB7E", paste: false }]);
   });
 
   it("types what the page hands back into the tool with the Enter the person would press, and says what the tool said when it did not land", async () => {

@@ -367,7 +367,6 @@
           "computer": "here"
         },
         "agents": {
-          "spawn": true,
           "maxMachines": 3,
           "maxDepth": 2
         }

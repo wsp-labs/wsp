@@ -101,8 +101,14 @@ function rowStep(record: PlaceRecord, row: string): PlaceSetupStep | undefined {
 }
 
 /** Whether a run signs an agent in again: every agent on a whole run; on a run of one sign-in that agent's alone; on a
- * run of the agents, those whose sign-in waited on the install. Every other sign-in keeps the row it holds. */
-function signsInAgain(only: OnlyRow | undefined, agent: string, rows: readonly PlaceProvisionRow[]): boolean {
+ * run of the agents, those whose sign-in waited on the install; on a resume of an ended setup, those with no row, a
+ * failed one or one that waited on the install. Every other sign-in keeps the row it holds, a skip the person made
+ * with it. */
+function signsInAgain(only: OnlyRow | undefined, agent: string, rows: readonly PlaceProvisionRow[], resumed = false): boolean {
+  if (resumed && only === undefined) {
+    const held = rows.find(r => r.id === signInRowId(agent));
+    return held === undefined || held.outcome === "failed" || held.note === waitsForInstallLine(held.label);
+  }
   if (only === undefined || only.row === "signins") return true;
   if (only.step === "signins") return only.row === signInRowId(agent);
   const row = rows.find(r => r.id === signInRowId(agent));
@@ -159,6 +165,9 @@ export function placeSetup(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea) 
    * runs installing over each other. A computer is in here from before its picks are planned, which is a read of
    * this whole computer, until the job ends. */
   const setting = new Set<string>();
+  /** The base tools going on a computer that joined with nothing picked, by place id, until they end: a setup there
+   * waits for them, since a second run beside them fails on the package manager's lock. */
+  const flooring = new Map<string, Promise<void>>();
   /** The computers a sync to their recipe is going on: one at a time per computer, apart from the setups above, since
    * a sync moves rows on a computer already set up and never stands in the way of a thread there. */
   const syncing = new Set<string>();
@@ -251,7 +260,7 @@ export function placeSetup(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea) 
    * since they stage in one folder there, the servers after the CLIs they run and not every CLI; the sign-ins
    * started and left waiting on the person; GitHub before the folders, so a private repository clones with it, and
    * GitHub waits on gh alone where gh is one of the CLIs; the machine context last, so it names what did not land. */
-  const runSetup = async (placeId: string, addId: string, picks: RecipeFile, done: ReadonlySet<PlaceSetupStep>, started: PlaceSetup, rerun: readonly PlaceWait[], sync?: SyncJob, only?: OnlyRow): Promise<void> => {
+  const runSetup = async (placeId: string, addId: string, picks: RecipeFile, done: ReadonlySet<PlaceSetupStep>, started: PlaceSetup, rerun: readonly PlaceWait[], sync?: SyncJob, only?: OnlyRow, resumed = false): Promise<void> => {
     const provisioner = wiring.provision!;
     const record = (await recordOf(placeId))!;
     const home = record.report.login["HOME"]!;
@@ -273,7 +282,7 @@ export function placeSetup(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea) 
     // The rows of the steps that already ended stand: a resume runs only what did not. A sync keeps every row and
     // writes each step's over its own.
     // A run of one row keeps the sign-ins it does not sign in again too.
-    const stands = (r: PlaceProvisionRow): boolean => r.step !== undefined && (done.has(r.step) || (r.step === "signins" && !signsInAgain(only, signInOfRow(r.id) ?? "", before)));
+    const stands = (r: PlaceProvisionRow): boolean => r.step !== undefined && (done.has(r.step) || (r.step === "signins" && !signsInAgain(only, signInOfRow(r.id) ?? "", before, resumed)));
     const rows: HeldRow[] = sync !== undefined ? [...before] : [...before.filter(stands), ...carried];
     const ours = (got: PlaceProvisionRow[]): PlaceProvisionRow[] => got.map(r => (r.outcome === "present" && put.some(p => p.id === r.id) ? { ...r, outcome: "installed", earlier: true } : r));
     /** Whether the computer follows a saved recipe, where a server's yes to copying its keys is given. */
@@ -523,7 +532,7 @@ export function placeSetup(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea) 
       const out: PlaceProvisionRow[] = [];
       for (const [agent, row] of Object.entries(picks.agents)) {
         if (sync !== undefined && !sync.changes.some(c => c.key === `agents/${agent}` && (c.how === "added" || c.how === "changed"))) continue;
-        if (!signsInAgain(only, agent, before)) continue;
+        if (!signsInAgain(only, agent, before, resumed)) continue;
         const label = CATALOG_AGENTS.find(a => a.id === agent)?.name ?? agent;
         const way = row.signin ?? "vault";
         if (way === "token" || way === "key") {
@@ -828,7 +837,10 @@ export function placeSetup(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea) 
         const stores = s === "mcp" ? await storesHere() : undefined;
         return ours(await provisioner.step(machine, plan, s, run, stageOf(s), { home, held: new Set(Object.keys(serverValuesOf(vault()))), ...(stores !== undefined ? { stores } : {}) }));
       };
-      const floor = await step("floor", engine("floor"));
+      const floor = await step("floor", async () => {
+        await flooring.get(placeId)?.catch(() => undefined);
+        return await engine("floor")();
+      });
       if (floor?.failed === true) return await end(floorFailedLine(floor.rows));
       let stopped: string | undefined;
       const installs = new Set(plan.steps.slice(0, plan.agents).map(s => s.id));
@@ -945,15 +957,22 @@ export function placeSetup(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea) 
     setting.add(placeId);
     try {
       const resuming = given === undefined && record.setup?.state === "running" ? record.setup : undefined;
-      const kept = ended !== undefined ? ended.steps.filter(l => !runs.has(l.step)) : (resuming?.steps.filter(l => l.state === "done") ?? []);
+      // A plain resume of a setup that ended is a resume as much as one a stopped host left running: what finished
+      // stands, a skipped sign-in with it, and the failed steps and the waits run again, with the machine context.
+      const resumed = resuming ?? (given === undefined && row === undefined && record.setup !== undefined ? record.setup : undefined);
+      const failedUnder = new Set((record.applied?.rows ?? []).filter(r => r.outcome === "failed").map(r => r.step));
+      const finished = resumed?.steps.filter(l => l.state === "done" && (resuming !== undefined || (l.step !== "context" && !failedUnder.has(l.step)))) ?? [];
+      // A step that runs again takes the steps that follow it with it, as the run of one row does.
+      const rerunning = (resumed?.steps ?? []).filter(l => !finished.includes(l)).map(l => l.step);
+      const kept = ended !== undefined ? ended.steps.filter(l => !runs.has(l.step)) : finished.filter(l => !rerunning.some(st => ROW_FOLLOWS[st]?.includes(l.step)));
       const done = new Set(kept.map(l => l.step));
       // A sign-in left waiting is run again here where its row stands; otherwise its step starts it itself.
       const rerun = (record.setup?.waiting ?? []).filter(w =>
-        w.row === GITHUB_ROW ? done.has("github") : signInOfRow(w.row) !== undefined && (done.has("signins") || !signsInAgain(only, signInOfRow(w.row)!, record.applied?.rows ?? [])),
+        w.row === GITHUB_ROW ? done.has("github") : signInOfRow(w.row) !== undefined && (done.has("signins") || !signsInAgain(only, signInOfRow(w.row)!, record.applied?.rows ?? [], resumed !== undefined)),
       );
       const setup: PlaceSetup = { state: "running", addId, startedAt: resuming?.startedAt ?? new Date(clockNow()).toISOString(), steps: kept, waiting: [] };
       await writeSetup(placeId, { setup, picks, ...(given !== undefined ? { recipe: given.recipe ?? NO_RECIPE } : {}) });
-      void runSetup(placeId, addId, picks, done, setup, rerun, undefined, only).finally(() => {
+      void runSetup(placeId, addId, picks, done, setup, rerun, undefined, only, resumed !== undefined).finally(() => {
         setting.delete(placeId);
         if (again.delete(placeId)) syncSoon(placeId, 0);
       });
@@ -1086,7 +1105,7 @@ export function placeSetup(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea) 
   });
 
   return {
-    channels, waiting, closedAt, woken, setting, syncing, skippers, landers, here, settingNow, foldersOf, recipesMoved, syncFrame,
+    channels, waiting, closedAt, woken, setting, flooring, syncing, skippers, landers, here, settingNow, foldersOf, recipesMoved, syncFrame,
     setupFrame, startSetup, syncTimers, syncOf, markSync, syncSoon, startedOrSaid, linkTo,
   };
 }

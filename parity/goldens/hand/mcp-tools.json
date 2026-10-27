@@ -93,14 +93,6 @@
                       "diskFreeBytes": {
                         "type": "integer"
                       },
-                      "engine": {
-                        "type": "string",
-                        "enum": [
-                          "none",
-                          "docker",
-                          "podman"
-                        ]
-                      },
                       "copies": {
                         "type": "string",
                         "enum": [
@@ -843,9 +835,6 @@
                           "spawn": {
                             "type": "object",
                             "properties": {
-                              "spawn": {
-                                "type": "boolean"
-                              },
                               "maxMachines": {
                                 "type": "integer",
                                 "minimum": 0
@@ -917,9 +906,6 @@
                       "spawn": {
                         "type": "object",
                         "properties": {
-                          "spawn": {
-                            "$ref": "#/properties/computers/items/properties/settings/properties/spawn/properties/spawn"
-                          },
                           "maxMachines": {
                             "$ref": "#/properties/computers/items/properties/settings/properties/spawn/properties/maxMachines"
                           },
@@ -928,7 +914,6 @@
                           }
                         },
                         "required": [
-                          "spawn",
                           "maxMachines",
                           "maxDepth"
                         ],
@@ -1158,7 +1143,7 @@
           },
           {
             "name": "computers_set",
-            "description": "Sets what the person may set on one computer and answers its row as it now reads, the same row computers lists: name, what a computer the person added is called from now, in every listing and wherever a computer is named, its id, its projects and its machines staying as they are, refused for the computer the app runs on and for a name another computer answers to; ssh, the login user@host the host reaches it by over ssh from now, for an update or a remove while its link is down and for the forward it dials back through, saved only once the computer that login reaches reads as this same one, its place file naming this computer and this host; threads, how many threads may run there at once, a new one waiting past it, except a turn a thread there follows to its end, not detached, which runs in that thread's slot (one per 2 GB of that computer's memory up to twice its cores until it is set); nap, the minutes a machine there with no window of its own runs with no turn and no work before it naps and stops costing anything, waking on the next message (20 until it is set, 0 never naps it), which every machine there counts again from now and which the computer the app runs on does not take, since its threads run in folders; turn_limit, the hours one turn there may run before it is stopped, a send carrying it on from where it stopped (none on a computer the person owns until it is set, 0 is none), read at each turn's start; spawn, max_machines and max_depth, what the agents there may ask of this host where the folder or the machine they run in holds no switch of its own (on, up to 3 machines and 2 levels deep, until it is set), read at every ask so one made before the change follows it; machines and spend on a cloud, how many machines may run there at once and the dollars a day it may spend before it starts no new machine (3 and $10 until they are set); size on a cloud, the size a sub-thread's machine gets when the thread starting it names none, as <cpu>x<memGb>, one of the sizes that cloud's row lists (the size its provider builds at until it is set); delete_after on a cloud, the minutes a finished sub-thread's machine stays before it is deleted, read at each finish, 0 deleting it once it is done (30 until it is set). A setting left out keeps what stands, and each word under reset takes that setting back to its default. The row carries cap, what runs there now, capDefault, what it reads by default, and settings, what the person set. A setting the computer's kind does not take, and a call that sets nothing, are refused in one line.",
+            "description": "Sets what the person may set on one computer and answers its row as it now reads, the same row computers lists: name, what a computer the person added is called from now, in every listing and wherever a computer is named, its id, its projects and its machines staying as they are, refused for the computer the app runs on and for a name another computer answers to; ssh, the login user@host the host reaches it by over ssh from now, for an update or a remove while its link is down and for the forward it dials back through, saved only once the computer that login reaches reads as this same one, its place file naming this computer and this host; threads, how many threads may run there at once, a new one waiting past it, except a turn a thread there follows to its end, not detached, which runs in that thread's slot (one per 2 GB of that computer's memory up to twice its cores until it is set); nap, the minutes a machine there with no window of its own runs with no turn and no work before it naps and stops costing anything, waking on the next message (20 until it is set, 0 never naps it), which every machine there counts again from now and which the computer the app runs on does not take, since its threads run in folders; turn_limit, the hours one turn there may run before it is stopped, a send carrying it on from where it stopped (none on a computer the person owns until it is set, 0 is none), read at each turn's start; max_machines and max_depth, how many machines and levels deep the agents there may start where the folder or the machine they run in holds no caps of its own (up to 3 machines and 2 levels deep, until it is set), read at every ask so one made before the change follows it; machines and spend on a cloud, how many machines may run there at once and the dollars a day it may spend before it starts no new machine (3 and $10 until they are set); size on a cloud, the size a sub-thread's machine gets when the thread starting it names none, as <cpu>x<memGb>, one of the sizes that cloud's row lists (the size its provider builds at until it is set); delete_after on a cloud, the minutes a finished sub-thread's machine stays before it is deleted, read at each finish, 0 deleting it once it is done (30 until it is set). A setting left out keeps what stands, and each word under reset takes that setting back to its default. The row carries cap, what runs there now, capDefault, what it reads by default, and settings, what the person set. A setting the computer's kind does not take, and a call that sets nothing, are refused in one line.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -1212,23 +1197,15 @@
                   "maximum": 24,
                   "description": "the hours one turn there may run before it is stopped; 0 never stops one"
                 },
-                "spawn": {
-                  "type": "string",
-                  "enum": [
-                    "on",
-                    "off"
-                  ],
-                  "description": "whether agents there may open threads and fork machines under the thread they run in, capped, where the folder or the machine they run in holds no switch of its own"
-                },
                 "max_machines": {
                   "type": "integer",
                   "minimum": 0,
-                  "description": "how many machines may stand at once under one root thread there while spawn is on"
+                  "description": "how many machines may stand at once under one root thread there"
                 },
                 "max_depth": {
                   "type": "integer",
                   "minimum": 1,
-                  "description": "how many levels deep the tree under a root thread there may go while spawn is on"
+                  "description": "how many levels deep the tree under a root thread there may go"
                 },
                 "recipe": {
                   "type": "string",
@@ -1246,7 +1223,7 @@
                       "delete-after",
                       "nap",
                       "turn-limit",
-                      "spawn",
+                      "max-machines",
                       "max-depth"
                     ]
                   },
@@ -1321,14 +1298,6 @@
                     },
                     "diskFreeBytes": {
                       "type": "integer"
-                    },
-                    "engine": {
-                      "type": "string",
-                      "enum": [
-                        "none",
-                        "docker",
-                        "podman"
-                      ]
                     },
                     "copies": {
                       "type": "string",
@@ -2072,9 +2041,6 @@
                         "spawn": {
                           "type": "object",
                           "properties": {
-                            "spawn": {
-                              "type": "boolean"
-                            },
                             "maxMachines": {
                               "type": "integer",
                               "minimum": 0
@@ -2146,9 +2112,6 @@
                     "spawn": {
                       "type": "object",
                       "properties": {
-                        "spawn": {
-                          "$ref": "#/properties/computer/properties/settings/properties/spawn/properties/spawn"
-                        },
                         "maxMachines": {
                           "$ref": "#/properties/computer/properties/settings/properties/spawn/properties/maxMachines"
                         },
@@ -2157,7 +2120,6 @@
                         }
                       },
                       "required": [
-                        "spawn",
                         "maxMachines",
                         "maxDepth"
                       ],
@@ -2400,14 +2362,6 @@
                     "diskFreeBytes": {
                       "type": "integer"
                     },
-                    "engine": {
-                      "type": "string",
-                      "enum": [
-                        "none",
-                        "docker",
-                        "podman"
-                      ]
-                    },
                     "copies": {
                       "type": "string",
                       "enum": [
@@ -3150,9 +3104,6 @@
                         "spawn": {
                           "type": "object",
                           "properties": {
-                            "spawn": {
-                              "type": "boolean"
-                            },
                             "maxMachines": {
                               "type": "integer",
                               "minimum": 0
@@ -3224,9 +3175,6 @@
                     "spawn": {
                       "type": "object",
                       "properties": {
-                        "spawn": {
-                          "$ref": "#/properties/computer/properties/settings/properties/spawn/properties/spawn"
-                        },
                         "maxMachines": {
                           "$ref": "#/properties/computer/properties/settings/properties/spawn/properties/maxMachines"
                         },
@@ -3235,7 +3183,6 @@
                         }
                       },
                       "required": [
-                        "spawn",
                         "maxMachines",
                         "maxDepth"
                       ],
@@ -6604,7 +6551,7 @@
           },
           {
             "name": "servers_add",
-            "description": "Writes one MCP server into one agent's own config on one computer or where a thread runs, the project's file with project from a thread: a command with its arguments and the variables it is given, or an address with its headers. Every value is read by name off the environment the wsp tools run with and never goes into an answer: on this computer it goes into that file, a variable's value into the vault as well, and on any other the file names a variable and the value goes to the vault, which hands it to each turn there: on a computer the person added only to Claude Code and Codex, in that turn's launch and never its environment, and not to a Codex server whose own config reads its token through its bearer variable; elsewhere in the turn's environment. A header travels as WSP_MCP_<SERVER>_<HEADER>, and a Codex copy reads an Authorization: Bearer header whole as WSP_MCP_<SERVER>_AUTHORIZATION_BEARER, which the vault fills from the token it keeps alone under WSP_MCP_<SERVER>_AUTHORIZATION. An argument or the address may name one of those variables as ${NAME}, an address's variables being only the ones it names: on this computer the value is put in place, on any other the name stays in the agent's own syntax, and an agent that reads no variable there is refused. A name already in the file is refused rather than written over. Written as the login the computer was added with, into that agent's own file, which keeps its mode; a file that is a link out of the home, or out of the project for a project's file, is not written through, and a file the agent wrote meanwhile is left as it was. A napping machine is not woken. The report there reads again at once.",
+            "description": "Writes one MCP server into one agent's own config on one computer or where a thread runs, the project's file with project from a thread: a command with its arguments and the variables it is given, or an address with its headers. Every value is read by name off the environment the wsp tools run with and never goes into an answer: the file names a variable and the value goes to the vault, which hands it to each turn there: on a computer the person added only to Claude Code and Codex, in that turn's launch and never its environment, and not to a Codex server whose own config reads its token through its bearer variable; elsewhere in the turn's environment. A header travels as WSP_MCP_<SERVER>_<HEADER>, and a Codex copy reads an Authorization: Bearer header whole as WSP_MCP_<SERVER>_AUTHORIZATION_BEARER, which the vault fills from the token it keeps alone under WSP_MCP_<SERVER>_AUTHORIZATION. An argument or the address may name one of those variables as ${NAME}, an address's variables being only the ones it names: the name stays in the agent's own syntax, and an agent that reads no variable there is refused. A name already in the file is refused rather than written over. Written as the login the computer was added with, into that agent's own file, which keeps its mode; a file that is a link out of the home, or out of the project for a project's file, is not written through, and a file the agent wrote meanwhile is left as it was. A napping machine is not woken. The report there reads again at once.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -7688,25 +7635,6 @@
                         ],
                         "additionalProperties": false
                       },
-                      "image": {
-                        "type": "object",
-                        "properties": {
-                          "snapshotId": {
-                            "type": "string"
-                          },
-                          "builtAt": {
-                            "type": "string"
-                          },
-                          "lockfileSha": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "snapshotId",
-                          "builtAt"
-                        ],
-                        "additionalProperties": false
-                      },
                       "base": {
                         "type": "string"
                       },
@@ -8020,25 +7948,6 @@
                       ],
                       "additionalProperties": false
                     },
-                    "image": {
-                      "type": "object",
-                      "properties": {
-                        "snapshotId": {
-                          "type": "string"
-                        },
-                        "builtAt": {
-                          "type": "string"
-                        },
-                        "lockfileSha": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "snapshotId",
-                        "builtAt"
-                      ],
-                      "additionalProperties": false
-                    },
                     "base": {
                       "type": "string"
                     },
@@ -8272,25 +8181,6 @@
                         "command",
                         "at",
                         "seconds"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "image": {
-                      "type": "object",
-                      "properties": {
-                        "snapshotId": {
-                          "type": "string"
-                        },
-                        "builtAt": {
-                          "type": "string"
-                        },
-                        "lockfileSha": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "snapshotId",
-                        "builtAt"
                       ],
                       "additionalProperties": false
                     },
@@ -8566,25 +8456,6 @@
                         "command",
                         "at",
                         "seconds"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "image": {
-                      "type": "object",
-                      "properties": {
-                        "snapshotId": {
-                          "type": "string"
-                        },
-                        "builtAt": {
-                          "type": "string"
-                        },
-                        "lockfileSha": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "snapshotId",
-                        "builtAt"
                       ],
                       "additionalProperties": false
                     },
@@ -9692,576 +9563,6 @@
             }
           },
           {
-            "name": "recipe_scan",
-            "description": "Every option this computer offers for a machine, read once and written nowhere: the person's agents and the catalog's tools with the tick their own use reaches and what each adds to the machine, what else a package manager on this computer has that the image could take (alsoHere, by manager, with the line that installs each on the machine, each row's id being the one to hand recipe's set, which ticks that package as a row of its own), whose scanned says whether anything looked, the commands their agents ran that the catalog does not carry, and the sign-in each ticked row brings. An image built on Boat asks no sign-in: its machines use the sign-ins on this computer through wsp, so the sign-in rows answer only for a box the person added. Every row carries a recommended value and a one-line reason, so apply those and put only the rows whose reason says worth a question. Run this before recipe, and before asking the person anything. Only names and counts are read.",
-            "inputSchema": {
-              "type": "object",
-              "properties": {
-                "project": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "folders on this computer, absolute, to weigh the histories by: only sessions that ran in one of them or under it count"
-                }
-              },
-              "additionalProperties": false,
-              "$schema": "http://json-schema.org/draft-07/schema#"
-            },
-            "execution": {
-              "taskSupport": "forbidden"
-            },
-            "_meta": {
-              "anthropic/alwaysLoad": false
-            },
-            "outputSchema": {
-              "type": "object",
-              "properties": {
-                "tick": {
-                  "type": "string",
-                  "enum": [
-                    "used",
-                    "installed",
-                    "default"
-                  ]
-                },
-                "at": {
-                  "type": "string"
-                },
-                "agents": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string"
-                      },
-                      "kind": {
-                        "type": "string",
-                        "enum": [
-                          "agent",
-                          "tool",
-                          "custom"
-                        ]
-                      },
-                      "name": {
-                        "type": "string"
-                      },
-                      "on": {
-                        "type": "boolean"
-                      },
-                      "base": {
-                        "type": "boolean"
-                      },
-                      "group": {
-                        "type": "string",
-                        "enum": [
-                          "Always on the image",
-                          "Your project needs",
-                          "You use these",
-                          "Installed here, never used",
-                          "Added by your agent",
-                          "Also in the catalog"
-                        ]
-                      },
-                      "why": {
-                        "type": "string"
-                      },
-                      "size": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "heavy": {
-                        "type": "boolean"
-                      },
-                      "note": {
-                        "type": "string"
-                      },
-                      "pin": {
-                        "type": "object",
-                        "properties": {
-                          "tag": {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          "sha256": {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          "arch": {
-                            "type": "string",
-                            "enum": [
-                              "x86_64",
-                              "aarch64"
-                            ]
-                          },
-                          "latest": {
-                            "type": "boolean",
-                            "const": true
-                          }
-                        },
-                        "required": [
-                          "tag"
-                        ],
-                        "additionalProperties": false
-                      },
-                      "recommended": {
-                        "type": "object",
-                        "properties": {
-                          "value": {
-                            "type": "string"
-                          },
-                          "why": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "value",
-                          "why"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "kind",
-                      "name",
-                      "on",
-                      "base",
-                      "group",
-                      "why",
-                      "heavy",
-                      "recommended"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "tools": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/properties/agents/items"
-                  }
-                },
-                "totalBytes": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "heavy": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/properties/agents/items"
-                  }
-                },
-                "alsoHere": {
-                  "type": "object",
-                  "properties": {
-                    "scanned": {
-                      "type": "boolean"
-                    },
-                    "managers": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "manager": {
-                            "type": "string"
-                          },
-                          "rows": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "id": {
-                                  "type": "string"
-                                },
-                                "install": {
-                                  "type": "string"
-                                },
-                                "size": {
-                                  "type": "integer",
-                                  "minimum": 0
-                                }
-                              },
-                              "required": [
-                                "id",
-                                "install"
-                              ],
-                              "additionalProperties": false
-                            }
-                          }
-                        },
-                        "required": [
-                          "manager",
-                          "rows"
-                        ],
-                        "additionalProperties": false
-                      }
-                    }
-                  },
-                  "required": [
-                    "scanned",
-                    "managers"
-                  ],
-                  "additionalProperties": false
-                },
-                "commands": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "name": {
-                        "type": "string"
-                      },
-                      "calls": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "sessions": {
-                        "type": "integer",
-                        "minimum": 0
-                      }
-                    },
-                    "required": [
-                      "name",
-                      "calls",
-                      "sessions"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "signIns": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string"
-                      },
-                      "name": {
-                        "type": "string"
-                      },
-                      "signIn": {
-                        "type": "string"
-                      },
-                      "recommended": {
-                        "$ref": "#/properties/agents/items/properties/recommended"
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "name",
-                      "signIn",
-                      "recommended"
-                    ],
-                    "additionalProperties": false
-                  }
-                }
-              },
-              "required": [
-                "tick",
-                "at",
-                "agents",
-                "tools",
-                "totalBytes",
-                "heavy",
-                "alsoHere",
-                "commands",
-                "signIns"
-              ],
-              "additionalProperties": false,
-              "$schema": "http://json-schema.org/draft-07/schema#"
-            }
-          },
-          {
-            "name": "recipe",
-            "description": "The recipe for a machine, read off this computer and written to a file: every catalog agent and tool with its tick, why it has that tick, and what it adds to the machine, plus the commands the person's agents ran that no catalog row carries. tick names the rule: used ticks what their agents actually ran here, installed ticks what is on this computer, default ticks what the catalog ships on; an agent wsp cannot open a thread on is off unless installed. The file is the state, so a second call is not a fresh start: naming tick or project lets the rule decide every tick again and throws away the flips a call before it made, and a call that names neither keeps what the file says and puts its own flips on top. Sign-in answers stand through every call whatever the rule, since nothing but the person decides one, and a build on Boat ignores them: its machines use the sign-ins on this computer through wsp. Put the heavy rows to the person with their sizes before anything is built, then flip rows with set and run `wsp init --recipe <out> --non-interactive --json` from a shell, handing the person each sign-in line it prints, since the sign-ins finish in their browser; a build on Boat prints none and waits on nobody, and stops before anything boots with the one line that fixes a sign-in this computer lacks. Only names and counts are read; nothing a session held is returned.",
-            "inputSchema": {
-              "type": "object",
-              "properties": {
-                "tick": {
-                  "type": "string",
-                  "enum": [
-                    "used",
-                    "installed",
-                    "default"
-                  ],
-                  "description": "which rule decides every tick: used, installed, default. Naming it re-decides every row from the rule, so any flip an earlier call made goes; absent, the file's own rule and its ticks stand, and used decides a first call and any row the file does not carry"
-                },
-                "set": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "rows to flip, \"<id>=on\" or \"<id>=off\", applied over whatever decided the row: a catalog id, or the id recipe_scan gives a package one of this computer's own package managers has (alsoHere), which ticks that package as a row of its own and installs it by its own road. On a call that names tick or project they sit over the rule's fresh answer; on any other call they sit over the ticks already in the file"
-                },
-                "signin": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "what happens to a row's sign-in, \"<id>=copy|machine|later|key|skip|token\"; key brings the key files beside its login and the login still runs on the machine. An answer already in the file stands until a later call names that row again, whatever tick or project do to the ticks"
-                },
-                "add": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "tools neither the catalog carries nor this computer has, \"<id>=<install command>\"; the line runs on the machine as given after every catalog install, and such a row is never offered a sign-in. A package recipe_scan already lists under alsoHere is refused here and ticked with set instead, since it is a row of its own. Rows an earlier call added stand, whatever tick or project do to the ticks"
-                },
-                "add_check": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "what proves an added tool landed, \"<id>=<command that exits 0>\"; without one the id on PATH is the check"
-                },
-                "why": {
-                  "type": "string",
-                  "description": "what the rows this call adds are for, in your own words; absent, they say an agent added them"
-                },
-                "engine": {
-                  "type": "boolean",
-                  "description": "mark the recipe so every machine from its image gets the place's container engine (Docker or podman) through a socket of its own, for a project whose compose file needs one; it stays in the file until edited out"
-                },
-                "project": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "folders on this computer, absolute, to weigh the histories by: only sessions that ran in one of them or under it count. Naming one re-decides every tick from the rule, as tick does, so any flip an earlier call made goes"
-                },
-                "out": {
-                  "type": "string",
-                  "description": "where the recipe file goes, absolute; absent means the host's own recipe.json beside its state"
-                }
-              },
-              "additionalProperties": false,
-              "$schema": "http://json-schema.org/draft-07/schema#"
-            },
-            "execution": {
-              "taskSupport": "forbidden"
-            },
-            "_meta": {
-              "anthropic/alwaysLoad": false
-            },
-            "outputSchema": {
-              "type": "object",
-              "properties": {
-                "tick": {
-                  "type": "string",
-                  "enum": [
-                    "used",
-                    "installed",
-                    "default"
-                  ]
-                },
-                "at": {
-                  "type": "string"
-                },
-                "out": {
-                  "type": "string"
-                },
-                "agents": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string"
-                      },
-                      "kind": {
-                        "type": "string",
-                        "enum": [
-                          "agent",
-                          "tool",
-                          "custom"
-                        ]
-                      },
-                      "name": {
-                        "type": "string"
-                      },
-                      "on": {
-                        "type": "boolean"
-                      },
-                      "base": {
-                        "type": "boolean"
-                      },
-                      "group": {
-                        "type": "string",
-                        "enum": [
-                          "Always on the image",
-                          "Your project needs",
-                          "You use these",
-                          "Installed here, never used",
-                          "Added by your agent",
-                          "Also in the catalog"
-                        ]
-                      },
-                      "why": {
-                        "type": "string"
-                      },
-                      "size": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "heavy": {
-                        "type": "boolean"
-                      },
-                      "note": {
-                        "type": "string"
-                      },
-                      "pin": {
-                        "type": "object",
-                        "properties": {
-                          "tag": {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          "sha256": {
-                            "type": "string",
-                            "minLength": 1
-                          },
-                          "arch": {
-                            "type": "string",
-                            "enum": [
-                              "x86_64",
-                              "aarch64"
-                            ]
-                          },
-                          "latest": {
-                            "type": "boolean",
-                            "const": true
-                          }
-                        },
-                        "required": [
-                          "tag"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "required": [
-                      "id",
-                      "kind",
-                      "name",
-                      "on",
-                      "base",
-                      "group",
-                      "why",
-                      "heavy"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "tools": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/properties/agents/items"
-                  }
-                },
-                "totalBytes": {
-                  "type": "integer",
-                  "minimum": 0
-                },
-                "heavy": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/properties/agents/items"
-                  }
-                },
-                "commands": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "name": {
-                        "type": "string"
-                      },
-                      "calls": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "sessions": {
-                        "type": "integer",
-                        "minimum": 0
-                      }
-                    },
-                    "required": [
-                      "name",
-                      "calls",
-                      "sessions"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "custom": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "kind": {
-                        "type": "string",
-                        "const": "custom"
-                      },
-                      "id": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "name": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "install": {
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "minLength": 1
-                        },
-                        "minItems": 1
-                      },
-                      "check": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "manager": {
-                        "type": "string",
-                        "minLength": 1
-                      },
-                      "size": {
-                        "type": "integer",
-                        "minimum": 0
-                      },
-                      "why": {
-                        "type": "string",
-                        "minLength": 1
-                      }
-                    },
-                    "required": [
-                      "kind",
-                      "id",
-                      "name",
-                      "install",
-                      "check",
-                      "why"
-                    ],
-                    "additionalProperties": false
-                  }
-                }
-              },
-              "required": [
-                "at",
-                "out",
-                "agents",
-                "tools",
-                "totalBytes",
-                "heavy",
-                "commands",
-                "custom"
-              ],
-              "additionalProperties": false,
-              "$schema": "http://json-schema.org/draft-07/schema#"
-            }
-          },
-          {
             "name": "commit",
             "description": "Commits the files changed in the folder the thread works in against its last commit, untracked ones added, with the message given, running the folder's hooks as git does. Other threads working in the same folder share its changes, so a commit of every file takes theirs too and the answer names them in sharedWith; files names some by path from the checkout's top and leaves the rest uncommitted. Without a message the thread's own agent drafts one from the diff and the message the thread was opened with, on its own command line with no thread and no tool, and the commit is made with that. Refused in one line when a file named has no change, when git knows no author in the folder (with the command that sets one), when a hook said no (with its last line), and when another git in the folder holds the index after one wait. Nothing reaches a remote: the app's Push is what pushes.",
             "inputSchema": {
@@ -10871,9 +10172,6 @@
                     "agents": {
                       "type": "object",
                       "properties": {
-                        "spawn": {
-                          "type": "boolean"
-                        },
                         "maxMachines": {
                           "type": "integer",
                           "minimum": 0
@@ -10884,7 +10182,6 @@
                         }
                       },
                       "required": [
-                        "spawn",
                         "maxMachines",
                         "maxDepth"
                       ],
@@ -11431,9 +10728,6 @@
                     "agents": {
                       "type": "object",
                       "properties": {
-                        "spawn": {
-                          "type": "boolean"
-                        },
                         "maxMachines": {
                           "type": "integer",
                           "minimum": 0
@@ -11444,7 +10738,6 @@
                         }
                       },
                       "required": [
-                        "spawn",
                         "maxMachines",
                         "maxDepth"
                       ],
@@ -12110,9 +11403,6 @@
                     "agents": {
                       "type": "object",
                       "properties": {
-                        "spawn": {
-                          "type": "boolean"
-                        },
                         "maxMachines": {
                           "type": "integer",
                           "minimum": 0
@@ -12123,7 +11413,6 @@
                         }
                       },
                       "required": [
-                        "spawn",
                         "maxMachines",
                         "maxDepth"
                       ],
@@ -12464,14 +11753,6 @@
                               "type": "string",
                               "minLength": 1
                             },
-                            "tick": {
-                              "type": "string",
-                              "enum": [
-                                "used",
-                                "installed",
-                                "default"
-                              ]
-                            },
                             "histories": {
                               "type": "array",
                               "items": {
@@ -12724,9 +12005,6 @@
                                 ],
                                 "additionalProperties": false
                               }
-                            },
-                            "engine": {
-                              "type": "boolean"
                             }
                           },
                           "required": [
@@ -12736,38 +12014,6 @@
                             "rows"
                           ],
                           "additionalProperties": false
-                        },
-                        "pins": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "tag": {
-                                "$ref": "#/properties/image/anyOf/0/properties/recipe/properties/rows/items/properties/pin/properties/tag"
-                              },
-                              "sha256": {
-                                "$ref": "#/properties/image/anyOf/0/properties/recipe/properties/rows/items/properties/pin/properties/sha256"
-                              },
-                              "arch": {
-                                "$ref": "#/properties/image/anyOf/0/properties/recipe/properties/rows/items/properties/pin/properties/arch"
-                              },
-                              "latest": {
-                                "$ref": "#/properties/image/anyOf/0/properties/recipe/properties/rows/items/properties/pin/properties/latest"
-                              },
-                              "id": {
-                                "type": "string",
-                                "minLength": 1
-                              },
-                              "road": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "tag",
-                              "id"
-                            ],
-                            "additionalProperties": false
-                          }
                         },
                         "logins": {
                           "type": "array",
@@ -12902,80 +12148,11 @@
                     ],
                     "additionalProperties": false
                   }
-                },
-                "projects": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "properties": {
-                      "snapshotId": {
-                        "type": "string"
-                      },
-                      "projects": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "name": {
-                              "type": "string"
-                            },
-                            "dest": {
-                              "type": "string"
-                            },
-                            "importedAt": {
-                              "type": "string"
-                            },
-                            "size": {
-                              "type": "integer",
-                              "minimum": 0
-                            }
-                          },
-                          "required": [
-                            "name",
-                            "dest",
-                            "importedAt"
-                          ],
-                          "additionalProperties": false
-                        }
-                      },
-                      "golden": {
-                        "type": "string"
-                      },
-                      "version": {
-                        "type": "integer"
-                      },
-                      "workspaceId": {
-                        "type": "string"
-                      },
-                      "workspaceName": {
-                        "type": "string"
-                      },
-                      "createdAt": {
-                        "type": "string"
-                      },
-                      "place": {
-                        "type": "string"
-                      },
-                      "sizeBytes": {
-                        "type": "number"
-                      }
-                    },
-                    "required": [
-                      "snapshotId",
-                      "projects",
-                      "golden",
-                      "workspaceId",
-                      "workspaceName",
-                      "createdAt"
-                    ],
-                    "additionalProperties": false
-                  }
                 }
               },
               "required": [
                 "image",
-                "copies",
-                "projects"
+                "copies"
               ],
               "additionalProperties": false,
               "$schema": "http://json-schema.org/draft-07/schema#"
@@ -16416,7 +15593,7 @@
           },
           {
             "name": "slate_catalog",
-            "description": "What a slate, the live panel beside the chat, can hold: every piece, and the runs that keep it fresh. Call it first whenever the person wants to see, watch, monitor or keep an eye on something, tick things off as they go, or see what's unread, even when another tool fetches the data.",
+            "description": "What a slate here can hold: every piece and run. The slate is the person's visual companion while you work: words stay in the chat, and your reply never restates it. Call it first whenever the person wants to see, watch, monitor or keep an eye on something, tick things off as they go, or see what's unread, even when another tool fetches the data.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -16450,7 +15627,7 @@
           },
           {
             "name": "slate_write",
-            "description": "Writes this thread's slate, the live panel here beside the chat. Use it to show the person what they want to see, watch, monitor or keep an eye on while you work (live data, traffic, metrics, a price, logs, a PR, progress, status), a dashboard, a form to fill in or a checklist. A run with every= refreshes on a timer with no turns, so nothing polls. A run's script goes in a <file name=\"x.py\">, run as python3 \"$SLATE_DIR/x.py\", never in the project.",
+            "description": "Writes this thread's slate. The slate is the person's visual companion while you work: words stay in the chat, and your reply never restates it. Show what they want to see (live data, traffic, metrics, a price, a PR, progress), a dashboard, a form to fill in or a decision. A run with every= refreshes; never poll in chat. A run's script goes in a <file name=\"x.py\">, run as python3 \"$SLATE_DIR/x.py\", never in the project.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -16525,7 +15702,7 @@
           },
           {
             "name": "slate_state",
-            "description": "Sets the slate's live $values by path, so the person sees progress, status or a checklist tick move as you work; reactions fire. start starts a run the person allowed to run always.",
+            "description": "Sets the slate's live $values by path, so the person sees progress, status or a checklist tick move; reactions fire. start starts a run the person allowed always.",
             "inputSchema": {
               "type": "object",
               "properties": {
@@ -16641,6 +15818,62 @@
               "required": [
                 "version",
                 "text"
+              ],
+              "additionalProperties": false,
+              "$schema": "http://json-schema.org/draft-07/schema#"
+            }
+          },
+          {
+            "name": "slate_look",
+            "description": "A picture of this thread's slate as the person sees it, in their theme and panel width. Look once after a frame or a big change, not each patch.",
+            "inputSchema": {
+              "type": "object",
+              "properties": {
+                "thread": {
+                  "type": "string",
+                  "description": "another thread's id"
+                },
+                "width": {
+                  "type": "integer",
+                  "description": "280 to 1600 px, else the panel's"
+                }
+              },
+              "additionalProperties": false,
+              "$schema": "http://json-schema.org/draft-07/schema#"
+            },
+            "execution": {
+              "taskSupport": "forbidden"
+            },
+            "_meta": {
+              "anthropic/alwaysLoad": true
+            },
+            "outputSchema": {
+              "type": "object",
+              "properties": {
+                "width": {
+                  "type": "number"
+                },
+                "height": {
+                  "type": "number"
+                },
+                "scale": {
+                  "type": "number"
+                },
+                "theme": {
+                  "type": "string"
+                },
+                "whole": {
+                  "type": "number"
+                },
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "width",
+                "height",
+                "scale",
+                "theme"
               ],
               "additionalProperties": false,
               "$schema": "http://json-schema.org/draft-07/schema#"
@@ -17020,7 +16253,7 @@
           },
           {
             "name": "setup",
-            "description": "The setup on this host, as the app's Settings reads it: which keys the host holds (their presence, never a value), the agents on this computer and whether each carries the wsp tools, and the init job when one runs or ran: its road, phase, screens, rows and progress. The rows are the image's stages, each sign-in with the page the person opens on this computer and the code it asks for while it waits, then its state, and the first machine once forked. A build on Boat has no sign-in rows: its machines use the sign-ins on this computer through wsp, which the build checks before anything boots. Read it to tell the person where the build is and which sign-in waits for them; the build is started from the app's Settings, and wsp init --recipe from a shell is the same run.",
+            "description": "The setup on this host, as the app's Settings reads it: which keys the host holds (their presence, never a value), this computer's home folder. Read it to tell the person which provider key is missing.",
             "inputSchema": {
               "$schema": "http://json-schema.org/draft-07/schema#",
               "type": "object",
@@ -17049,33 +16282,6 @@
                     },
                     "home": {
                       "type": "string"
-                    },
-                    "agents": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "name": {
-                            "type": "string"
-                          },
-                          "configured": {
-                            "type": "boolean"
-                          },
-                          "takesTools": {
-                            "type": "boolean"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "name",
-                          "configured",
-                          "takesTools"
-                        ],
-                        "additionalProperties": false
-                      }
                     },
                     "pricing": {
                       "anyOf": [
@@ -17117,535 +16323,14 @@
                         }
                       ]
                     },
-                    "place": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "kind": {
-                          "type": "string",
-                          "enum": [
-                            "computer",
-                            "provider"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "name"
-                      ],
-                      "additionalProperties": false
-                    },
                     "forksOn": {
                       "type": "string"
-                    },
-                    "buildRefusal": {
-                      "type": "string"
-                    },
-                    "job": {
-                      "anyOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "string"
-                            },
-                            "road": {
-                              "type": "string",
-                              "enum": [
-                                "manual",
-                                "agent",
-                                "terminal"
-                              ]
-                            },
-                            "phase": {
-                              "type": "string",
-                              "enum": [
-                                "agent",
-                                "reading",
-                                "answering",
-                                "building",
-                                "signing-in",
-                                "sealing",
-                                "finishing",
-                                "done",
-                                "failed",
-                                "cancelled"
-                              ]
-                            },
-                            "keys": {
-                              "$ref": "#/properties/setup/properties/keys"
-                            },
-                            "step": {
-                              "type": "integer",
-                              "minimum": 0
-                            },
-                            "stoppable": {
-                              "type": "boolean"
-                            },
-                            "disk": {
-                              "type": "object",
-                              "properties": {
-                                "fixed": {
-                                  "type": "number",
-                                  "minimum": 0
-                                },
-                                "total": {
-                                  "type": "number",
-                                  "exclusiveMinimum": 0
-                                }
-                              },
-                              "required": [
-                                "fixed",
-                                "total"
-                              ],
-                              "additionalProperties": false
-                            },
-                            "screens": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "id": {
-                                    "type": "string",
-                                    "enum": [
-                                      "agents",
-                                      "tools",
-                                      "also",
-                                      "logins",
-                                      "wsp"
-                                    ]
-                                  },
-                                  "title": {
-                                    "type": "string"
-                                  },
-                                  "top": {
-                                    "type": "string"
-                                  },
-                                  "items": {
-                                    "type": "array",
-                                    "items": {
-                                      "type": "object",
-                                      "properties": {
-                                        "id": {
-                                          "type": "string"
-                                        },
-                                        "label": {
-                                          "type": "string"
-                                        },
-                                        "size": {
-                                          "anyOf": [
-                                            {
-                                              "type": "number",
-                                              "minimum": 0
-                                            },
-                                            {
-                                              "type": "null"
-                                            }
-                                          ]
-                                        },
-                                        "why": {
-                                          "type": "string"
-                                        },
-                                        "group": {
-                                          "type": "string"
-                                        },
-                                        "detail": {
-                                          "type": "array",
-                                          "items": {
-                                            "type": "string"
-                                          }
-                                        },
-                                        "lock": {
-                                          "type": "string",
-                                          "enum": [
-                                            "on",
-                                            "off"
-                                          ]
-                                        },
-                                        "choices": {
-                                          "type": "array",
-                                          "items": {
-                                            "type": "object",
-                                            "properties": {
-                                              "value": {
-                                                "type": "string"
-                                              },
-                                              "label": {
-                                                "type": "string"
-                                              }
-                                            },
-                                            "required": [
-                                              "value",
-                                              "label"
-                                            ],
-                                            "additionalProperties": false
-                                          }
-                                        },
-                                        "key": {
-                                          "type": "object",
-                                          "properties": {
-                                            "name": {
-                                              "type": "string"
-                                            },
-                                            "saved": {
-                                              "type": "boolean"
-                                            }
-                                          },
-                                          "required": [
-                                            "name",
-                                            "saved"
-                                          ],
-                                          "additionalProperties": false
-                                        },
-                                        "state": {
-                                          "type": "string"
-                                        },
-                                        "mark": {
-                                          "type": "string"
-                                        }
-                                      },
-                                      "required": [
-                                        "id",
-                                        "label",
-                                        "detail"
-                                      ],
-                                      "additionalProperties": false
-                                    }
-                                  },
-                                  "ticks": {
-                                    "type": "array",
-                                    "items": {
-                                      "type": "string"
-                                    }
-                                  },
-                                  "answers": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                      "type": "string"
-                                    }
-                                  },
-                                  "footer": {
-                                    "type": "array",
-                                    "items": {
-                                      "type": "object",
-                                      "properties": {
-                                        "text": {
-                                          "type": "string"
-                                        },
-                                        "tone": {
-                                          "type": "string",
-                                          "enum": [
-                                            "yellow",
-                                            "yellowBright",
-                                            "red"
-                                          ]
-                                        }
-                                      },
-                                      "required": [
-                                        "text"
-                                      ],
-                                      "additionalProperties": false
-                                    }
-                                  },
-                                  "tally": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "id",
-                                  "title",
-                                  "top",
-                                  "items",
-                                  "ticks",
-                                  "answers",
-                                  "footer"
-                                ],
-                                "additionalProperties": false
-                              }
-                            },
-                            "rows": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "id": {
-                                    "type": "string"
-                                  },
-                                  "kind": {
-                                    "type": "string",
-                                    "enum": [
-                                      "fact",
-                                      "stage",
-                                      "sign-in",
-                                      "secret",
-                                      "agent",
-                                      "workspace",
-                                      "project",
-                                      "machine"
-                                    ]
-                                  },
-                                  "tool": {
-                                    "type": "string"
-                                  },
-                                  "label": {
-                                    "type": "string"
-                                  },
-                                  "state": {
-                                    "type": "string"
-                                  },
-                                  "login": {
-                                    "type": "string",
-                                    "enum": [
-                                      "signed-in",
-                                      "not-signed-in",
-                                      "not-verified",
-                                      "skipped",
-                                      "copied",
-                                      "deferred"
-                                    ]
-                                  },
-                                  "detail": {
-                                    "type": "string"
-                                  },
-                                  "page": {
-                                    "type": "string"
-                                  },
-                                  "code": {
-                                    "type": "string"
-                                  },
-                                  "finish": {
-                                    "type": "string",
-                                    "enum": [
-                                      "callback",
-                                      "code",
-                                      "none"
-                                    ]
-                                  },
-                                  "ms": {
-                                    "type": "number"
-                                  },
-                                  "since": {
-                                    "type": "number"
-                                  },
-                                  "lines": {
-                                    "type": "array",
-                                    "items": {
-                                      "type": "string"
-                                    }
-                                  }
-                                },
-                                "required": [
-                                  "id",
-                                  "kind",
-                                  "label",
-                                  "state"
-                                ],
-                                "additionalProperties": false
-                              }
-                            },
-                            "progress": {
-                              "type": "object",
-                              "properties": {
-                                "done": {
-                                  "type": "integer",
-                                  "minimum": 0
-                                },
-                                "total": {
-                                  "type": "integer",
-                                  "minimum": 0
-                                }
-                              },
-                              "required": [
-                                "done",
-                                "total"
-                              ],
-                              "additionalProperties": false
-                            },
-                            "needsYou": {
-                              "type": "object",
-                              "properties": {
-                                "what": {
-                                  "type": "string"
-                                },
-                                "since": {
-                                  "type": "integer",
-                                  "minimum": 0
-                                }
-                              },
-                              "required": [
-                                "what",
-                                "since"
-                              ],
-                              "additionalProperties": false
-                            },
-                            "drafts": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "at": {
-                                    "type": "string"
-                                  },
-                                  "ticks": {
-                                    "type": "array",
-                                    "items": {
-                                      "type": "string"
-                                    }
-                                  },
-                                  "answers": {
-                                    "type": "object",
-                                    "additionalProperties": {
-                                      "type": "string"
-                                    }
-                                  }
-                                },
-                                "required": [
-                                  "at",
-                                  "ticks",
-                                  "answers"
-                                ],
-                                "additionalProperties": false
-                              }
-                            },
-                            "log": {
-                              "type": "array",
-                              "items": {
-                                "type": "string"
-                              }
-                            },
-                            "thread": {
-                              "type": "object",
-                              "properties": {
-                                "id": {
-                                  "type": "string"
-                                },
-                                "workspaceId": {
-                                  "type": "string"
-                                },
-                                "session": {
-                                  "type": "string"
-                                },
-                                "harness": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "id",
-                                "workspaceId",
-                                "session",
-                                "harness"
-                              ],
-                              "additionalProperties": false
-                            },
-                            "line": {
-                              "type": "string"
-                            },
-                            "error": {
-                              "type": "string"
-                            },
-                            "keyRefused": {
-                              "type": "boolean"
-                            },
-                            "golden": {
-                              "type": "object",
-                              "properties": {
-                                "version": {
-                                  "type": "integer"
-                                }
-                              },
-                              "required": [
-                                "version"
-                              ],
-                              "additionalProperties": false
-                            },
-                            "cleanup": {
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "level": {
-                                    "type": "string",
-                                    "enum": [
-                                      "info",
-                                      "step",
-                                      "success",
-                                      "warn"
-                                    ]
-                                  },
-                                  "line": {
-                                    "type": "string"
-                                  }
-                                },
-                                "required": [
-                                  "level",
-                                  "line"
-                                ],
-                                "additionalProperties": false
-                              }
-                            },
-                            "update": {
-                              "type": "array",
-                              "items": {
-                                "$ref": "#/properties/setup/properties/job/anyOf/0/properties/cleanup/items"
-                              }
-                            },
-                            "builders": {
-                              "type": "array",
-                              "items": {
-                                "$ref": "#/properties/setup/properties/job/anyOf/0/properties/cleanup/items"
-                              }
-                            },
-                            "workspace": {
-                              "type": "object",
-                              "properties": {
-                                "id": {
-                                  "type": "string"
-                                },
-                                "name": {
-                                  "type": "string"
-                                }
-                              },
-                              "required": [
-                                "id",
-                                "name"
-                              ],
-                              "additionalProperties": false
-                            },
-                            "place": {
-                              "$ref": "#/properties/setup/properties/place"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "road",
-                            "phase",
-                            "keys",
-                            "step",
-                            "stoppable",
-                            "screens",
-                            "rows",
-                            "progress",
-                            "log"
-                          ],
-                          "additionalProperties": false
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ]
                     }
                   },
                   "required": [
                     "keys",
                     "home",
-                    "agents",
-                    "pricing",
-                    "job"
+                    "pricing"
                   ],
                   "additionalProperties": false
                 }

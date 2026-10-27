@@ -51,7 +51,6 @@
         "folder": "<tmp>/home",
         "home": "<tmp>/home",
         "agents": {
-          "spawn": true,
           "maxMachines": 3,
           "maxDepth": 2
         }

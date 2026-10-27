@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/host/test/mcp.test.ts > the MCP server over the host > projects_add records one, a folder here and a repo a computer clones, and the tool door carries it because wsp add also hands out a join code","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/host/test/mcp.test.ts > the MCP server over the host > projects_add records one, a folder here and a repo a computer clones, and the tool door carries it because wsp add also hands out a join code","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true,"version":"0.3.8","road":"init"}}
 {"in":{"source":"<run>/wsp-mcp-add-000001","id":2,"op":"projects.add"}}
