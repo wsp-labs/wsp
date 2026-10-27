@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use wsp_engine::copier::{
-    fake_copier, Copier, CopyAsk, CopyReport, CopyRoad, FakeCopier, WorktreeAsk, WorktreeAt, WorktreeProject, WorktreeRemoval, WorktreeRemove,
-    WorktreeReport,
+    fake_copier, Copier, CopyAsk, CopyReport, CopyRoad, FakeCopier, WorktreeAsk, WorktreeAt, WorktreeProject, WorktreeRemoval,
+    WorktreeRemove, WorktreeReport,
 };
 use wsp_engine::errors::Result;
 use wsp_engine::local_backend::MemoryHere;

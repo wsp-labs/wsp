@@ -129,7 +129,11 @@ impl Fetch for Gateway {
             });
         }
         if req.method == "POST" && path == format!("/sandboxes/{id}/commands") {
-            let command = req.body.as_deref().and_then(|raw| serde_json::from_slice::<Value>(raw).ok()).map(|v| v["command"].as_str().unwrap_or_default().to_string());
+            let command = req
+                .body
+                .as_deref()
+                .and_then(|raw| serde_json::from_slice::<Value>(raw).ok())
+                .map(|v| v["command"].as_str().unwrap_or_default().to_string());
             let held = b.hold.borrow().clone();
             if let (Some(held), Some(command)) = (held, &command) {
                 if *command == sudo_command("true") {
@@ -155,7 +159,10 @@ impl Fetch for Gateway {
                 return Ok(reply(409, json!({ "ok": false, "status": 409, "code": "box_not_running", "message": "Box is not running." })));
             }
             if b.no_work_dir.get() {
-                return Ok(reply(400, json!({ "ok": false, "status": 400, "code": "invalid_cwd", "message": "cwd must be an existing directory." })));
+                return Ok(reply(
+                    400,
+                    json!({ "ok": false, "status": 400, "code": "invalid_cwd", "message": "cwd must be an existing directory." }),
+                ));
             }
             if b.agent_fails.get() {
                 return Ok(reply(
@@ -318,7 +325,12 @@ impl Machine for CountedMachine {
     async fn daemon_exits(&self) -> Result<Option<String>, EngineError> {
         self.inner.daemon_exits().await
     }
-    async fn put_bytes(&self, path: &str, bytes: &[u8], timeout_ms: Option<u64>) -> Result<Option<wsp_engine::machine::BytesLanded>, EngineError> {
+    async fn put_bytes(
+        &self,
+        path: &str,
+        bytes: &[u8],
+        timeout_ms: Option<u64>,
+    ) -> Result<Option<wsp_engine::machine::BytesLanded>, EngineError> {
         self.inner.put_bytes(path, bytes, timeout_ms).await
     }
     async fn read_bytes(&self, path: &str, size: Option<u64>, timeout_ms: Option<u64>) -> Result<Vec<u8>, EngineError> {

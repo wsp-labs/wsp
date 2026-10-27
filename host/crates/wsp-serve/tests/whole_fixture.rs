@@ -696,10 +696,12 @@ fn the_slow_daemon_holds_its_auth_answer_and_the_late_daemon_refuses_upgrades_un
         ws.send(Message::text(json!({ "id": 1, "op": "auth", "token": "t" }).to_string())).await.expect("a send");
         assert!(tokio::time::timeout(std::time::Duration::from_millis(100), ws.next()).await.is_err());
         ws.send(Message::text(json!({ "id": 2, "op": "ping" }).to_string())).await.expect("a send");
-        let pong: serde_json::Value = serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
+        let pong: serde_json::Value =
+            serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
         assert_eq!(pong, json!({ "id": 2, "ok": true }));
         slow.up();
-        let auth: serde_json::Value = serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
+        let auth: serde_json::Value =
+            serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
         assert_eq!(auth, json!({ "id": 1, "ok": true }));
 
         let late = late_daemon().await;
@@ -709,7 +711,8 @@ fn the_slow_daemon_holds_its_auth_answer_and_the_late_daemon_refuses_upgrades_un
         late.up();
         let (mut ws, _) = tokio_tungstenite::connect_async(late.url()).await.expect("a socket");
         ws.send(Message::text(json!({ "id": 3, "op": "auth", "token": "t" }).to_string())).await.expect("a send");
-        let ok: serde_json::Value = serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
+        let ok: serde_json::Value =
+            serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
         assert_eq!(ok, json!({ "id": 3, "ok": true }));
         assert_eq!(late.dials(), 2);
     });
