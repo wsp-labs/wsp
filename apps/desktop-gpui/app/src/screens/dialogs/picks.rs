@@ -121,6 +121,11 @@ impl PickListState {
         self.order.read(cx).value().copied().unwrap_or(Order::Name)
     }
 
+    /// Opens the order's list, as a press on its select does.
+    pub fn open_order(&mut self, cx: &mut Context<Self>) {
+        self.order.update(cx, |s, cx| s.set_open(true, cx));
+    }
+
     /// Picks the order, as the select does: Ticked first takes the rows as they stand now.
     pub fn set_order(&mut self, order: Order, items: &[PickItem], cx: &mut Context<Self>) {
         let was = self.order(cx);

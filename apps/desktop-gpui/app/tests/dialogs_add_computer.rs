@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 
 use desktop_gpui::screens::dialogs::add_computer::model::{self, AddStep};
 use desktop_gpui::screens::dialogs::add_computer::{self, AddComputer, KEEP_AFTER, OUTPUT_EVERY};
-use desktop_gpui::screens::dialogs::picks::{PickItem, PickListState};
+use desktop_gpui::screens::dialogs::picks::{Order, PickItem, PickListState};
 use desktop_gpui::screens::dialogs::sign_in;
 use desktop_gpui::screens::dialogs::{layer, ADD_COMPUTER};
 use desktop_gpui::screens::Host;
@@ -217,6 +217,70 @@ fn picks_are_kept_400_ms_after_the_last_change_and_once_for_a_burst(cx: &mut Tes
     assert_eq!(writes.len(), 1, "a burst of ticks is one write");
     assert_eq!(writes[0].0, "p_box");
     assert!(writes[0].1["clis"]["duckdb"].is_object(), "the write holds the picks as they last stood");
+}
+
+/// Rests the pointer on the one select drawn on the step and presses it open, then picks its second item with a
+/// press or, `keys`, with Down and Return.
+fn pick_second(cx: &mut VisualTestContext, what: &str, keys: bool) {
+    let trigger = cx.debug_bounds("select").unwrap_or_else(|| panic!("{what}'s select stands"));
+    cx.simulate_mouse_move(trigger.center(), None, Modifiers::none());
+    cx.executor().advance_clock(Duration::from_secs(1));
+    cx.run_until_parked();
+    cx.simulate_click(trigger.center(), Modifiers::none());
+    cx.run_until_parked();
+    let list = cx.debug_bounds("select-list").unwrap_or_else(|| panic!("{what}'s list opened"));
+    if keys {
+        cx.simulate_keystrokes("down");
+        cx.run_until_parked();
+        cx.simulate_keystrokes("enter");
+    } else {
+        // The list's edge and pad, then the middle of its second 28 px item.
+        cx.simulate_click(point(list.center().x, list.origin.y + px(1. + 4. + 28. + 14.)), Modifiers::none());
+    }
+    cx.run_until_parked();
+    assert!(cx.debug_bounds("select-list").is_none(), "picking an item closes {what}'s list");
+}
+
+/// Catches: the Agents step's selects, its order and each agent's sign-in, opening on a press and never keeping a pick.
+#[gpui_kit::test]
+fn the_agents_steps_selects_open_and_keep_a_pick(cx: &mut TestAppContext) {
+    let cx = window(cx);
+    let dialog = opened(cx);
+    let mut options = computer::options();
+    options["agents"][0]["signins"] = json!(["machine", "key", "token"]);
+    options["agents"][1]["signins"] = json!(["vault", "machine"]);
+    let mut picks = computer::picks();
+    picks["agents"] = json!({});
+    dialog.update(cx, |d, cx| {
+        d.take_places(vec![computer::here(), computer::joined(None, json!([]))], vec![], vec![], cx);
+        d.take_options(options, cx);
+        d.stage(AddStep::Agents, computer::BOX, Some(computer::job("done", json!([]))), Some("p_box"), Some(picks.clone()), cx);
+    });
+    cx.run_until_parked();
+    // With no agent ticked, the order is the step's one select; As found, then Name.
+    pick_second(cx, "the order", false);
+    let list = read(&dialog, cx, |d, _| d.list_state(add_computer::List::Agents));
+    assert_eq!(cx.read(|cx| list.read(cx).order(cx)), Order::Name, "the order keeps Name");
+
+    picks["agents"] = json!({ "claude": { "signin": "machine" } });
+    dialog.update(cx, |d, cx| d.set_picks(picks.clone(), None, cx));
+    cx.run_until_parked();
+    pick_second(cx, "Claude Code's sign-in", false);
+    let way = |cx: &mut VisualTestContext, agent: &str| read(&dialog, cx, |d, _| d.picks().unwrap()["agents"][agent]["signin"].clone());
+    assert_eq!(way(cx, "claude"), "key", "Claude Code keeps Use an API key");
+
+    let mut picks = read(&dialog, cx, |d, _| d.picks().unwrap().clone());
+    picks["agents"]["codex"] = json!({ "signin": "vault" });
+    picks["agents"].as_object_mut().unwrap().remove("claude");
+    dialog.update(cx, |d, cx| d.set_picks(picks, None, cx));
+    cx.run_until_parked();
+    pick_second(cx, "Codex's sign-in", true);
+    assert_eq!(way(cx, "codex"), "machine", "Codex keeps Sign in on lab-box");
+
+    cx.executor().advance_clock(KEEP_AFTER + Duration::from_millis(10));
+    cx.run_until_parked();
+    let kept = read(&dialog, cx, |d, _| d.writes().last().map(|w| w.1.clone())).expect("the picks were written");
+    assert_eq!(kept["agents"]["codex"]["signin"], "machine", "the computer's picks, which a saved recipe is read from, hold it: {kept}");
 }
 
 #[gpui_kit::test]

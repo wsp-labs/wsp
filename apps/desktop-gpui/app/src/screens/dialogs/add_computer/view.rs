@@ -249,15 +249,18 @@ impl AddComputer {
                 .map(str::to_owned)
                 .unwrap_or_else(|| ways[0].clone());
             let kind = str_of(a, "kind").map(str::to_owned);
-            let items: Vec<SelectItem<String>> =
-                ways.iter().map(|w| SelectItem::new(w.clone(), sign_in_word(w, &name, kind.as_deref()))).collect();
-            let state = self.ways.entry(id.clone()).or_insert_with(|| cx.new(|_| SelectState::new(Vec::new(), None))).clone();
-            state.update(cx, |s, cx| {
-                s.set_items(items, cx);
-                if s.value() != Some(&way) {
-                    s.set_value(Some(&way), cx);
-                }
-            });
+            let words: Vec<String> = ways.iter().map(|w| sign_in_word(w, &name, kind.as_deref())).collect();
+            let (state, seen) = self.ways.entry(id.clone()).or_insert_with(|| (cx.new(|_| SelectState::new(Vec::new(), None)), Vec::new()));
+            let state = state.clone();
+            // New items close the cursor and redraw, so they go in only when their words move.
+            if *seen != words {
+                let items = ways.iter().zip(&words).map(|(w, said)| SelectItem::new(w.clone(), said.clone())).collect();
+                *seen = words;
+                state.update(cx, |s, cx| s.set_items(items, cx));
+            }
+            if state.read(cx).value() != Some(&way) {
+                state.update(cx, |s, cx| s.set_value(Some(&way), cx));
+            }
             let weak = cx.entity().downgrade();
             let agent = id.clone();
             selects.insert(

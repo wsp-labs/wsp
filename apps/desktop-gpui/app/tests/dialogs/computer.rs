@@ -158,7 +158,7 @@ pub fn open(
     add_computer::staged(window, cx, f)
 }
 
-fn on_picks(this: &mut AddComputer, step: AddStep, cx: &mut Context<AddComputer>) {
+pub fn on_picks(this: &mut AddComputer, step: AddStep, cx: &mut Context<AddComputer>) {
     this.take_places(vec![here(), joined(None, json!([]))], vec![], vec![], cx);
     this.take_projects(projects(), cx);
     this.take_options(options(), cx);
