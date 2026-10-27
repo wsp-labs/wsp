@@ -549,7 +549,7 @@ fn off_still_leaves_a_long_pause_backstop_so_a_crashed_runtime_stops_billing() {
         let t = test_runtime(None, 20 * 60_000);
         create_on(&t.fx.rt, CreateOn { idle_window_ms: IdleWindow::Off, ..GOLDEN("a") }, None).await.expect("a workspace");
         assert_matches(&j(&t.backend.machine(0).spec_now()), json!({ "onIdle": "pause", "idleTimeoutMs": IDLE_OFF_BACKSTOP_MS }));
-        assert!(IDLE_OFF_BACKSTOP_MS >= 60 * 60_000);
+        assert!(std::hint::black_box(IDLE_OFF_BACKSTOP_MS) >= 60 * 60_000);
         t.fx.rt.close().await.expect("a close");
     });
 }

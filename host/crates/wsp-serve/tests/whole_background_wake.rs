@@ -157,7 +157,7 @@ fn local_runtime(script: impl FnOnce(&str) -> String, idle_ms: Option<f64>) -> L
 }
 
 async fn replies(l: &Local, ws: &str) -> Vec<Value> {
-    l.fx.rt.sessions().history(ws, None).await.expect("a history").iter().map(|e| j(e)).filter(|e| e["type"] == "session.done").collect()
+    l.fx.rt.sessions().history(ws, None).await.expect("a history").iter().map(j).filter(|e| e["type"] == "session.done").collect()
 }
 
 async fn first_status(l: &Local, ws: &str) -> String {
