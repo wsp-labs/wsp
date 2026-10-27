@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+[package]
+name = "wsp"
+version = "0.0.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false
+description = "The wsp binary: main over wsp-host's entry"
+
+[[bin]]
+name = "wsp"
+path = "src/main.rs"
+
+[dependencies]
+wsp-host = { path = "../wsp-host" }
+
+[dev-dependencies]
+libc = "0.2"
+serde_json = { version = "1", features = ["preserve_order"] }
+tempfile = "3"
+tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
