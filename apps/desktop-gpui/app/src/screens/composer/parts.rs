@@ -6,7 +6,7 @@
 use gpui_kit::component::input::InlineTokenContext;
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable as _};
 use gpui_kit::{
-    div, img, point, prelude::*, px, svg, AnyElement, App, BoxShadow, Context, Div, FontWeight, Hsla, Pixels, SharedString, Stateful,
+    div, img, point, prelude::*, px, svg, AnyElement, App, BoxShadow, Context, Div, FontWeight, Hsla, Pixels, Role, SharedString, Stateful,
 };
 
 use super::model::{self, Layout};
@@ -259,12 +259,22 @@ pub fn actions(c: &Composer, shut: bool, cx: &mut Context<Composer>) -> AnyEleme
     };
     // `size-9 sm:size-8`; the stop alone keeps 32 px at every width (`size-8 sm:h-8 sm:w-8`).
     let send_size = if c.narrow { px(36.) } else { px(32.) };
-    let circle = |id: &'static str, size: Pixels| {
-        h_flex().id(id).debug_selector(move || id.into()).relative().flex_none().justify_center().size(size).rounded_full()
+    // The web's aria-labels, which also name the buttons to an accessibility client and to gpui-agent.
+    let circle = |id: &'static str, label: &'static str, size: Pixels| {
+        h_flex()
+            .id(id)
+            .debug_selector(move || id.into())
+            .role(Role::Button)
+            .aria_label(label)
+            .relative()
+            .flex_none()
+            .justify_center()
+            .size(size)
+            .rounded_full()
     };
     let main = if c.running {
         let stopping = c.stopping;
-        circle("composer-stop", px(32.))
+        circle("composer-stop", "Stop generation", px(32.))
             .bg(p.destructive.opacity(0.9))
             .shadow(vec![BoxShadow { color: p.destructive.opacity(0.24), ..lift[0].clone() }])
             .child(light(p.button_light))
@@ -290,7 +300,7 @@ pub fn actions(c: &Composer, shut: bool, cx: &mut Context<Composer>) -> AnyEleme
         match c.send_held(cx) {
             Some(words) => {
                 let words = SharedString::from(words);
-                circle("composer-send", send_size)
+                circle("composer-send", "Send message", send_size)
                     .border_1()
                     .border_color(p.input)
                     .bg(p.input_fill)
@@ -335,7 +345,7 @@ pub fn actions(c: &Composer, shut: bool, cx: &mut Context<Composer>) -> AnyEleme
                     }
                 })
                 .into_any_element(),
-            None => circle("composer-send", send_size)
+            None => circle("composer-send", "Send message", send_size)
                 .bg(fill)
                 .when(!empty, |el| el.shadow(lift.clone()).child(light(p.button_light)))
                 .child(arrow(p.background))

@@ -1,0 +1,20 @@
+diff --git a/crates/base/src/styled.rs b/crates/base/src/styled.rs
+index 1b8f784..f259ec9 100644
+--- a/crates/base/src/styled.rs
++++ b/crates/base/src/styled.rs
+@@ -35,6 +35,7 @@ impl From<Option<Role>> for RoleOverride {
+ ///
+ /// See [`StyledExt::h_flex`] for the cross-axis rule, which is not symmetric
+ /// with [`v_flex`].
++#[track_caller]
+ pub fn h_flex() -> Div {
+     div().h_flex()
+ }
+@@ -43,6 +44,7 @@ pub fn h_flex() -> Div {
+ ///
+ /// See [`StyledExt::v_flex`] for the cross-axis rule, which is not symmetric
+ /// with [`h_flex`].
++#[track_caller]
+ pub fn v_flex() -> Div {
+     div().v_flex()
+ }

@@ -46,12 +46,12 @@ Locked on 2026-10-17. In short:
 8. Rollout like Cap: a switch in Settings, Experimental, and a cutover only at
    full parity.
 
-## The GPUI base
+## The fork
 
-**gpui-kit on the GPUI version it pins.** The versions below are recorded in
+**gpui-kit on the GPUI version it pins.** The versions are recorded in
 [app/Cargo.toml](../../../apps/desktop-gpui/app/Cargo.toml), `kit_rev` in
-`gpui-patches.sh`, and the `[patch]` paths in Cargo.toml. Update this section
-when those versions change:
+`gpui-patches.sh`, and the `[patch]` paths in Cargo.toml. Update this
+section when those versions change:
 
 - gpui-kit `14f59330a4aa0cb5becf140e067d64a616328612` (0.7.3, 2026-10-17), a git
   dependency with `tree-sitter-languages`, and `test-support` under
@@ -195,7 +195,7 @@ Webviews under GPUI overlays upstream are still an open PR
 
 **No stable GPUI release.** crates.io's `gpui` stops at 0.2.2, published
 2025-10-22 ([crates.io](https://crates.io/crates/gpui)); gpui-kit, and so wsp,
-pins a published snapshot, `gpui-pre` `=0.3.9` (The GPUI base);
+pins a published snapshot, `gpui-pre` `=0.3.9` (The fork);
 Cap pins a commit of wingleeio/zed
 ([Cap Cargo.toml](https://github.com/CapSoftware/Cap/blob/main/apps/desktop-gpui/Cargo.toml)).
 Upgrades change behavior without saying so: one app's input lag went from
@@ -215,7 +215,7 @@ is open ([#43273](https://github.com/zed-industries/zed/issues/43273),
 [gpui-projects#10](https://github.com/mikayla-maki/gpui-projects/issues/10)).
 Cap shipped without its header's backdrop blur because its pinned rev has no
 hook for it (Cap README, "No header backdrop filter"). wsp patches in its own
-(The GPUI base).
+(The fork).
 
 **Keys in a text field.** GPUI matches key bindings before the platform's input
 method sees a key, so every chord in a field must be a bound action in the
@@ -288,6 +288,10 @@ where a screen stands. Adapted from jayjay's gpui-parity-audit
 6. **Report the table.** An audit is findings only. Close gaps only when that is
    the task, with a test per state the fix touches.
 
+## Seeing and pressing the app: gpui-agent
+
+Every proof and live check of a GPUI screen drives the app with `gpui-agent`: a fix's proof, a parity row, a release check, any "does this screen work" question. Build a dev build with the `agent` feature (`cargo build -p desktop-gpui --features agent`), start it on a Linux box against a throwaway host with `gpui-agent launch --headless -- <app> --state <state>`, which gives the session its own Xvfb, then snapshot, press, type, wait and screenshot through it. Never on the owner's screen. `gpui-agent skills get core` prints its guide for the installed version. Offscreen tests (`HeadlessAppContext::capture_screenshot`) stay where a test checks pixels inside the suite.
+
 ## The mockup and screenshot loop
 
 Adapted from herdr-gpui's gpui-mockup (linked in [references/reading.md](references/reading.md)), which writes design
@@ -334,7 +338,7 @@ to an image with no display
 ([headless_app_context.rs](https://github.com/zed-industries/zed/blob/main/crates/gpui/src/app/headless_app_context.rs)).
 On our pin it runs on WGPU on Linux
 ([test.md](../gpui-kit/references/gpui/test.md), Assertion boundaries), and
-gpui-kit's pixel tests passed on Linux that way (The GPUI base). Run them with
+gpui-kit's pixel tests passed on Linux that way (The fork). Run them with
 `cargo test -p gpui-kit --features test-support --test rendering --locked`
 ([TESTING.md lines 191-198](https://github.com/longbridge/gpui-kit/blob/14f59330a4aa0cb5becf140e067d64a616328612/crates/kit/TESTING.md#L191-L198)).
 
@@ -378,6 +382,6 @@ only when the build passes, like Cap's `dev.sh` (Cap README, The dev loop).
 Measured on our pin: a rebuild after editing three files of `app/src` took 4.4 s.
 
 Keep cargo's output on screen (`| tee`, never a bare redirect) and every wait over a minute printing, or the turn can be cut or the machine paused. Never share `CARGO_TARGET_DIR` across worktrees: cargo knows `vendor/`'s path crates by their path in the workspace and judges freshness by file times, so one worktree's patched crates build in another as Fresh.
-Once `apps/desktop-gpui/scripts/ghostty.sh` exists, install Zig 0.16.0 and run it before cargo. Run tests with `cargo test`, `#[gpui_kit::test]` at our pin (The GPUI base).
+Once `apps/desktop-gpui/scripts/ghostty.sh` exists, install Zig 0.16.0 and run it before cargo. Run tests with `cargo test`, `#[gpui_kit::test]` at our pin (The fork).
 Benchmarks follow Zed's gpui-bench rules: no `test-support` feature, a hard
 timeout, never two measured runs at once (linked in [references/reading.md](references/reading.md)).

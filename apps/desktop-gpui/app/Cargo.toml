@@ -40,6 +40,11 @@ ureq = { version = "3", default-features = false, features = ["rustls"] }
 url = "2"
 # The heap-profile feature's sampled call stacks (src/heap.rs); off in every build the app ships.
 backtrace = { version = "0.3", optional = true }
+# The agent feature's driver (src/agent.rs) and the GPUI it needs, with test-support for screenshots; off in every build
+# the app ships.
+gpui-agent = { git = "https://github.com/wsp-labs/gpui-agent", rev = "c9b8b6328877755685e1233b3770f78a68f2a5d1", default-features = false, features = ["gpui-pre-0-3-9"], optional = true }
+gpui-pre = { version = "=0.3.9", features = ["test-support"], optional = true }
+gpui-pre-platform = { version = "=0.3.9", features = ["test-support"], optional = true }
 
 [features]
 default = ["cloud"]
@@ -47,6 +52,8 @@ default = ["cloud"]
 cloud = []
 # A counting, sampling allocator for memory readings (src/heap.rs, bench/session.sh), off by default.
 heap-profile = ["dep:backtrace"]
+# gpui-agent's socket, for seeing and driving a dev build (src/agent.rs), off by default.
+agent = ["dep:gpui-agent", "dep:gpui-pre", "dep:gpui-pre-platform"]
 
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
 # The browser pane's page: WKWebView on the Mac, WebKitGTK on Linux, as a child of GPUI's window. 0.53 is the last
@@ -190,6 +197,10 @@ harness = false
 [[test]]
 name = "sidebar_open_row"
 harness = false
+
+[[test]]
+name = "agent_drive"
+required-features = ["agent"]
 
 [lints.rust]
 # objc's msg_send! tests a cargo-clippy feature inside this crate.

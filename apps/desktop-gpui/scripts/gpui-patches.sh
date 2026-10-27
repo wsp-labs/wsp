@@ -7,7 +7,7 @@
 # zoom), kept as diffs per crate or
 # repository in patches/
 # and applied to fresh copies in vendor/, which the [patch] tables in Cargo.toml point at. A folder's diffs are
-# patches/<folder>.patch, then any patches/<folder>.<topic>.patch in name order; one folder's diffs touch different files.
+# patches/<folder>.patch, then any patches/<folder>.<topic>.patch in name order, each over the ones before it.
 #   apply  unpack each pinned .crate (checksum-verified) and gpui-kit's commit into vendor/ and apply each patch; run after a fresh clone
 #          and after a pull that changes patches/ (vendor/.applied keeps the patches it applied, for dev.sh to compare)
 #   save   rewrite patches/ from your edits under vendor/; save patches/<folder>.<topic>.patch writes that folder's
@@ -105,18 +105,29 @@ folders() {
   echo "$kit"
 }
 
-# Applies the diffs for the folder $2 to its fresh copy $1, every one but $3.
+# The diffs for the folder $1 in the order they apply, with $2 among them even before it is written.
+ordered() {
+  echo "patches/$1.patch"
+  for file in "patches/$1".*.patch ${2:-}; do
+    case $file in "patches/$1".*.patch) [ -e "$file" ] || [ "$file" = "${2:-}" ] && echo "$file" ;; esac
+  done | sort -u
+}
+
+# Applies the diff $3 to the copy $1 of the folder $2, or takes it back out with -R as $4.
+apply_diff() {
+  [ -s "$3" ] || return 0
+  # Under a git worktree (a TMPDIR inside one), git apply skips every path outside it and still succeeds.
+  (cd "$1" && GIT_CEILING_DIRECTORIES="$(dirname "$1")" git apply -p1 --whitespace=nowarn ${4:+"$4"} "$root/$3") || {
+    echo "refused: $3 no longer applies to $2" >&2
+    exit 1
+  }
+}
+
+# Applies the diffs for the folder $2 to its fresh copy $1.
 patch_into() {
   local file
   [ -f "patches/$2.patch" ] || { echo "refused: patches/$2.patch is missing" >&2; exit 1; }
-  for file in "patches/$2.patch" "patches/$2".*.patch; do
-    if [ ! -s "$file" ] || [ "$file" = "${3:-}" ]; then continue; fi
-    # Under a git worktree (a TMPDIR inside one), git apply skips every path outside it and still succeeds.
-    (cd "$1" && GIT_CEILING_DIRECTORIES="$(dirname "$1")" git apply -p1 --whitespace=nowarn "$root/$file") || {
-      echo "refused: $file no longer applies to $2" >&2
-      exit 1
-    }
-  done
+  for file in $(ordered "$2"); do apply_diff "$1" "$2" "$file"; done
 }
 
 # Unpacks fresh, patched copies of every crate into $1.
@@ -176,8 +187,13 @@ case "${1:-}" in
       [ "$dir" = "$kit" ] && name=$kit
       out=patches/$dir.patch
       case ${2:-} in "patches/$dir".*.patch) out=$2 ;; esac
-      patch_into "$scratch/$name/a" "$dir" "$out"
+      # $out is the diff from the ones before it applied to a fresh copy to vendor/ with the ones after it taken out.
+      later=
+      for file in $(ordered "$dir" "$out"); do
+        if [ "$file" = "$out" ]; then later=" "; elif [ -z "$later" ]; then apply_diff "$scratch/$name/a" "$dir" "$file"; else later="$file $later"; fi
+      done
       cp -R "vendor/$dir" "$scratch/$name/b"
+      for file in $later; do apply_diff "$scratch/$name/b" "$dir" "$file" -R; done
       rm -rf "$scratch/$name/b/vendor/gpui" "$scratch/$name/a/vendor/gpui"
       find "$scratch/$name" -name target -prune -exec rm -rf {} + -o -name .DS_Store -exec rm -f {} +
       (cd "$scratch/$name" && git diff --no-index --no-color --no-ext-diff --no-prefix a b >"$root/$out") || true
