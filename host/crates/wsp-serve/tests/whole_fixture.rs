@@ -553,3 +553,65 @@ fn create_on_hands_the_agents_to_the_create() {
         assert_eq!(view["agents"]["maxDepth"], 3);
     });
 }
+
+// rewind.test.ts:53 `fakeDaemon({ unreached })` and the `open` that rejects with a door's refusal: a dial refused, a send that
+// never reaches the daemon and so keeps no frame.
+#[test]
+fn a_recording_daemon_refuses_dials_and_fails_sends_where_a_test_says() {
+    use wsp_core::daemon_channel::{ChannelError, DaemonChannelOptions, DaemonDoorError};
+    drive(|| async {
+        let daemon = RecDaemon::new(|_| json!({ "ok": true }));
+        let door = Rc::new(std::cell::Cell::new(true));
+        let shut = door.clone();
+        daemon.refusing_dials(move || {
+            shut.get().then(|| {
+                let mut door = wsp_words::exit::HostError::with_kind(DaemonDoorError::new(302, "").message, wsp_words::exit::Kind::Refused);
+                door.status = Some(302.0);
+                door
+            })
+        });
+        let dial = || DaemonChannelOptions {
+            url: "http://127.0.0.1:9".into(),
+            token: "tok".into(),
+            on_event: Rc::new(|_| {}),
+            connect_timeout_ms: None,
+            clock: None,
+        };
+        let open = daemon.open();
+        let refused = open(dial()).await.err().expect("a refusal");
+        assert_eq!(refused.message, "the connection was refused with 302");
+        assert_eq!(refused.status, Some(302.0));
+        assert!(daemon.dials.borrow().is_empty());
+        door.set(false);
+        let channel = open(dial()).await.expect("a channel");
+        let down = Rc::new(std::cell::Cell::new(true));
+        let stopped = down.clone();
+        daemon.failing_sends(move || stopped.get().then(|| ChannelError::Refused { message: "Sandbox machine is not running.".into() }));
+        let failed = channel.send(json!({ "op": "git.push" }).as_object().cloned().expect("an object")).await.err().expect("a failure");
+        assert_eq!(failed.to_string(), "Sandbox machine is not running.");
+        assert!(daemon.frames.borrow().is_empty());
+        down.set(false);
+        channel.send(json!({ "op": "git.push" }).as_object().cloned().expect("an object")).await.expect("a reply");
+        assert_eq!(daemon.ops(), ["git.push"]);
+    });
+}
+
+// sqlite-transcripts.test.ts:233, :341 and :462: a store that keeps the collection of each blob written, counts the reads of a
+// folder's rows and of a thread's words, and fails the folder read where a test says.
+#[test]
+fn a_watched_store_counts_the_reads_of_its_rows_and_keeps_each_blob_collection() {
+    drive(|| async {
+        let state = sqlite_state();
+        let watched = Watched::over(&state.store);
+        let store = watched.store();
+        store.put_blob("vaults", "a", vec![1]).await.expect("a blob");
+        assert_eq!(*watched.blobs.borrow(), ["vaults"]);
+        let rows = store.transcripts().expect("rows");
+        rows.all("w").expect("rows");
+        rows.word_events("w", "t").expect("rows");
+        assert_eq!((watched.rows.folder_reads.get(), watched.rows.word_reads.get()), (1, 1));
+        watched.rows.fail_all.set(true);
+        assert_eq!(rows.all("w").err().expect("a failure").message, "disk I/O error");
+        assert_eq!(watched.rows.folder_reads.get(), 2);
+    });
+}
