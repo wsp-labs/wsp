@@ -165,6 +165,9 @@ export function placeSetup(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea) 
    * runs installing over each other. A computer is in here from before its picks are planned, which is a read of
    * this whole computer, until the job ends. */
   const setting = new Set<string>();
+  /** The base tools going on a computer that joined with nothing picked, by place id, until they end: a setup there
+   * waits for them, since a second run beside them fails on the package manager's lock. */
+  const flooring = new Map<string, Promise<void>>();
   /** The computers a sync to their recipe is going on: one at a time per computer, apart from the setups above, since
    * a sync moves rows on a computer already set up and never stands in the way of a thread there. */
   const syncing = new Set<string>();
@@ -834,7 +837,10 @@ export function placeSetup(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea) 
         const stores = s === "mcp" ? await storesHere() : undefined;
         return ours(await provisioner.step(machine, plan, s, run, stageOf(s), { home, held: new Set(Object.keys(serverValuesOf(vault()))), ...(stores !== undefined ? { stores } : {}) }));
       };
-      const floor = await step("floor", engine("floor"));
+      const floor = await step("floor", async () => {
+        await flooring.get(placeId)?.catch(() => undefined);
+        return await engine("floor")();
+      });
       if (floor?.failed === true) return await end(floorFailedLine(floor.rows));
       let stopped: string | undefined;
       const installs = new Set(plan.steps.slice(0, plan.agents).map(s => s.id));
@@ -1099,7 +1105,7 @@ export function placeSetup(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea) 
   });
 
   return {
-    channels, waiting, closedAt, woken, setting, syncing, skippers, landers, here, settingNow, foldersOf, recipesMoved, syncFrame,
+    channels, waiting, closedAt, woken, setting, flooring, syncing, skippers, landers, here, settingNow, foldersOf, recipesMoved, syncFrame,
     setupFrame, startSetup, syncTimers, syncOf, markSync, syncSoon, startedOrSaid, linkTo,
   };
 }
