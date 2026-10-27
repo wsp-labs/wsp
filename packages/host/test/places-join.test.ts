@@ -18,7 +18,7 @@ import { apparmorStep, apparmorStoodLine, joinedPlace, placeFoundSkippedLine, pl
 import { PLACE_FOUND_END, placeCgroupStandsLine, threadCgroupsEndScript, placeOutsideLeftLine, placeOwnersUnknownLine, TOOL_PREFIX } from "@wsp/protocol";
 import { pinnedDroppingPort } from "../../runtime/test/held-port.js";
 import { NOTHING_TO_LEAVE_LINE, brokenJoinLine, brokenPlaceLeftLine, joinCutByLeaveLine, joinCommand } from "../src/places.js";
-import { mountsUnder, placeFilePath, placeKeyPath, placeLogPath, readPlaceFile, sweepCgroups, sweepRuntime, sweptLine, sweptSaid, writePlaceFile } from "../src/place-report.js";
+import { mountsUnder, placeFilePath, placeKeyPath, placeLogPath, readPlaceFile, sweepCgroups, sweepPlace as sweepPlaceWithin, sweepRuntime, sweptLine, sweptSaid, writePlaceFile } from "../src/place-report.js";
 import { captured } from "./verbs-fixture.js";
 import { SERVICE_MANAGERS, type ServiceAddress, type ServiceRunner } from "../src/service.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
@@ -979,6 +979,21 @@ describe("taking wsp off the computer it is typed on", () => {
     expect(swept.removed).toEqual(expect.arrayContaining([join(system, "usr/local/bin/claude"), join(system, "usr/local/bin/gopls"), tools.prefix]));
     expect(readdirSync(join(system, "usr/local/bin"))).toEqual(["jq"]);
     expect(existsSync(tools.prefix)).toBe(false);
+  });
+
+  it("refuses a leave that names a path outside the folder it is held to, before it takes anything", async () => {
+    const held = tmp("leave-held");
+    addFoundNothing(held);
+    const machine = realpathSync(tmp("leave-machine"));
+    mkdirSync(join(machine, "opt-wsp"), { recursive: true });
+    writeFileSync(join(machine, "opt-wsp/kept"), "kept\n");
+    const tools = { prefix: join(machine, "opt-wsp"), links: join(held, "usr-local-bin") };
+    const held_ = { home: held, manager: undefined, run: fakeRunner().run, uid: 0, within: held, apparmorProfile: join(held, "profile"), systemRoot: held };
+    await expect(sweepPlaceWithin({ ...held_, tools })).rejects.toThrow(`nothing was removed: ${tools.prefix} is outside ${held}`);
+    await expect(sweepPlaceWithin({ ...held_, tools: toolsUnder(held), runtimeRoot: join(machine, "wsp") })).rejects.toThrow(`nothing was removed: ${join(machine, "wsp")} is outside ${held}`);
+    await expect(sweepPlaceWithin({ ...held_, tools: toolsUnder(held), systemRoot: undefined })).rejects.toThrow("nothing was removed: / is outside");
+    expect(readFileSync(join(machine, "opt-wsp/kept"), "utf8")).toBe("kept\n");
+    expect(existsSync(placeDaemonPaths(held).placeFound)).toBe(true);
   });
 
   it("keeps wsp's install folder and its list when the leave outside the home was cut short, and says so", async () => {

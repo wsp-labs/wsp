@@ -23,6 +23,9 @@ pub(crate) fn leave_here(
     force: bool,
     projects: &[String],
 ) -> Result<Vec<String>, String> {
+    if let Some(path) = outside_the_root(install, &[home, profile, runtime]) {
+        return Err(format!("nothing was removed: {} is outside {install}, the folder this leave was given", path.display()));
+    }
     let found = super::place_found(home);
     if leave_takes_runtime(found.as_ref(), runtime) && !force {
         let unsaved = unsaved_under(runtime).unwrap_or_else(|_| vec![words::place_unread(runtime.display())]);
@@ -44,6 +47,17 @@ pub(crate) fn leave_here(
         ));
     }
     Ok(swept)
+}
+
+/// The first of the paths a leave was handed that lies outside `install`, the folder /usr/local, /opt and /etc sit under;
+/// empty is this computer's own /, which holds every path. The paths the leave makes from the root are under it by their
+/// making, so only these three, which the caller names, can stray.
+fn outside_the_root<'a>(install: &str, named: &[&'a Path]) -> Option<&'a Path> {
+    if install.is_empty() {
+        return None;
+    }
+    let root = Path::new(install);
+    named.iter().copied().find(|path| !path.starts_with(root) || path.components().any(|part| part == std::path::Component::ParentDir))
 }
 
 /// Whether a leave here takes the runtime's folder whole: only root's can, and only with the add's whole record naming
@@ -295,6 +309,36 @@ pub(super) mod tests {
             leave_here(home.path(), &home.path().join("wsp-workspace"), &home.path().to_string_lossy(), &runtime, false, &[]).unwrap();
         assert!(swept.contains(&words::place_line_out(&line, file.display())), "{swept:?}");
         assert_eq!(std::fs::read_to_string(&file).unwrap(), "export EDITOR=vim\n");
+    }
+
+    #[test]
+    fn a_leave_refuses_a_home_profile_or_runtime_folder_outside_its_root_and_removes_nothing() {
+        let root = tempfile::tempdir().unwrap();
+        let machine = tempfile::tempdir().unwrap();
+        let held = |dir: &Path| {
+            std::fs::create_dir_all(dir).unwrap();
+            std::fs::write(dir.join("kept"), "kept\n").unwrap();
+            dir.to_path_buf()
+        };
+        let (home, profile, runtime) = (held(&root.path().join("home")), held(&root.path().join("etc")), held(&root.path().join("wsp")));
+        let (far_home, far_profile, far_runtime) =
+            (held(&machine.path().join("home")), held(&machine.path().join("etc")), held(&machine.path().join("wsp")));
+        let climbing = root.path().join("home/../../elsewhere");
+        let install = root.path().to_string_lossy().into_owned();
+        let named: [(&Path, [&Path; 3]); 4] = [
+            (&far_home, [&far_home, &profile, &runtime]),
+            (&far_profile, [&home, &far_profile, &runtime]),
+            (&far_runtime, [&home, &profile, &far_runtime]),
+            (&climbing, [&home, &profile, &climbing]),
+        ];
+        for (stray, [home, profile, runtime]) in named {
+            let said = leave_here(home, profile, &install, runtime, true, &[]).unwrap_err();
+            assert!(said.starts_with("nothing was removed: ") && said.contains(&stray.display().to_string()), "{said}");
+        }
+        for dir in [&home, &profile, &runtime, &far_home, &far_profile, &far_runtime] {
+            assert!(dir.join("kept").exists(), "a refused leave removed under {}", dir.display());
+        }
+        assert!(leave_here(&home, &profile, &install, &runtime, true, &[]).is_ok());
     }
 
     #[test]

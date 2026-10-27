@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket, { WebSocketServer } from "ws";
-import { DAEMON_VERSION, NO_PLACE_FILE_LINE, NOT_ON_THIS_ROAD, PLACE_UNKNOWN_REFUSAL, PlaceProveRequest, PlaceReport, hostKeyRefusal, hostQuietLine, linkedLine, placeDaemonPaths, placeLinkTranscript, shellQuote, unknownOpLine, type PlaceFile } from "@wsp/protocol";
+import { DAEMON_VERSION, NO_PLACE_FILE_LINE, NOT_ON_THIS_ROAD, PLACE_UNKNOWN_REFUSAL, PlaceProveRequest, PlaceReport, hostKeyRefusal, hostQuietLine, linkedLine, placeDaemonPaths, placeLinkTranscript, placeOwnersUnknownLine, shellQuote, unknownOpLine, type PlaceFile } from "@wsp/protocol";
 import { freshEphemeral, makeSeal, sealKeys, sharedSecret, type Seal } from "@wsp/runtime";
 import { closeFakePlaceHosts, fakePlaceHost, listening, placePair, settled, writePlaceFile } from "./fake-place-host.js";
 import { daemonUnderTest, type DaemonUnderTest, type DaemonUnderTestArgs } from "./harness.js";
@@ -357,7 +357,10 @@ describe("the socket a place proved, served as an inbound one", () => {
     // The door's wsp and the docker beside it are written on Linux alone.
     const shim = process.platform === "linux" ? [`${at.guestBin}/wsp`, `${at.guestBin}/docker`, at.guestBin] : [];
     const swept = [at.placeFile, at.placeKey, at.tokenPath, at.guestSocket, ...shim, at.wsp];
-    expect(answer).toMatchObject({ ok: true, swept });
+    // Run as root, the leave also reads the folder under the case's root where the daemon keeps its workspaces, which it
+    // opened at its start, and says it stands since no record of the add names it.
+    const stands = process.platform === "linux" && process.getuid?.() === 0 ? [placeOwnersUnknownLine([join(place.home, "wsp")])] : [];
+    expect(answer).toMatchObject({ ok: true, swept: [...swept, ...stands] });
     for (const path of swept) expect(existsSync(path)).toBe(false);
     // The process ends after the reply is on the wire, and nothing dials again: the sweep took what would bring it back.
     await Promise.race([d.exited, settled(5_000).then(() => Promise.reject(new Error("the daemon did not end after the leave")))]);
