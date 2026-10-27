@@ -224,7 +224,7 @@ impl SessionsArea {
         }
         let built = self.ctx.launch_adapter_for(&entry, &harness, None).await?;
         if harness_catalog(&built.harness).is_some() {
-            let catalog = self.ctx.catalog_on(&built.harness, &entry, &*built.adapter).await?;
+            let catalog = self.ctx.catalog_on(&built.harness, &entry, built.adapter.clone()).await?;
             let picks = StartPicks { permission_mode: Some(permission_mode.to_string()), ..StartPicks::default() };
             start_picks(catalog.as_ref(), &picks, false, None).map_err(|e| {
                 let kind = if e.kind == "invalid" { Kind::Invalid } else { Kind::Usage };

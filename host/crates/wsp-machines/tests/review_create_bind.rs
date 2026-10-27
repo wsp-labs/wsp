@@ -19,7 +19,7 @@ use wsp_core::types::pending::Clock;
 use wsp_core::types::wiring::{StageReport, WorkspaceRecord};
 use wsp_engine::machine::{Machine, MachineBackend};
 use wsp_machines::machines::create::{
-    CreateArea, CreateRuntime, KeptBuilder, LandingRoad, RecordBranchAsk,
+    Building, CreateArea, CreateRuntime, KeptBuilder, LandingRoad, RecordBranchAsk,
 };
 use wsp_machines::machines::machines::{Entry, Ids};
 use wsp_machines::places::types::PlaceDoor;
@@ -90,7 +90,7 @@ impl CreateRuntime for AfterBind {
         &self,
         golden: &str,
         place_id: Option<&str>,
-        building: &dyn Fn(&str, f64),
+        building: &Building<'_>,
     ) -> Result<String, HostError> {
         self.0.copy_for_fork(golden, place_id, building).await
     }
@@ -195,7 +195,7 @@ impl CreateRuntime for AfterBind {
     async fn mark_used(&self, place_id: Option<&str>) -> Result<(), HostError> {
         self.0.mark_used(place_id).await
     }
-    fn view(&self, record: &WorkspaceRecord) -> WorkspaceView {
+    fn view(&self, record: &WorkspaceRecord) -> Result<WorkspaceView, HostError> {
         self.0.view(record)
     }
     fn ref_of(&self, project: &ProjectView) -> ProjectRef {

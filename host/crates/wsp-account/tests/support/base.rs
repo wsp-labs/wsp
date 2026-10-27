@@ -414,8 +414,8 @@ impl Base for BaseOf {
         self.0.persisted.borrow_mut().push(record);
         self.0.answer_as("persist", || ())
     }
-    fn view(&self, record: &WorkspaceRecord) -> WorkspaceView {
-        view_of(&self.0, record)
+    fn view(&self, record: &WorkspaceRecord) -> Result<WorkspaceView, HostError> {
+        Ok(view_of(&self.0, record))
     }
     fn emit(&self, event: Event) -> Result<(), HostError> {
         self.0.call("emit", json!({ "type": event.get("type").cloned().unwrap_or(Value::Null) }));

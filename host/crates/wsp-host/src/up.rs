@@ -228,7 +228,13 @@ pub async fn up(io: Arc<dyn CliIo>, asked: UpAsked, env: Env, wsp: Vec<String>) 
     std::env::remove_var(wsp_cli::host_lock::STARTED_BY_ENV);
     let home = person_home();
     let wiring = Wiring { state_path: state_path.clone(), home, env: env.clone(), here_url: here_url(&asked.address, bound), wsp };
-    let rt = make_runtime(&wiring, wsp_cli::verbs::cloud_of(&env));
+    let rt = match make_runtime(&wiring, wsp_cli::verbs::cloud_of(&env)) {
+        Ok(rt) => rt,
+        Err(e) => {
+            let _ = release_lock(&lock_path);
+            return Err(e);
+        }
+    };
     let said = io.clone();
     let log: LogFn = Rc::new(move |line: &str| said.log(line));
     let outcome = serve(io.as_ref(), &asked, &rt, listener, moved, log, lock).await;

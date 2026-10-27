@@ -198,7 +198,7 @@ impl Base for FakeCreate {
         self.reenter();
         BaseOf(self.base.clone()).persist(record).await
     }
-    fn view(&self, record: &WorkspaceRecord) -> WorkspaceView {
+    fn view(&self, record: &WorkspaceRecord) -> Result<WorkspaceView, HostError> {
         BaseOf(self.base.clone()).view(record)
     }
     fn emit(&self, event: Event) -> Result<(), HostError> {

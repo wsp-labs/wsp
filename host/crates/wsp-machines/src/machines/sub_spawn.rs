@@ -129,7 +129,7 @@ pub trait SubSpawnCtx {
         wait: Option<ThreadCapWait>,
     ) -> AreaResult<()>;
     fn queue_wait(&self, place: &str, limits: Option<&BoxLimits>) -> Option<ThreadCapWait>;
-    fn view(&self, record: &WorkspaceRecord) -> Value;
+    fn view(&self, record: &WorkspaceRecord) -> Result<Value, HostError>;
     /// `stageReporter(id, name, startedAt, askedBy)`, `askedBy` as the TS object.
     fn stage_reporter(
         &self,

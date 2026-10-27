@@ -181,7 +181,7 @@ fn drive<Fut: std::future::Future<Output = ()>>(opts: RuntimeOptions, f: impl Fn
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a tokio runtime");
     let local = tokio::task::LocalSet::new();
     local.block_on(&rt, async move {
-        let runtime = create_runtime(opts);
+        let runtime = create_runtime(opts).expect("a runtime");
         let ctx: Rc<Ctx> = runtime.context();
         f(ctx, runtime).await
     });
@@ -378,7 +378,7 @@ fn base_persist_writes_the_record_under_its_id() {
 fn base_view_is_the_record_as_the_person_reads_it() {
     drive(plain(), |c, _| async move {
         base(&c).projects_held().borrow_mut().insert("p_1".into(), project("p_1", "api", "/srv/api"));
-        let view = base(&c).view(&record(json!({})));
+        let view = base(&c).view(&record(json!({}))).expect("a view");
         assert_eq!(view.id, "w_1");
         assert_eq!(view.name, "api");
         assert_eq!(view.project.id, "p_1");
@@ -704,7 +704,7 @@ fn folders_folder_machine_refuses_a_kind_this_host_has_no_backend_for() {
 fn folders_attach_makes_the_record_a_live_entry_on_its_machine() {
     drive(plain(), |c, _| async move {
         let record = record(json!({}));
-        let entry = folders(&c).attach(record, machine_named("m_1").await);
+        let entry = folders(&c).attach(record, machine_named("m_1").await).expect("an entry");
         assert_eq!(entry.borrow().record.borrow().id, "w_1");
         assert!(base(&c).live().borrow().contains_key("w_1"));
     });
@@ -783,8 +783,8 @@ fn folders_not_a_repo_is_true_for_a_folder_thread_on_a_project_with_no_git() {
     drive(plain(), |c, _| async move {
         base(&c).projects_held().borrow_mut().insert("p_1".into(), project("p_1", "api", "/srv/api"));
         let folder = record(json!({ "kind": "local", "place": "here" }));
-        assert!(folders(&c).not_a_repo(&folder));
-        assert!(!folders(&c).not_a_repo(&record(json!({ "kind": "cloud" }))));
+        assert!(folders(&c).not_a_repo(&folder).expect("read"));
+        assert!(!folders(&c).not_a_repo(&record(json!({ "kind": "cloud" }))).expect("read"));
     });
 }
 

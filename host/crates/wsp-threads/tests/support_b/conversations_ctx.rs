@@ -458,9 +458,9 @@ impl ConversationsCtx for FakeConversationsCtx {
         }
         best
     }
-    fn reaches_row(&self, row: &SessionView, _origin: Option<&Caller>) -> bool {
+    fn reaches_row(&self, row: &SessionView, _origin: Option<&Caller>) -> Result<bool, HostError> {
         self.call(format!("reachesRow {}", row.id));
-        !self.unreached.borrow().contains(&row.id)
+        Ok(!self.unreached.borrow().contains(&row.id))
     }
     fn folder_for(
         &self,

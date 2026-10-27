@@ -31,6 +31,7 @@ use wsp_core::agent_setup::agent_setups;
 use wsp_core::agent_setup::AgentSetups;
 use wsp_core::clock::{real_clock, Clock};
 use wsp_core::context::{Late, RuntimeState, StateCell};
+use wsp_core::daemon_token::assert_token_shape;
 use wsp_core::devices::make_devices;
 use wsp_core::devices::DeviceDoor;
 use wsp_core::github_cache::memory_github_cache;
@@ -48,6 +49,7 @@ use wsp_core::types::wiring::{PlaceBackends, RuntimeOptions};
 use wsp_engine::gone_watch::GoneWatch;
 use wsp_engine::gone_watch::GoneWatchOptions;
 use wsp_engine::machine::MachineBackend;
+use wsp_engine::no_provider_backend::NoProviderBackend;
 use wsp_machines::agents_read::AgentsReads;
 use wsp_machines::images::builders::{BuildersArea, StageAt};
 use wsp_machines::images::golden::{GoldenArea, Preparing};
@@ -66,6 +68,7 @@ use wsp_machines::machines::sub_queue::SubQueueArea;
 use wsp_machines::machines::sub_spawn::SubSpawnArea;
 use wsp_machines::machines::thread_ends::ThreadEnds;
 use wsp_machines::places::types::{CopyBuild, PlaceDoor};
+use wsp_machines::projects::branch_of_record::BranchOfRecordArea;
 use wsp_slates::slates::Slates;
 use wsp_store::store::Store;
 use wsp_threads::activity::Activity;
@@ -187,6 +190,8 @@ pub struct Ctx {
     pub(crate) status_tracker: Late<Rc<StatusTracker>>,
     pub(crate) project_icons: Late<Rc<ProjectIconsArea>>,
     pub(crate) pipe: Late<Option<Rc<PipeArea>>>,
+    pub(crate) branch_of_record: Late<Rc<BranchOfRecordArea>>,
+    pub(crate) usage_parts: Late<Rc<usage::UsageParts>>,
 }
 
 /// An exec stream still running, so its machine going away ends it the way it ends a session (runtime.ts:955).
@@ -207,6 +212,57 @@ impl Ctx {
             self.agents_read.fill(self.build_agents_read());
         }
         self.agents_read.get()
+    }
+
+    /// The close's last step: empties every area slot, so the areas, which each hold this context, are dropped and a
+    /// runtime nobody holds any more is freed. Nothing reads an area after the close.
+    pub(crate) fn drop_areas(&self) {
+        self.bus.clear();
+        self.core.clear();
+        self.place_door.clear();
+        self.activity.clear();
+        self.kinds.clear();
+        self.thread_ends.clear();
+        self.idle.clear();
+        self.rules.clear();
+        self.transcripts.clear();
+        self.slates.clear();
+        self.channels.clear();
+        self.proc_scopes.clear();
+        self.records.clear();
+        self.held_images.clear();
+        self.reach.clear();
+        self.pull_requests.clear();
+        self.daemon.clear();
+        self.machines.clear();
+        self.boot.clear();
+        self.create.clear();
+        self.sub_spawn.clear();
+        self.sub_queue.clear();
+        self.sub_life.clear();
+        self.folders.clear();
+        self.start_from.clear();
+        self.workspaces.clear();
+        self.agents.clear();
+        self.launch.clear();
+        self.threads.clear();
+        self.turns.clear();
+        self.waits.clear();
+        self.sessions_area.clear();
+        self.builders_area.clear();
+        self.golden.clear();
+        self.image.clear();
+        self.projects.clear();
+        self.usage.clear();
+        self.conversations.clear();
+        self.status.clear();
+        self.preferences.clear();
+        self.agents_read.clear();
+        self.status_tracker.clear();
+        self.project_icons.clear();
+        self.pipe.clear();
+        self.branch_of_record.clear();
+        self.usage_parts.clear();
     }
 
     /// `ctx.ready()`: the one start every road waits on.
@@ -242,8 +298,8 @@ impl Ctx {
     }
 
     fn new(me: Weak<Ctx>, opts: RuntimeOptions) -> Ctx {
-        let backend = opts.backend.clone().expect("create_runtime needs a backend");
-        let store = opts.store.clone().expect("create_runtime needs a store");
+        let backend = opts.backend.clone().unwrap_or_else(|| Arc::new(NoProviderBackend::new(None)));
+        let store = opts.store.clone().expect("Ctx::build checked the store");
         let clock = opts.clock.clone().unwrap_or_else(real_clock);
         let ids: Rc<dyn Ids> = Rc::new(OsIds);
         let hostname = host_id::hostname();
@@ -338,16 +394,29 @@ impl Ctx {
             status_tracker: Late::named("statusTracker"),
             project_icons: Late::named("projectIcons"),
             pipe: Late::named("pipe"),
+            branch_of_record: Late::named("branchOfRecord"),
+            usage_parts: Late::named("usageParts"),
         }
     }
 
     /// `createRuntime`'s context (runtime.ts:425-489): the core, then every area in the TS order, each filled into
     /// its slot after it is built so an area read before then panics with its name.
-    pub fn build(opts: RuntimeOptions) -> Rc<Ctx> {
+    ///
+    /// Fails where the TS throws while it builds: a missing store (`store.transcripts` of undefined, runtime.ts:950)
+    /// and a daemon token seed that is not lowercase hex (`assertTokenShape`, transcripts.ts:518). A missing backend
+    /// throws nothing there (`wiredPlace` holds it unread), so it is built over the no-provider backend, which refuses
+    /// each road where the TS would fail on the first read of `undefined`.
+    pub fn build(opts: RuntimeOptions) -> Result<Rc<Ctx>, HostError> {
+        if opts.store.is_none() {
+            return Err(HostError::new("Cannot read properties of undefined (reading 'transcripts')"));
+        }
+        if let Some(seed) = &opts.daemon_token {
+            assert_token_shape(seed)?;
+        }
         let ctx = Rc::new_cyclic(|me| Ctx::new(me.clone(), opts));
         ctx.build_core();
         ctx.build_areas();
-        ctx
+        Ok(ctx)
     }
 }
 

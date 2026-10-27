@@ -313,15 +313,10 @@ impl wsp_account::account::channels::ChannelsCtx for Ctx {
     fn link_channel(&self, place_id: &str, on_event: Rc<dyn Fn(Value)>) -> Option<Rc<dyn DaemonChannel>> {
         self.wired_door()?.channel(place_id, Rc::new(move |event| on_event(Value::Object(event))))
     }
-    async fn spend_today(&self, rows: &[PlaceView], now: i64) -> Vec<(String, Option<f64>)> {
+    async fn spend_today(&self, rows: &[PlaceView], now: i64) -> Result<Vec<(String, Option<f64>)>, HostError> {
         let tracker = self.status_tracker.get();
-        match tracker.spend(rows, Some(now)).await {
-            Ok(spent) => spent.into_iter().map(|row| (row.place, Some(row.today_usd.0))).collect(),
-            Err(said) => {
-                wsp_core::console::warn(&said);
-                Vec::new()
-            }
-        }
+        let spent = tracker.spend(rows, Some(now)).await.map_err(HostError::new)?;
+        Ok(spent.into_iter().map(|row| (row.place, Some(row.today_usd.0))).collect())
     }
     fn projects_held(&self) -> IndexMap<String, wsp_wire::views::workspace::ProjectView> {
         self.projects_held.borrow().clone()
@@ -428,10 +423,9 @@ impl wsp_account::account::channels::ChannelsCtx for Ctx {
             name: b.name.clone(),
             public: b.public.is_some(),
         });
-        // No area holds the public marketplaces yet (branch-of-record.ts:80's WeakMap has no slot in `Ctx`): none read.
-        brokered_env(token, repo.as_ref(), &[])
+        brokered_env(token, repo.as_ref(), &self.branch_area().public_marketplaces())
     }
-    fn terminal_sign_in(&self, harness: &str, entry: &Entry, token: &str) -> Option<TerminalSignIn> {
+    fn terminal_sign_in(&self, harness: &str, entry: &Entry, token: &str) -> Result<Option<TerminalSignIn>, HostError> {
         let kinds = self.kinds.get();
         let read = |launch_token: Option<&str>| -> Option<LaunchRead> {
             let launch = kinds.brokered_launch(&entry.borrow(), harness, launch_token).ok().flatten()?;
@@ -445,13 +439,7 @@ impl wsp_account::account::channels::ChannelsCtx for Ctx {
             });
             Some(LaunchRead { vault: launch.vault, claude, codex: launch.codex })
         };
-        match terminal_sign_in(harness, &read, token, self.clock.now()) {
-            Ok(sign_in) => sign_in,
-            Err(said) => {
-                wsp_core::console::warn(&said);
-                None
-            }
-        }
+        terminal_sign_in(harness, &read, token, self.clock.now()).map_err(HostError::new)
     }
     fn terminal_line(&self, harness: &str, program: Option<&str>) -> String {
         wsp_machines::machines::brokered::terminal_line(harness, program)

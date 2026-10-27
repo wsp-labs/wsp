@@ -164,12 +164,8 @@ impl CoreCtx for Ctx {
         self.branch_area().read_public_marketplaces().await;
         Ok(())
     }
-    /// The TS throws where the kind has no module; a plain method has nowhere to put that, so it panics with the TS's line.
-    fn turn_road(&self, kind: WorkspaceKind) -> WorkspaceOrigin {
-        match self.kinds.get().module_of(kind) {
-            Ok(module) => module.turn_road(),
-            Err(e) => panic!("{}", e.message),
-        }
+    fn turn_road(&self, kind: WorkspaceKind) -> Result<WorkspaceOrigin, HostError> {
+        Ok(self.kinds.get().module_of(kind)?.turn_road())
     }
     fn live(&self) -> Vec<StandingEntry> {
         self.live

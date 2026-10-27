@@ -3,7 +3,7 @@
 //! conversations.ts:68-273; wired at runtime.ts:467 and :482). Each method reads a core field, forwards to the area
 //! that owns it, or calls a platform function. A method name several traits share is called through the area or the
 //! struct's own field, never through another trait of the context.
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -21,6 +21,8 @@ use wsp_machines::machines::boot::entries::{EntryAsk, RowAt};
 use wsp_machines::machines::machines::Row;
 use wsp_machines::usage::accounts::{account_of, BurnCall, ComputerName, NamedAccount, ReplayedStamp};
 use wsp_machines::usage::Vaulted;
+use wsp_machines::usage::{EntryTokens, UsageEntry, UsageSource};
+use wsp_threads::threads::agents::lists;
 use wsp_threads::threads::threads::tree::TellAs;
 use wsp_threads::threads::threads::{Entry, ThreadsCtx};
 use wsp_threads::threads::turns::{BurnAsk, LedgerUse, LimitAsk, Sweep, UsageAccount};
@@ -43,32 +45,6 @@ fn failed(e: AccountError) -> HostError {
 /// An exec failure as the host's own error, which is what a trait method that can fail answers.
 fn exec_failed(e: ExecFailure) -> HostError {
     HostError::new(e.message)
-}
-
-/// `harnessExec(machine, timeoutMs)` (engine run-env.ts:36) as an adapter takes it: the command's stdout alone answers,
-/// whatever its exit code, and a command that cannot run is the failure.
-fn turns_harness_exec(entry: &Entry, timeout_ms: u64) -> Arc<dyn HarnessExec> {
-    let machine = entry.borrow().machine.clone();
-    Arc::new(move |command: &str, env: Option<&wsp_adapters::port::Env>| {
-        let machine = machine.clone();
-        let command = command.to_string();
-        let env = env.cloned();
-        async move {
-            let res = match env {
-                None => {
-                    machine
-                        .exec(
-                            &command,
-                            wsp_engine::machine::ExecOptions { timeout_ms: Some(timeout_ms), idempotency_key: None, stdin: None },
-                        )
-                        .await
-                }
-                Some(env) => wsp_engine::run_env::env_exec(machine.as_ref(), &command, &env, Some(timeout_ms)).await,
-            };
-            res.map(|r| r.stdout).map_err(|e| wsp_core::machine_exec::factory::exec_failure_of(&e))
-        }
-        .boxed_local()
-    })
 }
 
 /// A row's key in `sessions`, put there for one call where the map does not hold it: the TS acts on the object it is
@@ -95,18 +71,6 @@ fn turns_with_row_keyed<R>(ctx: &Ctx, row: &Row, f: impl FnOnce(&str) -> R) -> R
 
 fn view_of(row: &Row) -> SessionView {
     row.borrow().view.clone()
-}
-
-thread_local! {
-    static HELD_ASKS: Cell<u64> = const { Cell::new(0) };
-}
-
-/// A key in the area's map of held asks, counted down from the top so it never meets the area's own count up.
-fn held_ask_key() -> u64 {
-    HELD_ASKS.with(|n| {
-        n.set(n.get() + 1);
-        u64::MAX - n.get()
-    })
 }
 
 #[async_trait::async_trait(?Send)]
@@ -194,14 +158,7 @@ impl wsp_threads::threads::turns::TurnsCtx for Ctx {
         Some(word.to_string())
     }
     fn hold_ask(&self, ask: LocalBoxFuture<'static, ()>) {
-        let agents = self.agents.get();
-        let id = held_ask_key();
-        let held: wsp_core::context::Joined = ask.shared().map(|_| ()).boxed_local().shared();
-        agents.agent_asks.borrow_mut().insert(id, held.clone());
-        spawn_detached(async move {
-            held.await;
-            agents.agent_asks.borrow_mut().shift_remove(&id);
-        });
+        drop(self.agents.get().hold(ask));
     }
     async fn refresh_title(&self, row: &Row, ended: bool) -> Result<(), HostError> {
         self.agents.get().refresh_title(&view_of(row), ended).await;
@@ -233,8 +190,28 @@ impl wsp_threads::threads::turns::TurnsCtx for Ctx {
         wsp_threads::threads::threads::ThreadsArea::usage_computer_of(record)
     }
     async fn ledger_add(&self, row: LedgerUse) -> Result<(), HostError> {
-        let _ = row;
-        Err(HostError::new("the usage ledger is not wired to the turns area yet"))
+        let tokens = row.tokens.map(|t| EntryTokens {
+            input: Some(t.input.0),
+            output: Some(t.output.0),
+            cached: t.cached.map(|n| n.0),
+            cache_write: t.cache_write.map(|n| n.0),
+            reasoning: t.reasoning.map(|n| n.0),
+        });
+        let entry = UsageEntry {
+            at: row.at,
+            agent: row.agent,
+            account: row.account,
+            account_label: row.account_label.unwrap_or_default(),
+            computer: row.computer,
+            project: row.project,
+            model: row.model,
+            turns: Some(f64::from(row.turns)),
+            tokens,
+            cost_usd: row.cost_usd,
+            session: row.session,
+            source: if row.source == "log" { UsageSource::Log } else { UsageSource::Wsp },
+        };
+        self.usage_parts().ledger.add(entry).await
     }
     async fn ledger_limit(&self, ask: LimitAsk) -> Result<(Value, Value), HostError> {
         let reading = LimitReading {
@@ -255,13 +232,12 @@ impl wsp_threads::threads::turns::TurnsCtx for Ctx {
         self.usage.get().usage_accounts().await.map_err(failed)
     }
     fn burn_add(&self, ask: BurnAsk) {
-        let _ = BurnCall {
+        self.usage_parts().burn.add(BurnCall {
             account: ask.account,
             thread_id: ask.thread_id,
             tokens: ask.tokens,
             replayed: ask.replayed.map(|(run, at)| ReplayedStamp { run, at: at as i64 }),
-        };
-        console::warn("the usage burn is not wired to the turns area yet");
+        });
     }
     fn notify_end(&self, row: &Row, notify: &[String], result: wsp_wire::views::session_events::TurnResult, open: bool) {
         let named = {
@@ -290,7 +266,7 @@ impl wsp_threads::threads::turns::TurnsCtx for Ctx {
         Ok(())
     }
     fn harness_exec(&self, entry: &Entry, timeout_ms: u64) -> Arc<dyn HarnessExec> {
-        turns_harness_exec(entry, timeout_ms)
+        lists::harness_exec_on(entry.borrow().machine.clone(), timeout_ms)
     }
     fn shared_daemon(&self, entry: &Entry) -> bool {
         let kind = entry.borrow().record.borrow().kind;
@@ -528,7 +504,7 @@ impl wsp_threads::threads::conversations::ConversationsCtx for Ctx {
         .boxed_local()
     }
     fn harness_exec(&self, entry: &Entry, timeout_ms: u64) -> Arc<dyn HarnessExec> {
-        turns_harness_exec(entry, timeout_ms)
+        lists::harness_exec_on(entry.borrow().machine.clone(), timeout_ms)
     }
     fn project_held(&self, project: &str) -> Result<wsp_wire::views::workspace::ProjectView, HostError> {
         self.channels.get().project_held(project)
@@ -562,9 +538,9 @@ impl wsp_threads::threads::conversations::ConversationsCtx for Ctx {
     fn latest_on(&self, thread_id: &str) -> Option<SessionView> {
         self.threads.get().latest_on(thread_id)
     }
-    fn reaches_row(&self, row: &SessionView, origin: Option<&wsp_wire::views::workspace::Caller>) -> bool {
+    fn reaches_row(&self, row: &SessionView, origin: Option<&wsp_wire::views::workspace::Caller>) -> Result<bool, HostError> {
         let at = RowAt { thread_id: row.thread_id.clone(), workspace_id: row.workspace_id.clone() };
-        self.boot.get().reaches_row(&at, origin, None).unwrap_or(false)
+        self.boot.get().reaches_row(&at, origin, None)
     }
     fn folder_for(
         &self,

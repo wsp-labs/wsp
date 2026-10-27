@@ -59,7 +59,7 @@ pub trait LandingRoad {
         project: &ProjectView,
         memory_key: &str,
         deps: &serde_json::Value,
-    ) -> String;
+    ) -> Result<String, HostError>;
     fn workspace_binds(&self, project: &ProjectView) -> Vec<MachineBind>;
 }
 
@@ -83,6 +83,10 @@ pub struct KeptBuilder {
     pub sealed_version: Option<u32>,
     pub place: Option<String>,
 }
+
+/// The fork lines `copy_for_fork` says as the copy builds. Its `&str` is higher-ranked on purpose: `async_trait` ties an
+/// elided one to the borrow of the callback, and a line said from a channel's own storage is shorter than that.
+pub type Building<'a> = dyn for<'x> Fn(&'x str, f64) + 'a;
 
 /// Every call the create area makes on the rest of the runtime.
 #[async_trait(?Send)]
@@ -111,7 +115,7 @@ pub trait CreateRuntime {
         &self,
         golden: &str,
         place_id: Option<&str>,
-        building: &dyn Fn(&str, f64),
+        building: &Building<'_>,
     ) -> Result<String, HostError>;
     async fn image_head(&self) -> Result<String, HostError>;
     /// `imageOf(golden).version?.size`.
@@ -169,7 +173,7 @@ pub trait CreateRuntime {
     async fn write_daemon_roots(&self, entry: &Entry) -> Result<(), HostError>;
     async fn persist(&self, record: &WorkspaceRecord) -> Result<(), HostError>;
     async fn mark_used(&self, place_id: Option<&str>) -> Result<(), HostError>;
-    fn view(&self, record: &WorkspaceRecord) -> WorkspaceView;
+    fn view(&self, record: &WorkspaceRecord) -> Result<WorkspaceView, HostError>;
     fn ref_of(&self, project: &ProjectView) -> ProjectRef;
 }
 
@@ -264,7 +268,7 @@ impl CreateArea {
         if let Some(refused) = road.refusal(project, &landing_on) {
             return Err(HostError::with_kind(refused, Kind::Invalid));
         }
-        let memory_dir = road.memory_dir(project, &project.memory_key, &landing_on);
+        let memory_dir = road.memory_dir(project, &project.memory_key, &landing_on)?;
         if memory_dir != project.memory_dir {
             rt.remember_project(ProjectView {
                 memory_dir,
@@ -621,7 +625,7 @@ impl CreateArea {
         rt.mark_used(place_id.as_deref()).await?;
         entry.borrow_mut().creating = false;
         report(WorkspaceCreateStage::Ready, CREATE_READY, None);
-        let view = rt.view(&snapshot);
+        let view = rt.view(&snapshot)?;
         let created = serde_json::to_value(&view).map_err(|e| HostError::new(e.to_string()))?;
         let event: EventUnion =
             serde_json::from_value(json!({"type": "workspace.created", "workspace": created}))

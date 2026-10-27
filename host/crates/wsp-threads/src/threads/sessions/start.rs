@@ -380,7 +380,7 @@ impl SessionsArea {
         };
         for target in asked.iter().flatten().filter(|target| *target != NOTIFY_ME) {
             match ctx.latest_on(target) {
-                Some(view) if ctx.reaches_row(&view, origin.as_ref(), None) => {}
+                Some(view) if ctx.reaches_row(&view, origin.as_ref(), None)? => {}
                 _ => return Err(HostError::new(format!("no thread {target} to notify"))),
             }
             if *target == thread_id {

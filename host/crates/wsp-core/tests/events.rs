@@ -367,3 +367,24 @@ fn pass_before_any_emit_leaves_the_events_own_seq() {
     bus.pass(with_seq(renamed(3), 5)).unwrap();
     assert_eq!(*order.borrow(), vec!["any:w1:5".to_string(), "any:w2:1".into(), "any:w3:1".into()]);
 }
+
+// join A (#2476): the close clears the bus, so a listener that holds the runtime does not keep it alive; the ring stays
+// readable and a listener added after hears the next event.
+#[test]
+fn clear_drops_every_listener_and_leaves_the_ring_readable() {
+    let bus = event_bus(STREAM.into());
+    let log = log();
+    let heard = recorder(&log, "a");
+    let _off = bus.on(ANY_EVENT, heard.clone());
+    bus.emit(renamed(1)).unwrap();
+    assert_eq!(Rc::strong_count(&heard), 3, "the bus holds one and the unlisten holds one");
+    bus.clear();
+    assert_eq!(Rc::strong_count(&heard), 2, "the bus let go; the unlisten still names it");
+    bus.emit(renamed(2)).unwrap();
+    assert_eq!(log.borrow().len(), 1, "nobody was left to hear the second event");
+    assert_eq!(since_value(&bus.since(Some(0), None))["head"], json!(2));
+    let again = recorder(&log, "b");
+    let _on = bus.on(ANY_EVENT, again);
+    bus.emit(renamed(3)).unwrap();
+    assert_eq!(log.borrow().len(), 2);
+}

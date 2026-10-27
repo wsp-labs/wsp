@@ -49,10 +49,6 @@ use wsp_words::workspace_state::absent_computer;
 use super::Ctx;
 use crate::runtime::join::spawn_detached;
 
-thread_local! {
-    static PARTS: RefCell<Vec<(Weak<Ctx>, Rc<UsageParts>)>> = const { RefCell::new(Vec::new()) };
-}
-
 /// What `usageArea` builds once and shares (usage.ts:46-50, 292-303): the price table, the ledger, the plan alerts, the
 /// burn and the resets. The usage area, the status tracker and the turns' filings all read these one values.
 pub struct UsageParts {
@@ -61,24 +57,15 @@ pub struct UsageParts {
     pub alerts: Rc<PlanAlerts>,
     pub burn: Burn,
     pub resets: UsageResets,
-    /// The machine each lost-machine confirmation read, kept for the `attach` that follows it (status.ts:166-168).
-    confirmed: RefCell<IndexMap<String, Arc<dyn Machine>>>,
 }
 
 impl Ctx {
     /// The usage parts of this context, built on first use and then the same ones.
     pub fn usage_parts(&self) -> Rc<UsageParts> {
-        let held = PARTS.with(|parts| {
-            let mut parts = parts.borrow_mut();
-            parts.retain(|(ctx, _)| ctx.strong_count() > 0);
-            parts.iter().find(|(ctx, _)| Weak::ptr_eq(ctx, &self.me)).map(|(_, held)| held.clone())
-        });
-        if let Some(held) = held {
-            return held;
+        if !self.usage_parts.is_filled() {
+            self.usage_parts.fill(usage_parts_of(self));
         }
-        let built = usage_parts_of(self);
-        PARTS.with(|parts| parts.borrow_mut().push((self.me.clone(), built.clone())));
-        built
+        self.usage_parts.get()
     }
 
     /// `void alerts.resume().catch(warn)` (usage.ts:49): arms the plan alerts the state holds.
@@ -106,7 +93,7 @@ impl Ctx {
                 let (ctx, area) = (records_ctx.upgrade(), records_area.clone());
                 async move {
                     let ctx = ctx.ok_or_else(|| "the runtime is gone".to_string())?;
-                    Ok(status_records(&ctx, &area).await)
+                    status_records(&ctx, &area).await.map_err(|e| e.message)
                 }
                 .boxed_local()
             }),
@@ -178,7 +165,6 @@ fn usage_parts_of(ctx: &Ctx) -> Rc<UsageParts> {
         alerts,
         burn: Burn::new(ctx.clock.clone()),
         resets: usage_resets(Rc::new(ResetDeps(ctx.me.clone()))),
-        confirmed: RefCell::default(),
     })
 }
 
@@ -777,16 +763,17 @@ fn codex_resets() -> Arc<dyn PlanResets> {
 // StatusCtx (status.ts:9-182).
 
 /// `ctx.view(record)` as the JSON object.
-fn view_map(ctx: &Ctx, record: &WorkspaceRecord) -> Map<String, Value> {
-    match ctx.records.get().view(record).ok().and_then(|view| serde_json::to_value(view).ok()) {
-        Some(Value::Object(map)) => map,
-        _ => Map::new(),
+fn view_map(ctx: &Ctx, record: &WorkspaceRecord) -> Result<Map<String, Value>, HostError> {
+    let view = ctx.records.get().view(record)?;
+    match serde_json::to_value(view).map_err(|e| HostError::new(e.to_string()))? {
+        Value::Object(map) => Ok(map),
+        _ => Ok(Map::new()),
     }
 }
 
 /// Every row `StatusArea::records` builds, joined with the callbacks its null stand-ins name (status.ts:13-43).
-async fn status_records(ctx: &Rc<Ctx>, area: &Rc<StatusArea>) -> Vec<StatusRecord> {
-    let rows = area.records().await;
+async fn status_records(ctx: &Rc<Ctx>, area: &Rc<StatusArea>) -> Result<Vec<StatusRecord>, HostError> {
+    let rows = area.records().await?;
     let mut records = Vec::new();
     for row in rows {
         let Some(id) = row.get("id").and_then(Value::as_str).map(str::to_string) else { continue };
@@ -863,7 +850,7 @@ async fn status_records(ctx: &Rc<Ctx>, area: &Rc<StatusArea>) -> Vec<StatusRecor
             unreached: row.get("unreached").and_then(Value::as_str).map(str::to_string),
         });
     }
-    records
+    Ok(records)
 }
 
 #[async_trait::async_trait(?Send)]
@@ -874,7 +861,7 @@ impl wsp_account::account::status::StatusCtx for Ctx {
     fn held(&self) -> Vec<AccountEntry> {
         self.rules.get().held()
     }
-    fn view(&self, record: &WorkspaceRecord) -> Map<String, Value> {
+    fn view(&self, record: &WorkspaceRecord) -> Result<Map<String, Value>, HostError> {
         view_map(self, record)
     }
     fn rate_usd_per_hour(&self, record: &WorkspaceRecord) -> f64 {
@@ -1001,22 +988,15 @@ impl wsp_account::account::status::StatusCtx for Ctx {
         };
         let size = self.records.get().size_built(shape.as_ref(), &asked);
         let stream_url = machine.stream_url().map(str::to_string);
-        self.usage_parts().confirmed.borrow_mut().insert(machine_id.to_string(), machine);
-        Ok(Confirmed { state: status_word(state), stream_url, size: serde_json::to_value(size).unwrap_or(Value::Null) })
+        Ok(Confirmed { state: status_word(state), stream_url, size: serde_json::to_value(size).unwrap_or(Value::Null), machine })
     }
     async fn stop_unrecorded(&self, place: &str, machine_id: &str) -> Result<(), ReadFailure> {
         let backend = self.places.backend(place).ok_or_else(|| ReadFailure::Failed(format!("no backend at {place}")))?;
         let machine = backend.get(machine_id).await.map_err(|e| missing_or_failed(&e))?;
         self.gone.stop(backend, machine).await.map_err(|e| missing_or_failed(&e))
     }
-    fn attach(&self, record: WorkspaceRecord) -> AccountEntry {
-        let machine = self
-            .usage_parts()
-            .confirmed
-            .borrow_mut()
-            .shift_remove(&record.machine_id)
-            .expect("attach follows the confirming read of the same machine (status.ts:166-168)");
-        self.machines.get().attach(&Rc::new(RefCell::new(record)), machine).unwrap_or_else(|e| panic!("{}", e.message))
+    fn attach(&self, record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Result<AccountEntry, HostError> {
+        self.machines.get().attach(&Rc::new(RefCell::new(record)), machine)
     }
     async fn persist(&self, record: &WorkspaceRecord) -> AccountResult<()> {
         Ok(self.records.get().persist(record).await?)

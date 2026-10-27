@@ -398,7 +398,7 @@ async fn fail_create(
     }
     report(WorkspaceCreateStage::Failed, &said, None);
     if let Some(entry) = &kept {
-        let view = ctx.view(&record_of(entry));
+        let view = ctx.view(&record_of(entry))?;
         ctx.emit(json!({ "type": "workspace.created", "workspace": to_json(&view) }))?;
     }
     Ok(())
@@ -458,7 +458,7 @@ pub async fn create(ctx: &Rc<dyn CreateCtx>, opts: CreateWorkspaceOptions, origi
             folder.borrow().record.borrow_mut().agents = Some(written);
             ctx.persist(record_of(&folder)).await?;
         }
-        return Ok(CreatedWorkspace { view: ctx.view(&record_of(&folder)), notice: None, sub: None });
+        return Ok(CreatedWorkspace { view: ctx.view(&record_of(&folder))?, notice: None, sub: None });
     }
     ctx.refuse_relayed(kind, &o.name, &project.id, origin.as_ref())?;
     let live = ctx.live();
@@ -561,7 +561,7 @@ pub async fn create(ctx: &Rc<dyn CreateCtx>, opts: CreateWorkspaceOptions, origi
 pub async fn get(ctx: &Rc<dyn CreateCtx>, id: &str, origin: Option<Caller>, thread_id: Option<&str>) -> Result<WorkspaceView, HostError> {
     let ask = EntryAsk { thread: thread_id.map(str::to_owned), ..EntryAsk::default() };
     let entry = ctx.entry_of(id, origin, ask).await?;
-    Ok(ctx.view(&record_of(&entry)))
+    ctx.view(&record_of(&entry))
 }
 
 // ts: workspaces.ts:220-225
@@ -576,7 +576,7 @@ pub async fn held_or_creating(ctx: &Rc<dyn CreateCtx>, id: &str) -> Result<Optio
     ctx.boot_work(id).await;
     let live = ctx.live();
     let entry = live.borrow().get(id).cloned();
-    Ok(entry.map(|e| ctx.view(&record_of(&e))))
+    entry.map(|e| ctx.view(&record_of(&e))).transpose()
 }
 
 // ts: workspaces.ts:229-235
@@ -589,7 +589,8 @@ pub async fn held_or_creating(ctx: &Rc<dyn CreateCtx>, id: &str) -> Result<Optio
 //|     },
 pub async fn list(ctx: &Rc<dyn CreateCtx>, origin: Option<Caller>) -> Result<Vec<WorkspaceView>, HostError> {
     ctx.ready().await?;
-    let listed: Vec<WorkspaceView> = ctx.listed_for(origin.as_ref())?.iter().map(|e| ctx.view(&record_of(e))).collect();
+    let listed: Vec<WorkspaceView> =
+        ctx.listed_for(origin.as_ref())?.iter().map(|e| ctx.view(&record_of(e))).collect::<Result<_, HostError>>()?;
     if scope_of(origin.as_ref()).is_some() {
         return Ok(listed);
     }
@@ -685,11 +686,11 @@ pub async fn resolve(ctx: &Rc<dyn CreateCtx>, reference: &str, origin: Option<Ca
         return resolve_absent(ctx, reference, scope, origin).await;
     };
     if tree.as_ref().is_some_and(|t| Rc::ptr_eq(t, &entry)) {
-        return talked(ctx.view(&record_of(&entry)));
+        return talked(ctx.view(&record_of(&entry))?);
     }
     let record = record_of(&entry);
     ctx.refuse_relayed(record.kind, &record.name, &record.project, origin.as_ref())?;
-    Ok(ctx.view(&record))
+    ctx.view(&record)
 }
 
 /// What a word names when no workspace is held under it (spec rule 7, the two branches of the absent case).

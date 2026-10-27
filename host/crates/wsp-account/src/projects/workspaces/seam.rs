@@ -72,7 +72,7 @@ pub trait Base {
     /// `ctx.persist(record)`.
     async fn persist(&self, record: WorkspaceRecord) -> Result<(), HostError>;
     /// `ctx.view(record)`.
-    fn view(&self, record: &WorkspaceRecord) -> WorkspaceView;
+    fn view(&self, record: &WorkspaceRecord) -> Result<WorkspaceView, HostError>;
     /// `bus.emit(event)`; a listener's failure reaches the caller (rule 3.6).
     fn emit(&self, event: Event) -> Result<(), HostError>;
     /// `ctx.entryOf(id, origin, opts)`: the live entry the caller may drive, after `ready()` and the boot work.
@@ -104,7 +104,7 @@ pub trait Base {
 }
 
 /// The view of the entry's record as it stands.
-pub fn view_of(base: &dyn Base, entry: &Entry) -> WorkspaceView {
+pub fn view_of(base: &dyn Base, entry: &Entry) -> Result<WorkspaceView, HostError> {
     base.view(&record_of(entry))
 }
 

@@ -97,6 +97,13 @@ pub fn event_bus(stream: String) -> Rc<Bus> {
 }
 
 impl Bus {
+    /// Drops every listener: the close's last act, since a listener that holds the runtime keeps it alive after the
+    /// close, the bus being a part of the runtime it holds. The ring stays readable.
+    pub fn clear(&self) {
+        let listeners = std::mem::take(&mut self.state.borrow_mut().listeners);
+        drop(listeners);
+    }
+
     /// Stamps `seq = ++head`, pushes the stamped event on the ring, trims the ring to `EVENT_RING_CAP` from its oldest
     /// end, then calls the event type's listeners in registration order and then the `ANY_EVENT` ones, inline, with no
     /// borrow of the state held across a call (rule 3.3). The first listener `Err` stops delivery and is returned; the

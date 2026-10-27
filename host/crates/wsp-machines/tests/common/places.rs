@@ -1117,7 +1117,7 @@ impl PlaceRecording for FakeRecording {
         key: &str,
         folder: &RecipeFileFoldersValue,
         mv: Option<&FolderMove>,
-        _stage: Option<Rc<dyn Fn(&str)>>,
+        _stage: Option<wsp_machines::places::types::FolderStage>,
     ) -> Option<PlaceResult<HeldRow>> {
         let f = self.add_folder.borrow().clone()?;
         self.added

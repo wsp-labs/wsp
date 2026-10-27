@@ -57,7 +57,6 @@ use super::Ctx;
 
 thread_local! {
     static RELEASED: Arc<dyn MachineBackend> = released_backend();
-    static BRANCH_AREAS: RefCell<Vec<(Weak<Ctx>, Rc<BranchOfRecordArea>)>> = const { RefCell::new(Vec::new()) };
 }
 
 /// The TypeError a `placeDoor.<call>` leaves where the host wired no door.
@@ -105,19 +104,15 @@ impl Ctx {
         self.live.borrow().values().find(|held| Rc::ptr_eq(&held.borrow().record, &entry.record)).cloned()
     }
 
-    /// The branch-of-record roads over this context (runtime.ts:551-552): one area per runtime, which holds the
-    /// context weakly so a dropped runtime is freed.
-    pub(crate) fn branch_area(&self) -> Rc<BranchOfRecordArea> {
-        BRANCH_AREAS.with(|areas| {
-            let mut areas = areas.borrow_mut();
-            areas.retain(|(ctx, _)| ctx.strong_count() > 0);
-            if let Some((_, area)) = areas.iter().find(|(ctx, _)| Weak::ptr_eq(ctx, &self.me)) {
-                return area.clone();
-            }
-            let area = BranchOfRecordArea::new(Rc::new(BranchOver(self.me.clone())));
-            areas.push((self.me.clone(), area.clone()));
-            area
-        })
+    /// The branch-of-record roads over this context (runtime.ts:551-552): one area per runtime, filled with the core,
+    /// which holds the context weakly so a dropped runtime is freed.
+    pub fn branch_area(&self) -> Rc<BranchOfRecordArea> {
+        self.branch_of_record.get()
+    }
+
+    /// `branchOfRecord(ctx)` for the slot `build_core` fills.
+    pub(super) fn build_branch_area(&self) -> Rc<BranchOfRecordArea> {
+        BranchOfRecordArea::new(Rc::new(BranchOver(self.me.clone())))
     }
 }
 

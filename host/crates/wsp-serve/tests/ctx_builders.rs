@@ -69,7 +69,7 @@ fn world_over(backend: Arc<dyn MachineBackend>, adjust: impl FnOnce(&mut Runtime
         ..Default::default()
     };
     adjust(&mut opts);
-    let runtime = create_runtime(opts);
+    let runtime = create_runtime(opts).expect("a runtime");
     World { ctx: runtime.context(), runtime, store, clock, backend, _dir: dir }
 }
 

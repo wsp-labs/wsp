@@ -633,6 +633,7 @@ impl DaemonRuntime for FakeRuntime {
             .unwrap_or_else(|| "started".to_string());
         match how.as_str() {
             "fails" => Err(err("refused")),
+            "panics" => panic!("the start broke"),
             "queued" => {
                 // The oracle's events carry a request id and a harness; the Rust event also needs a thread and a prompt, and
                 // the thread differs from the ask's so an answer read off the event shows.

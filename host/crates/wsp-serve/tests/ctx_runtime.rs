@@ -34,7 +34,7 @@ fn record() -> WorkspaceRecord {
 fn run<Fut: std::future::Future<Output = ()>>(f: impl FnOnce(Rc<AssembledRuntime>) -> Fut) {
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a tokio runtime");
     let local = tokio::task::LocalSet::new();
-    local.block_on(&rt, async move { f(create_runtime(options())).await });
+    local.block_on(&rt, async move { f(create_runtime(options()).expect("a runtime")).await });
 }
 
 #[test]

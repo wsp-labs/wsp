@@ -490,7 +490,7 @@ pub async fn bring_back(
 pub async fn folder_for(ctx: &Rc<dyn GitCtx>, ask: FolderForAsk, origin: Option<Caller>) -> Result<FolderFor, HostError> {
     ctx.ready().await?;
     let (entry, cwd, setup) = ctx.folder_for(ask, origin).await?;
-    Ok(FolderFor { workspace: ctx.view(&record_of(&entry)), cwd, setup })
+    Ok(FolderFor { workspace: ctx.view(&record_of(&entry))?, cwd, setup })
 }
 
 // ts: workspaces.ts:754-757
@@ -520,7 +520,7 @@ pub async fn folder(ctx: &Rc<dyn GitCtx>, project: &str, origin: Option<Caller>)
     }
     ctx.refuse_recording(&project.name, origin.as_ref())?;
     let entry = ctx.project_folder(&project).await?;
-    Ok(ctx.view(&record_of(&entry)))
+    ctx.view(&record_of(&entry))
 }
 
 // ts: workspaces.ts:767-778

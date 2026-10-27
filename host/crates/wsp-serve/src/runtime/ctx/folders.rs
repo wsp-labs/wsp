@@ -83,17 +83,6 @@ fn across_act(word: &str) -> Result<AcrossAct, HostError> {
     serde_json::from_value(Value::String(word.to_string())).map_err(|_| HostError::new(format!("no such act: {word}")))
 }
 
-/// A record whose project this host does not hold, shown with the project's id alone: the view a `Base::view` that
-/// cannot throw leaves where the TS throws.
-fn unheld_view(record: &WorkspaceRecord) -> WorkspaceView {
-    serde_json::from_value(json!({
-        "id": record.id, "name": record.name, "machineId": record.machine_id, "phase": record.phase, "kind": record.kind,
-        "golden": record.golden, "createdAt": record.created_at,
-        "project": { "id": record.project, "name": "", "path": "", "computer": "" },
-    }))
-    .expect("a workspace view is what this object spells")
-}
-
 impl Ctx {
     fn folders_copier(&self) -> Result<Rc<dyn Copier>, HostError> {
         self.opts.local.as_ref().and_then(|local| local.copier.clone()).ok_or_else(no_copier)
@@ -151,8 +140,8 @@ impl Base for Ctx {
         let records = self.records.get();
         records.persist(&record).await
     }
-    fn view(&self, record: &WorkspaceRecord) -> WorkspaceView {
-        self.records.get().view(record).unwrap_or_else(|_| unheld_view(record))
+    fn view(&self, record: &WorkspaceRecord) -> Result<WorkspaceView, HostError> {
+        self.records.get().view(record)
     }
     fn emit(&self, event: Event) -> Result<(), HostError> {
         let event = serde_json::from_value(event).map_err(|e| HostError::new(e.to_string()))?;
@@ -253,9 +242,9 @@ impl FoldersCtx for Ctx {
         let size = backend.pricing().default_size();
         Ok((machine, WorkspaceSize { cpu: size.cpu.into(), mem_mb: size.mem_mb.into() }))
     }
-    fn attach(&self, record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Entry {
+    fn attach(&self, record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Result<Entry, HostError> {
         let machines = self.machines.get();
-        machines.attach(&Rc::new(RefCell::new(record)), machine).expect("a folder's machine was read from the backend of its own kind")
+        machines.attach(&Rc::new(RefCell::new(record)), machine)
     }
     fn folders_of(&self, project_id: &str) -> Vec<Entry> {
         self.create.get().folders_of(project_id)
@@ -292,8 +281,8 @@ impl FoldersCtx for Ctx {
             landing.await;
         }
     }
-    fn not_a_repo(&self, record: &WorkspaceRecord) -> bool {
-        self.threads.get().not_a_repo(record).unwrap_or(false)
+    fn not_a_repo(&self, record: &WorkspaceRecord) -> Result<bool, HostError> {
+        self.threads.get().not_a_repo(record)
     }
     async fn read_pull_request(&self, entry: &Entry, force: bool) -> Result<(), HostError> {
         let pull_requests = self.pull_requests.get();

@@ -25,7 +25,7 @@ use wsp_core::types::api::Runtime as _;
 use wsp_core::types::internal::{SessionEntry, SubStartRecord, ThreadRecord, SUB_STARTS};
 use wsp_core::types::wiring::{Broker, LiveWorkspace, RuntimeOptions, WorkspaceRecord};
 use wsp_engine::fake_backend::{FakeBackend, FakeBackendOptions};
-use wsp_engine::machine::MachineBackend;
+use wsp_engine::machine::{Machine, MachineBackend};
 use wsp_machines::machines::boot::BootRuntime;
 use wsp_machines::machines::machines::{Entry, Row};
 use wsp_machines::machines::sub_life::SubLifeCtx as L;
@@ -80,7 +80,7 @@ fn run<Fut: Future<Output = ()>>(opts: RuntimeOptions, f: impl FnOnce(Rc<Assembl
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a tokio runtime");
     let local = tokio::task::LocalSet::new();
     local.block_on(&rt, async move {
-        let runtime = create_runtime(opts);
+        let runtime = create_runtime(opts).expect("a runtime");
         let ctx = runtime.context();
         f(runtime, ctx).await
     });
@@ -180,8 +180,14 @@ fn start_record(workspace: &str, thread: &str, turn: &str) -> SubStartRecord {
 
 /// A live entry over `record` on a fake machine, put in the runtime's live map through the boot area's handle.
 async fn put_live(c: &Rc<Ctx>, record: WorkspaceRecord) -> Entry {
+    let machine: Arc<dyn Machine> =
+        FakeBackend::new(FakeBackendOptions::default()).get_fake(&record.machine_id).await.expect("a fake machine");
+    put_live_over(c, record, machine)
+}
+
+/// The same over a machine the caller made, as a test that reads the machine's state through the runtime's own backend does.
+fn put_live_over(c: &Rc<Ctx>, record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Entry {
     use wsp_engine::lifecycle::{Workspace, WorkspaceHooks, WorkspaceInitial};
-    let machine = FakeBackend::new(FakeBackendOptions::default()).get_fake(&record.machine_id).await.expect("a fake machine");
     let hooks = WorkspaceHooks {
         golden_snapshot: String::new(),
         wake_attempts: 1,
@@ -593,13 +599,13 @@ fn view_is_the_records_view_of_the_record() {
     // waits on packet 2: the rest of the view is read by the kinds context.
     run(options(), |_, c| async move {
         BootRuntime::projects_held(&*c).borrow_mut().insert("p_1".into(), project("p_1", "web", "/work/web"));
-        let shown = Q::view(&*c, &record("w_1"));
+        let shown = Q::view(&*c, &record("w_1")).expect("a view");
         assert_eq!(shown["id"], json!("w_1"));
         assert_eq!(shown["name"], json!("pricing page"));
         assert_eq!(shown["phase"], json!("running"));
         assert_eq!(shown["project"]["name"], json!("web"));
-        let lost = Q::view(&*c, &cloud_record("w_2", json!({ "project": "p_9" })));
-        assert_eq!(lost, Value::Null, "a project the host does not hold: nothing to show, and a warning");
+        let lost = Q::view(&*c, &cloud_record("w_2", json!({ "project": "p_9" }))).expect_err("refused");
+        assert_eq!(lost.message, "no project \"p_9\"; this host holds web", "a project the host does not hold: records.ts:88 throws");
     });
 }
 
@@ -779,8 +785,14 @@ fn drop_workspace_takes_the_record_out_of_the_live_map() {
 #[test]
 fn unfork_of_an_entry_with_no_fork_to_undo_is_no_failure() {
     // waits on packet 4.
-    run(options(), |_, c| async move {
-        let entry = put_live(&c, record("w_1")).await;
+    run(options(), |rt, c| async move {
+        // The machine is the runtime's own backend's: `unfork` kills it and reads its state there, so a machine from
+        // another backend reads as running for good and the kill waits out its three asks (90 s).
+        let spec = serde_json::from_value(json!({ "kind": "sandbox" })).expect("a machine spec");
+        let machine = rt.backend().create(spec, None, None).await.expect("a machine");
+        let mut held = record("w_1");
+        held.machine_id = machine.id().to_string();
+        let entry = put_live_over(&c, held, machine);
         Q::unfork(&*c, &entry).await.expect("queue unfork");
         L::unfork(&*c, &entry).await.expect("life unfork");
     });
@@ -808,6 +820,7 @@ fn nap_with_and_end_sessions_reach_the_machines_area() {
 fn a_status_read_over_an_entry_reaches_the_reach_area() {
     // waits on packet 4: the reach area reads the daemon and the record through the machines context.
     run(options(), |_, c| async move {
+        BootRuntime::projects_held(&*c).borrow_mut().insert("p_1".into(), project("p_1", "web", "/work/web"));
         let entry = put_live(&c, record("w_1")).await;
         L::emit_status(&*c, &entry, wsp_wire::views::workspace::ReachState::Napping).await.expect("emit status");
         P::status_now(&*c, &entry).await.expect("status now");

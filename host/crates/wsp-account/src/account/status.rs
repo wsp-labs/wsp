@@ -3,6 +3,7 @@
 //! re-recording of lost machines. Spec: spec/status.md.
 use std::collections::BTreeSet;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use futures::future::FutureExt;
@@ -12,6 +13,7 @@ use serde_json::{json, Map, Value};
 use wsp_core::types::internal::{DROPPED, DROPPED_WATCH_MS, UNRECORDED, UNRECORDED_DELETE_MS, WORKSPACES, WORKSPACE_NAMES};
 use wsp_core::types::wiring::{AdoptedMachine, WorkspaceRecord};
 use wsp_engine::labels::{CREATED_AT_LABEL, GOLDEN_LABEL, WORKSPACE_LABEL};
+use wsp_engine::machine::Machine;
 use wsp_engine::orphans::{ReapFailure, ReapReason, ReapedMachine};
 use wsp_wire::views::workspace::WorkspacePhase;
 use wsp_words::date_parse::date_parse;
@@ -30,13 +32,15 @@ pub struct ListedRow {
 }
 
 /// A machine the confirming read found (`ctx.observed(await at.backend.get(id))`).
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone)]
 pub struct Confirmed {
     /// `machine.seen?.state ?? await machine.state()`.
     pub state: String,
     pub stream_url: Option<String>,
     /// `ctx.sizeBuilt(await ctx.shapeOf(machine), at.backend.pricing.defaultSize)` as the record writes it.
     pub size: Value,
+    /// The machine the read found, which the record is attached to.
+    pub machine: Arc<dyn Machine>,
 }
 
 /// What a backend read answered: missing (`isMissing`), or another failure's message.
@@ -56,7 +60,7 @@ pub trait StatusCtx {
     async fn ready(&self);
     fn held(&self) -> Vec<Entry>;
     /// `ctx.view(record)` as the TS object.
-    fn view(&self, record: &WorkspaceRecord) -> Map<String, Value>;
+    fn view(&self, record: &WorkspaceRecord) -> Result<Map<String, Value>, HostError>;
     fn rate_usd_per_hour(&self, record: &WorkspaceRecord) -> f64;
     fn row_reason(&self, entry: &Entry) -> Option<String>;
     fn idle_at(&self, workspace_id: &str) -> Option<f64>;
@@ -100,8 +104,8 @@ pub trait StatusCtx {
     async fn confirm(&self, place: &str, machine_id: &str) -> Result<Confirmed, ReadFailure>;
     /// `ctx.gone.stop(at.backend, await at.backend.get(id))`.
     async fn stop_unrecorded(&self, place: &str, machine_id: &str) -> Result<(), ReadFailure>;
-    /// `ctx.attach(record, machine)` for the machine `confirm` read.
-    fn attach(&self, record: WorkspaceRecord) -> Entry;
+    /// `ctx.attach(record, machine)`.
+    fn attach(&self, record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Result<Entry, HostError>;
     async fn persist(&self, record: &WorkspaceRecord) -> AccountResult<()>;
     fn sync_daemon(&self, entry: &Entry);
     fn emit(&self, event: Value);
@@ -138,12 +142,12 @@ impl StatusArea {
     /// S1, status.ts:13: every held entry's row as the TS object, keys in the TS order. A key whose TS value is a
     /// function (`daemonReach`, `daemonAnswers`, `providerState`, `metrics`, `facts`, `exec`) holds `null`: the tracker's
     /// join puts the callback there, so the key's presence and place are what the area decides.
-    pub async fn records(&self) -> Vec<Map<String, Value>> {
+    pub async fn records(&self) -> Result<Vec<Map<String, Value>>, HostError> {
         self.ctx.ready().await;
         let mut rows = Vec::new();
         for entry in self.ctx.held() {
             let record = record_of_entry(&entry);
-            let mut row = self.ctx.view(&record);
+            let mut row = self.ctx.view(&record)?;
             row.insert("size".to_string(), serde_json::to_value(&record.size).unwrap_or(Value::Null));
             row.insert("rateUsdPerHour".to_string(), json!(self.ctx.rate_usd_per_hour(&record)));
             let (generation, wake_ask, checkout, pr) = {
@@ -194,7 +198,7 @@ impl StatusArea {
             row.insert("exec".to_string(), Value::Null);
             rows.push(row);
         }
-        rows
+        Ok(rows)
     }
 
     /// S2, status.ts:49. Each status as the TS object (`id`, `machineId`, `phase`, `reach.state`, ...).
@@ -411,12 +415,12 @@ impl StatusArea {
                 doc.insert("screen".to_string(), json!({ "streamUrl": url }));
             }
             let record: WorkspaceRecord = serde_json::from_value(Value::Object(doc)).map_err(|e| HostError::new(e.to_string()))?;
-            let entry = ctx.attach(record.clone());
+            let entry = ctx.attach(record.clone(), confirmed.machine.clone())?;
             ctx.persist(&record).await.map_err(HostError::from)?;
             if phase == "running" {
                 ctx.sync_daemon(&entry);
             }
-            ctx.emit(json!({ "type": "workspace.created", "workspace": Value::Object(ctx.view(&record)) }));
+            ctx.emit(json!({ "type": "workspace.created", "workspace": Value::Object(ctx.view(&record)?) }));
             let reach = if phase == "running" { ctx.reach_of(&entry) } else { "napping".to_string() };
             ctx.emit_status(&entry, &reach, RECORD_RESTORED).await;
             adopted.push(AdoptedMachine { id: row.id.clone(), workspace_id: stamped, name: record.name.clone(), phase: record.phase });

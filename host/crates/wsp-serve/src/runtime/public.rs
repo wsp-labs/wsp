@@ -622,7 +622,9 @@ impl wsp_core::types::api::Runtime for AssembledRuntime {
         Ok(swept.into())
     }
     async fn close(&self) -> Result<(), HostError> {
-        close(&*self.ctx).await
+        close(&*self.ctx).await?;
+        self.ctx.drop_areas();
+        Ok(())
     }
 }
 

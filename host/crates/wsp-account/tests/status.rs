@@ -26,6 +26,7 @@ use wsp_wire::types::changes::Checkout;
 use wsp_wire::types::pull_request::PullRequestSeen;
 use wsp_wire::views::workspace::WorkspacePhase;
 use wsp_wire::views::workspace_kind::WorkspaceKind;
+use wsp_words::exit::HostError;
 
 /// Date.parse("2026-10-25T12:00:00.000Z"): where the fake clock starts.
 const T0: i64 = 1_792_929_600_000;
@@ -285,13 +286,13 @@ impl StatusCtx for World {
         self.ready_before_held.set(self.readied.get());
         self.live.borrow().clone()
     }
-    fn view(&self, record: &WorkspaceRecord) -> Map<String, Value> {
+    fn view(&self, record: &WorkspaceRecord) -> Result<Map<String, Value>, HostError> {
         let mut m = Map::new();
         m.insert("id".into(), json!(record.id));
         m.insert("name".into(), json!(record.name));
         m.insert("kind".into(), serde_json::to_value(record.kind).unwrap());
         m.insert("phase".into(), serde_json::to_value(record.phase).unwrap());
-        m
+        Ok(m)
     }
     fn rate_usd_per_hour(&self, record: &WorkspaceRecord) -> f64 {
         self.facts.borrow().get(&record.id).map(|f| f.rate).unwrap_or(if record.kind == WorkspaceKind::Local { 0.0 } else { 0.11 })
@@ -410,9 +411,12 @@ impl StatusCtx for World {
             None => Err(ReadFailure::Missing),
             Some(m) => match &m.get_fail {
                 Some(f) => Err(f.clone()),
-                None => {
-                    Ok(Confirmed { state: m.state.clone(), stream_url: m.stream_url.clone(), size: json!({ "cpu": 2, "memMb": 4096 }) })
-                }
+                None => Ok(Confirmed {
+                    state: m.state.clone(),
+                    stream_url: m.stream_url.clone(),
+                    size: json!({ "cpu": 2, "memMb": 4096 }),
+                    machine: common::FakeMachine::new(machine_id),
+                }),
             },
         }
     }
@@ -427,11 +431,8 @@ impl StatusCtx for World {
             }
         }
     }
-    fn attach(&self, record: WorkspaceRecord) -> Entry {
-        self.log.borrow_mut().push(format!("attach {}", record.id));
-        let entry = live(record);
-        self.live.borrow_mut().push(entry.clone());
-        entry
+    fn attach(&self, record: WorkspaceRecord, _machine: std::sync::Arc<dyn wsp_engine::machine::Machine>) -> Result<Entry, HostError> {
+        Ok(self.attach_plain(record))
     }
     async fn persist(&self, record: &WorkspaceRecord) -> AccountResult<()> {
         self.log.borrow_mut().push(format!("persist {}", record.id));
@@ -531,7 +532,7 @@ fn s1_row_keys_and_order() {
         lab.w.facts.borrow_mut().insert("w_full".into(), full_facts());
         lab.w.facts.borrow_mut().insert("w_nap".into(), Facts { idle_at: Some(5.0), ..Facts::default() });
 
-        let rows = lab.area.records().await;
+        let rows = lab.area.records().await.expect("rows");
 
         assert!(lab.w.ready_before_held.get(), "the rows wait for ready before they read the held entries");
         assert_eq!(
@@ -568,7 +569,7 @@ fn s1_facts_skipped_when_unreachable() {
         lab.w.facts.borrow_mut().insert("w_up".into(), Facts { reads, ..Facts::default() });
         lab.w.facts.borrow_mut().insert("w_down".into(), Facts { reads, reach: "unreachable".into(), ..Facts::default() });
 
-        let rows = lab.area.records().await;
+        let rows = lab.area.records().await.expect("rows");
 
         assert_eq!(
             keys_of(&rows[0]),
@@ -612,7 +613,7 @@ fn ported_the_row_carries_the_record_size_and_the_rate_the_context_prices() {
     run(async {
         let lab = lab();
         lab.hold(entry_json("w1", "cloud", "running"));
-        let rows = lab.area.records().await;
+        let rows = lab.area.records().await.expect("rows");
         assert_eq!(rows[0]["size"], json!({ "cpu": 2, "memMb": 4096 }));
         assert_eq!(rows[0]["phase"], json!("running"));
         assert!((rows[0]["rateUsdPerHour"].as_f64().unwrap() - 0.11).abs() < 1e-5);
@@ -625,7 +626,7 @@ fn ported_a_row_nobody_bills_carries_a_zero_rate() {
     run(async {
         let lab = lab();
         lab.hold(entry_json("w_mac", "local", "running"));
-        let rows = lab.area.records().await;
+        let rows = lab.area.records().await.expect("rows");
         assert_eq!(rows[0]["rateUsdPerHour"].as_f64(), Some(0.0));
         assert_eq!(rows[0]["kind"], json!("local"));
     });
@@ -639,7 +640,7 @@ fn ported_facts_ride_the_row_of_a_machine_that_has_them_alone() {
         lab.hold(entry_json("w_mac", "local", "running"));
         lab.hold(entry_json("w_b1", "cloud", "running"));
         lab.w.facts.borrow_mut().insert("w_mac".into(), Facts { reads: (false, None, false, true), ..Facts::default() });
-        let rows = lab.area.records().await;
+        let rows = lab.area.records().await.expect("rows");
         assert!(rows[0].contains_key("facts"));
         assert!(!rows[1].contains_key("facts"));
     });
@@ -652,9 +653,9 @@ fn ported_a_rename_leaves_the_idle_mark_where_it_was() {
         let lab = lab();
         let entry = lab.hold(entry_json("w1", "cloud", "running"));
         lab.w.facts.borrow_mut().insert("w1".into(), Facts { idle_at: Some(T0 as f64 + 20.0 * MIN as f64), ..Facts::default() });
-        let first = lab.area.records().await;
+        let first = lab.area.records().await.expect("rows");
         entry.borrow().record.borrow_mut().name = "the name he typed".into();
-        let second = lab.area.records().await;
+        let second = lab.area.records().await.expect("rows");
         assert_eq!(first[0]["idleAt"].as_f64(), Some(T0 as f64 + 20.0 * MIN as f64));
         assert_eq!(second[0]["idleAt"], first[0]["idleAt"]);
         assert_eq!(second[0]["name"], json!("the name he typed"));
@@ -1453,4 +1454,13 @@ fn ported_a_box_first_seen_a_day_ago_is_deleted_and_a_young_one_named() {
         assert_eq!(*lab.w.stops.borrow(), ids(&["m_old"]));
         assert_eq!(lab.keys("unrecorded-machines"), ids(&["m_young"]));
     });
+}
+
+impl World {
+    fn attach_plain(&self, record: WorkspaceRecord) -> Entry {
+        self.log.borrow_mut().push(format!("attach {}", record.id));
+        let entry = live(record);
+        self.live.borrow_mut().push(entry.clone());
+        entry
+    }
 }

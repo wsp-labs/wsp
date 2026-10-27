@@ -1141,7 +1141,7 @@ mod folder_servers {
         async fn sign_in_line(&self, place_id: &str, agent: &str) -> Option<PlaceResult<SignInLine>> { self.inner.sign_in_line(place_id, agent).await }
         fn stores_on(&self, place_id: &str, home: &str) -> Option<IndexMap<String, String>> { self.inner.stores_on(place_id, home) }
         async fn login_here(&self, agent: &str) -> Option<PlaceResult<Option<Vec<u8>>>> { self.inner.login_here(agent).await }
-        async fn add_folder(&self, place_id: &str, key: &str, folder: &RecipeFileFoldersValue, mv: Option<&FolderMove>, stage: Option<Rc<dyn Fn(&str)>>, ) -> Option<PlaceResult<HeldRow>> { self.inner.add_folder(place_id, key, folder, mv, stage).await }
+        async fn add_folder(&self, place_id: &str, key: &str, folder: &RecipeFileFoldersValue, mv: Option<&FolderMove>, stage: Option<wsp_machines::places::types::FolderStage>, ) -> Option<PlaceResult<HeldRow>> { self.inner.add_folder(place_id, key, folder, mv, stage).await }
         async fn folder_remote(&self, folder: &RecipeFileFoldersValue, ) -> Option<PlaceResult<Option<String>>> { self.inner.folder_remote(folder).await }
         async fn remove_folder(&self, place_id: &str, project_id: &str) -> PlaceResult<()> { self.inner.remove_folder(place_id, project_id).await }
         async fn folder_look(&self, project_id: &str, was: &RecipeFileFoldersValue, now: &RecipeFileFoldersValue, ) -> PlaceResult<()> { self.inner.folder_look(project_id, was, now).await }

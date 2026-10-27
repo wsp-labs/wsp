@@ -488,12 +488,12 @@ impl SessionsCtx for FakeHost {
         }
         Ok(token.to_string())
     }
-    fn reaches_row(&self, view: &SessionView, origin: Option<&Caller>, talk: Option<TreeTalk>) -> bool {
+    fn reaches_row(&self, view: &SessionView, origin: Option<&Caller>, talk: Option<TreeTalk>) -> Result<bool, HostError> {
         self.hooks.log("reaches_row", vec![]);
         if let Some(hook) = self.hooks.get::<dyn Fn(&SessionView, Option<&Caller>, Option<TreeTalk>) -> bool>("SessionsCtx::reaches_row") {
-            return hook(view, origin, talk);
+            return Ok(hook(view, origin, talk));
         }
-        true
+        Ok(true)
     }
     fn notify_reach(&self, notify: &[String]) -> IndexSet<String> {
         self.hooks.log("notify_reach", vec![]);
@@ -912,12 +912,12 @@ impl SessionsCtx for FakeHost {
         let events = self.thread_events(thread_id);
         futures::FutureExt::boxed_local(async move { Ok(events) })
     }
-    fn tree_stands_on(&self, workspace_id: &str, origin: Option<&Caller>, talk: Option<TreeTalk>) -> bool {
+    fn tree_stands_on(&self, workspace_id: &str, origin: Option<&Caller>, talk: Option<TreeTalk>) -> Result<bool, HostError> {
         self.hooks.log("tree_stands_on", vec![workspace_id.to_string()]);
         if let Some(hook) = self.hooks.get::<dyn Fn(&str, Option<&Caller>, Option<TreeTalk>) -> bool>("SessionsCtx::tree_stands_on") {
-            return hook(workspace_id, origin, talk);
+            return Ok(hook(workspace_id, origin, talk));
         }
-        true
+        Ok(true)
     }
     fn refuse_named(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<(), HostError> {
         self.hooks.log("refuse_named", vec![workspace_id.to_string()]);
@@ -949,14 +949,19 @@ impl SessionsCtx for FakeHost {
         }
         Ok(())
     }
-    fn tree_records(&self, origin: Option<&Caller>, talk: TreeTalk, workspace_id: Option<&str>) -> Vec<(String, ThreadRecord)> {
+    fn tree_records(
+        &self,
+        origin: Option<&Caller>,
+        talk: TreeTalk,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<(String, ThreadRecord)>, HostError> {
         self.hooks.log("tree_records", vec![format!("{:?}", workspace_id)]);
         if let Some(hook) =
             self.hooks.get::<dyn Fn(Option<&Caller>, TreeTalk, Option<&str>) -> Vec<(String, ThreadRecord)>>("SessionsCtx::tree_records")
         {
-            return hook(origin, talk, workspace_id);
+            return Ok(hook(origin, talk, workspace_id));
         }
-        Vec::new()
+        Ok(Vec::new())
     }
     fn listed_rows(&self, rows: Vec<SessionView>) -> Vec<SessionView> {
         self.hooks.log("listed_rows", vec![]);
@@ -965,8 +970,10 @@ impl SessionsCtx for FakeHost {
         }
         rows
     }
-    fn placed_rows(&self, rows: Vec<SessionView>) -> Vec<SessionView> {
+    async fn placed_rows(&self, rows: Vec<SessionView>) -> Vec<SessionView> {
         self.hooks.log("placed_rows", vec![]);
+        // The TS awaits the computers' rows here, so the answer arrives after the caller has been suspended once.
+        tokio::task::yield_now().await;
         if let Some(hook) = self.hooks.get::<dyn Fn(Vec<SessionView>) -> Vec<SessionView>>("SessionsCtx::placed_rows") {
             return hook(rows);
         }

@@ -173,7 +173,7 @@ fn drive<Fut: std::future::Future<Output = ()>>(opts: RuntimeOptions, f: impl Fn
     let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("a tokio runtime");
     let local = tokio::task::LocalSet::new();
     local.block_on(&rt, async move {
-        let runtime = create_runtime(opts);
+        let runtime = create_runtime(opts).expect("a runtime");
         let ctx: Rc<Ctx> = runtime.context();
         f(ctx, runtime).await
     });
@@ -598,10 +598,10 @@ fn landing_road_path_names_the_folder_each_road_keeps() {
     drive(plain(), |c, _| async move {
         let deps = road_deps("default", "/mac/.claude");
         // A provider's checkout is the first life's own folder under /root, as the TS `projectPathOn` names it.
-        assert_eq!(road(&c, LandingKind::Provider).path("spoo-landing", &source, &deps), "/root/spoo-landing");
+        assert_eq!(road(&c, LandingKind::Provider).path("spoo-landing", &source, &deps).expect("a path"), "/root/spoo-landing");
         // A folder source is its own path on this computer.
         let folder: ProjectSource = serde_json::from_value(json!({ "kind": "folder", "path": "/Users/z/lab" })).expect("a source");
-        assert_eq!(road(&c, LandingKind::Mac).path("lab", &folder, &deps), "/Users/z/lab");
+        assert_eq!(road(&c, LandingKind::Mac).path("lab", &folder, &deps).expect("a path"), "/Users/z/lab");
     });
 }
 
@@ -610,14 +610,37 @@ fn landing_road_memory_dir_keys_the_memory_to_the_road() {
     drive(plain(), |c, _| async move {
         let p = project("pr_1", "api", "/Users/z/api");
         let deps = road_deps("zingzys-mac", "/Users/z/.claude");
-        assert_eq!(road(&c, LandingKind::Mac).memory_dir(&p, "-Users-z-api", &deps), "/Users/z/.claude/projects/-Users-z-api/memory");
         assert_eq!(
-            road(&c, LandingKind::Provider).memory_dir(&p, "-root-api", &deps),
+            road(&c, LandingKind::Mac).memory_dir(&p, "-Users-z-api", &deps).expect("a folder"),
+            "/Users/z/.claude/projects/-Users-z-api/memory"
+        );
+        assert_eq!(
+            road(&c, LandingKind::Provider).memory_dir(&p, "-root-api", &deps).expect("a folder"),
             wsp_core::project_landing::guest_memory_dir("-root-api")
         );
         let home = JoinedComputer { machine: backend().get("m_1").await.expect("a machine"), home: "/home/me".into() };
         let boxed = LandingDeps { computer: Some(home), ..road_deps("a-box", "") };
-        assert_eq!(road(&c, LandingKind::Box).memory_dir(&p, "-home-me-api", &boxed), "/home/me/.claude-cfg/projects/-home-me-api/memory");
+        assert_eq!(
+            road(&c, LandingKind::Box).memory_dir(&p, "-home-me-api", &boxed).expect("a folder"),
+            "/home/me/.claude-cfg/projects/-home-me-api/memory"
+        );
+    });
+}
+
+/// join A (#2476): the box road throws where the box answered no login (`computerOf`), so the memory folder of a box
+/// with none is the refusal, and not the folder the project already held.
+#[test]
+fn landing_road_memory_dir_of_a_box_with_no_login_is_the_refusal_the_ts_throws() {
+    drive(plain(), |c, _| async move {
+        let p = project("pr_1", "api", "/Users/z/api");
+        let refused = road(&c, LandingKind::Box).memory_dir(&p, "-home-me-api", &road_deps("a-box", "")).expect_err("refused");
+        assert!(!refused.message.is_empty(), "a refusal with words");
+        let path = road(&c, LandingKind::Box).path(
+            "api",
+            &serde_json::from_value(json!({ "kind": "git", "url": "https://github.com/a/b.git" })).expect("a source"),
+            &road_deps("a-box", ""),
+        );
+        assert!(path.is_err(), "the box road's path needs the box's login too");
     });
 }
 

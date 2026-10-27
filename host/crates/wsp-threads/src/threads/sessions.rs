@@ -156,7 +156,8 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     fn root_of(&self, thread_id: &str) -> String;
     fn tree_of(&self, scope: Option<&ThreadScope>) -> TreeOf;
     fn thread_of_token(&self, token: &str) -> Result<String, HostError>;
-    fn reaches_row(&self, view: &SessionView, origin: Option<&Caller>, talk: Option<TreeTalk>) -> bool;
+    /// `reachesRow`: throws where the boot area cannot read the row's record (boot.ts).
+    fn reaches_row(&self, view: &SessionView, origin: Option<&Caller>, talk: Option<TreeTalk>) -> Result<bool, HostError>;
     fn notify_reach(&self, notify: &[String]) -> IndexSet<String>;
     fn notify_on(&self, thread_id: &str) -> Option<NotifyOn>;
     async fn resume_sub(&self, entry: &Entry, thread_id: &str, harness: &str, prompt: &str) -> Result<Resumed, HostError>;
@@ -266,14 +267,20 @@ pub trait SessionsCtx: LaunchCtx + TrimmedCtx {
     fn open_thread(&self, workspace_id: &str, thread_id: &str) -> LocalBoxFuture<'static, Result<Vec<SessionEvent>, HostError>>;
 
     // sessions_reads
-    fn tree_stands_on(&self, workspace_id: &str, origin: Option<&Caller>, talk: Option<TreeTalk>) -> bool;
+    fn tree_stands_on(&self, workspace_id: &str, origin: Option<&Caller>, talk: Option<TreeTalk>) -> Result<bool, HostError>;
     fn refuse_named(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<(), HostError>;
     fn title_rows(&self, rows: Vec<SessionView>) -> Vec<SessionView>;
     fn booting(&self, workspace_id: &str) -> bool;
     async fn refresh_title(&self, view: SessionView, ended: bool) -> Result<(), HostError>;
-    fn tree_records(&self, origin: Option<&Caller>, talk: TreeTalk, workspace_id: Option<&str>) -> Vec<(String, ThreadRecord)>;
+    fn tree_records(
+        &self,
+        origin: Option<&Caller>,
+        talk: TreeTalk,
+        workspace_id: Option<&str>,
+    ) -> Result<Vec<(String, ThreadRecord)>, HostError>;
     fn listed_rows(&self, rows: Vec<SessionView>) -> Vec<SessionView>;
-    fn placed_rows(&self, rows: Vec<SessionView>) -> Vec<SessionView>;
+    /// `placedRows` (boot.ts:783): awaits the joined computers' rows, so it suspends.
+    async fn placed_rows(&self, rows: Vec<SessionView>) -> Vec<SessionView>;
     fn drives_thread(&self, thread_id: Option<&str>, origin: Option<&Caller>) -> bool;
     async fn open_transcript(&self, workspace_id: &str) -> Result<Vec<SessionEvent>, HostError>;
     fn opened_words(&self, workspace_id: &str, thread_id: &str);

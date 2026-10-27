@@ -8,7 +8,7 @@ use std::sync::Arc;
 use futures::FutureExt as _;
 use indexmap::{IndexMap, IndexSet};
 use wsp_core::clock::Cancel;
-use wsp_core::project_landing::{guest_memory_dir, project_landing, LandingDeps, ProjectLanding};
+use wsp_core::project_landing::{project_landing, LandingDeps, ProjectLanding};
 use wsp_core::types::internal::{turn_written, KindModule, Reopened, SessionEntry, ThreadRecord};
 use wsp_core::types::pending::{Clock, Store};
 use wsp_core::types::wiring::{GoneOutcome, PlaceBackends, WorkspaceRecord};
@@ -506,10 +506,8 @@ impl LandingRoad for Ctx {
     fn refusal(&self, project: &ProjectView, _deps: &serde_json::Value) -> Option<String> {
         provider_road().refusal(project, &provider_deps(self.clock.clone()))
     }
-    fn memory_dir(&self, project: &ProjectView, memory_key: &str, _deps: &serde_json::Value) -> String {
-        provider_road()
-            .places(project, memory_key, &provider_deps(self.clock.clone()))
-            .map_or_else(|_| guest_memory_dir(memory_key), |places| places.memory_dir)
+    fn memory_dir(&self, project: &ProjectView, memory_key: &str, _deps: &serde_json::Value) -> Result<String, HostError> {
+        Ok(provider_road().places(project, memory_key, &provider_deps(self.clock.clone()))?.memory_dir)
     }
     fn workspace_binds(&self, project: &ProjectView) -> Vec<wsp_wire::views::place::MachineBind> {
         provider_road().workspace_binds(project)

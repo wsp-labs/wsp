@@ -11,12 +11,13 @@ pub mod public;
 use std::rc::Rc;
 
 use wsp_core::types::wiring::RuntimeOptions;
+use wsp_words::exit::HostError;
 
 pub use public::AssembledRuntime;
 
 /// `createRuntime(opts)` (runtime.ts:425-489, spec C1): the core, every area in the order spec C1 lists, the pipe
-/// area with the brokered rule, then the public runtime. Panics where the TS throws on a bad option: no backend or
-/// store, or a daemon token seed of the wrong shape.
-pub fn create_runtime(opts: RuntimeOptions) -> Rc<AssembledRuntime> {
-    Rc::new(AssembledRuntime::over(ctx::Ctx::build(opts)))
+/// area with the brokered rule, then the public runtime. Where the TS throws on a bad option (no store, or a daemon
+/// token seed that is not lowercase hex) the error is the TS's, answered and not a panic.
+pub fn create_runtime(opts: RuntimeOptions) -> Result<Rc<AssembledRuntime>, HostError> {
+    Ok(Rc::new(AssembledRuntime::over(ctx::Ctx::build(opts)?)))
 }

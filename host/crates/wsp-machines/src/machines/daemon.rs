@@ -118,11 +118,35 @@ enum First {
     Held(SessionView, ThreadCapWait),
 }
 
-/// A waiting answer that never comes is pending for good, as a promise nobody settles.
+/// The queued and held answers are two of three ways a send first answers: a dropped sender means that way did not
+/// happen (the start returned, or another way won), so it stays pending for good, as a promise nobody settles, and
+/// the other arms decide.
 async fn answered<T>(rx: oneshot::Receiver<T>) -> T {
     match rx.await {
         Ok(value) => value,
         Err(_) => std::future::pending().await,
+    }
+}
+
+/// The start's own answer: its sender is dropped unsent only when the task ended without answering (aborted, or a
+/// panic past `panic_words`), which the TS shows as a rejected promise, so it is an error and never a wait.
+async fn started_or_ended(
+    rx: oneshot::Receiver<Result<Started, HostError>>,
+) -> Result<Started, HostError> {
+    match rx.await {
+        Ok(answer) => answer,
+        Err(_) => Err(HostError::new("the send ended before it was answered")),
+    }
+}
+
+/// What a panic carried, as the message of the error a thrown one is in the TS.
+fn panic_words(payload: Box<dyn std::any::Any + Send>) -> String {
+    match payload.downcast::<String>() {
+        Ok(words) => *words,
+        Err(payload) => payload.downcast_ref::<&str>().map_or_else(
+            || "the send panicked".to_string(),
+            |words| (*words).to_string(),
+        ),
     }
 }
 
@@ -267,7 +291,12 @@ impl DaemonArea {
         let ws = workspace_id.to_string();
         let thread_said = thread_word(thread.unwrap_or(""));
         wsp_engine::local_task::try_spawn_local(async move {
-            let answer = rt.sessions_start(&ws, ask, caller.as_ref()).await;
+            let run = std::panic::AssertUnwindSafe(rt.sessions_start(&ws, ask, caller.as_ref()))
+                .catch_unwind();
+            let answer = match run.await {
+                Ok(answer) => answer,
+                Err(payload) => Err(HostError::new(panic_words(payload))),
+            };
             if started_tx.is_canceled() {
                 if let Err(e) = &answer {
                     rt.warn(&format!(
@@ -280,7 +309,7 @@ impl DaemonArea {
         });
         let first = tokio::select! {
             biased;
-            answer = answered(started_rx) => First::Started(answer),
+            answer = started_or_ended(started_rx) => First::Started(answer),
             harness = answered(queued_rx) => First::Queued(harness),
             (view, wait) = answered(held_rx) => First::Held(view, wait),
         };

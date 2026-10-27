@@ -18,6 +18,7 @@ use wsp_wire::views::place_more::{PlaceSettings, PlaceView};
 use wsp_wire::views::workspace::{DaemonReachView, ProjectView};
 use wsp_wire::views::workspace_kind::WorkspaceKind;
 use wsp_wire::wire::place_link::PlaceReport;
+use wsp_words::exit::HostError;
 
 use crate::account::box_panels::{BoxPanelsCtx, BoxPanelsOpener, Watchers};
 use crate::account::core_types::{AccountResult, Entry};
@@ -144,7 +145,7 @@ pub trait ChannelsCtx {
     /// `placeDoor.channel(placeId, onEvent)`: the link as a channel, None where none stands.
     fn link_channel(&self, place_id: &str, on_event: Rc<dyn Fn(Value)>) -> Option<Rc<dyn DaemonChannel>>;
     /// `ctx.status.spend(rows, now)`: each place's spend today.
-    async fn spend_today(&self, rows: &[PlaceView], now: i64) -> Vec<(String, Option<f64>)>;
+    async fn spend_today(&self, rows: &[PlaceView], now: i64) -> Result<Vec<(String, Option<f64>)>, HostError>;
 
     // The projects.
     fn projects_held(&self) -> IndexMap<String, ProjectView>;
@@ -200,7 +201,7 @@ pub trait ChannelsCtx {
     /// `brokeredEnv(token, entry.record.branchOfRecord, publicMarketplaces(ctx))`.
     fn brokered_env(&self, token: &str, entry: &Entry) -> IndexMap<String, String>;
     /// `terminalSignIn(harness, launchToken => ctx.brokeredLaunch(entry, harness, launchToken), token)`.
-    fn terminal_sign_in(&self, harness: &str, entry: &Entry, token: &str) -> Option<TerminalSignIn>;
+    fn terminal_sign_in(&self, harness: &str, entry: &Entry, token: &str) -> Result<Option<TerminalSignIn>, HostError>;
     /// `terminalLine(harness, program)`: no program where the sign-in carries none, as Claude's does (brokered.ts:94-98).
     fn terminal_line(&self, harness: &str, program: Option<&str>) -> String;
     async fn thread_folder(&self, entry: &Entry) -> AccountResult<String>;

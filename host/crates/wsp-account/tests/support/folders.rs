@@ -169,7 +169,7 @@ impl Base for FakeFolders {
     async fn persist(&self, record: WorkspaceRecord) -> Result<(), HostError> {
         self.b().persist(record).await
     }
-    fn view(&self, record: &WorkspaceRecord) -> WorkspaceView {
+    fn view(&self, record: &WorkspaceRecord) -> Result<WorkspaceView, HostError> {
         self.b().view(record)
     }
     fn emit(&self, event: Event) -> Result<(), HostError> {
@@ -275,12 +275,12 @@ impl FoldersCtx for FakeFolders {
         let machine: Arc<dyn Machine> = FakeMachine::new(place.unwrap_or("local"));
         Ok((machine, WorkspaceSize { cpu: 2.0.into(), mem_mb: 4096.0.into() }))
     }
-    fn attach(&self, record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Entry {
+    fn attach(&self, record: WorkspaceRecord, machine: Arc<dyn Machine>) -> Result<Entry, HostError> {
         self.base.call("attach", json!({ "id": record.id, "machineId": machine.id() }));
         let id = record.id.clone();
         let entry = crate::base::entry_over(record, machine.clone());
         self.base.live.borrow_mut().insert(id, entry.clone());
-        entry
+        Ok(entry)
     }
     fn folders_of(&self, project_id: &str) -> Vec<Entry> {
         self.base
@@ -364,9 +364,9 @@ impl FoldersCtx for FakeFolders {
             let _ = rx.await;
         }
     }
-    fn not_a_repo(&self, record: &WorkspaceRecord) -> bool {
+    fn not_a_repo(&self, record: &WorkspaceRecord) -> Result<bool, HostError> {
         self.base.call("not_a_repo", json!({ "id": record.id }));
-        self.not_repo.borrow().contains(&record.id)
+        Ok(self.not_repo.borrow().contains(&record.id))
     }
     async fn read_pull_request(&self, entry: &Entry, force: bool) -> Result<(), HostError> {
         self.base.call("read_pull_request", json!({ "id": record_id(entry), "force": force }));

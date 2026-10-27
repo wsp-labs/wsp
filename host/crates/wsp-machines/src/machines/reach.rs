@@ -30,6 +30,10 @@ pub mod disk;
 
 pub use disk::{DISK_CLOSE_WAIT_MS, DISK_READ_MS};
 
+/// The frame `onThisComputer` builds from the home it runs in. Higher-ranked on purpose, as `Building` is: `async_trait`
+/// ties an elided `&str` to the borrow of the callback.
+pub type HomeFrame = dyn for<'x> Fn(&'x str) -> Value;
+
 /// What the reach area reads off the runtime's context (reach.ts:22 and the `ctx.` calls below it).
 #[async_trait(?Send)]
 pub trait ReachCtx {
@@ -50,7 +54,7 @@ pub trait ReachCtx {
     /// `ctx.moduleOf(kind).hasDaemon(entry)`.
     fn kind_has_daemon(&self, entry: &Entry) -> AreaResult<bool>;
     /// `ctx.view(record)` as the TS object.
-    fn view(&self, record: &WorkspaceRecord) -> Value;
+    fn view(&self, record: &WorkspaceRecord) -> Result<Value, HostError>;
     /// status.ts `machineStateOf(phase)` as its word.
     fn machine_state_of(&self, phase: &WorkspacePhase) -> String;
     /// `ctx.idle.idleAt(id)`.
@@ -71,7 +75,7 @@ pub trait ReachCtx {
     /// `withDaemon(entry, ask => ask(frame))`.
     async fn with_daemon(&self, entry: &Entry, frame: Value) -> AreaResult<Value>;
     /// `onThisComputer((ask, home) => ask(frame(home)))`.
-    async fn on_this_computer(&self, frame: Box<dyn Fn(&str) -> Value>) -> AreaResult<Value>;
+    async fn on_this_computer(&self, frame: Box<HomeFrame>) -> AreaResult<Value>;
     fn checkout_of(&self, record: &WorkspaceRecord) -> AreaResult<String>;
     /// `servedByItsComputer(entry) !== undefined`.
     fn served_by_its_computer(&self, entry: &Entry) -> bool;

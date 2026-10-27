@@ -97,9 +97,9 @@ pub struct LandAsk {
 #[async_trait(?Send)]
 pub trait LandingRoad {
     fn kind(&self) -> LandingKind;
-    fn path(&self, name: &str, source: &ProjectSource, deps: &LandingDeps) -> String;
+    fn path(&self, name: &str, source: &ProjectSource, deps: &LandingDeps) -> Result<String, HostError>;
     /// `places({project, memoryKey, deps}).memoryDir`.
-    fn memory_dir(&self, project: &ProjectView, memory_key: &str, deps: &LandingDeps) -> String;
+    fn memory_dir(&self, project: &ProjectView, memory_key: &str, deps: &LandingDeps) -> Result<String, HostError>;
     fn lands_at_add(&self, seeding: bool) -> bool;
     async fn land(&self, ask: LandAsk, deps: &LandingDeps) -> Result<Landed, HostError>;
     async fn remove(&self, project: &ProjectView, deps: &LandingDeps) -> Result<String, HostError>;
@@ -621,7 +621,7 @@ impl Projects {
             Some(id) => id.clone(),
             None => format!("pr_{}", hex::encode(self.ctx.ids().bytes(4))),
         };
-        let path = road.path(&name, &source, &at.deps);
+        let path = road.path(&name, &source, &at.deps)?;
         let memory_key = resolved.seed_memory_key.clone().unwrap_or_else(|| claude_project_key(source_path.as_deref().unwrap_or(&path)));
         let created_at = match &o.created_at {
             Some(created) => created.clone(),
@@ -646,7 +646,7 @@ impl Projects {
             fields["git"] = json!({ "top": top });
         }
         let mut project: ProjectView = read_json(fields)?;
-        project.memory_dir = road.memory_dir(&project, &memory_key, &at.deps);
+        project.memory_dir = road.memory_dir(&project, &memory_key, &at.deps)?;
         let began = self.ctx.clock().now();
         let emitter = self.ctx.clone();
         let project_id = project.id.clone();

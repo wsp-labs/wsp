@@ -1361,6 +1361,7 @@ pub struct CallSeen {
 }
 
 /// One row the runtime holds, a turn of a thread. internal.ts:1259.
+#[derive(Clone)]
 pub struct SessionEntry {
     pub view: SessionView,
     pub turn_id: String,

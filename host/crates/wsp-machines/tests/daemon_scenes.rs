@@ -588,6 +588,28 @@ fn send_detached_a_refused_start_rejects() {
     })
 }
 
+/// A panic is never a hang: a start that dies before it answers rejects the send, as the TS's rejected promise does
+/// (daemon.ts `sendDetached` awaits `sessions.start` with nothing between).
+#[test]
+fn send_detached_a_start_that_panics_rejects_and_never_hangs() {
+    common::run_local(async {
+        let (_sc, w) = start("send detached: started");
+        w.rt.starts.borrow_mut().push_front("panics".to_string());
+        let sent = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            w.area.send_detached("a", "hi", None, None),
+        )
+        .await
+        .expect("the send answers, not waits for good");
+        let refused = sent.expect_err("a start that died answers an error");
+        assert!(
+            refused.message.contains("the start broke"),
+            "{}",
+            refused.message
+        );
+    })
+}
+
 #[test]
 fn to_first_thread_the_earliest_row_with_a_thread_ties_to_the_first_listed() {
     common::run_local(async {

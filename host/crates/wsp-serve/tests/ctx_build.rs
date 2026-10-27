@@ -51,7 +51,7 @@ fn a_runtime_wired_with_place_links_serves_a_place_door_under_the_hosts_key() {
         let key = new_place_key_pair();
         let mut opts = options();
         opts.place_links = Some(Rc::new(wiring(key.clone())));
-        let runtime = create_runtime(opts);
+        let runtime = create_runtime(opts).expect("a runtime");
         let door = runtime.places().expect("the door the links wire");
         assert_eq!(door.host_key(), key_fingerprint(&key.public_key));
     });
@@ -65,15 +65,37 @@ fn place_links_of_another_type_are_refused_where_the_runtime_is_built() {
     run(|| async {
         let mut opts = options();
         opts.place_links = Some(Rc::new(Other));
-        let _ = create_runtime(opts);
+        let _ = create_runtime(opts).expect("a runtime");
+    });
+}
+
+// join A (#2476), must-fix 6: where the TS throws while it builds, the Rust answers the TS's error and never panics.
+// Each message is node's, read off `createRuntime` at 65f6b89c7.
+#[test]
+fn a_runtime_wired_with_no_store_is_refused_with_the_error_the_ts_throws() {
+    run(|| async {
+        let backend = Arc::new(FakeBackend::new(FakeBackendOptions::default()));
+        let refused = create_runtime(RuntimeOptions { backend: Some(backend), ..Default::default() }).err().expect("a refusal");
+        assert_eq!(refused.message, "Cannot read properties of undefined (reading 'transcripts')");
     });
 }
 
 #[test]
-#[should_panic(expected = "create_runtime needs a store")]
-fn a_runtime_wired_with_no_store_is_refused() {
+fn a_daemon_token_seed_that_is_not_lowercase_hex_is_refused() {
     run(|| async {
-        let backend = Arc::new(FakeBackend::new(FakeBackendOptions::default()));
-        let _ = create_runtime(RuntimeOptions { backend: Some(backend), ..Default::default() });
+        let mut opts = options();
+        opts.daemon_token = Some("XYZ".into());
+        let refused = create_runtime(opts).err().expect("a refusal");
+        assert_eq!(refused.message, "a daemon token is lowercase hex");
+    });
+}
+
+/// `createRuntime({ store })` with no backend builds in the TS (`wiredPlace` holds the backend unread), so it builds here.
+#[test]
+fn a_runtime_wired_with_no_backend_builds_as_it_does_in_the_ts() {
+    run(|| async {
+        let mut opts = options();
+        opts.backend = None;
+        assert!(create_runtime(opts).is_ok());
     });
 }

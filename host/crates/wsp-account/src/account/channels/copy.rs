@@ -413,7 +413,7 @@ impl ChannelsArea {
         for (key, value) in self.ctx.brokered_env(&token, entry) {
             env.insert(key, value);
         }
-        for (key, value) in self.shell_sign_ins(entry, &thread_id, &token).await {
+        for (key, value) in self.shell_sign_ins(entry, &thread_id, &token).await? {
             env.insert(key, value);
         }
         env.insert(THREAD_ENV.to_string(), thread_id);
@@ -421,7 +421,12 @@ impl ChannelsArea {
     }
 
     /// C7, channels.ts:685.
-    pub async fn shell_sign_ins(self: &Rc<Self>, entry: &Entry, thread_id: &str, token: &str) -> IndexMap<String, String> {
+    pub async fn shell_sign_ins(
+        self: &Rc<Self>,
+        entry: &Entry,
+        thread_id: &str,
+        token: &str,
+    ) -> Result<IndexMap<String, String>, HostError> {
         let harness = self
             .ctx
             .thread_record(thread_id)
@@ -429,16 +434,16 @@ impl ChannelsArea {
             .filter(|harness| !harness.is_empty())
             .or_else(|| self.ctx.latest_harness(thread_id));
         let Some(harness) = harness else {
-            return IndexMap::new();
+            return Ok(IndexMap::new());
         };
-        let Some(sign_in) = self.ctx.terminal_sign_in(&harness, entry, token) else {
-            return IndexMap::new();
+        let Some(sign_in) = self.ctx.terminal_sign_in(&harness, entry, token)? else {
+            return Ok(IndexMap::new());
         };
         let line = self.ctx.terminal_line(&harness, sign_in.program.as_deref());
         self.write_terminal(entry, &harness, &line).await;
         let mut env = sign_in.env;
         env.insert(TERMINAL_ENV.to_string(), harness);
-        env
+        Ok(env)
     }
 
     /// C8, channels.ts:699.

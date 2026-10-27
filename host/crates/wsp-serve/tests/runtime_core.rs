@@ -189,12 +189,8 @@ impl CoreCtx for Ctx {
         self.script.record("readPublicMarketplaces", json!({}));
         Ok(())
     }
-    fn turn_road(&self, kind: WorkspaceKind) -> WorkspaceOrigin {
-        if kind == WorkspaceKind::Local {
-            WorkspaceOrigin::Here
-        } else {
-            WorkspaceOrigin::Relayed
-        }
+    fn turn_road(&self, kind: WorkspaceKind) -> Result<WorkspaceOrigin, HostError> {
+        Ok(if kind == WorkspaceKind::Local { WorkspaceOrigin::Here } else { WorkspaceOrigin::Relayed })
     }
     fn live(&self) -> Vec<StandingEntry> {
         self.live.borrow().clone()

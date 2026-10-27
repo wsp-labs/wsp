@@ -41,32 +41,6 @@ use wsp_words::exit::HostError;
 use super::Ctx;
 use crate::runtime::join::spawn_detached;
 
-/// A row of the session map as an owned value: `SessionEntry` is not `Clone`, and the queue reads rows by value.
-fn sub_queue_copy(row: &SessionEntry) -> SessionEntry {
-    SessionEntry {
-        view: row.view.clone(),
-        turn_id: row.turn_id.clone(),
-        replaces: row.replaces.clone(),
-        notify: row.notify.clone(),
-        notify_by: row.notify_by.clone(),
-        notify_road: row.notify_road,
-        turn_token: row.turn_token.clone(),
-        scope_device_id: row.scope_device_id.clone(),
-        handle: row.handle.clone(),
-        end: row.end.clone(),
-        turn_live: row.turn_live.clone(),
-        run: row.run.clone(),
-        from: row.from,
-        asked: row.asked.clone(),
-        snapshot: row.snapshot.clone(),
-        pid: row.pid,
-        launch: row.launch.clone(),
-        calls: row.calls.clone(),
-        unanswered: row.unanswered,
-        queued: row.queued,
-    }
-}
-
 /// `{ type, ... }` as the bus's event, or the warning a shape that is no event leaves where the TS would have thrown.
 fn sub_queue_event(event: Value) -> Option<EventUnion> {
     match serde_json::from_value::<EventUnion>(event) {
@@ -152,7 +126,7 @@ impl SubQueueCtx for Ctx {
     }
     fn session(&self, turn_id: &str) -> Option<SessionEntry> {
         let row = self.sessions.borrow().get(turn_id).cloned()?;
-        let copy = sub_queue_copy(&row.borrow());
+        let copy = row.borrow().clone();
         Some(copy)
     }
     fn set_session(&self, turn_id: &str, entry: SessionEntry) {
@@ -183,14 +157,9 @@ impl SubQueueCtx for Ctx {
         let backend = self.kinds.get().backend_for(record)?;
         Ok(backend.limits().await.ok())
     }
-    fn view(&self, record: &WorkspaceRecord) -> Value {
-        match self.records.get().view(record) {
-            Ok(view) => serde_json::to_value(view).unwrap_or(Value::Null),
-            Err(e) => {
-                wsp_core::console::warn(&format!("{} has no view to show: {}", record.name, e.message));
-                Value::Null
-            }
-        }
+    fn view(&self, record: &WorkspaceRecord) -> Result<Value, HostError> {
+        let view = self.records.get().view(record)?;
+        serde_json::to_value(view).map_err(|e| HostError::new(e.to_string()))
     }
     async fn persist(&self, record: &WorkspaceRecord) -> AreaResult<()> {
         let records = self.records.get();

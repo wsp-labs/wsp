@@ -124,9 +124,9 @@ fn c6_terminal_token_and_sign_ins_called_directly() {
         assert_eq!(got, Some(ShellToken { device_id: "d1".into(), env: minted.clone() }));
         assert_eq!(serde_json::to_string(&got.unwrap().env).unwrap(), serde_json::to_string(&minted).unwrap());
         let b = build(&world);
-        let signs = b.area.shell_sign_ins(&b.entry, "t1", "tok1").await;
+        let signs = b.area.shell_sign_ins(&b.entry, "t1", "tok1").await.expect("sign-ins");
         assert_eq!(serde_json::to_string(&signs).unwrap(), serde_json::to_string(&signed).unwrap());
-        let none = b.area.shell_sign_ins(&b.entry, "t-with-no-harness", "tok1").await;
+        let none = b.area.shell_sign_ins(&b.entry, "t-with-no-harness", "tok1").await.expect("sign-ins");
         assert!(none.is_empty());
         let wrote: Vec<Value> = b.sim.fx.all().into_iter().filter(|e| e[0] == json!("exec")).collect();
         assert_eq!(

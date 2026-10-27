@@ -191,13 +191,13 @@ impl Folders {
             value["parentWorkspaceId"] = json!(parent);
         }
         let record: WorkspaceRecord = serde_json::from_value(value).map_err(|e| HostError::new(e.to_string()))?;
-        let entry = ctx.attach(record, machine);
+        let entry = ctx.attach(record, machine)?;
         ctx.persist(record_of(&entry)).await?;
         ctx.write_daemon_roots(&entry, false).await?;
         if made {
             self.arm_sweep();
         }
-        let workspace = serde_json::to_value(ctx.view(&record_of(&entry))).map_err(|e| HostError::new(e.to_string()))?;
+        let workspace = serde_json::to_value(ctx.view(&record_of(&entry))?).map_err(|e| HostError::new(e.to_string()))?;
         ctx.emit(json!({ "type": "workspace.created", "workspace": workspace }))?;
         Ok(entry)
     }

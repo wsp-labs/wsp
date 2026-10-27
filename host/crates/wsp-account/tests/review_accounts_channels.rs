@@ -57,10 +57,10 @@ struct Lit(Rc<Sim>);
 
 #[async_trait(?Send)]
 impl ChannelsCtx for Lit {
-    fn terminal_sign_in(&self, harness: &str, entry: &Entry, token: &str) -> Option<TerminalSignIn> {
+    fn terminal_sign_in(&self, harness: &str, entry: &Entry, token: &str) -> Result<Option<TerminalSignIn>, HostError> {
         match harness {
             "claude" => {
-                Some(TerminalSignIn { program: None, env: [("SIGN_IN".to_string(), format!("claude:{token}"))].into_iter().collect() })
+                Ok(Some(TerminalSignIn { program: None, env: [("SIGN_IN".to_string(), format!("claude:{token}"))].into_iter().collect() }))
             }
             _ => self.0.terminal_sign_in(harness, entry, token),
         }
@@ -129,7 +129,7 @@ impl ChannelsCtx for Lit {
     fn link_channel(&self, place_id: &str, on_event: Rc<dyn Fn(Value)>) -> Option<Rc<dyn DaemonChannel>> {
         self.0.link_channel(place_id, on_event)
     }
-    async fn spend_today(&self, rows: &[PlaceView], now: i64) -> Vec<(String, Option<f64>)> {
+    async fn spend_today(&self, rows: &[PlaceView], now: i64) -> Result<Vec<(String, Option<f64>)>, HostError> {
         self.0.spend_today(rows, now).await
     }
     fn projects_held(&self) -> IndexMap<String, ProjectView> {
@@ -267,7 +267,7 @@ fn a_claude_sign_in_terminal_has_its_program_taken_away_and_never_replaced_by_an
     run(async move {
         let b = build(&world);
         let area = ChannelsArea::new(Rc::new(Lit(b.sim.clone())));
-        let env = area.shell_sign_ins(&b.entry, "t1", "tok1").await;
+        let env = area.shell_sign_ins(&b.entry, "t1", "tok1").await.expect("sign-ins");
         assert_eq!(env.get("WSP_TERMINAL").map(String::as_str), Some("claude"));
         let execs: Vec<Value> = b.sim.fx.all().into_iter().filter(|e| e[0] == json!("exec")).collect();
         assert_eq!(execs.len(), 1, "one write of the terminal programs");
