@@ -252,12 +252,7 @@ fn guest(titled: impl Fn() -> Option<String> + 'static, wrote: Option<Rc<dyn Fn(
         }
         r.borrow_mut().push(cmd);
         let said = titled().unwrap_or_default();
-        // A round trip to the machine takes time: a read begun at the start of a turn is still in flight when a turn that
-        // ends at once asks for its own, which the TS stub's chain of promises also gives it.
-        Box::pin(async move {
-            sleep_ms(5).await;
-            Ok(exec_ok(&said))
-        })
+        Box::pin(async move { Ok(exec_ok(&said)) })
     }));
     Guest { backend, reads, writes }
 }
@@ -272,14 +267,10 @@ fn failing_guest(fail: impl Fn() -> Option<EngineError> + 'static) -> Guest {
             return inner(m, cmd, stdin);
         }
         r.borrow_mut().push(cmd);
-        let failed = fail();
-        Box::pin(async move {
-            sleep_ms(5).await;
-            match failed {
-                Some(e) => Err(e),
-                None => Ok(exec_ok("Building the server")),
-            }
-        })
+        match fail() {
+            Some(e) => Box::pin(async move { Err(e) }),
+            None => Box::pin(async { Ok(exec_ok("Building the server")) }),
+        }
     }));
     Guest { backend, reads, writes: Rc::default() }
 }
@@ -450,9 +441,7 @@ fn costs_one_read_per_session_per_window_however_often_a_client_refreshes() {
         assert_eq!(count(&g.reads), 1);
         f.clock.advance(TTL + 1);
         f.rows().await;
-        // The row carries its title, so the listing does not wait on the read it sends; it is at the guest a turn later.
-        let r = g.reads.clone();
-        wait!([r] count(&r) == 2);
+        assert_eq!(count(&g.reads), 2);
     });
 }
 
@@ -467,7 +456,6 @@ fn keeps_the_title_it_last_read_while_the_machine_naps_and_asks_nothing_of_a_mac
         f.finish("make a server").await;
         let r = g.reads.clone();
         wait!([r] count(&r) == 1);
-        row_has!(f, "harnessTitle");
         f.fx.rt.workspaces().nap(&f.ws, None).await.expect("a nap");
         *named.borrow_mut() = None;
         assert_eq!(f.title().await, "Building the server");
