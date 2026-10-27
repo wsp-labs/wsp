@@ -100,13 +100,11 @@ import {
   type PlaceView,
   type PortForward,
   type SshHostSuggestion,
-  type ReleaseChangedEvent,
-  type ReleaseView,
+  type ReleaseChangedEvent, type ReleaseView,
   type Caller,
   type ThreadScope,
-  type WorkspaceOrigin,
-  type WorkspaceView,
-  refusalFields,
+  type WorkspaceOrigin, type WorkspaceView,
+  refusalFields, protocolRefusalReply,
 } from "@wsp/protocol";
 import type { DaemonChannel } from "./daemon-channel.js";
 import { NO_DEVICE_DOOR, safeEqual, threadOf, type DeviceDoor, type HeldDevice } from "./devices.js";
@@ -136,7 +134,7 @@ export { LOOPBACK, WS_PATH } from "@wsp/protocol";
 
 export interface ServeOptions {
   /** The release this host runs and how it comes back, named on every answer that lets a socket in. */
-  released?: { version: string; road?: string };
+  released?: { version: string; road?: string; protocol?: number };
   /** A port of the runtime's own, for a runtime served with no page in front of it. A host names none and hands its
    * servers in `attach`, so the page and the protocol share one port. */
   port?: number;
@@ -337,7 +335,7 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
   const init = doorFrom(opts, "init", "this runtime has no cloud setup; the host that serves the app wires one");
   if (!opts.authToken) throw new Error("serveRuntime refuses to start without an auth token");
   const now = opts.now ?? Date.now;
-  const released = opts.released ?? {};
+  const released: Partial<NonNullable<ServeOptions["released"]>> = opts.released ?? {};
   const ticketTtlMs = opts.ticketTtlMs ?? 300_000;
   const pairTtlMs = opts.pairTtlMs ?? PAIR_CODE_TTL_MS;
   const tickets = new Map<string, Ticket>();
@@ -781,6 +779,8 @@ export async function serveRuntime(rt: Runtime, opts: ServeOptions): Promise<Run
           if (msg.op !== "auth") return refuse(UNAUTHORIZED);
           const who = await whoIs(msg.token).catch(() => undefined);
           if (who === undefined) return refuse(UNAUTHORIZED);
+          const outside = protocolRefusalReply(msg.id, released.protocol, msg.protocol);
+          if (outside !== undefined) return void (send(outside), ws.close(4401, UNAUTHORIZED));
           // Ahead of the bind and the last seen below, so a copy refused here leaves nothing of itself behind.
           if (who.kind === "device" && who.device.scope !== undefined && !dialledHere(req)) return refuse(SCOPED_TOKEN_ROAD_REFUSAL);
           authed = true;

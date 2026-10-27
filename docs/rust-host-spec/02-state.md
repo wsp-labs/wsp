@@ -252,7 +252,7 @@ What a fresh host answers, and what each read answers for an id it does not hold
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"workspaces.list"}}
 {"out":{"id":2,"ok":true,"workspaces":[]}}
 {"in":{"id":3,"op":"sessions.list"}}
@@ -267,7 +267,7 @@ What a fresh host answers, and what each read answers for an id it does not hold
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"sessions.list","workspaceId":"ws_00000000"}}
 {"out":{"id":2,"ok":true,"sessions":[]}}
 {"in":{"id":3,"op":"workspaces.get","workspaceId":"ws_00000000"}}
@@ -284,7 +284,7 @@ What a fresh host answers, and what each read answers for an id it does not hold
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"preferences.set","patch":{"sendWith":"mod-enter","theme":"dark"}}}
 {"out":{"id":2,"ok":true,"preferences":{"theme":"dark","lightTheme":"paper","darkTheme":"graphite","sidebarMode":"list","terminalSize":"app","terminalZoom":{},"access":{},"projectLook":{},"projectIcon":{},"computerLook":{},"serverIcons":true,"agentVersions":true,"usageLogs":true,"productUsage":true,"keepAwake":true,"transparency":true,"projectOrder":[],"keybindings":{},"appFont":"","codeFont":"","agentDefaults":{},"projectDefaults":{},"sendWith":"mod-enter","midTurn":"queue","notifyNeeds":"notify-sound","notifyDone":"notify","planAlerts":true,"settleAfter":"2h","askDelete":true,"onQuit":"ask","newThreadIn":"current","labs":false}}}
 {"in":{"id":3,"op":"preferences.set","patch":{}}}

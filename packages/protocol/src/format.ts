@@ -21,5 +21,6 @@ export * from "./words/init.js";
 export * from "./words/thread.js";
 export * from "./words/image.js";
 export * from "./words/boat.js";
+export * from "./words/host-protocol.js";
 export { PROVIDER_KEY_WORDS, placeSaid, providerKeyName, SOLARI_CONSOLE, subThreadsOnly, type ProviderKeyWords } from "./place-word.js";
 export { oneLine } from "./quote.js";

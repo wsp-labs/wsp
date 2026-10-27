@@ -5,7 +5,7 @@ import { once } from "node:events";
 import { connect, type Socket } from "node:net";
 import WebSocket from "ws";
 import { keyFingerprint } from "@wsp/engine";
-import { AUTH_DEADLINE_CLOSE, DAEMON_AUTH_DEADLINE_PASSED, DAEMON_PRE_AUTH_BYTES_EXCEEDED, DOCTOR_UNSERVED, REQUEST_NOT_AN_OBJECT, doctorRowRefusal, doctorRunningLine, HERE_PLACE_ID, HOST_STOPPING_CLOSE, noSuchPlaceRefusal, tableName, PLACE_LINK_NONCE_BYTES, placeLinkTranscript, SEAL_CLIENT, SEAL_UNSERVED, SealOpenReply, WS_PATH, type AdapterEvent, type DoctorLineEvent, type ForwardEvent, type PortForward, type TurnResult } from "@wsp/protocol";
+import { AUTH_DEADLINE_CLOSE, protocolMismatchHalves, refusalLine, DAEMON_AUTH_DEADLINE_PASSED, DAEMON_PRE_AUTH_BYTES_EXCEEDED, DOCTOR_UNSERVED, REQUEST_NOT_AN_OBJECT, doctorRowRefusal, doctorRunningLine, HERE_PLACE_ID, HOST_STOPPING_CLOSE, noSuchPlaceRefusal, tableName, PLACE_LINK_NONCE_BYTES, placeLinkTranscript, SEAL_CLIENT, SEAL_UNSERVED, SealOpenReply, WS_PATH, type AdapterEvent, type DoctorLineEvent, type ForwardEvent, type PortForward, type TurnResult } from "@wsp/protocol";
 import { copyKey, createRuntime, type HarnessAdapterFactory, type HarnessSession, type HarnessStartOptions, type InitDoor, type Runtime } from "../src/runtime.js";
 import { newPlaceKeyPair, verifyPlaceBytes, type PlaceKeyPair, type PlaceRecord } from "../src/places.js";
 import { freshEphemeral, makeSeal, sealKeys, sharedSecret } from "@wsp/keys";
@@ -62,6 +62,47 @@ describe("serveRuntime auth", () => {
     const bare = await WsClient.connect(srv.port);
     expect(await bare.request("auth", { token: "secret" })).not.toHaveProperty("version");
     bare.close();
+  });
+
+  it("the answer that lets a socket in names the protocol number the host speaks, and a range holding it is served", async () => {
+    srv = await serveRuntime(rt(), { port: 0, authToken: "secret", released: { version: "0.4.2", protocol: 3 } });
+    const c = await WsClient.connect(srv.port);
+    expect(await c.request("auth", { token: "secret", protocol: [2, 4] })).toMatchObject({ ok: true, version: "0.4.2", protocol: 3 });
+    c.close();
+    const bare = await WsClient.connect(srv.port);
+    expect(await bare.request("auth", { token: "secret" })).toMatchObject({ ok: true, protocol: 3 });
+    bare.close();
+  });
+
+  it("refuses a range that leaves out the host's number as a usage refusal in two halves naming both, and closes the socket", async () => {
+    srv = await serveRuntime(rt(), { port: 0, authToken: "secret", released: { version: "0.4.2", protocol: 3 } });
+    const newer = await WsClient.connect(srv.port);
+    const closedNewer = newer.closed();
+    const got = await newer.request("auth", { token: "secret", protocol: [1, 2] });
+    const { happened, fix } = protocolMismatchHalves(3, [1, 2]);
+    expect(got).toMatchObject({ ok: false, kind: "usage", error: refusalLine(happened, fix), fix });
+    expect(got["error"]).toContain("protocol 3");
+    expect(got["error"]).toContain("protocols 1 to 2");
+    expect(await closedNewer).toBe(4401);
+    const older = await WsClient.connect(srv.port);
+    const closedOlder = older.closed();
+    expect(await older.request("auth", { token: "secret", protocol: [4, 4] })).toMatchObject({ ok: false, kind: "usage", error: expect.stringContaining("older than the app") });
+    expect(await closedOlder).toBe(4401);
+  });
+
+  it("tells a range from a wrong token nothing of its number: the token is refused first", async () => {
+    srv = await serveRuntime(rt(), { port: 0, authToken: "secret", released: { version: "0.4.2", protocol: 3 } });
+    const c = await WsClient.connect(srv.port);
+    const got = await c.request("auth", { token: "wrong", protocol: [1, 2] });
+    expect(got).toMatchObject({ ok: false, kind: "auth" });
+    expect(JSON.stringify(got)).not.toContain("protocol");
+  });
+
+  it("a host served no number checks no range", async () => {
+    srv = await serveRuntime(rt(), { port: 0, authToken: "secret" });
+    const c = await WsClient.connect(srv.port);
+    expect(await c.request("auth", { token: "secret", protocol: [7, 9] })).toMatchObject({ ok: true });
+    c.close();
   });
 
   it("closes 4401 when the first op is not auth", async () => {

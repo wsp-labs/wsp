@@ -99,6 +99,7 @@ export * from "./views/place-setup-words.js";
 export * from "./wire/daemon-events.js";
 export * from "./wire/devices.js";
 export * from "./wire/place-link.js";
+export * from "./wire/protocol-number.js";
 export * from "./wire/runtime.js";
 export * from "./views/snapshot-lineage.js";
 

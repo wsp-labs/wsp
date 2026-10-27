@@ -239,7 +239,7 @@ The TS host has one helper per road, and they disagree on what a timeout reports
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"host.restart"}}
 {"out":{"id":2,"ok":false,"error":"Ctrl-C the terminal running wsp up and run it again."}}
 ```
