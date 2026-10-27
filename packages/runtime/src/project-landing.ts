@@ -351,6 +351,9 @@ export function seedRestScript(o: { checkout: string; memoryDir: string; seedTar
   return lines.join("\n");
 }
 
+/** How many of an install log's last lines a failed install says. */
+const LOG_TAIL_LINES = 4;
+
 /** The clone, the seed and the install on one machine, the half both roads that clone share. The install is read
  * off the checkout's own root: one listing, then the command the catalog's row for that lockfile names, once. */
 async function cloneSeedInstall(
@@ -422,8 +425,10 @@ async function cloneSeedInstall(
     report("installing", `${install.command} in ${places.checkout}.`);
     const ok = await machine.exec(installScript(install, { dir: places.checkout, log: places.log }), { timeoutMs: INSTALL_MS });
     if (ok.exitCode !== 0) {
-      const said = lastLine(ok.stderr) ?? lastLine(ok.stdout) ?? `exit ${ok.exitCode}`;
-      throw new Error(`${install.command} in ${places.checkout}: ${said}; its whole output is ${places.log} on ${project.computer}`);
+      // The install's output went to the log, so the log is what it said.
+      const tail = await machine.exec(`tail -n ${LOG_TAIL_LINES} ${shellQuote(places.log)}`, { timeoutMs: STEP_MS }).catch(() => undefined);
+      const said = (tail?.stdout ?? "").split("\n").map(line => line.trim()).filter(line => line !== "").join(" / ");
+      throw new Error(`${install.command} in ${places.checkout} failed on ${deps.computerName} with exit ${ok.exitCode}${said === "" ? "" : `: ${said}`}; its whole output is ${places.log}`);
     }
   }
   return {
