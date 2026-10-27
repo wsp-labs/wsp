@@ -761,3 +761,91 @@ fn a_local_wiring_runs_the_backends_execs_under_the_variables_a_test_names() {
         assert_eq!(said.stdout, "kept");
     });
 }
+
+// ws-client.ts `WsClient`: a socket authenticated with a token answers a request by its id and keeps the frames the host pushes it.
+#[test]
+fn a_ws_client_answers_a_request_and_keeps_the_events_the_host_pushes() {
+    use common::local::WsClient;
+    use wsp_serve::serve::{serve_runtime, ServeOptions};
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let fx = runtime(&backend).build();
+        let served = serve_runtime(fx.rt.clone(), ServeOptions { port: Some(0), auth_token: "secret".into(), ..Default::default() })
+            .await
+            .expect("the runtime serves");
+        let mut client = WsClient::connect(served.port(), "secret").await;
+        assert_eq!(client.request("events.subscribe", json!({})).await["ok"], true);
+        let made = create_on(&fx.rt, CreateOn::golden("pushed"), None).await.expect("a workspace");
+        let events = client.events.clone();
+        until(|| async {
+            events.borrow().iter().any(|e| e["type"] == "workspace.created" && e["workspace"]["id"] == made.view.id.as_str())
+        })
+        .await;
+        client.close();
+        served.close().await.expect("a close");
+        fx.rt.close().await.expect("a close");
+    });
+}
+
+// folder-threads.test.ts `tools()` and `machine.exec = ...`: a backend whose one machine runs every command through a hook of the test's own
+// first, which may change the command or answer in its place.
+#[test]
+fn an_around_backend_runs_each_command_through_the_hook_that_may_change_or_answer_it() {
+    use common::local::AroundBackend;
+    use wsp_engine::machine::{ExecResult, MachineBackend as _};
+    drive(|| async {
+        let dir = tempfile::tempdir().expect("a folder");
+        let seen: Rc<std::cell::RefCell<Vec<String>>> = Rc::default();
+        let kept = seen.clone();
+        let around: common::local::Around = Rc::new(move |cmd: String| {
+            kept.borrow_mut().push(cmd.clone());
+            Box::pin(async move {
+                if cmd.contains("refuse") {
+                    return Err(ExecResult { exit_code: 1.into(), stdout: String::new(), stderr: "refused".into() });
+                }
+                Ok(cmd.replace("one", "two"))
+            })
+        });
+        let backend = AroundBackend::new(dir.path(), None, around);
+        let machine = backend.get("local").await.expect("a machine");
+        assert_eq!(machine.exec("printf one", ExecOptions::default()).await.expect("an exec").stdout, "two");
+        let refused = machine.exec("refuse", ExecOptions::default()).await.expect("an answer");
+        assert_eq!((refused.exit_code.0 .0 as i64, refused.stderr.as_str()), (1, "refused"));
+        assert_eq!(*seen.borrow(), ["printf one", "refuse"]);
+    });
+}
+
+// folder-threads.test.ts `here()`: a host over a folder of its own where a thread runs in the project's folder, with no copy made.
+#[test]
+fn a_folder_host_runs_a_thread_in_the_projects_folder_and_keeps_every_daemon_frame() {
+    use common::folder_host::{here, HereOpts, Scratch};
+    use wsp_core::types::api::{FolderForAsk, ProjectAddAsk};
+    drive(|| async {
+        let scratch = Scratch::new();
+        let h = here(&scratch, HereOpts::default());
+        let folder = scratch.repo();
+        let project =
+            h.fx.rt
+                .projects()
+                .add(ProjectAddAsk { source: folder.display().to_string(), ..Default::default() }, None)
+                .await
+                .expect("a project");
+        let at =
+            h.fx.rt
+                .workspaces()
+                .folder_for(FolderForAsk { project: Some(project.project.id), ..Default::default() }, None)
+                .await
+                .expect("a folder");
+        h.fx.rt
+            .sessions()
+            .start(&at.workspace.id, StartOptions { prompt: "hello".into(), ..Default::default() }, None)
+            .await
+            .expect("a start")
+            .finished()
+            .await;
+        assert_eq!(h.agents.cwds(), [Some(folder.display().to_string())]);
+        until(|| async { h.ops().iter().any(|o| o == "git.checkpoint") }).await;
+        assert!(h.copier.lock().unwrap().asks.is_empty());
+        h.fx.rt.close().await.expect("a close");
+    });
+}
