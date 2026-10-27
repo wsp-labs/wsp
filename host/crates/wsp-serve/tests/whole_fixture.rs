@@ -587,3 +587,30 @@ fn create_on_carries_the_cpu_and_memory_a_test_names_to_the_machine() {
         fx.rt.close().await.expect("a close");
     });
 }
+
+// idle.test.ts:244 and :596 `quietForMs` and `backstop`: a lifecycle has neither until a test gives it one.
+#[test]
+fn a_lifecycle_has_a_quiet_figure_and_a_backstop_only_once_a_test_gives_them() {
+    use wsp_engine::machine::Lifecycle as _;
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let life = backend.lifecycle();
+        let m = made(&backend).await;
+        assert!(!life.has_quiet_for_ms() && !life.has_backstop());
+        assert!(life.quiet_for_ms(&*m).await.is_err());
+        life.set_quiet_for_ms(Some(Rc::new(|| Box::pin(async { Ok(Some(60_000)) }))));
+        assert!(life.has_quiet_for_ms());
+        assert_eq!(life.quiet_for_ms(&*m).await.expect("a figure"), Some(60_000));
+        let heard = Rc::new(std::cell::RefCell::new(vec![]));
+        let seen = heard.clone();
+        life.set_backstop(Some(Rc::new(move |machine, until| {
+            seen.borrow_mut().push((machine, until));
+            Box::pin(async { Ok(()) })
+        })));
+        assert!(life.has_backstop());
+        life.backstop(&*m, 1_000, false).await.expect("a backstop");
+        assert_eq!(*heard.borrow(), [("m1".to_string(), 1_000)]);
+        life.set_backstop(None);
+        assert!(!life.has_backstop());
+    });
+}
