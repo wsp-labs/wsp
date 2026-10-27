@@ -19,6 +19,7 @@ pub struct WrappedStore {
     inner: Rc<dyn Store>,
     refuse: RefCell<Vec<(String, String)>>,
     refuse_blobs: RefCell<Vec<(String, String)>>,
+    refuse_once: RefCell<Vec<(String, String)>>,
     holds: RefCell<Vec<(String, Rc<Gate>)>>,
     puts: RefCell<Vec<String>>,
     rows: FailingRows,
@@ -29,6 +30,8 @@ pub struct WrappedStore {
 pub struct FailingRows {
     inner: Rc<dyn Store>,
     message: RefCell<Option<String>>,
+    /// The next `put_index` fails with this, and the ones after it do not (transcript-index.test.ts: "an index write that fails").
+    index_once: RefCell<Option<String>>,
 }
 
 impl FailingRows {
@@ -100,6 +103,9 @@ impl TranscriptRows for FailingRows {
         self.rows().index(w)
     }
     fn put_index(&self, w: &str, json: &str) -> Result<(), HostError> {
+        if let Some(message) = self.index_once.borrow_mut().take() {
+            return Err(HostError::new(message));
+        }
         self.rows().put_index(w, json)
     }
     fn atomically(&self, f: &mut dyn FnMut() -> Result<(), HostError>) -> Result<(), HostError> {
@@ -113,10 +119,16 @@ impl WrappedStore {
             inner: inner.clone(),
             refuse: RefCell::default(),
             refuse_blobs: RefCell::default(),
+            refuse_once: RefCell::default(),
             holds: RefCell::default(),
             puts: RefCell::default(),
-            rows: FailingRows { inner: inner.clone(), message: RefCell::default() },
+            rows: FailingRows { inner: inner.clone(), message: RefCell::default(), index_once: RefCell::default() },
         })
+    }
+
+    /// The next `put` into `collection` fails with `message`, and the ones after it do not (reconcile.test.ts `refusingOnce`).
+    pub fn refuse_next_put(&self, collection: &str, message: &str) {
+        self.refuse_once.borrow_mut().push((collection.into(), message.into()));
     }
 
     /// Every `put_blob` into `collection` fails with `message` from now on (session-images.test.ts: the host dies between two writes).
@@ -132,6 +144,11 @@ impl WrappedStore {
     /// How many `put`s into `collection` the store has seen (`vi.spyOn(store, "put")`).
     pub fn puts_into(&self, collection: &str) -> usize {
         self.puts.borrow().iter().filter(|c| c.as_str() == collection).count()
+    }
+
+    /// The next write of a transcript's index fails with `message`.
+    pub fn fail_next_index_write(&self, message: &str) {
+        *self.rows.index_once.borrow_mut() = Some(message.into());
     }
 
     /// Every read of a transcript fails with `message` from now on.
@@ -159,6 +176,13 @@ impl Store for WrappedStore {
         self.puts.borrow_mut().push(collection.to_string());
         let refused = self.refuse.borrow().iter().find(|(c, _)| c == collection).map(|(_, m)| m.clone());
         if let Some(message) = refused {
+            return Err(HostError::new(message));
+        }
+        let once = {
+            let mut once = self.refuse_once.borrow_mut();
+            once.iter().position(|(c, _)| c == collection).map(|at| once.remove(at).1)
+        };
+        if let Some(message) = once {
             return Err(HostError::new(message));
         }
         self.inner.put(collection, id, value).await
