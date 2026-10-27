@@ -634,3 +634,42 @@ fn the_stand_in_agents_name_their_process_and_turn_and_a_test_reads_whether_a_pr
         assert_eq!(Command::new(&codex).arg("nothing").status().expect("codex").code(), Some(2));
     });
 }
+
+// pull-request.test.ts:84 `fakeDaemons` and :168 `withWorkspace`: two daemons behind one dial told apart by the url, each
+// frame kept with its road, an op nobody answers refused as a daemon refuses it; and a workspace over them whose pull
+// request reads over this computer's own daemon.
+#[test]
+fn two_daemons_behind_one_dial_are_told_apart_by_the_url_and_a_workspace_reads_its_pull_request_over_the_first() {
+    drive(|| async {
+        use common::pull_request::{answer, fake_daemons, ok, with_workspace, Via, With, COPY, HERE};
+        use wsp_core::daemon_channel::DaemonChannelOptions;
+        let d = fake_daemons(vec![("git.hello", answer(|_| ok(json!({ "who": "here" }))))], vec![]);
+        let dial = |url: &str| DaemonChannelOptions {
+            url: url.into(),
+            token: "t".into(),
+            on_event: Rc::new(|_| {}),
+            connect_timeout_ms: None,
+            clock: None,
+        };
+        let open = d.open();
+        let here = open(dial(HERE)).await.expect("a channel");
+        let copy = open(dial(COPY)).await.expect("a channel");
+        let frame = |op: &str| match json!({ "op": op }) {
+            serde_json::Value::Object(map) => map,
+            _ => unreachable!(),
+        };
+        assert_eq!(here.send(frame("git.hello")).await.expect("a reply")["who"], "here");
+        let refused = copy.send(frame("git.hello")).await.expect("a reply");
+        assert_eq!((refused["ok"].clone(), refused["error"].clone()), (json!(false), json!("git.hello was not answered here")));
+        assert_eq!(d.ops(Some(Via::Here)), ["git.hello"]);
+        assert_eq!(d.ops(Some(Via::Copy)), ["git.hello"]);
+
+        let d = fake_daemons(vec![], vec![]);
+        let h = with_workspace(&d, With::default()).await;
+        h.rt().workspaces().checkout(&h.id, None, None).await.expect("a checkout");
+        until(|| async { h.pr_field("number") == Some(json!(12)) }).await;
+        assert_eq!(d.ops(Some(Via::Copy)), ["git.status"]);
+        assert_eq!(d.count(Via::Here, "git.prRead"), 1);
+        assert!(h.remote.starts_with("https://github.com/wsp/stub-"));
+    });
+}
