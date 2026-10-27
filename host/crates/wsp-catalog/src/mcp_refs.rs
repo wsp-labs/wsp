@@ -114,7 +114,7 @@ struct Base {
     marks: [Vec<usize>; MARKS.len()],
 }
 
-const MARKS: [u8; 5] = [b'#', b'&', b'=', b'+', b'%'];
+const MARKS: [u8; 5] = *b"#&=+%";
 
 impl Part {
     fn whole(text: &str) -> Part {
