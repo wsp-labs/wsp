@@ -407,6 +407,8 @@ export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSwe
     }
   }
   // The workspace profile only root's install loaded, unloaded before its file goes, as the host's remove does it.
+  // The script joins its paths to the root with a slash, and a root that ends in one reads every entry as past a `//`.
+  const system = opts.systemRoot?.replace(/\/+$/, "");
   const root = (opts.uid ?? process.getuid?.()) === 0;
   // Only root's jobs install outside the home, and only root can take it off. What the setup wrote outside wsp's
   // install folder goes first, since the list naming it sits in that folder; that list hashes each path, so it
@@ -416,14 +418,14 @@ export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSwe
     if (found === undefined) {
       const standing = [profile, tools.prefix, ...(runtime === undefined ? [] : [runtime])].filter(there);
       if (standing.length > 0) removed.push(placeOwnersUnknownLine(standing));
-      removed.push(...outsideMarks(sh(outsideSweepScript(opts.systemRoot))));
+      removed.push(...outsideMarks(sh(outsideSweepScript(system))));
     } else {
       if (found.has(profile)) removed.push(placeStoodBeforeLine(profile));
       else if (there(profile)) {
         sh(apparmorOffStep(profile).join("\n"));
         if (!there(profile)) removed.push(profile);
       }
-      removed.push(...outsideMarks(sh(outsideSweepScript(opts.systemRoot))), ...sweepTools(tools, found));
+      removed.push(...outsideMarks(sh(outsideSweepScript(system))), ...sweepTools(tools, found));
       if (runtime !== undefined) removed.push(...sweepRuntime(runtime, found, opts.mountTable ?? readMountTable, opts.runtimeProjects ?? []));
     }
     removed.push(...sweepCgroups(opts.cgroupRoots ?? []));

@@ -25,9 +25,10 @@ runsFromItsOwnFolder();
 
 /** The leave as a case runs it: held to the temporary folder, so a path it forgot to move off the machine (the home, the
  * profile, wsp's install folder, the runtime's) refuses the leave, since a suite run as root otherwise takes the
- * machine's own. A case's own home carries what it would otherwise take from the computer's. */
+ * machine's own. A case's own home carries what it would otherwise take from the computer's, and a case that names no
+ * runner gets one that runs nothing, so it ends no thread of the machine's. */
 const sweepPlace = (opts: PlaceSweepOptions = {}): ReturnType<typeof sweepPlaceHere> =>
-  sweepPlaceHere({ ...(opts.home === undefined ? {} : { apparmorProfile: join(opts.home, "etc-apparmor.d", "wsp-workspace"), tools: toolsUnder(opts.home), systemRoot: join(opts.home, "system") }), ...opts, within: tmpdir() });
+  sweepPlaceHere({ run: fakeRunner().run, ...(opts.home === undefined ? {} : { apparmorProfile: join(opts.home, "etc-apparmor.d", "wsp-workspace"), tools: toolsUnder(opts.home), systemRoot: join(opts.home, "system") }), ...opts, within: tmpdir() });
 
 /** wsp's install folder and the folder its commands are linked into, under a case's own home, for the same reason. */
 const toolsUnder = (home: string): { prefix: string; links: string } => ({ prefix: join(home, "opt-wsp"), links: join(home, "usr-local-bin") });
