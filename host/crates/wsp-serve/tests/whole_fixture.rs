@@ -714,3 +714,29 @@ fn the_slow_daemon_holds_its_auth_answer_and_the_late_daemon_refuses_upgrades_un
         assert_eq!(late.dials(), 2);
     });
 }
+
+// box-nap.test.ts:278 `m.startDaemon` and :381 `m.daemonExits`: a machine starts or looks at its daemon's unit only once a
+// test gives it the road; and `void promise` starts a future at once, as a JS call runs its synchronous half.
+#[test]
+fn a_machine_starts_its_daemon_and_reads_its_exit_only_once_a_test_gives_it_the_roads_and_fire_starts_a_future_at_once() {
+    use wsp_engine::machine::Machine as _;
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let m = made(&backend).await;
+        assert!(!m.offers().start_daemon && !m.offers().daemon_exits);
+        assert!(m.start_daemon().await.is_err() && m.daemon_exits().await.is_err());
+        m.set_start_daemon(Some(Rc::new(|| Box::pin(async { Ok(exec_ok("started")) }))));
+        m.set_daemon_exits(Some(Rc::new(|| Box::pin(async { Ok(Some("it exits".to_string())) }))));
+        assert!(m.offers().start_daemon && m.offers().daemon_exits);
+        assert_eq!(m.start_daemon().await.expect("a start").stdout, "started");
+        assert_eq!(m.daemon_exits().await.expect("a look").as_deref(), Some("it exits"));
+
+        let ran = Rc::new(std::cell::Cell::new(false));
+        let seen = ran.clone();
+        fire(async move {
+            seen.set(true);
+            sleep_ms(1).await;
+        });
+        assert!(ran.get(), "the part before the first wait ran inside the call");
+    });
+}
