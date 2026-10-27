@@ -79,7 +79,7 @@ Project import and copy roads carrying a Codex config (#2443).
 ## After the port
 
 - smol-toml reads tables nested by a `[a.a.a]` header or a dotted key to any depth (mcp.ts:1662, mcp-codex.ts:44 and :60, mcp-launch.ts:181; its `maxDepth` of 1000, parse.js:108, counts arrays and inline tables only), and the port refuses a tree deeper than 500 levels with smol-toml's own words for excessive nesting, the one cap of the whole host (ruling 1 of round 2 of #2448). Tables, arrays and inline tables count together in that 500, so a file with `[a.b]` and an array 499 deep inside it is refused where smol-toml reads it. A `toml::Table` and a `serde_json::Value` of nested objects clone recursively and die at 628 levels on a 1 MiB debug stack, so a tree kept deeper could abort the host wherever it is cloned.
-- smol-toml's `stringify` (`mcp.ts:1728`) is `toml_write.rs`, a loop with the TS's bytes (`[ a, b ]` arrays, a date as `TomlDate.toISOString` writes it); the `toml` crate's writer recursed and died at 303 tables.
+- smol-toml's `stringify` (`mcp.ts:1728`) is `toml_write.rs`, a loop with the TS's bytes (`[ a, b ]` arrays, a date as `TomlDate.toISOString` writes it, `-00:00` kept apart from `+00:00` by an offset the tree marks since the `toml` crate loses the sign, and a string holding every char as itself); the `toml` crate's writer recursed and died at 303 tables.
 
 ## Rules to tests
 
