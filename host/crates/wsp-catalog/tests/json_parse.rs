@@ -6,6 +6,29 @@ use wsp_catalog::jsonc::{js_stringify, read_jsonc};
 mod oracle_common;
 use oracle_common::{fixture, s};
 
+/// The deepest nesting of brackets in a text, strings and their escapes left out.
+fn depth_of(text: &str) -> usize {
+    let (mut depth, mut deepest, mut in_string, mut escaped) = (0usize, 0usize, false, false);
+    for c in text.chars() {
+        match (in_string, c) {
+            (true, _) if escaped => escaped = false,
+            (true, '\\') => escaped = true,
+            (true, '"') => in_string = false,
+            (true, _) => {}
+            (false, '"') => in_string = true,
+            (false, '[' | '{') => {
+                depth += 1;
+                deepest = deepest.max(depth);
+            }
+            (false, ']' | '}') => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+    }
+    deepest
+}
+
+// Node reads any depth. Ruling 1 of the round 2 brief on wsp-map#2448 keeps the host to 500 levels, so a text nested past
+// that is refused with V8's words for a parser out of stack, where node's own output (in the fixture) is the value.
 #[test]
 fn every_text_reads_or_fails_as_node_reads_it() {
     let cases = fixture("json_parse.json");
@@ -15,6 +38,10 @@ fn every_text_reads_or_fails_as_node_reads_it() {
     for case in cases {
         let text = s(&case["text"]);
         let got = parse_json(text);
+        if depth_of(text) > 500 {
+            assert_eq!(got.expect_err("past the cap").message, "Maximum call stack size exceeded", "{} levels", depth_of(text));
+            continue;
+        }
         match (got, case.get("ok"), case.get("error")) {
             (Ok(value), Some(ok), _) if js_stringify(&value) == s(ok) => {}
             (Err(e), _, Some(error)) if e.message == s(error) => {}
@@ -41,7 +68,8 @@ fn a_lone_surrogate_escape_is_read_and_written_as_it_was() {
 
 #[test]
 fn nesting_past_128_reads_and_a_runaway_one_is_refused() {
-    assert!(parse_json(&format!("{}{}", "[".repeat(900), "]".repeat(900))).is_ok());
+    assert!(parse_json(&format!("{}{}", "[".repeat(500), "]".repeat(500))).is_ok());
+    assert!(parse_json(&format!("{}{}", "[".repeat(501), "]".repeat(501))).is_err());
     let runaway = format!("{}{}", "[".repeat(100_000), "]".repeat(100_000));
     assert_eq!(parse_json(&runaway).unwrap_err().message, "Maximum call stack size exceeded");
 }
