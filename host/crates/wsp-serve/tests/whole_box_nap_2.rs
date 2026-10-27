@@ -520,12 +520,20 @@ fn a_stop_that_lands_before_the_proofs_first_ask_ends_the_wake_with_the_stops_ow
             async move { rt.workspaces().wake(&id, None).await.map(|_| "woke".to_string()).unwrap_or_else(|e| e.message) }
         });
         until_n(|| wrapped.held()).await;
-        let stopping = tokio::task::spawn_local({
-            let (rt, id) = (t.rt.clone(), t.ws_id.clone());
-            async move { rt.workspaces().stop_wake(&id, None).await }
+        // `const stopping = rt.workspaces.stopWake(id); letPut(); await stopping;`: the call runs its first half at once, so the
+        // stop is pulled before the held write lets the proof go on.
+        let stopped: Rc<RefCell<Option<Result<(), String>>>> = Rc::default();
+        let (rt, id, slot) = (t.rt.clone(), t.ws_id.clone(), stopped.clone());
+        fire(async move {
+            let out = rt.workspaces().stop_wake(&id, None).await.map(|_| ()).map_err(|e| e.message);
+            *slot.borrow_mut() = Some(out);
         });
+        // The TS's stopWake reaches its read of the wake's stop within the few microtask turns the held write costs; here the
+        // entry lookup takes longer, so the write stays held until the stop has been pulled.
+        sleep_ms(50).await;
         let_put.open();
-        stopping.await.expect("a task").expect("a stop");
+        until_n(|| stopped.borrow().is_some()).await;
+        assert_eq!(stopped.borrow().clone(), Some(Ok(())));
         assert_eq!(said.await.expect("a task"), WAKE_STOPPED_UP);
         assert_eq!(t.phase().await, "running");
         t.rt.close().await.expect("a close");
