@@ -9,15 +9,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { Machine } from "@wsp/engine";
-import { HERE_PLACE_ID, THIS_COMPUTER, refusalLine, addToolsHereRefusal, closedBeforeSignInLine, controlSignInRefusal, mintFailedLine, signInUncheckedLine, noVaultKeyRefusal, notTokenRefusal, serverNotSetUpLine, serverSignInCopyRefusal, shellQuote, signInTerminalRefusal, signInVaultRefusal, type AgentsSignInEvent } from "@wsp/protocol";
+import { HERE_PLACE_ID, THIS_COMPUTER, refusalLine, addToolsHereRefusal, exitClassOf, closedBeforeSignInLine, controlSignInRefusal, mintFailedLine, signInUncheckedLine, noVaultKeyRefusal, notTokenRefusal, serverNotSetUpLine, serverSignInCopyRefusal, shellQuote, signInTerminalRefusal, signInVaultRefusal, type AgentsSignInEvent } from "@wsp/protocol";
 import type { AgentsOn, SignInForward } from "@wsp/runtime";
 import { brokeredSignInFix, brokeredSignInRefusal, cloudSignIn, hostActs, pagesOnPty, planSignIn, terminalSignIn, watchSignIn } from "../src/agents-signin.js";
 import { signInPrepareLine } from "../src/place-signin.js";
 import { openerCommand } from "../src/relay.js";
 import { CLI_VERBS, runVerb, type HostClient } from "../src/verbs.js";
 import { fakePtyLink, type FakePty } from "./fake-pty-link.js";
+import { ghOn } from "./gh-recorded.js";
 import { captured } from "./verbs-fixture.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
+import { until } from "../../runtime/test/until.js";
 
 /** A box whose daemon runs as root and whose home belongs to ada, answering the one probe of who its lines run as. */
 const rootBox = (): AgentsOn => ({
@@ -361,6 +363,24 @@ describe("a watched sign-in", () => {
     expect(t.steps.filter(s => s.state === "waiting")).toEqual([{ state: "waiting", url: "https://auth.openai.com/codex/device", code: "ABCD-12345", paste: false }]);
   });
 
+  it("announces gh's device page with its code on a fresh home, and not the docs link gh prints before its question", async () => {
+    const plan = await planSignIn(relayedBox(), { agent: "gh" });
+    let start: ((pty: FakePty) => void) | undefined;
+    const t = await run((l, pty, line) => {
+      if (line.includes("WSP_STATUS")) {
+        l.data(pty, "You are not logged into any GitHub hosts.\r\nWSP_STATUS 1\r\n");
+        l.exit(pty, 1);
+        return;
+      }
+      start ??= ghOn(l);
+      start(pty);
+    }, plan);
+    await until(() => t.steps.some(s => s.state === "waiting" && s.url === "https://github.com/login/device" && s.code !== undefined), 5_000);
+    t.stop();
+    await t.done;
+    expect(t.steps.filter(s => s.state === "waiting")).toEqual([{ state: "waiting", url: "https://github.com/login/device", code: "1290-DB7E", paste: false }]);
+  });
+
   it("types what the page hands back into the tool with the Enter the person would press, and says what the tool said when it did not land", async () => {
     const plan = await planSignIn(fork(), { agent: "gemini" });
     const t = await run((l, pty, line) => {
@@ -565,11 +585,13 @@ describe("the host's acts that write", () => {
     expect(config).toContain("[mcp_servers.wsp]");
     expect(config).toContain('"/usr/local/bin/wsp"');
     await expect(a.addTools(rootBox(), "codex")).rejects.toThrow(addToolsHereRefusal);
+    expect(exitClassOf(await a.addTools(rootBox(), "codex").catch((e: unknown) => e))).toBe("usage");
   });
 
   it("refuses the wsp tools for an agent with no MCP config before writing anything", async () => {
     const { home, acts: a } = acts();
     await expect(a.addTools({ kind: "here" }, "pi")).rejects.toThrow("Pi has no MCP config wsp knows, so the wsp tools were not written");
+    expect(exitClassOf(await a.addTools({ kind: "here" }, "cursor").catch((e: unknown) => e))).toBe("usage");
     expect(readdirSync(home)).toEqual([]);
   });
 });

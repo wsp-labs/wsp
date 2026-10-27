@@ -41,7 +41,7 @@ export function placeViews(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
     providerIds, providerBackend, providerRate, providerSizes, imageFacts, recordOf, settingsHeld, withCap, awaiting,
     keep, defaultId, inTurn, markDefault, markHeld, inRecordTurn,
   } = recordArea;
-  const { waiting, closedAt, woken, linkTo } = setupArea;
+  const { waiting, closedAt, woken, flooring, linkTo } = setupArea;
 
   /** The adds that have not reached Set up, by id, as the store keeps them: each with what the installer left to
    * take an install back, which no client reads. */
@@ -82,15 +82,12 @@ export function placeViews(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
     await putPending({ ...pending, placeId, step: "choosing", ...(failed.length > 0 ? { failed: { said: floorFailedLine(failed) } } : {}) });
   };
 
-  /** The pending adds whose floor runs here now, so a second link does not start it again. */
-  const flooring = new Set<string>();
-  const floorOnce = async (pending: PendingRecord, placeId: string): Promise<void> => {
-    flooring.add(pending.id);
-    try {
-      await floorWhileChoosing(pending, placeId);
-    } finally {
-      flooring.delete(pending.id);
-    }
+  /** The floor of a pending add, noted in `flooring` by its computer until it ends, so a second link does not start
+   * it again and a setup there waits for it. */
+  const floorOnce = (pending: PendingRecord, placeId: string): Promise<void> => {
+    const run = floorWhileChoosing(pending, placeId).finally(() => flooring.delete(placeId));
+    flooring.set(placeId, run);
+    return run;
   };
 
   /** An add the host stopped while wsp went on, taken back off that computer by the script its installer left, over
@@ -424,7 +421,7 @@ export function placeViews(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
   };
 
   return {
-    pendingRecords, putPending, dropPending, flooring, floorOnce, takenBack, unmergedOver, storeFilesOff, pluginsOff, factsOn,
+    pendingRecords, putPending, dropPending, floorOnce, takenBack, unmergedOver, storeFilesOff, pluginsOff, factsOn,
     backendFrom, tunnelled, cut, forksOf, viewOf, joining, joined, forget, hereRow, rowsOf, joinedRow, providerRow,
   };
 }

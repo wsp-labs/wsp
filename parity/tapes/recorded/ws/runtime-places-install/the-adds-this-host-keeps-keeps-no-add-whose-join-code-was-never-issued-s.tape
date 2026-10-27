@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/places-install.test.ts > the adds this host keeps > keeps no add whose join code was never issued, since nothing would ever end it","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/places-install.test.ts > the adds this host keeps > keeps no add whose join code was never issued, since nothing would ever end it","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"addId":"a_ro","address":"root@10.0.0.9","id":2,"op":"places.add"}}

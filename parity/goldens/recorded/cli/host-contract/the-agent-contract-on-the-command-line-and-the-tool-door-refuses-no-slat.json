@@ -3,7 +3,7 @@
     {
       "exit": 3,
       "stdout": "",
-      "stderr": "--no-slate goes with --scoped: it is for a thread another thread started. usage: wsp mcp [--host <alias>] [--scoped [--no-slate]]\n       wsp mcp install --agent <id> [--agent <id>] [--host <alias>] [--json] [--remove]   (claude, codex, gemini, opencode)\n"
+      "stderr": "--no-slate goes with --scoped: it is for a thread another thread started. usage: wsp mcp [--host <alias>] [--scoped [--no-slate] [--no-look]]\n       wsp mcp install --agent <id> [--agent <id>] [--host <alias>] [--json] [--remove]   (claude, codex, gemini, opencode)\n"
     }
   ],
   "events": []

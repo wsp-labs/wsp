@@ -96,9 +96,6 @@
               "workspaces.mergeIn",
               "workspaces.delete",
               "workspaces.forget",
-              "workspaces.snapshot",
-              "projectGoldens.list",
-              "projectGoldens.remove",
               "workspaces.touch",
               "daemon.open",
               "sys.subscribe",
@@ -107,6 +104,8 @@
               "appProcs.unwatch",
               "appProcs.offer",
               "appProcs.set",
+              "slateLook.offer",
+              "slateLook.answer",
               "activity.read",
               "activity.end",
               "daemon.send",
@@ -186,14 +185,6 @@
               "plugins.toggle",
               "init.get",
               "init.keys",
-              "init.start",
-              "init.answer",
-              "init.step",
-              "init.draft",
-              "init.retry",
-              "init.build",
-              "init.signInCode",
-              "init.cancel",
               "preferences.get",
               "preferences.set",
               "release.get",
@@ -216,7 +207,6 @@
               "project.export",
               "image.get",
               "image.build",
-              "image.export",
               "slates.get",
               "slates.write",
               "slates.state",
@@ -230,12 +220,14 @@
               "slates.subscribe",
               "slates.unsubscribe",
               "slates.resolve",
-              "slates.image"
+              "slates.image",
+              "slates.page",
+              "slates.look"
             ],
             "path": [
               "op"
             ],
-            "message": "Invalid discriminator value. Expected 'auth' | 'ticket.issue' | 'pair.issue' | 'pair.redeem' | 'seal.open' | 'device.auth' | 'account.get' | 'devices.list' | 'devices.revoke' | 'place.join' | 'place.auth' | 'place.prove' | 'places.list' | 'places.update' | 'places.holds' | 'places.remove' | 'places.doctor' | 'places.dial' | 'places.set' | 'places.follow' | 'places.skip' | 'places.setupLog' | 'places.estimate' | 'places.loginLanded' | 'places.door' | 'places.mint' | 'places.sshHosts' | 'places.add' | 'places.setup' | 'places.choose' | 'recipes.list' | 'recipes.get' | 'recipes.save' | 'recipes.remove' | 'recipes.options' | 'events.subscribe' | 'status.subscribe' | 'status.list' | 'workspaces.create' | 'workspaces.landing' | 'workspaces.list' | 'workspaces.resolve' | 'workspaces.get' | 'workspaces.nap' | 'workspaces.resize' | 'workspaces.wake' | 'workspaces.restartDaemon' | 'workspaces.stopWake' | 'workspaces.upgrade' | 'workspaces.rename' | 'workspaces.look' | 'workspaces.bringBack' | 'worktree.make' | 'folder.make' | 'worktree.remove' | 'workspaces.checkout' | 'workspaces.discard' | 'workspaces.commit' | 'workspaces.commitDraft' | 'workspaces.viewed' | 'workspaces.pullRequestView' | 'workspaces.pullRequestDiff' | 'workspaces.pullRequestSend' | 'workspaces.pullRequestReply' | 'workspaces.pullRequestResolve' | 'workspaces.pullRequestReact' | 'workspaces.fix' | 'workspaces.merge' | 'workspaces.start' | 'workspaces.review' | 'workspaces.reviewDraft' | 'workspaces.reviewPost' | 'workspaces.update' | 'workspaces.mergeIn' | 'workspaces.delete' | 'workspaces.forget' | 'workspaces.snapshot' | 'projectGoldens.list' | 'projectGoldens.remove' | 'workspaces.touch' | 'daemon.open' | 'sys.subscribe' | 'sys.unsubscribe' | 'appProcs.watch' | 'appProcs.unwatch' | 'appProcs.offer' | 'appProcs.set' | 'activity.read' | 'activity.end' | 'daemon.send' | 'daemon.close' | 'sessions.start' | 'harnesses.list' | 'sessions.list' | 'sessions.history' | 'sessions.head' | 'sessions.attachment' | 'sessions.interrupt' | 'sessions.steer' | 'sessions.answer' | 'sessions.access' | 'sessions.rename' | 'sessions.forget' | 'sessions.delete' | 'sessions.read' | 'sessions.replaceable' | 'sessions.warm' | 'sessions.settle' | 'sessions.mark' | 'sessions.restore' | 'sessions.search' | 'sessions.aside' | 'sessions.run' | 'sessions.rewind' | 'golden.get' | 'capabilities.get' | 'golden.prepare' | 'golden.seal' | 'snapshots.list' | 'snapshots.storage' | 'cost.history' | 'cost.spend' | 'usage.used' | 'usage.accounts' | 'usage.reset' | 'places.readings' | 'snapshots.rollback' | 'workspaces.portReach' | 'workspaces.portProbe' | 'workspaces.rebuild' | 'forwards.list' | 'forwards.stop' | 'workspaces.exec' | 'host.folders' | 'host.terminalConfig' | 'editor.list' | 'editor.open' | 'ssh.port' | 'ssh.include' | 'agents.read' | 'servers.tools' | 'servers.icon' | 'agents.signIn' | 'servers.signIn' | 'agents.signInCode' | 'agents.signIns' | 'agents.signInStop' | 'agents.signInLine' | 'agents.key' | 'agents.cloudSignIn' | 'providers.checkKey' | 'broker.status' | 'agents.addTools' | 'agents.setup' | 'skills.search' | 'skills.get' | 'skills.preview' | 'skills.add' | 'skills.remove' | 'skills.toggle' | 'servers.add' | 'servers.remove' | 'servers.toggle' | 'plugins.toggle' | 'init.get' | 'init.keys' | 'init.start' | 'init.answer' | 'init.step' | 'init.draft' | 'init.retry' | 'init.build' | 'init.signInCode' | 'init.cancel' | 'preferences.get' | 'preferences.set' | 'release.get' | 'release.check' | 'host.restart' | 'projects.add' | 'project.seed.plan' | 'projects.seed' | 'projects.list' | 'conversations.list' | 'conversations.read' | 'projects.defaults' | 'projects.resolve' | 'projects.branch' | 'projects.remove' | 'projects.icon' | 'projects.icons' | 'project.plan' | 'project.import' | 'project.export' | 'image.get' | 'image.build' | 'image.export' | 'slates.get' | 'slates.write' | 'slates.state' | 'slates.read' | 'slates.catalog' | 'slates.event' | 'slates.approve' | 'slates.cancel' | 'slates.revoke' | 'slates.shown' | 'slates.subscribe' | 'slates.unsubscribe' | 'slates.resolve' | 'slates.image'"
+            "message": "Invalid discriminator value. Expected 'auth' | 'ticket.issue' | 'pair.issue' | 'pair.redeem' | 'seal.open' | 'device.auth' | 'account.get' | 'devices.list' | 'devices.revoke' | 'place.join' | 'place.auth' | 'place.prove' | 'places.list' | 'places.update' | 'places.holds' | 'places.remove' | 'places.doctor' | 'places.dial' | 'places.set' | 'places.follow' | 'places.skip' | 'places.setupLog' | 'places.estimate' | 'places.loginLanded' | 'places.door' | 'places.mint' | 'places.sshHosts' | 'places.add' | 'places.setup' | 'places.choose' | 'recipes.list' | 'recipes.get' | 'recipes.save' | 'recipes.remove' | 'recipes.options' | 'events.subscribe' | 'status.subscribe' | 'status.list' | 'workspaces.create' | 'workspaces.landing' | 'workspaces.list' | 'workspaces.resolve' | 'workspaces.get' | 'workspaces.nap' | 'workspaces.resize' | 'workspaces.wake' | 'workspaces.restartDaemon' | 'workspaces.stopWake' | 'workspaces.upgrade' | 'workspaces.rename' | 'workspaces.look' | 'workspaces.bringBack' | 'worktree.make' | 'folder.make' | 'worktree.remove' | 'workspaces.checkout' | 'workspaces.discard' | 'workspaces.commit' | 'workspaces.commitDraft' | 'workspaces.viewed' | 'workspaces.pullRequestView' | 'workspaces.pullRequestDiff' | 'workspaces.pullRequestSend' | 'workspaces.pullRequestReply' | 'workspaces.pullRequestResolve' | 'workspaces.pullRequestReact' | 'workspaces.fix' | 'workspaces.merge' | 'workspaces.start' | 'workspaces.review' | 'workspaces.reviewDraft' | 'workspaces.reviewPost' | 'workspaces.update' | 'workspaces.mergeIn' | 'workspaces.delete' | 'workspaces.forget' | 'workspaces.touch' | 'daemon.open' | 'sys.subscribe' | 'sys.unsubscribe' | 'appProcs.watch' | 'appProcs.unwatch' | 'appProcs.offer' | 'appProcs.set' | 'slateLook.offer' | 'slateLook.answer' | 'activity.read' | 'activity.end' | 'daemon.send' | 'daemon.close' | 'sessions.start' | 'harnesses.list' | 'sessions.list' | 'sessions.history' | 'sessions.head' | 'sessions.attachment' | 'sessions.interrupt' | 'sessions.steer' | 'sessions.answer' | 'sessions.access' | 'sessions.rename' | 'sessions.forget' | 'sessions.delete' | 'sessions.read' | 'sessions.replaceable' | 'sessions.warm' | 'sessions.settle' | 'sessions.mark' | 'sessions.restore' | 'sessions.search' | 'sessions.aside' | 'sessions.run' | 'sessions.rewind' | 'golden.get' | 'capabilities.get' | 'golden.prepare' | 'golden.seal' | 'snapshots.list' | 'snapshots.storage' | 'cost.history' | 'cost.spend' | 'usage.used' | 'usage.accounts' | 'usage.reset' | 'places.readings' | 'snapshots.rollback' | 'workspaces.portReach' | 'workspaces.portProbe' | 'workspaces.rebuild' | 'forwards.list' | 'forwards.stop' | 'workspaces.exec' | 'host.folders' | 'host.terminalConfig' | 'editor.list' | 'editor.open' | 'ssh.port' | 'ssh.include' | 'agents.read' | 'servers.tools' | 'servers.icon' | 'agents.signIn' | 'servers.signIn' | 'agents.signInCode' | 'agents.signIns' | 'agents.signInStop' | 'agents.signInLine' | 'agents.key' | 'agents.cloudSignIn' | 'providers.checkKey' | 'broker.status' | 'agents.addTools' | 'agents.setup' | 'skills.search' | 'skills.get' | 'skills.preview' | 'skills.add' | 'skills.remove' | 'skills.toggle' | 'servers.add' | 'servers.remove' | 'servers.toggle' | 'plugins.toggle' | 'init.get' | 'init.keys' | 'preferences.get' | 'preferences.set' | 'release.get' | 'release.check' | 'host.restart' | 'projects.add' | 'project.seed.plan' | 'projects.seed' | 'projects.list' | 'conversations.list' | 'conversations.read' | 'projects.defaults' | 'projects.resolve' | 'projects.branch' | 'projects.remove' | 'projects.icon' | 'projects.icons' | 'project.plan' | 'project.import' | 'project.export' | 'image.get' | 'image.build' | 'slates.get' | 'slates.write' | 'slates.state' | 'slates.read' | 'slates.catalog' | 'slates.event' | 'slates.approve' | 'slates.cancel' | 'slates.revoke' | 'slates.shown' | 'slates.subscribe' | 'slates.unsubscribe' | 'slates.resolve' | 'slates.image' | 'slates.page' | 'slates.look'"
           }
         ],
         "layout": "indented"

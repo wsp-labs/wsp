@@ -1179,7 +1179,8 @@ function runtimeOf(ctx: RuntimeContext, pipes: { close(): void } | undefined): R
           if (entry.record.phase === "gone") await ctx.recoverGone(entry);
           continue;
         }
-        if (entry.record.phase === "gone") continue;
+        // A released sub-thread holds no machine: there is nothing to read, and its record settled when it was released.
+        if (entry.record.phase === "gone" || entry.record.phase === "released") continue;
         let answer: string | undefined;
         const read = await entry.machine.state().catch((e: unknown) => {
           if (!isMissing(e)) return undefined;

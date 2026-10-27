@@ -162,6 +162,8 @@ fn onboarding_reads_the_agents_here_and_writes_the_tools_into_the_ticked_one() {
     let refused = runtime.block_on(startup::add_tools(&c, vec!["claude".into()]));
     assert!(refused.is_empty(), "claude's config takes the tools: {refused:?}");
     assert!(read(), "claude's config in the test's home names the wsp server");
+    let refused = runtime.block_on(startup::add_tools(&c, vec!["cursor".into()]));
+    assert!(refused.is_empty(), "an agent with no MCP config is passed over, not refused: {refused:?}");
     let refused = runtime.block_on(startup::add_tools(&c, vec!["nobody".into()]));
     assert_eq!(refused.len(), 1, "an agent the catalog does not know is refused, by name: {refused:?}");
     assert_eq!(refused[0].0, "nobody");

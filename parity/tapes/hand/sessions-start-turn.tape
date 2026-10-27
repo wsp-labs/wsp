@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"hand: a turn starts against a stand-in claude the tape sets up, answers and ends","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"hand: a turn starts against a stand-in claude the tape sets up, answers and ends","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"id":1,"op":"auth","token":"<host-token>"}}
 {"in":{"id":2,"op":"projects.add","source":"<run>"}}
 {"out":{"id":2,"ok":true,"project":{"id":"<project>"}}}
