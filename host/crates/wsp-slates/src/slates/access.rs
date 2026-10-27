@@ -624,7 +624,7 @@ impl SlatesInner {
             area.pins().drop_thread(&thread);
             area.records.borrow_mut().shift_remove(&thread);
             if let Some(dir) = area.folder_of(&thread) {
-                let _ = std::fs::remove_dir_all(dir);
+                let _ = wsp_core::local_exec::reap::remove_tree(&dir);
             }
             if let Some(machine) = area.deps.machine_of(&thread) {
                 let ledger = area.ledger();
