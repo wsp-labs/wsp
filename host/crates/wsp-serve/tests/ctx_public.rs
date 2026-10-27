@@ -9,13 +9,13 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use serde_json::{json, Value};
-use wsp_core::clock::{Clock as _, FakeClock};
+use wsp_core::clock::FakeClock;
 use wsp_core::types::api::Runtime;
 use wsp_core::types::events::{EventListener, Unlisten};
 use wsp_core::types::internal::{BuilderLife, LiveBuilder, SessionEntry, ThreadRecord};
 use wsp_core::types::wiring::{RuntimeOptions, WorkspaceRecord};
 use wsp_engine::fake_backend::{FakeBackend, FakeBackendOptions};
-use wsp_engine::machine::{Machine as _, MachineBackend, MachineState};
+use wsp_engine::machine::{MachineBackend, MachineState};
 use wsp_machines::machines::boot::BootRuntime;
 use wsp_machines::machines::machines::{Entry, Row};
 use wsp_serve::runtime::core::CoreCtx;
@@ -371,14 +371,8 @@ fn core_reads_the_held_rows_of_a_place() {
 fn core_lists_no_stored_record_a_live_entry_already_holds() {
     run(|w| async move {
         attached(&w, "w_a", Some("default"), "proj_1").await;
-        w.store
-            .put(
-                "workspaces",
-                "w_a",
-                serde_json::to_value(&*workspace_record("w_a", Some("default"), "proj_1").borrow()).expect("a record"),
-            )
-            .await
-            .expect("put");
+        let record = serde_json::to_value(&*workspace_record("w_a", Some("default"), "proj_1").borrow()).expect("a record");
+        w.store.put("workspaces", "w_a", record).await.expect("put");
         assert_eq!(CoreCtx::held_away_on(&*w.c, "default").await.expect("read"), Vec::<String>::new());
         assert!(!CoreCtx::hydrate(&*w.c, "w_none").await.expect("a record the store lacks is no entry"));
     });
