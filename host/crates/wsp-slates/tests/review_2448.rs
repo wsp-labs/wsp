@@ -27,7 +27,13 @@ fn in_child(name: &str, depth: usize, body: fn(usize)) {
     let died = out.status.signal().is_some();
     let stderr = String::from_utf8_lossy(&out.stderr);
     let tail: Vec<&str> = stderr.lines().filter(|l| l.contains("HostError") || l.contains("overflowed")).take(1).collect();
-    assert!(out.status.success(), "{depth}: {} ({}): {}", if died { "the whole process died" } else { "the case failed" }, out.status, tail.join(" | "));
+    assert!(
+        out.status.success(),
+        "{depth}: {} ({}): {}",
+        if died { "the whole process died" } else { "the case failed" },
+        out.status,
+        tail.join(" | ")
+    );
 }
 
 fn lists(n: usize, leaf: Value) -> Value {
@@ -62,7 +68,8 @@ fn written_and_read(text: String) {
         let slates = host.slates();
         slates.write(text_write(&text), Some(&agent())).await.expect("a write");
         slates.settled().await;
-        let read = ReadParams { target: target(), values: Some(vec!["*".into()]), text: Some(true), sketch: Some(true), document: Some(true) };
+        let read =
+            ReadParams { target: target(), values: Some(vec!["*".into()]), text: Some(true), sketch: Some(true), document: Some(true) };
         let read = slates.read(read, Some(&agent())).await.expect("a read");
         let _ = serde_json::to_string(&read.to_json());
     }));
@@ -72,7 +79,10 @@ fn written_and_read(text: String) {
 // recursion and dies at about 465 levels on 1 MiB in a debug build (lists hold to 500; release holds). slate_write text
 // comes from a thread's tool call. node (slate.ts) writes and reads it.
 fn record_start_body(levels: usize) {
-    written_and_read(format!(r#"<slate><value name="v" start={{{}}} /><column><text>{{len($v)}}</text></column></slate>"#, record_text(levels)));
+    written_and_read(format!(
+        r#"<slate><value name="v" start={{{}}} /><column><text>{{len($v)}}</text></column></slate>"#,
+        record_text(levels)
+    ));
 }
 
 #[test]
@@ -148,8 +158,13 @@ impl wsp_slates::slates::SlatesDeps for SqlHost {
 }
 
 fn sqlite_area(root: &std::path::Path) -> (Rc<SqlHost>, Rc<dyn Slates>) {
-    let writer = wsp_store::store::StateWriter { wsp: "test".into(), daemon: wsp_wire::types::js_number::JsInt::from(1), bin: "/usr/local/bin/wsp".into() };
-    let store: Rc<dyn wsp_store::store::Store> = Rc::new(wsp_store::sqlite_store::sqlite_store(&root.join("state").join("state.json"), writer));
+    let writer = wsp_store::store::StateWriter {
+        wsp: "test".into(),
+        daemon: wsp_wire::types::js_number::JsInt::from(1),
+        bin: "/usr/local/bin/wsp".into(),
+    };
+    let store: Rc<dyn wsp_store::store::Store> =
+        Rc::new(wsp_store::sqlite_store::sqlite_store(&root.join("state").join("state.json"), writer));
     let inner = FakeHost::new(root, MemStore::new());
     let host = Rc::new(SqlHost { inner, store });
     let slates = wsp_slates::slates::create_slates(host.clone());
@@ -170,7 +185,10 @@ fn restart_body(depth: usize) {
             let text = r#"<slate><value name="v" start={null} /><column><text>{len($v)}</text></column></slate>"#;
             // another thread's slate, which holds nothing deep
             slates
-                .write(WriteParams { target: other_target.clone(), text: Some(text.into()), ..Default::default() }, Some(&as_thread(OTHER, OTHER)))
+                .write(
+                    WriteParams { target: other_target.clone(), text: Some(text.into()), ..Default::default() },
+                    Some(&as_thread(OTHER, OTHER)),
+                )
                 .await
                 .expect("a write");
             slates.write(text_write(text), Some(&agent())).await.expect("a write");
@@ -193,4 +211,103 @@ fn restart_body(depth: usize) {
 #[test]
 fn a_slate_holding_a_value_200_deep_loads_again_after_a_restart() {
     in_child("a_slate_holding_a_value_200_deep_loads_again_after_a_restart", 200, restart_body);
+}
+
+// Ruling 2 of the round 2 brief: a slate value the slates accept always loads after a restart. A value may nest 500 levels
+// (SLATE_NEST_LIMIT counts value levels plus path segments), and the store reads a row back to 506.
+#[test]
+fn a_slate_holding_a_value_499_deep_loads_again_after_a_restart() {
+    in_child("a_slate_holding_a_value_499_deep_loads_again_after_a_restart", 499, restart_body);
+}
+
+#[test]
+fn a_slate_holding_a_value_500_deep_loads_again_after_a_restart() {
+    in_child("a_slate_holding_a_value_500_deep_loads_again_after_a_restart", 500, restart_body);
+}
+
+fn records(n: usize, leaf: Value) -> Value {
+    let mut v = leaf;
+    for _ in 0..n {
+        v = json!({ "a": v });
+    }
+    v
+}
+
+// After the restart the deep slate is read and written again, not only listed: the record is cloned and walked on a 1 MiB stack.
+fn restart_then_use_body(depth: usize) {
+    support::local(Box::pin(async move {
+        support::own_group();
+        for deep in [lists(depth, json!("x")), records(depth, json!("x"))] {
+            let root = temp_root("c-sqlite-");
+            std::fs::create_dir_all(root.path().join("state")).unwrap();
+            {
+                let (_host, slates) = sqlite_area(root.path());
+                let text = r#"<slate><value name="v" start={null} /><column><text>{len($v)}</text></column></slate>"#;
+                slates.write(text_write(text), Some(&agent())).await.expect("a write");
+                slates.settled().await;
+                let mut values = IndexMap::new();
+                values.insert("$v".to_string(), deep.clone());
+                slates
+                    .state(StateParams { target: target(), values: Some(values), ..Default::default() }, Some(&agent()))
+                    .await
+                    .expect("a deep value");
+                slates.settled().await;
+                slates.close();
+            }
+            let (_host, again) = sqlite_area(root.path());
+            let read =
+                ReadParams { target: target(), values: Some(vec!["*".into()]), text: Some(true), sketch: Some(true), document: Some(true) };
+            let read = again.read(read, Some(&agent())).await.expect("the deep slate is read after a restart");
+            let _ = serde_json::to_string(&read.to_json());
+            let mut values = IndexMap::new();
+            values.insert("$v".to_string(), json!(1));
+            again
+                .state(StateParams { target: target(), values: Some(values), ..Default::default() }, Some(&agent()))
+                .await
+                .expect("and written");
+            again.settled().await;
+            again.close();
+            std::mem::forget(deep);
+        }
+    }));
+}
+
+#[test]
+fn a_slate_holding_a_value_499_deep_is_read_and_written_after_a_restart() {
+    in_child("a_slate_holding_a_value_499_deep_is_read_and_written_after_a_restart", 499, restart_then_use_body);
+}
+
+// A start literal of 500 levels sits at the deepest place a record holds one: record, previous, document, values, declaration and
+// then the 500 of the literal, 505 levels in the row the store keeps. It loads again after a restart, so does the slate it
+// replaced (`previous`), and both are read.
+fn restart_start_body(depth: usize) {
+    support::local(Box::pin(async move {
+        support::own_group();
+        let root = temp_root("c-sqlite-");
+        std::fs::create_dir_all(root.path().join("state")).unwrap();
+        {
+            let (_host, slates) = sqlite_area(root.path());
+            let deep = format!(
+                r#"<slate><value name="v" start={{{}1{}}} /><column><text>{{len($v)}}</text></column></slate>"#,
+                "[".repeat(depth),
+                "]".repeat(depth)
+            );
+            slates.write(text_write(&deep), Some(&agent())).await.expect("a deep start value");
+            slates.settled().await;
+            let small = r#"<slate><value name="v" start={null} /><column><text>{len($v)}</text></column></slate>"#;
+            slates.write(text_write(small), Some(&agent())).await.expect("a second write keeps the first as previous");
+            slates.settled().await;
+            slates.close();
+        }
+        let (_host, again) = sqlite_area(root.path());
+        let read =
+            ReadParams { target: target(), values: Some(vec!["*".into()]), text: Some(true), sketch: Some(true), document: Some(true) };
+        let read = again.read(read, Some(&agent())).await.expect("the slate is read after a restart");
+        let _ = serde_json::to_string(&read.to_json());
+    }));
+}
+
+#[test]
+fn a_slate_with_a_start_literal_500_deep_in_its_previous_loads_again_after_a_restart() {
+    in_child("a_slate_with_a_start_literal_500_deep_in_its_previous_loads_again_after_a_restart", 500, restart_start_body);
 }
