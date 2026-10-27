@@ -124,7 +124,11 @@ async fn stored(store: &Rc<dyn Store>, id: &str) -> Value {
     store.get("workspaces", id).await.expect("a read").expect("a record")
 }
 
-async fn start(rt: &Rc<AssembledRuntime>, id: &str, prompt: &str) -> Result<Rc<dyn wsp_core::types::wiring::SessionHandle>, wsp_words::exit::HostError> {
+async fn start(
+    rt: &Rc<AssembledRuntime>,
+    id: &str,
+    prompt: &str,
+) -> Result<Rc<dyn wsp_core::types::wiring::SessionHandle>, wsp_words::exit::HostError> {
     rt.sessions().start(id, StartOptions { prompt: prompt.into(), ..Default::default() }, None).await
 }
 
@@ -186,10 +190,7 @@ fn persists_and_pushes_pausing_before_the_provider_pause_napping_after_and_a_rea
             })
         }));
         let napped = fx.rt.workspaces().nap(&ws.view.id, None).await.expect("a nap");
-        assert_eq!(
-            mid.borrow().clone(),
-            Some(("pausing".to_string(), "pausing".to_string(), vec!["pausing/running/napping".to_string()]))
-        );
+        assert_eq!(mid.borrow().clone(), Some(("pausing".to_string(), "pausing".to_string(), vec!["pausing/running/napping".to_string()])));
         assert_eq!(j(&napped)["phase"], "napping");
         assert_eq!(pushed_lines(&events), ["pausing/running/napping", "napping/paused/napping"]);
         assert_eq!(stored(&state.store, &ws.view.id).await["phase"], "napping");
@@ -202,7 +203,14 @@ fn pushed_lines(events: &Events) -> Vec<String> {
     events
         .statuses()
         .iter()
-        .map(|s| format!("{}/{}/{}", s["phase"].as_str().unwrap_or(""), s["machineState"].as_str().unwrap_or(""), s["reach"]["state"].as_str().unwrap_or("")))
+        .map(|s| {
+            format!(
+                "{}/{}/{}",
+                s["phase"].as_str().unwrap_or(""),
+                s["machineState"].as_str().unwrap_or(""),
+                s["reach"]["state"].as_str().unwrap_or("")
+            )
+        })
         .collect()
 }
 
@@ -216,15 +224,16 @@ fn a_pause_the_provider_refuses_goes_back_to_running_with_the_error_on_the_pushe
         let pushed = fx.events();
         let ws = create_on(&fx.rt, CreateOn::golden("x"), None).await.expect("a workspace");
         let handle = start(&fx.rt, &ws.view.id, "hi").await.expect("a start");
-        backend.machine(0).set_pause(Rc::new(|| {
-            Box::pin(async { Err(EngineError::Other { message: "provider down".into(), code: None }) })
-        }));
+        backend
+            .machine(0)
+            .set_pause(Rc::new(|| Box::pin(async { Err(EngineError::Other { message: "provider down".into(), code: None }) })));
         let refused = fx.rt.workspaces().nap(&ws.view.id, None).await.expect_err("a refusal");
         assert!(refused.message.contains("provider down"), "{}", refused.message);
         assert_eq!(get(&fx.rt, &ws.view.id).await["phase"], "running");
         assert!(!pushed.has("session.end"));
         assert_eq!(j(&handle.view())["status"], "running");
-        let rows: Vec<(Value, Value)> = pushed.statuses().iter().map(|s| (s["phase"].clone(), s.get("reason").cloned().unwrap_or(Value::Null))).collect();
+        let rows: Vec<(Value, Value)> =
+            pushed.statuses().iter().map(|s| (s["phase"].clone(), s.get("reason").cloned().unwrap_or(Value::Null))).collect();
         assert_eq!(rows, [(json!("pausing"), Value::Null), (json!("running"), json!("provider down"))]);
         fx.rt.close().await.expect("a close");
     });
@@ -385,7 +394,8 @@ fn nap_ends_every_live_session_of_that_workspace_with_the_reason_once_the_provid
         for e in &ended {
             assert_matches(e, json!({ "exitCode": null, "sawResult": false, "reason": PAUSED }));
         }
-        let ended_ids: std::collections::BTreeSet<String> = ended.iter().map(|e| e["sessionId"].as_str().unwrap_or_default().to_string()).collect();
+        let ended_ids: std::collections::BTreeSet<String> =
+            ended.iter().map(|e| e["sessionId"].as_str().unwrap_or_default().to_string()).collect();
         let started_ids: std::collections::BTreeSet<String> =
             [&one, &two].iter().map(|h| j(&h.view())["claudeSessionId"].as_str().unwrap_or_default().to_string()).collect();
         assert_eq!(ended_ids, started_ids);
@@ -558,7 +568,8 @@ fn two_pauses_asked_at_once_adopt_running_once_and_pause_once_one_provider_pause
         assert!(m.paused.get());
         let since = n.since();
         assert_eq!(since.iter().filter(|e| e["type"] == "workspace.woken").count(), 1);
-        let phases: Vec<&str> = since.iter().filter(|e| e["type"] == "workspace.status").map(|e| e["status"]["phase"].as_str().unwrap_or("")).collect();
+        let phases: Vec<&str> =
+            since.iter().filter(|e| e["type"] == "workspace.status").map(|e| e["status"]["phase"].as_str().unwrap_or("")).collect();
         assert_eq!(phases, ["running", "pausing", "napping"]);
         n.fx.rt.close().await.expect("a close");
     });
@@ -589,7 +600,8 @@ fn pause_on_a_record_that_says_napping_over_a_machine_the_provider_holds_paused_
 
 // "wake takes the provider's running as the fact: the record becomes running with the line in words, nothing is resumed, and the row never says waking"
 #[test]
-fn wake_takes_the_providers_running_as_the_fact_the_record_becomes_running_with_the_line_in_words_nothing_is_resumed_and_the_row_never_says_waking() {
+fn wake_takes_the_providers_running_as_the_fact_the_record_becomes_running_with_the_line_in_words_nothing_is_resumed_and_the_row_never_says_waking(
+) {
     drive(|| async {
         let n = nap_that_never_took().await;
         let woken = n.fx.rt.workspaces().wake(&n.id, None).await.expect("a wake");
@@ -599,7 +611,10 @@ fn wake_takes_the_providers_running_as_the_fact_the_record_becomes_running_with_
         let since = n.since();
         let pushed: Vec<Value> = since.iter().filter(|e| e["type"] == "workspace.status").map(|e| e["status"].clone()).collect();
         assert!(!pushed.iter().any(|s| s["phase"] == "waking"));
-        assert_matches(pushed.last().expect("a status"), json!({ "phase": "running", "machineState": "running", "reason": ALREADY_RUNNING }));
+        assert_matches(
+            pushed.last().expect("a status"),
+            json!({ "phase": "running", "machineState": "running", "reason": ALREADY_RUNNING }),
+        );
         assert!(since.iter().any(|e| e["type"] == "workspace.woken"));
         // The exec that asked for the wake goes on, as on any running machine.
         let ran = n.fx.rt.workspaces().exec(&n.id, "true", None, None).await.expect("an exec");
@@ -625,7 +640,8 @@ fn polling() -> impl FnOnce(&mut RuntimeOptions) {
 
 // "a pause the runtime did not start" > "the poll sees the provider's machine paused under a running record: the phase follows, the sessions end, the status is pushed, and wake resumes it"
 #[test]
-fn the_poll_sees_the_providers_machine_paused_under_a_running_record_the_phase_follows_the_sessions_end_the_status_is_pushed_and_wake_resumes_it() {
+fn the_poll_sees_the_providers_machine_paused_under_a_running_record_the_phase_follows_the_sessions_end_the_status_is_pushed_and_wake_resumes_it(
+) {
     drive(|| async {
         let backend = StubBackend::new(None);
         let (factory, _) = hanging_adapter();
@@ -673,7 +689,8 @@ fn a_record_left_waking_by_a_wake_that_never_landed_hydrates_paused_when_the_pro
         let second = runtime(&backend).store(&state.store).build();
         let hydrated = get(&second.rt, &id).await;
         assert_eq!(hydrated["phase"], "napping");
-        let napping = workspace_state(&WorkspaceStateInput { phase: WorkspacePhase::Napping, machine_state: None, reach: None, wake_refused: None });
+        let napping =
+            workspace_state(&WorkspaceStateInput { phase: WorkspacePhase::Napping, machine_state: None, reach: None, wake_refused: None });
         assert_eq!(workspace_word(&napping, Some(&backend.capabilities().pause_mode.expect("a pause mode"))), "Paused");
         assert_eq!(send_refusal(&SendRefusalKind::State(napping), None, None).as_deref(), Some("Workspace is paused; wake it to send"));
         assert_matches(&stored(&state.store, &id).await, json!({ "phase": "napping" }));
@@ -693,7 +710,8 @@ fn a_record_left_waking_whose_machine_the_provider_is_running_hydrates_running_s
         let second = runtime(&backend).store(&state.store).build();
         let hydrated = get(&second.rt, &id).await;
         assert_eq!(hydrated["phase"], "running");
-        let running = workspace_state(&WorkspaceStateInput { phase: WorkspacePhase::Running, machine_state: None, reach: None, wake_refused: None });
+        let running =
+            workspace_state(&WorkspaceStateInput { phase: WorkspacePhase::Running, machine_state: None, reach: None, wake_refused: None });
         assert_eq!(workspace_word(&running, None), "Running");
         assert_eq!(send_refusal(&SendRefusalKind::State(running), None, None), None);
         assert_matches(&stored(&state.store, &id).await, json!({ "phase": "running" }));
@@ -816,9 +834,9 @@ async fn a_turn_started_on_a_machine_whose_daemon_is_not_up(road: &str) {
     until_for(5_000, &mut || {
         let (events, id) = (w.events.clone(), w.id.clone());
         async move {
-            events.all()[woken..]
-                .iter()
-                .any(|e| e["type"] == "workspace.status" && e["status"]["id"] == id.as_str() && e["status"]["reach"]["state"] != "reachable")
+            events.all()[woken..].iter().any(|e| {
+                e["type"] == "workspace.status" && e["status"]["id"] == id.as_str() && e["status"]["reach"]["state"] != "reachable"
+            })
         }
     })
     .await;
@@ -835,13 +853,15 @@ async fn a_turn_started_on_a_machine_whose_daemon_is_not_up(road: &str) {
 
 // "a turn started on a machine resumed by the wake, whose daemon is not up yet, runs on through the polls: a paused reading from its nap does not stop it"
 #[test]
-fn a_turn_started_on_a_machine_resumed_by_the_wake_whose_daemon_is_not_up_yet_runs_on_through_the_polls_a_paused_reading_from_its_nap_does_not_stop_it() {
+fn a_turn_started_on_a_machine_resumed_by_the_wake_whose_daemon_is_not_up_yet_runs_on_through_the_polls_a_paused_reading_from_its_nap_does_not_stop_it(
+) {
     drive(|| a_turn_started_on_a_machine_whose_daemon_is_not_up("resumed by the wake"));
 }
 
 // "a turn started on a machine found running by the wake, whose daemon is not up yet, runs on through the polls: a paused reading from its nap does not stop it"
 #[test]
-fn a_turn_started_on_a_machine_found_running_by_the_wake_whose_daemon_is_not_up_yet_runs_on_through_the_polls_a_paused_reading_from_its_nap_does_not_stop_it() {
+fn a_turn_started_on_a_machine_found_running_by_the_wake_whose_daemon_is_not_up_yet_runs_on_through_the_polls_a_paused_reading_from_its_nap_does_not_stop_it(
+) {
     drive(|| a_turn_started_on_a_machine_whose_daemon_is_not_up("found running by the wake"));
 }
 
@@ -952,7 +972,8 @@ fn gave_up_one(text: &str) -> bool {
 
 // "a pause that ends in MoveUnansweredError puts the record back to running with the backend's words on the row, and the next pause works"
 #[test]
-fn a_pause_that_ends_in_move_unanswered_error_puts_the_record_back_to_running_with_the_backends_words_on_the_row_and_the_next_pause_works() {
+fn a_pause_that_ends_in_move_unanswered_error_puts_the_record_back_to_running_with_the_backends_words_on_the_row_and_the_next_pause_works()
+{
     drive(|| async {
         let r = rig(None);
         let ws = create_on(&r.fx.rt, CreateOn::golden("x"), None).await.expect("a workspace");
@@ -994,7 +1015,8 @@ fn a_wake_that_ends_in_resume_unanswered_error_says_so_on_the_row_leaves_the_wak
         let last = pushes(&r.events).last().cloned().expect("a status");
         assert_matches(&last, json!({ "phase": "napping", "machineState": "paused" }));
         assert!(gave_up_one(last["reason"].as_str().expect("a reason")), "{last}");
-        let napping = workspace_state(&WorkspaceStateInput { phase: WorkspacePhase::Napping, machine_state: None, reach: None, wake_refused: None });
+        let napping =
+            workspace_state(&WorkspaceStateInput { phase: WorkspacePhase::Napping, machine_state: None, reach: None, wake_refused: None });
         assert_eq!(workspace_word(&napping, r.backend.capabilities().pause_mode.as_ref()), "Paused");
         hung.lands.set(true);
         assert_eq!(j(&r.fx.rt.workspaces().wake(&ws.view.id, None).await.expect("a wake"))["phase"], "running");
@@ -1004,7 +1026,8 @@ fn a_wake_that_ends_in_resume_unanswered_error_says_so_on_the_row_leaves_the_wak
 
 // "a resume that lands after the wake gave up is found by one later read: the record follows to running instead of billing under a paused row"
 #[test]
-fn a_resume_that_lands_after_the_wake_gave_up_is_found_by_one_later_read_the_record_follows_to_running_instead_of_billing_under_a_paused_row() {
+fn a_resume_that_lands_after_the_wake_gave_up_is_found_by_one_later_read_the_record_follows_to_running_instead_of_billing_under_a_paused_row(
+) {
     drive(|| async {
         let r = rig(Some(WakeOptions { late_read_ms: Some(50), ..Default::default() }));
         r.backend.lifecycle().set_resume_asks(None);
@@ -1036,7 +1059,8 @@ fn a_resume_that_lands_after_the_wake_gave_up_is_found_by_one_later_read_the_rec
 
 // "the runtime sends a pause once and never reads the machine inside it; a wake reads the machine before its resume and before a second ask, never inside a move"
 #[test]
-fn the_runtime_sends_a_pause_once_and_never_reads_the_machine_inside_it_a_wake_reads_the_machine_before_its_resume_and_before_a_second_ask_never_inside_a_move() {
+fn the_runtime_sends_a_pause_once_and_never_reads_the_machine_inside_it_a_wake_reads_the_machine_before_its_resume_and_before_a_second_ask_never_inside_a_move(
+) {
     drive(|| async {
         let r = rig(None);
         r.backend.lifecycle().set_resume_asks(Some((60.0, 120.0)));

@@ -85,7 +85,8 @@ fn imageless() -> Guest {
 
 // "the nap of a workspace on a computer that keeps no image" > "pauses the machine and reads nothing of the computer's home: no listing, no archive, no stored vault, and the record says nothing about a backup"
 #[test]
-fn pauses_the_machine_and_reads_nothing_of_the_computers_home_no_listing_no_archive_no_stored_vault_and_the_record_says_nothing_about_a_backup() {
+fn pauses_the_machine_and_reads_nothing_of_the_computers_home_no_listing_no_archive_no_stored_vault_and_the_record_says_nothing_about_a_backup(
+) {
     drive(|| async {
         let g = imageless();
         let state = sqlite_state();
@@ -248,7 +249,15 @@ fn a_boat_wake_whose_daemon_answers_two_and_a_half_minutes_after_the_box_is_up_s
         let t = boat_wake(true).await;
         let began = t.fc.now();
         let waking = t.waking();
-        t.pump(|| waking.ended(), || if t.fc.now() - began >= 150_000 { t.daemon.up() }).await;
+        t.pump(
+            || waking.ended(),
+            || {
+                if t.fc.now() - began >= 150_000 {
+                    t.daemon.up()
+                }
+            },
+        )
+        .await;
         let woke = waking.result().await.expect("a wake");
         assert_eq!(machine_and_phase(&woke), ("m1".to_string(), "running".to_string()));
         assert_eq!(t.guest.backend.machines().len(), 1);
@@ -273,7 +282,9 @@ fn a_boat_wake_whose_daemon_starts_listening_seven_minutes_after_the_box_is_up_s
                 if at_six.borrow().is_none() && t.fc.now() - began >= 6 * 60_000 {
                     let (rt, id) = (t.fx.rt.clone(), t.ws_id.clone());
                     *at_six.borrow_mut() =
-                        Some(tokio::task::spawn_local(async move { get(&rt, &id).await["phase"].as_str().unwrap_or_default().to_string() }));
+                        Some(tokio::task::spawn_local(
+                            async move { get(&rt, &id).await["phase"].as_str().unwrap_or_default().to_string() },
+                        ));
                 }
                 if t.fc.now() - began >= 7 * 60_000 {
                     t.daemon.up();
@@ -357,7 +368,9 @@ async fn asks_for_the_start_again(first_fails: bool) {
         counted.set(counted.get() + 1);
         if counted.get() == 1 {
             return if first_fails {
-                Box::pin(async { Err(wsp_engine::errors::EngineError::Other { message: "Request timeout after 69998ms".into(), code: None }) })
+                Box::pin(async {
+                    Err(wsp_engine::errors::EngineError::Other { message: "Request timeout after 69998ms".into(), code: None })
+                })
             } else {
                 Box::pin(async { Ok(exec_exit(EXEC_DEADLINE_EXIT, "", "")) })
             };
@@ -374,7 +387,11 @@ async fn asks_for_the_start_again(first_fails: bool) {
     assert_eq!(starts(&t), 1);
     assert!(t.fc.now() - began >= 2 * 60_000);
     assert!(t.fc.now() - began < 5 * 60_000, "{}", t.fc.now() - began);
-    let failed = if first_fails { ", and the start failed (Request timeout after 69998ms)".to_string() } else { format!(" (exit {EXEC_DEADLINE_EXIT})") };
+    let failed = if first_fails {
+        ", and the start failed (Request timeout after 69998ms)".to_string()
+    } else {
+        format!(" (exit {EXEC_DEADLINE_EXIT})")
+    };
     let said = warned.lines();
     assert!(said.iter().any(|l| start_said(l, 60, &failed)), "{said:?}");
     assert!(said.iter().any(|l| start_said(l, 120, " (exit 0)")), "{said:?}");
@@ -389,7 +406,8 @@ fn asks_for_the_start_again_a_minute_after_one_that_throws_so_a_start_lost_on_a_
 
 // "asks for the start again a minute after one that runs out its timeout, so a start lost on a box still streaming its disk is not the last"
 #[test]
-fn asks_for_the_start_again_a_minute_after_one_that_runs_out_its_timeout_so_a_start_lost_on_a_box_still_streaming_its_disk_is_not_the_last() {
+fn asks_for_the_start_again_a_minute_after_one_that_runs_out_its_timeout_so_a_start_lost_on_a_box_still_streaming_its_disk_is_not_the_last()
+{
     drive(|| asks_for_the_start_again(false));
 }
 
@@ -510,7 +528,8 @@ fn a_stop_pulled_ten_seconds_into_a_boat_wake_whose_daemon_has_not_answered_lets
 
 // "leaves a computer that keeps an image exactly as it was: every nap stashes the vault, a failed wake keeps the machine, and the rebuild reads the vault"
 #[test]
-fn leaves_a_computer_that_keeps_an_image_exactly_as_it_was_every_nap_stashes_the_vault_a_failed_wake_keeps_the_machine_and_the_rebuild_reads_the_vault() {
+fn leaves_a_computer_that_keeps_an_image_exactly_as_it_was_every_nap_stashes_the_vault_a_failed_wake_keeps_the_machine_and_the_rebuild_reads_the_vault(
+) {
     drive(|| async {
         let g = guest_backend();
         let state = sqlite_state();

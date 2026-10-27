@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! packages/runtime/test/resume-after-a-nap.test.ts at 65f6b89c7, case for case. The adapters are the real ones and the
 //! exec is scripted, so the line each harness would run on the machine is read word for word.
-mod common;
 #[path = "../../wsp-adapters/tests/common/claude_exec.rs"]
 mod claude_exec;
+mod common;
 
 use std::sync::Arc;
 
@@ -52,7 +52,11 @@ async fn stopped_after_one_turn(harness: &str, lines: Vec<String>) -> Stopped {
     let opened = fx
         .rt
         .sessions()
-        .start(&ws.view.id, StartOptions { prompt: "start the dev server".into(), harness: Some(harness.into()), ..Default::default() }, None)
+        .start(
+            &ws.view.id,
+            StartOptions { prompt: "start the dev server".into(), harness: Some(harness.into()), ..Default::default() },
+            None,
+        )
         .await
         .expect("a start");
     opened.finished().await;
@@ -78,17 +82,16 @@ fn launches_claude_on_the_woken_machine_with_the_threads_own_session_id_and_the_
         assert!(tail.len() == 36 && tail.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase() || c == '-'), "{}", first[0]);
         assert!(!first[0].contains("--resume"));
         s.fx.rt.workspaces().wake(&s.workspace_id, None).await.expect("a wake");
-        let again = s
-            .fx
-            .rt
-            .sessions()
-            .start(
-                &s.workspace_id,
-                StartOptions { prompt: "what did you leave running".into(), thread: Some(s.thread_id.clone()), ..Default::default() },
-                None,
-            )
-            .await
-            .expect("a start");
+        let again =
+            s.fx.rt
+                .sessions()
+                .start(
+                    &s.workspace_id,
+                    StartOptions { prompt: "what did you leave running".into(), thread: Some(s.thread_id.clone()), ..Default::default() },
+                    None,
+                )
+                .await
+                .expect("a start");
         again.finished().await;
         assert!(!s.backend.machine(0).paused.get());
         let all = commands(&s.exec);
@@ -159,17 +162,16 @@ fn resumes_codex_on_the_thread_it_started_at_the_access_that_asks_nobody() {
         };
         assert_eq!(thread_line(0)["method"], "thread/start");
         s.fx.rt.workspaces().wake(&s.workspace_id, None).await.expect("a wake");
-        let again = s
-            .fx
-            .rt
-            .sessions()
-            .start(
-                &s.workspace_id,
-                StartOptions { prompt: "what did you leave running".into(), thread: Some(s.thread_id.clone()), ..Default::default() },
-                None,
-            )
-            .await
-            .expect("a start");
+        let again =
+            s.fx.rt
+                .sessions()
+                .start(
+                    &s.workspace_id,
+                    StartOptions { prompt: "what did you leave running".into(), thread: Some(s.thread_id.clone()), ..Default::default() },
+                    None,
+                )
+                .await
+                .expect("a start");
         again.finished().await;
         assert!(!s.backend.machine(0).paused.get());
         let all = commands(&s.exec);
