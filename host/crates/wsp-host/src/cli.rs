@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! The command dispatcher (`cli()` of `cli.ts`, thin): the cloud refusal, the verb table through `run_verb`, `mcp`,
 //! `--version`, `up`, and the refusal of a word no command answers. The other command lines of `commands.ts` (`down`,
-//! `status`, `host ...`, `login`, `hosts`, `init`, `add`, `remove`, `join`, `leave`, `doctor`) are `wsp-setup`'s.
+//! `status`, `host ...`, `login`, `logout`, `hosts`, `add`, `remove`, `join`, `leave`, `doctor`) are each asked of the
+//! `wire.rs` of `wsp-setup` that owns it, which refuses with the not-in-this-build line until its packet lands; `init`
+//! has no `wire.rs` yet and is refused here.
 use std::sync::Arc;
 
 use serde_json::json;
@@ -10,6 +12,8 @@ use wsp_cli::parse_args::parse_args;
 use wsp_cli::verbs::client::{failed, flag, flag_set, json_asked, take_common, CliIo, FlagKind, FlagRow, FlagTable, Page};
 use wsp_cli::verbs::{cloud_line_of, cloud_of, find_verb, run_verb, verb_help, verb_usage, verbs_for, RunDeps};
 use wsp_cli::version::VERSION;
+use wsp_setup::context::CommandRun;
+use wsp_setup::{commands, doctor, join, relay_link, service};
 use wsp_wire::wire::daemon_version::DAEMON_VERSION;
 use wsp_words::exit::{cloud_off_refusal, json_line, usage_refusal, HostError};
 use wsp_words::words::thread::{run_for_the_list, unknown_word_line};
@@ -31,7 +35,7 @@ const HOST_USAGES: [&str; 5] = [
     "wsp host unlink",
 ];
 
-/// The commands of `commands.ts` that start or drive the host and that `wsp-setup` carries; none is in this build.
+/// The commands of `commands.ts` that start or drive the host and that `wsp-setup` carries.
 const SETUP_COMMANDS: [&str; 15] = [
     "down",
     "status",
@@ -113,12 +117,21 @@ impl Running {
     }
 }
 
+impl Running {
+    /// What a `wire.rs` command line is run with.
+    pub fn command_run(&self) -> CommandRun {
+        CommandRun { env: self.env.clone(), wsp: self.wsp.clone(), cwd: self.cwd.clone() }
+    }
+}
+
 /// What a line comes to before anything is awaited: a verb, a command that needs the async runtime, or the tool server,
 /// which runs on this thread with a runtime of its own.
 pub enum Line {
     Done(i32),
     Verb(Vec<String>),
     Up(Vec<String>),
+    /// A command line of `wsp-setup`: the words that name it (`host pair` is two) and the whole shared line.
+    Command(&'static str, Vec<String>),
     Mcp(Vec<String>),
 }
 
@@ -185,6 +198,9 @@ pub fn read_line(argv: &[String], io: &dyn CliIo, run: &Running) -> Line {
     if word == "up" && !wants_help {
         return Line::Up(shared);
     }
+    if let Some(command) = command_named(&parsed.positionals) {
+        return Line::Command(command, shared);
+    }
     if SETUP_COMMANDS.iter().any(|c| c.split(' ').next() == Some(word.as_str())) {
         let said = HostError::new(format!("wsp {word} is not in this build of the command line yet"));
         return Line::Done(failed(io, json, &said, ""));
@@ -194,6 +210,41 @@ pub fn read_line(argv: &[String], io: &dyn CliIo, run: &Running) -> Line {
         Some(usage) => usage_refusal(&format!("wsp {word} opens a line rather than being one."), &usage),
     };
     Line::Done(failed(io, json, &refusal, ""))
+}
+
+/// The command line of `wsp-setup` the positionals name, whole: `host` names one only with the word of one of its four
+/// lines after it, and `init` names none yet.
+fn command_named(positionals: &[String]) -> Option<&'static str> {
+    let first = positionals.first()?.as_str();
+    if first == "host" {
+        return ["host pair", "host devices", "host link", "host unlink"]
+            .into_iter()
+            .find(|c| positionals.get(1).map(String::as_str) == c.strip_prefix("host "));
+    }
+    ["down", "status", "login", "logout", "hosts", "add", "remove", "join", "leave", "doctor"].into_iter().find(|c| *c == first)
+}
+
+/// A command line of `wsp-setup`, run by the `wire.rs` that owns it.
+pub async fn run_command_line(command: &str, line: Vec<String>, io: Arc<dyn CliIo>, run: &Running) -> i32 {
+    let json = json_asked(&line);
+    let (io, run) = (io.as_ref(), run.command_run());
+    match command {
+        "down" => service::wire::down(line, json, io, &run).await,
+        "status" => service::wire::status(line, json, io, &run).await,
+        "host pair" => service::wire::host_pair(line, json, io, &run).await,
+        "host devices" => service::wire::host_devices(line, json, io, &run).await,
+        "host link" => relay_link::wire::host_link(line, json, io, &run).await,
+        "host unlink" => relay_link::wire::host_unlink(line, json, io, &run).await,
+        "login" => commands::wire::login(line, json, io, &run).await,
+        "logout" => commands::wire::logout(line, json, io, &run).await,
+        "hosts" => commands::wire::hosts(line, json, io, &run).await,
+        "add" => commands::wire::add(line, json, io, &run).await,
+        "remove" => commands::wire::remove(line, json, io, &run).await,
+        "join" => join::wire::join(line, json, io, &run).await,
+        "leave" => join::wire::leave(line, json, io, &run).await,
+        "doctor" => doctor::wire::doctor(line, json, io, &run).await,
+        other => unreachable!("{other} is no command line of wsp-setup"),
+    }
 }
 
 /// `commandUsage(word)`: the usage of the command a line stopped short of, whether it is a verb or the word the
@@ -237,6 +288,11 @@ pub async fn up_line(line: Vec<String>, io: Arc<dyn CliIo>, run: &Running) -> i3
     }
     if let Some(refusal) = takes_no_word(&parsed.positionals[1..]) {
         return failed(io.as_ref(), json, &refusal, "");
+    }
+    if flag_set(&parsed.values, "service") {
+        if let Some(code) = service::wire::up_service(&line, io.as_ref(), &run.command_run()).await {
+            return code;
+        }
     }
     let flags = UpFlags {
         port: flag(&parsed.values, "port").map(str::to_string),

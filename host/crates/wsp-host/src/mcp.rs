@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! `wsp mcp` (`cli/mcp.ts`): the tool server on this process's own stdio until the agent closes its stdin. The server is
 //! `wsp-mcp`'s, which dials the host the way the command line does. `wsp mcp install` writes an agent's config and is
-//! `wsp-setup`'s.
+//! `wsp-setup`'s, asked of its `wire.rs`.
 use std::collections::HashMap;
 
 use wsp_cli::host_lock::STARTED_BY_ENV;
@@ -10,7 +10,7 @@ use wsp_cli::parse_args::parse_args;
 use wsp_cli::verbs::client::{failed, flag, flag_set, json_asked, CliIo, FlagKind, FlagRow, FlagTable};
 use wsp_wire::types::env::SCOPED_MCP_ARG;
 use wsp_wire::views::session_events::host_from_env;
-use wsp_words::exit::{auth_refusal, usage_refusal, HostError};
+use wsp_words::exit::{auth_refusal, usage_refusal};
 use wsp_words::words::computer::SCOPED_NO_PAIR_LINE;
 use wsp_words::words::thread::{run_for_the_list, unknown_word_line};
 
@@ -66,14 +66,13 @@ pub fn mcp(io: &dyn CliIo, argv: &[String], run: &Running) -> i32 {
         return failed(io, json, &auth_refusal(SCOPED_NO_PAIR_LINE), "");
     }
     if !words.is_empty() {
-        let refusal = if words[0] == "install" && words.len() == 1 {
-            HostError::new("wsp mcp install is not in this build of the command line yet")
-        } else {
-            usage_refusal(
-                &unknown_word_line(&format!("{MCP_COMMAND} {}", words.join(" "))),
-                &run_for_the_list(&format!("wsp {MCP_COMMAND} --help")),
-            )
-        };
+        if words[0] == "install" && words.len() == 1 {
+            return wsp_setup::mcp::wire::mcp_install(io, json, argv, &run.command_run());
+        }
+        let refusal = usage_refusal(
+            &unknown_word_line(&format!("{MCP_COMMAND} {}", words.join(" "))),
+            &run_for_the_list(&format!("wsp {MCP_COMMAND} --help")),
+        );
         return failed(io, json, &refusal, "");
     }
     let note = |line: &str| io.error(line);
