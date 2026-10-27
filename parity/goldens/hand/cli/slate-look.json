@@ -5,7 +5,7 @@
       "stdout": "",
       "stderr": {
         "json": {
-          "error": "--tick takes one of used, installed, default, and got \"used\\\\|installed\\\\|default\". Name one of those.",
+          "error": "no thread no-such-thread",
           "class": "usage",
           "exit": 3
         },

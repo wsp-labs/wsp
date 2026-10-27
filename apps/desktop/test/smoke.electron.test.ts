@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { CATALOG_AGENTS } from "@wsp/catalog";
 import { LAUNCHD_PATH, computerNameHere, placeWiring, serve, serviceManagerFor, servingHost, shimPath, startHost, stopService, systemRunner, workspaceAsset, type CliIO, type HostHandle, type InstallReport } from "@wsp/host";
-import { BROWSER_PARTITION, DAEMON_VERSION, GET_THE_APP_WORD, HOST_WORDS, LAUNCH_ENV, STATE_SHAPE, type TurnResult } from "@wsp/protocol";
+import { ANALYTICS_ENV, BROWSER_PARTITION, DAEMON_VERSION, GET_THE_APP_WORD, HOST_WORDS, LAUNCH_ENV, STATE_SHAPE, type TurnResult } from "@wsp/protocol";
 import { createRuntime, memoryStore, sqliteStore, STATE_SHAPE_KEY, tokenDigest, type HarnessAdapterFactory, type Runtime } from "@wsp/runtime";
 import { _electron as electron, type ElectronApplication, type Page } from "playwright";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -202,8 +202,9 @@ async function launchIn(home: string, env: Record<string, string | undefined>): 
   delete inherited["SOLARI_API_KEY"];
   delete inherited["ANTHROPIC_API_KEY"];
   // The app reads WSP_DESKTOP_SMOKE to know it is driven: the bundle runs out of dist, and the move to Applications
-  // it would otherwise offer has nobody to press a button.
-  const merged = { ...inherited, HOME: home, WSP_HOME: home, WSP_DESKTOP_SMOKE: "1", SHELL: loginShellIn(home, env["PATH"]), ...env };
+  // it would otherwise offer has nobody to press a button. The release builds it with the real PostHog key, so a run
+  // sends no usage counts, or every release would count as a few dozen new installs.
+  const merged = { ...inherited, HOME: home, WSP_HOME: home, WSP_DESKTOP_SMOKE: "1", [ANALYTICS_ENV]: "0", SHELL: loginShellIn(home, env["PATH"]), ...env };
   const clean: Record<string, string> = {};
   for (const [k, v] of Object.entries(merged)) if (v !== undefined) clean[k] = v;
   const user = clean["HOME"]!;
@@ -612,7 +613,7 @@ describe.runIf(SMOKE)("desktop app (built)", { timeout: 60_000 }, () => {
     const parent = Number(spawnSync("ps", ["-o", "ppid=", "-p", String(host.pid)], { encoding: "utf8", timeout: 20_000 }).stdout.trim());
     expect(parent).not.toBe(launched.app.process().pid);
     if (process.platform === "darwin") expect(parent).toBe(1);
-    const env = { ...process.env, HOME: user, WSP_HOME: home };
+    const env = { ...process.env, HOME: user, WSP_HOME: home, [ANALYTICS_ENV]: "0" };
     step("wsp status");
     expect(spawnSync(shimPath(home), ["status"], { encoding: "utf8", env, timeout: 20_000 }).stdout).toContain(`service     ${manager.words} ${unit.name}, loaded`);
     // The service runs wsp behind the command the app wrote, so what it writes into an agent's config runs that
@@ -794,7 +795,7 @@ describe.runIf(SMOKE)("desktop app (built)", { timeout: 60_000 }, () => {
     console.info(`the app on first launch: ${shots.join(" ")}`);
 
     // The shim is the wsp command: it runs the bundled host as node, and an install through it writes the shim too.
-    const env = { ...process.env, HOME: home, WSP_HOME: home };
+    const env = { ...process.env, HOME: home, WSP_HOME: home, [ANALYTICS_ENV]: "0" };
     const version = spawnSync(shim, ["--version"], { encoding: "utf8", env });
     expect(version.stderr).toBe("");
     expect(version.stdout).toBe(`wsp ${VERSION}\n`);

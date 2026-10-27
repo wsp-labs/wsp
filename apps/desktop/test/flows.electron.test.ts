@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cli } from "@wsp/host";
-import { LAUNCH_ENV, WEB_DIR_ENV, type ThreadView } from "@wsp/protocol";
+import { ANALYTICS_ENV, LAUNCH_ENV, WEB_DIR_ENV, type ThreadView } from "@wsp/protocol";
 import { SLATE_LOOK_NO_APP } from "@wsp/runtime";
 import { _electron as electron, type ElectronApplication, type Page } from "playwright";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -114,7 +114,7 @@ async function openFlow(webDir: string | undefined, up: readonly string[] = UP):
     const silent = threadIdOf(wsp({ env, dir }, "run", PROJECT, "--agent", "claude", "--detach", "stay silent"));
     wsp({ env, dir }, "stop", silent);
 
-    const launchEnv: Record<string, string> = { ...env, WSP_DESKTOP_SMOKE: "1", SHELL: loginShell(join(dir, "login-shell"), path) };
+    const launchEnv: Record<string, string> = { ...env, WSP_DESKTOP_SMOKE: "1", [ANALYTICS_ENV]: "0", SHELL: loginShell(join(dir, "login-shell"), path) };
     for (const name of ["DISPLAY", "XAUTHORITY", "WAYLAND_DISPLAY", "XDG_RUNTIME_DIR"]) if (process.env[name] !== undefined) launchEnv[name] = process.env[name]!;
     app = await electron.launch({ executablePath: builtApp(), cwd: dir, env: launchEnv, colorScheme: null, ...(HEADLESS ? { args: HEADLESS_ARGS } : {}) });
     const said: string[] = [];

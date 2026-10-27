@@ -8,6 +8,7 @@
 import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync } from "node:fs";
+import { connect } from "node:net";
 import { homedir, userInfo } from "node:os";
 import { isAbsolute, join, posix } from "node:path";
 import { CATALOG_AGENTS } from "@wsp/catalog";
@@ -464,12 +465,35 @@ function trustedByAuthority(found: string): boolean {
  * this road dials the resolved name itself and cannot take either: the name would resolve on this network rather
  * than on the far side of the jump, and whatever answered there would be recorded as that machine's identity. */
 async function offeredHostKeys(values: Record<string, string>, run: SshLocalRun): Promise<string> {
-  const host = values["hostname"] ?? "";
-  if (host === "" || (values["proxyjump"] ?? "") !== "" || (values["proxycommand"] ?? "") !== "") return "";
-  const port = Number(values["port"]) || SSH_DEFAULT_PORT;
-  const read = await run("ssh-keyscan", ["-T", String(SSH_KEYSCAN_S), "-p", String(port), host], SSH_KEYSCAN_MS);
+  const target = scanTarget(values);
+  if (target === undefined) return "";
+  const read = await run("ssh-keyscan", ["-T", String(SSH_KEYSCAN_S), "-p", String(target.port), target.host], SSH_KEYSCAN_MS);
   return read.exitCode === 0 ? read.stdout : "";
 }
+
+/** The host and port the client resolved for the dial, which the scan and the connect below both ask; nothing where
+ * a jump or a command of the person's would carry the dial. */
+function scanTarget(values: Record<string, string>): { host: string; port: number } | undefined {
+  const host = values["hostname"] ?? "";
+  if (host === "" || (values["proxyjump"] ?? "") !== "" || (values["proxycommand"] ?? "") !== "") return undefined;
+  return { host, port: Number(values["port"]) || SSH_DEFAULT_PORT };
+}
+
+/** Whether anything answers a connect on that port: ssh-keyscan prints nothing and exits 0 both for a machine that
+ * never answered and for one that answered with no key, so only a connect of its own tells the two apart. */
+export type SshPortProbe = (host: string, port: number) => Promise<boolean>;
+
+const connects: SshPortProbe = (host, port) =>
+  new Promise(resolve => {
+    const socket = connect({ host, port, timeout: SSH_KEYSCAN_S * 1000 });
+    const end = (answered: boolean): void => {
+      socket.destroy();
+      resolve(answered);
+    };
+    socket.once("connect", () => end(true));
+    socket.once("timeout", () => end(false));
+    socket.once("error", () => end(false));
+  });
 
 /** What a machine itself answers with on its ssh port, with nothing authenticated and nothing installed: one scan
  * of the address the client would dial, read as a known_hosts entry is read, and what in the person's own ssh
@@ -479,14 +503,16 @@ async function offeredHostKeys(values: Record<string, string>, run: SshLocalRun)
  *
  * A jump or a command of the person's stops it: the scan dials the resolved name itself and can take neither, so
  * whatever answered on this network would be shown as that machine's key. */
-export async function offeredHostKey(reach: SshReach, run: SshLocalRun = localRun): Promise<{ key?: string; stoppedBy?: string }> {
+export async function offeredHostKey(reach: SshReach, run: SshLocalRun = localRun, answers: SshPortProbe = connects): Promise<OfferedKey> {
   const config = await run("ssh", ["-G", ...sshDialArgs(reach), `${reach.user}@${reach.host}`], SSH_LOCAL_READ_MS);
   if (config.exitCode !== 0) return {};
   const values = readValues(config.stdout);
   const stoppedBy = proxiedBy(values);
   if (stoppedBy !== undefined) return { stoppedBy };
   const key = hostKeyFound(await offeredHostKeys(values, run), values["hostkeyalgorithms"] ?? "");
-  return key === undefined ? {} : { key };
+  if (key !== undefined) return { key };
+  const target = scanTarget(values);
+  return target !== undefined && !(await answers(target.host, target.port)) ? { silent: target.port } : {};
 }
 
 /** The option that carries a dial through another computer, off one `ssh -G` reading: ssh prints neither when unset. */
@@ -878,6 +904,14 @@ export class SshMachine implements Machine {
   }
 }
 
+/** What a scan of a machine's ssh port came to: the key it answered with; the config line that stopped the scan; or
+ * the port it never answered on, which no key line a person could run would fix. Empty where it answered with no key. */
+export interface OfferedKey {
+  key?: string;
+  stoppedBy?: string;
+  silent?: number;
+}
+
 export interface SshBackendOptions {
   /** How a script reaches a machine; the ssh client on this computer unless a test hands its own. */
   transport?: SshTransport;
@@ -887,7 +921,7 @@ export interface SshBackendOptions {
    * answer unless a test hands its own. */
   knownHosts?: (reach: SshReach) => Promise<{ file?: string; target?: string }>;
   /** What the machine itself answers a scan with; the read above unless a test hands its own. */
-  offeredKey?: (reach: SshReach) => Promise<{ key?: string; stoppedBy?: string }>;
+  offeredKey?: (reach: SshReach) => Promise<OfferedKey>;
   /** The address the client dials for a login; the person's config unless a test hands its own. */
   hostName?: (reach: SshReach) => Promise<string | undefined>;
 }
@@ -901,7 +935,7 @@ export class SshBackend {
   private readonly transport: SshTransport;
   private readonly hostKey: SshHostKeyReader;
   private readonly knownHosts: (reach: SshReach) => Promise<{ file?: string; target?: string }>;
-  private readonly offered: (reach: SshReach) => Promise<{ key?: string; stoppedBy?: string }>;
+  private readonly offered: (reach: SshReach) => Promise<OfferedKey>;
   private readonly hostName: (reach: SshReach) => Promise<string | undefined>;
 
   constructor(opts: SshBackendOptions = {}) {
@@ -957,7 +991,7 @@ export class SshBackend {
 
   /** What the machine itself answers with, asked of the machine and not of this computer's own files: the one read
    * a road has before the first dial of a computer nobody here has met. */
-  async offeredKeyFor(reach: SshReach): Promise<{ key?: string; stoppedBy?: string }> {
+  async offeredKeyFor(reach: SshReach): Promise<OfferedKey> {
     return this.offered(reach);
   }
 

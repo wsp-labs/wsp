@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { createServer } from "node:net";
 import { homedir, tmpdir, userInfo } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -599,8 +600,23 @@ describe("the key a machine over ssh is known by", () => {
     expect(await offeredHostKey(REACH, run("proxyjump bastion.example.com"))).toEqual({ stoppedBy: "ProxyJump" });
     expect(await offeredHostKey(REACH, run("proxycommand nc %h %p"))).toEqual({ stoppedBy: "ProxyCommand" });
     expect(asked.filter(a => a.file === "ssh-keyscan")).toHaveLength(1);
-    // A machine that answers no scan leaves the person with neither a key nor a reason of the config's.
-    expect(await offeredHostKey(REACH, async file => (file === "ssh" ? { exitCode: 0, stdout: CONFIG, stderr: "" } : { exitCode: 1, stdout: "", stderr: "" }))).toEqual({});
+    // A machine that answers its port with no key leaves the person with neither a key nor a reason of the config's.
+    const open = async () => true;
+    expect(await offeredHostKey(REACH, async file => (file === "ssh" ? { exitCode: 0, stdout: CONFIG, stderr: "" } : { exitCode: 1, stdout: "", stderr: "" }), open)).toEqual({});
+  });
+
+  it("a machine that does not answer its ssh port is said to be silent on that port, off one real connect to a closed one", async () => {
+    const closed = await new Promise<number>(resolve => {
+      const server = createServer();
+      server.listen(0, "127.0.0.1", () => {
+        const { port } = server.address() as { port: number };
+        server.close(() => resolve(port));
+      });
+    });
+    // The scan prints nothing and exits 0 for a machine that never answered, as ssh-keyscan does; only a connect tells
+    // that from one that answered with no key.
+    const run: SshLocalRun = async file => (file === "ssh" ? { exitCode: 0, stdout: `user dev\nhostname 127.0.0.1\nport ${closed}`, stderr: "" } : { exitCode: 0, stdout: "", stderr: "" });
+    expect(await offeredHostKey({ user: "dev", host: "127.0.0.1", port: closed }, run)).toEqual({ silent: closed });
   });
 
   it("a machine the client reaches through a jump or a command of the person's is asked nothing, since this road cannot take either", async () => {

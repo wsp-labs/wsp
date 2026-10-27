@@ -179,6 +179,7 @@ const DAEMON_CONTENTS = [
   "ca5c18addf281365b4a68a189d212dda48f405176d2707db0bbe9f421f463120",
   "3ff0b2bde09e00c6a5df41f6012420f6126c9c71fb2cfe7c547c1659955807b1",
   "0d781b0460c7fcded623d316b56f80623dec91c6cd3b74113bc164b164537231",
+  "73585e204958f32e80c3af2a3b9cef5c4e98a004165bfd49658e50f73ce5777b",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -721,7 +722,10 @@ const DAEMON_CONTENTS = [
  * where the path ends in .html or .htm, it is a regular file of at most 1 MB (FS_PAGE_CAP_BYTES, the most a frame's
  * page may weigh) and its bytes are UTF-8; past the cap it answers the size alone, and a path named otherwise is
  * refused bad-request. The tool server takes --no-look beside --scoped, for a turn launched while no app on the host's
- * computer draws looks, and then lists no slate_look. */
+ * computer draws looks, and then lists no slate_look.
+ * Version 170: The daemon takes --install-root <dir>: a leave over the link builds /usr/local, /opt, /etc, the runtime
+ * folder and the cgroups under it, the runtime folder defaults under it, and a home, workspace profile or runtime
+ * folder outside it is refused before anything is removed, which keeps a test run as root off the computer's own. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary

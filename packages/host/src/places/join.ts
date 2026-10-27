@@ -459,7 +459,7 @@ export async function leaveCommand(
   const manager = serviceManagerFor(deps.platform);
   // The agent is another process from this one, so the sweep stops it before taking its unit file, and the lines
   // below say so.
-  const swept = await sweepPlace({ home, ...(manager !== undefined ? { manager } : {}), run: deps.run, ...(deps.apparmorProfile === undefined ? {} : { apparmorProfile: deps.apparmorProfile }), ...(deps.tools === undefined ? {} : { tools: deps.tools }), ...(deps.systemRoot === undefined ? {} : { systemRoot: deps.systemRoot }), runtimeRoot: runtime, runtimeProjects: flags.takes ?? [], cgroupRoots: [WORKSPACE_CGROUPS, THREAD_CGROUPS].map(cgroup => `${deps.systemRoot ?? ""}${CGROUP_MOUNT}${cgroup}`), ...(deps.uid === undefined ? {} : { uid: deps.uid }) });
+  const swept = await sweepPlace({ home, ...(manager !== undefined ? { manager } : {}), run: deps.run, ...(deps.apparmorProfile === undefined ? {} : { apparmorProfile: deps.apparmorProfile }), ...(deps.tools === undefined ? {} : { tools: deps.tools }), ...(deps.systemRoot === undefined ? {} : { systemRoot: deps.systemRoot }), ...(deps.within === undefined ? {} : { within: deps.within }), runtimeRoot: runtime, runtimeProjects: flags.takes ?? [], cgroupRoots: [WORKSPACE_CGROUPS, THREAD_CGROUPS].map(cgroup => `${deps.systemRoot ?? ""}${CGROUP_MOUNT}${cgroup}`), ...(deps.uid === undefined ? {} : { uid: deps.uid }) });
   io.log("broken" in standing ? brokenPlaceLeftLine(standing.broken) : `${standing.joined.name} left the wsp at ${standing.joined.hostUrls.join(", ")}; removed:`);
   for (const line of swept.removed) io.log(sweptLine(line));
   for (const line of swept.kept) io.log(line);
@@ -474,6 +474,7 @@ interface LeaveDeps {
   apparmorProfile?: string;
   tools?: ToolFolders;
   systemRoot?: string;
+  within?: string;
   uid?: number;
   unsaved?: (runtime: string) => string[] | undefined;
 }

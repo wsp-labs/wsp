@@ -6,7 +6,7 @@
         "jsonLines": [
           {
             "version": "<version>",
-            "daemon": 168
+            "daemon": 169
           }
         ],
         "layout": "<json>\n"

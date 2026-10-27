@@ -10,9 +10,10 @@ image=$(readlink -f "${1:?usage: appimage-launch.sh <AppImage>}")
 home=$(mktemp -d)
 log=$home/app.log
 # xvfb-run hands its display's cookie through XAUTHORITY, which the app needs to connect. APPIMAGE_EXTRACT_AND_RUN
-# unpacks the image under TMPDIR instead of mounting it, which needs a FUSE a runner need not have.
+# unpacks the image under TMPDIR instead of mounting it, which needs a FUSE a runner need not have. WSP_ANALYTICS=0:
+# the release builds the image with the real PostHog key, and a launch check is not an install.
 setsid env -i PATH=/usr/bin:/bin HOME="$home" TMPDIR="$home" DISPLAY="$DISPLAY" ${XAUTHORITY:+XAUTHORITY="$XAUTHORITY"} \
-  APPIMAGE_EXTRACT_AND_RUN=1 "$image" >"$log" 2>&1 &
+  APPIMAGE_EXTRACT_AND_RUN=1 WSP_ANALYTICS=0 "$image" >"$log" 2>&1 &
 pid=$!
 # The unpacking runtime runs the app as its child and leaves it running when killed alone, so its whole group goes.
 stop() {
