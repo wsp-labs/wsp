@@ -78,8 +78,11 @@ export function stepsFor(changes: readonly RecipeChange[], after: RecipeFile): S
       case "mcp":
       case "skills":
       case "plugins":
-      case "folders":
         steps.add(c.kind);
+        break;
+      case "folders":
+        // The CLIs step plans the package manager the folder's lockfile names, which its install needs first.
+        steps.add("folders").add("clis").add("context");
     }
   }
   // A folder that lands brings the servers its turns read here with it.

@@ -3,7 +3,7 @@
 // the catalog's floor rows by each row's own road, and the versions read back
 // once they are on. It runs under the base stage ahead of the daemon, so the
 // daemon deploy finds the tools its own steps type.
-import { APT_INDEX, APT_UPDATE, BASE_FLOOR, installAfter, smokeOf } from "@wsp/catalog";
+import { APT_INDEX, APT_UPDATE, BASE_FLOOR, COMPILER_ROW, installAfter, smokeOf } from "@wsp/catalog";
 import { fmtBytes, shellQuote, type GoldenBaseTool, type GoldenStage } from "@wsp/protocol";
 import { PRELUDE } from "./dotfiles-presets.js";
 import { INLINE_EXEC_MS } from "./exec-detached.js";
@@ -49,6 +49,7 @@ export function baseInstalls(carried: ReadonlySet<string> = new Set(), path: str
     out.push({ id: stepId(e.id), label: e.name, manager: e.installRoad.road, ...step, cmd: withEnv(step.cmd), ...(waits !== undefined ? { after: stepId(waits) } : {}), bin: e.bin });
   }
   if (!carried.has(SSH_SERVER)) out.push(sshServerStep(path, prefix, out.some(t => t.id === APT_STEP)));
+  if (left.has(COMPILER_ROW) && !carried.has(LIBATOMIC)) out.push(libatomicStep(path, prefix, out.some(t => t.id === APT_STEP)));
   return out;
 }
 
@@ -80,6 +81,18 @@ const sshServerStep = (path: string, prefix: string | undefined, indexed: boolea
   ...(indexed ? { after: APT_STEP } : {}),
 });
 const SSHD_THERE = "test -x /usr/sbin/sshd";
+
+/** The library pnpm's native binary links, which a minimal Ubuntu does not ship and the C toolchain's packages pull
+ * in: a computer whose floor leaves the toolchain out still needs it, or every pnpm project dies on the loader. */
+const LIBATOMIC = "libatomic1";
+const libatomicStep = (path: string, prefix: string | undefined, indexed: boolean): ToolInstall => ({
+  id: stepId(LIBATOMIC),
+  label: LIBATOMIC,
+  manager: "apt",
+  cmd: withEnv([pathLine(path, prefix), ...(indexed ? [] : [APT_UPDATE]), `apt-get install -y -qq ${LIBATOMIC}`].join("\n")),
+  shown: `apt-get install ${LIBATOMIC}`,
+  ...(indexed ? { after: APT_STEP } : {}),
+});
 const POLICY_RC = "/usr/sbin/policy-rc.d";
 
 interface VersionCheck {
@@ -94,7 +107,10 @@ interface VersionCheck {
  * on stderr, which the read drops, so its own shell sends it to stdout. */
 const SSHD_VERSION: VersionCheck = { name: "sshd", cmd: "sh -c 'sshd -V 2>&1'" };
 
-const VERSION_CHECKS: readonly VersionCheck[] = [...BASE_FLOOR.flatMap(e => [{ name: e.bin, cmd: smokeOf(e), id: e.id }, ...(e.brings ?? []).map(b => ({ name: b.bin, cmd: b.version }))]), SSHD_VERSION];
+/** libatomic1 has no command to ask, so the read asks dpkg for its version. */
+const LIBATOMIC_VERSION: VersionCheck = { name: LIBATOMIC, cmd: "dpkg-query -W -f='${Version}' libatomic1" };
+
+const VERSION_CHECKS: readonly VersionCheck[] = [...BASE_FLOOR.flatMap(e => [{ name: e.bin, cmd: smokeOf(e), id: e.id }, ...(e.brings ?? []).map(b => ({ name: b.bin, cmd: b.version }))]), SSHD_VERSION, LIBATOMIC_VERSION];
 
 /** The number a version line has to carry to be worth reading, as the read and the parse below each spell it in
  * their own language: two runs of digits with a dot between them. The read keeps the first line carrying one rather
@@ -138,6 +154,7 @@ export function carriedByImage(versions: readonly GoldenBaseTool[]): Set<string>
     out.add(e.id);
   }
   if (read.has(SSHD_VERSION.name)) out.add(SSH_SERVER);
+  if (read.has(LIBATOMIC)) out.add(LIBATOMIC);
   return out;
 }
 

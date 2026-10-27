@@ -185,7 +185,9 @@ describe("the versions read", () => {
     expect(BASE_VERSIONS_CMD).toContain(`echo "VERSION git: $(git --version 2>/dev/null | ${first})"`);
     // sshd prints its version on stderr, which the read drops, so its own shell sends it to stdout.
     expect(BASE_VERSIONS_CMD).toContain(`echo "VERSION sshd: $(sh -c 'sshd -V 2>&1' 2>/dev/null | ${first})"`);
-    expect(BASE_VERSIONS_CMD.split("\n").filter((l: string) => l.startsWith("echo \"VERSION"))).toHaveLength(17);
+    expect(BASE_VERSIONS_CMD.split("\n").filter((l: string) => l.startsWith("echo \"VERSION"))).toHaveLength(18);
+    // libatomic1 has no command, so dpkg is asked its version.
+    expect(BASE_VERSIONS_CMD).toContain("VERSION libatomic1: $(dpkg-query -W -f='${Version}' libatomic1 2>/dev/null");
   });
 
   it("keeps the first line of a read that carries a version, so zip reads carried and the floor has no apt index to run", () => {
@@ -200,6 +202,7 @@ describe("the versions read", () => {
     }
     // sshd as OpenSSH prints it: on stderr, which the read's own shell turns round.
     writeStub(join(dir, "sshd"), "#!/bin/sh\necho 'OpenSSH_9.6p1 Ubuntu-3ubuntu13.16, OpenSSL 3.0.13 30 Jan 2024' >&2\nexit 1\n");
+    writeStub(join(dir, "dpkg-query"), "#!/bin/sh\necho 14.2.0-4ubuntu2\n");
     writeStub(join(dir, "zip"), ["#!/bin/sh", "echo \"Copyright (c) 1990-2008 Info-ZIP - Type 'zip \\\"-L\\\"' for software license.\"", "echo 'This is Zip 3.0 (July 5th 2008), by Info-ZIP.'", ""].join("\n"));
     // The scratch folder goes ahead of the tools PATH the read exports, which itself carries /usr/bin: this Mac's
     // own zip would answer otherwise, and what is under test is the read, not this machine.
@@ -212,7 +215,7 @@ describe("the versions read", () => {
     // index runs before the first row that waits on it and no row is left to wait.
     const carried = carriedByImage(versions);
     expect(versions).toContainEqual({ name: "sshd", version: "9.6" });
-    expect([...carried].sort()).toEqual([...BASE_FLOOR.map(e => e.id), "ssh-server"].sort());
+    expect([...carried].sort()).toEqual([...BASE_FLOOR.map(e => e.id), "ssh-server", "libatomic1"].sort());
     expect(baseInstalls(carried).map(t => t.id)).toEqual(["base/login-path"]);
   });
 
