@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/places-agents.test.ts > the agents on a computer you own > are read over that computer's link with the login, sign-ins and versions its report carries, and answered stamped","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/places-agents.test.ts > the agents on a computer you own > are read over that computer's link with the login, sign-ins and versions its report carries, and answered stamped","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"target":{"placeId":"p_00000001"},"id":2,"op":"agents.read"}}
