@@ -16,8 +16,14 @@ use tungstenite::Message;
 
 const BIN: &str = env!("CARGO_BIN_EXE_wsp");
 const PAGE: &str = "<!doctype html>\n<html><head><script>window.__WSP__ = null;</script></head><body></body></html>\n";
-const VERSION: &str = "0.3.8";
 const START_WAIT: Duration = Duration::from_secs(30);
+
+/// The release the TS host reads off `packages/host/package.json`, which every door of this binary must say.
+fn release() -> String {
+    let text =
+        fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../packages/host/package.json")).expect("the host's package.json");
+    serde_json::from_str::<Value>(&text).expect("json")["version"].as_str().expect("a version").to_string()
+}
 
 /// One replay's folders, laid out as the harness lays them.
 struct Place {
@@ -175,7 +181,7 @@ fn hear(socket: &mut tungstenite::WebSocket<TcpStream>) -> Value {
 fn version_is_the_last_word_of_one_line() {
     let place = Place::new();
     let (code, out, _) = place.run(&["--version"]);
-    assert_eq!((code, out.as_str()), (0, format!("wsp {VERSION}\n").as_str()));
+    assert_eq!((code, out.as_str()), (0, format!("wsp {}\n", release()).as_str()));
 }
 
 #[test]
@@ -184,7 +190,7 @@ fn version_under_json_names_the_release_and_the_daemon() {
     let (code, out, _) = place.run(&["--version", "--json"]);
     assert_eq!(code, 0);
     let said: Value = serde_json::from_str(out.trim()).expect("one json line");
-    assert_eq!(said["version"], VERSION);
+    assert_eq!(said["version"], release());
     assert!(said["daemon"].is_number(), "{said}");
     assert_eq!(out.trim().find("\"version\""), Some(1), "version comes first: {out}");
 }
@@ -212,7 +218,7 @@ fn the_page_carries_the_boot_object_and_never_the_token() {
     let (status, page) = host.get("/");
     assert_eq!(status, 200);
     assert!(page.contains("window.__WSP__ = {\"tokenHash\":\""), "{page}");
-    assert!(page.contains("\"wsPath\":\"/ws\",\"paired\":true,\"version\":\"0.3.8\",\"statePath\":\""), "{page}");
+    assert!(page.contains(&format!("\"wsPath\":\"/ws\",\"paired\":true,\"version\":\"{}\",\"statePath\":\"", release())), "{page}");
     assert!(!page.contains(&host.token));
     let (status, deep) = host.get("/threads/abc");
     assert_eq!((status, deep), (200, page));
@@ -227,7 +233,7 @@ fn the_socket_answers_auth_with_the_release_and_the_road() {
     let mut socket = host.socket();
     say(&mut socket, json!({"token": host.token, "id": 1, "op": "auth"}));
     let reply = hear(&mut socket);
-    assert_eq!(reply.to_string(), json!({"id": 1, "ok": true, "version": VERSION, "road": "up"}).to_string());
+    assert_eq!(reply.to_string(), json!({"id": 1, "ok": true, "version": release(), "road": "up"}).to_string());
 }
 
 #[test]
@@ -302,7 +308,7 @@ fn the_tool_server_greets_and_lists_over_stdio() {
     let hello = lines.iter().find(|l| l["id"] == 1).expect("initialize answered");
     assert_eq!(hello["result"]["protocolVersion"], "2025-11-25");
     assert_eq!(hello["result"]["serverInfo"]["name"], "wsp");
-    assert!(hello["result"]["serverInfo"]["version"].as_str().is_some_and(|v| v.starts_with("0.3.")), "{hello}");
+    assert_eq!(hello["result"]["serverInfo"]["version"], release().as_str(), "{hello}");
     let tools = lines.iter().find(|l| l["id"] == 2).expect("tools/list answered");
     assert!(tools["result"]["tools"].as_array().is_some_and(|t| t.len() >= 70), "{tools}");
 }

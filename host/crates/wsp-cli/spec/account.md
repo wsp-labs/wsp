@@ -31,7 +31,8 @@ tests: `tests/account.rs` (63), written from the source where the TS has no test
    none at `/`. `main_worktree_of` (:18-28): the root when `.git` is a folder; else the `gitdir:` line's value
    (any line, trimmed), resolved against the root when relative; its parent must end `/.git/worktrees`, and the
    answer is two folders up from that; anything else is none.
-10. `VERSION` is `packages/host/package.json`'s `version` (0.3.8 at 65f6b89c7). `installed_version(path)` reads the
+10. `VERSION` is `packages/host/package.json`'s `version`, read by the crate's build.rs, so a bump of that file moves the
+    release every door reports. `installed_version(path)` reads the
     string `version` now; unreadable, bad JSON or no string version is none. `state_writer_here(argv, exec, cwd)` is
     `{wsp: VERSION, daemon: DAEMON_VERSION, bin}`, `bin` = `resolve(cwd, argv[1])` or `exec` without an `argv[1]`.
 11. `cloud_on_in(env)` is `CLOUD_BUILT` and `WSP_CLOUD` exactly `1` (`""`, `true`, ` 1`, `0` are off).

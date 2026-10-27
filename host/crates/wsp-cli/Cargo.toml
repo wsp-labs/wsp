@@ -29,6 +29,9 @@ wsp-catalog = { path = "../wsp-catalog" }
 wsp-collect = { path = "../wsp-collect" }
 wsp-store = { path = "../wsp-store" }
 
+[build-dependencies]
+serde_json = "1"
+
 [dev-dependencies]
 tempfile = "3"
 tokio = { version = "1", features = ["test-util"] }
