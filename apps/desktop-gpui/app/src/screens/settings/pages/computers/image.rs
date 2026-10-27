@@ -1,21 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Your image on one computer, after `image.ts`, `imageState.ts` and `ImageCard.tsx` as a computer's or a cloud's page
 //! draws it, the IMAGE list: one line of where the copy stands and what the image holds, and the one press that state
-//! invites, Copy through image.build. A running build is its stage on the line; the build's own view (`ImageBuild.tsx`)
-//! stands under it in a box only while it needs the person or once it ended short. The agents a cloud's image holds
-//! stand above it, off the image's own record.
-
-mod build;
-
-use std::collections::HashMap;
+//! invites, Copy through image.build. A copy being built is its stage on the line. The agents a cloud's image holds
+//! stand above it, off the image's own recipe.
 
 use gpui_kit::component::{h_flex, v_flex};
 use gpui_kit::prelude::*;
-use gpui_kit::{div, px, AnyElement, App, ScrollHandle, SharedString, Window};
+use gpui_kit::{div, px, AnyElement, App, SharedString, Window};
 use serde_json::json;
 use wsp_host_client::ops::sidebar::Workspaces;
 use wsp_host_client::protocol::{
-    ImageBuildRequest, InitJob, InitJobRowsItem, PlaceView, ProjectView, SealedImageViewCopiesItem, SealedImageViewImage,
+    ImageBuildRequest, PlaceView, ProjectView, SealedImageViewCopiesItem, SealedImageViewImage,
     SealedImageViewImageLoginsItemState as Login, WorkspaceOut, WorkspacesListRequest,
 };
 
@@ -26,21 +21,18 @@ use crate::screens::settings::model::{req, Reread};
 use crate::screens::settings::page::{CardData, Ctx, Item};
 use crate::screens::settings::Acts;
 use crate::ui::grid::PAGE_COLUMNS;
-use crate::ui::{
-    catalog, framed, glyph, num, scroll_view, spinner, ActivePalette, Button, Glyph, Grid, GridHead, GridName, GridRow, HeadCell, Refusal,
-};
-use build::image_build;
+use crate::ui::{catalog, framed, glyph, num, spinner, ActivePalette, Button, Glyph, Grid, GridHead, GridName, GridRow, HeadCell, Refusal};
 
-/// `IMAGE_WORDS` and the build's `CLOUD_SETUP_WORDS.build`.
+/// `IMAGE_WORDS`.
 pub mod words {
     pub const NOTHING: &str = "Not built yet";
     pub const NOT_HERE: &str = "Not here yet";
-    pub const BUILDING: &str = "Building your image here";
     pub const READING: &str = "Reading the image";
     pub const COPYING: &str = "Copying your image here";
     pub const STALE: &str = "An older copy here";
     pub const READY: &str = "Ready";
-    pub const CHOOSE_AND_BUILD: &str = "Choose what goes on your image and build it here.";
+    /// `IMAGE_WORDS.noImage`: `NO_IMAGE_FIX` after the plain fact.
+    pub const NO_IMAGE: &str = "No image yet. Run wsp doctor with the name of your cloud computer; it builds the default image there.";
     pub const HOLDS: &str = "On your image";
     pub fn copy_comes(version: u64) -> String {
         format!("v{version} comes with your sign-ins. Nothing is asked again.")
@@ -51,18 +43,9 @@ pub mod words {
     pub const COPY_HERE: &str = "Copy your image here";
     pub const COPY_ANYWAY: &str = "Copy anyway";
     pub const TRY_AGAIN: &str = "Try again";
-    pub fn steps(done: u64, total: u64) -> String {
-        format!("{done} of {total} steps done")
-    }
     pub const START_TASK: &str = "New thread here";
     pub fn start_held(computer: &str) -> String {
         format!("No project lands its threads on {computer} yet.")
-    }
-    pub fn step_now(stage: Option<&str>, done: u64, total: u64) -> String {
-        match stage {
-            None => format!("{done} of {total} steps done"),
-            Some(stage) => format!("{stage}, {done} of {total}"),
-        }
     }
     pub fn built_chip(when: &str) -> String {
         format!("built {when}")
@@ -70,28 +53,6 @@ pub mod words {
     pub fn behind_chip(version: u64) -> String {
         format!("behind your image v{version}")
     }
-    pub fn sign_in_wait(label: &str) -> String {
-        format!("Waiting for your sign-in to {label}")
-    }
-    pub const CLOSE: &str = "Close";
-    pub const BUILD_HEADLINE: &str = "Building your image";
-    pub const BUILD_TOP: &str = "The computer starts, installs what you ticked and is saved as the image every task starts from";
-    pub const SIGNING_IN: &str = "Signing in on the computer";
-    pub const SLIDE_HEADLINE: &str = "Sign in on the computer";
-    pub const SLIDE_TOP: &str = "Each one opens a page on this computer, and the image keeps the sign-in";
-    pub const OPEN: &str = "Open sign-in";
-    pub const RETRY: &str = "Retry";
-    pub const CODE_SUBMIT: &str = "Submit";
-    pub const CODE_ASK: &str = "Paste the code from the page";
-    pub const CANCEL: &str = "Cancel the build";
-    pub const CANNOT_STOP: &str = "The image is being saved. The snapshot and the save cannot be stopped.";
-    pub const CANCEL_SURE: &str = "Stop the build";
-    pub const CANCEL_WHY: &str = "The computer it was building on is thrown away and nothing is saved";
-    pub const CANCEL_KEEP: &str = "Keep building";
-    pub const DONE: &str = "Your image is ready";
-    pub const FAILED: &str = "The build stopped";
-    pub const STOPPED: &str = "You stopped the build";
-    pub const CHANGE_KEY: &str = "Change the key";
     /// `copyStoppedLine()` with no reason of its own.
     pub const COPY_STOPPED: &str = "the build stopped";
     pub fn no_workspace(project: &str) -> String {
@@ -164,49 +125,10 @@ pub mod words {
 #[derive(Clone, Debug, PartialEq)]
 pub enum State {
     None,
-    Building,
     Copying(String),
     Stopped(String),
     Stale,
     Ready,
-}
-
-/// `initJobBuilding`.
-pub fn job_building(phase: &str) -> bool {
-    matches!(phase, "building" | "signing-in" | "sealing" | "finishing")
-}
-
-/// `initJobOver`.
-pub(super) fn job_over(phase: &str) -> bool {
-    matches!(phase, "done" | "failed" | "cancelled")
-}
-
-/// `initAgentStep`.
-fn agent_step(job: &InitJob) -> bool {
-    let phase = job.phase.to_string();
-    job.road.to_string() == "agent" && (phase == "agent" || (job_over(&phase) && job.screens.is_empty()))
-}
-
-/// `initSignInWaitedOn`: the sign-in whose page waits for the person.
-fn waited_on(job: &InitJob) -> Option<&str> {
-    job.rows.iter().find(|r| r.kind.to_string() == "sign-in" && r.state == OPEN).map(|r| r.label.as_str())
-}
-
-/// `INIT_ROW_STATES` the build reads.
-const OPEN: &str = "waiting for you";
-const RUNNING: &str = "running";
-const SLOT: &str = "waiting for a machine slot";
-const WAITING: &str = "waiting";
-const RETRYING: &str = "machine still running, retrying";
-const OVER: [&str; 10] = ["done", "failed", "stopped", "forked", "imported", "key set", "MCP added", "skipped", "not made", "gone"];
-const UNRUN: [&str; 3] = ["skipped", "not made", "stopped"];
-
-fn row_failed(row: &InitJobRowsItem) -> bool {
-    row.state == "failed" || row.login.as_ref().is_some_and(|l| l.to_string() == "not-signed-in")
-}
-
-fn row_over(row: &InitJobRowsItem) -> bool {
-    row.login.is_some() || OVER.contains(&row.state.as_str())
 }
 
 /// `copyOn`: the copy one place holds.
@@ -234,11 +156,6 @@ pub fn image_state(place: &PlaceView, ctx: &Ctx) -> Option<State> {
     if place.builds_images.is_none() {
         return row_build;
     }
-    let job = job_of(ctx);
-    let job_here = job.is_some_and(|j| j.place.as_ref().is_some_and(|p| p.id == place.id));
-    if job_here && job.is_some_and(|j| job_building(&j.phase.to_string())) {
-        return Some(State::Building);
-    }
     if let Some(build) = row_build {
         return Some(build);
     }
@@ -247,16 +164,7 @@ pub fn image_state(place: &PlaceView, ctx: &Ctx) -> Option<State> {
         let stale = (image.vault.is_some() || image.no_secrets == Some(true)) && copy.hash.as_deref() != Some(image.hash.as_str());
         return Some(if stale { State::Stale } else { State::Ready });
     }
-    if job_here && job.is_some_and(|j| j.phase.to_string() == "failed") {
-        let said = job.and_then(|j| j.error.clone()).unwrap_or_else(|| words::COPY_STOPPED.to_owned());
-        return Some(State::Stopped(said));
-    }
     Some(State::None)
-}
-
-/// The image's own build as the host last told it.
-pub(super) fn job_of<'a>(ctx: &Ctx<'a>) -> Option<&'a InitJob> {
-    ctx.data.setup.as_ref().and_then(|s| s.job.as_ref())
 }
 
 /// The title a state stands under: with no image anywhere, nothing here is a copy yet.
@@ -269,7 +177,6 @@ fn title_of(state: &State, image_exists: bool) -> &'static str {
                 words::NOTHING
             }
         }
-        State::Building => words::BUILDING,
         State::Copying(_) => words::COPYING,
         State::Stale => words::STALE,
         State::Ready => words::READY,
@@ -321,22 +228,11 @@ enum PressRun {
     Nothing,
 }
 
-/// What the row keeps across frames: a copy press on its way, its refusal, and the build put away by Close.
+/// What the row keeps across frames: a copy press on its way and its refusal.
 #[derive(Default)]
 struct Kept {
     pressing: bool,
     refused: Option<String>,
-    put_away: Option<String>,
-    asking: bool,
-    changing: bool,
-    step_busy: bool,
-    step_refusal: Option<String>,
-    /// The stages the person opened or folded, by row.
-    opened: HashMap<String, bool>,
-    /// Each stage block's scroll and how many lines it last held.
-    lines: HashMap<String, (ScrollHandle, usize)>,
-    /// The key was saved: its field empties on the next frame.
-    clear_key: bool,
 }
 
 /// `projectOn`: the first project whose workspaces land on this place.
@@ -376,11 +272,10 @@ pub fn image_row(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App
     let name = super::words::place_name(place);
     let image = view.image.as_ref();
     let kept = window.use_keyed_state(SharedString::from(format!("computer-{}-image", place.id)), cx, |_, _| Kept::default());
-    let (pressing, refused, put_away) = {
+    let (pressing, refused) = {
         let k = kept.read(cx);
-        (k.pressing, k.refused.clone(), k.put_away.clone())
+        (k.pressing, k.refused.clone())
     };
-    let job = job_of(ctx);
     let force = image.is_some_and(copy_asks_sign_ins);
     let copy_press =
         Press { word: if force { words::COPY_ANYWAY } else { words::COPY_HERE }.to_owned(), held_why: None, run: PressRun::Copy };
@@ -391,7 +286,7 @@ pub fn image_row(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App
     let copy = copy_on(&view.copies, place);
     let line = match &state {
         State::None => match image {
-            None => Line { description: Some(words::CHOOSE_AND_BUILD.to_owned()), chips: None, busy: false, note: None, press: None },
+            None => Line { description: Some(words::NO_IMAGE.to_owned()), chips: None, busy: false, note: None, press: None },
             Some(image) => Line {
                 description: Some(if force { words::copy_asks(image.version.get()) } else { words::copy_comes(image.version.get()) }),
                 chips: None,
@@ -400,19 +295,6 @@ pub fn image_row(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App
                 press: Some(copy_press.clone()),
             },
         },
-        State::Building => {
-            let job = job.expect("a build here has its job");
-            match waited_on(job) {
-                None => Line {
-                    description: Some(words::steps(job.progress.done, job.progress.total)),
-                    chips: None,
-                    busy: true,
-                    note: None,
-                    press: None,
-                },
-                Some(label) => Line { description: Some(words::sign_in_wait(label)), chips: None, busy: false, note: None, press: None },
-            }
-        }
         State::Copying(said) => Line { description: Some(said.clone()), chips: None, busy: true, note: None, press: None },
         State::Stopped(said) => match image {
             None => Line { description: Some(said.clone()), chips: None, busy: false, note: None, press: None },
@@ -449,15 +331,7 @@ pub fn image_row(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App
             Line { description: None, chips: Some(chips), busy: false, note: None, press }
         }
     };
-    let build_here = job.filter(|j| {
-        let phase = j.phase.to_string();
-        j.place.as_ref().is_some_and(|p| p.id == place.id)
-            && !agent_step(j)
-            && (job_building(&phase) || phase == "failed" || phase == "cancelled")
-            && put_away.as_deref() != Some(j.id.as_str())
-    });
-    // The build's box answers what to do now while it stands, so the row's press goes until Close.
-    let press = line.press.clone().filter(|_| build_here.is_none());
+    let press = line.press.clone();
     let control: Option<AnyElement> = if line.busy {
         Some(spinner(cx).into_any_element())
     } else {
@@ -497,11 +371,6 @@ pub fn image_row(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App
     };
     let standing = match &state {
         State::Ready => built(copy),
-        State::Building if job.and_then(waited_on).is_none() => {
-            let job = job.expect("a build here has its job");
-            let stage = job.rows.iter().find(|r| r.state == RUNNING).map(|r| r.label.as_str());
-            words::step_now(stage, job.progress.done, job.progress.total)
-        }
         _ => line.description.clone().or_else(|| line.chips.as_ref().map(|c| c.join(", "))).unwrap_or_else(|| title.to_owned()),
     };
     let sentence = |part: String| if part.ends_with(['.', '!', '?']) { part } else { format!("{part}.") };
@@ -529,51 +398,38 @@ pub fn image_row(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App
         }
         body = body.child(slot);
     }
-    if let Some(job) = build_here.filter(|j| !job_building(&j.phase.to_string()) || waited_on(j).is_some()) {
-        let build = image_build(ctx, place, job, &kept, window, cx);
-        let scroll = window.use_keyed_state(SharedString::from(format!("image-build-box-{}", place.id)), cx, |_, _| ScrollHandle::new());
-        let scroll = scroll.read(cx).clone();
-        body = body.child(scroll_view("image-build-box", &scroll, div().max_h(px(320.)).child(build), window, cx));
-    }
     Some(CardData::new("image").body(body))
 }
 
-/// Whether any row has a version, which the Version head stands for.
-fn versioned(tags: &[&str]) -> bool {
-    tags.iter().any(|t| !t.is_empty())
-}
-
-/// The AGENTS list of a cloud's page: the agents its image holds, off the image's own record, each with its mark and
-/// its version, the Version head standing only where some row has one.
+/// The AGENTS list of a cloud's page: the agents its image's recipe holds, each with its mark, signed in where the seal
+/// carried the login.
 pub fn agents_lists(ctx: &Ctx, _place: &PlaceView, _window: &mut Window, cx: &mut App) -> Option<CardData> {
     let image = ctx.data.image.as_ref()?.image.as_ref()?;
-    let pins: Vec<_> = image.pins.iter().filter(|pin| super::words::is_agent(&pin.id)).collect();
-    if pins.is_empty() {
+    let agents: Vec<&str> = image
+        .recipe
+        .as_ref()?
+        .rows
+        .iter()
+        .filter(|row| row.on && row.kind.to_string() == "agent" && super::words::is_agent(&row.id))
+        .map(|row| row.id.as_str())
+        .collect();
+    if agents.is_empty() {
         return None;
     }
-    let versioned = versioned(&pins.iter().map(|pin| pin.tag.as_str()).collect::<Vec<_>>());
-    let rows: Vec<GridRow> = pins
+    let rows: Vec<GridRow> = agents
         .iter()
-        .map(|pin| {
-            let signed = image.logins.iter().find(|l| l.name == pin.id).is_some_and(|l| matches!(l.state, Login::SignedIn | Login::Copied));
-            let label = catalog_name(&pin.id);
-            let lead = framed(catalog::mark(&pin.id, &label, px(16.), cx.palette().foreground, cx), cx);
+        .map(|id| {
+            let signed = image.logins.iter().find(|l| l.name == *id).is_some_and(|l| matches!(l.state, Login::SignedIn | Login::Copied));
+            let label = catalog_name(id);
+            let lead = framed(catalog::mark(id, &label, px(16.), cx.palette().foreground, cx), cx);
             let mut name = GridName::new(div().debug_selector(|| "agent-lead".into()).child(lead), label);
             if signed {
                 name = name.note("Signed in");
             }
-            GridRow::new(SharedString::from(format!("kind-row-{}", pin.id)), PAGE_COLUMNS)
-                .tight()
-                .cell(name)
-                .cell(num(pin.tag.clone(), cx))
-                .cell(div())
+            GridRow::new(SharedString::from(format!("kind-row-{id}")), PAGE_COLUMNS).tight().cell(name).cell(div())
         })
         .collect();
-    let mut heads = vec![HeadCell::new(where_words::HEAD_AGENTS)];
-    if versioned {
-        heads.push(HeadCell::new(where_words::HEAD_VERSION).num());
-    }
-    let grid = Grid::new("agents").head(GridHead::new(Some(PAGE_COLUMNS), heads)).rows(rows);
+    let grid = Grid::new("agents").head(GridHead::new(Some(PAGE_COLUMNS), vec![HeadCell::new(where_words::HEAD_AGENTS)])).rows(rows);
     Some(CardData::new("agents").body(div().w_full().child(grid)).search(Vec::<Item>::new()))
 }
 

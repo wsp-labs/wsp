@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { Attachment, AccountRow, BringBackResult, Capabilities, GoldenStageEvent, HarnessCatalog, InitJob, InitSetup, PendingComputer, PlaceDial, PlaceSetAlso, PlaceSettingsAsk, PlaceSettingWord, PlaceView, PortForward, Preferences, PreferencesPatch, ProjectView, ReleaseView, ReviewDraft, SessionSettleResult, SessionView, ThreadMarks, WorkspaceCreateStage, WorkspaceLanding, WorkspaceLook, WorkspaceSize, WorkspaceStatus, WorkspaceView } from "@wsp/protocol";
+import type { Attachment, AccountRow, BringBackResult, Capabilities, GoldenStageEvent, HarnessCatalog, InitSetup, PendingComputer, PlaceDial, PlaceSetAlso, PlaceSettingsAsk, PlaceSettingWord, PlaceView, PortForward, Preferences, PreferencesPatch, ProjectView, ReleaseView, ReviewDraft, SessionSettleResult, SessionView, ThreadMarks, WorkspaceCreateStage, WorkspaceLanding, WorkspaceLook, WorkspaceSize, WorkspaceStatus, WorkspaceView } from "@wsp/protocol";
 import type { Launch } from "../../adapt/view-model.js";
 import type { HeldKeys } from "./heldKeys.js";
 import type { Api, ConnStatus, ProtocolEvent } from "../client.js";
@@ -38,8 +38,6 @@ export interface Creation {
   /** The project this work is on, by its id: what the create was asked with, and what a retry asks again. Absent on
    * a row another client started, whose creating frames name the workspace and not the project it came from. */
   readonly project?: string;
-  /** The snapshot the create forks, when it is not the image's head: a project image's. */
-  readonly golden?: string;
   /** The size the person picked; absent, the golden's. */
   readonly size?: WorkspaceSize;
   /** The message that asked for this work, drawn as the thread's first message while the machine is made. */
@@ -88,9 +86,6 @@ export interface State {
   capabilities: Capabilities | null;
   /** Whether a golden with a head is sealed; null until the first reply. The sidebar's cloud row shows while it is false. */
   hasGolden: boolean | null;
-  /** The init job on the host as its last event or the first reply left it; null while none has run. The cloud row
-   * reads its progress while the modal is shut, and the modal opens where it stands. */
-  initJob: InitJob | null;
   /** The last golden.stage frames of the copy built at each place, by the place id the frames carry, the newest
    * last: only the build running there or the one that last ended, since a frame after a sealed or failed one starts
    * the place over. Cleared on every pull, since a host that restarted mid-build holds no build to end it. */
@@ -210,7 +205,7 @@ export interface State {
    * it through the stage events; resolves with the runtime's id for the new workspace, or null when the create was
    * refused. `picked` carries a project image or a size only where the person chose one; `asked` is the message the
    * work was asked with, which the creation view draws until the workspace is up. */
-  createWorkspace(project: string, name: string, picked?: { golden?: string; size?: WorkspaceSize }, asked?: Asked): Promise<string | null>;
+  createWorkspace(project: string, name: string, picked?: { size?: WorkspaceSize }, asked?: Asked): Promise<string | null>;
   /** Records a project and answers the record the host kept: a folder on this computer, or a repository address on
    * the computer named. The row arrives by the project.added event too; this is what the first run and the sheet
    * wait on. Null on a client that cannot record one. */

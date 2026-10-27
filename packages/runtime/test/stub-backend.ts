@@ -9,7 +9,7 @@ import { fakeCopier, LocalBackend, NotFirstLifeError, SNAPSHOT_STORAGE } from "@
 import type { ExecResult, Lifecycle, Machine, MachineBackend, MachineLife, MachineShape, MachineSpec, MachineState, RunOptions, SnapshotRow, TemplateRow } from "@wsp/engine";
 import { DAEMON_TOKEN_PATH, HERE_PLACE_ID, scopeOf, type Caller, type DaemonResponse, type ProjectView } from "@wsp/protocol";
 import type { DaemonChannel, DaemonChannelOptions } from "../src/daemon-channel.js";
-import type { CreatedWorkspace, CreateWorkspaceOptions, LocalWiring, Runtime } from "../src/runtime.js";
+import { copyKey, type CreatedWorkspace, type CreateWorkspaceOptions, type LocalWiring, type Runtime } from "../src/runtime.js";
 import { localExecStream } from "../src/local-exec.js";
 import { memoryStore, type Store } from "../src/store.js";
 import { DAEMON_TOKEN_SET, daemonTokenFor } from "../src/daemon-token.js";
@@ -447,6 +447,17 @@ export async function createOn(rt: ProjectMaker & WorkspaceMaker, o: CreateOn, o
 export function ownedStore(owner = "s1"): Store {
   const store = memoryStore();
   void store.put("owner", "id", { id: owner });
+  return store;
+}
+
+/** A state file holding the image a fork is made from, which a create over the wire takes since no client names one:
+ * the head of this host's own. */
+export function imagedStore(): Store {
+  const store = memoryStore();
+  void store.put("goldens", copyKey("default", "default"), {
+    head: 1,
+    versions: [{ version: 1, snapshotId: "snap_g", kind: "desktop", baseTemplate: "base", setupSha: "abc", createdAt: "2026-09-01T00:00:00.000Z", smoke: { cmd: "true", exitCode: 0 } }],
+  });
   return store;
 }
 

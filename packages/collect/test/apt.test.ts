@@ -3,7 +3,7 @@
 // choice, measured against the rule the base image's own 300-odd packages need
 // to be told apart from the handful somebody typed.
 import { describe, expect, it } from "vitest";
-import { aptPackages, aptSizes, parseAptManual, parseDpkgFields } from "../src/index.js";
+import { aptPackages, parseAptManual, parseDpkgFields } from "../src/index.js";
 import { fakeHost } from "./fake-host.js";
 
 const MANUAL = ["direnv", "fd-find", "fish", "fonts-dejavu-core", "libpq5", "lsb-release", "sudo", "tmux", "ubuntu-minimal"].join("\n");
@@ -76,15 +76,5 @@ describe("the apt reader", () => {
 
   it("says nothing when apt-mark answers nothing", async () => {
     expect(await aptPackages(ubuntu({ "apt-mark showmanual": "" }))).toEqual([]);
-  });
-
-  it("reads each package's size from dpkg's own record, in bytes", async () => {
-    expect(await aptSizes(ubuntu(), ["direnv", "fish"])).toEqual(new Map([["direnv", 9000 * 1024], ["fish", 20000 * 1024]]));
-  });
-
-  it("asks dpkg nothing when no package needs a size", async () => {
-    const host = ubuntu();
-    expect(await aptSizes(host, [])).toEqual(new Map());
-    expect(host.calls).toEqual([]);
   });
 });

@@ -88,8 +88,6 @@ pub struct SetIn {
     #[cfg_attr(test, schemars(with = "Option<u64>"))]
     pub turn_limit: Option<Number>,
     #[serde(default)]
-    pub spawn: Option<String>,
-    #[serde(default)]
     #[cfg_attr(test, schemars(with = "Option<u64>"))]
     pub max_machines: Option<Number>,
     #[serde(default)]
@@ -125,7 +123,6 @@ async fn set(host: std::sync::Arc<Host>, arguments: Value) -> Result<Answer, Ref
         delete_after,
         nap,
         turn_limit,
-        spawn,
         max_machines,
         max_depth,
         recipe,
@@ -172,9 +169,7 @@ async fn set(host: std::sync::Arc<Host>, arguments: Value) -> Result<Answer, Ref
         let limit = turn_limit_asked(entry_in(SET_LISTED, host.cloud()).unwrap_or_default(), hours).map_err(Refused::Input)?;
         frame.insert("turnLimitMs".to_owned(), limit);
     }
-    if let Some(asked) = agents_asked(spawn.as_deref(), max_machines.as_ref(), max_depth.as_ref())
-        .map_err(|word| refused_field(SET_NAME, SET_LISTED, host.cloud(), "spawn", Value::from(word)))?
-    {
+    if let Some(asked) = agents_asked(max_machines.as_ref(), max_depth.as_ref()) {
         frame.insert("spawn".to_owned(), Value::Object(asked));
     }
     if !reset.is_empty() {
@@ -210,7 +205,7 @@ fn turn_limit_asked(entry: &str, hours: &Number) -> Result<Value, String> {
 mod tests {
     use serde_json::{json, Number, Value};
 
-    use super::super::{entry_in, held_field};
+    use super::super::entry_in;
     use super::{nap_asked, turn_limit_asked, SET};
 
     fn minutes(v: Value) -> Number {
@@ -244,16 +239,6 @@ mod tests {
             let refused = turn_limit_asked(entry, &minutes(given.clone())).expect_err(&format!("{given} was taken"));
             assert_eq!(refused, recorded(json!({ "computer": "attic", "turn_limit": given })));
         }
-    }
-
-    #[test]
-    fn a_spawn_word_past_the_check_is_refused_in_the_inputs_words() {
-        let entry = entry_in(SET.listed, false).unwrap();
-        assert_eq!(
-            held_field("computers_set", entry, "spawn", &json!("yes")).unwrap_err(),
-            recorded(json!({ "computer": "attic", "spawn": "yes" }))
-        );
-        assert_eq!(held_field("computers_set", entry, "spawn", &json!("on")), Ok(()));
     }
 
     #[test]

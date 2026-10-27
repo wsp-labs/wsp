@@ -55,7 +55,6 @@ async fn image_and_snapshots() {
         client.call(ask::<SnapshotsRollbackRequest>(json!({ "version": 999 }))).await,
         "no golden named \"default\"",
     );
-    answered("projectGoldens.list", client.call(ask::<ProjectGoldensListRequest>(json!({}))).await);
     answered("image.get", client.call(ask::<ImageGetRequest>(json!({}))).await);
     refused(
         "image.build",

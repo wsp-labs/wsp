@@ -194,7 +194,7 @@ describe("the creation page", () => {
 
   it("names the computer the work lands on as the first item under the box, as the New thread row did before the send, with no picker", async () => {
     const project = { id: "pr_box", name: "spoo", computer: "p_box", source: { kind: "folder", path: "/root/spoo" }, path: "/root/spoo", remote: "", defaultBranch: "main", memoryKey: "-", memoryDir: "/m", createdAt: "t" };
-    const box = { id: "p_box", kind: "computer", name: "box", label: "the box", default: false, present: true, takesForks: true, engine: "docker", shape: { cpu: 2, memMb: 4096 }, diskFreeBytes: 1024 ** 3 };
+    const box = { id: "p_box", kind: "computer", name: "box", label: "the box", default: false, present: true, takesForks: true, shape: { cpu: 2, memMb: 4096 }, diskFreeBytes: 1024 ** 3 };
     act(() => useStore.setState({ projects: [project], places: [box] } as never));
     const view = await mount(making([], { name: "pricing page", project: "pr_box", where: "p_box" }));
     const row = view.querySelector<HTMLElement>("[data-composer-checkout]")!;

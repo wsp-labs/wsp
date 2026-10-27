@@ -6,8 +6,7 @@
 // file keeps its mode, a new one is the login's alone, a file that is a link
 // out of the folder it belongs to is never written through, and a file the
 // agent wrote between the read and the write is left as the agent left it. The
-// values a person typed go into this computer's own file as typed; another
-// computer's file names a variable for each, and the value goes to the vault.
+// values a person typed go to the vault, and the file names a variable for each.
 import { posix } from "node:path";
 import { CONFIG_LINK_EXIT, MCP_AGENTS, agentName, ownServerConfig, rowVariableLine, catalogEntry, configRefusal, configWriteLine, insideBase, stillStands, type McpAgent, type McpTransport } from "@wsp/catalog";
 import { nodeHost, tilde, type Host } from "@wsp/collect";
@@ -250,15 +249,6 @@ export function serversActs(o: ServersActsOptions = {}): ServersActs {
       if (read.text !== undefined && defines(config, read.text, road.host.home, { agent: ask.agent, name: ask.name }) !== undefined) throw usage(serverThereRefusal(ask.name, shown));
       const given = ask.env ?? {};
       const format = config.agent.mcp.format;
-      // This computer's own file is the person's and holds the value as they typed it, for agents started outside
-      // wsp; the vault is still the place of record, so a copy of that file can write the value back by name.
-      if (on.kind === "here") {
-        const placed = formatted(shown, () => format.place(read.text, ask.name, withVariables(transport, given, name => given[name]!)));
-        const recorded = Object.fromEntries(Object.entries(given).filter(([, value]) => value !== ""));
-        record(recorded, ask.name);
-        await writeConfig(road, config, read, placed.text);
-        return { file: shown };
-      }
       const byName = withVariables(transport, given, (name, at) => {
         if (format.argRef === undefined) throw usage(`${agentName(ask.agent)} reads no variable inside a server's ${transport.kind === "stdio" ? "arguments" : "address"}, so ${at} cannot travel without its value and nothing was written.`);
         return format.argRef(name);

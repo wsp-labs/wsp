@@ -127,14 +127,6 @@ describe("who owns what on the account", () => {
     await rt.close();
   });
 
-  it("a project golden this host took is recorded by its own document, not by a version", async () => {
-    const { rt, backend, store } = await account();
-    backend.snapshots.push({ id: "snap_project", name: "wsp-h1s1-project-spoo-2026-09-08", sizeBytes: 9 * GB, createdAt: OLD });
-    await store.put("project-goldens", "snap_project", { snapshotId: "snap_project", project: { name: "spoo", path: "/root/spoo" }, golden: "snap_wsp-h1s1-default-v1", workspaceId: "w1", workspaceName: "alpha", createdAt: "2026-09-08T00:00:00.000Z" });
-    expect((await rt.golden.orphans())!.snapshots.map(r => r.id)).toEqual(["snap_orphan"]);
-    expect((await rt.golden.storage())!.kept).toEqual({ count: 2, bytes: 21 * GB });
-  });
-
   it("a delete the provider refuses leaves the row on the account and names it, and the rest still go", async () => {
     const { rt, backend } = await account();
     // A machine outside this runtime forked from the orphan, so the provider answers 409.

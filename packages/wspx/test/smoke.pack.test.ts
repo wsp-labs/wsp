@@ -65,14 +65,6 @@ describe.runIf(SMOKE)("the packed command, installed from its tarball", () => {
     expect(wsp("--version").trim()).toBe(`wsp ${VERSION}`);
   });
 
-  it("writes a recipe", () => {
-    const out = join(installed, "recipe.json");
-    wsp("recipe", "--out", out);
-    const recipe = JSON.parse(readFileSync(out, "utf8")) as { version: number; rows: { id: string; kind: string }[] };
-    expect(recipe.version).toBe(1);
-    expect(recipe.rows.filter(r => r.kind === "agent").map(r => r.id)).toContain("claude");
-  });
-
   it("installs the MCP server and the skill under this home, and no section in a folder that is not a project", () => {
     const lines = wsp("mcp", "install", "--agent", "claude");
     expect(lines).toContain("~/.claude.json");

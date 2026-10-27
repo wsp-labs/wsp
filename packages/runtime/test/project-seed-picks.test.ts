@@ -91,22 +91,6 @@ describe("a project's seed picks", () => {
     expect(await store.get(SEED_CHOICES, folder)).toBeUndefined();
   });
 
-  it("start from the record wsp add --remember writes, and a save writes that same record, which the next add reads", async () => {
-    const { rt, store, folder } = await withLab();
-    // The add road's own save: the folder seeding a project on the provider, with remember.
-    await rt.projects.add({ source: folder, on: "default", name: "lab-there", seed: { files: ["node_modules"], memory: true, commits: false, remember: true } });
-    expect(picked((await rt.projects.seed("lab", {})).rows)).toEqual(["node_modules"]);
-
-    const saved = await rt.projects.seed("lab", { keep: [".env"], cut: ["node_modules"], save: true });
-    expect(saved).toMatchObject({ picked: { paths: [".env"], bytes: 1_126 }, saved: true });
-    // One record per folder, the add's own fields kept beside the files.
-    expect(await store.get(SEED_CHOICES, folder)).toEqual({ files: [".env"], memory: true, commits: false, remember: true });
-    const next = await rt.projects.seedPlan(folder);
-    expect(next.remembered).toBe(true);
-    expect(next.files.filter(f => f.ticked).map(f => f.path)).toEqual([".env"]);
-    expect(picked((await rt.projects.seed("lab", {})).rows)).toEqual([".env"]);
-  });
-
   it("read as a provider's menu, since only a sub-thread reads them: a key stays here, is refused by name, and a save keeps the folder's own pick of it until it is cut", async () => {
     const { rt, store, folder } = await withLab();
     await store.put(SEED_CHOICES, folder, { files: [".env", "deploy.pem"], memory: false, commits: false, remember: true });
@@ -119,15 +103,6 @@ describe("a project's seed picks", () => {
     expect(((await store.get(SEED_CHOICES, folder)) as { files: string[] }).files).toEqual(["deploy.pem"]);
     await rt.projects.seed("lab", { cut: ["deploy.pem"], save: true });
     expect(((await store.get(SEED_CHOICES, folder)) as { files: string[] }).files).toEqual([]);
-  });
-
-  it("keep a box's saved key through an add to a provider with --remember, so the next box still finds it ticked", async () => {
-    const { rt, store, folder } = await withLab();
-    await store.put(SEED_CHOICES, folder, { files: [".env", "deploy.pem"], memory: false, commits: false, remember: true });
-    await rt.projects.add({ source: folder, on: "default", name: "lab-there", seed: { files: [".env"], memory: false, commits: false, remember: true } });
-    expect(((await store.get(SEED_CHOICES, folder)) as { files: string[] }).files).toEqual([".env", "deploy.pem"]);
-    const box = await rt.projects.seedPlan(folder);
-    expect(box.files.filter(f => f.ticked).map(f => f.path)).toEqual([".env", "deploy.pem"]);
   });
 
   it("move by --none, then --keep, then --cut, a folder's slash named or not", async () => {

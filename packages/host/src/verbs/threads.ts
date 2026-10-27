@@ -628,7 +628,7 @@ export const THREAD_VERBS: readonly Verb[] = [
   {
     name: "setup",
     usage: "wsp setup",
-    about: "the setup on this host as the app's Settings reads it: which keys are held (never their values), the agents here<!-- cloud -->, what a machine costs<!-- /cloud -->, and the init job's phase, rows and progress when one runs or ran",
+    about: "the setup on this host as the app's Settings reads it: which keys are held (never their values)<!-- cloud --> and what a machine costs<!-- /cloud -->",
     page: "app",
     options: {},
     run: async ctx => {
@@ -639,7 +639,7 @@ export const THREAD_VERBS: readonly Verb[] = [
     },
     tool: tool({
       description:
-        "The setup on this host, as the app's Settings reads it: which keys the host holds (their presence, never a value), the agents on this computer and whether each carries the wsp tools<!-- cloud -->, what a machine costs<!-- /cloud -->, and the init job when one runs or ran: its road, phase, screens, rows and progress. The rows are the image's stages, each sign-in with the page the person opens on this computer and the code it asks for while it waits, then its state, and the first machine once forked. A build on Boat has no sign-in rows: its machines use the sign-ins on this computer through wsp, which the build checks before anything boots. Read it to tell the person where the build is and which sign-in waits for them; the build is started from the app's Settings, and wsp init --recipe from a shell is the same run.",
+        "The setup on this host, as the app's Settings reads it: which keys the host holds (their presence, never a value), this computer's home folder<!-- cloud -->, what a machine costs and the place a build would boot on, or why no build can start here<!-- /cloud -->. Read it to tell the person which provider key is missing.",
       input: {},
       output: { setup: InitSetup },
       call: async (_args, deps) => asJson({ setup: await initSetup(await deps.client()) }),

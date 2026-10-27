@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! Add a cloud provider: its reads, a write and a push against a host started for these tests alone, and the flow's
-//! own moves on fixture answers. No key ever reaches a provider: `providers.checkKey` and `init.build` call a
-//! provider's API, so the check's answer is fed in as a fixture, and the one write sent names a provider the host keys
-//! nothing for, which `init.keys` refuses before any check.
+//! own moves on fixture answers. No key ever reaches a provider: `providers.checkKey` calls a provider's API, so the
+//! check's answer is fed in as a fixture, and the one write sent names a provider the host keys nothing for, which
+//! `init.keys` refuses before any check.
 
 #[path = "dialogs/cloud.rs"]
 mod cloud;
@@ -12,8 +12,7 @@ mod common;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use desktop_gpui::screens::dialogs::add_cloud::calls::Pushed;
-use desktop_gpui::screens::dialogs::add_cloud::flow::{self, Check, Facts, Flow, RowState, Step};
+use desktop_gpui::screens::dialogs::add_cloud::flow::{self, Check, Facts, Flow, Step};
 use desktop_gpui::screens::dialogs::add_cloud::{self, AddCloud};
 use desktop_gpui::screens::dialogs::{layer, ADD_CLOUD};
 use desktop_gpui::screens::Host;
@@ -123,7 +122,6 @@ fn a_fresh_host_opens_on_boats_key_with_none_held(cx: &mut TestAppContext) {
     assert_eq!((flow.provider.as_str(), flow.step, flow.held()), ("box", Step::Key, false));
     assert_eq!(flow.head().0, "Add Boat");
     assert!(!flow.key_ready(), "Continue is held with no key typed and none held");
-    until(cx, "the computer's name", 30, |cx| !flow_of(&view, cx).here.is_empty());
 }
 
 /// Catches: Continue never sending `init.keys`, the typed key left out of it, and the host's refusal not drawn.
@@ -160,50 +158,6 @@ fn continue_sends_the_key_and_draws_the_hosts_refusal(cx: &mut TestAppContext) {
     assert!(drawn("key-refused", cx), "the refusal stands under the key");
 }
 
-/// Catches: an `init.job` push not followed, or read into the flow without moving it off its spinner.
-#[gpui_kit::test]
-fn a_pushed_job_moves_the_picks_off_their_spinner(cx: &mut TestAppContext) {
-    let throwaway = common::Throwaway::start();
-    let host = host(&throwaway);
-    let cx = window(cx);
-    let mut flow = Flow::new(Some("here"));
-    flow.go(Step::Pick(0));
-    let view = cx.update(|window, cx| add_cloud::open_on(Some(&host), flow, window, cx));
-    until(cx, "init.get", 30, |cx| flow_of(&view, cx).setup.is_some());
-    assert!(drawn("options-loading", cx), "the picks wait on the reading");
-    let state = throwaway.state();
-    let env = throwaway.env();
-    std::thread::spawn(move || {
-        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-        runtime.block_on(async {
-            let client = HostClient::connect(&state, &env).await.unwrap();
-            let start: wsp_host_client::protocol::InitStartRequest =
-                serde_json::from_value(json!({ "road": "manual", "on": "here" })).unwrap();
-            client.call(start).await.unwrap_or_else(|f| panic!("{}", f.message));
-        })
-    })
-    .join()
-    .unwrap();
-    until(cx, "the pushed job", 90, |cx| flow_of(&view, cx).mine().is_some_and(|j| j.phase == "answering"));
-    cx.run_until_parked();
-    assert!(!drawn("options-loading", cx), "the picks stand once the host has read");
-}
-
-/// Catches: a pushed job not moving the build's rows or its count.
-#[gpui_kit::test]
-fn a_pushed_job_moves_the_build_rows(cx: &mut TestAppContext) {
-    let cx = window(cx);
-    let view = stage(cloud::job_flow(Step::Building, "building", cloud::build_rows(["done", "running", "waiting", "waiting"])), cx);
-    assert_eq!(flow_of(&view, cx).figure(), "1 of 4 done");
-    let next = cloud::job("building", cloud::build_rows(["done", "done", "running", "waiting"]));
-    cx.update(|_, cx| view.update(cx, |v, cx| v.on_pushed(Pushed::Job(Box::new(next)), cx)));
-    cx.run_until_parked();
-    let flow = flow_of(&view, cx);
-    assert_eq!(flow.figure(), "2 of 4 done");
-    let states: Vec<RowState> = flow::build_rows(flow.mine().unwrap()).iter().map(|r| r.state).collect();
-    assert_eq!(states, [RowState::Done, RowState::Done, RowState::Working, RowState::Waiting]);
-}
-
 /// Catches: a plain keystroke checking the key, and a paste or Enter not checking it.
 #[gpui_kit::test]
 fn the_key_is_checked_on_a_paste_or_enter_only(cx: &mut TestAppContext) {
@@ -219,22 +173,6 @@ fn the_key_is_checked_on_a_paste_or_enter_only(cx: &mut TestAppContext) {
     cx.run_until_parked();
     let flow = flow_of(&view, cx);
     assert_eq!((flow.key.as_str(), &flow.check), ("pasted-key", &Check::Checking), "a paste checks the key");
-}
-
-/// Catches: Build image taken while a sign-in on this computer is missing.
-#[gpui_kit::test]
-fn build_image_is_held_until_every_sign_in_is_ready(cx: &mut TestAppContext) {
-    let cx = window(cx);
-    let view = stage(cloud::summary(false), cx);
-    assert!(flow_of(&view, cx).build_held());
-    click("cloud-continue", cx);
-    assert!(!flow_of(&view, cx).recipe_busy, "a held Build image sends nothing");
-    let mut ready = cloud::summary(true);
-    ready.github = Some("zingzy".into());
-    let view = stage(ready, cx);
-    assert!(!flow_of(&view, cx).build_held());
-    click("cloud-continue", cx);
-    assert!(flow_of(&view, cx).recipe_busy, "Build image goes once all are signed in");
 }
 
 /// Catches: the check's answer for an older key standing over the newer one, and a refusal read as unreachable.
@@ -288,17 +226,6 @@ fn the_provider_radios_carry_each_clouds_rate(cx: &mut TestAppContext) {
     assert!(fact.center().x > dialog.center().x, "the rate stands at the row's right");
 }
 
-/// Catches: a ticked agent the report does not list dropped from the sign-ins, so Build image goes without it.
-#[test]
-fn an_agent_missing_from_the_report_still_needs_its_sign_in() {
-    let mut flow = cloud::summary(true);
-    flow.github = Some("zingzy".into());
-    flow.report.as_mut().unwrap().retain(|a| a.id != "codex");
-    let codex = flow.sign_in_lines().into_iter().find(|l| l.id == "codex").expect("Codex keeps its line off the catalog's sign-in");
-    assert!(!codex.ready);
-    assert!(flow.build_held(), "Build image waits on Codex's sign-in");
-}
-
 /// Catches: a refusal's fix kept inside its sentence, which would draw the fix in the refusal's ink.
 #[test]
 fn a_refusal_keeps_its_fix_apart() {
@@ -308,136 +235,30 @@ fn a_refusal_keeps_its_fix_apart() {
     assert_eq!((refused.said.as_str(), refused.fix.as_deref()), ("Boat refused this key.", Some("Paste a new one.")));
 }
 
-/// Catches: Back taken while a pick's answer is with the host, which the late answer would then undo.
+/// Catches: Continue from the key not saving what was typed, a held key sent as an empty one, and the dialog left up
+/// once the cloud was added.
 #[test]
-fn back_is_held_while_an_answer_is_with_the_host() {
-    let mut flow = cloud::job_flow(Step::Pick(1), "answering", json!([]));
-    assert!(matches!(flow.go_on(), Some(flow::Ask::Answer { then: Step::Pick(2), .. })));
-    assert_eq!(flow.back(), None, "Back sends nothing while the answer is out");
-    assert_eq!(flow.step, Step::Pick(1));
-    flow.on_recipe(Some(Step::Pick(2)), Ok(()));
-    assert_eq!(flow.step, Step::Pick(2));
-    assert!(flow.back().is_some() && flow.step == Step::Pick(1), "Back goes once the answer is in");
+fn continuing_from_the_key_saves_it_and_the_dialog_closes_on_the_cloud_added() {
+    let mut flow = cloud::key_flow(false);
+    assert_eq!(flow.key_on(), None, "no key typed and none held: Continue sends nothing");
+    flow.type_key("fake-key", true);
+    flow.on_check("fake-key", Ok(Facts::default()));
+    assert_eq!(flow.key_on(), Some(flow::Ask::Save { provider: "box".into(), key: Some("fake-key".into()) }));
+    assert_eq!(flow.key_on(), None, "a second press while the first is with the host sends nothing");
+    assert!(flow.on_saved(Ok(Some(cloud::setup(true)))), "the key saved: the dialog closes");
+    assert!(flow.held() && !flow.busy && flow.key.is_empty());
+    let mut held = cloud::key_flow(true);
+    assert_eq!(held.key_on(), Some(flow::Ask::Save { provider: "box".into(), key: None }), "a held key is used as it stands");
+    assert!(!held.on_saved(Err(wsp_host_client::Failure::new("the host said no"))), "a refusal keeps the dialog up");
+    assert_eq!(held.refused.as_ref().map(|r| r.said.as_str()), Some("the host said no"));
 }
 
-/// The window as the shell leaves it once connected: the layers hold the host and a sidebar listing this computer and
-/// Boat, and the window keeps a store of its own.
-fn connected<'a>(cx: &'a mut TestAppContext, server: &common::Throwaway, dir: &std::path::Path) -> &'a mut VisualTestContext {
-    cx.update(desktop_gpui::screens::palette::overlays::init);
-    let cx = window(cx);
-    let store = desktop_gpui::local_store::LocalStore::open(dir.join("local-store.json"));
-    let host = host(server);
-    cx.update(|window, cx| {
-        cx.set_global(store);
-        let sidebar = cx.new(desktop_gpui::sidebar::Sidebar::new);
-        let places =
-            vec![json!({ "id": "here", "kind": "computer", "name": "boat" }), json!({ "id": "box", "kind": "provider", "name": "Boat" })];
-        sidebar.update(cx, |s, cx| s.apply(desktop_gpui::sidebar::host::Change::Places(places), cx));
-        let overlays = desktop_gpui::screens::palette::overlays::of(window, cx).expect("the layers are registered");
-        overlays.update(cx, |o, _| {
-            o.host = Some(host);
-            o.sidebar = Some(sidebar.downgrade());
-        });
-        // The sidebar lives as long as the window's layers point at it.
-        std::mem::forget(sidebar);
-    });
-    cx
+/// Catches: the provider step counted where the host offers one cloud, or missing where it offers two.
+#[test]
+fn the_provider_step_is_counted_only_where_more_than_one_cloud_is_offered() {
+    assert_eq!(cloud::key_flow(false).steps(), [Step::Key]);
+    assert_eq!(cloud::key_flow(false).figure(), "1 of 1");
+    let two = cloud::two_clouds();
+    assert_eq!(two.steps(), [Step::Provider, Step::Key]);
+    assert_eq!(two.figure(), "1 of 2");
 }
-
-fn notices(cx: &mut VisualTestContext) -> Vec<ui::Notice> {
-    let toasts = cx.update(|window, cx| ui::toast::of(window, cx).expect("ui::init registers the stack"));
-    toasts.read_with(cx, |t, _| t.standing())
-}
-
-fn sealed_on_box() -> flow::Job {
-    serde_json::from_value(json!({ "id": "j_1", "phase": "done", "place": { "id": "box", "name": "Boat" }, "golden": { "version": 3 } }))
-        .unwrap()
-}
-
-/// Catches: Add a cloud closed on a build that sealed saying nothing, or a cloud's build not known to stand on screen.
-#[gpui_kit::test]
-fn closing_on_a_sealed_build_posts_the_sealed_notice(cx: &mut TestAppContext) {
-    let server = common::Throwaway::start();
-    let dir = tempfile::tempdir().unwrap();
-    let cx = connected(cx, &server, dir.path());
-    let mut flow = Flow::new(Some("box"));
-    flow.step = Step::Building;
-    flow.job = Some(sealed_on_box());
-    stage(flow, cx);
-    assert!(cx.update(|_, cx| add_cloud::build_on_screen("box", cx)), "the dialog's heading stands in for the host's notice");
-    cx.update(layer::dismiss);
-    cx.run_until_parked();
-    let said: Vec<(String, Option<String>)> =
-        notices(cx).iter().map(|n| (n.text.to_string(), n.detail.as_ref().map(|d| d.to_string()))).collect();
-    assert_eq!(said, [("Boat is ready".to_owned(), Some("Image v3 sealed.".to_owned()))]);
-    assert!(!cx.update(|_, cx| add_cloud::build_on_screen("box", cx)));
-}
-
-/// Catches: the seal's Open going to the computer's page though the build owes its ready page, or owing it again once
-/// the page has shown.
-#[gpui_kit::test]
-fn the_sealed_notices_open_shows_the_ready_page_owed_to_that_build(cx: &mut TestAppContext) {
-    let server = common::Throwaway::start();
-    let dir = tempfile::tempdir().unwrap();
-    let cx = connected(cx, &server, dir.path());
-    let mut flow = Flow::new(Some("box"));
-    flow.step = Step::Building;
-    flow.job = Some(sealed_on_box());
-    stage(flow, cx);
-    cx.update(layer::dismiss);
-    cx.run_until_parked();
-    let open = notices(cx)[0].action.clone().expect("the notice opens what it is about");
-    cx.update(|window, cx| (open.run)(window, cx));
-    cx.run_until_parked();
-    let shown =
-        cx.update(|_, cx| layer::view(ADD_CLOUD, cx)).and_then(|v| v.downcast::<AddCloud>().ok()).expect("Open stood the dialog up");
-    assert_eq!(flow_of(&shown, cx).step, Step::Ready, "on the ready page that build owed");
-    // The host holds the sealed job until the next start; this one's has none, so it is handed over as it pushes it.
-    shown.update(cx, |v, cx| {
-        v.on_pushed(Pushed::Job(Box::new(sealed_on_box())), cx);
-        cx.notify();
-    });
-    cx.update(|window, cx| drop(window.draw(cx)));
-    cx.run_until_parked();
-    cx.update(layer::dismiss);
-    cx.update(|window, cx| (open.run)(window, cx));
-    cx.run_until_parked();
-    assert_eq!(cx.update(|_, cx| layer::top(cx)), None, "a page shown once is owed no more: Open goes to the cloud's page");
-}
-
-/// Catches: a sign-in run the dialog started outliving its close, so reopening starts a second.
-#[gpui_kit::test]
-fn closing_stops_the_sign_in_runs_the_dialog_started(cx: &mut TestAppContext) {
-    // The test's PATH holds no real codex; a stand-in whose login waits keeps the run going until it is stopped.
-    let server = common::Throwaway::start_with_tools(STAYS, true, &[("codex", CODEX_LOGIN_WAITS)]);
-    if server.daemon.is_none() {
-        println!("skipped the sign-in stop, whose run the host starts through a wsp-daemon: {}", common::wsp_daemon().unwrap_err());
-        return;
-    }
-    let cx = window(cx);
-    let host = host(&server);
-    cx.update(|window, cx| add_cloud::open_on(Some(&host), cloud::summary(false), window, cx));
-    until(cx, "Codex's Sign in", 60, |cx| drawn("sign-in-codex", cx));
-    // Beside the binary's other tests a first press can start nothing; press again until a run starts.
-    let mut pressed = Instant::now() - Duration::from_secs(2);
-    until(cx, "the run to start", 60, |cx| {
-        if pressed.elapsed() >= Duration::from_secs(2) && !server.log().contains("sign-in si_") {
-            click("sign-in-codex", cx);
-            pressed = Instant::now();
-        }
-        server.log().contains("sign-in si_") && server.log().contains("started: codex")
-    });
-    std::thread::sleep(Duration::from_millis(500));
-    cx.run_until_parked();
-    cx.update(layer::dismiss);
-    let deadline = Instant::now() + Duration::from_secs(30);
-    while !server.log().lines().any(|l| l.contains("ended: codex, on computer here: stopped")) {
-        assert!(Instant::now() < deadline, "the run was never stopped: {}", server.log());
-        cx.run_until_parked();
-        std::thread::sleep(Duration::from_millis(50));
-    }
-}
-
-/// A claude the host finds, which never answers; Codex's sign-in runs on its own road.
-const CODEX_LOGIN_WAITS: &str = "#!/bin/sh\ncase \" $* \" in\n  *\" --version \"*) echo \"codex-cli 0.162.1\"; exit 0 ;;\n  *\" login status \"*) echo \"Not logged in\"; exit 1 ;;\nesac\nsleep 60\n";
-const STAYS: &str = "#!/bin/sh\ncase \" $* \" in *\" --version \"*) echo \"2.1.295 (Claude Code)\"; exit 0 ;; esac\nsleep 60\n";

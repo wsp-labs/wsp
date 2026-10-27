@@ -91,6 +91,13 @@ describe("the Worker in front of usewsp.com", () => {
     expect(await get(CLASSIC.linux)).toBe(`${REPO}/releases/download/v0.3.8/wsp-linux.AppImage`);
   });
 
+  it("answers the visitor's country as Cloudflare read it, and nothing for Tor or an unknown one", async () => {
+    const asked = (cf: object | undefined) => worker.fetch(Object.assign(new Request("https://usewsp.com/api/country"), { cf }), env()).then(r => r.text());
+    expect(await asked({ country: "IN" })).toBe("IN");
+    expect(await asked({ country: "T1" })).toBe("");
+    expect(await asked(undefined)).toBe("");
+  });
+
   it("serves the install script as text and every other file as the files say", async () => {
     const install = await worker.fetch(new Request("https://usewsp.com/install"), env());
     expect(install.headers.get("content-type")).toBe("text/plain; charset=utf-8");

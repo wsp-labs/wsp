@@ -13,7 +13,7 @@ import {
   providerKeyName, scopeOf, shellLine, shellQuote, startingLine, startsUsedLine, boatPlanWords, subAheadRefusal, subAheadUnknownRefusal, subBranchNameOk, subBranchNameRefusal, subBranchOf, subCopyingLine, subDetachedRefusal, subFolderOf,
   subLeadBranchRefusal, subLeadOnMachineRefusal, subNoAgentRefusal, subNoCloudRefusal, subNoImageRefusal, subNoRemoteRefusal, subNoSignInRefusal, subHostNoSignInRefusal, subHostOtherGitRefusal, subNoThreadRefusal, subNoUpstreamRefusal, subOtherProjectRefusal,
   subNotSentLine, subNothingPickedWhy, subStayedLine, subOomLine, subOtherHostRefusal, subPickedElsewhereWhy, subPreamble, subReplacedLine, subSeedTooBigRefusal, subSizeOf, subSizeRefusal,
-  seedTravels, subSizeWord, subNextSize, subTwiceRefusal, subUncommittedLine, refusalSaid, SUB_SPAWN_LOG_LINES, type SubSpawn, subCloudGoneRefusal, subResumePreamble, cloudSaid, type Caller, type SeedChoice, type SubFault, type SubOut, type SubSize, type WorkspaceAgents, AGENTS_ON, CREATE_READY,
+  seedTravels, subSizeWord, subNextSize, subTwiceRefusal, subUncommittedLine, refusalSaid, SUB_SPAWN_LOG_LINES, type SubSpawn, subCloudGoneRefusal, subResumePreamble, cloudSaid, type Caller, type SeedChoice, type SubFault, type SubOut, type SubSize, CREATE_READY,
 } from "@wsp/protocol";
 import { SEED_CHOICES, CREATES, deadMachine, isAbsentMachine, isCapRefusal } from "../types/internal.js";
 import { SUB_SESSIONS, subSessionLandCommand } from "./sub-life.js";
@@ -234,8 +234,6 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
         size: { cpu: size.cpu, memMb: size.memMb },
         firstLife: true,
         ...ctx.treeOf(scope),
-        // Its own switch, off: a sub-thread starts nothing of its own.
-        agents: { ...AGENTS_ON, spawn: false } satisfies WorkspaceAgents,
         lead: { threadId: scope.threadId, workspaceId: lead.record.id },
         ...(branchOfRecord !== undefined ? { branchOfRecord } : {}),
         sub: {

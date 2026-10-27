@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The sign-in matrix: every login source the table names, against every tool
 // the collector can emit a login row for. A cell says what the source alone
-// looks like on a fake laptop, the row the collector makes of it, and what the
-// Sign-ins screen starts it at, so every tool's default is a tested cell. A
+// looks like on a fake laptop and the row the collector makes of it. A
 // cell the product cannot produce is listed with its reason, never left out; a
 // source added to the table without a cell fails the coverage test by name.
-import { detectLogins, type LoginChoice } from "@wsp/collect";
+import { detectLogins } from "@wsp/collect";
 import { describe, expect, it } from "vitest";
 import { fakeHost, type FakeLaptop } from "../../collect/test/fake-host.js";
-import { initialChoice } from "../src/init-recipe.js";
-import { SIGN_INS, type LoginSource } from "../src/signin-table.js";
 import { collectorLogins } from "./collector-logins.js";
+import { SIGN_INS, type LoginSource } from "./signin-questions.js";
 
 type Source = LoginSource | "none";
 const SOURCES: readonly Source[] = ["keychain", "rc-key", "file", "helper", "none"];
@@ -21,9 +19,6 @@ interface Row {
   paths: string[];
   default: "bring" | "skip";
   detail?: string;
-  /** The sign-in column: what the row starts as on the Sign-ins screen, read off the collector's row by the wizard.
-   * A row with nothing here to copy starts left to first use: its only road is a browser, and the build waits on nobody. */
-  starts: LoginChoice;
 }
 
 interface Reachable {
@@ -54,12 +49,12 @@ const filesOnly = (tool: string, ...except: Source[]): Unreachable[] =>
 
 const MATRIX: readonly Cell[] = [
   // gh: hosts.yml names the account; on macOS the token is a Keychain item that lands inside hosts.yml on the machine.
-  { tool: "gh", source: "file", laptop: { files: { "~/.config/gh/hosts.yml": 200 } }, row: { paths: ["~/.config/gh/hosts.yml"], default: "skip", starts: "later" } },
+  { tool: "gh", source: "file", laptop: { files: { "~/.config/gh/hosts.yml": 200 } }, row: { paths: ["~/.config/gh/hosts.yml"], default: "skip" } },
   {
     tool: "gh",
     source: "keychain",
     laptop: { files: { "~/.config/gh/hosts.yml": 200 }, exec: { "security find-generic-password -s gh:github.com": "keychain: ...\n" } },
-    row: { paths: ["~/.config/gh/hosts.yml", "Keychain: gh:github.com"], default: "skip", starts: "later" },
+    row: { paths: ["~/.config/gh/hosts.yml", "Keychain: gh:github.com"], default: "skip" },
   },
   { tool: "gh", source: "rc-key", unreachable: "gh's row is its hosts.yml; GH_TOKEN alone makes no row and travels only as a secret with the rc file", laptop: { files: { "~/.zshrc": "export GH_TOKEN=gho_x\n" } } },
   { tool: "gh", source: "helper", unreachable: "only Claude Code reads an apiKeyHelper" },
@@ -69,7 +64,7 @@ const MATRIX: readonly Cell[] = [
     tool: "gcloud",
     source: "file",
     laptop: { files: { "~/.config/gcloud/credentials.db": 4000, "~/.config/gcloud/configurations/config_default": 50 } },
-    row: { paths: ["~/.config/gcloud/credentials.db", "~/.config/gcloud/configurations"], default: "skip", starts: "later" },
+    row: { paths: ["~/.config/gcloud/credentials.db", "~/.config/gcloud/configurations"], default: "skip" },
   },
   ...filesOnly("gcloud"),
   { tool: "gcloud", source: "none", laptop: {} },
@@ -78,7 +73,7 @@ const MATRIX: readonly Cell[] = [
     tool: "wrangler",
     source: "file",
     laptop: { files: { "~/Library/Preferences/.wrangler/config/default.toml": 300 } },
-    row: { paths: ["~/Library/Preferences/.wrangler/config/default.toml"], default: "skip", starts: "later" },
+    row: { paths: ["~/Library/Preferences/.wrangler/config/default.toml"], default: "skip" },
   },
   {
     tool: "wrangler",
@@ -92,7 +87,7 @@ const MATRIX: readonly Cell[] = [
     laptop: {},
   },
 
-  { tool: "cloudflared", source: "file", laptop: { files: { "~/.cloudflared/cert.pem": 800 } }, row: { paths: ["~/.cloudflared/cert.pem"], default: "skip", starts: "later" } },
+  { tool: "cloudflared", source: "file", laptop: { files: { "~/.cloudflared/cert.pem": 800 } }, row: { paths: ["~/.cloudflared/cert.pem"], default: "skip" } },
   ...filesOnly("cloudflared"),
   { tool: "cloudflared", source: "none", laptop: {} },
 
@@ -100,7 +95,7 @@ const MATRIX: readonly Cell[] = [
     tool: "vercel",
     source: "file",
     laptop: { files: { "~/Library/Application Support/com.vercel.cli/auth.json": 100 } },
-    row: { paths: ["~/Library/Application Support/com.vercel.cli/auth.json"], default: "skip", starts: "later" },
+    row: { paths: ["~/Library/Application Support/com.vercel.cli/auth.json"], default: "skip" },
   },
   ...filesOnly("vercel"),
   { tool: "vercel", source: "none", laptop: {} },
@@ -109,7 +104,7 @@ const MATRIX: readonly Cell[] = [
     tool: "aws",
     source: "file",
     laptop: { files: { "~/.aws/credentials": 120, "~/.aws/config": 300 } },
-    row: { paths: ["~/.aws/credentials", "~/.aws/config"], default: "skip", starts: "later" },
+    row: { paths: ["~/.aws/credentials", "~/.aws/config"], default: "skip" },
   },
   {
     tool: "aws",
@@ -120,18 +115,18 @@ const MATRIX: readonly Cell[] = [
   ...filesOnly("aws", "rc-key"),
   { tool: "aws", source: "none", laptop: {} },
 
-  // kubectl has no sign-in: the row starts as a copy.
-  { tool: "kube", source: "file", laptop: { files: { "~/.kube/config": 6000 } }, row: { paths: ["~/.kube/config"], default: "bring", starts: "copy" } },
+  // kubectl has no sign-in.
+  { tool: "kube", source: "file", laptop: { files: { "~/.kube/config": 6000 } }, row: { paths: ["~/.kube/config"], default: "bring" } },
   ...filesOnly("kube"),
   { tool: "kube", source: "none", laptop: {} },
 
   // Codex's login lives on the computer that runs the workspaces, so its file is found here and offered nowhere.
-  { tool: "codex", source: "file", laptop: { files: { "~/.codex/auth.json": 900 } }, row: { paths: [], default: "skip", detail: "it signs in once on the computer that runs your workspaces; nothing of it travels", starts: "later" } },
+  { tool: "codex", source: "file", laptop: { files: { "~/.codex/auth.json": 900 } }, row: { paths: [], default: "skip", detail: "it signs in once on the computer that runs your workspaces; nothing of it travels" } },
   { tool: "codex", source: "rc-key", unreachable: "the key alone makes no row; it travels as a secret with the rc file, and what codex login status prints for it was not measured", laptop: { files: { "~/.zshrc": "export OPENAI_API_KEY=sk-oai-x\n" } } },
   ...filesOnly("codex", "rc-key"),
   { tool: "codex", source: "none", laptop: {} },
 
-  { tool: "gemini", source: "file", laptop: { files: { "~/.gemini/oauth_creds.json": 500 } }, row: { paths: ["~/.gemini/oauth_creds.json"], default: "skip", starts: "later" } },
+  { tool: "gemini", source: "file", laptop: { files: { "~/.gemini/oauth_creds.json": 500 } }, row: { paths: ["~/.gemini/oauth_creds.json"], default: "skip" } },
   {
     tool: "gemini",
     source: "rc-key",
@@ -144,7 +139,7 @@ const MATRIX: readonly Cell[] = [
     tool: "opencode",
     source: "file",
     laptop: { files: { "~/.local/share/opencode/auth.json": 200 } },
-    row: { paths: ["~/.local/share/opencode/auth.json"], default: "bring", starts: "copy" },
+    row: { paths: ["~/.local/share/opencode/auth.json"], default: "bring" },
   },
   {
     tool: "opencode",
@@ -154,7 +149,7 @@ const MATRIX: readonly Cell[] = [
   ...filesOnly("opencode", "rc-key"),
   { tool: "opencode", source: "none", laptop: {} },
 
-  { tool: "pi", source: "file", laptop: { files: { "~/.pi/agent/auth.json": 900 } }, row: { paths: ["~/.pi/agent/auth.json"], default: "skip", starts: "later" } },
+  { tool: "pi", source: "file", laptop: { files: { "~/.pi/agent/auth.json": 900 } }, row: { paths: ["~/.pi/agent/auth.json"], default: "skip" } },
   {
     tool: "pi",
     source: "rc-key",
@@ -172,13 +167,13 @@ const MATRIX: readonly Cell[] = [
     tool: "hermes",
     source: "file",
     laptop: { files: { "~/.hermes/.env": 25_000, "~/.hermes/auth.json": 400 } },
-    row: { paths: ["~/.hermes/auth.json"], default: "skip", starts: "later" },
+    row: { paths: ["~/.hermes/auth.json"], default: "skip" },
   },
   {
     tool: "hermes-keys",
     source: "file",
     laptop: { files: { "~/.hermes/.env": 25_000, "~/.hermes/auth.json": 400 } },
-    row: { paths: ["~/.hermes/.env"], default: "bring", detail: "the keys in ~/.hermes/.env travel only by copy; no sign-in produces them", starts: "copy" },
+    row: { paths: ["~/.hermes/.env"], default: "bring", detail: "the keys in ~/.hermes/.env travel only by copy; no sign-in produces them" },
   },
   ...(["keychain", "rc-key", "helper"] as const).map((source): Unreachable => ({ tool: "hermes-keys", source, unreachable: "the keys row is the ~/.hermes/.env file alone; a key elsewhere travels as a secret or not at all" })),
   { tool: "hermes-keys", source: "none", laptop: {} },
@@ -192,7 +187,7 @@ const MATRIX: readonly Cell[] = [
 
   // The 1Password CLI signs in through the desktop app: its row is the binary's presence, and nothing of it travels.
   ...(["keychain", "rc-key", "file", "helper"] as const).map((source): Unreachable => ({ tool: "op", source, unreachable: "op signs in through the 1Password desktop app; nothing of it is copied" })),
-  { tool: "op", source: "none", laptop: { which: ["op"] }, row: { paths: [], default: "skip", starts: "later" } },
+  { tool: "op", source: "none", laptop: { which: ["op"] }, row: { paths: [], default: "skip" } },
 
   // Claude Code: any of these says this computer is signed in, and none of them travels. The workspace reads the
   // long-lived token instead, so every cell makes the same row, with nothing to copy.
@@ -200,25 +195,25 @@ const MATRIX: readonly Cell[] = [
     tool: "claude",
     source: "keychain",
     laptop: { exec: { "security find-generic-password -s Claude Code-credentials": "keychain: ...\n" } },
-    row: { paths: [], default: "skip", detail: "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels", starts: "token" },
+    row: { paths: [], default: "skip", detail: "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels" },
   },
   {
     tool: "claude",
     source: "file",
     laptop: { platform: "linux", files: { "~/.claude/.credentials.json": CLAUDE_LOGIN_FILE } },
-    row: { paths: [], default: "skip", detail: "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels", starts: "token" },
+    row: { paths: [], default: "skip", detail: "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels" },
   },
   {
     tool: "claude",
     source: "rc-key",
     laptop: { files: { "~/.zshrc": "export ANTHROPIC_API_KEY=sk-ant-x\n" } },
-    row: { paths: [], default: "skip", detail: "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels", starts: "token" },
+    row: { paths: [], default: "skip", detail: "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels" },
   },
   {
     tool: "claude",
     source: "helper",
     laptop: { files: { "~/.claude/settings.json": '{"apiKeyHelper": "security find-generic-password -s anthropic-api-key -w"}' } },
-    row: { paths: [], default: "skip", detail: "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels", starts: "token" },
+    row: { paths: [], default: "skip", detail: "Claude Code signs in with the token claude setup-token prints on this computer; nothing of its login here travels" },
   },
   { tool: "claude", source: "none", laptop: {} },
 ];
@@ -278,10 +273,7 @@ describe("the sign-in matrix, cell by cell", () => {
     const own = rows.filter(r => r.id === `logins/${c.tool}`);
     if (c.row === undefined) expect(own).toEqual([]);
     else {
-      const { starts, ...row } = c.row;
-      expect(own).toEqual([expect.objectContaining({ rung: "logins", id: `logins/${c.tool}`, ...row })]);
-      // The sign-in column: what the Sign-ins screen starts the row at, the wizard's reading of the collector's row.
-      expect(initialChoice(own[0]!), `${cellName(c.tool, c.source)} starts`).toBe(starts);
+      expect(own).toEqual([expect.objectContaining({ rung: "logins", id: `logins/${c.tool}`, ...c.row })]);
     }
     for (const v of FAKE_VALUES) expect(JSON.stringify(rows)).not.toContain(v);
   });
