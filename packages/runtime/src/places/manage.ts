@@ -798,7 +798,7 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
         if (!waits && failed === undefined) throw usageRefusal(nothingToSkipLine(row, held.name), "Skip a row the computer's page shows waiting or failed.");
         await change(placeId, now => {
           const failedNow = now.applied?.rows.find(r => r.id === row && r.outcome === "failed");
-          const step = failedNow?.step ?? now.applied?.rows.find(r => r.id === row)?.step;
+          const step = failedNow?.step ?? now.applied?.rows.find(r => r.id === row)?.step ?? (now.setup?.waiting.some(w => w.row === row && w.press === true) ? ("signins" as const) : undefined);
           const rows = [...(now.applied?.rows ?? []).filter(r => r.id !== row), { id: row, label: failedNow?.label ?? now.setup?.waiting.find(w => w.row === row)?.label ?? row, outcome: "skipped" as const, note: SKIPPED_FOR_NOW, ...(step !== undefined ? { step } : {}) }];
           return {
             ...now,

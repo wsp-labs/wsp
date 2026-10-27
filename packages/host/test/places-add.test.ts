@@ -11,7 +11,7 @@ import { writeStub } from "../../protocol/test/stub-script.js";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Manifest } from "@wsp/collect";
-import { keysKeptLine, PLACE_SUDO_KIND, RecipeFile, SETUP_STEP_WORDS, TOOL_PREFIX, type AddLine, type PlaceSetup, type PlaceView, type PlaceWait } from "@wsp/protocol";
+import { CODE_FROM_ROW, keysKeptLine, PLACE_SUDO_KIND, RecipeFile, SETUP_STEP_WORDS, TOOL_PREFIX, type AddLine, type PlaceSetup, type PlaceView, type PlaceWait } from "@wsp/protocol";
 import { sshWordReach, type SshLocalRun } from "@wsp/engine";
 import { PassThrough } from "node:stream";
 import { gunzipSync } from "node:zlib";
@@ -31,14 +31,16 @@ const tmp = (name: string): string => {
 };
 
 const WAIT: PlaceWait = { row: "signins/codex", label: "Codex", url: "https://auth.openai.com/codex/device", code: "ABCD-EFGH", expiresAt: "2026-10-03T10:15:00.000Z", state: "waiting" };
+const PRESS: PlaceWait = { row: "signins/claude", label: "Claude Code", state: "waiting", press: true, note: CODE_FROM_ROW, fix: "Sign in on spoo: Claude Code's own sign-in runs there." };
 const PLACE: PlaceView = { id: "p_1", kind: "computer", name: "spoo", default: true, present: true, takesForks: true };
 const RUNNING: PlaceSetup = { state: "running", addId: "a_x", startedAt: "2026-10-03T10:01:00.000Z", steps: [], waiting: [] };
 
 /** A host that plays one add: the install's steps, the setup's, a sign-in that waits and its landing when the test
  * says, and the end. The row it lists moves with what it said. */
-function fakeHost(o: { end?: "ready" | "failed"; signIn?: boolean; pending?: boolean; running?: string; sudoPassword?: string } = {}) {
+function fakeHost(o: { end?: "ready" | "failed"; signIn?: boolean | "press"; pending?: boolean; running?: string; sudoPassword?: string } = {}) {
   const asked: { op: string; params?: Record<string, unknown> }[] = [];
   const frames: ((frame: Record<string, unknown>) => void)[] = [];
+  const WAITING = o.signIn === "press" ? PRESS : WAIT;
   let row: PlaceView = PLACE;
   let addId = "";
   const say = (frame: Record<string, unknown>): void => {
@@ -54,11 +56,11 @@ function fakeHost(o: { end?: "ready" | "failed"; signIn?: boolean; pending?: boo
     say({ type: "place.stage", addId, step: "check", state: "done", note: "root, systemd, cgroup v2" });
     say({ type: "place.stage", addId, step: "join", state: "done", placeId: PLACE.id });
     say({ type: "place.setup", addId, placeId: PLACE.id, line: { step: "floor", state: "done", ms: 41_000 } });
-    if (o.signIn === true) say({ type: "place.setup", addId, placeId: PLACE.id, wait: WAIT });
+    if (o.signIn !== undefined && o.signIn !== false) say({ type: "place.setup", addId, placeId: PLACE.id, wait: WAITING });
     say({ type: "place.setup", addId, placeId: PLACE.id, line: { step: "clis", state: "done", ms: 9_000 } });
     const state = o.end === "failed" ? "failed" : "done";
-    row = { ...row, setup: { ...RUNNING, addId, state, finishedAt: "x", steps: [{ step: "floor", state: "done", ms: 41_000 }, { step: "clis", state: "done", ms: 9_000 }], waiting: o.signIn === true ? [WAIT] : [], ...(state === "failed" ? { said: "no agent installed: Codex" } : {}) }, applied: { hash: "h", at: "x", rows: [{ id: "tools/brew/gh", label: "GitHub CLI", outcome: "installed" }] } };
-    say({ type: "place.setup", addId, placeId: PLACE.id, end: o.end ?? (o.signIn === true ? "needs-you" : "ready") });
+    row = { ...row, setup: { ...RUNNING, addId, state, finishedAt: "x", steps: [{ step: "floor", state: "done", ms: 41_000 }, { step: "clis", state: "done", ms: 9_000 }], waiting: o.signIn !== undefined && o.signIn !== false ? [WAITING] : [], ...(state === "failed" ? { said: "no agent installed: Codex" } : {}) }, applied: { hash: "h", at: "x", rows: [{ id: "tools/brew/gh", label: "GitHub CLI", outcome: "installed" }] } };
+    say({ type: "place.setup", addId, placeId: PLACE.id, end: o.end ?? (o.signIn !== undefined && o.signIn !== false ? "needs-you" : "ready") });
   };
   const client = {
     request: async (op: string, params?: Record<string, unknown>) => {
@@ -158,6 +160,17 @@ describe("wsp add <user@host> --recipe", () => {
     expect(opened).toEqual([]);
     expect(io.lines.at(-1)).toBe("  ? Codex waits on you to sign in at https://auth.openai.com/codex/device with code ABCD-EFGH");
   });
+
+  it("leaves a sign-in that starts from its row waiting without holding the line, and prints its reason and the command that signs in", async () => {
+    const io = captured();
+    const host = fakeHost({ signIn: "press" });
+    expect(await addCommand(io, opts(tmp("add-press")), ["root@10.0.0.9"], { recipe: "laptop", json: true }, deps(host.client))).toBe(0);
+    const objects = io.lines.map(l => JSON.parse(l) as Record<string, unknown>);
+    expect(objects.find(o => "waiting" in o)!["waiting"]).toEqual(PRESS);
+    const text = captured();
+    expect(await addCommand(text, opts(tmp("add-press-text")), ["root@10.0.0.9"], { recipe: "laptop" }, deps(fakeHost({ signIn: "press" }).client))).toBe(0);
+    expect(text.lines.slice(-3)).toEqual([`  ? Claude Code waits on you to sign in: ${CODE_FROM_ROW}`, "    Sign in on spoo: Claude Code's own sign-in runs there.", "    wsp add spoo --sign-in claude"]);
+  }, 5_000);
 
   it("exits 1 where a step that blocks stopped the setup, with why", async () => {
     const io = captured();

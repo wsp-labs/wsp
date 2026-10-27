@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import type WebSocket from "ws";
 import {
   RecipeFile,
+  placeStateOf,
   absentComputer,
   floorFailedLine,
   GITHUB_SKIPPED_LINE,
@@ -284,7 +285,7 @@ function provisioner(
 
 /** Sign-ins as the app's own road runs them, each waiting on the test: the page and the code, then the end. The
  * line carries the catalog's status command, as the host plans it, unless `status` is false. */
-function signIns(o: { status?: boolean } = {}) {
+function signIns(o: { status?: boolean; paste?: boolean } = {}) {
   const started: string[] = [];
   const stopped: string[] = [];
   const ends = new Map<string, (e: Pick<AgentsSignInEvent, "state" | "said">) => void>();
@@ -297,7 +298,7 @@ function signIns(o: { status?: boolean } = {}) {
       started.push(ask.agent);
       void run.stop.then(() => stopped.push(ask.agent));
       run.emit({ state: "running" });
-      run.emit({ state: "waiting", url: `https://auth.example/${ask.agent}/${started.length}`, code: `CODE-${started.length}` });
+      run.emit({ state: "waiting", url: `https://auth.example/${ask.agent}/${started.length}`, code: `CODE-${started.length}`, ...(o.paste === true ? { paste: true } : {}) });
       const end = await new Promise<Pick<AgentsSignInEvent, "state" | "said">>(resolve => ends.set(ask.agent, resolve));
       run.emit(end);
     },
@@ -2206,7 +2207,7 @@ describe("a step the person skips for now", () => {
 
   it("makes a token picked for Claude Code on this computer where the vault holds none, the row waiting on the person until it lands", async () => {
     const vault: Record<string, string> = {};
-    const s = signIns();
+    const s = signIns({ paste: true });
     // This computer's daemon, which the token's own command runs under, answers every frame and never closes.
     const channel: DaemonChannel = { send: async () => ({ ok: true }) as DaemonResponse, close: () => {}, closed: new Promise(() => {}) };
     await hosting({ provision: provisioner().wired, acts: s.acts, vault, local: { ...localWiring(), daemonRoad: async () => ({ url: "http://127.0.0.1:1", expiresAt: Number.MAX_SAFE_INTEGER, daemonToken: "t" }) }, daemonChannel: async () => channel });
@@ -2215,6 +2216,9 @@ describe("a step the person skips for now", () => {
     await until(async () => (await rowOf(place.id)).setup?.waiting.some(w => w.row === "signins/claude") === true);
     expect(s.started).toEqual(["claude"]);
     expect(runtime!.agents.signIns().map(r => r.target)).toEqual([{ placeId: HERE_PLACE_ID }]);
+    // The page hands a code back: the wait names the run and says a code goes into it, which the window types with agents.signInCode.
+    const [made] = runtime!.agents.signIns();
+    expect((await rowOf(place.id)).setup?.waiting.find(w => w.row === "signins/claude")).toMatchObject({ paste: true, signInId: made!.signInId, url: expect.stringContaining("https://auth.example/claude") });
     s.end("claude", { state: "signed-in" });
     await until(async () => (await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")?.outcome === "installed");
     expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ note: tokenHeldLine("zingzys-mac"), step: "signins" });
@@ -2227,17 +2231,37 @@ describe("a step the person skips for now", () => {
     expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ note: "the browser was closed", fix: signInWaysFix(["token", "key", "machine"], { ...CLAUDE_FACTS, box }) });
   });
 
-  it("leaves Claude Code's own sign-in on the box to its row, whose page hands back a code the setup has nowhere to take", async () => {
+  it("holds Claude Code's own sign-in on the box as a wait for the row's Sign in, since its page hands back a code the setup has nowhere to take", async () => {
+    const s = signIns();
+    const { frames } = await hosting({ provision: provisioner().wired, acts: s.acts, vault: {} });
+    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "machine" } } });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
+    await until(async () => (await rowOf(place.id)).setup?.state === "done");
+    const box = (await rowOf(place.id)).name;
+    const wait = { row: "signins/claude", label: "Claude Code", state: "waiting", press: true, note: CODE_FROM_ROW, fix: signInWaysFix(["machine", "token", "key"], { ...CLAUDE_FACTS, box }) };
+    expect((await rowOf(place.id)).setup?.waiting).toEqual([wait]);
+    expect((await rowOf(place.id)).applied?.rows.some(r => r.id === "signins/claude")).toBe(false);
+    expect(frames.filter(f => f.wait !== undefined).map(f => f.wait)).toEqual([wait]);
+    expect(placeStateOf(await rowOf(place.id), null)).toMatchObject({ word: "Needs you" });
+    expect(s.started).toEqual([]);
+    await runtime!.places!.loginLanded(place.id, "claude");
+    expect((await rowOf(place.id)).setup?.waiting).toEqual([]);
+    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "installed", note: SIGNED_IN_THERE, step: "signins" });
+    expect(frames.at(-1)).toMatchObject({ landed: "signins/claude", end: "ready" });
+  });
+
+  it("sets a wait for the row's Sign in aside with Skip, and asks for it again on a retry", async () => {
     const s = signIns();
     await hosting({ provision: provisioner().wired, acts: s.acts, vault: {} });
     const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "machine" } } });
     const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
-    await until(async () => (await rowOf(place.id)).applied?.rows.some(r => r.id === "signins/claude") === true);
-    const box = (await rowOf(place.id)).name;
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "skipped", note: CODE_FROM_ROW, fix: signInWaysFix(["machine", "token", "key"], { ...CLAUDE_FACTS, box }) });
-    expect(s.started).toEqual([]);
-    await runtime!.places!.loginLanded(place.id, "claude");
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "installed", note: SIGNED_IN_THERE });
+    await until(async () => (await rowOf(place.id)).setup?.state === "done");
+    const skipped = await runtime!.places!.skip(place.id, "signins/claude");
+    expect(skipped.setup?.waiting).toEqual([]);
+    expect(skipped.applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "skipped" });
+    await runtime!.places!.setUp(place.id, { row: "signins/claude" });
+    await until(async () => (await rowOf(place.id)).setup?.waiting.some(w => w.row === "signins/claude") === true);
+    expect((await rowOf(place.id)).applied?.rows.some(r => r.id === "signins/claude")).toBe(false);
   });
 
   it("skips a sign-in whose page ran out, after its login there ended", async () => {
