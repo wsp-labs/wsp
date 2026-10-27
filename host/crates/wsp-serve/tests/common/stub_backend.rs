@@ -23,11 +23,11 @@ use wsp_engine::machine::{
     WireSnapshotStoragePricing,
 };
 use wsp_wire::types::daemon_contract::DAEMON_TOKEN_PATH;
-use wsp_wire::wire::machine_link::NOT_ON_THIS_ROAD;
 use wsp_wire::types::js_number::JsInt;
 use wsp_wire::types::JsNumber;
 use wsp_wire::views::activity::iso_time;
 use wsp_wire::wire::capabilities::{MachineSizeOffer, PauseMode};
+use wsp_wire::wire::machine_link::NOT_ON_THIS_ROAD;
 
 use super::vault::VaultServer;
 
@@ -586,7 +586,10 @@ impl Machine for StubMachine {
         let f = self.daemon_exits.borrow().clone().ok_or_else(|| EngineError::Other { message: NOT_ON_THIS_ROAD.into(), code: None })?;
         f().await
     }
-    async fn daemon_frame(&self, _frame: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Map<String, serde_json::Value>, EngineError> {
+    async fn daemon_frame(
+        &self,
+        _frame: serde_json::Map<String, serde_json::Value>,
+    ) -> Result<serde_json::Map<String, serde_json::Value>, EngineError> {
         if !self.served.get() {
             return Err(EngineError::Other { message: NOT_ON_THIS_ROAD.into(), code: None });
         }
@@ -722,8 +725,10 @@ impl StubLifecycle {
     }
     /// `backend.lifecycle.budgets.resumeAsks = { everyMs, forMs }`, or `delete ...resumeAsks` for `None`.
     pub fn set_resume_asks(&self, asks: Option<(f64, f64)>) {
-        self.budgets.borrow_mut().resume_asks =
-            asks.map(|(every, for_ms)| wsp_wire::wire::machine_link::LifecycleBudgetsResumeAsks { every_ms: JsNumber(every), for_ms: JsNumber(for_ms) });
+        self.budgets.borrow_mut().resume_asks = asks.map(|(every, for_ms)| wsp_wire::wire::machine_link::LifecycleBudgetsResumeAsks {
+            every_ms: JsNumber(every),
+            for_ms: JsNumber(for_ms),
+        });
     }
 }
 

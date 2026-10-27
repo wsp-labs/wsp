@@ -21,7 +21,12 @@ pub struct WrappedStore {
 
 impl WrappedStore {
     pub fn over(inner: &Rc<dyn Store>) -> Rc<WrappedStore> {
-        Rc::new(WrappedStore { inner: inner.clone(), refuse: RefCell::default(), hold: RefCell::default(), held: std::cell::Cell::new(false) })
+        Rc::new(WrappedStore {
+            inner: inner.clone(),
+            refuse: RefCell::default(),
+            hold: RefCell::default(),
+            held: std::cell::Cell::new(false),
+        })
     }
 
     /// Every `put` into `collection` fails with `message` from now on.
@@ -57,7 +62,12 @@ impl Store for WrappedStore {
         if let Some(message) = refused {
             return Err(HostError::new(message));
         }
-        let waiting = self.hold.borrow().as_ref().filter(|(c, p, _)| c == collection && value["phase"] == p.as_str() && !self.held.get()).map(|(_, _, g)| g.clone());
+        let waiting = self
+            .hold
+            .borrow()
+            .as_ref()
+            .filter(|(c, p, _)| c == collection && value["phase"] == p.as_str() && !self.held.get())
+            .map(|(_, _, g)| g.clone());
         if let Some(gate) = waiting {
             self.held.set(true);
             gate.wait().await;
