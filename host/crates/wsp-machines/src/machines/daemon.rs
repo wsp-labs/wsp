@@ -129,24 +129,13 @@ async fn answered<T>(rx: oneshot::Receiver<T>) -> T {
 }
 
 /// The start's own answer: its sender is dropped unsent only when the task ended without answering (aborted, or a
-/// panic past `panic_words`), which the TS shows as a rejected promise, so it is an error and never a wait.
+/// panic past `catch_unwind`), which the TS shows as a rejected promise, so it is an error and never a wait.
 async fn started_or_ended(
     rx: oneshot::Receiver<Result<Started, HostError>>,
 ) -> Result<Started, HostError> {
     match rx.await {
         Ok(answer) => answer,
         Err(_) => Err(HostError::new("the send ended before it was answered")),
-    }
-}
-
-/// What a panic carried, as the message of the error a thrown one is in the TS.
-fn panic_words(payload: Box<dyn std::any::Any + Send>) -> String {
-    match payload.downcast::<String>() {
-        Ok(words) => *words,
-        Err(payload) => payload.downcast_ref::<&str>().map_or_else(
-            || "the send panicked".to_string(),
-            |words| (*words).to_string(),
-        ),
     }
 }
 
@@ -295,7 +284,7 @@ impl DaemonArea {
                 .catch_unwind();
             let answer = match run.await {
                 Ok(answer) => answer,
-                Err(payload) => Err(HostError::new(panic_words(payload))),
+                Err(payload) => Err(HostError::new(wsp_core::panics::words(payload))),
             };
             if started_tx.is_canceled() {
                 if let Err(e) = &answer {

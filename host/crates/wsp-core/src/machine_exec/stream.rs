@@ -625,11 +625,16 @@ async fn hand_over_seed(weak: Weak<RunState>, seed_due: Settle) {
     }
 }
 
-/// Eagerly runs `fut` on this thread; its answer is one shared future every reader awaits.
-pub(super) fn eager<T: Clone + 'static>(fut: LocalBoxFuture<'static, T>) -> SharedFuture<T> {
+/// Eagerly runs `fut` on this thread; its answer is one shared future every reader awaits. A panic in it answers the
+/// failure a throw there is in the TS (a rejected promise), so the stream's `opened` never waits for good on it.
+pub(super) fn eager(fut: LocalBoxFuture<'static, Result<(), ExecFailure>>) -> SharedFuture<Result<(), ExecFailure>> {
     let (tx, rx) = oneshot::channel();
     spawn_local(async move {
-        let _ = tx.send(fut.await);
+        let answer = match std::panic::AssertUnwindSafe(fut).catch_unwind().await {
+            Ok(answer) => answer,
+            Err(payload) => Err(ExecFailure { kind: ExecFailureKind::Other, message: crate::panics::words(payload) }),
+        };
+        let _ = tx.send(answer);
     });
     settled(rx)
 }

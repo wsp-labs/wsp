@@ -559,9 +559,9 @@ impl CreateCtx for FakeCreate {
         !self.undriven.borrow().contains(&view.id)
     }
 
-    fn talks_to_tree_on(&self, id: &str, _origin: Option<&Caller>) -> bool {
+    fn talks_to_tree_on(&self, id: &str, _origin: Option<&Caller>) -> Result<bool, HostError> {
         self.base.call("talks_to_tree_on", json!({ "id": id }));
-        self.tree_ids.borrow().iter().any(|t| t == id)
+        Ok(self.tree_ids.borrow().iter().any(|t| t == id))
     }
 
     fn project_of_scope(&self, _origin: Option<&Caller>) -> Option<String> {

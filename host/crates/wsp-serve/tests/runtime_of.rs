@@ -723,9 +723,9 @@ impl HarnessesCtx for Harnesses {
         }
         Ok(serde_json::from_value(full).expect("preferences parse"))
     }
-    fn talks_to_tree_on(&self, workspace_id: &str, _origin: Option<&Caller>) -> bool {
+    fn talks_to_tree_on(&self, workspace_id: &str, _origin: Option<&Caller>) -> Result<bool, HostError> {
         self.script.record("talksToTreeOn", json!({ "id": workspace_id }));
-        self.talks_to_tree
+        Ok(self.talks_to_tree)
     }
     async fn entry_of(&self, workspace_id: &str, origin: Option<Caller>) -> Result<Option<(String, String)>, HostError> {
         self.script.record("entryOf", json!({ "id": workspace_id, "origin": support::script::caller_json(&origin) }));

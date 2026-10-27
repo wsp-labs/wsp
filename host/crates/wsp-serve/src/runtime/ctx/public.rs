@@ -699,8 +699,8 @@ impl HarnessesCtx for Ctx {
     async fn preferences(&self) -> Result<Preferences, HostError> {
         Ok(self.preferences.get().get().await?)
     }
-    fn talks_to_tree_on(&self, workspace_id: &str, origin: Option<&Caller>) -> bool {
-        self.boot.get().talks_to_tree_on(workspace_id, origin).unwrap_or(false)
+    fn talks_to_tree_on(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<bool, HostError> {
+        self.boot.get().talks_to_tree_on(workspace_id, origin)
     }
     async fn entry_of(&self, workspace_id: &str, origin: Option<Caller>) -> Result<Option<(String, String)>, HostError> {
         let entry = self.boot.get().entry_of(workspace_id, origin.as_ref(), EntryAsk::default()).await?;

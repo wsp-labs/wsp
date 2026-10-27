@@ -117,7 +117,7 @@ pub trait CreateCtx: Base {
     fn listed_for(&self, origin: Option<&Caller>) -> Result<Vec<Entry>, HostError>;
     fn held(&self) -> Vec<Entry>;
     fn drives(&self, view: &WorkspaceView, origin: Option<&Caller>) -> bool;
-    fn talks_to_tree_on(&self, id: &str, origin: Option<&Caller>) -> bool;
+    fn talks_to_tree_on(&self, id: &str, origin: Option<&Caller>) -> Result<bool, HostError>;
     fn project_of_scope(&self, origin: Option<&Caller>) -> Option<String>;
     fn refusal_for(&self, record: Option<&WorkspaceRecord>, origin: Option<&Caller>) -> Result<Option<String>, HostError>;
     fn of_threads_repository(&self, origin: Option<&Caller>, project_id: &str) -> Result<bool, HostError>;
@@ -665,7 +665,14 @@ pub async fn resolve(ctx: &Rc<dyn CreateCtx>, reference: &str, origin: Option<Ca
     let tree: Option<Entry> = if scope.is_none() {
         None
     } else {
-        ctx.held().into_iter().find(|e| id_of(e) == reference && ctx.talks_to_tree_on(reference, origin.as_ref()))
+        let mut found = None;
+        for e in ctx.held() {
+            if id_of(&e) == reference && ctx.talks_to_tree_on(reference, origin.as_ref())? {
+                found = Some(e);
+                break;
+            }
+        }
+        found
     };
     let exact: Option<Entry> = rows
         .iter()
