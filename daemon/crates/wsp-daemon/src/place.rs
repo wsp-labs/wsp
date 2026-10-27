@@ -445,6 +445,8 @@ pub(crate) fn sweep_workspace_profile(profile: &Path, found: &HashSet<PathBuf>, 
 /// and /opt sit under, empty for this computer's own. The bound is the host's own for that script: it hashes every
 /// binary the setup wrote, and one killed part way leaves the rest behind once the list goes with the folder.
 pub(crate) fn sweep_outside_home(root: &str) -> Vec<String> {
+    // The script joins its paths with a slash, and one read through `//` is an entry it skips while it still takes the list.
+    let root = root.trim_end_matches('/');
     outside_marks(&sh_stdout_within(&outside_sweep_script(root), Duration::from_secs(60)))
 }
 
@@ -1273,6 +1275,21 @@ mod tests {
         sweep_tool_prefix(&at.prefix, &at.links, &place_found(at.home.path()).unwrap());
         assert!(at.prefix.join("since/old").exists());
         assert!(!at.prefix.join("keep").exists());
+    }
+
+    #[test]
+    fn a_root_given_with_a_trailing_slash_still_takes_what_the_list_names_and_keeps_the_list_until_it_has() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = std::fs::canonicalize(dir.path()).expect("canonical root");
+        let bin = root.join("usr/local/bin");
+        std::fs::create_dir_all(&bin).expect("bin");
+        std::fs::create_dir_all(root.join("opt/wsp")).expect("prefix");
+        std::fs::write(bin.join("claude"), "claude 2.1.280\n").expect("claude");
+        std::fs::write(root.join("opt/wsp/landed"), format!("{}\t{}\n", sha256_hex(b"claude 2.1.280\n"), bin.join("claude").display()))
+            .expect("ledger");
+        let swept = sweep_outside_home(&format!("{}/", root.display()));
+        assert_eq!(swept, [bin.join("claude").to_string_lossy().into_owned()]);
+        assert!(!bin.join("claude").exists());
     }
 
     #[test]

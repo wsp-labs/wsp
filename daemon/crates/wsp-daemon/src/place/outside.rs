@@ -49,15 +49,46 @@ pub(crate) fn leave_here(
     Ok(swept)
 }
 
-/// The first of the paths a leave was handed that lies outside `install`, the folder /usr/local, /opt and /etc sit under;
-/// empty is this computer's own /, which holds every path. The paths the leave makes from the root are under it by their
-/// making, so only these three, which the caller names, can stray.
-fn outside_the_root<'a>(install: &str, named: &[&'a Path]) -> Option<&'a Path> {
+/// The first path a leave names or builds that lies outside `install`, the folder /usr/local, /opt, /etc, the cgroups and
+/// the runtime's folder sit under; empty is this computer's own /, which holds every path. A path is read as it
+/// resolves, a link on the way followed to what it points at (the nearest folder that exists, for a name that does not),
+/// so a link under the root that points out puts the path it leads to outside it, as does a `..` in any path.
+fn outside_the_root(install: &str, named: &[&Path]) -> Option<PathBuf> {
     if install.is_empty() {
         return None;
     }
-    let root = Path::new(install);
-    named.iter().copied().find(|path| !path.starts_with(root) || path.components().any(|part| part == std::path::Component::ParentDir))
+    let root = resolved(Path::new(install));
+    let built = [numbers::TOOL_PREFIX, numbers::TOOL_LINKS_DIR, "/usr/local", "/opt"]
+        .map(|path| PathBuf::from(format!("{install}{path}")))
+        .into_iter()
+        .chain(
+            [numbers::WORKSPACE_CGROUPS, numbers::THREAD_CGROUPS]
+                .map(|cgroup| PathBuf::from(format!("{install}{}{cgroup}", numbers::CGROUP_MOUNT))),
+        );
+    named
+        .iter()
+        .map(|path| path.to_path_buf())
+        .chain(built)
+        .find(|path| path.components().any(|part| part == std::path::Component::ParentDir) || !resolved(path).starts_with(&root))
+}
+
+/// A path with every link on the way followed: the whole of it where it exists, else the nearest folder that does with
+/// the names after it, which no link can be among.
+fn resolved(path: &Path) -> PathBuf {
+    let mut missing = Vec::new();
+    let mut at = path;
+    loop {
+        if let Ok(real) = std::fs::canonicalize(at) {
+            return missing.iter().rev().fold(real, |whole, name| whole.join(name));
+        }
+        match (at.parent(), at.file_name()) {
+            (Some(parent), Some(name)) => {
+                missing.push(name);
+                at = parent;
+            }
+            _ => return path.to_path_buf(),
+        }
+    }
 }
 
 /// Whether a leave here takes the runtime's folder whole: only root's can, and only with the add's whole record naming
