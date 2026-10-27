@@ -123,3 +123,4 @@ None directly. Rule 2.23's measured fresh start (two records after boot) is the 
 - The open probes `shape` before the WAL switch but a database with other tables and no `shape` fails on `SCHEMA` only
   after the WAL switch rewrote its header, so that file is changed though nothing was written to it.
 - A stalled checkpointer thread (alive, never copying) is never replaced; only the WAL bound saves the file.
+- A row is read back to 506 levels (`row_json.rs`): the 500 of a tree read from outside and the 6 a slate's record adds around a value. `JSON.parse` in `sqlite-store.ts` reads any depth; past 506 the port fails the call with a line. A transcript event is still read with serde_json's 128 levels (`sqlite_transcripts.rs`).
