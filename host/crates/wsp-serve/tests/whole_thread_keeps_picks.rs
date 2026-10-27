@@ -16,7 +16,6 @@ use serde_json::{json, Value};
 use wsp_adapters::port::{AdapterError, HarnessAdapter, HarnessSession, HarnessStartOptions, SharedFuture, TurnResult};
 use wsp_core::types::api::StartOptions;
 use wsp_core::types::harness::HarnessAdapterFactory;
-use wsp_store::store::Store;
 use wsp_wire::types::place_word::HERE_PLACE_ID;
 
 /// What a start was handed of the three picks, and its prompt.

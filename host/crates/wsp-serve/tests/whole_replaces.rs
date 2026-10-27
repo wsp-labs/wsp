@@ -280,7 +280,7 @@ fn is_refused_for_a_thread_that_already_has_a_restart_naming_that_restart_so_the
         assert_matches(&now[&c.a], json!({ "replacedBy": a2 }));
         let restarts: Vec<String> =
             now.values().filter(|t| t["replaces"] == c.a.as_str()).map(|t| t["id"].as_str().unwrap_or_default().to_string()).collect();
-        assert_eq!(restarts, [a2.clone()]);
+        assert_eq!(restarts, std::slice::from_ref(&a2));
         rt.close().await.expect("a close");
     });
 }

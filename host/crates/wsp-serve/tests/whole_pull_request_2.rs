@@ -207,8 +207,7 @@ fn in_a_project_folder_keeps_the_pull_request_with_its_branch_it_settles_only_th
             .workspace
             .id;
         let rows_of = |thread: String| {
-            let (id, store) = (id.clone(), ());
-            let _ = store;
+            let id = id.clone();
             async move {
                 rt.sessions()
                     .list(Some(id), None)

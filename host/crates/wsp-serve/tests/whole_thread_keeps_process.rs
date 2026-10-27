@@ -15,7 +15,7 @@ use wsp_core::clock::FakeClock;
 use wsp_core::machine_exec::ReadingSet;
 use wsp_core::types::api::{DeleteThreadAsk, SettleAsk, StartOptions};
 use wsp_core::types::wiring::AgentsReach;
-use wsp_slates::slates::{SlateTarget, Slates, WriteParams};
+use wsp_slates::slates::{SlateTarget, WriteParams};
 use wsp_wire::types::place_word::HERE_PLACE_ID;
 use wsp_wire::wire::limits::{AGENTS_KEPT, AGENT_KEEP_MS};
 use wsp_words::words::thread::NO_SUCH_TURN;
@@ -603,7 +603,7 @@ fn writes_its_missing_start_row_with_the_message_typed_for_that_turn_not_the_thr
         let starts: Vec<&Value> =
             all.iter().filter(|e| e["type"] == "session.start" && e["threadId"] == thread.as_str()).map(|e| &e["prompt"]).collect();
         assert_eq!(starts, [&json!("the first message"), &json!("the second message later")]);
-        let done = all.iter().filter(|e| e["type"] == "session.done" && e["threadId"] == thread.as_str()).next_back().expect("a done");
+        let done = all.iter().rfind(|e| e["type"] == "session.done" && e["threadId"] == thread.as_str()).expect("a done");
         assert!(done["result"]["text"].as_str().is_some_and(|t| t.contains("the second message later from")), "{done}");
         rt2.fx.rt.close().await.expect("a close");
     });
