@@ -629,3 +629,38 @@ fn a_machine_serves_its_daemon_over_its_own_road_only_once_a_test_says_so() {
         assert_eq!(serde_json::Value::Object(m.daemon_frame(serde_json::Map::new()).await.expect("an answer")), json!({ "ok": true }));
     });
 }
+
+// runtime-reach.test.ts:401 `daemonPort`, and the route a test hands a machine's `previewUrl`.
+#[test]
+fn the_daemon_port_answers_502_then_426_and_a_route_leads_a_machine_to_it() {
+    use common::reach::{daemon_port, route_through, token_written};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    drive(|| async {
+        let up = Rc::new(std::cell::Cell::new(false));
+        let edge = daemon_port({
+            let up = up.clone();
+            move || up.get()
+        })
+        .await;
+        let status = |port: u16| async move {
+            let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.expect("a socket");
+            stream.write_all(b"GET / HTTP/1.1\r\nhost: x\r\n\r\n").await.expect("a request");
+            let mut said = String::new();
+            let _ = stream.read_to_string(&mut said).await;
+            said.split_whitespace().nth(1).unwrap_or_default().to_string()
+        };
+        assert_eq!(status(edge.port).await, "502");
+        up.set(true);
+        assert_eq!(status(edge.port).await, "426");
+        assert_eq!(edge.hits(), 2);
+
+        let backend = StubBackend::new(None);
+        let m = made(&backend).await;
+        route_through(&m, edge.port, None);
+        let reach = m.preview_url(7070).await.expect("a route");
+        assert_eq!(reach.url, format!("http://127.0.0.1:{}/?port=7070", edge.port));
+        assert_eq!(reach.token, "e");
+        assert_eq!(token_written("a\nWSP_DAEMON_TOKEN='abc'\nb").as_deref(), Some("abc"));
+        assert_eq!(token_written("WSP_DAEMON_TOKEN='a'b'"), None);
+    });
+}
