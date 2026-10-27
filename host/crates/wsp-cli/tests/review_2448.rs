@@ -4,10 +4,11 @@ use wsp_cli::json_whole::{parse_document, parse_frame, parse_value, stringify};
 
 // json_whole.rs:34-45: past the port's cap a reply falls back to the 128-level lax reader and is answered as a tree with
 // every container below level 128 emptied. Ruling 2 asks that one read to fail; node reads it whole. The cap is 500 levels
-// (ruling 1 of the round 2 brief), so the reply is 501: a frame object over 500 levels of lists.
+// (ruling 1 of the round 2 brief) and a reply may add the 6 levels of its frame around a value at the cap, so the reply is
+// 507: a frame object over 506 levels of lists.
 #[test]
-fn a_reply_501_levels_deep_is_not_read_as_a_shallower_tree() {
-    let text = format!(r#"{{"id":1,"values":{}1{}}}"#, "[".repeat(500), "]".repeat(500));
+fn a_reply_507_levels_deep_is_not_read_as_a_shallower_tree() {
+    let text = format!(r#"{{"id":1,"values":{}1{}}}"#, "[".repeat(506), "]".repeat(506));
     let whole = std::thread::Builder::new()
         .stack_size(1 << 20)
         .spawn(move || parse_frame(&text).map(|v| stringify(&v) == text))

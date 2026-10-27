@@ -4,7 +4,7 @@
 //! catalog's `JSON.parse` port, whole down to 500 levels and with a number past the double range as null. A text the
 //! port refuses for its depth is not read at all, never as a shallower tree.
 use serde_json::Value;
-use wsp_catalog::json_parse::parse_json as parse_whole;
+use wsp_catalog::json_parse::{parse_json as parse_whole, parse_json_framed};
 use wsp_wire::types::js_number::JsNumber;
 use wsp_words::v8_json::{parse_json, parse_json_lax, KEPT_DEPTH};
 
@@ -36,12 +36,13 @@ fn whole(text: &str, kept: Value) -> Result<Value, String> {
     }
 }
 
-/// A frame the host sent, read as `JSON.parse` reads it; none where it is not JSON or nests past the port's cap.
+/// A frame the host sent, read as `JSON.parse` reads it; none where it is not JSON or nests past the port's cap and the
+/// levels a frame wraps a value in (a slate value of 500 levels arrives in a reply 502 deep).
 pub fn parse_frame(text: &str) -> Option<Value> {
     if let Ok(read) = serde_json::from_str(text) {
         return Some(read);
     }
-    match parse_whole(text) {
+    match parse_json_framed(text) {
         Ok(read) => Some(read),
         Err(refused) if refused.message == TOO_DEEP => None,
         Err(_) => parse_json_lax(text),
