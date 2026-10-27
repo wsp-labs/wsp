@@ -656,3 +656,13 @@ fn a_host_on_this_computer_runs_a_quick_turn_in_the_project_folder_and_makes_no_
         fx.rt.close().await.expect("a close");
     });
 }
+
+// stub-script.ts `writeStub`: a script the shell can run, made executable.
+#[test]
+fn write_stub_makes_a_script_the_shell_can_run() {
+    let dir = tempfile::tempdir().expect("a folder");
+    let path = dir.path().join("codex");
+    common::local::write_stub(&path, "#!/bin/sh\necho stubbed\n");
+    let out = std::process::Command::new(&path).output().expect("the stub runs");
+    assert_eq!(String::from_utf8_lossy(&out.stdout), "stubbed\n");
+}
