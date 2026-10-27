@@ -8,7 +8,7 @@ use std::os::unix::process::ExitStatusExt;
 use indexmap::IndexMap;
 use serde_json::{json, Value};
 use support::{as_thread, temp_root, FakeHost, MemStore, THREAD};
-use wsp_slates::slates::{ReadParams, SlateTarget, Slates, StateParams, WriteParams};
+use wsp_slates::slates::{ReadParams, SlateTarget, StateParams, WriteParams};
 use wsp_wire::views::workspace::Caller;
 
 const CHILD: &str = "ROUND2_2448_CHILD";
