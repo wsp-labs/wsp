@@ -166,7 +166,8 @@ function mintPlan(name: string, row: TokenSignIn, keep: (name: string, value: st
     name,
     line: { command: row.mint, env: { BROWSER: process.env["BROWSER"] || openerCommand() } },
     questions: [],
-    paste: () => false,
+    // Where no browser of the person's can call back here, the tool's page hands a code back and the tool waits for it.
+    paste: url => URL.canParse(url) && new URL(url).searchParams.get("code") === "true",
     refusal: () => mintFailedLine(row.mint),
     took: said => {
       const token = [...withoutEscapes(said).matchAll(new RegExp(row.token.source, "g"))].flatMap(m => tokenIn(row, m[0]) ?? []).at(-1);

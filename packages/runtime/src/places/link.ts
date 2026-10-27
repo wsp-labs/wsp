@@ -33,7 +33,7 @@ import { LinkBackend, PlaceAbsentError, PlaceFolderMachine, PlaceMachine, keyFin
 import { connectDaemon } from "../reach.js";
 import { verifyPlaceBytes } from "@wsp/keys";
 import { CAPS, DEFAULT_COLLECTION, DEFAULT_ID, type PlaceRecord, type PlaceDoor, PlaceForksNowhereError, PlaceProvisioningError } from "./types.js";
-import { vaultSignIn, vaultHeldLine, pickedVault, landedOn, type LandedRow, bounded, readsAsEd25519, JOIN_PROVE_MS, PLACE_BAD_KEY_REFUSAL, takenReport, REPLACED, BACKEND_FACTS_MS, LOGINS_READ_MS, relistedLogins, sharedLoginsScript } from "./helpers.js";
+import { vaultSignIn, vaultHeldLine, vaultWayOf, pickedVault, landedOn, pressedBy, setupOutcome, type LandedRow, bounded, readsAsEd25519, JOIN_PROVE_MS, PLACE_BAD_KEY_REFUSAL, takenReport, REPLACED, BACKEND_FACTS_MS, LOGINS_READ_MS, relistedLogins, sharedLoginsScript } from "./helpers.js";
 import { panePorts } from "./pane-ports.js";
 import { placeReadings } from "./readings.js";
 import type { PlaceDoorContext } from "./context.js";
@@ -50,7 +50,7 @@ export function linkDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, se
     records, wiredProvider, providerIds, providerBackend, recordOf, settingsOf, settingsHeld, awaiting, holdBack,
     defaultId, inTurn, markDefault, markHeld, challenge, signedRefusal, writeSeen, change, withCap, rowIds, loginListed,
   } = recordArea;
-  const { channels, waiting, closedAt, woken, setting, settingNow, foldersOf, syncSoon, startedOrSaid, linkTo, landers, here } = setupArea;
+  const { channels, waiting, closedAt, woken, setting, settingNow, foldersOf, syncSoon, startedOrSaid, linkTo, landers, here, setupFrame } = setupArea;
   const folderMachines = new Map<string, { key: string; machine: PlaceFolderMachine }>();
   const { pendingRecords, putPending, flooring, floorOnce, takenBack, backendFrom, tunnelled, cut, joining, joined, forget, joinedRow } = viewArea;
   let tunnelSeq = 0;
@@ -68,11 +68,15 @@ export function linkDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, se
           : undefined
         : await change(placeId, now => {
             if (now.applied === undefined) return undefined;
-            const rows = landedOn(now.applied.rows, row);
+            const wait = pressedBy(now.setup?.waiting, row);
+            const rows = landedOn(now.applied.rows, wait === undefined ? row : { ...row, label: wait.label, step: "signins" });
             if (rows === undefined) return undefined;
             landed = true;
-            return { ...now, applied: { ...now.applied, rows } };
+            return { ...now, applied: { ...now.applied, rows }, ...(wait !== undefined && now.setup !== undefined ? { setup: { ...now.setup, waiting: now.setup.waiting.filter(w => w !== wait) } } : {}) };
           });
+    const left = moved?.setup;
+    // The last wait on the person gone after the steps ended is the setup coming out again, said as the run would.
+    if (run === undefined && landed && left !== undefined && left.state !== "running" && left.waiting.length === 0) setupFrame({ addId: left.addId, placeId, landed: row.id, ...setupOutcome(left, moved?.applied) });
     if (moved !== undefined && landed) emit({ type: "place.changed", place: await withCap(joinedRow(moved, (await markHeld()) ?? HERE_PLACE_ID), await rowIds()) });
   };
 
@@ -367,7 +371,12 @@ export function linkDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, se
 
     async keyLanded(agent) {
       if (vaultSignIn(agent, opts.vault?.() ?? {}) !== "vault-key") return;
-      for (const record of await records()) await landSignIn(record.id, { id: signInRowId(agent), outcome: "present", note: vaultHeldLine(agent, opts.vault?.() ?? {}, record.picks?.agents[agent]?.signin, here()) });
+      for (const record of await records()) {
+        const vault = opts.vault?.() ?? {};
+        const picked = record.picks?.agents[agent]?.signin;
+        const way = vaultWayOf(agent, vault, picked);
+        await landSignIn(record.id, { id: signInRowId(agent), outcome: "present", note: vaultHeldLine(agent, vault, picked, here()), ...(way !== undefined ? { way } : {}) });
+      }
     },
 
     async ghThere(placeId, stage) {

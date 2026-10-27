@@ -52,7 +52,12 @@ export const syncLine = (sync: PlaceSync): string =>
   `${sync.state === "running" ? "putting on" : "waiting to put on"} the recipe's ${plural(sync.changes.length, "change")}: ${nameList(sync.changes)}`;
 
 /** What a sign-in waiting on the person says, and the same once its page ran out. */
-export const waitLine = (w: PlaceWait): string => (w.state === "expired" ? `${w.label}'s sign-in ran out; a retry asks for a fresh code` : `${w.label} waits on you to sign in${w.url === undefined ? "" : ` at ${w.url}`}${w.code === undefined ? "" : ` with code ${w.code}`}`);
+export const waitLine = (w: PlaceWait): string => {
+  if (w.state === "expired") return `${w.label}'s sign-in ran out; a retry asks for a fresh code`;
+  // Its reason is the wait's own `note`, which a row draws; a terminal has no row to point at.
+  if (w.press === true) return `${w.label} waits on you to sign in`;
+  return `${w.label} waits on you to sign in${w.url === undefined ? "" : ` at ${w.url}`}${w.code === undefined ? "" : ` with code ${w.code}`}`;
+};
 
 /** One computer's word for its setup, the one rule the STATE column and the app's rows read: Setup failed, then
  * Needs you (a sign-in waits on the person, or a folder or the GitHub sign-in failed), then Pending (it joined and
@@ -130,7 +135,7 @@ export function setupLines(name: string, setup: PlaceSetup, applied: PlaceApplie
     `${name}: ${tally.join(", ")}`,
     ...of("failed").flatMap(r => [`  x ${r.label}: ${r.note ?? "no reason recorded"}`, ...toDo(r)]),
     ...of("skipped").flatMap(r => [`  - ${r.label}: ${r.note ?? "set aside"}`, ...toDo(r)]),
-    ...setup.waiting.map(w => `  ? ${waitLine(w)}`),
+    ...setup.waiting.flatMap(w => [`  ? ${waitLine(w)}`, ...(w.press === true ? toDo({ id: w.row, label: w.label, outcome: "skipped", ...(w.note !== undefined ? { note: w.note } : {}), ...(w.fix !== undefined ? { fix: w.fix } : {}) }) : [])]),
     ...(setup.said === undefined ? [] : [`${name}: ${setup.said}`]),
   ];
 }

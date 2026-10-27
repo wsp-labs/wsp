@@ -240,6 +240,9 @@ export const PlaceProvisionRow = z.object({
   /** On a server set aside for want of a yes to copying its keys: what they go by, names only. */
   keys: z.array(z.string().min(1)).optional(),
   ms: z.number().int().nonnegative().optional(),
+  /** On a sign-in the host's vault signs in: which secret of the agent's it is, the token made on this host or the API
+   * key, so a screen never reads it off the note's words. */
+  way: z.enum(["token", "key"]).optional(),
   /** On an installed row: an earlier setup put it on, and the run that wrote the row found it there. */
   earlier: z.boolean().optional(),
   /** On a folder's row: the project wsp's add made there, by id, which is how a later setup and a remove tell it from
@@ -324,13 +327,21 @@ export const PlaceSetupLine = z.object({
 export type PlaceSetupLine = z.infer<typeof PlaceSetupLine>;
 
 /** A sign-in waiting on the person: the page to open and the code to type there, and when the wait runs out. An
- * expired one is run again by a retry for a fresh page and code, never waited on. */
+ * expired one is run again by a retry for a fresh page and code, never waited on. `press` is a wait with nothing
+ * running behind it: the sign-in starts from the row's own Sign in, `note` says why and `fix` names every way. A running one whose page hands
+ * a code back carries `paste` and its `signInId`, which `agents.signInCode` types the code into once the window follows
+ * that run with `agents.signIns`. */
 export const PlaceWait = z.object({
   row: SETUP_TEXT,
   label: SETUP_TEXT,
   url: SETUP_NOTE,
   code: SETUP_NOTE,
-  expiresAt: SETUP_TEXT,
+  expiresAt: SETUP_NOTE,
+  press: z.literal(true).optional(),
+  note: SETUP_NOTE,
+  fix: SETUP_NOTE,
+  paste: z.literal(true).optional(),
+  signInId: SETUP_NOTE,
   state: z.enum(["waiting", "expired"]),
 });
 export type PlaceWait = z.infer<typeof PlaceWait>;

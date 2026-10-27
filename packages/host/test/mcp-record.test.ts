@@ -564,11 +564,15 @@ const WAIT = { row: "signins/codex", label: "Codex \u0085 \"cli\"", url: "https:
 const SETTING_UP = { ...PLACE, setup: { state: "running", addId: "a_1", startedAt: "2026-10-03T10:00:00.000Z", steps: [{ step: "floor", state: "done", ms: 41_000 }, { step: "signins", state: "running", note: "Codex \u0085 waits" }], waiting: [WAIT] } };
 const SET_UP = { ...PLACE, setup: { ...SETTING_UP.setup, state: "done", finishedAt: "2026-10-03T10:05:00.000Z", steps: [{ step: "floor", state: "done", ms: 41_000 }, { step: "folders", state: "failed", note: "api did not clone" }], waiting: [] }, applied: { hash: "h1", at: "2026-10-03T10:05:00.000Z", rows: [{ id: "tools/brew/gh", label: "GitHub CLI", outcome: "installed", step: "clis", ms: 1_500 }] } };
 
+const PRESS = { row: "signins/claude", label: "Claude Code", state: "waiting", press: true, note: "its page hands back a code, so it signs in from this row", fix: "Sign in on attic: Claude Code's own sign-in runs there." };
+const PRESSED = { ...SET_UP, setup: { ...SET_UP.setup, waiting: [PRESS] } };
+
 /** The add tool reads the row its add or its resume made, and refuses a word that is no computer before asking. */
 const ADD: Answered = {
   add: [
     { case: "a sign-in waits on the person", arguments: { address: "root@203.0.113.7", recipe: "laptop-one", name: "attic", ssh_port: 2222, ssh_key: "/home/dev/.ssh/id", host_key: "ssh-ed25519 AAAA" }, replies: { "places.add": reply({ addId: "a_1", place: SETTING_UP }), "places.list": reply({ places: [SETTING_UP, CLOUD] }) } },
     { case: "resumed past a wait to its end", arguments: { address: "attic", resume: true, later: true }, replies: { "places.setup": reply({ place: SETTING_UP }), "places.list": reply({ places: [CLOUD, SET_UP] }) } },
+    { case: "a sign-in that starts from its row, left standing", arguments: { address: "attic", resume: true }, replies: { "places.setup": reply({ place: SETTING_UP }), "places.list": reply({ places: [PRESSED] }) } },
     { case: "joined, waiting on its picks", arguments: { address: "attic" }, replies: { "places.add": reply({ addId: "a_1", place: PLACE, pending: PENDING }), "places.list": reply({ places: [PLACE] }) } },
     { case: "a project's folder", arguments: { address: "/Users/dev/app" }, replies: {} },
     { case: "a provider", arguments: { address: "solari" }, replies: {} },

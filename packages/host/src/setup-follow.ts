@@ -67,8 +67,9 @@ export function watchSetup(client: HostClient, addId: string, say: { line(l: Add
   return watch;
 }
 
-/** The waits still on the person: a wait whose row landed is gone from the computer's own row, which is read. */
-export const openWaits = (waiting: readonly PlaceWait[]): PlaceWait[] => waiting.filter(w => w.state === "waiting");
+/** The waits still on the person with a sign-in running behind them: a wait whose row landed is gone from the
+ * computer's own row, which is read. One that starts from its row's own Sign in has nothing running for a line to wait on. */
+export const openWaits = (waiting: readonly PlaceWait[]): PlaceWait[] => waiting.filter(w => w.state === "waiting" && w.press !== true);
 
 /** The refusal the tool gives a word that is not a computer's: a project and a provider's key are added elsewhere. */
 export const addToolRefusal = (word: string): string => `add takes a computer over ssh, by user@host or by an alias from the ssh config, and ${word} is not one`;

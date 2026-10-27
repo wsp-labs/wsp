@@ -478,6 +478,9 @@ describe("the setup on a computer you own", () => {
     // Each row of the table holds everything below it too, so only precedence decides.
     expect(placeWord({ ...base, setup: { ...failed, waiting: [wait] } }, away)).toEqual({ word: "Setup failed", sentence: "the base tools did not install: curl" });
     expect(placeWord({ ...base, setup: { ...running, waiting: [wait] } }, away)).toEqual({ word: "Needs you", sentence: "Codex waits on you to sign in at https://auth.openai.com/codex/device with code ABCD-EFGH" });
+    // A wait that starts from its row says nothing of a row: a terminal reads the same sentence.
+    const press = { row: "signins/claude", label: "Claude Code", state: "waiting" as const, press: true as const, note: "its page hands back a code, so it signs in from this row" };
+    expect(placeWord({ ...base, setup: { ...running, waiting: [press] } }, away)).toEqual({ word: "Needs you", sentence: "Claude Code waits on you to sign in" });
     expect(placeWord({ ...base, setup: done, applied: applied([row({ id: "folders/wsp", label: "wsp", step: "folders", outcome: "failed", note: "the clone exited 128" })]) }, away)).toEqual({ word: "Needs you", sentence: "wsp: the clone exited 128" });
     expect(placeWord({ ...base, setup: running }, away)).toEqual({ word: away.away, sentence: away.sentence });
     expect(placeWord({ ...base, setup: running }, null)).toEqual({ word: "Setting up", sentence: "setting up the agents" });
