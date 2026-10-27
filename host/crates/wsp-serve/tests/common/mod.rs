@@ -19,6 +19,7 @@ pub mod projects;
 pub mod store_wrap;
 pub mod stub_backend;
 pub mod vault;
+pub mod watched;
 pub mod ws_daemon;
 
 use std::future::Future;
@@ -41,6 +42,7 @@ pub use events::{json, Events};
 pub use lagging::Lagging;
 pub use live::{Live, LiveOptions, LiveSteer};
 pub use recdaemon::RecDaemon;
+pub use watched::Watched;
 pub use ports::{dropping_port, Edge, HeldPort};
 pub use projects::{create_on, owned_store, project_on, project_with, temp_repo, CreateOn};
 pub use store_wrap::{CountingStore, WrappedStore};

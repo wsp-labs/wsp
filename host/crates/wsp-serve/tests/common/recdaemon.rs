@@ -12,6 +12,7 @@ use futures::future::LocalBoxFuture;
 use futures::FutureExt as _;
 use serde_json::{json, Value};
 use wsp_core::daemon_channel::{ChannelEnd, ChannelError, DaemonChannel, DaemonChannelOptions, Frame};
+use wsp_words::exit::HostError;
 
 pub use super::daemon::Open;
 
@@ -20,6 +21,12 @@ pub type Answer = Rc<dyn Fn(&Frame) -> LocalBoxFuture<'static, Value>>;
 
 /// What runs before a frame is answered, given the frame and the token of the dial it came down.
 pub type BeforeSend = Rc<dyn Fn(&Frame, &str) -> LocalBoxFuture<'static, ()>>;
+
+/// A send that never reaches the daemon.
+pub type Failing = Rc<dyn Fn() -> Option<ChannelError>>;
+
+/// A dial the door refuses, as the HostError the dial's caller reads (`DaemonDoorError`: kind refused, with its status).
+pub type Refusing = Rc<dyn Fn() -> Option<HostError>>;
 
 pub struct RecDaemon {
     pub frames: Rc<RefCell<Vec<Frame>>>,
@@ -32,6 +39,8 @@ pub struct RecDaemon {
     answers: Rc<RefCell<HashMap<String, Answer>>>,
     default: Rc<dyn Fn(&Frame) -> Value>,
     before: RefCell<Option<BeforeSend>>,
+    refuse_dial: RefCell<Option<Refusing>>,
+    fail_send: RefCell<Option<Failing>>,
     listeners: Rc<RefCell<Vec<(u64, Rc<dyn Fn(Value)>)>>>,
     next: Cell<u64>,
 }
@@ -48,6 +57,8 @@ impl RecDaemon {
             answers: Rc::default(),
             default: Rc::new(default),
             before: RefCell::new(None),
+            refuse_dial: RefCell::new(None),
+            fail_send: RefCell::new(None),
             listeners: Rc::default(),
             next: Cell::new(0),
         })
@@ -71,6 +82,16 @@ impl RecDaemon {
         *self.before.borrow_mut() = Some(Rc::new(f));
     }
 
+    /// Each dial is refused with the error `f` answers, while it answers one.
+    pub fn refusing_dials(&self, f: impl Fn() -> Option<HostError> + 'static) {
+        *self.refuse_dial.borrow_mut() = Some(Rc::new(f));
+    }
+
+    /// Each send fails with the error `f` answers, before the frame is kept, while it answers one.
+    pub fn failing_sends(&self, f: impl Fn() -> Option<ChannelError> + 'static) {
+        *self.fail_send.borrow_mut() = Some(Rc::new(f));
+    }
+
     /// Pushes an event to every channel still open, as the daemon pushes a pty's exit.
     pub fn push(&self, event: Value) {
         let heard: Vec<Rc<dyn Fn(Value)>> = self.listeners.borrow().iter().map(|(_, f)| f.clone()).collect();
@@ -89,6 +110,10 @@ impl RecDaemon {
         Rc::new(move |dial: DaemonChannelOptions| {
             let daemon = daemon.clone();
             async move {
+                let refused = daemon.refuse_dial.borrow().clone().and_then(|f| f());
+                if let Some(refused) = refused {
+                    return Err(refused);
+                }
                 daemon.dials.borrow_mut().push((dial.url.clone(), dial.token.clone()));
                 let id = daemon.next.get() + 1;
                 daemon.next.set(id);
@@ -118,6 +143,10 @@ struct RecChannel {
 impl DaemonChannel for RecChannel {
     async fn send(&self, frame: Frame) -> Result<Frame, ChannelError> {
         let d = &self.daemon;
+        let failed = d.fail_send.borrow().clone().and_then(|f| f());
+        if let Some(failed) = failed {
+            return Err(failed);
+        }
         d.frames.borrow_mut().push(frame.clone());
         d.tokens.borrow_mut().push(self.token.clone());
         let before = d.before.borrow().clone();
