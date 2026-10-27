@@ -75,7 +75,7 @@ The schema takes `after` as a non-negative integer and `stream` as any string (`
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"events.subscribe","after":0}}
 {"out":{"id":2,"ok":true,"seq":0,"stream":"48b5cb17-faf7-49a5-9eaf-5b1b83fd4a17"}}
 {"in":{"id":3,"op":"events.subscribe","after":1}}
@@ -88,7 +88,7 @@ With one event in the ring, `after` equal to the head replays nothing and is no 
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"preferences.set","patch":{"theme":"dark"}}}
 {"out":{"id":2,"ok":true,"preferences":{"theme":"dark","lightTheme":"paper","darkTheme":"graphite","sidebarMode":"list","terminalSize":"app","terminalZoom":{},"access":{},"projectLook":{},"projectIcon":{},"computerLook":{},"serverIcons":true,"agentVersions":true,"usageLogs":true,"productUsage":true,"keepAwake":true,"transparency":true,"projectOrder":[],"keybindings":{},"appFont":"","codeFont":"","agentDefaults":{},"projectDefaults":{},"sendWith":"enter","midTurn":"queue","notifyNeeds":"notify-sound","notifyDone":"notify","planAlerts":true,"settleAfter":"2h","askDelete":true,"onQuit":"ask","newThreadIn":"current","labs":false}}}
 {"in":{"id":3,"op":"events.subscribe","after":1}}
@@ -103,7 +103,7 @@ With no `after`, a foreign `stream` is not read and the answer is no gap:
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"preferences.set","patch":{"theme":"dark"}}}
 {"out":{"id":2,"ok":true,"preferences":{"theme":"dark","lightTheme":"paper","darkTheme":"graphite","sidebarMode":"list","terminalSize":"app","terminalZoom":{},"access":{},"projectLook":{},"projectIcon":{},"computerLook":{},"serverIcons":true,"agentVersions":true,"usageLogs":true,"productUsage":true,"keepAwake":true,"transparency":true,"projectOrder":[],"keybindings":{},"appFont":"","codeFont":"","agentDefaults":{},"projectDefaults":{},"sendWith":"enter","midTurn":"queue","notifyNeeds":"notify-sound","notifyDone":"notify","planAlerts":true,"settleAfter":"2h","askDelete":true,"onQuit":"ask","newThreadIn":"current","labs":false}}}
 {"in":{"id":3,"op":"events.subscribe","stream":"00000000-0000-0000-0000-000000000000"}}

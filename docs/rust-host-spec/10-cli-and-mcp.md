@@ -42,7 +42,7 @@ Other command lines live in `COMMANDS` (CMD:115-423): `up, down, status, host pa
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"workspaces.list"}}
 {"out":{"id":2,"ok":true,"workspaces":[]}}
 {"in":{"id":3,"op":"sessions.list"}}
@@ -53,7 +53,7 @@ and the first request of `wsp usage --json`, whose second goes out before this o
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"fresh":true,"id":2,"op":"usage.accounts"}}
 {"out":{"id":2,"ok":true,"accounts":[]}}
 ```

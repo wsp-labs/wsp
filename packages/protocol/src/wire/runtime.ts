@@ -13,6 +13,7 @@ import { MergeMethod, PullRequestItem, PR_REPLY_BODY_MAX, ReactionContent } from
 import { WorkspaceLook } from "../workspace-look.js";
 import { PROJECT_ICON_MAX_BYTES, ProjectIconHash } from "../project-look.js";
 import { reqId } from "./helpers.js";
+import { ProtocolRange } from "./protocol-number.js";
 import { RelayPort } from "./limits.js";
 import { type EventAsker, SeedChoice, WorkspaceAgents, WorkspaceOrigin } from "../views/workspace.js";
 import { ForkSource, SessionOrigin, SessionView, ThreadMarks } from "../views/session.js";
@@ -50,7 +51,8 @@ function slateOps() {
 }
 
 const RuntimeOp = z.discriminatedUnion("op", [
-  z.object({ id: reqId, op: z.literal("auth"), token: z.string() }),
+  /** `protocol` is the range of protocol numbers the client speaks; a host whose number is outside it refuses the auth. */
+  z.object({ id: reqId, op: z.literal("auth"), token: z.string(), protocol: ProtocolRange.optional() }),
   z.object({ id: reqId, op: z.literal("ticket.issue"), purpose: TicketPurpose }),
   /** Mints a one time code another computer redeems for a device token of its own. Answers `{ code, expiresAt }`.
    * Only on a socket holding the host's own token, and never on one let in by a ticket. `here` marks the code wsp

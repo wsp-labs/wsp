@@ -4,7 +4,8 @@
       "id": 1,
       "ok": true,
       "version": "<version>",
-      "road": "up"
+      "road": "up",
+      "protocol": 1
     },
     {
       "id": "abc",
