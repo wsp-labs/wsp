@@ -20,7 +20,9 @@ use wsp_core::types::api::{DaemonEventListener, SessionsApi as _, StartOptions, 
 use wsp_core::types::events::EventBus as _;
 use wsp_core::types::internal::{ThreadRecord, PREFERENCES, PREFERENCES_ID};
 use wsp_core::types::wiring::{at_provider, Detach, WorkspaceRecord};
-use wsp_machines::agents_read::{AgentsPlaces, AgentsReadOptions, AgentsReads, AgentsWorkspace, ResolvedServer};
+use wsp_machines::agents_read::{
+    AgentsPlaces, AgentsPorts, AgentsReadOptions, AgentsReads, AgentsWorkspace, ResolvedServer, ServerIcons as MachineIcons,
+};
 use wsp_machines::machines::machines::Entry;
 use wsp_slates::account::slates::{ReadServer, ServerReadError};
 use wsp_slates::slate_images::ImageRefusal;
@@ -192,10 +194,18 @@ impl Ctx {
         entry.borrow().record.borrow().clone()
     }
 
-    /// `agentsReads({ reader, places, workspace, .. })` over the context (preferences.ts:99-151). The reader, the acts
-    /// and the icons are the host's ports: wsp-core's markers for them are empty traits no host can hand a method
-    /// through, so none is wired and a read answers the TS's refusal for a missing reader.
+    /// The host's agents ports (`opts.agentsReader` and its five siblings), read back from the one holder the options
+    /// carry as `place_door_over` reads the place wiring. None where the host wired none, so every read answers the TS's
+    /// refusal for a missing reader.
+    pub(crate) fn agents_ports(&self) -> Option<Rc<AgentsPorts>> {
+        let held = self.opts.agents_ports.clone()?;
+        let any: Rc<dyn std::any::Any> = held;
+        Some(any.downcast::<AgentsPorts>().unwrap_or_else(|_| panic!("opts.agents_ports is not the machines' AgentsPorts")))
+    }
+
+    /// `agentsReads({ reader, places, workspace, .. })` over the context (preferences.ts:99-151).
     pub(super) fn build_agents_read(&self) -> Rc<AgentsReads> {
+        let ports = self.agents_ports().unwrap_or_default();
         let area = self.preferences.get();
         let agents = self.agents.get();
         let me = self.me.clone();
@@ -319,18 +329,19 @@ impl Ctx {
                 .boxed_local()
             })
         };
+        let icons = ports.icons.clone().map(|icons| Rc::new(IconsWhenOn { icons, area: area.clone() }) as Rc<dyn MachineIcons>);
         AgentsReads::new(AgentsReadOptions {
-            reader: None,
+            reader: ports.reader.clone(),
             places,
             workspace,
             place_stores: Some(place_stores),
             stores_here: Some(stores_here),
             projects: Some(projects),
-            acts: None,
-            skills: None,
-            servers: None,
-            plugins: None,
-            icons: None,
+            acts: ports.acts.clone(),
+            skills: ports.skills.clone(),
+            servers: ports.servers.clone(),
+            plugins: ports.plugins.clone(),
+            icons,
             latest_on: Some(latest_on),
             channel,
             changed,
@@ -353,9 +364,9 @@ impl PreferencesCtx for Ctx {
             None => std::env::vars().collect(),
         }
     }
-    /// The icon store is the host's port, which wsp-core's empty marker cannot hand over: none is held.
     fn server_icons(&self) -> Option<Rc<dyn AccountServerIcons>> {
-        None
+        let icons = self.agents_ports()?.icons.clone()?;
+        Some(Rc::new(HeldIcons(icons)))
     }
     fn home_dir(&self) -> String {
         preferences_home()
@@ -504,8 +515,41 @@ impl PreferencesCtx for Ctx {
     }
 }
 
-/// The icon store is the host's port, which the context cannot hold, so the trait answers plain where the TS has none:
-/// `server_icons` is never `Some`.
+/// The icon store of the host's ports as the preferences area reads it: its folder, and its forget failing in node's words.
+struct HeldIcons(Rc<dyn MachineIcons>);
+
+impl AccountServerIcons for HeldIcons {
+    fn folder(&self) -> String {
+        self.0.folder()
+    }
+    fn forget(&self) -> Result<(), String> {
+        self.0.forget()
+    }
+}
+
+/// preferences.ts:132: an icon is asked of no one while the person's switch for icons is off.
+struct IconsWhenOn {
+    icons: Rc<dyn MachineIcons>,
+    area: Rc<wsp_account::account::preferences::PreferencesArea>,
+}
+
+#[async_trait::async_trait(?Send)]
+impl MachineIcons for IconsWhenOn {
+    fn folder(&self) -> String {
+        self.icons.folder()
+    }
+    async fn icon(&self, host: &str, refresh: Option<bool>) -> Result<Option<String>, HostError> {
+        if !self.area.get().await?.server_icons {
+            return Ok(None);
+        }
+        self.icons.icon(host, refresh).await
+    }
+    fn forget(&self) -> Result<(), String> {
+        self.icons.forget()
+    }
+}
+
+/// With no icon store wired the trait answers plain where the TS has none: `server_icons` is then `None`.
 impl AccountServerIcons for Ctx {
     fn folder(&self) -> String {
         String::new()
@@ -815,14 +859,29 @@ impl wsp_slates::account::slates::SlatesAreaCtx for Ctx {
         }
         .boxed_local()
     }
-    /// The reader is the host's port, which the context cannot hold: this host reads no agent's MCP config.
+    /// `opts.agentsReader.server`: none where the reader is not wired or resolves no server.
     fn agents_reader_server(
         &self,
-        _projects: Vec<AgentsProject>,
-        _agent: &str,
-        _name: &str,
+        projects: Vec<AgentsProject>,
+        agent: &str,
+        name: &str,
     ) -> Option<LocalBoxFuture<'static, Result<wsp_slates::slate_mcp::McpServerSpec, HostError>>> {
-        None
+        let reader = self.agents_ports()?.reader.clone()?;
+        if !reader.has_server() {
+            return None;
+        }
+        let on = wsp_machines::agents_read::AgentsOn::Here { projects: Some(projects), stores: None };
+        let (agent, name) = (agent.to_string(), name.to_string());
+        Some(
+            async move {
+                let ResolvedServer { spec, .. } = reader.server(&on, &agent, &name).await?;
+                match spec.downcast::<wsp_slates::slate_mcp::McpServerSpec>() {
+                    Ok(spec) => Ok((*spec).clone()),
+                    Err(_) => Err(HostError::new("this host's agents reader answered a server that is no slate's server")),
+                }
+            }
+            .boxed_local(),
+        )
     }
     fn stdio_road(&self, entry: &Entry, min_version: Option<i64>) -> LocalBoxFuture<'static, Result<Rc<dyn StdioRoad>, String>> {
         let channels = self.channels.get();

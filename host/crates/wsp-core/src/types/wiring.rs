@@ -58,9 +58,8 @@ use wsp_words::words::base::plural;
 
 use super::harness::HarnessAdapterFactory;
 use super::pending::{
-    AgentsActs, AgentsReader, BuildGoldenOptions, CacheRule, Clock, Copier, DaemonChannel, DaemonChannelOptions, GitHubCache, GoldenImport,
-    KillConfirm, MachineExecOptions, PlaceWiring, PluginsActs, ServerIcons, ServersActs, Sighting, SkillsActs, StatusApi,
-    StatusListOptions, StatusWatchOptions, Store, TurnWaiting,
+    AgentsPorts, BuildGoldenOptions, CacheRule, Clock, Copier, DaemonChannel, DaemonChannelOptions, GitHubCache, GoldenImport, KillConfirm,
+    MachineExecOptions, PlaceWiring, Sighting, StatusApi, StatusListOptions, StatusWatchOptions, Store, TurnWaiting,
 };
 use crate::console;
 use crate::status::CostPoint;
@@ -885,12 +884,7 @@ pub struct RuntimeOptions {
     pub daemon_channel: Option<Rc<dyn Fn(DaemonChannelOptions) -> Local<'static, Rc<dyn DaemonChannel>>>>,
     pub turn_snapshot_ms: Option<u64>,
     pub daemon_hello_timeout_ms: Option<u64>,
-    pub agents_reader: Option<Rc<dyn AgentsReader>>,
-    pub agents_acts: Option<Rc<dyn AgentsActs>>,
-    pub skills_acts: Option<Rc<dyn SkillsActs>>,
-    pub servers_acts: Option<Rc<dyn ServersActs>>,
-    pub plugins_acts: Option<Rc<dyn PluginsActs>>,
-    pub server_icons: Option<Rc<dyn ServerIcons>>,
+    pub agents_ports: Option<Rc<dyn AgentsPorts>>,
     pub env: Option<IndexMap<String, Option<String>>>,
     pub no_machines_line: Option<String>,
     pub cloud_projects: Option<bool>,

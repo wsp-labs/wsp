@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! `packages/runtime/src/agents-read.ts` at 65f6b89c7: the agents report off one computer or workspace, and every
 //! sign-in, skill, server and plugin write there. Two units: `targets` (spec `agents_read_targets.md`) and `sign_ins`
-//! (`agents_read_sign_ins.md`). The ports declared here are the methods wsp-core's empty `types::pending::{AgentsReader,
-//! AgentsActs, SkillsActs, ServersActs, PluginsActs, ServerIcons, CallbackForwards}` handles stand for (ruling 2 of
-//! #2448 comment 6400658264).
+//! (`agents_read_sign_ins.md`). The ports declared here reach the runtime through `AgentsPorts` and `ForwardsHolder`, which
+//! implement wsp-core's `types::pending::{AgentsPorts, CallbackForwards}` markers and are read back through `Any`, as
+//! `PlaceWiring` is (#2477 ruling 2).
 pub mod sign_ins;
 pub mod targets;
 
@@ -199,7 +199,17 @@ pub trait AgentsReader {
         agent: &str,
         name: &str,
     ) -> Result<ResolvedServer, HostError>;
+    /// agents-read.ts:76, optional in the TS: whether each remote address with no header of its own asks for a sign-in;
+    /// none where the reader has no such road.
+    async fn signs_in(&self, _urls: &[String]) -> Option<SignsIn> {
+        None
+    }
+    /// agents-read.ts:78, optional in the TS: ends every command a read or a tools ask started and is still waiting on.
+    fn close(&self) {}
 }
+
+/// What `signsIn` answers: true on a 401 or 403, false on any other answer, nothing where none came back.
+pub type SignsIn = Rc<dyn Fn(&str) -> Option<bool>>;
 
 /// agents-read.ts:82-90 `PtyLink`.
 #[derive(Clone)]
@@ -342,8 +352,29 @@ pub trait PluginsActs {
 pub trait ServerIcons {
     fn folder(&self) -> String;
     async fn icon(&self, host: &str, refresh: Option<bool>) -> Result<Option<String>, HostError>;
-    fn forget(&self);
+    /// Fails in node's words, as `rmdir` does: `EACCES: permission denied, rmdir '/x'`.
+    fn forget(&self) -> Result<(), String>;
 }
+
+/// The host's six agents ports, handed to the runtime as `RuntimeOptions::agents_ports`, which reads them back through
+/// `Any` as it reads `PlaceWiring`: a port left `None` answers the TS's refusal for a runtime wired without it.
+#[derive(Clone, Default)]
+pub struct AgentsPorts {
+    pub reader: Option<Rc<dyn AgentsReader>>,
+    pub acts: Option<Rc<dyn AgentsActs>>,
+    pub skills: Option<Rc<dyn SkillsActs>>,
+    pub servers: Option<Rc<dyn ServersActs>>,
+    pub plugins: Option<Rc<dyn PluginsActs>>,
+    pub icons: Option<Rc<dyn ServerIcons>>,
+}
+
+impl wsp_core::types::pending::AgentsPorts for AgentsPorts {}
+
+/// The callback relay the host hands `rt.agents.forwards`, as wsp-core's marker holds it.
+#[derive(Clone)]
+pub struct ForwardsHolder(pub Rc<dyn CallbackForwards>);
+
+impl wsp_core::types::pending::CallbackForwards for ForwardsHolder {}
 
 /// agents-read.ts:193-207 `AgentsWorkspace`.
 #[derive(Clone)]

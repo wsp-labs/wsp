@@ -1424,8 +1424,9 @@ impl ServerIcons for Icons {
         Ok(Some(ICON.to_string()))
     }
 
-    fn forget(&self) {
+    fn forget(&self) -> Result<(), String> {
         self.0.say("icons.forget");
+        Ok(())
     }
 }
 

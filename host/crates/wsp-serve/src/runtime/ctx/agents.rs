@@ -289,9 +289,10 @@ impl AgentsCtx for Ctx {
         let held = agents_snapshot(entry);
         self.kinds.get().exec_factory_for(&held, options, waiting).unwrap_or_else(|refused| Arc::new(Refused(refused.message)))
     }
-    fn signs_in(&self, _addresses: Vec<String>) -> LocalBoxFuture<'static, Option<SignsIn>> {
-        // `opts.agentsReader?.signsIn?.(addresses)`: the reader is a host port no crate holds yet (ruling 3), so none answers.
-        async { None }.boxed_local()
+    fn signs_in(&self, addresses: Vec<String>) -> LocalBoxFuture<'static, Option<SignsIn>> {
+        // `opts.agentsReader?.signsIn?.(addresses)`: none where no reader is wired or the reader has no such road.
+        let reader = self.agents_ports().and_then(|ports| ports.reader.clone());
+        async move { reader?.signs_in(&addresses).await }.boxed_local()
     }
     fn resolve_project(&self, reference: &str, origin: Option<Caller>) -> LocalBoxFuture<'static, Result<ProjectView, HostError>> {
         let (projects, reference) = (self.projects.get(), reference.to_string());

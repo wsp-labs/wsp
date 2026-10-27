@@ -587,8 +587,11 @@ impl PublicCtx for Ctx {
             // The plan alerts are the usage packet's; the context holds no slot for them to be closed through.
             CloseStep::CloseAlerts => {}
             CloseStep::CloseSlates => self.slates.get().close(),
-            // `opts.agents_reader` is a marker with no close of its own until the agents reader is bridged (packet 16).
-            CloseStep::CloseAgentsReader => {}
+            CloseStep::CloseAgentsReader => {
+                if let Some(reader) = self.agents_ports().and_then(|ports| ports.reader.clone()) {
+                    reader.close();
+                }
+            }
             CloseStep::SettleDaemonSyncs => {
                 join_all(self.public_daemon_syncs()).await;
             }

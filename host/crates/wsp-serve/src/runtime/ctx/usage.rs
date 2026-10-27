@@ -449,8 +449,25 @@ impl UsageCtx for Ctx {
         Some(wsp_catalog::signin::login_home_in(&logins, shared))
     }
     async fn read_sign_ins_here(&self) -> AccountResult<Option<Vec<(String, String)>>> {
-        // `opts.agents_reader` is the host's port (ruling 3): no Rust body exists to wire, so nothing here reads one.
-        Ok(None)
+        // usage.ts:168: `opts.agentsReader?.read({ kind: "here" }, { latest: false })`; a read that fails lists none.
+        let Some(reader) = self.agents_ports().and_then(|ports| ports.reader.clone()) else {
+            return Ok(None);
+        };
+        let on = wsp_machines::agents_read::AgentsOn::Here { projects: None, stores: None };
+        let Ok(read) = reader.read(&on, false).await else {
+            return Ok(Some(Vec::new()));
+        };
+        use wsp_wire::types::agents_report::{AgentRowSignIn, AgentSignInState};
+        Ok(Some(
+            read.agents
+                .iter()
+                .filter_map(|agent| match agent.sign_in {
+                    AgentRowSignIn::AgentSignInState(AgentSignInState::SignedIn) => Some((agent.id.clone(), "signed-in".to_string())),
+                    AgentRowSignIn::AgentSignInState(AgentSignInState::VaultKey) => Some((agent.id.clone(), "vault-key".to_string())),
+                    _ => None,
+                })
+                .collect(),
+        ))
     }
     fn on_agents_changed(&self, f: Rc<dyn Fn()>) {
         let _ = self.hear("agents.changed", move |_| f());

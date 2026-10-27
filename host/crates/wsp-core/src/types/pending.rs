@@ -100,20 +100,12 @@ pub struct Sighting {}
 /// TS runtime places.ts `PlaceWiring` (wsp-machines): the host's wiring is the machines' struct, which the runtime
 /// reads back through `Any`.
 pub trait PlaceWiring: std::any::Any {}
-/// TS runtime agents-read.ts `AgentsReader` (wsp-machines).
-pub trait AgentsReader {}
-/// TS agents-read.ts `AgentsActs`.
-pub trait AgentsActs {}
-/// TS agents-read.ts `SkillsActs`.
-pub trait SkillsActs {}
-/// TS agents-read.ts `ServersActs`.
-pub trait ServersActs {}
-/// TS agents-read.ts `PluginsActs`.
-pub trait PluginsActs {}
-/// TS agents-read.ts `ServerIcons`.
-pub trait ServerIcons {}
-/// TS agents-read.ts:129 `CallbackForwards`.
-pub trait CallbackForwards {}
+/// TS runtime agents-read.ts `AgentsReader`, `AgentsActs`, `SkillsActs`, `ServersActs`, `PluginsActs` and `ServerIcons`
+/// (wsp-machines): the host's one holder of the six, which the runtime reads back through `Any` as it does `PlaceWiring`.
+pub trait AgentsPorts: std::any::Any {}
+/// TS agents-read.ts:129 `CallbackForwards` (wsp-machines): the relay a host hands `rt.agents.forwards`, read back
+/// through `Any`.
+pub trait CallbackForwards: std::any::Any {}
 /// TS agents-read.ts:93.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct SignInAsk {
