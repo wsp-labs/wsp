@@ -681,6 +681,16 @@ impl BootArea {
                 let fut = async move { area.load_late(&id, read).await }
                     .boxed_local()
                     .shared();
+                // `loadLate` starts at once (boot.ts:170) and its first line keeps `rereadHeld` off a record whose late
+                // read is still out; started later, the held rereads would settle the record before that answer.
+                let mut first = fut.clone();
+                let _ = (&mut first).now_or_never();
+                wsp_engine::local_task::try_spawn_local({
+                    let keep = fut.clone();
+                    async move {
+                        let _ = keep.await;
+                    }
+                });
                 (key, fut)
             })
             .collect()

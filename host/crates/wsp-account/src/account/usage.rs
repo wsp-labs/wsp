@@ -117,7 +117,8 @@ pub trait UsageCtx {
     /// `placeDoor.signInsAt(id)?.[agent] === "signed-in"`.
     fn signed_in_at(&self, place_id: &str, agent: &str) -> bool;
     /// `(await placeDoor.placeFor(word))?.placeId`.
-    async fn place_for(&self, word: &str) -> Option<String>;
+    /// `placeDoor?.placeFor(word)`: refused in the door's words for a word naming no computer or two (places/link.ts:509, :518).
+    async fn place_for(&self, word: &str) -> Result<Option<String>, HostError>;
     /// `(await placeDoor.reportOf(id))?.login["PATH"]`.
     async fn box_login_path(&self, place_id: &str) -> Option<String>;
     /// `placeDoor.exec(id, script, { timeoutMs, stdin })`'s stdout.
@@ -707,7 +708,7 @@ impl UsageArea {
     /// U10, usage.ts:306.
     pub async fn reset(&self, account: &str, credit_id: Option<&str>, on: Option<&str>) -> Result<ResetAnswer, HostError> {
         let on_place = match on {
-            Some(word) => Some(self.ctx.place_for(word).await.unwrap_or_else(|| wsp_wire::types::place_word::HERE_PLACE_ID.to_string())),
+            Some(word) => Some(self.ctx.place_for(word).await?.unwrap_or_else(|| wsp_wire::types::place_word::HERE_PLACE_ID.to_string())),
             None => None,
         };
         self.ctx.spend_reset(account, credit_id, on_place.as_deref()).await

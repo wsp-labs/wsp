@@ -253,10 +253,10 @@ impl wsp_account::projects::workspaces::review::ReviewCtx for Ctx {
         let like = record.map(wsp_account::account::rules::like_of);
         self.rules.get().refusal_for(like.as_ref(), origin)
     }
-    fn reaches_row(&self, thread_id: &str, workspace_id: &str, origin: Option<&Caller>) -> bool {
+    fn reaches_row(&self, thread_id: &str, workspace_id: &str, origin: Option<&Caller>) -> Result<bool, HostError> {
         let row =
             wsp_machines::machines::boot::entries::RowAt { thread_id: Some(thread_id.to_string()), workspace_id: workspace_id.to_string() };
-        self.boot.get().reaches_row(&row, origin, None).unwrap_or(false)
+        self.boot.get().reaches_row(&row, origin, None)
     }
 }
 

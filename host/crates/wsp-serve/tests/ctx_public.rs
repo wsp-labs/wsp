@@ -885,8 +885,8 @@ fn harnesses_read_the_preferences_the_person_holds() {
 fn harnesses_say_a_workspace_talks_to_its_own_tree_only_for_a_caller_in_it() {
     run(|w| async move {
         attached(&w, "w_a", Some("default"), "proj_1").await;
-        assert!(!HarnessesCtx::talks_to_tree_on(&*w.c, "w_a", None));
-        assert!(!HarnessesCtx::talks_to_tree_on(&*w.c, "w_none", None));
+        assert!(!HarnessesCtx::talks_to_tree_on(&*w.c, "w_a", None).expect("read"));
+        assert!(!HarnessesCtx::talks_to_tree_on(&*w.c, "w_none", None).expect("read"));
     });
 }
 
