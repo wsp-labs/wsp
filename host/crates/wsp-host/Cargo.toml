@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+[package]
+name = "wsp-host"
+version = "0.0.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false
+description = "The host process and the command dispatcher, thin: what up, mcp and the command line need of cli/wiring.ts, server.ts and cli.ts"
+
+[lints.clippy]
+result_large_err = "allow"
+type_complexity = "allow"
+large_enum_variant = "allow"
+arc_with_non_send_sync = "allow"
+too_many_arguments = "allow"
+
+[dependencies]
+async-trait = "0.1"
+base64 = "0.22"
+futures = "0.3"
+indexmap = { version = "2", features = ["serde"] }
+libc = "0.2"
+rand = "0.8"
+serde_json = { version = "1", features = ["preserve_order"] }
+tokio = { version = "1", features = ["rt", "macros", "net", "io-util", "io-std", "fs", "process", "signal", "sync", "time"] }
+wsp-adapters = { path = "../wsp-adapters" }
+wsp-catalog = { path = "../wsp-catalog" }
+wsp-cli = { path = "../wsp-cli" }
+wsp-collect = { path = "../wsp-collect" }
+wsp-core = { path = "../wsp-core" }
+wsp-engine = { path = "../wsp-engine" }
+wsp-machines = { path = "../wsp-machines" }
+wsp-serve = { path = "../wsp-serve" }
+wsp-store = { path = "../wsp-store" }
+wsp-wire = { path = "../wsp-wire" }
+wsp-words = { path = "../wsp-words" }
+wsp-mcp = { path = "../../../daemon/crates/wsp-mcp" }
+
+[dev-dependencies]
+tempfile = "3"
