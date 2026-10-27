@@ -48,6 +48,18 @@ pub async fn project_on(
     source: Option<&str>,
     name: Option<&str>,
 ) -> Result<wsp_wire::views::workspace::ProjectView, HostError> {
+    project_with(rt, computer, source, name, None).await
+}
+
+/// `projectOn(rt, computer, source, { name, base })`: as `project_on`, naming the base branch the project's pull requests
+/// open against.
+pub async fn project_with(
+    rt: &AssembledRuntime,
+    computer: Option<&str>,
+    source: Option<&str>,
+    name: Option<&str>,
+    base: Option<&str>,
+) -> Result<wsp_wire::views::workspace::ProjectView, HostError> {
     let on = match computer {
         Some(on) => on.to_string(),
         None => forking_computer(rt).await?,
@@ -63,7 +75,7 @@ pub async fn project_on(
             format!("https://github.com/wsp/stub-{n}.git")
         }
     };
-    let ask = ProjectAddAsk { source, on: Some(on), name: name.map(str::to_string), ..Default::default() };
+    let ask = ProjectAddAsk { source, on: Some(on), name: name.map(str::to_string), base: base.map(str::to_string), ..Default::default() };
     Ok(rt.projects().add(ask, None).await?.project)
 }
 
