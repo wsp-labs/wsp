@@ -9,6 +9,7 @@ pub mod broker;
 pub mod daemon;
 pub mod events;
 pub mod fed;
+pub mod folder_host;
 pub mod gateway;
 pub mod gone;
 pub mod images;
