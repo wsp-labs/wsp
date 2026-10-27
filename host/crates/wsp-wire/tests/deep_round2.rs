@@ -136,9 +136,11 @@ fn best_of_three(n: u32, recorded: bool) -> Duration {
 
 fn agent_chain_body() {
     for recorded in [false, true] {
-        let small = best_of_three(20_000, recorded).max(Duration::from_millis(20));
-        let large = best_of_three(40_000, recorded);
-        assert!(large < small * 3, "recorded={recorded}: 40,000 agents took {large:?} where 20,000 took {small:?}: not linear");
+        let n: u32 = std::env::var("ROUND2_2448_AGENTS").ok().and_then(|n| n.parse().ok()).unwrap_or(20_000);
+        let small = best_of_three(n, recorded).max(Duration::from_millis(20));
+        let large = best_of_three(2 * n, recorded);
+        eprintln!("recorded={recorded}: {n} agents took {small:?}, {} took {large:?}", 2 * n);
+        assert!(large < small * 3, "recorded={recorded}: {} agents took {large:?} where {n} took {small:?}: not linear", 2 * n);
     }
 }
 

@@ -99,9 +99,11 @@ fn table_in(n: u32) -> Duration {
 
 fn agent_chain_body() {
     let best = |n: u32| (0..3).map(|_| table_in(n)).min().unwrap();
-    let small = best(5_000).max(Duration::from_millis(20));
-    let large = best(10_000);
-    assert!(large < small * 3, "10,000 agents took {large:?} where 5,000 took {small:?}: not linear");
+    let n: u32 = std::env::var("ROUND2_2448_AGENTS").ok().and_then(|n| n.parse().ok()).unwrap_or(5_000);
+    let small = best(n).max(Duration::from_millis(20));
+    let large = best(2 * n);
+    eprintln!("{n} agents took {small:?}, {} took {large:?}", 2 * n);
+    assert!(large < small * 3, "{} agents took {large:?} where {n} took {small:?}: not linear", 2 * n);
 }
 
 #[test]
