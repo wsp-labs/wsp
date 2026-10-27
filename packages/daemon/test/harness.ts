@@ -62,6 +62,9 @@ export interface DaemonArgs {
   runtimeRoot?: string;
   /** The workspace profile a leave run as root takes off; a case names one under its own home, never the machine's. */
   apparmorProfile?: string;
+  /** The folder a leave's /usr/local, /opt, /etc and runtime folder sit under, with the home and the profile: the
+   * daemon refuses a leave that names a path outside it. A place's daemon gets its home, else a folder made for it. */
+  installRoot?: string;
 }
 
 type Flag = { readonly flag: string; readonly key: keyof DaemonArgs; readonly takes: "word" | "int" | "words" | "pairs" };
@@ -101,6 +104,7 @@ const FLAGS: readonly Flag[] = [
   { flag: "--link-backoff-ms", key: "linkBackoffMs", takes: "int" },
   { flag: "--runtime-root", key: "runtimeRoot", takes: "word" },
   { flag: "--apparmor-profile", key: "apparmorProfile", takes: "word" },
+  { flag: "--install-root", key: "installRoot", takes: "word" },
 ];
 
 /** The argv that names these args, so a deploy script and this harness spell a daemon the same way. */
@@ -227,7 +231,11 @@ const LISTENING = new RegExp(
 export async function spawnDaemon(bin: string, args: DaemonArgs, waits: SpawnWaits = {}): Promise<DaemonUnderTest> {
   const startMs = waits.startMs ?? START_MS;
   const stopMs = waits.stopMs ?? STOP_MS;
-  const child = spawn(bin, daemonArgv(args), { stdio: ["ignore", "pipe", "pipe"], env: process.env });
+  // A place's leave, run as root, takes /usr/local, /opt and /etc off the computer it runs on unless it is given a root:
+  // no case starts one without, whatever it forgot to name.
+  let madeRoot: string | undefined;
+  const installRoot = args.placeFile === undefined ? args.installRoot : (args.installRoot ?? args.home ?? (madeRoot = mkdtempSync(join(tmpdir(), "wsp-daemon-root-"))));
+  const child = spawn(bin, daemonArgv({ ...args, ...(installRoot === undefined ? {} : { installRoot }) }), { stdio: ["ignore", "pipe", "pipe"], env: process.env });
   const lines: string[] = [];
   let rest = "";
   child.stderr.setEncoding("utf8");
@@ -246,6 +254,7 @@ export async function spawnDaemon(bin: string, args: DaemonArgs, waits: SpawnWai
   const exited = new Promise<void>(done =>
     child.once("exit", () => {
       gone = true;
+      if (madeRoot !== undefined) rmSync(madeRoot, { recursive: true, force: true });
       flush();
       done();
     }),

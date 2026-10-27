@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/thread-cap.test.ts > raising a computer's threads at once > starts as many waiting threads as the new room takes within 2 s, oldest first, each saying it started on the raise","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/thread-cap.test.ts > raising a computer's threads at once > starts as many waiting threads as the new room takes within 2 s, oldest first, each saying it started on the raise","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"placeId":"here","threads":6,"id":2,"op":"places.set"}}

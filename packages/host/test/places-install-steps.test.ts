@@ -6,7 +6,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { ALREADY_JOINED_LINE, NO_NODE_LINE, backUrl, PLACE_LOGIN_REFUSED_KIND, PLACE_HOST_KEY_KIND, PLACE_SUDO_KIND, hostKeyMismatchRefusal, hostKeyUnconfirmedRefusal, hostKeyUnscannableRefusal, PLACE_ROOT_SHELLS, placeRootShellRefusal, PLACE_NEEDS_ROOT_LINE, PlaceReport, joinToken, placeFileText, placeDaemonPaths, shellQuote, workFolderIn, type PlaceBack } from "@wsp/protocol";
+import { ALREADY_JOINED_LINE, NO_NODE_LINE, backUrl, PLACE_LOGIN_REFUSED_KIND, PLACE_HOST_KEY_KIND, PLACE_SUDO_KIND, hostKeyMismatchRefusal, hostKeyUnconfirmedRefusal, hostKeyUnscannableRefusal, hostSilentRefusal, PLACE_ROOT_SHELLS, placeRootShellRefusal, PLACE_NEEDS_ROOT_LINE, PlaceReport, joinToken, placeFileText, placeDaemonPaths, shellQuote, workFolderIn, type PlaceBack } from "@wsp/protocol";
 import { PlaceAddTakenBackError, PlaceLoginRefusedError, type PlaceBackHolder, type PlaceLogin, type PlaceStaging } from "@wsp/runtime";
 import { MissingKnownHostsError, missingKnownHostsLine, SshBackend, SSH_READ_SCRIPT, SSH_SUDO_READ, SSH_WORD_REFUSAL, keyFingerprint, sshWordReach, type SshReach, type SshRiding, type SshSudo, type SshSudoRoad, type SshTransport } from "@wsp/engine";
 import { daemonBinaryIn, GUEST_DAEMON_TARGETS, noGuestDaemonLine, noPlaceSystemLine } from "../src/daemon-binary.js";
@@ -1064,6 +1064,15 @@ describe("the install over ssh marks its steps off the lines the deploy prints",
     await expect(placeInstaller({ backend: blind as never, ...assets(tmp("first-dial-blind"), [X86]) })({ address: "maya@box", code: "7QK3M2VD", hostUrls: ["http://192.168.1.20:4400"] }, box.stage)).rejects.toThrow(
       hostKeyUnscannableRefusal("maya@box", "ProxyJump"),
     );
+    expect(box.landed).toEqual([]);
+
+    // A computer that answered nothing on its port is said to be silent, with no key line a person could not act on.
+    const silent = { ...never, offeredKeyFor: async () => ({ silent: 22 }) };
+    const timedOut = await placeInstaller({ backend: silent as never, ...assets(tmp("first-dial-silent"), [X86]) })({ address: "maya@box", code: "7QK3M2VD", hostUrls: ["http://192.168.1.20:4400"] }, box.stage).catch((e: unknown) => e as Error & { kind?: string });
+    expect((timedOut as Error).message).toBe(hostSilentRefusal("maya@box", 22));
+    expect((timedOut as Error).message).toContain("maya@box did not answer on port 22");
+    expect((timedOut as Error).message).not.toContain("--host-key");
+    expect((timedOut as { kind?: string }).kind).toBeUndefined();
     expect(box.landed).toEqual([]);
   });
 

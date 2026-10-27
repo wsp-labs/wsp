@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/host/test/computer-rename.test.ts > wsp computers set --ssh > refuses a login that reaches another machine, or one it cannot read, and writes nothing","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/host/test/computer-rename.test.ts > wsp computers set --ssh > refuses a login that reaches another machine, or one it cannot read, and writes nothing","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"id":2,"op":"places.list"}}

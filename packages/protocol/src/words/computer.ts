@@ -503,6 +503,12 @@ export function hostKeyUnscannableRefusal(address: string, stoppedBy?: string): 
   return `${address} has never been reached from this computer and ${why}; read its host key on the computer itself and run wsp add ${address} --host-key '<type> <fingerprint>'`;
 }
 
+/** What the add is refused with for a computer that answered nothing on its ssh port, in the time a scan waits: a
+ * key to pin is not what is missing, so no line asks for one. */
+export function hostSilentRefusal(address: string, port: number): string {
+  return `${address} did not answer on port ${port}; check the address and that the computer is on, then try again`;
+}
+
 /** What an install is refused with when the computer that answered the first dial holds a key other than the one
  * the person pinned: what it answered with, the file ssh wrote that into on its way in, and the line that takes it
  * out again. Nothing of wsp's has left this computer at that point. */

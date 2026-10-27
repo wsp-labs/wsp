@@ -9,7 +9,7 @@
     {
       "id": 2,
       "ok": false,
-      "error": "<computer> takes threads at once, turn limit, agents may start agents and levels deep, not machines at once",
+      "error": "<computer> takes threads at once, turn limit, machines under a root thread and levels deep, not machines at once",
       "kind": "usage"
     },
     {
