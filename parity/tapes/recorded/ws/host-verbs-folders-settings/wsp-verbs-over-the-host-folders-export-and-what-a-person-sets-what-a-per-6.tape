@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/host/test/verbs-folders-settings.test.ts > wsp verbs over the host: folders, export and what a person sets > what a person sets on one of their computers > sets the turn limit in whole hours or off, on this computer and on a cloud, and a reset takes it back","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/host/test/verbs-folders-settings.test.ts > wsp verbs over the host: folders, export and what a person sets > what a person sets on one of their computers > sets the turn limit in whole hours or off, on this computer and on a cloud, and a reset takes it back","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true,"version":"0.3.8","road":"init"}}
 {"in":{"id":2,"op":"places.list"}}

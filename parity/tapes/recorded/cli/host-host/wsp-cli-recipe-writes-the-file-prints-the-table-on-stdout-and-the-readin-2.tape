@@ -1,2 +1,0 @@
-{"meta":{"door":"cli","source":"packages/host/test/host.test.ts > wsp cli > recipe writes the file, prints the table on stdout and the reading on stderr, and refuses a --tick word it does not know","computer":"ip-172-31-35-82"}}
-{"in":{"argv":["recipe","--out","<run>/wsp-cli-recipe-000001/recipe.json","--state","<run>/wsp-cli-recipe-000001/state.json","--tick","used","--set","java=on"]}}

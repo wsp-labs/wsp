@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/places-settings.test.ts > a computer's threads at once > starts the threads it holds in the order they came the moment the person raises it, and a stopped one never starts","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/places-settings.test.ts > a computer's threads at once > starts the threads it holds in the order they came the moment the person raises it, and a stopped one never starts","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"placeId":"here","threads":1,"id":2,"op":"places.set"}}

@@ -11,15 +11,8 @@
       "ok": true,
       "view": {
         "image": null,
-        "copies": [],
-        "projects": []
+        "copies": []
       }
-    },
-    {
-      "id": 3,
-      "ok": false,
-      "error": "this host owns no image named default yet; wsp init seals one",
-      "kind": "conflict"
     }
   ],
   "events": []
