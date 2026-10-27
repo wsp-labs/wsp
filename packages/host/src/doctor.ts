@@ -510,7 +510,7 @@ export const WSP_COMMAND_NODE_MAJOR = 22;
 
 /** How a node is asked which major it is. Not read into a variable, since `set -e` ends a script on an assignment
  * whose substitution failed and exempts one inside a test. */
-const NODE_MAJOR = `node -p 'process.versions.node.split(".")[0]'`;
+export const NODE_MAJOR = `node -p 'process.versions.node.split(".")[0]'`;
 
 /** What every machine wsp reaches over a login must have before a byte of wsp's lands on it: its own systemd to
  * hold the daemon up, and a node new enough for the wsp command beside it, which every turn's agent drives its
