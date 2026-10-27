@@ -15,6 +15,6 @@ export function protocolMismatchHalves(host: number, range: readonly [number, nu
   }
   return {
     happened: `This host is older than the app: it speaks protocol ${host} and the app speaks ${app}.`,
-    fix: "Update wsp on the computer this host runs on (run its install line again, or npm i -g @wsp-labs/wsp), then open the app again.",
+    fix: "Update wsp on the computer this host runs on with curl -fsSL https://usewsp.com/install | sh, or with npm i -g @wsp-labs/wsp and restart its host there, then open the app again.",
   };
 }

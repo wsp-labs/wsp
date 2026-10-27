@@ -230,4 +230,10 @@ describe("the sentence to a person with an older host", () => {
   it("sends them to a line that updates wsp, not to the verb that merges a thread's base", () => {
     expect(protocolMismatchHalves(1, [2, 2]).fix).not.toMatch(/\bwsp update\b/);
   });
+
+  it("names the install line itself, and says to restart the host after the npm install, which restarts nothing", () => {
+    const { fix } = protocolMismatchHalves(1, [2, 2]);
+    expect(fix).toContain("curl -fsSL https://usewsp.com/install | sh");
+    expect(fix).toContain("npm i -g @wsp-labs/wsp and restart its host there");
+  });
 });
