@@ -26,7 +26,6 @@ use wsp_core::sign_in_socket::SignInOp;
 use wsp_core::sys_socket::{Send, SocketSide, SysAsk};
 use wsp_words::exit::HostError;
 
-
 use super::served::Payload;
 use super::{Authed, UpgradeHead};
 use crate::serve_slates::SlateHolds;
