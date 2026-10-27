@@ -255,3 +255,48 @@ async fn reply_to(ws: &mut Ws, id: u64) -> Value {
         }
     }
 }
+
+/// `fakeLocal(root)` and the `local` the TS tests that stand a host on this computer write beside it: a `LocalBackend` rooted in a
+/// folder of the test's own, an exec that runs in that folder, and the copier the test hands in.
+pub fn local_wiring(root: &Path, copier: Rc<dyn Copier>) -> wsp_core::types::wiring::LocalWiring {
+    use wsp_core::types::wiring::{LocalWiring, Platform};
+    use wsp_engine::local_backend::{LocalBackend, LocalBackendOptions};
+    let folder = root.display().to_string();
+    let home = folder.clone();
+    let runs = format!("{folder}/runs");
+    let exec_root = folder.clone();
+    LocalWiring {
+        backend: Arc::new(LocalBackend::new(LocalBackendOptions { root: root.to_path_buf(), env: None })),
+        folder: folder.clone(),
+        exec_stream: Rc::new(move |opts, waiting| {
+            let mut local = wsp_core::local_exec::LocalExecOptions::new(exec_root.clone(), runs.clone());
+            if let Some(opts) = opts {
+                local.idle_ms = opts.idle_ms;
+                local.deadline_ms = opts.deadline_ms;
+                local.now = opts.now;
+                local.poll_ms = opts.poll_ms;
+                local.reading = opts.reading;
+            }
+            wsp_core::local_exec::local_exec_stream(local, waiting)
+        }),
+        home: Rc::new(move |_| format!("{home}/.claude")),
+        home_dir: folder.clone(),
+        roots_path: format!("{folder}/roots"),
+        env: Rc::new(|| indexmap::IndexMap::from([("PATH".to_string(), std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".into()))])),
+        daemon_road: Some(Rc::new(|| {
+            Box::pin(async {
+                Ok(wsp_wire::views::workspace::DaemonReachView {
+                    url: "http://127.0.0.1:1".into(),
+                    expires_at: wsp_wire::types::JsNumber(9_007_199_254_740_991.0),
+                    daemon_token: Some("t".into()),
+                })
+            })
+        })),
+        here_daemon: None,
+        restart_daemon: None,
+        sys_samples: None,
+        copier: Some(copier),
+        platform: if cfg!(target_os = "macos") { Platform::Darwin } else { Platform::Linux },
+        close: None,
+    }
+}
