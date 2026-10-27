@@ -17,6 +17,7 @@ import { openerCommand } from "../src/relay.js";
 import { CLI_VERBS, runVerb, type HostClient } from "../src/verbs.js";
 import { fakePtyLink, type FakePty } from "./fake-pty-link.js";
 import { captured } from "./verbs-fixture.js";
+import { until } from "../../runtime/test/until.js";
 import { writeStub } from "../../protocol/test/stub-script.js";
 
 /** A box whose daemon runs as root and whose home belongs to ada, answering the one probe of who its lines run as. */
@@ -341,7 +342,7 @@ describe("a watched sign-in", () => {
         l.exit(pty, 0);
       }
     }, plan);
-    await new Promise(r => setTimeout(r, 60));
+    await until(() => t.steps.some(s => s.state === "waiting"));
     expect(t.steps).toContainEqual({ state: "waiting", url: "https://claude.ai/oauth/authorize?code=true&client_id=x", paste: true });
     await t.type("PAGE-CODE#STATE");
     await t.done;

@@ -196,14 +196,21 @@ export function vaultSignIn(agentId: string, vault: Readonly<Record<string, stri
   return token !== undefined || (keyEnv !== undefined && vault[keyEnv] !== undefined) ? "vault-key" : "none";
 }
 
-/** What a sign-in row says the vault hands an agent's turns on a computer whose row was picked `way`: the key where it
- * was picked and is held, else the token where one is, else the key; for an agent with one secret, copied from here. */
-export function vaultHeldLine(agentId: string, vault: Readonly<Record<string, string>>, way: RecipeSignIn | undefined, here: string): string {
+/** Which of an agent's two secrets the vault hands its turns on a computer whose row was picked `way`: the key where it
+ * was picked and is held, else the token where one is, else the key; none for an agent with one secret. */
+export function vaultWayOf(agentId: string, vault: Readonly<Record<string, string>>, way: RecipeSignIn | undefined): "token" | "key" | undefined {
   const signIn = CATALOG_AGENTS.find(a => a.id === agentId)?.signIn;
-  if (signIn === undefined || !mintsToken(signIn)) return copiedFromLine(here);
+  if (signIn === undefined || !mintsToken(signIn)) return undefined;
   const keyEnv = keyEnvOf(signIn);
   const key = keyEnv !== undefined && vault[keyEnv] !== undefined;
-  return (way === "key" && key) || vault[signIn.tokenEnv] === undefined ? keyHeldLine(here) : tokenHeldLine(here);
+  return (way === "key" && key) || vault[signIn.tokenEnv] === undefined ? "key" : "token";
+}
+
+/** What a sign-in row says the vault hands an agent's turns there: its `vaultWayOf` in words; for an agent with one
+ * secret, copied from here. */
+export function vaultHeldLine(agentId: string, vault: Readonly<Record<string, string>>, way: RecipeSignIn | undefined, here: string): string {
+  const held = vaultWayOf(agentId, vault, way);
+  return held === undefined ? copiedFromLine(here) : held === "key" ? keyHeldLine(here) : tokenHeldLine(here);
 }
 
 /** The vault as a computer's picks hand it to the turns there: an agent picked to take its key, where the vault

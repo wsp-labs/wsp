@@ -161,7 +161,7 @@ describe("wsp add <user@host> --recipe", () => {
     expect(io.lines.at(-1)).toBe("  ? Codex waits on you to sign in at https://auth.openai.com/codex/device with code ABCD-EFGH");
   });
 
-  it("leaves a sign-in that starts from its row waiting without holding the line, and prints its reason and the command that signs in", async () => {
+  it("leaves a sign-in that starts from its row waiting without holding the line, and prints the command that signs in", async () => {
     const io = captured();
     const host = fakeHost({ signIn: "press" });
     expect(await addCommand(io, opts(tmp("add-press")), ["root@10.0.0.9"], { recipe: "laptop", json: true }, deps(host.client))).toBe(0);
@@ -169,7 +169,7 @@ describe("wsp add <user@host> --recipe", () => {
     expect(objects.find(o => "waiting" in o)!["waiting"]).toEqual(PRESS);
     const text = captured();
     expect(await addCommand(text, opts(tmp("add-press-text")), ["root@10.0.0.9"], { recipe: "laptop" }, deps(fakeHost({ signIn: "press" }).client))).toBe(0);
-    expect(text.lines.slice(-3)).toEqual([`  ? Claude Code waits on you to sign in: ${CODE_FROM_ROW}`, "    Sign in on spoo: Claude Code's own sign-in runs there.", "    wsp add spoo --sign-in claude"]);
+    expect(text.lines.slice(-3)).toEqual(["  ? Claude Code waits on you to sign in", "    Sign in on spoo: Claude Code's own sign-in runs there.", "    wsp add spoo --sign-in claude"]);
   }, 5_000);
 
   it("exits 1 where a step that blocks stopped the setup, with why", async () => {

@@ -1871,7 +1871,7 @@ describe("one row of a setup that ended, run again", () => {
     expect(p.ran).toEqual(["context"]);
     expect(s.started).toEqual(["codex"]);
     const after = await rowOf(place.id);
-    expect(after.applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "present", note: keyHeldLine("zingzys-mac") });
+    expect(after.applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "present", note: keyHeldLine("zingzys-mac"), way: "key" });
     expect(after.applied?.rows.find(r => r.id === "signins/codex")).toMatchObject({ outcome: "skipped", note: SKIPPED_FOR_NOW });
     expect(after.setup?.waiting).toEqual([]);
   });
@@ -2119,7 +2119,7 @@ describe("a step the person skips for now", () => {
     await runtime!.places!.skip(place.id, "signins/claude");
     expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")?.outcome).toBe("skipped");
     await runtime!.agents.key("claude", "sk-ant-oat01-x");
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "present", note: tokenHeldLine("zingzys-mac") });
+    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "present", note: tokenHeldLine("zingzys-mac"), way: "token" });
   });
 
   it("keeps a sign-in landed while the setup still runs: the run lands it among its own rows, so its next write keeps it", async () => {
@@ -2151,7 +2151,7 @@ describe("a step the person skips for now", () => {
     const box = (await rowOf(place.id)).name;
     expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "failed", note: noCopyLine("Claude Code", "zingzys-mac"), fix: signInWaysFix(["token", "key", "machine"], { ...CLAUDE_FACTS, box }) });
     await runtime!.agents.key("claude", "sk-ant-oat01-x");
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "present", note: tokenHeldLine("zingzys-mac"), label: "Claude Code", step: "signins" });
+    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "present", note: tokenHeldLine("zingzys-mac"), way: "token", label: "Claude Code", step: "signins" });
   });
 
   it("reads a key picked for Claude Code off the vault, and says where the key goes where the vault holds none", async () => {
@@ -2167,7 +2167,7 @@ describe("a step the person skips for now", () => {
     await runtime!.places!.setUp(place.id, {});
     await until(async () => (await rowOf(place.id)).setup?.state === "done");
     // The key was picked, so it is what that computer's turns get, the token beside it held back.
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "present", note: keyHeldLine("zingzys-mac") });
+    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "present", note: keyHeldLine("zingzys-mac"), way: "key" });
   });
 
   it("lands a row that failed for want of the key once the key is put in the vault, the same row a run again would only draw again", async () => {
@@ -2183,7 +2183,7 @@ describe("a step the person skips for now", () => {
     await until(async () => (await rowOf(place.id)).setup?.state === "done");
     expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toEqual(failed);
     await runtime!.agents.key("claude", "sk-ant-api03-x", "key");
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "present", note: keyHeldLine("zingzys-mac") });
+    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "present", note: keyHeldLine("zingzys-mac"), way: "key" });
   });
 
   it("lands a row that failed for want of the key while the setup still runs, and keeps it through the run's end", async () => {
@@ -2198,11 +2198,11 @@ describe("a step the person skips for now", () => {
     expect(await claude()).toMatchObject({ note: noKeyLine("ANTHROPIC_API_KEY", "zingzys-mac") });
     expect((await rowOf(place.id)).setup?.state).toBe("running");
     await runtime!.agents.key("claude", "sk-ant-api03-x", "key");
-    expect(await claude()).toMatchObject({ outcome: "present", note: keyHeldLine("zingzys-mac") });
+    expect(await claude()).toMatchObject({ outcome: "present", note: keyHeldLine("zingzys-mac"), way: "key" });
     expect((await rowOf(place.id)).setup?.state).toBe("running");
     p.release();
     await until(async () => (await rowOf(place.id)).setup?.state === "done");
-    expect(await claude()).toMatchObject({ outcome: "present", note: keyHeldLine("zingzys-mac") });
+    expect(await claude()).toMatchObject({ outcome: "present", note: keyHeldLine("zingzys-mac"), way: "key" });
   });
 
   it("makes a token picked for Claude Code on this computer where the vault holds none, the row waiting on the person until it lands", async () => {
@@ -2221,7 +2221,7 @@ describe("a step the person skips for now", () => {
     expect((await rowOf(place.id)).setup?.waiting.find(w => w.row === "signins/claude")).toMatchObject({ paste: true, signInId: made!.signInId, url: expect.stringContaining("https://auth.example/claude") });
     s.end("claude", { state: "signed-in" });
     await until(async () => (await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")?.outcome === "installed");
-    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ note: tokenHeldLine("zingzys-mac"), step: "signins" });
+    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ note: tokenHeldLine("zingzys-mac"), way: "token", step: "signins" });
     // A token that was not made says what its command said, and its fix still names every way, the token's first.
     await runtime!.places!.setUp(place.id, {});
     await until(async () => s.started.length === 2);
@@ -2247,6 +2247,20 @@ describe("a step the person skips for now", () => {
     await runtime!.places!.loginLanded(place.id, "claude");
     expect((await rowOf(place.id)).setup?.waiting).toEqual([]);
     expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "installed", note: SIGNED_IN_THERE, step: "signins" });
+    expect(frames.at(-1)).toMatchObject({ landed: "signins/claude", end: "ready" });
+  });
+
+  it("lands a key saved from the row's own wait as signed in with that key, saying so in a field and never by its words", async () => {
+    const vault: Record<string, string> = {};
+    const s = signIns();
+    const { frames } = await hosting({ provision: provisioner().wired, acts: s.acts, vault });
+    const picks = RecipeFile.parse({ name: "laptop", agents: { claude: { signin: "machine" } } });
+    const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: picks }, Date.now());
+    await until(async () => (await rowOf(place.id)).setup?.waiting.some(w => w.row === "signins/claude") === true);
+    vault["ANTHROPIC_API_KEY"] = "sk-ant-api03-x";
+    await runtime!.agents.key("claude", "sk-ant-api03-x", "key");
+    expect((await rowOf(place.id)).setup?.waiting).toEqual([]);
+    expect((await rowOf(place.id)).applied?.rows.find(r => r.id === "signins/claude")).toMatchObject({ outcome: "present", note: keyHeldLine("zingzys-mac"), way: "key", label: "Claude Code", step: "signins" });
     expect(frames.at(-1)).toMatchObject({ landed: "signins/claude", end: "ready" });
   });
 
