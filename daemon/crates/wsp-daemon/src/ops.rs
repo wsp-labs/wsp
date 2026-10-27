@@ -215,14 +215,7 @@ pub(crate) async fn handle(conn: &Arc<Conn>, ctx: &Arc<Ctx>, raw: &str) -> Outgo
         match op {
             Some("place.leave") => {
                 let home = crate::place::place_home(ctx.options.home.as_deref());
-                let install = ctx.options.install_root.as_deref().map(|root| root.to_string_lossy().into_owned()).unwrap_or_default();
-                let profile = ctx
-                    .options
-                    .apparmor_profile
-                    .clone()
-                    .unwrap_or_else(|| format!("{install}{}", wsp_frames::numbers::WORKSPACE_APPARMOR_PATH).into());
-                let runtime =
-                    ctx.options.runtime_root.clone().unwrap_or_else(|| format!("{install}{}", wsp_frames::numbers::RUNTIME_ROOT).into());
+                let (install, profile, runtime) = leave_paths(&ctx.options);
                 let force = frame.get("force").and_then(Value::as_bool).unwrap_or(false);
                 let projects: Vec<String> = frame
                     .get("projects")
@@ -247,6 +240,16 @@ pub(crate) async fn handle(conn: &Arc<Conn>, ctx: &Arc<Ctx>, raw: &str) -> Outgo
         return Outgoing::Text(machine_answer(ctx, id, name, &frame).await);
     }
     Outgoing::Text(handle_op(conn, ctx, &frame, id, op).await)
+}
+
+/// The install root, workspace profile and runtime folder a leave over the link takes from: this computer's own unless
+/// the daemon was started with a root.
+fn leave_paths(options: &crate::Options) -> (String, std::path::PathBuf, std::path::PathBuf) {
+    let install = options.install_root.as_deref().map(|root| root.to_string_lossy().into_owned()).unwrap_or_default();
+    let profile =
+        options.apparmor_profile.clone().unwrap_or_else(|| format!("{install}{}", wsp_frames::numbers::WORKSPACE_APPARMOR_PATH).into());
+    let runtime = options.runtime_root.clone().unwrap_or_else(|| format!("{install}{}", wsp_frames::numbers::RUNTIME_ROOT).into());
+    (install, profile, runtime)
 }
 
 async fn handle_op(conn: &Arc<Conn>, ctx: &Arc<Ctx>, frame: &Value, id: Option<RequestId>, op: Option<&str>) -> String {
@@ -1385,6 +1388,15 @@ pub(crate) mod tests {
                 "{op}"
             );
         }
+    }
+
+    #[test]
+    fn a_leave_with_no_root_takes_from_this_computers_own_paths() {
+        let token = tempfile::NamedTempFile::new().unwrap();
+        let (install, profile, runtime) = leave_paths(&Options::new(token.path()));
+        assert_eq!(install, "");
+        assert_eq!(profile, std::path::PathBuf::from("/etc/apparmor.d/wsp-workspace"));
+        assert_eq!(runtime, std::path::PathBuf::from("/wsp"));
     }
 
     #[tokio::test]

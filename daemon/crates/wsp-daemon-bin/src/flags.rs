@@ -310,6 +310,7 @@ mod tests {
     fn an_install_root_carries_the_runtime_folder_with_it_unless_that_is_named() {
         let at = |args: &[&str]| parse(args).unwrap().into_options().runtime_root;
         assert_eq!(at(&[]), None);
+        assert_eq!(parse(&[]).unwrap().into_options().install_root, None);
         assert_eq!(at(&["--install-root", "/ir"]), Some(PathBuf::from("/ir/wsp")));
         assert_eq!(at(&["--install-root", "/ir", "--runtime-root", "/rt"]), Some(PathBuf::from("/rt")));
     }
