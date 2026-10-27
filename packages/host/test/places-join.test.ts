@@ -996,6 +996,13 @@ describe("taking wsp off the computer it is typed on", () => {
     expect(existsSync(placeDaemonPaths(held).placeFound)).toBe(true);
   });
 
+  it("ends no thread of the computer's own from a leave held to its folder", async () => {
+    const home = tmp("leave-threads");
+    const runner = fakeRunner();
+    await sweepPlace({ home, manager: unitsUnder(home), run: runner.run, uid: 0, sh: () => "" });
+    expect(runner.ran.flat().join("\n")).not.toContain("/sys/fs/cgroup/wsp-threads");
+  });
+
   it("keeps wsp's install folder and its list when the leave outside the home was cut short, and says so", async () => {
     const home = tmp("leave-outside-cut");
     addFoundNothing(home);

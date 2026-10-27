@@ -342,6 +342,24 @@ pub(super) mod tests {
     }
 
     #[test]
+    fn a_leave_takes_nothing_through_a_link_under_its_root() {
+        // Only root's leave reaches outside the home.
+        if !nix::unistd::geteuid().is_root() {
+            return;
+        }
+        let root = tempfile::tempdir().unwrap();
+        let machine = tempfile::tempdir().unwrap();
+        let home = root.path().join("home");
+        record_under(&home, &[]);
+        std::fs::create_dir_all(machine.path().join("opt/wsp/bin")).unwrap();
+        std::fs::write(machine.path().join("opt/wsp/bin/tool"), "the computer's\n").unwrap();
+        std::os::unix::fs::symlink(machine.path().join("opt"), root.path().join("opt")).unwrap();
+        let install = root.path().to_string_lossy().into_owned();
+        let said = leave_here(&home, &root.path().join("etc/wsp-workspace"), &install, &root.path().join("wsp"), true, &[]);
+        assert!(machine.path().join("opt/wsp/bin/tool").exists(), "a link under the root took the folder it points at: {said:?}");
+    }
+
+    #[test]
     fn a_runtime_folder_whose_mount_table_cannot_be_read_stays_and_is_said() {
         let at = box_of_its_own();
         let runtime = runtime_of(&at);
