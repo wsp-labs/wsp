@@ -17,30 +17,27 @@
           "default": true,
           "os": "Linux 7.0.0-1014-aws",
           "shape": {
-            "cpu": 16,
-            "memMb": 31744
+            "cpu": 8,
+            "memMb": 15360
           },
           "diskFreeBytes": "<moving>",
-          "engine": "none",
           "home": "<tmp>/home",
           "present": true,
           "takesForks": false,
           "buildsImages": false,
           "cap": {
-            "threads": 16
+            "threads": 8
           },
           "capDefault": {
-            "threads": 16
+            "threads": 8
           },
           "turnLimitMs": null,
           "turnLimitDefault": null,
           "spawn": {
-            "spawn": true,
             "maxMachines": 3,
             "maxDepth": 2
           },
           "spawnDefault": {
-            "spawn": true,
             "maxMachines": 3,
             "maxDepth": 2
           },
@@ -52,42 +49,31 @@
     },
     {
       "id": 3,
-      "ok": true,
-      "place": {
-        "id": "here",
-        "kind": "computer",
-        "name": "<computer>",
-        "default": true,
-        "os": "Linux 7.0.0-1014-aws",
-        "shape": {
-          "cpu": 16,
-          "memMb": 31744
-        },
-        "diskFreeBytes": "<moving>",
-        "engine": "none",
-        "home": "<tmp>/home",
-        "present": true,
-        "takesForks": false,
-        "buildsImages": false,
-        "cap": {
-          "threads": 16
-        },
-        "capDefault": {
-          "threads": 16
-        },
-        "turnLimitMs": null,
-        "turnLimitDefault": null,
-        "spawn": {
-          "spawn": true,
-          "maxMachines": 3,
-          "maxDepth": 2
-        },
-        "spawnDefault": {
-          "spawn": true,
-          "maxMachines": 3,
-          "maxDepth": 2
-        },
-        "running": 0
+      "ok": false,
+      "error": {
+        "json": [
+          {
+            "received": "spawn",
+            "code": "invalid_enum_value",
+            "options": [
+              "threads",
+              "machines",
+              "spend",
+              "size",
+              "delete-after",
+              "nap",
+              "turn-limit",
+              "max-machines",
+              "max-depth"
+            ],
+            "path": [
+              "reset",
+              0
+            ],
+            "message": "Invalid enum value. Expected 'threads' | 'machines' | 'spend' | 'size' | 'delete-after' | 'nap' | 'turn-limit' | 'max-machines' | 'max-depth', received 'spawn'"
+          }
+        ],
+        "layout": "indented"
       }
     }
   ],

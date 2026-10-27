@@ -12,11 +12,10 @@
               "default": true,
               "os": "Linux 7.0.0-1014-aws",
               "shape": {
-                "cpu": 16,
-                "memMb": 31744
+                "cpu": 8,
+                "memMb": 15360
               },
               "diskFreeBytes": "<moving>",
-              "engine": "none",
               "home": "<tmp>/home",
               "present": true,
               "takesForks": false,
@@ -25,7 +24,7 @@
                 "threads": 2
               },
               "capDefault": {
-                "threads": 16
+                "threads": 8
               },
               "settings": {
                 "threads": 2
@@ -33,12 +32,10 @@
               "turnLimitMs": null,
               "turnLimitDefault": null,
               "spawn": {
-                "spawn": true,
                 "maxMachines": 3,
                 "maxDepth": 2
               },
               "spawnDefault": {
-                "spawn": true,
                 "maxMachines": 3,
                 "maxDepth": 2
               },

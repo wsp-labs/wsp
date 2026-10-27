@@ -6,8 +6,7 @@
         "jsonLines": [
           {
             "image": null,
-            "copies": [],
-            "projects": []
+            "copies": []
           }
         ],
         "layout": "<json>\n"
