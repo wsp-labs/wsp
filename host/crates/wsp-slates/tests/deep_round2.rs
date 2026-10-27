@@ -271,3 +271,20 @@ fn derived_answers_body() {
 fn derived_values_read_each_other_in_any_order() {
     in_child("derived_values_read_each_other_in_any_order", false, derived_answers_body);
 }
+
+// ruling 3 of the round 2 brief: the JSON a run prints is read to 490 levels (road.rs JSON_DEPTH_MAX, the record wrapping the
+// value in the 500) by a loop, and the value is cloned into the run's record and dropped.
+fn run_output_body() {
+    use wsp_slates::slate_runs::road::{parse_json, JSON_DEPTH_MAX};
+    let text = format!("{}1{}", "{\"a\":".repeat(JSON_DEPTH_MAX), "}".repeat(JSON_DEPTH_MAX));
+    let read = parse_json(&text).expect("a printed JSON at the cap is read");
+    let copy = read.clone();
+    assert_eq!(copy, read);
+    drop(copy);
+    drop(read);
+}
+
+#[test]
+fn the_json_a_run_prints_at_its_cap_is_cloned_and_dropped() {
+    in_child("the_json_a_run_prints_at_its_cap_is_cloned_and_dropped", false, run_output_body);
+}
