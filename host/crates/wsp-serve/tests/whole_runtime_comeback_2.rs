@@ -11,6 +11,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use common::comeback::*;
+use common::projects::AgentsDoc;
 use common::*;
 use serde_json::{json, Value};
 use tokio::io::AsyncWriteExt as _;
