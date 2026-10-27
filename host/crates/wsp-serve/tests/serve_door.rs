@@ -1234,12 +1234,31 @@ fn a_deeply_nested_secret_is_refused_and_logged_and_the_socket_keeps_answering()
         rt.script.on("workspaces.list", |_| Ok::<Vec<wsp_wire::views::workspace_more::WorkspaceView>, HostError>(vec![]));
         let (served, lines) = served_logging(&rt);
         let (socket, sink) = host_socket(&served).await;
-        let raw = format!(r#"{{"id":90,"op":"init.keys","key":{}"x"{}}}"#, "[".repeat(20_000), "]".repeat(20_000));
+        // Ruling 2 of fix round 3: a frame is read to 506 levels, so the secret sits 500 deep; at 20,000 the frame is refused
+        // as one the host cannot read (after_the_intake_cap_a_frame_is_refused_as_invalid_json).
+        let raw = format!(r#"{{"id":90,"op":"init.keys","key":{}"x"{}}}"#, "[".repeat(500), "]".repeat(500));
         send_raw(&socket, &raw).await;
         assert_eq!(sink.reply(90).unwrap()["ok"], json!(false));
         assert_eq!(request(&socket, &sink, 91, "workspaces.list", json!({})).await, json!({ "id": 91, "ok": true, "workspaces": [] }));
         assert_eq!(lines.borrow().len(), 1);
         assert!(lines.borrow()[0].starts_with("refused init.keys kind=none: "));
+    })
+}
+
+#[test]
+fn after_the_intake_cap_a_frame_is_refused_as_invalid_json() {
+    // Ruling 2 of fix round 3, serve.ts:640: a frame the host cannot read is answered `invalid json`, the socket still serving.
+    block(async {
+        let rt = FakeRuntime::new();
+        rt.script.on("workspaces.list", |_| Ok::<Vec<wsp_wire::views::workspace_more::WorkspaceView>, HostError>(vec![]));
+        let served = served_with(&rt, opts());
+        let (socket, sink) = host_socket(&served).await;
+        for levels in [507, 20_000] {
+            let raw = format!(r#"{{"id":90,"op":"init.keys","key":{}"x"{}}}"#, "[".repeat(levels), "]".repeat(levels));
+            send_raw(&socket, &raw).await;
+            assert_eq!(sink.frames().last().unwrap(), &json!({ "id": null, "ok": false, "error": "invalid json" }));
+        }
+        assert_eq!(request(&socket, &sink, 91, "workspaces.list", json!({})).await, json!({ "id": 91, "ok": true, "workspaces": [] }));
     })
 }
 

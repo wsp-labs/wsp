@@ -159,3 +159,22 @@ fn a_number_past_the_range_reads_as_null_where_only_the_shape_is_read() {
 fn a_text_that_does_not_parse_is_none() {
     assert_eq!(parse_json_lax("{x"), None);
 }
+
+// Ruling 2 of fix round 3: a frame is read to the 506 levels a value of 500 needs inside it, and a deeper one is refused,
+// never read as a shortened tree.
+#[test]
+fn a_whole_read_keeps_506_levels_and_refuses_the_507th() {
+    use wsp_words::v8_json::{parse_json_whole, TOO_DEEP, WHOLE_DEPTH};
+    assert_eq!(WHOLE_DEPTH, 506);
+    let nest = |n: usize| format!("{}1{}", "[".repeat(n), "]".repeat(n));
+    let mut value = parse_json_whole(&nest(506)).expect("506 levels are read");
+    let mut levels = 0;
+    while let Some(inner) = value.as_array_mut().and_then(|items| items.pop()) {
+        levels += 1;
+        value = inner;
+    }
+    assert_eq!((levels, value), (506, serde_json::json!(1)));
+    assert_eq!(parse_json_whole(&nest(507)).unwrap_err(), TOO_DEEP);
+    assert_eq!(parse_json_whole(&format!("{}1{}", "{\"a\":".repeat(507), "}".repeat(507))).unwrap_err(), TOO_DEEP);
+    assert_eq!(parse_json_whole(&"[".repeat(200_000)).unwrap_err(), TOO_DEEP);
+}

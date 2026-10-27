@@ -117,3 +117,9 @@ fn framed_body() {
 fn a_framed_read_takes_the_cap_and_the_wrapper_levels() {
     in_child("a_framed_read_takes_the_cap_and_the_wrapper_levels", framed_body);
 }
+
+// wsp-words' whole read of a frame holds the same levels as the framed parse here.
+#[test]
+fn the_words_whole_read_holds_the_framed_parse_levels() {
+    assert_eq!(wsp_words::v8_json::WHOLE_DEPTH, 500 + wsp_catalog::json_parse::WRAPPER_LEVELS);
+}
