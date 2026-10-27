@@ -996,6 +996,14 @@ describe("taking wsp off the computer it is typed on", () => {
     expect(existsSync(placeDaemonPaths(held).placeFound)).toBe(true);
   });
 
+  it("reads the folder a leave is held to as one whether it is reached through a link or by its real name", async () => {
+    const real = realpathSync(tmp("leave-held-real"));
+    const link = join(realpathSync(tmp("leave-held-link")), "to");
+    symlinkSync(real, link);
+    const swept = await sweepPlaceWithin({ home: join(link, "home"), manager: undefined, run: fakeRunner().run, uid: 1000, sh: () => "", within: real, apparmorProfile: join(real, "profile"), tools: toolsUnder(real), systemRoot: real });
+    expect(swept.removed).toEqual([]);
+  });
+
   it("runs no manager command of the computer's own when a case leaves out its runner", async () => {
     const home = tmp("leave-no-runner");
     const marker = join(home, "ran");
