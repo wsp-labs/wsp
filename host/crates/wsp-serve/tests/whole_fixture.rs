@@ -756,3 +756,36 @@ fn a_read_of_one_id_can_answer_a_machine_the_stub_did_not_make() {
         assert_eq!(backend.calls.get.get(), 2);
     });
 }
+
+// box-nap.test.ts:583 `restoringBox`: the real Boat machine over a fake gateway refuses commands while it restores, reads its
+// state as it is told, counts the proofs it is asked and can hold a read.
+#[test]
+fn the_restoring_box_refuses_commands_until_its_clock_reaches_the_restore_and_the_machine_counts_its_proofs() {
+    use common::box_fake::restoring_box;
+    use wsp_engine::machine::{Machine as _, MachineState};
+    drive(|| async {
+        let state = Rc::new(std::cell::RefCell::new("ready".to_string()));
+        let reads = state.clone();
+        let b = restoring_box("bx_1", move || reads.borrow().clone(), 30.0, || {});
+        assert_eq!(b.machine.state().await.expect("a state"), MachineState::Running);
+        *state.borrow_mut() = "archived".into();
+        assert_eq!(b.machine.state().await.expect("a state"), MachineState::Paused);
+        *state.borrow_mut() = "ready".into();
+        b.machine.prove_road(None).await.expect("a proof once restored");
+        assert_eq!(b.machine.proofs.get(), 1);
+        assert!(b.state.commands.borrow().contains(&true), "the box answered sandbox_restoring while its clock ran");
+        assert_eq!(b.state.last_command_restoring(), Some(false));
+        let held = b.state.hold_next();
+        let proving = tokio::task::spawn_local({
+            let machine = b.machine.clone();
+            async move { machine.prove_road(None).await }
+        });
+        sleep_ms(50).await;
+        assert!(!proving.is_finished());
+        held.open();
+        proving.await.expect("a task").expect("a proof");
+        assert_eq!(b.machine.proofs.get(), 2);
+        b.state.deleted.set(true);
+        assert!(b.machine.prove_road(None).await.is_err());
+    });
+}
