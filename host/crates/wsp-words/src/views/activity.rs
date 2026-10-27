@@ -5,7 +5,7 @@
 use indexmap::IndexSet;
 use serde_json::Value;
 
-use wsp_frames::{ProcKind, ProcOwnedBy};
+use wsp_frames::{ProcEntry, ProcKind, ProcOwnedBy};
 use wsp_wire::views::activity::{
     end_gone_line, end_reused_line, not_started_line, not_threads_line, processes_left_fix, with_read_placement, wsp_own_line,
     ActivityProc, ActivityRead, ActivityScope, EndPlan, LeftThread, LeftVerb as WireLeftVerb, Placement, Whose, END_AGAIN_FIX,
@@ -145,23 +145,42 @@ pub fn end_plan(
             return Err(refusal(&not_started_line(whole), NOT_STARTED_FIX, Some(Kind::Usage)));
         }
         let mut targets = Vec::new();
-        let mut stack = vec![p.clone()];
-        let mut seen = std::collections::HashSet::new();
-        while let Some(q) = stack.pop() {
-            if !seen.insert(q.pid) {
+        let mut stack = vec![Take::In(Box::new(p.clone()))];
+        let mut above = std::collections::HashSet::new();
+        let mut taken = std::collections::HashSet::new();
+        while let Some(step) = stack.pop() {
+            let q = match step {
+                Take::In(q) => *q,
+                Take::Out(pid) => {
+                    above.remove(&pid);
+                    continue;
+                }
+            };
+            if above.contains(&q.pid) {
                 return Err(HostError::new("Maximum call stack size exceeded"));
             }
+            if !taken.insert(q.pid) {
+                continue;
+            }
+            above.insert(q.pid);
             if let Some(under) = agent_scope_of(placed, read, q.pid) {
                 return Err(refusal(&agent_under_line(pid, under), &agent_end_fix(under), Some(Kind::Usage)));
             }
             if q.pid == read.daemon || q.pid == read.host {
                 return Err(refusal(&wsp_own_line(i64::from(q.pid)), WSP_OWN_FIX, Some(Kind::Usage)));
             }
-            stack.extend(placed.kids_of(q.pid).into_iter().rev());
+            stack.push(Take::Out(q.pid));
+            stack.extend(placed.kids_of(q.pid).into_iter().rev().map(|kid| Take::In(Box::new(kid))));
             targets.push(q);
         }
         Ok(EndPlan::Targets(targets))
     })
+}
+
+/// A step of the walk down from the process an End names: a process to take, or the leaving of one whose kids are done.
+enum Take {
+    In(Box<ProcEntry>),
+    Out(u32),
 }
 
 fn scope_of<'a>(read: &'a ActivityRead, thread: Option<&str>) -> Option<&'a ActivityScope> {

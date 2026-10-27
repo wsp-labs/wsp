@@ -258,20 +258,63 @@ struct SnapshotView {
     parent: Option<Option<String>>,
 }
 
+/// The text a field holds, nothing for any other value. An array or object is walked without being read, so a tree the
+/// provider nests deep is no depth of the stack (serde's `Value` reads one level per level).
+struct Text(Option<String>);
+
+impl<'de> Deserialize<'de> for Text {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> std::result::Result<Self, D::Error> {
+        struct Reads;
+        impl<'de> serde::de::Visitor<'de> for Reads {
+            type Value = Text;
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("any value")
+            }
+            fn visit_str<E>(self, v: &str) -> std::result::Result<Text, E> {
+                Ok(Text(Some(v.to_string())))
+            }
+            fn visit_string<E>(self, v: String) -> std::result::Result<Text, E> {
+                Ok(Text(Some(v)))
+            }
+            fn visit_bool<E>(self, _: bool) -> std::result::Result<Text, E> {
+                Ok(Text(None))
+            }
+            fn visit_i64<E>(self, _: i64) -> std::result::Result<Text, E> {
+                Ok(Text(None))
+            }
+            fn visit_u64<E>(self, _: u64) -> std::result::Result<Text, E> {
+                Ok(Text(None))
+            }
+            fn visit_f64<E>(self, _: f64) -> std::result::Result<Text, E> {
+                Ok(Text(None))
+            }
+            fn visit_unit<E>(self) -> std::result::Result<Text, E> {
+                Ok(Text(None))
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> std::result::Result<Text, A::Error> {
+                while seq.next_element::<serde::de::IgnoredAny>()?.is_some() {}
+                Ok(Text(None))
+            }
+            fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> std::result::Result<Text, A::Error> {
+                while map.next_entry::<serde::de::IgnoredAny, serde::de::IgnoredAny>()?.is_some() {}
+                Ok(Text(None))
+            }
+        }
+        d.deserialize_any(Reads)
+    }
+}
+
 fn known_kind<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<Option<MachineKind>, D::Error> {
-    Ok(serde_json::from_value(Value::deserialize(d)?).ok())
+    Ok(Text::deserialize(d)?.0.and_then(|word| serde_json::from_value(Value::String(word)).ok()))
 }
 
 fn known_status<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<TemplateRowStatus, D::Error> {
-    Ok(serde_json::from_value(Value::deserialize(d)?).unwrap_or(TemplateRowStatus::Building))
+    Ok(Text::deserialize(d)?.0.and_then(|word| serde_json::from_value(Value::String(word)).ok()).unwrap_or(TemplateRowStatus::Building))
 }
 
 /// A key the reply carries as null reads `Some(None)`, a text as itself, and one it does not carry reads None.
 fn carried_text<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<Option<Option<String>>, D::Error> {
-    Ok(Some(match Value::deserialize(d)? {
-        Value::String(text) => Some(text),
-        _ => None,
-    }))
+    Ok(Some(Text::deserialize(d)?.0))
 }
 
 /// A key the reply carries as null reads `Some(None)`; one it does not carry reads None.
@@ -415,6 +458,18 @@ impl SolariBackend {
     ) -> Result<T> {
         let (value, _) = self.call(method, path, body, None, cap_ms, signal).await?;
         serde_json::from_value(value).map_err(|e| other(e.to_string()))
+    }
+
+    /// `request` for a caller that reads the answer as the JSON it is: the tree is handed over, not read again by serde.
+    pub async fn request_value(
+        &self,
+        method: &str,
+        path: &str,
+        body: Option<Value>,
+        cap_ms: Option<f64>,
+        signal: Option<&Cancel>,
+    ) -> Result<Value> {
+        Ok(self.call(method, path, body, None, cap_ms, signal).await?.0)
     }
 
     /// solari-backend.ts:207. Keyed: a fetch that throws is sent once more under the key. Returns the answer's JSON and
@@ -687,7 +742,7 @@ impl MachineBackend for SolariBackend {
     }
     /// solari-backend.ts:341.
     async fn delete_snapshot(&self, id: &str) -> Result<()> {
-        self.request::<Value>("DELETE", &format!("/snapshots/{}", encode_uri_component(id)), None, None, None).await.map(drop)
+        self.request_value("DELETE", &format!("/snapshots/{}", encode_uri_component(id)), None, None, None).await.map(drop)
     }
     /// solari-backend.ts:305. Lists the templates; answers `Value::Null` (the TS `void`).
     async fn check_key(&self) -> Result<Value> {
@@ -696,11 +751,11 @@ impl MachineBackend for SolariBackend {
     }
     /// solari-backend.ts:364. `ids` is not read: the provider's whole listing.
     async fn list_snapshots(&self, _ids: Option<&[String]>) -> Result<Vec<SnapshotRow>> {
-        let page: Value = self.request("GET", "/snapshots", None, None, None).await?;
-        let Some(rows) = page.get("snapshots").and_then(Value::as_array) else {
+        let mut page = self.request_value("GET", "/snapshots", None, None, None).await?;
+        let Some(rows) = page.get_mut("snapshots").and_then(Value::as_array_mut) else {
             return Err(other("GET /snapshots answered without a snapshots array".to_string()));
         };
-        let rows: Vec<SnapshotView> = serde_json::from_value(Value::Array(rows.clone())).map_err(|e| other(e.to_string()))?;
+        let rows: Vec<SnapshotView> = serde_json::from_value(Value::Array(std::mem::take(rows))).map_err(|e| other(e.to_string()))?;
         Ok(rows
             .into_iter()
             .map(|s| SnapshotRow {
@@ -733,16 +788,16 @@ impl MachineBackend for SolariBackend {
     }
     /// solari-backend.ts:354.
     async fn list_templates(&self) -> Result<Vec<TemplateRow>> {
-        let page: Value = self.request("GET", "/templates", None, None, None).await?;
-        let Some(rows) = page.get("templates").and_then(Value::as_array) else {
+        let mut page = self.request_value("GET", "/templates", None, None, None).await?;
+        let Some(rows) = page.get_mut("templates").and_then(Value::as_array_mut) else {
             return Err(other("GET /templates answered without a templates array".to_string()));
         };
-        let rows: Vec<TemplateView> = serde_json::from_value(Value::Array(rows.clone())).map_err(|e| other(e.to_string()))?;
+        let rows: Vec<TemplateView> = serde_json::from_value(Value::Array(std::mem::take(rows))).map_err(|e| other(e.to_string()))?;
         Ok(rows.into_iter().map(template_row_of).collect())
     }
     /// solari-backend.ts:360.
     async fn delete_template(&self, id: &str) -> Result<()> {
-        self.request::<Value>("DELETE", &format!("/templates/{}", encode_uri_component(id)), None, None, None).await.map(drop)
+        self.request_value("DELETE", &format!("/templates/{}", encode_uri_component(id)), None, None, None).await.map(drop)
     }
 }
 
@@ -841,7 +896,7 @@ impl Machine for SolariMachine {
             let left = deadline - clock.now() as f64;
             if left > 0.0 {
                 let cap = if attempt == 1 { left / 2.0 } else { left };
-                match self.backend.request::<Value>("POST", &self.route("/pause"), Some(json!({})), Some(cap), None).await {
+                match self.backend.request_value("POST", &self.route("/pause"), Some(json!({})), Some(cap), None).await {
                     Ok(_) => return Ok(()),
                     Err(e) => {
                         if let EngineError::Provider(w) = &e {
@@ -872,7 +927,7 @@ impl Machine for SolariMachine {
     /// solari-backend.ts:467.
     async fn resume(&self, signal: Option<&Cancel>) -> Result<()> {
         let MoveBudgets { resume_cap_ms, state_read_ms, .. } = self.backend.budgets();
-        match self.backend.request::<Value>("POST", &self.route("/resume"), Some(json!({})), Some(resume_cap_ms), signal).await {
+        match self.backend.request_value("POST", &self.route("/resume"), Some(json!({})), Some(resume_cap_ms), signal).await {
             Ok(_) => Ok(()),
             Err(e) => {
                 if !is_capped(&e) && !is_network_error(&e) {
@@ -890,7 +945,7 @@ impl Machine for SolariMachine {
     }
     /// solari-backend.ts:490.
     async fn kill(&self) -> Result<()> {
-        self.backend.request::<Value>("DELETE", &self.route(""), None, None, None).await.map(drop)
+        self.backend.request_value("DELETE", &self.route(""), None, None, None).await.map(drop)
     }
     /// solari-backend.ts:494.
     async fn state(&self) -> Result<MachineState> {
@@ -929,6 +984,6 @@ impl Machine for SolariMachine {
     }
     /// solari-backend.ts:514.
     async fn metrics(&self) -> Result<()> {
-        self.backend.request::<Value>("GET", &self.route("/metrics"), None, None, None).await.map(drop)
+        self.backend.request_value("GET", &self.route("/metrics"), None, None, None).await.map(drop)
     }
 }

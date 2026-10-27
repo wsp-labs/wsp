@@ -15,7 +15,7 @@ on record for a resume (so a resume arms the account's cap), no refusal logged. 
 
 Read with serde, every field but `id`, `state` (box) and `name`, `status`, `createdAt` (named snapshot) optional; a
 JSON `null` reads as absent, except a snapshot's `chainId`, where a present null is kept (`Some(None)`) and passed on as
-`parent: null`. Unknown fields are ignored. `stop_refusal_of` (:409): the box's non-empty `error`; else `its latest
+`parent: null`. Unknown fields are ignored. `read_view` settles a field that holds an array or object before serde reads it: a field read as text (`id`, `state`, `name`, `status`) is its JavaScript text (`String(value)`, nested arrays joined from a stack), any other is emptied (the TS reads it as absent), so an answer nested to the parse cap (500 levels) never walks the stack. `stop_refusal_of` (:409): the box's non-empty `error`; else `its latest
 snapshot <status>[ at <attempt>]` or `it reported no snapshot attempt`, then `, and the last that completed was at
 <completed>` or `... was none`. `template_row_of` (:415): `{ id: name, name, status, error?, createdAt }`, status ready,
 failed, or building for any other word; `error` only on a failed one that has one.

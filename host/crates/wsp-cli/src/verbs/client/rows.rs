@@ -383,15 +383,32 @@ fn field_said(key: &str, value: &Value) -> Option<String> {
 
 /// `String(v)` of a JSON value, as the recipe rows print it.
 fn js_string(value: &Value) -> String {
-    match value {
-        Value::Null => "null".to_owned(),
-        Value::Bool(flag) => flag.to_string(),
-        Value::Number(n) => number_string(n.as_f64().unwrap_or(f64::NAN)),
-        Value::String(text) => text.clone(),
-        Value::Array(items) => {
-            items.iter().map(|item| if item.is_null() { String::new() } else { js_string(item) }).collect::<Vec<_>>().join(",")
+    let mut out = String::new();
+    let mut open: Vec<(std::slice::Iter<Value>, bool)> = Vec::new();
+    let mut next = Some(value);
+    loop {
+        match next.take() {
+            Some(Value::Null) if !open.is_empty() => {}
+            Some(Value::Null) => out.push_str("null"),
+            Some(Value::Bool(flag)) => out.push_str(&flag.to_string()),
+            Some(Value::Number(n)) => out.push_str(&number_string(n.as_f64().unwrap_or(f64::NAN))),
+            Some(Value::String(text)) => out.push_str(text),
+            Some(Value::Array(items)) => open.push((items.iter(), true)),
+            Some(Value::Object(_)) => out.push_str("[object Object]"),
+            None => {}
         }
-        Value::Object(_) => "[object Object]".to_owned(),
+        let Some((items, first)) = open.last_mut() else { return out };
+        match items.next() {
+            Some(item) => {
+                if !std::mem::take(first) {
+                    out.push(',');
+                }
+                next = Some(item);
+            }
+            None => {
+                open.pop();
+            }
+        }
     }
 }
 

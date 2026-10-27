@@ -710,3 +710,58 @@ fn brag_row(found: &FoundPlugin) -> wsp_wire::types::agents_report::PluginRow {
         set_in: None,
     }
 }
+
+// Review of wsp-labs/wsp-map#2448: a plugin manifest or a marketplace entry holding object levels to the 500-level cap
+// aborts the read, because plugins.rs:416-472 and :559 clone the parsed entry and a Value of objects clones to 627 on a
+// 1 MiB debug stack. Marketplace files come from a marketplace's repo. node (plugins.ts) reads all 13 plugins.
+fn in_child_2448(name: &str, body: fn()) {
+    if std::env::var("REVIEW_2448_CHILD").as_deref() == Ok(name) {
+        std::thread::Builder::new().stack_size(1024 * 1024).spawn(body).unwrap().join().expect("the body held");
+        return;
+    }
+    let out = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", name, "--nocapture", "--test-threads=1"])
+        .env("REVIEW_2448_CHILD", name)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "the whole process died ({}): {}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr).lines().last().unwrap_or("")
+    );
+}
+
+fn objects_2448(n: usize) -> String {
+    format!("{}1{}", "{\"a\":".repeat(n), "}".repeat(n))
+}
+
+fn manifest_cap_objects_body() {
+    let mut files = claude().files;
+    files.insert(
+        "/x/claude/plugins/cache/brag/brag/0.4.0/.claude-plugin/plugin.json".to_string(),
+        format!(r#"{{"name":"brag","version":"0.4.0","description":"d","extra":{}}}"#, objects_2448(499)),
+    );
+    let read = block_on(PluginShelf::Claude.read(&files_io(files, Some("/x/claude")), &[]));
+    assert_eq!(read.plugins.len(), 13);
+}
+
+#[test]
+fn a_plugin_manifest_holding_object_levels_to_the_cap_is_read() {
+    in_child_2448("a_plugin_manifest_holding_object_levels_to_the_cap_is_read", manifest_cap_objects_body);
+}
+
+fn marketplace_cap_objects_body() {
+    let mut files = claude().files;
+    files.insert(
+        "/x/claude/plugins/marketplaces/brag/.claude-plugin/marketplace.json".to_string(),
+        format!(r#"{{"name":"brag","plugins":[{{"name":"brag","source":"./","extra":{}}}]}}"#, objects_2448(497)),
+    );
+    let read = block_on(PluginShelf::Claude.read(&files_io(files, Some("/x/claude")), &[]));
+    assert_eq!(read.plugins.len(), 13);
+}
+
+#[test]
+fn a_marketplace_entry_holding_object_levels_to_the_cap_is_read() {
+    in_child_2448("a_marketplace_entry_holding_object_levels_to_the_cap_is_read", marketplace_cap_objects_body);
+}

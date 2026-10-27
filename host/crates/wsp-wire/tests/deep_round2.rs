@@ -1,0 +1,169 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+//! Round 2 of wsp-labs/wsp-map#2448 (wsp-wire): a process list that holds a pid twice walks as node answers where node
+//! answers and ends where a parent cycle would not, and a chain of agents is placed in linear time,
+//! and a tree the readers keep is cloned and dropped on a 1 MiB stack.
+use std::time::{Duration, Instant};
+
+use wsp_frames::ProcEntry;
+use wsp_wire::views::activity::{activity_of, place_procs, ActivityRead, PlaceInput, PlaceThread};
+use wsp_wire::views::activity_fold::fold_tree;
+
+fn in_child(name: &str, body: fn()) {
+    if std::env::var("ROUND2_2448_CHILD").as_deref() == Ok(name) {
+        std::thread::Builder::new().stack_size(1024 * 1024).spawn(body).unwrap().join().expect("the body held");
+        return;
+    }
+    let out = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", name, "--nocapture", "--test-threads=1"])
+        .env("ROUND2_2448_CHILD", name)
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let why: Vec<&str> = stderr.lines().filter(|l| l.contains("linear") || l.contains("overflow") || l.contains("left:")).take(2).collect();
+    assert!(out.status.success(), "the child failed ({}): {}", out.status, why.join(" | "));
+}
+
+fn row(pid: u32, ppid: u32) -> ProcEntry {
+    ProcEntry {
+        pid,
+        ppid,
+        user: "ada".into(),
+        state: "S".into(),
+        comm: "sleep".into(),
+        cmdline: "sleep 1000".into(),
+        cpu: 0.0,
+        rss: 1000,
+        started_at: 1_760_000_000_000 + pid as i64,
+        pty: Some("pts/0".into()),
+        cgroup: None,
+        energy_mw: None,
+        pgid: None,
+        owner: None,
+        kind: None,
+        id: None,
+    }
+}
+
+fn read_of(procs: Vec<ProcEntry>) -> ActivityRead {
+    ActivityRead {
+        computer: "box".into(),
+        at: wsp_wire::types::JsNumber(1.0),
+        procs,
+        daemon: 999_999_999,
+        host: 999_999_998,
+        scopes: vec![],
+        agent_bins: vec!["claude".into()],
+        ports: None,
+        cgroups: None,
+    }
+}
+
+fn pids_and_depths(procs: Vec<ProcEntry>) -> Vec<(i64, i64)> {
+    activity_of(&read_of(procs)).unowned.iter().map(|p| (p.pid.get(), p.depth.get())).collect()
+}
+
+// Ruling 1 of fix round 3: one visited set, "a pid walked once is never walked again". activity.ts:411 treeRows walks
+// `kidsOf` with no set and prints 1, 2, 3, 2, 3 here; the port prints each pid once, so a ring where every pid is listed
+// twice ends (rereview_2448.rs) and the walk is linear on any list.
+#[test]
+fn a_pid_listed_twice_with_no_cycle_is_walked_once() {
+    let rows = vec![row(1, 0), row(2, 1), row(2, 1), row(3, 2)];
+    assert_eq!(pids_and_depths(rows), vec![(1, 0), (2, 1), (3, 2)]);
+}
+
+// Ruling 4 of the round 2 brief: a parent cycle is broken and the rest of the tree is answered.
+#[test]
+fn a_parent_cycle_through_a_pid_listed_twice_is_cut_and_the_rest_is_answered() {
+    let rows = vec![row(1, 99), row(2, 1), row(1, 2), row(5, 1)];
+    assert_eq!(pids_and_depths(rows), vec![(1, 0), (2, 1), (5, 1)]);
+}
+
+#[test]
+fn fold_tree_cuts_a_parent_cycle_and_answers_the_rest() {
+    let list = vec![row(1, 99), row(2, 1), row(1, 2), row(5, 1)];
+    let folded = fold_tree(&list, |_| None);
+    assert_eq!(folded.len(), 1);
+    assert_eq!(folded[0].p.pid, 1);
+    assert_eq!(folded[0].kids.iter().map(|k| k.p.pid).collect::<Vec<_>>(), vec![2, 5]);
+    assert!(folded[0].kids[0].kids.is_empty(), "pid 1 under pid 2 is the cycle");
+}
+
+// Ruling 1 of fix round 3: one visited set. node's foldTree keeps both rows of pid 2, each with pid 3 under it; the port
+// keeps the first.
+#[test]
+fn fold_tree_keeps_a_pid_listed_twice_with_no_cycle_once() {
+    let list = vec![row(1, 0), row(2, 1), row(2, 1), row(3, 2)];
+    let folded = fold_tree(&list, |_| None);
+    assert_eq!(folded.len(), 1);
+    assert_eq!(folded[0].kids.len(), 1);
+    assert!(folded[0].kids.iter().all(|k| k.p.pid == 2 && k.kids.len() == 1 && k.kids[0].p.pid == 3));
+}
+
+// processes_choices.rs agent_path: `path.insert(0, ..)` per step of the way up and `path.contains` per step of the way
+// down made a chain of agents quadratic (the TS `unshift` and `includes` are). Doubling the chain must not quadruple the time.
+fn chain_of_agents(n: u32) -> Vec<ProcEntry> {
+    (1..=n)
+        .map(|pid| {
+            let mut p = row(pid, pid - 1);
+            p.comm = "claude".into();
+            p.cmdline = "claude".into();
+            p
+        })
+        .collect()
+}
+
+fn placed_in(n: u32, recorded: bool) -> Duration {
+    let threads = [PlaceThread {
+        id: "t1".into(),
+        roots: vec![1],
+        bin: Some("claude".into()),
+        agents: recorded.then(|| vec![n]),
+        ..Default::default()
+    }];
+    let procs = chain_of_agents(n);
+    let bins = vec!["claude".to_string()];
+    let listens = |_: u32| false;
+    let input =
+        PlaceInput { procs: &procs, daemon: 999_999_999, host: None, threads: &threads, agent_bins: &bins, listens: &listens, app: None };
+    let at = Instant::now();
+    let placed = place_procs(&input);
+    let took = at.elapsed();
+    assert_eq!(placed.agent.keys().copied().collect::<Vec<_>>(), vec![n], "the agent is the last of the chain");
+    assert_eq!(placed.folds_into.len() as u32, n - 1, "every other process of the chain folds into it");
+    took
+}
+
+fn best_of_three(n: u32, recorded: bool) -> Duration {
+    (0..3).map(|_| placed_in(n, recorded)).min().unwrap()
+}
+
+fn agent_chain_body() {
+    for recorded in [false, true] {
+        let n: u32 = std::env::var("ROUND2_2448_AGENTS").ok().and_then(|n| n.parse().ok()).unwrap_or(20_000);
+        let small = best_of_three(n, recorded).max(Duration::from_millis(20));
+        let large = best_of_three(2 * n, recorded);
+        eprintln!("recorded={recorded}: {n} agents took {small:?}, {} took {large:?}", 2 * n);
+        assert!(large < small * 3, "recorded={recorded}: {} agents took {large:?} where {n} took {small:?}: not linear", 2 * n);
+    }
+}
+
+#[test]
+fn a_chain_of_agents_is_placed_in_linear_time() {
+    in_child("a_chain_of_agents_is_placed_in_linear_time", agent_chain_body);
+}
+
+// ruling 3 of the round 2 brief: json_text::parse_json reads 500 levels of objects, keeps 100 and answers null below; the tree
+// it hands back is cloned (a Value of objects dies in clone at 628 levels on this stack) and dropped.
+fn kept_tree_body() {
+    let text = format!("{}1{}", "{\"a\":".repeat(500), "}".repeat(500));
+    let read = wsp_wire::wire::json_text::parse_json(&text).expect("a text at 500 levels is read");
+    let copy = read.clone();
+    assert_eq!(copy, read);
+    drop(copy);
+    drop(read);
+}
+
+#[test]
+fn a_tree_of_500_object_levels_read_by_json_text_is_cloned_and_dropped() {
+    in_child("a_tree_of_500_object_levels_read_by_json_text_is_cloned_and_dropped", kept_tree_body);
+}

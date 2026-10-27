@@ -16,8 +16,8 @@ use super::plan::{
 };
 use super::request::BoxShared;
 use super::request::{
-    encode_uri_component, other, road_words, template_row_of, BackstopFailure, BoxBackend, BoxView, NamedSnapshotView, RequestOpts,
-    SnapshotView, Timer, BOX_DISK_KEPT_MS,
+    encode_uri_component, other, read_view, road_words, taken, template_row_of, BackstopFailure, BoxBackend, BoxView, NamedSnapshotView,
+    RequestOpts, SnapshotView, Timer, BOX_DISK_KEPT_MS,
 };
 use crate::errors::{far_end_answered, is_missing, EngineError, Result};
 use crate::js_value::js_string;
@@ -110,10 +110,9 @@ impl BoxBackend {
                 ..RequestOpts::default()
             };
             match self.request("POST", "/sandboxes", opts).await {
-                Ok(answer) => {
+                Ok(mut answer) => {
                     let status = answer.get("status").map(js_string);
-                    let sandbox: BoxView =
-                        serde_json::from_value(answer.get("sandbox").cloned().unwrap_or(Value::Null)).map_err(|e| other(e.to_string()))?;
+                    let sandbox: BoxView = read_view(taken(&mut answer, "sandbox")).map_err(|e| other(e.to_string()))?;
                     return Ok(PostedCreate { status, sandbox, lost });
                 }
                 Err(e) => {
@@ -262,9 +261,9 @@ impl BoxBackend {
             if let Some(cursor) = &cursor {
                 params.push(format!("cursor={}", form_encode(cursor)));
             }
-            let page = self.request("GET", &format!("{path}?{}", params.join("&")), RequestOpts::default()).await?;
-            if let Some(rows) = page.get(rows_key).and_then(Value::as_array) {
-                out.extend(rows.iter().cloned());
+            let mut page = self.request("GET", &format!("{path}?{}", params.join("&")), RequestOpts::default()).await?;
+            if let Some(rows) = page.get_mut(rows_key).and_then(Value::as_array_mut) {
+                out.append(rows);
             }
             cursor = page.get("pageInfo").and_then(|info| info.get("nextCursor")).filter(|c| !c.is_null()).map(js_string);
             if cursor.is_none() || enough.is_some_and(|enough| enough(&out)) {
@@ -277,7 +276,7 @@ impl BoxBackend {
     pub async fn every_box(&self) -> Result<Vec<BoxView>> {
         let mut rows = self.pages("/sandboxes", "sandboxes", &[], None).await?;
         rows.extend(self.pages("/sandboxes", "sandboxes", &[("state", "archived")], None).await?);
-        rows.into_iter().map(|row| serde_json::from_value::<BoxView>(row).map_err(|e| other(e.to_string()))).collect()
+        rows.into_iter().map(|row| read_view::<BoxView>(row).map_err(|e| other(e.to_string()))).collect()
     }
 
     /// box-backend.ts:940.
@@ -328,7 +327,7 @@ impl BoxBackend {
             })
             .collect();
         for raw in history {
-            let s: SnapshotView = serde_json::from_value(raw).map_err(|e| other(e.to_string()))?;
+            let s: SnapshotView = read_view(raw).map_err(|e| other(e.to_string()))?;
             let created_at = s.completed_at.clone().or(s.created_at.clone()).filter(|at| !at.is_empty());
             rows.push(SnapshotRow {
                 id: s.id.clone(),
@@ -360,18 +359,17 @@ impl BoxBackend {
 
     /// box-backend.ts:993.
     pub async fn named_snapshots(&self) -> Result<Vec<NamedSnapshotView>> {
-        let page = self.request("GET", "/named-snapshots", RequestOpts::default()).await?;
-        let Some(rows) = page.get("snapshots").and_then(Value::as_array) else {
+        let mut page = self.request("GET", "/named-snapshots", RequestOpts::default()).await?;
+        let Some(rows) = page.get_mut("snapshots").and_then(Value::as_array_mut) else {
             return Err(other("GET /named-snapshots answered without a snapshots array".to_string()));
         };
-        rows.iter().cloned().map(|row| serde_json::from_value::<NamedSnapshotView>(row).map_err(|e| other(e.to_string()))).collect()
+        rows.drain(..).map(|row| read_view::<NamedSnapshotView>(row).map_err(|e| other(e.to_string()))).collect()
     }
 
     /// box-backend.ts:1004.
     pub async fn box_get_template(&self, id: &str) -> Result<TemplateRow> {
-        let raw = self.request("GET", &format!("/named-snapshots/{}", encode_uri_component(id)), RequestOpts::default()).await?;
-        let snapshot: NamedSnapshotView =
-            serde_json::from_value(raw.get("snapshot").cloned().unwrap_or(Value::Null)).map_err(|e| other(e.to_string()))?;
+        let mut raw = self.request("GET", &format!("/named-snapshots/{}", encode_uri_component(id)), RequestOpts::default()).await?;
+        let snapshot: NamedSnapshotView = read_view(taken(&mut raw, "snapshot")).map_err(|e| other(e.to_string()))?;
         Ok(template_row_of(&snapshot))
     }
 

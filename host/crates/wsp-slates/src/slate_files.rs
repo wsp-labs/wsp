@@ -125,7 +125,7 @@ pub fn files_read(doc: Option<&SlateDoc>, decl: &SlateRunDecl) -> Option<IndexMa
 
 fn remove_at(path: &Path) -> std::io::Result<()> {
     match std::fs::symlink_metadata(path) {
-        Ok(meta) if meta.is_dir() => std::fs::remove_dir_all(path),
+        Ok(meta) if meta.is_dir() => wsp_core::local_exec::reap::remove_tree(path).map_err(std::io::Error::other),
         Ok(_) => std::fs::remove_file(path),
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
         Err(e) => Err(e),

@@ -41,9 +41,20 @@ fn read_registry(file: &str) -> Result<Option<Value>> {
 }
 
 /// A non-object `projects` has no key under an absolute path, so it lists nothing.
-fn project_entries(registry: &Value) -> Vec<(String, Value)> {
+fn project_entries(registry: &Value) -> Vec<(&String, &Value)> {
     match registry.get("projects") {
-        Some(Value::Object(map)) => map.iter().map(|(key, slug)| (key.clone(), slug.clone())).collect(),
+        Some(Value::Object(map)) => map.iter().collect(),
+        _ => vec![],
+    }
+}
+
+/// `project_entries` of a registry the caller is done with, moved out so no slug is cloned.
+fn taken_entries(registry: Value) -> Vec<(String, Value)> {
+    match registry {
+        Value::Object(mut root) => match root.remove("projects") {
+            Some(Value::Object(map)) => map.into_iter().collect(),
+            _ => vec![],
+        },
         _ => vec![],
     }
 }
@@ -73,10 +84,10 @@ fn slugs_under(home: &str, path: &str) -> Result<Vec<String>> {
     };
     let mut slugs = Vec::new();
     for (key, slug) in project_entries(&registry) {
-        if !under_project(&key, path) {
+        if !under_project(key, path) {
             continue;
         }
-        let slug = string_slug(&slug)?;
+        let slug = string_slug(slug)?;
         if under_home(home, &[slug.as_str()]).is_some() {
             slugs.push(slug);
         }
@@ -110,11 +121,10 @@ impl ProjectStateResolver for GeminiResolver {
         }
         let projects = match registry.get("projects") {
             Some(Value::Null) | None => return Err(other("Cannot convert undefined or null to object")),
-            Some(projects) => projects.clone(),
+            Some(projects) => projects,
         };
-        let entries = project_entries(&registry);
         let mut renamed: Vec<(String, String, String)> = Vec::new();
-        for (path, slug) in &entries {
+        for (path, slug) in project_entries(&registry) {
             let Some(target) = moved_path(path, from, to) else {
                 continue;
             };
@@ -122,7 +132,7 @@ impl ProjectStateResolver for GeminiResolver {
             if under_home(home, &[slug.as_str()]).is_none() {
                 continue;
             }
-            if matches!(&projects, Value::Object(map) if map.contains_key(&target)) {
+            if matches!(projects, Value::Object(map) if map.contains_key(&target)) {
                 return Err(other(format!("{target} already exists in {file}")));
             }
             renamed.push((path.clone(), slug, target));
@@ -130,15 +140,17 @@ impl ProjectStateResolver for GeminiResolver {
         if renamed.is_empty() {
             return Ok(vec![]);
         }
-        let mut next = Map::new();
-        for (key, slug) in entries {
-            let key = match renamed.iter().find(|r| r.0 == key) {
-                Some(r) => r.2.clone(),
-                None => key,
-            };
-            next.insert(key, slug);
-        }
         if let Value::Object(root) = &mut registry {
+            let mut next = Map::new();
+            if let Some(Value::Object(held)) = root.get_mut("projects") {
+                for (key, slug) in std::mem::take(held) {
+                    let key = match renamed.iter().find(|r| r.0 == key) {
+                        Some(r) => r.2.clone(),
+                        None => key,
+                    };
+                    next.insert(key, slug);
+                }
+            }
             root.insert("projects".into(), Value::Object(next));
         }
         let sum = config_sum(&bytes);
@@ -215,9 +227,9 @@ impl ProjectStateResolver for GeminiResolver {
     }
     async fn merge(&self, home: &str, from: &str, to: &str, guest_home: &str) -> Result<Option<String>> {
         let registry = read_registry(&join_posix(&[home, REGISTRY]))?.unwrap_or(Value::Null);
-        let keys: Vec<Value> = project_entries(&registry)
+        let keys: Vec<Value> = taken_entries(registry)
             .into_iter()
-            .filter_map(|(path, slug)| moved_path(&path, from, to).map(|target| json!([path, target, slug])))
+            .filter_map(|(path, slug)| moved_path(&path, from, to).map(|target| Value::Array(vec![json!(path), json!(target), slug])))
             .collect();
         if keys.is_empty() {
             return Ok(None);

@@ -11,8 +11,11 @@ use wsp_words::exit::HostError;
 /// and a write. A file that holds one of these chars itself reads as the same escape.
 const LONE_BASE: u32 = 0x10F800;
 
-/// Nesting past this refuses as V8's parser does when its stack is gone; the recursion here stays in a thread's.
-const MAX_DEPTH: usize = 1000;
+/// Nesting past this refuses as V8's parser does when its stack is gone; a tree kept deeper would abort a clone or a drop.
+const MAX_DEPTH: usize = 500;
+
+/// The refusal for nesting past `MAX_DEPTH`.
+pub(crate) const TOO_DEEP: &str = "Maximum call stack size exceeded";
 
 /// The lone surrogate unit a char stands for, if it stands for one.
 pub(crate) fn lone_surrogate(c: char) -> Option<u16> {
@@ -32,8 +35,21 @@ fn lone_char(unit: u16) -> char {
 /// The value the text holds as `JSON.parse` reads it. A number past f64 is `null`, as `JSON.stringify` writes
 /// infinity.
 pub fn parse_json(text: &str) -> Result<Value, HostError> {
-    let mut p = Parser { text, bytes: text.as_bytes(), pos: 0 };
-    let value = p.value(0).map_err(HostError::new)?;
+    parse_within(text, MAX_DEPTH)
+}
+
+/// The levels a message adds around a value the host keeps to the cap (the frame, its `values`, a record's own levels),
+/// as the store reads a row (wsp-store `ROW_DEPTH_MAX`, 506).
+pub const WRAPPER_LEVELS: usize = 6;
+
+/// `parse_json` for a message that wraps a value kept to the cap: the cap and the wrapper's levels.
+pub fn parse_json_framed(text: &str) -> Result<Value, HostError> {
+    parse_within(text, MAX_DEPTH + WRAPPER_LEVELS)
+}
+
+fn parse_within(text: &str, max_depth: usize) -> Result<Value, HostError> {
+    let mut p = Parser { text, bytes: text.as_bytes(), pos: 0, max_depth };
+    let value = p.value().map_err(HostError::new)?;
     p.skip_space();
     if p.pos < p.bytes.len() {
         return Err(HostError::new(p.at(p.pos, "Unexpected non-whitespace character after JSON")));
@@ -43,7 +59,7 @@ pub fn parse_json(text: &str) -> Result<Value, HostError> {
 
 /// The string a JSON string literal (quotes included) holds, nothing where it is not one.
 pub fn parse_json_string(literal: &str) -> Option<String> {
-    let mut p = Parser { text: literal, bytes: literal.as_bytes(), pos: 0 };
+    let mut p = Parser { text: literal, bytes: literal.as_bytes(), pos: 0, max_depth: MAX_DEPTH };
     if p.bytes.first() != Some(&b'"') {
         return None;
     }
@@ -55,6 +71,12 @@ struct Parser<'a> {
     text: &'a str,
     bytes: &'a [u8],
     pos: usize,
+    max_depth: usize,
+}
+
+enum Frame {
+    Object(Map<String, Value>, String),
+    Array(Vec<Value>),
 }
 
 #[derive(PartialEq)]
@@ -135,75 +157,97 @@ impl Parser<'_> {
         }
     }
 
-    fn value(&mut self, depth: usize) -> Result<Value, String> {
-        match self.peek() {
-            Some(b'"') => self.string().map(Value::String),
-            Some(b'-' | b'0'..=b'9') => self.number(),
-            Some(b'{') => self.object(depth),
-            Some(b'[') => self.array(depth),
-            Some(b't') => self.literal("true", Value::Bool(true)),
-            Some(b'f') => self.literal("false", Value::Bool(false)),
-            Some(b'n') => self.literal("null", Value::Null),
-            _ => Err(self.unexpected(self.pos)),
+    /// The value at `pos`, read with a stack of its own: a container is a frame, not a call, so the depth cap fires
+    /// before any thread's stack could.
+    fn value(&mut self) -> Result<Value, String> {
+        let mut stack: Vec<Frame> = Vec::new();
+        loop {
+            let mut done = match self.peek() {
+                Some(b'"') => self.string().map(Value::String)?,
+                Some(b'-' | b'0'..=b'9') => self.number()?,
+                Some(b'{') => {
+                    self.enter(stack.len())?;
+                    if self.peek() == Some(b'}') {
+                        self.pos += 1;
+                        Value::Object(Map::new())
+                    } else {
+                        let key = self.property_name(true)?;
+                        stack.push(Frame::Object(Map::new(), key));
+                        continue;
+                    }
+                }
+                Some(b'[') => {
+                    self.enter(stack.len())?;
+                    if self.peek() == Some(b']') {
+                        self.pos += 1;
+                        Value::Array(Vec::new())
+                    } else {
+                        stack.push(Frame::Array(Vec::new()));
+                        continue;
+                    }
+                }
+                Some(b't') => self.literal("true", Value::Bool(true))?,
+                Some(b'f') => self.literal("false", Value::Bool(false))?,
+                Some(b'n') => self.literal("null", Value::Null)?,
+                _ => return Err(self.unexpected(self.pos)),
+            };
+            loop {
+                match stack.last_mut() {
+                    None => return Ok(done),
+                    Some(Frame::Object(map, key)) => {
+                        map.insert(std::mem::take(key), done);
+                        match self.peek() {
+                            Some(b',') => {
+                                self.pos += 1;
+                                *key = self.property_name(false)?;
+                                break;
+                            }
+                            Some(b'}') => self.pos += 1,
+                            _ => return Err(self.at(self.pos, "Expected ',' or '}' after property value")),
+                        }
+                    }
+                    Some(Frame::Array(items)) => {
+                        items.push(done);
+                        match self.peek() {
+                            Some(b',') => {
+                                self.pos += 1;
+                                break;
+                            }
+                            Some(b']') => self.pos += 1,
+                            _ => return Err(self.at(self.pos, "Expected ',' or ']' after array element")),
+                        }
+                    }
+                }
+                done = match stack.pop() {
+                    Some(Frame::Object(map, _)) => Value::Object(map),
+                    Some(Frame::Array(items)) => Value::Array(items),
+                    None => unreachable!("a frame was just read"),
+                };
+            }
         }
     }
 
-    fn object(&mut self, depth: usize) -> Result<Value, String> {
-        if depth >= MAX_DEPTH {
-            return Err("Maximum call stack size exceeded".to_string());
+    /// The opening bracket at `pos` of a container `depth` deep; it refuses past the cap and `pos` ends past it.
+    fn enter(&mut self, depth: usize) -> Result<(), String> {
+        if depth >= self.max_depth {
+            return Err(TOO_DEEP.to_string());
         }
         self.pos += 1;
-        let mut map = Map::new();
-        if self.peek() == Some(b'}') {
-            self.pos += 1;
-            return Ok(Value::Object(map));
-        }
-        let mut first = true;
-        loop {
-            if self.peek() != Some(b'"') {
-                let what = if first { "Expected property name or '}'" } else { "Expected double-quoted property name" };
-                return Err(self.at(self.pos, what));
-            }
-            first = false;
-            let key = self.string()?;
-            if self.peek() != Some(b':') {
-                return Err(self.at(self.pos, "Expected ':' after property name"));
-            }
-            self.pos += 1;
-            let value = self.value(depth + 1)?;
-            map.insert(key, value);
-            match self.peek() {
-                Some(b',') => self.pos += 1,
-                Some(b'}') => {
-                    self.pos += 1;
-                    return Ok(Value::Object(map));
-                }
-                _ => return Err(self.at(self.pos, "Expected ',' or '}' after property value")),
-            }
-        }
+        Ok(())
     }
 
-    fn array(&mut self, depth: usize) -> Result<Value, String> {
-        if depth >= MAX_DEPTH {
-            return Err("Maximum call stack size exceeded".to_string());
+    /// An object's next key and its colon; `pos` ends at the value.
+    fn property_name(&mut self, first: bool) -> Result<String, String> {
+        if self.peek() != Some(b'"') {
+            let what = if first { "Expected property name or '}'" } else { "Expected double-quoted property name" };
+            return Err(self.at(self.pos, what));
+        }
+        let key = self.string()?;
+        if self.peek() != Some(b':') {
+            return Err(self.at(self.pos, "Expected ':' after property name"));
         }
         self.pos += 1;
-        let mut items = Vec::new();
-        if self.peek() == Some(b']') {
-            self.pos += 1;
-            return Ok(Value::Array(items));
-        }
-        loop {
-            items.push(self.value(depth + 1)?);
-            match self.peek() {
-                Some(b',') => self.pos += 1,
-                Some(b']') => {
-                    self.pos += 1;
-                    return Ok(Value::Array(items));
-                }
-                _ => return Err(self.at(self.pos, "Expected ',' or ']' after array element")),
-            }
-        }
+        Ok(key)
     }
 
     fn literal(&mut self, word: &str, value: Value) -> Result<Value, String> {

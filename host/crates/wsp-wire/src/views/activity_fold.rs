@@ -3,7 +3,7 @@
 //! Activity page and `wsp activity` both draw. See spec/activity.md.
 
 use crate::views::activity::ActivityProc;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use wsp_frames::ProcEntry;
 
 /// A row with a pid and a parent pid, which is all the walk reads.
@@ -37,12 +37,43 @@ impl PidRow for ProcEntry {
 //   readonly held: readonly P[];
 //   readonly kids: readonly Folded<P>[];
 // }
-#[derive(Clone, Debug, PartialEq)]
 pub struct Folded<P> {
     pub p: P,
     /// The rows this one holds, whose figures join its own, in the list's order.
     pub held: Vec<P>,
-    pub kids: Vec<Folded<P>>,
+    pub kids: Kids<P>,
+}
+
+/// A row's kids. A process chain has no depth cap, so the tree is freed a level at a time, never by a call per level
+/// (a derived drop dies on a few thousand levels), and it has no Clone, PartialEq or Debug, which would recurse the same way.
+pub struct Kids<P>(Vec<Folded<P>>);
+
+impl<P> Kids<P> {
+    pub fn into_vec(mut self) -> Vec<Folded<P>> {
+        std::mem::take(&mut self.0)
+    }
+}
+
+impl<P> std::ops::Deref for Kids<P> {
+    type Target = [Folded<P>];
+    fn deref(&self) -> &[Folded<P>] {
+        &self.0
+    }
+}
+
+impl<P> Drop for Kids<P> {
+    fn drop(&mut self) {
+        let mut pending = std::mem::take(&mut self.0);
+        while let Some(mut row) = pending.pop() {
+            pending.append(&mut std::mem::take(&mut row.kids).into_vec());
+        }
+    }
+}
+
+impl<P> Default for Kids<P> {
+    fn default() -> Self {
+        Kids(Vec::new())
+    }
 }
 
 // views/activity-fold.ts:16 at a3b870a6e
@@ -109,12 +140,41 @@ pub fn fold_tree<P: PidRow + Clone>(list: &[P], folds_into: impl Fn(i64) -> Opti
             },
         }
     }
-    fn build<P: PidRow + Clone>(p: &P, held: &HashMap<i64, Vec<&P>>, kids: &HashMap<i64, Vec<&P>>) -> Folded<P> {
-        Folded {
-            p: p.clone(),
-            held: held.get(&p.pid()).map(|rows| rows.iter().map(|r| (*r).clone()).collect()).unwrap_or_default(),
-            kids: kids.get(&p.pid()).map(|rows| rows.iter().map(|r| build(*r, held, kids)).collect()).unwrap_or_default(),
+    let mut rows: Vec<(&P, usize)> = Vec::new();
+    let mut seen: HashSet<i64> = HashSet::new();
+    let mut stack = vec![(heads.iter(), NO_ROW)];
+    while let Some((level, owner)) = stack.last_mut() {
+        let owner = *owner;
+        let Some(&p) = level.next() else {
+            stack.pop();
+            continue;
+        };
+        if !seen.insert(p.pid()) {
+            continue;
+        }
+        let at = rows.len();
+        rows.push((p, owner));
+        if let Some(under) = kids.get(&p.pid()) {
+            stack.push((under.iter(), at));
         }
     }
-    heads.iter().map(|p| build(*p, &held, &kids)).collect()
+    let mut under: Vec<Vec<Folded<P>>> = (0..rows.len()).map(|_| Vec::new()).collect();
+    let mut top: Vec<Folded<P>> = Vec::new();
+    for at in (0..rows.len()).rev() {
+        let (p, owner) = rows[at];
+        let mut mine = std::mem::take(&mut under[at]);
+        mine.reverse();
+        let held = held.get(&p.pid()).map(|held| held.iter().map(|r| (*r).clone()).collect()).unwrap_or_default();
+        let folded = Folded { p: p.clone(), held, kids: Kids(mine) };
+        if owner == NO_ROW {
+            top.push(folded);
+        } else {
+            under[owner].push(folded);
+        }
+    }
+    top.reverse();
+    top
 }
+
+/// The owner of a head: no row.
+const NO_ROW: usize = usize::MAX;

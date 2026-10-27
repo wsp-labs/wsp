@@ -10,7 +10,7 @@ use regex::Regex;
 use serde_json::{json, Map, Value};
 
 use crate::json_edit::{edit_jsonc, json_canonical, set_at, JsonEdit};
-use crate::jsonc::{js_stringify_pretty, json_object, read_jsonc};
+use crate::jsonc::{js_stringify_pretty, json_object, map_strings, read_jsonc};
 use crate::jsonc_tree::{JsonPath, PathSeg};
 use crate::mcp::{
     EditOutcome, McpEditResult, McpEditScope, McpEdited, McpFormat, McpMergeResult, McpMergeScope, McpMerged, McpResolved, McpServer,
@@ -276,39 +276,27 @@ fn json_command_of(def: &Value) -> Option<String> {
     }
 }
 
-/// Every string of a definition as the machine reads it: `command` and the first word of a command array are the
-/// program (mcp.ts:749).
-fn walk_strings(lib: RewriteString<'_>, v: &Value, command: bool) -> Value {
-    match v {
-        Value::String(s) => Value::String(lib(s, command)),
-        Value::Array(items) => Value::Array(items.iter().enumerate().map(|(i, x)| walk_strings(lib, x, command && i == 0)).collect()),
-        Value::Object(map) => Value::Object(map.iter().map(|(k, x)| (k.clone(), walk_strings(lib, x, k == "command"))).collect()),
-        other => other.clone(),
-    }
-}
-
-/// Each string of a definition the machine reads another way, as an edit at its own path (mcp.ts:838).
+/// Each string of a definition the machine reads another way, as an edit at its own path (mcp.ts:838). The path is
+/// one stack the walk cuts back as it climbs.
 fn string_edits(lib: RewriteString<'_>, v: &Value, path: JsonPath, command: bool, out: &mut Vec<JsonEdit>) {
-    match v {
-        Value::String(s) => {
-            let next = lib(s, command);
-            if next != *s {
-                out.push((path, Some(Value::String(next))));
+    let mut path = path;
+    let mut work: Vec<(&Value, usize, Option<PathSeg>, bool)> = vec![(v, path.len(), None, command)];
+    while let Some((x, depth, step, command)) = work.pop() {
+        path.truncate(depth);
+        path.extend(step);
+        match x {
+            Value::String(s) => {
+                let next = lib(s, command);
+                if next != *s {
+                    out.push((path.clone(), Some(Value::String(next))));
+                }
             }
-        }
-        Value::Array(items) => {
-            for (i, x) in items.iter().enumerate() {
-                let mut at = path.clone();
-                at.push(PathSeg::Index(i as i64));
-                string_edits(lib, x, at, command && i == 0, out);
+            Value::Array(items) => {
+                work.extend(items.iter().enumerate().rev().map(|(i, y)| (y, path.len(), Some(PathSeg::Index(i as i64)), command && i == 0)))
             }
+            Value::Object(map) => work.extend(map.iter().rev().map(|(k, y)| (y, path.len(), Some(key(k)), k == "command"))),
+            _ => {}
         }
-        Value::Object(map) => {
-            for (k, x) in map {
-                string_edits(lib, x, path_with(&path, k), k == "command", out);
-            }
-        }
-        _ => {}
     }
 }
 
@@ -536,7 +524,7 @@ pub fn edit(format: McpFormat, lib: RewriteString<'_>, scope: &McpEditScope, tex
             }
             continue;
         };
-        let next = walk_strings(lib, def, false);
+        let next = map_strings(def, false, &mut |s, command| lib(s, command));
         if folder_to.is_none() {
             string_edits(lib, def, path_with(&src, name), false, &mut edits);
         } else {
@@ -617,7 +605,7 @@ pub fn merge(
             results.push(McpMergeResult { name: name.clone(), outcome: MergeOutcome::Missing, command: None });
             continue;
         };
-        let next = walk_strings(lib, def, false);
+        let next = map_strings(def, false, &mut |s, command| lib(s, command));
         let command = json_command_of(&next);
         let here = held_at(&standing, name);
         let outcome = if here.is_some_and(|h| json_canonical(h) == json_canonical(&next)) {

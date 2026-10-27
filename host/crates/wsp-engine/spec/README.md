@@ -39,13 +39,20 @@ at that commit. Rules every unit here shares:
   answers `None` where none was passed, which is what the rules above test. `fetch::Abort` carries the caller's `Cancel`
   so a fetch it ended rejects with the reason. The tests that pass no reason assert `aborted()`.
 
-- **Accepted differences** (the coordinator's ruling 5 on #2446, comment 6405457065). Two places where the Rust host
+- **Accepted differences** (the coordinator's ruling 5 on #2446, comment 6405457065). Three places where the Rust host
   departs from the TS on purpose, each a judgement call rather than a gap:
-  1. *A line is kept to 3,500 levels deep* (`project_state_files.md`, M2a). `JSON.parse` reads any depth, and
+  1. *A value is kept to 500 levels deep* (`project_state_files.md`, M2a; the coordinator's ruling 1 of round 2 on #2448). `JSON.parse`
+     reads any depth (resolver.ts:219 for a transcript line, gemini.ts:35 for the registry, resolver.ts:122 for a cwd), and
      `JSON.stringify` throws `RangeError: Maximum call stack size exceeded` from about 3,650 levels. The Rust reader has
-     no recursion and keeps 3,500 levels. A line between 3,500 and 3,650 levels deep that must change succeeds in node
-     and fails here with that RangeError's words, and the file stays as it was.
-  2. *A cancelled link resume drives its frame for 80 ms* (`link_backend.md`, `resume`). The TS lets the request run on
+     no recursion and keeps 500 levels, the JSON.parse port's own cap, because serde_json clones a `Value` of objects past 628
+     levels on a 1 MiB debug stack. A line between 500 and 3,650 levels deep that must change succeeds in
+     node and fails here with that RangeError's words, and the file stays as it was; a registry that deep fails with
+     "<file> is not JSON".
+  2. *A sealed image's header line is read to 500 levels* (`vault_cipher.rs` `read_json`, same ruling 2).
+     vault-cipher.ts:50's `JSON.parse` reads any depth. A header nested past 500 levels is refused here with "this file is
+     not a sealed wsp image: its header is not one wsp wrote", where node reads it and then refuses it for not being a header
+     wsp wrote; a header wsp wrote nests under 10 levels, so only a foreign file reaches the difference.
+  3. *A cancelled link resume drives its frame for 80 ms* (`link_backend.md`, `resume`). The TS lets the request run on
      without end after the caller stops waiting. A Rust future that is dropped cannot, and `LinkMachine` holds no owned
      handle to spawn from, so a cancelled resume goes on driving its frame for 80 ms and then answers the cancel's
      words. The 80 ms is a choice, not the TS's.

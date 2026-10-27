@@ -5,6 +5,12 @@ use super::*;
 /// Lists and records nest this deep at most; node's own stack gives out at a depth that moves with its stack, and answers S503 with this text.
 const MAX_LITERAL_DEPTH: usize = SLATE_NEST_LIMIT;
 
+/// A list or a record being read: its members so far, and for a record the key its next member is under.
+enum Open {
+    List(Vec<Value>),
+    Record(IndexMap<String, Value>, String),
+}
+
 struct Literal {
     t: Vec<u16>,
     i: usize,
@@ -32,109 +38,103 @@ impl Literal {
         self.t.get(from..)?.iter().position(|&u| u == q as u16).map(|p| p + from)
     }
 
+    /// One value, its open lists and records on a stack of its own: no depth of nesting is a depth of the thread's stack.
     pub(super) fn value(&mut self) -> Result<Value, String> {
-        self.ws();
-        match self.at(self.i) {
-            Some(open @ ('{' | '[')) => {
-                if self.depth >= MAX_LITERAL_DEPTH {
-                    return Err("Maximum call stack size exceeded".into());
-                }
-                self.depth += 1;
-                let v = if open == '{' { self.object() } else { self.list() };
-                self.depth -= 1;
-                v
-            }
-            Some(q @ ('"' | '\'')) => self.string(q),
-            _ => self.scalar(),
-        }
-    }
-
-    pub(super) fn object(&mut self) -> Result<Value, String> {
-        self.i += 1;
-        let mut out: IndexMap<String, Value> = IndexMap::new();
-        self.ws();
-        if self.at(self.i) == Some('}') {
-            self.i += 1;
-            return Ok(record(out));
-        }
+        let base = self.depth;
+        let mut open: Vec<Open> = Vec::new();
         loop {
             self.ws();
-            let key = match self.at(self.i) {
-                Some(q @ ('"' | '\'')) => {
-                    let Some(end) = self.find(q, self.i + 1) else {
-                        return Err("a key never closes".into());
-                    };
-                    let key = self.text(self.i + 1, end - self.i - 1);
-                    self.i = end + 1;
-                    key
-                }
-                _ => {
-                    let mut j = self.i;
-                    if self.at(j).is_some_and(|c| c.is_ascii_alphabetic() || c == '_') {
-                        j += 1;
-                        while self.at(j).is_some_and(|c| c.is_ascii_alphanumeric() || c == '_') {
-                            j += 1;
-                        }
+            let mut done = match self.at(self.i) {
+                Some(brace @ ('{' | '[')) => {
+                    if base + open.len() >= MAX_LITERAL_DEPTH {
+                        return Err("Maximum call stack size exceeded".into());
                     }
-                    if j == self.i {
-                        return Err(format!("a key at \"{}\"", self.text(self.i, 12)));
+                    self.i += 1;
+                    self.ws();
+                    let (shut, empty) = if brace == '{' { ('}', record(IndexMap::new())) } else { (']', Value::Array(Vec::new())) };
+                    if self.at(self.i) == Some(shut) {
+                        self.i += 1;
+                        empty
+                    } else {
+                        open.push(if brace == '{' { Open::Record(IndexMap::new(), self.member_key()?) } else { Open::List(Vec::new()) });
+                        continue;
                     }
-                    let key = self.text(self.i, j - self.i);
-                    self.i = j;
-                    key
                 }
+                Some(q @ ('"' | '\'')) => self.string(q)?,
+                _ => self.scalar()?,
             };
-            self.ws();
-            if self.at(self.i) != Some(':') {
-                return Err("expected :".into());
-            }
-            self.i += 1;
-            let v = self.value()?;
-            out.insert(key, v);
-            self.ws();
-            if self.at(self.i) == Some(',') {
-                self.i += 1;
+            loop {
+                let (shut, held) = match open.last_mut() {
+                    None => return Ok(done),
+                    Some(Open::List(items)) => {
+                        items.push(done);
+                        (']', "expected , or ]")
+                    }
+                    Some(Open::Record(fields, key)) => {
+                        fields.insert(std::mem::take(key), done);
+                        ('}', "expected , or }")
+                    }
+                };
                 self.ws();
-                if self.at(self.i) == Some('}') {
+                let more = if self.at(self.i) == Some(',') {
                     self.i += 1;
-                    return Ok(record(out));
+                    self.ws();
+                    self.at(self.i) != Some(shut)
+                } else if self.at(self.i) == Some(shut) {
+                    false
+                } else {
+                    return Err(held.into());
+                };
+                if more {
+                    if let Some(Open::Record(_, key)) = open.last_mut() {
+                        *key = self.member_key()?;
+                    }
+                    break;
                 }
-                continue;
-            }
-            if self.at(self.i) == Some('}') {
                 self.i += 1;
-                return Ok(record(out));
+                done = match open.pop() {
+                    Some(Open::List(items)) => Value::Array(items),
+                    Some(Open::Record(fields, _)) => record(fields),
+                    None => unreachable!("a container is open here"),
+                };
             }
-            return Err("expected , or }".into());
         }
     }
 
-    pub(super) fn list(&mut self) -> Result<Value, String> {
-        self.i += 1;
-        let mut out = Vec::new();
+    /// A record's next key and the colon after it.
+    fn member_key(&mut self) -> Result<String, String> {
         self.ws();
-        if self.at(self.i) == Some(']') {
-            self.i += 1;
-            return Ok(Value::Array(out));
-        }
-        loop {
-            out.push(self.value()?);
-            self.ws();
-            if self.at(self.i) == Some(',') {
-                self.i += 1;
-                self.ws();
-                if self.at(self.i) == Some(']') {
-                    self.i += 1;
-                    return Ok(Value::Array(out));
+        let key = match self.at(self.i) {
+            Some(q @ ('"' | '\'')) => {
+                let Some(end) = self.find(q, self.i + 1) else {
+                    return Err("a key never closes".into());
+                };
+                let key = self.text(self.i + 1, end - self.i - 1);
+                self.i = end + 1;
+                key
+            }
+            _ => {
+                let mut j = self.i;
+                if self.at(j).is_some_and(|c| c.is_ascii_alphabetic() || c == '_') {
+                    j += 1;
+                    while self.at(j).is_some_and(|c| c.is_ascii_alphanumeric() || c == '_') {
+                        j += 1;
+                    }
                 }
-                continue;
+                if j == self.i {
+                    return Err(format!("a key at \"{}\"", self.text(self.i, 12)));
+                }
+                let key = self.text(self.i, j - self.i);
+                self.i = j;
+                key
             }
-            if self.at(self.i) == Some(']') {
-                self.i += 1;
-                return Ok(Value::Array(out));
-            }
-            return Err("expected , or ]".into());
+        };
+        self.ws();
+        if self.at(self.i) != Some(':') {
+            return Err("expected :".into());
         }
+        self.i += 1;
+        Ok(key)
     }
 
     pub(super) fn string(&mut self, q: char) -> Result<Value, String> {

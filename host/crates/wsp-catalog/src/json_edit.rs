@@ -4,11 +4,13 @@
 //! Port of packages/catalog/src/mcp.ts:458-768 at a3b870a6e; the spec is spec/json_edit.md.
 use serde_json::{Map, Value};
 
-use crate::jsonc::{is_js_space, js_string, js_stringify, js_stringify_pretty, json_object, read_jsonc};
+use crate::json_parse::TOO_DEEP;
+use crate::jsonc::{
+    is_js_space, js_string, js_stringify, js_stringify_pretty, json_object, read_jsonc, strip_comments_and_commas, write_value,
+};
 use crate::jsonc_tree::{comments_of, find_member, find_node_at_location, parse_tree, Comment, JsonPath, Node, NodeType, PathSeg};
 use wsp_words::exit::HostError;
 use wsp_words::js::js_trim;
-use wsp_words::js::utf16;
 
 /// One change: the value at the path set, or taken out where it is `None` (mcp.ts:486). A last step of `Index(-1)`
 /// puts the value after an array's last element.
@@ -23,7 +25,14 @@ pub const NOT_IN_PLACE: &str = "the file could not be changed in place, which ke
 /// The text with the edits made in place (mcp.ts:724). Errors with "the file is not a JSON object" where the text is
 /// not one, with `LOST_COMMENT`, or with `NOT_IN_PLACE`.
 pub fn edit_json(text: &str, edits: &[JsonEdit]) -> Result<String, HostError> {
-    let mut root = read_jsonc(text)?;
+    let mut root = match read_jsonc(text) {
+        Err(e) if e.message == TOO_DEEP => {
+            let stripped = strip_comments_and_commas(text);
+            let object = stripped.trim_start_matches([' ', '\t', '\n', '\r']).starts_with('{');
+            return Err(if object { not_in_place() } else { HostError::new("the file is not a JSON object") });
+        }
+        read => read?,
+    };
     if json_object(&root).is_none() {
         return Err(HostError::new("the file is not a JSON object"));
     }
@@ -54,16 +63,9 @@ pub fn set_at(root: &mut Value, edit: &JsonEdit) {
 /// A value with every object's keys sorted (UTF-16 order, rule 8.8) at every depth, written compactly as
 /// `JSON.stringify` writes (mcp.ts:764): what makes two entries the same entry.
 pub fn json_canonical(value: &Value) -> String {
-    match value {
-        Value::Array(items) => format!("[{}]", items.iter().map(json_canonical).collect::<Vec<_>>().join(",")),
-        Value::Object(map) => {
-            let mut keys: Vec<&str> = map.keys().map(String::as_str).collect();
-            keys.sort_by(|a, b| utf16::cmp(a, b));
-            let members: Vec<String> = keys.iter().map(|k| format!("{}:{}", js_string(k), json_canonical(&map[*k]))).collect();
-            format!("{{{}}}", members.join(","))
-        }
-        _ => js_stringify(value),
-    }
+    let mut out = String::new();
+    write_value(value, false, true, &mut out);
+    out
 }
 
 /// One edit made to the text (mcp.ts:625): a member taken out by `member_cuts`, a value put in where it stood, or put

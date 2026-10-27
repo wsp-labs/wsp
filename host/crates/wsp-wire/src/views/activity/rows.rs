@@ -6,21 +6,34 @@ pub(super) fn tree_rows(placed: &Placement<'_>, members: &[ProcEntry], ports: Op
     let inside: HashSet<u32> = members.iter().map(|p| p.pid).collect();
     let heads: Vec<ProcEntry> = members.iter().filter(|p| p.ppid == p.pid || !inside.contains(&p.ppid)).cloned().collect();
     let mut out = Vec::new();
-    tree_walk(placed, &inside, ports, &heads, 0, &mut out);
+    tree_walk(placed, &inside, ports, heads, &mut out);
     out
 }
 
+/// Each process then its kids, a generation at a time: a stack of sibling lists in place of a call per generation. A pid is
+/// walked once: a row whose pid was walked before, above it or beside it, is left out, with what hangs from it.
 fn tree_walk(
     placed: &Placement<'_>,
     inside: &HashSet<u32>,
     ports: Option<&HashMap<u32, Vec<JsInt>>>,
-    list: &[ProcEntry],
-    depth: i64,
+    heads: Vec<ProcEntry>,
     out: &mut Vec<ActivityProc>,
 ) {
-    let mut sorted = list.to_vec();
-    sorted.sort_by(|a, b| by_proc_column(ProcSort::Cpu, a, b));
-    for p in &sorted {
+    let sorted = |mut list: Vec<ProcEntry>| {
+        list.sort_by(|a, b| by_proc_column(ProcSort::Cpu, a, b));
+        list.into_iter()
+    };
+    let mut stack = vec![(sorted(heads), 0_i64)];
+    let mut seen: HashSet<u32> = HashSet::new();
+    while let Some((siblings, depth)) = stack.last_mut() {
+        let depth = *depth;
+        let Some(p) = siblings.next() else {
+            stack.pop();
+            continue;
+        };
+        if !seen.insert(p.pid) {
+            continue;
+        }
         out.push(ActivityProc {
             pid: JsInt::from(i64::from(p.pid)),
             ppid: JsInt::from(i64::from(p.ppid)),
@@ -34,7 +47,7 @@ fn tree_walk(
             ports: ports.and_then(|m| m.get(&p.pid)).cloned().unwrap_or_default(),
         });
         let kids: Vec<ProcEntry> = placed.kids_of(p.pid).into_iter().filter(|k| inside.contains(&k.pid)).collect();
-        tree_walk(placed, inside, ports, &kids, depth + 1, out);
+        stack.push((sorted(kids), depth + 1));
     }
 }
 

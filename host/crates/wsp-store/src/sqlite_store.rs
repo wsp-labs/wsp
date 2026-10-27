@@ -21,6 +21,7 @@ use wsp_wire::wire::daemon_version::StateShape;
 use wsp_words::exit::HostError;
 
 use crate::own_file::{own_folder, OWN_FILE_MODE};
+use crate::row_json::parse_row;
 use crate::sqlite_transcripts::{SqliteTranscripts, TranscriptRows};
 use crate::store::{refuse_other_shape, shape_now, state_shape_unreadable_line, state_unreadable_line, BlobMark, StateWriter, Store};
 
@@ -441,6 +442,7 @@ impl Store for SqliteStore {
     }
     async fn put(&self, collection: &str, id: &str, value: Value) -> Result<(), HostError> {
         let json = json_stringify(&value);
+        let_go(value);
         let conn = self.inner.writing()?;
         conn.prepare_cached("insert into collections (collection, id, json) values (?, ?, ?) on conflict (collection, id) do update set json = excluded.json")
             .and_then(|mut s| s.execute([collection, id, json.as_str()]))
@@ -503,7 +505,14 @@ impl Store for SqliteStore {
     }
 }
 
-/// A stored row parsed afresh; a row that is not JSON fails the call (the TS throws `SyntaxError`).
-fn parse_row(json: &str) -> Result<Value, HostError> {
-    serde_json::from_str(json).map_err(|e| HostError::new(e.to_string()))
+/// A value dropped from a stack of its own: serde_json drops one level of the stack per level of the value.
+fn let_go(value: Value) {
+    let mut pending = vec![value];
+    while let Some(next) = pending.pop() {
+        match next {
+            Value::Array(items) => pending.extend(items),
+            Value::Object(fields) => pending.extend(fields.into_iter().map(|(_, v)| v)),
+            _ => {}
+        }
+    }
 }
