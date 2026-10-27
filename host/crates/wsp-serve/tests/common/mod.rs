@@ -7,6 +7,7 @@
 pub mod adapter;
 pub mod daemon;
 pub mod events;
+pub mod fed;
 pub mod gateway;
 pub mod gone;
 pub mod images;
