@@ -141,24 +141,20 @@ pub fn fold_tree<P: PidRow + Clone>(list: &[P], folds_into: impl Fn(i64) -> Opti
         }
     }
     let mut rows: Vec<(&P, usize)> = Vec::new();
-    let mut above: HashSet<i64> = HashSet::new();
+    let mut seen: HashSet<i64> = HashSet::new();
     let mut stack = vec![(heads.iter(), NO_ROW)];
     while let Some((level, owner)) = stack.last_mut() {
         let owner = *owner;
         let Some(&p) = level.next() else {
-            if owner != NO_ROW {
-                above.remove(&rows[owner].0.pid());
-            }
             stack.pop();
             continue;
         };
-        if above.contains(&p.pid()) {
+        if !seen.insert(p.pid()) {
             continue;
         }
         let at = rows.len();
         rows.push((p, owner));
         if let Some(under) = kids.get(&p.pid()) {
-            above.insert(p.pid());
             stack.push((under.iter(), at));
         }
     }

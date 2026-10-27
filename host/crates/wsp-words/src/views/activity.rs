@@ -147,6 +147,7 @@ pub fn end_plan(
         let mut targets = Vec::new();
         let mut stack = vec![Take::In(Box::new(p.clone()))];
         let mut above = std::collections::HashSet::new();
+        let mut taken = std::collections::HashSet::new();
         while let Some(step) = stack.pop() {
             let q = match step {
                 Take::In(q) => *q,
@@ -155,9 +156,13 @@ pub fn end_plan(
                     continue;
                 }
             };
-            if !above.insert(q.pid) {
+            if above.contains(&q.pid) {
                 return Err(HostError::new("Maximum call stack size exceeded"));
             }
+            if !taken.insert(q.pid) {
+                continue;
+            }
+            above.insert(q.pid);
             if let Some(under) = agent_scope_of(placed, read, q.pid) {
                 return Err(refusal(&agent_under_line(pid, under), &agent_end_fix(under), Some(Kind::Usage)));
             }
