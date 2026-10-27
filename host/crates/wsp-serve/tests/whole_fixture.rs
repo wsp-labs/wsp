@@ -455,3 +455,367 @@ fn a_gate_holds_a_waiter_until_it_is_opened_and_until_polls_a_condition() {
         assert_eq!(ticks.get(), 3);
     });
 }
+
+// stub-backend.ts:253 `lifecycle`: a test writes the whole budgets record (wake-keeps-machine.test.ts:21) or deletes and
+// sets `resumeAsks` alone (wake-asks-again.test.ts:34).
+#[test]
+fn the_lifecycle_budgets_are_written_whole_and_resume_asks_alone() {
+    use wsp_engine::machine::Lifecycle as _;
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let life = backend.lifecycle();
+        let seen = j(&life.budgets());
+        assert_eq!(seen["wakeAttempts"], 2);
+        assert_eq!(seen["daemonAnswersMs"], 30_000);
+        assert_eq!(seen["resumeAsks"], json!({ "everyMs": 60_000, "forMs": 1_800_000 }));
+        life.set_resume_asks(Some((60.0, 120.0)));
+        assert_eq!(j(&life.budgets())["resumeAsks"], json!({ "everyMs": 60, "forMs": 120 }));
+        life.set_resume_asks(None);
+        assert!(j(&life.budgets()).get("resumeAsks").is_none());
+        life.set_budgets(wsp_engine::box_backend::plan::box_budgets());
+        life.set_daemon_answers_ms(300.0);
+        let box_seen = j(&life.budgets());
+        assert_eq!(box_seen["daemonAnswersMs"], 300);
+        assert_eq!(box_seen["wakeAttempts"], 1);
+    });
+}
+
+// stub-backend.ts:511 `copyingFake`: a copy is a folder copied for real and a remove takes it away.
+#[test]
+fn the_copying_fake_copies_a_folder_for_real_and_a_remove_takes_it_away() {
+    use wsp_engine::copier::{Copier as _, CopyAsk, CopyRoad};
+    drive(|| async {
+        let dir = tempfile::tempdir().expect("a folder");
+        let from = dir.path().join("from");
+        std::fs::create_dir_all(&from).expect("a source");
+        std::fs::write(from.join("a.txt"), "a").expect("a file");
+        let to = dir.path().join("to");
+        let copier = common::copying::copying_fake();
+        let ask = CopyAsk {
+            from: from.display().to_string(),
+            to: to.display().to_string(),
+            base: None,
+            exclude: vec!["node_modules".into()],
+            size_line_bytes: 0.into(),
+            road: None,
+        };
+        let report = copier.make(&ask).await.expect("a copy");
+        assert_eq!(report.path, to.display().to_string());
+        assert_eq!(j(&report)["excluded"], json!(["node_modules"]));
+        assert_eq!(std::fs::read_to_string(to.join("a.txt")).expect("the copy"), "a");
+        copier.remove(&ask.from, &ask.to, CopyRoad::Clonefile).await.expect("a remove");
+        assert!(!to.exists());
+        assert_eq!(copier.log().lock().expect("the log").asks.len(), 1);
+    });
+}
+
+// wake-asks-again.test.ts:49 `deafResume`: a machine's resume that is handed the caller's cancel, wrapped as
+// `machine.resume.bind(machine)` wraps it, and replaced whole by a plain reassignment.
+#[test]
+fn a_resume_that_reads_the_callers_cancel_is_wrapped_and_a_plain_reassignment_replaces_it() {
+    use wsp_engine::cancel::Cancel;
+    use wsp_engine::machine::Machine as _;
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let m = made(&backend).await;
+        m.pause(None).await.expect("a pause");
+        assert!(m.paused.get());
+        let seen = Rc::new(std::cell::Cell::new(false));
+        let was = m.resume_with_fn();
+        let marked = seen.clone();
+        m.set_resume_with(Rc::new(move |signal| {
+            marked.set(signal.is_some());
+            let was = was.clone();
+            Box::pin(async move { was(None).await })
+        }));
+        let cancel = Cancel::new();
+        m.resume(Some(&cancel)).await.expect("a resume");
+        assert!(seen.get());
+        assert!(!m.paused.get());
+        assert_eq!(m.calls.resume.get(), 1);
+        m.set_resume(Rc::new(|| Box::pin(async { Err(missing("Box not found")) })));
+        assert!(m.resume(Some(&cancel)).await.is_err());
+        assert_eq!(m.calls.resume.get(), 2);
+    });
+}
+
+// disk-watch.test.ts:36 and :213 `movable`: a backend that offers a root disk per size, a machine that offers `resumeAt`
+// once a test gives it one, and a pause that keeps the `waitMs` it was handed.
+#[test]
+fn a_backend_offers_a_root_disk_and_a_machine_a_resume_at_only_once_a_test_gives_one() {
+    use wsp_engine::machine::{Machine as _, MachineBackend as _, RootDisk, Size};
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let size = Size { cpu: 2.0, mem_mb: 4096.0 };
+        assert!(!backend.offers().root_disk_of);
+        assert!(backend.root_disk_of(size).is_none());
+        backend.set_root_disk_of(Some(Rc::new(|s: Size| (s.cpu == 2.0).then(|| RootDisk { name: "small".into(), disk_gb: 75.0 }))));
+        assert!(backend.offers().root_disk_of);
+        assert_eq!(backend.root_disk_of(size).map(|d| (d.name, d.disk_gb)), Some(("small".to_string(), 75.0)));
+        assert!(backend.root_disk_of(Size { cpu: 4.0, mem_mb: 8192.0 }).is_none());
+
+        let m = made(&backend).await;
+        assert!(!m.offers().resume_at);
+        assert!(m.resume_at(4.0, 8192, None).await.is_err());
+        let landed = Rc::new(std::cell::RefCell::new(vec![]));
+        let seen = landed.clone();
+        let machine = m.clone();
+        m.set_resume_at(Some(Rc::new(move |cpu, mem_mb, _| {
+            seen.borrow_mut().push((cpu, mem_mb));
+            machine.paused.set(false);
+            Box::pin(async { Ok(()) })
+        })));
+        assert!(m.offers().resume_at);
+        m.pause(Some(1_800_000)).await.expect("a pause");
+        m.pause(None).await.expect("a pause");
+        assert_eq!(*m.pause_waits.borrow(), [Some(1_800_000), None]);
+        m.resume_at(4.0, 8192, None).await.expect("a resume at a size");
+        assert_eq!(*landed.borrow(), [(4.0, 8192)]);
+        assert!(!m.paused.get());
+    });
+}
+
+// stub-backend.ts:432 `createOn` with `{ cpu, memMb }`: the size a test names reaches the machine's spec.
+#[test]
+fn create_on_carries_the_cpu_and_memory_a_test_names_to_the_machine() {
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let fx = runtime(&backend).build();
+        create_on(&fx.rt, CreateOn::golden("web").cpu(4.0).mem(8192.0), None).await.expect("a workspace");
+        let spec = backend.machine(0).spec_now();
+        assert_eq!((j(&spec)["cpu"].clone(), j(&spec)["memMb"].clone()), (json!(4), json!(8192)));
+        fx.rt.close().await.expect("a close");
+    });
+}
+
+// idle.test.ts:244 and :596 `quietForMs` and `backstop`: a lifecycle has neither until a test gives it one.
+#[test]
+fn a_lifecycle_has_a_quiet_figure_and_a_backstop_only_once_a_test_gives_them() {
+    use wsp_engine::machine::Lifecycle as _;
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let life = backend.lifecycle();
+        let m = made(&backend).await;
+        assert!(!life.has_quiet_for_ms() && !life.has_backstop());
+        assert!(life.quiet_for_ms(&*m).await.is_err());
+        life.set_quiet_for_ms(Some(Rc::new(|| Box::pin(async { Ok(Some(60_000)) }))));
+        assert!(life.has_quiet_for_ms());
+        assert_eq!(life.quiet_for_ms(&*m).await.expect("a figure"), Some(60_000));
+        let heard = Rc::new(std::cell::RefCell::new(vec![]));
+        let seen = heard.clone();
+        life.set_backstop(Some(Rc::new(move |machine, until| {
+            seen.borrow_mut().push((machine, until));
+            Box::pin(async { Ok(()) })
+        })));
+        assert!(life.has_backstop());
+        life.backstop(&*m, 1_000, false).await.expect("a backstop");
+        assert_eq!(*heard.borrow(), [("m1".to_string(), 1_000)]);
+        life.set_backstop(None);
+        assert!(!life.has_backstop());
+    });
+}
+
+// runtime-reach.test.ts:542 `daemonFrame`: a machine whose computer serves its daemon answers a frame and offers that road.
+#[test]
+fn a_machine_serves_its_daemon_over_its_own_road_only_once_a_test_says_so() {
+    use wsp_engine::machine::Machine as _;
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let m = made(&backend).await;
+        assert!(!m.offers().daemon_frame);
+        assert!(m.daemon_frame(serde_json::Map::new()).await.is_err());
+        m.set_served(true);
+        assert!(m.offers().daemon_frame);
+        assert_eq!(serde_json::Value::Object(m.daemon_frame(serde_json::Map::new()).await.expect("an answer")), json!({ "ok": true }));
+    });
+}
+
+// runtime-reach.test.ts:401 `daemonPort`, and the route a test hands a machine's `previewUrl`.
+#[test]
+fn the_daemon_port_answers_502_then_426_and_a_route_leads_a_machine_to_it() {
+    use common::reach::{daemon_port, route_through, token_written};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    drive(|| async {
+        let up = Rc::new(std::cell::Cell::new(false));
+        let edge = daemon_port({
+            let up = up.clone();
+            move || up.get()
+        })
+        .await;
+        let status = |port: u16| async move {
+            let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port)).await.expect("a socket");
+            stream.write_all(b"GET / HTTP/1.1\r\nhost: x\r\n\r\n").await.expect("a request");
+            let mut said = String::new();
+            let _ = stream.read_to_string(&mut said).await;
+            said.split_whitespace().nth(1).unwrap_or_default().to_string()
+        };
+        assert_eq!(status(edge.port).await, "502");
+        up.set(true);
+        assert_eq!(status(edge.port).await, "426");
+        assert_eq!(edge.hits(), 2);
+
+        let backend = StubBackend::new(None);
+        let m = made(&backend).await;
+        route_through(&m, edge.port, None);
+        let reach = m.preview_url(7070).await.expect("a route");
+        assert_eq!(reach.url, format!("http://127.0.0.1:{}/?port=7070", edge.port));
+        assert_eq!(reach.token, "e");
+        assert_eq!(token_written("a\nWSP_DAEMON_TOKEN='abc'\nb").as_deref(), Some("abc"));
+        assert_eq!(token_written("WSP_DAEMON_TOKEN='a'b'"), None);
+    });
+}
+
+// runtime-reach.test.ts:164 `deployDaemon: async () => daemon.announce(v)`: a deploy holds the announce past the daemon's borrow.
+#[test]
+fn a_deploy_holds_the_daemons_announce_as_a_closure() {
+    use futures::{SinkExt as _, StreamExt as _};
+    use tokio_tungstenite::tungstenite::Message;
+    drive(|| async {
+        let daemon = helloing_daemon(1, false, None).await;
+        let announce = daemon.announcer();
+        announce(42);
+        let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{}", daemon.port)).await.expect("a socket");
+        ws.send(Message::text(json!({ "id": 1, "op": "auth", "token": "t" }).to_string())).await.expect("a send");
+        let _ok = ws.next().await.expect("a frame").expect("ok");
+        let hello: serde_json::Value =
+            serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
+        assert_eq!(hello["version"], 42);
+    });
+}
+
+// box-nap.test.ts:49 `slowDaemon` and :78 `lateDaemon`: one holds its answer to the auth frame until `up()`, the other
+// refuses every upgrade with a 502 until `up()`.
+#[test]
+fn the_slow_daemon_holds_its_auth_answer_and_the_late_daemon_refuses_upgrades_until_up() {
+    use common::box_daemons::{late_daemon, slow_daemon};
+    use futures::{SinkExt as _, StreamExt as _};
+    use tokio_tungstenite::tungstenite::Message;
+    drive(|| async {
+        let slow = slow_daemon().await;
+        let (mut ws, _) = tokio_tungstenite::connect_async(slow.url()).await.expect("a socket");
+        ws.send(Message::text(json!({ "id": 1, "op": "auth", "token": "t" }).to_string())).await.expect("a send");
+        assert!(tokio::time::timeout(std::time::Duration::from_millis(100), ws.next()).await.is_err());
+        ws.send(Message::text(json!({ "id": 2, "op": "ping" }).to_string())).await.expect("a send");
+        let pong: serde_json::Value =
+            serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
+        assert_eq!(pong, json!({ "id": 2, "ok": true }));
+        slow.up();
+        let auth: serde_json::Value =
+            serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
+        assert_eq!(auth, json!({ "id": 1, "ok": true }));
+
+        let late = late_daemon().await;
+        let refused = tokio_tungstenite::connect_async(late.url()).await;
+        assert!(refused.is_err(), "the edge answers a 502 before it is up");
+        assert_eq!(late.dials(), 1);
+        late.up();
+        let (mut ws, _) = tokio_tungstenite::connect_async(late.url()).await.expect("a socket");
+        ws.send(Message::text(json!({ "id": 3, "op": "auth", "token": "t" }).to_string())).await.expect("a send");
+        let ok: serde_json::Value =
+            serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
+        assert_eq!(ok, json!({ "id": 3, "ok": true }));
+        assert_eq!(late.dials(), 2);
+    });
+}
+
+// box-nap.test.ts:278 `m.startDaemon` and :381 `m.daemonExits`: a machine starts or looks at its daemon's unit only once a
+// test gives it the road; and `void promise` starts a future at once, as a JS call runs its synchronous half.
+#[test]
+fn a_machine_starts_its_daemon_and_reads_its_exit_only_once_a_test_gives_it_the_roads_and_fire_starts_a_future_at_once() {
+    use wsp_engine::machine::Machine as _;
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let m = made(&backend).await;
+        assert!(!m.offers().start_daemon && !m.offers().daemon_exits);
+        assert!(m.start_daemon().await.is_err() && m.daemon_exits().await.is_err());
+        m.set_start_daemon(Some(Rc::new(|| Box::pin(async { Ok(exec_ok("started")) }))));
+        m.set_daemon_exits(Some(Rc::new(|| Box::pin(async { Ok(Some("it exits".to_string())) }))));
+        assert!(m.offers().start_daemon && m.offers().daemon_exits);
+        assert_eq!(m.start_daemon().await.expect("a start").stdout, "started");
+        assert_eq!(m.daemon_exits().await.expect("a look").as_deref(), Some("it exits"));
+
+        let ran = Rc::new(std::cell::Cell::new(false));
+        let seen = ran.clone();
+        fire(async move {
+            seen.set(true);
+            sleep_ms(1).await;
+        });
+        assert!(ran.get(), "the part before the first wait ran inside the call");
+    });
+}
+
+// box-nap.test.ts:687 `backend.get = async id => (id === ws.machineId ? box.machine : get(id))`: a read of one id answers a
+// machine the stub did not make, and every other read is the stub's own.
+#[test]
+fn a_read_of_one_id_can_answer_a_machine_the_stub_did_not_make() {
+    use wsp_engine::machine::{Machine as _, MachineBackend as _};
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let a = made(&backend).await;
+        let b = made(&backend).await;
+        backend.answer_get_with(a.id(), b.clone());
+        assert_eq!(backend.get(a.id()).await.expect("a machine").id(), b.id());
+        assert_eq!(backend.get(b.id()).await.expect("a machine").id(), b.id());
+        assert_eq!(backend.calls.get.get(), 2);
+    });
+}
+
+// box-nap.test.ts:583 `restoringBox`: the real Boat machine over a fake gateway refuses commands while it restores, reads its
+// state as it is told, counts the proofs it is asked and can hold a read.
+#[test]
+fn the_restoring_box_refuses_commands_until_its_clock_reaches_the_restore_and_the_machine_counts_its_proofs() {
+    use common::box_fake::restoring_box;
+    use wsp_engine::machine::{Machine as _, MachineState};
+    drive(|| async {
+        let state = Rc::new(std::cell::RefCell::new("ready".to_string()));
+        let reads = state.clone();
+        let b = restoring_box("bx_1", move || reads.borrow().clone(), 30.0, || {});
+        assert_eq!(b.machine.state().await.expect("a state"), MachineState::Running);
+        *state.borrow_mut() = "archived".into();
+        assert_eq!(b.machine.state().await.expect("a state"), MachineState::Paused);
+        *state.borrow_mut() = "ready".into();
+        b.machine.prove_road(None).await.expect("a proof once restored");
+        assert_eq!(b.machine.proofs.get(), 1);
+        assert!(b.state.commands.borrow().contains(&true), "the box answered sandbox_restoring while its clock ran");
+        assert_eq!(b.state.last_command_restoring(), Some(false));
+        let held = b.state.hold_next();
+        let proving = tokio::task::spawn_local({
+            let machine = b.machine.clone();
+            async move { machine.prove_road(None).await }
+        });
+        sleep_ms(50).await;
+        assert!(!proving.is_finished());
+        held.open();
+        proving.await.expect("a task").expect("a proof");
+        assert_eq!(b.machine.proofs.get(), 2);
+        b.state.deleted.set(true);
+        assert!(b.machine.prove_road(None).await.is_err());
+    });
+}
+
+// box-nap.test.ts:902 `t.store.put = ...`: the first put of a record at one phase waits until the test lets it go.
+#[test]
+fn a_wrapped_store_holds_the_first_put_at_a_phase_until_the_test_lets_it_go() {
+    drive(|| async {
+        let state = sqlite_state();
+        let wrapped = WrappedStore::over(&state.store);
+        let gate = wrapped.hold_first_put_at_phase("workspaces", "waking");
+        let store = wrapped.store();
+        store.put("workspaces", "a", json!({ "phase": "running" })).await.expect("a put");
+        assert!(!wrapped.held());
+        let waiting = tokio::task::spawn_local({
+            let store = store.clone();
+            async move { store.put("workspaces", "a", json!({ "phase": "waking" })).await }
+        });
+        until(|| {
+            let held = wrapped.held();
+            async move { held }
+        })
+        .await;
+        assert_eq!(state.store.get("workspaces", "a").await.expect("a read").expect("a record")["phase"], "running");
+        gate.open();
+        waiting.await.expect("a task").expect("a put");
+        assert_eq!(state.store.get("workspaces", "a").await.expect("a read").expect("a record")["phase"], "waking");
+        store.put("workspaces", "a", json!({ "phase": "waking", "again": true })).await.expect("a put goes through once the hold fired");
+    });
+}
