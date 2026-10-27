@@ -166,7 +166,7 @@ fn sends_a_workspace_on_a_computer_wsp_does_not_run_to_delete_its_machine_is_nev
         assert_eq!(e.message, forget_undriven_refusal(&ws.name, THIS_COMPUTER));
         assert!(is_conflict(&e));
         let ids: Vec<String> = rt.workspaces().list(None).await.expect("a list").iter().map(|w| w.id.clone()).collect();
-        assert_eq!(ids, [ws.id.clone()]);
+        assert_eq!(ids, std::slice::from_ref(&ws.id));
         rt.close().await.expect("a close");
     });
 }
@@ -187,7 +187,7 @@ fn refuses_a_workspace_whose_machine_still_exists_running_or_paused_with_the_rea
         assert!(e.message.contains("live's machine m1 is still paused; pause it or delete it at the provider first"), "{}", e.message);
         assert!(!backend.machine(0).killed.get());
         let ids: Vec<String> = rt.workspaces().list(None).await.expect("a list").iter().map(|w| w.id.clone()).collect();
-        assert_eq!(ids, [ws.clone()]);
+        assert_eq!(ids, std::slice::from_ref(&ws));
         assert_matches(&fx.store.get("workspaces", &ws).await.expect("a read").expect("a record"), json!({ "id": ws, "phase": "napping" }));
     });
 }
@@ -205,7 +205,7 @@ fn refuses_a_workspace_one_gateway_copy_answers_404_for_while_the_other_still_ru
         assert_eq!(e.message, "split's machine m1 is still running; pause it or delete it at the provider first");
         assert!(is_conflict(&e));
         let ids: Vec<String> = rt.workspaces().list(None).await.expect("a list").iter().map(|w| w.id.clone()).collect();
-        assert_eq!(ids, [ws.clone()]);
+        assert_eq!(ids, std::slice::from_ref(&ws));
         assert_matches(&fx.store.get("workspaces", &ws).await.expect("a read").expect("a record"), json!({ "id": ws }));
     });
 }
@@ -270,7 +270,7 @@ fn drops_a_thread_no_turn_ever_ran_on_its_row_and_its_transcript_rows_go_the_thr
 
         rt.sessions().forget(&going, None, None).await.expect("a forget");
 
-        assert_eq!(thread_ids(rt, &ws).await, [kept.clone()]);
+        assert_eq!(thread_ids(rt, &ws).await, std::slice::from_ref(&kept));
         let threads: BTreeSet<String> =
             history(rt, &ws).await.iter().map(|e| e["threadId"].as_str().unwrap_or_default().to_string()).collect();
         assert_eq!(threads, BTreeSet::from([kept.clone()]));
@@ -373,7 +373,7 @@ fn refuses_a_thread_whose_turn_did_work_in_one_sentence_and_keeps_its_row_and_it
         assert_eq!(e.message, thread_forget_refusal(&thread));
         assert!(is_conflict(&e));
 
-        assert_eq!(thread_ids(rt, &ws).await, [thread.clone()]);
+        assert_eq!(thread_ids(rt, &ws).await, std::slice::from_ref(&thread));
         let types: Vec<String> = history(rt, &ws).await.iter().map(|e| e["type"].as_str().unwrap_or_default().to_string()).collect();
         assert_eq!(types, ["session.start", "session.done", "session.end"]);
         // A name this runtime holds nothing by, the same shape a workspace name nothing holds has: a value nothing takes.
