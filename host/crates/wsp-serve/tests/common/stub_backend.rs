@@ -52,6 +52,10 @@ pub type UrlFn = Rc<dyn Fn(String) -> Fut<String>>;
 pub type QuietFn = Rc<dyn Fn() -> Fut<Option<u64>>>;
 /// `lifecycle.backstop`: the machine's id and the instant the provider is told to stop it by.
 pub type BackstopFn = Rc<dyn Fn(String, i64) -> Fut<()>>;
+/// `m.startDaemon = async () => exec`: how a machine starts its daemon's unit over its exec road.
+pub type StartDaemonFn = Rc<dyn Fn() -> Fut<ExecResult>>;
+/// `m.daemonExits = async () => said`: what the machine says of a daemon that exits as it starts.
+pub type DaemonExitsFn = Rc<dyn Fn() -> Fut<Option<String>>>;
 pub type ResumeAtFn = Rc<dyn Fn(f64, u64, Option<Cancel>) -> Fut<()>>;
 /// `backend.rootDiskOf = size => ..`: the root disk a provider measured for a size.
 pub type RootDiskFn = Rc<dyn Fn(Size) -> Option<RootDisk>>;
@@ -166,6 +170,8 @@ pub struct StubMachine {
     resume_with: RefCell<Option<ResumeWithFn>>,
     resume_at: RefCell<Option<ResumeAtFn>>,
     served: Cell<bool>,
+    start_daemon: RefCell<Option<StartDaemonFn>>,
+    daemon_exits: RefCell<Option<DaemonExitsFn>>,
     /// The `waitMs` each pause was handed, oldest first: what `m.pause = async o => ..` collects.
     pub pause_waits: RefCell<Vec<Option<u64>>>,
     state: RefCell<StateFn>,
@@ -258,6 +264,8 @@ impl StubMachine {
                 resume_with: RefCell::new(None),
                 resume_at: RefCell::new(None),
                 served: Cell::new(false),
+                start_daemon: RefCell::new(None),
+                daemon_exits: RefCell::new(None),
                 pause_waits: RefCell::default(),
                 state: RefCell::new(Rc::new(move || {
                     let m = this(&state_me);
@@ -377,6 +385,17 @@ impl StubMachine {
         }
         let f = self.resume_fn();
         Rc::new(move |_| f())
+    }
+    /// `m.startDaemon = ..`; `None` takes it away.
+    pub fn set_start_daemon(&self, f: Option<StartDaemonFn>) {
+        *self.start_daemon.borrow_mut() = f;
+    }
+    pub fn start_daemon_fn(&self) -> Option<StartDaemonFn> {
+        self.start_daemon.borrow().clone()
+    }
+    /// `m.daemonExits = ..`; `None` takes it away.
+    pub fn set_daemon_exits(&self, f: Option<DaemonExitsFn>) {
+        *self.daemon_exits.borrow_mut() = f;
     }
     /// `m.daemonFrame = async () => ({ ok: true })`: the machine's computer serves its daemon over its own road.
     pub fn set_served(&self, served: bool) {
@@ -512,6 +531,8 @@ impl Machine for StubMachine {
         MachineOffers {
             resume_at: self.resume_at.borrow().is_some(),
             daemon_frame: self.served.get(),
+            start_daemon: self.start_daemon.borrow().is_some(),
+            daemon_exits: self.daemon_exits.borrow().is_some(),
             preview_url: self.preview.borrow().is_some(),
             daemon_answers: self.daemon_answers.borrow().is_some(),
             describe: true,
@@ -555,6 +576,14 @@ impl Machine for StubMachine {
         bump(&self.calls.pause);
         self.pause_waits.borrow_mut().push(wait_ms);
         let f = self.pause_fn();
+        f().await
+    }
+    async fn start_daemon(&self) -> Result<ExecResult, EngineError> {
+        let f = self.start_daemon.borrow().clone().ok_or_else(|| EngineError::Other { message: NOT_ON_THIS_ROAD.into(), code: None })?;
+        f().await
+    }
+    async fn daemon_exits(&self) -> Result<Option<String>, EngineError> {
+        let f = self.daemon_exits.borrow().clone().ok_or_else(|| EngineError::Other { message: NOT_ON_THIS_ROAD.into(), code: None })?;
         f().await
     }
     async fn daemon_frame(&self, _frame: serde_json::Map<String, serde_json::Value>) -> Result<serde_json::Map<String, serde_json::Value>, EngineError> {
