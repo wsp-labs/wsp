@@ -195,7 +195,7 @@ pub fn states() -> Vec<State> {
             open(w, cx, |this, _, cx| {
                 let mut j = job("failed", json!([{ "step": "connect", "state": "failed" }]));
                 j["address"] = json!("nobody@wsp-parity.invalid");
-                j["said"] = json!("nobody@wsp-parity.invalid has never been reached from this computer and answered no key to a scan; read its host key on the computer itself and run wsp add nobody@wsp-parity.invalid --host-key '<type> <fingerprint>'");
+                j["said"] = json!("nobody@wsp-parity.invalid did not answer on port 22; check the address and that the computer is on, then try again");
                 this.stage(AddStep::Checks, "nobody@wsp-parity.invalid", Some(shaped::<PlaceAddJob>(j)), None, None, cx);
             });
             page(w, cx)
