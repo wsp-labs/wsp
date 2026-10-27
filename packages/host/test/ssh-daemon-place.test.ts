@@ -15,6 +15,8 @@ import { putBytesScript } from "@wsp/engine";
 import type { Machine } from "@wsp/engine";
 import { BOOT_SCRIPT, CLOUD_PLACE, JOINED, joinedPlace, CONTAINER_PLACE, DAEMON_GONE_LINE, daemonBinaryOn, daemonExecLine, daemonFlags, daemonLogCommand, guestPlace, SYSTEMD, NEEDS_SYSTEMD, deployDaemon, PREFLIGHT_OK_LINE, preflightScript, profileSourceLine, profileSourceStep, daemonUnit, deployScript, loginFilesStep, sshDaemonPlace, stageDaemonBundle, stopDaemonScript, WSP_COMMAND_NODE_MAJOR } from "../src/doctor.js";
 import { daemonBinaryIn, GUEST_DAEMON_TARGETS } from "../src/daemon-binary.js";
+import { ensureNode, NODE_ENSURE_SCRIPT } from "../src/place-node.js";
+import { writeStub } from "../../protocol/test/stub-script.js";
 
 const LOGIN = { home: "/home/maya", path: "/usr/local/bin:/usr/bin:/bin" };
 
@@ -547,5 +549,69 @@ describe("a deploy over a daemon that is still running", () => {
       rmSync(home, { recursive: true, force: true });
       rmSync(stage, { recursive: true, force: true });
     }
+  });
+});
+
+describe("the node step of an add runs for real in bash", () => {
+  /** A PATH of its own holding only the tools the script reads with, plus whatever stubs the case names, so neither
+   * the runner's own node nor its chip is the one asked: uname answers `arch`, which a Mac would say as arm64. */
+  function box(stubs: Record<string, string>, arch = "aarch64"): { path: string; done: () => void } {
+    const dir = mkdtempSync(join(tmpdir(), "wsp-node-step-"));
+    stubs = { uname: `echo ${arch}`, ...stubs };
+    for (const tool of ["sed", "tail", "tr", "printf", "bash", "sha256sum"]) {
+      const found = spawnSync("sh", ["-c", `command -v ${tool}`], { encoding: "utf8" }).stdout.trim();
+      if (found !== "" && found.startsWith("/")) symlinkSync(found, join(dir, tool));
+    }
+    for (const [name, body] of Object.entries(stubs)) writeStub(join(dir, name), `#!/bin/sh\n${body}\n`);
+    return { path: dir, done: () => rmSync(dir, { recursive: true, force: true }) };
+  }
+  const run = (path: string) => spawnSync(join(path, "bash"), ["-c", NODE_ENSURE_SCRIPT], { encoding: "utf8", env: { PATH: path } });
+
+  it("keeps a node of the least major or newer and downloads nothing", () => {
+    for (const major of [22, 24]) {
+      const held = box({ node: `echo ${major}`, curl: "echo curl ran >&2; exit 9" });
+      try {
+        const said = run(held.path);
+        expect(said.status, said.stderr).toBe(0);
+        expect(said.stdout.trim()).toBe("NODE_KEPT");
+      } finally {
+        held.done();
+      }
+    }
+  });
+
+  it("installs where the box has no node or an older one, and reads the failure off the install's last line", () => {
+    const cases: { stubs: Record<string, string>; arch: string }[] = [];
+    const holds: Record<string, string>[] = [{}, { node: "echo 20" }];
+    for (const arch of ["aarch64", "x86_64"]) for (const stubs of holds) cases.push({ stubs, arch });
+    for (const { stubs, arch } of cases) {
+      const held = box({ ...stubs, curl: 'echo "curl: (6) Could not resolve host: nodejs.org" >&2; exit 6' }, arch);
+      try {
+        const said = run(held.path);
+        expect(said.status, arch).toBe(1);
+        expect(said.stdout.trim(), arch).toBe("NODE_FAILED curl: (6) Could not resolve host: nodejs.org");
+      } finally {
+        held.done();
+      }
+    }
+  });
+
+  it("refuses with the install's own reason, marked as what the box lacks, and a box that answered nothing as unanswered", async () => {
+    const answering = (exitCode: number, stdout: string): Machine => ({ run: async () => ({ exitCode, stdout, stderr: "ssh: connect timed out" }) }) as unknown as Machine;
+    const refused = await ensureNode(answering(1, "NODE_FAILED curl: (6) Could not resolve host: nodejs.org\n")).catch((e: unknown) => e);
+    expect(machineLacksLine(refused)).toBe("wsp could not put Node 22 on this computer: curl: (6) Could not resolve host: nodejs.org; install Node 22 or newer on it and add it again");
+    expect(machineNeverAnswered(await ensureNode(answering(255, "")).catch((e: unknown) => e))).toBe(true);
+    await expect(ensureNode(answering(0, "NODE_INSTALLED v22.23.2 had=none at=none\n"))).resolves.toBe("wsp put Node 22.23.2 at /usr/local/bin; the computer had no Node");
+    await expect(ensureNode(answering(0, "NODE_KEPT\n"))).resolves.toBeUndefined();
+  });
+
+  it("says a run-out install or a dropped connection in the person's words, with the last thing the box said where it said one", async () => {
+    const answering = (exitCode: number, stdout: string, stderr = ""): Machine => ({ run: async () => ({ exitCode, stdout, stderr }) }) as unknown as Machine;
+    const ranOut = await ensureNode(answering(124, "")).catch((e: unknown) => e);
+    expect((ranOut as Error).message).toBe("this computer stopped answering while wsp put Node 22 on it");
+    expect(machineNeverAnswered(ranOut)).toBe(true);
+    const dropped = await ensureNode(answering(255, "", "\r  5 30.1M  5 1.6M\nConnection to box closed by remote host.\n")).catch((e: unknown) => e);
+    expect((dropped as Error).message).toBe("this computer stopped answering while wsp put Node 22 on it: Connection to box closed by remote host.");
+    for (const said of [(ranOut as Error).message, (dropped as Error).message]) expect(said).not.toMatch(/machine|daemon/);
   });
 });
