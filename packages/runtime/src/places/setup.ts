@@ -955,7 +955,10 @@ export function placeSetup(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea) 
       // stands, a skipped sign-in with it, and the failed steps and the waits run again, with the machine context.
       const resumed = resuming ?? (given === undefined && row === undefined && record.setup !== undefined ? record.setup : undefined);
       const failedUnder = new Set((record.applied?.rows ?? []).filter(r => r.outcome === "failed").map(r => r.step));
-      const kept = ended !== undefined ? ended.steps.filter(l => !runs.has(l.step)) : (resumed?.steps.filter(l => l.state === "done" && (resuming !== undefined || (l.step !== "context" && !failedUnder.has(l.step)))) ?? []);
+      const finished = resumed?.steps.filter(l => l.state === "done" && (resuming !== undefined || (l.step !== "context" && !failedUnder.has(l.step)))) ?? [];
+      // A step that runs again takes the steps that follow it with it, as the run of one row does.
+      const rerunning = (resumed?.steps ?? []).filter(l => !finished.includes(l)).map(l => l.step);
+      const kept = ended !== undefined ? ended.steps.filter(l => !runs.has(l.step)) : finished.filter(l => !rerunning.some(st => ROW_FOLLOWS[st]?.includes(l.step)));
       const done = new Set(kept.map(l => l.step));
       // A sign-in left waiting is run again here where its row stands; otherwise its step starts it itself.
       const rerun = (record.setup?.waiting ?? []).filter(w =>
