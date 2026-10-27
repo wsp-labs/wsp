@@ -3,24 +3,48 @@
 //! guests and fake harness adapters, on the sqlite store in a temp folder. It holds the TS fixture's behaviour
 //! (packages/runtime/test/stub-backend.ts, runtime-fixture.ts, held-port.ts, fake-clock.ts, until.ts at 65f6b89c7),
 //! not a new design. Each test file declares `mod common;`.
-#![allow(dead_code, unused_imports)]
+#![allow(dead_code, unused_imports, unused_macros)]
+
+/// `await vi.waitFor(() => expect(...))` / `until(cond)`: polls `$body` with the named Rc handles cloned in, for 2 s.
+macro_rules! wait {
+    ($label:literal, [$($v:ident),* $(,)?] $body:expr) => {{
+        $crate::common::until_named($label, || {
+            $(let $v = $v.clone();)*
+            async move { $body }
+        })
+        .await
+    }};
+    ([$($v:ident),* $(,)?] $body:expr) => {{
+        $crate::common::until(|| {
+            $(let $v = $v.clone();)*
+            async move { $body }
+        })
+        .await
+    }};
+}
+
 pub mod adapter;
 pub mod box_daemons;
 pub mod box_fake;
+pub mod comeback;
 pub mod copying;
 pub mod daemon;
+pub mod driven;
 pub mod events;
 pub mod gateway;
 pub mod gone;
 pub mod images;
 pub mod lagging;
 pub mod local;
+pub mod machine_runs;
 pub mod ports;
 pub mod projects;
 pub mod reach;
+pub mod scripted;
 pub mod store_wrap;
 pub mod stub_backend;
 pub mod vault;
+pub mod ws_client;
 pub mod ws_daemon;
 
 use std::future::Future;
@@ -39,15 +63,19 @@ use wsp_store::sqlite_store::sqlite_store;
 use wsp_store::store::{memory_store, StateWriter, Store};
 
 pub use adapter::{agent, never_ends, AgentOptions, Asked, ForkAt, Held, Road};
+pub use driven::{DTurn, Driven};
 pub use events::{json, Events};
 pub use lagging::Lagging;
+pub use machine_runs::{Holder, MachineRuns, Reopened};
 pub use ports::{dropping_port, Edge, HeldPort};
 pub use projects::{create_on, owned_store, project_on, temp_repo, CreateOn};
+pub use scripted::{Scripted, When};
 pub use store_wrap::{CountingStore, WrappedStore};
 pub use stub_backend::{
     conflict, exec_async, exec_exit, exec_fn, exec_ok, fetch_failed, missing, token_guest, token_guest_answer, StubBackend, StubMachine,
     GUEST_BRANCH,
 };
+pub use ws_client::{create_over_wire, WsClient};
 pub use ws_daemon::{daemon_of, helloing_daemon, HelloingDaemon};
 pub use wsp_core::types::api::Runtime as _;
 pub use wsp_engine::machine::{Machine, MachineBackend as _};
@@ -75,6 +103,15 @@ pub fn drive<F: Future<Output = ()>>(f: impl FnOnce() -> F) {
 /// `until(cond, ms)` (until.ts): polls `cond` every 10 ms until it holds; panics once the deadline passes.
 pub async fn until<Fut: Future<Output = bool>>(mut cond: impl FnMut() -> Fut) {
     until_for(2_000, &mut cond).await;
+}
+
+/// `until` that says which wait it was when it gives up.
+pub async fn until_named<Fut: Future<Output = bool>>(label: &str, mut cond: impl FnMut() -> Fut) {
+    let deadline = Instant::now() + Duration::from_millis(2_000);
+    while !cond().await {
+        assert!(Instant::now() <= deadline, "condition not met in time: {label}");
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
 }
 
 pub async fn until_for<Fut: Future<Output = bool>>(ms: u64, cond: &mut impl FnMut() -> Fut) {

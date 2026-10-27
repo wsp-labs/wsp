@@ -180,6 +180,7 @@ pub struct StubMachine {
     upload_url: RefCell<UrlFn>,
     preview: RefCell<Option<PreviewFn>>,
     daemon_answers: RefCell<Option<AnswersFn>>,
+    prove: RefCell<Option<UnitFn>>,
 }
 
 impl std::fmt::Debug for StubMachine {
@@ -298,6 +299,7 @@ impl StubMachine {
                 })),
                 preview: RefCell::new(None),
                 daemon_answers: RefCell::new(None),
+                prove: RefCell::new(None),
             }
         })
     }
@@ -427,6 +429,11 @@ impl StubMachine {
     pub fn set_download_url(&self, f: UrlFn) {
         *self.download_url.borrow_mut() = f;
     }
+    /// `m.proveRoad = f` (runtime-comeback.test.ts:203): the machine offers a proof of its road, which `f` answers.
+    pub fn set_prove_road(&self, f: Option<UnitFn>) {
+        *self.prove.borrow_mut() = f;
+    }
+
     pub fn set_preview(&self, f: Option<PreviewFn>) {
         *self.preview.borrow_mut() = f;
     }
@@ -535,6 +542,7 @@ impl Machine for StubMachine {
             daemon_exits: self.daemon_exits.borrow().is_some(),
             preview_url: self.preview.borrow().is_some(),
             daemon_answers: self.daemon_answers.borrow().is_some(),
+            prove_road: self.prove.borrow().is_some(),
             describe: true,
             metrics: true,
             ..MachineOffers::default()
@@ -637,6 +645,14 @@ impl Machine for StubMachine {
         bump(&self.calls.daemon_answers);
         let f = self.answers_fn().ok_or_else(|| EngineError::Other { message: "m.daemonAnswers is not a function".into(), code: None })?;
         f(timeout_ms).await
+    }
+    async fn prove_road(&self, _signal: Option<&Cancel>) -> Result<(), EngineError> {
+        let f = self
+            .prove
+            .borrow()
+            .clone()
+            .ok_or_else(|| EngineError::Other { message: "m.proveRoad is not a function".into(), code: None })?;
+        f().await
     }
     async fn describe(&self) -> Result<MachineShape, EngineError> {
         bump(&self.calls.describe);
