@@ -12,7 +12,7 @@ use wsp_frames::numbers;
 
 use crate::verbs::Verb;
 
-pub(crate) const USAGE: &str = "usage: wsp-daemon [--host <addr>] [--port <n>] [--token-path <file>] [--root <dir>] [--roots-path <file>] [--kind cloud|local|place] [--work-folder <dir>] [--inbox <dir>] [--inbox-quiet-ms <n>] [--inbox-poll-ms <n>] [--manifest <file>] [--run-dir <dir>] [--log-dir <dir>] [--open-socket <path>] [--port-file <file>] [--proc-root <dir>] [--passwd <file>] [--ports-interval-ms <n>] [--sys-interval-ms <n>] [--proc-interval-ms <n>] [--mode-interval-ms <n>] [--auth-deadline-ms <n>] [--place-file <file>] [--home <dir>] [--wsp-argv <word>]... [--agents id=bin,...] [--link-connect-ms <n>] [--link-quiet-ms <n>] [--link-refused-retry-ms <n>] [--link-backoff-ms <n>] [--runtime-root <dir>] [--apparmor-profile <file>] [--readings-dir <dir>] [--docker-notes <dir>] [--doors]";
+pub(crate) const USAGE: &str = "usage: wsp-daemon [--host <addr>] [--port <n>] [--token-path <file>] [--root <dir>] [--roots-path <file>] [--kind cloud|local|place] [--work-folder <dir>] [--inbox <dir>] [--inbox-quiet-ms <n>] [--inbox-poll-ms <n>] [--manifest <file>] [--run-dir <dir>] [--log-dir <dir>] [--open-socket <path>] [--port-file <file>] [--proc-root <dir>] [--passwd <file>] [--ports-interval-ms <n>] [--sys-interval-ms <n>] [--proc-interval-ms <n>] [--mode-interval-ms <n>] [--auth-deadline-ms <n>] [--place-file <file>] [--home <dir>] [--wsp-argv <word>]... [--agents id=bin,...] [--link-connect-ms <n>] [--link-quiet-ms <n>] [--link-refused-retry-ms <n>] [--link-backoff-ms <n>] [--runtime-root <dir>] [--apparmor-profile <file>] [--install-root <dir>] [--readings-dir <dir>] [--docker-notes <dir>] [--doors]";
 
 #[derive(Debug, Parser)]
 #[command(name = "wsp-daemon", disable_version_flag = true, override_usage = USAGE)]
@@ -99,6 +99,10 @@ pub(crate) struct Flags {
     /// The workspace profile a leave run as root takes off; the one a root install writes when absent.
     #[arg(long, value_name = "file")]
     pub(crate) apparmor_profile: Option<PathBuf>,
+    /// The folder /usr/local, /opt, /etc and the runtime's folder sit under for a leave, with the home and the profile:
+    /// a leave refuses any path outside it before it removes anything. This computer's own / when absent.
+    #[arg(long, value_name = "dir")]
+    pub(crate) install_root: Option<PathBuf>,
     /// Where the minute readings are kept; beside the token when absent. The host names one for this computer's
     /// daemon, whose token folder is made fresh at each start.
     #[arg(long, value_name = "dir")]
@@ -165,15 +169,16 @@ impl Flags {
             link_quiet_ms: self.link_quiet_ms,
             link_refused_retry_ms: self.link_refused_retry_ms,
             link_backoff_ms: self.link_backoff_ms,
-            runtime_root: self.runtime_root,
+            runtime_root: self
+                .runtime_root
+                .or_else(|| self.install_root.as_ref().map(|root| root.join(numbers::RUNTIME_ROOT.trim_start_matches('/')))),
             // This binary is the helper the workspace runtime runs, which is what current_exe answers for it.
             runtime_helper: None,
             // The image's own OpenSSH at its usual paths, stopped after the contract's quiet; only a case names others.
             ssh_programs: None,
             ssh_idle_ms: None,
             apparmor_profile: self.apparmor_profile,
-            // The computer's own /; only a case names another.
-            install_root: None,
+            install_root: self.install_root,
             readings_dir: self.readings_dir,
             readings_interval_ms: None,
             docker_notes: self.docker_notes,
@@ -275,6 +280,8 @@ mod tests {
             "/wsp-test",
             "--apparmor-profile",
             "/aa",
+            "--install-root",
+            "/ir",
             "--readings-dir",
             "/rd",
             "--docker-notes",
@@ -291,11 +298,21 @@ mod tests {
         assert_eq!(o.open_socket_path, Some(PathBuf::from("/o.sock")));
         assert_eq!(o.runtime_root, Some(PathBuf::from("/wsp-test")));
         assert_eq!(o.apparmor_profile, Some(PathBuf::from("/aa")));
+        assert_eq!(o.install_root, Some(PathBuf::from("/ir")));
         assert_eq!(o.readings_dir, Some(PathBuf::from("/rd")));
         assert_eq!(o.docker_notes, Some(PathBuf::from("/dn")));
         // No flag names the helper the workspace runtime runs, so a daemon on a machine runs this binary as it
         // always has: what names one is a test that opened a daemon inside its own process.
         assert_eq!(o.runtime_helper, None);
+    }
+
+    #[test]
+    fn an_install_root_carries_the_runtime_folder_with_it_unless_that_is_named() {
+        let at = |args: &[&str]| parse(args).unwrap().into_options().runtime_root;
+        assert_eq!(at(&[]), None);
+        assert_eq!(parse(&[]).unwrap().into_options().install_root, None);
+        assert_eq!(at(&["--install-root", "/ir"]), Some(PathBuf::from("/ir/wsp")));
+        assert_eq!(at(&["--install-root", "/ir", "--runtime-root", "/rt"]), Some(PathBuf::from("/rt")));
     }
 
     #[test]

@@ -22,13 +22,12 @@
         "content": [
           {
             "type": "text",
-            "text": "no image yet; run wsp init to build one"
+            "text": "no image yet. Run wsp doctor with the name of your cloud computer; it builds the default image there."
           }
         ],
         "structuredContent": {
           "image": null,
-          "copies": [],
-          "projects": []
+          "copies": []
         }
       },
       "jsonrpc": "2.0",

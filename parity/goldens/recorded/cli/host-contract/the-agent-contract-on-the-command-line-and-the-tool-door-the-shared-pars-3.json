@@ -5,7 +5,7 @@
       "stdout": "",
       "stderr": {
         "json": {
-          "error": "Unknown option '--json' for wsp status: it answers in prose. That flag belongs to wsp init, wsp add, wsp remove, and to every verb.",
+          "error": "Unknown option '--json' for wsp status: it answers in prose. That flag belongs to wsp add, wsp remove, and to every verb.",
           "class": "usage",
           "exit": 3
         },

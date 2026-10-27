@@ -4,7 +4,7 @@
 // computer is the one a host answers; the service manager is a fake runner,
 // since installing a launchd agent is not this test's business.
 import { describe, expect, it } from "vitest";
-import { hostKeyAsk, hostKeyUnconfirmedRefusal, hostKeyUnscannableRefusal, PLACE_ADD_WORDS, placeDaemonPaths, type PlaceView } from "@wsp/protocol";
+import { hostKeyAsk, hostKeyUnconfirmedRefusal, hostKeyUnscannableRefusal, hostSilentRefusal, PLACE_ADD_WORDS, placeDaemonPaths, type PlaceView } from "@wsp/protocol";
 import { sshWordReach, type SshReach, type SshTransport } from "@wsp/engine";
 import { ADD_FLAGS_REFUSAL, addCommand, addFlags, addRefusal, placeDialler, placeLogReader, PLACE_LOG_TAIL, UPDATE_FLAGS_REFUSAL } from "../src/places.js";
 import { captured } from "./verbs-fixture.js";
@@ -131,6 +131,12 @@ describe("wsp add on a computer reached over ssh", () => {
     const stopped = captured();
     expect(await addCommand(stopped, opts(tmp("add-blind")), ["root@10.0.0.9"], {}, blind)).toBe(1);
     expect(stopped.errors).toEqual([hostKeyUnscannableRefusal("root@10.0.0.9", "ProxyJump")]);
+
+    // A computer that answered nothing on its port says so, and names no flag.
+    const silent = captured();
+    expect(await addCommand(silent, opts(tmp("add-silent")), ["root@10.0.0.9"], {}, { ...deps, offeredHostKey: async () => ({ silent: 22 }) })).toBe(1);
+    expect(silent.errors).toEqual([hostSilentRefusal("root@10.0.0.9", 22)]);
+    expect(silent.errors[0]).toContain("root@10.0.0.9 did not answer on port 22");
 
     // A computer this computer's client already holds a key for is dialled as it always was, with none sent.
     const known = captured();
