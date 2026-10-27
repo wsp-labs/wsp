@@ -15,6 +15,7 @@ pub mod lagging;
 pub mod local;
 pub mod ports;
 pub mod projects;
+pub mod reach;
 pub mod store_wrap;
 pub mod stub_backend;
 pub mod vault;
