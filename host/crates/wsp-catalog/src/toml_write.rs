@@ -6,14 +6,20 @@
 //! cannot tell from an integer is an `Integer` in the tree (smol_toml.rs), so it is written as one.
 use wsp_words::js::{number_string, to_fixed};
 
-use crate::jsonc::js_string;
+use crate::jsonc::js_string_with;
+
+/// The offset a date read as `-00:00` carries in the tree: the `toml` crate reads it as `Custom { minutes: 0 }`, the sign lost,
+/// and smol-toml writes it back as authored. No real offset is near it (they stop at 23:59), and `-i16::MAX` is the end the
+/// crate's own Display of an offset can negate.
+pub(crate) const UNKNOWN_OFFSET: i16 = -i16::MAX;
 
 fn bare(key: &str) -> bool {
     !key.is_empty() && key.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
 }
 
+/// A TOML string holds every Unicode scalar, so a char the JSON.parse port stands in for a lone surrogate is written as itself.
 fn quoted(s: &str) -> String {
-    js_string(s).replace('\u{7f}', "\\u007f")
+    js_string_with(s, false).replace('\u{7f}', "\\u007f")
 }
 
 fn format_key(key: &str) -> String {
@@ -50,6 +56,7 @@ fn datetime_text(d: &toml::value::Datetime) -> String {
     }
     match &d.offset {
         Some(toml::value::Offset::Z) => out.push('Z'),
+        Some(toml::value::Offset::Custom { minutes: UNKNOWN_OFFSET }) => out.push_str("-00:00"),
         Some(toml::value::Offset::Custom { minutes }) => {
             out.push_str(&format!("{}{:02}:{:02}", if *minutes < 0 { '-' } else { '+' }, minutes.abs() / 60, minutes.abs() % 60))
         }
