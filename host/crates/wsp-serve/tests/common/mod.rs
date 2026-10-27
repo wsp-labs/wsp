@@ -16,6 +16,7 @@ pub mod local;
 pub mod local_wiring;
 pub mod ports;
 pub mod projects;
+pub mod pull_request;
 pub mod scripted;
 pub mod store_wrap;
 pub mod stub_backend;
