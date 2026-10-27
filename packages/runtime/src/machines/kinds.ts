@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join, resolve as resolvePathOn } from "node:path";
 import { CATALOG_AGENTS, GUEST_HOME, guestEnv, loginHomeIn, sharedLoginOf, sharedOn } from "@wsp/catalog";
 import { INLINE_EXEC_MS, installScript, INSTALL_MS, guestAgentHomes, PlaceFolderMachine, placeFolderBackend, projectInstalls, type Lifecycle, type MachineBackend, GUEST_TMP, GITHUB_TOKEN_ENV, LOCAL_MACHINE_ID, projectStateKey } from "@wsp/engine";
-import { type DaemonReachView, type ExecStreamFactory, type ProjectSource, type ProjectView, type WorkspaceKind, type WorkspaceProject, SCOPED_MCP_ARG, imageCarriesCheckout, placeLoginNotRootLine, DAEMON_TOKEN_PATH, homeShortened, folderName, kindForComputer, noKindLine, registeredLine, REGISTERING_LINE, cloneFailedLine, cloneOnMachineFailedLine, cloneIntoFileLine, cloneIntoTakenLine, projectNameOf, cloneUrlRefusal, placeDaemonPaths, rootsPathIn, shellLine, shellQuote, placeForksNowhereLine, placeServesDaemonLine, threadCgroup, ownerRepoOf, isBrokered, codexLoginUnreadRefusal, type BrokerStatus, type CodexClaims } from "@wsp/protocol";
+import { type DaemonReachView, type ExecStreamFactory, type ProjectSource, type ProjectView, type WorkspaceKind, type WorkspaceProject, SCOPED_MCP_ARG, placeLoginNotRootLine, DAEMON_TOKEN_PATH, homeShortened, folderName, kindForComputer, noKindLine, registeredLine, REGISTERING_LINE, cloneFailedLine, cloneOnMachineFailedLine, cloneIntoFileLine, cloneIntoTakenLine, projectNameOf, cloneUrlRefusal, placeDaemonPaths, rootsPathIn, shellLine, shellQuote, placeForksNowhereLine, placeServesDaemonLine, threadCgroup, ownerRepoOf, isBrokered, codexLoginUnreadRefusal, type BrokerStatus, type CodexClaims } from "@wsp/protocol";
 import { cloneLines, underLoginHome } from "../project-landing.js";
 import { landOnRecord, publicMarketplaces } from "../projects/branch-of-record.js";
 import { threadEnds } from "./thread-ends.js";
@@ -45,14 +45,11 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
    * stage failed, and where git said nothing past its start, how the clone ended. */
   const cloneProject = async (entry: LiveWorkspace, project: ProjectView, report: StageReport): Promise<void> => {
     // A machine whose credentials the host keeps works on its branch of record, cloned there or put on it in the
-    // checkout its image holds.
+    // checkout the computer copied in.
     const ofRecord = entry.record.branchOfRecord;
-    // A copy forked from the project's own image already holds the checkout and its dependencies, and so does one
-    // the computer copied the checkout into; there is nothing to clone and nothing to install in either.
-    // And neither has a fork of a project image that carried this checkout: the snapshot is the whole disk, so the
-    // project stands at its path with its dependencies installed, and a clone over it is what git refuses. The
-    // image the machine was forked from is what says so, read off this workspace's own record.
-    if (project.image !== undefined || project.checkout !== undefined || imageCarriesCheckout((await ctx.imageOf(entry.record.golden)).projects, project.path)) {
+    // A copy the computer copied the checkout into already holds it and its dependencies; there is nothing to clone
+    // and nothing to install in it.
+    if (project.checkout !== undefined) {
       if (ofRecord !== undefined) await landOnRecord(ctx, entry, project, undefined);
       return;
     }

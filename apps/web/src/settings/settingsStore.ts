@@ -116,11 +116,6 @@ export interface SettingsState {
   readonly devicesAsked: number;
   /** How many times the image has been asked for again, which the read effect follows. */
   readonly imageAsked: number;
-  /** The computer whose image build a card is drawing now, which is where that build's waits are said. */
-  readonly buildShown: string | null;
-  /** The computer whose Image card opens its recipe when it is drawn: an Edit image pressed outside that card. Moving
-   * to another page drops it, so an ask no card took never opens a recipe later. */
-  readonly recipeAsked: string | null;
   /** The Usage page's tab, kept while the window is open so coming back finds the same one. */
   readonly usageTab: UsageTab;
   /** Each ask to read usage and limits again, from the head's refresh, the minute's tick or the window's focus. */
@@ -148,9 +143,6 @@ export interface SettingsState {
   /** A seal filed a copy the held answer does not have: it stands as stale, so no row draws it as current, and the
    * image is read again with `read`, the store's client, wherever the person is. */
   rereadImage(read?: () => Promise<SealedImageView>): void;
-  showBuild(placeId: string): void;
-  hideBuild(placeId: string): void;
-  askRecipe(placeId: string | null): void;
   /** Add a cloud provider, opened on the setup that stands where one does. */
   askAdd(road: AddRoad): void;
   pickUsageTab(tab: UsageTab): void;
@@ -184,8 +176,6 @@ export const useSettingsStore = create<SettingsState>(set => ({
   addProjectAt: null,
   devicesAsked: 0,
   imageAsked: 0,
-  buildShown: null,
-  recipeAsked: null,
   usageTab: "used",
   usageAsked: 0,
   usageRead: { at: null, reading: false },
@@ -196,7 +186,7 @@ export const useSettingsStore = create<SettingsState>(set => ({
   activityPlace: null,
   parting: null,
   go(at) {
-    set({ at, search: "", recipeAsked: null, agentsLevel: null });
+    set({ at, search: "", agentsLevel: null });
     try {
       window.localStorage.setItem(AT_KEY, atId(at));
     } catch {
@@ -250,15 +240,6 @@ export const useSettingsStore = create<SettingsState>(set => ({
     forgetHeld(IMAGE_KEY);
     set(s => ({ reads: { ...s.reads, imageStale: s.reads.image !== null }, imageAsked: s.imageAsked + 1 }));
     readImage(read);
-  },
-  showBuild(placeId) {
-    set({ buildShown: placeId });
-  },
-  hideBuild(placeId) {
-    set(s => (s.buildShown === placeId ? { buildShown: null } : {}));
-  },
-  askRecipe(placeId) {
-    set({ recipeAsked: placeId });
   },
   askAdd() {
     openCloudAdd();

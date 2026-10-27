@@ -25,6 +25,7 @@ use wsp_host_client::start::{self, Failed, Start, System};
 use wsp_host_client::{Env, Failure, HostClient};
 
 use super::{onboarding, starting};
+use crate::screens::settings::pages::agents::model::entry;
 use crate::screens::Host;
 use crate::service;
 use crate::TITLE;
@@ -319,10 +320,11 @@ pub async fn agents(client: &HostClient) -> Result<Vec<Agent>, Failure> {
 }
 
 /// The wsp tools into each agent `ids` names, one `agents.addTools` each; every agent whose config would not take
-/// them, with the host's words.
+/// them, with the host's words. An agent the catalog keeps no MCP config for has no file to take them and is passed
+/// over, as `wsp mcp install` passes it over.
 pub async fn add_tools(client: &HostClient, ids: Vec<String>) -> Vec<(String, String)> {
     let mut refused = Vec::new();
-    for id in ids {
+    for id in ids.into_iter().filter(|id| entry(id).is_none_or(|e| e.mcp.is_some())) {
         let written = match request::<AgentsAddToolsRequest>(json!({ "target": { "placeId": "here" }, "agent": id })) {
             Ok(add) => client.call(add).await.map(|_| ()),
             Err(f) => Err(f),

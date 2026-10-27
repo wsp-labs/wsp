@@ -99,7 +99,7 @@ describe("the address bar over the list", () => {
 describe("the Browser pane of a thread on a computer whose daemon is too old to watch its ports", () => {
   const WS = "ws_box";
   const folder: WorkspaceView = { id: WS, project: { id: "pr_lab", name: "lab", path: "/root/lab", computer: "p_2" }, name: WS, kind: "place", place: "p_2", machineId: "p_2", phase: "running", golden: "", createdAt: "2026-10-13T00:00:00.000Z" };
-  const hetzner = (daemonVersion?: number): PlaceView => ({ id: "p_2", kind: "computer", name: "hetzner", default: false, present: true, takesForks: true, engine: "none", buildsImages: false, ...(daemonVersion === undefined ? {} : { daemonVersion }) });
+  const hetzner = (daemonVersion?: number): PlaceView => ({ id: "p_2", kind: "computer", name: "hetzner", default: false, present: true, takesForks: true, buildsImages: false, ...(daemonVersion === undefined ? {} : { daemonVersion }) });
   const said = (daemonVersion?: number, recents: BrowserHistoryEntry[] = []): string => {
     cleanup();
     window.localStorage.setItem(recentsKey(WS), JSON.stringify(recents));

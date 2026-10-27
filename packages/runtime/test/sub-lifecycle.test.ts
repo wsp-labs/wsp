@@ -514,22 +514,6 @@ describe("a restart that cut a done short", () => {
   });
 });
 
-describe("the agents switch over a lead's delete", () => {
-  it("refuses a lead in a folder made with agents off", async () => {
-    const held = await doneOnce();
-    await settled(held);
-    await held.rt.close();
-    const folder = (await held.store.get("workspaces", held.folder.id)) as WorkspaceRecord;
-    await held.store.put("workspaces", folder.id, { ...folder, agents: { ...folder.agents, spawn: false } });
-    const again = held.restart();
-    open.push(again);
-    await again.workspaces.list();
-    const e = await refusedBy(again.sessions.delete(held.threadId, held.lead));
-    expect(e?.message).toContain("may not delete a sub-thread it started");
-    expect(held.machine.killed).toBe(false);
-  });
-});
-
 describe("what goes with Boat", () => {
   it("names each sub-thread whose machine holds work not pushed", async () => {
     const held = await doneOnce({ answers: { read: UNPUSHED }, deleteAfterMs: 30 * MIN });

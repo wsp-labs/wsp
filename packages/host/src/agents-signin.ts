@@ -379,8 +379,8 @@ export function hostActs(o: HostActsOptions): AgentsActs {
       writeEnvFile(o.vaultFile, { [name]: value });
     },
     addTools: async (on, agent) => {
-      if (on.kind !== "here") throw new Error(addToolsHereRefusal);
-      if (!MCP_AGENTS.some(a => a.id === agent)) throw new Error(addToolsNoConfigRefusal(agentOf(agent).name));
+      if (on.kind !== "here") throw Object.assign(new Error(addToolsHereRefusal), { kind: "usage" });
+      if (!MCP_AGENTS.some(a => a.id === agent)) throw Object.assign(new Error(addToolsNoConfigRefusal(agentOf(agent).name)), { kind: "usage" });
       const placed = installMcp(agent, o.wspServer(), o.home());
       return { file: placed.path! };
     },

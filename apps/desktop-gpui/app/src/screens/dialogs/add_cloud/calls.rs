@@ -2,21 +2,12 @@
 //! The host calls the flow asks for, each typed off its params and its reply read into the flow's own shapes. No state
 //! lives here: the view awaits these and hands the answers to [`super::flow::Flow`].
 
-use futures::channel::mpsc;
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
-use wsp_host_client::protocol::{
-    AgentsReadRequest, InitAnswerRequest, InitBuildRequest, InitDraftRequest, InitGetRequest, InitKeysRequest, InitStartRequest,
-    InitStepRequest, PlacesListRequest, PreferencesGetRequest, ProvidersCheckKeyRequest, RecipesOptionsRequest, WorkspacesListRequest,
-};
-use wsp_host_client::{Event, Failure, HostClient, Op};
+use wsp_host_client::protocol::{InitGetRequest, InitKeysRequest, ProvidersCheckKeyRequest};
+use wsp_host_client::{Failure, HostClient, Op};
 
-use super::flow::{Agent, Facts, Job, Setup};
-use super::sign_in::{self, Heard};
-use crate::screens::Host;
-
-/// The computer the host runs on, as the places list and the agents reads name it.
-pub const HERE: &str = "here";
+use super::flow::{Facts, Setup};
 
 async fn call<O: Op + DeserializeOwned>(host: &HostClient, params: Value) -> Result<O::Reply, Failure> {
     let op: O = serde_json::from_value(params).map_err(|e| Failure::new(format!("{}: {e}", O::NAME)))?;
@@ -32,106 +23,10 @@ pub async fn setup(host: &HostClient) -> Result<Setup, Failure> {
     read(call::<InitGetRequest>(host, json!({})).await?.setup)
 }
 
-/// The computer the host runs on, by its own name; empty until the places list holds it.
-pub async fn here(host: &HostClient) -> Result<String, Failure> {
-    let places = call::<PlacesListRequest>(host, json!({})).await?.places;
-    let here: Option<Value> = places.iter().filter_map(|p| serde_json::to_value(p).ok()).find(|p| p["id"] == HERE);
-    Ok(here.and_then(|p| p["label"].as_str().or(p["name"].as_str()).map(str::to_owned)).unwrap_or_default())
-}
-
-/// The agents on the computer the host runs on, with their sign-ins.
-pub async fn agents(host: &HostClient) -> Result<Vec<Agent>, Failure> {
-    read(call::<AgentsReadRequest>(host, json!({ "target": { "placeId": HERE } })).await?.report.agents)
-}
-
-/// The GitHub login the setup reads on the computer the host runs on.
-pub async fn github(host: &HostClient) -> Result<Option<String>, Failure> {
-    let options = call::<RecipesOptionsRequest>(host, json!({})).await?.options;
-    let configs = options["configs"].as_array().cloned().unwrap_or_default();
-    Ok(configs.iter().find(|c| c["id"] == "github").and_then(|c| c["account"].as_str()).map(str::to_owned))
-}
-
 pub async fn check_key(host: &HostClient, provider: String, key: String) -> Result<Facts, Failure> {
     read(call::<ProvidersCheckKeyRequest>(host, json!({ "provider": provider, "key": key })).await?)
 }
 
 pub async fn save_key(host: &HostClient, provider: String, key: String) -> Result<Setup, Failure> {
     read(call::<InitKeysRequest>(host, json!({ "provider": provider, "key": key })).await?.setup)
-}
-
-pub async fn start(host: &HostClient, on: String) -> Result<Job, Failure> {
-    read(call::<InitStartRequest>(host, json!({ "road": "manual", "on": on })).await?.job)
-}
-
-pub async fn draft(host: &HostClient, at: String, ticks: Vec<String>) -> Result<(), Failure> {
-    call::<InitDraftRequest>(host, json!({ "at": at, "ticks": ticks })).await.map(drop)
-}
-
-pub async fn step(host: &HostClient, at: usize) -> Result<(), Failure> {
-    call::<InitStepRequest>(host, json!({ "at": at })).await.map(drop)
-}
-
-pub async fn answer(host: &HostClient, screen: String, ticks: Vec<String>, answers: Option<Value>) -> Result<(), Failure> {
-    let mut params = json!({ "screen": screen, "ticks": ticks });
-    if let Some(answers) = answers {
-        params["answers"] = answers;
-    }
-    call::<InitAnswerRequest>(host, params).await.map(drop)
-}
-
-pub async fn build(host: &HostClient, on: String) -> Result<(), Failure> {
-    call::<InitBuildRequest>(host, json!({ "on": on })).await.map(drop)
-}
-
-/// What the host pushed that the dialog reads.
-pub enum Pushed {
-    Job(Box<Job>),
-    /// The agents on the computer the host runs on changed.
-    Agents,
-    SignIn(Heard),
-}
-
-/// Sends each push the dialog reads until the receiver is gone.
-pub fn follow(host: &Host, tx: mpsc::UnboundedSender<Pushed>) -> impl std::future::Future<Output = Result<(), Failure>> + 'static {
-    host.run(move |client| async move {
-        let mut events = client.events().await?;
-        while let Some(event) = events.next().await {
-            let pushed = match event {
-                Ok(Event::Host(e)) => {
-                    let Ok(frame) = serde_json::to_value(&e) else { continue };
-                    match frame["type"].as_str() {
-                        Some("init.job") => serde_json::from_value(frame["job"].clone()).ok().map(|j| Pushed::Job(Box::new(j))),
-                        Some("agents.changed") if frame["target"]["placeId"] == HERE || frame["target"].is_null() => Some(Pushed::Agents),
-                        _ => None,
-                    }
-                }
-                Ok(Event::SignIn(e)) => sign_in::heard_of(&e).map(Pushed::SignIn),
-                _ => None,
-            };
-            if let Some(pushed) = pushed {
-                if tx.unbounded_send(pushed).is_err() {
-                    break;
-                }
-            }
-        }
-        Ok(())
-    })
-}
-
-/// The workspace a first cloud thread opens on: the one a thread last started on where it is this computer's, else
-/// this computer's first.
-pub async fn local_workspace(host: &HostClient) -> Result<Option<String>, Failure> {
-    let listed = call::<WorkspacesListRequest>(host, json!({})).await?.workspaces;
-    let local: Vec<String> = listed
-        .iter()
-        .filter_map(|w| serde_json::to_value(w).ok())
-        .filter(|w| w["kind"] == "local")
-        .filter_map(|w| w["id"].as_str().map(str::to_owned))
-        .collect();
-    let last = call::<PreferencesGetRequest>(host, json!({}))
-        .await
-        .ok()
-        .and_then(|p| serde_json::to_value(p.preferences).ok())
-        .and_then(|p| p["target"]["workspace"].as_str().map(str::to_owned));
-    Ok(last.filter(|l| local.contains(l)).or_else(|| local.first().cloned()))
 }

@@ -13,16 +13,8 @@ ops! {
     "places.estimate" => PlacesEstimateRequest => Estimate,
     "pair.issue" => PairIssueRequest => PairCode,
     "pair.redeem" => PairRedeemRequest => protocol::PlaceJoinDevice,
-    "init.answer" => InitAnswerRequest => Job,
-    "init.build" => InitBuildRequest => Job,
-    "init.cancel" => InitCancelRequest => Job,
-    "init.draft" => InitDraftRequest => Job,
     "init.get" => InitGetRequest => Setup,
     "init.keys" => InitKeysRequest => Setup,
-    "init.retry" => InitRetryRequest => Job,
-    "init.signInCode" => InitSignInCodeRequest => Job,
-    "init.start" => InitStartRequest => Job,
-    "init.step" => InitStepRequest => Job,
 }
 
 /// An install once the computer dialled in: its pending add rides beside the place when nothing was picked.
@@ -78,9 +70,4 @@ pub struct PairCode {
 #[derive(Debug, Deserialize)]
 pub struct Setup {
     pub setup: protocol::InitSetup,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Job {
-    pub job: protocol::InitJob,
 }

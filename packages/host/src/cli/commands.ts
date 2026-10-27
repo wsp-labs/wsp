@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { homedir } from "node:os";
-import { GUEST_HOME, MCP_AGENT_IDS } from "@wsp/catalog";
+import { MCP_AGENT_IDS } from "@wsp/catalog";
 import { SCOPED_MCP_ARG, isJoinedComputer, PLACE_LEAVE_LINE, PLACE_LEAVE_VERB, DEFAULT_PORT, EXIT_CODES, LOOPBACK, portsPickedLine, namesPlace, noSuchPlaceRefusal, tableName, type PlaceView, usageRefusal } from "@wsp/protocol";
 import { CLOUD_ON } from "../cloud.js";
 import { claudeEnvs, doctor, doctorOverHost, hostDoctor } from "../doctor.js";
@@ -19,7 +19,6 @@ import { keySources, loadKeys, vaultNow } from "./keys.js";
 import { type SharedOpts, type SharedFlags, type Options, SHARED_OPTIONS } from "./flags.js";
 import { goldenRecipe, localWiring, makeRuntime } from "./wiring.js";
 import { stopOnSignals, stayOnUncaught } from "./serve.js";
-import { upCommandFor, init } from "./init.js";
 import { up, systemService, upServiceCommand, downCommand, latestHere, statusCommand, pickUpPorts } from "./service.js";
 
 /** The one claim about the host a person reads twice, on the front page and on wsp up's own page: which is why up
@@ -232,29 +231,6 @@ const COMMANDS: Readonly<Record<string, Command>> = {
       return hostsCommand(io, opts);
     },
   },
-  init: {
-    page: "front",
-    usage: "wsp init [--on <place>] [--recipe <path>] [--project <path>] [--first-workspace <name>] [--import <folder>] [--rebuild] [--no-local] [--yes] [--non-interactive] [--json]",
-    about: "seal this computer into your image, one screen at a time: Agents, Tools, Also on this computer, Sign-ins, wsp for your agents on this computer, each shown when it has a row to pick, then Build. Beside a host already serving this state file the screens are the same and the build runs in that host, on the place --on names or its default place, a computer you joined included. With no host serving and no provider key it seals nothing and records a folder here as your first project instead",
-    json: true,
-    host: "refused",
-    cliOnly: "builds your image and serves for hours; an agent runs it from a shell and relays the sign-ins it prints",
-    run: (io, opts, values) =>
-      init(io, opts, {
-        yes: values.yes === true,
-        // --json has nobody to answer the screens: its objects are for whoever is driving the run.
-        nonInteractive: values["non-interactive"] === true || values.json === true,
-        json: values.json === true,
-        noLocal: values["no-local"] === true,
-        ...(values.rebuild === true ? { rebuild: true } : {}),
-        ...(values.recipe !== undefined ? { recipe: values.recipe } : {}),
-        ...(values.project !== undefined ? { project: values.project } : {}),
-        ...(values["first-workspace"] !== undefined ? { firstWorkspace: values["first-workspace"] } : {}),
-        ...(values.import !== undefined ? { importFolder: values.import } : {}),
-        ...(values.on !== undefined ? { on: values.on } : {}),
-        upCommand: upCommandFor(opts, values),
-      }),
-  },
   add: {
     page: "front",
     usage:
@@ -361,10 +337,8 @@ const COMMANDS: Readonly<Record<string, Command>> = {
        * process's own and is closed on the way out, pass or fail. */
       const terminalRoad = async (computer?: PlaceView): Promise<number> => {
         const { keys, env } = await loadKeys(io, keySources(opts.providerEnv, opts.statePath), doctorKeyAsk(computer));
-        // One planner for this run: the recipe the tools step reads against is the one the recipe job puts on a
-        // computer, read through the wiring this runtime holds its links with.
+        // One wiring for this run: the links the runtime holds its computers with.
         const links = placeWiring(opts.statePath);
-        const provision = links.provision;
         const rt = makeRuntime(keys, opts.statePath, goldenRecipe(), env, undefined, local, links);
         try {
           return await doctor(rt, io, {
@@ -375,7 +349,7 @@ const COMMANDS: Readonly<Record<string, Command>> = {
             ...(hereDaemon !== undefined ? { hereDaemon } : {}),
             ...(latest !== undefined ? { latest } : {}),
             vault: () => vaultNow(opts.statePath),
-            ...(provision !== undefined ? { plan: () => provision.plan({ home: GUEST_HOME }) } : {}),
+            
             statePath: opts.statePath,
           });
         } finally {
@@ -551,11 +525,11 @@ export const SHARED_FLAGS: readonly SharedFlag[] = [
   { name: "state", on: SHARED_WORDS, says: `the state file: this word first, else WSP_HOME's state.json, else ./.wsp/state.json when the current directory is a checkout of wsp, else state.json in the home the running host serves` },
   { name: "version", on: ["up"], says: "print the version of this wsp and stop; typed alone, it is the whole line" },
   { name: "port", on: ["up"], says: `the port the app and the runtime websocket are served on (default ${DEFAULT_PORT})` },
-  { name: "listen", on: ["up"], says: `the address to bind (default ${LOOPBACK}, this computer alone). No page carries the host's token on any address: the desktop attaches by the token file beside the state, the browser wsp init opens is let in by init, and every other browser pairs for a device token of its own` },
+  { name: "listen", on: ["up"], says: `the address to bind (default ${LOOPBACK}, this computer alone). No page carries the host's token on any address: the desktop attaches by the token file beside the state, and every browser pairs for a device token of its own` },
   { name: "advertise", on: ["up"], says: "the address a computer being joined dials this host at; without it, the relay's name or what this computer answers on" },
   { name: "no-relay", on: ["up"], says: "serve without the tunnel, on a computer that is linked to a relay" },
   { name: "service", on: ["up"], says: "install the host as a launchd agent on a Mac or a systemd user unit on Linux, which serves now and again at every login. The keys are not written into it: it reads the same .env a terminal run reads, so they have to be in a file" },
-  ...(CLOUD_ON ? [{ name: "provider" as const, on: ["up", "init"], says: "which machine provider this computer forks on; without it, a key saved under a provider's own variable wires that provider" }] : []),
+  ...(CLOUD_ON ? [{ name: "provider" as const, on: ["up"], says: "which machine provider this computer forks on; without it, a key saved under a provider's own variable wires that provider" }] : []),
   { name: "code", on: ["join"], says: "the code the other computer printed: wsp add on the host" },
   { name: "code-file", on: ["join"], says: "read the code off this file and delete the file before dialing, so a code never sits on a disk" },
   { name: "watch", on: ["status"], says: "draw the same rows again every second where they stand, until Ctrl-C; it needs a terminal to redraw on, and reads nothing but this computer's own agent" },
@@ -568,16 +542,12 @@ export const SHARED_FLAGS: readonly SharedFlag[] = [
   { name: "resume", on: ["add"], says: "the computer named is already added, or joined and waits on what goes on it: set it up, from --recipe where given, else from what it holds, running only what is missing" },
   { name: "update", on: ["add"], says: "the place named is already in this wsp: put the daemon this wsp deploys on it, over the link it is holding or over the ssh road it was added on, restart its agent and keep the threads and machines standing on it" },
   { name: "sign-in", on: ["add"], says: "the agent to sign in on the place named, once: the sign-in runs on that computer and every thread there shares the one login. Offered by the join itself; this is the same road for a computer already in" },
-  { name: "yes", on: ["init"], says: "take every default and ask nothing, which a run off a terminal needs; a login with a browser or device sign-in, or one held in the Keychain, is left to the first time you need it on the machine unless a saved recipe answered copy, so macOS has nothing to ask either and the build waits on nobody" },
   { name: "yes", on: ["remove", PLACE_LEAVE_VERB], says: FLAG_WORDS["yes"]! },
   { name: "force", on: ["remove"], says: "remove it even where a fork or a project folder there holds work no remote has, which goes with it" },
   { name: "forget", on: ["remove"], says: "for a computer whose link will never answer again: it, its forks, its projects and their threads leave this wsp as records, wsp tries the leave over the ssh login it was added on, and nothing else is done on it; wsp leave there clears what stays" },
   { name: "force", on: [PLACE_LEAVE_VERB], says: "leave even where a project checkout on this computer holds work no remote has, which goes with it" },
   { name: "takes", on: [PLACE_LEAVE_VERB], says: "one project folder under /wsp/projects that wsp made, taken where /wsp stood before the add, which otherwise keeps every folder wsp did not make; given once per folder, as a remove names them" },
   { name: "yes", on: ["doctor"], says: "also delete the snapshots and templates this host left behind, which is not reversible" },
-  { name: "recipe", on: ["init"], says: "tick the agents and tools from this recipe (wsp recipe writes it) and go straight to the sign-ins" },
-  { name: "project", on: ["init"], says: "the project folder you are bringing first; its own files say what it needs, and those rows are ticked first" },
-  { name: "on", on: ["init"], says: "the computer the image is built on, by the name wsp computers lists, a box you joined included; the default place without it" },
   { name: "on", on: ["add"], says: "the computer a project lives on, by the name wsp computers lists: a repo a computer clones needs one, and a folder here takes one to have that computer clone the folder's own remote, with the folder seeding what git ignores; without it a folder here, or a repo cloned --into a folder here, is worked where it sits" },
   { name: "into", on: ["add"], says: "the folder on this computer to clone a repo in, as git clone does: the repo lands in a folder of its own name inside it, made where it does not exist yet, unless the folder named carries the repo's name or that name with a number (lab, lab-2), when it is the clone's folder itself; a clone's folder that holds files is refused with the next free name; the project is then the clone's folder, worked where it sits" },
   { name: "base", on: ["add"], says: "the branch a thread of the project starts on; the remote's own default branch at the clone without it" },
@@ -587,11 +557,6 @@ export const SHARED_FLAGS: readonly SharedFlag[] = [
   { name: "no-memory", on: ["add"], says: "leave this folder's Claude Code memory here; the project's own memory on that computer then starts empty" },
   { name: "no-commits", on: ["add"], says: "leave the commits the remote does not have here; the computer's clone then starts at the remote's own tip" },
   { name: "remember", on: ["add"], says: "keep these ticks for this folder, so the next add of it starts with them rather than the catalogue's" },
-  { name: "first-workspace", on: ["init"], says: "fork the first machine under this name once the image seals, without asking (default first)" },
-  { name: "import", on: ["init"], says: "import this folder's project onto that first machine, with the consent the app's import starts from" },
-  { name: "rebuild", on: ["init"], says: "seal the next version from a fresh machine rather than from your image plus the changes, which is the question a run at a terminal is asked; without it a run that asks nothing takes whichever road the changes call for" },
-  { name: "no-local", on: ["init"], says: "leave this computer alone; the machine step ticks it by default, since a thread here forks nothing and bills nothing" },
-  { name: "non-interactive", on: ["init"], says: "ask nothing, but still run the sign-ins on the machine: each prints the page to open on this computer, the code when the flow shows one, and the command that opens it, then waits for you" },
   { name: "local", on: ["doctor"], says: "prove this computer alone: a thread here and its reply, with no machine, no key, nothing forked and nothing billed" },
   { name: "project", on: ["doctor"], says: "the project the doctor's machine is made of, by name, on the computer named; the first project there whose checkout stands when absent" },
 ];

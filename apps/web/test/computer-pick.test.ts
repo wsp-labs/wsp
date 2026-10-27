@@ -4,8 +4,8 @@ import { describe, expect, it } from "vitest";
 import { groupsOn } from "../src/sidebar/computerPick.js";
 
 const PLACES: PlaceView[] = [
-  { id: "here", kind: "computer", name: "studio.local", default: false, engine: "none", present: true, takesForks: false },
-  { id: "p_spoo", kind: "computer", name: "spoo", default: false, engine: "none", present: true, takesForks: true },
+  { id: "here", kind: "computer", name: "studio.local", default: false, present: true, takesForks: false },
+  { id: "p_spoo", kind: "computer", name: "spoo", default: false, present: true, takesForks: true },
 ];
 const group = (id: string, computer?: string) => ({ project: { id, name: id, ...(computer === undefined ? {} : { computer }) }, workspaces: [] });
 

@@ -247,8 +247,6 @@ const api: Api = {
     return () => watching.delete(fn);
   },
   getGolden: async () => undefined,
-  listProjectGoldens: async () => [],
-  snapshotWorkspace: async id => ({ snapshotId: "snap_taken", projects: [], golden: "", workspaceId: id, workspaceName: "wsp", createdAt: new Date().toISOString() }),
 } as Api;
 
 useStore.setState({

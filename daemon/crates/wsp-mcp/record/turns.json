@@ -171,54 +171,5 @@
     "max": 5
   },
   "turnTokenEnv": "WSP_TURN",
-  "notifyMe": "me",
-  "recipe": {
-    "outNotAbsolute": "out is a path on this computer, absolute, and got \"{path}\". Give a path that opens with /, since whoever reads it works in a folder this line cannot see.",
-    "projectNotAbsolute": "project is a folder on this computer, absolute, and got \"{path}\". Give a path that opens with /, since whoever reads it works in a folder this line cannot see.",
-    "agentsTitle": "Agents",
-    "toolsTitle": "Tools",
-    "tickOn": "●",
-    "tickOff": "○",
-    "gutter": "  ",
-    "groupLabels": {
-      "Always on the image": "base",
-      "Your project needs": "project",
-      "You use these": "used",
-      "Installed here, never used": "installed",
-      "Added by your agent": "added",
-      "Also in the catalog": "catalog"
-    },
-    "floorLine": "on when used in 2 sessions and 5 commands; heavy rows 3 and 20",
-    "floorApplies": {
-      "used": true,
-      "installed": false,
-      "default": false,
-      "none": true
-    },
-    "unknownSize": "size unknown",
-    "totals": "On: {on}, {bytes}",
-    "totalsUnknown": ", {unknown} of unknown size",
-    "pinLatest": "{tag}, installs latest",
-    "installsLatest": "installs latest",
-    "commandsTitle": "Commands your agents ran that the catalog does not carry:",
-    "commandsShown": 12,
-    "commandsHead": [
-      "command",
-      "calls",
-      "sessions"
-    ],
-    "none": "  none",
-    "more": "  and {count} more",
-    "notScanned": "nothing looked for them here",
-    "signInsTitle": "Sign-ins the ticked rows bring:",
-    "signInsHead": [
-      "id",
-      "sign in",
-      "do"
-    ],
-    "alsoTitle": {
-      "darwin": "Also on this Mac",
-      "linux": "Also on this computer"
-    }
-  }
+  "notifyMe": "me"
 }
