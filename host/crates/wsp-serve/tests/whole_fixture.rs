@@ -664,3 +664,21 @@ fn the_daemon_port_answers_502_then_426_and_a_route_leads_a_machine_to_it() {
         assert_eq!(token_written("WSP_DAEMON_TOKEN='a'b'"), None);
     });
 }
+
+// runtime-reach.test.ts:164 `deployDaemon: async () => daemon.announce(v)`: a deploy holds the announce past the daemon's borrow.
+#[test]
+fn a_deploy_holds_the_daemons_announce_as_a_closure() {
+    use futures::{SinkExt as _, StreamExt as _};
+    use tokio_tungstenite::tungstenite::Message;
+    drive(|| async {
+        let daemon = helloing_daemon(1, false, None).await;
+        let announce = daemon.announcer();
+        announce(42);
+        let (mut ws, _) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{}", daemon.port)).await.expect("a socket");
+        ws.send(Message::text(json!({ "id": 1, "op": "auth", "token": "t" }).to_string())).await.expect("a send");
+        let _ok = ws.next().await.expect("a frame").expect("ok");
+        let hello: serde_json::Value =
+            serde_json::from_str(ws.next().await.expect("a frame").expect("ok").to_text().expect("text")).expect("json");
+        assert_eq!(hello["version"], 42);
+    });
+}
