@@ -15,11 +15,13 @@ use common::*;
 use futures::future::{FutureExt, LocalBoxFuture};
 use serde_json::{json, Value};
 use tokio::task::JoinHandle;
-use wsp_adapters::port::{AdapterError, ExecFailure, HarnessAdapter, HarnessSession, HarnessStartOptions, SharedFuture, SteerOutcome, TurnImage, TurnResult};
+use wsp_adapters::port::{
+    AdapterError, ExecFailure, HarnessAdapter, HarnessSession, HarnessStartOptions, SharedFuture, SteerOutcome, TurnImage, TurnResult,
+};
 use wsp_core::console::capture;
 use wsp_core::types::api::StartOptions;
-use wsp_core::types::harness::HarnessAdapterFactory;
 use wsp_core::types::api::SteerAsk;
+use wsp_core::types::harness::HarnessAdapterFactory;
 use wsp_engine::box_backend::plan::BOX_WORK_DIR;
 use wsp_engine::gone::KillConfirm;
 use wsp_serve::AssembledRuntime;
@@ -153,7 +155,10 @@ impl Restarted {
         tokio::task::spawn_local(async move { rt.workspaces().wake(&id, None).await.map(|v| j(&v)).map_err(|e| e.message) })
     }
     async fn phase(&self) -> String {
-        j(&self.rt.workspaces().get(&self.ws_id, None, None).await.expect("the workspace"))["phase"].as_str().unwrap_or_default().to_string()
+        j(&self.rt.workspaces().get(&self.ws_id, None, None).await.expect("the workspace"))["phase"]
+            .as_str()
+            .unwrap_or_default()
+            .to_string()
     }
     async fn stored(&self) -> Option<Value> {
         self.state.store.get("workspaces", &self.ws_id).await.expect("a read")
@@ -205,7 +210,8 @@ fn a_napping_record_whose_box_the_wake_finds_running_the_wake_waits_reading_waki
 
 // "a napping record whose box the wake finds running: a box still restoring at the deadline fails the wake with a line that says so, and the next wake waits again"
 #[test]
-fn a_napping_record_whose_box_the_wake_finds_running_a_box_still_restoring_at_the_deadline_fails_the_wake_with_a_line_that_says_so_and_the_next_wake_waits_again() {
+fn a_napping_record_whose_box_the_wake_finds_running_a_box_still_restoring_at_the_deadline_fails_the_wake_with_a_line_that_says_so_and_the_next_wake_waits_again(
+) {
     drive(|| a_box_still_restoring_at_the_deadline(ROADS[0].1));
 }
 
@@ -217,7 +223,8 @@ fn a_record_a_restart_found_running_over_a_box_that_was_waking_the_wake_waits_re
 
 // "a record a restart found running over a box that was waking: a box still restoring at the deadline fails the wake with a line that says so, and the next wake waits again"
 #[test]
-fn a_record_a_restart_found_running_over_a_box_that_was_waking_a_box_still_restoring_at_the_deadline_fails_the_wake_with_a_line_that_says_so_and_the_next_wake_waits_again() {
+fn a_record_a_restart_found_running_over_a_box_that_was_waking_a_box_still_restoring_at_the_deadline_fails_the_wake_with_a_line_that_says_so_and_the_next_wake_waits_again(
+) {
     drive(|| a_box_still_restoring_at_the_deadline(ROADS[1].1));
 }
 
@@ -275,7 +282,11 @@ fn a_box_whose_agent_fails_during_the_proof_fails_the_wake_with_that_failure_not
         let failed = t.rt.workspaces().wake(&t.ws_id, None).await.expect_err("a failure");
         // The TS reads `instanceof GuestUnusableError`; the host's error carries the class's words alone, and those say the
         // box the agent failed on and what it said.
-        assert!(failed.message.contains(&t.machine_id) && failed.message.contains("Cannot read properties of undefined"), "{}", failed.message);
+        assert!(
+            failed.message.contains(&t.machine_id) && failed.message.contains("Cannot read properties of undefined"),
+            "{}",
+            failed.message
+        );
         assert!(!failed.message.contains("wake it again"), "{}", failed.message);
         assert_eq!(t.phase().await, "running");
         t.rt.close().await.expect("a close");
@@ -313,7 +324,12 @@ fn a_send_to_a_box_whose_work_folder_is_gone_fails_with_the_same_line_the_wake_g
         t.ready();
         t.b.state.no_work_dir.set(true);
         let _warn = capture();
-        let failed = t.rt.sessions().start(&t.ws_id, StartOptions { prompt: "go".into(), ..Default::default() }, None).await.err().expect("a failure");
+        let failed =
+            t.rt.sessions()
+                .start(&t.ws_id, StartOptions { prompt: "go".into(), ..Default::default() }, None)
+                .await
+                .err()
+                .expect("a failure");
         assert_eq!(failed.message, no_work_dir_line(&t.machine_id));
         t.rt.close().await.expect("a close");
     });
@@ -407,18 +423,18 @@ fn two_wakes_at_once_share_one_proof() {
 fn a_wake_after_a_proven_launch_proves_nothing_and_a_steer_is_not_refused() {
     drive(|| async {
         let t = restarted("waking", 0.0).await;
-        let handle = t.rt.sessions().start(&t.ws_id, StartOptions { prompt: "go".into(), ..Default::default() }, None).await.expect("a start");
+        let handle =
+            t.rt.sessions().start(&t.ws_id, StartOptions { prompt: "go".into(), ..Default::default() }, None).await.expect("a start");
         let proofs = t.b.machine.proofs.get();
         let release = t.b.state.hold_next();
         let waking = t.waking();
         sleep_ms(20).await;
         assert_eq!(t.phase().await, "running");
-        let steered = t
-            .rt
-            .sessions()
-            .steer(&handle.id(), SteerAsk { prompt: "and this".into(), request_id: None, attachments: None }, None)
-            .await
-            .expect("a steer");
+        let steered =
+            t.rt.sessions()
+                .steer(&handle.id(), SteerAsk { prompt: "and this".into(), request_id: None, attachments: None }, None)
+                .await
+                .expect("a steer");
         assert!(j(&steered)["outcome"].is_string(), "{}", j(&steered));
         release.open();
         let _ = waking.await;
@@ -436,12 +452,22 @@ fn a_nap_drops_the_mark_a_send_on_the_napping_record_is_refused_as_paused_runs_n
         assert!(t.b.state.archived.get());
         let proofs = t.b.machine.proofs.get();
         let want = send_refusal(
-            &SendRefusalKind::State(workspace_state(&WorkspaceStateInput { phase: WorkspacePhase::Napping, machine_state: None, reach: None, wake_refused: None })),
+            &SendRefusalKind::State(workspace_state(&WorkspaceStateInput {
+                phase: WorkspacePhase::Napping,
+                machine_state: None,
+                reach: None,
+                wake_refused: None,
+            })),
             None,
             Some("x"),
         )
         .expect("a refusal");
-        let refused = t.rt.sessions().start(&t.ws_id, StartOptions { prompt: "go".into(), ..Default::default() }, None).await.err().expect("a refusal");
+        let refused =
+            t.rt.sessions()
+                .start(&t.ws_id, StartOptions { prompt: "go".into(), ..Default::default() }, None)
+                .await
+                .err()
+                .expect("a refusal");
         assert!(refused.message.contains(&want), "{}", refused.message);
         assert_eq!(t.b.machine.proofs.get(), proofs);
         assert_eq!(t.phase().await, "napping");
@@ -452,7 +478,8 @@ fn a_nap_drops_the_mark_a_send_on_the_napping_record_is_refused_as_paused_runs_n
 
 // "a delete that ends while the proof's 404 is confirmed sticks: nothing is written back, and a host started on the state lists no such workspace"
 #[test]
-fn a_delete_that_ends_while_the_proofs_404_is_confirmed_sticks_nothing_is_written_back_and_a_host_started_on_the_state_lists_no_such_workspace() {
+fn a_delete_that_ends_while_the_proofs_404_is_confirmed_sticks_nothing_is_written_back_and_a_host_started_on_the_state_lists_no_such_workspace(
+) {
     drive(|| async {
         let t = restarted("napping", 0.0).await;
         t.ready();

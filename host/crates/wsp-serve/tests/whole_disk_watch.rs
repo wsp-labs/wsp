@@ -120,7 +120,12 @@ fn boat(readings: Vec<String>) -> Boat {
         c.pause_mode = Some(PauseMode::Disk);
         c.sizes = [(2.0, 4096.0, 0.018), (4.0, 8192.0, 0.036), (8.0, 16384.0, 0.072), (16.0, 32768.0, 0.2)]
             .into_iter()
-            .map(|(cpu, mem, rate)| MachineSizeOffer { cpu: JsNumber(cpu), mem_mb: JsNumber(mem), rate_usd_per_hour: JsNumber(rate), name: None })
+            .map(|(cpu, mem, rate)| MachineSizeOffer {
+                cpu: JsNumber(cpu),
+                mem_mb: JsNumber(mem),
+                rate_usd_per_hour: JsNumber(rate),
+                name: None,
+            })
             .collect();
     });
     backend.set_root_disk_of(Some(Rc::new(root_disk)));
@@ -170,19 +175,16 @@ async fn first_status(fx: &Fx) -> Value {
 }
 
 async fn build(fx: &Fx, workspace: &str) -> Rc<dyn wsp_core::types::wiring::SessionHandle> {
-    let turn = fx
-        .rt
-        .sessions()
-        .start(workspace, StartOptions { prompt: "build".into(), ..Default::default() }, None)
-        .await
-        .expect("a start");
+    let turn =
+        fx.rt.sessions().start(workspace, StartOptions { prompt: "build".into(), ..Default::default() }, None).await.expect("a start");
     turn.finished().await;
     turn
 }
 
 // "the disk of a machine whose stop snapshots it" > "is read on the beat with no turn ending, and past 90% what wsp made is cleared and the thread told, again only once it fell 5 points under"
 #[test]
-fn is_read_on_the_beat_with_no_turn_ending_and_past_90_percent_what_wsp_made_is_cleared_and_the_thread_told_again_only_once_it_fell_5_points_under() {
+fn is_read_on_the_beat_with_no_turn_ending_and_past_90_percent_what_wsp_made_is_cleared_and_the_thread_told_again_only_once_it_fell_5_points_under(
+) {
     drive(|| async {
         // 50%, then 93% (the crossing), 92% after the sweep, 88% and 91% (never under 85, so nothing new), 84% (under), and
         // 91% a second crossing.
@@ -434,11 +436,7 @@ fn landing_at_a_size(m: &Arc<StubMachine>, resumed_at: Option<Rc<RefCell<Vec<(f6
             resumed_at.borrow_mut().push((cpu, mem_mb as f64));
         }
         machine.paused.set(false);
-        machine.set_shape(MachineShape {
-            cpu: Some(JsNumber(cpu)),
-            mem_mb: Some(JsNumber(mem_mb as f64)),
-            ..machine.shape_now()
-        });
+        machine.set_shape(MachineShape { cpu: Some(JsNumber(cpu)), mem_mb: Some(JsNumber(mem_mb as f64)), ..machine.shape_now() });
         let failure = then.map(|message| EngineError::Other { message: message.into(), code: None });
         Box::pin(async move { failure.map_or(Ok(()), Err) })
     })));
@@ -555,10 +553,9 @@ fn is_refused_for_a_size_not_sold_on_a_machine_that_cannot_move_and_while_a_turn
         // A thread's own token is refused in the move's own words: the bigger size is the person's spend.
         let opened = build(&fx, &ws.view.id).await;
         let thread = opened.view().thread_id.expect("a thread");
-        let by: ThreadScope = serde_json::from_value(
-            json!({ "kind": "thread", "threadId": thread, "workspaceId": ws.view.id, "rootThreadId": thread }),
-        )
-        .expect("a thread scope");
+        let by: ThreadScope =
+            serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": ws.view.id, "rootThreadId": thread }))
+                .expect("a thread scope");
         let as_thread = Caller::Scoped { origin: WorkspaceOrigin::Here, by };
         let refused = fx.rt.workspaces().resize(&ws.view.id, size_ask(4.0, 8192.0), Some(as_thread)).await.expect_err("a refusal");
         assert!(refused.message.ends_with("never move a machine to another size"), "{}", refused.message);

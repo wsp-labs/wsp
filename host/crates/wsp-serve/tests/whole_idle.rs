@@ -203,13 +203,9 @@ fn stops_a_workspace_whose_computer_cannot_say_how_quiet_it_is_and_one_whose_rea
 fn names_the_window_in_minutes_the_way_the_rail_will_show_it() {
     drive(|| async {
         let t = test_runtime(None, 20 * 60_000);
-        create_on(
-            &t.fx.rt,
-            CreateOn { idle_window_ms: IdleWindow::Ms(JsNumber(3.0 * 60_000.0)), ..GOLDEN("a") },
-            None,
-        )
-        .await
-        .expect("a workspace");
+        create_on(&t.fx.rt, CreateOn { idle_window_ms: IdleWindow::Ms(JsNumber(3.0 * 60_000.0)), ..GOLDEN("a") }, None)
+            .await
+            .expect("a workspace");
         t.fc.advance(3 * 60_000);
         until_n(|| t.events.statuses().iter().any(|s| s["phase"] == "napping")).await;
         assert_eq!(t.events.statuses().last().expect("a status")["reason"], "idle 3 min");
@@ -392,7 +388,8 @@ fn an_idle_nap_the_provider_refuses_is_not_asked_again_at_the_cadence_the_row_ke
 
 // "an idle nap whose pause the backend gave up on keeps the deadline on the row with the backend's words, and is asked again at the cadence until one lands"
 #[test]
-fn an_idle_nap_whose_pause_the_backend_gave_up_on_keeps_the_deadline_on_the_row_with_the_backends_words_and_is_asked_again_at_the_cadence_until_one_lands() {
+fn an_idle_nap_whose_pause_the_backend_gave_up_on_keeps_the_deadline_on_the_row_with_the_backends_words_and_is_asked_again_at_the_cadence_until_one_lands(
+) {
     drive(|| async {
         let t = test_runtime(None, WINDOW);
         let ws = create_on(&t.fx.rt, GOLDEN("a"), None).await.expect("a workspace");
@@ -478,7 +475,8 @@ fn follows_the_per_workspace_window_and_a_rebuilt_fork_carries_it_too() {
 
 // "a backend declaring a backstop is handed the machine and the instant on create and on activity, nothing on nap, the six-hour instant with auto-nap off, and a call that fails is logged"
 #[test]
-fn a_backend_declaring_a_backstop_is_handed_the_machine_and_the_instant_on_create_and_on_activity_nothing_on_nap_the_six_hour_instant_with_auto_nap_off_and_a_call_that_fails_is_logged() {
+fn a_backend_declaring_a_backstop_is_handed_the_machine_and_the_instant_on_create_and_on_activity_nothing_on_nap_the_six_hour_instant_with_auto_nap_off_and_a_call_that_fails_is_logged(
+) {
     drive(|| async {
         let t = test_runtime(None, 20 * 60_000);
         let heard: Rc<RefCell<Vec<(String, i64)>>> = Rc::default();

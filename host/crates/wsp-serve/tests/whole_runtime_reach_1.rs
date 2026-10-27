@@ -68,7 +68,12 @@ fn noting(deployed: &Rc<RefCell<Vec<String>>>, then: impl Fn() + 'static) -> Gol
 }
 
 fn status_options(poll_ms: i64, reconcile_ms: i64) -> StatusWatchOptions {
-    StatusWatchOptions { cost_interval_ms: Some(60_000), poll_interval_ms: Some(poll_ms), reconcile_min_ms: Some(reconcile_ms), ..Default::default() }
+    StatusWatchOptions {
+        cost_interval_ms: Some(60_000),
+        poll_interval_ms: Some(poll_ms),
+        reconcile_min_ms: Some(reconcile_ms),
+        ..Default::default()
+    }
 }
 
 async fn get(rt: &Rc<AssembledRuntime>, id: &str) -> Value {
@@ -241,7 +246,8 @@ fn omits_the_daemon_token_when_the_guest_has_none_and_refuses_backends_without_p
 
 // "updateDaemon runs the recipe's deploy on the running machine, then writes this runtime's token again so the next reach opens the new daemon"
 #[test]
-fn update_daemon_runs_the_recipes_deploy_on_the_running_machine_then_writes_this_runtimes_token_again_so_the_next_reach_opens_the_new_daemon() {
+fn update_daemon_runs_the_recipes_deploy_on_the_running_machine_then_writes_this_runtimes_token_again_so_the_next_reach_opens_the_new_daemon(
+) {
     drive(|| async {
         let backend = StubBackend::new(None);
         backend.set_exec_impl(token_guest());
@@ -284,7 +290,8 @@ fn update_daemon_runs_the_recipes_deploy_on_the_running_machine_then_writes_this
 
 // "replaces a daemon older than this wsp by itself: the runtime connects to a machine it adopts, reads the hello and deploys, with nothing asking it to"
 #[test]
-fn replaces_a_daemon_older_than_this_wsp_by_itself_the_runtime_connects_to_a_machine_it_adopts_reads_the_hello_and_deploys_with_nothing_asking_it_to() {
+fn replaces_a_daemon_older_than_this_wsp_by_itself_the_runtime_connects_to_a_machine_it_adopts_reads_the_hello_and_deploys_with_nothing_asking_it_to(
+) {
     drive(|| async {
         let backend = StubBackend::new(None);
         backend.set_exec_impl(token_guest());
@@ -397,7 +404,8 @@ fn a_deploy_that_fails_leaves_the_old_daemon_serving_says_so_on_the_row_once_and
 
 // "a turn opened while the runtime still waits on the machine's hello launches once the update landed, so the deploy ends nothing it runs under"
 #[test]
-fn a_turn_opened_while_the_runtime_still_waits_on_the_machines_hello_launches_once_the_update_landed_so_the_deploy_ends_nothing_it_runs_under() {
+fn a_turn_opened_while_the_runtime_still_waits_on_the_machines_hello_launches_once_the_update_landed_so_the_deploy_ends_nothing_it_runs_under(
+) {
     drive(|| async {
         let backend = StubBackend::new(None);
         backend.set_exec_impl(token_guest());
@@ -538,7 +546,13 @@ impl Restarted {
     }
 }
 
-async fn restart_onto(daemon: &HelloingDaemon, deploys: bool, served: bool, adapters: Vec<(&str, HarnessAdapterFactory)>, broker: bool) -> Restarted {
+async fn restart_onto(
+    daemon: &HelloingDaemon,
+    deploys: bool,
+    served: bool,
+    adapters: Vec<(&str, HarnessAdapterFactory)>,
+    broker: bool,
+) -> Restarted {
     let backend = StubBackend::new(None);
     backend.set_exec_impl(token_guest());
     let state = sqlite_state();
@@ -573,7 +587,8 @@ async fn restart_onto(daemon: &HelloingDaemon, deploys: bool, served: bool, adap
                 o.golden_recipe = Some(golden);
             }
             o.daemon_hello_timeout_ms = Some(100);
-            o.status = Some(StatusWatchOptions { cost_interval_ms: Some(24 * 3_600_000), reconcile_min_ms: Some(60_000), ..Default::default() });
+            o.status =
+                Some(StatusWatchOptions { cost_interval_ms: Some(24 * 3_600_000), reconcile_min_ms: Some(60_000), ..Default::default() });
         })
         .build();
     let unread = format!("daemon on m1 (workspace {}): version not read within 0.1 s; asking again at the next reach probe", ws.view.id);
@@ -605,7 +620,12 @@ fn a_start_that_gives_up_before_its_turn_reached_the_machine_lets_the_daemon_upd
         fn probe_catalog(
             &self,
             _exec: Arc<dyn wsp_adapters::port::HarnessExec>,
-        ) -> Option<futures::future::LocalBoxFuture<'static, Result<Option<wsp_adapters::port::HarnessCatalogAnswer>, wsp_adapters::port::ExecFailure>>> {
+        ) -> Option<
+            futures::future::LocalBoxFuture<
+                'static,
+                Result<Option<wsp_adapters::port::HarnessCatalogAnswer>, wsp_adapters::port::ExecFailure>,
+            >,
+        > {
             let probed = self.probed.clone();
             Some(Box::pin(async move {
                 probed.wait().await;
@@ -812,7 +832,11 @@ fn a_redeploy_that_fails_says_so_on_the_row_once_logs_the_reason_holds_the_row_a
             .with(move |o| {
                 o.daemon_token = Some(TOKEN.into());
                 o.golden_recipe = Some(golden);
-                o.status = Some(StatusWatchOptions { cost_interval_ms: Some(24 * 3_600_000), reconcile_min_ms: Some(60_000), ..Default::default() });
+                o.status = Some(StatusWatchOptions {
+                    cost_interval_ms: Some(24 * 3_600_000),
+                    reconcile_min_ms: Some(60_000),
+                    ..Default::default()
+                });
             })
             .build();
         let ws = create_on(&fx.rt, CreateOn::golden("a"), None).await.expect("a workspace");
@@ -851,13 +875,20 @@ fn a_redeploy_that_fails_says_so_on_the_row_once_logs_the_reason_holds_the_row_a
         assert!(at[1] - at[0] >= DAEMON_REVIVE_AGAIN_MS as i64, "{at:?}");
         // Neither line about the daemon claims the machine answers. The runtime has no probe of its own between polls, so
         // a push carries what the poll measured rather than what a running machine's kind would claim.
-        let about: Vec<Value> =
-            events.statuses().into_iter().filter(|s| s["daemonNote"] == DAEMON_RESTARTING || s["daemonNote"] == DAEMON_RESTART_FAILED).collect();
+        let about: Vec<Value> = events
+            .statuses()
+            .into_iter()
+            .filter(|s| s["daemonNote"] == DAEMON_RESTARTING || s["daemonNote"] == DAEMON_RESTART_FAILED)
+            .collect();
         assert!(about.len() >= 3, "{}", about.len());
         assert!(about.iter().all(|s| s["reach"]["state"] == "no-daemon"));
         // The row said it and stopped saying it; the npm log is in this host's log and nowhere a person reads.
         assert!(get(&fx.rt, &ws.view.id).await.get("daemonNote").is_none());
-        assert!(warned.lines().iter().any(|l| l.contains("not restarted") && l.contains("NPM_FAIL") && l.contains("m1")), "{:?}", warned.lines());
+        assert!(
+            warned.lines().iter().any(|l| l.contains("not restarted") && l.contains("NPM_FAIL") && l.contains("m1")),
+            "{:?}",
+            warned.lines()
+        );
         assert!(events.statuses().iter().all(|s| s["daemonNote"].as_str().is_none_or(|n| !n.contains("NPM_FAIL"))));
         fx.rt.close().await.expect("a close");
     });
@@ -865,7 +896,8 @@ fn a_redeploy_that_fails_says_so_on_the_row_once_logs_the_reason_holds_the_row_a
 
 // "a sync whose version read answers nothing says so in the log, and asks again at the first probe past the revive window that finds the machine answering"
 #[test]
-fn a_sync_whose_version_read_answers_nothing_says_so_in_the_log_and_asks_again_at_the_first_probe_past_the_revive_window_that_finds_the_machine_answering() {
+fn a_sync_whose_version_read_answers_nothing_says_so_in_the_log_and_asks_again_at_the_first_probe_past_the_revive_window_that_finds_the_machine_answering(
+) {
     drive(|| async {
         let daemon = helloing_daemon(DAEMON_VERSION - 1, true, None).await;
         let warned = capture();
@@ -907,7 +939,8 @@ fn a_sync_whose_version_read_answers_nothing_says_so_in_the_log_and_asks_again_a
 
 // "a version read that answers nothing again says so again, one that answers current deploys nothing and asks no more, and a host with no deploy road or a workspace its computer serves neither dials nor warns"
 #[test]
-fn a_version_read_that_answers_nothing_again_says_so_again_one_that_answers_current_deploys_nothing_and_asks_no_more_and_a_host_with_no_deploy_road_or_a_workspace_its_computer_serves_neither_dials_nor_warns() {
+fn a_version_read_that_answers_nothing_again_says_so_again_one_that_answers_current_deploys_nothing_and_asks_no_more_and_a_host_with_no_deploy_road_or_a_workspace_its_computer_serves_neither_dials_nor_warns(
+) {
     drive(|| async {
         let warned = capture();
         let said = || warned_daemon(&warned);
@@ -958,7 +991,8 @@ fn a_version_read_that_answers_nothing_again_says_so_again_one_that_answers_curr
 
 // "puts this wsp's daemon on a fresh fork inside its own create, where the image carries an older one, and says nothing about a workspace that is not there yet"
 #[test]
-fn puts_this_wsps_daemon_on_a_fresh_fork_inside_its_own_create_where_the_image_carries_an_older_one_and_says_nothing_about_a_workspace_that_is_not_there_yet() {
+fn puts_this_wsps_daemon_on_a_fresh_fork_inside_its_own_create_where_the_image_carries_an_older_one_and_says_nothing_about_a_workspace_that_is_not_there_yet(
+) {
     drive(|| async {
         let daemon = helloing_daemon(DAEMON_VERSION - 1, false, None).await;
         let deployed: Rc<RefCell<Vec<String>>> = Rc::default();

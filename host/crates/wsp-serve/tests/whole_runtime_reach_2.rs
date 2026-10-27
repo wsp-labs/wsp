@@ -34,7 +34,12 @@ fn line() -> String {
 
 /// What `wsp workspaces --json` asks the runtime for.
 fn table() -> StatusListOptions {
-    StatusListOptions { reconcile: Some(Reconcile::OnFailure), zombie_probe: Some(false), reader: Some(StatusReader::Table), ..Default::default() }
+    StatusListOptions {
+        reconcile: Some(Reconcile::OnFailure),
+        zombie_probe: Some(false),
+        reader: Some(StatusReader::Table),
+        ..Default::default()
+    }
 }
 
 async fn table_row(rt: &Rc<AssembledRuntime>) -> Value {
@@ -108,7 +113,8 @@ async fn refused_fork(o: ForkOptions) -> Fork {
             if let Some(recipe) = recipe {
                 opts.golden_recipe = Some(recipe);
             }
-            opts.status = Some(StatusWatchOptions { cost_interval_ms: Some(24 * 3_600_000), reconcile_min_ms: Some(60_000), ..Default::default() });
+            opts.status =
+                Some(StatusWatchOptions { cost_interval_ms: Some(24 * 3_600_000), reconcile_min_ms: Some(60_000), ..Default::default() });
         })
         .build();
     let ws = create_on(&fx.rt, CreateOn::golden("far"), None).await.expect("a workspace");
@@ -147,7 +153,10 @@ impl Fork {
         self.fx.rt.workspaces().exec(&self.ws_id, "true", None, None).await.expect_err("a refusal")
     }
     fn said(&self) -> Vec<String> {
-        self.pushed().iter().map(|s| format!("{} {}", s["reach"]["state"].as_str().unwrap_or(""), s["reason"].as_str().unwrap_or("-"))).collect()
+        self.pushed()
+            .iter()
+            .map(|s| format!("{} {}", s["reach"]["state"].as_str().unwrap_or(""), s["reason"].as_str().unwrap_or("-")))
+            .collect()
     }
 }
 
@@ -259,7 +268,12 @@ fn a_refusal_that_lands_while_a_tick_is_being_built_is_not_painted_over_by_the_r
         let refusing: Names = Rc::default();
         let slot: Slot = Rc::default();
         // The provider starts refusing while the first tick's reach probe is out, after that tick read its records.
-        let f = refused_fork(ForkOptions { up: refusing_on_the_first_probe(&refusing, &slot, true), refusing: refusing.clone(), ..Default::default() }).await;
+        let f = refused_fork(ForkOptions {
+            up: refusing_on_the_first_probe(&refusing, &slot, true),
+            refusing: refusing.clone(),
+            ..Default::default()
+        })
+        .await;
         *slot.borrow_mut() = Some((f.fx.rt.clone(), f.ws_id.clone()));
         let stop = f.watch().await;
         assert_eq!(f.said(), [format!("unreachable {}", line())]);
@@ -285,7 +299,10 @@ fn probes_a_machine_the_provider_keeps_refusing_once_per_tick_and_the_row_keeps_
             assert_eq!(f.probes(&f.backend.machine(0)), i);
         }
         stop();
-        assert_matches(f.pushed().last().expect("a status"), json!({ "id": f.ws_id, "reach": { "state": "unreachable" }, "reason": line() }));
+        assert_matches(
+            f.pushed().last().expect("a status"),
+            json!({ "id": f.ws_id, "reach": { "state": "unreachable" }, "reason": line() }),
+        );
         f.fx.rt.close().await.expect("a close");
     });
 }
@@ -537,7 +554,10 @@ fn fetches_the_ports_minted_route_once_and_reports_the_status_and_body_a_frame_c
             Box::pin(async move { Ok(reach) })
         })));
 
-        assert_eq!(j(&fx.rt.workspaces().port_probe(&id, 5173, None).await.expect("a probe")), json!({ "status": 403, "body": VITE_BLOCKED }));
+        assert_eq!(
+            j(&fx.rt.workspaces().port_probe(&id, 5173, None).await.expect("a probe")),
+            json!({ "status": 403, "body": VITE_BLOCKED })
+        );
         assert_eq!(*minted.borrow(), [5173]);
         fx.rt.close().await.expect("a close");
     });
@@ -609,7 +629,11 @@ fn reads_the_body_only_up_to_the_cap_a_response_that_never_ends_still_answers_wi
 fn a_401_drops_the_ports_cached_route_and_mints_a_fresh_one_so_the_next_port_reach_carries_the_new_token() {
     drive(|| async {
         let (backend, fx, id) = probe_rig().await;
-        let guest = guest_port(|path| if path.ends_with("pt_token=t1") { Reply::of(401, "token expired") } else { Reply::of(200, "<!doctype html>") }).await;
+        let guest =
+            guest_port(
+                |path| if path.ends_with("pt_token=t1") { Reply::of(401, "token expired") } else { Reply::of(200, "<!doctype html>") },
+            )
+            .await;
         let mints = Rc::new(Cell::new(0u32));
         let (counted, port) = (mints.clone(), guest.port);
         backend.machine(0).set_preview(Some(Rc::new(move |_| {

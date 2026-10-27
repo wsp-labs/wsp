@@ -174,7 +174,12 @@ fn stays_working_through_the_woken_agents_silence_and_the_woken_agents_reply_is_
     drive(|| async {
         let l = local_runtime(|mark| stand_in(mark, 1), None);
         let ws = create_on(&l.fx.rt, CreateOn::named("mac").on(HERE_PLACE_ID), None).await.expect("a workspace");
-        let handle = l.fx.rt.sessions().start(&ws.view.id, start("run the gate in the background and push when it passes"), None).await.expect("a start");
+        let handle =
+            l.fx.rt
+                .sessions()
+                .start(&ws.view.id, start("run the gate in the background and push when it passes"), None)
+                .await
+                .expect("a start");
 
         let mark = l.mark.clone();
         until_for(5_000, &mut || {
@@ -188,7 +193,10 @@ fn stays_working_through_the_woken_agents_silence_and_the_woken_agents_reply_is_
         assert_eq!(first_status(&l, &ws.view.id).await, "running");
 
         let result = j(&handle.finished().await);
-        assert_matches(&result, serde_json::json!({ "status": "completed", "text": "The gate passed and the branch is pushed.", "costUsd": 0.3 }));
+        assert_matches(
+            &result,
+            serde_json::json!({ "status": "completed", "text": "The gate passed and the branch is pushed.", "costUsd": 0.3 }),
+        );
         // The CLI times the woken reply from the wake alone (900ms here); the turn ran from the launch to it: the held
         // reply's 4s, the gate's 0.3s and the woken agent's second.
         let took = result["durationMs"].as_f64().expect("a duration");
@@ -207,7 +215,12 @@ fn a_woken_agent_the_idle_rule_cuts_reads_failed_with_the_cuts_line_and_keeps_th
     drive(|| async {
         let l = local_runtime(|mark| stand_in(mark, 10), Some(1_500.0));
         let ws = create_on(&l.fx.rt, CreateOn::named("mac").on(HERE_PLACE_ID), None).await.expect("a workspace");
-        let handle = l.fx.rt.sessions().start(&ws.view.id, start("run the gate in the background and push when it passes"), None).await.expect("a start");
+        let handle =
+            l.fx.rt
+                .sessions()
+                .start(&ws.view.id, start("run the gate in the background and push when it passes"), None)
+                .await
+                .expect("a start");
 
         let result = j(&handle.finished().await);
         assert_eq!(result["status"], "failed");
@@ -227,14 +240,18 @@ fn a_turn_whose_process_ends_with_a_server_it_started_still_running_reads_done_i
     drive(|| async {
         let l = local_runtime(|_| server_left_running(), None);
         let ws = create_on(&l.fx.rt, CreateOn::named("mac").on(HERE_PLACE_ID), None).await.expect("a workspace");
-        let handle = l.fx.rt.sessions().start(&ws.view.id, start("start the preview server and take the screenshots"), None).await.expect("a start");
+        let handle =
+            l.fx.rt.sessions().start(&ws.view.id, start("start the preview server and take the screenshots"), None).await.expect("a start");
 
         let done = handle.finished().await;
         let result = j(&done);
         assert_eq!(result["status"], "completed");
         assert!(result.get("error").is_none(), "{result}");
         let lines: Vec<&str> = result["text"].as_str().expect("a text").split('\n').collect();
-        assert_eq!(lines, ["The screenshots are in shots/; the preview server is still up on :4173.", "", background_tasks_line(1.0).as_str()]);
+        assert_eq!(
+            lines,
+            ["The screenshots are in shots/; the preview server is still up on :4173.", "", background_tasks_line(1.0).as_str()]
+        );
         assert_eq!(notify_tail(&done).as_deref(), Some(background_tasks_line(1.0).as_str()));
         assert_eq!(first_status(&l, &ws.view.id).await, "completed");
         l.fx.rt.close().await.expect("a close");
