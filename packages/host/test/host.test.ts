@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
-import { DAEMON_VERSION, probePath, type AdapterEvent, type TurnResult } from "@wsp/protocol";
+import { DAEMON_VERSION, WIRE_PROTOCOL, probePath, type AdapterEvent, type TurnResult } from "@wsp/protocol";
 import { GUEST_HOME } from "@wsp/catalog";
 import { BOX_PRICING, BUILDER_IDLE_MS, goldenName, NoProviderBackend, type GoldenImport } from "@wsp/engine";
 import { copyKey, createRuntime, memoryStore, type HarnessAdapterFactory, type ReapResult, type Runtime, type Store } from "@wsp/runtime";
@@ -133,6 +133,29 @@ describe("host serves the app", () => {
     handle = undefined;
     for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
     vi.unstubAllEnvs();
+  });
+
+  it("answers the first frame with the protocol number this host speaks, and refuses a range that leaves it out", async () => {
+    const { rt } = testRuntime();
+    handle = await startHost({ runtime: rt, port: 0, webDir: webDir() });
+    const dial = async (range?: [number, number]): Promise<Record<string, unknown>> => {
+      const ws = new WebSocket(`ws://127.0.0.1:${handle!.port}/ws`);
+      const answer = new Promise<Record<string, unknown>>((resolve, reject) => {
+        ws.once("message", raw => resolve(JSON.parse(String(raw)) as Record<string, unknown>));
+        ws.once("error", reject);
+      });
+      await new Promise<void>(resolve => ws.once("open", () => resolve()));
+      ws.send(JSON.stringify({ id: 1, op: "auth", token: handle!.authToken, ...(range === undefined ? {} : { protocol: range }) }));
+      const frame = await answer;
+      ws.close();
+      return frame;
+    };
+    expect(await dial()).toEqual({ id: 1, ok: true, version: VERSION, protocol: WIRE_PROTOCOL });
+    expect(await dial([WIRE_PROTOCOL, WIRE_PROTOCOL + 2])).toMatchObject({ ok: true, protocol: WIRE_PROTOCOL });
+    const refused = await dial([WIRE_PROTOCOL + 1, WIRE_PROTOCOL + 2]);
+    expect(refused).toMatchObject({ ok: false, kind: "usage" });
+    expect(refused["error"]).toContain(`protocol ${WIRE_PROTOCOL}`);
+    expect(refused["error"]).toContain(`protocols ${WIRE_PROTOCOL + 1} to ${WIRE_PROTOCOL + 2}`);
   });
 
   it("the page's one inline script is the boot object: the token's digest, the runtime's path and the release this host is, nothing else", async () => {

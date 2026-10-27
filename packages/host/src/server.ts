@@ -6,7 +6,7 @@ import { isIP, type Socket } from "node:net";
 import { homedir, networkInterfaces, platform } from "node:os";
 import { basename, dirname, extname, join, resolve as resolvePath, sep } from "node:path";
 import { SMOKE_LABEL, type ProvisionPlan } from "@wsp/engine";
-import { BOOT_SCRIPT, DEFAULT_PORT, PLACES_WORDS, PLACE_PORT_OFFSET, WILDCARD, WS_PATH, authority, doorPortHeldLine, doorPortMovedLine, isLoopback, joinAddressOf, servedHostname, noSuchPlaceRefusal, tableName, recordRestoredLine, peerAddress, relayUrlOf, type BootPayload, type ProductUsageOff, type DoctorLineEvent, type PlaceDoorView, type PlaceView, type ProviderKeyWorks, type WorkspaceView } from "@wsp/protocol";
+import { BOOT_SCRIPT, DEFAULT_PORT, WIRE_PROTOCOL, PLACES_WORDS, PLACE_PORT_OFFSET, WILDCARD, WS_PATH, authority, doorPortHeldLine, doorPortMovedLine, isLoopback, joinAddressOf, servedHostname, noSuchPlaceRefusal, tableName, recordRestoredLine, peerAddress, relayUrlOf, type BootPayload, type ProductUsageOff, type DoctorLineEvent, type PlaceDoorView, type PlaceView, type ProviderKeyWorks, type WorkspaceView } from "@wsp/protocol";
 import { sshHostsIn } from "./ssh-hosts.js";
 import { LOOPBACK, describeAge, serveRuntime, slateLookHubOf, tokenDigest, type AdmittedDevices, type GoldenBuilderView, type HostSsh, type InitDoor, type PlaceBackHolder, type PlaceDoctor, type PlaceDoorControl, type ProjectBundler, type ProjectLander, type ReapedMachine, type RestartDoor, type Runtime, type RuntimeServer, type SparedMachine } from "@wsp/runtime";
 import { computerDoctor } from "./doctor.js";
@@ -564,7 +564,7 @@ export async function startHost(opts: HostOptions): Promise<HostHandle> {
   // page and the protocol share one port and a client that reached the app through one forwarded port has both.
   try {
     rtServer = await serveRuntime(rt, {
-      released: { version: VERSION, ...(opts.road !== undefined ? { road: opts.road } : {}) },
+      released: { version: VERSION, ...(opts.road !== undefined ? { road: opts.road } : {}), protocol: WIRE_PROTOCOL },
       attach: [server, ...doorListeners],
       originAllowed: originAllows,
       ownRoad: req => ownRoad(req, doorSockets),

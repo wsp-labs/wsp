@@ -86,20 +86,20 @@ A socket is unauthenticated until its first frame passes, or until it redeemed a
 
 4.10. A socket that sends no first frame within 5 s (`AUTH_DEADLINE_MS`, `protocol/src/daemon-contract.ts:118`) MUST be closed with 4408 `no auth frame arrived in time` (`AUTH_DEADLINE_CLOSE`, `protocol/src/wire/limits.ts:112`; daemon-contract.ts:204). It is 4408, not 4401, so a client redials (`apps/web/src/protocol/client.ts:414-415`). A socket that sends more than 4096 bytes before passing (`PRE_AUTH_MAX_BYTES`, daemon-contract.ts:116), counted on the raw stream after the upgrade request so a half-sent frame counts (bytes that arrived in the same read as the upgrade request, `ws`'s `head` buffer, are not counted, since the counter is a `data` listener on the raw socket added after the upgrade, serve.ts:609), MUST be closed with 4401 `too many bytes before the auth frame` and no reply (serve.ts:588-593; `serve.test.ts:175-182`). Both limits come off once the socket is through the door, never apply to a ticket socket, and still apply after `seal.open` (serve.ts:604-607).
 
-4.11. The auth reply MUST carry `version`, the host's release (`packages/host/src/version.ts:9-11`), and `road`, how this host was started: one of `app`, `up`, `verb`, `service`, `init` (`packages/host/src/restart.ts:15-21`). A second `auth` on an authed socket answers the same again without reading its token, a wrong or empty one included, and changes nothing about the socket (serve.ts:888-890; tape under rule 11.6). There is no hello frame, no protocol version and no capability exchange; 11 has the proposal for one.
+4.11. The auth reply MUST carry `version`, the host's release (`packages/host/src/version.ts:9-11`), and `road`, how this host was started: one of `app`, `up`, `verb`, `service`, `init` (`packages/host/src/restart.ts:15-21`), and `protocol`, the protocol number (`WIRE_PROTOCOL`, `packages/protocol/src/wire/protocol-number.ts`; rule 11.5). A second `auth` on an authed socket answers the same again without reading its token, a wrong or empty one included, and changes nothing about the socket (serve.ts:888-890; tape under rule 11.6). There is no hello frame and no capability exchange; the protocol number is the one thing a client reads to know the host speaks its wire (11.5).
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"token":"<host-token>","id":2,"op":"auth"}}
-{"out":{"id":2,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":2,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 ```
 
 4.12. After auth, a non-JSON or non-object frame gets the same reply as before auth and the socket stays open; so does a schema failure (`serve.test.ts:74-83`).
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":"not json"}
 {"out":{"id":null,"ok":false,"error":"invalid json"}}
 {"in":{"id":2,"op":"projects.list"}}
@@ -108,7 +108,7 @@ A socket is unauthenticated until its first frame passes, or until it redeemed a
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":"5"}
 {"out":{"id":null,"ok":false,"error":"a request is one JSON object, not a bare value or an array"}}
 {"in":"[1,2]"}
@@ -150,7 +150,7 @@ The schema runs before the door, so before auth a frame that names no op the uni
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"pair.redeem","code":"AAAAAAAA","name":"x"}}
 {"out":{"id":2,"ok":false,"error":"that pairing code is not one this host is waiting for; run wsp host pair on the host for a fresh one"}}
 {"in":{"id":3,"op":"projects.list"}}
@@ -186,7 +186,7 @@ There is no cap on sockets, on subscriptions per socket (rule 4.22), on daemon c
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"projects.list","pad":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}}
 {"out":{"id":2,"ok":true,"projects":[]}}
 ```
@@ -195,7 +195,7 @@ There is no cap on sockets, on subscriptions per socket (rule 4.22), on daemon c
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"ticket.issue","purpose":"connect"}}
 {"out":{"id":2,"ok":true,"ticket":"G58npC6ooGXI81UhRIcUnHNv3CMNdK1w","expiresAt":"<time+5m in ms>"}}
 {"in":{"id":3,"op":"ticket.issue","purpose":"relay"}}
@@ -221,7 +221,7 @@ ws /ws?ticket=nope                     ->  101, then close 4401 "unauthorized"
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"pair.issue"}}
 {"out":{"id":2,"ok":true,"code":"YET5PRMX","expiresAt":"<time+10m in ms>","hostKey":"SHA256:mgKBXF4tRWCOXuA/0HY5d7EkuCeGMi314RT+dyN8Umk"}}
 {"in":{"id":3,"op":"pair.issue","here":true}}
@@ -242,7 +242,7 @@ ws /ws?ticket=nope                     ->  101, then close 4401 "unauthorized"
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"op":"projects.list"}}
 {"out":{"id":null,"ok":false,"error":"[\n  {\n    \"code\": \"invalid_union\",\n    \"unionErrors\": [\n      {\n        \"issues\": [\n          {\n            \"code\": \"invalid_type\",\n            \"expected\": \"string\",\n            \"received\": \"undefined\",\n            \"path\": [\n              \"id\"\n            ],\n            \"message\": \"Required\"\n          }\n        ],\n        \"name\": \"ZodError\"\n      },\n      {\n        \"issues\": [\n          {\n            \"code\": \"invalid_type\",\n            \"expected\": \"number\",\n            \"received\": \"undefined\",\n            \"path\": [\n              \"id\"\n            ],\n            \"message\": \"Required\"\n          }\n        ],\n        \"name\": \"ZodError\"\n      }\n    ],\n    \"path\": [\n      \"id\"\n    ],\n    \"message\": \"Invalid input\"\n  }\n]"}}
 {"in":{"id":"abc","op":"projects.list"}}
@@ -255,7 +255,7 @@ ws /ws?ticket=nope                     ->  101, then close 4401 "unauthorized"
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":"","op":"projects.list"}}
 {"out":{"id":"","ok":true,"projects":[]}}
 {"in":{"id":-1,"op":"projects.list"}}
@@ -278,7 +278,7 @@ ws /ws?ticket=nope                     ->  101, then close 4401 "unauthorized"
 
 ```tape
 {"in":{"id":1,"op":"auth","token":"<host-token>","extra":{"a":1}}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"projects.list","origin":"relayed"}}
 {"out":{"id":2,"ok":true,"projects":[]}}
 {"in":{"id":3,"op":"projects.list","origin":"elsewhere"}}
@@ -289,7 +289,7 @@ ws /ws?ticket=nope                     ->  101, then close 4401 "unauthorized"
 
 | Reply | Keys, in order | Where |
 |---|---|---|
-| auth, and a second auth | `id, ok, version, road` (`road` absent when the host was started with none) | serve.ts:854,889; `released` built at `packages/host/src/server.ts:642` |
+| auth, and a second auth | `id, ok, version, road, protocol` (`road` absent when the host was started with none) | serve.ts:854,889; `released` built at `packages/host/src/server.ts:642` |
 | door refusal | `id, ok, error, kind`, then `hostPublicKey, signature` on a place refusal only | serve.ts:687 |
 | failure from the catch | `id, ok, error, kind, fix, errors, warnings, left`, each after `error` present only as 05 says | serve.ts:1934-1940; `exit.ts:44-47` |
 | `events.subscribe` | `id, ok, seq, stream, gap` | serve.ts:1193 |
@@ -303,7 +303,7 @@ ws /ws?ticket=nope                     ->  101, then close 4401 "unauthorized"
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"projects.list","extra":1}}
 {"out":{"id":2,"ok":true,"projects":[]}}
 {"in":{"id":3,"op":"preferences.set","patch":{"theme":"dark","extra":1}}}
@@ -318,7 +318,7 @@ The checker waits for each reply before the next frame, so no tape shows two req
 
 ```text
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"fresh":true,"id":2,"op":"usage.accounts"}}
 {"in":{"range":"day","split":"agent","outside":true,"id":3,"op":"usage.used"}}
 {"out":{"id":3,"ok":true,"used":{"range":"day","split":"agent","rows":[],"series":[...]}}}
@@ -343,7 +343,7 @@ A socket receives no event until it sends `events.subscribe {after?, stream?, cr
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"events.subscribe","after":-1}}
 {"out":{"id":2,"ok":false,"error":"[\n  {\n    \"code\": \"too_small\",\n    \"minimum\": 0,\n    \"type\": \"number\",\n    \"inclusive\": true,\n    \"exact\": false,\n    \"message\": \"Number must be greater than or equal to 0\",\n    \"path\": [\n      \"after\"\n    ]\n  }\n]"}}
 {"in":{"id":3,"op":"events.subscribe","after":1.5}}
@@ -356,7 +356,7 @@ A socket receives no event until it sends `events.subscribe {after?, stream?, cr
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"preferences.set","patch":{"theme":"dark"}}}
 {"out":{"id":2,"ok":true,"preferences":{"theme":"dark","lightTheme":"paper","darkTheme":"graphite","sidebarMode":"list","terminalSize":"app","terminalZoom":{},"access":{},"projectLook":{},"projectIcon":{},"computerLook":{},"serverIcons":true,"agentVersions":true,"usageLogs":true,"productUsage":true,"keepAwake":true,"transparency":true,"projectOrder":[],"keybindings":{},"appFont":"","codeFont":"","agentDefaults":{},"projectDefaults":{},"sendWith":"enter","midTurn":"queue","notifyNeeds":"notify-sound","notifyDone":"notify","planAlerts":true,"settleAfter":"2h","askDelete":true,"onQuit":"ask","newThreadIn":"current","labs":false}}}
 {"in":{"id":3,"op":"events.subscribe","after":0}}
@@ -366,7 +366,7 @@ A socket receives no event until it sends `events.subscribe {after?, stream?, cr
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"preferences.set","patch":{"theme":"dark"}}}
 {"out":{"id":2,"ok":true,"preferences":{"theme":"dark","lightTheme":"paper","darkTheme":"graphite","sidebarMode":"list","terminalSize":"app","terminalZoom":{},"access":{},"projectLook":{},"projectIcon":{},"computerLook":{},"serverIcons":true,"agentVersions":true,"usageLogs":true,"productUsage":true,"keepAwake":true,"transparency":true,"projectOrder":[],"keybindings":{},"appFont":"","codeFont":"","agentDefaults":{},"projectDefaults":{},"sendWith":"enter","midTurn":"queue","notifyNeeds":"notify-sound","notifyDone":"notify","planAlerts":true,"settleAfter":"2h","askDelete":true,"onQuit":"ask","newThreadIn":"current","labs":false}}}
 {"in":{"id":3,"op":"events.subscribe","after":5}}
@@ -375,7 +375,7 @@ A socket receives no event until it sends `events.subscribe {after?, stream?, cr
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"events.subscribe","after":0,"stream":"00000000-0000-0000-0000-000000000000"}}
 {"out":{"id":2,"ok":true,"seq":0,"stream":"558133ed-20a3-434c-8fb7-7e281c6fb08a","gap":true}}
 ```
@@ -384,7 +384,7 @@ A socket receives no event until it sends `events.subscribe {after?, stream?, cr
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"events.subscribe"}}
 {"out":{"id":2,"ok":true,"seq":0,"stream":"eab35c4f-d419-45b8-8d06-66a647f0e6a7"}}
 {"in":{"id":3,"op":"preferences.set","patch":{"theme":"dark"}}}
@@ -402,7 +402,7 @@ A socket receives no event until it sends `events.subscribe {after?, stream?, cr
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"events.subscribe"}}
 {"out":{"id":2,"ok":true,"seq":0,"stream":"6696e0fa-7ff8-41ce-b6d8-a50c62fd6496"}}
 {"in":{"id":3,"op":"events.subscribe"}}
