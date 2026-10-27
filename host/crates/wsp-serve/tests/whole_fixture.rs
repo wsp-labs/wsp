@@ -486,3 +486,42 @@ fn a_live_harness_keeps_its_starts_and_steers_answers_as_told_and_says_what_the_
         fx.rt.close().await.expect("a close");
     });
 }
+
+// bring-back.test.ts:18 `fakeDaemon`: every frame is kept with the token of its dial, an op is answered as the test says
+// or as the default does, the dials and closes are counted, and a push reaches every open channel.
+#[test]
+fn a_recording_daemon_keeps_frames_with_their_dial_answers_per_op_counts_closes_and_pushes() {
+    use wsp_core::daemon_channel::DaemonChannelOptions;
+    drive(|| async {
+        let daemon = RecDaemon::new(|_| json!({ "ok": true, "default": true }));
+        daemon.answer("git.pr", |f| json!({ "ok": false, "error": format!("no pr for {}", f["cwd"].as_str().unwrap_or_default()) }));
+        daemon.hello.set(Some(7));
+        let heard: Rc<std::cell::RefCell<Vec<serde_json::Value>>> = Rc::default();
+        let sink = heard.clone();
+        let open = daemon.open();
+        let channel = open(DaemonChannelOptions {
+            url: "http://127.0.0.1:9".into(),
+            token: "tok".into(),
+            on_event: Rc::new(move |e| sink.borrow_mut().push(e)),
+            connect_timeout_ms: None,
+            clock: None,
+        })
+        .await
+        .expect("a channel");
+        let frame = |doc: serde_json::Value| doc.as_object().cloned().expect("an object");
+        let pushed = channel.send(frame(json!({ "op": "git.push", "cwd": "/a" }))).await.expect("a reply");
+        assert_eq!(serde_json::Value::Object(pushed), json!({ "id": 1, "ok": true, "default": true }));
+        let pr = channel.send(frame(json!({ "op": "git.pr", "cwd": "/a" }))).await.expect("a reply");
+        assert_eq!(serde_json::Value::Object(pr), json!({ "id": 1, "ok": false, "error": "no pr for /a" }));
+        assert_eq!(daemon.ops(), ["git.push", "git.pr"]);
+        assert_eq!(*daemon.tokens.borrow(), ["tok", "tok"]);
+        assert_eq!(*daemon.dials.borrow(), [("http://127.0.0.1:9".to_string(), "tok".to_string())]);
+        sleep_ms(10).await;
+        daemon.push(json!({ "type": "pty.exit", "ptyId": "p1" }));
+        assert_eq!(*heard.borrow(), [json!({ "type": "daemon.hello", "version": 7 }), json!({ "type": "pty.exit", "ptyId": "p1" })]);
+        channel.close();
+        daemon.push(json!({ "type": "after close" }));
+        assert_eq!(heard.borrow().len(), 2);
+        assert_eq!(daemon.closed.get(), 1);
+    });
+}
