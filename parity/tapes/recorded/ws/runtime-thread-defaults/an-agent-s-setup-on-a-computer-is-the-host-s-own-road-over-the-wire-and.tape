@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/runtime/test/thread-defaults.test.ts > an agent's setup on a computer > is the host's own road over the wire, and a value crosses only on a socket holding the host's own token","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/runtime/test/thread-defaults.test.ts > an agent's setup on a computer > is the host's own road over the wire, and a value crosses only on a socket holding the host's own token","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"placeId":"here","agent":"claude","env":{"FOO":"<redacted-1>"},"id":2,"op":"agents.setup"}}

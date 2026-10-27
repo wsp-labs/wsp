@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/host/test/computer-rename.test.ts > wsp computers set --name > is what a thread and a project on that computer read in wsp threads and wsp projects","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/host/test/computer-rename.test.ts > wsp computers set --name > is what a thread and a project on that computer read in wsp threads and wsp projects","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true}}
 {"in":{"id":2,"op":"projects.list"}}

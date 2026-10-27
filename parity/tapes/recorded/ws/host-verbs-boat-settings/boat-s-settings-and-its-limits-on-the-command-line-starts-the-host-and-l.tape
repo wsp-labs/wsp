@@ -1,4 +1,4 @@
-{"meta":{"door":"ws","source":"packages/host/test/verbs-boat-settings.test.ts > Boat's settings and its limits on the command line > starts the host and lists and sets its computers while Boat's /limits has not answered, and the row reads it once it has","outs":"recorded","computer":"ip-172-31-35-82"}}
+{"meta":{"door":"ws","source":"packages/host/test/verbs-boat-settings.test.ts > Boat's settings and its limits on the command line > starts the host and lists and sets its computers while Boat's /limits has not answered, and the row reads it once it has","outs":"recorded","computer":"ip-172-31-43-224"}}
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
 {"out":{"id":1,"ok":true,"version":"0.3.8","road":"init"}}
 {"in":{"id":2,"op":"places.list"}}

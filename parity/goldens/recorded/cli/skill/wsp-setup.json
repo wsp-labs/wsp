@@ -2,7 +2,7 @@
   "replies": [
     {
       "exit": 0,
-      "stdout": "Boat API key: not set\nAgents here: Claude Code, Codex\nNo setup is running; the app's Image section starts one.\n",
+      "stdout": "Boat API key: not set\n",
       "stderr": ""
     }
   ],
