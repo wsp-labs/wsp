@@ -455,3 +455,48 @@ fn a_gate_holds_a_waiter_until_it_is_opened_and_until_polls_a_condition() {
         assert_eq!(ticks.get(), 3);
     });
 }
+
+// waiting-behind.test.ts:25 `drivenAdapter`: a turn raises a prompt, an answer closes it, a reply closes what is still
+// open as cancelled, and each session id is its own.
+#[test]
+fn a_driven_turn_raises_a_prompt_takes_its_answer_and_closes_what_a_reply_leaves_open() {
+    drive(|| async {
+        use common::driven::{driven, Turns};
+        use wsp_core::types::api::AnswerAsk;
+        let backend = StubBackend::new(None);
+        let turns = Turns::new();
+        let fx = runtime(&backend).adapter("claude", driven(&turns)).build();
+        let rt = &*fx.rt;
+        let ws = create_on(rt, CreateOn::golden("a"), None).await.expect("a workspace").view.id;
+        let first = rt.sessions().start(&ws, StartOptions { prompt: "one".into(), ..Default::default() }, None).await.expect("a start");
+        let second = rt.sessions().start(&ws, StartOptions { prompt: "two".into(), ..Default::default() }, None).await.expect("a start");
+        until(|| async { turns.len() == 2 }).await;
+        assert_ne!(first.view().id, second.view().id);
+        turns.get(0).raise(json!({}));
+        turns.get(1).raise(json!({ "askId": "ask_2" }));
+        let answered = rt
+            .sessions()
+            .answer(&first.view().id, AnswerAsk { ask_id: "ask_1".into(), option_id: "allow".into(), reason: None }, None)
+            .await
+            .expect("an answer");
+        assert_eq!(j(&answered), json!({ "outcome": "answered" }));
+        let again = rt
+            .sessions()
+            .answer(&first.view().id, AnswerAsk { ask_id: "ask_1".into(), option_id: "allow".into(), reason: None }, None)
+            .await;
+        assert!(again.is_err() || j(&again.expect("a result")) != json!({ "outcome": "answered" }));
+        turns.get(0).reply(json!({}));
+        turns.get(1).reply(json!({ "text": "second" }));
+        assert_eq!(first.finished().await.text.as_deref(), Some("done"));
+        assert_eq!(second.finished().await.text.as_deref(), Some("second"));
+        let history = rt.sessions().history(&ws, None).await.expect("a history");
+        let closes: Vec<String> = history
+            .iter()
+            .map(j)
+            .filter(|e| e["askId"] == "ask_2" && e["outcome"].is_string())
+            .map(|e| e["outcome"].as_str().unwrap_or_default().to_string())
+            .collect();
+        assert_eq!(closes.iter().filter(|o| *o == "cancelled").count(), 1, "{closes:?}");
+        fx.rt.close().await.expect("a close");
+    });
+}
