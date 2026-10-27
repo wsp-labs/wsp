@@ -384,7 +384,7 @@ pub async fn close(ctx: &dyn PublicCtx) -> Result<(), HostError> {
 #[async_trait(?Send)]
 pub trait HarnessesCtx {
     async fn preferences(&self) -> Result<wsp_wire::views::preferences::Preferences, HostError>;
-    fn talks_to_tree_on(&self, workspace_id: &str, origin: Option<&Caller>) -> bool;
+    fn talks_to_tree_on(&self, workspace_id: &str, origin: Option<&Caller>) -> Result<bool, HostError>;
     /// The entry the lists are read for: its record's id and project, or none.
     async fn entry_of(&self, workspace_id: &str, origin: Option<Caller>) -> Result<Option<(String, String)>, HostError>;
     async fn project_home(&self, project: &str, origin: Option<Caller>) -> Result<Option<(String, String)>, HostError>;
@@ -410,7 +410,7 @@ pub async fn harnesses_list(
     let prefs = ctx.preferences().await?;
     let entry = match workspace_id {
         Some(id) => {
-            let origin = if ctx.talks_to_tree_on(&id, origin.as_ref()) { None } else { origin };
+            let origin = if ctx.talks_to_tree_on(&id, origin.as_ref())? { None } else { origin };
             ctx.entry_of(&id, origin).await?
         }
         None => match at {
@@ -489,6 +489,9 @@ pub struct AssembledRuntime {
     image: ImageApiOf,
     golden: GoldenApiOf,
     harnesses: HarnessesApiOf,
+    /// Set once a close has run to its end and emptied the slots; a later close has nothing left to do and resolves, as
+    /// node's does (runtime.ts:1217).
+    closed: std::cell::Cell<bool>,
 }
 
 impl AssembledRuntime {
@@ -503,6 +506,7 @@ impl AssembledRuntime {
             image: ImageApiOf(ctx.clone()),
             golden: GoldenApiOf(ctx.clone()),
             harnesses: HarnessesApiOf(ctx.clone()),
+            closed: std::cell::Cell::new(false),
             ctx,
         }
     }
@@ -622,8 +626,12 @@ impl wsp_core::types::api::Runtime for AssembledRuntime {
         Ok(swept.into())
     }
     async fn close(&self) -> Result<(), HostError> {
+        if self.closed.get() {
+            return Ok(());
+        }
         close(&*self.ctx).await?;
         self.ctx.drop_areas();
+        self.closed.set(true);
         Ok(())
     }
 }

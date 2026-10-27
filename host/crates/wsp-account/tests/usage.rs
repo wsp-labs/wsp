@@ -343,12 +343,12 @@ impl UsageCtx for World {
     fn signed_in_at(&self, place_id: &str, agent: &str) -> bool {
         self.w.borrow()["signInsAt"][place_id][agent] == json!("signed-in")
     }
-    async fn place_for(&self, word: &str) -> Option<String> {
+    async fn place_for(&self, word: &str) -> Result<Option<String>, HostError> {
         self.place_for_words.borrow_mut().push(word.to_string());
         if !self.door.get() {
-            return None;
+            return Ok(None);
         }
-        self.w.borrow()["placeFor"][word].as_str().map(String::from)
+        Ok(self.w.borrow()["placeFor"][word].as_str().map(String::from))
     }
     async fn box_login_path(&self, place_id: &str) -> Option<String> {
         self.w.borrow()["reports"][place_id]["login"]["PATH"].as_str().map(String::from)

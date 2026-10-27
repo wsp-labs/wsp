@@ -978,7 +978,7 @@ fn review_refusal_for_and_reaches_row_let_a_caller_with_no_scope_through() {
         assert_eq!(review(&c).refusal_for(None, None).expect("a read"), None);
         let held = record(json!({}));
         assert_eq!(review(&c).refusal_for(Some(&held), None).expect("a read"), None);
-        assert!(review(&c).reaches_row("t_1", "w_1", None));
+        assert!(review(&c).reaches_row("t_1", "w_1", None).expect("read"));
     });
 }
 

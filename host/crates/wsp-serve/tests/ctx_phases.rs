@@ -324,7 +324,7 @@ fn refuse_pauseless_lets_a_pausing_computer_through() {
 fn talks_to_tree_on_is_false_for_a_workspace_nobody_holds() {
     drive(|f| async move {
         let origin = Caller::Road(wsp_wire::views::workspace_more::WorkspaceOrigin::Here);
-        assert!(!phases(&f.c).talks_to_tree_on("w_1", Some(&origin)));
+        assert!(!phases(&f.c).talks_to_tree_on("w_1", Some(&origin)).expect("read"));
     });
 }
 

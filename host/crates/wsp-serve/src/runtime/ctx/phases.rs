@@ -115,8 +115,8 @@ impl PhasesCtx for Ctx {
     fn refuse_pauseless(&self, entry: &Entry, act: &str) -> Result<(), HostError> {
         self.rules.get().refuse_pauseless(entry, act)
     }
-    fn talks_to_tree_on(&self, id: &str, origin: Option<&Caller>) -> bool {
-        self.boot.get().talks_to_tree_on(id, origin).unwrap_or(false)
+    fn talks_to_tree_on(&self, id: &str, origin: Option<&Caller>) -> Result<bool, HostError> {
+        self.boot.get().talks_to_tree_on(id, origin)
     }
     fn refuse_sub_wake(&self, entry: &Entry) -> Result<(), HostError> {
         self.sub_life.get().refuse_sub_wake(entry)
