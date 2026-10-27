@@ -682,7 +682,7 @@ describe("a remove of a computer set up with picks", () => {
     const { place } = await runtime!.places!.add({ address: "root@10.0.0.9", hostUrls: DOOR, choices: appPicks(folder) }, Date.now());
     await until(async () => (await rowOf(place.id)).setup?.state === "done");
     await theirsInItsPlace(folder, seed, place.id);
-    const again = await runtime!.places!.setUp(place.id, {});
+    const again = await runtime!.places!.setUp(place.id, { choices: appPicks(folder) });
     await until(async () => (await rowOf(place.id)).setup?.addId === again.addId && (await rowOf(place.id)).setup?.state === "done");
     const note = (await rowOf(place.id)).applied?.rows.find(r => r.id === "folders/app")?.note;
     expect(note).toBeTruthy();
