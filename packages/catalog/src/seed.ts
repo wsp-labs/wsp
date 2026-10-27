@@ -34,6 +34,9 @@ export interface SeedInstall {
    * resolves to, which for a pnpm that switches itself to the version the folder pins is the copy it keeps under
    * PNPM_HOME. Absent where no command is known to exit 0 on a manager that works (`go --version` exits 2). */
   check?: string;
+  /** The catalog tool this install runs through, where a computer with none of it fails every project of the
+   * lockfile with `command not found`. Absent for npm, which rides with Node, and for the managers the floor carries. */
+  tool?: string;
 }
 
 export interface SeedRow {
@@ -90,11 +93,11 @@ export const SEED_ROWS: readonly SeedRow[] = [
     examples: { secret: [".env", ".env.production", "apps/web/.npmrc"], rebuilt: ["node_modules", "packages/host/dist", "tsconfig.tsbuildinfo"] },
     installs: [
       { lockfile: "package-lock.json", run: "npm ci", check: "npm --version" },
-      { lockfile: "pnpm-lock.yaml", run: "pnpm install --frozen-lockfile", check: "pnpm --version", store: { flag: "--store-dir", dir: ".pnpm-store" } },
-      { lockfile: "yarn.lock", run: "yarn install --frozen-lockfile", check: "yarn --version" },
+      { lockfile: "pnpm-lock.yaml", run: "pnpm install --frozen-lockfile", check: "pnpm --version", tool: "pnpm", store: { flag: "--store-dir", dir: ".pnpm-store" } },
+      { lockfile: "yarn.lock", run: "yarn install --frozen-lockfile", check: "yarn --version", tool: "yarn" },
       // The text lockfile bun writes since 1.2, before the binary one: a repo carrying both is one bun wrote today.
-      { lockfile: "bun.lock", run: "bun install --frozen-lockfile", check: "bun --version" },
-      { lockfile: "bun.lockb", run: "bun install --frozen-lockfile", check: "bun --version" },
+      { lockfile: "bun.lock", run: "bun install --frozen-lockfile", check: "bun --version", tool: "bun" },
+      { lockfile: "bun.lockb", run: "bun install --frozen-lockfile", check: "bun --version", tool: "bun" },
     ],
   },
   {
@@ -222,3 +225,7 @@ export function seedInstallsFor(rootNames: readonly string[]): readonly { row: S
   }
   return found;
 }
+
+/** The catalog tools the project folder's root needs on a computer before its install can run: the managers its
+ * lockfiles name, once each. */
+export const seedToolsFor = (rootNames: readonly string[]): readonly string[] => [...new Set(seedInstallsFor(rootNames).flatMap(({ install }) => install.tool ?? []))];

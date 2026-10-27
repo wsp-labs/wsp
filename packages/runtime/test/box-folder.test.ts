@@ -600,6 +600,24 @@ describe("the road a project on a joined computer lands by", () => {
     expect(placeOwnedPaths("/root").some(row => log!.startsWith(`${row}/`)), log).toBe(true);
   });
 
+  it("fails a project's install with the last lines of its log and the computer's name, never the computer's id", async () => {
+    const answer = (cmd: string): { exitCode: number; stdout: string } =>
+      cmd.includes("mkdir '/root/ni'") ? { exitCode: 0, stdout: "/root/ni\n" }
+      : cmd.startsWith("ls -A") ? { exitCode: 0, stdout: "pnpm-lock.yaml\n" }
+      : cmd.includes("pnpm install") ? { exitCode: 127, stdout: "" }
+      : cmd.startsWith("tail ") ? { exitCode: 0, stdout: "Progress: resolved 1\nerror while loading shared libraries: libatomic.so.1\n" }
+      : { exitCode: 0, stdout: "" };
+    const machine = { id: "p_04e3120bc38b52df", exec: async (cmd: string) => ({ ...answer(cmd), stderr: "" }) } as unknown as import("@wsp/engine").Machine;
+    const deps = { computer: { machine, home: "/root" }, computerName: "hetzner", now: () => 0 } as unknown as import("../src/project-landing.js").LandingDeps;
+    const source = { kind: "git" as const, url: "https://github.com/antfu/ni.git" };
+    const project = { id: "pr_1", name: "ni", computer: "p_04e3120bc38b52df", source, path: "", remote: "https://github.com/antfu/ni.git", defaultBranch: "main", memoryKey: "", memoryDir: "", createdAt: "" };
+    const said = await projectLanding("box").land({ project, source: { cloneCommand: () => "git clone" } as never, report: () => {} }, deps).then(() => "", (e: Error) => e.message);
+    expect(said).toContain("libatomic.so.1");
+    expect(said).toContain("hetzner");
+    expect(said).not.toContain("p_04e3120bc38b52df");
+    expect(said).not.toContain("\n");
+  });
+
   it("claims the first free name in the home in one command", () => {
     const script = freeFolderScript("/root", "spoo-ts");
     expect(script).toContain(`mkdir '/root/spoo-ts'"$n"`);
