@@ -455,3 +455,34 @@ fn a_gate_holds_a_waiter_until_it_is_opened_and_until_polls_a_condition() {
         assert_eq!(ticks.get(), 3);
     });
 }
+
+// runtime-steer.test.ts:191 `steerable` and steer-images.test.ts:15 `harness`: a hand-driven harness keeps what each start and
+// steer was handed, answers a steer as told, and says the events the test gives it.
+#[test]
+fn a_live_harness_keeps_its_starts_and_steers_answers_as_told_and_says_what_the_test_emits() {
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let live = Live::new(LiveOptions { steers: true, announces: false, session: Some("66666666-6666-4666-8666-666666666666".into()), ..Default::default() });
+        let fx = runtime(&backend).adapter("claude", live.factory()).build();
+        let ws = create_on(&fx.rt, CreateOn::golden("a"), None).await.expect("a workspace");
+        let run = fx
+            .rt
+            .sessions()
+            .start(&ws.view.id, StartOptions { prompt: "go".into(), request_id: Some("req_1".into()), ..Default::default() }, None)
+            .await
+            .expect("a start");
+        assert_eq!(live.turns(), 1);
+        live.init(0);
+        let steer = wsp_core::types::api::SteerAsk { prompt: "and say pineapple".into(), request_id: Some("req_2".into()), attachments: None };
+        let taken = fx.rt.sessions().steer(&run.id(), steer.clone(), None).await.expect("a steer");
+        assert_eq!(j(&taken), json!({ "outcome": "accepted" }));
+        live.answer.set(false);
+        let missed = fx.rt.sessions().steer(&run.id(), steer, None).await.expect("a steer");
+        assert_eq!(j(&missed)["outcome"], "not-running");
+        assert_eq!(live.steered.borrow().iter().map(|s| s.prompt.as_str()).collect::<Vec<_>>(), ["and say pineapple", "and say pineapple"]);
+        assert_eq!(live.starts.borrow()[0].prompt, "go");
+        live.end(0, "ok");
+        assert_eq!(j(&run.finished().await)["text"], "ok");
+        fx.rt.close().await.expect("a close");
+    });
+}
