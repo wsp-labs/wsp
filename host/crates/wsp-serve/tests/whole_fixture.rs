@@ -508,3 +508,33 @@ fn the_copying_fake_copies_a_folder_for_real_and_a_remove_takes_it_away() {
         assert_eq!(copier.log().lock().expect("the log").asks.len(), 1);
     });
 }
+
+// wake-asks-again.test.ts:49 `deafResume`: a machine's resume that is handed the caller's cancel, wrapped as
+// `machine.resume.bind(machine)` wraps it, and replaced whole by a plain reassignment.
+#[test]
+fn a_resume_that_reads_the_callers_cancel_is_wrapped_and_a_plain_reassignment_replaces_it() {
+    use wsp_engine::cancel::Cancel;
+    use wsp_engine::machine::Machine as _;
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let m = made(&backend).await;
+        m.pause(None).await.expect("a pause");
+        assert!(m.paused.get());
+        let seen = Rc::new(std::cell::Cell::new(false));
+        let was = m.resume_with_fn();
+        let marked = seen.clone();
+        m.set_resume_with(Rc::new(move |signal| {
+            marked.set(signal.is_some());
+            let was = was.clone();
+            Box::pin(async move { was(None).await })
+        }));
+        let cancel = Cancel::new();
+        m.resume(Some(&cancel)).await.expect("a resume");
+        assert!(seen.get());
+        assert!(!m.paused.get());
+        assert_eq!(m.calls.resume.get(), 1);
+        m.set_resume(Rc::new(|| Box::pin(async { Err(missing("Box not found")) })));
+        assert!(m.resume(Some(&cancel)).await.is_err());
+        assert_eq!(m.calls.resume.get(), 2);
+    });
+}

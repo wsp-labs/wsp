@@ -46,6 +46,8 @@ pub type StateFn = Rc<dyn Fn() -> Fut<MachineState>>;
 pub type PreviewFn = Rc<dyn Fn(u16) -> Fut<PreviewReach>>;
 pub type AnswersFn = Rc<dyn Fn(Option<u64>) -> Fut<bool>>;
 pub type UrlFn = Rc<dyn Fn(String) -> Fut<String>>;
+/// `m.resume = async (signal?: AbortSignal) => ..`: a resume that reads the caller's cancel.
+pub type ResumeWithFn = Rc<dyn Fn(Option<Cancel>) -> Fut<()>>;
 
 /// A `{ kind: "missing", status: 404 }` error: what the provider answers for a machine it no longer holds.
 pub fn missing(message: &str) -> EngineError {
@@ -152,6 +154,7 @@ pub struct StubMachine {
     kill: RefCell<UnitFn>,
     pause: RefCell<UnitFn>,
     resume: RefCell<UnitFn>,
+    resume_with: RefCell<Option<ResumeWithFn>>,
     state: RefCell<StateFn>,
     metrics: RefCell<UnitFn>,
     download_url: RefCell<UrlFn>,
@@ -239,6 +242,7 @@ impl StubMachine {
                         Ok(())
                     })
                 })),
+                resume_with: RefCell::new(None),
                 state: RefCell::new(Rc::new(move || {
                     let m = this(&state_me);
                     Box::pin(async move { Ok(m.live_state()) })
@@ -347,7 +351,20 @@ impl StubMachine {
         self.resume.borrow().clone()
     }
     pub fn set_resume(&self, f: UnitFn) {
+        *self.resume_with.borrow_mut() = None;
         *self.resume.borrow_mut() = f;
+    }
+    /// The resume in force as a function of the caller's cancel, for a test that wraps it as `resume.bind(machine)` does.
+    pub fn resume_with_fn(&self) -> ResumeWithFn {
+        if let Some(f) = self.resume_with.borrow().clone() {
+            return f;
+        }
+        let f = self.resume_fn();
+        Rc::new(move |_| f())
+    }
+    /// `m.resume = async signal => ..`: replaces the resume with one that is handed the caller's cancel.
+    pub fn set_resume_with(&self, f: ResumeWithFn) {
+        *self.resume_with.borrow_mut() = Some(f);
     }
     pub fn state_fn(&self) -> StateFn {
         self.state.borrow().clone()
@@ -513,8 +530,12 @@ impl Machine for StubMachine {
         let f = self.pause_fn();
         f().await
     }
-    async fn resume(&self, _signal: Option<&Cancel>) -> Result<(), EngineError> {
+    async fn resume(&self, signal: Option<&Cancel>) -> Result<(), EngineError> {
         bump(&self.calls.resume);
+        let with = self.resume_with.borrow().clone();
+        if let Some(with) = with {
+            return with(signal.cloned()).await;
+        }
         let f = self.resume_fn();
         f().await
     }
