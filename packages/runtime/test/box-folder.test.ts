@@ -618,6 +618,21 @@ describe("the road a project on a joined computer lands by", () => {
     expect(said).not.toContain("\n");
   });
 
+  it("says what the shell said where the install died before its log was written", async () => {
+    const answer = (cmd: string): { exitCode: number; stdout: string; stderr: string } =>
+      cmd.includes("mkdir '/root/ni'") ? { exitCode: 0, stdout: "/root/ni\n", stderr: "" }
+      : cmd.startsWith("ls -A") ? { exitCode: 0, stdout: "pnpm-lock.yaml\n", stderr: "" }
+      : cmd.includes("pnpm install") ? { exitCode: 1, stdout: "", stderr: "mkdir: cannot create directory '/root/.wsp': No space left on device" }
+      : cmd.startsWith("tail ") ? { exitCode: 1, stdout: "", stderr: "tail: cannot open" }
+      : { exitCode: 0, stdout: "", stderr: "" };
+    const machine = { id: "p", exec: async (cmd: string) => answer(cmd) } as unknown as import("@wsp/engine").Machine;
+    const deps = { computer: { machine, home: "/root" }, computerName: "hetzner", now: () => 0 } as unknown as import("../src/project-landing.js").LandingDeps;
+    const source = { kind: "git" as const, url: "https://github.com/antfu/ni.git" };
+    const project = { id: "pr_1", name: "ni", computer: "p", source, path: "", remote: "https://github.com/antfu/ni.git", defaultBranch: "main", memoryKey: "", memoryDir: "", createdAt: "" };
+    const said = await projectLanding("box").land({ project, source: { cloneCommand: () => "git clone" } as never, report: () => {} }, deps).then(() => "", (e: Error) => e.message);
+    expect(said).toContain("No space left on device");
+  });
+
   it("claims the first free name in the home in one command", () => {
     const script = freeFolderScript("/root", "spoo-ts");
     expect(script).toContain(`mkdir '/root/spoo-ts'"$n"`);

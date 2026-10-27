@@ -54,7 +54,14 @@ describe("what moved in a followed recipe", () => {
     expect(steps({ ...BEFORE, mcp: {} }, ITEMS)).toEqual(["mcp"]);
     expect(steps({ ...BEFORE, skills: {} }, ITEMS)).toEqual([]);
     expect(steps({ ...BEFORE, configs: { git: {}, github: { signin: "vault" } } }, ITEMS)).toEqual(["github"]);
-    // A folder that lands brings its own servers, which go once it is there.
-    expect(steps({ ...BEFORE, folders: { app: { from: "~/code/app", keep: [] } } }, ITEMS)).toEqual(["folderServers", "folders"]);
+    // A folder that lands brings its own servers, which go once it is there, and the manager its lockfile names.
+    expect(steps({ ...BEFORE, folders: { app: { from: "~/code/app", keep: [] } } }, ITEMS)).toEqual(["clis", "context", "folderServers", "folders"]);
+  });
+});
+
+describe("a folder a recipe gains", () => {
+  it("runs the CLIs step with it, so the manager its lockfile names goes on before its install", () => {
+    const after = RecipeFile.parse({ name: "r", folders: { ni: { from: "~/ni" } } });
+    expect(stepsFor([{ key: "folders/ni", kind: "folders", name: "ni", how: "added" }], after)).toContain("clis");
   });
 });

@@ -427,7 +427,7 @@ async function cloneSeedInstall(
     if (ok.exitCode !== 0) {
       // The install's output went to the log, so the log is what it said.
       const tail = await machine.exec(`tail -n ${LOG_TAIL_LINES} ${shellQuote(places.log)}`, { timeoutMs: STEP_MS }).catch(() => undefined);
-      const said = (tail?.stdout ?? "").split("\n").map(line => line.trim()).filter(line => line !== "").join(" / ");
+      const said = (tail?.stdout ?? "").split("\n").map(line => line.trim()).filter(line => line !== "").join(" / ") || (lastLine(ok.stderr) ?? "");
       throw new Error(`${install.command} in ${places.checkout} failed on ${deps.computerName} with exit ${ok.exitCode}${said === "" ? "" : `: ${said}`}; its whole output is ${places.log}`);
     }
   }
