@@ -111,7 +111,7 @@ fn scalar(rng: &mut Rng) -> String {
 
 fn container(rng: &mut Rng, levels: usize, spine: bool) -> String {
     let object = rng.next(2) == 0;
-    let members = if levels == 0 { rng.next(3) } else { rng.next(3) } as usize;
+    let members = rng.next(3) as usize;
     let mut items: Vec<String> =
         (0..members).map(|_| if levels > 0 && rng.next(4) == 0 { container(rng, 0, false) } else { scalar(rng) }).collect();
     if spine {
