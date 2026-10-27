@@ -101,3 +101,19 @@ fn edit_json_body() {
 fn edit_json_beside_and_over_a_value_at_the_cap() {
     in_child("edit_json_beside_and_over_a_value_at_the_cap", edit_json_body);
 }
+
+// A message that wraps a value kept to the cap (a reply, a stored row) may add `WRAPPER_LEVELS` levels of its own.
+fn framed_body() {
+    use wsp_catalog::json_parse::{parse_json_framed, WRAPPER_LEVELS};
+    let at = format!("{}1{}", "{\"a\":".repeat(CAP + WRAPPER_LEVELS), "}".repeat(CAP + WRAPPER_LEVELS));
+    let v = parse_json_framed(&at).expect("the cap and the wrapper's levels are read");
+    drop(v.clone());
+    let past = format!("{}1{}", "{\"a\":".repeat(CAP + WRAPPER_LEVELS + 1), "}".repeat(CAP + WRAPPER_LEVELS + 1));
+    assert_eq!(parse_json_framed(&past).expect_err("one more is refused").message, "Maximum call stack size exceeded");
+    assert!(parse_json(&at).is_err(), "the plain read keeps the cap");
+}
+
+#[test]
+fn a_framed_read_takes_the_cap_and_the_wrapper_levels() {
+    in_child("a_framed_read_takes_the_cap_and_the_wrapper_levels", framed_body);
+}

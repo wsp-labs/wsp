@@ -35,7 +35,20 @@ fn lone_char(unit: u16) -> char {
 /// The value the text holds as `JSON.parse` reads it. A number past f64 is `null`, as `JSON.stringify` writes
 /// infinity.
 pub fn parse_json(text: &str) -> Result<Value, HostError> {
-    let mut p = Parser { text, bytes: text.as_bytes(), pos: 0 };
+    parse_within(text, MAX_DEPTH)
+}
+
+/// The levels a message adds around a value the host keeps to the cap (the frame, its `values`, a record's own levels),
+/// as the store reads a row (wsp-store `ROW_DEPTH_MAX`, 506).
+pub const WRAPPER_LEVELS: usize = 6;
+
+/// `parse_json` for a message that wraps a value kept to the cap: the cap and the wrapper's levels.
+pub fn parse_json_framed(text: &str) -> Result<Value, HostError> {
+    parse_within(text, MAX_DEPTH + WRAPPER_LEVELS)
+}
+
+fn parse_within(text: &str, max_depth: usize) -> Result<Value, HostError> {
+    let mut p = Parser { text, bytes: text.as_bytes(), pos: 0, max_depth };
     let value = p.value().map_err(HostError::new)?;
     p.skip_space();
     if p.pos < p.bytes.len() {
@@ -46,7 +59,7 @@ pub fn parse_json(text: &str) -> Result<Value, HostError> {
 
 /// The string a JSON string literal (quotes included) holds, nothing where it is not one.
 pub fn parse_json_string(literal: &str) -> Option<String> {
-    let mut p = Parser { text: literal, bytes: literal.as_bytes(), pos: 0 };
+    let mut p = Parser { text: literal, bytes: literal.as_bytes(), pos: 0, max_depth: MAX_DEPTH };
     if p.bytes.first() != Some(&b'"') {
         return None;
     }
@@ -58,6 +71,7 @@ struct Parser<'a> {
     text: &'a str,
     bytes: &'a [u8],
     pos: usize,
+    max_depth: usize,
 }
 
 enum Frame {
@@ -215,7 +229,7 @@ impl Parser<'_> {
 
     /// The opening bracket at `pos` of a container `depth` deep; it refuses past the cap and `pos` ends past it.
     fn enter(&mut self, depth: usize) -> Result<(), String> {
-        if depth >= MAX_DEPTH {
+        if depth >= self.max_depth {
             return Err(TOO_DEEP.to_string());
         }
         self.pos += 1;

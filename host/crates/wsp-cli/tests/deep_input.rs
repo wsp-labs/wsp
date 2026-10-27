@@ -149,11 +149,12 @@ fn reply_cap_body(depth: usize) {
     assert_eq!(parse_frame(&frame(depth + 1)), None, "{} levels are refused, not read as a shallower tree", depth + 1);
 }
 
-// The cap of the catalog's port as a reply meets it, on the 1 MiB stack: 500 levels read whole, and 501 are refused. The
+// The cap of the catalog's port as a reply meets it, on the 1 MiB stack: a reply wraps a value kept to 500 levels in the
+// frame's own levels (`WRAPPER_LEVELS`, 6, as the store reads a row), so 506 levels read whole and 507 are refused. The
 // review's m1: "past the cap the read must fail, no lax fallback tree"; this test asserted the shallower tree (`assert_ne!`).
 #[test]
-fn a_reply_reads_500_levels_whole_and_not_501() {
-    in_child("a_reply_reads_500_levels_whole_and_not_501", 500, reply_cap_body);
+fn a_reply_reads_506_levels_whole_and_not_507() {
+    in_child("a_reply_reads_506_levels_whole_and_not_507", 506, reply_cap_body);
 }
 
 fn chain_time_body(depth: usize) {
