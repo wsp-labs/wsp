@@ -6,6 +6,7 @@
 #![allow(dead_code, unused_imports)]
 pub mod adapter;
 pub mod daemon;
+pub mod driven;
 pub mod events;
 pub mod gateway;
 pub mod gone;
