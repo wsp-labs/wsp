@@ -1497,7 +1497,10 @@ dependencies = [
  "futures",
  "futures-util",
  "gdkx11",
+ "gpui-agent",
  "gpui-kit",
+ "gpui-pre",
+ "gpui-pre-platform",
  "gtk",
  "icu_collator",
  "icu_normalizer",
@@ -2648,6 +2651,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "gpui-agent"
+version = "0.1.0"
+source = "git+https://github.com/wsp-labs/gpui-agent?rev=c9b8b6328877755685e1233b3770f78a68f2a5d1#c9b8b6328877755685e1233b3770f78a68f2a5d1"
+dependencies = [
+ "anyhow",
+ "async-channel",
+ "gpui-agent-protocol",
+ "gpui-pre",
+ "gpui-pre-linux",
+ "image",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "gpui-agent-protocol"
+version = "0.1.0"
+source = "git+https://github.com/wsp-labs/gpui-agent?rev=c9b8b6328877755685e1233b3770f78a68f2a5d1#c9b8b6328877755685e1233b3770f78a68f2a5d1"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "gpui-base"
 version = "0.7.3"
 dependencies = [
@@ -3285,6 +3312,7 @@ dependencies = [
  "gpui-pre-http-client",
  "gpui-pre-util",
  "gpui-pre-wgpu",
+ "image",
  "libc",
  "log",
  "notify-rust",

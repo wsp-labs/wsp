@@ -292,6 +292,10 @@ where a screen stands. Adapted from jayjay's gpui-parity-audit
 6. **Report the table.** An audit is findings only. Close gaps only when that is
    the task, with a test per state the fix touches.
 
+## Seeing and pressing the app: gpui-agent
+
+Every proof and live check of a GPUI screen drives the app with `gpui-agent`: a fix's proof, a parity row, a release check, any "does this screen work" question. Build a dev build with the `agent` feature (`cargo build -p desktop-gpui --features agent`), start it on a Linux box against a throwaway host with `gpui-agent launch --headless -- <app> --state <state>`, which gives the session its own Xvfb, then snapshot, press, type, wait and screenshot through it. Never on the owner's screen. `gpui-agent skills get core` prints its guide for the installed version. Offscreen tests (`HeadlessAppContext::capture_screenshot`) stay where a test checks pixels inside the suite.
+
 ## The mockup and screenshot loop
 
 Adapted from herdr-gpui's gpui-mockup (linked in [references/reading.md](references/reading.md)), which writes design

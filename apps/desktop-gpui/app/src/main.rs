@@ -160,6 +160,8 @@ fn main() {
     });
     app.run(move |cx: &mut App| {
         gpui_kit::init(cx);
+        #[cfg(feature = "agent")]
+        desktop_gpui::agent::init(cx);
         cx.set_global(desktop::Launched { state: state.clone(), env: env.clone() });
         // A Mac app lives on in the menu bar with its last window closed, as Electron's does.
         cx.on_window_closed(|cx, _| {

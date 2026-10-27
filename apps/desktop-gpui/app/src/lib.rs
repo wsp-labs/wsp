@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+#[cfg(feature = "agent")]
+pub mod agent;
 pub mod bench;
 pub mod desktop;
 pub mod frames;

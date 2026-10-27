@@ -2,11 +2,13 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Sets a Linux box up so every thread on it builds Rust warm: one sccache on the box's own disk behind every cargo
 # (cargo's own config names it, so no thread sets anything), the Zig that Ghostty's build wants, and the C libraries the
-# daemon and the GPUI app link. Run as root, once per box, from any checkout; running it again changes nothing.
+# daemon and the GPUI app link, and the gpui-agent command, which sees and drives the GPUI app. Run as root, once per
+# box, from any checkout; running it again changes nothing.
 set -eu
 
 sccache_version=0.19.0
 zig_version=0.16.0
+gpui_agent_rev=c9b8b6328877755685e1233b3770f78a68f2a5d1
 cache_dir=/root/sccache
 cache_gb=20
 cargo_home=${CARGO_HOME:-/opt/wsp/cargo}
@@ -58,8 +60,9 @@ if [ ! -x "$zig_dir/zig" ]; then
 fi
 
 # sccache keys every compile on CARGO_TARGET_DIR's value, so a thread with a target of its own would miss what every
-# other thread compiled; rustc never reads it.
-printf '#!/bin/sh\nunset CARGO_TARGET_DIR\nexec /usr/local/bin/sccache "$@"\n' > "$wrapper"
+# other thread compiled; rustc never reads it. bash, since dash drops a variable whose name has a dash, such as the
+# CARGO_BIN_EXE_desktop-gpui an integration test reads.
+printf '#!/bin/bash\nunset CARGO_TARGET_DIR\nexec /usr/local/bin/sccache "$@"\n' > "$wrapper"
 chmod 755 "$wrapper"
 
 mkdir -p "$cache_dir" /root/.config/sccache "$cargo_home"
@@ -86,7 +89,13 @@ for dir in "$root"/daemon "$root"/apps/desktop-gpui; do
 done
 # The daemon's static build and the hand-in check's staging of it target this chip's own musl, which the file names only for x86_64.
 (cd "$root/daemon" && rustup target add "$(uname -m)-unknown-linux-musl")
+# cargo's record of what it installed names the commit, which `gpui-agent --version` does not.
+if ! grep -q "gpui-agent?rev=$gpui_agent_rev" "$cargo_home/.crates.toml" 2>/dev/null; then
+  (cd "$root/apps/desktop-gpui" &&
+    cargo install --locked --git https://github.com/wsp-labs/gpui-agent --rev "$gpui_agent_rev" gpui-agent-cli)
+fi
 sccache --stop-server >/dev/null 2>&1 || true
 sccache --start-server
 sccache --show-stats | grep -E 'Cache location|Max cache size'
 echo "zig: $zig_dir/zig"
+gpui-agent --version
