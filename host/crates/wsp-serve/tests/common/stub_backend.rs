@@ -48,6 +48,10 @@ pub type PreviewFn = Rc<dyn Fn(u16) -> Fut<PreviewReach>>;
 pub type AnswersFn = Rc<dyn Fn(Option<u64>) -> Fut<bool>>;
 pub type UrlFn = Rc<dyn Fn(String) -> Fut<String>>;
 /// `m.resumeAt = async size => ..`: the move to another size a machine that offers it takes.
+/// `lifecycle.quietForMs`: how long the computer running a machine has seen it quiet, or nothing where it cannot say.
+pub type QuietFn = Rc<dyn Fn() -> Fut<Option<u64>>>;
+/// `lifecycle.backstop`: the machine's id and the instant the provider is told to stop it by.
+pub type BackstopFn = Rc<dyn Fn(String, i64) -> Fut<()>>;
 pub type ResumeAtFn = Rc<dyn Fn(f64, u64, Option<Cancel>) -> Fut<()>>;
 /// `backend.rootDiskOf = size => ..`: the root disk a provider measured for a size.
 pub type RootDiskFn = Rc<dyn Fn(Size) -> Option<RootDisk>>;
@@ -628,6 +632,8 @@ impl BackendPricing for StubPricing {
 /// stub-backend.ts:253 `lifecycle`: the budgets a test shrinks.
 pub struct StubLifecycle {
     budgets: RefCell<LifecycleBudgets>,
+    quiet: RefCell<Option<QuietFn>>,
+    backstop: RefCell<Option<BackstopFn>>,
 }
 
 #[async_trait(?Send)]
@@ -635,9 +641,31 @@ impl Lifecycle for StubLifecycle {
     fn budgets(&self) -> LifecycleBudgets {
         self.budgets.borrow().clone()
     }
+    fn has_backstop(&self) -> bool {
+        self.backstop.borrow().is_some()
+    }
+    async fn backstop(&self, machine: &dyn Machine, until_ms: i64, _exact: bool) -> Result<(), EngineError> {
+        let f = self.backstop.borrow().clone().ok_or_else(|| EngineError::Other { message: NOT_ON_THIS_ROAD.into(), code: None })?;
+        f(machine.id().to_string(), until_ms).await
+    }
+    fn has_quiet_for_ms(&self) -> bool {
+        self.quiet.borrow().is_some()
+    }
+    async fn quiet_for_ms(&self, _machine: &dyn Machine) -> Result<Option<u64>, EngineError> {
+        let f = self.quiet.borrow().clone().ok_or_else(|| EngineError::Other { message: NOT_ON_THIS_ROAD.into(), code: None })?;
+        f().await
+    }
 }
 
 impl StubLifecycle {
+    /// `backend.lifecycle.quietForMs = async () => ..`; `None` is a lifecycle that has none.
+    pub fn set_quiet_for_ms(&self, f: Option<QuietFn>) {
+        *self.quiet.borrow_mut() = f;
+    }
+    /// `backend.lifecycle.backstop = async (machine, until) => ..`; `None` is a lifecycle that has none.
+    pub fn set_backstop(&self, f: Option<BackstopFn>) {
+        *self.backstop.borrow_mut() = f;
+    }
     pub fn set_wake_attempts(&self, n: i64) {
         self.budgets.borrow_mut().wake_attempts = JsInt::from(n);
     }
@@ -744,6 +772,8 @@ impl StubBackend {
                     for_ms: JsNumber(30.0 * 60_000.0),
                 }),
             }),
+            quiet: RefCell::new(None),
+            backstop: RefCell::new(None),
         });
         Arc::new_cyclic(|me: &Weak<StubBackend>| {
             let make_me = me.clone();
