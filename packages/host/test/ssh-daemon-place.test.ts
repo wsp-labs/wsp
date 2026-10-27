@@ -553,11 +553,12 @@ describe("a deploy over a daemon that is still running", () => {
 });
 
 describe("the node step of an add runs for real in bash", () => {
-  /** A PATH of its own holding only the tools the script reads with, plus whatever stubs the case names, so the
-   * box's own node, if it has one, is never the one asked. */
-  function box(stubs: Record<string, string>): { path: string; done: () => void } {
+  /** A PATH of its own holding only the tools the script reads with, plus whatever stubs the case names, so neither
+   * the runner's own node nor its chip is the one asked: uname answers `arch`, which a Mac would say as arm64. */
+  function box(stubs: Record<string, string>, arch = "aarch64"): { path: string; done: () => void } {
     const dir = mkdtempSync(join(tmpdir(), "wsp-node-step-"));
-    for (const tool of ["sed", "uname", "tail", "tr", "printf", "bash", "sha256sum"]) {
+    stubs = { uname: `echo ${arch}`, ...stubs };
+    for (const tool of ["sed", "tail", "tr", "printf", "bash", "sha256sum"]) {
       const found = spawnSync("sh", ["-c", `command -v ${tool}`], { encoding: "utf8" }).stdout.trim();
       if (found !== "" && found.startsWith("/")) symlinkSync(found, join(dir, tool));
     }
@@ -580,12 +581,15 @@ describe("the node step of an add runs for real in bash", () => {
   });
 
   it("installs where the box has no node or an older one, and reads the failure off the install's last line", () => {
-    for (const stubs of [{}, { node: "echo 20" }]) {
-      const held = box({ ...stubs, curl: 'echo "curl: (6) Could not resolve host: nodejs.org" >&2; exit 6' });
+    const cases: { stubs: Record<string, string>; arch: string }[] = [];
+    const holds: Record<string, string>[] = [{}, { node: "echo 20" }];
+    for (const arch of ["aarch64", "x86_64"]) for (const stubs of holds) cases.push({ stubs, arch });
+    for (const { stubs, arch } of cases) {
+      const held = box({ ...stubs, curl: 'echo "curl: (6) Could not resolve host: nodejs.org" >&2; exit 6' }, arch);
       try {
         const said = run(held.path);
-        expect(said.status).toBe(1);
-        expect(said.stdout.trim()).toBe("NODE_FAILED curl: (6) Could not resolve host: nodejs.org");
+        expect(said.status, arch).toBe(1);
+        expect(said.stdout.trim(), arch).toBe("NODE_FAILED curl: (6) Could not resolve host: nodejs.org");
       } finally {
         held.done();
       }
