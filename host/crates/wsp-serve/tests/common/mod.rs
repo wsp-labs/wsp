@@ -6,6 +6,7 @@
 #![allow(dead_code, unused_imports)]
 pub mod adapter;
 pub mod box_daemons;
+pub mod box_fake;
 pub mod copying;
 pub mod daemon;
 pub mod events;
