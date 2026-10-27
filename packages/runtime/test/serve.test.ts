@@ -98,6 +98,16 @@ describe("serveRuntime auth", () => {
     expect(JSON.stringify(got)).not.toContain("protocol");
   });
 
+  it("refuses a range whose lowest is above its highest as a malformed one, blaming neither side", async () => {
+    srv = await serveRuntime(rt(), { port: 0, authToken: "secret", released: { version: "0.4.2", protocol: 3 } });
+    const c = await WsClient.connect(srv.port);
+    const got = await c.request("auth", { token: "secret", protocol: [4, 2] });
+    expect(got["ok"]).toBe(false);
+    expect(got["error"]).toContain("the lowest protocol number is above the highest");
+    expect(got["error"]).not.toContain("newer than the app");
+    expect(await c.closed()).toBe(4401);
+  });
+
   it("a host served no number checks no range", async () => {
     srv = await serveRuntime(rt(), { port: 0, authToken: "secret" });
     const c = await WsClient.connect(srv.port);

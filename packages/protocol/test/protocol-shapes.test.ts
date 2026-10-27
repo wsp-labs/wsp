@@ -5,8 +5,9 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { z, type ZodTypeAny } from "zod";
-import { WIRE_PROTOCOL } from "../src/index.js";
-import { WIRE_REPLY_SHAPES } from "../src/wire/protocol-shapes.js";
+import * as protocol from "../src/index.js";
+import { ProtocolRange, RUNTIME_OPS, WIRE_PROTOCOL, protocolMismatchHalves } from "../src/index.js";
+import { WIRE_SHAPE_NAMES } from "../src/wire/protocol-shapes.js";
 
 const RECORD = new URL("../src/wire/protocol-shapes.json", import.meta.url);
 
@@ -59,7 +60,8 @@ function fieldsOf(schema: ZodTypeAny, path = "", stack: ZodTypeAny[] = []): Fiel
       out[path] = mark("union");
       const discriminator = def["discriminator"] as string | undefined;
       [...(def["options"] as Iterable<ZodTypeAny>)].forEach((child, i) => {
-        const tag = discriminator === undefined ? undefined : (child as z.AnyZodObject).shape[discriminator]?._def?.value;
+        const shape = (child as z.AnyZodObject).shape as Record<string, ZodTypeAny> | undefined;
+        const tag = [discriminator, "type", "op"].map(key => (key === undefined ? undefined : shape?.[key]?._def?.value)).find(value => value !== undefined);
         into(`|${tag === undefined ? i : String(tag)}`, child);
       });
       break;
@@ -120,13 +122,19 @@ function breaks(recorded: Record<string, Fields>, current: Record<string, Fields
   return out;
 }
 
+const exported = protocol as unknown as Record<string, ZodTypeAny | undefined>;
+const WIRE_REPLY_SHAPES = Object.fromEntries(WIRE_SHAPE_NAMES.map(name => [name, exported[name]!]));
+
 const current = (): Record<string, Fields> => Object.fromEntries(Object.entries(WIRE_REPLY_SHAPES).map(([name, shape]) => [name, fieldsOf(shape)]));
+
+/** The ops an older client sent that this host no longer answers by that name: removed, or renamed. */
+const lostOps = (recorded: readonly string[], now: readonly string[]): string[] => recorded.filter(op => !now.includes(op));
 
 const WRITE = "WSP_WRITE_SHAPES=1 pnpm exec vitest run --minWorkers=1 --maxWorkers=2 packages/protocol/test/protocol-shapes.test.ts";
 
 describe("the reply shapes held to the protocol number", () => {
-  if (process.env["WSP_WRITE_SHAPES"] === "1") writeFileSync(RECORD, `${JSON.stringify({ protocol: WIRE_PROTOCOL, shapes: current() }, null, 2)}\n`);
-  const recorded = JSON.parse(readFileSync(RECORD, "utf8")) as { protocol: number; shapes: Record<string, Fields> };
+  if (process.env["WSP_WRITE_SHAPES"] === "1") writeFileSync(RECORD, `${JSON.stringify({ protocol: WIRE_PROTOCOL, ops: [...RUNTIME_OPS].sort(), shapes: current() }, null, 2)}\n`);
+  const recorded = JSON.parse(readFileSync(RECORD, "utf8")) as { protocol: number; ops: string[]; shapes: Record<string, Fields> };
 
   it("are recorded at the number this host speaks", () => {
     expect(recorded.protocol, `the number moved: write the shapes again with ${WRITE}`).toBe(WIRE_PROTOCOL);
@@ -134,6 +142,14 @@ describe("the reply shapes held to the protocol number", () => {
 
   it("lose, rename and retype no field while the number stands", () => {
     expect(breaks(recorded.shapes, current()), `a client reading protocol ${recorded.protocol} would misread these: undo the change, or move the number in WIRE_PROTOCOL and write the shapes again with ${WRITE}`).toEqual([]);
+  });
+
+  it("are all exported zod schemas", () => {
+    expect(WIRE_SHAPE_NAMES.filter(name => typeof exported[name]?.safeParse !== "function")).toEqual([]);
+  });
+
+  it("lose and rename no op while the number stands", () => {
+    expect(lostOps(recorded.ops, RUNTIME_OPS), `a client reading protocol ${recorded.protocol} sends these and the host no longer answers them: undo the change, or move the number in WIRE_PROTOCOL and write the record again with ${WRITE}`).toEqual([]);
   });
 
   it("name every shape the record holds, so a shape taken off the list is not a quiet removal", () => {
@@ -171,5 +187,47 @@ describe("what counts as a break", () => {
 
   it("fails a field inside an array's element removed", () => {
     expect(after(z.object({ ...same, more: z.array(z.object({})).optional() }))).toEqual(["Row.more[].y: lost or renamed"]);
+  });
+});
+
+/** Every zod node a listed shape reaches, so a schema nested in one is held through it. */
+function reached(node: unknown, seen = new Set<unknown>()): Set<unknown> {
+  if (node === null || typeof node !== "object" || seen.has(node)) return seen;
+  seen.add(node);
+  const def = (node as { _def?: Record<string, unknown> })._def;
+  if (def === undefined) return seen;
+  if (def["typeName"] === "ZodObject") for (const child of Object.values((node as z.AnyZodObject).shape)) reached(child, seen);
+  if (def["typeName"] === "ZodLazy") reached((def["getter"] as () => unknown)(), seen);
+  for (const key of ["innerType", "schema", "type", "in", "valueType", "left", "right"]) reached(def[key], seen);
+  for (const key of ["items", "options"]) for (const child of (def[key] as Iterable<unknown> | undefined) ?? []) reached(child, seen);
+  return seen;
+}
+
+describe("the shapes the GPUI app reads", () => {
+  it("are all held, reply, view and event, by the record its host client is generated from", () => {
+    const record = JSON.parse(readFileSync(new URL("../../../apps/desktop-gpui/host-client/record/protocol.json", import.meta.url), "utf8")) as { definitions: Record<string, unknown> };
+    const held = new Set<unknown>();
+    for (const shape of Object.values(WIRE_REPLY_SHAPES)) reached(shape, held);
+    const read = Object.keys(record.definitions).filter(name => !name.includes("Request") && typeof exported[name] === "object" && exported[name] !== null && "_def" in exported[name]!);
+    expect(read.filter(name => !held.has(exported[name]))).toEqual([]);
+  });
+});
+
+describe("what counts as a lost op", () => {
+  it("fails an op removed or renamed, and passes one added", () => {
+    expect(lostOps(["a.get", "a.set"], ["a.get", "a.put"])).toEqual(["a.set"]);
+    expect(lostOps(["a.get"], ["a.get", "a.put"])).toEqual([]);
+  });
+});
+
+describe("the range a client sends", () => {
+  it("is refused at the schema when its lowest is above its highest", () => {
+    expect(ProtocolRange.safeParse([2, 1]).success).toBe(false);
+  });
+});
+
+describe("the sentence to a person with an older host", () => {
+  it("sends them to a line that updates wsp, not to the verb that merges a thread's base", () => {
+    expect(protocolMismatchHalves(1, [2, 2]).fix).not.toMatch(/\bwsp update\b/);
   });
 });

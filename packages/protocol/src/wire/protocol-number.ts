@@ -6,11 +6,12 @@ import { z } from "zod";
 
 /** The number this host speaks. It moves up by one in the change that makes an older client misread the wire: an op
  * removed or renamed, a field removed, renamed or changed in meaning, a refusal's kind changed. An op, an optional
- * field or an event added does not move it. `protocol-shapes.ts` and its test keep that rule. */
+ * field or an event added does not move it. `protocol-shapes.ts` and its test keep that rule for ops and fields; a
+ * refusal's kind is held by review alone. */
 export const WIRE_PROTOCOL = 1;
 
 /** The numbers a client speaks, lowest and highest, as the auth request carries them. */
-export const ProtocolRange = z.tuple([z.number().int(), z.number().int()]);
+export const ProtocolRange = z.tuple([z.number().int(), z.number().int()]).refine(([min, max]) => min <= max, "the lowest protocol number is above the highest");
 export type ProtocolRange = z.infer<typeof ProtocolRange>;
 
 /** What the first frame of a socket answers: the release, the road the host came up on, and the protocol number. */
