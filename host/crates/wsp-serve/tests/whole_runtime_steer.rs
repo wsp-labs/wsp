@@ -19,9 +19,9 @@ use wsp_core::clock::FakeClock;
 use wsp_core::console::capture;
 use wsp_core::machine_exec::factory::{machine_exec_stream, MachineExecOptions};
 use wsp_core::status::StatusWatchOptions;
-use wsp_core::types::api::{SteerAsk, StartOptions};
-use wsp_core::types::wiring::GoldenBuildRequest;
+use wsp_core::types::api::{StartOptions, SteerAsk};
 use wsp_core::types::harness::HarnessAdapterFactory;
+use wsp_core::types::wiring::GoldenBuildRequest;
 use wsp_engine::errors::{EngineError, ErrorKind, WspError};
 use wsp_engine::machine::MachineSpec;
 use wsp_store::store::Store;
@@ -36,7 +36,11 @@ fn lost_answer() -> EngineError {
 /// Routes every create through `plan` first, so a test can lose an answer or hand back a replay.
 fn intercept(
     backend: &Arc<StubBackend>,
-    plan: impl Fn(MachineSpec, Rc<dyn Fn(MachineSpec) -> common::stub_backend::Fut<Arc<StubMachine>>>) -> common::stub_backend::Fut<Arc<StubMachine>> + 'static,
+    plan: impl Fn(
+            MachineSpec,
+            Rc<dyn Fn(MachineSpec) -> common::stub_backend::Fut<Arc<StubMachine>>>,
+        ) -> common::stub_backend::Fut<Arc<StubMachine>>
+        + 'static,
 ) -> SpecLog {
     let original = backend.create_fn();
     let real: Rc<dyn Fn(MachineSpec) -> common::stub_backend::Fut<Arc<StubMachine>>> = Rc::new(move |spec| original(spec, None, None));
@@ -383,12 +387,8 @@ fn accepted_the_adapter_takes_the_line_and_the_runtime_records_session_steer_und
         let fx = runtime(&backend).adapter("claude", h.factory()).build();
         let events = fx.events();
         let ws = create_on(&fx.rt, CreateOn::golden("a"), None).await.expect("a workspace").view.id;
-        let handle = fx
-            .rt
-            .sessions()
-            .start(&ws, StartOptions { request_id: Some("req_1".into()), ..start("go") }, None)
-            .await
-            .expect("a start");
+        let handle =
+            fx.rt.sessions().start(&ws, StartOptions { request_id: Some("req_1".into()), ..start("go") }, None).await.expect("a start");
         h.init(0);
         assert_eq!(steered(&fx, &handle.id(), steer("and say pineapple", Some("req_2"))).await, json!({ "outcome": "accepted" }));
         assert_eq!(h.steered.borrow().iter().map(|s| s.prompt.clone()).collect::<Vec<_>>(), ["and say pineapple"]);
@@ -615,7 +615,10 @@ fn over_the_claude_adapter_on_a_fake_machine_a_send_while_the_cli_has_not_announ
         assert_eq!(joined.turn_id(), first.turn_id());
         let steers = events.of("session.steer");
         assert_eq!(steers.len(), 1);
-        assert_matches(&steers[0], json!({ "turnId": first.turn_id(), "threadId": thread_id, "prompt": "also this", "requestId": "req_2" }));
+        assert_matches(
+            &steers[0],
+            json!({ "turnId": first.turn_id(), "threadId": thread_id, "prompt": "also this", "requestId": "req_2" }),
+        );
         assert_eq!(run.appends.borrow().len(), 1);
         *run.exit_file.borrow_mut() = "0".into();
         first.finished().await;
@@ -736,7 +739,8 @@ fn a_steer_inside_a_turn_keeps_the_idle_hold_the_workspace_stays_awake_through_t
             .adapter("claude", h.factory())
             .with(|o| {
                 o.idle_default_window_ms = Some(WINDOW as u64);
-                o.status = Some(StatusWatchOptions { cost_interval_ms: Some(60_000), poll_interval_ms: Some(60_000), ..Default::default() });
+                o.status =
+                    Some(StatusWatchOptions { cost_interval_ms: Some(60_000), poll_interval_ms: Some(60_000), ..Default::default() });
             })
             .build();
         let ws = create_on(&fx.rt, CreateOn::golden("a"), None).await.expect("a workspace").view.id;
@@ -944,7 +948,8 @@ fn two_sends_queued_behind_one_turn_run_in_order_each_after_the_one_before_it_en
         }
         settle().await;
         assert_eq!(held_prompts(&h), ["one"]);
-        let queued: Vec<String> = events.of("session.queued").iter().map(|e| e["prompt"].as_str().unwrap_or_default().to_string()).collect();
+        let queued: Vec<String> =
+            events.of("session.queued").iter().map(|e| e["prompt"].as_str().unwrap_or_default().to_string()).collect();
         assert_eq!(queued, ["two", "three"]);
         h.end(0, "one done", json!({}));
         waits.remove(0).await.expect("the second send");

@@ -73,7 +73,8 @@ fn is_recorded_under_the_turn_and_the_thread_steps_and_text_as_the_adapter_read_
         let fx = runtime(&backend).adapter("claude", planning()).build();
         let ws = create_on(&fx.rt, CreateOn::golden("plans"), None).await.expect("a workspace").view.id;
         let events = fx.events();
-        let handle = fx.rt.sessions().start(&ws, StartOptions { prompt: "plan it".into(), ..Default::default() }, None).await.expect("a start");
+        let handle =
+            fx.rt.sessions().start(&ws, StartOptions { prompt: "plan it".into(), ..Default::default() }, None).await.expect("a start");
         handle.finished().await;
         let start = events.of("session.start").into_iter().find(|e| e["prompt"] == "plan it").expect("the start");
         let plans = events.of("session.plan");

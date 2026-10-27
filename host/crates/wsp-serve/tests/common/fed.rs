@@ -44,7 +44,8 @@ pub fn lifecycle(uuid: &str, state: &str) -> String {
 }
 
 pub fn tasks(ids: &[&str]) -> String {
-    let rows: Vec<Value> = ids.iter().map(|id| json!({ "task_id": id, "task_type": "local_bash", "description": "pnpm exec vitest run" })).collect();
+    let rows: Vec<Value> =
+        ids.iter().map(|id| json!({ "task_id": id, "task_type": "local_bash", "description": "pnpm exec vitest run" })).collect();
     json!({ "type": "system", "subtype": "background_tasks_changed", "tasks": rows, "session_id": SID }).to_string()
 }
 

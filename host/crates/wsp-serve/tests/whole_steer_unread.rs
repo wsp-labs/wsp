@@ -19,7 +19,7 @@ use wsp_adapters::port::{
     AdapterError, AttachmentRoad, ExecFailure, HarnessAdapter, HarnessSession, HarnessStartOptions, OnEvent, SharedFuture, SteerOutcome,
     TurnImage, TurnResult,
 };
-use wsp_core::types::api::{SteerAsk, StartOptions};
+use wsp_core::types::api::{StartOptions, SteerAsk};
 use wsp_core::types::harness::HarnessAdapterFactory;
 use wsp_wire::types::attachments::Attachment;
 use wsp_wire::views::session::SessionOrigin;
@@ -38,7 +38,14 @@ fn dot() -> Attachment {
 
 fn uuid() -> String {
     let n: u128 = rand::random();
-    format!("{:08x}-{:04x}-4{:03x}-8{:03x}-{:012x}", (n >> 96) as u32, (n >> 80) as u16, (n >> 68) as u16 & 0xfff, (n >> 56) as u16 & 0xfff, n as u64 & 0xffff_ffff_ffff)
+    format!(
+        "{:08x}-{:04x}-4{:03x}-8{:03x}-{:012x}",
+        (n >> 96) as u32,
+        (n >> 80) as u16,
+        (n >> 68) as u16 & 0xfff,
+        (n >> 56) as u16 & 0xfff,
+        n as u64 & 0xffff_ffff_ffff
+    )
 }
 
 /// What a start was handed.
@@ -72,8 +79,12 @@ impl DrivenTurn {
             (self.on_event)(event(json!({ "type": "turn.unread", "sessionId": self.session, "ids": ids })));
         }
         let completed = j(&done)["status"] == "completed";
-        (self.on_event)(event(json!({ "type": "turn.done", "sessionId": self.session, "result": serde_json::to_value(&done).expect("a result") })));
-        (self.on_event)(event(json!({ "type": "session.end", "sessionId": self.session, "exitCode": if completed { 0 } else { 1 }, "sawResult": true })));
+        (self.on_event)(event(
+            json!({ "type": "turn.done", "sessionId": self.session, "result": serde_json::to_value(&done).expect("a result") }),
+        ));
+        (self.on_event)(event(
+            json!({ "type": "session.end", "sessionId": self.session, "exitCode": if completed { 0 } else { 1 }, "sawResult": true }),
+        ));
         if let Some(tx) = self.tx.borrow_mut().take() {
             let _ = tx.send(done);
         }
@@ -236,31 +247,33 @@ fn goes_again_with_the_images_it_carried_read_from_what_the_host_kept_of_its_ste
         let h = driven(true);
         let r = one(&h).await;
         let lead = r.fx.rt.sessions().start(&r.ws, start("orchestrate"), None).await.expect("a start");
-        let taken = r
-            .fx
-            .rt
-            .sessions()
-            .steer(&lead.id(), steer("what colour is this?", Some("req_2"), Some(vec![dot()])), None)
-            .await
-            .expect("a steer");
+        let taken =
+            r.fx.rt
+                .sessions()
+                .steer(&lead.id(), steer("what colour is this?", Some("req_2"), Some(vec![dot()])), None)
+                .await
+                .expect("a steer");
         assert_eq!(j(&taken), json!({ "outcome": "accepted" }));
         h.turn(0).end(failed("claude exited with code 137"), &["what colour is this?"]);
         starts_are(&h, 2).await;
         assert_eq!(
             h.starts()[1],
-            Start { prompt: "what colour is this?".into(), resume: Some(h.turn(0).session.clone()), images: vec![("image/png".into(), DOT_BYTES.into())] }
+            Start {
+                prompt: "what colour is this?".into(),
+                resume: Some(h.turn(0).session.clone()),
+                images: vec![("image/png".into(), DOT_BYTES.into())]
+            }
         );
         // The turn it opens names the image too, kept again under its own request, so the thread draws it on that row.
         let starts: Vec<Value> = history(&r.fx, &r.ws).await.into_iter().filter(|e| e["type"] == "session.start").collect();
         let last = starts.last().expect("a start").clone();
         assert_eq!(last["attachments"], json!([{ "mediaType": "image/png", "bytes": 70, "name": "dot.png" }]));
-        let kept = r
-            .fx
-            .rt
-            .sessions()
-            .attachment(&r.ws, last["threadId"].as_str().expect("a thread"), last["requestId"].as_str().expect("a request"), 0, None)
-            .await
-            .expect("the image");
+        let kept =
+            r.fx.rt
+                .sessions()
+                .attachment(&r.ws, last["threadId"].as_str().expect("a thread"), last["requestId"].as_str().expect("a request"), 0, None)
+                .await
+                .expect("the image");
         assert_eq!(j(&kept), json!({ "mediaType": "image/png", "bytes": DOT_BYTES }));
         h.turn(1).end(json!({ "status": "completed", "text": "a dot" }), &[]);
         r.fx.rt.close().await.expect("a close");
@@ -279,7 +292,10 @@ fn is_told_to_the_person_and_not_sent_again_when_the_person_stopped_the_turn() {
         assert_eq!(j(&stopped)["outcome"], "accepted");
         until(|| async { history(&r.fx, &r.ws).await.iter().any(|e| e["type"] == "session.notify") }).await;
         let told = history(&r.fx, &r.ws).await.into_iter().find(|e| e["type"] == "session.notify").expect("a notify");
-        assert_matches(&told, json!({ "threadId": j(&lead.view().thread_id), "turnId": lead.turn_id(), "notify": NOTIFY_ME, "text": unread_line(LINE) }));
+        assert_matches(
+            &told,
+            json!({ "threadId": j(&lead.view().thread_id), "turnId": lead.turn_id(), "notify": NOTIFY_ME, "text": unread_line(LINE) }),
+        );
         sleep_ms(30).await;
         assert_eq!(h.starts().len(), 1);
         r.fx.rt.close().await.expect("a close");
@@ -382,7 +398,11 @@ fn held_for_the_wake_keeps_its_images_across_a_host_restart() {
         starts_are(&h, 2).await;
         assert_eq!(
             h.starts()[1],
-            Start { prompt: "what colour is this?".into(), resume: Some(h.turn(0).session.clone()), images: vec![("image/png".into(), DOT_BYTES.into())] }
+            Start {
+                prompt: "what colour is this?".into(),
+                resume: Some(h.turn(0).session.clone()),
+                images: vec![("image/png".into(), DOT_BYTES.into())]
+            }
         );
         h.turn(1).end(json!({ "status": "completed", "text": "a dot" }), &[]);
         rt2.rt.close().await.expect("a close");
@@ -407,4 +427,3 @@ fn waits_for_the_wake_of_a_workspace_whose_nap_cut_the_turn_and_goes_then_as_the
         r.fx.rt.close().await.expect("a close");
     });
 }
-

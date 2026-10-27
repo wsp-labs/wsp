@@ -54,7 +54,9 @@ struct Daemons {
 fn fake_daemons() -> Daemons {
     let copy: HashMap<String, Answer> = HashMap::from([(
         "git.status".to_string(),
-        Rc::new(|_: &Frame| json!({ "id": 1, "ok": true, "branch": { "oid": "abc", "head": "lab/review-me", "ahead": 0, "behind": 0 }, "entries": [], "root": "/root/stub" })) as Answer,
+        Rc::new(
+            |_: &Frame| json!({ "id": 1, "ok": true, "branch": { "oid": "abc", "head": "lab/review-me", "ahead": 0, "behind": 0 }, "entries": [], "root": "/root/stub" }),
+        ) as Answer,
     )]);
     Daemons { frames: Rc::default(), here: Rc::default(), copy: Rc::new(RefCell::new(copy)) }
 }
@@ -153,7 +155,16 @@ impl HarnessAdapter for ReplyingAdapter {
     fn start(&self, o: HarnessStartOptions) -> Result<Arc<dyn HarnessSession>, AdapterError> {
         self.agent.starts.borrow_mut().push(Started { prompt: o.prompt.clone(), permission_mode: o.permission_mode.clone() });
         let n: u128 = rand::random();
-        let session_id = o.resume.clone().unwrap_or_else(|| format!("{:08x}-{:04x}-4{:03x}-8{:03x}-{:012x}", (n >> 96) as u32, (n >> 80) as u16, (n >> 68) as u16 & 0xfff, (n >> 56) as u16 & 0xfff, n as u64 & 0xffff_ffff_ffff));
+        let session_id = o.resume.clone().unwrap_or_else(|| {
+            format!(
+                "{:08x}-{:04x}-4{:03x}-8{:03x}-{:012x}",
+                (n >> 96) as u32,
+                (n >> 80) as u16,
+                (n >> 68) as u16 & 0xfff,
+                (n >> 56) as u16 & 0xfff,
+                n as u64 & 0xffff_ffff_ffff
+            )
+        });
         let text = self.agent.replies.borrow_mut().pop_front().unwrap_or_else(|| "done".into());
         let done = result(json!({ "status": "completed", "text": text }));
         let on_event = o.on_event.clone().expect("an event sink");
@@ -278,14 +289,29 @@ fn pull_request(repo: &str, over: Value) -> Value {
 }
 
 fn diff() -> String {
-    ["diff --git a/check.sh b/check.sh", "--- a/check.sh", "+++ b/check.sh", "@@ -1,3 +1,4 @@", " #!/bin/sh", "+unused=1", " exit 0", " # end", ""].join("\n")
+    [
+        "diff --git a/check.sh b/check.sh",
+        "--- a/check.sh",
+        "+++ b/check.sh",
+        "@@ -1,3 +1,4 @@",
+        " #!/bin/sh",
+        "+unused=1",
+        " exit 0",
+        " # end",
+        "",
+    ]
+    .join("\n")
 }
 
 /// This computer answering for a pull request: its read by number, its text as an issue, and its diff.
 fn answers_pull_request(d: &Daemons, repo: &str, over: Value) {
     let (repo_for_pr, repo_for_issue) = (repo.to_string(), repo.to_string());
     d.answer(Road::Here, "git.prRead", move |_| json!({ "id": 1, "ok": true, "pr": pull_request(&repo_for_pr, over.clone()) }));
-    d.answer(Road::Here, "git.issueRead", issue_read(7, &format!("https://github.com/{repo_for_issue}/pull/7"), "Rename the status word", "Renames the word."));
+    d.answer(
+        Road::Here,
+        "git.issueRead",
+        issue_read(7, &format!("https://github.com/{repo_for_issue}/pull/7"), "Rename the status word", "Renames the word."),
+    );
     d.answer(Road::Here, "git.prDiff", |_| json!({ "id": 1, "ok": true, "diff": diff(), "truncated": false, "left": [] }));
     d.answer(Road::Copy, "git.prCheckout", |_| json!({ "id": 1, "ok": true, "branch": "lab/review-me" }));
 }
@@ -306,7 +332,8 @@ fn review_doc() -> Value {
 }
 
 fn as_thread(thread: &str, root: &str, workspace: &str) -> Caller {
-    let by = serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "rootThreadId": root, "workspaceId": workspace })).expect("a scope");
+    let by = serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "rootThreadId": root, "workspaceId": workspace }))
+        .expect("a scope");
     Caller::Scoped { origin: WorkspaceOrigin::Relayed, by }
 }
 
@@ -319,7 +346,12 @@ fn review_of(url: &str, agent: Option<&str>) -> ReviewAsk {
 }
 
 async fn draft(w: &World, workspace: &str) -> Option<Value> {
-    w.fx.rt.workspaces().review_draft(ReviewDraftAsk { workspace_id: workspace.into(), ..Default::default() }, None).await.expect("a draft").map(|d| j(&d))
+    w.fx.rt
+        .workspaces()
+        .review_draft(ReviewDraftAsk { workspace_id: workspace.into(), ..Default::default() }, None)
+        .await
+        .expect("a draft")
+        .map(|d| j(&d))
 }
 
 async fn wait_for<F: std::future::Future<Output = bool>>(mut f: impl FnMut() -> F) {
@@ -334,11 +366,18 @@ fn makes_the_workspace_off_the_issue_records_where_it_came_from_opens_the_thread
         let daemons = fake_daemons();
         let w = with_project(&daemons, vec![("claude", agent.factory())]).await;
         let url = format!("https://github.com/{}/issues/5", w.repo);
-        daemons.answer(Road::Here, "git.issueRead", issue_read(5, &url, "Add a greeting line to notes.txt", "The first line should say hello."));
+        daemons.answer(
+            Road::Here,
+            "git.issueRead",
+            issue_read(5, &url, "Add a greeting line to notes.txt", "The first line should say hello."),
+        );
         let started = w.fx.rt.workspaces().start(link(&url, Some("claude")), None).await.expect("a start");
         let view = j(&started.workspace);
         assert_eq!(view["name"], "#5 Add a greeting line to notes.txt");
-        assert_matches(&view["from"], json!({ "kind": "issue", "repo": w.repo, "number": 5, "url": url, "title": "Add a greeting line to notes.txt" }));
+        assert_matches(
+            &view["from"],
+            json!({ "kind": "issue", "repo": w.repo, "number": 5, "url": url, "title": "Add a greeting line to notes.txt" }),
+        );
         let (road, frame) = daemons.frame("git.issueRead").expect("the read");
         assert_eq!(road, Road::Here);
         assert_matches(&frame, json!({ "op": "git.issueRead", "remote": w.remote, "number": 5 }));
@@ -360,7 +399,8 @@ fn refuses_a_link_no_project_here_is_a_checkout_of_in_one_sentence_naming_the_re
     drive(|| async {
         let daemons = fake_daemons();
         let w = with_project(&daemons, vec![]).await;
-        let first = w.fx.rt.workspaces().start(link("https://github.com/someone/else/issues/1", None), None).await.err().expect("a refusal");
+        let first =
+            w.fx.rt.workspaces().start(link("https://github.com/someone/else/issues/1", None), None).await.err().expect("a refusal");
         assert!(first.message.contains(&START_WORDS::no_project_for_repo("someone/else")), "{}", first.message);
         let second = w.fx.rt.workspaces().start(link("fix the flaky test", None), None).await.err().expect("a refusal");
         assert!(second.message.contains(&START_WORDS::not_a_link("fix the flaky test")), "{}", second.message);
@@ -377,10 +417,18 @@ fn checks_the_copy_out_on_the_pull_requests_head_after_the_create_and_records_it
         let daemons = fake_daemons();
         let w = with_project(&daemons, vec![("claude", agent.factory())]).await;
         answers_pull_request(&daemons, &w.repo, json!({}));
-        let started = w.fx.rt.workspaces().start(link(&format!("https://github.com/{}/pull/7", w.repo), Some("claude")), None).await.expect("a start");
+        let started =
+            w.fx.rt
+                .workspaces()
+                .start(link(&format!("https://github.com/{}/pull/7", w.repo), Some("claude")), None)
+                .await
+                .expect("a start");
         let view = j(&started.workspace);
         assert_eq!(view["name"], "#7 Rename the status word");
-        assert_matches(&view["from"], json!({ "kind": "pull_request", "number": 7, "base": "main", "head": { "branch": "lab/review-me" } }));
+        assert_matches(
+            &view["from"],
+            json!({ "kind": "pull_request", "number": 7, "base": "main", "head": { "branch": "lab/review-me" } }),
+        );
         let (road, checkout) = daemons.frame("git.prCheckout").expect("the checkout");
         assert_eq!(road, Road::Copy);
         assert_matches(&checkout, json!({ "op": "git.prCheckout", "number": 7 }));
@@ -405,7 +453,13 @@ fn deletes_the_half_made_workspace_and_answers_the_checkouts_own_sentence_where_
         answers_pull_request(&daemons, &w.repo, json!({}));
         let said = "no signed-in command line for github.com is on this computer; the branch is pushed and the pull request waits for one";
         daemons.answer(Road::Copy, "git.prCheckout", move |_| json!({ "id": 1, "ok": false, "code": "no-host-cli", "error": said }));
-        let refused = w.fx.rt.workspaces().start(link(&format!("https://github.com/{}/pull/7", w.repo), Some("claude")), None).await.err().expect("a refusal");
+        let refused =
+            w.fx.rt
+                .workspaces()
+                .start(link(&format!("https://github.com/{}/pull/7", w.repo), Some("claude")), None)
+                .await
+                .err()
+                .expect("a refusal");
         assert!(refused.message.contains(said), "{}", refused.message);
         wait_for(|| async { w.fx.rt.workspaces().list(None).await.expect("a list").is_empty() }).await;
         w.fx.rt.close().await.expect("a close");
@@ -419,7 +473,12 @@ fn refuses_to_bring_back_to_a_fork_whose_author_allowed_no_edits_before_anything
         let daemons = fake_daemons();
         let w = with_project(&daemons, vec![("claude", replying_agent(&[]).factory())]).await;
         answers_pull_request(&daemons, &w.repo, json!({ "fork": { "owner": "ana", "pushable": false } }));
-        let started = w.fx.rt.workspaces().start(link(&format!("https://github.com/{}/pull/7", w.repo), Some("claude")), None).await.expect("a start");
+        let started =
+            w.fx.rt
+                .workspaces()
+                .start(link(&format!("https://github.com/{}/pull/7", w.repo), Some("claude")), None)
+                .await
+                .expect("a start");
         let refused = w.fx.rt.workspaces().bring_back(&started.workspace.id, None, None, None).await.err().expect("a refusal");
         assert!(refused.message.contains(&START_WORDS::fork_not_pushable("ana")), "{}", refused.message);
         assert!(!daemons.ops(None).contains(&"git.push".to_string()));
@@ -435,7 +494,8 @@ fn opens_the_reviewer_at_its_harnesss_read_only_word_with_the_diff_in_its_task_c
         let daemons = fake_daemons();
         let w = with_project(&daemons, vec![("codex", codex.factory())]).await;
         answers_pull_request(&daemons, &w.repo, json!({}));
-        let started = w.fx.rt.workspaces().review(review_of(&format!("https://github.com/{}/pull/7", w.repo), None), None).await.expect("a review");
+        let started =
+            w.fx.rt.workspaces().review(review_of(&format!("https://github.com/{}/pull/7", w.repo), None), None).await.expect("a review");
         let view = j(&started.workspace);
         assert_eq!(view["name"], "Review #7 Rename the status word");
         assert_eq!(view["from"]["kind"], "review");
@@ -456,14 +516,13 @@ fn refuses_a_harness_with_no_read_only_word_naming_the_two_that_have_one() {
         let daemons = fake_daemons();
         let w = with_project(&daemons, vec![("gemini", replying_agent(&[]).factory())]).await;
         answers_pull_request(&daemons, &w.repo, json!({}));
-        let refused = w
-            .fx
-            .rt
-            .workspaces()
-            .review(review_of(&format!("https://github.com/{}/pull/7", w.repo), Some("gemini")), None)
-            .await
-            .err()
-            .expect("a refusal");
+        let refused =
+            w.fx.rt
+                .workspaces()
+                .review(review_of(&format!("https://github.com/{}/pull/7", w.repo), Some("gemini")), None)
+                .await
+                .err()
+                .expect("a refusal");
         assert!(refused.message.contains(&START_WORDS::no_read_only("gemini", &["codex", "claude"])), "{}", refused.message);
         w.fx.rt.close().await.expect("a close");
     });
@@ -486,11 +545,15 @@ fn keeps_the_replys_review_as_the_draft_at_the_turns_end_marks_a_comment_outside
                 Ok(())
             }),
         );
-        let started = w.fx.rt.workspaces().review(review_of(&format!("https://github.com/{}/pull/7", w.repo), None), None).await.expect("a review");
+        let started =
+            w.fx.rt.workspaces().review(review_of(&format!("https://github.com/{}/pull/7", w.repo), None), None).await.expect("a review");
         let id = started.workspace.id.clone();
         wait_for(|| async { draft(&w, &id).await.is_some() }).await;
         let review = draft(&w, &id).await.expect("a draft");
-        assert_matches(&review, json!({ "verdict": "request_changes", "summary": "One unused variable.", "headOid": HEAD, "threadId": started.thread_id }));
+        assert_matches(
+            &review,
+            json!({ "verdict": "request_changes", "summary": "One unused variable.", "headOid": HEAD, "threadId": started.thread_id }),
+        );
         let comments: Vec<(i64, bool, bool)> = review["comments"]
             .as_array()
             .expect("comments")
@@ -512,16 +575,20 @@ fn reads_the_draft_off_the_reviewers_thread_alone_another_thread_in_the_reviews_
         let daemons = fake_daemons();
         let w = with_project(&daemons, vec![("codex", codex.factory())]).await;
         answers_pull_request(&daemons, &w.repo, json!({}));
-        let started = w.fx.rt.workspaces().review(review_of(&format!("https://github.com/{}/pull/7", w.repo), None), None).await.expect("a review");
+        let started =
+            w.fx.rt.workspaces().review(review_of(&format!("https://github.com/{}/pull/7", w.repo), None), None).await.expect("a review");
         let id = started.workspace.id.clone();
         wait_for(|| async { draft(&w, &id).await.is_some() }).await;
-        let other = w
-            .fx
-            .rt
-            .sessions()
-            .start(&id, StartOptions { prompt: "what does this rename touch?".into(), harness: Some("codex".into()), ..Default::default() }, None)
-            .await
-            .expect("a start");
+        let other =
+            w.fx.rt
+                .sessions()
+                .start(
+                    &id,
+                    StartOptions { prompt: "what does this rename touch?".into(), harness: Some("codex".into()), ..Default::default() },
+                    None,
+                )
+                .await
+                .expect("a start");
         other.finished().await;
         assert_ne!(other.view().thread_id.as_deref(), Some(started.thread_id.as_str()));
         sleep_ms(50).await;
@@ -539,7 +606,8 @@ fn asks_the_reviewer_once_more_where_its_block_does_not_read_and_leaves_the_sent
         let daemons = fake_daemons();
         let w = with_project(&daemons, vec![("codex", codex.factory())]).await;
         answers_pull_request(&daemons, &w.repo, json!({}));
-        let started = w.fx.rt.workspaces().review(review_of(&format!("https://github.com/{}/pull/7", w.repo), None), None).await.expect("a review");
+        let started =
+            w.fx.rt.workspaces().review(review_of(&format!("https://github.com/{}/pull/7", w.repo), None), None).await.expect("a review");
         wait_for(|| async { codex.count() == 2 }).await;
         let again = codex.starts.borrow()[1].prompt.clone();
         assert!(again.contains("could not be read: the reply has no fenced json block"), "{again}");
@@ -561,10 +629,12 @@ fn posts_the_ticked_comments_alone_pinned_to_the_drafts_head_with_the_persons_ve
         answers_pull_request(&daemons, &w.repo, json!({}));
         let repo = w.repo.clone();
         daemons.answer(Road::Here, "git.prReview", move |frame| {
-            let folded: Vec<Value> = frame["comments"].as_array().expect("comments").iter().filter(|c| c["line"] == 40).map(|c| c["id"].clone()).collect();
+            let folded: Vec<Value> =
+                frame["comments"].as_array().expect("comments").iter().filter(|c| c["line"] == 40).map(|c| c["id"].clone()).collect();
             json!({ "id": 1, "ok": true, "url": format!("https://github.com/{repo}/pull/7#pullrequestreview-1"), "folded": folded })
         });
-        let started = w.fx.rt.workspaces().review(review_of(&format!("https://github.com/{}/pull/7", w.repo), None), None).await.expect("a review");
+        let started =
+            w.fx.rt.workspaces().review(review_of(&format!("https://github.com/{}/pull/7", w.repo), None), None).await.expect("a review");
         let id = started.workspace.id.clone();
         let name = j(&started.workspace)["name"].as_str().expect("a name").to_string();
         let none = w.fx.rt.workspaces().review_post(&id, None, None).await.err().expect("a refusal");
@@ -575,8 +645,7 @@ fn posts_the_ticked_comments_alone_pinned_to_the_drafts_head_with_the_persons_ve
         wait_for(|| async { draft(&w, &id).await.is_some() }).await;
         let drafted = draft(&w, &id).await.expect("a draft");
         let first_comment = drafted["comments"][0]["id"].as_str().expect("a comment").to_string();
-        w.fx
-            .rt
+        w.fx.rt
             .workspaces()
             .review_draft(
                 ReviewDraftAsk {
@@ -592,10 +661,17 @@ fn posts_the_ticked_comments_alone_pinned_to_the_drafts_head_with_the_persons_ve
         let posted = j(&w.fx.rt.workspaces().review_post(&id, None, None).await.expect("a post"));
         let (road, sent) = daemons.frame("git.prReview").expect("the post");
         assert_eq!(road, Road::Here);
-        assert_matches(&sent, json!({ "remote": w.remote, "number": 7, "headOid": HEAD, "event": "comment", "body": "One unused variable, and a nit." }));
-        let lines: Vec<i64> = sent["comments"].as_array().expect("comments").iter().map(|c| c["line"].as_i64().unwrap_or_default()).collect();
+        assert_matches(
+            &sent,
+            json!({ "remote": w.remote, "number": 7, "headOid": HEAD, "event": "comment", "body": "One unused variable, and a nit." }),
+        );
+        let lines: Vec<i64> =
+            sent["comments"].as_array().expect("comments").iter().map(|c| c["line"].as_i64().unwrap_or_default()).collect();
         assert_eq!(lines, [40]);
-        assert_matches(&posted, json!({ "url": format!("https://github.com/{}/pull/7#pullrequestreview-1", w.repo), "comments": 0, "folded": 1 }));
+        assert_matches(
+            &posted,
+            json!({ "url": format!("https://github.com/{}/pull/7#pullrequestreview-1", w.repo), "comments": 0, "folded": 1 }),
+        );
         let after = draft(&w, &id).await.expect("a draft");
         assert_matches(&after, json!({ "posted": { "url": posted["url"] } }));
         w.fx.rt.close().await.expect("a close");
@@ -609,9 +685,21 @@ fn is_refused_a_start_a_review_and_a_post_which_are_the_persons_acts() {
         let daemons = fake_daemons();
         let w = with_project(&daemons, vec![]).await;
         let scope = as_thread("thr_1", "thr_1", "ws_x");
-        let started = w.fx.rt.workspaces().start(link(&format!("https://github.com/{}/issues/5", w.repo), None), Some(scope.clone())).await.err().expect("a refusal");
+        let started =
+            w.fx.rt
+                .workspaces()
+                .start(link(&format!("https://github.com/{}/issues/5", w.repo), None), Some(scope.clone()))
+                .await
+                .err()
+                .expect("a refusal");
         assert!(started.message.contains(SpawnAct::Start.words()), "{}", started.message);
-        let review = w.fx.rt.workspaces().review(review_of(&format!("https://github.com/{}/pull/7", w.repo), None), Some(scope.clone())).await.err().expect("a refusal");
+        let review =
+            w.fx.rt
+                .workspaces()
+                .review(review_of(&format!("https://github.com/{}/pull/7", w.repo), None), Some(scope.clone()))
+                .await
+                .err()
+                .expect("a refusal");
         assert!(review.message.contains(SpawnAct::Review.words()), "{}", review.message);
         let post = w.fx.rt.workspaces().review_post("ws_x", None, Some(scope)).await.err().expect("a refusal");
         assert!(post.message.contains(SpawnAct::ReviewPost.words()), "{}", post.message);

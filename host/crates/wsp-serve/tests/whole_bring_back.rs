@@ -62,7 +62,9 @@ async fn with_workspace(daemon: &Rc<RecDaemon>, base: Option<&str>) -> Ws {
         })
         .build();
     let project = project_with(&fx.rt, None, None, None, base).await.expect("a project").id;
-    let ws = create_on(&fx.rt, CreateOn { project: Some(project.clone()), ..CreateOn::golden("pricing page") }, None).await.expect("a workspace");
+    let ws = create_on(&fx.rt, CreateOn { project: Some(project.clone()), ..CreateOn::golden("pricing page") }, None)
+        .await
+        .expect("a workspace");
     Ws { fx, backend, id: ws.view.id, project }
 }
 
@@ -92,13 +94,12 @@ fn a_workspace_with_no_parent_pushes_and_opens_the_pull_request_against_the_proj
     drive(|| async {
         let daemon = fake_daemon();
         let w = with_workspace(&daemon, Some("main")).await;
-        let back = w
-            .fx
-            .rt
-            .workspaces()
-            .bring_back(&w.id, Some("the pricing page".into()), Some("what it does".into()), None)
-            .await
-            .expect("a bring back");
+        let back =
+            w.fx.rt
+                .workspaces()
+                .bring_back(&w.id, Some("the pricing page".into()), Some("what it does".into()), None)
+                .await
+                .expect("a bring back");
         let frames: Vec<Value> = daemon.frames.borrow().iter().map(frame_json).collect();
         assert_eq!(
             frames,
@@ -343,8 +344,12 @@ fn any_other_refusal_of_the_pull_request_comes_back_beside_the_push_since_the_br
         assert!(back.get("note").is_none());
         assert!(back.get("pr").is_none());
         // The push's own fields are the answer's first half, whatever the pull request half then said.
-        let first: Value = ["branch", "base", "ahead", "uncommitted", "stat"].iter().map(|k| ((*k).to_string(), back[*k].clone())).collect();
-        assert_eq!(first, json!({ "branch": "pricing-page", "base": "main", "ahead": 2, "uncommitted": 1, "stat": [" src/page.tsx | 4 ++--"] }));
+        let first: Value =
+            ["branch", "base", "ahead", "uncommitted", "stat"].iter().map(|k| ((*k).to_string(), back[*k].clone())).collect();
+        assert_eq!(
+            first,
+            json!({ "branch": "pricing-page", "base": "main", "ahead": 2, "uncommitted": 1, "stat": [" src/page.tsx | 4 ++--"] })
+        );
         w.fx.rt.close().await.expect("a close");
     });
 }

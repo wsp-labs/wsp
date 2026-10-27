@@ -8,7 +8,7 @@ use std::rc::Rc;
 
 use common::*;
 use serde_json::{json, Value};
-use wsp_core::types::api::{SteerAsk, StartOptions};
+use wsp_core::types::api::{StartOptions, SteerAsk};
 use wsp_store::store::Store;
 use wsp_wire::types::attachments::Attachment;
 use wsp_words::attachments::attachment_record;
@@ -100,7 +100,8 @@ fn goes_into_the_running_turn_with_its_bytes_the_row_records_it_and_the_host_kee
         let listed = r.fx.rt.harnesses().list(Some(r.ws.clone()), None, None).await.expect("a list");
         let claude = listed.iter().map(j).find(|c| c["harness"] == "claude").expect("claude's catalog");
         assert_eq!(claude["steersImages"], true);
-        let taken = r.fx.rt.sessions().steer(&r.first.id(), steer("what is in this picture?", "req_2", vec![png()]), None).await.expect("a steer");
+        let taken =
+            r.fx.rt.sessions().steer(&r.first.id(), steer("what is in this picture?", "req_2", vec![png()]), None).await.expect("a steer");
         assert_eq!(j(&taken), json!({ "outcome": "accepted" }));
         assert_eq!(steered_of(&r.h), [json!({ "prompt": "what is in this picture?", "images": [image_json(&png())] })]);
         let steers = r.steers();
@@ -164,7 +165,8 @@ fn is_refused_on_a_harness_whose_steer_reads_no_image_naming_it_and_nothing_reac
         let r = running(false, None).await;
         let image = r.fx.rt.sessions().steer(&r.first.id(), steer("and this?", "req_2", vec![png()]), None).await.err().expect("a refusal");
         assert!(image.message.contains("claude takes no image into a running turn"), "{}", image.message);
-        let file = r.fx.rt.sessions().steer(&r.first.id(), steer("and these?", "req_3", vec![notes()]), None).await.err().expect("a refusal");
+        let file =
+            r.fx.rt.sessions().steer(&r.first.id(), steer("and these?", "req_3", vec![notes()]), None).await.err().expect("a refusal");
         assert!(file.message.contains("a file that is not an image goes only with a message that starts a turn"), "{}", file.message);
         assert!(r.h.steered.borrow().is_empty());
         assert!(r.steers().is_empty());
@@ -234,7 +236,10 @@ fn waits_for_the_turn_to_end_and_starts_the_next_with_its_image_where_the_steer_
             assert!(prompts[1].contains("with a file"), "{}", prompts[1]);
             if file.media_type == "image/png" {
                 let images = r.h.starts.borrow()[1].images.clone();
-                assert_eq!(images.iter().map(|i| json!({ "mediaType": i.media_type, "bytes": i.bytes })).collect::<Vec<_>>(), [image_json(&png())]);
+                assert_eq!(
+                    images.iter().map(|i| json!({ "mediaType": i.media_type, "bytes": i.bytes })).collect::<Vec<_>>(),
+                    [image_json(&png())]
+                );
             }
             r.h.end(1, "ok");
             r.fx.rt.close().await.expect("a close");

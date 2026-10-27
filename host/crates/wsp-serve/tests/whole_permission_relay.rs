@@ -20,8 +20,8 @@ use futures::FutureExt as _;
 use indexmap::IndexMap;
 use serde_json::{json, Value};
 use wsp_adapters::port::{
-    AccessOutcome, AdapterError, AnswerOutcome, ExecFailure, HarnessAdapter, HarnessSession, HarnessStartOptions, OnEvent, PermissionAnswer,
-    SharedFuture, TurnResult, PERMISSION_ALLOW,
+    AccessOutcome, AdapterError, AnswerOutcome, ExecFailure, HarnessAdapter, HarnessSession, HarnessStartOptions, OnEvent,
+    PermissionAnswer, SharedFuture, TurnResult, PERMISSION_ALLOW,
 };
 use wsp_core::clock::FakeClock;
 use wsp_core::types::api::StartOptions;
@@ -43,7 +43,14 @@ const PERMISSION_DENY: &str = "deny";
 
 fn uuid() -> String {
     let n: u128 = rand::random();
-    format!("{:08x}-{:04x}-4{:03x}-8{:03x}-{:012x}", (n >> 96) as u32, (n >> 80) as u16, (n >> 68) as u16 & 0xfff, (n >> 56) as u16 & 0xfff, n as u64 & 0xffff_ffff_ffff)
+    format!(
+        "{:08x}-{:04x}-4{:03x}-8{:03x}-{:012x}",
+        (n >> 96) as u32,
+        (n >> 80) as u16,
+        (n >> 68) as u16 & 0xfff,
+        (n >> 56) as u16 & 0xfff,
+        n as u64 & 0xffff_ffff_ffff
+    )
 }
 
 fn ask_doc() -> Value {
@@ -86,10 +93,18 @@ impl Turn {
         let ids: Vec<String> = self.open.borrow().keys().cloned().collect();
         for ask_id in ids {
             self.open.borrow_mut().shift_remove(&ask_id);
-            (self.on_event)(event(json!({ "type": "permission.close", "sessionId": self.session, "askId": ask_id, "outcome": "cancelled" })));
+            (self.on_event)(event(
+                json!({ "type": "permission.close", "sessionId": self.session, "askId": ask_id, "outcome": "cancelled" }),
+            ));
         }
-        let done = result(if self.interrupted.get() { json!({ "status": "interrupted" }) } else { json!({ "status": "completed", "text": "done" }) });
-        (self.on_event)(event(json!({ "type": "turn.done", "sessionId": self.session, "result": serde_json::to_value(&done).expect("a result") })));
+        let done = result(if self.interrupted.get() {
+            json!({ "status": "interrupted" })
+        } else {
+            json!({ "status": "completed", "text": "done" })
+        });
+        (self.on_event)(event(
+            json!({ "type": "turn.done", "sessionId": self.session, "result": serde_json::to_value(&done).expect("a result") }),
+        ));
         (self.on_event)(event(json!({ "type": "session.end", "sessionId": self.session, "exitCode": 0, "sawResult": true })));
         let _ = tx.send(done);
     }
@@ -225,7 +240,9 @@ impl HarnessAdapter for Dying {
         let (emit_id, finish) = (id.clone(), done.clone());
         tokio::task::spawn_local(async move {
             tokio::task::yield_now().await;
-            on_event(event(json!({ "type": "turn.done", "sessionId": emit_id, "result": serde_json::to_value(&finish).expect("a result") })));
+            on_event(event(
+                json!({ "type": "turn.done", "sessionId": emit_id, "result": serde_json::to_value(&finish).expect("a result") }),
+            ));
             on_event(event(json!({ "type": "session.end", "sessionId": emit_id, "exitCode": 1, "sawResult": false })));
             let _ = tx.send(finish);
         });
@@ -267,7 +284,8 @@ fn on_thread(prompt: &str, thread: &str) -> StartOptions {
 }
 
 fn scope_of(thread: &str, workspace: &str) -> Caller {
-    let by = serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": workspace, "rootThreadId": thread })).expect("a scope");
+    let by = serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": workspace, "rootThreadId": thread }))
+        .expect("a scope");
     Caller::Scoped { origin: WorkspaceOrigin::Here, by }
 }
 
@@ -445,18 +463,22 @@ fn is_answered_by_its_rows_session_id_on_a_claude_thread_asking_in_a_mode_that_a
     drive(|| async {
         let r = relay_with(vec![], Ids::ClaudeRekey);
         let ws = create_on(&r.fx.rt, CreateOn::named("mac").on("here"), None).await.expect("a workspace").view.id;
-        let first = r.fx.rt.sessions().start(&ws, StartOptions { permission_mode: Some("default".into()), ..start("one") }, None).await.expect("a start");
+        let first =
+            r.fx.rt
+                .sessions()
+                .start(&ws, StartOptions { permission_mode: Some("default".into()), ..start("one") }, None)
+                .await
+                .expect("a start");
         r.turns_are(1).await;
         r.turn(0).reply();
         first.finished().await;
         let thread = first.view().thread_id.expect("a thread");
-        let next = r
-            .fx
-            .rt
-            .sessions()
-            .start(&ws, StartOptions { permission_mode: Some("default".into()), ..on_thread("write it", &thread) }, None)
-            .await
-            .expect("a start");
+        let next =
+            r.fx.rt
+                .sessions()
+                .start(&ws, StartOptions { permission_mode: Some("default".into()), ..on_thread("write it", &thread) }, None)
+                .await
+                .expect("a start");
         r.turns_are(2).await;
         let turn = r.turn(1);
         allow_by_row(&r, &ws, &turn, &next.id()).await;
@@ -539,7 +561,9 @@ fn a_deny_with_the_persons_reason_tells_the_agent_the_reason_and_an_answer_typed
             json!({ "outcome": "denied", "denyMessage": denied_line(Some("Run only the thread-rows file")), "reason": "Run only the thread-rows file" }),
         );
         let input = json!({ "questions": [{ "question": "Which one?", "header": "Pick", "options": [{ "label": "A" }, { "label": "B" }], "multiSelect": false }] }).to_string();
-        turn.raise(json!({ "askId": "ask_q", "toolName": QUESTION_TOOL, "input": input, "options": j(&question_options(QUESTION_TOOL, &input)) }));
+        turn.raise(
+            json!({ "askId": "ask_q", "toolName": QUESTION_TOOL, "input": input, "options": j(&question_options(QUESTION_TOOL, &input)) }),
+        );
         r.prompts_are(&ws, 2).await;
         let typed = other_option_id(0, "neither, C");
         assert_eq!(r.answer(&handle.id(), answer_ask("ask_q", &typed, None)).await, json!({ "outcome": "answered" }));
@@ -640,7 +664,8 @@ fn a_turn_the_runtime_cuts_under_an_open_prompt_closes_its_row_and_stops_its_wai
         let at = |kind: &str| cut.iter().position(|e| e["type"] == kind).expect("an event");
         assert!(at("session.permission.closed") < at("session.end"));
         // A paused workspace refuses the verb in its own words, as a send gets, and the closed row offers nothing anyway.
-        let paused = r.fx.rt.sessions().answer(&handle.id(), answer_ask("ask_1", PERMISSION_ALLOW, None), None).await.err().expect("a refusal");
+        let paused =
+            r.fx.rt.sessions().answer(&handle.id(), answer_ask("ask_1", PERMISSION_ALLOW, None), None).await.err().expect("a refusal");
         assert!(paused.message.contains("Workspace is paused; wake it to send"), "{}", paused.message);
 
         // Nothing is left waiting on a turn that is over, and no second row lands however long the clock runs.
@@ -658,10 +683,20 @@ fn a_thread_of_another_tree_forgetting_a_thread_on_the_workspace_is_told_not_fou
         let r = relay_with(vec![("codex", dying())], Ids::One);
         let ws = create_on(&r.fx.rt, CreateOn::named("mac").on("here"), None).await.expect("a workspace").view.id;
         // A launch that never got going: the one thread shape forget takes, so what holds it back here is the tree.
-        let junk = r.fx.rt.sessions().start(&ws, StartOptions { harness: Some("codex".into()), ..start("never got going") }, None).await.expect("a start");
+        let junk =
+            r.fx.rt
+                .sessions()
+                .start(&ws, StartOptions { harness: Some("codex".into()), ..start("never got going") }, None)
+                .await
+                .expect("a start");
         junk.finished().await;
         let target = junk.view().thread_id.expect("a thread");
-        let beside = r.fx.rt.sessions().start(&ws, StartOptions { harness: Some("claude".into()), ..start("beside it") }, None).await.expect("a start");
+        let beside =
+            r.fx.rt
+                .sessions()
+                .start(&ws, StartOptions { harness: Some("claude".into()), ..start("beside it") }, None)
+                .await
+                .expect("a start");
         r.turns_are(1).await;
         let beside_thread = beside.view().thread_id.expect("a thread");
         let outside = scope_of(&beside_thread, &ws);
@@ -717,14 +752,16 @@ fn a_thread_of_another_tree_on_the_workspace_is_told_not_found_as_the_interrupt_
         // nothing, so a thread of one tree cannot grant what another tree's agent asked to do.
         let stopped = r.fx.rt.sessions().interrupt(&handle.id(), Some(outside.clone()), None).await.expect("an answer");
         assert_eq!(j(&stopped), json!({ "outcome": "not-found" }));
-        let answered = r.fx.rt.sessions().answer(&handle.id(), answer_ask("ask_1", PERMISSION_ALLOW, None), Some(outside)).await.expect("an answer");
+        let answered =
+            r.fx.rt.sessions().answer(&handle.id(), answer_ask("ask_1", PERMISSION_ALLOW, None), Some(outside)).await.expect("an answer");
         assert_eq!(j(&answered), json!({ "outcome": "not-found" }));
         assert!(answers_of(&turn).is_empty());
         assert!(r.closes(&ws).await.is_empty());
         // A caller inside the tree answers as the person does.
         let asking_thread = handle.view().thread_id.expect("a thread");
         let inside = scope_of(&asking_thread, &ws);
-        let answered = r.fx.rt.sessions().answer(&handle.id(), answer_ask("ask_1", PERMISSION_ALLOW, None), Some(inside)).await.expect("an answer");
+        let answered =
+            r.fx.rt.sessions().answer(&handle.id(), answer_ask("ask_1", PERMISSION_ALLOW, None), Some(inside)).await.expect("an answer");
         assert_eq!(j(&answered), json!({ "outcome": "answered" }));
         let answers = answers_of(&turn);
         assert_eq!(answers.len(), 1);
@@ -765,7 +802,9 @@ impl HarnessAdapter for Recorder {
         tokio::task::spawn_local(async move {
             tokio::task::yield_now().await;
             on_event(event(json!({ "type": "session.start", "sessionId": SESSION })));
-            on_event(event(json!({ "type": "turn.done", "sessionId": SESSION, "result": serde_json::to_value(&finish).expect("a result") })));
+            on_event(event(
+                json!({ "type": "turn.done", "sessionId": SESSION, "result": serde_json::to_value(&finish).expect("a result") }),
+            ));
             on_event(event(json!({ "type": "session.end", "sessionId": SESSION, "exitCode": 0, "sawResult": true })));
             let _ = tx.send(finish);
         });
@@ -882,10 +921,22 @@ fn a_word_the_agent_maps_to_no_mode_is_refused_at_the_set_and_on_a_start_never_r
         let local = r.here().await;
         let id = local.view.id.clone();
         let want = "Claude Code takes no plan access; it takes ask, auto-edit, full";
-        let set = r.fx.rt.preferences().set(prefs(json!({ "agentDefaults": { "claude": { "access": "plan" } } }))).await.err().expect("a refusal");
+        let set =
+            r.fx.rt
+                .preferences()
+                .set(prefs(json!({ "agentDefaults": { "claude": { "access": "plan" } } })))
+                .await
+                .err()
+                .expect("a refusal");
         assert_eq!((set.message.as_str(), set.kind), (want, Some(Kind::Usage)));
         let project = j(&local.view)["project"]["id"].as_str().expect("a project").to_string();
-        let set = r.fx.rt.preferences().set(prefs(json!({ "projectDefaults": { project: { "access": "plan" } } }))).await.err().expect("a refusal");
+        let set =
+            r.fx.rt
+                .preferences()
+                .set(prefs(json!({ "projectDefaults": { project: { "access": "plan" } } })))
+                .await
+                .err()
+                .expect("a refusal");
         assert_eq!(set.kind, Some(Kind::Usage));
         let access = StartOptions { access: Some(serde_json::from_value(json!("plan")).expect("an access")), ..start("one") };
         let started = r.fx.rt.sessions().start(&id, access, None).await.err().expect("a refusal");
@@ -948,7 +999,9 @@ impl HeldTurn {
     fn reply(&self) {
         let Some(tx) = self.tx.borrow_mut().take() else { return };
         let done = result(json!({ "status": "completed", "text": "done" }));
-        (self.on_event)(event(json!({ "type": "turn.done", "sessionId": self.session, "result": serde_json::to_value(&done).expect("a result") })));
+        (self.on_event)(event(
+            json!({ "type": "turn.done", "sessionId": self.session, "result": serde_json::to_value(&done).expect("a result") }),
+        ));
         (self.on_event)(event(json!({ "type": "session.end", "sessionId": self.session, "exitCode": 0, "sawResult": true })));
         let _ = tx.send(done);
     }
@@ -1037,8 +1090,9 @@ fn held(moves: Moves) -> Held {
     let turns: Rc<RefCell<Vec<Rc<HeldTurn>>>> = Rc::default();
     let picks: Rc<RefCell<Vec<Option<String>>>> = Rc::default();
     let (kept_turns, kept_picks) = (turns.clone(), picks.clone());
-    let factory: HarnessAdapterFactory =
-        Arc::new(move |_ctx| Ok(Arc::new(HeldAdapter { moves, turns: kept_turns.clone(), picks: kept_picks.clone() }) as Arc<dyn HarnessAdapter>));
+    let factory: HarnessAdapterFactory = Arc::new(move |_ctx| {
+        Ok(Arc::new(HeldAdapter { moves, turns: kept_turns.clone(), picks: kept_picks.clone() }) as Arc<dyn HarnessAdapter>)
+    });
     let local = local_in(root.path());
     let backend = StubBackend::new(None);
     let fx = runtime(&backend).store(&state.store).adapter("claude", factory).with(move |o| o.local = Some(local)).build();
@@ -1066,7 +1120,15 @@ impl Held {
         j(&self.fx.rt.sessions().access(session, mode, origin).await.expect("an answer"))
     }
     async fn modes(&self, ws: &str) -> Vec<Value> {
-        self.fx.rt.sessions().list(Some(ws.to_string()), None).await.expect("a list").iter().map(|s| j(s)["permissionMode"].clone()).collect()
+        self.fx
+            .rt
+            .sessions()
+            .list(Some(ws.to_string()), None)
+            .await
+            .expect("a list")
+            .iter()
+            .map(|s| j(s)["permissionMode"].clone())
+            .collect()
     }
 }
 

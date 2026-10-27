@@ -182,7 +182,8 @@ impl HarnessAdapter for Cutting {
         self.turns.set(self.turns.get() + 1);
         let n = self.turns.get();
         // A fresh session per thread, as a harness mints one, and the same one again on its resume.
-        let session = s.resume.clone().unwrap_or_else(|| if n == 1 { FIRST_SESSION.to_string() } else { format!("44444444-4444-4444-8444-{n:012}") });
+        let session =
+            s.resume.clone().unwrap_or_else(|| if n == 1 { FIRST_SESSION.to_string() } else { format!("44444444-4444-4444-8444-{n:012}") });
         self.o.starts.borrow_mut().push((s.prompt.clone(), s.resume.clone()));
         let on_event = s.on_event.clone().expect("an event sink");
         let (tx, rx) = oneshot::channel::<TurnResult>();
@@ -240,7 +241,9 @@ impl HarnessSession for Hanging {
             let tx = stop.borrow_mut().take();
             let Some(tx) = tx else { return };
             let interrupted = result(json!({ "status": "interrupted" }));
-            on_event(event(json!({ "type": "turn.done", "sessionId": session, "result": serde_json::to_value(&interrupted).expect("a result") })));
+            on_event(event(
+                json!({ "type": "turn.done", "sessionId": session, "result": serde_json::to_value(&interrupted).expect("a result") }),
+            ));
             on_event(event(json!({ "type": "session.end", "sessionId": session, "exitCode": null, "sawResult": false })));
             let _ = tx.send(interrupted);
         }
@@ -350,7 +353,10 @@ fn asks_the_workspaces_daemon_for_one_at_the_checkout_named_by_the_record_the_th
         wait().await;
         let thread_id = run.view().thread_id.expect("a thread");
         let asked: Vec<Value> = w.daemon.frames().into_iter().filter(|f| f["op"] == "git.checkpoint").collect();
-        assert_eq!(asked, [json!({ "op": "git.checkpoint", "cwd": w.daemon.checkout(), "thread": thread_id, "turn": run.turn_id(), "scope": w.ws })]);
+        assert_eq!(
+            asked,
+            [json!({ "op": "git.checkpoint", "cwd": w.daemon.checkout(), "thread": thread_id, "turn": run.turn_id(), "scope": w.ws })]
+        );
         let kept = checkpoints(&w).await;
         assert_eq!(kept.len(), 1);
         assert_matches(
@@ -385,7 +391,8 @@ fn keeps_no_based_mark_where_the_checkpoint_stands_on_no_commit_so_a_branch_fork
 #[test]
 fn a_checkout_that_takes_none_leaves_the_turn_as_it_ended_and_keeps_the_anchor_alone() {
     drive(|| async {
-        let w = workspace(harness(HarnessOpts::default()), fake_daemon(DaemonOpts { refuse_checkpoint: true, ..Default::default() }), None).await;
+        let w = workspace(harness(HarnessOpts::default()), fake_daemon(DaemonOpts { refuse_checkpoint: true, ..Default::default() }), None)
+            .await;
         let run = w.fx.rt.sessions().start(&w.ws, start("one"), None).await.expect("a start");
         assert_eq!(j(&run.finished().await)["status"], "completed");
         wait().await;
@@ -464,7 +471,12 @@ fn cuts_one_threads_turns_off_that_threads_rows_alone_and_another_thread_in_the_
             let rt = w.fx.rt.clone();
             async move {
                 let found = j(&rt.sessions().search(words, None).await.expect("a search"));
-                found["hits"].as_array().expect("hits").iter().map(|h| h["threadId"].as_str().unwrap_or_default().to_string()).collect::<Vec<_>>()
+                found["hits"]
+                    .as_array()
+                    .expect("hits")
+                    .iter()
+                    .map(|h| h["threadId"].as_str().unwrap_or_default().to_string())
+                    .collect::<Vec<_>>()
             }
         };
         assert_eq!(said("reply 3").await, [thread_id.clone()]);
@@ -553,7 +565,10 @@ fn refused_whole_when_the_harness_will_not_cut_the_files_go_back_to_how_they_sto
         let (thread_id, turns) = three_turns(&w).await;
         w.daemon.clear();
         let said = refusal(&w, &thread_id, rewind_to(&turns[0], true)).await;
-        assert!(said.contains(&format!("codex would not cut the thread: timed out shutting down thread {FIRST_SESSION} before revert")), "{said}");
+        assert!(
+            said.contains(&format!("codex would not cut the thread: timed out shutting down thread {FIRST_SESSION} before revert")),
+            "{said}"
+        );
         assert_eq!(w.daemon.frames(), [restore_of(&w, &thread_id, &turns[0], ""), restore_of(&w, &thread_id, &turns[0], "-before-1")]);
         assert_eq!(texts(&w).await, ["reply 1", "reply 2", "reply 3"]);
         w.fx.rt.close().await.expect("a close");
@@ -600,7 +615,10 @@ fn hands_the_harness_each_cut_turns_anchor_beside_its_end_where_the_turn_kept_on
         let w = workspace(harness(o.clone()), fake_daemon(DaemonOpts::default()), None).await;
         let (thread_id, turns) = three_turns(&w).await;
         rewind(&w, &thread_id, rewind_to(&turns[0], false)).await.expect("a rewind");
-        let want = revert_ask(&w.daemon.checkout(), RevertAt::Turns(vec![counted(None, completed("reply 2")), counted(Some("a3"), completed("reply 3"))]));
+        let want = revert_ask(
+            &w.daemon.checkout(),
+            RevertAt::Turns(vec![counted(None, completed("reply 2")), counted(Some("a3"), completed("reply 3"))]),
+        );
         assert_eq!(*o.reverted.borrow(), [want]);
         w.fx.rt.close().await.expect("a close");
     });
@@ -662,7 +680,8 @@ async fn claude_catalog(w: &Ws) -> Value {
 #[test]
 fn tells_a_window_which_harness_the_host_rewinds_by_count_so_a_reply_with_no_anchor_is_offered_too() {
     drive(|| async {
-        let w = workspace(harness(HarnessOpts { cuts: Cuts::Revert, ..Default::default() }), fake_daemon(DaemonOpts::default()), None).await;
+        let w =
+            workspace(harness(HarnessOpts { cuts: Cuts::Revert, ..Default::default() }), fake_daemon(DaemonOpts::default()), None).await;
         assert_matches(&claude_catalog(&w).await, json!({ "rewindsConversation": true, "rewindsByCount": true }));
         w.fx.rt.close().await.expect("a close");
         let other = workspace(harness(HarnessOpts::default()), fake_daemon(DaemonOpts::default()), None).await;
@@ -719,7 +738,9 @@ fn wakes_a_napped_machine_before_its_files_go_back_on_a_rewind_and_on_its_undo()
         let machine: Rc<RefCell<Option<Arc<StubMachine>>>> = Rc::default();
         let looking = machine.clone();
         let unreached: Rc<dyn Fn() -> bool> = Rc::new(move || looking.borrow().as_ref().is_some_and(|m| m.paused.get()));
-        let w = workspace(harness(HarnessOpts::default()), fake_daemon(DaemonOpts { unreached: Some(unreached), ..Default::default() }), None).await;
+        let w =
+            workspace(harness(HarnessOpts::default()), fake_daemon(DaemonOpts { unreached: Some(unreached), ..Default::default() }), None)
+                .await;
         let m = w.backend.machine(0);
         *machine.borrow_mut() = Some(m.clone());
         // The wake's check asks the daemon here rather than at a preview address nothing serves.
@@ -769,7 +790,8 @@ fn reads_the_provider_when_the_daemons_road_refuses_a_record_that_reads_running_
 }
 
 fn as_thread(thread: &str, workspace: &str) -> Caller {
-    let by = serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": workspace, "rootThreadId": thread })).expect("a scope");
+    let by = serde_json::from_value(json!({ "kind": "thread", "threadId": thread, "workspaceId": workspace, "rootThreadId": thread }))
+        .expect("a scope");
     Caller::Scoped { origin: WorkspaceOrigin::Here, by }
 }
 
@@ -804,7 +826,8 @@ fn leaves_the_slate_as_the_rewind_left_it_on_undo_since_undo_never_puts_the_conv
 #[test]
 fn refuses_before_anything_is_written_a_working_thread_the_latest_reply_and_files_a_turn_kept_no_checkpoint_of() {
     drive(|| async {
-        let w = workspace(harness(HarnessOpts { hang_from: Some(3), ..Default::default() }), fake_daemon(DaemonOpts::default()), None).await;
+        let w =
+            workspace(harness(HarnessOpts { hang_from: Some(3), ..Default::default() }), fake_daemon(DaemonOpts::default()), None).await;
         let first = w.fx.rt.sessions().start(&w.ws, start("one"), None).await.expect("a start");
         first.finished().await;
         let thread_id = first.view().thread_id.expect("a thread");
@@ -821,7 +844,9 @@ fn refuses_before_anything_is_written_a_working_thread_the_latest_reply_and_file
         wait().await;
         assert_eq!(texts(&w).await, ["reply 1", "reply 2"]);
 
-        let refusing = workspace(harness(HarnessOpts::default()), fake_daemon(DaemonOpts { refuse_checkpoint: true, ..Default::default() }), None).await;
+        let refusing =
+            workspace(harness(HarnessOpts::default()), fake_daemon(DaemonOpts { refuse_checkpoint: true, ..Default::default() }), None)
+                .await;
         let (other, turns) = three_turns(&refusing).await;
         assert!(refusal(&refusing, &other, rewind_to(&turns[0], true)).await.contains(REWIND_NO_CHECKPOINT_LINE));
         // The conversation alone still goes, off the anchor the turn kept.
@@ -835,7 +860,8 @@ fn refuses_before_anything_is_written_a_working_thread_the_latest_reply_and_file
 #[test]
 fn refuses_a_thread_whose_threads_under_it_still_run_naming_them() {
     drive(|| async {
-        let w = workspace(harness(HarnessOpts { hang_from: Some(4), ..Default::default() }), fake_daemon(DaemonOpts::default()), None).await;
+        let w =
+            workspace(harness(HarnessOpts { hang_from: Some(4), ..Default::default() }), fake_daemon(DaemonOpts::default()), None).await;
         let (thread_id, turns) = three_turns(&w).await;
         // A thread this one's agent opened, still working; the lead itself is idle.
         let by = as_thread(&thread_id, &w.ws);
@@ -856,7 +882,8 @@ fn refuses_a_thread_whose_threads_under_it_still_run_naming_them() {
 #[test]
 fn moves_no_files_once_another_thread_worked_in_the_folder_after_the_checkpoint_running_or_done_and_the_conversation_still_goes() {
     drive(|| async {
-        let w = workspace(harness(HarnessOpts { hang_from: Some(4), ..Default::default() }), fake_daemon(DaemonOpts::default()), None).await;
+        let w =
+            workspace(harness(HarnessOpts { hang_from: Some(4), ..Default::default() }), fake_daemon(DaemonOpts::default()), None).await;
         let (thread_id, turns) = three_turns(&w).await;
         // A second thread of the person's on the same workspace, so in the same folder, mid-turn.
         let beside = w.fx.rt.sessions().start(&w.ws, start("move the pricing table"), None).await.expect("a start");
@@ -882,7 +909,8 @@ fn moves_no_files_once_another_thread_worked_in_the_folder_after_the_checkpoint_
 #[test]
 fn will_not_undo_while_another_thread_in_the_folder_works_and_any_turn_that_ends_in_the_folder_closes_every_undo_there() {
     drive(|| async {
-        let w = workspace(harness(HarnessOpts { hang_from: Some(4), ..Default::default() }), fake_daemon(DaemonOpts::default()), None).await;
+        let w =
+            workspace(harness(HarnessOpts { hang_from: Some(4), ..Default::default() }), fake_daemon(DaemonOpts::default()), None).await;
         let (thread_id, turns) = three_turns(&w).await;
         rewind(&w, &thread_id, rewind_to(&turns[0], true)).await.expect("a rewind");
         let beside = w.fx.rt.sessions().start(&w.ws, start("move the pricing table"), None).await.expect("a start");
@@ -896,10 +924,7 @@ fn will_not_undo_while_another_thread_in_the_folder_works_and_any_turn_that_ends
         wait().await;
         assert!(thread_of(&w, &thread_id).await.get("rewoundAt").is_none());
         let marked = w.events.of("thread.marked");
-        assert!(
-            marked.iter().any(|e| e["workspaceId"] == w.ws.as_str() && e["threadIds"] == json!([thread_id])),
-            "{marked:?}"
-        );
+        assert!(marked.iter().any(|e| e["workspaceId"] == w.ws.as_str() && e["threadIds"] == json!([thread_id])), "{marked:?}");
         assert!(refusal(&w, &thread_id, undo()).await.contains(REWIND_NO_UNDO_LINE));
         assert!(w.daemon.restores().is_empty());
         w.fx.rt.close().await.expect("a close");
