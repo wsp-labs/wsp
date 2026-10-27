@@ -329,9 +329,9 @@ impl UsageCtx for Ctx {
             .and_then(|door| door.sign_ins_at(place_id, None))
             .is_some_and(|signs| signs.get(agent) == Some(&AgentSignInState::SignedIn))
     }
-    async fn place_for(&self, word: &str) -> Option<String> {
-        let door = list_places_of(self)?;
-        door.place_for(word).await.ok().and_then(|found| found.place_id)
+    async fn place_for(&self, word: &str) -> Result<Option<String>, HostError> {
+        let Some(door) = list_places_of(self) else { return Ok(None) };
+        Ok(door.place_for(word).await?.place_id)
     }
     async fn box_login_path(&self, place_id: &str) -> Option<String> {
         let door = list_places_of(self)?;
