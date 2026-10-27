@@ -14,7 +14,7 @@ import { MODPROBE_PATH, PLACE_FILE_MODE, engineWord, parsePlaceFile, placeFileTe
 import { CATALOG_AGENTS, configSum } from "@wsp/catalog";
 import { LOGIN_READ, SSH_STORE_VARS, landedFilesScript, writeConfigHere, localShape, outsideMarks, outsideSweepScript, ownMarks, plainPath, readValues, serversOutLines, unmergeServers, type ScopeRead, type ServerPort } from "@wsp/engine";
 import { CONFIG_NOT_PLAIN, CONFIG_PAST_CAP, CONFIG_READ_MAX_BYTES, DAEMON_VERSION, underProject, RUNTIME_FOLDERS, RUNTIME_PROJECTS, placeCgroupStandsLine, threadCgroupsEndScript, isPlainPath, placeDaemonPaths, placeKeptForLinkLine, placeLineOutLine, placeLineStaysLine, placeLoginUnreadLine, PLACE_LOGIN_LINKED, PLACE_LOGIN_PAST_CAP, LOGIN_READ_MAX_BYTES, PLACE_READ_MAX_BYTES, placeKeptMountedLine, placeKeptMountsUnreadLine, placeOutsideLeftLine, placeRuntimeStandsLine, placeOwnedPaths, placeOwnersUnknownLine, placeStoodBeforeLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, TOOL_LINKS_DIR, TOOL_PREFIX, workFolderIn, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { apparmorOffStep, sshDaemonPlace, type DaemonPlace } from "./doctor.js";
 import { onPath, runningWsp, wspCommand, type RunningWsp } from "./mcp-install.js";
 import { runAll, runFailureLine, serviceManagerFor, STOP_WAIT_MS, systemRunner, type ServiceAddress, type ServiceManager, type ServiceRunner } from "./service.js";
@@ -333,7 +333,7 @@ export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSwe
   const home = opts.home ?? homedir();
   const profile = opts.apparmorProfile ?? WSP_WORKSPACE_APPARMOR_PATH;
   const tools = opts.tools ?? { prefix: TOOL_PREFIX, links: TOOL_LINKS_DIR };
-  const stray = opts.within === undefined ? undefined : [home, profile, tools.prefix, tools.links, opts.systemRoot ?? "/", ...(opts.runtimeRoot === undefined ? [] : [opts.runtimeRoot]), ...(opts.cgroupRoots ?? [])].find(path => !underProject(resolve(path), resolve(opts.within!)));
+  const stray = opts.within === undefined ? undefined : [home, profile, tools.prefix, tools.links, opts.systemRoot ?? "/", ...(opts.runtimeRoot === undefined ? [] : [opts.runtimeRoot]), ...(opts.cgroupRoots ?? [])].find(path => !underProject(resolved(path), resolved(opts.within!)));
   if (stray !== undefined) throw new Error(`nothing was removed: ${stray} is outside ${opts.within}, the folder this leave was given`);
   const sh = opts.sh ?? shStdout;
   // The add's record of what stood before it sits in wsp's folder here, which the walk below takes.
@@ -434,6 +434,21 @@ export async function sweepPlace(opts: PlaceSweepOptions = {}): Promise<PlaceSwe
   removed.push(...said.flatMap(one => ("removed" in one ? [one.removed] : [])));
   const unread = unmerged.flatMap(out => ("unread" in out ? serversOutLines(out) : []));
   return { removed, kept: [placeKeptLine(workFolderIn(home)), ...unread, ...said.flatMap(one => ("kept" in one ? [one.kept] : []))] };
+}
+
+/** A path with every link on the way followed: the whole of it where it exists, else the nearest folder that does with
+ * the names after it, which no link can be among. A folder that is itself reached through a link (a Mac's /var) and the
+ * same folder by its real name read as one. */
+function resolved(path: string): string {
+  const missing: string[] = [];
+  for (let at = resolve(path); ; at = dirname(at)) {
+    try {
+      return join(realpathSync(at), ...missing.reverse());
+    } catch {
+      if (dirname(at) === at) return resolve(path);
+      missing.push(basename(at));
+    }
+  }
 }
 
 /** The paths the add found standing before it wrote anything, off the record its deploy left here. Nothing where

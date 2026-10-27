@@ -277,7 +277,10 @@ describe("the socket a place proved, served as an inbound one", () => {
     const key = placePair();
     const host = await fakePlaceHost({ key });
     const place = placeFile([host.url], key.publicKey, placePair().privateKeyPem);
-    const d = await placeDaemon(place);
+    // The daemon's runtime opens under the case's root for any user, so the one with no backend is given a runtime folder
+    // that cannot be made: its parent is a file.
+    writeFileSync(join(place.home, "not-a-folder"), "");
+    const d = await placeDaemon(place, { runtimeRoot: join(place.home, "not-a-folder", "wsp") });
     const { ws, seal } = await host.socket;
     const answers: Record<string, unknown>[] = [];
     ws.on("message", raw => {
