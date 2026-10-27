@@ -21,6 +21,7 @@ futures = "0.3"
 indexmap = { version = "2", features = ["serde"] }
 libc = "0.2"
 rand = "0.8"
+serde = "1"
 serde_json = { version = "1", features = ["preserve_order"] }
 tokio = { version = "1", features = ["rt", "macros", "net", "io-util", "io-std", "fs", "process", "signal", "sync", "time"] }
 wsp-adapters = { path = "../wsp-adapters" }
