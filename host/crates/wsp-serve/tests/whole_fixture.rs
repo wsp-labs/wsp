@@ -538,3 +538,39 @@ fn a_resume_that_reads_the_callers_cancel_is_wrapped_and_a_plain_reassignment_re
         assert_eq!(m.calls.resume.get(), 2);
     });
 }
+
+// disk-watch.test.ts:36 and :213 `movable`: a backend that offers a root disk per size, a machine that offers `resumeAt`
+// once a test gives it one, and a pause that keeps the `waitMs` it was handed.
+#[test]
+fn a_backend_offers_a_root_disk_and_a_machine_a_resume_at_only_once_a_test_gives_one() {
+    use wsp_engine::machine::{Machine as _, MachineBackend as _, RootDisk, Size};
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let size = Size { cpu: 2.0, mem_mb: 4096.0 };
+        assert!(!backend.offers().root_disk_of);
+        assert!(backend.root_disk_of(size).is_none());
+        backend.set_root_disk_of(Some(Rc::new(|s: Size| (s.cpu == 2.0).then(|| RootDisk { name: "small".into(), disk_gb: 75.0 }))));
+        assert!(backend.offers().root_disk_of);
+        assert_eq!(backend.root_disk_of(size).map(|d| (d.name, d.disk_gb)), Some(("small".to_string(), 75.0)));
+        assert!(backend.root_disk_of(Size { cpu: 4.0, mem_mb: 8192.0 }).is_none());
+
+        let m = made(&backend).await;
+        assert!(!m.offers().resume_at);
+        assert!(m.resume_at(4.0, 8192, None).await.is_err());
+        let landed = Rc::new(std::cell::RefCell::new(vec![]));
+        let seen = landed.clone();
+        let machine = m.clone();
+        m.set_resume_at(Some(Rc::new(move |cpu, mem_mb, _| {
+            seen.borrow_mut().push((cpu, mem_mb));
+            machine.paused.set(false);
+            Box::pin(async { Ok(()) })
+        })));
+        assert!(m.offers().resume_at);
+        m.pause(Some(1_800_000)).await.expect("a pause");
+        m.pause(None).await.expect("a pause");
+        assert_eq!(*m.pause_waits.borrow(), [Some(1_800_000), None]);
+        m.resume_at(4.0, 8192, None).await.expect("a resume at a size");
+        assert_eq!(*landed.borrow(), [(4.0, 8192)]);
+        assert!(!m.paused.get());
+    });
+}
