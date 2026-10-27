@@ -21,10 +21,10 @@ async fn add_a_computer() {
     let got = client.call(ask::<PairRedeemRequest>(json!({ "code": code.code, "name": "dialogs" }))).await;
     refused("pair.redeem", got, "that pairing code is not one this host is waiting for");
 
-    // A port nothing listens on, so the host key scan fails at once and nothing is dialled.
+    // A port nothing listens on: the host key scan finds no key, the connect to the port is refused at once, and nothing is dialled.
     let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
     let got = client.call(ask::<PlacesAddRequest>(json!({ "address": "nobody@127.0.0.1", "sshPort": closed }))).await;
-    refused("places.add", got, "nobody@127.0.0.1 has never been reached from this computer and answered no key to a scan");
+    refused("places.add", got, "nobody@127.0.0.1 did not answer on port");
 
     let picks = json!({ "name": "dialogs" });
     let got = client.call(ask::<PlacesSetupRequest>(json!({ "ref": "dialogs-nowhere", "choices": picks }))).await;
