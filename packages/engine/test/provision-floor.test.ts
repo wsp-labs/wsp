@@ -34,7 +34,7 @@ describe("the floor on a computer somebody owns", () => {
     const whole = baseInstalls(new Set(), TOOLS_PATH).map(s => s.id);
     expect(whole).toContain(`base/${COMPILER_ROW}`);
     expect(without).not.toContain(`base/${COMPILER_ROW}`);
-    expect(whole.filter(id => id !== `base/${COMPILER_ROW}`)).toEqual(without);
+    expect([...whole.filter(id => id !== `base/${COMPILER_ROW}`), "base/libatomic1"]).toEqual(without);
   });
 
   it("installs build-essential as a setup's floor step only for a plan that needs a compiler", async () => {
@@ -45,6 +45,15 @@ describe("the floor on a computer somebody owns", () => {
     const on = bare();
     await provisionStep(on.machine, plan(true), "floor", newSetupRun(), () => {}, { home: "/root" });
     expect(on.runs.some(r => r.includes("build-essential"))).toBe(true);
+  });
+
+  it("installs libatomic1 where the toolchain is left off, which pnpm's native binary links and the toolchain's packages would have pulled in", async () => {
+    const off = bare();
+    await provisionStep(off.machine, plan(false), "floor", newSetupRun(), () => {}, { home: "/root" });
+    expect(off.runs.some(r => r.includes("apt-get install -y -qq libatomic1"))).toBe(true);
+    const on = bare();
+    await provisionStep(on.machine, plan(true), "floor", newSetupRun(), () => {}, { home: "/root" });
+    expect(on.runs.some(r => r.includes("libatomic1"))).toBe(false);
   });
 
   it("weighs 316 MiB without the toolchain and 785 MiB with it, by the catalog's own sizes", () => {
