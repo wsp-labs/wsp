@@ -789,3 +789,30 @@ fn the_restoring_box_refuses_commands_until_its_clock_reaches_the_restore_and_th
         assert!(b.machine.prove_road(None).await.is_err());
     });
 }
+
+// box-nap.test.ts:902 `t.store.put = ...`: the first put of a record at one phase waits until the test lets it go.
+#[test]
+fn a_wrapped_store_holds_the_first_put_at_a_phase_until_the_test_lets_it_go() {
+    drive(|| async {
+        let state = sqlite_state();
+        let wrapped = WrappedStore::over(&state.store);
+        let gate = wrapped.hold_first_put_at_phase("workspaces", "waking");
+        let store = wrapped.store();
+        store.put("workspaces", "a", json!({ "phase": "running" })).await.expect("a put");
+        assert!(!wrapped.held());
+        let waiting = tokio::task::spawn_local({
+            let store = store.clone();
+            async move { store.put("workspaces", "a", json!({ "phase": "waking" })).await }
+        });
+        until(|| {
+            let held = wrapped.held();
+            async move { held }
+        })
+        .await;
+        assert_eq!(state.store.get("workspaces", "a").await.expect("a read").expect("a record")["phase"], "running");
+        gate.open();
+        waiting.await.expect("a task").expect("a put");
+        assert_eq!(state.store.get("workspaces", "a").await.expect("a read").expect("a record")["phase"], "waking");
+        store.put("workspaces", "a", json!({ "phase": "waking", "again": true })).await.expect("a put goes through once the hold fired");
+    });
+}
