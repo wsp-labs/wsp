@@ -9,16 +9,21 @@ use std::sync::Arc;
 
 use serde_json::{json, Value};
 use wsp_core::daemon_channel::Frame;
+use wsp_core::types::api::Runtime as _;
+use wsp_core::types::api::{FolderFor, FolderForAsk, ProjectAddAsk, StartOptions};
 use wsp_core::types::harness::HarnessAdapterFactory;
+use wsp_core::types::wiring::SessionHandle;
 use wsp_core::types::wiring::{HereDaemon, LocalWiring};
 use wsp_engine::copier::Copier;
 use wsp_engine::machine::MachineBackend;
+use wsp_serve::serve_start::serve_start;
+use wsp_wire::wire::runtime_ops::parse_runtime_request;
 
 use super::daemon::git;
 use super::local::{git_copier, local_wiring, CopierLog};
 use super::quick::{Quick, QuickOptions};
 use super::recdaemon::RecDaemon;
-use super::{runtime, sqlite_state, Fx, StubBackend};
+use super::{j, runtime, sqlite_state, Fx, StubBackend};
 
 /// Folders of the test's own, removed when it ends: `scratch()` of the TS file.
 #[derive(Default)]
@@ -71,6 +76,8 @@ pub struct HereOpts {
     pub adapters: Vec<(&'static str, HarnessAdapterFactory)>,
     /// A host started over the root and store of one before it, as a restart finds them.
     pub again: Option<Again>,
+    /// The store the runtime reads and writes, where it is not the state's own.
+    pub store: Option<Rc<dyn super::Store>>,
 }
 
 pub struct Again {
@@ -131,7 +138,10 @@ pub fn here(scratch: &Scratch, o: HereOpts) -> Here {
     let state_path = (!o.unserved).then(|| home.join("state.json").display().to_string());
     let open = daemon.open();
     let backend = StubBackend::new(None);
-    let mut wiring = runtime(&backend).store(&state.store).adapter("claude", agents.factory()).adapter("codex", agents.factory());
+    let mut wiring = runtime(&backend)
+        .store(o.store.as_ref().unwrap_or(&state.store))
+        .adapter("claude", agents.factory())
+        .adapter("codex", agents.factory());
     for (name, factory) in o.adapters {
         wiring = wiring.adapter(name, factory);
     }
@@ -166,6 +176,100 @@ impl Here {
     }
 }
 
-pub fn path_str(path: &Path) -> String {
-    path.display().to_string()
+pub fn path_of(p: &Path) -> String {
+    p.display().to_string()
+}
+
+pub async fn add(h: &Here, source: &Path) -> Value {
+    j(&h.fx.rt.projects().add(ProjectAddAsk { source: path_of(source), ..Default::default() }, None).await.expect("a project").project)
+}
+
+pub fn id_of(v: &Value) -> String {
+    v["id"].as_str().expect("an id").to_string()
+}
+
+pub fn ask(project: &str, branch: Option<&str>, cwd: Option<&Path>) -> FolderForAsk {
+    FolderForAsk { project: Some(project.into()), branch: branch.map(str::to_string), cwd: cwd.map(path_of), ..Default::default() }
+}
+
+pub async fn folder_for(h: &Here, ask: FolderForAsk) -> FolderFor {
+    h.fx.rt.workspaces().folder_for(ask, None).await.expect("a folder")
+}
+
+pub fn prompt(text: &str) -> StartOptions {
+    StartOptions { prompt: text.into(), ..Default::default() }
+}
+
+pub async fn start(h: &Here, ws: &str, text: &str) -> Rc<dyn SessionHandle> {
+    h.fx.rt.sessions().start(ws, prompt(text), None).await.expect("a start")
+}
+
+pub async fn ran(h: &Here, ws: &str, text: &str) -> Rc<dyn SessionHandle> {
+    let turn = start(h, ws, text).await;
+    turn.finished().await;
+    turn
+}
+
+pub async fn ran_in(h: &Here, ws: &str, o: StartOptions) -> Rc<dyn SessionHandle> {
+    let turn = h.fx.rt.sessions().start(ws, o, None).await.expect("a start");
+    turn.finished().await;
+    turn
+}
+
+pub fn thread_of(turn: &Rc<dyn SessionHandle>) -> String {
+    turn.view().thread_id.expect("a thread")
+}
+
+pub fn cwd_strings(h: &Here) -> Vec<Option<String>> {
+    h.agents.cwds()
+}
+
+pub fn ws_json(f: &FolderFor) -> Value {
+    j(&f.workspace)
+}
+
+pub async fn history_of(h: &Here, ws: &str) -> Vec<Value> {
+    h.fx.rt.sessions().history(ws, None).await.expect("a history").iter().map(j).collect()
+}
+
+pub async fn workspaces_of(h: &Here) -> Vec<Value> {
+    h.fx.rt.workspaces().list(None).await.expect("a list").iter().map(j).collect()
+}
+
+pub fn asks(h: &Here) -> usize {
+    h.copier.lock().unwrap().asks.len()
+}
+
+pub fn worktrees_asked(h: &Here) -> Vec<Value> {
+    h.copier.lock().unwrap().worktrees.iter().map(j).collect()
+}
+
+pub fn prefs(doc: Value) -> wsp_wire::views::preferences::PreferencesPatch {
+    serde_json::from_value(doc).expect("a patch")
+}
+
+pub fn start_request(fields: Value) -> wsp_wire::wire::runtime_ops::RuntimeRequest {
+    let mut frame = fields.as_object().cloned().expect("fields");
+    frame.insert("id".into(), json!(1));
+    frame.insert("op".into(), json!("sessions.start"));
+    parse_runtime_request(&Value::Object(frame)).unwrap_or_else(|e| panic!("the test's frame does not pass the schema: {e:?}"))
+}
+
+/// A `sessions.start` as the serve layer answers it: the thread it opened, read off the first answer.
+pub async fn serve_started(h: &Here, fields: Value) -> String {
+    let thread: Rc<RefCell<Option<String>>> = Rc::default();
+    let kept = thread.clone();
+    let reply: wsp_serve::serve_start::AnswerFn = Rc::new(move |r| *kept.borrow_mut() = r.session.thread_id.clone());
+    serve_start(&*h.fx.rt, &start_request(fields), None, reply).await.expect("a start");
+    let found = thread.borrow().clone();
+    found.expect("a thread")
+}
+
+pub async fn behind_lines(h: &Here, ws: &str, thread: Option<&str>) -> Vec<String> {
+    history_of(h, ws)
+        .await
+        .into_iter()
+        .filter(|e| e["type"] == "session.behind" && thread.is_none_or(|t| e["threadId"] == t))
+        .map(|e| e["text"].as_str().expect("a line").to_string())
+        .collect()
 }
