@@ -574,3 +574,16 @@ fn a_backend_offers_a_root_disk_and_a_machine_a_resume_at_only_once_a_test_gives
         assert!(!m.paused.get());
     });
 }
+
+// stub-backend.ts:432 `createOn` with `{ cpu, memMb }`: the size a test names reaches the machine's spec.
+#[test]
+fn create_on_carries_the_cpu_and_memory_a_test_names_to_the_machine() {
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let fx = runtime(&backend).build();
+        create_on(&fx.rt, CreateOn::golden("web").cpu(4.0).mem(8192.0), None).await.expect("a workspace");
+        let spec = backend.machine(0).spec_now();
+        assert_eq!((j(&spec)["cpu"].clone(), j(&spec)["memMb"].clone()), (json!(4), json!(8192)));
+        fx.rt.close().await.expect("a close");
+    });
+}
