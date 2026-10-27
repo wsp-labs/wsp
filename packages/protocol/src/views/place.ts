@@ -240,6 +240,9 @@ export const PlaceProvisionRow = z.object({
   /** On a server set aside for want of a yes to copying its keys: what they go by, names only. */
   keys: z.array(z.string().min(1)).optional(),
   ms: z.number().int().nonnegative().optional(),
+  /** On a sign-in the host's vault signs in: which secret of the agent's it is, the token made on this host or the API
+   * key, so a screen never reads it off the note's words. */
+  way: z.enum(["token", "key"]).optional(),
   /** On an installed row: an earlier setup put it on, and the run that wrote the row found it there. */
   earlier: z.boolean().optional(),
   /** On a folder's row: the project wsp's add made there, by id, which is how a later setup and a remove tell it from

@@ -33,7 +33,7 @@ import { LinkBackend, PlaceAbsentError, PlaceFolderMachine, PlaceMachine, keyFin
 import { connectDaemon } from "../reach.js";
 import { verifyPlaceBytes } from "@wsp/keys";
 import { CAPS, DEFAULT_COLLECTION, DEFAULT_ID, type PlaceRecord, type PlaceDoor, PlaceForksNowhereError, PlaceProvisioningError } from "./types.js";
-import { vaultSignIn, vaultHeldLine, pickedVault, landedOn, pressedBy, setupOutcome, type LandedRow, bounded, readsAsEd25519, JOIN_PROVE_MS, PLACE_BAD_KEY_REFUSAL, takenReport, REPLACED, BACKEND_FACTS_MS, LOGINS_READ_MS, relistedLogins, sharedLoginsScript } from "./helpers.js";
+import { vaultSignIn, vaultHeldLine, vaultWayOf, pickedVault, landedOn, pressedBy, setupOutcome, type LandedRow, bounded, readsAsEd25519, JOIN_PROVE_MS, PLACE_BAD_KEY_REFUSAL, takenReport, REPLACED, BACKEND_FACTS_MS, LOGINS_READ_MS, relistedLogins, sharedLoginsScript } from "./helpers.js";
 import { panePorts } from "./pane-ports.js";
 import { placeReadings } from "./readings.js";
 import type { PlaceDoorContext } from "./context.js";
@@ -371,7 +371,12 @@ export function linkDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, se
 
     async keyLanded(agent) {
       if (vaultSignIn(agent, opts.vault?.() ?? {}) !== "vault-key") return;
-      for (const record of await records()) await landSignIn(record.id, { id: signInRowId(agent), outcome: "present", note: vaultHeldLine(agent, opts.vault?.() ?? {}, record.picks?.agents[agent]?.signin, here()) });
+      for (const record of await records()) {
+        const vault = opts.vault?.() ?? {};
+        const picked = record.picks?.agents[agent]?.signin;
+        const way = vaultWayOf(agent, vault, picked);
+        await landSignIn(record.id, { id: signInRowId(agent), outcome: "present", note: vaultHeldLine(agent, vault, picked, here()), ...(way !== undefined ? { way } : {}) });
+      }
     },
 
     async ghThere(placeId, stage) {

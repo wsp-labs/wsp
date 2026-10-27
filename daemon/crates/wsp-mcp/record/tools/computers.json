@@ -351,7 +351,24 @@
                           "$ref": "#/properties/computers/items/properties/setup/properties/finishedAt"
                         },
                         "expiresAt": {
-                          "$ref": "#/properties/computers/items/properties/setup/properties/addId"
+                          "$ref": "#/properties/computers/items/properties/setup/properties/finishedAt"
+                        },
+                        "press": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "note": {
+                          "$ref": "#/properties/computers/items/properties/setup/properties/finishedAt"
+                        },
+                        "fix": {
+                          "$ref": "#/properties/computers/items/properties/setup/properties/finishedAt"
+                        },
+                        "paste": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "signInId": {
+                          "$ref": "#/properties/computers/items/properties/setup/properties/finishedAt"
                         },
                         "state": {
                           "type": "string",
@@ -364,7 +381,6 @@
                       "required": [
                         "row",
                         "label",
-                        "expiresAt",
                         "state"
                       ],
                       "additionalProperties": false
@@ -441,6 +457,13 @@
                         "ms": {
                           "type": "integer",
                           "minimum": 0
+                        },
+                        "way": {
+                          "type": "string",
+                          "enum": [
+                            "token",
+                            "key"
+                          ]
                         },
                         "earlier": {
                           "type": "boolean"
@@ -1472,7 +1495,24 @@
                           "$ref": "#/properties/computers/items/properties/setup/properties/finishedAt"
                         },
                         "expiresAt": {
-                          "$ref": "#/properties/computers/items/properties/setup/properties/addId"
+                          "$ref": "#/properties/computers/items/properties/setup/properties/finishedAt"
+                        },
+                        "press": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "note": {
+                          "$ref": "#/properties/computers/items/properties/setup/properties/finishedAt"
+                        },
+                        "fix": {
+                          "$ref": "#/properties/computers/items/properties/setup/properties/finishedAt"
+                        },
+                        "paste": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "signInId": {
+                          "$ref": "#/properties/computers/items/properties/setup/properties/finishedAt"
                         },
                         "state": {
                           "type": "string",
@@ -1485,7 +1525,6 @@
                       "required": [
                         "row",
                         "label",
-                        "expiresAt",
                         "state"
                       ],
                       "additionalProperties": false
@@ -1562,6 +1601,13 @@
                         "ms": {
                           "type": "integer",
                           "minimum": 0
+                        },
+                        "way": {
+                          "type": "string",
+                          "enum": [
+                            "token",
+                            "key"
+                          ]
                         },
                         "earlier": {
                           "type": "boolean"

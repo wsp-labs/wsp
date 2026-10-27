@@ -54,7 +54,8 @@ export const syncLine = (sync: PlaceSync): string =>
 /** What a sign-in waiting on the person says, and the same once its page ran out. */
 export const waitLine = (w: PlaceWait): string => {
   if (w.state === "expired") return `${w.label}'s sign-in ran out; a retry asks for a fresh code`;
-  if (w.press === true) return `${w.label} waits on you to sign in${w.note === undefined ? "" : `: ${w.note}`}`;
+  // Its reason is the wait's own `note`, which a row draws; a terminal has no row to point at.
+  if (w.press === true) return `${w.label} waits on you to sign in`;
   return `${w.label} waits on you to sign in${w.url === undefined ? "" : ` at ${w.url}`}${w.code === undefined ? "" : ` with code ${w.code}`}`;
 };
 

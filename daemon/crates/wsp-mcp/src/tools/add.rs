@@ -93,6 +93,14 @@ struct Setup {
 #[derive(Deserialize)]
 struct Wait {
     state: String,
+    #[serde(default)]
+    press: bool,
+}
+
+/// Whether a sign-in with a run behind it waits on the person, which the call answers at; one that starts from its
+/// row's own Sign in has nothing running, so the TypeScript tool leaves it to the answer.
+fn holds(waits: &[Wait]) -> bool {
+    waits.iter().any(|w| w.state == "waiting" && !w.press)
 }
 
 #[derive(Deserialize)]
@@ -153,7 +161,7 @@ async fn call(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
             None => (true, false, empty(), empty()),
             Some(Setup { state, steps, waiting }) => {
                 let waits: Vec<Wait> = serde_json::from_str(waiting.get()).map_err(|e| Failure::new(e.to_string()))?;
-                (state != "running", waits.iter().any(|w| w.state == "waiting"), steps, waiting)
+                (state != "running", holds(&waits), steps, waiting)
             }
         };
         if over || (later != Some(true) && open) || Instant::now() >= until {
@@ -181,6 +189,17 @@ mod tests {
     #[test]
     fn its_structs_are_the_recorded_schemas() {
         held::to_the_record::<In, Out>(ADD.listed);
+    }
+
+    #[test]
+    fn a_sign_in_that_starts_from_its_row_has_nothing_running_for_the_call_to_wait_on() {
+        let waits: Vec<Wait> = serde_json::from_str(
+            r#"[{"row":"signins/claude","label":"Claude Code","state":"waiting","press":true,"note":"n"},{"row":"signins/codex","state":"expired"}]"#,
+        )
+        .unwrap();
+        assert!(!holds(&waits));
+        let running: Vec<Wait> = serde_json::from_str(r#"[{"row":"signins/codex","state":"waiting","url":"https://x"}]"#).unwrap();
+        assert!(holds(&running));
     }
 
     #[test]
