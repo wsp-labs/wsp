@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! What `makeRuntime` of `cli/wiring.ts` hands `create_runtime` for a fresh home with no provider key: the no-provider
 //! backend in its slot, this computer as the one local workspace, the store over `state.db` beside the state file, the
-//! host's own place key, and the agents a turn runs. Every port that is `wsp-setup`'s (the agents reader and its acts,
-//! the skills, servers and plugins roads, the icons, the recipes, the seed, the broker) is left unwired, and the
-//! runtime answers each as the TS does for a road that is missing.
+//! host's own place key, and the agents a turn runs. Every port that is `wsp-setup`'s or a `wsp-host` packet's (the
+//! agents reader and its acts, the skills, servers and plugins roads, the icons, the recipes, the seed, the broker, the
+//! places' roads, the local daemon) is asked of its `wire.rs`, which answers `None` until its packet lands, and the
+//! runtime then answers as the TS does for a road that is missing.
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -23,6 +24,7 @@ use wsp_engine::no_provider_backend::NoProviderBackend;
 use wsp_engine::project_state::agent_home;
 use wsp_engine::provider_slot::ProviderSlot;
 use wsp_engine::vault::CacheRule;
+use wsp_machines::agents_read::AgentsPorts;
 use wsp_machines::places::types::{HerePlace, PlaceWiring};
 use wsp_serve::AssembledRuntime;
 use wsp_store::sqlite_store::sqlite_store;
@@ -31,13 +33,17 @@ use wsp_wire::views::harness::McpServerSpec;
 use wsp_words::exit::HostError;
 use wsp_words::words::thread::{NO_MACHINES_LINE, NO_PROVIDER_LINE};
 
+use wsp_setup::context::HostWiring;
 use wsp_setup::files::this_computer_key::{host_name_here, host_place_key, place_name_here};
+use wsp_setup::{acts, deploy, files, install, projects, providers, recipes, report, sign_ins};
 
 use crate::envfile::vault_now;
 use crate::paths::join;
 use crate::state::Env;
+use crate::{broker, file_doors};
 
 /// What `wsp up` is wired with beside the state file.
+#[derive(Clone)]
 pub struct Wiring {
     pub state_path: String,
     /// This computer's home: where the stores are and the folder work starts under.
@@ -49,36 +55,52 @@ pub struct Wiring {
     pub wsp: Vec<String>,
 }
 
+impl Wiring {
+    /// What every `wire.rs` of `wsp-setup` is handed.
+    pub fn setup(&self) -> HostWiring {
+        HostWiring {
+            state_path: self.state_path.clone(),
+            home: self.home.clone(),
+            env: self.env.clone(),
+            here_url: self.here_url.clone(),
+            wsp: self.wsp.clone(),
+        }
+    }
+}
+
 pub fn person_home() -> String {
     std::env::var("HOME").unwrap_or_else(|_| "/".to_string())
 }
 
-/// `placeWiring(statePath)` as far as this binary holds it: the host's pair and this computer's own row. The installer,
-/// the dialler and the rest of the places' roads are `wsp-setup`'s.
-pub fn place_wiring(state_path: &str, home: &str) -> PlaceWiring {
-    let home = home.to_string();
+/// `placeWiring(statePath)`: the host's pair, this computer's own row where no road answers for it, and each road
+/// `wsp-setup` wires for the places.
+pub fn place_wiring(wiring: &Wiring) -> PlaceWiring {
+    let setup = wiring.setup();
+    let home = wiring.home.clone();
     PlaceWiring {
-        host_key: host_place_key(state_path),
-        provider: None,
-        here: Rc::new(move || HerePlace {
-            name: place_name_here(),
-            os: Some("linux".to_string()),
-            home: Some(home.clone()),
-            ..Default::default()
+        host_key: host_place_key(&wiring.state_path),
+        provider: providers::wire::wired_provider(&setup),
+        here: report::wire::here(&setup).unwrap_or_else(|| {
+            Rc::new(move || HerePlace {
+                name: place_name_here(),
+                os: Some("linux".to_string()),
+                home: Some(home.clone()),
+                ..Default::default()
+            })
         }),
         host_name: Rc::new(host_name_here),
-        install: None,
-        dial: None,
-        log: None,
-        update: None,
-        leave: None,
-        forget_key: None,
-        sudo_over: None,
-        provision: None,
-        github_token: None,
-        undo: None,
-        run_over: None,
-        back: None,
+        install: install::wire::install(&setup),
+        dial: install::wire::dial(&setup),
+        log: install::wire::log(&setup),
+        update: install::wire::update(&setup),
+        leave: install::wire::leave(&setup),
+        forget_key: providers::wire::forget_key(&setup),
+        sudo_over: install::wire::sudo_over(&setup),
+        provision: wsp_setup::import::wire::provision(&setup),
+        github_token: install::wire::github_token(&setup),
+        undo: install::wire::undo(&setup),
+        run_over: install::wire::run_over(&setup),
+        back: install::wire::back(&setup),
     }
 }
 
@@ -123,6 +145,7 @@ fn local_wiring(wiring: &Wiring) -> LocalWiring {
     let home_env = wiring.env.clone();
     let home_person = person.clone();
     let env_all = wiring.env.clone();
+    let setup = wiring.setup();
     LocalWiring {
         backend,
         folder: root,
@@ -145,9 +168,9 @@ fn local_wiring(wiring: &Wiring) -> LocalWiring {
             env.insert("HOME".to_string(), person.clone());
             env
         }),
-        daemon_road: None,
-        here_daemon: None,
-        restart_daemon: None,
+        daemon_road: files::wire::daemon_road(&setup),
+        here_daemon: files::wire::here_daemon(&setup),
+        restart_daemon: files::wire::restart_daemon(&setup),
         sys_samples: None,
         copier: None,
         platform: platform_here(),
@@ -175,14 +198,18 @@ fn no_machines_line(cloud: bool) -> &'static str {
 /// `makeRuntime(keys, statePath, ...)` for a host with no provider key.
 pub fn make_runtime(wiring: &Wiring, cloud: bool) -> Result<Rc<AssembledRuntime>, HostError> {
     let line = no_machines_line(cloud);
-    let slot = ProviderSlot::new(Arc::new(NoProviderBackend::new(Some(line.to_string()))));
+    let setup = wiring.setup();
+    let slot = ProviderSlot::new(
+        providers::wire::provider_backend(&setup).unwrap_or_else(|| Arc::new(NoProviderBackend::new(Some(line.to_string())))),
+    );
     let backend = slot.backend();
     let argv: Vec<String> = std::env::args().collect();
     let exec = std::env::current_exe().map(|p| p.display().to_string()).unwrap_or_default();
     let cwd = std::env::current_dir().map(|p| p.display().to_string()).unwrap_or_else(|_| "/".to_string());
     let store = Rc::new(sqlite_store(Path::new(&wiring.state_path), state_writer_here(&argv, &exec, &cwd)));
     let state_path = wiring.state_path.clone();
-    let places: Rc<dyn PlaceBackends> = Rc::new(NoPlaces { backend: backend.clone() });
+    let places: Rc<dyn PlaceBackends> =
+        providers::wire::provider_places(&setup, &backend).unwrap_or_else(|| Rc::new(NoPlaces { backend: backend.clone() }));
     let adapters: IndexMap<String, _> = harness_adapters().into_iter().map(|(id, factory)| (id.to_string(), factory)).collect();
     let opts = RuntimeOptions {
         no_machines_line: Some(line.to_string()),
@@ -191,12 +218,30 @@ pub fn make_runtime(wiring: &Wiring, cloud: bool) -> Result<Rc<AssembledRuntime>
         backend: Some(backend),
         agents: Some(AgentsReach { here_url: wiring.here_url.clone(), wsp_mcp: Some(mcp_server_spec(wiring)) }),
         local: Some(local_wiring(wiring)),
-        place_links: Some(Rc::new(place_wiring(&wiring.state_path, &wiring.home))),
+        place_links: Some(Rc::new(place_wiring(wiring))),
         store: Some(store),
         state_path: Some(wiring.state_path.clone()),
         adapters,
         vault: Some(Rc::new(move || vault_now(&state_path))),
-        golden_recipe: Some(GoldenRecipe { setup: GOLDEN_SETUP.clone(), smoke: GOLDEN_SMOKE.to_string(), ..Default::default() }),
+        golden_recipe: Some(GoldenRecipe {
+            setup: GOLDEN_SETUP.clone(),
+            smoke: GOLDEN_SMOKE.to_string(),
+            envs: deploy::wire::golden_envs(&setup),
+            deploy_daemon: deploy::wire::deploy_daemon(&setup),
+            ..Default::default()
+        }),
+        agents_ports: Some(Rc::new(AgentsPorts {
+            reader: sign_ins::wire::agents_reader(&setup),
+            acts: sign_ins::wire::agents_acts(&setup),
+            skills: acts::wire::skills_acts(&setup),
+            servers: acts::wire::servers_acts(&setup),
+            plugins: acts::wire::plugins_acts(&setup),
+            icons: file_doors::wire::server_icons(wiring),
+        })),
+        recipes: recipes::wire::recipes(&setup),
+        prices_fetch: files::wire::prices_fetch(&setup),
+        seed: projects::wire::seed(&setup),
+        broker: broker::wire::broker(wiring),
         host_id: Some(host_identity(None)),
         vault_caches: Some(cache_rule()),
         ..Default::default()

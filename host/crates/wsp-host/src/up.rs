@@ -237,7 +237,7 @@ pub async fn up(io: Arc<dyn CliIo>, asked: UpAsked, env: Env, wsp: Vec<String>) 
     };
     let said = io.clone();
     let log: LogFn = Rc::new(move |line: &str| said.log(line));
-    let outcome = serve(io.as_ref(), &asked, &rt, listener, moved, log, lock).await;
+    let outcome = serve(io.as_ref(), &asked, &wiring, &rt, listener, moved, log, lock).await;
     let _ = release_lock(&lock_path);
     outcome
 }
@@ -245,6 +245,7 @@ pub async fn up(io: Arc<dyn CliIo>, asked: UpAsked, env: Env, wsp: Vec<String>) 
 async fn serve(
     io: &dyn CliIo,
     asked: &UpAsked,
+    wiring: &Wiring,
     rt: &Rc<wsp_serve::AssembledRuntime>,
     listener: TcpListener,
     moved: Option<(u16, Option<PortHolder>)>,
@@ -267,6 +268,7 @@ async fn serve(
         .map_err(|_| HostError::new("WSP_WEB_DIR names the folder of the built web app; this build finds none beside itself"))?;
     let handle = match start_host(HostOptions {
         runtime: rt.clone(),
+        wiring: wiring.clone(),
         web_dir,
         listener,
         address: asked.address.clone(),

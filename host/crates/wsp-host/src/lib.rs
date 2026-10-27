@@ -22,7 +22,7 @@ pub mod wiring;
 
 use std::sync::Arc;
 
-use cli::{read_line, run_verb_line, up_line, Line, Running};
+use cli::{read_line, run_command_line, run_verb_line, up_line, Line, Running};
 use io::TerminalIo;
 
 /// Runs one command line and answers the exit code it ends the process with.
@@ -40,6 +40,7 @@ pub fn run(argv: Vec<String>) -> i32 {
         match line {
             Line::Verb(words) => run_verb_line(words, io, &run).await,
             Line::Up(words) => up_line(words, io, &run).await,
+            Line::Command(command, words) => run_command_line(command, words, io, &run).await,
             Line::Done(code) => code,
             Line::Mcp(_) => unreachable!("the tool server runs before a runtime is built"),
         }

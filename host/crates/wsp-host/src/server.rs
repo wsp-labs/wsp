@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 //! `startHost` of `server.ts`, thin: the app's HTTP server on the bound port (the page with its boot object, the
 //! bundle's files, a JSON 404), the runtime's socket on `/ws` through the upgrades it hands over, and the door a computer
-//! you own dials. The guest door, the callback relay and the doctor are `wsp-setup`'s and are not here.
+//! you own dials. Every other door and slot of `serveRuntime` (the account, the release, the restart, the broker, the
+//! doctor, the callback relay, the folders and the rest) is asked of its `wire.rs`, which answers `None` until its packet
+//! lands.
 use std::cell::{Cell, RefCell};
 use std::fs;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
@@ -18,6 +20,8 @@ use tokio::task::JoinHandle;
 use wsp_cli::host_lock::door_port_path;
 use wsp_core::devices::token_digest;
 use wsp_core::types::api::Runtime;
+use wsp_core::types::wiring::Detach;
+use wsp_machines::agents_read::ForwardsHolder;
 use wsp_serve::serve::wsframe::{check_upgrade, is_upgrade, Head};
 use wsp_serve::serve::Released;
 use wsp_serve::serve::{LogFn, OpenedDoor, PlaceDoorControl, UpgradeHead, UpgradeRule};
@@ -29,7 +33,11 @@ use wsp_wire::wire::place_link::{door_port_held_line, door_port_moved_line, Plac
 use wsp_words::app_ports::{authority, is_loopback, is_wildcard, join_address_of, peer_address, served_hostname};
 use wsp_words::exit::HostError;
 
+use wsp_setup::{doctor, files, recipes, relay, relay_link};
+
 use crate::paths::{basename, resolve};
+use crate::wiring::Wiring;
+use crate::{broker, commands, file_doors, serve};
 
 /// The header the door's listener marks every upgrade with, and that any client's own is stripped for: a hand-over of
 /// an upgrade carries no socket to ask which listener it came in on.
@@ -42,6 +50,8 @@ const BOOT_SUFFIX: &str = ";</script>";
 
 pub struct HostOptions {
     pub runtime: Rc<AssembledRuntime>,
+    /// What the runtime was made from, which each door's `wire.rs` is handed.
+    pub wiring: Wiring,
     /// The built web app: index.html plus its assets.
     pub web_dir: String,
     pub listener: TcpListener,
@@ -66,6 +76,8 @@ pub struct HostHandle {
     server: Rc<dyn RuntimeServer>,
     runtime: Rc<AssembledRuntime>,
     accepting: RefCell<Vec<JoinHandle<()>>>,
+    /// The callback relay's hold on `rt.agents.forwards`, let go at close.
+    relay: RefCell<Option<Detach>>,
 }
 
 /// Everything a request needs to be answered.
@@ -446,7 +458,7 @@ impl Front {
                 port: (at as i64).into(),
                 addresses: door_addresses(bound, at, self.advertise.as_deref()),
                 host_key: String::new(),
-                relay: None,
+                relay: relay_link::wire::door_relay(&self.state_path),
             },
             back_port: self.bound_here.then_some(at),
         }
@@ -528,6 +540,7 @@ pub async fn start_host(opts: HostOptions) -> Result<HostHandle, HostError> {
     });
     let origin_allowed: UpgradeRule = Rc::new(|head: &UpgradeHead| origin_allows(&head.headers));
     let own_road_rule: UpgradeRule = Rc::new(own_road);
+    let (setup, wiring) = (opts.wiring.setup(), &opts.wiring);
     let serve = ServeOptions {
         released: Some(Released { version: Some(opts.version.clone()), road: opts.road.clone() }),
         origin_allowed: Some(origin_allowed),
@@ -535,12 +548,30 @@ pub async fn start_host(opts: HostOptions) -> Result<HostHandle, HostError> {
         peer_of: Some(Rc::new(peer_of)),
         door: Some(Rc::new(DoorControl { front: front.clone() })),
         devices: Some(rt.devices()),
+        account: relay_link::wire::account_door(&setup),
+        admitted: relay_link::wire::admitted_devices(&setup),
+        forwards: relay::wire::forwards_slot(&setup),
+        broker: broker::wire::broker_door(wiring),
+        projects: file_doors::wire::projects(wiring),
+        landing: file_doors::wire::landing(wiring),
+        folders: file_doors::wire::folders(wiring),
+        terminal_config: file_doors::wire::terminal_config(wiring),
+        editor: file_doors::wire::editor(wiring),
+        ssh: file_doors::wire::ssh(wiring),
+        init: serve::wire::init_door(wiring),
+        recipes: recipes::wire::recipes_slot(&setup),
+        doctor: doctor::wire::place_doctor(&setup),
+        ssh_hosts: file_doors::wire::ssh_hosts(wiring),
+        release: files::wire::release_door(&setup),
+        restart: commands::wire::restart_door(wiring),
         auth_token: opts.auth_token.clone(),
         log: Some(opts.log.clone()),
         ..Default::default()
     };
     // The page is read once before anything serves: a bundle with no page is a start that is refused.
     front.page(bound_here)?;
+    // Before the runtime socket: the app lists and stops the relay's forwards through it.
+    let relay_hold = relay::wire::callback_forwards(&setup).map(|relay| rt.agents().forwards(Rc::new(ForwardsHolder(relay))));
     let server = serve_runtime(rt.clone(), serve).await?;
     *front.server.borrow_mut() = Some(server.clone());
     let task = accepting(&front, opts.listener, false);
@@ -551,6 +582,7 @@ pub async fn start_host(opts: HostOptions) -> Result<HostHandle, HostError> {
         server,
         runtime: rt.clone(),
         accepting: RefCell::new(vec![task]),
+        relay: RefCell::new(relay_hold),
     };
     // Waited on for a moment, so a provider that answers says its lines before the host reports itself up; one that never
     // answers comes up all the same and its reads go on.
@@ -595,6 +627,9 @@ impl HostHandle {
     /// stopping code. Then the listeners; last, the runtime's own close, so the flush it waits on is the final word.
     pub async fn close(&self) -> Result<(), HostError> {
         self.server.close().await?;
+        if let Some(release) = self.relay.borrow_mut().take() {
+            release();
+        }
         for task in self.accepting.borrow_mut().drain(..) {
             task.abort();
         }
