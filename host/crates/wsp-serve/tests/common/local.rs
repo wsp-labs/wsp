@@ -261,6 +261,10 @@ async fn reply_to(ws: &mut Ws, id: u64) -> Value {
 /// with, and the set that holds every run the factory is reading (`localExecStream({ root, runDir, pollMs, ...o, deadlineMs })`).
 #[derive(Default)]
 pub struct LocalOpts {
+    /// Changes the options of every exec stream last (`fakeLocal`'s `...o`, then a test's `pollMs`).
+    pub exec: Option<Rc<dyn Fn(&mut wsp_core::local_exec::LocalExecOptions)>>,
+    /// `fakeLocal` as stub-backend.ts writes it: no daemon road.
+    pub no_daemon_road: bool,
     pub run_dir: Option<String>,
     pub poll_ms: Option<u64>,
     pub deadline_ms: Option<f64>,
@@ -277,13 +281,13 @@ pub fn local_wiring(root: &Path, copier: Rc<dyn Copier>) -> wsp_core::types::wir
 }
 
 pub fn local_wiring_with(root: &Path, copier: Rc<dyn Copier>, o: LocalOpts) -> wsp_core::types::wiring::LocalWiring {
-    use wsp_core::types::wiring::{LocalWiring, Platform};
+    use wsp_core::types::wiring::LocalWiring;
     use wsp_engine::local_backend::{LocalBackend, LocalBackendOptions};
     let folder = root.display().to_string();
     let home = folder.clone();
     let runs = o.run_dir.clone().unwrap_or_else(|| format!("{folder}/runs"));
     let exec_root = folder.clone();
-    let (poll_ms, deadline_ms, reading) = (o.poll_ms, o.deadline_ms, o.reading.clone());
+    let (poll_ms, deadline_ms, reading, exec) = (o.poll_ms, o.deadline_ms, o.reading.clone(), o.exec.clone());
     let launch_vars = o
         .vars
         .clone()
@@ -307,92 +311,83 @@ pub fn local_wiring_with(root: &Path, copier: Rc<dyn Copier>, o: LocalOpts) -> w
             if reading.is_some() {
                 local.reading = reading.clone();
             }
+            if let Some(exec) = &exec {
+                exec(&mut local);
+            }
             wsp_core::local_exec::local_exec_stream(local, waiting)
         }),
         home: Rc::new(move |_| format!("{home}/.claude")),
         home_dir: folder.clone(),
         roots_path: format!("{folder}/roots"),
         env: Rc::new(move || launch_vars.clone()),
-        daemon_road: Some(Rc::new(|| {
-            Box::pin(async {
-                Ok(wsp_wire::views::workspace::DaemonReachView {
-                    url: "http://127.0.0.1:1".into(),
-                    expires_at: wsp_wire::types::JsNumber(9_007_199_254_740_991.0),
-                    daemon_token: Some("t".into()),
+        daemon_road: if o.no_daemon_road {
+            None
+        } else {
+            Some(Rc::new(|| {
+                Box::pin(async {
+                    Ok(wsp_wire::views::workspace::DaemonReachView {
+                        url: "http://127.0.0.1:1".into(),
+                        expires_at: wsp_wire::types::JsNumber(9_007_199_254_740_991.0),
+                        daemon_token: Some("t".into()),
+                    })
                 })
-            })
-        })),
+            }))
+        },
         here_daemon: None,
         restart_daemon: None,
         sys_samples: None,
         copier: Some(copier),
-        platform: if cfg!(target_os = "macos") { Platform::Darwin } else { Platform::Linux },
+        platform: test_platform(),
         close: None,
     }
 }
 
-/// stub-script.ts `writeStub`: a script at `path` the shell can run, made executable.
-pub fn write_stub(path: &Path, body: &str) {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::write(path, body).expect("a stub");
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755)).expect("a mode");
+pub use super::stubs::write_stub;
+
+/// stub-backend.ts:460 `testPlatform`.
+pub fn test_platform() -> wsp_core::types::wiring::Platform {
+    if cfg!(target_os = "macos") {
+        wsp_core::types::wiring::Platform::Darwin
+    } else {
+        wsp_core::types::wiring::Platform::Linux
+    }
 }
 
-/// ws-client.ts `WsClient`: a socket that authenticates with a token, answers each request by its id and keeps every frame the host
-/// pushed it, a frame with an `op` or a `type` that no request is waiting on.
+/// stub-backend.ts:464 `fakeLocal(root)`, with `exec` changing the options of every local exec stream the runtime opens
+/// (the TS spreads `...o` over `{ root, runDir }`, then a test adds `pollMs`).
+pub fn fake_local_with(
+    root: &Path,
+    env: Option<IndexMap<String, String>>,
+    exec: impl Fn(&mut wsp_core::local_exec::LocalExecOptions) + 'static,
+) -> wsp_core::types::wiring::LocalWiring {
+    let copier: Rc<dyn Copier> = super::copying::copying_fake();
+    local_wiring_with(root, copier, LocalOpts { vars: env, exec: Some(Rc::new(exec)), no_daemon_road: true, ..LocalOpts::default() })
+}
+
+/// `fakeLocal(root)`.
+pub fn fake_local(root: &Path) -> wsp_core::types::wiring::LocalWiring {
+    fake_local_with(root, None, |_| {})
+}
+
+/// ws-client.ts `WsClient` in the call shape part 2d's tests take: one owner, `request(&mut self)`, and a `close` that drops
+/// the socket. It is the one client of `ws_client.rs`.
 pub struct WsClient {
-    sink: futures::stream::SplitSink<Ws, Message>,
-    pending: Rc<RefCell<std::collections::HashMap<u64, futures::channel::oneshot::Sender<Value>>>>,
+    inner: Rc<super::ws_client::WsClient>,
     pub events: Rc<RefCell<Vec<Value>>>,
-    next: std::cell::Cell<u64>,
-    reader: tokio::task::JoinHandle<()>,
 }
 
 impl WsClient {
     pub async fn connect(port: u16, token: &str) -> WsClient {
-        let (ws, _) = tokio_tungstenite::connect_async(format!("ws://127.0.0.1:{port}/")).await.expect("a socket");
-        let (sink, mut stream) = ws.split();
-        let pending: Rc<RefCell<std::collections::HashMap<u64, futures::channel::oneshot::Sender<Value>>>> = Rc::default();
-        let events: Rc<RefCell<Vec<Value>>> = Rc::default();
-        let (waiting, kept) = (pending.clone(), events.clone());
-        let reader = tokio::task::spawn_local(async move {
-            while let Some(Ok(message)) = stream.next().await {
-                let Message::Text(text) = message else { continue };
-                let frame: Value = serde_json::from_str(&text).expect("a frame is JSON");
-                if frame["op"].is_string() {
-                    kept.borrow_mut().push(frame);
-                    continue;
-                }
-                let answered = frame["id"].as_u64().and_then(|id| waiting.borrow_mut().remove(&id));
-                match answered {
-                    Some(reply) => {
-                        let _ = reply.send(frame);
-                    }
-                    None if frame["type"].is_string() => kept.borrow_mut().push(frame),
-                    None => {}
-                }
-            }
-        });
-        let mut client = WsClient { sink, pending, events, next: std::cell::Cell::new(1), reader };
-        let authed = client.request("auth", json!({ "token": token })).await;
-        assert_eq!(authed["ok"], json!(true), "auth failed: {authed}");
-        client
+        let inner = super::ws_client::WsClient::connect(port, token).await;
+        WsClient { events: inner.events.clone(), inner }
     }
 
     pub async fn request(&mut self, op: &str, params: Value) -> Value {
-        let id = self.next.get();
-        self.next.set(id + 1);
-        let (tx, rx) = futures::channel::oneshot::channel();
-        self.pending.borrow_mut().insert(id, tx);
-        let mut frame = params.as_object().cloned().unwrap_or_default();
-        frame.insert("id".into(), json!(id));
-        frame.insert("op".into(), json!(op));
-        self.sink.send(Message::Text(Value::Object(frame).to_string().into())).await.expect("the request is sent");
-        rx.await.expect("the host answers")
+        self.inner.request(op, params).await
     }
 
     pub fn close(self) {
-        self.reader.abort();
+        self.inner.abort();
     }
 }
 
