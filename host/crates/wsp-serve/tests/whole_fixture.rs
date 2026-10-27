@@ -558,3 +558,34 @@ fn a_wrapped_store_stops_reading_transcript_rows_and_holds_a_put_at_a_gate() {
         assert!(state.store.get("sessions", "ws_1").await.expect("a read").is_some());
     });
 }
+
+// forget.test.ts:99 `dying` and `working`: an adapter literal is a start function, its events follow the start, and its session finishes with the result the events carried.
+#[test]
+fn a_scripted_adapter_sends_its_events_and_finishes_with_its_result() {
+    drive(|| async {
+        use common::scripted::{adapter_of, after_a_turn, done_and_end, Plain};
+        let backend = StubBackend::new(None);
+        let start: common::scripted::StartFn = Rc::new(|o| {
+            let on_event = o.on_event.clone().expect("a sink");
+            let doc = json!({ "status": "completed", "text": "all green" });
+            let mut events = vec![json!({ "type": "session.start", "sessionId": "s-1", "cwd": "/root/app" })];
+            events.extend(done_and_end("s-1", &doc, 0, true));
+            Ok(Plain::of("s-1", after_a_turn(on_event, events, doc)))
+        });
+        let fx = runtime(&backend).adapter("claude", adapter_of(start)).build();
+        let ws = create_on(&fx.rt, CreateOn::golden("a"), None).await.expect("a workspace").view.id;
+        let handle = fx.rt.sessions().start(&ws, StartOptions { prompt: "go".into(), ..Default::default() }, None).await.expect("a start");
+        assert_eq!(handle.finished().await.text.as_deref(), Some("all green"));
+        let types: Vec<String> = fx
+            .rt
+            .sessions()
+            .history(&ws, None)
+            .await
+            .expect("a history")
+            .iter()
+            .map(|e| j(e)["type"].as_str().unwrap_or_default().to_string())
+            .collect();
+        assert_eq!(types, ["session.start", "session.done", "session.end"]);
+        fx.rt.close().await.expect("a close");
+    });
+}
