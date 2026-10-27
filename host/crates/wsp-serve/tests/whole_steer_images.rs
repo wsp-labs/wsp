@@ -151,7 +151,7 @@ fn goes_when_the_steer_that_names_it_leaves_the_transcript_as_a_starts_image_doe
         }
         let history = r.fx.rt.sessions().history(&r.ws, None).await.expect("a history");
         assert!(!history.iter().map(j).any(|e| e["type"] == "session.steer"));
-        let gone = r.fx.rt.sessions().attachment(&r.ws, &r.thread_id, "req_2", 0, None).await.err().expect("a refusal");
+        let gone = r.fx.rt.sessions().attachment(&r.ws, &r.thread_id, "req_2", 0, None).await.expect_err("a refusal");
         assert_eq!(gone.kind, Some(Kind::NotFound));
         assert!(state.store.get_blob("attachments", &format!("{}.req_2.0", r.thread_id)).await.expect("a read").is_none());
         r.fx.rt.close().await.expect("a close");
@@ -163,10 +163,9 @@ fn goes_when_the_steer_that_names_it_leaves_the_transcript_as_a_starts_image_doe
 fn is_refused_on_a_harness_whose_steer_reads_no_image_naming_it_and_nothing_reaches_the_turn_or_the_transcript() {
     drive(|| async {
         let r = running(false, None).await;
-        let image = r.fx.rt.sessions().steer(&r.first.id(), steer("and this?", "req_2", vec![png()]), None).await.err().expect("a refusal");
+        let image = r.fx.rt.sessions().steer(&r.first.id(), steer("and this?", "req_2", vec![png()]), None).await.expect_err("a refusal");
         assert!(image.message.contains("claude takes no image into a running turn"), "{}", image.message);
-        let file =
-            r.fx.rt.sessions().steer(&r.first.id(), steer("and these?", "req_3", vec![notes()]), None).await.err().expect("a refusal");
+        let file = r.fx.rt.sessions().steer(&r.first.id(), steer("and these?", "req_3", vec![notes()]), None).await.expect_err("a refusal");
         assert!(file.message.contains("a file that is not an image goes only with a message that starts a turn"), "{}", file.message);
         assert!(r.h.steered.borrow().is_empty());
         assert!(r.steers().is_empty());

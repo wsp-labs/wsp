@@ -596,21 +596,21 @@ fn refuses_a_thread_whose_harness_never_announced_a_session_a_harness_with_no_si
         let ws = create_on(&w.fx.rt, CreateOn::named("mac").on("here"), None).await.expect("a workspace").view.id;
         let dead = w.fx.rt.sessions().start(&ws, start("hi"), None).await.expect("a start");
         dead.finished().await;
-        let said = aside(&w, &dead.id(), "anyone there?").await.err().expect("a refusal");
+        let said = aside(&w, &dead.id(), "anyone there?").await.expect_err("a refusal");
         assert!(said.message.contains(ASIDE_NO_SESSION_LINE), "{}", said.message);
         w.fx.rt.close().await.expect("a close");
 
         let w = plain(Options { aside: false, ..Default::default() });
         let (first, _) = two_turns(&w).await;
-        let said = aside(&w, &first, "anyone there?").await.err().expect("a refusal");
+        let said = aside(&w, &first, "anyone there?").await.expect_err("a refusal");
         assert!(said.message.contains(&aside_unsupported_line("claude")), "{}", said.message);
         w.fx.rt.close().await.expect("a close");
 
         let w = plain(Options::default());
         let (again, _) = two_turns(&w).await;
-        let blank = aside(&w, &again, "   ").await.err().expect("a refusal");
+        let blank = aside(&w, &again, "   ").await.expect_err("a refusal");
         assert!(blank.message.contains(BLANK_ASIDE_LINE), "{}", blank.message);
-        let none = aside(&w, "sess_nothing", "hi").await.err().expect("a refusal");
+        let none = aside(&w, "sess_nothing", "hi").await.expect_err("a refusal");
         assert_eq!(none.kind, Some(Kind::NotFound));
         assert!(w.asked.borrow().is_empty());
         w.fx.rt.close().await.expect("a close");
@@ -725,7 +725,7 @@ fn says_in_one_line_why_where_the_harness_answered_with_no_words_rather_than_sta
         let hook: Hook = Rc::new(|_, _| async { Ok(AsideAnswer { text: " \n".into(), usage: None }) }.boxed_local());
         let w = plain(Options { hook: Some(hook), ..Default::default() });
         let (first, _) = two_turns(&w).await;
-        let said = aside(&w, &first, "what did I last ask?").await.err().expect("a refusal");
+        let said = aside(&w, &first, "what did I last ask?").await.expect_err("a refusal");
         assert!(said.message.contains(ASIDE_EMPTY_LINE), "{}", said.message);
         w.fx.rt.close().await.expect("a close");
     });

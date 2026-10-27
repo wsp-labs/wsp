@@ -108,12 +108,12 @@ fn a_retry_of_an_attempt_the_provider_never_answered_sends_the_same_key_and_the_
             }
             real(spec)
         });
-        let failed = fx.rt.workspaces().rebuild(&ws, None).await.err().expect("a failure");
+        let failed = fx.rt.workspaces().rebuild(&ws, None).await.expect_err("a failure");
         assert!(failed.message.contains("fetch failed"), "{}", failed.message);
         assert_eq!(keys_left(&state.store).await.len(), 1);
         let rebuilt = fx.rt.workspaces().rebuild(&ws, None).await.expect("a rebuild");
         assert_eq!(j(&rebuilt)["machineId"], "m2");
-        let specs = specs.borrow();
+        let specs = specs.borrow().clone();
         assert_eq!(specs.len(), 2);
         assert_eq!(key_of(&specs[1]), key_of(&specs[0]));
         assert_eq!(specs[1].labels.as_ref().and_then(|l| l.get("createdAt")), specs[0].labels.as_ref().and_then(|l| l.get("createdAt")));
@@ -155,7 +155,7 @@ fn a_new_attempt_after_a_kill_a_refusal_or_a_changed_request_mints_a_new_key() {
             }
             real(spec)
         });
-        let capped = fx.rt.workspaces().rebuild(&ws, None).await.err().expect("a refusal");
+        let capped = fx.rt.workspaces().rebuild(&ws, None).await.expect_err("a refusal");
         assert!(capped.message.contains("at cap"), "{}", capped.message);
         assert!(keys_left(&state.store).await.is_empty());
         fx.rt.workspaces().rebuild(&ws, None).await.expect("a rebuild");
@@ -174,11 +174,11 @@ fn a_new_attempt_after_a_kill_a_refusal_or_a_changed_request_mints_a_new_key() {
             let fresh = fresh.clone();
             async move { fresh.make(spec, waiting, sent).await }.boxed_local()
         }));
-        let built = build_golden(&fx, golden_ask(None)).await.err().expect("a failure");
+        let built = build_golden(&fx, golden_ask(None)).await.expect_err("a failure");
         assert!(built.message.contains("fetch failed"), "{}", built.message);
         assert_eq!(keys_left(&state.store).await.len(), 1);
         build_golden(&fx, golden_ask(None)).await.expect("a build");
-        let made = made.borrow();
+        let made = made.borrow().clone();
         let cpus: Vec<Option<f64>> = made.iter().take(2).map(|s| s.cpu.map(|c| c.0)).collect();
         assert_eq!(cpus, [Some(2.0), Some(4.0)]);
         assert_ne!(key_of(&made[1]), key_of(&made[0]));
@@ -213,7 +213,7 @@ fn a_create_the_backend_gave_up_on_because_nothing_on_the_guest_could_run_spends
             }
             real(spec)
         });
-        let refused = fx.rt.workspaces().rebuild(&ws, None).await.err().expect("a refusal");
+        let refused = fx.rt.workspaces().rebuild(&ws, None).await.expect_err("a refusal");
         assert!(refused.message.contains("nothing on it can run"), "{}", refused.message);
         assert!(keys_left(&state.store).await.is_empty());
         fx.rt.workspaces().rebuild(&ws, None).await.expect("a rebuild");
@@ -276,7 +276,7 @@ fn adopting_a_dead_processs_attempt_takes_the_key_and_rewrites_the_entry_to_the_
             }
             real(spec)
         });
-        let failed = fx.rt.workspaces().rebuild(&ws, None).await.err().expect("a failure");
+        let failed = fx.rt.workspaces().rebuild(&ws, None).await.expect_err("a failure");
         assert!(failed.message.contains("fetch failed"), "{}", failed.message);
         let purpose = format!("workspace/{ws}");
         let left = state.store.get("creates", &purpose).await.expect("a read").expect("an entry");
@@ -285,7 +285,7 @@ fn adopting_a_dead_processs_attempt_takes_the_key_and_rewrites_the_entry_to_the_
         let mut moved = left.clone();
         moved["pid"] = json!(dead_pid);
         state.store.put("creates", &purpose, moved).await.expect("a write");
-        let failed = fx.rt.workspaces().rebuild(&ws, None).await.err().expect("a failure");
+        let failed = fx.rt.workspaces().rebuild(&ws, None).await.expect_err("a failure");
         assert!(failed.message.contains("fetch failed"), "{}", failed.message);
         let adopted = state.store.get("creates", &purpose).await.expect("a read").expect("an entry");
         assert_matches(&adopted, json!({ "key": left["key"], "pid": std::process::id() }));
@@ -792,12 +792,12 @@ fn refuses_while_the_workspace_is_pausing_and_once_it_is_paused_with_the_compose
             async move { j(&rt.workspaces().get(&ws, None, None).await.expect("a workspace"))["phase"] == "pausing" }
         })
         .await;
-        let pausing = fx.rt.sessions().steer(&handle.id(), steer("x", None), None).await.err().expect("a refusal");
+        let pausing = fx.rt.sessions().steer(&handle.id(), steer("x", None), None).await.expect_err("a refusal");
         assert!(pausing.message.contains("Workspace is pausing; wake it to send"), "{}", pausing.message);
         assert!(h.steered.borrow().is_empty());
         release.open();
         napping.await.expect("the nap").expect("a nap");
-        let paused = fx.rt.sessions().steer(&handle.id(), steer("x", None), None).await.err().expect("a refusal");
+        let paused = fx.rt.sessions().steer(&handle.id(), steer("x", None), None).await.expect_err("a refusal");
         assert!(paused.message.contains("Workspace is paused; wake it to send"), "{}", paused.message);
         fx.rt.close().await.expect("a close");
     });

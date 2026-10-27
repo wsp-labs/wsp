@@ -824,7 +824,7 @@ fn lets_a_starts_images_go_when_a_flush_drops_the_start_not_when_a_read_trims_a_
         more.finished().await;
         rt.rt.close().await.expect("a close");
         let again = runtime(&backend).store(&state.store).build();
-        let gone = again.rt.sessions().attachment(&ws, &thread_id, "req_a", 0, None).await.err().expect("a refusal");
+        let gone = again.rt.sessions().attachment(&ws, &thread_id, "req_a", 0, None).await.expect_err("a refusal");
         assert_eq!(gone.kind, Some(Kind::NotFound));
         again.rt.close().await.expect("a close");
     });

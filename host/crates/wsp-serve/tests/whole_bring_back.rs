@@ -193,8 +193,7 @@ fn a_parent_that_did_not_say_which_branch_it_is_on_stops_the_fork_and_no_child_i
             None,
         )
         .await
-        .err()
-        .expect("a refusal");
+        .expect_err("a refusal");
         assert_eq!(refused.message, branch_unread_refusal("pricing page", "machine is paused"));
         let names: Vec<String> = w.fx.rt.workspaces().list(None).await.expect("a list").iter().map(|v| v.name.clone()).collect();
         assert_eq!(names, ["pricing page"]);
@@ -252,8 +251,7 @@ fn a_create_naming_a_parent_this_host_does_not_hold_is_refused_not_landed_as_a_r
             None,
         )
         .await
-        .err()
-        .expect("a refusal");
+        .expect_err("a refusal");
         assert_eq!(refused.message, no_parent_workspace_line("ws_nobody"));
         let names: Vec<String> = w.fx.rt.workspaces().list(None).await.expect("a list").iter().map(|v| v.name.clone()).collect();
         assert_eq!(names, ["pricing page"]);
@@ -304,7 +302,7 @@ fn a_refusal_from_the_push_is_the_callers_error_and_nothing_is_asked_about_a_pul
         let daemon = fake_daemon();
         daemon.answer("git.push", |_| json!({ "id": 1, "ok": false, "error": on_base_refusal("main") }));
         let w = with_workspace(&daemon, Some("main")).await;
-        let refused = bring(&w, &w.id).await.err().expect("a refusal");
+        let refused = bring(&w, &w.id).await.expect_err("a refusal");
         assert!(refused.message.contains(&on_base_refusal("main")), "{}", refused.message);
         assert_eq!(daemon.ops(), ["git.push"]);
         // The dial is closed however the work ends, so a refusal leaves no socket on the machine.
@@ -363,7 +361,7 @@ fn a_push_refused_for_want_of_a_credential_is_the_whole_verbs_refusal_since_noth
         let line = said.clone();
         daemon.answer("git.push", move |_| json!({ "id": 1, "ok": false, "error": line }));
         let w = with_workspace(&daemon, Some("main")).await;
-        let refused = bring(&w, &w.id).await.err().expect("a refusal");
+        let refused = bring(&w, &w.id).await.expect_err("a refusal");
         assert!(refused.message.contains(&said), "{}", refused.message);
         assert_eq!(daemon.ops(), ["git.push"]);
         w.fx.rt.close().await.expect("a close");

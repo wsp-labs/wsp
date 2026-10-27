@@ -591,7 +591,7 @@ fn a_recording_daemon_refuses_dials_and_fails_sends_where_a_test_says() {
         let down = Rc::new(std::cell::Cell::new(true));
         let stopped = down.clone();
         daemon.failing_sends(move || stopped.get().then(|| ChannelError::Refused { message: "Sandbox machine is not running.".into() }));
-        let failed = channel.send(json!({ "op": "git.push" }).as_object().cloned().expect("an object")).await.err().expect("a failure");
+        let failed = channel.send(json!({ "op": "git.push" }).as_object().cloned().expect("an object")).await.expect_err("a failure");
         assert_eq!(failed.to_string(), "Sandbox machine is not running.");
         assert!(daemon.frames.borrow().is_empty());
         down.set(false);
@@ -615,7 +615,7 @@ fn a_watched_store_counts_the_reads_of_its_rows_and_keeps_each_blob_collection()
         rows.word_events("w", "t").expect("rows");
         assert_eq!((watched.rows.folder_reads.get(), watched.rows.word_reads.get()), (1, 1));
         watched.rows.fail_all.set(true);
-        assert_eq!(rows.all("w").err().expect("a failure").message, "disk I/O error");
+        assert_eq!(rows.all("w").expect_err("a failure").message, "disk I/O error");
         assert_eq!(watched.rows.folder_reads.get(), 2);
     });
 }
