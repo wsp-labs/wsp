@@ -42,7 +42,7 @@ pub use lagging::Lagging;
 pub use live::{Live, LiveOptions, LiveSteer};
 pub use recdaemon::RecDaemon;
 pub use ports::{dropping_port, Edge, HeldPort};
-pub use projects::{create_on, owned_store, project_on, temp_repo, CreateOn};
+pub use projects::{create_on, owned_store, project_on, project_with, temp_repo, CreateOn};
 pub use store_wrap::{CountingStore, WrappedStore};
 pub use stub_backend::{
     conflict, exec_async, exec_exit, exec_fn, exec_ok, fetch_failed, missing, token_guest, token_guest_answer, StubBackend, StubMachine,

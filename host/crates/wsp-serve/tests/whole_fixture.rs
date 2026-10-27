@@ -525,3 +525,16 @@ fn a_recording_daemon_keeps_frames_with_their_dial_answers_per_op_counts_closes_
         assert_eq!(daemon.closed.get(), 1);
     });
 }
+
+// stub-backend.ts:399 `projectOn(rt, computer, source, { base })`: a project that names the base its pull requests open against.
+#[test]
+fn project_with_names_the_base_a_project_opens_its_pull_requests_against() {
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let fx = runtime(&backend).build();
+        let named = project_with(&fx.rt, None, None, None, Some("main")).await.expect("a project");
+        let plain = project_on(&fx.rt, None, None, None).await.expect("a project");
+        assert_eq!(j(&named)["base"], "main");
+        assert!(j(&plain).get("base").is_none());
+    });
+}
