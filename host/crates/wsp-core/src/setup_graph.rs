@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use futures::channel::oneshot;
 use futures::future::LocalBoxFuture;
+use futures::FutureExt as _;
 use indexmap::IndexMap;
 use tokio::task::spawn_local;
 use wsp_words::exit::HostError;
@@ -117,10 +118,18 @@ where
         }
         let name = step.name.clone();
         let release = release_for(pass.clone(), step.marks.clone());
-        let run = (step.run)(release);
         let shared = pass.clone();
+        // The step's start runs now, as an async function's synchronous half does. A step that panics, in its start or
+        // after, fails the run as one that throws does (setup-graph.ts:49-53).
+        let started = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (step.run)(release)));
         spawn_local(async move {
-            let next = run.await;
+            let next = match started {
+                Ok(run) => match std::panic::AssertUnwindSafe(run).catch_unwind().await {
+                    Ok(next) => next,
+                    Err(payload) => Err(HostError::new(crate::panics::words(payload))),
+                },
+                Err(payload) => Err(HostError::new(crate::panics::words(payload))),
+            };
             finish(&shared, name, next);
         });
     }

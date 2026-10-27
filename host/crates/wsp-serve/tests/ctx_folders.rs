@@ -1311,7 +1311,7 @@ fn create_held_is_every_live_entry_in_the_order_held_and_listed_for_a_person_is_
 fn create_talks_to_tree_on_is_false_for_a_caller_that_is_no_thread() {
     drive(plain(), |c, _| async move {
         held_entry(&c, json!({})).await;
-        assert!(!create(&c).talks_to_tree_on("w_1", None));
+        assert!(!create(&c).talks_to_tree_on("w_1", None).expect("read"));
     });
 }
 

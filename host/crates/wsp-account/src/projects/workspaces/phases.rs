@@ -63,7 +63,8 @@ pub trait PhasesCtx: Base {
     fn reach_of(&self, entry: &Entry) -> String;
     async fn nap_with(&self, id: &str) -> Result<WorkspaceView, HostError>;
     fn refuse_pauseless(&self, entry: &Entry, act: &str) -> Result<(), HostError>;
-    fn talks_to_tree_on(&self, id: &str, origin: Option<&Caller>) -> bool;
+    /// `talksToTreeOn` (boot.ts:1029): passes on what the boot area cannot read.
+    fn talks_to_tree_on(&self, id: &str, origin: Option<&Caller>) -> Result<bool, HostError>;
     fn refuse_sub_wake(&self, entry: &Entry) -> Result<(), HostError>;
     /// `ctx.recoverGone(entry)`: the phase a gone record left for, none where it stays gone.
     async fn recover_gone(&self, entry: &Entry) -> Result<Option<WorkspacePhase>, HostError>;
@@ -568,7 +569,7 @@ pub async fn nap(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> R
 //|     },
 /// Wakes a workspace, joining a wake in flight (spec rule 4).
 pub async fn wake(ctx: &Rc<dyn PhasesCtx>, id: &str, origin: Option<Caller>) -> Result<WorkspaceView, HostError> {
-    if ctx.talks_to_tree_on(id, origin.as_ref()) {
+    if ctx.talks_to_tree_on(id, origin.as_ref())? {
         let view = Box::pin(wake(ctx, id, None)).await?;
         return talked(view);
     }
