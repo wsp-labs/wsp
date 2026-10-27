@@ -776,6 +776,7 @@ pub struct StubBackend {
     replay_create: RefCell<Option<ReplayFn>>,
     named_after: RefCell<Option<NamedAfterFn>>,
     root_disk: RefCell<Option<RootDiskFn>>,
+    foreign: RefCell<IndexMap<String, Arc<dyn Machine>>>,
 }
 
 impl StubBackend {
@@ -859,6 +860,7 @@ impl StubBackend {
                 replay_create: RefCell::new(None),
                 named_after: RefCell::new(None),
                 root_disk: RefCell::new(None),
+                foreign: RefCell::default(),
             }
         })
     }
@@ -937,6 +939,11 @@ impl StubBackend {
         *self.replay_create.borrow_mut() = f;
     }
     /// `Object.assign(backend, { rootDiskOf })`: the backend now offers the disk it measured for a size.
+    /// `backend.get = async id => id === machineId ? other : get(id)`: a read of `id` answers `machine`, which is not one the
+    /// stub made (box-nap.test.ts:687).
+    pub fn answer_get_with(&self, id: &str, machine: Arc<dyn Machine>) {
+        self.foreign.borrow_mut().insert(id.to_string(), machine);
+    }
     pub fn set_root_disk_of(&self, f: Option<RootDiskFn>) {
         *self.root_disk.borrow_mut() = f;
     }
@@ -1124,6 +1131,10 @@ impl MachineBackend for StubBackend {
     async fn get(&self, id: &str) -> Result<Arc<dyn Machine>, EngineError> {
         bump(&self.calls.get);
         self.calls.get_ids.borrow_mut().push(id.to_string());
+        let other = self.foreign.borrow().get(id).cloned();
+        if let Some(other) = other {
+            return Ok(other);
+        }
         let f = self.get_fn();
         Ok(f(id.to_string()).await?)
     }

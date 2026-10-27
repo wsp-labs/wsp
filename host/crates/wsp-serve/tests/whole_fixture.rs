@@ -740,3 +740,19 @@ fn a_machine_starts_its_daemon_and_reads_its_exit_only_once_a_test_gives_it_the_
         assert!(ran.get(), "the part before the first wait ran inside the call");
     });
 }
+
+// box-nap.test.ts:687 `backend.get = async id => (id === ws.machineId ? box.machine : get(id))`: a read of one id answers a
+// machine the stub did not make, and every other read is the stub's own.
+#[test]
+fn a_read_of_one_id_can_answer_a_machine_the_stub_did_not_make() {
+    use wsp_engine::machine::{Machine as _, MachineBackend as _};
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let a = made(&backend).await;
+        let b = made(&backend).await;
+        backend.answer_get_with(a.id(), b.clone());
+        assert_eq!(backend.get(a.id()).await.expect("a machine").id(), b.id());
+        assert_eq!(backend.get(b.id()).await.expect("a machine").id(), b.id());
+        assert_eq!(backend.calls.get.get(), 2);
+    });
+}
