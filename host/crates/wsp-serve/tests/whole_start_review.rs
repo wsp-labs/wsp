@@ -354,8 +354,8 @@ async fn draft(w: &World, workspace: &str) -> Option<Value> {
         .map(|d| j(&d))
 }
 
-async fn wait_for<F: std::future::Future<Output = bool>>(mut f: impl FnMut() -> F) {
-    until(|| f()).await;
+async fn wait_for<F: std::future::Future<Output = bool>>(f: impl FnMut() -> F) {
+    until(f).await;
 }
 
 // "starting on an issue" > "makes the workspace off the issue, records where it came from, opens the thread with the composed task, and checks nothing out"
@@ -399,10 +399,9 @@ fn refuses_a_link_no_project_here_is_a_checkout_of_in_one_sentence_naming_the_re
     drive(|| async {
         let daemons = fake_daemons();
         let w = with_project(&daemons, vec![]).await;
-        let first =
-            w.fx.rt.workspaces().start(link("https://github.com/someone/else/issues/1", None), None).await.err().expect("a refusal");
+        let first = w.fx.rt.workspaces().start(link("https://github.com/someone/else/issues/1", None), None).await.expect_err("a refusal");
         assert!(first.message.contains(&START_WORDS::no_project_for_repo("someone/else")), "{}", first.message);
-        let second = w.fx.rt.workspaces().start(link("fix the flaky test", None), None).await.err().expect("a refusal");
+        let second = w.fx.rt.workspaces().start(link("fix the flaky test", None), None).await.expect_err("a refusal");
         assert!(second.message.contains(&START_WORDS::not_a_link("fix the flaky test")), "{}", second.message);
         assert!(daemons.ops(None).is_empty());
         w.fx.rt.close().await.expect("a close");
@@ -458,8 +457,7 @@ fn deletes_the_half_made_workspace_and_answers_the_checkouts_own_sentence_where_
                 .workspaces()
                 .start(link(&format!("https://github.com/{}/pull/7", w.repo), Some("claude")), None)
                 .await
-                .err()
-                .expect("a refusal");
+                .expect_err("a refusal");
         assert!(refused.message.contains(said), "{}", refused.message);
         wait_for(|| async { w.fx.rt.workspaces().list(None).await.expect("a list").is_empty() }).await;
         w.fx.rt.close().await.expect("a close");
@@ -479,7 +477,7 @@ fn refuses_to_bring_back_to_a_fork_whose_author_allowed_no_edits_before_anything
                 .start(link(&format!("https://github.com/{}/pull/7", w.repo), Some("claude")), None)
                 .await
                 .expect("a start");
-        let refused = w.fx.rt.workspaces().bring_back(&started.workspace.id, None, None, None).await.err().expect("a refusal");
+        let refused = w.fx.rt.workspaces().bring_back(&started.workspace.id, None, None, None).await.expect_err("a refusal");
         assert!(refused.message.contains(&START_WORDS::fork_not_pushable("ana")), "{}", refused.message);
         assert!(!daemons.ops(None).contains(&"git.push".to_string()));
         w.fx.rt.close().await.expect("a close");
@@ -521,8 +519,7 @@ fn refuses_a_harness_with_no_read_only_word_naming_the_two_that_have_one() {
                 .workspaces()
                 .review(review_of(&format!("https://github.com/{}/pull/7", w.repo), Some("gemini")), None)
                 .await
-                .err()
-                .expect("a refusal");
+                .expect_err("a refusal");
         assert!(refused.message.contains(&START_WORDS::no_read_only("gemini", &["codex", "claude"])), "{}", refused.message);
         w.fx.rt.close().await.expect("a close");
     });
@@ -637,10 +634,10 @@ fn posts_the_ticked_comments_alone_pinned_to_the_drafts_head_with_the_persons_ve
             w.fx.rt.workspaces().review(review_of(&format!("https://github.com/{}/pull/7", w.repo), None), None).await.expect("a review");
         let id = started.workspace.id.clone();
         let name = j(&started.workspace)["name"].as_str().expect("a name").to_string();
-        let none = w.fx.rt.workspaces().review_post(&id, None, None).await.err().expect("a refusal");
+        let none = w.fx.rt.workspaces().review_post(&id, None, None).await.expect_err("a refusal");
         assert!(none.message.contains(&START_WORDS::no_review_yet(&name)), "{}", none.message);
         let thread_word = wsp_words::words::computer::thread_word(&started.thread_id);
-        let none = w.fx.rt.workspaces().review_post(&id, Some(started.thread_id.clone()), None).await.err().expect("a refusal");
+        let none = w.fx.rt.workspaces().review_post(&id, Some(started.thread_id.clone()), None).await.expect_err("a refusal");
         assert!(none.message.contains(&START_WORDS::no_review_yet(&format!("thread {thread_word}"))), "{}", none.message);
         wait_for(|| async { draft(&w, &id).await.is_some() }).await;
         let drafted = draft(&w, &id).await.expect("a draft");
@@ -690,18 +687,16 @@ fn is_refused_a_start_a_review_and_a_post_which_are_the_persons_acts() {
                 .workspaces()
                 .start(link(&format!("https://github.com/{}/issues/5", w.repo), None), Some(scope.clone()))
                 .await
-                .err()
-                .expect("a refusal");
+                .expect_err("a refusal");
         assert!(started.message.contains(SpawnAct::Start.words()), "{}", started.message);
         let review =
             w.fx.rt
                 .workspaces()
                 .review(review_of(&format!("https://github.com/{}/pull/7", w.repo), None), Some(scope.clone()))
                 .await
-                .err()
-                .expect("a refusal");
+                .expect_err("a refusal");
         assert!(review.message.contains(SpawnAct::Review.words()), "{}", review.message);
-        let post = w.fx.rt.workspaces().review_post("ws_x", None, Some(scope)).await.err().expect("a refusal");
+        let post = w.fx.rt.workspaces().review_post("ws_x", None, Some(scope)).await.expect_err("a refusal");
         assert!(post.message.contains(SpawnAct::ReviewPost.words()), "{}", post.message);
         assert!(daemons.ops(None).is_empty());
         w.fx.rt.close().await.expect("a close");

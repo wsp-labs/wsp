@@ -665,7 +665,7 @@ fn a_turn_the_runtime_cuts_under_an_open_prompt_closes_its_row_and_stops_its_wai
         assert!(at("session.permission.closed") < at("session.end"));
         // A paused workspace refuses the verb in its own words, as a send gets, and the closed row offers nothing anyway.
         let paused =
-            r.fx.rt.sessions().answer(&handle.id(), answer_ask("ask_1", PERMISSION_ALLOW, None), None).await.err().expect("a refusal");
+            r.fx.rt.sessions().answer(&handle.id(), answer_ask("ask_1", PERMISSION_ALLOW, None), None).await.expect_err("a refusal");
         assert!(paused.message.contains("Workspace is paused; wake it to send"), "{}", paused.message);
 
         // Nothing is left waiting on a turn that is over, and no second row lands however long the clock runs.
@@ -701,7 +701,7 @@ fn a_thread_of_another_tree_forgetting_a_thread_on_the_workspace_is_told_not_fou
         let beside_thread = beside.view().thread_id.expect("a thread");
         let outside = scope_of(&beside_thread, &ws);
         // The absence a thread id nothing holds answers, so the caller learns nothing about a tree that is not its own.
-        let refused = r.fx.rt.sessions().forget(&target, Some(outside), None).await.err().expect("a refusal");
+        let refused = r.fx.rt.sessions().forget(&target, Some(outside), None).await.expect_err("a refusal");
         assert_eq!(refused.message, format!("no thread {}", thread_word(&target)));
         assert_eq!(refused.kind, Some(Kind::NotFound));
         let ids = |rows: &[wsp_wire::views::session::SessionView]| fold_threads(rows).iter().map(|t| t.id.clone()).collect::<Vec<_>>();
@@ -922,21 +922,11 @@ fn a_word_the_agent_maps_to_no_mode_is_refused_at_the_set_and_on_a_start_never_r
         let id = local.view.id.clone();
         let want = "Claude Code takes no plan access; it takes ask, auto-edit, full";
         let set =
-            r.fx.rt
-                .preferences()
-                .set(prefs(json!({ "agentDefaults": { "claude": { "access": "plan" } } })))
-                .await
-                .err()
-                .expect("a refusal");
+            r.fx.rt.preferences().set(prefs(json!({ "agentDefaults": { "claude": { "access": "plan" } } }))).await.expect_err("a refusal");
         assert_eq!((set.message.as_str(), set.kind), (want, Some(Kind::Usage)));
         let project = j(&local.view)["project"]["id"].as_str().expect("a project").to_string();
         let set =
-            r.fx.rt
-                .preferences()
-                .set(prefs(json!({ "projectDefaults": { project: { "access": "plan" } } })))
-                .await
-                .err()
-                .expect("a refusal");
+            r.fx.rt.preferences().set(prefs(json!({ "projectDefaults": { project: { "access": "plan" } } }))).await.expect_err("a refusal");
         assert_eq!(set.kind, Some(Kind::Usage));
         let access = StartOptions { access: Some(serde_json::from_value(json!("plan")).expect("an access")), ..start("one") };
         let started = r.fx.rt.sessions().start(&id, access, None).await.err().expect("a refusal");
@@ -1260,7 +1250,7 @@ fn a_mode_the_harnesss_own_list_does_not_carry_is_refused_in_the_words_a_start_r
     drive(|| async {
         let h = held(Moves::Set);
         let (handle, _ws) = h.running().await;
-        let refused = h.fx.rt.sessions().access(&handle.id(), "sideways", None).await.err().expect("a refusal");
+        let refused = h.fx.rt.sessions().access(&handle.id(), "sideways", None).await.expect_err("a refusal");
         assert!(refused.message.contains("not one claude takes"), "{}", refused.message);
         assert!(h.turn(0).modes.borrow().is_empty());
         h.turn(0).reply();

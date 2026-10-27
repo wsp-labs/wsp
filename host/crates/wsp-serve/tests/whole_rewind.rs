@@ -336,7 +336,7 @@ async fn rewind(w: &Ws, thread: &str, ask: RewindAsk) -> Result<Value, HostError
 }
 
 async fn refusal(w: &Ws, thread: &str, ask: RewindAsk) -> String {
-    rewind(w, thread, ask).await.err().expect("a refusal").message
+    rewind(w, thread, ask).await.expect_err("a refusal").message
 }
 
 fn restore_of(w: &Ws, thread: &str, turn: &str, suffix: &str) -> Value {
@@ -479,7 +479,7 @@ fn cuts_one_threads_turns_off_that_threads_rows_alone_and_another_thread_in_the_
                     .collect::<Vec<_>>()
             }
         };
-        assert_eq!(said("reply 3").await, [thread_id.clone()]);
+        assert_eq!(said("reply 3").await, std::slice::from_ref(&thread_id));
         watched.rows.folder_reads.set(0);
         rewind(&w, &thread_id, rewind_to(&turns[0], false)).await.expect("a rewind");
         assert_eq!(watched.rows.folder_reads.get(), 0);
