@@ -312,3 +312,13 @@ impl wsp_core::types::wiring::PlaceBackends for Places {
         self.list.clone()
     }
 }
+
+/// `void promise`: starts `f` at once and runs it as far as it can before its first real wait, as a JS async function
+/// does its synchronous half in the call; what is left runs on the loop.
+pub fn fire<F: Future<Output = ()> + 'static>(f: F) {
+    use std::task::Context;
+    let mut f = Box::pin(f);
+    if f.as_mut().poll(&mut Context::from_waker(futures::task::noop_waker_ref())).is_pending() {
+        tokio::task::spawn_local(f);
+    }
+}
