@@ -455,3 +455,198 @@ fn a_gate_holds_a_waiter_until_it_is_opened_and_until_polls_a_condition() {
         assert_eq!(ticks.get(), 3);
     });
 }
+
+// session-row.test.ts:51 `drivenAdapter`: a turn the test drives line by line, ends when it says, or replies at once while `quick` holds.
+#[test]
+fn a_driven_turn_prints_what_the_test_emits_ends_when_the_test_ends_it_and_replies_at_once_while_quick_holds() {
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let driven = Driven::new();
+        let fx = runtime(&backend).adapter("claude", driven.factory()).build();
+        let ws = create_on(&fx.rt, CreateOn::golden("w"), None).await.expect("a workspace").view.id;
+        let run = fx.rt.sessions().start(&ws, StartOptions { prompt: "work".into(), ..Default::default() }, None).await.expect("a start");
+        until(|| {
+            let driven = driven.clone();
+            async move { driven.len() == 1 }
+        })
+        .await;
+        assert_eq!(driven.last().prompt, "work");
+        driven.last().calls("toolu_1", "Bash", "{}");
+        driven.last().end(json!({ "text": "fine" }));
+        assert_eq!(j(&run.finished().await)["text"], "fine");
+        let types: Vec<String> = fx
+            .rt
+            .sessions()
+            .history(&ws, None)
+            .await
+            .expect("a history")
+            .iter()
+            .map(|e| j(e)["type"].as_str().unwrap_or_default().to_string())
+            .collect();
+        assert_eq!(types, ["session.start", "session.delta", "session.done", "session.end"]);
+        driven.quick.set(true);
+        let quick =
+            fx.rt.sessions().start(&ws, StartOptions { prompt: "again".into(), ..Default::default() }, None).await.expect("a start");
+        assert_eq!(j(&quick.finished().await)["text"], "done");
+        fx.rt.close().await.expect("a close");
+    });
+}
+
+// ws-client.ts `WsClient`: auth first, then request and reply, every pushed event kept; `createOverWire` makes a project and a workspace.
+#[test]
+fn a_ws_client_authenticates_requests_keeps_every_pushed_event_and_sees_the_socket_close() {
+    drive(|| async {
+        let fx = runtime(&StubBackend::new(None)).build();
+        let served = wsp_serve::serve::serve_runtime(
+            fx.rt.clone(),
+            wsp_serve::serve::ServeOptions { port: Some(0), auth_token: "secret".into(), ..Default::default() },
+        )
+        .await
+        .expect("the runtime serves");
+        let c = WsClient::connect(served.port(), "secret").await;
+        let sub = c.request("events.subscribe", json!({})).await;
+        assert_eq!(sub["ok"], json!(true));
+        assert!(sub["seq"].is_number());
+        let created = create_over_wire(&c, "x", json!({ "golden": "snap_g" })).await;
+        assert!(created["workspace"]["id"].is_string(), "{created}");
+        let events = c.received(1).await;
+        assert!(events.iter().all(|e| e["type"].is_string()));
+        c.close().await;
+        c.closed().await;
+        served.close().await.expect("a close");
+    });
+}
+
+// runtime-comeback.test.ts:30 `machineRuns`: a run lives on the machine; a host that comes back attaches by its handle and the
+// log is replayed from its first line; forgetting a run is the machine having swept it.
+#[test]
+fn a_machine_run_outlives_the_host_is_reattached_by_its_handle_replays_its_log_and_is_gone_once_swept() {
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let state = sqlite_state();
+        let h = MachineRuns::new();
+        let rt1 = runtime(&backend).store(&state.store).adapter("claude", h.factory()).build();
+        let ws = create_on(&rt1.rt, CreateOn::golden("a"), None).await.expect("a workspace").view.id;
+        rt1.rt.sessions().start(&ws, StartOptions { prompt: "build it".into(), ..Default::default() }, None).await.expect("a start");
+        let (rt, w) = (rt1.rt.clone(), ws.clone());
+        until(|| {
+            let (rt, w) = (rt.clone(), w.clone());
+            async move { rt.sessions().history(&w, None).await.expect("a history").iter().any(|e| j(e)["type"] == "session.start") }
+        })
+        .await;
+        let run = h.handles()[0].clone();
+        assert!(run.starts_with("/tmp/wsp-run/"));
+        h.emit(&run, json!({ "type": "turn.delta", "sessionId": "sess-1", "kind": "text", "text": "reading" }));
+        rt1.rt.close().await.expect("a close");
+
+        let rt2 = runtime(&backend).store(&state.store).adapter("claude", h.factory()).build();
+        let rows = rt2.rt.sessions().list(Some(ws.clone()), None).await.expect("a list");
+        assert_eq!(rows.iter().map(|r| j(r)["status"].clone()).collect::<Vec<_>>(), [json!("running")]);
+        assert_eq!(h.reopened().iter().map(|r| r.prompt.clone()).collect::<Vec<_>>(), [Some("build it".to_string())]);
+        h.emit(&run, json!({ "type": "turn.done", "sessionId": "sess-1", "result": { "status": "completed", "text": "done" } }));
+        h.emit(&run, json!({ "type": "session.end", "sessionId": "sess-1", "exitCode": 0, "sawResult": true }));
+        let (rt, w) = (rt2.rt.clone(), ws.clone());
+        until(|| {
+            let (rt, w) = (rt.clone(), w.clone());
+            async move { j(&rt.sessions().list(Some(w), None).await.expect("a list")[0])["status"] == "completed" }
+        })
+        .await;
+        h.sweep(&run);
+        assert!(h.handles().is_empty());
+        assert_eq!(h.attempts(), 1);
+        rt2.rt.close().await.expect("a close");
+    });
+}
+
+// runtime-comeback.test.ts:313, :812, :861, :203: a store whose listing answers last, whose puts a test counts and whose transcripts
+// do not read; a harness whose attach a test holds and counts; a machine that offers a proof of its road; a workspace with agent limits.
+#[test]
+fn a_wrapped_store_holds_a_listing_counts_puts_and_fails_transcript_reads_and_a_holder_counts_the_attaches_it_holds() {
+    drive(|| async {
+        let state = sqlite_state();
+        let wrapped = WrappedStore::over(&state.store);
+        let gate = Gate::new();
+        wrapped.hold_list("sessions", &gate);
+        let store = wrapped.store();
+        store.put("sessions", "w1", json!({ "sessions": [] })).await.expect("a put");
+        store.put("workspaces", "w1", json!({})).await.expect("a put");
+        assert_eq!((wrapped.puts_into("sessions"), wrapped.puts_into("workspaces")), (1, 1));
+        let listing = tokio::task::spawn_local({
+            let store = store.clone();
+            async move { store.list("sessions").await.expect("a list").len() }
+        });
+        sleep_ms(30).await;
+        assert!(!listing.is_finished());
+        gate.open();
+        assert_eq!(listing.await.expect("the listing"), 1);
+        assert!(store.transcripts().expect("rows").all("w1").is_ok());
+        wrapped.fail_transcripts("disk said EIO");
+        assert_eq!(store.transcripts().expect("rows").all("w1").err().map(|e| e.message), Some("disk said EIO".to_string()));
+
+        // session-images.test.ts: the host dies between two writes, so the bytes of a blob never land.
+        wrapped.refuse_blob_puts("attachments", "the host went down");
+        assert_eq!(store.put_blob("attachments", "k", vec![1]).await.err().map(|e| e.message), Some("the host went down".to_string()));
+        store.put_blob("vaults", "k", vec![1]).await.expect("a put into another collection");
+
+        let holder = Holder::at(None);
+        let held = Gate::new();
+        holder.hold(&held);
+        assert_eq!((holder.asked.get(), holder.gate.borrow().is_some()), (0, true));
+    });
+}
+
+#[test]
+fn a_machine_offers_a_proof_of_its_road_once_one_is_set_and_a_workspace_takes_the_agent_limits_it_is_created_with() {
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let fx = runtime(&backend).build();
+        let ws =
+            create_on(&fx.rt, CreateOn::golden("a").agents(json!({ "maxMachines": 3, "maxDepth": 1 })), None).await.expect("a workspace");
+        assert_matches(&j(&ws.view)["agents"], json!({ "maxMachines": 3, "maxDepth": 1 }));
+        let m = backend.machine(0);
+        assert!(!m.offers().prove_road);
+        let proofs = Rc::new(std::cell::Cell::new(0));
+        let counted = proofs.clone();
+        m.set_prove_road(Some(Rc::new(move || {
+            counted.set(counted.get() + 1);
+            Box::pin(async { Ok(()) })
+        })));
+        assert!(m.offers().prove_road);
+        m.prove_road(None).await.expect("a proof");
+        assert_eq!(proofs.get(), 1);
+        fx.rt.close().await.expect("a close");
+    });
+}
+
+// session-held.test.ts, session-mcp.test.ts, session-search.test.ts: a scripted harness prints its lines at once, a tick later or once a gate
+// opens, streams the reply in pieces, declares the MCP road when told, and records what each start was asked.
+#[test]
+fn a_scripted_turn_prints_its_lines_at_once_a_tick_later_or_at_a_gate_streams_pieces_and_records_its_starts() {
+    drive(|| async {
+        let backend = StubBackend::new(None);
+        let gate = Gate::new();
+        let script =
+            Scripted::new().cwd("/root/app").pieces(2).reply(|p| format!("reply to {p}")).takes_mcp().when(When::Gate(gate.clone()));
+        let fx = runtime(&backend).adapter("claude", script.factory()).build();
+        let ws = create_on(&fx.rt, CreateOn::golden("w"), None).await.expect("a workspace").view.id;
+        let run = fx.rt.sessions().start(&ws, StartOptions { prompt: "work".into(), ..Default::default() }, None).await.expect("a start");
+        sleep_ms(30).await;
+        assert!(fx.rt.sessions().history(&ws, None).await.expect("a history").is_empty(), "nothing is printed before the gate opens");
+        gate.open();
+        assert_eq!(j(&run.finished().await)["text"], "reply to work");
+        let history = fx.rt.sessions().history(&ws, None).await.expect("a history");
+        let types: Vec<String> = history.iter().map(|e| j(e)["type"].as_str().unwrap_or_default().to_string()).collect();
+        assert_eq!(types, ["session.start", "session.delta", "session.delta", "session.done", "session.end"]);
+        assert_eq!(script.starts.borrow()[0].prompt, "work");
+        // An adapter that declares the MCP road is handed the host's own server when the start names none.
+        assert_eq!(script.mcp.borrow()[0], Some(json!({ "wsp": { "command": "wsp", "args": ["mcp"] } })));
+        let sync = Scripted::new().session("22222222-2222-4222-8222-222222222222").when(When::Sync);
+        let fx2 = runtime(&backend).adapter("claude", sync.factory()).build();
+        let ws2 = create_on(&fx2.rt, CreateOn::golden("w2"), None).await.expect("a workspace").view.id;
+        let quick = fx2.rt.sessions().start(&ws2, StartOptions { prompt: "x".into(), ..Default::default() }, None).await.expect("a start");
+        assert_eq!(j(&quick.finished().await)["text"], "done");
+        assert_eq!(j(&quick.view())["claudeSessionId"], "22222222-2222-4222-8222-222222222222");
+        fx.rt.close().await.expect("a close");
+        fx2.rt.close().await.expect("a close");
+    });
+}

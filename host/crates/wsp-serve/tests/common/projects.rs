@@ -77,6 +77,8 @@ pub struct CreateOn {
     pub mem_mb: Option<f64>,
     pub parent: Option<String>,
     pub idle_window_ms: IdleWindow,
+    /// `agents: { maxMachines: 3, maxDepth: 1 }`: the limits a workspace's agents may spend.
+    pub agents: Option<serde_json::Map<String, serde_json::Value>>,
 }
 
 impl CreateOn {
@@ -93,6 +95,10 @@ impl CreateOn {
     }
     pub fn mem(mut self, mem_mb: f64) -> CreateOn {
         self.mem_mb = Some(mem_mb);
+        self
+    }
+    pub fn agents(mut self, agents: serde_json::Value) -> CreateOn {
+        self.agents = agents.as_object().cloned();
         self
     }
     pub fn golden_is(mut self, golden: &str) -> CreateOn {
@@ -124,6 +130,7 @@ pub async fn create_on(rt: &AssembledRuntime, o: CreateOn, origin: Option<Caller
         golden: o.golden,
         name: o.name,
         parent: o.parent,
+        agents: o.agents,
         idle_window_ms: o.idle_window_ms,
         ..Default::default()
     };
