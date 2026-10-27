@@ -5,6 +5,7 @@
 //! not a new design. Each test file declares `mod common;`.
 #![allow(dead_code, unused_imports)]
 pub mod adapter;
+pub mod broker;
 pub mod daemon;
 pub mod events;
 pub mod fed;
@@ -40,6 +41,7 @@ use wsp_store::sqlite_store::sqlite_store;
 use wsp_store::store::{memory_store, StateWriter, Store};
 
 pub use adapter::{agent, never_ends, AgentOptions, Asked, ForkAt, Held, Road};
+pub use broker::TestBroker;
 pub use events::{json, Events};
 pub use lagging::Lagging;
 pub use live::{Live, LiveOptions, LiveSteer};
