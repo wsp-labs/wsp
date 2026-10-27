@@ -475,6 +475,20 @@ describe("the plan off a computer's picks", () => {
     expect(full.configTools?.map(t => t.label)).toEqual(["zsh"]);
   });
 
+  it("puts the package manager a picked folder's lockfile names in the plan, after the npm it runs on, though no CLI was ticked", async () => {
+    const home = tmp("plan-manager");
+    mkdirSync(join(home, "ni"), { recursive: true });
+    writeFileSync(join(home, "ni", "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
+    writeFileSync(join(home, "ni", "package.json"), "{}");
+    mkdirSync(join(home, "plain"), { recursive: true });
+    writeFileSync(join(home, "plain", "package.json"), "{}");
+    const provision = placeProvisioner({ statePath: join(home, "state.json"), home, platform: "darwin", collect: async () => manifest, brew: async () => new Map() });
+    const ids = async (from: string): Promise<string[]> => (await provision.setup({ ...picks, clis: {}, folders: { f: { from, keep: [] } } }, { home: "/root" })).steps.map(s => s.id);
+    const withPnpm = await ids(join(home, "ni"));
+    expect(withPnpm).toEqual(["agents/claude", "tools/manager/npm", "tools/catalog/pnpm"]);
+    expect(await ids(join(home, "plain"))).toEqual(["agents/claude"]);
+  });
+
   it("sends a skill only as a folder holding SKILL.md under its own name, never another folder of this computer", async () => {
     const home = tmp("plan-skills");
     mkdirSync(join(home, ".ssh"), { recursive: true });

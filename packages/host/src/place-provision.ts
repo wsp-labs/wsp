@@ -11,8 +11,9 @@ import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { join, posix } from "node:path";
 import type { Host, Manifest, ManifestEntry, Platform } from "@wsp/collect";
 import { expand, nodeHost } from "@wsp/collect";
-import { CATALOG_AGENTS, COMPILER_ROW, aptNeedRows, setupNeedRows, MCP_AGENTS, SHARED_SKILLS, TOOL_PREFIX, catalogEntry, catalogIdOfRow, harnessLine, installHomes, ownSkillFolder, rewrittenRel, roadModule } from "@wsp/catalog";
+import { CATALOG_AGENTS, COMPILER_ROW, aptNeedRows, seedToolsFor, setupNeedRows, MCP_AGENTS, SHARED_SKILLS, TOOL_PREFIX, catalogEntry, catalogIdOfRow, harnessLine, installHomes, ownSkillFolder, rewrittenRel, roadModule } from "@wsp/catalog";
 import {
+  CATALOG_PREFIX,
   agentStateFile,
   mcpRowId,
   newSetupRun,
@@ -352,6 +353,18 @@ export async function undoPlan(before: RecipeFile, removed: readonly { kind: Rec
   return out;
 }
 
+/** The package managers the picked folders' lockfiles name, as catalog rows to put on, for every one no ticked row
+ * already brings: a project whose manager is not on the computer fails its install with `command not found`, however
+ * the picks were made. */
+async function managersFor(host: Host, picks: RecipeFile, home: string, picked: readonly ManifestEntry[]): Promise<ManifestEntry[]> {
+  const there = new Set(picked.filter(e => e.bring === true).map(e => catalogIdOfRow(e)));
+  const names = await Promise.all(Object.values(picks.folders).map(folder => host.fs.list(expand({ home }, folder.from))));
+  return seedToolsFor(names.flat()).flatMap(id => {
+    const entry = catalogEntry(id);
+    return entry === undefined || there.has(id) ? [] : [{ rung: "tools" as const, id: `${CATALOG_PREFIX}${id}`, label: entry.name, paths: [], bytes: 0, default: "bring" as const, bring: true, linux: "yes" as const }];
+  });
+}
+
 /** The host's side of the setup job: the plan off a computer's picks, the floor alone for a computer that joined
  * before anything was picked, and each step the engine runs on the computer itself. */
 export function placeProvisioner(o: ProvisionReaders): PlaceProvisioner {
@@ -381,7 +394,8 @@ export function placeProvisioner(o: ProvisionReaders): PlaceProvisioner {
       }
       const manifest = await o.collect();
       const brew = await brewTableFor(manifest, o.brew);
-      const rows = picksRows(manifest, picks, { home: o.home, brew });
+      const picked = picksRows(manifest, picks, { home: o.home, brew });
+      const rows = [...picked, ...(await managersFor(here(), picks, o.home, picked))];
       const imp = keysKept(
         planImport(
           rows.filter(e => e.bring === true),

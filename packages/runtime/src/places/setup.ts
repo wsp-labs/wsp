@@ -657,7 +657,11 @@ export function placeSetup(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea) 
       if (add === undefined) return { id: `folders/${key}`, label, outcome: "failed", note: NO_FOLDER_ROAD };
       // The add's own lines go to the step's log as it clones and seeds, so the open row reads them as they come.
       const said = stageOf("folders");
-      return foldersOf.run(placeId, () => add(placeId, key, folder, move, line => said(`${label}: ${line}`))).catch((e: unknown): PlaceProvisionRow => ({ id: `folders/${key}`, label, outcome: "failed", note: firstLineOf(e) }));
+      return foldersOf.run(placeId, () => add(placeId, key, folder, move, line => said(`${label}: ${line}`))).catch((e: unknown): PlaceProvisionRow => {
+        // The cause goes in the log too, since an install's own output is on that computer's install log and the open row reads this one.
+        said(`${label}: ${firstLineOf(e)}`);
+        return { id: `folders/${key}`, label, outcome: "failed", note: firstLineOf(e) };
+      });
     };
 
     /** The folders this run landed as projects, by key, whose own servers the folderServers step carries, and those
