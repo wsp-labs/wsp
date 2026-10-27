@@ -3,6 +3,8 @@
 
 use std::rc::Rc;
 
+use super::paths::clone_value;
+
 use indexmap::{IndexMap, IndexSet};
 use serde_json::Value;
 use wsp_words::words::units::fmt_bytes;
@@ -104,16 +106,53 @@ impl OwnReader {
         if !own.segs.is_empty() {
             return None;
         }
-        if let Some(expr) = self.doc.derived.get(&own.name) {
-            if let Some(v) = self.derived.borrow().get(&own.name) {
-                return Some(v.clone());
+        if self.doc.derived.contains_key(&own.name) {
+            if !self.derived.borrow().contains_key(&own.name) {
+                self.settle(&own.name);
             }
-            self.derived.borrow_mut().insert(own.name.clone(), Value::Null);
-            let v = evaluate_slate_expression(expr, &self.context(None, None)).unwrap_or(Value::Null);
-            self.derived.borrow_mut().insert(own.name, v.clone());
-            return Some(v);
+            return self.derived.borrow().get(&own.name).map(clone_value);
         }
-        self.values.get(&own.name).cloned()
+        self.values.get(&own.name).map(clone_value)
+    }
+
+    /// One derived value read: a placeholder null while it is read, which a cycle through it meets, then what it reads.
+    fn evaluate_derived(&self, name: &str) {
+        let Some(expr) = self.doc.derived.get(name) else { return };
+        self.derived.borrow_mut().insert(name.to_string(), Value::Null);
+        let v = evaluate_slate_expression(expr, &self.context(None, None)).unwrap_or(Value::Null);
+        self.derived.borrow_mut().insert(name.to_string(), v);
+    }
+
+    /// A derived value and the derived values it reads, each read once the ones it reads are: a chain of 32 is 32 reads of one
+    /// expression each, where reading them from inside one another would hold 32 expressions on the stack at once. A value
+    /// stands as null while it waits for the ones it reads, as it does while it is read, so a cycle meets what it met.
+    fn settle(&self, name: &str) {
+        let reads = |of: &str| -> Vec<String> {
+            let wanted = self.doc.derived.get(of).map(|expr| slate_dependencies(expr)).unwrap_or_default();
+            wanted
+                .iter()
+                .filter_map(|path| parse_slate_own_path(path))
+                .map(|p| p.name)
+                .filter(|n| self.doc.derived.contains_key(n))
+                .collect()
+        };
+        self.derived.borrow_mut().insert(name.to_string(), Value::Null);
+        let mut open = vec![(name.to_string(), reads(name).into_iter())];
+        while let Some((at, below)) = open.last_mut() {
+            match below.next() {
+                Some(next) if !self.derived.borrow().contains_key(&next) => {
+                    self.derived.borrow_mut().insert(next.clone(), Value::Null);
+                    let below = reads(&next).into_iter();
+                    open.push((next, below));
+                }
+                Some(_) => {}
+                None => {
+                    let done = std::mem::take(at);
+                    open.pop();
+                    self.evaluate_derived(&done);
+                }
+            }
+        }
     }
 }
 

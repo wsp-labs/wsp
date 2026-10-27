@@ -92,6 +92,92 @@ pub fn slate_own_name(text: &str) -> Option<String> {
     path.segs.is_empty().then_some(path.name)
 }
 
+/// A list or a record being copied: what is left of the original, and the copy so far.
+enum Copy<'a> {
+    List(std::slice::Iter<'a, Value>, Vec<Value>),
+    Record(serde_json::map::Iter<'a>, Map<String, Value>, Option<&'a String>),
+}
+
+impl<'a> Copy<'a> {
+    fn of(value: &'a Value) -> Option<Copy<'a>> {
+        match value {
+            Value::Array(items) => Some(Copy::List(items.iter(), Vec::with_capacity(items.len()))),
+            Value::Object(fields) => Some(Copy::Record(fields.iter(), Map::new(), None)),
+            _ => None,
+        }
+    }
+
+    fn finish(self) -> Value {
+        match self {
+            Copy::List(_, items) => Value::Array(items),
+            Copy::Record(_, fields, _) => Value::Object(fields),
+        }
+    }
+
+    fn put(&mut self, value: Value) {
+        match self {
+            Copy::List(_, items) => items.push(value),
+            Copy::Record(_, fields, key) => {
+                if let Some(key) = key.take() {
+                    fields.insert(key.clone(), value);
+                }
+            }
+        }
+    }
+}
+
+/// `value.clone()` with the open lists and records on a stack of its own. A slate value may nest 500 levels, where the
+/// derived `clone` is a call per level and dies on a 1 MiB stack at 628 with nothing else on it.
+pub fn clone_value(value: &Value) -> Value {
+    let Some(root) = Copy::of(value) else { return value.clone() };
+    let mut open = vec![root];
+    loop {
+        let Some(top) = open.last_mut() else { unreachable!("the root is open until it is returned") };
+        let next = match top {
+            Copy::List(rest, _) => rest.next(),
+            Copy::Record(rest, _, key) => rest.next().map(|(name, member)| {
+                *key = Some(name);
+                member
+            }),
+        };
+        match next {
+            Some(member) => match Copy::of(member) {
+                Some(inner) => open.push(inner),
+                None => top.put(member.clone()),
+            },
+            None => {
+                let Some(done) = open.pop() else { unreachable!("a value is open") };
+                match open.last_mut() {
+                    Some(parent) => parent.put(done.finish()),
+                    None => return done.finish(),
+                }
+            }
+        }
+    }
+}
+
+/// The levels a tree may hold before `from_deep_value` reads it on a stack of its own.
+const SHALLOW: usize = 100;
+
+/// The stack a deep tree is read on; only the pages it touches are ever mapped.
+const DEEP_STACK: usize = 64 * 1024 * 1024;
+
+/// `serde_json::from_value`, which is a call per level of every value in the type it reads and dies on a 1 MiB stack at about
+/// 326 levels. A tree past 100 levels is read on a thread with a stack that holds the 500 a slate may nest; the error is
+/// serde_json's text.
+pub fn from_deep_value<T: serde::de::DeserializeOwned + Send>(value: Value) -> Result<T, String> {
+    if slate_depth(&value) <= SHALLOW {
+        return serde_json::from_value(value).map_err(|e| e.to_string());
+    }
+    std::thread::scope(|scope| {
+        let reading = std::thread::Builder::new().stack_size(DEEP_STACK).spawn_scoped(scope, move || serde_json::from_value(value));
+        match reading.map_err(|e| e.to_string())?.join() {
+            Ok(read) => read.map_err(|e| e.to_string()),
+            Err(_) => Err("a deep tree could not be read".to_string()),
+        }
+    })
+}
+
 fn step_ref<'a>(value: &'a Value, seg: &PathSeg) -> Option<&'a Value> {
     match (value, seg) {
         (Value::Array(items), PathSeg::Index(index)) => {
@@ -105,14 +191,14 @@ fn step_ref<'a>(value: &'a Value, seg: &PathSeg) -> Option<&'a Value> {
 
 /// One step into a value: a record's own field, or a list's item counting back from the end for a negative index.
 pub fn slate_step(at: Option<Value>, seg: &PathSeg) -> Option<Value> {
-    at.as_ref().and_then(|value| step_ref(value, seg)).cloned()
+    at.as_ref().and_then(|value| step_ref(value, seg)).map(clone_value)
 }
 
 /// The value at an own path, or None when the name is not in the values or a step finds nothing.
 pub fn get_slate_value(values: &SlateValues, path: &str) -> Option<Value> {
     let path = parse_slate_own_path(path)?;
     let head = values.get(&path.name)?;
-    path.segs.iter().try_fold(head, |at, seg| step_ref(at, seg)).cloned()
+    path.segs.iter().try_fold(head, |at, seg| step_ref(at, seg)).map(clone_value)
 }
 
 /// How many lists and records a value, or a path, may nest; node's stack gives out at a depth that moves with its stack.

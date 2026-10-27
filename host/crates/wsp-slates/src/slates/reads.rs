@@ -13,7 +13,7 @@ use wsp_words::js::{js_trim, utf16};
 use super::model::{problem, sources_named, SlateRecord, SLATE_SEND_KEY};
 use super::{CatalogParams, ReadParams, SlatesInner, Views};
 use crate::pending::slate::expr::{evaluate_slate_expression, slate_dependencies};
-use crate::pending::slate::paths::{get_slate_value, parse_slate_own_path, slate_step};
+use crate::pending::slate::paths::{clone_value, get_slate_value, parse_slate_own_path, slate_step};
 use crate::pending::slate::{
     is_slate_binding, print_slate, sketch_slate, slate_catalog, SketchOptions, SlateDoc, SlateEvalContext, SlateProblem, SlateValues,
 };
@@ -115,22 +115,56 @@ fn resolve_path(scope: &Rc<Scope>, path: &str) -> Option<Value> {
         return resolve_in(&scope.views, path);
     }
     let own = parse_slate_own_path(path)?;
-    let Some(expr) = scope.derived.get(&own.name) else {
+    if !scope.derived.contains_key(&own.name) {
         return get_slate_value(&scope.values, path);
-    };
+    }
     let cached = scope.cache.borrow().contains_key(&own.name);
     if !cached {
         let busy = scope.busy.borrow().contains(&own.name);
         if busy {
             return None;
         }
-        scope.busy.borrow_mut().insert(own.name.clone());
-        let value = evaluate_slate_expression(expr, &eval_context(scope));
-        scope.busy.borrow_mut().shift_remove(&own.name);
-        scope.cache.borrow_mut().insert(own.name.clone(), value);
+        settle(scope, &own.name);
     }
-    let base = scope.cache.borrow().get(&own.name).cloned().flatten();
+    let base = scope.cache.borrow().get(&own.name).and_then(|cached| cached.as_ref().map(clone_value));
     own.segs.iter().fold(base, slate_step)
+}
+
+/// One derived value read, busy while it is.
+fn evaluate_derived(scope: &Rc<Scope>, name: &str) {
+    let Some(expr) = scope.derived.get(name) else { return };
+    scope.busy.borrow_mut().insert(name.to_string());
+    let value = evaluate_slate_expression(expr, &eval_context(scope));
+    scope.busy.borrow_mut().shift_remove(name);
+    scope.cache.borrow_mut().insert(name.to_string(), value);
+}
+
+/// A derived value and the derived values it reads, each read once the ones it reads are: a chain of 32 is 32 reads of one
+/// expression each, where reading them from inside one another would hold 32 expressions on the stack at once. A value
+/// is busy while it waits for the ones it reads, as it is while it is read, so a cycle meets what it met.
+fn settle(scope: &Rc<Scope>, name: &str) {
+    let reads = |of: &str| -> Vec<String> {
+        let wanted = scope.derived.get(of).map(|expr| slate_dependencies(expr)).unwrap_or_default();
+        wanted.iter().filter_map(|path| parse_slate_own_path(path)).map(|p| p.name).filter(|n| scope.derived.contains_key(n)).collect()
+    };
+    let taken = |n: &str| scope.cache.borrow().contains_key(n) || scope.busy.borrow().contains(n);
+    scope.busy.borrow_mut().insert(name.to_string());
+    let mut open = vec![(name.to_string(), reads(name).into_iter())];
+    while let Some((at, below)) = open.last_mut() {
+        match below.next() {
+            Some(next) if !taken(&next) => {
+                scope.busy.borrow_mut().insert(next.clone());
+                let below = reads(&next).into_iter();
+                open.push((next, below));
+            }
+            Some(_) => {}
+            None => {
+                let done = std::mem::take(at);
+                open.pop();
+                evaluate_derived(scope, &done);
+            }
+        }
+    }
 }
 
 fn starts_with_version(text: &str) -> bool {
