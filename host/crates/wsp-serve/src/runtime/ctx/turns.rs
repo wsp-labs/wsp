@@ -1,287 +1,437 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// Each body is todo!() until its packet writes it; the allow goes with the last one.
-#![allow(unused_variables)]
+//! The context's bodies for the turns, forks and conversations areas (turns.ts:17-866, forks.ts:1-240,
+//! conversations.ts:68-273; wired at runtime.ts:467 and :482). Each method reads a core field, forwards to the area
+//! that owns it, or calls a platform function. A method name several traits share is called through the area or the
+//! struct's own field, never through another trait of the context.
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+use std::sync::Arc;
+
+use futures::future::LocalBoxFuture;
+use futures::FutureExt as _;
+use indexmap::IndexMap;
+use serde_json::Value;
+use wsp_account::account::core_types::{AccountError, Work};
+use wsp_account::account::usage::{LimitReading, UsageCtx};
+use wsp_adapters::port::{ExecFailure, HarnessExec};
+use wsp_core::console;
+use wsp_core::harness_catalog::harness_catalog;
+use wsp_core::types::wiring::WorkspaceRecord;
+use wsp_machines::machines::boot::entries::{EntryAsk, RowAt};
+use wsp_machines::machines::machines::Row;
+use wsp_machines::usage::accounts::{account_of, BurnCall, ComputerName, NamedAccount, ReplayedStamp};
+use wsp_machines::usage::Vaulted;
+use wsp_threads::threads::threads::tree::TellAs;
+use wsp_threads::threads::threads::{Entry, ThreadsCtx};
+use wsp_threads::threads::turns::{BurnAsk, LedgerUse, LimitAsk, Sweep, UsageAccount};
+use wsp_wire::views::session::{SessionView, TitleSource};
+use wsp_words::exit::{not_found_refusal, HostError};
 
 use super::Ctx;
+use crate::runtime::join::spawn_detached;
+
+/// `ctx.ready()` as the one error the area traits carry.
+fn started(ctx: &Ctx) -> LocalBoxFuture<'static, Result<(), HostError>> {
+    let boot = ctx.boot.get();
+    async move { boot.ready().await.map_err(|e| e.0) }.boxed_local()
+}
+
+fn failed(e: AccountError) -> HostError {
+    HostError::new(e.message())
+}
+
+/// An exec failure as the host's own error, which is what a trait method that can fail answers.
+fn exec_failed(e: ExecFailure) -> HostError {
+    HostError::new(e.message)
+}
+
+/// `harnessExec(machine, timeoutMs)` (engine run-env.ts:36) as an adapter takes it: the command's stdout alone answers,
+/// whatever its exit code, and a command that cannot run is the failure.
+fn turns_harness_exec(entry: &Entry, timeout_ms: u64) -> Arc<dyn HarnessExec> {
+    let machine = entry.borrow().machine.clone();
+    Arc::new(move |command: &str, env: Option<&wsp_adapters::port::Env>| {
+        let machine = machine.clone();
+        let command = command.to_string();
+        let env = env.cloned();
+        async move {
+            let res = match env {
+                None => {
+                    machine
+                        .exec(
+                            &command,
+                            wsp_engine::machine::ExecOptions { timeout_ms: Some(timeout_ms), idempotency_key: None, stdin: None },
+                        )
+                        .await
+                }
+                Some(env) => wsp_engine::run_env::env_exec(machine.as_ref(), &command, &env, Some(timeout_ms)).await,
+            };
+            res.map(|r| r.stdout).map_err(|e| wsp_core::machine_exec::factory::exec_failure_of(&e))
+        }
+        .boxed_local()
+    })
+}
+
+/// A row's key in `sessions`, put there for one call where the map does not hold it: the TS acts on the object it is
+/// handed, the area looks the row up by its key.
+fn turns_with_row_keyed<R>(ctx: &Ctx, row: &Row, f: impl FnOnce(&str) -> R) -> R {
+    let held = ctx.sessions.borrow().iter().find(|(_, held)| Rc::ptr_eq(held, row)).map(|(key, _)| key.clone());
+    if let Some(key) = held {
+        return f(&key);
+    }
+    let key = row.borrow().view.id.clone();
+    let displaced = ctx.sessions.borrow_mut().insert(key.clone(), row.clone());
+    let out = f(&key);
+    let mut sessions = ctx.sessions.borrow_mut();
+    match displaced {
+        Some(held) => {
+            sessions.insert(key, held);
+        }
+        None => {
+            sessions.shift_remove(&key);
+        }
+    }
+    out
+}
+
+fn view_of(row: &Row) -> SessionView {
+    row.borrow().view.clone()
+}
+
+thread_local! {
+    static HELD_ASKS: Cell<u64> = const { Cell::new(0) };
+}
+
+/// A key in the area's map of held asks, counted down from the top so it never meets the area's own count up.
+fn held_ask_key() -> u64 {
+    HELD_ASKS.with(|n| {
+        n.set(n.get() + 1);
+        u64::MAX - n.get()
+    })
+}
 
 #[async_trait::async_trait(?Send)]
 impl wsp_threads::threads::turns::TurnsCtx for Ctx {
-    fn clock(&self) -> std::rc::Rc<dyn wsp_core::clock::Clock> {
-        todo!()
+    fn clock(&self) -> Rc<dyn wsp_core::clock::Clock> {
+        self.clock.clone()
     }
     fn sessions(&self) -> wsp_threads::threads::threads::Sessions {
-        todo!()
+        self.sessions.clone()
     }
     fn records(&self) -> wsp_threads::threads::threads::ThreadRecords {
-        todo!()
+        self.thread_records.clone()
     }
-    fn live_entry(&self, workspace_id: &str) -> Option<wsp_threads::threads::threads::Entry> {
-        todo!()
+    fn live_entry(&self, workspace_id: &str) -> Option<Entry> {
+        self.live.borrow().get(workspace_id).cloned()
     }
-    fn latest_on(&self, thread_id: &str) -> Option<wsp_wire::views::session::SessionView> {
-        todo!()
+    fn latest_on(&self, thread_id: &str) -> Option<SessionView> {
+        self.threads.get().latest_on(thread_id)
     }
     fn closing(&self) -> bool {
-        todo!()
+        self.state.with(|s| s.closing)
     }
     fn record(&self, event: wsp_wire::views::session_events_more::SessionEvent) {
-        todo!()
+        self.transcripts.get().record(event)
     }
     fn emit(&self, event: wsp_wire::wire::events_union::EventUnion) {
-        todo!()
+        if let Err(e) = self.bus.emit(event) {
+            console::warn(&e.message);
+        }
     }
     fn pass(&self, event: wsp_wire::wire::events_union::EventUnion) {
-        todo!()
+        if let Err(e) = self.bus.pass(event) {
+            console::warn(&e.message);
+        }
     }
-    fn persist_sessions(&self, workspace_id: &str) -> futures::future::LocalBoxFuture<'static, ()> {
-        todo!()
+    fn persist_sessions(&self, workspace_id: &str) -> LocalBoxFuture<'static, ()> {
+        self.transcripts.get().persist_sessions(workspace_id)
     }
-    async fn persist_record(&self, record: wsp_core::types::wiring::WorkspaceRecord) -> Result<(), wsp_words::exit::HostError> {
-        todo!()
+    async fn persist_record(&self, record: WorkspaceRecord) -> Result<(), HostError> {
+        self.records.get().persist(&record).await
     }
     fn held_at_close(&self) -> wsp_threads::threads::turns::HeldAtClose {
-        todo!()
+        self.held_at_close.clone()
     }
-    async fn slates_turn_ended(&self, thread_id: &str, turn_id: &str) -> Result<(), wsp_words::exit::HostError> {
-        todo!()
+    async fn slates_turn_ended(&self, thread_id: &str, turn_id: &str) -> Result<(), HostError> {
+        self.slates.get().turn_ended(thread_id, turn_id).await
     }
-    fn keep_checkpoint(
-        &self,
-        entry: &wsp_threads::threads::threads::Entry,
-        ask: wsp_threads::threads::threads::CheckpointAsk,
-    ) -> wsp_core::context::Joined {
-        todo!()
+    fn keep_checkpoint(&self, entry: &Entry, ask: wsp_threads::threads::threads::CheckpointAsk) -> wsp_core::context::Joined {
+        let (threads, entry) = (self.threads.get(), entry.clone());
+        async move { threads.keep_checkpoint(&entry, ask).await }.boxed_local().shared()
     }
-    fn checkpoints_landing(&self) -> std::rc::Rc<std::cell::RefCell<indexmap::IndexMap<String, wsp_core::context::Joined>>> {
-        todo!()
+    fn checkpoints_landing(&self) -> Rc<RefCell<IndexMap<String, wsp_core::context::Joined>>> {
+        self.threads.get().checkpoints_landing.clone()
     }
-    async fn read_turn_changes(
-        &self,
-        entry: &wsp_threads::threads::threads::Entry,
-        ask: wsp_threads::threads::threads::TurnChangesAsk,
-    ) -> Result<bool, wsp_words::exit::HostError> {
-        todo!()
+    async fn read_turn_changes(&self, entry: &Entry, ask: wsp_threads::threads::threads::TurnChangesAsk) -> Result<bool, HostError> {
+        Ok(self.threads.get().read_turn_changes(entry, ask).await)
     }
-    fn lead_asks(&self) -> std::rc::Rc<std::cell::RefCell<indexmap::IndexMap<String, wsp_adapters::port::PermissionAsk>>> {
-        todo!()
+    fn lead_asks(&self) -> Rc<RefCell<IndexMap<String, wsp_adapters::port::PermissionAsk>>> {
+        self.threads.get().lead_asks.clone()
     }
     fn mode_label(&self, harness: &str, mode: &str) -> Option<String> {
-        todo!()
+        harness_catalog(harness)?.permission_modes.iter().find(|m| m.value == mode).map(|m| m.label.clone())
     }
-    fn settle_cut(&self, row: &wsp_threads::threads::threads::Row, reason: &str, by_stop: bool, unreached: bool) {
-        todo!()
+    fn settle_cut(&self, row: &Row, reason: &str, by_stop: bool, unreached: bool) {
+        let threads = self.threads.get();
+        turns_with_row_keyed(self, row, |key| threads.settle_cut(key, reason, &|_| reason.to_string(), by_stop, unreached));
     }
-    fn line_try(&self, row: &wsp_threads::threads::threads::Row) -> bool {
-        todo!()
+    fn line_try(&self, row: &Row) -> bool {
+        let threads = self.threads.get();
+        turns_with_row_keyed(self, row, |key| threads.line_try(key))
     }
     fn prompt_held(&self, request_id: &str) {
-        todo!()
+        self.threads.get().prompt_held(request_id)
     }
-    async fn name_in_harness(&self, view: wsp_wire::views::session::SessionView, title: &str) -> Result<(), wsp_words::exit::HostError> {
-        todo!()
+    async fn name_in_harness(&self, view: SessionView, title: &str) -> Result<(), HostError> {
+        self.agents.get().name_in_harness(&view, title).await;
+        Ok(())
     }
-    fn source_of(&self, view: &wsp_wire::views::session::SessionView) -> Option<String> {
-        todo!()
+    fn source_of(&self, view: &SessionView) -> Option<String> {
+        let word = match wsp_threads::threads::agents::lists::source_of(view) {
+            TitleSource::Seed => "seed",
+            TitleSource::Auto => "auto",
+            TitleSource::Person => "person",
+        };
+        Some(word.to_string())
     }
-    fn hold_ask(&self, ask: futures::future::LocalBoxFuture<'static, ()>) {
-        todo!()
+    fn hold_ask(&self, ask: LocalBoxFuture<'static, ()>) {
+        let agents = self.agents.get();
+        let id = held_ask_key();
+        let held: wsp_core::context::Joined = ask.shared().map(|_| ()).boxed_local().shared();
+        agents.agent_asks.borrow_mut().insert(id, held.clone());
+        spawn_detached(async move {
+            held.await;
+            agents.agent_asks.borrow_mut().shift_remove(&id);
+        });
     }
-    async fn refresh_title(&self, row: &wsp_threads::threads::threads::Row, ended: bool) -> Result<(), wsp_words::exit::HostError> {
-        todo!()
+    async fn refresh_title(&self, row: &Row, ended: bool) -> Result<(), HostError> {
+        self.agents.get().refresh_title(&view_of(row), ended).await;
+        Ok(())
     }
-    async fn make_title(&self, row: &wsp_threads::threads::threads::Row) -> Result<(), wsp_words::exit::HostError> {
-        todo!()
+    async fn make_title(&self, row: &Row) -> Result<(), HostError> {
+        self.agents.get().make_title(&view_of(row)).await
     }
-    fn usage_account_of(
-        &self,
-        entry: &wsp_threads::threads::threads::Entry,
-        harness: &str,
-        account: Option<(String, Option<String>)>,
-    ) -> wsp_threads::threads::turns::UsageAccount {
-        todo!()
+    fn usage_account_of(&self, entry: &Entry, harness: &str, account: Option<(String, Option<String>)>) -> UsageAccount {
+        let record = entry.borrow().record.borrow().clone();
+        let login_stands = ThreadsCtx::login_stands(self, entry, harness);
+        let vault = ThreadsCtx::vault_on(self, entry);
+        let vaulted = match self.threads.get().vaulted_for(harness, Some(login_stands), Some(&vault)) {
+            Some("token") => Some(Vaulted::Token),
+            Some(_) => Some(Vaulted::Key),
+            None => None,
+        };
+        let agent_name = harness_catalog(harness).map(|catalog| catalog.label).unwrap_or_else(|| harness.to_string());
+        let computer = ComputerName {
+            id: wsp_threads::threads::threads::ThreadsArea::usage_computer_of(&record),
+            name: self.channels.get().computer_of(entry),
+        };
+        let named = account.map(|(id, label)| NamedAccount { id, label });
+        let found = account_of(harness, &agent_name, named.as_ref(), vaulted, &computer);
+        let road = serde_json::to_value(found.road).ok().and_then(|word| word.as_str().map(str::to_string));
+        UsageAccount { key: found.key, label: Some(found.label), road }
     }
-    fn usage_computer_of(&self, record: &wsp_core::types::wiring::WorkspaceRecord) -> String {
-        todo!()
+    fn usage_computer_of(&self, record: &WorkspaceRecord) -> String {
+        wsp_threads::threads::threads::ThreadsArea::usage_computer_of(record)
     }
-    async fn ledger_add(&self, row: wsp_threads::threads::turns::LedgerUse) -> Result<(), wsp_words::exit::HostError> {
-        todo!()
+    async fn ledger_add(&self, row: LedgerUse) -> Result<(), HostError> {
+        let _ = row;
+        Err(HostError::new("the usage ledger is not wired to the turns area yet"))
     }
-    async fn ledger_limit(
-        &self,
-        ask: wsp_threads::threads::turns::LimitAsk,
-    ) -> Result<(serde_json::Value, serde_json::Value), wsp_words::exit::HostError> {
-        todo!()
+    async fn ledger_limit(&self, ask: LimitAsk) -> Result<(Value, Value), HostError> {
+        let reading = LimitReading {
+            key: ask.key,
+            agent: ask.agent,
+            label: ask.label.unwrap_or_default(),
+            road: ask.road.unwrap_or_default(),
+            computer: ask.computer,
+            limit: ask.limit,
+            at: None,
+        };
+        UsageCtx::file_limit(self, reading).await.map_err(failed)
     }
-    async fn alerts_read(&self, before: serde_json::Value, after: serde_json::Value) -> Result<(), wsp_words::exit::HostError> {
-        todo!()
+    async fn alerts_read(&self, before: Value, after: Value) -> Result<(), HostError> {
+        UsageCtx::alerts_read(self, before, after).await.map_err(failed)
     }
-    async fn usage_accounts(&self) -> Result<wsp_wire::types::usage::AccountsAnswer, wsp_words::exit::HostError> {
-        todo!()
+    async fn usage_accounts(&self) -> Result<wsp_wire::types::usage::AccountsAnswer, HostError> {
+        self.usage.get().usage_accounts().await.map_err(failed)
     }
-    fn burn_add(&self, ask: wsp_threads::threads::turns::BurnAsk) {
-        todo!()
+    fn burn_add(&self, ask: BurnAsk) {
+        let _ = BurnCall {
+            account: ask.account,
+            thread_id: ask.thread_id,
+            tokens: ask.tokens,
+            replayed: ask.replayed.map(|(run, at)| ReplayedStamp { run, at: at as i64 }),
+        };
+        console::warn("the usage burn is not wired to the turns area yet");
     }
-    fn notify_end(
-        &self,
-        row: &wsp_threads::threads::threads::Row,
-        notify: &[String],
-        result: wsp_wire::views::session_events::TurnResult,
-        open: bool,
-    ) {
-        todo!()
+    fn notify_end(&self, row: &Row, notify: &[String], result: wsp_wire::views::session_events::TurnResult, open: bool) {
+        let named = {
+            let held = row.borrow();
+            TellAs { by: held.notify_by.clone(), road: held.notify_road }
+        };
+        self.threads.get().notify_end(row, notify, &named, &result, open)
     }
     fn agent_retried(&self, turn_id: &str, why: Option<&str>) {
-        todo!()
+        self.waits.get().agent_retried(turn_id, why)
     }
-    fn end_snooze_for(&self, view: &wsp_wire::views::session::SessionView) {
-        todo!()
+    fn end_snooze_for(&self, view: &SessionView) {
+        self.boot.get().end_snooze_for(view.thread_id.as_deref(), view.root_thread_id.as_deref())
     }
     fn idle_hold(&self, workspace_id: &str) {
-        todo!()
+        self.idle.get().hold(workspace_id)
     }
     fn idle_release(&self, workspace_id: &str) {
-        todo!()
+        self.idle.get().release(workspace_id)
     }
     fn arm_disk_watch(&self) {
-        todo!()
+        self.reach.get().arm_disk_watch()
     }
-    async fn read_disk(&self, entry: &wsp_threads::threads::threads::Entry) -> Result<(), wsp_words::exit::HostError> {
-        todo!()
+    async fn read_disk(&self, entry: &Entry) -> Result<(), HostError> {
+        self.reach.get().read_disk(entry).await;
+        Ok(())
     }
-    fn harness_exec(
-        &self,
-        entry: &wsp_threads::threads::threads::Entry,
-        timeout_ms: u64,
-    ) -> std::sync::Arc<dyn wsp_adapters::port::HarnessExec> {
-        todo!()
+    fn harness_exec(&self, entry: &Entry, timeout_ms: u64) -> Arc<dyn HarnessExec> {
+        turns_harness_exec(entry, timeout_ms)
     }
-    fn shared_daemon(&self, entry: &wsp_threads::threads::threads::Entry) -> bool {
-        todo!()
+    fn shared_daemon(&self, entry: &Entry) -> bool {
+        let kind = entry.borrow().record.borrow().kind;
+        self.kinds.get().module_of(kind).map(|module| module.shared_daemon()).unwrap_or(false)
     }
-    fn turn_groups(&self) -> std::rc::Rc<std::cell::RefCell<indexmap::IndexMap<String, indexmap::IndexMap<i64, String>>>> {
-        todo!()
+    fn turn_groups(&self) -> Rc<RefCell<IndexMap<String, IndexMap<i64, String>>>> {
+        self.channels.get().turn_groups.clone()
     }
     fn arm_roots_recheck(&self) {
-        todo!()
+        self.channels.get().arm_roots_recheck()
     }
     fn port_roots_moved(&self, workspace_id: &str) {
-        todo!()
+        self.channels.get().port_roots_moved(workspace_id)
     }
     fn hold_kept(&self, thread_id: &str, hold: wsp_threads::threads::threads::KeptHand) -> Option<wsp_threads::threads::threads::KeptHand> {
-        todo!()
+        self.threads.get().hold_kept(thread_id, hold)
     }
-    async fn revoke_device(&self, device_id: &str) -> Result<(), wsp_words::exit::HostError> {
-        todo!()
+    async fn revoke_device(&self, device_id: &str) -> Result<(), HostError> {
+        self.device_door.revoke(device_id).await.map(|_| ())
     }
-    async fn read_checkout(&self, entry: &wsp_threads::threads::threads::Entry, fresh: bool) -> Result<(), wsp_words::exit::HostError> {
-        todo!()
+    async fn read_checkout(&self, entry: &Entry, fresh: bool) -> Result<(), HostError> {
+        self.reach.get().read_checkout(entry, fresh).await;
+        Ok(())
     }
-    async fn ran_on_branch(&self, entry: &wsp_threads::threads::threads::Entry, thread_id: &str) -> Result<(), wsp_words::exit::HostError> {
-        todo!()
+    async fn ran_on_branch(&self, entry: &Entry, thread_id: &str) -> Result<(), HostError> {
+        self.pull_requests.get().ran_on_branch(entry, thread_id).await.map_err(failed)
     }
-    async fn read_pull_request(&self, entry: &wsp_threads::threads::threads::Entry, fresh: bool) -> Result<(), wsp_words::exit::HostError> {
-        todo!()
+    async fn read_pull_request(&self, entry: &Entry, fresh: bool) -> Result<(), HostError> {
+        self.pull_requests.get().read_pull_request(entry, fresh, false).await;
+        Ok(())
     }
-    async fn read_lead_of(&self, entry: &wsp_threads::threads::threads::Entry) -> Result<(), wsp_words::exit::HostError> {
-        todo!()
+    async fn read_lead_of(&self, entry: &Entry) -> Result<(), HostError> {
+        self.reach.get().read_lead_of(entry);
+        Ok(())
     }
-    fn pull_request_state(&self, entry: &wsp_threads::threads::threads::Entry) -> Option<String> {
-        todo!()
+    fn pull_request_state(&self, entry: &Entry) -> Option<String> {
+        let state = entry.borrow().record.borrow().pr.as_ref().map(|pr| pr.state)?;
+        serde_json::to_value(state).ok().and_then(|word| word.as_str().map(str::to_string))
     }
-    async fn settle_tree(&self, entry: &wsp_threads::threads::threads::Entry) -> Result<(), wsp_words::exit::HostError> {
-        todo!()
+    async fn settle_tree(&self, entry: &Entry) -> Result<(), HostError> {
+        self.pull_requests.get().settle_tree(entry).await;
+        Ok(())
     }
-    fn drop_images(&self, entry: &wsp_threads::threads::threads::Entry, dir: &str) {
-        todo!()
+    fn drop_images(&self, entry: &Entry, dir: &str) {
+        self.agents.get().drop_images(entry, dir)
     }
-    fn send_back(&self, row: &wsp_threads::threads::threads::Row, unread: Vec<String>, stopped: bool) {
-        todo!()
+    fn send_back(&self, row: &Row, unread: Vec<String>, stopped: bool) {
+        self.threads.get().send_back(row, &unread, stopped)
     }
-    async fn take_review(
-        &self,
-        entry: &wsp_threads::threads::threads::Entry,
-        thread_id: &str,
-        text: &str,
-    ) -> Result<(), wsp_words::exit::HostError> {
-        todo!()
+    async fn take_review(&self, entry: &Entry, thread_id: &str, text: &str) -> Result<(), HostError> {
+        self.start_from.get().take_review(entry, thread_id, text).await
     }
     fn is_held_away(&self, workspace_id: &str) -> bool {
-        todo!()
+        self.boot.get().is_held_away(workspace_id)
     }
-    fn exec_sweep(&self, entry: &wsp_threads::threads::threads::Entry) -> Option<wsp_threads::threads::turns::Sweep> {
-        todo!()
+    fn exec_sweep(&self, entry: &Entry) -> Option<Sweep> {
+        let factory = self.kinds.get().exec_factory_for(&entry.borrow(), None, None).ok()?;
+        let _probe = factory.sweep(&[])?;
+        Some(Box::new(move |keep: Vec<String>| match factory.sweep(&keep) {
+            Some(swept) => async move { swept.await.map_err(exec_failed) }.boxed_local(),
+            None => async { Ok(Vec::new()) }.boxed_local(),
+        }))
     }
     fn adapter_for(
         &self,
-        entry: &wsp_threads::threads::threads::Entry,
+        entry: &Entry,
         ask: wsp_threads::threads::agents::launch::AdapterAsk,
-    ) -> Result<wsp_threads::threads::agents::launch::BuiltAdapter, wsp_words::exit::HostError> {
-        todo!()
+    ) -> Result<wsp_threads::threads::agents::launch::BuiltAdapter, HostError> {
+        self.agents.get().adapter_for(entry, ask)
     }
     fn open_thread(
         &self,
         workspace_id: &str,
         thread_id: &str,
-    ) -> futures::future::LocalBoxFuture<'static, Result<Vec<wsp_wire::views::session_events_more::SessionEvent>, wsp_words::exit::HostError>>
-    {
-        todo!()
+    ) -> LocalBoxFuture<'static, Result<Vec<wsp_wire::views::session_events_more::SessionEvent>, HostError>> {
+        let (transcripts, workspace_id, thread_id) = (self.transcripts.get(), workspace_id.to_string(), thread_id.to_string());
+        async move { transcripts.open_thread(&workspace_id, &thread_id) }.boxed_local()
     }
-    fn spawn(&self, work: futures::future::LocalBoxFuture<'static, ()>) {
-        todo!()
+    fn spawn(&self, work: LocalBoxFuture<'static, ()>) {
+        spawn_detached(work);
     }
 }
 
 impl wsp_threads::threads::forks::ForksCtx for Ctx {
-    fn ready(&self) -> futures::future::LocalBoxFuture<'static, Result<(), wsp_words::exit::HostError>> {
-        todo!()
+    fn ready(&self) -> LocalBoxFuture<'static, Result<(), HostError>> {
+        started(self)
     }
-    fn store(&self) -> std::rc::Rc<dyn wsp_store::store::Store> {
-        todo!()
+    fn store(&self) -> Rc<dyn wsp_store::store::Store> {
+        self.store.clone()
     }
     fn sessions(&self) -> wsp_threads::threads::threads::Sessions {
-        todo!()
+        self.sessions.clone()
     }
     fn thread_records(&self) -> wsp_threads::threads::threads::ThreadRecords {
-        todo!()
+        self.thread_records.clone()
     }
-    fn latest_on(&self, thread_id: &str) -> Option<wsp_wire::views::session::SessionView> {
-        todo!()
+    fn latest_on(&self, thread_id: &str) -> Option<SessionView> {
+        self.threads.get().latest_on(thread_id)
     }
-    fn rows_on(&self, thread_id: &str) -> Vec<wsp_wire::views::session::SessionView> {
-        todo!()
+    fn rows_on(&self, thread_id: &str) -> Vec<SessionView> {
+        self.agents.get().rows_on(thread_id)
     }
     fn running_turn(&self, thread_id: &str) -> Option<String> {
-        todo!()
+        self.threads.get().running_on(thread_id).map(|(_, turn)| turn)
     }
     fn launching_turn(&self, thread_id: &str) -> Option<String> {
-        todo!()
+        self.threads.get().launching_on(thread_id).map(|(turn, _)| turn)
     }
     fn entry_of_row(
         &self,
-        at: &wsp_machines::machines::boot::entries::RowAt,
+        at: &RowAt,
         origin: Option<wsp_wire::views::workspace::Caller>,
-    ) -> futures::future::LocalBoxFuture<'static, Result<wsp_threads::threads::threads::Entry, wsp_words::exit::HostError>> {
-        todo!()
+    ) -> LocalBoxFuture<'static, Result<Entry, HostError>> {
+        let (boot, at) = (self.boot.get(), at.clone());
+        async move {
+            match boot.entry_of_row(&at, origin.as_ref(), None, false).await? {
+                Some(entry) => Ok(entry),
+                None => Err(not_found_refusal(&wsp_words::words::computer::no_workspace_refusal(None))),
+            }
+        }
+        .boxed_local()
     }
     fn open_thread(
         &self,
         workspace_id: &str,
         thread_id: &str,
-    ) -> futures::future::LocalBoxFuture<'static, Result<Vec<wsp_wire::views::session_events_more::SessionEvent>, wsp_words::exit::HostError>>
-    {
-        todo!()
+    ) -> LocalBoxFuture<'static, Result<Vec<wsp_wire::views::session_events_more::SessionEvent>, HostError>> {
+        let (transcripts, workspace_id, thread_id) = (self.transcripts.get(), workspace_id.to_string(), thread_id.to_string());
+        async move { transcripts.open_thread(&workspace_id, &thread_id) }.boxed_local()
     }
     fn started_as(&self, workspace_id: &str, thread_id: &str) -> Option<String> {
-        todo!()
+        self.channels.get().started_as(workspace_id, thread_id)
     }
     fn folder_of(&self, workspace_id: &str, session: &str) -> Option<String> {
-        todo!()
+        self.channels.get().folder_of(workspace_id, session)
     }
     fn agent_label(&self, agent: &str) -> String {
-        todo!()
+        wsp_threads::threads::agents::AgentsArea::agent_label(agent)
     }
     fn kept_writes(&self, workspace_id: &str) -> Option<wsp_core::context::Joined> {
-        todo!()
+        self.transcripts.get().kept_writes.borrow().get(workspace_id).cloned()
     }
     fn keep_sent_images(
         &self,
@@ -289,27 +439,32 @@ impl wsp_threads::threads::forks::ForksCtx for Ctx {
         thread_id: &str,
         request_id: Option<String>,
         attachments: Vec<wsp_wire::types::attachments::Attachment>,
-    ) -> futures::future::LocalBoxFuture<'static, ()> {
-        todo!()
+    ) -> LocalBoxFuture<'static, ()> {
+        self.transcripts.get().keep_sent_images(workspace_id, thread_id, request_id.as_deref(), &attachments)
     }
-    fn persist_sessions(&self, workspace_id: &str) -> futures::future::LocalBoxFuture<'static, ()> {
-        todo!()
+    fn persist_sessions(&self, workspace_id: &str) -> LocalBoxFuture<'static, ()> {
+        self.transcripts.get().persist_sessions(workspace_id)
     }
-    fn project_held(&self, project: &str) -> Result<wsp_wire::views::workspace::ProjectView, wsp_words::exit::HostError> {
-        todo!()
+    fn project_held(&self, project: &str) -> Result<wsp_wire::views::workspace::ProjectView, HostError> {
+        self.channels.get().project_held(project)
     }
     fn place_name(&self, computer: &str) -> String {
-        todo!()
+        self.builders_area.get().place_name(computer)
     }
     fn git_here(
         &self,
         top: &str,
         args: Vec<String>,
-    ) -> futures::future::LocalBoxFuture<'static, Result<wsp_wire::wire::machine_link::ExecResult, wsp_words::exit::HostError>> {
-        todo!()
+    ) -> LocalBoxFuture<'static, Result<wsp_wire::wire::machine_link::ExecResult, HostError>> {
+        let (kinds, top) = (self.kinds.get(), top.to_string());
+        async move {
+            let args: Vec<&str> = args.iter().map(String::as_str).collect();
+            kinds.git_here(&top, &args, None, None).await.map_err(|e| e.into_host())
+        }
+        .boxed_local()
     }
     fn live_ids(&self) -> Vec<String> {
-        todo!()
+        self.live.borrow().keys().cloned().collect()
     }
     fn worktree_folder(
         &self,
@@ -319,119 +474,128 @@ impl wsp_threads::threads::forks::ForksCtx for Ctx {
         from: &str,
         root: Option<String>,
         at_ref: &str,
-    ) -> futures::future::LocalBoxFuture<'static, Result<wsp_threads::threads::threads::Entry, wsp_words::exit::HostError>> {
-        todo!()
+    ) -> LocalBoxFuture<'static, Result<Entry, HostError>> {
+        let (folders, project) = (self.folders.get(), project.clone());
+        let (top, branch, from, at_ref) = (top.to_string(), branch.to_string(), from.to_string(), at_ref.to_string());
+        async move { folders.worktree_folder(&project, &top, &branch, Some(from), root, Some(at_ref)).await }.boxed_local()
     }
-    fn checkout_of(&self, record: &wsp_core::types::wiring::WorkspaceRecord) -> Result<String, wsp_words::exit::HostError> {
-        todo!()
+    fn checkout_of(&self, record: &WorkspaceRecord) -> Result<String, HostError> {
+        self.channels.get().checkout_of(record)
     }
     fn take_setup_line(&self, workspace_id: &str) -> Option<String> {
-        todo!()
+        self.folders.get().take_setup_line(workspace_id)
     }
-    fn remove_worktree(
-        &self,
-        entry: &wsp_threads::threads::threads::Entry,
-        force: bool,
-    ) -> futures::future::LocalBoxFuture<'static, Result<(), wsp_words::exit::HostError>> {
-        todo!()
+    fn remove_worktree(&self, entry: &Entry, force: bool) -> LocalBoxFuture<'static, Result<(), HostError>> {
+        let (folders, entry) = (self.folders.get(), entry.clone());
+        async move {
+            folders.remove_worktree(&entry, force, wsp_account::projects::folders::tree::RemoveAsk { ending: false, check: false }).await
+        }
+        .boxed_local()
     }
-    fn spawn(&self, work: futures::future::LocalBoxFuture<'static, ()>) {
-        todo!()
+    fn spawn(&self, work: LocalBoxFuture<'static, ()>) {
+        spawn_detached(work);
     }
 }
 
 impl wsp_threads::threads::conversations::ConversationsCtx for Ctx {
-    fn clock(&self) -> std::rc::Rc<dyn wsp_core::clock::Clock> {
-        todo!()
+    fn clock(&self) -> Rc<dyn wsp_core::clock::Clock> {
+        self.clock.clone()
     }
-    fn bus(&self) -> std::rc::Rc<dyn wsp_core::types::events::EventBus> {
+    fn bus(&self) -> Rc<dyn wsp_core::types::events::EventBus> {
         self.bus.clone()
     }
     fn sessions(&self) -> wsp_threads::threads::threads::Sessions {
-        todo!()
+        self.sessions.clone()
     }
     fn transcript_state(&self) -> wsp_core::context::StateCell<wsp_threads::threads::transcripts::TranscriptState> {
-        todo!()
+        self.transcript_state.clone()
     }
     fn live_project(&self, workspace_id: &str) -> Option<String> {
-        todo!()
+        self.live.borrow().get(workspace_id).map(|entry| entry.borrow().record.borrow().project.clone())
     }
-    fn with_daemon(
-        &self,
-        entry: &wsp_threads::threads::threads::Entry,
-        frame: serde_json::Value,
-    ) -> futures::future::LocalBoxFuture<'static, Result<serde_json::Value, wsp_account::account::core_types::AccountError>> {
-        todo!()
+    fn with_daemon(&self, entry: &Entry, frame: Value) -> LocalBoxFuture<'static, Result<Value, AccountError>> {
+        let (channels, entry) = (self.channels.get(), entry.clone());
+        async move {
+            let work: Work<Value> = Box::new(move |ask| {
+                let frame = match frame {
+                    Value::Object(frame) => frame,
+                    _ => wsp_core::reach::Frame::new(),
+                };
+                async move { ask(frame).await.map(Value::Object) }.boxed_local()
+            });
+            channels.with_daemon(&entry, work).await
+        }
+        .boxed_local()
     }
-    fn harness_exec(
-        &self,
-        entry: &wsp_threads::threads::threads::Entry,
-        timeout_ms: u64,
-    ) -> std::sync::Arc<dyn wsp_adapters::port::HarnessExec> {
-        todo!()
+    fn harness_exec(&self, entry: &Entry, timeout_ms: u64) -> Arc<dyn HarnessExec> {
+        turns_harness_exec(entry, timeout_ms)
     }
-    fn project_held(&self, project: &str) -> Result<wsp_wire::views::workspace::ProjectView, wsp_words::exit::HostError> {
-        todo!()
+    fn project_held(&self, project: &str) -> Result<wsp_wire::views::workspace::ProjectView, HostError> {
+        self.channels.get().project_held(project)
     }
     fn worktrees_of(
         &self,
         top: &str,
-    ) -> futures::future::LocalBoxFuture<
-        'static,
-        Result<Vec<wsp_account::projects::folders::tree::ListedWorktree>, wsp_words::exit::HostError>,
-    > {
-        todo!()
+    ) -> LocalBoxFuture<'static, Result<Vec<wsp_account::projects::folders::tree::ListedWorktree>, HostError>> {
+        let (folders, top) = (self.folders.get(), top.to_string());
+        async move { folders.worktrees_of(&top).await }.boxed_local()
     }
-    fn folders_of(&self, project: &str) -> Vec<wsp_core::types::wiring::WorkspaceRecord> {
-        todo!()
+    fn folders_of(&self, project: &str) -> Vec<WorkspaceRecord> {
+        self.create.get().folders_of(project).iter().map(|entry| entry.borrow().record.borrow().clone()).collect()
     }
     fn has_adapter(&self, harness: &str) -> bool {
-        todo!()
+        self.opts.adapters.contains_key(harness)
     }
-    fn agent_off(&self, entry: &wsp_threads::threads::threads::Entry, agent: &str) -> bool {
-        todo!()
+    fn agent_off(&self, entry: &Entry, agent: &str) -> bool {
+        self.agents.get().agent_off(entry, agent)
     }
-    fn conversation_store(
-        &self,
-        entry: &wsp_threads::threads::threads::Entry,
-        harness: &str,
-    ) -> Option<std::sync::Arc<dyn wsp_adapters::port::ConversationStore>> {
-        todo!()
+    fn conversation_store(&self, entry: &Entry, harness: &str) -> Option<Arc<dyn wsp_adapters::port::ConversationStore>> {
+        let ask = wsp_threads::threads::agents::launch::AdapterAsk { named: Some(harness.to_string()), ..Default::default() };
+        self.agents.get().adapter_for(entry, ask).ok()?.adapter.conversations()
     }
     fn agent_label(&self, agent: &str) -> String {
-        todo!()
+        wsp_threads::threads::agents::AgentsArea::agent_label(agent)
     }
-    fn computer_of(&self, entry: &wsp_threads::threads::threads::Entry) -> String {
-        todo!()
+    fn computer_of(&self, entry: &Entry) -> String {
+        self.channels.get().computer_of(entry)
     }
-    fn latest_on(&self, thread_id: &str) -> Option<wsp_wire::views::session::SessionView> {
-        todo!()
+    fn latest_on(&self, thread_id: &str) -> Option<SessionView> {
+        self.threads.get().latest_on(thread_id)
     }
-    fn reaches_row(&self, row: &wsp_wire::views::session::SessionView, origin: Option<&wsp_wire::views::workspace::Caller>) -> bool {
-        todo!()
+    fn reaches_row(&self, row: &SessionView, origin: Option<&wsp_wire::views::workspace::Caller>) -> bool {
+        let at = RowAt { thread_id: row.thread_id.clone(), workspace_id: row.workspace_id.clone() };
+        self.boot.get().reaches_row(&at, origin, None).unwrap_or(false)
     }
     fn folder_for(
         &self,
         project: Option<String>,
         cwd: Option<String>,
         origin: Option<wsp_wire::views::workspace::Caller>,
-    ) -> futures::future::LocalBoxFuture<'static, Result<wsp_account::projects::folders::place::FolderPlaced, wsp_words::exit::HostError>>
-    {
-        todo!()
+    ) -> LocalBoxFuture<'static, Result<wsp_account::projects::folders::place::FolderPlaced, HostError>> {
+        let folders = self.folders.get();
+        let ask = wsp_account::projects::folders::place::FolderAsk { project, cwd, ..Default::default() };
+        async move { folders.folder_for(ask, origin).await }.boxed_local()
     }
     fn entry_of(
         &self,
         workspace_id: &str,
         origin: Option<wsp_wire::views::workspace::Caller>,
-    ) -> futures::future::LocalBoxFuture<'static, Result<wsp_threads::threads::threads::Entry, wsp_words::exit::HostError>> {
-        todo!()
+    ) -> LocalBoxFuture<'static, Result<Entry, HostError>> {
+        let (boot, workspace_id) = (self.boot.get(), workspace_id.to_string());
+        async move { boot.entry_of(&workspace_id, origin.as_ref(), EntryAsk::default()).await }.boxed_local()
     }
-    fn preferences(
-        &self,
-    ) -> futures::future::LocalBoxFuture<'static, Result<wsp_wire::views::preferences::Preferences, wsp_words::exit::HostError>> {
-        todo!()
+    fn preferences(&self) -> LocalBoxFuture<'static, Result<wsp_wire::views::preferences::Preferences, HostError>> {
+        let held = self.state.with(|s| s.preferences_held.clone());
+        let preferences = self.preferences.get();
+        async move {
+            match held {
+                Some(held) => Ok(held),
+                None => preferences.get().await.map_err(failed),
+            }
+        }
+        .boxed_local()
     }
-    fn default_agent_of(&self, prefs: &wsp_wire::views::preferences::Preferences, entry: &wsp_threads::threads::threads::Entry) -> String {
-        todo!()
+    fn default_agent_of(&self, prefs: &wsp_wire::views::preferences::Preferences, entry: &Entry) -> String {
+        self.agents.get().default_agent_of(prefs, Some(entry))
     }
 }
