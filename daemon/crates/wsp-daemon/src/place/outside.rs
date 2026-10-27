@@ -49,6 +49,16 @@ pub(crate) fn leave_here(
     Ok(swept)
 }
 
+/// The install root, workspace profile and runtime folder a leave over the link takes from: this computer's own unless
+/// the daemon was started with a root.
+pub(crate) fn leave_paths(options: &crate::Options) -> (String, std::path::PathBuf, std::path::PathBuf) {
+    let install = options.install_root.as_deref().map(|root| root.to_string_lossy().into_owned()).unwrap_or_default();
+    let profile =
+        options.apparmor_profile.clone().unwrap_or_else(|| format!("{install}{}", wsp_frames::numbers::WORKSPACE_APPARMOR_PATH).into());
+    let runtime = options.runtime_root.clone().unwrap_or_else(|| format!("{install}{}", wsp_frames::numbers::RUNTIME_ROOT).into());
+    (install, profile, runtime)
+}
+
 /// The first path a leave names or builds that lies outside `install`, the folder /usr/local, /opt, /etc, the cgroups and
 /// the runtime's folder sit under; empty is this computer's own /, which holds every path. A path is read as it
 /// resolves, a link on the way followed to what it points at (the nearest folder that exists, for a name that does not),
@@ -370,6 +380,15 @@ pub(super) mod tests {
             assert!(dir.join("kept").exists(), "a refused leave removed under {}", dir.display());
         }
         assert!(leave_here(&home, &profile, &install, &runtime, true, &[]).is_ok());
+    }
+
+    #[test]
+    fn a_leave_with_no_root_takes_from_this_computers_own_paths() {
+        let token = tempfile::NamedTempFile::new().unwrap();
+        let (install, profile, runtime) = leave_paths(&crate::Options::new(token.path()));
+        assert_eq!(install, "");
+        assert_eq!(profile, std::path::PathBuf::from("/etc/apparmor.d/wsp-workspace"));
+        assert_eq!(runtime, std::path::PathBuf::from("/wsp"));
     }
 
     #[test]

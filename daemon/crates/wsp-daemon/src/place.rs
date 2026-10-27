@@ -24,7 +24,7 @@ mod update;
 mod versions;
 pub(crate) use file::{read_place_file, read_place_key};
 pub(crate) use login_lines::sweep_login_lines;
-pub(crate) use outside::{leave_here, leave_takes_runtime, unsaved_under};
+pub(crate) use outside::{leave_here, leave_paths, leave_takes_runtime, unsaved_under};
 #[cfg(test)]
 pub(crate) use update::update_part;
 pub(crate) use update::{install_daemon, running_daemon, sweep_updates, take_update_part};
