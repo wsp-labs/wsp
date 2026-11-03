@@ -134,8 +134,13 @@ async fn every_recorded_answer_is_printed_byte_for_byte() {
             if case.cloud {
                 env.insert("WSP_CLOUD".to_owned(), "1".to_owned());
             }
-            let code =
-                wsp_mcp::serve(&Args { state: state.clone(), wsp, guest, scoped: guest, ..Args::default() }, &env, input.as_bytes(), &mut out).await;
+            let code = wsp_mcp::serve(
+                &Args { state: state.clone(), wsp, guest, scoped: guest, ..Args::default() },
+                &env,
+                input.as_bytes(),
+                &mut out,
+            )
+            .await;
             assert_eq!(code, 0);
             let printed = String::from_utf8(out).unwrap();
             assert_eq!(printed, format!("{}\n", expected.line), "{named}");

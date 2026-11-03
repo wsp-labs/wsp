@@ -93,7 +93,8 @@ fn take(line: &[u8], host: &Arc<Host>, answer: &mpsc::UnboundedSender<String>, c
             let _ = answer.send(result(&id, "{}"));
         }
         "tools/list" => {
-            let listed: Vec<String> = tools::listed(host.cloud(), host.args().guest, host.args().no_slate, host.args().scoped).map(compact).collect();
+            let listed: Vec<String> =
+                tools::listed(host.cloud(), host.args().guest, host.args().no_slate, host.args().scoped).map(compact).collect();
             let _ = answer.send(result(&id, &format!(r#"{{"tools":[{}]}}"#, listed.join(","))));
         }
         "tools/call" => {
