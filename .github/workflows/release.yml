@@ -1,9 +1,8 @@
 name: release
 
 # A pushed v1.2.3 tag is the whole release: the draft with its notes, the four
-# daemon binaries, the GPUI app's mac disk image and linux AppImage, then the
-# classic app's (the Electron app, listed second), the command line package on
-# npm through trusted publishing, and the draft turned into a release once every
+# daemon binaries, the Experimental GPUI app and the default Electron app, the
+# command line package on npm through trusted publishing, and the draft turned into a release once every
 # part landed. Every bundle also goes up under a name no version moves, which is
 # what releases/latest/download serves and what the site links. A run started by
 # hand is the dry run and there is no box to untick: the daemon binaries are
@@ -392,6 +391,7 @@ jobs:
           fi
           mv "$1" "$CLASSIC_MAC_DMG"
           cp "$CLASSIC_MAC_DMG" "$CLASSIC_MAC_STABLE"
+          cp "$CLASSIC_MAC_DMG" "$DEFAULT_MAC_STABLE"
       # The zip an installed classic app updates itself from; GitHub publishes its sha256 and size beside it, which
       # the app checks before it unpacks anything.
       - name: Name the zip after the release
@@ -407,7 +407,7 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" "$CLASSIC_MAC_DMG" "$CLASSIC_MAC_STABLE" "$CLASSIC_MAC_ZIP" --clobber
+        run: gh release upload "$GITHUB_REF_NAME" "$CLASSIC_MAC_DMG" "$CLASSIC_MAC_STABLE" "$CLASSIC_MAC_ZIP" "$DEFAULT_MAC_STABLE" --clobber
 
   linux-classic:
     name: Linux AppImage, the classic app
@@ -456,6 +456,7 @@ jobs:
           fi
           mv "$1" "$CLASSIC_APPIMAGE"
           cp "$CLASSIC_APPIMAGE" "$CLASSIC_APPIMAGE_STABLE"
+          cp "$CLASSIC_APPIMAGE" "$DEFAULT_APPIMAGE_STABLE"
       # The file this job ships, started once on a virtual display as its desktop entry starts it, until its window
       # has loaded its page; a library missing from the bundle or a launch that dies on boot fails the release here.
       - name: Start the AppImage once and wait for its window's page
@@ -465,7 +466,7 @@ jobs:
         if: ${{ github.event_name == 'push' }}
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" "$CLASSIC_APPIMAGE" "$CLASSIC_APPIMAGE_STABLE" --clobber
+        run: gh release upload "$GITHUB_REF_NAME" "$CLASSIC_APPIMAGE" "$CLASSIC_APPIMAGE_STABLE" "$DEFAULT_APPIMAGE_STABLE" --clobber
 
   npm:
     name: Command line package on npm

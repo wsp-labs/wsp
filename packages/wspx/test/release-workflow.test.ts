@@ -339,12 +339,14 @@ describe("the release workflow", () => {
     for (const name of envNames) expect(workflow).toContain(`$${name}`);
   });
 
-  it("uploads each bundle under the release's own name and under the name a link can hold, the GPUI app's under today's names", () => {
+  it("uploads each bundle under the release's own name and under the name a link can hold, Electron under the default aliases and GPUI under Experimental aliases", () => {
+    expect(macClassicJob).toContain('cp "$CLASSIC_MAC_DMG" "$DEFAULT_MAC_STABLE"');
+    expect(linuxClassicJob).toContain('cp "$CLASSIC_APPIMAGE" "$DEFAULT_APPIMAGE_STABLE"');
     for (const [job, dist, prefix] of [
       [macJob, "apps/desktop-gpui/dist", ""],
       [macClassicJob, "apps/desktop/dist", "CLASSIC_"],
     ] as const) {
-      expect(job).toContain(`gh release upload "$GITHUB_REF_NAME" "$${prefix}MAC_DMG" "$${prefix}MAC_STABLE" "$${prefix}MAC_ZIP" --clobber`);
+      expect(job).toContain(`gh release upload "$GITHUB_REF_NAME" "$${prefix}MAC_DMG" "$${prefix}MAC_STABLE" "$${prefix}MAC_ZIP"${prefix ? ' "$DEFAULT_MAC_STABLE"' : ""} --clobber`);
       expect(job).toContain(`set -- ${dist}/*.dmg\n`);
       expect(job).toContain(`mv "$1" "$${prefix}MAC_DMG"\n          cp "$${prefix}MAC_DMG" "$${prefix}MAC_STABLE"`);
       expect(job).toContain(`set -- ${dist}/*.zip\n`);
@@ -354,7 +356,7 @@ describe("the release workflow", () => {
       [linuxJob, "apps/desktop-gpui/dist", ""],
       [linuxClassicJob, "apps/desktop/dist", "CLASSIC_"],
     ] as const) {
-      expect(job).toContain(`gh release upload "$GITHUB_REF_NAME" "$${prefix}APPIMAGE" "$${prefix}APPIMAGE_STABLE" --clobber`);
+      expect(job).toContain(`gh release upload "$GITHUB_REF_NAME" "$${prefix}APPIMAGE" "$${prefix}APPIMAGE_STABLE"${prefix ? ' "$DEFAULT_APPIMAGE_STABLE"' : ""} --clobber`);
       expect(job).toContain(`set -- ${dist}/*.AppImage\n`);
       expect(job).toContain(`cp "$${prefix}APPIMAGE" "$${prefix}APPIMAGE_STABLE"`);
     }

@@ -3,9 +3,9 @@
 // JavaScript because the release job runs it with no build behind it; this is
 // how the site and the app read it without opening their compilers to JS.
 type Names = { mac: string; macZip: string; appImage: string };
-/** The GPUI app's download names, {version} standing for the version; the release lists them first. */
+/** The GPUI app's download names, {version} standing for the version; listed as Experimental. */
 export const GPUI_NAMES: Names;
-/** The classic app's download names, {version} standing for the version; the release lists them second. */
+/** The classic app's download names, {version} standing for the version; the default app. */
 export const CLASSIC_NAMES: Names;
 /** What each of the GPUI app's downloads on the release page is called for one version, which is the name the notes
  * print; the zip is what an installed mac app replaces itself from. */
@@ -14,6 +14,7 @@ export function bundleNames(version: string): Names;
 export function classicNames(version: string): Names;
 /** The copies the release job uploads beside the versioned ones, under names no version moves. */
 export const STABLE_NAMES: { mac: string; appImage: string };
+export const EXPERIMENTAL_STABLE_NAMES: { mac: string; appImage: string };
 export const CLASSIC_STABLE_NAMES: { mac: string; appImage: string };
 /** The last release that carried the classic app under STABLE_NAMES. */
 export const CLASSIC_FALLBACK_TAG: string;

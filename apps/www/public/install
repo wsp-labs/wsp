@@ -4,9 +4,9 @@
 #
 #   curl --proto '=https' --tlsv1.2 -fsSL https://usewsp.com/install | sh
 #
-# It installs whichever app the release's wsp-<version>-mac.zip or wsp-<version>.AppImage holds, told apart by the
-# files in it: the wsp app, or the classic app, which every release before the wsp app's first carries under those
-# names. It never reads the wsp-classic-* downloads, and takes the place of either app. On a Mac it puts wsp.app in
+# It installs Electron from the release's wsp-classic-* download. Older releases without that asset fall back to
+# wsp-<version>-mac.zip or wsp-<version>.AppImage, whose app kind is detected by its files. It takes the place of
+# either app. On a Mac it puts wsp.app in
 # /Applications, or ~/Applications where that is not writable, and opens it once. On Linux (x64) it puts the AppImage
 # in ~/Applications and the files the command runs under ~/.wsp/app, and on a desktop adds the app to its menu, which
 # runs the AppImage so that it updates itself in place, and opens it once. On both it quits a wsp that is open before
@@ -638,6 +638,8 @@ main() {
   { [ "v$version" = "$tag" ] && valid_version "$version"; } || die "GitHub's answer names no release version"
   if [ -n "${asked:-}" ] && [ "$version" != "$asked" ]; then die "GitHub answered with $tag, not v$asked"; fi
   if [ "$os" = Darwin ]; then asset="wsp-$version-mac.zip"; else asset="wsp-$version.AppImage"; fi
+  if [ "$os" = Darwin ]; then preferred="wsp-classic-$version-mac.zip"; else preferred="wsp-classic-$version.AppImage"; fi
+  if grep -qxF "\"name\":\"$preferred\"" "$tmp/release.txt"; then asset=$preferred; fi
   grep -qxF "\"name\":\"$asset\"" "$tmp/release.txt" || die "release $tag has no $asset"
   sum=$(asset_value "$asset" digest "$tmp/release.txt" | sed -n 's/^"sha256:\([0-9a-f]*\)"$/\1/p')
   [ "${#sum}" -eq 64 ] || die "release $tag publishes no sha256 for $asset"

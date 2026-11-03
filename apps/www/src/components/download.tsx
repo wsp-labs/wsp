@@ -3,7 +3,7 @@ import { track } from "@/lib/analytics";
 import { useState, type FormEvent } from "react";
 import { ArrowRight, Check } from "lucide-react";
 import { CopyCommand } from "@/components/copy-command";
-import { CLASSIC, DOWNLOADS, useVisitor } from "@/downloads";
+import { EXPERIMENTAL, DOWNLOADS, useVisitor } from "@/downloads";
 import { EMAIL, INSTALL } from "@/links";
 import { cn } from "@/lib/utils";
 
@@ -83,7 +83,7 @@ export function Waitlist({ className }: { className?: string }) {
 export const MAC_GUIDE = "/download/mac";
 
 /** The install, matched to the visitor: the install line first on a Mac or Linux, since a file curl writes carries no
- * quarantine flag and so meets no security prompt; the app's own download beside it, and the classic app's in a quiet
+ * quarantine flag and so meets no security prompt; the app's own download beside it, and the Experimental GPUI app in a quiet
  * line under both; the waitlist on Windows. */
 export function Install({ className, align = "start" }: { className?: string; align?: "start" | "center" }) {
   const platform = useVisitor();
@@ -102,12 +102,12 @@ export function Install({ className, align = "start" }: { className?: string; al
         </a>
       </div>
       <p className="mt-3 text-[13px] text-muted-foreground">
-        Or get the classic app for{" "}
-        <a href={CLASSIC.mac} aria-label="the classic app for Mac" className={classic}>
+        Try the Experimental GPUI app for{" "}
+        <a href={EXPERIMENTAL.mac} aria-label="the Experimental GPUI app for Mac" className={classic}>
           Mac
         </a>{" "}
         or{" "}
-        <a href={CLASSIC.linux} aria-label="the classic app for Linux" className={classic}>
+        <a href={EXPERIMENTAL.linux} aria-label="the Experimental GPUI app for Linux" className={classic}>
           Linux
         </a>
         .

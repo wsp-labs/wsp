@@ -5,7 +5,7 @@
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { bundleEnv, bundleNames, CLASSIC_STABLE_NAMES, classicNames, downloadUrl, GPUI_NAMES, REPO, STABLE_NAMES } from "../../protocol/src/bundles.mjs";
+import { bundleEnv, bundleNames, CLASSIC_STABLE_NAMES, classicNames, downloadUrl, EXPERIMENTAL_STABLE_NAMES, GPUI_NAMES, REPO, STABLE_NAMES } from "../../protocol/src/bundles.mjs";
 
 const script = fileURLToPath(new URL("../scripts/bundle-env.mjs", import.meta.url));
 
@@ -17,8 +17,9 @@ describe("what a release's downloads are called", () => {
 
   it("has a copy of each under a name no version moves, of the same kind of file", () => {
     expect(STABLE_NAMES).toEqual({ mac: "wsp-mac.dmg", appImage: "wsp-linux.AppImage" });
+    expect(EXPERIMENTAL_STABLE_NAMES).toEqual({ mac: "wsp-experimental-mac.dmg", appImage: "wsp-experimental-linux.AppImage" });
     expect(CLASSIC_STABLE_NAMES).toEqual({ mac: "wsp-classic-mac.dmg", appImage: "wsp-classic-linux.AppImage" });
-    for (const [stable, versioned] of [[STABLE_NAMES, bundleNames("0.1.5")], [CLASSIC_STABLE_NAMES, classicNames("0.1.5")]] as const) {
+    for (const [stable, versioned] of [[EXPERIMENTAL_STABLE_NAMES, bundleNames("0.1.5")], [CLASSIC_STABLE_NAMES, classicNames("0.1.5")]] as const) {
       for (const kind of ["mac", "appImage"] as const) {
         const suffix = (name: string) => name.slice(name.lastIndexOf("."));
         expect(suffix(stable[kind])).toBe(suffix(versioned[kind]));
@@ -32,7 +33,7 @@ describe("what a release's downloads are called", () => {
     expect(bundleNames("0.1.5")).toEqual({ mac: "wsp-0.1.5-mac.dmg", macZip: "wsp-0.1.5-mac.zip", appImage: "wsp-0.1.5.AppImage" });
     // The classic app's downloads stand apart from the GPUI app's, each saying classic.
     expect(classicNames("0.1.5")).toEqual({ mac: "wsp-classic-0.1.5-mac.dmg", macZip: "wsp-classic-0.1.5-mac.zip", appImage: "wsp-classic-0.1.5.AppImage" });
-    const gpui = new Set([...Object.values(bundleNames("0.1.5")), ...Object.values(STABLE_NAMES)]);
+    const gpui = new Set([...Object.values(bundleNames("0.1.5")), ...Object.values(EXPERIMENTAL_STABLE_NAMES)]);
     for (const name of [...Object.values(classicNames("0.1.5")), ...Object.values(CLASSIC_STABLE_NAMES)]) {
       expect(name).toContain("classic");
       expect(gpui.has(name)).toBe(false);
@@ -49,11 +50,11 @@ describe("where a download is reached", () => {
 });
 
 describe("the names the release job reads", () => {
-  it("are the ten assets it uploads, the GPUI app's then the classic app's, as the assignments a step appends to its environment", () => {
+  it("are the twelve assets it uploads, the GPUI app's then the classic app's, as the assignments a step appends to its environment", () => {
     expect(bundleEnv("0.1.5")).toBe(
-      "MAC_DMG=wsp-0.1.5-mac.dmg\nMAC_STABLE=wsp-mac.dmg\nMAC_ZIP=wsp-0.1.5-mac.zip\nAPPIMAGE=wsp-0.1.5.AppImage\nAPPIMAGE_STABLE=wsp-linux.AppImage\n" +
+      "MAC_DMG=wsp-0.1.5-mac.dmg\nMAC_STABLE=wsp-experimental-mac.dmg\nMAC_ZIP=wsp-0.1.5-mac.zip\nAPPIMAGE=wsp-0.1.5.AppImage\nAPPIMAGE_STABLE=wsp-experimental-linux.AppImage\n" +
         "CLASSIC_MAC_DMG=wsp-classic-0.1.5-mac.dmg\nCLASSIC_MAC_STABLE=wsp-classic-mac.dmg\nCLASSIC_MAC_ZIP=wsp-classic-0.1.5-mac.zip\n" +
-        "CLASSIC_APPIMAGE=wsp-classic-0.1.5.AppImage\nCLASSIC_APPIMAGE_STABLE=wsp-classic-linux.AppImage\n",
+        "CLASSIC_APPIMAGE=wsp-classic-0.1.5.AppImage\nCLASSIC_APPIMAGE_STABLE=wsp-classic-linux.AppImage\nDEFAULT_MAC_STABLE=wsp-mac.dmg\nDEFAULT_APPIMAGE_STABLE=wsp-linux.AppImage\n",
     );
   });
 
