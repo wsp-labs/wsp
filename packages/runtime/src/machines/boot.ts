@@ -930,7 +930,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
         if (workspaceId === undefined || (await entryOfRow({ ...(latest?.threadId !== undefined ? { threadId: latest.threadId } : { threadId }), workspaceId }, origin)) === undefined) {
           throw notFoundRefusal(`no thread ${threadWord(threadId)}`);
         }
-        return { threadId, workspaceId, base: record ?? { workspaceId, harness: latest!.harness } };
+        return { threadId, workspaceId, base: record ?? { workspaceId, harness: latest!.harness, ...(latest?.parentThreadId !== undefined ? { parentThreadId: latest.parentThreadId } : {}), ...(latest?.rootThreadId !== undefined ? { rootThreadId: latest.rootThreadId } : {}) } };
       }),
     );
     const touched = new Map<string, string[]>();

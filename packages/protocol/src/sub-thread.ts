@@ -18,6 +18,9 @@ import { subAllPushed, type SubResult } from "./views/sub-row.js";
  * configs, so anything past this is a data folder picked by mistake. */
 export const SUB_SEED_MAX_BYTES = 20 * 1024 * 1024;
 
+export const SUB_START_CLEANUP_LINE = "The computer is being cleaned up after a failed start.";
+export const SUB_START_CLEANUP_FIX = "Try again once cleanup finishes.";
+
 const count = z.number().int().nonnegative();
 
 /** What a sub-thread's start answers beside the thread: the machine, the branches and the files sent. */

@@ -458,6 +458,8 @@ export interface LiveWorkspace {
   adopting?: Promise<void>;
   /** The delete in flight: a second delete joins it, and the name stays held until the record is dropped. */
   deleting?: Promise<void>;
+  /** A refused first turn is removing its computer; another start must not claim it meanwhile. */
+  startCleanup?: true;
   /** Cancels the one read armed after a wake gave up. */
   lateRead?: () => void;
   /** Stops the wake in flight, whether it is on a call or waiting to ask again: what the row's stop pulls. Aborting

@@ -20,7 +20,7 @@ import {
   type Caller, type SessionSettleResult, SETTLE_MS, SETTLE_WORKING, SETTLE_ALREADY, subagentSettleLine,
   SUBAGENT_SETTLE_FIX, notUnderLine, NOT_UNDER_FIX, type ForkedSession, forksNotLine, FORKS_NOT_FIX, forkRefusedLine, FORK_REFUSED_FIX, REWIND_COPIED_LINE, copiedFromOf,
   replacesWorkingLine, replacesWorkingFix, replacedAlreadyLine, replacedAlreadyFix, RESTART_OPENS_LINE, RESTART_OPENS_FIX, subMachineTakenRefusal,
-  subOpening, SUB_TURN_GONE_LINE, subTurnGone, keptOpening,
+  subOpening, SUB_TURN_GONE_LINE, subTurnGone, keptOpening, SUB_START_CLEANUP_LINE, SUB_START_CLEANUP_FIX,
 } from "@wsp/protocol";
 import { harnessCatalog } from "../harness-catalog.js";
 import { copiedEvents, copyImages, forkOpened, forkStart, forkTurnOf, moveSession, payCutOwed, readyFork } from "./forks.js";
@@ -307,7 +307,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         if (away !== undefined) throw away;
       }
       const reached = opens ? await ctx.entryOf(workspaceId, opensThere ? undefined : origin) : await ctx.entryOfRow({ threadId, workspaceId }, origin, "send");
-      if (reached === undefined) throw new Error(`no thread ${opened.thread} in this folder`);
+      if (reached === undefined) throw new Error(`no thread ${threadId} in this folder`);
       // A released sub-thread's send moves it onto a new machine once it holds the thread, and runs there.
       let entry = reached;
       // A restart is read before the machine is asked: a send into a thread that has run replaces nothing.
@@ -348,7 +348,8 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       if (ctx.agentOff(entry, o.harness)) throw Object.assign(new Error(agentOffLine(ctx.agentLabel(o.harness), ctx.computerOf(entry))), { kind: "usage" });
       await ctx.confineSetup(entry, o.harness);
       const refuse = (): void => {
-        if (!live.has(workspaceId)) throw new Error(deletedBeforeStartLine(entry.record.name));
+        if (live.get(workspaceId) !== entry) throw new Error(deletedBeforeStartLine(entry.record.name));
+        if (entry.startCleanup) throw usageRefusal(SUB_START_CLEANUP_LINE, SUB_START_CLEANUP_FIX);
         ctx.refuseSubSend(live.get(workspaceId)!);
         if (live.get(workspaceId)!.record.phase === "released") return;
         const refusal = sendRefusal(workspaceState({ phase: entry.record.phase }), entry.record.gone, entry.record.name);
@@ -509,6 +510,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       let held = false;
       const hold = (): void => {
         if (held || ctx.threadRuns(threadId)) return;
+        refuse();
         // The thread is this send's to run, and the session it resumes is the one the thread's latest turn ran as:
         // a send that arrived while that turn was still launching read none, since the harness names its session
         // only after it is up.
