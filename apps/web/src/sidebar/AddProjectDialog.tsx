@@ -332,7 +332,7 @@ export function AddProjectDialog({ onClose }: { onClose: () => void }) {
             {computers.map((place, at) => {
               const Glyph = glyphOf(place, at);
               return (
-                <button key={place.id} type="button" data-k={`computer-${place.id}`} onClick={() => { setOn(place.id); if (repositoryWord(field) === null) setField(""); setRepos(null); setLevel(null); setRefusal(null); }} className={cn(SIDE_ROW, place.id === computer?.id ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground")}>
+                <button key={place.id} type="button" data-k={`computer-${place.id}`} onClick={() => { if (place.id === computer?.id) return; setOn(place.id); if (repositoryWord(field) === null) setField(""); setRepos(null); setLevel(null); setRefusal(null); }} className={cn(SIDE_ROW, place.id === computer?.id ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground")}>
                   <Glyph aria-hidden className="size-4 shrink-0" />
                   <span className="truncate">{placeName(place)}</span>
                 </button>

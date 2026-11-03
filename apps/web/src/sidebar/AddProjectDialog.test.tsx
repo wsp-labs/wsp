@@ -84,6 +84,9 @@ describe("Add a project", () => {
     expect(t.rows()[1]!.textContent).toContain(ADD_PROJECT_WORDS.added);
     expect(t.rows()[1]!.getAttribute("aria-disabled")).toBe("true");
     expect(t.field().placeholder).toBe(ADD_PROJECT_WORDS.search);
+    fireEvent.click(t.dialog().querySelector("[data-k=computer-here]")!);
+    await settle();
+    expect(names(t.rows())).toEqual(["spoo", "wsp", "notes"]);
   });
 
   it("adds a repo on a click as a project of this computer and closes; a repo already recorded adds nothing", async () => {
