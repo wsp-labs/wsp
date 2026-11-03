@@ -29,7 +29,11 @@
         {
           "op": "places.list"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "resumed past a wait to its end",
@@ -51,7 +55,11 @@
         {
           "op": "places.list"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "joined, waiting on its picks",
@@ -71,7 +79,11 @@
         {
           "op": "places.list"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "a project's folder",
@@ -80,7 +92,11 @@
       },
       "replies": {},
       "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"add takes a computer over ssh, by user@host or by an alias from the ssh config, and /Users/dev/app is not one. A project is recorded with projects_add; a provider's key and the join code another computer types are handed out at the host's own terminal, with wsp add.\"}],\"structuredContent\":{\"error\":\"add takes a computer over ssh, by user@host or by an alias from the ssh config, and /Users/dev/app is not one. A project is recorded with projects_add; a provider's key and the join code another computer types are handed out at the host's own terminal, with wsp add.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
-      "asked": []
+      "asked": [],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "a provider",
@@ -89,7 +105,11 @@
       },
       "replies": {},
       "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"add takes a computer over ssh, by user@host or by an alias from the ssh config, and solari is not one. A project is recorded with projects_add; a provider's key and the join code another computer types are handed out at the host's own terminal, with wsp add.\"}],\"structuredContent\":{\"error\":\"add takes a computer over ssh, by user@host or by an alias from the ssh config, and solari is not one. A project is recorded with projects_add; a provider's key and the join code another computer types are handed out at the host's own terminal, with wsp add.\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
-      "asked": []
+      "asked": [],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "the install refused",
@@ -105,7 +125,11 @@
           "op": "places.add",
           "address": "root@203.0.113.7"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     }
   ]
 }

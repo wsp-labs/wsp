@@ -4,7 +4,7 @@
 // binary, on the words toolServerLine gives it, against a host that answers
 // each op with the frame it answered there. The line printed has to be the
 // recorded one byte for byte, and the ops asked the recorded ones.
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -159,7 +159,7 @@ suite(`every recorded answer through the line wsp mcp runs${MCP_BIN === undefine
     }
   });
 
-  it("runs the recipe tools on the person's state through the line a thread on this computer is launched with", async () => {
+  it("refuses owner recipe tools on a thread's launch line without running their command", async () => {
     const recorded = JSON.parse(readFileSync(join(ANSWERS, "recipe_scan.json"), "utf8")) as { cases: Case[] };
     const platform = process.platform === "darwin" ? "darwin" : "linux";
     const c = recorded.cases.find(c => c.wsp !== undefined && c.platform === platform)!;
@@ -176,8 +176,10 @@ suite(`every recorded answer through the line wsp mcp runs${MCP_BIN === undefine
       const call = { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "recipe_scan", arguments: c.arguments } };
       const { out, code } = await served([line.command, ...line.args, "--scoped"], env, [call], dir);
       expect(code).toBe(0);
-      expect(out[0]).toBe(c.line);
-      expect(readFileSync(join(dir, "argv"), "utf8").trim().split("\n")).toEqual(c.wsp!.argv.map(w => w.replace("{state}", state)));
+      const answer = JSON.parse(out[0]!) as { result: { isError: boolean; content: { text: string }[] } };
+      expect(answer.result.isError).toBe(true);
+      expect(answer.result.content[0]!.text).toContain("Tool recipe_scan not found");
+      expect(existsSync(join(dir, "argv"))).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

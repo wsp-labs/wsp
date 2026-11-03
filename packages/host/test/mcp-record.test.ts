@@ -31,6 +31,7 @@ import { GUEST_SERVED } from "../src/guest-mcp.js";
 import { mcpServer, type Dialer } from "../src/mcp.js";
 import { recipeCases, TURN_ANSWERED, turnWords, type TurnCase } from "./mcp-record-turns.js";
 import { absolutePath, afterWorktreeLine, afterWorktreeBlankLine, AFTER_WORKTREE_BLANK_FIX, TRACKER_SHAPE_FIX, trackerShapeLine, trackersLine, DEFAULTS_LABELS, defaultsValueLine, noDefaultsAnsweredLine, RELEASE_WORDS, releaseRefusal, agentSetNothingLine, agentSetupNothingLine, defaultAgentLine, ENV_NAME_FIX, envNameLine, FROM_WORDS, newThreadsHeadLine, NOTHING_TO_SET_FIX, PICKER_WORDS, projectSetNothingLine, SETUP_WORDS, setupOnLine, startsOnLine, startsOnOwnLine, agentCopyWords, aimedBothLine, aimedUsage, c1Escaped, CLOSE_GRACE_MS, goneFromLine, hasTool, hostTokenMissingLine, isInAlsoLine, isInLine, noHostServingLine, noSkillHitsLine, notHeaderLine, otherVersion, PLACES_FIX, previewCutLine, projectOffComputerLine, projectScopeLine, projectUnnamedLine, SERVER_TOOL_COLUMNS, SKILL_HIT_COLUMNS, skillsShPlacelessLine, threadOf, toolLines, toolName, toolsAddedLine, toolsProjectBareLine, turnedInLine, turnedLine, UNAUTHORIZED_CLOSE, unsetVariableLine, VERBS, workspaceOf, type HostClient } from "../src/verbs.js";
+import { THREAD_TOOLS } from "../src/thread-tools.js";
 import { VERSION } from "../src/version.js";
 import { releaseLineOf, roadOf } from "../src/daemon-fix.js";
 
@@ -437,12 +438,12 @@ async function answeredLine(
   const verb = VERBS.filter(hasTool).find(v => toolName(v.name) === tool);
   // A session from inside a machine is served as the host's guest kind serves it, on the launch's own variables alone.
   const guest = extra.guest === true;
-  const answered = guest && verb !== undefined && GUEST_SERVED.skip(verb) ? undefined : extra.result;
+  const answered = guest && verb !== undefined && (GUEST_SERVED.skip(verb) || !THREAD_TOOLS.has(tool)) ? undefined : extra.result;
   // The guest door opens no session without a token, and the session's launch always carries it.
   const env = guest ? { [HOST_TOKEN_ENV]: "guest-token", ...Object.fromEntries(Object.entries(extra.env ?? {}).filter(([key]) => GUEST_ENV.includes(key))) } : (extra.env ?? {});
   const skip = (v: (typeof VERBS)[number]): boolean => (answered !== undefined && v === verb) || (guest && GUEST_SERVED.skip(v));
   // A server on this computer runs in some folder, as the binary does; one in no project reads the list and finds none.
-  const server = mcpServer("/nonexistent/state.json", { env, dial, skip, ...(guest ? { elsewhere: GUEST_SERVED.elsewhere } : { cwd: tmpdir() }) });
+  const server = mcpServer("/nonexistent/state.json", { env, dial, skip, ...(guest ? { elsewhere: GUEST_SERVED.elsewhere, scoped: true } : { cwd: tmpdir() }) });
   if (answered !== undefined && verb !== undefined) {
     server.registerTool(tool, { description: verb.tool.description, inputSchema: verb.tool.input, outputSchema: verb.tool.output }, async () => answered as never);
   }
@@ -842,7 +843,7 @@ async function regeneratedHere(): Promise<Files> {
   const files: Files = new Map();
   const [off, on] = [await servedIn(false), await servedIn(true)];
   const readsHere = VERBS.filter(hasTool).filter(GUEST_SERVED.skip).map(v => toolName(v.name));
-  files.set("record/server.json", fileText({ name: "wsp", version: VERSION, instructions: { cloudOff: off.instructions, cloudOn: on.instructions, scopedCloudOff: off.scoped, scopedCloudOn: on.scoped, scopedNoSlateCloudOff: off.scopedNoSlate, scopedNoSlateCloudOn: on.scopedNoSlate }, protocolVersions: SUPPORTED_PROTOCOL_VERSIONS, latestProtocolVersion: LATEST_PROTOCOL_VERSION, readsHere }));
+  files.set("record/server.json", fileText({ name: "wsp", version: VERSION, instructions: { cloudOff: off.instructions, cloudOn: on.instructions, scopedCloudOff: off.scoped, scopedCloudOn: on.scoped, scopedNoSlateCloudOff: off.scopedNoSlate, scopedNoSlateCloudOn: on.scopedNoSlate }, protocolVersions: SUPPORTED_PROTOCOL_VERSIONS, latestProtocolVersion: LATEST_PROTOCOL_VERSION, readsHere, threadTools: [...THREAD_TOOLS] }));
   files.set("record/exit.json", fileText({ codes: EXIT_CODES, kinds: KIND_CLASS }));
   files.set("record/words.json", fileText({ ...(await words()), workspaces: await workspaceWords(answeredLine, replies => answeringHost(replies, [])) }));
   files.set("record/host.json", fileText(host()));

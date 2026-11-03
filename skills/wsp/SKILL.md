@@ -173,6 +173,15 @@ In your own conversation this is the wrong road: a blocked wait is minutes of yo
 
 ## Running work well
 
+### What a thread can discover
+
+Inside a wsp thread, computers lists permitted destinations for that project. A missing computer may be connected but unavailable to this project. Use projects to find eligible registered folders.
+
+A thread's tools omit account setup and computer management. The command line uses the same host permissions: switching from MCP to the command line does not grant access. Choose an agent from run's input schema or the server's instructions; the agents, skills and servers inventory commands are for the person's tools, and are unavailable to a thread. Hand setup requests to the person.
+
+<!-- cloud -->For an isolated child of the current project on Boat, use run with on set to boat. That option selects a supported cloud provider, not a connected computer. For an eligible project already registered on another computer, name that project with no on option; this runs in its registered folder and does not transfer the current project's files.<!-- /cloud -->
+
+
 These decide whether work goes fast or stalls, and they hold wherever a thread runs.
 
 - A wsp thread starts every child with --notify me and ends its turn, and each child's finished line wakes it with that child's whole report, so nothing is polled and no turn is spent waiting. The launch environment says whether you are a thread, and `--notify me` resolves to whichever thread the request came out of. Settle each child with `wsp thread settle` once its report is acted on; a finished child whose report you took reads as read, and settles by itself after the person's quiet time. Restart a stuck child with `wsp stop` and then `wsp run --replaces <child>`, so the person sees one row for the job, not two under one title.
