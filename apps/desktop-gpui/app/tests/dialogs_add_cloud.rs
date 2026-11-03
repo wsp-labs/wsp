@@ -112,6 +112,62 @@ fn drawn(selector: &'static str, cx: &mut VisualTestContext) -> bool {
     cx.debug_bounds(selector).is_some()
 }
 
+/// Catches: setup bodies clipping long pick lists or losing their scroll position on a redraw.
+#[gpui_kit::test]
+fn long_setup_steps_scroll_and_keep_their_position(cx: &mut TestAppContext) {
+    let cx = window(cx);
+    cx.update(|_, cx| cx.set_global(ui::Still(true)));
+    for (width, height, step) in
+        [(1280., 800.), (520., 640.)].into_iter().flat_map(|(width, height)| (0..flow::PICKS.len()).map(move |step| (width, height, step)))
+    {
+        cx.simulate_resize(size(px(width), px(height)));
+        let mut flow = cloud::job_flow(Step::Pick(step), "answering", json!([]));
+        let screen = &mut flow.job.as_mut().unwrap().screens[step];
+        let sample = screen.items[0].clone();
+        screen.items = (0..30)
+            .map(|n| {
+                let mut item = sample.clone();
+                item.id = format!("fixture-{n}");
+                item.label = format!("Fixture item {n}");
+                item
+            })
+            .collect();
+        let view = stage(flow, cx);
+        let head = cx.debug_bounds("dialog-title").unwrap();
+        let foot = cx.debug_bounds("dialog-foot").unwrap();
+        let before = cx.debug_bounds("pick-tools").unwrap();
+        let body = cx.debug_bounds("dialog-body").unwrap();
+        cx.simulate_event(gpui_kit::ScrollWheelEvent {
+            position: body.center(),
+            delta: gpui_kit::ScrollDelta::Pixels(point(px(0.), px(-120.))),
+            modifiers: Modifiers::none(),
+            touch_phase: gpui_kit::TouchPhase::Moved,
+        });
+        cx.run_until_parked();
+        let after = cx.debug_bounds("pick-tools");
+        assert!(
+            after.is_none_or(|bounds| bounds.origin.y < before.origin.y),
+            "step {step} must scroll its content: {before:?} -> {after:?}"
+        );
+        assert!(drawn("checkbox", cx), "the scrolled list still draws its choices");
+        view.update(cx, |_, cx| cx.notify());
+        cx.run_until_parked();
+        assert_eq!(cx.debug_bounds("pick-tools"), after, "step {step} keeps its scroll position after a redraw");
+        assert_eq!(cx.debug_bounds("dialog-title").unwrap(), head);
+        assert_eq!(cx.debug_bounds("dialog-foot").unwrap(), foot);
+        cx.simulate_event(gpui_kit::ScrollWheelEvent {
+            position: body.center(),
+            delta: gpui_kit::ScrollDelta::Pixels(point(px(0.), px(120.))),
+            modifiers: Modifiers::none(),
+            touch_phase: gpui_kit::TouchPhase::Moved,
+        });
+        cx.run_until_parked();
+        assert_eq!(cx.debug_bounds("pick-tools").unwrap(), before, "scrolling back restores the top");
+        cx.update(|window, cx| layer::dismiss(window, cx));
+        cx.run_until_parked();
+    }
+}
+
 /// Catches: the setup never read, a fresh host's Boat read as held, the flow placed on another provider or step.
 #[gpui_kit::test]
 fn a_fresh_host_opens_on_boats_key_with_none_held(cx: &mut TestAppContext) {

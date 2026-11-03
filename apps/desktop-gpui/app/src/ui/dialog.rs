@@ -247,7 +247,6 @@ impl RenderOnce for Dialog {
                     (true, false) => (px(4.), px(0.)),
                     (true, true) => (px(4.), px(12.)),
                 };
-                let scroll = self.scroll.unwrap_or_default();
                 let body = v_flex()
                     .id("dialog-body")
                     .debug_selector(|| "dialog-body".into())
@@ -255,7 +254,7 @@ impl RenderOnce for Dialog {
                     .flex_shrink(1.)
                     .min_h_0()
                     .overflow_y_scroll()
-                    .track_scroll(&scroll)
+                    .when_some(self.scroll.as_ref(), |el, scroll| el.track_scroll(scroll))
                     .child(v_flex().gap_5().px_5().pt(top).pb(bottom).children(self.body));
                 let left = h_flex().min_w_0().min_h(px(20.)).children(self.state);
                 let foot = (!footless).then(|| {
