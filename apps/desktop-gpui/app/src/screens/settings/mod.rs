@@ -384,6 +384,11 @@ impl SettingsScreen {
                 }
             },
             Arrival::Pushed(event) => {
+                if event.get("type").and_then(Value::as_str) == Some("init.job")
+                    && crate::screens::sidebar::host::setup_moves_places(&event)
+                {
+                    self.reread(Reread::Places, cx);
+                }
                 if event.get("type").and_then(Value::as_str) == Some("preferences.changed") {
                     // The app's copy draws this screen again if the record moved what it shows.
                     if let Some(Ok(p)) = event.get("preferences").cloned().map(serde_json::from_value::<Preferences>) {

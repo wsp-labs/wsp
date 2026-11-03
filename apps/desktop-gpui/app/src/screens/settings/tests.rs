@@ -484,7 +484,7 @@ fn settings_add_buttons_open_the_existing_dialogs(cx: &mut TestAppContext) {
     let door = Door::start(json!({
         "places.list": { "reply": { "places": [], "adds": [], "pending": [] } },
         "places.sshHosts": { "reply": { "hosts": [] } },
-        "init.get": { "reply": { "setup": { "keys": { "box": false }, "home": "/fixture", "pricing": null } } },
+        "init.get": { "reply": { "setup": { "keys": { "box": false }, "home": "/fixture", "pricing": null, "agents": [], "job": null } } },
     }));
     let runtime = door::runtime();
     let client = door.client(&runtime);
@@ -492,7 +492,10 @@ fn settings_add_buttons_open_the_existing_dialogs(cx: &mut TestAppContext) {
         projects_read: true,
         places_read: true,
         recipes: Some(Vec::new()),
-        setup: Some(serde_json::from_value(json!({ "keys": { "box": false }, "home": "/fixture", "pricing": null })).unwrap()),
+        setup: Some(
+            serde_json::from_value(json!({ "keys": { "box": false }, "home": "/fixture", "pricing": null, "agents": [], "job": null }))
+                .unwrap(),
+        ),
         ..bare()
     };
     let (screen, cx) = open(data, At::Group(GroupId::Projects), (1280., 800.), cx);
@@ -510,7 +513,12 @@ fn settings_add_buttons_open_the_existing_dialogs(cx: &mut TestAppContext) {
     for (page, button, dialog) in pages {
         screen.update_in(cx, |s, window, cx| {
             s.data.setup = if dialog == dialogs::ADD_CLOUD {
-                Some(serde_json::from_value(json!({ "keys": { "box": false }, "home": "/fixture", "pricing": null })).unwrap())
+                Some(
+                    serde_json::from_value(
+                        json!({ "keys": { "box": false }, "home": "/fixture", "pricing": null, "agents": [], "job": null }),
+                    )
+                    .unwrap(),
+                )
             } else {
                 None
             };
@@ -525,12 +533,72 @@ fn settings_add_buttons_open_the_existing_dialogs(cx: &mut TestAppContext) {
     }
     screen.update_in(cx, |s, window, cx| {
         s.data.places.push(serde_json::from_value(json!({ "id": "box", "kind": "provider", "name": "Boat", "default": false })).unwrap());
-        s.data.setup = Some(serde_json::from_value(json!({ "keys": { "box": true }, "home": "/fixture", "pricing": null })).unwrap());
+        s.data.setup = Some(
+            serde_json::from_value(json!({ "keys": { "box": true }, "home": "/fixture", "pricing": null, "agents": [], "job": null }))
+                .unwrap(),
+        );
         s.go(At::Group(GroupId::Computers), window, cx);
     });
     settle(cx);
     click(cx, "add-cloud-button");
     assert!(cx.update(|_, cx| layer::is_open(dialogs::ADD_CLOUD, cx)), "the cloud dialog also opens with Boat already configured");
+}
+
+#[gpui_kit::test]
+fn an_active_cloud_row_resumes_its_image_build(cx: &mut TestAppContext) {
+    use crate::screens::dialogs::{
+        add_cloud::{flow::Step, AddCloud},
+        layer, ADD_CLOUD,
+    };
+    cx.executor().allow_parking();
+    init(cx);
+    cx.update(|cx| cx.set_global(crate::ui::Still(true)));
+    let job = json!({ "id": "cloud-build", "road": "manual", "phase": "building", "step": 0, "keys": { "box": true },
+        "stoppable": true, "screens": [], "rows": [], "progress": { "done": 0, "total": 0 }, "log": [],
+        "place": { "id": "box", "name": "Boat", "kind": "provider" } });
+    let setup = json!({ "keys": { "box": true }, "home": "/fixture", "agents": [], "pricing": null, "job": job });
+    let door = Door::start(json!({ "init.get": { "reply": { "setup": setup.clone() } },
+        "places.list": { "reply": { "places": [], "pending": [] } } }));
+    let runtime = door::runtime();
+    let client = door.client(&runtime);
+    let data = Data {
+        places: vec![serde_json::from_value(json!({ "id": "box", "kind": "provider", "name": "Boat", "default": false })).unwrap()],
+        places_read: true,
+        setup: Some(serde_json::from_value(setup).unwrap()),
+        ..bare()
+    };
+    let (screen, cx) = open(data, At::Group(GroupId::Computers), (1280., 800.), cx);
+    screen.update(cx, |s, cx| {
+        s.runtime = runtime;
+        s.host = Some(client);
+        cx.notify();
+    });
+    settle(cx);
+    click(cx, "grid-row");
+    let dialog = cx.update(|_, cx| layer::view(ADD_CLOUD, cx)).expect("the cloud row opens its setup").downcast::<AddCloud>().unwrap();
+    waits(cx, "the running image build", |cx| dialog.read_with(cx, |d, _| d.flow.step == Step::Building));
+}
+
+#[gpui_kit::test]
+fn a_sealed_cloud_refreshes_the_places_and_image_without_reopening_settings(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    init(cx);
+    let door = Door::start(json!({
+        "places.list": { "reply": { "places": [{ "id": "box", "kind": "provider", "name": "Boat", "default": false }], "pending": [] } },
+        "image.get": { "reply": { "view": { "image": null, "copies": [], "projects": [] } } }
+    }));
+    let runtime = door::runtime();
+    let client = door.client(&runtime);
+    let (screen, cx) = open(bare(), At::Group(GroupId::Computers), (1280., 800.), cx);
+    screen.update(cx, |s, cx| {
+        s.runtime = runtime;
+        s.host = Some(client);
+        s.arrive(super::Arrival::Pushed(json!({ "type": "init.job", "job": { "phase": "done" } })), cx);
+    });
+    waits(cx, "the added cloud", |cx| screen.read_with(cx, |s, _| s.data.places.iter().any(|p| p.id == "box")));
+    waits(cx, "the image read", |cx| screen.read_with(cx, |s, _| s.data.image.is_some()));
+    assert_eq!(door.asked_of("places.list").len(), 1);
+    assert_eq!(door.asked_of("image.get").len(), 1);
 }
 
 #[gpui_kit::test]

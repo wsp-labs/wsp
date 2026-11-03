@@ -8,6 +8,8 @@
 mod cloud;
 #[path = "../../host-client/tests/common/mod.rs"]
 mod common;
+#[path = "../src/screens/settings/door.rs"]
+mod door;
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -158,6 +160,37 @@ fn continue_sends_the_key_and_draws_the_hosts_refusal(cx: &mut TestAppContext) {
     let said = flow_of(&view, cx).refused.unwrap().said;
     assert!(said.contains("not a provider this wsp takes a key for"), "{said}");
     assert!(drawn("key-refused", cx), "the refusal stands under the key");
+}
+
+/// A validated key continues into image setup; saving it must never dismiss the wizard.
+#[gpui_kit::test]
+fn a_validated_key_is_saved_and_continues_into_the_image_wizard(cx: &mut TestAppContext) {
+    let setup = |held| json!({ "keys": { "box": held }, "home": "/fixture", "agents": [], "pricing": null, "job": null });
+    let job = json!({
+        "id": "fixture-cloud", "road": "manual", "phase": "answering", "step": 0, "keys": { "box": true },
+        "stoppable": true, "screens": [{ "id": "agents", "title": "Agents", "top": "", "items": [{ "id": "claude", "label": "Claude Code", "detail": [] }], "ticks": ["claude"], "answers": {}, "footer": [] }],
+        "rows": [], "progress": { "done": 0, "total": 0 }, "log": [], "place": { "id": "box", "name": "Boat", "kind": "provider" }
+    });
+    let door = door::Door::start(json!({
+        "init.get": { "reply": { "setup": setup(false) } },
+        "init.keys": { "reply": { "setup": setup(true) } },
+        "providers.checkKey": { "reply": { "works": true, "account": "fixture", "plan": "test", "running": 0, "limit": 2 } },
+        "init.start": { "reply": { "job": job.clone() }, "push": [{ "type": "init.job", "job": job }] },
+        "places.list": { "reply": { "places": [], "adds": [], "pending": [] } }
+    }));
+    let runtime = door::runtime();
+    let host = Host::new(door.client(&runtime), runtime);
+    let cx = window(cx);
+    let view = cx.update(|window, cx| add_cloud::open_on(Some(&host), Flow::new(Some("box")), window, cx));
+    until(cx, "setup", 10, |cx| flow_of(&view, cx).setup.is_some());
+    cx.simulate_input("fake-key-for-test");
+    cx.simulate_keystrokes("enter");
+    until(cx, "validated key", 10, |cx| matches!(flow_of(&view, cx).check, Check::Works(_)));
+    click("cloud-continue", cx);
+    until(cx, "image picks", 10, |cx| flow_of(&view, cx).step == Step::Pick(0));
+    assert!(cx.update(|_, cx| layer::is_open(ADD_CLOUD, cx)), "saving the key keeps the image wizard open");
+    assert_eq!(door.asked_of("init.keys")[0]["provider"], "box");
+    assert_eq!(door.asked_of("init.start")[0]["on"], "box", "image setup starts for the cloud just added");
 }
 
 /// Catches: an `init.job` push not followed, or read into the flow without moving it off its spinner.

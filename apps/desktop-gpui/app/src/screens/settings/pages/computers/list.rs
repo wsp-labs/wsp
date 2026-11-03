@@ -183,7 +183,7 @@ fn cloud_row(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App) ->
     let row = GridRow::new(SharedString::from(format!("place-row-{}", place.id)), LIST_COLUMNS).narrow(LIST_COLUMNS_NARROW);
     let row = match setup {
         None => row.on_open(opens(ctx, place)),
-        Some(_) => row.on_open(move |_, _, cx| acts.note(ADD_ELSEWHERE, cx)),
+        Some(_) => row.on_open(move |_, window, cx| acts.add_cloud(window, cx)),
     };
     let mut row = row.on_menu(row_menu(ctx, place)).cell(name).cell_spans(machines, 3, 1).cell(state).cell(chevron(cx));
     if let Some(why) = cell.why() {
