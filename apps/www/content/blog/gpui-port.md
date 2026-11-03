@@ -178,7 +178,7 @@ That led to [gpui-agent](https://github.com/wsp-labs/gpui-agent). It lets an age
 
 It can also launch a development build on Linux without a display or GPU, using a virtual display and software rendering. That makes the same loop possible on Boat: **build, open the app, try it, send back evidence.**
 
-<figure><img src="/blog/gpui-port/agent-demo.gif" alt="An agent using gpui-agent beside the WSP app"><figcaption>An agent using gpui-agent with WSP. <a href="https://github.com/wsp-labs/gpui-agent">Code and setup.</a></figcaption></figure>
+<figure><img src="https://raw.githubusercontent.com/wsp-labs/wsp/c090fa6a8a063f709f9bb4428f6896715c720949/apps/www/public/blog/gpui-port/agent-demo.gif" alt="An agent using gpui-agent beside the WSP app"><figcaption>An agent using gpui-agent with WSP. <a href="https://github.com/wsp-labs/gpui-agent">Code and setup.</a></figcaption></figure>
 
 In one WSP check, an agent created a thread, chose Codex, sent a message, and checked the reply. In another, it tried `btop` in the terminal, read that the window was too small, and dragged the divider up before checking again.
 
