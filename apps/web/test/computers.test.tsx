@@ -299,17 +299,26 @@ describe("the Computers list", () => {
     expect(pageAt()).toBe("computer:p_2");
   });
 
-  it("hides Add a cloud provider once every supported cloud is added, and restores it after removal", async () => {
-    useStore.setState({ places: [here, ascii] });
-    await mountComputers(computersApi({}, setupOf({ keys: { box: true } })).api);
+  it("hides Add a cloud provider while connected and refreshes its saved key after removal", async () => {
+    let setup = setupOf({ keys: { box: true } });
+    useStore.setState({ places: [here, ascii], workspaces: [] });
+    const api = computersApi({
+      initGet: async () => setup,
+      removePlace: async () => {
+        setup = setupOf({ keys: { box: false } });
+        useStore.setState(st => ({ places: st.places.filter(p => p.id !== "box") }));
+        return { removed: true, swept: [] };
+      },
+    }).api;
+    await mountComputers(api);
     expect(screen.queryByRole("button", { name: ADD_COMPUTER_WORDS.addCloud })).toBeNull();
-    expect(listRow("box")).not.toBeNull();
-    act(() => {
-      useStore.setState({ places: [here] });
-      useSettingsStore.setState(state => ({ reads: { ...state.reads, setup: setupOf({ keys: { box: false } }) } }));
-    });
+    openPage("box");
+    fireEvent.click(document.querySelector("[data-settings-page] [data-k='remove']")!);
+    fireEvent.click(document.querySelector("[data-k='remove-confirm']")!);
+    await waitFor(() => expect(pageAt()).toBe("computers"));
     fireEvent.click(await screen.findByRole("button", { name: ADD_COMPUTER_WORDS.addCloud }));
     await settle();
+    expect(useSettingsStore.getState().reads.setup?.keys["box"]).toBe(false);
     expect(useCloudFlow.getState()).toMatchObject({ open: true, provider: "box", step: "key" });
   });
 
