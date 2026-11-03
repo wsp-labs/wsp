@@ -432,13 +432,14 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
   const reclaim = (workspaceId: string): void => {
     const entry = live.get(workspaceId);
     const sub = entry?.record.sub;
-    if (entry === undefined || sub === undefined || (sub.deleteAt === undefined && sub.held === undefined)) return;
+    if (entry === undefined || sub === undefined) return;
+    // A refused first start may retain a cut-off computer before any result has armed its retention.
+    if (!entry.startCleanup && entry.deleting === undefined && [...sessions.values()].some(s => s.view.workspaceId === workspaceId && s.view.status === "running" && s.queued !== true)) ctx.opts.broker?.lift?.(workspaceId);
+    if (sub.deleteAt === undefined && sub.held === undefined) return;
     timers.get(workspaceId)?.();
     timers.delete(workspaceId);
     delete sub.deleteAt;
     delete sub.held;
-    // A delete the provider refused left the machine cut off, and the turn runs on it.
-    ctx.opts.broker?.lift?.(workspaceId);
     void ctx.persist(entry.record).catch((e: unknown) => console.warn(`sub-thread machine ${workspaceId}: ${e instanceof Error ? e.message : String(e)}`));
   };
 

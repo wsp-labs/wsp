@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { expect, it } from "vitest";
 import { subOpening, type SessionRowEvent } from "@wsp/protocol";
+import { eventBus } from "../src/types/events.js";
+import { subLifeArea } from "../src/machines/sub-life.js";
+import type { RuntimeContext } from "../src/context.js";
+import type { SessionEntry } from "../src/types/internal.js";
+import type { WorkspaceRecord } from "../src/types/wiring.js";
 import { fakeClock } from "./fake-clock.js";
 import { leadOnThisComputer, PAID } from "./sub-fixture.js";
 
-async function pending() {
+async function pending(broker = false) {
   const clock = fakeClock();
-  const f = await leadOnThisComputer({ clock: clock.clock });
+  const f = await leadOnThisComputer({ clock: clock.clock, ...(broker ? { broker: true, hostGh: true } : {}) });
   f.boat.limitsRead = { ...PAID, starts: { ...PAID.starts!, minute: { limit: 12, used: 12 } } };
   const made = await f.rt.workspaces.create({ project: f.project.id, name: "Pending child", sub: { on: "boat" } }, f.lead);
   let held!: () => void;
@@ -160,4 +165,40 @@ it.each(["retry", "delete"])("does not let %s claim or restore a computer during
       expect((await f.rt.sessions.list()).find(row => row.threadId === f.row.threadId)?.status).toBe("failed");
     }
   } finally { cleaned(); await f.rt.close(); }
+});
+
+it("an accepted retry restores broker access after refused cleanup while a queued row leaves it blocked", async () => {
+  const f = await pending(true);
+  try {
+    const create = f.boat.create.bind(f.boat);
+    f.boat.create = async (...args) => {
+      const machine = await create(...args);
+      machine.kill = async () => { throw new Error("cleanup unavailable"); };
+      return machine;
+    };
+    const start = f.rt.sessions.start.bind(f.rt.sessions);
+    f.rt.sessions.start = async (workspace, options, origin) => {
+      if (options.as !== undefined) throw new Error("first turn refused before holding");
+      return start(workspace, options, origin);
+    };
+    f.release();
+    expect(String((await f.starting).error)).toContain("first turn refused before holding");
+    expect(f.brokerSwitch.off.has(f.made.id)).toBe(true);
+    const record = await f.store.get("workspaces", f.made.id) as WorkspaceRecord;
+    expect(record.sub?.held).toBeUndefined();
+    expect(record.sub?.deleteAt).toBeUndefined();
+    // Exercise the accepted-turn event separately from asynchronous end-of-turn result reads and naps.
+    const bus = eventBus();
+    const sessions = new Map<string, SessionEntry>();
+    subLifeArea({ live: new Map([[record.id, { record }]]), sessions, bus, opts: { broker: {
+      lift: (id: string) => f.brokerSwitch.off.delete(id),
+    } } } as unknown as RuntimeContext);
+    const retry = { view: { ...f.row, status: "running" }, turnId: "retry", queued: true } as SessionEntry;
+    sessions.set("retry", retry);
+    bus.emit({ type: "session.held", workspaceId: record.id, threadId: f.row.threadId! });
+    expect(f.brokerSwitch.off.has(record.id)).toBe(true);
+    delete retry.queued;
+    bus.emit({ type: "session.held", workspaceId: record.id, threadId: f.row.threadId! });
+    expect(f.brokerSwitch.off.has(record.id)).toBe(false);
+  } finally { await f.rt.close(); }
 });
