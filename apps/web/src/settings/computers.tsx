@@ -143,7 +143,7 @@ export function computersCards(ctx: SettingsContext): SettingsCardData[] {
   const refused =
     ctx.placesRefused === null ? null : <RefusalSlot k="places-refused" said={WHERE_WORDS.notRead(ctx.placesRefused.said)} {...(ctx.placesRefused.fix === undefined ? {} : { fix: ctx.placesRefused.fix })} />;
   const H = WHERE_WORDS.heads;
-  const offered = cloudsOffered(ctx.reads.setup).length > 0;
+  const offered = cloudsOffered(ctx.reads.setup).some(id => !keyHeld(id, ctx.reads.setup) && !clouds.some(place => place.id === id));
   const computersBody = (
     <div className="flex flex-col gap-2">
       {computers.length === 0 ? null : (

@@ -93,6 +93,15 @@ const openFromComputers = async (api: Api): Promise<void> => {
   await settle();
 };
 
+/** Existing clouds resume from their row; Add is reserved for accounts not yet added. */
+const openSetupFromRow = async (api: Api): Promise<void> => {
+  mountSettings({ api, at: { kind: "group", group: "computers" } });
+  await settle();
+  expect(screen.queryByRole("button", { name: ADD_COMPUTER_WORDS.addCloud })).toBeNull();
+  fireEvent.click(document.querySelector("[data-place-row='box']")!);
+  await settle();
+};
+
 describe("the key step", () => {
   it("says where the key is made, the ci preset's actions and the cost, and holds Continue until the key works", async () => {
     await openFromComputers(host().api);
@@ -245,11 +254,11 @@ describe("the provider step", () => {
   });
 });
 
-describe("Add pressed while a setup stands", () => {
-  it("opens the image building rather than a new setup, from the Add button and from the cloud's row", async () => {
+describe("Opening a cloud while a setup stands", () => {
+  it("opens the image building rather than a new setup, from the cloud's row", async () => {
     const fake = host();
     useStore.setState({ places: [here, boat], initJob: jobOf({ phase: "building", rows: [{ id: "boot", kind: "stage", label: "Start a builder on Boat", state: "running" }] }) });
-    await openFromComputers(fake.api);
+    await openSetupFromRow(fake.api);
     expect(stepOf()).toBe("building");
     expect(dialog()!.querySelector("[data-slot=dialog-title]")?.textContent).toBe("Setting up Boat");
     expect(document.querySelector("[data-step-row='boot']")?.getAttribute("data-state")).toBe("working");
@@ -270,7 +279,7 @@ describe("Add pressed while a setup stands", () => {
       { id: "signin/claude", kind: "sign-in" as const, tool: "claude", label: "Claude Code", state: "done" },
     ];
     useStore.setState({ places: [here, boat], initJob: jobOf({ phase: "building", rows }) });
-    await openFromComputers(fake.api);
+    await openSetupFromRow(fake.api);
     expect(stepOf()).toBe("building");
     const toggle = (id: string) => document.querySelector(`[data-step-row='${id}'] [data-k=step-toggle]`);
     expect(toggle("agents")).toBeNull();
@@ -296,7 +305,7 @@ describe("Add pressed while a setup stands", () => {
   it("opens at the key with an empty field once the cloud is removed, which ends the setup that was answering on it", async () => {
     const fake = host();
     useStore.setState({ places: [here, boat], initJob: jobOf({ step: 2 }) });
-    await openFromComputers(fake.api);
+    await openSetupFromRow(fake.api);
     expect(stepOf()).toBe("also");
     act(() => closeCloudAdd());
     pushJob(jobOf({ step: 2, phase: "cancelled" }));
@@ -311,7 +320,7 @@ describe("Add pressed while a setup stands", () => {
   it("opens at the key once a cloud whose build failed is removed, which ends that setup", async () => {
     const fake = host();
     useStore.setState({ places: [here, boat], initJob: jobOf({ phase: "failed", error: "deploy refused" }) });
-    await openFromComputers(fake.api);
+    await openSetupFromRow(fake.api);
     expect(stepOf()).toBe("building");
     act(() => closeCloudAdd());
     pushJob(jobOf({ phase: "cancelled", error: "deploy refused" }));

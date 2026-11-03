@@ -299,6 +299,20 @@ describe("the Computers list", () => {
     expect(pageAt()).toBe("computer:p_2");
   });
 
+  it("hides Add a cloud provider once every supported cloud is added, and restores it after removal", async () => {
+    useStore.setState({ places: [here, ascii] });
+    await mountComputers(computersApi({}, setupOf({ keys: { box: true } })).api);
+    expect(screen.queryByRole("button", { name: ADD_COMPUTER_WORDS.addCloud })).toBeNull();
+    expect(listRow("box")).not.toBeNull();
+    act(() => {
+      useStore.setState({ places: [here] });
+      useSettingsStore.setState(state => ({ reads: { ...state.reads, setup: setupOf({ keys: { box: false } }) } }));
+    });
+    fireEvent.click(await screen.findByRole("button", { name: ADD_COMPUTER_WORDS.addCloud }));
+    await settle();
+    expect(useCloudFlow.getState()).toMatchObject({ open: true, provider: "box", step: "key" });
+  });
+
   it("draws Add a computer alone where the host registered no cloud, and no CLOUD list over nothing", async () => {
     useStore.setState({ places: [here, box] });
     await mountComputers(computersApi({}, setupOf({ keys: {} })).api);

@@ -47,3 +47,9 @@ Files: packages/runtime/src/machines/boot.ts, packages/runtime/src/machines/sub-
 - Release-branch integration gate is separate: the repository pre-review script assumes origin/main, whereas this hotfix intentionally starts at the shipped v0.3.9 tag.
 
 Proposed runtime note: A pending thread record keeps the queued start's parent/root identity; a failed handoff publishes terminal failure and releases its computer only after provider-confirmed cleanup, without reclaiming a newer turn or deleted workspace.
+
+### Follow-up: already added cloud account
+
+The Computers page offered Add whenever a supported cloud appeared in `init.get`, including accounts whose key was already saved. Hide Add when every supported provider has a saved key or an existing provider row. Existing rows continue to resume unfinished setup; removing the account restores Add. Computers and cloud dialog coverage: 108 tests passed across four files. Rebuilt Classic preview version: `0.3.9+boatfix.2506.2`.
+
+Proposed line for `apps/web/AGENTS.md`: The Computers page offers Add a cloud provider only for a supported provider whose key is not held and whose provider row is absent; unfinished setup resumes from the existing row.
