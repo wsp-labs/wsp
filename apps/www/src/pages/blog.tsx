@@ -148,16 +148,21 @@ function More({ current }: { current: string }) {
   if (others.length === 0) return null;
   return (
     <Section className="pt-0 sm:pt-0">
-      <div className="flex items-baseline justify-between border-t border-rule pt-10">
-        <h2 className="heading text-[24px] sm:text-[28px]">More from the blog</h2>
-        <a href="/blog" className="text-[14px] text-muted-foreground transition-colors duration-150 hover:text-foreground">All posts</a>
+      <div className="flex flex-wrap items-center justify-between gap-5 border-t border-rule pt-10">
+        <h2 className="heading text-[28px] sm:text-[36px]">More from the blog</h2>
+        <a href="/blog" className="inline-flex shrink-0 items-center gap-2 rounded-full bg-foreground px-5 py-2.5 text-[14px] font-medium text-background transition-opacity duration-150 hover:opacity-85 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber">
+          All posts <span aria-hidden="true">↗</span>
+        </a>
       </div>
-      <ol className="mt-8 grid gap-6 md:grid-cols-3">
+      <ol className={`mt-9 grid gap-x-7 gap-y-10 sm:mt-10 ${others.length === 1 ? "max-w-[560px]" : others.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-3"}`}>
         {others.map(p => (
           <li key={p.slug}>
-            <a href={`/blog/${p.slug}`} className="group block">
-              <p className="text-[17px] font-medium tracking-[-0.01em] text-foreground group-hover:underline">{p.title}</p>
-              <p className="mt-2 text-[14px] text-muted-foreground">{day(p.date)}</p>
+            <a href={`/blog/${p.slug}`} className="group block rounded-[14px] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-amber">
+              <Picture post={p} className="aspect-[16/9] rounded-[14px] border border-border" />
+              <div className="px-1 pt-5">
+                <h3 className="text-[19px] font-medium leading-snug tracking-[-0.02em] text-foreground transition-colors duration-150 group-hover:text-amber sm:text-[21px]">{p.title}</h3>
+                <time dateTime={p.date} className="mt-3 block text-[14px] text-muted-foreground">{day(p.date)}</time>
+              </div>
             </a>
           </li>
         ))}
