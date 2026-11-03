@@ -39,6 +39,29 @@ const envOf = (stdin: string): Record<string, string> =>
   Object.fromEntries(stdin.split("\0").filter(kv => kv.includes("=")).map(kv => [kv.slice(0, kv.indexOf("=")), kv.slice(kv.indexOf("=") + 1)]));
 
 describe("a thread on a project of a computer the person joined", () => {
+  it("registers a remote folder in place with its actual Git root and refuses canonical duplicates", async () => {
+    const { rt, seen, placeId } = await joined({});
+    seen.execAs = cmd => cmd.includes('cd -P') ? { stdout: "/root/code/project/sub\0/root/code/project\n\0https://github.com/owner/project.git\n\0feature\n" } : undefined;
+    const before = seen.execs.length;
+    const project = await rt.projects.add({ source: "~/alias/sub", on: placeId, existing: true });
+    expect(project).toMatchObject({ path: "/root/code/project/sub", computer: placeId, remote: "https://github.com/owner/project.git", defaultBranch: "feature", git: { top: "/root/code/project" } });
+    expect(seen.execs.slice(before).some(e => /git clone|mkdir|npm|pnpm/.test(handedLine(e.cmd)))).toBe(false);
+    await expect(rt.projects.add({ source: "/root/other-alias/sub", on: placeId, existing: true })).rejects.toThrow(/already/);
+  });
+
+  it("registers a remote plain folder and refuses an unreadable folder without a record", async () => {
+    const { rt, seen, placeId } = await joined({});
+    seen.execAs = cmd => cmd.includes('cd -P') ? { stdout: "/root/plain\0\0\0" } : undefined;
+    const project = await rt.projects.add({ source: "/root/plain", on: placeId, existing: true });
+    expect(project.path).toBe("/root/plain");
+    expect(project.git).toBeUndefined();
+    const count = (await rt.projects.list()).length;
+    seen.execAs = cmd => cmd.includes('cd -P') ? { stdout: "", exitCode: 1 } : undefined;
+    await expect(rt.projects.add({ source: "/root/missing", on: placeId, existing: true })).rejects.toThrow(/could not be read/);
+    expect(await rt.projects.list()).toHaveLength(count);
+    await expect(rt.projects.add({ source: "/root/plain", existing: true })).rejects.toThrow(/connected computer/);
+  });
+
   it("runs in the project's folder there: two starts that both say hello open in that folder, and nothing is made", async () => {
     const starts: Started[] = [];
     const { rt, project, seen } = await joined({ adapters: { claude: answering(starts) } });

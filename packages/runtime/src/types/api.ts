@@ -350,7 +350,7 @@ export interface Runtime {
     /** Records a project: the word a person typed, which is a folder on this computer, a repo cloned into an empty
      * folder here, or a repo a computer clones, and the computer it lives on. Refused when the word is neither, when the computer's kind takes no source of
      * that shape, and when that source is already a project on that computer. */
-    add(opts: { source: string; on?: string; name?: string; base?: string; into?: string; seed?: SeedChoice }, origin?: Caller): Promise<ProjectView & { notice?: string }>;
+    add(opts: { source: string; on?: string; name?: string; base?: string; into?: string; existing?: boolean; seed?: SeedChoice }, origin?: Caller): Promise<ProjectView & { notice?: string }>;
     /** What a seed of a folder on this computer would carry to the computer `on` names, with the ticks a remembered
      * choice for that folder leaves on it. Nothing of the folder is read whole and nothing leaves this computer. */
     seedPlan(source: string, on?: string): Promise<SeedPlan>;

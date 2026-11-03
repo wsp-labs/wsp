@@ -484,6 +484,7 @@ export const WORKSPACE_ANSWERED: Record<string, TurnCase[]> = {
     { case: "no image", arguments: { place: "solari" }, replies: { "places.list": reply({ places: PLACES }), "image.build": reply({ build: { copy: COPIES[0], built: false } }), "image.get": reply({ view: { image: null, copies: [], projects: [] } }) } },
   ]),
   projects_add: [
+    { case: "existing remote folder", arguments: { source: "/root/alpha", on: "attic", existing: true }, replies: { "projects.add": reply({ project: { ...PROJECT, source: { kind: "folder", path: "/root/alpha" }, path: "/root/alpha" } }), "places.list": reply({ places: PLACES }) } },
     { case: "added", arguments: { source: "dev/alpha", on: "attic", base: "main" }, replies: { "projects.add": reply({ project: PROJECT }), "places.list": reply({ places: PLACES }) } },
     { case: "notice", arguments: { source: "https://example.com/dev/alpha.git", on: "attic", name: "alpha" }, replies: { "projects.add": reply({ project: { ...PROJECT, source: { kind: "git", url: "https://example.com/dev/alpha.git" } }, notice: "the seed left 2 commits behind \u0085" }), "places.list": refused("not yours to read", "auth") } },
     { case: "cloned into a folder", arguments: { source: "https://example.com/dev/alpha.git", into: "/Users/me/alpha", base: "main" }, replies: { "projects.add": reply({ project: { ...PROJECT, computer: "place-9", source: { kind: "folder", path: "/Users/me/alpha" } } }), "places.list": reply({ places: PLACES }) } },

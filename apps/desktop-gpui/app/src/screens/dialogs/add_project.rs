@@ -59,10 +59,6 @@ pub fn clone_into_placeholder(name: &str) -> String {
     format!("The folder to put {name} in, like ~/code")
 }
 
-pub fn box_says(name: &str) -> String {
-    format!("Repos on {name} show here soon. Paste a repository address above to clone it there.")
-}
-
 pub fn provider_says(name: &str) -> String {
     format!("{name} clones a project from its repository address. Paste one above.")
 }
@@ -188,6 +184,7 @@ fn base_name(path: &str) -> &str {
 /// What the dialog shows for what is typed and picked now.
 struct Shown {
     here: bool,
+    browsable: bool,
     computer: Option<Value>,
     path: Option<(String, String)>,
     rows: Vec<Folder>,
@@ -204,6 +201,7 @@ pub struct AddProject {
     on: Option<String>,
     /// The paths recorded as projects on this computer.
     added: HashSet<String>,
+    recorded: Vec<Value>,
     field: Entity<InputState>,
     clone_to: Entity<InputState>,
     repos: Option<Listing>,
@@ -298,6 +296,7 @@ impl AddProject {
             computers: Vec::new(),
             on: None,
             added: HashSet::new(),
+            recorded: Vec::new(),
             field,
             clone_to,
             repos: None,
@@ -319,7 +318,7 @@ impl AddProject {
         let Some(host) = self.host.clone() else { return };
         let places = host.run(|c| async move { c.call(ask::<PlacesListRequest>(json!({}))?).await.map(|r| r.places) });
         let projects = host.run(|c| async move { c.call(ask::<ProjectsListRequest>(json!({}))?).await.map(|r| r.projects) });
-        let repos = host.run(|c| async move { c.call(ask::<HostFoldersRequest>(json!({ "hidden": false, "repos": true }))?).await });
+        self.read_repos(window, cx);
         self._read.push(cx.spawn_in(window, async move |this, cx| {
             let places = places.await.unwrap_or_default();
             _ = this.update(cx, |this, cx| {
@@ -336,18 +335,48 @@ impl AddProject {
         self._read.push(cx.spawn_in(window, async move |this, cx| {
             let projects = projects.await.unwrap_or_default();
             _ = this.update(cx, |this, cx| {
-                this.added = projects
-                    .iter()
-                    .filter_map(|p| serde_json::to_value(p).ok())
-                    .filter(|p| p.get("computer").and_then(Value::as_str).is_none_or(|c| c == "here"))
-                    .filter_map(|p| p.get("path")?.as_str().map(str::to_owned))
-                    .collect();
+                this.recorded = projects.iter().filter_map(|p| serde_json::to_value(p).ok()).collect();
+                this.refresh_added();
                 cx.notify();
             });
         }));
+    }
+
+    fn browse_on(&self) -> Option<String> {
+        self.computer().and_then(|c| c.get("id")?.as_str()).filter(|id| *id != "here").map(str::to_owned)
+    }
+
+    fn browsable(&self) -> bool {
+        self.computer().and_then(|c| c.get("kind")).and_then(Value::as_str) != Some("provider")
+    }
+
+    fn refresh_added(&mut self) {
+        let on = self.browse_on().unwrap_or_else(|| "here".into());
+        self.added = self
+            .recorded
+            .iter()
+            .filter(|p| p.get("computer").and_then(Value::as_str).unwrap_or("here") == on)
+            .filter_map(|p| p.get("path")?.as_str().map(str::to_owned))
+            .collect();
+    }
+
+    fn read_repos(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.browsable() {
+            return;
+        }
+        let Some(host) = self.host.clone() else { return };
+        let on = self.browse_on();
+        let mut params = json!({ "hidden": false, "repos": true });
+        if let Some(on) = &on {
+            params["on"] = json!(on);
+        }
+        let repos = host.run(move |c| async move { c.call(ask::<HostFoldersRequest>(params)?).await });
         self._read.push(cx.spawn_in(window, async move |this, cx| {
             let read = repos.await;
             _ = this.update(cx, |this, cx| {
+                if this.browse_on() != on {
+                    return;
+                }
                 match read
                     .and_then(|f| serde_json::to_value(f.listing).and_then(serde_json::from_value).map_err(|e| Failure::new(e.to_string())))
                 {
@@ -418,7 +447,8 @@ impl AddProject {
         let repo_word = shape == Some(RepoWord::Address) || (shape == Some(RepoWord::Short) && (!here || searched.is_empty()));
         let typing_path = !repo_word && (field.starts_with('/') || field.starts_with('~'));
         let path = typing_path.then(|| path_parts(&field, &self.home()));
-        let rows = match (&path, here && !repo_word) {
+        let browsable = self.browsable();
+        let rows = match (&path, browsable && !repo_word) {
             (_, false) => Vec::new(),
             (Some((dir, stem)), true) => match &self.level {
                 Some(level) if &level.dir == dir => {
@@ -433,9 +463,16 @@ impl AddProject {
         let folder = self.clone_to.read(cx).value().trim().to_owned();
         let clone_ready = clones_here && (folder.starts_with('/') || folder.starts_with('~'));
         let lit = rows.get(self.lit);
-        let target =
-            if clones || clone_ready { Some(field.trim().to_owned()) } else { lit.filter(|r| self.addable(r)).map(|r| r.path.clone()) };
-        Shown { here, computer, path, rows, clones, clones_here, target, clone_ready }
+        let opened = path
+            .as_ref()
+            .filter(|(dir, stem)| stem.is_empty() && self.level.as_ref().is_some_and(|l| &l.dir == dir) && !self.added.contains(dir))
+            .map(|(dir, _)| dir.clone());
+        let target = if clones || clone_ready {
+            Some(field.trim().to_owned())
+        } else {
+            opened.or_else(|| lit.filter(|r| self.addable(r)).map(|r| r.path.clone()))
+        };
+        Shown { here, browsable, computer, path, rows, clones, clones_here, target, clone_ready }
     }
 
     fn addable(&self, row: &Folder) -> bool {
@@ -453,10 +490,18 @@ impl AddProject {
         }
         let Some(host) = self.host.clone() else { return };
         let asked = dir.clone();
-        let listed = host.run(move |c| async move { c.call(ask::<HostFoldersRequest>(json!({ "dir": asked }))?).await });
+        let on = self.browse_on();
+        let mut params = json!({ "dir": asked });
+        if let Some(on) = &on {
+            params["on"] = json!(on);
+        }
+        let listed = host.run(move |c| async move { c.call(ask::<HostFoldersRequest>(params)?).await });
         self._level = Some(cx.spawn_in(window, async move |this, cx| {
             let read = listed.await;
             _ = this.update(cx, |this, cx| {
+                if this.browse_on() != on || this.shown(cx).path.as_ref().map(|p| &p.0) != Some(&dir) {
+                    return;
+                }
                 match read
                     .and_then(|f| serde_json::to_value(f.listing).and_then(serde_json::from_value).map_err(|e| Failure::new(e.to_string())))
                 {
@@ -474,7 +519,16 @@ impl AddProject {
     fn pick_computer(&mut self, id: String, window: &mut Window, cx: &mut Context<Self>) {
         self.on = Some(id);
         self.lit = 0;
-        let placeholder = if self.shown(cx).here { SEARCH } else { ADDRESS_ONLY };
+        self.repos = None;
+        self.level = None;
+        self._level = None;
+        self.refusal = None;
+        self.refresh_added();
+        if repository_word(&self.typed_value(cx)).is_none() {
+            self.field.update(cx, |f, cx| f.set_value("", window, cx));
+        }
+        self.read_repos(window, cx);
+        let placeholder = if self.browsable() { SEARCH } else { ADDRESS_ONLY };
         self.field.update(cx, |f, cx| f.set_placeholder(placeholder, window, cx));
         cx.notify();
     }
@@ -501,7 +555,11 @@ impl AddProject {
         let on = (!shown.here).then(|| shown.computer.as_ref().and_then(|c| c.get("id")?.as_str().map(str::to_owned))).flatten();
         let (icon, hue) = (self.icon.read(cx).value().cloned(), self.hue.read(cx).value().cloned());
         let look = (icon.as_deref() != Some("folder") || hue.as_deref() != Some("neutral")).then(|| json!({ "icon": icon, "hue": hue }));
+        let existing = !shown.here && shown.browsable && repository_word(&source).is_none();
         let mut params = json!({ "source": source });
+        if existing {
+            params["existing"] = json!(true);
+        }
         if let Some(on) = on {
             params["on"] = json!(on);
         }
@@ -597,9 +655,8 @@ impl AddProject {
                 .child(div().min_w_0().truncate().child(line))
                 .into_any_element()];
         }
-        if !shown.here {
-            let provider = shown.computer.as_ref().and_then(|c| c.get("kind")?.as_str()) == Some("provider");
-            return vec![say(if provider { provider_says(&name) } else { box_says(&name) })];
+        if !shown.browsable {
+            return vec![say(provider_says(&name))];
         }
         if shown.clones_here {
             let me = cx.weak_entity();
@@ -874,7 +931,7 @@ impl Render for AddProject {
                 .text_size(text::XS.0)
                 .child(tilde(dir, &home))
                 .into_any_element(),
-            None if shown.here => div()
+            None if shown.browsable => div()
                 .truncate()
                 .text_size(text::XS.0)
                 .line_height(text::XS.1)

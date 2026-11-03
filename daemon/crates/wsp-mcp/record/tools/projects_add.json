@@ -7,11 +7,15 @@
       "properties": {
         "source": {
           "type": "string",
-          "description": "a folder on the computer the app runs on, or a repo's url"
+          "description": "a folder on this computer, a repo URL, or with existing=true an absolute folder path on the named connected computer"
+        },
+        "existing": {
+          "type": "boolean",
+          "description": "register the folder already on the connected computer named with on, without cloning or seeding; takes no into or base"
         },
         "on": {
           "type": "string",
-          "description": "the computer that clones the repo, by the name computers lists; a folder, and a repo cloned with into, take none"
+          "description": "the computer that clones the repo or holds an existing folder, by the name computers lists; a folder here and a repo cloned with into take none"
         },
         "into": {
           "type": "string",
@@ -274,11 +278,15 @@
       "properties": {
         "source": {
           "type": "string",
-          "description": "a folder on the computer the app runs on, or a repo's url"
+          "description": "a folder on this computer, a repo URL, or with existing=true an absolute folder path on the named connected computer"
+        },
+        "existing": {
+          "type": "boolean",
+          "description": "register the folder already on the connected computer named with on, without cloning or seeding; takes no into or base"
         },
         "on": {
           "type": "string",
-          "description": "the computer that clones the repo, by the name computers lists; a folder, and a repo cloned with into, take none"
+          "description": "the computer that clones the repo or holds an existing folder, by the name computers lists; a folder here and a repo cloned with into take none"
         },
         "into": {
           "type": "string",

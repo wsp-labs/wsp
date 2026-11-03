@@ -7,6 +7,7 @@ import { CATALOG_AGENTS, DEFAULT_AGENT } from "@wsp/catalog";
 import { INLINE_EXEC_MS, BUILDER_LABEL, CREATED_AT_LABEL, OWNER_LABEL, WSP_LABEL, destExists, exportFolder, exportPathsInto, importInto, landBundle, landBytes, plural, agentsOnMachine, guestAgentHomes, guestTmpPath, parseStateListing, stateListing, type MachineBackend, type MachineSpec, GUEST_TMP, syncDisk } from "@wsp/engine";
 import type { HarnessCatalog, ProjectAddStage, ProjectExportStage, ProjectSeed, ProjectSource, ProjectView, ProjectPlan, SeedChoice, SeedFile, SeedPlan, Caller } from "@wsp/protocol";
 import { projectLanding, type Landed, type LandingDeps, type ProjectLanding } from "../project-landing.js";
+import { existingFolder } from "./existing-folder.js";
 import { projectSource } from "../project-sources.js";
 import { projectSeedOf, projectUnsavedRefusal, refusal, scopeOf, seedNotHereRefusal, heldBackPicks, seedPicks, seedSaveRefusal, seedTravels, spawnFolderRefusal, spawnRepositoryRefusal, usageRefusal, SPAWN_FOLDER_FIX, SPAWN_REPOSITORY_FIX } from "@wsp/protocol";
 import { addedProjectOn, addingProjectLine, actionRefusal, cloudProjectRefusal, isProviderPlace, tableName, kindWords, fmtBytes, notFoundRefusal, claudeProjectKey, folderOnCopyRefusal, cloneIntoNeeded, intoIsHereLine, INTO_TAKES_A_REPO_LINE, noComputerForSourceLine, bareNoSuchProjectLine, noSuchProjectLine, leftBehindLine, projectInUseRefusal, seedChoiceNeeded, sameSourceRefusal, sourceKind, projectSourceOf, bareFolder, copiesFolder, kindForComputer, runsInFolder, shellQuote, underProject, workspaceState, HERE_PLACE_ID, namesPlace, noSuchPlaceRefusal } from "@wsp/protocol";
@@ -248,7 +249,7 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
 
     /** `report` hears each line the add says as it goes, beside the stream every client watches: a caller that
      * keeps its own log of the add, as a computer's setup does. */
-    async add(o: { source: string; on?: string; name?: string; base?: string; into?: string; seed?: SeedChoice; id?: string; createdAt?: string; report?: (line: string) => void }, origin?: Caller): Promise<ProjectView & { notice?: string }> {
+    async add(o: { source: string; on?: string; name?: string; base?: string; into?: string; existing?: boolean; seed?: SeedChoice; id?: string; createdAt?: string; report?: (line: string) => void }, origin?: Caller): Promise<ProjectView & { notice?: string }> {
       await ctx.ready();
       // A project is this computer's to record: the folder and the computer named are read here, and a machine
       // that asked would be naming paths on a computer it cannot see.
@@ -257,8 +258,8 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
       const clones = rows.filter(r => r.id !== HERE_PLACE_ID && kindWords(kindForComputer(r.id)).projectSources.includes("git")).map(r => r.name);
       const kind = sourceKind(o.source);
       if (kind === "computer") throw new Error(ADD_IS_A_COMPUTER_LINE);
-      if (kind === "folder" && o.into !== undefined) throw new Error(INTO_TAKES_A_REPO_LINE);
-      const source: ProjectSource = projectSourceOf(o.source, kind, kind === "folder" ? folderNamed(o.source) : undefined);
+      if (o.existing !== true && kind === "folder" && o.into !== undefined) throw new Error(INTO_TAKES_A_REPO_LINE);
+      let source: ProjectSource = projectSourceOf(o.source, kind, kind === "folder" ? (o.existing === true ? o.source : folderNamed(o.source)) : undefined);
       // No --on: a folder is worked here and so is a repo given a folder to clone into; a repo with neither is the
       // person's to place, here or on a computer that clones, which the kind table says are which.
       const on = o.on;
@@ -267,12 +268,13 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
         if (o.on === undefined) throw new Error(noComputerForSourceLine(o.source, clones));
         throw new Error(noSuchPlaceRefusal(o.on, rows.map(tableName)));
       }
-      if (o.into !== undefined && computer !== HERE_PLACE_ID) throw new Error(intoIsHereLine(ctx.nameOfComputer(HERE_PLACE_ID, rows)));
+      if (o.existing !== true && o.into !== undefined && computer !== HERE_PLACE_ID) throw new Error(intoIsHereLine(ctx.nameOfComputer(HERE_PLACE_ID, rows)));
       const place = rows.find(r => r.id === computer);
       if (opts.cloudProjects === false && place !== undefined && isProviderPlace(place)) {
         const refused = cloudProjectRefusal(tableName(place));
         throw usageRefusal(refused.happened, refused.fix);
       }
+      if (o.existing === true && (computer === HERE_PLACE_ID || (place !== undefined && isProviderPlace(place)) || source.kind !== "folder" || o.seed !== undefined || o.into !== undefined || o.base !== undefined)) throw usageRefusal("An existing folder needs a connected computer and a folder path, without clone or seed options.", "Choose the computer and folder to register in place.");
       const computerKind = kindForComputer(computer);
       const takes = kindWords(computerKind).projectSources;
       if (!takes.includes(source.kind)) throw new Error(source.kind === "folder" ? folderOnCopyRefusal(ctx.nameOfComputer(computer, rows)) : noComputerForSourceLine(o.source, clones));
@@ -288,14 +290,23 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
       if (held !== undefined) throw Object.assign(new Error(sameSourceRefusal(held.name, ctx.nameOfComputer(computer, rows))), { kind: "conflict" });
       // A folder here is a project whether or not git holds it; the repo it sits in, its own or one above it, is
       // what its branches and worktrees are read off.
-      const top = source.kind === "folder" && copiesFolder(computerKind) ? await ctx.gitTopOf(source.path) : undefined;
+      let top = source.kind === "folder" && copiesFolder(computerKind) ? await ctx.gitTopOf(source.path) : undefined;
       const { deps, at, placeId } = await landingDeps(computer);
       await readableComputer(at, placeId);
       const road = projectLanding(landingKind(computer, at));
+      if (o.existing === true && (road.kind !== "box" || deps.computer === undefined)) throw usageRefusal("An existing folder needs a connected computer and a folder path, without clone or seed options.", "Choose the computer and folder to register in place.");
+      const existing = o.existing === true && deps.computer !== undefined ? await existingFolder(deps.computer.machine, deps.computer.home, o.source) : undefined;
+      if (existing !== undefined) {
+        source = existing.source;
+        top = existing.top;
+        const canonical = existing.source.path;
+        const duplicate = [...projectsHeld.values()].find(p => p.computer === computer && p.path === canonical);
+        if (duplicate !== undefined) throw Object.assign(new Error(sameSourceRefusal(duplicate.name, ctx.nameOfComputer(computer, rows))), { kind: "conflict" });
+      }
       // What the source resolves to on this computer: the remote whichever computer holds the project will clone,
       // and, for a folder here, the menu of what a seed of it would carry.
       const module = projectSource(source.kind);
-      const resolved = await module.resolve(source, {
+      const resolved = existing?.resolved ?? await module.resolve(source, {
         // A folder is seeded only onto a computer that clones it; the computer the app runs on copies it beside
         // itself and reads nothing of it but its own remote.
         seeding: road.kind !== "mac",
@@ -359,6 +370,7 @@ export function projectsArea(ctx: RuntimeContext): ProjectsArea {
         return recorded;
       };
       const seed = seeding && resolved.seed !== undefined && o.seed !== undefined ? { plan: resolved.seed, choice: o.seed } : undefined;
+      if (existing !== undefined) return keep({});
       if (!road.landsAtAdd({ seeding: seed !== undefined })) return keep({});
       report("planned", addingProjectLine(project.name, source, seed !== undefined));
       try {

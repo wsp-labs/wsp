@@ -6,9 +6,9 @@
 usage: wsp add
        [<user@host>|<ssh alias>|<folder>|<url>|<owner/repo>|<computer> --update…
        [--recipe <name>] [--later] [--on <computer>] [--into <folder>]
-       [--name <name>] [--base <branch>] [--yes] [--keep <path>] [--cut <path>]
-       [--no-memory] [--no-commits] [--remember] [--ssh-port <port>]
-       [--ssh-key <path>] [--host-key <key>]
+       [--existing] [--name <name>] [--base <branch>] [--yes] [--keep <path>]
+       [--cut <path>] [--no-memory] [--no-commits] [--remember]
+       [--ssh-port <port>] [--ssh-key <path>] [--host-key <key>]
   a computer of yours over ssh by user@host or by an alias from your ssh config,
   or a project: a folder on this computer, a git repo or not, whose threads run
   in it, or a repo cloned into a folder here with --into <folder> or by a
@@ -45,6 +45,9 @@ usage: wsp add
                   wsp deploys on it, over the link it is holding or over the ssh
                   road it was added on, restart its agent and keep the threads
                   and machines standing on it
+  --existing      register a folder already on the connected computer named with
+                  --on, without cloning or seeding it; takes no --into, --base
+                  or seed flags
   --sign-in       the agent to sign in on the place named, once: the sign-in
                   runs on that computer and every thread there shares the one
                   login. Offered by the join itself; this is the same road for a

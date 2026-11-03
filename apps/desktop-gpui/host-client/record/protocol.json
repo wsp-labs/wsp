@@ -23313,6 +23313,9 @@
       "memory",
       "commits"
      ]
+    },
+    "existing": {
+     "type": "boolean"
     }
    },
    "required": [

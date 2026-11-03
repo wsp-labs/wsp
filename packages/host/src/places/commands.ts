@@ -104,6 +104,7 @@ export async function addCommand(io: CliIO, opts: PlaceOpts, args: readonly stri
   const providerId = word === undefined ? undefined : addedProviderId(word);
   if (args.length > 1) throw usageRefusal(`wsp add takes ${addedProviders().length === 0 ? "" : "one provider or "}one address, or nothing at all.`, ADD_USAGE);
   const aim = aimHere("add", opts);
+  if (flags.existing === true && (word === undefined || sourceKindOf(word) !== "folder" || flags.on === undefined || flags.into !== undefined || flags.base !== undefined || flags.update === true || flags.resume === true || flags.signIn !== undefined || flags.recipe !== undefined || flags.later === true || flags.yes === true || flags.keep !== undefined || flags.cut !== undefined || flags.noMemory === true || flags.noCommits === true || flags.remember === true)) throw usageRefusal("--existing needs a folder already on the named computer, without clone, setup or seed options.", "Use wsp add /path/to/folder --on <computer> --existing.");
   if (flags.resume === true) {
     if (word === undefined) throw usageRefusal("wsp add --resume names the computer to set up.", ADD_USAGE);
     if (flags.update === true || flags.signIn !== undefined || flags.name !== undefined || flags.sshPort !== undefined || flags.keyPath !== undefined || flags.hostKey !== undefined) throw usageRefusal(RESUME_FLAGS_REFUSAL, ADD_USAGE);
@@ -316,7 +317,7 @@ async function addProject(io: CliIO, opts: PlaceOpts, aim: HostAim, source: stri
     // computer's own kind says rather than this line: naming this computer with --on is the same road as naming
     // none, and both copy the folder where it already is.
     const onComputer = flags.on;
-    const seeding = sourceKindOf(source) === "folder" && onComputer !== undefined && !(await copiesFolderOn(client, onComputer));
+    const seeding = flags.existing !== true && sourceKindOf(source) === "folder" && onComputer !== undefined && !(await copiesFolderOn(client, onComputer));
     let seed: SeedChoice | undefined;
     if (seeding && onComputer !== undefined) {
       const { plan } = await client.request<{ plan: SeedPlan }>("project.seed.plan", { source, on: onComputer });
@@ -356,6 +357,7 @@ async function addProject(io: CliIO, opts: PlaceOpts, aim: HostAim, source: stri
         ...(flags.name !== undefined ? { name: flags.name } : {}),
         ...(flags.base !== undefined ? { base: flags.base } : {}),
         ...(flags.into !== undefined ? { into: flags.into } : {}),
+        ...(flags.existing === true ? { existing: true } : {}),
         ...(seed !== undefined ? { seed } : {}),
       });
       // A record that stood with nothing to land on that computer runs no stage at all, so this terminal says

@@ -942,8 +942,9 @@ Records a project: one source on one computer. A folder on the computer the app 
 
 | Field | Type | Required | What it is |
 |---|---|---|---|
-| `source` | string | yes | a folder on the computer the app runs on, or a repo's url |
-| `on` | string |  | the computer that clones the repo, by the name computers lists; a folder, and a repo cloned with into, take none |
+| `source` | string | yes | a folder on this computer, a repo URL, or with existing=true an absolute folder path on the named connected computer |
+| `existing` | boolean |  | register the folder already on the connected computer named with on, without cloning or seeding; takes no into or base |
+| `on` | string |  | the computer that clones the repo or holds an existing folder, by the name computers lists; a folder here and a repo cloned with into take none |
 | `into` | string |  | an absolute path on the computer the app runs on to clone the repo in: into a folder of the repo's name inside it, made where it does not exist yet, or into the path itself where its name is the repo's or the repo's with a number; the project is then the clone's folder |
 | `name` | string |  | what to call the project here; the folder's or the repo's own last word without it |
 | `base` | string |  | the branch a machine of the project starts on; the remote's own default branch at the clone without it |

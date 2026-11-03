@@ -10,7 +10,7 @@ export const isProjectRequest = (msg: RuntimeRequest): msg is ProjectRequest => 
 export async function answerProject(projects: Runtime["projects"], msg: ProjectRequest, origin: Caller | undefined): Promise<Record<string, unknown>> {
   switch (msg.op) {
     case "projects.add": {
-      const { notice, ...project } = await projects.add({ source: msg.source, ...(msg.on !== undefined ? { on: msg.on } : {}), ...(msg.name !== undefined ? { name: msg.name } : {}), ...(msg.base !== undefined ? { base: msg.base } : {}), ...(msg.into !== undefined ? { into: msg.into } : {}), ...(msg.seed !== undefined ? { seed: msg.seed } : {}) }, origin);
+      const { notice, ...project } = await projects.add({ source: msg.source, ...(msg.on !== undefined ? { on: msg.on } : {}), ...(msg.name !== undefined ? { name: msg.name } : {}), ...(msg.base !== undefined ? { base: msg.base } : {}), ...(msg.into !== undefined ? { into: msg.into } : {}), ...(msg.seed !== undefined ? { seed: msg.seed } : {}), ...(msg.existing === true ? { existing: true } : {}) }, origin);
       return { project, ...(notice !== undefined ? { notice } : {}) };
     }
     case "projects.seed":

@@ -214,7 +214,7 @@ export interface State {
   /** Records a project and answers the record the host kept: a folder on this computer, or a repository address on
    * the computer named. The row arrives by the project.added event too; this is what the first run and the sheet
    * wait on. Null on a client that cannot record one. */
-  addProject(source: string, on?: string, into?: string): Promise<ProjectView | null>;
+  addProject(source: string, on?: string, into?: string, existing?: boolean): Promise<ProjectView | null>;
   /** Forgets a project; the row leaves on project.removed. A refusal (a workspace still stands on it) is a toast. */
   removeProject(projectId: string): Promise<void>;
   /** Pushes the agent's branch and opens its pull request. The answer lands under the workspace's id, where the

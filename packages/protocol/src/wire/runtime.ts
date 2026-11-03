@@ -932,6 +932,8 @@ const RuntimeOp = z.discriminatedUnion("op", [
     /** What the person chose off the seed menu; required where the source is a folder on this computer and that
      * folder is seeding a computer that clones, since nothing of theirs leaves this computer unasked. */
     seed: SeedChoice.optional(),
+    /** Register a folder on the named connected computer without cloning or seeding it. */
+    existing: z.boolean().optional(),
   }),
   /** Replies with { plan: SeedPlan } for a folder on this computer: what a seed of it would carry to the computer
    * `on` names, read off git's own ignore listing and one size pass. No file's content is read and nothing leaves

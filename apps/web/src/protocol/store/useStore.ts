@@ -563,10 +563,10 @@ export const useStore = create<State>((set, get) => {
       }));
       return runCreation(key, project, name, picked);
     },
-    async addProject(source, on, into) {
+    async addProject(source, on, into, existing) {
       const api = get().api;
       if (api?.projectsAdd === undefined) return null;
-      const project = await api.projectsAdd(source, on, into);
+      const project = await api.projectsAdd(source, on, into, ...(existing === undefined ? [] : [existing]));
       // The event carries the same record; taking it here too means the caller's next read holds it whichever
       // arrived first, and the create that follows a first run has a project to be made of.
       set(s => ({ projects: [...s.projects.filter(p => p.id !== project.id), project] }));

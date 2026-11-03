@@ -204,14 +204,53 @@ describe("Add a project", () => {
     }
   });
 
+  it("browses a connected computer and registers its existing folder in place", async () => {
+    const t = mount({ places: [HERE, BOX] });
+    await settle();
+    fireEvent.click(t.dialog().querySelector("[data-k=computer-p_1]")!);
+    await settle();
+    expect(t.hostFolders).toHaveBeenLastCalledWith(undefined, false, true, "p_1");
+    expect(t.dialog().textContent).not.toContain("show here soon");
+    fireEvent.click(t.rows()[0]!);
+    await settle();
+    expect(t.addProject).toHaveBeenCalledWith("/Users/dev/code/spoo", "p_1", undefined, true);
+  });
+
+  it("registers an opened plain folder on the selected computer", async () => {
+    const t = mount({ places: [HERE, BOX] });
+    await settle();
+    fireEvent.click(t.dialog().querySelector("[data-k=computer-p_1]")!);
+    await settle();
+    fireEvent.change(t.field(), { target: { value: "/root/plain/" } });
+    await settle();
+    expect(t.hostFolders).toHaveBeenLastCalledWith("/root/plain", undefined, undefined, "p_1");
+    fireEvent.click(t.addButton());
+    await settle();
+    expect(t.addProject).toHaveBeenCalledWith("/root/plain", "p_1", undefined, true);
+  });
+
+  it("discards a remote listing that arrives after switching back to this computer", async () => {
+    const t = mount({ places: [HERE, BOX] });
+    await settle();
+    let answer!: (listing: HostFolderListing) => void;
+    t.hostFolders.mockImplementationOnce(() => new Promise(resolve => { answer = resolve; }));
+    fireEvent.click(t.dialog().querySelector("[data-k=computer-p_1]")!);
+    await settle();
+    expect(t.rows()).toHaveLength(0);
+    fireEvent.click(t.dialog().querySelector("[data-k=computer-here]")!);
+    await settle();
+    await act(async () => answer({ ...REPOS, folders: [{ path: "/root/remote", repo: true }] }));
+    expect(names(t.rows())).toEqual(["spoo", "wsp", "notes"]);
+  });
+
   it("lists this computer and every computer that runs workspaces, and on a box asks for an address and clones it there", async () => {
     const t = mount({ places: [HERE, BOX, CLOUD, IDLE] });
     await settle();
     const column = [...t.dialog().querySelectorAll<HTMLElement>("[data-k^=computer-]")].map(el => el.dataset["k"]);
     expect(column).toEqual(["computer-here", "computer-p_1", "computer-p_2"]);
     fireEvent.click(t.dialog().querySelector("[data-k=computer-p_1]")!);
-    expect(t.field().placeholder).toBe(ADD_PROJECT_WORDS.addressOnly);
-    expect(t.dialog().textContent).toContain(ADD_PROJECT_WORDS.boxSays("spoo"));
+    expect(t.field().placeholder).toBe(ADD_PROJECT_WORDS.search);
+    expect(t.dialog().textContent).not.toContain("show here soon");
     fireEvent.change(t.field(), { target: { value: "https://github.com/dev/spoo.git" } });
     const clone = t.dialog().querySelector<HTMLElement>("[data-k=clone]")!;
     expect(clone.textContent).toBe(ADD_PROJECT_WORDS.cloneLine("https://github.com/dev/spoo.git", "spoo"));

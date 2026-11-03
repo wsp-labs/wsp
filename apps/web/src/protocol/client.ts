@@ -782,11 +782,11 @@ export interface Api {
    * table answers. Optional so fixtures without pickers need not fake it; without it the composer has no agent to
    * send to and is held with that reason. */
   listHarnesses?(workspaceId?: string, at?: { project?: string; computer?: string }): Promise<HarnessCatalog[]>;
-  /** One level of the folders on the computer running the host, for the picker a browser tab has instead of the
+  /** One level of the folders on the named computer (the host computer without on), for the picker a browser tab has instead of the
    * desktop shell's dialog. `dir` absent, or a folder inside the roots that is gone, answers with the first root; a
    * path outside them is refused. Optional so fixtures that never browse need not fake it; without it the folder
    * field takes a typed path alone. */
-  hostFolders?(dir?: string, hidden?: boolean, repos?: boolean): Promise<HostFolderListing>;
+  hostFolders?(dir?: string, hidden?: boolean, repos?: boolean, on?: string): Promise<HostFolderListing>;
   /** The person's Ghostty config on the computer running the host, as the terminal pane applies it, read now for the
    * scheme the app shows. Optional so fixtures without a terminal need not fake it; without it the pane keeps its defaults. */
   hostTerminalConfig?(scheme: TerminalScheme): Promise<TerminalConfig>;
@@ -828,10 +828,10 @@ export interface Api {
   /** Every project this wsp holds, which is what New thread opens on and the palette's page of projects lists.
    * Optional so a fixture that makes no workspace need not fake it. */
   projectsList?(): Promise<ProjectView[]>;
-  /** Records a project: a folder on the computer running the host, or a repository address on the computer named.
+  /** Records a project: a folder here, a repository address, or with existing=true a folder already on the named connected computer.
    * The host answers the record it kept, so the sidebar draws the project before anything is cloned. Optional so a
    * fixture that records none need not fake it; without it the first run and the sheet are held. */
-  projectsAdd?(source: string, on?: string, into?: string): Promise<ProjectView>;
+  projectsAdd?(source: string, on?: string, into?: string, existing?: boolean): Promise<ProjectView>;
   /** Forgets a project and answers the runtime's own sentence for what left. The host refuses one a workspace
    * still stands on, naming them. Optional so a fixture that removes none need not fake it; without it the row's
    * Remove project is held. */
@@ -1184,8 +1184,8 @@ export function makeApi(c: ProtocolClient): Api {
     listHarnesses: async (workspaceId, at) =>
       HarnessCatalog.array().parse((await c.request<{ harnesses?: unknown }>("harnesses.list", { ...(workspaceId !== undefined ? { workspaceId } : {}), ...at })).harnesses),
     // Parsed, not trusted: the picker walks and names only paths the wire type vouches for.
-    hostFolders: async (dir, hidden, repos) =>
-      HostFolderListing.parse((await c.request<{ listing?: unknown }>("host.folders", { ...(dir !== undefined ? { dir } : {}), ...(hidden !== undefined ? { hidden } : {}), ...(repos === true ? { repos } : {}) })).listing),
+    hostFolders: async (dir, hidden, repos, on) =>
+      HostFolderListing.parse((await c.request<{ listing?: unknown }>("host.folders", { ...(dir !== undefined ? { dir } : {}), ...(hidden !== undefined ? { hidden } : {}), ...(repos === true ? { repos } : {}), ...(on === undefined ? {} : { on }) })).listing),
     // Parsed, not trusted: the pane paints only values the wire type vouches for.
     hostTerminalConfig: async scheme => TerminalConfig.parse((await c.request<{ config?: unknown }>("host.terminalConfig", { scheme })).config),
     editorList: async () => EditorChoice.array().parse((await c.request<{ editors?: unknown }>("editor.list")).editors),
@@ -1217,7 +1217,7 @@ export function makeApi(c: ProtocolClient): Api {
     // The options carry names the host read off this computer, drawn as text and sent back only inside a recipe.
     recipesOptions: async () => (await c.request<{ options: RecipeOptions }>("recipes.options")).options,
     projectsList: async () => ProjectView.array().parse((await c.request<{ projects?: unknown }>("projects.list")).projects),
-    projectsAdd: async (source, on, into) => ProjectView.parse((await c.request<{ project?: unknown }>("projects.add", { source, ...(on === undefined ? {} : { on }), ...(into === undefined ? {} : { into }) })).project),
+    projectsAdd: async (source, on, into, existing) => ProjectView.parse((await c.request<{ project?: unknown }>("projects.add", { source, ...(on === undefined ? {} : { on }), ...(into === undefined ? {} : { into }), ...(existing === true ? { existing } : {}) })).project),
     projectsDefaults: async () => Object.fromEntries(Object.entries((await c.request<{ defaults?: Record<string, unknown> }>("projects.defaults")).defaults ?? {}).map(([id, defaults]) => [id, ThreadDefaults.parse(defaults)])),
     projectBranch: async projectId => ProjectBranch.parse(await c.request<unknown>("projects.branch", { projectId })),
     projectsRemove: async projectId => {
