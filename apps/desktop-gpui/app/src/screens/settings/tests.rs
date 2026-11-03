@@ -476,27 +476,87 @@ fn a_refusal_splits_off_the_fix_its_words_end_with() {
 }
 
 #[gpui_kit::test]
-fn the_adds_whose_dialogs_come_later_are_held_and_say_why_on_their_hover(cx: &mut TestAppContext) {
+fn settings_add_buttons_open_the_existing_dialogs(cx: &mut TestAppContext) {
+    use crate::screens::dialogs::{self, layer};
+    cx.executor().allow_parking();
     init(cx);
-    let data = Data { projects_read: true, places_read: true, recipes: Some(Vec::new()), ..bare() };
+    cx.update(|cx| cx.set_global(crate::ui::Still(true)));
+    let door = Door::start(json!({
+        "places.list": { "reply": { "places": [], "adds": [], "pending": [] } },
+        "places.sshHosts": { "reply": { "hosts": [] } },
+        "init.get": { "reply": { "setup": { "keys": { "box": false }, "home": "/fixture", "pricing": null } } },
+    }));
+    let runtime = door::runtime();
+    let client = door.client(&runtime);
+    let data = Data {
+        projects_read: true,
+        places_read: true,
+        recipes: Some(Vec::new()),
+        setup: Some(serde_json::from_value(json!({ "keys": { "box": false }, "home": "/fixture", "pricing": null })).unwrap()),
+        ..bare()
+    };
     let (screen, cx) = open(data, At::Group(GroupId::Projects), (1280., 800.), cx);
+    screen.update(cx, |s, cx| {
+        s.runtime = runtime;
+        s.host = Some(client);
+        cx.notify();
+    });
     let pages = [
-        (At::Group(GroupId::Projects), "add-project-button-held", "Add a project opens in the next build of this app."),
-        (At::Group(GroupId::Computers), "add-computer-button-held", "Add a computer opens in the next build of this app."),
-        (At::Group(GroupId::Recipes), "add-computer-button-held", "Add a computer opens in the next build of this app."),
+        (At::Group(GroupId::Projects), "add-project-button", dialogs::ADD_PROJECT),
+        (At::Group(GroupId::Computers), "add-computer-button", dialogs::ADD_COMPUTER),
+        (At::Group(GroupId::Recipes), "add-computer-button", dialogs::ADD_COMPUTER),
+        (At::Group(GroupId::Computers), "add-cloud-button", dialogs::ADD_CLOUD),
     ];
-    for (page, held, why) in pages {
-        screen.update_in(cx, |s, window, cx| s.go(page.clone(), window, cx));
+    for (page, button, dialog) in pages {
+        screen.update_in(cx, |s, window, cx| {
+            s.data.setup = if dialog == dialogs::ADD_CLOUD {
+                Some(serde_json::from_value(json!({ "keys": { "box": false }, "home": "/fixture", "pricing": null })).unwrap())
+            } else {
+                None
+            };
+            s.go(page.clone(), window, cx);
+        });
         settle(cx);
-        let button = cx.debug_bounds(held).unwrap_or_else(|| panic!("{held} on {page:?}"));
-        cx.simulate_mouse_move(button.center(), None, Modifiers::none());
-        tick(cx, 600);
-        tick(cx, 600);
-        let tip: &'static str = Box::leak(format!("tip:{why}").into_boxed_str());
-        assert!(cx.debug_bounds(tip).is_some(), "{held} on {page:?} says why on its hover");
-        cx.simulate_mouse_move(gpui_kit::point(px(5.), px(5.)), None, Modifiers::none());
-        tick(cx, 600);
+        click(cx, button);
+        assert!(cx.update(|_, cx| layer::is_open(dialog, cx)), "{button} on {page:?} opens {dialog}");
+        cx.simulate_keystrokes("escape");
+        settle(cx);
+        assert!(!cx.update(|_, cx| layer::is_open(dialog, cx)), "Escape closes {dialog}");
     }
+    screen.update_in(cx, |s, window, cx| {
+        s.data.places.push(serde_json::from_value(json!({ "id": "box", "kind": "provider", "name": "Boat", "default": false })).unwrap());
+        s.data.setup = Some(serde_json::from_value(json!({ "keys": { "box": true }, "home": "/fixture", "pricing": null })).unwrap());
+        s.go(At::Group(GroupId::Computers), window, cx);
+    });
+    settle(cx);
+    click(cx, "add-cloud-button");
+    assert!(cx.update(|_, cx| layer::is_open(dialogs::ADD_CLOUD, cx)), "the cloud dialog also opens with Boat already configured");
+}
+
+#[gpui_kit::test]
+fn settings_pending_row_resumes_its_own_add(cx: &mut TestAppContext) {
+    use crate::screens::dialogs::{add_computer::AddComputer, layer, ADD_COMPUTER};
+    cx.executor().allow_parking();
+    init(cx);
+    let pending = json!({ "id": "a1", "address": "me@box2", "name": "box2", "step": "connect", "choices": { "name": "box2" }, "startedAt": "2026-10-18T00:00:00Z" });
+    let door = Door::start(json!({
+        "places.list": { "reply": { "places": [], "adds": [], "pending": [pending.clone()] } },
+        "places.sshHosts": { "reply": { "hosts": [] } },
+    }));
+    let runtime = door::runtime();
+    let client = door.client(&runtime);
+    let data = Data { pending: vec![serde_json::from_value(pending).unwrap()], places_read: true, ..bare() };
+    let (screen, cx) = open(data, At::Group(GroupId::Computers), (1280., 900.), cx);
+    screen.update(cx, |s, cx| {
+        s.runtime = runtime;
+        s.host = Some(client);
+        cx.notify();
+    });
+    settle(cx);
+    click(cx, "grid-row");
+    let dialog =
+        cx.update(|_, cx| layer::view(ADD_COMPUTER, cx)).expect("the pending row opens Add a computer").downcast::<AddComputer>().unwrap();
+    waits(cx, "the pending add's saved picks", |cx| dialog.read_with(cx, |d, _| d.picks().is_some_and(|p| p["name"] == "box2")));
 }
 
 #[gpui_kit::test]

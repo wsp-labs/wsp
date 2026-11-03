@@ -28,7 +28,6 @@ use crate::ui::{
 
 /// `RECIPE_COLUMNS`: the name, the computers, the chevron.
 const RECIPE_COLUMNS: &[Col] = &[Col::Fill, Col::Px(140.), Col::Px(14.)];
-const ADD_COMPUTER: &str = "Add a computer";
 const NONE: &str = "No recipes yet. Save one at the end of Add a computer.";
 const DELETE: &str = "Delete";
 
@@ -48,11 +47,6 @@ fn leaving(recipe: &RecipeView) -> String {
     } else {
         format!("{} keep what they have and follow nothing.", recipe.machines.join(" and "))
     }
-}
-
-/// The Add a computer press under the list.
-fn add_computer() -> gpui_kit::AnyElement {
-    super::projects::held_add("add-computer-button", ADD_COMPUTER, super::computers::ADD_COMPUTER_LATER)
 }
 
 /// The recipe open in place of the list, by its slug, the host's refusal of the last write to it, and what the
@@ -153,7 +147,7 @@ pub fn cards(ctx: &Ctx, window: &mut Window, cx: &mut App) -> Vec<CardData> {
     let Some(recipes) = ctx.data.recipes.as_ref() else { return Vec::new() };
     if recipes.is_empty() {
         let refused = ctx.data.recipes_refused.clone().map(|said| CardData::new("recipes-refused").body(Refusal::new().said(said)));
-        let none = CardData::new("recipes").item(Item::empty("none", NONE)).under(add_computer());
+        let none = CardData::new("recipes").item(Item::empty("none", NONE)).under(super::computers::add_computer(ctx));
         return refused.into_iter().chain([none]).collect();
     }
     let open = window.use_keyed_state("recipes-open", cx, |_, _| Open::default());
@@ -192,7 +186,7 @@ pub fn cards(ctx: &Ctx, window: &mut Window, cx: &mut App) -> Vec<CardData> {
     let grid = Grid::new("recipes")
         .head(GridHead::new(Some(RECIPE_COLUMNS), vec![HeadCell::new("Recipe"), HeadCell::new("Computers")]))
         .rows(rows);
-    vec![CardData::new("recipes").body(v_flex().gap_2().child(grid).child(h_flex().child(add_computer())))]
+    vec![CardData::new("recipes").body(v_flex().gap_2().child(grid).child(h_flex().child(super::computers::add_computer(ctx))))]
 }
 
 /// The name field, its rename on Enter or on leaving it, and the recipe and icon as last drawn, which the rename reads.

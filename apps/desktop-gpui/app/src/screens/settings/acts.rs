@@ -13,6 +13,7 @@ use wsp_host_client::{HostClient, Op};
 use super::model::{At, Read, Reread};
 use super::{page, said, Arrival, Closed, Glide, Reveal, SettingsScreen};
 use crate::screens::app_shell::keys;
+use crate::screens::{dialogs, Host};
 use crate::ui::Notice;
 
 /// The acts a page's row raises, held past the frame that drew it. Each is laid onto the screen once whatever is
@@ -70,6 +71,27 @@ impl Acts {
                 screen.update(cx, |s, cx| s.go(at, window, cx));
             }
         });
+    }
+
+    fn open_flow(&self, window: &mut Window, cx: &mut App, open: impl FnOnce(&Host, &mut Window, &mut App) + 'static) {
+        let Some(client) = self.host.clone() else {
+            self.failed("The host is not connected. Try again when it reconnects.", cx);
+            return;
+        };
+        let host = Host::new(client, self.runtime.clone());
+        window.defer(cx, move |window, cx| open(&host, window, cx));
+    }
+
+    pub fn add_computer(&self, setup: Option<String>, window: &mut Window, cx: &mut App) {
+        self.open_flow(window, cx, move |host, window, cx| dialogs::open_add_computer(host, setup, window, cx));
+    }
+
+    pub fn add_cloud(&self, window: &mut Window, cx: &mut App) {
+        self.open_flow(window, cx, dialogs::open_add_cloud);
+    }
+
+    pub fn add_project(&self, window: &mut Window, cx: &mut App) {
+        self.open_flow(window, cx, dialogs::open_add_project);
     }
 
     pub fn go_later(&self, at: At, cx: &mut App) {
