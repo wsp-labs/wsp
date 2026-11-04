@@ -125,8 +125,8 @@ it("returns a child branch over the link with no remote, and releases only after
   f.starts[0]!.answer("done"); await f.turn.finished;
   expect(f.seen.killed).toHaveLength(0);
   await f.rt.sessions.settle([f.threadId]);
-  await expect.poll(() => f.seen.killed.length).toBe(1);
-  expect((await f.rt.workspaces.get(made.id)).phase).toBe("released");
+  await expect.poll(async () => (await f.rt.workspaces.get(made.id)).phase).toBe("released");
+  expect(f.seen.killed).toHaveLength(1);
 });
 
 it("reuses the persisted shared runtime and child checkout after the host restarts", async () => {
