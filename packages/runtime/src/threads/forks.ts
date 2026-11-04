@@ -97,7 +97,7 @@ export async function readFork(ctx: RuntimeContext, fork: ForkSource, origin: Ca
   };
   const turnId = pick();
   // A turn's checkpoint and the session it cut at went with a sub-thread's machine once that machine was deleted.
-  if (turnId !== undefined && subTurnGone(entry.record.sub, events.find(e => e.turnId === turnId && e.at !== undefined)?.at)) {
+  if (turnId !== undefined && subTurnGone(entry.record.isolated ?? entry.record.sub, events.find(e => e.turnId === turnId && e.at !== undefined)?.at)) {
     throw Object.assign(new Error(SUB_TURN_GONE_LINE), { kind: "conflict" });
   }
   const lastOf = <T extends SessionEvent["type"]>(type: T, turn: string): Extract<SessionEvent, { type: T }> | undefined => {

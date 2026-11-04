@@ -1235,6 +1235,7 @@ function runtimeOf(ctx: RuntimeContext, pipes: { close(): void } | undefined): R
       ctx.state.sweepStopped = true;
       ctx.state.sweepTimer?.();
       await ctx.state.sweeping;
+      await ctx.isolated.close();
       await ctx.stopDiskWatch();
       ctx.idle.close();
       ctx.alerts.close();

@@ -1298,7 +1298,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       };
 
       // A sub-thread's checkpoints went with its machine once that machine was deleted.
-      const gone = (startedAt: number | undefined): boolean => subTurnGone(entry.record.sub, startedAt);
+      const gone = (startedAt: number | undefined): boolean => subTurnGone(entry.record.isolated ?? entry.record.sub, startedAt);
       if (opts.undo === true) {
         const rewound = held?.rewound;
         if (rewound === undefined) throw conflict(REWIND_NO_UNDO_LINE);
@@ -1497,7 +1497,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
   const startOn = sessionsApi.start;
   sessionsApi.start = async (workspaceId, opened, origin) => {
     await ctx.ready();
-    const releaseStart = ctx.isolated.starting(workspaceId);
+    const releaseStart = await ctx.isolated.starting(workspaceId);
     try { return await startOn(workspaceId, opened, origin).catch((e: unknown) => {
       const claimed = claimedBy.get(opened);
       if (claimed !== undefined && ctx.keptAgents.get(claimed)?.warm !== undefined) ctx.reapKept(claimed);

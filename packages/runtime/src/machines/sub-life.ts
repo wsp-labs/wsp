@@ -100,7 +100,7 @@ export function subSessionLandCommand(file: { folder: string; name: string; dept
 export function subRowOf(record: WorkspaceRecord): SubRow | undefined {
   const isolated = record.isolated;
   if (isolated?.spawn !== undefined) return {
-    mode: "isolated", on: isolated.on ?? record.place ?? "computer", machine: record.name, size: record.size, branch: isolated.branch,
+    mode: "isolated", ...(isolated.releasedAt === undefined ? {} : { releasedAt: isolated.releasedAt }), on: isolated.on ?? record.place ?? "computer", machine: record.name, size: record.size, branch: isolated.branch,
     state: record.phase === "released" || record.phase === "gone" ? "released" : isolated.spawn.readyAt === undefined ? "starting" : "running", spawn: isolated.spawn,
   };
   const sub = record.sub;

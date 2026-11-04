@@ -9,11 +9,14 @@ import { SEED_CHOICES, WORKSPACES } from "../types/internal.js";
 import { checkoutIgnoredHash, transferCheckout, transferReturnedBranch } from "../projects/checkout-transfer.js";
 
 export const ISOLATED_GROUPS = "isolated-groups";
-type Group = { id: string; root: string; place: string; spec: MachineSpec; members: string[]; machineId?: string };
+export const ISOLATED_IDLE_MS = 30 * 60_000;
+const CLEANUP_RETRY_MS = 60_000;
+type Group = { id: string; root: string; place: string; spec: MachineSpec; members: string[]; machineId?: string; idleSince?: number };
 export interface IsolatedArea {
   initialize(): Promise<void>;
+  close(): Promise<void>;
   slotKeys(root: string): string[];
-  starting(workspaceId: string): () => void;
+  starting(workspaceId: string): Promise<() => void>;
   backend(record: WorkspaceRecord, actual: MachineBackend): MachineBackend;
   spawn(opts: CreateWorkspaceOptions, origin: Caller | undefined, place: string): Promise<CreatedWorkspace>;
   checkRelease(entry: LiveWorkspace): Promise<void>;
@@ -30,17 +33,24 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
   const detached = new Set<string>();
   const closing = new Set<string>();
   const starts = new Map<string, number>();
-  const starting = (workspaceId: string): (() => void) => {
+  const activity = new Set<string>();
+  let stopped = false;
+  let timer: (() => void) | undefined;
+  let retryAt = Infinity;
+  const starting = async (workspaceId: string): Promise<() => void> => {
+    await ctx.ready();
     const copy = live.get(workspaceId)?.record.isolated;
     if (copy === undefined) return () => {};
     if (closing.has(copy.group)) throw usageRefusal("The isolated runtime is being released.", "Wait for cleanup to finish before sending another message.");
     starts.set(workspaceId, (starts.get(workspaceId) ?? 0) + 1);
+    activity.add(copy.group);
+    void sweep().catch(e => console.warn(`isolated cleanup: ${String(e)}`));
     return () => { const count = (starts.get(workspaceId) ?? 1) - 1; if (count === 0) starts.delete(workspaceId); else starts.set(workspaceId, count); void sweep().catch(e => console.warn(`isolated cleanup: ${String(e)}`)); };
   };
   const groups = new Map<string, Group>();
   const initialize = async (): Promise<void> => { for (const raw of await store.list(ISOLATED_GROUPS)) { const group = raw as Group; groups.set(group.id, group); } };
   const saveGroup = async (group: Group): Promise<void> => { await store.put(ISOLATED_GROUPS, group.id, group); groups.set(group.id, group); };
-  const dropGroup = async (id: string): Promise<void> => { await store.delete(ISOLATED_GROUPS, id); groups.delete(id); };
+  const dropGroup = async (id: string): Promise<void> => { await store.delete(ISOLATED_GROUPS, id); groups.delete(id); activity.delete(id); };
   const slotKeys = (root: string): string[] => [...groups.values()].filter(group => group.root === root && !group.members.some(id => allocating.has(id))).map(group => group.id);
   const serial = async <T>(key: string, work: () => Promise<T>): Promise<T> => {
     const before = locks.get(key) ?? Promise.resolve();
@@ -54,7 +64,11 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
     return at;
   };
   const groupOf = async (id: string) => { const group = await store.get(ISOLATED_GROUPS, id) as Group | undefined; if (group !== undefined) groups.set(id, group); return group; };
-  const held = () => usageRefusal("This child shares its runtime with its lead's other children.", "Settle the lead's tree to release the runtime, or delete this child after returning its work.");
+  const explicitlySettled = (threadId: string): boolean => {
+    const at = ctx.threadRecords.get(threadId)?.settledAt;
+    return at !== undefined && ctx.rowsOn(threadId).every(row => Math.max(row.startedAt ?? 0, row.endedAt ?? 0) <= at);
+  };
+  const held = () => usageRefusal("This child shares its runtime with its lead's other children.", "Settle or delete this child after returning its work; safe idle checkouts are removed after 30 minutes.");
   const wrap = (machine: Machine): Machine => new Proxy(machine, {
     get(target, property) {
       if (["kill", "pause", "snapshot", "resumeAt"].includes(String(property))) return async () => { throw held(); };
@@ -95,6 +109,7 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
   };
   const clean = async (entry: LiveWorkspace): Promise<void> => {
     const copy = entry.record.isolated!;
+    if ([...live.values()].some(e => e.record.isolated?.sourceWorkspaceId === entry.record.id && (e.record.phase !== "released" || starts.has(e.record.id) || allocating.has(e.record.id)))) throw usageRefusal("Another child still needs this checkout to return its work.", "Return and release that child before releasing its source checkout.");
     if (copy.state === "releasing") {
       const exists = await entry.machine.exec(`test -d ${q(copy.checkout)}`);
       if (exists.exitCode === 1) return;
@@ -107,14 +122,15 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
     const ignored = await checkoutIgnoredHash(entry.machine, copy.checkout);
     if (ignored !== copy.ignoredHash || changed !== "" || (head !== copy.base && head !== copy.returned)) throw usageRefusal("This child holds changes that have not returned to its lead.", "Commit its work and use merge_in from the lead before releasing this checkout.");
   };
-  const release = async (entry: LiveWorkspace): Promise<void> => serial(entry.record.isolated!.group, async () => {
+  const release = async (entry: LiveWorkspace, idleOnly = false): Promise<void> => serial(entry.record.isolated!.group, async () => {
     if (detached.has(entry.record.id) || entry.record.phase === "released") return;
     const copy = entry.record.isolated!;
     closing.add(copy.group);
     try {
-      await clean(entry);
       const group = await groupOf(copy.group);
       if (group === undefined) throw new Error("The isolated runtime's ownership record is missing. Keep its checkout and inspect the computer before retrying.");
+      if (idleOnly && (activity.has(copy.group) || groupBusy(group) || group.idleSince === undefined || clock.now() < group.idleSince + ISOLATED_IDLE_MS)) return;
+      await clean(entry);
       const stored = new Set((await store.list(WORKSPACES) as WorkspaceRecord[]).filter(r => r.phase !== "released").map(r => r.id));
       const others = group.members.filter(id => id !== entry.record.id && !detached.has(id) && ((live.has(id) && live.get(id)!.record.phase !== "released") || stored.has(id) || allocating.has(id)));
       copy.state = "releasing";
@@ -127,6 +143,7 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
         if (result.exitCode !== 0) throw new Error("The child checkout was not removed. Keep the runtime and retry deleting this child.");
       }
       entry.record.phase = "released";
+      copy.releasedAt = clock.now();
       copy.state = "ready";
       await ctx.persist(entry.record);
       if (others.length === 0) await dropGroup(group.id);
@@ -155,8 +172,7 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
     const scope = scopeOf(origin);
     if (scope === undefined) throw subNoThreadRefusal(opts.sub!.on);
     if (place === HERE_PLACE_ID) throw usageRefusal("That is the computer this host runs on.", "Choose a connected computer for an isolated child, or use --branch for a local worktree.");
-    const root = ctx.threadRecords.get(scope.rootThreadId);
-    if (root?.settledAt !== undefined) throw usageRefusal("The lead's tree is already settled.", "Send a new message to its lead before starting another child.");
+    if (explicitlySettled(scope.rootThreadId)) throw usageRefusal("The lead's tree is already settled.", "Send a new message to its lead before starting another child.");
     const source = await ctx.entryOf(scope.workspaceId, origin);
     if (!startsIsolatedChildren(source.record.kind)) throw usageRefusal("A cloud sub-thread cannot allocate a connected computer.", "Ask its lead to start the child on that computer.");
     const project = ctx.projectHeld(source.record.project);
@@ -198,7 +214,7 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
         const entry = live.get(id)!;
         Object.assign(meta.spawn!.machine!, { id: entry.machine.id, ms: clock.now() - meta.spawn!.machine!.since });
         await copyInto(entry, report);
-        if (ctx.threadRecords.get(scope.rootThreadId)?.settledAt !== undefined) throw usageRefusal("The lead was settled while its child was being copied.", "Send a new message to the lead before retrying this child.");
+        if (explicitlySettled(scope.rootThreadId)) throw usageRefusal("The lead was settled while its child was being copied.", "Send a new message to the lead before retrying this child.");
         meta.spawn!.readyAt = clock.now();
         await ctx.persist(entry.record);
         delete entry.creating;
@@ -262,63 +278,98 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
     if (current !== copy.branch) throw usageRefusal("The child is no longer on its assigned result branch.", `Switch it back to ${copy.branch} before returning its work.`);
     return transferReturnedBranch(child.machine, lead.machine, { sourceFolder: copy.checkout, destinationFolder: ctx.checkoutOf(lead.record), branch: copy.branch, base: copy.base });
   };
-  let sweeping = false;
-  const sweep = async (): Promise<void> => {
-    if (sweeping || ctx.state.closed) return;
-    sweeping = true;
-    try {
-      const stored = new Set((await store.list(WORKSPACES) as WorkspaceRecord[]).filter(r => r.phase !== "released").map(r => r.id));
-      for (const known of [...groups.values()]) {
-        await serial(known.id, async () => {
-          const group = await groupOf(known.id);
-          if (group === undefined) return;
-          const members = group.members.filter(id => (live.has(id) && live.get(id)!.record.phase !== "released") || stored.has(id) || allocating.has(id));
-          if (members.length !== group.members.length) { group.members = members; await saveGroup(group); }
-          if (members.length > 0) return;
-          const root = ctx.threadRecords.get(group.root);
-          if (group.machineId === undefined && root?.settledAt === undefined && (root !== undefined || ctx.rowsOn(group.root).length > 0)) return;
-          // No child ever got a checkout. Replay the same durable allocation key to find a lost create answer.
-          const actual = actualAt(group.place);
-          try {
-            const machine = group.machineId === undefined ? await actual.create(group.spec) : await actual.get(group.machineId);
-            await killUntilGone(actual, machine, ctx.opts.killConfirm);
-          } catch (e) { if (!isMissing(e)) throw e; }
-          await dropGroup(group.id);
-        });
-      }
-      const entries = [...live.values()].filter(e => e.record.isolated !== undefined && e.record.phase !== "released");
-      const seen = new Set<string>();
-      for (const entry of entries) {
-        const copy = entry.record.isolated!;
-        if (seen.has(copy.group)) continue;
-        const root = ctx.threadRecords.get(copy.rootThreadId);
-        if (copy.state !== "releasing" && root?.settledAt === undefined && (root !== undefined || ctx.rowsOn(copy.rootThreadId).length > 0)) continue;
-        seen.add(copy.group);
-        const peers = entries.filter(e => e.record.isolated!.group === copy.group && (root?.settledAt !== undefined || e.record.isolated!.state === "releasing" || (root === undefined && ctx.rowsOn(copy.rootThreadId).length === 0)));
-        if (peers.some(e => e.creating || allocating.has(e.record.id) || ctx.turnRuns(e.record.id) || starts.has(e.record.id))) continue;
+  const tell = (entry: LiveWorkspace, text: string, includeLead = false): void => {
+    const child = [...ctx.sessions.values()].filter(s => s.view.workspaceId === entry.record.id).at(-1);
+    const lead = includeLead ? [...ctx.sessions.values()].filter(s => s.view.threadId === entry.record.isolated!.rootThreadId).at(-1) : undefined;
+    for (const row of new Set([child, lead])) if (row?.view.threadId !== undefined) ctx.record({ type: "session.notice", workspaceId: row.view.workspaceId, sessionId: row.view.claudeSessionId ?? row.turnId, turnId: row.turnId, threadId: row.view.threadId, text });
+  };
+  let sweeping: Promise<void> | undefined;
+  let again = false;
+  const busy = (e: LiveWorkspace): boolean => e.creating === true || allocating.has(e.record.id) || ctx.turnRuns(e.record.id) || starts.has(e.record.id);
+  const groupBusy = (group: Group): boolean => group.members.some(id => allocating.has(id) || starts.has(id) || ctx.turnRuns(id)) || [...live.values()].some(e => e.record.isolated?.group === group.id && busy(e));
+  const arm = (): void => {
+    timer?.(); timer = undefined;
+    if (stopped || ctx.state.closed) return;
+    const now = clock.now();
+    const due = Math.min(retryAt, ...[...groups.values()].flatMap(g => g.idleSince === undefined ? [] : [g.idleSince + ISOLATED_IDLE_MS > now ? g.idleSince + ISOLATED_IDLE_MS : now + CLEANUP_RETRY_MS]));
+    if (Number.isFinite(due)) timer = clock.schedule(() => { timer = undefined; void sweep().catch(e => console.warn(`isolated cleanup: ${String(e)}`)); }, Math.max(0, due - now), { unref: true });
+  };
+  const pass = async (): Promise<void> => {
+    retryAt = Infinity;
+    const stored = new Set((await store.list(WORKSPACES) as WorkspaceRecord[]).filter(r => r.phase !== "released").map(r => r.id));
+    for (const known of [...groups.values()]) {
+      await serial(known.id, async () => {
+        const group = await groupOf(known.id);
+        if (group === undefined) return;
+        const members = group.members.filter(id => (live.has(id) && live.get(id)!.record.phase !== "released") || stored.has(id) || allocating.has(id));
+        if (members.length !== group.members.length) { group.members = members; await saveGroup(group); }
+        if (members.length > 0) return;
+        const root = ctx.threadRecords.get(group.root);
+        if (group.machineId === undefined && !explicitlySettled(group.root) && (root !== undefined || ctx.rowsOn(group.root).length > 0)) return;
+        // No child ever got a checkout. Replay the same durable allocation key to find a lost create answer.
+        const actual = actualAt(group.place);
         try {
-          // All checkouts are checked before the first is removed, so held work retains the shared compute.
-          for (const peer of peers) await clean(peer);
-          for (const peer of peers.filter(e => !detached.has(e.record.id))) {
-            await release(peer);
-            peer.record.phase = "released";
-            await ctx.persist(peer.record);
-            await ctx.emitStatus(peer, "gone");
-          }
+          const machine = group.machineId === undefined ? await actual.create(group.spec) : await actual.get(group.machineId);
+          await killUntilGone(actual, machine, ctx.opts.killConfirm);
+        } catch (e) { if (!isMissing(e)) throw e; }
+        await dropGroup(group.id);
+      });
+    }
+    const entries = [...live.values()].filter(e => e.record.isolated !== undefined && e.record.phase !== "released");
+    const seen = new Set<string>();
+    for (const entry of entries) {
+      const copy = entry.record.isolated!;
+      if (seen.has(copy.group)) continue;
+      seen.add(copy.group);
+      const group = await serial(copy.group, async () => {
+        const current = await groupOf(copy.group);
+        if (current === undefined) return undefined;
+        const touched = activity.delete(copy.group);
+        if (groupBusy(current)) {
+          if (current.idleSince !== undefined) { delete current.idleSince; await saveGroup(current); }
+        } else if (touched || current.idleSince === undefined) {
+          current.idleSince = clock.now(); await saveGroup(current);
+        }
+        return current;
+      });
+      if (group === undefined) continue;
+      const peers = entries.filter(e => e.record.isolated!.group === copy.group);
+      const root = ctx.threadRecords.get(copy.rootThreadId);
+      const orphan = root === undefined && ctx.rowsOn(copy.rootThreadId).length === 0;
+      const expired = !groupBusy(group) && group.idleSince !== undefined && clock.now() >= group.idleSince + ISOLATED_IDLE_MS;
+      for (const peer of peers) {
+        const meta = peer.record.isolated!;
+        const threads = [...ctx.threadRecords].filter(([, t]) => t.workspaceId === peer.record.id);
+        const settled = threads.length > 0 && threads.every(([id]) => explicitlySettled(id));
+        if (busy(peer) || !(expired || settled || explicitlySettled(copy.rootThreadId) || orphan || meta.state === "releasing")) continue;
+        try {
+          await release(peer, !settled && !explicitlySettled(copy.rootThreadId) && !orphan && meta.state !== "releasing");
+          if (peer.record.phase !== "released") continue;
+          delete meta.held;
+          await ctx.persist(peer.record);
+          await ctx.emitStatus(peer, "gone");
+          again = true;
+          tell(peer, `The checkout on ${ctx.placeName(peer.record.place!)} was released. This conversation is kept; another message starts a fresh copy of its source project.`);
         } catch (e) {
+          retryAt = Math.min(retryAt, clock.now() + CLEANUP_RETRY_MS);
           const message = e instanceof Error ? e.message : String(e);
-          const said = peers.some(peer => peer.record.isolated?.held === message);
-          for (const peer of peers) { peer.record.isolated!.held = message; await ctx.persist(peer.record); }
-          if (!said) {
-            const row = [...ctx.sessions.values()].filter(s => s.view.threadId === copy.rootThreadId).at(-1);
-            if (row !== undefined) ctx.record({ type: "session.notice", workspaceId: row.view.workspaceId, sessionId: row.view.claudeSessionId ?? row.turnId, turnId: row.turnId, threadId: copy.rootThreadId, text: `The isolated runtime on ${ctx.placeName(entry.record.place!)} is kept: ${message}` });
-          }
+          if (meta.held === message) continue;
+          meta.held = message; await ctx.persist(peer.record);
+          tell(peer, `The isolated checkout on ${ctx.placeName(peer.record.place!)} is kept: ${message}`, true);
         }
       }
-    } finally { sweeping = false; }
+    }
   };
-  ctx.bus.on("thread.marked", () => { void sweep().catch(e => console.warn(`isolated cleanup: ${String(e)}`)); });
-  ctx.bus.on("workspace.deleted", () => { void sweep().catch(e => console.warn(`isolated cleanup: ${String(e)}`)); });
-  ctx.bus.on("session.end", () => { void sweep().catch(e => console.warn(`isolated cleanup: ${String(e)}`)); });
-  return { initialize, slotKeys, starting, backend, spawn, checkRelease: clean, release, revive, returned, sweep };
+  const sweep = (): Promise<void> => {
+    if (stopped || ctx.state.closed) return Promise.resolve();
+    if (sweeping !== undefined) { again = true; return sweeping; }
+    sweeping = (async () => { do { again = false; await pass(); } while (again && !stopped); })().catch(e => { retryAt = Math.min(retryAt, clock.now() + CLEANUP_RETRY_MS); throw e; }).finally(() => { sweeping = undefined; arm(); });
+    return sweeping;
+  };
+  const request = (): void => { void sweep().catch(e => console.warn(`isolated cleanup: ${String(e)}`)); };
+  const close = async (): Promise<void> => { stopped = true; timer?.(); timer = undefined; await sweeping?.catch(e => console.warn(`isolated cleanup at close: ${String(e)}`)); };
+  ctx.bus.on("thread.marked", request);
+  ctx.bus.on("workspace.deleted", request);
+  ctx.bus.on("session.end", request);
+  return { initialize, close, slotKeys, starting, backend, spawn, checkRelease: clean, release, revive, returned, sweep };
 }

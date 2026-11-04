@@ -1118,6 +1118,7 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       } else kept.conflicts = done.conflicts;
       await ctx.readCheckout(lead, true);
       await ctx.keepTree(kid, kept);
+      if (returned !== undefined && done.merged) void ctx.isolated.sweep().catch(e => console.warn(`isolated cleanup after return: ${String(e)}`));
       const unpushed = sub?.result?.unpushed ?? 0;
       return { lead: lead.record.name, child: kid.record.name, branch, merged: done.merged, commits: done.commits, conflicts: done.conflicts, ...(unpushed > 0 ? { unpushed } : {}) };
     },
