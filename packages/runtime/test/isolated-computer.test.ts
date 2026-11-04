@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, expect, it } from "vitest";
 import { lostWorkspace, reap } from "@wsp/engine";
-import { type Caller } from "@wsp/protocol";
+import { DaemonRequest, type Caller } from "@wsp/protocol";
 import { ISOLATED_GROUPS } from "../src/machines/isolated.js";
 import { code, ctx, forks, join as joinHost, KEEPS_NO_IMAGE, serving, sockets, relink, type ForkingPlace } from "./places-fixture.js";
 import { branchDaemons, fakeLocal } from "./stub-backend.js";
@@ -30,10 +30,12 @@ async function fixture() {
     return { ...channel, send: async frame => {
       if (frame.op !== "git.mergeIn") return channel.send(frame);
       if (control.oldDaemon) throw new Error("a merge from a copy's folder runs only on the computer the copies sit on; merge from the remote here");
-      const before = git(frame.cwd, "rev-parse", "HEAD");
-      git(frame.cwd, "fetch", "-q", "--no-tags", frame.from!, frame.branch);
-      git(frame.cwd, "merge", "--ff-only", "FETCH_HEAD");
-      return { id: frame.id, ok: true, branch: frame.branch, merged: true, commits: Number(git(frame.cwd, "rev-list", "--count", `${before}..HEAD`)), oid: git(frame.cwd, "rev-parse", "HEAD"), head: "main", conflicts: [] };
+      const request = DaemonRequest.parse({ ...frame, id: frame.id ?? 0 });
+      if (request.op !== "git.mergeIn") throw new Error("expected merge op");
+      const before = git(request.cwd, "rev-parse", "HEAD");
+      git(request.cwd, "fetch", "-q", "--no-tags", request.from!, request.branch);
+      git(request.cwd, "merge", "--ff-only", "FETCH_HEAD");
+      return { id: request.id, ok: true as const, branch: request.branch, merged: true, commits: Number(git(request.cwd, "rev-list", "--count", `${before}..HEAD`)), oid: git(request.cwd, "rev-parse", "HEAD"), head: "main", conflicts: [] };
     } };
   } };
   const { hostKey, store } = await serving(options);
@@ -79,7 +81,8 @@ async function fixture() {
 }
 it("copies current work to a connected computer with no destination project and shares one runtime across concurrent siblings", async () => {
   const f = await fixture(); writeFileSync(join(f.repo, "file"), "dirty\n");
-  const [a, b] = await Promise.all(["first", "second"].map(name => f.rt.workspaces.create({ project: "", name, sub: { on: "hetzner" } }, f.lead)));
+  const make = (name: string) => f.rt.workspaces.create({ project: "", name, sub: { on: "hetzner" } }, f.lead);
+  const [a, b] = await Promise.all([make("first"), make("second")]);
   expect(f.seen.created).toHaveLength(1); expect(a.machineId).toBe(b.machineId); expect(a.id).not.toBe(b.id);
   expect(a.project.id).toBe(f.project.id); expect(a.sub!.folder).not.toBe(b.sub!.folder);
   expect(readFileSync(join(a.sub!.folder, "file"), "utf8")).toBe("dirty\n"); expect(git(a.sub!.folder, "branch", "--show-current")).toBe(a.sub!.out.branch);
@@ -152,7 +155,7 @@ it("makes shared compute foreign to the legacy orphan reaper and adopter", async
   const made = await f.rt.workspaces.create({ project: "", name: "safe rollback", sub: { on: "hetzner" } }, f.lead);
   const spec = f.seen.created[0]!;
   const group = (await f.store.list(ISOLATED_GROUPS))[0] as { spec: { labels: Record<string, string> } };
-  const labels = { ...group.spec.labels, createdAt: "2020-01-01T00:00:00.000Z" };
+  const labels: Record<string, string> = { ...group.spec.labels, createdAt: "2020-01-01T00:00:00.000Z" };
   const owner = labels["wsp-owner"]!.split("/isolated/")[0]!;
   const row = { id: made.machineId, state: "running" as const, labels };
   expect(lostWorkspace(row, owner, Date.now())).toBe(false);
