@@ -2,7 +2,7 @@
 // Compute is shared only inside a lead's tree; each child keeps the workspace identity every existing operation reads.
 import { createHash, randomUUID } from "node:crypto";
 import { isMissing, killUntilGone, OWNER_LABEL, WORKSPACE_LABEL, type Machine, type MachineBackend, type MachineSpec } from "@wsp/engine";
-import { CREATE_READY, startsIsolatedChildren, fmtBytes, forksNoMachines, HERE_PLACE_ID, scopeOf, shellQuote as q, subBranchNameOk, subNoThreadRefusal, subSizeOf, usageRefusal, type Caller, type SeedChoice } from "@wsp/protocol";
+import { CREATE_READY, SUB_SPAWN_LOG_LINES, startsIsolatedChildren, fmtBytes, forksNoMachines, HERE_PLACE_ID, scopeOf, shellQuote as q, subBranchNameOk, subNoThreadRefusal, subSizeOf, usageRefusal, type Caller, type SeedChoice } from "@wsp/protocol";
 import type { RuntimeContext } from "../context.js";
 import type { CreatedWorkspace, CreateWorkspaceOptions, IsolatedCheckout, LiveWorkspace, StageReport, WorkspaceRecord } from "../types/wiring.js";
 import { SEED_CHOICES, WORKSPACES } from "../types/internal.js";
@@ -143,8 +143,10 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
     const project = ctx.projectHeld(entry.record.project);
     const choices = await store.get(SEED_CHOICES, project.path) as SeedChoice | undefined;
     report?.("project-cloned", `Copying the current checkout to ${ctx.placeName(entry.record.place!)}.`);
-    const made = await transferCheckout(source.machine, entry.machine, { sourceFolder: meta.sourceFolder, destinationFolder: meta.checkout, branch: meta.branch, ...(choices !== undefined ? { picked: choices.files } : {}), onProgress: (bytes, total) => report?.("project-cloned", `Copying project: ${fmtBytes(bytes)} of ${fmtBytes(total)}.`) });
+    if (meta.spawn !== undefined) meta.spawn.files = { since: clock.now(), paths: [meta.sourceFolder], bytes: 0 };
+    const made = await transferCheckout(source.machine, entry.machine, { sourceFolder: meta.sourceFolder, destinationFolder: meta.checkout, branch: meta.branch, ...(choices !== undefined ? { picked: choices.files } : {}), onProgress: (bytes, total) => { if (meta.spawn?.files !== undefined) meta.spawn.files.bytes = bytes; report?.("project-cloned", `Copying project: ${fmtBytes(bytes)} of ${fmtBytes(total)}.`, { waiting: true }); } });
     Object.assign(meta, { folder: made.folder, base: made.head, git: made.git, sourceBranch: made.sourceBranch, sent: { paths: [meta.sourceFolder, ...made.sent], bytes: made.bytes }, state: "ready" });
+    if (meta.spawn?.files !== undefined) Object.assign(meta.spawn.files, { paths: meta.sent!.paths, bytes: made.bytes, ms: clock.now() - meta.spawn.files.since });
     if (meta.git) meta.ignoredHash = await checkoutIgnoredHash(entry.machine, meta.checkout);
     await ctx.writeDaemonRoots(entry, true);
     await ctx.persist(entry.record);
@@ -178,17 +180,25 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
       if (group !== undefined && size !== undefined && (size.cpu !== group.spec.cpu || size.memMb !== group.spec.memMb)) { free(); throw usageRefusal("This lead already has a runtime on that computer at another size.", "Use its existing size for siblings, or start a new lead."); }
       const chosen = size ?? (group === undefined ? actual.pricing.defaultSize : { cpu: group.spec.cpu ?? actual.pricing.defaultSize.cpu, memMb: group.spec.memMb ?? actual.pricing.defaultSize.memMb });
       const checkout = `/tmp/wsp-children/${groupId}/${id}`;
-      const meta: IsolatedCheckout & { place: string } = { place, group: groupId, rootThreadId: scope.rootThreadId, sourceWorkspaceId: source.record.id, sourceFolder: ctx.checkoutOf(source.record), checkout, folder: checkout, branch, base: "", git: false, state: "copying" };
+      const meta: IsolatedCheckout & { place: string } = { place, on: ctx.placeName(place), spawn: { startedAt: clock.now(), machine: { since: clock.now(), states: [] }, log: [] }, group: groupId, rootThreadId: scope.rootThreadId, sourceWorkspaceId: source.record.id, sourceFolder: ctx.checkoutOf(source.record), checkout, folder: checkout, branch, base: "", git: false, state: "copying" };
       const latest = ctx.rowsOn(scope.threadId).at(-1);
       if (latest?.cwd !== undefined) meta.sourceFolder = latest.cwd;
-      const report = ctx.stageReporter(id, name, clock.now(), scope);
+      const publish = ctx.stageReporter(id, name, clock.now(), scope, place);
+      const report: StageReport = (stage, message, said) => {
+        const spawn = meta.spawn!;
+        spawn.log = [...(said?.waiting ? spawn.log.slice(0, -1) : spawn.log), message].slice(-SUB_SPAWN_LOG_LINES);
+        publish(stage, message, said);
+      };
       allocating.add(id);
       ctx.forking.add(name);
       try {
         await ctx.createStaged({ ...opts, name, cpu: chosen.cpu, memMb: chosen.memMb, parent: source.record.id, idleWindowMs: null }, project, id, report, scope, free, undefined, meta);
         const entry = live.get(id)!;
+        Object.assign(meta.spawn!.machine!, { id: entry.machine.id, ms: clock.now() - meta.spawn!.machine!.since });
         await copyInto(entry, report);
         if (ctx.threadRecords.get(scope.rootThreadId)?.settledAt !== undefined) throw usageRefusal("The lead was settled while its child was being copied.", "Send a new message to the lead before retrying this child.");
+        meta.spawn!.readyAt = clock.now();
+        await ctx.persist(entry.record);
         delete entry.creating;
         report("ready", CREATE_READY);
         ctx.bus.emit({ type: "workspace.created", workspace: ctx.view(entry.record) });
@@ -199,6 +209,7 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
       } catch (e) {
         const entry = live.get(id);
         if (entry !== undefined) {
+          if (meta.spawn !== undefined) meta.spawn.failed = { step: meta.spawn.files === undefined ? "machine" : "files", said: e instanceof Error ? e.message : String(e) };
           entry.record.isolated!.state = "failed";
           delete entry.creating;
           await ctx.persist(entry.record);
@@ -216,16 +227,21 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
     detached.delete(entry.record.id);
     try {
       copy.state = "copying";
+      copy.spawn = { startedAt: clock.now(), machine: { since: clock.now(), states: [] }, log: [] };
       entry.record.phase = "running";
       entry.creating = true;
       await ctx.persist(entry.record);
       await ctx.fork(entry.record, machine => { entry.record.machineId = machine.id; ctx.attach(entry.record, machine); }, undefined, undefined, false);
       const renewed = live.get(entry.record.id)!;
+      Object.assign(copy.spawn!.machine!, { id: renewed.machine.id, ms: clock.now() - copy.spawn!.machine!.since });
       await copyInto(renewed);
+      copy.spawn!.readyAt = clock.now();
+      await ctx.persist(renewed.record);
       delete renewed.creating;
       return renewed;
     } catch (e) {
       const failed = live.get(entry.record.id) ?? entry;
+      if (copy.spawn !== undefined) copy.spawn.failed = { step: copy.spawn.files === undefined ? "machine" : "files", said: e instanceof Error ? e.message : String(e) };
       failed.record.isolated!.state = "failed";
       await ctx.persist(failed.record);
       try {

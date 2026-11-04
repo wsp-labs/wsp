@@ -254,7 +254,7 @@ export function createArea(ctx: RuntimeContext): CreateArea {
   /** One create's stages as every client hears them. Who asked rides every stage from the first, which is emitted
    * before the create has a record: the stream's tree rule has nothing to read until then, so a thread watching its
    * own fork boot would see it start midway. */
-  const stageReporter = (id: string, name: string, began: number, spawned: ThreadScope | undefined): StageReport => {
+  const stageReporter = (id: string, name: string, began: number, spawned: ThreadScope | undefined, place?: string): StageReport => {
     const askedBy = spawned !== undefined ? { threadId: spawned.threadId, rootThreadId: spawned.rootThreadId } : undefined;
     return (stage, message, said) => {
       bus.emit({
@@ -268,6 +268,7 @@ export function createArea(ctx: RuntimeContext): CreateArea {
         ...(said?.detail !== undefined ? { detail: said.detail } : {}),
         ...(said?.waiting === true ? { waiting: true as const } : {}),
         ...(askedBy !== undefined ? { askedBy } : {}),
+        ...(place === undefined ? {} : { place }),
       });
     };
   };

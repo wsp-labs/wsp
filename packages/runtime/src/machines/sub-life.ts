@@ -98,6 +98,11 @@ export function subSessionLandCommand(file: { folder: string; name: string; dept
 
 /** A sub-machine's record as its thread's row reads it. */
 export function subRowOf(record: WorkspaceRecord): SubRow | undefined {
+  const isolated = record.isolated;
+  if (isolated?.spawn !== undefined) return {
+    mode: "isolated", on: isolated.on ?? record.place ?? "computer", machine: record.name, size: record.size, branch: isolated.branch,
+    state: record.phase === "released" || record.phase === "gone" ? "released" : isolated.spawn.readyAt === undefined ? "starting" : "running", spawn: isolated.spawn,
+  };
   const sub = record.sub;
   if (sub === undefined) return undefined;
   const state: SubState =

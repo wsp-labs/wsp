@@ -40,6 +40,8 @@ export const WorkspaceCreatingEvent = z.object({
    * a record, so the stream's tree rule reads who asked off the event rather than off a record that is not there
    * yet. Absent where a person asked for the machine. */
   askedBy: EventAsker.optional(),
+  /** The destination computer, known before its child workspace exists. */
+  place: z.string().optional(),
 });
 export type WorkspaceCreatingEvent = z.infer<typeof WorkspaceCreatingEvent>;
 /** found is set when the provider had already paused the machine and this host only followed it: the awake

@@ -339,6 +339,8 @@ export interface ProjectImportOptions {
 }
 
 export interface IsolatedCheckout {
+  on?: string;
+  spawn?: SubSpawn;
   group: string;
   rootThreadId: string;
   sourceWorkspaceId: string;

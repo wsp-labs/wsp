@@ -291,7 +291,7 @@ function useTileActive({ workspaceId, thread }: TileSelect): boolean {
   return useStore(({ selectedId, selectedThreadId, selectedSubagent }) => {
     if (thread === undefined) return selectedId === workspaceId && selectedThreadId === null;
     // A subagent's page marks the subagent's row, not its lead's tile, unless the lead is folded over it.
-    return (selectedId === workspaceId && (selectedThreadId === null ? thread.threadId === null : selectedThreadId === thread.id) && (selectedSubagent === null || thread.folded)) || (selectedThreadId !== null && thread.holds.includes(selectedThreadId));
+    return (selectedId === workspaceId && (selectedThreadId === null ? thread.threadId === null : selectedThreadId === thread.id) && (selectedSubagent === null || thread.folded)) || (selectedThreadId !== null && thread.holds.includes(selectedThreadId)) || (thread.folded && thread.holds.includes(selectedId ?? ""));
   });
 }
 
@@ -535,7 +535,7 @@ const CREATE_RUNNING: ThreadStatusInput = { status: "running", asking: null, sta
 
 /** A workspace still being made, in the tile's grammar: where it will run with Starting's crab in the slot, its name,
  * and the step the create is waiting on on its card. A refused create says Failed instead. */
-export function CreationTile({ rowId, name, place, line, failed, selects, onSelect, onContextMenu }: { rowId: string; name: string; place: TilePlace; line: string; failed: boolean; selects: TileSelect; onSelect: () => void; onContextMenu?: (event: MouseEvent<HTMLElement>) => void }) {
+export function CreationTile({ rowId, name, place, line, failed, depth = 0, selects, onSelect, onContextMenu }: { rowId: string; name: string; place: TilePlace; line: string; failed: boolean; depth?: number; selects: TileSelect; onSelect: () => void; onContextMenu?: (event: MouseEvent<HTMLElement>) => void }) {
   const active = useTileActive(selects);
   const card = tileCardLines({ title: name, place, branch: "", harness: null, model: null, notes: [line] });
   return (
@@ -548,7 +548,7 @@ export function CreationTile({ rowId, name, place, line, failed, selects, onSele
       aria-busy={failed ? undefined : "true"}
       data-sidebar-row
       data-row-id={rowId}
-      data-depth={0}
+      data-depth={depth}
       data-creation-line={line}
       className={TILE_CLASS}
       onClick={onSelect}

@@ -451,6 +451,7 @@ export const SUB_SPAWN_WORDS = {
   branchFact: (branch: string, sha: string): string => `${branch} is pushed at ${sha.slice(0, 7)}`,
   machine: (on: string, done: boolean): string => (done ? `Asked ${on} for a machine` : `Asking ${on} for a machine`),
   files: (n: number, done: boolean): string => `${done ? "Copied" : "Copying"} ${n} picked ${n === 1 ? "file" : "files"}`,
+  project: (done: boolean): string => done ? "Copied the current project" : "Copying the current project",
   agent: (agent: string): string => `Starting ${agent}`,
   agentFact: (model: string | undefined, effort: string | undefined): string | undefined => ([model, effort].filter(Boolean).join(", ") || undefined),
   /** The cloud's machine by its id and the cloud's own states it passed through. */

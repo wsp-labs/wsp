@@ -4,8 +4,8 @@
 // mount and folded together with that thread's live session.* events. A row
 // sits where the runtime stamped it, never where this client first saw it,
 // so a reply and the socket build one thread whichever of them lands first.
-// The hook itself waits for the reply before it takes a live event, since
-// the socket is FIFO and anything pushed before the reply is already in it.
+// Live events received during the first history read are merged with its reply,
+// so a child whose first turn starts during that read keeps its streamed reply.
 // The adapter derives the view; this hook only keeps the event list, the
 // arrival clock for unstamped events, and the things the wire cannot know
 // yet: a prompt the user just sent, a send that failed locally, a new
@@ -318,7 +318,7 @@ function keeping(state: ThreadState, turnId?: string): Pick<ThreadState, "pendin
  */
 export function reloadTranscript(s: ThreadState, events: ReadonlyArray<SessionEvent>, at: string, threadId: string | null = null): ThreadState {
   const own = foldTo(s, events, threadId);
-  const chosen = own === undefined ? events.at(-1)?.threadId : own;
+  const chosen = own === undefined ? (events.at(-1) ?? s.events.at(-1))?.threadId : own;
   const thread = own === null ? [] : events.filter(e => e.threadId === chosen);
   const known = knowing(s.known, events);
   const strayed = replayStray(s, events);
@@ -922,7 +922,12 @@ export function useChatThread(workspaceId: string, threadId: string | null = nul
         if (e.workspaceId === workspaceId) setState(s => heldForSend(s, e, threadId));
         return;
       }
-      if (hydratedRef.current !== viewKey) return;
+      if (hydratedRef.current !== viewKey) {
+        // A new child's first events may arrive while its initial history reply is still empty/in flight.
+        // Keep them for reloadTranscript to merge; paged threads are already buffered by transcripts.
+        if (!heldRef.current && isSessionEvent(e) && e.workspaceId === workspaceId) setState(s => reduceEvent(s, e, now(), threadId));
+        return;
+      }
       if (e.type === "session.starting" && e.workspaceId === workspaceId) {
         setState(s => startingSaid(s, e));
         return;

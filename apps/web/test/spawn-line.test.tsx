@@ -98,6 +98,15 @@ describe("the line", () => {
     }
   });
 
+  it("reuses the startup line for a connected child's whole-project copy", () => {
+    const row = line(spawned({ branch: undefined, uncommitted: undefined }), T0 + 49_000);
+    render(<SpawnLine row={{ ...row, start: { ...row.start, sub: { ...row.start.sub, mode: "isolated", on: "Hetzner" } } }} />);
+    const head = document.querySelector<HTMLElement>("[data-k=spawn-line]")!;
+    expect(head.textContent).toContain("Started on Hetzner"); fireEvent.click(head);
+    expect(document.querySelector('[data-spawn-step="files"]')?.textContent).toContain("Copied the current project");
+    expect(document.querySelector("[data-spawn-steps]")?.textContent).not.toContain("picked files");
+  });
+
   it("folds into a quiet done line once the agent answered", () => {
     render(<SpawnLine row={line(spawned(), T0 + 49_000)} />);
     expect(document.querySelector("[data-spawn-line]")!.getAttribute("data-spawn-line")).toBe("done");

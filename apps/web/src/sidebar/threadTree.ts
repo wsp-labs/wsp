@@ -10,6 +10,7 @@
 // what selecting it opens: the two are the same thread's two facts and a
 // surface needs both.
 import { bareFolder, DEFAULT_PREFERENCES, SETTLE_MS, ThreadSection, type ProjectView, type ThreadMarks, type ThreadPlacement } from "@wsp/protocol";
+import type { Creation } from "../protocol/store/types.js";
 import type { SidebarProjectSnapshot, SidebarThreadSnapshot } from "../adapt/index.js";
 import { childParts, leadNodes, partOf, settleTake, type LeadNode, type Tree } from "../components/threads/leadTree.js";
 import { workspaceRowId } from "./rowGrammar.js";
@@ -162,6 +163,8 @@ export interface TileItem {
   readonly startedAt: string | null;
   readonly runs: SidebarProjectSnapshot;
   readonly thread: SidebarThreadSnapshot | null;
+  /** A child being made, before the host has a thread to draw under its opener. */
+  readonly creation?: Creation;
   /** Set on the head of the threads one send to several models opened, and nowhere else: the title they share, drawn
    * once over them. Such a head holds no thread of its own; its children are those threads. */
   readonly groupTitle?: string;
@@ -210,13 +213,17 @@ export interface TileSection {
  * only that project's roots are listed, children kept wherever they run. */
 export function sidebarTiles(
   projects: ReadonlyArray<SidebarProjectSnapshot>,
-  { picked, nowMs, open = null, settleMs }: { picked: string | null; nowMs: number; /** The thread open in the centre, by fold key. */ open?: string | null; /** How long a read thread sits quiet before it settles, null for never; absent, the record's default. */ settleMs?: number | null },
+  { picked, nowMs, open = null, settleMs, creations = [] }: { creations?: readonly Creation[]; picked: string | null; nowMs: number; /** The thread open in the centre, by fold key. */ open?: string | null; /** How long a read thread sits quiet before it settles, null for never; absent, the record's default. */ settleMs?: number | null },
 ): { live: TileNode[]; settled: TileNode[]; sections: TileSection[] } {
   const items = projects.flatMap((runs): TileItem[] => {
     const forkedBy = runs.workspace.parentThreadId ?? null;
     if (runs.threads.length === 0) return bareFolder(runs.workspace, false) ? [] : [{ id: workspaceRowId(runs.id), parentThreadId: forkedBy, startedAt: runs.workspace.createdAt, runs, thread: null }];
     return runs.threads.map(thread => ({ id: thread.id, parentThreadId: thread.parentThreadId ?? forkedBy, startedAt: thread.startedAt, runs, thread }));
   });
+  for (const creation of creations) {
+    const parent = items.find(item => item.thread !== null && item.id === creation.askedBy?.threadId);
+    if (parent !== undefined) items.push({ id: creation.key, parentThreadId: parent.id, startedAt: new Date(creation.askedAt).toISOString(), runs: parent.runs, thread: null, creation });
+  }
   const roots = attemptGroups(threadForest(sortThreadsForSidebar(items)).filter(node => picked === null || node.thread.runs.workspace.project.id === picked));
   const pinned: TileNode[] = [];
   const listed: TileNode[] = [];
@@ -356,7 +363,7 @@ function sectionOf(node: TileNode, own: ThreadSection): ThreadSection {
 }
 
 /** How many threads of a tree are working, the root's own included; one stopped on a question waits in Needs you. */
-const workingIn = ({ thread: { thread }, children }: TileNode): number => (thread !== null && threadSection(thread) === "working" ? 1 : 0) + children.reduce((sum, child) => sum + workingIn(child), 0);
+const workingIn = ({ thread: { thread, creation }, children }: TileNode): number => ((thread !== null && threadSection(thread) === "working") || creation?.failed === null ? 1 : 0) + children.reduce((sum, child) => sum + workingIn(child), 0);
 
 /** A tree whose root is snoozed and none of whose threads needs the person, which the list leaves out. */
 function isSnoozed(node: TileNode): boolean {
@@ -432,7 +439,7 @@ export function treeWorkspaceIds(node: TileNode): string[] {
 /** What a settle of a root takes, read where every settle in the app is. */
 export function treeSettle(node: TileNode): { threadIds: string[]; working: boolean } {
   const { threadIds, working } = settleTake({ node, thread: node.thread.thread }, { threadOf: n => n.thread.thread, kidsOf: n => n.children, nowMs: Date.now(), settleMs: null });
-  return { threadIds, working };
+  return { threadIds, working: working || workingIn(node) > 0 };
 }
 
 /** The live roots "Settle all read" takes: every tree whose threads have all been read and are quiet. */

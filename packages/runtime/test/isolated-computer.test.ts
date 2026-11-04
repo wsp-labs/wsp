@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, expect, it } from "vitest";
 import { lostWorkspace, reap } from "@wsp/engine";
-import { DaemonRequest, type Caller } from "@wsp/protocol";
+import { DaemonRequest, type WorkspaceCreatingEvent, type Caller } from "@wsp/protocol";
 import { ISOLATED_GROUPS } from "../src/machines/isolated.js";
 import { code, ctx, forks, join as joinHost, KEEPS_NO_IMAGE, serving, sockets, relink, type ForkingPlace } from "./places-fixture.js";
 import { branchDaemons, fakeLocal } from "./stub-backend.js";
@@ -81,14 +81,20 @@ async function fixture() {
 }
 it("copies current work to a connected computer with no destination project and shares one runtime across concurrent siblings", async () => {
   const f = await fixture(); writeFileSync(join(f.repo, "file"), "dirty\n");
+  const frames: WorkspaceCreatingEvent[] = [];
+  f.rt.events.on("workspace.creating", e => { if (e.type === "workspace.creating") frames.push(e); });
   const make = (name: string) => f.rt.workspaces.create({ project: "", name, sub: { on: "hetzner" } }, f.lead);
   const [a, b] = await Promise.all([make("first"), make("second")]);
   expect(f.seen.created).toHaveLength(1); expect(a.machineId).toBe(b.machineId); expect(a.id).not.toBe(b.id);
   expect(a.project.id).toBe(f.project.id); expect(a.sub!.folder).not.toBe(b.sub!.folder);
   expect(readFileSync(join(a.sub!.folder, "file"), "utf8")).toBe("dirty\n"); expect(git(a.sub!.folder, "branch", "--show-current")).toBe(a.sub!.out.branch);
   expect(await f.rt.projects.list()).toHaveLength(1);
+  const progress = frames.filter(e => e.workspaceId === a.id && e.stage === "project-cloned");
+  expect(progress.length).toBeGreaterThan(1);
+  expect(progress.slice(1).every(e => e.waiting === true)).toBe(true);
   const child = await f.rt.sessions.start(a.id, { harness: "claude", prompt: "hello", cwd: a.sub!.folder }, f.lead);
   await child.finished; expect(f.starts.at(-1)!.o.cwd).toBe(a.sub!.folder);
+  expect((await f.rt.sessions.list(a.id)).at(-1)?.sub).toMatchObject({ mode: "isolated", spawn: { readyAt: expect.any(Number), files: { ms: expect.any(Number) } } });
   expect(child.view()).toMatchObject({ parentThreadId: f.threadId, rootThreadId: f.threadId });
   expect(f.seen.killed).toHaveLength(0);
   // Held work prevents deletion of the shared runtime.
@@ -237,4 +243,17 @@ it("finishes an interrupted checkout release after restart without deleting its 
   expect(again.seen.killed).toEqual([]); expect(readFileSync(join(a.sub!.folder, "file"), "utf8")).toBe("original\n");
   expect((await f.store.list(ISOLATED_GROUPS))[0]).toMatchObject({ members: [a.id] });
   await again.rt.workspaces.delete(a.id, f.lead); expect(again.seen.killed).toEqual([a.machineId]);
+});
+
+it("reports a failed restart in the shared startup line instead of spinning forever", async () => {
+  const f = await fixture();
+  const made = await f.rt.workspaces.create({ project: "", name: "restart failure", sub: { on: "hetzner" } }, f.lead);
+  const child = await f.rt.sessions.start(made.id, { harness: "claude", prompt: "hello" }, f.lead); await child.finished;
+  f.starts[0]!.answer("done"); await f.turn.finished;
+  await f.rt.sessions.settle([f.threadId]);
+  await expect.poll(async () => (await f.rt.workspaces.get(made.id)).phase).toBe("released");
+  rmSync(f.repo, { recursive: true });
+  await expect(f.rt.sessions.start(made.id, { harness: "claude", prompt: "continue", thread: child.view().threadId })).rejects.toThrow();
+  const sub = (await f.rt.sessions.list(made.id)).at(-1)?.sub;
+  expect(sub?.mode).toBe("isolated"); expect(sub?.spawn?.failed?.said).toMatch(/transfer|checkout|folder/i);
 });

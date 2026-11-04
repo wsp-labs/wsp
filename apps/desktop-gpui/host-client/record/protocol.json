@@ -1917,6 +1917,9 @@
         "rootThreadId"
        ]
       },
+      "place": {
+       "type": "string"
+      },
       "seq": {
        "type": "integer",
        "exclusiveMinimum": 0
@@ -5265,6 +5268,12 @@
         "sub": {
          "type": "object",
          "properties": {
+          "mode": {
+           "type": "string",
+           "enum": [
+            "isolated"
+           ]
+          },
           "state": {
            "type": "string",
            "enum": [
@@ -16052,6 +16061,12 @@
     "sub": {
      "type": "object",
      "properties": {
+      "mode": {
+       "type": "string",
+       "enum": [
+        "isolated"
+       ]
+      },
       "state": {
        "type": "string",
        "enum": [
@@ -18409,6 +18424,12 @@
       "sub": {
        "type": "object",
        "properties": {
+        "mode": {
+         "type": "string",
+         "enum": [
+          "isolated"
+         ]
+        },
         "state": {
          "type": "string",
          "enum": [

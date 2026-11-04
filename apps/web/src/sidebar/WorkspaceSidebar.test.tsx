@@ -189,6 +189,33 @@ afterEach(() => {
 });
 
 describe("the sidebar's list of thread tiles", () => {
+  it("nests a pending child without a project under its quiet opener in the picked project and keeps that tree Working", async () => {
+    window.localStorage.setItem("wsp:sidebar-project", JSON.stringify("pr_1"));
+    mount({ projects: [project("pr_1", "spoo")], workspaces: [workspace("ws_a", "pricing page", "pr_1")] });
+    const rows = [{ ws: "ws_a", id: "th_lead", prompt: "lead", status: "completed", endedAgo: 1000 }, { ws: "ws_a", id: "th_parent", prompt: "opener", parent: "th_lead", status: "completed", endedAgo: 1000 }];
+    const creation = { key: "creating:child", name: "child setup", askedAt: Date.now(), askedBy: { threadId: "th_parent", rootThreadId: "th_lead" }, workspaceId: null, lines: [], failed: null };
+    await act(async () => useStore.setState({ sessions: sessions(rows), creations: [creation] } as never));
+    await waitFor(() => expect(rowIds()).toEqual(["thread:th_lead", "thread:th_parent", creation.key]));
+    expect(depthOf("child setup")).toBe(2);
+    expect(document.querySelector('[data-row-id="section:working"]')).not.toBeNull();
+    expect(screen.getAllByText("child setup")).toHaveLength(1);
+    fireEvent.click(rowOf("child setup"));
+    expect(useStore.getState().selectedId).toBe(creation.key);
+    await act(async () => useStore.setState({ sessions: sessions(rows.map(row => row.id === "th_parent" ? { ...row, foldedAgo: 1 } : row)) } as never));
+    expect(screen.queryByText("child setup")).toBeNull();
+    expect(rowOf("opener").dataset["active"]).toBe("true");
+    await act(async () => useStore.setState({ sessions: sessions([...rows, { ws: "ws_a", id: "th_child", prompt: "started child", parent: "th_parent" }]), creations: [] } as never));
+    await waitFor(() => expect(depthOf("started child")).toBe(2));
+    expect(screen.queryByText("child setup")).toBeNull();
+  });
+
+  it("keeps a pending child whose opener is absent as a standalone creation under a picked project", async () => {
+    window.localStorage.setItem("wsp:sidebar-project", JSON.stringify("pr_1"));
+    mount({ projects: [project("pr_1", "spoo")], workspaces: [] });
+    await act(async () => useStore.setState({ creations: [{ key: "creating:orphan", name: "orphan setup", askedAt: Date.now(), askedBy: { threadId: "missing", rootThreadId: "missing" }, workspaceId: null, lines: [], failed: null }] } as never));
+    await waitFor(() => expect(depthOf("orphan setup")).toBe(0));
+  });
+
   it("lists every root thread as a tile across every workspace, newest first, with no project row and no workspace row over them", async () => {
     const here = (id: string, name: string, projectId: string): WorkspaceView => ({ ...workspace(id, name, projectId), kind: "local" });
     mount({ projects: [project("pr_1", "spoo"), project("pr_2", "wsp")], workspaces: [here("ws_a", "pricing page", "pr_1"), here("ws_b", "webhook retries", "pr_2")] });

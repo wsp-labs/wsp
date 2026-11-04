@@ -5,6 +5,7 @@
 // what streamed meanwhile.
 import { act, cleanup, fireEvent, render, waitFor, within } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { isSessionEvent } from "@wsp/protocol";
 import type { EventUnion, GoldenManifest, SessionEvent, SessionView, WorkspaceView } from "@wsp/protocol";
 import { Shell } from "../src/App.js";
 import type { Api, ProtocolEvent, StartSessionOptions } from "../src/protocol/client.js";
@@ -46,12 +47,13 @@ const ROWS: SessionView[] = [
 /** The runtime records an event before it pushes it, so a later history reply holds everything emitted so far. */
 function fixtureApi(transcript: SessionEvent[] = [...SETTLED_A, ...RUNNING_B], rows: SessionView[] = ROWS, ws: WorkspaceView = workspace) {
   const history: SessionEvent[] = [...transcript];
+  const workspaces = [ws];
   let held = rows;
   const started: StartSessionOptions[] = [];
   const listeners = new Set<(e: ProtocolEvent) => void>();
   const api: Api = {
-    listWorkspaces: async () => [ws],
-    getWorkspace: async () => ws,
+    listWorkspaces: async () => workspaces,
+    getWorkspace: async id => workspaces.find(w => w.id === id)!,
     createWorkspace: async () => ws,
     watchStatuses: async () => [],
     nap: async () => workspace,
@@ -63,11 +65,11 @@ function fixtureApi(transcript: SessionEvent[] = [...SETTLED_A, ...RUNNING_B], r
     },
     portReach: async (_id, port) => ({ url: `https://m1-${port}.preview.example/?pt_token=e`, expiresAt: Date.now() + 3_600_000 }),
     daemon: noDaemonApi,
-    sessionHistory: async () => [...history],
+    sessionHistory: async id => history.filter(e => e.workspaceId === id),
     listSnapshots: async () => ({ name: "default", head: null, versions: [] }),
     snapshotStorage: async () => null,
     rollbackSnapshot: async () => ({ lineage: { name: "default", head: null, versions: [] }, existingWorkspaces: "untouched" }),
-    listSessions: async () => held,
+    listSessions: async id => id === undefined ? held : held.filter(r => r.workspaceId === id),
     // As the host does: the showing stamps every row of the thread, and every window hears it and the latest row.
     readThread: async threadId => {
       held = held.map(row => ((row.threadId ?? row.id) === threadId ? { ...row, readAt: Math.max(Date.now(), row.endedAt ?? 0) } : row));
@@ -81,10 +83,12 @@ function fixtureApi(transcript: SessionEvent[] = [...SETTLED_A, ...RUNNING_B], r
     subscribe: fn => { listeners.add(fn); return () => listeners.delete(fn); },
     getGolden: async () => manifest,
   };
-  const emit = (e: SessionEvent) => {
+  const emit = (e: ProtocolEvent) => {
     // Once the next case has bound its own api, this case's events have no tree to land in.
     if (useStore.getState().api !== api) return;
-    history.push(e);
+    if (isSessionEvent(e)) history.push(e);
+    if (e.type === "workspace.created") workspaces.push(e.workspace);
+    if (e.type === "session.row" && e.row !== undefined) held = [...held.filter(r => r.id !== e.row!.id), e.row];
     act(() => { for (const fn of [...listeners]) fn(e as EventUnion); });
   };
   return { api, emit, started };
@@ -361,5 +365,25 @@ describe("switching threads while a turn runs", () => {
     await center().findByText("Third answer.");
     expect(center().queryByText("Added GET /health.")).toBeNull();
     expect(center().queryByText("Checking the keychain.")).toBeNull();
+  });
+});
+
+describe("a connected child's setup handoff", () => {
+  it("streams the first reply in the already-open child page without selecting its tile again", async () => {
+    const { emit, center, sidebar } = await mount();
+    const child = { ...workspace, id: "ws_child", name: "Hetzner hello", kind: "isolated" as const, parentThreadId: B.threadId, rootThreadId: B.threadId };
+    emit({ type: "workspace.creating", workspaceId: child.id, name: child.name, stage: "fork-requested", message: "Making the runtime", elapsedMs: 0, askedBy: { threadId: B.threadId, rootThreadId: B.threadId } });
+    fireEvent.click(sidebar().getByText(child.name));
+    emit({ type: "workspace.created", workspace: child });
+    const row: SessionView = { id: "child-turn", workspaceId: child.id, threadId: "child-thread", parentThreadId: B.threadId, rootThreadId: B.threadId, harness: "claude", status: "running", prompt: "say hello", startedAt: Date.now() };
+    emit({ type: "session.row", id: row.id, workspaceId: child.id, threadId: row.threadId, row });
+    const at = { workspaceId: child.id, threadId: row.threadId!, turnId: row.id, sessionId: "child-agent" };
+    emit({ type: "session.start", ...at, at: Date.now(), prompt: row.prompt! });
+    emit({ type: "session.delta", ...at, at: Date.now(), kind: "text", text: "Hello from the copied project." });
+    await center().findByText("Hello from the copied project.");
+    emit({ type: "session.delta", ...at, at: Date.now(), kind: "text", text: " Still streaming." });
+    await center().findByText(/Hello from the copied project. Still streaming./);
+    expect(useStore.getState()).toMatchObject({ selectedId: child.id, freshThread: false });
+    expect(center().queryByTestId("workspace-creation")).toBeNull();
   });
 });

@@ -37,7 +37,7 @@ export function startFailureSays(rows: ReadonlyArray<SessionView> | undefined, t
   return (rows ?? []).some(row => row.threadId === threadId && row.sub?.spawn?.failed !== undefined && message.startsWith(row.sub.spawn.failed.said));
 }
 
-export function spawnLogOf(sub: Pick<SubRow, "on" | "spawn">, facts: SpawnFacts): SpawnLog | undefined {
+export function spawnLogOf(sub: Pick<SubRow, "on" | "spawn" | "mode">, facts: SpawnFacts): SpawnLog | undefined {
   const spawn: SubSpawn | undefined = sub.spawn;
   if (spawn === undefined) return undefined;
   const on = cloudSaid(sub.on);
@@ -67,7 +67,7 @@ export function spawnLogOf(sub: Pick<SubRow, "on" | "spawn">, facts: SpawnFacts)
   if (spawn.notSent !== undefined) add({ id: "not-sent", name: W.notSent(spawn.notSent), state: "warned" });
   if (spawn.files !== undefined) {
     const state = stateOf(spawn.files, "files");
-    add({ id: "files", name: W.files(spawn.files.paths.length, state === "done"), note: W.filesFact(spawn.files.paths, fmtBytes(spawn.files.bytes)), state, ...timed(state, spawn.files), ...(state === "failed" ? failure() : {}) });
+    add({ id: "files", name: sub.mode === "isolated" ? W.project(state === "done") : W.files(spawn.files.paths.length, state === "done"), note: W.filesFact(spawn.files.paths, fmtBytes(spawn.files.bytes)), state, ...timed(state, spawn.files), ...(state === "failed" ? failure() : {}) });
     if (state === "failed") stopped = true;
   }
   const ready = spawn.readyAt;
