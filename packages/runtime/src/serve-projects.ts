@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The project ops a socket asks, answered off the runtime's projects: what the reply carries beside id and ok.
-import { placeSaid, runsInFolder, scopeOf, type Caller, type PlaceView, type RuntimeRequest } from "@wsp/protocol";
+import { HERE_PLACE_ID, workspaceKind, startsIsolatedChildren, placeSaid, runsInFolder, scopeOf, type Caller, type PlaceView, type RuntimeRequest } from "@wsp/protocol";
 import type { Runtime } from "./types/api.js";
 
 export type ProjectRequest = Extract<RuntimeRequest, { op: `projects.${string}` }>;
@@ -32,13 +32,11 @@ export async function answerProject(projects: Runtime["projects"], msg: ProjectR
   }
 }
 
-/** The computers a thread's own token is answered: every cloud by the name every table says it, and for a thread in a
- * folder each computer holding a project it may start work on, which are the places a start of its own can go. A
- * thread on a machine wsp forked starts work on no computer of the person's, so it reads the clouds alone, its kind read
- * off the workspace its token names; no row carries its road, since a thread starts work by a name, never an address. */
+/** A thread sees providers and connected computers by name. A connected start transfers its current checkout;
+ * existing registered projects remain available for direct folder execution. No row exposes its road. */
 export async function threadPlaces(rt: Pick<Runtime, "projects" | "places" | "workspaces">, origin: Caller | undefined, now: number): Promise<PlaceView[]> {
   const scope = scopeOf(origin);
   const asking = scope === undefined ? undefined : await rt.workspaces.get(scope.workspaceId).catch(() => undefined);
   const reached = new Set(asking?.kind !== undefined && runsInFolder(asking.kind) ? (await rt.projects.list(origin)).map(p => p.computer) : []);
-  return ((await rt.places?.list(now)) ?? []).filter(p => p.kind === "provider" || reached.has(p.id)).map(({ road: _road, ...p }) => (p.kind === "provider" ? { ...p, label: placeSaid(p) } : p));
+  return ((await rt.places?.list(now)) ?? []).filter(p => p.kind === "provider" || reached.has(p.id) || (p.id !== HERE_PLACE_ID && p.kind === "computer" && (asking === undefined || startsIsolatedChildren(workspaceKind(asking))))).map(({ road: _road, ...p }) => (p.kind === "provider" ? { ...p, label: placeSaid(p) } : p));
 }

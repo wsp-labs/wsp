@@ -29,9 +29,9 @@ afterEach(async () => {
   ctx.runtime = undefined;
 });
 
-export async function serving(opts: { provider?: { id: string; rateUsdPerHour: number }; store?: Store; relinkWaitMs?: number; update?: PlaceUpdater; updateWaitMs?: number; leave?: PlaceLeaver; vault?: Record<string, string>; folders?: HostFolders; agentsReader?: AgentsReader; agentsActs?: AgentsActs; skillsActs?: SkillsActs; serversActs?: ServersActs; serverIcons?: ServerIcons; adapters?: Record<string, HarnessAdapterFactory>; runOver?: PlaceWiring["runOver"]; back?: PlaceWiring["back"]; dialWaitMs?: number; clock?: Clock; local?: LocalWiring; daemonChannel?: (o: DaemonChannelOptions) => Promise<DaemonChannel>; agents?: { here?: { url?: string }; wspMcp?: McpServerSpec } } = {}, serve: { log?: (line: string) => void } = {}): Promise<{ hostKey: PlaceKeyPair; store: Store }> {
+export async function serving(opts: { hostKey?: PlaceKeyPair; provider?: { id: string; rateUsdPerHour: number }; store?: Store; relinkWaitMs?: number; update?: PlaceUpdater; updateWaitMs?: number; leave?: PlaceLeaver; vault?: Record<string, string>; folders?: HostFolders; agentsReader?: AgentsReader; agentsActs?: AgentsActs; skillsActs?: SkillsActs; serversActs?: ServersActs; serverIcons?: ServerIcons; adapters?: Record<string, HarnessAdapterFactory>; runOver?: PlaceWiring["runOver"]; back?: PlaceWiring["back"]; dialWaitMs?: number; clock?: Clock; local?: LocalWiring; daemonChannel?: (o: DaemonChannelOptions) => Promise<DaemonChannel>; agents?: { here?: { url?: string }; wspMcp?: McpServerSpec } } = {}, serve: { log?: (line: string) => void } = {}): Promise<{ hostKey: PlaceKeyPair; store: Store }> {
   const store = opts.store ?? memoryStore();
-  const hostKey = newPlaceKeyPair();
+  const hostKey = opts.hostKey ?? newPlaceKeyPair();
   ctx.runtime = createRuntime({
     backend: stubBackend(),
     store,
@@ -143,6 +143,7 @@ export async function remove(placeId: string): Promise<Record<string, unknown>> 
  * records what the host asked it for. Nothing here is the server half itself, which lives with the agent; this is
  * one computer's worth of answers, so the runtime's own roads are what the test is reading. */
 export interface ForkingPlace {
+  answer?: (frame: Record<string, unknown>) => Record<string, unknown> | undefined | Promise<Record<string, unknown>>;
   created: Record<string, unknown>[];
   killed: string[];
   paused: number;
@@ -283,6 +284,8 @@ export function forks(
     if (op === undefined) return;
     const id = frame["id"];
     const say = (payload: Record<string, unknown>): void => client.say({ id, ok: true, ...payload });
+    const overridden = seen.answer?.(frame);
+    if (overridden !== undefined) { void Promise.resolve(overridden).then(say); return; }
     const machine = (machineId: string): Record<string, unknown> => ({ machine: { id: machineId, kind: "sandbox", daemonSupervisor: "entrypoint", roads: PLACE_ROADS } });
     // A machine the host killed is gone from that computer, as the daemon there answers: a get or a state read of
     // it is refused as missing, which is what the kill's own wait for gone reads.

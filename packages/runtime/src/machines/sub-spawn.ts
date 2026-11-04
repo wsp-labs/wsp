@@ -137,6 +137,8 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
   const spawnSub = async (opts: CreateWorkspaceOptions, origin: Caller | undefined): Promise<CreatedWorkspace> => {
     const began = clock.now();
     const ask = opts.sub!;
+    const computer = (await ctx.computerRows()).find(r => r.kind !== "provider" && namesPlace(r, ask.on));
+    if (computer !== undefined) return ctx.isolated.spawn(opts, origin, computer.id);
     const name = ctx.nameGiven(opts.name);
     // S1: a sub-thread is a child, with a lead to notify and to merge into.
     const scope = scopeOf(origin);

@@ -29,7 +29,8 @@
     {"package":"packages/host","tests":3628,"why":"scoped MCP discovery, its permitted host-operation path and CLI/skill destination guidance need three focused regression cases"},
     {"package":"daemon","tests":1455,"why":"scoped MCP listing and direct calls must share the recorded allowlist across cloud, guest and no-slate modes"},
     {"package":"apps/desktop","tests":482,"why":"the default installer must choose Electron when a release contains both desktop shells; one regression exercises artifact selection"},
-    {"package":"packages/host","tests":3629,"why":"registering a folder already on a connected computer must skip the local seed menu and reject conflicting flags"}
+    {"package":"packages/host","tests":3629,"why":"registering a folder already on a connected computer must skip the local seed menu and reject conflicting flags"},
+    {"package":"daemon","tests":1457,"why":"two regressions cover scoped returned branch bundles through the real merge op and its checkout, namespace, symlink and traversal boundary"}
   ],
   "timed": {}
 }

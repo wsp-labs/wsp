@@ -113,6 +113,7 @@ export function channelsArea(ctx: RuntimeContext): ChannelsArea {
    * its threads go on there. */
   const checkoutOf = (r: WorkspaceRecord): string => {
     // A sub-machine names its lead's project and works in a folder of its own on its machine.
+    if (r.isolated !== undefined) return r.isolated.folder;
     if (r.sub !== undefined) return r.sub.folder;
     const project = projectHeld(r.project);
     const tree = r.worktree;

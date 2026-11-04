@@ -18,10 +18,11 @@ export function createArea(ctx: RuntimeContext): CreateArea {
     spawned?: ThreadScope,
     landed?: () => void,
     childBase?: string,
+    isolated?: import("../types/wiring.js").IsolatedCheckout & { place: string },
   ): Promise<CreatedWorkspace> => {
     // Where this fork lands is the project's computer and nothing else: one workspace is one project's copy, so
     // no flag and no default place has a say in it.
-    const { placeId } = await ctx.landingPlace(project.computer);
+    const { placeId } = isolated === undefined ? await ctx.landingPlace(project.computer) : { placeId: isolated.place };
     await ctx.placeRefuses(placeId);
     const at = await ctx.landingBackend(placeId);
     // What this project's computer mounts into every workspace of it, off the road that landed the project there.
@@ -29,33 +30,33 @@ export function createArea(ctx: RuntimeContext): CreateArea {
     // road can answer it now: a record filled at boot while that computer had said nothing about itself carries
     // whatever could be worked out then, and the folder a workspace mounts has to be the one the computer holds.
     // The record is put right the first time a workspace of it is made, so the two can never disagree again.
-    const road = projectLanding(ctx.landingKind(project.computer, at));
-    const landingOn = (await ctx.landingDeps(project.computer)).deps;
+    const road = isolated === undefined ? projectLanding(ctx.landingKind(project.computer, at)) : undefined;
+    const landingOn = isolated === undefined ? (await ctx.landingDeps(project.computer)).deps : undefined;
     // Why no workspace of this project can be made on that computer at all, before a machine is asked for or a
     // record written: a create that read the refusal later left a workspace record behind for a fork that never
     // happened.
-    const refused = road.refusal(project, landingOn);
+    const refused = road === undefined || landingOn === undefined ? undefined : road.refusal(project, landingOn);
     if (refused !== undefined) throw Object.assign(new Error(refused), { kind: "invalid" });
-    const said = road.places({ project, memoryKey: project.memoryKey, deps: landingOn });
-    if (said.memoryDir !== project.memoryDir) await ctx.rememberProject({ ...project, memoryDir: said.memoryDir });
-    const binds = road.workspaceBinds(ctx.projectHeld(project.id));
+    const said = road === undefined || landingOn === undefined ? undefined : road.places({ project, memoryKey: project.memoryKey, deps: landingOn });
+    if (said !== undefined && said.memoryDir !== project.memoryDir) await ctx.rememberProject({ ...project, memoryDir: said.memoryDir });
+    const binds = road?.workspaceBinds(ctx.projectHeld(project.id)) ?? [];
     // A project whose checkout the add left on that computer: this workspace takes its own copy of it, mounted at
     // the path the project has inside, so the seed and the install the add paid for are there and nothing is
     // cloned again. A project the computer keeps in an image carries it in the image instead. On a computer that
     // clones at the add, a project with no checkout was refused above by that road's own refusal; a project at a
     // provider has neither, and cloneProject clones it inside the fork.
-    const copy = project.checkout === undefined ? undefined : { from: project.checkout, at: project.path };
+    const copy = isolated !== undefined || project.checkout === undefined ? undefined : { from: project.checkout, at: project.path };
     // A computer that keeps no image is forked from none: the workspace is a copy of that computer itself, so no
     // image is read, no copy of one is built there ahead of the fork, and the record names none the way a copy of
     // a folder here does.
-    const fromImage = ctx.keepsImages(at);
+    const fromImage = isolated === undefined && ctx.keepsImages(at);
     // What this workspace forks: the image the add built for this project where it built one, since that image
     // already holds the clone and its dependencies; else, at a place that is not the image's own, that place's
     // current copy of the image, built there first when it holds none, and everywhere else the snapshot asked for.
     const golden = fromImage ? await ctx.copyForFork(o.golden ?? project.image?.snapshotId ?? (await ctx.imageHead()), placeId, (where, rate) => report("fork-requested", copyFirstLine(where, o.name, rate))) : "";
     const inherited = fromImage ? (await ctx.imageOf(golden)).version?.size : undefined;
     // Where the host keeps the machine's credentials, the branch its pushes may land on, named before the first write.
-    const brokered = brokeredStart(ctx, road.kind === "provider");
+    const brokered = brokeredStart(ctx, road?.kind === "provider");
     // A checkout the image holds starts where it stands, which only the machine can say; a fork starts from its parent.
     const carried = childBase === undefined && (project.image !== undefined || project.checkout !== undefined || (fromImage && imageCarriesCheckout((await ctx.imageOf(golden)).projects, project.path)));
     const branchOfRecord = brokered ? (o.branchOfRecord ?? (await namedOfRecord(ctx, { remote: project.remote, name: o.name, project: project.name, on: ctx.placeName(placeId ?? places.wired), base: childBase ?? project.base, carried }))) : undefined;
@@ -65,12 +66,13 @@ export function createArea(ctx: RuntimeContext): CreateArea {
     const record: WorkspaceRecord = {
       id,
       name: o.name,
-      kind: "cloud",
+      kind: isolated === undefined ? "cloud" : "isolated",
       machineId: "",
       phase: "running",
       golden,
       createdAt: new Date().toISOString(),
       project: project.id,
+      ...(isolated !== undefined ? { isolated, idleWindowMs: null } : {}),
       spec: {
         ...(o.envs !== undefined ? { envs: o.envs } : {}),
         ...(o.labels !== undefined ? { labels: o.labels } : {}),
@@ -193,11 +195,12 @@ export function createArea(ctx: RuntimeContext): CreateArea {
     }
     // The project goes in before the workspace is ready: a copy without the work in it is not a workspace of that
     // project, so a clone that fails ends the create and the machine goes with it.
-    await ctx.moduleOf(record.kind).landProject(entry, project, report);
-    await ctx.writeDaemonRoots(entry);
+    if (isolated === undefined) await ctx.moduleOf(record.kind).landProject(entry, project, report);
+    if (isolated === undefined) await ctx.writeDaemonRoots(entry);
     await ctx.persist(record);
     // The place a fork landed on is where the next one lands when nobody says.
     await placeDoor?.markUsed(placeId);
+    if (isolated !== undefined) return ctx.view(record);
     delete entry.creating;
     report("ready", CREATE_READY);
     const v = ctx.view(record);

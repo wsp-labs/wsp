@@ -25,6 +25,7 @@ const count = z.number().int().nonnegative();
 
 /** What a sub-thread's start answers beside the thread: the machine, the branches and the files sent. */
 export const SubOut = z.object({
+  mode: z.literal("isolated").optional(),
   on: z.string(),
   machine: z.string(),
   size: z.object({ cpu: z.number().int(), memMb: z.number().int() }),
@@ -34,7 +35,7 @@ export const SubOut = z.object({
   branch: z.string(),
   sent: z.object({ paths: z.array(z.string()), bytes: count, missing: z.array(z.string()) }),
   notSent: z.object({ uncommitted: count, why: z.string().optional() }),
-  deleteAfterMinutes: count,
+  deleteAfterMinutes: count.optional(),
 });
 export type SubOut = z.infer<typeof SubOut>;
 

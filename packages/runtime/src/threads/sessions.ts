@@ -310,6 +310,8 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       if (reached === undefined) throw new Error(`no thread ${threadId} in this folder`);
       // A released sub-thread's send moves it onto a new machine once it holds the thread, and runs there.
       let entry = reached;
+      if (entry.record.isolated !== undefined && entry.record.phase === "released") entry = await ctx.isolated.revive(entry);
+      if (entry.record.isolated !== undefined && entry.record.isolated.state !== "ready") throw usageRefusal("The isolated checkout did not finish its transfer.", "Delete this failed child and start it again from its lead.");
       // A restart is read before the machine is asked: a send into a thread that has run replaces nothing.
       const replaces = opened.replaces;
       if (replaces !== undefined) {
@@ -1405,6 +1407,11 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       const entry = await ctx.entryOfRow({ threadId, workspaceId }, origin);
       if (entry === undefined) throw notFoundRefusal(`no thread ${threadWord(threadId)}`);
       if (entry.record.sub !== undefined) return ctx.subDelete(entry, threadId, origin, o);
+      if (entry.record.isolated !== undefined) {
+        if (o.check === true) return { workspaceId, threads: 1 };
+        await ctx.workspaces.delete(workspaceId, origin);
+        return { workspaceId, threads: 1 };
+      }
       if (!runsInFolder(entry.record.kind)) throw Object.assign(new Error(threadOnMachineLine(entry.record.name)), { kind: "usage" });
       const tree = entry.record.worktree;
       const threads = new Set([
@@ -1488,13 +1495,16 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
   // A start that fails anywhere, refused before its launch included, ends the process it claimed: one left standing
   // claimed is one nobody takes, beside the next one the composer asks for.
   const startOn = sessionsApi.start;
-  sessionsApi.start = (workspaceId, opened, origin) =>
-    startOn(workspaceId, opened, origin).catch((e: unknown) => {
+  sessionsApi.start = async (workspaceId, opened, origin) => {
+    await ctx.ready();
+    const releaseStart = ctx.isolated.starting(workspaceId);
+    try { return await startOn(workspaceId, opened, origin).catch((e: unknown) => {
       const claimed = claimedBy.get(opened);
       if (claimed !== undefined && ctx.keptAgents.get(claimed)?.warm !== undefined) ctx.reapKept(claimed);
       // A sub-machine a refused send leaves with no turn is done, so its delete is armed.
       if (live.get(workspaceId)?.record.sub !== undefined) void ctx.subDone(workspaceId);
       throw e;
-    });
+    }); } finally { releaseStart(); }
+  };
   return { sessionsApi, stopHolds: threadId => ending.has(threadId), stopTry };
 }

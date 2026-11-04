@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import type { IsolatedArea } from "./machines/isolated.js";
 import type { ActivityArea } from "./activity.js";
 import type {
   GoneWatch,
@@ -545,7 +546,7 @@ export interface BootArea {
 export type ShownCreate = WorkspaceView & { kind: WorkspaceKind };
 
 export interface CreateArea {
-  readonly createStaged: (o: CreateWorkspaceOptions, project: ProjectView, id: string, report: StageReport, spawned?: ThreadScope, landed?: () => void, childBase?: string) => Promise<CreatedWorkspace>;
+  readonly createStaged: (o: CreateWorkspaceOptions, project: ProjectView, id: string, report: StageReport, spawned?: ThreadScope, landed?: () => void, childBase?: string, isolated?: import("./types/wiring.js").IsolatedCheckout & { place: string }) => Promise<CreatedWorkspace>;
   readonly nameGiven: (name: string) => string;
   readonly forking: Set<string>;
   readonly failedCreates: Map<string, ShownCreate>;
@@ -959,4 +960,4 @@ export interface PreferencesArea {
 
 /** Every area's members on one object, filled in createRuntime in file order: a member is read at the moment it is
  * called, never copied into a local while the areas are still being built. */
-export type RuntimeContext = RuntimeCore & ActivityArea & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & ProcScopesArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & SubSpawnArea & SubQueueArea & SubLifeArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & WaitsArea & StatusArea & PreferencesArea;
+export type RuntimeContext = RuntimeCore & { readonly isolated: IsolatedArea } & ActivityArea & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & ProcScopesArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & SubSpawnArea & SubQueueArea & SubLifeArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & WaitsArea & StatusArea & PreferencesArea;

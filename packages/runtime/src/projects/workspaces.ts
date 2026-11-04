@@ -612,12 +612,18 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
     },
 
     async delete(id, origin) {
-      ctx.spawnGuard("delete", origin);
+      const isolated = live.get(id)?.record.isolated;
+      if (isolated !== undefined && scopeOf(origin) !== undefined) {
+        ctx.spawnGuard("delete_sub", origin);
+        const held = await ctx.entryOf(id, origin);
+        if (held.record.parentThreadId !== scopeOf(origin)!.threadId) throw Object.assign(new Error("Only the thread that started this child may delete it. Ask its lead to delete it."), { kind: "usage" });
+      } else ctx.spawnGuard("delete", origin);
       if (scopeOf(origin) === undefined && !live.has(id) && ctx.failedCreates.delete(id)) {
         bus.emit({ type: "workspace.deleted", workspaceId: id });
         return;
       }
       const entry = await ctx.entryOf(id, origin);
+      if (entry.record.isolated !== undefined && ctx.turnRuns(id)) throw Object.assign(new Error("The child is still working. Stop its turn before deleting its checkout."), { kind: "conflict" });
       if (entry.deleting) return entry.deleting;
       // A held spawn is stopped as a stop does, its machine going as it lands where one is being made.
       const held = entry.record.phase === "queued" ? ctx.deleteQueued(id) : undefined;
@@ -630,6 +636,7 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       entry.deleting = (async () => {
         try {
           delete entry.deleteSaid;
+          if (entry.record.isolated !== undefined && entry.record.phase !== "released") await ctx.isolated.checkRelease(entry);
           await cutOff(ctx, entry);
           ctx.endSessions(id, DELETED_REASON);
           const threads = new Set([...threadRecords].flatMap(([threadId, held]) => (held.workspaceId === id ? [threadId] : [])));
@@ -1080,19 +1087,30 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       await ctx.copyBlocked(lead);
       // A sub-thread's branch is its record's, so a napping machine is not woken and a released one still merges.
       const sub = kid.record.sub;
-      const branch = sub?.branch ?? (await ctx.readCheckout(kid, true))?.branch ?? kid.record.worktree?.branch ?? "";
+      const branch = kid.record.isolated?.branch ?? sub?.branch ?? (await ctx.readCheckout(kid, true))?.branch ?? kid.record.worktree?.branch ?? "";
       if (branch === "" || branch === DETACHED_HEAD) throw new Error(childOnNoBranchRefusal(labelOf(kid, childThreadId)));
       const project = ctx.projectHeld(lead.record.project);
       // Through the remote, the one place both copies always reach; with none, from the child's folder only where
       // both copies sit on this computer, since a copy on a box is visible to nothing but its own workspace.
       let from: string | undefined;
-      if (remoteHost(project.remote) === undefined) {
+      const returned = kid.record.isolated === undefined ? undefined : await ctx.isolated.returned(lead, kid);
+      if (returned !== undefined) from = returned.from;
+      else if (remoteHost(project.remote) === undefined) {
         if (!isLocalWorkspace(lead.record) || !isLocalWorkspace(kid.record)) throw new Error(noRemoteForTreeLine(project.name));
         from = ctx.checkoutOf(kid.record);
       }
-      const done = GitMergeInReply.parse(
-        await ctx.queued(lead.record.id, () => ctx.withDaemon(lead, ask => ask({ op: "git.mergeIn", cwd: ctx.checkoutOf(lead.record), branch, ...(from !== undefined ? { from } : {}) }))),
-      );
+      const done = await (async () => {
+        try {
+          return GitMergeInReply.parse(await ctx.queued(lead.record.id, () => ctx.withDaemon(lead, ask => ask({ op: "git.mergeIn", cwd: ctx.checkoutOf(lead.record), branch, ...(from !== undefined ? { from } : {}) }))));
+        } catch (e) {
+          if (returned !== undefined && e instanceof Error && /only.*computer|this computer|outside.*root|not exist/.test(e.message)) throw new Error(`The lead's daemon could not read the returned branch: ${e.message}. Update the computer running the lead and retry merge_in; the child's work is kept.`, { cause: e });
+          throw e;
+        } finally { await returned?.cleanup(); }
+      })();
+      if (done.merged && kid.record.isolated !== undefined) {
+        if (returned !== undefined) kid.record.isolated.returned = returned.head;
+        await ctx.persist(kid.record);
+      }
       const kept: TreeRecord = { ...kid.record.tree };
       if (done.merged) {
         delete kept.conflicts;

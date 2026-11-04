@@ -60,7 +60,8 @@
               "enum": [
                 "cloud",
                 "local",
-                "place"
+                "place",
+                "isolated"
               ]
             },
             "golden": {
@@ -620,7 +621,8 @@
               "enum": [
                 "cloud",
                 "local",
-                "place"
+                "place",
+                "isolated"
               ]
             },
             "golden": {

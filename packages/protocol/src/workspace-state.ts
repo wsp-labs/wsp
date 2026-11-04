@@ -69,6 +69,8 @@ export interface WorkspaceKindWords {
    * image: this computer alone. Its own word and not a reading of the sources above, since a computer that clones
    * also takes a folder on this computer as a source, seeded onto the clone, and would otherwise read as one. */
   copiesFolder: boolean;
+  /** Children may copy the current checkout to another connected computer. */
+  isolatedChildren: boolean;
   /** Whether a thread of this kind runs in its project's folder on the computer holding it, so a start makes nothing:
    * no machine, no copy, no name of its own, and every thread of the folder shares one record. This computer, and a
    * computer the person joined, whose folder is reached over its link. */
@@ -113,9 +115,10 @@ export type ReadingRoad = "daemon" | "host" | false;
 /** The words per kind, the one table every client reads instead of comparing a kind itself. Adding a kind is a row
  * here. */
 export const WORKSPACE_KIND_WORDS: Record<WorkspaceKind, WorkspaceKindWords> = {
-  cloud: { machine: MACHINE_WSP_FORKS, rowReadsMachine: true, cpu: "vCPU", where: A_PROVIDER, driven: true, daemon: true, metrics: "daemon", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: false, inFolder: false, agents: true, onDelete: { asked: "computer is deleted in the cloud", done: machineId => `computer ${machineId} is gone in the cloud` } },
-  local: { machine: THIS_COMPUTER, rowReadsMachine: true, cpu: "cores", where: THIS_COMPUTER, driven: false, daemon: true, metrics: "host", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: true, inFolder: true, agents: true, onDelete: { asked: COMPUTER_LEFT, done: () => `its ${COMPUTER_LEFT}` } },
-  place: { machine: JOINED_COMPUTER, rowReadsMachine: false, cpu: "cores", where: null, driven: false, daemon: true, metrics: "daemon", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: false, inFolder: true, agents: true, onDelete: { asked: COMPUTER_LEFT, done: () => `its ${COMPUTER_LEFT}` } },
+  isolated: { isolatedChildren: true, machine: MACHINE_WSP_FORKS, rowReadsMachine: true, cpu: "vCPU", where: null, driven: true, daemon: true, metrics: "daemon", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: false, inFolder: false, agents: true, onDelete: { asked: "child checkout is deleted", done: () => "child checkout is gone" } },
+  cloud: { isolatedChildren: false, machine: MACHINE_WSP_FORKS, rowReadsMachine: true, cpu: "vCPU", where: A_PROVIDER, driven: true, daemon: true, metrics: "daemon", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: false, inFolder: false, agents: true, onDelete: { asked: "computer is deleted in the cloud", done: machineId => `computer ${machineId} is gone in the cloud` } },
+  local: { isolatedChildren: true, machine: THIS_COMPUTER, rowReadsMachine: true, cpu: "cores", where: THIS_COMPUTER, driven: false, daemon: true, metrics: "host", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: true, inFolder: true, agents: true, onDelete: { asked: COMPUTER_LEFT, done: () => `its ${COMPUTER_LEFT}` } },
+  place: { isolatedChildren: true, machine: JOINED_COMPUTER, rowReadsMachine: false, cpu: "cores", where: null, driven: false, daemon: true, metrics: "daemon", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: false, inFolder: true, agents: true, onDelete: { asked: COMPUTER_LEFT, done: () => `its ${COMPUTER_LEFT}` } },
 };
 
 export function kindWords(kind: WorkspaceKind): WorkspaceKindWords {
@@ -679,3 +682,6 @@ export function goneRefusal(name: string | undefined, action: string, words?: st
   const sentence = `${name ?? "This workspace"}'s machine is gone with its disk, so work that was not pushed is lost; rebuild it to ${action}, which brings back its home folder from the last saved nap`;
   return words === undefined || words === "" ? sentence : `${sentence} (${words})`;
 }
+
+/** Whether a lead on this kind can transfer its current project to a connected computer. */
+export const startsIsolatedChildren = (kind: WorkspaceKind): boolean => WORKSPACE_KIND_WORDS[kind].isolatedChildren;

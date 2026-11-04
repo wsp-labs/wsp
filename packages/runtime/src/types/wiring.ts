@@ -338,7 +338,26 @@ export interface ProjectImportOptions {
   bundler: ProjectBundler;
 }
 
+export interface IsolatedCheckout {
+  group: string;
+  rootThreadId: string;
+  sourceWorkspaceId: string;
+  sourceFolder: string;
+  folder: string;
+  checkout: string;
+  branch: string;
+  base: string;
+  git: boolean;
+  state: "copying" | "ready" | "failed" | "releasing";
+  returned?: string;
+  ignoredHash?: string;
+  sourceBranch?: string;
+  sent?: { paths: string[]; bytes: number };
+  held?: string;
+}
+
 export interface WorkspaceRecord extends Omit<WorkspaceView, "project"> {
+  isolated?: IsolatedCheckout;
   /** cloud or local; a record stored before local existed has none and reads cloud. */
   kind: WorkspaceKind;
   /** The project this workspace was made for, by its id. The view joins the record's name, path and computer off

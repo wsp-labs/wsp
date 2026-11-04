@@ -845,6 +845,7 @@ export const DaemonRequest = z.discriminatedUnion("op", [
   /** Merges another branch into the checkout's with a merge commit, from the remote or from a copy's folder on this
    * computer, and answers a GitMergeInReply; refused over changes no commit holds, and a merge that conflicts is
    * taken back and answered with the files. A folder is refused on any daemon but this computer's own. */
+  // from also accepts ./.wsp-return-<id>/result.bundle beneath cwd on that same workspace.
   z.object({ id: reqId, op: z.literal("git.mergeIn"), cwd: z.string(), branch: z.string(), from: z.string().optional(), token: opToken, machineId: z.string().optional() }),
   /** The repository's open pull requests and issues through that same command line, answered as a GitPrListReply.
    * No command line for the host, or one nobody signed in, is an empty list with the note saying so. */

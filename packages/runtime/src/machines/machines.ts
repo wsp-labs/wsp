@@ -355,6 +355,7 @@ export function machinesArea(ctx: RuntimeContext): MachinesArea {
    * provider still holds it, which is what keeps a record naming it. A machine gone is marked, so one the provider
    * lists running again is the sweep's to kill; a mark the store refuses is said, and the machine is still gone. */
   const unfork = async (entry: LiveWorkspace): Promise<void> => {
+    if (entry.record.isolated !== undefined) return ctx.isolated.release(entry);
     const id = entry.machine.id;
     await killUntilGone(ctx.backendFor(entry.record), entry.machine, opts.killConfirm);
     await store.put(DROPPED, id, { machineId: id, at: new Date(clock.now()).toISOString() } satisfies DroppedMachine).catch((e: unknown) => {

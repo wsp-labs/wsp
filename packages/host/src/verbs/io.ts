@@ -349,11 +349,11 @@ export const BranchIn = z.string().optional().describe("a branch other than the 
 export const OnIn = z
   .string()
   .optional()
-  .describe("boat, to start the thread as a sub-thread of the thread asking on a machine of its own on Boat, forked from the person's image. It fetches your pushed branch, or the ref from names, and pushes a branch of its own; without from your branch must be pushed first. It carries the thread's own project, which project may name or leave out; another project is refused. This selects a provider, not a connected computer. For an eligible registered remote project, name that project without on; its files are not transferred from the current project. Never with beside, fork, at, cwd, resume, copy or replaces");
+  .describe("the destination from computers: a connected computer starts an isolated child from the asking thread's current checkout, including uncommitted work and selected ignored files. No destination project or shared Git remote is needed. Siblings share a runtime but have separate checkouts and branches; merge_in returns a branch over wsp's link. Boat starts a child from your image and fetches your pushed branch instead; from applies to Boat alone. Carries the asking thread's project; another project is refused. Without on, naming an existing remote project still runs directly in its existing folder. Never with beside, fork, at, cwd, resume, copy or replaces");
 export const SubSizeIn = z
   .string()
   .optional()
-  .describe("with on, the machine's size as <cpu>x<memGb>: 2x4, 4x8, 8x16 or 16x32, those the person's plan sells; Boat's own size setting without it. A thread that builds or runs a test suite wants 4x8");
+  .describe("with on, the machine's size as <cpu>x<memGb>: 2x4, 4x8, 8x16 or 16x32, those the person's plan sells on Boat, or the connected computer's offered size; siblings reuse the size of their shared runtime. Boat's own size setting without it. A thread that builds or runs a test suite wants 4x8");
 export const SubFromIn = z
   .string()
   .optional()

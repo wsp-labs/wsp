@@ -56,7 +56,8 @@
               "enum": [
                 "cloud",
                 "local",
-                "place"
+                "place",
+                "isolated"
               ]
             },
             "golden": {

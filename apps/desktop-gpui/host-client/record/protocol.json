@@ -1969,7 +1969,8 @@
          "enum": [
           "cloud",
           "local",
-          "place"
+          "place",
+          "isolated"
          ]
         },
         "golden": {
@@ -17797,6 +17798,12 @@
     "out": {
      "type": "object",
      "properties": {
+      "mode": {
+       "type": "string",
+       "enum": [
+        "isolated"
+       ]
+      },
       "on": {
        "type": "string"
       },
@@ -17897,8 +17904,7 @@
       "base",
       "branch",
       "sent",
-      "notSent",
-      "deleteAfterMinutes"
+      "notSent"
      ]
     },
     "folder": {
@@ -19103,7 +19109,8 @@
      "enum": [
       "cloud",
       "local",
-      "place"
+      "place",
+      "isolated"
      ]
     }
    },
@@ -19141,7 +19148,8 @@
      "enum": [
       "cloud",
       "local",
-      "place"
+      "place",
+      "isolated"
      ]
     },
     "golden": {
@@ -19518,7 +19526,8 @@
      "enum": [
       "cloud",
       "local",
-      "place"
+      "place",
+      "isolated"
      ]
     },
     "golden": {
