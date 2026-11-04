@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { z } from "zod";
+import { SubStartIntent } from "../views/start-intent.js";
 import { AgentsTarget, McpScope, PluginAsk, ServerAdd, ServerAsk } from "../agents-report.js";
 import { Attachment } from "../attachments.js";
 import { threadAt } from "../format.js";
@@ -248,7 +249,7 @@ const RuntimeOp = z.discriminatedUnion("op", [
      * thread pushes `branch` or wsp/<slug>. The project is the asking thread's;
      * the reply carries `sub`, what the thread's start opens with. Refused, before the cloud is asked for a start,
      * by every check run --on names. */
-    sub: z.object({ on: z.string(), size: z.string().optional(), from: z.string().optional(), branch: z.string().optional(), harness: z.string().optional() }).optional(),
+    sub: z.object({ start: SubStartIntent.optional(), on: z.string(), size: z.string().optional(), from: z.string().optional(), branch: z.string().optional(), harness: z.string().optional() }).optional(),
   }),
   /** Where a workspace of this project would land and what that computer offers. Replies with
    * { place?, name, capabilities }, `place` absent where the landing is the provider this host forks on. Refused

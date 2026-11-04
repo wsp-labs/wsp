@@ -49,6 +49,7 @@ async function fixture() {
   const joined = await joinHost(hostKey, { code: await code(), report: report("hetzner"), answers: client => { seen = forks(client, undefined, run, KEEPS_NO_IMAGE); } });
   sockets.push(joined.client.ws);
   const files = (frame: Record<string, unknown>) => {
+    if (frame["op"] === "git.checkpointDrop") return {};
     if (frame["op"] === "machine.create") {
       const id = (frame["spec"] as { labels?: Record<string, string> }).labels?.["wsp.isolated"];
       if (id !== undefined) groups.add(id);
@@ -83,7 +84,8 @@ it("copies current work to a connected computer with no destination project and 
   const f = await fixture(); writeFileSync(join(f.repo, "file"), "dirty\n");
   const frames: WorkspaceCreatingEvent[] = [];
   f.rt.events.on("workspace.creating", e => { if (e.type === "workspace.creating") frames.push(e); });
-  const make = (name: string) => f.rt.workspaces.create({ project: "", name, sub: { on: "hetzner" } }, f.lead);
+  const start = { prompt: "Say hello", harness: "claude", model: "test-model", effort: "high" };
+  const make = (name: string) => f.rt.workspaces.create({ project: "", name, sub: { on: "hetzner", start } }, f.lead);
   const [a, b] = await Promise.all([make("first"), make("second")]);
   expect(f.seen.created).toHaveLength(1); expect(a.machineId).toBe(b.machineId); expect(a.id).not.toBe(b.id);
   expect(a.project.id).toBe(f.project.id); expect(a.sub!.folder).not.toBe(b.sub!.folder);
@@ -91,6 +93,7 @@ it("copies current work to a connected computer with no destination project and 
   expect(await f.rt.projects.list()).toHaveLength(1);
   const progress = frames.filter(e => e.workspaceId === a.id && e.stage === "project-cloned");
   expect(progress.length).toBeGreaterThan(1);
+  expect(frames.filter(e => e.workspaceId === a.id).every(e => JSON.stringify(e.start) === JSON.stringify(start))).toBe(true);
   expect(progress.slice(1).every(e => e.waiting === true)).toBe(true);
   const child = await f.rt.sessions.start(a.id, { harness: "claude", prompt: "hello", cwd: a.sub!.folder }, f.lead);
   await child.finished; expect(f.starts.at(-1)!.o.cwd).toBe(a.sub!.folder);
@@ -256,4 +259,44 @@ it("reports a failed restart in the shared startup line instead of spinning fore
   await expect(f.rt.sessions.start(made.id, { harness: "claude", prompt: "continue", thread: child.view().threadId })).rejects.toThrow();
   const sub = (await f.rt.sessions.list(made.id)).at(-1)?.sub;
   expect(sub?.mode).toBe("isolated"); expect(sub?.spawn?.failed?.said).toMatch(/transfer|checkout|folder/i);
+});
+
+it("lets a lead delete its finished isolated child through the thread API", async () => {
+  const f = await fixture();
+  const made = await f.rt.workspaces.create({ project: "", name: "delete child", sub: { on: "hetzner" } }, f.lead);
+  const child = await f.rt.sessions.start(made.id, { harness: "claude", prompt: "hello", cwd: made.sub!.folder }, f.lead);
+  await child.finished;
+  await expect(f.rt.sessions.delete(child.view().threadId!, f.lead, { check: true })).resolves.toMatchObject({ workspaceId: made.id, threads: 1 });
+  await f.rt.sessions.delete(child.view().threadId!, f.lead);
+  expect(await f.store.get("workspaces", made.id)).toBeUndefined();
+  expect(f.seen.killed).toHaveLength(1);
+  f.starts[0]!.answer("done"); await f.turn.finished;
+});
+
+it("refuses a second conversation in an isolated child's checkout", async () => {
+  const f = await fixture();
+  const made = await f.rt.workspaces.create({ project: "", name: "single child", sub: { on: "hetzner" } }, f.lead);
+  const child = await f.rt.sessions.start(made.id, { harness: "claude", prompt: "hello", cwd: made.sub!.folder }, f.lead);
+  await child.finished;
+  await expect(f.rt.sessions.start(made.id, { harness: "claude", prompt: "beside" }, f.lead)).rejects.toThrow(/already|thread/i);
+  expect((await f.rt.sessions.list(made.id)).map(row => row.threadId)).toEqual([child.view().threadId]);
+  f.starts[0]!.answer("done"); await f.turn.finished;
+});
+
+it("preserves a legacy second conversation when deleting one thread from an isolated checkout", async () => {
+  const f = await fixture();
+  const made = await f.rt.workspaces.create({ project: "", name: "legacy shared checkout", sub: { on: "hetzner" } }, f.lead);
+  const child = await f.rt.sessions.start(made.id, { harness: "claude", prompt: "hello", cwd: made.sub!.folder }, f.lead);
+  await child.finished;
+  f.starts[0]!.answer("done"); await f.turn.finished;
+  const saved = await f.store.get("sessions", made.id) as import("../src/types/internal.js").SessionIndexRecord;
+  const original = child.view().threadId!;
+  saved.sessions.push({ ...saved.sessions[0]!, id: "legacy-turn", turnId: "legacy-turn", threadId: "legacy-thread" });
+  saved.threads = { ...saved.threads, "legacy-thread": { ...saved.threads![original]! } };
+  await f.store.put("sessions", made.id, saved);
+  const again = await f.restart();
+  await again.rt.sessions.delete(original, f.lead, { processes: "keep" });
+  expect((await again.rt.sessions.list(made.id)).map(row => row.threadId)).toEqual(["legacy-thread"]);
+  expect((await again.rt.workspaces.get(made.id)).phase).toBe("running");
+  expect(again.seen.killed).toHaveLength(0);
 });

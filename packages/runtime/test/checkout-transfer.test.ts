@@ -108,3 +108,14 @@ it("copies the current commit and tree without unrelated Git history", async () 
   expect(made.head).toBe(git(source, "rev-parse", "HEAD")); expect(git(target, "rev-list", "--count", "HEAD")).toBe("1");
   expect(made.bytes).toBeLessThan(50_000);
 });
+
+it("refuses Git submodules instead of silently dropping their files and dirty work", async () => {
+  const source = repo(); const dependency = repo();
+  git(source, "-c", "protocol.file.allow=always", "submodule", "add", "-q", dependency, "dependency");
+  git(source, "commit", "-qm", "submodule");
+  writeFileSync(join(source, "dependency", "tracked"), "uncommitted dependency work");
+  const target = join(temp(), "copy");
+  await expect(transferCheckout(machine(), machine(), { sourceFolder: source, destinationFolder: target, branch: "wsp/child" })).rejects.toThrow(/submodule/i);
+  expect(() => readFileSync(join(target, "tracked"))).toThrow();
+  expect(readFileSync(join(source, "dependency", "tracked"), "utf8")).toBe("uncommitted dependency work");
+});

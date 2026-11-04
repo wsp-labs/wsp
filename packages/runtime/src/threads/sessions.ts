@@ -295,7 +295,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       // A send goes into a thread the caller drives, read on the thread it lands in.
       const opening = live.get(workspaceId)?.record;
       // A sub-machine runs the one sub-thread its start opened, and nothing beside it.
-      const subThread = opens && opening?.lead !== undefined ? [...threadRecords].find(([, r]) => r.workspaceId === workspaceId)?.[0] : undefined;
+      const subThread = opens && (opening?.lead !== undefined || opening?.isolated !== undefined) ? [...threadRecords].find(([, r]) => r.workspaceId === workspaceId)?.[0] : undefined;
       if (subThread !== undefined) throw subMachineTakenRefusal(opening!.name, subThread);
       const opensThere = opening !== undefined && ctx.opensIn(opening, origin);
       // A workspace of its repository on another computer than the asking thread's, its tree's or not, is refused by
@@ -1407,17 +1407,17 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       const entry = await ctx.entryOfRow({ threadId, workspaceId }, origin);
       if (entry === undefined) throw notFoundRefusal(`no thread ${threadWord(threadId)}`);
       if (entry.record.sub !== undefined) return ctx.subDelete(entry, threadId, origin, o);
-      if (entry.record.isolated !== undefined) {
-        if (o.check === true) return { workspaceId, threads: 1 };
-        await ctx.workspaces.delete(workspaceId, origin);
-        return { workspaceId, threads: 1 };
-      }
-      if (!runsInFolder(entry.record.kind)) throw Object.assign(new Error(threadOnMachineLine(entry.record.name)), { kind: "usage" });
-      const tree = entry.record.worktree;
       const threads = new Set([
         ...[...sessions.values()].flatMap(s => (s.view.workspaceId === workspaceId && s.view.threadId !== undefined ? [s.view.threadId] : [])),
         ...[...threadRecords].flatMap(([id, r]) => (r.workspaceId === workspaceId ? [id] : [])),
       ]);
+      if (entry.record.isolated !== undefined && [...threads].every(id => id === threadId)) {
+        if (o.check === true) return { workspaceId, threads: 1 };
+        await ctx.workspaces.delete(workspaceId, origin);
+        return { workspaceId, threads: 1 };
+      }
+      if (entry.record.isolated === undefined && !runsInFolder(entry.record.kind)) throw Object.assign(new Error(threadOnMachineLine(entry.record.name)), { kind: "usage" });
+      const tree = entry.record.worktree;
       // A worktree goes with the last thread in it; while another thread works there it is that thread's too.
       const worktree = tree?.made === true && tree.gone !== true && [...threads].every(t => t === threadId) ? tree.path : undefined;
       // No turn may be working in a worktree that goes, and none can land a checkpoint after its refs were dropped.

@@ -1083,17 +1083,17 @@ export const useStore = create<State>((set, get) => {
               // failure is, has nobody here to tell. A workspace this window holds already is no create: a sub-thread's
               // record stands under its lead before its machine is made, and its page says the start's steps.
               if (failed !== null || s.workspaces.some(w => w.id === e.workspaceId)) return {};
-              return { creations: [...s.creations, { key: `${CREATION_PREFIX}${e.workspaceId}`, name: e.name, askedAt: Date.now() - e.elapsedMs, workspaceId: e.workspaceId, lines: [line], failed, ...(e.askedBy === undefined ? {} : { askedBy: e.askedBy }), ...(e.place === undefined ? {} : { where: e.place }) }] };
+              return { creations: [...s.creations, { key: `${CREATION_PREFIX}${e.workspaceId}`, name: e.name, askedAt: Date.now() - e.elapsedMs, workspaceId: e.workspaceId, lines: [line], failed, ...(e.askedBy === undefined ? {} : { askedBy: e.askedBy }), ...(e.start === undefined ? {} : { start: e.start, asked: e.start.prompt }), ...(e.place === undefined ? {} : { where: e.place }) }] };
             }
             heard.add(own.key);
             const last = own.lines.at(-1);
             // A wait is said once per ask: it is the step it waits in, told again, and never a step of its own.
             if (e.waiting === true && last !== undefined && last.stage === e.stage) {
-              return { creations: s.creations.map(c => (c === own ? { ...c, workspaceId: e.workspaceId, ...(e.askedBy === undefined ? {} : { askedBy: e.askedBy }), ...(e.place === undefined ? {} : { where: e.place }), lines: [...c.lines.slice(0, -1), { ...last, waiting: e.message }] } : c)) };
+              return { creations: s.creations.map(c => (c === own ? { ...c, workspaceId: e.workspaceId, ...(e.askedBy === undefined ? {} : { askedBy: e.askedBy }), ...(e.start === undefined ? {} : { start: e.start, asked: e.start.prompt }), ...(e.place === undefined ? {} : { where: e.place }), lines: [...c.lines.slice(0, -1), { ...last, waiting: e.message }] } : c)) };
             }
             // The last word the subscribe asks for repeats the frame a replay may have carried just before it.
             const repeated = last !== undefined && last.stage === line.stage && last.message === line.message && last.elapsedMs === line.elapsedMs;
-            return { creations: s.creations.map(c => (c === own ? { ...c, workspaceId: e.workspaceId, ...(e.askedBy === undefined ? {} : { askedBy: e.askedBy }), ...(e.place === undefined ? {} : { where: e.place }), lines: repeated ? c.lines : [...c.lines, line], failed: c.failed ?? failed } : c)) };
+            return { creations: s.creations.map(c => (c === own ? { ...c, workspaceId: e.workspaceId, ...(e.askedBy === undefined ? {} : { askedBy: e.askedBy }), ...(e.start === undefined ? {} : { start: e.start, asked: e.start.prompt }), ...(e.place === undefined ? {} : { where: e.place }), lines: repeated ? c.lines : [...c.lines, line], failed: c.failed ?? failed } : c)) };
           });
           return;
         }

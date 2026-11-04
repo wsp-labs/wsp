@@ -230,6 +230,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
         phase: "running",
         golden: head.snapshotId,
         createdAt: new Date(clock.now()).toISOString(),
+        ...(ask.start === undefined ? {} : { startup: { ...ask.start, harness } }),
         project: project.id,
         spec: {},
         ...(placeId !== undefined ? { place: placeId } : {}),
@@ -328,7 +329,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       if (seed.why !== undefined) spawn.notSent = seed.why;
       else delete spawn.notSent;
     });
-    const report = logged(record, ctx.stageReporter(record.id, record.name, clock.now(), { kind: "thread", threadId: lead.threadId, workspaceId: lead.workspaceId, rootThreadId: record.rootThreadId ?? lead.threadId }));
+    const report = logged(record, ctx.stageReporter(record.id, record.name, clock.now(), { kind: "thread", threadId: lead.threadId, workspaceId: lead.workspaceId, rootThreadId: record.rootThreadId ?? lead.threadId }, placeId, record.startup));
     ctx.forking.add(record.name);
     try {
       await machineFor(record, at, on, seed, report, posted);

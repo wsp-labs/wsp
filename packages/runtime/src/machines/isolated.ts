@@ -180,10 +180,12 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
       if (group !== undefined && size !== undefined && (size.cpu !== group.spec.cpu || size.memMb !== group.spec.memMb)) { free(); throw usageRefusal("This lead already has a runtime on that computer at another size.", "Use its existing size for siblings, or start a new lead."); }
       const chosen = size ?? (group === undefined ? actual.pricing.defaultSize : { cpu: group.spec.cpu ?? actual.pricing.defaultSize.cpu, memMb: group.spec.memMb ?? actual.pricing.defaultSize.memMb });
       const checkout = `/tmp/wsp-children/${groupId}/${id}`;
+      const harness = opts.sub!.harness ?? ctx.defaultAgentOf(ctx.state.preferencesHeld ?? await ctx.preferences.get(), source);
+      const start = opts.sub!.start === undefined ? undefined : { ...opts.sub!.start, harness };
       const meta: IsolatedCheckout & { place: string } = { place, on: ctx.placeName(place), spawn: { startedAt: clock.now(), machine: { since: clock.now(), states: [] }, log: [] }, group: groupId, rootThreadId: scope.rootThreadId, sourceWorkspaceId: source.record.id, sourceFolder: ctx.checkoutOf(source.record), checkout, folder: checkout, branch, base: "", git: false, state: "copying" };
       const latest = ctx.rowsOn(scope.threadId).at(-1);
       if (latest?.cwd !== undefined) meta.sourceFolder = latest.cwd;
-      const publish = ctx.stageReporter(id, name, clock.now(), scope, place);
+      const publish = ctx.stageReporter(id, name, clock.now(), scope, place, start);
       const report: StageReport = (stage, message, said) => {
         const spawn = meta.spawn!;
         spawn.log = [...(said?.waiting ? spawn.log.slice(0, -1) : spawn.log), message].slice(-SUB_SPAWN_LOG_LINES);
@@ -192,7 +194,7 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
       allocating.add(id);
       ctx.forking.add(name);
       try {
-        await ctx.createStaged({ ...opts, name, cpu: chosen.cpu, memMb: chosen.memMb, parent: source.record.id, idleWindowMs: null }, project, id, report, scope, free, undefined, meta);
+        await ctx.createStaged({ ...opts, ...(start === undefined ? {} : { sub: { ...opts.sub!, start } }), name, cpu: chosen.cpu, memMb: chosen.memMb, parent: source.record.id, idleWindowMs: null }, project, id, report, scope, free, undefined, meta);
         const entry = live.get(id)!;
         Object.assign(meta.spawn!.machine!, { id: entry.machine.id, ms: clock.now() - meta.spawn!.machine!.since });
         await copyInto(entry, report);
@@ -202,7 +204,6 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
         delete entry.creating;
         report("ready", CREATE_READY);
         ctx.bus.emit({ type: "workspace.created", workspace: ctx.view(entry.record) });
-        const harness = opts.sub!.harness ?? ctx.defaultAgentOf(ctx.state.preferencesHeld ?? await ctx.preferences.get(), source);
         const preamble = `This child runs in an isolated copy on ${ctx.placeName(place)}. Its current project, including uncommitted work and selected ignored files, was copied to ${meta.folder}. Its branch is ${branch}. Siblings share compute but have separate checkouts. Commit your result here; the lead can use merge_in to receive it over wsp's link. Do not push merely to transfer the result.`;
         const view = ctx.view(entry.record);
         return { ...view, sub: { harness, folder: meta.folder, preamble, out: { mode: "isolated", on: ctx.placeName(place), machine: name, size: chosen, rateUsdPerHour: 0, repo: project.remote || project.name, base: { branch: meta.sourceBranch ?? "", sha: meta.base }, branch, sent: { paths: meta.sent?.paths ?? [], bytes: meta.sent?.bytes ?? 0, missing: [] }, notSent: { uncommitted: 0 } } } };

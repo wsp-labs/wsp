@@ -64,7 +64,7 @@ const TASK = "Fix the flaky upload test";
 
 describe("wsp run --on boat from a lead thread on this computer", () => {
   it("answers 03's object at once, opens the sub-thread in /root/web under the lead with the preamble, and says its stages on stderr", async () => {
-    const { rt, boat, starts, threadId, launch } = await leadOnThisComputer({ served: true, picks: ["CLAUDE.local.md", "local.properties"], git: { uncommitted: 2 } });
+    const { rt, store, boat, starts, threadId, launch } = await leadOnThisComputer({ served: true, picks: ["CLAUDE.local.md", "local.properties"], git: { uncommitted: 2 } });
     const ran = await wsp(launch, "run", "--on", "boat", "--detach", "--notify", "me", TASK, "--json");
     expect(ran.io.lines.length, ran.io.errors.join("\n")).toBe(1);
     expect(ran.code).toBe(0);
@@ -83,6 +83,7 @@ describe("wsp run --on boat from a lead thread on this computer", () => {
       deleteAfterMinutes: 30,
     });
     expect(boat.creates).toHaveLength(1);
+    expect(await store.get("workspaces", out.workspaceId)).toMatchObject({ startup: { prompt: TASK } });
     expect(ran.io.errors).toContain("starting Fix the flaky upload test on Boat");
     expect(ran.io.errors).toContain("copying 2 files");
     expect(ran.io.errors).toContain("2 uncommitted changes in web did not travel; the sub-thread starts at feat/upload as pushed (4be1c0a).");

@@ -296,3 +296,10 @@ describe("the composer's picks on a thread the catalog's list does not know", ()
     expect(fresh.start["permissionMode"]).toBeUndefined();
   });
 });
+
+it("shows the child start's agent and model while its connected computer is being prepared", () => {
+  useStore.setState({ harnesses: [CLAUDE, CODEX], harnessesByWorkspace: {}, creations: [{ key: WORKSPACE, name: "child", askedAt: Date.now(), workspaceId: null, lines: [], failed: null, start: { prompt: "hello", harness: "codex", model: "gpt-6-astra", effort: "medium" } }] });
+  useComposerOptionsStore.setState({ byWorkspaceId: {}, pickedOn: {} });
+  const rendered = render(<Picks thread={{ ...handle(null, WORKSPACE), fresh: true }} />);
+  expect(JSON.parse(rendered.getByTestId("picks").textContent!)).toMatchObject({ harness: "codex", model: { value: "gpt-6-astra" } });
+});

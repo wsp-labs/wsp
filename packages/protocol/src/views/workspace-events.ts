@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { z } from "zod";
+import { SubStartIntent } from "./start-intent.js";
 import { WorkspaceGlyph, WorkspaceTheme } from "../workspace-look.js";
 import { portCloseDetail } from "../wire/helpers.js";
 import { EventAsker, WorkspacePhase, WorkspaceStatus, WorkspaceView } from "./workspace.js";
@@ -42,6 +43,7 @@ export const WorkspaceCreatingEvent = z.object({
   askedBy: EventAsker.optional(),
   /** The destination computer, known before its child workspace exists. */
   place: z.string().optional(),
+  start: SubStartIntent.optional(),
 });
 export type WorkspaceCreatingEvent = z.infer<typeof WorkspaceCreatingEvent>;
 /** found is set when the provider had already paused the machine and this host only followed it: the awake

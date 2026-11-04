@@ -23,6 +23,7 @@ import {
 } from "@wsp/engine";
 import type { EditorChoice, EditorId, RecipeFile, RecipeOptions } from "@wsp/protocol";
 import type {
+  SubStartIntent,
   DaemonReachView,
   ExecStream,
   ExecStreamFactory,
@@ -103,6 +104,7 @@ export interface CreatedWorkspace extends WorkspaceView {
 
 /** What a start with `sub` asks: the cloud by its word, the size, start ref and result branch the lead named, and its agent. */
 export interface SubAsk {
+  start?: SubStartIntent;
   on: string;
   size?: string;
   /** A branch, tag or commit the remote holds, which the sub-thread starts from in place of the lead's branch. */
@@ -359,6 +361,8 @@ export interface IsolatedCheckout {
 }
 
 export interface WorkspaceRecord extends Omit<WorkspaceView, "project"> {
+  /** The requested opening, retained before provisioning and shared by both child setup strategies. */
+  startup?: SubStartIntent;
   isolated?: IsolatedCheckout;
   /** cloud or local; a record stored before local existed has none and reads cloud. */
   kind: WorkspaceKind;

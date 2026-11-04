@@ -596,8 +596,9 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
       if (sub !== undefined && entry.record.phase === "released") throw subReleasedRefusal(threadOf(entry.record.id) ?? entry.record.name, cloudOf(entry));
     },
     leadOfSub: (workspaceId, origin) => {
-      const lead = workspaceId === undefined ? undefined : live.get(workspaceId)?.record.lead;
-      return lead !== undefined && scopeOf(origin)?.threadId === lead.threadId;
+      const record = workspaceId === undefined ? undefined : live.get(workspaceId)?.record;
+      const lead = record?.lead?.threadId ?? (record?.isolated === undefined ? undefined : record.parentThreadId);
+      return lead !== undefined && scopeOf(origin)?.threadId === lead;
     },
   };
 }

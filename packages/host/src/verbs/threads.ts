@@ -96,7 +96,7 @@ async function subStart(
   await checkedStart(client, message, o.harness, o.picks);
   // A file that is not there is refused before the create, so it leaves no record for the queue to hold.
   filesFrom(o.files ?? [], o.elsewhere);
-  const made = await subFor(client, { ...ask, harness: o.harness }, message, o.title, say);
+  const made = await subFor(client, { ...ask, harness: o.harness, start: { prompt: message, ...(o.harness === undefined ? {} : { harness: o.harness }), ...o.picks } }, message, o.title, say);
   const opening = openingOf(env, { id: made.workspace.id }, subOpening(made.sub.preamble, message), { harness: made.sub.harness, ...o.picks, ...(o.notify !== undefined ? { notify: o.notify } : {}), title: made.workspace.name, files: o.files ?? [], elsewhere: o.elsewhere, cwd: made.sub.folder });
   return { opening, sub: made.sub.out, opened: threadId => subOpenedLine(threadId, made.sub.out.on, made.sub.folder), stop: made.stop };
 }

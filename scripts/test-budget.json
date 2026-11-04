@@ -31,7 +31,8 @@
     {"package":"apps/desktop","tests":482,"why":"the default installer must choose Electron when a release contains both desktop shells; one regression exercises artifact selection"},
     {"package":"packages/host","tests":3629,"why":"registering a folder already on a connected computer must skip the local seed menu and reject conflicting flags"},
     {"package":"daemon","tests":1457,"why":"two regressions cover scoped returned branch bundles through the real merge op and its checkout, namespace, symlink and traversal boundary"},
-    {"package":"packages/runtime","tests":3453,"why":"21 connected-child regressions exercise real checkout transfer and branch return, concurrent shared compute, separate leads, failed starts and cleanup, and host restart reconciliation, including a failed restart becoming terminal in the shared startup view"}
+    {"package":"packages/runtime","tests":3453,"why":"21 connected-child regressions exercise real checkout transfer and branch return, concurrent shared compute, separate leads, failed starts and cleanup, and host restart reconciliation, including a failed restart becoming terminal in the shared startup view"},
+    {"package":"packages/runtime","tests":3457,"why":"four review regressions cover lead deletion, single-thread isolated checkouts, preserving legacy sibling conversations and refusing incomplete submodule transfer"}
   ],
   "timed": {}
 }

@@ -59,6 +59,10 @@ export async function transferCheckout(source: Machine, destination: Machine, o:
   if (meta.length !== 5 || !root.startsWith("/") || !(folder === root || folder.startsWith(`${root}/`))) throw new Error("The source computer returned invalid project metadata. Retry the transfer.");
   const prefix = folder.slice(root.length).replace(/^\//, "");
   const git = head !== "";
+  // Gitlink entries carry only a commit id; the main repository's pack cannot carry their files.
+  if (git && (await checked(source, `git -C ${q(root)} ls-files --stage`)).split("\n").some(line => line.startsWith("160000 "))) {
+    throw usageRefusal("This project contains Git submodules, which isolated checkout transfer does not yet support.", "Run in an existing project folder on that computer, or use a project without submodules.");
+  }
   const sent = [...(o.picked ?? [])];
   const left = await temporary(source, o.sourceScratch);
   let right: string | undefined;

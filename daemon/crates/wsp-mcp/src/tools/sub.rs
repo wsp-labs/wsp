@@ -128,7 +128,12 @@ pub(super) async fn sub_run(
             title.as_deref().map_or_else(|| name_of_task(&message), str::to_owned).as_str(),
             &workspace_names(&client).await?,
         );
-        let mut sub = params([("on", Value::from(ask.on.as_str()))]);
+        let mut intent = params([("prompt", Value::from(message.as_str()))]);
+        if let Some(agent) = &ask.agent {
+            intent.insert("harness".to_owned(), Value::from(agent.as_str()));
+        }
+        picks.wire(&mut intent)?;
+        let mut sub = params([("start", Value::Object(intent)), ("on", Value::from(ask.on.as_str()))]);
         for (key, value) in [("size", &ask.size), ("from", &ask.from), ("branch", &ask.branch), ("harness", &ask.agent)] {
             if let Some(value) = value {
                 sub.insert(key.to_owned(), Value::from(value.as_str()));

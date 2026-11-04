@@ -557,7 +557,7 @@ export interface CreateArea {
   readonly createStages: Map<string, WorkspaceCreatingEvent>;
   readonly failedView: (id: string, name: string, kind: WorkspaceKind, golden: string, began: number, project: ProjectView, said: string) => ShownCreate;
   readonly supersedeFailed: (name: string) => void;
-  readonly stageReporter: (id: string, name: string, began: number, spawned: ThreadScope | undefined, place?: string) => StageReport;
+  readonly stageReporter: (id: string, name: string, began: number, spawned: ThreadScope | undefined, place?: string, start?: import("@wsp/protocol").SubStartIntent) => StageReport;
   readonly nameRefusal: (name: string) => string | undefined;
   readonly foldersOf: (projectId: string) => LiveWorkspace[];
   readonly oneFolder: (key: string, make: () => Promise<LiveWorkspace>) => Promise<LiveWorkspace>;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { EventAsker, Attachment, AccountRow, BringBackResult, Capabilities, GoldenStageEvent, HarnessCatalog, InitJob, InitSetup, PendingComputer, PlaceDial, PlaceSetAlso, PlaceSettingsAsk, PlaceSettingWord, PlaceView, PortForward, Preferences, PreferencesPatch, ProjectView, ReleaseView, ReviewDraft, SessionSettleResult, SessionView, ThreadMarks, WorkspaceCreateStage, WorkspaceLanding, WorkspaceLook, WorkspaceSize, WorkspaceStatus, WorkspaceView } from "@wsp/protocol";
+import type { SubStartIntent, EventAsker, Attachment, AccountRow, BringBackResult, Capabilities, GoldenStageEvent, HarnessCatalog, InitJob, InitSetup, PendingComputer, PlaceDial, PlaceSetAlso, PlaceSettingsAsk, PlaceSettingWord, PlaceView, PortForward, Preferences, PreferencesPatch, ProjectView, ReleaseView, ReviewDraft, SessionSettleResult, SessionView, ThreadMarks, WorkspaceCreateStage, WorkspaceLanding, WorkspaceLook, WorkspaceSize, WorkspaceStatus, WorkspaceView } from "@wsp/protocol";
 import type { Launch } from "../../adapt/view-model.js";
 import type { HeldKeys } from "./heldKeys.js";
 import type { Api, ConnStatus, ProtocolEvent } from "../client.js";
@@ -28,6 +28,7 @@ export interface CreationLine {
 
 /** A workspace being created: the sidebar row and the center view read it until workspace.created replaces it. */
 export interface Creation {
+  readonly start?: SubStartIntent;
   /** The thread that requested this child, before its workspace and first turn exist. */
   readonly askedBy?: EventAsker;
   /** What select() takes for it; stable from the click through the runtime's first stage event. */
