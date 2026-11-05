@@ -178,6 +178,7 @@ const DAEMON_CONTENTS = [
   "1c5f1c782e9b153ce0d0a1295174450091fe71de9d3eaf8258f2a3344c54a67e",
   "ca5c18addf281365b4a68a189d212dda48f405176d2707db0bbe9f421f463120",
   "3ff0b2bde09e00c6a5df41f6012420f6126c9c71fb2cfe7c547c1659955807b1",
+  "3f1687f5e3d933e9ddce7b75ae8d28e7ce8149eb73814d7cd916f24f2ec139e8",
 ];
 
 /** The daemon's protocol version, carried in its hello, so a client can tell what a machine's daemon answers
@@ -714,7 +715,12 @@ const DAEMON_CONTENTS = [
  * Version 165: worked time leaves out questions, merges list their files.
  * Version 166: a file a commit and a merge both changed counts both.
  * Version 167: cut low-signal tests.
- * Version 168: v0.3.9. */
+ * Version 168: v0.3.9.
+ * Version 169: The tool server lists only the tools allowed to the asking thread and accepts existing=true on
+ * projects_add to register a folder already on a connected computer without cloning or seeding it. The tool server
+ * carries the requested prompt, agent and model picks with child setup before provisioning, matching the command line.
+ * Git merge_in accepts scoped returned bundles beneath the checkout, including inside a workspace; run describes
+ * isolated connected-computer children without a provider expiry. */
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary
