@@ -169,6 +169,7 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
     report?.("project-cloned", `Copying the current checkout to ${ctx.placeName(entry.record.place!)}.`);
     if (meta.spawn !== undefined) meta.spawn.files = { since: clock.now(), paths: [meta.sourceFolder], bytes: 0 };
     const made = await transferCheckout(source.machine, entry.machine, { sourceFolder: meta.sourceFolder, destinationFolder: meta.checkout, branch: meta.branch, ...(choices !== undefined ? { picked: choices.files } : {}), onProgress: (bytes, total) => { if (meta.spawn?.files !== undefined) meta.spawn.files.bytes = bytes; report?.("project-cloned", `Copying project: ${fmtBytes(bytes)} of ${fmtBytes(total)}.`, { waiting: true }); } });
+    delete meta.returned;
     Object.assign(meta, { folder: made.folder, base: made.head, git: made.git, sourceBranch: made.sourceBranch, sent: { paths: [meta.sourceFolder, ...made.sent], bytes: made.bytes }, state: "ready" });
     if (meta.spawn?.files !== undefined) Object.assign(meta.spawn.files, { paths: meta.sent!.paths, bytes: made.bytes, ms: clock.now() - meta.spawn.files.since });
     if (meta.git) meta.ignoredHash = await checkoutIgnoredHash(entry.machine, meta.checkout);

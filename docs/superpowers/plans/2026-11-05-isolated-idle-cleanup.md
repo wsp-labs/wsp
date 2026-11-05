@@ -39,3 +39,14 @@ Proposed runtime note: cleanup must check stashes and saved refs beyond the acce
 
 
 Final verification exposed a reconnect/cleanup race in the existing restart-deadline case. The checkout and group were deleted and the stored record read released, while a concurrent reconnect hydration left a separate live record running. A longer polling timeout did not fix it. Cleanup now shares its claimed record with a replaced live entry, and reconnect hydration refuses to overwrite a checkout already releasing or released. The isolated restart test passes three repeated runs after this correction. Two broad-run sidebar storage failures pass in isolation; Node 26's shared local-storage file is not used for the final gate rerun on installed Node 24.
+
+
+## Follow-up: reopened checkout and offline release recovery
+
+Greptile identified two P1 cases, both reproduced in `/tmp/wsp-p1pair-red.log`. Fresh checkout transfer now clears the old returned commit before persisting its new base. A real-Git regression returns child work, releases the checkout, advances the source, reopens the conversation on a shallow copy without the old commit, and verifies idle cleanup still releases it.
+
+The reconnect guard continues to preserve a releasing/released record, but now allows a concrete recovered machine to replace an absent handle while keeping the current releasing record. The interrupted-release test forces host hydration with the computer offline before reconnecting, verifies cleanup completes, and verifies its sibling survives.
+
+Proposed runtime note: fresh isolated checkout transfer resets returned-commit metadata; a releasing record may replace its absent machine handle after reconnect without replacing the record or reversing release.
+
+Validation: 57 focused runtime/transfer/support checks and 24 budget/support checks pass; strict runtime typecheck passes. Separate preview .10 includes both corrections. Both old cases failed before the fixes. Existing final-gate limitations remain documented in the PR.

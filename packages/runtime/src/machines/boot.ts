@@ -314,7 +314,13 @@ export function bootArea(ctx: RuntimeContext): BootArea {
     if (napMoved) record.nappedAt = pausedAt;
     // A reconnect read can finish after isolated cleanup claimed or released the checkout.
     const current = live.get(stored.id);
-    if (stored.isolated !== undefined && (current?.record.phase === "released" || current?.record.isolated?.state === "releasing")) return undefined;
+    if (stored.isolated !== undefined && current !== undefined) {
+      if (current.record.phase === "released") return undefined;
+      if (current.record.isolated?.state === "releasing") {
+        if (isAbsentMachine(current.machine) && !absent) ctx.attach(current.record, machine);
+        return undefined;
+      }
+    }
     ctx.attach(record, machine);
     if (napMoved && phase === stored.phase) await ctx.persist(record);
     if (phase !== stored.phase) {

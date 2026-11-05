@@ -82,11 +82,12 @@ async function fixture(clock?: Clock) {
     return undefined;
   };
   seen.answer = files;
-  const restart = async () => {
+  const restart = async (whileOffline?: () => Promise<void>) => {
     joined.client.close();
     await ctx.srv!.close();
     await ctx.runtime!.close();
     await serving({ ...options, store, hostKey });
+    await whileOffline?.();
     const again = await relink(hostKey, joined.placeId, joined.pair, report("hetzner"), client => { seen = forks(client, undefined, run, KEEPS_NO_IMAGE); seen.answer = files; });
     sockets.push(again.client.ws);
     return { rt: ctx.runtime!, seen };
@@ -260,7 +261,10 @@ it("finishes an interrupted checkout release after restart without deleting its 
   const record = await f.store.get("workspaces", b.id) as { isolated: { state: string } };
   record.isolated.state = "releasing"; await f.store.put("workspaces", b.id, record);
   rmSync(b.sub!.folder, { recursive: true });
-  const again = await f.restart();
+  const again = await f.restart(async () => {
+    // Force hydration while the connected computer is still offline.
+    expect((await ctx.runtime!.workspaces.get(b.id)).phase).toBe("running");
+  });
   await expect.poll(async () => (await again.rt.workspaces.get(b.id)).phase).toBe("released");
   expect(again.seen.killed).toEqual([]); expect(readFileSync(join(a.sub!.folder, "file"), "utf8")).toBe("original\n");
   expect((await f.store.list(ISOLATED_GROUPS))[0]).toMatchObject({ members: [a.id] });
@@ -544,5 +548,25 @@ it("idle cleanup preserves stashes and commits saved on other branches until the
   await f.rt.workspaces.mergeIn({ workspaceId: f.turn.view().workspaceId, child: branched.id, threadId: f.threadId, childThreadId: child.threadId }, f.lead);
   await expect.poll(async () => (await f.rt.workspaces.get(branched.id)).phase).toBe("released");
   expect(readFileSync(join(f.repo, "saved"), "utf8")).toBe("saved change");
+  f.starts[0]!.answer("done"); await f.turn.finished;
+});
+
+it("releases a reopened child after its returned commit is absent from the fresh copy", async () => {
+  const time = jumpClock(); const f = await fixture(time.clock);
+  const made = await f.rt.workspaces.create({ project: "", name: "returned then reopened", sub: { on: "hetzner" } }, f.lead);
+  const child = await f.rt.sessions.start(made.id, { harness: "claude", prompt: "hello", cwd: made.sub!.folder }, f.lead); await child.finished;
+  writeFileSync(join(made.sub!.folder, "result"), "returned"); git(made.sub!.folder, "add", ".");
+  git(made.sub!.folder, "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "result");
+  const returned = git(made.sub!.folder, "rev-parse", "HEAD");
+  await f.rt.workspaces.mergeIn({ workspaceId: f.turn.view().workspaceId, child: made.id, threadId: f.threadId, childThreadId: child.view().threadId }, f.lead);
+  await f.rt.sessions.settle([child.view().threadId!]);
+  await expect.poll(async () => (await f.rt.workspaces.get(made.id)).phase).toBe("released");
+  writeFileSync(join(f.repo, "later"), "source advanced"); git(f.repo, "add", "."); git(f.repo, "commit", "-qm", "advance source");
+  await (await f.rt.sessions.start(made.id, { harness: "claude", prompt: "continue", thread: child.view().threadId }, f.lead)).finished;
+  expect(spawnSync("git", ["-C", made.sub!.folder, "cat-file", "-e", returned]).status).not.toBe(0);
+  await expect.poll(async () => (await f.store.list(ISOLATED_GROUPS))[0]).toMatchObject({ idleSince: expect.any(Number) });
+  time.jump(31 * 60_000);
+  await expect.poll(async () => (await f.rt.workspaces.get(made.id)).phase).toBe("released");
+  expect(f.seen.killed).toHaveLength(2);
   f.starts[0]!.answer("done"); await f.turn.finished;
 });

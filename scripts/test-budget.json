@@ -33,7 +33,7 @@
     {"package":"daemon","tests":1457,"why":"two regressions cover scoped returned branch bundles through the real merge op and its checkout, namespace, symlink and traversal boundary"},
     {"package":"packages/runtime","tests":3453,"why":"21 connected-child regressions exercise real checkout transfer and branch return, concurrent shared compute, separate leads, failed starts and cleanup, and host restart reconciliation, including a failed restart becoming terminal in the shared startup view"},
     {"package":"packages/runtime","tests":3457,"why":"four review regressions cover lead deletion, single-thread isolated checkouts, preserving legacy sibling conversations and refusing incomplete submodule transfer"},
-    {"package":"packages/runtime","tests":3468,"why":"eleven idle-cleanup regressions cover deadline expiry and reset, active siblings, restart recovery, retained work and folders, failed deletion retries, resumed conversations, allocation across an idle deadline, nested return dependencies, and preserving stashes and saved branch commits"}
+    {"package":"packages/runtime","tests":3469,"why":"twelve idle-cleanup regressions cover deadline expiry and reset, active siblings, restart recovery, retained work and folders, failed deletion retries, resumed conversations, allocation across an idle deadline, nested return dependencies, preserving stashes and saved branch commits, and releasing a reopened checkout after its source advances"}
   ],
   "timed": {}
 }
