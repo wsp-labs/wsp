@@ -25,3 +25,14 @@ Verification report: the first two policy regressions failed against the old roo
 The established release-gate limits remain: the main-based wrapper rejects the pinned stable hotfix's ancestry/merge assumptions, and prior-head Rust replay and standalone file-size failures are documented in the earlier startup report. This policy change does not claim those gates pass or release the app.
 
 The final packaged smoke run passes eight cases with 18 gated skips on the shipped and development pages. The signed preview CLI reports wsp 0.3.9+boatfix.2506.8.
+
+
+## Greptile follow-up: saved work and failure visibility
+
+Three review findings were reproduced before the fixes (`/tmp/wsp-greptile3-red2.log`). A released child's failed restart persisted its startup failure but threw before emitting a changed row. Revive now pushes each retained thread head and drains the row queue before returning the error; the existing restart regression observes the pushed failed startup row. A pending child has no thread yet, so the inbox predicate skipped its creation failure. The existing inbox projection now includes failed creations, with a sidebar regression exercising selection under a folded opener.
+
+The cleanup guard previously examined the worktree and HEAD alone, which can be clean while stashes and other saved branches hold unreturned work. It now refuses nonempty stashes and commits reachable from saved refs outside the base/returned history. WSP-owned checkpoint refs are excluded because their deliberate expiry follows checkout release. A real-Git lifecycle regression verifies retained stash contents and another branch's commit, safe cleanup with checkpoint refs, and successful cleanup after the saved work is returned. The skill and generated page document the retention rule.
+
+Verification: 130 focused tests pass, including the expanded restart test and two new regression cases; 44 generated-doc, budget and contract-support checks pass. Strict runtime and web typechecks pass. Separate Electron preview .9 is built from these changes and its signature verifies; eight packaged-app smoke cases pass on shipped and development pages (18 unrelated gated cases skipped). The earlier main-base/replay/size limitations remain unchanged. No installed host was restarted, and nothing was merged or released.
+
+Proposed runtime note: cleanup must check stashes and saved refs beyond the accepted base/returned history, excluding owned checkpoint refs; a persisted restart failure reaches windows through pushHead and rowsSent before start rejects. Proposed web note: a failed pending creation has no thread row but still belongs in Needs you, including under a folded opener.

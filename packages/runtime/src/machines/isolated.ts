@@ -119,6 +119,10 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
     if (!copy.git) throw usageRefusal("This child holds a folder whose work has no Git branch to return.", "Export its folder before deleting its runtime.");
     const changed = await read(entry, `git -C ${q(copy.checkout)} status --porcelain=v1`);
     const head = await read(entry, `git -C ${q(copy.checkout)} rev-parse HEAD`);
+    const stashes = await read(entry, `git -C ${q(copy.checkout)} stash list --format=%H`);
+    if (stashes !== "") throw usageRefusal("This child holds stashed work.", "Restore and return its stashes, or export them, before releasing this checkout.");
+    const saved = await read(entry, `git -C ${q(copy.checkout)} rev-list --max-count=1 --exclude='refs/wsp/*' --all --not ${q(copy.base)}${copy.returned === undefined ? "" : ` ${q(copy.returned)}`}`);
+    if (saved !== "") throw usageRefusal("This child holds saved Git commits that have not returned to its lead.", "Merge its saved branches into its result branch and use merge_in from the lead before releasing this checkout.");
     const ignored = await checkoutIgnoredHash(entry.machine, copy.checkout);
     if (ignored !== copy.ignoredHash || changed !== "" || (head !== copy.base && head !== copy.returned)) throw usageRefusal("This child holds changes that have not returned to its lead.", "Commit its work and use merge_in from the lead before releasing this checkout.");
   };
@@ -267,6 +271,8 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
         await ctx.persist(failed.record);
       } catch (cleanup) { console.warn(`isolated restart cleanup: ${String(cleanup)}`); }
       delete failed.creating;
+      for (const [threadId, thread] of ctx.threadRecords) if (thread.workspaceId === failed.record.id) ctx.pushHead(threadId);
+      await ctx.rowsSent();
       throw e;
     } finally { allocating.delete(entry.record.id); }
   });

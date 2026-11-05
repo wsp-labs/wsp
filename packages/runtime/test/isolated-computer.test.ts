@@ -274,10 +274,13 @@ it("reports a failed restart in the shared startup line instead of spinning fore
   f.starts[0]!.answer("done"); await f.turn.finished;
   await f.rt.sessions.settle([f.threadId]);
   await expect.poll(async () => (await f.rt.workspaces.get(made.id)).phase).toBe("released");
+  const pushed: unknown[] = [];
+  f.rt.events.on("session.row", e => { if (e.type === "session.row" && e.workspaceId === made.id && e.row?.sub?.spawn?.failed !== undefined) pushed.push(e.row); });
   rmSync(f.repo, { recursive: true });
   await expect(f.rt.sessions.start(made.id, { harness: "claude", prompt: "continue", thread: child.view().threadId })).rejects.toThrow();
   const sub = (await f.rt.sessions.list(made.id)).at(-1)?.sub;
   expect(sub?.mode).toBe("isolated"); expect(sub?.spawn?.failed?.said).toMatch(/transfer|checkout|folder/i);
+  await expect.poll(() => pushed.length).toBeGreaterThan(0);
 });
 
 it("lets a lead delete its finished isolated child through the thread API", async () => {
@@ -508,5 +511,38 @@ it("retains a source checkout until its descendant and its own result have retur
   await f.rt.workspaces.mergeIn({ workspaceId: f.turn.view().workspaceId, child: a.id, threadId: f.threadId, childThreadId: parent.view().threadId }, f.lead);
   await expect.poll(async () => (await f.rt.workspaces.get(a.id)).phase).toBe("released");
   expect(readFileSync(join(f.repo, "result"), "utf8")).toBe("done"); expect(f.seen.killed).toHaveLength(1);
+  f.starts[0]!.answer("done"); await f.turn.finished;
+});
+
+it("idle cleanup preserves stashes and commits saved on other branches until their work is returned", async () => {
+  const time = jumpClock(); const f = await fixture(time.clock);
+  const make = async (name: string) => { const w = await f.rt.workspaces.create({ project: "", name, sub: { on: "hetzner" } }, f.lead); await (await f.rt.sessions.start(w.id, { harness: "claude", prompt: "hello" }, f.lead)).finished; return w; };
+  const stashed = await make("stashed work"); const branched = await make("saved branch"); const safe = await make("checkpoint only");
+  const checkpoint = git(safe.sub!.folder, "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit-tree", "HEAD^{tree}", "-p", "HEAD", "-m", "checkpoint");
+  git(safe.sub!.folder, "update-ref", "refs/wsp/checkpoints/test/thread/turn", checkpoint);
+  writeFileSync(join(stashed.sub!.folder, "file"), "stashed change");
+  git(stashed.sub!.folder, "-c", "user.name=Test", "-c", "user.email=test@example.com", "stash", "push", "-m", "keep");
+  const assigned = git(branched.sub!.folder, "branch", "--show-current");
+  git(branched.sub!.folder, "checkout", "-qb", "saved-work");
+  writeFileSync(join(branched.sub!.folder, "saved"), "saved change"); git(branched.sub!.folder, "add", ".");
+  git(branched.sub!.folder, "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "save");
+  git(branched.sub!.folder, "checkout", "-q", assigned);
+  await expect.poll(async () => (await f.store.list(ISOLATED_GROUPS))[0]).toMatchObject({ idleSince: expect.any(Number) });
+  const notices: string[] = [];
+  f.rt.events.on("session.notice", e => { if (e.type === "session.notice") notices.push(e.text); });
+  time.jump(31 * 60_000);
+  await expect.poll(async () => (await f.rt.workspaces.get(safe.id)).phase).toBe("released");
+  await expect.poll(() => notices.some(t => /stashed/.test(t)) && notices.some(t => /saved Git/.test(t))).toBe(true);
+  expect((await f.rt.workspaces.get(stashed.id)).phase).toBe("running");
+  expect((await f.rt.workspaces.get(branched.id)).phase).toBe("running");
+  expect(git(stashed.sub!.folder, "stash", "list")).toContain("keep");
+  expect(git(branched.sub!.folder, "show", "saved-work:saved")).toBe("saved change");
+  expect(f.seen.killed).toHaveLength(0);
+  git(stashed.sub!.folder, "stash", "clear");
+  git(branched.sub!.folder, "merge", "--ff-only", "saved-work");
+  const child = (await f.rt.sessions.list(branched.id)).at(-1)!;
+  await f.rt.workspaces.mergeIn({ workspaceId: f.turn.view().workspaceId, child: branched.id, threadId: f.threadId, childThreadId: child.threadId }, f.lead);
+  await expect.poll(async () => (await f.rt.workspaces.get(branched.id)).phase).toBe("released");
+  expect(readFileSync(join(f.repo, "saved"), "utf8")).toBe("saved change");
   f.starts[0]!.answer("done"); await f.turn.finished;
 });

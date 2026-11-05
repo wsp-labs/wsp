@@ -285,7 +285,7 @@ export function drawsUnder(node: TileNode, tree: Tree<TileNode>): boolean {
 function inboxTiles(node: TileNode, path: ReadonlyArray<string>, { tree, open }: { tree: Tree<TileNode>; open: string | null }): TileNode[] {
   const thread = node.thread.thread;
   const top = path.length === 0;
-  const needs = thread !== null && (top ? sectionOf(node, threadSection(thread)) : threadSection(thread)) === "needs-you" && !isThreadSettled(thread, tree.nowMs, thread.id === open, tree.settleMs);
+  const needs = node.thread.creation?.failed != null || thread !== null && (top ? sectionOf(node, threadSection(thread)) : threadSection(thread)) === "needs-you" && !isThreadSettled(thread, tree.nowMs, thread.id === open, tree.settleMs);
   const own = needs ? [{ thread: { ...node.thread, inboxOf: { parent: path.at(-1) ?? null, path } }, children: [] }] : [];
   const below = thread === null ? path : [...path, thread.title];
   return [...own, ...node.children.flatMap(child => inboxTiles(child, below, { tree, open }))];

@@ -209,6 +209,17 @@ describe("the sidebar's list of thread tiles", () => {
     expect(screen.queryByText("child setup")).toBeNull();
   });
 
+  it("shows a failed pending child in Needs you even when its opener is folded", async () => {
+    mount({ projects: [project("pr_1", "spoo")], workspaces: [workspace("ws_a", "project", "pr_1")] });
+    await act(async () => useStore.setState({ sessions: sessions([{ ws: "ws_a", id: "th_lead", prompt: "lead", status: "completed", endedAgo: 1000, foldedAgo: 1 }]), creations: [{ key: "creating:failed", name: "failed child", askedAt: Date.now(), askedBy: { threadId: "th_lead", rootThreadId: "th_lead" }, workspaceId: null, lines: [], failed: { title: "Could not start", detail: "copy failed" } }] } as never));
+    await waitFor(() => expect(screen.getByText("failed child")).toBeTruthy());
+    const ids = walkIds();
+    expect(ids).toContain("section:needs-you");
+    expect(ids.indexOf("creating:failed")).toBeGreaterThan(ids.indexOf("section:needs-you"));
+    fireEvent.click(rowOf("failed child"));
+    expect(useStore.getState().selectedId).toBe("creating:failed");
+  });
+
   it("keeps a pending child whose opener is absent as a standalone creation under a picked project", async () => {
     window.localStorage.setItem("wsp:sidebar-project", JSON.stringify("pr_1"));
     mount({ projects: [project("pr_1", "spoo")], workspaces: [] });
