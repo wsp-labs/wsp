@@ -611,7 +611,9 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       await ctx.deployDaemonOn(entry, deploy);
     },
 
-    async delete(id, origin) {
+    async delete(id, origin, options) {
+      const discard = options?.discard === true;
+      if (discard && origin !== undefined) throw Object.assign(new Error("Only an owner-confirmed computer removal may discard isolated work."), { kind: "usage" });
       const isolated = live.get(id)?.record.isolated;
       if (isolated !== undefined && scopeOf(origin) !== undefined) {
         ctx.spawnGuard("delete_sub", origin);
@@ -636,7 +638,7 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
       entry.deleting = (async () => {
         try {
           delete entry.deleteSaid;
-          if (entry.record.isolated !== undefined && entry.record.phase !== "released") await ctx.isolated.checkRelease(entry);
+          if (entry.record.isolated !== undefined && entry.record.phase !== "released") await ctx.isolated.checkRelease(entry, { discard });
           await cutOff(ctx, entry);
           ctx.endSessions(id, DELETED_REASON);
           const threads = new Set([...threadRecords].flatMap(([threadId, held]) => (held.workspaceId === id ? [threadId] : [])));
@@ -654,7 +656,7 @@ export function workspacesArea(ctx: RuntimeContext): WorkspacesArea {
               if (!isMissing(e)) throw e;
             });
           } else if (standing) {
-            await ctx.unfork(entry).catch((e: unknown) => {
+            await (discard && entry.record.isolated !== undefined ? ctx.isolated.release(entry, { discard: true }) : ctx.unfork(entry)).catch((e: unknown) => {
               if (!(e instanceof MachineAliveError)) throw e;
               const line = deleteRefusedLine(entry.record.name, e.machineId, e.state);
               entry.deleteSaid = { phase: entry.record.phase, line };

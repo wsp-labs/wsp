@@ -408,12 +408,21 @@ it("idle cleanup retains ignored data and unreturned commits, explains why, and 
   writeFileSync(join(a.sub!.folder, ".env"), "new config");
   writeFileSync(join(b.sub!.folder, "result"), "done"); git(b.sub!.folder, "add", "."); git(b.sub!.folder, "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "result");
   const notices: string[] = [];
-  f.rt.events.on("session.notice", e => { if (e.type === "session.notice") notices.push(e.text); });
+  const leadNotices: string[] = [];
+  f.rt.events.on("session.notice", e => { if (e.type === "session.notice") { notices.push(e.text); if (e.threadId === f.threadId) leadNotices.push(e.text); } });
   await expect.poll(async () => (await f.store.list(ISOLATED_GROUPS))[0]).toMatchObject({ idleSince: expect.any(Number) });
   time.jump(31 * 60_000);
   await expect.poll(async () => (await f.rt.workspaces.get(c.id)).phase).toBe("released");
   expect((await f.rt.workspaces.get(a.id)).phase).toBe("running"); expect((await f.rt.workspaces.get(b.id)).phase).toBe("running");
-  expect(f.seen.killed).toHaveLength(0); expect(notices.some(t => /not returned/.test(t))).toBe(true);
+  expect(f.seen.killed).toHaveLength(0); expect(notices.filter(t => /is kept:/.test(t))).toHaveLength(2);
+  expect(leadNotices).toEqual([]);
+  writeFileSync(join(a.sub!.folder, "file"), "stashed after first cleanup");
+  git(a.sub!.folder, "-c", "user.name=Test", "-c", "user.email=test@example.com", "stash", "push", "-m", "later reason");
+  time.jump(2 * 60_000);
+  await expect.poll(async () => await f.store.get("workspaces", a.id)).toMatchObject({ isolated: { held: expect.stringMatching(/stashed/) } });
+  expect(notices.filter(t => /is kept:/.test(t))).toHaveLength(2);
+  expect(leadNotices).toEqual([]);
+  git(a.sub!.folder, "stash", "drop");
   rmSync(join(a.sub!.folder, ".env"));
   const child = (await f.rt.sessions.list(b.id)).at(-1)!;
   await f.rt.workspaces.mergeIn({ workspaceId: f.turn.view().workspaceId, child: b.id, threadId: f.threadId, childThreadId: child.threadId }, f.lead);
@@ -533,10 +542,13 @@ it("idle cleanup preserves stashes and commits saved on other branches until the
   git(branched.sub!.folder, "checkout", "-q", assigned);
   await expect.poll(async () => (await f.store.list(ISOLATED_GROUPS))[0]).toMatchObject({ idleSince: expect.any(Number) });
   const notices: string[] = [];
-  f.rt.events.on("session.notice", e => { if (e.type === "session.notice") notices.push(e.text); });
+  const leadNotices: string[] = [];
+  f.rt.events.on("session.notice", e => { if (e.type === "session.notice") { notices.push(e.text); if (e.threadId === f.threadId) leadNotices.push(e.text); } });
   time.jump(31 * 60_000);
   await expect.poll(async () => (await f.rt.workspaces.get(safe.id)).phase).toBe("released");
-  await expect.poll(() => notices.some(t => /stashed/.test(t)) && notices.some(t => /saved Git/.test(t))).toBe(true);
+  await expect.poll(async () => await f.store.get("workspaces", stashed.id)).toMatchObject({ isolated: { held: expect.stringMatching(/stashed/) } });
+  expect(notices.filter(t => /is kept:/.test(t))).toHaveLength(2);
+  expect(leadNotices).toEqual([]);
   expect((await f.rt.workspaces.get(stashed.id)).phase).toBe("running");
   expect((await f.rt.workspaces.get(branched.id)).phase).toBe("running");
   expect(git(stashed.sub!.folder, "stash", "list")).toContain("keep");
@@ -568,5 +580,49 @@ it("releases a reopened child after its returned commit is absent from the fresh
   time.jump(31 * 60_000);
   await expect.poll(async () => (await f.rt.workspaces.get(made.id)).phase).toBe("released");
   expect(f.seen.killed).toHaveLength(2);
+  f.starts[0]!.answer("done"); await f.turn.finished;
+});
+
+
+it("discards dirty isolated siblings only after an owner forces whole-computer removal", async () => {
+  const f = await fixture();
+  const make = (name: string) => f.rt.workspaces.create({ project: "", name, sub: { on: "hetzner" } }, f.lead);
+  const a = await make("dirty one"); const b = await make("dirty two");
+  writeFileSync(join(a.sub!.folder, "result"), "unreturned one");
+  writeFileSync(join(b.sub!.folder, "result"), "unreturned two");
+  await expect(f.rt.workspaces.delete(a.id, f.lead, { discard: true })).rejects.toThrow(/owner-confirmed/);
+  await expect(f.rt.places!.remove(f.place)).rejects.toThrow();
+  expect(f.seen.killed).toHaveLength(0);
+  const answer = f.seen.answer;
+  f.seen.answer = frame => frame["op"] === "place.leave" ? { swept: [] } : answer?.(frame);
+  const removed = await f.rt.places!.remove(f.place, { force: true });
+  expect(removed.removed).toBe(true);
+  expect(f.seen.killed).toHaveLength(1);
+  expect(await f.store.list(ISOLATED_GROUPS)).toEqual([]);
+  expect(readFileSync(join(f.repo, "file"), "utf8")).toBe("original\n");
+  f.starts[0]!.answer("done"); await f.turn.finished;
+});
+
+
+it("refuses forced computer removal during a held child transfer without deleting shared compute", async () => {
+  const f = await fixture();
+  const a = await f.rt.workspaces.create({ project: "", name: "idle sibling", sub: { on: "hetzner" } }, f.lead);
+  let entered!: () => void; const copying = new Promise<void>(resolve => { entered = resolve; });
+  let resume!: () => void; const held = new Promise<void>(resolve => { resume = resolve; });
+  const answer = f.seen.answer!;
+  f.seen.answer = frame => {
+    if (frame["op"] !== "machine.putBytes") return answer(frame);
+    entered(); return held.then(async () => (await answer(frame)) ?? {});
+  };
+  const pending = f.rt.workspaces.create({ project: "", name: "copying sibling", sub: { on: "hetzner" } }, f.lead);
+  let b: Awaited<typeof pending>;
+  try {
+    await copying;
+    await expect(f.rt.places!.remove(f.place, { force: true })).rejects.toThrow(/working or starting/);
+    expect(f.seen.killed).toHaveLength(0);
+    expect((await f.rt.workspaces.get(a.id)).phase).toBe("running");
+  } finally { f.seen.answer = answer; resume(); b = await pending; }
+  expect(readFileSync(join(b!.sub!.folder, "file"), "utf8")).toBe("original\n");
+  await f.rt.workspaces.delete(a.id, f.lead); await f.rt.workspaces.delete(b!.id, f.lead);
   f.starts[0]!.answer("done"); await f.turn.finished;
 });

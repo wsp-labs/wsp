@@ -249,6 +249,17 @@ export const SERVERS_KIND: KindModule<ServerEntry> = {
           : { id: "tools", label: W.tools, value: worst.state === "needs-sign-in" ? W.signInToSee : W.notListed, muted: true };
     const recipe = entry.rows.find(r => r.inRecipe !== undefined)?.inRecipe;
     const launched = entry.rows.every(r => r.launch === true);
+    const perAgent = entry.rows.some(row => !mcpSwitch(row.agent));
+    const switchFact = (row: McpRow): Fact[] => {
+      if (!perAgent || onImage(ctx)) return [];
+      if (!mcpSwitch(row.agent)) return [{ id: `switch-${row.agent}`, label: agentName(row.agent), value: W.noSwitch(agentName(row.agent)), prose: true }];
+      const on = !row.enabled;
+      return [{ id: `switch-${row.agent}`, label: agentName(row.agent), value: row.enabled ? W.on : W.off, act: {
+        id: `toggle-${row.agent}`, label: `${on ? W.turnOn : W.turnOff} for ${agentName(row.agent)}`,
+        icon: on ? PowerIcon : PowerOffIcon,
+        ...(ctx.servers === undefined || heldReason(ctx) !== undefined || ctx.servers.busyOf(entry.key) ? {} : { run: () => ctx.servers!.toggle(entry.key, [row], on) }),
+      } }];
+    };
     const facts: Fact[] = [
       { id: "status", label: W.status, status, ...(status.state === "failed" && status.hover !== undefined ? { fact: status.hover } : {}) },
       { id: "reach", label: entry.stdio ? W.command : W.url, value: entry.reach, copy: true },
@@ -264,6 +275,7 @@ export const SERVERS_KIND: KindModule<ServerEntry> = {
           ...(act === undefined ? {} : { act: heldReason(ctx) === undefined ? act : { ...act, hover: heldReason(ctx)! } }),
         } satisfies Fact;
       }),
+      ...entry.rows.flatMap(switchFact),
       ...(launched ? [] : [toolsFact]),
       ...(recipe === undefined ? [] : [{ id: "recipe", label: W.recipe, value: recipe ? W.inRecipe : W.notInRecipe, muted: !recipe }]),
     ];

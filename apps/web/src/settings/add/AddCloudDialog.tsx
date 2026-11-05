@@ -10,7 +10,7 @@
 import { CheckIcon, CircleAlertIcon, CloudIcon, ExternalLinkIcon, KeyRoundIcon, TerminalIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { catalogEntry } from "@wsp/catalog";
-import { CLOUD_SETUP_WORDS, HERE_PLACE_ID, INIT_ROW_STATES, PROVIDER_KEY_WORDS, SIGN_IN_STAGE_ID, UNKNOWN_SIZE, fmtBytes, fmtDuration, hereName, initBuildRows, initJobBuilding, initRowFailed, initRowOver, initRowUnrun, initSizeTone, initStageCount, isLocalWorkspace, type AgentRow, type AgentsReport, type AgentsTarget, type InitJob, type InitRow, type InitScreen, type InitSetup, type RecipeOptions } from "@wsp/protocol";
+import { CLOUD_SETUP_WORDS, HERE_PLACE_ID, INIT_ROW_STATES, PROVIDER_KEY_WORDS, SIGN_IN_STAGE_ID, UNKNOWN_SIZE, fmtBytes, fmtDuration, hereName, initBuildRows, initJobOver, initJobBuilding, initRowFailed, initRowOver, initRowUnrun, initSizeTone, initStageCount, isLocalWorkspace, type AgentRow, type AgentsReport, type AgentsTarget, type InitJob, type InitRow, type InitScreen, type InitSetup, type RecipeOptions } from "@wsp/protocol";
 import { ActButton } from "../../components/agents/agentsParts.js";
 import { agentSignInStart, catalogSignInRow, signInAct, type FlowView, type RowAct, type RowsContext } from "../../components/agents/agentsRows.js";
 import { SignInFlowView } from "../../components/agents/SignInFlowView.js";
@@ -346,6 +346,8 @@ export function AddCloudDialog() {
   const keyNow = useRef("");
   const [refused, setRefused] = useState<Failure | null>(null);
   const [busy, setBusy] = useState(false);
+  const [askingCancel, setAskingCancel] = useState(false);
+  const cancelView = useRef(0);
   const [setup, setSetup] = useState<InitSetup | null>(null);
   const [setupRefused, setSetupRefused] = useState<string | null>(null);
   const [options, setOptions] = useState<RecipeOptions | null>(null);
@@ -383,6 +385,13 @@ export function AddCloudDialog() {
     else if (flow.step === "ready") oweReady(flow.provider, null);
   }, [flow.open, flow.step, flow.provider, jobId]);
 
+  useEffect(() => {
+    cancelView.current += 1;
+    setAskingCancel(false);
+    setRefused(null);
+    setBusy(false);
+  }, [flow.open, flow.provider, job?.id]);
+
   if (!flow.open) return null;
 
   const offered = cloudsOffered(setup);
@@ -390,6 +399,10 @@ export function AddCloudDialog() {
   const afterKey = steps[steps.indexOf("key") + 1] ?? "summary";
   const screen = (CLOUD_PICKS as readonly string[]).includes(flow.step) ? job?.screens.find(s => s.id === flow.step) : undefined;
   const close = (): void => {
+    cancelView.current += 1;
+    setAskingCancel(false);
+    setBusy(false);
+    setRefused(null);
     setKeyText("");
     keyNow.current = "";
     if (flow.step === "building" && job?.phase === "done") saySealed(job);
@@ -461,7 +474,7 @@ export function AddCloudDialog() {
   const sealed = job?.phase === "done";
   const tookMs = job === null ? 0 : initBuildRows(job.rows).rows.reduce((n, r) => n + (r.ms ?? 0), 0);
   const version = job?.golden?.version ?? image?.version;
-  const refusal = recipe.refusal ?? setupRefused;
+  const refusal = refused?.said ?? recipe.refusal ?? setupRefused;
 
   const head = ((): { title: string; line?: string } => {
     switch (flow.step) {
@@ -516,7 +529,30 @@ export function AddCloudDialog() {
         Back
       </Button>
     ) : null;
+  const cancelBuild = async (): Promise<void> => {
+    if (api?.initCancel === undefined || job?.stoppable !== true || busy) return;
+    const view = cancelView.current;
+    setBusy(true); setRefused(null);
+    try {
+      await api.initCancel();
+      if (cancelView.current !== view) return;
+      setAskingCancel(false);
+      if (flow.step !== "building") close();
+    } catch (e) { if (cancelView.current === view) setRefused(failureOf(e)); }
+    finally { if (cancelView.current === view) setBusy(false); }
+  };
+  const cancelWords = flow.step === "building" ? CLOUD_SETUP_WORDS.build : { cancel: "Cancel setup", cancelKeep: "Keep setting up", cancelSure: "Stop setup", cancelWhy: "Stop this setup. The saved provider key is kept." };
+  const cancelControls = askingCancel ? (
+    <>
+      <Button variant="outline" data-k="keep-building" held={busy} onClick={() => setAskingCancel(false)}>{cancelWords.cancelKeep}</Button>
+      <Button variant="destructive" data-k="stop-build" held={busy || !job?.stoppable} onClick={() => void cancelBuild()}>{cancelWords.cancelSure}</Button>
+    </>
+  ) : (
+    <Button variant="outline" data-k="cancel-build" held={busy || !job?.stoppable || api?.initCancel === undefined} title={job?.stoppable ? undefined : CLOUD_SETUP_WORDS.build.cannotStop} onClick={() => setAskingCancel(true)}>{cancelWords.cancel}</Button>
+  );
+  const canCancel = job !== null && !initJobOver(job.phase);
   const foot = ((): ReactNode => {
+    if (askingCancel && flow.step !== "building") return cancelControls;
     switch (flow.step) {
       case "provider":
         return (
@@ -542,6 +578,7 @@ export function AddCloudDialog() {
         return (
           <>
             {backButton}
+            {canCancel ? cancelControls : null}
             {primary("Build image", build, setup === null || recipe.busy || signIns.some(s => !s.ready))}
           </>
         );
@@ -553,7 +590,7 @@ export function AddCloudDialog() {
             </Button>
             {primary("Next", () => goCloud("ready"))}
           </>
-        ) : job?.phase === "failed" ? (
+        ) : job?.phase === "failed" || job?.phase === "cancelled" ? (
           <>
             <Button variant="outline" data-k="close" onClick={close}>
               Close
@@ -561,14 +598,16 @@ export function AddCloudDialog() {
             {primary(CLOUD_SETUP_WORDS.build.again, startOver, recipe.busy)}
           </>
         ) : (
-          <Button variant="outline" data-k="close" onClick={close}>
-            Run in background
-          </Button>
+          <>
+            {cancelControls}
+            <Button variant="outline" data-k="close" onClick={close}>Run in background</Button>
+          </>
         );
       default:
         return (
           <>
             {backButton}
+            {canCancel ? cancelControls : null}
             {primary("Continue", next, reading || recipe.busy)}
           </>
         );
@@ -596,6 +635,7 @@ export function AddCloudDialog() {
             </DialogHeader>
             <DialogPanel className={STEP_BODY}>
               {body()}
+              {askingCancel ? <p className={NOTE}>{cancelWords.cancelWhy}</p> : null}
               {refusal === null || flow.step === "key" ? null : <RefusalSlot k="cloud-refusal" said={refusal} />}
             </DialogPanel>
             <StepFoot left={null}>{foot}</StepFoot>

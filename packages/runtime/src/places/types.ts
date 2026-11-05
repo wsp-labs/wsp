@@ -401,7 +401,7 @@ export interface PlaceRecording {
   holdsOn(placeId: string, read?: boolean): Promise<PlaceHolds>;
   /** Deletes every fork on this place, then takes every project recorded on it out of this wsp, each by the road
    * delete and projects remove take; answers what went. Stops at the first that refuses, which says why. */
-  dropOn(placeId: string): Promise<Omit<PlaceHolds, "unsaved">>;
+  dropOn(placeId: string, force?: boolean): Promise<Omit<PlaceHolds, "unsaved">>;
   /** Drops every fork and project folder on this place as records, with their threads, and every project recorded on
    * it, sending nothing to that computer, for one whose link is down; answers what went. */
   forgetOn(placeId: string): Promise<Omit<PlaceHolds, "unsaved">>;

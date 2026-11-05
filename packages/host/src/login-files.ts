@@ -96,7 +96,7 @@ function loginWspStep(place: DaemonPlace): string[] {
   const bin = loginBinIn(place.dir);
   const onPath = `case ":$PATH:" in *:${shellQuote(bin)}:*) ;; *) PATH="$PATH":${shellQuote(bin)} ;; esac`;
   return [
-    `mkdir -p ${sh(place, bin)} && printf '%s\\n' '#!/bin/sh' ${shellQuote(`exec node ${shellQuote(wspBinIn(place.dir))} "$@"`)} > ${sh(place, `${bin}/wsp`)} && chmod 0755 ${sh(place, `${bin}/wsp`)}`,
+    `mkdir -p ${sh(place, bin)} && printf '%s\\n' '#!/bin/sh' ${shellQuote(`export PATH=${shellQuote(place.toolsPath)}`)} ${shellQuote(`exec node ${shellQuote(wspBinIn(place.dir))} "$@"`)} > ${sh(place, `${bin}/wsp`)} && chmod 0755 ${sh(place, `${bin}/wsp`)}`,
     `printf '%s\\n' ${shellQuote(onPath)} >> ${sh(place, place.profileFile)}`,
   ];
 }
