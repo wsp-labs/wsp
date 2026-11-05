@@ -138,6 +138,9 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
       const stored = new Set((await store.list(WORKSPACES) as WorkspaceRecord[]).filter(r => r.phase !== "released").map(r => r.id));
       const others = group.members.filter(id => id !== entry.record.id && !detached.has(id) && ((live.has(id) && live.get(id)!.record.phase !== "released") || stored.has(id) || allocating.has(id)));
       copy.state = "releasing";
+      // A reconnect may have replaced the live entry while clean read the checkout.
+      const current = live.get(entry.record.id);
+      if (current !== undefined && current !== entry) current.record = entry.record;
       await ctx.persist(entry.record);
       if (others.length === 0) {
         const actual = actualAt(group.place);
