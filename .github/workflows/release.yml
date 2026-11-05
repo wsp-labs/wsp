@@ -10,7 +10,7 @@ name: release
 # each mac disk image is built and checked, each linux AppImage is built and
 # started once, and nothing is drafted, attached or published.
 # The tag runs the workflow of the commit it points at, so the check that the
-# commit stands on main's own line holds against a tag pushed by hand on the
+# commit stands on its approved release line holds against a tag pushed by hand on the
 # wrong commit, not against a credential that strips the check from a commit
 # first; the ruleset on refs/tags/v* is the control against that credential.
 on:
@@ -118,9 +118,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
       # The check below reads main's own line off origin/main, and a checkout of a tag brings no branch; the ref is
       # named on both sides so the fetch writes it whatever refspec the checkout left configured.
-      - name: Main's own line, which the tag has to stand on
-        run: git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
-      - name: The tag stands on main's line and says what the manifests say
+      - name: Fetch the approved release lines
+        run: |
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if [ "$GITHUB_REF_NAME" = v0.3.10 ]; then
+            git fetch --no-tags origin +refs/heads/hotfix/v0.3.9-base:refs/remotes/origin/hotfix/v0.3.9-base
+          fi
+      - name: The tag stands on its release line and says what the manifests say
         id: version
         run: |
           version="$(node packages/wspx/scripts/tag-version.mjs "$GITHUB_REF_NAME")"

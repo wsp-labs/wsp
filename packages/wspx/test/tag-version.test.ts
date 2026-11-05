@@ -148,6 +148,27 @@ const here = ((): boolean => {
   }
 })();
 
+describe("the approved v0.3.10 hotfix line", () => {
+  it("accepts v0.3.10 from the maintained stable branch without main's later work", () => {
+    const root = fakeRepo({ "packages/wspx": { version: "0.3.10" } });
+    const hotfix = onSideBranch(root);
+    git(root, "update-ref", "refs/remotes/origin/hotfix/v0.3.9-base", hotfix);
+    git(root, "tag", "v0.3.10", hotfix);
+    expect(checkTag(root, "v0.3.10", "main")).toBe("0.3.10");
+    const unrelated = commit(root, "another branch's work");
+    git(root, "tag", "-f", "v0.3.10", unrelated);
+    expect(() => checkTag(root, "v0.3.10", "main~1")).toThrow(/not on main's own line/);
+  });
+
+  it("does not authorize other versions from the hotfix branch", () => {
+    const root = fakeRepo({ "packages/wspx": { version: "0.3.11" } });
+    const hotfix = onSideBranch(root);
+    git(root, "update-ref", "refs/remotes/origin/hotfix/v0.3.9-base", hotfix);
+    git(root, "tag", "v0.3.11", hotfix);
+    expect(() => checkTag(root, "v0.3.11", "main")).toThrow(/not on main's own line/);
+  });
+});
+
 describe("this repository's own tag", () => {
   it.skipIf(!here)("passes for the tag its manifests name, on the line origin/main carries", () => {
     expect(checkTag(repo, `v${version}`)).toBe(version);
