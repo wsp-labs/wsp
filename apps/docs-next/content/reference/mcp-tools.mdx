@@ -364,7 +364,7 @@ Commits the files changed in the folder the thread works in against its last com
 
 ## computers
 
-Every computer this host holds, which is the whole of where work can run: the computer the app runs on and each box joined to it. A row carries what that computer last reported (cores, memory, free disk, the engine it has for a project's own containers) and whether it is connected right now. Every row carries its cap, threads at once on a computer (the number the person set, else one thread per 2 GB of memory up to twice its cores), and running, every thread running there now on a computer; a row whose running meets its cap is full. A row whose copy of the image is building says which stage it is at, and one whose last build stopped says why. A project lives on a computer: on the computer the app runs on its threads run in the project's folder, and on a box they run on a machine forked from the image with the project inside. pending holds every add that has not reached Set up: how far it got, what was chosen for it, and why it stopped where one did. A thread's own token is answered Boat once it is added, where run with on starts a sub-thread, and from a folder the computers its projects are on, with no pending and no road.
+Inside a wsp thread, computers lists permitted destinations for that project. A missing computer may be connected but unavailable to this project. Use projects to find eligible registered folders. The computers available to this caller: the computer the app runs on and each box joined to it. A row carries what that computer last reported (cores, memory, free disk, the engine it has for a project's own containers) and whether it is connected right now. Every row carries its cap, threads at once on a computer (the number the person set, else one thread per 2 GB of memory up to twice its cores), and running, every thread running there now on a computer; a row whose running meets its cap is full. A row whose copy of the image is building says which stage it is at, and one whose last build stopped says why. A project lives on a computer: on the computer the app runs on its threads run in the project's folder, and on a box they run on a machine forked from the image with the project inside. pending holds every add that has not reached Set up: how far it got, what was chosen for it, and why it stopped where one did. A thread's own token is answered Boat once it is added, where run with on starts a sub-thread, and from a folder the computers its projects are on, with no pending and no road.
 
 **Takes**
 
@@ -942,8 +942,9 @@ Records a project: one source on one computer. A folder on the computer the app 
 
 | Field | Type | Required | What it is |
 |---|---|---|---|
-| `source` | string | yes | a folder on the computer the app runs on, or a repo's url |
-| `on` | string |  | the computer that clones the repo, by the name computers lists; a folder, and a repo cloned with into, take none |
+| `source` | string | yes | a folder on this computer, a repo URL, or with existing=true an absolute folder path on the named connected computer |
+| `existing` | boolean |  | register the folder already on the connected computer named with on, without cloning or seeding; takes no into or base |
+| `on` | string |  | the computer that clones the repo or holds an existing folder, by the name computers lists; a folder here and a repo cloned with into take none |
 | `into` | string |  | an absolute path on the computer the app runs on to clone the repo in: into a folder of the repo's name inside it, made where it does not exist yet, or into the path itself where its name is the repo's or the repo's with a number; the project is then the clone's folder |
 | `name` | string |  | what to call the project here; the folder's or the repo's own last word without it |
 | `base` | string |  | the branch a machine of the project starts on; the remote's own default branch at the clone without it |
@@ -1337,7 +1338,7 @@ Moves the machine a thread runs on to another size its provider sells, as a stop
 | `workspace.name` | string | yes |  |
 | `workspace.machineId` | string | yes |  |
 | `workspace.phase` | `running`, `pausing`, `napping`, `waking`, `gone`, `queued`, `released` | yes |  |
-| `workspace.kind` | `cloud`, `local`, `place` |  |  |
+| `workspace.kind` | `cloud`, `local`, `place`, `isolated` |  |  |
 | `workspace.golden` | string | yes |  |
 | `workspace.createdAt` | string | yes |  |
 | `workspace.project` | object | yes |  |
@@ -1400,7 +1401,7 @@ Starts a reviewer thread on a pull request, off its link or off the pull request
 | `workspace.name` | string | yes |  |
 | `workspace.machineId` | string | yes |  |
 | `workspace.phase` | `running`, `pausing`, `napping`, `waking`, `gone`, `queued`, `released` | yes |  |
-| `workspace.kind` | `cloud`, `local`, `place` |  |  |
+| `workspace.kind` | `cloud`, `local`, `place`, `isolated` |  |  |
 | `workspace.golden` | string | yes |  |
 | `workspace.createdAt` | string | yes |  |
 | `workspace.project` | object | yes |  |
@@ -1463,8 +1464,8 @@ Opens a thread under the named agent, on the model, effort and access mode named
 | `fork` | string |  | a thread to fork, by id or a prefix of it, as threads lists them: the new thread runs on that thread's agent, at its model and effort unless named, with its conversation through one finished turn and nothing after, in that thread's folder, or with branch in a new worktree on that branch whose files are that turn's checkpoint; never with project, beside, cwd or replaces, and an agent other than the thread's is refused |
 | `at` | integer |  | with fork, the finished turn the fork carries the conversation through, counted from 1 in the order thread_read lists them; absent, the thread's latest finished turn |
 | `branch` | string |  | a branch other than the one the project's folder has checked out: the thread runs in the worktree holding it, made under wsp's folder from the project folder's current commit for a new branch |
-| `on` | string |  | boat, to start the thread as a sub-thread of the thread asking on a machine of its own on Boat, forked from the person's image. It fetches your pushed branch, or the ref from names, and pushes a branch of its own; without from your branch must be pushed first. It carries the thread's own project, which project may name or leave out; another project is refused. Never with beside, fork, at, cwd, resume, copy or replaces |
-| `size` | string |  | with on, the machine's size as \<cpu>x\<memGb>: 2x4, 4x8, 8x16 or 16x32, those the person's plan sells; Boat's own size setting without it. A thread that builds or runs a test suite wants 4x8 |
+| `on` | string |  | the destination from computers: a connected computer starts an isolated child from the asking thread's current checkout, including uncommitted work and selected ignored files. No destination project or shared Git remote is needed. Siblings share a runtime but have separate checkouts and branches; merge_in returns a branch over wsp's link. Boat starts a child from your image and fetches your pushed branch instead; from applies to Boat alone. Carries the asking thread's project; another project is refused. Without on, naming an existing remote project still runs directly in its existing folder. Never with beside, fork, at, cwd, resume, copy or replaces |
+| `size` | string |  | with on, the machine's size as \<cpu>x\<memGb>: 2x4, 4x8, 8x16 or 16x32, those the person's plan sells on Boat, or the connected computer's offered size; siblings reuse the size of their shared runtime. Boat's own size setting without it. A thread that builds or runs a test suite wants 4x8 |
 | `from` | string |  | with on, a branch, tag or commit the remote already holds (origin/main, main, v1.2, a commit id) that the sub-thread starts from instead of your branch, which then need not be pushed; a ref the remote does not hold is refused naming it |
 | `cwd` | string |  | a folder inside the project or one of its worktrees, absolute, which the thread starts in |
 | `message` | string | yes |  |
@@ -1499,6 +1500,7 @@ Opens a thread under the named agent, on the model, effort and access mode named
 | `afterCut` | `true` |  |  |
 | `notice` | string |  | what the host said before the turn: the line a wake left when the provider had deleted the machine's disk and the thread went on on a new machine |
 | `sub` | object |  | on a sub-thread's start: the machine, the branches and the files sent |
+| `sub.mode` | `"isolated"` |  |  |
 | `sub.on` | string | yes |  |
 | `sub.machine` | string | yes |  |
 | `sub.size` | object | yes |  |
@@ -1508,7 +1510,7 @@ Opens a thread under the named agent, on the model, effort and access mode named
 | `sub.branch` | string | yes |  |
 | `sub.sent` | object | yes |  |
 | `sub.notSent` | object | yes |  |
-| `sub.deleteAfterMinutes` | integer | yes |  |
+| `sub.deleteAfterMinutes` | integer |  |  |
 
 ## send
 
@@ -2001,7 +2003,7 @@ Opens a thread off a GitHub issue or pull request link, returning as soon as the
 | `workspace.name` | string | yes |  |
 | `workspace.machineId` | string | yes |  |
 | `workspace.phase` | `running`, `pausing`, `napping`, `waking`, `gone`, `queued`, `released` | yes |  |
-| `workspace.kind` | `cloud`, `local`, `place` |  |  |
+| `workspace.kind` | `cloud`, `local`, `place`, `isolated` |  |  |
 | `workspace.golden` | string | yes |  |
 | `workspace.createdAt` | string | yes |  |
 | `workspace.project` | object | yes |  |

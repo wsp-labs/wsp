@@ -32,7 +32,11 @@
           "name": "review\tx",
           "project": true
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool skills_remove not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "both aimed",
@@ -43,7 +47,11 @@
       },
       "replies": {},
       "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"A thread already names its computer; give the thread or --on <computer>, not both. skills_remove takes a thread or on, not both\"}],\"structuredContent\":{\"error\":\"A thread already names its computer; give the thread or --on <computer>, not both. skills_remove takes a thread or on, not both\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
-      "asked": []
+      "asked": [],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool skills_remove not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "refused",
@@ -62,7 +70,11 @@
           },
           "name": "wsp"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool skills_remove not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     }
   ]
 }

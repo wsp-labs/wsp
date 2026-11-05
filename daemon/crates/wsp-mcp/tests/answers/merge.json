@@ -28,7 +28,11 @@
           "method": "squash",
           "threadId": "t-1 \u0085 lead"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool merge not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "armed to merge on its checks",
@@ -57,7 +61,11 @@
           "whenChecksPass": true,
           "threadId": "t-1 \u0085 lead"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool merge not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "a method off the list",
@@ -67,7 +75,11 @@
       },
       "replies": {},
       "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Input validation error: Invalid arguments for tool merge: Invalid enum value. Expected 'merge' | 'squash' | 'rebase', received 'fast-forward' at method\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
-      "asked": []
+      "asked": [],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool merge not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "refused by the repository",
@@ -96,7 +108,11 @@
           "method": "rebase",
           "threadId": "t-1 \u0085 lead"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool merge not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     }
   ]
 }

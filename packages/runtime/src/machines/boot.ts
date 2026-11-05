@@ -312,6 +312,15 @@ export function bootArea(ctx: RuntimeContext): BootArea {
     const pausedAt = phase === "napping" ? Date.parse(machine.seen?.pausedAt ?? "") : NaN;
     const napMoved = Number.isFinite(pausedAt) && pausedAt !== stored.nappedAt;
     if (napMoved) record.nappedAt = pausedAt;
+    // A reconnect read can finish after isolated cleanup claimed or released the checkout.
+    const current = live.get(stored.id);
+    if (stored.isolated !== undefined && current !== undefined) {
+      if (current.record.phase === "released") return undefined;
+      if (current.record.isolated?.state === "releasing") {
+        if (isAbsentMachine(current.machine) && !absent) ctx.attach(current.record, machine);
+        return undefined;
+      }
+    }
     ctx.attach(record, machine);
     if (napMoved && phase === stored.phase) await ctx.persist(record);
     if (phase !== stored.phase) {
@@ -344,6 +353,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
       // The places are read before the workspaces: a fork standing on one asks which backend it lives on, and that
       // answer comes off what the place last said about itself rather than off a socket that may not be open.
       await placeDoor?.load();
+      await ctx.isolated.initialize();
       // The projects are read before the workspaces: every workspace record names one, and its view joins that
       // project's name, path and computer off this map.
       for (const raw of await store.list(PROJECTS)) {
@@ -614,6 +624,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
       // Not waited on: a fetch of a big copy's branches takes seconds, and the records it drops leave as they go.
       ctx.state.copiesMoving = ctx.moveOldCopies().catch((e: unknown) => console.warn(`the move off old copies stopped: ${e instanceof Error ? e.message : String(e)}`));
       ctx.armSweep();
+      void ctx.isolated.sweep().catch(e => console.warn(`isolated cleanup after restart: ${String(e)}`));
       // A run that was running when the host stopped is failed and its done fires once, at start (02, "Host restart").
       void ctx.slates.ready().catch((e: unknown) => console.warn(`the slates were not loaded: ${e instanceof Error ? e.message : String(e)}`));
     })();
@@ -788,7 +799,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
       const project = id === undefined ? undefined : projectsHeld.get(id);
       const sub = record === undefined ? undefined : subRowOf(record);
       // A sub-thread names the lead's project and runs on its cloud, which is the computer its row reads.
-      const at = sub !== undefined && record !== undefined ? ctx.placeIdOf(record) : project?.computer;
+      const at = (sub !== undefined || record?.isolated !== undefined) && record !== undefined ? ctx.placeIdOf(record) : project?.computer;
       const computer = computers.find(r => r.id === at);
       const placed = { ...view, ...(sub !== undefined ? { sub } : {}), ...diskFacts(record) };
       if (project === undefined) return placed;
@@ -930,7 +941,7 @@ export function bootArea(ctx: RuntimeContext): BootArea {
         if (workspaceId === undefined || (await entryOfRow({ ...(latest?.threadId !== undefined ? { threadId: latest.threadId } : { threadId }), workspaceId }, origin)) === undefined) {
           throw notFoundRefusal(`no thread ${threadWord(threadId)}`);
         }
-        return { threadId, workspaceId, base: record ?? { workspaceId, harness: latest!.harness } };
+        return { threadId, workspaceId, base: record ?? { workspaceId, harness: latest!.harness, ...(latest?.parentThreadId !== undefined ? { parentThreadId: latest.parentThreadId } : {}), ...(latest?.rootThreadId !== undefined ? { rootThreadId: latest.rootThreadId } : {}) } };
       }),
     );
     const touched = new Map<string, string[]>();

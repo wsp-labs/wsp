@@ -40,7 +40,7 @@
         }
       ],
       "guest": {
-        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"WSP_RECORD_KEY is not set in this environment, so there is no value to write. servers_add takes a thread or on, not both\"}],\"structuredContent\":{\"error\":\"WSP_RECORD_KEY is not set in this environment, so there is no value to write. servers_add takes a thread or on, not both\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool servers_add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
         "asked": []
       }
     },
@@ -90,7 +90,7 @@
         }
       ],
       "guest": {
-        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"WSP_RECORD_KEY is not set in this environment, so there is no value to write. servers_add takes a thread or on, not both\"}],\"structuredContent\":{\"error\":\"WSP_RECORD_KEY is not set in this environment, so there is no value to write. servers_add takes a thread or on, not both\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool servers_add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
         "asked": []
       }
     },
@@ -106,7 +106,11 @@
       },
       "replies": {},
       "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"WSP_RECORD_UNSET is not set in this environment, so there is no value to write. servers_add takes a thread or on, not both\"}],\"structuredContent\":{\"error\":\"WSP_RECORD_UNSET is not set in this environment, so there is no value to write. servers_add takes a thread or on, not both\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
-      "asked": []
+      "asked": [],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool servers_add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "not a header",
@@ -120,7 +124,11 @@
       },
       "replies": {},
       "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Authorization is not <header>=<variable>. servers_add takes a thread or on, not both\"}],\"structuredContent\":{\"error\":\"Authorization is not <header>=<variable>. servers_add takes a thread or on, not both\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
-      "asked": []
+      "asked": [],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool servers_add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "header with no variable",
@@ -134,7 +142,11 @@
       },
       "replies": {},
       "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"Authorization= is not <header>=<variable>. servers_add takes a thread or on, not both\"}],\"structuredContent\":{\"error\":\"Authorization= is not <header>=<variable>. servers_add takes a thread or on, not both\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
-      "asked": []
+      "asked": [],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool servers_add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "unclosed quote",
@@ -145,7 +157,11 @@
       },
       "replies": {},
       "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"The command has a quote it never closes, so nothing was written. servers_add takes a thread or on, not both\"}],\"structuredContent\":{\"error\":\"The command has a quote it never closes, so nothing was written. servers_add takes a thread or on, not both\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
-      "asked": []
+      "asked": [],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool servers_add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "project unnamed",
@@ -158,7 +174,11 @@
       },
       "replies": {},
       "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"--project with --on names the project: --project <name>, as wsp projects shows it. servers_add takes a thread or on, not both\"}],\"structuredContent\":{\"error\":\"--project with --on names the project: --project <name>, as wsp projects shows it. servers_add takes a thread or on, not both\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
-      "asked": []
+      "asked": [],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool servers_add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "refused",
@@ -182,7 +202,11 @@
           "command": "",
           "args": []
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool servers_add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     }
   ]
 }

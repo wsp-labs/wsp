@@ -137,6 +137,8 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
   const spawnSub = async (opts: CreateWorkspaceOptions, origin: Caller | undefined): Promise<CreatedWorkspace> => {
     const began = clock.now();
     const ask = opts.sub!;
+    const computer = (await ctx.computerRows()).find(r => r.kind !== "provider" && namesPlace(r, ask.on));
+    if (computer !== undefined) return ctx.isolated.spawn(opts, origin, computer.id);
     const name = ctx.nameGiven(opts.name);
     // S1: a sub-thread is a child, with a lead to notify and to merge into.
     const scope = scopeOf(origin);
@@ -228,6 +230,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
         phase: "running",
         golden: head.snapshotId,
         createdAt: new Date(clock.now()).toISOString(),
+        ...(ask.start === undefined ? {} : { startup: { ...ask.start, harness } }),
         project: project.id,
         spec: {},
         ...(placeId !== undefined ? { place: placeId } : {}),
@@ -326,7 +329,7 @@ export function subSpawnArea(ctx: RuntimeContext): SubSpawnArea {
       if (seed.why !== undefined) spawn.notSent = seed.why;
       else delete spawn.notSent;
     });
-    const report = logged(record, ctx.stageReporter(record.id, record.name, clock.now(), { kind: "thread", threadId: lead.threadId, workspaceId: lead.workspaceId, rootThreadId: record.rootThreadId ?? lead.threadId }));
+    const report = logged(record, ctx.stageReporter(record.id, record.name, clock.now(), { kind: "thread", threadId: lead.threadId, workspaceId: lead.workspaceId, rootThreadId: record.rootThreadId ?? lead.threadId }, placeId, record.startup));
     ctx.forking.add(record.name);
     try {
       await machineFor(record, at, on, seed, report, posted);

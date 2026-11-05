@@ -8,6 +8,7 @@
 // a stage is never named twice in two spellings.
 import { creationAwaits, GOLDEN_STAGE_WORDS, type ProjectView, type GoldenStageEvent, type WorkspaceCreateStage } from "@wsp/protocol";
 import type { Creation, CreationLine } from "../protocol/store.js";
+import type { SpawnLog } from "../components/chat/spawnLog.js";
 import type { StepLine } from "../settings/add/setup.js";
 
 export const CREATE_STEP_WORDS: Record<WorkspaceCreateStage, string> = {
@@ -77,3 +78,9 @@ export function creationSteps(creation: Pick<Creation, "lines" | "failed" | "ask
     return ended ? { ...row, state: "done", ms: Math.max(0, landedAt - since) } : { ...row, state: "working", since };
   });
 }
+
+/** Pending children use the same compact startup view their live transcript carries. */
+export const creationStartupLog = (creation: Creation, on: string): SpawnLog => ({
+  on, since: creation.askedAt, failed: creation.failed !== null,
+  steps: creationSteps(creation), log: creation.lines.map(line => line.message),
+});

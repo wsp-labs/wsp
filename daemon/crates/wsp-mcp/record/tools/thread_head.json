@@ -181,6 +181,10 @@
             "sub": {
               "type": "object",
               "properties": {
+                "mode": {
+                  "type": "string",
+                  "const": "isolated"
+                },
                 "state": {
                   "type": "string",
                   "enum": [
@@ -2447,6 +2451,10 @@
             "sub": {
               "type": "object",
               "properties": {
+                "mode": {
+                  "type": "string",
+                  "const": "isolated"
+                },
                 "state": {
                   "type": "string",
                   "enum": [

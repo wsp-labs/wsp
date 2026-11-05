@@ -28,7 +28,11 @@
           "askId": "ask-1",
           "optionId": "opt-allow"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool thread_allow not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "a server's tool",
@@ -57,7 +61,11 @@
           "askId": "ask-1",
           "optionId": "opt-allow"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool thread_allow not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "the oldest open prompt",
@@ -86,7 +94,11 @@
           "askId": "ask-0",
           "optionId": "opt-allow"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool thread_allow not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "no prompt open",
@@ -109,7 +121,11 @@
           "threadId": "thread-7f3a9c21e4b5",
           "whole": true
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool thread_allow not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "a question carries no allow",
@@ -132,7 +148,11 @@
           "threadId": "thread-7f3a9c21e4b5",
           "whole": true
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool thread_allow not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "the prompt closed first",
@@ -161,7 +181,11 @@
           "askId": "ask-1",
           "optionId": "opt-allow"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool thread_allow not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "no thread",
@@ -176,7 +200,11 @@
         {
           "op": "sessions.list"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool thread_allow not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     }
   ]
 }

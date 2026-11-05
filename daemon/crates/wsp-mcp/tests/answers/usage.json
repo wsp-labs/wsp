@@ -20,7 +20,11 @@
           "split": "agent",
           "outside": true
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool usage not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "a week by project with nothing used",
@@ -44,7 +48,11 @@
           "split": "project",
           "outside": true
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool usage not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "a day by source",
@@ -67,7 +75,11 @@
           "split": "source",
           "outside": true
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool usage not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "refused",
@@ -88,7 +100,11 @@
           "split": "agent",
           "outside": true
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool usage not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     }
   ]
 }

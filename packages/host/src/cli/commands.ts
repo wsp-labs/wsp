@@ -258,7 +258,7 @@ const COMMANDS: Readonly<Record<string, Command>> = {
   add: {
     page: "front",
     usage:
-      `wsp add [<user@host>|<ssh alias>|<folder>|<url>|<owner/repo>|${CLOUD_ON ? "<provider>|" : ""}<computer> --update|<computer> --sign-in <agent>|<computer> --resume] [--recipe <name>] [--later] [--on <computer>] [--into <folder>] [--name <name>] [--base <branch>] [--yes] [--keep <path>] [--cut <path>] [--no-memory] [--no-commits] [--remember] [--ssh-port <port>] [--ssh-key <path>] [--host-key <key>]`,
+      `wsp add [<user@host>|<ssh alias>|<folder>|<url>|<owner/repo>|${CLOUD_ON ? "<provider>|" : ""}<computer> --update|<computer> --sign-in <agent>|<computer> --resume] [--recipe <name>] [--later] [--on <computer>] [--into <folder>] [--existing] [--name <name>] [--base <branch>] [--yes] [--keep <path>] [--cut <path>] [--no-memory] [--no-commits] [--remember] [--ssh-port <port>] [--ssh-key <path>] [--host-key <key>]`,
     about:
       "a computer of yours over ssh by user@host or by an alias from your ssh config, or a project: a folder on this computer, a git repo or not, whose threads run in it, or a repo cloned into a folder here with --into <folder> or by a computer with --on <computer>; " + (CLOUD_ON ? "<provider> takes a provider's key, " : "") + "nothing prints the join line another computer types, a computer with --update puts this wsp's daemon on one already in, and a computer with --sign-in signs that agent in there once, outside every machine on it",
     json: true,
@@ -274,6 +274,7 @@ const COMMANDS: Readonly<Record<string, Command>> = {
         ...(values["no-commits"] === true ? { noCommits: true } : {}),
         ...(values.remember === true ? { remember: true } : {}),
       }, values["host-key"], values.into, {
+        ...(values.existing === true ? { existing: true } : {}),
         ...(values.recipe !== undefined ? { recipe: values.recipe } : {}),
         ...(values.later === true ? { later: true } : {}),
         ...(values.resume === true ? { resume: true } : {}),
@@ -566,6 +567,7 @@ export const SHARED_FLAGS: readonly SharedFlag[] = [
   { name: "later", on: ["add"], says: "go on past a sign-in that waits on you and leave it waiting, rather than waiting here for it; wsp add <computer> --resume follows it again, and asks for a fresh page and code only where the last one ran out" },
   { name: "resume", on: ["add"], says: "the computer named is already added, or joined and waits on what goes on it: set it up, from --recipe where given, else from what it holds, running only what is missing" },
   { name: "update", on: ["add"], says: "the place named is already in this wsp: put the daemon this wsp deploys on it, over the link it is holding or over the ssh road it was added on, restart its agent and keep the threads and machines standing on it" },
+  { name: "existing", on: ["add"], says: "register a folder already on the connected computer named with --on, without cloning or seeding it; takes no --into, --base or seed flags" },
   { name: "sign-in", on: ["add"], says: "the agent to sign in on the place named, once: the sign-in runs on that computer and every thread there shares the one login. Offered by the join itself; this is the same road for a computer already in" },
   { name: "yes", on: ["init"], says: "take every default and ask nothing, which a run off a terminal needs; a login with a browser or device sign-in, or one held in the Keychain, is left to the first time you need it on the machine unless a saved recipe answered copy, so macOS has nothing to ask either and the build waits on nobody" },
   { name: "yes", on: ["remove", PLACE_LEAVE_VERB], says: FLAG_WORDS["yes"]! },

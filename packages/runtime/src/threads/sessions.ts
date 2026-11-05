@@ -20,7 +20,7 @@ import {
   type Caller, type SessionSettleResult, SETTLE_MS, SETTLE_WORKING, SETTLE_ALREADY, subagentSettleLine,
   SUBAGENT_SETTLE_FIX, notUnderLine, NOT_UNDER_FIX, type ForkedSession, forksNotLine, FORKS_NOT_FIX, forkRefusedLine, FORK_REFUSED_FIX, REWIND_COPIED_LINE, copiedFromOf,
   replacesWorkingLine, replacesWorkingFix, replacedAlreadyLine, replacedAlreadyFix, RESTART_OPENS_LINE, RESTART_OPENS_FIX, subMachineTakenRefusal,
-  subOpening, SUB_TURN_GONE_LINE, subTurnGone, keptOpening,
+  subOpening, SUB_TURN_GONE_LINE, subTurnGone, keptOpening, SUB_START_CLEANUP_LINE, SUB_START_CLEANUP_FIX,
 } from "@wsp/protocol";
 import { harnessCatalog } from "../harness-catalog.js";
 import { copiedEvents, copyImages, forkOpened, forkStart, forkTurnOf, moveSession, payCutOwed, readyFork } from "./forks.js";
@@ -295,7 +295,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       // A send goes into a thread the caller drives, read on the thread it lands in.
       const opening = live.get(workspaceId)?.record;
       // A sub-machine runs the one sub-thread its start opened, and nothing beside it.
-      const subThread = opens && opening?.lead !== undefined ? [...threadRecords].find(([, r]) => r.workspaceId === workspaceId)?.[0] : undefined;
+      const subThread = opens && (opening?.lead !== undefined || opening?.isolated !== undefined) ? [...threadRecords].find(([, r]) => r.workspaceId === workspaceId)?.[0] : undefined;
       if (subThread !== undefined) throw subMachineTakenRefusal(opening!.name, subThread);
       const opensThere = opening !== undefined && ctx.opensIn(opening, origin);
       // A workspace of its repository on another computer than the asking thread's, its tree's or not, is refused by
@@ -307,9 +307,11 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
         if (away !== undefined) throw away;
       }
       const reached = opens ? await ctx.entryOf(workspaceId, opensThere ? undefined : origin) : await ctx.entryOfRow({ threadId, workspaceId }, origin, "send");
-      if (reached === undefined) throw new Error(`no thread ${opened.thread} in this folder`);
+      if (reached === undefined) throw new Error(`no thread ${threadId} in this folder`);
       // A released sub-thread's send moves it onto a new machine once it holds the thread, and runs there.
       let entry = reached;
+      if (entry.record.isolated !== undefined && entry.record.phase === "released") entry = await ctx.isolated.revive(entry);
+      if (entry.record.isolated !== undefined && entry.record.isolated.state !== "ready") throw usageRefusal("The isolated checkout did not finish its transfer.", "Delete this failed child and start it again from its lead.");
       // A restart is read before the machine is asked: a send into a thread that has run replaces nothing.
       const replaces = opened.replaces;
       if (replaces !== undefined) {
@@ -348,7 +350,8 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       if (ctx.agentOff(entry, o.harness)) throw Object.assign(new Error(agentOffLine(ctx.agentLabel(o.harness), ctx.computerOf(entry))), { kind: "usage" });
       await ctx.confineSetup(entry, o.harness);
       const refuse = (): void => {
-        if (!live.has(workspaceId)) throw new Error(deletedBeforeStartLine(entry.record.name));
+        if (live.get(workspaceId) !== entry) throw new Error(deletedBeforeStartLine(entry.record.name));
+        if (entry.startCleanup) throw usageRefusal(SUB_START_CLEANUP_LINE, SUB_START_CLEANUP_FIX);
         ctx.refuseSubSend(live.get(workspaceId)!);
         if (live.get(workspaceId)!.record.phase === "released") return;
         const refusal = sendRefusal(workspaceState({ phase: entry.record.phase }), entry.record.gone, entry.record.name);
@@ -509,6 +512,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       let held = false;
       const hold = (): void => {
         if (held || ctx.threadRuns(threadId)) return;
+        refuse();
         // The thread is this send's to run, and the session it resumes is the one the thread's latest turn ran as:
         // a send that arrived while that turn was still launching read none, since the harness names its session
         // only after it is up.
@@ -1294,7 +1298,7 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       };
 
       // A sub-thread's checkpoints went with its machine once that machine was deleted.
-      const gone = (startedAt: number | undefined): boolean => subTurnGone(entry.record.sub, startedAt);
+      const gone = (startedAt: number | undefined): boolean => subTurnGone(entry.record.isolated ?? entry.record.sub, startedAt);
       if (opts.undo === true) {
         const rewound = held?.rewound;
         if (rewound === undefined) throw conflict(REWIND_NO_UNDO_LINE);
@@ -1403,12 +1407,17 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
       const entry = await ctx.entryOfRow({ threadId, workspaceId }, origin);
       if (entry === undefined) throw notFoundRefusal(`no thread ${threadWord(threadId)}`);
       if (entry.record.sub !== undefined) return ctx.subDelete(entry, threadId, origin, o);
-      if (!runsInFolder(entry.record.kind)) throw Object.assign(new Error(threadOnMachineLine(entry.record.name)), { kind: "usage" });
-      const tree = entry.record.worktree;
       const threads = new Set([
         ...[...sessions.values()].flatMap(s => (s.view.workspaceId === workspaceId && s.view.threadId !== undefined ? [s.view.threadId] : [])),
         ...[...threadRecords].flatMap(([id, r]) => (r.workspaceId === workspaceId ? [id] : [])),
       ]);
+      if (entry.record.isolated !== undefined && [...threads].every(id => id === threadId)) {
+        if (o.check === true) return { workspaceId, threads: 1 };
+        await ctx.workspaces.delete(workspaceId, origin);
+        return { workspaceId, threads: 1 };
+      }
+      if (entry.record.isolated === undefined && !runsInFolder(entry.record.kind)) throw Object.assign(new Error(threadOnMachineLine(entry.record.name)), { kind: "usage" });
+      const tree = entry.record.worktree;
       // A worktree goes with the last thread in it; while another thread works there it is that thread's too.
       const worktree = tree?.made === true && tree.gone !== true && [...threads].every(t => t === threadId) ? tree.path : undefined;
       // No turn may be working in a worktree that goes, and none can land a checkpoint after its refs were dropped.
@@ -1486,13 +1495,16 @@ export function sessionsArea(ctx: RuntimeContext): SessionsArea {
   // A start that fails anywhere, refused before its launch included, ends the process it claimed: one left standing
   // claimed is one nobody takes, beside the next one the composer asks for.
   const startOn = sessionsApi.start;
-  sessionsApi.start = (workspaceId, opened, origin) =>
-    startOn(workspaceId, opened, origin).catch((e: unknown) => {
+  sessionsApi.start = async (workspaceId, opened, origin) => {
+    await ctx.ready();
+    const releaseStart = await ctx.isolated.starting(workspaceId);
+    try { return await startOn(workspaceId, opened, origin).catch((e: unknown) => {
       const claimed = claimedBy.get(opened);
       if (claimed !== undefined && ctx.keptAgents.get(claimed)?.warm !== undefined) ctx.reapKept(claimed);
       // A sub-machine a refused send leaves with no turn is done, so its delete is armed.
       if (live.get(workspaceId)?.record.sub !== undefined) void ctx.subDone(workspaceId);
       throw e;
-    });
+    }); } finally { releaseStart(); }
+  };
   return { sessionsApi, stopHolds: threadId => ending.has(threadId), stopTry };
 }

@@ -67,6 +67,8 @@ export const SubHeld = z.object({ files: count, commits: count });
 export type SubHeld = z.infer<typeof SubHeld>;
 
 export const SubRow = z.object({
+  /** A connected child uses the shared startup UI without provider expiry or pushed-branch semantics. */
+  mode: z.literal("isolated").optional(),
   state: SubState,
   on: z.string(),
   machine: z.string(),

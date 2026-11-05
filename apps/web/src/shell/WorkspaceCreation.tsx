@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The centre while a workspace is being made: its setup is the content of the
-// room, in the middle of it, as the Add a computer dialog's list of steps in a
+// room, with child startup in the transcript column and other setup in a
 // settings card, under the message that asked for it if one did; the composer
 // is docked at the foot as in a conversation. A message sent now waits under
 // the creation and goes to the workspace once it is up.
@@ -8,13 +8,14 @@ import { useLayoutEffect, useRef } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { ChatComposer } from "../components/chat/ChatComposer.js";
 import { PERSON_BUBBLE } from "../components/chat/MessagesTimeline.js";
+import { StartupLine } from "../components/chat/SpawnLine.js";
 import { SetupCard, SetupRoom } from "../components/chat/SetupCard.js";
 import { useChatThread } from "../components/chat/useChatThread.js";
 import { cn } from "../lib/utils.js";
 import { usePlaces, useStore, type Creation } from "../protocol/store.js";
 import { placeNames } from "../sidebar/workspaceRows.js";
 import { RunsOn } from "./NewThreadPicks.js";
-import { creationFolder } from "./creationLog.js";
+import { creationStartupLog, creationFolder } from "./creationLog.js";
 
 /** What the composer says over a message that waits for the machine. */
 export const creationWaitLine = (name: string): string => `Sends once ${name} is up`;
@@ -51,6 +52,7 @@ export function WorkspaceCreation({ creation }: { creation: Creation }) {
     >
       <div ref={rootRef} className="relative isolate h-full min-h-0 text-foreground">
         <SetupRoom
+          centered={creation.askedBy === undefined}
           {...(asked === undefined
             ? {}
             : {
@@ -61,7 +63,7 @@ export function WorkspaceCreation({ creation }: { creation: Creation }) {
                 ),
               })}
         >
-          <SetupCard creation={creation} />
+          {creation.askedBy === undefined ? <SetupCard creation={creation} /> : <StartupLine spawn={creationStartupLog(creation, computer ?? "the connected computer")} />}
         </SetupRoom>
         <div ref={composerRef} data-chat-composer-dock className="pointer-events-none absolute inset-x-0 bottom-0 z-10 *:pointer-events-auto">
           <ChatComposer key={creation.key} workspaceId={creation.key} thread={thread} waiting={{ line: creationWaitLine(creation.name), folder }} where={at === undefined || computer === undefined ? undefined : <RunsOn at={at} name={computer} />} />

@@ -174,6 +174,18 @@ pub(crate) async fn merge_in<R: Runs>(runner: &R, cwd: &Path, branch: &str, from
     })
 }
 
+/// Imports a validated bundle through stdin, so a checkout can never replace the file after it was checked.
+pub(crate) async fn merge_bundle<R: Runs>(runner: &R, cwd: &Path, branch: &str, bytes: &[u8]) -> Result<GitMergeInReply, OpError> {
+    Ok(match merge_remote(runner, cwd, From::Bundle(bytes), branch, true, &MERGING).await? {
+        Merge::Took { commits, oid, head } => {
+            GitMergeInReply { branch: branch.to_owned(), merged: true, commits, oid: Some(oid), head: Some(head), conflicts: Vec::new() }
+        }
+        Merge::Conflicts(conflicts) => {
+            GitMergeInReply { branch: branch.to_owned(), merged: false, commits: 0, oid: None, head: None, conflicts }
+        }
+    })
+}
+
 /// Puts the checkout on a branch as the remote holds it, as a copy is made: fetched, the branch reset to the remote's
 /// commit with its upstream set, and every untracked file dropped, while what git ignores stays.
 pub(crate) async fn start_on<R: Runs>(runner: &R, cwd: &Path, branch: &str) -> Result<GitStartOnReply, OpError> {
@@ -289,6 +301,7 @@ pub(crate) async fn fetch_branch<R: Runs>(
 
 /// Where a merge's other side is fetched from.
 enum From<'a> {
+    Bundle(&'a [u8]),
     Remote(&'a str),
     /// A checkout's folder on this computer, which is an agent's repository: the fetch runs its upload-pack under
     /// overrides that neither repository's config can move.
@@ -336,32 +349,58 @@ async fn merge_remote<R: Runs>(
     if !dirty.is_empty() {
         return Err(OpError::plain((said.dirty)(&dirty)));
     }
-    let (fetch, theirs) = match from {
-        From::Remote(remote) => (GitLine::new(&["fetch", "--no-tags"]).operands(&[remote, branch]), format!("{remote}/{branch}")),
-        From::Folder(path) => (
-            GitLine::new(&[
-                "-c",
-                "uploadpack.packObjectsHook=",
-                "-c",
-                "core.alternateRefsCommand=",
-                "fetch",
-                "--no-tags",
-                "--upload-pack=git-upload-pack",
-            ])
-            .env("GIT_NO_LAZY_FETCH", "1")
-            .operands(&[path, branch]),
-            "FETCH_HEAD".to_owned(),
-        ),
-    };
-    let fetched = run_git(runner, top, &fetch, None, None).await?;
-    if fetched.code != Some(0) {
-        if let From::Remote(remote) = from {
-            if let Some(refusal) = crate::bring_back::no_credential(runner, top, remote, &fetched.stderr, said.credential).await? {
-                return Err(OpError::coded(DaemonErrorCode::NoGitCredential, refusal));
-            }
+    let imported = if let From::Bundle(bytes) = from {
+        let unpacked = run_git(runner, top, &GitLine::new(&["bundle", "unbundle", "-"]), Some(bytes), Some(64 * 1024)).await?;
+        if unpacked.code != Some(0) {
+            return Err(refusal_as(&unpacked, &copy, said.refused));
         }
-        return Err(refusal_as(&fetched, &copy, said.refused));
-    }
+        let reference = format!("refs/heads/{branch}");
+        let output = stdout_text(&unpacked);
+        let oid = output
+            .lines()
+            .filter_map(|line| line.split_once(' '))
+            .find(|(_, name)| *name == reference)
+            .map(|(oid, _)| oid.to_owned())
+            .ok_or_else(|| OpError::plain("The returned bundle does not name the child's branch"))?;
+        if !matches!(oid.len(), 40 | 64) || !oid.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err(OpError::plain("The returned bundle does not name a commit"));
+        }
+        Some(oid)
+    } else {
+        None
+    };
+    let theirs = if let Some(oid) = imported {
+        oid
+    } else {
+        let (fetch, theirs) = match from {
+            From::Bundle(_) => unreachable!(),
+            From::Remote(remote) => (GitLine::new(&["fetch", "--no-tags"]).operands(&[remote, branch]), format!("{remote}/{branch}")),
+            From::Folder(path) => (
+                GitLine::new(&[
+                    "-c",
+                    "uploadpack.packObjectsHook=",
+                    "-c",
+                    "core.alternateRefsCommand=",
+                    "fetch",
+                    "--no-tags",
+                    "--upload-pack=git-upload-pack",
+                ])
+                .env("GIT_NO_LAZY_FETCH", "1")
+                .operands(&[path, branch]),
+                "FETCH_HEAD".to_owned(),
+            ),
+        };
+        let fetched = run_git(runner, top, &fetch, None, None).await?;
+        if fetched.code != Some(0) {
+            if let From::Remote(remote) = from {
+                if let Some(refusal) = crate::bring_back::no_credential(runner, top, remote, &fetched.stderr, said.credential).await? {
+                    return Err(OpError::coded(DaemonErrorCode::NoGitCredential, refusal));
+                }
+            }
+            return Err(refusal_as(&fetched, &copy, said.refused));
+        }
+        theirs
+    };
     let before = run_git(runner, top, &GitLine::new(&["rev-parse", "HEAD"]), None, None).await?;
     check(&before, "rev-parse")?;
     let before = stdout_text(&before).trim().to_owned();

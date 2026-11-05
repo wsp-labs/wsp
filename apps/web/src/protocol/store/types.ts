@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import type { Attachment, AccountRow, BringBackResult, Capabilities, GoldenStageEvent, HarnessCatalog, InitJob, InitSetup, PendingComputer, PlaceDial, PlaceSetAlso, PlaceSettingsAsk, PlaceSettingWord, PlaceView, PortForward, Preferences, PreferencesPatch, ProjectView, ReleaseView, ReviewDraft, SessionSettleResult, SessionView, ThreadMarks, WorkspaceCreateStage, WorkspaceLanding, WorkspaceLook, WorkspaceSize, WorkspaceStatus, WorkspaceView } from "@wsp/protocol";
+import type { SubStartIntent, EventAsker, Attachment, AccountRow, BringBackResult, Capabilities, GoldenStageEvent, HarnessCatalog, InitJob, InitSetup, PendingComputer, PlaceDial, PlaceSetAlso, PlaceSettingsAsk, PlaceSettingWord, PlaceView, PortForward, Preferences, PreferencesPatch, ProjectView, ReleaseView, ReviewDraft, SessionSettleResult, SessionView, ThreadMarks, WorkspaceCreateStage, WorkspaceLanding, WorkspaceLook, WorkspaceSize, WorkspaceStatus, WorkspaceView } from "@wsp/protocol";
 import type { Launch } from "../../adapt/view-model.js";
 import type { HeldKeys } from "./heldKeys.js";
 import type { Api, ConnStatus, ProtocolEvent } from "../client.js";
@@ -28,6 +28,9 @@ export interface CreationLine {
 
 /** A workspace being created: the sidebar row and the center view read it until workspace.created replaces it. */
 export interface Creation {
+  readonly start?: SubStartIntent;
+  /** The thread that requested this child, before its workspace and first turn exist. */
+  readonly askedBy?: EventAsker;
   /** What select() takes for it; stable from the click through the runtime's first stage event. */
   readonly key: string;
   readonly name: string;
@@ -214,7 +217,7 @@ export interface State {
   /** Records a project and answers the record the host kept: a folder on this computer, or a repository address on
    * the computer named. The row arrives by the project.added event too; this is what the first run and the sheet
    * wait on. Null on a client that cannot record one. */
-  addProject(source: string, on?: string, into?: string): Promise<ProjectView | null>;
+  addProject(source: string, on?: string, into?: string, existing?: boolean): Promise<ProjectView | null>;
   /** Forgets a project; the row leaves on project.removed. A refusal (a workspace still stands on it) is a toast. */
   removeProject(projectId: string): Promise<void>;
   /** Pushes the agent's branch and opens its pull request. The answer lands under the workspace's id, where the

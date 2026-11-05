@@ -15,7 +15,7 @@ import { readsHere, type Verb, type VerbDeps } from "./verbs.js";
  * runs on is not this session's to call: here that computer is the person's, and the caller asked about the machine
  * it is on. `elsewhere` is the same reading one level down, for the flags and inputs of the verbs that do pass: a
  * path this session names is on its own machine, and the rules that would resolve one here refuse it. */
-export const GUEST_SERVED = { elsewhere: true, skip: (verb: Verb): boolean => readsHere(verb) !== undefined } as const;
+export const GUEST_SERVED = { scoped: true, elsewhere: true, skip: (verb: Verb): boolean => readsHere(verb) !== undefined } as const;
 
 export function guestMcp(statePath: string): GuestKindModule {
   return {

@@ -319,6 +319,7 @@ import { machinesArea } from "./machines/machines.js";
 import { bootArea } from "./machines/boot.js";
 
 import { createArea } from "./machines/create.js";
+import { isolatedArea } from "./machines/isolated.js";
 import { subSpawnArea } from "./machines/sub-spawn.js";
 import { subQueueArea } from "./machines/sub-queue.js";
 import { subLifeArea } from "./machines/sub-life.js";
@@ -458,6 +459,7 @@ export function createRuntime(opts: RuntimeOptions): Runtime {
   Object.assign(ctx, bootArea(ctx));
 
   Object.assign(ctx, createArea(ctx));
+  Object.assign(ctx, { isolated: isolatedArea(ctx) });
   Object.assign(ctx, subSpawnArea(ctx));
   Object.assign(ctx, subQueueArea(ctx));
   Object.assign(ctx, subLifeArea(ctx));
@@ -813,6 +815,7 @@ function runtimeCore(ctx: RuntimeContext, opts: RuntimeOptions): RuntimeCore {
           if (entry !== undefined) void ctx.syncDaemon(entry);
           else await ctx.rereadHeld(stored.id, "record load");
         }
+        await ctx.isolated.sweep();
         // Every row on that computer read unreachable while it was away, and a pane over a live socket says
         // reconnecting until its row turns: the next tick is up to a whole poll away.
         await ctx.status.poll(ctx.held().filter(h => workspacePlace(h.record) === e.placeId).map(h => h.record.id));
@@ -1146,6 +1149,7 @@ function runtimeOf(ctx: RuntimeContext, pipes: { close(): void } | undefined): R
             : { id: b.record.id, builder: true, reason: "expired", ...(ageMs !== undefined ? { ageMs } : {}) },
         );
       }
+      await ctx.isolated.sweep().catch((e: unknown) => failed.push({ message: `isolated cleanup: ${messageOf(e)}` }));
       const knownIds = (): string[] => [...live.values()].flatMap(e => [e.record.machineId, e.machine.id]).concat([...builders.keys()], [...ctx.inflight], reaped.map(r => r.id), gone.ids());
       const result = (swept: ReapResult, adopted: AdoptedMachine[]): SweepResult => {
         const allFailed = failed.concat(swept.failed ?? []);
@@ -1231,6 +1235,7 @@ function runtimeOf(ctx: RuntimeContext, pipes: { close(): void } | undefined): R
       ctx.state.sweepStopped = true;
       ctx.state.sweepTimer?.();
       await ctx.state.sweeping;
+      await ctx.isolated.close();
       await ctx.stopDiskWatch();
       ctx.idle.close();
       ctx.alerts.close();

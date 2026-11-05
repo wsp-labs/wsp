@@ -1917,6 +1917,9 @@
         "rootThreadId"
        ]
       },
+      "place": {
+       "type": "string"
+      },
       "seq": {
        "type": "integer",
        "exclusiveMinimum": 0
@@ -1969,7 +1972,8 @@
          "enum": [
           "cloud",
           "local",
-          "place"
+          "place",
+          "isolated"
          ]
         },
         "golden": {
@@ -5264,6 +5268,12 @@
         "sub": {
          "type": "object",
          "properties": {
+          "mode": {
+           "type": "string",
+           "enum": [
+            "isolated"
+           ]
+          },
           "state": {
            "type": "string",
            "enum": [
@@ -16051,6 +16061,12 @@
     "sub": {
      "type": "object",
      "properties": {
+      "mode": {
+       "type": "string",
+       "enum": [
+        "isolated"
+       ]
+      },
       "state": {
        "type": "string",
        "enum": [
@@ -17797,6 +17813,12 @@
     "out": {
      "type": "object",
      "properties": {
+      "mode": {
+       "type": "string",
+       "enum": [
+        "isolated"
+       ]
+      },
       "on": {
        "type": "string"
       },
@@ -17897,8 +17919,7 @@
       "base",
       "branch",
       "sent",
-      "notSent",
-      "deleteAfterMinutes"
+      "notSent"
      ]
     },
     "folder": {
@@ -18403,6 +18424,12 @@
       "sub": {
        "type": "object",
        "properties": {
+        "mode": {
+         "type": "string",
+         "enum": [
+          "isolated"
+         ]
+        },
         "state": {
          "type": "string",
          "enum": [
@@ -19103,7 +19130,8 @@
      "enum": [
       "cloud",
       "local",
-      "place"
+      "place",
+      "isolated"
      ]
     }
    },
@@ -19141,7 +19169,8 @@
      "enum": [
       "cloud",
       "local",
-      "place"
+      "place",
+      "isolated"
      ]
     },
     "golden": {
@@ -19518,7 +19547,8 @@
      "enum": [
       "cloud",
       "local",
-      "place"
+      "place",
+      "isolated"
      ]
     },
     "golden": {
@@ -23313,6 +23343,9 @@
       "memory",
       "commits"
      ]
+    },
+    "existing": {
+     "type": "boolean"
     }
    },
    "required": [

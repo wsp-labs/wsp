@@ -323,6 +323,7 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
    * kind's wiring holds its own set; this one is for the kinds whose runs live on a machine. */
   const machineReading = new Set<() => void>();
   const modules: Record<WorkspaceKind, KindModule | undefined> = {
+    isolated: undefined,
     cloud: {
       // A fork lands either at this host's own provider or on a computer somebody joined; the record says which,
       // and a place that forks nowhere refuses here rather than at the provider.
@@ -330,10 +331,10 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
         if (record.place === undefined) return backend;
         const at = placeDoorOf().backendOf(record.place);
         if (at === undefined) throw new PlaceForksNowhereError(placeForksNowhereLine(placeDoorOf().nameOf(record.place)));
-        return at;
+        return record.isolated === undefined ? at : ctx.isolated.backend(record, at);
       },
       execStream: (entry, o, waiting) => withGhDoor(machineExecStream(entry.machine, { reading: machineReading, ...o }, waiting)),
-      folder: record => record.sub?.folder,
+      folder: record => record.isolated?.folder ?? record.sub?.folder,
       home: (_entry, id) => cloudHome(id),
       homeDir: () => GUEST_HOME,
       env: (entry, id) => cloudEnv(entry.record, id),
@@ -508,6 +509,7 @@ export function kindsArea(ctx: RuntimeContext): KindsArea {
   };
   /** The kind of workspace a project on this computer lands as: a computer the person joined is told apart from a
    * cloud account by whether this host holds it as a computer. */
+  modules.isolated = { ...modules.cloud! };
   const kindOf = (computer: string): WorkspaceKind => kindForComputer(computer, placeDoor?.joined(computer) === true);
   const moduleOf = (kind: WorkspaceKind): KindModule => {
     const found = modules[kind];

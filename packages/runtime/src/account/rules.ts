@@ -164,7 +164,7 @@ export function rulesArea(ctx: RuntimeContext): RulesArea {
   const talksToItsTree = (caller: Caller | undefined): boolean => {
     const scope = scopeOf(caller);
     // A sub-thread is a child on a computer of its own, as a thread on a box is: it sends to its tree and lists it (10).
-    return boxOf(caller) !== undefined || (scope !== undefined && live.get(scope.workspaceId)?.record.lead !== undefined);
+    return boxOf(caller) !== undefined || (scope !== undefined && (live.get(scope.workspaceId)?.record.lead !== undefined || live.get(scope.workspaceId)?.record.isolated !== undefined));
   };
   /** The rule as a sentence: what this request is refused with for that record, or nothing when it may drive it.
    * A record this host does not hold, which a port forward's target may be since the host forwards a builder's
@@ -302,7 +302,7 @@ export function rulesArea(ctx: RuntimeContext): RulesArea {
     for (const { record, policy } of over) if (policy?.spawn !== true) throw new Error(agentsOffLine(record, act, scope.threadId));
     if (!SPAWN_ACTS_ALLOWED.includes(act)) throw actRefusal(scope, act);
     // A sub-thread starts nothing of its own; it still sends to its lead, merges in, updates, fixes and commits (10).
-    if (own.lead !== undefined && own.agents?.spawn !== true && (act === "thread_new" || act === "fork")) throw subStartsNothingRefusal(scope.threadId, own.lead.threadId);
+    if (own.lead !== undefined && own.isolated === undefined && own.agents?.spawn !== true && (act === "thread_new" || act === "fork")) throw subStartsNothingRefusal(scope.threadId, own.lead.threadId);
     // The depth cap counts what a thread starts under itself; a send and a bring back start nothing, so a thread
     // at the cap still talks to its tree and still gets its work out.
     if (act === "send" || act === "bring_back" || act === "delete_sub") return free;
@@ -317,7 +317,7 @@ export function rulesArea(ctx: RuntimeContext): RulesArea {
     // the same count and both pass; the place is taken here, in the same step the count is read, and handed back by
     // the caller's own finally, the way the name a fork is landing under already is.
     // A queued spawn counts, since it is a machine on its way; a released one's machine is deleted, so it does not (04, L2).
-    const standing = [...live.values()].filter(e => e.record.rootThreadId === scope.rootThreadId && !["gone", "released"].includes(workspaceState({ phase: e.record.phase }))).length;
+    const standing = new Set([...live.values()].filter(e => e.record.rootThreadId === scope.rootThreadId && !["gone", "released"].includes(workspaceState({ phase: e.record.phase }))).map(e => e.record.isolated?.group ?? e.record.id).concat(ctx.isolated.slotKeys(scope.rootThreadId))).size;
     const held = landing.get(scope.rootThreadId) ?? 0;
     if (standing + held >= policy.maxMachines) throw new Error(spawnCapRefusal(scope.rootThreadId, standing + held, policy.maxMachines));
     landing.set(scope.rootThreadId, held + 1);

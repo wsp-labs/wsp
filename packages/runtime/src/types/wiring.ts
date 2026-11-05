@@ -23,6 +23,7 @@ import {
 } from "@wsp/engine";
 import type { EditorChoice, EditorId, RecipeFile, RecipeOptions } from "@wsp/protocol";
 import type {
+  SubStartIntent,
   DaemonReachView,
   ExecStream,
   ExecStreamFactory,
@@ -103,6 +104,7 @@ export interface CreatedWorkspace extends WorkspaceView {
 
 /** What a start with `sub` asks: the cloud by its word, the size, start ref and result branch the lead named, and its agent. */
 export interface SubAsk {
+  start?: SubStartIntent;
   on: string;
   size?: string;
   /** A branch, tag or commit the remote holds, which the sub-thread starts from in place of the lead's branch. */
@@ -338,7 +340,31 @@ export interface ProjectImportOptions {
   bundler: ProjectBundler;
 }
 
+export interface IsolatedCheckout {
+  on?: string;
+  spawn?: SubSpawn;
+  releasedAt?: number;
+  group: string;
+  rootThreadId: string;
+  sourceWorkspaceId: string;
+  sourceFolder: string;
+  folder: string;
+  checkout: string;
+  branch: string;
+  base: string;
+  git: boolean;
+  state: "copying" | "ready" | "failed" | "releasing";
+  returned?: string;
+  ignoredHash?: string;
+  sourceBranch?: string;
+  sent?: { paths: string[]; bytes: number };
+  held?: string;
+}
+
 export interface WorkspaceRecord extends Omit<WorkspaceView, "project"> {
+  /** The requested opening, retained before provisioning and shared by both child setup strategies. */
+  startup?: SubStartIntent;
+  isolated?: IsolatedCheckout;
   /** cloud or local; a record stored before local existed has none and reads cloud. */
   kind: WorkspaceKind;
   /** The project this workspace was made for, by its id. The view joins the record's name, path and computer off
@@ -458,6 +484,8 @@ export interface LiveWorkspace {
   adopting?: Promise<void>;
   /** The delete in flight: a second delete joins it, and the name stays held until the record is dropped. */
   deleting?: Promise<void>;
+  /** A refused first turn is removing its computer; another start must not claim it meanwhile. */
+  startCleanup?: true;
   /** Cancels the one read armed after a wake gave up. */
   lateRead?: () => void;
   /** Stops the wake in flight, whether it is on a call or waiting to ask again: what the row's stop pulls. Aborting

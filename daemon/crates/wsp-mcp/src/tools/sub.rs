@@ -33,6 +33,8 @@ pub struct RunOut {
 #[cfg_attr(test, derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
 pub struct SubOut {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
     pub on: String,
     pub machine: String,
     pub size: SubSize,
@@ -42,7 +44,8 @@ pub struct SubOut {
     pub branch: String,
     pub sent: SubSent,
     pub not_sent: SubNotSent,
-    pub delete_after_minutes: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delete_after_minutes: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -125,7 +128,12 @@ pub(super) async fn sub_run(
             title.as_deref().map_or_else(|| name_of_task(&message), str::to_owned).as_str(),
             &workspace_names(&client).await?,
         );
-        let mut sub = params([("on", Value::from(ask.on.as_str()))]);
+        let mut intent = params([("prompt", Value::from(message.as_str()))]);
+        if let Some(agent) = &ask.agent {
+            intent.insert("harness".to_owned(), Value::from(agent.as_str()));
+        }
+        picks.wire(&mut intent)?;
+        let mut sub = params([("start", Value::Object(intent)), ("on", Value::from(ask.on.as_str()))]);
         for (key, value) in [("size", &ask.size), ("from", &ask.from), ("branch", &ask.branch), ("harness", &ask.agent)] {
             if let Some(value) = value {
                 sub.insert(key.to_owned(), Value::from(value.as_str()));

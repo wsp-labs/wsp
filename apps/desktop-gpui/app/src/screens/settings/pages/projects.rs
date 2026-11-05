@@ -21,9 +21,7 @@ use super::devices::CANCEL;
 use crate::screens::settings::model::{req, At, GroupId, Reread};
 use crate::screens::settings::page::{CardData, Ctx, DialogBuild, Item};
 use crate::screens::settings::words::{here_name, HERE};
-use crate::ui::{
-    framed, tip, word, ActivePalette, AlertDialog, Button, Glyph, HeadRow, Refusal, Select, SelectItem, Taken, WordClass, Words,
-};
+use crate::ui::{framed, word, ActivePalette, AlertDialog, Button, Glyph, HeadRow, Refusal, Select, SelectItem, Taken, WordClass, Words};
 use sheet::Source;
 use standing::Count;
 
@@ -99,23 +97,15 @@ fn standing<'a>(ctx: &Ctx<'a>, cx: &mut App) -> &'a standing::Standing {
     &ctx.data.standing
 }
 
-/// Why Add a project is held: its dialog comes with a later build.
-const ADD_LATER: &str = "Add a project opens in the next build of this app.";
-
-/// An Add whose dialog this build does not draw: refused, its hover saying why.
-pub fn held_add(id: &'static str, label: &'static str, why: &'static str) -> AnyElement {
-    let held = format!("{id}-held");
-    gpui_kit::div()
-        .id(SharedString::from(held.clone()))
-        .debug_selector(move || held.clone())
-        .tooltip(tip(why))
-        .child(Button::add(id, label).held(true))
-        .into_any_element()
-}
-
 /// The one Add under the list.
-fn add_button() -> AnyElement {
-    held_add("add-project-button", ADD, ADD_LATER)
+fn add_button(ctx: &Ctx) -> AnyElement {
+    let acts = ctx.acts.clone();
+    gpui_kit::div()
+        .flex()
+        .self_start()
+        .debug_selector(|| "add-project-button".into())
+        .child(Button::add("add-project-button", ADD).on_click(move |_, window, cx| acts.add_project(window, cx)))
+        .into_any_element()
 }
 
 pub fn cards(ctx: &Ctx, _window: &mut Window, cx: &mut App) -> Vec<CardData> {
@@ -125,11 +115,11 @@ pub fn cards(ctx: &Ctx, _window: &mut Window, cx: &mut App) -> Vec<CardData> {
         if let Some(fix) = &ctx.data.projects_fix {
             refusal = refusal.fix(fix.clone());
         }
-        return vec![card.under(gpui_kit::div().flex_1().min_w_0().child(refusal)).under(add_button())];
+        return vec![card.under(gpui_kit::div().flex_1().min_w_0().child(refusal)).under(add_button(ctx))];
     }
     let projects = ctx.data.projects_in_order();
     if projects.is_empty() {
-        return vec![card.item(Item::empty("none", format!("{NONE} {NONE_DESCRIPTION}"))).under(add_button())];
+        return vec![card.item(Item::empty("none", format!("{NONE} {NONE_DESCRIPTION}"))).under(add_button(ctx))];
     }
     let standing = standing(ctx, cx);
     let places = &ctx.data.places;
@@ -159,7 +149,7 @@ pub fn cards(ctx: &Ctx, _window: &mut Window, cx: &mut App) -> Vec<CardData> {
             item
         })
         .collect();
-    vec![card.items(rows).under(add_button())]
+    vec![card.items(rows).under(add_button(ctx))]
 }
 
 /// The repository's page in the browser, where the remote is one a browser can open.

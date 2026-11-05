@@ -155,16 +155,16 @@ pub const TOOLS: &[Tool] = &[
 
 /// The tool of that name the state lists, with its entry there; none where that state lists no such tool, which the
 /// TypeScript server does not register.
-pub fn named(name: &str, cloud: bool, guest: bool, no_slate: bool) -> Option<(&'static Tool, &'static str)> {
+pub fn named(name: &str, cloud: bool, guest: bool, no_slate: bool, scoped: bool) -> Option<(&'static Tool, &'static str)> {
     TOOLS
         .iter()
-        .filter(|tool| tool.name == name && served(tool, guest, no_slate))
+        .filter(|tool| tool.name == name && served(tool, guest, no_slate, scoped))
         .find_map(|tool| Some((tool, entry_in(tool.listed, cloud)?)))
 }
 
 /// Every tool the state lists, by its entry there.
-pub fn listed(cloud: bool, guest: bool, no_slate: bool) -> impl Iterator<Item = &'static str> {
-    TOOLS.iter().filter(move |tool| served(tool, guest, no_slate)).filter_map(move |tool| entry_in(tool.listed, cloud))
+pub fn listed(cloud: bool, guest: bool, no_slate: bool, scoped: bool) -> impl Iterator<Item = &'static str> {
+    TOOLS.iter().filter(move |tool| served(tool, guest, no_slate, scoped)).filter_map(move |tool| entry_in(tool.listed, cloud))
 }
 
 /// The variable a turn's own token rides in, which a guest's tools may read.
@@ -172,9 +172,16 @@ pub(crate) fn turn_token_env() -> &'static String {
     &said::turns().turn_token_env
 }
 
-/// A guest serves no tool that reads this computer, and a thread with no slate is served none of the slate's.
-fn served(tool: &Tool, guest: bool, no_slate: bool) -> bool {
-    (!guest || !crate::record::server().reads_here.iter().any(|name| name == tool.name)) && !(no_slate && slate::NAMES.contains(&tool.name))
+/// Thread discovery follows the recorded allowlist; guest and no-slate rules narrow it further.
+fn served(tool: &Tool, guest: bool, no_slate: bool, scoped: bool) -> bool {
+    let server = crate::record::server();
+    if scoped && !server.thread_tools.iter().any(|name| name == tool.name) {
+        return false;
+    }
+    if guest && server.reads_here.iter().any(|name| name == tool.name) {
+        return false;
+    }
+    !(no_slate && slate::NAMES.contains(&tool.name))
 }
 
 /// A recorded file's entry for one state of WSP_CLOUD, in the bytes it was recorded in.
@@ -383,14 +390,36 @@ mod tests {
     #[test]
     fn a_server_for_a_thread_with_no_slate_lists_none_of_its_tools() {
         let names = |no_slate| -> Vec<String> {
-            listed(false, false, no_slate)
+            listed(false, false, no_slate, false)
                 .map(|entry| serde_json::from_str::<Value>(entry).unwrap()["name"].as_str().unwrap().to_owned())
                 .collect()
         };
         for name in slate::NAMES {
             assert!(names(false).iter().any(|n| n == name), "{name} is served with a slate");
             assert!(!names(true).iter().any(|n| n == name), "{name} is served with no slate");
-            assert!(named(name, false, false, true).is_none());
+            assert!(named(name, false, false, true, false).is_none());
+        }
+    }
+
+    #[test]
+    fn scoped_discovery_and_calls_share_the_recorded_thread_allowlist() {
+        let server = crate::record::server();
+        for cloud in [false, true] {
+            for guest in [false, true] {
+                for no_slate in [false, true] {
+                    let names: Vec<String> = listed(cloud, guest, no_slate, true)
+                        .map(|entry| serde_json::from_str::<Value>(entry).unwrap()["name"].as_str().unwrap().to_owned())
+                        .collect();
+                    for tool in TOOLS {
+                        let expected = server.thread_tools.iter().any(|name| name == tool.name)
+                            && entry_in(tool.listed, cloud).is_some()
+                            && (!guest || !server.reads_here.iter().any(|name| name == tool.name))
+                            && !(no_slate && slate::NAMES.contains(&tool.name));
+                        assert_eq!(names.iter().any(|name| name == tool.name), expected, "{}", tool.name);
+                        assert_eq!(named(tool.name, cloud, guest, no_slate, true).is_some(), expected, "{}", tool.name);
+                    }
+                }
+            }
         }
     }
 

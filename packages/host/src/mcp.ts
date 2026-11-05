@@ -9,6 +9,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { instructions } from "./skill.js";
 import { SLATE_TOOL_NAMES, VERBS, c1Escaped, dialHost, hasTool, toolFailure, toolName, type DialOpts, type HostClient, type Verb, type VerbDeps } from "./verbs.js";
+import { THREAD_TOOLS } from "./thread-tools.js";
 import { VERSION } from "./version.js";
 
 export interface Dialer {
@@ -62,6 +63,7 @@ export function mcpServer(statePath: string, opts: { dial?: Dialer; dialAnyRelea
   for (const verb of VERBS) {
     if (!hasTool(verb) || opts.skip?.(verb) === true) continue;
     const name = toolName(verb.name);
+    if (opts.scoped === true && !THREAD_TOOLS.has(name)) continue;
     if (opts.noSlate === true && SLATE_TOOL_NAMES.has(name)) continue;
     // A Claude Code launch with a slate loads this server's tools up front (alwaysLoad); every tool but the slate's stays behind its tool search.
     const listed = { _meta: { "anthropic/alwaysLoad": SLATE_TOOL_NAMES.has(name) } };

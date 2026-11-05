@@ -159,6 +159,9 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
       threadId: r.threadId,
       ...r.tree,
       prompt: keptOpening(r.opts.prompt),
+      ...(r.opts.model === undefined ? {} : { model: r.opts.model }),
+      ...(r.opts.effort === undefined ? {} : { effort: r.opts.effort }),
+      ...(r.opts.permissionMode === undefined ? {} : { permissionMode: r.opts.permissionMode }),
       startedAt: Date.parse(r.at),
       ...(r.opts.title !== undefined ? { harnessTitle: r.opts.title, titleSource: "person" as const } : {}),
       ...(wait !== undefined ? { capped: wait } : {}),
@@ -244,21 +247,22 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
     await ctx.drop(r.workspaceId);
   };
 
-  /** A first start whose machine failed stays where the person reads it: the record released under its lead, as a
-   * failed start of a released sub-thread is, and the row failed with why beside the start's steps, out before the
-   * caller hears the refusal. A send into it, the line's Try again, starts a machine again. */
-  const failFirst = async (h: Held, record: WorkspaceRecord, e: unknown): Promise<void> => {
+  /** A refused first start keeps its failed row under its lead before the caller hears it. A computer confirmed gone
+   * is released; one whose cleanup was refused stays tracked so the person can still stop or retry it. */
+  const failFirst = async (h: Held, record: WorkspaceRecord, e: unknown, release = true): Promise<void> => {
     const r = h.record;
     const why = failureWords(e);
     forget(r.workspaceId);
-    record.phase = "released";
-    record.machineId = "";
+    if (release) {
+      record.phase = "released";
+      record.machineId = "";
+      ctx.attach(record, deadMachine(""));
+    }
     // The message the start was for: its line's Try again sends it, and any other send opens with it.
     if (r.opts.prompt !== undefined) {
       record.sub!.opening = r.opts.prompt;
       if (record.sub!.spawn !== undefined) record.sub!.spawn.asked = r.opts.prompt;
     }
-    ctx.attach(record, deadMachine(""));
     await ctx.persist(record);
     const row = sessions.get(r.turnId);
     if (row !== undefined) {
@@ -398,6 +402,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
       bus.emit({ type: "session.held", workspaceId: record.id, threadId: h.record.threadId });
     }
     let handle: SessionHandle;
+    let handingOff = false;
     try {
       await ctx.persist(record);
       await ctx.standUpQueued(record, claim.posted, waited);
@@ -412,10 +417,12 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
         await drop(h, h.stopped, false);
         return;
       }
+      const marked = ctx.threadRecords.get(h.record.threadId);
+      if (marked !== undefined) Object.assign(marked, h.record.tree);
       forget(record.id);
       sessions.delete(h.record.turnId);
       h.left();
-      await store.delete(SUB_STARTS, record.id);
+      handingOff = true;
       const r = h.record;
       const origin: Caller | undefined = r.by !== undefined ? { origin: r.road ?? "here", by: r.by } : r.road;
       handle = await ctx.sessionsApi.start(record.id, { ...r.opts, ...(r.notify !== undefined ? { notify: r.notify } : {}), as: { threadId: r.threadId, turnId: r.turnId } } as StartOptions, origin);
@@ -436,7 +443,25 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
       const why = failureWords(e);
       console.warn(`workspace ${record.id}: the held spawn did not start: ${why}`);
       if (held.get(record.id) === h) await failFirst(h, record, e);
-      else {
+      else if (handingOff && live.has(record.id) && ![...sessions.values()].some(s => s.view.workspaceId === record.id)) {
+        let release = true;
+        const standing = live.get(record.id)!;
+        const ours = () => live.get(record.id) === standing && standing.deleting === undefined && ![...sessions.values()].some(s => s.view.workspaceId === record.id);
+        standing.startCleanup = true;
+        try {
+          if (ours()) await cutOff(ctx, standing);
+          if (ours()) await ctx.unfork(standing);
+        } catch (cleanup: unknown) {
+          release = false;
+          console.warn(`workspace ${record.id}: its machine is still tracked after the failed start: ${failureWords(cleanup)}`);
+        } finally {
+          delete standing.startCleanup;
+        }
+        if (ours()) {
+          if (waiting !== undefined) sessions.set(h.record.turnId, waiting);
+          await failFirst(h, record, e, release);
+        } else h.failed?.(e instanceof Error ? e : new Error(why));
+      } else {
         // Its machine stands and its thread did not open on it: the lead hears it, and the idle nap takes the machine.
         if (waiting !== undefined) tellFailed(h.record, waiting.view, why);
         h.failed?.(e instanceof Error ? e : new Error(why));
@@ -446,6 +471,7 @@ export function subQueueArea(ctx: RuntimeContext): SubQueueArea {
       void pump();
     }
     h.started?.(handle);
+    await store.delete(SUB_STARTS, record.id).catch((e: unknown) => console.warn(`workspace ${record.id}: its accepted start was not cleared: ${failureWords(e)}`));
   };
 
   /** At boot: each queued record's written start shown as Waiting again with the count it waits on and put back in

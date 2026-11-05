@@ -46,14 +46,14 @@ const callOf = (id: number, name: string, args: Record<string, unknown> = {}) =>
 
 /** This package's server in one state of WSP_CLOUD: what it lists, the tools its verb table holds, and the line it
  * greets with on stdio. The flag is read once as each module loads, so the modules are loaded afresh under it. */
-async function hereIn(cloud: boolean, guest = false): Promise<{ listed: Record<string, unknown>[]; table: string[]; greeting: string }> {
+async function hereIn(cloud: boolean, guest = false, scoped = guest): Promise<{ listed: Record<string, unknown>[]; table: string[]; greeting: string }> {
   vi.resetModules();
   vi.stubEnv(CLOUD_ENV, cloud ? "1" : "");
   try {
     const { mcpServer: fresh } = await import("../src/mcp.js");
     const { GUEST_SERVED } = await import("../src/guest-mcp.js");
     const verbs = await import("../src/verbs.js");
-    const server = fresh("/nonexistent/state.json", { env: {}, ...(guest ? GUEST_SERVED : {}) });
+    const server = fresh("/nonexistent/state.json", { env: {}, scoped, ...(guest ? GUEST_SERVED : {}) });
     const [toClient, toServer] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: "binary", version: "0" });
     await server.connect(toServer);
@@ -352,6 +352,16 @@ suite(`the tool server in the daemon binary${MCP_BIN === undefined ? " (set WSP_
     expect(tools.map(t => t["name"]).sort()).toEqual(here.listed.map(t => t["name"]).sort());
     for (const tool of tools) expect(tool, String(tool["name"])).toEqual(here.listed.find(t => t["name"] === tool["name"]));
     expect(tools.map(t => t["name"])).not.toContain("recipe");
+  });
+
+  it.each([false, true])("lists the thread's permitted tools on this computer (cloud on: %s)", async cloud => {
+    const here = await hereIn(cloud, false, true);
+    const launch = { [HOST_URL_ENV]: "http://127.0.0.1:9", [HOST_TOKEN_ENV]: "thread-token" };
+    const { out, code } = await served([MCP_BIN!, "mcp", "--state", statePath, "--scoped"], { ...env, ...launch, [CLOUD_ENV]: cloud ? "1" : "" }, [INITIALIZE, INITIALIZED, { jsonrpc: "2.0", id: 1, method: "tools/list" }]);
+    expect(code).toBe(0);
+    const tools = (JSON.parse(out[1]!) as { result: { tools: Record<string, unknown>[] } }).result.tools;
+    expect(tools.sort((a, b) => String(a["name"]).localeCompare(String(b["name"])))).toEqual(here.listed.sort((a, b) => String(a["name"]).localeCompare(String(b["name"]))));
+    expect(tools.map(t => t["name"])).not.toContain("agents");
   });
 
   it("answers a call with nothing serving the state file in the bytes this package's server answers it with", async () => {

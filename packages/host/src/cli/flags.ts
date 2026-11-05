@@ -94,6 +94,7 @@ export function optsFor(
 
 /** The flags the shared parse reads; a command that answers on its own word (mcp, recipe) parses its own. */
 export interface SharedFlags {
+  existing?: boolean;
   version?: boolean;
   help?: boolean;
   port?: string;
@@ -157,6 +158,7 @@ export const SHARED_OPTIONS: Options = {
   import: { type: "string" },
   on: { type: "string" },
   into: { type: "string" },
+  existing: { type: "boolean" },
   rebuild: { type: "boolean" },
   "no-local": { type: "boolean" },
   local: { type: "boolean" },

@@ -91,8 +91,9 @@ export const PROJECT_VERBS: readonly Verb[] = [
       description:
         "Records a project: one source on one computer. A folder on the computer the app runs on is the project as it stands, a git repo or not, a folder inside a repo being a project of that repo; its threads run in it. A repo is cloned into a folder of its own name inside the folder named with into on the computer the app runs on, made where it does not exist yet, or into that folder itself where its name is the repo's or the repo's with a number, and the clone's folder is then a folder project there, or by the computer named with on, whose machines then hold a checkout of it. A repo with neither into nor on, a clone's folder that holds files, and a source already recorded on that computer are each refused in one line, and a clone that fails says git's own last line. The answer is the project, whose name is what run takes.",
       input: {
-        source: z.string().describe("a folder on the computer the app runs on, or a repo's url"),
-        on: z.string().optional().describe("the computer that clones the repo, by the name computers lists; a folder, and a repo cloned with into, take none"),
+        source: z.string().describe("a folder on this computer, a repo URL, or with existing=true an absolute folder path on the named connected computer"),
+        existing: z.boolean().optional().describe("register the folder already on the connected computer named with on, without cloning or seeding; takes no into or base"),
+        on: z.string().optional().describe("the computer that clones the repo or holds an existing folder, by the name computers lists; a folder here and a repo cloned with into take none"),
         into: z.string().optional().describe("an absolute path on the computer the app runs on to clone the repo in: into a folder of the repo's name inside it, made where it does not exist yet, or into the path itself where its name is the repo's or the repo's with a number; the project is then the clone's folder"),
         name: z.string().optional().describe("what to call the project here; the folder's or the repo's own last word without it"),
         base: z.string().optional().describe("the branch a machine of the project starts on; the remote's own default branch at the clone without it"),
@@ -106,6 +107,7 @@ export const PROJECT_VERBS: readonly Verb[] = [
           ...(args.name !== undefined ? { name: args.name } : {}),
           ...(args.base !== undefined ? { base: args.base } : {}),
           ...(args.into !== undefined ? { into: args.into } : {}),
+          ...(args.existing === true ? { existing: true } : {}),
         });
         const named = await placeNames(client).catch(() => new Map<string, string>());
         // What landed and is not what was asked for rides the answer: an add that stands with the commits left

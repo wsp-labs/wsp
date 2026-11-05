@@ -22,7 +22,11 @@
           "name": "linear",
           "scope": "home"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool servers_remove not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "a project on a computer",
@@ -53,7 +57,11 @@
           "name": "linear",
           "scope": "project"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool servers_remove not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "project and another scope",
@@ -65,7 +73,11 @@
       },
       "replies": {},
       "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"--project names a project, which only the project and local scopes take, not user; give one of the two. servers_remove takes a thread or on, not both\"}],\"structuredContent\":{\"error\":\"--project names a project, which only the project and local scopes take, not user; give one of the two. servers_remove takes a thread or on, not both\",\"class\":\"usage\",\"exit\":3},\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
-      "asked": []
+      "asked": [],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool servers_remove not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "local beside a named project",
@@ -97,7 +109,11 @@
           "name": "kept",
           "scope": "local"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool servers_remove not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "refused",
@@ -118,7 +134,11 @@
           "agent": "claude",
           "name": "linear"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool servers_remove not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     }
   ]
 }

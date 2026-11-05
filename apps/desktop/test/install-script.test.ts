@@ -13,7 +13,7 @@ import { hostname, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fmtBytes, shellQuote } from "@wsp/protocol";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { REPO, bundleNames } from "../../../packages/protocol/src/bundles.mjs";
+import { REPO, bundleNames, classicNames } from "../../../packages/protocol/src/bundles.mjs";
 import { compareVersions } from "../../../packages/protocol/src/semver.mjs";
 import { writeStub } from "../../../packages/protocol/test/stub-script.js";
 import { shimText } from "../src/shim.js";
@@ -241,6 +241,16 @@ describe("the install line", () => {
 
   describe("on Linux", () => {
     beforeEach(() => uname("Linux"));
+
+    it("prefers Electron when a release also carries Experimental GPUI", async () => {
+      publish("0.4.0", {
+        [bundleNames("0.4.0").appImage]: appImage("0.4.0"),
+        [classicNames("0.4.0").appImage]: appImage("0.4.0", { classic: true }),
+      }, { latest: true });
+      const installed = await run();
+      expect(installed.code, installed.stderr).toBe(0);
+      expect(readFileSync(join(home, ".wsp", "bin", "wsp"), "utf8")).toContain("ELECTRON_RUN_AS_NODE=1");
+    });
 
     it("installs the AppImage and the command a new shell finds, and a second run replaces an older version in place", async () => {
       const older = bundleNames("0.3.0").appImage;

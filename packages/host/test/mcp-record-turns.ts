@@ -651,7 +651,7 @@ export const TURN_ANSWERED: Record<string, TurnCase[]> = {
     { case: "refused", arguments: {}, replies: { "host.restart": no("this host runs under wsp up in a terminal; only that terminal brings it back", "usage") } },
   ],
   run: [
-    { case: "a sub-thread on Boat, detached", arguments: { on: "boat", size: "4x8", message: "fix it", notify: ["me"], detach: true }, env: { [TURN_TOKEN_ENV]: "turn-token-1" }, replies: { ...SUB_REPLIES, "sessions.start": startIn("/root/web") } },
+    { case: "a sub-thread on Boat, detached", arguments: { on: "boat", size: "4x8", agent: "claude", model: "claude-opus-5-5", effort: "high", access: "full", message: "fix it", notify: ["me"], detach: true }, env: { [TURN_TOKEN_ENV]: "turn-token-1" }, replies: { ...SUB_REPLIES, "sessions.start": startIn("/root/web") } },
     { case: "a sub-thread on Boat followed to its reply", arguments: { on: "boat", message: "fix it", title: "the upload test" }, replies: { ...SUB_REPLIES, "sessions.start": startIn("/root/web") }, pushed: { "sessions.start": TURN } },
     { case: "a size with no cloud", arguments: { size: "4x8", message: "t" }, replies: {} },
     { case: "a cloud beside another thread's folder", arguments: { on: "boat", beside: "thread-7f", message: "t" }, replies: {} },

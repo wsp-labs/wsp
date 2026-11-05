@@ -38,6 +38,7 @@ export interface Box {
   /** The files the agents' configs read finds there, by path. */
   configs: Map<string, string>;
   /** How the configs read answers, given what it printed: as printed and exiting 0 unless a test says otherwise. */
+  execAs?: (cmd: string) => { stdout: string; exitCode?: number } | undefined;
   readAs?: (stdout: string) => { stdout: string; exitCode: number; stderr?: string };
   /** The computer answers no frame, a ping included, as one whose network was cut while its socket still stands. */
   quiet?: boolean;
@@ -220,6 +221,8 @@ export function box(client: WsClient, login: BoxLogin, o: { failClone?: boolean;
     const out = (stdout: string, exitCode = 0): void => say({ exitCode, stdout, stderr: exitCode === 0 ? "" : "fatal: repository not found", truncated: false });
     if (cmd.includes("command -v runuser")) return out(`Linux\n0\nroot\n${login.owner}\n1\n${login.home}\n/usr/bin\n`);
     const line = handedLine(cmd);
+    const overridden = seen.execAs?.(line);
+    if (overridden !== undefined) return out(overridden.stdout, overridden.exitCode);
     if (line.includes("-ilc")) return login.shellPath === undefined ? out("", 1) : out(`welcome back\n${login.shellPath}`);
     const claim = /mkdir '([^']+)'"\$n"/.exec(line);
     if (claim !== null) {

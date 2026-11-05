@@ -113,6 +113,7 @@ export function SubThreadStrip({ workspaceId, row }: { workspaceId: string; row:
     return <SubStrip k="oom" glyph={MemoryStickIcon} words={SUB_STRIP.oom(row.failure)} acts={startAgain === undefined ? [] : [{ k: "start-again", word: SUB_STRIP.startAgain(bigger!), run: startAgain }]} />;
   }
   // A restart that failed is said by the start line alone, with its Try again.
+  if (sub.mode === "isolated") return null;
   if (sub.state === "released" && sub.spawn?.failed !== undefined) return null;
   if (sub.state === "released") return <SubStrip k="released" glyph={CloudOffIcon} words={SUB_STRIP.released(on)} />;
   if (sub.held !== undefined)

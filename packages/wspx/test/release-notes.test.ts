@@ -166,13 +166,13 @@ describe("the notes on the draft release", () => {
     expect(notes()).toContain(`npm i -g ${published}@0.1.4`);
   });
 
-  it("list the GPUI app first and the classic app second, never the classic app's zip", () => {
+  it("list Electron first and GPUI as Experimental, without updater zips", () => {
     const { macZip, ...classic } = classicNames("0.1.4");
     expect(classic).toEqual({ mac: "wsp-classic-0.1.4-mac.dmg", appImage: "wsp-classic-0.1.4.AppImage" });
     const text = notes();
-    const first = Math.max(text.indexOf("wsp-0.1.4-mac.dmg"), text.indexOf("wsp-0.1.4.AppImage"));
-    for (const name of Object.values(classic)) expect(text.indexOf(name)).toBeGreaterThan(first);
-    expect(text).toContain("- The classic app, the Electron app wsp shipped before: ");
+    const first = Math.max(...Object.values(classic).map(name => text.indexOf(name)));
+    for (const name of [bundleNames("0.1.4").mac, bundleNames("0.1.4").appImage]) expect(text.indexOf(name)).toBeGreaterThan(first);
+    expect(text).toContain("- Experimental GPUI app: ");
     expect(text).not.toContain(macZip);
   });
 

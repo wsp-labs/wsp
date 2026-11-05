@@ -2,6 +2,34 @@
   "tool": "projects_add",
   "cases": [
     {
+      "case": "existing remote folder",
+      "arguments": {
+        "source": "/root/alpha",
+        "on": "attic",
+        "existing": true
+      },
+      "replies": {
+        "projects.add": "{\"id\":1,\"ok\":true,\"project\":{\"id\":\"proj-1\",\"name\":\"alpha 'quoted'\",\"computer\":\"place-9\",\"source\":{\"kind\":\"folder\",\"path\":\"/root/alpha\"},\"path\":\"/root/alpha\",\"remote\":\"https://github.com/dev/alpha.git\",\"defaultBranch\":\"main\",\"memoryKey\":\"-root-alpha\",\"memoryDir\":\"/root/.claude/projects/-root-alpha \u0085\",\"createdAt\":\"2026-09-01T00:00:00.000Z\",\"base\":\"main\"}}",
+        "places.list": "{\"id\":1,\"ok\":true,\"places\":[{\"id\":\"place-9\",\"kind\":\"computer\",\"name\":\"attic \u0085\",\"default\":false}]}"
+      },
+      "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"alpha 'quoted' proj-1: /root/alpha on attic \\u0085, at /root/alpha\"}],\"structuredContent\":{\"project\":{\"id\":\"proj-1\",\"name\":\"alpha 'quoted'\",\"computer\":\"place-9\",\"source\":{\"kind\":\"folder\",\"path\":\"/root/alpha\"},\"path\":\"/root/alpha\",\"remote\":\"https://github.com/dev/alpha.git\",\"defaultBranch\":\"main\",\"memoryKey\":\"-root-alpha\",\"memoryDir\":\"/root/.claude/projects/-root-alpha \\u0085\",\"createdAt\":\"2026-09-01T00:00:00.000Z\",\"base\":\"main\"}}},\"jsonrpc\":\"2.0\",\"id\":1}",
+      "asked": [
+        {
+          "op": "projects.add",
+          "source": "/root/alpha",
+          "on": "attic",
+          "existing": true
+        },
+        {
+          "op": "places.list"
+        }
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool projects_add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
+    },
+    {
       "case": "added",
       "arguments": {
         "source": "dev/alpha",
@@ -23,7 +51,11 @@
         {
           "op": "places.list"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool projects_add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "notice",
@@ -47,7 +79,11 @@
         {
           "op": "places.list"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool projects_add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "cloned into a folder",
@@ -71,7 +107,11 @@
         {
           "op": "places.list"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool projects_add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     },
     {
       "case": "refused",
@@ -87,7 +127,11 @@
           "op": "projects.add",
           "source": "/nowhere"
         }
-      ]
+      ],
+      "guest": {
+        "line": "{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"MCP error -32602: Tool projects_add not found\"}],\"isError\":true},\"jsonrpc\":\"2.0\",\"id\":1}",
+        "asked": []
+      }
     }
   ]
 }

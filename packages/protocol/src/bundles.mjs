@@ -15,7 +15,7 @@ export const RELEASE_TAG = /^v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/;
 export const RELEASES = `${REPO}/releases`;
 
 /** What the GPUI app's downloads are called, {version} standing for the version: the names today's release has
- * always used, so an installed app of either kind that reads them updates into the GPUI app. The GPUI app reads these
+ * always used; its updater continues selecting these names. The GPUI app reads these
  * three lines out of this file as written, so each stays a key, a colon and one double-quoted string. */
 export const GPUI_NAMES = {
   mac: "wsp-{version}-mac.dmg",
@@ -23,7 +23,7 @@ export const GPUI_NAMES = {
   appImage: "wsp-{version}.AppImage",
 };
 
-/** What the classic app's downloads are called, the Electron app the release lists second. */
+/** What the classic app's downloads are called, the default Electron app. */
 export const CLASSIC_NAMES = {
   mac: "wsp-classic-{version}-mac.dmg",
   macZip: "wsp-classic-{version}-mac.zip",
@@ -36,20 +36,21 @@ const filled = (names, version) => ({
   appImage: names.appImage.replace("{version}", version),
 });
 
-/** What each of the GPUI app's downloads on the release page is called for one version, which is the name the notes
- * print first. The zip is what an installed mac app replaces itself from, so the notes leave it out. */
+/** The GPUI downloads for one version, listed as Experimental. Its mac updater uses the zip, which the notes
+ * leave out. */
 export function bundleNames(version) {
   return filled(GPUI_NAMES, version);
 }
 
-/** The same for the classic app, which the notes print second. */
+/** The same for the classic app, which the notes print first. */
 export function classicNames(version) {
   return filled(CLASSIC_NAMES, version);
 }
 
-/** The copies the release job uploads beside the versioned ones, under names no version moves. GitHub serves the
- * newest release's copy of each at releases/latest/download, which is the only download link the site can hold. */
+/** Stable download names: Electron is the default; GPUI is Experimental. Classic aliases remain for existing links.
+ * GitHub serves the newest release's copy at releases/latest/download. Versioned updater names stay separate. */
 export const STABLE_NAMES = { mac: "wsp-mac.dmg", appImage: "wsp-linux.AppImage" };
+export const EXPERIMENTAL_STABLE_NAMES = { mac: "wsp-experimental-mac.dmg", appImage: "wsp-experimental-linux.AppImage" };
 export const CLASSIC_STABLE_NAMES = { mac: "wsp-classic-mac.dmg", appImage: "wsp-classic-linux.AppImage" };
 
 /** The last release that carried the classic app under STABLE_NAMES, where the site sends a classic download while the
@@ -68,15 +69,17 @@ export function bundleEnv(version) {
   const classic = classicNames(version);
   const lines = [
     ["MAC_DMG", gpui.mac],
-    ["MAC_STABLE", STABLE_NAMES.mac],
+    ["MAC_STABLE", EXPERIMENTAL_STABLE_NAMES.mac],
     ["MAC_ZIP", gpui.macZip],
     ["APPIMAGE", gpui.appImage],
-    ["APPIMAGE_STABLE", STABLE_NAMES.appImage],
+    ["APPIMAGE_STABLE", EXPERIMENTAL_STABLE_NAMES.appImage],
     ["CLASSIC_MAC_DMG", classic.mac],
     ["CLASSIC_MAC_STABLE", CLASSIC_STABLE_NAMES.mac],
     ["CLASSIC_MAC_ZIP", classic.macZip],
     ["CLASSIC_APPIMAGE", classic.appImage],
     ["CLASSIC_APPIMAGE_STABLE", CLASSIC_STABLE_NAMES.appImage],
+    ["DEFAULT_MAC_STABLE", STABLE_NAMES.mac],
+    ["DEFAULT_APPIMAGE_STABLE", STABLE_NAMES.appImage],
   ];
   return `${lines.map(([name, value]) => `${name}=${value}`).join("\n")}\n`;
 }

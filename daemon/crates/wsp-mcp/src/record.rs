@@ -39,6 +39,8 @@ pub struct Server {
     pub latest_protocol_version: String,
     /// The tools whose work reads this computer, which a guest is not served: its caller means the machine it is on.
     pub reads_here: Vec<String>,
+    /// Tools with a permitted thread form, recorded from the Node server's allowlist.
+    pub thread_tools: Vec<String>,
 }
 
 /// What the server greets with, with WSP_CLOUD off and on, and a thread's own server's, which opens with its slate:

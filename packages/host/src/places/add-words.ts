@@ -262,6 +262,7 @@ export const boxNotSignedInLine = (name: string, agent: string, said?: string): 
   `${agentName(agent)} is not signed in on ${name}${said === undefined ? "" : `: ${said}`}. wsp add ${name} --sign-in ${agent} runs it again.`;
 
 export interface AddFlags {
+  existing?: boolean;
   name?: string;
   sshPort?: number;
   keyPath?: string;
@@ -312,11 +313,12 @@ export function addFlags(
   seed: { yes?: boolean; keep?: string[]; cut?: string[]; noMemory?: boolean; noCommits?: boolean; remember?: boolean } = {},
   hostKey?: string,
   into?: string,
-  setup: { recipe?: string; later?: boolean; resume?: boolean; json?: boolean } = {},
+  setup: { existing?: boolean; recipe?: string; later?: boolean; resume?: boolean; json?: boolean } = {},
 ): AddFlags {
   const asked = sshAsked(name, port, keyPath);
   const pinned = hostKey?.trim();
   return {
+    ...(setup.existing === true ? { existing: true } : {}),
     ...(setup.recipe !== undefined ? { recipe: setup.recipe } : {}),
     ...(setup.later === true ? { later: true } : {}),
     ...(setup.resume === true ? { resume: true } : {}),

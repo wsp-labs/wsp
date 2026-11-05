@@ -69,6 +69,17 @@ describe("the step words", () => {
 });
 
 describe("the creation page", () => {
+  it("shows a connected child's startup through the same compact line as Boat", async () => {
+    const creation = { ...making([line("fork-requested", "Making its runtime", 0)]), askedBy: { threadId: "lead", rootThreadId: "lead" }, where: "p_hetzner", asked: "Say hello from Hetzner", start: { prompt: "Say hello from Hetzner", harness: "codex", model: "model-for-child", effort: "medium" } };
+    useStore.setState({ places: [{ id: "p_hetzner", name: "Hetzner", kind: "computer", present: true, default: false }] });
+    const view = await mount(creation);
+    expect(view.querySelector("[data-spawn-line=live]")?.textContent).toContain("Starting a machine on Hetzner");
+    expect(view.querySelector("[data-settings-card=setting-up]")).toBeNull();
+    expect(view.querySelector("[data-k=creation-asked]")?.textContent).toBe("Say hello from Hetzner");
+    fireEvent.click(view.querySelector("[data-k=spawn-line]")!);
+    expect(view.querySelectorAll("[data-spawn-step]")).toHaveLength(1);
+  });
+
   it("asked with a message, is that thread already: the message first, the steps in the middle and the composer docked", async () => {
     const view = await mount(making([line("fork-requested", "Fork requested.", 1200), line("hostname-set", "Named.", 1800)], { asked: "make the rows taller" }));
     expect(within(view).queryByRole("heading", { level: 1 })).toBeNull();

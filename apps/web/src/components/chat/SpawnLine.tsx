@@ -17,7 +17,7 @@ import type { StepLine } from "../../settings/add/setup.js";
 import { Button } from "../ui/button.js";
 import { Spinner } from "../ui/spinner.js";
 import { EMPTY_DRAFT, useComposerDraftStore } from "./composerDraftStore.js";
-import { spawnLogOf, startFailureSays } from "./spawnLog.js";
+import { spawnLogOf, startFailureSays, type SpawnLog } from "./spawnLog.js";
 
 /** Now, once a second while `on`: the live line's time and its running step's. */
 function useSeconds(on: boolean): number {
@@ -43,16 +43,6 @@ function Mark({ state }: { state: StepLine["state"] }) {
 export function SpawnLine({ row }: { row: Extract<MessagesTimelineRow, { kind: "machine-start" }> }) {
   const { start } = row;
   const spawn = spawnLogOf(start.sub, { agent: start.agent, model: start.model, effort: start.effort, project: start.project, answeredAt: row.answeredAt });
-  const failed = spawn?.failed === true;
-  const live = spawn !== undefined && spawn.tookMs === undefined && !failed;
-  const [open, setOpen] = useState(failed);
-  const [raw, setRaw] = useState(false);
-  useEffect(() => {
-    if (failed) setOpen(true);
-  }, [failed]);
-  const now = useSeconds(live);
-  if (spawn === undefined) return null;
-  const words = failed ? SUB_SPAWN_WORDS.failed(spawn.on) : live ? SUB_SPAWN_WORDS.starting(spawn.on) : SUB_SPAWN_WORDS.started(spawn.on, fmtDuration(spawn.tookMs ?? 0));
   const prompt = row.prompt;
   const tryAgain = (): void => {
     if (prompt === null) return;
@@ -61,6 +51,20 @@ export function SpawnLine({ row }: { row: Extract<MessagesTimelineRow, { kind: "
     const drafts = useComposerDraftStore.getState();
     if (start.threadId !== undefined && drafts.drafts[start.threadId]?.prompt === prompt) drafts.setDraft(start.threadId, EMPTY_DRAFT);
   };
+  return spawn === undefined ? null : <StartupLine spawn={spawn} onTryAgain={prompt === null ? undefined : tryAgain} />;
+}
+
+/** Shared child startup progress, before its first turn and in the completed transcript. */
+export function StartupLine({ spawn, onTryAgain }: { spawn: SpawnLog; onTryAgain?: () => void }) {
+  const failed = spawn.failed;
+  const live = spawn.tookMs === undefined && !failed;
+  const [open, setOpen] = useState(failed);
+  const [raw, setRaw] = useState(false);
+  useEffect(() => {
+    if (failed) setOpen(true);
+  }, [failed]);
+  const now = useSeconds(live);
+  const words = failed ? SUB_SPAWN_WORDS.failed(spawn.on) : live ? SUB_SPAWN_WORDS.starting(spawn.on) : SUB_SPAWN_WORDS.started(spawn.on, fmtDuration(spawn.tookMs ?? 0));
   return (
     <div data-spawn-line={failed ? "failed" : live ? "live" : "done"} className="flex flex-col items-center text-meta leading-4 text-muted-foreground">
       <button type="button" aria-expanded={open} data-k="spawn-line" onClick={() => setOpen(o => !o)} className={cn("inline-flex items-center gap-1.5 tabular-nums transition-colors duration-150 hover:text-foreground", failed && "text-destructive-foreground hover:text-destructive-foreground")}>
@@ -91,8 +95,8 @@ export function SpawnLine({ row }: { row: Extract<MessagesTimelineRow, { kind: "
                     {step.said}
                     {step.fix === undefined ? null : <span className="text-foreground"> {step.fix}</span>}
                   </p>
-                  {prompt === null ? null : (
-                    <Button size="xs" variant="outline" data-k="spawn-try-again" onClick={tryAgain}>
+                  {onTryAgain === undefined ? null : (
+                    <Button size="xs" variant="outline" data-k="spawn-try-again" onClick={onTryAgain}>
                       {SUB_SPAWN_WORDS.tryAgain}
                     </Button>
                   )}

@@ -183,7 +183,7 @@ fn cloud_row(ctx: &Ctx, place: &PlaceView, window: &mut Window, cx: &mut App) ->
     let row = GridRow::new(SharedString::from(format!("place-row-{}", place.id)), LIST_COLUMNS).narrow(LIST_COLUMNS_NARROW);
     let row = match setup {
         None => row.on_open(opens(ctx, place)),
-        Some(_) => row.on_open(move |_, _, cx| acts.note(ADD_ELSEWHERE, cx)),
+        Some(_) => row.on_open(move |_, window, cx| acts.add_cloud(window, cx)),
     };
     let mut row = row.on_menu(row_menu(ctx, place)).cell(name).cell_spans(machines, 3, 1).cell(state).cell(chevron(cx));
     if let Some(why) = cell.why() {
@@ -288,21 +288,26 @@ fn pending_row(ctx: &Ctx, pending: &PendingComputer, cx: &mut App) -> GridRow {
     let mark = if pending.failed.is_some() { MarkState::Failed } else { MarkState::Pending };
     let mark_el = StatusMark::state(format!("pending-mark-{}", pending.id), mark).tooltip(why.clone());
     let acts = ctx.acts.clone();
+    let setup = pending.place_id.clone().unwrap_or_else(|| pending.id.clone());
     GridRow::new(SharedString::from(format!("pending-row-{}", pending.id)), LIST_COLUMNS)
         .narrow(LIST_COLUMNS_NARROW)
         .hover(why.clone())
-        .on_open(move |_, _, cx| acts.note(ADD_ELSEWHERE, cx))
+        .on_open(move |_, window, cx| acts.add_computer(Some(setup.clone()), window, cx))
         .cell(GridName::new(glyph, name))
         .cell_spans(div(), 3, 1)
         .cell(StateCell::act(SharedString::from(format!("pending-state-{}", pending.id)), mark_el).why(why))
         .cell(chevron(cx))
 }
 
-/// Why Add a computer is held: its dialog comes with a later build.
-pub const ADD_COMPUTER_LATER: &str = "Add a computer opens in the next build of this app.";
-
-/// What the Add a cloud button and a pending add's row say: this app draws neither dialog.
-const ADD_ELSEWHERE: &str = "Add a computer and Add a cloud open in the next build of this app.";
+/// The Add a computer entry shared by Computers and Recipes.
+pub fn add_computer(ctx: &Ctx) -> AnyElement {
+    let acts = ctx.acts.clone();
+    h_flex()
+        .self_start()
+        .debug_selector(|| "add-computer-button".into())
+        .child(Button::add("add-computer-button", add_words::TITLE).on_click(move |_, window, cx| acts.add_computer(None, window, cx)))
+        .into_any_element()
+}
 
 /// A list's header row on the template.
 fn head(cells: Vec<HeadCell>) -> GridHead {
@@ -339,8 +344,7 @@ pub fn cards(ctx: &Ctx, window: &mut Window, cx: &mut App) -> Vec<CardData> {
     if let Some(said) = &ctx.data.places_refused {
         computers_body = computers_body.child(crate::ui::Refusal::new().said(where_words::not_read(said)));
     }
-    computers_body =
-        computers_body.child(h_flex().child(super::super::projects::held_add("add-computer-button", add_words::TITLE, ADD_COMPUTER_LATER)));
+    computers_body = computers_body.child(add_computer(ctx));
     let mut cards = vec![CardData::new("computers")
         .body(computers_body)
         .search(computers.iter().map(|place| search_row(ctx, place, here.as_ref())).collect())];
@@ -368,10 +372,10 @@ pub fn cards(ctx: &Ctx, window: &mut Window, cx: &mut App) -> Vec<CardData> {
         };
         if offered {
             let acts = ctx.acts.clone();
-            clouds_body = clouds_body.child(
-                h_flex()
-                    .child(Button::add("add-cloud-button", add_words::ADD_CLOUD).on_click(move |_, _, cx| acts.note(ADD_ELSEWHERE, cx))),
-            );
+            clouds_body =
+                clouds_body.child(h_flex().self_start().debug_selector(|| "add-cloud-button".into()).child(
+                    Button::add("add-cloud-button", add_words::ADD_CLOUD).on_click(move |_, window, cx| acts.add_cloud(window, cx)),
+                ));
         }
         cards.push(
             CardData::new("clouds").body(clouds_body).search(clouds.iter().map(|place| search_row(ctx, place, here.as_ref())).collect()),

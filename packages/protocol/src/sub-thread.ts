@@ -18,10 +18,14 @@ import { subAllPushed, type SubResult } from "./views/sub-row.js";
  * configs, so anything past this is a data folder picked by mistake. */
 export const SUB_SEED_MAX_BYTES = 20 * 1024 * 1024;
 
+export const SUB_START_CLEANUP_LINE = "The computer is being cleaned up after a failed start.";
+export const SUB_START_CLEANUP_FIX = "Try again once cleanup finishes.";
+
 const count = z.number().int().nonnegative();
 
 /** What a sub-thread's start answers beside the thread: the machine, the branches and the files sent. */
 export const SubOut = z.object({
+  mode: z.literal("isolated").optional(),
   on: z.string(),
   machine: z.string(),
   size: z.object({ cpu: z.number().int(), memMb: z.number().int() }),
@@ -31,7 +35,7 @@ export const SubOut = z.object({
   branch: z.string(),
   sent: z.object({ paths: z.array(z.string()), bytes: count, missing: z.array(z.string()) }),
   notSent: z.object({ uncommitted: count, why: z.string().optional() }),
-  deleteAfterMinutes: count,
+  deleteAfterMinutes: count.optional(),
 });
 export type SubOut = z.infer<typeof SubOut>;
 
@@ -447,6 +451,7 @@ export const SUB_SPAWN_WORDS = {
   branchFact: (branch: string, sha: string): string => `${branch} is pushed at ${sha.slice(0, 7)}`,
   machine: (on: string, done: boolean): string => (done ? `Asked ${on} for a machine` : `Asking ${on} for a machine`),
   files: (n: number, done: boolean): string => `${done ? "Copied" : "Copying"} ${n} picked ${n === 1 ? "file" : "files"}`,
+  project: (done: boolean): string => done ? "Copied the current project" : "Copying the current project",
   agent: (agent: string): string => `Starting ${agent}`,
   agentFact: (model: string | undefined, effort: string | undefined): string | undefined => ([model, effort].filter(Boolean).join(", ") || undefined),
   /** The cloud's machine by its id and the cloud's own states it passed through. */

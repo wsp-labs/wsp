@@ -156,6 +156,11 @@ enum Step {
     TakeThenRead(Change, Again),
 }
 
+/// A setup starts after its cloud key is saved, and its seal changes the cloud's image.
+pub fn setup_moves_places(frame: &Value) -> bool {
+    matches!(frame.pointer("/job/phase").and_then(Value::as_str), Some("reading" | "done"))
+}
+
 /// The sidebar's rule for a push of `kind`, none for a push it does not follow.
 fn step(kind: &str, frame: Value) -> Option<Step> {
     let take = |change: Option<Change>| change.map(Step::Take);
@@ -168,7 +173,10 @@ fn step(kind: &str, frame: Value) -> Option<Step> {
         "thread.rewound" => Some(Step::Read(Again::Sessions)),
         "project.added" | "project.removed" => Some(Step::Read(Again::Projects)),
         // `useStore`'s init.job: the frame carries the job whole, so it is taken as it stands.
-        "init.job" => take(Some(Change::Job(frame.get("job").filter(|j| !j.is_null()).cloned()))),
+        "init.job" => {
+            let change = Change::Job(frame.get("job").filter(|j| !j.is_null()).cloned());
+            Some(if setup_moves_places(&frame) { Step::TakeThenRead(change, Again::Places) } else { Step::Take(change) })
+        }
         "job.needs-you" => take(frame.get("needsYou").filter(|n| !n.is_null()).cloned().map(Change::JobNeed)),
         "workspace.status" => take(frame.get("status").cloned().map(Change::Status)),
         "workspace.creating" => take(Some(Change::Creating(frame))),
@@ -250,6 +258,14 @@ mod tests {
     use serde_json::json;
 
     use super::{ends_step, step, Again, Change, Step};
+
+    #[test]
+    fn cloud_setup_refreshes_the_places_when_it_starts_and_seals() {
+        for phase in ["reading", "done"] {
+            let frame = json!({ "type": "init.job", "job": { "id": "j", "phase": phase } });
+            assert!(matches!(step("init.job", frame), Some(Step::TakeThenRead(Change::Job(Some(_)), Again::Places))));
+        }
+    }
 
     #[test]
     fn a_setup_frame_that_ends_a_step_reads_the_computers_again() {

@@ -93,6 +93,8 @@ export function AddProjectDialog({ onClose }: { onClose: () => void }) {
   const [on, setOn] = useState<string>(computers[0]?.id ?? HERE_PLACE_ID);
   const computer = computers.find(place => place.id === on) ?? computers[0];
   const here = computer === undefined || computer === computers[0];
+  const browsable = computer === undefined || !isProviderPlace(computer);
+  const browseOn = here ? undefined : computer?.id;
   const [field, setField] = useState("");
   const [repos, setRepos] = useState<HostFolderListing | null>(null);
   const [level, setLevel] = useState<HostFolderListing | null>(null);
@@ -111,23 +113,26 @@ export function AddProjectDialog({ onClose }: { onClose: () => void }) {
 
   // The repos are read once per open: a scan of the home folder, tens of milliseconds on a warm disk.
   useEffect(() => {
-    if (!here || browse === undefined) return;
+    setRepos(null);
+    setLevel(null);
+    if (!browsable || browse === undefined) return;
     let live = true;
-    void browse(undefined, false, true).then(
+    void browse(undefined, false, true, ...(browseOn === undefined ? [] : [browseOn])).then(
       next => live && setRepos(next),
       e => live && setRefusal(errorText(e)),
     );
     return () => {
       live = false;
     };
-  }, [browse, here]);
+  }, [browse, browsable, browseOn]);
 
   // A typed path lists the folder it names, one level, as the person types into it.
   const levelDir = path?.dir;
   useEffect(() => {
-    if (levelDir === undefined || browse === undefined) return;
+    setLevel(null);
+    if (!browsable || levelDir === undefined || browse === undefined) return;
     let live = true;
-    void browse(levelDir).then(
+    void (browseOn === undefined ? browse(levelDir) : browse(levelDir, undefined, undefined, browseOn)).then(
       next => {
         if (!live) return;
         setLevel(next);
@@ -138,17 +143,17 @@ export function AddProjectDialog({ onClose }: { onClose: () => void }) {
     return () => {
       live = false;
     };
-  }, [browse, levelDir]);
+  }, [browse, browsable, browseOn, levelDir]);
 
   const rows: readonly HostFolder[] = useMemo(() => {
-    if (!here || repoWord) return [];
+    if (!browsable || repoWord) return [];
     if (path !== null) return level?.dir === path.dir ? level.folders.filter(f => baseName(f.path).toLowerCase().startsWith(path.stem)) : [];
     return searched;
-  }, [here, repoWord, path?.dir, path?.stem, level, searched]);
+  }, [browsable, repoWord, path?.dir, path?.stem, level, searched]);
   useEffect(() => setLit(0), [field, on]);
   const litRow = rows[lit];
   // A repo already recorded on this computer is shown, so the list matches the disk, but is not added twice.
-  const added = useMemo(() => new Set(recorded.filter(p => p.computer === undefined || p.computer === HERE_PLACE_ID).map(p => p.path)), [recorded]);
+  const added = useMemo(() => new Set(recorded.filter(p => here ? p.computer === undefined || p.computer === HERE_PLACE_ID : p.computer === computer?.id).map(p => p.path)), [recorded, here, computer?.id]);
   const addable = (row: HostFolder | undefined): boolean => row?.repo === true && !added.has(row.path);
 
   const add = async (source: string, into?: string): Promise<void> => {
@@ -156,7 +161,8 @@ export function AddProjectDialog({ onClose }: { onClose: () => void }) {
     setAdding(true);
     setRefusal(null);
     try {
-      const project = await addProject(source, here ? undefined : computer?.id, into);
+      const existing = !here && browsable && !repositoryWord(source);
+      const project = await addProject(source, here ? undefined : computer?.id, into, ...(existing ? [true] : []));
       if (project !== null && (icon !== "folder" || hue !== "neutral")) void setPreferences({ projectLook: { [project.id]: { icon, hue } } });
       if (project !== null && image !== null && sendIcon !== undefined) {
         const named = project.name;
@@ -185,7 +191,8 @@ export function AddProjectDialog({ onClose }: { onClose: () => void }) {
     const picked = await bridge?.pickFolder?.();
     if (picked !== undefined) setCloneTo(picked);
   };
-  const target = clones || cloneReady ? field.trim() : addable(litRow) ? litRow!.path : null;
+  const openedFolder = path?.stem === "" && level?.dir === path.dir && !added.has(path.dir) ? path.dir : null;
+  const target = clones || cloneReady ? field.trim() : openedFolder ?? (addable(litRow) ? litRow!.path : null);
   const addTarget = (): void => {
     if (target !== null) void add(target, cloneReady ? cloneFolder : undefined);
   };
@@ -218,7 +225,7 @@ export function AddProjectDialog({ onClose }: { onClose: () => void }) {
         </button>
       );
     }
-    if (!here) return say(computer !== undefined && isProviderPlace(computer) ? ADD_PROJECT_WORDS.providerSays(placeName(computer)) : ADD_PROJECT_WORDS.boxSays(computer === undefined ? "" : placeName(computer)));
+    if (!browsable) return say(ADD_PROJECT_WORDS.providerSays(computer === undefined ? "" : placeName(computer)));
     if (clonesHere) {
       return (
         <div data-k="clone-into" className={cn(PANE_ROW, "h-auto flex-col items-stretch gap-2 bg-accent py-3 text-foreground")}>
@@ -294,7 +301,7 @@ export function AddProjectDialog({ onClose }: { onClose: () => void }) {
             spellCheck={false}
             value={field}
             disabled={adding}
-            placeholder={here ? ADD_PROJECT_WORDS.search : ADD_PROJECT_WORDS.addressOnly}
+            placeholder={browsable ? ADD_PROJECT_WORDS.search : ADD_PROJECT_WORDS.addressOnly}
             onChange={e => {
               setField(e.target.value);
               setRefusal(null);
@@ -316,7 +323,7 @@ export function AddProjectDialog({ onClose }: { onClose: () => void }) {
         <div className="grid h-[400px] grid-cols-[minmax(0,1fr)_210px] max-sm:grid-cols-1">
           <div className="flex min-h-0 flex-col">
             <div className="flex h-10 shrink-0 items-center px-5 text-muted-foreground">
-              {path !== null ? <span className="truncate font-mono text-xs">{tilde(path.dir, home)}</span> : here ? <span className={cn(GROUP_LABEL, "truncate")}>{ADD_PROJECT_WORDS.reposOn(computer === undefined ? "" : placeName(computer))}</span> : null}
+              {path !== null ? <span className="truncate font-mono text-xs">{tilde(path.dir, home)}</span> : browsable ? <span className={cn(GROUP_LABEL, "truncate")}>{ADD_PROJECT_WORDS.reposOn(computer === undefined ? "" : placeName(computer))}</span> : null}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">{listBody}</div>
           </div>
@@ -325,7 +332,7 @@ export function AddProjectDialog({ onClose }: { onClose: () => void }) {
             {computers.map((place, at) => {
               const Glyph = glyphOf(place, at);
               return (
-                <button key={place.id} type="button" data-k={`computer-${place.id}`} onClick={() => setOn(place.id)} className={cn(SIDE_ROW, place.id === computer?.id ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground")}>
+                <button key={place.id} type="button" data-k={`computer-${place.id}`} onClick={() => { if (place.id === computer?.id) return; setOn(place.id); if (repositoryWord(field) === null) setField(""); setRepos(null); setLevel(null); setRefusal(null); }} className={cn(SIDE_ROW, place.id === computer?.id ? "bg-accent text-foreground" : "text-muted-foreground hover:bg-accent/60 hover:text-foreground")}>
                   <Glyph aria-hidden className="size-4 shrink-0" />
                   <span className="truncate">{placeName(place)}</span>
                 </button>

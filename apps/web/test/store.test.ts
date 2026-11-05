@@ -535,6 +535,19 @@ describe("store creations", () => {
     expect(useStore.getState().selectedId).toBe("ws_a");
   });
 
+  it("keeps the asking thread on an external child creation and follows its live transcript at handoff", async () => {
+    const { api, emit } = fakeApi([view("ws_a")], []);
+    useStore.getState().bind(api); await flush();
+    const askedBy = { threadId: "lead-thread", rootThreadId: "root-thread" };
+    const start = { prompt: "Say hello", harness: "codex", model: "gpt-6-sol", effort: "medium" };
+    emit(stage({ askedBy, start }));
+    const creation = useStore.getState().creations[0]!;
+    expect(creation).toMatchObject({ askedBy, asked: start.prompt, start });
+    useStore.getState().select(creation.key);
+    emit({ type: "workspace.created", workspace: { ...view("ws_new"), parentThreadId: askedBy.threadId, rootThreadId: askedBy.rootThreadId } });
+    expect(useStore.getState()).toMatchObject({ selectedId: "ws_new", selectedThreadId: null, freshThread: false, landed: null });
+  });
+
   it("a failed create leaves on a delete from any client, and its own dismiss asks the runtime to delete it", async () => {
     const { api, emit } = fakeApi([view("ws_a")], []);
     const deleted: string[] = [];

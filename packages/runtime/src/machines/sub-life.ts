@@ -98,6 +98,11 @@ export function subSessionLandCommand(file: { folder: string; name: string; dept
 
 /** A sub-machine's record as its thread's row reads it. */
 export function subRowOf(record: WorkspaceRecord): SubRow | undefined {
+  const isolated = record.isolated;
+  if (isolated?.spawn !== undefined) return {
+    mode: "isolated", ...(isolated.releasedAt === undefined ? {} : { releasedAt: isolated.releasedAt }), on: isolated.on ?? record.place ?? "computer", machine: record.name, size: record.size, branch: isolated.branch,
+    state: record.phase === "released" || record.phase === "gone" ? "released" : isolated.spawn.readyAt === undefined ? "starting" : "running", spawn: isolated.spawn,
+  };
   const sub = record.sub;
   if (sub === undefined) return undefined;
   const state: SubState =
@@ -432,13 +437,14 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
   const reclaim = (workspaceId: string): void => {
     const entry = live.get(workspaceId);
     const sub = entry?.record.sub;
-    if (entry === undefined || sub === undefined || (sub.deleteAt === undefined && sub.held === undefined)) return;
+    if (entry === undefined || sub === undefined) return;
+    // A refused first start may retain a cut-off computer before any result has armed its retention.
+    if (!entry.startCleanup && entry.deleting === undefined && [...sessions.values()].some(s => s.view.workspaceId === workspaceId && s.view.status === "running" && s.queued !== true)) ctx.opts.broker?.lift?.(workspaceId);
+    if (sub.deleteAt === undefined && sub.held === undefined) return;
     timers.get(workspaceId)?.();
     timers.delete(workspaceId);
     delete sub.deleteAt;
     delete sub.held;
-    // A delete the provider refused left the machine cut off, and the turn runs on it.
-    ctx.opts.broker?.lift?.(workspaceId);
     void ctx.persist(entry.record).catch((e: unknown) => console.warn(`sub-thread machine ${workspaceId}: ${e instanceof Error ? e.message : String(e)}`));
   };
 
@@ -590,8 +596,9 @@ export function subLifeArea(ctx: RuntimeContext): SubLifeArea {
       if (sub !== undefined && entry.record.phase === "released") throw subReleasedRefusal(threadOf(entry.record.id) ?? entry.record.name, cloudOf(entry));
     },
     leadOfSub: (workspaceId, origin) => {
-      const lead = workspaceId === undefined ? undefined : live.get(workspaceId)?.record.lead;
-      return lead !== undefined && scopeOf(origin)?.threadId === lead.threadId;
+      const record = workspaceId === undefined ? undefined : live.get(workspaceId)?.record;
+      const lead = record?.lead?.threadId ?? (record?.isolated === undefined ? undefined : record.parentThreadId);
+      return lead !== undefined && scopeOf(origin)?.threadId === lead;
     },
   };
 }

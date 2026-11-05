@@ -17,7 +17,7 @@ pub use words::{is_provider, js_number, provider_key_name, ProviderWords, PROVID
 use gpui_kit::{AnyElement, App, SharedString, Window};
 
 pub use image::words::copy_build_of;
-pub use list::{icon_items, RowMenu, ADD_COMPUTER_LATER};
+pub use list::{add_computer, icon_items, RowMenu};
 
 use crate::screens::settings::model::At;
 use crate::screens::settings::page::{CardData, Ctx};

@@ -143,7 +143,7 @@ export function computersCards(ctx: SettingsContext): SettingsCardData[] {
   const refused =
     ctx.placesRefused === null ? null : <RefusalSlot k="places-refused" said={WHERE_WORDS.notRead(ctx.placesRefused.said)} {...(ctx.placesRefused.fix === undefined ? {} : { fix: ctx.placesRefused.fix })} />;
   const H = WHERE_WORDS.heads;
-  const offered = cloudsOffered(ctx.reads.setup).length > 0;
+  const offered = cloudsOffered(ctx.reads.setup).some(id => !keyHeld(id, ctx.reads.setup) && !clouds.some(place => place.id === id));
   const computersBody = (
     <div className="flex flex-col gap-2">
       {computers.length === 0 ? null : (
@@ -639,7 +639,10 @@ export function ComputerPage({ place, ctx }: { place: PlaceView; ctx: SettingsCo
   const image = cloud && held ? (ctx.reads.image?.image ?? null) : null;
   // After the dialog has closed: the page under it goes with the computer, and a portal torn down with its page
   // in one frame is a node React cannot find.
-  const onRemoved = (): void => void setTimeout(() => ctx.go({ kind: "group", group: "computers" }), 0);
+  const onRemoved = (): void => {
+    if (cloud) void ctx.api?.initGet?.().then(setup => useSettingsStore.getState().setReads({ setup }), ctx.failed);
+    setTimeout(() => ctx.go({ kind: "group", group: "computers" }), 0);
+  };
   return (
     <>
       <section data-settings-card="computer" className="flex flex-col gap-3">

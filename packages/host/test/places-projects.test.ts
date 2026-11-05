@@ -80,6 +80,17 @@ describe("wsp add <folder> --on <computer>: the menu before anything travels", (
     ...noBoxSignIn,
   });
 
+  it("registers an existing remote folder without asking for a local seed", async () => {
+    const home = tmp("add-existing-remote");
+    const { dial, asked } = menuClient();
+    expect(await addCommand(captured(), opts(home), ["/root/project"], { on: "spoo", existing: true }, menuDeps(dial))).toBe(0);
+    expect(asked.find(a => a.op === "projects.add")?.params).toEqual({ source: "/root/project", on: "spoo", existing: true });
+    expect(asked.some(a => a.op === "project.seed.plan")).toBe(false);
+    for (const extra of [{ yes: true }, { keep: [".env"] }, { base: "main" }, { into: "/tmp" }, { resume: true }]) {
+      await expect(addCommand(captured(), opts(home), ["/root/project"], { on: "spoo", existing: true, ...extra }, menuDeps(dial))).rejects.toThrow(/without clone/);
+    }
+  });
+
   it("prints the menu and sends nothing until the person says what travels", async () => {
     const home = tmp("add-seed-menu");
     const { dial, asked } = menuClient();

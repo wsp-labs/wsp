@@ -3,7 +3,7 @@
 // and the URLs come from the release job's own formatter, so a rename there
 // moves these links with it and nothing on this page can go stale.
 import { useSyncExternalStore } from "react";
-import { downloadUrl, STABLE_NAMES } from "../../../packages/protocol/src/bundles.mjs";
+import { downloadUrl, EXPERIMENTAL_STABLE_NAMES, STABLE_NAMES } from "../../../packages/protocol/src/bundles.mjs";
 
 export type Platform = "mac" | "linux" | "windows";
 
@@ -35,3 +35,6 @@ const fixed = () => () => {};
 export function useVisitor(): Platform {
   return useSyncExternalStore(fixed, () => platformOf(navigator.userAgent), (): Platform => "mac");
 }
+
+/** The optional native app; the default downloads above install Electron. */
+export const EXPERIMENTAL = { mac: downloadUrl(EXPERIMENTAL_STABLE_NAMES.mac), linux: downloadUrl(EXPERIMENTAL_STABLE_NAMES.appImage) };

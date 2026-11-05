@@ -109,6 +109,7 @@ wsp folders /Users/zingzy                         # what is inside, for naming a
 wsp add /Users/zingzy/wsp                         # a project on this computer, worked where it sits
 wsp add https://github.com/spoo-me/spoo.me --into /Users/zingzy/code   # cloned here into /Users/zingzy/code/spoo.me, then worked there
 wsp add https://github.com/spoo-me/frontend --on spoo --name spoo-landing   # a project a computer clones
+wsp add /root/code/frontend --on spoo --existing   # register a folder already there, without copying or cloning
 wsp add spoo-me/frontend --on spoo                # the same repo through the signed-in gh on that computer
 wsp add /Users/zingzy/spoo/spoo-landing --on spoo # a folder here seeding a project there: prints the menu, sends nothing
 wsp add /Users/zingzy/spoo/spoo-landing --on spoo --yes   # sends the ticked rows; --keep, --cut, --no-memory, --no-commits move them

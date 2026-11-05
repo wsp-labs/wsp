@@ -290,7 +290,7 @@ const SidebarTree = memo(function SidebarTree({ nowMs, keep, openSettled }: { no
   const launches = useLaunches();
   const named = useMemo(() => placeNames(places), [places]);
   const settleAfter = useStore(s => s.preferences.settleAfter);
-  const tiles = useMemo(() => sidebarTiles(projects, { picked: picked?.project.id ?? null, nowMs, open: keep, settleMs: SETTLE_MS[settleAfter] }), [projects, picked, nowMs, keep, settleAfter]);
+  const tiles = useMemo(() => sidebarTiles(projects, { picked: picked?.project.id ?? null, nowMs, open: keep, settleMs: SETTLE_MS[settleAfter], creations }), [projects, picked, nowMs, keep, settleAfter, creations]);
   const standings = useMemo(() => rootPlaces(tiles.sections), [tiles]);
   useLayoutEffect(() => {
     drawnTiles.current = tiles;
@@ -412,6 +412,7 @@ const SidebarTree = memo(function SidebarTree({ nowMs, keep, openSettled }: { no
   const tileItem = (node: TileNode, depth: number, above: string | null, settled = false, group: ReadonlyArray<string> = [], part: ChildPart = "live", path: ReadonlyArray<string> = [], section?: SidebarSection): ReactNode => {
     const { thread: item, children } = node;
     const { runs, thread } = item;
+    if (item.creation !== undefined) return creationItem(item.creation, depth, runs);
     // A root of a section is an item a dragged tree lands beside, and one that moves is dragged by its tile.
     const rootOf = section === undefined ? undefined : { id: item.id, drags: canMark && !settled && item.snoozedWorking === undefined && (item.inboxOf?.parent ?? null) === null && (item.groupTitle !== undefined || thread !== null) };
     if (item.groupTitle !== undefined) {
@@ -538,19 +539,20 @@ const SidebarTree = memo(function SidebarTree({ nowMs, keep, openSettled }: { no
   /** The one verb a failed create's tile carries: the row goes, and the runtime's hold on it with it. */
   const deleteCreation = (key: string): ResolvedAction => ({ id: "delete", group: "remove", icon: Trash2Icon, destructive: true, searchTerms: [], title: "Delete", rowLabel: null, buttonWord: "Delete", hint: null, refusal: null, run: async () => dismissCreation(key) });
   /** A workspace being made, where it will run once it is one. */
-  const creationItem = (creation: Creation) => {
-    const project = recorded.find(p => p.id === creation.project);
+  const creationItem = (creation: Creation, depth = 0, parent?: SidebarProjectSnapshot) => {
+    const project = recorded.find(p => p.id === (creation.project ?? parent?.workspace.project.id));
     const where = creation.where ?? project?.computer;
     const failed = creation.failed !== null;
     // A refused create names the step it stopped on, the name being the row above; one refused before any step says so.
     const step = failed ? stoppedStep(creation) : currentStep(creation);
     const line = step !== undefined ? stepWords(step) : failed ? CREATE_STEP_WORDS.failed : CREATE_ASKED;
     return (
-      <li key={creation.key}>
+      <li key={creation.key} className={cn("min-w-0", depth > 0 && RAIL_ITEM_CLASS)}>
         <CreationTile
           rowId={creation.key}
+          depth={depth}
           name={creation.name}
-          place={{ projectId: creation.project ?? "", project: project?.name ?? "", computer: where === undefined ? "" : named.get(where) ?? where }}
+          place={{ projectId: creation.project ?? parent?.workspace.project.id ?? "", project: project?.name ?? parent?.workspace.project.name ?? "", computer: where === undefined ? "" : named.get(where) ?? where }}
           line={line}
           failed={failed}
           selects={{ workspaceId: creation.key }}
@@ -571,7 +573,7 @@ const SidebarTree = memo(function SidebarTree({ nowMs, keep, openSettled }: { no
       </li>,
     ];
   });
-  const made = creations.filter(creation => picked === null || creation.project === picked.project.id);
+  const made = creations.filter(creation => !projects.some(runs => runs.threads.some(thread => thread.id === creation.askedBy?.threadId)) && (picked === null || creation.project === undefined || creation.project === picked.project.id));
   /** A workspace being made files where a thread in its state does: Working while it is made, Needs you once refused. */
   const madeIn = (id: SidebarSection): Creation[] => made.filter(creation => (creation.failed === null ? "working" : "needs-you") === id);
   /** A root dropped on a section's head or on the fold: the marks the drop writes, or the settle of its tree. A group
@@ -729,7 +731,7 @@ const SidebarTree = memo(function SidebarTree({ nowMs, keep, openSettled }: { no
                 )}
                 {section.id !== "threads" && folded.includes(section.id) ? null : (
                   <ul className="flex min-w-0 flex-col">
-                    {madeIn(section.id).map(creationItem)}
+                    {madeIn(section.id).map(creation => creationItem(creation))}
                     {section.roots.map(node => tileItem(node, 0, null, false, [], "live", [], section.id))}
                   </ul>
                 )}

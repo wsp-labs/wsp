@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import type { IsolatedArea } from "./machines/isolated.js";
 import type { ActivityArea } from "./activity.js";
 import type {
   GoneWatch,
@@ -545,7 +546,7 @@ export interface BootArea {
 export type ShownCreate = WorkspaceView & { kind: WorkspaceKind };
 
 export interface CreateArea {
-  readonly createStaged: (o: CreateWorkspaceOptions, project: ProjectView, id: string, report: StageReport, spawned?: ThreadScope, landed?: () => void, childBase?: string) => Promise<CreatedWorkspace>;
+  readonly createStaged: (o: CreateWorkspaceOptions, project: ProjectView, id: string, report: StageReport, spawned?: ThreadScope, landed?: () => void, childBase?: string, isolated?: import("./types/wiring.js").IsolatedCheckout & { place: string }) => Promise<CreatedWorkspace>;
   readonly nameGiven: (name: string) => string;
   readonly forking: Set<string>;
   readonly failedCreates: Map<string, ShownCreate>;
@@ -556,7 +557,7 @@ export interface CreateArea {
   readonly createStages: Map<string, WorkspaceCreatingEvent>;
   readonly failedView: (id: string, name: string, kind: WorkspaceKind, golden: string, began: number, project: ProjectView, said: string) => ShownCreate;
   readonly supersedeFailed: (name: string) => void;
-  readonly stageReporter: (id: string, name: string, began: number, spawned: ThreadScope | undefined) => StageReport;
+  readonly stageReporter: (id: string, name: string, began: number, spawned: ThreadScope | undefined, place?: string, start?: import("@wsp/protocol").SubStartIntent) => StageReport;
   readonly nameRefusal: (name: string) => string | undefined;
   readonly foldersOf: (projectId: string) => LiveWorkspace[];
   readonly oneFolder: (key: string, make: () => Promise<LiveWorkspace>) => Promise<LiveWorkspace>;
@@ -907,7 +908,7 @@ export interface ProjectsArea {
   readonly copyImport: (entry: LiveWorkspace, o: ProjectImportOptions, report: ImportReport) => Promise<ImportLanded>;
   readonly landingKind: (computer: string, at: MachineBackend | undefined) => ProjectLanding["kind"];
   readonly landingDeps: (computer: string) => Promise<{ deps: LandingDeps; at: MachineBackend | undefined; placeId: string | undefined }>;
-  readonly projectsDoor: { seedPlan(source: string, on?: string): Promise<SeedPlan>; add(o: { source: string; on?: string; name?: string; base?: string; into?: string; seed?: SeedChoice; id?: string; createdAt?: string; report?: (line: string) => void; }, origin?: Caller): Promise<ProjectView & { notice?: string; }>; list(origin?: Caller): Promise<ProjectView[]>; computers(): Promise<{ id: string; name: string; }[]>; resolve(ref: string, origin?: Caller): Promise<ProjectView>; unsaved(project: ProjectView): Promise<string | undefined>; folderStands(id: string): Promise<boolean>; seedInto(id: string, plan: SeedPlan, files: readonly string[]): Promise<void>; remove(id: string, origin?: Caller, o?: { force?: boolean; check?: boolean; keepLook?: boolean }): Promise<{ said: string; unsaved?: string }>; };
+  readonly projectsDoor: { seedPlan(source: string, on?: string): Promise<SeedPlan>; add(o: { source: string; on?: string; name?: string; base?: string; into?: string; existing?: boolean; seed?: SeedChoice; id?: string; createdAt?: string; report?: (line: string) => void; }, origin?: Caller): Promise<ProjectView & { notice?: string; }>; list(origin?: Caller): Promise<ProjectView[]>; computers(): Promise<{ id: string; name: string; }[]>; resolve(ref: string, origin?: Caller): Promise<ProjectView>; unsaved(project: ProjectView): Promise<string | undefined>; folderStands(id: string): Promise<boolean>; seedInto(id: string, plan: SeedPlan, files: readonly string[]): Promise<void>; remove(id: string, origin?: Caller, o?: { force?: boolean; check?: boolean; keepLook?: boolean }): Promise<{ said: string; unsaved?: string }>; };
   readonly projects: Runtime["projects"];
 }
 
@@ -959,4 +960,4 @@ export interface PreferencesArea {
 
 /** Every area's members on one object, filled in createRuntime in file order: a member is read at the moment it is
  * called, never copied into a local while the areas are still being built. */
-export type RuntimeContext = RuntimeCore & ActivityArea & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & ProcScopesArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & SubSpawnArea & SubQueueArea & SubLifeArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & WaitsArea & StatusArea & PreferencesArea;
+export type RuntimeContext = RuntimeCore & { readonly isolated: IsolatedArea } & ActivityArea & KindsArea & RulesArea & TranscriptsArea & SlatesArea & ChannelsArea & ProcScopesArea & RecordsArea & ReachArea & PullRequestsArea & DaemonArea & MachinesArea & BootArea & CreateArea & SubSpawnArea & SubQueueArea & SubLifeArea & FoldersArea & StartFromArea & WorkspacesArea & AgentsArea & ThreadsArea & TurnsArea & SessionsArea & BuildersArea & GoldenArea & ImageArea & ProjectsArea & ProjectIconsArea & UsageArea & ConversationsArea & WaitsArea & StatusArea & PreferencesArea;

@@ -97,9 +97,10 @@ export function useComposerPicks(workspaceId: string, thread: ChatThreadHandle):
   const catalogs = useHarnessCatalogs(workspaceId);
   const ask = useDefaultsAsk(workspaceId);
   const kept = useComposerOptions(workspaceId);
+  const starting = useStore(s => s.creations.find(c => c.key === workspaceId)?.start);
   const rows = useThreadSessions(workspaceId, thread.threadKey, thread.fresh);
   const pickedOn = useComposerOptionsStore(s => s.pickedOn[workspaceId] ?? NO_THREADS);
-  const picked = useMemo(() => pickedFor(kept, thread.view, pickedOn, thread.threadKey), [kept, pickedOn, thread.threadKey, thread.view]);
+  const picked = useMemo(() => ({ ...starting, ...pickedFor(kept, thread.view, pickedOn, thread.threadKey) }), [starting, kept, pickedOn, thread.threadKey, thread.view]);
   const onThread = useMemo(() => threadPicks(thread.view, rows), [rows, thread.view]);
   // The agent the open thread runs on, off its own record and then its own rows: a workspace's latest session is
   // as often another thread's.

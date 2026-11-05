@@ -20,6 +20,8 @@ type Arc<T> = std::sync::Arc<T>;
 pub struct AddIn {
     pub source: String,
     #[serde(default)]
+    pub existing: Option<bool>,
+    #[serde(default)]
     pub on: Option<String>,
     #[serde(default)]
     pub into: Option<String>,
@@ -97,13 +99,16 @@ async fn add(host: Arc<Host>, arguments: Value) -> Result<Answer, Refused> {
     struct Places {
         places: Vec<Place>,
     }
-    let AddIn { source, on, into, name, base } = input(ADD_NAME, arguments)?;
+    let AddIn { source, on, into, name, base, existing } = input(ADD_NAME, arguments)?;
     let client = host.client().await?;
     let mut asked = params([("source", Value::from(source))]);
     for (key, value) in [("on", on), ("name", name), ("base", base), ("into", into)] {
         if let Some(value) = value {
             asked.insert(key.to_owned(), Value::from(value));
         }
+    }
+    if existing == Some(true) {
+        asked.insert("existing".to_owned(), Value::Bool(true));
     }
     let added: AddOut = client.request("projects.add", asked).await?;
     let named: HashMap<String, String> = match client.request::<Places>("places.list", Map::new()).await {

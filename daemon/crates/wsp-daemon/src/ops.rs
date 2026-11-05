@@ -985,15 +985,21 @@ async fn serve(conn: &Arc<Conn>, ctx: &Arc<Ctx>, id: Option<RequestId>, name: &s
             let merged = async {
                 // A copy's folder is fetched from only where both copies sit on the computer this daemon is, never
                 // inside a workspace, where no other copy is visible.
-                if from.is_some() && (machine_id.is_some() || ctx.options.kind != "local") {
+                let returned = from.as_deref().is_some_and(|path| path.starts_with("./.wsp-return-"));
+                if from.is_some() && !returned && (machine_id.is_some() || ctx.options.kind != "local") {
                     return Err(OpError::coded(DaemonErrorCode::Forbidden, words::MERGE_FROM_HERE_ONLY));
                 }
-                let (runner, _, at) = runner::op_road(ctx, machine_id.as_deref(), &cwd, token.as_deref()).await?;
-                let from = match from {
-                    Some(path) => Some(locate(ctx, &path).await?),
-                    None => None,
-                };
-                git::write::merge_in(&runner, &at, &branch, from.as_deref().and_then(Path::to_str)).await
+                let (runner, under, at) = runner::op_road(ctx, machine_id.as_deref(), &cwd, token.as_deref()).await?;
+                if returned {
+                    let bytes = runner::returned_bundle(&under, from.as_deref().unwrap()).await?;
+                    git::write::merge_bundle(&runner, &at, &branch, &bytes).await
+                } else {
+                    let from = match from {
+                        Some(path) => Some(locate(ctx, &path).await?),
+                        None => None,
+                    };
+                    git::write::merge_in(&runner, &at, &branch, from.as_deref().and_then(Path::to_str)).await
+                }
             };
             answer(id, merged.await)
         }
@@ -1302,6 +1308,44 @@ pub(crate) mod tests {
         let mut named = frame;
         named["machineId"] = json!("wsp-a");
         assert_eq!(reply(&here, &c, named).await, refused);
+    }
+
+    #[tokio::test]
+    async fn a_returned_bundle_merges_through_the_real_op_from_a_subfolder_without_a_remote() {
+        fn git(at: &Path, args: &[&str]) {
+            let out = std::process::Command::new("git").arg("-C").arg(at).args(args).output().unwrap();
+            assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+        }
+        for kind in ["local", "sandbox"] {
+            let mut b = bench();
+            Arc::get_mut(&mut b.ctx).unwrap().options.kind = kind.to_owned();
+            let root = b.root.path();
+            git(root, &["init", "-q", "-b", "main"]);
+            git(root, &["config", "user.name", "Test"]);
+            git(root, &["config", "user.email", "test@example.com"]);
+            std::fs::write(root.join("file"), "original").unwrap();
+            git(root, &["add", "."]);
+            git(root, &["commit", "-qm", "base"]);
+            git(root, &["checkout", "-qb", "child/one"]);
+            std::fs::write(root.join("result"), "returned").unwrap();
+            git(root, &["add", "."]);
+            git(root, &["commit", "-qm", "child"]);
+            let at = root.join("sub");
+            let scratch = at.join(".wsp-return-ABC123");
+            std::fs::create_dir_all(&scratch).unwrap();
+            git(root, &["bundle", "create", scratch.join("result.bundle").to_str().unwrap(), "child/one"]);
+            git(root, &["checkout", "-q", "main"]);
+            git(root, &["branch", "-D", "child/one"]);
+            let (c, _rx) = conn(None);
+            let frame =
+                json!({"id": 1, "op": "git.mergeIn", "cwd": at, "branch": "child/one", "from": "./.wsp-return-ABC123/result.bundle"});
+            std::fs::write(root.join("file"), "dirty").unwrap();
+            assert_eq!(reply(&b, &c, frame.clone()).await["ok"], false);
+            std::fs::write(root.join("file"), "original").unwrap();
+            let done = reply(&b, &c, frame).await;
+            assert_eq!(done["merged"], true, "{done}");
+            assert_eq!(std::fs::read_to_string(root.join("result")).unwrap(), "returned");
+        }
     }
 
     #[tokio::test]
