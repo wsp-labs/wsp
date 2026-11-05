@@ -715,8 +715,6 @@ const DAEMON_CONTENTS = [
  * Version 166: a file a commit and a merge both changed counts both.
  * Version 167: cut low-signal tests.
  * Version 168: v0.3.9. */
-// Next cut: git.mergeIn reads a scoped returned bundle beneath its own checkout, including inside a workspace.
-// MCP run output describes isolated connected-computer starts without a provider expiry.
 export const DAEMON_VERSION = DAEMON_CONTENTS.length;
 
 /** sha256 of what a deploy installs on a guest and this record can hold: the Rust sources and manifests the binary
