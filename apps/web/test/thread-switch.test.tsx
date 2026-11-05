@@ -375,15 +375,17 @@ describe("a connected child's setup handoff", () => {
     emit({ type: "workspace.creating", workspaceId: child.id, name: child.name, stage: "fork-requested", message: "Making the runtime", elapsedMs: 0, askedBy: { threadId: B.threadId, rootThreadId: B.threadId } });
     fireEvent.click(sidebar().getByText(child.name));
     emit({ type: "workspace.created", workspace: child });
-    const row: SessionView = { id: "child-turn", workspaceId: child.id, threadId: "child-thread", parentThreadId: B.threadId, rootThreadId: B.threadId, harness: "claude", status: "running", prompt: "say hello", startedAt: Date.now() };
+    const row: SessionView = { id: "child-turn", workspaceId: child.id, threadId: "child-thread", parentThreadId: B.threadId, rootThreadId: B.threadId, harness: "claude", status: "running", prompt: "say hello", startedAt: Date.now(), sub: { mode: "isolated", on: "hetzner", machine: child.name, size: { cpu: 2, memMb: 4096 }, branch: "wsp/hello", state: "running", spawn: { startedAt: Date.now() - 1000, readyAt: Date.now(), machine: { since: Date.now() - 1000, ms: 1000, states: [] }, log: [] } } };
     emit({ type: "session.row", id: row.id, workspaceId: child.id, threadId: row.threadId, row });
     const at = { workspaceId: child.id, threadId: row.threadId!, turnId: row.id, sessionId: "child-agent" };
     emit({ type: "session.start", ...at, at: Date.now(), prompt: row.prompt! });
     emit({ type: "session.delta", ...at, at: Date.now(), kind: "text", text: "Hello from the copied project." });
     await center().findByText("Hello from the copied project.");
+    await center().findByText(/Started on hetzner/);
     emit({ type: "session.delta", ...at, at: Date.now(), kind: "text", text: " Still streaming." });
     await center().findByText(/Hello from the copied project. Still streaming./);
     expect(useStore.getState()).toMatchObject({ selectedId: child.id, freshThread: false });
     expect(center().queryByTestId("workspace-creation")).toBeNull();
+    expect(center().getByText(/Started on hetzner/)).toBeTruthy();
   });
 });

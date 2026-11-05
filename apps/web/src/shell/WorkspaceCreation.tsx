@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // The centre while a workspace is being made: its setup is the content of the
-// room, in the middle of it, as the Add a computer dialog's list of steps in a
+// room, with child startup in the transcript column and other setup in a
 // settings card, under the message that asked for it if one did; the composer
 // is docked at the foot as in a conversation. A message sent now waits under
 // the creation and goes to the workspace once it is up.
@@ -52,6 +52,7 @@ export function WorkspaceCreation({ creation }: { creation: Creation }) {
     >
       <div ref={rootRef} className="relative isolate h-full min-h-0 text-foreground">
         <SetupRoom
+          centered={creation.askedBy === undefined}
           {...(asked === undefined
             ? {}
             : {

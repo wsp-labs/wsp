@@ -6,6 +6,7 @@
 // first message, so nothing on the page moves when the create ends.
 import type { ReactNode } from "react";
 import { Button } from "../ui/button.js";
+import { cn } from "../../lib/utils.js";
 import { useStore, type Creation } from "../../protocol/store.js";
 import { RetryActs, StepRow } from "../../settings/add/StepRow.js";
 import { Card } from "../../settings/rows.js";
@@ -43,12 +44,12 @@ export function SetupCard({ creation, landedAt }: { creation: Creation; landedAt
 
 /** The room over the composer the card stands in the middle of, the same on the page a create runs on and on the
  * thread it lands as, so the card stays where it was when the one becomes the other. `above` is the message that
- * asked for the create, where one did. */
-export function SetupRoom({ above, children }: { above?: ReactNode; children: ReactNode }) {
+ * asked for the create, where one did. Child startup stays under that message in the transcript column. */
+export function SetupRoom({ above, children, centered = true }: { above?: ReactNode; children: ReactNode; centered?: boolean }) {
   return (
     <div data-k="setting-up-room" className="absolute inset-x-0 top-0 bottom-(--chat-composer-inset,0px) flex flex-col gap-4 overflow-y-auto px-3 pt-3 sm:px-5 sm:pt-4">
       {above}
-      <div className="flex flex-1 items-center justify-center pb-6">{children}</div>
+      <div className={cn(centered ? "flex flex-1 items-center justify-center pb-6" : "mx-auto w-full min-w-0 max-w-3xl pb-4")}>{children}</div>
     </div>
   );
 }
