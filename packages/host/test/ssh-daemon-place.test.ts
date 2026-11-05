@@ -10,7 +10,7 @@ import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSyn
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
-import { MACHINE_LACKS_LINES, machineLacksLine, machineLacksShort, machineNeverAnswered, NO_LINGER_LINE, NO_NODE_LINE, PLACE_NEEDS_ROOT_LINE, NO_SYSTEMD_LINE, DAEMON_UNIT, shellQuote, placeDaemonPaths, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
+import { HOMEBREW_PREFIX, MACHINE_LACKS_LINES, machineLacksLine, machineLacksShort, machineNeverAnswered, NO_LINGER_LINE, NO_NODE_LINE, PLACE_NEEDS_ROOT_LINE, NO_SYSTEMD_LINE, DAEMON_UNIT, shellQuote, placeDaemonPaths, WSP_WORKSPACE_APPARMOR_PATH } from "@wsp/protocol";
 import { putBytesScript } from "@wsp/engine";
 import type { Machine } from "@wsp/engine";
 import { BOOT_SCRIPT, CLOUD_PLACE, JOINED, joinedPlace, CONTAINER_PLACE, DAEMON_GONE_LINE, daemonBinaryOn, daemonExecLine, daemonFlags, daemonLogCommand, guestPlace, SYSTEMD, NEEDS_SYSTEMD, deployDaemon, PREFLIGHT_OK_LINE, preflightScript, profileSourceLine, profileSourceStep, daemonUnit, deployScript, loginFilesStep, sshDaemonPlace, stageDaemonBundle, stopDaemonScript, WSP_COMMAND_NODE_MAJOR } from "../src/doctor.js";
@@ -219,7 +219,7 @@ describe("the place a machine reached over ssh keeps its daemon", () => {
     const s = script();
     for (const word of ["nodejs.org", "npm install", "node_pin", "sha256sum", "curl", "NODE_VERSION", "npm_config_nodedir"]) expect(s, word).not.toContain(word);
     // The unit's PATH is the person's own plus the shim's folder; nothing of wsp's is put ahead of it.
-    expect(daemonUnit(sshDaemonPlace(LOGIN), GUEST_TARGET)).toContain('Environment="PATH=/home/maya/.local/bin:/usr/local/bin:/usr/bin:/bin"');
+    expect(daemonUnit(sshDaemonPlace(LOGIN), GUEST_TARGET)).toContain('Environment="PATH=/home/maya/.local/bin:/usr/local/bin:/usr/bin:/bin:/home/linuxbrew/.linuxbrew/bin"');
   });
 
   it("adds its BROWSER line to the person's own login file once, guarded on the file it names", () => {
@@ -548,4 +548,23 @@ describe("a deploy over a daemon that is still running", () => {
       rmSync(stage, { recursive: true, force: true });
     }
   });
+});
+
+
+it("finds an existing Homebrew Node outside sudo PATH and keeps the installed command usable with an empty PATH", () => {
+  const home = mkdtempSync(join(tmpdir(), "wsp-node-path-"));
+  try {
+    const bin = join(home, "system"); const brew = join(home, "brew");
+    mkdirSync(bin); mkdirSync(join(brew, "bin"), { recursive: true });
+    symlinkSync(process.execPath, join(brew, "bin", "node"));
+    for (const name of ["mkdir", "chmod"]) symlinkSync(`/bin/${name}`, join(bin, name));
+    const place = { ...sshDaemonPlace({ home, path: bin }), profileSources: [] };
+    const onDisk = (script: string) => script.split(HOMEBREW_PREFIX).join(brew);
+    const check = preflightScript(place).split("\n").filter(line => !line.includes("systemctl") && !line.includes("loginctl")).join("\n");
+    expect(execFileSync("/bin/bash", ["-ec", onDisk(check)], { env: { PATH: bin } }).toString()).toContain(PREFLIGHT_OK_LINE);
+    mkdirSync(join(place.dir, "wsp", "dist"), { recursive: true });
+    writeFileSync(join(place.dir, "wsp", "dist", "bin.js"), 'console.log("bundled wsp started");');
+    execFileSync("/bin/bash", ["-ec", onDisk([...place.exportEnv, ...loginFilesStep(place)].join("\n"))], { env: { PATH: bin } });
+    expect(execFileSync(join(place.dir, "bin", "wsp"), [], { env: { PATH: bin } }).toString()).toContain("bundled wsp started");
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });

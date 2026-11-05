@@ -12,7 +12,7 @@ import { dirname, join, posix } from "node:path";
 import { promisify } from "node:util";
 import { agentName, CATALOG_AGENTS, CLAUDE_CONFIG_DIR, GOLDEN_SETUP, GOLDEN_SMOKE, keyEnvOf, mintsToken, VAULT_VARIABLES } from "@wsp/catalog";
 import { CREATED_AT_LABEL, DAEMON_ENV_FILE, DAEMON_LISTENING_CHECK, DAEMON_PORT, DOCTOR_LABEL, EXEC_ENV, GUEST_USER_ENV, OWNER_LABEL, RUN_DIR, TOOLS_PATH, WSP_LABEL, clientWords, isMissing, isReserved, landBytes, presenceTests, presentElsewhere, presentSteps, whoseMachine, type DaemonSupervisor, type Machine, type MachineBackend, type ProvisionPlan } from "@wsp/engine";
-import { ALREADY_JOINED_LINE, capWaitLine, hereName, absentComputer, agentSignInWord, agentVersionWord, awayMsOf, boxRoomLines, doctorComputerRowLine, DoctorLineEvent, EXIT_CODES, exitClassOf, hereDaemonBehindLine, HERE_PLACE_ID, isJoinedComputer, noSuchProjectLine, onNpmBin, placeBehindLine, placeDaemonBehind, plural, runsInFolder, workspaceKind, DAEMON_MEMORY_MAX_PERCENT, DAEMON_ROOTS_PATH, DAEMON_TOKEN_PATH, DAEMON_UNIT, DAEMON_VERSION, daemonRefusedToken, GUEST_DAEMON_DIR, GUEST_INBOX_DIR, GUEST_MANIFEST_PATH, GUEST_WSP_PATH, guestWspShim, LOOPBACK, WSP_WORKSPACE_APPARMOR_PATH, machineLacking, machineUnanswered, NO_LINGER_LINE, NO_NODE_LINE, PLACE_NEEDS_ROOT_LINE, NO_SNAPSHOT_LISTING, NO_SYSTEMD_LINE, NO_TEMPLATES_LINE, OPEN_SOCKET_PATH, THIS_COMPUTER, isLocalWorkspace, otherHostsMachinesLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, PLACE_WORKSPACE_PATH, placeDaemonPaths, placeLoginFiles, TOOL_LINKS_DIR, TOOL_PREFIX, RUNTIME_ROOT, placeOwnedPaths, rootsPathIn, shellQuote, workFolderIn, templateRecordedLine, templateSkippedLine, wspBinIn, wspPackageIn, type PlaceApplied, type PlaceView, type ProjectView, type SnapshotStorage, type DaemonKind } from "@wsp/protocol";
+import { HOMEBREW_PREFIX, ALREADY_JOINED_LINE, capWaitLine, hereName, absentComputer, agentSignInWord, agentVersionWord, awayMsOf, boxRoomLines, doctorComputerRowLine, DoctorLineEvent, EXIT_CODES, exitClassOf, hereDaemonBehindLine, HERE_PLACE_ID, isJoinedComputer, noSuchProjectLine, onNpmBin, placeBehindLine, placeDaemonBehind, plural, runsInFolder, workspaceKind, DAEMON_MEMORY_MAX_PERCENT, DAEMON_ROOTS_PATH, DAEMON_TOKEN_PATH, DAEMON_UNIT, DAEMON_VERSION, daemonRefusedToken, GUEST_DAEMON_DIR, GUEST_INBOX_DIR, GUEST_MANIFEST_PATH, GUEST_WSP_PATH, guestWspShim, LOOPBACK, WSP_WORKSPACE_APPARMOR_PATH, machineLacking, machineUnanswered, NO_LINGER_LINE, NO_NODE_LINE, PLACE_NEEDS_ROOT_LINE, NO_SNAPSHOT_LISTING, NO_SYSTEMD_LINE, NO_TEMPLATES_LINE, OPEN_SOCKET_PATH, THIS_COMPUTER, isLocalWorkspace, otherHostsMachinesLine, PLACE_FOUND_END, PLACE_FOUND_MAX_BYTES, PLACE_WORKSPACE_PATH, placeDaemonPaths, placeLoginFiles, TOOL_LINKS_DIR, TOOL_PREFIX, RUNTIME_ROOT, placeOwnedPaths, rootsPathIn, shellQuote, workFolderIn, templateRecordedLine, templateSkippedLine, wspBinIn, wspPackageIn, type PlaceApplied, type PlaceView, type ProjectView, type SnapshotStorage, type DaemonKind } from "@wsp/protocol";
 import { DaemonTokenError, goldenHead, writeDaemonTokenScript, type AccountOrphans, type GoldenVersion, type HereDaemon, type Runtime } from "@wsp/runtime";
 import { daemonFlags } from "./daemon-flags.js";
 import { linkedLoginTest, loginFilesStep, sh, unsourceStep } from "./login-files.js";
@@ -355,6 +355,7 @@ export function guestPlace(supervisor: DaemonSupervisor): DaemonPlace {
  * Where each file sits is the protocol's rule, since the same layout is read back off the machine. */
 export function sshDaemonPlace(login: { home: string; path: string }): DaemonPlace {
   const at = placeDaemonPaths(login.home);
+  const toolsPath = [at.binDir, login.path, `${HOMEBREW_PREFIX}/bin`].join(":");
   return {
     kind: "place",
     dir: at.dir,
@@ -367,7 +368,7 @@ export function sshDaemonPlace(login: { home: string; path: string }): DaemonPla
     wsp: "bundle",
     // A login that arrives without its own session manager's address cannot talk to its systemd at all, and every
     // line below would fail at the bus rather than at the thing it was doing.
-    exportEnv: ['export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"'],
+    exportEnv: [`export PATH=${shellQuote(toolsPath)}`, 'export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"'],
     quotePaths: true,
     tokenRoad: "bytes",
     preflight: [...DAEMON_PREFLIGHT, NO_LINGER_CHECK],
@@ -382,7 +383,7 @@ export function sshDaemonPlace(login: { home: string; path: string }): DaemonPla
     supervise: SYSTEMD,
     scope: "user",
     unitPath: `${at.unitDir}/${DAEMON_UNIT}`,
-    toolsPath: [at.binDir, login.path].join(":"),
+    toolsPath,
     unitEnv: { HOME: login.home, BROWSER: at.openShim },
     wantedBy: "default.target",
     // Nothing on a machine somebody else owns may listen past its own loopback: what dials this daemon is on that

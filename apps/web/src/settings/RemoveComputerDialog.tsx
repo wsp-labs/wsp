@@ -20,7 +20,7 @@
 // sent with the next Remove.
 import { useEffect, useState } from "react";
 import { useSettingsStore } from "./settingsStore.js";
-import { PLACE_SUDO_KIND, PLACES_WORDS, isProviderPlace, placeForgetsOnly, placeUnsavedRefusal, subHeldOnRemoveLine, type PlaceHolds, type PlaceView } from "@wsp/protocol";
+import { PLACE_SUDO_KIND, PLACES_WORDS, isProviderPlace, placeForgetsOnly, subHeldOnRemoveLine, type PlaceHolds, type PlaceView } from "@wsp/protocol";
 import { AlertDialog, AlertDialogClose, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogPopup, AlertDialogTitle } from "../components/ui/alert-dialog.js";
 import { Button, NEUTRAL_RING } from "../components/ui/button.js";
 import { Input } from "../components/ui/input.js";
@@ -156,7 +156,7 @@ export function RemoveComputerDialog({ place, holding, imageBytes, open, onOpenC
                 (reading
                   ? { waiting: WHERE_WORDS.readingHolds }
                   : unsaved.length > 0
-                    ? { note: <span data-k="unsaved" className={cn("block", !isProviderPlace(place) && "max-h-9 overflow-y-auto")}>{isProviderPlace(place) ? (heldTitles.length > 0 ? WHERE_WORDS.subsHeld(heldTitles) : `${subHeldOnRemoveLine(unsaved) ?? ""} ${WHERE_WORDS.unsavedFixCloud}`) : `${placeUnsavedRefusal(placeName(place), unsaved).said}. ${WHERE_WORDS.unsavedFix}`}</span> }
+                    ? { note: <span data-k="unsaved" className={cn("block", !isProviderPlace(place) && "max-h-40 overflow-y-auto whitespace-pre-line")}>{isProviderPlace(place) ? (heldTitles.length > 0 ? WHERE_WORDS.subsHeld(heldTitles) : `${subHeldOnRemoveLine(unsaved) ?? ""} ${WHERE_WORDS.unsavedFixCloud}`) : `${unsaved.join("\n")}\n\n${WHERE_WORDS.unsavedFix}`}</span> }
                     : {})))}
           />
           {asksSudo ? <Input data-k="sudo-password" aria-label="Password for sudo" type="password" autoFocus autoComplete="off" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && password !== "" && void remove()} className={cn(ROW_FIELD, "w-44")} /> : null}

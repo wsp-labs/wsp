@@ -660,7 +660,7 @@ function runtimeCore(ctx: RuntimeContext, opts: RuntimeOptions): RuntimeCore {
           await ctx.ready();
           return [...projectsHeld.values()].filter(p => p.computer === placeId).map(p => ({ id: p.id, name: p.name, path: p.path, ...(p.checkout === undefined ? {} : { checkout: p.checkout }) }));
         },
-        dropOn: async placeId => {
+        dropOn: async (placeId, force) => {
           const { forks, folders, projects, rows } = await standingOn(placeId);
           // Each goes by its own road, so one that refuses stops the rest, and the refusal names those already gone.
           const went: string[] = [];
@@ -672,9 +672,9 @@ function runtimeCore(ctx: RuntimeContext, opts: RuntimeOptions): RuntimeCore {
             }
             went.push(name);
           };
-          for (const entry of forks) await each(forkName(entry), () => ctx.workspaces.delete(entry.record.id));
+          for (const entry of forks) await each(forkName(entry), () => ctx.workspaces.delete(entry.record.id, undefined, force ? { discard: true } : undefined));
           // A project folder holding threads stops its project's remove, so its threads go with it first.
-          for (const entry of folders) await each(entry.record.name, () => ctx.workspaces.delete(entry.record.id));
+          for (const entry of folders) await each(entry.record.name, () => ctx.workspaces.delete(entry.record.id, undefined, force ? { discard: true } : undefined));
           for (const project of projects) await each(project.name, () => ctx.projectsDoor.remove(project.id, undefined, { force: true }));
           return rows;
         },

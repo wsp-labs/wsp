@@ -4,14 +4,14 @@
 // host's own setup screens as Add a computer's pick lists, the summary held
 // on the sign-ins here, and an Add pressed while a setup stands opening that
 // setup rather than another.
-import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CLOUD_SETUP_WORDS, DEFAULT_PREFERENCES, KEY_REFUSED, KEY_UNCHECKED, type AgentsReport, type Preferences, type InitJob, type InitScreen, type InitSetup, type PlaceView, type RecipeOptions, type WorkspaceView } from "@wsp/protocol";
 import { RequestError, type Api } from "../src/protocol/client.js";
 import { forgetHeld } from "../src/protocol/held.js";
 import { useStore } from "../src/protocol/store.js";
 import { useComposerDraftStore } from "../src/components/chat/composerDraftStore.js";
-import { closeCloudAdd, openCloudAdd, useCloudFlow } from "../src/settings/add/cloudFlow.js";
+import { goCloud, closeCloudAdd, openCloudAdd, useCloudFlow } from "../src/settings/add/cloudFlow.js";
 import { offersCloud } from "../src/sidebar/CloudCard.js";
 import { ADD_COMPUTER_WORDS } from "../src/settings/format.js";
 import { useSettingsStore } from "../src/settings/settingsStore.js";
@@ -714,4 +714,58 @@ describe("the sidebar's cloud card", () => {
     expect(document.querySelector("[data-setup-card='p_2']")).not.toBeNull();
     expect(card()).toBeNull();
   });
+});
+
+
+it("cancels a cloud build only after confirmation and holds cancellation while sealing", async () => {
+  const cancel = vi.fn(async () => jobOf({ phase: "cancelled" })).mockRejectedValueOnce(new Error("Could not stop the build; retry."));
+  const fake = host({ initCancel: cancel });
+  useStore.setState({ places: [here, boat], initJob: jobOf({ phase: "building" }) });
+  await openSetupFromRow(fake.api);
+  fireEvent.click(within(dialog()!).getByRole("button", { name: CLOUD_SETUP_WORDS.build.cancel }));
+  expect(cancel).not.toHaveBeenCalled();
+  fireEvent.click(within(dialog()!).getByRole("button", { name: "Keep building" }));
+  expect(cancel).not.toHaveBeenCalled();
+  fireEvent.click(within(dialog()!).getByRole("button", { name: CLOUD_SETUP_WORDS.build.cancel }));
+  await act(async () => fireEvent.click(within(dialog()!).getByRole("button", { name: CLOUD_SETUP_WORDS.build.cancelSure })));
+  expect(cancel).toHaveBeenCalledTimes(1);
+  expect(dialog()!.textContent).toContain("Could not stop the build; retry.");
+  await act(async () => fireEvent.click(within(dialog()!).getByRole("button", { name: CLOUD_SETUP_WORDS.build.cancelSure })));
+  expect(cancel).toHaveBeenCalledTimes(2);
+  pushJob(jobOf({ phase: "building", stoppable: false }));
+  const stop = within(dialog()!).getByRole("button", { name: CLOUD_SETUP_WORDS.build.cancel });
+  expect(held(stop)).toBe(true);
+  pushJob(jobOf({ phase: "answering" }));
+  act(() => goCloud("tools"));
+  fireEvent.click(within(dialog()!).getByRole("button", { name: "Cancel setup" }));
+  expect(dialog()!.textContent).toContain("The saved provider key is kept.");
+  await act(async () => fireEvent.click(within(dialog()!).getByRole("button", { name: "Stop setup" })));
+  expect(cancel).toHaveBeenCalledTimes(3);
+  expect(dialog()).toBeNull();
+});
+
+
+it("drops a closed dialog's cancellation confirmation and ignores its late refusal on a new setup", async () => {
+  let reject!: (error: Error) => void;
+  const pending = new Promise<InitJob>((_resolve, no) => { reject = no; });
+  let resolve!: (job: InitJob) => void;
+  const lateSuccess = new Promise<InitJob>(yes => { resolve = yes; });
+  let calls = 0;
+  const fake = host({ initCancel: () => calls++ === 0 ? pending : lateSuccess });
+  useStore.setState({ places: [here, boat], initJob: jobOf({ phase: "building" }) });
+  await openSetupFromRow(fake.api);
+  fireEvent.click(within(dialog()!).getByRole("button", { name: CLOUD_SETUP_WORDS.build.cancel }));
+  fireEvent.click(within(dialog()!).getByRole("button", { name: CLOUD_SETUP_WORDS.build.cancelSure }));
+  fireEvent.click(within(dialog()!).getByRole("button", { name: "Run in background" }));
+  pushJob(jobOf({ id: "init_new", phase: "building" }));
+  act(() => openCloudAdd("box")); await settle();
+  expect(within(dialog()!).queryByRole("button", { name: CLOUD_SETUP_WORDS.build.cancelSure })).toBeNull();
+  await act(async () => reject(new Error("Old cancellation failed")));
+  expect(dialog()!.textContent).not.toContain("Old cancellation failed");
+  expect(useStore.getState().initJob?.id).toBe("init_new");
+  fireEvent.click(within(dialog()!).getByRole("button", { name: CLOUD_SETUP_WORDS.build.cancel }));
+  fireEvent.click(within(dialog()!).getByRole("button", { name: CLOUD_SETUP_WORDS.build.cancelSure }));
+  pushJob(jobOf({ id: "init_new", phase: "cancelled" }));
+  await act(async () => resolve(jobOf({ id: "init_new", phase: "building" })));
+  expect(useStore.getState().initJob?.phase).toBe("cancelled");
 });

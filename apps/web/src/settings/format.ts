@@ -109,7 +109,7 @@ export const WHERE_WORDS = {
   subsHeld: (titles: readonly string[]): string =>
     `Work not pushed goes with ${titles.length === 1 ? "its machine" : "their machines"}: ${titles.join(", ")}. Ask ${titles.length === 1 ? "it" : "each"} to push first.`,
   unsavedFixCloud: "Ask each sub-thread to push first; Remove anyway deletes that work with the machines.",
-  unsavedFix: "Export a task's project or push its branch, and copy a project folder's work off the computer from the path named; Remove anyway takes it with the computer.",
+  unsavedFix: "Export any work you want to keep first. Remove anyway deletes the isolated checkouts, including their unreturned changes.",
   /** The slot's note while the host reads what goes with the computer, the confirm held until it lands. */
   readingHolds: "Reading what goes with it.",
   cancel: "Cancel",

@@ -49,13 +49,13 @@ describe("the remove sentence", () => {
   it("names what comes off a computer that holds workspaces, and what leaves the computer the host runs on", () => {
     expect(removeTitle(hetzner)).toBe("Remove hetzner?");
     expect(removeSentence(hetzner, { workspaces: [{ name: "spoo-fix", state: "Running", threads: 2 }] }, MAC, 4.2 * 1024 ** 3)).toBe(
-      "wsp, its task and the copy of your image (4.2 GB) come off hetzner, which is otherwise left as it is. The task's record and 2 threads leave zingzy's MacBook Pro.",
+      "wsp and the copy of your image (4.2 GB) come off hetzner, which is otherwise left as it is. Isolated checkouts are deleted. Existing project folders stay on hetzner. The records for 2 threads leave zingzy's MacBook Pro.",
     );
   });
 
   it("says workspaces and records in the plural above one", () => {
     expect(removeSentence(hetzner, { workspaces: [{ name: "a", state: "Running", threads: 2 }, { name: "b", state: "Running", threads: 1 }] }, MAC, 4.2 * 1024 ** 3)).toBe(
-      "wsp, its 2 tasks and the copy of your image (4.2 GB) come off hetzner, which is otherwise left as it is. The tasks' records and 3 threads leave zingzy's MacBook Pro.",
+      "wsp and the copy of your image (4.2 GB) come off hetzner, which is otherwise left as it is. Isolated checkouts are deleted. Existing project folders stay on hetzner. The records for 3 threads leave zingzy's MacBook Pro.",
     );
   });
 
@@ -82,7 +82,7 @@ describe("the remove sentence", () => {
     const studio: PlaceView = { ...hetzner, name: "studio", takesRuntime: false };
     expect(removeSentence(studio, NOTHING_HELD, MAC, 4.2 * 1024 ** 3)).toBe("wsp comes off studio, which keeps the copy of your image (4.2 GB) and is otherwise left as it is.");
     expect(removeSentence(studio, { workspaces: [{ name: "spoo-fix", state: "Running", threads: 2 }] }, MAC)).toBe(
-      "wsp and its task come off studio, which keeps the copy of your image and is otherwise left as it is. The task's record and 2 threads leave zingzy's MacBook Pro.",
+      "wsp comes off studio, which keeps the copy of your image and is otherwise left as it is. Isolated checkouts are deleted. Existing project folders stay on studio. The records for 2 threads leave zingzy's MacBook Pro.",
     );
   });
 
@@ -201,8 +201,8 @@ describe("the state cell of a list row", () => {
     expect(placeStateCell({ ...blocked, present: false }, absentComputer("hetzner", 32 * 60 * 1000), { canUpdate: true })).toEqual({ kind: "word", word: "Blocked", why: blocked.blocked, mark: "failed" });
   });
 
-  it("offers Sign in where an agent there needs one, naming it, and reads Ready otherwise", () => {
-    expect(placeStateCell({ ...hetzner, signIns: { claude: "signed-in", codex: "none" } }, null, { canUpdate: true })).toEqual({ kind: "sign-in", why: "needs a sign-in: Codex" });
+  it("keeps an agent sign-in out of the computer state cell", () => {
+    expect(placeStateCell({ ...hetzner, signIns: { claude: "signed-in", codex: "none" } }, null, { canUpdate: true })).toEqual(ready);
     expect(placeStateCell({ ...hetzner, daemonVersion: DAEMON_VERSION }, null, { canUpdate: true })).toEqual(ready);
     expect(placeStateCell(hetzner, null, { canUpdate: false })).toEqual(ready);
     expect(placeStateCell(ascii, null, { canUpdate: false })).toEqual(ready);

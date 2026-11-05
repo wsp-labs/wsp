@@ -19,8 +19,8 @@ export interface IsolatedArea {
   starting(workspaceId: string): Promise<() => void>;
   backend(record: WorkspaceRecord, actual: MachineBackend): MachineBackend;
   spawn(opts: CreateWorkspaceOptions, origin: Caller | undefined, place: string): Promise<CreatedWorkspace>;
-  checkRelease(entry: LiveWorkspace): Promise<void>;
-  release(entry: LiveWorkspace): Promise<void>;
+  checkRelease(entry: LiveWorkspace, options?: { discard?: boolean }): Promise<void>;
+  release(entry: LiveWorkspace, options?: { discard?: boolean }): Promise<void>;
   revive(entry: LiveWorkspace): Promise<LiveWorkspace>;
   returned(lead: LiveWorkspace, child: LiveWorkspace): Promise<{ branch: string; head: string; from: string; cleanup: () => Promise<void> }>;
   sweep(): Promise<void>;
@@ -126,7 +126,11 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
     const ignored = await checkoutIgnoredHash(entry.machine, copy.checkout);
     if (ignored !== copy.ignoredHash || changed !== "" || (head !== copy.base && head !== copy.returned)) throw usageRefusal("This child holds changes that have not returned to its lead.", "Commit its work and use merge_in from the lead before releasing this checkout.");
   };
-  const release = async (entry: LiveWorkspace, idleOnly = false): Promise<void> => serial(entry.record.isolated!.group, async () => {
+  const checkDiscard = async (entry: LiveWorkspace): Promise<void> => {
+    const group = await groupOf(entry.record.isolated!.group);
+    if (busy(entry) || (group !== undefined && groupBusy(group))) throw usageRefusal("A child is still working or starting on this computer.", "Stop its turn or wait for setup to finish before removing the computer.");
+  };
+  const release = async (entry: LiveWorkspace, idleOnly = false, discard = false): Promise<void> => serial(entry.record.isolated!.group, async () => {
     if (detached.has(entry.record.id) || entry.record.phase === "released") return;
     const copy = entry.record.isolated!;
     closing.add(copy.group);
@@ -134,7 +138,8 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
       const group = await groupOf(copy.group);
       if (group === undefined) throw new Error("The isolated runtime's ownership record is missing. Keep its checkout and inspect the computer before retrying.");
       if (idleOnly && (activity.has(copy.group) || groupBusy(group) || group.idleSince === undefined || clock.now() < group.idleSince + ISOLATED_IDLE_MS)) return;
-      await clean(entry);
+      if (discard) await checkDiscard(entry);
+      else await clean(entry);
       const stored = new Set((await store.list(WORKSPACES) as WorkspaceRecord[]).filter(r => r.phase !== "released").map(r => r.id));
       const others = group.members.filter(id => id !== entry.record.id && !detached.has(id) && ((live.has(id) && live.get(id)!.record.phase !== "released") || stored.has(id) || allocating.has(id)));
       copy.state = "releasing";
@@ -364,8 +369,9 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
           retryAt = Math.min(retryAt, clock.now() + CLEANUP_RETRY_MS);
           const message = e instanceof Error ? e.message : String(e);
           if (meta.held === message) continue;
+          const firstHeld = meta.held === undefined;
           meta.held = message; await ctx.persist(peer.record);
-          tell(peer, `The isolated checkout on ${ctx.placeName(peer.record.place!)} is kept: ${message}`, true);
+          if (firstHeld) tell(peer, `The isolated checkout on ${ctx.placeName(peer.record.place!)} is kept: ${message}`);
         }
       }
     }
@@ -381,5 +387,5 @@ export function isolatedArea(ctx: RuntimeContext): IsolatedArea {
   ctx.bus.on("thread.marked", request);
   ctx.bus.on("workspace.deleted", request);
   ctx.bus.on("session.end", request);
-  return { initialize, close, slotKeys, starting, backend, spawn, checkRelease: clean, release, revive, returned, sweep };
+  return { initialize, close, slotKeys, starting, backend, spawn, checkRelease: (entry, options) => options?.discard ? checkDiscard(entry) : clean(entry), release: (entry, options) => release(entry, false, options?.discard === true), revive, returned, sweep };
 }
