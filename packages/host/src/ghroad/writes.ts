@@ -1,13 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+import type { BranchOfRecord } from "@wsp/protocol";
 import type { RootField } from "./graphql.js";
-
-/** The one branch a brokered thread may push and open pull requests from, by its repo's id. */
-export interface BranchOfRecord {
-  repoId: number;
-  owner: string;
-  name: string;
-  branch: string;
-}
 
 /** What the write list reads about the calling thread, from the record the host holds and never from the request. */
 export interface GhThread {

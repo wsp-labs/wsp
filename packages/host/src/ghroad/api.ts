@@ -2,9 +2,10 @@
 import { request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { pipeline } from "node:stream";
+import type { BranchOfRecord } from "@wsp/protocol";
 import { computerNameHere } from "../places/this-computer.js";
 import { judgeGraphql } from "./graphql.js";
-import { type BranchOfRecord, canonicalPath, type Decision, type GhThread, judgeField, judgeRest, type Lookups, type NodeFacts, type Repo } from "./writes.js";
+import { canonicalPath, type Decision, type GhThread, judgeField, judgeRest, type Lookups, type NodeFacts, type Repo } from "./writes.js";
 
 /** The person's gh token as the broker hands it over, read live from `gh auth token` on the host. */
 export interface GithubCredential {
