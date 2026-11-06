@@ -230,7 +230,7 @@ Recorded from a throwaway TS host (`checker/check.mjs --record`: an empty temp f
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"sessions.start","prompt":"hi","workspaceId":"ws_00000000","branch":"b"}}
 {"out":{"id":2,"ok":false,"error":"a thread keeps its folder; start a new thread for another branch","kind":"usage"}}
 {"in":{"id":3,"op":"sessions.start","prompt":"hi","branch":"b","cwd":"/x"}}
@@ -247,7 +247,7 @@ Recorded from a throwaway TS host (`checker/check.mjs --record`: an empty temp f
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"workspaces.merge","workspaceId":"ws_00000000","method":"squash","whenChecksPass":true,"head":"0123456789012345678901234567890123456789"}}
 {"out":{"id":2,"ok":false,"error":"no such workspace: ws_00000000","kind":"not-found"}}
 {"in":{"id":3,"op":"workspaces.mergeIn","workspaceId":"ws_00000000","child":"ws_00000001"}}
@@ -264,7 +264,7 @@ On Linux the editor list is empty (7.26's platform table; the Mac run of the tap
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"editor.list"}}
 {"out":{"id":2,"ok":true,"editors":[]}}
 ```
@@ -273,7 +273,7 @@ A project that is not a git repo: `projects.add` of the temp home, a worktree re
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"projects.add","source":"<tmp>/home"}}
 {"out":{"id":2,"ok":true,"project":{"id":"pr_f0a701de","name":"home","computer":"here","source":{"kind":"folder","path":"/tmp/wsp-tape-jOwh37/home"},"path":"/tmp/wsp-tape-jOwh37/home","remote":"","defaultBranch":"main","memoryKey":"-tmp-wsp-tape-jOwh37-home","memoryDir":"/tmp/wsp-tape-jOwh37/home/.claude/projects/-tmp-wsp-tape-jOwh37-home/memory","createdAt":"2026-10-25T11:09:30.552Z"}}}
 {"in":{"id":3,"op":"worktree.make","project":"home","branch":"b"}}

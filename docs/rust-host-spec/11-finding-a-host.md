@@ -21,7 +21,7 @@ Each client, as it stands:
 | the web page | the page it was served from carries `wsPath` in its boot line (rule 4.42) | nothing | `runtimeUrl`, `apps/web/src/protocol/pairing.ts:21-24` |
 | a thread | `WSP_HOST_URL` and `WSP_HOST_TOKEN` in its launch environment, and `WSP_HOST_KEY` where a place door exists | the key fingerprint, off the loopback | `protocol/src/env.ts:37,41,55`; `hosts.ts:313-353` |
 
-11.3. There is no protocol version on the wire today. The host sends `version` (its release, `packages/host/src/version.ts:9-11`) and `road` in the auth reply (rule 4.11) and learns nothing about the client; clients compare releases, three different ways. Two releases misread each other quietly because zod drops unknown keys, which is why the command line insists on equality (`sameRelease`, `verbs/client.ts:331-336`, under the comment at 328-330).
+11.3. Before Proposal 7 there was no protocol version on the wire. The host sent `version` (its release, `packages/host/src/version.ts:9-11`) and `road` in the auth reply (rule 4.11) and learned nothing about the client; clients compare releases, three different ways. Two releases misread each other quietly because zod drops unknown keys, which is why the command line insists on equality (`sameRelease`, `verbs/client.ts:331-336`, under the comment at 328-330).
 
 11.4. The GPUI app also reads `state.db` directly, read only, to ask whether any computer is on record before it starts a host: `select exists (select 1 from collections where collection = 'places')`, so `places` is a collection name in the `collections` table, not a table (`gpui/main:apps/desktop-gpui/host-client/src/start.rs:659-661`). Under Proposal 3 the table stays, so this keeps working; any other layout breaks it (rule 2.4).
 
@@ -44,7 +44,7 @@ Why a number and not the release: the app and the host ship separately once the 
 
 Why it touches the TS host: the comparison harness diffs the Rust host against goldens the TS host recorded, so a field only the Rust host sends would sit on the accepted list forever. The pick is to add `protocol: 1` to the TS host's auth reply (one field in the `released` object, built at `packages/host/src/server.ts:642` and spread into the reply at `packages/runtime/src/serve.ts:395,854`) before the goldens are frozen, so the oracle carries it. That is a change to the TS host during the port, which the map otherwise forbids, so it is the owner's ruling, not a builder's.
 
-11.5. Until Proposal 7 is ruled, the Rust host MUST answer the auth frame exactly as rule 4.11 says, `version` and `road` and nothing more.
+11.5. The TS host answers the auth frame with `protocol: 1` after `version` and `road` (`WIRE_PROTOCOL`, `packages/protocol/src/wire/protocol-number.ts`), checked after the token and on the first `auth` of a socket only; a second `auth` answers as rule 4.11 says. A range that leaves the number out is refused with kind `usage`, `error` and `fix` in two halves (`protocolMismatchHalves`, `packages/protocol/src/words/host-protocol.ts`) and the socket closed with 4401. The Rust host MUST do the same, with the same words and the same shape list (`packages/protocol/src/wire/protocol-shapes.json`).
 
 ## What a client can rely on, pinned
 
@@ -52,11 +52,11 @@ Why it touches the TS host: the comparison harness diffs the Rust host against g
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"token":"wrong","id":2,"op":"auth"}}
-{"out":{"id":2,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":2,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"token":"","id":3,"op":"auth"}}
-{"out":{"id":3,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":3,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":4,"op":"projects.list"}}
 {"out":{"id":4,"ok":true,"projects":[]}}
 ```

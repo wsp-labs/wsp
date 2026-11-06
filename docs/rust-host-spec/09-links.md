@@ -78,7 +78,7 @@ Recorded from a throwaway TS host at `a3b870a6e`. The channel ops on a fresh hos
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"daemon.open"}}
 {"out":{"id":2,"ok":false,"error":"daemon.open opens a channel to one daemon: name workspaceId or placeId, not both"}}
 {"in":{"id":3,"op":"daemon.open","workspaceId":"ws_00000000","placeId":"p_0000000000000000"}}
@@ -97,7 +97,7 @@ A forwarded frame may not authenticate; this is the schema refusal (05) with the
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"daemon.send","channel":"000000000000","frame":{"id":1,"op":"auth","token":"x"}}}
 {"out":{"id":2,"ok":false,"error":"[\n  {\n    \"code\": \"custom\",\n    \"message\": \"the host authenticates the channel\",\n    \"path\": [\n      \"frame\",\n      \"op\"\n    ]\n  }\n]"}}
 ```

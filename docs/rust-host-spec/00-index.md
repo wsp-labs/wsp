@@ -49,7 +49,7 @@ The first tape in the spec, the plainest exchange there is:
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"projects.list"}}
 {"out":{"id":2,"ok":true,"projects":[]}}
 {"in":{"id":3,"op":"sessions.list"}}
@@ -60,7 +60,7 @@ And one that names the temp folder: the host browses only under its home, and th
 
 ```tape
 {"in":{"token":"<host-token>","id":1,"op":"auth"}}
-{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up"}}
+{"out":{"id":1,"ok":true,"version":"0.3.8","road":"up","protocol":1}}
 {"in":{"id":2,"op":"host.folders","dir":"<tmp>"}}
 {"out":{"id":2,"ok":false,"error":"/tmp/wsp-tape-mIqHAK is outside the folders wsp browses on this computer: /tmp/wsp-tape-mIqHAK/home"}}
 {"in":{"id":3,"op":"host.folders","dir":"<tmp>/home"}}

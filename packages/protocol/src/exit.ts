@@ -7,7 +7,8 @@
 // the same failure the same way.
 import { z } from "zod";
 import { CLOUD_ENV } from "./env.js";
-import { refusalLine } from "./format.js";
+import { protocolMismatchHalves, refusalLine } from "./format.js";
+import type { ProtocolRange } from "./wire/protocol-number.js";
 
 export const ExitClass = z.enum(["ok", "provider", "auth", "usage"]);
 export type ExitClass = z.infer<typeof ExitClass>;
@@ -100,6 +101,15 @@ export function keptSaid(said: string): string {
   const lines = said.split("\n");
   const kept = lines.slice(0, SAID_LINES).map(line => markedCut(line));
   return (lines.length > SAID_LINES ? [...kept, `(cut ${lines.length - SAID_LINES} lines)`] : kept).join("\n");
+}
+
+/** The refusal frame a host gives the auth of a client whose protocol numbers leave out the host's own, or nothing where
+ * either side names no number or the host's is among the client's. Sent after the token is known good, so a stranger
+ * learns none of it. */
+export function protocolRefusalReply(id: string | number, host: number | undefined, range: ProtocolRange | undefined): { id: string | number; ok: false; error: string; kind: "usage"; fix: string } | undefined {
+  if (host === undefined || range === undefined || (host >= range[0] && host <= range[1])) return undefined;
+  const { happened, fix } = protocolMismatchHalves(host, range);
+  return { id, ok: false, error: refusalLine(happened, fix), kind: "usage", fix };
 }
 
 /** A line refused before anything ran: a missing argument, a flag or a value nothing takes. */
