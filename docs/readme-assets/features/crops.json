@@ -1,0 +1,632 @@
+[
+  {
+    "theme": "graphite",
+    "name": "hero",
+    "source": "try-graphite-own-glass/hero.png",
+    "sourceSha256": "e1d44330396a409268c265732552f8a115f0b25c3643eb300e85b532ad0435f2",
+    "frame": {
+      "width": 1600,
+      "height": 1048
+    },
+    "position": {
+      "left": 64,
+      "top": 64,
+      "width": 1472,
+      "height": 920
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "graphite",
+    "name": "orchestration",
+    "source": "try-graphite-own-glass/sidebar.png",
+    "sourceSha256": "e884c1c1ef90e0ab2ae7a6c9541e4c42dd83e8c46b05c2c8483b13ac500eddbd",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "region": [
+      16,
+      992,
+      478,
+      520
+    ],
+    "position": {
+      "left": 344,
+      "top": 56,
+      "width": 912,
+      "height": 992
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "graphite",
+    "name": "computers",
+    "source": "try-graphite-own-glass/computers.png",
+    "sourceSha256": "03835605d17b419c77201bdd930f4f4bf482c970b73c924d048e7cdca92ceb53",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": -483,
+      "top": -46,
+      "width": 2640,
+      "height": 1650
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "graphite",
+    "name": "tools",
+    "source": "try-graphite-own-glass/agents.png",
+    "sourceSha256": "72c6becdcb641dfe95b943e50332587c7558c001670787c73da845451c5b04da",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": -1856,
+      "top": 88,
+      "width": 3360,
+      "height": 2100
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "graphite",
+    "name": "activity",
+    "source": "try-graphite-own-glass/activity.png",
+    "sourceSha256": "3ad7f3be7e657a5ce5e8c12f3794c554598f390a3fe98257545c24d5aea31651",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": 64,
+      "top": 92,
+      "width": 1472,
+      "height": 920
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "graphite",
+    "name": "usage",
+    "source": "try-graphite-own-glass/usage.png",
+    "sourceSha256": "1fc898fc079b21bf66742a08a0224b5ccf65632c3c9bd6cde5ebb217425cc71e",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": 64,
+      "top": 92,
+      "width": 1472,
+      "height": 920
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "graphite",
+    "name": "resume-reset",
+    "source": "try-graphite-own-glass/resume-reset.png",
+    "sourceSha256": "857fac5f9e83db7f13da944b10f50a56030e629431ec194716e754c78602b658",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "region": [
+      900,
+      1480,
+      1600,
+      300
+    ],
+    "position": {
+      "left": 72,
+      "top": 416,
+      "width": 1456,
+      "height": 273
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "graphite",
+    "name": "terminal",
+    "source": "try-graphite-own-glass/terminal.png",
+    "sourceSha256": "67cc6d674055c01c874dbe34d58a4c75c3a2c2ab6a191e56331f204d5fd868d5",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": -1856,
+      "top": 88,
+      "width": 3360,
+      "height": 2100
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "graphite",
+    "name": "browser",
+    "source": "try-graphite-own-glass/browser.png",
+    "sourceSha256": "660d403b666cd1ba18273b43f0e9d33326ff838cec67a3f76925a1e6ec0fc3b9",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": -1856,
+      "top": 88,
+      "width": 3360,
+      "height": 2100
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "graphite",
+    "name": "changes",
+    "source": "try-graphite-own-glass/changes.png",
+    "sourceSha256": "f47ec37da8235daa21ee3e70b88d865b8a1d4805d14de3444b74b4f8425085f5",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": -1856,
+      "top": 88,
+      "width": 3360,
+      "height": 2100
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "graphite",
+    "name": "pr",
+    "source": "try-graphite-own-glass/pr.png",
+    "sourceSha256": "98140a01170173bf990ff702459b5d79270a4ec55f6120361121a9e52b73ba01",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": -1856,
+      "top": 88,
+      "width": 3360,
+      "height": 2100
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "graphite",
+    "name": "editor",
+    "source": "try-graphite-own-glass/editor.png",
+    "sourceSha256": "7e5661b9ead313f6d20b7e323f6b9e570000da4ae67f40257187045323c7a835",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "region": [
+      1460,
+      0,
+      360,
+      400
+    ],
+    "position": {
+      "left": 354,
+      "top": 56,
+      "width": 893,
+      "height": 992
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "graphite",
+    "name": "btw",
+    "source": "try-graphite-own-glass/btw.png",
+    "sourceSha256": "ada7b7a0dd20d5b282d20812c1ae7062ec57f5311e6245d4d663d95ab7b2c8e0",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": -1856,
+      "top": 88,
+      "width": 3360,
+      "height": 2100
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "graphite",
+    "name": "slate-stack",
+    "panel": "slate-host",
+    "source": "try-graphite-own-glass/slate-host.png",
+    "sourceSha256": "4d5788021da8db80ccdbf77a0f50ceb33c673dbd6483062d3c87d7ae30053b1d",
+    "region": {
+      "left": 2044,
+      "top": 0,
+      "width": 836,
+      "height": 1800
+    },
+    "position": {
+      "left": 80,
+      "top": 24,
+      "width": 446,
+      "height": 960
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "graphite",
+    "name": "slate-stack",
+    "panel": "slate-release",
+    "source": "try-graphite-own-glass/slate-release.png",
+    "sourceSha256": "d552e2298f8487161b137899c314c09e420d3f36a41d3ae4a8a24e9628deb698",
+    "region": {
+      "left": 2044,
+      "top": 0,
+      "width": 836,
+      "height": 1800
+    },
+    "position": {
+      "left": 577,
+      "top": 64,
+      "width": 446,
+      "height": 960
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "graphite",
+    "name": "slate-stack",
+    "panel": "slate-activity",
+    "source": "try-graphite-own-glass/slate-activity.png",
+    "sourceSha256": "5fe08bb5e632038c0360110b03478a1f8001896fa6d6b218a0f7ce9f791d3e6c",
+    "region": {
+      "left": 2044,
+      "top": 0,
+      "width": 836,
+      "height": 1800
+    },
+    "position": {
+      "left": 1074,
+      "top": 104,
+      "width": 446,
+      "height": 960
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "moss",
+    "name": "hero",
+    "source": "try-moss-own-glass/hero.png",
+    "sourceSha256": "465d8eb30c7469a2e8044fa1cb2119a7104ff769f7d225dc1e1de54204abc065",
+    "frame": {
+      "width": 1600,
+      "height": 1048
+    },
+    "position": {
+      "left": 64,
+      "top": 64,
+      "width": 1472,
+      "height": 920
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "moss",
+    "name": "orchestration",
+    "source": "try-moss-own-glass/sidebar.png",
+    "sourceSha256": "2d44733f80bd8057f2703cf4c09285c377f37151baed6421065afc7f33721c30",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "region": [
+      16,
+      992,
+      478,
+      520
+    ],
+    "position": {
+      "left": 344,
+      "top": 56,
+      "width": 912,
+      "height": 992
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "moss",
+    "name": "computers",
+    "source": "try-moss-own-glass/computers.png",
+    "sourceSha256": "b69e0ee1eb0e15657c3b396be9e17ba00feda162426be52bdd883e44f7f7ea3a",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": -483,
+      "top": -46,
+      "width": 2640,
+      "height": 1650
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "moss",
+    "name": "tools",
+    "source": "try-moss-own-glass/agents.png",
+    "sourceSha256": "6b7a1be0e5a0d056d82af22813caa1a88deaea379cc5ea5012e771e5e0c5eb40",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": -1856,
+      "top": 88,
+      "width": 3360,
+      "height": 2100
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "moss",
+    "name": "activity",
+    "source": "try-moss-own-glass/activity.png",
+    "sourceSha256": "ac308049732eccda3b5648e53bda5335a7289e539ba025603ebc70f2831ff169",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": 64,
+      "top": 92,
+      "width": 1472,
+      "height": 920
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "moss",
+    "name": "usage",
+    "source": "try-moss-own-glass/usage.png",
+    "sourceSha256": "70ebe1ad947a4bc3715a99baf47c949a4671846c63f4401affe13b68966c0beb",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": 64,
+      "top": 92,
+      "width": 1472,
+      "height": 920
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "moss",
+    "name": "resume-reset",
+    "source": "try-moss-own-glass/resume-reset.png",
+    "sourceSha256": "05133737a243b940519f296bec6acdc1864bf144cb3819d9140b6c087f4fe02e",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "region": [
+      900,
+      1480,
+      1600,
+      300
+    ],
+    "position": {
+      "left": 72,
+      "top": 416,
+      "width": 1456,
+      "height": 273
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "moss",
+    "name": "terminal",
+    "source": "try-moss-own-glass/terminal.png",
+    "sourceSha256": "f915990185b9692e2a10cfdcf9b75581f2a3fd1b29d2392b272a788d7494f828",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": -1856,
+      "top": 88,
+      "width": 3360,
+      "height": 2100
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "moss",
+    "name": "browser",
+    "source": "try-moss-own-glass/browser.png",
+    "sourceSha256": "8fd20bf1b70221d3ebe1ff02ed6e4e204ec1080e7e6fa3b1e74f73e8a2a3a8bc",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": -1856,
+      "top": 88,
+      "width": 3360,
+      "height": 2100
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "moss",
+    "name": "changes",
+    "source": "try-moss-own-glass/changes.png",
+    "sourceSha256": "77a4e1afd7702e6f9a1c638b0d85080740e506348193c2c9d88d02f8d75d782a",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": -1856,
+      "top": 88,
+      "width": 3360,
+      "height": 2100
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "moss",
+    "name": "pr",
+    "source": "try-moss-own-glass/pr.png",
+    "sourceSha256": "fa55a35f93741cd95fc0a77d07d188eb18cce81a224834fa70db4db25fb52709",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": -1856,
+      "top": 88,
+      "width": 3360,
+      "height": 2100
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "moss",
+    "name": "editor",
+    "source": "try-moss-own-glass/editor.png",
+    "sourceSha256": "7e39d237487e1be4a5cd8cdc454bc699414a2058db538d09295ce9f6497b9614",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "region": [
+      1460,
+      0,
+      360,
+      400
+    ],
+    "position": {
+      "left": 354,
+      "top": 56,
+      "width": 893,
+      "height": 992
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "moss",
+    "name": "btw",
+    "source": "try-moss-own-glass/btw.png",
+    "sourceSha256": "1e089235a604a996b7d450048855a78a57570343f47a720e43d9179f69bbe807",
+    "frame": {
+      "width": 1600,
+      "height": 1104
+    },
+    "position": {
+      "left": -1856,
+      "top": 88,
+      "width": 3360,
+      "height": 2100
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "moss",
+    "name": "slate-stack",
+    "panel": "slate-host",
+    "source": "try-moss-own-glass/slate-host.png",
+    "sourceSha256": "697b58583caa880111514e1f02b4351a9a7a9212ddb26e61b3798abbce4883df",
+    "region": {
+      "left": 2044,
+      "top": 0,
+      "width": 836,
+      "height": 1800
+    },
+    "position": {
+      "left": 80,
+      "top": 24,
+      "width": 446,
+      "height": 960
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "moss",
+    "name": "slate-stack",
+    "panel": "slate-release",
+    "source": "try-moss-own-glass/slate-release.png",
+    "sourceSha256": "70dec889ab117d8820aa57e9282b3e88c3018531736222c3f5a49a5a307e4c03",
+    "region": {
+      "left": 2044,
+      "top": 0,
+      "width": 836,
+      "height": 1800
+    },
+    "position": {
+      "left": 577,
+      "top": 64,
+      "width": 446,
+      "height": 960
+    },
+    "roundedCorners": false,
+    "shadow": false
+  },
+  {
+    "theme": "moss",
+    "name": "slate-stack",
+    "panel": "slate-activity",
+    "source": "try-moss-own-glass/slate-activity.png",
+    "sourceSha256": "8524f91f5922fcf5b0d2c367d905d132816c6685bdc7ab56ce781591d690b954",
+    "region": {
+      "left": 2044,
+      "top": 0,
+      "width": 836,
+      "height": 1800
+    },
+    "position": {
+      "left": 1074,
+      "top": 104,
+      "width": 446,
+      "height": 960
+    },
+    "roundedCorners": false,
+    "shadow": false
+  }
+]

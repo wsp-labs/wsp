@@ -1,0 +1,10 @@
+<slate title="Release readiness">
+  <value name="checks" start={[{name:"Runtime",state:"Passed",computer:"hetzner"},{name:"Daemon",state:"Passed",computer:"thinkpad"},{name:"Desktop",state:"Running",computer:"MacBook Pro"},{name:"Review",state:"Passed",computer:"gpu-box"}]} />
+  <value name="steps" start={[{id:"runtime",title:"Runtime and daemon checks",done:true},{id:"review",title:"Independent Codex review",done:true},{id:"desktop",title:"Desktop smoke test",done:false}]} />
+  <column gap="normal" pad="none">
+    <facts layout="line"><fact label="Branch" value="release/0.3.11" /><fact label="Checks" value="7 of 8 passed" /></facts>
+    <status value="Waiting for the desktop smoke test" tone="warning" />
+    <table items={$checks}><col title="Check" value={item.name} /><col title="Computer" value={item.computer} /><col title="State" value={item.state} /></table>
+    <checklist items={$steps} key={item.id} title={item.title} done={item.done} editable={false} />
+  </column>
+</slate>
