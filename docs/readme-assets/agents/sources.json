@@ -1,0 +1,26 @@
+[
+  {
+    "agent": "claude",
+    "source": "packages/catalog/src/agents/claude.ts",
+    "markSource": "https://github.com/pingdotgg/t3code/blob/be7796d/apps/web/src/components/Icons.tsx",
+    "license": "See catalog mark attribution and THIRD_PARTY_NOTICES"
+  },
+  {
+    "agent": "codex",
+    "source": "packages/catalog/src/agents/codex.ts",
+    "markSource": "https://github.com/pingdotgg/t3code/blob/57a66608b/apps/web/src/components/Icons.tsx",
+    "license": "See catalog mark attribution and THIRD_PARTY_NOTICES"
+  },
+  {
+    "agent": "cursor",
+    "source": "packages/catalog/src/agents/cursor.ts",
+    "markSource": "https://github.com/lobehub/lobe-icons/blob/329f378cbd1a88f45b60cd096b9111ce16f3ea39/src/Cursor/components/Mono.tsx",
+    "license": "See catalog mark attribution and THIRD_PARTY_NOTICES"
+  },
+  {
+    "agent": "opencode",
+    "source": "packages/catalog/src/agents/opencode.ts",
+    "markSource": "https://github.com/simple-icons/simple-icons/blob/develop/icons/opencode.svg",
+    "license": "See catalog mark attribution and THIRD_PARTY_NOTICES"
+  }
+]

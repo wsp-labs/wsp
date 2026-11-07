@@ -1,0 +1,58 @@
+[
+  {
+    "name": "boat",
+    "site": "https://boat.dev",
+    "source": "https://boat.dev/favicon.ico",
+    "file": "boat.ico",
+    "bytes": 2373
+  },
+  {
+    "name": "instabox",
+    "site": "https://instabox.sh",
+    "source": "https://instabox.sh/assets/ca86e5e4fa959a91/favicon.svg",
+    "file": "instabox.svg",
+    "bytes": 1885
+  },
+  {
+    "name": "daytona",
+    "site": "https://daytona.io",
+    "source": "https://framerusercontent.com/images/6WPclDLAHHQgPFeA2DRTW1OXVSU.png",
+    "file": "daytona.png",
+    "bytes": 1247
+  },
+  {
+    "name": "celesto",
+    "site": "https://celesto.ai",
+    "source": "https://ik.imagekit.io/gradsflow/celestoai/logo/celesto-logo_KDV0f6bxO.svg",
+    "file": "celesto.svg",
+    "bytes": 575464
+  },
+  {
+    "name": "freestyle",
+    "site": "https://freestyle.sh",
+    "source": "https://www.freestyle.sh/favicon.png",
+    "file": "freestyle.png",
+    "bytes": 5066
+  },
+  {
+    "name": "e2b",
+    "site": "https://e2b.dev",
+    "source": "https://e2b.dev/favicon.ico?favicon.2tv3ar_xs3r82.ico",
+    "file": "e2b.ico",
+    "bytes": 621
+  },
+  {
+    "name": "superserve",
+    "site": "https://superserve.ai",
+    "source": "https://www.superserve.ai/assets/icons/icon-512x512.png",
+    "file": "superserve.png",
+    "bytes": 10331
+  },
+  {
+    "name": "maritime",
+    "site": "https://maritime.sh",
+    "source": "https://maritime.sh/maritimefav.png",
+    "file": "maritime.png",
+    "bytes": 47285
+  }
+]

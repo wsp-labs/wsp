@@ -64,7 +64,7 @@ checkout of `main` on a computer with the Solari key in `.env`.
    second, and a classic app updates itself from the classic zip. Every one
    of those names comes from `packages/protocol/src/bundles.mjs`; the
    workflow spells none of them. They land on a draft release on the tag,
-   whose notes are the commits since the previous tag plus the README's lines
+   whose notes are the commits since the previous tag plus the release guide's lines
    on opening a downloaded bundle. Nothing
    else on the workflow reaches npm: step 4 stays a person's, because of the one
    time password.
@@ -99,7 +99,7 @@ checkout of `main` on a computer with the Solari key in `.env`.
 Without a certificate the workflow signs each `wsp.app` ad hoc, under the
 hardened runtime and the entitlements in
 `apps/desktop/build/entitlements.mac.plist`. A download of that opens after a
-right-click Open, which the README's paragraph between the `unsigned` markers
+right-click Open, which the release guide's paragraph between the `unsigned` markers
 says, and the notes carry that paragraph. With the five secrets below the same
 workflow signs with the Developer ID, has Apple notarize each bundle, staples
 the ticket into it, and leaves the paragraph out of the notes. Nothing else
@@ -135,5 +135,48 @@ The owner does this once:
    leave out the right-click Open paragraph. Then do step 8 above as always:
    a downloaded bundle opens on a double click with no dialog.
 7. **Delete the paragraph** between the `unsigned:start` and `unsigned:end`
-   markers in the README, markers included, once a notarized release is out.
-   The notes read those lines from the README, so nothing else is edited.
+   markers in this guide, markers included, once a notarized release is out.
+   The notes read those lines from this guide, so nothing else is edited.
+
+
+## Release-note text
+
+The release generator reads the marked sections below for download instructions and command changes. Keep them here so the product README stays focused on WSP.
+
+<!-- bundles:start -->
+### Opening a downloaded bundle
+
+Open the macOS disk image and drag wsp onto the Applications folder it shows. One image holds both Apple silicon and Intel.
+
+<!-- unsigned:start -->
+The bundles are not signed yet, so macOS refuses the first open of `wsp.app`. Open it once, dismiss the refusal, then in System Settings under Privacy & Security find the line saying wsp was blocked and pick Open Anyway. Or from a terminal: `xattr -dr com.apple.quarantine /Applications/wsp.app`. Every open after that is a double click.
+<!-- unsigned:end -->
+
+Start the Linux AppImage from a terminal in the folder it downloaded to: `chmod +x wsp-*.AppImage && ./wsp-*.AppImage`. A double-click on its icon on Ubuntu's desktop does not start it: the desktop hands an AppImage to Disk Image Mounter, which mounts it and runs nothing. There, set the run bit, then right-click the icon and pick Run as a program. It needs no FUSE 2. It mounts itself with `fusermount3` from the `fuse3` package, which Ubuntu, Fedora and Arch desktops already have. If it says it cannot mount the AppImage, install `fuse3`, or start it with `--appimage-extract-and-run`.
+<!-- bundles:end -->
+
+<!-- renames:start -->
+### Renamed in 0.3
+
+A thread runs in your project's folder on one of your computers, and `wsp --help` names computers, projects and threads. A verb takes a project or a thread right after it. Nothing answers to the old lines, so here they are, once.
+
+| was | is |
+| --- | --- |
+| `wsp thread new --in <workspace> "<task>"` | `wsp run <project> "<message>"` |
+| the MCP tool `thread_new` | the MCP tool `run` |
+| `wsp threads --in <workspace>` | `wsp threads <project>` |
+| `wsp new --local [name]`, `wsp import <folder> --to <workspace>` | `wsp add <folder>`, a project on this computer |
+| `wsp new --ssh <user@host>` | `wsp add user@host` (or an alias from your ssh config), a computer |
+| `wsp places` | `wsp computers` |
+| `wsp stop <thread> --task <id>` | `wsp stop <thread> --subagent <id>`, the id in the SUBAGENT column of `wsp threads` |
+| `wsp pair`, `wsp devices` | `wsp host pair`, `wsp host devices` |
+| `wsp connect <url>` | `wsp login`: a host on your account needs no code |
+| `wsp disconnect` | nothing: a line goes to your account's one host, `--host` names another, and `wsp logout` drops them |
+| `wsp relay link`, `wsp relay unlink` | `wsp host link`, `wsp host unlink` |
+| `wsp relay hosts`, `wsp host linked`, `wsp host list` | `wsp hosts`, the hosts on your account |
+| `wsp relay clients`, `wsp host clients` | `wsp login`, and `wsp logout <id>` to sign one out |
+
+A new thread in the folder another thread works in is `wsp run --beside <thread> "<message>"`. `wsp commit`, `wsp discard`, `wsp update`, `wsp exec`, `wsp merge` and `wsp fix` take a thread and act in the folder it works in. `wsp computers set <computer>` renames a computer and `wsp remove <computer>` takes one out. Plain `wsp` prints the help, the first line that needs a host starts one, and `wsp up` is still there for a host you want to watch in a terminal or one that serves beyond this computer.
+
+Agents on this computer get the new skill the first time the new host starts; a project folder whose `AGENTS.md` carries the old section gets the new one at the next `wsp mcp install` there.
+<!-- renames:end -->

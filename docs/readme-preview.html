@@ -1,0 +1,194 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WSP README · Tungsten</title><style>*{box-sizing:border-box;border-radius:0!important}html{scroll-padding-top:80px}body{margin:0;background:#0d1117;color:#e6edf3;font:16px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}header{padding:14px 24px;background:#161b22;border-bottom:1px solid #30363d;display:flex;justify-content:center;align-items:center;gap:12px;position:sticky;top:0;z-index:10}button{background:#21262d;color:#e6edf3;padding:7px 18px;border:1px solid #30363d;cursor:pointer}button[aria-pressed=true]{border-color:#a3b09f}header span{font-size:13px;color:#9198a1;margin-right:24px}main{max-width:1100px;margin:24px auto 80px;padding:32px 48px;border:1px solid #30363d}h1{font-size:32px}h2{font-size:24px;border-bottom:1px solid #30363d;padding-bottom:8px;margin:32px 0 16px}h3{font-size:20px;margin:24px 0 16px}p{margin:0 0 16px}p[align=center],h1[align=center]{text-align:center}a{color:#58a6ff;text-decoration:none}a:hover{text-decoration:underline}img{max-width:100%;height:auto}main>img{display:block;margin:20px 0 28px}table{width:100%;border-spacing:0;border-collapse:collapse;margin:16px 0 24px;table-layout:fixed}td,th{border:1px solid #30363d;padding:16px;overflow-wrap:anywhere}td[valign=middle]{vertical-align:middle}td>h3:first-child{margin-top:0}td>p:last-child{margin-bottom:0}td img{display:block}td[align=center] img{display:inline-block;margin:16px 0 12px}td[align=center]{text-align:center;padding:20px 12px}td[align=center] sub{display:inline-block;font-size:12px;margin:10px 0}pre{padding:16px;background:#161b22;overflow:auto}code{font:85% ui-monospace,monospace;background:#6e768126;padding:2px 5px}pre code{padding:0;background:none}blockquote{border-left:3px solid #536458;margin:16px 0;padding:0 18px;color:#bec8be}details{margin:20px 0}summary{cursor:pointer}sub{font-size:12px}main>table:has(th){table-layout:auto}footer{max-width:1100px;padding:0 24px 30px;margin:auto;color:#9198a1;font-size:12px}@media(max-width:650px){header{padding:12px 8px;gap:6px}header span{display:none}main{padding:20px 14px;margin:0;border:none}td,th{padding:10px}td h3{font-size:17px}td p{font-size:14px}td[align=center]{padding:10px 4px}td[align=center] strong{font-size:12px}td[align=center] sub{font-size:10px}h2{font-size:22px}main>table{display:block;max-width:100%;overflow-x:auto}main>table:has(th){display:block;overflow:auto}}</style><main><h1 align="center">wsp</h1>
+
+<p align="center"><strong>Orchestrate coding agents across computers and clouds.</strong></p>
+
+<p align="center">
+  <a href="#get-started">Get started</a> ·
+  <a href="https://usewsp.com/docs">Documentation</a> ·
+  <a href="#cloud-providers">Cloud providers</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="https://github.com/wsp-labs/wsp/releases">Releases</a>
+</p>
+
+<p>Run Claude Code, Codex, OpenCode and Cursor with the tools and subscriptions you already use. Give each part of the work its own thread, on your computer, another computer or the cloud. Follow it from the first message to the reviewed result.</p>
+<img src="readme-assets/features/tungsten/hero.webp" alt="WSP coordinating coding agents across connected computers, with a live slate beside the lead thread" width="100%">
+
+<h2 id="get-started">Get started</h2>
+<pre><code class="language-sh">curl -fsSL https://usewsp.com/install | sh
+</code></pre>
+<p>Open WSP, add a project, and start a thread with an agent you&#39;re signed in to.</p>
+<p><strong><a href="https://usewsp.com/docs">Setup guide</a> · <a href="https://github.com/wsp-labs/wsp/releases">Download the desktop app</a></strong></p>
+<details>
+<summary>Install the CLI with npm</summary>
+
+<p>With Node 22 or newer:</p>
+<pre><code class="language-sh">npm i -g @wsp-labs/wsp
+</code></pre>
+</details>
+
+<p>Free and open source under AGPL-3.0. Agent subscriptions and cloud compute are billed separately.</p>
+<h2 id="delegate-across-computers">Delegate across computers</h2>
+<p>Keep an investigation local while another computer runs the tests. Use a different agent for the review. Every child has its own conversation, and its report returns to the lead.</p>
+<table>
+<tr>
+<td width="40%" valign="middle"><h3 id="one-thread-tree-several-computers">One thread tree, several computers</h3><p>Claude Code, Codex, OpenCode and Cursor can hand work to each other across your connected computers. The sidebar keeps each child under the thread that started it.</p></td>
+<td width="60%"><a href="readme-assets/features/tungsten/orchestration.webp"><img src="readme-assets/features/tungsten/orchestration.webp" alt="The sidebar and child-thread list coordinating work on several computers" width="100%"></a></td>
+</tr>
+<tr>
+<td width="40%" valign="middle"><h3 id="your-computer-your-setup">Your computer. Your setup.</h3><p>Connect a Linux computer over SSH and use its existing tools, or bring selected agents, sign-ins, CLIs, skills, MCP servers and shell settings. Save those choices as a recipe.</p></td>
+<td width="60%"><a href="readme-assets/features/tungsten/computers.webp"><img src="readme-assets/features/tungsten/computers.webp" alt="Connected computers with their specifications and CPU and memory history" width="100%"></a></td>
+</tr>
+<tr>
+<td width="40%" valign="middle"><h3 id="your-tools-on-every-computer">Your tools, on every computer</h3><p>Keep MCP servers, skills and plugins with the agents that use them. See what is available on each computer and manage it from the same panel.</p></td>
+<td width="60%"><a href="readme-assets/features/tungsten/tools.webp"><img src="readme-assets/features/tungsten/tools.webp" alt="The Tool servers tab showing the MCP servers available to agents" width="100%"></a></td>
+</tr>
+</table>
+
+
+<h3 id="bring-your-setup-with-you">Bring your setup with you</h3>
+<p>Choose the agents, MCP servers, command line tools, skills, projects and shell settings you want on a connected computer. WSP checks the computer and walks you through the setup.</p>
+<p><a href="readme-assets/setup/setup-tungsten.gif"><img src="readme-assets/setup/setup-tungsten.gif" alt="Adding a computer, choosing what to bring, and following setup through to ready" width="100%"></a></p>
+<h3 id="cloud-providers">Cloud providers</h3>
+<p>Cloud execution currently requires a cloud-enabled build.</p>
+<p>When work needs its own compute, launch a cloud child from your setup image. It starts from your pushed code on an independent branch. WSP manages capacity, spending limits and cleanup; the report and result come back for review.</p>
+<table>
+<tr>
+<td width="250" align="center"><a href="https://boat.dev"><img src="readme-assets/providers/boat.png" alt="Boat logo" width="96"><br><strong>Boat</strong></a><br><sub>Available&nbsp;now</sub></td>
+<td width="250" align="center"><a href="https://instabox.sh"><img src="readme-assets/providers/instabox.png" alt="Instabox logo" width="96"><br><strong>Instabox</strong></a><br><sub>Coming&nbsp;soon</sub></td>
+<td width="250" align="center"><a href="https://daytona.io"><img src="readme-assets/providers/daytona.png" alt="Daytona logo" width="96"><br><strong>Daytona</strong></a><br><sub>Coming&nbsp;soon</sub></td>
+<td width="250" align="center"><a href="https://celesto.ai"><img src="readme-assets/providers/celesto.png" alt="Celesto logo" width="96"><br><strong>Celesto</strong></a><br><sub>Coming&nbsp;soon</sub></td>
+</tr>
+<tr>
+<td width="250" align="center"><a href="https://freestyle.sh"><img src="readme-assets/providers/freestyle.png" alt="Freestyle logo" width="96"><br><strong>Freestyle</strong></a><br><sub>Coming&nbsp;soon</sub></td>
+<td width="250" align="center"><a href="https://e2b.dev"><img src="readme-assets/providers/e2b.png" alt="E2B logo" width="96"><br><strong>E2B</strong></a><br><sub>Coming&nbsp;soon</sub></td>
+<td width="250" align="center"><a href="https://superserve.ai"><img src="readme-assets/providers/superserve.png" alt="Superserve logo" width="96"><br><strong>Superserve</strong></a><br><sub>Coming&nbsp;soon</sub></td>
+<td width="250" align="center"><a href="https://maritime.sh"><img src="readme-assets/providers/maritime.png" alt="Maritime logo" width="96"><br><strong>Maritime</strong></a><br><sub>Coming&nbsp;soon</sub></td>
+</tr>
+</table>
+
+<h2 id="follow-the-work">Follow the work</h2>
+<p>As threads multiply, WSP keeps the processes, usage and questions attached to the work that produced them.</p>
+<table>
+<tr>
+<td width="40%" valign="middle"><h3 id="activity-down-to-the-process">Activity, down to the process</h3><p>See CPU, memory and listening ports across your computers. Follow a thread into its agent, MCP servers, builds and dev servers, including processes that outlive the shell that started them.</p></td>
+<td width="60%"><a href="readme-assets/features/tungsten/activity.webp"><img src="readme-assets/features/tungsten/activity.webp" alt="Activity with resource history and the agent, dev server and MCP tools attributed to their thread" width="100%"></a></td>
+</tr>
+<tr>
+<td width="40%" valign="middle"><h3 id="usage-across-your-accounts">Usage across your accounts</h3><p>Track tokens, cache usage and API cost estimates by agent, account, computer, project or model. Check subscription limits and reset times before starting more work.</p></td>
+<td width="60%"><a href="readme-assets/features/tungsten/usage.webp"><img src="readme-assets/features/tungsten/usage.webp" alt="Usage charts and agent breakdowns" width="100%"></a></td>
+</tr>
+<tr>
+<td width="40%" valign="middle"><h3 id="resume-when-your-limit-resets">Resume when your limit resets</h3><p>A usage limit can pause a long task. Choose <strong>Resume at reset</strong>, and WSP continues the thread when the agent’s reported window resets.</p></td>
+<td width="60%"><a href="readme-assets/features/tungsten/resume-reset.webp"><img src="readme-assets/features/tungsten/resume-reset.webp" alt="A thread set to resume automatically when its usage limit resets" width="100%"></a></td>
+</tr>
+</table>
+
+<h2 id="give-the-thread-a-live-view">Give the thread a live view</h2>
+<table>
+<tr>
+<td width="40%" valign="middle"><h3 id="slate-built-for-the-work">Slate, built for the work</h3><p>An architecture diagram for a review. A live chart for an investigation. A plan you can edit.<br><br>Agents build Slates beside their conversations. Panels can read current state, refresh without another agent turn, and send your edits and actions back to the agent.</p></td>
+<td width="60%"><a href="readme-assets/features/tungsten/slate-stack.webp"><img src="readme-assets/features/tungsten/slate-stack.webp" alt="Three full Slate panels: architecture, progress and live measurements" width="100%"></a></td>
+</tr>
+</table>
+
+<h2 id="build-and-review-where-the-work-runs">Build and review where the work runs</h2>
+<p>The same tools follow the thread onto your connected computers and cloud compute.</p>
+<table>
+<tr>
+<td width="40%" valign="middle"><h3 id="a-terminal-on-any-computer">A terminal on any computer</h3><p>Open a terminal in the thread’s project folder, locally or remotely. Your configured terminal font, colours and transparency come with it.</p></td>
+<td width="60%"><a href="readme-assets/features/tungsten/terminal.webp"><img src="readme-assets/features/tungsten/terminal.webp" alt="A close-up of the terminal pane running commands in the thread project" width="100%"></a></td>
+</tr>
+<tr>
+<td width="40%" valign="middle"><h3 id="preview-the-running-application">Preview the running application</h3><p>Open the dev server beside its thread. Browser access and port forwarding bring services on connected computers and cloud compute to your desktop.</p></td>
+<td width="60%"><a href="readme-assets/features/tungsten/browser.webp"><img src="readme-assets/features/tungsten/browser.webp" alt="The browser pane previewing the application served by the thread" width="100%"></a></td>
+</tr>
+
+<tr>
+<td width="40%" valign="middle"><h3 id="review-every-change">Review every change</h3><p>Inspect changed files and compare code diffs on the computer where the thread runs.</p></td>
+<td width="60%"><a href="readme-assets/features/tungsten/changes.webp"><img src="readme-assets/features/tungsten/changes.webp" alt="Changed files and a code diff on the thread execution computer" width="100%"></a></td>
+</tr>
+<tr>
+<td width="40%" valign="middle"><h3 id="the-pull-request-beside-the-thread">The pull request, beside the thread</h3><p>Review the PR, follow checks and inspect review feedback without leaving WSP. Send a failed check back to the agent.</p></td>
+<td width="60%"><a href="readme-assets/features/tungsten/pr.webp"><img src="readme-assets/features/tungsten/pr.webp" alt="A close-up of the pull request pane with review state and checks" width="100%"></a></td>
+</tr>
+<tr>
+<td width="40%" valign="middle"><h3 id="open-in-your-editor">Open in your editor</h3><p>Continue in Zed, VS Code or Cursor. Supported editors open the thread’s folder over SSH when it lives on another computer.</p></td>
+<td width="60%"><a href="readme-assets/features/tungsten/editor.webp"><img src="readme-assets/features/tungsten/editor.webp" alt="The Open menu offering VS Code, Cursor and Zed" width="100%"></a></td>
+</tr>
+<tr>
+<td width="40%" valign="middle"><h3 id="ask-a-side-question">Ask a side question</h3><p>Use <code>/btw</code> in a Claude Code or Codex thread. The answer opens beside the work without adding to the main conversation.</p></td>
+<td width="60%"><a href="readme-assets/features/tungsten/btw.webp"><img src="readme-assets/features/tungsten/btw.webp" alt="A side question and its answer in the btw pane" width="100%"></a></td>
+</tr>
+</table>
+
+<h2 id="start-from-any-surface">Start from any surface</h2>
+<p>Desktop, CLI and MCP connect to the same persistent host. Start from your terminal or an agent you already use, then open WSP to follow the same threads.</p>
+<p>
+<img src="readme-assets/agents/claude.png" alt="Claude Code" width="32"> &nbsp;
+<img src="readme-assets/agents/codex.png" alt="Codex" width="32"> &nbsp;
+<img src="readme-assets/agents/cursor.png" alt="Cursor" width="32"> &nbsp;
+<img src="readme-assets/agents/opencode.png" alt="OpenCode" width="32">
+</p>
+
+<p><strong>From your agent</strong></p>
+<blockquote>
+<p>Use WSP to ask Codex on gpu-box to review this change. Run the tests on hetzner and bring both reports back here.</p>
+</blockquote>
+<p><strong>From your terminal</strong></p>
+<pre><code class="language-sh">wsp run wsp &quot;Run the test suite&quot; --on hetzner --agent codex
+</code></pre>
+<p><a href="https://usewsp.com/docs/reference/mcp-tools">MCP reference</a> · <a href="https://usewsp.com/docs/reference/cli">CLI reference</a></p>
+<h2 id="built-around-a-persistent-host">Built around a persistent host</h2>
+<p><a id="architecture"></a></p>
+<p>The <strong>host</strong> holds projects, threads and transcripts independently of the client. WSP’s <strong>orchestration runtime</strong> drives each agent’s own harness, preserves its conversation, routes messages and reports, and tracks each turn.</p>
+<p>Each execution computer runs a <strong>Rust daemon</strong> for files, Git, terminals, ports and process activity. A connected computer needs the daemon and your tools; the desktop renders locally.</p>
+<img src="readme-assets/diagrams/architecture.tungsten.png" alt="Desktop, CLI and MCP share one persistent host and orchestration runtime, which coordinate agents and Rust daemons on local, connected and cloud computers" width="100%">
+
+<p>The daemon shares one process sampler between subscribers. It starts when needed, stops after the last subscriber leaves, and sends changes after the initial snapshot. Linux thread cgroups keep builds and dev servers attributed to their work after the original shell exits.</p>
+<details>
+<summary><strong>Thread isolation, shared files and lifecycle</strong></summary>
+
+<br>
+
+<table>
+<thead>
+<tr>
+<th>Execution location</th>
+<th>Files</th>
+<th>Conversation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Same project folder</td>
+<td>Shared working files</td>
+<td>Separate per thread</td>
+</tr>
+<tr>
+<td>Local worktree</td>
+<td>Separate checkout and branch</td>
+<td>Separate per thread</td>
+</tr>
+<tr>
+<td>Connected computer</td>
+<td>That computer&#39;s project folder</td>
+<td>Separate per thread</td>
+</tr>
+<tr>
+<td>Boat cloud child</td>
+<td>Pushed starting ref; result branch</td>
+<td>Separate per thread</td>
+</tr>
+</tbody></table>
+<p>Delegation preserves the relationship between threads. It does not automatically copy the lead’s conversation or uncommitted edits. Conversation forking is an explicit operation where supported.</p>
+<img src="readme-assets/diagrams/lifecycle.tungsten.png" alt="Four stages of a child thread: request, prepare, execute and return; cloud cleanup follows the retention policy" width="100%">
+
+<p>Closing a client, ending an agent turn and releasing cloud compute are separate events. The host keeps the record of the work across them.</p>
+</details>
+
+<h3 id="native-desktop-beta">Native desktop beta</h3>
+<p>The native Rust desktop, built with GPUI, uses the same host and runtime. Our <a href="https://usewsp.com/blog/gpui-port/">port write-up</a> covers the architecture and the October 27 comparison: <strong>438 MiB in Electron to 180 MiB in GPUI</strong> at rest, using the same conversations.</p>
+<h2 id="contributing">Contributing</h2>
+<p>See <a href="../CONTRIBUTING.md">CONTRIBUTING.md</a> to build from source and contribute, or <a href="https://github.com/wsp-labs/wsp/issues">report an issue</a>.</p>
+<h2 id="license">License</h2>
+<p><a href="../LICENSE">AGPL-3.0-only</a> · <a href="../THIRD_PARTY_NOTICES">Third-party notices</a></p>
+</main><footer>Classic Electron. Screenshot conversations and resource readings are demonstration fixtures.</footer></html>

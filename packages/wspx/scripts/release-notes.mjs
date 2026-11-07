@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // node scripts/release-notes.mjs v1.2.3 [--signed]: the notes for that tag's
-// draft release, from the commits since the tag before it plus the README's
+// draft release, from the commits since the tag before it plus the release guide's
 // lines on opening a downloaded bundle. Prints markdown; writes nothing.
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -12,10 +12,10 @@ import { compareVersions } from "../../protocol/src/semver.mjs";
 import { bundleNames, classicNames } from "../../protocol/src/bundles.mjs";
 import { isReleaseTag, versionFromTag } from "./tag-version.mjs";
 
-// The README owns this text so the page a stranger reads and the notes they get
+// The release guide owns this text so the page a stranger reads and the notes they get
 // with the download cannot drift apart; the markers are how it is lifted out.
 const BUNDLES = /<!-- bundles:start -->\n([\s\S]*?)<!-- bundles:end -->/;
-// A release that renames things says what moved once, in the README, where a stranger reading the page and a person
+// A release that renames things says what moved once, in the release guide, where a stranger reading the page and a person
 // reading the notes get the same words. The block is deleted at the release after the one that wrote it.
 const RENAMES = /<!-- renames:start -->\n([\s\S]*?)<!-- renames:end -->/;
 const UNSIGNED = /<!-- unsigned:start -->\n([\s\S]*?)<!-- unsigned:end -->\n?/;
@@ -47,22 +47,22 @@ export function changeLines(subjects) {
   return kept;
 }
 
-/** The README's lines on opening a downloaded bundle, so the notes say what the page says. The paragraph on unsigned
- * bundles, marked on its own inside them, is left out once an identity signs the bundles; the README keeps it until
+/** The release guide's lines on opening a downloaded bundle, so the notes say what the page says. The paragraph on unsigned
+ * bundles, marked on its own inside them, is left out once an identity signs the bundles; the release guide keeps it until
  * the person deletes it. */
-export function bundleNote(readme, signed) {
-  const found = BUNDLES.exec(readme);
-  if (found === null) throw new Error("README.md has no bundles:start and bundles:end markers to read the download lines from");
+export function bundleNote(source, signed) {
+  const found = BUNDLES.exec(source);
+  if (found === null) throw new Error("docs/release.md has no bundles:start and bundles:end markers to read the download lines from");
   return found[1]
     .replace(UNSIGNED, (_, paragraph) => (signed ? "" : paragraph))
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
-/** The README's block on what this release renamed, or nothing when it has none: the notes are built from commit
+/** The release guide's block on what this release renamed, or nothing when it has none: the notes are built from commit
  * subjects, and a table of renames does not fit one. */
-export function renameNote(readme) {
-  const found = RENAMES.exec(readme);
+export function renameNote(source) {
+  const found = RENAMES.exec(source);
   return found === null ? undefined : found[1].trim();
 }
 
@@ -108,13 +108,13 @@ function notesFor(repo, tag, signed) {
   const git = args => execFileSync("git", args, { cwd: repo, encoding: "utf8" });
   const previous = previousTag(git(["tag", "--list", "v*"]).split("\n"), tag);
   const subjects = previous === undefined ? [] : git(["log", "--no-merges", "--pretty=format:%s", `${previous}..${tag}`]).split("\n");
-  const readme = readFileSync(join(repo, "README.md"), "utf8");
-  const renames = renameNote(readme);
+  const source = readFileSync(join(repo, "docs/release.md"), "utf8");
+  const renames = renameNote(source);
   return releaseNotes({
     version: versionFromTag(tag),
     previous,
     changes: changeLines(subjects),
-    bundles: bundleNote(readme, signed),
+    bundles: bundleNote(source, signed),
     signed,
     ...(renames === undefined ? {} : { renames }),
   });
