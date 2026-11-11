@@ -121,7 +121,7 @@ jobs:
       - name: Fetch the approved release lines
         run: |
           git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
-          if [ "$GITHUB_REF_NAME" = v0.3.10 ]; then
+          if [ "$GITHUB_REF_NAME" = v0.3.10 ] || [ "$GITHUB_REF_NAME" = v0.3.11 ]; then
             git fetch --no-tags origin +refs/heads/hotfix/v0.3.9-base:refs/remotes/origin/hotfix/v0.3.9-base
           fi
       - name: The tag stands on its release line and says what the manifests say

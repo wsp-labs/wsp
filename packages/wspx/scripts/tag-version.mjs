@@ -53,9 +53,9 @@ function tagOnLine(repo, tag, ref) {
 export function checkTag(repo, tag, ref = "origin/main") {
   const version = versionFromTag(tag);
   const { commit, on } = tagOnLine(repo, tag, ref);
-  // v0.3.10 is the approved stable hotfix, excluding main's Rust host port.
+  // These approved stable hotfix releases exclude main's Rust host port.
   let stable = false;
-  if (!on && version === "0.3.10") {
+  if (!on && (version === "0.3.10" || version === "0.3.11")) {
     try { stable = tagOnLine(repo, tag, "origin/hotfix/v0.3.9-base").on; } catch { /* An unfetched stable branch authorizes nothing. */ }
   }
   if (!on && !stable) throw new Error(`tag ${tag} points at ${commit}, which is not on main's own line; tag a commit main carries`);
