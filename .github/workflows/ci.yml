@@ -28,3 +28,13 @@ jobs:
             curl --head --connect-timeout 5 --max-time 10 "$url" || true
           done
           curl --connect-timeout 5 --max-time 10 -H 'accept: application/dns-json' 'https://1.1.1.1/dns-query?name=archive.ubuntu.com&type=A' || true
+      - name: Test a public resolver on this disposable runner
+        run: |
+          interface=$(ip -o route show default | awk '{print $5; exit}')
+          sudo resolvectl dns "$interface" 1.1.1.1 8.8.8.8
+          sudo resolvectl domain "$interface" '~.'
+          sudo resolvectl flush-caches
+          timeout 15 getent ahostsv4 archive.ubuntu.com
+          sudo -u _apt timeout 15 getent ahostsv4 archive.ubuntu.com
+          curl --head --connect-timeout 5 --max-time 15 https://archive.ubuntu.com/ubuntu/dists/noble/InRelease
+          curl --head --connect-timeout 5 --max-time 15 https://security.ubuntu.com/ubuntu/dists/noble-security/InRelease
