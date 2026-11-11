@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { writeStub } from "../../protocol/test/stub-script.js";
 
-it("repairs direct sources and the runner's indirect mirror list before installing dependencies", () => {
+it.each([false, true])("repairs runner package sources with a failed DNS lookup of %s", failedDns => {
   const root = mkdtempSync(join(tmpdir(), "wsp-ci-apt-"));
   try {
     const apt = join(root, "apt");
@@ -24,10 +24,14 @@ it("repairs direct sources and the runner's indirect mirror list before installi
     writeFileSync(ports, arm);
     writeStub(join(bin, "sudo"), '#!/bin/sh\nexec "$@"\n');
     writeStub(join(bin, "apt-get"), '#!/bin/sh\nprintf "%s\\n" "$*" >> calls\n');
+    writeStub(join(bin, "timeout"), '#!/bin/sh\nshift\nexec "$@"\n');
+    writeStub(join(bin, "getent"), failedDns ? '#!/bin/sh\ntest -f dns-ready\n' : '#!/bin/sh\nexit 0\n');
+    writeStub(join(bin, "ip"), '#!/bin/sh\necho "default via 192.0.2.1 dev eth0"\n');
+    writeStub(join(bin, "resolvectl"), '#!/bin/sh\nprintf "%s\\n" "$*" >> resolver-calls\ntouch dns-ready\n');
     const script = join(root, "install.sh");
     // Run the actual script against fixture configuration, with no sudo or network access.
     writeFileSync(script, readFileSync(new URL("../../../scripts/ci-apt.sh", import.meta.url), "utf8").replaceAll("/etc/apt", apt));
-    const ran = spawnSync("bash", [script, "musl-tools", "gperf"], { cwd: root, env: { PATH: `${bin}:${process.env["PATH"] ?? ""}` }, encoding: "utf8" });
+    const ran = spawnSync("bash", [script, "musl-tools", "gperf"], { cwd: root, env: { GITHUB_ACTIONS: "true", PATH: `${bin}:${process.env["PATH"] ?? ""}` }, encoding: "utf8" });
     expect(ran.status, ran.stderr).toBe(0);
     expect(readFileSync(mirror, "utf8")).not.toContain("azure.archive.ubuntu.com");
     expect(readFileSync(direct, "utf8")).toBe("deb https://archive.ubuntu.com/ubuntu noble main\n");
@@ -37,6 +41,8 @@ it("repairs direct sources and the runner's indirect mirror list before installi
       "-o Acquire::Retries=3 -o APT::Update::Error-Mode=any update",
       "-o Acquire::Retries=3 install -y --no-install-recommends musl-tools gperf",
     ]);
+    if (failedDns) expect(readFileSync(join(root, "resolver-calls"), "utf8").trim().split("\n")).toEqual(["dns eth0 1.1.1.1 8.8.8.8", "domain eth0 ~.", "flush-caches"]);
+    else expect(existsSync(join(root, "resolver-calls"))).toBe(false);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
