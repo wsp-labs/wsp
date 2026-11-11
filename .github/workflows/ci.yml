@@ -1,40 +1,17 @@
-name: CI network diagnostic
+name: CI dependency diagnostic
 on:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
-  network:
+  dependencies:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Inspect resolver and mirror configuration
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Install the real compiler dependencies
+        run: bash scripts/ci-apt.sh musl-tools gperf
+      - name: Verify the installed commands
         run: |
-          cat /etc/resolv.conf
-          cat /etc/apt/apt-mirrors.txt
-          cat /etc/apt/sources.list.d/ubuntu.sources
-          python3 -c 'import os; print({k: bool(os.getenv(k)) for k in ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy"]})'
-      - name: Resolve public hosts as the runner and apt
-        run: |
-          for host in archive.ubuntu.com security.ubuntu.com azure.archive.ubuntu.com packages.microsoft.com github.com; do
-            echo "Resolver: $host"
-            timeout 10 getent ahostsv4 "$host" || true
-            echo "Apt resolver: $host"
-            sudo -u _apt timeout 10 getent ahostsv4 "$host" || true
-          done
-      - name: Check HTTPS and independent DNS
-        run: |
-          for url in https://archive.ubuntu.com/ubuntu/dists/noble/InRelease https://security.ubuntu.com/ubuntu/dists/noble-security/InRelease; do
-            curl --head --connect-timeout 5 --max-time 10 "$url" || true
-          done
-          curl --connect-timeout 5 --max-time 10 -H 'accept: application/dns-json' 'https://1.1.1.1/dns-query?name=archive.ubuntu.com&type=A' || true
-      - name: Test a public resolver on this disposable runner
-        run: |
-          interface=$(ip -o route show default | awk '{print $5; exit}')
-          sudo resolvectl dns "$interface" 1.1.1.1 8.8.8.8
-          sudo resolvectl domain "$interface" '~.'
-          sudo resolvectl flush-caches
-          timeout 15 getent ahostsv4 archive.ubuntu.com
-          sudo -u _apt timeout 15 getent ahostsv4 archive.ubuntu.com
-          curl --head --connect-timeout 5 --max-time 15 https://archive.ubuntu.com/ubuntu/dists/noble/InRelease
-          curl --head --connect-timeout 5 --max-time 15 https://security.ubuntu.com/ubuntu/dists/noble-security/InRelease
+          musl-gcc --version
+          gperf --version
