@@ -102,8 +102,8 @@ const reply = (h: ReturnType<typeof machineRuns>, run: string, sessionId: string
 };
 const subagentRows = (events: readonly SessionEvent[]) => events.filter(e => e.type === "session.subagent");
 
-async function begin(h: ReturnType<typeof machineRuns>, store: Store = memoryStore(), backend: StubBackend = stubBackend()) {
-  const rt = createRuntime({ backend, store, adapters: { claude: h.adapter } });
+async function begin(h: ReturnType<typeof machineRuns>, store: Store = memoryStore(), backend: StubBackend = stubBackend(), clock?: ReturnType<typeof fakeClock>["clock"]) {
+  const rt = createRuntime({ backend, store, adapters: { claude: h.adapter }, ...(clock === undefined ? {} : { clock }) });
   const ws = await createOn(rt, { golden: "snap_g", name: "a" });
   const handle = await rt.sessions.start(ws.id, { prompt: "fan out" });
   await until(async () => (await rt.sessions.history(ws.id)).some(e => e.type === "session.start"));
@@ -318,13 +318,15 @@ describe("an agent's own subagents as children of its thread", () => {
 
   it("a run re-read after a restart counts only the agent's own retries, never one the host saw and wrote itself", async () => {
     const h = machineRuns();
+    const fc = fakeClock();
     const store = memoryStore();
     const backend = stubBackend();
-    const { rt, ws, handle, run } = await begin(h, store, backend);
+    const { rt, ws, handle, run } = await begin(h, store, backend, fc.clock);
     const rows = (events: readonly SessionEvent[]) => events.flatMap(e => (e.type === "session.retry" ? [`retry ${e.attempt}: ${e.why}`] : []));
     h.emit(run, { type: "turn.retry", sessionId: "sess-1", attempt: 1, of: 10, why: "Anthropic was overloaded" });
     // A background subagent's call the host cut, which its agent never says.
     rt.sessions.noteRetry(handle.view().threadId!, { attempt: 1, why: "Anthropic did not answer" });
+    fc.advance(RETRY_SETTLE_MS);
     await until(async () => rows(await rt.sessions.history(ws.id)).length === 2);
     await rt.close();
 
