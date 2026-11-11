@@ -37,3 +37,9 @@
 - A retention episode gets one initial notice in the child conversation. Its latest retry reason remains stored; it is not a new live UI status surface. Existing transcript notices are not deleted.
 - Homebrew is a fallback on the recorded command path. An older Node already ahead of it remains the selected executable and still needs updating or a corrected path.
 - SSH cancel-and-undo and inherited-work accounting remain separate follow-ups.
+
+## Landing review, 2026-11-11
+
+The owner authorized merge and release. Both remaining Greptile findings are addressed: launch-only MCP rows have no saved-configuration controls, and removal wording distinguishes managed checkouts from folders outside wsp's runtime. The launch-only regression failed before the fix. The final focused product run passed 205 tests with one platform skip; the two directly changed UI files passed all 45 cases. A cold reviewer found no blockers.
+
+The latest screenshot's stuck Removing state has not been live-verified. The SSH archive upload failure and the remaining setup presentation issues are not claimed fixed. The broader MCP redesign remains deferred.

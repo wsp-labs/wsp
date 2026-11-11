@@ -251,7 +251,7 @@ export const SERVERS_KIND: KindModule<ServerEntry> = {
     const launched = entry.rows.every(r => r.launch === true);
     const perAgent = entry.rows.some(row => !mcpSwitch(row.agent));
     const switchFact = (row: McpRow): Fact[] => {
-      if (!perAgent || onImage(ctx)) return [];
+      if (!perAgent || onImage(ctx) || row.launch === true) return [];
       if (!mcpSwitch(row.agent)) return [{ id: `switch-${row.agent}`, label: agentName(row.agent), value: W.noSwitch(agentName(row.agent)), prose: true }];
       const on = !row.enabled;
       return [{ id: `switch-${row.agent}`, label: agentName(row.agent), value: row.enabled ? W.on : W.off, act: {
