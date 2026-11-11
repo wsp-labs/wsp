@@ -77,8 +77,7 @@ jobs:
       - name: C compiler for the musl target, and libseccomp built against musl
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends musl-tools gperf
+          bash ../scripts/ci-apt.sh musl-tools gperf
           ./scripts/libseccomp-archive.sh musl
       # Public: a Mac daemon's tool server embeds no top-level cloud tool and no provider but Boat. The jobs that ship it read it for Solari.
       - name: Build
@@ -287,8 +286,7 @@ jobs:
       # the start below. The runner image's package index goes stale between images: 0.3.9's 404'd on liblzma-dev.
       - name: The libraries the app builds against
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libxkbcommon-x11-dev libwebkit2gtk-4.1-dev squashfs-tools x11-utils
+          bash scripts/ci-apt.sh libxkbcommon-x11-dev libwebkit2gtk-4.1-dev squashfs-tools x11-utils
       - name: Build the bundle
         env:
           WSP_REQUIRE_DAEMON: "1"

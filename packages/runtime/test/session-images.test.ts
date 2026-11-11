@@ -526,9 +526,10 @@ describe("a send that landed its images and is then refused", () => {
     const first = await rt.sessions.start(ws.id, { harness: "codex", prompt: "A" });
     const threadId = first.view().threadId!;
     const second = rt.sessions.start(ws.id, { harness: "codex", thread: threadId, prompt: "B" });
+    const refused = expect(second).rejects.toThrow(/^Workspace is paus(?:ed|ing); wake it to send$/);
     await rt.workspaces.nap(ws.id);
     codex.exit();
-    await expect(second).rejects.toThrow(sendRefusal("paused")!);
+    await refused;
     expect(since().execs.filter(cmd => cmd.startsWith("rm -rf "))).toEqual([]);
   });
 

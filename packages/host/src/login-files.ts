@@ -3,6 +3,9 @@ import { posix } from "node:path";
 import { PLACE_LOGIN_LINKED, shellQuote, wspBinIn } from "@wsp/protocol";
 import type { DaemonPlace } from "./doctor.js";
 
+/** Prefer the recorded tools without hiding a Node already on the login's current path. */
+export const toolsPathLine = (path: string): string => `export PATH=${shellQuote(path)}\${PATH:+":$PATH"}`;
+
 /** The one line wsp adds to the person's own login file, and takes back out: their file is theirs, so what wsp
  * wrote is named once and found again by the file it names. Read by the deploy that writes it, by the removal that
  * runs on a machine this host reaches, and by the sweep a place runs on itself. The line reads the file before it
@@ -96,7 +99,7 @@ function loginWspStep(place: DaemonPlace): string[] {
   const bin = loginBinIn(place.dir);
   const onPath = `case ":$PATH:" in *:${shellQuote(bin)}:*) ;; *) PATH="$PATH":${shellQuote(bin)} ;; esac`;
   return [
-    `mkdir -p ${sh(place, bin)} && printf '%s\\n' '#!/bin/sh' ${shellQuote(`export PATH=${shellQuote(place.toolsPath)}`)} ${shellQuote(`exec node ${shellQuote(wspBinIn(place.dir))} "$@"`)} > ${sh(place, `${bin}/wsp`)} && chmod 0755 ${sh(place, `${bin}/wsp`)}`,
+    `mkdir -p ${sh(place, bin)} && printf '%s\\n' '#!/bin/sh' ${shellQuote(toolsPathLine(place.toolsPath))} ${shellQuote(`exec node ${shellQuote(wspBinIn(place.dir))} "$@"`)} > ${sh(place, `${bin}/wsp`)} && chmod 0755 ${sh(place, `${bin}/wsp`)}`,
     `printf '%s\\n' ${shellQuote(onPath)} >> ${sh(place, place.profileFile)}`,
   ];
 }

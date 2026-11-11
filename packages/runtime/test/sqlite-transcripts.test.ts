@@ -230,9 +230,10 @@ const shapeOf = (events: SessionEvent[]): unknown[] => events.map(({ at: _at, ..
 describe("a runtime whose store keeps transcripts as rows", () => {
   it("appends a turn's events as rows, writes no transcript blob, and never rewrites a row an earlier turn wrote", async () => {
     const { store, statePath } = freshSqlite();
+    const backend = stubBackend();
     const blobs: string[] = [];
     const watched: Store = { ...store, putBlob: async (c, id, b) => (blobs.push(c), store.putBlob(c, id, b)) };
-    const rt = createRuntime({ backend: stubBackend(), store: watched, adapters: { claude: scripted(() => [{ kind: "text", text: "hello" }]) } });
+    const rt = createRuntime({ backend, store: watched, adapters: { claude: scripted(() => [{ kind: "text", text: "hello" }]) } });
     const ws = await createOn(rt, { golden: "snap_g", name: "a" });
     const first = await rt.sessions.start(ws.id, { prompt: "one" });
     await first.finished;
@@ -241,7 +242,7 @@ describe("a runtime whose store keeps transcripts as rows", () => {
     const before = d.prepare("select rowid, pos, json from events where workspace = ? order by pos").all(ws.id).map(r => ({ ...r }));
     expect(before.length).toBeGreaterThan(2);
 
-    const again = createRuntime({ backend: stubBackend(), store: watched, adapters: { claude: scripted(() => [{ kind: "text", text: "again" }]) } });
+    const again = createRuntime({ backend, store: watched, adapters: { claude: scripted(() => [{ kind: "text", text: "again" }]) } });
     await (await again.sessions.start(ws.id, { prompt: "two", thread: first.view().threadId! })).finished;
     await again.close();
     const after = d.prepare("select rowid, pos, json from events where workspace = ? order by pos").all(ws.id).map(r => ({ ...r }));

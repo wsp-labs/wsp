@@ -17,6 +17,7 @@ import { guestDoor, type GuestDoor, type GuestLink } from "../src/guest.js";
 import { placeWiring } from "../src/places.js";
 import type { HostHandle } from "../src/server.js";
 import { hasTool, readsHere, toolName, VERBS } from "../src/verbs.js";
+import { THREAD_TOOLS } from "../src/thread-tools.js";
 import { SEALED_GOLDEN } from "./sealed-golden.js";
 import { stubBackend, type StubBackend } from "./stub-backend.js";
 import { captured, PAGE } from "./verbs-fixture.js";
@@ -230,7 +231,7 @@ describe("a guest session on the host", () => {
       const names = (listed["result"] as { tools: { name: string }[] }).tools.map(t => t.name).sort();
       // Every verb that is a tool, less the ones whose work is on the computer the process runs on: here that is
       // the person's computer, and a fork's agent asking about "this computer" means the machine it is on.
-      const served = VERBS.filter(hasTool).filter(v => readsHere(v) === undefined);
+      const served = VERBS.filter(hasTool).filter(v => readsHere(v) === undefined && THREAD_TOOLS.has(toolName(v.name)));
       expect(names).toEqual(served.map(v => toolName(v.name)).sort());
       expect(VERBS.filter(hasTool).filter(v => readsHere(v) !== undefined).map(v => v.name)).toEqual(["recipe scan", "recipe", "terminal config"]);
     });
