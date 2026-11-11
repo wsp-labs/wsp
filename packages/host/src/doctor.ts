@@ -349,10 +349,9 @@ export function guestPlace(supervisor: DaemonSupervisor): DaemonPlace {
   return supervisor === "entrypoint" ? CONTAINER_PLACE : CLOUD_PLACE;
 }
 
-/** The place a machine reached over ssh keeps its daemon: under the login's own home, behind that login's systemd,
- * bound on loopback and on whatever port the machine had free, which it writes down beside itself for whatever on
- * that machine reads it. Nothing here needs root, and nothing on the machine listens beyond its own loopback.
- * Where each file sits is the protocol's rule, since the same layout is read back off the machine. */
+/** An ssh computer keeps its daemon under the login's home, managed by its systemd, bound on loopback at a free
+ * port recorded beside it. Nothing here needs root or listens beyond loopback. The protocol owns these paths,
+ * which installation and reads share. */
 export function sshDaemonPlace(login: { home: string; path: string }): DaemonPlace {
   const at = placeDaemonPaths(login.home);
   const toolsPath = [at.binDir, login.path, `${HOMEBREW_PREFIX}/bin`].join(":");

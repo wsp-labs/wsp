@@ -67,7 +67,7 @@ export function removeSentence(place: PlaceView, holding: PlaceHolding, here: st
     else if (place.takesRuntime === true) lines.push(`wsp and ${copy} come off ${name}, which is otherwise left as it is.`);
     else lines.push(`wsp comes off ${name}, which keeps ${copy} and is otherwise left as it is.`);
     if (count > 0) {
-      if (!offline || ssh !== undefined) lines.push(`Isolated checkouts and older project folders managed by wsp are deleted. Project folders outside wsp's runtime stay on ${name}.`);
+      if (!offline || ssh !== undefined) lines.push(`Isolated checkouts and older project folders managed by wsp will be deleted. Project folders outside wsp's runtime stay on ${name}.`);
       lines.push(`The records for ${threadWord(threads)} leave ${here}.`);
     }
     const projects = holding.projects ?? [];

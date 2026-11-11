@@ -1,7 +1,7 @@
 {
   "daemon/crates/wsp-daemon/src/git.rs": 1698,
   "daemon/crates/wsp-daemon/src/hosts/github.rs": 1922,
-  "daemon/crates/wsp-daemon/src/ops.rs": 1978,
+  "daemon/crates/wsp-daemon/src/ops.rs": 2022,
   "daemon/crates/wsp-runtime/src/bundle.rs": 2464,
   "daemon/crates/wsp-runtime/src/engine.rs": 2083,
   "daemon/crates/wsp-runtime/src/net.rs": 1629,
@@ -11,5 +11,6 @@
   "packages/host/src/doctor.ts": 1920,
   "packages/host/src/init.ts": 1592,
   "packages/runtime/src/serve.ts": 1981,
-  "packages/runtime/src/slates.ts": 1566
+  "packages/runtime/src/slates.ts": 1566,
+  "packages/runtime/src/threads/sessions.ts": 1510
 }

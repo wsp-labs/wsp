@@ -49,13 +49,13 @@ describe("the remove sentence", () => {
   it("names what comes off a computer that holds workspaces, and what leaves the computer the host runs on", () => {
     expect(removeTitle(hetzner)).toBe("Remove hetzner?");
     expect(removeSentence(hetzner, { workspaces: [{ name: "spoo-fix", state: "Running", threads: 2 }] }, MAC, 4.2 * 1024 ** 3)).toBe(
-      "wsp and the copy of your image (4.2 GB) come off hetzner, which is otherwise left as it is. Isolated checkouts and older project folders managed by wsp are deleted. Project folders outside wsp's runtime stay on hetzner. The records for 2 threads leave zingzy's MacBook Pro.",
+      "wsp and the copy of your image (4.2 GB) come off hetzner, which is otherwise left as it is. Isolated checkouts and older project folders managed by wsp will be deleted. Project folders outside wsp's runtime stay on hetzner. The records for 2 threads leave zingzy's MacBook Pro.",
     );
   });
 
   it("says workspaces and records in the plural above one", () => {
     expect(removeSentence(hetzner, { workspaces: [{ name: "a", state: "Running", threads: 2 }, { name: "b", state: "Running", threads: 1 }] }, MAC, 4.2 * 1024 ** 3)).toBe(
-      "wsp and the copy of your image (4.2 GB) come off hetzner, which is otherwise left as it is. Isolated checkouts and older project folders managed by wsp are deleted. Project folders outside wsp's runtime stay on hetzner. The records for 3 threads leave zingzy's MacBook Pro.",
+      "wsp and the copy of your image (4.2 GB) come off hetzner, which is otherwise left as it is. Isolated checkouts and older project folders managed by wsp will be deleted. Project folders outside wsp's runtime stay on hetzner. The records for 3 threads leave zingzy's MacBook Pro.",
     );
   });
 
@@ -82,7 +82,7 @@ describe("the remove sentence", () => {
     const studio: PlaceView = { ...hetzner, name: "studio", takesRuntime: false };
     expect(removeSentence(studio, NOTHING_HELD, MAC, 4.2 * 1024 ** 3)).toBe("wsp comes off studio, which keeps the copy of your image (4.2 GB) and is otherwise left as it is.");
     expect(removeSentence(studio, { workspaces: [{ name: "spoo-fix", state: "Running", threads: 2 }] }, MAC)).toBe(
-      "wsp comes off studio, which keeps the copy of your image and is otherwise left as it is. Isolated checkouts and older project folders managed by wsp are deleted. Project folders outside wsp's runtime stay on studio. The records for 2 threads leave zingzy's MacBook Pro.",
+      "wsp comes off studio, which keeps the copy of your image and is otherwise left as it is. Isolated checkouts and older project folders managed by wsp will be deleted. Project folders outside wsp's runtime stay on studio. The records for 2 threads leave zingzy's MacBook Pro.",
     );
   });
 
