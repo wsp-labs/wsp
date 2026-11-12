@@ -683,9 +683,8 @@ describe.runIf(SMOKE)("desktop app (built)", { timeout: 60_000 }, () => {
     const page = await windowAt(app, ONBOARDING_URL);
     await page.waitForLoadState("domcontentloaded");
     expect(await page.title()).toBe("wsp");
-    // Nothing scrolls, on any screen, at the size the app opens its windows at; a shorter window scrolls by design. The
-    // runner's screen can be smaller than that size, and the window then opens clamped to it, so the size is set here
-    // and read back.
+    // macOS clamps a window's height to its display's work area, even after setSize. The smoke checks the actual
+    // available height and keeps the no-scroll assertions for both onboarding screens.
     const opened = windowOptions(process.platform, VERSION);
     const size = { width: opened.width!, height: opened.height! };
     const pageWindow = await app.browserWindow(page);
@@ -693,7 +692,8 @@ describe.runIf(SMOKE)("desktop app (built)", { timeout: 60_000 }, () => {
     const got = await pageWindow.evaluate(win => win.getSize());
     const area = await app.evaluate(({ screen }) => screen.getPrimaryDisplay().workAreaSize);
     console.info(`onboarding window: ${got.join("x")} for ${size.width}x${size.height}, screen work area ${area.width}x${area.height}`);
-    expect(got).toEqual([size.width, size.height]);
+    const height = process.platform === "darwin" ? Math.min(size.height, area.height) : size.height;
+    expect(got).toEqual([size.width, height]);
     const fits = (): Promise<boolean> => page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight && document.body.scrollHeight <= window.innerHeight);
     // The page draws with the app's stylesheet: its tokens resolve here, and the dark class is the app's own switch.
     const tokens = await page.evaluate(() => {
