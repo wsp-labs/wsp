@@ -154,7 +154,7 @@ describe("the release workflow", () => {
 
   it("builds one static daemon per target the host names, uploads each under the artifact name the host spells, and places all of them before every build", () => {
     // Each Linux binary is built natively on its own chip's runner, so the static link needs no cross toolchain.
-    const runners: Record<string, string> = { "x86_64-unknown-linux-musl": "ubuntu-24.04", "aarch64-unknown-linux-musl": "ubuntu-24.04-arm", "aarch64-apple-darwin": "macos-14", "x86_64-apple-darwin": "macos-14" };
+    const runners: Record<string, string> = { "x86_64-unknown-linux-musl": "ubuntu-24.04", "aarch64-unknown-linux-musl": "ubuntu-24.04-arm", "aarch64-apple-darwin": "macos-15", "x86_64-apple-darwin": "macos-15" };
     for (const target of DAEMON_TARGETS) {
       const row = daemonJob.slice(daemonJob.indexOf(`- target: ${target.triple}\n`));
       expect(row.length).toBeGreaterThan(0);
