@@ -13,6 +13,7 @@ import { branchDaemons, fakeLocal } from "./stub-backend.js";
 import { HOLD, leading, type Held } from "./box-fixture.js";
 import { report } from "./place-join.js";
 import { jumpClock } from "./sub-fixture.js";
+import { fakeClock } from "./fake-clock.js";
 import type { Clock } from "../src/clock.js";
 
 let root: string | undefined;
@@ -400,7 +401,7 @@ it("keeps the original idle deadline across a host restart", async () => {
 });
 
 it("idle cleanup retains ignored data and unreturned commits, explains why, and releases safe siblings", async () => {
-  const time = jumpClock(); const f = await fixture(time.clock);
+  const time = fakeClock(); const f = await fixture(time.clock);
   writeFileSync(join(f.repo, ".gitignore"), ".env\n"); git(f.repo, "add", "."); git(f.repo, "commit", "-qm", "ignore config");
   const make = (name: string) => f.rt.workspaces.create({ project: "", name, sub: { on: "hetzner" } }, f.lead);
   const a = await make("ignored work"); const b = await make("unreturned result"); const c = await make("safe sibling");
@@ -411,14 +412,16 @@ it("idle cleanup retains ignored data and unreturned commits, explains why, and 
   const leadNotices: string[] = [];
   f.rt.events.on("session.notice", e => { if (e.type === "session.notice") { notices.push(e.text); if (e.threadId === f.threadId) leadNotices.push(e.text); } });
   await expect.poll(async () => (await f.store.list(ISOLATED_GROUPS))[0]).toMatchObject({ idleSince: expect.any(Number) });
-  time.jump(31 * 60_000);
+  time.advance(31 * 60_000);
   await expect.poll(async () => (await f.rt.workspaces.get(c.id)).phase).toBe("released");
   expect((await f.rt.workspaces.get(a.id)).phase).toBe("running"); expect((await f.rt.workspaces.get(b.id)).phase).toBe("running");
   expect(f.seen.killed).toHaveLength(0); expect(notices.filter(t => /is kept:/.test(t))).toHaveLength(2);
   expect(leadNotices).toEqual([]);
+  // A released sibling is visible before the sweep has finished and armed its retry.
+  await expect.poll(() => time.dueFor(time.clock.now() + 60_000)).toBe(true);
   writeFileSync(join(a.sub!.folder, "file"), "stashed after first cleanup");
   git(a.sub!.folder, "-c", "user.name=Test", "-c", "user.email=test@example.com", "stash", "push", "-m", "later reason");
-  time.jump(2 * 60_000);
+  time.advance(2 * 60_000);
   await expect.poll(async () => await f.store.get("workspaces", a.id)).toMatchObject({ isolated: { held: expect.stringMatching(/stashed/) } });
   expect(notices.filter(t => /is kept:/.test(t))).toHaveLength(2);
   expect(leadNotices).toEqual([]);

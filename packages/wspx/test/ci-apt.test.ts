@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { writeStub } from "../../protocol/test/stub-script.js";
 
-it.each([false, true])("repairs runner package sources with a failed DNS lookup of %s", failedDns => {
+it.each([{ failedDns: false, prepareOnly: false }, { failedDns: true, prepareOnly: false }, { failedDns: true, prepareOnly: true }])("repairs runner package access for %j", ({ failedDns, prepareOnly }) => {
   const root = mkdtempSync(join(tmpdir(), "wsp-ci-apt-"));
   try {
     const apt = join(root, "apt");
@@ -31,7 +31,7 @@ it.each([false, true])("repairs runner package sources with a failed DNS lookup 
     const script = join(root, "install.sh");
     // Run the actual script against fixture configuration, with no sudo or network access.
     writeFileSync(script, readFileSync(new URL("../../../scripts/ci-apt.sh", import.meta.url), "utf8").replaceAll("/etc/apt", apt));
-    const ran = spawnSync("bash", [script, "musl-tools", "gperf"], { cwd: root, env: { GITHUB_ACTIONS: "true", PATH: `${bin}:${process.env["PATH"] ?? ""}` }, encoding: "utf8" });
+    const ran = spawnSync("bash", [script, ...(prepareOnly ? [] : ["musl-tools", "gperf"])], { cwd: root, env: { GITHUB_ACTIONS: "true", PATH: `${bin}:${process.env["PATH"] ?? ""}` }, encoding: "utf8" });
     expect(ran.status, ran.stderr).toBe(0);
     expect(readFileSync(mirror, "utf8")).not.toContain("azure.archive.ubuntu.com");
     expect(readFileSync(direct, "utf8")).toBe("deb https://archive.ubuntu.com/ubuntu noble main\n");
@@ -39,7 +39,7 @@ it.each([false, true])("repairs runner package sources with a failed DNS lookup 
     expect(readFileSync(ports, "utf8")).toBe(arm);
     expect(readFileSync(join(root, "calls"), "utf8").trim().split("\n")).toEqual([
       "-o Acquire::Retries=3 -o APT::Update::Error-Mode=any update",
-      "-o Acquire::Retries=3 install -y --no-install-recommends musl-tools gperf",
+      ...(prepareOnly ? [] : ["-o Acquire::Retries=3 install -y --no-install-recommends musl-tools gperf"]),
     ]);
     if (failedDns) expect(readFileSync(join(root, "resolver-calls"), "utf8").trim().split("\n")).toEqual(["dns eth0 1.1.1.1 8.8.8.8", "domain eth0 ~.", "flush-caches"]);
     else expect(existsSync(join(root, "resolver-calls"))).toBe(false);

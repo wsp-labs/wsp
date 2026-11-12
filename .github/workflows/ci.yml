@@ -253,6 +253,8 @@ jobs:
           name: build
           path: ${{ runner.temp }}
       - run: tar -xf "$RUNNER_TEMP/build.tar"
+      - name: Prepare Ubuntu package access
+        run: bash scripts/ci-apt.sh
       - name: Chromium
         run: pnpm --filter @wsp/web exec playwright install --with-deps chromium
       - name: Render tests

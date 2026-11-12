@@ -22,4 +22,6 @@ for source in /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.li
   sudo rm -f "$source.bak"
 done
 sudo apt-get -o Acquire::Retries=3 -o APT::Update::Error-Mode=any update
-sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends "$@"
+if [ "$#" -gt 0 ]; then
+  sudo apt-get -o Acquire::Retries=3 install -y --no-install-recommends "$@"
+fi

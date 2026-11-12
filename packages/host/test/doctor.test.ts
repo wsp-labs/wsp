@@ -1421,11 +1421,11 @@ describe("deployScript", () => {
   };
 
   it("a machine with no systemctl stops the ask there, the guard's own exit and not the shell's", () => {
-    const lines = preflightScript(sshDaemonPlace({ home: "/home/maya", path: "/usr/bin" })).split("\n");
+    const empty = tmp("wsp-deploy-guard-");
+    const lines = preflightScript(sshDaemonPlace({ home: "/home/maya", path: empty })).split("\n");
     const guard = lines.findIndex(line => line.includes(machineLacksShort(NO_SYSTEMD_LINE)));
     expect(guard).toBeGreaterThan(-1);
-    // An empty folder is the whole PATH the fragment is given; what the script itself exports is the guest's own.
-    const empty = tmp("wsp-deploy-guard-");
+    // Both recorded and ambient paths describe a computer without systemctl.
     try {
       for (const fragment of [lines.slice(0, guard + 1), lines.slice(guard, guard + 1)]) {
         const ran = guardRuns(fragment, empty);
