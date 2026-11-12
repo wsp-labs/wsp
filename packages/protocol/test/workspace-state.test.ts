@@ -195,16 +195,16 @@ describe("what a workspace's kind changes about its words", () => {
   it("a machine wsp drives has a state, a bill and an image; this computer has none of the three and its row reads its own size", () => {
     // access is what a thread here runs at when nobody names one: a fork costs a rebuild and nothing else, and this
     // computer is the person's own, so both run every action; the computers somebody owns and works on ask first.
-    expect(kindWords("cloud")).toEqual({ machine: MACHINE_WSP_FORKS, rowReadsMachine: true, cpu: "vCPU", where: "a provider", driven: true, daemon: true, metrics: "daemon", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: false, inFolder: false, agents: true, onDelete: { asked: "computer is deleted in the cloud", done: expect.any(Function) } });
+    expect(kindWords("cloud")).toEqual({ isolatedChildren: false, machine: MACHINE_WSP_FORKS, rowReadsMachine: true, cpu: "vCPU", where: "a provider", driven: true, daemon: true, metrics: "daemon", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: false, inFolder: false, agents: true, onDelete: { asked: "computer is deleted in the cloud", done: expect.any(Function) } });
     // This computer's load is read where it runs, in the host's own process, so its Live rows stand whether or not
     // the daemon its terminal and its processes ride ever started. A folder is
     // already on this computer, so an import registers its path and copies nothing, and a repo is cloned into a
     // folder the person names and worked there. Its row's second line is its
     // cores and memory in the size line a fork's row reads, in its own word for a cpu, since its cores are not virtual.
-    expect(kindWords("local")).toEqual({ machine: THIS_COMPUTER, rowReadsMachine: true, cpu: "cores", where: THIS_COMPUTER, driven: false, daemon: true, metrics: "host", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: true, inFolder: true, agents: true, onDelete: { asked: "computer is left as it is", done: expect.any(Function) } });
+    expect(kindWords("local")).toEqual({ isolatedChildren: true, machine: THIS_COMPUTER, rowReadsMachine: true, cpu: "cores", where: THIS_COMPUTER, driven: false, daemon: true, metrics: "host", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: true, inFolder: true, agents: true, onDelete: { asked: "computer is left as it is", done: expect.any(Function) } });
     // A folder on a computer the person joined: its threads run in it as they do here, and nothing is driven, copied
     // or billed; its row reads the computer's own name, since its size is that computer's.
-    expect(kindWords("place")).toEqual({ machine: JOINED_COMPUTER, rowReadsMachine: false, cpu: "cores", where: null, driven: false, daemon: true, metrics: "daemon", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: false, inFolder: true, agents: true, onDelete: { asked: "computer is left as it is", done: expect.any(Function) } });
+    expect(kindWords("place")).toEqual({ isolatedChildren: true, machine: JOINED_COMPUTER, rowReadsMachine: false, cpu: "cores", where: null, driven: false, daemon: true, metrics: "daemon", processes: "daemon", projectSources: ["git", "github", "gitlab", "folder"], copiesFolder: false, inFolder: true, agents: true, onDelete: { asked: "computer is left as it is", done: expect.any(Function) } });
     // The machines wsp forks and this computer run agents that drive this host, each over its own road.
     expect(agentsMayDrive("cloud")).toBe(true);
     expect(agentsMayDrive("local")).toBe(true);
@@ -241,7 +241,7 @@ describe("what a workspace's kind changes about its words", () => {
   });
 
   it("every kind has a row in the table, so adding one is a row here and nothing else", () => {
-    expect(Object.keys(WORKSPACE_KIND_WORDS).sort()).toEqual(["cloud", "local", "place"]);
+    expect(Object.keys(WORKSPACE_KIND_WORDS).sort()).toEqual(["cloud", "isolated", "local", "place"]);
   });
 
   it("the delete sentence says what the delete does to this kind's computer", () => {

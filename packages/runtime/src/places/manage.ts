@@ -654,7 +654,7 @@ export function manageDoor(ctx: PlaceDoorContext, recordArea: PlaceRecordsArea, 
       const projects = (await recording.projectsOn(placeId)).flatMap(p => runtimeProjectOf(p.checkout) ?? []);
       const force = ask.force === true || (read && held.report.takesRuntime !== undefined);
       // The forks and the projects go first, each by its own road, over the link and the login the sweep then takes.
-      const went = holds.away === true ? await recording.forgetOn(placeId) : await recording.dropOn(placeId);
+      const went = holds.away === true ? await recording.forgetOn(placeId) : await recording.dropOn(placeId, ask.force === true);
       // Before either road sweeps: a plugin comes off by its agent's own command, which may sit in the install folder
       // the sweep takes, and nothing on that computer knows which plugins were wsp's.
       const plugins = await pluginsOff(placeId, held, reach !== undefined, stands ? login : undefined, sudoPassword);

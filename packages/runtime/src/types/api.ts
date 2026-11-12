@@ -204,7 +204,8 @@ export interface Runtime {
      * written again so the next reach opens it. The runtime runs it by itself when a machine's daemon is older than
      * this wsp. Throws on a workspace that is not running or a runtime without the deploy. */
     updateDaemon(id: string, origin?: Caller): Promise<void>;
-    delete(id: string, origin?: Caller): Promise<void>;
+    /** Discard is internal to an owner-confirmed whole-computer removal; thread callers cannot request it. */
+    delete(id: string, origin?: Caller, options?: { discard?: boolean }): Promise<void>;
     /** Drops a workspace whose machine the provider no longer has: its record, transcripts and sessions go and nothing
      * is asked of the provider. Refused with the reason (kind conflict) while the machine still exists. */
     forget(id: string, origin?: Caller): Promise<void>;

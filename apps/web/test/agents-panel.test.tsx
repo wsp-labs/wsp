@@ -483,6 +483,8 @@ describe("an item's page", () => {
       ["Headers", "Authorization"],
       ["Config location", "~/.codex/config.toml"],
       ["", "~/.claude.json"],
+      ["Codex", W.on],
+      ["Claude Code", W.noSwitch("Claude Code")],
     ]);
     expect([...panel().querySelectorAll<HTMLElement>("[data-settings-line^=fact-config-] [data-k=kind-status]")].map(s => s.textContent)).toEqual(["Not checked", "Needs sign-in"]);
     expect([...panel().querySelectorAll("[data-settings-line^=fact-config-] [data-harness-mark]")].map(m => m.getAttribute("data-harness-mark"))).toEqual(["codex", "claude"]);

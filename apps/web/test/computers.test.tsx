@@ -233,7 +233,7 @@ describe("the Computers list", () => {
     expect(useSettingsStore.getState().reads.setup?.keys["box"]).toBe(true);
   });
 
-  it("reads the state cell in one order, each a mark with its sentence on the hover: blocked, a setup that failed or waits on the person, not answering, the setup running, the daemon behind, a sign-in, then Ready", async () => {
+  it("reads the state cell in one order, each a mark with its sentence on the hover: blocked, a setup that failed or waits on the person, not answering, the setup running, the daemon behind, then Ready", async () => {
     const running: PlaceSetup = { state: "running", addId: "a_1", startedAt: AT, steps: [{ step: "clis", state: "running" }], waiting: [] };
     const failed: PlaceSetup = { state: "failed", addId: "a_1", startedAt: AT, finishedAt: AT, steps: [{ step: "floor", state: "failed" }], waiting: [], said: "the base tools did not install: curl" };
     const stuck = { ...box, id: "p_stuck", name: "stuck", blocked: "its login cannot run docker", setup: running };
@@ -254,11 +254,11 @@ describe("the Computers list", () => {
     // Behind with no road to update reads the word; the button stands only where a press can go.
     expect(stateOf("p_old")).toBe("Behind");
     expect(listRow("p_old").getAttribute("title")).toBe(placeDaemonBehind(behind));
-    expect(listRow("p_sign").querySelector("[data-k='sign-in']")?.textContent).toBe("Sign in");
-    expect(listRow("p_sign").getAttribute("title")).toBe("needs a sign-in: Codex");
+    expect(listRow("p_sign").querySelector("[data-k='sign-in']")).toBeNull();
+    expect(listRow("p_sign").getAttribute("title")).not.toBe("needs a sign-in: Codex");
     expect([stateOf("p_2"), markOf("p_2")]).toEqual(["", null]);
     // Sign in goes to the computer's page, whose agent rows carry each one's own.
-    fireEvent.click(listRow("p_sign").querySelector("[data-k='sign-in']")!);
+    fireEvent.click(listRow("p_sign"));
     expect(pageAt()).toBe("computer:p_sign");
   });
 
@@ -698,7 +698,7 @@ describe("a computer's own page", () => {
     expect(document.querySelector("[data-k='remove-note']")?.textContent).toBe(WHERE_WORDS.removeDescription("old-macbook", MAC));
     fireEvent.click(document.querySelector("[data-settings-page] [data-k='remove']")!);
     expect(screen.getByText("Remove old-macbook?")).toBeTruthy();
-    expect(document.querySelector("[data-k='remove-sentence']")?.textContent).toBe("old-macbook is offline, so nothing comes off it: run wsp leave on that computer once it is back. The task's record and 2 threads leave zingzy's MacBook Pro.");
+    expect(document.querySelector("[data-k='remove-sentence']")?.textContent).toBe("old-macbook is offline, so nothing comes off it: run wsp leave on that computer once it is back. The records for 2 threads leave zingzy's MacBook Pro.");
     expect(document.querySelector("[data-k='leave-line']")?.textContent).toBe(PLACES_WORDS.remove.leaveLine);
     expect(document.querySelector("[data-remove-place-dialog]")?.textContent).toContain(imageCopyLine());
     fireEvent.click(document.querySelector("[data-k='remove-confirm']")!);
@@ -833,11 +833,11 @@ describe("a computer's own page", () => {
     land();
     await waitFor(() => expect(document.querySelector("[data-k='unsaved']")).not.toBeNull());
     const note = document.querySelector("[data-k='unsaved']")!;
-    expect(note.textContent).toContain(placeUnsavedRefusal("old-macbook", unsaved).said);
+    for (const line of unsaved) expect(note.textContent).toContain(line);
     expect(note.textContent).toContain(WHERE_WORDS.unsavedFix);
     // A note at rest, in the muted ink, kept to the slot's two lines: the refusal ink is the host's refusal alone.
     expect(note.closest(".text-muted-foreground")).not.toBeNull();
-    expect(note.className).toContain("max-h-9");
+    expect(note.className).toContain("max-h-40");
     expect(document.querySelector("[data-k='remove-confirm']")?.textContent).toBe(WHERE_WORDS.removeAnyway);
     fireEvent.click(document.querySelector("[data-k='remove-confirm']")!);
     await waitFor(() => expect(forced).toEqual([true]));

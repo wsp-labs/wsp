@@ -7,7 +7,6 @@
 // fmtRate) and are not copied here.
 import type { MarkState } from "../components/status/markState.js";
 import { FREE_WORD, JOINED_COMPUTER, PLACE_LEAVE_LINE, placeAwayRefusal, placeForgetLine, providerImagesLine, providerImagesLeftLine, type PlaceHolds, hereName, syncLine, isHere, isProviderPlace, subThreadsOnly, workspaceWord, placeName, placeOf, absentComputer, placeDaemonBehind, awayMsOf, chargesNothing, daemonSilent, fmtBytes, fmtRate, imageCopyLine, isLocalWorkspace, landsOn, namesPlace, ownDaemonDown, plural, placeWord, SETUP_WORDS, type AbsentComputer, type InitSetup, type PlaceKind, type PlaceProvisionRow, type PlaceView, type ProjectView, type SealedImageCopy, type WorkspaceStatus, type WorkspaceView } from "@wsp/protocol";
-import { agentName } from "@wsp/catalog";
 import { PLACE_STATE_WORDS, PROVISION_OUTCOME_WORDS, WHERE_WORDS, capitalised } from "./format.js";
 
 export { hereName, isHere, isProviderPlace, placeName, placeOf };
@@ -48,7 +47,6 @@ export function removeSentence(place: PlaceView, holding: PlaceHolding, here: st
   if (here === "") return "";
   const count = holding.workspaces.length;
   const threads = heldThreads(holding);
-  const held = count === 1 ? "its task" : `its ${count} tasks`;
   const name = placeName(place);
   const offline = !isProviderPlace(place) && placeIsOffline(place);
   const ssh = place.road?.ssh;
@@ -66,9 +64,12 @@ export function removeSentence(place: PlaceView, holding: PlaceHolding, here: st
   } else {
     const copy = imageCopyLine(imageBytes === undefined ? undefined : fmtBytes(imageBytes));
     if (offline && ssh === undefined) lines.push(`${name} is offline, so nothing comes off it: run ${PLACE_LEAVE_LINE} on that computer once it is back.`);
-    else if (place.takesRuntime === true) lines.push(count === 0 ? `wsp and ${copy} come off ${name}, which is otherwise left as it is.` : `wsp, ${held} and ${copy} come off ${name}, which is otherwise left as it is.`);
-    else lines.push(`${count === 0 ? "wsp comes" : `wsp and ${held} come`} off ${name}, which keeps ${copy} and is otherwise left as it is.`);
-    if (count > 0) lines.push(`${count === 1 ? "The task's record" : "The tasks' records"} and ${threadWord(threads)} leave ${here}.`);
+    else if (place.takesRuntime === true) lines.push(`wsp and ${copy} come off ${name}, which is otherwise left as it is.`);
+    else lines.push(`wsp comes off ${name}, which keeps ${copy} and is otherwise left as it is.`);
+    if (count > 0) {
+      if (!offline || ssh !== undefined) lines.push(`Isolated checkouts and older project folders managed by wsp will be deleted. Project folders outside wsp's runtime stay on ${name}.`);
+      lines.push(`The records for ${threadWord(threads)} leave ${here}.`);
+    }
     const projects = holding.projects ?? [];
     if (projects.length > 0) lines.push(`${projects.length === 1 ? "Its project" : `Its ${projects.length} projects`} ${projects.join(", ")} ${projects.length === 1 ? "leaves" : "leave"} ${here}.`);
   }
@@ -183,8 +184,6 @@ export function placeStateCell(place: PlaceView, absent: AbsentComputer | null, 
   if (place.sync !== undefined) return { kind: "word", word: PLACE_STATE_WORDS.behind, why: syncLine(place.sync), ...(place.sync.state === "running" ? { mark: "working" as const } : {}) };
   const behind = placeDaemonBehind(place);
   if (behind !== undefined) return canUpdate ? { kind: "update", why: behind } : { kind: "word", word: PLACE_STATE_WORDS.behind, why: behind };
-  const unsigned = Object.entries(place.signIns ?? {}).flatMap(([agent, state]) => (state === "none" ? [agentName(agent)] : []));
-  if (unsigned.length > 0) return { kind: "sign-in", why: PLACE_STATE_WORDS.needsSignIn(unsigned) };
   return { kind: "word", word: PLACE_STATE_WORDS.ready, mark: "ready" };
 }
 

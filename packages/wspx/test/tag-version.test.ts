@@ -148,24 +148,24 @@ const here = ((): boolean => {
   }
 })();
 
-describe("the approved v0.3.10 hotfix line", () => {
-  it("accepts v0.3.10 from the maintained stable branch without main's later work", () => {
-    const root = fakeRepo({ "packages/wspx": { version: "0.3.10" } });
+describe("the approved stable hotfix releases", () => {
+  it.each(["0.3.10", "0.3.11"])("accepts v%s from the maintained stable branch without main's later work", approved => {
+    const root = fakeRepo({ "packages/wspx": { version: approved } });
     const hotfix = onSideBranch(root);
     git(root, "update-ref", "refs/remotes/origin/hotfix/v0.3.9-base", hotfix);
-    git(root, "tag", "v0.3.10", hotfix);
-    expect(checkTag(root, "v0.3.10", "main")).toBe("0.3.10");
+    git(root, "tag", `v${approved}`, hotfix);
+    expect(checkTag(root, `v${approved}`, "main")).toBe(approved);
     const unrelated = commit(root, "another branch's work");
-    git(root, "tag", "-f", "v0.3.10", unrelated);
-    expect(() => checkTag(root, "v0.3.10", "main~1")).toThrow(/not on main's own line/);
+    git(root, "tag", "-f", `v${approved}`, unrelated);
+    expect(() => checkTag(root, `v${approved}`, "main~1")).toThrow(/not on main's own line/);
   });
 
   it("does not authorize other versions from the hotfix branch", () => {
-    const root = fakeRepo({ "packages/wspx": { version: "0.3.11" } });
+    const root = fakeRepo({ "packages/wspx": { version: "0.3.12" } });
     const hotfix = onSideBranch(root);
     git(root, "update-ref", "refs/remotes/origin/hotfix/v0.3.9-base", hotfix);
-    git(root, "tag", "v0.3.11", hotfix);
-    expect(() => checkTag(root, "v0.3.11", "main")).toThrow(/not on main's own line/);
+    git(root, "tag", "v0.3.12", hotfix);
+    expect(() => checkTag(root, "v0.3.12", "main")).toThrow(/not on main's own line/);
   });
 });
 

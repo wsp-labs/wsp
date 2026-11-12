@@ -104,7 +104,7 @@ describe("the release workflow", () => {
     const draftJob = workflow.slice(workflow.indexOf("\n  draft:\n"), workflow.indexOf("\n  mac:\n"));
     expect(draftJob).toContain("git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main");
     expect(draftJob).toContain('node packages/wspx/scripts/tag-version.mjs "$GITHUB_REF_NAME"');
-    expect(draftJob).toContain('if [ "$GITHUB_REF_NAME" = v0.3.10 ]; then');
+    expect(draftJob).toContain('if [ "$GITHUB_REF_NAME" = v0.3.10 ] || [ "$GITHUB_REF_NAME" = v0.3.11 ]; then');
     expect(draftJob).toContain("git fetch --no-tags origin +refs/heads/hotfix/v0.3.9-base:refs/remotes/origin/hotfix/v0.3.9-base");
     // Every job that drafts, builds, publishes or flips waits on that check.
     for (const job of bundleJobs) expect(job).toContain("needs: [draft, daemon]");

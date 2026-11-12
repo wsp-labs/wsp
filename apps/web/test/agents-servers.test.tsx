@@ -299,3 +299,22 @@ describe("Turn off, turn on and Remove", () => {
     ]);
   });
 });
+
+
+it("keeps a supported agent's MCP switch available when the same server is also configured for Claude", () => {
+  const h = host();
+  render(<List />); tab("Tool servers"); openRow(SERVER.notion);
+  const toggle = within(panel()).getByRole("button", { name: "Turn off for Codex" });
+  fireEvent.click(toggle);
+  expect(h.toggles).toEqual([[{ agent: "codex", name: "notion", scope: "user" }, false]]);
+  expect(panel().textContent).toContain("Claude Code turns a server off per folder");
+});
+
+it("offers no saved configuration switch for launch-only servers", () => {
+  const h = host();
+  const report: AgentsReport = { ...AGENTS_REPORT, servers: AGENTS_REPORT.servers.map(row => ({ ...row, launch: true, file: undefined })) };
+  render(<List report={report} />); tab("Tool servers"); openRow(SERVER.notion);
+  expect(within(panel()).queryByRole("button", { name: "Turn off for Codex" })).toBeNull();
+  expect(turn()).toBeNull();
+  expect(h.toggles).toEqual([]);
+});

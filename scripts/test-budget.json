@@ -34,7 +34,9 @@
     {"package":"packages/runtime","tests":3453,"why":"21 connected-child regressions exercise real checkout transfer and branch return, concurrent shared compute, separate leads, failed starts and cleanup, and host restart reconciliation, including a failed restart becoming terminal in the shared startup view"},
     {"package":"packages/runtime","tests":3457,"why":"four review regressions cover lead deletion, single-thread isolated checkouts, preserving legacy sibling conversations and refusing incomplete submodule transfer"},
     {"package":"packages/runtime","tests":3469,"why":"twelve idle-cleanup regressions cover deadline expiry and reset, active siblings, restart recovery, retained work and folders, failed deletion retries, resumed conversations, allocation across an idle deadline, nested return dependencies, preserving stashes and saved branch commits, and releasing a reopened checkout after its source advances"},
-    {"package":"packages/wspx","tests":146,"why":"two release-tag regressions authorize only v0.3.10 on the maintained stable hotfix line and keep other versions and unrelated commits refused"}
+    {"package":"packages/wspx","tests":150,"why":"release-tag regressions authorize only v0.3.10 and v0.3.11 on the maintained stable line; runner dependency regressions cover healthy DNS, failed DNS and package preparation for browser tests without network access"},
+    {"package":"packages/host","tests":3630,"why":"SSH setup regression exercises a Homebrew Node hidden from sudo PATH and launches the installed CLI under an empty ambient path"},
+    {"package":"packages/runtime","tests":3471,"why":"whole-computer forced removal needs real-files regressions for dirty isolated siblings, owner-only discard, source preservation and a held-transfer race"}
   ],
   "timed": {}
 }

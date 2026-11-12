@@ -174,9 +174,10 @@ describe("search off the index", () => {
 
 describe("a send read off the index", () => {
   it("resumes a thread whose rows fell off the index cap in its session and folder, without opening its transcript", async () => {
+    const backend = stubBackend();
     const { store, reads } = countingStore();
     const first = replying(() => "ok");
-    const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: first.adapter } });
+    const rt = createRuntime({ backend, store, adapters: { claude: first.adapter } });
     const ws = await createOn(rt, { golden: "snap_g", name: "a" });
     const opened = await rt.sessions.start(ws.id, { prompt: "start", cwd: "/root/app/sub" });
     await opened.finished;
@@ -195,7 +196,7 @@ describe("a send read off the index", () => {
       const harness = next.adapter(...args);
       return { ...harness, start: o => ((atStart = reads()), harness.start(o)) };
     };
-    const after = createRuntime({ backend: stubBackend(), store, adapters: { claude: counted } });
+    const after = createRuntime({ backend, store, adapters: { claude: counted } });
     await (await after.sessions.start(ws.id, { prompt: "more", thread: threadId })).finished;
     expect(next.starts[0]).toMatchObject({ resume: session, cwd: "/root/app/sub" });
     expect(atStart).toBe(before);
@@ -308,6 +309,7 @@ describe("an index file that does not parse", () => {
 
 describe("an index write", () => {
   it("that fails leaves nothing to be written twice, and boot reads that transcript again", async () => {
+    const backend = stubBackend();
     const inner = memoryStore();
     let failIndex = false;
     const store: Store = {
@@ -321,7 +323,7 @@ describe("an index write", () => {
       },
     };
     const { adapter } = replying(p => `reply to ${p}`);
-    const rt = createRuntime({ backend: stubBackend(), store, adapters: { claude: adapter } });
+    const rt = createRuntime({ backend, store, adapters: { claude: adapter } });
     const ws = await createOn(rt, { golden: "snap_g", name: "a" });
     await (await rt.sessions.start(ws.id, { prompt: "one" })).finished;
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -332,7 +334,7 @@ describe("an index write", () => {
     await rt.close();
     const texts = async (runtime: typeof rt): Promise<string[]> => (await runtime.sessions.history(ws.id)).flatMap(e => (e.type === "session.delta" && e.kind === "text" ? [e.text] : []));
 
-    const after = createRuntime({ backend: stubBackend(), store, adapters: { claude: adapter } });
+    const after = createRuntime({ backend, store, adapters: { claude: adapter } });
     await (await after.sessions.start(ws.id, { prompt: "three" })).finished;
     expect((await texts(after)).join("")).toBe("reply to onereply to tworeply to three");
     await after.close();
