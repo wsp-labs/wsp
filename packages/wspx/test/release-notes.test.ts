@@ -7,7 +7,7 @@ import { bundleNames, classicNames } from "../../protocol/src/bundles.mjs";
 import { BOX_API_URL } from "../../engine/src/box-backend.js";
 import { BOAT_MOVED, BOAT_SUNSET, PERMISSIONS_AGAIN, bundleNote, changeLines, cliArgs, previousTag, releaseNotes, renameNote } from "../scripts/release-notes.mjs";
 
-const readme = readFileSync(fileURLToPath(new URL("../../../README.md", import.meta.url)), "utf8");
+const releaseGuide = readFileSync(fileURLToPath(new URL("../../../docs/release.md", import.meta.url)), "utf8");
 const published = JSON.parse(readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8")).name as string;
 
 const FAKE_LOG = [
@@ -19,7 +19,7 @@ const FAKE_LOG = [
 ];
 
 function notes(signed = false): string {
-  return releaseNotes({ version: "0.1.4", previous: "v0.1.3", changes: changeLines(FAKE_LOG), bundles: bundleNote(readme, signed), signed });
+  return releaseNotes({ version: "0.1.4", previous: "v0.1.3", changes: changeLines(FAKE_LOG), bundles: bundleNote(releaseGuide, signed), signed });
 }
 
 describe("what the draft job can load", () => {
@@ -84,17 +84,17 @@ describe("the change list", () => {
 });
 
 describe("the lines about opening a downloaded bundle", () => {
-  it("come out of the README, so the page and the notes cannot drift", () => {
-    expect(bundleNote(readme, false)).toContain("not signed yet");
-    expect(bundleNote(readme, false)).toContain("Open Anyway");
-    expect(bundleNote(readme, false)).toContain("drag wsp onto the Applications folder");
-    expect(bundleNote(readme, false)).toContain("chmod +x");
-    expect(bundleNote(readme, false)).toContain("install `fuse3`");
-    expect(bundleNote(readme, false)).not.toContain("<!--");
+  it("come out of the release guide, so the page and the notes cannot drift", () => {
+    expect(bundleNote(releaseGuide, false)).toContain("not signed yet");
+    expect(bundleNote(releaseGuide, false)).toContain("Open Anyway");
+    expect(bundleNote(releaseGuide, false)).toContain("drag wsp onto the Applications folder");
+    expect(bundleNote(releaseGuide, false)).toContain("chmod +x");
+    expect(bundleNote(releaseGuide, false)).toContain("install `fuse3`");
+    expect(bundleNote(releaseGuide, false)).not.toContain("<!--");
   });
 
   it("say what starts the AppImage, since a double-click on Ubuntu's desktop hands it to Disk Image Mounter, which mounts it instead", () => {
-    const note = bundleNote(readme, false);
+    const note = bundleNote(releaseGuide, false);
     expect(note).toContain("A double-click on its icon on Ubuntu's desktop does not start it");
     expect(note).toContain("chmod +x wsp-*.AppImage && ./wsp-*.AppImage");
     expect(note).toContain("Run as a program");
@@ -102,7 +102,7 @@ describe("the lines about opening a downloaded bundle", () => {
   });
 
   it("drop the paragraph on unsigned bundles once an identity signs them, and keep the rest", () => {
-    const signed = bundleNote(readme, true);
+    const signed = bundleNote(releaseGuide, true);
     expect(signed).not.toContain("not signed yet");
     expect(signed).not.toContain("Open Anyway");
     expect(signed).toContain("### Opening a downloaded bundle\n\nOpen the macOS disk image");
@@ -110,19 +110,19 @@ describe("the lines about opening a downloaded bundle", () => {
     expect(signed).not.toContain("<!--");
   });
 
-  it("are the same lines once the README no longer carries the paragraph", () => {
+  it("are the same lines once the release guide no longer carries the paragraph", () => {
     const later = "<!-- bundles:start -->\n### Opening a downloaded bundle\n\nThe Linux AppImage needs the run bit.\n<!-- bundles:end -->\n";
     expect(bundleNote(later, false)).toBe(bundleNote(later, true));
   });
 
-  it("say so when the README no longer marks them", () => {
+  it("say so when the release guide no longer marks them", () => {
     expect(() => bundleNote("# wsp\n\nno markers here\n", false)).toThrow(/no bundles:start and bundles:end markers/);
   });
 });
 
 describe("what a release that renamed things says", () => {
-  it("is the README's own block, lifted whole and printed above the change lines", () => {
-    const note = renameNote(readme);
+  it("is the release guide's own block, lifted whole and printed above the change lines", () => {
+    const note = renameNote(releaseGuide);
     expect(note).toBeDefined();
     expect(note).toContain("Renamed in");
     expect(note).toContain("wsp run <project>");
@@ -131,7 +131,7 @@ describe("what a release that renamed things says", () => {
     for (const old of ["wsp thread new", "thread_new", "--to <workspace>", "wsp threads --in", "wsp new --local", "wsp new --ssh", "wsp pair", "wsp connect", "wsp hosts", "wsp disconnect", "wsp relay link", "wsp relay hosts"]) {
       expect(note, old).toContain(old);
     }
-    const printed = releaseNotes({ version: "0.1.4", previous: "v0.1.3", changes: changeLines(FAKE_LOG), bundles: bundleNote(readme, false), renames: note! });
+    const printed = releaseNotes({ version: "0.1.4", previous: "v0.1.3", changes: changeLines(FAKE_LOG), bundles: bundleNote(releaseGuide, false), renames: note! });
     expect(printed.indexOf(note!)).toBeGreaterThan(printed.indexOf("## What changed since v0.1.3"));
     expect(printed.indexOf(note!)).toBeLessThan(printed.indexOf("- feat(app):"));
   });
@@ -187,19 +187,19 @@ describe("the notes on the draft release", () => {
     expect(BOAT_MOVED).toContain("31 October 2026");
     expect(BOAT_MOVED).toContain("update wsp before then");
     expect(new Date(BOAT_SUNSET).toUTCString()).toBe("Sat, 31 Oct 2026 00:00:00 GMT");
-    const at = (now: number): string => releaseNotes({ version: "0.1.4", previous: "v0.1.3", changes: changeLines(FAKE_LOG), bundles: bundleNote(readme, false), now });
+    const at = (now: number): string => releaseNotes({ version: "0.1.4", previous: "v0.1.3", changes: changeLines(FAKE_LOG), bundles: bundleNote(releaseGuide, false), now });
     expect(at(Date.parse("2026-10-16T00:00:00Z"))).toContain(`## What changed since v0.1.3\n\n${BOAT_MOVED}\n`);
     expect(at(BOAT_SUNSET)).not.toContain(BOAT_MOVED);
   });
 
-  it("carry the README's lines on opening a downloaded bundle, for the signing the release got", () => {
-    expect(notes()).toContain(bundleNote(readme, false));
-    expect(notes(true)).toContain(bundleNote(readme, true));
+  it("carry the release guide's lines on opening a downloaded bundle, for the signing the release got", () => {
+    expect(notes()).toContain(bundleNote(releaseGuide, false));
+    expect(notes(true)).toContain(bundleNote(releaseGuide, true));
     expect(notes(true)).not.toContain("Open Anyway");
   });
 
   it("say it is the first release when there is no tag before it", () => {
-    const first = releaseNotes({ version: "0.1.3", previous: undefined, changes: [], bundles: bundleNote(readme, false) });
+    const first = releaseNotes({ version: "0.1.3", previous: undefined, changes: [], bundles: bundleNote(releaseGuide, false) });
     expect(first).toContain("## What changed\n");
     expect(first).toContain("- The first release.");
   });

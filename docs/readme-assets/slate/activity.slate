@@ -1,0 +1,10 @@
+<slate title="Computer activity">
+  <value name="history" start={[{at:1,cpu:18},{at:2,cpu:32},{at:3,cpu:26},{at:4,cpu:58},{at:5,cpu:41},{at:6,cpu:63},{at:7,cpu:36},{at:8,cpu:44}]} />
+  <value name="computers" start={[{name:"MacBook Pro",cpu:"22%",threads:2},{name:"hetzner",cpu:"44%",threads:3},{name:"thinkpad",cpu:"18%",threads:1},{name:"gpu-box",cpu:"31%",threads:1}]} />
+  <column gap="normal" pad="none">
+    <row gap="normal"><number label="Active threads" value={7} /><number label="Computers" value={4} /></row>
+    <chart label="CPU on hetzner" items={$history} x={item.at} value={item.cpu} unit="%" tone="accent" height="normal" />
+    <table items={$computers}><col title="Computer" value={item.name} /><col title="CPU" value={item.cpu} /><col title="Threads" value={item.threads} /></table>
+    <status value="All computers are connected" tone="good" />
+  </column>
+</slate>

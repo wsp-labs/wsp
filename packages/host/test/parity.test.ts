@@ -415,8 +415,9 @@ describe("the command line, the MCP tools and the skill are one contract", () =>
     }
   });
 
-  it("every wsp line in the README parses, and the renames table's old lines answer nothing, so the page cannot drift from the verbs", () => {
-    const readme = readFileSync(new URL("../../../README.md", import.meta.url), "utf8");
+  it("every wsp line in the README and release guide parses, and the renames table's old lines answer nothing, so the page cannot drift from the verbs", () => {
+    const releaseGuide = readFileSync(new URL("../../../docs/release.md", import.meta.url), "utf8");
+    const readme = readFileSync(new URL("../../../README.md", import.meta.url), "utf8") + "\n" + releaseGuide.slice(releaseGuide.indexOf("<!-- bundles:start -->"));
     const renames = /<!-- renames:start -->\n([\s\S]*?)<!-- renames:end -->/.exec(readme)?.[1] ?? "";
     // The left column is what an older release took, kept for a person who types one; every other line works today.
     const was = [...renames.matchAll(/^\| (.+?) \| .+ \|$/gm)].map(m => m[1]!).filter(cell => !/^-+$/.test(cell) && cell !== "was");
